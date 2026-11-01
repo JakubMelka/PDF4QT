@@ -20,6 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include "pdfdocumentbuilder.h"
 #include "pdfdocumenttool.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttoolparameter.h"
@@ -216,6 +217,15 @@ private Q_SLOTS:
 
     void catalogExtendedInterface();
     void catalogExtendedData();
+    void catalogResultColumns();
+    void catalogPermissions();
+    void catalogHelpTopics();
+    void contextFromSnapshot();
+    void progressPhases();
+    void progressAdapter();
+    void parameterStored();
+    void resultOutputFiles();
+    void finalPreview();
     void suggestionsInterface();
     void suggestionsO21();
     void suggestionsHostilePairs();
@@ -269,6 +279,441 @@ void DocumentToolTest::catalogExtendedInterface()
     }
     QVERIFY(!pdf::PDFDocumentToolCatalog::findExtendedData(u"unknown.tool"));
     QVERIFY(!pdf::PDFDocumentToolCatalog::findExtendedData(QString(1000, QLatin1Char('a'))));
+}
+
+void DocumentToolTest::catalogResultColumns()
+{
+    using Preselected = pdf::PDFDocumentToolPreselectedResult;
+    using Signature = pdf::PDFDocumentToolSignatureImpact;
+    using Result = pdf::PDFDocumentToolResultKind;
+
+    // Choices different from the default of the kind: tools.md 9.3 point 11 (the
+    // tools which cannot be taken back and the encryption have a copy, the tools which
+    // write only a new file have a file), the frames of Figma 296:2761 (Compress
+    // a copy), 438:14342 (Remove Hidden Data a copy), 339:9601 (Extract Text a file)
+    const std::map<QString, Preselected> preselected =
+    {
+        { QStringLiteral("optimize.compress"), Preselected::Copy },
+        { QStringLiteral("protect.sanitize"), Preselected::Copy },
+        { QStringLiteral("optimize.bitonal"), Preselected::Copy },
+        { QStringLiteral("protect.password"), Preselected::Copy },
+        { QStringLiteral("protect.permissions"), Preselected::Copy },
+        { QStringLiteral("protect.certificate-encrypt"), Preselected::Copy },
+        { QStringLiteral("protect.unlock"), Preselected::Copy },
+        { QStringLiteral("protect.redact"), Preselected::File },
+        { QStringLiteral("protect.sign"), Preselected::File },
+        { QStringLiteral("protect.timestamp"), Preselected::File },
+    };
+
+    // O31: these tools rewrite the whole file, only a copy is offered for a signed document
+    const QStringList lostCopyOnly = { QStringLiteral("optimize.compress"), QStringLiteral("optimize.structure"), QStringLiteral("protect.sanitize") };
+
+    for (const pdf::PDFDocumentToolCatalogEntry& tool : pdf::PDFDocumentToolCatalog::getTools())
+    {
+        const auto iterator = preselected.find(tool.getId());
+        if (iterator != preselected.end())
+        {
+            QCOMPARE(tool.getPreselectedResult(), iterator->second);
+        }
+        else
+        {
+            switch (tool.getResultKind())
+            {
+                case Result::ChangeDocument:
+                    QCOMPARE(tool.getPreselectedResult(), Preselected::Keep);
+                    break;
+                case Result::NewDocument:
+                    QCOMPARE(tool.getPreselectedResult(), Preselected::NewTab);
+                    break;
+                case Result::Files:
+                    QCOMPARE(tool.getPreselectedResult(), Preselected::File);
+                    break;
+                case Result::Analysis:
+                    QCOMPARE(tool.getPreselectedResult(), Preselected::None);
+                    break;
+            }
+        }
+
+        if (lostCopyOnly.contains(tool.getId()))
+        {
+            QCOMPARE(tool.getSignatureImpact(), Signature::LostCopyOnly);
+        }
+        else if (tool.getResultKind() == Result::ChangeDocument)
+        {
+            QCOMPARE(tool.getSignatureImpact(), Signature::IncrementalSave);
+        }
+        else
+        {
+            QCOMPARE(tool.getSignatureImpact(), Signature::None);
+        }
+    }
+
+    // A tool of the batch by its name: the frames name these choices
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"optimize.structure")->getPreselectedResult(), Preselected::Keep);
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"pages.rotate")->getPreselectedResult(), Preselected::Keep);
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"pages.remove")->getPreselectedResult(), Preselected::Keep);
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"protect.remove-links")->getPreselectedResult(), Preselected::Keep);
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"convert.extract-text")->getPreselectedResult(), Preselected::File);
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"pages.merge")->getPreselectedResult(), Preselected::NewTab);
+}
+
+void DocumentToolTest::catalogPermissions()
+{
+    using Permission = pdf::PDFSecurityHandler::Permission;
+    using Permissions = std::vector<Permission>;
+
+    // Chapter 7 of the plan of the first batch; a tool of the catalog outside of it
+    // asks for nothing until it is implemented. Rotate and Remove: ISO 32000-2 Table 22 -
+    // bit 11 allows to rotate and delete pages even if bit 4 is clear, so Modify or Assemble.
+    const std::map<QString, Permissions> expected =
+    {
+        { QStringLiteral("pages.rotate"), Permissions({ Permission::Modify, Permission::Assemble }) },
+        { QStringLiteral("pages.remove"), Permissions({ Permission::Modify, Permission::Assemble }) },
+        { QStringLiteral("optimize.compress"), Permissions({ Permission::Modify }) },
+        { QStringLiteral("optimize.structure"), Permissions({ Permission::Modify }) },
+        { QStringLiteral("protect.sanitize"), Permissions({ Permission::Modify }) },
+        { QStringLiteral("protect.remove-links"), Permissions({ Permission::ModifyInteractiveItems }) },
+        { QStringLiteral("convert.extract-text"), Permissions({ Permission::CopyContent }) },
+    };
+
+    for (const pdf::PDFDocumentToolCatalogEntry& tool : pdf::PDFDocumentToolCatalog::getTools())
+    {
+        const auto iterator = expected.find(tool.getId());
+        QVERIFY2(tool.getRequiredPermissions() == (iterator != expected.end() ? iterator->second : Permissions()), qPrintable(tool.getId()));
+    }
+
+    // Documents: no handler grants everything, nullptr nothing. One of the permissions is enough.
+    const pdf::PDFDocumentToolCatalogEntry* rotate = pdf::PDFDocumentToolCatalog::findTool(u"pages.rotate");
+    const pdf::PDFDocumentToolCatalogEntry* compress = pdf::PDFDocumentToolCatalog::findTool(u"optimize.compress");
+    const pdf::PDFDocumentToolCatalogEntry* statistics = pdf::PDFDocumentToolCatalog::findTool(u"review.statistics");
+    pdf::PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 100, 100));
+    const pdf::PDFDocument plain = builder.build();
+    QVERIFY(compress->isPermitted(&plain));
+    QVERIFY(!compress->isPermitted(nullptr));
+
+    class PermissionHandler : public pdf::PDFNoneSecurityHandler
+    {
+    public:
+        explicit PermissionHandler(uint32_t permissions) : m_permissions(permissions) { }
+        virtual bool isAllowed(pdf::PDFSecurityHandler::Permission permission) const override { return m_permissions & uint32_t(permission); }
+        virtual pdf::PDFSecurityHandler* clone() const override { return new PermissionHandler(m_permissions); }
+
+    private:
+        uint32_t m_permissions;
+    };
+
+    const auto createDocument = [&plain](uint32_t permissions)
+    {
+        pdf::PDFObjectStorage storage = plain.getStorage();
+        storage.setSecurityHandler(pdf::PDFSecurityHandlerPointer(new PermissionHandler(permissions)));
+        return pdf::PDFDocument(std::move(storage), pdf::PDFVersion(2, 0), QByteArray());
+    };
+
+    const pdf::PDFDocument assembleOnly = createDocument(uint32_t(Permission::Assemble));
+    const pdf::PDFDocument modifyOnly = createDocument(uint32_t(Permission::Modify));
+    const pdf::PDFDocument nothing = createDocument(0);
+    QVERIFY(rotate->isPermitted(&assembleOnly));
+    QVERIFY(rotate->isPermitted(&modifyOnly));
+    QVERIFY(!rotate->isPermitted(&nothing));
+    QVERIFY(!compress->isPermitted(&assembleOnly));
+    QVERIFY(compress->isPermitted(&modifyOnly));
+    QVERIFY(statistics->isPermitted(&nothing));
+
+    // The base class of the tools refuses a document without the permission, one tool for the GUI and MCP
+    class CompressIdTool : public pdf::PDFDocumentTool
+    {
+    public:
+        QString getId() const override { return QStringLiteral("optimize.compress"); }
+        pdf::PDFDocumentToolParameterDefinitions getParameters() const override { return { }; }
+        pdf::PDFDocumentToolResult execute(const pdf::PDFDocumentToolContext&, const QVariantMap&, const pdf::PDFOperationControl*, pdf::PDFProgress*) const override
+        {
+            ++m_executeCount;
+            return pdf::PDFDocumentToolResult();
+        }
+
+        mutable int m_executeCount = 0;
+    };
+
+    CompressIdTool tool;
+    pdf::PDFDocumentToolContext context = pdf::PDFDocumentToolContext::create(pdf::PDFDocumentToolInputDocument::create(pdf::PDFDocumentPointer(new pdf::PDFDocument(nothing)), QByteArray(), QString(), false));
+    const pdf::PDFDocumentToolResult refused = tool.run(context, QVariantMap(), nullptr, nullptr);
+    QCOMPARE(refused.status, pdf::PDFDocumentToolResultStatus::Failed);
+    QCOMPARE(tool.m_executeCount, 0);
+
+    context = pdf::PDFDocumentToolContext::create(pdf::PDFDocumentToolInputDocument::create(pdf::PDFDocumentPointer(new pdf::PDFDocument(modifyOnly)), QByteArray(), QString(), false));
+    QCOMPARE(tool.run(context, QVariantMap(), nullptr, nullptr).status, pdf::PDFDocumentToolResultStatus::Success);
+    QCOMPARE(tool.m_executeCount, 1);
+}
+
+void DocumentToolTest::catalogHelpTopics()
+{
+    // The files of the topics of the tools of the first batch (plan chapter 5)
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"optimize.compress")->getHelpTopic(), QStringLiteral("tool-optimize-compress"));
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"pages.rotate")->getHelpTopic(), QStringLiteral("tool-pages-rotate"));
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"pages.remove")->getHelpTopic(), QStringLiteral("tool-pages-remove"));
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"optimize.structure")->getHelpTopic(), QStringLiteral("tool-optimize-structure"));
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"protect.remove-links")->getHelpTopic(), QStringLiteral("tool-protect-remove-links"));
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"protect.sanitize")->getHelpTopic(), QStringLiteral("tool-protect-sanitize"));
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"convert.extract-text")->getHelpTopic(), QStringLiteral("tool-convert-extract-text"));
+}
+
+void DocumentToolTest::contextFromSnapshot()
+{
+    pdf::PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 100, 100));
+    const pdf::PDFDocumentPointer document(new pdf::PDFDocument(builder.build()));
+
+    pdf::PDFDocumentToolInputDocument input = pdf::PDFDocumentToolInputDocument::create(document, QByteArray("bytes"), QStringLiteral("C:/Folder/Sub folder/Report.final.pdf"), true);
+    QCOMPARE(input.document, document);
+    QCOMPARE(input.originalData, QByteArray("bytes"));
+    QCOMPARE(input.fileName, QStringLiteral("Report.final.pdf"));
+    QVERIFY(input.isModified);
+
+    const pdf::PDFDocumentToolContext context = pdf::PDFDocumentToolContext::create(input);
+    QCOMPARE(context.documents.size(), size_t(1));
+    QCOMPARE(context.getDocument(), document.data());
+    QVERIFY(context.selectedPages.empty());
+    QCOMPARE(context.currentPage, pdf::PDFInteger(-1));
+    QVERIFY(context.cms.isNull());
+    QVERIFY(!context.certificateStore);
+
+    // A copy without a file (Edit a Copy, an attachment from the memory)
+    QVERIFY(pdf::PDFDocumentToolInputDocument::create(document, QByteArray(), QString(), false).fileName.isEmpty());
+}
+
+void DocumentToolTest::progressPhases()
+{
+    pdf::PDFProgress target(nullptr);
+    QSignalSpy started(&target, &pdf::PDFProgress::progressStarted);
+    QSignalSpy steps(&target, &pdf::PDFProgress::progressStep);
+    QSignalSpy texts(&target, &pdf::PDFProgress::progressStepText);
+    QSignalSpy finished(&target, &pdf::PDFProgress::progressFinished);
+
+    pdf::PDFProgressPhases phases(&target, QStringLiteral("Compressing"));
+    const int first = phases.addPhase(1, QStringLiteral("First"), false);
+    const int skipped = phases.addPhase(1, QStringLiteral("Skipped"), false);
+    const int counted = phases.addPhase(2, QStringLiteral("Counted"), true);
+    const int last = phases.addPhase(0, QStringLiteral("Last"), false);
+
+    QVERIFY(phases.getPhase(-1) == nullptr);
+    QVERIFY(phases.getPhase(4) == nullptr);
+
+    // The first part: 25 %
+    pdf::PDFProgress* firstProgress = phases.getPhase(first);
+    QVERIFY(firstProgress);
+    QCOMPARE(started.count(), 1);
+    QCOMPARE(started.first().first().value<pdf::ProgressStartupInfo>().text, QStringLiteral("Compressing"));
+
+    firstProgress->start(2, pdf::ProgressStartupInfo());
+    QCOMPARE(texts.last().first().toString(), QStringLiteral("First"));
+    firstProgress->step();
+    QCOMPARE(steps.last().first().toInt(), 12);
+    firstProgress->step();
+    QCOMPARE(steps.last().first().toInt(), 25);
+    firstProgress->finish();
+    QCOMPARE(finished.count(), 0);
+
+    // The phase, which did not run, is passed: the third phase starts at 50 %
+    Q_UNUSED(skipped);
+    pdf::PDFProgress* countedProgress = phases.getPhase(counted);
+    countedProgress->start(4, pdf::ProgressStartupInfo());
+    QCOMPARE(steps.last().first().toInt(), 50);
+    const QLocale locale;
+    QCOMPARE(texts.last().first().toString(), QStringLiteral("Counted · %1 of %2").arg(locale.toString(0), locale.toString(4)));
+    countedProgress->step();
+    QCOMPARE(steps.last().first().toInt(), 62);
+    QCOMPARE(texts.last().first().toString(), QStringLiteral("Counted · %1 of %2").arg(locale.toString(1), locale.toString(4)));
+
+    // A phase without its own steps
+    phases.beginPhase(last);
+    QCOMPARE(texts.last().first().toString(), QStringLiteral("Last"));
+    QCOMPARE(steps.last().first().toInt(), 100);
+
+    // The bar never goes back; the end is reported once
+    int previous = 0;
+    for (const QList<QVariant>& step : steps)
+    {
+        QVERIFY(step.first().toInt() >= previous);
+        previous = step.first().toInt();
+    }
+    phases.finish();
+    phases.finish();
+    QCOMPARE(finished.count(), 1);
+    QCOMPARE(steps.last().first().toInt(), 100);
+
+    // Filled at the finish
+    pdf::PDFProgress shortTarget(nullptr);
+    QSignalSpy shortSteps(&shortTarget, &pdf::PDFProgress::progressStep);
+    pdf::PDFProgressPhases shortPhases(&shortTarget, QString());
+    shortPhases.addPhase(1, QStringLiteral("Only"), false);
+    shortPhases.start();
+    shortPhases.finish();
+    QCOMPARE(shortSteps.last().first().toInt(), 100);
+
+    // No target: nothing to report, a run works with the null progress
+    pdf::PDFProgressPhases noTarget(nullptr, QString());
+    const int noTargetPhase = noTarget.addPhase(1, QStringLiteral("Phase"), true);
+    noTarget.start();
+    QVERIFY(noTarget.getPhase(noTargetPhase) == nullptr);
+    noTarget.beginPhase(noTargetPhase);
+    noTarget.finish();
+
+    // Phases without a weight do not divide by zero
+    pdf::PDFProgress zeroTarget(nullptr);
+    QSignalSpy zeroSteps(&zeroTarget, &pdf::PDFProgress::progressStep);
+    pdf::PDFProgressPhases zeroPhases(&zeroTarget, QString());
+    const int zeroPhase = zeroPhases.addPhase(0, QStringLiteral("Zero"), false);
+    zeroPhases.beginPhase(zeroPhase);
+    QCOMPARE(zeroSteps.count(), 0);
+    zeroPhases.finish();
+    QCOMPARE(zeroSteps.last().first().toInt(), 100);
+}
+
+void DocumentToolTest::progressAdapter()
+{
+    class Listener : public pdf::PDFDocumentToolProgressListener
+    {
+    public:
+        QList<std::pair<int, QString>> calls;
+
+        void onToolProgress(int percentage, const QString& stepText) override
+        {
+            calls.append({ percentage, stepText });
+        }
+    };
+
+    Listener listener;
+    pdf::PDFDocumentToolProgressAdapter adapter(&listener);
+    adapter.start(2, pdf::ProgressStartupInfo());
+    QVERIFY(listener.calls.isEmpty());
+
+    // A step without a text, a text with the percentage so far, the same text is no news
+    adapter.step();
+    QCOMPARE(listener.calls.size(), 1);
+    QCOMPARE(listener.calls.last().first, 50);
+    QVERIFY(listener.calls.last().second.isEmpty());
+
+    adapter.setStepText(QStringLiteral("Step"));
+    QCOMPARE(listener.calls.size(), 2);
+    QCOMPARE(listener.calls.last().first, 50);
+    QCOMPARE(listener.calls.last().second, QStringLiteral("Step"));
+
+    adapter.setStepText(QStringLiteral("Step"));
+    QCOMPARE(listener.calls.size(), 2);
+
+    adapter.step();
+    QCOMPARE(listener.calls.last().first, 100);
+    QCOMPARE(listener.calls.last().second, QStringLiteral("Step"));
+
+    QCOMPARE(adapter.getStepCount(), size_t(2));
+    QCOMPARE(adapter.getCurrentStep(), size_t(2));
+}
+
+void DocumentToolTest::parameterStored()
+{
+    // A value of one document is not kept, also when the type is kept otherwise; a Secret never
+    pdf::PDFDocumentToolParameterDefinition pages = pdf::PDFDocumentToolParameterDefinition::createPageSelection(QStringLiteral("pages"), QStringLiteral("Pages"), QString());
+    QVERIFY(pages.isStored());
+    pages.setStored(false);
+    QVERIFY(!pages.isStored());
+    pages.setStored(true);
+    QVERIFY(pages.isStored());
+
+    pdf::PDFDocumentToolParameterDefinition secret = pdf::PDFDocumentToolParameterDefinition::createSecret(QStringLiteral("password"), QStringLiteral("Password"), QString());
+    secret.setStored(true);
+    QVERIFY(!secret.isStored());
+}
+
+void DocumentToolTest::resultOutputFiles()
+{
+    pdf::PDFDocumentToolResult result;
+    QVERIFY(!result.toJson().contains(QStringLiteral("outputs")));
+
+    result.outputs.push_back({ QStringLiteral("report.txt"), QByteArray("the text of the document"), QStringLiteral("text/plain") });
+    const QJsonObject json = result.toJson();
+    const QJsonArray outputs = json.value(QStringLiteral("outputs")).toArray();
+    QCOMPARE(outputs.size(), 1);
+    const QJsonObject output = outputs.first().toObject();
+    QCOMPARE(output.value(QStringLiteral("suggestedFileName")).toString(), QStringLiteral("report.txt"));
+    QCOMPARE(output.value(QStringLiteral("mimeType")).toString(), QStringLiteral("text/plain"));
+    QCOMPARE(output.value(QStringLiteral("size")).toInteger(), qint64(24));
+
+    // The content is never in the structured data of a result
+    QVERIFY(!QJsonDocument(json).toJson().contains("the text of the document"));
+}
+
+void DocumentToolTest::finalPreview()
+{
+    pdf::PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 100, 100));
+    const pdf::PDFDocumentPointer document(new pdf::PDFDocument(builder.build()));
+
+    class PreviewTool : public pdf::PDFDocumentTool
+    {
+    public:
+        explicit PreviewTool(bool isFinal, pdf::PDFDocumentPointer document, int inputIndex = 0) : m_isFinal(isFinal), m_document(std::move(document)), m_inputIndex(inputIndex) { }
+
+        QString getId() const override { return QStringLiteral("review.statistics"); }
+        pdf::PDFDocumentToolParameterDefinitions getParameters() const override { return { }; }
+        bool hasPreview() const override { return true; }
+        bool isPreviewFinal() const override { return m_isFinal; }
+
+        pdf::PDFDocumentToolResult execute(const pdf::PDFDocumentToolContext&, const QVariantMap&, const pdf::PDFOperationControl*, pdf::PDFProgress*) const override
+        {
+            return createResult();
+        }
+
+        pdf::PDFDocumentToolResult computePreview(const pdf::PDFDocumentToolContext&, const QVariantMap&, const pdf::PDFOperationControl*, pdf::PDFProgress* progress) const override
+        {
+            if (progress)
+            {
+                progress->start(1, pdf::ProgressStartupInfo());
+                progress->step();
+                progress->finish();
+            }
+            return createResult();
+        }
+
+    private:
+        pdf::PDFDocumentToolResult createResult() const
+        {
+            pdf::PDFDocumentToolResult result;
+            pdf::PDFDocumentToolOutputDocument output;
+            output.document = m_document;
+            output.inputIndex = m_inputIndex;
+            result.documents.push_back(output);
+            result.outputs.push_back({ QStringLiteral("a.txt"), QByteArray("a"), QStringLiteral("text/plain") });
+            result.writtenFiles << QStringLiteral("a.txt");
+            return result;
+        }
+
+        bool m_isFinal;
+        pdf::PDFDocumentPointer m_document;
+        int m_inputIndex;
+    };
+
+    const pdf::PDFDocumentToolContext context = pdf::PDFDocumentToolContext::create(pdf::PDFDocumentToolInputDocument::create(document, QByteArray(), QString(), false));
+
+    // A final preview is the result, with its progress
+    pdf::PDFProgress progress(nullptr);
+    QSignalSpy steps(&progress, &pdf::PDFProgress::progressStep);
+    const pdf::PDFDocumentToolResult final = PreviewTool(true, document).runPreview(context, QVariantMap(), nullptr, &progress);
+    QCOMPARE(final.status, pdf::PDFDocumentToolResultStatus::Success);
+    QCOMPARE(final.documents.size(), size_t(1));
+    QCOMPARE(final.outputs.size(), size_t(1));
+    QCOMPARE(steps.count(), 1);
+
+    // An inconsistent final preview is refused as a run is
+    QCOMPARE(PreviewTool(true, document, 5).runPreview(context, QVariantMap(), nullptr).status, pdf::PDFDocumentToolResultStatus::Failed);
+    QCOMPARE(PreviewTool(true, pdf::PDFDocumentPointer()).runPreview(context, QVariantMap(), nullptr).status, pdf::PDFDocumentToolResultStatus::Failed);
+
+    // Any other preview has facts only
+    const pdf::PDFDocumentToolResult facts = PreviewTool(false, document).runPreview(context, QVariantMap(), nullptr);
+    QCOMPARE(facts.status, pdf::PDFDocumentToolResultStatus::Success);
+    QVERIFY(facts.documents.empty());
+    QVERIFY(facts.outputs.empty());
+    QVERIFY(facts.writtenFiles.isEmpty());
 }
 
 void DocumentToolTest::catalogExtendedData()

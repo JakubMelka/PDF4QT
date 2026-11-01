@@ -45,6 +45,32 @@ class PDFAppDocumentView;
 class PDFLineEdit;
 class PDFToolBarField;
 
+/// The menu bar of the panels of a toolbar, one place for the toolbar of the document and
+/// for the toolbar of a tool: with a panel open, the pointer over another panel button or
+/// Left / Right go to the panel of that button. The toolbars keep their own lists of the
+/// buttons and open their panels themselves.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolbarMenuBar
+{
+public:
+    PDFAppToolbarMenuBar() = delete;
+
+    /// A panel grabs the mouse: the moves without a button reach the filter only with
+    /// the tracking of the mouse
+    static void watchPanel(QWidget* panel, QObject* filter);
+
+    /// The button, to which a mouse move over the panel window \p popup switches: a move
+    /// outside of the panel (the margin of its shadow is not a part of it) over another
+    /// visible button. nullptr for any other event.
+    static QToolButton* findHoverTarget(const QWidget* popup, const QEvent* event, const std::vector<QToolButton*>& buttons, const QToolButton* openButton);
+
+    /// The neighboring visible and enabled button of \p openButton, around the ends;
+    /// nullptr = none
+    static QToolButton* findNeighbor(const std::vector<QToolButton*>& buttons, const QToolButton* openButton, bool isNext);
+
+    /// A modal window (a dialog opened from a panel) blocks the toolbar
+    static bool isBlockedByModalWindow(const QWidget* toolbar);
+};
+
 /// Divider of the toolbar, of the info bars and of the panels: a line of 1 px
 /// with the paddings at its sides (vertical divider 193:792 border/separator,
 /// horizontal divider 196:2605 border/divider over the whole width)
@@ -116,6 +142,14 @@ public:
 
     explicit PDFAppDocumentToolbar(PDFAppDocumentView* view, QWidget* parent = nullptr);
     virtual ~PDFAppDocumentToolbar() override;
+
+    /// Toolbar button 190:538: 36 x 36, icon 20, no background at rest (also the buttons
+    /// of the toolbar of a tool, 291:1006)
+    static QToolButton* createToolbarButton(const QString& objectName, const QString& iconName, QWidget* parent);
+
+    /// Toolbar menu button 190:577: icon 18 and the label Medium 13; Open = checked
+    /// (also tb-tutorial 291:1160 of the toolbar of a tool)
+    static QToolButton* createToolbarMenuButton(const QString& objectName, const QString& iconName, QWidget* parent);
 
     PDFAppDocumentView* getView() const;
 
@@ -203,7 +237,6 @@ private:
     void onSelectMenuAboutToHide();
     void switchToNeighbor(bool isNext);
     void openSelectMenu(bool byKeyboard);
-    QToolButton* findPanelButtonAt(const QPoint& globalPosition) const;
     bool isPanelWindow(const QObject* object) const;
     void onPageFieldEdited();
     void onZoomFieldEdited();

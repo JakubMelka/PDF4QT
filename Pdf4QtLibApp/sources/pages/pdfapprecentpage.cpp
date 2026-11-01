@@ -691,6 +691,11 @@ QString PDFAppRecentPage::getTitle() const
     return tr("Recent");
 }
 
+QString PDFAppRecentPage::getHelpTopic() const
+{
+    return QStringLiteral("recent-files");
+}
+
 QString PDFAppRecentPage::getHeaderTitle() const
 {
     return tr("Recent");

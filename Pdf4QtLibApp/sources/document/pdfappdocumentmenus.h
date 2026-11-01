@@ -151,6 +151,10 @@ protected:
     /// Layout of the content (inside of the padding)
     QVBoxLayout* getContentLayout() const { return m_contentLayout; }
 
+    /// Padding of the content inside of the panel, with its border. The default is
+    /// PADDING + the border at each side; the panel of a tool has its own (303:4560).
+    virtual QMargins getContentPadding() const;
+
     /// Caption of a section (Medium 11 text/muted)
     PDFLabel* createCaption(const char* sourceText);
 

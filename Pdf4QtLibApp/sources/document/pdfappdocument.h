@@ -57,8 +57,9 @@ enum class PDFAppDocumentState
 /// Who has made a change of the document (one undo step each)
 enum class PDFAppChangeSource
 {
-    User,   ///< The user in the window
-    Mcp     ///< An assistant through MCP (step 7)
+    User,   ///< The user in the window (refused while a tool is open, areUserChangesSuspended)
+    Mcp,    ///< An assistant through MCP (step 7)
+    Tool    ///< The accepted result of the open tool (phase 2)
 };
 
 /// Kind of a running operation of a document (the tab shows its progress, the
@@ -72,7 +73,8 @@ enum class PDFAppDocumentOperationKind
     Signatures, ///< Verification of the signatures
     Fonts,      ///< Scan of the fonts (properties)
     Mcp,        ///< A change requested by an assistant
-    Edit        ///< A change made by a worker of the window (step 4: Mark as annotations of many results)
+    Edit,       ///< A change made by a worker of the window (step 4: Mark as annotations of many results)
+    Tool        ///< A run of a tool of the catalog and its result waiting for the decision of the user (phase 2)
 };
 
 /// Snapshot of a document for a worker thread: the immutable document of one
@@ -86,6 +88,9 @@ public:
     quint64 version = 0;
     QByteArray originalData;
     QString filePath;
+
+    /// The document has changes, which are not saved: \p originalData are not its bytes
+    bool isModified = false;
 
     /// The document is the paged layout of an XFA form (step 8,
     /// PDFAppDocument::isPagedXFA): a file is written from \p originalData
@@ -124,9 +129,16 @@ public:
     bool isBlockingChanges() const { return m_blocksChanges; }
 
     /// The user is asked before a tab with this operation is closed (close-running
-    /// dialog 955:145813: a save, a print, a change of an assistant); the other
-    /// operations (index, signatures, fonts) are stopped without a question
+    /// dialog 955:145813: a save, a print, a change of an assistant, a run of a
+    /// tool); the other operations (index, signatures, fonts) are stopped without
+    /// a question
     bool isAskedBeforeClose() const;
+
+    /// The work of the operation has ended, but it still blocks the changes: the
+    /// result of a tool waits for the decision of the user (plan of the first
+    /// batch of phase 2, F2). Nothing runs, so the tab shows no progress and the
+    /// user is not asked about a running operation.
+    void setWaiting();
 
     /// Progress 0 - 100, -1 = unknown
     int getProgress() const { return m_progress; }
@@ -153,6 +165,7 @@ private:
     int m_progress = -1;
     bool m_isCancelRequested = false;
     bool m_isFinished = false;
+    bool m_isWaiting = false;
 };
 
 /// Model of one document of a document tab (step 3 plan 1.1): no widgets. It holds
@@ -256,9 +269,26 @@ public:
     /// (Save As, Save a Copy, MCP files.save / files.save_copy).
     bool isPagedXFA() const { return m_isPagedXFA; }
 
-    /// The document can be changed now: ready, not locked and not a display version
-    /// (isPagedXFA); a running operation is not considered
-    bool isEditable() const { return isReady() && !m_isLocked && !m_isPagedXFA; }
+    /// The last tool, whose result was accepted on this document (the pair of the
+    /// suggestions of Then continue with, PDFDocumentToolUsage::recordRun), empty = none
+    const QString& getLastFinishedToolId() const { return m_lastFinishedToolId; }
+    void setLastFinishedToolId(const QString& toolId) { m_lastFinishedToolId = toolId; }
+
+    /// The document can be changed by the user now: ready, not locked, not a display
+    /// version (isPagedXFA) and the changes of the user are not suspended (a tool is
+    /// open in the view); a running operation is not considered
+    bool isEditable() const { return isReady() && !m_isLocked && !m_isPagedXFA && !m_areUserChangesSuspended; }
+
+    /// A tool is open in the view (PDFAppDocumentView::enterToolMode, owner decision of
+    /// 2026-11-01): the user interface does not change the document - isEditable is false,
+    /// commit refuses PDFAppChangeSource::User, the undo stack does nothing, and the lock is
+    /// not touched. commit stays open for an assistant (Mcp) and for the result of the tool
+    /// (Tool); a lock and a blocking operation still refuse them.
+    bool areUserChangesSuspended() const { return m_areUserChangesSuspended; }
+    void setUserChangesSuspended(bool isSuspended);
+
+    /// Text of a change of the user refused, while a tool is open (areUserChangesSuspended)
+    static QString getUserChangesSuspendedText();
 
     /// Text of a change refused for a display version of an XFA form (isPagedXFA)
     static QString getPagedXFARefusalText();
@@ -297,8 +327,9 @@ public:
 
     /// Commits a change: \p modified carries the new document (PDFDocumentPointer)
     /// and its flags. Refused (false), when the version is not \p expectedVersion,
-    /// the document is locked or not ready, a blocking operation runs or the new
-    /// document is null. Every accepted change is one undo step and increments the
+    /// the document is locked or not ready, a blocking operation runs, the new document
+    /// is null, or a change of the user comes while a tool is open (areUserChangesSuspended
+    /// - the last net of every path of the user). Every accepted change is one undo step and increments the
     /// version. The limits of the undo stack are read at each commit (the settings
     /// editing.undoLimit and editing.redoLimit, the memory limit of the stack).
     bool commit(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion, PDFAppChangeSource source);
@@ -416,6 +447,9 @@ Q_SIGNALS:
     /// The lock has changed (isLocked)
     void lockChanged();
 
+    /// The changes of the user have been suspended or resumed (areUserChangesSuspended)
+    void userChangesSuspendedChanged();
+
     /// An operation has started or finished
     void operationsChanged();
 
@@ -444,6 +478,7 @@ private:
     QString m_filePath;
     QString m_copyTitle;
     QString m_originFilePath;   ///< File of the source of a copy or of an attachment
+    QString m_lastFinishedToolId;
     bool m_isCopy = false;
     PDFDocumentPointer m_document;
     quint64 m_version = 0;
@@ -452,6 +487,7 @@ private:
     QPointer<PDFOptionalContentActivity> m_optionalContentActivity;
     bool m_isLocked = false;
     bool m_isPagedXFA = false;
+    bool m_areUserChangesSuspended = false;
     bool m_hasPendingEdits = false;
     bool m_isPasswordProtected = false;
     bool m_isPasswordWrong = false;

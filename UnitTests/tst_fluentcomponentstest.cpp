@@ -93,6 +93,7 @@
 #include <QTranslator>
 #include <QVBoxLayout>
 
+#include <array>
 #include <functional>
 #include <limits>
 #include <thread>
@@ -100,6 +101,8 @@
 
 using Color = pdf::PDFThemeColors::Color;
 using Painter = pdf::PDFComponentPainter;
+
+Q_DECLARE_METATYPE(pdf::PDFComponentPainter::TileRow)
 
 // A property row cannot be constructed with a flag before its parent: a pointer
 // to the parent in the place of the flag was taken as true (review C5)
@@ -705,6 +708,25 @@ private slots:
     void assistantTile();
     void codeBox_data();
     void codeBox();
+
+    // Rows and page tiles of the tools of phase 2 (gallery page 25-tools)
+    void tileRowGeometry_data();
+    void tileRowGeometry();
+    void tileRowPixels_data();
+    void tileRowPixels();
+    void tileRowWidgetMatchesPainter();
+    void tileRowInteraction();
+    void tileRowDirectionAndData();
+    void tileRowDefensive();
+    void tileRowDelegate();
+    void pageTileGeometry();
+    void pageTilePixels_data();
+    void pageTilePixels();
+    void pageTileDelegate();
+    void pageTileGridFlow();
+    void pageTileGridTiming();
+    void tileRowListTiming();
+    void toolsGalleryPage();
 
 private:
     /// Returns the pixel of the area, which differs most from the background
@@ -7145,7 +7167,16 @@ void FluentComponentsTest::pageSelectionResult()
     QCOMPARE(selection.getSelectedPages(), (QList<int>{ 3, 5, 12, 100 }));
     selection.setMode(Mode::Selected);
     QCOMPARE(selection.getResultPages(), (QList<int>{ 3, 5, 12 }));
-    QCOMPARE(selection.getStatusText(), QStringLiteral("3 pages selected · 3 (iii) – 12 (xii)"));
+
+    // The status of the frame 389:20177 names the pages ("3 pages selected · 9, 10, 15"); from
+    // more than MAX_NAMED_SELECTED_PAGES on it says the first and the last one
+    QCOMPARE(selection.getStatusText(), QStringLiteral("3 pages selected · 3 (iii), 5 (v), 12 (xii)"));
+    selection.setSelectedPages({ 1, 2, 3, 4, 5, 6 });
+    QVERIFY2(selection.getStatusText().endsWith(QStringLiteral(", 6 (vi)")), qPrintable(selection.getStatusText()));
+    selection.setSelectedPages({ 1, 2, 3, 4, 5, 6, 7 });
+    QCOMPARE(selection.getStatusText(), QStringLiteral("7 pages selected · 1 (i) – 7 (vii)"));
+    selection.setSelectedPages({ 3, 5, 100, 12 });
+    QCOMPARE(selection.getResultPages(), (QList<int>{ 3, 5, 12 }));
 
     // Range: the text of the design
     selection.setRange(QStringLiteral("3-5, 8, 10-12"));
@@ -12659,6 +12690,18 @@ public:
     mutable int pictureReads = 0;
 };
 
+/// Model, which refuses to write the check state
+class RefusingCheckModel : public QStandardItemModel
+{
+public:
+    using QStandardItemModel::QStandardItemModel;
+
+    virtual bool setData(const QModelIndex& index, const QVariant& value, int role) override
+    {
+        return role == Qt::CheckStateRole ? false : QStandardItemModel::setData(index, value, role);
+    }
+};
+
 /// Model, which refuses to write the shortcut
 class RefusingShortcutModel : public QStandardItemModel
 {
@@ -17955,6 +17998,2022 @@ void FluentComponentsTest::codeBox()
     QCOMPARE(countLeakPixels(hostileImage), 0);
     QCOMPARE(Painter::getCodeBoxLineCount(command, std::numeric_limits<qreal>::quiet_NaN()), 1);
 }
+
+/// Rows and tiles of the frames of the tools of phase 2, the values of the frames
+class ToolSamples
+{
+public:
+    ToolSamples() = delete;
+
+    using Kind = Painter::TileRowKind;
+    using Tone = Painter::TileRowTone;
+    using Roles = pdf::PDFComponentRoles;
+
+    static Painter::TileRow row(Kind kind, const QString& title, const QString& description, const QString& icon = QStringLiteral("globe"))
+    {
+        Painter::TileRow content;
+        content.kind = kind;
+        content.title = title;
+        content.description = description;
+        content.iconName = icon;
+        return content;
+    }
+
+    /// Item of a panel 438:15319 / 438:15328
+    static Painter::TileRow menuItem(bool isChosen)
+    {
+        Painter::TileRow content = row(Kind::MenuItem, QStringLiteral("All links"), QStringLiteral("16 external links"), QStringLiteral("list"));
+        content.chosen = isChosen;
+        return content;
+    }
+
+    /// Item of the panel Steps 313:7291 / 313:7327
+    static Painter::TileRow panelStep(bool isChosen)
+    {
+        Painter::TileRow content = row(Kind::PanelStep, QStringLiteral("Merge identical objects"), QStringLiteral("Duplicates are stored once"), QStringLiteral("copy"));
+        content.chosen = isChosen;
+        return content;
+    }
+
+    /// Row of the list of the links 438:14890 / 438:14900
+    static Painter::TileRow listItem(bool isChecked)
+    {
+        Painter::TileRow content = row(Kind::ListItem, QStringLiteral("Market study 2026"), QStringLiteral("https://research.example.org/…"));
+        content.checkBoxVisible = true;
+        content.checkBoxChecked = isChecked;
+        return content;
+    }
+
+    /// Kind not found 438:12782
+    static Painter::TileRow notFound()
+    {
+        Painter::TileRow content = row(Kind::ListItem, QStringLiteral("Embedded search index"), QStringLiteral("Not found in this document"), QStringLiteral("search-index"));
+        content.checkBoxVisible = true;
+        content.checkBoxEnabled = false;
+        content.tag = QStringLiteral("Not found");
+        return content;
+    }
+
+    /// Pending rotation 389:20411
+    static Painter::TileRow pendingRotation()
+    {
+        Painter::TileRow content = row(Kind::Pending, QStringLiteral("Page 9"), QStringLiteral("90° right · portrait → landscape"), QStringLiteral("rotate-cw"));
+        content.linkText = QStringLiteral("Undo");
+        return content;
+    }
+
+    /// Page marked for removal 388:20825
+    static Painter::TileRow pendingRemoval()
+    {
+        Painter::TileRow content = row(Kind::Pending, QStringLiteral("Page 4"), QStringLiteral("A4 portrait"), QString());
+        content.tileText = QStringLiteral("4");
+        content.tone = Tone::Danger;
+        content.linkText = QStringLiteral("Keep");
+        return content;
+    }
+
+    /// Step, which will run 319:7289
+    static Painter::TileRow step()
+    {
+        Painter::TileRow content = row(Kind::Step, QStringLiteral("Embed simple objects"), QStringLiteral("Writes small values in place"), QStringLiteral("embed"));
+        content.endIconName = QStringLiteral("check");
+        return content;
+    }
+
+    /// Step, which is skipped 319:7380
+    static Painter::TileRow skippedStep()
+    {
+        Painter::TileRow content = row(Kind::Step, QStringLiteral("Shrink object storage"), QStringLiteral("Will be skipped"), QStringLiteral("hash"));
+        content.tone = Tone::Muted;
+        content.endIconName = QStringLiteral("minus");
+        content.endIconColor = Color::IconMuted;
+        return content;
+    }
+
+    /// Step performed 319:7399
+    static Painter::TileRow performedStep()
+    {
+        Painter::TileRow content = row(Kind::Step, QStringLiteral("Embed simple objects"), QStringLiteral("1,204 objects embedded"), QStringLiteral("embed"));
+        content.endIconName = QStringLiteral("check-circle");
+        content.endIconColor = Color::AccentGreenIcon;
+        content.descriptionColor = Color::TextSecondary;
+        return content;
+    }
+
+    /// Result of a kind 438:14577
+    static Painter::TileRow result()
+    {
+        Painter::TileRow content = row(Kind::Result, QStringLiteral("Document info"), QStringLiteral("Document info was removed"), QStringLiteral("info"));
+        content.tone = Tone::Muted;
+        content.endIconName = QStringLiteral("check-circle");
+        content.endIconColor = Color::AccentGreenIcon;
+        return content;
+    }
+
+    /// Caption of a group of the rows of a list 438:14866
+    static Painter::TileRow caption()
+    {
+        return row(Kind::Caption, QStringLiteral("Page 3"), QString(), QString());
+    }
+
+    /// Page tile with a solid picture
+    static Painter::PageTile tile(Painter::PageTileState tileState, const QSize& slot, const QColor& picture = QColor(200, 30, 30))
+    {
+        Painter::PageTile content;
+        content.label = QStringLiteral("9");
+        content.slotSize = slot;
+        content.tileState = tileState;
+        content.pageSize = QSizeF(76, 104);
+        QPixmap pixmap(QSize(152, 208));
+        pixmap.fill(picture);
+        content.pixmap = pixmap;
+        if (tileState == Painter::PageTileState::Selected)
+        {
+            content.caption = QStringLiteral("90° right");
+            content.badgeIconName = QStringLiteral("rotate-cw");
+        }
+        else if (tileState == Painter::PageTileState::Marked)
+        {
+            content.caption = QStringLiteral("will be removed");
+            content.badgeIconName = QStringLiteral("trash");
+        }
+        return content;
+    }
+
+    /// Rows of a model of the delegate with the check box
+    static void links(QStandardItemModel* model, int count = 3)
+    {
+        for (int i = 0; i < count; ++i)
+        {
+            QStandardItem* item = DelegateSamples::item(QStringLiteral("link-%1.example").arg(i));
+            item->setData(QStringLiteral("https://link-%1.example").arg(i), Roles::SubtitleRole);
+            item->setData(QStringLiteral("globe"), Roles::IconNameRole);
+            item->setCheckable(true);
+            item->setCheckState(i == 0 ? Qt::Checked : Qt::Unchecked);
+            model->appendRow(item);
+        }
+    }
+
+    /// Pending changes of a model of the delegate with the link
+    static void pending(QStandardItemModel* model)
+    {
+        for (const int page : { 4, 5, 6 })
+        {
+            QStandardItem* item = DelegateSamples::item(QStringLiteral("Page %1").arg(page));
+            item->setData(QStringLiteral("A4 portrait"), Roles::SubtitleRole);
+            item->setData(QString::number(page), Roles::TileTextRole);
+            item->setData(int(Tone::Danger), Roles::TileToneRole);
+            item->setData(QStringLiteral("Keep"), Roles::LinkTextRole);
+            model->appendRow(item);
+        }
+    }
+
+    /// Page tiles of a model of the delegate
+    static void tiles(QStandardItemModel* model)
+    {
+        const std::array<Painter::PageTileState, 3> states = { Painter::PageTileState::Normal, Painter::PageTileState::Selected, Painter::PageTileState::Marked };
+        int number = 1;
+        for (const Painter::PageTileState tileState : states)
+        {
+            const Painter::PageTile content = tile(tileState, QSize(104, 104));
+            QStandardItem* item = DelegateSamples::item(QString::number(number++));
+            item->setData(content.pixmap, Roles::PixmapRole);
+            item->setData(int(tileState), Roles::PageTileStateRole);
+            item->setData(content.caption, Roles::SubtitleRole);
+            item->setData(content.badgeIconName, Roles::StateIconRole);
+            item->setData(QSizeF(76, 104), Roles::PageSizeRole);
+            model->appendRow(item);
+        }
+    }
+};
+
+void FluentComponentsTest::tileRowGeometry_data()
+{
+    using Kind = ToolSamples::Kind;
+
+    QTest::addColumn<Painter::TileRow>("row");
+    QTest::addColumn<int>("width");
+    QTest::addColumn<int>("height");
+    QTest::addColumn<QRect>("tile");
+    QTest::addColumn<QRect>("text");      // Left and width of the column, top of the block, height of the block
+    QTest::addColumn<QRect>("endIcon");
+    QTest::addColumn<QRect>("checkBox");
+    QTest::addColumn<QRect>("link");
+
+    // Every rectangle is the position of the layer in the frame minus the position of the row
+    const QRect none;
+    Painter::TileRow chosenItem = ToolSamples::menuItem(true);
+    QTest::newRow("438:15319 chosen item") << chosenItem << 302 << 44 << QRect(10, 7, 30, 30) << QRect(52, 7, 212, 30) << QRect(276, 14, 16, 16) << none << none;
+    QTest::newRow("438:15328 item") << ToolSamples::menuItem(false) << 302 << 44 << QRect(10, 7, 30, 30) << QRect(52, 7, 240, 30) << none << none << none;
+
+    Painter::TileRow autoItem = ToolSamples::row(Kind::MenuItem, QStringLiteral("Auto"), QStringLiteral("Structure when the document is tagged, otherwise layout"), QStringLiteral("zap"));
+    autoItem.chosen = true;
+    QTest::newRow("339:9462 chosen, two lines") << autoItem << 252 << 57 << QRect(10, 13, 30, 30) << QRect(52, 7, 162, 43) << QRect(226, 20, 16, 16) << none << none;
+    QTest::newRow("339:9471 two lines") << ToolSamples::row(Kind::MenuItem, QStringLiteral("Layout"), QStringLiteral("Blocks of text as they are placed on the page"), QStringLiteral("layout"))
+                                        << 252 << 57 << QRect(10, 13, 30, 30) << QRect(52, 7, 190, 43) << none << none << none;
+    Painter::TileRow plainText = ToolSamples::row(Kind::MenuItem, QStringLiteral("Plain text"), QStringLiteral("A .txt file"), QStringLiteral("file-text"));
+    plainText.chosen = true;
+    QTest::newRow("339:9549 chosen, one line") << plainText << 242 << 44 << QRect(10, 7, 30, 30) << QRect(52, 7, 152, 30) << QRect(216, 14, 16, 16) << none << none;
+
+    Painter::TileRow panelStep = ToolSamples::row(Kind::PanelStep, QStringLiteral("Embed (dereference) simple objects, such as int, bool, real"), QStringLiteral("Small values are written in place instead of being referenced"), QStringLiteral("embed"));
+    panelStep.chosen = true;
+    QTest::newRow("313:7291 panel step") << panelStep << 502 << 46 << QRect(10, 8, 30, 30) << QRect(52, 7, 412, 32) << QRect(476, 15, 16, 16) << none << none;
+    panelStep.chosen = false;
+    QTest::newRow("313:7327 panel step keeps the place") << panelStep << 502 << 46 << QRect(10, 8, 30, 30) << QRect(52, 7, 412, 32) << QRect(476, 15, 16, 16) << none << none;
+
+    QTest::newRow("319:7289 step") << ToolSamples::step() << 273 << 41 << QRect(6, 6, 28, 28) << QRect(44, 5, 197, 31) << QRect(251, 12, 16, 16) << none << none;
+
+    QTest::newRow("389:20411 pending") << ToolSamples::pendingRotation() << 279 << 46 << QRect(8, 8, 30, 30) << QRect(48, 8, 175, 29) << none << none << QRect(233, 15, 38, 16);
+    QTest::newRow("388:20825 pending with a number") << ToolSamples::pendingRemoval() << 279 << 46 << QRect(8, 8, 30, 30) << QRect(48, 8, 177, 29) << none << none << QRect(235, 15, 36, 16);
+
+    Painter::TileRow wrappedLink = ToolSamples::listItem(true);
+    wrappedLink.title = QStringLiteral("acme-corp.example");
+    wrappedLink.description = QStringLiteral("https://www.acme-corp.example…");
+    QTest::newRow("438:14868 list, two lines") << wrappedLink << 261 << 57 << QRect(40, 13, 30, 30) << QRect(82, 7, 169, 43) << none << QRect(10, 19, 18, 18) << none;
+    QTest::newRow("438:14890 list") << ToolSamples::listItem(true) << 261 << 44 << QRect(40, 7, 30, 30) << QRect(82, 7, 169, 30) << none << QRect(10, 13, 18, 18) << none;
+    QTest::newRow("438:12782 kind with a tag") << ToolSamples::notFound() << 622 << 49 << QRect(40, 9, 30, 30) << QRect(82, 7, 530, 35) << none << QRect(10, 15, 18, 18) << none;
+    Painter::TileRow kind = ToolSamples::listItem(true);
+    QTest::newRow("438:12716 kind") << kind << 622 << 44 << QRect(40, 7, 30, 30) << QRect(82, 7, 530, 30) << none << QRect(10, 13, 18, 18) << none;
+
+    QTest::newRow("438:14577 result") << ToolSamples::result() << 273 << 44 << QRect(10, 9, 26, 26) << QRect(48, 7, 187, 30) << QRect(247, 14, 16, 16) << none << none;
+
+    // The caption 438:14866: the frame 261 x 21, the text at 10,6 of the line 13
+    QTest::newRow("438:14866 caption") << ToolSamples::caption() << 261 << 21 << none << QRect(10, 6, 241, 13) << none << none << none;
+    Painter::TileRow captionWithParts = ToolSamples::caption();
+    captionWithParts.description = QStringLiteral("ignored");
+    captionWithParts.tag = QStringLiteral("ignored");
+    captionWithParts.checkBoxVisible = true;
+    captionWithParts.linkText = QStringLiteral("ignored");
+    captionWithParts.endIconName = QStringLiteral("check");
+    QTest::newRow("caption has the title only") << captionWithParts << 261 << 21 << none << QRect(10, 6, 241, 13) << none << none << none;
+}
+
+void FluentComponentsTest::tileRowGeometry()
+{
+    QFETCH(Painter::TileRow, row);
+    QFETCH(int, width);
+    QFETCH(int, height);
+    QFETCH(QRect, tile);
+    QFETCH(QRect, text);
+    QFETCH(QRect, endIcon);
+    QFETCH(QRect, checkBox);
+    QFETCH(QRect, link);
+
+    QCOMPARE(Painter::getTileRowHeight(row, width), height);
+
+    const QRectF rect(0, 0, width, height);
+    const Painter::State ltr = state(QStyle::State_None);
+    QCOMPARE(Painter::getTileRowTileRect(rect, row, ltr).toRect(), tile);
+    QCOMPARE(Painter::getTileRowTextRect(rect, row).left(), qreal(text.left()));
+
+    // Qt rounds the width of the text of a link up, Figma has "Keep" 32 and Qt 33 px:
+    // the link keeps its trailing edge, it may take one pixel from the texts
+    const int linkTolerance = link.isNull() ? 0 : 1;
+    QVERIFY2(qAbs(Painter::getTileRowTextRect(rect, row).width() - text.width()) <= linkTolerance, qPrintable(QString::number(Painter::getTileRowTextRect(rect, row).width())));
+    QCOMPARE(Painter::getTileRowTextRect(rect, row).height(), qreal(text.height()));
+    QCOMPARE(Painter::getTileRowTextRect(rect, row).top(), qreal(text.top()));
+    QCOMPARE(Painter::getTileRowEndIconRect(rect, row, ltr).toRect(), endIcon);
+    QCOMPARE(Painter::getTileRowCheckBoxRect(rect, row, ltr).toRect(), checkBox);
+    const QRect linkRect = Painter::getTileRowLinkRect(rect, row, ltr).toRect();
+    QCOMPARE(linkRect.right(), link.right());
+    QCOMPARE(linkRect.top(), link.top());
+    QCOMPARE(linkRect.height(), link.height());
+    QVERIFY(qAbs(linkRect.width() - link.width()) <= linkTolerance);
+
+    // Mirrored for right-to-left: every part keeps its distance from the opposite edge
+    const Painter::State rtl = state(QStyle::State_None, Qt::RightToLeft);
+    QCOMPARE(Painter::getTileRowTileRect(rect, row, rtl).toRect(), tile.isNull() ? QRect() : QStyle::visualRect(Qt::RightToLeft, rect.toRect(), tile));
+    QCOMPARE(Painter::getTileRowCheckBoxRect(rect, row, rtl).toRect(), checkBox.isNull() ? QRect() : QStyle::visualRect(Qt::RightToLeft, rect.toRect(), checkBox));
+    QCOMPARE(Painter::getTileRowLinkRect(rect, row, rtl).toRect(), linkRect.isNull() ? QRect() : QStyle::visualRect(Qt::RightToLeft, rect.toRect(), linkRect));
+
+    // The row of its natural width has the same height of its text lines at most, and fits its minimum
+    QVERIFY(Painter::getTileRowSize(row).width() >= Painter::getTileRowMinimumSize(row).width());
+    QVERIFY(Painter::getTileRowMinimumSize(row).height() <= height);
+
+    // The widget has the height of the frame by its height for width
+    pdf::PDFTileRow widget;
+    widget.setKind(row.kind);
+    widget.setTitle(row.title);
+    widget.setDescription(row.description);
+    widget.setIconName(row.iconName);
+    widget.setTileText(row.tileText);
+    widget.setTag(row.tag);
+    widget.setEndIcon(row.endIconName, row.endIconColor);
+    widget.setLinkText(row.linkText);
+    widget.setCheckBoxVisible(row.checkBoxVisible);
+    if (row.chosen)
+    {
+        widget.setSelectionBehavior(pdf::PDFComponentButton::SelectionBehavior::Toggle);
+        widget.setChecked(true);
+    }
+    QVERIFY(widget.sizePolicy().hasHeightForWidth());
+    QCOMPARE(widget.heightForWidth(width), height);
+}
+
+void FluentComponentsTest::tileRowPixels_data()
+{
+    pixelProbes_data();
+}
+
+void FluentComponentsTest::tileRowPixels()
+{
+    QFETCH(QString, theme);
+    QFETCH(qreal, scale);
+    QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(theme));
+
+    const QColor surface = token(Color::BgSurface);
+    const QColor hover = blend(token(Color::BgHover), surface);
+    const QColor pressed = blend(token(Color::BgPressed), surface);
+    const QStyle::State over = QStyle::State_MouseOver;
+    const QStyle::State down = QStyle::State_MouseOver | QStyle::State_Sunken;
+    const QStyle::State none = QStyle::State_None;
+
+    const auto renderRow = [&](const Painter::TileRow& row, int width, QStyle::State flags)
+    {
+        const int height = Painter::getTileRowHeight(row, width);
+        return render([&](QPainter& painter) { Painter::paintTileRow(&painter, QRectF(0, 0, width, height), row, state(flags)); }, QSize(width, height), scale);
+    };
+    const auto isCloser = [](const QColor& color, const QColor& expected, const QColor& other)
+    {
+        return colorDistance(color, expected) < colorDistance(color, other);
+    };
+
+    // An item of a panel, not chosen 438:15328: no fill, the accent tile, icon/accent, a primary title, a muted description
+    const QColor accentTile = blend(token(Color::BgAccentSubtle), surface);
+    QImage image = renderRow(ToolSamples::menuItem(false), 302, none);
+    QVERIFY(isNear(pixel(image, 150, 2), surface));
+    QVERIFY(isNear(pixel(image, 25, 9), accentTile));
+    QVERIFY(isCloser(strongestInk(image, QRect(17, 14, 16, 16), accentTile), token(Color::IconAccent), token(Color::IconMuted)));
+    QVERIFY(isCloser(strongestInk(image, QRect(52, 7, 100, 16), surface), token(Color::TextPrimary), token(Color::TextSecondary)));
+    QVERIFY(isCloser(strongestInk(image, QRect(52, 24, 100, 13), surface), token(Color::TextMuted), token(Color::TextPrimary)));
+    QCOMPARE(countPixels(image, QRect(276, 14, 16, 16), token(Color::IconAccent), 8), 0);
+
+    // The look of an item does not depend on a tone: an item of a choice list has always the
+    // accent tile (339:9493, the wrapped 339:9471)
+    const QImage itemImage = image;
+    for (const ToolSamples::Tone tone : { ToolSamples::Tone::Muted, ToolSamples::Tone::Danger })
+    {
+        Painter::TileRow toned = ToolSamples::menuItem(false);
+        toned.tone = tone;
+        QCOMPARE(describeDifference(renderRow(toned, 302, none), itemImage, 0), QString());
+    }
+
+    // Hover and press of the item (the selection of the view is no look of an item of a menu)
+    QVERIFY(isNear(pixel(renderRow(ToolSamples::menuItem(false), 302, over), 150, 2), hover));
+    QVERIFY(isNear(pixel(renderRow(ToolSamples::menuItem(false), 302, down), 150, 2), pressed));
+    QVERIFY(isNear(pixel(renderRow(ToolSamples::menuItem(false), 302, QStyle::State_Selected), 150, 2), surface));
+
+    // Focus ring 2 px inside
+    image = renderRow(ToolSamples::menuItem(false), 302, QStyle::State_HasFocus);
+    QVERIFY(isNear(pixel(image, 150, 0), token(Color::BorderFocus)));
+    QVERIFY(isNear(pixel(image, 150, 1), token(Color::BorderFocus)));
+    QVERIFY(isNear(pixel(image, 150, 2), surface));
+
+    // A chosen item 438:15319: bg/hover, the accent tile, the primary title, the check mark icon/accent
+    image = renderRow(ToolSamples::menuItem(true), 302, none);
+    QVERIFY(isNear(pixel(image, 150, 2), hover));
+    QVERIFY(isNear(pixel(image, 25, 9), blend(token(Color::BgAccentSubtle), hover)));
+    QVERIFY(isCloser(strongestInk(image, QRect(52, 7, 100, 16), hover), token(Color::TextPrimary), token(Color::TextSecondary)));
+    QVERIFY(isCloser(strongestInk(image, QRect(17, 14, 16, 16), blend(token(Color::BgAccentSubtle), hover)), token(Color::IconAccent), token(Color::IconMuted)));
+    QVERIFY(isCloser(strongestInk(image, QRect(276, 14, 16, 16), hover), token(Color::IconAccent), token(Color::IconMuted)));
+    // The overlay of the pointer lies over the fill of the chosen item
+    QVERIFY(isNear(pixel(renderRow(ToolSamples::menuItem(true), 302, over), 150, 2), blend(token(Color::BgHover), hover)));
+    QVERIFY(isNear(pixel(renderRow(ToolSamples::menuItem(true), 302, down), 150, 2), blend(token(Color::BgPressed), hover)));
+
+    // A disabled item (O-08): nothing of the pointer, text/disabled, icon/disabled, bg/muted of the tile
+    const Painter::TileRow disabledRow = ToolSamples::menuItem(true);
+    image = render([&](QPainter& painter) { Painter::paintTileRow(&painter, QRectF(0, 0, 302, 44), disabledRow, Painter::State(QStyle::State_MouseOver)); }, QSize(302, 44), scale);
+    QVERIFY(isNear(pixel(image, 150, 2), surface));
+    QVERIFY(isNear(pixel(image, 25, 9), blend(token(Color::BgMuted), surface)));
+    QVERIFY(isCloser(strongestInk(image, QRect(52, 7, 100, 16), surface), token(Color::TextDisabled), token(Color::TextPrimary)));
+    QVERIFY(isCloser(strongestInk(image, QRect(276, 14, 16, 16), surface), token(Color::IconDisabled), token(Color::IconAccent)));
+
+    // A chosen item of the panel Steps 313:7291: bg/hover of radius 8, the accent tile, the primary title, the check mark
+    image = renderRow(ToolSamples::panelStep(true), 502, none);
+    QVERIFY(isNear(pixel(image, 300, 2), hover));
+    QVERIFY(isNear(pixel(image, 0, 0), surface));
+    QVERIFY(isNear(pixel(image, 8, 0), hover));
+    QVERIFY(isNear(pixel(image, 25, 10), blend(token(Color::BgAccentSubtle), hover)));
+    QVERIFY(isCloser(strongestInk(image, QRect(17, 15, 16, 16), blend(token(Color::BgAccentSubtle), hover)), token(Color::IconAccent), token(Color::IconMuted)));
+    QVERIFY(isCloser(strongestInk(image, QRect(52, 7, 100, 16), hover), token(Color::TextPrimary), token(Color::TextSecondary)));
+    QVERIFY(isCloser(strongestInk(image, QRect(476, 15, 16, 16), hover), token(Color::IconAccent), token(Color::IconMuted)));
+    QVERIFY(isNear(pixel(renderRow(ToolSamples::panelStep(true), 502, over), 300, 2), blend(token(Color::BgHover), hover)));
+    QVERIFY(isNear(pixel(renderRow(ToolSamples::panelStep(true), 502, down), 300, 2), blend(token(Color::BgPressed), hover)));
+    QVERIFY(isNear(pixel(renderRow(ToolSamples::panelStep(true), 502, QStyle::State_Selected), 300, 2), hover));
+
+    // Not chosen 313:7327: no fill, the same tile and title, the place of the check mark empty
+    image = renderRow(ToolSamples::panelStep(false), 502, none);
+    QVERIFY(isNear(pixel(image, 300, 2), surface));
+    QVERIFY(isNear(pixel(image, 25, 10), accentTile));
+    QVERIFY(isCloser(strongestInk(image, QRect(17, 15, 16, 16), accentTile), token(Color::IconAccent), token(Color::IconMuted)));
+    QVERIFY(isCloser(strongestInk(image, QRect(52, 7, 100, 16), surface), token(Color::TextPrimary), token(Color::TextSecondary)));
+    QCOMPARE(countPixels(image, QRect(476, 15, 16, 16), token(Color::IconAccent), 8), 0);
+    const QImage panelStepImage = image;
+    Painter::TileRow tonedStep = ToolSamples::panelStep(false);
+    tonedStep.tone = ToolSamples::Tone::Muted;
+    QCOMPARE(describeDifference(renderRow(tonedStep, 502, none), panelStepImage, 0), QString());
+
+    // A disabled item of the panel: no fill of the choice, the tile bg/muted, text/disabled
+    image = render([&](QPainter& painter) { Painter::paintTileRow(&painter, QRectF(0, 0, 502, 46), ToolSamples::panelStep(true), Painter::State(QStyle::State_None)); }, QSize(502, 46), scale);
+    QVERIFY(isNear(pixel(image, 300, 2), surface));
+    QVERIFY(isNear(pixel(image, 25, 10), blend(token(Color::BgMuted), surface)));
+
+    // A row of a list without a check box 434:4466 / 434:4476: the selected one bg/accent-subtle with
+    // the accent tile, the other one the muted tile - both with the primary title, unlike an unticked row
+    Painter::TileRow certificate = ToolSamples::row(ToolSamples::Kind::ListItem, QStringLiteral("Company ID"), QStringLiteral("System store"), QStringLiteral("key"));
+    image = renderRow(certificate, 276, QStyle::State_Selected);
+    QVERIFY(isNear(pixel(image, 200, 2), accentTile));
+    QVERIFY(isCloser(strongestInk(image, QRect(52, 7, 60, 16), accentTile), token(Color::TextPrimary), token(Color::TextSecondary)));
+    certificate.tone = ToolSamples::Tone::Muted;
+    image = renderRow(certificate, 276, none);
+    QVERIFY(isNear(pixel(image, 200, 2), surface));
+    QVERIFY(isNear(pixel(image, 25, 9), blend(token(Color::BgMuted), surface)));
+    QVERIFY(isCloser(strongestInk(image, QRect(17, 14, 16, 16), blend(token(Color::BgMuted), surface)), token(Color::IconMuted), token(Color::IconAccent)));
+    QVERIFY(isCloser(strongestInk(image, QRect(52, 7, 60, 16), surface), token(Color::TextPrimary), token(Color::TextSecondary)));
+
+    // A row of the list with the check box: the tile follows the check box, the selection is bg/accent-subtle (438:14890)
+    image = renderRow(ToolSamples::listItem(true), 261, none);
+    QVERIFY(isNear(pixel(image, 200, 2), surface));
+    QVERIFY(isNear(pixel(image, 12, 22), token(Color::BgAccent)));
+    QVERIFY(isNear(pixel(image, 55, 9), blend(token(Color::BgAccentSubtle), surface)));
+    const QColor selected = blend(token(Color::BgAccentSubtle), surface);
+    image = renderRow(ToolSamples::listItem(true), 261, QStyle::State_Selected);
+    QVERIFY(isNear(pixel(image, 200, 2), selected));
+    QVERIFY(isNear(pixel(renderRow(ToolSamples::listItem(true), 261, QStyle::State_Selected | over), 200, 2), blend(token(Color::BgAccentSubtleHover), surface)));
+    QVERIFY(isNear(pixel(renderRow(ToolSamples::listItem(true), 261, QStyle::State_Selected | down), 200, 2), blend(token(Color::BgAccentSubtlePressed), surface)));
+
+    // Not ticked 438:14900: the box bg/surface with border/strong, the muted tile, the secondary title
+    image = renderRow(ToolSamples::listItem(false), 261, none);
+    QVERIFY(isNear(pixel(image, 10, 22), token(Color::BorderStrong), 40));
+    QVERIFY(isNear(pixel(image, 15, 22), surface));
+    QVERIFY(isNear(pixel(image, 55, 9), blend(token(Color::BgMuted), surface)));
+    QVERIFY(isCloser(strongestInk(image, QRect(82, 7, 100, 16), surface), token(Color::TextSecondary), token(Color::TextPrimary)));
+
+    // The hover and the press of the nested check box
+    Painter::TileRow nestedRow = ToolSamples::listItem(true);
+    nestedRow.checkBoxFlags = QStyle::State_MouseOver;
+    QVERIFY(isNear(pixel(renderRow(nestedRow, 261, none), 12, 22), token(Color::BgAccentHover)));
+    nestedRow.checkBoxFlags = QStyle::State_Sunken;
+    QVERIFY(isNear(pixel(renderRow(nestedRow, 261, none), 12, 22), token(Color::BgAccentPressed)));
+
+    // A kind not found 438:12782: the box disabled alone (bg/muted, border/default), the row keeps text/secondary, the tag bg/subtle
+    const Painter::TileRow notFound = ToolSamples::notFound();
+    image = renderRow(notFound, 622, none);
+    QVERIFY(isNear(pixel(image, 18, 24), token(Color::BgMuted)));
+    QVERIFY(isCloser(strongestInk(image, QRect(82, 9, 150, 16), surface), token(Color::TextSecondary), token(Color::TextDisabled)));
+    // The tag right after the title of 150 px with the gap 6 - inside it above its label
+    QVERIFY(isNear(pixel(image, 82 + 150 + 6 + 36, 9), token(Color::BgSubtle)));
+    QVERIFY(isNear(pixel(image, 82 + 150 + 6 + 73 + 12, 16), surface));
+
+    // A pending rotation 389:20411: Semi Bold title text/primary, the description text/tertiary, the link text/accent
+    image = renderRow(ToolSamples::pendingRotation(), 279, none);
+    QVERIFY(isNear(pixel(image, 23, 10), blend(token(Color::BgAccentSubtle), surface)));
+    QVERIFY(isCloser(strongestInk(image, QRect(48, 8, 60, 15), surface), token(Color::TextPrimary), token(Color::TextTertiary)));
+    QVERIFY(isCloser(strongestInk(image, QRect(48, 24, 120, 13), surface), token(Color::TextTertiary), token(Color::TextMuted)) ||
+            isNear(token(Color::TextTertiary), token(Color::TextMuted), 8));
+    QVERIFY(isCloser(strongestInk(image, QRect(233, 15, 38, 16), surface), token(Color::TextAccent), token(Color::TextPrimary)));
+
+    // A page marked for removal 388:20825: the tile accent/red/bg with the number accent/red/icon
+    image = renderRow(ToolSamples::pendingRemoval(), 279, none);
+    QVERIFY(isNear(pixel(image, 23, 10), blend(token(Color::AccentRedBg), surface)));
+    QVERIFY(isCloser(strongestInk(image, QRect(14, 16, 18, 14), blend(token(Color::AccentRedBg), surface)), token(Color::AccentRedIcon), token(Color::TextPrimary)));
+
+    // Steps 303:4405: the skipped one text/tertiary with the minus icon/muted
+    image = renderRow(ToolSamples::skippedStep(), 273, none);
+    QVERIFY(isNear(pixel(image, 20, 8), blend(token(Color::BgMuted), surface)));
+    QVERIFY(isCloser(strongestInk(image, QRect(44, 5, 100, 16), surface), token(Color::TextTertiary), token(Color::TextSecondary)));
+    QVERIFY(isCloser(strongestInk(image, QRect(251, 12, 16, 16), surface), token(Color::IconMuted), token(Color::IconAccent)));
+    image = renderRow(ToolSamples::step(), 273, none);
+    QVERIFY(isCloser(strongestInk(image, QRect(251, 12, 16, 16), surface), token(Color::IconAccent), token(Color::IconMuted)));
+    QVERIFY(isCloser(strongestInk(image, QRect(44, 22, 100, 14), surface), token(Color::TextMuted), token(Color::TextPrimary)));
+
+    // A step performed 303:4897: the description text/secondary, the mark accent/green/icon
+    image = renderRow(ToolSamples::performedStep(), 273, none);
+    QVERIFY(isCloser(strongestInk(image, QRect(44, 22, 100, 14), surface), token(Color::TextSecondary), token(Color::IconAccent)));
+    QVERIFY(isCloser(strongestInk(image, QRect(251, 12, 16, 16), surface), token(Color::AccentGreenIcon), token(Color::IconAccent)));
+
+    // A result 438:14342: the muted tile of 26 with the title text/primary
+    image = renderRow(ToolSamples::result(), 273, none);
+    QVERIFY(isNear(pixel(image, 22, 11), blend(token(Color::BgMuted), surface)));
+    QVERIFY(isNear(pixel(image, 22, 8), surface));
+    QVERIFY(isCloser(strongestInk(image, QRect(48, 7, 90, 16), surface), token(Color::TextPrimary), token(Color::TextSecondary)));
+    QVERIFY(isCloser(strongestInk(image, QRect(247, 14, 16, 16), surface), token(Color::AccentGreenIcon), token(Color::IconMuted)));
+    QCOMPARE(countLeakPixels(image), 0);
+
+    // The caption 438:14866: Semi Bold 11 text/tertiary in the line 13 at 10,6, no fill
+    // of a row by the pointer, by the selection or by the focus
+    const Painter::TileRow captionRow = ToolSamples::caption();
+    const QImage captionReference = render([&](QPainter& painter)
+    {
+        Painter::drawElidedText(&painter, state(none), QRectF(10, 6, 241, 13), captionRow.title, pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::CaptionSemiBold), Color::TextTertiary, Painter::TextKind::Interface);
+    }, QSize(261, 21), scale);
+    for (const QStyle::State flags : { none, over, down, QStyle::State(QStyle::State_Selected), QStyle::State(QStyle::State_HasFocus) })
+    {
+        image = renderRow(captionRow, 261, flags);
+        QCOMPARE(describeDifference(image, captionReference, 0), QString());
+        QVERIFY(isNear(pixel(image, 200, 2), surface));
+    }
+    QCOMPARE(countLeakPixels(image), 0);
+}
+
+void FluentComponentsTest::tileRowWidgetMatchesPainter()
+{
+    QWidget window;
+    window.resize(700, 400);
+    window.setFocusPolicy(Qt::StrongFocus);
+
+    using Kind = ToolSamples::Kind;
+    pdf::PDFTileRow* menuRow = new pdf::PDFTileRow(QStringLiteral("All links"), QStringLiteral("16 external links"), QStringLiteral("list"), Kind::MenuItem, &window);
+    menuRow->setGeometry(0, 0, 302, 44);
+    menuRow->setSelectionBehavior(pdf::PDFComponentButton::SelectionBehavior::Toggle);
+    menuRow->setChecked(true);
+
+    pdf::PDFTileRow* listRow = new pdf::PDFTileRow(QStringLiteral("Market study 2026"), QStringLiteral("https://research.example.org/…"), QStringLiteral("globe"), Kind::ListItem, &window);
+    listRow->setGeometry(0, 50, 261, 44);
+    listRow->setCheckBoxVisible(true);
+    listRow->setCheckBoxChecked(true);
+    listRow->setSelectionBehavior(pdf::PDFComponentButton::SelectionBehavior::Toggle);
+    listRow->setChecked(true);
+
+    pdf::PDFTileRow* kindRow = new pdf::PDFTileRow(QStringLiteral("Embedded search index"), QStringLiteral("Not found in this document"), QStringLiteral("search-index"), Kind::ListItem, &window);
+    kindRow->setGeometry(0, 100, 622, 49);
+    kindRow->setCheckBoxVisible(true);
+    kindRow->setCheckBoxEnabled(false);
+    kindRow->setTag(QStringLiteral("Not found"));
+
+    pdf::PDFTileRow* pendingRow = new pdf::PDFTileRow(QStringLiteral("Page 4"), QStringLiteral("A4 portrait"), QString(), Kind::Pending, &window);
+    pendingRow->setGeometry(0, 160, 279, 46);
+    pendingRow->setTileText(QStringLiteral("4"));
+    pendingRow->setTone(ToolSamples::Tone::Danger);
+    pendingRow->setLinkText(QStringLiteral("Keep"));
+
+    pdf::PDFTileRow* stepRow = new pdf::PDFTileRow(QStringLiteral("Shrink object storage"), QStringLiteral("Will be skipped"), QStringLiteral("hash"), Kind::Step, &window);
+    stepRow->setGeometry(0, 210, 273, 41);
+    stepRow->setTone(ToolSamples::Tone::Muted);
+    stepRow->setEndIcon(QStringLiteral("minus"), Color::IconMuted);
+    stepRow->setClickable(false);
+
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.setFocus(Qt::OtherFocusReason);
+
+    for (const char* theme : { "light", "dark" })
+    {
+        QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(QString::fromLatin1(theme)));
+        for (const qreal scale : { 1.0, 1.5, 2.0 })
+        {
+            // At the scale 1.5 a nested widget at an odd logical position starts in
+            // the middle of a device pixel, Qt clips it to whole pixels (rowWidgetsMatchPainter)
+            const int tolerance = qFuzzyCompare(scale, 1.5) ? 24 : 3;
+            for (pdf::PDFTileRow* row : std::initializer_list<pdf::PDFTileRow*>{ menuRow, listRow, kindRow, pendingRow, stepRow })
+            {
+                Painter::TileRow content = row->getContent();
+                content.paintNested = true;
+                const QSize size = row->size();
+                QImage widgetImage = renderWidget(row, scale);
+                QImage painterImage = renderInWidget([&](QPainter& painter) { Painter::paintTileRow(&painter, QRectF(QPointF(0, 0), QSizeF(size)), content, row->getComponentState()); }, size, scale);
+                if (qFuzzyCompare(scale, 1.5) && row->getCheckBox())
+                {
+                    // The check box at an odd logical position is cut by Qt at the middle of a
+                    // device pixel: its pixels are compared at the whole scales 1 and 2
+                    const QRect box = row->getCheckBox()->geometry();
+                    const QRectF deviceBox(box.left() * scale - 1, box.top() * scale - 1, box.width() * scale + 2, box.height() * scale + 2);
+                    for (QImage* image : { &widgetImage, &painterImage })
+                    {
+                        QPainter masker(image);
+                        masker.setCompositionMode(QPainter::CompositionMode_Source);
+                        masker.resetTransform();
+                        masker.scale(1.0 / image->devicePixelRatio(), 1.0 / image->devicePixelRatio());
+                        masker.fillRect(deviceBox, Qt::black);
+                    }
+                }
+                const QString difference = describeDifference(widgetImage, painterImage, tolerance);
+                QVERIFY2(difference.isEmpty(), qPrintable(QStringLiteral("%1 scale %2 %3: %4").arg(QString::fromLatin1(theme)).arg(scale).arg(row->getTitle(), difference)));
+                QCOMPARE(countLeakPixels(widgetImage), 0);
+            }
+        }
+    }
+
+    // The nested widgets lie at the rectangles of the painter, also mirrored
+    QCOMPARE(listRow->getCheckBox()->geometry(), QRect(10, 13, 18, 18));
+    const QRect linkGeometry = pendingRow->getLink()->geometry();
+    QCOMPARE(linkGeometry.right() + 1, 279 - 8);
+    QCOMPARE(linkGeometry.top(), 15);
+    QCOMPARE(linkGeometry.height(), 16);
+    QCOMPARE(linkGeometry.size(), Painter::getTextLinkSize(Painter::TextLink{ QStringLiteral("Keep") }));
+    window.setLayoutDirection(Qt::RightToLeft);
+    QApplication::processEvents();
+    QCOMPARE(listRow->getCheckBox()->geometry(), QRect(261 - 10 - 18, 13, 18, 18));
+    QCOMPARE(pendingRow->getLink()->geometry(), QRect(8, 15, linkGeometry.width(), 16));
+    const QImage mirrored = renderWidget(listRow, 1.0);
+    QVERIFY(isNear(pixel(mirrored, 261 - 12, 22), token(Color::BgAccent)));
+}
+
+void FluentComponentsTest::tileRowInteraction()
+{
+    using Kind = ToolSamples::Kind;
+
+    QWidget window;
+    window.resize(400, 300);
+    QLineEdit* before = new QLineEdit(&window);
+    before->setGeometry(0, 0, 100, 30);
+    pdf::PDFTileRow* row = new pdf::PDFTileRow(QStringLiteral("Page 9"), QStringLiteral("90° right"), QStringLiteral("rotate-cw"), Kind::ListItem, &window);
+    row->setGeometry(0, 40, 300, 44);
+    row->setCheckBoxVisible(true);
+    row->setLinkText(QStringLiteral("Undo"));
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&window));
+
+    QSignalSpy clicked(row, &QAbstractButton::clicked);
+    QSignalSpy toggled(row, &pdf::PDFTileRow::checkBoxToggled);
+    QSignalSpy link(row, &pdf::PDFTileRow::linkClicked);
+
+    // A click on the row activates it and nothing else
+    QTest::mouseClick(row, Qt::LeftButton, Qt::NoModifier, QPoint(120, 22));
+    QCOMPARE(clicked.count(), 1);
+    QCOMPARE(toggled.count(), 0);
+    QCOMPARE(link.count(), 0);
+
+    // A click on the check box toggles it, the row is not activated; the tile follows it
+    QCheckBox* checkBox = row->getCheckBox();
+    QVERIFY(checkBox);
+    QTest::mouseClick(checkBox, Qt::LeftButton, Qt::NoModifier, QPoint(9, 9));
+    QCOMPARE(clicked.count(), 1);
+    QCOMPARE(toggled.count(), 1);
+    QCOMPARE(toggled.at(0).at(0).toBool(), true);
+    QVERIFY(row->isCheckBoxChecked());
+    QVERIFY(isNear(pixel(renderWidget(row, 1.0), 55, 9), blend(token(Color::BgAccentSubtle), token(Color::BgSurface))));
+
+    // A click on the link gives its signal, the row is not activated
+    QTest::mouseClick(row->getLink(), Qt::LeftButton, Qt::NoModifier, QPoint(10, 8));
+    QCOMPARE(link.count(), 1);
+    QCOMPARE(clicked.count(), 1);
+
+    // A check box disabled alone: a click on it is no click on the row and it does not change
+    row->setCheckBoxEnabled(false);
+    QVERIFY(!row->isCheckBoxEnabled());
+    QVERIFY(row->isEnabled());
+    DelegateSamples::sendMouse(checkBox, QEvent::MouseButtonPress, QPoint(9, 9), Qt::LeftButton, Qt::LeftButton);
+    DelegateSamples::sendMouse(checkBox, QEvent::MouseButtonRelease, QPoint(9, 9), Qt::LeftButton, Qt::NoButton);
+    QCOMPARE(clicked.count(), 1);
+    QCOMPARE(toggled.count(), 1);
+    row->setCheckBoxEnabled(true);
+
+    // Tab goes through the row, the check box and the link; Enter and Space activate the row
+    before->setFocus(Qt::OtherFocusReason);
+    QTest::keyClick(before, Qt::Key_Tab);
+    QVERIFY(row->hasFocus());
+    QVERIFY(row->getComponentState().hasFocusRing());
+    QTest::keyClick(row, Qt::Key_Return);
+    QCOMPARE(clicked.count(), 2);
+    QTest::keyClick(row, Qt::Key_Space);
+    QCOMPARE(clicked.count(), 3);
+    QTest::keyClick(row, Qt::Key_Tab);
+    QVERIFY(checkBox->hasFocus());
+    QTest::keyClick(checkBox, Qt::Key_Space);
+    QCOMPARE(toggled.count(), 2);
+    QCOMPARE(clicked.count(), 3);
+    QTest::keyClick(checkBox, Qt::Key_Tab);
+    QVERIFY(row->getLink()->hasFocus());
+    QTest::keyClick(row->getLink(), Qt::Key_Return);
+    QCOMPARE(link.count(), 2);
+
+    // Accessibility: the button with the title, the description and the tag; the nested widgets name the row
+    QAccessibleInterface* accessible = QAccessible::queryAccessibleInterface(row);
+    QVERIFY(accessible);
+    QCOMPARE(accessible->role(), QAccessible::Button);
+    QCOMPARE(accessible->text(QAccessible::Name), QStringLiteral("Page 9"));
+    QCOMPARE(accessible->text(QAccessible::Description), QStringLiteral("90° right"));
+    row->setTag(QStringLiteral("Not found"));
+    QCOMPARE(accessible->text(QAccessible::Description), QStringLiteral("90° right, Not found"));
+    QCOMPARE(checkBox->accessibleName(), QStringLiteral("Page 9"));
+    QCOMPARE(row->getLink()->accessibleName(), QStringLiteral("Undo, Page 9"));
+    row->setTitle(QStringLiteral("Page 10"));
+    QCOMPARE(checkBox->accessibleName(), QStringLiteral("Page 10"));
+    QCOMPARE(row->getLink()->accessibleName(), QStringLiteral("Undo, Page 10"));
+
+    // A choice of an exclusive group: the check mark moves by Space, the role and the state told
+    pdf::PDFTileRow* first = new pdf::PDFTileRow(QStringLiteral("Standard"), QString(), QStringLiteral("list"), Kind::MenuItem, &window);
+    pdf::PDFTileRow* second = new pdf::PDFTileRow(QStringLiteral("Everything"), QString(), QStringLiteral("list"), Kind::MenuItem, &window);
+    first->setGeometry(0, 100, 300, 44);
+    second->setGeometry(0, 150, 300, 44);
+    first->show();
+    second->show();
+    first->setSelectionBehavior(pdf::PDFComponentButton::SelectionBehavior::Exclusive);
+    second->setSelectionBehavior(pdf::PDFComponentButton::SelectionBehavior::Exclusive);
+    QButtonGroup group;
+    group.setExclusive(true);
+    group.addButton(first);
+    group.addButton(second);
+    first->setChecked(true);
+    QVERIFY(first->getContent().chosen);
+    QVERIFY(!second->getContent().chosen);
+    second->setFocus(Qt::OtherFocusReason);
+    QTest::keyClick(second, Qt::Key_Space);
+    QVERIFY(second->getContent().chosen);
+    QVERIFY(!first->getContent().chosen);
+    QCOMPARE(QAccessible::queryAccessibleInterface(second)->role(), QAccessible::RadioButton);
+    QVERIFY(QAccessible::queryAccessibleInterface(second)->state().checked);
+
+    // A row, which is not clickable: no focus, no hover, no activation; its link works
+    row->setFocus(Qt::OtherFocusReason);
+    row->setClickable(false);
+    QVERIFY(!row->hasFocus());
+    QCOMPARE(row->focusPolicy(), Qt::NoFocus);
+    const int clicks = clicked.count();
+    QTest::mouseClick(row, Qt::LeftButton, Qt::NoModifier, QPoint(120, 22));
+    QCOMPARE(clicked.count(), clicks);
+    QTest::mouseClick(row->getLink(), Qt::LeftButton, Qt::NoModifier, QPoint(10, 8));
+    QCOMPARE(link.count(), 3);
+
+    // A disabled row: text/disabled and no check box of its own life (O-08)
+    row->setClickable(true);
+    row->setEnabled(false);
+    QVERIFY(!checkBox->isEnabled());
+    row->setEnabled(true);
+
+    // A nested widget deleted by the application gives its place back, the row goes on
+    const QRectF rect(0, 0, 300, 44);
+    QCOMPARE(Painter::getTileRowTextRect(rect, row->getContent()).left(), 82.0);
+    delete checkBox;
+    QVERIFY(!row->getCheckBox());
+    QVERIFY(!row->isCheckBoxVisible());
+    QVERIFY(!row->isCheckBoxChecked());
+    row->setCheckBoxChecked(true);
+    row->setCheckBoxEnabled(false);
+    QCOMPARE(Painter::getTileRowTextRect(rect, row->getContent()).left(), 52.0);
+    QImage image = renderWidget(row, 1.0);
+    QCOMPARE(countLeakPixels(image), 0);
+
+    const qreal widthWithLink = Painter::getTileRowTextRect(rect, row->getContent()).width();
+    delete row->getLink();
+    QVERIFY(!row->getLink());
+    QVERIFY(Painter::getTileRowTextRect(rect, row->getContent()).width() > widthWithLink);
+    QVERIFY(row->getContent().linkText.isEmpty());
+
+    // Created again on demand
+    row->setCheckBoxVisible(true);
+    QVERIFY(row->getCheckBox());
+    QCOMPARE(row->getCheckBox()->accessibleName(), QStringLiteral("Page 10"));
+    row->setLinkText(QStringLiteral("Keep"));
+    QVERIFY(row->getLink());
+    QCOMPARE(row->getLink()->text(), QStringLiteral("Keep"));
+    row->setLinkText(QString());
+    QVERIFY(row->getLink()->isHidden());
+    QVERIFY(row->getContent().linkText.isEmpty());
+
+    // The same text brings back a link, which the application has deleted or hidden
+    row->setLinkText(QStringLiteral("Keep"));
+    QCOMPARE(row->getContent().linkText, QStringLiteral("Keep"));
+    delete row->getLink();
+    QVERIFY(row->getContent().linkText.isEmpty());
+    row->setLinkText(QStringLiteral("Keep"));
+    QVERIFY(row->getLink());
+    QCOMPARE(row->getLink()->text(), QStringLiteral("Keep"));
+    QCOMPARE(row->getContent().linkText, QStringLiteral("Keep"));
+    row->getLink()->hide();
+    QVERIFY(row->getContent().linkText.isEmpty());
+    row->setLinkText(QStringLiteral("Keep"));
+    QVERIFY(!row->getLink()->isHidden());
+    QCOMPARE(row->getContent().linkText, QStringLiteral("Keep"));
+    row->setLinkText(QString());
+    row->setCheckBoxVisible(false);
+    QVERIFY(!row->getContent().checkBoxVisible);
+
+    // The application hides the check box itself: the row gives the place back too
+    row->setCheckBoxVisible(true);
+    row->getCheckBox()->hide();
+    QVERIFY(!row->getContent().checkBoxVisible);
+    QCOMPARE(Painter::getTileRowTextRect(rect, row->getContent()).left(), 52.0);
+
+    // The height for the width follows the nested check box: the description wraps
+    // only beside it (a deleted and a hidden check box give the place, and the height, back)
+    pdf::PDFTileRow* heightRow = new pdf::PDFTileRow(QStringLiteral("acme-corp.example"), QStringLiteral("https://www.acme-corp.example\u2026"), QStringLiteral("globe"), Kind::ListItem, &window);
+    QCOMPARE(heightRow->heightForWidth(261), 44);
+    heightRow->setCheckBoxVisible(true);
+    QCOMPARE(heightRow->heightForWidth(261), 57);
+    heightRow->getCheckBox()->hide();
+    QCOMPARE(heightRow->heightForWidth(261), 44);
+    heightRow->getCheckBox()->show();
+    QCOMPARE(heightRow->heightForWidth(261), 57);
+    delete heightRow->getCheckBox();
+    QCOMPARE(heightRow->heightForWidth(261), 44);
+    delete heightRow;
+
+    // The row deleted from the slots of its signals
+    {
+        QPointer<pdf::PDFTileRow> victim = new pdf::PDFTileRow(QStringLiteral("Victim"), QString(), QStringLiteral("list"), Kind::Pending, &window);
+        victim->setLinkText(QStringLiteral("Undo"));
+        victim->setGeometry(0, 200, 300, 46);
+        victim->show();
+        connect(victim.data(), &pdf::PDFTileRow::linkClicked, &window, [&victim]() { delete victim.data(); });
+        QTest::mouseClick(victim->getLink(), Qt::LeftButton, Qt::NoModifier, QPoint(10, 8));
+        QVERIFY(victim.isNull());
+    }
+
+    // The row deleted from the slot of checkBoxToggled: by the mouse, by Space and by
+    // the setter; the check box keeps its signal checkStateChanged for a click
+    for (int way = 0; way < 3; ++way)
+    {
+        QPointer<pdf::PDFTileRow> victim = new pdf::PDFTileRow(QStringLiteral("Victim"), QString(), QStringLiteral("list"), Kind::ListItem, &window);
+        victim->setCheckBoxVisible(true);
+        victim->setGeometry(0, 200, 300, 44);
+        victim->show();
+        QCheckBox* box = victim->getCheckBox();
+        connect(victim.data(), &pdf::PDFTileRow::checkBoxToggled, &window, [&victim]() { delete victim.data(); });
+        switch (way)
+        {
+            case 0:
+                QTest::mouseClick(box, Qt::LeftButton, Qt::NoModifier, QPoint(9, 9));
+                break;
+            case 1:
+                box->setFocus(Qt::OtherFocusReason);
+                QTest::keyClick(box, Qt::Key_Space);
+                break;
+            default:
+                victim->setCheckBoxChecked(true);
+                break;
+        }
+        QVERIFY(victim.isNull());
+    }
+    {
+        pdf::PDFTileRow* published = new pdf::PDFTileRow(QStringLiteral("Published"), QString(), QStringLiteral("list"), Kind::ListItem, &window);
+        published->setCheckBoxVisible(true);
+        published->setGeometry(0, 200, 300, 44);
+        published->show();
+        QSignalSpy stateChanged(published->getCheckBox(), &QCheckBox::checkStateChanged);
+        QSignalSpy rowToggled(published, &pdf::PDFTileRow::checkBoxToggled);
+        QTest::mouseClick(published->getCheckBox(), Qt::LeftButton, Qt::NoModifier, QPoint(9, 9));
+        QCOMPARE(stateChanged.count(), 1);
+        QCOMPARE(stateChanged.at(0).at(0).value<Qt::CheckState>(), Qt::Checked);
+        QCOMPARE(rowToggled.count(), 1);
+        QCOMPARE(rowToggled.at(0).at(0).toBool(), true);
+        delete published;
+    }
+
+    QCOMPARE(countLeakPixels(renderWidget(&window, 1.0)), 0);
+}
+
+void FluentComponentsTest::tileRowDirectionAndData()
+{
+    using Kind = ToolSamples::Kind;
+
+    // A title, which is data, keeps its own direction in a right-to-left row
+    // (components.md 6.6): "Report (2026)." ends by its period at its right end, a
+    // text of the user interface takes the direction of the row
+    Painter::TileRow row = ToolSamples::row(Kind::MenuItem, QStringLiteral("Report (2026)."), QString(), QStringLiteral("list"));
+    row.tone = ToolSamples::Tone::Accent;
+
+    const QRect rect(0, 0, 300, 44);
+    const QFont font = pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::BodyMedium);
+    const QRectF titleRect = QRectF(QStyle::visualRect(Qt::RightToLeft, rect, QRect(52, 14, 238, 16)));
+    const auto renderTitle = [&](Painter::TextKind kind)
+    {
+        row.titleKind = kind;
+        return render([&](QPainter& painter) { Painter::paintTileRow(&painter, QRectF(rect), row, state(QStyle::State_None, Qt::RightToLeft)); }, rect.size());
+    };
+    const auto reference = [&](Qt::LayoutDirection direction)
+    {
+        return render([&](QPainter& painter)
+        {
+            pdf::PDFComponentPainter::drawDataText(&painter, titleRect, Qt::AlignRight | Qt::AlignAbsolute | Qt::AlignVCenter | Qt::TextSingleLine, row.title, font, token(Color::TextPrimary), direction);
+        }, rect.size());
+    };
+
+    const QImage dataImage = renderTitle(Painter::TextKind::Data);
+    const QImage interfaceImage = renderTitle(Painter::TextKind::Interface);
+    const QRect titleArea = titleRect.toRect();
+    QVERIFY2(describeDifference(dataImage.copy(titleArea), reference(Qt::LeftToRight).copy(titleArea), 16).isEmpty(), "A data title keeps its direction");
+    QVERIFY2(describeDifference(interfaceImage.copy(titleArea), reference(Qt::RightToLeft).copy(titleArea), 16).isEmpty(), "An interface title takes the direction of the row");
+    QVERIFY(!describeDifference(dataImage, interfaceImage, 16).isEmpty());
+
+    // The tile lies at the right edge
+    QVERIFY(isNear(pixel(dataImage, 300 - 25, 9), blend(token(Color::BgAccentSubtle), token(Color::BgSurface))));
+    QVERIFY(isNear(pixel(dataImage, 25, 9), token(Color::BgSurface)));
+
+    // The wrapped lines of a description, which is data, share the direction of the
+    // whole text: a Hebrew address with Latin parts in a left-to-right row. Each line
+    // keeps the leading edge of the row and the right-to-left order of its parts.
+    Painter::TileRow wrapped = ToolSamples::row(Kind::ListItem, QStringLiteral("x"), QStringLiteral("\u05D0\u05D1\u05D2 (abc) \u05D3\u05D4\u05D5. \u05D6\u05D7\u05D8 (def) \u05D9\u05DA\u05DB. \u05DC\u05DD\u05DE (ghi) \u05DF\u05E0\u05E1. \u05E2\u05E3\u05E4 (jkl) \u05E5\u05E6\u05E7."));
+    wrapped.descriptionKind = Painter::TextKind::Data;
+    QCOMPARE(Painter::getTileRowHeight(wrapped, 200), 57);
+    const QImage hebrew = render([&](QPainter& painter) { Painter::paintTileRow(&painter, QRectF(0, 0, 200, 57), wrapped, state(QStyle::State_None)); }, QSize(200, 57));
+    const QFont captionFont = pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::CaptionRegular);
+    const QStringList hebrewLines = Painter::wrapText(wrapped.description, captionFont, 138, 2);
+    QCOMPARE(hebrewLines.size(), 2);
+    const QImage hebrewReference = render([&](QPainter& painter)
+    {
+        for (int i = 0; i < 2; ++i)
+        {
+            Painter::drawDataText(&painter, QRectF(52, 24 + i * 13, 138, 13), Qt::AlignLeft | Qt::AlignAbsolute | Qt::AlignVCenter | Qt::TextSingleLine, hebrewLines.at(i), captionFont, token(Color::TextMuted), Qt::RightToLeft);
+        }
+    }, QSize(200, 57));
+    const QRect hebrewArea(52, 24, 138, 26);
+    QCOMPARE(describeDifference(hebrew.copy(hebrewArea), hebrewReference.copy(hebrewArea), 16), QString());
+    QCOMPARE(countLeakPixels(hebrew), 0);
+
+    // File names: the kind FileName of the description keeps the extension
+    Painter::TileRow file = ToolSamples::row(Kind::Step, QStringLiteral("Annual_Report_of_the_whole_company_2026_final_version.pdf"), QStringLiteral("x"));
+    file.titleKind = Painter::TextKind::FileName;
+    const QImage fileImage = render([&](QPainter& painter) { Painter::paintTileRow(&painter, QRectF(0, 0, 200, 41), file, state(QStyle::State_None)); }, QSize(200, 41));
+    const QImage plainFile = render([&](QPainter& painter)
+    {
+        Painter::TileRow plain = file;
+        plain.titleKind = Painter::TextKind::Data;
+        Painter::paintTileRow(&painter, QRectF(0, 0, 200, 41), plain, state(QStyle::State_None));
+    }, QSize(200, 41));
+    QVERIFY(!describeDifference(fileImage, plainFile, 16).isEmpty());
+}
+
+void FluentComponentsTest::tileRowDefensive()
+{
+    using Kind = ToolSamples::Kind;
+
+    // A null painter and rectangles, which cannot be drawn, draw nothing
+    const Painter::TileRow row = ToolSamples::notFound();
+    Painter::paintTileRow(nullptr, QRectF(0, 0, 300, 44), row, state(QStyle::State_None));
+    const qreal nan = std::numeric_limits<qreal>::quiet_NaN();
+    for (const QRectF& rect : { QRectF(), QRectF(0, 0, -10, 44), QRectF(0, 0, nan, 44), QRectF(nan, 0, 100, 44), QRectF(0, 0, 1e9, 1e9) })
+    {
+        const QImage image = render([&](QPainter& painter) { Painter::paintTileRow(&painter, rect, row, state(QStyle::State_None)); }, QSize(100, 50));
+        QCOMPARE(countPixels(image, QRect(0, 0, 100, 50), token(Color::BgSurface), 0), 100 * 50);
+    }
+
+    // Invalid enumerations: MenuItem, Accent, and the fallback of the colors
+    Painter::TileRow invalid = ToolSamples::menuItem(false);
+    invalid.kind = static_cast<Painter::TileRowKind>(99);
+    invalid.tone = static_cast<Painter::TileRowTone>(99);
+    invalid.endIconName = QStringLiteral("check-circle");
+    invalid.endIconColor = static_cast<Color>(-1);
+    invalid.descriptionColor = static_cast<Color>(100000);
+    QCOMPARE(Painter::normalized(invalid.kind), Kind::MenuItem);
+    QCOMPARE(Painter::normalized(invalid.tone), ToolSamples::Tone::Accent);
+    QCOMPARE(Painter::getTileRowHeight(invalid, 302), 44);
+    const QImage invalidImage = render([&](QPainter& painter) { Painter::paintTileRow(&painter, QRectF(0, 0, 302, 44), invalid, state(QStyle::State_None)); }, QSize(302, 44));
+    QVERIFY(isNear(pixel(invalidImage, 25, 9), blend(token(Color::BgAccentSubtle), token(Color::BgSurface))));
+    QVERIFY(colorDistance(strongestInk(invalidImage, QRect(276, 14, 16, 16), token(Color::BgSurface)), token(Color::IconAccent)) < colorDistance(strongestInk(invalidImage, QRect(276, 14, 16, 16), token(Color::BgSurface)), token(Color::TextPrimary)));
+    QVERIFY(colorDistance(strongestInk(invalidImage, QRect(52, 24, 100, 13), token(Color::BgSurface)), token(Color::TextMuted)) < 60);
+
+    // Empty texts and an unknown icon: the tile stays, the height of the tile
+    Painter::TileRow empty;
+    empty.iconName = QStringLiteral("no-such-icon");
+    QCOMPARE(Painter::getTileRowHeight(empty, 302), 44);
+    QCOMPARE(countLeakPixels(render([&](QPainter& painter) { Painter::paintTileRow(&painter, QRectF(0, 0, 302, 44), empty, state(QStyle::State_None)); }, QSize(302, 44))), 0);
+
+    // A too narrow row: nothing outside of the rectangle, the tag dropped from the height
+    Painter::TileRow narrow = ToolSamples::notFound();
+    QCOMPARE(Painter::getTileRowHeight(narrow, 120), 44 + 13);
+    QCOMPARE(Painter::getTileRowHeight(narrow, 0), 44);
+    QCOMPARE(Painter::getTileRowHeight(narrow, -5), 44);
+    QCOMPARE(Painter::getTileRowHeight(narrow, std::numeric_limits<int>::max()), 49);
+
+    // The height of a row says the lines, which the painter wraps, at every width (it is
+    // computed without a layout of the text): a word wider than a line, spaces, data of
+    // both directions, a line break, a text of one line only at the widest widths
+    const QFont descriptionFont = pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::CaptionRegular);
+    for (const QString& description : { QStringLiteral("Blocks of text as they are placed on the page"), QStringLiteral("https://www.example.org/a-very-long-address-without-any-spaces-in-it"),
+                                        QStringLiteral("\u05D0\u05D1\u05D2 (abc) \u05D3\u05D4\u05D5."), QStringLiteral("Two\nlines"), QStringLiteral("x") })
+    {
+        Painter::TileRow wrapRow = ToolSamples::row(Kind::MenuItem, QStringLiteral("Title"), description);
+        for (int width = 80; width < 420; ++width)
+        {
+            const int lines = int(Painter::wrapText(description, descriptionFont, width - 62, 2).size());
+            const int expected = lines > 1 ? 57 : 44;
+            QVERIFY2(Painter::getTileRowHeight(wrapRow, width) == expected, qPrintable(QStringLiteral("%1 at %2: %3 lines, the height %4").arg(description).arg(width).arg(lines).arg(Painter::getTileRowHeight(wrapRow, width))));
+        }
+    }
+
+    // Hostile long texts are bounded: two lines of the description, a size of a form, in a short time
+    Painter::TileRow hostile = ToolSamples::listItem(true);
+    hostile.title = QString(1 << 20, QLatin1Char('W'));
+    hostile.description = QString(1 << 20, QLatin1Char('x'));
+    hostile.tag = QString(1 << 20, QLatin1Char('T'));
+    hostile.linkText = QString(1 << 20, QLatin1Char('L'));
+    hostile.tileText = QString(1 << 20, QLatin1Char('1'));
+    QElapsedTimer timer;
+    timer.start();
+    const QSize hostileSize = Painter::getTileRowSize(hostile);
+    QVERIFY(hostileSize.width() < 16000);
+    QVERIFY(Painter::getTileRowMinimumSize(hostile).width() < 16000);
+    QVERIFY(hostileSize.height() <= 57);
+    const QImage hostileImage = render([&](QPainter& painter) { Painter::paintTileRow(&painter, QRectF(0, 0, 300, 57), hostile, state(QStyle::State_None)); }, QSize(300, 57));
+    QCOMPARE(countLeakPixels(hostileImage), 0);
+    const int factor = qMax(1, qEnvironmentVariableIntValue("PDF4QT_TEST_TIMEOUT_FACTOR"));
+    QVERIFY2(timer.elapsed() < 2000 * factor, qPrintable(QStringLiteral("%1 ms").arg(timer.elapsed())));
+
+    // The setters of the widget normalize the values
+    pdf::PDFTileRow widget;
+    widget.setKind(static_cast<Painter::TileRowKind>(99));
+    QCOMPARE(widget.getKind(), Kind::MenuItem);
+    widget.setTone(static_cast<Painter::TileRowTone>(99));
+    QCOMPARE(widget.getTone(), ToolSamples::Tone::Accent);
+    widget.setDescriptionColor(Color::TextSecondary);
+    QCOMPARE(widget.getDescriptionColor(), std::optional<Color>(Color::TextSecondary));
+    widget.setDescriptionColor(static_cast<Color>(-1));
+    QVERIFY(!widget.getDescriptionColor().has_value());
+    widget.setEndIcon(QStringLiteral("minus"), static_cast<Color>(100000));
+    QCOMPARE(widget.getEndIconColor(), Color::IconAccent);
+    QVERIFY(!widget.isCheckBoxChecked());
+    QVERIFY(!widget.isCheckBoxEnabled());
+    QVERIFY(!widget.isCheckBoxVisible());
+    widget.setCheckBoxChecked(true);
+    widget.setCheckBoxEnabled(true);
+    QVERIFY(!widget.getCheckBox());
+}
+
+void FluentComponentsTest::tileRowDelegate()
+{
+    using Kind = ToolSamples::Kind;
+    using Roles = pdf::PDFComponentRoles;
+
+    QStandardItemModel model;
+    ToolSamples::links(&model);
+    model.item(2)->setData(QStringLiteral("Not found"), Roles::TagRole);
+    model.item(2)->setFlags(model.item(2)->flags() & ~Qt::ItemIsUserCheckable);
+    pdf::PDFTileRowDelegate delegate;
+    delegate.setKind(Kind::ListItem);
+    QCOMPARE(delegate.getKind(), Kind::ListItem);
+
+    // The content from the roles
+    const QModelIndex first = model.index(0, 0);
+    Painter::TileRow content = delegate.getContent(first);
+    QCOMPARE(content.title, QStringLiteral("link-0.example"));
+    QCOMPARE(content.description, QStringLiteral("https://link-0.example"));
+    QCOMPARE(content.iconName, QStringLiteral("globe"));
+    QVERIFY(content.checkBoxVisible);
+    QVERIFY(content.checkBoxChecked);
+    QVERIFY(content.checkBoxEnabled);
+    QVERIFY(!delegate.getContent(model.index(1, 0)).checkBoxChecked);
+    QVERIFY(!delegate.getContent(model.index(2, 0)).checkBoxEnabled);
+    QCOMPARE(delegate.getContent(model.index(2, 0)).tag, QStringLiteral("Not found"));
+
+    // An invalid index and roles of other types: the defaults
+    QVERIFY(!delegate.getContent(QModelIndex()).checkBoxVisible);
+    QStandardItemModel hostileModel;
+    QStandardItem* hostile = DelegateSamples::item(QStringLiteral("x"));
+    hostile->setData(999, Roles::TileToneRole);
+    hostile->setData(-5, Roles::StateIconColorRole);
+    hostile->setData(QStringLiteral("garbage"), Roles::DescriptionColorRole);
+    hostileModel.appendRow(hostile);
+    const Painter::TileRow hostileContent = delegate.getContent(hostileModel.index(0, 0));
+    QCOMPARE(hostileContent.tone, ToolSamples::Tone::Accent);
+    QVERIFY(!hostileContent.descriptionColor.has_value());
+    QVERIFY(!hostileContent.checkBoxVisible);
+    QCOMPARE(countLeakPixels(renderDelegate(&delegate, hostileModel.index(0, 0), QStyle::State_Enabled, QSize(261, 44))), 0);
+
+    // Sizes against the frames: the width of the view, the height of the kind
+    QStyleOptionViewItem option;
+    option.rect = QRect(0, 0, 261, 44);
+    QCOMPARE(delegate.sizeHint(option, first), QSize(261, 44));
+    QStandardItemModel wrappedModel;
+    QStandardItem* wrapped = DelegateSamples::item(QStringLiteral("acme-corp.example"));
+    wrapped->setData(QStringLiteral("https://www.acme-corp.example…"), Roles::SubtitleRole);
+    wrapped->setCheckState(Qt::Checked);
+    wrappedModel.appendRow(wrapped);
+    QCOMPARE(delegate.sizeHint(option, wrappedModel.index(0, 0)), QSize(261, 57));
+    delegate.setKind(Kind::Pending);
+    QCOMPARE(delegate.sizeHint(option, first).height(), 46);
+    delegate.setKind(Kind::Step);
+    QCOMPARE(delegate.sizeHint(option, first).height(), 41);
+
+    // A change of the kind asks the views for new sizes
+    QSignalSpy sizeChanged(&delegate, &QAbstractItemDelegate::sizeHintChanged);
+    delegate.setKind(Kind::ListItem);
+    QCOMPARE(sizeChanged.count(), 1);
+    delegate.setKind(Kind::ListItem);
+    QCOMPARE(sizeChanged.count(), 1);
+    delegate.setKind(static_cast<Kind>(99));
+    QCOMPARE(delegate.getKind(), Kind::MenuItem);
+    delegate.setKind(Kind::ListItem);
+
+    // An item of a menu takes the check state as chosen, without the check box
+    pdf::PDFTileRowDelegate menuDelegate;
+    QVERIFY(menuDelegate.getContent(first).chosen);
+    QVERIFY(!menuDelegate.getContent(first).checkBoxVisible);
+    QVERIFY(!menuDelegate.getContent(model.index(1, 0)).chosen);
+    const QImage menuImage = renderDelegate(&menuDelegate, first, QStyle::State_Enabled, QSize(261, 44));
+    QVERIFY(isNear(pixel(menuImage, 200, 2), blend(token(Color::BgHover), token(Color::BgSurface))));
+
+    // Pixels through the option: the selection and the hover of a row of a list
+    QVERIFY(isNear(pixel(renderDelegate(&delegate, first, QStyle::State_Enabled | QStyle::State_Selected, QSize(261, 44)), 200, 2), blend(token(Color::BgAccentSubtle), token(Color::BgSurface))));
+    QVERIFY(isNear(pixel(renderDelegate(&delegate, first, QStyle::State_Enabled | QStyle::State_MouseOver, QSize(261, 44)), 200, 2), blend(token(Color::BgHover), token(Color::BgSurface))));
+
+    QWidget window;
+    window.resize(620, 300);
+    pdf::PDFListView* view = new pdf::PDFListView(&window);
+    view->setGeometry(0, 0, 300, 200);
+    view->setModel(&model);
+    view->setItemDelegate(&delegate);
+    QLineEdit* other = new QLineEdit(&window);
+    other->setGeometry(0, 220, 100, 30);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&window));
+    QWidget* viewport = view->viewport();
+
+    // The gap 2 of the rows of the card 438:14751: a list pads each item by its spacing
+    view->setSpacing(1);
+    QApplication::processEvents();
+    QCOMPARE(view->visualRect(model.index(1, 0)).top() - view->visualRect(model.index(0, 0)).bottom() - 1, 2);
+    QCOMPARE(view->visualRect(model.index(0, 0)).height(), 44);
+    QCOMPARE(view->horizontalScrollBar()->maximum(), 0);
+
+    // A click on the check box writes the model, it neither selects the item nor activates it
+    QSignalSpy triggered(&delegate, &pdf::PDFRowDelegate::actionTriggered);
+    QSignalSpy activated(view, &QAbstractItemView::clicked);
+    const QModelIndex second = model.index(1, 0);
+    const QRect checkRect = delegate.getActionRect(view, second, pdf::PDFTileRowDelegate::CheckBoxAction);
+    QCOMPARE(checkRect.size(), QSize(18, 18));
+    QCOMPARE(checkRect.left(), view->visualRect(second).left() + 10);
+    DelegateSamples::sendMouse(viewport, QEvent::MouseButtonPress, checkRect.center(), Qt::LeftButton, Qt::LeftButton);
+    QCOMPARE(delegate.getPressedAction(), int(pdf::PDFTileRowDelegate::CheckBoxAction));
+    QVERIFY(delegate.getActionFlags(DelegateSamples::viewOption(view, second), second, pdf::PDFTileRowDelegate::CheckBoxAction).testFlag(QStyle::State_Sunken));
+    DelegateSamples::sendMouse(viewport, QEvent::MouseButtonRelease, checkRect.center(), Qt::LeftButton, Qt::NoButton);
+    QCOMPARE(model.item(1)->checkState(), Qt::Checked);
+    QCOMPARE(triggered.count(), 1);
+    QCOMPARE(triggered.at(0).at(1).toInt(), int(pdf::PDFTileRowDelegate::CheckBoxAction));
+    QVERIFY(!view->selectionModel()->isSelected(second));
+    QCOMPARE(activated.count(), 0);
+
+    // A check box disabled by the flags of the item does not write
+    const QModelIndex third = model.index(2, 0);
+    const QRect disabledCheck = delegate.getActionRect(view, third, pdf::PDFTileRowDelegate::CheckBoxAction);
+    delegate.triggerAction(view, third, pdf::PDFTileRowDelegate::CheckBoxAction);
+    QCOMPARE(model.item(2)->checkState(), Qt::Unchecked);
+    QCOMPARE(delegate.getActionAt(DelegateSamples::viewOption(view, third), third, QPointF(disabledCheck.center())), -1);
+
+    // Space on the current item toggles the box (the action of the keyboard), the context menu has it too
+    view->setFocus(Qt::OtherFocusReason);
+    view->setCurrentIndex(first);
+    triggered.clear();
+    QTest::keyClick(view, Qt::Key_Space);
+    QCOMPARE(model.item(0)->checkState(), Qt::Unchecked);
+    QCOMPARE(triggered.count(), 1);
+    QMenu* menu = delegate.createContextMenu(view, first, view);
+    QVERIFY(menu);
+    QCOMPARE(menu->actions().size(), 1);
+    QCOMPARE(menu->actions().at(0)->text(), QStringLiteral("Tick\tSpace"));
+    menu->actions().at(0)->trigger();
+    QCOMPARE(model.item(0)->checkState(), Qt::Checked);
+    delete menu;
+
+    // A model refusing the value keeps the item, the application gets the signal
+    {
+        RefusingCheckModel refusing;
+        ToolSamples::links(&refusing, 1);
+        pdf::PDFTileRowDelegate refusingDelegate;
+        refusingDelegate.setKind(Kind::ListItem);
+        pdf::PDFListView refusingView;
+        refusingView.setModel(&refusing);
+        refusingView.setItemDelegate(&refusingDelegate);
+        QSignalSpy refusedSpy(&refusingDelegate, &pdf::PDFRowDelegate::actionTriggered);
+        refusingDelegate.triggerAction(&refusingView, refusing.index(0, 0), pdf::PDFTileRowDelegate::CheckBoxAction);
+        QCOMPARE(refusedSpy.count(), 1);
+        QCOMPARE(refusing.item(0)->checkState(), Qt::Checked);
+        refusingView.setItemDelegate(nullptr);
+    }
+
+    // The press of a row: tracked, ended by a move without the button (a lost release)
+    const QPoint textPoint = view->visualRect(first).topLeft() + QPoint(150, 20);
+    DelegateSamples::sendMouse(viewport, QEvent::MouseButtonPress, textPoint, Qt::LeftButton, Qt::LeftButton);
+    QCOMPARE(QModelIndex(delegate.getPressedIndex()), first);
+    QVERIFY(delegate.getItemState(DelegateSamples::viewOption(view, first), first).isPressed());
+    DelegateReviewSamples::sendHover(viewport, QEvent::HoverMove, textPoint);
+    QVERIFY(!delegate.getPressedIndex().isValid());
+    QVERIFY(!delegate.getItemState(DelegateSamples::viewOption(view, first), first).isPressed());
+    DelegateSamples::sendMouse(viewport, QEvent::MouseButtonRelease, textPoint, Qt::LeftButton, Qt::NoButton);
+
+    // The reset of the model ends a press
+    DelegateSamples::sendMouse(viewport, QEvent::MouseButtonPress, textPoint, Qt::LeftButton, Qt::LeftButton);
+    QVERIFY(delegate.getPressedIndex().isValid());
+
+    // One delegate for two views: the hover belongs to the view under the pointer
+    QStandardItemModel secondModel;
+    ToolSamples::links(&secondModel);
+    pdf::PDFListView* secondView = new pdf::PDFListView(&window);
+    secondView->setGeometry(310, 0, 300, 200);
+    secondView->setModel(&secondModel);
+    secondView->setItemDelegate(&delegate);
+    secondView->show();
+    QApplication::processEvents();
+    QCOMPARE(delegate.getWatchedViewCount(), 2);
+    DelegateSamples::sendMouse(viewport, QEvent::MouseButtonRelease, textPoint, Qt::LeftButton, Qt::NoButton);
+    const QRect secondCheck = delegate.getActionRect(secondView, secondModel.index(0, 0), pdf::PDFTileRowDelegate::CheckBoxAction);
+    QVERIFY(!secondCheck.isEmpty());
+    DelegateReviewSamples::sendHover(secondView->viewport(), QEvent::HoverMove, secondCheck.center());
+    QCOMPARE(delegate.getHoveredAction(), int(pdf::PDFTileRowDelegate::CheckBoxAction));
+    QVERIFY(delegate.getActionFlags(DelegateSamples::viewOption(secondView, secondModel.index(0, 0)), secondModel.index(0, 0), pdf::PDFTileRowDelegate::CheckBoxAction).testFlag(QStyle::State_MouseOver));
+    QVERIFY(!delegate.getActionFlags(DelegateSamples::viewOption(view, first), first, pdf::PDFTileRowDelegate::CheckBoxAction).testFlag(QStyle::State_MouseOver));
+    delegate.triggerAction(secondView, secondModel.index(1, 0), pdf::PDFTileRowDelegate::CheckBoxAction);
+    QCOMPARE(secondModel.item(1)->checkState(), Qt::Checked);
+    QCOMPARE(model.item(1)->checkState(), Qt::Checked);
+    QCOMPARE(delegate.getLastActionView(), static_cast<QAbstractItemView*>(secondView));
+
+    // The reset of a model during a press
+    DelegateSamples::sendMouse(secondView->viewport(), QEvent::MouseButtonPress, secondView->visualRect(secondModel.index(0, 0)).topLeft() + QPoint(150, 20), Qt::LeftButton, Qt::LeftButton);
+    QVERIFY(delegate.getPressedIndex().isValid());
+    secondModel.clear();
+    QVERIFY(!delegate.getPressedIndex().isValid());
+    QCOMPARE(delegate.getHoveredAction(), -1);
+    secondView->setItemDelegate(nullptr);
+
+    // The pending changes: the link is an action of the delegate, right-to-left mirrored
+    QStandardItemModel pendingModel;
+    ToolSamples::pending(&pendingModel);
+    pdf::PDFTileRowDelegate pendingDelegate;
+    pendingDelegate.setKind(Kind::Pending);
+    QCOMPARE(pendingDelegate.getContent(pendingModel.index(0, 0)).tone, ToolSamples::Tone::Danger);
+    QCOMPARE(pendingDelegate.getContent(pendingModel.index(0, 0)).tileText, QStringLiteral("4"));
+    pdf::PDFListView pendingView;
+    pendingView.resize(300, 200);
+    pendingView.setModel(&pendingModel);
+    pendingView.setItemDelegate(&pendingDelegate);
+    pendingView.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&pendingView));
+    QSignalSpy linkSpy(&pendingDelegate, &pdf::PDFRowDelegate::actionTriggered);
+    const QRect keep = pendingDelegate.getActionRect(&pendingView, pendingModel.index(0, 0), pdf::PDFTileRowDelegate::LinkAction);
+    QCOMPARE(keep.size(), Painter::getTextLinkSize(Painter::TextLink{ QStringLiteral("Keep") }));
+    QCOMPARE(keep.right() + 1, pendingView.visualRect(pendingModel.index(0, 0)).right() + 1 - 8);
+    DelegateSamples::sendMouse(pendingView.viewport(), QEvent::MouseButtonPress, keep.center(), Qt::LeftButton, Qt::LeftButton);
+    DelegateSamples::sendMouse(pendingView.viewport(), QEvent::MouseButtonRelease, keep.center(), Qt::LeftButton, Qt::NoButton);
+    QCOMPARE(linkSpy.count(), 1);
+    QCOMPARE(linkSpy.at(0).at(1).toInt(), int(pdf::PDFTileRowDelegate::LinkAction));
+    QVERIFY(!pendingView.selectionModel()->hasSelection());
+    pendingView.setLayoutDirection(Qt::RightToLeft);
+    QApplication::processEvents();
+    const QRect keepRtl = pendingDelegate.getActionRect(&pendingView, pendingModel.index(0, 0), pdf::PDFTileRowDelegate::LinkAction);
+    QCOMPARE(keepRtl.left(), pendingView.visualRect(pendingModel.index(0, 0)).left() + 8);
+    pendingView.setItemDelegate(nullptr);
+
+    // The link of a row is reachable by the context menu of the keyboard
+    pendingView.setItemDelegate(&pendingDelegate);
+    {
+        QMenu* linkMenu = pendingDelegate.createContextMenu(&pendingView, pendingModel.index(0, 0), &pendingView);
+        QVERIFY(linkMenu);
+        QCOMPARE(linkMenu->actions().size(), 1);
+        QCOMPARE(linkMenu->actions().at(0)->text(), QStringLiteral("Keep"));
+        linkSpy.clear();
+        linkMenu->actions().at(0)->trigger();
+        QCOMPARE(linkSpy.count(), 1);
+        QCOMPARE(linkSpy.at(0).at(1).toInt(), int(pdf::PDFTileRowDelegate::LinkAction));
+        delete linkMenu;
+    }
+
+    // Rows, which are not clickable (the frames 389:20411, 388:20825 have only the link):
+    // no hover, press and selection, the link keeps its hover and its click
+    pendingDelegate.setClickable(false);
+    QVERIFY(!pendingDelegate.isClickable());
+    const QColor pendingSurface = token(Color::BgSurface);
+    pendingView.setLayoutDirection(Qt::LeftToRight);
+    QApplication::processEvents();
+    for (const QStyle::State flags : { QStyle::State(QStyle::State_Enabled | QStyle::State_MouseOver), QStyle::State(QStyle::State_Enabled | QStyle::State_Selected), QStyle::State(QStyle::State_Enabled | QStyle::State_MouseOver | QStyle::State_Sunken) })
+    {
+        QVERIFY(isNear(pixel(renderDelegate(&pendingDelegate, pendingModel.index(0, 0), flags, QSize(279, 46)), 150, 2), pendingSurface));
+    }
+    const QRect keepAgain = pendingDelegate.getActionRect(&pendingView, pendingModel.index(0, 0), pdf::PDFTileRowDelegate::LinkAction);
+    DelegateReviewSamples::sendHover(pendingView.viewport(), QEvent::HoverMove, keepAgain.center());
+    QCOMPARE(pendingDelegate.getHoveredAction(), int(pdf::PDFTileRowDelegate::LinkAction));
+    linkSpy.clear();
+    DelegateSamples::sendMouse(pendingView.viewport(), QEvent::MouseButtonPress, keepAgain.center(), Qt::LeftButton, Qt::LeftButton);
+    DelegateSamples::sendMouse(pendingView.viewport(), QEvent::MouseButtonRelease, keepAgain.center(), Qt::LeftButton, Qt::NoButton);
+    QCOMPARE(linkSpy.count(), 1);
+    pendingDelegate.setClickable(true);
+    QVERIFY(isNear(pixel(renderDelegate(&pendingDelegate, pendingModel.index(0, 0), QStyle::State_Enabled | QStyle::State_MouseOver, QSize(279, 46)), 150, 2), blend(token(Color::BgHover), pendingSurface)));
+    pendingView.setItemDelegate(nullptr);
+
+    // The captions of the groups in one list 438:14865: the positions of the frame -
+    // caption 21, a gap 2, rows 44 / 57 - and neither the mouse nor the keyboard stops on them
+    {
+        QStandardItemModel groups;
+        const auto addCaption = [&groups](const QString& text)
+        {
+            QStandardItem* caption = DelegateSamples::item(text);
+            caption->setData(int(Kind::Caption), Roles::TileRowKindRole);
+            caption->setFlags(Qt::NoItemFlags);
+            groups.appendRow(caption);
+        };
+        addCaption(QStringLiteral("Page 3"));
+        ToolSamples::links(&groups, 1);
+        addCaption(QStringLiteral("Page 12"));
+        ToolSamples::links(&groups, 2);
+        pdf::PDFTileRowDelegate groupsDelegate;
+        groupsDelegate.setKind(Kind::ListItem);
+        pdf::PDFListView groupsView;
+        groupsView.setFrameShape(QFrame::NoFrame);
+        groupsView.setSpacing(1);
+        groupsView.setModel(&groups);
+        groupsView.setItemDelegate(&groupsDelegate);
+        groupsView.resize(263, 300);
+        groupsView.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&groupsView));
+        QApplication::processEvents();
+        const int captionTop = groupsView.visualRect(groups.index(0, 0)).top();
+        QCOMPARE(groupsView.visualRect(groups.index(0, 0)).height(), 21);
+        QCOMPARE(groupsView.visualRect(groups.index(1, 0)).top() - captionTop, 23);
+        QCOMPARE(groupsView.visualRect(groups.index(1, 0)).height(), 44);
+        QCOMPARE(groupsView.visualRect(groups.index(2, 0)).top() - captionTop, 23 + 46);
+        QCOMPARE(groupsView.visualRect(groups.index(2, 0)).height(), 21);
+        QCOMPARE(groupsDelegate.getContent(groups.index(0, 0)).kind, Kind::Caption);
+        QCOMPARE(groupsDelegate.getContent(groups.index(1, 0)).kind, Kind::ListItem);
+        QVERIFY(groupsDelegate.getActions(DelegateSamples::viewOption(&groupsView, groups.index(0, 0)), groups.index(0, 0)).isEmpty());
+        QVERIFY(!groupsDelegate.getContent(groups.index(0, 0)).checkBoxVisible);
+
+        QTest::mouseClick(groupsView.viewport(), Qt::LeftButton, Qt::NoModifier, groupsView.visualRect(groups.index(2, 0)).center());
+        QVERIFY(!groupsView.selectionModel()->isSelected(groups.index(2, 0)));
+        groupsView.setFocus(Qt::OtherFocusReason);
+        groupsView.setCurrentIndex(groups.index(1, 0));
+        QTest::keyClick(&groupsView, Qt::Key_Down);
+        QCOMPARE(groupsView.currentIndex(), groups.index(3, 0));
+        QTest::keyClick(&groupsView, Qt::Key_Up);
+        QCOMPARE(groupsView.currentIndex(), groups.index(1, 0));
+
+        // The caption without Qt::ItemIsEnabled keeps text/tertiary, a disabled view text/disabled
+        const QRect captionText = groupsView.visualRect(groups.index(0, 0)).adjusted(10, 6, -10, -2);
+        const QColor surface = token(Color::BgSurface);
+        const auto isInk = [&](const QImage& image, Color expected, Color other)
+        {
+            const QColor ink = strongestInk(image, captionText, surface);
+            return colorDistance(ink, token(expected)) < colorDistance(ink, token(other));
+        };
+        QVERIFY(isInk(renderWidget(&groupsView, 1.0), Color::TextTertiary, Color::TextDisabled));
+        groupsView.setEnabled(false);
+        QVERIFY(isInk(renderWidget(&groupsView, 1.0), Color::TextDisabled, Color::TextTertiary));
+        groupsView.setEnabled(true);
+
+        // Hostile roles: an invalid kind is an item of a menu, another type the kind of the delegate
+        groups.item(0)->setData(99, Roles::TileRowKindRole);
+        QCOMPARE(groupsDelegate.getContent(groups.index(0, 0)).kind, Kind::MenuItem);
+        groups.item(0)->setData(QStringLiteral("garbage"), Roles::TileRowKindRole);
+        QCOMPARE(groupsDelegate.getContent(groups.index(0, 0)).kind, Kind::ListItem);
+
+        // Hostile long texts: the delegate never hands over more than its limit
+        groups.item(1)->setData(QString(1 << 20, QLatin1Char('x')), Roles::SubtitleRole);
+        QCOMPARE(groupsDelegate.getContent(groups.index(1, 0)).description.size(), 1024);
+        QCOMPARE(countLeakPixels(renderWidget(&groupsView, 1.0)), 0);
+        groupsView.setItemDelegate(nullptr);
+    }
+
+    // A list of thousands of rows: heights asked once per text and width, no read of a picture
+    PictureCountingModel big;
+    for (int i = 0; i < 5000; ++i)
+    {
+        QStandardItem* item = DelegateSamples::item(QStringLiteral("link-%1").arg(i));
+        item->setData(QStringLiteral("https://www.example.org/%1/a-longer-address-of-a-link-which-wraps-to-the-second-line").arg(i), Roles::SubtitleRole);
+        item->setCheckState(Qt::Checked);
+        big.appendRow(item);
+    }
+    pdf::PDFTileRowDelegate bigDelegate;
+    bigDelegate.setKind(Kind::ListItem);
+    pdf::PDFListView bigView;
+    bigView.resize(290, 400);
+    bigView.setModel(&big);
+    bigView.setItemDelegate(&bigDelegate);
+    bigView.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&bigView));
+    QApplication::processEvents();
+    QCOMPARE(big.pictureReads, 0);
+    QVERIFY(bigView.visualRect(big.index(0, 0)).height() == 57);
+    QCOMPARE(countLeakPixels(renderWidget(&bigView, 1.0)), 0);
+    bigView.setItemDelegate(nullptr);
+
+    view->setItemDelegate(nullptr);
+}
+
+void FluentComponentsTest::pageTileGeometry()
+{
+    using TileState = Painter::PageTileState;
+
+    // The sizes of the frames: Rotate 389:20177, Remove 388:20614
+    const QSize rotate(104, 104);
+    const QSize remove(82, 112);
+    Painter::PageTile tile = ToolSamples::tile(TileState::Normal, rotate);
+    QCOMPARE(Painter::getPageTileSize(tile), QSize(116, 132));
+    tile = ToolSamples::tile(TileState::Selected, rotate);
+    QCOMPARE(Painter::getPageTileSize(tile), QSize(118, 150));
+    tile = ToolSamples::tile(TileState::Normal, remove);
+    QCOMPARE(Painter::getPageTileSize(tile), QSize(94, 140));
+    tile = ToolSamples::tile(TileState::Marked, remove);
+    QCOMPARE(Painter::getPageTileSize(tile), QSize(94, 156));
+
+    // The page in the tile, a position in the frame minus the position of the tile:
+    // portrait in the slot of Rotate (page-1 of 389:20177: paper 346,164 in the tile 326,158)
+    tile = ToolSamples::tile(TileState::Normal, rotate);
+    QRectF rect(0, 0, 116, 132);
+    QCOMPARE(Painter::getPageTilePageRect(rect, tile), QRectF(20, 6, 76, 104));
+
+    // A page turned to landscape, selected (page-9 389:20177: tile 570,296, paper 577,317 of 104 x 76, badge 667,311)
+    tile = ToolSamples::tile(TileState::Selected, rotate);
+    tile.pageSize = QSizeF(104, 76);
+    rect = QRectF(0, 0, 118, 150);
+    QCOMPARE(Painter::getPageTilePageRect(rect, tile), QRectF(7, 21, 104, 76));
+    QCOMPARE(Painter::getPageTileBadgeRect(rect, tile, state(QStyle::State_None)), QRectF(97, 15, 20, 20));
+
+    // A landscape page turned to portrait, selected (page-3 389:20910: tile 570,158, paper 591,165, badge 653,159)
+    tile.pageSize = QSizeF(76, 104);
+    QCOMPARE(Painter::getPageTilePageRect(rect, tile), QRectF(21, 7, 76, 104));
+    QCOMPARE(Painter::getPageTileBadgeRect(rect, tile, state(QStyle::State_None)), QRectF(83, 1, 20, 20));
+
+    // The slot of Remove is filled (page-4 388:20614: tile 626,158, paper 632,164 of 82 x 112, badge 700,158)
+    tile = ToolSamples::tile(TileState::Marked, remove);
+    rect = QRectF(0, 0, 94, 156);
+    QCOMPARE(Painter::getPageTilePageRect(rect, tile), QRectF(6, 6, 82, 112));
+    QCOMPARE(Painter::getPageTileBadgeRect(rect, tile, state(QStyle::State_None)), QRectF(74, 0, 20, 20));
+
+    // The badge mirrored for right-to-left
+    QCOMPARE(Painter::getPageTileBadgeRect(rect, tile, state(QStyle::State_None, Qt::RightToLeft)), QRectF(0, 0, 20, 20));
+
+    // Without the size of the page: the picture, then the proportions of the design
+    tile = ToolSamples::tile(TileState::Normal, rotate);
+    tile.pageSize = QSizeF();
+    QPixmap landscape(QSize(300, 150));
+    landscape.fill(Qt::white);
+    tile.pixmap = landscape;
+    rect = QRectF(0, 0, 116, 132);
+    QCOMPARE(Painter::getPageTilePageRect(rect, tile), QRectF(6, 32, 104, 52));
+    tile.pixmap = QPixmap();
+    QCOMPARE(Painter::getPageTilePageRect(rect, tile), QRectF(20, 6, 76, 104));
+
+    // Hostile values
+    tile.pageSize = QSizeF(14400, 1);
+    QVERIFY(!Painter::getPageTilePageRect(rect, tile).isEmpty());
+    QCOMPARE(Painter::getPageTilePageRect(rect, tile).height(), 1.0);
+    const qreal nan = std::numeric_limits<qreal>::quiet_NaN();
+    tile.pageSize = QSizeF(nan, nan);
+    QCOMPARE(Painter::getPageTilePageRect(rect, tile), QRectF(20, 6, 76, 104));
+    tile.pageSize = QSizeF(std::numeric_limits<qreal>::infinity(), 100);
+    QCOMPARE(Painter::getPageTilePageRect(rect, tile), QRectF(20, 6, 76, 104));
+    tile.pageSize = QSizeF(0, 100);
+    QCOMPARE(Painter::getPageTilePageRect(rect, tile), QRectF(20, 6, 76, 104));
+
+    // A square page of any size fills the slot of 104, also where the size overflows a product
+    for (const qreal side : { 1e308, 1e-300, std::numeric_limits<qreal>::denorm_min() })
+    {
+        tile.pageSize = QSizeF(side, side);
+        QCOMPARE(Painter::getPageTilePageRect(rect, tile), QRectF(6, 6, 104, 104));
+    }
+
+    // Extreme proportions keep the longer side and one pixel of the other
+    tile.pageSize = QSizeF(1e308, 1e-308);
+    QCOMPARE(Painter::getPageTilePageRect(rect, tile), QRectF(6, 57, 104, 1));
+    tile.pageSize = QSizeF(1e-308, 1e308);
+    QCOMPARE(Painter::getPageTilePageRect(rect, tile), QRectF(57, 6, 1, 104));
+    tile.slotSize = QSize(-1, 0);
+    QCOMPARE(Painter::getPageTileSlotSize(tile), QSize(104, 104));
+    tile.slotSize = QSize(100000, 100000);
+    QCOMPARE(Painter::getPageTileSlotSize(tile), QSize(4096, 4096));
+    tile.tileState = static_cast<TileState>(77);
+    QCOMPARE(Painter::normalized(tile.tileState), TileState::Normal);
+    QCOMPARE(Painter::getPageTileBadgeRect(QRectF(), ToolSamples::tile(TileState::Marked, remove), state(QStyle::State_None)), QRectF());
+    QCOMPARE(Painter::getPageTilePageRect(QRectF(0, 0, -5, nan), tile), QRectF());
+
+    // A null painter and rectangles, which cannot be drawn
+    Painter::paintPageTile(nullptr, QRectF(0, 0, 116, 132), ToolSamples::tile(TileState::Marked, remove), state(QStyle::State_None));
+    for (const QRectF& hostile : { QRectF(), QRectF(0, 0, -10, 44), QRectF(0, 0, nan, 44) })
+    {
+        const QImage image = render([&](QPainter& painter) { Painter::paintPageTile(&painter, hostile, ToolSamples::tile(TileState::Selected, rotate), state(QStyle::State_None)); }, QSize(50, 50));
+        QCOMPARE(countPixels(image, QRect(0, 0, 50, 50), token(Color::BgSurface), 0), 50 * 50);
+    }
+
+    // Long texts of a hostile document stay inside of the tile
+    tile = ToolSamples::tile(TileState::Marked, remove);
+    tile.label = QString(1 << 20, QLatin1Char('8'));
+    tile.caption = QString(1 << 20, QLatin1Char('c'));
+    tile.badgeIconName = QStringLiteral("no-such-icon");
+    const QImage image = render([&](QPainter& painter) { Painter::paintPageTile(&painter, QRectF(0, 0, 94, 156), tile, state(QStyle::State_None)); }, QSize(100, 160));
+    QCOMPARE(countLeakPixels(image), 0);
+    QCOMPARE(countPixels(image, QRect(94, 0, 6, 160), token(Color::BgSurface), 0), 6 * 160);
+}
+
+void FluentComponentsTest::pageTilePixels_data()
+{
+    pixelProbes_data();
+}
+
+void FluentComponentsTest::pageTilePixels()
+{
+    using TileState = Painter::PageTileState;
+
+    QFETCH(QString, theme);
+    QFETCH(qreal, scale);
+    QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(theme));
+
+    const QColor surface = token(Color::BgSurface);
+    const QColor picture(200, 30, 30);
+    const auto renderTile = [&](const Painter::PageTile& tile, QStyle::State flags, Qt::LayoutDirection direction = Qt::LeftToRight)
+    {
+        const QSize size = Painter::getPageTileSize(tile);
+        return render([&](QPainter& painter) { Painter::paintPageTile(&painter, QRectF(QPointF(0, 0), QSizeF(size)), tile, state(flags, direction)); }, size, scale);
+    };
+    const auto isCloser = [](const QColor& color, const QColor& expected, const QColor& other)
+    {
+        return colorDistance(color, expected) < colorDistance(color, other);
+    };
+
+    // Normal 389:20177: no fill of the tile, the picture on the page, the label Medium 11 text/secondary
+    const Painter::PageTile normal = ToolSamples::tile(TileState::Normal, QSize(104, 104));
+    QImage image = renderTile(normal, QStyle::State_None);
+    QVERIFY(isNear(pixel(image, 10, 60), surface));
+    QVERIFY(isNear(pixel(image, 58, 60), picture));
+    QVERIFY(isCloser(strongestInk(image, QRect(40, 114, 40, 13), surface), token(Color::TextSecondary), token(Color::TextAccent)));
+
+    // The picture covers the border of the paper in the frame; without the picture the page is reading/paper/page
+    Painter::PageTile empty = normal;
+    empty.pixmap = QPixmap();
+    image = renderTile(empty, QStyle::State_None);
+    QVERIFY(isNear(pixel(image, 58, 60), token(Color::ReadingPaperPage)));
+    QVERIFY(isNear(pixel(image, 20, 60), token(Color::ReadingPaperPage)));
+
+    // Hover, press and focus of the tile
+    const QColor hover = blend(token(Color::BgHover), surface);
+    QVERIFY(isNear(pixel(renderTile(normal, QStyle::State_MouseOver), 10, 60), hover));
+    QVERIFY(isNear(pixel(renderTile(normal, QStyle::State_MouseOver | QStyle::State_Sunken), 10, 60), blend(token(Color::BgPressed), surface)));
+    image = renderTile(normal, QStyle::State_HasFocus);
+    QVERIFY(isNear(pixel(image, 58, 0), token(Color::BorderFocus)));
+    QVERIFY(isNear(pixel(image, 58, 1), token(Color::BorderFocus)));
+    QVERIFY(isNear(pixel(image, 58, 2), surface));
+
+    // The selection of the view has no look: the state comes from the model
+    QVERIFY(isNear(pixel(renderTile(normal, QStyle::State_Selected), 10, 60), surface));
+
+    // Selected 389:20177: bg/accent-subtle, the border border/focus 1 inside, the label Semi Bold text/accent, the caption, the blue badge
+    Painter::PageTile selected = ToolSamples::tile(TileState::Selected, QSize(104, 104));
+    selected.pageSize = QSizeF(104, 76);
+    const QColor selectedFill = blend(token(Color::BgAccentSubtle), surface);
+    image = renderTile(selected, QStyle::State_None);
+    QVERIFY(isNear(pixel(image, 3, 60), selectedFill));
+    QVERIFY(isNear(pixel(image, 59, 0), token(Color::BorderFocus), 12));
+    QVERIFY(isNear(pixel(image, 59, 1), selectedFill));
+    QVERIFY(isNear(pixel(image, 58, 60), picture));
+    QVERIFY(isCloser(strongestInk(image, QRect(40, 115, 40, 13), selectedFill), token(Color::TextAccent), token(Color::TextSecondary)));
+    QVERIFY(isCloser(strongestInk(image, QRect(30, 132, 60, 12), selectedFill), token(Color::TextAccent), token(Color::TextSecondary)));
+    const QColor blueBadge = token(Color::AccentBlueBg);
+    QVERIFY(isNear(pixel(image, 99 + 1, 25), blend(blueBadge, picture), 12) || isNear(pixel(image, 99 + 1, 25), blueBadge, 12));
+    QVERIFY(isCloser(strongestInk(image, QRect(101, 19, 12, 12), blueBadge), token(Color::AccentBlueIcon), token(Color::AccentRedIcon)));
+    QVERIFY(isNear(pixel(renderTile(selected, QStyle::State_MouseOver), 3, 60), blend(token(Color::BgAccentSubtleHover), surface)));
+    QVERIFY(isNear(pixel(renderTile(selected, QStyle::State_MouseOver | QStyle::State_Sunken), 3, 60), blend(token(Color::BgAccentSubtlePressed), surface)));
+
+    // Right-to-left: the badge at the leading corner of the page of the mirrored tile
+    image = renderTile(selected, QStyle::State_None, Qt::RightToLeft);
+    QVERIFY(isCloser(strongestInk(image, QRect(5, 19, 12, 12), blueBadge), token(Color::AccentBlueIcon), token(Color::AccentRedIcon)));
+
+    // Marked 388:20614: the tile without a fill, the paper @ 0.5 and the picture @ 0.35, the caption text/danger, the red badge
+    const Painter::PageTile marked = ToolSamples::tile(TileState::Marked, QSize(82, 112));
+    image = renderTile(marked, QStyle::State_None);
+    const auto withOpacity = [](const QColor& color, qreal opacity) { QColor result = color; result.setAlphaF(color.alphaF() * opacity); return result; };
+    const QColor paper = blend(withOpacity(token(Color::SampleWhite), 0.5), surface);
+    QVERIFY(isNear(pixel(image, 47, 60), blend(withOpacity(picture, 0.35), blend(withOpacity(token(Color::ReadingPaperPage), 0.35), paper)), 4));
+    QVERIFY(isNear(pixel(image, 2, 60), surface));
+    QVERIFY(isCloser(strongestInk(image, QRect(30, 122, 34, 13), surface), token(Color::TextSecondary), token(Color::TextDanger)));
+    QVERIFY(isCloser(strongestInk(image, QRect(6, 139, 82, 12), surface), token(Color::TextDanger), token(Color::TextSecondary)));
+    QVERIFY(isCloser(strongestInk(image, QRect(78, 4, 12, 12), token(Color::AccentRedBg)), token(Color::AccentRedIcon), token(Color::AccentBlueIcon)));
+
+    // Disabled (O-08): text/disabled, no hover
+    image = render([&](QPainter& painter) { Painter::paintPageTile(&painter, QRectF(0, 0, 116, 132), normal, Painter::State(QStyle::State_MouseOver)); }, QSize(116, 132), scale);
+    QVERIFY(isNear(pixel(image, 10, 60), surface));
+    QVERIFY(isCloser(strongestInk(image, QRect(40, 114, 40, 13), surface), token(Color::TextDisabled), token(Color::TextSecondary)));
+    QCOMPARE(countLeakPixels(image), 0);
+}
+
+void FluentComponentsTest::pageTileDelegate()
+{
+    using Roles = pdf::PDFComponentRoles;
+    using TileState = Painter::PageTileState;
+
+    PictureCountingModel model;
+    ToolSamples::tiles(&model);
+
+    pdf::PDFPageTileDelegate delegate;
+    QCOMPARE(delegate.getSlotSize(), QSize(104, 104));
+
+    // The sizes against the frames, no picture is read for them
+    QStyleOptionViewItem option;
+    QCOMPARE(delegate.sizeHint(option, model.index(0, 0)), QSize(116, 132));
+    QCOMPARE(delegate.sizeHint(option, model.index(1, 0)), QSize(118, 150));
+    QCOMPARE(delegate.sizeHint(option, model.index(2, 0)), QSize(116, 148));
+    QSignalSpy sizeChanged(&delegate, &QAbstractItemDelegate::sizeHintChanged);
+    delegate.setSlotSize(QSize(82, 112));
+    QCOMPARE(sizeChanged.count(), 1);
+    QCOMPARE(delegate.sizeHint(option, model.index(0, 0)), QSize(94, 140));
+    QCOMPARE(delegate.sizeHint(option, model.index(2, 0)), QSize(94, 156));
+    delegate.setSlotSize(QSize(82, 112));
+    QCOMPARE(sizeChanged.count(), 1);
+    delegate.setSlotSize(QSize());
+    QCOMPARE(delegate.getSlotSize(), QSize(104, 104));
+    QCOMPARE(model.pictureReads, 0);
+
+    // The content from the roles
+    const Painter::PageTile content = delegate.getContent(model.index(1, 0));
+    QCOMPARE(content.label, QStringLiteral("2"));
+    QCOMPARE(content.tileState, TileState::Selected);
+    QCOMPARE(content.caption, QStringLiteral("90° right"));
+    QCOMPARE(content.badgeIconName, QStringLiteral("rotate-cw"));
+    QCOMPARE(content.pageSize, QSizeF(76, 104));
+    QVERIFY(!content.pixmap.isNull());
+    QVERIFY(delegate.getContent(model.index(1, 0), false).pixmap.isNull());
+
+    // Hostile roles: another type, an invalid state, an invalid index
+    QStandardItemModel hostileModel;
+    QStandardItem* hostile = DelegateSamples::item(QStringLiteral("1"));
+    hostile->setData(77, Roles::PageTileStateRole);
+    hostile->setData(QStringLiteral("garbage"), Roles::PageSizeRole);
+    hostile->setData(42, Roles::PixmapRole);
+    hostileModel.appendRow(hostile);
+    QCOMPARE(delegate.getContent(hostileModel.index(0, 0)).tileState, TileState::Normal);
+    QVERIFY(!delegate.getContent(hostileModel.index(0, 0)).pageSize.isValid());
+    QVERIFY(delegate.getContent(QModelIndex()).label.isEmpty());
+    QCOMPARE(countLeakPixels(renderDelegate(&delegate, hostileModel.index(0, 0), QStyle::State_Enabled, QSize(116, 132))), 0);
+
+    // A real view: the tiles flow with the gap 6, a selected tile is wider
+    QWidget window;
+    window.resize(720, 420);
+    pdf::PDFListView* view = new pdf::PDFListView(&window);
+    view->setGeometry(0, 0, 400, 400);
+    view->setViewMode(QListView::IconMode);
+    view->setMovement(QListView::Static);
+    view->setWrapping(true);
+    view->setSpacing(6);
+    view->setResizeMode(QListView::Adjust);
+    view->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    view->setModel(&model);
+    view->setItemDelegate(&delegate);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&window));
+    QApplication::processEvents();
+    QCOMPARE(view->visualRect(model.index(0, 0)).size(), QSize(116, 132));
+    QCOMPARE(view->visualRect(model.index(1, 0)).size(), QSize(118, 150));
+    QCOMPARE(view->visualRect(model.index(1, 0)).left() - view->visualRect(model.index(0, 0)).right() - 1, 6);
+    QCOMPARE(view->visualRect(model.index(1, 0)).top(), view->visualRect(model.index(0, 0)).top());
+
+    // The press with a lost release, the hover
+    QWidget* viewport = view->viewport();
+    const QModelIndex first = model.index(0, 0);
+    const QPoint center = view->visualRect(first).center();
+    DelegateSamples::sendMouse(viewport, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+    QCOMPARE(QModelIndex(delegate.getPressedIndex()), first);
+    QVERIFY(delegate.getItemState(DelegateSamples::viewOption(view, first), first).isPressed());
+    DelegateReviewSamples::sendHover(viewport, QEvent::HoverMove, center);
+    QVERIFY(!delegate.getPressedIndex().isValid());
+    DelegateSamples::sendMouse(viewport, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+
+    // The selection of the view has no look (the tool says, what it means), the model does
+    view->selectionModel()->clearSelection();
+    const QImage unselectedImage = renderWidget(view, 1.0);
+    view->selectionModel()->select(first, QItemSelectionModel::ClearAndSelect);
+    QVERIFY(view->selectionModel()->isSelected(first));
+    QCOMPARE(describeDifference(renderWidget(view, 1.0), unselectedImage, 0), QString());
+    QVERIFY(!delegate.getItemState(DelegateSamples::viewOption(view, first), first).isSelected());
+    QStyleOptionViewItem selectedOption = DelegateSamples::viewOption(view, first);
+    selectedOption.state |= QStyle::State_Selected;
+    QVERIFY(!delegate.getItemState(selectedOption, first).isOn());
+
+    // A second view with one delegate, a reset of the model during a press
+    PictureCountingModel secondModel;
+    ToolSamples::tiles(&secondModel);
+    pdf::PDFListView* secondView = new pdf::PDFListView(&window);
+    secondView->setGeometry(410, 0, 300, 400);
+    secondView->setViewMode(QListView::IconMode);
+    secondView->setMovement(QListView::Static);
+    secondView->setWrapping(true);
+    secondView->setModel(&secondModel);
+    secondView->setItemDelegate(&delegate);
+    secondView->show();
+    QApplication::processEvents();
+    QCOMPARE(delegate.getWatchedViewCount(), 2);
+    QCOMPARE(countLeakPixels(renderWidget(secondView, 1.0)), 0);
+    DelegateSamples::sendMouse(secondView->viewport(), QEvent::MouseButtonPress, secondView->visualRect(secondModel.index(0, 0)).center(), Qt::LeftButton, Qt::LeftButton);
+    QVERIFY(delegate.getPressedIndex().isValid());
+    secondModel.clear();
+    QVERIFY(!delegate.getPressedIndex().isValid());
+    secondView->setItemDelegate(nullptr);
+
+    // A long list: the layout of 2000 tiles reads no picture
+    PictureCountingModel big;
+    for (int i = 0; i < 2000; ++i)
+    {
+        QStandardItem* item = DelegateSamples::item(QString::number(i + 1));
+        item->setData(i % 3, Roles::PageTileStateRole);
+        big.appendRow(item);
+    }
+    pdf::PDFPageTileDelegate bigDelegate;
+    QStyleOptionViewItem bigOption;
+    for (int i = 0; i < big.rowCount(); ++i)
+    {
+        const QSize size = bigDelegate.sizeHint(bigOption, big.index(i, 0));
+        QVERIFY(size.height() >= 132);
+    }
+    QCOMPARE(big.pictureReads, 0);
+
+    view->setItemDelegate(nullptr);
+}
+
+// Model of a grid of pages as a tool has it: no picture and no QStandardItem, the
+// state of a tile in a vector
+class PageTileGridModel : public QAbstractListModel
+{
+public:
+    explicit PageTileGridModel(int count) : m_states(count, Painter::PageTileState::Normal) { }
+
+    int rowCount(const QModelIndex& parent = QModelIndex()) const override { return parent.isValid() ? 0 : int(m_states.size()); }
+
+    QVariant data(const QModelIndex& index, int role) const override
+    {
+        using Roles = pdf::PDFComponentRoles;
+        const Painter::PageTileState tileState = m_states[index.row()];
+        switch (role)
+        {
+            case Qt::DisplayRole:
+                return QString::number(index.row() + 1);
+            case Roles::PageTileStateRole:
+                return int(tileState);
+            case Roles::SubtitleRole:
+                return tileState == Painter::PageTileState::Normal ? QVariant() : QVariant(QStringLiteral("90\u00B0 left"));
+            case Roles::StateIconRole:
+                return tileState == Painter::PageTileState::Normal ? QVariant() : QVariant(QStringLiteral("rotate-ccw"));
+            case Roles::PageSizeRole:
+                return QSizeF(76, 104);
+            default:
+                return QVariant();
+        }
+    }
+
+    void setTileState(int first, int last, Painter::PageTileState tileState)
+    {
+        std::fill(m_states.begin() + first, m_states.begin() + last + 1, tileState);
+        Q_EMIT dataChanged(index(first, 0), index(last, 0));
+    }
+
+private:
+    std::vector<Painter::PageTileState> m_states;
+};
+
+void FluentComponentsTest::pageTileGridFlow()
+{
+    using TileState = Painter::PageTileState;
+
+    // The grid of 389:20910, its tiles in the frame "pages": three selected pages make
+    // their rows higher and move the tiles behind them by 2 px
+    PageTileGridModel model(18);
+    for (const int selected : { 2, 6, 11 })
+    {
+        model.setTileState(selected, selected, TileState::Selected);
+    }
+    pdf::PDFPageTileDelegate delegate;
+    pdf::PDFListView view;
+    view.setFrameShape(QFrame::NoFrame);
+    view.setViewMode(QListView::IconMode);
+    view.setMovement(QListView::Static);
+    view.setWrapping(true);
+    view.setSpacing(6);
+    view.setResizeMode(QListView::Adjust);
+    view.setModel(&model);
+    view.setItemDelegate(&delegate);
+    view.resize(774 + 12 + 12, 500);
+    view.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&view));
+    QApplication::processEvents();
+
+    const std::array<QRect, 18> frames = {
+        QRect(0, 0, 116, 132), QRect(122, 0, 116, 132), QRect(244, 0, 118, 150), QRect(368, 0, 116, 132), QRect(490, 0, 116, 132), QRect(612, 0, 116, 132),
+        QRect(0, 156, 118, 150), QRect(124, 156, 116, 132), QRect(246, 156, 116, 132), QRect(368, 156, 116, 132), QRect(490, 156, 116, 132), QRect(612, 156, 118, 150),
+        QRect(0, 312, 116, 132), QRect(122, 312, 116, 132), QRect(244, 312, 116, 132), QRect(366, 312, 116, 132), QRect(488, 312, 116, 132), QRect(610, 312, 116, 132)
+    };
+
+    // The gap lies also in front of the first tile: a page of the application takes it from its margins
+    const QPoint origin = view.visualRect(model.index(0, 0)).topLeft();
+    QCOMPARE(origin, QPoint(6, 6));
+    for (int row = 0; row < 18; ++row)
+    {
+        QCOMPARE(view.visualRect(model.index(row, 0)).translated(-origin), frames[row]);
+    }
+
+    // One tile selected: the tiles behind it move only after sizeHintChanged (a queued
+    // layout of the view), one tile unselected gives the place back
+    const QRect behind = view.visualRect(model.index(4, 0));
+    model.setTileState(3, 3, TileState::Selected);
+    QApplication::processEvents();
+    QCOMPARE(view.visualRect(model.index(4, 0)), behind);
+    Q_EMIT delegate.sizeHintChanged(model.index(3, 0));
+    QApplication::processEvents();
+    QCOMPARE(view.visualRect(model.index(3, 0)).size(), QSize(118, 150));
+    QCOMPARE(view.visualRect(model.index(4, 0)).left(), behind.left() + 2);
+    model.setTileState(3, 3, TileState::Normal);
+    Q_EMIT delegate.sizeHintChanged(model.index(3, 0));
+    QApplication::processEvents();
+    QCOMPARE(view.visualRect(model.index(4, 0)), behind);
+
+    // The tiles of Remove 388:20614: marked 94 x 156, the rows at 0 and 162 of the frame
+    PageTileGridModel removeModel(14);
+    removeModel.setTileState(3, 5, TileState::Marked);
+    pdf::PDFPageTileDelegate removeDelegate;
+    removeDelegate.setSlotSize(QSize(82, 112));
+    view.setItemDelegate(&removeDelegate);
+    view.setModel(&removeModel);
+    QApplication::processEvents();
+    const QPoint removeOrigin = view.visualRect(removeModel.index(0, 0)).topLeft();
+    QCOMPARE(view.visualRect(removeModel.index(3, 0)).translated(-removeOrigin), QRect(300, 0, 94, 156));
+    QCOMPARE(view.visualRect(removeModel.index(7, 0)).translated(-removeOrigin), QRect(0, 162, 94, 140));
+    view.setItemDelegate(nullptr);
+}
+
+void FluentComponentsTest::pageTileGridTiming()
+{
+    using TileState = Painter::PageTileState;
+
+    // A grid of 2000 pages: what a change of the state of a tile costs by a layout of all
+    // of them. Printed for the plan of the tools; the limit is a change, which a user feels.
+    const int factor = qMax(1, qEnvironmentVariableIntValue("PDF4QT_TEST_TIMEOUT_FACTOR"));
+    constexpr int PAGES = 2000;
+
+    for (const bool isIconMode : { true, false })
+    {
+        PageTileGridModel model(PAGES);
+        pdf::PDFPageTileDelegate delegate;
+        pdf::PDFListView view;
+        view.setFrameShape(QFrame::NoFrame);
+        if (isIconMode)
+        {
+            view.setViewMode(QListView::IconMode);
+            view.setMovement(QListView::Static);
+            view.setSpacing(6);
+        }
+        else
+        {
+            // The list mode pads a tile on both sides: half of the gap
+            view.setFlow(QListView::LeftToRight);
+            view.setSpacing(3);
+        }
+        view.setWrapping(true);
+        view.setResizeMode(QListView::Adjust);
+        view.setSelectionMode(QAbstractItemView::ExtendedSelection);
+        view.setModel(&model);
+        view.setItemDelegate(&delegate);
+        view.resize(798, 760);
+
+        QElapsedTimer timer;
+        timer.start();
+        view.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&view));
+        QApplication::processEvents();
+        const qint64 firstLayout = timer.elapsed();
+        QCOMPARE(view.visualRect(model.index(1, 0)).left() - view.visualRect(model.index(0, 0)).right() - 1, 6);
+
+        // One tile: a click on a page
+        timer.restart();
+        constexpr int CLICKS = 20;
+        for (int i = 0; i < CLICKS; ++i)
+        {
+            model.setTileState(i, i, TileState::Selected);
+            Q_EMIT delegate.sizeHintChanged(model.index(i, 0));
+            QApplication::processEvents();
+        }
+        const double perClick = double(timer.nsecsElapsed()) / 1e6 / CLICKS;
+        QCOMPARE(view.visualRect(model.index(0, 0)).size(), QSize(118, 150));
+
+        // All tiles in one step: Select all, a page range
+        timer.restart();
+        model.setTileState(0, PAGES - 1, TileState::Selected);
+        Q_EMIT delegate.sizeHintChanged(QModelIndex());
+        QApplication::processEvents();
+        const qint64 oneBatch = timer.elapsed();
+        QCOMPARE(view.visualRect(model.index(PAGES - 1, 0)).size(), QSize(118, 150));
+
+        // The wrong way: each emission queues its own layout of the view (Qt 6.11
+        // QAbstractItemViewPrivate::delegateSizeHintChanged), measured on 100 tiles
+        timer.restart();
+        constexpr int ONE_BY_ONE = 100;
+        for (int i = 0; i < ONE_BY_ONE; ++i)
+        {
+            model.setTileState(i, i, TileState::Normal);
+            Q_EMIT delegate.sizeHintChanged(model.index(i, 0));
+        }
+        QApplication::processEvents();
+        const double oneByOne = double(timer.nsecsElapsed()) / 1e6 / ONE_BY_ONE * PAGES;
+
+        // Scrolling over the whole grid after the layout
+        timer.restart();
+        QScrollBar* scrollBar = view.verticalScrollBar();
+        for (int step = 0; step <= 50; ++step)
+        {
+            scrollBar->setValue(scrollBar->maximum() * step / 50);
+            view.viewport()->repaint();
+        }
+        const double perScroll = double(timer.nsecsElapsed()) / 1e6 / 51;
+
+        qInfo().noquote() << QStringLiteral("Page grid of %1 tiles, %2: first layout %3 ms, a click %4 ms, all tiles at once %5 ms, one by one (extrapolated) %6 ms, a scroll step with a repaint %7 ms")
+                                 .arg(PAGES).arg(isIconMode ? QStringLiteral("IconMode") : QStringLiteral("ListMode with a flow"))
+                                 .arg(firstLayout).arg(perClick, 0, 'f', 1).arg(oneBatch).arg(oneByOne, 0, 'f', 0).arg(perScroll, 0, 'f', 1);
+
+        // Usable: a click below the feeling of a delay, on the slowest tree scaled by the factor
+        QVERIFY2(perClick < 100.0 * factor, qPrintable(QString::number(perClick)));
+        QVERIFY2(oneBatch < 500 * factor, qPrintable(QString::number(oneBatch)));
+        view.setItemDelegate(nullptr);
+    }
+}
+
+void FluentComponentsTest::tileRowListTiming()
+{
+    using Kind = ToolSamples::Kind;
+    using Roles = pdf::PDFComponentRoles;
+
+    // The list of the links of a large document: the layout of the rows, a change of the
+    // width (a splitter) and the same layout again. The heights wrap the descriptions.
+    const int factor = qMax(1, qEnvironmentVariableIntValue("PDF4QT_TEST_TIMEOUT_FACTOR"));
+    for (const int count : { 2000, 5000, 20000 })
+    {
+        PictureCountingModel model;
+        for (int i = 0; i < count; ++i)
+        {
+            QStandardItem* item = DelegateSamples::item(QStringLiteral("link-%1").arg(i));
+            item->setData(QStringLiteral("https://www.example.org/%1/a-longer-address-of-a-link-which-wraps-to-the-second-line").arg(i), Roles::SubtitleRole);
+            item->setCheckState(Qt::Checked);
+            model.appendRow(item);
+        }
+        pdf::PDFTileRowDelegate delegate;
+        delegate.setKind(Kind::ListItem);
+        pdf::PDFListView view;
+        view.setSpacing(1);
+        view.setResizeMode(QListView::Adjust);
+        view.setModel(&model);
+        view.setItemDelegate(&delegate);
+        view.resize(290, 500);
+
+        QElapsedTimer timer;
+        timer.start();
+        view.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&view));
+        QApplication::processEvents();
+        const qint64 firstLayout = timer.elapsed();
+        timer.restart();
+        view.resize(330, 500);
+        QApplication::processEvents();
+        const qint64 newWidth = timer.elapsed();
+        timer.restart();
+        Q_EMIT delegate.sizeHintChanged(QModelIndex());
+        QApplication::processEvents();
+        const qint64 sameWidth = timer.elapsed();
+
+        qInfo().noquote() << QStringLiteral("List of %1 tile rows: first layout %2 ms, a new width %3 ms, a layout of the same width %4 ms").arg(count).arg(firstLayout).arg(newWidth).arg(sameWidth);
+        QCOMPARE(model.pictureReads, 0);
+        QVERIFY2(sameWidth < 3000 * factor, qPrintable(QString::number(sameWidth)));
+        view.setItemDelegate(nullptr);
+    }
+}
+
+void FluentComponentsTest::toolsGalleryPage()
+{
+    // The page of the tools has the samples of the frames and live widgets of each class
+    const int count = pdffluentgallery::GalleryPages::getPageCount();
+    bool isFound = false;
+    for (int i = 0; i < count; ++i)
+    {
+        if (pdffluentgallery::GalleryPages::getPageId(i) != QStringLiteral("25-tools"))
+        {
+            continue;
+        }
+        isFound = true;
+
+        pdffluentgallery::GalleryPages::Page page = pdffluentgallery::GalleryPages::createPage(i, nullptr);
+        QVERIFY(page.widget);
+        QSet<QString> nodes;
+        for (const pdffluentgallery::GallerySpecimen* specimen : page.widget->findChildren<pdffluentgallery::GallerySpecimen*>())
+        {
+            nodes.insert(specimen->getFigmaNode());
+        }
+        for (const char* node : { "438:15319", "438:15328", "339:9462", "339:9471", "313:7291", "313:7327", "319:7289", "319:7380", "319:7399", "389:20411", "388:20825", "438:14890", "438:14900", "438:14868", "438:12782", "438:14866", "438:14577", "389:20177", "388:20614" })
+        {
+            QVERIFY2(nodes.contains(QString::fromLatin1(node)), node);
+        }
+
+        QVERIFY(page.widget->findChildren<pdf::PDFTileRow*>().size() >= 7);
+        int rowViews = 0;
+        int tileViews = 0;
+        for (const QAbstractItemView* view : page.widget->findChildren<QAbstractItemView*>())
+        {
+            rowViews += qobject_cast<pdf::PDFTileRowDelegate*>(view->itemDelegate()) ? 1 : 0;
+            tileViews += qobject_cast<pdf::PDFPageTileDelegate*>(view->itemDelegate()) ? 1 : 0;
+        }
+        QCOMPARE(rowViews, 4);
+        QCOMPARE(tileViews, 2);
+
+        // No leak color in both themes at 1x and 2x
+        for (const char* theme : { "light", "dark" })
+        {
+            QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(QString::fromLatin1(theme)));
+            for (const qreal scale : { 1.0, 2.0 })
+            {
+                QCOMPARE(countLeakPixels(pdffluentgallery::GalleryPages::renderWidget(page.widget, scale)), 0);
+            }
+        }
+        delete page.widget;
+    }
+    QVERIFY(isFound);
+}
+
 
 QTEST_MAIN(FluentComponentsTest)
 

@@ -394,6 +394,7 @@ std::vector<PDFAppSettingsSectionInfo> PDFAppSettingsSectionRegistry::createSect
         const char* navigationSubtitle;
         const char* subtitle;
         QStringList keywords;
+        QString helpTopic;
         std::shared_ptr<const PDFAppSettingsSectionFactory> factory;
     };
 
@@ -404,45 +405,45 @@ std::vector<PDFAppSettingsSectionInfo> PDFAppSettingsSectionRegistry::createSect
         { Definitions::sectionGeneral(), "settings", QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "General"),
           QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Language, theme, documents"),
           QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Language, appearance and how documents open."),
-          { QStringLiteral("general"), QStringLiteral("appearance"), QStringLiteral("theme") }, std::make_shared<PDFAppGeneralSettingsSectionFactory>() },
+          { QStringLiteral("general"), QStringLiteral("appearance"), QStringLiteral("theme") }, QStringLiteral("settings-general"), std::make_shared<PDFAppGeneralSettingsSectionFactory>() },
         { Definitions::sectionViewing(), "eye", QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Viewing"),
           QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Page display, scrolling, magnifier"),
           QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "How pages are drawn, scrolled and magnified."),
-          { QStringLiteral("view"), QStringLiteral("display"), QStringLiteral("rendering") }, generic },
+          { QStringLiteral("view"), QStringLiteral("display"), QStringLiteral("rendering") }, QStringLiteral("settings-viewing"), generic },
         { Definitions::sectionColorModes(), "droplet", QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Color modes"),
           QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Reading colors, contrast"),
           QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "How pages are recolored for comfortable reading."),
-          { QStringLiteral("dark mode"), QStringLiteral("night"), QStringLiteral("reading") }, std::make_shared<PDFAppColorModesSettingsSectionFactory>() },
+          { QStringLiteral("dark mode"), QStringLiteral("night"), QStringLiteral("reading") }, QStringLiteral("color-modes"), std::make_shared<PDFAppColorModesSettingsSectionFactory>() },
         { Definitions::sectionEditing(), "edit", QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Editing"),
           QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Undo, author, forms"),
           QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Undo history, your name in annotations and form behavior."),
-          { QStringLiteral("edit"), QStringLiteral("annotations"), QStringLiteral("forms") }, generic },
+          { QStringLiteral("edit"), QStringLiteral("annotations"), QStringLiteral("forms") }, QStringLiteral("settings-editing"), generic },
         { Definitions::sectionSecurity(), "lock", QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Security"),
           QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Links, signatures, certificates"),
           QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "What documents may launch, and how signatures are verified."),
-          { QStringLiteral("security"), QStringLiteral("signatures"), QStringLiteral("certificates") }, std::make_shared<PDFAppSecuritySettingsSectionFactory>() },
+          { QStringLiteral("security"), QStringLiteral("signatures"), QStringLiteral("certificates") }, QStringLiteral("settings-security"), std::make_shared<PDFAppSecuritySettingsSectionFactory>() },
         { Definitions::sectionSpeech(), "volume-2", QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Speech"),
           QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Voice for reading aloud"),
           QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Voice used by Read Aloud."),
-          { QStringLiteral("read aloud"), QStringLiteral("text to speech"), QStringLiteral("voice") }, std::make_shared<PDFAppSpeechSettingsSectionFactory>() },
+          { QStringLiteral("read aloud"), QStringLiteral("text to speech"), QStringLiteral("voice") }, QStringLiteral("read-aloud"), std::make_shared<PDFAppSpeechSettingsSectionFactory>() },
         { Definitions::sectionShortcuts(), "keyboard", QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Shortcuts"),
           QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Keyboard shortcuts"),
           QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Keyboard shortcuts of all actions."),
-          { QStringLiteral("keyboard"), QStringLiteral("shortcuts"), QStringLiteral("keys"), QStringLiteral("hotkeys") }, std::make_shared<PDFAppShortcutsSettingsSectionFactory>() },
+          { QStringLiteral("keyboard"), QStringLiteral("shortcuts"), QStringLiteral("keys"), QStringLiteral("hotkeys") }, QStringLiteral("keyboard-shortcuts"), std::make_shared<PDFAppShortcutsSettingsSectionFactory>() },
         { Definitions::sectionColorManagement(), "monitor", QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Color management"),
           QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Color engine, ICC profiles"),
           QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Color engine and ICC profiles used to convert document colors."),
-          { QStringLiteral("cms"), QStringLiteral("icc"), QStringLiteral("profiles") }, std::make_shared<PDFAppColorManagementSettingsSectionFactory>() },
+          { QStringLiteral("cms"), QStringLiteral("icc"), QStringLiteral("profiles") }, QStringLiteral("color-management"), std::make_shared<PDFAppColorManagementSettingsSectionFactory>() },
         { Definitions::sectionAdvanced(), "sliders", QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Advanced"),
           QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Engine, cache, developer"),
           QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Rendering engine, memory and developer options."),
-          { QStringLiteral("advanced"), QStringLiteral("performance"), QStringLiteral("developer") }, generic },
+          { QStringLiteral("advanced"), QStringLiteral("performance"), QStringLiteral("developer") }, QStringLiteral("settings-advanced"), generic },
         // Owner decision Q1: Storage below Advanced (1269:14388, package D)
         { Definitions::sectionStorage(), "database", QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Storage"),
           QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Database, backup, other files"),
           QT_TRANSLATE_NOOP("pdf::PDFAppSettingsSectionRegistry", "Where PDF4QT keeps your settings and history."),
           { QStringLiteral("database"), QStringLiteral("backup"), QStringLiteral("export"), QStringLiteral("import"), QStringLiteral("storage") },
-          std::make_shared<PDFAppStorageSettingsSectionFactory>() }
+          QStringLiteral("data-storage"), std::make_shared<PDFAppStorageSettingsSectionFactory>() }
     };
 
     std::vector<PDFAppSettingsSectionInfo> result;
@@ -455,6 +456,7 @@ std::vector<PDFAppSettingsSectionInfo> PDFAppSettingsSectionRegistry::createSect
         info.navigationSubtitle = section.navigationSubtitle;
         info.subtitle = section.subtitle;
         info.keywords = section.keywords;
+        info.helpTopic = section.helpTopic;
         info.factory = section.factory;
         result.push_back(std::move(info));
     }

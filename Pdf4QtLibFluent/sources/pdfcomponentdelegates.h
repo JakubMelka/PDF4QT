@@ -74,7 +74,15 @@ namespace pdf
 /// | \p MissingRole | bool | false | the badge "No longer exists" instead of the progress, the name text/muted (Recent item) |
 /// | \p LockedRole | bool | false | the lock instead of the thumbnail of a document protected by a password (Recent item, File) |
 /// | \p IndentRole | int (pixels, 0 - 96) | 0 | indentation of the row at its leading side (Note: a reply 24, note-row-reply 1025:21921) |
-/// | \p StateIconRole | QString | empty (no icon) | icon of a state at the trailing side of the text, icon/muted 14 (Note: eye-off of a hidden annotation, 1026:21995) |
+/// | \p StateIconRole | QString | empty (no icon) | icon of a state at the trailing side of the text, icon/muted 14 (Note: eye-off of a hidden annotation, 1026:21995); the ending icon (Tile row); the badge (Page tile) |
+/// | \p TileTextRole | QString | empty (the icon) | text of the tile instead of the icon, a number of a page (Tile row) |
+/// | \p TileToneRole | int (PDFComponentPainter::TileRowTone) | Accent | colors of the tile (Tile row) |
+/// | \p LinkTextRole | QString | empty (no link) | link at the trailing side (Tile row) |
+/// | \p StateIconColorRole | int (PDFThemeColors::Color) | icon/accent | color of the ending icon (Tile row) |
+/// | \p DescriptionColorRole | int (PDFThemeColors::Color) | the color of the kind | color of the description (Tile row) |
+/// | \p PageSizeRole | QSizeF | the proportions of the picture | size of the page as it will be saved (Page tile) |
+/// | \p PageTileStateRole | int (PDFComponentPainter::PageTileState) | Normal | state of the tile (Page tile) |
+/// | \p TileRowKindRole | int (PDFComponentPainter::TileRowKind) | the kind of the delegate | kind of the row, a caption of a group (Tile row; an invalid value is MenuItem) |
 ///
 /// Qt::ToolTipRole is the tooltip of the item outside of its actions. A valid
 /// QSize in Qt::SizeHintRole is the size of the item (as QStyledItemDelegate).
@@ -106,7 +114,15 @@ public:
         LockedRole,
         IndentRole,
         StateIconRole,
-        LastRole = StateIconRole
+        TileTextRole,
+        TileToneRole,
+        LinkTextRole,
+        StateIconColorRole,
+        DescriptionColorRole,
+        PageSizeRole,
+        PageTileStateRole,
+        TileRowKindRole,
+        LastRole = TileRowKindRole
     };
 };
 
@@ -282,6 +298,12 @@ protected:
     /// Performs the action, which \p triggerAction has checked. The default emits \p actionTriggered.
     virtual void performAction(QAbstractItemView* view, const QModelIndex& index, int action);
 
+    /// Writes the value of an action into the model and performs the action by the
+    /// base class: a model, which does not accept the value, keeps the item, the
+    /// application gets the signal in both cases. A slot of dataChanged may delete
+    /// the delegate or the item, nothing is used then.
+    void performWriteAction(QAbstractItemView* view, const QModelIndex& index, int action, const QVariant& value, int role);
+
     /// Returns true, if the item shows the selection (the rows without the axis
     /// Selected in the design - Font row, Recent item row, Shortcut row - do not)
     virtual bool hasSelection() const { return true; }
@@ -434,10 +456,126 @@ private:
     QSize m_pageSize = QSize(108, 148);
 };
 
+/// Page of the canvas of a tool (389:20177, 389:20910, 388:20614): the page in its
+/// slot, the label, the caption and the badge. Roles: Qt::DisplayRole (page label),
+/// PixmapRole / Qt::DecorationRole (the rendered page, read only for painting,
+/// rendered by the application), PageSizeRole (the proportions of a page without a
+/// picture yet), PageTileStateRole, SubtitleRole (the caption), StateIconRole (the
+/// badge). The view is a QListView in QListView::IconMode with Static movement, the
+/// spacing 6 (the gap of 389:20177; IconMode puts it once between the tiles, and in
+/// front of the first one) and without uniform sizes - a tile with a caption is
+/// higher, a selected one wider. The state comes from the model (the selection of the
+/// view has no look, a tool says, what its selection means); after a change of the
+/// state, which changes the size, emit \p sizeHintChanged. Each emission queues one
+/// layout of all the tiles of the view, so a change of more tiles is one dataChanged
+/// of their range and one sizeHintChanged, never one per tile. The text of a tile for
+/// the assistive technologies (its state, the caption) is
+/// Qt::AccessibleDescriptionRole of the model: the view announces only its roles.
+class PDF4QTLIBFLUENTSHARED_EXPORT PDFPageTileDelegate : public PDFRowDelegate
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFRowDelegate;
+
+public:
+    explicit PDFPageTileDelegate(QObject* parent = nullptr);
+
+    /// Slot of the page: 104 x 104 by default (Rotate), 82 x 112 in Remove (an
+    /// invalid size is the default, each side is clamped to 4096)
+    QSize getSlotSize() const { return m_slotSize; }
+    void setSlotSize(const QSize& size);
+
+    /// Returns the content of the item (\p withPixmap false: without the picture,
+    /// which the size does not need)
+    PDFComponentPainter::PageTile getContent(const QModelIndex& index, bool withPixmap = true) const;
+
+protected:
+    virtual void paintItem(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index, const PDFComponentPainter::State& state) const override;
+    virtual QSize getItemSize(const QStyleOptionViewItem& option, const QModelIndex& index, int width) const override;
+    virtual bool hasSelection() const override { return false; }
+
+private:
+    QSize m_slotSize = QSize(104, 104);
+};
+
+/// Row with a tile of a list of thousands of rows (PDFComponentPainter::TileRow, the
+/// widget PDFTileRow): links of a document, kinds of hidden data, pending changes.
+/// Roles: Qt::DisplayRole (title), SubtitleRole (description), IconNameRole,
+/// TileTextRole, TileToneRole, TagRole, StateIconRole with StateIconColorRole (the
+/// ending icon), LinkTextRole, DescriptionColorRole. Qt::CheckStateRole is the check
+/// box of a row of a list, enabled by Qt::ItemIsUserCheckable, and the chosen state
+/// of an item of a menu (MenuItem, PanelStep). The selection of the view is the fill
+/// of a row of a list. The height follows the width. The rows of the cards of the
+/// design have the gap 2 (QListView::setSpacing(1): a list pads each item by its spacing).
+///
+/// TileRowKindRole gives one row its own kind: the captions of the groups of one list
+/// (Caption, 438:14866) are rows of its model without Qt::ItemIsEnabled, so the view
+/// neither selects them nor gives them the current item; they are drawn disabled only
+/// with a disabled view.
+///
+/// Actions: the check box writes Qt::CheckStateRole into the model (Space on the
+/// current item, the context menu), the link gives \p actionTriggered (the context
+/// menu); a click on them neither selects the item nor activates it.
+class PDF4QTLIBFLUENTSHARED_EXPORT PDFTileRowDelegate : public PDFRowDelegate
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFRowDelegate;
+
+public:
+    using Kind = PDFComponentPainter::TileRowKind;
+    using TextKind = PDFComponentPainter::TextKind;
+
+    enum ActionId
+    {
+        CheckBoxAction = 0, ///< Toggle the check box
+        LinkAction          ///< The link of the row
+    };
+
+    explicit PDFTileRowDelegate(QObject* parent = nullptr);
+
+    /// Kind of the rows (an invalid value is MenuItem)
+    Kind getKind() const { return m_kind; }
+    void setKind(Kind kind);
+
+    /// Kinds of the texts of the rows (a name or an address of a document is data)
+    TextKind getTitleKind() const { return m_titleKind; }
+    void setTitleKind(TextKind kind);
+    TextKind getDescriptionKind() const { return m_descriptionKind; }
+    void setDescriptionKind(TextKind kind);
+
+    /// The rows, which are not clickable (the frames of the pending changes have only
+    /// the link), have no hover, press and selection; their actions and the focus
+    /// of the keyboard work, as PDFTileRow::setClickable
+    bool isClickable() const { return m_isClickable; }
+    void setClickable(bool isClickable);
+
+    /// Returns the content of the item (without the states of its actions); the
+    /// texts are bounded by PDFComponentPainter::getBoundedTileRowText
+    PDFComponentPainter::TileRow getContent(const QModelIndex& index) const;
+
+    virtual QList<Action> getActions(const QStyleOptionViewItem& option, const QModelIndex& index) const override;
+
+protected:
+    virtual void paintItem(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index, const PDFComponentPainter::State& state) const override;
+    virtual QSize getItemSize(const QStyleOptionViewItem& option, const QModelIndex& index, int width) const override;
+    virtual void performAction(QAbstractItemView* view, const QModelIndex& index, int action) override;
+    virtual bool hasActions() const override { return true; }
+    virtual bool hasHeightForWidth() const override { return true; }
+
+private:
+    Kind m_kind = Kind::MenuItem;
+    TextKind m_titleKind = TextKind::Interface;
+    TextKind m_descriptionKind = TextKind::Interface;
+    bool m_isClickable = true;
+};
+
 /// Bookmark of the document sidebar (component Bookmark row 191:911), the
 /// filled bookmark icon. Roles: Qt::DisplayRole (title), SubtitleRole, TagRole
-/// ("Auto"). The list of the screens (195:3445) has the spacing 2 between the
-/// rows (QListView::setSpacing(2)).
+/// ("Auto"). The list of the screens (195:3445) has the gap 2 between the rows
+/// (QListView::setSpacing(1): a list pads each item by its spacing).
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFBookmarkDelegate : public PDFRowDelegate
 {
     Q_OBJECT
@@ -461,7 +599,8 @@ protected:
 /// TextRole, IconNameRole and HueRole (the badge of the type), IndentRole (a
 /// reply is indented by 24 - the whole row with its selection, 1025:21920) and
 /// StateIconRole (eye-off of a hidden annotation, 1026:21995). The height
-/// follows the width. The list of the screens (195:3910) has the spacing 2.
+/// follows the width. The list of the screens (195:3910) has the gap 2 between the
+/// rows (QListView::setSpacing(1)).
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFNoteDelegate : public PDFRowDelegate
 {
     Q_OBJECT
@@ -494,7 +633,7 @@ protected:
 /// File embedded in the document (component Attachment row 191:1045) with the
 /// save action (Icon button 24 download). Roles: Qt::DisplayRole (name),
 /// SubtitleRole (meta), IconNameRole and HueRole (the badge). The list of the
-/// screens (195:2070) has the spacing 2.
+/// screens (195:2070) has the gap 2 between the rows (QListView::setSpacing(1)).
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFAttachmentDelegate : public PDFRowDelegate
 {
     Q_OBJECT
@@ -524,7 +663,8 @@ protected:
 /// Occurrence of the search (component Search result row 191:1073), the found
 /// terms Semi Bold text/primary. Roles: Qt::DisplayRole (page, "Page 308"),
 /// TextRole (snippet), MatchRangesRole (the found terms in the snippet). The
-/// height follows the width. The list of the screens (198:4520) has the spacing 2.
+/// height follows the width. The list of the screens (198:4520) has the gap 2 between
+/// the rows (QListView::setSpacing(1)).
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFSearchResultDelegate : public PDFRowDelegate
 {
     Q_OBJECT

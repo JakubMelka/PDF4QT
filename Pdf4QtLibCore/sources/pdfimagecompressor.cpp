@@ -28,18 +28,45 @@
 #include "pdfimage.h"
 #include "pdfmeshqualitysettings.h"
 #include "pdfoptionalcontent.h"
+#include "pdfoperationcontrol.h"
 #include "pdfpage.h"
 #include "pdfpagecontentprocessor.h"
+#include "pdfprogress.h"
 #include "pdffont.h"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <map>
+#include <set>
 
 namespace pdf
 {
 
-/// Content processor, which only reports the image XObjects drawn on the page
+/// Helpers of the collection of the images
+class PDFImageCompressorHelper
+{
+public:
+    PDFImageCompressorHelper() = delete;
+
+    /// Length of an axis of the unit square of an image in inches; 0 for a
+    /// degenerated axis and for a length, which is not finite
+    static double getAxisInches(qreal x, qreal y)
+    {
+        const double length = std::hypot(static_cast<double>(x), static_cast<double>(y)) * PDF_POINT_TO_INCH;
+        return std::isfinite(length) && length > std::numeric_limits<double>::epsilon() ? length : 0.0;
+    }
+
+    /// Resolution of pixels on a length in inches, 0 for a degenerated axis
+    static double getDpi(unsigned int pixels, double inches)
+    {
+        return inches > 0.0 ? static_cast<double>(pixels) / inches : 0.0;
+    }
+};
+
+/// Content processor, which only reports the image XObjects drawn on the page.
+/// With a placement callback it reports them without decoding them; with a
+/// filter it decodes only the images of the filter.
 class PDFImageCompressor::ImageCollectorProcessor : public PDFPageContentProcessor
 {
 public:
@@ -50,9 +77,13 @@ public:
                             const PDFCMS* cms,
                             const PDFOptionalContentActivity* optionalContentActivity,
                             const PDFMeshQualitySettings& meshQualitySettings,
-                            const ImageCallback& callback) :
+                            const ImageCallback* callback,
+                            const PlacementCallback* placementCallback,
+                            const ImageFilter* filter) :
         PDFPageContentProcessor(page, document, fontCache, iccProfileCache, cms, optionalContentActivity, QTransform(), meshQualitySettings),
-        m_callback(callback)
+        m_callback(callback),
+        m_placementCallback(placementCallback),
+        m_filter(filter)
     {
     }
 
@@ -71,6 +102,30 @@ protected:
         }
     }
 
+    virtual bool isOriginalImageRequired(const PDFStream* stream, PDFObjectReference reference) override
+    {
+        Q_UNUSED(stream);
+
+        if (isContentSuppressed() || isProcessingCancelled())
+        {
+            return false;
+        }
+
+        if (!reference.isValid())
+        {
+            // Inline images or direct streams without reference are skipped, as they can't be shared
+            return false;
+        }
+
+        if (m_placementCallback)
+        {
+            (*m_placementCallback)(reference, calculatePlacedSize());
+            return false;
+        }
+
+        return !m_filter || !(*m_filter) || (*m_filter)(reference);
+    }
+
     virtual bool performOriginalImagePainting(const PDFImage& image, const PDFStream* stream, PDFObjectReference reference) override
     {
         if (isContentSuppressed() || isProcessingCancelled())
@@ -84,39 +139,24 @@ protected:
             return true;
         }
 
-        m_callback(image, stream, reference, calculateDpi(image));
+        const QPointF inches = calculatePlacedSize();
+        (*m_callback)(image, stream, reference, QPointF(PDFImageCompressorHelper::getDpi(image.getImageData().getWidth(), inches.x()),
+                                                        PDFImageCompressorHelper::getDpi(image.getImageData().getHeight(), inches.y())));
         return true;
     }
 
 private:
-    QPointF calculateDpi(const PDFImage& image) const
+    /// Length of the axes of the image on the page in inches
+    QPointF calculatePlacedSize() const
     {
         const QTransform ctm = getGraphicState()->getCurrentTransformationMatrix();
-
-        const auto axisLength = [](qreal x, qreal y)
-        {
-            const double length = std::hypot(static_cast<double>(x), static_cast<double>(y));
-            return length * PDF_POINT_TO_INCH;
-        };
-
-        QPointF dpi(0.0, 0.0);
-
-        const double widthInches = axisLength(ctm.m11(), ctm.m12());
-        if (widthInches > std::numeric_limits<double>::epsilon())
-        {
-            dpi.setX(static_cast<double>(image.getImageData().getWidth()) / widthInches);
-        }
-
-        const double heightInches = axisLength(ctm.m21(), ctm.m22());
-        if (heightInches > std::numeric_limits<double>::epsilon())
-        {
-            dpi.setY(static_cast<double>(image.getImageData().getHeight()) / heightInches);
-        }
-
-        return dpi;
+        return QPointF(PDFImageCompressorHelper::getAxisInches(ctm.m11(), ctm.m12()),
+                       PDFImageCompressorHelper::getAxisInches(ctm.m21(), ctm.m22()));
     }
 
-    const ImageCallback& m_callback;
+    const ImageCallback* m_callback;
+    const PlacementCallback* m_placementCallback;
+    const ImageFilter* m_filter;
 };
 
 PDFImageCompressor::Environment::Environment(const PDFDocument* document, PDFCMSPointer cms) :
@@ -142,7 +182,7 @@ PDFImageCompressor::Environment::Environment(const PDFDocument* document, PDFCMS
 
 PDFImageCompressor::Environment::~Environment() = default;
 
-void PDFImageCompressor::Environment::processPage(PDFInteger pageIndex, const ImageCallback& callback, const PDFOperationControl* operationControl) const
+void PDFImageCompressor::Environment::processPage(PDFInteger pageIndex, const ImageCallback& callback, const PDFOperationControl* operationControl, const ImageFilter& filter) const
 {
     const PDFCatalog* catalog = m_document ? m_document->getCatalog() : nullptr;
     const PDFPage* page = catalog && pageIndex >= 0 && size_t(pageIndex) < catalog->getPageCount() ? catalog->getPage(pageIndex) : nullptr;
@@ -152,7 +192,22 @@ void PDFImageCompressor::Environment::processPage(PDFInteger pageIndex, const Im
     }
 
     PDFMeshQualitySettings meshQualitySettings;
-    ImageCollectorProcessor processor(page, m_document, m_fontCache.get(), m_iccProfileCache.get(), m_cms.data(), m_optionalContentActivity.get(), meshQualitySettings, callback);
+    ImageCollectorProcessor processor(page, m_document, m_fontCache.get(), m_iccProfileCache.get(), m_cms.data(), m_optionalContentActivity.get(), meshQualitySettings, &callback, nullptr, &filter);
+    processor.setOperationControl(operationControl);
+    processor.processContents();
+}
+
+void PDFImageCompressor::Environment::processPagePlacements(PDFInteger pageIndex, const PlacementCallback& callback, const PDFOperationControl* operationControl) const
+{
+    const PDFCatalog* catalog = m_document ? m_document->getCatalog() : nullptr;
+    const PDFPage* page = catalog && pageIndex >= 0 && size_t(pageIndex) < catalog->getPageCount() ? catalog->getPage(pageIndex) : nullptr;
+    if (!page || PDFOperationControl::isOperationCancelled(operationControl))
+    {
+        return;
+    }
+
+    PDFMeshQualitySettings meshQualitySettings;
+    ImageCollectorProcessor processor(page, m_document, m_fontCache.get(), m_iccProfileCache.get(), m_cms.data(), m_optionalContentActivity.get(), meshQualitySettings, nullptr, &callback, nullptr);
     processor.setOperationControl(operationControl);
     processor.processContents();
 }
@@ -172,7 +227,7 @@ double PDFImageCompressor::updateAxisDpi(double currentValue, double candidate)
     return currentValue;
 }
 
-PDFImageCompressor::ImageStatisticsList PDFImageCompressor::collectImages(const PDFDocument* document) const
+PDFImageCompressor::ImageStatisticsList PDFImageCompressor::collectImages(const PDFDocument* document, const PDFOperationControl* operationControl, PDFProgress* progress) const
 {
     ImageStatisticsList result;
     if (!document || !document->getCatalog())
@@ -181,49 +236,189 @@ PDFImageCompressor::ImageStatisticsList PDFImageCompressor::collectImages(const 
     }
 
     Environment environment(document);
-    std::map<PDFObjectReference, ImageStatistics> statistics;
-    PDFRenderErrorReporterDummy reporter;
+    const ImagePlacements placements = collectImagePlacements(environment, operationControl, progress);
+    result.reserve(placements.size());
 
-    auto updateStatistics = [&](const PDFImage& image, const PDFStream*, PDFObjectReference reference, QPointF dpi)
+    const bool hasProgress = progress && !placements.empty() && !PDFOperationControl::isOperationCancelled(operationControl);
+    if (hasProgress)
     {
-        auto [iterator, inserted] = statistics.try_emplace(reference);
-        ImageStatistics& stats = iterator->second;
+        progress->start(placements.size(), ProgressStartupInfo());
+    }
 
-        if (inserted)
+    const DecodedImageCallback addImage = [&result, progress, hasProgress](ImageStatistics statistics)
+    {
+        result.push_back(std::move(statistics));
+        if (hasProgress)
         {
-            stats.reference = reference;
+            progress->step();
         }
-
-        if (stats.image.isNull())
-        {
-            stats.image = image.getImage(environment.getCMS(), &reporter, nullptr);
-        }
-
-        stats.minimalDpi.setX(updateAxisDpi(stats.minimalDpi.x(), dpi.x()));
-        stats.minimalDpi.setY(updateAxisDpi(stats.minimalDpi.y(), dpi.y()));
     };
+    visitImages(environment, placements, addImage, operationControl);
+
+    if (hasProgress)
+    {
+        progress->finish();
+    }
+
+    // The order of the references, not of the pages
+    std::sort(result.begin(), result.end(), [](const ImageStatistics& left, const ImageStatistics& right) { return left.reference < right.reference; });
+    return result;
+}
+
+PDFImageCompressor::ImagePlacements PDFImageCompressor::collectImagePlacements(const Environment& environment, const PDFOperationControl* operationControl, PDFProgress* progress) const
+{
+    ImagePlacements result;
+    const PDFDocument* document = environment.getDocument();
+    if (!document || !document->getCatalog())
+    {
+        return result;
+    }
 
     const size_t pageCount = document->getCatalog()->getPageCount();
-    for (size_t pageIndex = 0; pageIndex < pageCount; ++pageIndex)
+    if (progress && pageCount > 0)
     {
-        environment.processPage(PDFInteger(pageIndex), updateStatistics, nullptr);
+        progress->start(pageCount, ProgressStartupInfo());
     }
 
-    result.reserve(statistics.size());
-    for (auto& [reference, stats] : statistics)
+    std::map<PDFObjectReference, ImagePlacement> placements;
+    PDFInteger currentPage = 0;
+    const PlacementCallback addPlacement = [&placements, &currentPage](PDFObjectReference reference, QPointF inches)
     {
-        if (!std::isfinite(stats.minimalDpi.x()))
+        auto [iterator, inserted] = placements.try_emplace(reference);
+        ImagePlacement& placement = iterator->second;
+        if (inserted)
         {
-            stats.minimalDpi.setX(0.0);
+            placement.reference = reference;
+            placement.firstPageIndex = currentPage;
         }
-        if (!std::isfinite(stats.minimalDpi.y()))
+        placement.maximumInches.setX(qMax(placement.maximumInches.x(), inches.x()));
+        placement.maximumInches.setY(qMax(placement.maximumInches.y(), inches.y()));
+    };
+
+    for (size_t pageIndex = 0; pageIndex < pageCount && !PDFOperationControl::isOperationCancelled(operationControl); ++pageIndex)
+    {
+        currentPage = PDFInteger(pageIndex);
+        environment.processPagePlacements(currentPage, addPlacement, operationControl);
+        if (progress)
         {
-            stats.minimalDpi.setY(0.0);
+            progress->step();
         }
-        result.push_back(std::move(stats));
     }
 
+    if (progress && pageCount > 0)
+    {
+        progress->finish();
+    }
+
+    result.reserve(placements.size());
+    for (const auto& item : placements)
+    {
+        result.push_back(item.second);
+    }
     return result;
+}
+
+void PDFImageCompressor::visitImages(const Environment& environment, const ImagePlacements& placements, const DecodedImageCallback& callback, const PDFOperationControl* operationControl) const
+{
+    const PDFDocument* document = environment.getDocument();
+    if (!document || !document->getCatalog() || placements.empty())
+    {
+        return;
+    }
+
+    /// State of an image, which was not handed over yet
+    enum class PendingState
+    {
+        Waiting,        ///< The image was not reached yet (or its data cannot be read)
+        NoPixels        ///< The image was reached and gave no pixels, its other pages are tried
+    };
+
+    std::map<PDFObjectReference, PendingState> pending;
+    std::map<PDFObjectReference, const ImagePlacement*> placementOfImage;
+    std::set<PDFInteger> firstPages;
+    for (const ImagePlacement& placement : placements)
+    {
+        pending[placement.reference] = PendingState::Waiting;
+        placementOfImage[placement.reference] = &placement;
+        firstPages.insert(placement.firstPageIndex);
+    }
+
+    PDFRenderErrorReporterDummy reporter;
+
+    const ImageFilter filter = [&pending](PDFObjectReference reference)
+    {
+        return pending.count(reference) > 0;
+    };
+
+    const ImageCallback decodeImage = [&](const PDFImage& image, const PDFStream*, PDFObjectReference reference, QPointF)
+    {
+        auto pendingIterator = pending.find(reference);
+        if (pendingIterator == pending.end())
+        {
+            return;
+        }
+
+        // An exception of the decoding goes to the content processor as by any image
+        pendingIterator->second = PendingState::NoPixels;
+
+        ImageStatistics statistics;
+        statistics.reference = reference;
+        statistics.image = image.getImage(environment.getCMS(), &reporter, operationControl);
+        if (statistics.image.isNull())
+        {
+            return;
+        }
+
+        const ImagePlacement* placement = placementOfImage.at(reference);
+        statistics.minimalDpi = QPointF(PDFImageCompressorHelper::getDpi(image.getImageData().getWidth(), placement->maximumInches.x()),
+                                        PDFImageCompressorHelper::getDpi(image.getImageData().getHeight(), placement->maximumInches.y()));
+
+        pending.erase(pendingIterator);
+        callback(std::move(statistics));
+    };
+
+    // Pages, on which an image is drawn for the first time, are enough, until an
+    // image of them gives no pixels - then its other pages are tried
+    bool processAllPages = false;
+    const PDFInteger pageCount = PDFInteger(document->getCatalog()->getPageCount());
+    for (PDFInteger pageIndex = 0; pageIndex < pageCount && !pending.empty() && !PDFOperationControl::isOperationCancelled(operationControl); ++pageIndex)
+    {
+        if (!processAllPages && !firstPages.count(pageIndex))
+        {
+            continue;
+        }
+
+        environment.processPage(pageIndex, decodeImage, operationControl, filter);
+
+        if (!processAllPages)
+        {
+            for (const auto& item : pending)
+            {
+                if (placementOfImage.at(item.first)->firstPageIndex <= pageIndex)
+                {
+                    processAllPages = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (PDFOperationControl::isOperationCancelled(operationControl))
+    {
+        return;
+    }
+
+    // Images without pixels; an image, whose data cannot be read, is not reported
+    for (const auto& item : pending)
+    {
+        if (item.second == PendingState::NoPixels)
+        {
+            ImageStatistics statistics;
+            statistics.reference = item.first;
+            statistics.minimalDpi = QPointF(0.0, 0.0);
+            callback(std::move(statistics));
+        }
+    }
 }
 
 }   // namespace pdf

@@ -1125,7 +1125,7 @@ void AppHomeTest::homeLinks()
         { [](pdf::PDFAppHomePage* page) { return page->getQuickActionTiles().back(); }, QStringLiteral("/tools"), QString() },
         { [](pdf::PDFAppHomePage* page) { return page->getResourceCards()[0]; }, QStringLiteral("/support"), QStringLiteral("pdf::PDFAppSupportPage") },
         { [](pdf::PDFAppHomePage* page) { return page->getSupportRows()[2]; }, QStringLiteral("/sponsor"), QStringLiteral("pdf::PDFAppSponsorPage") },
-        { [](pdf::PDFAppHomePage* page) { return page->getRecentToolRows()[0]; }, QStringLiteral("/tools/optimize.compress"), QStringLiteral("pdf::PDFPageNotFoundPage") },
+        { [](pdf::PDFAppHomePage* page) { return page->getRecentToolRows()[1]; }, QStringLiteral("/tools/protect.sign"), QStringLiteral("pdf::PDFPageNotFoundPage") },
         { [](pdf::PDFAppHomePage* page) { return page->findChild<pdf::PDFTextLink*>(); }, QStringLiteral("/recent"), QStringLiteral("pdf::PDFAppRecentPage") }
     };
 

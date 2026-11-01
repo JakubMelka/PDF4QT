@@ -650,6 +650,11 @@ QString PDFAppToolsPage::getTitle() const
     return tr("Tools");
 }
 
+QString PDFAppToolsPage::getHelpTopic() const
+{
+    return QStringLiteral("tools");
+}
+
 QString PDFAppToolsPage::getHeaderTitle() const
 {
     return tr("Tools");

@@ -237,6 +237,7 @@ public:
     const char* navigationSubtitle = "";    ///< Summary of the nav item ("Language, theme, documents")
     const char* subtitle = "";      ///< Subtitle of the section header
     QStringList keywords;           ///< Words of the filter (English)
+    QString helpTopic;              ///< Topic of the user manual (F1 on the section)
     std::shared_ptr<const PDFAppSettingsSectionFactory> factory;
 
     QString getTitle() const;

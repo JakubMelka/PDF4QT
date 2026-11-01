@@ -195,6 +195,11 @@ QString PDFAppHelpPage::getTitle() const
     return m_topic.title;
 }
 
+QString PDFAppHelpPage::getHelpTopic() const
+{
+    return m_topic.id.isEmpty() ? BaseClass::getHelpTopic() : m_topic.id;
+}
+
 QString PDFAppHelpPage::getHeaderTitle() const
 {
     return m_topic.title;

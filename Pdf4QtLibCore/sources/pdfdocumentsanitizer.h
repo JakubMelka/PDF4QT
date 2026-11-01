@@ -24,6 +24,7 @@
 #define PDFDOCUMENTSANITIZER_H
 
 #include "pdfdocument.h"
+#include "pdfoperationcontrol.h"
 
 namespace pdf
 {
@@ -55,6 +56,14 @@ public:
     Q_DECLARE_FLAGS(SanitizationFlags, SanitizationFlag)
 
     explicit PDFDocumentSanitizer(SanitizationFlag flags, QObject* parent);
+
+    /// Sets the cancellation of sanitize, checked between the steps and per page or object,
+    /// also in the final optimization (optional, it must outlive sanitize). The storage of
+    /// a canceled sanitization is valid, but hidden data may stay in it: it is not to be used.
+    void setOperationControl(const PDFOperationControl* operationControl) { m_operationControl = operationControl; }
+
+    /// The operation control has canceled the sanitization
+    bool isCanceled() const { return PDFOperationControl::isOperationCancelled(m_operationControl); }
 
     /// Set document, which should be sanitized
     /// \param document Document to be sanitized
@@ -103,6 +112,7 @@ private:
 
     SanitizationFlags m_flags;
     PDFObjectStorage m_storage;
+    const PDFOperationControl* m_operationControl = nullptr;
 };
 
 }   // namespace pdf

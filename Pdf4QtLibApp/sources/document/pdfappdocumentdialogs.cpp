@@ -795,7 +795,7 @@ QString PDFAppCloseRunningDialog::getText(const PDFAppDocument* document)
     const QString operationText = operation ? operation->getText().left(256) : tr("An operation");
     const QString title = document ? document->getTitle() : QString();
 
-    QString text = operation && operation->getProgress() >= 0 ? tr("%1 is still running on %2 (%3 % done).").arg(operationText, title).arg(operation->getProgress())
+    QString text = operation && operation->getProgress() >= 0 ? tr("%1 is still running on %2 (%3 % done).").arg(operationText, title, QString::number(operation->getProgress()))
                                                               : tr("%1 is still running on %2.").arg(operationText, title);
     if (count > 1)
     {

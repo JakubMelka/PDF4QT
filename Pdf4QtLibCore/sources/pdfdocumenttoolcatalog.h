@@ -24,6 +24,7 @@
 #define PDFDOCUMENTTOOLCATALOG_H
 
 #include "pdfglobal.h"
+#include "pdfsecurityhandler.h"
 
 #include <QString>
 #include <QStringList>
@@ -34,6 +35,7 @@
 
 namespace pdf
 {
+class PDFDocument;
 
 /// Category of a tool of the catalog (GUI_overhaul/tools.md 3). The order is the
 /// order of the catalog (organize, create or convert, edit, protect, optimize, review).
@@ -95,6 +97,27 @@ enum class PDFDocumentToolExternalDependency
     None,
     Tesseract,  ///< The OCR engine and its language models
     Scanner     ///< A scanner of the system
+};
+
+/// Choice of the result dialog, which is preselected, and the default value of the
+/// parameter result of MCP (newapp_tools.md 4, tools.md 9.3 point 11, Figma 296:2761)
+enum class PDFDocumentToolPreselectedResult
+{
+    None,       ///< No choice: an analysis writes nothing
+    Keep,       ///< Keep in this tab
+    Copy,       ///< Save as a copy
+    NewTab,     ///< Open in a new tab (a new document, Figma 378:3674)
+    File        ///< Save as a file (the tool writes a new file only, or an export)
+};
+
+/// What the result of a tool does with the signatures of a signed document
+/// (newapplication.md O31, plan chapter 4). A signature lives in one revision of
+/// the file: only an incremental update keeps it valid.
+enum class PDFDocumentToolSignatureImpact
+{
+    None,               ///< The open document is not changed
+    IncrementalSave,    ///< The change can be saved as an incremental update of the signed file
+    LostCopyOnly        ///< The tool rewrites the whole file, so the signatures stop being valid: only a copy is offered, MCP refuses keep and overwrite
 };
 
 /// Category of the catalog: its texts, icon and hue (Figma Tool category header)
@@ -290,6 +313,25 @@ public:
     /// (invalid and duplicate identifiers of the table are left out; default empty)
     QStringList getDefaultSuccessors() const;
 
+    /// Choice of the result dialog, which is preselected (default None)
+    PDFDocumentToolPreselectedResult getPreselectedResult() const;
+
+    /// What the result does with the signatures of a signed document (default None)
+    PDFDocumentToolSignatureImpact getSignatureImpact() const;
+
+    /// Permissions of an encrypted document, which allow the tool: at least one of
+    /// them must be granted (Rotate Pages: Assemble or Modify, ISO 32000-2 Table 22).
+    /// Empty = the tool asks for no permission.
+    std::vector<PDFSecurityHandler::Permission> getRequiredPermissions() const;
+
+    /// The security handler of the document grants what the tool needs: a document
+    /// without a handler grants everything, an owner too (nullptr grants nothing)
+    bool isPermitted(const PDFDocument* document) const;
+
+    /// Topic of the user manual of the tool: tool-<id with a dash instead of the dot>
+    /// ("tool-optimize-compress", plan chapter 5)
+    QString getHelpTopic() const;
+
 private:
     friend class PDFDocumentToolCatalog;
 
@@ -310,20 +352,66 @@ private:
 class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolExtendedData
 {
 public:
+    /// Row of a tool with the defaults of its result kind: the preselected result and
+    /// the signature impact follow the kind, no permission is needed
     constexpr PDFDocumentToolExtendedData(const char* id,
                                           PDFDocumentToolInputKind inputKind,
                                           PDFDocumentToolResultKind resultKind,
                                           PDFDocumentToolExternalDependency externalDependency,
                                           const char* pdfToolCommand,
                                           const char* successors) :
+        PDFDocumentToolExtendedData(id, inputKind, resultKind, externalDependency, pdfToolCommand, successors,
+                                    getDefaultPreselectedResult(resultKind), getDefaultSignatureImpact(resultKind), 0)
+    {
+
+    }
+
+    /// \param requiredPermissions Mask of the values of PDFSecurityHandler::Permission,
+    ///        at least one of them must be granted (0 = none needed)
+    constexpr PDFDocumentToolExtendedData(const char* id,
+                                          PDFDocumentToolInputKind inputKind,
+                                          PDFDocumentToolResultKind resultKind,
+                                          PDFDocumentToolExternalDependency externalDependency,
+                                          const char* pdfToolCommand,
+                                          const char* successors,
+                                          PDFDocumentToolPreselectedResult preselectedResult,
+                                          PDFDocumentToolSignatureImpact signatureImpact,
+                                          uint32_t requiredPermissions) :
         m_id(id),
         m_inputKind(inputKind),
         m_resultKind(resultKind),
         m_externalDependency(externalDependency),
         m_pdfToolCommand(pdfToolCommand),
-        m_successors(successors)
+        m_successors(successors),
+        m_preselectedResult(preselectedResult),
+        m_signatureImpact(signatureImpact),
+        m_requiredPermissions(requiredPermissions)
     {
 
+    }
+
+    /// Preselected result of a tool of the kind, which does not differ (tools.md 9.3 point 11)
+    static constexpr PDFDocumentToolPreselectedResult getDefaultPreselectedResult(PDFDocumentToolResultKind kind)
+    {
+        switch (kind)
+        {
+            case PDFDocumentToolResultKind::ChangeDocument:
+                return PDFDocumentToolPreselectedResult::Keep;
+            case PDFDocumentToolResultKind::NewDocument:
+                return PDFDocumentToolPreselectedResult::NewTab;
+            case PDFDocumentToolResultKind::Files:
+                return PDFDocumentToolPreselectedResult::File;
+            case PDFDocumentToolResultKind::Analysis:
+                break;
+        }
+        return PDFDocumentToolPreselectedResult::None;
+    }
+
+    /// Signature impact of a tool of the kind: only a change of the open document
+    /// touches its signatures, an incremental update keeps them
+    static constexpr PDFDocumentToolSignatureImpact getDefaultSignatureImpact(PDFDocumentToolResultKind kind)
+    {
+        return kind == PDFDocumentToolResultKind::ChangeDocument ? PDFDocumentToolSignatureImpact::IncrementalSave : PDFDocumentToolSignatureImpact::None;
     }
 
     /// Identifier of the tool of the catalog
@@ -332,6 +420,11 @@ public:
     PDFDocumentToolInputKind getInputKind() const { return m_inputKind; }
     PDFDocumentToolResultKind getResultKind() const { return m_resultKind; }
     PDFDocumentToolExternalDependency getExternalDependency() const { return m_externalDependency; }
+    PDFDocumentToolPreselectedResult getPreselectedResult() const { return m_preselectedResult; }
+    PDFDocumentToolSignatureImpact getSignatureImpact() const { return m_signatureImpact; }
+
+    /// Mask of the values of PDFSecurityHandler::Permission, at least one of them must be granted
+    uint32_t getRequiredPermissionMask() const { return m_requiredPermissions; }
 
     /// Command of PdfTool (empty = none)
     QString getPdfToolCommand() const;
@@ -348,6 +441,9 @@ private:
     PDFDocumentToolExternalDependency m_externalDependency;
     const char* m_pdfToolCommand;
     const char* m_successors;
+    PDFDocumentToolPreselectedResult m_preselectedResult;
+    PDFDocumentToolSignatureImpact m_signatureImpact;
+    uint32_t m_requiredPermissions;
 };
 
 /// Static catalog of the 46 tools of phase 2 (tools.md, Figma Tools Overview

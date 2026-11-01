@@ -353,14 +353,13 @@ void PDFAppAutoRefresh::startCheck()
         return;
     }
 
-    // An own save in progress writes the file: it is checked after the save
-    for (const PDFAppDocumentOperation* operation : document->getOperations())
+    // An own save in progress writes the file: it is checked after the save. A
+    // blocking operation (a run of a tool, a result waiting for the decision of the
+    // user - F2 of the plan of phase 2) is not replaced under its snapshot either.
+    if (isCheckDeferred(document))
     {
-        if (operation && operation->getKind() == PDFAppDocumentOperationKind::Save)
-        {
-            scheduleCheck(CHECK_DELAY);
-            return;
-        }
+        scheduleCheck(CHECK_DELAY);
+        return;
     }
 
     m_isCheckPending = false;
@@ -368,6 +367,23 @@ void PDFAppAutoRefresh::startCheck()
     m_watcher = watcher;
     connect(watcher, &QFutureWatcher<PDFAppAutoRefreshReader::Result>::finished, this, &PDFAppAutoRefresh::onReaderFinished);
     watcher->setFuture(QtConcurrent::run(&PDFAppAutoRefreshReader::read, m_watchedPath, document->getOriginalData()));
+}
+
+bool PDFAppAutoRefresh::isCheckDeferred(const PDFAppDocument* document)
+{
+    if (document->isBlockedByOperation())
+    {
+        return true;
+    }
+
+    for (const PDFAppDocumentOperation* operation : document->getOperations())
+    {
+        if (operation && operation->getKind() == PDFAppDocumentOperationKind::Save)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 void PDFAppAutoRefresh::onReaderFinished()
@@ -381,6 +397,13 @@ void PDFAppAutoRefresh::onReaderFinished()
     const PDFAppAutoRefreshReader::Result result = watcher->future().result();
     m_watcher = nullptr;
     watcher->deleteLater();
+
+    // An operation has started while the file was read: the check is repeated after it
+    if (m_document && isCheckDeferred(m_document.data()))
+    {
+        scheduleCheck(CHECK_DELAY);
+        return;
+    }
 
     QPointer<PDFAppAutoRefresh> guard(this);
     applyResult(result);

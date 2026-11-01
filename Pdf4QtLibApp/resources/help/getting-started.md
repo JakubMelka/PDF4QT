@@ -45,4 +45,4 @@ Every page of PDF4QT has an address, for example `/settings/general`. You can go
 - [Read a document](/help/read-documents) describes the document tab.
 - [Keyboard shortcuts](/help/keyboard-shortcuts) lists the shortcuts of the window.
 
-This manual opens in its own Help tab; press **F1** to open it from any tab.
+This manual opens in its own Help tab; press **F1** on any page to read about that page.

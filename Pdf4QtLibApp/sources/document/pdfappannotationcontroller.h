@@ -180,6 +180,10 @@ public:
     /// different texts); empty when the editing is allowed
     QString getEditingRefusalReason() const;
 
+    /// A tool is open in the view (PDFAppDocument::areUserChangesSuspended): the engine is
+    /// read only and the menus, the popups and the dialogs of the annotations do not open
+    bool isUserInterfaceSuspended() const;
+
     /// Reads the lock and the permissions again and applies them to the engine
     /// (also called by the controller itself on every change of the document)
     void updateReadOnlyState();

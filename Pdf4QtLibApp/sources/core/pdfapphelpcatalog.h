@@ -35,6 +35,8 @@
 namespace pdf
 {
 
+class PDFDocumentToolCatalogEntry;
+
 /// Category of the user manual (groups of the contents of /help)
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppHelpCategory
 {
@@ -144,6 +146,12 @@ public:
 
     const std::vector<PDFAppHelpTopic>& getTopics() const { return m_topics; }
     const PDFAppHelpTopic* findTopic(const QString& id) const;
+
+    /// Topic of the manual of a tool of the catalog: its own topic, when this catalog has
+    /// it (PDFDocumentToolCatalogEntry::getHelpTopic), otherwise the page Tools - a tool
+    /// without a topic never ends on Page Not Found. F1 and the links of the pages of the
+    /// tools ask here.
+    QString getToolTopic(const PDFDocumentToolCatalogEntry& tool) const;
 
     /// Topics of a category in their order
     std::vector<const PDFAppHelpTopic*> getCategoryTopics(const QString& categoryId) const;

@@ -81,11 +81,17 @@ PDFAppDocumentOperation::~PDFAppDocumentOperation() = default;
 
 bool PDFAppDocumentOperation::isAskedBeforeClose() const
 {
+    if (m_isWaiting)
+    {
+        return false;
+    }
+
     switch (m_kind)
     {
         case PDFAppDocumentOperationKind::Save:
         case PDFAppDocumentOperationKind::Print:
         case PDFAppDocumentOperationKind::Mcp:
+        case PDFAppDocumentOperationKind::Tool:
             return true;
 
         case PDFAppDocumentOperationKind::Load:
@@ -96,6 +102,12 @@ bool PDFAppDocumentOperation::isAskedBeforeClose() const
             break;
     }
     return false;
+}
+
+void PDFAppDocumentOperation::setWaiting()
+{
+    m_isWaiting = true;
+    setProgress(-1);
 }
 
 void PDFAppDocumentOperation::setProgress(int progress)
@@ -293,6 +305,20 @@ void PDFAppDocument::setLocked(bool locked)
     }
 }
 
+void PDFAppDocument::setUserChangesSuspended(bool isSuspended)
+{
+    if (m_areUserChangesSuspended != isSuspended)
+    {
+        m_areUserChangesSuspended = isSuspended;
+        Q_EMIT userChangesSuspendedChanged();
+    }
+}
+
+QString PDFAppDocument::getUserChangesSuspendedText()
+{
+    return tr("The document cannot be changed while a tool is open.");
+}
+
 void PDFAppDocument::commitPendingEdits()
 {
     if (m_hasPendingEdits && isReady())
@@ -318,6 +344,7 @@ PDFAppDocumentSnapshot PDFAppDocument::getSnapshot() const
     snapshot.version = m_version;
     snapshot.originalData = m_originalData;
     snapshot.filePath = m_filePath;
+    snapshot.isModified = isModified();
     snapshot.isPagedXFA = m_isPagedXFA;
     return snapshot;
 }
@@ -338,6 +365,13 @@ bool PDFAppDocument::commit(const PDFModifiedDocument& modified, const QString& 
     // A display version of an XFA form (step 8) is never changed: every change of
     // the user, of a panel or of an assistant ends here at the latest
     if (!isReady() || newDocument.isNull() || expectedVersion != m_version || m_isLocked || m_isPagedXFA || isBlockedByOperation())
+    {
+        return false;
+    }
+
+    // While a tool is open nothing of the user changes the document (owner decision of
+    // 2026-11-01), also a worker started before the tool (Mark as annotations)
+    if (m_areUserChangesSuspended && source == PDFAppChangeSource::User)
     {
         return false;
     }

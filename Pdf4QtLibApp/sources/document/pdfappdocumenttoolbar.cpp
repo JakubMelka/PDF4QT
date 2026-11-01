@@ -117,6 +117,63 @@ public:
 
 // ------------------------------------------------------------ PDFAppToolbarDivider
 
+void PDFAppToolbarMenuBar::watchPanel(QWidget* panel, QObject* filter)
+{
+    panel->setMouseTracking(true);
+    panel->installEventFilter(filter);
+}
+
+QToolButton* PDFAppToolbarMenuBar::findHoverTarget(const QWidget* popup, const QEvent* event, const std::vector<QToolButton*>& buttons, const QToolButton* openButton)
+{
+    if (event->type() != QEvent::MouseMove || !popup->isVisible())
+    {
+        return nullptr;
+    }
+
+    const QPoint globalPosition = static_cast<const QMouseEvent*>(event)->globalPosition().toPoint();
+    const QRect panelRect = popup->rect().marginsRemoved(PDFWidgetStyle::getPopoverMargins(popup));
+    if (panelRect.contains(popup->mapFromGlobal(globalPosition)))
+    {
+        return nullptr;
+    }
+
+    for (QToolButton* button : buttons)
+    {
+        if (button != openButton && button->isVisible() && QRect(button->mapToGlobal(QPoint(0, 0)), button->size()).contains(globalPosition))
+        {
+            return button;
+        }
+    }
+    return nullptr;
+}
+
+QToolButton* PDFAppToolbarMenuBar::findNeighbor(const std::vector<QToolButton*>& buttons, const QToolButton* openButton, bool isNext)
+{
+    const auto it = std::find(buttons.cbegin(), buttons.cend(), openButton);
+    if (it == buttons.cend())
+    {
+        return nullptr;
+    }
+
+    const int count = int(buttons.size());
+    const int index = int(std::distance(buttons.cbegin(), it));
+    for (int step = 1; step < count; ++step)
+    {
+        QToolButton* button = buttons[(index + (isNext ? step : count - step)) % count];
+        if (button->isVisible() && button->isEnabled())
+        {
+            return button;
+        }
+    }
+    return nullptr;
+}
+
+bool PDFAppToolbarMenuBar::isBlockedByModalWindow(const QWidget* toolbar)
+{
+    const QWidget* modalWidget = QApplication::activeModalWidget();
+    return modalWidget && modalWidget != toolbar->window() && !modalWidget->isAncestorOf(toolbar);
+}
+
 PDFAppToolbarDivider::PDFAppToolbarDivider(Qt::Orientation orientation, int length, int padding, PDFThemeColors::Color color, QWidget* parent) :
     BaseClass(parent),
     m_orientation(orientation),
@@ -306,16 +363,31 @@ PDFAppDocumentToolbar::~PDFAppDocumentToolbar()
     m_panels.clear();
 }
 
-QToolButton* PDFAppDocumentToolbar::createButton(const QString& objectName, const QString& iconName)
+QToolButton* PDFAppDocumentToolbar::createToolbarButton(const QString& objectName, const QString& iconName, QWidget* parent)
 {
     // Toolbar button 190:538: 36 x 36, icon 20, no background at rest
-    QToolButton* button = new QToolButton(this);
+    QToolButton* button = new QToolButton(parent);
     button->setObjectName(objectName);
     button->setAutoRaise(true);
     button->setIcon(PDFThemeIcons::getIcon(iconName));
     button->setIconSize(QSize(20, 20));
     button->setFocusPolicy(Qt::TabFocus);
     return button;
+}
+
+QToolButton* PDFAppDocumentToolbar::createToolbarMenuButton(const QString& objectName, const QString& iconName, QWidget* parent)
+{
+    // Toolbar menu button 190:577: icon 18 and the label Medium 13; Open = checked
+    QToolButton* button = createToolbarButton(objectName, iconName, parent);
+    button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    button->setIconSize(QSize(18, 18));
+    button->setCheckable(true);
+    return button;
+}
+
+QToolButton* PDFAppDocumentToolbar::createButton(const QString& objectName, const QString& iconName)
+{
+    return createToolbarButton(objectName, iconName, this);
 }
 
 QToolButton* PDFAppDocumentToolbar::createCommandButton(const QString& commandId, const QString& iconName)
@@ -329,11 +401,7 @@ QToolButton* PDFAppDocumentToolbar::createCommandButton(const QString& commandId
 
 QToolButton* PDFAppDocumentToolbar::createMenuButton(const QString& objectName, const QString& iconName)
 {
-    // Toolbar menu button 190:577: icon 18 and the label Medium 13; Open = checked
-    QToolButton* button = createButton(objectName, iconName);
-    button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    button->setIconSize(QSize(18, 18));
-    button->setCheckable(true);
+    QToolButton* button = createToolbarMenuButton(objectName, iconName, this);
     connect(button, &QToolButton::clicked, this, &PDFAppDocumentToolbar::onMenuButtonClicked);
     m_menuButtons.emplace_back(button);
     return button;
@@ -555,8 +623,7 @@ PDFAppDocumentPanelPopup* PDFAppDocumentToolbar::openPanel(Panel panel)
 
         // The panel grabs the mouse: the pointer over another panel button is seen
         // by the moves of the panel (eventFilter)
-        popup->setMouseTracking(true);
-        popup->installEventFilter(this);
+        PDFAppToolbarMenuBar::watchPanel(popup, this);
     }
 
     // The panel opens 4 px below the toolbar (y 94 of the frames)
@@ -674,9 +741,7 @@ bool PDFAppDocumentToolbar::switchPanel(QToolButton* button, bool byKeyboard)
         return false;
     }
 
-    // A modal window (a dialog opened from a panel) blocks the toolbar
-    const QWidget* modalWidget = QApplication::activeModalWidget();
-    if (modalWidget && modalWidget != window() && !modalWidget->isAncestorOf(this))
+    if (PDFAppToolbarMenuBar::isBlockedByModalWindow(this))
     {
         return false;
     }
@@ -800,37 +865,10 @@ void PDFAppDocumentToolbar::onPanelNeighborRequested(bool isNext)
 
 void PDFAppDocumentToolbar::switchToNeighbor(bool isNext)
 {
-    // The neighboring visible and enabled panel button, around the ends (menu bar)
-    const std::vector<QToolButton*> buttons = getPanelButtons();
-    const auto it = std::find(buttons.cbegin(), buttons.cend(), getOpenPanelButton());
-    if (it == buttons.cend())
+    if (QToolButton* button = PDFAppToolbarMenuBar::findNeighbor(getPanelButtons(), getOpenPanelButton(), isNext))
     {
-        return;
+        switchPanel(button, true);
     }
-
-    const int count = int(buttons.size());
-    const int index = int(std::distance(buttons.cbegin(), it));
-    for (int step = 1; step < count; ++step)
-    {
-        QToolButton* button = buttons[(index + (isNext ? step : count - step)) % count];
-        if (button->isVisible() && button->isEnabled())
-        {
-            switchPanel(button, true);
-            return;
-        }
-    }
-}
-
-QToolButton* PDFAppDocumentToolbar::findPanelButtonAt(const QPoint& globalPosition) const
-{
-    for (QToolButton* button : getPanelButtons())
-    {
-        if (button->isVisible() && QRect(button->mapToGlobal(QPoint(0, 0)), button->size()).contains(globalPosition))
-        {
-            return button;
-        }
-    }
-    return nullptr;
 }
 
 bool PDFAppDocumentToolbar::isPanelWindow(const QObject* object) const
@@ -1114,20 +1152,13 @@ bool PDFAppDocumentToolbar::eventFilter(QObject* watched, QEvent* event)
     // margin of its shadow is not a part of it); the panel of that button opens
     if (event->type() == QEvent::MouseMove && isPanelWindow(watched))
     {
-        QWidget* popup = static_cast<QWidget*>(watched);
-        const QPoint globalPosition = static_cast<const QMouseEvent*>(event)->globalPosition().toPoint();
-        const QRect panelRect = popup->rect().marginsRemoved(PDFWidgetStyle::getPopoverMargins(popup));
-        if (popup->isVisible() && !panelRect.contains(popup->mapFromGlobal(globalPosition)))
+        if (QToolButton* button = PDFAppToolbarMenuBar::findHoverTarget(static_cast<const QWidget*>(watched), event, getPanelButtons(), getOpenPanelButton()))
         {
-            QToolButton* button = findPanelButtonAt(globalPosition);
-            if (button && button != getOpenPanelButton())
+            // The closed panel does not handle the move (the toolbar can be gone)
+            QPointer<PDFAppDocumentToolbar> guard(this);
+            if (switchPanel(button, false) || !guard)
             {
-                // The closed panel does not handle the move (the toolbar can be gone)
-                QPointer<PDFAppDocumentToolbar> guard(this);
-                if (switchPanel(button, false) || !guard)
-                {
-                    return true;
-                }
+                return true;
             }
         }
     }

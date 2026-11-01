@@ -421,6 +421,26 @@ QAbstractItemView* PDFRowDelegate::getLastActionView() const
     return m_lastActionView.data();
 }
 
+void PDFRowDelegate::performWriteAction(QAbstractItemView* view, const QModelIndex& index, int action, const QVariant& value, int role)
+{
+    QAbstractItemModel* model = const_cast<QAbstractItemModel*>(index.model());
+    if (!model)
+    {
+        // An invalid index of a direct call of a subclass (triggerAction checks it)
+        return;
+    }
+
+    const QPersistentModelIndex persistentIndex(index);
+    const QPointer<PDFRowDelegate> self(this);
+    model->setData(index, value, role);
+    if (!self || !persistentIndex.isValid())
+    {
+        return;
+    }
+
+    PDFRowDelegate::performAction(view, persistentIndex, action);
+}
+
 void PDFRowDelegate::performAction(QAbstractItemView* view, const QModelIndex& index, int action)
 {
     Q_UNUSED(view);
@@ -1784,6 +1804,237 @@ QSize PDFThumbnailDelegate::getItemSize(const QStyleOptionViewItem& option, cons
     return PDFComponentPainter::getThumbnailItemSize(getContent(index, false));
 }
 
+PDFPageTileDelegate::PDFPageTileDelegate(QObject* parent) :
+    BaseClass(parent)
+{
+
+}
+
+void PDFPageTileDelegate::setSlotSize(const QSize& size)
+{
+    PDFComponentPainter::PageTile tile;
+    tile.slotSize = size;
+    const QSize validSize = PDFComponentPainter::getPageTileSlotSize(tile);
+    if (m_slotSize == validSize)
+    {
+        return;
+    }
+
+    m_slotSize = validSize;
+    Q_EMIT sizeHintChanged(QModelIndex());
+}
+
+PDFComponentPainter::PageTile PDFPageTileDelegate::getContent(const QModelIndex& index, bool withPixmap) const
+{
+    PDFComponentPainter::PageTile tile;
+    tile.label = getString(index, Qt::DisplayRole);
+    tile.caption = getString(index, PDFComponentRoles::SubtitleRole);
+    tile.badgeIconName = getString(index, PDFComponentRoles::StateIconRole);
+    tile.tileState = PDFComponentPainter::normalized(static_cast<PDFComponentPainter::PageTileState>(getInt(index, PDFComponentRoles::PageTileStateRole, 0)));
+    tile.slotSize = m_slotSize;
+    if (index.isValid())
+    {
+        const QVariant pageSize = index.data(PDFComponentRoles::PageSizeRole);
+        if (pageSize.typeId() == QMetaType::QSizeF)
+        {
+            tile.pageSize = pageSize.toSizeF();
+        }
+    }
+    if (withPixmap)
+    {
+        tile.pixmap = getPixmap(index);
+    }
+    return tile;
+}
+
+void PDFPageTileDelegate::paintItem(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index, const PDFComponentPainter::State& state) const
+{
+    PDFComponentPainter::paintPageTile(painter, QRectF(option.rect), getContent(index), state);
+}
+
+QSize PDFPageTileDelegate::getItemSize(const QStyleOptionViewItem& option, const QModelIndex& index, int width) const
+{
+    // The size does not depend on the picture: it is never read here (the rendering stays with the application)
+    Q_UNUSED(option);
+    Q_UNUSED(width);
+    return PDFComponentPainter::getPageTileSize(getContent(index, false));
+}
+
+PDFTileRowDelegate::PDFTileRowDelegate(QObject* parent) :
+    BaseClass(parent)
+{
+
+}
+
+void PDFTileRowDelegate::setKind(Kind kind)
+{
+    kind = PDFComponentPainter::normalized(kind);
+    if (m_kind != kind)
+    {
+        m_kind = kind;
+        Q_EMIT sizeHintChanged(QModelIndex());
+    }
+}
+
+void PDFTileRowDelegate::setTitleKind(TextKind kind)
+{
+    if (m_titleKind != kind)
+    {
+        m_titleKind = kind;
+        Q_EMIT sizeHintChanged(QModelIndex());
+    }
+}
+
+void PDFTileRowDelegate::setDescriptionKind(TextKind kind)
+{
+    if (m_descriptionKind != kind)
+    {
+        m_descriptionKind = kind;
+        Q_EMIT sizeHintChanged(QModelIndex());
+    }
+}
+
+void PDFTileRowDelegate::setClickable(bool isClickable)
+{
+    if (m_isClickable != isClickable)
+    {
+        m_isClickable = isClickable;
+        Q_EMIT sizeHintChanged(QModelIndex());
+    }
+}
+
+PDFComponentPainter::TileRow PDFTileRowDelegate::getContent(const QModelIndex& index) const
+{
+    PDFComponentPainter::TileRow row;
+    row.kind = PDFComponentPainter::normalized(static_cast<Kind>(getInt(index, PDFComponentRoles::TileRowKindRole, int(m_kind))));
+    row.titleKind = m_titleKind;
+    row.descriptionKind = m_descriptionKind;
+    row.title = PDFComponentPainter::getBoundedTileRowText(getString(index, Qt::DisplayRole));
+    row.description = PDFComponentPainter::getBoundedTileRowText(getString(index, PDFComponentRoles::SubtitleRole));
+    row.tag = PDFComponentPainter::getBoundedTileRowText(getString(index, PDFComponentRoles::TagRole));
+    row.iconName = getString(index, PDFComponentRoles::IconNameRole);
+    row.tileText = PDFComponentPainter::getBoundedTileRowText(getString(index, PDFComponentRoles::TileTextRole));
+    row.tone = PDFComponentPainter::normalized(static_cast<PDFComponentPainter::TileRowTone>(getInt(index, PDFComponentRoles::TileToneRole, 0)));
+    row.linkText = PDFComponentPainter::getBoundedTileRowText(getString(index, PDFComponentRoles::LinkTextRole));
+    row.endIconName = getString(index, PDFComponentRoles::StateIconRole);
+    row.endIconColor = static_cast<PDFThemeColors::Color>(getInt(index, PDFComponentRoles::StateIconColorRole, row.endIconColor));
+    const int descriptionColor = getInt(index, PDFComponentRoles::DescriptionColorRole, -1);
+    if (descriptionColor >= 0)
+    {
+        row.descriptionColor = static_cast<PDFThemeColors::Color>(descriptionColor);
+    }
+
+    // The check state: the chosen item of a menu, or the check box of a row of a list
+    const QVariant checkState = index.isValid() ? index.data(Qt::CheckStateRole) : QVariant();
+    const bool isChecked = checkState.isValid() && checkState.toInt() != Qt::Unchecked;
+    if (row.kind == Kind::MenuItem || row.kind == Kind::PanelStep)
+    {
+        row.chosen = isChecked;
+    }
+    else if (checkState.isValid() && row.kind != Kind::Caption)
+    {
+        row.checkBoxVisible = true;
+        row.checkBoxChecked = isChecked;
+        row.checkBoxEnabled = index.flags().testFlag(Qt::ItemIsUserCheckable);
+    }
+    return row;
+}
+
+QList<PDFRowDelegate::Action> PDFTileRowDelegate::getActions(const QStyleOptionViewItem& option, const QModelIndex& index) const
+{
+    QList<Action> actions;
+    if (!index.isValid())
+    {
+        return actions;
+    }
+
+    const PDFComponentPainter::TileRow row = getContent(index);
+    const PDFComponentPainter::State state = getItemState(option, index);
+    if (row.kind == Kind::Caption)
+    {
+        return actions;
+    }
+
+    if (row.checkBoxVisible)
+    {
+        Action checkBox;
+        checkBox.id = CheckBoxAction;
+        checkBox.rect = PDFComponentPainter::getTileRowCheckBoxRect(QRectF(option.rect), row, state);
+        checkBox.text = row.checkBoxChecked ? tr("Untick") : tr("Tick");
+        checkBox.shortcut = QKeySequence(Qt::Key_Space);
+        checkBox.enabled = row.checkBoxEnabled;
+        actions.append(checkBox);
+    }
+
+    if (!row.linkText.isEmpty())
+    {
+        Action link;
+        link.id = LinkAction;
+        link.rect = PDFComponentPainter::getTileRowLinkRect(QRectF(option.rect), row, state);
+        link.text = row.linkText;
+        actions.append(link);
+    }
+
+    return actions;
+}
+
+void PDFTileRowDelegate::paintItem(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index, const PDFComponentPainter::State& state) const
+{
+    PDFComponentPainter::TileRow row = getContent(index);
+    row.checkBoxFlags = getActionFlags(option, index, CheckBoxAction);
+    row.linkFlags = getActionFlags(option, index, LinkAction);
+
+    PDFComponentPainter::State rowState = state;
+    const bool isCaption = row.kind == Kind::Caption;
+    if (isCaption || !m_isClickable)
+    {
+        rowState.flags &= ~(QStyle::State_MouseOver | QStyle::State_Sunken | QStyle::State_Selected);
+    }
+    if (isCaption)
+    {
+        // A caption has no Qt::ItemIsEnabled, so that the view skips it: it is disabled only with the view
+        rowState.flags.setFlag(QStyle::State_Enabled, !option.widget || option.widget->isEnabled());
+    }
+    PDFComponentPainter::paintTileRow(painter, QRectF(option.rect), row, rowState);
+}
+
+QSize PDFTileRowDelegate::getItemSize(const QStyleOptionViewItem& option, const QModelIndex& index, int width) const
+{
+    Q_UNUSED(option);
+    const PDFComponentPainter::TileRow row = getContent(index);
+
+    // The wrapping of the description is remembered by everything, on which the size depends
+    const QChar separator(0x1F);
+    const QString key = QString::number(width) + separator + QString::number(int(row.kind)) + separator + (row.checkBoxVisible ? QLatin1Char('c') : QLatin1Char('-')) +
+                        (row.chosen ? QLatin1Char('o') : QLatin1Char('-')) + (row.endIconName.isEmpty() ? QLatin1Char('-') : QLatin1Char('i')) + separator +
+                        row.linkText + separator + row.tag + separator + row.title + separator + row.description;
+    if (const std::optional<QSize> cachedSize = getCachedSize(key))
+    {
+        return *cachedSize;
+    }
+
+    if (width <= 0)
+    {
+        return setCachedSize(key, PDFComponentPainter::getTileRowSize(row));
+    }
+
+    const int rowWidth = qMax(width, PDFComponentPainter::getTileRowMinimumSize(row).width());
+    return setCachedSize(key, QSize(rowWidth, PDFComponentPainter::getTileRowHeight(row, rowWidth)));
+}
+
+void PDFTileRowDelegate::performAction(QAbstractItemView* view, const QModelIndex& index, int action)
+{
+    if (action == CheckBoxAction)
+    {
+        // The check box writes its state into the model
+        const bool isChecked = index.isValid() && index.data(Qt::CheckStateRole).toInt() != Qt::Unchecked;
+        performWriteAction(view, index, action, isChecked ? Qt::Unchecked : Qt::Checked, Qt::CheckStateRole);
+        return;
+    }
+
+    BaseClass::performAction(view, index, action);
+}
+
 PDFBookmarkDelegate::PDFBookmarkDelegate(QObject* parent) :
     BaseClass(parent)
 {
@@ -2113,25 +2364,8 @@ void PDFRecentItemDelegate::performAction(QAbstractItemView* view, const QModelI
 {
     if (action == PinAction)
     {
-        // The star writes the pinned state into the model (a model, which does not
-        // accept it, keeps the item; the application gets the signal in both
-        // cases). A slot of dataChanged may delete the delegate (review C15).
-        QAbstractItemModel* model = const_cast<QAbstractItemModel*>(index.model());
-        if (!model)
-        {
-            // An invalid index of a direct call of a subclass (triggerAction checks it)
-            return;
-        }
-
-        const bool isPinned = getBool(index, PDFComponentRoles::PinnedRole, false);
-        const QPersistentModelIndex persistentIndex(index);
-        const QPointer<PDFRecentItemDelegate> self(this);
-        model->setData(index, !isPinned, PDFComponentRoles::PinnedRole);
-        if (!self || !persistentIndex.isValid())
-        {
-            return;
-        }
-        BaseClass::performAction(view, persistentIndex, action);
+        // The star writes the pinned state into the model (review C15)
+        performWriteAction(view, index, action, !getBool(index, PDFComponentRoles::PinnedRole, false), PDFComponentRoles::PinnedRole);
         return;
     }
 

@@ -566,6 +566,11 @@ QString PDFAppWhatsNewPage::getTitle() const
     return tr("What's New");
 }
 
+QString PDFAppWhatsNewPage::getHelpTopic() const
+{
+    return QStringLiteral("whats-new-and-updates");
+}
+
 QString PDFAppWhatsNewPage::getHeaderTitle() const
 {
     return tr("What's New");
@@ -1135,6 +1140,11 @@ bool PDFAppReleaseNotesPage::setRoute(const PDFAppRoute& route)
 QString PDFAppReleaseNotesPage::getTitle() const
 {
     return getHeaderTitle();
+}
+
+QString PDFAppReleaseNotesPage::getHelpTopic() const
+{
+    return QStringLiteral("whats-new-and-updates");
 }
 
 QString PDFAppReleaseNotesPage::getHeaderTitle() const

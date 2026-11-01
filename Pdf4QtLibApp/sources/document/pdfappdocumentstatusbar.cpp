@@ -49,6 +49,9 @@ PDFAppDocumentStatusBar::PDFAppDocumentStatusBar(QWidget* parent) :
     m_message->setObjectName(QStringLiteral("statusMessage"));
     m_message->setMinimumWidth(0);
     m_message->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+
+    // Messages hold names of files of the user (the message of a tool, 291:1065)
+    m_message->setTextFormat(Qt::PlainText);
     m_layout->addWidget(m_message);
 
     // The page item (Status bar item 190:658, 22 px high, icon 14) - the first trailing
@@ -64,6 +67,18 @@ PDFAppDocumentStatusBar::PDFAppDocumentStatusBar(QWidget* parent) :
     connect(m_pageItem.data(), &QToolButton::clicked, this, &PDFAppDocumentStatusBar::pageItemClicked);
     m_layout->addStretch(1);
     m_layout->addWidget(m_pageItem);
+
+    // The zoom item of the tool mode (status-zoom 293:1415), a text only
+    m_zoomItem = new QToolButton(this);
+    m_zoomItem->setObjectName(QStringLiteral("statusZoom"));
+    m_zoomItem->setIcon(PDFThemeIcons::getIcon(QStringLiteral("zoom-level")));
+    m_zoomItem->setIconSize(QSize(14, 14));
+    m_zoomItem->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    m_zoomItem->setFocusPolicy(Qt::NoFocus);
+    m_zoomItem->setAttribute(Qt::WA_TransparentForMouseEvents);
+    PDFWidgetStyleProperties::set(m_zoomItem, PDFWidgetStyleProperties::STATUS_ITEM);
+    m_zoomItem->hide();
+    m_layout->addWidget(m_zoomItem);
 
     m_messageTimer = new QTimer(this);
     m_messageTimer->setSingleShot(true);
@@ -112,6 +127,10 @@ void PDFAppDocumentStatusBar::addItem(QWidget* item, Area area)
         if (m_pageItem && m_layout->indexOf(m_pageItem.data()) >= index)
         {
             index = m_layout->indexOf(m_pageItem.data()) + 1;
+        }
+        if (m_zoomItem && m_layout->indexOf(m_zoomItem.data()) >= index)
+        {
+            index = m_layout->indexOf(m_zoomItem.data()) + 1;
         }
         m_layout->insertWidget(qMin(index, m_layout->count()), item);
     }
@@ -167,10 +186,41 @@ void PDFAppDocumentStatusBar::setPageText(const QString& text)
     if (m_pageItem)
     {
         m_pageItem->setText(text);
-        m_pageItem->setToolTip(text.isEmpty() ? QString() : tr("Go to page…"));
+        m_pageItem->setToolTip(text.isEmpty() || !m_isPageItemInteractive ? QString() : tr("Go to page…"));
         m_pageItem->setAccessibleName(text);
         m_pageItem->setVisible(!text.isEmpty());
     }
+}
+
+void PDFAppDocumentStatusBar::setPageItemInteractive(bool isInteractive)
+{
+    m_isPageItemInteractive = isInteractive;
+    if (m_pageItem)
+    {
+        m_pageItem->setAttribute(Qt::WA_TransparentForMouseEvents, !isInteractive);
+        m_pageItem->setFocusPolicy(isInteractive ? Qt::TabFocus : Qt::NoFocus);
+        setPageText(m_pageItem->text());
+    }
+}
+
+void PDFAppDocumentStatusBar::setZoomText(const QString& text)
+{
+    if (m_zoomItem)
+    {
+        m_zoomItem->setText(text);
+        m_zoomItem->setAccessibleName(text);
+        m_zoomItem->setVisible(!text.isEmpty());
+    }
+}
+
+QString PDFAppDocumentStatusBar::getZoomText() const
+{
+    return m_zoomItem ? m_zoomItem->text() : QString();
+}
+
+QToolButton* PDFAppDocumentStatusBar::getZoomItem() const
+{
+    return m_zoomItem.data();
 }
 
 QString PDFAppDocumentStatusBar::getPageText() const

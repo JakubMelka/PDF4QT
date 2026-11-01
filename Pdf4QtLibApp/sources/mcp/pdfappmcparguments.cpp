@@ -24,7 +24,7 @@
 #include "pdfappcontext.h"
 #include "pdfapplog.h"
 #include "pdfappmcptoolset.h"
-#include "pdfappsysteminfo.h"
+#include "pdfapptoolpathrules.h"
 #include "pdfrepositoryhelper.h"
 
 #include "pdfcatalog.h"
@@ -46,62 +46,6 @@ class PDFAppMcpArgumentsHelper
 {
 public:
     PDFAppMcpArgumentsHelper() = delete;
-
-    /// The canonical path with the junctions of NTFS resolved: QFileInfo resolves
-    /// the symbolic links, not the junctions (mklink /J needs no privilege) - a
-    /// junction to the data of PDF4QT or to another folder would pass the rules
-    /// of the paths otherwise (fix wave FW7-H). An empty text for a junction
-    /// without a target or too many of them. Other systems: unchanged.
-    static QString resolveJunctions(const QString& canonicalPath)
-    {
-#ifdef Q_OS_WIN
-        QString current = canonicalPath;
-        for (int depth = 0; depth < 32; ++depth)
-        {
-            const QStringList parts = current.split(QLatin1Char('/'));
-            QString prefix = parts.value(0);
-            bool isReplaced = false;
-            for (qsizetype i = 1; i < parts.size() && !isReplaced; ++i)
-            {
-                prefix += QLatin1Char('/') + parts[i];
-                const QFileInfo info(prefix);
-                if (!info.isJunction())
-                {
-                    continue;
-                }
-
-                // A mount point of a volume is a junction too: Qt gives its first
-                // mount path - the drive of the volume, or the folder itself for a
-                // volume without a drive letter - or "Volume{...}", which does not
-                // exist, without one. The folder is the root of the volume then, not
-                // a way to another place (only an administrator mounts a volume; a
-                // junction to itself or to nothing reaches nothing either; review
-                // RFW7-M - every file on such a volume was refused)
-                const QString rawTarget = info.junctionTarget();
-                const QString target = QFileInfo(rawTarget).canonicalFilePath();
-                const bool isVolumeName = target.isEmpty() && QFileInfo(rawTarget).fileName().startsWith(QLatin1String("Volume{"), Qt::CaseInsensitive);
-                if (isVolumeName || target.compare(prefix, Qt::CaseInsensitive) == 0)
-                {
-                    continue;
-                }
-                if (target.isEmpty())
-                {
-                    return QString();
-                }
-                const QStringList rest = parts.mid(i + 1);
-                current = rest.isEmpty() ? target : target + QLatin1Char('/') + rest.join(QLatin1Char('/'));
-                isReplaced = true;
-            }
-            if (!isReplaced)
-            {
-                return current;
-            }
-        }
-        return QString();
-#else
-        return canonicalPath;
-#endif
-    }
 
     static QColor getPaletteColor(const QString& name)
     {
@@ -133,25 +77,6 @@ public:
             }
         }
         return QColor();
-    }
-
-    static bool isReservedDeviceName(const QString& fileName)
-    {
-        const QString base = fileName.section(QLatin1Char('.'), 0, 0).trimmed().toUpper();
-        static const QStringList names = { QStringLiteral("CON"), QStringLiteral("PRN"), QStringLiteral("AUX"), QStringLiteral("NUL"),
-                                           QStringLiteral("CONIN$"), QStringLiteral("CONOUT$") };
-        if (names.contains(base))
-        {
-            return true;
-        }
-
-        // COM1-9, LPT1-9 (also the superscript digits Windows accepts)
-        if (base.size() == 4 && (base.startsWith(QLatin1String("COM")) || base.startsWith(QLatin1String("LPT"))))
-        {
-            const QChar digit = base[3];
-            return (digit >= u'1' && digit <= u'9') || digit == QChar(0x00B9) || digit == QChar(0x00B2) || digit == QChar(0x00B3);
-        }
-        return false;
     }
 };
 
@@ -322,7 +247,7 @@ bool PDFAppMcpArguments::isInFolder(const QString& canonicalPath, const QString&
     // The folder resolved as the checked path (checkPath): a folder of the data or of
     // the logs behind a junction of NTFS is its target (review RPKT 96-4)
     const QString linkedFolder = QFileInfo(folder).canonicalFilePath();
-    const QString canonicalFolder = linkedFolder.isEmpty() ? QString() : PDFAppMcpArgumentsHelper::resolveJunctions(linkedFolder);
+    const QString canonicalFolder = linkedFolder.isEmpty() ? QString() : PDFAppToolPathRules::resolveJunctions(linkedFolder);
     if (canonicalFolder.isEmpty())
     {
         return false;
@@ -346,7 +271,7 @@ QString PDFAppMcpArguments::checkPath(const QString& path, bool requirePdfExtens
     {
         error = QStringLiteral("path must be an absolute path of at most %1 characters").arg(PDFAppMcpToolSet::MAXIMUM_PATH_LENGTH);
     }
-    else if (PDFRepositoryHelper::isDevicePath(path) || PDFAppNetworkPaths::isNetworkPathByName(path) || PDFAppNetworkPaths().isNetworkPath(path))
+    else if (PDFAppToolPathRules::isDeviceOrNetworkPath(path))
     {
         error = QStringLiteral("paths of devices and of network locations are refused; use a local file");
     }
@@ -360,11 +285,7 @@ QString PDFAppMcpArguments::checkPath(const QString& path, bool requirePdfExtens
         const QFileInfo info(clean);
         const QString fileName = info.fileName();
 
-        // A second ':' is an NTFS stream ("C:/a.pdf:stream")
-        const qsizetype colon = clean.indexOf(QLatin1Char(':'));
-        const bool hasStream = colon >= 0 && clean.indexOf(QLatin1Char(':'), colon + 1) >= 0;
-
-        if (fileName.isEmpty() || hasStream || PDFAppMcpArgumentsHelper::isReservedDeviceName(fileName))
+        if (PDFAppToolPathRules::hasStream(clean) || PDFAppToolPathRules::checkFileName(fileName) != PDFAppToolPathRules::NameProblem::None)
         {
             error = QStringLiteral("the file name is not allowed");
         }
@@ -398,14 +319,14 @@ QString PDFAppMcpArguments::checkPath(const QString& path, bool requirePdfExtens
                 const QString folder = QFileInfo(info.absolutePath()).canonicalFilePath();
                 canonical = folder.isEmpty() ? QString() : (folder.endsWith(QLatin1Char('/')) ? folder : folder + QLatin1Char('/')) + fileName;
             }
-            canonical = canonical.isEmpty() ? QString() : PDFAppMcpArgumentsHelper::resolveJunctions(canonical);
+            canonical = canonical.isEmpty() ? QString() : PDFAppToolPathRules::resolveJunctions(canonical);
 
             const QFileInfo canonicalInfo(canonical);
             if (canonical.isEmpty())
             {
                 error = QStringLiteral("the path is not valid");
             }
-            else if (PDFRepositoryHelper::isDevicePath(canonical) || PDFAppNetworkPaths::isNetworkPathByName(canonical) || PDFAppNetworkPaths().isNetworkPath(canonical))
+            else if (PDFAppToolPathRules::isDeviceOrNetworkPath(canonical))
             {
                 error = QStringLiteral("the path leads to a device or a network location (a symbolic link); use a local file");
             }
@@ -413,7 +334,7 @@ QString PDFAppMcpArguments::checkPath(const QString& path, bool requirePdfExtens
             {
                 error = QStringLiteral("the path is a folder");
             }
-            else if (PDFAppMcpArgumentsHelper::isReservedDeviceName(canonicalInfo.fileName()))
+            else if (PDFAppToolPathRules::checkFileName(canonicalInfo.fileName()) != PDFAppToolPathRules::NameProblem::None)
             {
                 error = QStringLiteral("the file name is not allowed");
             }

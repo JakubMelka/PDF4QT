@@ -29,6 +29,7 @@
 #include "pdfdocumentbuilder.h"
 #include "pdfstreamfilters.h"
 #include "pdfdocumentwriter.h"
+#include "pdfprogress.h"
 #include "pdfdbgheap.h"
 
 namespace pdf
@@ -132,45 +133,71 @@ void PDFOptimizer::optimize()
 
     int stage = 1;
 
+    m_statistics = Statistics();
+
+    size_t activeStageCount = 0;
+    for (OptimizationFlags flags : stages)
+    {
+        activeStageCount += (flags & m_flags) ? 1 : 0;
+    }
+    if (m_progress && activeStageCount > 0)
+    {
+        m_progress->start(activeStageCount, ProgressStartupInfo());
+    }
+
     Q_EMIT optimizationStarted();
     for (OptimizationFlags flags : stages)
     {
+        if (isCanceled())
+        {
+            break;
+        }
+
         Q_EMIT optimizationProgress(tr("Stage %1").arg(stage++));
         OptimizationFlags currentSteps = flags & m_flags;
 
         int passIndex = 1;
 
         bool pass = true;
-        while (pass)
+        while (pass && !isCanceled())
         {
             Q_EMIT optimizationProgress(tr("Pass %1").arg(passIndex++));
             pass = false;
 
-            if (currentSteps.testFlag(DereferenceSimpleObjects))
+            if (currentSteps.testFlag(DereferenceSimpleObjects) && !isCanceled())
             {
                 pass = performDereferenceSimpleObjects() || pass;
             }
-            if (currentSteps.testFlag(RemoveNullObjects))
+            if (currentSteps.testFlag(RemoveNullObjects) && !isCanceled())
             {
                 pass = performRemoveNullObjects() || pass;
             }
-            if (currentSteps.testFlag(RemoveUnusedObjects))
+            if (currentSteps.testFlag(RemoveUnusedObjects) && !isCanceled())
             {
                 pass = performRemoveUnusedObjects() || pass;
             }
-            if (currentSteps.testFlag(MergeIdenticalObjects))
+            if (currentSteps.testFlag(MergeIdenticalObjects) && !isCanceled())
             {
                 pass = performMergeIdenticalObjects() || pass;
             }
-            if (currentSteps.testFlag(ShrinkObjectStorage))
+            if (currentSteps.testFlag(ShrinkObjectStorage) && !isCanceled())
             {
                 pass = performShrinkObjectStorage() || pass;
             }
-            if (currentSteps.testFlag(RecompressFlateStreams))
+            if (currentSteps.testFlag(RecompressFlateStreams) && !isCanceled())
             {
                 pass = performRecompressFlateStreams() || pass;
             }
         }
+
+        if (m_progress && currentSteps)
+        {
+            m_progress->step();
+        }
+    }
+    if (m_progress && activeStageCount > 0)
+    {
+        m_progress->finish();
     }
     Q_EMIT optimizationFinished();
 }
@@ -192,6 +219,11 @@ bool PDFOptimizer::performDereferenceSimpleObjects()
     PDFObjectStorage::PDFObjects objects =  m_storage.getObjects();
     auto processEntry = [this, &counter](PDFObjectStorage::Entry& entry)
     {
+        if (isCanceled())
+        {
+            return;
+        }
+
         PDFRemoveSimpleObjectsVisitor visitor(&m_storage, &counter);
         entry.object.accept(&visitor);
         entry.object = visitor.getObject();
@@ -199,6 +231,7 @@ bool PDFOptimizer::performDereferenceSimpleObjects()
 
     PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, objects.begin(), objects.end(), processEntry);
     m_storage.setObjects(qMove(objects));
+    m_statistics.simpleObjectsDereferenced += counter.load();
     Q_EMIT optimizationProgress(tr("Simple objects dereferenced and embedded: %1").arg(counter.load()));
 
     return false;
@@ -211,6 +244,11 @@ bool PDFOptimizer::performRemoveNullObjects()
     PDFObjectStorage::PDFObjects objects =  m_storage.getObjects();
     auto processEntry = [this, &counter](PDFObjectStorage::Entry& entry)
     {
+        if (isCanceled())
+        {
+            return;
+        }
+
         PDFRemoveNullDictionaryEntriesVisitor visitor(&m_storage, &counter);
         entry.object.accept(&visitor);
         entry.object = visitor.getObject();
@@ -218,6 +256,7 @@ bool PDFOptimizer::performRemoveNullObjects()
 
     PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, objects.begin(), objects.end(), processEntry);
     m_storage.setObjects(qMove(objects));
+    m_statistics.nullEntriesRemoved += counter.load();
     Q_EMIT optimizationProgress(tr("Null objects entries from dictionaries removed: %1").arg(counter.load()));
 
     return false;
@@ -243,6 +282,7 @@ bool PDFOptimizer::performRemoveUnusedObjects()
 
     PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, range.begin(), range.end(), processEntry);
     m_storage.setObjects(qMove(objects));
+    m_statistics.unusedObjectsRemoved += counter.load();
     Q_EMIT optimizationProgress(tr("Unused objects removed: %1").arg(counter.load()));
 
     return counter > 0;
@@ -257,16 +297,22 @@ bool PDFOptimizer::performMergeIdenticalObjects()
     std::vector<QByteArray> serializedObjects(objects.size());
 
     PDFIntegerRange<size_t> range(0, objects.size());
-    auto serializeEntry = [&objects, &serializedObjects](size_t index)
+    auto serializeEntry = [this, &objects, &serializedObjects](size_t index)
     {
         const PDFObjectStorage::Entry& entry = objects[index];
 
-        if (!entry.object.isNull())
+        if (!entry.object.isNull() && !isCanceled())
         {
             serializedObjects[index] = PDFDocumentWriter::getSerializedObject(entry.object);
         }
     };
     PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, range.begin(), range.end(), serializeEntry);
+
+    if (isCanceled())
+    {
+        // The objects were not all serialized, empty texts would be equal
+        return false;
+    }
 
     // Find same object
     for (PDFInteger index : range)
@@ -316,6 +362,7 @@ bool PDFOptimizer::performMergeIdenticalObjects()
     }
 
     m_storage.setObjects(qMove(objects));
+    m_statistics.identicalObjectsMerged += counter.load();
     Q_EMIT optimizationProgress(tr("Identical objects merged: %1").arg(counter.load()));
 
     return counter > 0;
@@ -412,6 +459,7 @@ bool PDFOptimizer::performShrinkObjectStorage()
 
     const size_t newObjectCount = objects.size();
     m_storage.setObjects(qMove(objects));
+    m_statistics.objectEntriesShrunk += qint64(objectCount - newObjectCount);
     Q_EMIT optimizationProgress(tr("Object list shrinked by: %1").arg(objectCount - newObjectCount));
 
     return false;
@@ -420,11 +468,12 @@ bool PDFOptimizer::performShrinkObjectStorage()
 bool PDFOptimizer::performRecompressFlateStreams()
 {
     std::atomic<PDFInteger> bytesSaved = 0;
+    std::atomic<PDFInteger> streamsRecompressed = 0;
 
     PDFObjectStorage::PDFObjects objects =  m_storage.getObjects();
-    auto processEntry = [this, &bytesSaved](PDFObjectStorage::Entry& entry)
+    auto processEntry = [this, &bytesSaved, &streamsRecompressed](PDFObjectStorage::Entry& entry)
     {
-        if (entry.object.isStream())
+        if (entry.object.isStream() && !isCanceled())
         {
             const PDFStream* stream = entry.object.getStream();
             const PDFDictionary* dictionary = stream->getDictionary();
@@ -443,15 +492,28 @@ bool PDFOptimizer::performRecompressFlateStreams()
                 return;
             }
 
-            const PDFStreamFilter* streamFilter = streamFilters.filterObjects.back();
+            // The first filter of the list decodes the stored data ([/ASCII85Decode /FlateDecode]
+            // stores ASCII85 text, [/FlateDecode /DCTDecode] a deflated JPEG)
+            const PDFStreamFilter* streamFilter = streamFilters.filterObjects.front();
             if (dynamic_cast<const PDFFlateDecodeFilter*>(streamFilter))
             {
-                // Try to recompress. If we end with less data, then we use recompressed stream
-                QByteArray recompressedData = PDFFlateDecodeFilter::recompress(*stream->getContent());
+                // Try to recompress. If we end with less data, then we use recompressed stream.
+                // A damaged stream stays as it is: one stream never fails the whole file.
+                QByteArray recompressedData;
+                try
+                {
+                    recompressedData = PDFFlateDecodeFilter::recompress(*stream->getContent());
+                }
+                catch (const PDFException&)
+                {
+                    return;
+                }
+
                 const PDFInteger currentBytesSaved = stream->getContent()->size() - recompressedData.size();
                 if (currentBytesSaved > 0)
                 {
                     bytesSaved += currentBytesSaved;
+                    ++streamsRecompressed;
                     PDFDictionaryBuilder updatedDictionary(*dictionary);
                     updatedDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(recompressedData.size()));
                     entry.object = PDFObject::createStream(PDFStream(qMove(updatedDictionary), qMove(recompressedData)));
@@ -462,6 +524,8 @@ bool PDFOptimizer::performRecompressFlateStreams()
 
     PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, objects.begin(), objects.end(), processEntry);
     m_storage.setObjects(qMove(objects));
+    m_statistics.streamsRecompressed += streamsRecompressed.load();
+    m_statistics.recompressedBytesSaved += bytesSaved.load();
     Q_EMIT optimizationProgress(tr("Bytes saved by recompressing stream: %1").arg(bytesSaved.load()));
 
     return false;

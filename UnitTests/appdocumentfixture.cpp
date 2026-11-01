@@ -27,7 +27,10 @@
 #include "pdfappdocumentview.h"
 #include "pdfappundostack.h"
 #include "pdfappfiledrop.h"
+#include "pdfapphistory.h"
 #include "pdfappnavigator.h"
+#include "pdfapproute.h"
+#include "pdfapptab.h"
 #include "pdfdatabasenotifier.h"
 
 #include "pdfcertificatemanager.h"
@@ -850,6 +853,26 @@ int AppDocumentFixture::getTimeoutFactor()
         return 20;
     }
     return 1;
+}
+
+void AppDocumentFixture::pressHelpKey()
+{
+    QWidget* target = QApplication::activePopupWidget();
+    target = target ? target : QApplication::focusWidget();
+    target = target ? target : QApplication::activeWindow();
+    target = target ? target : window.data();
+    QTest::keyClick(target, Qt::Key_F1);
+    settle();
+}
+
+QString AppDocumentFixture::getShownHelpTopic() const
+{
+    pdf::PDFAppTab* tab = window ? window->getCurrentTab() : nullptr;
+    if (!tab || tab != window->findHelpTab() || !tab->getHistory().getCurrentEntry())
+    {
+        return QString();
+    }
+    return tab->getHistory().getCurrentEntry()->route.getSegment(1);
 }
 
 int AppDocumentFixture::closeMessageBoxes()

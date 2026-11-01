@@ -20,9 +20,16 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include "appdocumentfixture.h"
+#include "pdfappbuiltintoolcollections.h"
 #include "pdfappcommand.h"
 #include "pdfappcommandline.h"
 #include "pdfappcontext.h"
+#include "pdfappdocument.h"
+#include "pdfappdocumentdialogs.h"
+#include "pdfappdocumenttab.h"
+#include "pdfapphelpcatalog.h"
+#include "pdfapphelppage.h"
 #include "pdfapphistory.h"
 #include "pdfappinstance.h"
 #include "pdfappmainwindow.h"
@@ -41,7 +48,9 @@
 #include "pdfdatabase.h"
 #include "pdfdatabasenotifier.h"
 #include "pdfdatabasestatement.h"
+#include "pdfdocumenttoolcatalog.h"
 #include "pdfsettingdefinitions.h"
+#include "pdfwhatsnew.h"
 
 #include "pdfaccenthue.h"
 #include "pdfcomponentpanels.h"
@@ -214,6 +223,206 @@ public:
 private:
     QString m_title;
     bool m_isRouteAccepted = true;
+};
+
+/// Page with the help topic given by the test (a page of a tool of phase 2 overrides
+/// PDFAppPage::getHelpTopic the same way)
+class HelpTopicTestPage : public pdf::PDFAppPage
+{
+    Q_OBJECT
+
+public:
+    HelpTopicTestPage(pdf::PDFAppContext* context, QWidget* parent, const QString& topic) :
+        pdf::PDFAppPage(context, parent),
+        m_topic(topic)
+    {
+
+    }
+
+    virtual QString getTitle() const override { return QStringLiteral("Help topic test"); }
+    virtual QString getHelpTopic() const override { return m_topic; }
+
+private:
+    QString m_topic;
+};
+
+/// Factory of the page with a help topic
+class HelpTopicTestFactory : public pdf::PDFAppPageFactory
+{
+public:
+    explicit HelpTopicTestFactory(const QString& topic) : m_topic(topic) { }
+
+    virtual pdf::PDFAppPage* createPage(pdf::PDFAppContext* context, QWidget* parent) const override
+    {
+        return new HelpTopicTestPage(context, parent, m_topic);
+    }
+
+private:
+    QString m_topic;
+};
+
+/// One route of helpTopicOfEveryRoute with the topic of its row of the table of the
+/// plan (newapp_tools_batch1.md, chapter 5)
+struct HelpRouteCase
+{
+    QString route;
+    QString topic;
+    bool isNotFound = false;
+};
+
+/// Routes of the table of the navigator with their expected help topics
+class HelpRouteCases
+{
+public:
+    HelpRouteCases() = delete;
+
+    /// Topics of the patterns of the table of the plan. Expected values come from the
+    /// plan, not from the pages; a route, which has no row, fails the test: a new route
+    /// chooses its topic here. Tool routes without a page show Page Not Found.
+    static const std::map<QString, QString>& getPatternTopics()
+    {
+        static const std::map<QString, QString> topics = {
+            { "/", "getting-started" },
+            { "/home", "getting-started" },
+            { "/open", "open-documents" },
+            { "/recent", "recent-files" },
+            { "/tools", "tools" },
+            { "/tools/collections", "tool-collections" },
+            { "/tools/collections/new", "tool-collections" },
+            { "/tools/collections/{collectionId}", "tool-collections" },
+            { "/tools/{toolId}", "getting-started" },
+            { "/ai", "ai-assistant" },
+            { "/whats-new", "whats-new-and-updates" },
+            { "/whats-new/{version}", "whats-new-and-updates" },
+            { "/whats-new/{version}/notes", "whats-new-and-updates" },
+            { "/about", "getting-started" },
+            { "/support", "getting-started" },
+            { "/sponsor", "getting-started" },
+            { "/search", "search" },
+            // /settings without a filter redirects to the section General
+            { "/settings", "settings-general" },
+            { "/document/{documentId}", "read-documents" },
+            { "/document/{documentId}/properties/{section}", "document-properties" },
+            { "/document/{documentId}/tool/{toolId}", "getting-started" },
+            { "/tool/{toolId}/{instanceId}", "getting-started" }
+        };
+        return topics;
+    }
+
+    static const std::map<QString, QString>& getSettingsTopics()
+    {
+        static const std::map<QString, QString> topics = {
+            { "general", "settings-general" },
+            { "viewing", "settings-viewing" },
+            { "color-modes", "color-modes" },
+            { "editing", "settings-editing" },
+            { "security", "settings-security" },
+            { "speech", "read-aloud" },
+            { "shortcuts", "keyboard-shortcuts" },
+            { "color-management", "color-management" },
+            { "advanced", "settings-advanced" },
+            { "storage", "data-storage" }
+        };
+        return topics;
+    }
+
+    /// Value of a parameter, which is not a list of options
+    static QString getValue(const QString& name, const QString& documentId)
+    {
+        if (name == QLatin1String("documentId"))
+        {
+            return documentId;
+        }
+        if (name == QLatin1String("collectionId"))
+        {
+            return pdf::PDFAppBuiltinToolCollections::getCollections().front().getId();
+        }
+        if (name == QLatin1String("version"))
+        {
+            return pdf::PDFWhatsNewCatalog::getBuiltin()->getReleases().front().getDisplayVersion();
+        }
+
+        // A tool, which has no page (Page Not Found also when the tools of phase 2 have
+        // their pages: helpOfToolPage covers a tool with a page), and a tab of a tool
+        return QStringLiteral("no.such.tool");
+    }
+
+    /// Every route of the entries of the table, every option of a segment, the rows of
+    /// the filters and the anchors of the pages of the plan (the Help routes are
+    /// covered by helpInHelpTab). A row of an unknown pattern has an empty topic.
+    static std::vector<HelpRouteCase> create(const pdf::PDFAppRouteTable& table, const QString& documentId)
+    {
+        std::vector<HelpRouteCase> cases;
+        for (const pdf::PDFAppRouteEntry& entry : table.getEntries())
+        {
+            if (entry.pattern == QLatin1String("/help/{topic}"))
+            {
+                continue;
+            }
+
+            std::vector<QStringList> paths = { QStringList() };
+            std::vector<QString> topics = { QString() };
+            for (const QString& segment : entry.segments)
+            {
+                QStringList values;
+                const bool isParameter = segment.startsWith(QLatin1Char('{'));
+                const QString name = segment.mid(1, segment.size() - 2);
+                if (!isParameter)
+                {
+                    values << segment;
+                }
+                else if (const auto it = entry.parameters.find(name); it != entry.parameters.end() && it->second.getKind() == pdf::PDFAppRouteValues::Kind::Options)
+                {
+                    values = it->second.getOptions();
+                }
+                else
+                {
+                    values << getValue(name, documentId);
+                }
+
+                std::vector<QStringList> extended;
+                for (const QStringList& path : paths)
+                {
+                    for (const QString& value : std::as_const(values))
+                    {
+                        extended.push_back(path + QStringList(value));
+                    }
+                }
+                paths = std::move(extended);
+            }
+
+            for (const QStringList& path : paths)
+            {
+                HelpRouteCase routeCase;
+                routeCase.route = QLatin1Char('/') + path.join(QLatin1Char('/'));
+                routeCase.isNotFound = entry.pattern.contains(QLatin1String("{toolId}"));
+                if (entry.pattern == QLatin1String("/settings/{section}"))
+                {
+                    const auto it = getSettingsTopics().find(path.back());
+                    routeCase.topic = it != getSettingsTopics().end() ? it->second : QString();
+                }
+                else
+                {
+                    const auto it = getPatternTopics().find(entry.pattern);
+                    routeCase.topic = it != getPatternTopics().end() ? it->second : QString();
+                }
+                cases.push_back(routeCase);
+            }
+        }
+
+        // The filter of Settings shows rows of all sections: its overview
+        cases.push_back({ QStringLiteral("/settings?q=alpha"), QStringLiteral("settings") });
+        cases.push_back({ QStringLiteral("/recent?filter=files"), QStringLiteral("recent-files") });
+        cases.push_back({ QStringLiteral("/tools?category=pages"), QStringLiteral("tools") });
+        cases.push_back({ QStringLiteral("/tools?q=alpha"), QStringLiteral("tools") });
+        cases.push_back({ QStringLiteral("/search?q=page"), QStringLiteral("search") });
+        cases.push_back({ QStringLiteral("/about#third-party"), QStringLiteral("getting-started") });
+        cases.push_back({ QStringLiteral("/support?topic=pages"), QStringLiteral("getting-started") });
+        cases.push_back({ QStringLiteral("/document/%1?page=2").arg(documentId), QStringLiteral("read-documents") });
+        cases.push_back({ QStringLiteral("/settings/no-such-section"), QStringLiteral("getting-started"), true });
+        cases.push_back({ QStringLiteral("/no/such/route"), QStringLiteral("getting-started"), true });
+        return cases;
+    }
 };
 
 /// Window, whose quitting the user cancels
@@ -442,6 +651,17 @@ private slots:
     void deletionInAnyOrder();
     void newTab();
     void helpTab();
+    void helpTopicOfEveryRoute();
+    void helpOfNewTab();
+    void helpOfDocumentStates();
+    void helpOfToolPage();
+    void helpTabReused();
+    void helpInHelpTab();
+    void helpInHomeTabAtTabLimit();
+    void helpWithRunningOperation();
+    void helpWithDialog();
+    void helpWithoutPage();
+    void helpDeletedFromNavigation();
     void externalLinks();
     void themeSwitch();
     void themeSwitchSystemScheme_data();
@@ -2014,6 +2234,482 @@ void AppNavigationTest::helpTab()
     fixture.navigate("/help/b");
     QVERIFY(fixture.window->findHelpTab());
     QCOMPARE(fixture.currentTab(), fixture.window->findHelpTab());
+}
+
+void AppNavigationTest::helpTopicOfEveryRoute()
+{
+    // F1 opens the topic of the page, which the user looks at, on every route of the
+    // navigator (plan of the first batch, chapter 5, owner 2026-11-01)
+    pdftest::AppDocumentFixture fixture;
+    fixture.window->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(fixture.window.data()));
+    const QString filePath = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("help.pdf"), 3);
+    QPointer<pdf::PDFAppDocumentTab> documentTab = fixture.open(filePath);
+    QVERIFY(documentTab);
+    QCOMPARE(documentTab->getDocument()->getState(), pdf::PDFAppDocumentState::Ready);
+
+    const std::shared_ptr<const pdf::PDFAppHelpCatalog> catalog = pdf::PDFAppHelpCatalog::getBuiltin();
+    QVERIFY(catalog);
+
+    const std::vector<HelpRouteCase> cases = HelpRouteCases::create(fixture.window->getNavigator()->getRouteTable(), documentTab->getDocumentId());
+    QVERIFY(cases.size() > 30);
+    for (const HelpRouteCase& routeCase : cases)
+    {
+        const QByteArray message = routeCase.route.toUtf8();
+        QVERIFY2(!routeCase.topic.isEmpty(), "A route without a topic of the table of the help: " + message);
+
+        // The page of the route
+        fixture.window->getNavigator()->navigate(pdf::PDFAppRoute::parse(routeCase.route));
+        pdftest::AppDocumentFixture::settle();
+        QPointer<pdf::PDFAppTab> sourceTab = fixture.window->getCurrentTab();
+        QVERIFY2(sourceTab, message);
+        QPointer<pdf::PDFAppPage> sourcePage = sourceTab->getPage();
+        QVERIFY2(sourcePage, message);
+        QVERIFY2((qobject_cast<pdf::PDFPageNotFoundPage*>(sourcePage.data()) != nullptr) == routeCase.isNotFound, message);
+        const pdf::PDFAppRoute sourceRoute = sourceTab->getHistory().getCurrentEntry()->route;
+
+        // Its topic exists in the catalog
+        QVERIFY2(sourcePage->getHelpTopic() == routeCase.topic, message + " has the topic " + sourcePage->getHelpTopic().toUtf8());
+        QVERIFY2(catalog->findTopic(routeCase.topic), message);
+
+        // F1 opens the page of the topic in the Help tab
+        fixture.pressHelpKey();
+        pdf::PDFAppTab* helpTab = fixture.window->findHelpTab();
+        QVERIFY2(helpTab, message);
+        QVERIFY2(fixture.window->getCurrentTab() == helpTab, message);
+        QVERIFY2(helpTab->getHistory().getCurrentEntry()->route == pdf::PDFAppRoutes::help(routeCase.topic), message);
+        pdf::PDFAppHelpPage* helpPage = qobject_cast<pdf::PDFAppHelpPage*>(helpTab->getPage());
+        QVERIFY2(helpPage, message);
+        QVERIFY2(helpPage->getTopic().id == routeCase.topic, message);
+
+        // The tab of the source stays as it was
+        QVERIFY2(sourceTab, message);
+        QVERIFY2(sourcePage && sourceTab->getPage() == sourcePage.data(), message);
+        QVERIFY2(sourceTab->getHistory().getCurrentEntry()->route == sourceRoute, message);
+        fixture.window->activateTab(sourceTab);
+        pdftest::AppDocumentFixture::settle();
+    }
+}
+
+void AppNavigationTest::helpOfNewTab()
+{
+    // The page Open in the tab New tab has the topic of the page, the tab stays
+    pdftest::AppDocumentFixture fixture;
+    fixture.window->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(fixture.window.data()));
+    fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::open(), pdf::PDFAppNavigationMode::NewTab);
+    pdftest::AppDocumentFixture::settle();
+    QPointer<pdf::PDFAppTab> newTab = fixture.window->getCurrentTab();
+    QVERIFY(newTab);
+    QCOMPARE(newTab->getKind(), pdf::PDFAppTabKind::NewTab);
+
+    fixture.pressHelpKey();
+    QVERIFY(fixture.window->findHelpTab());
+    QCOMPARE(fixture.window->getCurrentTab(), fixture.window->findHelpTab());
+    QCOMPARE(fixture.window->findHelpTab()->getHistory().getCurrentEntry()->route, pdf::PDFAppRoutes::help(QStringLiteral("open-documents")));
+    QVERIFY(newTab);
+    QCOMPARE(newTab->getHistory().getCurrentEntry()->route, pdf::PDFAppRoutes::open());
+}
+
+void AppNavigationTest::helpOfDocumentStates()
+{
+    // The state screens of a document tab (a document being read, the password 228:8709)
+    // instead of the view are described by the section of the opening of open-documents,
+    // not by the toolbar and the sidebar of read-documents. The screen stays as it is.
+    pdftest::AppDocumentFixture fixture;
+    fixture.window->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(fixture.window.data()));
+
+    // The password screen: the typed password and the focus survive, Enter opens it
+    QPointer<pdf::PDFAppDocumentTab> tab = fixture.open(pdftest::AppDocumentSamples::userPassword(fixture.folder()));
+    QVERIFY(tab);
+    QCOMPARE(tab->getDocument()->getState(), pdf::PDFAppDocumentState::PasswordRequired);
+    QVERIFY(tab->isStateScreenShown());
+    pdf::PDFLineEdit* field = tab->getStateScreen()->getPasswordField();
+    field->setFocus(Qt::OtherFocusReason);
+    QTRY_COMPARE(QApplication::focusWidget(), static_cast<QWidget*>(field));
+    QTest::keyClicks(field, pdftest::AppDocumentSamples::getUserPassword());
+
+    fixture.pressHelpKey();
+    QCOMPARE(fixture.getShownHelpTopic(), QStringLiteral("open-documents"));
+    QVERIFY(tab);
+    QCOMPARE(tab->getDocument()->getState(), pdf::PDFAppDocumentState::PasswordRequired);
+    fixture.window->activateTab(tab);
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(field->text(), pdftest::AppDocumentSamples::getUserPassword());
+    QCOMPARE(QApplication::focusWidget(), static_cast<QWidget*>(field));
+    QTest::keyClick(field, Qt::Key_Return);
+    QTRY_VERIFY(tab->getDocument()->isReady());
+    pdftest::AppDocumentFixture::settle();
+
+    // The same tab after the password shows the view
+    QVERIFY(tab->isViewShown());
+    fixture.pressHelpKey();
+    QCOMPARE(fixture.getShownHelpTopic(), QStringLiteral("read-documents"));
+
+    // A document being read: the reading goes on, its end does not take the window
+    // from the manual
+    fixture.window->openDocuments(QStringList({ pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Loading.pdf"), 30) }), 0);
+    tab = fixture.currentDocumentTab();
+    QVERIFY(tab);
+    QCOMPARE(tab->getDocument()->getState(), pdf::PDFAppDocumentState::Loading);
+    QVERIFY(tab->isStateScreenShown());
+    QTest::keyClick(fixture.window.data(), Qt::Key_F1);
+    QCOMPARE(fixture.getShownHelpTopic(), QStringLiteral("open-documents"));
+    QVERIFY(tab);
+    QTRY_VERIFY(tab->getDocument()->isReady());
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(fixture.getShownHelpTopic(), QStringLiteral("open-documents"));
+    fixture.window->activateTab(tab);
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(tab->isViewShown());
+    fixture.pressHelpKey();
+    QCOMPARE(fixture.getShownHelpTopic(), QStringLiteral("read-documents"));
+}
+
+void AppNavigationTest::helpOfToolPage()
+{
+    // A page of a tool (phase 2) gives its topic by the same virtual function on all
+    // routes of the tools: nothing else is needed for a tool page, also in a document tab
+    pdftest::AppDocumentFixture fixture;
+    const pdf::PDFDocumentToolCatalogEntry* tool = pdf::PDFDocumentToolCatalog::findTool(u"optimize.compress");
+    QVERIFY(tool);
+    const QString topic = tool->getHelpTopic();
+    QCOMPARE(topic, QStringLiteral("tool-optimize-compress"));
+
+    const QString filePath = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("tool.pdf"), 1);
+    QPointer<pdf::PDFAppDocumentTab> documentTab = fixture.open(filePath);
+    QVERIFY(documentTab);
+
+    pdf::PDFAppNavigator* navigator = fixture.window->getNavigator();
+    const std::shared_ptr<HelpTopicTestFactory> factory = std::make_shared<HelpTopicTestFactory>(topic);
+    // /tool/{toolId}/{instanceId} is shown only in a tab of the kind Tool, which does not
+    // exist yet: Page Not Found, a row of helpTopicOfEveryRoute
+    const QStringList patterns = { QStringLiteral("/tools/{toolId}"), QStringLiteral("/document/{documentId}/tool/{toolId}") };
+    const QStringList routes = { QStringLiteral("/tools/optimize.compress"),
+                                 QStringLiteral("/document/%1/tool/optimize.compress").arg(documentTab->getDocumentId()) };
+    for (qsizetype i = 0; i < patterns.size(); ++i)
+    {
+        QVERIFY(navigator->getRouteTable().setFactory(patterns[i], factory));
+        navigator->navigate(pdf::PDFAppRoute::parse(routes[i]));
+        pdftest::AppDocumentFixture::settle();
+        pdf::PDFAppTab* tab = fixture.window->getCurrentTab();
+        QVERIFY(qobject_cast<HelpTopicTestPage*>(tab->getPage()));
+        QCOMPARE(tab == documentTab.data(), patterns[i].startsWith(QLatin1String("/document/")));
+
+        fixture.window->getCommandAction(pdf::PDFAppCommands::help())->trigger();
+        pdf::PDFAppTab* helpTab = fixture.window->findHelpTab();
+        QVERIFY(helpTab);
+        QCOMPARE(fixture.window->getCurrentTab(), helpTab);
+        QCOMPARE(helpTab->getHistory().getCurrentEntry()->route, pdf::PDFAppRoutes::help(topic));
+    }
+
+    // A tool without a topic of its own (the plan, chapter 5: then the page Tools) never
+    // ends on Page Not Found: the page of the tool asks the catalog, F1 opens the manual
+    const std::shared_ptr<const pdf::PDFAppHelpCatalog> catalog = pdf::PDFAppHelpCatalog::getBuiltin();
+    QVERIFY(catalog);
+    const pdf::PDFDocumentToolCatalogEntry* withoutTopic = nullptr;
+    for (const pdf::PDFDocumentToolCatalogEntry& entry : pdf::PDFDocumentToolCatalog::getTools())
+    {
+        QVERIFY2(catalog->findTopic(catalog->getToolTopic(entry)), qPrintable(entry.getId()));
+        if (!withoutTopic && !catalog->findTopic(entry.getHelpTopic()))
+        {
+            withoutTopic = &entry;
+        }
+    }
+    if (withoutTopic)
+    {
+        QVERIFY(navigator->getRouteTable().setFactory(patterns[0], std::make_shared<HelpTopicTestFactory>(catalog->getToolTopic(*withoutTopic))));
+        navigator->navigate(pdf::PDFAppRoute::parse(QStringLiteral("/tools/") + withoutTopic->getId()));
+        pdftest::AppDocumentFixture::settle();
+        QVERIFY(qobject_cast<HelpTopicTestPage*>(fixture.window->getCurrentTab()->getPage()));
+        fixture.window->getCommandAction(pdf::PDFAppCommands::help())->trigger();
+        pdftest::AppDocumentFixture::settle();
+        QCOMPARE(fixture.getShownHelpTopic(), QStringLiteral("tools"));
+        QVERIFY(qobject_cast<pdf::PDFAppHelpPage*>(fixture.window->findHelpTab()->getPage()));
+    }
+}
+
+void AppNavigationTest::helpTabReused()
+{
+    // The next F1 reuses the Help tab of the window: its own history, the other tabs keep theirs
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppNavigator* navigator = fixture.window->getNavigator();
+    QAction* helpAction = fixture.window->getCommandAction(pdf::PDFAppCommands::help());
+    QVERIFY(helpAction);
+    const int tabCount = fixture.window->getTabBar()->count();
+
+    navigator->navigate(pdf::PDFAppRoutes::recent());
+    pdftest::AppDocumentFixture::settle();
+    helpAction->trigger();
+    QPointer<pdf::PDFAppTab> helpTab = fixture.window->findHelpTab();
+    QVERIFY(helpTab);
+    QCOMPARE(fixture.window->getTabBar()->count(), tabCount + 1);
+    QCOMPARE(helpTab->getHistory().getCount(), 1);
+    QCOMPARE(helpTab->getHistory().getCurrentEntry()->route, pdf::PDFAppRoutes::help(QStringLiteral("recent-files")));
+
+    // Home is still on Recent: another page, the same Help tab
+    QPointer<pdf::PDFAppTab> homeTab = fixture.window->getHomeTab();
+    const int homeHistory = homeTab->getHistory().getCount();
+    navigator->navigate(pdf::PDFAppRoutes::search(QStringLiteral("page")));
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(fixture.window->getCurrentTab(), homeTab.data());
+    QCOMPARE(homeTab->getHistory().getCount(), homeHistory + 1);
+    helpAction->trigger();
+    QCOMPARE(fixture.window->findHelpTab(), helpTab.data());
+    QCOMPARE(fixture.window->getCurrentTab(), helpTab.data());
+    QCOMPARE(fixture.window->getTabBar()->count(), tabCount + 1);
+    QCOMPARE(helpTab->getHistory().getCount(), 2);
+    QCOMPARE(helpTab->getHistory().getCurrentEntry()->route, pdf::PDFAppRoutes::help(QStringLiteral("search")));
+    QCOMPARE(homeTab->getHistory().getCount(), homeHistory + 1);
+
+    // Back of the Help tab returns to the previous topic
+    QVERIFY(navigator->goBack());
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(fixture.window->getCurrentTab(), helpTab.data());
+    QCOMPARE(helpTab->getHistory().getCurrentEntry()->route, pdf::PDFAppRoutes::help(QStringLiteral("recent-files")));
+    QCOMPARE(qobject_cast<pdf::PDFAppHelpPage*>(helpTab->getPage())->getTopic().id, QStringLiteral("recent-files"));
+}
+
+void AppNavigationTest::helpInHelpTab()
+{
+    // F1 in the Help tab stays on its topic (plan, chapter 5): no new entry of the
+    // history, the same page, the anchor of the route kept
+    pdftest::AppDocumentFixture fixture;
+    fixture.window->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(fixture.window.data()));
+    pdf::PDFAppNavigator* navigator = fixture.window->getNavigator();
+
+    const std::shared_ptr<const pdf::PDFAppHelpCatalog> catalog = pdf::PDFAppHelpCatalog::getBuiltin();
+    QVERIFY(catalog);
+    QVERIFY(catalog->getTopics().size() >= 30);
+    for (const pdf::PDFAppHelpTopic& topic : catalog->getTopics())
+    {
+        navigator->navigate(pdf::PDFAppRoutes::help(topic.id));
+        pdftest::AppDocumentFixture::settle();
+        pdf::PDFAppTab* helpTab = fixture.window->findHelpTab();
+        QVERIFY(helpTab);
+        QCOMPARE(helpTab->getPage()->getHelpTopic(), topic.id);
+        QPointer<pdf::PDFAppPage> page = helpTab->getPage();
+        const int historyCount = helpTab->getHistory().getCount();
+        const pdf::PDFAppRoute route = helpTab->getHistory().getCurrentEntry()->route;
+
+        fixture.pressHelpKey();
+        pdftest::AppDocumentFixture::settle();
+        QCOMPARE(fixture.window->getCurrentTab(), helpTab);
+        QVERIFY(page);
+        QCOMPARE(helpTab->getPage(), page.data());
+        QCOMPARE(helpTab->getHistory().getCount(), historyCount);
+        QCOMPARE(helpTab->getHistory().getCurrentEntry()->route, route);
+    }
+
+    // An anchor stays in the route
+    pdf::PDFAppTab* helpTab = fixture.window->findHelpTab();
+    navigator->navigate(pdf::PDFAppRoute::parse(QStringLiteral("/help/settings#find-a-setting")));
+    pdftest::AppDocumentFixture::settle();
+    QPointer<pdf::PDFAppPage> page = helpTab->getPage();
+    const int historyCount = helpTab->getHistory().getCount();
+    fixture.pressHelpKey();
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(page);
+    QCOMPARE(helpTab->getPage(), page.data());
+    QCOMPARE(helpTab->getHistory().getCount(), historyCount);
+    QCOMPARE(helpTab->getHistory().getCurrentEntry()->route.getFragment(), QStringLiteral("find-a-setting"));
+
+    // Page Not Found of an unknown topic has the default topic: the Help tab goes there
+    navigator->navigate(pdf::PDFAppRoute::parse(QStringLiteral("/help/no-such-topic")));
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(fixture.window->getCurrentTab(), helpTab);
+    QVERIFY(qobject_cast<pdf::PDFPageNotFoundPage*>(helpTab->getPage()));
+    fixture.pressHelpKey();
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(fixture.window->getCurrentTab(), helpTab);
+    QCOMPARE(qobject_cast<pdf::PDFAppHelpPage*>(helpTab->getPage())->getTopic().id, pdf::PDFAppRoutes::getDefaultHelpTopic());
+
+    // A help page, which has no topic (not in a route yet), has the default topic
+    pdf::PDFAppHelpPage standalone(fixture.context.get());
+    QCOMPARE(standalone.getHelpTopic(), pdf::PDFAppRoutes::getDefaultHelpTopic());
+}
+
+void AppNavigationTest::helpInHomeTabAtTabLimit()
+{
+    // No place for the Help tab: the manual is in the Home tab (helpTabLimit), F1 stays
+    // on the topic there too, a page of another topic navigates in the Home tab
+    NavigationFixture fixture;
+    fixture.navigator()->getRouteTable().setFactory(QStringLiteral("/help/{topic}"), std::make_shared<HelpTopicTestFactory>(QStringLiteral("search")));
+    fixture.navigator()->getRouteTable().setFactory(QStringLiteral("/recent"), std::make_shared<HelpTopicTestFactory>(QStringLiteral("recent-files")));
+    while (fixture.window->getTabBar()->count() < pdf::PDFAppMainWindow::MAXIMUM_TABS)
+    {
+        QVERIFY(fixture.window->createNewTab());
+    }
+
+    pdf::PDFAppTab* homeTab = fixture.window->getHomeTab();
+    QAction* helpAction = fixture.window->getCommandAction(pdf::PDFAppCommands::help());
+    fixture.navigate("/recent");
+    QCOMPARE(fixture.currentTab(), homeTab);
+    const int historyCount = homeTab->getHistory().getCount();
+    helpAction->trigger();
+    QCOMPARE(fixture.currentTab(), homeTab);
+    QVERIFY(!fixture.window->findHelpTab());
+    QCOMPARE(homeTab->getHistory().getCurrentEntry()->route, pdf::PDFAppRoutes::help(QStringLiteral("recent-files")));
+    QCOMPARE(homeTab->getHistory().getCount(), historyCount + 1);
+
+    fixture.navigate("/help/search");
+    QPointer<pdf::PDFAppPage> page = fixture.currentPage();
+    helpAction->trigger();
+    QCOMPARE(fixture.currentPage(), page.data());
+    QCOMPARE(homeTab->getHistory().getCount(), historyCount + 2);
+    QCOMPARE(homeTab->getHistory().getCurrentEntry()->route, pdf::PDFAppRoutes::help(QStringLiteral("search")));
+}
+
+void AppNavigationTest::helpWithRunningOperation()
+{
+    // F1 with a running operation opens the Help tab, the operation runs on and its tab
+    // stays as it is; the topic is the topic of the document
+    pdftest::AppDocumentFixture fixture;
+    fixture.window->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(fixture.window.data()));
+    const QString filePath = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("running.pdf"), 2);
+    QPointer<pdf::PDFAppDocumentTab> documentTab = fixture.open(filePath);
+    QVERIFY(documentTab);
+    pdf::PDFAppDocument* document = documentTab->getDocument();
+    QPointer<pdf::PDFAppDocumentOperation> operation = document->beginOperation(pdf::PDFAppDocumentOperationKind::Save, QStringLiteral("Saving"), true);
+    QVERIFY(operation);
+    const std::vector<pdf::PDFAppDocumentOperation*> operations = document->getOperations();
+    const int tabCount = fixture.window->getTabBar()->count();
+
+    fixture.pressHelpKey();
+    pdftest::AppDocumentFixture::settle();
+    pdf::PDFAppTab* helpTab = fixture.window->findHelpTab();
+    QVERIFY(helpTab);
+    QCOMPARE(fixture.window->getCurrentTab(), helpTab);
+    QCOMPARE(helpTab->getHistory().getCurrentEntry()->route, pdf::PDFAppRoutes::help(QStringLiteral("read-documents")));
+    QCOMPARE(fixture.window->getTabBar()->count(), tabCount + 1);
+
+    // No question, no cancellation: the operation goes on and the document blocks changes
+    QCOMPARE(fixture.closeMessageBoxes(), 0);
+    QVERIFY(documentTab);
+    QVERIFY(operation);
+    QVERIFY(!operation->isCancelRequested());
+    QVERIFY(!operation->isFinished());
+    QVERIFY(document->getOperations() == operations);
+    QVERIFY(document->isBlockedByOperation());
+
+    // Back in its tab, the operation ends as usual
+    fixture.window->activateTab(documentTab);
+    QCOMPARE(fixture.window->getCurrentTab(), documentTab.data());
+    operation->finish();
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(document->getOperations().empty());
+}
+
+void AppNavigationTest::helpWithDialog()
+{
+    // F1 is a shortcut of the window (Qt::WindowShortcut): a modal dialog blocks it, the
+    // key reaches neither the window nor the dialog, the dialog stays; closed, F1 works
+    pdftest::AppDocumentFixture fixture;
+    fixture.window->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(fixture.window.data()));
+    QAction* helpAction = fixture.window->getCommandAction(pdf::PDFAppCommands::help());
+    QVERIFY(helpAction);
+    QCOMPARE(helpAction->shortcutContext(), Qt::WindowShortcut);
+    fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::recent());
+    pdftest::AppDocumentFixture::settle();
+    pdf::PDFAppTab* homeTab = fixture.window->getHomeTab();
+    const int tabCount = fixture.window->getTabBar()->count();
+
+    QPointer<pdf::PDFMessageBox> box = new pdf::PDFMessageBox(pdf::PDFThemeIcons::Badge::Warning, QStringLiteral("Title"), QStringLiteral("Text"),
+                                                              QDialogButtonBox::Ok | QDialogButtonBox::Cancel, fixture.window.data());
+    box->open();
+    QVERIFY(QTest::qWaitForWindowActive(box.data()));
+    QVERIFY(box->isModal());
+
+    QTest::keyClick(box.data(), Qt::Key_F1);
+    QTest::keyClick(fixture.window.data(), Qt::Key_F1);
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(box);
+    QVERIFY(box->isVisible());
+    QVERIFY(!fixture.window->findHelpTab());
+    QCOMPARE(fixture.window->getCurrentTab(), homeTab);
+    QCOMPARE(fixture.window->getTabBar()->count(), tabCount);
+
+    box->reject();
+    delete box.data();
+    pdftest::AppDocumentFixture::settle();
+    fixture.window->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(fixture.window.data()));
+    fixture.pressHelpKey();
+    QVERIFY(fixture.window->findHelpTab());
+    QCOMPARE(fixture.window->findHelpTab()->getHistory().getCurrentEntry()->route, pdf::PDFAppRoutes::help(QStringLiteral("recent-files")));
+}
+
+void AppNavigationTest::helpWithoutPage()
+{
+    // A tab without a page (before its first navigation) has the default topic
+    NavigationFixture fixture;
+    auto help = std::make_shared<NavigationTestFactory>("Help topic");
+    fixture.navigator()->getRouteTable().setFactory(QStringLiteral("/help/{topic}"), help);
+    fixture.currentTab()->setPage(nullptr);
+    QVERIFY(!fixture.currentPage());
+    fixture.window->getCommandAction(pdf::PDFAppCommands::help())->trigger();
+    QVERIFY(fixture.window->findHelpTab());
+    QCOMPARE(fixture.currentTab(), fixture.window->findHelpTab());
+    QCOMPARE(fixture.currentTab()->getHistory().getCurrentEntry()->route, pdf::PDFAppRoutes::help(pdf::PDFAppRoutes::getDefaultHelpTopic()));
+}
+
+void AppNavigationTest::helpDeletedFromNavigation()
+{
+    // The navigation of F1 runs code of a page: it may delete the tab of F1, the Help
+    // tab or the window. Run it under ASan: the window uses nothing after the navigation.
+    NavigationFixture fixture;
+    auto help = std::make_shared<NavigationTestFactory>("Help topic");
+    fixture.navigator()->getRouteTable().setFactory(QStringLiteral("/help/{topic}"), help);
+    QAction* helpAction = fixture.window->getCommandAction(pdf::PDFAppCommands::help());
+
+    // The tab of F1 deleted
+    QPointer<pdf::PDFAppTab> sourceTab = fixture.window->createNewTab();
+    QVERIFY(sourceTab);
+    fixture.window->activateTab(sourceTab);
+    help->onSetRoute = [&sourceTab](NavigationTestPage*)
+    {
+        delete sourceTab.data();
+    };
+    helpAction->trigger();
+    help->onSetRoute = nullptr;
+    QVERIFY(sourceTab.isNull());
+    QVERIFY(fixture.window->findHelpTab());
+    QCOMPARE(fixture.currentTab(), fixture.window->findHelpTab());
+    QCOMPARE(fixture.currentTab()->getHistory().getCurrentEntry()->route, pdf::PDFAppRoutes::help(pdf::PDFAppRoutes::getDefaultHelpTopic()));
+
+    // The Help tab deleted while it shows the topic
+    fixture.window->activateTab(fixture.window->getHomeTab());
+    fixture.navigator()->navigate(pdf::PDFAppRoute::parse(QStringLiteral("/help/second")));
+    help->onSetRoute = [&fixture](NavigationTestPage*)
+    {
+        delete fixture.window->findHelpTab();
+    };
+    fixture.window->activateTab(fixture.window->getHomeTab());
+    helpAction->trigger();
+    help->onSetRoute = nullptr;
+    QCoreApplication::processEvents();
+    QVERIFY(!fixture.window->findHelpTab());
+    QCOMPARE(fixture.currentTab(), static_cast<pdf::PDFAppTab*>(fixture.window->getHomeTab()));
+
+    // The window works on: the next F1 opens a new Help tab
+    helpAction->trigger();
+    QVERIFY(fixture.window->findHelpTab());
+    QCOMPARE(fixture.currentTab(), fixture.window->findHelpTab());
+
+    // The window deleted
+    fixture.window->activateTab(fixture.window->getHomeTab());
+    help->onSetRoute = [&fixture](NavigationTestPage*)
+    {
+        delete fixture.window.data();
+    };
+    helpAction->trigger();
+    help->onSetRoute = nullptr;
+    QVERIFY(fixture.window.isNull());
+    QCoreApplication::processEvents();
 }
 
 void AppNavigationTest::newTab()

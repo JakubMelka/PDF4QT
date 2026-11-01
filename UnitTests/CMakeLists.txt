@@ -86,6 +86,14 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     set_target_properties(UnitTestsAppToolsFixture PROPERTIES QT_EXCLUDE_FROM_TRANSLATION ON)
     pdf4qt_target_precompile_headers(UnitTestsAppToolsFixture REUSE_FROM UnitTestsAppDocumentFixture)
 
+    add_library(UnitTestsAppToolShellFixture OBJECT
+        apptoolshellfixture.cpp
+        apptoolshellfixture.h
+    )
+    target_link_libraries(UnitTestsAppToolShellFixture PUBLIC UnitTestsAppDocumentFixture)
+    set_target_properties(UnitTestsAppToolShellFixture PROPERTIES QT_EXCLUDE_FROM_TRANSLATION ON)
+    pdf4qt_target_precompile_headers(UnitTestsAppToolShellFixture REUSE_FROM UnitTestsAppDocumentFixture)
+
     add_library(UnitTestsAppMcpFixture OBJECT
         appmcpfixture.cpp
         appmcpfixture.h
@@ -713,7 +721,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_executable(UnitTestsAppNavigation
         tst_appnavigationtest.cpp
     )
-    target_link_libraries(UnitTestsAppNavigation PRIVATE Pdf4QtLibApp Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+    target_link_libraries(UnitTestsAppNavigation PRIVATE UnitTestsAppDocumentFixture Pdf4QtLibApp Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
     pdf4qt_target_precompile_headers(UnitTestsAppNavigation REUSE_FROM UnitTestsAppDocumentFixture)
     find_package(Qt6 QUIET COMPONENTS GuiPrivate)
     if(TARGET Qt6::GuiPrivate)
@@ -834,7 +842,8 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
             AppDocumentPanels
             AppDocumentSearch
             AppDocumentFile
-            AppDocumentProperties)
+            AppDocumentProperties
+            AppToolView)
         string(TOLOWER "${PDF4QT_DOCUMENT_TEST}" PDF4QT_DOCUMENT_TEST_FILE)
         add_executable(UnitTests${PDF4QT_DOCUMENT_TEST}
             tst_${PDF4QT_DOCUMENT_TEST_FILE}test.cpp
@@ -957,6 +966,63 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     endforeach()
 endif()
 
+# The shell of the tools of phase 2: the runner, the parameter model, the result dialog
+# and the result writer on the test tool, with the fixture apptoolshellfixture
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    add_executable(UnitTestsAppToolShell
+        tst_apptoolshelltest.cpp
+    )
+    target_link_libraries(UnitTestsAppToolShell PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsAppToolShell REUSE_FROM UnitTestsAppDocumentFixture)
+    set_target_properties(UnitTestsAppToolShell PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsAppToolShell "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppToolShell")
+    set_tests_properties(UnitTestsAppToolShell PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # The generic lifetime test of the tools in a document tab: the scenarios of the test
+    # tool, the next waves add the scenarios of their tools
+    add_executable(UnitTestsAppToolPagesLifetime
+        tst_apptoolpageslifetimetest.cpp
+    )
+    target_link_libraries(UnitTestsAppToolPagesLifetime PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsAppToolPagesLifetime REUSE_FROM UnitTestsAppDocumentFixture)
+    set_target_properties(UnitTestsAppToolPagesLifetime PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsAppToolPagesLifetime "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppToolPagesLifetime")
+    set_tests_properties(UnitTestsAppToolPagesLifetime PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # The application side of a tool of the first batch (plan, chapter 8): the waves and the
+    # parallel parts of package 2 add only their file tst_apptool<part>test.cpp, a target
+    # comes with the next configuration
+    foreach(PDF4QT_TOOL_TEST Compress Pages Protect Structure ExtractText)
+        string(TOLOWER ${PDF4QT_TOOL_TEST} PDF4QT_TOOL_TEST_FILE)
+        if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tst_apptool${PDF4QT_TOOL_TEST_FILE}test.cpp")
+            add_executable(UnitTestsAppTool${PDF4QT_TOOL_TEST}
+                tst_apptool${PDF4QT_TOOL_TEST_FILE}test.cpp
+            )
+            target_link_libraries(UnitTestsAppTool${PDF4QT_TOOL_TEST} PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture UnitTestsAppMcpFixture UnitTestsMcpTestClient Pdf4QtLibApp Pdf4QtLibMcp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+            pdf4qt_target_precompile_headers(UnitTestsAppTool${PDF4QT_TOOL_TEST} REUSE_FROM UnitTestsAppDocumentFixture)
+            set_target_properties(UnitTestsAppTool${PDF4QT_TOOL_TEST} PROPERTIES
+                WIN32_EXECUTABLE OFF
+                MACOSX_BUNDLE OFF
+                QT_EXCLUDE_FROM_TRANSLATION ON
+                RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+            )
+            add_test(UnitTestsAppTool${PDF4QT_TOOL_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppTool${PDF4QT_TOOL_TEST}")
+            set_tests_properties(UnitTestsAppTool${PDF4QT_TOOL_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+        endif()
+    endforeach()
+endif()
+
+
 # The MCP server (step 7). UnitTestsMcp: Pdf4QtLibMcp alone (QCoreApplication,
 # the fake host, the scripted client of both eras - wave 0 and package A; the
 # client is the object library UnitTestsMcpTestClient at the top of the file).
@@ -1072,6 +1138,100 @@ set_target_properties(UnitTestsDocumentTool PROPERTIES
 )
 add_test(UnitTestsDocumentTool "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDocumentTool")
 set_tests_properties(UnitTestsDocumentTool PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The tool Compress of Pdf4QtLibCore and the streaming and cancellation of the
+# optimizers below it (phase 2, first batch, wave A)
+add_executable(UnitTestsDocumentToolCompress
+    tst_documenttoolcompresstest.cpp
+)
+target_link_libraries(UnitTestsDocumentToolCompress PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsDocumentToolCompress REUSE_FROM UnitTestsPchCore)
+set_target_properties(UnitTestsDocumentToolCompress PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsDocumentToolCompress "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDocumentToolCompress")
+set_tests_properties(UnitTestsDocumentToolCompress PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# Every tool of the core over the real PDF files of a folder, which is not in the repository.
+# A plain ctest run skips it at once: the run is asked for by PDF4QT_TOOL_CORPUS_DIRECTORY=<folder>
+# or PDF4QT_TOOL_CORPUS_RUN=1 (the default folder below) and is split per row by the runners.
+add_executable(UnitTestsDocumentToolCorpus
+    tst_documenttoolcorpustest.cpp
+)
+target_link_libraries(UnitTestsDocumentToolCorpus PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsDocumentToolCorpus REUSE_FROM UnitTestsPchCore)
+target_compile_definitions(UnitTestsDocumentToolCorpus PRIVATE PDF4QT_TOOL_CORPUS_DIRECTORY="${CMAKE_SOURCE_DIR}/testpdf")
+set_target_properties(UnitTestsDocumentToolCorpus PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsDocumentToolCorpus "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDocumentToolCorpus")
+set_tests_properties(UnitTestsDocumentToolCorpus PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The tool of package 2 of phase 2, first batch (a stub until the package)
+add_executable(UnitTestsDocumentToolPages
+    tst_documenttoolpagestest.cpp
+)
+target_link_libraries(UnitTestsDocumentToolPages PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsDocumentToolPages REUSE_FROM UnitTestsPchCore)
+set_target_properties(UnitTestsDocumentToolPages PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsDocumentToolPages "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDocumentToolPages")
+set_tests_properties(UnitTestsDocumentToolPages PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The tool of package 2 of phase 2, first batch (a stub until the package)
+add_executable(UnitTestsDocumentToolProtect
+    tst_documenttoolprotecttest.cpp
+)
+target_link_libraries(UnitTestsDocumentToolProtect PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsDocumentToolProtect REUSE_FROM UnitTestsPchCore)
+set_target_properties(UnitTestsDocumentToolProtect PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsDocumentToolProtect "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDocumentToolProtect")
+set_tests_properties(UnitTestsDocumentToolProtect PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The tool of package 2 of phase 2, first batch (a stub until the package)
+add_executable(UnitTestsDocumentToolStructure
+    tst_documenttoolstructuretest.cpp
+)
+target_link_libraries(UnitTestsDocumentToolStructure PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsDocumentToolStructure REUSE_FROM UnitTestsPchCore)
+set_target_properties(UnitTestsDocumentToolStructure PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsDocumentToolStructure "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDocumentToolStructure")
+set_tests_properties(UnitTestsDocumentToolStructure PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The tool of package 2 of phase 2, first batch (a stub until the package)
+add_executable(UnitTestsDocumentToolExtractText
+    tst_documenttoolextracttexttest.cpp
+)
+target_link_libraries(UnitTestsDocumentToolExtractText PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsDocumentToolExtractText REUSE_FROM UnitTestsPchCore)
+set_target_properties(UnitTestsDocumentToolExtractText PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsDocumentToolExtractText "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDocumentToolExtractText")
+set_tests_properties(UnitTestsDocumentToolExtractText PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 # Properties of the annotations read and written by PDFAnnotationPropertyEditor
 # (Pdf4QtLibCore, step 4 package B)

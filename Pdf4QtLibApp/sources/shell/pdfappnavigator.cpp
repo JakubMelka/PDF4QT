@@ -253,9 +253,20 @@ void PDFAppNavigator::navigateImpl(const PDFAppRoute& route, PDFAppNavigationMod
         return;
     }
 
+    // The shown page may refuse (a running tool asks, F14) or it ends its work (page
+    // code: anything may be deleted)
+    QPointer<PDFAppNavigator> guard(this);
+    if (PDFAppPage* page = tab->getPage())
+    {
+        const bool isAccepted = page->prepareLeave(target);
+        if (!guard || !tab || !isAccepted)
+        {
+            return;
+        }
+    }
+
     // The state of the view of the page, which the tab leaves (page code: the
     // tab may be deleted by it)
-    QPointer<PDFAppNavigator> guard(this);
     saveViewState(tab);
     if (!guard || !tab)
     {
@@ -292,6 +303,25 @@ bool PDFAppNavigator::moveInHistory(PDFAppTab* tab, bool isBack)
 
     QPointer<PDFAppNavigator> guard(this);
     QPointer<PDFAppTab> tabGuard(tab);
+
+    // Nothing to do without an entry there (the page is not asked, it stays)
+    const PDFAppHistoryEntry* targetEntry = tab->getHistory().getEntry(tab->getHistory().getCurrentIndex() + (isBack ? -1 : 1));
+    if (!targetEntry)
+    {
+        return false;
+    }
+
+    // The shown page may refuse (a running tool asks, F14) or it ends its work
+    if (PDFAppPage* page = tab->getPage())
+    {
+        const PDFAppRoute target = targetEntry->route;
+        const bool isAccepted = page->prepareLeave(target);
+        if (!guard || !tabGuard || !isAccepted)
+        {
+            return false;
+        }
+    }
+
     saveViewState(tab);
     if (!guard || !tabGuard)
     {

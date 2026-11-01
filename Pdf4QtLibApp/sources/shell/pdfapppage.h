@@ -98,6 +98,13 @@ public:
     /// Title of the page (window title, announcement for assistive technologies)
     virtual QString getTitle() const = 0;
 
+    /// Topic of the user manual, which F1 opens on this page (the command Help of the
+    /// window). The default topic by default: Home, About, Support, Sponsor and Page
+    /// Not Found have no better one. A topic, which the catalog does not have, ends
+    /// on Page Not Found in the Help tab: a page returns only an existing topic (the
+    /// page of a tool asks PDFAppHelpCatalog::getToolTopic, it may have no topic yet).
+    virtual QString getHelpTopic() const;
+
     /// Title and subtitle of the header of the workspace (empty = none)
     virtual QString getHeaderTitle() const;
     virtual QString getHeaderSubtitle() const;
@@ -129,6 +136,15 @@ public:
     /// returns to it
     virtual QVariantMap saveViewState() const;
     virtual void restoreViewState(const QVariantMap& state);
+
+    /// The navigator asks before the tab leaves the shown page for \p target (a
+    /// navigation or a step in the history, F14 of the plan of the first batch of phase
+    /// 2). False = the navigation is refused, the page stays and the history does not
+    /// change (a running tool: the user has chosen Keep Running). True = the page is
+    /// replaced right after the return: the page has ended what it was doing. The page
+    /// may show a dialog here, the page, its tab or the window may be deleted meanwhile
+    /// (the caller guards them). The default is true.
+    virtual bool prepareLeave(const PDFAppRoute& target);
 
     PDFAppContext* getContext() const { return m_context; }
 

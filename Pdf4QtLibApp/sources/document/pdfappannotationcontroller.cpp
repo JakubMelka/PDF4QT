@@ -217,6 +217,7 @@ void PDFAppAnnotationController::setDocument(PDFAppDocument* document)
         connect(document, &PDFAppDocument::documentChanged, this, &PDFAppAnnotationController::onDocumentChanged);
         connect(document, &PDFAppDocument::stateChanged, this, &PDFAppAnnotationController::onDocumentStateChanged);
         connect(document, &PDFAppDocument::lockChanged, this, &PDFAppAnnotationController::onDocumentStateChanged);
+        connect(document, &PDFAppDocument::userChangesSuspendedChanged, this, &PDFAppAnnotationController::onDocumentStateChanged);
     }
     updateReadOnlyState();
 }
@@ -394,6 +395,10 @@ bool PDFAppAnnotationController::commitEngineChange(const PDFModifiedDocument& m
     {
         refusal = tr("The document cannot be changed while an operation is running.");
     }
+    else if (document->areUserChangesSuspended())
+    {
+        refusal = PDFAppDocument::getUserChangesSuspendedText();
+    }
     else if (kind == PDFAppAnnotationChangeKind::Form ? !isFormFillingAllowed() : !isAnnotationEditingAllowed())
     {
         // The permissions of the document (O8) are checked for every change, not
@@ -531,11 +536,20 @@ QString PDFAppAnnotationController::getEditingRefusalReason() const
     {
         return tr("The document is locked. Unlock it to make changes.");
     }
+    if (document->areUserChangesSuspended())
+    {
+        return PDFAppDocument::getUserChangesSuspendedText();
+    }
     if (!isAnnotationEditingAllowed())
     {
         return tr("The document does not allow changes.");
     }
     return QString();
+}
+
+bool PDFAppAnnotationController::isUserInterfaceSuspended() const
+{
+    return m_document && m_document->areUserChangesSuspended();
 }
 
 void PDFAppAnnotationController::updateReadOnlyState()
@@ -999,44 +1013,68 @@ void PDFAppAnnotationController::onCreationRequestedQueued(const PDFAnnotationCr
     Q_EMIT creationRequested(request);
 }
 
+// A tool is open (also since the request was queued): the actions of the annotations
+// are off, no menu, popup or dialog opens (owner decision of 2026-11-01)
+
 void PDFAppAnnotationController::onMenuRequestedQueued(const PDFAnnotationMenuRequest& request)
 {
-    Q_EMIT menuRequested(request);
+    if (!isUserInterfaceSuspended())
+    {
+        Q_EMIT menuRequested(request);
+    }
 }
 
 void PDFAppAnnotationController::onPopupRequestedQueued(PDFObjectReference annotation, PDFObjectReference page, QPoint globalPosition)
 {
-    Q_EMIT popupRequested(annotation, page, globalPosition);
+    if (!isUserInterfaceSuspended())
+    {
+        Q_EMIT popupRequested(annotation, page, globalPosition);
+    }
 }
 
 void PDFAppAnnotationController::onPropertiesRequestedQueued(PDFObjectReference annotation)
 {
     endMergeSession();
-    Q_EMIT propertiesRequested(annotation);
+    if (!isUserInterfaceSuspended())
+    {
+        Q_EMIT propertiesRequested(annotation);
+    }
 }
 
 void PDFAppAnnotationController::onGeometryRequestedQueued(PDFObjectReference annotation)
 {
     endMergeSession();
-    Q_EMIT geometryRequested(annotation);
+    if (!isUserInterfaceSuspended())
+    {
+        Q_EMIT geometryRequested(annotation);
+    }
 }
 
 void PDFAppAnnotationController::onCopyToPagesRequestedQueued()
 {
     endMergeSession();
-    Q_EMIT copyToPagesRequested();
+    if (!isUserInterfaceSuspended())
+    {
+        Q_EMIT copyToPagesRequested();
+    }
 }
 
 void PDFAppAnnotationController::onCommentRequestedQueued(PDFObjectReference annotation, bool compose)
 {
     endMergeSession();
-    Q_EMIT commentRequested(annotation, compose);
+    if (!isUserInterfaceSuspended())
+    {
+        Q_EMIT commentRequested(annotation, compose);
+    }
 }
 
 void PDFAppAnnotationController::onReplyRequestedQueued(PDFObjectReference annotation)
 {
     endMergeSession();
-    Q_EMIT replyRequested(annotation);
+    if (!isUserInterfaceSuspended())
+    {
+        Q_EMIT replyRequested(annotation);
+    }
 }
 
 }   // namespace pdf

@@ -61,3 +61,58 @@ list(APPEND PDF4QT_LIBAPP_TOOLS_SOURCES
     sources/tools/pdfappdocumenttoolspanel.cpp
     sources/tools/pdfappdocumenttoolspanel.h
 )
+
+# Phase 2, the shell of the tools: each part adds its own files below its line
+list(APPEND PDF4QT_LIBAPP_TOOLS_SOURCES
+    # Shared interface of the view and of the parameter model
+    sources/tools/pdfapptoolundotarget.h
+    # Runner, parameter model and result dialog
+    sources/tools/pdfapptoolparametermodel.cpp
+    sources/tools/pdfapptoolparametermodel.h
+    sources/tools/pdfapptoolpathrules.cpp
+    sources/tools/pdfapptoolpathrules.h
+    sources/tools/pdfapptoolresultdialog.cpp
+    sources/tools/pdfapptoolresultdialog.h
+    sources/tools/pdfapptoolresultwriter.cpp
+    sources/tools/pdfapptoolresultwriter.h
+    sources/tools/pdfdocumenttoolrunner.cpp
+    sources/tools/pdfdocumenttoolrunner.h
+    # Tool mode of the view
+    # The shell, its GUI, the builder of the thin tools and the page of a tool
+    sources/tools/pdfappbuiltintools.cpp
+    sources/tools/pdfappbuiltintools.h
+    sources/tools/pdfappdeclarativetoolgui.cpp
+    sources/tools/pdfappdeclarativetoolgui.h
+    sources/tools/pdfapptooldocumentpage.cpp
+    sources/tools/pdfapptooldocumentpage.h
+    sources/tools/pdfapptoolhost.cpp
+    sources/tools/pdfapptoolhost.h
+    sources/tools/pdfapptoolpanelbuilder.cpp
+    sources/tools/pdfapptoolpanelbuilder.h
+    sources/tools/pdfapptoolpanelparts.cpp
+    sources/tools/pdfapptoolpanelparts.h
+    sources/tools/pdfapptoolpanelpopup.cpp
+    sources/tools/pdfapptoolpanelpopup.h
+    sources/tools/pdfapptooltoolbar.cpp
+    sources/tools/pdfapptooltoolbar.h
+    sources/tools/pdfdocumenttoolgui.cpp
+    sources/tools/pdfdocumenttoolgui.h
+    sources/tools/pdfdocumenttoolguiregistry.cpp
+    sources/tools/pdfdocumenttoolguiregistry.h
+    sources/tools/pdfdocumenttoolshell.cpp
+    sources/tools/pdfdocumenttoolshell.h
+    # Package 2A (pages.rotate, pages.remove)
+    sources/tools/pdfapptoolgui_pages.cpp
+    sources/tools/pdfapptoolgui_pages.h
+    sources/tools/pdfapptoolpagegrid.cpp
+    sources/tools/pdfapptoolpagegrid.h
+    # Package 2B (protect.sanitize, protect.remove-links)
+    sources/tools/pdfapptoolgui_protect.cpp
+    sources/tools/pdfapptoolgui_protect.h
+    # Package 2C (optimize.structure)
+    sources/tools/pdfapptoolgui_structure.cpp
+    sources/tools/pdfapptoolgui_structure.h
+    # Package 2D (convert.extract-text)
+    sources/tools/pdfapptoolgui_extracttext.cpp
+    sources/tools/pdfapptoolgui_extracttext.h
+)

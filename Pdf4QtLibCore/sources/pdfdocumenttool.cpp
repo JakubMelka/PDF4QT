@@ -27,7 +27,9 @@
 #include "pdfoperationcontrol.h"
 
 #include <QCoreApplication>
+#include <QFileInfo>
 #include <QJsonArray>
+#include <QLocale>
 
 #include <new>
 
@@ -126,6 +128,23 @@ public:
     }
 };
 
+PDFDocumentToolInputDocument PDFDocumentToolInputDocument::create(PDFDocumentPointer document, QByteArray originalData, const QString& filePath, bool isModified)
+{
+    PDFDocumentToolInputDocument input;
+    input.document = std::move(document);
+    input.originalData = std::move(originalData);
+    input.fileName = QFileInfo(filePath).fileName();
+    input.isModified = isModified;
+    return input;
+}
+
+PDFDocumentToolContext PDFDocumentToolContext::create(PDFDocumentToolInputDocument input)
+{
+    PDFDocumentToolContext context;
+    context.documents.push_back(std::move(input));
+    return context;
+}
+
 const PDFDocument* PDFDocumentToolContext::getDocument() const
 {
     return !documents.empty() ? documents.front().document.data() : nullptr;
@@ -201,6 +220,20 @@ QJsonObject PDFDocumentToolResult::toJson() const
     object.insert(QStringLiteral("documents"), documentArray);
     object.insert(QStringLiteral("files"), QJsonArray::fromStringList(writtenFiles));
 
+    if (!outputs.empty())
+    {
+        QJsonArray outputArray;
+        for (const PDFDocumentToolOutputFile& output : outputs)
+        {
+            QJsonObject item;
+            item.insert(QStringLiteral("suggestedFileName"), output.suggestedFileName);
+            item.insert(QStringLiteral("mimeType"), output.mimeType);
+            item.insert(QStringLiteral("size"), qint64(output.data.size()));
+            outputArray.append(item);
+        }
+        object.insert(QStringLiteral("outputs"), outputArray);
+    }
+
     QJsonArray factArray;
     for (const PDFDocumentToolFact& fact : facts)
     {
@@ -225,6 +258,60 @@ QJsonObject PDFDocumentToolResult::toJson() const
     return object;
 }
 
+QString PDFDocumentToolFormat::formatSize(qint64 bytes)
+{
+    return QLocale().formattedDataSize(qMax(qint64(0), bytes), 1, QLocale::DataSizeTraditionalFormat);
+}
+
+QString PDFDocumentToolFormat::formatSizeChange(qint64 before, qint64 after)
+{
+    return PDFDocumentToolHelper::tr("%1 → %2").arg(formatSize(before), formatSize(after));
+}
+
+QString PDFDocumentToolFormat::formatDuration(qint64 milliseconds)
+{
+    const qint64 seconds = qMax(qint64(1), (milliseconds + 500) / 1000);
+    if (seconds < 60)
+    {
+        return PDFDocumentToolHelper::tr("%1 s").arg(seconds);
+    }
+    return PDFDocumentToolHelper::tr("%1 min %2 s").arg(seconds / 60).arg(seconds % 60);
+}
+
+int PDFDocumentToolFormat::getSavedPercent(qint64 before, qint64 after)
+{
+    if (before <= 0 || after >= before)
+    {
+        return 0;
+    }
+    return qBound(0, int((double(before - after) * 100.0) / double(before) + 0.5), 100);
+}
+
+PDFDocumentToolProgressListener::~PDFDocumentToolProgressListener() = default;
+
+PDFDocumentToolProgressAdapter::PDFDocumentToolProgressAdapter(PDFDocumentToolProgressListener* listener) :
+    PDFProgress(nullptr),
+    m_listener(listener)
+{
+    connect(this, &PDFProgress::progressStep, this, &PDFDocumentToolProgressAdapter::onStep, Qt::DirectConnection);
+    connect(this, &PDFProgress::progressStepText, this, &PDFDocumentToolProgressAdapter::onStepText, Qt::DirectConnection);
+}
+
+void PDFDocumentToolProgressAdapter::onStep(int percentage)
+{
+    m_percentage = percentage;
+    m_listener->onToolProgress(m_percentage, m_stepText);
+}
+
+void PDFDocumentToolProgressAdapter::onStepText(QString text)
+{
+    if (m_stepText != text)
+    {
+        m_stepText = std::move(text);
+        m_listener->onToolProgress(m_percentage, m_stepText);
+    }
+}
+
 PDFDocumentTool::~PDFDocumentTool() = default;
 
 const PDFDocumentToolCatalogEntry* PDFDocumentTool::getInfo() const
@@ -237,6 +324,7 @@ std::vector<PDFDocumentToolParameterError> PDFDocumentTool::validate(const PDFDo
     Q_UNUSED(parameters);
 
     std::vector<PDFDocumentToolParameterError> errors;
+    const PDFDocumentToolCatalogEntry* info = getInfo();
     for (const PDFDocumentToolInputDocument& document : context.documents)
     {
         if (!document.document)
@@ -244,9 +332,14 @@ std::vector<PDFDocumentToolParameterError> PDFDocumentTool::validate(const PDFDo
             errors.push_back({ QString(), PDFDocumentToolHelper::tr("An input document is missing.") });
             return errors;
         }
+
+        if (info && !info->isPermitted(document.document.data()))
+        {
+            errors.push_back({ QString(), PDFDocumentToolHelper::tr("The permissions of the document do not allow this tool.") });
+            return errors;
+        }
     }
 
-    const PDFDocumentToolCatalogEntry* info = getInfo();
     switch (info ? info->getInputKind() : PDFDocumentToolInputKind::One)
     {
         case PDFDocumentToolInputKind::None:
@@ -269,11 +362,12 @@ std::vector<PDFDocumentToolParameterError> PDFDocumentTool::validate(const PDFDo
     return errors;
 }
 
-PDFDocumentToolResult PDFDocumentTool::computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control) const
+PDFDocumentToolResult PDFDocumentTool::computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const
 {
     Q_UNUSED(context);
     Q_UNUSED(parameters);
     Q_UNUSED(control);
+    Q_UNUSED(progress);
     return PDFDocumentToolResult();
 }
 
@@ -347,7 +441,7 @@ PDFDocumentToolResult PDFDocumentTool::run(const PDFDocumentToolContext& context
     return result;
 }
 
-PDFDocumentToolResult PDFDocumentTool::runPreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control) const
+PDFDocumentToolResult PDFDocumentTool::runPreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const
 {
     PDFDocumentToolResult result;
     try
@@ -364,7 +458,7 @@ PDFDocumentToolResult PDFDocumentTool::runPreview(const PDFDocumentToolContext& 
             return PDFDocumentToolResult::createStopped();
         }
 
-        result = computePreview(context, normalizedParameters, control);
+        result = computePreview(context, normalizedParameters, control, progress);
     }
     catch (const PDFException& exception)
     {
@@ -384,8 +478,19 @@ PDFDocumentToolResult PDFDocumentTool::runPreview(const PDFDocumentToolContext& 
         return PDFDocumentToolResult::createStopped();
     }
 
+    if (isPreviewFinal())
+    {
+        // The preview is the result: the same checks as a run
+        if (!PDFDocumentToolHelper::isConsistent(result, context))
+        {
+            return PDFDocumentToolResult::createFailed(PDFDocumentToolHelper::tr("The tool returned an invalid result."));
+        }
+        return result;
+    }
+
     // A preview has facts only
     result.documents.clear();
+    result.outputs.clear();
     result.writtenFiles.clear();
     return result;
 }

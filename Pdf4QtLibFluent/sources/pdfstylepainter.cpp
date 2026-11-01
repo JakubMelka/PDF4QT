@@ -410,6 +410,77 @@ void PDFStylePainter::icon(QPainter* painter, const QRectF& rect, const QString&
     PDFThemeIcons::paint(painter, rect, name, PDFStylePainter::color(color));
 }
 
+void PDFStylePainter::indicator(QPainter* painter, const QRectF& rect, IndicatorKind kind, const IndicatorState& state)
+{
+    using Color = PDFThemeColors::Color;
+
+    if (!painter)
+    {
+        return;
+    }
+
+    const bool isRadio = kind == IndicatorKind::RadioButton;
+    const Radii radii(isRadio ? 9.0 : 5.0);
+    const bool isChecked = state.on || state.partial;
+
+    if (!isChecked)
+    {
+        // Hover and pressed lay the translucent overlay over the surface of the box,
+        // so the box keeps its own surface also on a colored background
+        const bool isActive = state.enabled && (state.hover || state.pressed);
+        fill(painter, rect, radii, state.enabled ? Color::BgSurface : Color::BgMuted);
+        if (isActive)
+        {
+            fill(painter, rect, radii, state.pressed ? Color::BgPressed : Color::BgHover);
+        }
+
+        if (!state.enabled)
+        {
+            strokeInside(painter, rect, radii, Color::BorderDefault, 1.5);
+        }
+        else if (state.focusVisible)
+        {
+            // Unchecked indicator has the focus ring inside of its box
+            strokeInside(painter, rect, radii, Color::BorderFocus, 2.0);
+        }
+        else if (isActive)
+        {
+            strokeInside(painter, rect, radii, Color::IconMuted, 1.5);
+        }
+        else
+        {
+            // The radio button at rest has a thinner border
+            strokeInside(painter, rect, radii, Color::BorderStrong, isRadio ? 1.0 : 1.5);
+        }
+        return;
+    }
+
+    Color fillColor = Color::BgAccent;
+    if (!state.enabled)
+    {
+        fillColor = Color::BorderStrong;
+    }
+    else if (state.pressed)
+    {
+        fillColor = Color::BgAccentPressed;
+    }
+    else if (state.hover)
+    {
+        fillColor = Color::BgAccentHover;
+    }
+
+    fill(painter, rect, radii, fillColor);
+
+    if (isRadio)
+    {
+        fillEllipse(painter, centered(rect, QSizeF(8.0, 8.0)), PDFStylePainter::color(Color::IconOnAccent));
+    }
+    else
+    {
+        icon(painter, centered(rect, QSizeF(12.0, 12.0)), state.partial ? QStringLiteral("minus") : QStringLiteral("check"), Color::IconOnAccent);
+    }
+}
+
 void PDFStylePainter::text(QPainter* painter, const QRectF& rect, int flags, const QString& text, const QFont& font, const QColor& color)
 {
     if (!painter || text.isEmpty())

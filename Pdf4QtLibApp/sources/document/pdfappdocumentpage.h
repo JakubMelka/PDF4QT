@@ -58,6 +58,7 @@ public:
 
     virtual bool setRoute(const PDFAppRoute& route) override;
     virtual QString getTitle() const override;
+    virtual QString getHelpTopic() const override;
     virtual bool hasSearchHeader() const override;
 
     /// Delay of the writing of the route
@@ -67,13 +68,21 @@ public:
     PDFAppDocumentTab* getDocumentTab() const;
 
     /// Route of the current state of the view (page, panel, search text)
-    PDFAppRoute getCurrentRoute() const;
+    virtual PDFAppRoute getCurrentRoute() const;
 
     /// Writes the current state of the view into the route now (the debounced write)
     void updateRoute();
 
+protected:
+    /// The route is a route of this page (the route table has validated its segments):
+    /// false = Page Not Found. The default: /document/{id} of the document of the tab.
+    virtual bool isRouteOfPage(const PDFAppRoute& route) const;
+
+    /// Applies the route to the view, when the document is shown: at setRoute or later
+    /// (the opening of a file, the password). A slot may delete the page.
+    virtual void applyRoute();
+
 private:
-    void applyRoute();
     void onDocumentStateChanged();
     void onViewChanged();
 

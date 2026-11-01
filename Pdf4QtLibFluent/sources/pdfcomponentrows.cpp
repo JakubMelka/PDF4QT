@@ -30,6 +30,7 @@
 #include <QAccessible>
 #include <QApplication>
 #include <QButtonGroup>
+#include <QCheckBox>
 #include <QClipboard>
 #include <QContextMenuEvent>
 #include <QEvent>
@@ -1197,6 +1198,406 @@ protected:
 private:
     Action m_action;
 };
+
+/// Check box of a tile row: a slot of \p PDFTileRow::checkBoxToggled may delete the
+/// row. QCheckBox::nextCheckState uses its data after the emission of toggled by a
+/// click (Qt guards only QAbstractButton), so the rest of it is guarded here.
+class PDFTileRowCheckBox : public QCheckBox
+{
+public:
+    using QCheckBox::QCheckBox;
+
+protected:
+    virtual void nextCheckState() override
+    {
+        if (isTristate())
+        {
+            QCheckBox::nextCheckState();
+            return;
+        }
+
+        const QPointer<PDFTileRowCheckBox> guard(this);
+        QAbstractButton::nextCheckState();
+        if (guard)
+        {
+            QCheckBox::checkStateSet();
+        }
+    }
+};
+
+PDFTileRow::PDFTileRow(QWidget* parent) :
+    BaseClass(parent)
+{
+    // The height follows the width, the description of an item wraps
+    QSizePolicy policy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    policy.setHeightForWidth(true);
+    setSizePolicy(policy);
+    setTrailingMargins(QMargins(0, 0, PDFComponentPainter::getTileRowTrailingMargin(m_row.kind), 0));
+    setClickable(true);
+}
+
+PDFTileRow::PDFTileRow(const QString& title, const QString& description, const QString& iconName, Kind kind, QWidget* parent) :
+    PDFTileRow(parent)
+{
+    setTitle(title);
+    setDescription(description);
+    setIconName(iconName);
+    setKind(kind);
+}
+
+void PDFTileRow::setTitle(const QString& title)
+{
+    setText(title);
+    updateNestedTexts();
+}
+
+void PDFTileRow::setDescription(const QString& description)
+{
+    if (m_row.description != description)
+    {
+        m_row.description = description;
+        invalidateHeight();
+        announceDescription();
+    }
+}
+
+void PDFTileRow::setKind(Kind kind)
+{
+    kind = PDFComponentPainter::normalized(kind);
+    if (m_row.kind != kind)
+    {
+        m_row.kind = kind;
+        setTrailingMargins(QMargins(0, 0, PDFComponentPainter::getTileRowTrailingMargin(kind), 0));
+        invalidateHeight();
+        layoutTrailingWidgets();
+    }
+}
+
+void PDFTileRow::setTone(Tone tone)
+{
+    tone = PDFComponentPainter::normalized(tone);
+    if (m_row.tone != tone)
+    {
+        m_row.tone = tone;
+        update();
+    }
+}
+
+void PDFTileRow::setIconName(const QString& iconName)
+{
+    if (m_row.iconName != iconName)
+    {
+        m_row.iconName = iconName;
+        update();
+    }
+}
+
+void PDFTileRow::setTileText(const QString& tileText)
+{
+    if (m_row.tileText != tileText)
+    {
+        m_row.tileText = tileText;
+        update();
+    }
+}
+
+void PDFTileRow::setTag(const QString& tag)
+{
+    if (m_row.tag != tag)
+    {
+        m_row.tag = tag;
+        invalidateHeight();
+        announceDescription();
+    }
+}
+
+void PDFTileRow::setTitleKind(TextKind kind)
+{
+    if (m_row.titleKind != kind)
+    {
+        m_row.titleKind = kind;
+        update();
+    }
+}
+
+void PDFTileRow::setDescriptionKind(TextKind kind)
+{
+    if (m_row.descriptionKind != kind)
+    {
+        m_row.descriptionKind = kind;
+        update();
+    }
+}
+
+void PDFTileRow::setDescriptionColor(PDFThemeColors::Color color)
+{
+    if (static_cast<int>(color) < 0 || static_cast<int>(color) >= static_cast<int>(PDFThemeColors::ColorCount))
+    {
+        resetDescriptionColor();
+        return;
+    }
+
+    if (m_row.descriptionColor != color)
+    {
+        m_row.descriptionColor = color;
+        update();
+    }
+}
+
+void PDFTileRow::resetDescriptionColor()
+{
+    if (m_row.descriptionColor.has_value())
+    {
+        m_row.descriptionColor.reset();
+        update();
+    }
+}
+
+void PDFTileRow::setEndIcon(const QString& iconName, PDFThemeColors::Color color)
+{
+    if (static_cast<int>(color) < 0 || static_cast<int>(color) >= static_cast<int>(PDFThemeColors::ColorCount))
+    {
+        color = PDFThemeColors::IconAccent;
+    }
+
+    if (m_row.endIconName != iconName || m_row.endIconColor != color)
+    {
+        m_row.endIconName = iconName;
+        m_row.endIconColor = color;
+        invalidateHeight();
+    }
+}
+
+void PDFTileRow::setLinkText(const QString& linkText)
+{
+    // The same text brings back a link deleted or hidden by the application
+    if (m_linkText == linkText && (linkText.isEmpty() || isNestedShown(m_link.data())))
+    {
+        return;
+    }
+
+    m_linkText = linkText;
+    if (!m_link && !linkText.isEmpty())
+    {
+        PDFTextLink* link = new PDFTextLink(this);
+        m_link = link;
+        connect(link, &PDFTextLink::clicked, this, &PDFTileRow::linkClicked);
+        addTrailingWidget(link);
+    }
+
+    if (m_link)
+    {
+        m_link->setText(linkText);
+        m_link->setVisible(!linkText.isEmpty());
+    }
+
+    updateNestedTexts();
+    invalidateHeight();
+}
+
+bool PDFTileRow::isCheckBoxVisible() const
+{
+    return isNestedShown(m_checkBox.data());
+}
+
+void PDFTileRow::setCheckBoxVisible(bool isVisible)
+{
+    if (isVisible && !m_checkBox)
+    {
+        // A click on the check box, also a disabled one (a disabled button of Qt takes the mouse), is not a click on the row
+        QCheckBox* checkBox = new PDFTileRowCheckBox(this);
+        m_checkBox = checkBox;
+        checkBox->installEventFilter(this);
+        connect(checkBox, &QCheckBox::toggled, this, &PDFTileRow::onCheckBoxToggled);
+        updateNestedTexts();
+    }
+
+    if (m_checkBox)
+    {
+        m_checkBox->setVisible(isVisible);
+    }
+    layoutTrailingWidgets();
+    invalidateHeight();
+}
+
+bool PDFTileRow::isCheckBoxChecked() const
+{
+    return m_checkBox && m_checkBox->isChecked();
+}
+
+void PDFTileRow::setCheckBoxChecked(bool isChecked)
+{
+    if (m_checkBox)
+    {
+        m_checkBox->setChecked(isChecked);
+    }
+}
+
+bool PDFTileRow::isCheckBoxEnabled() const
+{
+    return m_checkBox && m_checkBox->isEnabledTo(this);
+}
+
+void PDFTileRow::setCheckBoxEnabled(bool isEnabled)
+{
+    if (m_checkBox)
+    {
+        m_checkBox->setEnabled(isEnabled);
+    }
+}
+
+void PDFTileRow::setClickable(bool isClickable)
+{
+    if (m_isClickable == isClickable)
+    {
+        return;
+    }
+
+    m_isClickable = isClickable;
+    setFocusPolicy(isClickable ? Qt::StrongFocus : Qt::NoFocus);
+    setAttribute(Qt::WA_Hover, isClickable);
+
+    if (!isClickable)
+    {
+        setDown(false);
+
+        // A text takes no focus
+        if (hasFocus())
+        {
+            clearFocus();
+        }
+    }
+    update();
+}
+
+QCheckBox* PDFTileRow::getCheckBox() const
+{
+    return m_checkBox.data();
+}
+
+PDFTextLink* PDFTileRow::getLink() const
+{
+    return m_link.data();
+}
+
+PDFComponentPainter::TileRow PDFTileRow::getContent() const
+{
+    PDFComponentPainter::TileRow row = m_row;
+    row.title = text();
+    row.chosen = isCheckable() && isChecked();
+    row.paintNested = false;
+
+    // Nested widgets deleted or hidden by the application give their place to the texts
+    const QCheckBox* checkBox = m_checkBox.data();
+    row.checkBoxVisible = isNestedShown(checkBox);
+    row.checkBoxChecked = row.checkBoxVisible && checkBox->isChecked();
+    row.checkBoxEnabled = row.checkBoxVisible && checkBox->isEnabled();
+    row.linkText = isNestedShown(m_link.data()) ? m_linkText : QString();
+    return row;
+}
+
+void PDFTileRow::paintContent(QPainter* painter, const QRect& rect, const PDFComponentPainter::State& state) const
+{
+    PDFComponentPainter::paintTileRow(painter, QRectF(rect), getContent(), state);
+}
+
+QSize PDFTileRow::getContentSizeHint() const
+{
+    return PDFComponentPainter::getTileRowSize(getContent());
+}
+
+QSize PDFTileRow::getContentMinimumSizeHint() const
+{
+    return PDFComponentPainter::getTileRowMinimumSize(getContent());
+}
+
+int PDFTileRow::computeHeightForWidth(int width) const
+{
+    return PDFComponentPainter::getTileRowHeight(getContent(), width);
+}
+
+QString PDFTileRow::getDefaultAccessibleDescription() const
+{
+    const QString description = joinTexts({ m_row.description, m_row.tag }, getListPattern());
+    return description.isEmpty() ? BaseClass::getDefaultAccessibleDescription() : description;
+}
+
+void PDFTileRow::layoutTrailingWidgets()
+{
+    BaseClass::layoutTrailingWidgets();
+
+    // The check box lies at the leading side, it is no trailing widget
+    if (QCheckBox* checkBox = m_checkBox.data(); isNestedShown(checkBox))
+    {
+        checkBox->setGeometry(PDFComponentPainter::getTileRowCheckBoxRect(QRectF(rect()), getContent(), getComponentState()).toRect());
+    }
+}
+
+bool PDFTileRow::event(QEvent* event)
+{
+    const bool result = BaseClass::event(event);
+
+    // The check box has been deleted or moved to another parent: the row gives its place back
+    if (event->type() == QEvent::ChildRemoved)
+    {
+        invalidateHeight();
+    }
+
+    return result;
+}
+
+bool PDFTileRow::eventFilter(QObject* watched, QEvent* event)
+{
+    if (m_checkBox.isObject(watched))
+    {
+        switch (event->type())
+        {
+            case QEvent::ShowToParent:
+            case QEvent::HideToParent:
+            case QEvent::ParentChange:
+                invalidateHeight();
+                break;
+
+            case QEvent::EnabledChange:
+                update();
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    return BaseClass::eventFilter(watched, event);
+}
+
+void PDFTileRow::updateNestedTexts()
+{
+    // The nested widgets name their row: "Undo, Page 9"
+    if (QCheckBox* checkBox = m_checkBox.data())
+    {
+        checkBox->setAccessibleName(text());
+    }
+    if (PDFTextLink* link = m_link.data())
+    {
+        link->setAccessibleName(joinTexts({ m_linkText, text() }, getListPattern()));
+    }
+}
+
+void PDFTileRow::announceDescription()
+{
+    if (QAccessible::isActive())
+    {
+        QAccessibleEvent descriptionEvent(this, QAccessible::DescriptionChanged);
+        QAccessible::updateAccessibility(&descriptionEvent);
+    }
+}
+
+void PDFTileRow::onCheckBoxToggled(bool isChecked)
+{
+    // The tile and the title follow the check box
+    update();
+    Q_EMIT checkBoxToggled(isChecked);
+}
 
 PDFPropertyRow::PDFPropertyRow(QWidget* parent) :
     BaseClass(parent),

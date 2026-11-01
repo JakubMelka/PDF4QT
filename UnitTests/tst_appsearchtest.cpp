@@ -447,6 +447,7 @@ private slots:
 
     // Ctrl+Enter shows all results (owner decision of 2026-10-24)
     void popupControlEnter();
+    void popupHelpKey();
     void popupFooterHints();
     void pageKeyboardShowAll();
 };
@@ -3974,6 +3975,28 @@ void AppSearchTest::pageDeletedByRouteReplaced()
     QVERIFY(!page);
     QCOMPARE(titleChanges, 0);
     SearchFixture::settle();
+}
+
+void AppSearchTest::popupHelpKey()
+{
+    // F1 in the field of the header with the popup open: the topic of the page below it,
+    // the popup (a child of the window) does not stay over the manual
+    SearchFixture fixture;
+    fixture.navigate(QStringLiteral("/recent"));
+    fixture.type(QStringLiteral("sign"));
+    QVERIFY(fixture.controller()->isPopupOpen());
+    pdf::PDFAppTab* home = fixture.homeTab();
+    pdf::PDFAppSearchController* controller = fixture.controller();
+    pdf::PDFAppSearchPopup* popup = fixture.popup();
+
+    QTest::keyClick(fixture.field(), Qt::Key_F1);
+    fixture.settle();
+    QVERIFY(fixture.window->findHelpTab());
+    QCOMPARE(fixture.currentTab(), fixture.window->findHelpTab());
+    QCOMPARE(fixture.currentTab()->getHistory().getCurrentEntry()->route, pdf::PDFAppRoutes::help(QStringLiteral("recent-files")));
+    QVERIFY(!controller->isPopupOpen());
+    QVERIFY(!popup->isVisible());
+    QCOMPARE(home->getPage()->getRoute().getSegment(0), QStringLiteral("recent"));
 }
 
 void AppSearchTest::popupControlEnter()

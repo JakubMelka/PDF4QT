@@ -29,6 +29,8 @@
 #include "pdfappmcptoolset.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentsave.h"
+#include "pdfapptoolresultwriter.h"
+#include "pdfdocumenttoolrunner.h"
 
 #include "pdfdocumenttool.h"
 #include "pdfdocumenttoolparameter.h"
@@ -101,8 +103,8 @@ public:
     }
 };
 
-/// Adapter of PDFProgress of a tool to the progress of the call (lives in the worker thread)
-class PDFAppMcpCatalogToolProgress : public QObject
+/// Listener of the progress of a run: the progress of the call (the worker thread)
+class PDFAppMcpCatalogToolProgress : public PDFDocumentToolProgressListener
 {
 public:
     PDFAppMcpCatalogToolProgress(std::shared_ptr<PDFMcpCall> call, QString message) :
@@ -112,15 +114,20 @@ public:
 
     }
 
-    void onProgressStep(int percentage)
+    virtual void onToolProgress(int percentage, const QString& stepText) override
     {
-        if (m_call)
+        // The text of a step changes without a new percentage: no notification of
+        // the same progress
+        Q_UNUSED(stepText);
+        if (m_call && percentage != m_percentage)
         {
+            m_percentage = percentage;
             m_call->reportProgress(percentage, 100.0, m_message);
         }
     }
 
 private:
+    int m_percentage = -1;
     std::shared_ptr<PDFMcpCall> m_call;
     QString m_message;
 };
@@ -178,30 +185,14 @@ public:
                 return;
             }
 
-            PDFAppDocumentFileWriter::Request request;
-            request.document = m_outputDocument;
-            request.filePath = m_path;
-            request.version = getSnapshot().version;
-            request.markSourceFilePath = getSnapshot().filePath;
-            m_writeResult = PDFAppDocumentFileWriter::write(request);
+            // One rule of a copy for the result dialog and for an assistant (F7)
+            m_writeResult = PDFAppDocumentFileWriter::write(PDFAppToolResultWriter::createCopyRequest(m_tool->getInfo(), getSnapshot(), m_outputDocument, m_path));
             return;
         }
 
-        PDFDocumentToolContext context;
-        if (getSnapshot().isValid())
-        {
-            PDFDocumentToolInputDocument input;
-            input.document = getSnapshot().document;
-            input.originalData = getSnapshot().originalData;
-            input.fileName = QFileInfo(getSnapshot().filePath).fileName();
-            context.documents.push_back(std::move(input));
-        }
-
-        PDFProgress progress(nullptr);
-        PDFAppMcpCatalogToolProgress adapter(getCall(), QStringLiteral("Running %1").arg(getActionId()));
-        QObject::connect(&progress, &PDFProgress::progressStep, &adapter, &PDFAppMcpCatalogToolProgress::onProgressStep, Qt::DirectConnection);
-
-        m_result = m_tool->run(context, m_parameters, getCall().get(), &progress);
+        PDFAppMcpCatalogToolProgress listener(getCall(), QStringLiteral("Running %1").arg(getActionId()));
+        PDFDocumentToolProgressAdapter progress(&listener);
+        m_result = m_tool->run(PDFDocumentToolRunner::createContext(getSnapshot()), m_parameters, getCall().get(), &progress);
     }
 
     virtual void finish(PDFAppMcpHost* host) override

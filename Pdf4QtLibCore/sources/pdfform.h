@@ -505,6 +505,12 @@ public:
     /// \param reference Field reference
     static PDFForm parse(const PDFDocument* document, PDFObject object);
 
+    /// Number of the signed signature fields of the document: the fields of the type
+    /// Signature with a value. 0 for nullptr and for a damaged form (its signatures
+    /// cannot be kept). A pure function, usable from any thread.
+    /// \param document Document
+    static int getSignatureCount(const PDFDocument* document);
+
 private:
     void updateWidgetToFormFieldMapping();
 

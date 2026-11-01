@@ -303,6 +303,11 @@ QAbstractButton* PDFAppDocumentPanelPopup::getCommandButton(const QString& comma
     return it != m_commandButtons.end() ? it->second.data() : nullptr;
 }
 
+QMargins PDFAppDocumentPanelPopup::getContentPadding() const
+{
+    return QMargins(PADDING + 1, PADDING + 1, PADDING + 1, PADDING + 1);
+}
+
 void PDFAppDocumentPanelPopup::popup(QWidget* anchor, int globalTop)
 {
     if (!anchor || !anchor->isVisible())
@@ -327,8 +332,7 @@ void PDFAppDocumentPanelPopup::popup(QWidget* anchor, int globalTop)
     // The content lies inside of the border and of the padding; the window has
     // the margins of the shadow around the panel
     const QMargins margins = PDFWidgetStyle::getPopoverMargins(this);
-    const QMargins padding(PADDING + 1, PADDING + 1, PADDING + 1, PADDING + 1);
-    m_contentLayout->setContentsMargins(margins + padding);
+    m_contentLayout->setContentsMargins(margins + getContentPadding());
     m_contentLayout->activate();
 
     const int windowWidth = m_panelWidth + margins.left() + margins.right();

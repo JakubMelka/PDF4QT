@@ -148,6 +148,11 @@ QString PDFAppOpenPage::getTitle() const
     return tr("Open");
 }
 
+QString PDFAppOpenPage::getHelpTopic() const
+{
+    return QStringLiteral("open-documents");
+}
+
 QString PDFAppOpenPage::getHeaderTitle() const
 {
     return tr("Open");

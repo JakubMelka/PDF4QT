@@ -29,6 +29,7 @@
 #include "pdfaccenthue.h"
 #include "pdfcomponentdelegates.h"
 #include "pdfcomponentpainter.h"
+#include "pdfcomponentrows.h"
 #include "pdffluentwidgets.h"
 #include "pdfstylepainter.h"
 #include "pdfthemecolors.h"
@@ -705,7 +706,7 @@ void GalleryPages::addDocumentDelegates(GalleryBuilder& builder)
     Helper::specimen(builder, QStringLiteral("Right-to-left"), bookmarkSize, GalleryPages::Selected,
                      [bookmark](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintBookmarkRow(&painter, rect, bookmark, state); }, QString(), Qt::RightToLeft);
     builder.row();
-    Helper::liveViews<pdf::PDFBookmarkDelegate>(builder, &Helper::bookmarkModel, QSize(296, 3 * 46 + 5 * 2 + 16), 1, 2);
+    Helper::liveViews<pdf::PDFBookmarkDelegate>(builder, &Helper::bookmarkModel, QSize(296, 3 * 46 + 5 * 2 + 16), 1, 1);
 
     // Note row
     builder.block(QStringLiteral("Note row (PDFNoteDelegate) - Selected x State, the author text/accent when selected"), QStringLiteral("191:998"));
@@ -738,7 +739,7 @@ void GalleryPages::addDocumentDelegates(GalleryBuilder& builder)
     Helper::specimen(builder, QStringLiteral("Reply - note-row-reply (1025:21921), indented by 24 in a list"), Painter::getNoteRowSize(replyNote), GalleryPages::Default,
                      [replyNote](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintNoteRow(&painter, rect, replyNote, state); });
     builder.row();
-    Helper::liveViews<pdf::PDFNoteDelegate>(builder, &Helper::noteModel, QSize(296, 63 + 3 * 48 + 4 * 2 + 16), 0, 2);
+    Helper::liveViews<pdf::PDFNoteDelegate>(builder, &Helper::noteModel, QSize(296, 63 + 3 * 48 + 4 * 2 + 16), 0, 1);
 
     // Attachment row
     builder.block(QStringLiteral("Attachment row (PDFAttachmentDelegate) - Selected x State, the save action is an Icon button 24"), QStringLiteral("191:1045"));
@@ -762,7 +763,7 @@ void GalleryPages::addDocumentDelegates(GalleryBuilder& builder)
     Helper::specimen(builder, QStringLiteral("Right-to-left, the name elided in the middle"), attachmentSize, GalleryPages::Default,
                      [longAttachment](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintAttachmentRow(&painter, rect, longAttachment, state); }, QString(), Qt::RightToLeft);
     builder.row();
-    Helper::liveViews<pdf::PDFAttachmentDelegate>(builder, &Helper::attachmentModel, QSize(296, 2 * 48 + 4 * 2 + 16), 0, 2);
+    Helper::liveViews<pdf::PDFAttachmentDelegate>(builder, &Helper::attachmentModel, QSize(296, 2 * 48 + 4 * 2 + 16), 0, 1);
 
     // Search result row
     builder.block(QStringLiteral("Search result row (PDFSearchResultDelegate) - Selected x State, the found term Semi Bold text/primary"), QStringLiteral("191:1073"));
@@ -781,7 +782,7 @@ void GalleryPages::addDocumentDelegates(GalleryBuilder& builder)
     Helper::specimen(builder, QStringLiteral("Right-to-left"), resultSize, GalleryPages::Selected,
                      [result](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintSearchResultRow(&painter, rect, result, state); }, QString(), Qt::RightToLeft);
     builder.row();
-    Helper::liveViews<pdf::PDFSearchResultDelegate>(builder, &Helper::searchModel, QSize(296, 62 + 47 + 4 * 2 + 16), 0, 2);
+    Helper::liveViews<pdf::PDFSearchResultDelegate>(builder, &Helper::searchModel, QSize(296, 62 + 47 + 4 * 2 + 16), 0, 1);
 
     // Outline row and Certificate row: the press tracked by PDFTreeView (review
     // I-23) and the focus ring around the whole row (review F2, F4 of step 5)
@@ -883,7 +884,7 @@ void GalleryPages::addDocumentDelegates(GalleryBuilder& builder)
         sharedView->setModel(sharedModel);
         sharedModel->setParent(sharedView);
         sharedView->setItemDelegate(sharedDelegate);
-        sharedView->setSpacing(2);
+        sharedView->setSpacing(1);
         sharedView->setFixedSize(296, 63 + 48 + 4 * 2 + 16);
         sharedLayout->addWidget(sharedView);
     }
@@ -930,6 +931,348 @@ void GalleryPages::addPanelsDelegates(GalleryBuilder& builder)
     builder.row();
     Helper::liveViews<pdf::PDFFontDelegate>(builder, &Helper::fontModel, QSize(712, 2 * 48 + 16), -1, 0, true);
     builder.note(QStringLiteral("The copy icon copies the name of the font into the clipboard; Ctrl+C and the context menu of the row do the same."));
+}
+
+GalleryPages::Page GalleryPages::createToolsPage(QWidget* parent)
+{
+    using Helper = GalleryDelegatePagesHelper;
+    using Painter = pdf::PDFComponentPainter;
+    using Kind = Painter::TileRowKind;
+    using Tone = Painter::TileRowTone;
+    using Color = pdf::PDFThemeColors::Color;
+    using Roles = pdf::PDFComponentRoles;
+
+    GalleryBuilder builder(parent, QStringLiteral("25-tools"), QStringLiteral("Rows and page tiles of the tools"), QStringLiteral("tools"));
+
+    const auto makeRow = [](Kind kind, const QString& title, const QString& description, const QString& icon, pdf::PDFComponentPainter::TileRowTone tone = pdf::PDFComponentPainter::TileRowTone::Accent)
+    {
+        Painter::TileRow row;
+        row.kind = kind;
+        row.title = title;
+        row.description = description;
+        row.iconName = icon;
+        row.tone = tone;
+        return row;
+    };
+    const auto addRow = [&builder](const QString& caption, const Painter::TileRow& row, int width, int flags, Qt::LayoutDirection direction = Qt::LeftToRight, const QString& node = QString())
+    {
+        Helper::specimen(builder, caption, QSize(width, Painter::getTileRowHeight(row, width)), flags,
+                         [row](QPainter& painter, const QRectF& rect, const Painter::State& state) { Painter::paintTileRow(&painter, rect, row, state); }, node, direction);
+    };
+
+    // Items of the panels of the tool bar
+    builder.block(QStringLiteral("Tile row - item of a panel (PDFTileRow, MenuItem) 44 / 57"), QStringLiteral("438:15032"));
+    Painter::TileRow chosen = makeRow(Kind::MenuItem, QStringLiteral("All links"), QStringLiteral("16 external links"), QStringLiteral("list"));
+    chosen.chosen = true;
+    addRow(QStringLiteral("Chosen"), chosen, 302, GalleryPages::Default, Qt::LeftToRight, QStringLiteral("438:15319"));
+    const Painter::TileRow notChosen = makeRow(Kind::MenuItem, QStringLiteral("Web addresses"), QStringLiteral("14 links to http and https pages"), QStringLiteral("globe"));
+    addRow(QStringLiteral("Not chosen"), notChosen, 302, GalleryPages::Default, Qt::LeftToRight, QStringLiteral("438:15328"));
+    builder.row();
+    addRow(QStringLiteral("Hover"), notChosen, 302, GalleryPages::Hover);
+    addRow(QStringLiteral("Pressed"), notChosen, 302, GalleryPages::Hover | GalleryPages::Pressed);
+    builder.row();
+    addRow(QStringLiteral("Focus"), notChosen, 302, GalleryPages::Focus);
+    addRow(QStringLiteral("Disabled (O-08)"), chosen, 302, GalleryPages::Disabled);
+    builder.row();
+    Painter::TileRow wrapped = makeRow(Kind::MenuItem, QStringLiteral("Auto"), QStringLiteral("Structure when the document is tagged, otherwise layout"), QStringLiteral("zap"));
+    wrapped.chosen = true;
+    addRow(QStringLiteral("Chosen, two lines (57)"), wrapped, 252, GalleryPages::Default, Qt::LeftToRight, QStringLiteral("339:9462"));
+    addRow(QStringLiteral("Not chosen, two lines (57)"), makeRow(Kind::MenuItem, QStringLiteral("Layout"), QStringLiteral("Blocks of text as they are placed on the page"), QStringLiteral("layout")), 252, GalleryPages::Default, Qt::LeftToRight, QStringLiteral("339:9471"));
+    addRow(QStringLiteral("Right-to-left"), wrapped, 252, GalleryPages::Default, Qt::RightToLeft);
+    builder.row();
+
+    pdf::PDFTileRow* liveChosen = new pdf::PDFTileRow(QStringLiteral("Standard"), QStringLiteral("Everything except the invisible text"), QStringLiteral("hidden-data"), Kind::MenuItem, builder.page());
+    liveChosen->setSelectionBehavior(pdf::PDFComponentButton::SelectionBehavior::Toggle);
+    liveChosen->setChecked(true);
+    liveChosen->setFixedWidth(332);
+    builder.live(QStringLiteral("Live, a choice of more"), liveChosen, QStringLiteral("438:13080"));
+    pdf::PDFTileRow* liveFree = new pdf::PDFTileRow(QStringLiteral("Clear all"), QStringLiteral("Untick everything and choose by hand"), QStringLiteral("select-none"), Kind::MenuItem, builder.page());
+    liveFree->setFixedWidth(332);
+    builder.live(QStringLiteral("Live, an action"), liveFree, QStringLiteral("438:13112"));
+    builder.row();
+
+    // Steps
+    builder.block(QStringLiteral("Tile row - items of the panel Steps (PanelStep) 46"), QStringLiteral("303:4560"));
+    Painter::TileRow panelStep = makeRow(Kind::PanelStep, QStringLiteral("Embed (dereference) simple objects, such as int, bool, real"), QStringLiteral("Small values are written in place instead of being referenced"), QStringLiteral("embed"));
+    panelStep.chosen = true;
+    addRow(QStringLiteral("Chosen"), panelStep, 502, GalleryPages::Default, Qt::LeftToRight, QStringLiteral("313:7291"));
+    builder.row();
+    addRow(QStringLiteral("Not chosen, the place of the check mark kept"), makeRow(Kind::PanelStep, QStringLiteral("Shrink object storage (squeeze free entries)"), QStringLiteral("Objects are renumbered so no gaps remain"), QStringLiteral("hash")), 502, GalleryPages::Default, Qt::LeftToRight, QStringLiteral("313:7327"));
+    builder.row();
+
+    builder.block(QStringLiteral("Tile row - steps of the sidebar (Step) 41"), QStringLiteral("303:4405"));
+    Painter::TileRow step = makeRow(Kind::Step, QStringLiteral("Embed simple objects"), QStringLiteral("Writes small values in place"), QStringLiteral("embed"));
+    step.endIconName = QStringLiteral("check");
+    addRow(QStringLiteral("Will run"), step, 273, GalleryPages::Default, Qt::LeftToRight, QStringLiteral("319:7289"));
+    Painter::TileRow skipped = makeRow(Kind::Step, QStringLiteral("Shrink object storage"), QStringLiteral("Will be skipped"), QStringLiteral("hash"), Tone::Muted);
+    skipped.endIconName = QStringLiteral("minus");
+    skipped.endIconColor = Color::IconMuted;
+    addRow(QStringLiteral("Skipped"), skipped, 273, GalleryPages::Default, Qt::LeftToRight, QStringLiteral("319:7380"));
+    Painter::TileRow performed = makeRow(Kind::Step, QStringLiteral("Embed simple objects"), QStringLiteral("1,204 objects embedded"), QStringLiteral("embed"));
+    performed.endIconName = QStringLiteral("check-circle");
+    performed.endIconColor = Color::AccentGreenIcon;
+    performed.descriptionColor = Color::TextSecondary;
+    addRow(QStringLiteral("Performed"), performed, 273, GalleryPages::Default, Qt::LeftToRight, QStringLiteral("319:7399"));
+    builder.row();
+    pdf::PDFTileRow* liveStep = new pdf::PDFTileRow(QStringLiteral("Merge identical objects"), QStringLiteral("Stores duplicates once"), QStringLiteral("copy"), Kind::Step, builder.page());
+    liveStep->setEndIcon(QStringLiteral("check"), Color::IconAccent);
+    liveStep->setClickable(false);
+    liveStep->setFixedWidth(273);
+    builder.live(QStringLiteral("Live, not clickable"), liveStep);
+    builder.row();
+
+    // Pending changes
+    builder.block(QStringLiteral("Tile row - pending changes (Pending) 46 with a link"), QStringLiteral("389:20177"));
+    Painter::TileRow pending = makeRow(Kind::Pending, QStringLiteral("Page 9"), QStringLiteral("90\u00B0 right \u00B7 portrait \u2192 landscape"), QStringLiteral("rotate-cw"));
+    pending.linkText = QStringLiteral("Undo");
+    addRow(QStringLiteral("Rotation"), pending, 279, GalleryPages::Default, Qt::LeftToRight, QStringLiteral("389:20411"));
+    Painter::TileRow removed = makeRow(Kind::Pending, QStringLiteral("Page 4"), QStringLiteral("A4 portrait"), QString(), Tone::Danger);
+    removed.tileText = QStringLiteral("4");
+    removed.linkText = QStringLiteral("Keep");
+    addRow(QStringLiteral("Removal, a number in the tile"), removed, 279, GalleryPages::Default, Qt::LeftToRight, QStringLiteral("388:20825"));
+    addRow(QStringLiteral("Right-to-left"), removed, 279, GalleryPages::Default, Qt::RightToLeft);
+    builder.row();
+    pdf::PDFTileRow* livePending = new pdf::PDFTileRow(QStringLiteral("Page 10"), QStringLiteral("90\u00B0 right \u00B7 portrait \u2192 landscape"), QStringLiteral("rotate-cw"), Kind::Pending, builder.page());
+    livePending->setLinkText(QStringLiteral("Undo"));
+    livePending->setClickable(false);
+    livePending->setFixedWidth(279);
+    builder.live(QStringLiteral("Live with the link"), livePending, QStringLiteral("389:20411"));
+    pdf::PDFTileRow* liveRemoved = new pdf::PDFTileRow(QStringLiteral("Page 20"), QStringLiteral("A4 portrait"), QString(), Kind::Pending, builder.page());
+    liveRemoved->setTileText(QStringLiteral("20"));
+    liveRemoved->setTone(Tone::Danger);
+    liveRemoved->setLinkText(QStringLiteral("Keep"));
+    liveRemoved->setFixedWidth(279);
+    builder.live(QStringLiteral("Live, clickable"), liveRemoved, QStringLiteral("388:20825"));
+    builder.row();
+
+    // Rows of the lists with a check box
+    builder.block(QStringLiteral("Tile row - rows of a list with a check box (ListItem) 44 / 57, 49 with a tag"), QStringLiteral("438:14751"));
+    Painter::TileRow link = makeRow(Kind::ListItem, QStringLiteral("Market study 2026"), QStringLiteral("https://research.example.org/\u2026"), QStringLiteral("globe"));
+    link.titleKind = Painter::TextKind::Data;
+    link.descriptionKind = Painter::TextKind::Data;
+    link.checkBoxVisible = true;
+    link.checkBoxChecked = true;
+    addRow(QStringLiteral("Ticked"), link, 261, GalleryPages::Default);
+    addRow(QStringLiteral("Shown on the page"), link, 261, GalleryPages::Selected, Qt::LeftToRight, QStringLiteral("438:14890"));
+    Painter::TileRow kept = link;
+    kept.title = QStringLiteral("statistics.example.gov");
+    kept.description = QStringLiteral("https://statistics.example.go\u2026");
+    kept.checkBoxChecked = false;
+    addRow(QStringLiteral("Not ticked"), kept, 261, GalleryPages::Default, Qt::LeftToRight, QStringLiteral("438:14900"));
+    builder.row();
+    Painter::TileRow twoLines = link;
+    twoLines.title = QStringLiteral("jane.novak@example.com");
+    twoLines.description = QStringLiteral("mailto:jane.novak@example.com/a-longer-address");
+    twoLines.iconName = QStringLiteral("mail");
+    addRow(QStringLiteral("A long address (57)"), twoLines, 261, GalleryPages::Default, Qt::LeftToRight, QStringLiteral("438:14868"));
+    addRow(QStringLiteral("Data text, right-to-left"), twoLines, 261, GalleryPages::Default, Qt::RightToLeft);
+    addRow(QStringLiteral("Caption of a group (21)"), makeRow(Kind::Caption, QStringLiteral("Page 3"), QString(), QString()), 261, GalleryPages::Default, Qt::LeftToRight, QStringLiteral("438:14866"));
+    Painter::TileRow notFound = makeRow(Kind::ListItem, QStringLiteral("Embedded search index"), QStringLiteral("Not found in this document"), QStringLiteral("search-index"));
+    notFound.checkBoxVisible = true;
+    notFound.checkBoxEnabled = false;
+    notFound.tag = QStringLiteral("Not found");
+    addRow(QStringLiteral("A kind not found (49)"), notFound, 622, GalleryPages::Default, Qt::LeftToRight, QStringLiteral("438:12782"));
+    builder.row();
+    addRow(QStringLiteral("Without a check box, selected"), makeRow(Kind::ListItem, QStringLiteral("Jane Novak"), QStringLiteral(".pfx file \u00B7 valid until Sep 12, 2029"), QStringLiteral("key")), 276, GalleryPages::Selected, Qt::LeftToRight, QStringLiteral("434:4466"));
+    addRow(QStringLiteral("Without a check box, not selected"), makeRow(Kind::ListItem, QStringLiteral("Company ID"), QStringLiteral("System store \u00B7 valid until Mar 3, 2027"), QStringLiteral("key"), Tone::Muted), 276, GalleryPages::Default, Qt::LeftToRight, QStringLiteral("434:4476"));
+    builder.row();
+
+    pdf::PDFTileRow* liveLink = new pdf::PDFTileRow(QStringLiteral("acme-corp.example"), QStringLiteral("https://www.acme-corp.example\u2026"), QStringLiteral("globe"), Kind::ListItem, builder.page());
+    liveLink->setCheckBoxVisible(true);
+    liveLink->setCheckBoxChecked(true);
+    liveLink->setSelectionBehavior(pdf::PDFComponentButton::SelectionBehavior::Toggle);
+    liveLink->setTitleKind(Painter::TextKind::Data);
+    liveLink->setDescriptionKind(Painter::TextKind::Data);
+    liveLink->setFixedWidth(261);
+    builder.live(QStringLiteral("Live with the check box"), liveLink, QStringLiteral("438:14868"));
+    pdf::PDFTileRow* liveKind = new pdf::PDFTileRow(QStringLiteral("Embedded search index"), QStringLiteral("Not found in this document"), QStringLiteral("search-index"), Kind::ListItem, builder.page());
+    liveKind->setCheckBoxVisible(true);
+    liveKind->setCheckBoxEnabled(false);
+    liveKind->setTag(QStringLiteral("Not found"));
+    liveKind->setFixedWidth(622);
+    builder.live(QStringLiteral("Live, the check box disabled alone"), liveKind, QStringLiteral("438:12782"));
+    builder.row();
+
+    // Results
+    builder.block(QStringLiteral("Tile row - results (Result) 44, a tile of 26"), QStringLiteral("438:14342"));
+    Painter::TileRow result = makeRow(Kind::Result, QStringLiteral("Document info"), QStringLiteral("Document info was removed"), QStringLiteral("info"), Tone::Muted);
+    result.endIconName = QStringLiteral("check-circle");
+    result.endIconColor = Color::AccentGreenIcon;
+    addRow(QStringLiteral("Removed"), result, 273, GalleryPages::Default, Qt::LeftToRight, QStringLiteral("438:14577"));
+    builder.row();
+
+    // A long list of the rows from a model
+    builder.block(QStringLiteral("PDFTileRowDelegate - lists of thousands of rows"), QStringLiteral("438:14751"));
+    const auto createLinkModel = []()
+    {
+        QStandardItemModel* model = new QStandardItemModel();
+        struct Row
+        {
+            const char* title;
+            const char* address;
+            const char* icon;
+            bool checked;
+        };
+        static constexpr Row rows[] =
+        {
+            { "Page 3", nullptr, nullptr, false },
+            { "acme-corp.example", "https://www.acme-corp.example/a-longer-address/of-the-link", "globe", true },
+            { "jane.novak@example.com", "mailto:jane.novak@example.com", "mail", true },
+            { "Page 12", nullptr, nullptr, false },
+            { "Market study 2026", "https://research.example.org/\xE2\x80\xA6", "globe", true },
+            { "statistics.example.gov", "https://statistics.example.go\xE2\x80\xA6", "globe", false }
+        };
+        for (const Row& row : rows)
+        {
+            QStandardItem* item = new QStandardItem(QString::fromUtf8(row.title));
+            if (!row.address)
+            {
+                // A caption of a group: no item for the selection and the keyboard
+                item->setData(int(Kind::Caption), Roles::TileRowKindRole);
+                item->setFlags(Qt::NoItemFlags);
+                model->appendRow(item);
+                continue;
+            }
+            item->setData(QString::fromUtf8(row.address), Roles::SubtitleRole);
+            item->setData(QString::fromLatin1(row.icon), Roles::IconNameRole);
+            item->setCheckable(true);
+            item->setCheckState(row.checked ? Qt::Checked : Qt::Unchecked);
+            item->setEditable(false);
+            model->appendRow(item);
+        }
+        return model;
+    };
+    const auto createPendingModel = []()
+    {
+        QStandardItemModel* model = new QStandardItemModel();
+        for (const int page : { 4, 5, 6, 20 })
+        {
+            QStandardItem* item = new QStandardItem(QStringLiteral("Page %1").arg(page));
+            item->setData(QStringLiteral("A4 portrait"), Roles::SubtitleRole);
+            item->setData(QString::number(page), Roles::TileTextRole);
+            item->setData(int(Tone::Danger), Roles::TileToneRole);
+            item->setData(QStringLiteral("Keep"), Roles::LinkTextRole);
+            item->setEditable(false);
+            model->appendRow(item);
+        }
+        return model;
+    };
+
+    QWidget* page = builder.page();
+    const auto createRowView = [page](Kind kind, QStandardItemModel* model, QSize size, Qt::LayoutDirection direction, bool isEnabled, int selectedRow)
+    {
+        pdf::PDFTileRowDelegate* delegate = new pdf::PDFTileRowDelegate();
+        delegate->setKind(kind);
+        delegate->setTitleKind(Painter::TextKind::Data);
+        delegate->setDescriptionKind(Painter::TextKind::Data);
+        delegate->setClickable(kind != Kind::Pending);
+        QListView* view = Helper::createListView(page, delegate, model, size, 1);
+        view->setLayoutDirection(direction);
+        view->setEnabled(isEnabled);
+        if (selectedRow >= 0)
+        {
+            Helper::selectRow(view, selectedRow);
+        }
+        return view;
+    };
+    builder.live(QStringLiteral("Live links (ListItem)"), createRowView(Kind::ListItem, createLinkModel(), QSize(285, 290), Qt::LeftToRight, true, 4));
+    builder.live(QStringLiteral("Live right-to-left"), createRowView(Kind::ListItem, createLinkModel(), QSize(285, 290), Qt::RightToLeft, true, 4));
+    builder.live(QStringLiteral("Live disabled (O-08)"), createRowView(Kind::ListItem, createLinkModel(), QSize(285, 290), Qt::LeftToRight, false, 4));
+    builder.live(QStringLiteral("Live pending changes (Pending)"), createRowView(Kind::Pending, createPendingModel(), QSize(300, 216), Qt::LeftToRight, true, -1));
+    builder.row();
+
+    // Page tiles
+    const auto addTile = [&builder](const QString& caption, const Painter::PageTile& tile, int flags, Qt::LayoutDirection direction = Qt::LeftToRight, const QString& node = QString())
+    {
+        builder.specimen(caption, Painter::getPageTileSize(tile), [tile, flags, direction](QPainter& painter, const QRect& rect)
+        {
+            const qreal margin = GallerySpecimen::MARGIN;
+            pdf::PDFStylePainter::fillRect(&painter, QRectF(rect).adjusted(-margin, -margin, margin, margin), Color::BgTrack);
+            Painter::paintPageTile(&painter, QRectF(rect), tile, Helper::state(flags, direction));
+        }, node);
+    };
+
+    builder.block(QStringLiteral("Page tile (PDFPageTileDelegate) - Rotate 116 x 132, the selected one 118 x 150"), QStringLiteral("389:20177"));
+    Painter::PageTile normal;
+    normal.label = QStringLiteral("8");
+    normal.pixmap = Helper::createPagePicture(0);
+    addTile(QStringLiteral("Normal"), normal, GalleryPages::Default);
+    addTile(QStringLiteral("Hover"), normal, GalleryPages::Hover);
+    addTile(QStringLiteral("Pressed"), normal, GalleryPages::Hover | GalleryPages::Pressed);
+    addTile(QStringLiteral("Focus"), normal, GalleryPages::Focus);
+    addTile(QStringLiteral("Disabled (O-08)"), normal, GalleryPages::Disabled);
+    builder.row();
+    Painter::PageTile selected;
+    selected.label = QStringLiteral("9");
+    selected.caption = QStringLiteral("90\u00B0 right");
+    selected.badgeIconName = QStringLiteral("rotate-cw");
+    selected.tileState = Painter::PageTileState::Selected;
+    selected.pixmap = Helper::createPagePicture(0).transformed(QTransform().rotate(90));
+    addTile(QStringLiteral("Selected, turned"), selected, GalleryPages::Default, Qt::LeftToRight, QStringLiteral("389:20177"));
+    addTile(QStringLiteral("Selected Hover"), selected, GalleryPages::Hover);
+    addTile(QStringLiteral("Selected Pressed"), selected, GalleryPages::Hover | GalleryPages::Pressed);
+    addTile(QStringLiteral("Selected Focus"), selected, GalleryPages::Focus);
+    addTile(QStringLiteral("Selected right-to-left"), selected, GalleryPages::Default, Qt::RightToLeft);
+    builder.row();
+
+    builder.block(QStringLiteral("Page tile - Remove 94 x 140, the marked one 94 x 156"), QStringLiteral("388:20614"));
+    Painter::PageTile removeNormal;
+    removeNormal.label = QStringLiteral("3");
+    removeNormal.slotSize = QSize(82, 112);
+    removeNormal.pixmap = Helper::createPagePicture(1);
+    addTile(QStringLiteral("Normal"), removeNormal, GalleryPages::Default);
+    Painter::PageTile marked = removeNormal;
+    marked.label = QStringLiteral("4");
+    marked.caption = QStringLiteral("will be removed");
+    marked.badgeIconName = QStringLiteral("trash");
+    marked.tileState = Painter::PageTileState::Marked;
+    addTile(QStringLiteral("Marked"), marked, GalleryPages::Default, Qt::LeftToRight, QStringLiteral("388:20614"));
+    addTile(QStringLiteral("Marked Hover"), marked, GalleryPages::Hover);
+    addTile(QStringLiteral("Marked right-to-left"), marked, GalleryPages::Default, Qt::RightToLeft);
+    Painter::PageTile placeholder = removeNormal;
+    placeholder.pixmap = QPixmap();
+    placeholder.pageSize = QSizeF(842, 595);
+    addTile(QStringLiteral("No picture yet, landscape"), placeholder, GalleryPages::Default);
+    builder.row();
+
+    const auto createTileView = [page](const QSize& slot, const std::vector<int>& states, QSize size)
+    {
+        QStandardItemModel* model = new QStandardItemModel();
+        int number = 1;
+        for (const int state : states)
+        {
+            QStandardItem* item = new QStandardItem(QString::number(number++));
+            item->setData(Helper::createPagePicture(number % 2), Roles::PixmapRole);
+            item->setData(state, Roles::PageTileStateRole);
+            if (state == int(Painter::PageTileState::Selected))
+            {
+                item->setData(QStringLiteral("90\u00B0 right"), Roles::SubtitleRole);
+                item->setData(QStringLiteral("rotate-cw"), Roles::StateIconRole);
+            }
+            else if (state == int(Painter::PageTileState::Marked))
+            {
+                item->setData(QStringLiteral("will be removed"), Roles::SubtitleRole);
+                item->setData(QStringLiteral("trash"), Roles::StateIconRole);
+            }
+            item->setEditable(false);
+            model->appendRow(item);
+        }
+
+        pdf::PDFPageTileDelegate* delegate = new pdf::PDFPageTileDelegate();
+        delegate->setSlotSize(slot);
+        QListView* view = Helper::createListView(page, delegate, model, size, 6);
+        view->setViewMode(QListView::IconMode);
+        view->setMovement(QListView::Static);
+        view->setWrapping(true);
+        view->setResizeMode(QListView::Adjust);
+        view->setSelectionMode(QAbstractItemView::ExtendedSelection);
+        return view;
+    };
+    builder.live(QStringLiteral("Live, Rotate"), createTileView(QSize(104, 104), { 0, 0, 1, 0, 1, 0 }, QSize(400, 320)));
+    builder.live(QStringLiteral("Live, Remove"), createTileView(QSize(82, 112), { 0, 2, 2, 0, 0, 0, 2, 0 }, QSize(420, 340)));
+    builder.note(QStringLiteral("The rendered page comes from the model, the delegate never asks for it while it computes a size. The state of a tile is a role of the model."));
+
+    return builder.finish();
 }
 
 }   // namespace pdffluentgallery

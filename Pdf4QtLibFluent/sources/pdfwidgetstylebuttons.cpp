@@ -829,66 +829,17 @@ void PDFWidgetStyleButtons::drawButtonLabel(const QStyleOptionButton* option, QP
 void PDFWidgetStyleButtons::drawIndicator(const QStyleOption* option, QPainter* painter, const QWidget* widget, bool isRadio) const
 {
     const PDFStyleState state = m_impl->getState(option, widget);
-    const QRectF rect = PDFStylePainter::centered(QRectF(option->rect), QSizeF(INDICATOR, INDICATOR));
-    const Radii radii(isRadio ? 9.0 : 5.0);
-    const bool isChecked = state.on || state.partial;
 
-    if (!isChecked)
-    {
-        // Hover and pressed lay the translucent overlay over the surface of the box,
-        // so the box keeps its own surface also on a colored background
-        const bool isActive = state.enabled && (state.hover || state.pressed);
-        PDFStylePainter::fill(painter, rect, radii, state.enabled ? Color::BgSurface : Color::BgMuted);
-        if (isActive)
-        {
-            PDFStylePainter::fill(painter, rect, radii, state.pressed ? Color::BgPressed : Color::BgHover);
-        }
+    PDFStylePainter::IndicatorState indicatorState;
+    indicatorState.enabled = state.enabled;
+    indicatorState.hover = state.hover;
+    indicatorState.pressed = state.pressed;
+    indicatorState.focusVisible = state.focusVisible;
+    indicatorState.on = state.on;
+    indicatorState.partial = state.partial;
 
-        if (!state.enabled)
-        {
-            PDFStylePainter::strokeInside(painter, rect, radii, Color::BorderDefault, 1.5);
-        }
-        else if (state.focusVisible)
-        {
-            // Unchecked indicator has the focus ring inside of its box
-            PDFStylePainter::strokeInside(painter, rect, radii, Color::BorderFocus, 2.0);
-        }
-        else if (isActive)
-        {
-            PDFStylePainter::strokeInside(painter, rect, radii, Color::IconMuted, 1.5);
-        }
-        else
-        {
-            // The radio button at rest has a thinner border
-            PDFStylePainter::strokeInside(painter, rect, radii, Color::BorderStrong, isRadio ? 1.0 : 1.5);
-        }
-        return;
-    }
-
-    Color fill = Color::BgAccent;
-    if (!state.enabled)
-    {
-        fill = Color::BorderStrong;
-    }
-    else if (state.pressed)
-    {
-        fill = Color::BgAccentPressed;
-    }
-    else if (state.hover)
-    {
-        fill = Color::BgAccentHover;
-    }
-
-    PDFStylePainter::fill(painter, rect, radii, fill);
-
-    if (isRadio)
-    {
-        PDFStylePainter::fillEllipse(painter, PDFStylePainter::centered(rect, QSizeF(8.0, 8.0)), PDFWidgetStyleImpl::color(Color::IconOnAccent));
-    }
-    else
-    {
-        PDFStylePainter::icon(painter, PDFStylePainter::centered(rect, QSizeF(12.0, 12.0)), state.partial ? QStringLiteral("minus") : QStringLiteral("check"), Color::IconOnAccent);
-    }
+    PDFStylePainter::indicator(painter, PDFStylePainter::centered(QRectF(option->rect), QSizeF(INDICATOR, INDICATOR)),
+                               isRadio ? PDFStylePainter::IndicatorKind::RadioButton : PDFStylePainter::IndicatorKind::CheckBox, indicatorState);
 }
 
 void PDFWidgetStyleButtons::drawIndicatorLabel(const QStyleOptionButton* option, QPainter* painter, const QWidget* widget) const

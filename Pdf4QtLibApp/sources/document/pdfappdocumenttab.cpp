@@ -66,6 +66,7 @@ PDFAppDocumentTab::PDFAppDocumentTab(PDFAppContext* context, QWidget* parent) :
     connect(m_document.data(), &PDFAppDocument::operationProgressChanged, this, &PDFAppDocumentTab::onDocumentProgressChanged);
     connect(m_document.data(), &PDFAppDocument::operationsChanged, this, &PDFAppDocumentTab::onDocumentTitleChanged);
     connect(m_document.data(), &PDFAppDocument::lockChanged, this, &PDFAppDocumentTab::onLockChanged);
+    connect(m_document.data(), &PDFAppDocument::userChangesSuspendedChanged, this, &PDFAppDocumentTab::onHandlerStateChanged);
     connect(m_document.data(), &PDFAppDocument::documentChanged, this, &PDFAppDocumentTab::onHandlerStateChanged);
 
     QVBoxLayout* layout = new QVBoxLayout(this);

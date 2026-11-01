@@ -292,6 +292,7 @@ PDFAppDocumentPropertiesPage::PDFAppDocumentPropertiesPage(PDFAppContext* contex
         connect(m_document.data(), &PDFAppDocument::documentChanged, this, &PDFAppDocumentPropertiesPage::onDocumentChanged);
         connect(m_document.data(), &PDFAppDocument::stateChanged, this, &PDFAppDocumentPropertiesPage::onDocumentStateChanged);
         connect(m_document.data(), &PDFAppDocument::lockChanged, this, &PDFAppDocumentPropertiesPage::onDocumentStateChanged);
+        connect(m_document.data(), &PDFAppDocument::userChangesSuspendedChanged, this, &PDFAppDocumentPropertiesPage::onDocumentStateChanged);
         connect(m_document.data(), &PDFAppDocument::operationsChanged, this, &PDFAppDocumentPropertiesPage::onDocumentStateChanged);
     }
     connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppDocumentPropertiesPage::onThemeChanged);
@@ -492,6 +493,11 @@ QString PDFAppDocumentPropertiesPage::getTitle() const
 {
     const QString title = m_document ? m_document->getTitle() : QString();
     return title.isEmpty() ? tr("Document properties") : tr("%1 – Document properties").arg(title);
+}
+
+QString PDFAppDocumentPropertiesPage::getHelpTopic() const
+{
+    return QStringLiteral("document-properties");
 }
 
 bool PDFAppDocumentPropertiesPage::hasSearchHeader() const

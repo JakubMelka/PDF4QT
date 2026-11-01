@@ -324,6 +324,11 @@ QString PDFAppSearchPage::getTitle() const
     return tr("Search results");
 }
 
+QString PDFAppSearchPage::getHelpTopic() const
+{
+    return QStringLiteral("search");
+}
+
 QString PDFAppSearchPage::getHeaderTitle() const
 {
     return tr("Search results");

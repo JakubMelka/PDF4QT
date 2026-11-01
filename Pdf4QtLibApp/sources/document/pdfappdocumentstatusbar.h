@@ -89,6 +89,16 @@ public:
     /// The page item (a Status bar item, leading after the message)
     QToolButton* getPageItem() const;
 
+    /// A click on the page item opens Go to; off (the toolbar of a tool, 291:994 - Go to
+    /// opens below the toolbar of the document) the item only shows its text
+    void setPageItemInteractive(bool isInteractive);
+
+    /// Text of the zoom item right after the page item (status-zoom 293:1415 of the
+    /// tool mode, it only shows its text; empty = the item is hidden)
+    void setZoomText(const QString& text);
+    QString getZoomText() const;
+    QToolButton* getZoomItem() const;
+
 Q_SIGNALS:
     /// The page item has been clicked
     void pageItemClicked();
@@ -102,8 +112,10 @@ private:
     QPointer<QHBoxLayout> m_layout;
     QPointer<PDFLabel> m_message;
     QPointer<QToolButton> m_pageItem;
+    QPointer<QToolButton> m_zoomItem;
     QPointer<QTimer> m_messageTimer;
     QString m_permanentMessage;
+    bool m_isPageItemInteractive = true;
     std::vector<QPointer<QWidget>> m_items;
 };
 

@@ -50,7 +50,10 @@
 #include "pdfappmcptoolset.h"
 #include "pdfapplog.h"
 #include "pdfapptab.h"
+#include "pdfapptoolundotarget.h"
 #include "pdfappundostack.h"
+#include "pdfwidgetannotation.h"
+#include "pdfwidgetformmanager.h"
 
 #include "pdfcomponentassistants.h"
 #include "pdfcomponentbuttons.h"
@@ -77,6 +80,7 @@
 #include <QToolButton>
 #include <QTemporaryDir>
 #include <QTranslator>
+#include <QSignalSpy>
 #include <QtTest>
 
 #include <filesystem>
@@ -106,6 +110,7 @@ private slots:
     void previewGhosts();
     void statusItemsAndBanner();
     void notificationBar();
+    void toolModeAssistantChanges();
     void queuedRequestsRebuild();
     void lockedBusyDialogOpen();
     void signedDocumentWarning();
@@ -133,6 +138,7 @@ private slots:
     void minimalWindow();
     void keyboardAndAccessibility();
     void dialogBlocksDocumentShortcuts();
+    void helpKeyWithConfirmDialog();
     void languageChange();
     void httpEndToEnd();
     void fixFocusBackAfterDialog();
@@ -1667,6 +1673,104 @@ void AppMcpEditTest::restrictedPermissions()
     QVERIFY(H::text(result).contains(QStringLiteral("security settings")));
 }
 
+void AppMcpEditTest::toolModeAssistantChanges()
+{
+    using H = AppMcpEditTestHelper;
+
+    /// Target of Undo of the open tool of the test
+    class ToolTarget : public pdf::PDFAppToolUndoTarget
+    {
+    public:
+        using PDFAppToolUndoTarget::PDFAppToolUndoTarget;
+
+        virtual bool canUndo() const override { return true; }
+        virtual bool canRedo() const override { return false; }
+        virtual void undo() override { ++undoCalls; }
+        virtual void redo() override { }
+
+        int undoCalls = 0;
+    };
+
+    // The changes of an assistant have their own path (plan 2.4): the read only state of the
+    // user interface during an open tool does not block them, the new version reaches the shell
+    McpEditFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    pdf::PDFAppDocumentTab* tab = fixture.openReady(pdftest::AppDocumentSamples::fullForm(fixture.folder()));
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppDocumentView* view = tab->getView();
+
+    ToolTarget target;
+    pdf::PDFAppToolModeParts parts;
+    parts.undoTarget = &target;
+    QVERIFY(view->enterToolMode(parts));
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(!view->getAnnotationController()->isAnnotationEditingAllowed());
+    QVERIFY(!view->getAnnotationController()->isFormFillingAllowed());
+    QVERIFY(!document->isEditable());
+    QSignalSpy versionSpy(document, &pdf::PDFAppDocument::documentChanged);
+
+    // An annotation, a form field and an outline item
+    std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("annotations"), H::json(R"({"action":"add","add":{"items":[{"type":"note","page":1,"point":{"x":20,"y":380}}]}})"));
+    QVERIFY(!H::isError(result));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 1);
+    QCOMPARE(document->getUndoStack()->getUndoDescription().isEmpty(), false);
+
+    result = fixture.callTool(QStringLiteral("forms"), H::json(R"({"action":"set_values","set_values":{"values":[{"name":"name","value":"Jane"}]}})"));
+    QVERIFY(!H::isError(result));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 2);
+
+    result = fixture.callTool(QStringLiteral("outline"), H::json(R"({"action":"add","add":{"title":"Assistant","page":1}})"));
+    QVERIFY(!H::isError(result));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 3);
+    QCOMPARE(versionSpy.count(), 3);
+
+    // The user interface stays read only over the new versions
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(view->isToolModeActive());
+    QVERIFY(!document->isEditable());
+    QVERIFY(view->getAnnotationManager()->isReadOnly());
+    QVERIFY(view->getFormManager()->isReadOnlyForm());
+
+    // The notification bar comes, but its Undo of the document is off: Undo acts only on the tool
+    pdf::PDFAppMcpNotificationBar* bar = fixture.ui()->findNotificationBar(document);
+    QVERIFY(bar && bar->isVisible());
+    QVERIFY(!bar->getUndoButton()->isEnabled());
+    QVERIFY(!bar->getUndoButton()->toolTip().isEmpty());
+    QTest::mouseClick(bar->getUndoButton(), Qt::LeftButton);
+    bar->undoRequested();
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 3);
+    QCOMPARE(target.undoCalls, 0);
+
+    // Show Changes is off too: its panel and selection would stay hidden by a tool, the
+    // actions of the annotations are off; the current panel and the selection are kept
+    const QString panelBefore = view->getCurrentPanelId();
+    QVERIFY(!bar->getShowChangesButton()->isEnabled());
+    QVERIFY(!bar->getShowChangesButton()->toolTip().isEmpty());
+    QTest::mouseClick(bar->getShowChangesButton(), Qt::LeftButton);
+    bar->showChangesRequested();
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(view->getCurrentPanelId(), panelBefore);
+    QVERIFY(!view->getAnnotationController()->hasAnnotationSelection());
+
+    // An open tool is no lock for the assistant either
+    result = fixture.callTool(QStringLiteral("document"), H::json(R"({"action":"get_info"})"));
+    QVERIFY(!H::isError(result));
+    QCOMPARE(H::structured(result).value(QStringLiteral("get_info")).toObject().value(QStringLiteral("isLocked")).toBool(true), false);
+
+    // After the tool the bar undoes the change of the assistant again
+    view->leaveToolMode();
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(bar->getShowChangesButton()->isEnabled());
+    QVERIFY(bar->getShowChangesButton()->toolTip().isEmpty());
+    QVERIFY(bar->getUndoButton()->isEnabled());
+    QVERIFY(bar->getUndoButton()->toolTip().isEmpty());
+    QTest::mouseClick(bar->getUndoButton(), Qt::LeftButton);
+    QTRY_COMPARE(pdftest::AppDocumentFixture::undoCount(document), 2);
+    QCOMPARE(target.undoCalls, 0);
+}
+
 void AppMcpEditTest::formsHeadless()
 {
     using H = AppMcpEditTestHelper;
@@ -3026,6 +3130,66 @@ void AppMcpEditTest::dialogBlocksDocumentShortcuts()
     QTest::keyClick(canvas, Qt::Key_Z, Qt::ControlModifier);
     pdftest::AppDocumentFixture::settle();
     QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoBefore - 1);
+}
+
+void AppMcpEditTest::helpKeyWithConfirmDialog()
+{
+    using H = AppMcpEditTestHelper;
+
+    // The dialog is modal for its tab only (958:28030: the tab strip and the window stay
+    // live), so F1 of the window opens the manual in its tab as Ctrl+Tab goes to another
+    // tab: nothing is answered, the request waits with the banner over the manual; back
+    // in the tab its dialog is there with the focus and it answers as before
+    McpEditFixture fixture;
+    QVERIFY(fixture.setPermission(pdf::PDFAppMcpPermissionKind::Edit, pdf::PDFAppMcpPermission::Ask));
+    pdf::PDFAppDocumentTab* tab = fixture.openReady(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("help.pdf"), 1));
+    QVERIFY(tab);
+    fixture.window->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(fixture.window.data()));
+    pdf::PDFAppDocument* document = tab->getDocument();
+    const quint64 version = document->getVersion();
+
+    const QJsonObject add = H::json(R"({"action":"add","add":{"items":[{"type":"note","page":1,"point":{"x":100,"y":200}}]}})");
+    std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("annotations"), add);
+    pdf::PDFAppMcpConfirmDialog* dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    const quint64 confirmationId = dialog->getConfirmationId();
+    QTRY_VERIFY(QApplication::focusWidget() && (QApplication::focusWidget() == dialog || dialog->isAncestorOf(QApplication::focusWidget())));
+
+    fixture.pressHelpKey();
+    QCOMPARE(fixture.getShownHelpTopic(), QStringLiteral("read-documents"));
+    pdf::PDFAppTab* helpTab = fixture.window->findHelpTab();
+    QVERIFY(helpTab);
+    QTRY_VERIFY(fixture.ui()->findBanner(helpTab) && fixture.ui()->findBanner(helpTab)->isVisible());
+    QVERIFY(!call->isFinished());
+    QCOMPARE(document->getVersion(), version);
+    H::saveScreenshot(fixture.window.data(), QStringLiteral("mcp-help-banner"));
+
+    // Show of the banner, back in its tab: the same request, its dialog has the focus,
+    // Esc denies it
+    QTest::mouseClick(fixture.ui()->findBanner(helpTab)->getShowButton(), Qt::LeftButton);
+    pdf::PDFAppMcpConfirmDialog* shown = nullptr;
+    QTRY_VERIFY((shown = fixture.ui()->getDialog()) != nullptr && shown->isVisible());
+    QCOMPARE(shown->getConfirmationId(), confirmationId);
+    QTRY_VERIFY(QApplication::focusWidget() && (QApplication::focusWidget() == shown || shown->isAncestorOf(QApplication::focusWidget())));
+    QTest::keyClick(QApplication::focusWidget(), Qt::Key_Escape);
+    QVERIFY(H::isError(fixture.waitResult(call)));
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(document->getVersion(), version);
+
+    // Allowed after a visit of the manual, the change is done
+    call = fixture.startCall(QStringLiteral("annotations"), add);
+    QVERIFY(fixture.waitDialog());
+    fixture.pressHelpKey();
+    QCOMPARE(fixture.getShownHelpTopic(), QStringLiteral("read-documents"));
+    fixture.window->activateTab(tab);
+    QTRY_VERIFY((shown = fixture.ui()->getDialog()) != nullptr && shown->isVisible());
+    QTRY_VERIFY(shown->getAllowButton()->isEnabled());
+    shown->getAllowButton()->click();
+    QVERIFY(!H::isError(fixture.waitResult(call)));
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(document->getVersion() != version);
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 1);
 }
 
 void AppMcpEditTest::languageChange()

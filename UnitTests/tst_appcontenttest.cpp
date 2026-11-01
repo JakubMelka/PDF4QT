@@ -360,6 +360,7 @@ private slots:
     void helpPageAnchor();
     void helpPageNavigation();
     void helpCatalogLimits();
+    void helpToolTopic();
     void helpPageCatalog();
     void helpPageContentsClicks();
 
@@ -3702,7 +3703,7 @@ void AppContentTest::helpCatalogErrors_data()
     QTest::newRow("not closed") << "topic" << "---\ntitle: T\n" << "not closed";
     QTest::newRow("unknown key") << "topic" << QString(valid).replace(QStringLiteral("order: 1"), QStringLiteral("author: x")) << "unknown key";
     QTest::newRow("duplicate key") << "topic" << QString(valid).replace(QStringLiteral("order: 1"), QStringLiteral("title: U")) << "twice";
-    QTest::newRow("unknown category") << "topic" << QString(valid).replace(QStringLiteral("category: settings"), QStringLiteral("category: tools")) << "unknown category";
+    QTest::newRow("unknown category") << "topic" << QString(valid).replace(QStringLiteral("category: settings"), QStringLiteral("category: cooking")) << "unknown category";
     QTest::newRow("bad order") << "topic" << QString(valid).replace(QStringLiteral("order: 1"), QStringLiteral("order: x")) << "order";
     QTest::newRow("related not route") << "topic" << QString(valid).replace(QStringLiteral("order: 1"), QStringLiteral("related: https://evil.com")) << "not a route";
     QTest::newRow("no title") << "topic" << QString(valid).replace(QStringLiteral("title: T"), QStringLiteral("title:")) << "no title";
@@ -4068,6 +4069,27 @@ void AppContentTest::helpPageNavigation()
     QCoreApplication::processEvents();
     QCOMPARE(fixture.currentTab(), static_cast<pdf::PDFAppTab*>(fixture.window->getHomeTab()));
     QVERIFY(qobject_cast<pdf::PDFAppHelpPage*>(helpTab->getPage()));
+}
+
+void AppContentTest::helpToolTopic()
+{
+    // The topic of a tool (the plan, chapter 5): its own one, without it the page Tools;
+    // a catalog of the test, so it does not depend on the topics written so far
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    QFile file(directory.filePath(QStringLiteral("tool-optimize-compress.md")));
+    QVERIFY(file.open(QFile::WriteOnly));
+    file.write("---\ntitle: Compress\ncategory: getting-started\norder: 1\nsummary: Summary.\n---\n## Heading\n\nText.\n");
+    file.close();
+    const pdf::PDFAppHelpCatalog catalog = pdf::PDFAppHelpCatalog::load(directory.path());
+    QVERIFY2(catalog.getErrors().isEmpty(), qPrintable(catalog.getErrors().join(QStringLiteral("\n"))));
+    QVERIFY(catalog.findTopic(QStringLiteral("tool-optimize-compress")));
+
+    const pdf::PDFDocumentToolCatalogEntry* compress = pdf::PDFDocumentToolCatalog::findTool(u"optimize.compress");
+    const pdf::PDFDocumentToolCatalogEntry* rotate = pdf::PDFDocumentToolCatalog::findTool(u"pages.rotate");
+    QVERIFY(compress && rotate);
+    QCOMPARE(catalog.getToolTopic(*compress), QStringLiteral("tool-optimize-compress"));
+    QCOMPARE(catalog.getToolTopic(*rotate), QStringLiteral("tools"));
 }
 
 void AppContentTest::helpCatalogLimits()

@@ -644,6 +644,13 @@ protected:
     /// \returns true, if image is successfully processed
     virtual bool performOriginalImagePainting(const PDFImage& image, const PDFStream* stream, PDFObjectReference reference);
 
+    /// Asks a processor before an image XObject is decoded. A processor, which needs
+    /// only the placement of the image (the graphic state is valid here), returns
+    /// false: the image is neither decoded nor painted. The default returns true.
+    /// \param stream Stream of the image
+    /// \param reference Reference of the stream (invalid for a direct stream)
+    virtual bool isOriginalImageRequired(const PDFStream* stream, PDFObjectReference reference);
+
     /// This function has to be implemented in the client drawing implementation, it should
     /// draw the image.
     /// \param image Image to be painted
@@ -1219,6 +1226,13 @@ private:
 
     /// Active structural parent key
     PDFInteger m_structuralParentKey;
+
+    /// Form XObjects being drawn (operator Do): a form drawing itself, also through
+    /// other forms, would overflow the stack
+    std::vector<PDFObjectReference> m_formStack;
+
+    /// Most form XObjects drawn inside of each other
+    static constexpr size_t MAXIMUM_FORM_NESTING = 32;
 };
 
 template<>

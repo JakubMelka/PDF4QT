@@ -231,6 +231,9 @@ private:
 
     // Frames of the page AI of step 7 (galleryaipages.cpp)
     static Page createAiPage(QWidget* parent);
+
+    // Rows and page tiles of the tools of phase 2 (gallerydelegatepages.cpp)
+    static Page createToolsPage(QWidget* parent);
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(GalleryPages::StateFlags)

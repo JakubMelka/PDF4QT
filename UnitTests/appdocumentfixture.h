@@ -179,6 +179,13 @@ public:
     /// Closes the message boxes of the window. \returns the number of closed boxes.
     int closeMessageBoxes();
 
+    /// F1 pressed as the user does: the key goes to the open popup or the focused
+    /// widget, the shortcut map of Qt decides, whether it reaches the command
+    void pressHelpKey();
+
+    /// Topic of the Help tab, when it is the current tab of the window (empty otherwise)
+    QString getShownHelpTopic() const;
+
     /// Point of the page (page coordinates of the page index \p pageIndex) in the
     /// coordinates of the draw widget of the canvas (\p ok false, when the page is
     /// not shown)

@@ -311,7 +311,7 @@ PDFAppAnnotationBar::StateKey PDFAppAnnotationBar::getStateKey() const
         return key;
     }
 
-    key.isShown = controller->hasAnnotationSelection() && !controller->isCreationTool(controller->getActiveTool());
+    key.isShown = controller->hasAnnotationSelection() && !controller->isCreationTool(controller->getActiveTool()) && !controller->isUserInterfaceSuspended();
     if (key.isShown)
     {
         const PDFAppDocument* document = controller->getDocument();

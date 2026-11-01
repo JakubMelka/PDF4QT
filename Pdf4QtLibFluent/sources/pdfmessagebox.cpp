@@ -356,7 +356,9 @@ void PDFMessageBox::setText(const QString& text)
     if (m_textLabel)
     {
         m_textLabel->setText(text);
-        m_textLabel->setVisible(!text.isEmpty());
+
+        // An own head stays the only head: the text is its accessible description
+        m_textLabel->setVisible(!text.isEmpty() && !m_hasOwnHead);
     }
     setAccessibleDescription(text);
 }

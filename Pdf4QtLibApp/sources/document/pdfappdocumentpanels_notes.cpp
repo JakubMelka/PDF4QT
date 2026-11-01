@@ -1113,7 +1113,7 @@ QMenu* PDFAppNotesPanel::createContextMenu()
 {
     const std::vector<PDFObjectReference> selection = getSelectedNotes();
     PDFAppAnnotationController* controller = getController();
-    if (selection.empty() || !m_model || !controller)
+    if (selection.empty() || !m_model || !controller || controller->isUserInterfaceSuspended())
     {
         return nullptr;
     }

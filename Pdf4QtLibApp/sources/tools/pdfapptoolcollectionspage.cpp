@@ -280,6 +280,11 @@ QString PDFAppToolCollectionsPage::getTitle() const
     return tr("Manage collections");
 }
 
+QString PDFAppToolCollectionsPage::getHelpTopic() const
+{
+    return QStringLiteral("tool-collections");
+}
+
 QString PDFAppToolCollectionsPage::getHeaderTitle() const
 {
     return tr("Manage collections");

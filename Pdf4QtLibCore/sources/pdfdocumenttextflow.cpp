@@ -26,6 +26,7 @@
 #include "pdfexecutionpolicy.h"
 #include "pdfconstants.h"
 #include "pdfcms.h"
+#include "pdfoperationcontrol.h"
 #include "pdftextlayoutgenerator.h"
 #include "pdfpagecontentprocessor.h"
 #include "pdfdbgheap.h"
@@ -133,6 +134,9 @@ public:
 
     explicit PDFStructureTreeTextExtractor(const PDFDocument* document, const PDFStructureTree* tree, Options options);
 
+    /// Sets the cancellation of perform, checked per page and per operator (optional)
+    void setOperationControl(const PDFOperationControl* operationControl) { m_operationControl = operationControl; }
+
     /// Performs text extracting algorithm. Only \p pageIndices
     /// pages are processed for text extraction.
     /// \param pageIndices Page indices
@@ -169,6 +173,7 @@ private:
     QList<PDFRenderError> m_errors;
     const PDFDocument* m_document;
     const PDFStructureTree* m_tree;
+    const PDFOperationControl* m_operationControl = nullptr;
     QStringList m_unmatchedText;
     std::map<PDFInteger, PDFStructureTreeTextSequence> m_textSequences;
     std::map<const PDFStructureItem*, TextItems> m_textForItems;
@@ -448,7 +453,7 @@ void PDFStructureTreeTextExtractor::perform(const std::vector<PDFInteger>& pageI
     auto generateTextLayout = [&, this](PDFInteger pageIndex)
     {
         const PDFCatalog* catalog = m_document->getCatalog();
-        if (!catalog->getPage(pageIndex))
+        if (!catalog->getPage(pageIndex) || PDFOperationControl::isOperationCancelled(m_operationControl))
         {
             // Invalid page index
             return;
@@ -458,6 +463,7 @@ void PDFStructureTreeTextExtractor::perform(const std::vector<PDFInteger>& pageI
         Q_ASSERT(page);
 
         PDFStructureTreeTextContentProcessor processor(PDFRenderer::IgnoreOptionalContent, page, m_document, &fontCache, &iccProfileCache, &cms, &oca, QTransform(), mqs, m_tree, &mapping, m_options);
+        processor.setOperationControl(m_operationControl);
         QList<PDFRenderError> errors = processor.processContents();
 
         QMutexLocker lock(&mutex);
@@ -697,7 +703,7 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
 
             auto generateTextLayout = [this, &items, &mutex, &fontCache, &iccProfileCache, &cms, &mqs, &oca, document, catalog](PDFInteger pageIndex)
             {
-                if (!catalog->getPage(pageIndex))
+                if (!catalog->getPage(pageIndex) || PDFOperationControl::isOperationCancelled(m_operationControl))
                 {
                     // Invalid page index
                     return;
@@ -707,6 +713,7 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
                 Q_ASSERT(page);
 
                 PDFTextLayoutGenerator generator(PDFRenderer::IgnoreOptionalContent, page, document, &fontCache, &iccProfileCache, &cms, &oca, QTransform(), mqs);
+                generator.setOperationControl(m_operationControl);
                 QList<PDFRenderError> errors = generator.processContents();
                 PDFTextLayout textLayout = generator.createTextLayout();
                 PDFTextFlows textFlows = PDFTextFlow::createTextFlows(textLayout, PDFTextFlow::FlowFlags(PDFTextFlow::SeparateBlocks) | PDFTextFlow::RemoveSoftHyphen, pageIndex);
@@ -749,6 +756,7 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
             PDFStructureTreeTextExtractor::Options options = PDFStructureTreeTextExtractor::SkipArtifact | PDFStructureTreeTextExtractor::AdjustReversedText | PDFStructureTreeTextExtractor::CreateTreeMapping;
             options.setFlag(PDFStructureTreeTextExtractor::BoundingBoxes, m_calculateBoundingBoxes);
             PDFStructureTreeTextExtractor extractor(document, &structureTree, options);
+            extractor.setOperationControl(m_operationControl);
             extractor.perform(pageIndices);
 
             PDFDocumentTextFlow::Items flowItems;
@@ -765,6 +773,7 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
             PDFStructureTreeTextExtractor::Options options = PDFStructureTreeTextExtractor::None;
             options.setFlag(PDFStructureTreeTextExtractor::BoundingBoxes, m_calculateBoundingBoxes);
             PDFStructureTreeTextExtractor extractor(document, &structureTree, options);
+            extractor.setOperationControl(m_operationControl);
             extractor.perform(pageIndices);
 
             PDFDocumentTextFlow::Items flowItems;

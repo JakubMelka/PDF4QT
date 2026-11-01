@@ -24,6 +24,8 @@
 #include "pdfappcommand.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumenttab.h"
+#include "pdfappdocumentview.h"
+#include "pdfapptoolundotarget.h"
 #include "pdfappundostack.h"
 
 namespace pdf
@@ -32,7 +34,12 @@ namespace pdf
 PDFAppDocumentModelCommandHandler::PDFAppDocumentModelCommandHandler(PDFAppDocumentTab* tab) :
     BaseClass(PDFAppDocumentPackage::Model, tab)
 {
-
+    // Undo and Redo of an open tool follow its target
+    if (PDFAppDocumentView* view = getView())
+    {
+        connect(view, &PDFAppDocumentView::toolModeChanged, this, &PDFAppDocumentModelCommandHandler::stateChanged);
+        connect(view, &PDFAppDocumentView::toolUndoStateChanged, this, &PDFAppDocumentModelCommandHandler::stateChanged);
+    }
 }
 
 PDFAppDocumentModelCommandHandler::~PDFAppDocumentModelCommandHandler() = default;
@@ -42,6 +49,25 @@ void PDFAppDocumentModelCommandHandler::execute(const QString& commandId)
     PDFAppDocument* document = getDocument();
     if (!document)
     {
+        return;
+    }
+
+    // While a tool is open, Undo and Redo act only on the tool, never on the document
+    // (owner decision of 2026-11-01); the target may delete the tab
+    const PDFAppDocumentView* view = getView();
+    if (view && view->isToolModeActive() && (commandId == PDFAppCommands::undo() || commandId == PDFAppCommands::redo()))
+    {
+        if (PDFAppToolUndoTarget* target = view->getToolUndoTarget())
+        {
+            if (commandId == PDFAppCommands::undo())
+            {
+                target->undo();
+            }
+            else
+            {
+                target->redo();
+            }
+        }
         return;
     }
 
@@ -76,6 +102,15 @@ bool PDFAppDocumentModelCommandHandler::isEnabled(const QString& commandId) cons
     if (!document || !document->isReady())
     {
         return false;
+    }
+
+    // An open tool: the state of its target; the document (also a locked one) is not
+    // involved. A running operation (the job of the tool) stops the changes of the parameters.
+    const PDFAppDocumentView* view = getView();
+    if (view && view->isToolModeActive() && (commandId == PDFAppCommands::undo() || commandId == PDFAppCommands::redo()))
+    {
+        const PDFAppToolUndoTarget* target = view->getToolUndoTarget();
+        return target && !document->isBlockedByOperation() && (commandId == PDFAppCommands::undo() ? target->canUndo() : target->canRedo());
     }
 
     // A locked document cannot be changed: undo and redo are off. Undo of an open

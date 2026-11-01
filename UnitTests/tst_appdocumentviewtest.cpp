@@ -304,6 +304,8 @@ private slots:
     void fullScreen();
     void fullScreenTabSwitch();
     void fullScreenTabClosed();
+    void helpKeyInFullScreen();
+    void helpKeyInPanelPopup();
     void statusBar();
     void infoBars();
     void infoBarsDeletion();
@@ -1970,6 +1972,64 @@ void AppDocumentViewTest::fullScreenTabClosed()
     fixture.settle();
     QVERIFY(!fixture.window->isFullScreenMode());
     QVERIFY(!fixture.window->getTopBar()->isHidden());
+}
+
+void AppDocumentViewTest::helpKeyInFullScreen()
+{
+    // F1 in the full screen: the manual in its tab ends the full screen as another tab
+    // does (fullScreenTabSwitch), the window has its top bar with the tabs back
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("HelpFull.pdf"), 2));
+    QVERIFY(tab);
+    fixture.window->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(fixture.window.data()));
+    ViewTestHelper::trigger(fixture, pdf::PDFAppCommands::fullScreen());
+    QVERIFY(tab->getView()->isFullScreen());
+    QVERIFY(fixture.window->getTopBar()->isHidden());
+
+    fixture.pressHelpKey();
+    QCOMPARE(fixture.getShownHelpTopic(), QStringLiteral("read-documents"));
+    QVERIFY(!tab->getView()->isFullScreen());
+    QVERIFY(!fixture.window->isFullScreenMode());
+    QVERIFY(!fixture.window->isFullScreen());
+    QVERIFY(!fixture.window->getTopBar()->isHidden());
+}
+
+void AppDocumentViewTest::helpKeyInPanelPopup()
+{
+    // A panel of the toolbar is a popup: it takes the keys, no shortcut of the window
+    // reaches its command (Qt: the active popup is the active window of the shortcut map).
+    // F1 is one of them - the panel stays, nothing opens; closed, F1 works
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("HelpPanel.pdf"), 2));
+    QVERIFY(tab);
+    fixture.window->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(fixture.window.data()));
+    const int tabCount = fixture.window->getTabBar()->count();
+
+    pdf::PDFAppDocumentToolbar* toolbar = tab->getView()->getToolbar();
+    QPointer<pdf::PDFAppDocumentPanelPopup> panel = toolbar->openPanel(pdf::PDFAppDocumentToolbar::Panel::View);
+    QVERIFY(panel);
+    fixture.settle();
+    QCOMPARE(QApplication::activePopupWidget(), static_cast<QWidget*>(panel.data()));
+
+    fixture.pressHelpKey();
+    QVERIFY(!fixture.window->findHelpTab());
+    QCOMPARE(fixture.currentDocumentTab(), tab);
+    QVERIFY(panel);
+    QVERIFY(panel->isVisible());
+    QCOMPARE(toolbar->getOpenPanel(), panel.data());
+
+    // Another shortcut of the window behaves the same way
+    QTest::keyClick(panel.data(), Qt::Key_T, Qt::ControlModifier);
+    fixture.settle();
+    QCOMPARE(fixture.window->getTabBar()->count(), tabCount);
+    QVERIFY(panel && panel->isVisible());
+
+    panel->close();
+    fixture.settle();
+    fixture.pressHelpKey();
+    QCOMPARE(fixture.getShownHelpTopic(), QStringLiteral("read-documents"));
 }
 
 void AppDocumentViewTest::statusBar()

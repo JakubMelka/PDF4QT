@@ -898,6 +898,7 @@ PDFAppAnnotationCreator::PDFAppAnnotationCreator(PDFAppDocumentView* view, QObje
         m_toolManager = view->getToolManager();
         m_canvasWidget = getCanvasWidget();
         connect(view, &PDFAppDocumentView::viewChanged, this, &PDFAppAnnotationCreator::onViewChanged);
+        connect(view, &PDFAppDocumentView::toolModeChanged, this, &PDFAppAnnotationCreator::updateMarkupBar);
     }
 
     createTools();
@@ -2303,7 +2304,10 @@ void PDFAppAnnotationCreator::updateMarkupBar()
     QWidget* canvasArea = m_view ? m_view->getCanvasArea() : nullptr;
     const PDFAppContext* context = getContext();
     const bool isEnabled = !context || context->getSettings().getBool(PDFSettingKeys::annotationsShowMarkupBar());
-    const bool isShown = canvasArea && isEnabled && m_activeKind == PDFAppAnnotationToolKind::None && m_composeKind == ComposeKind::None &&
+
+    // A page of a tool in the canvas hides the selected text
+    const bool isCanvasShown = m_view && !m_view->isToolCanvasPageShown();
+    const bool isShown = canvasArea && isEnabled && isCanvasShown && m_activeKind == PDFAppAnnotationToolKind::None && m_composeKind == ComposeKind::None &&
                          !m_isReleasePending && hasTextSelection();
     const QRect selection = isShown ? getTextSelectionRect() : QRect();
     if (selection.isEmpty())

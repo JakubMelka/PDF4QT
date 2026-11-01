@@ -111,6 +111,7 @@ public:
 
     virtual bool setRoute(const PDFAppRoute& route) override;
     virtual QString getTitle() const override;
+    virtual QString getHelpTopic() const override;
     virtual bool hasSearchHeader() const override;
     virtual QVariantMap saveViewState() const override;
     virtual void restoreViewState(const QVariantMap& state) override;

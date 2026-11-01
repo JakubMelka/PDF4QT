@@ -241,6 +241,12 @@ bool PDFAppDocumentViewCommandHandler::isEnabled(const QString& commandId) const
         return false;
     }
 
+    // The Go to panel opens below the toolbar of the document
+    if (commandId == C::goToPage() && view->isToolToolbarShown())
+    {
+        return false;
+    }
+
     const bool hasPages = view->getPageCount() > 0;
     if (commandId == C::copy() || commandId == C::deselect())
     {
@@ -258,8 +264,9 @@ bool PDFAppDocumentViewCommandHandler::isEnabled(const QString& commandId) const
     }
     if (commandId == C::fullScreen())
     {
-        // Only a view inside of a main window covers the screen
-        return view->isFullScreen() || (qobject_cast<const PDFAppMainWindow*>(view->window()) && view->isVisible());
+        // Only a view inside of a main window covers the screen; the parts of an open tool
+        // are not hidden by it
+        return !view->isToolModeActive() && (view->isFullScreen() || (qobject_cast<const PDFAppMainWindow*>(view->window()) && view->isVisible()));
     }
     return true;
 }

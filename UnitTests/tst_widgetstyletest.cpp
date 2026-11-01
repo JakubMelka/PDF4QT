@@ -586,6 +586,15 @@ void WidgetStyleTest::icons()
     QVERIFY(!pdf::PDFThemeIcons::hasIcon(QStringLiteral("no-such-icon")));
     QVERIFY(pdf::PDFThemeIcons::getIcon(QStringLiteral("no-such-icon")).isNull());
 
+    // The icon embed of Figma 1067:1537 (Optimize Structure): the stroked arrow and
+    // the box with the filled square glyph-fill (12..18 x 9..15 of the frame 24), both in the given color
+    QVERIFY(pdf::PDFThemeIcons::hasIcon(QStringLiteral("embed")));
+    const QImage embed = pdf::PDFThemeIcons::getPixmap(QStringLiteral("embed"), QSizeF(24, 24), 1.0, QColor(255, 0, 0)).toImage().convertToFormat(QImage::Format_ARGB32);
+    QCOMPARE(embed.pixelColor(15, 12), QColor(255, 0, 0));
+    QCOMPARE(embed.pixelColor(15, 3).alpha() > 0, true);
+    QCOMPARE(embed.pixelColor(4, 20).alpha(), 0);
+    QCOMPARE(embed.pixelColor(5, 12).alpha() > 0, true);
+
     const QIcon icon = pdf::PDFThemeIcons::getIcon(QStringLiteral("check"));
     QVERIFY(!icon.isNull());
     QCOMPARE(pdf::PDFThemeIcons::getIconName(icon), QStringLiteral("check"));

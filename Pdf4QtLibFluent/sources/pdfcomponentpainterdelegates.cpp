@@ -168,6 +168,338 @@ public:
     static constexpr qreal SHORTCUT_CAP_RADIUS = 6.0;
     static constexpr qreal SHORTCUT_DASH = 3.0;
 
+    // Tile rows of the frames of the tools: radius 8, tile radius 8, gap 1 between
+    // the title and the description, gap 6 between the title and the tag, check
+    // box 18, ending icon 16; the kinds in getTileRowMetrics
+    static constexpr int TILE_CHECK_BOX = 18;
+    static constexpr int TILE_END_ICON = 16;
+    static constexpr int TILE_TEXT_GAP = 1;
+    static constexpr int TILE_TAG_GAP = 6;
+    static constexpr int TILE_NATURAL_TEXT = 530;           ///< The widest column of the texts of a row (the form 438:13119)
+    static constexpr int TILE_MAX_TEXT_LENGTH = 1024;       ///< A longer text is cut before it is laid out (an address of a hostile document)
+    static constexpr int TILE_CAPTION_TOP = 6;              ///< Caption 438:14866: paddings 6 / 10 / 2 around a line of 13
+    static constexpr int TILE_CAPTION_BOTTOM = 2;
+    static constexpr qreal TILE_RADIUS = 8.0;
+
+    /// Geometry of a kind of a tile row
+    struct TileRowMetrics
+    {
+        int verticalPadding = 7;
+        int horizontalPadding = 10;
+        int gap = 12;
+        int tile = 30;
+        int icon = 16;
+        PDFThemeFonts::Role titleFont = PDFThemeFonts::Role::BodyMedium;
+        int titleLine = LINE_13;
+        int descriptionLine = LINE_11;
+        int maxDescriptionLines = 2;
+        Color descriptionColor = Color::TextMuted;
+    };
+
+    static TileRowMetrics getTileRowMetrics(PDFComponentPainter::TileRowKind kind)
+    {
+        using Kind = PDFComponentPainter::TileRowKind;
+
+        TileRowMetrics metrics;
+        switch (PDFComponentPainter::normalized(kind))
+        {
+            case Kind::MenuItem:
+            case Kind::ListItem:
+                break;
+
+            case Kind::PanelStep:
+                // 303:4560: a single line of 15 px
+                metrics.descriptionLine = 15;
+                metrics.maxDescriptionLines = 1;
+                break;
+
+            case Kind::Step:
+                // 303:4405: padding 5 / 6, gap 10, tile 28, Medium 12 in a line of 16, the description in a line of 14
+                metrics.verticalPadding = 5;
+                metrics.horizontalPadding = 6;
+                metrics.gap = 10;
+                metrics.tile = 28;
+                metrics.icon = 14;
+                metrics.titleFont = PDFThemeFonts::Role::SmallMedium;
+                metrics.descriptionLine = 14;
+                metrics.maxDescriptionLines = 1;
+                break;
+
+            case Kind::Pending:
+                // 389:20177: padding 8, gap 10, Semi Bold 12, the description text/tertiary
+                metrics.verticalPadding = 8;
+                metrics.horizontalPadding = 8;
+                metrics.gap = 10;
+                metrics.titleFont = PDFThemeFonts::Role::SmallSemiBold;
+                metrics.titleLine = LINE_12;
+                metrics.maxDescriptionLines = 1;
+                metrics.descriptionColor = Color::TextTertiary;
+                break;
+
+            case Kind::Result:
+                // 438:14342: a tile of 26 with an icon of 14
+                metrics.tile = 26;
+                metrics.icon = 14;
+                metrics.maxDescriptionLines = 1;
+                break;
+
+            case Kind::Caption:
+                // 438:14866: the title only, Semi Bold 11
+                metrics.verticalPadding = 0;
+                metrics.gap = 0;
+                metrics.tile = 0;
+                metrics.icon = 0;
+                metrics.titleFont = PDFThemeFonts::Role::CaptionSemiBold;
+                metrics.titleLine = LINE_11;
+                metrics.maxDescriptionLines = 0;
+                break;
+        }
+        return metrics;
+    }
+
+    /// Returns true for a caption of a list: it has the title only
+    static bool isTileRowCaption(const PDFComponentPainter::TileRow& row)
+    {
+        return PDFComponentPainter::normalized(row.kind) == PDFComponentPainter::TileRowKind::Caption;
+    }
+
+    static bool isValidColor(Color color) { return static_cast<int>(color) >= 0 && static_cast<int>(color) < static_cast<int>(PDFThemeColors::ColorCount); }
+
+    /// Returns the tone of the tile by the rules of PDFComponentPainter::TileRow
+    static PDFComponentPainter::TileRowTone getTileRowTone(const PDFComponentPainter::TileRow& row)
+    {
+        using Kind = PDFComponentPainter::TileRowKind;
+        using Tone = PDFComponentPainter::TileRowTone;
+
+        const Kind kind = PDFComponentPainter::normalized(row.kind);
+        if (row.checkBoxVisible)
+        {
+            return row.checkBoxChecked ? Tone::Accent : Tone::Muted;
+        }
+        if (kind == Kind::MenuItem || kind == Kind::PanelStep)
+        {
+            // An item of a choice list, chosen or not (438:15328, 313:7327, 339:9493)
+            return Tone::Accent;
+        }
+        return PDFComponentPainter::normalized(row.tone);
+    }
+
+    /// Returns true, if the row is chosen and it shows the check mark
+    static bool hasTileRowCheckMark(const PDFComponentPainter::TileRow& row)
+    {
+        using Kind = PDFComponentPainter::TileRowKind;
+        const Kind kind = PDFComponentPainter::normalized(row.kind);
+        return row.chosen && (kind == Kind::MenuItem || kind == Kind::PanelStep);
+    }
+
+    /// Returns true, if the row has the place of an ending icon (the panel 303:4560 keeps it also without the check mark)
+    static bool hasTileRowEndPlace(const PDFComponentPainter::TileRow& row)
+    {
+        return !isTileRowCaption(row) && (hasTileRowCheckMark(row) || !row.endIconName.isEmpty() || PDFComponentPainter::normalized(row.kind) == PDFComponentPainter::TileRowKind::PanelStep);
+    }
+
+    /// Returns the text bounded for the layout
+    static QString boundedTileText(const QString& text)
+    {
+        return text.size() > TILE_MAX_TEXT_LENGTH ? text.left(TILE_MAX_TEXT_LENGTH) : text;
+    }
+
+    /// Returns the width of what stands at the trailing side of the texts of a row with its gap
+    static int getTileRowEndingWidth(const PDFComponentPainter::TileRow& row, const TileRowMetrics& metrics)
+    {
+        if (isTileRowCaption(row))
+        {
+            return 0;
+        }
+
+        int width = 0;
+        if (!row.linkText.isEmpty())
+        {
+            width += qMin(MAX_EXTENT, PDFComponentPainter::getTextLinkSize(PDFComponentPainter::TextLink{ boundedTileText(row.linkText) }).width()) + metrics.gap;
+        }
+        if (hasTileRowEndPlace(row))
+        {
+            width += TILE_END_ICON + metrics.gap;
+        }
+        return width;
+    }
+
+    /// Returns the width of what stands at the leading side of the texts of a row with its gaps
+    static int getTileRowLeadingWidth(const PDFComponentPainter::TileRow& row, const TileRowMetrics& metrics)
+    {
+        if (isTileRowCaption(row))
+        {
+            return 0;
+        }
+
+        return (row.checkBoxVisible ? TILE_CHECK_BOX + metrics.gap : 0) + metrics.tile + metrics.gap;
+    }
+
+    /// Returns the width of the column of the texts of a row of the width
+    static int getTileRowTextWidth(const PDFComponentPainter::TileRow& row, const TileRowMetrics& metrics, int width)
+    {
+        return qMax(0, width - 2 * metrics.horizontalPadding - getTileRowLeadingWidth(row, metrics) - getTileRowEndingWidth(row, metrics));
+    }
+
+    /// Returns the size of the tag of a row
+    static QSize getTileRowTagSize(const PDFComponentPainter::TileRow& row)
+    {
+        return PDFComponentPainter::getTagSize(PDFComponentPainter::Tag{ boundedTileText(row.tag) });
+    }
+
+    /// Returns true, if the tag fits the column of the texts of the width (the title keeps at least MIN_TEXT)
+    static bool isTileRowTagShown(const PDFComponentPainter::TileRow& row, int textWidth)
+    {
+        return !row.tag.isEmpty() && textWidth - qMin(MAX_EXTENT, getTileRowTagSize(row).width()) - TILE_TAG_GAP >= MIN_TEXT;
+    }
+
+    /// Returns the height of the title line of a row in the column of the width
+    static int getTileRowTitleHeight(const PDFComponentPainter::TileRow& row, const TileRowMetrics& metrics, int textWidth)
+    {
+        return isTileRowTagShown(row, textWidth) ? qMax(metrics.titleLine, getTileRowTagSize(row).height()) : metrics.titleLine;
+    }
+
+    /// Returns the lines of the description of a row in the column of the width
+    static QStringList getTileRowDescriptionLines(const PDFComponentPainter::TileRow& row, const TileRowMetrics& metrics, int textWidth)
+    {
+        if (row.description.isEmpty())
+        {
+            return QStringList();
+        }
+
+        const QString description = boundedTileText(row.description);
+        if (metrics.maxDescriptionLines <= 1)
+        {
+            return { description };
+        }
+
+        const QStringList lines = PDFComponentPainter::wrapText(description, font(PDFThemeFonts::Role::CaptionRegular), textWidth, metrics.maxDescriptionLines);
+        return lines.isEmpty() ? QStringList{ description } : lines;
+    }
+
+    /// Returns the number of the lines of the description of a row in the column of the
+    /// width. A list of thousands of rows asks for the height of each of them: the
+    /// width of a text without a line break says it without a layout of the text.
+    static int getTileRowDescriptionLineCount(const PDFComponentPainter::TileRow& row, const TileRowMetrics& metrics, int textWidth)
+    {
+        if (row.description.isEmpty() || metrics.maxDescriptionLines <= 0)
+        {
+            return 0;
+        }
+        if (metrics.maxDescriptionLines == 1 || textWidth <= 0)
+        {
+            return 1;
+        }
+
+        const QString description = boundedTileText(row.description);
+        if (description.contains(QLatin1Char('\n')) || description.contains(QChar::LineSeparator))
+        {
+            return int(getTileRowDescriptionLines(row, metrics, textWidth).size());
+        }
+        return PDFStylePainter::textWidth(description, font(PDFThemeFonts::Role::CaptionRegular)) <= textWidth ? 1 : metrics.maxDescriptionLines;
+    }
+
+    /// Returns the height of the block of the texts of a row in the column of the width
+    static int getTileRowTextHeight(const PDFComponentPainter::TileRow& row, const TileRowMetrics& metrics, int textWidth)
+    {
+        const int lines = getTileRowDescriptionLineCount(row, metrics, textWidth);
+        return getTileRowTitleHeight(row, metrics, textWidth) + (lines > 0 ? TILE_TEXT_GAP + lines * metrics.descriptionLine : 0);
+    }
+
+    /// Paints the fill of a row by its kind (see PDFComponentPainter::TileRow)
+    static void fillTileRow(QPainter* painter, const QRectF& rect, const PDFComponentPainter::TileRow& row, const State& state)
+    {
+        using Kind = PDFComponentPainter::TileRowKind;
+
+        const Kind kind = PDFComponentPainter::normalized(row.kind);
+        const Radii radii(TILE_RADIUS);
+        if (kind != Kind::MenuItem && kind != Kind::PanelStep)
+        {
+            fillRow(painter, rect, radii, state, true);
+            return;
+        }
+
+        // The hover and the press lie over the fill of a chosen item (438:15319, 313:7291)
+        if (row.chosen && state.isEnabled())
+        {
+            PDFStylePainter::fill(painter, rect, radii, Color::BgHover);
+        }
+        fillRow(painter, rect, radii, state, false);
+    }
+
+    /// Returns the colors of the tile of a row (a disabled row has icon/disabled on bg/muted)
+    static void getTileRowColors(const PDFComponentPainter::TileRow& row, const State& state, Color& fill, Color& content)
+    {
+        using Tone = PDFComponentPainter::TileRowTone;
+
+        switch (state.isEnabled() ? getTileRowTone(row) : Tone::Muted)
+        {
+            case Tone::Accent:
+                fill = Color::BgAccentSubtle;
+                content = Color::IconAccent;
+                break;
+            case Tone::Muted:
+                fill = Color::BgMuted;
+                content = icon(state, Color::IconMuted);
+                break;
+            case Tone::Danger:
+                fill = Color::AccentRedBg;
+                content = Color::AccentRedIcon;
+                break;
+        }
+    }
+
+    /// Returns the color of the title of a row: text/primary, a row with a check box,
+    /// which is not ticked, text/secondary (438:14900; a muted row without a check box
+    /// stays text/primary, 434:4476), a skipped step text/tertiary (319:7385)
+    static Color getTileRowTitleColor(const PDFComponentPainter::TileRow& row)
+    {
+        using Kind = PDFComponentPainter::TileRowKind;
+        using Tone = PDFComponentPainter::TileRowTone;
+
+        if (getTileRowTone(row) == Tone::Muted)
+        {
+            const Kind kind = PDFComponentPainter::normalized(row.kind);
+            if (kind == Kind::Step)
+            {
+                return Color::TextTertiary;
+            }
+            if (row.checkBoxVisible && kind != Kind::Pending && kind != Kind::Result)
+            {
+                return Color::TextSecondary;
+            }
+        }
+        return Color::TextPrimary;
+    }
+
+    // Page tile 389:20177 / 388:20614: padding 6, 6, 5, 6, gap 4, radius 8, the label
+    // a line of 13, the caption a line of 12, the border 1 of the selected tile lies
+    // in the layout, the badge 20 reaches 6 px over the page, its icon 12
+    static constexpr int PAGE_TILE_SLOT_WIDTH = 104;
+    static constexpr int PAGE_TILE_SLOT_HEIGHT = 104;
+    static constexpr int PAGE_TILE_MAX_SLOT = 4096;
+    static constexpr int PAGE_TILE_SIDE = 6;
+    static constexpr int PAGE_TILE_TOP = 6;
+    static constexpr int PAGE_TILE_BOTTOM = 5;
+    static constexpr int PAGE_TILE_GAP = 4;
+    static constexpr int PAGE_TILE_CAPTION = 12;
+    static constexpr int PAGE_TILE_BORDER = 1;
+    static constexpr int PAGE_TILE_BADGE = 20;
+    static constexpr int PAGE_TILE_BADGE_ICON = 12;
+    static constexpr int PAGE_TILE_BADGE_OVERLAP = 6;
+    static constexpr qreal PAGE_TILE_RADIUS = 8.0;
+    static constexpr qreal PAGE_TILE_PAPER_OPACITY = 0.50;      ///< The marked page 388:20614
+    static constexpr qreal PAGE_TILE_PREVIEW_OPACITY = 0.35;    ///< The picture of the marked page 388:20614
+    static constexpr qreal PAGE_TILE_DEFAULT_PAPER_WIDTH = 76.0;
+    static constexpr qreal PAGE_TILE_DEFAULT_PAPER_HEIGHT = 104.0;
+
+    /// Returns the distance of the slot from the edge of the tile added by the state
+    /// (the border of the selected tile lies in the layout)
+    static int getPageTileInset(const PDFComponentPainter::PageTile& tile)
+    {
+        return PDFComponentPainter::normalized(tile.tileState) == PDFComponentPainter::PageTileState::Selected ? PAGE_TILE_BORDER : 0;
+    }
+
     static QFont font(PDFThemeFonts::Role role) { return PDFThemeFonts::getFont(role); }
 
     static int textWidth(const QString& text, const QFont& font)
@@ -594,6 +926,448 @@ void PDFComponentPainter::paintThumbnailItem(QPainter* painter, const QRectF& re
         const QRectF textRect = pill.adjusted(Helper::THUMB_LABEL_SIDE, 0.0, -Helper::THUMB_LABEL_SIDE, 0.0);
         drawDataText(painter, textRect, Qt::AlignCenter | Qt::TextSingleLine, elidedText(item.label, labelFont, textRect.width()), labelFont,
                      PDFStylePainter::color(Helper::text(state, textColor)), getDataTextDirection(item.label));
+    }
+
+    if (state.hasFocusRing())
+    {
+        paintFocusRingInside(painter, rect, radii);
+    }
+}
+
+PDFComponentPainter::TileRowKind PDFComponentPainter::normalized(TileRowKind kind)
+{
+    switch (kind)
+    {
+        case TileRowKind::MenuItem:
+        case TileRowKind::PanelStep:
+        case TileRowKind::ListItem:
+        case TileRowKind::Step:
+        case TileRowKind::Pending:
+        case TileRowKind::Result:
+        case TileRowKind::Caption:
+            return kind;
+    }
+    return TileRowKind::MenuItem;
+}
+
+PDFComponentPainter::TileRowTone PDFComponentPainter::normalized(TileRowTone tone)
+{
+    switch (tone)
+    {
+        case TileRowTone::Accent:
+        case TileRowTone::Muted:
+        case TileRowTone::Danger:
+            return tone;
+    }
+    return TileRowTone::Accent;
+}
+
+QString PDFComponentPainter::getBoundedTileRowText(const QString& text)
+{
+    return PDFComponentDelegatePainterHelper::boundedTileText(text);
+}
+
+QSize PDFComponentPainter::getTileRowSize(const TileRow& row)
+{
+    using Helper = PDFComponentDelegatePainterHelper;
+
+    // The width of the texts on one line, at most the column of the widest frame
+    const Helper::TileRowMetrics metrics = Helper::getTileRowMetrics(row.kind);
+    int titleWidth = Helper::textWidth(Helper::boundedTileText(row.title), Helper::font(metrics.titleFont));
+    if (Helper::isTileRowCaption(row))
+    {
+        const int width = 2 * metrics.horizontalPadding + qBound(Helper::MIN_TEXT, titleWidth, Helper::TILE_NATURAL_TEXT);
+        return QSize(width, getTileRowHeight(row, width));
+    }
+
+    if (!row.tag.isEmpty())
+    {
+        titleWidth = qMin(Helper::MAX_EXTENT, titleWidth + Helper::TILE_TAG_GAP + qMin(Helper::MAX_EXTENT, Helper::getTileRowTagSize(row).width()));
+    }
+    const int descriptionWidth = Helper::textWidth(Helper::boundedTileText(row.description), Helper::font(PDFThemeFonts::Role::CaptionRegular));
+    const int textWidth = qBound(Helper::MIN_TEXT, qMax(titleWidth, descriptionWidth), Helper::TILE_NATURAL_TEXT);
+
+    const int width = 2 * metrics.horizontalPadding + Helper::getTileRowLeadingWidth(row, metrics) + textWidth + Helper::getTileRowEndingWidth(row, metrics);
+    return QSize(width, getTileRowHeight(row, width));
+}
+
+QSize PDFComponentPainter::getTileRowMinimumSize(const TileRow& row)
+{
+    using Helper = PDFComponentDelegatePainterHelper;
+    const Helper::TileRowMetrics metrics = Helper::getTileRowMetrics(row.kind);
+    const int width = 2 * metrics.horizontalPadding + Helper::getTileRowLeadingWidth(row, metrics) + Helper::MIN_TEXT + Helper::getTileRowEndingWidth(row, metrics);
+    return QSize(width, Helper::isTileRowCaption(row) ? getTileRowHeight(row, width) : metrics.tile + 2 * metrics.verticalPadding);
+}
+
+int PDFComponentPainter::getTileRowHeight(const TileRow& row, int width)
+{
+    using Helper = PDFComponentDelegatePainterHelper;
+    const Helper::TileRowMetrics metrics = Helper::getTileRowMetrics(row.kind);
+    if (Helper::isTileRowCaption(row))
+    {
+        return Helper::TILE_CAPTION_TOP + metrics.titleLine + Helper::TILE_CAPTION_BOTTOM;
+    }
+
+    const int textWidth = Helper::getTileRowTextWidth(row, metrics, qBound(0, width, Helper::MAX_EXTENT));
+    return qMax(metrics.tile, Helper::getTileRowTextHeight(row, metrics, textWidth)) + 2 * metrics.verticalPadding;
+}
+
+int PDFComponentPainter::getTileRowTrailingMargin(TileRowKind kind)
+{
+    return PDFComponentDelegatePainterHelper::getTileRowMetrics(kind).horizontalPadding;
+}
+
+QRectF PDFComponentPainter::getTileRowTileRect(const QRectF& rect, const TileRow& row, const State& state)
+{
+    using Helper = PDFComponentDelegatePainterHelper;
+    if (Helper::isTileRowCaption(row))
+    {
+        return QRectF();
+    }
+
+    const Helper::TileRowMetrics metrics = Helper::getTileRowMetrics(row.kind);
+    const qreal left = rect.left() + metrics.horizontalPadding + (row.checkBoxVisible ? Helper::TILE_CHECK_BOX + metrics.gap : 0);
+    return state.visualRect(rect, Helper::line(rect, left, metrics.tile, metrics.tile));
+}
+
+QRectF PDFComponentPainter::getTileRowCheckBoxRect(const QRectF& rect, const TileRow& row, const State& state)
+{
+    using Helper = PDFComponentDelegatePainterHelper;
+    if (!row.checkBoxVisible || Helper::isTileRowCaption(row))
+    {
+        return QRectF();
+    }
+
+    const Helper::TileRowMetrics metrics = Helper::getTileRowMetrics(row.kind);
+    return state.visualRect(rect, Helper::line(rect, rect.left() + metrics.horizontalPadding, Helper::TILE_CHECK_BOX, Helper::TILE_CHECK_BOX));
+}
+
+QRectF PDFComponentPainter::getTileRowLinkRect(const QRectF& rect, const TileRow& row, const State& state)
+{
+    using Helper = PDFComponentDelegatePainterHelper;
+    if (row.linkText.isEmpty() || Helper::isTileRowCaption(row))
+    {
+        return QRectF();
+    }
+
+    // The link is the last element of the row
+    const Helper::TileRowMetrics metrics = Helper::getTileRowMetrics(row.kind);
+    const QSize size = getTextLinkSize(TextLink{ Helper::boundedTileText(row.linkText) });
+    return state.visualRect(rect, Helper::line(rect, rect.right() - metrics.horizontalPadding - size.width(), size.width(), size.height()));
+}
+
+QRectF PDFComponentPainter::getTileRowEndIconRect(const QRectF& rect, const TileRow& row, const State& state)
+{
+    using Helper = PDFComponentDelegatePainterHelper;
+    if (!Helper::hasTileRowEndPlace(row))
+    {
+        return QRectF();
+    }
+
+    // The icon stands before a link, when the row has both
+    const Helper::TileRowMetrics metrics = Helper::getTileRowMetrics(row.kind);
+    const int linkWidth = row.linkText.isEmpty() ? 0 : getTextLinkSize(TextLink{ Helper::boundedTileText(row.linkText) }).width() + metrics.gap;
+    const qreal left = rect.right() - metrics.horizontalPadding - linkWidth - Helper::TILE_END_ICON;
+    return state.visualRect(rect, Helper::line(rect, left, Helper::TILE_END_ICON, Helper::TILE_END_ICON));
+}
+
+QRectF PDFComponentPainter::getTileRowTextRect(const QRectF& rect, const TileRow& row)
+{
+    using Helper = PDFComponentDelegatePainterHelper;
+    const Helper::TileRowMetrics metrics = Helper::getTileRowMetrics(row.kind);
+    const int textWidth = Helper::getTileRowTextWidth(row, metrics, qBound(0, qFloor(rect.width()), Helper::MAX_EXTENT));
+    if (Helper::isTileRowCaption(row))
+    {
+        return QRectF(rect.left() + metrics.horizontalPadding, rect.top() + Helper::TILE_CAPTION_TOP, textWidth, metrics.titleLine);
+    }
+
+    const int textHeight = Helper::getTileRowTextHeight(row, metrics, textWidth);
+    return Helper::line(rect, rect.left() + metrics.horizontalPadding + Helper::getTileRowLeadingWidth(row, metrics), textWidth, textHeight);
+}
+
+void PDFComponentPainter::paintTileRow(QPainter* painter, const QRectF& rect, const TileRow& row, const State& state)
+{
+    using Helper = PDFComponentDelegatePainterHelper;
+    using Color = PDFThemeColors::Color;
+
+    if (!painter || !Helper::isDrawable(rect))
+    {
+        return;
+    }
+
+    const DirectionGuard directionGuard(painter, state);
+    const Helper::TileRowMetrics metrics = Helper::getTileRowMetrics(row.kind);
+
+    const PDFStylePainterGuard guard(painter);
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    painter->setClipRect(rect, Qt::IntersectClip);
+
+    // A caption is a text: no fill and no focus of a row (438:14866)
+    if (Helper::isTileRowCaption(row))
+    {
+        Helper::drawText(painter, state, rect, getTileRowTextRect(rect, row), Helper::boundedTileText(row.title), Helper::font(metrics.titleFont),
+                         Helper::text(state, Color::TextTertiary), row.titleKind);
+        return;
+    }
+
+    Helper::fillTileRow(painter, rect, row, state);
+
+    // The check box follows the row, a check box disabled alone is disabled
+    if (row.paintNested && row.checkBoxVisible)
+    {
+        const State nested = Helper::nestedState(state, row.checkBoxFlags);
+        PDFStylePainter::IndicatorState indicator;
+        indicator.enabled = nested.isEnabled() && row.checkBoxEnabled;
+        indicator.hover = indicator.enabled && nested.isHovered();
+        indicator.pressed = indicator.enabled && nested.isPressed();
+        indicator.on = row.checkBoxChecked;
+        PDFStylePainter::indicator(painter, getTileRowCheckBoxRect(rect, row, state), PDFStylePainter::IndicatorKind::CheckBox, indicator);
+    }
+
+    // The tile with its icon, or a text (a number of a page)
+    Color tileFill = Color::BgMuted;
+    Color tileContent = Color::IconMuted;
+    Helper::getTileRowColors(row, state, tileFill, tileContent);
+    const QRectF tileRect = getTileRowTileRect(rect, row, state);
+    PDFStylePainter::fill(painter, tileRect, Helper::Radii(Helper::TILE_RADIUS), tileFill);
+    if (!row.tileText.isEmpty())
+    {
+        const QFont tileFont = Helper::font(PDFThemeFonts::Role::CaptionSemiBold);
+        const QString tileText = Helper::boundedTileText(row.tileText);
+        drawDataText(painter, tileRect, Qt::AlignCenter | Qt::TextSingleLine, elidedText(tileText, tileFont, tileRect.width()), tileFont,
+                     PDFStylePainter::color(tileContent), getDataTextDirection(tileText));
+    }
+    else if (!row.iconName.isEmpty())
+    {
+        PDFStylePainter::icon(painter, alignedCentered(tileRect, QSizeF(metrics.icon, metrics.icon)), row.iconName, tileContent);
+    }
+
+    // The column of the texts: the title with the tag after it and the description
+    const QRectF textRect = getTileRowTextRect(rect, row);
+    const int textWidth = qFloor(textRect.width());
+    const int titleHeight = Helper::getTileRowTitleHeight(row, metrics, textWidth);
+    const QRectF titleLine(textRect.left(), textRect.top(), textRect.width(), titleHeight);
+
+    const QFont titleFont = Helper::font(metrics.titleFont);
+    const QString title = Helper::boundedTileText(row.title);
+    qreal titleWidth = titleLine.width();
+    if (Helper::isTileRowTagShown(row, textWidth))
+    {
+        const QSize tagSize = Helper::getTileRowTagSize(row);
+        titleWidth = qMin<qreal>(Helper::textWidth(title, titleFont), textWidth - tagSize.width() - Helper::TILE_TAG_GAP);
+        const QRectF tagRect = Helper::line(titleLine, titleLine.left() + titleWidth + Helper::TILE_TAG_GAP, tagSize.width(), tagSize.height());
+        paintTag(painter, state.visualRect(rect, tagRect), Tag{ Helper::boundedTileText(row.tag) }, Helper::nestedState(state, QStyle::State_None));
+    }
+    Helper::drawText(painter, state, rect, QRectF(titleLine.left(), titleLine.top(), titleWidth, titleLine.height()), title, titleFont,
+                     Helper::text(state, Helper::getTileRowTitleColor(row)), row.titleKind);
+
+    const Color descriptionColor = (row.descriptionColor.has_value() && Helper::isValidColor(*row.descriptionColor)) ? *row.descriptionColor : metrics.descriptionColor;
+    const QStringList lines = Helper::getTileRowDescriptionLines(row, metrics, textWidth);
+    const QFont descriptionFont = Helper::font(PDFThemeFonts::Role::CaptionRegular);
+    const qreal descriptionTop = titleLine.bottom() + Helper::TILE_TEXT_GAP;
+    if (metrics.maxDescriptionLines > 1)
+    {
+        // The wrapped lines of one text share its direction
+        const QString description = Helper::boundedTileText(row.description);
+        const Qt::LayoutDirection direction = row.descriptionKind == TextKind::Interface ? state.direction : getDataTextDirection(description);
+        for (qsizetype i = 0; i < lines.size(); ++i)
+        {
+            const QRectF lineRect = state.visualRect(rect, QRectF(textRect.left(), descriptionTop + i * metrics.descriptionLine, textRect.width(), metrics.descriptionLine));
+            drawDataText(painter, lineRect, Qt::AlignVCenter | Qt::TextSingleLine | state.leadingAlignment(), elidedText(lines.at(i), descriptionFont, textRect.width()), descriptionFont,
+                         PDFStylePainter::color(Helper::text(state, descriptionColor)), direction);
+        }
+    }
+    else if (!lines.isEmpty())
+    {
+        Helper::drawText(painter, state, rect, QRectF(textRect.left(), descriptionTop, textRect.width(), metrics.descriptionLine), lines.first(), descriptionFont,
+                         Helper::text(state, descriptionColor), row.descriptionKind);
+    }
+
+    // The ending: the check mark of a chosen item (icon/accent, 438:15032) or the icon of a state
+    const QRectF endIconRect = getTileRowEndIconRect(rect, row, state);
+    if (Helper::hasTileRowCheckMark(row))
+    {
+        PDFStylePainter::icon(painter, endIconRect, QStringLiteral("check"), Helper::icon(state, Color::IconAccent));
+    }
+    else if (!row.endIconName.isEmpty())
+    {
+        PDFStylePainter::icon(painter, endIconRect, row.endIconName, Helper::icon(state, Helper::isValidColor(row.endIconColor) ? row.endIconColor : Color::IconAccent));
+    }
+
+    if (row.paintNested && !row.linkText.isEmpty())
+    {
+        paintTextLink(painter, getTileRowLinkRect(rect, row, state), TextLink{ Helper::boundedTileText(row.linkText) }, Helper::nestedState(state, row.linkFlags));
+    }
+
+    if (state.hasFocusRing())
+    {
+        paintFocusRingInside(painter, rect, Helper::Radii(Helper::TILE_RADIUS));
+    }
+}
+
+PDFComponentPainter::PageTileState PDFComponentPainter::normalized(PageTileState tileState)
+{
+    switch (tileState)
+    {
+        case PageTileState::Normal:
+        case PageTileState::Selected:
+        case PageTileState::Marked:
+            return tileState;
+    }
+    return PageTileState::Normal;
+}
+
+QSize PDFComponentPainter::getPageTileSlotSize(const PageTile& tile)
+{
+    using Helper = PDFComponentDelegatePainterHelper;
+
+    const QSize size = tile.slotSize;
+    if (!size.isValid() || size.isEmpty())
+    {
+        return QSize(Helper::PAGE_TILE_SLOT_WIDTH, Helper::PAGE_TILE_SLOT_HEIGHT);
+    }
+    return QSize(qMin(size.width(), Helper::PAGE_TILE_MAX_SLOT), qMin(size.height(), Helper::PAGE_TILE_MAX_SLOT));
+}
+
+QSize PDFComponentPainter::getPageTileSize(const PageTile& tile)
+{
+    using Helper = PDFComponentDelegatePainterHelper;
+
+    const QSize slot = getPageTileSlotSize(tile);
+    const int border = 2 * Helper::getPageTileInset(tile);
+    const int caption = tile.caption.isEmpty() ? 0 : Helper::PAGE_TILE_GAP + Helper::PAGE_TILE_CAPTION;
+    return QSize(slot.width() + 2 * Helper::PAGE_TILE_SIDE + border,
+                 Helper::PAGE_TILE_TOP + slot.height() + Helper::PAGE_TILE_GAP + Helper::LINE_11 + caption + Helper::PAGE_TILE_BOTTOM + border);
+}
+
+QRectF PDFComponentPainter::getPageTilePageRect(const QRectF& rect, const PageTile& tile)
+{
+    using Helper = PDFComponentDelegatePainterHelper;
+
+    if (!Helper::isDrawable(rect))
+    {
+        return QRectF();
+    }
+
+    // The slot is centered horizontally at the top padding (a tile of a grid may be wider)
+    const QSizeF slotSize = QSizeF(getPageTileSlotSize(tile));
+    const QRectF slot(qFloor(rect.left() + (rect.width() - slotSize.width()) / 2.0), rect.top() + Helper::PAGE_TILE_TOP + Helper::getPageTileInset(tile), slotSize.width(), slotSize.height());
+
+    // The proportions of the page as it will be saved, of the picture, or of the design
+    QSizeF paperSize(Helper::PAGE_TILE_DEFAULT_PAPER_WIDTH, Helper::PAGE_TILE_DEFAULT_PAPER_HEIGHT);
+    const bool isPageSizeValid = qIsFinite(tile.pageSize.width()) && qIsFinite(tile.pageSize.height()) && tile.pageSize.width() > 0.0 && tile.pageSize.height() > 0.0;
+    if (isPageSizeValid)
+    {
+        // Relative to its longer side: QSizeF::scaled overflows on a page of a hostile
+        // document (1e308 x 1e308), a side too small to be relative gives one pixel below
+        const qreal longerSide = qMax(tile.pageSize.width(), tile.pageSize.height());
+        paperSize = QSizeF(qMax(tile.pageSize.width() / longerSide, 1e-6), qMax(tile.pageSize.height() / longerSide, 1e-6));
+    }
+    else if (!tile.pixmap.isNull() && tile.pixmap.width() > 0 && tile.pixmap.height() > 0)
+    {
+        paperSize = QSizeF(tile.pixmap.size());
+    }
+
+    // Whole logical pixels, at least one (a hostile page 14400 x 1)
+    paperSize = paperSize.scaled(slotSize, Qt::KeepAspectRatio);
+    const QSizeF pageSize(qBound<qreal>(1.0, qRound(paperSize.width()), slotSize.width()), qBound<qreal>(1.0, qRound(paperSize.height()), slotSize.height()));
+    return QRectF(qFloor(slot.left() + (slot.width() - pageSize.width()) / 2.0), qFloor(slot.top() + (slot.height() - pageSize.height()) / 2.0), pageSize.width(), pageSize.height());
+}
+
+QRectF PDFComponentPainter::getPageTileBadgeRect(const QRectF& rect, const PageTile& tile, const State& state)
+{
+    using Helper = PDFComponentDelegatePainterHelper;
+
+    if (tile.badgeIconName.isEmpty() || !Helper::isDrawable(rect))
+    {
+        return QRectF();
+    }
+
+    const QRectF page = getPageTilePageRect(rect, tile);
+    const QRectF badge(page.right() + Helper::PAGE_TILE_BADGE_OVERLAP - Helper::PAGE_TILE_BADGE, page.top() - Helper::PAGE_TILE_BADGE_OVERLAP, Helper::PAGE_TILE_BADGE, Helper::PAGE_TILE_BADGE);
+    return state.visualRect(rect, badge);
+}
+
+void PDFComponentPainter::paintPageTile(QPainter* painter, const QRectF& rect, const PageTile& tile, const State& state)
+{
+    using Helper = PDFComponentDelegatePainterHelper;
+    using Color = PDFThemeColors::Color;
+
+    if (!painter || !Helper::isDrawable(rect))
+    {
+        return;
+    }
+
+    const DirectionGuard directionGuard(painter, state);
+    const PageTileState tileState = normalized(tile.tileState);
+    const bool isSelected = tileState == PageTileState::Selected;
+    const bool isMarked = tileState == PageTileState::Marked;
+    const Helper::Radii radii(Helper::PAGE_TILE_RADIUS);
+
+    const PDFStylePainterGuard guard(painter);
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    painter->setClipRect(rect, Qt::IntersectClip);
+
+    // The tile: the selected one bg/accent-subtle with its border (its hover and
+    // press, decision 10), the others the overlay of the pointer only. A selected
+    // state of the view is not a look: the model says the state of the tile.
+    State fillState = state;
+    fillState.flags.setFlag(QStyle::State_On, isSelected);
+    fillState.flags.setFlag(QStyle::State_Selected, false);
+    Helper::fillRow(painter, rect, radii, fillState, true);
+    if (isSelected)
+    {
+        PDFStylePainter::strokeInside(painter, rect, radii, state.isEnabled() ? Color::BorderFocus : Color::BorderStrong, Helper::PAGE_TILE_BORDER);
+    }
+
+    // The page: the paper with its border below the picture, which covers it. A
+    // marked page is dimmed by the opacities of the layers of 388:20614, so its
+    // border shows through (a content preview, not a control, rule N-22).
+    const QRectF page = getPageTilePageRect(rect, tile);
+    {
+        const PDFStylePainterGuard paperGuard(painter);
+        painter->setOpacity(painter->opacity() * (isMarked ? Helper::PAGE_TILE_PAPER_OPACITY : 1.0));
+        PDFStylePainter::fillRect(painter, page, Color::SampleWhite);
+        PDFStylePainter::strokeInside(painter, page, Helper::Radii(0.0), Color::BorderStrong, 1.0);
+    }
+    {
+        const PDFStylePainterGuard previewGuard(painter);
+        painter->setOpacity(painter->opacity() * (isMarked ? Helper::PAGE_TILE_PREVIEW_OPACITY : 1.0));
+        PDFStylePainter::fillRect(painter, page, Color::ReadingPaperPage);
+        if (!tile.pixmap.isNull())
+        {
+            drawScaledPixmap(painter, page, tile.pixmap);
+        }
+    }
+
+    // The badge at the corner of the page
+    const QRectF badgeRect = getPageTileBadgeRect(rect, tile, state);
+    if (!badgeRect.isEmpty())
+    {
+        const PDFAccentHue hue = isMarked ? PDFAccentHue::Red : PDFAccentHue::Blue;
+        const Helper::Radii badgeRadii(Helper::PAGE_TILE_BADGE / 2.0);
+        PDFStylePainter::fill(painter, badgeRect, badgeRadii, PDFAccentHueColors::getColor(hue, PDFAccentHueColors::Role::Background));
+        PDFStylePainter::strokeInside(painter, badgeRect, badgeRadii, PDFAccentHueColors::getColor(hue, PDFAccentHueColors::Role::Border), 1.0);
+        PDFStylePainter::icon(painter, alignedCentered(badgeRect, QSizeF(Helper::PAGE_TILE_BADGE_ICON, Helper::PAGE_TILE_BADGE_ICON)), tile.badgeIconName,
+                              Helper::icon(state, PDFAccentHueColors::getColor(hue, PDFAccentHueColors::Role::Icon)));
+    }
+
+    // The label (data) and the caption (a text of the user interface) below the slot
+    const int inset = Helper::getPageTileInset(tile);
+    const qreal labelTop = rect.top() + Helper::PAGE_TILE_TOP + inset + getPageTileSlotSize(tile).height() + Helper::PAGE_TILE_GAP;
+    const qreal textWidth = qMax<qreal>(0.0, rect.width() - 2.0 * (Helper::PAGE_TILE_SIDE + inset));
+    const qreal textLeft = rect.left() + Helper::PAGE_TILE_SIDE + inset;
+    const QFont labelFont = Helper::font(isSelected ? PDFThemeFonts::Role::CaptionSemiBold : PDFThemeFonts::Role::Caption);
+    const QString label = Helper::boundedTileText(tile.label);
+    drawDataText(painter, QRectF(textLeft, labelTop, textWidth, Helper::LINE_11), Qt::AlignCenter | Qt::TextSingleLine, elidedText(label, labelFont, textWidth), labelFont,
+                 PDFStylePainter::color(Helper::text(state, isSelected ? Color::TextAccent : Color::TextSecondary)), getDataTextDirection(label));
+
+    if (!tile.caption.isEmpty())
+    {
+        const QFont captionFont = Helper::font(PDFThemeFonts::Role::Tiny);
+        const Color captionColor = isMarked ? Color::TextDanger : (isSelected ? Color::TextAccent : Color::TextMuted);
+        drawDataText(painter, QRectF(textLeft, labelTop + Helper::LINE_11 + Helper::PAGE_TILE_GAP, textWidth, Helper::PAGE_TILE_CAPTION), Qt::AlignCenter | Qt::TextSingleLine,
+                     elidedText(Helper::boundedTileText(tile.caption), captionFont, textWidth), captionFont, PDFStylePainter::color(Helper::text(state, captionColor)), state.direction);
     }
 
     if (state.hasFocusRing())

@@ -150,6 +150,8 @@ void PDFAppOutlineEditor::setDocument(PDFAppDocument* document)
         connect(document, &PDFAppDocument::stateChanged, this, &PDFAppOutlineEditor::stateChanged);
         connect(document, &PDFAppDocument::lockChanged, this, &PDFAppOutlineEditor::stateChanged);
         connect(document, &PDFAppDocument::lockChanged, this, &PDFAppOutlineEditor::onLockChanged);
+        connect(document, &PDFAppDocument::userChangesSuspendedChanged, this, &PDFAppOutlineEditor::stateChanged);
+        connect(document, &PDFAppDocument::userChangesSuspendedChanged, this, &PDFAppOutlineEditor::onLockChanged);
         connect(document, &PDFAppDocument::operationsChanged, this, &PDFAppOutlineEditor::stateChanged);
         connect(document, &QObject::destroyed, this, &PDFAppOutlineEditor::onDocumentDestroyed);
     }
@@ -246,6 +248,10 @@ QString PDFAppOutlineEditor::getEditingRefusalReason() const
     if (document->isLocked())
     {
         return tr("The document is locked. Unlock it to make changes.");
+    }
+    if (document->areUserChangesSuspended())
+    {
+        return PDFAppDocument::getUserChangesSuspendedText();
     }
     if (!PDFAppOutlineEditorHelper::isAllowed(document->getDocument().data()))
     {

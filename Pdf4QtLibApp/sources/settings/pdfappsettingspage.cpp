@@ -610,6 +610,13 @@ QString PDFAppSettingsPage::getTitle() const
     return tr("Settings");
 }
 
+QString PDFAppSettingsPage::getHelpTopic() const
+{
+    // The filter (no section) shows rows of all sections: the overview of the settings
+    const PDFAppSettingsSectionInfo* info = PDFAppSettingsSectionRegistry::findSection(m_sectionId);
+    return info ? info->helpTopic : QStringLiteral("settings");
+}
+
 bool PDFAppSettingsPage::hasSearchHeader() const
 {
     // 146:2843: the page has its own title and search (no header of the workspace)

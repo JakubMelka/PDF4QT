@@ -160,7 +160,8 @@ public:
     /// Returns true, if Qt guards itself against the deletion of the sender from
     /// inside of the signal (QAbstractButtonPrivate::emitPressed, emitReleased,
     /// emitClicked, emitToggled and their callers of Qt 6.11; not the toggled of
-    /// a check box: QCheckBox::nextCheckState calls checkStateSet after it)
+    /// a check box: QCheckBox::nextCheckState calls checkStateSet after it - the
+    /// check box of PDFTileRow has a guard of its own there)
     static bool isGuardedByQt(const QObject* sender, const QMetaMethod& method)
     {
         // QAbstractButtonPrivate::emitClicked and the others emit the signals of the
@@ -175,7 +176,7 @@ public:
             return false;
         }
         const QByteArray name = method.name();
-        return name == "pressed" || name == "released" || name == "clicked" || (name == "toggled" && !sender->inherits("QCheckBox"));
+        return name == "pressed" || name == "released" || name == "clicked" || (name == "toggled" && (!sender->inherits("QCheckBox") || qobject_cast<const pdf::PDFTileRow*>(sender->parent())));
     }
 };
 

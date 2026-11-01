@@ -14,7 +14,7 @@ The window of PDF4QT has no title bar of the system. Its top bar holds the tabs,
 - Every document has its own tab with the name of the file. A lock shows a document, which is locked against changes, a dot shows unsaved changes, and a document protected by a password has the icon of a password.
 - The button **+** (or **Ctrl+T**) opens a tab **New tab** with the page Open. When you open a file in it, it becomes the tab of the document.
 - **Ctrl+W** or the button **×** of the tab closes it. **Ctrl+Tab** and **Ctrl+Shift+Tab** switch to the next and to the previous tab.
-- **Help** (or **F1**) opens this user manual in a tab of its own. A window has at most one Help tab: the next topic opens in the same tab, and **Back** and **Forward** move between the topics you have read there. Links from the manual to other pages open them in the Home tab.
+- **Help** (or **F1**) opens this user manual in a tab of its own, at the topic of the page you are looking at. A window has at most one Help tab: the next topic opens in the same tab, and **Back** and **Forward** move between the topics you have read there. Links from the manual to other pages open them in the Home tab.
 - Drag a tab to change the order of the tabs.
 - A window has at most 200 tabs.
 

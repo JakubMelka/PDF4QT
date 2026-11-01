@@ -161,6 +161,10 @@ private:
     void onDialogFinished(int result);
     void onDocumentStateChanged();
     void applyResult(const PDFAppAutoRefreshReader::Result& result);
+
+    /// The check waits: an own save writes the file, a blocking operation (a tool, a
+    /// result waiting for the decision of the user) holds the document as it is
+    static bool isCheckDeferred(const PDFAppDocument* document);
     void showUnsavedDialog(const PDFAppAutoRefreshReader::Result& result);
     void closeDialog();
 

@@ -122,3 +122,28 @@ Each entry: where, the attack, the proposed fix. Remove an entry when it is fixe
 - **Where:** `PDFXFALayoutEngine` (`pdfxfaengine.cpp`, `getOccurenceCount` and the loops of `visit(XFA_subform)` / `visit(XFA_subformSet)`), run by `PDFFormManager::setDocument` (GUI thread of every application) and by `PDFXFAPaging` (worker of the reading of PDF4QT).
 - **Problem:** the `occur` element of a subform of a hostile template gives any repetition count (`initial="1000000000"`), nested subforms multiply it; the layout repeats the content that many times (time and memory). The number of pages is bounded (`PDFXFAEngine::MAXIMUM_PAGE_COUNT` = 128, a layout behind the last page is dropped since step 8), the work of the repetitions is not.
 - **Fix:** a budget of laid out items for the whole layout (an occurrence count bounded by the remaining budget), the layout stopped when it is spent.
+
+### 19. Content processor: forms and patterns repeated without a limit of the work
+
+- **Where:** `PDFPageContentProcessor` (`Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp`), all renderers and the image optimizer.
+- **Attack:** a chain of form XObjects, where each form draws the next one twice (no cycle), makes 2^32 executions within the depth limit from a small file: the page never ends. Cycles of tiling patterns and of Type 3 fonts were not checked, nor a soft mask of a graphic state whose group uses that soft mask again (`PDFTransparencyRenderer` draws it by a new processor with an empty stack of the forms).
+- **Today:** a form drawing itself (also through other forms) and a nesting deeper than `MAXIMUM_FORM_NESTING` = 32 are skipped and reported once per page as a rendering error (the rest of the page is drawn) - found by the hostile test of the tool Compress, where they overflowed the stack, in every application. A run with a `PDFOperationControl` can be stopped.
+- **Fix:** a limit of the executed forms of one page; the same guards for the patterns, the Type 3 fonts and the soft masks.
+
+### 20. Image masks referencing themselves
+
+- **Where:** `PDFImage::createImage` (`Pdf4QtLibCore/sources/pdfimage.cpp`), the entry `/Mask` of a stream; every renderer, the image optimizer and every other reader of the images.
+- **Attack:** a stencil mask, whose `/Mask` refers to itself (or a longer cycle): `createImage` reads the mask by calling itself without a limit, the stack overflows and the application ends (reproduced under ASan by a page drawing such an image). `/SMask` is safe - a soft mask with `/Mask` or `/SMask` is refused.
+- **Fix:** refuse `/Mask` and `/SMask` in the image read as a mask of another image (as the check of `isSoftMask` does).
+
+### 21. A compiled page without a limit of its memory, std::bad_alloc out of the compilation
+
+- **Where:** `PDFRenderer::compile` and `PDFPrecompiledPageGenerator` (`Pdf4QtLibCore/sources/pdfrenderer.cpp`, `pdfpainter.cpp`), every viewer of a page; found by `UnitTestsDocumentToolCorpus` on `testpdf/Bugs/runsforever-poppler.pdf` (9.7 MB, 1 page).
+- **Problem:** nested forms repeat their content (`processForm` → `processContent` → `operatorPathStroke` → `PDFPrecompiledPageGenerator::performPathPainting`, entry 19 is the work, this is the memory): every path is one more instruction of the compiled page. The compilation of the page held 1.9 GB after 55 s; on Windows `std::bad_alloc` ended it after 409 s. `compile` says that no exception is thrown and catches nothing of this kind, and `PDFAsynchronousPageCompiler` (`Pdf4QtLibWidgets/sources/pdfcompiler.cpp`) has no `catch` either, so in a worker thread the exception would end the application (read from the code, not reproduced in the application).
+- **Fix:** a limit of the instructions / memory of one compiled page, with the page reported as a rendering error; `std::bad_alloc` caught at the boundary of the compilation.
+
+### 22. Drawing of a compiled mesh without a limit and without the cancellation
+
+- **Where:** `PDFPrecompiledPage::draw` → `PDFMesh::paint` (`Pdf4QtLibCore/sources/pdfpainter.cpp`, `pdfpattern.cpp`); found by `UnitTestsDocumentToolCorpus` on `testpdf/Bugs/SLOW_PERF_BTN_TRX_BigData_0513pdf(5).pdf` (5 MB, 5 pages).
+- **Problem:** the triangles of the meshes of the shadings are drawn one by one by `QPainter` (`QRasterPaintEngine::fillPolygon`), `PDFPrecompiledPage::draw` has no `PDFOperationControl` and no limit of the triangles. Page 1 is not drawn into a picture of 600 px within 10 minutes (stack sampled at 75 s, Linux; the limit of the row ended it on Windows at 600 s, 3 of 3 runs). A viewer draws a compiled page in the thread of the user interface, so the window may not answer for that time (read from the code, not reproduced in the application).
+- **Fix:** the operation control checked in `draw` and in `PDFMesh::paint`; a mesh with more triangles than pixels of its target drawn by a cheaper way (a picture of the mesh cached per zoom), a limit of the triangles reported as a rendering error.

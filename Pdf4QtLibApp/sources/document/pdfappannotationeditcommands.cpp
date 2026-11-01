@@ -277,6 +277,13 @@ bool PDFAppAnnotationEditCommandHandler::isEnabled(const QString& commandId) con
         return false;
     }
 
+    // While a tool is open the actions of the annotations are off (owner decision of
+    // 2026-11-01), also their properties and comments; selecting is reading
+    if (view->isToolModeActive() && commandId != C::annotationSelectAll())
+    {
+        return false;
+    }
+
     const bool isEditingAllowed = controller->isAnnotationEditingAllowed();
     if (H::isModifying(commandId) && !isEditingAllowed)
     {

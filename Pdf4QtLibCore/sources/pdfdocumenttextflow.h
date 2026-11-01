@@ -30,6 +30,7 @@
 namespace pdf
 {
 class PDFDocument;
+class PDFOperationControl;
 
 /// Text flow extracted from document. Text flow can be created \p PDFDocumentTextFlowFactory.
 /// Flow can contain various items, not just text ones. Also, some manipulation functions
@@ -147,9 +148,15 @@ public:
     /// \param calculateBoundingBoxes Perform bounding box calculation?
     void setCalculateBoundingBoxes(bool calculateBoundingBoxes);
 
+    /// Sets the cancellation of create, checked per page and per operator (optional, it
+    /// must outlive create). A canceled create returns the text of the pages finished so
+    /// far: it is not to be used, check the control.
+    void setOperationControl(const PDFOperationControl* operationControl) { m_operationControl = operationControl; }
+
 private:
     QList<PDFRenderError> m_errors;
     bool m_calculateBoundingBoxes = false;
+    const PDFOperationControl* m_operationControl = nullptr;
 };
 
 /// Editor which can edit document text flow, modify user text,

@@ -444,6 +444,7 @@ private slots:
     void panelColorTargetsDeletion();
     void moreColorsDialog();
     void moreColorsDialogDeletion();
+    void helpKeyBlockedByColorPicker();
     void screenshots();
 };
 
@@ -3632,6 +3633,39 @@ void AppAnnotateTest::moreColorsDialog()
     QVERIFY(!pdf::PDFAppColorPicker::find(row)->openDialog());
     row->setEnabled(true);
     creator->endTool();
+}
+
+void AppAnnotateTest::helpKeyBlockedByColorPicker()
+{
+    // The dialog Color picker is modal (the plan, chapter 5): F1 does nothing, the
+    // edited color stays; closed, F1 opens the topic of the document
+    using MoreColors = AppAnnotateMoreColorsHelper;
+
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("HelpPicker.pdf"), 2));
+    QVERIFY(tab);
+    fixture.window->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(fixture.window.data()));
+    pdf::PDFAppAnnotationCreator* creator = H::creator(tab);
+    QVERIFY(creator->startTool(Kind::Rectangle));
+    QPointer<pdf::PDFColorPickerDialog> dialog = MoreColors::open(creator->getToolBar()->getColorRow());
+    QVERIFY(dialog);
+    QTRY_VERIFY(dialog->isVisible() && dialog->isActiveWindow());
+    MoreColors::type(dialog, QStringLiteral("123456"));
+    const QRgb edited = dialog->getCurrentColor().rgb();
+
+    fixture.pressHelpKey();
+    QVERIFY(!fixture.window->findHelpTab());
+    QCOMPARE(fixture.currentDocumentTab(), tab);
+    QVERIFY(dialog && dialog->isVisible());
+    QCOMPARE(dialog->getCurrentColor().rgb(), edited);
+
+    dialog->reject();
+    fixture.settle();
+    fixture.window->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(fixture.window.data()));
+    fixture.pressHelpKey();
+    QCOMPARE(fixture.getShownHelpTopic(), QStringLiteral("read-documents"));
 }
 
 void AppAnnotateTest::moreColorsDialogDeletion()

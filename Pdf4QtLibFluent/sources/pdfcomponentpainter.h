@@ -1824,6 +1824,152 @@ public:
     /// Draws the item into the rectangle
     static void paintThumbnailItem(QPainter* painter, const QRectF& rect, const ThumbnailItem& item, const State& state);
 
+    // ---------------------------------------------------------------- Tile row
+
+    /// Occurrence of a tile row (frames of the tools, no component of Figma). Each
+    /// kind has the geometry of its frames (padding, gap, tile, lines of the texts).
+    enum class TileRowKind
+    {
+        MenuItem,   ///< Item of a panel of the tool bar, 44 / 57 (one or two lines of the description): 438:15032, 438:12831, 339:8765
+        PanelStep,  ///< Item of the panel Steps, 46 with the place of the check mark kept: 303:4560
+        ListItem,   ///< Row of a list of a sidebar or of a form, 44 / 57 (49 with a tag): 438:14751, 438:15346, 438:13119
+        Step,       ///< Step of the right sidebar, 41: 303:4405, 303:4897
+        Pending,    ///< Pending change, 46, a Semi Bold title and a link: 389:20177, 388:20614
+        Result,     ///< Result of a kind, 44, a tile of 26: 438:14342
+        Caption     ///< Caption of a group of the rows of one list, 21, the title only: 438:14866
+    };
+
+    /// Colors of the tile
+    enum class TileRowTone
+    {
+        Accent,     ///< bg/accent-subtle and icon/accent: a row, which is active, every item of a choice list
+        Muted,      ///< bg/muted and icon/muted: a skipped step (319:7380), a result (438:14577), a row of a list, which is not selected (434:4476)
+        Danger      ///< accent/red/bg and accent/red/icon: a page marked for removal
+    };
+
+    /// Content of a tile row: an optional check box, the tile with an icon or a
+    /// text, the title with an optional tag, the description and the ending - the
+    /// check mark of a chosen item, an icon of a state or a link.
+    ///
+    /// The kind says, what is selected. An item of a choice list (MenuItem, PanelStep)
+    /// is chosen by \p chosen: bg/hover and the check mark (438:15319, 313:7291); the
+    /// selection of its state is not drawn. Chosen or not, its tile has the tone Accent
+    /// and its title is text/primary (438:15328, 313:7327, 339:9493), \p tone is not used.
+    /// A row of a list (the other kinds) shows the selection of its state as
+    /// bg/accent-subtle (438:14751). The tile of a row with a check box follows the
+    /// check box, otherwise \p tone.
+    struct TileRow
+    {
+        QString title;
+        QString description;
+        QString tag;                ///< Tag after the title (shown, when its text is not empty)
+        QString iconName;           ///< Icon of the tile
+        QString tileText;           ///< Text of the tile instead of the icon (a number of a page, 388:20614); it is data
+        TileRowKind kind = TileRowKind::MenuItem;
+        TileRowTone tone = TileRowTone::Accent;
+        TextKind titleKind = TextKind::Interface;
+        TextKind descriptionKind = TextKind::Interface;
+        std::optional<PDFThemeColors::Color> descriptionColor;  ///< Instead of the color of the kind (a step performed: text/secondary, 303:4897)
+        bool chosen = false;
+        QString endIconName;        ///< Icon of a state at the trailing side (minus, check-circle), not shown beside the check mark of a chosen item
+        PDFThemeColors::Color endIconColor = PDFThemeColors::IconAccent;
+        QString linkText;           ///< Link at the trailing side (Undo, Keep)
+        bool checkBoxVisible = false;
+        bool checkBoxChecked = false;
+        bool checkBoxEnabled = true;
+        QStyle::State checkBoxFlags = QStyle::State_None;   ///< Hover and press of the nested check box
+        QStyle::State linkFlags = QStyle::State_None;       ///< Hover and press of the nested link
+        bool paintNested = true;    ///< Draw the check box and the link (a widget has them as its children, it keeps only their place)
+    };
+
+    /// Returns the valid kind (an invalid value is replaced by MenuItem)
+    static TileRowKind normalized(TileRowKind kind);
+
+    /// Returns the valid tone (an invalid value is replaced by Accent)
+    static TileRowTone normalized(TileRowTone tone);
+
+    /// Returns the text bounded for the layout of a row (a longer text, an address
+    /// of a hostile document, is cut to 1024 characters)
+    static QString getBoundedTileRowText(const QString& text);
+
+    /// Returns the size of the row: the width of its texts on one line, at most
+    /// a width of a form (622 + padding), and the height of the width
+    static QSize getTileRowSize(const TileRow& row);
+
+    /// Returns the minimal size of the row (the texts are elided, the tag is dropped)
+    static QSize getTileRowMinimumSize(const TileRow& row);
+
+    /// Returns the height of the row of the width (the description of MenuItem and
+    /// ListItem wraps to at most two lines, the other kinds have a single line)
+    static int getTileRowHeight(const TileRow& row, int width);
+
+    /// Returns the distance of a nested link from the trailing edge of the row
+    static int getTileRowTrailingMargin(TileRowKind kind);
+
+    /// Returns the rectangle of the tile in the row, placed by the direction of the state
+    static QRectF getTileRowTileRect(const QRectF& rect, const TileRow& row, const State& state);
+
+    /// Returns the rectangle of the check box (18 x 18), empty for a row without it
+    static QRectF getTileRowCheckBoxRect(const QRectF& rect, const TileRow& row, const State& state);
+
+    /// Returns the rectangle of the link, empty for a row without it
+    static QRectF getTileRowLinkRect(const QRectF& rect, const TileRow& row, const State& state);
+
+    /// Returns the rectangle of the ending icon (16 x 16), empty for a row without it
+    static QRectF getTileRowEndIconRect(const QRectF& rect, const TileRow& row, const State& state);
+
+    /// Returns the rectangle of the texts in the left-to-right layout of the row
+    static QRectF getTileRowTextRect(const QRectF& rect, const TileRow& row);
+
+    /// Draws the row into the rectangle
+    static void paintTileRow(QPainter* painter, const QRectF& rect, const TileRow& row, const State& state);
+
+    // --------------------------------------------------------------- Page tile
+
+    /// State of a page tile of the canvas of a tool
+    enum class PageTileState
+    {
+        Normal,     ///< The page stays as it is
+        Selected,   ///< bg/accent-subtle with the border border/focus, the label Semi Bold text/accent, the caption text/accent (389:20177)
+        Marked      ///< The dimmed page, the caption text/danger (388:20614)
+    };
+
+    /// Content of a page tile (389:20177, 389:20910, 388:20614): the page in the
+    /// slot, the label below it and an optional caption, the badge at the corner of
+    /// the page. The page fits the slot by \p pageSize, else by the picture, else
+    /// it has the proportions of the design 76 : 104.
+    struct PageTile
+    {
+        QString label;              ///< Label of the page (data)
+        QString caption;            ///< Caption below the label ("90° right", "will be removed"), empty = none
+        QString badgeIconName;      ///< Icon of the badge, empty = none
+        QPixmap pixmap;
+        QSizeF pageSize;            ///< Size of the page as it will be saved (only its proportions matter), invalid = unknown
+        QSize slotSize = QSize(104, 104);   ///< Slot of the page: 104 x 104 (Rotate) or 82 x 112 (Remove)
+        PageTileState tileState = PageTileState::Normal;
+    };
+
+    /// Returns the valid state (an invalid value is replaced by Normal)
+    static PageTileState normalized(PageTileState tileState);
+
+    /// Returns the valid slot (an invalid or empty size is 104 x 104, each side is clamped to 4096)
+    static QSize getPageTileSlotSize(const PageTile& tile);
+
+    /// Returns the size of the tile: 116 x 132 for the slot 104 x 104, 94 x 140 for
+    /// the slot 82 x 112, 16 higher with a caption, 2 wider and higher when Selected
+    /// (the border lies in the layout). It does not depend on the picture.
+    static QSize getPageTileSize(const PageTile& tile);
+
+    /// Returns the rectangle of the page in the tile of the rectangle
+    static QRectF getPageTilePageRect(const QRectF& rect, const PageTile& tile);
+
+    /// Returns the rectangle of the badge (20 x 20, it reaches 6 px over the top and
+    /// the trailing edge of the page), empty for a tile without the badge
+    static QRectF getPageTileBadgeRect(const QRectF& rect, const PageTile& tile, const State& state);
+
+    /// Draws the tile into the rectangle
+    static void paintPageTile(QPainter* painter, const QRectF& rect, const PageTile& tile, const State& state);
+
     // ------------------------------------------------------------ Bookmark row
 
     /// Content of a bookmark of the document sidebar (component Bookmark row

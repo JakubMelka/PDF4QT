@@ -66,6 +66,7 @@ public:
 
     virtual bool setRoute(const PDFAppRoute& route) override;
     virtual QString getTitle() const override;
+    virtual QString getHelpTopic() const override;
     virtual QString getHeaderTitle() const override;
     virtual QString getHeaderSubtitle() const override;
 

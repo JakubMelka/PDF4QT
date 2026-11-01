@@ -59,8 +59,8 @@ class PDFAppWorkspaceTab;
 class PDFDrawWidgetProxy;
 class PDFLabel;
 
-/// Banner of a request waiting in a document tab, at the top of the Home tab and
-/// of a New tab (967:12873): blue card, the monogram 36 of the assistant, "Claude
+/// Banner of a request waiting in a document tab, at the top of the Home tab, of a
+/// New tab and of the Help tab (967:12873): blue card, the monogram 36 of the assistant, "Claude
 /// Code is waiting for your confirmation · Invoice.pdf", the body with the
 /// countdown and Show
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppMcpWaitingBanner : public PDFTintedCard
@@ -113,7 +113,7 @@ private:
 /// oldest request of the current tab with "1 of N", the countdown and the 2 min
 /// timeout (an injected clock for the tests), Show on Page with the ghosts and
 /// the preview bar, the status item "<client> is waiting for your confirmation"
-/// in every document tab, the banner of the Home tab and of a New tab, the alert
+/// in every document tab, the banner of the Home tab, of a New tab and of the Help tab, the alert
 /// of a minimized window, and the notification bar after every committed change
 /// of an assistant (also with Edit documents = Allow). A closed tab denies its
 /// requests (denied_closed). GUI thread; a child of the host.

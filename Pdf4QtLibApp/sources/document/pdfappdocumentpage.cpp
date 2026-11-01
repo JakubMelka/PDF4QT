@@ -71,10 +71,7 @@ PDFAppDocumentPage::~PDFAppDocumentPage() = default;
 
 bool PDFAppDocumentPage::setRoute(const PDFAppRoute& route)
 {
-    // Only the route of the document of the tab (the segments are validated by
-    // the route table: document / {documentId})
-    const QStringList& segments = route.getSegments();
-    if (!m_tab || segments.size() != 2 || segments[1] != m_tab->getDocumentId())
+    if (!m_tab || !isRouteOfPage(route))
     {
         return false;
     }
@@ -92,6 +89,14 @@ bool PDFAppDocumentPage::setRoute(const PDFAppRoute& route)
         applyRoute();
     }
     return true;
+}
+
+bool PDFAppDocumentPage::isRouteOfPage(const PDFAppRoute& route) const
+{
+    // Only the route of the document of the tab (the segments are validated by
+    // the route table: document / {documentId})
+    const QStringList& segments = route.getSegments();
+    return m_tab && segments.size() == 2 && segments[1] == m_tab->getDocumentId();
 }
 
 void PDFAppDocumentPage::applyRoute()
@@ -214,6 +219,14 @@ QString PDFAppDocumentPage::getTitle() const
 {
     PDFAppDocument* document = m_tab ? m_tab->getDocument() : nullptr;
     return document ? document->getTitle() : tr("Document");
+}
+
+QString PDFAppDocumentPage::getHelpTopic() const
+{
+    // The state screens (a document being opened, the password) instead of the view:
+    // they are described by the topic of the opening
+    const PDFAppDocument* document = m_tab ? m_tab->getDocument() : nullptr;
+    return document && !document->isReady() ? QStringLiteral("open-documents") : QStringLiteral("read-documents");
 }
 
 bool PDFAppDocumentPage::hasSearchHeader() const

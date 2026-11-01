@@ -286,7 +286,8 @@ QString PDFAppUndoStack::getRedoDescription() const
 
 bool PDFAppUndoStack::undo()
 {
-    if (!m_document || !m_document->isReady() || m_document->isLocked() || m_document->isBlockedByOperation())
+    // While a tool is open Undo acts only on the tool (owner decision of 2026-11-01)
+    if (!m_document || !m_document->isReady() || m_document->isLocked() || m_document->isBlockedByOperation() || m_document->areUserChangesSuspended())
     {
         return false;
     }
@@ -336,7 +337,8 @@ bool PDFAppUndoStack::undo()
 
 bool PDFAppUndoStack::redo()
 {
-    if (!m_document || !m_document->isReady() || m_document->isLocked() || m_document->isBlockedByOperation())
+    // While a tool is open Redo acts only on the tool (owner decision of 2026-11-01)
+    if (!m_document || !m_document->isReady() || m_document->isLocked() || m_document->isBlockedByOperation() || m_document->areUserChangesSuspended())
     {
         return false;
     }

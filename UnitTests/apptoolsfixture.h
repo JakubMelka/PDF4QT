@@ -137,7 +137,8 @@ public:
     /// Saves the collection by another connection (\p id = the row id of a new one)
     bool writeCollectionFromOtherConnection(const pdf::PDFToolCollectionDraft& draft, qint64* id = nullptr);
 
-    /// Registers AppToolsTestPage as the page of the tool (removed by the destructor)
+    /// Registers AppToolsTestPage as the page of the tool (the destructor gives the
+    /// previous factory back)
     bool registerTestToolPage(const QString& toolId, pdf::PDFAppToolPageKind kind = pdf::PDFAppToolPageKind::Start);
 
     /// Opens a document of \p pageCount pages
@@ -149,7 +150,14 @@ public:
     QImage screenshot(const QString& name) const;
 
 private:
-    std::vector<std::pair<pdf::PDFAppToolPageKind, QString>> m_registeredPages;
+    struct RegisteredPage
+    {
+        pdf::PDFAppToolPageKind kind = pdf::PDFAppToolPageKind::Start;
+        QString toolId;
+        std::shared_ptr<const pdf::PDFAppPageFactory> previousFactory;
+    };
+
+    std::vector<RegisteredPage> m_registeredPages;
 };
 
 }   // namespace pdftest

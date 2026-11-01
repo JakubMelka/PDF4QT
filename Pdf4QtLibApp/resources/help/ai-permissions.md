@@ -26,7 +26,7 @@ A change of a permission applies at once, the server does not restart.
 
 ## Questions in the document
 
-When a permission is **Ask**, the tab of the document shows the question of the assistant: what it wants to do, with which document, why you are asked, and the buttons to allow or deny it. Other tabs stay free while the question waits; the status bar of every tab says that an assistant waits for your answer, and the Home tab shows a banner with **Show**.
+When a permission is **Ask**, the tab of the document shows the question of the assistant: what it wants to do, with which document, why you are asked, and the buttons to allow or deny it. Other tabs stay free while the question waits; the status bar of every tab says that an assistant waits for your answer, and the Home tab, a new tab and the Help tab show a banner with **Show**.
 
 - **Read documents** set to Ask asks once for each assistant: the first time it wants to read, PDF4QT shows your open documents and asks whether it may read them. **Allow** applies to all open documents, also to the ones you open later, until it has not used PDF4QT for 30 minutes or you disconnect it. **Deny** refuses only that request; the assistant is asked again next time.
 - A change of a document shows the changes, the pages and the quoted texts. **Show on Page** draws the proposed annotations on the page, so you can see them before you decide.

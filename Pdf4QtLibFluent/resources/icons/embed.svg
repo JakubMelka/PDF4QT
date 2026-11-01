@@ -1,0 +1,6 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="icon/embed">
+<path id="glyph" d="M9 9V5C9 4.46957 9.21071 3.96086 9.58579 3.58579C9.96086 3.21071 10.4696 3 11 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H11C10.4696 21 9.96086 20.7893 9.58579 20.4142C9.21071 20.0391 9 19.5304 9 19V15M3 12H9M6 15L9 12L6 9" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="glyph-fill" d="M17 9H13C12.4477 9 12 9.44772 12 10V14C12 14.5523 12.4477 15 13 15H17C17.5523 15 18 14.5523 18 14V10C18 9.44772 17.5523 9 17 9Z" fill="#475569"/>
+</g>
+</svg>

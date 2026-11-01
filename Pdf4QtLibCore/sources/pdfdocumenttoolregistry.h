@@ -54,7 +54,6 @@ enum class PDFDocumentToolRegistration
 /// from the registry stays alive while it is held, also when it is unregistered
 /// meanwhile. The applications register their tools at the start; nothing is
 /// registered in phase 1 (step 6) - the tests register the test tool.
-/// PROVISIONAL until the pilot tool Compress.
 class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolRegistry
 {
 public:

@@ -90,4 +90,5 @@ Každý implementovaný tool je automaticky akcí hierarchického MCP toolu své
 1. Shell, dialog výsledku a runner s pilotním toolem **Compress** (Figma nejúplnější: náhled, běh, *not reduced*, výsledek, chyba zápisu).
 2. **Merge** – vlastní karta, více vstupů, *Open in a new tab* / *Save as a file*, úvodní stránka s více dokumenty.
 3. Ostatní tooly po kategoriích. Každý tool = jádro + GUI + dokumentace (Markdown) + test jádra bez GUI + test GUI + MCP; kontroly Figma a C++ jako ve fázi 1.
-4. Kontrola pokrytí podle [tools.md](tools.md) kapitola 6 – každá funkce starých aplikací má místo. Pak smazání starých aplikací, `Pdf4QtLibGui`, pluginů a `PDFPlugin`, úprava instalátoru.
+4. **Až nakonec a jen s výslovným povolením vlastníka (O32):** `edit.content`, `edit.page-numbers`, `convert.ocr`. Vlastník je ještě změní, i ve Figmě, proto se na nich bez povolení nezačíná ani návrhem.
+5. Kontrola pokrytí podle [tools.md](tools.md) kapitola 6 – každá funkce starých aplikací má místo. Pak smazání starých aplikací, `Pdf4QtLibGui`, pluginů a `PDFPlugin`, úprava instalátoru.

@@ -44,6 +44,7 @@ class PDFICCProfileCache;
 class PDFFontCacheShrinkGuard;
 class PDFOperationControl;
 class PDFOptionalContentActivity;
+class PDFProgress;
 
 /// Helper responsible for gathering image statistics needed for compression.
 class PDF4QTLIBCORESHARED_EXPORT PDFImageCompressor
@@ -59,9 +60,32 @@ public:
 
     using ImageStatisticsList = std::vector<ImageStatistics>;
 
+    /// Where an image XObject is drawn, known without decoding it: its largest size on
+    /// the pages decides its resolution (the pixels are read when the image is decoded)
+    struct ImagePlacement
+    {
+        PDFObjectReference reference;   ///< Reference of the image stream
+        QPointF maximumInches;          ///< Largest length of the axes of the image on the pages, in inches (0 = degenerated on all pages)
+        PDFInteger firstPageIndex = 0;  ///< First page, which draws the image
+    };
+
+    /// Placements of the images, sorted by the reference
+    using ImagePlacements = std::vector<ImagePlacement>;
+
     /// Image XObject drawn on a page: the image, its stream, its reference and its
     /// resolution in the user space of the page per axis (0, if the axis is degenerated)
     using ImageCallback = std::function<void(const PDFImage& image, const PDFStream* stream, PDFObjectReference reference, QPointF dpi)>;
+
+    /// Image XObject about to be drawn, nothing is decoded: its reference and the
+    /// length of its axes on the page in inches (0, if the axis is degenerated)
+    using PlacementCallback = std::function<void(PDFObjectReference reference, QPointF inches)>;
+
+    /// Says, whether the image XObject of the reference is to be decoded
+    using ImageFilter = std::function<bool(PDFObjectReference reference)>;
+
+    /// One decoded image of visitImages. The image is the only reference to its pixels;
+    /// when the callback does not keep it, it is released before the next image is decoded.
+    using DecodedImageCallback = std::function<void(ImageStatistics statistics)>;
 
     /// Resources of the content processor for the collection of the images drawn
     /// on the pages of a document (optional content, font cache, color management).
@@ -84,10 +108,21 @@ public:
         /// \param pageIndex Index of the page
         /// \param callback Callback called for every drawn image
         /// \param operationControl Cancellation (optional)
-        void processPage(PDFInteger pageIndex, const ImageCallback& callback, const PDFOperationControl* operationControl) const;
+        /// \param filter Images, which are decoded and reported (optional, default all);
+        ///        the others are skipped without decoding them
+        void processPage(PDFInteger pageIndex, const ImageCallback& callback, const PDFOperationControl* operationControl, const ImageFilter& filter = ImageFilter()) const;
+
+        /// Calls the callback for every image XObject drawn on the page, without decoding any image
+        /// \param pageIndex Index of the page
+        /// \param callback Callback called for every drawn image
+        /// \param operationControl Cancellation (optional)
+        void processPagePlacements(PDFInteger pageIndex, const PlacementCallback& callback, const PDFOperationControl* operationControl) const;
 
         /// Returns the color management system decoding the images
         const PDFCMS* getCMS() const { return m_cms.data(); }
+
+        /// Returns the processed document
+        const PDFDocument* getDocument() const { return m_document; }
 
     private:
         const PDFDocument* m_document;
@@ -99,10 +134,44 @@ public:
     };
 
     /// Collects all image XObjects from the document and computes their
-    /// analysis data required for compression decisions.
+    /// analysis data required for compression decisions. All decoded images are
+    /// returned, so the memory grows with their number: a caller, which only needs
+    /// them one after another, uses collectImagePlacements and visitImages.
     /// \param document Processed document
+    /// \param operationControl Cancellation (optional), a canceled collection returns
+    ///        the images decoded so far
+    /// \param progress Progress of the walk over the pages, then of the decoding (optional)
     /// \return Collected statistics for every unique image reference
-    ImageStatisticsList collectImages(const PDFDocument* document) const;
+    ImageStatisticsList collectImages(const PDFDocument* document,
+                                      const PDFOperationControl* operationControl = nullptr,
+                                      PDFProgress* progress = nullptr) const;
+
+    /// First pass over the pages: finds the image XObjects drawn by the document and
+    /// their placements. Nothing is decoded, the memory does not depend on the images.
+    /// \param environment Environment of the processed document
+    /// \param operationControl Cancellation, checked per page and per operator (optional)
+    /// \param progress One step per page (optional)
+    /// \return Placements sorted by the reference; incomplete, when canceled
+    ImagePlacements collectImagePlacements(const Environment& environment,
+                                           const PDFOperationControl* operationControl = nullptr,
+                                           PDFProgress* progress = nullptr) const;
+
+    /// Second pass: decodes the images one at a time and hands each of them to the
+    /// callback, with its resolution taken from the placements, before the next image
+    /// is decoded. Only pages, which draw an image for the first time, are processed.
+    /// An image, which cannot be decoded on its first page, is tried on its other
+    /// pages; when it never gives pixels, the callback gets it with a null image,
+    /// unless its data cannot be read at all (then it is not reported, as by collectImages).
+    /// Runs inside of the content processor: the callback must not let a PDFException
+    /// out, the processor would report it as an error of the page and go on.
+    /// \param environment Environment of the processed document
+    /// \param placements Result of collectImagePlacements
+    /// \param callback Called for each image, in the order of the pages
+    /// \param operationControl Cancellation, checked before each image (optional)
+    void visitImages(const Environment& environment,
+                     const ImagePlacements& placements,
+                     const DecodedImageCallback& callback,
+                     const PDFOperationControl* operationControl = nullptr) const;
 
     /// Returns the smaller of the resolutions of an axis; values, which are not
     /// positive or finite, are ignored

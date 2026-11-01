@@ -492,6 +492,7 @@ PDFAppMcpNotificationBar::PDFAppMcpNotificationBar(const PDFAppMcpCommitInfo& in
     if (m_info.document)
     {
         connect(m_info.document, &PDFAppDocument::documentChanged, this, &PDFAppMcpNotificationBar::onDocumentChanged);
+        connect(m_info.document, &PDFAppDocument::userChangesSuspendedChanged, this, &PDFAppMcpNotificationBar::updateUndoState);
     }
     updateTexts();
     updateUndoState();
@@ -526,9 +527,20 @@ void PDFAppMcpNotificationBar::updateUndoState()
         return;
     }
 
+    // While a tool is open, Undo acts only on the tool (owner decision of 2026-11-01)
     const bool isOnTop = isChangeOnTop();
-    m_undoButton->setEnabled(isOnTop);
-    m_undoButton->setToolTip(isOnTop ? QString() : tr("The document has changed since then - use Undo of the document"));
+    const bool isSuspended = m_info.document && m_info.document->areUserChangesSuspended();
+    m_undoButton->setEnabled(isOnTop && !isSuspended);
+    m_undoButton->setToolTip(isSuspended ? tr("Undo of the document is not available while a tool is open")
+                                         : (isOnTop ? QString() : tr("The document has changed since then - use Undo of the document")));
+
+    // The panels of the changes and their selection are out of reach too: the left panel or
+    // the page of a tool would keep them hidden, the actions of the annotations are off
+    if (m_showChangesButton)
+    {
+        m_showChangesButton->setEnabled(!isSuspended);
+        m_showChangesButton->setToolTip(isSuspended ? tr("The changes can be shown after the tool closes") : QString());
+    }
 }
 
 void PDFAppMcpNotificationBar::startAutoHide(int milliseconds)
@@ -582,12 +594,15 @@ void PDFAppMcpNotificationBar::changeEvent(QEvent* event)
 
 void PDFAppMcpNotificationBar::onShowChangesClicked()
 {
-    Q_EMIT showChangesRequested();
+    if (m_showChangesButton && m_showChangesButton->isEnabled())
+    {
+        Q_EMIT showChangesRequested();
+    }
 }
 
 void PDFAppMcpNotificationBar::onUndoClicked()
 {
-    if (isChangeOnTop())
+    if (isChangeOnTop() && m_undoButton && m_undoButton->isEnabled())
     {
         Q_EMIT undoRequested();
     }

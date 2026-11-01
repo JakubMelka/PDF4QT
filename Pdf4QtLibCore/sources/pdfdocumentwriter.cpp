@@ -124,7 +124,8 @@ void PDFWriteObjectVisitor::writeName(const QByteArray& string)
 
     for (const char character : string)
     {
-        if (PDFLexicalAnalyzer::isRegular(character))
+        // ISO 32000-2, 7.3.5: the number sign itself is a character of a name only as #23
+        if (PDFLexicalAnalyzer::isRegular(character) && character != '#')
         {
             m_device->write(&character, 1);
         }

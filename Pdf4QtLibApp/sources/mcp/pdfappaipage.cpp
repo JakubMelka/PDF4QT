@@ -603,6 +603,11 @@ QString PDFAppAiPage::getTitle() const
     return tr("AI");
 }
 
+QString PDFAppAiPage::getHelpTopic() const
+{
+    return QStringLiteral("ai-assistant");
+}
+
 QString PDFAppAiPage::getHeaderTitle() const
 {
     return tr("AI");

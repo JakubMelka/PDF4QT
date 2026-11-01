@@ -155,6 +155,12 @@ public:
     /// Ctrl+K: the global search of the current tab, or of the Home tab
     void focusSearch();
 
+    /// F1: the topic of the user manual of the page of the current tab (the default
+    /// topic without a page) in the Help tab, the current tab stays as it is. A page
+    /// showing its topic stays with its anchor and its scroll position. The navigation
+    /// may delete the window.
+    void showHelp();
+
     /// Maximizes or restores the window
     void toggleMaximized();
 

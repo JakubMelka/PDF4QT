@@ -31,6 +31,8 @@ set(PDF4QT_LIBAPP_SETTINGS_SOURCES
     sources/settings/pdfapprestoredefaultsdialog.h
     sources/settings/pdfappsettingcontrol.cpp
     sources/settings/pdfappsettingcontrol.h
+    sources/settings/pdfappvaluestore.cpp
+    sources/settings/pdfappvaluestore.h
     sources/settings/pdfappsettingrow.cpp
     sources/settings/pdfappsettingrow.h
     sources/settings/pdfappsettingspage.cpp

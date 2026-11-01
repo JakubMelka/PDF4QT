@@ -38,6 +38,7 @@ private slots:
     void incrementalUpdateOfClassicTable();
     void incrementalUpdateOfCrossReferenceStream();
     void incrementalUpdateRejectsUnreadableOriginal();
+    void namesWithNumberSignRoundTrip();
 
 private:
     static QByteArray write(const PDFDocument& document);
@@ -243,5 +244,45 @@ void DocumentWriterTest::incrementalUpdateRejectsUnreadableOriginal()
 }
 
 QTEST_APPLESS_MAIN(DocumentWriterTest)
+
+void DocumentWriterTest::namesWithNumberSignRoundTrip()
+{
+    // ISO 32000-2, 7.3.5: "#" in a name introduces two hexadecimal digits, so the number sign
+    // itself is written as #23. A name "A#GB" written as it is makes the file unreadable (found
+    // by ECMA-363 4th Edition.pdf of UnitTestsDocumentToolCorpus); a space is escaped as before.
+    const QList<QByteArray> names = { "A#GB", "#", "A##", "A#20B", "A B" };
+
+    pdf::PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 100, 100));
+    std::vector<pdf::PDFObjectReference> references;
+    for (const QByteArray& name : names)
+    {
+        references.push_back(builder.addObject(pdf::PDFObject::createName(name)));
+    }
+    const pdf::PDFDocument document = builder.build();
+
+    QByteArray data;
+    QBuffer buffer(&data);
+    QVERIFY(buffer.open(QIODevice::WriteOnly));
+    pdf::PDFDocumentWriter writer(nullptr);
+    QVERIFY(bool(writer.write(&buffer, &document)));
+    QVERIFY2(data.contains("/A#23GB"), "The number sign of a name is written as #23");
+
+    const auto refusePassword = [](bool* ok)
+    {
+        *ok = false;
+        return QString();
+    };
+    pdf::PDFDocumentReader reader(nullptr, refusePassword, false, false);
+    const pdf::PDFDocument readDocument = reader.readFromBuffer(data);
+    QVERIFY2(reader.getReadingResult() == pdf::PDFDocumentReader::Result::OK, qPrintable(reader.getErrorMessage()));
+
+    for (int i = 0; i < names.size(); ++i)
+    {
+        const pdf::PDFObject& object = readDocument.getObjectByReference(references[size_t(i)]);
+        QVERIFY(object.isName());
+        QCOMPARE(object.getString(), names[i]);
+    }
+}
 
 #include "tst_documentwritertest.moc"

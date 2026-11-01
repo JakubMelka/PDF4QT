@@ -1,0 +1,1077 @@
+// MIT License
+//
+// Copyright (c) 2018-2026 Jakub Melka and Contributors
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+#include "pdfdocumenttoolshell.h"
+
+#include "pdfappdocument.h"
+#include "pdfappdocumentdialogs.h"
+#include "pdfappdocumenttab.h"
+#include "pdfappdocumentview.h"
+#include "pdfapppagelayout.h"
+#include "pdfappsettingcontrol.h"
+#include "pdfapptoolhost.h"
+#include "pdfapptoolpanelparts.h"
+#include "pdfapptoolparametermodel.h"
+#include "pdfapptooltoolbar.h"
+#include "pdfdocumenttoolgui.h"
+
+#include "pdfdocumenttoolcatalog.h"
+#include "pdfmessagebox.h"
+#include "pdfthemefonts.h"
+
+#include <QAction>
+#include <QApplication>
+#include <QBoxLayout>
+#include <QEvent>
+#include <QFileInfo>
+#include <QMetaObject>
+
+namespace pdf
+{
+
+/// The question of a navigation during a run (F14): as close-running 955:145813, with
+/// the texts of a tool, which is left - the tab stays
+class PDFAppToolLeaveRunningDialog : public PDFAppDocumentChoiceDialog
+{
+public:
+    /// \param title Title of the tool
+    /// \param document The document of the run
+    /// \param percentage Progress of the run
+    /// \param parent The window
+    explicit PDFAppToolLeaveRunningDialog(const QString& title, const PDFAppDocument* document, int percentage, QWidget* parent) :
+        PDFAppDocumentChoiceDialog(PDFThemeIcons::Badge::Warning,
+                                   PDFDocumentToolShell::tr("Stop %1 and leave the tool?").arg(title.left(256)),
+                                   // One call: the title of a document is no text of further arguments
+                                   PDFDocumentToolShell::tr("%1 is still running on %2 (%3 % done). Leaving the tool stops it. The document and the file stay unchanged.")
+                                       .arg(title.left(256), document ? document->getTitle() : QString(), QString::number(percentage)),
+                                   440, parent)
+    {
+        setObjectName(QStringLiteral("toolLeaveRunningDialog"));
+        addChoice(PDFDocumentToolShell::tr("Stop and Leave"), PDFAppDocumentChoice::Stop, false, true, QStringLiteral("stopAndLeaveButton"));
+        addChoice(PDFDocumentToolShell::tr("Keep Running"), PDFAppDocumentChoice::Keep, true, false, QStringLiteral("keepRunningButton"));
+    }
+};
+
+PDFDocumentToolShell::PDFDocumentToolShell(PDFAppToolHost* host, std::shared_ptr<const PDFDocumentTool> tool, PDFDocumentToolGUI* gui, QObject* parent) :
+    BaseClass(parent),
+    m_host(host),
+    m_tool(std::move(tool)),
+    m_gui(gui)
+{
+    if (m_gui)
+    {
+        m_gui->setParent(this);
+    }
+}
+
+PDFDocumentToolShell::~PDFDocumentToolShell()
+{
+    // The mode ends silently: nobody is asked and nothing is reported any more
+    if (m_state != State::Closed && m_state != State::Created)
+    {
+        m_isCloseRequested = true;
+        close();
+    }
+
+    deleteParts();
+
+    // The GUI goes first: it uses the model and the runner. Each pointer is cleared first:
+    // a slot of the end of an object may ask this shell (the destructor runs only once).
+    PDFDocumentToolGUI* gui = m_gui.data();
+    m_gui = nullptr;
+    delete gui;
+    PDFDocumentToolRunner* runner = m_runner.data();
+    m_runner = nullptr;
+    if (runner)
+    {
+        runner->setParent(nullptr);
+    }
+    delete runner;
+    PDFAppToolParameterModel* model = m_model.data();
+    m_model = nullptr;
+    delete model;
+}
+
+const PDFDocumentToolCatalogEntry* PDFDocumentToolShell::getCatalogEntry() const
+{
+    return m_tool ? m_tool->getInfo() : nullptr;
+}
+
+bool PDFDocumentToolShell::enter()
+{
+    if (m_state != State::Created || !m_host || !m_tool || !m_gui || !getCatalogEntry())
+    {
+        return false;
+    }
+
+    PDFAppDocument* document = m_host->getDocument();
+    QPointer<PDFDocumentToolShell> guard(this);
+
+    m_model = new PDFAppToolParameterModel(m_host->getContext(), m_tool->getId(), m_tool->getParameters(), this);
+    connect(m_model.data(), &PDFAppToolParameterModel::changed, this, &PDFDocumentToolShell::onParameterChanged);
+
+    m_runner = new PDFDocumentToolRunner(document, m_tool, this);
+    connect(m_runner.data(), &PDFDocumentToolRunner::previewProgress, this, &PDFDocumentToolShell::onPreviewProgress);
+    connect(m_runner.data(), &PDFDocumentToolRunner::previewFinished, this, &PDFDocumentToolShell::onPreviewFinished);
+    connect(m_runner.data(), &PDFDocumentToolRunner::previewDropped, this, &PDFDocumentToolShell::onPreviewDropped);
+    connect(m_runner.data(), &PDFDocumentToolRunner::runStarted, this, &PDFDocumentToolShell::onRunStarted);
+    connect(m_runner.data(), &PDFDocumentToolRunner::runProgress, this, &PDFDocumentToolShell::onRunProgress);
+    connect(m_runner.data(), &PDFDocumentToolRunner::runFinished, this, &PDFDocumentToolShell::onRunFinished);
+    connect(m_runner.data(), &PDFDocumentToolRunner::documentLost, this, &PDFDocumentToolShell::onDocumentLost);
+
+    m_gui->attach(this);
+    connect(m_gui.data(), &PDFDocumentToolGUI::confirmStateChanged, this, &PDFDocumentToolShell::onConfirmStateChanged);
+    connect(m_gui.data(), &PDFDocumentToolGUI::statusTextChanged, this, &PDFDocumentToolShell::updateStatus);
+
+    m_isPermissionRefused = document && document->getDocument() && !getCatalogEntry()->isPermitted(document->getDocument().get());
+
+    // The parts wait in a hidden holder, until the view takes them (and it gives them back)
+    m_partsParent = new QWidget();
+    m_partsParent->setObjectName(QStringLiteral("toolPartsHolder"));
+    m_toolbar = new PDFAppToolToolbar(m_host, *getCatalogEntry(), m_partsParent);
+    connect(m_toolbar.data(), &PDFAppToolToolbar::cancelClicked, this, &PDFDocumentToolShell::cancel);
+    connect(m_toolbar.data(), &PDFAppToolToolbar::confirmClicked, this, &PDFDocumentToolShell::confirm);
+    connect(m_toolbar.data(), &PDFAppToolToolbar::stopClicked, this, &PDFDocumentToolShell::stop);
+    m_toolbar->installEventFilter(this);
+
+    createContent();
+
+    PDFAppToolModeParts parts;
+    parts.toolbar = m_toolbar;
+    parts.leftPanel = m_leftPanel;
+    parts.canvasPage = m_canvasPage;
+    parts.rightPanel = m_rightPanel;
+    parts.undoTarget = m_model;
+
+    m_host->saveViewState();
+
+    const bool isEntered = m_host->enterMode(parts);
+    if (!guard)
+    {
+        return false;
+    }
+    if (!isEntered)
+    {
+        m_state = State::Closed;
+        return false;
+    }
+
+    m_state = State::Editing;
+    connect(m_host.data(), &PDFAppToolHost::modeLeft, this, &PDFDocumentToolShell::onModeLeft);
+    connect(m_host.data(), &PDFAppToolHost::documentNotReady, this, &PDFDocumentToolShell::onDocumentLost);
+    connect(m_host.data(), &PDFAppToolHost::lockChanged, this, &PDFDocumentToolShell::onLockChanged);
+    if (document)
+    {
+        connect(document, &PDFAppDocument::documentChanged, this, &PDFDocumentToolShell::onDocumentChanged);
+    }
+
+    // The keys of the tool: the actions of the view reach them from every part of the tool
+    if (QWidget* keyWidget = m_host->getKeyWidget())
+    {
+        m_escapeAction = new QAction(this);
+        m_escapeAction->setObjectName(QStringLiteral("toolEscape"));
+        m_escapeAction->setShortcut(QKeySequence(Qt::Key_Escape));
+        m_escapeAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+        connect(m_escapeAction.data(), &QAction::triggered, this, &PDFDocumentToolShell::onEscape);
+        keyWidget->addAction(m_escapeAction);
+
+        m_confirmAction = new QAction(this);
+        m_confirmAction->setObjectName(QStringLiteral("toolConfirm"));
+        m_confirmAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Return));
+        m_confirmAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+        connect(m_confirmAction.data(), &QAction::triggered, this, &PDFDocumentToolShell::confirm);
+        keyWidget->addAction(m_confirmAction);
+
+        m_confirmKeypadAction = new QAction(this);
+        m_confirmKeypadAction->setObjectName(QStringLiteral("toolConfirmKeypad"));
+        m_confirmKeypadAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Enter));
+        m_confirmKeypadAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+        connect(m_confirmKeypadAction.data(), &QAction::triggered, this, &PDFDocumentToolShell::confirm);
+        keyWidget->addAction(m_confirmKeypadAction);
+    }
+
+    // The canvas area raises what it shows: the overlay lies over the canvas of the mode
+    if (m_overlay)
+    {
+        m_overlay->raise();
+        m_overlay->show();
+    }
+
+    const QString panel = m_gui->getInitialSidebarPanel();
+    if (!panel.isEmpty())
+    {
+        m_host->showPanel(panel);
+        if (!guard)
+        {
+            return false;
+        }
+    }
+
+    updateToolbar();
+    updateStatus();
+    Q_EMIT stateChanged(m_state);
+    if (!guard)
+    {
+        return true;
+    }
+
+    if (m_isPermissionRefused)
+    {
+        // The window shows the new page first; a modal dialog waits for the event loop
+        QMetaObject::invokeMethod(this, &PDFDocumentToolShell::showPermissionRefusal, Qt::QueuedConnection);
+    }
+    else
+    {
+        updatePreview();
+    }
+    return guard != nullptr;
+}
+
+void PDFDocumentToolShell::createContent()
+{
+    if (!m_gui || !m_partsParent || !m_toolbar)
+    {
+        return;
+    }
+
+    // The toolbar keeps the place of the actions
+    QWidget* actions = m_gui->createToolActions(m_toolbar);
+    m_toolbar->setToolActions(actions);
+    m_toolActions = actions;
+
+    const int spacing = m_gui->getRightPanelSpacing();
+    const bool isEntering = m_state == State::Created;
+    if (isEntering)
+    {
+        m_rightPanel = new PDFAppToolSidePanel(PDFAppToolSidePanel::Side::Right, spacing, m_partsParent);
+        m_rightPanel->setObjectName(QStringLiteral("toolRightPanel"));
+        m_leftPanel = new PDFAppToolSidePanel(PDFAppToolSidePanel::Side::Left, 10, m_partsParent);
+        m_leftPanel->setObjectName(QStringLiteral("toolLeftPanel"));
+    }
+
+    // A panel without a content is no part of the tool (the view keeps its place)
+    if (m_rightPanel)
+    {
+        QWidget* rightContent = m_gui->createRightPanel(m_rightPanel->getContentParent());
+        m_rightPanel->setContent(rightContent);
+        m_rightContent = rightContent;
+        if (!rightContent && isEntering)
+        {
+            delete m_rightPanel.data();
+        }
+    }
+    if (m_leftPanel)
+    {
+        QWidget* leftContent = m_gui->createLeftPanel(m_leftPanel->getContentParent());
+        m_leftPanel->setContent(leftContent);
+        m_leftContent = leftContent;
+        if (!leftContent && isEntering)
+        {
+            delete m_leftPanel.data();
+        }
+    }
+
+    if (isEntering)
+    {
+        m_canvasPage = m_gui->createCanvasPage(m_partsParent);
+        if (m_host && m_host->getCanvasArea())
+        {
+            m_overlay = m_gui->createOverlay(m_host->getCanvasArea());
+        }
+    }
+}
+
+void PDFDocumentToolShell::close()
+{
+    if (m_state == State::Closed)
+    {
+        return;
+    }
+
+    const bool wasEntered = m_state != State::Created;
+    m_state = State::Closed;
+    QPointer<PDFDocumentToolShell> guard(this);
+
+    for (const QPointer<QAction>& action : { m_escapeAction, m_confirmAction, m_confirmKeypadAction })
+    {
+        if (action)
+        {
+            action->setEnabled(false);
+        }
+    }
+
+    if (m_host)
+    {
+        m_host->disconnect(this);
+        m_host->hideInfoBar(QStringLiteral("tool-result"));
+    }
+    if (m_gui)
+    {
+        m_gui->disconnect(this);
+    }
+
+    // The dialog and the run end first: the operation frees the document
+    if (m_resultDialog)
+    {
+        m_resultDialog->disconnect(this);
+    }
+    m_pendingResult.reset();
+    if (m_leaveDialog)
+    {
+        // The question of a run, which has ended without the user: its own loop ends
+        m_leaveDialog->reject();
+    }
+    if (m_permissionDialog)
+    {
+        m_permissionDialog->disconnect(this);
+        m_permissionDialog->hide();
+        m_permissionDialog->deleteLater();
+    }
+    if (m_runner)
+    {
+        // Its deletion cancels the worker, ends the operation and closes the dialog; a slot
+        // of its end may delete this shell, so the pointer is cleared first
+        m_runner->disconnect(this);
+        PDFDocumentToolRunner* runner = m_runner.data();
+        m_runner = nullptr;
+        runner->setParent(nullptr);
+        delete runner;
+        if (!guard)
+        {
+            return;
+        }
+    }
+    if (QWidget* overlay = m_overlay.data())
+    {
+        m_overlay = nullptr;
+        delete overlay;
+    }
+
+    if (wasEntered && m_host)
+    {
+        m_isLeavingMode = true;
+        m_host->leaveMode();
+        if (!guard)
+        {
+            return;
+        }
+        m_isLeavingMode = false;
+        if (m_host)
+        {
+            m_host->restoreViewState();
+        }
+        if (!guard)
+        {
+            return;
+        }
+    }
+    Q_EMIT stateChanged(State::Closed);
+}
+
+void PDFDocumentToolShell::deleteParts()
+{
+    // The parts back in the holder go with it; a part still in the view (the view has
+    // not given it back) is deleted alone
+    const QPointer<QWidget> parts[] = { m_toolbar.data(), m_leftPanel.data(), m_rightPanel.data(), m_canvasPage.data(), m_overlay.data(), m_partsParent.data() };
+    m_toolbar = nullptr;
+    m_leftPanel = nullptr;
+    m_rightPanel = nullptr;
+    m_canvasPage = nullptr;
+    m_overlay = nullptr;
+    m_partsParent = nullptr;
+    for (const QPointer<QWidget>& part : parts)
+    {
+        // The view is just moving the parts back to their holder, while a slot deletes this
+        // shell: Qt does not survive the deletion of the new parent inside of setParent
+        if (m_isLeavingMode && part)
+        {
+            part->deleteLater();
+        }
+        else
+        {
+            delete part.data();
+        }
+    }
+}
+
+void PDFDocumentToolShell::setState(State state)
+{
+    if (m_state == state)
+    {
+        return;
+    }
+
+    m_state = state;
+    updateToolbar();
+    updateStatus();
+    Q_EMIT stateChanged(state);
+}
+
+void PDFDocumentToolShell::updateToolbar()
+{
+    if (!m_toolbar || !m_gui)
+    {
+        return;
+    }
+
+    switch (m_state)
+    {
+        case State::Running:
+            m_toolbar->setMode(PDFAppToolToolbar::Mode::Running);
+            break;
+        case State::Deciding:
+            m_toolbar->setMode(PDFAppToolToolbar::Mode::Finished);
+            break;
+        default:
+            m_toolbar->setMode(PDFAppToolToolbar::Mode::Editing);
+            break;
+    }
+
+    m_toolbar->setConfirmText(m_gui->getConfirmText(), m_gui->getConfirmIconName());
+    m_toolbar->setConfirmEnabled(!m_isPermissionRefused && m_gui->isConfirmEnabled());
+}
+
+QString PDFDocumentToolShell::getStatusMessage() const
+{
+    if (!m_gui)
+    {
+        return QString();
+    }
+
+    switch (m_state)
+    {
+        case State::Running:
+            return m_gui->getRunningStatusText(m_stepText);
+        case State::Deciding:
+            return m_resultDialog ? m_resultDialog->getStatusText() : QString();
+        default:
+            return m_gui->getStatusText();
+    }
+}
+
+void PDFDocumentToolShell::updateStatus()
+{
+    if (m_host && m_state != State::Closed && m_state != State::Created)
+    {
+        m_host->setMessage(getStatusMessage());
+    }
+}
+
+void PDFDocumentToolShell::applyEnvironment()
+{
+    if (m_runner && m_host && m_gui)
+    {
+        PDFAppToolRunEnvironment environment = m_host->createEnvironment();
+        m_gui->prepareEnvironment(&environment);
+        m_runner->setEnvironment(environment);
+    }
+}
+
+void PDFDocumentToolShell::updatePreview()
+{
+    if (!m_tool || !m_tool->hasPreview() || !m_runner || !m_gui || m_isPermissionRefused || m_state == State::Closed)
+    {
+        return;
+    }
+
+    applyEnvironment();
+    m_runner->requestPreview(m_gui->getRunParameters());
+}
+
+void PDFDocumentToolShell::confirm()
+{
+    // Ctrl+Enter inside of an open panel (see onEscape): the panel closes first
+    if (QWidget* popup = QApplication::activePopupWidget())
+    {
+        popup->close();
+    }
+
+    if (m_state != State::Editing || !m_gui || !m_runner || !m_host || m_isPermissionRefused || !m_gui->isConfirmEnabled())
+    {
+        return;
+    }
+
+    m_host->hideInfoBar(QStringLiteral("tool-result"));
+
+    // An open editor is a change of the document (F4 has committed it at the entry, the
+    // model of an application with another way in may have one)
+    QPointer<PDFDocumentToolShell> guard(this);
+    if (PDFAppDocument* document = m_host->getDocument())
+    {
+        document->commitPendingEdits();
+        if (!guard || !m_runner || !m_host || m_state != State::Editing)
+        {
+            return;
+        }
+    }
+
+    // A value being typed is a value of the run: Ctrl+Enter does not move the focus
+    commitPendingValues();
+    if (!guard || !m_runner || !m_host || !m_gui || m_state != State::Editing || !m_gui->isConfirmEnabled())
+    {
+        return;
+    }
+
+    applyEnvironment();
+    if (!m_runner->run(m_gui->getRunParameters()) && guard && m_host)
+    {
+        // A foreign blocking operation, a lost document: the commit would be refused
+        m_host->showTransientMessage(tr("The document is busy with another operation. Try it again when it ends."));
+    }
+}
+
+void PDFDocumentToolShell::commitPendingValues()
+{
+    QPointer<PDFDocumentToolShell> guard(this);
+    for (const QPointer<QWidget>& part : { m_toolActions, m_rightContent, m_leftContent, m_canvasPage })
+    {
+        if (!part)
+        {
+            continue;
+        }
+
+        // A write runs the slots of the model, which may delete the controls
+        const QList<PDFAppSettingControl*> controls = part->findChildren<PDFAppSettingControl*>();
+        std::vector<QPointer<PDFAppSettingControl>> guards(controls.cbegin(), controls.cend());
+        for (const QPointer<PDFAppSettingControl>& control : guards)
+        {
+            if (control)
+            {
+                control->commitPendingValue();
+            }
+            if (!guard)
+            {
+                return;
+            }
+        }
+    }
+}
+
+void PDFDocumentToolShell::stop()
+{
+    if (m_state == State::Running && m_runner)
+    {
+        m_runner->stop();
+    }
+}
+
+void PDFDocumentToolShell::cancel()
+{
+    if (m_state == State::Editing)
+    {
+        PDFAppToolCloseRequest request;
+        request.reason = PDFAppToolCloseRequest::Reason::Canceled;
+        requestClose(request);
+    }
+}
+
+void PDFDocumentToolShell::onEscape()
+{
+    // A shortcut of a widget matches also inside of a popup below it (Qt walks to the
+    // parents through the popups): Esc of an open panel closes only the panel
+    if (QWidget* popup = QApplication::activePopupWidget())
+    {
+        popup->close();
+        return;
+    }
+
+    if (m_state == State::Running)
+    {
+        stop();
+    }
+    else
+    {
+        cancel();
+    }
+}
+
+bool PDFDocumentToolShell::confirmLeave()
+{
+    switch (m_state)
+    {
+        case State::Created:
+        case State::Closed:
+        case State::Editing:
+            return true;
+
+        case State::Deciding:
+            // The modal dialog decides: nothing goes around it
+            return false;
+
+        case State::Running:
+            break;
+    }
+
+    if (m_isAskingLeave || !m_host)
+    {
+        return false;
+    }
+
+    // The tab is shown, so the user sees, what the question is about
+    QPointer<PDFDocumentToolShell> guard(this);
+    m_host->activate();
+    if (!guard || !m_host)
+    {
+        return false;
+    }
+
+    const PDFDocumentToolCatalogEntry* tool = getCatalogEntry();
+    m_isAskingLeave = true;
+    PDFAppToolLeaveRunningDialog* dialog = new PDFAppToolLeaveRunningDialog(tool ? tool->getTitle() : QString(), m_host->getDocument(), m_percentage, m_host->getKeyWidget());
+    m_leaveDialog = dialog;
+    const PDFAppDocumentChoice choice = PDFAppDocumentChoiceDialog::run(dialog);
+    if (!guard)
+    {
+        return false;
+    }
+    m_isAskingLeave = false;
+
+    if (m_state == State::Closed)
+    {
+        // The tool has ended meanwhile (F2, a lock): its page goes on
+        return false;
+    }
+
+    if (choice != PDFAppDocumentChoice::Stop)
+    {
+        // Keep Running: a result, which came while the user was asked, is decided now
+        if (m_pendingResult)
+        {
+            const PDFDocumentToolResult result = *m_pendingResult;
+            m_pendingResult.reset();
+            finishRun(result);
+        }
+        return false;
+    }
+
+    m_pendingResult.reset();
+    return true;
+}
+
+void PDFDocumentToolShell::requestClose(const PDFAppToolCloseRequest& request)
+{
+    if (m_isCloseRequested || m_state == State::Closed)
+    {
+        return;
+    }
+    m_isCloseRequested = true;
+    Q_EMIT closeRequested(request);
+}
+
+void PDFDocumentToolShell::showProgress(bool isShown)
+{
+    delete m_progressCard.data();
+    delete m_busyCallout.data();
+    if (!isShown || !m_gui || !m_rightPanel)
+    {
+        return;
+    }
+
+    const PDFAppToolProgressPlace place = m_gui->getProgressPlace();
+    m_progressCard = new PDFAppToolProgressCard(m_rightPanel->getContentParent());
+    m_progressCard->setObjectName(QStringLiteral("toolProgressCard"));
+    if (place.cardLayout)
+    {
+        place.cardLayout->insertWidget(place.cardIndex, m_progressCard);
+    }
+    else
+    {
+        m_rightPanel->getBodyLayout()->insertWidget(0, m_progressCard);
+    }
+
+    const QString busyText = m_gui->getBusyText();
+    if (!busyText.isEmpty())
+    {
+        m_busyCallout = new PDFAppToolCallout(PDFAccentHue::Blue, QStringLiteral("info"), tr("The document is busy"), busyText, m_rightPanel->getContentParent());
+        m_busyCallout->setObjectName(QStringLiteral("toolBusyCallout"));
+        if (place.calloutLayout)
+        {
+            place.calloutLayout->insertWidget(place.calloutIndex, m_busyCallout);
+        }
+        else if (place.cardLayout)
+        {
+            place.cardLayout->insertWidget(place.cardIndex + 1, m_busyCallout);
+        }
+        else
+        {
+            m_rightPanel->getBodyLayout()->insertWidget(1, m_busyCallout);
+        }
+    }
+}
+
+int PDFDocumentToolShell::getRemainingSeconds(int percentage) const
+{
+    // The first percents say nothing about the rest of the run
+    constexpr int MINIMUM_PERCENTAGE = 5;
+    constexpr qint64 MINIMUM_ELAPSED = 1000;
+    if (percentage < MINIMUM_PERCENTAGE || percentage > 100 || !m_runTimer.isValid() || m_runTimer.elapsed() < MINIMUM_ELAPSED)
+    {
+        return -1;
+    }
+    return int(m_runTimer.elapsed() * (100 - percentage) / percentage / 1000);
+}
+
+QString PDFDocumentToolShell::formatRemainingTime(int seconds)
+{
+    if (seconds < 0)
+    {
+        return QString();
+    }
+    if (seconds >= 90)
+    {
+        return tr("About %Ln minutes left", nullptr, (seconds + 30) / 60);
+    }
+    return seconds <= 1 ? tr("About a second left") : tr("About %Ln seconds left", nullptr, seconds);
+}
+
+void PDFDocumentToolShell::updateProgress(int percentage, const QString& stepText)
+{
+    m_percentage = percentage;
+    m_stepText = stepText;
+    if (m_progressCard && m_gui)
+    {
+        m_progressCard->setProgress(percentage, m_gui->getRunningTitle(percentage), stepText, m_gui->getRunningTimeText(getRemainingSeconds(percentage)));
+    }
+    updateStatus();
+}
+
+void PDFDocumentToolShell::openResultDialog(const PDFDocumentToolResult& result)
+{
+    if (!m_host || !m_runner || !m_gui)
+    {
+        return;
+    }
+
+    PDFAppToolResultInput input;
+    input.tool = getCatalogEntry();
+    input.result = result;
+    input.scrimTarget = m_host->getCanvasArea();
+    if (const PDFAppDocument* document = m_host->getDocument())
+    {
+        input.previousToolId = document->getLastFinishedToolId();
+    }
+    m_gui->fillResultInput(&input);
+
+    m_state = State::Deciding;
+    updateToolbar();
+
+    // Connected before it is shown: a slot of its show may delete anything
+    QWidget* keyWidget = m_host->getKeyWidget();
+    PDFAppDocumentTab* tab = m_host->getDocumentTab();
+    PDFAppToolResultDialog* dialog = new PDFAppToolResultDialog(m_host->getContext(), tab, m_runner, std::move(input), keyWidget ? keyWidget->window() : nullptr);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    m_resultDialog = dialog;
+    connect(dialog, &PDFAppToolResultDialog::decided, this, &PDFDocumentToolShell::onDialogDecided);
+    connect(dialog, &PDFAppToolResultDialog::statusTextChanged, this, &PDFDocumentToolShell::onDialogStatusChanged);
+    updateStatus();
+
+    QPointer<PDFDocumentToolShell> guard(this);
+    dialog->QDialog::open();
+    if (guard)
+    {
+        Q_EMIT stateChanged(m_state);
+    }
+}
+
+void PDFDocumentToolShell::showPermissionRefusal()
+{
+    if (m_state == State::Closed || !m_gui || !m_host || m_permissionDialog)
+    {
+        return;
+    }
+
+    // 339:10328: 480 wide, the title and its line, the text, Close (the button Open
+    // Restrict Permissions comes with that tool, Q7). The scrim covers the canvas as
+    // the other dialogs of a tool.
+    QWidget* parent = m_host->getKeyWidget() ? m_host->getKeyWidget()->window() : nullptr;
+    PDFMessageBox* box = new PDFMessageBox(PDFThemeIcons::Badge::Warning, m_gui->getPermissionTitle(), m_gui->getPermissionSubtitle(), QDialogButtonBox::NoButton, parent);
+    box->setObjectName(QStringLiteral("toolPermissionDialog"));
+    box->setAttribute(Qt::WA_DeleteOnClose);
+    box->setCardWidth(480);
+    box->setScrimTarget(m_host->getCanvasArea());
+    box->addContent(PDFAppPageWidgets::createText(m_gui->getPermissionText(), PDFThemeFonts::getFont(QFont::Normal, 12), 15, PDFThemeColors::TextSecondary, box));
+
+    QPushButton* closeButton = box->addActionButton(tr("Close"), PDFMessageBox::ActionPosition::Leading, false);
+    closeButton->setObjectName(QStringLiteral("toolPermissionClose"));
+    connect(closeButton, &QPushButton::clicked, box, &QDialog::reject);
+    connect(box, &QDialog::finished, this, &PDFDocumentToolShell::onPermissionDialogFinished);
+
+    m_permissionDialog = box;
+    box->open();
+}
+
+void PDFDocumentToolShell::onPermissionDialogFinished()
+{
+    cancel();
+}
+
+void PDFDocumentToolShell::onParameterChanged(const QString& name)
+{
+    QPointer<PDFDocumentToolShell> guard(this);
+    if (m_gui)
+    {
+        m_gui->onParametersChanged(name);
+    }
+    if (guard)
+    {
+        updateToolbar();
+        updateStatus();
+        updatePreview();
+    }
+}
+
+void PDFDocumentToolShell::onConfirmStateChanged()
+{
+    updateToolbar();
+}
+
+void PDFDocumentToolShell::onPreviewProgress(int percentage, const QString& stepText)
+{
+    if (m_gui && m_state == State::Editing)
+    {
+        m_gui->onPreviewProgress(percentage, stepText);
+    }
+}
+
+void PDFDocumentToolShell::onPreviewFinished(const PDFDocumentToolResult& result)
+{
+    if (m_gui)
+    {
+        m_gui->onPreviewChanged(&result);
+    }
+    if (m_toolbar)
+    {
+        updateToolbar();
+    }
+}
+
+void PDFDocumentToolShell::onPreviewDropped()
+{
+    if (m_gui)
+    {
+        m_gui->onPreviewChanged(nullptr);
+    }
+}
+
+void PDFDocumentToolShell::onRunStarted()
+{
+    m_runTimer.restart();
+    m_percentage = 0;
+    m_stepText.clear();
+    m_state = State::Running;
+
+    if (m_gui)
+    {
+        m_gui->setContentEnabled(false);
+        showProgress(true);
+        m_gui->onRunStateChanged(true);
+    }
+    updateProgress(0, QString());
+    updateToolbar();
+
+    Q_EMIT stateChanged(m_state);
+}
+
+void PDFDocumentToolShell::onRunProgress(int percentage, const QString& stepText)
+{
+    if (m_state == State::Running)
+    {
+        updateProgress(percentage, stepText);
+    }
+}
+
+void PDFDocumentToolShell::onRunFinished(const PDFDocumentToolResult& result)
+{
+    // A result, which comes while the user is asked about the leaving (F14), waits for the answer
+    if (m_isAskingLeave && result.isSuccess())
+    {
+        m_pendingResult = result;
+        return;
+    }
+
+    finishRun(result);
+}
+
+void PDFDocumentToolShell::finishRun(const PDFDocumentToolResult& result)
+{
+    showProgress(false);
+    if (m_gui)
+    {
+        m_gui->setContentEnabled(true);
+        m_gui->onRunStateChanged(false);
+    }
+
+    if (result.isSuccess())
+    {
+        openResultDialog(result);
+        return;
+    }
+
+    QPointer<PDFDocumentToolShell> guard(this);
+    setState(State::Editing);
+    if (guard && m_gui && result.status != PDFDocumentToolResultStatus::Stopped)
+    {
+        m_gui->onRunNotAccepted(result);
+    }
+}
+
+void PDFDocumentToolShell::onDocumentLost()
+{
+    // F2: the tool ends. From the event loop: the signal comes also from the destructor of
+    // the document (its tab is going away, the page goes with it and nothing is left to do)
+    QMetaObject::invokeMethod(this, &PDFDocumentToolShell::onDocumentLostQueued, Qt::QueuedConnection);
+}
+
+void PDFDocumentToolShell::onDocumentLostQueued()
+{
+    PDFAppToolCloseRequest request;
+    request.reason = PDFAppToolCloseRequest::Reason::Lost;
+    requestClose(request);
+}
+
+void PDFDocumentToolShell::onDocumentChanged()
+{
+    QPointer<PDFDocumentToolShell> guard(this);
+    if (m_gui)
+    {
+        m_gui->onDocumentChanged();
+    }
+    if (guard)
+    {
+        updateStatus();
+    }
+}
+
+void PDFDocumentToolShell::onDialogDecided(const PDFAppToolResultOutcome& outcome)
+{
+    const PDFAppToolResultOutcome decided = outcome;
+    QPointer<PDFDocumentToolShell> guard(this);
+
+    switch (decided.action)
+    {
+        case PDFAppToolResultOutcome::Action::Rerun:
+            // The document has another version: the runner reports the new result
+            return;
+
+        case PDFAppToolResultOutcome::Action::Discarded:
+        {
+            PDFAppToolCloseRequest request;
+            request.reason = PDFAppToolCloseRequest::Reason::Discarded;
+            requestClose(request);
+            return;
+        }
+
+        default:
+            break;
+    }
+
+    // The result is accepted: the values become the last values of the tool, the pair of
+    // the suggestions goes on
+    if (m_model)
+    {
+        const PDFDatabaseError error = m_model->storeLastValues();
+        if (error.isError())
+        {
+            qWarning("The last values of the tool were not stored: %s", qPrintable(error.toString()));
+        }
+    }
+    if (m_host && m_tool)
+    {
+        if (PDFAppDocument* document = m_host->getDocument())
+        {
+            document->setLastFinishedToolId(m_tool->getId());
+        }
+    }
+
+    PDFAppToolCloseRequest request;
+    request.reason = PDFAppToolCloseRequest::Reason::Accepted;
+    request.continueToolId = decided.continueToolId;
+    request.continueDocumentId = decided.continueDocumentId;
+    if (decided.isOpenFolderRequested && !decided.filePath.isEmpty())
+    {
+        request.folderToOpen = QFileInfo(decided.filePath).absolutePath();
+    }
+    requestClose(request);
+}
+
+void PDFDocumentToolShell::onDialogStatusChanged()
+{
+    updateStatus();
+}
+
+void PDFDocumentToolShell::onModeLeft()
+{
+    // Also from the destructor of the view, see onDocumentLost
+    QMetaObject::invokeMethod(this, &PDFDocumentToolShell::onDocumentLostQueued, Qt::QueuedConnection);
+}
+
+void PDFDocumentToolShell::onLockChanged(bool isLocked)
+{
+    const PDFDocumentToolCatalogEntry* tool = getCatalogEntry();
+    if (isLocked && tool && tool->getLockedAccess() == PDFDocumentToolLockedAccess::Unavailable)
+    {
+        PDFAppToolCloseRequest request;
+        request.reason = PDFAppToolCloseRequest::Reason::Refused;
+        request.statusMessage = tr("%1 was closed, because the document has been locked.").arg(tool->getTitle());
+        requestClose(request);
+    }
+}
+
+void PDFDocumentToolShell::onLanguageChanged()
+{
+    m_isRebuilding = false;
+    if (m_state == State::Closed || m_state == State::Created || !m_gui || !m_tool || !m_model)
+    {
+        return;
+    }
+
+    m_gui->retranslate();
+    m_model->updateDefinitionTexts(m_tool->getParameters());
+
+    // The parts are made of translated texts; the values live in the model
+    const bool isRunning = m_state == State::Running;
+    showProgress(false);
+    createContent();
+    if (isRunning)
+    {
+        m_gui->setContentEnabled(false);
+        showProgress(true);
+        updateProgress(m_percentage, m_stepText);
+    }
+    updateToolbar();
+    updateStatus();
+}
+
+bool PDFDocumentToolShell::eventFilter(QObject* watched, QEvent* event)
+{
+    // The toolbar is a part of the tool always shown: one change of the language
+    if (watched == m_toolbar && event->type() == QEvent::LanguageChange && !m_isRebuilding)
+    {
+        m_isRebuilding = true;
+        QMetaObject::invokeMethod(this, &PDFDocumentToolShell::onLanguageChanged, Qt::QueuedConnection);
+    }
+    return BaseClass::eventFilter(watched, event);
+}
+
+}   // namespace pdf
+
+#include "moc_pdfdocumenttoolshell.cpp"

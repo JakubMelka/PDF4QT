@@ -795,6 +795,7 @@ void AppDocumentTest::commitAndUndo()
     const quint64 version = document->getVersion();
     const pdf::PDFDocumentPointer original = document->getDocument();
     QSignalSpy modifiedSpy(document, &pdf::PDFAppDocument::modifiedChanged);
+    QVERIFY(!document->getSnapshot().isModified);
 
     // A change of the current version is accepted, a change of an old one refused
     pdf::PDFDocumentBuilder builder(original.data());
@@ -805,6 +806,7 @@ void AppDocumentTest::commitAndUndo()
     QVERIFY(document->isModified());
     QCOMPARE(document->getUnsavedChangeCount(), 1);
     QVERIFY(modifiedSpy.count() >= 1);
+    QVERIFY(document->getSnapshot().isModified); // The tools do not take the bytes of the file for the size of the changed document
     QVERIFY(!document->commit(pdf::PDFModifiedDocument(changed, nullptr, pdf::PDFModifiedDocument::Reset), QStringLiteral("Stale"), version, pdf::PDFAppChangeSource::User));
     QVERIFY(!document->commit(pdf::PDFModifiedDocument(pdf::PDFDocumentPointer(), nullptr, pdf::PDFModifiedDocument::Reset), QStringLiteral("Null"), document->getVersion(), pdf::PDFAppChangeSource::User));
     QCOMPARE(document->getUndoStack()->getUndoDescription(), QStringLiteral("Title"));

@@ -2031,6 +2031,18 @@ QString PDFPageSelection::computeStatus() const
     {
         return tr("%Ln page selected · %1", nullptr, count).arg(getPageText(m_summary.first));
     }
+
+    // The few pages chosen in the thumbnails are named (389:20177 "3 pages selected · 9, 10, 15"),
+    // the first and the last one of more of them and of a range
+    if (m_mode == Mode::Selected && count <= MAX_NAMED_SELECTED_PAGES)
+    {
+        QStringList pages;
+        for (const int page : getResultPages())
+        {
+            pages << getPageText(page);
+        }
+        return tr("%Ln pages selected · %1", nullptr, count).arg(pages.join(QStringLiteral(", ")));
+    }
     return tr("%Ln pages selected · %1 – %2", nullptr, count).arg(getPageText(m_summary.first), getPageText(m_summary.last));
 }
 

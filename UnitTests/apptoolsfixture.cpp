@@ -101,9 +101,16 @@ AppToolsFixture::AppToolsFixture(QSize size) :
 
 AppToolsFixture::~AppToolsFixture()
 {
-    for (const auto& item : m_registeredPages)
+    for (auto it = m_registeredPages.rbegin(); it != m_registeredPages.rend(); ++it)
     {
-        pdf::PDFAppToolPageRegistry::unregisterFactory(item.first, item.second);
+        if (it->previousFactory)
+        {
+            pdf::PDFAppToolPageRegistry::registerFactory(it->kind, it->toolId, it->previousFactory);
+        }
+        else
+        {
+            pdf::PDFAppToolPageRegistry::unregisterFactory(it->kind, it->toolId);
+        }
     }
 }
 
@@ -237,11 +244,12 @@ bool AppToolsFixture::writeCollectionFromOtherConnection(const pdf::PDFToolColle
 
 bool AppToolsFixture::registerTestToolPage(const QString& toolId, pdf::PDFAppToolPageKind kind)
 {
+    std::shared_ptr<const pdf::PDFAppPageFactory> previousFactory = pdf::PDFAppToolPageRegistry::getFactory(kind, toolId);
     if (!pdf::PDFAppToolPageRegistry::registerFactory(kind, toolId, std::make_shared<AppToolsTestPageFactory>()))
     {
         return false;
     }
-    m_registeredPages.emplace_back(kind, toolId);
+    m_registeredPages.push_back({ kind, toolId, std::move(previousFactory) });
     return true;
 }
 

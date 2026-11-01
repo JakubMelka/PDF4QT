@@ -656,6 +656,7 @@ private slots:
     void outlineKeepZoom();
     void outlineTargetLifetime();
     void outlineParity();
+    void helpKeyInlineEditor();
     void reviewOutlineMultiSelection();
     void notesSelectionSync();
     void notesReplies();
@@ -3958,6 +3959,56 @@ void AppNotesOutlineTest::outlineTargetLifetime()
     QVERIFY(tab->getView()->isCanvasToolActive(pdf::PDFToolManager::ToolEnd));
     QVERIFY(editor->pickCurrentItemTarget(pdf::DestinationType::Fit));
     editor->cancelTargetPicking();
+}
+
+void AppNotesOutlineTest::helpKeyInlineEditor()
+{
+    // F1 while an item of the outline is being renamed or created: a click elsewhere
+    // writes the title, the manual in another tab too - no title is lost, the tab shows
+    // no editor afterwards
+    using H = NotesOutlineTestHelper;
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::outline(fixture.folder()));
+    pdf::PDFAppOutlinePanel* panel = H::outline(tab);
+    QVERIFY(panel);
+    fixture.window->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(fixture.window.data()));
+    fixture.settle();
+    pdf::PDFAppDocument* document = tab->getDocument();
+
+    H::selectItem(panel, { 1, 0 });
+    panel->getRenameAction()->trigger();
+    fixture.settle();
+    QLineEdit* edit = H::inlineEditor(panel);
+    QVERIFY(edit);
+    edit->setFocus(Qt::OtherFocusReason);
+    QTRY_COMPARE(QApplication::focusWidget(), static_cast<QWidget*>(edit));
+    QTest::keyClick(edit, Qt::Key_A, Qt::ControlModifier);
+    QTest::keyClicks(edit, QStringLiteral("Section B"));
+    fixture.pressHelpKey();
+    QCOMPARE(fixture.getShownHelpTopic(), QStringLiteral("read-documents"));
+    QCOMPARE(H::titles(document->getDocument().data()), QStringList({ "Introduction", "Chapter 1", ">Section B", "Appendix" }));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 1);
+    QCOMPARE(document->getUndoStack()->getUndoDescription(), QStringLiteral("Rename outline item"));
+    QVERIFY(!H::inlineEditor(panel));
+
+    // A new item being created
+    fixture.window->activateTab(tab);
+    fixture.settle();
+    H::selectItem(panel, { 0 });
+    tab->executeCommand(pdf::PDFAppCommands::outlineNewItem());
+    fixture.settle();
+    edit = H::inlineEditor(panel);
+    QVERIFY(edit);
+    edit->setFocus(Qt::OtherFocusReason);
+    QTRY_COMPARE(QApplication::focusWidget(), static_cast<QWidget*>(edit));
+    QTest::keyClick(edit, Qt::Key_A, Qt::ControlModifier);
+    QTest::keyClicks(edit, QStringLiteral("Summary"));
+    fixture.pressHelpKey();
+    QCOMPARE(fixture.getShownHelpTopic(), QStringLiteral("read-documents"));
+    QCOMPARE(H::titles(document->getDocument().data()), QStringList({ "Introduction", "Summary", "Chapter 1", ">Section B", "Appendix" }));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 2);
+    QCOMPARE(document->getUndoStack()->getUndoDescription(), QStringLiteral("New outline item"));
 }
 
 void AppNotesOutlineTest::outlineParity()

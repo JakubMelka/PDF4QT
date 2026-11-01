@@ -275,6 +275,7 @@ private slots:
     void printCopiesAndCollate();
     void printPreview();
     void printNoPrinter();
+    void helpKeyBlockedByPrintDialog();
     void printStop();
     void printErrorPrintTheRest();
     void printPrinterProperties();
@@ -1540,6 +1541,34 @@ void AppDocumentFileTest::printPreview()
     dialog->setRange(QStringLiteral("1"));
     QCOMPARE(dialog->getPreviewIndex(), 0);
     dialog->reject();
+}
+
+void AppDocumentFileTest::helpKeyBlockedByPrintDialog()
+{
+    // The print dialog is a modal dialog (the plan, chapter 5): F1 does nothing, the
+    // dialog stays; closed, F1 opens the topic of the document
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("HelpPrint.pdf"), 2));
+    QVERIFY(tab);
+    fixture.window->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(fixture.window.data()));
+    QPointer<pdf::PDFAppPrintDialog> dialog = FileTestHelper::openPrintDialog(tab);
+    QVERIFY(dialog);
+    QTRY_VERIFY(dialog->isVisible() && dialog->isActiveWindow());
+    QVERIFY(dialog->isModal());
+
+    fixture.pressHelpKey();
+    QVERIFY(!fixture.window->findHelpTab());
+    QCOMPARE(fixture.currentDocumentTab(), tab);
+    QVERIFY(dialog && dialog->isVisible());
+
+    dialog->reject();
+    fixture.settle();
+    QVERIFY(!dialog || !dialog->isVisible());
+    fixture.window->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(fixture.window.data()));
+    fixture.pressHelpKey();
+    QCOMPARE(fixture.getShownHelpTopic(), QStringLiteral("read-documents"));
 }
 
 void AppDocumentFileTest::printNoPrinter()

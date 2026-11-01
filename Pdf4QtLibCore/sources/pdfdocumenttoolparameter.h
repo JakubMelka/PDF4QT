@@ -43,9 +43,7 @@ namespace pdf
 class PDFDocument;
 
 // Parameters of the tools of phase 2 (newapp_tools.md 2, plan of step 6,
-// chapter 3). PROVISIONAL: the interface is minimal and may change until the
-// pilot tool Compress of phase 2 is implemented. Everything here is pure data
-// and pure functions (no user interface, no global state), usable from any
+// chapter 3). Everything here is pure data and pure functions (no user interface, no global state), usable from any
 // thread; the texts of the errors are translated (context
 // "pdf::PDFDocumentToolParameterDefinition").
 
@@ -149,7 +147,7 @@ public:
 /// definition gives the JSON Schema of MCP, the validation with translated
 /// messages (the same for the user interface, MCP and later PdfTool) and the
 /// storage of the last value (PDFToolParameterRepository of Pdf4QtLibApp; a
-/// Secret is never stored). PROVISIONAL until the pilot tool Compress.
+/// Secret is never stored).
 class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolParameterDefinition
 {
 public:
@@ -195,6 +193,11 @@ public:
     /// Longest text of a text type (bounded by the limit of the type)
     PDFDocumentToolParameterDefinition& setMaximumLength(int maximumLength);
 
+    /// Whether the value is kept as the last value of the tool (default true). A value,
+    /// which belongs to one document (the pages of a selection, a plan of rotations, the
+    /// exceptions of the links), is not kept. A Secret is never kept.
+    PDFDocumentToolParameterDefinition& setStored(bool stored) { m_stored = stored; return *this; }
+
     const QString& getName() const { return m_name; }
     PDFDocumentToolParameterType getType() const { return m_type; }
     const QString& getTitle() const { return m_title; }
@@ -208,8 +211,8 @@ public:
     int getMaximumLength() const { return m_maximumLength; }
     const std::vector<PDFDocumentToolParameterOption>& getOptions() const { return m_options; }
 
-    /// The value is stored as the last value of the tool (all types except Secret)
-    bool isStored() const { return m_type != PDFDocumentToolParameterType::Secret; }
+    /// The value is stored as the last value of the tool (setStored, never a Secret)
+    bool isStored() const { return m_stored && m_type != PDFDocumentToolParameterType::Secret; }
 
     /// The definition itself is valid: a valid name, minimum <= default <= maximum,
     /// valid unique option ids with the default among them, a valid default value
@@ -261,6 +264,7 @@ private:
     QString m_description;
     QVariant m_defaultValue;
     bool m_required = false;
+    bool m_stored = true;
     qint64 m_integerMinimum = 0;
     qint64 m_integerMaximum = 0;
     double m_realMinimum = 0.0;
@@ -273,7 +277,7 @@ using PDFDocumentToolParameterDefinitions = std::vector<PDFDocumentToolParameter
 
 /// The parameters of a tool as a whole: validation of a set of untrusted values,
 /// the JSON Schema of the object of the parameters (inputSchema of an action of
-/// MCP, newapp_mcp.md 6) and the defaults. PROVISIONAL until the pilot tool Compress.
+/// MCP, newapp_mcp.md 6) and the defaults.
 class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolParameters
 {
 public:

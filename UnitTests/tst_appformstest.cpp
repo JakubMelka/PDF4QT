@@ -543,6 +543,7 @@ private slots:
     void pendingEditsSaved();
     void pendingEditsOnClose();
     void focusOutCommits();
+    void helpKeyCommitsEditor();
     void calculatedFieldsInfoBar();
     void xfaInfoBar();
     void keyboardTab();
@@ -1312,6 +1313,42 @@ void AppFormsTest::pendingEditsOnClose()
     QVERIFY(fixture.window->closeTab(tab));
     fixture.settle();
     QVERIFY(!guard);
+}
+
+void AppFormsTest::helpKeyCommitsEditor()
+{
+    // F1 while a field is being typed: F1 is no key of the editor, the manual opens, the
+    // focus leaves the canvas and the field is committed as by any other tab - one undo
+    // step, nothing typed is lost
+    using H = FormsTestHelper;
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, pdftest::AppDocumentSamples::fullForm(fixture.folder()));
+    QVERIFY(tab);
+    fixture.window->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(fixture.window.data()));
+    QWidget* canvas = H::canvas(tab);
+    canvas->setFocus(Qt::MouseFocusReason);
+    QTRY_COMPARE(QApplication::focusWidget(), canvas);
+
+    QVERIFY(H::click(tab, QStringLiteral("name")));
+    H::type(tab, QStringLiteral("Jane"));
+    QCOMPARE(H::focusedFieldName(tab), QStringLiteral("name"));
+    QCOMPARE(H::undoCount(tab), 0);
+
+    fixture.pressHelpKey();
+    QCOMPARE(fixture.getShownHelpTopic(), QStringLiteral("read-documents"));
+    QVERIFY(H::focusedFieldName(tab).isEmpty());
+    QCOMPARE(H::value(tab, QStringLiteral("name")), QStringLiteral("Jane"));
+    QCOMPARE(H::undoCount(tab), 1);
+    QVERIFY(!tab->getDocument()->hasPendingEdits());
+    QVERIFY(tab->getDocument()->isModified());
+
+    // Back in the tab, the focus is on the canvas, the value stays
+    fixture.window->activateTab(tab);
+    fixture.settle();
+    QCOMPARE(QApplication::focusWidget(), canvas);
+    QCOMPARE(H::value(tab, QStringLiteral("name")), QStringLiteral("Jane"));
+    QCOMPARE(H::undoCount(tab), 1);
 }
 
 void AppFormsTest::focusOutCommits()

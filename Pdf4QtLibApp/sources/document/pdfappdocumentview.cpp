@@ -34,11 +34,13 @@
 #include "pdfappdocumentcommands.h"
 #include "pdfappdocumentinfobar.h"
 #include "pdfappdocumentmenus.h"
+#include "pdfappdocumentpanels_outline.h"
 #include "pdfappdocumentsidebar.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumenttoolbar.h"
 #include "pdfappmainwindow.h"
 #include "pdfapproute.h"
+#include "pdfapptoolundotarget.h"
 #include "pdfsettingdefinitions.h"
 
 #include "pdfcatalog.h"
@@ -56,10 +58,13 @@
 #include "pdfthememanager.h"
 
 #include <QAction>
+#include <QHBoxLayout>
 #include <QHideEvent>
 #include <QLocale>
 #include <QPainter>
 #include <QSplitter>
+#include <QStackedLayout>
+#include <QStackedWidget>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -267,6 +272,18 @@ QSplitterHandle* PDFAppDocumentSplitter::createHandle()
     return new PDFAppDocumentSplitterHandle(orientation(), this);
 }
 
+void PDFAppDocumentSplitter::paintEvent(QPaintEvent* event)
+{
+    // Right-to-left QSplitterPrivate::setGeo places the widgets by moveRight(width - left), so
+    // they lie 1 px to the right of their place and the splitter shows at its left edge: the
+    // color of the handle, never the white of the window between a panel and the canvas
+    {
+        QPainter painter(this);
+        painter.fillRect(rect(), PDFThemeManager::getInstance()->getColor(PDFThemeColors::BgSidebar));
+    }
+    BaseClass::paintEvent(event);
+}
+
 PDFAppDocumentView::PDFAppDocumentView(PDFAppContext* context, QWidget* parent) :
     BaseClass(parent),
     m_context(context)
@@ -277,16 +294,29 @@ PDFAppDocumentView::PDFAppDocumentView(PDFAppContext* context, QWidget* parent) 
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    m_toolbar = new PDFAppDocumentToolbar(this, this);
-    layout->addWidget(m_toolbar);
+    // The toolbar of the document, in the tool mode the toolbar of the tool (both 52 px)
+    m_toolbarStack = new QStackedWidget(this);
+    m_toolbarStack->setObjectName(QStringLiteral("toolbarStack"));
+    m_toolbarStack->setFixedHeight(PDFAppDocumentToolbar::HEIGHT);
+    m_toolbarStack->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+    m_toolbar = new PDFAppDocumentToolbar(this, m_toolbarStack);
+    m_toolbarStack->addWidget(m_toolbar);
+    layout->addWidget(m_toolbarStack);
 
     // document-body 193:882: the sidebar, the splitter (6 px, 266:7854 - bg/sidebar
-    // with the grip, PDFAppDocumentSplitterHandle) and the canvas
+    // with the grip, PDFAppDocumentSplitterHandle) and the canvas; the right panel of a
+    // tool lies next to the splitter, no handle before it (document-body 291:1029)
+    m_bodyLayout = new QHBoxLayout();
+    m_bodyLayout->setContentsMargins(0, 0, 0, 0);
+    m_bodyLayout->setSpacing(0);
+    layout->addLayout(m_bodyLayout, 1);
+
     m_splitter = new PDFAppDocumentSplitter(Qt::Horizontal, this);
     m_splitter->setObjectName(QStringLiteral("documentSplitter"));
     m_splitter->setChildrenCollapsible(false);
     m_splitter->setHandleWidth(6);
-    layout->addWidget(m_splitter, 1);
+    m_splitter->installEventFilter(this);
+    m_bodyLayout->addWidget(m_splitter, 1);
 
     m_sidebar = new PDFAppDocumentSidebar(this, m_splitter);
     m_sidebar->setMinimumWidth(PDFAppViewState::MINIMUM_SIDEBAR_WIDTH);
@@ -294,13 +324,13 @@ PDFAppDocumentView::PDFAppDocumentView(PDFAppContext* context, QWidget* parent) 
     connect(m_sidebar, &PDFAppDocumentSidebar::currentPanelChanged, this, &PDFAppDocumentView::panelChanged);
     connect(m_splitter, &QSplitter::splitterMoved, this, &PDFAppDocumentView::onSplitterMoved);
 
-    // The canvas; the info bars lie over it (children of the area, placed by layoutInfoBars)
+    // The canvas; the info bars lie over it (children of the area, placed by
+    // layoutInfoBars); in the tool mode a page of the tool can replace the PDFWidget
     m_canvasArea = new QWidget(m_splitter);
     m_canvasArea->setObjectName(QStringLiteral("canvasArea"));
     m_canvasArea->installEventFilter(this);
-    QVBoxLayout* canvasLayout = new QVBoxLayout(m_canvasArea);
-    canvasLayout->setContentsMargins(0, 0, 0, 0);
-    canvasLayout->setSpacing(0);
+    m_canvasLayout = new QStackedLayout(m_canvasArea);
+    m_canvasLayout->setContentsMargins(0, 0, 0, 0);
 
     // The installed profiles of the system are listed once per process (the cache
     // of the external profiles turned on by PDFAppContext)
@@ -309,7 +339,7 @@ PDFAppDocumentView::PDFAppDocumentView(PDFAppContext* context, QWidget* parent) 
 
     m_pdfWidget = new PDFWidget(m_cmsManager, RendererEngine::QPainter, m_canvasArea);
     m_pdfWidget->setObjectName(QStringLiteral("canvas"));
-    canvasLayout->addWidget(m_pdfWidget, 1);
+    m_canvasLayout->addWidget(m_pdfWidget);
     m_splitter->addWidget(m_canvasArea);
     m_splitter->setStretchFactor(0, 0);
     m_splitter->setStretchFactor(1, 1);
@@ -395,6 +425,23 @@ PDFAppDocumentView::~PDFAppDocumentView()
         selectTextTool->disconnect(this);
     }
 
+    // The parts of the tool mode go while the view is whole (they are children of the
+    // view now and they may ask it); they report nothing to the dying view
+    const bool wasToolModeActive = m_isToolModeActive;
+    m_isToolModeActive = false;
+    if (m_toolUndoTarget)
+    {
+        m_toolUndoTarget->disconnect(this);
+    }
+    for (ToolPart* part : { &m_toolToolbar, &m_toolLeftPanel, &m_toolCanvasPage, &m_toolRightPanel })
+    {
+        if (part->widget)
+        {
+            part->widget->disconnect(this);
+            delete part->widget.data();
+        }
+    }
+
     // The controllers of step 4 go first (they use the managers and the document)
     delete m_commentPopup.data();
     delete m_outlineEditor;
@@ -403,6 +450,12 @@ PDFAppDocumentView::~PDFAppDocumentView()
     m_formController = nullptr;
     delete m_annotationController;
     m_annotationController = nullptr;
+
+    // A document, which outlives the view, can be changed again
+    if (wasToolModeActive && m_document)
+    {
+        m_document->setUserChangesSuspended(false);
+    }
 
     // The managers are detached from the widget and from the document before the
     // widget and they are destroyed (the order of the test fixtures of Widgets)
@@ -514,6 +567,17 @@ void PDFAppDocumentView::setDocument(PDFAppDocument* document)
         return;
     }
 
+    // The tool mode belongs to the shown document (a slot may delete the view)
+    if (m_isToolModeActive)
+    {
+        QPointer<PDFAppDocumentView> guard(this);
+        leaveToolMode();
+        if (!guard)
+        {
+            return;
+        }
+    }
+
     if (m_document)
     {
         m_document->disconnect(this);
@@ -525,6 +589,7 @@ void PDFAppDocumentView::setDocument(PDFAppDocument* document)
     {
         connect(document, &PDFAppDocument::documentChanged, this, &PDFAppDocumentView::onDocumentChanged);
         connect(document, &PDFAppDocument::stateChanged, this, &PDFAppDocumentView::onDocumentStateChanged);
+        connect(document, &PDFAppDocument::lockChanged, this, &PDFAppDocumentView::onDocumentLockChanged);
         connect(document, &PDFAppDocument::signatureResultsChanged, this, &PDFAppDocumentView::onSignatureResultsChanged);
         connect(document, &PDFAppDocument::aboutToBeDestroyed, this, &PDFAppDocumentView::onDocumentAboutToBeDestroyed);
         connect(document, &QObject::destroyed, this, &PDFAppDocumentView::onDocumentDestroyed);
@@ -561,6 +626,17 @@ void PDFAppDocumentView::applyDocument()
 
 void PDFAppDocumentView::onDocumentStateChanged()
 {
+    // A document, which is not shown any more, has no tool (F2; a slot may delete the view)
+    if (m_isToolModeActive && m_document && !m_document->isReady())
+    {
+        QPointer<PDFAppDocumentView> guard(this);
+        leaveToolMode();
+        if (!guard)
+        {
+            return;
+        }
+    }
+
     // A document read in a worker thread becomes Ready later (package A)
     if (m_document && m_document->isReady() && getProxy() && getProxy()->getDocument() != m_document->getDocument().data())
     {
@@ -760,6 +836,17 @@ void PDFAppDocumentView::onDocumentDestroyed()
 {
     // The document is not whole any more: only the view is cleared
     m_document = nullptr;
+
+    // The tool mode ends with its document (a slot may delete the view)
+    QPointer<PDFAppDocumentView> guard(this);
+    if (m_isToolModeActive)
+    {
+        leaveToolMode();
+        if (!guard)
+        {
+            return;
+        }
+    }
     onDocumentChanged(PDFModifiedDocument());
 }
 
@@ -876,15 +963,46 @@ void PDFAppDocumentView::updateDisplayedPage()
         return;
     }
     m_lastDisplayedPageIndex = pageIndex;
-
-    if (m_statusBar)
-    {
-        const bool isPageItemShown = pageIndex >= 0 && hasPageLabels();
-        m_statusBar->setPageText(isPageItemShown ? tr("Page %1 (%2) of %3").arg(PDFAppLocale::formatNumber(pageIndex + 1), getPageLabel(pageIndex), PDFAppLocale::formatNumber(getPageCount()))
-                                                 : QString());
-    }
+    updatePageItem();
 
     Q_EMIT displayedPageChanged(pageIndex);
+}
+
+void PDFAppDocumentView::updatePageItem()
+{
+    if (!m_statusBar)
+    {
+        return;
+    }
+
+    const PDFInteger pageIndex = getDisplayedPageIndex();
+    if (pageIndex >= 0 && hasPageLabels())
+    {
+        m_statusBar->setPageText(tr("Page %1 (%2) of %3").arg(PDFAppLocale::formatNumber(pageIndex + 1), getPageLabel(pageIndex), PDFAppLocale::formatNumber(getPageCount())));
+    }
+    else if (pageIndex >= 0 && m_isToolModeActive)
+    {
+        // status-page 293:1407 "Page 308 / 1592": a toolbar of a tool has no page field;
+        // the numbers without the group separator as the page field of the toolbar
+        QLocale locale = PDFAppLocale::getUiLocale();
+        locale.setNumberOptions(locale.numberOptions() | QLocale::OmitGroupSeparator);
+        m_statusBar->setPageText(tr("Page %1 / %2").arg(locale.toString(pageIndex + 1), locale.toString(getPageCount())));
+    }
+    else
+    {
+        m_statusBar->setPageText(QString());
+    }
+}
+
+void PDFAppDocumentView::updateZoomItem()
+{
+    if (!m_statusBar)
+    {
+        return;
+    }
+
+    // status-zoom 293:1415 "151 %": only in the tool mode (a toolbar of a tool has no zoom field)
+    m_statusBar->setZoomText(m_isToolModeActive && getPageCount() > 0 ? tr("%1 %").arg(PDFAppLocale::formatNumber(qRound(getZoom() * 100.0))) : QString());
 }
 
 PDFInteger PDFAppDocumentView::getPageCount() const
@@ -1019,6 +1137,12 @@ void PDFAppDocumentView::setSelectedPages(std::vector<PDFInteger> pages, PDFInte
 
 bool PDFAppDocumentView::showPanel(const QString& panelId)
 {
+    // The sidebar is hidden below the left panel of a tool and comes back as the user left it
+    if (m_toolLeftPanel.widget)
+    {
+        return false;
+    }
+
     // A slot of the change of the panel of the sidebar may delete the view (the tab)
     QPointer<PDFAppDocumentView> self(this);
     if (!m_sidebar || !m_sidebar->showPanel(panelId) || !self)
@@ -1157,7 +1281,7 @@ void PDFAppDocumentView::layoutInfoBars()
     }
 
     // Top centered over the canvas, 12 px below the toolbar, 8 px apart (1028:24277)
-    const QRect area = m_pdfWidget->geometry();
+    const QRect area = m_toolCanvasPage.widget ? m_toolCanvasPage.widget->geometry() : m_pdfWidget->geometry();
     const QMargins shadow = PDFAppInfoBar::getShadowMargins();
     const int maximumCardWidth = qMax(0, area.width() - 2 * INFO_BAR_TOP_GAP);
     int cardTop = area.top() + INFO_BAR_TOP_GAP;
@@ -1259,6 +1383,10 @@ void PDFAppDocumentView::onDrawSpaceChanged()
         return;
     }
 
+    if (m_isToolModeActive)
+    {
+        updateZoomItem();
+    }
     Q_EMIT viewChanged();
 }
 
@@ -1266,7 +1394,7 @@ void PDFAppDocumentView::updateStatusMessage()
 {
     if (m_statusBar && m_document && m_document->isReady())
     {
-        m_statusBar->showMessage(tr("Ready"));
+        m_statusBar->showMessage(m_isToolModeActive && !m_toolMessage.isEmpty() ? m_toolMessage : tr("Ready"));
     }
 }
 
@@ -1550,28 +1678,493 @@ void PDFAppDocumentView::updateSidebarVisibility()
         return;
     }
 
+    // The left panel of a tool lies in the place of the sidebar
+    QWidget* leftWidget = m_sidebar.data();
+    if (m_toolLeftPanel.widget)
+    {
+        leftWidget = m_toolLeftPanel.widget.data();
+        if (!m_sidebar->isHidden())
+        {
+            m_sidebar->hide();
+        }
+    }
+
     // The sidebar keeps its width (the splitter gives it back)
     const bool isShown = m_isSidebarVisible && !m_isFullScreen;
-    if (m_sidebar->isHidden() == !isShown)
+    if (leftWidget->isHidden() == !isShown)
     {
         return;
     }
 
-    m_sidebar->setVisible(isShown);
-    if (isShown && m_splitter->width() > 0)
+    leftWidget->setVisible(isShown);
+    if (isShown)
     {
-        const int sidebarWidth = qBound(PDFAppViewState::MINIMUM_SIDEBAR_WIDTH, m_sidebarWidth, qMax(PDFAppViewState::MINIMUM_SIDEBAR_WIDTH, m_splitter->width() / 2));
-        m_splitter->setSizes({ sidebarWidth, qMax(0, m_splitter->width() - sidebarWidth - m_splitter->handleWidth()) });
+        applySplitterSizes();
     }
+}
+
+void PDFAppDocumentView::applySplitterSizes()
+{
+    if (!m_splitter || m_splitter->width() <= 0)
+    {
+        return;
+    }
+
+    QWidget* leftWidget = m_toolLeftPanel.widget ? m_toolLeftPanel.widget.data() : static_cast<QWidget*>(m_sidebar.data());
+    if (!leftWidget || leftWidget->isHidden())
+    {
+        return;
+    }
+
+    // At most a half of the splitter, so a canvas stays also in a narrow window
+    const int preferredWidth = m_toolLeftPanel.widget ? m_toolLeftWidth : m_sidebarWidth;
+    const int leftWidth = qBound(PDFAppViewState::MINIMUM_SIDEBAR_WIDTH, preferredWidth, qMax(PDFAppViewState::MINIMUM_SIDEBAR_WIDTH, m_splitter->width() / 2));
+    const int canvasWidth = qMax(0, m_splitter->width() - leftWidth - m_splitter->handleWidth());
+
+    QList<int> sizes;
+    for (int i = 0; i < m_splitter->count(); ++i)
+    {
+        const QWidget* widget = m_splitter->widget(i);
+        sizes << (widget == leftWidget ? leftWidth : (widget == m_canvasArea.data() ? canvasWidth : 0));
+    }
+    m_splitter->setSizes(sizes);
 }
 
 void PDFAppDocumentView::onSplitterMoved()
 {
-    if (m_sidebar && m_sidebar->isVisible())
+    if (m_toolLeftPanel.widget && m_toolLeftPanel.widget->isVisible())
+    {
+        m_toolLeftWidth = m_toolLeftPanel.widget->width();
+        Q_EMIT viewChanged();
+    }
+    else if (m_sidebar && m_sidebar->isVisible())
     {
         m_sidebarWidth = m_sidebar->width();
         Q_EMIT viewChanged();
     }
+}
+
+// ------------------------------------------------------------------ tool mode
+
+bool PDFAppDocumentView::enterToolMode(const PDFAppToolModeParts& parts)
+{
+    if (m_isToolModeActive || !m_document || !m_document->isReady())
+    {
+        return false;
+    }
+
+    QPointer<PDFAppDocumentView> guard(this);
+
+    // Everything below may run code of the application, which deletes the view or the parts
+    const QPointer<QWidget> toolbarPart = parts.toolbar;
+    const QPointer<QWidget> leftPanelPart = parts.leftPanel;
+    const QPointer<QWidget> canvasPagePart = parts.canvasPage;
+    const QPointer<QWidget> rightPanelPart = parts.rightPanel;
+    const QPointer<PDFAppToolUndoTarget> undoTargetPart = parts.undoTarget;
+
+    m_wasFullScreen = m_isFullScreen;
+    if (m_isFullScreen)
+    {
+        setFullScreen(false);
+        if (!guard)
+        {
+            return false;
+        }
+    }
+
+    // The panels of the toolbar and the comment popup do not stay over the tool
+    if (m_toolbar)
+    {
+        if (PDFAppDocumentPanelPopup* panel = m_toolbar->getOpenPanel())
+        {
+            panel->close();
+        }
+        if (guard && m_toolbar && m_toolbar->getSelectMenu() && m_toolbar->getSelectMenu()->isVisible())
+        {
+            m_toolbar->getSelectMenu()->hide();
+        }
+    }
+    if (guard && m_commentPopup)
+    {
+        m_commentPopup->cancel();
+    }
+
+    // F4: the pending edits become undo steps of the document before the mode
+    if (guard && m_document)
+    {
+        m_document->commitPendingEdits();
+    }
+    if (guard && m_formController)
+    {
+        m_formController->closeEditor();
+    }
+    if (guard && m_sidebar)
+    {
+        if (PDFAppOutlinePanel* outlinePanel = qobject_cast<PDFAppOutlinePanel*>(m_sidebar->findPanel(PDFAppDocumentPanelIds::outline())))
+        {
+            outlinePanel->finishInlineEditing();
+        }
+    }
+    if (guard && m_outlineEditor && m_outlineEditor->isCreationPending())
+    {
+        m_outlineEditor->cancelCreation();
+    }
+    if (guard && m_annotationController)
+    {
+        m_annotationController->endMergeSession();
+    }
+
+    // A slot may have deleted the view or the document, or it may have entered the mode
+    if (!guard || !m_document || !m_document->isReady() || m_isToolModeActive)
+    {
+        return false;
+    }
+
+    PDFAppToolModeParts livingParts;
+    livingParts.toolbar = toolbarPart.data();
+    livingParts.leftPanel = leftPanelPart.data();
+    livingParts.canvasPage = canvasPagePart.data();
+    livingParts.rightPanel = rightPanelPart.data();
+    livingParts.undoTarget = undoTargetPart.data();
+
+    m_isToolModeActive = true;
+    m_toolMessage.clear();
+    installToolParts(livingParts);
+
+    // The keys of the mode are bound to the view: a focus outside of it or in a hidden part
+    // would not reach them
+    const QWidget* focusWidget = window()->focusWidget();
+    if (isVisible() && (!focusWidget || !isAncestorOf(focusWidget) || !focusWidget->isVisible()))
+    {
+        QWidget* canvas = m_toolCanvasPage.widget ? m_toolCanvasPage.widget.data() : static_cast<QWidget*>(m_pdfWidget);
+        canvas->setFocus(Qt::OtherFocusReason);
+    }
+
+    // The annotation controller, the form and the outline editor follow the document:
+    // read only, a creation tool ends (a slot may delete the view or leave the mode)
+    m_document->setUserChangesSuspended(true);
+    if (!guard || !m_isToolModeActive)
+    {
+        return false;
+    }
+
+    updatePageItem();
+    updateZoomItem();
+    updateStatusMessage();
+    layoutInfoBars();
+
+    Q_EMIT toolModeChanged(true);
+    if (!guard)
+    {
+        return false;
+    }
+    Q_EMIT commandStatesChanged();
+    return guard && m_isToolModeActive;
+}
+
+void PDFAppDocumentView::leaveToolMode()
+{
+    if (!m_isToolModeActive)
+    {
+        return;
+    }
+
+    QPointer<PDFAppDocumentView> guard(this);
+    m_isToolModeActive = false;
+    m_toolMessage.clear();
+
+    if (m_toolUndoTarget)
+    {
+        m_toolUndoTarget->disconnect(this);
+    }
+    m_toolUndoTarget = nullptr;
+    removeToolParts();
+
+    // The document can be changed again (a slot may delete the view or enter the mode)
+    if (m_document)
+    {
+        m_document->setUserChangesSuspended(false);
+        if (!guard || m_isToolModeActive)
+        {
+            return;
+        }
+    }
+
+    updatePageItem();
+    updateZoomItem();
+    updateStatusMessage();
+    layoutInfoBars();
+
+    Q_EMIT toolModeChanged(false);
+    if (!guard)
+    {
+        return;
+    }
+    Q_EMIT commandStatesChanged();
+    if (!guard)
+    {
+        return;
+    }
+
+    // The full screen, which the entry has ended
+    if (m_wasFullScreen)
+    {
+        m_wasFullScreen = false;
+        setFullScreen(true);
+    }
+}
+
+PDFAppToolUndoTarget* PDFAppDocumentView::getToolUndoTarget() const
+{
+    return m_toolUndoTarget.data();
+}
+
+void PDFAppDocumentView::setToolMessage(const QString& text)
+{
+    if (m_isToolModeActive)
+    {
+        m_toolMessage = text.left(512);
+        updateStatusMessage();
+    }
+}
+
+void PDFAppDocumentView::watchToolPart(ToolPart& part, QWidget* widget)
+{
+    part.widget = widget;
+    part.parent = widget ? widget->parentWidget() : nullptr;
+    if (widget)
+    {
+        connect(widget, &QObject::destroyed, this, &PDFAppDocumentView::onToolPartDestroyed);
+    }
+}
+
+void PDFAppDocumentView::releaseToolPart(ToolPart& part)
+{
+    if (QWidget* widget = part.widget.data())
+    {
+        widget->disconnect(this);
+        widget->hide();
+        widget->setParent(part.parent.data());
+    }
+    part.widget = nullptr;
+    part.parent = nullptr;
+}
+
+void PDFAppDocumentView::installToolParts(const PDFAppToolModeParts& parts)
+{
+    m_hasToolParts = parts.toolbar || parts.leftPanel || parts.canvasPage || parts.rightPanel || parts.undoTarget;
+
+    m_toolUndoTarget = parts.undoTarget;
+    if (parts.undoTarget)
+    {
+        connect(parts.undoTarget, &PDFAppToolUndoTarget::undoStateChanged, this, &PDFAppDocumentView::onToolUndoStateChanged);
+        connect(parts.undoTarget, &QObject::destroyed, this, &PDFAppDocumentView::onToolPartDestroyed);
+    }
+
+    if (parts.toolbar && m_toolbarStack)
+    {
+        watchToolPart(m_toolToolbar, parts.toolbar);
+        m_toolbarStack->addWidget(parts.toolbar);
+        m_toolbarStack->setCurrentWidget(parts.toolbar);
+    }
+    if (m_statusBar)
+    {
+        // The Go to panel opens below the toolbar of the document
+        m_statusBar->setPageItemInteractive(!parts.toolbar);
+    }
+
+    if (parts.canvasPage && m_canvasLayout)
+    {
+        watchToolPart(m_toolCanvasPage, parts.canvasPage);
+        m_canvasLayout->addWidget(parts.canvasPage);
+        m_canvasLayout->setCurrentWidget(parts.canvasPage);
+
+        // The bars over the canvas stay above the page (QStackedLayout raises what it shows)
+        parts.canvasPage->lower();
+    }
+
+    if (parts.rightPanel && m_bodyLayout)
+    {
+        watchToolPart(m_toolRightPanel, parts.rightPanel);
+        m_bodyLayout->addWidget(parts.rightPanel);
+        parts.rightPanel->setFixedWidth(TOOL_RIGHT_PANEL_WIDTH);
+        parts.rightPanel->show();
+    }
+
+    if (parts.leftPanel && m_splitter)
+    {
+        watchToolPart(m_toolLeftPanel, parts.leftPanel);
+        m_hadToolLeftPanel = true;
+        m_wasSidebarVisible = m_isSidebarVisible;
+        m_isSidebarVisible = true;
+        m_toolLeftWidth = PDFAppDocumentSidebar::DEFAULT_WIDTH;
+        parts.leftPanel->setMinimumWidth(PDFAppViewState::MINIMUM_SIDEBAR_WIDTH);
+        m_splitter->insertWidget(m_splitter->indexOf(m_canvasArea), parts.leftPanel);
+        parts.leftPanel->show();
+        updateSidebarVisibility();
+    }
+
+    // The canvas takes what the parts leave (the frame 291:994: 300 + 6 + 814 + 320), in
+    // the minimal window less than the minimal size of the PDFWidget: below it QSplitter
+    // would take the width from its handle
+    if (m_canvasArea)
+    {
+        m_canvasArea->setMinimumWidth(1);
+    }
+    if (layout())
+    {
+        layout()->activate();
+    }
+    applySplitterSizes();
+}
+
+void PDFAppDocumentView::removeToolParts()
+{
+    // The keyboard focus inside of a part stays in the view (also of an inactive window,
+    // which would give it to the hidden part at its activation)
+    const QWidget* focusWidget = window()->focusWidget();
+    bool isFocusInPart = false;
+    for (const ToolPart* part : { &m_toolToolbar, &m_toolLeftPanel, &m_toolCanvasPage, &m_toolRightPanel })
+    {
+        isFocusInPart = isFocusInPart || (part->widget && focusWidget && (part->widget.data() == focusWidget || part->widget->isAncestorOf(focusWidget)));
+    }
+
+    if (m_toolToolbar.widget && m_toolbarStack)
+    {
+        m_toolbarStack->removeWidget(m_toolToolbar.widget);
+    }
+    if (m_toolbarStack && m_toolbar)
+    {
+        m_toolbarStack->setCurrentWidget(m_toolbar);
+    }
+    releaseToolPart(m_toolToolbar);
+    if (m_statusBar)
+    {
+        m_statusBar->setPageItemInteractive(true);
+    }
+
+    if (m_toolCanvasPage.widget && m_canvasLayout)
+    {
+        m_canvasLayout->removeWidget(m_toolCanvasPage.widget);
+    }
+    if (m_canvasLayout && m_pdfWidget)
+    {
+        m_canvasLayout->setCurrentWidget(m_pdfWidget);
+
+        // QStackedLayout raises the widget it shows: the bars over the canvas stay above it
+        m_pdfWidget->lower();
+    }
+    releaseToolPart(m_toolCanvasPage);
+
+    if (m_toolRightPanel.widget)
+    {
+        if (m_bodyLayout)
+        {
+            m_bodyLayout->removeWidget(m_toolRightPanel.widget);
+        }
+        m_toolRightPanel.widget->setMinimumWidth(0);
+        m_toolRightPanel.widget->setMaximumWidth(QWIDGETSIZE_MAX);
+    }
+    releaseToolPart(m_toolRightPanel);
+
+    if (m_toolLeftPanel.widget)
+    {
+        m_toolLeftPanel.widget->setMinimumWidth(0);
+    }
+    releaseToolPart(m_toolLeftPanel);
+    if (m_hadToolLeftPanel)
+    {
+        m_hadToolLeftPanel = false;
+        m_isSidebarVisible = m_wasSidebarVisible;
+    }
+    updateSidebarVisibility();
+
+    if (m_canvasArea)
+    {
+        m_canvasArea->setMinimumWidth(0);
+    }
+    if (layout())
+    {
+        layout()->activate();
+    }
+    applySplitterSizes();
+
+    if (isFocusInPart && m_pdfWidget)
+    {
+        m_pdfWidget->setFocus(Qt::OtherFocusReason);
+    }
+}
+
+bool PDFAppDocumentView::isToolPartAlive() const
+{
+    return m_toolUndoTarget || m_toolToolbar.widget || m_toolLeftPanel.widget || m_toolCanvasPage.widget || m_toolRightPanel.widget;
+}
+
+void PDFAppDocumentView::onDocumentLockChanged()
+{
+    if (m_isToolModeActive && m_document)
+    {
+        Q_EMIT toolModeLockChanged(m_document->isLocked());
+    }
+}
+
+void PDFAppDocumentView::onToolPartDestroyed()
+{
+    // The part may be inside of its destructor (it is no longer of its class and the
+    // QPointer of a widget is not cleared yet): only the fallback is queued
+    if (!m_isToolPartsUpdateQueued)
+    {
+        m_isToolPartsUpdateQueued = true;
+        QMetaObject::invokeMethod(this, &PDFAppDocumentView::onToolPartsChangedQueued, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppDocumentView::onToolPartsChangedQueued()
+{
+    m_isToolPartsUpdateQueued = false;
+    if (!m_isToolModeActive)
+    {
+        return;
+    }
+
+    // Nothing of the tool is left: the mode ends
+    if (m_hasToolParts && !isToolPartAlive())
+    {
+        leaveToolMode();
+        return;
+    }
+
+    // A deleted part leaves the part of the view in its place: QStackedWidget, QStackedLayout
+    // and the layout of the body have dropped it, the sidebar comes back
+    if (m_hadToolLeftPanel && !m_toolLeftPanel.widget)
+    {
+        m_hadToolLeftPanel = false;
+        m_isSidebarVisible = m_wasSidebarVisible;
+        updateSidebarVisibility();
+        applySplitterSizes();
+    }
+    if (m_statusBar)
+    {
+        m_statusBar->setPageItemInteractive(!m_toolToolbar.widget);
+    }
+    if (!m_toolCanvasPage.widget && m_pdfWidget)
+    {
+        // QStackedLayout has raised the widget it shows instead of the deleted page
+        m_pdfWidget->lower();
+    }
+    layoutInfoBars();
+
+    QPointer<PDFAppDocumentView> guard(this);
+    Q_EMIT toolUndoStateChanged();
+    if (guard)
+    {
+        Q_EMIT commandStatesChanged();
+    }
+}
+
+void PDFAppDocumentView::onToolUndoStateChanged()
+{
+    Q_EMIT toolUndoStateChanged();
 }
 
 void PDFAppDocumentView::setFullScreen(bool isFullScreen)
@@ -1589,6 +2182,10 @@ void PDFAppDocumentView::setFullScreen(bool isFullScreen)
     }
 
     m_isFullScreen = isFullScreen;
+    if (m_toolbarStack)
+    {
+        m_toolbarStack->setVisible(!isFullScreen);
+    }
     if (m_toolbar)
     {
         m_toolbar->setVisible(!isFullScreen);
@@ -1854,8 +2451,11 @@ PDFAppViewState PDFAppDocumentView::getViewState() const
     state.layout = m_layout;
     state.firstPageRight = m_isFirstPageRight;
     state.rotation = getRotation();
-    state.sidebarVisible = m_isSidebarVisible;
-    state.sidebarWidth = qBound(PDFAppViewState::MINIMUM_SIDEBAR_WIDTH, m_sidebarWidth, PDFAppViewState::MAXIMUM_SIDEBAR_WIDTH);
+
+    // The layout of an open tool is not the state of the view (Recent, Back): the left panel
+    // of the tool lies in the place of the sidebar, which the user may have hidden
+    state.sidebarVisible = m_hadToolLeftPanel ? m_wasSidebarVisible : m_isSidebarVisible;
+    state.sidebarWidth =qBound(PDFAppViewState::MINIMUM_SIDEBAR_WIDTH, m_sidebarWidth, PDFAppViewState::MAXIMUM_SIDEBAR_WIDTH);
 
     const QString panelId = getCurrentPanelId();
     if (PDFAppViewState::isValidPanelId(panelId))
@@ -1945,7 +2545,15 @@ void PDFAppDocumentView::applyViewState(const PDFAppViewState& state)
     }
     if (state.sidebarVisible)
     {
-        setSidebarVisible(*state.sidebarVisible);
+        // Below the left panel of a tool: the sidebar, which comes back at the end of the mode
+        if (m_hadToolLeftPanel)
+        {
+            m_wasSidebarVisible = *state.sidebarVisible;
+        }
+        else
+        {
+            setSidebarVisible(*state.sidebarVisible);
+        }
     }
     if (state.panelId)
     {
@@ -2136,6 +2744,19 @@ bool PDFAppDocumentView::eventFilter(QObject* watched, QEvent* event)
     if (watched == m_canvasArea && (event->type() == QEvent::Resize || event->type() == QEvent::LayoutRequest))
     {
         layoutInfoBars();
+    }
+    else if (watched == m_canvasArea && event->type() == QEvent::Paint)
+    {
+        // The scroll bars of the PDFWidget are not opaque: bg/track of the canvas (291:1061)
+        // lies under them, not the white of the window
+        QPainter painter(m_canvasArea);
+        painter.fillRect(m_canvasArea->rect(), PDFThemeManager::getInstance()->getColor(PDFThemeColors::BgTrack));
+    }
+    else if (m_isToolModeActive && watched == m_splitter && event->type() == QEvent::Resize)
+    {
+        // The right panel of a tool leaves less to the splitter: the left panel gives
+        // its width up in a narrow window, as the sidebar of a shown view
+        applySplitterSizes();
     }
     return BaseClass::eventFilter(watched, event);
 }

@@ -702,10 +702,9 @@ void PDFAppMainWindow::onCommandTriggered()
     {
         focusSearch();
     }
-    else if (id == PDFAppCommands::help() && m_navigator)
+    else if (id == PDFAppCommands::help())
     {
-        // The manual opens in the Help tab, the current tab stays as it is
-        m_navigator->navigate(PDFAppRoutes::help(PDFAppRoutes::getDefaultHelpTopic()));
+        showHelp();
     }
     else if (PDFAppTab* tab = getCurrentTab())
     {
@@ -718,6 +717,26 @@ void PDFAppMainWindow::onCommandTriggered()
             updateCommandStates();
         }
     }
+}
+
+void PDFAppMainWindow::showHelp()
+{
+    if (!m_navigator)
+    {
+        return;
+    }
+
+    PDFAppTab* tab = getCurrentTab();
+    const PDFAppPage* page = tab ? tab->getPage() : nullptr;
+    const PDFAppRoute route = PDFAppRoutes::help(page ? page->getHelpTopic() : PDFAppRoutes::getDefaultHelpTopic());
+    if (page && page->getRoute().getSegments() == route.getSegments())
+    {
+        // The manual on its topic (also with an anchor): no new entry of the history,
+        // the page keeps its scroll position
+        return;
+    }
+
+    m_navigator->navigate(route);
 }
 
 void PDFAppMainWindow::focusSearch()

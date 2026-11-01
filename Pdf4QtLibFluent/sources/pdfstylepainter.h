@@ -121,6 +121,33 @@ public:
     static void icon(QPainter* painter, const QRectF& rect, const QString& name, const QColor& color);
     static void icon(QPainter* painter, const QRectF& rect, const QString& name, PDFThemeColors::Color color);
 
+    /// Kind of an indicator of a choice
+    enum class IndicatorKind
+    {
+        CheckBox,
+        RadioButton
+    };
+
+    /// State of an indicator of a choice
+    struct IndicatorState
+    {
+        bool enabled = true;
+        bool hover = false;
+        bool pressed = false;
+        bool focusVisible = false;
+        bool on = false;
+        bool partial = false;
+    };
+
+    /// Draws the indicator of a check box or a radio button of the design (the box
+    /// Checkbox / Radio of the page Widgets): the one drawing of the style and of
+    /// the rows drawn by PDFComponentPainter
+    /// \param painter Painter
+    /// \param rect Rectangle of the box (18 x 18)
+    /// \param kind Kind of the indicator
+    /// \param state State of the indicator
+    static void indicator(QPainter* painter, const QRectF& rect, IndicatorKind kind, const IndicatorState& state);
+
     /// Draws a text of a single line
     /// \param painter Painter
     /// \param rect Rectangle of the text

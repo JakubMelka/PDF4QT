@@ -39,6 +39,7 @@
 namespace pdf
 {
 class PDFDocument;
+class PDFOperationControl;
 class PDFRenderErrorReporter;
 class PDFProgress;
 
@@ -112,6 +113,7 @@ public:
         OptimizationGoal goal = OptimizationGoal::PreferQuality; ///< Size/quality trade-off.
         bool keepOriginalIfLarger = true; ///< Keep original image if re-encode is not smaller.
         bool preserveTransparency = true; ///< Preserve transparency via soft mask when possible.
+        bool exactJpegQuality = false; ///< The JPEG quality of the profiles is used as it is; otherwise the goal shifts it (-10 for minimum size, +5 for quality).
         CompressionProfile colorProfile; ///< Settings used for color images.
         CompressionProfile grayProfile; ///< Settings used for grayscale images.
         CompressionProfile bitonalProfile; ///< Settings used for bi-tonal images.
@@ -194,10 +196,13 @@ public:
 
     PDFImageOptimizer() = default;
 
-    /// Collects information about all image XObjects in the document.
+    /// Collects information about all image XObjects in the document. All decoded
+    /// images are held at once (the dialog of the images shows them); optimize
+    /// does not use this function, it decodes the images one after another.
     /// \param document Source document.
+    /// \param operationControl Cancellation (optional), a canceled collection returns the images decoded so far.
     /// \returns List of image infos (empty if none or document is null).
-    static std::vector<ImageInfo> collectImageInfos(const PDFDocument* document);
+    static std::vector<ImageInfo> collectImageInfos(const PDFDocument* document, const PDFOperationControl* operationControl = nullptr);
 
     /// Returns the name of the last filter of the stream (/Filter, or /FFilter of a stream
     /// stored in an external file), or an empty string, if the stream has no filter.
@@ -247,20 +252,28 @@ public:
     /// \returns Estimated size in bytes (0 on failure).
     static int estimateEncodedBytes(const ImageInfo& info, const ResolvedPlan& plan, PDFRenderErrorReporter* reporter = nullptr);
 
-    /// Optimizes images in a document and returns the updated document.
+    /// Optimizes images in a document and returns the updated document. The images
+    /// are decoded and encoded one at a time: at most one decoded image is held, so
+    /// the memory depends on the largest image, not on their number.
     /// \param document Source document.
     /// \param settings Global settings for optimization.
     /// \param overrides Optional per-image overrides.
-    /// \param progress Optional progress reporter.
+    /// \param progress Optional progress reporter (a step per image).
     /// \param reporter Optional error reporter for encoding issues.
     /// \param results Optional output vector with per-image results.
+    /// \param operationControl Optional cancellation, checked per page and per image: a canceled
+    ///        run returns a copy of the source document and no results (check the control).
+    /// \param analysisProgress Optional progress reporter of the walk over the pages
+    ///        before the images are known (a step per page).
     /// \returns New document with optimized image streams (or a copy if disabled).
     PDFDocument optimize(const PDFDocument* document,
                          const Settings& settings,
                          const ImageOverrides& overrides = ImageOverrides(),
                          PDFProgress* progress = nullptr,
                          PDFRenderErrorReporter* reporter = nullptr,
-                         std::vector<ImageResult>* results = nullptr) const;
+                         std::vector<ImageResult>* results = nullptr,
+                         const PDFOperationControl* operationControl = nullptr,
+                         PDFProgress* analysisProgress = nullptr) const;
 };
 
 }   // namespace pdf

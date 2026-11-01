@@ -830,7 +830,8 @@ public:
             { "/tools/collections", "UnitTestsAppToolsLifetime deleteFromEverySignal (scenario collections), a redirect to /tools/collections/{collectionId}" },
             { "/tools/collections/new", "UnitTestsAppToolsLifetime deleteFromEverySignal (scenario collections: New collection, Save)" },
             { "/tools/collections/{collectionId}", "UnitTestsAppToolsLifetime deleteFromEverySignal (scenario collections) / openPopupsSurviveChanges" },
-            { "/ai", "UnitTestsAppMcpLifetime deleteFromEverySignal (scenario ai: the AI page, its dialogs, assistants and activity)" }
+            { "/ai", "UnitTestsAppMcpLifetime deleteFromEverySignal (scenario ai: the AI page, its dialogs, assistants and activity)" },
+            { "/document/{documentId}/tool/{toolId}", "UnitTestsAppToolPagesLifetime deleteFromEverySignal / openPopupsSurviveChanges: the scenarios of the tools with the tab, the window, the page and the shell" }
         };
         return exclusions;
     }
@@ -853,9 +854,9 @@ public:
     static const std::vector<std::tuple<const char*, bool, const char*>>& getNotFoundCases()
     {
         static const std::vector<std::tuple<const char*, bool, const char*>> cases = {
-            { "/tools/{toolId}", false, "a tool has a page only in phase 2 (PDFAppToolPageRegistry)" },
-            { "/document/{documentId}/tool/{toolId}", false, "a tool has a page only in phase 2 (PDFAppToolPageRegistry)" },
-            { "/tool/{toolId}/{instanceId}", false, "a tool has a page only in phase 2 (PDFAppToolPageRegistry)" },
+            { "/tools/{toolId}", false, "the first tool of the catalog (Merge) has no page in the first batch of phase 2 (PDFAppToolPageRegistry)" },
+            { "/document/{documentId}/tool/{toolId}", false, "the first tool of the catalog (Merge) has no page in the first batch of phase 2 (PDFAppToolPageRegistry)" },
+            { "/tool/{toolId}/{instanceId}", false, "a tool with its own tab has no page in the first batch of phase 2 (PDFAppToolPageRegistry)" },
             { "/tools", true, "a collection together with a category or a text is refused (owner decision Q1); the filters are driven by UnitTestsAppToolsLifetime" }
         };
         return cases;

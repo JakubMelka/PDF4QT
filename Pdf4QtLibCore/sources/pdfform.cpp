@@ -32,6 +32,33 @@
 namespace pdf
 {
 
+int PDFForm::getSignatureCount(const PDFDocument* document)
+{
+    if (!document)
+    {
+        return 0;
+    }
+
+    int count = 0;
+    try
+    {
+        const PDFForm form = parse(document, document->getCatalog()->getFormObject());
+        form.apply([document, &count](const PDFFormField* field)
+        {
+            if (field && field->getFieldType() == PDFFormField::FieldType::Signature && !document->getObject(field->getValue()).isNull())
+            {
+                ++count;
+            }
+        });
+    }
+    catch (const PDFException&)
+    {
+        // A damaged form has no signatures, which could be kept
+        return 0;
+    }
+    return count;
+}
+
 PDFForm PDFForm::parse(const PDFDocument* document, PDFObject object)
 {
     PDFForm form;

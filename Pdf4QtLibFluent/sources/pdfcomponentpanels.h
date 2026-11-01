@@ -501,8 +501,12 @@ public:
     /// Returns the count of the pages of the result
     qint64 getResultCount() const { return m_summary.count; }
 
-    /// Returns the text of the status ("7 pages selected · 3 (iii) – 12 (xii)")
+    /// Returns the text of the status ("7 pages selected · 3 (iii) – 12 (xii)"; the mode
+    /// Selected names at most MAX_NAMED_SELECTED_PAGES pages: "3 pages selected · 9, 10, 15")
     const QString& getStatusText() const { return m_statusText; }
+
+    /// Most pages of the mode Selected named by the status (a line of 279 px, 389:20177)
+    static constexpr int MAX_NAMED_SELECTED_PAGES = 6;
 
     /// Nested widgets (for the tests, the styling and the accessibility)
     PDFSegmentedControl* getModeControl() const { return m_modes.data(); }

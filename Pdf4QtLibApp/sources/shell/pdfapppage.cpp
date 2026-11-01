@@ -53,6 +53,11 @@ bool PDFAppPage::setRoute(const PDFAppRoute& route)
     return true;
 }
 
+QString PDFAppPage::getHelpTopic() const
+{
+    return PDFAppRoutes::getDefaultHelpTopic();
+}
+
 QString PDFAppPage::getHeaderTitle() const
 {
     return QString();
@@ -86,6 +91,12 @@ bool PDFAppPage::hasSearchHeader() const
 QVariantMap PDFAppPage::saveViewState() const
 {
     return QVariantMap();
+}
+
+bool PDFAppPage::prepareLeave(const PDFAppRoute& target)
+{
+    Q_UNUSED(target);
+    return true;
 }
 
 void PDFAppPage::restoreViewState(const QVariantMap& state)

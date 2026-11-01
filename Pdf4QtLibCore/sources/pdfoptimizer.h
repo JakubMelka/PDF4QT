@@ -24,11 +24,13 @@
 #define PDFOPTIMIZER_H
 
 #include "pdfdocument.h"
+#include "pdfoperationcontrol.h"
 
 #include <QObject>
 
 namespace pdf
 {
+class PDFProgress;
 
 /// Class for optimalizing documents. Can examine object structure and it's dependencies,
 /// and remove unused objects, merge same objects, or even recompress some streams
@@ -53,7 +55,35 @@ public:
     };
     Q_DECLARE_FLAGS(OptimizationFlags, OptimizationFlag)
 
+    /// Counters of the performed steps of the last run of optimize (a tool shows them
+    /// as the rows of its steps, Figma 303:4897; every counter sums all passes of its step)
+    struct Statistics
+    {
+        qint64 simpleObjectsDereferenced = 0;   ///< References replaced by the simple objects they refer to
+        qint64 nullEntriesRemoved = 0;          ///< Null entries removed from the dictionaries
+        qint64 unusedObjectsRemoved = 0;        ///< Objects no reference leads to
+        qint64 identicalObjectsMerged = 0;      ///< Duplicates replaced by the first of their objects
+        qint64 objectEntriesShrunk = 0;         ///< Entries removed from the end of the object list
+        qint64 streamsRecompressed = 0;         ///< Flate streams, which got smaller by the recompression
+        qint64 recompressedBytesSaved = 0;      ///< Bytes saved by the recompression
+    };
+
     explicit PDFOptimizer(OptimizationFlags flags, QObject* parent);
+
+    /// Sets the cancellation of optimize, checked between the steps and per object
+    /// (optional, it must outlive optimize). The storage of a canceled optimization
+    /// is valid, but only partly optimized: it is not to be used, ask isCanceled.
+    void setOperationControl(const PDFOperationControl* operationControl) { m_operationControl = operationControl; }
+
+    /// The operation control has canceled the optimization
+    bool isCanceled() const { return PDFOperationControl::isOperationCancelled(m_operationControl); }
+
+    /// Sets the progress of optimize: one step per stage, which has a step to run
+    /// (optional, it must outlive optimize)
+    void setProgress(PDFProgress* progress) { m_progress = progress; }
+
+    /// Returns the counters of the last run of optimize
+    const Statistics& getStatistics() const { return m_statistics; }
 
     /// Set document, which should be optimalized
     /// \param document Document to optimalize
@@ -95,6 +125,9 @@ private:
 
     OptimizationFlags m_flags;
     PDFObjectStorage m_storage;
+    const PDFOperationControl* m_operationControl = nullptr;
+    PDFProgress* m_progress = nullptr;
+    Statistics m_statistics;
 };
 
 }   // namespace pdf

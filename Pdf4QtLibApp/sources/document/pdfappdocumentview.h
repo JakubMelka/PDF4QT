@@ -41,6 +41,9 @@
 #include <vector>
 
 class QAction;
+class QHBoxLayout;
+class QStackedLayout;
+class QStackedWidget;
 
 namespace pdf
 {
@@ -55,6 +58,7 @@ class PDFAppDocumentToolbar;
 class PDFAppFormController;
 class PDFAppInfoBar;
 class PDFAppOutlineEditor;
+class PDFAppToolUndoTarget;
 class PDFCMSManager;
 class PDFDrawWidgetProxy;
 class PDFModifiedDocument;
@@ -115,6 +119,7 @@ public:
 
 protected:
     virtual QSplitterHandle* createHandle() override;
+    virtual void paintEvent(QPaintEvent* event) override;
 };
 
 enum class PDFAppInfoBarTone
@@ -143,6 +148,26 @@ public:
     bool isClosable = true;                     ///< The bar has a close button
     QString iconName;                           ///< Icon of the design (empty = the icon of the tone)
     int progress = -1;                          ///< Progress 0 - 100 of the tone Progress (-1 = no progress line)
+};
+
+/// Parts of a tool shown by the document view in its tool mode (phase 2, batch plan 2.3).
+/// The pointers do not own anything; a null part leaves the part of the view in its
+/// place. While the mode is active the widgets are children of the view, leaveToolMode
+/// gives them back to their former parents, hidden.
+///
+/// Who owns them, for the shell of a tool: a view, which dies during the mode, deletes
+/// the widgets with it (never the target), so the owner holds them in QPointer and never
+/// in a unique_ptr. An owner dying first calls leaveToolMode and then deletes its parts;
+/// a part deleted during the mode leaves the part of the view in its place, the mode ends
+/// by itself when every part and the target are gone.
+class PDFAppToolModeParts
+{
+public:
+    QWidget* toolbar = nullptr;                 ///< Replaces the toolbar of the document (toolbar 291:1000)
+    QWidget* leftPanel = nullptr;               ///< Replaces the sidebar (the panels of Rotate, Remove, ...); null = the sidebar stays (Compress 291:1030)
+    QWidget* canvasPage = nullptr;              ///< Replaces the PDFWidget in the canvas area (a grid, a form); null = the PDFWidget stays
+    QWidget* rightPanel = nullptr;              ///< Right panel next to the splitter (sidebar-right 291:1177), no handle before it
+    PDFAppToolUndoTarget* undoTarget = nullptr; ///< What Undo and Redo act on during the mode; null = they are disabled
 };
 
 /// View of a document (step 3 plan 1.1, package B): the toolbar (52 px), the
@@ -271,7 +296,8 @@ public:
     /// keys, the right button; -1 for none): getDisplayedPageIndex while it is seen.
     void setSelectedPages(std::vector<PDFInteger> pages, PDFInteger chosenPage = -1);
 
-    /// Shows the panel of the sidebar (?panel=). \returns false for an unknown panel.
+    /// Shows the panel of the sidebar (?panel=). \returns false for an unknown panel and
+    /// while the left panel of a tool lies in the place of the sidebar (the panel stays).
     bool showPanel(const QString& panelId);
 
     /// Id of the shown panel (empty = none)
@@ -338,7 +364,9 @@ public:
     /// Rotation of the view in degrees (0, 90, 180, 270)
     int getRotation() const;
 
-    /// The sidebar is shown (F4)
+    /// The sidebar is shown (F4); the left panel of a tool lies in its place during the mode
+    /// and F4 acts on it (the button of the toolbar of a tool, 389:20184), the sidebar of the
+    /// user comes back as it was (getViewState says that state, never the state of the panel)
     bool isSidebarVisible() const;
     void setSidebarVisible(bool isVisible);
 
@@ -408,7 +436,59 @@ public:
     /// An application of the settings is queued (tests)
     bool isApplySettingsQueued() const { return m_isApplySettingsQueued; }
 
+    // ------------------------------------------------------------------ tool mode
+
+    /// Width of the right panel of a tool (sidebar-right 291:1177)
+    static constexpr int TOOL_RIGHT_PANEL_WIDTH = 320;
+
+    /// Enters the tool mode (owner decision of 2026-11-01, batch plan 2.3 and F4): the
+    /// full screen ends, the pending edits are committed (a form field, an inline title of
+    /// the outline), an open comment popup and the panels of the toolbar close, a creation
+    /// tool ends and the changes of the user are suspended (PDFAppDocument::setUserChangesSuspended:
+    /// the annotation controller, the form and the outline editor are read only). Undo and
+    /// Redo go to \p parts.undoTarget. Reading - zoom, navigation, search, selection, Copy,
+    /// the panels for reading - still works. The keyboard focus outside of the shown parts of
+    /// the view goes to the canvas (the page of the tool or the PDFWidget), so the keys bound
+    /// to the view reach the mode: the shell may focus its first field afterwards. A slot may
+    /// delete the view.
+    /// \returns false, when the mode is active already or no document is shown (the parts
+    /// stay untouched), or when a slot has left the mode or has deleted the view meanwhile
+    /// (the parts have gone with the view).
+    bool enterToolMode(const PDFAppToolModeParts& parts);
+
+    /// Leaves the tool mode: the parts go back to their parents and everything the mode has
+    /// changed returns to its former state (a creation tool ended by the entry and a
+    /// committed editor stay ended). Nothing for a view out of the mode. A slot may delete the view.
+    void leaveToolMode();
+
+    bool isToolModeActive() const { return m_isToolModeActive; }
+
+    /// Target of Undo and Redo of the mode (nullptr out of the mode and for a deleted target)
+    PDFAppToolUndoTarget* getToolUndoTarget() const;
+
+    /// A part of the tool is shown in the place of the toolbar / of the sidebar. The commands
+    /// with their user interface in that place are disabled (Go to, Find without the field).
+    bool isToolToolbarShown() const { return !m_toolToolbar.widget.isNull(); }
+    bool isToolLeftPanelShown() const { return !m_toolLeftPanel.widget.isNull(); }
+    bool isToolCanvasPageShown() const { return !m_toolCanvasPage.widget.isNull(); }
+
+    /// Message of the tool in the status bar during the mode ("Compress · Report.pdf · 24.8 MB",
+    /// plain text, bounded); ignored out of the mode, the mode shows "Ready" again at its end
+    void setToolMessage(const QString& text);
+    QString getToolMessage() const { return m_toolMessage; }
+
 Q_SIGNALS:
+    /// The tool mode has been entered or left (also by itself: the document is gone, every
+    /// part and the target of the mode are gone)
+    void toolModeChanged(bool isActive);
+
+    /// The lock of the document has changed during the mode (a tool, which cannot work on a
+    /// locked document, closes; PDFAppDocument::commit refuses a locked document anyway)
+    void toolModeLockChanged(bool isLocked);
+
+    /// The result of canUndo or canRedo of the target may have changed (also the target is gone)
+    void toolUndoStateChanged();
+
     /// The current page has changed (page index from 0)
     void currentPageChanged(pdf::PDFInteger pageIndex);
 
@@ -511,12 +591,35 @@ private:
     void connectTab();
     void leaveFullScreen();
     void updateSidebarVisibility();
+    void applySplitterSizes();
     void onSplitterMoved();
+
+    /// A part of the tool mode with the parent, which it goes back to
+    struct ToolPart
+    {
+        QPointer<QWidget> widget;
+        QPointer<QWidget> parent;
+    };
+
+    void installToolParts(const PDFAppToolModeParts& parts);
+    void removeToolParts();
+    void watchToolPart(ToolPart& part, QWidget* widget);
+    void releaseToolPart(ToolPart& part);
+    bool isToolPartAlive() const;
+    void updatePageItem();
+    void updateZoomItem();
+    void onDocumentLockChanged();
+    void onToolPartDestroyed();
+    void onToolPartsChangedQueued();
+    void onToolUndoStateChanged();
 
     QPointer<PDFAppContext> m_context;
     QPointer<PDFAppDocument> m_document;
     QPointer<PDFAppDocumentTab> m_tab;
     QPointer<PDFAppDocumentToolbar> m_toolbar;
+    QPointer<QStackedWidget> m_toolbarStack;    ///< The toolbar of the document or the toolbar of a tool
+    QPointer<QHBoxLayout> m_bodyLayout;         ///< The splitter and the right panel of a tool
+    QPointer<QStackedLayout> m_canvasLayout;    ///< Layout of the canvas area: the PDFWidget or the canvas page of a tool
     QPointer<QSplitter> m_splitter;
     QPointer<PDFAppDocumentSidebar> m_sidebar;
     QPointer<QWidget> m_canvasArea;
@@ -555,6 +658,21 @@ private:
     bool m_isPrefetchEnabled = true;
     int m_sidebarWidth = 300;
     AppliedSettings m_appliedSettings;
+
+    // Tool mode
+    ToolPart m_toolToolbar;
+    ToolPart m_toolLeftPanel;
+    ToolPart m_toolCanvasPage;
+    ToolPart m_toolRightPanel;
+    QPointer<PDFAppToolUndoTarget> m_toolUndoTarget;
+    QString m_toolMessage;
+    int m_toolLeftWidth = 300;                  ///< Width of the left panel of the tool (sidebar-left 291:1030)
+    bool m_isToolModeActive = false;
+    bool m_hasToolParts = false;                ///< The mode was entered with a part or a target (gone all = the mode ends)
+    bool m_isToolPartsUpdateQueued = false;
+    bool m_hadToolLeftPanel = false;            ///< The left panel of the tool has replaced the sidebar (not given back yet)
+    bool m_wasSidebarVisible = true;            ///< m_isSidebarVisible before the left panel of the tool
+    bool m_wasFullScreen = false;               ///< The full screen ended by the entry into the mode
 };
 
 }   // namespace pdf

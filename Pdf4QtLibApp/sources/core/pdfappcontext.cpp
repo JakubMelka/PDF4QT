@@ -21,6 +21,8 @@
 // SOFTWARE.
 
 #include "pdfappcontext.h"
+
+#include "pdfappbuiltintools.h"
 #include "pdfappmcpcontroller.h"
 #include "pdfappannotationstylestorage.h"
 #include "pdfapplocale.h"
@@ -68,6 +70,7 @@ PDFAppContext::PDFAppContext(const PDFAppCommandLine& commandLine, QObject* pare
 
     PDFSettingDefinitions::registerBuiltinDefinitions(&m_settingRegistry);
     PDFAppCommands::registerBuiltinCommands(&m_commandRegistry);
+    PDFAppBuiltinTools::registerAll();
 
     if (QGuiApplication* application = qobject_cast<QGuiApplication*>(QCoreApplication::instance()))
     {

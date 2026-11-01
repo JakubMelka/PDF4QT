@@ -29,6 +29,12 @@
         <file>help/settings-viewing.md</file>
         <file>help/signatures.md</file>
         <file>help/tool-collections.md</file>
+        <file>help/tool-pages-rotate.md</file>
+        <file>help/tool-pages-remove.md</file>
+        <file>help/tool-optimize-structure.md</file>
+        <file>help/tool-protect-remove-links.md</file>
+        <file>help/tool-protect-sanitize.md</file>
+        <file>help/tool-convert-extract-text.md</file>
         <file>help/tools.md</file>
         <file>help/whats-new-and-updates.md</file>
         <file>help/window-and-tabs.md</file>

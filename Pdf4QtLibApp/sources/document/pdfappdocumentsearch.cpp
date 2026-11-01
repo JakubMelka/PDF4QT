@@ -267,6 +267,16 @@ bool PDFAppDocumentSearchCommandHandler::isEnabled(const QString& commandId) con
         return m_searchController->getResultCount() > 0 || hasText;
     }
 
+    // An open tool, whose parts replace the sidebar: its panels are out of reach, Find only
+    // with the field of the toolbar of the document
+    if (const PDFAppDocumentView* view = getView(); view && view->isToolLeftPanelShown())
+    {
+        if (commandId == PDFAppCommands::readAloud() || (commandId == PDFAppCommands::find() && view->isToolToolbarShown()))
+        {
+            return false;
+        }
+    }
+
     return handles(commandId);
 }
 

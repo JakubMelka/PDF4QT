@@ -1033,7 +1033,10 @@ void PDFAppMcpConfirmationUi::updateBanners(PDFAppMainWindow* window, PDFAppTab*
     }
 
     PDFAppWorkspaceTab* workspaceTab = qobject_cast<PDFAppWorkspaceTab*>(currentTab);
-    const bool isBannerTab = workspaceTab && (workspaceTab->getKind() == PDFAppTabKind::Home || workspaceTab->getKind() == PDFAppTabKind::NewTab);
+    // The tabs without a status bar: also the Help tab (F1 from the dialog of the request
+    // leads there), its 2 minutes would run out unannounced
+    const bool isBannerTab = workspaceTab && (workspaceTab->getKind() == PDFAppTabKind::Home || workspaceTab->getKind() == PDFAppTabKind::NewTab ||
+                                              workspaceTab->getKind() == PDFAppTabKind::Help);
     for (const auto& item : m_banners)
     {
         if (item.first != workspaceTab || !isBannerTab || !waiting)
@@ -1237,7 +1240,7 @@ void PDFAppMcpConfirmationUi::onNotificationShowChanges()
     const PDFAppMcpCommitInfo info = bar->getInfo();
     PDFAppDocumentTab* tab = m_host->getResolver().findTab(info.document);
     QPointer<PDFAppDocumentView> view = tab ? tab->getView() : nullptr;
-    if (!view)
+    if (!view || view->isToolModeActive())
     {
         return;
     }
@@ -1263,10 +1266,12 @@ void PDFAppMcpConfirmationUi::onNotificationUndo()
     }
 
     PDFAppDocumentTab* tab = m_host->getResolver().findTab(bar->getInfo().document);
-    if (tab)
+    const PDFAppDocumentView* view = tab ? tab->getView() : nullptr;
+    if (tab && !(view && view->isToolModeActive()))
     {
         // Undo of the document removes the whole request in one step; the bar
-        // closes by the change of the document (a slot may delete the tab)
+        // closes by the change of the document (a slot may delete the tab). While a
+        // tool is open the command would undo the parameters of the tool.
         tab->executeCommand(PDFAppCommands::undo());
     }
 }

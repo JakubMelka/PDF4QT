@@ -749,7 +749,8 @@ void PDFAppMarkResults::finishMarking(const PDFAppAnnotationResult& change, size
     bool isCommitted = false;
     if (change && document && count > 0)
     {
-        // Refused, when the document has changed since the snapshot (or it is locked)
+        // Refused, when the document has changed since the snapshot (or it is locked, or a
+        // tool has been opened meanwhile)
         isCommitted = document->commit(*change, QCoreApplication::translate("pdf::PDFAppMarkResults", "Mark search results as annotations"), expectedVersion, PDFAppChangeSource::User);
         if (!guard)
         {
@@ -761,6 +762,10 @@ void PDFAppMarkResults::finishMarking(const PDFAppAnnotationResult& change, size
     if (isCommitted)
     {
         showStatusMessage(H::getResultText(type, committed));
+    }
+    else if (count > 0 && document && document->areUserChangesSuspended())
+    {
+        showStatusMessage(PDFAppDocument::getUserChangesSuspendedText());
     }
     else if (count > 0)
     {

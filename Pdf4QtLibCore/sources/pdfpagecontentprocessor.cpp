@@ -432,6 +432,13 @@ bool PDFPageContentProcessor::performOriginalImagePainting(const PDFImage& image
     return false;
 }
 
+bool PDFPageContentProcessor::isOriginalImageRequired(const PDFStream* stream, PDFObjectReference reference)
+{
+    Q_UNUSED(stream);
+    Q_UNUSED(reference);
+    return true;
+}
+
 void PDFPageContentProcessor::performImagePainting(const QImage& image)
 {
     Q_UNUSED(image);
@@ -3093,6 +3100,11 @@ void PDFPageContentProcessor::paintXObjectImage(const PDFStream* stream, PDFObje
         return;
     }
 
+    if (!isOriginalImageRequired(stream, reference))
+    {
+        return;
+    }
+
     PDFColorSpacePointer colorSpace;
 
     const PDFDictionary* streamDictionary = stream->getDictionary();
@@ -3230,6 +3242,31 @@ void PDFPageContentProcessor::operatorPaintXObject(PDFOperandName name)
                 {
                     throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Form of type %1 not supported.").arg(formType));
                 }
+
+                // Only the refused form is skipped, nothing of the graphic state has changed
+                // yet. A hostile document repeats it many times: it is reported once.
+                if (reference.isValid() && std::find(m_formStack.cbegin(), m_formStack.cend(), reference) != m_formStack.cend())
+                {
+                    reportRenderErrorOnce(RenderErrorType::Error, PDFTranslationContext::tr("Form XObject draws itself, it was not painted again."));
+                    return;
+                }
+                if (m_formStack.size() >= MAXIMUM_FORM_NESTING)
+                {
+                    reportRenderErrorOnce(RenderErrorType::Error, PDFTranslationContext::tr("Form XObjects are nested too deeply, the innermost form was not painted."));
+                    return;
+                }
+
+                // The stack is restored also by an exception of the form
+                class FormStackGuard
+                {
+                public:
+                    FormStackGuard(std::vector<PDFObjectReference>* stack, PDFObjectReference reference) : m_stack(stack) { m_stack->push_back(reference); }
+                    ~FormStackGuard() { m_stack->pop_back(); }
+
+                private:
+                    std::vector<PDFObjectReference>* m_stack;
+                };
+                FormStackGuard formStackGuard(&m_formStack, reference);
 
                 processForm(stream);
             }

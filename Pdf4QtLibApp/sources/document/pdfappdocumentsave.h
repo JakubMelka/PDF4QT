@@ -87,6 +87,10 @@ public:
     /// Writes the document (thread safe, called by a worker)
     static Result write(Request request);
 
+    /// Writes the bytes of a file, which is no document of a tab (a file of the result
+    /// of a tool), by the same safe replacement (thread safe, called by a worker)
+    static Result writeData(QString filePath, QByteArray data, QString markSourceFilePath);
+
     /// Number of the signed signature fields of the document (fields of the type
     /// Signature with a value); 0 for nullptr
     static int getSignatureCount(const PDFDocument* document);
@@ -102,6 +106,10 @@ public:
 private:
     /// Writes the bytes by QSaveFile (retried, when the replacement fails)
     static bool writeFile(const QString& filePath, const QByteArray& data, QString* errorMessage);
+
+    /// The common end of a write: the limit of the size, the Mark of the Web, the
+    /// replacement of the file and the fields of the result
+    static void writeBytes(QByteArray data, const QString& filePath, const QString& markSourceFilePath, Result* result);
 };
 
 /// Save and Save as of a document tab (package E, Figma 955:146677 save-signed,
@@ -143,6 +151,20 @@ public:
     /// Save as (the native file dialog). As \p save.
     bool saveAs();
 
+    /// The silent mode (a result of a tool overwrites the file of its document, plan
+    /// of the first batch, F6): the document of \p request - not committed yet - is
+    /// written over the file, no dialog is ever shown. The file comes first: a failed
+    /// write changes nothing. \p silentWriteFinished comes from the event loop (the
+    /// automatic refresh knows the write before it), its receiver commits the
+    /// document and calls \p completeSilentWrite with the new version. \returns
+    /// false with the translated reason, when the write cannot start (a save runs, the
+    /// file cannot be written, it is open in another tab); then no signal comes.
+    bool writeSilently(PDFAppDocumentFileWriter::Request request, QString* errorMessage);
+
+    /// The end of a silent write: the version \p version is the saved one with the
+    /// file and its bytes, the file is recorded in Recent
+    void completeSilentWrite(quint64 version, const PDFAppDocumentFileWriter::Result& result);
+
     /// A save runs (a dialog is open or the file is being written)
     bool isRunning() const { return m_step != Step::Idle; }
 
@@ -176,6 +198,9 @@ Q_SIGNALS:
 
     /// A file has been written by the saver (the automatic refresh ignores it)
     void fileWritten(const QString& filePath);
+
+    /// A silent write has ended (writeSilently)
+    void silentWriteFinished(const pdf::PDFAppDocumentFileWriter::Result& result);
 
 private:
     enum class Step
@@ -211,6 +236,12 @@ private:
     /// Ends the flow and emits \p finished
     void finish(bool isSaved);
 
+    /// Records the saved file in Recent and requests its thumbnail
+    void recordSavedFile(const QString& filePath);
+
+    /// Starts the worker and the operation Save of a request
+    void startWriter(PDFAppDocumentFileWriter::Request request, const QString& filePath);
+
     /// The file is open in another document tab of the process
     bool isOpenInAnotherDocument(const QString& filePath) const;
 
@@ -220,6 +251,7 @@ private:
     QPointer<PDFAppDocumentTab> m_tab;
     QPointer<PDFAppDocument> m_document;
     Step m_step = Step::Idle;
+    bool m_isSilent = false;            ///< The running write is a silent one
     bool m_isSignedSaveConfirmed = false;
     QPointer<PDFMessageBox> m_dialog;
     QPointer<QFutureWatcher<PDFAppDocumentFileWriter::Result>> m_watcher;

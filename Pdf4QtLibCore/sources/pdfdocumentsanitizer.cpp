@@ -597,53 +597,54 @@ void PDFDocumentSanitizer::sanitize()
 {
     Q_EMIT sanitizationStarted();
 
-    if (m_flags.testFlag(DocumentInfo))
+    if (m_flags.testFlag(DocumentInfo) && !isCanceled())
     {
         performSanitizeDocumentInfo();
     }
 
-    if (m_flags.testFlag(Metadata))
+    if (m_flags.testFlag(Metadata) && !isCanceled())
     {
         performSanitizeMetadata();
     }
 
-    if (m_flags.testFlag(Outline))
+    if (m_flags.testFlag(Outline) && !isCanceled())
     {
         performSanitizeOutline();
     }
 
-    if (m_flags.testFlag(FileAttachments))
+    if (m_flags.testFlag(FileAttachments) && !isCanceled())
     {
         performSanitizeFileAttachments();
     }
 
-    if (m_flags.testFlag(EmbeddedSearchIndex))
+    if (m_flags.testFlag(EmbeddedSearchIndex) && !isCanceled())
     {
         performSanitizeEmbeddedSearchIndex();
     }
 
-    if (m_flags.testFlag(MarkupAnnotations))
+    if (m_flags.testFlag(MarkupAnnotations) && !isCanceled())
     {
         performSanitizeMarkupAnnotations();
     }
 
-    if (m_flags.testFlag(PageThumbnails))
+    if (m_flags.testFlag(PageThumbnails) && !isCanceled())
     {
         performSanitizePageThumbnails();
     }
 
-    if (m_flags.testFlag(PageLabels))
+    if (m_flags.testFlag(PageLabels) && !isCanceled())
     {
         performSanitizePageLabels();
     }
 
-    if (m_flags.testFlag(InvisibleText))
+    if (m_flags.testFlag(InvisibleText) && !isCanceled())
     {
         performSanitizeInvisibleText();
     }
 
     // Optimize - remove unused objects
     PDFOptimizer optimizer(PDFOptimizer::OptimizationFlags(PDFOptimizer::RemoveUnusedObjects | PDFOptimizer::ShrinkObjectStorage | PDFOptimizer::RemoveNullObjects), nullptr);
+    optimizer.setOperationControl(m_operationControl);
     optimizer.setStorage(m_storage);
     optimizer.optimize();
     m_storage = optimizer.takeStorage();
@@ -684,6 +685,11 @@ void PDFDocumentSanitizer::performSanitizeMetadata()
     PDFObjectStorage::PDFObjects objects =  m_storage.getObjects();
     auto processEntry = [this, &counter](PDFObjectStorage::Entry& entry)
     {
+        if (isCanceled())
+        {
+            return;
+        }
+
         PDFRemoveMetadataVisitor visitor(&m_storage, &counter);
         entry.object.accept(&visitor);
         entry.object = visitor.getObject();
@@ -856,6 +862,11 @@ void PDFDocumentSanitizer::performSanitizeInvisibleText()
 
     for (const PDFObjectReference& pageReference : pageReferences)
     {
+        if (isCanceled())
+        {
+            return;
+        }
+
         const PDFObject pageObject = builder.getObjectByReference(pageReference);
         const PDFDictionary* pageDictionary = builder.getDictionaryFromObject(pageObject);
         if (!pageDictionary)
@@ -912,6 +923,11 @@ void PDFDocumentSanitizer::removeAnnotations(const std::function<bool (const PDF
     PDFDocumentDataLoaderDecorator loader(&m_storage);
     for (const PDFObjectReference pageReference : pageReferences)
     {
+        if (isCanceled())
+        {
+            return;
+        }
+
         const PDFObject& pageObject = m_storage.getObjectByReference(pageReference);
         const PDFDictionary* pageDictionary = m_storage.getDictionaryFromObject(pageObject);
 

@@ -26,12 +26,14 @@
 #include "pdfdocument.h"
 #include "pdfexception.h"
 #include "pdfimageconversion.h"
+#include "pdfoperationcontrol.h"
 #include "pdfprogress.h"
 #include "pdfconstants.h"
 
 #include <QBuffer>
 #include <QImageWriter>
 
+#include <algorithm>
 #include <cmath>
 #include <set>
 #include <unordered_set>
@@ -490,11 +492,13 @@ QString PDFImageOptimizer::readFilterName(const PDFDocument* document, const PDF
 
 PDFDictionaryBuilder PDFImageOptimizer::mergeImageDictionary(const PDFDictionary& encoded, const PDFDictionary& original)
 {
-    // Entries describing the samples and the masks of the original image
+    // Entries describing the samples and the masks of the original image. ColorTransform:
+    // producers (Skia of Chrome) write it next to the filter, PDFImage honors it there, and the
+    // new JPEG is in YCbCr: a kept "/ColorTransform 0" would draw its Y, Cb, Cr as R, G, B.
     static const std::unordered_set<QByteArray> replacedKeys =
     {
         "Type", "Subtype", "Width", "Height", "BitsPerComponent", "ColorSpace", "Filter",
-        "DecodeParms", "Length", "Decode", "Mask", "SMask", "ImageMask", "SMaskInData"
+        "DecodeParms", "Length", "Decode", "Mask", "SMask", "ImageMask", "SMaskInData", "ColorTransform"
     };
 
     PDFDictionaryBuilder merged(encoded);
@@ -530,7 +534,177 @@ PDFImageOptimizer::Settings PDFImageOptimizer::Settings::createDefault()
     return settings;
 }
 
-std::vector<PDFImageOptimizer::ImageInfo> PDFImageOptimizer::collectImageInfos(const PDFDocument* document)
+/// Helpers of the optimization of the images
+class PDFImageOptimizerHelper
+{
+public:
+    PDFImageOptimizerHelper() = delete;
+
+    /// Information about a decoded image of the document
+    static PDFImageOptimizer::ImageInfo createImageInfo(const PDFDocument* document, PDFImageCompressor::ImageStatistics statistics);
+
+    /// Encoding of one image, its pixels are not needed for the writing to the storage
+    struct EncodedImage
+    {
+        bool keepOriginal = true;
+        PDFObjectReference reference;
+        PDFStream stream;
+        std::optional<PDFStream> maskStream;
+        std::optional<PDFObjectReference> existingMaskReference;
+        int originalBytes = 0;
+        int newBytes = 0;
+    };
+
+    /// Encodes one image. A kept image holds no stream: nothing but the image, which is
+    /// written to the document, stays in the memory after this function
+    static EncodedImage encodeImage(const PDFDocument* document,
+                                    const PDFImageOptimizer::ImageInfo& info,
+                                    const PDFImageOptimizer::Settings& settings,
+                                    const PDFImageOptimizer::ImageOverrides& overrides,
+                                    PDFRenderErrorReporter* reporter);
+};
+
+PDFImageOptimizer::ImageInfo PDFImageOptimizerHelper::createImageInfo(const PDFDocument* document, PDFImageCompressor::ImageStatistics statistics)
+{
+    PDFImageOptimizer::ImageInfo info;
+    info.reference = statistics.reference;
+    info.image = std::move(statistics.image);
+    info.minimalDpi = statistics.minimalDpi;
+    info.pixelSize = info.image.size();
+    info.hasTransparency = hasNonOpaquePixel(info.image);
+
+    const PDFObject object = document->getObjectByReference(info.reference);
+    if (object.isStream())
+    {
+        const PDFStream* stream = object.getStream();
+        const PDFDictionary* dictionary = stream->getDictionary();
+
+        info.originalBytes = stream->getContent() ? stream->getContent()->size() : 0;
+        if (dictionary)
+        {
+            info.filterName = PDFImageOptimizer::readFilterName(document, dictionary);
+            info.colorSpaceName = readNameFromColorSpace(document, dictionary->get("ColorSpace"));
+            info.bitsPerComponent = PDFDocumentDataLoaderDecorator(document).readIntegerFromDictionary(dictionary, "BitsPerComponent", 8);
+            info.isImageMask = PDFDocumentDataLoaderDecorator(document).readBooleanFromDictionary(dictionary, "ImageMask", false);
+        }
+
+        if (dictionary && dictionary->hasKey("SMask"))
+        {
+            const PDFObject& maskObject = document->getObject(dictionary->get("SMask"));
+            if (maskObject.isStream())
+            {
+                info.hasSoftMask = true;
+                const PDFStream* maskStream = maskObject.getStream();
+                if (maskStream && maskStream->getContent())
+                {
+                    info.originalBytes += maskStream->getContent()->size();
+                }
+            }
+        }
+    }
+
+    return info;
+}
+
+PDFImageOptimizerHelper::EncodedImage PDFImageOptimizerHelper::encodeImage(const PDFDocument* document,
+                                                                           const PDFImageOptimizer::ImageInfo& info,
+                                                                           const PDFImageOptimizer::Settings& settings,
+                                                                           const PDFImageOptimizer::ImageOverrides& overrides,
+                                                                           PDFRenderErrorReporter* reporter)
+{
+    EncodedImage encoded;
+    encoded.reference = info.reference;
+    encoded.originalBytes = info.originalBytes;
+
+    auto overrideIt = overrides.find(info.reference);
+    if (overrideIt != overrides.end() && !overrideIt->second.enabled)
+    {
+        return encoded;
+    }
+
+    const PDFImageOptimizer::Settings& effectiveSettings = (overrideIt != overrides.end() && overrideIt->second.useCustomSettings) ? overrideIt->second.settings : settings;
+    PDFImageOptimizer::ResolvedPlan plan = PDFImageOptimizer::resolvePlan(info, effectiveSettings);
+    plan.originalBytes = info.originalBytes;
+
+    if (info.isImageMask)
+    {
+        return encoded;
+    }
+
+    try
+    {
+        PDFStream stream = PDFImage::createStreamFromImage(info.image, plan.encodeOptions, reporter);
+        encoded.stream = std::move(stream);
+    }
+    catch (const PDFException&)
+    {
+        return encoded;
+    }
+
+    encoded.newBytes = encoded.stream.getContent() ? encoded.stream.getContent()->size() : 0;
+
+    if (plan.useSoftMask)
+    {
+        QImage mask = extractAlphaMask(info.image);
+        if (!mask.isNull())
+        {
+            PDFImage::ImageEncodeOptions maskOptions = plan.encodeOptions;
+            maskOptions.compression = PDFImage::ImageCompression::Flate;
+            maskOptions.colorMode = PDFImage::ImageColorMode::Grayscale;
+            maskOptions.alphaHandling = PDFImage::AlphaHandling::FlattenToWhite;
+
+            try
+            {
+                PDFStream maskStream = PDFImage::createStreamFromImage(mask, maskOptions, reporter);
+                encoded.maskStream = std::move(maskStream);
+                encoded.newBytes += encoded.maskStream->getContent() ? encoded.maskStream->getContent()->size() : 0;
+            }
+            catch (const PDFException&)
+            {
+                encoded.maskStream.reset();
+            }
+        }
+    }
+
+    if (effectiveSettings.keepOriginalIfLarger && encoded.originalBytes > 0 && encoded.newBytes >= encoded.originalBytes)
+    {
+        // The encoded image is not needed, only its size is reported
+        encoded.keepOriginal = true;
+        encoded.stream = PDFStream();
+        encoded.maskStream.reset();
+    }
+    else
+    {
+        encoded.keepOriginal = false;
+
+        const PDFObject object = document->getObjectByReference(info.reference);
+        if (object.isStream())
+        {
+            const PDFStream* originalStream = object.getStream();
+            const PDFDictionary* originalDict = originalStream->getDictionary();
+            if (originalDict)
+            {
+                PDFDictionaryBuilder merged = PDFImageOptimizer::mergeImageDictionary(*encoded.stream.getDictionary(), *originalDict);
+                if (originalDict->hasKey("SMask"))
+                {
+                    const PDFObject& maskObject = originalDict->get("SMask");
+                    if (maskObject.isReference())
+                    {
+                        encoded.existingMaskReference = maskObject.getReference();
+                    }
+                }
+
+                const QByteArray* content = encoded.stream.getContent();
+                QByteArray contentCopy = content ? *content : QByteArray();
+                encoded.stream = PDFStream(std::move(merged), std::move(contentCopy));
+            }
+        }
+    }
+
+    return encoded;
+}
+
+std::vector<PDFImageOptimizer::ImageInfo> PDFImageOptimizer::collectImageInfos(const PDFDocument* document, const PDFOperationControl* operationControl)
 {
     std::vector<ImageInfo> results;
     if (!document)
@@ -539,49 +713,12 @@ std::vector<PDFImageOptimizer::ImageInfo> PDFImageOptimizer::collectImageInfos(c
     }
 
     PDFImageCompressor compressor;
-    PDFImageCompressor::ImageStatisticsList stats = compressor.collectImages(document);
+    PDFImageCompressor::ImageStatisticsList stats = compressor.collectImages(document, operationControl);
     results.reserve(stats.size());
 
-    for (const PDFImageCompressor::ImageStatistics& stat : stats)
+    for (PDFImageCompressor::ImageStatistics& stat : stats)
     {
-        ImageInfo info;
-        info.reference = stat.reference;
-        info.image = stat.image;
-        info.minimalDpi = stat.minimalDpi;
-        info.pixelSize = stat.image.size();
-        info.hasTransparency = hasNonOpaquePixel(stat.image);
-
-        const PDFObject object = document->getObjectByReference(stat.reference);
-        if (object.isStream())
-        {
-            const PDFStream* stream = object.getStream();
-            const PDFDictionary* dictionary = stream->getDictionary();
-
-            info.originalBytes = stream->getContent() ? stream->getContent()->size() : 0;
-            if (dictionary)
-            {
-                info.filterName = readFilterName(document, dictionary);
-                info.colorSpaceName = readNameFromColorSpace(document, dictionary->get("ColorSpace"));
-                info.bitsPerComponent = PDFDocumentDataLoaderDecorator(document).readIntegerFromDictionary(dictionary, "BitsPerComponent", 8);
-                info.isImageMask = PDFDocumentDataLoaderDecorator(document).readBooleanFromDictionary(dictionary, "ImageMask", false);
-            }
-
-            if (dictionary && dictionary->hasKey("SMask"))
-            {
-                const PDFObject& maskObject = document->getObject(dictionary->get("SMask"));
-                if (maskObject.isStream())
-                {
-                    info.hasSoftMask = true;
-                    const PDFStream* maskStream = maskObject.getStream();
-                    if (maskStream && maskStream->getContent())
-                    {
-                        info.originalBytes += maskStream->getContent()->size();
-                    }
-                }
-            }
-        }
-
-        results.push_back(std::move(info));
+        results.push_back(PDFImageOptimizerHelper::createImageInfo(document, std::move(stat)));
     }
 
     return results;
@@ -701,7 +838,11 @@ PDFImageOptimizer::ResolvedPlan PDFImageOptimizer::resolvePlan(const ImageInfo& 
 {
     ResolvedPlan plan;
     plan.originalBytes = info.originalBytes;
-    const ImageAnalysis analysis = analyzeImage(info.image);
+    ImageAnalysis analysis = analyzeImage(info.image);
+
+    // The analysis looks at a sample of a large image, it may miss a few transparent pixels
+    analysis.hasTransparency = analysis.hasTransparency || info.hasTransparency;
+
     ColorMode resolvedMode = resolveColorMode(settings, analysis);
     if (resolvedMode == ColorMode::Preserve)
     {
@@ -746,7 +887,7 @@ PDFImageOptimizer::ResolvedPlan PDFImageOptimizer::resolvePlan(const ImageInfo& 
     options.compression = toImageCompression(algorithm);
     options.colorMode = PDFImage::ImageColorMode::Preserve;
     options.targetSize = plan.targetSize;
-    options.jpegQuality = adjustJpegQuality(profile.jpegQuality, settings.goal);
+    options.jpegQuality = settings.exactJpegQuality ? qBound(0, profile.jpegQuality, 100) : adjustJpegQuality(profile.jpegQuality, settings.goal);
     options.jpeg2000Rate = adjustJpeg2000Rate(profile.jpeg2000Rate, settings.goal);
     options.monochromeThreshold = profile.monochromeThreshold;
     options.enablePngPredictor = profile.enablePngPredictor;
@@ -855,8 +996,15 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
                                         const ImageOverrides& overrides,
                                         PDFProgress* progress,
                                         PDFRenderErrorReporter* reporter,
-                                        std::vector<ImageResult>* results) const
+                                        std::vector<ImageResult>* results,
+                                        const PDFOperationControl* operationControl,
+                                        PDFProgress* analysisProgress) const
 {
+    if (results)
+    {
+        results->clear();
+    }
+
     if (!document || !settings.enabled)
     {
         if (!document)
@@ -868,11 +1016,21 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
         return PDFDocument(std::move(storage), document->getInfo()->version, document->getSourceDataHash());
     }
 
-    std::vector<ImageInfo> infos = collectImageInfos(document);
-    if (infos.empty())
+    const auto createCopy = [document]()
     {
         PDFObjectStorage storage = document->getStorage();
         return PDFDocument(std::move(storage), document->getInfo()->version, document->getSourceDataHash());
+    };
+
+    // The first pass decodes nothing: it finds the images and the resolutions they have
+    // on the pages. The second one decodes and encodes one image at a time, so at most
+    // one decoded image is held - the memory depends on the largest image only.
+    PDFImageCompressor compressor;
+    PDFImageCompressor::Environment environment(document);
+    const PDFImageCompressor::ImagePlacements placements = compressor.collectImagePlacements(environment, operationControl, analysisProgress);
+    if (placements.empty() || PDFOperationControl::isOperationCancelled(operationControl))
+    {
+        return createCopy();
     }
 
     if (progress)
@@ -880,22 +1038,11 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
         ProgressStartupInfo info;
         info.showDialog = true;
         info.text = PDFTranslationContext::tr("Optimizing images...");
-        progress->start(infos.size(), std::move(info));
+        progress->start(placements.size(), std::move(info));
     }
 
-    struct EncodedImage
-    {
-        bool keepOriginal = true;
-        PDFObjectReference reference;
-        PDFStream stream;
-        std::optional<PDFStream> maskStream;
-        std::optional<PDFObjectReference> existingMaskReference;
-        int originalBytes = 0;
-        int newBytes = 0;
-    };
-
-    std::vector<EncodedImage> encodedResults;
-    encodedResults.reserve(infos.size());
+    std::vector<PDFImageOptimizerHelper::EncodedImage> encodedResults;
+    encodedResults.reserve(placements.size());
 
     PDFRenderErrorReporterDummy dummyReporter;
     if (!reporter)
@@ -903,131 +1050,40 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
         reporter = &dummyReporter;
     }
 
-    for (const ImageInfo& info : infos)
+    const PDFImageCompressor::DecodedImageCallback encodeImage = [&](PDFImageCompressor::ImageStatistics statistics)
     {
-        EncodedImage encoded;
-        encoded.reference = info.reference;
-        encoded.originalBytes = info.originalBytes;
-
-        auto overrideIt = overrides.find(info.reference);
-        if (overrideIt != overrides.end() && !overrideIt->second.enabled)
-        {
-            encodedResults.push_back(std::move(encoded));
-            if (progress)
-            {
-                progress->step();
-            }
-            continue;
-        }
-
-        const Settings& effectiveSettings = (overrideIt != overrides.end() && overrideIt->second.useCustomSettings) ? overrideIt->second.settings : settings;
-        ResolvedPlan plan = resolvePlan(info, effectiveSettings);
-        plan.originalBytes = info.originalBytes;
-
-        if (info.isImageMask)
-        {
-            encodedResults.push_back(std::move(encoded));
-            if (progress)
-            {
-                progress->step();
-            }
-            continue;
-        }
-
-        try
-        {
-            PDFStream stream = PDFImage::createStreamFromImage(info.image, plan.encodeOptions, reporter);
-            encoded.stream = std::move(stream);
-        }
-        catch (const PDFException&)
-        {
-            encodedResults.push_back(std::move(encoded));
-            if (progress)
-            {
-                progress->step();
-            }
-            continue;
-        }
-
-        encoded.newBytes = encoded.stream.getContent() ? encoded.stream.getContent()->size() : 0;
-
-        if (plan.useSoftMask)
-        {
-            QImage mask = extractAlphaMask(info.image);
-            if (!mask.isNull())
-            {
-                PDFImage::ImageEncodeOptions maskOptions = plan.encodeOptions;
-                maskOptions.compression = PDFImage::ImageCompression::Flate;
-                maskOptions.colorMode = PDFImage::ImageColorMode::Grayscale;
-                maskOptions.alphaHandling = PDFImage::AlphaHandling::FlattenToWhite;
-
-                try
-                {
-                    PDFStream maskStream = PDFImage::createStreamFromImage(mask, maskOptions, reporter);
-                    encoded.maskStream = std::move(maskStream);
-                    encoded.newBytes += encoded.maskStream->getContent() ? encoded.maskStream->getContent()->size() : 0;
-                }
-                catch (const PDFException&)
-                {
-                    encoded.maskStream.reset();
-                }
-            }
-        }
-
-        if (effectiveSettings.keepOriginalIfLarger && encoded.originalBytes > 0 && encoded.newBytes >= encoded.originalBytes)
-        {
-            encoded.keepOriginal = true;
-        }
-        else
-        {
-            encoded.keepOriginal = false;
-
-            const PDFObject object = document->getObjectByReference(info.reference);
-            if (object.isStream())
-            {
-                const PDFStream* originalStream = object.getStream();
-                const PDFDictionary* originalDict = originalStream->getDictionary();
-                if (originalDict)
-                {
-                    PDFDictionaryBuilder merged = mergeImageDictionary(*encoded.stream.getDictionary(), *originalDict);
-                    if (originalDict->hasKey("SMask"))
-                    {
-                        const PDFObject& maskObject = originalDict->get("SMask");
-                        if (maskObject.isReference())
-                        {
-                            encoded.existingMaskReference = maskObject.getReference();
-                        }
-                    }
-
-                    const QByteArray* content = encoded.stream.getContent();
-                    QByteArray contentCopy = content ? *content : QByteArray();
-                    encoded.stream = PDFStream(std::move(merged), std::move(contentCopy));
-                }
-            }
-        }
-
-        encodedResults.push_back(std::move(encoded));
+        const ImageInfo info = PDFImageOptimizerHelper::createImageInfo(document, std::move(statistics));
+        encodedResults.push_back(PDFImageOptimizerHelper::encodeImage(document, info, settings, overrides, reporter));
         if (progress)
         {
             progress->step();
         }
-    }
+    };
+    compressor.visitImages(environment, placements, encodeImage, operationControl);
 
     if (progress)
     {
         progress->finish();
     }
 
+    if (PDFOperationControl::isOperationCancelled(operationControl))
+    {
+        return createCopy();
+    }
+
+    // The objects are written in the order of the references, new objects of the
+    // masks get their numbers independently on the order of the pages
+    std::sort(encodedResults.begin(), encodedResults.end(), [](const PDFImageOptimizerHelper::EncodedImage& left, const PDFImageOptimizerHelper::EncodedImage& right) { return left.reference < right.reference; });
+
     PDFObjectStorage storage = document->getStorage();
     std::set<PDFObjectReference> replacedObjects;
 
     if (results)
     {
-        results->clear();
         results->reserve(encodedResults.size());
     }
 
-    for (const EncodedImage& encoded : encodedResults)
+    for (const PDFImageOptimizerHelper::EncodedImage& encoded : encodedResults)
     {
         if (encoded.keepOriginal)
         {

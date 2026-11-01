@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfapphelpcatalog.h"
+#include "pdfdocumenttoolcatalog.h"
 #include "pdfwhatsnew.h"
 
 #include <QCoreApplication>
@@ -127,6 +128,7 @@ const std::vector<PDFAppHelpCategory>& PDFAppHelpCatalog::getCategories()
         { QStringLiteral("getting-started"), QT_TRANSLATE_NOOP("pdf::PDFAppHelpCatalog", "Getting started") },
         { QStringLiteral("open-and-view"), QT_TRANSLATE_NOOP("pdf::PDFAppHelpCatalog", "Open and view") },
         { QStringLiteral("edit-content"), QT_TRANSLATE_NOOP("pdf::PDFAppHelpCatalog", "Edit content") },
+        { QStringLiteral("tools"), QT_TRANSLATE_NOOP("pdf::PDFAppHelpCatalog", "Tools") },
         { QStringLiteral("ai-assistants"), QT_TRANSLATE_NOOP("pdf::PDFAppHelpCatalog", "AI assistants") },
         { QStringLiteral("settings"), QT_TRANSLATE_NOOP("pdf::PDFAppHelpCatalog", "Settings") }
     };
@@ -342,6 +344,12 @@ const PDFAppHelpTopic* PDFAppHelpCatalog::findTopic(const QString& id) const
         }
     }
     return nullptr;
+}
+
+QString PDFAppHelpCatalog::getToolTopic(const PDFDocumentToolCatalogEntry& tool) const
+{
+    const QString topic = tool.getHelpTopic();
+    return findTopic(topic) ? topic : QStringLiteral("tools");
 }
 
 std::vector<const PDFAppHelpTopic*> PDFAppHelpCatalog::getCategoryTopics(const QString& categoryId) const

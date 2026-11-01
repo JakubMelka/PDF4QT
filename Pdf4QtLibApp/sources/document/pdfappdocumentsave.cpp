@@ -58,30 +58,6 @@ class PDFAppDocumentSaveHelper
 public:
     PDFAppDocumentSaveHelper() = delete;
 
-    /// Counts the signed signature fields (a functor for PDFForm::apply)
-    class SignatureCounter
-    {
-    public:
-        explicit SignatureCounter(const PDFDocument* document, int* count) :
-            m_document(document),
-            m_count(count)
-        {
-
-        }
-
-        void operator()(const PDFFormField* field) const
-        {
-            if (field && field->getFieldType() == PDFFormField::FieldType::Signature && !m_document->getObject(field->getValue()).isNull())
-            {
-                ++(*m_count);
-            }
-        }
-
-    private:
-        const PDFDocument* m_document;
-        int* m_count;
-    };
-
     /// Width of the message boxes of a document tab (958:28033)
     static constexpr int MESSAGE_BOX_WIDTH = 440;
 };
@@ -132,39 +108,7 @@ PDFAppDocumentFileWriter::Result PDFAppDocumentFileWriter::write(Request request
             }
         }
 
-        if (data.isEmpty() || data.size() > MAXIMUM_FILE_SIZE)
-        {
-            result.errorMessage = tr("The document is too large to be saved.");
-            return result;
-        }
-
-        // The Mark of the Web of a document from the internet (Windows) is read before
-        // the file is replaced: the replacement by a temporary file has no stream
-        // of the old file, the saved file (also of an attachment opened from the
-        // memory, O18) keeps the mark
-        const QByteArray markOfTheWeb = PDFAppAttachments::readMarkOfTheWeb(request.markSourceFilePath);
-
-        // A temporary file renamed over the target: a failure leaves the old file. A
-        // program, which reads the file at the moment (a thumbnail, an indexer of the
-        // system), blocks the replacement on Windows for a short time: it is retried.
-        if (!writeFile(request.filePath, data, &result.errorMessage))
-        {
-            return result;
-        }
-
-        if (!markOfTheWeb.isEmpty())
-        {
-            // Best effort: the document is saved also without its mark
-            PDFAppAttachments::writeMarkOfTheWeb(request.filePath, markOfTheWeb);
-        }
-
-        result.filePath = QFileInfo(request.filePath).canonicalFilePath();
-        if (result.filePath.isEmpty())
-        {
-            result.filePath = QFileInfo(request.filePath).absoluteFilePath();
-        }
-        result.data = std::move(data);
-        result.isSaved = true;
+        writeBytes(std::move(data), request.filePath, request.markSourceFilePath, &result);
     }
     catch (const PDFException& exception)
     {
@@ -176,6 +120,51 @@ PDFAppDocumentFileWriter::Result PDFAppDocumentFileWriter::write(Request request
     }
 
     return result;
+}
+
+PDFAppDocumentFileWriter::Result PDFAppDocumentFileWriter::writeData(QString filePath, QByteArray data, QString markSourceFilePath)
+{
+    Result result;
+    result.requestedFilePath = filePath;
+    writeBytes(std::move(data), filePath, markSourceFilePath, &result);
+    return result;
+}
+
+void PDFAppDocumentFileWriter::writeBytes(QByteArray data, const QString& filePath, const QString& markSourceFilePath, Result* result)
+{
+    if (data.isEmpty() || data.size() > MAXIMUM_FILE_SIZE)
+    {
+        result->errorMessage = tr("The document is too large to be saved.");
+        return;
+    }
+
+    // The Mark of the Web of a document from the internet (Windows) is read before
+    // the file is replaced: the replacement by a temporary file has no stream
+    // of the old file, the saved file (also of an attachment opened from the
+    // memory, O18) keeps the mark
+    const QByteArray markOfTheWeb = PDFAppAttachments::readMarkOfTheWeb(markSourceFilePath);
+
+    // A temporary file renamed over the target: a failure leaves the old file. A
+    // program, which reads the file at the moment (a thumbnail, an indexer of the
+    // system), blocks the replacement on Windows for a short time: it is retried.
+    if (!writeFile(filePath, data, &result->errorMessage))
+    {
+        return;
+    }
+
+    if (!markOfTheWeb.isEmpty())
+    {
+        // Best effort: the document is saved also without its mark
+        PDFAppAttachments::writeMarkOfTheWeb(filePath, markOfTheWeb);
+    }
+
+    result->filePath = QFileInfo(filePath).canonicalFilePath();
+    if (result->filePath.isEmpty())
+    {
+        result->filePath = QFileInfo(filePath).absoluteFilePath();
+    }
+    result->data = std::move(data);
+    result->isSaved = true;
 }
 
 bool PDFAppDocumentFileWriter::writeFile(const QString& filePath, const QByteArray& data, QString* errorMessage)
@@ -218,23 +207,7 @@ bool PDFAppDocumentFileWriter::writeFile(const QString& filePath, const QByteArr
 
 int PDFAppDocumentFileWriter::getSignatureCount(const PDFDocument* document)
 {
-    if (!document)
-    {
-        return 0;
-    }
-
-    int count = 0;
-    try
-    {
-        const PDFForm form = PDFForm::parse(document, document->getCatalog()->getFormObject());
-        form.apply(PDFAppDocumentSaveHelper::SignatureCounter(document, &count));
-    }
-    catch (const PDFException&)
-    {
-        // A damaged form has no signatures, which could be kept
-        return 0;
-    }
-    return count;
+    return PDFForm::getSignatureCount(document);
 }
 
 bool PDFAppDocumentFileWriter::isWritable(const QString& filePath)
@@ -488,6 +461,12 @@ void PDFAppDocumentSaver::writeFile(const QString& filePath, bool isIncremental)
     request.isOriginalData = snapshot.isPagedXFA;
     request.version = snapshot.version;
     request.markSourceFilePath = document->getOriginFilePath();
+    startWriter(std::move(request), filePath);
+}
+
+void PDFAppDocumentSaver::startWriter(PDFAppDocumentFileWriter::Request request, const QString& filePath)
+{
+    PDFAppDocument* document = getDocument();
 
     // The document stays usable: the worker writes the snapshot
     m_step = Step::Writing;
@@ -507,6 +486,56 @@ void PDFAppDocumentSaver::writeFile(const QString& filePath, bool isIncremental)
     }
     m_operation = operation;
     Q_EMIT stateChanged();
+}
+
+bool PDFAppDocumentSaver::writeSilently(PDFAppDocumentFileWriter::Request request, QString* errorMessage)
+{
+    QString error;
+    PDFAppDocument* document = getDocument();
+    if (!document || !document->isReady())
+    {
+        error = tr("The document is not available any more.");
+    }
+    else if (isRunning())
+    {
+        error = tr("The document is being saved. Try it again when it ends.");
+    }
+    else if (isOpenInAnotherDocument(request.filePath))
+    {
+        error = tr("The file is open in another tab.");
+    }
+    else if (!PDFAppDocumentFileWriter::isWritable(request.filePath))
+    {
+        error = QFileInfo::exists(request.filePath) ? tr("The file is read-only.") : tr("The folder of the file does not exist.");
+    }
+
+    if (!error.isEmpty())
+    {
+        if (errorMessage)
+        {
+            *errorMessage = error;
+        }
+        return false;
+    }
+
+    m_isSilent = true;
+    const QString filePath = request.filePath;
+    startWriter(std::move(request), filePath);
+    return true;
+}
+
+void PDFAppDocumentSaver::completeSilentWrite(quint64 version, const PDFAppDocumentFileWriter::Result& result)
+{
+    QPointer<PDFAppDocumentSaver> guard(this);
+    if (PDFAppDocument* document = getDocument(); document && document->isReady())
+    {
+        document->setSavedAs(version, result.filePath, result.data);
+    }
+
+    if (guard)
+    {
+        recordSavedFile(result.filePath);
+    }
 }
 
 void PDFAppDocumentSaver::onWriterFinished()
@@ -531,6 +560,29 @@ void PDFAppDocumentSaver::onWriterFinished()
         {
             return;
         }
+    }
+
+    if (m_isSilent)
+    {
+        // No dialog: the receiver says what happens. The automatic refresh learns
+        // the write first (F6, the file has the bytes of the new document).
+        m_isSilent = false;
+        m_step = Step::Idle;
+
+        QPointer<PDFAppDocumentSaver> silentGuard(this);
+        if (result.isSaved)
+        {
+            Q_EMIT fileWritten(result.filePath);
+        }
+        if (silentGuard)
+        {
+            Q_EMIT stateChanged();
+        }
+        if (silentGuard)
+        {
+            Q_EMIT silentWriteFinished(result);
+        }
+        return;
     }
 
     PDFAppDocument* document = getDocument();
@@ -567,23 +619,27 @@ void PDFAppDocumentSaver::onWriterFinished()
         return;
     }
 
+    recordSavedFile(result.filePath);
+    finish(true);
+}
+
+void PDFAppDocumentSaver::recordSavedFile(const QString& filePath)
+{
     // Recent: the saved file and its new thumbnail
     PDFAppContext* context = m_tab ? m_tab->getContext() : nullptr;
     if (context && context->getDatabase())
     {
         QString storedPath;
-        const PDFDatabaseError error = context->getRecent().recordOpened(result.filePath, &storedPath);
+        const PDFDatabaseError error = context->getRecent().recordOpened(filePath, &storedPath);
         if (error.isError())
         {
             qWarning("The saved file was not recorded in Recent: %s", qPrintable(error.toString()));
         }
         else if (PDFAppThumbnailer* thumbnailer = context->getThumbnailer())
         {
-            thumbnailer->requestThumbnail(storedPath.isEmpty() ? result.filePath : storedPath);
+            thumbnailer->requestThumbnail(storedPath.isEmpty() ? filePath : storedPath);
         }
     }
-
-    finish(true);
 }
 
 void PDFAppDocumentSaver::showSignedDialog(int signatureCount)

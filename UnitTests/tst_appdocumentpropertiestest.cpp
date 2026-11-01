@@ -373,6 +373,7 @@ private slots:
     // Rendering issues, developer view
     void renderingIssues();
     void renderingIssuesLifetime();
+    void renderingIssuesRefusedForm();
     void deleteFromOwnSignals_data();
     void deleteFromOwnSignals();
     void renderingIssuesPointer();
@@ -2446,6 +2447,73 @@ void AppDocumentPropertiesTest::renderingIssues()
     QCOMPARE(pdf::PDFAppRenderingIssues::getSeverity(int(pdf::RenderErrorType::Information)), pdf::PDFComponentPainter::IssueSeverity::Information);
     QCOMPARE(pdf::PDFAppRenderingIssues::getSeverity(999), pdf::PDFComponentPainter::IssueSeverity::Warning);
     QCOMPARE(pdf::PDFAppRenderingIssues::getStatusText(1), QStringLiteral("1 rendering issue"));
+}
+
+void AppDocumentPropertiesTest::renderingIssuesRefusedForm()
+{
+    // A form drawing itself, rendered by the real pipeline of the view: the status item and
+    // the popover 198:5950 show one issue of the severity Error on the page of the form
+    pdf::PDFDocumentBuilder builder;
+    const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 200, 200));
+    const pdf::PDFObjectReference form = builder.addObject(pdf::PDFObject::createInteger(0));
+
+    const auto createXObjects = [&form]()
+    {
+        pdf::PDFDictionaryBuilder xobjects;
+        xobjects.addEntry(pdf::PDFInplaceOrMemoryString("Fm"), pdf::PDFObject::createReference(form));
+        pdf::PDFDictionaryBuilder resources;
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"), pdf::PDFObject::createDictionary(std::move(xobjects)));
+        return pdf::PDFObject::createDictionary(std::move(resources));
+    };
+
+    const QByteArray formContent("/Fm Do /Fm Do /Fm Do");
+    pdf::PDFDictionaryBuilder dictionary;
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Subtype"), pdf::PDFObject::createName("Form"));
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Resources"), createXObjects());
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Length"), pdf::PDFObject::createInteger(formContent.size()));
+    builder.setObject(form, pdf::PDFObject::createStream(pdf::PDFStream(std::move(dictionary), QByteArray(formContent))));
+
+    const QByteArray pageContent("/Fm Do");
+    pdf::PDFDictionaryBuilder contentDictionary;
+    contentDictionary.addEntry(pdf::PDFInplaceOrMemoryString("Length"), pdf::PDFObject::createInteger(pageContent.size()));
+    const pdf::PDFObjectReference contents = builder.addObject(pdf::PDFObject::createStream(pdf::PDFStream(std::move(contentDictionary), QByteArray(pageContent))));
+
+    pdf::PDFDictionaryBuilder pageUpdate;
+    pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Resources"), createXObjects());
+    pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Contents"), pdf::PDFObject::createReference(contents));
+    builder.mergeTo(page, pdf::PDFObject::createDictionary(std::move(pageUpdate)));
+    pdf::PDFDocument document = builder.build();
+
+    pdftest::AppDocumentFixture fixture(QSize(720, 560));
+    const QString filePath = QDir(fixture.folder()).filePath(QStringLiteral("RefusedForm.pdf"));
+    QVERIFY(pdftest::AppDocumentSamples::write(document, filePath));
+
+    pdf::PDFAppDocumentTab* tab = fixture.open(filePath);
+    QVERIFY(tab);
+    pdf::PDFAppRenderingIssues* issues = PropertiesTestHelper::handler(tab)->getRenderingIssues();
+    QVERIFY(issues);
+
+    QTRY_COMPARE(issues->getIssueCount(), 1);
+    QTRY_VERIFY(!issues->getStatusItem()->isHidden());
+    QCOMPARE(issues->getStatusItem()->text(), QStringLiteral("1 rendering issue"));
+
+    const std::vector<pdf::PDFAppRenderingIssue> list = issues->getIssues();
+    QCOMPARE(list.size(), size_t(1));
+    QCOMPARE(list.front().pageIndex, pdf::PDFInteger(0));
+    QCOMPARE(list.front().message, QStringLiteral("Form XObject draws itself, it was not painted again."));
+    QCOMPARE(list.front().severity, pdf::PDFComponentPainter::IssueSeverity::Error);
+
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::renderingIssues()));
+    fixture.settle();
+    QVERIFY(issues->isPopoverVisible());
+    QCOMPARE(issues->getPanel()->getRows().size(), size_t(1));
+    pdf::PDFRenderingIssueRow* row = static_cast<pdf::PDFRenderingIssueRow*>(issues->getPanel()->getRows().front());
+    QCOMPARE(row->getSeverity(), pdf::PDFComponentPainter::IssueSeverity::Error);
+    QCOMPARE(row->getMessage(), QStringLiteral("Form XObject draws itself, it was not painted again."));
+    QCOMPARE(row->getPage(), QStringLiteral("Page 1"));
+
+    // The document is not changed by the issue: nothing to save, the commands of a document stay
+    QVERIFY(!tab->getDocument()->isModified());
 }
 
 void AppDocumentPropertiesTest::renderingIssuesLifetime()

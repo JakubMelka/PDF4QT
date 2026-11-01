@@ -153,8 +153,15 @@ void PDFAppSettingComboBox::inputMethodEvent(QInputMethodEvent* event)
 }
 
 PDFAppSettingControl::PDFAppSettingControl(PDFAppContext* context, const PDFSettingDefinition& definition, QWidget* parent) :
+    PDFAppSettingControl(context, definition, parent, nullptr)
+{
+
+}
+
+PDFAppSettingControl::PDFAppSettingControl(PDFAppContext* context, const PDFSettingDefinition& definition, QWidget* parent, std::shared_ptr<PDFAppValueStore> store) :
     BaseClass(parent),
     m_context(context),
+    m_store(store ? std::move(store) : std::make_shared<PDFAppSettingsValueStore>(context)),
     m_definition(definition),
     m_kind(getKind(definition))
 {
@@ -552,10 +559,9 @@ void PDFAppSettingControl::refresh()
 
     QVariant storedValue;
     QVariant value = m_definition.getDefaultValue();
-    if (m_context && m_context->getDatabase())
+    if (m_store->isAvailable())
     {
-        const PDFSettingsRepository settings = m_context->getSettings();
-        storedValue = settings.getStoredValue(m_definition.getKey());
+        storedValue = m_store->readValue(m_definition.getKey());
         value = m_definition.validate(storedValue);
     }
     showValue(value, storedValue);
@@ -734,22 +740,30 @@ void PDFAppSettingControl::writePending(bool isNotified)
 
 bool PDFAppSettingControl::writeValue(const QVariant& value, bool isNotified)
 {
-    if (!m_context || !m_context->getDatabase() || !value.isValid())
+    if (!m_store->isAvailable() || !value.isValid())
     {
         return false;
     }
 
-    const PDFDatabaseError error = m_context->getSettings().setValue(m_definition.getKey(), value);
+    // The store of a tool runs the slots of its model, which may delete this binder: the
+    // store is held for the call, the binder is checked after it
+    QPointer<PDFAppSettingControl> guard(this);
+    const std::shared_ptr<PDFAppValueStore> store = m_store;
+    const QString key = m_definition.getKey();
+    const QString error = store->writeValue(key, value);
+    if (!guard)
+    {
+        return error.isEmpty();
+    }
     if (!isNotified)
     {
-        return !error.isError();
+        return error.isEmpty();
     }
 
     // The slots may delete the page with this binder
-    QPointer<PDFAppSettingControl> guard(this);
-    if (error.isError())
+    if (!error.isEmpty())
     {
-        Q_EMIT writeFailed(error.toString());
+        Q_EMIT writeFailed(error);
         if (guard)
         {
             // The control shows the stored value again

@@ -34,6 +34,7 @@
 #include <QPointer>
 #include <QTimer>
 
+class QCheckBox;
 class QContextMenuEvent;
 class QLineEdit;
 class QVBoxLayout;
@@ -588,6 +589,144 @@ private:
     void updateAccessibility();
 
     PDFComponentPainter::RenderingIssueRow m_row;
+};
+
+/// Row with a tile of the frames of the tools (no component of Figma; the kinds
+/// and their frames in PDFComponentPainter::TileRowKind): an optional check box, the
+/// tile with an icon or a text, the title with an optional tag, the description
+/// and the ending - the check mark, an icon of a state or a link. The height
+/// follows the width (a description of MenuItem and ListItem wraps).
+///
+/// An item of a menu (MenuItem, PanelStep) is chosen by the checked state of the
+/// button: \p setSelectionBehavior(Toggle) for a list of more choices, Exclusive in
+/// an exclusive QButtonGroup for a single choice. A row of a list shows the checked
+/// state as its selection (the row shown on the page, 438:14751). A row, which is
+/// not clickable (a step, a pending change), is a text with its nested widgets.
+///
+/// The check box (18 x 18, it toggles itself, a click on it does not activate the
+/// row) and the link are real child widgets, created when they are asked for. The
+/// application may delete or hide them, the row then gives their place back and
+/// \p setCheckBoxVisible or \p setLinkText creates them again. The tag is a label,
+/// the mouse passes through it. The accessible name is the title, the description
+/// the description of the row and the tag.
+class PDF4QTLIBFLUENTSHARED_EXPORT PDFTileRow : public PDFRowButton
+{
+    Q_OBJECT
+    Q_PROPERTY(bool clickable READ isClickable WRITE setClickable)
+
+private:
+    using BaseClass = PDFRowButton;
+
+public:
+    using Kind = PDFComponentPainter::TileRowKind;
+    using Tone = PDFComponentPainter::TileRowTone;
+    using TextKind = PDFComponentPainter::TextKind;
+
+    explicit PDFTileRow(QWidget* parent = nullptr);
+    explicit PDFTileRow(const QString& title, const QString& description, const QString& iconName, Kind kind = Kind::MenuItem, QWidget* parent = nullptr);
+
+    QString getTitle() const { return text(); }
+    void setTitle(const QString& title);
+
+    const QString& getDescription() const { return m_row.description; }
+    void setDescription(const QString& description);
+
+    /// Kind of the row (an invalid value is MenuItem)
+    Kind getKind() const { return m_row.kind; }
+    void setKind(Kind kind);
+
+    /// Colors of the tile of a row without a check box, which is no item of a choice
+    /// list - MenuItem and PanelStep are always Accent (an invalid value is Accent)
+    Tone getTone() const { return m_row.tone; }
+    void setTone(Tone tone);
+
+    const QString& getIconName() const { return m_row.iconName; }
+    void setIconName(const QString& iconName);
+
+    /// Text of the tile instead of the icon (a number of a page), empty = the icon
+    const QString& getTileText() const { return m_row.tileText; }
+    void setTileText(const QString& tileText);
+
+    /// Tag after the title, an empty text hides it
+    const QString& getTag() const { return m_row.tag; }
+    void setTag(const QString& tag);
+
+    /// Kinds of the texts: a name, an address or a value of a document is data
+    /// (its own direction, components.md 6.6); Interface by default
+    TextKind getTitleKind() const { return m_row.titleKind; }
+    void setTitleKind(TextKind kind);
+    TextKind getDescriptionKind() const { return m_row.descriptionKind; }
+    void setDescriptionKind(TextKind kind);
+
+    /// Color of the description instead of the color of the kind (an invalid value resets it)
+    std::optional<PDFThemeColors::Color> getDescriptionColor() const { return m_row.descriptionColor; }
+    void setDescriptionColor(PDFThemeColors::Color color);
+    void resetDescriptionColor();
+
+    /// Icon of a state at the trailing side (minus, check-circle); an empty name
+    /// hides it, an invalid color is icon/accent. A chosen item of a menu shows its
+    /// check mark instead.
+    const QString& getEndIconName() const { return m_row.endIconName; }
+    PDFThemeColors::Color getEndIconColor() const { return m_row.endIconColor; }
+    void setEndIcon(const QString& iconName, PDFThemeColors::Color color);
+
+    /// The link at the trailing side (signal linkClicked); an empty text hides it
+    const QString& getLinkText() const { return m_linkText; }
+    void setLinkText(const QString& linkText);
+
+    /// The check box at the leading side (signal checkBoxToggled); \p setCheckBoxChecked
+    /// and \p setCheckBoxEnabled do nothing, until \p setCheckBoxVisible has created it
+    bool isCheckBoxVisible() const;
+    void setCheckBoxVisible(bool isVisible);
+    bool isCheckBoxChecked() const;
+    void setCheckBoxChecked(bool isChecked);
+
+    /// A check box disabled alone: the row stays enabled (a kind not found in the document, 438:13119)
+    bool isCheckBoxEnabled() const;
+    void setCheckBoxEnabled(bool isEnabled);
+
+    /// A row, which is not clickable, takes no focus and has no hover: its nested widgets work
+    bool isClickable() const { return m_isClickable; }
+    void setClickable(bool isClickable);
+
+    /// Returns the nested check box and the nested link (nullptr, when they have not
+    /// been created yet or the application has deleted them)
+    QCheckBox* getCheckBox() const;
+    PDFTextLink* getLink() const;
+
+    virtual bool isInteractive() const override { return m_isClickable; }
+
+    /// Returns the content drawn by PDFComponentPainter::paintTileRow
+    PDFComponentPainter::TileRow getContent() const;
+
+Q_SIGNALS:
+    /// The check box has been toggled by the user or by \p setCheckBoxChecked
+    void checkBoxToggled(bool isChecked);
+
+    /// The link has been clicked
+    void linkClicked();
+
+protected:
+    virtual void paintContent(QPainter* painter, const QRect& rect, const PDFComponentPainter::State& state) const override;
+    virtual QSize getContentSizeHint() const override;
+    virtual QSize getContentMinimumSizeHint() const override;
+    virtual int computeHeightForWidth(int width) const override;
+    virtual QString getDefaultAccessibleDescription() const override;
+    virtual void layoutTrailingWidgets() override;
+    virtual bool event(QEvent* event) override;
+    virtual bool eventFilter(QObject* watched, QEvent* event) override;
+
+private:
+    void updateNestedTexts();
+    void announceDescription();
+    void onCheckBoxToggled(bool isChecked);
+
+    PDFComponentPainter::TileRow m_row;
+    QString m_linkText;
+    // The event filter recognizes the check box also in its destructor
+    PDFWatchedPointer<QCheckBox> m_checkBox;
+    PDFWatchedPointer<PDFTextLink> m_link;
+    bool m_isClickable = false;
 };
 
 /// Row of the Document properties dialog (component Property row 206:873): the

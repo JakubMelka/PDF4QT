@@ -24,8 +24,10 @@
 #define PDFDOCUMENTTOOL_H
 
 #include "pdfglobal.h"
+#include "pdfcms.h"
 #include "pdfdocument.h"
 #include "pdfdocumenttoolparameter.h"
+#include "pdfprogress.h"
 
 #include <QByteArray>
 #include <QJsonObject>
@@ -33,22 +35,20 @@
 #include <QStringList>
 #include <QVariantMap>
 
+#include <memory>
 #include <vector>
 
 namespace pdf
 {
 
 class PDFCertificateStore;
-class PDFCMSManager;
 class PDFDocumentToolCatalogEntry;
 class PDFOperationControl;
-class PDFProgress;
 
 // Tools of the catalog without a user interface (newapp_tools.md 2, plan of
-// step 6, chapter 3). PROVISIONAL: the interfaces are minimal and may change
-// until the pilot tool Compress of phase 2 is implemented. The GUI of phase 2
-// (PDFDocumentToolShell / PDFDocumentToolRunner), MCP (step 7, newapp_mcp.md 6)
-// and later PdfTool call the same PDFDocumentTool.
+// step 6, chapter 3, plan of the first batch of phase 2, chapter 2.2). The GUI
+// of phase 2 (PDFDocumentToolShell / PDFDocumentToolRunner), MCP (step 7,
+// newapp_mcp.md 6) and later PdfTool call the same PDFDocumentTool.
 
 /// Input document of a tool: a separate copy of the document of the tab (the
 /// immutable data are shared; the tool builds its changes by its own
@@ -60,16 +60,27 @@ public:
     PDFDocumentPointer document;    ///< The document (never null in a valid context)
     QByteArray originalData;        ///< Data of the original file (incremental save, signatures); may be empty
     QString fileName;               ///< Name of the file (for the suggested names of the results); may be empty
+    bool isModified = true;         ///< The document may differ from \p originalData (unsaved changes). The safe default: only a caller, which knows that the bytes are of this very document, says false (PDFAppDocumentSnapshot::isModified); a size is then measured by writing it.
+
+    /// Input document of a snapshot of an open document: the file name is taken from
+    /// its path
+    /// \param document The document of the snapshot
+    /// \param originalData Data of the opened file
+    /// \param filePath Path of the file, may be empty
+    /// \param isModified The document differs from the data of the file
+    static PDFDocumentToolInputDocument create(PDFDocumentPointer document, QByteArray originalData, const QString& filePath, bool isModified);
 };
 
 /// Context of one run of a tool: the inputs and the environment. A value - the
-/// caller fills it in the GUI thread and passes it to the worker. The pointers
-/// of the environment may be null; the objects must outlive the run and their
-/// functions used by the tool must be thread safe (const functions of
-/// PDFCMSManager are).
+/// caller fills it in the GUI thread and passes it to the worker. It never holds a
+/// pointer to an object of a view or of a window (they may be gone before the
+/// worker ends): what it refers to is shared by the context and immutable.
 class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolContext
 {
 public:
+    /// Context of one input document (the usual case of a tool in a tab)
+    static PDFDocumentToolContext create(PDFDocumentToolInputDocument input);
+
     /// Input documents: none (PDFDocumentToolInputKind::None), the document of the
     /// tab (One) or more documents (Multiple, the first is the document of the tab)
     std::vector<PDFDocumentToolInputDocument> documents;
@@ -80,10 +91,10 @@ public:
     /// Current page of the view of the first document (index from 0, -1 = none)
     PDFInteger currentPage = -1;
 
-    const PDFCMSManager* cmsManager = nullptr;              ///< Color management of the application
-    QString authorName;                                     ///< Author of the new content (annotations, signatures)
-    const PDFCertificateStore* certificateStore = nullptr;  ///< Trusted certificates
-    QString temporaryFolder;                                ///< Folder of the temporary files of the run
+    PDFCMSPointer cms;                                              ///< Color management of the application, null = the default settings
+    QString authorName;                                             ///< Author of the new content (annotations, signatures)
+    std::shared_ptr<const PDFCertificateStore> certificateStore;    ///< Trusted certificates, may be null
+    QString temporaryFolder;                                        ///< Folder of the temporary files of the run
 
     /// The first input document, nullptr = none
     const PDFDocument* getDocument() const;
@@ -113,6 +124,17 @@ public:
     PDFDocumentPointer document;                                            ///< The document
     PDFModifiedDocument::ModificationFlags flags = PDFModifiedDocument::Reset;  ///< What changed (hints of the update)
     QString suggestedFileName;                                              ///< Suggested name of the file (without a folder)
+};
+
+/// File of the result, which the tool does not write itself: the result dialog or MCP
+/// asks where it goes (one file of an export, tools.md 9.3 point 19, Extract Text).
+/// Files written by the tool itself are in PDFDocumentToolResult::writtenFiles.
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolOutputFile
+{
+public:
+    QString suggestedFileName;  ///< Suggested name of the file (without a folder)
+    QByteArray data;            ///< Content of the file
+    QString mimeType;           ///< Type of the content ("text/plain")
 };
 
 /// Fact of the result dialog and of the preview ("24.8 MB → 6.1 MB")
@@ -148,6 +170,7 @@ public:
     PDFDocumentToolResultStatus status = PDFDocumentToolResultStatus::Success;
     QString message;                                    ///< Reason of Failed / NothingToDo, a summary of Success (translated)
     std::vector<PDFDocumentToolOutputDocument> documents;   ///< Changed and new documents
+    std::vector<PDFDocumentToolOutputFile> outputs;     ///< Files, which the caller writes
     QStringList writtenFiles;                           ///< Files written by the tool (absolute paths)
     std::vector<PDFDocumentToolFact> facts;             ///< Facts of the result dialog
     std::vector<PDFDocumentToolStep> steps;             ///< Rows of the steps
@@ -163,11 +186,62 @@ public:
     bool isUse() const { return status == PDFDocumentToolResultStatus::Success || status == PDFDocumentToolResultStatus::NothingToDo; }
 
     /// Structured content of MCP: "status", "message", "documents" (kind, input
-    /// index, page count, flags, suggested name), "files", "facts", "steps", "data"
+    /// index, page count, flags, suggested name), "files", "facts", "steps", "data";
+    /// "outputs" (suggested name, type, size - never the content) when there are any
     QJsonObject toJson() const;
 
     /// Name of the status in JSON ("success", "stopped", "failed", "nothing-to-do")
     static QString getStatusName(PDFDocumentToolResultStatus status);
+};
+
+/// Texts of the values of the tools, in the language of the user interface (the
+/// default locale of the process, O17): "24.8 MB", "24.8 MB → 6.1 MB", "1 min 12 s"
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolFormat
+{
+public:
+    PDFDocumentToolFormat() = delete;
+
+    /// Size of a file ("24.8 MB")
+    static QString formatSize(qint64 bytes);
+
+    /// Change of a size ("24.8 MB → 6.1 MB")
+    static QString formatSizeChange(qint64 before, qint64 after);
+
+    /// Time of a run ("1 min 12 s", "12 s"; at least 1 s)
+    static QString formatDuration(qint64 milliseconds);
+
+    /// How much smaller is the result, in whole percents (0 when it is not smaller)
+    static int getSavedPercent(qint64 before, qint64 after);
+};
+
+/// Receiver of the progress of a run of a tool (the bar of the shell, the
+/// notifications of MCP). It is called in the thread of the run, so it must hand the
+/// values over by itself.
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolProgressListener
+{
+public:
+    virtual ~PDFDocumentToolProgressListener();
+
+    /// \param percentage Progress of the run, 0 to 100
+    /// \param stepText Text of the current step ("Recompressing images · 152 of 412"), may be empty
+    virtual void onToolProgress(int percentage, const QString& stepText) = 0;
+};
+
+/// PDFProgress of a run, which tells its listener the percentage and the step: one
+/// adapter of the GUI and of MCP. It lives in the thread of the run, on the stack of the run.
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolProgressAdapter : public PDFProgress
+{
+public:
+    /// \param listener Receiver, must outlive the adapter
+    explicit PDFDocumentToolProgressAdapter(PDFDocumentToolProgressListener* listener);
+
+private:
+    void onStep(int percentage);
+    void onStepText(QString text);
+
+    PDFDocumentToolProgressListener* m_listener;
+    int m_percentage = 0;
+    QString m_stepText;
 };
 
 /// A tool of the catalog (newapp_tools.md 2, Běh). One instance serves all runs:
@@ -176,7 +250,7 @@ public:
 /// least after each page and may use PDFExecutionPolicy. The tool never writes
 /// the resulting document itself (the result dialog, the parameter result of MCP
 /// or PdfTool decide); exports of more files write them (PDFDocumentToolFileSink of
-/// phase 2). PROVISIONAL until the pilot tool Compress.
+/// phase 2).
 class PDF4QTLIBCORESHARED_EXPORT PDFDocumentTool
 {
 public:
@@ -198,16 +272,23 @@ public:
 
     /// Checks the context and the normalized parameters before a run. The default
     /// checks the input documents by the input kind of the catalog (None: any,
-    /// One: exactly one, Multiple: at least one; never a null document).
+    /// One: exactly one, Multiple: at least one; never a null document) and the
+    /// permissions of an encrypted document (PDFDocumentToolCatalogEntry::isPermitted).
+    /// A locked document is checked by the caller, the core does not know the lock.
     /// Returns the translated errors (empty = the tool can run).
     virtual std::vector<PDFDocumentToolParameterError> validate(const PDFDocumentToolContext& context, const QVariantMap& parameters) const;
 
     /// The tool computes a preview of its result (computePreview)
     virtual bool hasPreview() const { return false; }
 
-    /// Preview of the result: facts only ("24.8 MB → 6.1 MB"), no documents. The
-    /// default returns an empty successful result.
-    virtual PDFDocumentToolResult computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control) const;
+    /// The preview is the result itself: it has the documents of the result, nothing
+    /// is computed again when the user confirms it (Compress measures by running)
+    virtual bool isPreviewFinal() const { return false; }
+
+    /// Preview of the result: facts only ("24.8 MB → 6.1 MB"), no documents, unless
+    /// isPreviewFinal. \p control and \p progress may be null. The default returns an
+    /// empty successful result.
+    virtual PDFDocumentToolResult computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const;
 
     /// Runs the tool with normalized and validated parameters. \p control and
     /// \p progress may be null; a tool, which sees the cancellation, returns Stopped.
@@ -221,7 +302,7 @@ public:
     PDFDocumentToolResult run(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const;
 
     /// Checked preview (as run, for computePreview)
-    PDFDocumentToolResult runPreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control) const;
+    PDFDocumentToolResult runPreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress = nullptr) const;
 
 private:
     PDFDocumentToolResult prepare(const PDFDocumentToolContext& context, const QVariantMap& parameters, QVariantMap* normalizedParameters) const;

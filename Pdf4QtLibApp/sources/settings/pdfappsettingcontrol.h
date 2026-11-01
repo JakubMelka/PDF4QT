@@ -25,6 +25,7 @@
 
 #include "pdfappglobal.h"
 #include "pdfappcontext.h"
+#include "pdfappvaluestore.h"
 #include "pdfsettingdefinition.h"
 
 #include <QColor>
@@ -36,6 +37,8 @@
 #include <QPointer>
 #include <QTimer>
 #include <QVariant>
+
+#include <memory>
 
 class QCheckBox;
 class QHBoxLayout;
@@ -104,7 +107,9 @@ private:
 ///    of another system), is shown as an extra item "… (not available)"; the engine
 ///    uses the default then.
 /// The binder holds a copy of the definition (a registry of a closed context is
-/// never touched) and the context by QPointer.
+/// never touched) and the context by QPointer. It reads and writes through a
+/// PDFAppValueStore: the settings of the database by default, the parameter model
+/// of a tool for the panel of a tool (plan of the first batch, chapter 2.5).
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppSettingControl : public QObject
 {
     Q_OBJECT
@@ -149,6 +154,10 @@ public:
     /// Creates the control of the definition as a child of \p parent (the control
     /// wrap of the row); the control shows the stored value at once
     explicit PDFAppSettingControl(PDFAppContext* context, const PDFSettingDefinition& definition, QWidget* parent);
+
+    /// The control of the definition bound to \p store (null = the settings of the
+    /// database of the context)
+    explicit PDFAppSettingControl(PDFAppContext* context, const PDFSettingDefinition& definition, QWidget* parent, std::shared_ptr<PDFAppValueStore> store);
 
     /// Writes a pending value (without notifying anybody)
     virtual ~PDFAppSettingControl() override;
@@ -257,6 +266,7 @@ private:
     void onWriteTimeout();
 
     QPointer<PDFAppContext> m_context;
+    std::shared_ptr<PDFAppValueStore> m_store;
     PDFSettingDefinition m_definition;
     Kind m_kind = Kind::CheckBox;
     QPointer<QWidget> m_widget;

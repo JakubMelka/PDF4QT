@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfdocumenttoolcatalog.h"
+#include "pdfdocument.h"
 
 #include <QCoreApplication>
 
@@ -199,6 +200,70 @@ QString PDFDocumentToolCatalogEntry::getPdfToolCommand() const
     return data ? data->getPdfToolCommand() : QString();
 }
 
+PDFDocumentToolPreselectedResult PDFDocumentToolCatalogEntry::getPreselectedResult() const
+{
+    const PDFDocumentToolExtendedData* data = PDFDocumentToolCatalog::findExtendedData(getId());
+    return data ? data->getPreselectedResult() : PDFDocumentToolPreselectedResult::None;
+}
+
+PDFDocumentToolSignatureImpact PDFDocumentToolCatalogEntry::getSignatureImpact() const
+{
+    const PDFDocumentToolExtendedData* data = PDFDocumentToolCatalog::findExtendedData(getId());
+    return data ? data->getSignatureImpact() : PDFDocumentToolSignatureImpact::None;
+}
+
+std::vector<PDFSecurityHandler::Permission> PDFDocumentToolCatalogEntry::getRequiredPermissions() const
+{
+    std::vector<PDFSecurityHandler::Permission> permissions;
+    const PDFDocumentToolExtendedData* data = PDFDocumentToolCatalog::findExtendedData(getId());
+    if (!data)
+    {
+        return permissions;
+    }
+
+    using Permission = PDFSecurityHandler::Permission;
+    for (const Permission permission : { Permission::PrintLowResolution, Permission::Modify, Permission::CopyContent, Permission::ModifyInteractiveItems,
+                                         Permission::ModifyFormFields, Permission::Accessibility, Permission::Assemble, Permission::PrintHighResolution })
+    {
+        if (data->getRequiredPermissionMask() & uint32_t(permission))
+        {
+            permissions.push_back(permission);
+        }
+    }
+    return permissions;
+}
+
+bool PDFDocumentToolCatalogEntry::isPermitted(const PDFDocument* document) const
+{
+    if (!document)
+    {
+        return false;
+    }
+
+    const std::vector<PDFSecurityHandler::Permission> permissions = getRequiredPermissions();
+    const PDFSecurityHandler* securityHandler = document->getStorage().getSecurityHandler();
+    if (permissions.empty() || !securityHandler)
+    {
+        return true;
+    }
+
+    for (const PDFSecurityHandler::Permission permission : permissions)
+    {
+        if (securityHandler->isAllowed(permission))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+QString PDFDocumentToolCatalogEntry::getHelpTopic() const
+{
+    QString topic = QStringLiteral("tool-") + getId();
+    topic.replace(QLatin1Char('.'), QLatin1Char('-'));
+    return topic;
+}
+
 QStringList PDFDocumentToolCatalogEntry::getDefaultSuccessors() const
 {
     QStringList successors;
@@ -252,9 +317,19 @@ const std::vector<PDFDocumentToolExtendedData>& PDFDocumentToolCatalog::getExten
     // open document is its option); Redact Content writes a new redacted copy;
     // Sign with Certificate and Add Timestamp write a new signed file and leave
     // the open document unchanged (tools.md 4.7, 9.3 point 11, 10.3 point 31).
+    // The preselected choice of the result dialog, the signature impact and the
+    // permissions differ from the defaults of the kind only where a row names them:
+    // a copy for the tools, which cannot be taken back (tools.md 9.3 point 11, K1 of
+    // the plan of the first batch), a whole rewrite for Compress, Optimize Structure
+    // and Remove Hidden Data (O31), the permissions of chapter 7 of the plan
+    // (ISO 32000-2 Table 22: Assemble covers rotating and deleting pages, Modify the rest).
     using Input = PDFDocumentToolInputKind;
     using Result = PDFDocumentToolResultKind;
     using Dependency = PDFDocumentToolExternalDependency;
+    using Preselected = PDFDocumentToolPreselectedResult;
+    using Signature = PDFDocumentToolSignatureImpact;
+    using Permission = PDFSecurityHandler::Permission;
+    constexpr uint32_t ASSEMBLE_OR_MODIFY = uint32_t(Permission::Assemble) | uint32_t(Permission::Modify);
     static const std::vector<PDFDocumentToolExtendedData> data =
     {
         PDFDocumentToolExtendedData("pages.merge", Input::Multiple, Result::NewDocument, Dependency::None, "unite", "edit.page-numbers,optimize.compress,protect.password"),
@@ -264,8 +339,8 @@ const std::vector<PDFDocumentToolExtendedData>& PDFDocumentToolCatalog::getExten
         PDFDocumentToolExtendedData("pages.manage", Input::Multiple, Result::ChangeDocument, Dependency::None, "", "edit.page-numbers,optimize.compress,protect.password"),
         PDFDocumentToolExtendedData("pages.insert", Input::One, Result::ChangeDocument, Dependency::None, "", "edit.page-numbers,optimize.compress"),
         PDFDocumentToolExtendedData("pages.add-image", Input::One, Result::ChangeDocument, Dependency::None, "", "convert.ocr,optimize.compress"),
-        PDFDocumentToolExtendedData("pages.remove", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.compress,edit.page-numbers"),
-        PDFDocumentToolExtendedData("pages.rotate", Input::One, Result::ChangeDocument, Dependency::None, "", "convert.ocr,optimize.compress"),
+        PDFDocumentToolExtendedData("pages.remove", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.compress,edit.page-numbers", Preselected::Keep, Signature::IncrementalSave, ASSEMBLE_OR_MODIFY),
+        PDFDocumentToolExtendedData("pages.rotate", Input::One, Result::ChangeDocument, Dependency::None, "", "convert.ocr,optimize.compress", Preselected::Keep, Signature::IncrementalSave, ASSEMBLE_OR_MODIFY),
         PDFDocumentToolExtendedData("pages.crop", Input::One, Result::ChangeDocument, Dependency::None, "", "pages.resize,optimize.compress"),
         PDFDocumentToolExtendedData("pages.resize", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.compress,edit.page-numbers"),
         PDFDocumentToolExtendedData("pages.boxes", Input::One, Result::ChangeDocument, Dependency::None, "", "review.output-preview"),
@@ -274,26 +349,26 @@ const std::vector<PDFDocumentToolExtendedData>& PDFDocumentToolCatalog::getExten
         PDFDocumentToolExtendedData("convert.scan", Input::None, Result::NewDocument, Dependency::Scanner, "", "optimize.compress"),
         PDFDocumentToolExtendedData("convert.ocr", Input::One, Result::ChangeDocument, Dependency::Tesseract, "ocr", "optimize.compress,convert.extract-text"),
         PDFDocumentToolExtendedData("convert.pdf-to-images", Input::One, Result::Files, Dependency::None, "render", ""),
-        PDFDocumentToolExtendedData("convert.extract-text", Input::One, Result::Files, Dependency::None, "fetch-text", ""),
+        PDFDocumentToolExtendedData("convert.extract-text", Input::One, Result::Files, Dependency::None, "fetch-text", "", Preselected::File, Signature::None, uint32_t(Permission::CopyContent)),
         PDFDocumentToolExtendedData("convert.extract-images", Input::One, Result::Files, Dependency::None, "fetch-images", ""),
         PDFDocumentToolExtendedData("convert.audiobook", Input::One, Result::Files, Dependency::None, "audio-book", ""),
         PDFDocumentToolExtendedData("edit.content", Input::One, Result::ChangeDocument, Dependency::None, "", "edit.page-numbers,optimize.compress"),
         PDFDocumentToolExtendedData("edit.page-numbers", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.compress,protect.password"),
-        PDFDocumentToolExtendedData("protect.password", Input::One, Result::ChangeDocument, Dependency::None, "encrypt", ""),
-        PDFDocumentToolExtendedData("protect.permissions", Input::One, Result::ChangeDocument, Dependency::None, "encrypt", ""),
-        PDFDocumentToolExtendedData("protect.certificate-encrypt", Input::One, Result::ChangeDocument, Dependency::None, "", ""),
-        PDFDocumentToolExtendedData("protect.unlock", Input::One, Result::ChangeDocument, Dependency::None, "decrypt", ""),
-        PDFDocumentToolExtendedData("protect.sign", Input::One, Result::NewDocument, Dependency::None, "", ""),
-        PDFDocumentToolExtendedData("protect.timestamp", Input::One, Result::NewDocument, Dependency::None, "", ""),
+        PDFDocumentToolExtendedData("protect.password", Input::One, Result::ChangeDocument, Dependency::None, "encrypt", "", Preselected::Copy, Signature::IncrementalSave, 0),
+        PDFDocumentToolExtendedData("protect.permissions", Input::One, Result::ChangeDocument, Dependency::None, "encrypt", "", Preselected::Copy, Signature::IncrementalSave, 0),
+        PDFDocumentToolExtendedData("protect.certificate-encrypt", Input::One, Result::ChangeDocument, Dependency::None, "", "", Preselected::Copy, Signature::IncrementalSave, 0),
+        PDFDocumentToolExtendedData("protect.unlock", Input::One, Result::ChangeDocument, Dependency::None, "decrypt", "", Preselected::Copy, Signature::IncrementalSave, 0),
+        PDFDocumentToolExtendedData("protect.sign", Input::One, Result::NewDocument, Dependency::None, "", "", Preselected::File, Signature::None, 0),
+        PDFDocumentToolExtendedData("protect.timestamp", Input::One, Result::NewDocument, Dependency::None, "", "", Preselected::File, Signature::None, 0),
         PDFDocumentToolExtendedData("protect.sign-by-hand", Input::One, Result::ChangeDocument, Dependency::None, "", "protect.password,optimize.compress"),
         PDFDocumentToolExtendedData("protect.certificates", Input::None, Result::Files, Dependency::None, "cert-store", ""),
-        PDFDocumentToolExtendedData("protect.redact", Input::One, Result::NewDocument, Dependency::None, "redact", "protect.sanitize,protect.password,optimize.compress"),
-        PDFDocumentToolExtendedData("protect.sanitize", Input::One, Result::ChangeDocument, Dependency::None, "", "protect.password,optimize.compress"),
-        PDFDocumentToolExtendedData("protect.remove-links", Input::One, Result::ChangeDocument, Dependency::None, "remove-external-links", "protect.sanitize,protect.password"),
-        PDFDocumentToolExtendedData("optimize.compress", Input::One, Result::ChangeDocument, Dependency::None, "optimize", "protect.password"),
+        PDFDocumentToolExtendedData("protect.redact", Input::One, Result::NewDocument, Dependency::None, "redact", "protect.sanitize,protect.password,optimize.compress", Preselected::File, Signature::None, 0),
+        PDFDocumentToolExtendedData("protect.sanitize", Input::One, Result::ChangeDocument, Dependency::None, "", "protect.password,optimize.compress", Preselected::Copy, Signature::LostCopyOnly, uint32_t(Permission::Modify)),
+        PDFDocumentToolExtendedData("protect.remove-links", Input::One, Result::ChangeDocument, Dependency::None, "remove-external-links", "protect.sanitize,protect.password", Preselected::Keep, Signature::IncrementalSave, uint32_t(Permission::ModifyInteractiveItems)),
+        PDFDocumentToolExtendedData("optimize.compress", Input::One, Result::ChangeDocument, Dependency::None, "optimize", "protect.password", Preselected::Copy, Signature::LostCopyOnly, uint32_t(Permission::Modify)),
         PDFDocumentToolExtendedData("optimize.images", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.structure"),
-        PDFDocumentToolExtendedData("optimize.structure", Input::One, Result::ChangeDocument, Dependency::None, "optimize", "optimize.images"),
-        PDFDocumentToolExtendedData("optimize.bitonal", Input::One, Result::ChangeDocument, Dependency::None, "bitonal", "convert.ocr"),
+        PDFDocumentToolExtendedData("optimize.structure", Input::One, Result::ChangeDocument, Dependency::None, "optimize", "optimize.images", Preselected::Keep, Signature::LostCopyOnly, uint32_t(Permission::Modify)),
+        PDFDocumentToolExtendedData("optimize.bitonal", Input::One, Result::ChangeDocument, Dependency::None, "bitonal", "convert.ocr", Preselected::Copy, Signature::IncrementalSave, 0),
         PDFDocumentToolExtendedData("optimize.grayscale", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.compress"),
         PDFDocumentToolExtendedData("review.compare", Input::Multiple, Result::Analysis, Dependency::None, "diff", ""),
         PDFDocumentToolExtendedData("review.measure", Input::One, Result::Analysis, Dependency::None, "", ""),
