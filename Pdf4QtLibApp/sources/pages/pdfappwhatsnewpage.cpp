@@ -1285,3 +1285,5 @@ PDFAppPage* PDFAppReleaseNotesPageFactory::createPage(PDFAppContext* context, QW
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappwhatsnewpage.cpp"

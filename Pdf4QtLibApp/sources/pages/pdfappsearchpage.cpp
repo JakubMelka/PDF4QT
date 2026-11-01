@@ -871,3 +871,5 @@ PDFAppPage* PDFAppSearchPageFactory::createPage(PDFAppContext* context, QWidget*
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappsearchpage.cpp"

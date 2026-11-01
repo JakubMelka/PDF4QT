@@ -981,3 +981,5 @@ void PDFAppMcpHost::assistantEvent(const PDFMcpAssistantEvent& event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappmcphost.cpp"

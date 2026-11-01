@@ -5921,3 +5921,5 @@ void PDFOCRDocumentDialog::done(int result)
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfocrdocumentdialog.cpp"

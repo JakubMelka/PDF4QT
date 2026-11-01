@@ -562,3 +562,5 @@ bool PDFAppWindowFrame::handleNativeEvent(const QByteArray& eventType, void* mes
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappwindowframe.cpp"

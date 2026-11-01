@@ -6693,3 +6693,5 @@ QPointF PDFWidgetAnnotationManager::getMenuCalloutTip(PDFObjectReference annotat
 }
 
 }   // namespace pdf
+
+#include "moc_pdfwidgetannotation.cpp"

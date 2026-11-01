@@ -581,3 +581,5 @@ void PDFPageContentEditorStyleSettings::onFontChanged(const QFont& font)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfpagecontenteditorstylesettings.cpp"

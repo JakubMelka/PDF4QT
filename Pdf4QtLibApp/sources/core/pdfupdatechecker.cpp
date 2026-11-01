@@ -616,3 +616,5 @@ QVersionNumber PDFUpdateChecker::parseReply(const QByteArray& data, QString* err
 }
 
 }   // namespace pdf
+
+#include "moc_pdfupdatechecker.cpp"

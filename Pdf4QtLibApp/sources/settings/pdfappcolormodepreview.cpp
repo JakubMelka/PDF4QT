@@ -186,3 +186,5 @@ void PDFAppColorModePreview::changeEvent(QEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappcolormodepreview.cpp"

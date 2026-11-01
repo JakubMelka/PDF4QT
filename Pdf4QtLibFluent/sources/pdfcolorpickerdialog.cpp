@@ -1313,3 +1313,5 @@ bool PDFColorPickerDialog::eventFilter(QObject* watched, QEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfcolorpickerdialog.cpp"

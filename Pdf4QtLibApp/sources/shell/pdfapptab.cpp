@@ -525,3 +525,5 @@ void PDFAppWorkspaceTab::onCheckForUpdatesRequested()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfapptab.cpp"

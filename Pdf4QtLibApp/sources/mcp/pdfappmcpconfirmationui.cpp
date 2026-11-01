@@ -1299,3 +1299,5 @@ bool PDFAppMcpConfirmationUi::eventFilter(QObject* watched, QEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappmcpconfirmationui.cpp"

@@ -160,3 +160,5 @@ PDFAppPage* PDFAppDocumentPropertiesPageFactory::createPage(PDFAppContext* conte
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentproperties.cpp"

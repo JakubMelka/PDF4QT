@@ -420,3 +420,5 @@ void PDFMcpCall::postEvent(PDFMcpCallEvent event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfmcpcall.cpp"

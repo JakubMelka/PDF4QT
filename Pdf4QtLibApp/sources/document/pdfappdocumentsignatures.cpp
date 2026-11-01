@@ -1224,3 +1224,5 @@ void PDFAppDocumentSignaturesPanel::onTrustDialogFinished(int result)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentsignatures.cpp"

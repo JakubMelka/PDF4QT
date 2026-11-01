@@ -165,3 +165,5 @@ bool PDFCreateCertificateDialog::validate()
 }
 
 } // namespace pdf
+
+#include "moc_pdfcreatecertificatedialog.cpp"

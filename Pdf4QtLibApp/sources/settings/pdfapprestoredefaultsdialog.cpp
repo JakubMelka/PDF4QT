@@ -139,3 +139,5 @@ void PDFAppRestoreDefaultsDialog::onSectionDestroyed()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfapprestoredefaultsdialog.cpp"

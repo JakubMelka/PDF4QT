@@ -366,3 +366,5 @@ void PDFPageGeometryDialog::updateUi()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfpagegeometrydialog.cpp"

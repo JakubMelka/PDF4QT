@@ -1365,3 +1365,5 @@ void PDFAppCommentPopup::paintEvent(QPaintEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappcommentpopup.cpp"

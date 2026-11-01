@@ -578,3 +578,5 @@ void PDFAppMcpActivityLog::flush()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappmcpactivity.cpp"

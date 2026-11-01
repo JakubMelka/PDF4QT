@@ -119,6 +119,8 @@ endif()
 target_include_directories(Pdf4QtLibFluent INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/sources)
 target_include_directories(Pdf4QtLibFluent PUBLIC ${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR})
 
+pdf4qt_target_precompile_headers(Pdf4QtLibFluent MODULES CORE GUI WIDGETS)
+
 set_target_properties(Pdf4QtLibFluent PROPERTIES
                       VERSION ${PDF4QT_VERSION}
                       SOVERSION ${PDF4QT_VERSION}

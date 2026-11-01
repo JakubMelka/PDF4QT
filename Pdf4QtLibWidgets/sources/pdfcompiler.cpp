@@ -716,3 +716,5 @@ void PDFAsynchronousTextLayoutCompiler::onTextLayoutCreated()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfcompiler.cpp"

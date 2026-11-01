@@ -268,3 +268,5 @@ void PDFAppPanelWidgets::prepareMessageBox(PDFMessageBox* box, const QWidget* wi
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentpanels_common.cpp"

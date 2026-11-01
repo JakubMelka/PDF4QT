@@ -559,3 +559,5 @@ void PDFOCRLanguagesDialog::onDownloadFinished(const QString& modelId, bool succ
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfocrlanguagesdialog.cpp"

@@ -1745,3 +1745,5 @@ bool PDFAppSearchActions::openDocument(QWidget* widget, const QString& filePath)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappsearchwidgets.cpp"

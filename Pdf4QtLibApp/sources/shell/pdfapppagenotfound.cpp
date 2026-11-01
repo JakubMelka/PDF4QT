@@ -793,3 +793,5 @@ PDFAppPage* PDFPageNotFoundFactory::createPage(PDFAppContext* context, QWidget* 
 }
 
 }   // namespace pdf
+
+#include "moc_pdfapppagenotfound.cpp"

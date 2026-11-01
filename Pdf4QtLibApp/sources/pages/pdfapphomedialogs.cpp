@@ -707,3 +707,5 @@ PDFAppDeleteWorkspaceDialog::PDFAppDeleteWorkspaceDialog(const QString& name, in
 PDFAppDeleteWorkspaceDialog::~PDFAppDeleteWorkspaceDialog() = default;
 
 }   // namespace pdf
+
+#include "moc_pdfapphomedialogs.cpp"

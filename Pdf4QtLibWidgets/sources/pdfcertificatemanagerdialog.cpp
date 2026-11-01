@@ -137,3 +137,5 @@ void PDFCertificateManagerDialog::onImportCertificateClicked()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfcertificatemanagerdialog.cpp"

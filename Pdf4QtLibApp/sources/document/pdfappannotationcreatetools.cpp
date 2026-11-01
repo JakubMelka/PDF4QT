@@ -763,3 +763,5 @@ void PDFAppPageLinkTool::updatePickTool()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappannotationcreatetools.cpp"

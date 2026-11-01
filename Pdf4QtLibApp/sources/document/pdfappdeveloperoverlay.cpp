@@ -138,3 +138,5 @@ void PDFAppDeveloperOverlay::onPageImageChanged()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdeveloperoverlay.cpp"

@@ -352,3 +352,5 @@ void PDFAppMcpCompletion::complete(PDFAppMcpHost* host, const std::shared_ptr<PD
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappmcpcompletion.cpp"

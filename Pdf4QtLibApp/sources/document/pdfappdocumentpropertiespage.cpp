@@ -1419,3 +1419,5 @@ void PDFAppDocumentPropertiesPage::onFontScanFinished()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentpropertiespage.cpp"

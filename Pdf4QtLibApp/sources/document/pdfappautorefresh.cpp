@@ -557,3 +557,5 @@ void PDFAppAutoRefresh::closeDialog()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappautorefresh.cpp"

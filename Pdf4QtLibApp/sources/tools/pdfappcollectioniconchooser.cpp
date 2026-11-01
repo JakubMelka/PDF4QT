@@ -176,3 +176,5 @@ void PDFAppCollectionIconChooser::onButtonToggled(QAbstractButton* button, bool 
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappcollectioniconchooser.cpp"

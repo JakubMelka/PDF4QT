@@ -577,3 +577,5 @@ PDFAppSettingsSection* PDFAppColorModesSettingsSectionFactory::createSection(PDF
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappsettingssection_colormodes.cpp"

@@ -913,3 +913,5 @@ void PDFAppMcpController::onEverythingChanged()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappmcpcontroller.cpp"

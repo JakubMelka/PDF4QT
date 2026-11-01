@@ -2901,3 +2901,5 @@ QSize PDFShortcutDelegate::getItemSize(const QStyleOptionViewItem& option, const
 }
 
 }   // namespace pdf
+
+#include "moc_pdfcomponentdelegates.cpp"

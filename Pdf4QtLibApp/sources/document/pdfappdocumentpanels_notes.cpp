@@ -1399,3 +1399,5 @@ PDFAppDocumentPanel* PDFAppNotesPanelFactory::createPanel(QWidget* parent) const
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentpanels_notes.cpp"

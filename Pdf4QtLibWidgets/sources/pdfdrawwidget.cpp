@@ -1122,3 +1122,5 @@ void PDFDrawWidget::resizeEvent(QResizeEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfdrawwidget.cpp"

@@ -385,3 +385,5 @@ PDFViewerSettings::Settings::Settings() :
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfviewersettings.cpp"

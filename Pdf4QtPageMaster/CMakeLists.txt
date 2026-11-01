@@ -58,6 +58,8 @@ add_executable(Pdf4QtPageMaster
 
 target_link_libraries(Pdf4QtPageMaster PRIVATE Pdf4QtLibCore Pdf4QtLibWidgets Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Concurrent)
 
+pdf4qt_target_precompile_headers(Pdf4QtPageMaster MODULES CORE GUI WIDGETS)
+
 set_target_properties(Pdf4QtPageMaster PROPERTIES
     WIN32_EXECUTABLE ON
     MACOSX_BUNDLE ON

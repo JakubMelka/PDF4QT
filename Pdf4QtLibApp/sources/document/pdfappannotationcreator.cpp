@@ -2452,3 +2452,5 @@ PDFAppWebLinkDialog* PDFAppAnnotationCreator::getWebLinkDialog() const
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappannotationcreator.cpp"

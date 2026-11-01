@@ -706,3 +706,5 @@ void PDFAppAnnotationToolBar::changeEvent(QEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappannotationtoolbar.cpp"

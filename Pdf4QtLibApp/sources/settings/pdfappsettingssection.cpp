@@ -530,3 +530,5 @@ QString PDFAppSettingsSectionRegistry::getGroupHint(const QString& groupKey)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappsettingssection.cpp"

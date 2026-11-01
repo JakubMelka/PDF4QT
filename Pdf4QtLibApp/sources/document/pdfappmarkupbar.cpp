@@ -278,3 +278,5 @@ void PDFAppMarkupBar::changeEvent(QEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappmarkupbar.cpp"

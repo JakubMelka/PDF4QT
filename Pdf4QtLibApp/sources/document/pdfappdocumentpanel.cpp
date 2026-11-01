@@ -147,3 +147,5 @@ PDFAppDocumentView* PDFAppDocumentPanel::getView() const
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentpanel.cpp"

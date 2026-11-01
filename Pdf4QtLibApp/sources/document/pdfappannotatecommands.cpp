@@ -193,3 +193,5 @@ bool PDFAppAnnotateCommandHandler::isChecked(const QString& commandId) const
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappannotatecommands.cpp"

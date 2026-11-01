@@ -1014,3 +1014,5 @@ void PDFAppHomeBasePage::onRefreshTimer()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfapphomebasepage.cpp"

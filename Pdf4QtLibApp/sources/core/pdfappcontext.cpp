@@ -480,3 +480,5 @@ void PDFAppContext::onDatabaseStateChanged()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappcontext.cpp"

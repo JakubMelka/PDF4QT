@@ -435,3 +435,5 @@ PDFAppPage* PDFAppSponsorPageFactory::createPage(PDFAppContext* context, QWidget
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappsponsorpage.cpp"

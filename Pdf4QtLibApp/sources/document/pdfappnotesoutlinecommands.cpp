@@ -227,3 +227,5 @@ bool PDFAppNotesOutlineCommandHandler::isChecked(const QString& commandId) const
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappnotesoutlinecommands.cpp"

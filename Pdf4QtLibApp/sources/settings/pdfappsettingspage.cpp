@@ -1031,3 +1031,5 @@ PDFAppPage* PDFAppSettingsPageFactory::createPage(PDFAppContext* context, QWidge
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappsettingspage.cpp"

@@ -163,3 +163,5 @@ void InsertPageNumbersDialog::setColor(QColor color)
 }
 
 }   // namespace pdf
+
+#include "moc_insertpagenumbersdialog.cpp"

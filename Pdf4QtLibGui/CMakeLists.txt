@@ -120,6 +120,8 @@ endif()
 target_include_directories(Pdf4QtLibGui INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(Pdf4QtLibGui PUBLIC ${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR})
 
+pdf4qt_target_precompile_headers(Pdf4QtLibGui MODULES CORE GUI WIDGETS)
+
 set_target_properties(Pdf4QtLibGui PROPERTIES
                       VERSION ${PDF4QT_VERSION}
                       SOVERSION ${PDF4QT_VERSION}

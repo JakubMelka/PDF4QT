@@ -1501,3 +1501,5 @@ void PDFAppToolCollectionEditor::onInfoBarCloseRequested(const QString& infoBarI
 }
 
 }   // namespace pdf
+
+#include "moc_pdfapptoolcollectioneditor.cpp"

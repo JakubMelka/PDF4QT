@@ -697,3 +697,5 @@ void PDFAppAnnotationMenus::runOperation(const QString& id)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappannotationmenus.cpp"

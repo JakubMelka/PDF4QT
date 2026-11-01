@@ -656,3 +656,5 @@ void PDFTextToSpeech::updateToNextPage(pdf::PDFInteger pageIndex)
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdftexttospeech.cpp"

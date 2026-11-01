@@ -1040,3 +1040,5 @@ void PDFAppAnnotationController::onReplyRequestedQueued(PDFObjectReference annot
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappannotationcontroller.cpp"

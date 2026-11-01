@@ -3773,3 +3773,5 @@ QColor PDFRedactAnnotation::getFillColor() const
 }
 
 }   // namespace pdf
+
+#include "moc_pdfannotation.cpp"

@@ -153,3 +153,5 @@ void PDFMcpIoThreads::stop()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfmcpiothreads.cpp"

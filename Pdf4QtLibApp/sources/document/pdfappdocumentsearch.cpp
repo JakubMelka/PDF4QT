@@ -443,3 +443,5 @@ void PDFAppDocumentSearchCommandHandler::onSpeechStateChanged()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentsearch.cpp"

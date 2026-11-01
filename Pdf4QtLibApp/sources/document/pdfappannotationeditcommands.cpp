@@ -398,3 +398,5 @@ void PDFAppAnnotationEditCommandHandler::onMenuRequested(const PDFAnnotationMenu
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappannotationeditcommands.cpp"

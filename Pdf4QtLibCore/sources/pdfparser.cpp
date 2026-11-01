@@ -1117,3 +1117,5 @@ QByteArray PDFParser::getNameData() const
 }
 
 }   // namespace pdf
+
+#include "moc_pdfparser.cpp"

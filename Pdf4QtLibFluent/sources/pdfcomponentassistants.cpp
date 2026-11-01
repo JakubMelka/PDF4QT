@@ -900,3 +900,5 @@ bool PDFCodeBox::eventFilter(QObject* watched, QEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfcomponentassistants.cpp"

@@ -2291,3 +2291,5 @@ std::vector<const PDFOCRPageResult*> PDFOCRSession::getResults(const std::vector
 }
 
 }   // namespace pdf
+
+#include "moc_pdfocrsession.cpp"

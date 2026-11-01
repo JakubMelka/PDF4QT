@@ -5243,3 +5243,5 @@ void PDFStrengthMeter::changeEvent(QEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfcomponentpanels.cpp"

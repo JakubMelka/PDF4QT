@@ -1044,3 +1044,5 @@ void PDFAppLockPopover::onEditCopyClicked()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentdialogs.cpp"

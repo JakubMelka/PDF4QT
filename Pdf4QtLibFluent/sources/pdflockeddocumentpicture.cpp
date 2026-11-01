@@ -198,3 +198,5 @@ void PDFLockedDocumentPicture::changeEvent(QEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdflockeddocumentpicture.cpp"

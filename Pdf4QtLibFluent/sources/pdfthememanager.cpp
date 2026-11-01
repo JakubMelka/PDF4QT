@@ -136,3 +136,5 @@ void PDFThemeManager::activate(const PDFThemeColors& theme)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfthememanager.cpp"

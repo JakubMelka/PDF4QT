@@ -1737,3 +1737,5 @@ bool PDFWidgetStyleProperties::isSet(const QObject* object, const char* name)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfwidgetstyleimpl.cpp"

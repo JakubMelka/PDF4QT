@@ -636,3 +636,5 @@ void PDFAppSendMail::closeDialog()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappsendmail.cpp"

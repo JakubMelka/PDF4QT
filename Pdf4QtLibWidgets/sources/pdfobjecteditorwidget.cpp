@@ -1168,3 +1168,5 @@ PDFObject PDFEditObjectDialog::getObject()
 }
 
 } // namespace pdf
+
+#include "moc_pdfobjecteditorwidget.cpp"

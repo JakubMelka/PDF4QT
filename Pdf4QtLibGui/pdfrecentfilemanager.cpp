@@ -153,3 +153,5 @@ void PDFRecentFileManager::setClearRecentFileHistoryAction(QAction* newClearRece
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfrecentfilemanager.cpp"

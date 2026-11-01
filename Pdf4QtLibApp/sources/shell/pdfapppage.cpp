@@ -190,3 +190,5 @@ bool PDFAppPageFactory::isSamePage(const PDFAppRoute& pageRoute, const PDFAppRou
 }
 
 }   // namespace pdf
+
+#include "moc_pdfapppage.cpp"

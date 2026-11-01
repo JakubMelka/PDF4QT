@@ -462,3 +462,5 @@ void PDFAnnotationGeometryDialog::updateWidgets()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfannotationgeometrydialog.cpp"

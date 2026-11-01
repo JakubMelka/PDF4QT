@@ -964,3 +964,5 @@ void PDFAppSettingControl::onWriteTimeout()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappsettingcontrol.cpp"

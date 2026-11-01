@@ -128,3 +128,5 @@ void PDFUndoRedoManager::setIsCurrentSaved(bool newIsCurrentSaved)
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfundoredomanager.cpp"

@@ -200,3 +200,5 @@ void PDFAboutDialog::onLibraryDoubleClicked(int row, int column)
 }
 
 }   // namespace viewer
+
+#include "moc_pdfaboutdialog.cpp"

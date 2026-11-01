@@ -1159,3 +1159,5 @@ QByteArray PDFMcpDispatcher::createErrorMessage(const PDFMcpRequestId& id, int c
 }
 
 }   // namespace pdf
+
+#include "moc_pdfmcpdispatcher.cpp"

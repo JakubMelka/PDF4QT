@@ -114,3 +114,5 @@ PDFRenderingErrorsWidget::~PDFRenderingErrorsWidget()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfrenderingerrorswidget.cpp"

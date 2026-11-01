@@ -389,3 +389,5 @@ void PDFAppTopBar::onTabBarDoubleClicked(int index)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfapptopbar.cpp"

@@ -1941,3 +1941,5 @@ bool PDFAppInstanceGuard::resume(PDFAppInstanceServer* server, int timeout, QStr
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappinstance.cpp"

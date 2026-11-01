@@ -2591,3 +2591,5 @@ bool IDocumentDrawInterface::isPageContentDrawSuppressed() const
 }
 
 }   // namespace pdf
+
+#include "moc_pdfdrawspacecontroller.cpp"

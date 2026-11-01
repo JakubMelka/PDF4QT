@@ -767,3 +767,5 @@ PDFAppSettingsSection* PDFAppSpeechSettingsSectionFactory::createSection(PDFAppC
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappsettingssection_speech.cpp"

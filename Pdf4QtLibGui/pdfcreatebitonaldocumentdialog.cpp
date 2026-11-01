@@ -1721,3 +1721,5 @@ QRect ImagePreviewDelegate::getMarksRect(const QStyleOptionViewItem& option) con
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfcreatebitonaldocumentdialog.cpp"

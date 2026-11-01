@@ -1888,3 +1888,5 @@ void PDFDiffResultNavigator::select(size_t currentIndex)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfdiff.cpp"

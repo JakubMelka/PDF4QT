@@ -270,6 +270,8 @@ target_include_directories(Pdf4QtLibCore PUBLIC ${CMAKE_BINARY_DIR}/${INSTALL_IN
 target_link_libraries(Pdf4QtLibCore PRIVATE blend2d::blend2d)
 target_link_libraries(Pdf4QtLibCore PRIVATE Clipper2::Clipper2)
 
+pdf4qt_target_precompile_headers(Pdf4QtLibCore MODULES CORE GUI)
+
 set_target_properties(Pdf4QtLibCore PROPERTIES
                       VERSION ${PDF4QT_VERSION}
                       SOVERSION ${PDF4QT_VERSION}

@@ -361,3 +361,5 @@ void PDFAppSessionSaveWaiter::onTabDestroyed()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappsessionend.cpp"

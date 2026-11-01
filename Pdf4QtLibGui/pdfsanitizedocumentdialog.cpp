@@ -171,3 +171,5 @@ void PDFSanitizeDocumentDialog::updateUi()
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfsanitizedocumentdialog.cpp"

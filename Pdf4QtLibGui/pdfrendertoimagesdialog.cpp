@@ -367,3 +367,5 @@ void PDFRenderToImagesDialog::on_buttonBox_clicked(QAbstractButton* button)
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfrendertoimagesdialog.cpp"

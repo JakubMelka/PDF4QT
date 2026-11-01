@@ -87,3 +87,5 @@ void PDFFullscreenWidget::closeEvent(QCloseEvent* event)
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdffullscreenwidget.cpp"

@@ -2684,3 +2684,5 @@ void PDFWidgetFormManager::drawFormField(const PDFFormField* formField, Annotati
 }
 
 }   // namespace pdf
+
+#include "moc_pdfwidgetformmanager.cpp"

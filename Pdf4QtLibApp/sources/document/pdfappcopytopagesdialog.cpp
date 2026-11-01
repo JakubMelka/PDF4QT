@@ -314,3 +314,5 @@ void PDFAppCopyToPagesDialog::onDialogFinished(int result)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappcopytopagesdialog.cpp"

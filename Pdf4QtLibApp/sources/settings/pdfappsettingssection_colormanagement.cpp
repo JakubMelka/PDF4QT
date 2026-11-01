@@ -235,3 +235,5 @@ PDFAppSettingsSection* PDFAppColorManagementSettingsSectionFactory::createSectio
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappsettingssection_colormanagement.cpp"

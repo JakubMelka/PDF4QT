@@ -2387,3 +2387,5 @@ PDFOCRError PDFOCRModelManager::cleanRuntimeSets()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfocrmodelmanager.cpp"

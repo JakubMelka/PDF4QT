@@ -697,3 +697,5 @@ void PDFAppNamedDestinationDialog::onDoubleClicked()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappoutlinetarget.cpp"

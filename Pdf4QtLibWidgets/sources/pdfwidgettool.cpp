@@ -2733,3 +2733,5 @@ void PDFSelectTableTool::setPickedRectangle(const QRectF& newPickedRectangle)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfwidgettool.cpp"

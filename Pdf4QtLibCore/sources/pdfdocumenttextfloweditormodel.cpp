@@ -349,3 +349,5 @@ void PDFDocumentTextFlowEditorModel::notifyDataChanged()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfdocumenttextfloweditormodel.cpp"

@@ -101,6 +101,8 @@ endif()
 target_include_directories(Pdf4QtLibMcp INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/sources)
 target_include_directories(Pdf4QtLibMcp PUBLIC ${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR})
 
+pdf4qt_target_precompile_headers(Pdf4QtLibMcp MODULES CORE NETWORK)
+
 set_target_properties(Pdf4QtLibMcp PROPERTIES
                       VERSION ${PDF4QT_VERSION}
                       SOVERSION ${PDF4QT_VERSION}

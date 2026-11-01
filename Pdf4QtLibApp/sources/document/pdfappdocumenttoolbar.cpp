@@ -1244,3 +1244,5 @@ void PDFAppDocumentToolbar::applyCollapse(int level)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumenttoolbar.cpp"

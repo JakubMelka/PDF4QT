@@ -738,3 +738,5 @@ PDFAppDocumentStateScreen* PDFAppDocumentTab::getStateScreen() const
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumenttab.cpp"

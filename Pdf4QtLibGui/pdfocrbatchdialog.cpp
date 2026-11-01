@@ -1010,3 +1010,5 @@ void PDFOCRBatchDialog::dropEvent(QDropEvent* event)
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfocrbatchdialog.cpp"

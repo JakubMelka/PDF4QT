@@ -71,6 +71,8 @@ if(MINGW)
     target_link_libraries(PdfTool PRIVATE ole32 sapi)
 endif()
 
+pdf4qt_target_precompile_headers(PdfTool MODULES CORE GUI)
+
 set_target_properties(PdfTool PROPERTIES
     WIN32_EXECUTABLE OFF
     MACOSX_BUNDLE OFF

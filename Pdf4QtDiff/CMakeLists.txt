@@ -44,6 +44,8 @@ add_executable(Pdf4QtDiff
 
 target_link_libraries(Pdf4QtDiff PRIVATE Pdf4QtLibCore Pdf4QtLibWidgets Qt6::Core Qt6::Gui Qt6::Widgets)
 
+pdf4qt_target_precompile_headers(Pdf4QtDiff MODULES CORE GUI WIDGETS)
+
 set_target_properties(Pdf4QtDiff PROPERTIES
     WIN32_EXECUTABLE ON
     MACOSX_BUNDLE ON

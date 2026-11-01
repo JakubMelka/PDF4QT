@@ -1381,3 +1381,5 @@ QSize PDFPreviewCard::getContentMinimumSizeHint() const
 }
 
 }   // namespace pdf
+
+#include "moc_pdfcomponentcards.cpp"

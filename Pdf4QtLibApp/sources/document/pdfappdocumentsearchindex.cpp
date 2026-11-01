@@ -288,3 +288,5 @@ void PDFAppDocumentTextIndexer::onOperationCancelRequested()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentsearchindex.cpp"

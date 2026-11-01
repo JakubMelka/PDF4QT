@@ -70,3 +70,5 @@ void PDFProgress::finish()
 }
 
 } // namespace pdf
+
+#include "moc_pdfprogress.cpp"

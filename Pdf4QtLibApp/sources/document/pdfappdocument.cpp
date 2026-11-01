@@ -739,3 +739,5 @@ PDFOptionalContentActivity* PDFAppDocument::getOptionalContentActivity() const
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocument.cpp"

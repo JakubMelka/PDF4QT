@@ -433,3 +433,5 @@ PDFAppSettingsSection* PDFAppShortcutsSettingsSectionFactory::createSection(PDFA
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappsettingssection_shortcuts.cpp"

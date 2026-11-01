@@ -2219,3 +2219,5 @@ bool PDFNavList::eventFilter(QObject* watched, QEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfcomponentrows.cpp"

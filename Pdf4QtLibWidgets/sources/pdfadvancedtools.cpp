@@ -2920,3 +2920,5 @@ void PDFCreateRedactTextTool::setSelection(PDFTextSelection&& textSelection)
 }
 
 } // namespace pdf
+
+#include "moc_pdfadvancedtools.cpp"

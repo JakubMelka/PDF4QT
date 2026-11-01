@@ -1027,3 +1027,5 @@ QString PDFAppEmptyState::getText() const
 }
 
 }   // namespace pdf
+
+#include "moc_pdfapphomewidgets.cpp"

@@ -531,3 +531,5 @@ void PDFAppMcpSignatureWaiter::answer()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappmcptool_document.cpp"

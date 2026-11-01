@@ -506,3 +506,5 @@ void PDFAppDocumentSearchPanel::onCurrentIndexChanged(int index)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentsearchpanel.cpp"

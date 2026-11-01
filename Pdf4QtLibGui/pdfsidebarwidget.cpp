@@ -2010,3 +2010,5 @@ void PDFSidebarWidget::onNotesItemClicked(const QModelIndex& index)
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfsidebarwidget.cpp"

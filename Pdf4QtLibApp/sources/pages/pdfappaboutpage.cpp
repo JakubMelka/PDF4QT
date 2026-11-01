@@ -630,3 +630,5 @@ PDFAppPage* PDFAppAboutPageFactory::createPage(PDFAppContext* context, QWidget* 
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappaboutpage.cpp"

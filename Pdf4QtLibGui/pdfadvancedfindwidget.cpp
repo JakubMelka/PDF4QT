@@ -357,3 +357,5 @@ void PDFAdvancedFindWidget::hideEvent(QHideEvent* event)
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfadvancedfindwidget.cpp"

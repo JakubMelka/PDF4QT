@@ -3342,3 +3342,5 @@ PDFDatabaseError PDFDatabase::deleteOlderDatabaseFile(const QString& filePath)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfdatabase.cpp"

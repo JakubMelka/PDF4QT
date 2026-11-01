@@ -1065,3 +1065,5 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
 }
 
 }   // namespace pdf
+
+#include "moc_pdfocrjobcontroller.cpp"

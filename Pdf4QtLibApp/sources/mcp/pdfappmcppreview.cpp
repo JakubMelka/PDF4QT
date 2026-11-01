@@ -599,3 +599,5 @@ void PDFAppMcpNotificationBar::onCloseClicked()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappmcppreview.cpp"

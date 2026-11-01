@@ -137,3 +137,5 @@ void PDFAppToolMenu::onNewCollectionTriggered()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfapptoolmenu.cpp"

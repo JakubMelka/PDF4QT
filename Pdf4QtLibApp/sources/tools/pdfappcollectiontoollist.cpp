@@ -722,3 +722,5 @@ void PDFAppCollectionToolList::onRemoveClicked()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappcollectiontoollist.cpp"

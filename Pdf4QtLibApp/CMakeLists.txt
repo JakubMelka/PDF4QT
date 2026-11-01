@@ -197,6 +197,8 @@ target_include_directories(Pdf4QtLibApp PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/sources/mcp)
 target_include_directories(Pdf4QtLibApp PUBLIC ${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR})
 
+pdf4qt_target_precompile_headers(Pdf4QtLibApp MODULES CORE GUI WIDGETS)
+
 set_target_properties(Pdf4QtLibApp PROPERTIES
                       VERSION ${PDF4QT_VERSION}
                       SOVERSION ${PDF4QT_VERSION}

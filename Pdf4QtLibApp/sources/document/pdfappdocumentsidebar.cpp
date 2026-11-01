@@ -689,3 +689,5 @@ void PDFAppDocumentSidebar::paintEvent(QPaintEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentsidebar.cpp"

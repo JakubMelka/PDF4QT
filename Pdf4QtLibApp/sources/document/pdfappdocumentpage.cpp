@@ -232,3 +232,5 @@ PDFAppDocumentTab* PDFAppDocumentPage::getDocumentTab() const
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentpage.cpp"

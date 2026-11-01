@@ -438,3 +438,5 @@ void PDFAppDocumentLoader::onReadingFinished()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentloader.cpp"

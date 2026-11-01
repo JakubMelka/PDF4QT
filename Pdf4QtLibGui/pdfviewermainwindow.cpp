@@ -496,3 +496,5 @@ void PDFViewerMainWindow::dropEvent(QDropEvent* event)
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfviewermainwindow.cpp"

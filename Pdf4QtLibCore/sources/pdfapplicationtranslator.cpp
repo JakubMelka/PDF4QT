@@ -213,3 +213,5 @@ QString PDFApplicationTranslator::getLanguageFileName() const
 }
 
 }   // namespace
+
+#include "moc_pdfapplicationtranslator.cpp"

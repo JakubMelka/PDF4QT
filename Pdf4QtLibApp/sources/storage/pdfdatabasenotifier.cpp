@@ -338,3 +338,5 @@ bool PDFDatabaseNotifier::prune()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfdatabasenotifier.cpp"

@@ -1004,3 +1004,5 @@ qint64 PDFAppThumbnailerHelper::getLargestImagePixels(const PDFDocument* documen
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappthumbnailer.cpp"

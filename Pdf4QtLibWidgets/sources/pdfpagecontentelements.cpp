@@ -2871,3 +2871,4 @@ QString PDFPageContentElementEdited::getDescription() const
 
 }   // namespace pdf
 
+#include "moc_pdfpagecontentelements.cpp"

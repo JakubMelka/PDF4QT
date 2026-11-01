@@ -1106,3 +1106,5 @@ bool PDFAppDocumentToolsPanel::eventFilter(QObject* watched, QEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumenttoolspanel.cpp"

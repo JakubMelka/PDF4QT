@@ -166,3 +166,5 @@ void PDFMcpControl::shutdown()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfmcplistener.cpp"

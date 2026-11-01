@@ -309,3 +309,5 @@ void PDFPageContentEditorWidget::loadStyleFromElement(const PDFPageContentElemen
 }
 
 }   // namespace pdf
+
+#include "moc_pdfpagecontenteditorwidget.cpp"

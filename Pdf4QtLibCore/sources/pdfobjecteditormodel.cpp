@@ -877,3 +877,5 @@ size_t PDFObjectEditorAnnotationsModel::createLineEndingAttribute(QByteArray att
 }
 
 } // namespace pdf
+
+#include "moc_pdfobjecteditormodel.cpp"

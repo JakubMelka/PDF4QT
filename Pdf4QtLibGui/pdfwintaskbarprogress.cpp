@@ -231,3 +231,5 @@ void PDFWinTaskBarProgress::setRange(pdf::PDFInteger min, pdf::PDFInteger max)
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfwintaskbarprogress.cpp"

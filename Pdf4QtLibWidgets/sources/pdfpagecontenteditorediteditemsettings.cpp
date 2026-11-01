@@ -487,3 +487,5 @@ void PDFPageContentEditorEditedItemSettings::onBrushColorComboIndexChanged()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfpagecontenteditorediteditemsettings.cpp"

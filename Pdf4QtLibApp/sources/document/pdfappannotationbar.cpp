@@ -875,3 +875,5 @@ bool PDFAppAnnotationBar::event(QEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappannotationbar.cpp"

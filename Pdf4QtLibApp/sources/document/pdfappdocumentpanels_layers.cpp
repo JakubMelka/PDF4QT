@@ -273,3 +273,5 @@ PDFAppDocumentPanel* PDFAppLayersPanelFactory::createPanel(QWidget* parent) cons
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentpanels_layers.cpp"

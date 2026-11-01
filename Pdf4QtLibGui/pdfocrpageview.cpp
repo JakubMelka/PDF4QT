@@ -1031,3 +1031,5 @@ bool PDFOCRPageView::viewportEvent(QEvent* event)
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfocrpageview.cpp"

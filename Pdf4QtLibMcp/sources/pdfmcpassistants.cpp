@@ -288,3 +288,5 @@ std::vector<PDFMcpAssistantInfo> PDFMcpAssistantRegistry::getAssistants() const
 }
 
 }   // namespace pdf
+
+#include "moc_pdfmcpassistants.cpp"

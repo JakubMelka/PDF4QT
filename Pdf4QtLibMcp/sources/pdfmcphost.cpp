@@ -41,3 +41,5 @@ void PDFMcpHost::callCanceled(const std::shared_ptr<PDFMcpCall>& call)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfmcphost.cpp"

@@ -178,3 +178,5 @@ std::optional<PDFNavigationNode> PDFNavigationNode::parse(const PDFObjectStorage
 }
 
 }   // namespace pdf
+
+#include "moc_pdfpagenavigation.cpp"

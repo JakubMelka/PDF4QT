@@ -75,3 +75,5 @@ void PDFSelectPagesDialog::accept()
 }
 
 } // namespace pdf
+
+#include "moc_pdfselectpagesdialog.cpp"

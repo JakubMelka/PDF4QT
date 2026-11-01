@@ -774,3 +774,5 @@ void PDFAppFormController::onInfoBarActionTriggered(const QString& infoBarId, co
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappformcontroller.cpp"

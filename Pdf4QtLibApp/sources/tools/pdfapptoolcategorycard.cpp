@@ -640,3 +640,5 @@ QWidget* PDFAppToolFocusGroup::findNeighbor(QWidget* from, int key) const
 }
 
 }   // namespace pdf
+
+#include "moc_pdfapptoolcategorycard.cpp"

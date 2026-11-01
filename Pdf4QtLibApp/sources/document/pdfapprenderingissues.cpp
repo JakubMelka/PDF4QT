@@ -633,3 +633,5 @@ void PDFAppRenderingIssues::updateItems()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfapprenderingissues.cpp"

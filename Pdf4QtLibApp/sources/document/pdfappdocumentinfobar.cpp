@@ -408,3 +408,5 @@ void PDFAppInfoBar::mousePressEvent(QMouseEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentinfobar.cpp"

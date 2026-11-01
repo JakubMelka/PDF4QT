@@ -1267,3 +1267,5 @@ PDFAppSettingsSection* PDFAppStorageSettingsSectionFactory::createSection(PDFApp
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappsettingssection_storage.cpp"

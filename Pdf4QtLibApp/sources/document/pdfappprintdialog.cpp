@@ -1360,3 +1360,5 @@ void PDFAppPrintDialog::adaptToHost()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappprintdialog.cpp"

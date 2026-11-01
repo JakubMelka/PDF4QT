@@ -190,3 +190,4 @@ void PDFEncryptionStrengthHintWidget::setCurrentValue(int currentValue)
 
 }   // namespace pdfviewer
 
+#include "moc_pdfencryptionstrengthhintwidget.cpp"

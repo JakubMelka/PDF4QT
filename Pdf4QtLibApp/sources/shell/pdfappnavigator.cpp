@@ -602,3 +602,5 @@ void PDFAppNavigator::onTabExternalUrlRequested(const QUrl& url)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappnavigator.cpp"

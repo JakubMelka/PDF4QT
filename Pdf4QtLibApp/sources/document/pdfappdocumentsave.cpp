@@ -928,3 +928,5 @@ void PDFAppDocumentFileCommandHandler::onSaverFinished(bool isSaved)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentsave.cpp"

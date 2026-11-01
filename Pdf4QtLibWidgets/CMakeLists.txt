@@ -107,6 +107,8 @@ target_link_libraries(Pdf4QtLibWidgets PRIVATE blend2d::blend2d)
 target_include_directories(Pdf4QtLibWidgets INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/sources)
 target_include_directories(Pdf4QtLibWidgets PUBLIC ${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR})
 
+pdf4qt_target_precompile_headers(Pdf4QtLibWidgets MODULES CORE GUI WIDGETS)
+
 set_target_properties(Pdf4QtLibWidgets PROPERTIES
                       VERSION ${PDF4QT_VERSION}
                       SOVERSION ${PDF4QT_VERSION}

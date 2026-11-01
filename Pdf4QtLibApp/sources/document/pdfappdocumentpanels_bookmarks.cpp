@@ -1098,3 +1098,5 @@ PDFAppDocumentPanel* PDFAppBookmarksPanelFactory::createPanel(QWidget* parent) c
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentpanels_bookmarks.cpp"

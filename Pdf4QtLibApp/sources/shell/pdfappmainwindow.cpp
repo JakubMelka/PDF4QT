@@ -2228,3 +2228,5 @@ void PDFAppMainWindow::paintEvent(QPaintEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappmainwindow.cpp"

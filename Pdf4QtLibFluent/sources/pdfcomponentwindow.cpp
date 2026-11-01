@@ -637,3 +637,5 @@ void PDFWindowControls::onCloseClicked()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfcomponentwindow.cpp"

@@ -762,3 +762,5 @@ void PDFAppDocumentSearchController::onRefreshTimer()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentsearchcontroller.cpp"

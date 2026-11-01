@@ -1816,3 +1816,5 @@ void PDFAppAnnotationPropertiesDialog::keyPressEvent(QKeyEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappannotationpropertiesdialog.cpp"

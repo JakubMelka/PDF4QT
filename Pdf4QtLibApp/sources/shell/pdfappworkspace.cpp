@@ -1735,3 +1735,5 @@ void PDFAppFooter::paintEvent(QPaintEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappworkspace.cpp"

@@ -1282,3 +1282,5 @@ void PDFAppPrintController::onErrorDialogFinished(int result)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappprint.cpp"

@@ -351,3 +351,5 @@ QString PDFAppTranslator::resolveAutomaticLanguage(const QStringList& systemLang
 }
 
 }   // namespace pdf
+
+#include "moc_pdfapptranslator.cpp"

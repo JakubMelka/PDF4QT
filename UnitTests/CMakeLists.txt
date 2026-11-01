@@ -20,11 +20,88 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+# Precompiled headers of the tests (cmake/PrecompiledHeaders.cmake). What <QtTest>
+# declares depends on QT_GUI_LIB / QT_WIDGETS_LIB / QT_NETWORK_LIB, so a test reuses
+# the precompiled header of a donor linking the same Qt modules: UnitTestsPchCore
+# (Core, Gui), UnitTestsPchWidgets (Core, Gui, Widgets), the fixture library
+# UnitTestsAppDocumentFixture (Core, Gui, Widgets, Network - the tests of the new
+# application) and UnitTestsMcpTestClient (Core, Network). A test with a single source
+# and other modules (UnitTestsTimestamp, UnitTestsOCR) has none.
+if(PDF4QT_USE_PCH)
+    file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/pchdonor/pchdonor.cpp"
+         CONTENT "// The donor of a precompiled header of the tests (UnitTests/CMakeLists.txt)\n")
+    add_library(UnitTestsPchCore OBJECT "${CMAKE_CURRENT_BINARY_DIR}/pchdonor/pchdonor.cpp")
+    target_link_libraries(UnitTestsPchCore PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+    set_target_properties(UnitTestsPchCore PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF QT_EXCLUDE_FROM_TRANSLATION ON)
+    pdf4qt_target_precompile_headers(UnitTestsPchCore MODULES CORE GUI TEST)
+    if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+        add_library(UnitTestsPchWidgets OBJECT "${CMAKE_CURRENT_BINARY_DIR}/pchdonor/pchdonor.cpp")
+        target_link_libraries(UnitTestsPchWidgets PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+        set_target_properties(UnitTestsPchWidgets PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF QT_EXCLUDE_FROM_TRANSLATION ON)
+        pdf4qt_target_precompile_headers(UnitTestsPchWidgets MODULES CORE GUI WIDGETS TEST)
+    endif()
+endif()
+
+# The fixtures shared by the tests of the new application are compiled once, one
+# object library per fixture: an executable gets the same objects as from its own
+# sources before. A library links the dependencies of its fixture, so its compile
+# definitions do not depend on the executable (the fixtures test no definition of
+# a test - PrintSupport, CorePrivate and GuiPrivate of some executables change no
+# fixture). An object library does not pass its objects on: an executable links
+# every fixture it uses directly (e.g. appmcpfixture with appdocumentfixture and
+# mcptestclient). The libraries are defined before the tests, which reuse their
+# precompiled headers. The scripted MCP client has the modules of UnitTestsMcp
+# (Core, Network) and is linked also into the tests of the MCP server in the
+# application and into UnitTestsAppMultiInstance.
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    add_library(UnitTestsMcpTestClient OBJECT
+        mcptestclient.cpp
+        mcptestclient.h
+    )
+    target_link_libraries(UnitTestsMcpTestClient PUBLIC Pdf4QtLibMcp Pdf4QtLibCore Qt6::Core Qt6::Network Qt6::Test)
+    set_target_properties(UnitTestsMcpTestClient PROPERTIES QT_EXCLUDE_FROM_TRANSLATION ON)
+    pdf4qt_target_precompile_headers(UnitTestsMcpTestClient MODULES CORE NETWORK TEST)
+
+    add_library(UnitTestsAppDocumentFixture OBJECT
+        appdocumentfixture.cpp
+        appdocumentfixture.h
+    )
+    target_link_libraries(UnitTestsAppDocumentFixture PUBLIC Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+    set_target_properties(UnitTestsAppDocumentFixture PROPERTIES QT_EXCLUDE_FROM_TRANSLATION ON)
+    pdf4qt_target_precompile_headers(UnitTestsAppDocumentFixture MODULES CORE GUI WIDGETS NETWORK TEST)
+
+    add_library(UnitTestsAppSettingsFixture OBJECT
+        appsettingsfixture.cpp
+        appsettingsfixture.h
+    )
+    target_link_libraries(UnitTestsAppSettingsFixture PUBLIC UnitTestsAppDocumentFixture)
+    set_target_properties(UnitTestsAppSettingsFixture PROPERTIES QT_EXCLUDE_FROM_TRANSLATION ON)
+    pdf4qt_target_precompile_headers(UnitTestsAppSettingsFixture REUSE_FROM UnitTestsAppDocumentFixture)
+
+    add_library(UnitTestsAppToolsFixture OBJECT
+        apptoolsfixture.cpp
+        apptoolsfixture.h
+    )
+    target_link_libraries(UnitTestsAppToolsFixture PUBLIC UnitTestsAppDocumentFixture)
+    set_target_properties(UnitTestsAppToolsFixture PROPERTIES QT_EXCLUDE_FROM_TRANSLATION ON)
+    pdf4qt_target_precompile_headers(UnitTestsAppToolsFixture REUSE_FROM UnitTestsAppDocumentFixture)
+
+    add_library(UnitTestsAppMcpFixture OBJECT
+        appmcpfixture.cpp
+        appmcpfixture.h
+        testdocumenttool.h
+    )
+    target_link_libraries(UnitTestsAppMcpFixture PUBLIC UnitTestsAppDocumentFixture UnitTestsMcpTestClient Pdf4QtLibMcp Qt6::Network)
+    set_target_properties(UnitTestsAppMcpFixture PROPERTIES QT_EXCLUDE_FROM_TRANSLATION ON)
+    pdf4qt_target_precompile_headers(UnitTestsAppMcpFixture REUSE_FROM UnitTestsAppDocumentFixture)
+endif()
+
 add_executable(UnitTests
 	tst_lexicalanalyzertest.cpp
 )
 
 target_link_libraries(UnitTests PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTests REUSE_FROM UnitTestsPchCore)
 
 set_target_properties(UnitTests PROPERTIES
     WIN32_EXECUTABLE OFF
@@ -39,6 +116,7 @@ add_executable(UnitTestsImageScaling
 )
 
 target_link_libraries(UnitTestsImageScaling PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsImageScaling REUSE_FROM UnitTestsPchCore)
 
 set_target_properties(UnitTestsImageScaling PROPERTIES
     WIN32_EXECUTABLE OFF
@@ -53,6 +131,7 @@ add_executable(UnitTestsImageOptimizer
 )
 
 target_link_libraries(UnitTestsImageOptimizer PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsImageOptimizer REUSE_FROM UnitTestsPchCore)
 
 set_target_properties(UnitTestsImageOptimizer PROPERTIES
     WIN32_EXECUTABLE OFF
@@ -67,6 +146,7 @@ add_executable(UnitTestsBitonalDocument
 )
 
 target_link_libraries(UnitTestsBitonalDocument PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsBitonalDocument REUSE_FROM UnitTestsPchCore)
 
 set_target_properties(UnitTestsBitonalDocument PROPERTIES
     WIN32_EXECUTABLE OFF
@@ -81,6 +161,7 @@ add_executable(UnitTestsJBIG2
 )
 
 target_link_libraries(UnitTestsJBIG2 PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsJBIG2 REUSE_FROM UnitTestsPchCore)
 
 set_target_properties(UnitTestsJBIG2 PROPERTIES
     WIN32_EXECUTABLE OFF
@@ -95,6 +176,7 @@ add_executable(UnitTestsJBIG2Files
 )
 
 target_link_libraries(UnitTestsJBIG2Files PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsJBIG2Files REUSE_FROM UnitTestsPchCore)
 
 # The directory with the JBIG2 test files is not a part of the repository, because the files
 # are covered by a copyright of their authors. The test is skipped, when the directory does
@@ -114,6 +196,7 @@ add_executable(UnitTestsCCITTFax
 )
 
 target_link_libraries(UnitTestsCCITTFax PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsCCITTFax REUSE_FROM UnitTestsPchCore)
 
 set_target_properties(UnitTestsCCITTFax PROPERTIES
     WIN32_EXECUTABLE OFF
@@ -128,6 +211,7 @@ add_executable(UnitTestsJBIG2Encoder
 )
 
 target_link_libraries(UnitTestsJBIG2Encoder PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsJBIG2Encoder REUSE_FROM UnitTestsPchCore)
 
 set_target_properties(UnitTestsJBIG2Encoder PROPERTIES
     WIN32_EXECUTABLE OFF
@@ -142,6 +226,7 @@ add_executable(UnitTestsJBIG2Segments
 )
 
 target_link_libraries(UnitTestsJBIG2Segments PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsJBIG2Segments REUSE_FROM UnitTestsPchCore)
 
 set_target_properties(UnitTestsJBIG2Segments PROPERTIES
     WIN32_EXECUTABLE OFF
@@ -156,6 +241,7 @@ add_executable(UnitTestsFontEncoding
 )
 
 target_link_libraries(UnitTestsFontEncoding PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsFontEncoding REUSE_FROM UnitTestsPchCore)
 
 set_target_properties(UnitTestsFontEncoding PROPERTIES
     WIN32_EXECUTABLE OFF
@@ -170,6 +256,7 @@ add_executable(UnitTestsAuthorSettings
 )
 
 target_link_libraries(UnitTestsAuthorSettings PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsAuthorSettings REUSE_FROM UnitTestsPchCore)
 
 set_target_properties(UnitTestsAuthorSettings PROPERTIES
     WIN32_EXECUTABLE OFF
@@ -184,6 +271,7 @@ add_executable(UnitTestsContentEditor
 )
 
 target_link_libraries(UnitTestsContentEditor PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsContentEditor REUSE_FROM UnitTestsPchCore)
 
 set_target_properties(UnitTestsContentEditor PROPERTIES
     WIN32_EXECUTABLE OFF
@@ -198,6 +286,7 @@ add_executable(UnitTestsMeasure
 )
 
 target_link_libraries(UnitTestsMeasure PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsMeasure REUSE_FROM UnitTestsPchCore)
 
 set_target_properties(UnitTestsMeasure PROPERTIES
     WIN32_EXECUTABLE OFF
@@ -212,6 +301,7 @@ add_executable(UnitTestsPathBoolean
 )
 
 target_link_libraries(UnitTestsPathBoolean PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsPathBoolean REUSE_FROM UnitTestsPchCore)
 
 set_target_properties(UnitTestsPathBoolean PROPERTIES
     WIN32_EXECUTABLE OFF
@@ -230,6 +320,7 @@ add_executable(UnitTestsDimensions
 target_include_directories(UnitTestsDimensions PRIVATE ${CMAKE_SOURCE_DIR}/Pdf4QtEditorPlugins/DimensionsPlugin)
 
 target_link_libraries(UnitTestsDimensions PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsDimensions REUSE_FROM UnitTestsPchCore)
 
 set_target_properties(UnitTestsDimensions PROPERTIES
     WIN32_EXECUTABLE OFF
@@ -244,6 +335,7 @@ add_executable(UnitTestsFormFieldFormat
 )
 
 target_link_libraries(UnitTestsFormFieldFormat PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsFormFieldFormat REUSE_FROM UnitTestsPchCore)
 
 set_target_properties(UnitTestsFormFieldFormat PROPERTIES
     WIN32_EXECUTABLE OFF
@@ -255,6 +347,7 @@ add_test(UnitTestsFormFieldFormat  "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR
 
 add_executable(UnitTestsTextLayout tst_textlayouttest.cpp)
 target_link_libraries(UnitTestsTextLayout PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsTextLayout REUSE_FROM UnitTestsPchCore)
 set_target_properties(UnitTestsTextLayout PROPERTIES
     WIN32_EXECUTABLE OFF
     MACOSX_BUNDLE OFF
@@ -265,6 +358,7 @@ add_test(UnitTestsTextLayout "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/Unit
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_executable(UnitTestsAnnotationTools tst_annotationtoolstest.cpp)
     target_link_libraries(UnitTestsAnnotationTools PRIVATE Pdf4QtLibWidgets Pdf4QtLibCore Qt6::Widgets Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsAnnotationTools REUSE_FROM UnitTestsPchWidgets)
     set_target_properties(UnitTestsAnnotationTools PROPERTIES
         WIN32_EXECUTABLE OFF
         MACOSX_BUNDLE OFF
@@ -277,6 +371,7 @@ endif()
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_executable(UnitTestsPageContentEditorTools tst_pagecontenteditortoolstest.cpp)
     target_link_libraries(UnitTestsPageContentEditorTools PRIVATE Pdf4QtLibWidgets Pdf4QtLibCore Qt6::Widgets Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsPageContentEditorTools REUSE_FROM UnitTestsPchWidgets)
     set_target_properties(UnitTestsPageContentEditorTools PROPERTIES
         WIN32_EXECUTABLE OFF
         MACOSX_BUNDLE OFF
@@ -289,6 +384,7 @@ endif()
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_executable(UnitTestsDrawSpace tst_drawspacetest.cpp)
     target_link_libraries(UnitTestsDrawSpace PRIVATE Pdf4QtLibWidgets Pdf4QtLibCore Qt6::Widgets Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsDrawSpace REUSE_FROM UnitTestsPchWidgets)
     set_target_properties(UnitTestsDrawSpace PROPERTIES
         WIN32_EXECUTABLE OFF
         MACOSX_BUNDLE OFF
@@ -300,6 +396,7 @@ endif()
 
 add_executable(UnitTestsSignatureBuilder tst_signaturebuildertest.cpp)
 target_link_libraries(UnitTestsSignatureBuilder PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsSignatureBuilder REUSE_FROM UnitTestsPchCore)
 set_target_properties(UnitTestsSignatureBuilder PROPERTIES
     WIN32_EXECUTABLE OFF
     MACOSX_BUNDLE OFF
@@ -318,6 +415,7 @@ add_test(UnitTestsTimestamp "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitT
 
 add_executable(UnitTestsAnnotationManipulator tst_annotationmanipulatortest.cpp)
 target_link_libraries(UnitTestsAnnotationManipulator PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsAnnotationManipulator REUSE_FROM UnitTestsPchCore)
 set_target_properties(UnitTestsAnnotationManipulator PROPERTIES
     WIN32_EXECUTABLE OFF
     MACOSX_BUNDLE OFF
@@ -329,6 +427,7 @@ set_tests_properties(UnitTestsAnnotationManipulator PROPERTIES ENVIRONMENT "QT_Q
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_executable(UnitTestsAnnotationSelection tst_annotationselectiontest.cpp)
     target_link_libraries(UnitTestsAnnotationSelection PRIVATE Pdf4QtLibWidgets Pdf4QtLibCore Qt6::Widgets Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsAnnotationSelection REUSE_FROM UnitTestsPchWidgets)
     set_target_properties(UnitTestsAnnotationSelection PROPERTIES
         WIN32_EXECUTABLE OFF
         MACOSX_BUNDLE OFF
@@ -339,6 +438,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
 
     add_executable(UnitTestsAnnotationIntegration tst_annotationintegrationtest.cpp)
     target_link_libraries(UnitTestsAnnotationIntegration PRIVATE Pdf4QtLibGui Pdf4QtLibWidgets Pdf4QtLibCore Qt6::Widgets Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsAnnotationIntegration REUSE_FROM UnitTestsPchWidgets)
     set_target_properties(UnitTestsAnnotationIntegration PROPERTIES
         WIN32_EXECUTABLE OFF
         MACOSX_BUNDLE OFF
@@ -349,6 +449,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
 
     add_executable(UnitTestsFormFields tst_formfieldstest.cpp)
     target_link_libraries(UnitTestsFormFields PRIVATE Pdf4QtLibWidgets Pdf4QtLibCore Qt6::Widgets Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsFormFields REUSE_FROM UnitTestsPchWidgets)
     set_target_properties(UnitTestsFormFields PROPERTIES
         WIN32_EXECUTABLE OFF
         MACOSX_BUNDLE OFF
@@ -360,6 +461,7 @@ endif()
 
 add_executable(UnitTestsDocumentWriter tst_documentwritertest.cpp)
 target_link_libraries(UnitTestsDocumentWriter PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsDocumentWriter REUSE_FROM UnitTestsPchCore)
 set_target_properties(UnitTestsDocumentWriter PROPERTIES
     WIN32_EXECUTABLE OFF
     MACOSX_BUNDLE OFF
@@ -369,6 +471,7 @@ add_test(UnitTestsDocumentWriter "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/
 
 add_executable(UnitTestsPDFObject tst_pdfobjecttest.cpp)
 target_link_libraries(UnitTestsPDFObject PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsPDFObject REUSE_FROM UnitTestsPchCore)
 set_target_properties(UnitTestsPDFObject PROPERTIES
     WIN32_EXECUTABLE OFF
     MACOSX_BUNDLE OFF
@@ -378,6 +481,7 @@ add_test(UnitTestsPDFObject "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitT
 
 add_executable(UnitTestsScanPreparation tst_scanpreparationtest.cpp)
 target_link_libraries(UnitTestsScanPreparation PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsScanPreparation REUSE_FROM UnitTestsPchCore)
 set_target_properties(UnitTestsScanPreparation PROPERTIES
     WIN32_EXECUTABLE OFF
     MACOSX_BUNDLE OFF
@@ -407,6 +511,7 @@ set_tests_properties(UnitTestsOCR PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscr
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_executable(UnitTestsOCRDialog tst_ocrdialogtest.cpp)
     target_link_libraries(UnitTestsOCRDialog PRIVATE Pdf4QtLibGui Pdf4QtLibWidgets Pdf4QtLibCore Qt6::Widgets Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsOCRDialog REUSE_FROM UnitTestsPchWidgets)
     if(PDF4QT_ENABLE_OCR)
         target_link_libraries(UnitTestsOCRDialog PRIVATE Pdf4QtOcrTesseract)
         target_compile_definitions(UnitTestsOCRDialog PRIVATE PDF4QT_OCR_TESSERACT)
@@ -448,6 +553,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     )
     target_include_directories(UnitTestsSignatureAppearance PRIVATE ${CMAKE_SOURCE_DIR}/Pdf4QtEditorPlugins/SignaturePlugin)
     target_link_libraries(UnitTestsSignatureAppearance PRIVATE Pdf4QtLibWidgets Pdf4QtLibCore Qt6::Widgets Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsSignatureAppearance REUSE_FROM UnitTestsPchWidgets)
     set_target_properties(UnitTestsSignatureAppearance PROPERTIES
         WIN32_EXECUTABLE OFF
         MACOSX_BUNDLE OFF
@@ -473,6 +579,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     )
     target_include_directories(UnitTestsDiffOverlay PRIVATE ${CMAKE_SOURCE_DIR}/Pdf4QtDiff)
     target_link_libraries(UnitTestsDiffOverlay PRIVATE Pdf4QtLibWidgets Pdf4QtLibCore Qt6::Widgets Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsDiffOverlay REUSE_FROM UnitTestsPchWidgets)
     set_target_properties(UnitTestsDiffOverlay PROPERTIES
         WIN32_EXECUTABLE OFF
         MACOSX_BUNDLE OFF
@@ -483,19 +590,13 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
 endif()
 
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
-    # The pages of the gallery are compiled into the test, which checks them for leaks of the palette
+    # The pages of the gallery (the object library of the gallery) are linked into the
+    # test, which checks them for leaks of the palette
     add_executable(UnitTestsWidgetStyle
         tst_widgetstyletest.cpp
-        ../Pdf4QtFluentGallery/galleryaipages.cpp
-        ../Pdf4QtFluentGallery/gallerycardpages.cpp
-        ../Pdf4QtFluentGallery/gallerycomponentpages.cpp
-        ../Pdf4QtFluentGallery/gallerydelegatepages.cpp
-        ../Pdf4QtFluentGallery/gallerypanelpages.cpp
-        ../Pdf4QtFluentGallery/gallerypages.cpp
-        ../Pdf4QtFluentGallery/gallerypages.h
     )
-    target_include_directories(UnitTestsWidgetStyle PRIVATE ${CMAKE_SOURCE_DIR}/Pdf4QtFluentGallery)
-    target_link_libraries(UnitTestsWidgetStyle PRIVATE Pdf4QtLibFluent Qt6::Widgets Qt6::Test)
+    target_link_libraries(UnitTestsWidgetStyle PRIVATE Pdf4QtFluentGalleryPages Pdf4QtLibFluent Qt6::Widgets Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsWidgetStyle REUSE_FROM UnitTestsPchWidgets)
     # The platform theme of the test (colorschemetesttheme.h) needs the private headers of QtGui
     find_package(Qt6 QUIET COMPONENTS GuiPrivate)
     if(TARGET Qt6::GuiPrivate)
@@ -516,16 +617,9 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     # every variant of the components
     add_executable(UnitTestsFluentComponents
         tst_fluentcomponentstest.cpp
-        ../Pdf4QtFluentGallery/galleryaipages.cpp
-        ../Pdf4QtFluentGallery/gallerycardpages.cpp
-        ../Pdf4QtFluentGallery/gallerycomponentpages.cpp
-        ../Pdf4QtFluentGallery/gallerydelegatepages.cpp
-        ../Pdf4QtFluentGallery/gallerypanelpages.cpp
-        ../Pdf4QtFluentGallery/gallerypages.cpp
-        ../Pdf4QtFluentGallery/gallerypages.h
     )
-    target_include_directories(UnitTestsFluentComponents PRIVATE ${CMAKE_SOURCE_DIR}/Pdf4QtFluentGallery)
-    target_link_libraries(UnitTestsFluentComponents PRIVATE Pdf4QtLibFluent Qt6::Widgets Qt6::Test)
+    target_link_libraries(UnitTestsFluentComponents PRIVATE Pdf4QtFluentGalleryPages Pdf4QtLibFluent Qt6::Widgets Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsFluentComponents REUSE_FROM UnitTestsPchWidgets)
     set_target_properties(UnitTestsFluentComponents PROPERTIES
         WIN32_EXECUTABLE OFF
         MACOSX_BUNDLE OFF
@@ -561,17 +655,11 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         add_executable(UnitTestsFluentLifetime
             tst_fluentlifetimetest.cpp
             "${PDF4QT_FLUENT_CLASSES_HEADER}"
-            ../Pdf4QtFluentGallery/galleryaipages.cpp
-            ../Pdf4QtFluentGallery/gallerycardpages.cpp
-            ../Pdf4QtFluentGallery/gallerycomponentpages.cpp
-            ../Pdf4QtFluentGallery/gallerydelegatepages.cpp
-            ../Pdf4QtFluentGallery/gallerypanelpages.cpp
-            ../Pdf4QtFluentGallery/gallerypages.cpp
-            ../Pdf4QtFluentGallery/gallerypages.h
         )
         set_source_files_properties("${PDF4QT_FLUENT_CLASSES_HEADER}" PROPERTIES GENERATED ON SKIP_AUTOMOC ON)
-        target_include_directories(UnitTestsFluentLifetime PRIVATE ${CMAKE_SOURCE_DIR}/Pdf4QtFluentGallery "${CMAKE_CURRENT_BINARY_DIR}/fluentlifetime")
-        target_link_libraries(UnitTestsFluentLifetime PRIVATE Pdf4QtLibFluent Qt6::Widgets Qt6::Test Qt6::CorePrivate)
+        target_include_directories(UnitTestsFluentLifetime PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/fluentlifetime")
+        target_link_libraries(UnitTestsFluentLifetime PRIVATE Pdf4QtFluentGalleryPages Pdf4QtLibFluent Qt6::Widgets Qt6::Test Qt6::CorePrivate)
+        pdf4qt_target_precompile_headers(UnitTestsFluentLifetime REUSE_FROM UnitTestsPchWidgets)
         set_target_properties(UnitTestsFluentLifetime PROPERTIES
             WIN32_EXECUTABLE OFF
             MACOSX_BUNDLE OFF
@@ -594,6 +682,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         tst_appstoragetest.cpp
     )
     target_link_libraries(UnitTestsAppStorage PRIVATE Pdf4QtLibApp Qt6::Core Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsAppStorage REUSE_FROM UnitTestsMcpTestClient)
     set_target_properties(UnitTestsAppStorage PROPERTIES
         WIN32_EXECUTABLE OFF
         MACOSX_BUNDLE OFF
@@ -608,6 +697,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         tst_appcoretest.cpp
     )
     target_link_libraries(UnitTestsAppCore PRIVATE Pdf4QtLibApp Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsAppCore REUSE_FROM UnitTestsAppDocumentFixture)
     add_dependencies(UnitTestsAppCore Pdf4QtApp)
     set_target_properties(UnitTestsAppCore PROPERTIES
         WIN32_EXECUTABLE OFF
@@ -624,6 +714,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         tst_appnavigationtest.cpp
     )
     target_link_libraries(UnitTestsAppNavigation PRIVATE Pdf4QtLibApp Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsAppNavigation REUSE_FROM UnitTestsAppDocumentFixture)
     find_package(Qt6 QUIET COMPONENTS GuiPrivate)
     if(TARGET Qt6::GuiPrivate)
         target_link_libraries(UnitTestsAppNavigation PRIVATE Qt6::GuiPrivate)
@@ -646,6 +737,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         tst_appdatatest.cpp
     )
     target_link_libraries(UnitTestsAppData PRIVATE Pdf4QtLibApp Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsAppData REUSE_FROM UnitTestsAppDocumentFixture)
     set_target_properties(UnitTestsAppData PROPERTIES
         WIN32_EXECUTABLE OFF
         MACOSX_BUNDLE OFF
@@ -664,6 +756,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         tst_appinfopagestest.cpp
     )
     target_link_libraries(UnitTestsAppInfoPages PRIVATE Pdf4QtLibApp Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsAppInfoPages REUSE_FROM UnitTestsAppDocumentFixture)
     set_target_properties(UnitTestsAppInfoPages PROPERTIES
         WIN32_EXECUTABLE OFF
         MACOSX_BUNDLE OFF
@@ -682,6 +775,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         tst_appcontenttest.cpp
     )
     target_link_libraries(UnitTestsAppContent PRIVATE Pdf4QtLibApp Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsAppContent REUSE_FROM UnitTestsAppDocumentFixture)
     target_compile_definitions(UnitTestsAppContent PRIVATE PDF4QT_SOURCE_DIRECTORY="${CMAKE_SOURCE_DIR}")
     set_target_properties(UnitTestsAppContent PROPERTIES
         WIN32_EXECUTABLE OFF
@@ -700,6 +794,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         tst_appsearchtest.cpp
     )
     target_link_libraries(UnitTestsAppSearch PRIVATE Pdf4QtLibApp Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsAppSearch REUSE_FROM UnitTestsAppDocumentFixture)
     set_target_properties(UnitTestsAppSearch PROPERTIES
         WIN32_EXECUTABLE OFF
         MACOSX_BUNDLE OFF
@@ -718,6 +813,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         tst_apphometest.cpp
     )
     target_link_libraries(UnitTestsAppHome PRIVATE Pdf4QtLibApp Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsAppHome REUSE_FROM UnitTestsAppDocumentFixture)
     set_target_properties(UnitTestsAppHome PROPERTIES
         WIN32_EXECUTABLE OFF
         MACOSX_BUNDLE OFF
@@ -742,10 +838,9 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         string(TOLOWER "${PDF4QT_DOCUMENT_TEST}" PDF4QT_DOCUMENT_TEST_FILE)
         add_executable(UnitTests${PDF4QT_DOCUMENT_TEST}
             tst_${PDF4QT_DOCUMENT_TEST_FILE}test.cpp
-            appdocumentfixture.cpp
-            appdocumentfixture.h
         )
-        target_link_libraries(UnitTests${PDF4QT_DOCUMENT_TEST} PRIVATE Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+        target_link_libraries(UnitTests${PDF4QT_DOCUMENT_TEST} PRIVATE UnitTestsAppDocumentFixture Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+        pdf4qt_target_precompile_headers(UnitTests${PDF4QT_DOCUMENT_TEST} REUSE_FROM UnitTestsAppDocumentFixture)
         set_target_properties(UnitTests${PDF4QT_DOCUMENT_TEST} PROPERTIES
             WIN32_EXECUTABLE OFF
             MACOSX_BUNDLE OFF
@@ -771,10 +866,9 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         string(TOLOWER "${PDF4QT_ANNOTATION_TEST}" PDF4QT_ANNOTATION_TEST_FILE)
         add_executable(UnitTests${PDF4QT_ANNOTATION_TEST}
             tst_${PDF4QT_ANNOTATION_TEST_FILE}test.cpp
-            appdocumentfixture.cpp
-            appdocumentfixture.h
         )
-        target_link_libraries(UnitTests${PDF4QT_ANNOTATION_TEST} PRIVATE Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+        target_link_libraries(UnitTests${PDF4QT_ANNOTATION_TEST} PRIVATE UnitTestsAppDocumentFixture Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+        pdf4qt_target_precompile_headers(UnitTests${PDF4QT_ANNOTATION_TEST} REUSE_FROM UnitTestsAppDocumentFixture)
         set_target_properties(UnitTests${PDF4QT_ANNOTATION_TEST} PROPERTIES
             WIN32_EXECUTABLE OFF
             MACOSX_BUNDLE OFF
@@ -793,10 +887,9 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     if(TARGET Qt6::CorePrivate)
         add_executable(UnitTestsAppAnnotationLifetime
             tst_appannotationlifetimetest.cpp
-            appdocumentfixture.cpp
-            appdocumentfixture.h
         )
-        target_link_libraries(UnitTestsAppAnnotationLifetime PRIVATE Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test Qt6::CorePrivate)
+        pdf4qt_target_precompile_headers(UnitTestsAppAnnotationLifetime REUSE_FROM UnitTestsAppDocumentFixture)
+        target_link_libraries(UnitTestsAppAnnotationLifetime PRIVATE UnitTestsAppDocumentFixture Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test Qt6::CorePrivate)
         set_target_properties(UnitTestsAppAnnotationLifetime PROPERTIES
             WIN32_EXECUTABLE OFF
             MACOSX_BUNDLE OFF
@@ -823,12 +916,9 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         string(TOLOWER "${PDF4QT_SETTINGS_TEST}" PDF4QT_SETTINGS_TEST_FILE)
         add_executable(UnitTests${PDF4QT_SETTINGS_TEST}
             tst_${PDF4QT_SETTINGS_TEST_FILE}test.cpp
-            appdocumentfixture.cpp
-            appdocumentfixture.h
-            appsettingsfixture.cpp
-            appsettingsfixture.h
         )
-        target_link_libraries(UnitTests${PDF4QT_SETTINGS_TEST} PRIVATE Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+        target_link_libraries(UnitTests${PDF4QT_SETTINGS_TEST} PRIVATE UnitTestsAppDocumentFixture UnitTestsAppSettingsFixture Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+        pdf4qt_target_precompile_headers(UnitTests${PDF4QT_SETTINGS_TEST} REUSE_FROM UnitTestsAppDocumentFixture)
         set_target_properties(UnitTests${PDF4QT_SETTINGS_TEST} PROPERTIES
             WIN32_EXECUTABLE OFF
             MACOSX_BUNDLE OFF
@@ -853,12 +943,9 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         string(TOLOWER "${PDF4QT_TOOLS_TEST}" PDF4QT_TOOLS_TEST_FILE)
         add_executable(UnitTests${PDF4QT_TOOLS_TEST}
             tst_${PDF4QT_TOOLS_TEST_FILE}test.cpp
-            appdocumentfixture.cpp
-            appdocumentfixture.h
-            apptoolsfixture.cpp
-            apptoolsfixture.h
         )
-        target_link_libraries(UnitTests${PDF4QT_TOOLS_TEST} PRIVATE Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+        target_link_libraries(UnitTests${PDF4QT_TOOLS_TEST} PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+        pdf4qt_target_precompile_headers(UnitTests${PDF4QT_TOOLS_TEST} REUSE_FROM UnitTestsAppDocumentFixture)
         set_target_properties(UnitTests${PDF4QT_TOOLS_TEST} PROPERTIES
             WIN32_EXECUTABLE OFF
             MACOSX_BUNDLE OFF
@@ -871,21 +958,23 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
 endif()
 
 # The MCP server (step 7). UnitTestsMcp: Pdf4QtLibMcp alone (QCoreApplication,
-# the fake host, the scripted client of both eras - wave 0 and package A).
-add_executable(UnitTestsMcp
-    tst_mcptest.cpp
-    mcptestclient.cpp
-    mcptestclient.h
-    fakemcphost.h
-)
-target_link_libraries(UnitTestsMcp PRIVATE Pdf4QtLibMcp Pdf4QtLibCore Qt6::Core Qt6::Network Qt6::Test)
-set_target_properties(UnitTestsMcp PROPERTIES
-    WIN32_EXECUTABLE OFF
-    MACOSX_BUNDLE OFF
-    QT_EXCLUDE_FROM_TRANSLATION ON
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
-)
-add_test(UnitTestsMcp "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsMcp")
+# the fake host, the scripted client of both eras - wave 0 and package A; the
+# client is the object library UnitTestsMcpTestClient at the top of the file).
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    add_executable(UnitTestsMcp
+        tst_mcptest.cpp
+        fakemcphost.h
+    )
+    target_link_libraries(UnitTestsMcp PRIVATE UnitTestsMcpTestClient Pdf4QtLibMcp Pdf4QtLibCore Qt6::Core Qt6::Network Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsMcp REUSE_FROM UnitTestsMcpTestClient)
+    set_target_properties(UnitTestsMcp PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsMcp "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsMcp")
+endif()
 
 # The MCP server in the application (step 7): wave 0 and package B in
 # UnitTestsAppMcp, package C in UnitTestsAppMcpEdit, package E in UnitTestsAppAi,
@@ -903,15 +992,10 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         string(TOLOWER "${PDF4QT_MCP_TEST}" PDF4QT_MCP_TEST_FILE)
         add_executable(UnitTests${PDF4QT_MCP_TEST}
             tst_${PDF4QT_MCP_TEST_FILE}test.cpp
-            appdocumentfixture.cpp
-            appdocumentfixture.h
-            appmcpfixture.cpp
-            appmcpfixture.h
-            mcptestclient.cpp
-            mcptestclient.h
             testdocumenttool.h
         )
-        target_link_libraries(UnitTests${PDF4QT_MCP_TEST} PRIVATE Pdf4QtLibApp Pdf4QtLibMcp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+        pdf4qt_target_precompile_headers(UnitTests${PDF4QT_MCP_TEST} REUSE_FROM UnitTestsAppDocumentFixture)
+        target_link_libraries(UnitTests${PDF4QT_MCP_TEST} PRIVATE UnitTestsAppDocumentFixture UnitTestsAppMcpFixture UnitTestsMcpTestClient Pdf4QtLibApp Pdf4QtLibMcp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
         set_target_properties(UnitTests${PDF4QT_MCP_TEST} PROPERTIES
             WIN32_EXECUTABLE OFF
             MACOSX_BUNDLE OFF
@@ -934,12 +1018,9 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     if(TARGET Qt6::CorePrivate)
         add_executable(UnitTestsAppPagesLifetime
             tst_apppageslifetimetest.cpp
-            appdocumentfixture.cpp
-            appdocumentfixture.h
-            apptoolsfixture.cpp
-            apptoolsfixture.h
         )
-        target_link_libraries(UnitTestsAppPagesLifetime PRIVATE Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test Qt6::CorePrivate)
+        pdf4qt_target_precompile_headers(UnitTestsAppPagesLifetime REUSE_FROM UnitTestsAppDocumentFixture)
+        target_link_libraries(UnitTestsAppPagesLifetime PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test Qt6::CorePrivate)
         set_target_properties(UnitTestsAppPagesLifetime PROPERTIES
             WIN32_EXECUTABLE OFF
             MACOSX_BUNDLE OFF
@@ -960,12 +1041,9 @@ endif()
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_executable(UnitTestsAppMultiInstance
         tst_appmultiinstancetest.cpp
-        appdocumentfixture.cpp
-        appdocumentfixture.h
-        mcptestclient.cpp
-        mcptestclient.h
     )
-    target_link_libraries(UnitTestsAppMultiInstance PRIVATE Pdf4QtLibApp Pdf4QtLibMcp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsAppMultiInstance REUSE_FROM UnitTestsAppDocumentFixture)
+    target_link_libraries(UnitTestsAppMultiInstance PRIVATE UnitTestsAppDocumentFixture UnitTestsMcpTestClient Pdf4QtLibApp Pdf4QtLibMcp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
     add_dependencies(UnitTestsAppMultiInstance Pdf4QtApp)
     set_target_properties(UnitTestsAppMultiInstance PROPERTIES
         WIN32_EXECUTABLE OFF
@@ -985,6 +1063,7 @@ add_executable(UnitTestsDocumentTool
     testdocumenttool.h
 )
 target_link_libraries(UnitTestsDocumentTool PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsDocumentTool REUSE_FROM UnitTestsPchCore)
 set_target_properties(UnitTestsDocumentTool PROPERTIES
     WIN32_EXECUTABLE OFF
     MACOSX_BUNDLE OFF
@@ -1000,6 +1079,7 @@ add_executable(UnitTestsAnnotationProperties
     tst_annotationpropertiestest.cpp
 )
 target_link_libraries(UnitTestsAnnotationProperties PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsAnnotationProperties REUSE_FROM UnitTestsPchCore)
 set_target_properties(UnitTestsAnnotationProperties PROPERTIES
     WIN32_EXECUTABLE OFF
     MACOSX_BUNDLE OFF
@@ -1014,6 +1094,7 @@ add_executable(UnitTestsDocumentTextIndex
     tst_documenttextindextest.cpp
 )
 target_link_libraries(UnitTestsDocumentTextIndex PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsDocumentTextIndex REUSE_FROM UnitTestsPchCore)
 target_compile_definitions(UnitTestsDocumentTextIndex PRIVATE PDF4QT_TEST_FONT_DIRECTORY="${CMAKE_SOURCE_DIR}/Pdf4QtLibFluent/resources/fonts")
 set_target_properties(UnitTestsDocumentTextIndex PROPERTIES
     WIN32_EXECUTABLE OFF

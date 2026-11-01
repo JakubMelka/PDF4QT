@@ -305,3 +305,5 @@ void PDFAppColorPicker::onDialogFinished()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappcolorpicker.cpp"

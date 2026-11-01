@@ -825,3 +825,5 @@ void PDFAppInsertPanel::onCreatorStateChanged()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappannotatepanels.cpp"

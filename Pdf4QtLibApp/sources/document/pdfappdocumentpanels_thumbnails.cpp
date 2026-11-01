@@ -1413,3 +1413,5 @@ PDFAppDocumentPanel* PDFAppThumbnailsPanelFactory::createPanel(QWidget* parent) 
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentpanels_thumbnails.cpp"

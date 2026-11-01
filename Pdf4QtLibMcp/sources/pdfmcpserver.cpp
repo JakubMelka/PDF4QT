@@ -472,3 +472,5 @@ void PDFMcpServer::onAssistantsChanged()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfmcpserver.cpp"

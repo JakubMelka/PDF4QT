@@ -2195,3 +2195,5 @@ QSplitter* PDFAppDocumentView::getSplitter() const
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentview.cpp"

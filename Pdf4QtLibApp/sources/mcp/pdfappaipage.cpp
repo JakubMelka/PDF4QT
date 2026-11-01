@@ -2380,3 +2380,5 @@ PDFAppPage* PDFAppAiPageFactory::createPage(PDFAppContext* context, QWidget* par
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappaipage.cpp"

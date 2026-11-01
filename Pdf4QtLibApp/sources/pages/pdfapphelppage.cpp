@@ -500,3 +500,5 @@ PDFAppPage* PDFAppHelpPageFactory::createPage(PDFAppContext* context, QWidget* p
 }
 
 }   // namespace pdf
+
+#include "moc_pdfapphelppage.cpp"

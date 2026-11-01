@@ -1061,3 +1061,5 @@ void PDFOptimizeImagesDialog::updatePreview()
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfoptimizeimagesdialog.cpp"

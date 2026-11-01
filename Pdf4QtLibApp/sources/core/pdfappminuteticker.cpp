@@ -254,3 +254,5 @@ void PDFAppMinuteSubscription::onShown()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappminuteticker.cpp"

@@ -961,3 +961,5 @@ PDFAppDocumentPanel* PDFAppAttachmentsPanelFactory::createPanel(QWidget* parent)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentpanels_attachments.cpp"

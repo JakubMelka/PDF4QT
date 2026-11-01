@@ -923,3 +923,5 @@ PDFAppPage* PDFAppToolCollectionsPageFactory::createPage(PDFAppContext* context,
 }
 
 }   // namespace pdf
+
+#include "moc_pdfapptoolcollectionspage.cpp"

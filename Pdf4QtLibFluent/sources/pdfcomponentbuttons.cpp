@@ -2131,3 +2131,5 @@ void PDFPageThumbnail::changeEvent(QEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfcomponentbuttons.cpp"

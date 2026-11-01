@@ -964,3 +964,5 @@ void PDFAppMarkResultsFooter::changeEvent(QEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappmarkresults.cpp"

@@ -1518,3 +1518,5 @@ PDFAppPage* PDFAppRecentPageFactory::createPage(PDFAppContext* context, QWidget*
 }
 
 }   // namespace pdf
+
+#include "moc_pdfapprecentpage.cpp"

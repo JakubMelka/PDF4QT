@@ -695,3 +695,5 @@ OCState PDFOptionalContentMembershipObject::OperatorNode::evaluate(const PDFOpti
 }
 
 }   // namespace pdf
+
+#include "moc_pdfoptionalcontent.cpp"

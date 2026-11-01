@@ -763,3 +763,5 @@ void PDFAppMcpTextIndexWaiter::fail(const QString& text)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappmcptextservice.cpp"

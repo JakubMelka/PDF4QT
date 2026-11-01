@@ -627,3 +627,5 @@ void PDFAppSettingGroup::updateRows()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappsettingrow.cpp"

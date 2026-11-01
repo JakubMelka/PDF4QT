@@ -1346,3 +1346,5 @@ void PDFAppPageLinkTargetSelect::changeEvent(QEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappannotationcreatedialogs.cpp"

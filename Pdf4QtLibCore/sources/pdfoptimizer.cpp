@@ -468,3 +468,5 @@ bool PDFOptimizer::performRecompressFlateStreams()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfoptimizer.cpp"

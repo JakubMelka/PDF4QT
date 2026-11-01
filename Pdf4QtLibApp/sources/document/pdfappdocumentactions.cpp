@@ -1510,3 +1510,5 @@ void PDFAppDocumentActionHandler::clearHover()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentactions.cpp"

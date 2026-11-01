@@ -96,3 +96,5 @@ PDFPluginInfo PDFPluginInfo::loadFromJson(const QJsonObject* json)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfplugin.cpp"

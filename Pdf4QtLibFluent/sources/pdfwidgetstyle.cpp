@@ -420,3 +420,5 @@ bool PDFWidgetStyle::isSplitterHoverPending() const
 }
 
 }   // namespace pdf
+
+#include "moc_pdfwidgetstyle.cpp"

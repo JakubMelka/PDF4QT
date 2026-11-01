@@ -274,3 +274,5 @@ PDFAppFolderInfo PDFAppFolderInfoService::computeInfo(const QString& path, bool 
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappfolderinfo.cpp"

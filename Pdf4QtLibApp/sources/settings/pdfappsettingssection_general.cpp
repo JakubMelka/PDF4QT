@@ -337,3 +337,5 @@ PDFAppSettingsSection* PDFAppGeneralSettingsSectionFactory::createSection(PDFApp
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappsettingssection_general.cpp"

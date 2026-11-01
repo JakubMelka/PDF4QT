@@ -751,3 +751,5 @@ bool PDFDocumentPropertiesDialog::isXMPMetadataModified() const
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfdocumentpropertiesdialog.cpp"

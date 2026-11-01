@@ -542,3 +542,5 @@ bool PDFAppShortcutsFilterModel::filterAcceptsRow(int sourceRow, const QModelInd
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappshortcutsmodel.cpp"

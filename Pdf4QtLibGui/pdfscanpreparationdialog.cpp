@@ -2228,3 +2228,5 @@ void PDFScanPreparationDialog::onApply()
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfscanpreparationdialog.cpp"

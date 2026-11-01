@@ -578,3 +578,5 @@ void PDFTintedCard::paintEvent(QPaintEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfcomponentbadges.cpp"

@@ -3014,3 +3014,5 @@ void PDFProgramController::onPageRenderingErrorsChanged(pdf::PDFInteger pageInde
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfprogramcontroller.cpp"

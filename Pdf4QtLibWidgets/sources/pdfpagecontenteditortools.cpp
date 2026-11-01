@@ -1173,3 +1173,5 @@ void PDFCreatePCElementTextTool::setPen(const QPen& pen)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfpagecontenteditortools.cpp"

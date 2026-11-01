@@ -947,3 +947,5 @@ void PDFDocumentSanitizer::removeAnnotations(const std::function<bool (const PDF
 }
 
 }   // namespace pdf
+
+#include "moc_pdfdocumentsanitizer.cpp"

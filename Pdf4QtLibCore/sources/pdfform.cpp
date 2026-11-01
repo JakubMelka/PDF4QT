@@ -1356,3 +1356,5 @@ void PDFFormFieldChoice::reloadValue(const PDFObjectStorage* storage, PDFObject 
 }
 
 }   // namespace pdf
+
+#include "moc_pdfform.cpp"

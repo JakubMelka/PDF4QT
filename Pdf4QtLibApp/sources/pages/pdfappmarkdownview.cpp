@@ -1318,3 +1318,5 @@ void PDFAppMarkdownView::resizeEvent(QResizeEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappmarkdownview.cpp"

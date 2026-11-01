@@ -345,3 +345,5 @@ QColor PDFThemeColors::parseTokenValue(const char* value)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfthemecolors.cpp"

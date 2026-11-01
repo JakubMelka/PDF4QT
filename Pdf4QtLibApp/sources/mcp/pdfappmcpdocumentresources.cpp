@@ -734,3 +734,5 @@ void PDFAppMcpDocumentWatcher::notifyUpdated(const QString& uri)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappmcpdocumentresources.cpp"

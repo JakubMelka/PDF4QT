@@ -708,3 +708,5 @@ void PDFMcpConnection::onTimeout()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfmcpconnection.cpp"

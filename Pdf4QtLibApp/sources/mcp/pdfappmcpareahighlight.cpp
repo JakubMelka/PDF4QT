@@ -168,3 +168,5 @@ void PDFAppMcpAreaHighlight::onProxyDestroyed()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappmcpareahighlight.cpp"

@@ -118,3 +118,5 @@ PDFAppSettingsSection* PDFAppSecuritySettingsSectionFactory::createSection(PDFAp
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappsettingssection_security.cpp"

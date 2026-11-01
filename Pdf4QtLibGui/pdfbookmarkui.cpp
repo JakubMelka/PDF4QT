@@ -201,3 +201,5 @@ QString PDFBookmarkItemDelegate::getPageText(const PDFBookmarkManager::Bookmark&
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfbookmarkui.cpp"

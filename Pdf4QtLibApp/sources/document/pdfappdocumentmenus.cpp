@@ -1443,3 +1443,5 @@ void PDFAppDocumentSelectMenu::onActionTriggered(QAction* action)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentmenus.cpp"

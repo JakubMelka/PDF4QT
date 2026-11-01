@@ -1090,3 +1090,5 @@ void PDFAppMcpConfirmDialog::changeEvent(QEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappmcpconfirmdialog.cpp"

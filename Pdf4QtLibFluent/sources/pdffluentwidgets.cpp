@@ -2327,3 +2327,5 @@ void PDFItemDelegate::updateEditorGeometry(QWidget* editor, const QStyleOptionVi
 }   // namespace pdf
 
 #include "pdffluentwidgets.moc"
+
+#include "moc_pdffluentwidgets.cpp"

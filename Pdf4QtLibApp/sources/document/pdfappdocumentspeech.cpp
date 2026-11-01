@@ -1360,3 +1360,5 @@ void PDFAppDocumentSpeechPanel::onThemeChanged()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentspeech.cpp"

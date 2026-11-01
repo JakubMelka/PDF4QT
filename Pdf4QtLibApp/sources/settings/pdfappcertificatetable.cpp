@@ -919,3 +919,5 @@ void PDFAppCertificateTable::onRemoveDialogFinished(int result)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappcertificatetable.cpp"

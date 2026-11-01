@@ -135,3 +135,5 @@ void PDFPageRangeWidget::updateUi()
 }
 
 } // namespace pdf
+
+#include "moc_pdfpagerangewidget.cpp"

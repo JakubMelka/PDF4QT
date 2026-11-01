@@ -1383,3 +1383,5 @@ bool PDFAppOutlineEditor::commit(const PDFAppAnnotationResult& result, const QSt
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappoutlineeditor.cpp"

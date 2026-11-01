@@ -558,3 +558,5 @@ void PDFOCRCompressionPreviewDialog::updateImage()
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfocrcompressionpreviewdialog.cpp"

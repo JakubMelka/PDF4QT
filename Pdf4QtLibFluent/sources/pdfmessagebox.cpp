@@ -1158,3 +1158,5 @@ void PDFMessageBox::onButtonClicked(QAbstractButton* button)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfmessagebox.cpp"

@@ -427,3 +427,5 @@ void PDFAppFloatingBar::mousePressEvent(QMouseEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappfloatingbar.cpp"

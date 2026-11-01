@@ -203,3 +203,5 @@ void PDFAppDocumentStatusBar::paintEvent(QPaintEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentstatusbar.cpp"

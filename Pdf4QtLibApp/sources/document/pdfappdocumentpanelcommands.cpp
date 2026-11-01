@@ -163,3 +163,5 @@ bool PDFAppDocumentPanelCommandHandler::rotatePages(const std::vector<PDFInteger
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentpanelcommands.cpp"

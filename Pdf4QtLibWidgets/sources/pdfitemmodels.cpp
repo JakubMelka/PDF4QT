@@ -1333,3 +1333,5 @@ std::vector<const PDFOutlineItem*> PDFSelectableOutlineTreeItemModel::getSelecte
 }
 
 }   // namespace pdf
+
+#include "moc_pdfitemmodels.cpp"

@@ -516,3 +516,5 @@ QColor PDFAnnotationStyleWidget::selectColor(QColor initialColor, const QString&
 }
 
 }   // namespace pdf
+
+#include "moc_pdfannotationstyle.cpp"

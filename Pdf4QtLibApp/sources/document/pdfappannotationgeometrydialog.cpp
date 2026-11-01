@@ -789,3 +789,5 @@ void PDFAppAnnotationGeometryDialog::onDialogFinished(int result)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappannotationgeometrydialog.cpp"

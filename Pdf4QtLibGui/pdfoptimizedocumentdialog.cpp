@@ -167,3 +167,5 @@ void PDFOptimizeDocumentDialog::updateUi()
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfoptimizedocumentdialog.cpp"

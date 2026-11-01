@@ -218,3 +218,5 @@ void PDFAppDocumentRegistry::onDocumentChanged()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentregistry.cpp"

@@ -941,3 +941,5 @@ PDFRasterizerPool::PDFRasterizerPool(const PDFDocument* document,
 }
 
 }   // namespace pdf
+
+#include "moc_pdfrenderer.cpp"

@@ -1277,3 +1277,5 @@ void PDFAppContentPage::performDeferredScroll()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfapppagelayout.cpp"

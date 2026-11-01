@@ -2290,3 +2290,5 @@ PDFColorComponentMatrix_3x3 PDFChromaticAdaptationXYZ::createWhitepointChromatic
 }
 
 }   // namespace pdf
+
+#include "moc_pdfcms.cpp"

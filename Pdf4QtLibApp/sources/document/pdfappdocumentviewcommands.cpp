@@ -312,3 +312,5 @@ bool PDFAppDocumentViewCommandHandler::isChecked(const QString& commandId) const
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentviewcommands.cpp"

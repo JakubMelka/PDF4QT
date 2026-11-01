@@ -264,3 +264,5 @@ void PDFEncryptionSettingsDialog::accept()
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfencryptionsettingsdialog.cpp"

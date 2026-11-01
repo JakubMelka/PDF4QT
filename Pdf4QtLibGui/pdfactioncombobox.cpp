@@ -214,3 +214,5 @@ int PDFActionComboBox::findAction(QAction* action)
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfactioncombobox.cpp"

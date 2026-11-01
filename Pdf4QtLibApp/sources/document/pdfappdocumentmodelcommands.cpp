@@ -103,3 +103,5 @@ bool PDFAppDocumentModelCommandHandler::isChecked(const QString& commandId) cons
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentmodelcommands.cpp"

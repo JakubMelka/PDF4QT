@@ -357,3 +357,5 @@ void PDFBookmarkManager::regenerateAutoBookmarks()
 }
 
 }   // namespace pdf
+
+#include "moc_pdfbookmarkmanager.cpp"

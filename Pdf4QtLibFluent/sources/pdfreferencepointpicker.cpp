@@ -293,3 +293,5 @@ bool PDFReferencePointPicker::event(QEvent* event)
 }
 
 }   // namespace pdf
+
+#include "moc_pdfreferencepointpicker.cpp"

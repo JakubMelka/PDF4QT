@@ -1108,3 +1108,5 @@ void PDFViewerSettingsDialog::on_removeCertificateButton_clicked()
 }
 
 }   // namespace pdfviewer
+
+#include "moc_pdfviewersettingsdialog.cpp"

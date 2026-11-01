@@ -1897,3 +1897,5 @@ PDFAppDocumentPanel* PDFAppOutlinePanelFactory::createPanel(QWidget* parent) con
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappdocumentpanels_outline.cpp"
