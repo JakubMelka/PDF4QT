@@ -38,6 +38,7 @@ namespace pdf
 
 class PDFAppAutoRefresh;
 class PDFAppDocumentOperation;
+class PDFAppDocumentSnapshot;
 class PDFAppDocumentTab;
 class PDFAppPrintController;
 class PDFAppSendMail;
@@ -94,6 +95,12 @@ public:
     /// Number of the signed signature fields of the document (fields of the type
     /// Signature with a value); 0 for nullptr
     static int getSignatureCount(const PDFDocument* document);
+
+    /// Number of the signatures a save of the version keeps by an incremental update of the
+    /// original bytes; 0 means a whole write: no signature, no original bytes (a document
+    /// without any file), a display version of an XFA form (written from its original bytes,
+    /// which keep its signatures) or the result of a tool, which rewrites the file (O31)
+    static int getIncrementalSignatureCount(const PDFAppDocumentSnapshot& snapshot);
 
     /// The file can be written: an existing file, which is writable, or a new file
     /// in an existing folder

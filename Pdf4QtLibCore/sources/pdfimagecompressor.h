@@ -124,13 +124,15 @@ public:
         /// Returns the processed document
         const PDFDocument* getDocument() const { return m_document; }
 
+        /// Returns the cache of the fonts of the walk
+        const PDFFontCache* getFontCache() const { return m_fontCache.get(); }
+
     private:
         const PDFDocument* m_document;
         PDFCMSPointer m_cms;
         std::unique_ptr<PDFOptionalContentActivity> m_optionalContentActivity;
         std::unique_ptr<PDFFontCache> m_fontCache;
         std::unique_ptr<PDFICCProfileCache> m_iccProfileCache;
-        std::unique_ptr<PDFFontCacheShrinkGuard> m_fontCacheShrinkGuard;
     };
 
     /// Collects all image XObjects from the document and computes their

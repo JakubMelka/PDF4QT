@@ -611,6 +611,7 @@ private slots:
     void textDirection();
     void keyValueListDirection();
     void keyValueListElision();
+    void keyValueListValueWidth();
     void pageRangeReview();
     void pageSelectionReview();
     void pageSelectionHugeDocument();
@@ -10457,6 +10458,80 @@ void FluentComponentsTest::keyValueListDirection()
         QVERIFY2(colorDistance(strongestInk(image, valueTrailing, surface), token(Color::TextPrimary)) < 60, rtl ? "rtl value" : "ltr value");
         QVERIFY2(isNear(strongestInk(image, valueLeading, surface), surface), rtl ? "rtl value leading" : "ltr value leading");
     }
+}
+
+void FluentComponentsTest::keyValueListValueWidth()
+{
+    // components.md 6.6: the key from the leading edge in a column of 120, the value at the
+    // trailing edge, paddings 10, gap 12. A value, which fits, has its place of the column
+    // layout; only a longer one takes the rest of the column of a short key.
+    const QFont valueFont = pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::SmallMedium);
+    const auto inkOf = [](const QImage& image, const QColor& background, int top, int bottom)
+    {
+        int left = image.width();
+        int right = -1;
+        for (int y = top; y < bottom; ++y)
+        {
+            for (int x = 0; x < image.width(); ++x)
+            {
+                if (image.pixelColor(x, y) != background)
+                {
+                    left = qMin(left, x);
+                    right = qMax(right, x);
+                }
+            }
+        }
+        return std::make_pair(left, right);
+    };
+
+    pdf::PDFKeyValueList list;
+    const QString shortValue = QStringLiteral("One open PDF");
+    const QString longValue = QStringLiteral("804.2 kB → 41.5 kB");
+    const QString longKey = QStringLiteral("A key of a row far longer than its column of one hundred and twenty pixels");
+    const QString elided = QStringLiteral("A value of a row far longer than the place behind a key column of the panel");
+    list.addRow(QStringLiteral("Input"), shortValue);
+    list.addRow(QStringLiteral("Images (1)"), longValue);
+    list.addRow(longKey, elided);
+    list.resize(261, list.heightForWidth(261));
+    QImage image(list.size(), QImage::Format_RGB32);
+    const QColor background(255, 255, 255);
+    image.fill(background);
+    list.render(&image, QPoint(), QRegion(), QWidget::RenderFlags());
+
+    // Row 1: the value, which fits, ends 10 px from the edge and starts where its width says,
+    // the key stays in its column
+    const int shortAdvance = QFontMetrics(valueFont).horizontalAdvance(shortValue);
+    QVERIFY(261 - 20 - 120 - 12 >= shortAdvance);
+    const auto firstRow = inkOf(image, background, 2, 26);
+    QVERIFY2(firstRow.first >= 10 && firstRow.first <= 12, qPrintable(QString::number(firstRow.first)));
+    QVERIFY2(qAbs(firstRow.second - (261 - 10 - 1)) <= 1, qPrintable(QString::number(firstRow.second)));
+
+    // Row 2: wider than 109 px of the column layout, it is drawn whole beside the short key
+    const int longAdvance = QFontMetrics(valueFont).horizontalAdvance(longValue);
+    QVERIFY(longAdvance > 261 - 20 - 120 - 12);
+    QVERIFY(longAdvance <= 261 - 20 - QFontMetrics(pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::Small)).horizontalAdvance(QStringLiteral("Images (1)")) - 12);
+
+    // Row 3: a key over its column keeps the column: the value starts behind it (elided)
+    const QString shown = pdf::PDFComponentPainter::elidedTextOfKind(elided, valueFont, 261 - 20 - 120 - 12, pdf::PDFComponentPainter::TextKind::Data);
+    QVERIFY(shown != elided);
+    const QRect row = list.getRowRect(2);
+    const auto gap = inkOf(image.copy(QRect(10 + 120 + 1, row.top(), 12 - 2, row.height())), background, 0, row.height());
+    QVERIFY2(gap.second < 0, "The gap behind the column of the long key stays free");
+    const auto valueInk = inkOf(image.copy(QRect(10 + 120 + 12, row.top(), 261 - 10 - 120 - 12, row.height())), background, 0, row.height());
+    QVERIFY2(valueInk.first >= 0 && valueInk.first <= 12, qPrintable(QString::number(valueInk.first)));
+    QVERIFY2(valueInk.second >= 261 - 10 - (10 + 120 + 12) - 3, qPrintable(QString::number(valueInk.second)));
+
+    // The tooltip of the whole text comes only for a value, which is really elided
+    list.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&list));
+    QToolTip::hideText();
+    QHelpEvent wholeValue(QEvent::ToolTip, list.getRowRect(1).center(), list.mapToGlobal(list.getRowRect(1).center()));
+    QApplication::sendEvent(&list, &wholeValue);
+    QVERIFY2(!QToolTip::isVisible(), "A value drawn whole has no tooltip");
+    QHelpEvent elidedValue(QEvent::ToolTip, list.getRowRect(2).center(), list.mapToGlobal(list.getRowRect(2).center()));
+    QApplication::sendEvent(&list, &elidedValue);
+    QCOMPARE(QToolTip::text(), elided);
+    QToolTip::hideText();
 }
 
 void FluentComponentsTest::keyValueListElision()

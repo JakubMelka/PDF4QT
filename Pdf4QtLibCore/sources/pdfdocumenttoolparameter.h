@@ -70,14 +70,59 @@ enum class PDFDocumentToolParameterType
     Secret              ///< A password or a key: never stored, never echoed (JSON Schema writeOnly)
 };
 
-/// Option of a parameter of the type Enum
+/// The function tr of the class of a tool (Q_DECLARE_TR_FUNCTIONS): it translates the
+/// texts of the parameters of the tool in their context
+using PDFDocumentToolTranslator = QString (*)(const char* sourceText, const char* disambiguation, int n);
+
+/// English source text of a parameter, a constant of the program: written by QT_TR_NOOP
+/// in a member function of the tool, so lupdate sees it in the context of the tool. The
+/// schema of the assistant (toJsonSchema) always has this text, the user interface its
+/// translation (owner 2026-11-02). A translated QString or a text known only at run time
+/// does not compile: it would give the assistant a schema following the language.
+/// \code
+/// definitions.push_back(Definition::createBool(tr, QStringLiteral("detailed"), QT_TR_NOOP("Detailed"), QT_TR_NOOP("List the page numbers"), false));
+/// \endcode
+class PDFDocumentToolText
+{
+public:
+    constexpr PDFDocumentToolText() = default;
+    consteval PDFDocumentToolText(const char* sourceText) : m_sourceText(sourceText) { }
+
+    /// The source text in UTF-8, nullptr = none
+    const char* getSourceText() const { return m_sourceText; }
+
+private:
+    const char* m_sourceText = nullptr;
+};
+
+/// Option of a parameter of the type Enum. The tool writes its id, its English texts
+/// (PDFDocumentToolText) and its icon, the translation comes from createEnum.
 class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolParameterOption
 {
 public:
+    PDFDocumentToolParameterOption(const QString& id, PDFDocumentToolText title, PDFDocumentToolText description = PDFDocumentToolText(), const QString& iconName = QString());
+
     QString id;             ///< Value of the option (JSON, database): [a-z0-9] with '-' / '_' inside, at most 64 characters
-    QString title;          ///< Translated title shown in the user interface
-    QString description;    ///< Translated description (optional)
     QString iconName;       ///< Icon of Pdf4QtLibFluent/resources/icons (optional)
+
+    /// Title shown in the user interface
+    QString getTitle() const;
+
+    /// Description shown in the user interface (optional)
+    QString getDescription() const;
+
+    /// English title of the schema of the assistant
+    QString getSourceTitle() const;
+
+    /// English description of the schema of the assistant
+    QString getSourceDescription() const;
+
+private:
+    friend class PDFDocumentToolParameterDefinition;
+
+    PDFDocumentToolText m_title;
+    PDFDocumentToolText m_description;
+    PDFDocumentToolTranslator m_translator = nullptr;
 };
 
 /// Selection of the pages of a parameter of the type PageSelection: the range
@@ -144,10 +189,12 @@ public:
 };
 
 /// Definition of one parameter of a tool (newapp_tools.md 2, Parametry). One
-/// definition gives the JSON Schema of MCP, the validation with translated
-/// messages (the same for the user interface, MCP and later PdfTool) and the
-/// storage of the last value (PDFToolParameterRepository of Pdf4QtLibApp; a
-/// Secret is never stored).
+/// definition gives the JSON Schema of MCP (English in every language - only the
+/// assistant reads it, the English source texts of PDFDocumentToolText), the texts of
+/// the panels (translated when they are read, by the function tr of the tool), the
+/// validation with translated messages (the same for the user interface, MCP and
+/// later PdfTool) and the storage of the last value (PDFToolParameterRepository of
+/// Pdf4QtLibApp; a Secret is never stored).
 class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolParameterDefinition
 {
 public:
@@ -174,17 +221,18 @@ public:
 
     PDFDocumentToolParameterDefinition() = default;
 
-    static PDFDocumentToolParameterDefinition createBool(const QString& name, const QString& title, const QString& description, bool defaultValue);
-    static PDFDocumentToolParameterDefinition createInteger(const QString& name, const QString& title, const QString& description, qint64 defaultValue, qint64 minimum, qint64 maximum);
-    static PDFDocumentToolParameterDefinition createReal(const QString& name, const QString& title, const QString& description, double defaultValue, double minimum, double maximum);
-    static PDFDocumentToolParameterDefinition createString(const QString& name, const QString& title, const QString& description, const QString& defaultValue, int maximumLength = 1024);
-    static PDFDocumentToolParameterDefinition createEnum(const QString& name, const QString& title, const QString& description, std::vector<PDFDocumentToolParameterOption> options, const QString& defaultId);
-    static PDFDocumentToolParameterDefinition createPageSelection(const QString& name, const QString& title, const QString& description, const PDFDocumentToolPageSelection& defaultValue = PDFDocumentToolPageSelection());
-    static PDFDocumentToolParameterDefinition createColor(const QString& name, const QString& title, const QString& description, const QColor& defaultValue);
-    static PDFDocumentToolParameterDefinition createFilePath(const QString& name, const QString& title, const QString& description, const QString& defaultValue = QString());
-    static PDFDocumentToolParameterDefinition createFolderPath(const QString& name, const QString& title, const QString& description, const QString& defaultValue = QString());
-    static PDFDocumentToolParameterDefinition createFileNameTemplate(const QString& name, const QString& title, const QString& description, const QString& defaultValue);
-    static PDFDocumentToolParameterDefinition createSecret(const QString& name, const QString& title, const QString& description);
+    // translator is the function tr of the tool, title and description are written by QT_TR_NOOP
+    static PDFDocumentToolParameterDefinition createBool(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description, bool defaultValue);
+    static PDFDocumentToolParameterDefinition createInteger(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description, qint64 defaultValue, qint64 minimum, qint64 maximum);
+    static PDFDocumentToolParameterDefinition createReal(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description, double defaultValue, double minimum, double maximum);
+    static PDFDocumentToolParameterDefinition createString(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description, const QString& defaultValue, int maximumLength = 1024);
+    static PDFDocumentToolParameterDefinition createEnum(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description, std::vector<PDFDocumentToolParameterOption> options, const QString& defaultId);
+    static PDFDocumentToolParameterDefinition createPageSelection(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description, const PDFDocumentToolPageSelection& defaultValue = PDFDocumentToolPageSelection());
+    static PDFDocumentToolParameterDefinition createColor(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description, const QColor& defaultValue);
+    static PDFDocumentToolParameterDefinition createFilePath(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description, const QString& defaultValue = QString());
+    static PDFDocumentToolParameterDefinition createFolderPath(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description, const QString& defaultValue = QString());
+    static PDFDocumentToolParameterDefinition createFileNameTemplate(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description, const QString& defaultValue);
+    static PDFDocumentToolParameterDefinition createSecret(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description);
 
     /// A value must be given (a missing value is an error, not the default; an
     /// empty text of a text type is missing)
@@ -200,8 +248,19 @@ public:
 
     const QString& getName() const { return m_name; }
     PDFDocumentToolParameterType getType() const { return m_type; }
-    const QString& getTitle() const { return m_title; }
-    const QString& getDescription() const { return m_description; }
+
+    /// Title shown in the user interface
+    QString getTitle() const;
+
+    /// Description shown in the user interface
+    QString getDescription() const;
+
+    /// English title of the schema of the assistant
+    QString getSourceTitle() const;
+
+    /// English description of the schema of the assistant
+    QString getSourceDescription() const;
+
     const QVariant& getDefaultValue() const { return m_defaultValue; }
     bool isRequired() const { return m_required; }
     qint64 getIntegerMinimum() const { return m_integerMinimum; }
@@ -214,9 +273,10 @@ public:
     /// The value is stored as the last value of the tool (setStored, never a Secret)
     bool isStored() const { return m_stored && m_type != PDFDocumentToolParameterType::Secret; }
 
-    /// The definition itself is valid: a valid name, minimum <= default <= maximum,
-    /// valid unique option ids with the default among them, a valid default value
-    /// (unless the parameter is required). \p errorMessage gets the reason (not translated, for developers).
+    /// The definition itself is valid: the function translating its texts, a valid name,
+    /// minimum <= default <= maximum, valid unique option ids with the default among them,
+    /// a valid default value (unless the parameter is required). \p errorMessage gets the
+    /// reason (not translated, for developers).
     bool isValid(QString* errorMessage = nullptr) const;
 
     /// Canonical value of the untrusted \p value (QVariant from the user interface,
@@ -225,7 +285,8 @@ public:
     /// the translated error, empty on success.
     QString normalize(const QVariant& value, QVariant* normalizedValue) const;
 
-    /// JSON Schema of the parameter (a property of the object of the parameters)
+    /// JSON Schema of the parameter (a property of the object of the parameters):
+    /// the English source texts in every language
     QJsonObject toJsonSchema() const;
 
     /// JSON value of a canonical value (Color "#rrggbb", PageSelection object;
@@ -252,7 +313,7 @@ public:
     static QString sanitizeForMessage(const QString& text, int maximumLength = 32);
 
 private:
-    PDFDocumentToolParameterDefinition(const QString& name, PDFDocumentToolParameterType type, const QString& title, const QString& description);
+    PDFDocumentToolParameterDefinition(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolParameterType type, PDFDocumentToolText title, PDFDocumentToolText description);
 
     QString getLabel() const;
     QString normalizeText(const QVariant& value, QVariant* normalizedValue) const;
@@ -260,8 +321,9 @@ private:
 
     QString m_name;
     PDFDocumentToolParameterType m_type = PDFDocumentToolParameterType::String;
-    QString m_title;
-    QString m_description;
+    PDFDocumentToolText m_title;
+    PDFDocumentToolText m_description;
+    PDFDocumentToolTranslator m_translator = nullptr;
     QVariant m_defaultValue;
     bool m_required = false;
     bool m_stored = true;

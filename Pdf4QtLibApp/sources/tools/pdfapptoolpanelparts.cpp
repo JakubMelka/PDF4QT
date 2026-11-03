@@ -183,6 +183,7 @@ PDFAppToolCallout::PDFAppToolCallout(PDFAccentHue hue, const QString& iconName, 
     m_title = PDFAppPageWidgets::createLabel(title, PDFThemeFonts::Role::SmallSemiBold, PDFThemeColors::TextPrimary, this);
     m_title->setObjectName(QStringLiteral("toolCalloutTitle"));
     m_title->setMinimumWidth(1);
+    m_title->setLineHeight(TITLE_LINE);
     headLayout->addWidget(m_title, 1);
     m_layout->addLayout(headLayout);
 
@@ -212,6 +213,69 @@ PDFAppToolCard::PDFAppToolCard(QWidget* parent) :
 }
 
 PDFAppToolCard::~PDFAppToolCard() = default;
+
+PDFAppToolMeasuredCard::PDFAppToolMeasuredCard(QWidget* parent) :
+    BaseClass(parent)
+{
+    setObjectName(QStringLiteral("toolMeasuredCard"));
+
+    QVBoxLayout* layout = getBodyLayout();
+    layout->setContentsMargins(PADDING, PADDING, PADDING, PADDING);
+    layout->setSpacing(GAP);
+
+    // The sizes are data (as the values of the rows below them): "807.2 kB → 44.4 kB" in this
+    // order at the leading edge also right-to-left
+    QWidget* sizesRow = new QWidget(this);
+    sizesRow->setObjectName(QStringLiteral("toolMeasuredSizes"));
+    sizesRow->setLayoutDirection(Qt::LeftToRight);
+    QHBoxLayout* sizes = new QHBoxLayout(sizesRow);
+    sizes->setContentsMargins(0, 0, 0, 0);
+    sizes->setSpacing(GAP);
+    m_before = PDFAppPageWidgets::createLabel(QString(), QFont::Medium, 15, PDFThemeColors::TextTertiary, sizesRow);
+    m_before->setObjectName(QStringLiteral("toolMeasuredBefore"));
+    m_before->setFixedHeight(18);
+    sizes->addWidget(m_before, 0, Qt::AlignBaseline);
+    PDFLabel* arrow = PDFAppPageWidgets::createLabel(QStringLiteral("→"), QFont::Medium, 15, PDFThemeColors::TextMuted, sizesRow);
+    arrow->setFixedHeight(18);
+    sizes->addWidget(arrow, 0, Qt::AlignBaseline);
+    m_after = PDFAppPageWidgets::createLabel(QString(), QFont::DemiBold, 20, PDFThemeColors::TextPrimary, sizesRow);
+    m_after->setObjectName(QStringLiteral("toolMeasuredAfter"));
+    m_after->setFixedHeight(24);
+    sizes->addWidget(m_after, 0, Qt::AlignBaseline);
+
+    // The alignment of a layout item takes the direction of its widget: the stretch of a
+    // mirrored row keeps the sizes at the leading edge of the card
+    QHBoxLayout* sizesPlace = new QHBoxLayout();
+    sizesPlace->setContentsMargins(0, 0, 0, 0);
+    sizesPlace->setSpacing(0);
+    sizesPlace->addWidget(sizesRow);
+    sizesPlace->addStretch(1);
+    layout->addLayout(sizesPlace);
+
+    m_bar = new QProgressBar(this);
+    m_bar->setObjectName(QStringLiteral("toolMeasuredBar"));
+    m_bar->setRange(0, 100);
+    m_bar->setTextVisible(false);
+    m_bar->setFixedHeight(4);
+    layout->addWidget(m_bar);
+
+    m_saving = PDFAppPageWidgets::createLabel(QString(), QFont::Medium, 12, PDFThemeColors::TextAccent, this);
+    m_saving->setObjectName(QStringLiteral("toolMeasuredSaving"));
+    m_saving->setFixedHeight(15);
+    layout->addWidget(m_saving);
+}
+
+PDFAppToolMeasuredCard::~PDFAppToolMeasuredCard() = default;
+
+void PDFAppToolMeasuredCard::setSizes(const QString& before, const QString& after, int afterPercentage, const QString& savingText)
+{
+    m_before->setText(before);
+    m_after->setText(after);
+    m_bar->setVisible(afterPercentage >= 0);
+    m_bar->setValue(qBound(0, afterPercentage, 100));
+    m_saving->setText(savingText);
+    m_saving->setTextColor(afterPercentage >= 0 ? PDFThemeColors::TextAccent : PDFThemeColors::TextSecondary);
+}
 
 PDFAppToolSectionHeader::PDFAppToolSectionHeader(const QString& title, const QString& hint, QWidget* parent) :
     BaseClass(parent)

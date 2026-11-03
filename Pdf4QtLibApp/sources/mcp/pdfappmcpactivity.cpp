@@ -358,33 +358,59 @@ void PDFAppMcpActivityLog::forgetWrittenRows(qint64 now)
     // the coalescing alone lost them - review RC7-H). A waiting row stays until
     // its status changes.
     std::vector<std::pair<qint64, qint64>> written;
+    std::vector<std::pair<qint64, qint64>> writtenOfOpenCalls;
     for (auto it = m_rows.begin(); it != m_rows.end();)
     {
         const Row& row = it->second;
         const bool isForgettable = !row.isDirty && row.databaseId > 0 && row.entry.status != PDFMcpActivityStatus::Waiting;
-        if (isForgettable && row.lastChange < now - KEEP_TIME)
+        const bool isCallOpen = !row.entry.openCallId.isEmpty();
+        if (isForgettable && !isCallOpen && row.lastChange < now - KEEP_TIME)
         {
             it = m_rows.erase(it);
             continue;
         }
         if (isForgettable)
         {
-            written.emplace_back(row.lastChange, it->first);
+            (isCallOpen ? writtenOfOpenCalls : written).emplace_back(row.lastChange, it->first);
         }
         ++it;
     }
 
-    // A bounded memory: the rows changed longest ago go first
+    // A bounded memory: the rows changed longest ago go first, the rows of the calls
+    // running at the moment last
     if (m_rows.size() > MAXIMUM_KEPT_ROWS)
     {
         std::sort(written.begin(), written.end());
-        for (const auto& item : written)
+        std::sort(writtenOfOpenCalls.begin(), writtenOfOpenCalls.end());
+        for (const std::vector<std::pair<qint64, qint64>>* candidates : { &written, &writtenOfOpenCalls })
         {
-            if (m_rows.size() <= MAXIMUM_KEPT_ROWS)
+            for (const auto& item : *candidates)
             {
-                break;
+                if (m_rows.size() <= MAXIMUM_KEPT_ROWS)
+                {
+                    return;
+                }
+                m_rows.erase(item.second);
             }
-            m_rows.erase(item.second);
+        }
+    }
+}
+
+void PDFAppMcpActivityLog::callFinished(const QString& callId)
+{
+    if (callId.isEmpty())
+    {
+        return;
+    }
+
+    const qint64 now = getCurrentTime();
+    for (auto& item : m_rows)
+    {
+        Row& row = item.second;
+        if (row.entry.openCallId == callId)
+        {
+            row.entry.openCallId.clear();
+            row.lastChange = now;
         }
     }
 }

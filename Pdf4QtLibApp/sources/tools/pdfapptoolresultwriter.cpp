@@ -94,14 +94,53 @@ PDFAppDocumentFileWriter::Request PDFAppToolResultWriter::createCopyRequest(cons
 
     // The signed revision stays in the file only by an incremental update; a tool, which
     // rewrites the file, writes it whole: no old revision is left in the file (O31). A
-    // result without any signed field (the signed page was removed) has nothing to keep.
+    // result without any signed field (the signed page was removed) has nothing to keep,
+    // a version an earlier tool has rewritten is no update of the original bytes.
     if (tool && tool->getSignatureImpact() == PDFDocumentToolSignatureImpact::IncrementalSave &&
-        !snapshot.originalData.isEmpty() && PDFForm::getSignatureCount(output.data()) > 0)
+        !snapshot.originalData.isEmpty() && !snapshot.isWholeFileRewritten && PDFForm::getSignatureCount(output.data()) > 0)
     {
         request.originalData = snapshot.originalData;
         request.isIncremental = true;
     }
     return request;
+}
+
+PDFAppDocumentFileWriter::Request PDFAppToolResultWriter::createOverwriteRequest(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const PDFAppDocument* document)
+{
+    PDFAppDocumentFileWriter::Request request = createCopyRequest(tool, snapshot, output, document ? document->getFilePath() : QString());
+    request.markSourceFilePath = document ? document->getOriginFilePath() : QString();
+    return request;
+}
+
+PDFAppToolResultWriter::DocumentRefusal PDFAppToolResultWriter::getDocumentRefusal(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocument* document)
+{
+    if (!tool || !document)
+    {
+        return DocumentRefusal::None;
+    }
+
+    // The lock of a file comes only when the document is shown (T3)
+    if (document->isLocked() && tool->getLockedAccess() == PDFDocumentToolLockedAccess::Unavailable)
+    {
+        return DocumentRefusal::Locked;
+    }
+
+    // A display version of an XFA form cannot be changed, an export of its text can run (F5)
+    if (document->isPagedXFA() && tool->getResultKind() == PDFDocumentToolResultKind::ChangeDocument)
+    {
+        return DocumentRefusal::DisplayVersion;
+    }
+    return DocumentRefusal::None;
+}
+
+bool PDFAppToolResultWriter::isCopyOnly(const PDFDocumentToolCatalogEntry* tool, bool isSigned, bool hasFile)
+{
+    return isSignatureLost(tool, isSigned) && hasFile;
+}
+
+bool PDFAppToolResultWriter::isSignatureLost(const PDFDocumentToolCatalogEntry* tool, bool isSigned)
+{
+    return tool && tool->getSignatureImpact() == PDFDocumentToolSignatureImpact::LostCopyOnly && isSigned;
 }
 
 PDFAppToolResultWriter::Result PDFAppToolResultWriter::writeRequest(PDFAppDocumentFileWriter::Request request, bool isReplacing)
@@ -262,8 +301,7 @@ bool PDFAppToolResultWriter::overwrite(PDFDocumentToolRunner* runner, PDFAppDocu
     }
 
     const PDFAppDocumentSnapshot& snapshot = runner->getResultSnapshot();
-    PDFAppDocumentFileWriter::Request request = createCopyRequest(runner->getTool()->getInfo(), snapshot, output->document, document->getFilePath());
-    request.markSourceFilePath = document->getOriginFilePath();
+    PDFAppDocumentFileWriter::Request request = createOverwriteRequest(runner->getTool()->getInfo(), snapshot, output->document, document);
 
     m_runner = runner;
     m_saver = saver;

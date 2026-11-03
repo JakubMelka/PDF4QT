@@ -209,6 +209,12 @@ private:
     /// \param end End of the data
     QByteArray createByteArray(const char* begin, const char* end) const;
 
+    /// Returns the double closest to the text of a real number, which has too many digits to
+    /// be converted by one division. Infinity is returned for a value too large for a double.
+    /// \param begin First character behind the sign of the number
+    /// \param end End of the number
+    static PDFReal convertLongRealNumber(const char* begin, const char* end);
+
     /// Throws an error exception
     void error(const QString& message) const;
 

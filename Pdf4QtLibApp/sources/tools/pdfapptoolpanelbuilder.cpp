@@ -131,7 +131,7 @@ void PDFAppToolEnumMenu::addRows(const QString& parameter)
     // model holds the choice (refresh); the role of a row is a radio button by its behavior
     for (const PDFDocumentToolParameterOption& option : definition->getOptions())
     {
-        PDFTileRow* row = m_panel->addRow(option.title, option.description, option.iconName, PDFTileRow::Kind::MenuItem);
+        PDFTileRow* row = m_panel->addRow(option.getTitle(), option.getDescription(), option.iconName, PDFTileRow::Kind::MenuItem);
         row->setObjectName(QStringLiteral("toolOption-") + option.id);
         row->setProperty(PDFAppToolPanelBuilderHelper::ROW_KEY_PROPERTY, option.id);
         row->setProperty(PDFAppToolPanelBuilderHelper::ROW_PARAMETER_PROPERTY, parameter);
@@ -165,7 +165,7 @@ void PDFAppToolEnumMenu::refresh()
                 const bool isChosen = option.id == value;
                 if (isChosen && parameter == m_parameters.front())
                 {
-                    title = option.title;
+                    title = option.getTitle();
                 }
                 if (PDFTileRow* row = getRow(option.id))
                 {
@@ -973,6 +973,13 @@ PDFAppToolSectionHeader* PDFAppToolPanelBuilder::addSection(const QString& title
 void PDFAppToolPanelBuilder::endSection()
 {
     m_sectionLayout = nullptr;
+}
+
+PDFAppToolMeasuredCard* PDFAppToolPanelBuilder::addMeasuredCard()
+{
+    PDFAppToolMeasuredCard* card = new PDFAppToolMeasuredCard(m_widget);
+    addWidget(card);
+    return card;
 }
 
 PDFKeyValueList* PDFAppToolPanelBuilder::addKeyValues()

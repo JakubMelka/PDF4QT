@@ -101,7 +101,8 @@ public:
         Slider,     ///< Slider with the value text (Integer, Real)
         Color,      ///< Color button, the value is "#RRGGBB" (String)
         Path,       ///< Text field with the button Browse… of a folder (String)
-        Segmented   ///< Segmented control of the options (Option, a few short titles; the permissions of the page AI 955:143435)
+        Segmented,  ///< Segmented control of the options (Option, a few short titles; the permissions of the page AI 955:143435)
+        Radio       ///< Radio buttons of the options in a row, 14 px apart (Option, the goal of Custom… of Compress 294:1803)
     };
 
     /// Translation context of the texts of the definitions

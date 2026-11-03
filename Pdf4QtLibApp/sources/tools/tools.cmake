@@ -101,6 +101,17 @@ list(APPEND PDF4QT_LIBAPP_TOOLS_SOURCES
     sources/tools/pdfdocumenttoolguiregistry.h
     sources/tools/pdfdocumenttoolshell.cpp
     sources/tools/pdfdocumenttoolshell.h
+    # Wave D: Compress and the start page of a tool
+    sources/tools/pdfapppagerendercontext.cpp
+    sources/tools/pdfapppagerendercontext.h
+    sources/tools/pdfapptoolbeforeafteroverlay.cpp
+    sources/tools/pdfapptoolbeforeafteroverlay.h
+    sources/tools/pdfapptooldocumentchooser.cpp
+    sources/tools/pdfapptooldocumentchooser.h
+    sources/tools/pdfapptoolgui_compress.cpp
+    sources/tools/pdfapptoolgui_compress.h
+    sources/tools/pdftoolstartpage.cpp
+    sources/tools/pdftoolstartpage.h
     # Package 2A (pages.rotate, pages.remove)
     sources/tools/pdfapptoolgui_pages.cpp
     sources/tools/pdfapptoolgui_pages.h

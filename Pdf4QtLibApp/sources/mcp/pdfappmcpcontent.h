@@ -77,6 +77,11 @@ public:
     /// Names of the general documents (pdf4qt://docs/<name>.md) in their order
     static QStringList getDocumentNames();
 
+    /// Tools of the categories of the catalog, which have their reference
+    /// docs/tools/<tool>.md (a file without a reference of an action waits for its tools
+    /// and is not listed)
+    static QStringList getCatalogToolNames();
+
     /// Names of the skills (pdf4qt://skills/<name>/SKILL.md)
     static QStringList getSkillNames();
 

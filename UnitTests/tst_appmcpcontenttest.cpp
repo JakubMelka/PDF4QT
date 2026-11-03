@@ -24,6 +24,9 @@
 
 #include "pdfappcontext.h"
 #include "pdfapphelpcatalog.h"
+#include "pdfappbuiltintools.h"
+#include "pdfappmcpcatalogtools.h"
+#include "pdfdocumenttoolcatalog.h"
 #include "pdfappmcpactivity.h"
 #include "pdfappmcpchange.h"
 #include "pdfappmcpclientnames.h"
@@ -96,10 +99,41 @@ private:
     static bool isWellFormedToml(const QString& text, QString* error);
 
     static QString readResourceFile(const QString& path);
+
+    /// The contracts of the categories of the catalog with an implementation
+    static std::vector<pdf::PDFAppMcpToolSpec> getCatalogSpecs();
+
+    /// The contracts of the tools of phase 1 and of the categories
+    static std::vector<pdf::PDFAppMcpToolSpec> getAllSpecs();
 };
+
+std::vector<pdf::PDFAppMcpToolSpec> AppMcpContentTest::getCatalogSpecs()
+{
+    std::vector<pdf::PDFAppMcpToolSpec> specs;
+    for (const pdf::PDFDocumentToolCategoryInfo& category : pdf::PDFDocumentToolCatalog::getCategories())
+    {
+        std::optional<pdf::PDFAppMcpToolSpec> spec = pdf::PDFAppMcpCatalogTools::createToolSpec(category.getCategory());
+        if (spec)
+        {
+            specs.push_back(std::move(*spec));
+        }
+    }
+    return specs;
+}
+
+std::vector<pdf::PDFAppMcpToolSpec> AppMcpContentTest::getAllSpecs()
+{
+    std::vector<pdf::PDFAppMcpToolSpec> specs = pdf::PDFAppMcpToolSet::getTools();
+    const std::vector<pdf::PDFAppMcpToolSpec> catalogSpecs = getCatalogSpecs();
+    specs.insert(specs.end(), catalogSpecs.begin(), catalogSpecs.end());
+    return specs;
+}
 
 void AppMcpContentTest::initTestCase()
 {
+    // The tools of the application: their references are checked with them
+    pdf::PDFAppBuiltinTools::registerAll();
+
     // The content is read in the thread of the user interface (the help catalog)
     QVERIFY(!pdf::PDFAppMcpContent::getStaticResources().empty());
 
@@ -108,7 +142,7 @@ void AppMcpContentTest::initTestCase()
     if (!dumpDirectory.isEmpty())
     {
         QDir().mkpath(dumpDirectory);
-        for (const pdf::PDFAppMcpToolSpec& tool : pdf::PDFAppMcpToolSet::getTools())
+        for (const pdf::PDFAppMcpToolSpec& tool : getAllSpecs())
         {
             QFile file(QDir(dumpDirectory).filePath(tool.name + QStringLiteral(".md")));
             QVERIFY(file.open(QFile::WriteOnly | QFile::Truncate));
@@ -167,7 +201,7 @@ void AppMcpContentTest::collectNames(const pdf::PDFMcpSchema& schema, std::set<Q
 std::set<QString> AppMcpContentTest::getContractNames()
 {
     std::set<QString> names;
-    for (const pdf::PDFAppMcpToolSpec& tool : pdf::PDFAppMcpToolSet::getTools())
+    for (const pdf::PDFAppMcpToolSpec& tool : getAllSpecs())
     {
         names.insert(tool.name);
         for (const auto& property : tool.commonProperties)
@@ -212,6 +246,11 @@ QString AppMcpContentTest::getSection(const QString& markdown, const QString& ti
 
 pdf::PDFMcpSchema AppMcpContentTest::getFullInputSchema(const QString& toolName)
 {
+    if (const std::optional<pdf::PDFDocumentToolCategory> category = pdf::PDFDocumentToolCatalog::findCategory(toolName))
+    {
+        return pdf::PDFAppMcpCatalogTools::createInputSchema(*category, pdf::PDFAppMcpPermissions::createAll(pdf::PDFAppMcpPermission::Allow)).value_or(pdf::PDFMcpSchema());
+    }
+
     const pdf::PDFAppMcpToolSpec* tool = pdf::PDFAppMcpToolSet::findTool(toolName);
     if (!tool)
     {
@@ -318,6 +357,10 @@ void AppMcpContentTest::staticResources()
         expected << QStringLiteral("pdf4qt://docs/%1.md").arg(name);
     }
     for (const pdf::PDFAppMcpToolSpec& tool : pdf::PDFAppMcpToolSet::getTools())
+    {
+        expected << QStringLiteral("pdf4qt://docs/tools/%1.md").arg(tool.name);
+    }
+    for (const pdf::PDFAppMcpToolSpec& tool : getCatalogSpecs())
     {
         expected << QStringLiteral("pdf4qt://docs/tools/%1.md").arg(tool.name);
     }
@@ -554,7 +597,7 @@ void AppMcpContentTest::docsLinksAndNames()
         QStringLiteral("destructiveHint"), QStringLiteral("idempotentHint"), QStringLiteral("list_changed"), QStringLiteral("mimeType"),
         QStringLiteral("ttlMs"), QStringLiteral("cacheScope"), QStringLiteral("logLevel"), QStringLiteral("taskId"), QStringLiteral("statusMessage"),
         QStringLiteral("pollIntervalMs"), QStringLiteral("http_headers"), QStringLiteral("mcpServers"), QStringLiteral("httpUrl"),
-        QStringLiteral("nextCursor"), QStringLiteral("save_file"), QStringLiteral("open_new_tab"), QStringLiteral("save_copy"),
+        QStringLiteral("nextCursor"), QStringLiteral("save_file"), QStringLiteral("open_new_tab"), QStringLiteral("save_copy"), QStringLiteral("return_text"),
         QStringLiteral("documentIds"), QStringLiteral("outputSchema"), QStringLiteral("inputSchema"), QStringLiteral("denied_locked"),
         QStringLiteral("denied_busy"), QStringLiteral("denied_dialog"), QStringLiteral("denied_timeout"), QStringLiteral("denied_user"),
         QStringLiteral("denied_closed"), QStringLiteral("denied_disconnected"), QStringLiteral("denied_stopped"), QStringLiteral("subscriptionId"),
@@ -563,7 +606,19 @@ void AppMcpContentTest::docsLinksAndNames()
 
     static const QRegularExpression code(QStringLiteral("`([^`\\n]+)`"));
     static const QRegularExpression camelOrSnake(QStringLiteral("^[a-z][a-z0-9]*([A-Z][a-zA-Z0-9]*|(_[a-z0-9]+)+)$"));
-    static const QRegularExpression toolAction(QStringLiteral("^([a-z_]+)\\.([a-z_]+)$"));
+    static const QRegularExpression toolAction(QStringLiteral("^([a-z_]+)\\.([a-z_-]+)$"));
+    const std::vector<pdf::PDFAppMcpToolSpec> specs = getAllSpecs();
+    const auto findSpec = [&specs](const QString& name) -> const pdf::PDFAppMcpToolSpec*
+    {
+        for (const pdf::PDFAppMcpToolSpec& spec : specs)
+        {
+            if (spec.name == name)
+            {
+                return &spec;
+            }
+        }
+        return nullptr;
+    };
 
     const std::vector<std::pair<QString, QString>> files = getContentFiles();
     QVERIFY(files.size() >= 31);
@@ -595,7 +650,7 @@ void AppMcpContentTest::docsLinksAndNames()
             const QRegularExpressionMatch reference = toolAction.match(span);
             if (reference.hasMatch())
             {
-                const pdf::PDFAppMcpToolSpec* tool = pdf::PDFAppMcpToolSet::findTool(reference.captured(1));
+                const pdf::PDFAppMcpToolSpec* tool = findSpec(reference.captured(1));
                 if (tool)
                 {
                     ++checkedReferences;
@@ -613,8 +668,22 @@ void AppMcpContentTest::docsLinksAndNames()
     QVERIFY(checkedReferences > 100);
     QVERIFY(checkedNames > 100);
 
+    // A category without an implementation has no listed reference (a stub is no lie
+    // about actions, which do not exist), an implemented one has it
+    QStringList implementedCategories;
+    for (const pdf::PDFAppMcpToolSpec& spec : getCatalogSpecs())
+    {
+        implementedCategories << spec.name;
+    }
+    QCOMPARE(pdf::PDFAppMcpContent::getCatalogToolNames(), implementedCategories);
+    for (const pdf::PDFDocumentToolCategoryInfo& category : pdf::PDFDocumentToolCatalog::getCategories())
+    {
+        const QString uri = QStringLiteral("pdf4qt://docs/tools/%1.md").arg(category.getId());
+        QCOMPARE(pdf::PDFAppMcpContent::findStaticResource(uri) != nullptr, implementedCategories.contains(category.getId()));
+    }
+
     // Every tool reference contains the generated reference of the contract
-    for (const pdf::PDFAppMcpToolSpec& tool : pdf::PDFAppMcpToolSet::getTools())
+    for (const pdf::PDFAppMcpToolSpec& tool : specs)
     {
         const pdf::PDFMcpResourceDefinition* resource = pdf::PDFAppMcpContent::findStaticResource(QStringLiteral("pdf4qt://docs/tools/%1.md").arg(tool.name));
         QVERIFY2(resource, qPrintable(tool.name));
@@ -637,9 +706,21 @@ void AppMcpContentTest::docsLinksAndNames()
             QVERIFY2(index.contains(file.first), qPrintable(file.first));
         }
     }
-    for (const pdf::PDFAppMcpToolSpec& tool : pdf::PDFAppMcpToolSet::getTools())
+    for (const pdf::PDFAppMcpToolSpec& tool : specs)
     {
         QVERIFY2(index.contains(QStringLiteral("`%1`").arg(tool.name)), qPrintable(tool.name));
+    }
+
+    // The rows of the categories come with their references: the parts of the tools of different
+    // categories share no line of the index (chapter 9 of the plan). A row per implemented
+    // category with the summary of its heading, in the table of the tools; no row of a stub
+    QVERIFY2(!index.contains(QStringLiteral("catalog tools")), "The placeholder of the rows is served");
+    QVERIFY(index.contains(QStringLiteral("| `optimize` | Make files smaller | pdf4qt://docs/tools/optimize.md |\n")));
+    QVERIFY(index.contains(QStringLiteral("| pdf4qt://docs/tools/files.md |\n| `optimize` |")));
+    for (const pdf::PDFDocumentToolCategoryInfo& category : pdf::PDFDocumentToolCatalog::getCategories())
+    {
+        const QString row = QStringLiteral("| `%1` |").arg(category.getId());
+        QCOMPARE(index.contains(row), implementedCategories.contains(category.getId()));
     }
 
     // The documents never name a reserved phase 2 tool as a phase 1 tool and
@@ -665,13 +746,18 @@ void AppMcpContentTest::examplesValidate()
     // with the validator of the server; every action has at least two examples
     std::map<QString, int> examplesPerAction;
     int calls = 0;
+    const std::vector<pdf::PDFAppMcpToolSpec> specs = getAllSpecs();
     for (const auto& file : getContentFiles())
     {
         for (const pdf::PDFAppMcpDocumentedCall& call : pdf::PDFAppMcpContent::extractCalls(file.second))
         {
             const QString context = QStringLiteral("%1:%2").arg(file.first).arg(call.line);
             QVERIFY2(call.error.isEmpty(), qPrintable(context + QStringLiteral(": ") + call.error));
-            const pdf::PDFAppMcpToolSpec* tool = pdf::PDFAppMcpToolSet::findTool(call.toolName);
+            const pdf::PDFAppMcpToolSpec* tool = nullptr;
+            for (const pdf::PDFAppMcpToolSpec& spec : specs)
+            {
+                tool = spec.name == call.toolName ? &spec : tool;
+            }
             QVERIFY2(tool, qPrintable(context + QStringLiteral(": unknown tool ") + call.toolName));
 
             QStringList errors;
@@ -683,7 +769,9 @@ void AppMcpContentTest::examplesValidate()
             QVERIFY2(tool->findAction(action), qPrintable(context));
             for (auto it = call.arguments.begin(); it != call.arguments.end(); ++it)
             {
-                const bool isCommon = it.key() == QStringLiteral("action") || it.key() == QStringLiteral("documentId");
+                const bool isCatalogTool = pdf::PDFAppMcpCatalogTools::isCatalogToolName(call.toolName);
+                const bool isCommon = it.key() == QStringLiteral("action") || it.key() == QStringLiteral("documentId") ||
+                                      (isCatalogTool && (it.key() == QStringLiteral("result") || it.key() == QStringLiteral("path")));
                 QVERIFY2(isCommon || it.key() == action, qPrintable(context + QStringLiteral(": the object of another action ") + it.key()));
             }
             if (call.arguments.contains(QStringLiteral("documentId")))
@@ -699,7 +787,7 @@ void AppMcpContentTest::examplesValidate()
         }
     }
     QVERIFY(calls > 100);
-    for (const pdf::PDFAppMcpToolSpec& tool : pdf::PDFAppMcpToolSet::getTools())
+    for (const pdf::PDFAppMcpToolSpec& tool : specs)
     {
         for (const pdf::PDFAppMcpActionSpec& action : tool.actions)
         {
@@ -1250,6 +1338,26 @@ void AppMcpContentTest::helpTopicsMatchCode()
         QVERIFY2(tools->markdown.contains(QStringLiteral("| %1 |").arg(tool.title)), qPrintable(tool.title));
     }
     QVERIFY(tools->markdown.contains(QStringLiteral("/help/ai-permissions")));
+
+    // "Available now": names only tools an assistant can run. The parts of package 2 register
+    // their tools in parallel, 2E adds them to this line and the check becomes an equality.
+    static const QRegularExpression available(QStringLiteral("Available now: ([^|]+?) \\|"));
+    const QRegularExpressionMatch availableMatch = available.match(tools->markdown);
+    QVERIFY(availableMatch.hasMatch());
+    QStringList implementedTitles;
+    for (const pdf::PDFDocumentToolCategoryInfo& category : pdf::PDFDocumentToolCatalog::getCategories())
+    {
+        for (const pdf::PDFDocumentToolCatalogEntry* entry : pdf::PDFAppMcpCatalogTools::getImplementedTools(category.getCategory()))
+        {
+            implementedTitles << entry->getTitle();
+        }
+    }
+    const QStringList availableTitles = availableMatch.captured(1).split(QStringLiteral(", "));
+    QVERIFY(!availableTitles.isEmpty());
+    for (const QString& title : availableTitles)
+    {
+        QVERIFY2(implementedTitles.contains(title), qPrintable(title));
+    }
 }
 
 int main(int argc, char* argv[])

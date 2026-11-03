@@ -629,7 +629,11 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         m_warnings << m_errorMessage;
     }
 
-    if (m_result == Result::Failed && m_permissive && shouldTryPermissiveReading)
+    // The failure of a handler of an encrypted document, which was already created (a wrong /Perms, a wrong key), is not
+    // a damage of the file structure. Reading the objects from the bytes would ask for the password the second time,
+    // a caller with one password would call the right password wrong (the objects would stay encrypted anyway).
+    const bool isEncryptionFailure = m_securityHandler && m_securityHandler->getMode() != EncryptionMode::None;
+    if (m_result == Result::Failed && m_permissive && shouldTryPermissiveReading && !isEncryptionFailure)
     {
         return readDamagedDocumentFromBuffer(buffer);
     }

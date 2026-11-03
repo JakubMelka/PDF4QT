@@ -46,15 +46,15 @@ pdf::PDFDocumentToolParameterDefinitions ShellTestTool::getParameters() const
 
     pdf::PDFDocumentToolParameterDefinitions definitions = TestDocumentTool::getParameters();
     std::vector<pdf::PDFDocumentToolParameterOption> presets = {
-        { QStringLiteral("smaller"), QStringLiteral("Smaller file"), QString(), QString() },
-        { QStringLiteral("balanced"), QStringLiteral("Balanced"), QString(), QString() },
-        { QStringLiteral("best"), QStringLiteral("Best quality"), QString(), QString() },
-        { QStringLiteral("custom"), QStringLiteral("Custom…"), QString(), QString() },
+        { QStringLiteral("smaller"), QT_TR_NOOP("Smaller file") },
+        { QStringLiteral("balanced"), QT_TR_NOOP("Balanced") },
+        { QStringLiteral("best"), QT_TR_NOOP("Best quality") },
+        { QStringLiteral("custom"), QT_TR_NOOP("Custom…") },
     };
-    definitions.push_back(Definition::createEnum(QStringLiteral("preset"), QStringLiteral("Preset"), QString(), std::move(presets), QStringLiteral("balanced")));
+    definitions.push_back(Definition::createEnum(tr, QStringLiteral("preset"), QT_TR_NOOP("Preset"), nullptr, std::move(presets), QStringLiteral("balanced")));
     for (int i = 0; i < STEP_COUNT; ++i)
     {
-        definitions.push_back(Definition::createBool(getStepName(i), QStringLiteral("Step"), QString(), i != 4));
+        definitions.push_back(Definition::createBool(tr, getStepName(i), QT_TR_NOOP("Step"), nullptr, i != 4));
     }
     return definitions;
 }

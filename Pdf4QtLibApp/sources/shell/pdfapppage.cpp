@@ -83,6 +83,16 @@ PDFAppHeaderIcon PDFAppPage::getHeaderIcon() const
     return PDFAppHeaderIcon();
 }
 
+QString PDFAppPage::getHeaderTag() const
+{
+    return QString();
+}
+
+QString PDFAppPage::getOpenFilesToolId() const
+{
+    return QString();
+}
+
 bool PDFAppPage::hasSearchHeader() const
 {
     return true;

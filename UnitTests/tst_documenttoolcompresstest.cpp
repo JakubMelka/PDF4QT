@@ -40,7 +40,9 @@
 #include "pdfexception.h"
 #include "pdffont.h"
 #include "pdfmeshqualitysettings.h"
+#include "pdfobjectutils.h"
 #include "pdfoptionalcontent.h"
+#include "pdfparser.h"
 #include "pdfprogress.h"
 #include "pdfrenderer.h"
 #include "pdfsecurityhandler.h"
@@ -48,6 +50,7 @@
 
 #include <QBuffer>
 #include <QColor>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QImage>
 #include <QJsonArray>
@@ -57,6 +60,7 @@
 #include <QRegularExpression>
 #include <QtTest>
 
+#include <array>
 #include <atomic>
 #include <thread>
 
@@ -64,6 +68,8 @@
 #include <windows.h>
 #include <psapi.h>
 #endif
+
+Q_DECLARE_METATYPE(pdf::PDFObject)
 
 /// Cancellation of the tests
 class CompressTestControl : public pdf::PDFOperationControl
@@ -452,6 +458,442 @@ public:
 
 /// The core of the tool Compress of phase 2 (plan of the first batch, wave A) and the
 /// streaming and cancellation of the optimizers below it (chapter 11, F1)
+/// Files with the structures of PDF 1.5, written by the test from the specification:
+/// object streams (PDF Reference 1.7, 3.4.6), cross-reference streams (3.4.7) and the
+/// layout of a linearized file (Appendix F). PDFDocumentWriter writes none of them.
+class FileStructureTestHelper
+{
+public:
+    FileStructureTestHelper() = delete;
+
+    static constexpr int PAGE_COUNT = 2;
+    static constexpr int PADDING_SIZE = 64 * 1024;
+
+    static constexpr const char* HINT_MARKER = "HINT-TABLES-MARKER";
+    static constexpr const char* OVERFLOW_MARKER = "OVERFLOW-TABLES-MARKER";
+
+    struct FileOptions
+    {
+        int objectStreamCount = 1;  ///< More object streams: each one /Extends the previous one (Table 3.14)
+        int paddingSize = 0;        ///< Bytes behind the objects of each object stream, no offset leads to them
+        bool isFlate = false;       ///< The object streams are compressed
+    };
+
+    struct LinearizedOptions
+    {
+        bool hasOverflow = false;   ///< With the overflow hint stream
+        bool isFlate = false;       ///< The primary hint stream is compressed
+    };
+
+    using Entries = std::initializer_list<std::pair<const char*, pdf::PDFObject>>;
+
+    static pdf::PDFObject createDictionaryOf(Entries entries)
+    {
+        pdf::PDFDictionaryBuilder dictionary;
+        for (const auto& entry : entries)
+        {
+            dictionary.addEntry(pdf::PDFInplaceOrMemoryString(entry.first), pdf::PDFObject(entry.second));
+        }
+        return pdf::PDFObject::createDictionary(std::move(dictionary));
+    }
+
+    static pdf::PDFObject createDictionary(const char* key, pdf::PDFObject value)
+    {
+        return createDictionaryOf({ { key, std::move(value) } });
+    }
+
+    /// A stream of one byte with the entries; /Length is the one of the entries, if there is one
+    static pdf::PDFObject createStream(Entries entries)
+    {
+        pdf::PDFDictionaryBuilder dictionary;
+        for (const auto& entry : entries)
+        {
+            dictionary.addEntry(pdf::PDFInplaceOrMemoryString(entry.first), pdf::PDFObject(entry.second));
+        }
+        if (dictionary.get("Length").isNull())
+        {
+            dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Length"), pdf::PDFObject::createInteger(1));
+        }
+        return pdf::PDFObject::createStream(pdf::PDFStream(std::move(dictionary), QByteArray("x")));
+    }
+
+    static pdf::PDFObject createIntegers(const std::vector<int>& numbers)
+    {
+        return CompressTestHelper::createIntegerArray(numbers);
+    }
+
+    /// PAGE_COUNT pages of 200 x 200 points, each with a red rectangle moved by its page number
+    static pdf::PDFDocument createDocument()
+    {
+        pdf::PDFDocumentBuilder builder;
+        for (int i = 0; i < PAGE_COUNT; ++i)
+        {
+            const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 200, 200));
+            const QByteArray position = QByteArray::number(i * 20);
+            CompressTestHelper::setPage(builder, page, "1 0 0 rg 10 " + position + " 50 50 re f", { });
+        }
+        return builder.build();
+    }
+
+    /// The document with a further entry of its catalog
+    static pdf::PDFDocument withCatalogEntry(const pdf::PDFDocument& document, const char* key, pdf::PDFObject value)
+    {
+        pdf::PDFObjectStorage storage = document.getStorage();
+        pdf::PDFObjectStorage::PDFObjects objects = storage.getObjects();
+
+        pdf::PDFObjectStorage::Entry& entry = objects[size_t(document.getTrailerDictionary()->get("Root").getReference().objectNumber)];
+        pdf::PDFDictionaryBuilder catalog(*entry.object.getDictionary());
+        catalog.setEntry(pdf::PDFInplaceOrMemoryString(key), std::move(value));
+        entry.object = pdf::PDFObject::createDictionary(std::move(catalog));
+
+        storage.setObjects(std::move(objects));
+        return pdf::PDFDocument(std::move(storage), document.getInfo()->version, QByteArray());
+    }
+
+    /// The document with a further object, no reference leads to it
+    static pdf::PDFDocument withObject(const pdf::PDFDocument& document, pdf::PDFObject object, pdf::PDFObjectReference* reference)
+    {
+        pdf::PDFObjectStorage storage = document.getStorage();
+        *reference = storage.addObject(std::move(object));
+        return pdf::PDFDocument(std::move(storage), document.getInfo()->version, QByteArray());
+    }
+
+    static QVariantMap createCustomWithoutCleanUp()
+    {
+        QVariantMap parameters = CompressTestHelper::preset("custom");
+        parameters.insert(QStringLiteral("targetDpi"), 150);
+        parameters.insert(QStringLiteral("jpegQuality"), 75);
+        parameters.insert(QStringLiteral("goal"), QStringLiteral("minimum-size"));
+        parameters.insert(QStringLiteral("keepOriginalIfLarger"), true);
+        parameters.insert(QStringLiteral("preserveTransparency"), true);
+        parameters.insert(QStringLiteral("cleanStructure"), false);
+        return parameters;
+    }
+
+    /// The reader, which repairs nothing
+    static pdf::PDFDocument readStrict(const QByteArray& data, const QString& password = QString(), pdf::PDFDocumentReader::Result* readerResult = nullptr)
+    {
+        const auto getPassword = [&password](bool* ok)
+        {
+            *ok = !password.isEmpty();
+            return password;
+        };
+        pdf::PDFDocumentReader reader(nullptr, getPassword, false, false);
+        pdf::PDFDocument document = reader.readFromBuffer(data);
+        if (readerResult)
+        {
+            *readerResult = reader.getReadingResult();
+        }
+        return document;
+    }
+
+    /// An indirect object, encrypted by the handler of the document (not the encryption
+    /// dictionary, 3.5 "Encryption"; a cross-reference stream is written by the caller)
+    static QByteArray serializeObject(const pdf::PDFDocument& document, pdf::PDFObjectReference reference, const pdf::PDFObject& object)
+    {
+        const pdf::PDFSecurityHandler* handler = document.getStorage().getSecurityHandler();
+        const pdf::PDFObject& encryptObject = document.getTrailerDictionary()->get("Encrypt");
+        const bool isEncryptDictionary = encryptObject.isReference() && encryptObject.getReference() == reference;
+
+        pdf::PDFObject objectToWrite = object;
+        if (handler && handler->getMode() != pdf::EncryptionMode::None && !isEncryptDictionary)
+        {
+            objectToWrite = handler->encryptObject(object, reference);
+        }
+        return serializePlainObject(reference, objectToWrite);
+    }
+
+    static QByteArray serializePlainObject(pdf::PDFObjectReference reference, const pdf::PDFObject& object)
+    {
+        return QByteArray::number(reference.objectNumber) + " " + QByteArray::number(reference.generation) + " obj\r\n" + pdf::PDFDocumentWriter::getSerializedObject(object) + "\r\nendobj\r\n";
+    }
+
+    /// Entries of the trailer of the document in a dictionary (Table 3.13, Table 3.15)
+    static void addTrailerEntries(const pdf::PDFDocument& document, pdf::PDFDictionaryBuilder& dictionary)
+    {
+        for (const char* key : { "Root", "Info", "ID", "Encrypt" })
+        {
+            pdf::PDFObject value = document.getTrailerDictionary()->get(key);
+            if (!value.isNull())
+            {
+                dictionary.addEntry(pdf::PDFInplaceOrMemoryString(key), std::move(value));
+            }
+        }
+    }
+
+    /// File of the objects of the document: the streams and the encryption dictionary
+    /// indirect, the other objects in object streams numbered after them, a cross-reference
+    /// stream after those (generation 0 of the objects in streams: 3.4.6)
+    static QByteArray createFile(const pdf::PDFDocument& document, const FileOptions& options)
+    {
+        const pdf::PDFObjectStorage::PDFObjects& objects = document.getStorage().getObjects();
+        const pdf::PDFInteger firstObjectStream = pdf::PDFInteger(objects.size());
+        const pdf::PDFInteger crossReferenceStream = firstObjectStream + options.objectStreamCount;
+        const pdf::PDFObject& encryptObject = document.getTrailerDictionary()->get("Encrypt");
+
+        // Table 3.16: the type, the offset or the number of the object stream, the generation or the index
+        struct Entry
+        {
+            int type = 0;
+            qint64 second = 0;
+            int third = 0;
+        };
+        std::vector<Entry> entries(size_t(crossReferenceStream) + 1);
+        entries[0].third = 65535;
+
+        QByteArray file("%PDF-1.7\r\n%\xE2\xE3\xCF\xD3\r\n");
+
+        std::vector<std::vector<size_t>> members(size_t(options.objectStreamCount));
+        size_t memberCount = 0;
+        for (size_t i = 1; i < objects.size(); ++i)
+        {
+            const pdf::PDFObject& object = objects[i].object;
+            if (object.isNull())
+            {
+                continue;
+            }
+
+            const pdf::PDFObjectReference reference(pdf::PDFInteger(i), objects[i].generation);
+            if (object.isStream() || (encryptObject.isReference() && encryptObject.getReference() == reference))
+            {
+                entries[i].type = 1;
+                entries[i].second = file.size();
+                entries[i].third = int(objects[i].generation);
+                file.append(serializeObject(document, reference, object));
+            }
+            else
+            {
+                members[memberCount++ % members.size()].push_back(i);
+            }
+        }
+
+        for (int streamIndex = 0; streamIndex < options.objectStreamCount; ++streamIndex)
+        {
+            const pdf::PDFInteger number = firstObjectStream + streamIndex;
+
+            // Table 3.14: N pairs of integers, the objects from First on
+            QByteArray pairs;
+            QByteArray body;
+            int memberIndex = 0;
+            for (const size_t member : members[size_t(streamIndex)])
+            {
+                pairs += QByteArray::number(qulonglong(member)) + " " + QByteArray::number(body.size()) + " ";
+                body += pdf::PDFDocumentWriter::getSerializedObject(objects[member].object) + "\r\n";
+
+                entries[member].type = 2;
+                entries[member].second = number;
+                entries[member].third = memberIndex++;
+            }
+
+            QByteArray content = pairs + body + QByteArray(options.paddingSize, ' ');
+
+            pdf::PDFDictionaryBuilder dictionary;
+            dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("ObjStm"));
+            dictionary.addEntry(pdf::PDFInplaceOrMemoryString("N"), pdf::PDFObject::createInteger(memberIndex));
+            dictionary.addEntry(pdf::PDFInplaceOrMemoryString("First"), pdf::PDFObject::createInteger(pairs.size()));
+            if (streamIndex > 0)
+            {
+                dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Extends"), pdf::PDFObject::createReference(pdf::PDFObjectReference(number - 1, 0)));
+            }
+            if (options.isFlate)
+            {
+                // Noise of the padding is not compressed away: the size of the dead container stays
+                for (int i = 0; i < options.paddingSize; ++i)
+                {
+                    content[content.size() - 1 - i] = char(' ' + (i * 7919) % 89);
+                }
+                content = pdf::PDFFlateDecodeFilter::compress(content);
+                dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Filter"), pdf::PDFObject::createName("FlateDecode"));
+            }
+            dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Length"), pdf::PDFObject::createInteger(content.size()));
+
+            entries[size_t(number)].type = 1;
+            entries[size_t(number)].second = file.size();
+            file.append(serializeObject(document, pdf::PDFObjectReference(number, 0), pdf::PDFObject::createStream(pdf::PDFStream(std::move(dictionary), std::move(content)))));
+        }
+
+        // Table 3.15; the stream is not encrypted (3.4.7) and has its own entry
+        const qint64 crossReferenceOffset = file.size();
+        entries[size_t(crossReferenceStream)].type = 1;
+        entries[size_t(crossReferenceStream)].second = crossReferenceOffset;
+
+        QByteArray table;
+        for (const Entry& entry : entries)
+        {
+            table.append(char(entry.type));
+            for (int shift = 24; shift >= 0; shift -= 8)
+            {
+                table.append(char((entry.second >> shift) & 0xFF));
+            }
+            table.append(char((entry.third >> 8) & 0xFF));
+            table.append(char(entry.third & 0xFF));
+        }
+
+        pdf::PDFDictionaryBuilder dictionary;
+        dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("XRef"));
+        dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Size"), pdf::PDFObject::createInteger(pdf::PDFInteger(entries.size())));
+        dictionary.addEntry(pdf::PDFInplaceOrMemoryString("W"), createIntegers({ 1, 4, 2 }));
+        addTrailerEntries(document, dictionary);
+        dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Length"), pdf::PDFObject::createInteger(table.size()));
+        file.append(serializePlainObject(pdf::PDFObjectReference(crossReferenceStream, 0), pdf::PDFObject::createStream(pdf::PDFStream(std::move(dictionary), std::move(table)))));
+
+        file.append("startxref\r\n" + QByteArray::number(crossReferenceOffset) + "\r\n%%EOF\r\n");
+        return file;
+    }
+
+    /// Offsets of a linearized file (Table F.1), known after the file is laid out
+    struct LinearizedLayout
+    {
+        qint64 fileLength = 0;
+        qint64 primaryOffset = 0;
+        qint64 primaryLength = 0;
+        qint64 overflowOffset = 0;
+        qint64 overflowLength = 0;
+        qint64 firstPageEnd = 0;
+        qint64 mainTableEntry = 0;
+        qint64 mainTable = 0;
+    };
+
+    static QByteArray formatNumber(qint64 number)
+    {
+        return QByteArray::number(number).rightJustified(10, '0');
+    }
+
+    /// One entry of a table in 20 bytes (3.4.3)
+    static QByteArray createTableEntry(qint64 offset, qint64 generation, char type)
+    {
+        return formatNumber(offset) + " " + QByteArray::number(generation).rightJustified(5, '0') + " " + type + "\r\n";
+    }
+
+    /// Appendix F, Example F.1 in the order of its parts: the header (1), the parameter
+    /// dictionary (2), the first-page table (3), the primary hint stream (5), the objects of the
+    /// document (6 - 9), the overflow hint stream (10) and the main table (11). The objects
+    /// of the first-page table have the highest numbers (F.2.3), the hint streams last (F.2.5).
+    static QByteArray createLinearizedFile(const pdf::PDFDocument& document, const LinearizedOptions& options)
+    {
+        // The offsets settle after the passes: only /Prev of the trailer has no fixed width
+        LinearizedLayout layout;
+        QByteArray file;
+        for (int pass = 0; pass < 4; ++pass)
+        {
+            file = createLinearizedFilePass(document, options, layout);
+        }
+        return file;
+    }
+
+    static QByteArray createLinearizedFilePass(const pdf::PDFDocument& document, const LinearizedOptions& options, LinearizedLayout& layout)
+    {
+        const pdf::PDFObjectStorage::PDFObjects& objects = document.getStorage().getObjects();
+        const pdf::PDFInteger linearizationNumber = pdf::PDFInteger(objects.size());
+        const pdf::PDFInteger primaryNumber = linearizationNumber + 1;
+        const pdf::PDFInteger overflowNumber = linearizationNumber + 2;
+        const pdf::PDFInteger objectCount = primaryNumber + (options.hasOverflow ? 2 : 1);
+
+        QByteArray file("%PDF-1.7\r\n%\xE2\xE3\xCF\xD3\r\n");
+
+        // Part 2
+        const qint64 linearizationOffset = file.size();
+        QByteArray hints = "[ " + formatNumber(layout.primaryOffset) + " " + formatNumber(layout.primaryLength);
+        if (options.hasOverflow)
+        {
+            hints += " " + formatNumber(layout.overflowOffset) + " " + formatNumber(layout.overflowLength);
+        }
+        hints += " ]";
+        file.append(QByteArray::number(linearizationNumber) + " 0 obj\r\n<< /Linearized 1.0 /L " + formatNumber(layout.fileLength) + " /H " + hints +
+                    " /O " + QByteArray::number(document.getCatalog()->getPage(0)->getPageReference().objectNumber) +
+                    " /E " + formatNumber(layout.firstPageEnd) + " /N " + QByteArray::number(qulonglong(document.getCatalog()->getPageCount())) +
+                    " /T " + formatNumber(layout.mainTableEntry) + " >>\r\nendobj\r\n");
+
+        // Part 3
+        const qint64 firstTable = file.size();
+        const qint64 tableSize = 20 * (objectCount - linearizationNumber);
+        QByteArray firstTableHead = "xref\r\n" + QByteArray::number(linearizationNumber) + " " + QByteArray::number(objectCount - linearizationNumber) + "\r\n";
+
+        pdf::PDFDictionaryBuilder firstTrailer;
+        firstTrailer.addEntry(pdf::PDFInplaceOrMemoryString("Size"), pdf::PDFObject::createInteger(objectCount));
+        firstTrailer.addEntry(pdf::PDFInplaceOrMemoryString("Prev"), pdf::PDFObject::createInteger(layout.mainTable));
+        addTrailerEntries(document, firstTrailer);
+        const QByteArray firstTrailerText = "trailer\r\n" + pdf::PDFDocumentWriter::getSerializedObject(pdf::PDFObject::createDictionary(std::move(firstTrailer))) + "\r\nstartxref\r\n0\r\n%%EOF\r\n";
+
+        // Part 5: the positions of the tables are positions in the decoded stream (F.2.5)
+        const qint64 primaryOffset = firstTable + firstTableHead.size() + tableSize + firstTrailerText.size();
+        QByteArray primaryData = QByteArray(HINT_MARKER).repeated(PADDING_SIZE / 16);
+        pdf::PDFDictionaryBuilder primaryDictionary;
+        primaryDictionary.addEntry(pdf::PDFInplaceOrMemoryString("S"), pdf::PDFObject::createInteger(16));
+        primaryDictionary.addEntry(pdf::PDFInplaceOrMemoryString("O"), pdf::PDFObject::createInteger(32));
+        if (options.isFlate)
+        {
+            for (qsizetype i = 0; i < primaryData.size(); ++i)
+            {
+                primaryData[i] = char(' ' + (i * 7919) % 89);
+            }
+            primaryData = pdf::PDFFlateDecodeFilter::compress(primaryData);
+            primaryDictionary.addEntry(pdf::PDFInplaceOrMemoryString("Filter"), pdf::PDFObject::createName("FlateDecode"));
+        }
+        primaryDictionary.addEntry(pdf::PDFInplaceOrMemoryString("Length"), pdf::PDFObject::createInteger(primaryData.size()));
+        const QByteArray primaryText = serializePlainObject(pdf::PDFObjectReference(primaryNumber, 0), pdf::PDFObject::createStream(pdf::PDFStream(std::move(primaryDictionary), std::move(primaryData))));
+
+        // Parts 6 - 9
+        QByteArray body;
+        std::vector<qint64> offsets(objects.size(), -1);
+        const qint64 bodyOffset = primaryOffset + primaryText.size();
+        for (size_t i = 1; i < objects.size(); ++i)
+        {
+            if (!objects[i].object.isNull())
+            {
+                offsets[i] = bodyOffset + body.size();
+                body.append(serializePlainObject(pdf::PDFObjectReference(pdf::PDFInteger(i), objects[i].generation), objects[i].object));
+            }
+        }
+
+        // Part 10: a stream without the positions of the tables (F.2.5)
+        const qint64 overflowOffset = bodyOffset + body.size();
+        QByteArray overflowText;
+        if (options.hasOverflow)
+        {
+            QByteArray overflowData(OVERFLOW_MARKER);
+            pdf::PDFDictionaryBuilder overflowDictionary;
+            overflowDictionary.addEntry(pdf::PDFInplaceOrMemoryString("Length"), pdf::PDFObject::createInteger(overflowData.size()));
+            overflowText = serializePlainObject(pdf::PDFObjectReference(overflowNumber, 0), pdf::PDFObject::createStream(pdf::PDFStream(std::move(overflowDictionary), std::move(overflowData))));
+        }
+
+        // Part 11
+        const qint64 mainTable = overflowOffset + overflowText.size();
+        QByteArray mainTableText = "xref\r\n0 " + QByteArray::number(linearizationNumber) + "\r\n";
+        const qint64 mainTableEntry = mainTable + mainTableText.size() - 1;
+        mainTableText.append(createTableEntry(0, 65535, 'f'));
+        for (size_t i = 1; i < objects.size(); ++i)
+        {
+            mainTableText.append(offsets[i] >= 0 ? createTableEntry(offsets[i], objects[i].generation, 'n') : createTableEntry(0, objects[i].generation, 'f'));
+        }
+        mainTableText.append("trailer\r\n<< /Size " + QByteArray::number(linearizationNumber) + " >>\r\nstartxref\r\n" + formatNumber(firstTable) + "\r\n%%EOF\r\n");
+
+        // The first-page table with the offsets known now
+        file.append(firstTableHead);
+        file.append(createTableEntry(linearizationOffset, 0, 'n'));
+        file.append(createTableEntry(primaryOffset, 0, 'n'));
+        if (options.hasOverflow)
+        {
+            file.append(createTableEntry(overflowOffset, 0, 'n'));
+        }
+        file.append(firstTrailerText);
+        file.append(primaryText);
+        file.append(body);
+        file.append(overflowText);
+        file.append(mainTableText);
+
+        layout.fileLength = file.size();
+        layout.primaryOffset = primaryOffset;
+        layout.primaryLength = primaryText.size();
+        layout.overflowOffset = overflowOffset;
+        layout.overflowLength = overflowText.size();
+        layout.firstPageEnd = bodyOffset + body.size() / 2;
+        layout.mainTableEntry = mainTableEntry;
+        layout.mainTable = mainTable;
+        return file;
+    }
+};
+
 class DocumentToolCompressTest : public QObject
 {
     Q_OBJECT
@@ -460,6 +902,7 @@ private Q_SLOTS:
     void initTestCase();
 
     // First: the peak of the memory of the process only grows
+    void fontsHeldOnlyForThePage();
     void memoryBound();
 
     void presetSettings_data();
@@ -488,6 +931,9 @@ private Q_SLOTS:
     void undecodableImages();
     void recompressOfFilterChains();
     void colorTransformOfOldEncodingDropped();
+    void colorTransformOfTheFilter_data();
+    void colorTransformOfTheFilter();
+    void colorsOfChromeJpegKept();
     void recompressOfFilterChainsByTool();
     void imageDecodedOnAnotherPage();
     void imageWithoutPixels();
@@ -507,12 +953,76 @@ private Q_SLOTS:
     void encryptedInput();
     void encryptedWithoutPermission();
     void eightThreadsOneInstance();
+    void fileStructureDropped_data();
+    void fileStructureDropped();
+    void fileStructureUnusedCounter();
+    void fileStructureReferenced_data();
+    void fileStructureReferenced();
+    void fileStructureReferencedByTrailer();
+    void fileStructureLinearized_data();
+    void fileStructureLinearized();
+    void fileStructureLinearizedReferenced();
+    void fileStructureLookalikes_data();
+    void fileStructureLookalikes();
+    void fileStructureEncrypted();
+    void fileStructureIncrementalUpdate();
+    void fileStructureDamagedRead();
+    void fileStructureMissingObjects_data();
+    void fileStructureMissingObjects();
+    void fileStructureMissingObjectsExtends();
+    void fileStructureHybrid();
+    void fileStructureExtendsChain();
+    void fileStructureOldCallers();
 };
 
 void DocumentToolCompressTest::initTestCase()
 {
     // The texts of the frames: numbers and sizes of a locale with a decimal point
     QLocale::setDefault(QLocale::c());
+}
+
+void DocumentToolCompressTest::fontsHeldOnlyForThePage()
+{
+    // An OCR layer has a font of its own size for almost every word: the walk over the pages
+    // holds the realized fonts of a page only, within the limit of the cache
+    pdf::PDFDocument document;
+    {
+        pdf::PDFDocumentBuilder builder;
+        for (int pageIndex = 0; pageIndex < 8; ++pageIndex)
+        {
+            const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 200, 200));
+            QByteArray content("BT\n");
+            for (int word = 0; word < 100; ++word)
+            {
+                content += QByteArray("/F1 ") + QByteArray::number(6.0 + pageIndex * 100 + word * 0.01, 'f', 2) + QByteArray(" Tf 10 10 Td (word) Tj\n");
+            }
+            content += "ET\n";
+            const pdf::PDFObjectReference contentReference = builder.addObject(CompressTestHelper::createStreamObject(content));
+
+            pdf::PDFDictionaryBuilder fontDictionary;
+            fontDictionary.addEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("Font"));
+            fontDictionary.addEntry(pdf::PDFInplaceOrMemoryString("Subtype"), pdf::PDFObject::createName("Type1"));
+            fontDictionary.addEntry(pdf::PDFInplaceOrMemoryString("BaseFont"), pdf::PDFObject::createName("Helvetica"));
+            const pdf::PDFObjectReference font = builder.addObject(pdf::PDFObject::createDictionary(std::move(fontDictionary)));
+
+            pdf::PDFDictionaryBuilder fonts;
+            fonts.addEntry(pdf::PDFInplaceOrMemoryString("F1"), pdf::PDFObject::createReference(font));
+            pdf::PDFDictionaryBuilder resources;
+            resources.addEntry(pdf::PDFInplaceOrMemoryString("Font"), pdf::PDFObject::createDictionary(std::move(fonts)));
+            pdf::PDFDictionaryBuilder pageUpdate;
+            pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Resources"), pdf::PDFObject::createDictionary(std::move(resources)));
+            pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Contents"), pdf::PDFObject::createReference(contentReference));
+            builder.mergeTo(page, pdf::PDFObject::createDictionary(std::move(pageUpdate)));
+        }
+        document = builder.build();
+    }
+
+    pdf::PDFImageCompressor::Environment environment(&document);
+    for (int pageIndex = 0; pageIndex < 8; ++pageIndex)
+    {
+        environment.processPagePlacements(pageIndex, [](pdf::PDFObjectReference, QPointF) { }, nullptr);
+        QVERIFY2(environment.getFontCache()->getRealizedFontCount() <= pdf::DEFAULT_REALIZED_FONT_CACHE_LIMIT, qPrintable(QString::number(environment.getFontCache()->getRealizedFontCount())));
+    }
 }
 
 void DocumentToolCompressTest::memoryBound()
@@ -742,7 +1252,7 @@ void DocumentToolCompressTest::presetDescriptions()
     QStringList presetTitles;
     for (const pdf::PDFDocumentToolParameterOption& option : definitions.front().getOptions())
     {
-        presetTitles << option.title;
+        presetTitles << option.getTitle();
     }
     QCOMPARE(presetTitles, QStringList({ QStringLiteral("Smaller file"), QStringLiteral("Balanced"), QStringLiteral("Best quality"), QStringLiteral("Custom…") }));
     QVERIFY(pdf::PDFDocumentToolCompress::getOfferedResolutions() == std::vector<int>({ 72, 96, 110, 150, 200, 300 }));
@@ -1600,10 +2110,10 @@ void DocumentToolCompressTest::collectImagesSameAsPlacements()
 
 void DocumentToolCompressTest::colorTransformOfOldEncodingDropped()
 {
-    // Skia of Chrome writes "/ColorTransform 0" next to the filter of an image, PDFImage honors
-    // it there. It says how the old samples are stored: kept for a new JPEG, which is in YCbCr,
-    // its Y, Cb, Cr are drawn as R, G, B - a green image became purple (found by
-    // "Finite element method - Wikipedia.pdf" of UnitTestsDocumentToolCorpus)
+    // Skia of Chrome writes "/ColorTransform 0" next to the filter of an image, where it means
+    // nothing (PDF Reference 1.7, Table 3.11: a parameter of the filter); DL is the decoded length
+    // of the old samples. Neither describes the new JPEG (found by "Finite element method -
+    // Wikipedia.pdf" of UnitTestsDocumentToolCorpus)
     constexpr int SIZE = 256;
     const QImage photo = CompressTestHelper::createPhoto(SIZE, 7).convertToFormat(QImage::Format_RGB888);
     QByteArray samples;
@@ -1615,7 +2125,7 @@ void DocumentToolCompressTest::colorTransformOfOldEncodingDropped()
 
     pdf::PDFDocumentBuilder builder;
     const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 200, 200));
-    const pdf::PDFObjectReference image = CompressTestHelper::addRawImage(builder, SIZE, SIZE, 8, pdf::PDFObject::createName("DeviceRGB"), samples, { { "ColorTransform", pdf::PDFObject::createInteger(0) } });
+    const pdf::PDFObjectReference image = CompressTestHelper::addRawImage(builder, SIZE, SIZE, 8, pdf::PDFObject::createName("DeviceRGB"), samples, { { "ColorTransform", pdf::PDFObject::createInteger(0) }, { "DL", pdf::PDFObject::createInteger(samples.size()) } });
     CompressTestHelper::setPage(builder, page, CompressTestHelper::createImageContent(SIZE), { { "Im", image } });
     const pdf::PDFDocument document = builder.build();
 
@@ -1628,6 +2138,7 @@ void DocumentToolCompressTest::colorTransformOfOldEncodingDropped()
     QVERIFY(imageObject.isStream());
     QVERIFY2(pdf::PDFImageOptimizer::readFilterName(output, imageObject.getStream()->getDictionary()) == QStringLiteral("DCTDecode"), "The image is encoded as a new JPEG");
     QVERIFY(!imageObject.getStream()->getDictionary()->hasKey("ColorTransform"));
+    QVERIFY(!imageObject.getStream()->getDictionary()->hasKey("DL"));
 
     // The image lies over 64 x 64 points of the page: the same colors within the JPEG artifacts
     const CompressTestHelper::DrawnPage before = CompressTestHelper::draw(document);
@@ -1638,6 +2149,156 @@ void DocumentToolCompressTest::colorTransformOfOldEncodingDropped()
         const QRgb second = after.at(point.x(), point.y());
         const int difference = qMax(qAbs(qRed(first) - qRed(second)), qMax(qAbs(qGreen(first) - qGreen(second)), qAbs(qBlue(first) - qBlue(second))));
         QVERIFY2(difference <= 32, qPrintable(QStringLiteral("At %1, %2: %3 became %4").arg(point.x()).arg(point.y()).arg(QColor(first).name(), QColor(second).name())));
+    }
+}
+
+void DocumentToolCompressTest::colorTransformOfTheFilter_data()
+{
+    // PDF Reference 1.7, Table 3.11: ColorTransform is a parameter of DCTDecode (0 = the samples
+    // are not transformed, the default of three components is 1), an Adobe marker overrides it.
+    // The JPEG of these rows is in YCbCr, the encoder writes no Adobe marker: drawn without the
+    // transformation, the red (220, 40, 40) is its Y, Cb, Cr (94, 98, 218).
+    QTest::addColumn<int>("kind");
+    QTest::addColumn<QRgb>("color");
+
+    const QRgb red = qRgb(220, 40, 40);
+    const QRgb notTransformed = qRgb(94, 98, 218);
+    QTest::newRow("no parameter") << 0 << red;
+    QTest::newRow("next to the filter, as Skia of Chrome writes it") << 1 << red;
+    QTest::newRow("parameter 1") << 2 << red;
+    QTest::newRow("parameter 0") << 3 << notTransformed;
+    QTest::newRow("parameter 0 in an array") << 4 << notTransformed;
+    QTest::newRow("parameter 0 of the last filter of a chain") << 5 << notTransformed;
+    QTest::newRow("parameter 0 of another filter of a chain") << 6 << red;
+    QTest::newRow("the Adobe marker overrides the parameter 0") << 7 << red;
+}
+
+void DocumentToolCompressTest::colorTransformOfTheFilter()
+{
+    QFETCH(int, kind);
+    QFETCH(QRgb, color);
+
+    constexpr int SIZE = 64;
+    QImage image(SIZE, SIZE, QImage::Format_RGB888);
+    image.fill(qRgb(220, 40, 40));
+
+    pdf::PDFImage::ImageEncodeOptions options;
+    options.compression = pdf::PDFImage::ImageCompression::JPEG;
+    options.jpegQuality = 95;
+    QByteArray jpeg = *pdf::PDFImage::createStreamFromImage(image, options).getContent();
+    QVERIFY(jpeg.startsWith("\xFF\xD8"));
+
+    const auto createParameter = [](int value)
+    {
+        pdf::PDFDictionaryBuilder parameter;
+        parameter.addEntry(pdf::PDFInplaceOrMemoryString("ColorTransform"), pdf::PDFObject::createInteger(value));
+        return pdf::PDFObject::createDictionary(std::move(parameter));
+    };
+    const auto createArray = [](std::initializer_list<pdf::PDFObject> items)
+    {
+        pdf::PDFArrayBuilder array;
+        for (const pdf::PDFObject& item : items)
+        {
+            array.appendItem(item);
+        }
+        return pdf::PDFObject::createArray(std::move(array));
+    };
+    const pdf::PDFObject dctDecode = pdf::PDFObject::createName("DCTDecode");
+    const pdf::PDFObject chain = createArray({ pdf::PDFObject::createName("FlateDecode"), dctDecode });
+
+    std::vector<std::pair<QByteArray, pdf::PDFObject>> extra;
+    switch (kind)
+    {
+        case 0:
+            extra = { { "Filter", dctDecode } };
+            break;
+        case 1:
+            extra = { { "Filter", dctDecode }, { "ColorTransform", pdf::PDFObject::createInteger(0) } };
+            break;
+        case 2:
+            extra = { { "Filter", dctDecode }, { "DecodeParms", createParameter(1) } };
+            break;
+        case 3:
+            extra = { { "Filter", dctDecode }, { "DecodeParms", createParameter(0) } };
+            break;
+        case 4:
+            extra = { { "Filter", createArray({ dctDecode }) }, { "DecodeParms", createArray({ createParameter(0) }) } };
+            break;
+        case 5:
+            extra = { { "Filter", chain }, { "DecodeParms", createArray({ pdf::PDFObject(), createParameter(0) }) } };
+            jpeg = pdf::PDFFlateDecodeFilter::compress(jpeg);
+            break;
+        case 6:
+            extra = { { "Filter", chain }, { "DecodeParms", createArray({ createParameter(0), pdf::PDFObject() }) } };
+            jpeg = pdf::PDFFlateDecodeFilter::compress(jpeg);
+            break;
+        case 7:
+        {
+            // The segment APP14 of Adobe behind the marker SOI: the last byte is the transformation
+            const QByteArray adobe = QByteArray::fromHex("FFEE000E41646F626500640000000001");
+            jpeg.insert(2, adobe);
+            extra = { { "Filter", dctDecode }, { "DecodeParms", createParameter(0) } };
+            break;
+        }
+        default:
+            QFAIL("Unknown row");
+    }
+
+    pdf::PDFDocumentBuilder builder;
+    const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 100, 100));
+    const pdf::PDFObjectReference imageReference = CompressTestHelper::addRawImage(builder, SIZE, SIZE, 8, pdf::PDFObject::createName("DeviceRGB"), jpeg, std::move(extra));
+    CompressTestHelper::setPage(builder, page, "q 100 0 0 100 0 0 cm /Im Do Q", { { "Im", imageReference } });
+
+    const CompressTestHelper::DrawnPage drawn = CompressTestHelper::draw(builder.build());
+    const QRgb pixel = drawn.at(50, 50);
+    const int difference = qMax(qAbs(qRed(pixel) - qRed(color)), qMax(qAbs(qGreen(pixel) - qGreen(color)), qAbs(qBlue(pixel) - qBlue(color))));
+    QVERIFY2(difference <= 6, qPrintable(QStringLiteral("%1 is not %2").arg(QColor(pixel).name(), QColor(color).name())));
+}
+
+void DocumentToolCompressTest::colorsOfChromeJpegKept()
+{
+    // A JPEG in YCbCr with "/ColorTransform 0" next to its filter, as in every PDF printed from
+    // Chrome. Read as a parameter of the filter, its Y, Cb, Cr would be drawn as R, G, B and also
+    // written so into the new JPEG: the file would stay in wrong colors for every other viewer.
+    constexpr int SIZE = 256;
+    QImage image(SIZE, SIZE, QImage::Format_RGB888);
+    QRandomGenerator generator(11);
+    for (int y = 0; y < SIZE; ++y)
+    {
+        for (int x = 0; x < SIZE; ++x)
+        {
+            const QRgb base = x < SIZE / 2 ? qRgb(220, 40, 40) : qRgb(40, 200, 60);
+            const auto noise = [&generator](int value) { return qBound(0, value + generator.bounded(-8, 9), 255); };
+            image.setPixel(x, y, qRgb(noise(qRed(base)), noise(qGreen(base)), noise(qBlue(base))));
+        }
+    }
+
+    pdf::PDFImage::ImageEncodeOptions options;
+    options.compression = pdf::PDFImage::ImageCompression::JPEG;
+    options.jpegQuality = 95;
+    const QByteArray jpeg = *pdf::PDFImage::createStreamFromImage(image, options).getContent();
+
+    pdf::PDFDocumentBuilder builder;
+    const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 100, 100));
+    const pdf::PDFObjectReference imageReference = CompressTestHelper::addRawImage(builder, SIZE, SIZE, 8, pdf::PDFObject::createName("DeviceRGB"), jpeg, { { "Filter", pdf::PDFObject::createName("DCTDecode") }, { "ColorTransform", pdf::PDFObject::createInteger(0) } });
+    CompressTestHelper::setPage(builder, page, "q 100 0 0 100 0 0 cm /Im Do Q", { { "Im", imageReference } });
+    const pdf::PDFDocument document = builder.build();
+
+    pdf::PDFDocumentToolCompress tool;
+    const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(document, CompressTestHelper::write(document)), CompressTestHelper::preset(pdf::PDFDocumentToolCompress::PRESET_SMALLER_FILE), nullptr, nullptr);
+    QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Success);
+    QCOMPARE(result.data.value(QStringLiteral("imagesRecompressed")).toInt(), 1);
+
+    const auto isNear = [](QRgb first, QRgb second)
+    {
+        return qMax(qAbs(qRed(first) - qRed(second)), qMax(qAbs(qGreen(first) - qGreen(second)), qAbs(qBlue(first) - qBlue(second)))) <= 16;
+    };
+    const pdf::PDFDocument* drawnDocuments[] = { &document, result.documents.front().document.data() };
+    for (const pdf::PDFDocument* drawnDocument : drawnDocuments)
+    {
+        const CompressTestHelper::DrawnPage drawn = CompressTestHelper::draw(*drawnDocument);
+        QVERIFY2(isNear(drawn.at(25, 50), qRgb(220, 40, 40)), qPrintable(QColor(drawn.at(25, 50)).name()));
+        QVERIFY2(isNear(drawn.at(75, 50), qRgb(40, 200, 60)), qPrintable(QColor(drawn.at(75, 50)).name()));
     }
 }
 
@@ -2583,6 +3244,812 @@ void DocumentToolCompressTest::eightThreadsOneInstance()
 
     QCOMPARE(successes.load(), 8);
     QCOMPARE(differentSizes.load(), 0);
+}
+
+void DocumentToolCompressTest::fileStructureDropped_data()
+{
+    using Helper = FileStructureTestHelper;
+
+    QTest::addColumn<int>("objectStreamCount");
+    QTest::addColumn<int>("paddingSize");
+    QTest::addColumn<bool>("isFlate");
+
+    // The padding is what no offset of the object stream leads to: it makes the dead
+    // container larger than what the unpacked objects add, so only its removal saves bytes
+    QTest::newRow("object-stream") << 1 << Helper::PADDING_SIZE << false;
+    QTest::newRow("object-stream-flate") << 1 << Helper::PADDING_SIZE << true;
+
+    // PDF Reference 1.7, Table 3.14: /Extends of one dead container to another one keeps nothing
+    QTest::newRow("extends") << 2 << Helper::PADDING_SIZE << false;
+}
+
+void DocumentToolCompressTest::fileStructureDropped()
+{
+    using Helper = FileStructureTestHelper;
+
+    QFETCH(int, objectStreamCount);
+    QFETCH(int, paddingSize);
+    QFETCH(bool, isFlate);
+
+    Helper::FileOptions options;
+    options.objectStreamCount = objectStreamCount;
+    options.paddingSize = paddingSize;
+    options.isFlate = isFlate;
+
+    // An unreferenced object of another kind: with the clean-up off it stays
+    pdf::PDFDocument source = Helper::createDocument();
+    pdf::PDFObjectReference orphan;
+    source = Helper::withObject(source, Helper::createDictionary("Orphan", pdf::PDFObject::createInteger(1)), &orphan);
+
+    const QByteArray file = Helper::createFile(source, options);
+    pdf::PDFDocumentReader::Result readerResult = pdf::PDFDocumentReader::Result::Failed;
+    const pdf::PDFDocument input = Helper::readStrict(file, QString(), &readerResult);
+    QCOMPARE(readerResult, pdf::PDFDocumentReader::Result::OK);
+
+    // What really stays after the reading: the containers are objects of the storage next
+    // to the unpacked objects, numbered after the objects of the source
+    const size_t firstContainer = source.getStorage().getObjects().size();
+    for (size_t i = 0; i < size_t(objectStreamCount); ++i)
+    {
+        QVERIFY(pdf::PDFObjectUtils::isObjectStream(input.getStorage().getObjects().at(firstContainer + i).object));
+    }
+    QVERIFY(input.getStorage().getObjects().at(firstContainer + objectStreamCount).object.isStream());
+    QVERIFY(input.getStorage().getObject(pdf::PDFObjectReference(orphan)).isDictionary());
+
+    pdf::PDFDocumentToolCompress tool;
+    const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(input, file, QStringLiteral("input.pdf"), false), Helper::createCustomWithoutCleanUp(), nullptr, nullptr);
+    QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Success);
+    QCOMPARE(result.documents.size(), size_t(1));
+    const pdf::PDFDocument& output = *result.documents.front().document;
+
+    // The file: no container left, written whole
+    const QByteArray written = CompressTestHelper::write(output);
+    QCOMPARE(result.data.value(QStringLiteral("sizeBefore")).toInteger(), qint64(file.size()));
+    QCOMPARE(result.data.value(QStringLiteral("sizeAfter")).toInteger(), qint64(written.size()));
+    QVERIFY(written.size() < file.size());
+    QVERIFY(!written.contains("/ObjStm"));
+    QVERIFY(!written.contains("/XRef"));
+    QVERIFY(!written.contains("/Extends"));
+    QVERIFY(!written.contains("/W ["));
+    QCOMPARE(written.count("%%EOF"), qsizetype(1));
+
+    // Every other object is the same, also the unreferenced one; the strict reader takes the file
+    pdf::PDFDocumentReader::Result writtenResult = pdf::PDFDocumentReader::Result::Failed;
+    const pdf::PDFDocument reopened = Helper::readStrict(written, QString(), &writtenResult);
+    QCOMPARE(writtenResult, pdf::PDFDocumentReader::Result::OK);
+
+    const pdf::PDFObjectStorage::PDFObjects& sourceObjects = source.getStorage().getObjects();
+    const pdf::PDFObjectStorage::PDFObjects& reopenedObjects = reopened.getStorage().getObjects();
+    QCOMPARE(reopenedObjects.size(), input.getStorage().getObjects().size());
+    for (size_t i = 1; i < reopenedObjects.size(); ++i)
+    {
+        if (i < sourceObjects.size())
+        {
+            QVERIFY2(reopenedObjects[i].object == sourceObjects[i].object, qPrintable(QStringLiteral("object %1").arg(i)));
+        }
+        else
+        {
+            QVERIFY2(reopenedObjects[i].object.isNull(), qPrintable(QStringLiteral("container %1").arg(i)));
+        }
+    }
+
+    // Every page draws the same: the red rectangle at 10 ... 60 of the page of 200 points,
+    // which is at 5 ... 30 of the picture of 100 pixels; the page number moves it
+    QCOMPARE(reopened.getCatalog()->getPageCount(), size_t(Helper::PAGE_COUNT));
+    for (size_t page = 0; page < size_t(Helper::PAGE_COUNT); ++page)
+    {
+        const CompressTestHelper::DrawnPage drawnInput = CompressTestHelper::draw(input, page);
+        const CompressTestHelper::DrawnPage drawn = CompressTestHelper::draw(reopened, page);
+        QVERIFY(drawn.errors.isEmpty());
+        QCOMPARE(drawn.image, drawnInput.image);
+        QCOMPARE(drawn.at(10, 10 + int(page) * 10), qRgb(255, 0, 0));
+        QCOMPARE(drawn.at(50, 50), qRgb(255, 255, 255));
+    }
+}
+
+void DocumentToolCompressTest::fileStructureUnusedCounter()
+{
+    using Helper = FileStructureTestHelper;
+
+    // With the clean-up on the optimizer still removes the containers and says so
+    // (Figma 303:4897): its counter does not change by the step behind it
+    Helper::FileOptions options;
+    options.objectStreamCount = 2;
+
+    const pdf::PDFDocument source = Helper::createDocument();
+    const QByteArray file = Helper::createFile(source, options);
+    const pdf::PDFDocument input = Helper::readStrict(file);
+    QVERIFY(input.getStorage().getObjects().size() > 0);
+
+    pdf::PDFDocumentToolCompress::Settings settings;
+    settings.images = pdf::PDFImageOptimizer::Settings::createDefault();
+    settings.images.enabled = false;
+    settings.structure = pdf::PDFOptimizer::RemoveUnusedObjects;
+
+    pdf::PDFDocumentToolCompress::Statistics statistics;
+    const pdf::PDFDocument output = pdf::PDFDocumentToolCompress::compress(&input, settings, nullptr, pdf::PDFDocumentToolCompress::Progress(), &statistics);
+
+    // The two object streams and the cross-reference stream: nothing else of the source is unused
+    QCOMPARE(statistics.structure.unusedObjectsRemoved, qint64(3));
+    QVERIFY(!CompressTestHelper::write(output).contains("/ObjStm"));
+}
+
+void DocumentToolCompressTest::fileStructureReferenced_data()
+{
+    QTest::addColumn<QString>("kind");
+    QTest::addColumn<bool>("isFirstObjectStreamKept");
+    QTest::addColumn<bool>("isSecondObjectStreamKept");
+    QTest::addColumn<bool>("isCrossReferenceStreamKept");
+
+    // A hostile document references a container: it stays, nothing dangling is produced;
+    // the second object stream /Extends the first one, which does not hold the second one
+    QTest::newRow("catalog-to-object-stream") << QStringLiteral("catalog") << true << false << false;
+    QTest::newRow("unreachable-object-to-object-stream") << QStringLiteral("orphan") << true << false << false;
+    QTest::newRow("dictionary-of-a-stream-to-object-stream") << QStringLiteral("stream") << true << false << false;
+    QTest::newRow("other-generation-to-object-stream") << QStringLiteral("generation") << true << false << false;
+    QTest::newRow("catalog-to-cross-reference-stream") << QStringLiteral("xref") << false << false << true;
+
+    // The kept container references another one by /Extends: it stays with it
+    QTest::newRow("catalog-to-extending-object-stream") << QStringLiteral("extends") << true << true << false;
+}
+
+void DocumentToolCompressTest::fileStructureReferenced()
+{
+    using Helper = FileStructureTestHelper;
+
+    QFETCH(QString, kind);
+    QFETCH(bool, isFirstObjectStreamKept);
+    QFETCH(bool, isSecondObjectStreamKept);
+    QFETCH(bool, isCrossReferenceStreamKept);
+
+    pdf::PDFDocument source = Helper::createDocument();
+
+    // Numbers of the objects of the file: an optional object of the test, then the two
+    // object streams (the second one /Extends the first one), then the cross-reference stream
+    const bool hasOrphan = kind == QLatin1String("orphan") || kind == QLatin1String("stream");
+    const pdf::PDFInteger firstObjectStream = pdf::PDFInteger(source.getStorage().getObjects().size()) + (hasOrphan ? 1 : 0);
+    const pdf::PDFInteger secondObjectStream = firstObjectStream + 1;
+    const pdf::PDFInteger crossReferenceStream = firstObjectStream + 2;
+
+    if (kind == QLatin1String("catalog"))
+    {
+        source = Helper::withCatalogEntry(source, "Hostile", pdf::PDFObject::createReference(pdf::PDFObjectReference(firstObjectStream, 0)));
+    }
+    else if (kind == QLatin1String("extends"))
+    {
+        source = Helper::withCatalogEntry(source, "Hostile", pdf::PDFObject::createReference(pdf::PDFObjectReference(secondObjectStream, 0)));
+    }
+    else if (kind == QLatin1String("generation"))
+    {
+        source = Helper::withCatalogEntry(source, "Hostile", pdf::PDFObject::createReference(pdf::PDFObjectReference(firstObjectStream, 5)));
+    }
+    else if (kind == QLatin1String("xref"))
+    {
+        source = Helper::withCatalogEntry(source, "Hostile", pdf::PDFObject::createReference(pdf::PDFObjectReference(crossReferenceStream, 0)));
+    }
+    else if (kind == QLatin1String("stream"))
+    {
+        pdf::PDFObjectReference orphan;
+        source = Helper::withObject(source, Helper::createStream({ { "Hostile", pdf::PDFObject::createReference(pdf::PDFObjectReference(firstObjectStream, 0)) } }), &orphan);
+    }
+    else
+    {
+        QCOMPARE(kind, QStringLiteral("orphan"));
+        pdf::PDFObjectReference orphan;
+        source = Helper::withObject(source, Helper::createDictionary("Hostile", pdf::PDFObject::createReference(pdf::PDFObjectReference(firstObjectStream, 0))), &orphan);
+    }
+
+    Helper::FileOptions options;
+    options.objectStreamCount = 2;
+    const QByteArray file = Helper::createFile(source, options);
+    const pdf::PDFDocument input = Helper::readStrict(file);
+    QVERIFY(pdf::PDFObjectUtils::isObjectStream(input.getStorage().getObjects().at(size_t(secondObjectStream)).object));
+
+    pdf::PDFDocumentToolCompress::Settings settings = pdf::PDFDocumentToolCompress::createSettings(Helper::createCustomWithoutCleanUp());
+    const pdf::PDFDocument output = pdf::PDFDocumentToolCompress::compress(&input, settings, nullptr, pdf::PDFDocumentToolCompress::Progress(), nullptr);
+
+    const QByteArray written = CompressTestHelper::write(output);
+    pdf::PDFDocumentReader::Result writtenResult = pdf::PDFDocumentReader::Result::Failed;
+    const pdf::PDFDocument reopened = Helper::readStrict(written, QString(), &writtenResult);
+    QCOMPARE(writtenResult, pdf::PDFDocumentReader::Result::OK);
+
+    const pdf::PDFObjectStorage::PDFObjects& inputObjects = input.getStorage().getObjects();
+    const pdf::PDFObjectStorage::PDFObjects& reopenedObjects = reopened.getStorage().getObjects();
+    QCOMPARE(reopenedObjects.at(size_t(firstObjectStream)).object == inputObjects.at(size_t(firstObjectStream)).object, isFirstObjectStreamKept);
+    QCOMPARE(reopenedObjects.at(size_t(firstObjectStream)).object.isNull(), !isFirstObjectStreamKept);
+    QCOMPARE(reopenedObjects.at(size_t(secondObjectStream)).object == inputObjects.at(size_t(secondObjectStream)).object, isSecondObjectStreamKept);
+    QCOMPARE(reopenedObjects.at(size_t(secondObjectStream)).object.isNull(), !isSecondObjectStreamKept);
+    QCOMPARE(reopenedObjects.at(size_t(crossReferenceStream)).object.isNull(), !isCrossReferenceStreamKept);
+    QCOMPARE(written.contains("/ObjStm"), isFirstObjectStreamKept || isSecondObjectStreamKept);
+    QCOMPARE(written.contains("/XRef"), isCrossReferenceStreamKept);
+
+    // No reference, which led to an object, leads nowhere now
+    std::set<pdf::PDFObjectReference> references = pdf::PDFObjectUtils::getReferences({ reopened.getStorage().getTrailerDictionary() }, reopened.getStorage());
+    for (const pdf::PDFObjectStorage::Entry& entry : reopenedObjects)
+    {
+        references.merge(pdf::PDFObjectUtils::getDirectReferences(entry.object));
+    }
+    for (const pdf::PDFObjectReference& reference : references)
+    {
+        const bool isResolvedBefore = !input.getStorage().getObject(pdf::PDFObjectReference(reference)).isNull();
+        const bool isResolved = !reopened.getStorage().getObject(pdf::PDFObjectReference(reference)).isNull();
+        QVERIFY2(!isResolvedBefore || isResolved, qPrintable(QStringLiteral("reference %1 %2").arg(reference.objectNumber).arg(reference.generation)));
+    }
+}
+
+void DocumentToolCompressTest::fileStructureReferencedByTrailer()
+{
+    using Helper = FileStructureTestHelper;
+
+    // The trailer is the root of the references: a container named by any of its entries stays
+    for (const char* key : { "Info", "Encrypt", "ID", "AnotherKey" })
+    {
+        pdf::PDFObjectStorage storage = Helper::createDocument().getStorage();
+        const pdf::PDFObjectReference objectStream = storage.addObject(Helper::createStream({ { "Type", pdf::PDFObject::createName("ObjStm") }, { "N", pdf::PDFObject::createInteger(0) }, { "First", pdf::PDFObject::createInteger(0) } }));
+
+        pdf::PDFDictionaryBuilder trailer(*storage.getTrailerDictionary().getDictionary());
+        trailer.setEntry(pdf::PDFInplaceOrMemoryString(key), pdf::PDFObject::createReference(objectStream));
+        storage.setTrailerDictionary(pdf::PDFObject::createDictionary(std::move(trailer)));
+
+        QCOMPARE(pdf::PDFObjectUtils::removeFileStructureObjects(storage), qint64(0));
+        QVERIFY(storage.getObject(objectStream).isStream());
+    }
+}
+
+void DocumentToolCompressTest::fileStructureLinearized_data()
+{
+    QTest::addColumn<bool>("hasOverflow");
+    QTest::addColumn<bool>("isFlate");
+
+    // PDF Reference 1.7, Table F.1: /H of two numbers, of four numbers with the overflow hint stream
+    QTest::newRow("primary") << false << false;
+    QTest::newRow("primary-flate") << false << true;
+    QTest::newRow("overflow") << true << false;
+}
+
+void DocumentToolCompressTest::fileStructureLinearized()
+{
+    using Helper = FileStructureTestHelper;
+
+    QFETCH(bool, hasOverflow);
+    QFETCH(bool, isFlate);
+
+    const pdf::PDFDocument source = Helper::createDocument();
+    const size_t linearizationNumber = source.getStorage().getObjects().size();
+
+    Helper::LinearizedOptions options;
+    options.hasOverflow = hasOverflow;
+    options.isFlate = isFlate;
+    const QByteArray file = Helper::createLinearizedFile(source, options);
+
+    // The input is a file of Appendix F: the dictionary at its beginning says the length of the file
+    QVERIFY(file.left(256).contains("/Linearized"));
+    QVERIFY(file.contains("/L " + QByteArray::number(file.size()).rightJustified(10, '0')));
+
+    pdf::PDFDocumentReader::Result readerResult = pdf::PDFDocumentReader::Result::Failed;
+    const pdf::PDFDocument input = Helper::readStrict(file, QString(), &readerResult);
+    QCOMPARE(readerResult, pdf::PDFDocumentReader::Result::OK);
+    QVERIFY(input.getStorage().getObjects().at(linearizationNumber).object.isDictionary());
+    QVERIFY(input.getStorage().getObjects().at(linearizationNumber + 1).object.isStream());
+    QCOMPARE(input.getStorage().getObjects().size(), linearizationNumber + (hasOverflow ? 3 : 2));
+
+    pdf::PDFDocumentToolCompress tool;
+    const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(input, file, QStringLiteral("input.pdf"), false), Helper::createCustomWithoutCleanUp(), nullptr, nullptr);
+    QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Success);
+
+    const QByteArray written = CompressTestHelper::write(*result.documents.front().document);
+    QVERIFY(!written.contains("/Linearized"));
+    QVERIFY(!written.contains(Helper::HINT_MARKER));
+    QVERIFY(!written.contains(Helper::OVERFLOW_MARKER));
+    QVERIFY(!written.contains("/S 16"));
+
+    // The hint tables are gone, the pages are not
+    pdf::PDFDocumentReader::Result writtenResult = pdf::PDFDocumentReader::Result::Failed;
+    const pdf::PDFDocument reopened = Helper::readStrict(written, QString(), &writtenResult);
+    QCOMPARE(writtenResult, pdf::PDFDocumentReader::Result::OK);
+    const pdf::PDFObjectStorage::PDFObjects& sourceObjects = source.getStorage().getObjects();
+    for (size_t i = 1; i < sourceObjects.size(); ++i)
+    {
+        QVERIFY(reopened.getStorage().getObjects().at(i).object == sourceObjects[i].object);
+    }
+    QCOMPARE(CompressTestHelper::draw(reopened, 0).at(10, 10), qRgb(255, 0, 0));
+}
+
+void DocumentToolCompressTest::fileStructureLinearizedReferenced()
+{
+    using Helper = FileStructureTestHelper;
+
+    // A hostile catalog references the hint stream: it stays, the dictionary goes
+    {
+        const pdf::PDFDocument plain = Helper::createDocument();
+        const pdf::PDFInteger linearizationNumber = pdf::PDFInteger(plain.getStorage().getObjects().size());
+        const pdf::PDFDocument source = Helper::withCatalogEntry(plain, "Hostile", pdf::PDFObject::createReference(pdf::PDFObjectReference(linearizationNumber + 1, 0)));
+        const pdf::PDFDocument input = Helper::readStrict(Helper::createLinearizedFile(source, Helper::LinearizedOptions()));
+
+        pdf::PDFObjectStorage storage = input.getStorage();
+        QCOMPARE(pdf::PDFObjectUtils::removeFileStructureObjects(storage), qint64(1));
+        QVERIFY(storage.getObjects().at(size_t(linearizationNumber)).object.isNull());
+        QVERIFY(storage.getObjects().at(size_t(linearizationNumber + 1)).object.isStream());
+    }
+
+    // A hostile catalog references the dictionary: it stays with its old length of the file,
+    // so the written file is not linearized for a reader (Table F.1, the entry L: "A mismatch
+    // indicates that the file is not linearized"); the hint stream goes
+    {
+        const pdf::PDFDocument plain = Helper::createDocument();
+        const pdf::PDFInteger linearizationNumber = pdf::PDFInteger(plain.getStorage().getObjects().size());
+        const pdf::PDFDocument source = Helper::withCatalogEntry(plain, "Hostile", pdf::PDFObject::createReference(pdf::PDFObjectReference(linearizationNumber, 0)));
+        const QByteArray file = Helper::createLinearizedFile(source, Helper::LinearizedOptions());
+        const pdf::PDFDocument input = Helper::readStrict(file);
+
+        pdf::PDFObjectStorage storage = input.getStorage();
+        QCOMPARE(pdf::PDFObjectUtils::removeFileStructureObjects(storage), qint64(1));
+        QVERIFY(storage.getObjects().at(size_t(linearizationNumber)).object.isDictionary());
+        QVERIFY(storage.getObjects().at(size_t(linearizationNumber + 1)).object.isNull());
+
+        const pdf::PDFDocument output = pdf::PDFDocumentTool::createWholeFileDocument(std::move(storage), &input);
+        const QByteArray written = CompressTestHelper::write(output);
+        QVERIFY(written.size() != file.size());
+        QVERIFY(written.contains("/L " + QByteArray::number(file.size())));
+    }
+
+    // The overflow hint stream is told by the last number of /H: a stream of the plain
+    // attributes of at most that length (F.2.5) goes, a longer one is another object
+    {
+        pdf::PDFObjectStorage storage = Helper::createDocument().getStorage();
+        storage.addObject(Helper::createDictionaryOf({ { "Linearized", pdf::PDFObject::createReal(1.0) }, { "L", pdf::PDFObject::createInteger(1) }, { "H", Helper::createIntegers({ 1, 2, 3, 10 }) }, { "O", pdf::PDFObject::createInteger(1) }, { "E", pdf::PDFObject::createInteger(1) }, { "N", pdf::PDFObject::createInteger(1) }, { "T", pdf::PDFObject::createInteger(1) } }));
+
+        const pdf::PDFObjectReference atTheLimit = storage.addObject(CompressTestHelper::createStreamObject(QByteArray(10, 'x')));
+        const pdf::PDFObjectReference overTheLimit = storage.addObject(CompressTestHelper::createStreamObject(QByteArray(11, 'x')));
+
+        QCOMPARE(pdf::PDFObjectUtils::removeFileStructureObjects(storage), qint64(2));
+        QVERIFY(storage.getObject(pdf::PDFObjectReference(atTheLimit)).isNull());
+        QVERIFY(storage.getObject(pdf::PDFObjectReference(overTheLimit)).isStream());
+    }
+}
+
+void DocumentToolCompressTest::fileStructureLookalikes_data()
+{
+    using Helper = FileStructureTestHelper;
+    using Object = pdf::PDFObject;
+    using Reference = pdf::PDFObjectReference;
+
+    QTest::addColumn<pdf::PDFObject>("object");
+    QTest::addColumn<bool>("isLinearized");
+    QTest::addColumn<bool>("isRemoved");
+
+    const Object integer = Object::createInteger(1);
+    const Object name = Object::createName("FlateDecode");
+
+    // Containers of the file structure identify themselves by the required entries of their tables
+    QTest::newRow("object-stream") << Helper::createStream({ { "Type", Object::createName("ObjStm") }, { "N", integer }, { "First", integer } }) << false << true;
+    QTest::newRow("object-stream-without-n") << Helper::createStream({ { "Type", Object::createName("ObjStm") }, { "First", integer } }) << false << false;
+    QTest::newRow("object-stream-without-first") << Helper::createStream({ { "Type", Object::createName("ObjStm") }, { "N", integer } }) << false << false;
+    QTest::newRow("object-stream-type-string") << Helper::createStream({ { "Type", Object::createString("ObjStm") }, { "N", integer }, { "First", integer } }) << false << false;
+    QTest::newRow("object-stream-dictionary") << Helper::createDictionaryOf({ { "Type", Object::createName("ObjStm") }, { "N", integer }, { "First", integer } }) << false << false;
+    QTest::newRow("xref-stream") << Helper::createStream({ { "Type", Object::createName("XRef") }, { "Size", integer }, { "W", Helper::createIntegers({ 1, 2, 1 }) } }) << false << true;
+    QTest::newRow("xref-stream-without-size") << Helper::createStream({ { "Type", Object::createName("XRef") }, { "W", Helper::createIntegers({ 1, 2, 1 }) } }) << false << false;
+    QTest::newRow("xref-stream-without-w") << Helper::createStream({ { "Type", Object::createName("XRef") }, { "Size", integer } }) << false << false;
+    QTest::newRow("xref-dictionary") << Helper::createDictionaryOf({ { "Type", Object::createName("XRef") }, { "Size", integer }, { "W", Helper::createIntegers({ 1, 2, 1 }) } }) << false << false;
+
+    // Linearization parameter dictionary: Table F.1
+    const auto createLinearization = [integer](Object version, Object hints)
+    {
+        return Helper::createDictionaryOf({ { "Linearized", std::move(version) }, { "L", integer }, { "H", std::move(hints) }, { "O", integer }, { "E", integer }, { "N", integer }, { "T", integer } });
+    };
+    QTest::newRow("linearization") << createLinearization(Object::createReal(1.0), Helper::createIntegers({ 1, 2 })) << false << true;
+    QTest::newRow("linearization-integer-version") << createLinearization(integer, Helper::createIntegers({ 1, 2, 3, 4 })) << false << true;
+    QTest::newRow("linearization-name-version") << createLinearization(name, Helper::createIntegers({ 1, 2 })) << false << false;
+    QTest::newRow("linearization-three-hints") << createLinearization(integer, Helper::createIntegers({ 1, 2, 3 })) << false << false;
+    QTest::newRow("linearization-empty-hints") << createLinearization(integer, Helper::createIntegers({ })) << false << false;
+    QTest::newRow("linearization-real-hints") << createLinearization(integer, CompressTestHelper::createNumberArray({ 1.0, 2.0 })) << false << false;
+    QTest::newRow("linearization-without-length") << Helper::createDictionaryOf({ { "Linearized", integer }, { "H", Helper::createIntegers({ 1, 2 }) }, { "O", integer }, { "E", integer }, { "N", integer }, { "T", integer } }) << false << false;
+    QTest::newRow("linearization-stream") << Helper::createStream({ { "Linearized", integer }, { "L", integer }, { "H", Helper::createIntegers({ 1, 2 }) }, { "O", integer }, { "E", integer }, { "N", integer }, { "T", integer } }) << false << false;
+
+    // Hint streams: F.2.5, Table F.2 - only in a linearized file, a stream without a type,
+    // direct entries, the required position S, positions of further tables
+    const Object position = Object::createInteger(16);
+    const Object reference = Object::createReference(Reference(1, 0));
+    QTest::newRow("hint-of-linearized-file") << Helper::createStream({ { "S", position } }) << true << true;
+    QTest::newRow("hint-with-further-tables") << Helper::createStream({ { "S", position }, { "O", position }, { "Future", position }, { "Filter", name } }) << true << true;
+    QTest::newRow("hint-indirect-length") << Helper::createStream({ { "S", position }, { "Length", reference } }) << true << true;
+    QTest::newRow("hint-of-other-file") << Helper::createStream({ { "S", position } }) << false << false;
+    QTest::newRow("hint-with-type") << Helper::createStream({ { "Type", Object::createName("Hint") }, { "S", position } }) << true << false;
+    QTest::newRow("hint-with-subtype") << Helper::createStream({ { "Subtype", Object::createName("Image") }, { "S", position } }) << true << false;
+    QTest::newRow("hint-position-reference") << Helper::createStream({ { "S", reference } }) << true << false;
+    QTest::newRow("hint-position-name") << Helper::createStream({ { "S", name } }) << true << false;
+    QTest::newRow("hint-without-position") << Helper::createStream({ { "T", position } }) << true << false;
+    QTest::newRow("hint-other-entry-name") << Helper::createStream({ { "S", position }, { "Note", name } }) << true << false;
+    QTest::newRow("hint-filter-reference") << Helper::createStream({ { "S", position }, { "Filter", reference } }) << true << false;
+    QTest::newRow("hint-length-name") << Helper::createStream({ { "S", position }, { "Length", name } }) << true << false;
+    QTest::newRow("hint-dictionary") << Helper::createDictionaryOf({ { "S", position } }) << true << false;
+    QTest::newRow("plain-stream-of-linearized-file") << Helper::createStream({ }) << true << false;
+}
+
+void DocumentToolCompressTest::fileStructureLookalikes()
+{
+    using Helper = FileStructureTestHelper;
+
+    QFETCH(pdf::PDFObject, object);
+    QFETCH(bool, isLinearized);
+    QFETCH(bool, isRemoved);
+
+    pdf::PDFObjectStorage storage = Helper::createDocument().getStorage();
+    qint64 expectedCount = isRemoved ? 1 : 0;
+
+    if (isLinearized)
+    {
+        // The dictionary of a linearized file goes as well
+        storage.addObject(Helper::createDictionaryOf({ { "Linearized", pdf::PDFObject::createReal(1.0) }, { "L", pdf::PDFObject::createInteger(1) }, { "H", Helper::createIntegers({ 1, 2 }) }, { "O", pdf::PDFObject::createInteger(1) }, { "E", pdf::PDFObject::createInteger(1) }, { "N", pdf::PDFObject::createInteger(1) }, { "T", pdf::PDFObject::createInteger(1) } }));
+        ++expectedCount;
+    }
+
+    const pdf::PDFObjectReference reference = storage.addObject(object);
+    const pdf::PDFObjectStorage::PDFObjects before = storage.getObjects();
+
+    QCOMPARE(pdf::PDFObjectUtils::removeFileStructureObjects(storage), expectedCount);
+    QCOMPARE(storage.getObject(pdf::PDFObjectReference(reference)).isNull(), isRemoved);
+
+    // Nothing else changes, the numbers of the objects stay
+    QCOMPARE(storage.getObjects().size(), before.size());
+    for (size_t i = 0; i < before.size() - (isLinearized ? 2 : 1); ++i)
+    {
+        QVERIFY(storage.getObjects().at(i).object == before.at(i).object);
+    }
+}
+
+void DocumentToolCompressTest::fileStructureEncrypted()
+{
+    using Helper = FileStructureTestHelper;
+
+    const QString password = QStringLiteral("user-secret");
+    const QByteArray secret("TEXT-OF-THE-TITLE");
+
+    // A reference leading nowhere makes the tool read the object stream, which is
+    // encrypted: all of its objects are unpacked, so it goes
+    pdf::PDFDocument plain = Helper::withCatalogEntry(Helper::createDocument(), "Note", pdf::PDFObject::createString(secret));
+    plain = Helper::withCatalogEntry(plain, "Dangling", pdf::PDFObject::createReference(pdf::PDFObjectReference(5000, 0)));
+    pdf::PDFDocumentBuilder builder(&plain);
+    pdf::PDFSecurityHandlerFactory::SecuritySettings settings;
+    settings.algorithm = pdf::PDFSecurityHandlerFactory::AES_256;
+    settings.userPassword = password;
+    settings.ownerPassword = QStringLiteral("owner-secret");
+    settings.permissions = 0xFFFFFFFCu;
+    builder.setSecurityHandler(pdf::PDFSecurityHandlerFactory::createSecurityHandler(settings));
+    const pdf::PDFDocument built = builder.build();
+
+    Helper::FileOptions options;
+    options.paddingSize = Helper::PADDING_SIZE;
+    const QByteArray file = Helper::createFile(built, options);
+    QVERIFY(!file.contains(secret));
+
+    pdf::PDFDocumentReader::Result readerResult = pdf::PDFDocumentReader::Result::Failed;
+    const pdf::PDFDocument input = Helper::readStrict(file, password, &readerResult);
+    QCOMPARE(readerResult, pdf::PDFDocumentReader::Result::OK);
+    QCOMPARE(input.getCatalog()->getPageCount(), size_t(Helper::PAGE_COUNT));
+
+    pdf::PDFDocumentToolCompress tool;
+    const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(input, file, QStringLiteral("input.pdf"), false), Helper::createCustomWithoutCleanUp(), nullptr, nullptr);
+    QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Success);
+
+    // The file has the encryption dictionary, no container and no plain text
+    const QByteArray written = CompressTestHelper::write(*result.documents.front().document);
+    QVERIFY(written.contains("/Encrypt"));
+    QVERIFY(!written.contains("/ObjStm"));
+    QVERIFY(!written.contains("/XRef"));
+    QVERIFY(!written.contains(secret));
+
+    // It asks for the password and opens with it
+    pdf::PDFDocumentReader::Result withoutPassword = pdf::PDFDocumentReader::Result::OK;
+    Helper::readStrict(written, QString(), &withoutPassword);
+    QVERIFY(withoutPassword != pdf::PDFDocumentReader::Result::OK);
+
+    pdf::PDFDocumentReader::Result withPassword = pdf::PDFDocumentReader::Result::Failed;
+    const pdf::PDFDocument reopened = Helper::readStrict(written, password, &withPassword);
+    QCOMPARE(withPassword, pdf::PDFDocumentReader::Result::OK);
+    QCOMPARE(reopened.getStorage().getSecurityHandler()->getMode(), input.getStorage().getSecurityHandler()->getMode());
+
+    const pdf::PDFObject rootObject = reopened.getTrailerDictionary()->get("Root");
+    QCOMPARE(reopened.getObject(rootObject).getDictionary()->get("Note").getString(), secret);
+    QCOMPARE(CompressTestHelper::draw(reopened, 0).at(10, 10), qRgb(255, 0, 0));
+}
+
+void DocumentToolCompressTest::fileStructureIncrementalUpdate()
+{
+    using Helper = FileStructureTestHelper;
+
+    // PDF Reference 1.7, 3.4.7: the sections of the original still lead into its object
+    // streams. A document without its containers, updated incrementally, drops nothing.
+    const pdf::PDFDocument source = Helper::createDocument();
+    const QByteArray file = Helper::createFile(source, Helper::FileOptions());
+    const pdf::PDFDocument input = Helper::readStrict(file);
+
+    pdf::PDFObjectStorage storage = input.getStorage();
+    QCOMPARE(pdf::PDFObjectUtils::removeFileStructureObjects(storage), qint64(2));
+    const pdf::PDFDocument withoutContainers = pdf::PDFDocumentTool::createWholeFileDocument(std::move(storage), &input);
+
+    QByteArray updated;
+    {
+        QBuffer buffer(&updated);
+        buffer.open(QIODevice::WriteOnly);
+        pdf::PDFDocumentWriter writer(nullptr);
+        QVERIFY(bool(writer.writeIncrementalUpdate(&buffer, file, &withoutContainers)));
+    }
+    QVERIFY(updated.startsWith(file));
+
+    pdf::PDFDocumentReader::Result readerResult = pdf::PDFDocumentReader::Result::Failed;
+    const pdf::PDFDocument reopened = Helper::readStrict(updated, QString(), &readerResult);
+    QCOMPARE(readerResult, pdf::PDFDocumentReader::Result::OK);
+
+    // Every object of the source is still in the file and the object stream too
+    const pdf::PDFObjectStorage::PDFObjects& sourceObjects = source.getStorage().getObjects();
+    for (size_t i = 1; i < sourceObjects.size(); ++i)
+    {
+        QVERIFY(reopened.getStorage().getObjects().at(i).object == sourceObjects[i].object);
+    }
+    QVERIFY(pdf::PDFObjectUtils::isObjectStream(reopened.getStorage().getObjects().at(sourceObjects.size()).object));
+
+    // Another object under the number of the object stream would take the objects in
+    // it away from the file: the update is refused, nothing is written
+    pdf::PDFObjectStorage renumberedStorage = input.getStorage();
+    pdf::PDFObjectStorage::PDFObjects renumberedObjects = renumberedStorage.getObjects();
+    renumberedObjects[sourceObjects.size()].object = Helper::createDictionary("Moved", pdf::PDFObject::createInteger(1));
+    renumberedStorage.setObjects(std::move(renumberedObjects));
+    const pdf::PDFDocument renumbered(std::move(renumberedStorage), input.getInfo()->version, QByteArray());
+
+    QByteArray refused;
+    {
+        QBuffer buffer(&refused);
+        buffer.open(QIODevice::WriteOnly);
+        pdf::PDFDocumentWriter writer(nullptr);
+        QVERIFY(!bool(writer.writeIncrementalUpdate(&buffer, file, &renumbered)));
+    }
+    QVERIFY(refused.isEmpty());
+}
+
+void DocumentToolCompressTest::fileStructureDamagedRead()
+{
+    using Helper = FileStructureTestHelper;
+
+    // A damaged file (the offset of startxref leads nowhere) with a classic trailer: the
+    // permissive reader rebuilds the objects by their "obj" marks and does not unpack the object
+    // stream. The annotation of the page is only in it (PDF Reference 1.7, 3.4.6), so the stream
+    // is the only copy of it and the tool must not remove it from the file.
+    const QByteArray annotation("<< /Type /Annot /Subtype /Text /Rect [ 0 0 10 10 ] /Contents (ONLY-COPY-OF-THE-NOTE) >>");
+    const QByteArray pairs("5 0 ");
+    const QByteArray content = pairs + annotation;
+
+    QByteArray file("%PDF-1.5\r\n");
+    file += "1 0 obj\r\n<< /Type /Catalog /Pages 2 0 R >>\r\nendobj\r\n";
+    file += "2 0 obj\r\n<< /Type /Pages /Kids [ 3 0 R ] /Count 1 >>\r\nendobj\r\n";
+    file += "3 0 obj\r\n<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 200 200 ] /Annots [ 5 0 R ] >>\r\nendobj\r\n";
+    file += "4 0 obj\r\n<< /Type /ObjStm /N 1 /First " + QByteArray::number(pairs.size()) + " /Length " + QByteArray::number(content.size()) + " >>\r\nstream\r\n" + content + "\r\nendstream\r\nendobj\r\n";
+    file += "6 0 obj\r\n<< /Unrelated 1 >>\r\nendobj\r\n";
+    file += "trailer\r\n<< /Size 7 /Root 1 0 R >>\r\nstartxref\r\n999999\r\n%%EOF\r\n";
+
+    pdf::PDFDocumentReader strict(nullptr, nullptr, false, false);
+    strict.readFromBuffer(file);
+    QVERIFY(strict.getReadingResult() != pdf::PDFDocumentReader::Result::OK);
+
+    pdf::PDFDocumentReader permissive(nullptr, nullptr, true, false);
+    const pdf::PDFDocument input = permissive.readFromBuffer(file);
+    QCOMPARE(permissive.getReadingResult(), pdf::PDFDocumentReader::Result::OK);
+    QCOMPARE(input.getCatalog()->getPageCount(), size_t(1));
+    QVERIFY(pdf::PDFObjectUtils::isObjectStream(input.getStorage().getObject(pdf::PDFObjectReference(4, 0))));
+    QVERIFY(input.getStorage().getObject(pdf::PDFObjectReference(5, 0)).isNull());
+    QCOMPARE(input.getStorage().getObjects().size(), size_t(7));
+
+    pdf::PDFDocumentToolCompress::Settings settings = pdf::PDFDocumentToolCompress::createSettings(Helper::createCustomWithoutCleanUp());
+    const pdf::PDFDocument output = pdf::PDFDocumentToolCompress::compress(&input, settings, nullptr, pdf::PDFDocumentToolCompress::Progress(), nullptr);
+    const QByteArray written = CompressTestHelper::write(output);
+    QVERIFY(written.contains("/ObjStm"));
+    QVERIFY(written.contains("ONLY-COPY-OF-THE-NOTE"));
+
+    // A file with cross-reference streams only has no trailer keyword: the permissive reader
+    // finds no catalog, so its object streams are never the only copy in an opened document
+    const QByteArray withoutTrailer = Helper::createFile(Helper::createDocument(), Helper::FileOptions()).replace("startxref\r\n", "startxref\r\n9");
+    pdf::PDFDocumentReader permissiveWithoutTrailer(nullptr, nullptr, true, false);
+    permissiveWithoutTrailer.readFromBuffer(withoutTrailer);
+    QCOMPARE(permissiveWithoutTrailer.getReadingResult(), pdf::PDFDocumentReader::Result::Failed);
+}
+
+void DocumentToolCompressTest::fileStructureMissingObjects_data()
+{
+    QTest::addColumn<QByteArray>("stream");
+    QTest::addColumn<bool>("hasMissingReference");
+    QTest::addColumn<bool>("isKept");
+
+    // Table 3.14: N pairs "object number, offset"; object 1 is the catalog of the storage
+    const QByteArray present = "<< /Type /ObjStm /N 1 /First 4 /Length 8 >>|1 0 null";
+    const QByteArray missing = "<< /Type /ObjStm /N 1 /First 7 /Length 11 >>|900 0  null";
+
+    // An object the storage has: the object stream was unpacked, also with a reference
+    // of the document leading nowhere (real files have them)
+    QTest::newRow("object-present") << present << false << false;
+    QTest::newRow("object-present-dangling-reference") << present << true << false;
+
+    // The object is not in the storage: only with a reference leading to a missing object
+    // it may be needed, a file of unreferenced missing objects has no use for them
+    QTest::newRow("object-missing-not-referenced") << missing << false << false;
+    QTest::newRow("object-missing-referenced") << missing << true << true;
+
+    // Something, which the tool cannot read, may hold anything
+    QTest::newRow("too-many-objects") << QByteArray("<< /Type /ObjStm /N 100 /First 4 /Length 8 >>|1 0 null") << true << true;
+    QTest::newRow("first-beyond-the-stream") << QByteArray("<< /Type /ObjStm /N 1 /First 400 /Length 8 >>|1 0 null") << true << true;
+    QTest::newRow("header-of-other-values") << QByteArray("<< /Type /ObjStm /N 1 /First 4 /Length 8 >>|/A /B null") << true << true;
+    QTest::newRow("undecodable") << QByteArray("<< /Type /ObjStm /N 1 /First 4 /Filter /FlateDecode /DecodeParms << /Predictor 99 >> /Length 8 >>|1 0 null") << true << true;
+}
+
+void DocumentToolCompressTest::fileStructureMissingObjects()
+{
+    using Helper = FileStructureTestHelper;
+
+    QFETCH(QByteArray, stream);
+    QFETCH(bool, hasMissingReference);
+    QFETCH(bool, isKept);
+
+    const QList<QByteArray> parts = stream.split('|');
+    QCOMPARE(parts.size(), qsizetype(2));
+
+    pdf::PDFParsingContext context([](pdf::PDFParsingContext*, pdf::PDFObjectReference) { return pdf::PDFObject(); });
+    pdf::PDFParser parser(parts[0], &context, pdf::PDFParser::None);
+    pdf::PDFDictionaryBuilder dictionary(*parser.getObject().getDictionary());
+
+    pdf::PDFObjectStorage storage = Helper::createDocument().getStorage();
+    QVERIFY(!storage.getObject(pdf::PDFObjectReference(1, 0)).isNull());
+    const pdf::PDFObjectReference container = storage.addObject(pdf::PDFObject::createStream(pdf::PDFStream(std::move(dictionary), QByteArray(parts[1]))));
+    if (hasMissingReference)
+    {
+        storage.addObject(Helper::createDictionary("Hostile", pdf::PDFObject::createReference(pdf::PDFObjectReference(1000, 0))));
+    }
+
+    QCOMPARE(pdf::PDFObjectUtils::removeFileStructureObjects(storage), qint64(isKept ? 0 : 1));
+    QCOMPARE(storage.getObject(container).isStream(), isKept);
+}
+
+void DocumentToolCompressTest::fileStructureMissingObjectsExtends()
+{
+    using Helper = FileStructureTestHelper;
+
+    // A kept object stream counts as an object, which stays: its /Extends keeps the other one,
+    // whose objects are all present
+    pdf::PDFObjectStorage storage = Helper::createDocument().getStorage();
+    const pdf::PDFObjectReference extended = storage.addObject(pdf::PDFObject::createStream(pdf::PDFStream(
+        pdf::PDFDictionaryBuilder(*Helper::createDictionaryOf({ { "Type", pdf::PDFObject::createName("ObjStm") }, { "N", pdf::PDFObject::createInteger(1) }, { "First", pdf::PDFObject::createInteger(4) }, { "Length", pdf::PDFObject::createInteger(8) } }).getDictionary()),
+        QByteArray("1 0 null"))));
+    const pdf::PDFObjectReference kept = storage.addObject(pdf::PDFObject::createStream(pdf::PDFStream(
+        pdf::PDFDictionaryBuilder(*Helper::createDictionaryOf({ { "Type", pdf::PDFObject::createName("ObjStm") }, { "N", pdf::PDFObject::createInteger(1) }, { "First", pdf::PDFObject::createInteger(7) }, { "Length", pdf::PDFObject::createInteger(11) }, { "Extends", pdf::PDFObject::createReference(extended) } }).getDictionary()),
+        QByteArray("900 0  null"))));
+    storage.addObject(Helper::createDictionary("Hostile", pdf::PDFObject::createReference(pdf::PDFObjectReference(900, 0))));
+
+    QCOMPARE(pdf::PDFObjectUtils::removeFileStructureObjects(storage), qint64(0));
+    QVERIFY(storage.getObject(kept).isStream());
+    QVERIFY(storage.getObject(extended).isStream());
+}
+
+void DocumentToolCompressTest::fileStructureHybrid()
+{
+    using Helper = FileStructureTestHelper;
+
+    // PDF Reference 1.7, 3.4.7 "Compatibility with Applications That Do Not Support PDF 1.5":
+    // the classic table of a hybrid-reference file has the object in the object stream free, only
+    // the cross-reference stream of /XRefStm leads to it. The reader of a valid file unpacks it
+    // (a reference of the page leads to it), so the container is dead here too.
+    const QByteArray annotation("<< /Type /Annot /Subtype /Text /Rect [ 0 0 10 10 ] /Contents (HIDDEN-OBJECT-OF-THE-FILE) >>");
+    const QByteArray pairs("6 0 ");
+    const QByteArray content = pairs + annotation;
+
+    QByteArray file("%PDF-1.5\r\n");
+    std::array<qint64, 8> offsets = { };
+    const auto addObject = [&](int number, const QByteArray& body)
+    {
+        offsets[size_t(number)] = file.size();
+        file += QByteArray::number(number) + " 0 obj\r\n" + body + "\r\nendobj\r\n";
+    };
+
+    addObject(1, "<< /Type /Catalog /Pages 2 0 R >>");
+    addObject(2, "<< /Type /Pages /Kids [ 3 0 R ] /Count 1 >>");
+    addObject(3, "<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 200 200 ] /Annots [ 6 0 R ] >>");
+    addObject(5, "<< /Type /ObjStm /N 1 /First " + QByteArray::number(pairs.size()) + " /Length " + QByteArray::number(content.size()) + " >>\r\nstream\r\n" + content + "\r\nendstream");
+
+    // Table 3.16: the object 6 is the first one in the object stream 5
+    QByteArray entries;
+    entries.append(char(2));
+    for (int shift = 24; shift >= 0; shift -= 8)
+    {
+        entries.append(char((5 >> shift) & 0xFF));
+    }
+    entries.append(char(0));
+    entries.append(char(0));
+    const qint64 xrefStream = file.size();
+    addObject(7, "<< /Type /XRef /Size 8 /Index [ 6 1 ] /W [ 1 4 2 ] /Length " + QByteArray::number(entries.size()) + " >>\r\nstream\r\n" + entries + "\r\nendstream");
+
+    const qint64 table = file.size();
+    file += "xref\r\n0 8\r\n";
+    file += Helper::createTableEntry(0, 65535, 'f');
+    for (int number = 1; number < 8; ++number)
+    {
+        const bool isFree = number == 4 || number == 6;
+        file += Helper::createTableEntry(isFree ? 0 : offsets[size_t(number)], 0, isFree ? 'f' : 'n');
+    }
+    file += "trailer\r\n<< /Size 8 /Root 1 0 R /XRefStm " + QByteArray::number(xrefStream) + " >>\r\nstartxref\r\n" + QByteArray::number(table) + "\r\n%%EOF\r\n";
+
+    pdf::PDFDocumentReader::Result readerResult = pdf::PDFDocumentReader::Result::Failed;
+    const pdf::PDFDocument input = Helper::readStrict(file, QString(), &readerResult);
+    QCOMPARE(readerResult, pdf::PDFDocumentReader::Result::OK);
+    QVERIFY(input.getStorage().getObject(pdf::PDFObjectReference(6, 0)).isDictionary());
+
+    pdf::PDFDocumentToolCompress::Settings settings = pdf::PDFDocumentToolCompress::createSettings(Helper::createCustomWithoutCleanUp());
+    const pdf::PDFDocument output = pdf::PDFDocumentToolCompress::compress(&input, settings, nullptr, pdf::PDFDocumentToolCompress::Progress(), nullptr);
+    const QByteArray written = CompressTestHelper::write(output);
+    QVERIFY(!written.contains("/ObjStm"));
+    QVERIFY(!written.contains("/XRef"));
+    QVERIFY(written.contains("HIDDEN-OBJECT-OF-THE-FILE"));
+
+    const pdf::PDFDocument reopened = Helper::readStrict(written, QString(), &readerResult);
+    QCOMPARE(readerResult, pdf::PDFDocumentReader::Result::OK);
+    QVERIFY(reopened.getStorage().getObject(pdf::PDFObjectReference(6, 0)) == input.getStorage().getObject(pdf::PDFObjectReference(6, 0)));
+}
+
+void DocumentToolCompressTest::fileStructureExtendsChain()
+{
+    using Helper = FileStructureTestHelper;
+
+    // PDF Reference 1.7, Table 3.14: a chain of /Extends of a hostile size; a reference to the last
+    // one keeps all of them, without it none. The work is linear (the limit is far above a
+    // linear pass, a quadratic walk over the chain would need minutes).
+    constexpr int CHAIN_LENGTH = 100000;
+    pdf::PDFObjectStorage base = Helper::createDocument().getStorage();
+    pdf::PDFObjectReference previous;
+    for (int i = 0; i < CHAIN_LENGTH; ++i)
+    {
+        pdf::PDFDictionaryBuilder dictionary;
+        dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("ObjStm"));
+        dictionary.addEntry(pdf::PDFInplaceOrMemoryString("N"), pdf::PDFObject::createInteger(0));
+        dictionary.addEntry(pdf::PDFInplaceOrMemoryString("First"), pdf::PDFObject::createInteger(0));
+        dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Length"), pdf::PDFObject::createInteger(0));
+        if (previous.isValid())
+        {
+            dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Extends"), pdf::PDFObject::createReference(previous));
+        }
+        previous = base.addObject(pdf::PDFObject::createStream(pdf::PDFStream(std::move(dictionary), QByteArray())));
+    }
+
+    pdf::PDFObjectStorage withoutReference = base;
+    QCOMPARE(pdf::PDFObjectUtils::removeFileStructureObjects(withoutReference), qint64(CHAIN_LENGTH));
+
+    pdf::PDFObjectStorage withReference = base;
+    withReference.addObject(Helper::createDictionary("Hostile", pdf::PDFObject::createReference(previous)));
+
+    QElapsedTimer timer;
+    timer.start();
+    QCOMPARE(pdf::PDFObjectUtils::removeFileStructureObjects(withReference), qint64(0));
+    const int factor = qMax(1, qEnvironmentVariableIntValue("PDF4QT_TEST_TIMEOUT_FACTOR"));
+    QVERIFY2(timer.elapsed() < 20000 * factor, qPrintable(QString::number(timer.elapsed())));
+    QVERIFY(withReference.getObject(previous).isStream());
+}
+
+void DocumentToolCompressTest::fileStructureOldCallers()
+{
+    using Helper = FileStructureTestHelper;
+
+    // The old applications write what they have read: the writer and the optimizer
+    // without its steps drop nothing by themselves
+    Helper::FileOptions options;
+    options.paddingSize = Helper::PADDING_SIZE;
+    const QByteArray file = Helper::createFile(Helper::createDocument(), options);
+    const pdf::PDFDocument input = Helper::readStrict(file);
+
+    const QByteArray written = CompressTestHelper::write(input);
+    QVERIFY(written.contains("/ObjStm"));
+    QVERIFY(written.contains("/XRef"));
+    QVERIFY(written.contains(QByteArray(Helper::PADDING_SIZE, ' ')));
+
+    pdf::PDFOptimizer optimizer(pdf::PDFOptimizer::OptimizationFlags(pdf::PDFOptimizer::MergeIdenticalObjects | pdf::PDFOptimizer::RemoveNullObjects), nullptr);
+    optimizer.setDocument(&input);
+    optimizer.optimize();
+    const pdf::PDFDocument optimized = optimizer.takeOptimizedDocument();
+    QVERIFY(CompressTestHelper::write(optimized).contains("/ObjStm"));
 }
 
 QTEST_MAIN(DocumentToolCompressTest)

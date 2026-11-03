@@ -36,11 +36,13 @@
 #include "pdffluentwidgets.h"
 #include "pdfthemefonts.h"
 
+#include <QButtonGroup>
 #include <QCheckBox>
 #include <QFocusEvent>
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QRegularExpression>
 #include <QSignalBlocker>
 #include <QSlider>
@@ -190,6 +192,10 @@ PDFAppSettingControl::Kind PDFAppSettingControl::getKind(const PDFSettingDefinit
         case Type::Bool:
             return Kind::CheckBox;
         case Type::Option:
+            if (definition.getControl() == Control::Radio)
+            {
+                return Kind::Radio;
+            }
             return definition.getControl() == Control::Segmented ? Kind::Segmented : Kind::ComboBox;
         case Type::Integer:
             return definition.getControl() == Control::Slider ? Kind::Slider : Kind::SpinBox;
@@ -243,6 +249,18 @@ PDFColorButton* PDFAppSettingControl::getColorButton() const
 PDFSegmentedControl* PDFAppSettingControl::getSegmentedControl() const
 {
     return qobject_cast<PDFSegmentedControl*>(m_editor.data());
+}
+
+QAbstractButton* PDFAppSettingControl::getRadioButton(const QString& optionId) const
+{
+    for (const auto& [id, button] : m_radioButtons)
+    {
+        if (id == optionId)
+        {
+            return button.data();
+        }
+    }
+    return nullptr;
 }
 
 void PDFAppSettingControl::createControl(QWidget* parent)
@@ -351,6 +369,34 @@ void PDFAppSettingControl::createControl(QWidget* parent)
             connect(segmented, &PDFSegmentedControl::currentIndexChanged, this, &PDFAppSettingControl::onSegmentChanged);
             m_editor = segmented;
             m_widget = segmented;
+            break;
+        }
+
+        case Kind::Radio:
+        {
+            // goal 294:1803: the radio buttons in a row, gap 14. The group is a child of the
+            // row: the arrows move inside of it, exclusivity never reaches another row.
+            QWidget* container = new QWidget(parent);
+            QHBoxLayout* layout = Helper::createRow(container, RADIO_SPACING);
+            QButtonGroup* group = new QButtonGroup(container);
+            group->setExclusive(true);
+            for (const PDFSettingOption& option : m_definition.getOptions())
+            {
+                QRadioButton* button = new QRadioButton(option.getTitle(), container);
+                button->setObjectName(QStringLiteral("radio-%1").arg(option.id));
+                group->addButton(button);
+                layout->addWidget(button);
+                // clicked (the user, guarded by Qt against a deletion from its slots)
+                connect(button, &QRadioButton::clicked, this, &PDFAppSettingControl::onRadioClicked);
+                m_radioButtons.emplace_back(option.id, button);
+            }
+            layout->addStretch(1);
+            if (!m_radioButtons.empty())
+            {
+                container->setFocusProxy(m_radioButtons.front().second);
+            }
+            m_editor = container;
+            m_widget = container;
             break;
         }
     }
@@ -542,6 +588,16 @@ QVariant PDFAppSettingControl::getShownValue() const
             }
             return QVariant(m_segmentIds[index]);
         }
+
+        case Kind::Radio:
+            for (const auto& [id, button] : m_radioButtons)
+            {
+                if (button && button->isChecked())
+                {
+                    return QVariant(id);
+                }
+            }
+            return QVariant();
     }
     return QVariant();
 }
@@ -698,6 +754,15 @@ void PDFAppSettingControl::showValue(const QVariant& value, const QVariant& stor
                 }
             }
             break;
+
+        case Kind::Radio:
+            if (QAbstractButton* button = getRadioButton(value.toString()))
+            {
+                // The value is valid (a hostile stored option is the default)
+                const QSignalBlocker blocker(button);
+                button->setChecked(true);
+            }
+            break;
     }
 }
 
@@ -821,6 +886,13 @@ void PDFAppSettingControl::onSegmentChanged(int index)
 
     // Written from the event loop: the slots of valueWritten may delete the
     // segmented control, whose button is emitting its signals
+    setPending();
+    queueWrite();
+}
+
+void PDFAppSettingControl::onRadioClicked()
+{
+    // Written from the event loop, as a segment: the slots may delete the row of the buttons
     setPending();
     queueWrite();
 }

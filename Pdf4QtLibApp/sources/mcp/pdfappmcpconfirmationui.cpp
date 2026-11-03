@@ -704,7 +704,7 @@ void PDFAppMcpConfirmationUi::refresh()
         closeDialog();
         closePreview();
     }
-    else if (dialogEntry && dialogEntry->isPreview && documentTab && dialogEntry->hasDocument)
+    else if (dialogEntry && dialogEntry->isPreview && documentTab && dialogEntry->hasDocument && !isCanvasReplaced(documentTab))
     {
         closeDialog();
         showPreview(*dialogEntry, documentTab);
@@ -766,6 +766,7 @@ void PDFAppMcpConfirmationUi::showDialogEntry(Entry& entry, PDFAppTab* tab, int 
     connect(dialog, &PDFAppMcpConfirmDialog::allowed, this, &PDFAppMcpConfirmationUi::onDialogAllowed);
     connect(dialog, &PDFAppMcpConfirmDialog::denied, this, &PDFAppMcpConfirmationUi::onDialogDenied);
     connect(dialog, &PDFAppMcpConfirmDialog::showOnPageRequested, this, &PDFAppMcpConfirmationUi::onShowOnPageRequested);
+    dialog->setShowOnPageVisible(!isCanvasReplaced(qobject_cast<PDFAppDocumentTab*>(tab)));
     m_scrim = scrim;
     m_dialog = dialog;
 
@@ -776,6 +777,12 @@ void PDFAppMcpConfirmationUi::showDialogEntry(Entry& entry, PDFAppTab* tab, int 
     {
         dialog->setFocus(Qt::OtherFocusReason);
     }
+}
+
+bool PDFAppMcpConfirmationUi::isCanvasReplaced(const PDFAppDocumentTab* tab)
+{
+    const PDFAppDocumentView* view = tab ? tab->getView() : nullptr;
+    return view && view->isToolCanvasPageShown();
 }
 
 void PDFAppMcpConfirmationUi::closeDialog()
@@ -829,6 +836,12 @@ void PDFAppMcpConfirmationUi::restoreFocus(QWidget* tab)
 
 void PDFAppMcpConfirmationUi::showPreview(Entry& entry, PDFAppDocumentTab* tab)
 {
+    // A tool opened from the preview may replace the canvas under the ghosts
+    if (PDFAppDocumentView* toolView = tab ? tab->getView() : nullptr)
+    {
+        connect(toolView, &PDFAppDocumentView::toolModeChanged, this, &PDFAppMcpConfirmationUi::scheduleRefresh, Qt::UniqueConnection);
+    }
+
     PDFAppDocumentView* view = tab ? tab->getView() : nullptr;
     if (!view)
     {

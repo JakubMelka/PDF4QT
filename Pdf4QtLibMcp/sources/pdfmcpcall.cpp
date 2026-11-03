@@ -303,6 +303,7 @@ void PDFMcpCall::requestInput(PDFMcpInputRequests requests)
 
 bool PDFMcpCall::finish(PDFMcpCallResult result)
 {
+    QPointer<PDFMcpHost> host;
     {
         QMutexLocker locker(&m_mutex);
         if (m_result)
@@ -310,11 +311,20 @@ bool PDFMcpCall::finish(PDFMcpCallResult result)
             return false;
         }
         m_result = std::move(result);
+        host = m_host;
     }
 
     PDFMcpCallEvent event;
     event.type = PDFMcpCallEvent::Type::Finished;
     postEvent(std::move(event));
+
+    // The host learns the end from its own thread (as of the cancellation below)
+    if (host)
+    {
+        PDFThreadAnnotations::happensBefore(this);
+        PDFThreadAnnotations::TransportScope transportScope;
+        QMetaObject::invokeMethod(host.data(), &PDFMcpHost::callFinished, Qt::QueuedConnection, shared_from_this());
+    }
     return true;
 }
 

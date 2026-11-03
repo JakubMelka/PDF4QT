@@ -326,12 +326,13 @@ bool PDFAppUndoStack::undo()
     redoStep.flags = step.flags;
     redoStep.description = step.description;
     redoStep.source = step.source;
+    redoStep.isWholeFileRewritten = m_document->isWholeFileRewritten();
     redoStep.memory = estimateMemory(redoStep.document.data(), step.document.data());
     m_redoSteps.push_back(std::move(redoStep));
     trim();
 
     // The document may be deleted by a slot of its signals: nothing is used afterwards
-    m_document->restore(step.document, step.flags);
+    m_document->restore(step.document, step.flags, step.isWholeFileRewritten);
     return true;
 }
 
@@ -369,11 +370,12 @@ bool PDFAppUndoStack::redo()
     undoStep.flags = step.flags;
     undoStep.description = step.description;
     undoStep.source = step.source;
+    undoStep.isWholeFileRewritten = m_document->isWholeFileRewritten();
     undoStep.memory = estimateMemory(undoStep.document.data(), step.document.data());
     m_undoSteps.push_back(std::move(undoStep));
 
     // The document may be deleted by a slot of its signals: nothing is used afterwards
-    m_document->restore(step.document, step.flags);
+    m_document->restore(step.document, step.flags, step.isWholeFileRewritten);
     return true;
 }
 

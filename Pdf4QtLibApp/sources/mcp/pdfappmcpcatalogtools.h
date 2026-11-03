@@ -26,6 +26,7 @@
 #include "pdfappglobal.h"
 #include "pdfappmcppermissions.h"
 #include "pdfappmcptoolhandler.h"
+#include "pdfappmcptoolset.h"
 
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfmcpcatalog.h"
@@ -45,9 +46,10 @@ enum class PDFAppMcpToolResultMode
 {
     Keep,           ///< "keep": the changed document is committed to its tab (one undo step)
     SaveCopy,       ///< "save_copy": the changed document is written to "path"; the tab is unchanged
-    Overwrite,      ///< "overwrite": the changed document replaces its file (phase 2 result writer)
-    OpenNewTab,     ///< "open_new_tab": a new document opens in a new tab (phase 2)
-    SaveFile        ///< "save_file": a new document is written to "path" (phase 2)
+    Overwrite,      ///< "overwrite": the file of the document gets the result first, then the tab (one undo step, saved); always confirmed
+    OpenNewTab,     ///< "open_new_tab": a new document opens in a new tab (not delivered yet)
+    SaveFile,       ///< "save_file": the one output file of the tool is written to "path"
+    ReturnText      ///< "return_text": the text of the one output file is the result of the call (Read only)
 };
 
 /// The bridge of the tools of phase 2 (plan 3.10): one MCP tool per category
@@ -56,8 +58,15 @@ enum class PDFAppMcpToolResultMode
 /// ("review.statistics" -> tool "review", action "statistics"). The object of
 /// an action is PDFDocumentToolParameters::toJsonSchema (a Secret is
 /// writeOnly); the common properties are documentId / documentIds, result and
-/// path. The permission is the one of the result kind (Analysis R,
-/// ChangeDocument E, files F) raised to what the result really contains.
+/// path. The permission is the one of the value of result (\p getResultPermissions);
+/// an analysis is raised to what its result really contains.
+///
+/// A new tool needs nothing here: its row of the catalog (the result kind, the
+/// preselected result, the signature impact, the locked access, the required
+/// permissions) and the definitions of its parameters decide. An output file of the
+/// result (PDFDocumentToolOutputFile): one file per run; its type says the extensions of
+/// save_file (F9) and its encoding ("text/plain; charset=windows-1250", UTF-8 without
+/// a charset) for return_text.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppMcpCatalogTools
 {
 public:
@@ -75,17 +84,23 @@ public:
     /// Implemented tools of the category in the order of the catalog
     static std::vector<const PDFDocumentToolCatalogEntry*> getImplementedTools(PDFDocumentToolCategory category);
 
-    /// Values of "result" of a result kind (empty = no result property, Files)
+    /// Values of "result" of a result kind
     static QStringList getResultValues(PDFDocumentToolResultKind kind);
 
-    /// Preselected value of "result"
-    static QString getDefaultResult(PDFDocumentToolResultKind kind);
+    /// Default value of "result": the preselected choice of the result dialog
+    /// (Save as a file of an export is return_text - only Read, chapter 6 of the plan)
+    static QString getDefaultResult(const PDFDocumentToolCatalogEntry& entry);
 
     /// Mode of a value of "result"
     static std::optional<PDFAppMcpToolResultMode> getResultMode(const QString& value);
 
-    /// Permission of a result kind (before the result is known)
-    static PDFAppMcpPermissionKind getBasePermission(PDFDocumentToolResultKind kind);
+    /// What a value of "result" needs (R, R + E, R + F, R + E + F; chapter 6 of the plan)
+    static PDFAppMcpPermissionKinds getResultPermissions(PDFAppMcpToolResultMode mode);
+
+    /// The permission, whose Deny takes the tool out of the offer (before the value of
+    /// "result" is known): Read of a tool with a document, then a tool changing the
+    /// document needs Edit or Files (one of its results is still possible)
+    static PDFAppMcpPermissionKind getBasePermission(const PDFDocumentToolCatalogEntry& entry, const PDFAppMcpPermissions& permissions);
 
     /// Input schema of a category with its implemented tools; std::nullopt when
     /// no tool is implemented or no action is available
@@ -93,6 +108,11 @@ public:
 
     /// Output schema: structuredContent { action, <action>: PDFDocumentToolResult::toJson }
     static PDFMcpSchema createOutputSchema(PDFDocumentToolCategory category, const PDFAppMcpPermissions& permissions);
+
+    /// The contract of a category with its implemented tools for the reference of the
+    /// documentation (every permission Allow, the shape of PDFAppMcpToolSet::getTools);
+    /// std::nullopt when no tool is implemented
+    static std::optional<PDFAppMcpToolSpec> createToolSpec(PDFDocumentToolCategory category);
 
     /// Definitions of the categories with available tools
     static std::vector<PDFMcpToolDefinition> createDefinitions(const PDFAppMcpPermissions& permissions, const std::vector<PDFMcpIcon>& icons = std::vector<PDFMcpIcon>());

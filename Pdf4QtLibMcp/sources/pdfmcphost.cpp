@@ -40,6 +40,11 @@ void PDFMcpHost::callCanceled(const std::shared_ptr<PDFMcpCall>& call)
     PDFThreadAnnotations::happensAfter(call.get());
 }
 
+void PDFMcpHost::callFinished(const std::shared_ptr<PDFMcpCall>& call)
+{
+    PDFThreadAnnotations::happensAfter(call.get());
+}
+
 }   // namespace pdf
 
 #include "moc_pdfmcphost.cpp"

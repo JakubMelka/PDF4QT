@@ -132,6 +132,11 @@ public:
     void finishWithError(const std::shared_ptr<PDFMcpCall>& call, const QString& action, const PDFAppDocument* document,
                          const QString& text, PDFMcpActivityStatus status = PDFMcpActivityStatus::Failed);
 
+    /// As \p finishWithError, the row \p activityId of the call (a confirmation has
+    /// created it) gets the status; 0 = a new row
+    void finishWithError(const std::shared_ptr<PDFMcpCall>& call, qint64 activityId, const QString& action, const PDFAppDocument* document,
+                         const QString& text, PDFMcpActivityStatus status);
+
     /// Starts a job in the pool of the MCP workers (refused after shutdown: the
     /// call fails). A heavy job above PDFMcpLimits::MAXIMUM_HEAVY_JOBS waits in
     /// the host, not in a worker - the other jobs never wait for the heavy ones.
@@ -198,6 +203,7 @@ public:
 
     virtual void handleCall(const std::shared_ptr<pdf::PDFMcpCall>& call) override;
     virtual void callCanceled(const std::shared_ptr<pdf::PDFMcpCall>& call) override;
+    virtual void callFinished(const std::shared_ptr<pdf::PDFMcpCall>& call) override;
     virtual void assistantEvent(const pdf::PDFMcpAssistantEvent& event) override;
 
     /// A job has ended (queued from the worker)
@@ -222,6 +228,12 @@ private:
 
     /// Starts the waiting heavy jobs, which have a place now
     void startWaitingHeavyJobs();
+
+    /// The result of a job in the GUI thread, and the answer of a canceled call left open
+    void finishJob(const std::shared_ptr<pdf::PDFAppMcpJob>& job);
+
+    /// Ends the waiting heavy job of a canceled call
+    void endWaitingJob(const std::shared_ptr<pdf::PDFMcpCall>& call);
 
     QPointer<PDFAppContext> m_context;
     QPointer<PDFMcpServer> m_server;

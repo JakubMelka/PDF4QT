@@ -25,6 +25,8 @@
 #include "pdfvisitor.h"
 #include "pdfexecutionpolicy.h"
 #include "pdfdocumentwriter.h"
+#include "pdfexception.h"
+#include "pdfparser.h"
 #include "pdfdbgheap.h"
 
 namespace pdf
@@ -226,6 +228,301 @@ std::set<PDFObjectReference> PDFObjectUtils::getDirectReferences(const PDFObject
     object.accept(&collectReferencesVisitor);
 
     return references;
+}
+
+bool PDFObjectUtils::isObjectStream(const PDFObject& object)
+{
+    if (!object.isStream())
+    {
+        return false;
+    }
+
+    const PDFDictionary* dictionary = object.getStream()->getDictionary();
+    const PDFObject& type = dictionary->get("Type");
+    return type.isName() && type.getString() == "ObjStm" && dictionary->get("N").isInt() && dictionary->get("First").isInt();
+}
+
+/// Recognition of the objects of the organization of a file (PDFObjectUtils::removeFileStructureObjects)
+class PDFFileStructureObjectsHelper
+{
+public:
+    PDFFileStructureObjectsHelper() = delete;
+
+    /// PDF Reference 1.7, 3.4.7, Table 3.15: /Type /XRef with the required /Size and /W
+    static bool isCrossReferenceStream(const PDFObject& object)
+    {
+        if (!object.isStream())
+        {
+            return false;
+        }
+
+        const PDFDictionary* dictionary = object.getStream()->getDictionary();
+        const PDFObject& type = dictionary->get("Type");
+        return type.isName() && type.getString() == "XRef" && dictionary->get("Size").isInt() && dictionary->get("W").isArray();
+    }
+
+    /// PDF Reference 1.7, Table F.1: the array /H of two or four integers
+    static bool isHintArray(const PDFObject& object)
+    {
+        if (!object.isArray() || (object.getArray()->getCount() != 2 && object.getArray()->getCount() != 4))
+        {
+            return false;
+        }
+
+        for (size_t i = 0, count = object.getArray()->getCount(); i < count; ++i)
+        {
+            if (!object.getArray()->getItem(i).isInt())
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /// PDF Reference 1.7, Table F.1: the required entries of the linearization parameter dictionary
+    static bool isLinearizationDictionary(const PDFObject& object)
+    {
+        if (!object.isDictionary())
+        {
+            return false;
+        }
+
+        const PDFDictionary* dictionary = object.getDictionary();
+        const PDFObject& version = dictionary->get("Linearized");
+        if (!version.isInt() && !version.isReal())
+        {
+            return false;
+        }
+
+        for (const char* key : { "L", "O", "E", "N", "T" })
+        {
+            if (!dictionary->get(key).isInt())
+            {
+                return false;
+            }
+        }
+        return isHintArray(dictionary->get("H"));
+    }
+
+    /// PDF Reference 1.7, F.2.5: all entries of the dictionary are direct objects except of
+    /// /Length. The primary hint stream has the required position /S of Table F.2, its other
+    /// tables are positions (integers) too, the keys are open to new tables - so a name as
+    /// /Type or /Subtype says it is another stream. The overflow hint stream has no such
+    /// entries, its length is limited by the last number of /H ("including stream object
+    /// overhead"), which is -1 without it.
+    static bool isHintStream(const PDFObject& object, PDFInteger overflowLength)
+    {
+        if (!object.isStream())
+        {
+            return false;
+        }
+
+        const PDFStream* stream = object.getStream();
+        const PDFDictionary* dictionary = stream->getDictionary();
+
+        bool hasPosition = false;
+        for (size_t i = 0, count = dictionary->getCount(); i < count; ++i)
+        {
+            const PDFInplaceOrMemoryString& key = dictionary->getKey(i);
+            const PDFObject& value = dictionary->getValue(i);
+
+            if (key == "Length")
+            {
+                if (!value.isInt() && !value.isReference())
+                {
+                    return false;
+                }
+            }
+            else if (key == "Filter" || key == "DecodeParms" || key == "DL")
+            {
+                if (!PDFObjectUtils::getDirectReferences(value).empty())
+                {
+                    return false;
+                }
+            }
+            else if (value.isInt())
+            {
+                hasPosition = true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        return dictionary->get("S").isInt() || (!hasPosition && PDFInteger(stream->getContent()->size()) <= overflowLength);
+    }
+
+    /// True, if a reference leads to an object, which the storage does not have
+    static bool hasMissingObject(const std::set<PDFObjectReference>& references, const PDFObjectStorage::PDFObjects& objects)
+    {
+        for (const PDFObjectReference& reference : references)
+        {
+            if (reference.objectNumber < 0 || size_t(reference.objectNumber) >= objects.size() || objects[size_t(reference.objectNumber)].object.isNull())
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// True, if the object stream lists an object, which the storage does not have, so the
+    /// stream may be its only copy (the permissive reading of a damaged file does not unpack
+    /// object streams). A stream, which cannot be read, may hold anything. The reading has
+    /// the limits of the reader (PDFDocumentReader::processObjectStreams).
+    static bool isHoldingMissingObject(const PDFObjectStorage& storage, const PDFObject& object)
+    {
+        const PDFObjectStorage::PDFObjects& objects = storage.getObjects();
+        const PDFStream* stream = object.getStream();
+
+        try
+        {
+            const QByteArray data = storage.getDecodedStream(stream);
+            const PDFInteger count = stream->getDictionary()->get("N").getInteger();
+            const PDFInteger first = stream->getDictionary()->get("First").getInteger();
+            if (first < 0 || first > data.size() || count < 0 || count > first / 3)
+            {
+                return true;
+            }
+
+            PDFParsingContext context([](PDFParsingContext*, PDFObjectReference) { return PDFObject(); });
+            PDFParser parser(data, &context, PDFParser::None);
+            for (PDFInteger i = 0; i < count; ++i)
+            {
+                const PDFObject number = parser.getObject();
+                const PDFObject offset = parser.getObject();
+                if (!number.isInt() || !offset.isInt())
+                {
+                    return true;
+                }
+
+                const PDFInteger objectNumber = number.getInteger();
+                if (objectNumber <= 0 || size_t(objectNumber) >= objects.size() || objects[size_t(objectNumber)].object.isNull())
+                {
+                    return true;
+                }
+            }
+        }
+        catch (const PDFException&)
+        {
+            return true;
+        }
+        return false;
+    }
+
+    /// A container, which stays, because \p references lead to it, is no more removed
+    /// and is added to the list of the containers, whose references count as well
+    static void markReferences(std::set<PDFObjectReference>& references, std::vector<bool>& isRemoved, std::vector<size_t>& keptContainers)
+    {
+        for (const PDFObjectReference& reference : references)
+        {
+            if (reference.objectNumber >= 0 && size_t(reference.objectNumber) < isRemoved.size() && isRemoved[size_t(reference.objectNumber)])
+            {
+                isRemoved[size_t(reference.objectNumber)] = false;
+                keptContainers.push_back(size_t(reference.objectNumber));
+            }
+        }
+        references.clear();
+    }
+};
+
+qint64 PDFObjectUtils::removeFileStructureObjects(PDFObjectStorage& storage)
+{
+    using Helper = PDFFileStructureObjectsHelper;
+
+    const PDFObjectStorage::PDFObjects& objects = storage.getObjects();
+
+    bool isLinearized = false;
+    PDFInteger overflowLength = -1;
+    for (const PDFObjectStorage::Entry& entry : objects)
+    {
+        if (Helper::isLinearizationDictionary(entry.object))
+        {
+            isLinearized = true;
+
+            const PDFArray* hints = entry.object.getDictionary()->get("H").getArray();
+            if (hints->getCount() == 4)
+            {
+                overflowLength = qMax(overflowLength, hints->getItem(3).getInteger());
+            }
+        }
+    }
+
+    std::vector<bool> isRemoved(objects.size(), false);
+    qint64 removedCount = 0;
+    for (size_t i = 0; i < objects.size(); ++i)
+    {
+        const PDFObject& object = objects[i].object;
+        if (isObjectStream(object) ||
+            Helper::isCrossReferenceStream(object) ||
+            Helper::isLinearizationDictionary(object) ||
+            (isLinearized && Helper::isHintStream(object, overflowLength)))
+        {
+            isRemoved[i] = true;
+            ++removedCount;
+        }
+    }
+
+    if (removedCount == 0)
+    {
+        return 0;
+    }
+
+    // Everything, which stays, may reference a container: the trailer and any other object,
+    // whether it is reachable or not. A container, which stays by that, is such an object too.
+    std::set<PDFObjectReference> references;
+    PDFCollectReferencesVisitor visitor(references);
+
+    storage.getTrailerDictionary().accept(&visitor);
+    for (size_t i = 0; i < objects.size(); ++i)
+    {
+        if (!isRemoved[i])
+        {
+            objects[i].object.accept(&visitor);
+        }
+    }
+
+    std::vector<size_t> keptContainers;
+
+    // Only the files, whose references lead nowhere, pay for the decoding of the object streams
+    if (Helper::hasMissingObject(references, objects))
+    {
+        for (size_t i = 0; i < objects.size(); ++i)
+        {
+            if (isRemoved[i] && isObjectStream(objects[i].object) && Helper::isHoldingMissingObject(storage, objects[i].object))
+            {
+                isRemoved[i] = false;
+                keptContainers.push_back(i);
+            }
+        }
+    }
+
+    Helper::markReferences(references, isRemoved, keptContainers);
+    while (!keptContainers.empty())
+    {
+        const size_t index = keptContainers.back();
+        keptContainers.pop_back();
+        --removedCount;
+
+        objects[index].object.accept(&visitor);
+        Helper::markReferences(references, isRemoved, keptContainers);
+    }
+
+    if (removedCount == 0)
+    {
+        return 0;
+    }
+
+    PDFObjectStorage::PDFObjects remainingObjects = objects;
+    for (size_t i = 0; i < remainingObjects.size(); ++i)
+    {
+        if (isRemoved[i])
+        {
+            remainingObjects[i].object = PDFObject();
+        }
+    }
+    storage.setObjects(std::move(remainingObjects));
+    return removedCount;
 }
 
 PDFObject PDFObjectUtils::replaceReferences(const PDFObject& object, const std::map<PDFObjectReference, PDFObjectReference>& referenceMapping)

@@ -312,6 +312,8 @@ public:
 
     /// Gap between the icon of the page and its texts (title-row 283:1932)
     static constexpr int ICON_SPACING = 14;
+    static constexpr int TEXT_SPACING = 4;          ///< Title and subtitle (Home 28:4)
+    static constexpr int TEXT_SPACING_ICON = 2;     ///< Title and subtitle beside an icon (276:1987, 283:1932)
 
     explicit PDFAppWorkspaceHeader(QWidget* parent = nullptr);
     virtual ~PDFAppWorkspaceHeader() override;
@@ -340,6 +342,10 @@ public:
     /// ICON_SPACING before the texts, centered on them)
     void setIcon(const PDFAppHeaderIcon& icon);
 
+    /// Tag after the title and the subtitle (276:1988: gap 14, centered on them), empty = none
+    void setTag(const QString& text);
+    PDFTag* getTag() const { return m_tag.data(); }
+
 Q_SIGNALS:
     /// Enter in the search field with a non-empty text
     void searchRequested(const QString& text);
@@ -360,6 +366,9 @@ private:
 
     QPointer<PDFAppBreadcrumb> m_breadcrumb;
     QPointer<PDFToolBadge> m_iconBadge;
+    QPointer<PDFTag> m_tag;
+    QPointer<QHBoxLayout> m_titleRowLayout;
+    QPointer<QVBoxLayout> m_titleColumnLayout;
     QPointer<PDFAppHeaderText> m_title;
     QPointer<PDFAppHeaderText> m_subtitle;
     QPointer<PDFLineEdit> m_searchField;

@@ -27,6 +27,7 @@
 #include "pdfform.h"
 #include "pdfdocumentreader.h"
 #include "pdfdocumentwriter.h"
+#include "pdfobjectutils.h"
 
 #include <QtTest>
 #include <QBuffer>
@@ -81,6 +82,8 @@ private slots:
     void signingFailureIsReported_data();
     void signingFailureIsReported();
     void multipleSignatures();
+    void signedObjectStreamsUpdatedIncrementally();
+    void signedFileWithRawCarriageReturn();
     void signingOverInvalidSignature();
     void existingSignaturesNotPreserved();
     void preservesAcroForm_data();
@@ -92,6 +95,9 @@ private:
     static bool createTestCertificate(const QTemporaryDir& directory, PDFCertificateEntry& certificate, QString& password);
     static std::vector<PDFSignatureVerificationResult> verifySignedDocument(const QByteArray& signedDocument);
     static PDFDocument readDocument(const QByteArray& data);
+
+    /// A file of the structures of PDF 1.5: the document in an object stream, a cross-reference stream
+    static QByteArray createObjectStreamDocument();
 
     /// Signs the first page of the document by an invisible signature
     static PDFDocumentSigner::Result signDocument(const PDFDocument& document,
@@ -405,6 +411,190 @@ void SignatureBuilderTest::multipleSignatures()
     QVERIFY(results.front().hasSignatureWarning());
     QVERIFY(!results.back().hasSignatureWarning());
     QCOMPARE(results.back().getSignatureFieldQualifiedName(), QString("Third"));
+}
+
+QByteArray SignatureBuilderTest::createObjectStreamDocument()
+{
+    QByteArray data("%PDF-1.5\r\n");
+
+    // PDF Reference 1.7, 3.4.6, Table 3.14: the catalog and the page tree in an object stream
+    QByteArray pairs;
+    QByteArray body;
+    int number = 0;
+    for (const QByteArray& object : { QByteArray("<< /Type /Catalog /Pages 2 0 R >>"),
+                                      QByteArray("<< /Type /Pages /Kids [ 3 0 R ] /Count 1 >>"),
+                                      QByteArray("<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 300 400 ] >>") })
+    {
+        pairs += QByteArray::number(++number) + " " + QByteArray::number(body.size()) + " ";
+        body += object + " ";
+    }
+
+    const qint64 objectStreamOffset = data.size();
+    data += "4 0 obj\r\n<< /Type /ObjStm /N 3 /First " + QByteArray::number(pairs.size()) + " /Length " + QByteArray::number(pairs.size() + body.size()) + " >>\r\nstream\r\n" + pairs + body + "\r\nendstream\r\nendobj\r\n";
+
+    // 3.4.7, Table 3.16: objects 1 ... 3 in the object stream 4, the cross-reference stream itself
+    const qint64 crossReferenceOffset = data.size();
+    QByteArray entries;
+    const auto addEntry = [&entries](int type, qint64 second, int third)
+    {
+        entries.append(char(type));
+        for (int shift = 24; shift >= 0; shift -= 8)
+        {
+            entries.append(char((second >> shift) & 0xFF));
+        }
+        entries.append(char((third >> 8) & 0xFF));
+        entries.append(char(third & 0xFF));
+    };
+    addEntry(0, 0, 65535);
+    addEntry(2, 4, 0);
+    addEntry(2, 4, 1);
+    addEntry(2, 4, 2);
+    addEntry(1, objectStreamOffset, 0);
+    addEntry(1, crossReferenceOffset, 0);
+    data += "5 0 obj\r\n<< /Type /XRef /Size 6 /W [ 1 4 2 ] /Root 1 0 R /Length " + QByteArray::number(entries.size()) + " >>\r\nstream\r\n" + entries + "\r\nendstream\r\nendobj\r\n";
+    data += "startxref\r\n" + QByteArray::number(crossReferenceOffset) + "\r\n%%EOF\r\n";
+    return data;
+}
+
+void SignatureBuilderTest::signedFileWithRawCarriageReturn()
+{
+    // A signature covers the bytes of the file (PDF Reference 1.7, 8.7), not the values read from them: a raw CR of a
+    // literal string in the signed part is read as a line feed (3.2.3), the file itself is not changed by the reading.
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    PDFCertificateEntry certificate;
+    QString password;
+    QVERIFY(createTestCertificate(directory, certificate, password));
+
+    QByteArray original("%PDF-1.7\n");
+    std::vector<qsizetype> offsets;
+    for (const QByteArray& object : { QByteArray("<< /Type /Catalog /Pages 2 0 R >>"),
+                                      QByteArray("<< /Type /Pages /Kids [ 3 0 R ] /Count 1 >>"),
+                                      QByteArray("<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 300 400 ] /Note 4 0 R >>"),
+                                      QByteArray("(first\rsecond\r\nthird)") })
+    {
+        offsets.push_back(original.size());
+        original += QByteArray::number(qulonglong(offsets.size())) + " 0 obj\n" + object + "\nendobj\n";
+    }
+    const qsizetype tableOffset = original.size();
+    original += "xref\n0 5\n0000000000 65535 f\r\n";
+    for (qsizetype offset : offsets)
+    {
+        original += QByteArray::number(qlonglong(offset)).rightJustified(10, '0') + " 00000 n\r\n";
+    }
+    original += "trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n" + QByteArray::number(qlonglong(tableOffset)) + "\n%%EOF\n";
+
+    const PDFDocument document = readDocument(original);
+    QCOMPARE(document.getObjectByReference(PDFObjectReference(4, 0)).getString(), QByteArray("first\nsecond\nthird"));
+
+    QByteArray signedData;
+    QCOMPARE(signDocument(document, original, certificate, password, "Signature", signedData), PDFDocumentSigner::Result::OK);
+    QVERIFY(signedData.startsWith(original));
+
+    const std::vector<PDFSignatureVerificationResult> results = verifySignedDocument(signedData);
+    QCOMPARE(results.size(), size_t(1));
+    QVERIFY2(results.front().isSignatureValid(), qPrintable(results.front().getErrors().join('\n')));
+
+    // The value of the signed document reads the same, the bytes of the signed part have the raw CR
+    QCOMPARE(readDocument(signedData).getObjectByReference(PDFObjectReference(4, 0)).getString(), QByteArray("first\nsecond\nthird"));
+
+    // The same value by another byte of the file is another signed file
+    QByteArray changed = signedData;
+    const qsizetype position = changed.indexOf("first\rsecond");
+    QVERIFY(position != -1);
+    changed[position + 5] = '\n';
+    QCOMPARE(readDocument(changed).getObjectByReference(PDFObjectReference(4, 0)).getString(), QByteArray("first\nsecond\nthird"));
+    const std::vector<PDFSignatureVerificationResult> changedResults = verifySignedDocument(changed);
+    QCOMPARE(changedResults.size(), size_t(1));
+    QVERIFY(!changedResults.front().isSignatureValid());
+}
+
+void SignatureBuilderTest::signedObjectStreamsUpdatedIncrementally()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    PDFCertificateEntry certificate;
+    QString password;
+    QVERIFY(createTestCertificate(directory, certificate, password));
+
+    const QByteArray original = createObjectStreamDocument();
+    const PDFDocument document = readDocument(original);
+    QCOMPARE(document.getCatalog()->getPageCount(), size_t(1));
+
+    // The signature is an update of a file with object streams
+    QByteArray signedData;
+    QCOMPARE(signDocument(document, original, certificate, password, "First", signedData), PDFDocumentSigner::Result::OK);
+    QVERIFY(signedData.startsWith(original));
+    const PDFDocument signedDocument = readDocument(signedData);
+
+    // An edit of the user is appended: the signed bytes stay, the signature is valid
+    PDFDocumentBuilder builder(&signedDocument);
+    builder.addObject(PDFObject::createInteger(1234567));
+    const PDFDocument edited = builder.build();
+
+    QByteArray updated;
+    {
+        QBuffer buffer(&updated);
+        QVERIFY(buffer.open(QIODevice::WriteOnly));
+        PDFDocumentWriter writer(nullptr);
+        QVERIFY(bool(writer.writeIncrementalUpdate(&buffer, signedData, &edited)));
+    }
+    QVERIFY(updated.startsWith(signedData));
+    QVERIFY(updated.mid(signedData.size()).contains("1234567"));
+
+    std::vector<PDFSignatureVerificationResult> results = verifySignedDocument(updated);
+    QCOMPARE(results.size(), size_t(1));
+    QVERIFY2(results.front().isSignatureValid(), qPrintable(results.front().getErrors().join('\n')));
+
+    // The containers dropped from the document (a whole write of a tool) drop nothing of an
+    // update: no object is written over the number of the object stream, whose objects the
+    // older sections still lead to, and the signature stays valid
+    PDFObjectStorage storage = signedDocument.getStorage();
+    QVERIFY(PDFObjectUtils::removeFileStructureObjects(storage) >= 2);
+    QVERIFY(storage.getObject(PDFObjectReference(4, 0)).isNull());
+    const PDFDocument withoutContainers(std::move(storage), signedDocument.getInfo()->version, QByteArray());
+
+    QByteArray withoutContainersUpdated;
+    {
+        QBuffer buffer(&withoutContainersUpdated);
+        QVERIFY(buffer.open(QIODevice::WriteOnly));
+        PDFDocumentWriter writer(nullptr);
+        QVERIFY(bool(writer.writeIncrementalUpdate(&buffer, signedData, &withoutContainers)));
+    }
+    QVERIFY(withoutContainersUpdated.startsWith(signedData));
+    QVERIFY(!withoutContainersUpdated.mid(signedData.size()).contains("\n4 0 obj"));
+
+    PDFDocumentReader reader(nullptr, nullptr, false, false);
+    const PDFDocument reopened = reader.readFromBuffer(withoutContainersUpdated);
+    QCOMPARE(reader.getReadingResult(), PDFDocumentReader::Result::OK);
+    QCOMPARE(reopened.getCatalog()->getPageCount(), size_t(1));
+    QVERIFY(PDFObjectUtils::isObjectStream(reopened.getStorage().getObject(PDFObjectReference(4, 0))));
+
+    results = verifySignedDocument(withoutContainersUpdated);
+    QCOMPARE(results.size(), size_t(1));
+    QVERIFY2(results.front().isSignatureValid(), qPrintable(results.front().getErrors().join('\n')));
+
+    // The old signer: another object under the number of the object stream cannot be an update.
+    // A document without signatures is written whole instead of a broken update, a document
+    // with signatures is refused
+    const auto replaceObjectStream = [](const PDFDocument& input)
+    {
+        PDFObjectStorage replaced = input.getStorage();
+        replaced.setObject(PDFObjectReference(4, 0), PDFObject::createInteger(1));
+        return PDFDocument(std::move(replaced), input.getInfo()->version, QByteArray());
+    };
+
+    const PDFDocument unsignedReplaced = replaceObjectStream(document);
+    QByteArray unsignedResult;
+    QCOMPARE(signDocument(unsignedReplaced, original, certificate, password, "First", unsignedResult), PDFDocumentSigner::Result::OK);
+    QVERIFY(!unsignedResult.startsWith(original));
+    QCOMPARE(verifySignedDocument(unsignedResult).size(), size_t(1));
+    QVERIFY(verifySignedDocument(unsignedResult).front().isSignatureValid());
+
+    const PDFDocument signedReplaced = replaceObjectStream(signedDocument);
+    QByteArray signedResult;
+    QCOMPARE(signDocument(signedReplaced, signedData, certificate, password, "Second", signedResult), PDFDocumentSigner::Result::ExistingSignaturesNotPreserved);
+    QVERIFY(signedResult.isEmpty());
 }
 
 void SignatureBuilderTest::signingOverInvalidSignature()

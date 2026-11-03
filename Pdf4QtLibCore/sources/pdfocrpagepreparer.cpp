@@ -794,6 +794,7 @@ QByteArray PDFOCRPagePreparerHelper::digestObject(const PDFObject& object,
         return EMPTY_DICTIONARY_DIGEST;
     }
 
+    // The exact text of the writer: a value of the document, which reads back the same, keeps the fingerprint
     return PDFDocumentWriter::getSerializedObject(object);
 }
 
@@ -814,7 +815,7 @@ QByteArray PDFOCRPagePreparer::computePageFingerprint(const PDFDocument* documen
     const PDFObjectStorage* storage = &document->getStorage();
 
     QCryptographicHash hash(QCryptographicHash::Sha256);
-    hash.addData(QByteArrayLiteral("PDF4QT-OCR-PAGE-FINGERPRINT-2"));
+    hash.addData(QByteArrayLiteral("PDF4QT-OCR-PAGE-FINGERPRINT-3"));
 
     auto addRect = [&hash](const QRectF& rect)
     {

@@ -21,7 +21,10 @@
 // SOFTWARE.
 
 #include "appmcpfixture.h"
+#include "testdocumenttool.h"
 
+#include "pdfdocumenttoolregistry.h"
+#include "pdfdocumenttoolrunner.h"
 #include "pdfappannotationcontroller.h"
 #include "pdfappcommandline.h"
 #include "pdfappcontext.h"
@@ -111,6 +114,10 @@ private slots:
     void statusItemsAndBanner();
     void notificationBar();
     void toolModeAssistantChanges();
+    void toolModeCatalogToolIdle();
+    void toolModeCatalogToolDuringRun();
+    void toolModeShowOnPageHidden();
+    void catalogToolPendingEdits();
     void queuedRequestsRebuild();
     void lockedBusyDialogOpen();
     void signedDocumentWarning();
@@ -127,6 +134,7 @@ private slots:
     void filesSave();
     void reviewFilesSaveRefusals();
     void reviewChangeRefusedAfterConfirmation();
+    void reviewDenySetDuringQuestion();
     void filesSaveCopy();
     void filesPathLinksAndFolders();
     void filesSaveCopyTargetAppeared();
@@ -1673,6 +1681,300 @@ void AppMcpEditTest::restrictedPermissions()
     QVERIFY(H::text(result).contains(QStringLiteral("security settings")));
 }
 
+/// The test tool of the catalog under the id of Rotate Pages, a real tool of the id comes back
+class McpEditCatalogTool
+{
+public:
+    McpEditCatalogTool(pdf::PDFAppMcpHost* host, const QString& id) :
+        m_host(host),
+        m_id(id),
+        m_previous(pdf::PDFDocumentToolRegistry::getTool(id)),
+        tool(std::make_shared<pdftest::TestDocumentTool>(id))
+    {
+        pdf::PDFDocumentToolRegistry::unregisterTool(m_id);
+        pdf::PDFDocumentToolRegistry::registerTool(tool);
+        m_host->checkToolRegistry();
+    }
+
+    ~McpEditCatalogTool()
+    {
+        pdf::PDFDocumentToolRegistry::unregisterTool(m_id);
+        if (m_previous)
+        {
+            pdf::PDFDocumentToolRegistry::registerTool(m_previous);
+        }
+        if (m_host)
+        {
+            m_host->checkToolRegistry();
+        }
+    }
+
+private:
+    QPointer<pdf::PDFAppMcpHost> m_host;
+    QString m_id;
+    std::shared_ptr<const pdf::PDFDocumentTool> m_previous;
+
+public:
+    std::shared_ptr<pdftest::TestDocumentTool> tool;
+};
+
+/// Undo of an open tool of the test: nothing to undo
+class McpEditToolUndoTarget : public pdf::PDFAppToolUndoTarget
+{
+public:
+    using PDFAppToolUndoTarget::PDFAppToolUndoTarget;
+
+    virtual bool canUndo() const override { return false; }
+    virtual bool canRedo() const override { return false; }
+    virtual void undo() override { }
+    virtual void redo() override { }
+};
+
+void AppMcpEditTest::toolModeCatalogToolIdle()
+{
+    using H = AppMcpEditTestHelper;
+
+    // Chapter 12 of the plan: an open tool, which does not run, lets an assistant change the
+    // document; its preview is dropped and computed again on the new version
+    McpEditFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    pdf::PDFAppDocumentTab* tab = fixture.openReady(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("idle.pdf"), 2));
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppDocumentView* view = tab->getView();
+
+    McpEditCatalogTool catalogTool(fixture.host(), QStringLiteral("pages.rotate"));
+    McpEditToolUndoTarget target;
+    pdf::PDFAppToolModeParts parts;
+    parts.undoTarget = &target;
+    QVERIFY(view->enterToolMode(parts));
+
+    std::shared_ptr<pdftest::TestDocumentTool> shellTool = std::make_shared<pdftest::TestDocumentTool>(QStringLiteral("optimize.compress"));
+    pdf::PDFDocumentToolRunner runner(document, shellTool, nullptr);
+    QSignalSpy finishedSpy(&runner, &pdf::PDFDocumentToolRunner::previewFinished);
+    QSignalSpy droppedSpy(&runner, &pdf::PDFDocumentToolRunner::previewDropped);
+    runner.requestPreview(QVariantMap({ { QStringLiteral("mode"), QStringLiteral("count") }, { QStringLiteral("repeat"), 1 } }));
+    QTRY_COMPARE(finishedSpy.count(), 1);
+    QVERIFY(runner.getPreview());
+
+    const quint64 version = document->getVersion();
+    std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("pages"), H::json(R"({"action":"rotate","result":"keep","rotate":{"mode":"title","title":"Assistant"}})"));
+    QVERIFY(result);
+    QVERIFY2(!H::isError(result), qPrintable(H::text(result)));
+    QCOMPARE(document->getVersion(), version + 1);
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 1);
+    QCOMPARE(document->getDocument()->getInfo()->title, QStringLiteral("Assistant"));
+
+    QCOMPARE(droppedSpy.count(), 1);
+    QVERIFY(!runner.getPreview());
+    QTRY_COMPARE(finishedSpy.count(), 2);
+    QVERIFY(runner.getPreview());
+    QVERIFY(view->isToolModeActive());
+
+    // The change of the assistant is told by the bar as every change (owner Q3); its Undo
+    // and Show Changes are off while the tool is open (chapter 12)
+    pdf::PDFAppMcpNotificationBar* bar = fixture.ui()->findNotificationBar(document);
+    QVERIFY(bar && bar->isVisible());
+    QVERIFY(!bar->getUndoButton()->isEnabled());
+    QVERIFY(!bar->getShowChangesButton()->isEnabled());
+
+    view->leaveToolMode();
+}
+
+void AppMcpEditTest::toolModeCatalogToolDuringRun()
+{
+    using H = AppMcpEditTestHelper;
+
+    // Chapter 12: during a run of the tool and with its result dialog open a change of an
+    // assistant is refused by a clear error, the other way around the result of a
+    // catalog tool finishing under a running shell is refused too
+    McpEditFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    pdf::PDFAppDocumentTab* tab = fixture.openReady(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("busy.pdf"), 2));
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+
+    McpEditCatalogTool catalogTool(fixture.host(), QStringLiteral("pages.rotate"));
+    std::shared_ptr<pdftest::TestDocumentTool> shellTool = std::make_shared<pdftest::TestDocumentTool>(QStringLiteral("optimize.compress"));
+    pdf::PDFDocumentToolRunner runner(document, shellTool, nullptr);
+    QSignalSpy runSpy(&runner, &pdf::PDFDocumentToolRunner::runFinished);
+
+    const QJsonObject keep = H::json(R"({"action":"rotate","result":"keep","rotate":{"mode":"title","title":"Assistant"}})");
+    const QVariantMap parameters({ { QStringLiteral("mode"), QStringLiteral("title") }, { QStringLiteral("title"), QStringLiteral("Tool") } });
+
+    // A run of the shell holds the operation of the kind Tool
+    shellTool->setHold(true);
+    QVERIFY(runner.run(parameters));
+    QVERIFY(document->isBlockedByOperation());
+    std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("pages"), keep);
+    QVERIFY(result);
+    QVERIFY(H::isError(result));
+    QVERIFY2(H::text(result).contains(QStringLiteral("busy")), qPrintable(H::text(result)));
+    QCOMPARE(catalogTool.tool->getExecuteCount(), 0);
+    QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::DeniedBusy));
+
+    // The result waits for the decision of the user: the same refusal
+    shellTool->setHold(false);
+    QTRY_COMPARE(runSpy.count(), 1);
+    QCOMPARE(runner.getState(), pdf::PDFDocumentToolRunner::State::Waiting);
+    result = fixture.callTool(QStringLiteral("pages"), keep);
+    QVERIFY(result);
+    QVERIFY(H::isError(result));
+    QVERIFY2(H::text(result).contains(QStringLiteral("busy")), qPrintable(H::text(result)));
+    QCOMPARE(catalogTool.tool->getExecuteCount(), 0);
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 0);
+
+    // After the decision the assistant may go on
+    runner.endDecision();
+    QVERIFY(!document->isBlockedByOperation());
+    result = fixture.callTool(QStringLiteral("pages"), keep);
+    QVERIFY(result);
+    QVERIFY2(!H::isError(result), qPrintable(H::text(result)));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 1);
+
+    // A tool of an assistant runs in its worker, the shell starts meanwhile: the result
+    // of the assistant is refused, the document stays with the shell
+    catalogTool.tool->setHold(true);
+    std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("pages"), H::json(R"({"action":"rotate","result":"keep","rotate":{"mode":"title","title":"Late"}})"));
+    QTRY_VERIFY(catalogTool.tool->getHeldCount() > 0);
+    shellTool->setHold(true);
+    QVERIFY(runner.run(parameters));
+    catalogTool.tool->setHold(false);
+    result = pdftest::AppMcpFixture::waitResult(call);
+    QVERIFY(result);
+    QVERIFY(H::isError(result));
+    QVERIFY2(H::text(result).contains(QStringLiteral("busy")), qPrintable(H::text(result)));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 1);
+    QVERIFY(document->getDocument()->getInfo()->title != QStringLiteral("Late"));
+
+    // The shell is not disturbed: its result commits as the tool
+    shellTool->setHold(false);
+    QTRY_COMPARE(runSpy.count(), 2);
+    QCOMPARE(runner.getState(), pdf::PDFDocumentToolRunner::State::Waiting);
+    const pdf::PDFDocumentToolResult shellResult = runSpy.last().at(0).value<pdf::PDFDocumentToolResult>();
+    QString error;
+    QCOMPARE(runner.commitResult(shellResult, QStringLiteral("Tool"), &error), pdf::PDFDocumentToolRunner::CommitStatus::Committed);
+    QCOMPARE(document->getDocument()->getInfo()->title, QStringLiteral("Tool"));
+
+    // An analysis of an assistant is refused too while the shell runs: it sees it busy
+    shellTool->setHold(true);
+    QVERIFY(runner.run(parameters));
+    result = fixture.callTool(QStringLiteral("pages"), H::json(R"({"action":"rotate","rotate":{"mode":"count"}})"));
+    QVERIFY(result);
+    QVERIFY(H::isError(result));
+    shellTool->setHold(false);
+    QTRY_COMPARE(runSpy.count(), 3);
+    runner.endDecision();
+}
+
+void AppMcpEditTest::toolModeShowOnPageHidden()
+{
+    using H = AppMcpEditTestHelper;
+
+    // Chapter 12: a page of a tool replaces the canvas, so Show on Page has nothing to show;
+    // a tool without its own page keeps the link. A preview opened before the page goes.
+    McpEditFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    QVERIFY(fixture.setPermission(pdf::PDFAppMcpPermissionKind::Edit, pdf::PDFAppMcpPermission::Ask));
+    pdf::PDFAppDocumentTab* tab = fixture.openReady(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("page.pdf"), 2));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    const QJsonObject note = H::json(R"({"action":"add","add":{"items":[{"type":"note","page":1,"point":{"x":20,"y":380}}]}})");
+
+    McpEditToolUndoTarget target;
+    pdf::PDFAppToolModeParts parts;
+    parts.undoTarget = &target;
+    QVERIFY(view->enterToolMode(parts));
+    QVERIFY(!view->isToolCanvasPageShown());
+
+    std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("annotations"), note);
+    QTRY_VERIFY(tab->findChild<pdf::PDFAppMcpConfirmDialog*>());
+    pdf::PDFAppMcpConfirmDialog* dialog = tab->findChild<pdf::PDFAppMcpConfirmDialog*>();
+    QVERIFY(dialog->getShowOnPageLink());
+    QVERIFY(dialog->getShowOnPageLink()->isVisible());
+    dialog->getDenyButton()->click();
+    QVERIFY(pdftest::AppMcpFixture::waitResult(call));
+    pdftest::AppDocumentFixture::settle();
+    view->leaveToolMode();
+
+    QWidget* page = new QWidget();
+    parts.canvasPage = page;
+    QVERIFY(view->enterToolMode(parts));
+    QVERIFY(view->isToolCanvasPageShown());
+
+    call = fixture.startCall(QStringLiteral("annotations"), note);
+    QTRY_VERIFY(tab->findChild<pdf::PDFAppMcpConfirmDialog*>() && tab->findChild<pdf::PDFAppMcpConfirmDialog*>()->getConfirmationId() != 0);
+    dialog = tab->findChild<pdf::PDFAppMcpConfirmDialog*>();
+    QVERIFY(dialog->getShowOnPageLink());
+    QVERIFY(!dialog->getShowOnPageLink()->isVisible());
+    dialog->getDenyButton()->click();
+    QVERIFY(pdftest::AppMcpFixture::waitResult(call));
+    pdftest::AppDocumentFixture::settle();
+    view->leaveToolMode();
+    delete page;
+}
+
+void AppMcpEditTest::catalogToolPendingEdits()
+{
+    using H = AppMcpEditTestHelper;
+
+    // A form field being typed in the tab: what a tool writes has the typed value, as Save of
+    // the user and files.save_copy (the open editor is committed, the tool runs again on it)
+    McpEditFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    const QString file = pdftest::AppDocumentSamples::fullForm(fixture.folder());
+    pdf::PDFAppDocumentTab* tab = fixture.openReady(file);
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    McpEditCatalogTool catalogTool(fixture.host(), QStringLiteral("pages.rotate"));
+
+    const auto typeValue = [&](const QString& value)
+    {
+        pdftest::AppDocumentFixture::clickPage(tab->getView(), 0, QPointF(100, 109));
+        pdftest::AppDocumentFixture::settle();
+        QWidget* canvas = pdftest::AppDocumentFixture::canvasWidget(tab->getView());
+        QTest::keyClick(canvas, Qt::Key_A, Qt::ControlModifier);
+        QTest::keyClicks(canvas, value);
+        pdftest::AppDocumentFixture::settle();
+    };
+    const auto fieldOf = [](const QString& path)
+    {
+        pdf::PDFDocumentReader reader(nullptr, nullptr, false, false);
+        const pdf::PDFDocument saved = reader.readFromFile(path);
+        return reader.getReadingResult() == pdf::PDFDocumentReader::Result::OK ? H::fieldValue(&saved, QStringLiteral("name")) : QString();
+    };
+
+    // save_copy: the copy has the typed value, one step of the field in the tab, no step of the tool
+    typeValue(QStringLiteral("Copied"));
+    QVERIFY(document->hasPendingEdits());
+    const int undoBefore = pdftest::AppDocumentFixture::undoCount(document);
+    const QString copyPath = fixture.path(QStringLiteral("typed-tool-copy.pdf"));
+    QJsonObject copyArguments = H::json(R"({"action":"rotate","result":"save_copy","rotate":{"mode":"title","title":"Copy"}})");
+    copyArguments.insert(QStringLiteral("path"), copyPath);
+    std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("pages"), copyArguments);
+    QVERIFY(result);
+    QVERIFY2(!H::isError(result), qPrintable(H::text(result)));
+    QVERIFY(!document->hasPendingEdits());
+    QCOMPARE(fieldOf(copyPath), QStringLiteral("Copied"));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoBefore + 1);
+    QCOMPARE(catalogTool.tool->getExecuteCount(), 2);
+
+    // overwrite: the same over the file, the one question of the two runs
+    typeValue(QStringLiteral("Overwritten"));
+    QVERIFY(document->hasPendingEdits());
+    std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("pages"), H::json(R"({"action":"rotate","result":"overwrite","rotate":{"mode":"title","title":"Over"}})"));
+    pdf::PDFAppMcpConfirmDialog* dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    QTest::mouseClick(dialog->getAllowButton(), Qt::LeftButton);
+    result = fixture.waitResult(call);
+    QVERIFY(result);
+    QVERIFY2(!H::isError(result), qPrintable(H::text(result)));
+    QVERIFY(!document->hasPendingEdits());
+    QVERIFY(!document->isModified());
+    QCOMPARE(fieldOf(file), QStringLiteral("Overwritten"));
+    QVERIFY(!fixture.ui()->getDialog());
+}
+
 void AppMcpEditTest::toolModeAssistantChanges()
 {
     using H = AppMcpEditTestHelper;
@@ -2437,6 +2739,150 @@ void AppMcpEditTest::reviewChangeRefusedAfterConfirmation()
     QVERIFY2(H::text(result).contains(QStringLiteral("busy")), qPrintable(H::text(result)));
     operation->finish();
     QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoSteps);
+}
+
+void AppMcpEditTest::reviewDenySetDuringQuestion()
+{
+    // Plan 7: a permission set to Deny while the question waits is an error of the call, also after
+    // Allow (review RP2E found the hole in the bridge, the same one was in the jobs of phase 1): nothing
+    // changes, the error names the permission, the audit row is the permission (never "Denied by you")
+    using H = AppMcpEditTestHelper;
+    using Kind = pdf::PDFAppMcpPermissionKind;
+    using Permission = pdf::PDFAppMcpPermission;
+
+    McpEditFixture fixture;
+    QVERIFY(fixture.setPermissions(Permission::Allow));
+    const QString file = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("DenyDuringQuestion.pdf"), 1);
+    pdf::PDFAppDocumentTab* tab = fixture.openReady(file);
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    const QJsonObject add = H::json(R"({"action":"add","add":{"items":[{"type":"note","page":1,"point":{"x":100,"y":300}}]}})");
+
+    const auto expectRefused = [&fixture](const std::shared_ptr<pdf::PDFMcpCall>& call, const QString& permissionTitle)
+    {
+        const std::optional<pdf::PDFMcpCallResult> result = fixture.waitResult(call);
+        const bool isRefused = H::isError(result) && H::text(result).contains(permissionTitle) && !H::text(result).contains(QStringLiteral("denied"));
+        if (!isRefused)
+        {
+            qWarning("%s", qPrintable(H::text(result)));
+        }
+        return isRefused;
+    };
+
+    // The rows of an action and of a status (the rows of the refused calls of the permission
+    // of one action are joined within a minute, the others have their own)
+    const auto countRows = [&fixture](const QString& action, pdf::PDFMcpActivityStatus status)
+    {
+        int count = 0;
+        for (const pdf::PDFMcpActivityRow& row : fixture.activity())
+        {
+            count += row.action == action && row.status == status ? 1 : 0;
+        }
+        return count;
+    };
+    const QString addAction = QStringLiteral("annotations.add");
+
+    // annotations.add: Edit = Ask, Deny during the question, Allow
+    QVERIFY(fixture.setPermission(Kind::Edit, Permission::Ask));
+    std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("annotations"), add);
+    pdf::PDFAppMcpConfirmDialog* dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    const quint64 changeQuestion = dialog->getConfirmationId();
+
+    // (the dialog of a permission set to Deny stays: the decision is checked)
+    QVERIFY(fixture.setPermission(Kind::Edit, Permission::Deny));
+    QVERIFY(fixture.ui()->getDialog());
+    QCOMPARE(fixture.ui()->getDialog()->getConfirmationId(), changeQuestion);
+    fixture.ui()->answer(changeQuestion, pdf::PDFAppMcpDecision::Allowed);
+    QVERIFY(expectRefused(call, QStringLiteral("Edit documents")));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 0);
+    QVERIFY(!document->isModified());
+    QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::DeniedPermission));
+    QCOMPARE(countRows(addAction, pdf::PDFMcpActivityStatus::Allowed), 0);
+    QCOMPARE(countRows(addAction, pdf::PDFMcpActivityStatus::DeniedUser), 0);
+
+    // Read documents set to Deny during the question of a change: the error says Read documents
+    QVERIFY(fixture.setPermission(Kind::Edit, Permission::Ask));
+    call = fixture.startCall(QStringLiteral("annotations"), add);
+    dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    QVERIFY(fixture.setPermission(Kind::Read, Permission::Deny));
+    fixture.ui()->answer(dialog->getConfirmationId(), pdf::PDFAppMcpDecision::Allowed);
+    QVERIFY(expectRefused(call, QStringLiteral("Read documents")));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 0);
+    QVERIFY(fixture.setPermission(Kind::Read, Permission::Allow));
+
+    // The control: Ask that stays Ask commits one step
+    call = fixture.startCall(QStringLiteral("annotations"), add);
+    dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    fixture.ui()->answer(dialog->getConfirmationId(), pdf::PDFAppMcpDecision::Allowed);
+    QVERIFY2(!H::isError(fixture.waitResult(call)), qPrintable(H::text(call->getResult())));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 1);
+    QVERIFY(document->isModified());
+
+    // Deny set while the change is computed (no question at all): the row is the permission too
+    QVERIFY(fixture.setPermission(Kind::Edit, Permission::Allow));
+    const pdf::PDFAppMcpPermissions allowed = fixture.host()->getPolicy().getPermissions();
+    pdf::PDFAppMcpPermissions denied = allowed;
+    denied.set(Kind::Edit, Permission::Deny);
+    call = fixture.startCall(QStringLiteral("annotations"), add);
+    fixture.host()->setPermissions(denied);
+    QVERIFY(expectRefused(call, QStringLiteral("Edit documents")));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 1);
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(countRows(addAction, pdf::PDFMcpActivityStatus::DeniedPermission) >= 1);
+    QCOMPARE(countRows(addAction, pdf::PDFMcpActivityStatus::DeniedUser), 0);
+    fixture.host()->setPermissions(allowed);
+
+    // files.save is always confirmed: Files set to Deny during the question, the file is not touched
+    const auto readBytes = [&file]()
+    {
+        QFile input(file);
+        return input.open(QIODevice::ReadOnly) ? input.readAll() : QByteArray();
+    };
+    const QByteArray originalBytes = readBytes();
+    QVERIFY(!originalBytes.isEmpty());
+    call = fixture.startCall(QStringLiteral("files"), H::json(R"({"action":"save"})"));
+    dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    QVERIFY(fixture.setPermission(Kind::Files, Permission::Deny));
+    fixture.ui()->answer(dialog->getConfirmationId(), pdf::PDFAppMcpDecision::Allowed);
+    QVERIFY(expectRefused(call, QStringLiteral("Open and save files")));
+    QCOMPARE(readBytes(), originalBytes);
+    QVERIFY(document->isModified());
+    QTRY_COMPARE(countRows(QStringLiteral("files.save"), pdf::PDFMcpActivityStatus::DeniedPermission), 1);
+    QCOMPARE(countRows(QStringLiteral("files.save"), pdf::PDFMcpActivityStatus::Allowed), 0);
+
+    // files.save_copy: no file appears
+    QVERIFY(fixture.setPermission(Kind::Files, Permission::Ask));
+    const QString copyPath = fixture.path(QStringLiteral("DenyDuringQuestionCopy.pdf"));
+    QJsonObject copy = H::json(R"({"action":"save_copy"})");
+    copy.insert(QStringLiteral("save_copy"), QJsonObject({ { QStringLiteral("path"), copyPath } }));
+    call = fixture.startCall(QStringLiteral("files"), copy);
+    dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    QVERIFY(fixture.setPermission(Kind::Files, Permission::Deny));
+    fixture.ui()->answer(dialog->getConfirmationId(), pdf::PDFAppMcpDecision::Allowed);
+    QVERIFY(expectRefused(call, QStringLiteral("Open and save files")));
+    QVERIFY(!QFileInfo::exists(copyPath));
+    QTRY_COMPARE(countRows(QStringLiteral("files.save_copy"), pdf::PDFMcpActivityStatus::DeniedPermission), 1);
+
+    // files.open of a new file: no new tab
+    QVERIFY(fixture.setPermission(Kind::Files, Permission::Ask));
+    const QString otherFile = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("DenyDuringQuestionOther.pdf"), 1);
+    QJsonObject open = H::json(R"({"action":"open"})");
+    open.insert(QStringLiteral("open"), QJsonObject({ { QStringLiteral("path"), otherFile } }));
+    const size_t documentCount = fixture.context->getDocumentRegistry()->getDocuments().size();
+    call = fixture.startCall(QStringLiteral("files"), open);
+    dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    QVERIFY(fixture.setPermission(Kind::Files, Permission::Deny));
+    fixture.ui()->answer(dialog->getConfirmationId(), pdf::PDFAppMcpDecision::Allowed);
+    QVERIFY(expectRefused(call, QStringLiteral("Open and save files")));
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(fixture.context->getDocumentRegistry()->getDocuments().size(), documentCount);
+    QTRY_COMPARE(countRows(QStringLiteral("files.open"), pdf::PDFMcpActivityStatus::DeniedPermission), 1);
 }
 
 void AppMcpEditTest::filesSave()

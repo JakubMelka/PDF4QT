@@ -27,6 +27,7 @@
 #include "pdfappmcpdocumentresources.h"
 #include "pdfappmcphost.h"
 #include "pdfappmcpreadsupport.h"
+#include "pdfapppagerendercontext.h"
 
 #include "pdfannotation.h"
 #include "pdfcms.h"
@@ -51,68 +52,6 @@
 
 namespace pdf
 {
-
-/// The caches and the managers of one rendering in a worker (as the printing)
-class PDFAppMcpRenderContext
-{
-public:
-    explicit PDFAppMcpRenderContext(const PDFDocument* document) :
-        m_document(document),
-        m_fontCache(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT),
-        m_optionalContentActivity(document, OCUsage::View, nullptr),
-        m_cmsManager(nullptr),
-        m_annotationManager(&m_fontCache, &m_iccProfileCache, &m_cmsManager, &m_optionalContentActivity, PDFMeshQualitySettings(),
-                            getFeatures(), PDFAnnotationManager::Target::View, nullptr)
-    {
-        // The document is not modified: the caches and the annotations only read it
-        PDFModifiedDocument modifiedDocument(const_cast<PDFDocument*>(document), &m_optionalContentActivity);
-        m_fontCache.setDocument(modifiedDocument);
-        m_iccProfileCache.setDocument(modifiedDocument);
-        m_cmsManager.setDocument(document);
-        m_cmsManager.setSettings(PDFCMSSettings());
-        m_annotationManager.setDocument(modifiedDocument);
-    }
-
-    static PDFRenderer::Features getFeatures()
-    {
-        return PDFRenderer::Features(PDFRenderer::Antialiasing | PDFRenderer::TextAntialiasing | PDFRenderer::SmoothImages |
-                                     PDFRenderer::ClipToCropBox | PDFRenderer::DisplayAnnotations);
-    }
-
-    void draw(QPainter* painter, PDFInteger pageIndex, const QTransform& pageToImage, bool showAnnotations, const PDFOperationControl* control)
-    {
-        const PDFPage* page = m_document->getCatalog()->getPage(size_t(pageIndex));
-        const PDFCMSPointer cms = m_cmsManager.getCurrentCMS();
-        PDFRenderer renderer(m_document, &m_fontCache, &m_iccProfileCache, cms.data(), &m_optionalContentActivity, getFeatures(), PDFMeshQualitySettings());
-        renderer.setOperationControl(control);
-
-        PDFFontCacheShrinkGuard shrinkGuard(&m_fontCache);
-        PDFPrecompiledPage compiledPage;
-        renderer.compile(&compiledPage, size_t(pageIndex));
-        if (PDFOperationControl::isOperationCancelled(control))
-        {
-            return;
-        }
-
-        compiledPage.draw(painter, page->getCropBox(), pageToImage, getFeatures(), 1.0);
-        if (showAnnotations)
-        {
-            PDFColorConvertor convertor = cms->getColorConvertor();
-            PDFRenderer::applyFeaturesToAnnotationColorConvertor(getFeatures(), convertor);
-            PDFTextLayoutGetter textLayoutGetter(nullptr, pageIndex);
-            QList<PDFRenderError> errors;
-            m_annotationManager.drawPage(painter, pageIndex, &compiledPage, textLayoutGetter, pageToImage, convertor, errors);
-        }
-    }
-
-private:
-    const PDFDocument* m_document;
-    PDFFontCache m_fontCache;
-    PDFICCProfileCache m_iccProfileCache;
-    PDFOptionalContentActivity m_optionalContentActivity;
-    PDFCMSManager m_cmsManager;
-    PDFAnnotationManager m_annotationManager;
-};
 
 PDFAppMcpRenderGeometry PDFAppMcpRenderer::getGeometry(const PDFPage* page, int dpi, const std::optional<QRectF>& area, QString* errorMessage)
 {
@@ -181,7 +120,7 @@ QImage PDFAppMcpRenderer::render(const PDFDocument* document, PDFInteger pageInd
     }
     image.fill(Qt::white);
 
-    PDFAppMcpRenderContext context(document);
+    PDFAppPageRenderContext context(document);
     {
         QPainter painter(&image);
         context.draw(&painter, pageIndex, geometry.pageToImage, showAnnotations, control);
@@ -364,7 +303,7 @@ void PDFAppMcpRenderJob::executeOverview()
     writer.key(QLatin1StringView("cells"));
     writer.beginArray();
 
-    PDFAppMcpRenderContext context(document);
+    PDFAppPageRenderContext context(document);
     QPainter painter(&sheet);
     for (int i = 0; i < count; ++i)
     {

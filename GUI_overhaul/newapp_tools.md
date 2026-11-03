@@ -29,7 +29,8 @@ Zpět na [newapplication.md](newapplication.md). Katalog, pravidla a chování t
 
 `PDFDocumentToolParameterDefinition`: jméno, typ (`Bool`, `Integer`, `Real`, `String`, `Enum`, `PageSelection`, `Color`, `FilePath`, `FolderPath`, `FileNameTemplate`, `Secret`), výchozí hodnota, rozsah, volby výčtu (id, název, popis, ikona), povinnost, popis. Jedna definice dává:
 
-- JSON Schema pro `inputSchema` v MCP,
+- JSON Schema pro `inputSchema` v MCP (anglicky v každém jazyce aplikace, čte ho jen asistent – vlastník 2. 11. 2026),
+- texty panelů, přeložené až při čtení (tool předává `tr` své třídy a texty jako `QT_TR_NOOP`, [newapp_tools_batch1.md](newapp_tools_batch1.md) 12),
 - validaci s přeloženými zprávami (stejnou pro GUI i MCP),
 - uložení posledních hodnot do databáze (kromě `Secret`),
 - později volby PdfTool.

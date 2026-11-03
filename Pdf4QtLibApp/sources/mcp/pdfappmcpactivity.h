@@ -91,6 +91,7 @@ public:
     QString action;                 ///< Action id
     QString document;               ///< Title of the document
     QString documentId;             ///< Key of the coalescing (never stored)
+    QString openCallId;             ///< The call, which has not ended yet: its row may still change (PDFAppMcpActivityLog::callFinished; never stored)
     std::set<int> pages;            ///< Pages read (coalesced into "pages")
     QJsonObject detail;
     PDFMcpActivityStatus status = PDFMcpActivityStatus::Ok;
@@ -118,7 +119,10 @@ public:
 
     /// A written row is kept for the changes of its status this long after its
     /// last change (a confirmation waits up to 2 min, the job of the change runs
-    /// after it - its final status must reach the row); at most MAXIMUM_KEPT_ROWS
+    /// after it - its final status must reach the row); at most MAXIMUM_KEPT_ROWS.
+    /// The row of a call, which has not ended, does not age at all (M3 of the plan of
+    /// the first batch: a tool may run for longer): only MAXIMUM_KEPT_ROWS forgets it,
+    /// after every row of a finished call.
     static constexpr qint64 KEEP_TIME = 15 * 60000;
     static constexpr size_t MAXIMUM_KEPT_ROWS = 4096;
 
@@ -141,11 +145,17 @@ public:
     /// Changes the status (and merges the detail) of a row
     void update(qint64 localId, PDFMcpActivityStatus status, const QJsonObject& detail = QJsonObject());
 
+    /// The call has ended: its rows age from now (the host reports it)
+    void callFinished(const QString& callId);
+
     /// Writes the pending rows now (also by the destructor)
     void flush();
 
     /// Rows waiting for the write (tests)
     int getPendingCount() const;
+
+    /// All rows held in the memory (tests)
+    size_t getRowCount() const { return m_rows.size(); }
 
 Q_SIGNALS:
     /// Rows were written

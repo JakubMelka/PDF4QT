@@ -26,6 +26,7 @@
 #include "pdfdocumentreader.h"
 #include "pdfdocumenttextflow.h"
 #include "pdfdocumenttool_compress.h"
+#include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumentwriter.h"
 #include "pdfexception.h"
 #include "pdffont.h"
@@ -62,6 +63,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <vector>
 
@@ -97,7 +99,8 @@ enum CorpusPromise
     PromiseSignatures   = 0x08,     ///< The signature fields are kept and the impact is reported
     PromiseText         = 0x10,     ///< The text of the pages is the same
     PromiseTransparency = 0x20,     ///< The images keep their soft masks and masks
-    PromiseAll          = 0x3F
+    PromiseContent      = 0x40,     ///< Every page keeps its decoded content, the names of its resources and its annotations, the catalog its entries
+    PromiseAll          = 0x7F
 };
 
 /// How the pages of the result look against the pages of the input
@@ -151,6 +154,8 @@ struct CorpusImageDifference
     double worstBlock = 0.0;        ///< The largest mean of |a - b| of a block of EXACT_BLOCK_SIZE pixels
     double meanShift = 0.0;         ///< Mean over the blocks of CLOSE_BLOCK_SIZE pixels of the largest shift of a channel, |mean(a) - mean(b)|
     double worstShift = 0.0;        ///< The largest shift of a channel of such a block: artifacts and a blur average out in a block, a lost image or another color does not
+    double worstLargeShift = 0.0;   ///< The same of a block of CLOSE_LARGE_BLOCK_SIZE pixels: less is averaged away by a resampled edge, an area in another color stays
+    int worstPixel = 0;             ///< The largest |a - b| of a channel of a pixel: a dot, a thin line and a light object are lost in the mean of a block
 };
 
 /// The line of the summary of a row
@@ -349,10 +354,13 @@ public:
     static constexpr int RENDER_SIZE = 600;
 
     /// A lossless tool: the mean of the differences of a channel and of a block of a page
-    /// (the same drawing gives 0; a level of 1 is a rounding, a missing glyph is much more)
+    /// (the same drawing gives 0; a level of 1 is a rounding, a missing glyph is much more).
+    /// A pixel: the dot of a period of 10 points at this size covers about a half of a pixel, so
+    /// about 100 levels; an antialiased edge moved by a rounding of a number by 1 / 8 of a pixel 32.
     static constexpr double EXACT_MEAN_DIFFERENCE = 0.25;
     static constexpr double EXACT_WORST_BLOCK = 4.0;
     static constexpr int EXACT_BLOCK_SIZE = 8;
+    static constexpr int EXACT_WORST_PIXEL = 32;
 
     /// A lossy tool: the color of a block moves by at most these numbers (levels 0 to 255). The
     /// artifacts of a JPEG and a reduced resolution average out in a block: the rows measured
@@ -363,6 +371,13 @@ public:
     static constexpr double CLOSE_WORST_SHIFT = 28.0;
 
     static constexpr int CLOSE_BLOCK_SIZE = 16;
+
+    /// A black and white edge across a block moved by a half of a pixel of the picture (the image
+    /// of 110 dpi against the picture of about 55 dpi) shifts a block of 64 pixels by 2 levels, the
+    /// error of the mean color of a JPEG block of the quality 60 is about 3 levels: an area of a
+    /// page as large as the block in another color is above it, also when the mean of a page is not.
+    static constexpr double CLOSE_WORST_LARGE_SHIFT = 10.0;
+    static constexpr int CLOSE_LARGE_BLOCK_SIZE = 64;
 
     /// An image is transparent, when this share of its pixels is not opaque. A smaller share
     /// of the result is accepted (hysteresis), a reduced resolution moves a share a little.
@@ -385,9 +400,34 @@ public:
         static const std::vector<CorpusExclusion> exclusions = {
             { "^Bugs/SLOW_PERF_BTN_TRX_BigData_0513pdf\\(5\\)\\.pdf$", "/(smaller-file|balanced|best-quality)$", "SECURITY_TODO 22",
               "PDFPrecompiledPage::draw of the meshes of the shadings of the page runs for more than 10 minutes, the cancellation does not reach it" },
-            { "GWG", ".", "Owner 2026-11-01", "known, needs a change of the renderer, ignored for now" },
+            { "^GhentOutputSuite/.*GWG", ".", "Owner 2026-11-01", "known, needs a change of the renderer, ignored for now" },
         };
         return exclusions;
+    }
+
+    /// Files the reader refuses, each with its reason. Another file refused fails its row: a
+    /// change of the reader would otherwise only turn the rows into skips of a green run.
+    static const std::vector<CorpusExclusion>& getRefusedFiles()
+    {
+        static const std::vector<CorpusExclusion> files = {
+            { "^Encryption/PDF_Color_Spaces_E_", ".", "Owner 2026-11-01", "no passwords of the folder" },
+            { "^(Bugs/LinksClickable\\.pdf|Fonts/FONT_0C_T1_SPEC_\\.PDF)$", ".", "Not a PDF", "the page 404 of a web server" },
+            { "^(Bugs/CrashStackOverflow|Bugs/PoC2|Signature/crash-HASH_End)\\.pdf$", ".", "Hostile", "written to be refused or to crash a reader" },
+            { "^Bugs/FAIL_BOOKMARKS_user_guide\\.pdf$", ".", "Damaged", "/Prev of the first table points 37175 bytes before the main table, the reader does not rebuild a table" },
+        };
+        return files;
+    }
+
+    static const CorpusExclusion* findRefusedFile(const QString& file)
+    {
+        for (const CorpusExclusion& refused : getRefusedFiles())
+        {
+            if (QRegularExpression(QString::fromUtf8(refused.filePattern)).match(file).hasMatch())
+            {
+                return &refused;
+            }
+        }
+        return nullptr;
     }
 
     static const CorpusExclusion* findExclusion(const QString& file, const QString& tool)
@@ -469,6 +509,11 @@ public:
         std::vector<qint64> blockCounts(blockCount, 0);
         std::vector<std::array<qint64, 3>> blockShifts(shiftBlockCount, std::array<qint64, 3>{ 0, 0, 0 });
         std::vector<qint64> shiftCounts(shiftBlockCount, 0);
+        const int largeBlocksX = (width + CLOSE_LARGE_BLOCK_SIZE - 1) / CLOSE_LARGE_BLOCK_SIZE;
+        const int largeBlocksY = (height + CLOSE_LARGE_BLOCK_SIZE - 1) / CLOSE_LARGE_BLOCK_SIZE;
+        const size_t largeBlockCount = size_t(largeBlocksX) * largeBlocksY;
+        std::vector<std::array<qint64, 3>> largeShifts(largeBlockCount, std::array<qint64, 3>{ 0, 0, 0 });
+        std::vector<qint64> largeCounts(largeBlockCount, 0);
 
         qint64 sum = 0;
         for (int y = 0; y < height; ++y)
@@ -488,6 +533,12 @@ public:
                 blockShifts[shiftBlock][1] += qGreen(firstLine[x]) - qGreen(secondLine[x]);
                 blockShifts[shiftBlock][2] += qBlue(firstLine[x]) - qBlue(secondLine[x]);
                 ++shiftCounts[shiftBlock];
+                const size_t largeBlock = size_t(y / CLOSE_LARGE_BLOCK_SIZE) * largeBlocksX + x / CLOSE_LARGE_BLOCK_SIZE;
+                largeShifts[largeBlock][0] += qRed(firstLine[x]) - qRed(secondLine[x]);
+                largeShifts[largeBlock][1] += qGreen(firstLine[x]) - qGreen(secondLine[x]);
+                largeShifts[largeBlock][2] += qBlue(firstLine[x]) - qBlue(secondLine[x]);
+                ++largeCounts[largeBlock];
+                result.worstPixel = qMax(result.worstPixel, qMax(red, qMax(green, blue)));
                 sum += red + green + blue;
             }
         }
@@ -513,6 +564,14 @@ public:
             }
         }
         result.meanShift = shiftBlockCount > 0 ? shiftSum / double(shiftBlockCount) : 0.0;
+
+        for (size_t i = 0; i < largeBlockCount; ++i)
+        {
+            if (largeCounts[i] > 0)
+            {
+                result.worstLargeShift = qMax(result.worstLargeShift, qMax(qAbs(double(largeShifts[i][0])), qMax(qAbs(double(largeShifts[i][1])), qAbs(double(largeShifts[i][2])))) / double(largeCounts[i]));
+            }
+        }
         return result;
     }
 
@@ -534,6 +593,109 @@ public:
         pdf::PDFDocumentTextFlowFactory factory;
         factory.setOperationControl(control);
         return factory.create(document, { pdf::PDFInteger(pageIndex) }, pdf::PDFDocumentTextFlowFactory::Algorithm::Content).getText();
+    }
+
+    /// The decoded content of a page. A stream, which cannot be decoded, by its stored data:
+    /// a tool keeps a damaged stream as it is.
+    static QByteArray getPageContent(const pdf::PDFDocument* document, size_t pageIndex)
+    {
+        const auto getStreamData = [document](const pdf::PDFObject& object)
+        {
+            const pdf::PDFObject& streamObject = document->getObject(object);
+            if (!streamObject.isStream())
+            {
+                return QByteArray();
+            }
+
+            try
+            {
+                return document->getDecodedStream(streamObject.getStream());
+            }
+            catch (const pdf::PDFException&)
+            {
+                return *streamObject.getStream()->getContent();
+            }
+        };
+
+        const pdf::PDFObject& contents = document->getObject(document->getCatalog()->getPage(pageIndex)->getContents());
+        if (!contents.isArray())
+        {
+            return getStreamData(contents);
+        }
+
+        QByteArray content;
+        const pdf::PDFArray* array = contents.getArray();
+        for (size_t i = 0; i < array->getCount(); ++i)
+        {
+            content += getStreamData(array->getItem(i));
+        }
+        return content;
+    }
+
+    /// Keys of a dictionary with a value: an entry of a null object means no entry
+    /// (ISO 32000-2, 7.3.9), the optimizer removes it
+    static QStringList getKeys(const pdf::PDFDocument* document, const pdf::PDFDictionary* dictionary)
+    {
+        QStringList keys;
+        for (size_t i = 0; dictionary && i < dictionary->getCount(); ++i)
+        {
+            if (!document->getObject(dictionary->getValue(i)).isNull())
+            {
+                keys << QString::fromLatin1(dictionary->getKey(i).getString().toPercentEncoding());
+            }
+        }
+        keys.sort();
+        return keys;
+    }
+
+    /// Names of the resources of a page by their kinds and its annotations, which exist
+    static QStringList getPageStructure(const pdf::PDFDocument* document, size_t pageIndex)
+    {
+        const pdf::PDFPage* page = document->getCatalog()->getPage(pageIndex);
+        const pdf::PDFDictionary* resources = document->getDictionaryFromObject(page->getResources());
+
+        QStringList structure;
+        for (const QString& kind : getKeys(document, resources))
+        {
+            structure << kind;
+            const pdf::PDFDictionary* names = document->getDictionaryFromObject(resources->get(QByteArray::fromPercentEncoding(kind.toLatin1())));
+            for (const QString& name : getKeys(document, names))
+            {
+                structure << kind + QLatin1Char('/') + name;
+            }
+        }
+
+        const qsizetype annotations = std::count_if(page->getAnnotations().cbegin(), page->getAnnotations().cend(), [document](pdf::PDFObjectReference reference) { return !document->getObjectByReference(reference).isNull(); });
+        structure << QStringLiteral("annotations %1").arg(annotations);
+        return structure;
+    }
+
+    /// Entries of the catalog of a document with a value
+    static QStringList getCatalogKeys(const pdf::PDFDocument* document)
+    {
+        const pdf::PDFDictionary* trailer = document->getTrailerDictionary();
+        return getKeys(document, trailer ? document->getDictionaryFromObject(trailer->get("Root")) : nullptr);
+    }
+
+    /// The page, which draws the largest image: the first and the last page of a long file
+    /// often have none, and then a lossy row would never look at an image
+    static std::optional<size_t> getLargestImagePage(const pdf::PDFDocument* document, const pdf::PDFOperationControl* control)
+    {
+        pdf::PDFImageCompressor::Environment environment(document);
+        const pdf::PDFImageCompressor::ImagePlacements placements = pdf::PDFImageCompressor().collectImagePlacements(environment, control);
+
+        std::optional<size_t> page;
+        double largest = 0.0;
+        for (const pdf::PDFImageCompressor::ImagePlacement& placement : placements)
+        {
+            const double area = placement.maximumInches.x() * placement.maximumInches.y();
+            if (area > largest)
+            {
+                largest = area;
+                page = size_t(placement.firstPageIndex);
+            }
+        }
+        return page;
     }
 
     /// Shares of the pixels, which are not opaque, of the images drawn by a page with a mask
@@ -702,6 +864,12 @@ private:
                                     CorpusSummary* summary,
                                     QStringList* failures);
 
+    static void checkContent(const pdf::PDFDocument* input,
+                             const pdf::PDFDocument* output,
+                             const std::vector<CorpusPageOrigin>& origins,
+                             QStringList* notes,
+                             QStringList* failures);
+
     static void checkPage(const CorpusToolRow& row,
                           const QString& file,
                           pdf::PDFDocument* input,
@@ -807,7 +975,8 @@ void DocumentToolCorpusTest::toolOnFile()
         pdf::PDFDocumentReader reader(nullptr, refusePassword, true, false);
         pdf::PDFDocument input = reader.readFromBuffer(inputData);
 
-        // A file the reader does not take is no failure of the tool: the row says what happened
+        // A file the reader does not take is no failure of the tool: the row says what happened.
+        // It has to be named: another refused file is a failure of the reader or a new file.
         if (reader.getReadingResult() != pdf::PDFDocumentReader::Result::OK)
         {
             const bool isCanceled = reader.getReadingResult() == pdf::PDFDocumentReader::Result::Cancelled;
@@ -815,7 +984,10 @@ void DocumentToolCorpusTest::toolOnFile()
             summary.note = reader.getErrorMessage();
             summary.milliseconds = timer.elapsed();
             summary.print();
-            QSKIP(qPrintable(QStringLiteral("%1: %2").arg(summary.status, summary.note)));
+
+            const CorpusExclusion* refused = ToolCorpusHelper::findRefusedFile(file);
+            QVERIFY2(refused, qPrintable(QStringLiteral("The reader refuses a file, which is not named in getRefusedFiles: %1: %2").arg(summary.status, summary.note)));
+            QSKIP(qPrintable(QStringLiteral("%1: %2 (%3: %4)").arg(summary.status, summary.note, QString::fromUtf8(refused->reference), QString::fromUtf8(refused->reason))));
         }
 
         summary.pages = qint64(input.getCatalog()->getPageCount());
@@ -847,12 +1019,17 @@ void DocumentToolCorpusTest::toolOnFile()
                 {
                     failures << QStringLiteral("NothingToDo with a document of the result");
                 }
-                if ((row.promises & PromiseSmaller) != 0 && result.data.contains(QStringLiteral("sizeAfter")))
+                if ((row.promises & PromiseSmaller) != 0)
                 {
-                    summary.sizeAfter = result.data.value(QStringLiteral("sizeAfter")).toInteger();
+                    // A row, which promises a smaller file, says why there is none by its numbers
+                    summary.sizeAfter = result.data.value(QStringLiteral("sizeAfter")).toInteger(-1);
                     if (summary.sizeAfter < summary.sizeBefore)
                     {
                         failures << QStringLiteral("NothingToDo of a smaller file: %1 < %2").arg(summary.sizeAfter).arg(summary.sizeBefore);
+                    }
+                    if (result.data.value(QStringLiteral("sizeBefore")).toInteger(-1) != summary.sizeBefore)
+                    {
+                        failures << QStringLiteral("The reported size before %1 is not the size of the file %2").arg(result.data.value(QStringLiteral("sizeBefore")).toInteger(-1)).arg(summary.sizeBefore);
                     }
                 }
                 break;
@@ -862,9 +1039,10 @@ void DocumentToolCorpusTest::toolOnFile()
                 {
                     failures << QStringLiteral("Failed without a message");
                 }
-                if (result.data.contains(QStringLiteral("errors")))
+                if (tool->getInfo() && !tool->getInfo()->isPermitted(&input))
                 {
-                    // The tool refused the file by its contract: permissions of the document
+                    // The tool refused the file by its contract: permissions of the document. An
+                    // invalid parameter of a row comes with the same errors, it is a failure.
                     summary.status = QStringLiteral("refused");
                 }
                 else
@@ -913,10 +1091,11 @@ void DocumentToolCorpusTest::checkResultDocument(const CorpusToolRow& row,
                                                  CorpusSummary* summary,
                                                  QStringList* failures)
 {
-    // A tool of files only has no document to check
+    // A tool of files only promises nothing about a document and has none to check. Facts alone
+    // are no result: Success of a row with promises, which has written nothing, promises nothing.
     if (result.documents.empty())
     {
-        if (result.outputs.empty() && result.writtenFiles.isEmpty() && result.facts.empty())
+        if (row.promises != PromiseNone || (result.outputs.empty() && result.writtenFiles.isEmpty()))
         {
             failures->append(QStringLiteral("Success without any result"));
         }
@@ -997,13 +1176,15 @@ void DocumentToolCorpusTest::checkResultDocument(const CorpusToolRow& row,
         {
             failures->append(QStringLiteral("The signature fields %1 became %2").arg(signaturesBefore).arg(signaturesAfter));
         }
-        if (signaturesBefore > 0 && result.data.contains(QStringLiteral("signatureCount")))
+        if (signaturesBefore > 0)
         {
             if (result.data.value(QStringLiteral("signatureCount")).toInt() != signaturesBefore)
             {
                 failures->append(QStringLiteral("The reported signature count %1 is not %2").arg(result.data.value(QStringLiteral("signatureCount")).toInt()).arg(signaturesBefore));
             }
-            if (result.data.value(QStringLiteral("signatureImpact")).toString() == QStringLiteral("none"))
+
+            const QString impact = result.data.value(QStringLiteral("signatureImpact")).toString();
+            if (impact.isEmpty() || impact == QStringLiteral("none"))
             {
                 failures->append(QStringLiteral("A signed input without the signature impact"));
             }
@@ -1059,8 +1240,15 @@ void DocumentToolCorpusTest::checkResultDocument(const CorpusToolRow& row,
         }
     }
 
+    QStringList notes;
+    if ((row.promises & PromiseContent) != 0)
+    {
+        checkContent(input, &output, origins, &notes, failures);
+    }
+
     if (origins.empty())
     {
+        summary->note = notes.join(QStringLiteral("; "));
         return;
     }
 
@@ -1068,14 +1256,63 @@ void DocumentToolCorpusTest::checkResultDocument(const CorpusToolRow& row,
     CorpusRenderer inputRenderer(&inputCopy);
     CorpusRenderer outputRenderer(&output);
 
-    QStringList notes;
-    checkPage(row, file, &inputCopy, &output, &inputRenderer, &outputRenderer, 0, origins.front(), &notes, failures);
-    if (origins.size() > 1)
+    // The first and the last page and the page of the largest image, when it is a page of the result
+    std::vector<size_t> pages = { 0, origins.size() - 1 };
+    const CorpusPageBudget budget(ToolCorpusHelper::getPageTimeLimit());
+    if (const std::optional<size_t> imagePage = ToolCorpusHelper::getLargestImagePage(&inputCopy, &budget))
     {
-        checkPage(row, file, &inputCopy, &output, &inputRenderer, &outputRenderer, origins.size() - 1, origins.back(), &notes, failures);
+        const auto origin = std::find_if(origins.cbegin(), origins.cend(), [imagePage](const CorpusPageOrigin& item) { return item.inputPage == *imagePage; });
+        if (origin != origins.cend())
+        {
+            pages.push_back(size_t(std::distance(origins.cbegin(), origin)));
+        }
+    }
+    std::sort(pages.begin(), pages.end());
+    pages.erase(std::unique(pages.begin(), pages.end()), pages.end());
+
+    for (const size_t page : pages)
+    {
+        checkPage(row, file, &inputCopy, &output, &inputRenderer, &outputRenderer, page, origins[page], &notes, failures);
     }
 
     summary->note = notes.join(QStringLiteral("; "));
+}
+
+void DocumentToolCorpusTest::checkContent(const pdf::PDFDocument* input,
+                                          const pdf::PDFDocument* output,
+                                          const std::vector<CorpusPageOrigin>& origins,
+                                          QStringList* notes,
+                                          QStringList* failures)
+{
+    if (ToolCorpusHelper::getCatalogKeys(input) != ToolCorpusHelper::getCatalogKeys(output))
+    {
+        failures->append(QStringLiteral("The entries of the catalog changed: %1 became %2").arg(ToolCorpusHelper::getCatalogKeys(input).join(QLatin1Char(' ')), ToolCorpusHelper::getCatalogKeys(output).join(QLatin1Char(' '))));
+    }
+
+    // Every page, not only the drawn ones
+    const CorpusPageBudget budget(ToolCorpusHelper::getPageTimeLimit());
+    for (size_t i = 0; i < origins.size(); ++i)
+    {
+        if (budget.isOperationCancelled())
+        {
+            notes->append(QStringLiteral("the content of the pages from %1 not compared: over the limit of the time").arg(i + 1));
+            return;
+        }
+
+        if (ToolCorpusHelper::getPageContent(input, origins[i].inputPage) != ToolCorpusHelper::getPageContent(output, i))
+        {
+            failures->append(QStringLiteral("The content of the page %1 changed").arg(i + 1));
+            return;
+        }
+
+        const QStringList structureBefore = ToolCorpusHelper::getPageStructure(input, origins[i].inputPage);
+        const QStringList structureAfter = ToolCorpusHelper::getPageStructure(output, i);
+        if (structureBefore != structureAfter)
+        {
+            failures->append(QStringLiteral("The resources or the annotations of the page %1 changed: %2 became %3").arg(i + 1).arg(structureBefore.join(QLatin1Char(' ')).left(200), structureAfter.join(QLatin1Char(' ')).left(200)));
+            return;
+        }
+    }
 }
 
 void DocumentToolCorpusTest::checkPage(const CorpusToolRow& row,
@@ -1093,19 +1330,27 @@ void DocumentToolCorpusTest::checkPage(const CorpusToolRow& row,
     const pdf::PageRotation rotation = pdf::getPageRotationCombined(page->getPageRotation(), origin.extraRotation);
     const QSize size = ToolCorpusHelper::getRenderSize(pdf::PDFPage::getRotatedBox(page->getMediaBox(), rotation).size());
 
-    const CorpusPageBudget budget(ToolCorpusHelper::getPageTimeLimit());
     const QString notCompared = QStringLiteral("page %1 not compared: over the limit of the time of a page").arg(outputPage + 1);
 
     if (size.isValid())
     {
+        // A page too slow for the renderer says nothing about the tool; a page the
+        // tool has made more than twice slower does
         QStringList errorsBefore;
         QStringList errorsAfter;
-        const QImage before = inputRenderer->render(origin.inputPage, origin.extraRotation, size, &budget, &errorsBefore);
-        const QImage after = outputRenderer->render(outputPage, pdf::PageRotation::None, size, &budget, &errorsAfter);
-
-        if (budget.isOperationCancelled())
+        const CorpusPageBudget budgetBefore(ToolCorpusHelper::getPageTimeLimit());
+        const QImage before = inputRenderer->render(origin.inputPage, origin.extraRotation, size, &budgetBefore, &errorsBefore);
+        if (budgetBefore.isOperationCancelled())
         {
             notes->append(notCompared);
+            return;
+        }
+
+        const CorpusPageBudget budgetAfter(ToolCorpusHelper::getPageTimeLimit() * 2);
+        const QImage after = outputRenderer->render(outputPage, pdf::PageRotation::None, size, &budgetAfter, &errorsAfter);
+        if (budgetAfter.isOperationCancelled())
+        {
+            failures->append(QStringLiteral("The page %1 is drawn within the limit of %2 s before the tool and not within twice the limit after it").arg(outputPage + 1).arg(ToolCorpusHelper::getPageTimeLimit()));
             return;
         }
 
@@ -1116,11 +1361,11 @@ void DocumentToolCorpusTest::checkPage(const CorpusToolRow& row,
         }
 
         const CorpusImageDifference difference = ToolCorpusHelper::compareImages(before, after);
-        const QString values = QStringLiteral("page %1: mean %2, worst block %3, mean shift %4, worst shift %5").arg(outputPage + 1).arg(difference.meanDifference, 0, 'f', 3).arg(difference.worstBlock, 0, 'f', 1).arg(difference.meanShift, 0, 'f', 2).arg(difference.worstShift, 0, 'f', 1);
+        const QString values = QStringLiteral("page %1: mean %2, worst block %3, mean shift %4, worst shift %5, large shift %6, worst pixel %7").arg(outputPage + 1).arg(difference.meanDifference, 0, 'f', 3).arg(difference.worstBlock, 0, 'f', 1).arg(difference.meanShift, 0, 'f', 2).arg(difference.worstShift, 0, 'f', 1).arg(difference.worstLargeShift, 0, 'f', 1).arg(difference.worstPixel);
         notes->append(values);
 
-        const bool isSame = row.look == CorpusLook::Exact ? difference.meanDifference <= ToolCorpusHelper::EXACT_MEAN_DIFFERENCE && difference.worstBlock <= ToolCorpusHelper::EXACT_WORST_BLOCK
-                                                          : difference.meanShift <= ToolCorpusHelper::CLOSE_MEAN_SHIFT && difference.worstShift <= ToolCorpusHelper::CLOSE_WORST_SHIFT;
+        const bool isSame = row.look == CorpusLook::Exact ? difference.meanDifference <= ToolCorpusHelper::EXACT_MEAN_DIFFERENCE && difference.worstBlock <= ToolCorpusHelper::EXACT_WORST_BLOCK && difference.worstPixel <= ToolCorpusHelper::EXACT_WORST_PIXEL
+                                                          : difference.meanShift <= ToolCorpusHelper::CLOSE_MEAN_SHIFT && difference.worstShift <= ToolCorpusHelper::CLOSE_WORST_SHIFT && difference.worstLargeShift <= ToolCorpusHelper::CLOSE_WORST_LARGE_SHIFT;
         if (!isSame)
         {
             failures->append(QStringLiteral("The look changed, %1").arg(values));
@@ -1130,6 +1375,8 @@ void DocumentToolCorpusTest::checkPage(const CorpusToolRow& row,
             ToolCorpusHelper::writePictures(file, row.getName(), outputPage, before, after);
         }
     }
+
+    const CorpusPageBudget budget(ToolCorpusHelper::getPageTimeLimit());
 
     if ((row.promises & PromiseText) != 0)
     {

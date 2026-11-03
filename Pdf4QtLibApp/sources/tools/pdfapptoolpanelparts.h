@@ -162,6 +162,7 @@ public:
     static constexpr int PADDING_BOTTOM = 13;   ///< Padding 12 + the border
     static constexpr int GAP = 8;
     static constexpr int TEXT_LINE = 17;
+    static constexpr int TITLE_LINE = 16;       ///< Lines of the title (295:2625, also two of them)
 
     /// \param hue Hue of the callout
     /// \param iconName Icon of the head
@@ -206,6 +207,43 @@ public:
 
 private:
     QPointer<QVBoxLayout> m_layout;
+};
+
+/// Card of a measured size of a panel (result-card 293:1358: bg/surface, border/default,
+/// radius 10, padding 12, gap 8): the size before Medium 15 text/tertiary, the arrow Medium
+/// 15 text/muted, the size after Semi Bold 20 text/primary (gap 8), the bar of 4 px with
+/// the share of the size after, the line of the saving Medium 12 - text/accent, without
+/// the bar and in text/secondary, when nothing is saved (295:2263)
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolMeasuredCard : public PDFAppToolCard
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFAppToolCard;
+
+public:
+    static constexpr int PADDING = 13;  ///< Padding 12 + the border
+    static constexpr int GAP = 8;
+
+    explicit PDFAppToolMeasuredCard(QWidget* parent);
+    virtual ~PDFAppToolMeasuredCard() override;
+
+    /// \param before Text of the size before ("24.8 MB")
+    /// \param after Text of the size after ("6.1 MB")
+    /// \param afterPercentage Share of the size after in the bar, 0 - 100; -1 = nothing is saved
+    /// \param savingText "75 % smaller · 18.7 MB saved"
+    void setSizes(const QString& before, const QString& after, int afterPercentage, const QString& savingText);
+
+    PDFLabel* getBeforeLabel() const { return m_before; }
+    PDFLabel* getAfterLabel() const { return m_after; }
+    QProgressBar* getBar() const { return m_bar; }
+    PDFLabel* getSavingLabel() const { return m_saving; }
+
+private:
+    QPointer<PDFLabel> m_before;
+    QPointer<PDFLabel> m_after;
+    QPointer<QProgressBar> m_bar;
+    QPointer<PDFLabel> m_saving;
 };
 
 /// Header of a section of a panel (header 293:1355): the title Semi Bold 13 and the

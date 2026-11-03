@@ -78,6 +78,15 @@ private:
     /// The reason, why the tool cannot run on the document now, empty = none
     QString getRefusalText() const;
 
+public:
+    /// The lock of the document does not allow the tool (Unavailable of the catalog, T3)
+    static bool isRefusedByLock(const QString& toolId, const PDFAppDocument* document);
+
+    /// The reason of a tool refused by the lock of the document
+    static QString getLockRefusalText(const QString& toolId);
+
+private:
+
     /// Leaves the tool for the document (setRoute runs in a navigation: the navigator does
     /// the route, which this asks for, after it)
     void leaveToDocument(const QString& message);

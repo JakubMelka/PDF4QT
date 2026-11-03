@@ -1668,7 +1668,9 @@ public:
 
     /// Formats the real number, so it can be written into the content stream.
     /// Content streams do not allow the exponential notation of numbers
-    /// (see PDF 32000-1, chapter 7.3.3).
+    /// (see PDF 32000-1, chapter 7.3.3). The value is rounded to six decimal places, this
+    /// is for the values computed by the library; a value of a document, which is written
+    /// again, is written by \p PDFDocumentWriter::getRealNumberText.
     /// \param value Value to be formatted
     static QByteArray formatPDFReal(PDFReal value);
 

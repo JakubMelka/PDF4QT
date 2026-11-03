@@ -196,6 +196,10 @@ public:
     /// open, the requests wait and are opened, when it closes.
     void openDocuments(const std::vector<PDFAppOpenRequest>& requests);
 
+    /// Opens the files chosen or dropped while the current page is shown: the first one
+    /// goes to the tool of the page (PDFAppPage::getOpenFilesToolId)
+    void openDocumentsOfPage(const QStringList& files);
+
     /// Requests waiting for the closing of a modal dialog
     size_t getPendingRequestCount() const { return m_pendingRequests.size(); }
 

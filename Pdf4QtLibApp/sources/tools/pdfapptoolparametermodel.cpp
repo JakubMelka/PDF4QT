@@ -22,9 +22,12 @@
 
 #include "pdfapptoolparametermodel.h"
 #include "pdfappcontext.h"
+#include "pdfapplocale.h"
 #include "pdftoolparameterrepository.h"
 
 #include <QColor>
+
+#include <algorithm>
 
 namespace pdf
 {
@@ -63,6 +66,27 @@ public:
 
 private:
     QPointer<PDFAppToolParameterModel> m_model;
+};
+
+/// The store of an Integer parameter shown as a choice of values: the options of the
+/// binder are numbers in texts, the model has the integer
+class PDFAppToolChoiceValueStore : public PDFAppToolParameterValueStore
+{
+public:
+    using PDFAppToolParameterValueStore::PDFAppToolParameterValueStore;
+
+    virtual QVariant readValue(const QString& key) const override
+    {
+        const QVariant value = PDFAppToolParameterValueStore::readValue(key);
+        return value.isValid() ? QVariant(QString::number(value.toLongLong())) : QVariant();
+    }
+
+    virtual QString writeValue(const QString& key, const QVariant& value) override
+    {
+        bool isNumber = false;
+        const qint64 number = value.toString().toLongLong(&isNumber);
+        return PDFAppToolParameterValueStore::writeValue(key, isNumber ? QVariant(number) : value);
+    }
 };
 
 PDFAppToolParameterModel::PDFAppToolParameterModel(PDFAppContext* context, QString toolId, PDFDocumentToolParameterDefinitions definitions, QObject* parent) :
@@ -258,7 +282,7 @@ std::optional<PDFSettingDefinition> PDFAppToolParameterModel::toSettingDefinitio
             {
                 PDFSettingOption settingOption;
                 settingOption.id = option.id;
-                settingOption.title = option.title;
+                settingOption.title = option.getTitle();
                 settingOption.isTranslated = true;
                 options.push_back(std::move(settingOption));
             }
@@ -288,6 +312,41 @@ std::optional<PDFSettingDefinition> PDFAppToolParameterModel::toSettingDefinitio
 std::shared_ptr<PDFAppValueStore> PDFAppToolParameterModel::createValueStore()
 {
     return std::make_shared<PDFAppToolParameterValueStore>(this);
+}
+
+std::optional<PDFSettingDefinition> PDFAppToolParameterModel::toChoiceDefinition(const QString& name, const std::vector<int>& values, const QString& titleFormat) const
+{
+    const PDFDocumentToolParameterDefinition* definition = PDFDocumentToolParameters::find(m_definitions, name);
+    const QString key = QStringLiteral("tool.") + name;
+    if (!definition || definition->getType() != PDFDocumentToolParameterType::Integer || !PDFSettingDefinition::isValidKey(key))
+    {
+        return std::nullopt;
+    }
+
+    // The value shown is the value used: a value, which is not offered, is offered too
+    std::vector<int> offered = values;
+    const int current = int(getValue(name).toLongLong());
+    if (!std::count(offered.cbegin(), offered.cend(), current))
+    {
+        offered.push_back(current);
+        std::sort(offered.begin(), offered.end());
+    }
+
+    std::vector<PDFSettingOption> options;
+    for (const int value : offered)
+    {
+        PDFSettingOption option;
+        option.id = QString::number(value);
+        option.title = titleFormat.arg(PDFAppLocale::formatNumber(value));
+        option.isTranslated = true;
+        options.push_back(std::move(option));
+    }
+    return PDFSettingDefinition::createOption(key, QString::number(definition->getDefaultValue().toLongLong()), std::move(options));
+}
+
+std::shared_ptr<PDFAppValueStore> PDFAppToolParameterModel::createChoiceValueStore()
+{
+    return std::make_shared<PDFAppToolChoiceValueStore>(this);
 }
 
 }   // namespace pdf

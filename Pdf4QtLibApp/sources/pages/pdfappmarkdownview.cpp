@@ -712,17 +712,27 @@ qreal PDFAppMarkdownLayoutBuilder::layoutTable(const PDFAppMarkdownBlock& block,
         naturalSum += value;
     }
 
+    // The names of the rows stay in one line (the column Preset of 280:2051), when a long
+    // text of another column would take their width and they are short
+    const qreal firstNatural = qCeil(natural[0]) + 1.0;
+    const bool isFirstColumnKept = columns > 1 && available * natural[0] / naturalSum < firstNatural && firstNatural <= available / 4.0;
+    const qreal shared = isFirstColumnKept ? available - firstNatural : available;
+
     const qreal minimum = qMin(available / qreal(columns), 60.0);
     std::vector<qreal> widths(columns, 0.0);
     qreal sum = 0.0;
-    for (size_t column = 0; column < columns; ++column)
+    for (size_t column = isFirstColumnKept ? 1 : 0; column < columns; ++column)
     {
         widths[column] = qMax(minimum, available * natural[column] / naturalSum);
         sum += widths[column];
     }
     for (qreal& value : widths)
     {
-        value = value * available / sum;
+        value = value * shared / sum;
+    }
+    if (isFirstColumnKept)
+    {
+        widths[0] = firstNatural;
     }
 
     const size_t tableShape = m_layout->shapes.size();

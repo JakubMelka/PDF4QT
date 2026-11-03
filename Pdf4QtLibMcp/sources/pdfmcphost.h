@@ -90,6 +90,10 @@ public:
     /// default does nothing; jobs see the cancellation by PDFOperationControl)
     virtual void callCanceled(const std::shared_ptr<pdf::PDFMcpCall>& call);
 
+    /// The call, which this host has got, has its result (queued to the thread of the
+    /// host; the default does nothing)
+    virtual void callFinished(const std::shared_ptr<pdf::PDFMcpCall>& call);
+
     /// An assistant was connected / became idle / was disconnected / its session ended
     virtual void assistantEvent(const pdf::PDFMcpAssistantEvent& event) = 0;
 };

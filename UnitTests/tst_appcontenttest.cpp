@@ -25,6 +25,8 @@
 // against a loopback HTTP server, the What's New pages, the Markdown parser and
 // view and the user manual /help.
 
+#include "pdfappbuiltintools.h"
+#include "pdfdocumenttoolregistry.h"
 #include "applocaleguard.h"
 #include "pdfapppagelayout.h"
 #include "pdfappcontext.h"
@@ -296,6 +298,7 @@ private slots:
     void markdownView();
     void markdownGeometry();
     void markdownViewKeyboard();
+    void markdownTableFirstColumn();
     void markdownLinkSpans();
     void markdownReviewFixes();
     void markdownViewDeletedBySlot();
@@ -361,6 +364,7 @@ private slots:
     void helpPageNavigation();
     void helpCatalogLimits();
     void helpToolTopic();
+    void helpImplementedToolsHaveTopics();
     void helpPageCatalog();
     void helpPageContentsClicks();
 
@@ -1101,6 +1105,25 @@ void AppContentTest::markdownViewKeyboard()
     QTest::keyClick(view, Qt::Key_Backtab);
     QTest::keyClick(view, Qt::Key_Backtab);
     QVERIFY(before->hasFocus());
+}
+
+void AppContentTest::markdownTableFirstColumn()
+{
+    // table 280:2051: the head 33, a row of one line 34, of two lines 51, the border 1 at each
+    // side; a name of a row stays in its line beside a long text of another row
+    pdf::PDFAppMarkdownView view;
+    const QString longText = QString(QStringLiteral("Downsampled to screen resolution ")).repeated(4).trimmed();
+    view.setMarkdown(QStringLiteral("| Preset | Images |\n| --- | --- |\n| Smaller file | Kept |\n"));
+    const int oneRow = view.heightForWidth(752);
+
+    // The row of the short name has one line (34), the row of the long text two lines (51)
+    view.setMarkdown(QStringLiteral("| Preset | Images |\n| --- | --- |\n| Smaller file | Kept |\n| Balanced | %1 |\n").arg(longText));
+    QCOMPARE(view.heightForWidth(752), oneRow + 51);
+
+    // A first column of long sentences takes its share and wraps with the rest: two lines
+    // at least in the row, also the view of a narrow window never overflows
+    view.setMarkdown(QStringLiteral("| Preset | Images |\n| --- | --- |\n| %1 | %1 |\n").arg(longText));
+    QVERIFY2(view.heightForWidth(752) >= oneRow + 17, qPrintable(QString::number(view.heightForWidth(752))));
 }
 
 void AppContentTest::markdownLinkSpans()
@@ -4090,6 +4113,26 @@ void AppContentTest::helpToolTopic()
     QVERIFY(compress && rotate);
     QCOMPARE(catalog.getToolTopic(*compress), QStringLiteral("tool-optimize-compress"));
     QCOMPARE(catalog.getToolTopic(*rotate), QStringLiteral("tools"));
+}
+
+void AppContentTest::helpImplementedToolsHaveTopics()
+{
+    // Every implemented tool of the application has its own topic (plan of the first batch,
+    // chapter 8): F1 and Read the manual of the start page never end on the page Tools
+    pdf::PDFAppBuiltinTools::registerAll();
+    const std::shared_ptr<const pdf::PDFAppHelpCatalog> catalog = pdf::PDFAppHelpCatalog::getBuiltin();
+    QVERIFY(catalog);
+    const QStringList tools = pdf::PDFDocumentToolRegistry::getImplementedTools();
+    QVERIFY(tools.contains(QStringLiteral("optimize.compress")));
+    for (const QString& toolId : tools)
+    {
+        const pdf::PDFDocumentToolCatalogEntry* tool = pdf::PDFDocumentToolCatalog::findTool(toolId);
+        QVERIFY(tool);
+        const pdf::PDFAppHelpTopic* topic = catalog->findTopic(tool->getHelpTopic());
+        QVERIFY2(topic, qPrintable(toolId));
+        QCOMPARE(topic->categoryId, QStringLiteral("tools"));
+        QVERIFY2(topic->related.contains(QStringLiteral("/tools/") + toolId), qPrintable(toolId));
+    }
 }
 
 void AppContentTest::helpCatalogLimits()

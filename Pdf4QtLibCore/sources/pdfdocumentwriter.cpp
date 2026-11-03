@@ -23,13 +23,17 @@
 #include "pdfdocumentwriter.h"
 #include "pdfdocumentreader.h"
 #include "pdfconstants.h"
+#include "pdfobjectutils.h"
 #include "pdfvisitor.h"
 #include "pdfparser.h"
 
 #include <QFile>
 #include <QBuffer>
+#include <QLocale>
 #include <QSaveFile>
 
+#include <cmath>
+#include <limits>
 #include <map>
 
 #include "pdfdbgheap.h"
@@ -90,19 +94,23 @@ void PDFWriteObjectVisitor::visitInt(PDFInteger value)
 
 void PDFWriteObjectVisitor::visitReal(PDFReal value)
 {
-    // Jakub Melka: we use 5 digits, because they are specified
-    // in PDF 1.7 specification, appendix C, Table C.1, where it is defined,
-    // that number of significant digits of precision is 5.
-    m_device->write(QString::number(value, 'f', 5).toLatin1());
+    // The value is never rounded. PDF 1.7 specification, appendix C, Table C.1, gives 5 significant
+    // decimal digits of the fractional part as an approximate limit of typical readers, not as
+    // a format of a file (Acrobat 6 reads IEEE single, down to 1.175e-38).
+    m_device->write(PDFDocumentWriter::getRealNumberText(value));
     m_device->write(" ");
 }
 
 void PDFWriteObjectVisitor::visitString(PDFStringRef string)
 {
+    // PDF Reference 1.7, 3.2.3: an end-of-line marker in a literal string is read as a line feed,
+    // whether it was CR, LF or both. A CR written as it is changes the value for a conforming
+    // reader: a value of a form, /ID, /O and /U of the encryption or an encrypted string.
     QByteArray data = string.getString();
     if (data.indexOf('(') != -1 ||
         data.indexOf(')') != -1 ||
-        data.indexOf('\\') != -1)
+        data.indexOf('\\') != -1 ||
+        data.indexOf('\r') != -1)
     {
         m_device->write("<");
         m_device->write(data.toHex());
@@ -351,7 +359,12 @@ PDFOperationResult PDFDocumentWriter::write(QIODevice* device, const PDFDocument
     PDFDictionaryBuilder trailerDictionary(*document->getTrailerDictionary());
     PDFDictionaryBuilder newTrailerDictionary;
 
-    for (const char* entry : { "Size", "Root", "Encrypt", "Info", "ID"})
+    // PDF Reference 1.7, Table 3.13: Size is the number of the entries of the table written
+    // above, objects numbered beyond it are missing for a reader. The trailer of the storage
+    // may be older (an object added by the image optimizer is not told to it).
+    newTrailerDictionary.addEntry(PDFInplaceOrMemoryString("Size"), PDFObject::createInteger(PDFInteger(objectCount)));
+
+    for (const char* entry : { "Root", "Encrypt", "Info", "ID"})
     {
         PDFObject object = trailerDictionary.get(entry);
         if (!object.isNull())
@@ -473,6 +486,20 @@ PDFOperationResult PDFDocumentWriter::writeIncrementalUpdate(QIODevice* device, 
     for (size_t i = 1; i < objects.size(); ++i)
     {
         const bool isNewObject = i >= originalObjects.size();
+
+        // An update drops nothing of the file structure: the cross-reference sections of the
+        // original still lead into its object streams, an object stream a whole write has
+        // dropped stays in the file. Another object under its number (the object list
+        // shrunk by the optimizer) would take the objects in it away from the file.
+        if (!isNewObject && objects[i] != originalObjects[i] && PDFObjectUtils::isObjectStream(originalObjects[i].object))
+        {
+            if (objects[i].object.isNull())
+            {
+                continue;
+            }
+            return tr("The objects of the document have been renumbered, so it cannot be updated incrementally.");
+        }
+
         if (isNewObject ? !objects[i].object.isNull() : objects[i] != originalObjects[i])
         {
             changedObjects.push_back(i);
@@ -831,6 +858,33 @@ qint64 PDFDocumentWriter::getObjectSize(const PDFDocument* document, PDFObjectRe
 
     device.close();
     return device.pos();
+}
+
+QByteArray PDFDocumentWriter::getRealNumberText(PDFReal value)
+{
+    if (std::isnan(value))
+    {
+        return QByteArrayLiteral("0.0");
+    }
+
+    if (std::isinf(value))
+    {
+        value = std::copysign(PDFReal(std::numeric_limits<float>::max()), value);
+    }
+
+    if (value == 0.0)
+    {
+        // Qt writes no sign of a negative zero
+        return std::signbit(value) ? QByteArrayLiteral("-0.0") : QByteArrayLiteral("0.0");
+    }
+
+    QByteArray text = QByteArray::number(value, 'f', QLocale::FloatingPointShortest);
+    if (!text.contains('.'))
+    {
+        text.append(".0");
+    }
+
+    return text;
 }
 
 QByteArray PDFDocumentWriter::getSerializedObject(const PDFObject& object)

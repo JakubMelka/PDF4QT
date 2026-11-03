@@ -308,6 +308,11 @@ QMargins PDFAppDocumentPanelPopup::getContentPadding() const
     return QMargins(PADDING + 1, PADDING + 1, PADDING + 1, PADDING + 1);
 }
 
+int PDFAppDocumentPanelPopup::getPanelLeft(const QRect& anchorRect, int panelWidth) const
+{
+    return layoutDirection() == Qt::RightToLeft ? anchorRect.right() + 1 - panelWidth : anchorRect.left();
+}
+
 void PDFAppDocumentPanelPopup::popup(QWidget* anchor, int globalTop)
 {
     if (!anchor || !anchor->isVisible())
@@ -340,8 +345,7 @@ void PDFAppDocumentPanelPopup::popup(QWidget* anchor, int globalTop)
     const QSize panelSize(m_panelWidth, qMax(0, windowHeight - margins.top() - margins.bottom()));
 
     const QRect anchorRect(anchor->mapToGlobal(QPoint(0, 0)), anchor->size());
-    const bool isRightToLeft = layoutDirection() == Qt::RightToLeft;
-    QRect panel(QPoint(isRightToLeft ? anchorRect.right() + 1 - panelSize.width() : anchorRect.left(), globalTop), panelSize);
+    QRect panel(QPoint(getPanelLeft(anchorRect, panelSize.width()), globalTop), panelSize);
 
     // The screen, on which the anchor lies; the panel stays inside of it
     const QScreen* screen = QGuiApplication::screenAt(anchorRect.center());

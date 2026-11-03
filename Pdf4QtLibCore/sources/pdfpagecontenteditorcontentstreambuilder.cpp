@@ -22,6 +22,7 @@
 
 #include "pdfpagecontenteditorcontentstreambuilder.h"
 #include "pdfdocumentbuilder.h"
+#include "pdfdocumentwriter.h"
 #include "pdfobject.h"
 #include "pdfstreamfilters.h"
 #include "pdfpainterutils.h"
@@ -45,10 +46,57 @@ namespace pagecontenteditorcontentstreambuilder
 /// (see PDF 32000-1, chapter 7.3.3), but the default QTextStream formatting
 /// produces it for very small or very large values (for example '1e-05').
 /// Such a number is rejected by the parser and the whole operator, in which
-/// it appears, is skipped.
+/// it appears, is skipped. At most 9 significant digits are written: they keep any
+/// IEEE single exactly, which is what a reader may read (PDF Reference 1.7, Table C.1).
+/// A shorter value keeps its shortest text, an integral part longer than 9 digits
+/// keeps its digits. An operand needs no decimal point, a type of an operand does
+/// not matter and the content stream stays shorter.
 QByteArray formatNumber(PDFReal value)
 {
-    return PDFDocumentBuilder::formatPDFReal(value);
+    constexpr int MAXIMUM_SIGNIFICANT_DIGITS = 9;
+
+    QByteArray text = PDFDocumentWriter::getRealNumberText(value);
+    if (text.endsWith(".0"))
+    {
+        // No fraction: the digits of an integral part are kept, whatever their count is.
+        // An operand of a negative zero is the same value as zero, its shortest text has no sign.
+        text.chop(2);
+        return text == "-0" ? QByteArrayLiteral("0") : text;
+    }
+
+    int significantDigits = 0;
+    for (const char character : text)
+    {
+        if (character >= '0' && character <= '9' && (significantDigits > 0 || character != '0'))
+        {
+            ++significantDigits;
+        }
+    }
+
+    if (significantDigits <= MAXIMUM_SIGNIFICANT_DIGITS)
+    {
+        return text;
+    }
+
+    // The exponent is taken after the rounding: 9.9999999996 has the exponent 1 then
+    const QByteArray scientific = QByteArray::number(value, 'e', MAXIMUM_SIGNIFICANT_DIGITS - 1);
+    const int exponent = scientific.mid(scientific.indexOf('e') + 1).toInt();
+
+    text = QByteArray::number(value, 'f', qMax(MAXIMUM_SIGNIFICANT_DIGITS - 1 - exponent, 0));
+    if (text.contains('.'))
+    {
+        while (text.endsWith('0'))
+        {
+            text.chop(1);
+        }
+
+        if (text.endsWith('.'))
+        {
+            text.chop(1);
+        }
+    }
+
+    return text;
 }
 
 /// Returns the image samples as a continuous byte array, without the padding
@@ -452,7 +500,7 @@ void PDFPageContentEditorContentStreamBuilder::writeStateDifference(QTextStream&
         const PDFAbstractColorSpace* strokeColorSpace = m_currentState.getStrokeColorSpace();
         if (strokeColorSpace && strokeColorSpace->getColorSpace() == PDFAbstractColorSpace::ColorSpace::DeviceGray)
         {
-            stream << formatNumber(qGray(color.rgb()) / 255.0) << " G" << Qt::endl;
+            stream << PDFDocumentBuilder::formatPDFReal(qGray(color.rgb()) / 255.0) << " G" << Qt::endl;
         }
         else if (strokeColorSpace && strokeColorSpace->getColorSpace() == PDFAbstractColorSpace::ColorSpace::DeviceCMYK)
         {
@@ -464,7 +512,8 @@ void PDFPageContentEditorContentStreamBuilder::writeStateDifference(QTextStream&
         }
         else
         {
-            stream << formatNumber(color.redF()) << " " << formatNumber(color.greenF()) << " " << formatNumber(color.blueF()) << " RG" << Qt::endl;
+            // Components of a QColor have 16 bits, more decimal places would be only the noise of a float
+            stream << PDFDocumentBuilder::formatPDFReal(color.redF()) << " " << PDFDocumentBuilder::formatPDFReal(color.greenF()) << " " << PDFDocumentBuilder::formatPDFReal(color.blueF()) << " RG" << Qt::endl;
         }
     }
 
@@ -475,7 +524,7 @@ void PDFPageContentEditorContentStreamBuilder::writeStateDifference(QTextStream&
         const PDFAbstractColorSpace* fillColorSpace = m_currentState.getFillColorSpace();
         if (fillColorSpace && fillColorSpace->getColorSpace() == PDFAbstractColorSpace::ColorSpace::DeviceGray)
         {
-            stream << formatNumber(qGray(color.rgb()) / 255.0) << " g" << Qt::endl;
+            stream << PDFDocumentBuilder::formatPDFReal(qGray(color.rgb()) / 255.0) << " g" << Qt::endl;
         }
         else if (fillColorSpace && fillColorSpace->getColorSpace() == PDFAbstractColorSpace::ColorSpace::DeviceCMYK)
         {
@@ -487,7 +536,8 @@ void PDFPageContentEditorContentStreamBuilder::writeStateDifference(QTextStream&
         }
         else
         {
-            stream << formatNumber(color.redF()) << " " << formatNumber(color.greenF()) << " " << formatNumber(color.blueF()) << " rg" << Qt::endl;
+            // Components of a QColor have 16 bits, more decimal places would be only the noise of a float
+            stream << PDFDocumentBuilder::formatPDFReal(color.redF()) << " " << PDFDocumentBuilder::formatPDFReal(color.greenF()) << " " << PDFDocumentBuilder::formatPDFReal(color.blueF()) << " rg" << Qt::endl;
         }
     }
 

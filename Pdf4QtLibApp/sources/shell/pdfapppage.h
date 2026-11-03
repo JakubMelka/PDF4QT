@@ -120,6 +120,13 @@ public:
     /// Icon before the title and the subtitle of the header (none by default)
     virtual PDFAppHeaderIcon getHeaderIcon() const;
 
+    /// Tag after the title of the header (the category of a tool 276:1988), empty = none
+    virtual QString getHeaderTag() const;
+
+    /// A file opened or dropped while this page is shown goes to this tool, empty = it
+    /// only opens (the start page of a tool, 276:1737)
+    virtual QString getOpenFilesToolId() const;
+
     /// The workspace shows its header with the global search (Settings has none)
     virtual bool hasSearchHeader() const;
 

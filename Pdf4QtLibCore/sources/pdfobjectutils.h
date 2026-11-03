@@ -68,6 +68,36 @@ public:
     /// \param maximumDepth Maximal depth of the kids
     static std::vector<std::pair<PDFInteger, PDFObject>> readNumberTree(const PDFObjectStorage* storage, const PDFObject& root, int maximumDepth = 32);
 
+    /// Returns true, if the object is an object stream of the file structure: a stream with
+    /// /Type /ObjStm and the required entries /N and /First (PDF Reference 1.7, 3.4.6).
+    /// \param object Object (a reference is not dereferenced)
+    static bool isObjectStream(const PDFObject& object);
+
+    /// Removes the objects of the storage, which are containers of the organization of a file
+    /// and no part of the document, when the file is written whole: object streams (PDF
+    /// Reference 1.7, 3.4.6 - the reader has unpacked them), cross-reference streams (3.4.7 -
+    /// the writer writes its own table), the linearization parameter dictionary and the hint
+    /// streams (Appendix F - "an operation that regenerates the document may remove the stream",
+    /// F.2.5). A file written without them does not claim to be linearized (Table F.1).
+    ///
+    /// They are found by their dictionaries, a hint stream only in a linearized file. A container
+    /// referenced by anything, which stays (the trailer, any other object, also an unreachable
+    /// one, a container, which stays), is kept: nothing dangling is ever produced. A reference
+    /// counts by its object number, whatever its generation is. Nothing else of the storage
+    /// is changed (unreferenced objects of other kinds are the matter of PDFOptimizer); the
+    /// encryption stays - the encryption dictionary is referenced by the trailer.
+    ///
+    /// An object stream is the only copy of its objects, when the reader has not unpacked them
+    /// (PDFDocumentReader in the permissive reading of a damaged file does not): when a reference
+    /// leads to an object the storage does not have, an object stream, which lists an object the
+    /// storage does not have (or which cannot be read), stays too.
+    ///
+    /// Never for a document saved by an incremental update: the original bytes stay in that file
+    /// and its cross-reference sections still lead into them.
+    /// \param storage Storage
+    /// \returns Number of the removed objects
+    static qint64 removeFileStructureObjects(PDFObjectStorage& storage);
+
 private:
     PDFObjectUtils() = delete;
 

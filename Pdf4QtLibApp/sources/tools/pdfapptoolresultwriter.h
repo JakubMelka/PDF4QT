@@ -68,8 +68,29 @@ public:
         QByteArray data;                ///< Written bytes (the bytes of a document kept in the memory for a new tab)
     };
 
+    /// Why a tool cannot work on a document (one rule of the shell and of MCP, F5, T3)
+    enum class DocumentRefusal
+    {
+        None,
+        Locked,         ///< The document is locked, the tool is not available for a locked document
+        DisplayVersion  ///< A display version of an XFA form, the tool changes the document
+    };
+
     explicit PDFAppToolResultWriter(QObject* parent);
     virtual ~PDFAppToolResultWriter() override;
+
+    /// Why the tool cannot work on the document (its texts are of the caller)
+    static DocumentRefusal getDocumentRefusal(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocument* document);
+
+    /// O31: the tool rewrites the file, so its result of a signed document can only be a
+    /// copy (Keep and Overwrite are refused). Without a file nothing is signed by this
+    /// rule (F5). One rule of the result dialog and of MCP.
+    static bool isCopyOnly(const PDFDocumentToolCatalogEntry* tool, bool isSigned, bool hasFile);
+
+    /// The tool rewrites the file, so the signatures of a signed document do not survive a
+    /// save of its result, also without a file, where the result can be kept (the warning of
+    /// the result dialog; owner 2026-11-02)
+    static bool isSignatureLost(const PDFDocumentToolCatalogEntry* tool, bool isSigned);
 
     /// Request of a copy of the result of \p tool by the rule of a copy (thread safe)
     /// \param tool Entry of the catalog of the tool (nullptr: the whole write)
@@ -77,6 +98,10 @@ public:
     /// \param output The changed document of the result
     /// \param filePath Target file
     static PDFAppDocumentFileWriter::Request createCopyRequest(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const QString& filePath);
+
+    /// Request of a result over the file of its document (F6): the rule of a copy, the
+    /// Mark of the Web of the origin of the document
+    static PDFAppDocumentFileWriter::Request createOverwriteRequest(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const PDFAppDocument* document);
 
     /// The write of a request in the worker, which never replaces a file without
     /// \p isReplacing (the check is in the worker: a folder may lie on another computer)

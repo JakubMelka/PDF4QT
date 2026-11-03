@@ -79,6 +79,12 @@ public:
         canceledCalls.push_back(call);
     }
 
+    virtual void callFinished(const std::shared_ptr<pdf::PDFMcpCall>& call) override
+    {
+        pdf::PDFThreadAnnotations::happensAfter(call.get());
+        finishedCalls.push_back(call);
+    }
+
     virtual void assistantEvent(const pdf::PDFMcpAssistantEvent& event) override
     {
         pdf::PDFThreadAnnotations::happensAfter(static_cast<pdf::PDFMcpHost*>(this));
@@ -87,6 +93,7 @@ public:
 
     std::vector<std::shared_ptr<pdf::PDFMcpCall>> calls;
     std::vector<std::shared_ptr<pdf::PDFMcpCall>> canceledCalls;
+    std::vector<std::shared_ptr<pdf::PDFMcpCall>> finishedCalls;
     std::vector<pdf::PDFMcpAssistantEvent> events;
 
 private:

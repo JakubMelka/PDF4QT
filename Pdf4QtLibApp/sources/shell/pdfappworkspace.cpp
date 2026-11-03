@@ -901,10 +901,19 @@ PDFAppWorkspaceHeader::PDFAppWorkspaceHeader(QWidget* parent) :
     titleRowLayout->addWidget(m_iconBadge, 0, Qt::AlignVCenter);
     QVBoxLayout* titleColumnLayout = new QVBoxLayout();
     titleColumnLayout->setContentsMargins(0, 0, 0, 0);
-    titleColumnLayout->setSpacing(4);
+    titleColumnLayout->setSpacing(TEXT_SPACING);
+    m_titleColumnLayout = titleColumnLayout;
     titleColumnLayout->addWidget(m_title);
     titleColumnLayout->addWidget(m_subtitle);
+    titleColumnLayout->addStretch(1);
     titleRowLayout->addLayout(titleColumnLayout, 1);
+    m_tag = new PDFTag(this);
+    m_tag->setObjectName(QStringLiteral("headerTag"));
+    m_tag->setFocusPolicy(Qt::NoFocus);
+    m_tag->hide();
+    titleRowLayout->addWidget(m_tag, 0, Qt::AlignVCenter);
+    titleRowLayout->addStretch(0);
+    m_titleRowLayout = titleRowLayout;
     textLayout->addLayout(titleRowLayout);
     layout->addLayout(textLayout, 1);
 
@@ -967,6 +976,10 @@ void PDFAppWorkspaceHeader::updateSearchWidth()
     if (m_iconBadge && !m_iconBadge->isHidden() && textWidth > 0)
     {
         textWidth += m_iconBadge->sizeHint().width() + ICON_SPACING;
+    }
+    if (m_tag && !m_tag->isHidden() && textWidth > 0)
+    {
+        textWidth += m_tag->sizeHint().width() + ICON_SPACING;
     }
     if (m_breadcrumb && !m_breadcrumb->isHidden())
     {
@@ -1161,6 +1174,52 @@ void PDFAppWorkspaceHeader::setIcon(const PDFAppHeaderIcon& icon)
         m_iconBadge->setHue(icon.hue);
     }
     m_iconBadge->setVisible(icon.isValid());
+    if (m_titleColumnLayout)
+    {
+        m_titleColumnLayout->setSpacing(icon.isValid() ? TEXT_SPACING_ICON : TEXT_SPACING);
+    }
+    updateSearchWidth();
+}
+
+void PDFAppWorkspaceHeader::setTag(const QString& text)
+{
+    if (!m_tag)
+    {
+        return;
+    }
+
+    m_tag->setText(text);
+    m_tag->setVisible(!text.isEmpty());
+
+    // With a Tag the texts hug their width and the Tag follows them (title-row 276:1980):
+    // the texts are bounded by their width, the rest of the row goes behind the Tag; a
+    // narrow header shrinks the texts first
+    const bool hasTag = !text.isEmpty();
+    int textWidth = QWIDGETSIZE_MAX;
+    if (hasTag)
+    {
+        textWidth = 0;
+        for (const PDFAppHeaderText* headerText : { m_title.data(), m_subtitle.data() })
+        {
+            if (headerText && !headerText->isHidden())
+            {
+                textWidth = qMax(textWidth, qCeil(headerText->getTextWidth()));
+            }
+        }
+    }
+    for (PDFAppHeaderText* headerText : { m_title.data(), m_subtitle.data() })
+    {
+        if (headerText)
+        {
+            headerText->setMaximumWidth(textWidth);
+        }
+    }
+    if (m_titleRowLayout)
+    {
+        // The texts take their (bounded) width first, the rest goes behind the Tag
+        m_titleRowLayout->setStretch(1, hasTag ? 1000 : 1);
+        m_titleRowLayout->setStretch(3, hasTag ? 1 : 0);
+    }
     updateSearchWidth();
 }
 

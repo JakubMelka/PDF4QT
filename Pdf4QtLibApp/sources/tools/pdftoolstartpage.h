@@ -1,0 +1,132 @@
+// MIT License
+//
+// Copyright (c) 2018-2026 Jakub Melka and Contributors
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+#ifndef PDFTOOLSTARTPAGE_H
+#define PDFTOOLSTARTPAGE_H
+
+#include "pdfappglobal.h"
+#include "pdfapppage.h"
+#include "pdfapppagelayout.h"
+#include "pdfappmarkdownview.h"
+#include "pdfapptooldocumentchooser.h"
+
+#include "pdfcomponentbadges.h"
+#include "pdfcomponentpanels.h"
+#include "pdfcomponentrows.h"
+
+#include <QPointer>
+#include <QPushButton>
+
+namespace pdf
+{
+
+class PDFDocumentToolCatalogEntry;
+
+/// Start page of a tool (/tools/{toolId}, Figma 276:1737): it is built from the catalog,
+/// from the help topic of the tool and from the suggestions, so every tool with a GUI has
+/// it without code: choose a document (PDFAppToolDocumentChooser), the manual of the
+/// tool, the tutorial (disabled without a real video with its place kept, owner answer
+/// Q5), at a glance and the link to the manual. A chosen document opens the tool in the tab of
+/// the document; a file opened or dropped on this page opens it too. Rebuilt at a change
+/// of the language with the scroll position and the focus kept.
+class PDF4QTLIBAPPSHARED_EXPORT PDFToolStartPage : public PDFAppContentPage
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFAppContentPage;
+
+public:
+    /// \param context Context of the application
+    /// \param toolId Id of a tool of the catalog
+    /// \param parent Parent widget
+    explicit PDFToolStartPage(PDFAppContext* context, const QString& toolId, QWidget* parent = nullptr);
+    virtual ~PDFToolStartPage() override;
+
+    const QString& getToolId() const { return m_toolId; }
+
+    virtual bool setRoute(const PDFAppRoute& route) override;
+    virtual QString getTitle() const override;
+    virtual QString getHeaderTitle() const override;
+    virtual QString getHeaderSubtitle() const override;
+    virtual QList<PDFAppBreadcrumbItem> getHeaderBreadcrumbs() const override;
+    virtual PDFAppHeaderIcon getHeaderIcon() const override;
+    virtual QString getHeaderTag() const override;
+    virtual QString getHelpTopic() const override;
+    virtual QString getOpenFilesToolId() const override;
+
+    /// Parts (tests)
+    PDFAppColumns* getColumns() const { return m_columns.data(); }
+    PDFAppToolDocumentChooser* getChooser() const { return m_chooser.data(); }
+    PDFAppMarkdownView* getManualView() const { return m_manualView.data(); }
+    PDFTintedCard* getTutorialCard() const { return m_tutorialCard.data(); }
+    QPushButton* getWatchButton() const { return m_watchButton.data(); }
+    PDFKeyValueList* getFacts() const { return m_facts.data(); }
+    PDFAppParagraph* getOftenNextText() const { return m_oftenNext.data(); }
+    PDFLinkRow* getManualLink() const { return m_manualLink.data(); }
+
+    /// The suggestions of "Often used next" as they are shown ("Protect with Password, Merge")
+    QString createOftenNextText() const;
+
+protected:
+    virtual void changeEvent(QEvent* event) override;
+
+private:
+    const PDFDocumentToolCatalogEntry* getTool() const;
+
+    void build();
+    void rebuild();
+    QWidget* createChooseDocument(QWidget* parent);
+    QWidget* createManual(QWidget* parent);
+    QWidget* createTutorial(QWidget* parent);
+    QWidget* createAtGlance(QWidget* parent);
+    QWidget* createLinks(QWidget* parent);
+
+    void onDocumentChosen(const QString& documentId);
+    void onOpenFileRequested();
+    void onMarkdownLinkActivated(const QString& link);
+    void onManualLinkClicked();
+
+    QString m_toolId;
+    QPointer<QWidget> m_content;
+    QPointer<PDFAppColumns> m_columns;
+    QPointer<PDFAppToolDocumentChooser> m_chooser;
+    QPointer<PDFAppMarkdownView> m_manualView;
+    QPointer<PDFTintedCard> m_tutorialCard;
+    QPointer<QPushButton> m_watchButton;
+    QPointer<PDFKeyValueList> m_facts;
+    QPointer<PDFAppParagraph> m_oftenNext;
+    QPointer<PDFLinkRow> m_manualLink;
+    bool m_isRebuildPending = false;
+};
+
+/// Factory of the start page of a tool (the tool of the route)
+class PDF4QTLIBAPPSHARED_EXPORT PDFToolStartPageFactory : public PDFAppPageFactory
+{
+public:
+    virtual PDFAppPage* createPage(PDFAppContext* context, QWidget* parent) const override;
+    virtual PDFAppPage* createPageForRoute(PDFAppContext* context, QWidget* parent, const PDFAppRoute& route) const override;
+};
+
+}   // namespace pdf
+
+#endif // PDFTOOLSTARTPAGE_H

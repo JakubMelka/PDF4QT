@@ -332,6 +332,13 @@ public:
     /// ("tool-optimize-compress", plan chapter 5)
     QString getHelpTopic() const;
 
+    /// Row Result of At a glance of the start page ("A smaller PDF", 279:2054), by the
+    /// kind of the result, when the tool has no row of its own
+    QString getResultSummary() const;
+
+    /// End of the note of the start page ("a locked document cannot be compressed", 277:2099)
+    QString getLockedNote() const;
+
 private:
     friend class PDFDocumentToolCatalog;
 

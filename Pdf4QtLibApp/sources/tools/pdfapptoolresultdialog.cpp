@@ -468,7 +468,7 @@ std::vector<PDFAppToolResultDialog::Choice> PDFAppToolResultDialog::getChoices(c
         {
             // O31: a tool, which rewrites the file, cannot keep a signature; only a copy
             // says so honestly. Without a file nothing is signed by this rule (F5).
-            const bool isCopyOnly = tool && tool->getSignatureImpact() == PDFDocumentToolSignatureImpact::LostCopyOnly && state.isSigned && state.hasFile;
+            const bool isCopyOnly = PDFAppToolResultWriter::isCopyOnly(tool, state.isSigned, state.hasFile);
             std::vector<Choice> choices;
             if (!isCopyOnly && !state.isLocked)
             {
@@ -680,7 +680,7 @@ void PDFAppToolResultDialog::createFacts(QVBoxLayout* layout, QWidget* parent)
 
     // The warning of chapter 4 below the facts (O31): no frame of the design, the
     // parts of 295:2621
-    if (m_kind == ResultKind::ChangeDocument && m_input.tool && m_input.tool->getSignatureImpact() == PDFDocumentToolSignatureImpact::LostCopyOnly && m_state.isSigned && m_state.hasFile)
+    if (m_kind == ResultKind::ChangeDocument && PDFAppToolResultWriter::isSignatureLost(m_input.tool, m_state.isSigned))
     {
         PDFLabel* title = nullptr;
         PDFAppParagraph* text = nullptr;
@@ -942,18 +942,20 @@ void PDFAppToolResultDialog::updateTexts()
 
     if (m_signedWarning)
     {
-        // The strings of chapter 4 of the plan
+        // The strings of chapter 4 of the plan; without a file the result can be kept (F5), no
+        // frame of the design (owner 2026-11-02)
         if (PDFLabel* warningTitle = m_signedWarning->findChild<PDFLabel*>(QStringLiteral("signedWarningTitle")))
         {
-            warningTitle->setText(tr("The signatures of the copy will not be valid"));
+            warningTitle->setText(m_state.hasFile ? tr("The signatures of the copy will not be valid") : tr("The signatures will stop being valid"));
         }
         if (PDFAppParagraph* warningText = m_signedWarning->findChild<PDFAppParagraph*>(QStringLiteral("signedWarningText")))
         {
-            warningText->setText(tr("This tool rewrites the whole file, so it cannot keep the signed revision. Only a copy can be saved; the open document and its file stay as they are."));
+            warningText->setText(m_state.hasFile ? tr("This tool rewrites the whole file, so it cannot keep the signed revision. Only a copy can be saved; the open document and its file stay as they are.")
+                                                 : tr("This tool rewrites the whole file, so it cannot keep the signed revision. When you save the result, its signatures will no longer be valid."));
         }
     }
 
-    const bool isCopyOnly = m_signedWarning != nullptr;
+    const bool isCopyOnly = PDFAppToolResultWriter::isCopyOnly(m_input.tool, m_state.isSigned, m_state.hasFile);
     const Choice preselected = getPreselectedChoice(m_input.tool, getChoices(m_input.tool, m_kind, m_state));
     const QString documentFileName = QFileInfo(m_snapshot.filePath).fileName();
     for (const auto& item : m_options)
@@ -1174,10 +1176,23 @@ void PDFAppToolResultDialog::onTargetEdited()
     adaptToHost();
 }
 
+void PDFAppToolResultDialog::setTargetInvalid(bool isInvalid)
+{
+    if (m_fileNameField)
+    {
+        m_fileNameField->setInvalid(isInvalid);
+    }
+    if (m_filePathField)
+    {
+        m_filePathField->setInvalid(isInvalid);
+    }
+}
+
 void PDFAppToolResultDialog::clearStates()
 {
     m_isReplaceConfirmed = false;
     m_isFileWrittenError = false;
+    setTargetInvalid(false);
     if (m_nameError)
     {
         m_nameError->setVisible(false);
@@ -1273,6 +1288,7 @@ void PDFAppToolResultDialog::showNameError(const QString& text)
         m_nameError->setText(text);
         m_nameError->setVisible(true);
     }
+    setTargetInvalid(true);
     adaptToHost();
 }
 
@@ -1395,6 +1411,7 @@ void PDFAppToolResultDialog::showWriteError(const QString& text, bool isFileWrit
     m_isFileWrittenError = isFileWritten;
     placeWriteError();
     m_chooseLocationButton->setVisible(isLocationChoice());
+    setTargetInvalid(isLocationChoice());
     m_writeErrorTitle->setText(getFailedWriteTitle());
     if (isFileWritten)
     {

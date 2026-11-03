@@ -957,7 +957,10 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
 
     if (imageFilterName == "DCTDecode" || imageFilterName == "DCT")
     {
-        int colorTransform = loader.readIntegerFromDictionary(dictionary, "ColorTransform", -1);
+        // PDF Reference 1.7, Table 3.11: ColorTransform is a parameter of the filter. Skia (every
+        // PDF printed from Chrome) writes "/ColorTransform 0" next to the filter of a YCbCr JPEG,
+        // where it means nothing: read from there, its Y, Cb, Cr would be drawn as R, G, B.
+        int colorTransform = filterParamsDictionary ? loader.readIntegerFromDictionary(filterParamsDictionary, "ColorTransform", -1) : -1;
 
         jpeg_decompress_struct codec;
         jpeg_error_mgr errorManager;

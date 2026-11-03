@@ -96,6 +96,10 @@ public:
     /// PDFAppDocument::isPagedXFA): a file is written from \p originalData
     bool isPagedXFA = false;
 
+    /// PDFAppDocument::isWholeFileRewritten: a file is never an incremental
+    /// update of \p originalData
+    bool isWholeFileRewritten = false;
+
     bool isValid() const { return !document.isNull(); }
 };
 
@@ -269,6 +273,14 @@ public:
     /// (Save As, Save a Copy, MCP files.save / files.save_copy).
     bool isPagedXFA() const { return m_isPagedXFA; }
 
+    /// The shown version comes from a tool, which rewrites the whole file (commitWholeFileRewrite,
+    /// PDFDocumentToolSignatureImpact::LostCopyOnly) and was kept on a document without a file
+    /// (F5; with a file the tool offers only a copy): the original bytes are not its base.
+    /// A file of this version is written whole, never as an incremental update of them, although
+    /// the document still has signature fields: these tools never save incrementally (O31).
+    /// Undo and redo give the state of their version back, a save of this version ends it.
+    bool isWholeFileRewritten() const { return m_isWholeFileRewritten; }
+
     /// The last tool, whose result was accepted on this document (the pair of the
     /// suggestions of Then continue with, PDFDocumentToolUsage::recordRun), empty = none
     const QString& getLastFinishedToolId() const { return m_lastFinishedToolId; }
@@ -343,6 +355,10 @@ public:
     /// a new undo step with the key. Refused as \p commit.
     bool commit(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion, PDFAppChangeSource source, const QString& mergeKey);
 
+    /// Commits the result of a tool as \p commit; \p isWholeFileRewrite says, that the
+    /// tool rewrites the whole file (isWholeFileRewritten of the new version)
+    bool commitToolResult(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion, PDFAppChangeSource source, bool isWholeFileRewrite);
+
     /// Ends the merge session of the top undo step (a selection or a tool has
     /// changed, a dialog has been closed): the next commit is a new undo step
     void closeUndoMerge();
@@ -351,6 +367,9 @@ public:
     /// incremented, no undo step is recorded; back at the saved position of the
     /// undo stack the document is not modified
     void restore(PDFDocumentPointer document, PDFModifiedDocument::ModificationFlags flags);
+
+    /// Sets the document of an undo / redo step with its isWholeFileRewritten
+    void restore(PDFDocumentPointer document, PDFModifiedDocument::ModificationFlags flags, bool isWholeFileRewritten);
 
     /// Starts an operation (the document owns it until it finishes)
     PDFAppDocumentOperation* beginOperation(PDFAppDocumentOperationKind kind, const QString& text, bool blocksChanges);
@@ -467,6 +486,7 @@ Q_SIGNALS:
     void pendingEditsCommitRequested();
 
 private:
+    bool commitChange(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion, PDFAppChangeSource source, const QString& mergeKey, bool isWholeFileRewritten);
     void setDocument(PDFDocumentPointer document, PDFModifiedDocument::ModificationFlags flags, bool isSaved);
     void setState(PDFAppDocumentState state);
     void onOperationFinished();
@@ -487,6 +507,7 @@ private:
     QPointer<PDFOptionalContentActivity> m_optionalContentActivity;
     bool m_isLocked = false;
     bool m_isPagedXFA = false;
+    bool m_isWholeFileRewritten = false;
     bool m_areUserChangesSuspended = false;
     bool m_hasPendingEdits = false;
     bool m_isPasswordProtected = false;

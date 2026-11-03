@@ -24,6 +24,7 @@
 
 #include "pdfapptooldocumentpage.h"
 #include "pdfapptoolpageregistry.h"
+#include "pdftoolstartpage.h"
 
 #include "pdfdocumenttoolcatalog.h"
 
@@ -78,6 +79,10 @@ bool PDFDocumentToolGUIRegistry::registerFactory(const QString& toolId, std::sha
     {
         PDFAppToolPageRegistry::registerFactory(PDFAppToolPageKind::Document, toolId, std::make_shared<PDFAppToolDocumentPageFactory>());
     }
+    if (!PDFAppToolPageRegistry::hasPage(PDFAppToolPageKind::Start, toolId))
+    {
+        PDFAppToolPageRegistry::registerFactory(PDFAppToolPageKind::Start, toolId, std::make_shared<PDFToolStartPageFactory>());
+    }
     return true;
 }
 
@@ -100,6 +105,11 @@ void PDFDocumentToolGUIRegistry::unregisterFactory(const QString& toolId)
     if (dynamic_cast<const PDFAppToolDocumentPageFactory*>(page.get()))
     {
         PDFAppToolPageRegistry::unregisterFactory(PDFAppToolPageKind::Document, toolId);
+    }
+    const std::shared_ptr<const PDFAppPageFactory> startPage = PDFAppToolPageRegistry::getFactory(PDFAppToolPageKind::Start, toolId);
+    if (dynamic_cast<const PDFToolStartPageFactory*>(startPage.get()))
+    {
+        PDFAppToolPageRegistry::unregisterFactory(PDFAppToolPageKind::Start, toolId);
     }
 }
 

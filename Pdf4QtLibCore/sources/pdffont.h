@@ -574,6 +574,9 @@ public:
     /// If shrinking is enabled, then erase font, if cache limit is exceeded.
     void shrink();
 
+    /// Returns the number of the realized fonts held by the cache
+    size_t getRealizedFontCount() const;
+
 private:
     /// Unregisters all application fonts registered for text drawing (via
     /// QFontDatabase::addApplicationFontFromData) and clears the id list.

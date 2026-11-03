@@ -377,7 +377,7 @@ public:
         const PDFAppMcpPolicyResult policyResult = policy.evaluate(PDFAppMcpPermissionKind::Files, assistantKey, true);
         if (policyResult == PDFAppMcpPolicyResult::Denied)
         {
-            fail(QStringLiteral("The user does not allow assistants to open and save files (Open and save files is set to Deny in PDF4QT)."), PDFMcpActivityStatus::DeniedUser);
+            fail(getDeniedText(), PDFMcpActivityStatus::DeniedPermission);
             return;
         }
 
@@ -423,7 +423,7 @@ public:
             confirmation->details.insert(QStringLiteral("unsaved"), unsavedText);
             confirmation->details.insert(QStringLiteral("content"), unsavedText.isEmpty() ? m_document->getTitle()
                                                                                           : PDFAppMcpFilesToolHelper::tr("%1 with %2").arg(m_document->getTitle(), unsavedText));
-            if (const int signatureCount = PDFAppDocumentFileWriter::getSignatureCount(m_document->getDocument().data()))
+            if (const int signatureCount = PDFAppDocumentFileWriter::getIncrementalSignatureCount(m_document->getSnapshot()))
             {
                 QJsonArray facts;
                 QJsonObject fact;
@@ -456,6 +456,14 @@ public:
         if (decision != PDFAppMcpDecision::Allowed)
         {
             m_call->finish(PDFMcpCallResult::createToolError(PDFAppMcpChangeJob::getDecisionText(decision)));
+            return;
+        }
+
+        // A permission set to Deny while the question waited (plan 7: a change during a
+        // call is an execution error), as the tools of the catalog and the read approval
+        if (m_host->getPolicy().evaluate(PDFAppMcpPermissionKind::Files, m_call->getRequest().client.assistantKey, true) == PDFAppMcpPolicyResult::Denied)
+        {
+            fail(getDeniedText(), PDFMcpActivityStatus::DeniedPermission);
             return;
         }
 
@@ -561,6 +569,11 @@ public:
 
 private:
     void proceed(PDFMcpActivityStatus status);
+
+    static QString getDeniedText()
+    {
+        return QStringLiteral("The user does not allow assistants to open and save files (Open and save files is set to Deny in PDF4QT).");
+    }
 
     void fail(const QString& text, PDFMcpActivityStatus status)
     {
@@ -902,7 +915,7 @@ void PDFAppMcpFileRequest::proceed(PDFMcpActivityStatus status)
 
     // A signed document keeps its signatures: the changes are appended
     const PDFAppDocumentSnapshot snapshot = document->getSnapshot();
-    const bool isIncremental = PDFAppDocumentFileWriter::getSignatureCount(snapshot.document.data()) > 0;
+    const bool isIncremental = PDFAppDocumentFileWriter::getIncrementalSignatureCount(snapshot) > 0;
     const QString originFilePath = document->getOriginFilePath();
 
     // The operation is shown by the tab (its title, the commands): a slot may close

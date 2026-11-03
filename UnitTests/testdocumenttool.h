@@ -35,6 +35,7 @@
 #include <QThread>
 
 #include <atomic>
+#include <functional>
 #include <new>
 #include <optional>
 #include <stdexcept>
@@ -60,6 +61,8 @@ namespace pdftest
 /// preselected result and the texts of that tool (the result dialog of the shell).
 class TestDocumentTool : public pdf::PDFDocumentTool
 {
+    Q_DECLARE_TR_FUNCTIONS(pdftest::TestDocumentTool)
+
 public:
     static constexpr const char* TOOL_ID = "review.statistics";
 
@@ -72,31 +75,31 @@ public:
         using Definition = pdf::PDFDocumentToolParameterDefinition;
 
         pdf::PDFDocumentToolParameterDefinitions definitions;
-        definitions.push_back(Definition::createPageSelection(QStringLiteral("pages"), QStringLiteral("Pages"), QStringLiteral("Pages to count")));
+        definitions.push_back(Definition::createPageSelection(tr, QStringLiteral("pages"), QT_TR_NOOP("Pages"), QT_TR_NOOP("Pages to count")));
         std::vector<pdf::PDFDocumentToolParameterOption> modes = {
-            { QStringLiteral("count"), QStringLiteral("Count pages"), QStringLiteral("Counts the selected pages"), QStringLiteral("hash") },
-            { QStringLiteral("title"), QStringLiteral("Set title"), QString(), QString() },
-            { QStringLiteral("nothing"), QStringLiteral("Nothing to do"), QString(), QString() },
-            { QStringLiteral("fail"), QStringLiteral("Fail"), QString(), QString() },
-            { QStringLiteral("throw"), QStringLiteral("Throw"), QString(), QString() },
-            { QStringLiteral("throw-memory"), QStringLiteral("Throw bad_alloc"), QString(), QString() },
-            { QStringLiteral("throw-std"), QStringLiteral("Throw std::exception"), QString(), QString() },
+            { QStringLiteral("count"), QT_TR_NOOP("Count pages"), QT_TR_NOOP("Counts the selected pages"), QStringLiteral("hash") },
+            { QStringLiteral("title"), QT_TR_NOOP("Set title") },
+            { QStringLiteral("nothing"), QT_TR_NOOP("Nothing to do") },
+            { QStringLiteral("fail"), QT_TR_NOOP("Fail") },
+            { QStringLiteral("throw"), QT_TR_NOOP("Throw") },
+            { QStringLiteral("throw-memory"), QT_TR_NOOP("Throw bad_alloc") },
+            { QStringLiteral("throw-std"), QT_TR_NOOP("Throw std::exception") },
         };
         if (m_hasResultKindModes)
         {
-            modes.push_back({ QStringLiteral("new-document"), QStringLiteral("New document"), QString(), QString() });
-            modes.push_back({ QStringLiteral("files"), QStringLiteral("Files"), QString(), QString() });
+            modes.push_back({ QStringLiteral("new-document"), QT_TR_NOOP("New document") });
+            modes.push_back({ QStringLiteral("files"), QT_TR_NOOP("Files") });
         }
-        definitions.push_back(Definition::createEnum(QStringLiteral("mode"), QStringLiteral("Mode"), QStringLiteral("What the tool does"), std::move(modes), QStringLiteral("count")));
-        definitions.push_back(Definition::createBool(QStringLiteral("detailed"), QStringLiteral("Detailed"), QStringLiteral("List the page numbers"), false));
-        definitions.push_back(Definition::createInteger(QStringLiteral("repeat"), QStringLiteral("Repeat"), QStringLiteral("Number of passes"), 1, 1, 100));
-        definitions.push_back(Definition::createReal(QStringLiteral("scale"), QStringLiteral("Scale"), QString(), 1.0, 0.25, 4.0));
-        definitions.push_back(Definition::createString(QStringLiteral("title"), QStringLiteral("Title"), QStringLiteral("Title of the document"), QStringLiteral("Statistics"), 200));
-        definitions.push_back(Definition::createColor(QStringLiteral("color"), QStringLiteral("Color"), QString(), QColor(0x25, 0x63, 0xEB)));
-        definitions.push_back(Definition::createFilePath(QStringLiteral("reportFile"), QStringLiteral("Report file"), QString()));
-        definitions.push_back(Definition::createFolderPath(QStringLiteral("outputFolder"), QStringLiteral("Output folder"), QString()));
-        definitions.push_back(Definition::createFileNameTemplate(QStringLiteral("fileName"), QStringLiteral("File name"), QString(), QStringLiteral("{name}-statistics.txt")));
-        definitions.push_back(Definition::createSecret(QStringLiteral("password"), QStringLiteral("Password"), QString()));
+        definitions.push_back(Definition::createEnum(tr, QStringLiteral("mode"), QT_TR_NOOP("Mode"), QT_TR_NOOP("What the tool does"), std::move(modes), QStringLiteral("count")));
+        definitions.push_back(Definition::createBool(tr, QStringLiteral("detailed"), QT_TR_NOOP("Detailed"), QT_TR_NOOP("List the page numbers"), false));
+        definitions.push_back(Definition::createInteger(tr, QStringLiteral("repeat"), QT_TR_NOOP("Repeat"), QT_TR_NOOP("Number of passes"), 1, 1, 100));
+        definitions.push_back(Definition::createReal(tr, QStringLiteral("scale"), QT_TR_NOOP("Scale"), nullptr, 1.0, 0.25, 4.0));
+        definitions.push_back(Definition::createString(tr, QStringLiteral("title"), QT_TR_NOOP("Title"), QT_TR_NOOP("Title of the document"), QStringLiteral("Statistics"), 200));
+        definitions.push_back(Definition::createColor(tr, QStringLiteral("color"), QT_TR_NOOP("Color"), nullptr, QColor(0x25, 0x63, 0xEB)));
+        definitions.push_back(Definition::createFilePath(tr, QStringLiteral("reportFile"), QT_TR_NOOP("Report file"), nullptr));
+        definitions.push_back(Definition::createFolderPath(tr, QStringLiteral("outputFolder"), QT_TR_NOOP("Output folder"), nullptr));
+        definitions.push_back(Definition::createFileNameTemplate(tr, QStringLiteral("fileName"), QT_TR_NOOP("File name"), nullptr, QStringLiteral("{name}-statistics.txt")));
+        definitions.push_back(Definition::createSecret(tr, QStringLiteral("password"), QT_TR_NOOP("Password"), nullptr));
         return definitions;
     }
 
@@ -106,6 +109,10 @@ public:
                                        pdf::PDFProgress* progress) const override
     {
         ++m_executeCount;
+        if (m_executeCallback)
+        {
+            m_executeCallback();
+        }
         if (!waitWhileHeld(control))
         {
             return pdf::PDFDocumentToolResult::createStopped();
@@ -157,6 +164,13 @@ public:
     /// The modes of a new document and of a file of the result are offered (the shell of
     /// the tools; the schema of the tool in the other tests stays as it is)
     void setResultKindModes(bool hasResultKindModes) { m_hasResultKindModes = hasResultKindModes; }
+
+    /// The files of the mode "files" (empty = one text file of the parameter "title")
+    void setOutputFiles(std::vector<pdf::PDFDocumentToolOutputFile> files) { m_outputFiles = std::move(files); }
+
+    /// Called at the start of execute in the thread of the run (a change of the document
+    /// under the run); set before the first run
+    void setExecuteCallback(std::function<void()> callback) { m_executeCallback = std::move(callback); }
 
 private:
     bool waitWhileHeld(const pdf::PDFOperationControl* control) const
@@ -220,8 +234,15 @@ private:
             output.mimeType = QStringLiteral("text/plain");
 
             pdf::PDFDocumentToolResult result;
-            result.outputs.push_back(output);
-            result.facts.push_back({ QStringLiteral("size"), QStringLiteral("Size"), QString::number(output.data.size()) });
+            if (m_outputFiles.empty())
+            {
+                result.outputs.push_back(output);
+            }
+            else
+            {
+                result.outputs = m_outputFiles;
+            }
+            result.facts.push_back({ QStringLiteral("size"), QStringLiteral("Size"), QString::number(result.outputs.front().data.size()) });
             return result;
         }
 
@@ -302,6 +323,8 @@ private:
     bool m_hasPreview = true;
     bool m_isPreviewFinal = false;
     bool m_hasResultKindModes = false;
+    std::vector<pdf::PDFDocumentToolOutputFile> m_outputFiles;
+    std::function<void()> m_executeCallback;
     std::atomic<bool> m_hold = false;
     mutable std::atomic<int> m_heldCount = 0;
     mutable std::atomic<int> m_previewCount = 0;

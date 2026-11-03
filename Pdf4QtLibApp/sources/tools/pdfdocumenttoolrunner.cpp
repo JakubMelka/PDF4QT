@@ -572,7 +572,9 @@ PDFDocumentToolRunner::CommitStatus PDFDocumentToolRunner::commitResult(const PD
     }
 
     const PDFModifiedDocument modified(outputDocument, document->getOptionalContentActivity(), flags);
-    if (!document->commit(modified, description, version, PDFAppChangeSource::Tool))
+    const PDFDocumentToolCatalogEntry* entry = m_tool->getInfo();
+    const bool isWholeFileRewrite = entry && entry->getSignatureImpact() == PDFDocumentToolSignatureImpact::LostCopyOnly;
+    if (!document->commitToolResult(modified, description, version, PDFAppChangeSource::Tool, isWholeFileRewrite))
     {
         return guard ? Helper::refuse(errorMessage, tr("The document is busy with another operation. Run the tool again when it ends.")) : CommitStatus::Refused;
     }

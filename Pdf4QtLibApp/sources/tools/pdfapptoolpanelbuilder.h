@@ -336,6 +336,13 @@ public:
     /// The next parts go to the content again (gap of the panel)
     void endSection();
 
+    /// Layout of the open section, nullptr = none (the card of the progress of a tool,
+    /// which has it inside of a section, 295:1792). It belongs to the content of the panel.
+    QBoxLayout* getSectionLayout() const { return m_sectionLayout; }
+
+    /// Card of a measured size (result-card 293:1358)
+    PDFAppToolMeasuredCard* addMeasuredCard();
+
     /// Rows of labels and values in a card (breakdown 293:1369). The tool fills them.
     PDFKeyValueList* addKeyValues();
 

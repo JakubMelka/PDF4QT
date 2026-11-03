@@ -40,6 +40,12 @@ class PDFDocumentToolCompressHelper
 public:
     PDFDocumentToolCompressHelper() = delete;
 
+    // The descriptions of the presets: below What changes of the panel translated
+    // (getPresetDescription), in the schema of the assistant in English
+    static constexpr const char* DESCRIPTION_SMALLER_FILE = QT_TRANSLATE_NOOP("pdf::PDFDocumentToolCompress", "Smaller file: images are reduced to screen resolution with stronger JPEG compression, unused objects are removed, identical objects merged and streams recompressed.");
+    static constexpr const char* DESCRIPTION_BALANCED = QT_TRANSLATE_NOOP("pdf::PDFDocumentToolCompress", "Balanced: images are reduced to 200 dpi where no difference is visible, unused objects are removed, identical objects merged and streams recompressed.");
+    static constexpr const char* DESCRIPTION_BEST_QUALITY = QT_TRANSLATE_NOOP("pdf::PDFDocumentToolCompress", "Best quality: images are kept as they are; only the lossless structure clean-up runs.");
+
     /// Settings of the images of a preset: both profiles of the images, which are
     /// not bi-tonal, have the same resolution and quality (the bi-tonal ones keep
     /// their default - a downsampled scan of a text would lose the text)
@@ -154,8 +160,8 @@ PDFDocument PDFDocumentToolCompress::compress(const PDFDocument* document, const
         *statistics = localStatistics;
     }
 
-    // The optimizers would report PDF 2.0: a file does not change its version by being compressed
-    return PDFDocument(std::move(storage), document->getInfo()->version, document->getSourceDataHash());
+    // After the optimizer: its counters of the unused objects stay the same with the clean-up on
+    return createWholeFileDocument(std::move(storage), document);
 }
 
 QString PDFDocumentToolCompress::getPresetDescription(const QVariantMap& parameters)
@@ -165,11 +171,11 @@ QString PDFDocumentToolCompress::getPresetDescription(const QVariantMap& paramet
     const QString preset = parameters.value(Helper::name(PARAMETER_PRESET)).toString();
     if (preset == QLatin1String(PRESET_SMALLER_FILE))
     {
-        return tr("Smaller file: images are reduced to screen resolution with stronger JPEG compression, unused objects are removed, identical objects merged and streams recompressed.");
+        return tr(Helper::DESCRIPTION_SMALLER_FILE);
     }
     if (preset == QLatin1String(PRESET_BEST_QUALITY))
     {
-        return tr("Best quality: images are kept as they are; only the lossless structure clean-up runs.");
+        return tr(Helper::DESCRIPTION_BEST_QUALITY);
     }
     if (preset == QLatin1String(PRESET_CUSTOM))
     {
@@ -185,7 +191,7 @@ QString PDFDocumentToolCompress::getPresetDescription(const QVariantMap& paramet
         return isStructure ? tr("Custom: images at %1 dpi, JPEG quality %2, quality preferred. Structure clean-up is on.").arg(dpi, quality)
                            : tr("Custom: images at %1 dpi, JPEG quality %2, quality preferred. Structure clean-up is off.").arg(dpi, quality);
     }
-    return tr("Balanced: images are reduced to 200 dpi where no difference is visible, unused objects are removed, identical objects merged and streams recompressed.");
+    return tr(Helper::DESCRIPTION_BALANCED);
 }
 
 QString PDFDocumentToolCompress::getSavingText(const PDFDocumentToolResult& result)
@@ -214,34 +220,26 @@ PDFDocumentToolParameterDefinitions PDFDocumentToolCompress::getParameters() con
     using Definition = PDFDocumentToolParameterDefinition;
     using Helper = PDFDocumentToolCompressHelper;
 
-    QVariantMap presetParameters;
-
-    const auto getDescription = [&presetParameters](const char* preset)
-    {
-        presetParameters.insert(Helper::name(PARAMETER_PRESET), QString::fromLatin1(preset));
-        return getPresetDescription(presetParameters);
-    };
-
     PDFDocumentToolParameterDefinitions definitions;
-    definitions.push_back(Definition::createEnum(Helper::name(PARAMETER_PRESET), tr("Preset"), tr("What the tool does with the images and the structure of the file"),
+    definitions.push_back(Definition::createEnum(tr, Helper::name(PARAMETER_PRESET), QT_TR_NOOP("Preset"), QT_TR_NOOP("What the tool does with the images and the structure of the file"),
                                                  {
-                                                     { QString::fromLatin1(PRESET_SMALLER_FILE), tr("Smaller file"), getDescription(PRESET_SMALLER_FILE), QString() },
-                                                     { QString::fromLatin1(PRESET_BALANCED), tr("Balanced"), getDescription(PRESET_BALANCED), QString() },
-                                                     { QString::fromLatin1(PRESET_BEST_QUALITY), tr("Best quality"), getDescription(PRESET_BEST_QUALITY), QString() },
-                                                     { QString::fromLatin1(PRESET_CUSTOM), tr("Custom…"), tr("The values of the other parameters"), QString() },
+                                                     { QString::fromLatin1(PRESET_SMALLER_FILE), QT_TR_NOOP("Smaller file"), Helper::DESCRIPTION_SMALLER_FILE },
+                                                     { QString::fromLatin1(PRESET_BALANCED), QT_TR_NOOP("Balanced"), Helper::DESCRIPTION_BALANCED },
+                                                     { QString::fromLatin1(PRESET_BEST_QUALITY), QT_TR_NOOP("Best quality"), Helper::DESCRIPTION_BEST_QUALITY },
+                                                     { QString::fromLatin1(PRESET_CUSTOM), QT_TR_NOOP("Custom…"), QT_TR_NOOP("The values of the other parameters") },
                                                  },
                                                  QString::fromLatin1(PRESET_BALANCED)));
-    definitions.push_back(Definition::createInteger(Helper::name(PARAMETER_TARGET_DPI), tr("Downsample to"), tr("Resolution of the images in dpi (the preset Custom only)"), 150, 36, 1200));
-    definitions.push_back(Definition::createInteger(Helper::name(PARAMETER_JPEG_QUALITY), tr("JPEG quality"), tr("Quality of the JPEG images, 1 to 100 (the preset Custom only)"), 75, 1, 100));
-    definitions.push_back(Definition::createEnum(Helper::name(PARAMETER_GOAL), tr("Goal"), tr("What the optimizer prefers (the preset Custom only)"),
+    definitions.push_back(Definition::createInteger(tr, Helper::name(PARAMETER_TARGET_DPI), QT_TR_NOOP("Downsample to"), QT_TR_NOOP("Resolution of the images in dpi (the preset Custom only)"), 150, 36, 1200));
+    definitions.push_back(Definition::createInteger(tr, Helper::name(PARAMETER_JPEG_QUALITY), QT_TR_NOOP("JPEG quality"), QT_TR_NOOP("Quality of the JPEG images, 1 to 100 (the preset Custom only)"), 75, 1, 100));
+    definitions.push_back(Definition::createEnum(tr, Helper::name(PARAMETER_GOAL), QT_TR_NOOP("Goal"), QT_TR_NOOP("What the optimizer prefers (the preset Custom only)"),
                                                  {
-                                                     { QString::fromLatin1(GOAL_PREFER_QUALITY), tr("Prefer quality"), QString(), QString() },
-                                                     { QString::fromLatin1(GOAL_MINIMUM_SIZE), tr("Minimum size"), QString(), QString() },
+                                                     { QString::fromLatin1(GOAL_PREFER_QUALITY), QT_TR_NOOP("Prefer quality") },
+                                                     { QString::fromLatin1(GOAL_MINIMUM_SIZE), QT_TR_NOOP("Minimum size") },
                                                  },
                                                  QString::fromLatin1(GOAL_MINIMUM_SIZE)));
-    definitions.push_back(Definition::createBool(Helper::name(PARAMETER_KEEP_ORIGINAL), tr("Keep original image if the new one is larger"), tr("The preset Custom only"), true));
-    definitions.push_back(Definition::createBool(Helper::name(PARAMETER_PRESERVE_TRANSPARENCY), tr("Preserve transparency"), tr("The preset Custom only"), true));
-    definitions.push_back(Definition::createBool(Helper::name(PARAMETER_CLEAN_STRUCTURE), tr("Clean up and recompress the file structure"), tr("Lossless – the pages look exactly the same. The preset Custom only"), true));
+    definitions.push_back(Definition::createBool(tr, Helper::name(PARAMETER_KEEP_ORIGINAL), QT_TR_NOOP("Keep original image if the new one is larger"), QT_TR_NOOP("The preset Custom only"), true));
+    definitions.push_back(Definition::createBool(tr, Helper::name(PARAMETER_PRESERVE_TRANSPARENCY), QT_TR_NOOP("Preserve transparency"), QT_TR_NOOP("The preset Custom only"), true));
+    definitions.push_back(Definition::createBool(tr, Helper::name(PARAMETER_CLEAN_STRUCTURE), QT_TR_NOOP("Clean up and recompress the file structure"), QT_TR_NOOP("Lossless – the pages look exactly the same. The preset Custom only"), true));
     return definitions;
 }
 

@@ -27,6 +27,7 @@
 #include "pdfappdocumenttab.h"
 #include "pdfapptoolhost.h"
 #include "pdfapptoolpageregistry.h"
+#include "pdfapptoolresultwriter.h"
 #include "pdfdocumenttoolguiregistry.h"
 
 #include "pdfdocumenttoolcatalog.h"
@@ -127,8 +128,19 @@ bool PDFAppToolDocumentPage::isRouteOfPage(const PDFAppRoute& route) const
 
     // T3: the panels and the catalog offer the tool with the reason, a direct route is
     // only a manual one
-    const PDFAppDocument* document = tab->getDocument();
-    return !(document && document->isLocked() && tool->getLockedAccess() == PDFDocumentToolLockedAccess::Unavailable);
+    return !isRefusedByLock(m_toolId, tab->getDocument());
+}
+
+bool PDFAppToolDocumentPage::isRefusedByLock(const QString& toolId, const PDFAppDocument* document)
+{
+    const PDFDocumentToolCatalogEntry* tool = PDFDocumentToolCatalog::findTool(toolId);
+    return tool && document && document->isLocked() && tool->getLockedAccess() == PDFDocumentToolLockedAccess::Unavailable;
+}
+
+QString PDFAppToolDocumentPage::getLockRefusalText(const QString& toolId)
+{
+    const PDFDocumentToolCatalogEntry* tool = PDFDocumentToolCatalog::findTool(toolId);
+    return tr("The document is locked, so %1 cannot change it.").arg(tool ? tool->getTitle() : QString());
 }
 
 QString PDFAppToolDocumentPage::getRefusalText() const
@@ -142,15 +154,14 @@ QString PDFAppToolDocumentPage::getRefusalText() const
     }
 
     // The lock of a file comes only when the document is shown, after setRoute
-    if (document->isLocked() && tool->getLockedAccess() == PDFDocumentToolLockedAccess::Unavailable)
+    switch (PDFAppToolResultWriter::getDocumentRefusal(tool, document))
     {
-        return tr("The document is locked, so %1 cannot change it.").arg(tool->getTitle());
-    }
-
-    // F5: a display version of an XFA form cannot be changed (not an export of its text)
-    if (document->isPagedXFA() && tool->getResultKind() == PDFDocumentToolResultKind::ChangeDocument)
-    {
-        return PDFAppDocument::getPagedXFARefusalText();
+        case PDFAppToolResultWriter::DocumentRefusal::Locked:
+            return getLockRefusalText(m_toolId);
+        case PDFAppToolResultWriter::DocumentRefusal::DisplayVersion:
+            return PDFAppDocument::getPagedXFARefusalText();
+        case PDFAppToolResultWriter::DocumentRefusal::None:
+            break;
     }
     return QString();
 }

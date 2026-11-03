@@ -33,6 +33,8 @@
 #include "pdfappnavigator.h"
 #include "pdfappsessionend.h"
 #include "pdfapptab.h"
+#include "pdfapptooldocumentpage.h"
+#include "pdfapptoolhost.h"
 #include "pdfapptopbar.h"
 #include "pdfappwindowframe.h"
 #include "pdfappwindowgeometry.h"
@@ -1153,11 +1155,43 @@ void PDFAppMainWindow::openDocument(const PDFAppOpenRequest& request, std::vecto
         {
             m_lastOpenedTitle = tab->getTabTitle();
             activateTab(tab);
-            if (m_navigator && request.page > 0)
+            if (!request.toolId.isEmpty() && PDFAppToolDocumentPage::isRefusedByLock(request.toolId, document))
+            {
+                // T3 is the answer to a manual route: the tab of the file says the reason
+                PDFAppDocumentTab* documentTab = qobject_cast<PDFAppDocumentTab*>(tab);
+                PDFAppDocumentView* view = documentTab ? documentTab->getView() : nullptr;
+                if (PDFAppDocumentStatusBar* statusBar = view ? view->getStatusBar() : nullptr)
+                {
+                    statusBar->showMessage(PDFAppToolDocumentPage::getLockRefusalText(request.toolId), PDFAppDocumentToolHost::MESSAGE_TIMEOUT);
+                }
+            }
+            else if (m_navigator && !request.toolId.isEmpty())
+            {
+                m_navigator->navigate(PDFAppRoutes::documentTool(document->getId(), request.toolId), PDFAppNavigationMode::Push, tab);
+            }
+            else if (m_navigator && request.page > 0)
             {
                 m_navigator->navigate(PDFAppRoutes::document(document->getId(), request.page), PDFAppNavigationMode::Push, tab);
             }
             return;
+        }
+
+        // F13: a document of another window of a tool: its tab is activated, this window
+        // does not read the file a second time
+        if (!request.toolId.isEmpty())
+        {
+            for (QWidget* widget : QApplication::topLevelWidgets())
+            {
+                PDFAppMainWindow* window = qobject_cast<PDFAppMainWindow*>(widget);
+                PDFAppTab* tab = window && window != this ? window->findDocumentTab(document->getId()) : nullptr;
+                if (tab)
+                {
+                    m_lastOpenedTitle = tab->getTabTitle();
+                    window->activateTab(tab);
+                    PDFAppActivation::activateWindow(window, QString());
+                    return;
+                }
+            }
         }
     }
 
@@ -1200,7 +1234,9 @@ void PDFAppMainWindow::openDocument(const PDFAppOpenRequest& request, std::vecto
     m_lastOpenedTitle = tab->getTabTitle();
     if (m_navigator)
     {
-        m_navigator->navigate(PDFAppRoutes::document(tab->getDocumentId(), page), PDFAppNavigationMode::Push, tab);
+        // A route of a tool waits until the document is shown (PDFAppDocumentPage)
+        m_navigator->navigate(request.toolId.isEmpty() ? PDFAppRoutes::document(tab->getDocumentId(), page) : PDFAppRoutes::documentTool(tab->getDocumentId(), request.toolId),
+                              PDFAppNavigationMode::Push, tab);
         if (!guard)
         {
             return;
@@ -1510,8 +1546,27 @@ void PDFAppMainWindow::browseDocuments(const QString& folder)
 
     if (!files.isEmpty())
     {
-        openDocuments(files, 0);
+        openDocumentsOfPage(files);
     }
+}
+
+void PDFAppMainWindow::openDocumentsOfPage(const QStringList& files)
+{
+    // The start page of a tool: one file goes to the tool (the mode One), others only open
+    PDFAppTab* tab = getCurrentTab();
+    const PDFAppPage* page = tab ? tab->getPage() : nullptr;
+    QString toolId = page ? page->getOpenFilesToolId() : QString();
+
+    std::vector<PDFAppOpenRequest> requests;
+    for (const QString& file : files)
+    {
+        PDFAppOpenRequest request;
+        request.filePath = file;
+        request.toolId = toolId;
+        toolId.clear();
+        requests.push_back(std::move(request));
+    }
+    openDocuments(requests);
 }
 
 std::vector<PDFAppOpenDocument> PDFAppMainWindow::getOpenDocuments() const
@@ -2101,7 +2156,7 @@ void PDFAppMainWindow::dropEvent(QDropEvent* event)
 
     if (!result.files.isEmpty())
     {
-        openDocuments(result.files, 0);
+        openDocumentsOfPage(result.files);
     }
 }
 

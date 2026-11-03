@@ -246,6 +246,11 @@ void PDFAppAutoRefresh::ignoreOwnWrite(const QString& filePath)
     Q_UNUSED(filePath);
     m_keptData.clear();
     updateWatchedPath();
+
+    // A notification of the write may be lost with the replaced watch: the check runs
+    // anyway. A document, which has not taken the written bytes (a lock set during the
+    // write of a tool, F6), reads the file; a saved one finds it unchanged.
+    scheduleCheck(CHECK_DELAY);
 }
 
 void PDFAppAutoRefresh::onDocumentStateChanged()

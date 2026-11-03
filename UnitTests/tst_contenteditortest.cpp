@@ -25,6 +25,7 @@
 #include "pdfconstants.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumentreader.h"
+#include "pdfdocumentwriter.h"
 #include "pdffont.h"
 #include "pdfimage.h"
 #include "pdfoptionalcontent.h"
@@ -42,10 +43,13 @@
 #include <QImage>
 #include <QPainter>
 #include <QPdfWriter>
+#include <QRandomGenerator>
 #include <QRegularExpression>
 
 #include <array>
 #include <barrier>
+#include <cmath>
+#include <limits>
 #include <thread>
 #include <functional>
 #include <memory>
@@ -116,6 +120,12 @@ private slots:
     void test_rendered_page_is_unchanged();
     void test_other_resources_are_preserved();
     void test_numbers_are_not_written_in_exponential_notation();
+    void test_small_numbers_of_the_document_keep_their_value();
+    void test_numbers_have_at_most_nine_significant_digits_data();
+    void test_numbers_have_at_most_nine_significant_digits();
+    void test_numbers_not_finite();
+    void test_numbers_keep_every_single_precision_value();
+    void test_numbers_of_nine_digits_keep_the_drawn_page();
     void test_complex_tiling_pattern_is_not_processed();
     void test_inserted_image_is_placed_into_the_rectangle();
     void test_inserted_image_does_not_inherit_transparency_state();
@@ -157,6 +167,7 @@ private:
         RotatedMatrix,
         IndirectResources,
         TinyScale,
+        TinyScaleBelowSixDecimals,
         TilingPattern,
         ComplexTilingPattern,
         TransparentState
@@ -374,6 +385,15 @@ pdf::PDFDocument ContentEditorTest::createDocumentWithImage(Variant variant)
             pdf::PDFObjectReference imageRef = createImageObject(false);
             xObject.addEntry(pdf::PDFInplaceOrMemoryString("Im1"), pdf::PDFObject::createReference(imageRef));
             pageContent = "q 0.00002 0 0 0.00001 10 30 cm /Im1 Do Q";
+            break;
+        }
+
+        case Variant::TinyScaleBelowSixDecimals:
+        {
+            // Six decimal places would change the scale by a few percent
+            pdf::PDFObjectReference imageRef = createImageObject(false);
+            xObject.addEntry(pdf::PDFInplaceOrMemoryString("Im1"), pdf::PDFObject::createReference(imageRef));
+            pageContent = "q 0.00001234 0 0 0.00000567 10 30 cm /Im1 Do Q";
             break;
         }
 
@@ -1133,6 +1153,169 @@ void ContentEditorTest::test_numbers_are_not_written_in_exponential_notation()
     QCOMPARE(modified.firstSampleColor, original.firstSampleColor);
     QCOMPARE(modified.firstSamplePoint, original.firstSamplePoint);
     QCOMPARE(modified.lastSamplePoint, original.lastSamplePoint);
+}
+
+void ContentEditorTest::test_small_numbers_of_the_document_keep_their_value()
+{
+    // A rewritten page writes the values of its document again, they are not rounded
+    pdf::PDFDocument document = createDocumentWithImage(Variant::TinyScaleBelowSixDecimals);
+    pdf::PDFEditedPageContent content = processPageContent(&document);
+    ImagePlacement original = getImagePlacement(content);
+    QVERIFY(original.firstSampleColor.isValid());
+
+    QByteArray outputContent;
+    pdf::PDFDocumentPointer modifiedDocument = rewritePageContent(&document, content, false, &outputContent);
+    QVERIFY(modifiedDocument);
+    QVERIFY2(outputContent.contains("0.00001234 0 0 0.00000567 10 30 cm"), outputContent.constData());
+
+    pdf::PDFEditedPageContent modifiedContent = processPageContent(modifiedDocument.data());
+    ImagePlacement modified = getImagePlacement(modifiedContent);
+
+    QCOMPARE(modified.firstSamplePoint, original.firstSamplePoint);
+    QCOMPARE(modified.lastSamplePoint, original.lastSamplePoint);
+}
+
+void ContentEditorTest::test_numbers_have_at_most_nine_significant_digits_data()
+{
+    QTest::addColumn<QByteArray>("number");
+    QTest::addColumn<QByteArray>("expected");
+
+    // Owner 2026-11-02: at most 9 significant digits, the fixed notation, no trailing zeros, the shortest text of a shorter value
+    QTest::newRow("integer") << QByteArray("5") << QByteArray("5");
+    QTest::newRow("integral real") << QByteArray("5.0") << QByteArray("5");
+    QTest::newRow("short") << QByteArray("0.00999451") << QByteArray("0.00999451");
+    QTest::newRow("tiny stays non-zero") << QByteArray("0.0000004") << QByteArray("0.0000004");
+    QTest::newRow("nine digits") << QByteArray("123.456789") << QByteArray("123.456789");
+    QTest::newRow("nine digits behind zeros") << QByteArray("0.000123456789") << QByteArray("0.000123456789");
+    QTest::newRow("nine digits of an integer") << QByteArray("123456789") << QByteArray("123456789");
+
+    QTest::newRow("noise of a computed value") << QByteArray("698.0000380436666") << QByteArray("698.000038");
+    QTest::newRow("ten digits") << QByteArray("1.234567891") << QByteArray("1.23456789");
+    QTest::newRow("ten digits up") << QByteArray("1.234567899") << QByteArray("1.2345679");
+    QTest::newRow("behind zeros") << QByteArray("0.000000123456789012") << QByteArray("0.000000123456789");
+    QTest::newRow("negative") << QByteArray("-0.00012345678912") << QByteArray("-0.000123456789");
+    QTest::newRow("integral part and fraction") << QByteArray("123456.7891234") << QByteArray("123456.789");
+    QTest::newRow("trailing zeros removed") << QByteArray("0.1000000000001") << QByteArray("0.1");
+    QTest::newRow("carry over all digits") << QByteArray("1.9999999996") << QByteArray("2");
+    QTest::newRow("carry to the next power") << QByteArray("9.9999999996") << QByteArray("10");
+    QTest::newRow("carry below one") << QByteArray("0.99999999996") << QByteArray("1");
+
+    // An integral part longer than 9 digits keeps its digits, it is never written with an exponent
+    QTest::newRow("carry to ten digits") << QByteArray("999999999.7") << QByteArray("1000000000");
+    QTest::newRow("ten digits of an integral part") << QByteArray("1234567890.25") << QByteArray("1234567890");
+    QTest::newRow("long integral part") << QByteArray("12345678901234.75") << QByteArray("12345678901235");
+    QTest::newRow("long integer") << QByteArray("12345678901234") << QByteArray("12345678901234");
+
+    // The boundaries of the rule
+    QTest::newRow("nine nines stay") << QByteArray("0.999999999") << QByteArray("0.999999999");
+    QTest::newRow("carry of nine nines") << QByteArray("999999999.5") << QByteArray("1000000000");
+    QTest::newRow("nine digits, fraction lost") << QByteArray("123456789.4") << QByteArray("123456789");
+    QTest::newRow("carry behind zeros") << QByteArray("0.0000999999999996") << QByteArray("0.0001");
+    QTest::newRow("carry of a negative value") << QByteArray("-9.9999999996") << QByteArray("-10");
+    QTest::newRow("trailing zeros of an integral value kept") << QByteArray("1200000000.25") << QByteArray("1200000000");
+    QTest::newRow("negative zero") << QByteArray("-0.0") << QByteArray("0");
+    QTest::newRow("negative zero, integer") << QByteArray("-0") << QByteArray("0");
+    QTest::newRow("smallest single") << QByteArray("0.") + QByteArray(37, '0') + "11754943508" << QByteArray("0.") + QByteArray(37, '0') + "117549435";
+    QTest::newRow("below the singles") << QByteArray("0.") + QByteArray(60, '0') + "1234567891" << QByteArray("0.") + QByteArray(60, '0') + "123456789";
+}
+
+void ContentEditorTest::test_numbers_not_finite()
+{
+    // PDF has no infinity and no NaN (PDF Reference 1.7, 3.2.2), a matrix overflowing a double must not make the page
+    // unreadable: an infinity is the largest real of Table C.1 with its sign, written without an exponent; NaN is zero
+    const QByteArray huge = QByteArray("1") + QByteArray(300, '0');
+    pdf::PDFDocument document = createDocument("q " + huge + " 0 0 " + huge + " 0 0 cm " + huge + " 0 0 " + huge + " 0 0 cm 0 0 10 10 re f Q", [](pdf::PDFDocumentBuilder*) { return pdf::PDFDictionaryBuilder(); });
+    pdf::PDFEditedPageContent content = processPageContent(&document);
+
+    QByteArray outputContent;
+    QVERIFY(rewritePageContent(&document, content, false, &outputContent));
+
+    const QByteArray lower = outputContent.toLower();
+    QVERIFY2(!lower.contains("inf") && !lower.contains("nan") && !lower.contains("e+"), outputContent.constData());
+
+    // The largest IEEE single: the shortest text of the fixed notation, which reads back as the same double
+    const QByteArray largest = "340282346638528860000000000000000000000";
+    QVERIFY2(outputContent.contains(largest + " 0 0 " + largest + " "), outputContent.constData());
+    QCOMPARE(largest.toDouble(), double(std::numeric_limits<float>::max()));
+}
+
+void ContentEditorTest::test_numbers_have_at_most_nine_significant_digits()
+{
+    QFETCH(QByteArray, number);
+    QFETCH(QByteArray, expected);
+
+    pdf::PDFDocument document = createDocument("q 1 0 0 1 " + number + " 30 cm 0 0 10 10 re f Q", [](pdf::PDFDocumentBuilder*) { return pdf::PDFDictionaryBuilder(); });
+    pdf::PDFEditedPageContent content = processPageContent(&document);
+
+    QByteArray outputContent;
+    pdf::PDFDocumentPointer modifiedDocument = rewritePageContent(&document, content, false, &outputContent);
+    QVERIFY(modifiedDocument);
+    QVERIFY2(outputContent.contains(" " + expected + " 30 cm"), outputContent.constData());
+}
+
+void ContentEditorTest::test_numbers_keep_every_single_precision_value()
+{
+    // PDF Reference 1.7, Table C.1: a reader may read IEEE single, 9 significant digits keep each of them exactly
+    QRandomGenerator generator(20261102);
+    for (int i = 0; i < 200; ++i)
+    {
+        // The values from 1000 to 1024 are the hard ones: the steps of a float below 2^10 are finer than 8 significant digits
+        const float value = i % 2 == 0 ? float(generator.generateDouble() * std::pow(10.0, generator.bounded(-6, 4))) : float(1000.0 + generator.generateDouble() * 24.0);
+        const QByteArray number = pdf::PDFDocumentWriter::getRealNumberText(value);
+
+        pdf::PDFDocument single = createDocument("q 1 0 0 1 " + number + " 30 cm 0 0 10 10 re f Q", [](pdf::PDFDocumentBuilder*) { return pdf::PDFDictionaryBuilder(); });
+        pdf::PDFEditedPageContent content = processPageContent(&single);
+
+        QByteArray outputContent;
+        QVERIFY(rewritePageContent(&single, content, false, &outputContent));
+
+        const QRegularExpressionMatch match = QRegularExpression(QStringLiteral(" (-?[0-9.]+) 30 cm")).match(QString::fromLatin1(outputContent));
+        QVERIFY2(match.hasMatch(), outputContent.constData());
+
+        const QByteArray text = match.captured(1).toLatin1();
+        QVERIFY2(!text.contains('e'), text.constData());
+        QVERIFY2(text.toFloat() == value, text.constData());
+
+        int significantDigits = 0;
+        for (const char character : text)
+        {
+            if (character >= '0' && character <= '9' && (significantDigits > 0 || character != '0'))
+            {
+                ++significantDigits;
+            }
+        }
+        QVERIFY2(significantDigits <= 9, text.constData());
+    }
+}
+
+void ContentEditorTest::test_numbers_of_nine_digits_keep_the_drawn_page()
+{
+    // Numbers of more than 9 significant digits: a value moves by less than 0.000001 of a point, the page of
+    // 200 x 200 points drawn at 2 pixels per point has the same pixels
+    pdf::PDFDocument document = createDocument("q 1 0 0 1 10.123456789012 20.987654321098 cm 0.3 0.6 0.9 rg 0.123456789012 0.987654321098 60.333333333333 40.666666666666 re f Q "
+                                               "q 0.70710678118654757 0.70710678118654757 -0.70710678118654757 0.70710678118654757 120.12345678912 100.98765432198 cm 0.9 0.2 0.1 rg 0 0 30.555555555555 20.111111111111 re f Q",
+                                               [](pdf::PDFDocumentBuilder*) { return pdf::PDFDictionaryBuilder(); });
+    pdf::PDFEditedPageContent content = processPageContent(&document);
+    QCOMPARE(content.getElementCount(), size_t(2));
+
+    QByteArray outputContent;
+    pdf::PDFDocumentPointer modifiedDocument = rewritePageContent(&document, content, false, &outputContent);
+    QVERIFY(modifiedDocument);
+
+    // The digits are really limited here
+    QVERIFY2(!outputContent.contains("10.1234567890") && outputContent.contains("10.1234568"), outputContent.constData());
+    QVERIFY2(outputContent.contains("0.707106781"), outputContent.constData());
+
+    const QImage originalImage = renderPage(&document);
+    const QImage modifiedImage = renderPage(modifiedDocument.data());
+    QCOMPARE(modifiedImage.size(), originalImage.size());
+
+    // The colors of the two shapes at their places
+    const QColor blue = getPageColor(modifiedImage, QPointF(40, 40));
+    QVERIFY2(blue.blue() > 200 && blue.red() < 100, qPrintable(blue.name()));
+    const QColor red = getPageColor(modifiedImage, QPointF(120, 115));
+    QVERIFY2(red.red() > 200 && red.blue() < 60, qPrintable(red.name()));
+    QCOMPARE(getDifferentPixelCount(originalImage, modifiedImage, 0), 0);
 }
 
 void ContentEditorTest::test_inserted_image_is_placed_into_the_rectangle()

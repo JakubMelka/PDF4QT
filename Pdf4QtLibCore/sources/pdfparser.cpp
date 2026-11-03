@@ -31,10 +31,55 @@
 #include "pdfdbgheap.h"
 
 #include <cctype>
+#include <cmath>
+#include <iterator>
+#include <limits>
 #include <memory>
 
 namespace pdf
 {
+
+// Integers up to 2^53 and the powers of ten up to 10^22 are exact doubles
+static constexpr quint64 MAXIMUM_EXACT_MANTISSA = quint64(1) << 53;
+static constexpr PDFReal EXACT_POWERS_OF_TEN[] = { 1e0,  1e1,  1e2,  1e3,  1e4,  1e5,  1e6,  1e7,  1e8,  1e9,  1e10, 1e11,
+                                                   1e12, 1e13, 1e14, 1e15, 1e16, 1e17, 1e18, 1e19, 1e20, 1e21, 1e22 };
+
+PDFReal PDFLexicalAnalyzer::convertLongRealNumber(const char* begin, const char* end)
+{
+    // Only digits and the period: a minus sign in the middle of a number is ignored by the scanner
+    QByteArray text;
+    text.reserve(end - begin);
+
+    bool isFraction = false;
+    bool isAtLeastOne = false;
+
+    for (const char* current = begin; current != end; ++current)
+    {
+        const char character = *current;
+        if (character == '.')
+        {
+            isFraction = true;
+            text.append(character);
+        }
+        else if (std::isdigit(static_cast<unsigned char>(character)))
+        {
+            isAtLeastOne = isAtLeastOne || (!isFraction && character != '0');
+            text.append(character);
+        }
+    }
+
+    bool isConverted = false;
+    const PDFReal value = text.toDouble(&isConverted);
+    if (isConverted)
+    {
+        return value;
+    }
+
+    // Qt refuses a value out of the range of a double. A value of at least one is too large (the caller
+    // reports the overflow), other values are too close to zero: PDF Reference 1.7, Table C.1,
+    // values closer to zero than the limit are automatically converted to zero.
+    return isAtLeastOne ? std::numeric_limits<PDFReal>::infinity() : 0.0;
+}
 
 PDFLexicalAnalyzer::PDFLexicalAnalyzer(const char* begin, const char* end) :
     m_begin(begin),
@@ -80,6 +125,7 @@ PDFLexicalAnalyzer::Token PDFLexicalAnalyzer::fetch()
             // First, treat special characters
             bool positive = fetchChar('+');
             bool negative = fetchChar('-');
+            const char* numberBegin = m_current;
             bool dot = fetchChar('.');
             bool treatAsReal = dot;
             bool atLeastOneDigit = false;
@@ -91,7 +137,11 @@ PDFLexicalAnalyzer::Token PDFLexicalAnalyzer::fetch()
 
             PDFInteger integer = 0;
             PDFReal real = 0.0;
-            PDFReal scale = 0.1;
+
+            // All digits of a real number as one integer, it stops growing above the limit;
+            // the digits read as an integer become a part of it, when the number turns to a real
+            quint64 mantissa = 0;
+            qsizetype fractionDigits = 0;
 
             // Now, we can only have digits and a single dot
             while (!isAtEnd())
@@ -99,9 +149,13 @@ PDFLexicalAnalyzer::Token PDFLexicalAnalyzer::fetch()
                 if (!dot && fetchChar('.'))
                 {
                     // Entering real mode
+                    if (!treatAsReal)
+                    {
+                        mantissa = quint64(integer);
+                    }
+
                     dot = true;
                     treatAsReal = true;
-                    real = integer;
                 }
                 else if (std::isdigit(static_cast<unsigned char>(lookChar())))
                 {
@@ -119,21 +173,19 @@ PDFLexicalAnalyzer::Token PDFLexicalAnalyzer::fetch()
                         if (!isValidInteger(integer))
                         {
                             treatAsReal = true;
-                            real = integer;
+                            mantissa = quint64(integer);
                         }
                     }
                     else
                     {
-                        // Treat value as real
-                        if (!dot)
+                        // Treat value as real. Digits of an overflown integer before the period
+                        // are counted too, but such a mantissa is above the limit, they are not used.
+                        if (mantissa <= MAXIMUM_EXACT_MANTISSA)
                         {
-                            real = real * 10.0 + digit;
+                            mantissa = mantissa * 10 + quint64(digit);
                         }
-                        else
-                        {
-                            real = real + scale * digit;
-                            scale *= 0.1;
-                        }
+
+                        ++fractionDigits;
                     }
                 }
                 else if (lookChar() == '-')
@@ -163,6 +215,22 @@ PDFLexicalAnalyzer::Token PDFLexicalAnalyzer::fetch()
             if (!atLeastOneDigit)
             {
                 error(tr("Bad format of number - no digits appeared."));
+            }
+
+            if (treatAsReal)
+            {
+                // The value is the double closest to the text, so a number written by PDFDocumentWriter
+                // reads back exactly. When the digits and the power of ten both are exact doubles, then one
+                // IEEE 754 division gives the closest double; adding the digits one by one would add a
+                // rounding error for each of them (0.1 * 3 is not 0.3).
+                if (mantissa <= MAXIMUM_EXACT_MANTISSA && fractionDigits < qsizetype(std::size(EXACT_POWERS_OF_TEN)))
+                {
+                    real = PDFReal(mantissa) / EXACT_POWERS_OF_TEN[fractionDigits];
+                }
+                else
+                {
+                    real = convertLongRealNumber(numberBegin, m_current);
+                }
             }
 
             // Check for real overflow
@@ -292,6 +360,15 @@ PDFLexicalAnalyzer::Token PDFLexicalAnalyzer::fetch()
                             }
                         }
 
+                        break;
+                    }
+
+                    case '\r':
+                    {
+                        // PDF Reference 1.7, chapter 3.2.3: an end-of-line marker without a preceding backslash
+                        // is read as a line feed, whether it was a carriage return, a line feed or both
+                        fetchChar('\n');
+                        string.push_back('\n');
                         break;
                     }
 

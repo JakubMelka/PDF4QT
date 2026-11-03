@@ -57,7 +57,7 @@ public:
     PDFAppMcpHostHelper() = delete;
 
     /// Permission of an action of a tool of phase 1 or of the catalog (Read for an unknown one)
-    static PDFAppMcpPermissionKind getActionPermission(const QString& toolName, const QString& actionName)
+    static PDFAppMcpPermissionKind getActionPermission(const QString& toolName, const QString& actionName, const PDFAppMcpPermissions& permissions)
     {
         if (const PDFAppMcpToolSpec* tool = PDFAppMcpToolSet::findTool(toolName))
         {
@@ -66,7 +66,7 @@ public:
         }
         if (const PDFDocumentToolCatalogEntry* entry = PDFDocumentToolCatalog::findTool(PDFAppMcpCatalogTools::getToolId(toolName, actionName)))
         {
-            return PDFAppMcpCatalogTools::getBasePermission(entry->getResultKind());
+            return PDFAppMcpCatalogTools::getBasePermission(*entry, permissions);
         }
         return PDFAppMcpPermissionKind::Read;
     }
@@ -350,6 +350,7 @@ qint64 PDFAppMcpHost::recordActivity(const std::shared_ptr<PDFMcpCall>& call, co
         entry.detail.insert(QStringLiteral("address"), client.remoteAddress);
     }
     entry.status = status;
+    entry.openCallId = call->isFinished() ? QString() : call->getCallId();
     return m_activityLog->record(entry);
 }
 
@@ -371,7 +372,7 @@ bool PDFAppMcpHost::isDeniedAction(const std::shared_ptr<PDFMcpCall>& call, cons
         return false;
     }
 
-    const PDFAppMcpPermissionKind permission = PDFAppMcpHostHelper::getActionPermission(toolName, actionName);
+    const PDFAppMcpPermissionKind permission = PDFAppMcpHostHelper::getActionPermission(toolName, actionName, m_policy.getPermissions());
     const bool hasOpenDocuments = !m_resolver.getDocuments().empty();
     return permission != PDFAppMcpPermissionKind::None && m_policy.evaluate(permission, call->getRequest().client.assistantKey, hasOpenDocuments) == PDFAppMcpPolicyResult::Denied;
 }
@@ -391,6 +392,27 @@ void PDFAppMcpHost::finishWithError(const std::shared_ptr<PDFMcpCall>& call, con
     }
     recordActivity(call, action, document, detail, status);
     call->finish(PDFMcpCallResult::createToolError(text));
+}
+
+void PDFAppMcpHost::finishWithError(const std::shared_ptr<PDFMcpCall>& call, qint64 activityId, const QString& action, const PDFAppDocument* document,
+                                    const QString& text, PDFMcpActivityStatus status)
+{
+    if (activityId <= 0 || !m_activityLog)
+    {
+        finishWithError(call, action, document, text, status);
+        return;
+    }
+
+    if (call)
+    {
+        QJsonObject detail;
+        if (status == PDFMcpActivityStatus::Failed)
+        {
+            detail.insert(QStringLiteral("reason"), PDFMcpJson::sanitizeString(text, PDFMcpJson::SanitizeFlag::RemoveBidi, 200));
+        }
+        m_activityLog->update(activityId, status, detail);
+        call->finish(PDFMcpCallResult::createToolError(text));
+    }
 }
 
 void PDFAppMcpHost::startJob(std::shared_ptr<PDFAppMcpJob> job)
@@ -457,6 +479,11 @@ void PDFAppMcpHost::onJobFinished(const std::shared_ptr<PDFAppMcpJob>& job)
         startWaitingHeavyJobs();
     }
 
+    finishJob(job);
+}
+
+void PDFAppMcpHost::finishJob(const std::shared_ptr<PDFAppMcpJob>& job)
+{
     std::shared_ptr<PDFMcpCall> call = job->getCall();
     if (m_isShutDown)
     {
@@ -787,7 +814,14 @@ void PDFAppMcpHost::handleCall(const std::shared_ptr<PDFMcpCall>& call)
 
 void PDFAppMcpHost::handleToolCall(const std::shared_ptr<PDFMcpCall>& call)
 {
+    // A new catalog is announced: a slot may delete the host with its controller
+    QPointer<PDFAppMcpHost> self(this);
     checkToolRegistry();
+    if (!self)
+    {
+        call->finish(PDFMcpCallResult::createError(PDFMcpErrorCodes::SERVER_STOPPING, QStringLiteral("The MCP server of PDF4QT is stopping")));
+        return;
+    }
 
     const PDFMcpCallRequest& request = call->getRequest();
     const QString toolName = request.name;
@@ -842,7 +876,7 @@ void PDFAppMcpHost::handleToolCall(const std::shared_ptr<PDFMcpCall>& call)
     }
 
     // The permission of the action, checked again at the call (the catalog may be older)
-    const PDFAppMcpPermissionKind permission = PDFAppMcpHostHelper::getActionPermission(toolName, actionName);
+    const PDFAppMcpPermissionKind permission = PDFAppMcpHostHelper::getActionPermission(toolName, actionName, m_policy.getPermissions());
 
     const bool hasOpenDocuments = !m_resolver.getDocuments().empty();
     if (permission != PDFAppMcpPermissionKind::None && m_policy.evaluate(permission, request.client.assistantKey, hasOpenDocuments) == PDFAppMcpPolicyResult::Denied)
@@ -858,7 +892,7 @@ void PDFAppMcpHost::handleToolCall(const std::shared_ptr<PDFMcpCall>& call)
     // reasons (958:28030; the handlers of package C ask Read with Edit)
     const bool isCatalogTool = PDFAppMcpCatalogTools::isCatalogToolName(toolName);
     if (m_policy.getKindsToConfirm(PDFAppMcpPermissionKind::Read, request.client.assistantKey, hasOpenDocuments).testFlag(PDFAppMcpPermissionKind::Read) &&
-        (permission == PDFAppMcpPermissionKind::Read || (permission == PDFAppMcpPermissionKind::Edit && isCatalogTool)))
+        (permission == PDFAppMcpPermissionKind::Read || (isCatalogTool && (permission == PDFAppMcpPermissionKind::Edit || permission == PDFAppMcpPermissionKind::Files))))
     {
         std::shared_ptr<PDFAppMcpReadApproval> receiver = std::make_shared<PDFAppMcpReadApproval>(this, call, toolName, actionName, request.arguments);
 
@@ -902,7 +936,7 @@ void PDFAppMcpHost::continueToolCall(const std::shared_ptr<PDFMcpCall>& call, co
 
     // The permission may have been set to Deny while the question waited (plan 7:
     // a change during a call is an execution error)
-    const PDFAppMcpPermissionKind permission = PDFAppMcpHostHelper::getActionPermission(toolName, actionName);
+    const PDFAppMcpPermissionKind permission = PDFAppMcpHostHelper::getActionPermission(toolName, actionName, m_policy.getPermissions());
     if (permission != PDFAppMcpPermissionKind::None && m_policy.evaluate(permission, call->getRequest().client.assistantKey, true) == PDFAppMcpPolicyResult::Denied)
     {
         finishDenied(call, toolName + QLatin1Char('.') + actionName, PDFAppMcpHostHelper::findArgumentDocument(m_resolver, arguments),
@@ -957,7 +991,40 @@ void PDFAppMcpHost::callCanceled(const std::shared_ptr<PDFMcpCall>& call)
         default:
             break;
     }
+
+    // A slot of the end of a confirmation may delete the host (its controller)
+    QPointer<PDFAppMcpHost> self(this);
     endConfirmations(QString(), call, decision);
+    if (self)
+    {
+        endWaitingJob(call);
+    }
+}
+
+void PDFAppMcpHost::endWaitingJob(const std::shared_ptr<PDFMcpCall>& call)
+{
+    // A heavy job of the canceled call, which waits for a place, ends now: a tool
+    // of the catalog may hold the places for minutes
+    for (auto it = m_waitingHeavyJobs.begin(); it != m_waitingHeavyJobs.end(); ++it)
+    {
+        if (*it && (*it)->getCall() == call)
+        {
+            std::shared_ptr<PDFAppMcpJob> job = std::move(*it);
+            m_waitingHeavyJobs.erase(it);
+            m_runningJobs = qMax(0, m_runningJobs - 1);
+            finishJob(job);
+            return;
+        }
+    }
+}
+
+void PDFAppMcpHost::callFinished(const std::shared_ptr<PDFMcpCall>& call)
+{
+    PDFThreadAnnotations::happensAfter(call.get());
+    if (call && m_activityLog)
+    {
+        m_activityLog->callFinished(call->getCallId());
+    }
 }
 
 void PDFAppMcpHost::assistantEvent(const PDFMcpAssistantEvent& event)

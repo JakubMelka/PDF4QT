@@ -250,6 +250,9 @@ private:
     bool isDocumentShortcutBlocked() const;
     void showDialogEntry(Entry& entry, PDFAppTab* tab, int index, int count);
     void closeDialog();
+
+    /// A page of an open tool replaces the canvas: Show on Page has nothing to show
+    static bool isCanvasReplaced(const PDFAppDocumentTab* tab);
     void restoreFocus(QWidget* tab);
     void onFocusWindowChanged();
     void showPreview(Entry& entry, PDFAppDocumentTab* tab);

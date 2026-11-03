@@ -33,8 +33,9 @@ The result has the readable JSON in a text block and the same data in `structure
 | `forms` | Fill and reset form fields | pdf4qt://docs/tools/forms.md |
 | `outline` | Add, change, move, delete or replace outline items | pdf4qt://docs/tools/outline.md |
 | `files` | Open a PDF file, save a document, save a copy | pdf4qt://docs/tools/files.md |
+<!-- catalog tools -->
 
-Later versions of PDF4QT add tools named after the categories of its tool catalog (`pages`, `convert`, `edit`, `protect`, `optimize`, `review`); each of their actions runs one tool of PDF4QT on a document.
+The tools named after the categories of the tool catalog of PDF4QT run its tools on a document, one action per tool; `tools/list` shows the categories with an implemented tool. Their common parameter `result` says what happens with what the tool made: it stays in the tab as one undo step, or it is written to a file.
 
 ## Permissions in one paragraph
 

@@ -210,6 +210,15 @@ int PDFAppDocumentFileWriter::getSignatureCount(const PDFDocument* document)
     return PDFForm::getSignatureCount(document);
 }
 
+int PDFAppDocumentFileWriter::getIncrementalSignatureCount(const PDFAppDocumentSnapshot& snapshot)
+{
+    if (snapshot.originalData.isEmpty() || snapshot.isPagedXFA || snapshot.isWholeFileRewritten)
+    {
+        return 0;
+    }
+    return getSignatureCount(snapshot.document.data());
+}
+
 bool PDFAppDocumentFileWriter::isWritable(const QString& filePath)
 {
     if (filePath.isEmpty())
@@ -375,10 +384,9 @@ void PDFAppDocumentSaver::start(bool isSaveAs)
         return;
     }
 
-    const PDFDocumentPointer pdfDocument = document->getDocument();
-    // A display version of an XFA form is written from its original bytes, which
-    // keep its signatures (step 8): no incremental update, no question
-    const int signatureCount = !document->getOriginalData().isEmpty() && !document->isPagedXFA() ? PDFAppDocumentFileWriter::getSignatureCount(pdfDocument.data()) : 0;
+    // No incremental update and no question for a display version of an XFA form (step 8)
+    // and for the result of a tool, which rewrites the file (O31)
+    const int signatureCount = PDFAppDocumentFileWriter::getIncrementalSignatureCount(document->getSnapshot());
     const bool isIncremental = signatureCount > 0;
 
     if (isSaveAs || document->getFilePath().isEmpty())
@@ -768,8 +776,7 @@ void PDFAppDocumentSaver::onErrorDialogSaveAs()
     }
 
     const PDFAppDocument* document = getDocument();
-    const bool isIncremental = document && !document->isPagedXFA() && !document->getOriginalData().isEmpty() && PDFAppDocumentFileWriter::getSignatureCount(document->getDocument().data()) > 0;
-    chooseFileAndWrite(isIncremental);
+    chooseFileAndWrite(document && PDFAppDocumentFileWriter::getIncrementalSignatureCount(document->getSnapshot()) > 0);
 }
 
 void PDFAppDocumentSaver::closeDialog()

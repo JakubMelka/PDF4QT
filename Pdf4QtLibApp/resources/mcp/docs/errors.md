@@ -31,6 +31,12 @@ PDF4QT reports two kinds of errors:
 | "… use save_copy" | The document has no file of its own | Use `files.save_copy` with a path |
 | "The image would have … megapixels …" / "The image has … MiB, more than the limit of 12 MiB …" | The image is too large | Render with a lower `dpi`, an `area`, or `jpeg` |
 | "This tool is not available …" | A tool of the catalog was removed | Call `tools/list` again |
+| "The file was written, but the document in the tab of PDF4QT did not take the result …" | `result` `overwrite`: the document was locked while its file was written. The file has the result, the tab shows the previous version until the file is read again | Tell the user |
+| "The document is signed: this tool rewrites the file …" | The tool would make the signatures invalid, so `keep` and `overwrite` are refused; nothing ran | Tell the user; use `result` `save_copy` with a `path` |
+| "The document has no file …" | `result` `overwrite` of a copy or of an attachment, which has no file | Use `result` `save_copy` with a `path` |
+| "The file of the document cannot be written …" | `result` `overwrite` of a read-only file; the tab is unchanged | Use `result` `save_copy` with a `path` |
+| "path: the output of this tool is … the file must have the extension …" | `result` `save_file` writes only the kind of file the tool made | Use the extension from the message |
+| "The output of the tool is not a text …" | `result` `return_text` of an output in another encoding | Use `result` `save_file` with a `path` |
 | "The run was canceled" / "The request was canceled" / "… stopped" | Your client canceled the call, or the server stopped | Nothing; call again if the user still wants it |
 | "The user declined …" / "The user did not choose … in the client …" | The user declined a question of PDF4QT in your client | Ask the user in the conversation |
 | "The choice of the user expired or is not valid …" | An answer to a question of PDF4QT came too late (5 minutes) | Call the tool again |

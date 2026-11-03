@@ -290,6 +290,14 @@ public:
 
     static QFont getKeyFont() { return PDFThemeFonts::getFont(PDFThemeFonts::Role::Small); }
     static QFont getValueFont() { return PDFThemeFonts::getFont(PDFThemeFonts::Role::SmallMedium); }
+
+    /// Width of a value in a row of the inner width: the rest behind the key, whose column
+    /// has KEY_WIDTH at most (the one rule of the drawing and of the tooltip)
+    static int getValueWidth(const QString& key, int innerWidth)
+    {
+        const int keyWidth = qMin(KEY_WIDTH, QFontMetrics(getKeyFont()).horizontalAdvance(key) + 1);
+        return qMax(0, innerWidth - keyWidth - GAP);
+    }
 };
 
 PDFKeyValueList::PDFKeyValueList(QWidget* parent) :
@@ -453,7 +461,11 @@ void PDFKeyValueList::paintEvent(QPaintEvent* event)
         const QRect row = getRowRect(i);
         const QRect inner = row.adjusted(PDFKeyValueListHelper::PADDING, 0, -PDFKeyValueListHelper::PADDING, 0);
         const QRect keyRect(inner.left(), inner.top(), PDFKeyValueListHelper::KEY_WIDTH, inner.height());
-        const QRect valueRect(keyRect.right() + 1 + PDFKeyValueListHelper::GAP, inner.top(), qMax(0, inner.width() - PDFKeyValueListHelper::KEY_WIDTH - PDFKeyValueListHelper::GAP), inner.height());
+
+        // A short key leaves the rest of its column to a long value ("804.2 kB → 41.5 kB"
+        // beside "Images (1)" in a panel of 287 px): the value keeps the trailing edge
+        const int valueWidth = PDFKeyValueListHelper::getValueWidth(m_rows[i].key, inner.width());
+        const QRect valueRect(inner.right() + 1 - valueWidth, inner.top(), valueWidth, inner.height());
 
         painter.setFont(keyFont);
         painter.setPen(PDFStylePainter::color(keyColor));
@@ -479,7 +491,7 @@ bool PDFKeyValueList::event(QEvent* event)
         if (index >= 0)
         {
             const QRect inner = getRowRect(index).adjusted(PDFKeyValueListHelper::PADDING, 0, -PDFKeyValueListHelper::PADDING, 0);
-            const qreal valueWidth = inner.width() - PDFKeyValueListHelper::KEY_WIDTH - PDFKeyValueListHelper::GAP;
+            const qreal valueWidth = PDFKeyValueListHelper::getValueWidth(m_rows[index].key, inner.width());
             if (PDFStylePainter::textWidth(m_rows[index].value, PDFKeyValueListHelper::getValueFont()) > valueWidth)
             {
                 QToolTip::showText(helpEvent->globalPos(), m_rows[index].value, this, getRowRect(index));

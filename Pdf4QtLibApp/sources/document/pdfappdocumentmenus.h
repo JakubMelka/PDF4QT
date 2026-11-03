@@ -155,6 +155,11 @@ protected:
     /// PADDING + the border at each side; the panel of a tool has its own (303:4560).
     virtual QMargins getContentPadding() const;
 
+    /// Left edge of the panel in global coordinates at the opening (it is kept inside of
+    /// the screen afterwards). The default is the leading edge of the anchor; a panel with
+    /// its own place overrides it (Custom… of Compress, K13).
+    virtual int getPanelLeft(const QRect& anchorRect, int panelWidth) const;
+
     /// Caption of a section (Medium 11 text/muted)
     PDFLabel* createCaption(const char* sourceText);
 

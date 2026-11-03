@@ -22,6 +22,7 @@
 
 #include "pdfappbuiltintools.h"
 
+#include "pdfapptoolgui_compress.h"
 #include "pdfapptoolgui_extracttext.h"
 #include "pdfapptoolgui_pages.h"
 #include "pdfapptoolgui_protect.h"
@@ -33,7 +34,8 @@ namespace pdf
 void PDFAppBuiltinTools::registerAll()
 {
     // Each part of the first batch has its own line and file (plan, chapter 9), the
-    // parallel parts do not touch this file. Compress comes with its wave.
+    // parallel parts do not touch this file.
+    PDFAppToolGUICompress::registerTools();
     PDFAppToolGUIPages::registerTools();
     PDFAppToolGUIProtect::registerTools();
     PDFAppToolGUIStructure::registerTools();

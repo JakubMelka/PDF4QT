@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfeditorfallbackfont.h"
+#include "pdfdocumentbuilder.h"
 #include "pdfpagecontenteditorcontentstreambuilder.h"
 #include "pdfexception.h"
 
@@ -315,7 +316,7 @@ PDFObject PDFEditorFallbackFontManager::buildFontDictionaryObject(const Fallback
         QByteArray charProcContent;
         {
             QTextStream stream(&charProcContent, QDataStream::WriteOnly);
-            stream << glyph.width << " 0 d0" << Qt::endl;
+            stream << PDFDocumentBuilder::formatPDFReal(glyph.width) << " 0 d0" << Qt::endl;
             PDFPageContentEditorContentStreamBuilder::writePathGeometry(stream, glyph.path);
             if (!glyph.path.isEmpty())
             {

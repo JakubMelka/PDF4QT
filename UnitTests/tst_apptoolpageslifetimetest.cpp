@@ -48,6 +48,8 @@
 
 #include "pdfcomponentbuttons.h"
 #include "pdfdatabasenotifier.h"
+#include "pdfapptoolbeforeafteroverlay.h"
+#include "pdfapptoolgui_compress.h"
 #include "pdffluentwidgets.h"
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
@@ -62,6 +64,9 @@
 #include <QSet>
 #include <QTimer>
 #include <QTranslator>
+#include <QPainter>
+#include <QPdfWriter>
+#include <QRandomGenerator>
 #include <QtTest>
 
 #include <functional>
@@ -665,6 +670,43 @@ public:
     /// The scenarios of the test tool; the scenarios of the tools added by the next waves
     /// are new names here (plan of the first batch, chapter 8)
     static std::vector<ToolPagesLifetimeStep> scenario(const QString& name);
+
+    /// The GUI of the real tool Compress, nullptr = none or gone
+    static pdf::PDFAppToolGUICompress* compressGui(const ToolPagesLifetimeRun& run)
+    {
+        pdf::PDFDocumentToolShell* current = shell(run);
+        return current ? qobject_cast<pdf::PDFAppToolGUICompress*>(current->getGUI()) : nullptr;
+    }
+
+    /// Waits for the end of the measuring; the victim may go meanwhile
+    static bool waitCompressMeasured(ToolPagesLifetimeRun& run)
+    {
+        return pdftest::AppToolShellFixture::waitFor([&run]()
+        {
+            const pdf::PDFAppToolGUICompress* current = compressGui(run);
+            return !current || current->getMeasureState() != pdf::PDFAppToolGUICompress::MeasureState::Measuring;
+        }) && compressGui(run) != nullptr;
+    }
+
+    /// A PDF with an image, which the presets of Compress reduce
+    static QString writePhoto(const QString& filePath)
+    {
+        QPdfWriter writer(filePath);
+        writer.setResolution(72);
+        QPainter painter(&writer);
+        QImage image(600, 600, QImage::Format_RGB32);
+        QRandomGenerator generator(5);
+        for (int y = 0; y < image.height(); ++y)
+        {
+            QRgb* line = reinterpret_cast<QRgb*>(image.scanLine(y));
+            for (int x = 0; x < image.width(); ++x)
+            {
+                line[x] = qRgb(100 + generator.bounded(60), 80 + generator.bounded(60), 60 + generator.bounded(60));
+            }
+        }
+        painter.drawImage(QRectF(50, 50, 200, 200), image);
+        return filePath;
+    }
 };
 
 std::vector<ToolPagesLifetimeStep> ToolPagesLifetimeHelper::scenario(const QString& name)
@@ -886,6 +928,112 @@ std::vector<ToolPagesLifetimeStep> ToolPagesLifetimeHelper::scenario(const QStri
             return true;
         });
     }
+    else if (name == QLatin1String("compress"))
+    {
+        // The real tool Compress: the measuring, a preset, the panel Custom…, the handle of the
+        // overlay, the result dialog
+        steps.push_back(&H::openTool);
+        steps.push_back(&H::waitCompressMeasured);
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolGUICompress* current = compressGui(run);
+            const QList<QToolButton*> buttons = current ? current->getPresetControl()->getSegmentedControl()->findChildren<QToolButton*>() : QList<QToolButton*>();
+            return !buttons.isEmpty() && click(buttons.front());
+        });
+        steps.push_back(&H::waitCompressMeasured);
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolGUICompress* current = compressGui(run);
+            const QList<QToolButton*> buttons = current ? current->getPresetControl()->getSegmentedControl()->findChildren<QToolButton*>() : QList<QToolButton*>();
+            if (buttons.isEmpty() || !click(buttons.back()))
+            {
+                return false;
+            }
+            settle();
+            current = compressGui(run);
+            return current && current->getCustomPanel() && current->getCustomPanel()->isVisible();
+        });
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolGUICompress* current = compressGui(run);
+            pdf::PDFAppSettingControl* control = current && current->getCustomPanel() ? current->getCustomPanel()->getControl(QStringLiteral("cleanStructure")) : nullptr;
+            return control && click(control->getCheckBox());
+        });
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolGUICompress* current = compressGui(run);
+            return current && current->getCustomPanel() && key(current->getCustomPanel(), Qt::Key_Escape);
+        });
+        steps.push_back(&H::waitCompressMeasured);
+        steps.push_back([](ToolPagesLifetimeRun& run) { return click(toolbar(run) ? toolbar(run)->getUndoButton() : nullptr); });
+        steps.push_back(&H::waitCompressMeasured);
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolGUICompress* current = compressGui(run);
+            return current && current->getBeforeAfterOverlay() && key(current->getBeforeAfterOverlay(), Qt::Key_Right);
+        });
+        steps.push_back([](ToolPagesLifetimeRun& run) { return click(toolbar(run) ? toolbar(run)->getConfirmButton() : nullptr); });
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            settle();
+            pdf::PDFDocumentToolShell* current = shell(run);
+            pdf::PDFAppToolResultDialog* dialog = current ? current->getResultDialog() : nullptr;
+            return dialog && click(dialog->getDiscardButton());
+        });
+    }
+    else if (name == QLatin1String("compressrun"))
+    {
+        // Compress with the measuring running: a run started during the delay and stopped, a run
+        // joining the computation of the preview, its dialog, the write of a copy
+        steps.push_back(&H::openTool);
+        steps.push_back([](ToolPagesLifetimeRun& run) { return click(toolbar(run) ? toolbar(run)->getConfirmButton() : nullptr); });
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            // The run may have ended already: then there is nothing to stop
+            if (toolbar(run) && toolbar(run)->getStopButton()->isVisible())
+            {
+                click(toolbar(run)->getStopButton());
+            }
+            return true;
+        });
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            settle();
+            pdf::PDFDocumentToolShell* current = shell(run);
+            pdf::PDFAppToolResultDialog* dialog = current ? current->getResultDialog() : nullptr;
+            if (dialog)
+            {
+                return click(dialog->getDiscardButton());
+            }
+            return current != nullptr;
+        });
+        steps.push_back(&H::openTool);
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            // Past the delay of the preview: its computation runs, the run joins it
+            QTest::qWait(pdf::PDFDocumentToolRunner::PREVIEW_DELAY + 10);
+            return click(toolbar(run) ? toolbar(run)->getConfirmButton() : nullptr);
+        });
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            wait(run, [&run]() { return !shell(run) || shell(run)->getResultDialog() != nullptr; });
+            settle();
+            pdf::PDFDocumentToolShell* current = shell(run);
+            pdf::PDFAppToolResultDialog* dialog = current ? current->getResultDialog() : nullptr;
+            if (!dialog)
+            {
+                return false;
+            }
+            dialog->getOpenCheckBox()->setChecked(false);
+            return click(dialog->getConfirmButton());
+        });
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            wait(run, [&run]() { return !shell(run); });
+            settle();
+            return true;
+        });
+    }
     else if (name == QLatin1String("leave"))
     {
         // F14 and the end of the tool without a click on it
@@ -958,7 +1106,7 @@ private Q_SLOTS:
 private:
     static constexpr int PART_COUNT = 3;
 
-    static QStringList getScenarios() { return { QStringLiteral("parameters"), QStringLiteral("run"), QStringLiteral("leave") }; }
+    static QStringList getScenarios() { return { QStringLiteral("parameters"), QStringLiteral("run"), QStringLiteral("leave"), QStringLiteral("compress"), QStringLiteral("compressrun") }; }
 
     /// Runs the scenario. In the replay mode the victim is deleted at the target
     /// site. \returns the sites seen (discovery), whether the victim was deleted and
@@ -1011,13 +1159,18 @@ void AppToolPagesLifetimeTest::runScenario(const QString& name, ToolPagesLifetim
 
     ToolPagesLifetimeRun run;
     run.fixture = &fixture;
-    run.toolId = QStringLiteral("pages.rotate");
-    run.tool = fixture.registerShellTool(run.toolId, true);
-    QVERIFY(run.tool);
-    run.tool->setPreview(true, false);
+    const bool isCompress = name.startsWith(QLatin1String("compress"));
+    run.toolId = isCompress ? QStringLiteral("optimize.compress") : QStringLiteral("pages.rotate");
+    if (!isCompress)
+    {
+        run.tool = fixture.registerShellTool(run.toolId, true);
+        QVERIFY(run.tool);
+        run.tool->setPreview(true, false);
+    }
     run.window = fixture.window;
-    run.tab = fixture.openDocument(3);
+    run.tab = isCompress ? fixture.open(ToolPagesLifetimeHelper::writePhoto(fixture.path(QStringLiteral("photo.pdf")))) : fixture.openDocument(3);
     QVERIFY(run.tab);
+    QVERIFY(pdftest::AppToolShellFixture::waitFor([&run]() { return run.tab->getDocument() && run.tab->getDocument()->isReady(); }));
     const std::vector<ToolPagesLifetimeStep> steps = ToolPagesLifetimeHelper::scenario(name);
     QVERIFY(!steps.empty());
     pdftest::AppDocumentFixture::settle();
@@ -1104,8 +1257,11 @@ void AppToolPagesLifetimeTest::runScenario(const QString& name, ToolPagesLifetim
     }
 
     recorder.setStep(int(steps.size()));
-    run.tool->setHold(false);
-    pdftest::AppToolShellFixture::waitFor([&run]() { return run.tool->getHeldCount() == 0; });
+    if (run.tool)
+    {
+        run.tool->setHold(false);
+        pdftest::AppToolShellFixture::waitFor([&run]() { return run.tool->getHeldCount() == 0; });
+    }
     pdftest::AppDocumentFixture::settle();
 
     if (mode == ToolPagesLifetimeRecorder::Mode::Replay && recorder.isFired())
@@ -1246,7 +1402,7 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges_data()
 {
     QTest::addColumn<QString>("popup");
     QTest::addColumn<QString>("change");
-    for (const char* popup : { "panel", "dialog", "leave", "permission" })
+    for (const char* popup : { "panel", "dialog", "leave", "permission", "custom" })
     {
         for (const char* change : { "language", "document", "theme" })
         {
@@ -1266,11 +1422,16 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges()
     pdftest::AppToolShellFixture fixture;
     ToolPagesLifetimeRun run;
     run.fixture = &fixture;
-    run.toolId = popup == QLatin1String("permission") ? QStringLiteral("protect.remove-links") : QStringLiteral("pages.rotate");
-    run.tool = fixture.registerShellTool(run.toolId, true);
-    QVERIFY(run.tool);
+    const bool isCustomPanel = popup == QLatin1String("custom");
+    run.toolId = popup == QLatin1String("permission") ? QStringLiteral("protect.remove-links") : (isCustomPanel ? QStringLiteral("optimize.compress") : QStringLiteral("pages.rotate"));
+    if (!isCustomPanel)
+    {
+        run.tool = fixture.registerShellTool(run.toolId, true);
+        QVERIFY(run.tool);
+    }
     run.window = fixture.window;
-    run.tab = popup == QLatin1String("permission") ? fixture.open(pdftest::AppDocumentSamples::restricted(fixture.folder())) : fixture.openDocument(3);
+    run.tab = popup == QLatin1String("permission") ? fixture.open(pdftest::AppDocumentSamples::restricted(fixture.folder()))
+                                                   : (isCustomPanel ? fixture.open(H::writePhoto(fixture.path(QStringLiteral("photo.pdf")))) : fixture.openDocument(3));
     QVERIFY(run.tab);
     QVERIFY(pdftest::AppToolShellFixture::waitFor([&run]() { return run.tab->getDocument()->isReady(); }));
     QVERIFY(H::openTool(run));
@@ -1302,7 +1463,39 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges()
         }
     };
 
-    if (popup == QLatin1String("panel"))
+    if (isCustomPanel)
+    {
+        pdf::PDFAppToolGUICompress* gui = H::compressGui(run);
+        QVERIFY(gui);
+        QVERIFY(H::waitCompressMeasured(run));
+        QVERIFY(H::shell(run)->getModel()->setValue(QStringLiteral("preset"), QStringLiteral("custom")).isEmpty());
+        gui->openCustomPanel();
+        QVERIFY(gui->getCustomPanel()->isVisible());
+        QPointer<pdf::PDFAppToolCompressCustomPanel> panel = gui->getCustomPanel();
+        applyChange();
+        QVERIFY(H::waitCompressMeasured(run));
+
+        // A theme and a new version keep the open panel, a language builds the parts again -
+        // the new panel is closed. Its controls still write the values of the model.
+        gui = H::compressGui(run);
+        QVERIFY(gui);
+        if (change == QLatin1String("language"))
+        {
+            QVERIFY(!panel);
+            gui->openCustomPanel();
+        }
+        else
+        {
+            QCOMPARE(gui->getCustomPanel(), panel.data());
+        }
+        QVERIFY(gui->getCustomPanel()->isVisible());
+        gui->getCustomPanel()->getControl(QStringLiteral("cleanStructure"))->getCheckBox()->click();
+        QVERIFY(!H::shell(run)->getModel()->getValue(QStringLiteral("cleanStructure")).toBool());
+        QVERIFY(H::waitCompressMeasured(run));
+        gui->getCustomPanel()->hide();
+        H::settle();
+    }
+    else if (popup == QLatin1String("panel"))
     {
         pdftest::ShellTestGUI* gui = H::gui(run);
         QVERIFY(gui);

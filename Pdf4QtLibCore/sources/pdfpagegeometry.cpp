@@ -94,28 +94,6 @@ public:
         return QPointF(0.5, 0.5);
     }
 
-    static QByteArray formatPDFNumber(PDFReal value)
-    {
-        QByteArray text = QByteArray::number(value, 'f', 6);
-
-        while (text.endsWith('0'))
-        {
-            text.chop(1);
-        }
-
-        if (text.endsWith('.'))
-        {
-            text.chop(1);
-        }
-
-        if (text.isEmpty() || text == "-0")
-        {
-            text = "0";
-        }
-
-        return text;
-    }
-
     static PDFObjectReference createContentStream(PDFDocumentBuilder* builder, const QByteArray& content)
     {
         Q_ASSERT(builder);
@@ -185,14 +163,14 @@ public:
         QByteArray prefix;
         prefix.reserve(128);
         prefix.append("q ");
-        prefix.append(formatPDFNumber(sx));
+        prefix.append(PDFDocumentBuilder::formatPDFReal(sx));
         prefix.append(' ');
         prefix.append("0 0 ");
-        prefix.append(formatPDFNumber(sy));
+        prefix.append(PDFDocumentBuilder::formatPDFReal(sy));
         prefix.append(' ');
-        prefix.append(formatPDFNumber(tx));
+        prefix.append(PDFDocumentBuilder::formatPDFReal(tx));
         prefix.append(' ');
-        prefix.append(formatPDFNumber(ty));
+        prefix.append(PDFDocumentBuilder::formatPDFReal(ty));
         prefix.append(" cm\n");
 
         const PDFObjectReference prefixReference = createContentStream(builder, prefix);

@@ -24,6 +24,7 @@
 #include "pdfapphelpcatalog.h"
 #include "pdfappmcptoolset.h"
 
+#include "pdfdocumenttoolcatalog.h"
 #include "pdfmcpjson.h"
 
 #include <QFile>
@@ -197,6 +198,38 @@ public:
         return resource;
     }
 
+    /// The categories, whose file has the reference of an action
+    static QStringList getCatalogToolNames()
+    {
+        QStringList names;
+        for (const PDFDocumentToolCategoryInfo& category : PDFDocumentToolCatalog::getCategories())
+        {
+            const QString name = category.getId();
+            const QByteArray content = readFile(QStringLiteral("%1/docs/tools/%2.md").arg(PDFAppMcpContent::getResourceDirectory(), name));
+            if (content.contains(QStringLiteral("## `%1.").arg(name).toUtf8()))
+            {
+                names << name;
+            }
+        }
+        return names;
+    }
+
+    /// The rows of the categories in the table of the tools of the index: "# Tool `name` -
+    /// summary" of each reference. A category gets its row with its reference, so
+    /// the parts writing the tools of different categories share no line of the index.
+    static QByteArray insertCatalogToolRows(QByteArray index)
+    {
+        QString rows;
+        for (const QString& name : getCatalogToolNames())
+        {
+            const QString heading = getFirstHeading(QString::fromUtf8(readFile(QStringLiteral("%1/docs/tools/%2.md").arg(PDFAppMcpContent::getResourceDirectory(), name))));
+            const QString summary = heading.section(QStringLiteral(" \u2013 "), 1);
+            rows += QStringLiteral("| `%1` | %2 | pdf4qt://docs/tools/%1.md |\n").arg(name, summary.isEmpty() ? heading : summary);
+        }
+        index.replace("<!-- catalog tools -->\n", rows.toUtf8());
+        return index;
+    }
+
     static std::vector<PDFMcpResourceDefinition> createStaticResources()
     {
         std::vector<PDFMcpResourceDefinition> resources;
@@ -205,7 +238,11 @@ public:
         for (const PDFAppMcpContentDocument& document : getDocuments())
         {
             const QString name = QString::fromLatin1(document.name);
-            const QByteArray content = readFile(QStringLiteral("%1/docs/%2.md").arg(directory, name));
+            QByteArray content = readFile(QStringLiteral("%1/docs/%2.md").arg(directory, name));
+            if (name == QLatin1String("index"))
+            {
+                content = insertCatalogToolRows(std::move(content));
+            }
             if (!content.isEmpty())
             {
                 resources.push_back(createResource(QStringLiteral("pdf4qt://docs/%1.md").arg(name), QStringLiteral("docs/%1.md").arg(name),
@@ -222,6 +259,14 @@ public:
                                                    getFirstHeading(QString::fromUtf8(content)),
                                                    QStringLiteral("Reference of the tool %1 (%2): its actions, parameters, results and examples.").arg(tool.name, tool.title), content));
             }
+        }
+
+        for (const QString& name : getCatalogToolNames())
+        {
+            const QByteArray content = readFile(QStringLiteral("%1/docs/tools/%2.md").arg(directory, name));
+            resources.push_back(createResource(QStringLiteral("pdf4qt://docs/tools/%1.md").arg(name), QStringLiteral("docs/tools/%1.md").arg(name),
+                                               getFirstHeading(QString::fromUtf8(content)),
+                                               QStringLiteral("Reference of the tool %1 (a category of the tools of PDF4QT): its actions, parameters, results and examples.").arg(name), content));
         }
 
         for (const QString& name : PDFAppMcpContent::getSkillNames())
@@ -489,6 +534,11 @@ QStringList PDFAppMcpContent::getDocumentNames()
     return names;
 }
 
+QStringList PDFAppMcpContent::getCatalogToolNames()
+{
+    return PDFAppMcpContentHelper::getCatalogToolNames();
+}
+
 QStringList PDFAppMcpContent::getSkillNames()
 {
     return { QStringLiteral("pdf4qt-documents"), QStringLiteral("pdf4qt-review"), QStringLiteral("pdf4qt-research"), QStringLiteral("pdf4qt-forms") };
@@ -682,7 +732,7 @@ QString PDFAppMcpContent::createToolSummary(const PDFAppMcpToolSpec& tool)
     text += QStringLiteral("| Action | Permission | Description |\n| --- | --- | --- |\n");
     for (const PDFAppMcpActionSpec& action : tool.actions)
     {
-        text += QStringLiteral("| `%1` | %2 | %3 |\n").arg(action.name, getPermissionText(int(action.permission)), PDFAppMcpContentHelper::escapeCell(action.description));
+        text += QStringLiteral("| `%1` | %2 | %3 |\n").arg(action.name, action.permissionText.isEmpty() ? getPermissionText(int(action.permission)) : action.permissionText, PDFAppMcpContentHelper::escapeCell(action.description));
     }
 
     QStringList hints;
@@ -727,7 +777,7 @@ QString PDFAppMcpContent::createActionReference(const PDFAppMcpToolSpec& tool, c
     QString text;
     text += QStringLiteral("## `%1.%2`\n\n").arg(tool.name, action.name);
     text += description + QStringLiteral("\n\n");
-    text += QStringLiteral("- Permission: %1\n").arg(getPermissionText(int(action.permission)));
+    text += QStringLiteral("- Permission: %1\n").arg(action.permissionText.isEmpty() ? getPermissionText(int(action.permission)) : action.permissionText);
     text += QStringLiteral("- Common parameters: %1\n").arg(common.isEmpty() ? QStringLiteral("none") : common.join(QStringLiteral(", ")));
     text += QStringLiteral("- Arguments: `{\"action\": \"%1\", \"%1\": {...}}`\n\n").arg(action.name);
     text += QStringLiteral("### Parameters of `%1`\n\n").arg(action.name);

@@ -5,8 +5,8 @@ The user decides what assistants may do. The permissions are set on the AI page 
 | Permission | Covers | Default |
 | --- | --- | --- |
 | Read documents | Text, properties, outline, annotations, form fields, attachments and page images of the open documents; showing them in the window (`view`) and closing tabs | Allow |
-| Edit documents | Annotations, form fields, the outline and the tools of PDF4QT, which change a document | Ask |
-| Open and save files | `files.open`, `files.save`, `files.save_copy` | Ask |
+| Edit documents | Annotations, form fields, the outline and the tools of PDF4QT, whose result changes the document (`result` `keep`, `overwrite`) | Ask |
+| Open and save files | `files.open`, `files.save`, `files.save_copy` and the tools of PDF4QT, whose result is written to a file (`result` `save_copy`, `save_file`, `overwrite`) | Ask |
 
 - **Allow** – the action runs without a question.
 - **Ask** – PDF4QT shows a confirmation in its window and your call waits for the answer.
@@ -32,7 +32,7 @@ With Edit documents or Open and save files set to Ask, every call that changes a
 - While another dialog of PDF4QT is open, the read approval and `files.open` wait until the user closes it; then the question appears.
 - More requests of one tab wait in a queue and are shown one after another ("1 of 3"). At most 16 requests can wait in one tab.
 - The dialog shows your texts exactly as plain text. Write them for the user.
-- Some confirmations are shown even with Allow: overwriting a file (`files.save`, `files.save_copy` with `overwrite`), and opening a file or creating a document while another dialog of PDF4QT was open ("Asked because a dialog was open when the request came").
+- Some confirmations are shown even with Allow: overwriting a file (`files.save`, `files.save_copy` with `overwrite`, a tool of PDF4QT with `result` `overwrite`), and opening a file or creating a document while another dialog of PDF4QT was open ("Asked because a dialog was open when the request came").
 - After an allowed change, PDF4QT shows a bar with **Show Changes** and **Undo** – the user can undo your whole call in one step at any time.
 
 While your call waits, keep it open. A client with the tasks extension gets a task in the state `working` with the status message "Waiting for the user to confirm in PDF4QT"; poll it. Set a tool timeout of at least 180 seconds when your client allows it – a timeout of your client cancels the request, and PDF4QT then withdraws the dialog.

@@ -42,6 +42,9 @@ public:
     QString description;
     PDFAppChangeSource source = PDFAppChangeSource::User;
 
+    /// PDFAppDocument::isWholeFileRewritten of \p document: undo and redo give it back
+    bool isWholeFileRewritten = false;
+
     /// Key of a merge session (step 4, owner decision O20): consecutive commits
     /// with the same key - a live change of the color or of the width of the
     /// selected annotations - are one undo step (empty = the step is never merged)

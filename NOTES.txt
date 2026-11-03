@@ -17,6 +17,16 @@ Section 5: OK
 Section 6: OK
 
 Section 7: Issues
+ - 7.3.4.2 An end-of-line marker inside of a literal string is read as a line feed, as
+   the specification says. Files written by PDF4QT 1.6.0.0 and older can contain a raw CR
+   there (a string with a CR was not written as hexadecimal), and they read differently:
+   text in UTF-16BE changes (U+010D is the bytes 01 0D, so it is read as U+010A), an
+   encrypted string decrypts to other bytes, a file with such /O, /U or /ID can refuse
+   its password and a file with such /UE, /OE, /Perms can fail to open, also a file with
+   a CR LF in /O or /U (the value is too short). A signature stays valid, it covers the
+   bytes of the file. Owner decision of 2026-11-02: no exception for these files. Newer versions write
+   such a string as hexadecimal, so what they write reads back unchanged; a value read
+   from an old file keeps the changed bytes, when the file is written again.
  - 7.4.7 JBIG2 decoder ammendments 1 and 2 not implemented
  - 7.6.7 Unencrypted wrapper document not implemented
  - 7.10.2 Only linear interpolation for sampled function is performed

@@ -264,6 +264,57 @@ QString PDFDocumentToolCatalogEntry::getHelpTopic() const
     return topic;
 }
 
+/// The texts of the start page of a tool, which has its own (a row per tool)
+class PDFDocumentToolStartTexts
+{
+public:
+    const char* toolId;
+    const char* resultSummary;
+    const char* lockedNote;
+};
+
+static constexpr PDFDocumentToolStartTexts TOOL_START_TEXTS[] =
+{
+    { "optimize.compress", QT_TRANSLATE_NOOP("pdf::PDFDocumentToolCatalog", "A smaller PDF"), QT_TRANSLATE_NOOP("pdf::PDFDocumentToolCatalog", "a locked document cannot be compressed") },
+};
+
+QString PDFDocumentToolCatalogEntry::getResultSummary() const
+{
+    for (const PDFDocumentToolStartTexts& texts : TOOL_START_TEXTS)
+    {
+        if (getId() == QLatin1String(texts.toolId))
+        {
+            return QCoreApplication::translate("pdf::PDFDocumentToolCatalog", texts.resultSummary);
+        }
+    }
+
+    switch (getResultKind())
+    {
+        case PDFDocumentToolResultKind::ChangeDocument:
+            return QCoreApplication::translate("pdf::PDFDocumentToolCatalog", "A changed PDF");
+        case PDFDocumentToolResultKind::NewDocument:
+            return QCoreApplication::translate("pdf::PDFDocumentToolCatalog", "A new PDF");
+        case PDFDocumentToolResultKind::Files:
+            return QCoreApplication::translate("pdf::PDFDocumentToolCatalog", "Files");
+        case PDFDocumentToolResultKind::Analysis:
+            return QCoreApplication::translate("pdf::PDFDocumentToolCatalog", "A report");
+    }
+    return QString();
+}
+
+QString PDFDocumentToolCatalogEntry::getLockedNote() const
+{
+    for (const PDFDocumentToolStartTexts& texts : TOOL_START_TEXTS)
+    {
+        if (getId() == QLatin1String(texts.toolId))
+        {
+            return QCoreApplication::translate("pdf::PDFDocumentToolCatalog", texts.lockedNote);
+        }
+    }
+    return getLockedAccess() == PDFDocumentToolLockedAccess::Unavailable ? QCoreApplication::translate("pdf::PDFDocumentToolCatalog", "a locked document cannot be changed by this tool")
+                                                                         : QCoreApplication::translate("pdf::PDFDocumentToolCatalog", "a locked document can be used too");
+}
+
 QStringList PDFDocumentToolCatalogEntry::getDefaultSuccessors() const
 {
     QStringList successors;

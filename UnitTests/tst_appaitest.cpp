@@ -1525,7 +1525,10 @@ void AppAiTest::setupCardReservedHeight()
     QVERIFY(!page->getSetup().containsToken);
     AppAiSetupTestHelper::settleLayout(page);
     QCOMPARE(page->getSetupMeasureBuildCount(), buildCount + 1);
-    QCOMPARE(AppAiSetupTestHelper::measure(page).card.height(), reservedHeights[0]);
+
+    // The server restarted by the setting and the layouts of the page follow from the event
+    // loop: on a loaded computer settleLayout may see one quiet pass before them
+    QTRY_COMPARE(AppAiSetupTestHelper::measure(page).card.height(), reservedHeights[0]);
     AppAiTestHelper::screenshot(fixture.window, name);
 }
 

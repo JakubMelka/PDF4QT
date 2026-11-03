@@ -27,6 +27,7 @@
 #include "pdfocrengine.h"
 #include "pdfocrtextlayerwriter.h"
 #include "pdfocrpagepreparer.h"
+#include "pdfocrdocumentrunner.h"
 #include "pdfocrproject.h"
 #include "pdfocrexport.h"
 #include "pdfscanpreparation.h"
@@ -51,6 +52,8 @@
 #endif
 
 #include <QtTest>
+#include <QBuffer>
+#include <QCryptographicHash>
 #include <QTimer>
 #include <QComboBox>
 #include <QLineEdit>
@@ -289,6 +292,7 @@ private slots:
     void reviewOnlySurvivesProject();
     void existingTextMasked();
     void certifiedDocument();
+    void layerOfOlderFingerprintMarker();
     void limitedResolution();
     void rerecognizeRegion();
     void mergeAndSplitLines();
@@ -1196,6 +1200,131 @@ void OCRDialogTest::certifiedDocument()
         outputModeComboBox->setCurrentIndex(0);
         dialog.reject();
     }
+}
+
+void OCRDialogTest::layerOfOlderFingerprintMarker()
+{
+    // A layer of a development build has a fingerprint of PDF4QT-OCR-PAGE-FINGERPRINT-2. The dialog says, that the page
+    // has an own layer, which does not fit the page, it offers no text of it for corrections as of a bound layer, and
+    // a new recognition replaces it. The control: the same file with the current fingerprint is loaded for corrections.
+    setLinesHandler({ { QStringLiteral("Older"), QStringLiteral("layer") } });
+    const PDFDocument scan = createScanDocument({ QStringLiteral("Hello") });
+
+    PDFOCRDocumentRunner::Settings settings;
+    settings.configuration.engineId = QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER);
+    settings.configuration.languages = { QStringLiteral("eng") };
+    settings.configuration.workerCount = 1;
+    settings.configuration.detectBlankPages = false;
+    const PDFOCRDocumentRunner::Result recognized = PDFOCRDocumentRunner::run(&scan, settings, nullptr, nullptr);
+    QVERIFY2(recognized.isSuccess(), qPrintable(recognized.errorMessage));
+    QVERIFY(recognized.session->getPage(0));
+
+    PDFDocumentModifier modifier(&scan);
+    PDFOCRTextLayerWriter::PageRequest request;
+    request.pageIndex = 0;
+    request.result = *recognized.session->getPage(0);
+    request.result.pageFingerprint = PDFOCRPagePreparer::computePageFingerprint(&scan, 0);
+    request.layerId = QStringLiteral("older-layer");
+    PDFOCRTextLayerWriter::Options options;
+    options.compress = false;
+    const PDFOCRTextLayerWriter::Report report = PDFOCRTextLayerWriter::apply(modifier.getBuilder(), &scan, { request }, options);
+    QVERIFY2(report.error.message.isEmpty(), qPrintable(report.error.message));
+    modifier.markPageContentsChanged();
+    QVERIFY(modifier.finalize());
+    const PDFDocumentPointer applied = modifier.getDocument();
+
+    const auto readFile = [](const QByteArray& data)
+    {
+        PDFDocumentReader reader(nullptr, nullptr, false, false);
+        return reader.readFromBuffer(data);
+    };
+    const auto writeFile = [](const PDFDocument& document)
+    {
+        QBuffer buffer;
+        buffer.open(QIODevice::ReadWrite);
+        PDFDocumentWriter(nullptr).write(&buffer, &document);
+        return buffer.data();
+    };
+
+    // The entry /PageFingerprint and the private data with their hash /DataHash, the streams are not compressed
+    const QByteArray olderFingerprint = "335905a31cdeeb078dd9fc92db6cd5ab421897c67286546e5e9dd060427ccc29";
+    const QByteArray currentFile = writeFile(*applied);
+    const PDFOCRTextLayerWriter::LayerInfo appliedInfo = PDFOCRTextLayerWriter::readLayerInfo(applied.data(), 0);
+    QVERIFY(appliedInfo.isPresent && appliedInfo.fingerprintMatches);
+    const QByteArray layerData = applied->getDecodedStream(applied->getObjectByReference(appliedInfo.dataReference).getStream());
+    const QByteArray currentHex = appliedInfo.pageFingerprint.toHex();
+    QByteArray olderLayerData = layerData;
+    olderLayerData.replace(currentHex, olderFingerprint);
+    QByteArray olderFile = currentFile;
+    QCOMPARE(olderFile.count(currentHex), 2);
+    olderFile.replace(currentHex, olderFingerprint);
+    const QByteArray layerDataHash = QCryptographicHash::hash(layerData, QCryptographicHash::Sha256).toHex();
+    QCOMPARE(olderFile.count(layerDataHash), 1);
+    olderFile.replace(layerDataHash, QCryptographicHash::hash(olderLayerData, QCryptographicHash::Sha256).toHex());
+
+    ModalResponder responder({ QStringLiteral("Apply"), QStringLiteral("No"), QStringLiteral("Discard"), QStringLiteral("Continue"), QStringLiteral("OK") });
+
+    const auto findWord = [](pdfviewer::PDFOCRDocumentDialog& dialog, const QString& text) -> QTreeWidgetItem*
+    {
+        auto* tree = dialog.findChild<QTreeWidget*>(QStringLiteral("resultsTreeWidget"));
+        QTreeWidgetItemIterator it(tree);
+        while (*it)
+        {
+            if ((*it)->data(0, Qt::UserRole + 1).toInt() == 2 && (*it)->text(0) == text)
+            {
+                return *it;
+            }
+            ++it;
+        }
+        return nullptr;
+    };
+
+    // The control
+    {
+        WidgetFixture fixture{ readFile(currentFile) };
+        pdfviewer::PDFOCRDocumentDialog dialog(fixture.createContext(), nullptr);
+        dialog.show();
+        dialog.findChild<QListWidget*>(QStringLiteral("pagesListWidget"))->setCurrentRow(0);
+        QTRY_VERIFY_WITH_TIMEOUT(findWord(dialog, QStringLiteral("Older")) != nullptr, 60000);
+        QVERIFY(!dialog.findChild<QListWidget*>(QStringLiteral("pagesListWidget"))->item(0)->toolTip().contains(QStringLiteral("do not match")));
+        dialog.reject();
+    }
+
+    WidgetFixture fixture{ readFile(olderFile) };
+    QVERIFY(!PDFOCRTextLayerWriter::readLayerInfo(&fixture.document, 0).fingerprintMatches);
+    pdfviewer::PDFOCRDocumentDialog dialog(fixture.createContext(), nullptr);
+    dialog.show();
+
+    auto* pagesListWidget = dialog.findChild<QListWidget*>(QStringLiteral("pagesListWidget"));
+    auto* recognizeButton = dialog.findChild<QPushButton*>(QStringLiteral("recognizeButton"));
+    auto* stopButton = dialog.findChild<QPushButton*>(QStringLiteral("stopButton"));
+    auto* applyButton = dialog.findChild<QPushButton*>(QStringLiteral("applyButton"));
+    QVERIFY(pagesListWidget && recognizeButton && stopButton && applyButton);
+    pagesListWidget->setCurrentRow(0);
+
+    QTRY_VERIFY_WITH_TIMEOUT(pagesListWidget->item(0)->toolTip().contains(QStringLiteral("do not match")), 60000);
+    QVERIFY(pagesListWidget->item(0)->toolTip().contains(QStringLiteral("own OCR layer")));
+    QTest::qWait(300);
+    QVERIFY(findWord(dialog, QStringLiteral("Older")) == nullptr);
+    QVERIFY(!applyButton->isEnabled());
+
+    // A new recognition replaces the layer
+    setLinesHandler({ { QStringLiteral("Newer"), QStringLiteral("text") } });
+    selectComboData(dialog, "engineComboBox", QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER));
+    selectComboData(dialog, "existingTextPolicyComboBox", int(PDFOCRExistingTextPolicy::ReplaceOwnLayer));
+    recognizeButton->click();
+    QTRY_VERIFY_WITH_TIMEOUT(!stopButton->isEnabled() && recognizeButton->isEnabled(), 60000);
+    QTRY_VERIFY_WITH_TIMEOUT(findWord(dialog, QStringLiteral("Newer")) != nullptr, 10000);
+    QVERIFY(applyButton->isEnabled());
+
+    applyButton->click();
+    QTRY_VERIFY_WITH_TIMEOUT(dialog.result() == QDialog::Accepted && !dialog.isVisible(), 60000);
+    QVERIFY2(dialog.hasModifiedDocument(), qPrintable(responder.messages.join(QChar('|'))));
+    PDFDocumentPointer modified = dialog.takeModifiedDocument();
+    const PDFOCRTextLayerWriter::LayerInfo modifiedInfo = PDFOCRTextLayerWriter::readLayerInfo(modified.data(), 0);
+    QVERIFY(modifiedInfo.isPresent && modifiedInfo.fingerprintMatches && modifiedInfo.isContentOwn);
+    const QString text = extractText(*modified, 0);
+    QVERIFY2(text.contains(QStringLiteral("Newer")) && !text.contains(QStringLiteral("Older")), qPrintable(text));
 }
 
 void OCRDialogTest::limitedResolution()

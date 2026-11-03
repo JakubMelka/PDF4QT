@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "appmcpfixture.h"
+#include "appmcpcatalogtests.h"
 #include "appmcpreadtests.h"
 #include "testdocumenttool.h"
 
@@ -235,6 +236,36 @@ private slots:
     void resourceSubscriptionsHttp() { AppMcpReadTests::resourceSubscriptionsHttp(); }
     void httpEndToEnd() { AppMcpReadTests::httpEndToEnd(); }
     void catalogToolBridgeHttp() { AppMcpReadTests::catalogToolBridgeHttp(); }
+
+    // The bridge of the tools of phase 2, the table Bridge of the plan (appmcpcatalogtests.h)
+    void catalogDefaultResults() { AppMcpCatalogTests::defaultResults(); }
+    void catalogOverwrite() { AppMcpCatalogTests::overwrite(); }
+    void catalogOverwriteRefused() { AppMcpCatalogTests::overwriteRefused(); }
+    void catalogDocumentWithoutFile() { AppMcpCatalogTests::documentWithoutFile(); }
+    void catalogSignedDocuments() { AppMcpCatalogTests::signedDocuments(); }
+    void catalogSignedAfterRerun() { AppMcpCatalogTests::signedAfterRerun(); }
+    void catalogLockAndDisplayVersion() { AppMcpCatalogTests::lockAndDisplayVersion(); }
+    void catalogDocumentPermissions() { AppMcpCatalogTests::documentPermissions(); }
+    void catalogPermissionsOfTheOffer() { AppMcpCatalogTests::permissionsOfTheOffer(); }
+    void catalogReturnText() { AppMcpCatalogTests::returnText(); }
+    void catalogSaveFile() { AppMcpCatalogTests::saveFile(); }
+    void catalogCancelAndProgress() { AppMcpCatalogTests::cancelAndProgress(); }
+    void catalogRerunsOnNewVersions() { AppMcpCatalogTests::rerunsOnNewVersions(); }
+    void catalogActivityOfLongCall() { AppMcpCatalogTests::activityOfLongCall(); }
+    void catalogCompressOverHttp() { AppMcpCatalogTests::compressOverHttp(); }
+    void catalogEncryptedCopy() { AppMcpCatalogTests::encryptedCopy(); }
+    void catalogBridgeOverHttp() { AppMcpCatalogTests::bridgeOverHttp(); }
+    void catalogMarkOfTheWeb() { AppMcpCatalogTests::markOfTheWeb(); }
+    void catalogCanceledWithResult() { AppMcpCatalogTests::canceledWithResult(); }
+    void catalogPermissionMatrix() { AppMcpCatalogTests::permissionMatrix(); }
+    void catalogModalDialog() { AppMcpCatalogTests::modalDialog(); }
+    void catalogPermissionChangedDuringCall() { AppMcpCatalogTests::permissionChangedDuringCall(); }
+    void catalogSchemaInEnglish() { AppMcpCatalogTests::schemaInEnglish(); }
+    void catalogOverwriteCommitRefused() { AppMcpCatalogTests::overwriteCommitRefused(); }
+    void catalogHeavyJobCanceledWhileWaiting() { AppMcpCatalogTests::heavyJobCanceledWhileWaiting(); }
+    void catalogActivityBound() { AppMcpCatalogTests::activityBound(); }
+    void catalogSchemaShapes() { AppMcpCatalogTests::schemaShapes(); }
+    void catalogTasksAndListChanged() { AppMcpCatalogTests::tasksAndListChanged(); }
     void readGateEverySurface() { AppMcpReadTests::readGateEverySurface(); }
     void jobCancelAndExceptions() { AppMcpReadTests::jobCancelAndExceptions(); }
     void denialAudit() { AppMcpReadTests::denialAudit(); }
@@ -472,8 +503,9 @@ void AppMcpTest::catalogToolBridge()
     QTRY_VERIFY(tab->getDocument()->isReady());
     pdf::PDFAppDocument* document = tab->getDocument();
 
-    // Without an implementation the category tool is absent
-    pdf::PDFDocumentToolRegistry::clearForTests();
+    // Without an implementation the category tool is absent (the built-in tools of the
+    // other categories stay registered, plan chapter 8)
+    pdf::PDFDocumentToolRegistry::unregisterTool(QString::fromLatin1(pdftest::TestDocumentTool::TOOL_ID));
     fixture.host()->checkToolRegistry();
     QVERIFY(!fixture.host()->getCatalog()->findTool(u"review"));
     std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("review"), AppMcpTestHelper::arguments(R"({"action":"statistics"})"));
@@ -1634,6 +1666,79 @@ void AppMcpTest::reviewActivityStatusAfterLongWait()
     log.setCurrentTime(start + 190000 + pdf::PDFAppMcpActivityLog::KEEP_TIME + 1000);
     QVERIFY(log.record(read) > 0);
     log.update(waiting, pdf::PDFMcpActivityStatus::Ok);
+    QCOMPARE(log.getPendingCount(), 1);
+    log.flush();
+
+    // M3: the row of a call, which has not ended, does not age: a call of 20 minutes
+    const qint64 callStart = start + 190000 + 2 * pdf::PDFAppMcpActivityLog::KEEP_TIME;
+    log.setCurrentTime(callStart);
+    pdf::PDFAppMcpActivityEntry longCall = entry;
+    longCall.action = QStringLiteral("optimize.compress");
+    longCall.status = pdf::PDFMcpActivityStatus::Allowed;
+    longCall.openCallId = QStringLiteral("c7");
+    const qint64 longRow = log.record(longCall);
+    log.flush();
+
+    log.setCurrentTime(callStart + 20 * 60000);
+    QVERIFY(pdf::PDFAppMcpActivityLog::KEEP_TIME < 20 * 60000);
+    QVERIFY(log.record(read) > 0);
+    log.flush();
+    QCOMPARE(log.getPendingCount(), 0);
+    log.update(longRow, pdf::PDFMcpActivityStatus::Failed, QJsonObject({ { QStringLiteral("reason"), QStringLiteral("after 20 minutes") } }));
+    QCOMPARE(log.getPendingCount(), 1);
+    log.flush();
+
+    bool isLongRowFailed = false;
+    for (const pdf::PDFMcpActivityRow& row : pdf::PDFMcpRepository(database).getActivity(100))
+    {
+        isLongRowFailed = isLongRowFailed || (row.action == QLatin1String("optimize.compress") && row.status == pdf::PDFMcpActivityStatus::Failed);
+    }
+    QVERIFY(isLongRowFailed);
+
+    // The end of the call: the row ages from now on, and a finished call of another id
+    // is no end of it
+    log.callFinished(QStringLiteral("c8"));
+    log.setCurrentTime(callStart + 40 * 60000);
+    QVERIFY(log.record(read) > 0);
+    log.flush();
+    log.update(longRow, pdf::PDFMcpActivityStatus::Failed);
+    QCOMPARE(log.getPendingCount(), 1);
+    log.flush();
+
+    log.callFinished(QStringLiteral("c7"));
+    log.setCurrentTime(callStart + 40 * 60000 + pdf::PDFAppMcpActivityLog::KEEP_TIME + 1000);
+    QVERIFY(log.record(read) > 0);
+    log.flush();
+    log.update(longRow, pdf::PDFMcpActivityStatus::Ok);
+    QCOMPARE(log.getPendingCount(), 0);
+
+    // MAXIMUM_KEPT_ROWS forgets the rows of the finished calls before the running ones
+    pdf::PDFAppMcpActivityEntry running = entry;
+    running.action = QStringLiteral("optimize.structure");
+    running.status = pdf::PDFMcpActivityStatus::Allowed;
+    running.openCallId = QStringLiteral("c9");
+    const qint64 runningRow = log.record(running);
+    log.flush();
+    pdf::PDFAppMcpActivityEntry finishedRow = entry;
+    finishedRow.action = QStringLiteral("files.save");
+    finishedRow.status = pdf::PDFMcpActivityStatus::Failed;
+    std::vector<qint64> finishedRows;
+    for (size_t i = 0; i < pdf::PDFAppMcpActivityLog::MAXIMUM_KEPT_ROWS + 10; ++i)
+    {
+        finishedRows.push_back(log.record(finishedRow));
+
+        // (written as by the timer of the log: only a written row can be forgotten)
+        if (i % 256 == 0)
+        {
+            log.flush();
+        }
+    }
+    log.flush();
+    QVERIFY(log.record(finishedRow) > 0);
+    log.flush();
+    log.update(finishedRows.front(), pdf::PDFMcpActivityStatus::Ok);
+    QCOMPARE(log.getPendingCount(), 0);
+    log.update(runningRow, pdf::PDFMcpActivityStatus::Failed);
     QCOMPARE(log.getPendingCount(), 1);
 }
 

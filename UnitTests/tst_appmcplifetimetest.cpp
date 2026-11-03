@@ -39,6 +39,9 @@
 
 #include "appmcpfixture.h"
 
+#include "testdocumenttool.h"
+
+#include "pdfdocumenttoolregistry.h"
 #include "pdfappaipage.h"
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
@@ -624,6 +627,23 @@ public:
         return startCall(run, tool, arguments) && finishCall(run);
     }
 
+    /// A call of a tool, which may end without a result to confirm: the confirmation of
+    /// its result is allowed, when it comes
+    static bool finishCatalogCall(McpLifetimeRun& run)
+    {
+        std::shared_ptr<pdf::PDFMcpCall> call = run.call;
+        if (!call)
+        {
+            return false;
+        }
+        waitFor([call, &run]() { return call->isFinished() || dialog(run); }, 30000);
+        if (!call->isFinished() && !click(dialog(run)->getAllowButton()))
+        {
+            return false;
+        }
+        return finishCall(run);
+    }
+
     /// Writes a permission (the host gets it by the notifier)
     static bool permission(McpLifetimeRun& run, pdf::PDFAppMcpPermissionKind kind, pdf::PDFAppMcpPermission value)
     {
@@ -1054,6 +1074,73 @@ std::vector<McpLifetimeStep> McpLifetimeHelper::scenario(const QString& name, Mc
             return H::finishCall(run, true);
         });
     }
+    else if (name == QStringLiteral("catalog"))
+    {
+        // The tools of the catalog (plan of the first batch, chapter 6): keep, save_copy,
+        // overwrite with the write of the saver, return_text, save_file, the real Compress
+        if (!fixture.setPermission(Kind::Edit, Permission::Ask) || !fixture.setPermission(Kind::Files, Permission::Ask))
+        {
+            return steps;
+        }
+
+        for (const char* id : { "pages.rotate", "convert.extract-text" })
+        {
+            const QString toolId = QString::fromLatin1(id);
+            pdf::PDFDocumentToolRegistry::unregisterTool(toolId);
+            std::shared_ptr<pdftest::TestDocumentTool> tool = std::make_shared<pdftest::TestDocumentTool>(toolId);
+            tool->setResultKindModes(true);
+            pdf::PDFDocumentToolRegistry::registerTool(tool);
+        }
+
+        const auto rotate = [](const char* result, const QString& path)
+        {
+            QJsonObject arguments = H::json(R"({"action":"rotate","rotate":{"mode":"title","title":"Changed"}})");
+            arguments.insert(QStringLiteral("result"), QString::fromLatin1(result));
+            if (!path.isEmpty())
+            {
+                arguments.insert(QStringLiteral("path"), path);
+            }
+            return arguments;
+        };
+
+        steps.push_back([rotate](McpLifetimeRun& run)
+        {
+            return H::startCall(run, QStringLiteral("pages"), rotate("keep", QString())) && H::waitDialog(run) && H::click(H::dialog(run)->getDenyButton()) && H::finishCall(run, true);
+        });
+        steps.push_back([rotate](McpLifetimeRun& run)
+        {
+            return H::startCall(run, QStringLiteral("pages"), rotate("keep", QString())) && H::waitDialog(run) && H::click(H::dialog(run)->getAllowButton()) && H::finishCall(run);
+        });
+        steps.push_back([rotate](McpLifetimeRun& run)
+        {
+            return H::startCall(run, QStringLiteral("pages"), rotate("save_copy", run.fixture->path(QStringLiteral("catalog-copy.pdf")))) && H::waitDialog(run) && H::click(H::dialog(run)->getAllowButton()) && H::finishCall(run);
+        });
+        steps.push_back([rotate](McpLifetimeRun& run)
+        {
+            return H::startCall(run, QStringLiteral("pages"), rotate("overwrite", QString())) && H::waitDialog(run) && H::click(H::dialog(run)->getDenyButton()) && H::finishCall(run, true);
+        });
+        steps.push_back([rotate](McpLifetimeRun& run)
+        {
+            return H::startCall(run, QStringLiteral("pages"), rotate("overwrite", QString())) && H::waitDialog(run) && H::click(H::dialog(run)->getAllowButton()) && H::finishCall(run);
+        });
+        steps.push_back([](McpLifetimeRun& run)
+        {
+            return H::call(run, QStringLiteral("convert"), H::json(R"({"action":"extract-text","result":"return_text","extract-text":{"mode":"files","title":"Text"}})"));
+        });
+        steps.push_back([](McpLifetimeRun& run)
+        {
+            QJsonObject arguments = H::json(R"({"action":"extract-text","result":"save_file","extract-text":{"mode":"files","title":"Text"}})");
+            arguments.insert(QStringLiteral("path"), run.fixture->path(QStringLiteral("catalog-text.txt")));
+            return H::startCall(run, QStringLiteral("convert"), arguments) && H::waitDialog(run) && H::click(H::dialog(run)->getAllowButton()) && H::finishCall(run);
+        });
+        steps.push_back([](McpLifetimeRun& run)
+        {
+            // The real tool in a worker
+            QJsonObject arguments = H::json(R"({"action":"compress","result":"save_copy","compress":{"preset":"best-quality"}})");
+            arguments.insert(QStringLiteral("path"), run.fixture->path(QStringLiteral("catalog-compress.pdf")));
+            return H::startCall(run, QStringLiteral("optimize"), arguments) && H::finishCatalogCall(run);
+        });
+    }
     else if (name == QStringLiteral("files"))
     {
         if (!fixture.setPermission(Kind::Files, Permission::Ask))
@@ -1213,7 +1300,7 @@ private Q_SLOTS:
 private:
     static constexpr int PART_COUNT = 4;
 
-    static QStringList getScenarios() { return { QStringLiteral("read"), QStringLiteral("edit"), QStringLiteral("files"), QStringLiteral("stream"), QStringLiteral("ai") }; }
+    static QStringList getScenarios() { return { QStringLiteral("read"), QStringLiteral("edit"), QStringLiteral("files"), QStringLiteral("catalog"), QStringLiteral("stream"), QStringLiteral("ai") }; }
 
     /// Runs the scenario. In the replay mode the victim is deleted at the target
     /// site. \returns the sites seen (discovery) and whether the victim was deleted.

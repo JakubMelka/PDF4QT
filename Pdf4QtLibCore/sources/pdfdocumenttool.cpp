@@ -24,6 +24,7 @@
 #include "pdfcatalog.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfexception.h"
+#include "pdfobjectutils.h"
 #include "pdfoperationcontrol.h"
 
 #include <QCoreApplication>
@@ -369,6 +370,12 @@ PDFDocumentToolResult PDFDocumentTool::computePreview(const PDFDocumentToolConte
     Q_UNUSED(control);
     Q_UNUSED(progress);
     return PDFDocumentToolResult();
+}
+
+PDFDocument PDFDocumentTool::createWholeFileDocument(PDFObjectStorage storage, const PDFDocument* input)
+{
+    PDFObjectUtils::removeFileStructureObjects(storage);
+    return PDFDocument(std::move(storage), input->getInfo()->version, input->getSourceDataHash());
 }
 
 PDFDocumentToolResult PDFDocumentTool::prepare(const PDFDocumentToolContext& context, const QVariantMap& parameters, QVariantMap* normalizedParameters) const

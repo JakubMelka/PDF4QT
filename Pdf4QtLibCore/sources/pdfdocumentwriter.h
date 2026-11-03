@@ -86,6 +86,15 @@ public:
     /// \param reference Reference
     static qint64 getObjectSize(const PDFDocument* document, PDFObjectReference reference);
 
+    /// Returns the text of a real number in a file: the shortest text in the fixed notation
+    /// that reads back as the same double, always with a decimal point, so it stays a real
+    /// object. It is ASCII and it does not depend on the locale. PDF has no exponential format
+    /// (PDF Reference 1.7, chapter 3.2.2), so a very large or very small value has a long text.
+    /// PDF has no NaN and no infinity, a computed value of them must not make the file invalid:
+    /// NaN is 0.0 and an infinity is the largest real of Table C.1 with its sign.
+    /// \param value Value
+    static QByteArray getRealNumberText(PDFReal value);
+
     /// Writes an object to byte array, without object header/footer
     /// \param object Object to be written
     static QByteArray getSerializedObject(const PDFObject& object);

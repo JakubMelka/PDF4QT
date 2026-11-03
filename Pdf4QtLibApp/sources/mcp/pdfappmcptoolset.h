@@ -46,6 +46,7 @@ public:
     QString name;                           ///< "get_text"
     QString description;                    ///< One line for the model
     PDFAppMcpPermissionKind permission = PDFAppMcpPermissionKind::Read;
+    QString permissionText;                 ///< The documentation of a permission, which depends on an argument (a tool of the catalog by "result"); empty = of \p permission
     bool usesDocument = true;               ///< The common property documentId applies (the output has documentId and title)
     PDFMcpSchema input;                     ///< Object of the parameters (the property <action> of the input)
     PDFMcpSchema output;                    ///< Object of the result (the property <action> of structuredContent)

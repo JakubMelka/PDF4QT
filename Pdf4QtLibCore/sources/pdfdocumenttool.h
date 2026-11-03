@@ -304,6 +304,17 @@ public:
     /// Checked preview (as run, for computePreview)
     PDFDocumentToolResult runPreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress = nullptr) const;
 
+    /// Document of a tool, which rewrites the whole file (PDFDocumentToolSignatureImpact::LostCopyOnly:
+    /// Compress, Optimize Structure, Remove Hidden Data; owner 2026-11-02). The containers of the
+    /// organization of the file, which the written file would carry as dead objects next to
+    /// the unpacked copies of their contents, are dropped also with the structure clean-up
+    /// off (PDFObjectUtils::removeFileStructureObjects). The version is the version of the
+    /// input (the optimizers would report PDF 2.0: a file does not change its version by
+    /// being rewritten).
+    /// \param storage Objects of the result (the last step of the tool)
+    /// \param input Input document of the tool
+    static PDFDocument createWholeFileDocument(PDFObjectStorage storage, const PDFDocument* input);
+
 private:
     PDFDocumentToolResult prepare(const PDFDocumentToolContext& context, const QVariantMap& parameters, QVariantMap* normalizedParameters) const;
 };

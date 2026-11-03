@@ -310,6 +310,14 @@ QString PDFAppMcpConfirmDialog::formatRemainingTime(qint64 milliseconds)
     return QStringLiteral("%1:%2").arg(seconds / 60).arg(seconds % 60, 2, 10, QLatin1Char('0'));
 }
 
+void PDFAppMcpConfirmDialog::setShowOnPageVisible(bool isVisible)
+{
+    if (m_showOnPageLink)
+    {
+        m_showOnPageLink->setVisible(isVisible);
+    }
+}
+
 QString PDFAppMcpConfirmDialog::createTitle(const PDFAppMcpConfirmation& confirmation)
 {
     const QString client = sanitize(confirmation.clientName.isEmpty() ? tr("The assistant") : confirmation.clientName, 64);

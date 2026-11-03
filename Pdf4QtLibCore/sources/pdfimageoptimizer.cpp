@@ -492,13 +492,13 @@ QString PDFImageOptimizer::readFilterName(const PDFDocument* document, const PDF
 
 PDFDictionaryBuilder PDFImageOptimizer::mergeImageDictionary(const PDFDictionary& encoded, const PDFDictionary& original)
 {
-    // Entries describing the samples and the masks of the original image. ColorTransform:
-    // producers (Skia of Chrome) write it next to the filter, PDFImage honors it there, and the
-    // new JPEG is in YCbCr: a kept "/ColorTransform 0" would draw its Y, Cb, Cr as R, G, B.
+    // Entries describing the samples and the masks of the original image. DL is the decoded
+    // length of the old samples. ColorTransform: producers (Skia of Chrome) write it next to
+    // the filter, where it means nothing (it is a parameter of the filter): not carried over.
     static const std::unordered_set<QByteArray> replacedKeys =
     {
         "Type", "Subtype", "Width", "Height", "BitsPerComponent", "ColorSpace", "Filter",
-        "DecodeParms", "Length", "Decode", "Mask", "SMask", "ImageMask", "SMaskInData", "ColorTransform"
+        "DecodeParms", "DL", "Length", "Decode", "Mask", "SMask", "ImageMask", "SMaskInData", "ColorTransform"
     };
 
     PDFDictionaryBuilder merged(encoded);

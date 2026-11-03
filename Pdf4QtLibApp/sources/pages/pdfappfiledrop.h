@@ -177,6 +177,7 @@ class PDF4QTLIBAPPSHARED_EXPORT PDFAppOpenRequest
 public:
     QString filePath;       ///< Absolute path of the file
     int page = 0;           ///< Physical page from 1 (0 = the last page of Recent)
+    QString toolId;         ///< The tool, which opens on the document (the start page of a tool), empty = none
 };
 
 /// Opening of documents from the pages Home, Open and Recent: the files go to

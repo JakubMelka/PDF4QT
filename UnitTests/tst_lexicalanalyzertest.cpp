@@ -32,7 +32,12 @@
 #include "pdfexception.h"
 #include "pdfjbig2decoder.h"
 
+#include <QRandomGenerator>
+
+#include <bit>
+#include <cstdlib>
 #include <regex>
+#include <string>
 
 #ifdef PDF4QT_COMPILER_MSVC
 #pragma warning(push)
@@ -50,7 +55,16 @@ public:
 private slots:
     void test_null();
     void test_numbers();
+    void test_real_numbers_exact_data();
+    void test_real_numbers_exact();
+    void test_real_numbers_random();
+    void test_real_numbers_overflow();
     void test_strings();
+    void test_string_end_of_line_data();
+    void test_string_end_of_line();
+    void test_string_end_of_line_at_buffer_end();
+    void test_string_end_of_line_in_content_stream();
+    void test_string_end_of_line_in_parser();
     void test_name();
     void test_bool();
     void test_ad();
@@ -113,6 +127,136 @@ void LexicalAnalyzerTest::test_numbers()
     testTokens("0.00-90 12-34 -5-6 --7 8- -.5-5", { Token(Type::Real, 0.009), Token(Type::Integer, 1234), Token(Type::Integer, -56), Token(Type::Integer, -7), Token(Type::Integer, 8), Token(Type::Real, -0.55) });
 }
 
+void LexicalAnalyzerTest::test_real_numbers_exact_data()
+{
+    QTest::addColumn<QByteArray>("text");
+    QTest::addColumn<double>("value");
+
+    // The value is the double closest to the text. The expected values are literals of the compiler, which are
+    // the closest doubles by the C++ standard and IEEE 754. The forms of PDF Reference 1.7, chapter 3.2.2:
+    QTest::newRow("34.5") << QByteArray("34.5") << 34.5;
+    QTest::newRow("-3.62") << QByteArray("-3.62") << -3.62;
+    QTest::newRow("+123.6") << QByteArray("+123.6") << 123.6;
+    QTest::newRow("4.") << QByteArray("4.") << 4.0;
+    QTest::newRow("-.002") << QByteArray("-.002") << -0.002;
+    QTest::newRow("0.0") << QByteArray("0.0") << 0.0;
+    QTest::newRow("-0.0") << QByteArray("-0.0") << -0.0;
+
+    // Digits added one by one with a rounding error for each of them miss these values
+    QTest::newRow("0.3") << QByteArray("0.3") << 0.3;
+    QTest::newRow("0.7") << QByteArray("0.7") << 0.7;
+    QTest::newRow("1.1") << QByteArray("1.1") << 1.1;
+    QTest::newRow("0.00999451") << QByteArray("0.00999451") << 0.00999451;
+    QTest::newRow("123456.789") << QByteArray("123456.789") << 123456.789;
+    QTest::newRow("0.30000000000000004") << QByteArray("0.30000000000000004") << 0.30000000000000004;
+
+    // More digits than one division converts exactly
+    QTest::newRow("pi") << QByteArray("3.14159265358979323846264338327950288") << 3.14159265358979323846264338327950288;
+    QTest::newRow("23 decimal places") << QByteArray("0.12345678901234567890123") << 0.12345678901234567890123;
+    QTest::newRow("23 decimal places, no leading zero") << QByteArray("-.12345678901234567890123") << -0.12345678901234567890123;
+    QTest::newRow("mantissa 2^53") << QByteArray("9007199254740992.0") << 9007199254740992.0;
+    QTest::newRow("mantissa 2^53 + 1") << QByteArray("9007199254740993.0") << 9007199254740993.0;
+
+    // The ends of one exact division. 2^53 + 3 as a double is rounded before the division, 10^23 has no exact double:
+    // each of them alone gives another double than the closest one. An integer turns into the digits of a real.
+    QTest::newRow("mantissa 2^53, a decimal place") << QByteArray("900719925474099.2") << 900719925474099.2;
+    QTest::newRow("mantissa above 2^53, a decimal place") << QByteArray("900719925474099.5") << 900719925474099.5;
+    QTest::newRow("22 decimal places, short") << QByteArray("0.0000000000000000000001") << 1e-22;
+    QTest::newRow("23 decimal places, short") << QByteArray("0.00000000000000000000001") << 1e-23;
+    QTest::newRow("largest integer, period") << QByteArray("92233720368547758.") << 92233720368547758.0;
+    QTest::newRow("above the integers, period") << QByteArray("922337203685477590.5") << 922337203685477590.5;
+    QTest::newRow("smallest single") << QByteArray("0.000000000000000000000000000000000000011754943508222875") << 1.1754943508222875e-38;
+    QTest::newRow("1.175e-38") << QByteArray("0.00000000000000000000000000000000000001175") << 1.175e-38;
+
+    // An integer exceeding the limit of integers is converted to a real object (3.2.2)
+    QTest::newRow("above the integers") << QByteArray("92233720368547759") << 92233720368547759.0;
+    QTest::newRow("30 digits") << QByteArray("123456789012345678901234567890") << 123456789012345678901234567890.0;
+    QTest::newRow("30 digits, period") << QByteArray("123456789012345678901234567890.") << 123456789012345678901234567890.0;
+    QTest::newRow("30 digits, fraction") << QByteArray("-123456789012345678901234567890.5") << -123456789012345678901234567890.5;
+
+    // The minus sign in the middle of a long number is ignored too (issue #223)
+    QTest::newRow("long with a minus") << QByteArray("1234567890123456789012-3456789.5") << 12345678901234567890123456789.5;
+
+    // The ends of the range of a double, the text has the length it has without an exponent
+    QTest::newRow("1e308") << QByteArray("1") + QByteArray(308, '0') << 1e308;
+    QTest::newRow("largest") << QByteArray("17976931348623157") + QByteArray(292, '0') + ".0" << 1.7976931348623157e308;
+    QTest::newRow("smallest normal") << QByteArray("0.") + QByteArray(307, '0') + "22250738585072014" << 2.2250738585072014e-308;
+    QTest::newRow("denormal") << QByteArray("0.") + QByteArray(307, '0') + "2225" << 2.225e-308;
+    QTest::newRow("smallest denormal") << QByteArray("0.") + QByteArray(323, '0') + "5" << 5e-324;
+    QTest::newRow("negative denormal") << QByteArray("-0.") + QByteArray(323, '0') + "5" << -5e-324;
+
+    // Closer to zero than any double: converted to zero (PDF Reference 1.7, Table C.1)
+    QTest::newRow("below the denormals") << QByteArray("0.") + QByteArray(400, '0') + "1" << 0.0;
+    QTest::newRow("400 digits") << QByteArray("0.") + QByteArray(400, '3') << 0.33333333333333333333;
+    QTest::newRow("400 zeros") << QByteArray("1.") + QByteArray(400, '0') << 1.0;
+}
+
+void LexicalAnalyzerTest::test_real_numbers_exact()
+{
+    QFETCH(QByteArray, text);
+    QFETCH(double, value);
+
+    pdf::PDFLexicalAnalyzer analyzer(text.constData(), text.constData() + text.size());
+    const pdf::PDFLexicalAnalyzer::Token token = analyzer.fetch();
+    QCOMPARE(token.type, pdf::PDFLexicalAnalyzer::TokenType::Real);
+    QCOMPARE(std::bit_cast<quint64>(token.data.toDouble()), std::bit_cast<quint64>(value));
+    QVERIFY(analyzer.isAtEnd());
+}
+
+void LexicalAnalyzerTest::test_real_numbers_random()
+{
+    // Random numbers of a program (one to 40 digits on each side of the period) against the conversion
+    // of the C library, whose result is the closest double in the locale "C" of a process, which has not set any
+    QRandomGenerator generator(20261102);
+
+    for (int i = 0; i < 100000; ++i)
+    {
+        std::string text;
+        for (int digits = generator.bounded(1, 41); digits > 0; --digits)
+        {
+            text.push_back(char('0' + generator.bounded(10)));
+        }
+
+        text.push_back('.');
+
+        // Usually few decimal places, as real files have them
+        for (int digits = generator.bounded(2) == 0 ? generator.bounded(1, 41) : generator.bounded(1, 9); digits > 0; --digits)
+        {
+            text.push_back(char('0' + generator.bounded(10)));
+        }
+
+        pdf::PDFLexicalAnalyzer analyzer(text.data(), text.data() + text.size());
+        const pdf::PDFLexicalAnalyzer::Token token = analyzer.fetch();
+        QCOMPARE(token.type, pdf::PDFLexicalAnalyzer::TokenType::Real);
+        QVERIFY2(std::bit_cast<quint64>(token.data.toDouble()) == std::bit_cast<quint64>(std::strtod(text.c_str(), nullptr)), text.c_str());
+    }
+}
+
+void LexicalAnalyzerTest::test_real_numbers_overflow()
+{
+    // A value exceeding the implementation limit of real numbers is an error (PDF Reference 1.7, chapter 3.2.2), never an infinity
+    const std::vector<QByteArray> texts = { QByteArray("1") + QByteArray(309, '0'),
+                                            QByteArray("1") + QByteArray(309, '0') + ".5",
+                                            QByteArray("-") + QByteArray(400, '9'),
+                                            QByteArray(400, '1') + ".",
+                                            QByteArray("17976931348623159") + QByteArray(292, '0') };
+
+    for (const QByteArray& text : texts)
+    {
+        pdf::PDFLexicalAnalyzer analyzer(text.constData(), text.constData() + text.size());
+        bool isError = false;
+        try
+        {
+            analyzer.fetch();
+        }
+        catch (const pdf::PDFException&)
+        {
+            isError = true;
+        }
+        QVERIFY2(isError, text.constData());
+    }
+}
+
 void LexicalAnalyzerTest::test_strings()
 {
     using Token = pdf::PDFLexicalAnalyzer::Token;
@@ -164,6 +308,170 @@ void LexicalAnalyzerTest::test_strings()
     testTokens("<901fa><901fa>", { Token(Type::String, QByteArray("\220\037\240")), Token(Type::String, QByteArray("\220\037\240")) });
     testTokens("<901FA><901FA>", { Token(Type::String, QByteArray("\220\037\240")), Token(Type::String, QByteArray("\220\037\240")) });
     testTokens("<><>", { Token(Type::String, QByteArray("")), Token(Type::String, QByteArray("")) });
+}
+
+void LexicalAnalyzerTest::test_string_end_of_line_data()
+{
+    QTest::addColumn<QByteArray>("input");
+    QTest::addColumn<QByteArray>("expected");
+
+    // PDF Reference 1.7, chapter 3.2.3, page 55: an end-of-line marker without a preceding backslash is
+    // equivalent to \n, whether it was a carriage return, a line feed or both
+    QTest::newRow("cr") << QByteArray("(a\rb)") << QByteArray("a\nb");
+    QTest::newRow("crlf") << QByteArray("(a\r\nb)") << QByteArray("a\nb");
+    QTest::newRow("lf") << QByteArray("(a\nb)") << QByteArray("a\nb");
+    QTest::newRow("lf cr is two markers") << QByteArray("(a\n\rb)") << QByteArray("a\n\nb");
+    QTest::newRow("cr cr is two markers") << QByteArray("(a\r\rb)") << QByteArray("a\n\nb");
+    QTest::newRow("lf lf is two markers") << QByteArray("(a\n\nb)") << QByteArray("a\n\nb");
+    QTest::newRow("crlf crlf is two markers") << QByteArray("(a\r\n\r\nb)") << QByteArray("a\n\nb");
+    QTest::newRow("crlf cr is two markers") << QByteArray("(a\r\n\rb)") << QByteArray("a\n\nb");
+    QTest::newRow("only cr") << QByteArray("(\r)") << QByteArray("\n");
+    QTest::newRow("only crlf") << QByteArray("(\r\n)") << QByteArray("\n");
+    QTest::newRow("first cr") << QByteArray("(\rb)") << QByteArray("\nb");
+    QTest::newRow("cr before the end") << QByteArray("(a\r)") << QByteArray("a\n");
+    QTest::newRow("crlf before the end") << QByteArray("(a\r\n)") << QByteArray("a\n");
+    QTest::newRow("binary bytes around") << QByteArray("(\xFE\xFF\x01\r\x01\xFF)") << QByteArray("\xFE\xFF\x01\n\x01\xFF");
+
+    // Nested parentheses
+    QTest::newRow("nested cr") << QByteArray("(a(b\rc)d)") << QByteArray("a(b\nc)d");
+    QTest::newRow("nested crlf") << QByteArray("(a(b\r\nc)d\r\n(e\r))") << QByteArray("a(b\nc)d\n(e\n)");
+
+    // The escapes of Table 3.2 stay: the character itself is written by them
+    QTest::newRow("escape r") << QByteArray("(a\\rb)") << QByteArray("a\rb");
+    QTest::newRow("escape n") << QByteArray("(a\\nb)") << QByteArray("a\nb");
+    QTest::newRow("escape r n") << QByteArray("(a\\r\\nb)") << QByteArray("a\r\nb");
+    QTest::newRow("octal cr") << QByteArray("(a\\015b)") << QByteArray("a\rb");
+    QTest::newRow("octal lf") << QByteArray("(a\\012b)") << QByteArray("a\nb");
+
+    // A backslash before an end-of-line marker: the string continues, the marker is not a part of it
+    QTest::newRow("backslash cr") << QByteArray("(a\\\rb)") << QByteArray("ab");
+    QTest::newRow("backslash lf") << QByteArray("(a\\\nb)") << QByteArray("ab");
+    QTest::newRow("backslash crlf") << QByteArray("(a\\\r\nb)") << QByteArray("ab");
+    QTest::newRow("backslash lf and a cr marker") << QByteArray("(a\\\n\rb)") << QByteArray("a\nb");
+    QTest::newRow("backslash cr and a cr marker") << QByteArray("(a\\\r\rb)") << QByteArray("a\nb");
+    QTest::newRow("backslash crlf and a crlf marker") << QByteArray("(a\\\r\n\r\nb)") << QByteArray("a\nb");
+
+    // An escaped backslash does not escape the marker behind it
+    QTest::newRow("escaped backslash and cr") << QByteArray("(a\\\\\rb)") << QByteArray("a\\\nb");
+
+    // Hexadecimal strings are not touched: white space is ignored, the bytes are given by the digits
+    QTest::newRow("hex cr") << QByteArray("<610d62>") << QByteArray("a\rb");
+    QTest::newRow("hex crlf") << QByteArray("<610d0a62>") << QByteArray("a\r\nb");
+    QTest::newRow("hex with white space") << QByteArray("<61\r0d\r\n62>") << QByteArray("a\rb");
+}
+
+void LexicalAnalyzerTest::test_string_end_of_line()
+{
+    QFETCH(QByteArray, input);
+    QFETCH(QByteArray, expected);
+
+    pdf::PDFLexicalAnalyzer analyzer(input.constData(), input.constData() + input.size());
+    const pdf::PDFLexicalAnalyzer::Token token = analyzer.fetch();
+    QCOMPARE(token.type, pdf::PDFLexicalAnalyzer::TokenType::String);
+    QCOMPARE(token.data.toByteArray(), expected);
+    QVERIFY(analyzer.isAtEnd());
+}
+
+void LexicalAnalyzerTest::test_string_end_of_line_at_buffer_end()
+{
+    using Type = pdf::PDFLexicalAnalyzer::TokenType;
+
+    // The closing parenthesis is the last byte of the buffer, nothing behind it is read
+    {
+        const std::vector<char> data = { '(', 'a', '\r', ')' };
+        pdf::PDFLexicalAnalyzer analyzer(data.data(), data.data() + data.size());
+        const pdf::PDFLexicalAnalyzer::Token token = analyzer.fetch();
+        QCOMPARE(token.type, Type::String);
+        QCOMPARE(token.data.toByteArray(), QByteArray("a\n"));
+        QVERIFY(analyzer.isAtEnd());
+        QCOMPARE(analyzer.fetch().type, Type::EndOfFile);
+    }
+
+    // A string without its end is an error also behind an end-of-line marker. The line feed behind
+    // the end of the buffer does not belong to it.
+    {
+        const QByteArray data("(a\r\n)");
+        pdf::PDFLexicalAnalyzer analyzer(data.constData(), data.constData() + 3);
+        QVERIFY_THROWS_EXCEPTION(pdf::PDFException, analyzer.fetch());
+    }
+
+    {
+        const std::vector<char> data = { '(', 'a', '\r' };
+        pdf::PDFLexicalAnalyzer analyzer(data.data(), data.data() + data.size());
+        QVERIFY_THROWS_EXCEPTION(pdf::PDFException, analyzer.fetch());
+    }
+
+    {
+        const std::vector<char> data = { '(', 'a', '\r', '\n' };
+        pdf::PDFLexicalAnalyzer analyzer(data.data(), data.data() + data.size());
+        QVERIFY_THROWS_EXCEPTION(pdf::PDFException, analyzer.fetch());
+    }
+
+    // The tokens behind the string start where they should: a line feed of a marker is taken once
+    {
+        const QByteArray data("(a\r)5 (b\r\n)\r\n6(c\n\r)\r7");
+        pdf::PDFLexicalAnalyzer analyzer(data.constData(), data.constData() + data.size());
+
+        QCOMPARE(analyzer.fetch().data.toByteArray(), QByteArray("a\n"));
+        QCOMPARE(analyzer.fetch().data.toLongLong(), 5);
+        QCOMPARE(analyzer.fetch().data.toByteArray(), QByteArray("b\n"));
+        QCOMPARE(analyzer.fetch().data.toLongLong(), 6);
+        QCOMPARE(analyzer.fetch().data.toByteArray(), QByteArray("c\n\n"));
+        QCOMPARE(analyzer.fetch().data.toLongLong(), 7);
+        QCOMPARE(analyzer.fetch().type, Type::EndOfFile);
+    }
+}
+
+void LexicalAnalyzerTest::test_string_end_of_line_in_content_stream()
+{
+    // The operands of the text operators are read as any other string: a raw CR of a text is the code 10.
+    // A producer, which means the code 13, writes it by an escape or by a hexadecimal string.
+    const QByteArray stream("BT /F1 12 Tf (a\rb) Tj [(c\r\nd) -5 (e\\rf) <0d>] TJ ET");
+    pdf::PDFLexicalAnalyzer analyzer(stream.constData(), stream.constData() + stream.size());
+
+    std::vector<QByteArray> strings;
+    std::vector<QByteArray> commands;
+    while (true)
+    {
+        const pdf::PDFLexicalAnalyzer::Token token = analyzer.fetch();
+        if (token.type == pdf::PDFLexicalAnalyzer::TokenType::EndOfFile)
+        {
+            break;
+        }
+        if (token.type == pdf::PDFLexicalAnalyzer::TokenType::String)
+        {
+            strings.push_back(token.data.toByteArray());
+        }
+        if (token.type == pdf::PDFLexicalAnalyzer::TokenType::Command)
+        {
+            commands.push_back(token.data.toByteArray());
+        }
+    }
+
+    QCOMPARE(strings, (std::vector<QByteArray>{ "a\nb", "c\nd", "e\rf", "\r" }));
+    QCOMPARE(commands, (std::vector<QByteArray>{ "BT", "Tf", "Tj", "TJ", "ET" }));
+}
+
+void LexicalAnalyzerTest::test_string_end_of_line_in_parser()
+{
+    // A whole object: strings of a dictionary and of an array, also a direct string in a nested dictionary
+    const QByteArray data("<< /A (x\r\ny) /B [ (p\rq) (r\ns) (t\\ru) <0d0a> ] /C << /D (v\n\rw) >> /E (z\r) >>");
+    pdf::PDFParser parser(data, nullptr, pdf::PDFParser::None);
+    const pdf::PDFObject object = parser.getObject();
+
+    QVERIFY(object.isDictionary());
+    const pdf::PDFDictionary* dictionary = object.getDictionary();
+    QCOMPARE(dictionary->get("A").getString(), QByteArray("x\ny"));
+
+    const pdf::PDFArray* array = dictionary->get("B").getArray();
+    QCOMPARE(array->getCount(), size_t(4));
+    QCOMPARE(array->getItem(0).getString(), QByteArray("p\nq"));
+    QCOMPARE(array->getItem(1).getString(), QByteArray("r\ns"));
+    QCOMPARE(array->getItem(2).getString(), QByteArray("t\ru"));
+    QCOMPARE(array->getItem(3).getString(), QByteArray("\r\n"));
+
+    QCOMPARE(dictionary->get("C").getDictionary()->get("D").getString(), QByteArray("v\n\nw"));
+    QCOMPARE(dictionary->get("E").getString(), QByteArray("z\n"));
 }
 
 void LexicalAnalyzerTest::test_name()

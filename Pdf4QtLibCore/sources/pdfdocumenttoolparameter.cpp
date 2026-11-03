@@ -53,6 +53,17 @@ public:
     /// Most unknown keys reported by one validation
     static constexpr int MAXIMUM_UNKNOWN_KEY_ERRORS = 16;
 
+    /// Text of the user interface: the translation of a text of a tool
+    static QString getTranslatedText(PDFDocumentToolTranslator translator, PDFDocumentToolText text)
+    {
+        const char* sourceText = text.getSourceText();
+        if (!sourceText || !*sourceText)
+        {
+            return QString();
+        }
+        return translator ? translator(sourceText, nullptr, -1) : QString::fromUtf8(sourceText);
+    }
+
     /// The value is missing: an invalid variant or a null of JSON
     static bool isMissing(const QVariant& value)
     {
@@ -543,94 +554,128 @@ QStringList PDFDocumentToolPageSelection::getFilterNames()
     return { QStringLiteral("even"), QStringLiteral("odd"), QStringLiteral("portrait"), QStringLiteral("landscape") };
 }
 
-PDFDocumentToolParameterDefinition::PDFDocumentToolParameterDefinition(const QString& name, PDFDocumentToolParameterType type, const QString& title, const QString& description) :
+PDFDocumentToolParameterOption::PDFDocumentToolParameterOption(const QString& id, PDFDocumentToolText title, PDFDocumentToolText description, const QString& iconName) :
+    id(id),
+    iconName(iconName),
+    m_title(title),
+    m_description(description)
+{
+
+}
+
+QString PDFDocumentToolParameterOption::getTitle() const
+{
+    return PDFDocumentToolParameterHelper::getTranslatedText(m_translator, m_title);
+}
+
+QString PDFDocumentToolParameterOption::getDescription() const
+{
+    return PDFDocumentToolParameterHelper::getTranslatedText(m_translator, m_description);
+}
+
+QString PDFDocumentToolParameterOption::getSourceTitle() const
+{
+    return QString::fromUtf8(m_title.getSourceText());
+}
+
+QString PDFDocumentToolParameterOption::getSourceDescription() const
+{
+    return QString::fromUtf8(m_description.getSourceText());
+}
+
+PDFDocumentToolParameterDefinition::PDFDocumentToolParameterDefinition(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolParameterType type, PDFDocumentToolText title, PDFDocumentToolText description) :
     m_name(name),
     m_type(type),
     m_title(title),
-    m_description(description)
+    m_description(description),
+    m_translator(translator)
 {
     m_maximumLength = getTypeMaximumLength();
 }
 
-PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createBool(const QString& name, const QString& title, const QString& description, bool defaultValue)
+PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createBool(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description, bool defaultValue)
 {
-    PDFDocumentToolParameterDefinition definition(name, PDFDocumentToolParameterType::Bool, title, description);
+    PDFDocumentToolParameterDefinition definition(translator, name, PDFDocumentToolParameterType::Bool, title, description);
     definition.m_defaultValue = defaultValue;
     return definition;
 }
 
-PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createInteger(const QString& name, const QString& title, const QString& description, qint64 defaultValue, qint64 minimum, qint64 maximum)
+PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createInteger(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description, qint64 defaultValue, qint64 minimum, qint64 maximum)
 {
-    PDFDocumentToolParameterDefinition definition(name, PDFDocumentToolParameterType::Integer, title, description);
+    PDFDocumentToolParameterDefinition definition(translator, name, PDFDocumentToolParameterType::Integer, title, description);
     definition.m_defaultValue = defaultValue;
     definition.m_integerMinimum = minimum;
     definition.m_integerMaximum = maximum;
     return definition;
 }
 
-PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createReal(const QString& name, const QString& title, const QString& description, double defaultValue, double minimum, double maximum)
+PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createReal(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description, double defaultValue, double minimum, double maximum)
 {
-    PDFDocumentToolParameterDefinition definition(name, PDFDocumentToolParameterType::Real, title, description);
+    PDFDocumentToolParameterDefinition definition(translator, name, PDFDocumentToolParameterType::Real, title, description);
     definition.m_defaultValue = defaultValue;
     definition.m_realMinimum = minimum;
     definition.m_realMaximum = maximum;
     return definition;
 }
 
-PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createString(const QString& name, const QString& title, const QString& description, const QString& defaultValue, int maximumLength)
+PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createString(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description, const QString& defaultValue, int maximumLength)
 {
-    PDFDocumentToolParameterDefinition definition(name, PDFDocumentToolParameterType::String, title, description);
+    PDFDocumentToolParameterDefinition definition(translator, name, PDFDocumentToolParameterType::String, title, description);
     definition.m_defaultValue = defaultValue;
     definition.setMaximumLength(maximumLength);
     return definition;
 }
 
-PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createEnum(const QString& name, const QString& title, const QString& description, std::vector<PDFDocumentToolParameterOption> options, const QString& defaultId)
+PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createEnum(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description, std::vector<PDFDocumentToolParameterOption> options, const QString& defaultId)
 {
-    PDFDocumentToolParameterDefinition definition(name, PDFDocumentToolParameterType::Enum, title, description);
+    PDFDocumentToolParameterDefinition definition(translator, name, PDFDocumentToolParameterType::Enum, title, description);
     definition.m_defaultValue = defaultId;
     definition.m_options = std::move(options);
+    for (PDFDocumentToolParameterOption& option : definition.m_options)
+    {
+        option.m_translator = translator;
+    }
     return definition;
 }
 
-PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createPageSelection(const QString& name, const QString& title, const QString& description, const PDFDocumentToolPageSelection& defaultValue)
+PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createPageSelection(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description, const PDFDocumentToolPageSelection& defaultValue)
 {
-    PDFDocumentToolParameterDefinition definition(name, PDFDocumentToolParameterType::PageSelection, title, description);
+    PDFDocumentToolParameterDefinition definition(translator, name, PDFDocumentToolParameterType::PageSelection, title, description);
     definition.m_defaultValue = defaultValue.toVariant();
     return definition;
 }
 
-PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createColor(const QString& name, const QString& title, const QString& description, const QColor& defaultValue)
+PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createColor(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description, const QColor& defaultValue)
 {
-    PDFDocumentToolParameterDefinition definition(name, PDFDocumentToolParameterType::Color, title, description);
+    PDFDocumentToolParameterDefinition definition(translator, name, PDFDocumentToolParameterType::Color, title, description);
     definition.m_defaultValue = defaultValue.isValid() ? QVariant(QColor::fromRgb(defaultValue.rgb())) : QVariant(defaultValue);
     return definition;
 }
 
-PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createFilePath(const QString& name, const QString& title, const QString& description, const QString& defaultValue)
+PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createFilePath(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description, const QString& defaultValue)
 {
-    PDFDocumentToolParameterDefinition definition(name, PDFDocumentToolParameterType::FilePath, title, description);
+    PDFDocumentToolParameterDefinition definition(translator, name, PDFDocumentToolParameterType::FilePath, title, description);
     definition.m_defaultValue = defaultValue;
     return definition;
 }
 
-PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createFolderPath(const QString& name, const QString& title, const QString& description, const QString& defaultValue)
+PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createFolderPath(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description, const QString& defaultValue)
 {
-    PDFDocumentToolParameterDefinition definition(name, PDFDocumentToolParameterType::FolderPath, title, description);
+    PDFDocumentToolParameterDefinition definition(translator, name, PDFDocumentToolParameterType::FolderPath, title, description);
     definition.m_defaultValue = defaultValue;
     return definition;
 }
 
-PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createFileNameTemplate(const QString& name, const QString& title, const QString& description, const QString& defaultValue)
+PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createFileNameTemplate(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description, const QString& defaultValue)
 {
-    PDFDocumentToolParameterDefinition definition(name, PDFDocumentToolParameterType::FileNameTemplate, title, description);
+    PDFDocumentToolParameterDefinition definition(translator, name, PDFDocumentToolParameterType::FileNameTemplate, title, description);
     definition.m_defaultValue = defaultValue;
     return definition;
 }
 
-PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createSecret(const QString& name, const QString& title, const QString& description)
+PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createSecret(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description)
 {
-    PDFDocumentToolParameterDefinition definition(name, PDFDocumentToolParameterType::Secret, title, description);
+    PDFDocumentToolParameterDefinition definition(translator, name, PDFDocumentToolParameterType::Secret, title, description);
     definition.m_defaultValue = QString();
     return definition;
 }
@@ -726,9 +771,30 @@ QString PDFDocumentToolParameterDefinition::sanitizeForMessage(const QString& te
     return result;
 }
 
+QString PDFDocumentToolParameterDefinition::getTitle() const
+{
+    return PDFDocumentToolParameterHelper::getTranslatedText(m_translator, m_title);
+}
+
+QString PDFDocumentToolParameterDefinition::getDescription() const
+{
+    return PDFDocumentToolParameterHelper::getTranslatedText(m_translator, m_description);
+}
+
+QString PDFDocumentToolParameterDefinition::getSourceTitle() const
+{
+    return QString::fromUtf8(m_title.getSourceText());
+}
+
+QString PDFDocumentToolParameterDefinition::getSourceDescription() const
+{
+    return QString::fromUtf8(m_description.getSourceText());
+}
+
 QString PDFDocumentToolParameterDefinition::getLabel() const
 {
-    return m_title.isEmpty() ? m_name : sanitizeForMessage(m_title, MAXIMUM_NAME_LENGTH);
+    const QString title = getTitle();
+    return title.isEmpty() ? m_name : sanitizeForMessage(title, MAXIMUM_NAME_LENGTH);
 }
 
 bool PDFDocumentToolParameterDefinition::isValid(QString* errorMessage) const
@@ -740,6 +806,12 @@ bool PDFDocumentToolParameterDefinition::isValid(QString* errorMessage) const
     if (!isValidName(m_name))
     {
         error = QStringLiteral("Invalid parameter name '%1'.").arg(sanitizeForMessage(m_name));
+        return false;
+    }
+
+    if (!m_translator)
+    {
+        error = QStringLiteral("Parameter '%1': no function translating its texts (the function tr of the tool).").arg(m_name);
         return false;
     }
 
@@ -977,12 +1049,15 @@ QJsonObject PDFDocumentToolParameterDefinition::toJsonSchema() const
 
     QJsonObject schema;
     schema.insert(QStringLiteral("type"), Helper::getTypeName(m_type));
-    if (!m_title.isEmpty())
+
+    // Only the source texts: the assistant reads English in every language (owner 2026-11-02)
+    const QString title = getSourceTitle();
+    if (!title.isEmpty())
     {
-        schema.insert(QStringLiteral("title"), m_title);
+        schema.insert(QStringLiteral("title"), title);
     }
 
-    QString description = m_description;
+    QString description = getSourceDescription();
     switch (m_type)
     {
         case PDFDocumentToolParameterType::Integer:
@@ -1013,10 +1088,11 @@ QJsonObject PDFDocumentToolParameterDefinition::toJsonSchema() const
             for (const PDFDocumentToolParameterOption& option : m_options)
             {
                 values.append(option.id);
-                QString line = QStringLiteral("\n- %1: %2").arg(option.id, option.title);
-                if (!option.description.isEmpty())
+                QString line = QStringLiteral("\n- %1: %2").arg(option.id, option.getSourceTitle());
+                const QString optionDescription = option.getSourceDescription();
+                if (!optionDescription.isEmpty())
                 {
-                    line += QStringLiteral(" (%1)").arg(option.description);
+                    line += QStringLiteral(" (%1)").arg(optionDescription);
                 }
                 description += line;
             }

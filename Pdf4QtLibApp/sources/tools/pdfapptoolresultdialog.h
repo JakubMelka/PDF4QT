@@ -373,6 +373,7 @@ private:
     bool checkTarget();
     void showNameError(const QString& text);
     void clearStates();
+    void setTargetInvalid(bool isInvalid);
 
     /// The target is the file of a document open in a tab: a copy never replaces it
     /// (the document of the tab, and of this tab - "its file stays as it is")

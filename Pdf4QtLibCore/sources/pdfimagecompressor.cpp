@@ -177,7 +177,6 @@ PDFImageCompressor::Environment::Environment(const PDFDocument* document, PDFCMS
     PDFModifiedDocument modifiedDocument(const_cast<PDFDocument*>(document), m_optionalContentActivity.get());
     m_fontCache->setDocument(modifiedDocument);
     m_iccProfileCache->setDocument(modifiedDocument);
-    m_fontCacheShrinkGuard = std::make_unique<PDFFontCacheShrinkGuard>(m_fontCache.get(), this);
 }
 
 PDFImageCompressor::Environment::~Environment() = default;
@@ -191,6 +190,9 @@ void PDFImageCompressor::Environment::processPage(PDFInteger pageIndex, const Im
         return;
     }
 
+    // The fonts of a page are held only for the page: an OCR layer has a font of its own size
+    // for almost every word and a walk over all pages kept them all (4 GB of a scan of 230 pages)
+    PDFFontCacheShrinkGuard shrinkGuard(m_fontCache.get(), this);
     PDFMeshQualitySettings meshQualitySettings;
     ImageCollectorProcessor processor(page, m_document, m_fontCache.get(), m_iccProfileCache.get(), m_cms.data(), m_optionalContentActivity.get(), meshQualitySettings, &callback, nullptr, &filter);
     processor.setOperationControl(operationControl);
@@ -206,6 +208,7 @@ void PDFImageCompressor::Environment::processPagePlacements(PDFInteger pageIndex
         return;
     }
 
+    PDFFontCacheShrinkGuard shrinkGuard(m_fontCache.get(), this);
     PDFMeshQualitySettings meshQualitySettings;
     ImageCollectorProcessor processor(page, m_document, m_fontCache.get(), m_iccProfileCache.get(), m_cms.data(), m_optionalContentActivity.get(), meshQualitySettings, nullptr, &callback, nullptr);
     processor.setOperationControl(operationControl);

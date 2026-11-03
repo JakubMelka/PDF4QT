@@ -255,7 +255,7 @@ PDFAppDocument* PDFAppMcpChangeJob::prepareDocument(const PDFAppMcpToolInvocatio
     // refused (plan 2.5: denied_dialog) - the user decides about the dialog first
     if (QApplication::activeModalWidget())
     {
-        host->finishWithError(call, actionId, nullptr, QStringLiteral("PDF4QT shows a dialog; try again after the user closes it."), PDFMcpActivityStatus::DeniedDialog);
+        host->finishWithError(call, actionId, nullptr, getModalDialogText(), PDFMcpActivityStatus::DeniedDialog);
         return nullptr;
     }
 
@@ -366,6 +366,11 @@ QString PDFAppMcpChangeJob::getDecisionText(PDFAppMcpDecision decision)
             break;
     }
     return QStringLiteral("The user denied the change in PDF4QT. Do not repeat it without asking the user.");
+}
+
+QString PDFAppMcpChangeJob::getModalDialogText()
+{
+    return QStringLiteral("PDF4QT shows a dialog; try again after the user closes it.");
 }
 
 QString PDFAppMcpChangeJob::getLockedText()
@@ -516,9 +521,8 @@ void PDFAppMcpChangeJob::finish(PDFAppMcpHost* host)
     switch (policyResult)
     {
         case PDFAppMcpPolicyResult::Denied:
-            fail(m_context.permission == PDFAppMcpPermissionKind::Files ? QStringLiteral("The user does not allow assistants to open and save files (Open and save files is set to Deny in PDF4QT).")
-                                                                       : QStringLiteral("The user does not allow assistants to edit documents (Edit documents is set to Deny in PDF4QT)."),
-                 PDFMcpActivityStatus::DeniedUser);
+            // Audited as the permission: the user was asked nothing
+            fail(getDeniedText(policy), PDFMcpActivityStatus::DeniedPermission);
             return;
 
         case PDFAppMcpPolicyResult::Ask:
@@ -614,8 +618,31 @@ void PDFAppMcpChangeJob::confirmationFinished(quint64 confirmationId, PDFAppMcpD
         return;
     }
 
+    // A permission set to Deny while the question waited (plan 7: a change during a
+    // call is an execution error), as the tools of the catalog and the read approval
+    const PDFAppMcpPermissionPolicy& policy = m_host->getPolicy();
+    const PDFAppMcpPermissionKinds kinds = PDFAppMcpPermissionKinds(PDFAppMcpPermissionKind::Read) | m_context.permission;
+    if (policy.evaluate(kinds, call->getRequest().client.assistantKey, true) == PDFAppMcpPolicyResult::Denied)
+    {
+        fail(getDeniedText(policy), PDFMcpActivityStatus::DeniedPermission);
+        return;
+    }
+
     m_context.isConfirmed = true;
     proceed();
+}
+
+QString PDFAppMcpChangeJob::getDeniedText(const PDFAppMcpPermissionPolicy& policy) const
+{
+    if (policy.getPermissions().get(PDFAppMcpPermissionKind::Read) == PDFAppMcpPermission::Deny)
+    {
+        return QStringLiteral("The user does not allow assistants to read documents (Read documents is set to Deny in PDF4QT).");
+    }
+    if (m_context.permission == PDFAppMcpPermissionKind::Files)
+    {
+        return QStringLiteral("The user does not allow assistants to open and save files (Open and save files is set to Deny in PDF4QT).");
+    }
+    return QStringLiteral("The user does not allow assistants to edit documents (Edit documents is set to Deny in PDF4QT).");
 }
 
 void PDFAppMcpChangeJob::proceed()

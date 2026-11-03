@@ -60,6 +60,7 @@
 #include "pdftoolrepository.h"
 
 #include "pdfdrawwidget.h"
+#include "pdfdocumentbuilder.h"
 #include "pdfcomponentbadges.h"
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpanels.h"
@@ -184,16 +185,16 @@ public:
         using Definition = pdf::PDFDocumentToolParameterDefinition;
 
         pdf::PDFDocumentToolParameterDefinitions definitions;
-        definitions.push_back(Definition::createEnum(QStringLiteral("preset"), QStringLiteral("Preset"), QString(),
-                                                     { { QStringLiteral("small"), QStringLiteral("Small"), QString(), QString() }, { QStringLiteral("large"), QStringLiteral("Large"), QString(), QString() } },
+        definitions.push_back(Definition::createEnum(pdftest::TestDocumentTool::tr, QStringLiteral("preset"), QT_TR_NOOP("Preset"), nullptr,
+                                                     { { QStringLiteral("small"), QT_TR_NOOP("Small") }, { QStringLiteral("large"), QT_TR_NOOP("Large") } },
                                                      QStringLiteral("small")));
-        definitions.push_back(Definition::createInteger(QStringLiteral("quality"), QStringLiteral("Quality"), QString(), 75, 1, 100));
-        definitions.push_back(Definition::createBool(QStringLiteral("structure"), QStringLiteral("Structure"), QString(), true));
-        definitions.push_back(Definition::createColor(QStringLiteral("color"), QStringLiteral("Color"), QString(), QColor(0x25, 0x63, 0xEB)));
-        Definition pages = Definition::createPageSelection(QStringLiteral("pages"), QStringLiteral("Pages"), QString());
+        definitions.push_back(Definition::createInteger(pdftest::TestDocumentTool::tr, QStringLiteral("quality"), QT_TR_NOOP("Quality"), nullptr, 75, 1, 100));
+        definitions.push_back(Definition::createBool(pdftest::TestDocumentTool::tr, QStringLiteral("structure"), QT_TR_NOOP("Structure"), nullptr, true));
+        definitions.push_back(Definition::createColor(pdftest::TestDocumentTool::tr, QStringLiteral("color"), QT_TR_NOOP("Color"), nullptr, QColor(0x25, 0x63, 0xEB)));
+        Definition pages = Definition::createPageSelection(pdftest::TestDocumentTool::tr, QStringLiteral("pages"), QT_TR_NOOP("Pages"), nullptr);
         pages.setStored(false);
         definitions.push_back(pages);
-        definitions.push_back(Definition::createSecret(QStringLiteral("password"), QStringLiteral("Password"), QString()));
+        definitions.push_back(Definition::createSecret(pdftest::TestDocumentTool::tr, QStringLiteral("password"), QT_TR_NOOP("Password"), nullptr));
         return definitions;
     }
 
@@ -261,6 +262,8 @@ private slots:
     void copyRuleByImpact();
     void writerRefusesDisplayVersion();
     void signedCopyWholeWithoutOldRevision();
+    void signedCopyKeptWithoutFile_data();
+    void signedCopyKeptWithoutFile();
     void signedCopyIncrementalOfRotate();
     void encryptedCopyStaysEncrypted();
 
@@ -1145,7 +1148,7 @@ void AppToolShellTest::modelRefusesInvalidValues()
 
     // A required parameter without a value is an error of the values
     pdf::PDFDocumentToolParameterDefinitions definitions;
-    pdf::PDFDocumentToolParameterDefinition required = pdf::PDFDocumentToolParameterDefinition::createString(QStringLiteral("name"), QStringLiteral("Name"), QString(), QString());
+    pdf::PDFDocumentToolParameterDefinition required = pdf::PDFDocumentToolParameterDefinition::createString(pdftest::TestDocumentTool::tr, QStringLiteral("name"), QT_TR_NOOP("Name"), nullptr, QString());
     required.setRequired(true);
     definitions.push_back(required);
     pdf::PDFAppToolParameterModel requiredModel(nullptr, TOOL_COMPRESS, definitions, nullptr);
@@ -1850,6 +1853,109 @@ void AppToolShellTest::signedCopyIncrementalOfRotate()
     QVERIFY(written.size() > original.size());
     QVERIFY(written.startsWith(original));
     QVERIFY(written.contains("/Prev"));
+}
+
+void AppToolShellTest::signedCopyKeptWithoutFile_data()
+{
+    QTest::addColumn<QString>("step");
+    QTest::addColumn<bool>("isIncremental");
+
+    // Edit a Copy of a signed document, Compress, Keep (F5), then Save As: the signed bytes are
+    // not the base of the kept result, the file is written whole (O31)
+    QTest::newRow("kept") << QStringLiteral("kept") << false;
+    QTest::newRow("kept-undone-redone") << QStringLiteral("redo") << false;
+    QTest::newRow("kept-and-changed") << QStringLiteral("change") << false;
+
+    // Undo brings the signed document back: its signatures stay by the incremental update
+    QTest::newRow("kept-undone") << QStringLiteral("undo") << true;
+}
+
+void AppToolShellTest::signedCopyKeptWithoutFile()
+{
+    QFETCH(QString, step);
+    QFETCH(bool, isIncremental);
+
+    AppToolShellFixture fixture;
+    const QString signedFile = pdftest::AppDocumentSamples::signedDocument(fixture.folder());
+    pdf::PDFAppDocumentTab* signedTab = fixture.open(signedFile);
+    QVERIFY(signedTab && AppToolShellFixture::waitFor([signedTab]() { return signedTab->getDocument()->isReady(); }));
+    const QByteArray original = ToolShellTestHelper::readFile(signedFile);
+
+    signedTab->executeCommand(pdf::PDFAppCommands::editCopy());
+    AppToolShellFixture::settle();
+    pdf::PDFAppDocumentTab* tab = qobject_cast<pdf::PDFAppDocumentTab*>(fixture.window->getCurrentTab());
+    QVERIFY(tab && tab != signedTab);
+    QVERIFY(AppToolShellFixture::waitFor([tab]() { return tab->getDocument()->isReady(); }));
+    pdf::PDFAppDocument* document = tab->getDocument();
+    QVERIFY(document->getFilePath().isEmpty());
+    QCOMPARE(document->getOriginalData(), original);
+    QVERIFY(pdf::PDFAppDocumentFileWriter::getSignatureCount(document->getDocument().data()) > 0);
+
+    // F5: without a file the tool keeps its choice Keep and has nothing to overwrite
+    PDFAppToolResultDialog* dialog = fixture.openDialog(tab, TOOL_COMPRESS, QStringLiteral("title"));
+    QVERIFY(dialog);
+    QVERIFY(dialog->getOption(Choice::Keep));
+    QVERIFY(!dialog->getOption(Choice::Overwrite));
+
+    // The owner, 2026-11-02: the tool warns also here, by its own text - "Only a copy can be
+    // saved" of a document with a file would not be true, Keep stays
+    QWidget* warning = dialog->findChild<QWidget*>(QStringLiteral("signedWarning"));
+    QVERIFY(warning);
+    QCOMPARE(warning->findChild<pdf::PDFLabel*>(QStringLiteral("signedWarningTitle"))->text(), QStringLiteral("The signatures will stop being valid"));
+    QCOMPARE(warning->findChild<pdf::PDFAppParagraph*>(QStringLiteral("signedWarningText"))->text(), QStringLiteral("This tool rewrites the whole file, so it cannot keep the signed revision. When you save the result, its signatures will no longer be valid."));
+
+    QSignalSpy decidedSpy(dialog, &PDFAppToolResultDialog::decided);
+    dialog->selectChoice(Choice::Keep);
+    dialog->confirm();
+    QVERIFY(ToolShellTestHelper::waitForDecision(decidedSpy));
+    QCOMPARE(document->getDocument()->getInfo()->title, QStringLiteral("Result title"));
+
+    if (step == QLatin1String("undo") || step == QLatin1String("redo"))
+    {
+        QVERIFY(document->getUndoStack()->undo());
+        QVERIFY(document->getDocument()->getInfo()->title != QStringLiteral("Result title"));
+    }
+    if (step == QLatin1String("redo"))
+    {
+        QVERIFY(document->getUndoStack()->redo());
+        QCOMPARE(document->getDocument()->getInfo()->title, QStringLiteral("Result title"));
+    }
+    if (step == QLatin1String("change"))
+    {
+        pdf::PDFDocumentBuilder builder(document->getDocument().data());
+        builder.addObject(pdf::PDFObject::createInteger(7));
+        const pdf::PDFModifiedDocument modified(pdf::PDFDocumentPointer(new pdf::PDFDocument(builder.build())), document->getOptionalContentActivity(), pdf::PDFModifiedDocument::None);
+        QVERIFY(document->commit(modified, QStringLiteral("Change"), document->getVersion(), pdf::PDFAppChangeSource::User));
+    }
+
+    // The copy of a tool, which keeps the signed revision (F7), follows the same base
+    const pdf::PDFAppDocumentSnapshot snapshot = document->getSnapshot();
+    const auto copyRequest = pdf::PDFAppToolResultWriter::createCopyRequest(pdf::PDFDocumentToolCatalog::findTool(TOOL_ROTATE), snapshot, snapshot.document, QStringLiteral("a.pdf"));
+    QCOMPARE(copyRequest.isIncremental, isIncremental);
+
+    const QString target = fixture.path(QStringLiteral("saved-as.pdf"));
+    pdf::PDFAppFileDialogs::setSaveFileHandler([target](QWidget*, const QString&) { return target; });
+    pdf::PDFAppDocumentFileCommandHandler* handler = pdf::PDFAppDocumentFileCommandHandler::find(tab);
+    QVERIFY(handler);
+    QSignalSpy finishedSpy(handler, &pdf::PDFAppDocumentFileCommandHandler::saveFinished);
+    QVERIFY(handler->saveAs());
+    const bool isFinished = AppToolShellFixture::waitFor([&finishedSpy]() { return !finishedSpy.isEmpty(); });
+    pdf::PDFAppFileDialogs::setSaveFileHandler(pdf::PDFAppFileDialogs::SaveFileHandler());
+    QVERIFY(isFinished);
+    QVERIFY(finishedSpy.first().first().toBool());
+
+    const QByteArray written = ToolShellTestHelper::readFile(target);
+    QVERIFY(!written.isEmpty());
+    QCOMPARE(written.startsWith(original), isIncremental);
+    QCOMPARE(written.contains("/Prev"), isIncremental);
+    if (!isIncremental)
+    {
+        QCOMPARE(written.count("%%EOF"), qsizetype(1));
+    }
+
+    // The bytes of the file have become the base of the document
+    QCOMPARE(document->getOriginalData(), written);
+    QVERIFY(!document->isWholeFileRewritten());
 }
 
 void AppToolShellTest::encryptedCopyStaysEncrypted()
@@ -3898,6 +4004,11 @@ public:
         Q_UNUSED(disambiguation);
         Q_UNUSED(n);
         const QLatin1String name(context);
+        if (name == QLatin1String("pdftest::TestDocumentTool") && QByteArray(sourceText) == "Plain text")
+        {
+            // A text of the definition of a tool
+            return QStringLiteral("Translated text");
+        }
         return name == QLatin1String("pdf::PDFAppToolToolbar") || name == QLatin1String("pdf::PDFDocumentToolGUI") ? QStringLiteral("XX ") + QString::fromUtf8(sourceText) : QString();
     }
 };
@@ -5955,22 +6066,19 @@ class MenusTestTool : public pdftest::ShellTestTool
 public:
     using pdftest::ShellTestTool::ShellTestTool;
 
-    /// Title of the first option: the definitions of a tool are asked again at a change of the language
-    QString formatTitle = QStringLiteral("Plain text");
-
     pdf::PDFDocumentToolParameterDefinitions getParameters() const override
     {
         using Definition = pdf::PDFDocumentToolParameterDefinition;
 
         pdf::PDFDocumentToolParameterDefinitions definitions = pdftest::ShellTestTool::getParameters();
-        definitions.push_back(Definition::createEnum(QStringLiteral("format"), QStringLiteral("Format"), QString(), {
-            { QStringLiteral("text"), formatTitle, QStringLiteral("A .txt file"), QStringLiteral("file-text") },
-            { QStringLiteral("html"), QStringLiteral("HTML"), QStringLiteral("Headings and paragraphs for a browser"), QStringLiteral("code") },
-            { QStringLiteral("xml"), QStringLiteral("XML"), QStringLiteral("Structured, for other programs"), QStringLiteral("code") } }, QStringLiteral("text")));
-        definitions.push_back(Definition::createEnum(QStringLiteral("encoding"), QStringLiteral("Encoding"), QString(), {
-            { QStringLiteral("utf-8"), QStringLiteral("UTF-8"), QStringLiteral("Recommended, every language"), QStringLiteral("globe") },
-            { QStringLiteral("latin-1"), QStringLiteral("Latin-1"), QStringLiteral("Western European legacy programs"), QStringLiteral("globe") },
-            { QStringLiteral("system"), QStringLiteral("System"), QStringLiteral("The encoding of this computer"), QStringLiteral("globe") } }, QStringLiteral("utf-8")));
+        definitions.push_back(Definition::createEnum(pdftest::TestDocumentTool::tr, QStringLiteral("format"), QT_TR_NOOP("Format"), nullptr, {
+            { QStringLiteral("text"), QT_TR_NOOP("Plain text"), QT_TR_NOOP("A .txt file"), QStringLiteral("file-text") },
+            { QStringLiteral("html"), QT_TR_NOOP("HTML"), QT_TR_NOOP("Headings and paragraphs for a browser"), QStringLiteral("code") },
+            { QStringLiteral("xml"), QT_TR_NOOP("XML"), QT_TR_NOOP("Structured, for other programs"), QStringLiteral("code") } }, QStringLiteral("text")));
+        definitions.push_back(Definition::createEnum(pdftest::TestDocumentTool::tr, QStringLiteral("encoding"), QT_TR_NOOP("Encoding"), nullptr, {
+            { QStringLiteral("utf-8"), QT_TR_NOOP("UTF-8"), QT_TR_NOOP("Recommended, every language"), QStringLiteral("globe") },
+            { QStringLiteral("latin-1"), QT_TR_NOOP("Latin-1"), QT_TR_NOOP("Western European legacy programs"), QStringLiteral("globe") },
+            { QStringLiteral("system"), QT_TR_NOOP("System"), QT_TR_NOOP("The encoding of this computer"), QStringLiteral("globe") } }, QStringLiteral("utf-8")));
         return definitions;
     }
 };
@@ -6224,7 +6332,6 @@ void AppToolShellTest::shellMenusOfTheFrames()
 
     // A change of the language: the definitions come again, the value stays
     QCOMPARE(model->setValue(QStringLiteral("format"), QStringLiteral("text")), QString());
-    tool->formatTitle = QStringLiteral("Translated text");
     ToolShellFlowTranslator translator;
     QCoreApplication::installTranslator(&translator);
     AppToolShellFixture::settle();

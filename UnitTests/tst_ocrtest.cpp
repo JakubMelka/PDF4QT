@@ -395,6 +395,9 @@ private slots:
     void compressionSharedImageResolution();
     void compressionWithTextLayer();
     void optimizeImagesKeepsLayer();
+    void layerOfOlderFingerprintMarker();
+    void fingerprintStability();
+    void documentRunnerOlderLayer();
     void tesseractAfterDeskew();
     void perspectiveCorrection();
     void documentRunner();
@@ -414,6 +417,11 @@ private:
     };
 
     static PDFDocument createDocument(const std::vector<PageSpec>& pages);
+
+    /// Returns the file of a document with a layer of page 0 in uncompressed streams with another stored fingerprint: the
+    /// entry /PageFingerprint and the private data of the layer, which also holds it, with their hash /DataHash. The
+    /// lengths stay. An empty array, when the file does not have the values as they are expected.
+    static QByteArray writeWithStoredFingerprint(const PDFDocument& document, const QByteArray& storedFingerprint);
     static PDFDocument createImageDocument(const QImage& image, QSizeF pageSize);
     static QByteArray write(const PDFDocument& document);
     static PDFDocument read(const QByteArray& data);
@@ -577,6 +585,26 @@ PDFDocument OCRTest::createImageDocument(const QImage& image, QSizeF pageSize)
     factory.endDictionary();
     builder.mergeTo(pageReference, factory.takeObject());
     return builder.build();
+}
+
+QByteArray OCRTest::writeWithStoredFingerprint(const PDFDocument& document, const QByteArray& storedFingerprint)
+{
+    const PDFOCRTextLayerWriter::LayerInfo info = PDFOCRTextLayerWriter::readLayerInfo(&document, 0);
+    const QByteArray layerData = document.getDecodedStream(document.getObjectByReference(info.dataReference).getStream());
+    const QByteArray currentHex = info.pageFingerprint.toHex();
+    QByteArray storedLayerData = layerData;
+    storedLayerData.replace(currentHex, storedFingerprint);
+
+    QByteArray file = write(document);
+    const QByteArray layerDataHash = QCryptographicHash::hash(layerData, QCryptographicHash::Sha256).toHex();
+    if (storedLayerData == layerData || file.count(currentHex) != 2 || file.count(layerDataHash) != 1)
+    {
+        return QByteArray();
+    }
+
+    file.replace(currentHex, storedFingerprint);
+    file.replace(layerDataHash, QCryptographicHash::hash(storedLayerData, QCryptographicHash::Sha256).toHex());
+    return file;
 }
 
 QByteArray OCRTest::write(const PDFDocument& document)
@@ -8048,6 +8076,298 @@ void OCRTest::compressionWithTextLayer()
     PDFDocument reopened = read(write(*result.document));
     QVERIFY(PDFOCRTextLayerWriter::readLayerInfo(&reopened, 0).fingerprintMatches);
     QVERIFY(extractText(reopened, 0).contains(QStringLiteral("Scanned")));
+}
+
+void OCRTest::layerOfOlderFingerprintMarker()
+{
+    // A layer of a development build has a fingerprint of PDF4QT-OCR-PAGE-FINGERPRINT-2. This value is what such a build
+    // stored for the page of this document: its page has no real numbers, which the numbers of the digest would change.
+    const QByteArray olderFingerprint = "335905a31cdeeb078dd9fc92db6cd5ab421897c67286546e5e9dd060427ccc29";
+
+    const QByteArray content = "0 0 0 rg 20 20 100 30 re f";
+    QByteArray data("%PDF-1.7\n");
+    std::vector<qsizetype> offsets;
+    const std::vector<QByteArray> objects = {
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [ 3 0 R ] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 300 200 ] /Contents 4 0 R >>",
+        "<< /Length " + QByteArray::number(content.size()) + " >>\nstream\n" + content + "\nendstream"
+    };
+    for (size_t i = 0; i < objects.size(); ++i)
+    {
+        offsets.push_back(data.size());
+        data += QByteArray::number(qulonglong(i + 1)) + " 0 obj\n" + objects[i] + "\nendobj\n";
+    }
+    const qsizetype xrefOffset = data.size();
+    data += "xref\n0 5\n0000000000 65535 f\r\n";
+    for (qsizetype offset : offsets)
+    {
+        data += QByteArray::number(qlonglong(offset)).rightJustified(10, '0') + " 00000 n\r\n";
+    }
+    data += "trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n" + QByteArray::number(qlonglong(xrefOffset)) + "\n%%EOF\n";
+
+    const PDFDocument document = read(data);
+    QCOMPARE(document.getCatalog()->getPageCount(), size_t(1));
+
+    const QByteArray currentFingerprint = PDFOCRPagePreparer::computePageFingerprint(&document, 0);
+    QVERIFY(currentFingerprint.toHex() != olderFingerprint);
+
+    PDFOCRPageResult result = createSampleResult(0, { { QStringLiteral("Older"), QRectF(20, 100, 60, 12) }, { QStringLiteral("layer"), QRectF(90, 100, 50, 12) } });
+    result.pageFingerprint = currentFingerprint;
+
+    PDFOCRTextLayerWriter::Options options;
+    options.compress = false;
+    PDFOCRTextLayerWriter::Report report;
+    const PDFDocumentPointer applied = applyResults(document, { result }, options, &report);
+    QVERIFY2(applied, qPrintable(report.error.message));
+    QVERIFY(PDFOCRTextLayerWriter::readLayerInfo(applied.data(), 0).fingerprintMatches);
+
+    const QByteArray file = writeWithStoredFingerprint(*applied, olderFingerprint);
+    QVERIFY(!file.isEmpty());
+    const PDFDocument older = read(file);
+
+    // Reported as changed, the layer is whole and its text is read
+    const PDFOCRTextLayerWriter::LayerInfo info = PDFOCRTextLayerWriter::readLayerInfo(&older, 0);
+    QVERIFY(info.isPresent);
+    QVERIFY(!info.fingerprintMatches);
+    QCOMPARE(info.pageFingerprint.toHex(), olderFingerprint);
+    QVERIFY(info.isContentOwn);
+    QVERIFY(info.isDataOwn);
+    QVERIFY(info.isFontOwn);
+    QVERIFY(info.isIsolationOwn);
+
+    const std::optional<PDFOCRPageResult> layer = PDFOCRTextLayerWriter::readLayer(&older, 0);
+    QVERIFY(layer.has_value());
+    QCOMPARE(layer->getWords().size(), size_t(2));
+    QCOMPARE(layer->getWords().front()->text, QStringLiteral("Older"));
+
+    const std::vector<PDFObjectReference> contents = PDFOCRTextLayerWriter::getPageContentReferences(&older, 0);
+    QVERIFY(std::find(contents.begin(), contents.end(), info.contentReference) != contents.end());
+    QVERIFY(extractText(older, 0).contains(QStringLiteral("Older")));
+
+    // The fingerprint of the page does not depend on the stored one
+    QCOMPARE(PDFOCRPagePreparer::computePageFingerprint(&older, 0), currentFingerprint);
+
+    // The analysis says it, the words of the layer are not a collision with a foreign text
+    {
+        RenderingContext context(&older);
+        PDFOCRPagePreparer preparer = context.createPreparer(&older);
+        const PDFOCRPageAnalysis analysis = preparer.analyze(0, nullptr);
+        QVERIFY(analysis.hasOwnOCRLayer);
+        QCOMPARE(analysis.ownLayerId, info.layerId);
+        QVERIFY(analysis.notes.join(QLatin1Char(' ')).contains(QStringLiteral("do not match")));
+    }
+
+    // A result of a new recognition replaces the layer: one layer, current fingerprint, the text of the new one
+    {
+        PDFOCRPageResult newResult = createSampleResult(0, { { QStringLiteral("Newer"), QRectF(20, 100, 60, 12) } });
+        newResult.pageFingerprint = currentFingerprint;
+        PDFOCRTextLayerWriter::Report newReport;
+        const PDFDocumentPointer replaced = applyResults(older, { newResult }, options, &newReport);
+        QVERIFY2(replaced, qPrintable(newReport.error.message));
+
+        const PDFOCRTextLayerWriter::LayerInfo replacedInfo = PDFOCRTextLayerWriter::readLayerInfo(replaced.data(), 0);
+        QVERIFY(replacedInfo.isPresent && replacedInfo.fingerprintMatches && replacedInfo.isContentOwn);
+        const QString text = extractText(*replaced, 0);
+        QVERIFY(text.contains(QStringLiteral("Newer")));
+        QVERIFY(!text.contains(QStringLiteral("Older")));
+    }
+
+    // A project of the older build: its page is a changed page, its document is another one
+    {
+        PDFOCRDocumentIdentity identity;
+        identity.pageCount = 1;
+        identity.fingerprint = PDFOCRPagePreparer::computeDocumentFingerprint(&document);
+
+        PDFOCRProject project;
+        project.document.pageCount = 1;
+        project.document.fingerprint = QByteArray::fromHex(olderFingerprint);
+        PDFOCRPageResult projectPage = result;
+        projectPage.pageFingerprint = QByteArray::fromHex(olderFingerprint);
+        project.pages[0] = projectPage;
+
+        QByteArray bytes = PDFOCRProjectSerializer::toBytes(project);
+        PDFOCRProject loaded;
+        QString error;
+        QVERIFY2(PDFOCRProjectSerializer::fromBytes(bytes, loaded, &error), qPrintable(error));
+
+        const PDFOCRProjectSerializer::MatchResult match = PDFOCRProjectSerializer::match(loaded, identity, [&document](PDFInteger page) { return PDFOCRPagePreparer::computePageFingerprint(&document, page); });
+        QVERIFY(!match.documentMatches);
+        QVERIFY(match.matchingPages.empty());
+        QCOMPARE(match.changedPages, (std::vector<PDFInteger>{ 0 }));
+        QVERIFY(match.missingPages.empty());
+
+        // The text of the project is kept in it for a review
+        QCOMPARE(loaded.pages.at(0).getWords().front()->text, QStringLiteral("Older"));
+    }
+}
+
+void OCRTest::fingerprintStability()
+{
+    // The fingerprint binds a layer to its page: it is the same for the same page, however
+    // the file was written, and it changes only with the page
+    PageSpec first;
+    first.withImage = true;
+    PageSpec second;
+    second.withImage = true;
+    second.size = QSizeF(320, 200);
+    const PDFDocument document = createDocument({ first, second });
+
+    PDFOCRPageResult result = createSampleResult(0, { { QStringLiteral("Stable"), QRectF(20, 100, 60, 12) } });
+    result.pageFingerprint = PDFOCRPagePreparer::computePageFingerprint(&document, 0);
+    PDFOCRTextLayerWriter::Report report;
+    const PDFDocumentPointer applied = applyResults(document, { result }, PDFOCRTextLayerWriter::Options(), &report);
+    QVERIFY2(applied, qPrintable(report.error.message));
+
+    const QByteArray file = write(*applied);
+    const auto isBound = [](const PDFDocument& candidate)
+    {
+        const PDFOCRTextLayerWriter::LayerInfo info = PDFOCRTextLayerWriter::readLayerInfo(&candidate, 0);
+        return info.isPresent && info.fingerprintMatches && info.isContentOwn;
+    };
+
+    // The same file opened twice
+    const PDFDocument opened = read(file);
+    const PDFDocument openedAgain = read(file);
+    const QByteArray firstFingerprint = PDFOCRPagePreparer::computePageFingerprint(&opened, 0);
+    const QByteArray secondFingerprint = PDFOCRPagePreparer::computePageFingerprint(&opened, 1);
+    QVERIFY(!firstFingerprint.isEmpty());
+    QCOMPARE(PDFOCRPagePreparer::computePageFingerprint(&openedAgain, 0), firstFingerprint);
+    QVERIFY(isBound(opened));
+    QVERIFY(isBound(openedAgain));
+
+    // Written whole and read back, two generations
+    const PDFDocument written = read(write(opened));
+    QCOMPARE(PDFOCRPagePreparer::computePageFingerprint(&written, 0), firstFingerprint);
+    QVERIFY(isBound(written));
+    const PDFDocument writtenAgain = read(write(written));
+    QCOMPARE(PDFOCRPagePreparer::computePageFingerprint(&writtenAgain, 0), firstFingerprint);
+    QVERIFY(isBound(writtenAgain));
+
+    const auto updatePage = [&opened, &file](PDFInteger pageIndex)
+    {
+        PDFDocumentBuilder builder(&opened);
+        PDFObjectFactory factory;
+        factory.beginDictionary();
+        factory.beginDictionaryItem("Rotate");
+        factory << PDFInteger(90);
+        factory.endDictionaryItem();
+        factory.endDictionary();
+        builder.mergeTo(opened.getCatalog()->getPage(pageIndex)->getPageReference(), factory.takeObject());
+        const PDFDocument edited = builder.build();
+
+        QBuffer buffer;
+        buffer.open(QIODevice::ReadWrite);
+        PDFDocumentWriter writer(nullptr);
+        const bool isWritten = bool(writer.writeIncrementalUpdate(&buffer, file, &edited));
+        return isWritten ? buffer.data() : QByteArray();
+    };
+
+    // An incremental update of another page: the page and its layer did not change
+    const QByteArray updatedFile = updatePage(1);
+    QVERIFY(updatedFile.startsWith(file) && updatedFile.size() > file.size());
+    const PDFDocument updated = read(updatedFile);
+    QCOMPARE(PDFOCRPagePreparer::computePageFingerprint(&updated, 0), firstFingerprint);
+    QVERIFY(PDFOCRPagePreparer::computePageFingerprint(&updated, 1) != secondFingerprint);
+    QVERIFY(isBound(updated));
+
+    // An incremental update of the page itself: reported as changed, the text is still read
+    const PDFDocument changed = read(updatePage(0));
+    QVERIFY(PDFOCRPagePreparer::computePageFingerprint(&changed, 0) != firstFingerprint);
+    QCOMPARE(PDFOCRPagePreparer::computePageFingerprint(&changed, 1), secondFingerprint);
+    const PDFOCRTextLayerWriter::LayerInfo changedInfo = PDFOCRTextLayerWriter::readLayerInfo(&changed, 0);
+    QVERIFY(changedInfo.isPresent);
+    QVERIFY(!changedInfo.fingerprintMatches);
+    QVERIFY(PDFOCRTextLayerWriter::readLayer(&changed, 0).has_value());
+}
+
+void OCRTest::documentRunnerOlderLayer()
+{
+    // The runner of PdfTool ocr and of the batch dialog on a layer with a fingerprint of a development build
+    // (PDF4QT-OCR-PAGE-FINGERPRINT-2): the page has an own layer, it is reported, replaced only on request
+    PageSpec scanPage;
+    scanPage.withImage = true;
+    const PDFDocument document = createDocument({ scanPage });
+
+    PDFOCRPageResult sample = createSampleResult(0, { { QStringLiteral("Older"), QRectF(20, 100, 60, 12) } });
+    sample.pageFingerprint = PDFOCRPagePreparer::computePageFingerprint(&document, 0);
+    PDFOCRTextLayerWriter::Options options;
+    options.compress = false;
+    PDFOCRTextLayerWriter::Report report;
+    const PDFDocumentPointer applied = applyResults(document, { sample }, options, &report);
+    QVERIFY2(applied, qPrintable(report.error.message));
+
+    const QByteArray file = writeWithStoredFingerprint(*applied, "335905a31cdeeb078dd9fc92db6cd5ab421897c67286546e5e9dd060427ccc29");
+    QVERIFY(!file.isEmpty());
+    const PDFDocument older = read(file);
+    QVERIFY(!PDFOCRTextLayerWriter::readLayerInfo(&older, 0).fingerprintMatches);
+
+    m_testEngine->setRecognitionDelay(0);
+    m_testEngine->setHandler([](const PDFOCRRecognitionInput& input, const PDFOperationControl*)
+    {
+        PDFOCRRecognitionOutput output;
+        output.imageSize = input.image.size();
+        const QRectF rect(input.image.width() * 0.2, input.image.height() * 0.4, input.image.width() * 0.4, input.image.height() * 0.1);
+        PDFOCRRawBlock block;
+        block.rect = rect;
+        PDFOCRRawLine line;
+        line.rect = rect;
+        PDFOCRRawWord word;
+        word.text = QStringLiteral("Newer");
+        word.rect = rect;
+        word.rawConfidence = 90.0;
+        line.words.push_back(word);
+        block.lines.push_back(line);
+        output.blocks.push_back(block);
+        output.confidenceLevel = PDFOCRConfidenceLevel::Word;
+        return output;
+    });
+
+    PDFOCRDocumentRunner::Settings settings;
+    settings.configuration.engineId = QLatin1String(PDFOCRTestEngineFactory::IDENTIFIER);
+    settings.configuration.languages = { QStringLiteral("eng") };
+    settings.configuration.workerCount = 1;
+    settings.configuration.detectBlankPages = false;
+
+    // The default policy: the page already has a layer, nothing is recognized and the analysis says the reason
+    settings.configuration.existingTextPolicy = PDFOCRExistingTextPolicy::OnlyPagesWithoutText;
+    PDFOCRDocumentRunner::Result result = PDFOCRDocumentRunner::run(&older, settings, nullptr, nullptr);
+    QVERIFY2(result.errorMessage.isEmpty(), qPrintable(result.errorMessage));
+    QCOMPARE(result.records.size(), size_t(1));
+    QCOMPARE(result.records.front().state, PDFOCRPageState::Skipped);
+    QVERIFY2(result.records.front().message.contains(QStringLiteral("own OCR layer")), qPrintable(result.records.front().message));
+    QVERIFY(result.analysis.at(0).hasOwnOCRLayer);
+    QVERIFY(result.analysis.at(0).notes.join(QLatin1Char(' ')).contains(QStringLiteral("do not match")));
+
+    // The mode replacing the own layer: a new recognition, its copy has one layer bound to the page
+    settings.configuration.existingTextPolicy = PDFOCRExistingTextPolicy::ReplaceOwnLayer;
+    result = PDFOCRDocumentRunner::run(&older, settings, nullptr, nullptr);
+    QVERIFY2(result.isSuccess(), qPrintable(result.errorMessage));
+    QCOMPARE(result.records.front().state, PDFOCRPageState::Done);
+    QCOMPARE(result.records.front().source, PDFOCRDocumentRunner::PageSource::Recognized);
+
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    PDFOCRDocumentRunner::WriteOptions writeOptions;
+    writeOptions.sourceFileName = directory.filePath(QStringLiteral("older.pdf"));
+    writeOptions.outputFileName = directory.filePath(QStringLiteral("copy.pdf"));
+    {
+        QFile sourceFile(writeOptions.sourceFileName);
+        QVERIFY(sourceFile.open(QFile::WriteOnly));
+        sourceFile.write(file);
+    }
+
+    PDFOCRApplyProcessor::Plan plan;
+    const PDFOCRApplyProcessor::Result writeResult = PDFOCRDocumentRunner::writeCopy(&older, result, writeOptions, &plan, nullptr);
+    QVERIFY2(writeResult.isSuccess(), qPrintable(writeResult.errorMessage));
+
+    QFile copyFile(writeOptions.outputFileName);
+    QVERIFY(copyFile.open(QFile::ReadOnly));
+    const PDFDocument copy = read(copyFile.readAll());
+    const PDFOCRTextLayerWriter::LayerInfo copyInfo = PDFOCRTextLayerWriter::readLayerInfo(&copy, 0);
+    QVERIFY(copyInfo.isPresent && copyInfo.fingerprintMatches && copyInfo.isContentOwn);
+    const QString text = extractText(copy, 0);
+    QVERIFY2(text.contains(QStringLiteral("Newer")) && !text.contains(QStringLiteral("Older")), qPrintable(text));
 }
 
 void OCRTest::optimizeImagesKeepsLayer()

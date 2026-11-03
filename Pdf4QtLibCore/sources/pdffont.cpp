@@ -3609,6 +3609,12 @@ void PDFFontCache::setCacheShrinkEnabled(const void* source, bool enabled)
     }
 }
 
+size_t PDFFontCache::getRealizedFontCount() const
+{
+    QMutexLocker lock(&m_mutex);
+    return m_realizedFontCache.size();
+}
+
 void PDFFontCache::setCacheLimits(std::size_t fontCacheLimit, std::size_t instancedFontCacheLimit)
 {
     QMutexLocker lock(&m_mutex);

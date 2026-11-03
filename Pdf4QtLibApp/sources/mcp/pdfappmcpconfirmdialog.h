@@ -150,6 +150,9 @@ public:
     /// Show on Page of a change of annotations (nullptr for other variants)
     PDFTextLink* getShowOnPageLink() const;
 
+    /// Show on Page has nothing to show, while a page of a tool replaces the canvas
+    void setShowOnPageVisible(bool isVisible);
+
     /// The texts of the dialog (tests)
     QString getTitleText() const;
     QString getOriginText() const;

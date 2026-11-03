@@ -22,6 +22,7 @@
 
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumenttool.h"
+#include "pdfdocumenttool_compress.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttoolparameter.h"
 #include "pdfdocumenttoolregistry.h"
@@ -123,6 +124,48 @@ public:
 };
 
 /// Translator of the test: every text of the contexts of the tools gets the prefix "[T] "
+/// Marks every text of every context: what follows the language has the mark
+class DocumentToolMarkingTranslator : public QTranslator
+{
+public:
+    QString translate(const char* context, const char* sourceText, const char* disambiguation, int n) const override
+    {
+        Q_UNUSED(context);
+        Q_UNUSED(disambiguation);
+        Q_UNUSED(n);
+        return QStringLiteral("[T] ") + QString::fromUtf8(sourceText);
+    }
+
+    bool isEmpty() const override { return false; }
+};
+
+/// The texts of a definition accept only a constant source text (PDFDocumentToolText):
+/// a tool written the old way - a translated QString - does not compile
+template<typename Text>
+concept DocumentToolDefinitionAccepts = requires(const QString& name, Text text)
+{
+    pdf::PDFDocumentToolParameterDefinition::createBool(pdftest::TestDocumentTool::tr, name, text, text, true);
+};
+
+template<typename Text>
+concept DocumentToolDefinitionOfOldForm = requires(const QString& name, Text text)
+{
+    pdf::PDFDocumentToolParameterDefinition::createBool(name, text, text, true);
+};
+
+template<typename Text>
+concept DocumentToolOptionAccepts = requires(const QString& id, Text text)
+{
+    pdf::PDFDocumentToolParameterOption(id, text);
+};
+
+static_assert(DocumentToolDefinitionAccepts<const char*>);
+static_assert(!DocumentToolDefinitionAccepts<QString>);
+static_assert(!DocumentToolDefinitionAccepts<QLatin1String>);
+static_assert(!DocumentToolDefinitionOfOldForm<QString>);
+static_assert(DocumentToolOptionAccepts<const char*>);
+static_assert(!DocumentToolOptionAccepts<QString>);
+
 class DocumentToolTestTranslator : public QTranslator
 {
 public:
@@ -150,8 +193,8 @@ public:
 
     pdf::PDFDocumentToolParameterDefinitions getParameters() const override
     {
-        return { pdf::PDFDocumentToolParameterDefinition::createBool(QStringLiteral("a"), QString(), QString(), false),
-                 pdf::PDFDocumentToolParameterDefinition::createBool(QStringLiteral("a"), QString(), QString(), true) };
+        return { pdf::PDFDocumentToolParameterDefinition::createBool(pdftest::TestDocumentTool::tr, QStringLiteral("a"), nullptr, nullptr, false),
+                 pdf::PDFDocumentToolParameterDefinition::createBool(pdftest::TestDocumentTool::tr, QStringLiteral("a"), nullptr, nullptr, true) };
     }
 
     pdf::PDFDocumentToolResult execute(const pdf::PDFDocumentToolContext&, const QVariantMap&, const pdf::PDFOperationControl*, pdf::PDFProgress*) const override
@@ -219,6 +262,7 @@ private Q_SLOTS:
     void catalogExtendedData();
     void catalogResultColumns();
     void catalogPermissions();
+    void catalogStartTexts();
     void catalogHelpTopics();
     void contextFromSnapshot();
     void progressPhases();
@@ -234,6 +278,9 @@ private Q_SLOTS:
     void parameterDefinitionValidity();
     void pageSelection();
     void jsonSchemaExact();
+    void schemaInEnglishUnderTranslator();
+    void definitionTextsTranslated();
+    void definitionOldFormRefused();
     void validationHostile();
     void validationTranslated();
     void storageValues();
@@ -446,6 +493,22 @@ void DocumentToolTest::catalogPermissions()
     QCOMPARE(tool.m_executeCount, 1);
 }
 
+void DocumentToolTest::catalogStartTexts()
+{
+    // At a glance and the note of the start page: a text of the tool (276:1737) or a text
+    // true for every tool of the kind - several files of Split or Extract Images are "Files"
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"optimize.compress")->getResultSummary(), QStringLiteral("A smaller PDF"));
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"pages.rotate")->getResultSummary(), QStringLiteral("A changed PDF"));
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"pages.merge")->getResultSummary(), QStringLiteral("A new PDF"));
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"pages.split")->getResultSummary(), QStringLiteral("Files"));
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"convert.extract-images")->getResultSummary(), QStringLiteral("Files"));
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"review.statistics")->getResultSummary(), QStringLiteral("A report"));
+
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"optimize.compress")->getLockedNote(), QStringLiteral("a locked document cannot be compressed"));
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"pages.rotate")->getLockedNote(), QStringLiteral("a locked document cannot be changed by this tool"));
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"convert.extract-text")->getLockedNote(), QStringLiteral("a locked document can be used too"));
+}
+
 void DocumentToolTest::catalogHelpTopics()
 {
     // The files of the topics of the tools of the first batch (plan chapter 5)
@@ -613,14 +676,14 @@ void DocumentToolTest::progressAdapter()
 void DocumentToolTest::parameterStored()
 {
     // A value of one document is not kept, also when the type is kept otherwise; a Secret never
-    pdf::PDFDocumentToolParameterDefinition pages = pdf::PDFDocumentToolParameterDefinition::createPageSelection(QStringLiteral("pages"), QStringLiteral("Pages"), QString());
+    pdf::PDFDocumentToolParameterDefinition pages = pdf::PDFDocumentToolParameterDefinition::createPageSelection(pdftest::TestDocumentTool::tr, QStringLiteral("pages"), QT_TR_NOOP("Pages"), nullptr);
     QVERIFY(pages.isStored());
     pages.setStored(false);
     QVERIFY(!pages.isStored());
     pages.setStored(true);
     QVERIFY(pages.isStored());
 
-    pdf::PDFDocumentToolParameterDefinition secret = pdf::PDFDocumentToolParameterDefinition::createSecret(QStringLiteral("password"), QStringLiteral("Password"), QString());
+    pdf::PDFDocumentToolParameterDefinition secret = pdf::PDFDocumentToolParameterDefinition::createSecret(pdftest::TestDocumentTool::tr, QStringLiteral("password"), QT_TR_NOOP("Password"), nullptr);
     secret.setStored(true);
     QVERIFY(!secret.isStored());
 }
@@ -1270,22 +1333,22 @@ void DocumentToolTest::parameterDefinitionValidity()
 
     // Invalid definitions
     QString error;
-    QVERIFY(!Definition::createBool(QStringLiteral("1a"), QString(), QString(), false).isValid(&error));
-    QVERIFY(!Definition::createInteger(QStringLiteral("a"), QString(), QString(), 5, 10, 1).isValid(&error));
-    QVERIFY(!Definition::createInteger(QStringLiteral("a"), QString(), QString(), 50, 1, 10).isValid(&error));
-    QVERIFY(!Definition::createReal(QStringLiteral("a"), QString(), QString(), 1.0, std::nan(""), 10.0).isValid(&error));
-    QVERIFY(!Definition::createReal(QStringLiteral("a"), QString(), QString(), 1.0, 0.0, std::numeric_limits<double>::infinity()).isValid(&error));
-    QVERIFY(!Definition::createEnum(QStringLiteral("a"), QString(), QString(), {}, QString()).isValid(&error));
-    QVERIFY(!Definition::createEnum(QStringLiteral("a"), QString(), QString(), { { QStringLiteral("x"), QString(), QString(), QString() }, { QStringLiteral("x"), QString(), QString(), QString() } }, QStringLiteral("x")).isValid(&error));
-    QVERIFY(!Definition::createEnum(QStringLiteral("a"), QString(), QString(), { { QStringLiteral("x"), QString(), QString(), QString() } }, QStringLiteral("y")).isValid(&error));
-    QVERIFY(!Definition::createColor(QStringLiteral("a"), QString(), QString(), QColor()).isValid(&error));
-    QVERIFY(!Definition::createString(QStringLiteral("a"), QString(), QString(), QString(20, QLatin1Char('x')), 10).isValid(&error));
-    QVERIFY(!Definition::createFileNameTemplate(QStringLiteral("a"), QString(), QString(), QStringLiteral("a/b")).isValid(&error));
-    QVERIFY(!Definition::createPageSelection(QStringLiteral("a"), QString(), QString(), { QStringLiteral("0-3"), {} }).isValid(&error));
-    QVERIFY(!Definition::createPageSelection(QStringLiteral("a"), QString(), QString(), { QStringLiteral(" 1"), {} }).isValid(&error));
+    QVERIFY(!Definition::createBool(pdftest::TestDocumentTool::tr, QStringLiteral("1a"), nullptr, nullptr, false).isValid(&error));
+    QVERIFY(!Definition::createInteger(pdftest::TestDocumentTool::tr, QStringLiteral("a"), nullptr, nullptr, 5, 10, 1).isValid(&error));
+    QVERIFY(!Definition::createInteger(pdftest::TestDocumentTool::tr, QStringLiteral("a"), nullptr, nullptr, 50, 1, 10).isValid(&error));
+    QVERIFY(!Definition::createReal(pdftest::TestDocumentTool::tr, QStringLiteral("a"), nullptr, nullptr, 1.0, std::nan(""), 10.0).isValid(&error));
+    QVERIFY(!Definition::createReal(pdftest::TestDocumentTool::tr, QStringLiteral("a"), nullptr, nullptr, 1.0, 0.0, std::numeric_limits<double>::infinity()).isValid(&error));
+    QVERIFY(!Definition::createEnum(pdftest::TestDocumentTool::tr, QStringLiteral("a"), nullptr, nullptr, {}, QString()).isValid(&error));
+    QVERIFY(!Definition::createEnum(pdftest::TestDocumentTool::tr, QStringLiteral("a"), nullptr, nullptr, { { QStringLiteral("x"), nullptr }, { QStringLiteral("x"), nullptr } }, QStringLiteral("x")).isValid(&error));
+    QVERIFY(!Definition::createEnum(pdftest::TestDocumentTool::tr, QStringLiteral("a"), nullptr, nullptr, { { QStringLiteral("x"), nullptr } }, QStringLiteral("y")).isValid(&error));
+    QVERIFY(!Definition::createColor(pdftest::TestDocumentTool::tr, QStringLiteral("a"), nullptr, nullptr, QColor()).isValid(&error));
+    QVERIFY(!Definition::createString(pdftest::TestDocumentTool::tr, QStringLiteral("a"), nullptr, nullptr, QString(20, QLatin1Char('x')), 10).isValid(&error));
+    QVERIFY(!Definition::createFileNameTemplate(pdftest::TestDocumentTool::tr, QStringLiteral("a"), nullptr, nullptr, QStringLiteral("a/b")).isValid(&error));
+    QVERIFY(!Definition::createPageSelection(pdftest::TestDocumentTool::tr, QStringLiteral("a"), nullptr, nullptr, { QStringLiteral("0-3"), {} }).isValid(&error));
+    QVERIFY(!Definition::createPageSelection(pdftest::TestDocumentTool::tr, QStringLiteral("a"), nullptr, nullptr, { QStringLiteral(" 1"), {} }).isValid(&error));
 
     // A required parameter needs no valid default; its missing value is an error
-    const Definition required = Definition::createFilePath(QStringLiteral("input"), QStringLiteral("Input"), QString()).setRequired(true);
+    const Definition required = Definition::createFilePath(pdftest::TestDocumentTool::tr, QStringLiteral("input"), QT_TR_NOOP("Input"), nullptr).setRequired(true);
     QVERIFY(required.isValid(&error));
     QVariant value;
     QVERIFY(!required.normalize(QVariant(), &value).isEmpty());
@@ -1293,18 +1356,18 @@ void DocumentToolTest::parameterDefinitionValidity()
     QVERIFY(required.normalize(QStringLiteral("/a.pdf"), &value).isEmpty());
 
     // Maximum lengths are bounded by the type
-    QCOMPARE(Definition::createString(QStringLiteral("a"), QString(), QString(), QString(), 1000000).getMaximumLength(), Definition::MAXIMUM_TEXT_LENGTH);
-    QCOMPARE(Definition::createString(QStringLiteral("a"), QString(), QString(), QString(), -3).getMaximumLength(), 1);
-    QCOMPARE(Definition::createSecret(QStringLiteral("a"), QString(), QString()).setMaximumLength(5000).getMaximumLength(), Definition::MAXIMUM_SECRET_LENGTH);
-    QCOMPARE(Definition::createBool(QStringLiteral("a"), QString(), QString(), true).setMaximumLength(5).getMaximumLength(), 0);
+    QCOMPARE(Definition::createString(pdftest::TestDocumentTool::tr, QStringLiteral("a"), nullptr, nullptr, QString(), 1000000).getMaximumLength(), Definition::MAXIMUM_TEXT_LENGTH);
+    QCOMPARE(Definition::createString(pdftest::TestDocumentTool::tr, QStringLiteral("a"), nullptr, nullptr, QString(), -3).getMaximumLength(), 1);
+    QCOMPARE(Definition::createSecret(pdftest::TestDocumentTool::tr, QStringLiteral("a"), nullptr, nullptr).setMaximumLength(5000).getMaximumLength(), Definition::MAXIMUM_SECRET_LENGTH);
+    QCOMPARE(Definition::createBool(pdftest::TestDocumentTool::tr, QStringLiteral("a"), nullptr, nullptr, true).setMaximumLength(5).getMaximumLength(), 0);
 
     // Sets: duplicates, an invalid definition and too many
     QVERIFY(!pdf::PDFDocumentToolParameters::isValid(InvalidParametersTool().getParameters(), &error));
-    QVERIFY(!pdf::PDFDocumentToolParameters::isValid({ Definition::createBool(QStringLiteral("a"), QString(), QString(), false), Definition() }, &error));
+    QVERIFY(!pdf::PDFDocumentToolParameters::isValid({ Definition::createBool(pdftest::TestDocumentTool::tr, QStringLiteral("a"), nullptr, nullptr, false), Definition() }, &error));
     pdf::PDFDocumentToolParameterDefinitions many;
     for (int i = 0; i <= pdf::PDFDocumentToolParameters::MAXIMUM_VALUE_COUNT; ++i)
     {
-        many.push_back(Definition::createBool(QStringLiteral("p%1").arg(i), QString(), QString(), false));
+        many.push_back(Definition::createBool(pdftest::TestDocumentTool::tr, QStringLiteral("p%1").arg(i), nullptr, nullptr, false));
     }
     QVERIFY(!pdf::PDFDocumentToolParameters::isValid(many, &error));
 
@@ -1472,12 +1535,148 @@ void DocumentToolTest::jsonSchemaExact()
     }
 
     // A required parameter is listed and has no default
-    const pdf::PDFDocumentToolParameterDefinitions required = { pdf::PDFDocumentToolParameterDefinition::createFilePath(QStringLiteral("input"), QString(), QString()).setRequired(true) };
+    const pdf::PDFDocumentToolParameterDefinitions required = { pdf::PDFDocumentToolParameterDefinition::createFilePath(pdftest::TestDocumentTool::tr, QStringLiteral("input"), nullptr, nullptr).setRequired(true) };
     const QJsonObject requiredSchema = pdf::PDFDocumentToolParameters::toJsonSchema(required);
     QCOMPARE(requiredSchema.value(QStringLiteral("required")).toArray(), QJsonArray({ QStringLiteral("input") }));
     QVERIFY(!requiredSchema.value(QStringLiteral("properties")).toObject().value(QStringLiteral("input")).toObject().contains(QStringLiteral("default")));
     QVERIFY(!requiredSchema.value(QStringLiteral("properties")).toObject().value(QStringLiteral("input")).toObject().contains(QStringLiteral("title")));
     QVERIFY(!pdf::PDFDocumentToolParameters::toJsonSchema({}).contains(QStringLiteral("required")));
+}
+
+void DocumentToolTest::schemaInEnglishUnderTranslator()
+{
+    // The owner, 2026-11-02: what only the assistant reads is English in every language. The
+    // bytes of the schema of the test tool and of the real Compress do not follow the language.
+    const pdftest::TestDocumentTool testTool;
+    const pdf::PDFDocumentToolCompress compress;
+    const auto getBytes = [](const pdf::PDFDocumentTool& tool)
+    {
+        return QJsonDocument(pdf::PDFDocumentToolParameters::toJsonSchema(tool.getParameters())).toJson(QJsonDocument::Compact);
+    };
+
+    const QByteArray testBytes = getBytes(testTool);
+    const QByteArray compressBytes = getBytes(compress);
+
+    DocumentToolMarkingTranslator translator;
+    QVERIFY(QCoreApplication::installTranslator(&translator));
+    const QByteArray translatedTestBytes = getBytes(testTool);
+    const QByteArray translatedCompressBytes = getBytes(compress);
+    const QString marked = pdf::PDFDocumentToolCompress::tr("Preset");
+    QCoreApplication::removeTranslator(&translator);
+
+    QCOMPARE(marked, QStringLiteral("[T] Preset"));
+    QCOMPARE(translatedTestBytes, testBytes);
+    QCOMPARE(translatedCompressBytes, compressBytes);
+    QVERIFY(!translatedTestBytes.contains("[T]"));
+    QVERIFY(!translatedCompressBytes.contains("[T]"));
+
+    // The English of the test tool and of Compress (the frames of 291:994 and 294:1340)
+    QVERIFY(translatedTestBytes.contains("Count pages"));
+    QVERIFY(translatedTestBytes.contains("Pages to count"));
+    QVERIFY(translatedCompressBytes.contains("\"title\":\"Preset\""));
+    QVERIFY(translatedCompressBytes.contains("\"title\":\"Downsample to\""));
+    QVERIFY(translatedCompressBytes.contains("\"title\":\"Preserve transparency\""));
+
+    // The lines of the options: the id, the English title and the description
+    const QJsonObject properties = QJsonDocument::fromJson(translatedCompressBytes).object().value(QStringLiteral("properties")).toObject();
+    const QString presetDescription = properties.value(QStringLiteral("preset")).toObject().value(QStringLiteral("description")).toString();
+    QVERIFY2(presetDescription.startsWith(QStringLiteral("What the tool does with the images and the structure of the file\n- smaller-file: Smaller file (Smaller file: images are reduced to screen resolution")), qPrintable(presetDescription));
+    QVERIFY2(presetDescription.contains(QStringLiteral("\n- balanced: Balanced (Balanced: images are reduced to 200 dpi")), qPrintable(presetDescription));
+    QVERIFY2(presetDescription.contains(QString::fromUtf8("\n- custom: Custom\xE2\x80\xA6 (The values of the other parameters)")), qPrintable(presetDescription));
+    const QString goalDescription = properties.value(QStringLiteral("goal")).toObject().value(QStringLiteral("description")).toString();
+    QVERIFY2(goalDescription.endsWith(QStringLiteral("\n- prefer-quality: Prefer quality\n- minimum-size: Minimum size")), qPrintable(goalDescription));
+}
+
+void DocumentToolTest::definitionTextsTranslated()
+{
+    // The panels and the messages have the translated texts of the same definitions, the
+    // translation asked when they are read: a definition kept over a change of the language follows it
+    const pdftest::TestDocumentTool testTool;
+    const pdf::PDFDocumentToolCompress compress;
+    const pdf::PDFDocumentToolParameterDefinitions testDefinitions = testTool.getParameters();
+    const pdf::PDFDocumentToolParameterDefinitions compressDefinitions = compress.getParameters();
+    const pdf::PDFDocumentToolParameterDefinition* mode = pdf::PDFDocumentToolParameters::find(testDefinitions, QStringLiteral("mode"));
+    const pdf::PDFDocumentToolParameterDefinition* repeat = pdf::PDFDocumentToolParameters::find(testDefinitions, QStringLiteral("repeat"));
+    const pdf::PDFDocumentToolParameterDefinition* preset = pdf::PDFDocumentToolParameters::find(compressDefinitions, QStringLiteral("preset"));
+    const pdf::PDFDocumentToolParameterDefinition* targetDpi = pdf::PDFDocumentToolParameters::find(compressDefinitions, QStringLiteral("targetDpi"));
+    QVERIFY(mode && repeat && preset && targetDpi);
+
+    // Without a translation: the source
+    QCOMPARE(mode->getTitle(), QStringLiteral("Mode"));
+    QCOMPARE(mode->getOptions().front().getTitle(), QStringLiteral("Count pages"));
+    QCOMPARE(mode->getOptions()[1].getDescription(), QString());
+    QCOMPARE(preset->getTitle(), QStringLiteral("Preset"));
+
+    DocumentToolMarkingTranslator translator;
+    QVERIFY(QCoreApplication::installTranslator(&translator));
+
+    QCOMPARE(mode->getTitle(), QStringLiteral("[T] Mode"));
+    QCOMPARE(mode->getDescription(), QStringLiteral("[T] What the tool does"));
+    QCOMPARE(mode->getOptions().front().getTitle(), QStringLiteral("[T] Count pages"));
+    QCOMPARE(mode->getOptions().front().getDescription(), QStringLiteral("[T] Counts the selected pages"));
+    QCOMPARE(mode->getOptions().front().iconName, QStringLiteral("hash"));
+
+    // No text stays empty, not a mark alone
+    QCOMPARE(mode->getOptions()[1].getDescription(), QString());
+    QCOMPARE(pdf::PDFDocumentToolParameters::find(testDefinitions, QStringLiteral("scale"))->getDescription(), QString());
+
+    // The source stays next to the translation
+    QCOMPARE(mode->getSourceTitle(), QStringLiteral("Mode"));
+    QCOMPARE(mode->getSourceDescription(), QStringLiteral("What the tool does"));
+    QCOMPARE(mode->getOptions().front().getSourceTitle(), QStringLiteral("Count pages"));
+    QCOMPARE(mode->getOptions().front().getSourceDescription(), QStringLiteral("Counts the selected pages"));
+
+    // Compress: the title of the panel, the rows of the presets and the note below What changes
+    QCOMPARE(preset->getTitle(), QStringLiteral("[T] Preset"));
+    QCOMPARE(targetDpi->getTitle(), QStringLiteral("[T] Downsample to"));
+    QCOMPARE(preset->getOptions().front().getTitle(), QStringLiteral("[T] Smaller file"));
+    QVERIFY(preset->getOptions().front().getDescription().startsWith(QStringLiteral("[T] Smaller file: images are reduced")));
+
+    QVariantMap presetValues;
+    presetValues.insert(QStringLiteral("preset"), QStringLiteral("balanced"));
+    QVERIFY(pdf::PDFDocumentToolCompress::getPresetDescription(presetValues).startsWith(QStringLiteral("[T] Balanced: images are reduced to 200 dpi")));
+    QCOMPARE(pdf::PDFDocumentToolCompress::getPresetDescription(presetValues), preset->getOptions()[1].getDescription());
+
+    // The messages of the validation name the translated title
+    QVariant normalized;
+    const QString error = repeat->normalize(QStringLiteral("text"), &normalized);
+    QCoreApplication::removeTranslator(&translator);
+    QCOMPARE(error, QStringLiteral("[T] %1: the value must be a whole number.").arg(QStringLiteral("[T] Repeat")));
+
+    // The translator is gone: the same objects give the source again
+    QCOMPARE(mode->getTitle(), QStringLiteral("Mode"));
+    QCOMPARE(mode->getOptions().front().getTitle(), QStringLiteral("Count pages"));
+}
+
+void DocumentToolTest::definitionOldFormRefused()
+{
+    // The compile-time half is above the class of the test (DocumentToolDefinitionAccepts, static_assert):
+    // a translated QString never reaches a definition. A definition without the function tr of its
+    // tool could not be translated: the registry refuses it as an invalid set.
+    using Definition = pdf::PDFDocumentToolParameterDefinition;
+
+    class NoTranslationTool : public pdf::PDFDocumentTool
+    {
+    public:
+        QString getId() const override { return QStringLiteral("review.statistics"); }
+        pdf::PDFDocumentToolParameterDefinitions getParameters() const override
+        {
+            return { Definition::createBool(nullptr, QStringLiteral("a"), "A", nullptr, false) };
+        }
+        pdf::PDFDocumentToolResult execute(const pdf::PDFDocumentToolContext&, const QVariantMap&, const pdf::PDFOperationControl*, pdf::PDFProgress*) const override
+        {
+            return pdf::PDFDocumentToolResult::createNothingToDo(QString());
+        }
+    };
+
+    QString error;
+    QVERIFY(Definition::createBool(pdftest::TestDocumentTool::tr, QStringLiteral("a"), "A", nullptr, false).isValid(&error));
+    const NoTranslationTool tool;
+    QVERIFY(!pdf::PDFDocumentToolParameters::isValid(tool.getParameters(), &error));
+    QVERIFY2(error.contains(QStringLiteral("translating")), qPrintable(error));
+
+    QCOMPARE(pdf::PDFDocumentToolRegistry::registerTool(std::make_shared<NoTranslationTool>()), pdf::PDFDocumentToolRegistration::InvalidParameters);
+    QVERIFY(!pdf::PDFDocumentToolRegistry::getTool(tool.getId()));
 }
 
 void DocumentToolTest::validationHostile()

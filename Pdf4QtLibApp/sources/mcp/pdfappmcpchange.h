@@ -47,6 +47,7 @@ namespace pdf
 
 class PDFAppDocument;
 class PDFAppMcpHost;
+class PDFAppMcpPermissionPolicy;
 class PDFDocumentTextIndex;
 class PDFMcpInputRequests;
 
@@ -245,6 +246,9 @@ public:
     /// Text of a display version of an XFA form (step 8), which cannot be changed
     static QString getPagedXFAText();
 
+    /// Text of a change refused while a modal dialog of the application is open (plan 2.5)
+    static QString getModalDialogText();
+
     /// Joins the parts "3 highlights", "1 note" into "3 highlights and 1 note"
     static QString joinParts(const QStringList& parts);
 
@@ -274,6 +278,9 @@ protected:
 
 private:
     void proceed();
+
+    /// Text of a permission of the change set to Deny
+    QString getDeniedText(const PDFAppMcpPermissionPolicy& policy) const;
 
     PDFAppMcpChangeContext m_context;
     PDFAppMcpChange m_change;

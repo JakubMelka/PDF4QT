@@ -123,6 +123,16 @@ public:
     /// outlive the model (a binder deleted later), then it refuses nothing and does nothing.
     std::shared_ptr<PDFAppValueStore> createValueStore();
 
+    /// Definition of the binder for an Integer parameter offered as a choice of values
+    /// ("Downsample to", 294:1789: 72 ... 300 dpi): an Option of the values, each with its
+    /// title \p titleFormat ("%1 dpi"). The current value, which is not offered (a value set
+    /// by an assistant and stored as the last one), is an extra option: the control shows
+    /// the value used. std::nullopt for another type. The store: \p createChoiceValueStore.
+    std::optional<PDFSettingDefinition> toChoiceDefinition(const QString& name, const std::vector<int>& values, const QString& titleFormat) const;
+
+    /// Store of the binder of \p toChoiceDefinition: the options are numbers in texts
+    std::shared_ptr<PDFAppValueStore> createChoiceValueStore();
+
 Q_SIGNALS:
     /// A value has changed (once per a changed parameter; also by Undo and Redo)
     void changed(const QString& name);

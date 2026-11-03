@@ -39,7 +39,10 @@
 #include <QVariant>
 
 #include <memory>
+#include <utility>
+#include <vector>
 
+class QAbstractButton;
 class QCheckBox;
 class QHBoxLayout;
 class QPushButton;
@@ -129,7 +132,8 @@ public:
         TextField,      ///< String: text field
         Color,          ///< String with Control::Color: color button, "#RRGGBB"
         Path,           ///< String with Control::Path: text field and Browse… of a folder
-        Segmented       ///< Option with Control::Segmented: segmented control of the options (fixed 240 x 32, segments 80 - 955:143435)
+        Segmented,      ///< Option with Control::Segmented: segmented control of the options (fixed 240 x 32, segments 80 - 955:143435)
+        Radio           ///< Option with Control::Radio: radio buttons of the options in a row (294:1803)
     };
 
     /// Rest after an edit of a spin box, slider or text field, before it is written
@@ -143,6 +147,7 @@ public:
     static constexpr int PATH_SPACING = 8;
     static constexpr int SEGMENTED_WIDTH = 240;
     static constexpr int SEGMENTED_HEIGHT = 32;
+    static constexpr int RADIO_SPACING = 14;
 
     /// Longest text of a stored option shown as "… (not available)"
     static constexpr int MAXIMUM_OPTION_TEXT = 64;
@@ -185,6 +190,9 @@ public:
     PDFLineEdit* getLineEdit() const;
     PDFColorButton* getColorButton() const;
     PDFSegmentedControl* getSegmentedControl() const;
+
+    /// Radio button of the option of Kind::Radio, nullptr = none
+    QAbstractButton* getRadioButton(const QString& optionId) const;
 
     /// Value text of the slider ("0.75")
     PDFLabel* getValueLabel() const { return m_valueLabel; }
@@ -254,6 +262,7 @@ private:
     void onCheckBoxToggled(bool checked);
     void onComboBoxActivated(int index);
     void onSegmentChanged(int index);
+    void onRadioClicked();
 
     /// Writes the item of a combo box browsed by the arrows (Enter)
     void commitBrowsedValue();
@@ -275,6 +284,7 @@ private:
     QPointer<QPushButton> m_browseButton;
     QTimer m_writeTimer;
     QStringList m_segmentIds;   ///< Option ids of the segments of Kind::Segmented
+    std::vector<std::pair<QString, QPointer<QAbstractButton>>> m_radioButtons;  ///< Option ids and buttons of Kind::Radio
     bool m_hasPendingValue = false;
     bool m_isNotAvailableShown = false;
     bool m_isBrowsing = false;

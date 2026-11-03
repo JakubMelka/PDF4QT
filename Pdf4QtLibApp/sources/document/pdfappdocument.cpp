@@ -267,6 +267,8 @@ void PDFAppDocument::setSavedAs(quint64 version, const QString& filePath, QByteA
     // which the stack cannot tell (changed while the file was being written)
     if (version == m_version)
     {
+        // The written bytes are the base of this version from now on
+        m_isWholeFileRewritten = false;
         m_undoStack->setSavedPosition();
     }
     else
@@ -346,6 +348,7 @@ PDFAppDocumentSnapshot PDFAppDocument::getSnapshot() const
     snapshot.filePath = m_filePath;
     snapshot.isModified = isModified();
     snapshot.isPagedXFA = m_isPagedXFA;
+    snapshot.isWholeFileRewritten = m_isWholeFileRewritten;
     return snapshot;
 }
 
@@ -360,6 +363,16 @@ bool PDFAppDocument::commit(const PDFModifiedDocument& modified, const QString& 
 }
 
 bool PDFAppDocument::commit(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion, PDFAppChangeSource source, const QString& mergeKey)
+{
+    return commitChange(modified, description, expectedVersion, source, mergeKey, m_isWholeFileRewritten);
+}
+
+bool PDFAppDocument::commitToolResult(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion, PDFAppChangeSource source, bool isWholeFileRewrite)
+{
+    return commitChange(modified, description, expectedVersion, source, QString(), m_isWholeFileRewritten || isWholeFileRewrite);
+}
+
+bool PDFAppDocument::commitChange(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion, PDFAppChangeSource source, const QString& mergeKey, bool isWholeFileRewritten)
 {
     const PDFDocumentPointer newDocument = modified;
     // A display version of an XFA form (step 8) is never changed: every change of
@@ -391,6 +404,7 @@ bool PDFAppDocument::commit(const PDFModifiedDocument& modified, const QString& 
     step.flags = modified.getFlags();
     step.description = description.left(1024);
     step.source = source;
+    step.isWholeFileRewritten = m_isWholeFileRewritten;
     step.mergeKey = boundedMergeKey;
     step.memory = PDFAppUndoStack::estimateMemory(m_document.data(), newDocument.data());
 
@@ -398,6 +412,7 @@ bool PDFAppDocument::commit(const PDFModifiedDocument& modified, const QString& 
     updateUndoLimits();
     m_undoStack->push(std::move(step));
 
+    m_isWholeFileRewritten = isWholeFileRewritten;
     setDocument(newDocument, modified.getFlags(), false);
     return true;
 }
@@ -419,10 +434,17 @@ void PDFAppDocument::closeUndoMerge()
 
 void PDFAppDocument::restore(PDFDocumentPointer document, PDFModifiedDocument::ModificationFlags flags)
 {
+    restore(std::move(document), flags, m_isWholeFileRewritten);
+}
+
+void PDFAppDocument::restore(PDFDocumentPointer document, PDFModifiedDocument::ModificationFlags flags, bool isWholeFileRewritten)
+{
     if (!isReady() || document.isNull())
     {
         return;
     }
+
+    m_isWholeFileRewritten = isWholeFileRewritten;
 
     // Back at the saved version the document is not modified (a copy without a
     // file has no saved version)
@@ -669,6 +691,7 @@ void PDFAppDocument::setLoaded(PDFDocumentPointer document, QByteArray originalD
     m_isPasswordProtected = isPasswordProtected;
     m_isPasswordWrong = false;
     m_isPagedXFA = isPagedXFA;
+    m_isWholeFileRewritten = false;
     m_isCopy = isFromMemory;
     if (!isFromMemory)
     {
@@ -699,6 +722,7 @@ void PDFAppDocument::reload(PDFDocumentPointer document, QByteArray data, bool i
     m_originalData = std::move(data);
     m_isPasswordProtected = isPasswordProtected;
     m_isPagedXFA = isPagedXFA;
+    m_isWholeFileRewritten = false;
     m_undoStack->clear();
     setDocument(std::move(document), PDFModifiedDocument::ModificationFlags(PDFModifiedDocument::Reset | PDFModifiedDocument::PreserveView), true);
 }
@@ -746,6 +770,7 @@ bool PDFAppDocument::setCopyOf(const PDFAppDocument* source)
     // file is written from the original bytes (the command Edit a Copy is off for
     // it, a copy may still be made by the lock popover of a locked document)
     m_isPagedXFA = source->isPagedXFA();
+    m_isWholeFileRewritten = source->isWholeFileRewritten();
     m_isPasswordProtected = false;
     m_isPasswordWrong = false;
     m_isLocked = false;

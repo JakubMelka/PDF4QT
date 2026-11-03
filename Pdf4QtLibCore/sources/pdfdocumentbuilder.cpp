@@ -24,6 +24,7 @@
 #include "pdfencoding.h"
 #include "pdfconstants.h"
 #include "pdfdocumentreader.h"
+#include "pdfdocumentwriter.h"
 #include "pdfobjectutils.h"
 #include "pdfnametreeloader.h"
 #include "pdfparser.h"
@@ -112,7 +113,8 @@ PDFObjectReference PDFDocumentBuilder::createSignatureField(QString fieldName,
 
 QByteArray PDFDocumentBuilder::formatPDFReal(PDFReal value)
 {
-    QByteArray text = QByteArray::number(value, 'f', 6);
+    // PDF has no NaN and no infinity, one rule of the written numbers
+    QByteArray text = std::isfinite(value) ? QByteArray::number(value, 'f', 6) : PDFDocumentWriter::getRealNumberText(value);
 
     while (text.endsWith('0'))
     {

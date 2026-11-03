@@ -215,6 +215,42 @@ public:
         file.write("%PDF-1.7\n1 0 obj << /Type /Catalog >> broken\n%%EOF");
         return path;
     }
+
+    /// PDF4QT 1.6.0.0 wrote a string with a CR as a literal one with the raw byte, a reader of PDF Reference 1.7, 3.2.3
+    /// takes it as a line feed. Writes the first bytes of the value of the key (an entry of the encryption dictionary)
+    /// by such a marker, a file with the same offsets. The other bytes need no escape in the literal string.
+    static bool writeRawMarker(const QString& path, const QByteArray& key, const QByteArray& marker)
+    {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly))
+        {
+            return false;
+        }
+        QByteArray data = file.readAll();
+        file.close();
+
+        qsizetype position = data.indexOf(key + "<");
+        const bool isHexadecimal = position != -1;
+        position = isHexadecimal ? position + key.size() : data.indexOf(key + "(");
+        if (position == -1)
+        {
+            return false;
+        }
+        position = isHexadecimal ? position : position + key.size();
+
+        const qsizetype end = data.indexOf(isHexadecimal ? '>' : ')', position);
+        QByteArray value = data.mid(position + 1, end - position - 1);
+        value = isHexadecimal ? QByteArray::fromHex(value) : value;
+        value.replace('(', 'x').replace(')', 'x').replace('\\', 'x').replace('\r', 'x');
+        value.replace(0, marker.size(), marker);
+
+        QByteArray literal = "(" + value + ")";
+        const qsizetype length = end - position + 1;
+        literal.append(QByteArray(length - literal.size(), ' '));
+        data.replace(position, length, literal);
+
+        return file.open(QIODevice::WriteOnly | QIODevice::Truncate) && file.write(data) == data.size();
+    }
 };
 
 /// Package A of step 3 (model, lifecycle, window integration)
@@ -234,6 +270,7 @@ private slots:
     void passwordFlow();
     void passwordClose();
     void ownerPassword();
+    void oldFileRawCarriageReturn();
     void pagePrecedence();
     void routeWriteBack();
     void readingState();
@@ -695,6 +732,107 @@ void AppDocumentTest::ownerPassword()
     QVERIFY(tab->getDocument()->isReady());
     QVERIFY(tab->getDocument()->isPasswordProtected());
     QVERIFY(tab->isTabPasswordProtected());
+}
+
+void AppDocumentTest::oldFileRawCarriageReturn()
+{
+    // Encrypted files of the old writer with a raw CR in an entry of the encryption dictionary (NOTES.txt, 7.3.4.2): the
+    // reader follows the specification, the application shows what it can do with them - never an endless question
+    pdftest::AppDocumentFixture fixture;
+    const QString rightPassword = pdftest::AppDocumentSamples::getUserPassword();
+
+    QString reason;
+    const auto getReason = [&fixture, &reason]()
+    {
+        QTRY_VERIFY_WITH_TIMEOUT(fixture.window->getOpenFailedDialog(), 30000);
+        const std::vector<pdf::PDFAppOpenFailure> failures = fixture.window->getOpenFailedDialog()->getFailures();
+        QCOMPARE(failures.size(), size_t(1));
+        reason = failures.front().reason;
+    };
+
+    // /U: no password fits it any more. The screen says so and the tab can be closed.
+    {
+        const QString file = pdftest::AppDocumentSamples::userPassword(fixture.folder());
+        QVERIFY(AppDocumentTestHelper::writeRawMarker(file, "/U ", "\r"));
+        pdf::PDFAppDocumentTab* tab = fixture.open(file);
+        QVERIFY(tab);
+        QCOMPARE(tab->getDocument()->getState(), pdf::PDFAppDocumentState::PasswordRequired);
+        QVERIFY(!tab->getDocument()->isPasswordWrong());
+
+        pdf::PDFAppDocumentStateScreen* screen = tab->getStateScreen();
+        for (int attempt = 0; attempt < 2; ++attempt)
+        {
+            QTest::keyClicks(screen->getPasswordField(), rightPassword);
+            screen->getOpenButton()->click();
+            QVERIFY(AppDocumentTestHelper::waitLoaded(tab));
+            QCOMPARE(tab->getDocument()->getState(), pdf::PDFAppDocumentState::PasswordRequired);
+            QVERIFY(tab->getDocument()->isPasswordWrong());
+            QCOMPARE(screen->getStatusBar()->getMessage(), QStringLiteral("Incorrect password"));
+        }
+
+        QPointer<pdf::PDFAppDocumentTab> guard(tab);
+        screen->getCloseButton()->click();
+        fixture.settle();
+        QVERIFY(!guard);
+        QCOMPARE(fixture.closeMessageBoxes(), 0);
+    }
+
+    // A file, which opened without a question (the owner password only), asks now
+    {
+        const QString file = pdftest::AppDocumentSamples::ownerPassword(fixture.folder());
+        QVERIFY(AppDocumentTestHelper::writeRawMarker(file, "/U ", "\r"));
+        pdf::PDFAppDocumentTab* tab = fixture.open(file);
+        QVERIFY(tab);
+        QCOMPARE(tab->getDocument()->getState(), pdf::PDFAppDocumentState::PasswordRequired);
+        QVERIFY(!tab->getDocument()->isPasswordWrong());
+        QCOMPARE(fixture.closeMessageBoxes(), 0);
+
+        QPointer<pdf::PDFAppDocumentTab> guard(tab);
+        tab->getStateScreen()->getCloseButton()->click();
+        fixture.settle();
+        QVERIFY(!guard);
+    }
+
+    // /Perms: the password is right, the file cannot be opened. The user is not told, that the password is wrong:
+    // open-failed with the reason of the reader, the tab is gone.
+    {
+        const QString file = pdftest::AppDocumentSamples::userPassword(fixture.folder());
+        QVERIFY(AppDocumentTestHelper::writeRawMarker(file, "/Perms ", "\r"));
+        pdf::PDFAppDocumentTab* tab = fixture.open(file);
+        QVERIFY(tab);
+        QCOMPARE(tab->getDocument()->getState(), pdf::PDFAppDocumentState::PasswordRequired);
+
+        QPointer<pdf::PDFAppDocumentTab> guard(tab);
+        QTest::keyClicks(tab->getStateScreen()->getPasswordField(), rightPassword);
+        tab->getStateScreen()->getOpenButton()->click();
+
+        getReason();
+        QVERIFY2(reason.contains(QStringLiteral("ermissions")), qPrintable(reason));
+        QVERIFY(!guard);
+        QCOMPARE(fixture.closeMessageBoxes(), 1);
+    }
+
+    // /Perms of a file without a user password: open-failed at once, nothing is asked
+    {
+        const QString file = pdftest::AppDocumentSamples::ownerPassword(fixture.folder());
+        QVERIFY(AppDocumentTestHelper::writeRawMarker(file, "/Perms ", "\r"));
+        fixture.window->openDocuments(QStringList({ file }), 0);
+        getReason();
+        QVERIFY2(reason.contains(QStringLiteral("ermissions")), qPrintable(reason));
+        QCOMPARE(fixture.closeMessageBoxes(), 1);
+    }
+
+    // A CR LF is one line feed: /U is too short, a file open-failed with the entry named (Table 3.19)
+    {
+        const QString file = pdftest::AppDocumentSamples::userPassword(fixture.folder());
+        QVERIFY(AppDocumentTestHelper::writeRawMarker(file, "/U ", "\r\n"));
+        fixture.window->openDocuments(QStringList({ file }), 0);
+        getReason();
+        QVERIFY2(reason.contains(QStringLiteral("entry 'U'")), qPrintable(reason));
+        QCOMPARE(fixture.closeMessageBoxes(), 1);
+    }
+
+    QTRY_VERIFY(fixture.context->getDocumentRegistry()->getDocuments().empty());
 }
 
 void AppDocumentTest::pagePrecedence()

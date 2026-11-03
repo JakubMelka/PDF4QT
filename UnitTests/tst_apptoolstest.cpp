@@ -22,6 +22,7 @@
 
 #include "apptoolsfixture.h"
 
+#include "pdfdocumenttoolguiregistry.h"
 #include "pdfappbuiltintoolcollections.h"
 #include "pdfappdocumenttab.h"
 #include "pdfapphomewidgets.h"
@@ -273,14 +274,19 @@ void AppToolsTest::toolPageRegistryPath()
     QVERIFY(!pdf::PDFAppToolPageRegistry::registerFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.merge"), nullptr));
     QVERIFY(!pdf::PDFAppToolPageRegistry::registerFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.merge"),
                                                           std::make_shared<pdf::PDFAppToolRoutePageFactory>(pdf::PDFAppToolPageKind::Start)));
-    QVERIFY(pdf::PDFAppToolPageRegistry::getToolsWithPage(pdf::PDFAppToolPageKind::Start).isEmpty());
+    QVERIFY(!pdf::PDFAppToolPageRegistry::hasPage(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.merge")));
+    QVERIFY(!pdf::PDFAppToolPageRegistry::hasPage(pdf::PDFAppToolPageKind::Start, QStringLiteral("convert.epub")));
     QVERIFY(!pdf::PDFAppToolPageRegistry::getFactory(pdf::PDFAppToolPageKind::Start, QString(1000, QLatin1Char('x'))));
 
     {
         pdftest::AppToolsFixture fixture;
         QVERIFY(fixture.registerTestToolPage(QStringLiteral("pages.merge")));
         QVERIFY(fixture.registerTestToolPage(QStringLiteral("review.statistics"), pdf::PDFAppToolPageKind::Document));
-        QCOMPARE(pdf::PDFAppToolPageRegistry::getToolsWithPage(pdf::PDFAppToolPageKind::Start), QStringList({ QStringLiteral("pages.merge") }));
+
+        // The page of the test and the start pages of the tools with a GUI (phase 2), nothing else
+        QStringList toolsWithPage = pdf::PDFAppToolPageRegistry::getToolsWithPage(pdf::PDFAppToolPageKind::Start);
+        QVERIFY(toolsWithPage.removeOne(QStringLiteral("pages.merge")));
+        QCOMPARE(toolsWithPage, pdf::PDFDocumentToolGUIRegistry::getTools());
         QVERIFY(!pdf::PDFAppToolPageRegistry::hasPage(pdf::PDFAppToolPageKind::Document, QStringLiteral("pages.merge")));
 
         // The route
@@ -337,9 +343,8 @@ void AppToolsTest::toolPageRegistryPath()
         QVERIFY(fixture.notFoundPage());
     }
 
-    // The fixture removes its pages
-    QVERIFY(pdf::PDFAppToolPageRegistry::getToolsWithPage(pdf::PDFAppToolPageKind::Document).isEmpty());
-    pdf::PDFAppToolPageRegistry::clear();
+    // The fixture removes its pages: the pages of the tools with a GUI stay
+    QCOMPARE(pdf::PDFAppToolPageRegistry::getToolsWithPage(pdf::PDFAppToolPageKind::Document), pdf::PDFDocumentToolGUIRegistry::getTools());
 }
 
 void AppToolsTest::toolPageRegistryEdges()

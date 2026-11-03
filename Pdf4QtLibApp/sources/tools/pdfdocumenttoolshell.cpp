@@ -854,11 +854,13 @@ void PDFDocumentToolShell::onPreviewProgress(int percentage, const QString& step
 
 void PDFDocumentToolShell::onPreviewFinished(const PDFDocumentToolResult& result)
 {
+    // The hook says, that the Primary button has changed: a slot may delete this shell
+    QPointer<PDFDocumentToolShell> guard(this);
     if (m_gui)
     {
         m_gui->onPreviewChanged(&result);
     }
-    if (m_toolbar)
+    if (guard && m_toolbar)
     {
         updateToolbar();
     }
@@ -879,11 +881,16 @@ void PDFDocumentToolShell::onRunStarted()
     m_stepText.clear();
     m_state = State::Running;
 
+    QPointer<PDFDocumentToolShell> guard(this);
     if (m_gui)
     {
         m_gui->setContentEnabled(false);
         showProgress(true);
         m_gui->onRunStateChanged(true);
+        if (!guard)
+        {
+            return;
+        }
     }
     updateProgress(0, QString());
     updateToolbar();
@@ -913,11 +920,16 @@ void PDFDocumentToolShell::onRunFinished(const PDFDocumentToolResult& result)
 
 void PDFDocumentToolShell::finishRun(const PDFDocumentToolResult& result)
 {
+    QPointer<PDFDocumentToolShell> guard(this);
     showProgress(false);
     if (m_gui)
     {
         m_gui->setContentEnabled(true);
         m_gui->onRunStateChanged(false);
+        if (!guard)
+        {
+            return;
+        }
     }
 
     if (result.isSuccess())
@@ -926,7 +938,6 @@ void PDFDocumentToolShell::finishRun(const PDFDocumentToolResult& result)
         return;
     }
 
-    QPointer<PDFDocumentToolShell> guard(this);
     setState(State::Editing);
     if (guard && m_gui && result.status != PDFDocumentToolResultStatus::Stopped)
     {
