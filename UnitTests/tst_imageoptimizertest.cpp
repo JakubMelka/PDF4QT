@@ -61,6 +61,12 @@ private slots:
     void test_bitonal_creator_original_mode_converts_nothing();
     void test_bitonal_creator_skips_undecodable_image();
     void test_image_analysis_classification();
+    void test_image_analysis_tones_data();
+    void test_image_analysis_tones();
+    void test_image_analysis_all_pixels_data();
+    void test_image_analysis_all_pixels();
+    void test_image_analysis_tints_and_alpha();
+    void test_plan_preserve_of_gray_tones_in_one_bit();
     void test_optimizer_keeps_original_if_larger();
     void test_optimizer_skips_disabled_override();
     void test_optimizer_preserve_keeps_bitonal_encoding();
@@ -994,6 +1000,123 @@ void ImageOptimizerTest::test_image_analysis_classification()
     QCOMPARE(lineAnalysis.kind, pdf::PDFImageOptimizer::ImageAnalysis::Kind::LineArt);
     QCOMPARE(textAnalysis.kind, pdf::PDFImageOptimizer::ImageAnalysis::Kind::TextScan);
     QCOMPARE(photoAnalysis.kind, pdf::PDFImageOptimizer::ImageAnalysis::Kind::Photo);
+}
+
+void ImageOptimizerTest::test_image_analysis_tones_data()
+{
+    QTest::addColumn<int>("firstTone");
+    QTest::addColumn<int>("secondTone");
+    QTest::addColumn<bool>("isTextScan");
+
+    // Only tones of the first and of the last of the 32 quantized steps are black and white
+    QTest::newRow("black-and-white") << 0 << 255 << true;
+    QTest::newRow("last-black-last-white") << 7 << 248 << true;
+    QTest::newRow("solid-black") << 0 << 0 << true;
+    QTest::newRow("solid-white") << 255 << 255 << true;
+    QTest::newRow("first-tone-above-black") << 8 << 255 << false;
+    QTest::newRow("first-tone-below-white") << 0 << 247 << false;
+    QTest::newRow("solid-light-gray") << 200 << 200 << false;
+    QTest::newRow("panel-on-white") << 230 << 255 << false;
+}
+
+void ImageOptimizerTest::test_image_analysis_tones()
+{
+    QFETCH(int, firstTone);
+    QFETCH(int, secondTone);
+    QFETCH(bool, isTextScan);
+
+    QImage image(64, 64, QImage::Format_Grayscale8);
+    image.fill(qRgb(firstTone, firstTone, firstTone));
+    for (int x = 0; x < image.width(); ++x)
+    {
+        image.setPixel(x, 32, qRgb(secondTone, secondTone, secondTone));
+    }
+
+    const pdf::PDFImageOptimizer::ImageAnalysis analysis = pdf::PDFImageOptimizer::analyzeImage(image);
+    QVERIFY(analysis.grayscale);
+    QCOMPARE(analysis.kind == pdf::PDFImageOptimizer::ImageAnalysis::Kind::TextScan, isTextScan);
+}
+
+void ImageOptimizerTest::test_image_analysis_all_pixels_data()
+{
+    QTest::addColumn<int>("rowOffset");
+
+    // Four neighboring rows: a sample of every fourth row misses at least three of them
+    for (int rowOffset = 0; rowOffset < 4; ++rowOffset)
+    {
+        QTest::addRow("row-%d", rowOffset) << rowOffset;
+    }
+}
+
+void ImageOptimizerTest::test_image_analysis_all_pixels()
+{
+    QFETCH(int, rowOffset);
+
+    // One row of a large black and white image decides, wherever it lies
+    QImage image(1024, 1024, QImage::Format_RGB32);
+    image.fill(Qt::white);
+    for (int x = 0; x < image.width(); ++x)
+    {
+        image.setPixel(x, 40, qRgb(0, 0, 0));
+    }
+    QCOMPARE(pdf::PDFImageOptimizer::analyzeImage(image).kind, pdf::PDFImageOptimizer::ImageAnalysis::Kind::TextScan);
+
+    QImage grayRow = image;
+    QImage redRow = image;
+    for (int x = 0; x < image.width(); ++x)
+    {
+        grayRow.setPixel(x, 500 + rowOffset, qRgb(128, 128, 128));
+        redRow.setPixel(x, 500 + rowOffset, qRgb(255, 0, 0));
+    }
+
+    const pdf::PDFImageOptimizer::ImageAnalysis grayAnalysis = pdf::PDFImageOptimizer::analyzeImage(grayRow);
+    QVERIFY(grayAnalysis.grayscale);
+    QVERIFY(grayAnalysis.kind != pdf::PDFImageOptimizer::ImageAnalysis::Kind::TextScan);
+
+    const pdf::PDFImageOptimizer::ImageAnalysis redAnalysis = pdf::PDFImageOptimizer::analyzeImage(redRow);
+    QVERIFY(!redAnalysis.grayscale);
+    QVERIFY(redAnalysis.kind != pdf::PDFImageOptimizer::ImageAnalysis::Kind::TextScan);
+}
+
+void ImageOptimizerTest::test_image_analysis_tints_and_alpha()
+{
+    // A cream tint: red and blue differ, each of them only a little from the green
+    QImage cream(64, 64, QImage::Format_RGB32);
+    cream.fill(qRgb(255, 252, 249));
+    QVERIFY(!pdf::PDFImageOptimizer::analyzeImage(cream).grayscale);
+
+    // A half transparent black is no black: flattened, it gives other tones
+    QImage shadow(64, 64, QImage::Format_ARGB32);
+    shadow.fill(qRgba(0, 0, 0, 255));
+    for (int x = 0; x < shadow.width(); ++x)
+    {
+        shadow.setPixel(x, 32, qRgba(0, 0, 0, 128));
+    }
+    const pdf::PDFImageOptimizer::ImageAnalysis shadowAnalysis = pdf::PDFImageOptimizer::analyzeImage(shadow);
+    QVERIFY(shadowAnalysis.grayscale);
+    QVERIFY(shadowAnalysis.kind != pdf::PDFImageOptimizer::ImageAnalysis::Kind::TextScan);
+}
+
+void ImageOptimizerTest::test_plan_preserve_of_gray_tones_in_one_bit()
+{
+    // One bit of the file with /Decode [0.8 1] or a gray /Indexed: a light gray panel on white.
+    // Preserve must not write it black and white, a real black and white image still is.
+    pdf::PDFImageOptimizer::Settings settings = pdf::PDFImageOptimizer::Settings::createDefault();
+    settings.autoMode = false;
+    settings.colorMode = pdf::PDFImageOptimizer::ColorMode::Preserve;
+
+    pdf::PDFImageOptimizer::ImageInfo info;
+    info.bitsPerComponent = 1;
+    info.colorSpaceName = QStringLiteral("DeviceGray");
+    info.image = QImage(64, 64, QImage::Format_Grayscale8);
+    info.image.fill(qRgb(205, 205, 205));
+    QCOMPARE(pdf::PDFImageOptimizer::resolvePlan(info, settings).resolvedColorMode, pdf::PDFImageOptimizer::ColorMode::Grayscale);
+
+    info.colorSpaceName = QString();
+    QCOMPARE(pdf::PDFImageOptimizer::resolvePlan(info, settings).resolvedColorMode, pdf::PDFImageOptimizer::ColorMode::Grayscale);
+
+    info.image.fill(qRgb(0, 0, 0));
+    QCOMPARE(pdf::PDFImageOptimizer::resolvePlan(info, settings).resolvedColorMode, pdf::PDFImageOptimizer::ColorMode::Bitonal);
 }
 
 void ImageOptimizerTest::test_optimizer_keeps_original_if_larger()

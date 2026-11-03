@@ -209,6 +209,7 @@ private slots:
 
     void signatures();
     void signaturesTrust();
+    void signaturesVerifiedAgainAfterSave();
     void signatureCards();
     void signaturesSettings();
     void unsignedDocument();
@@ -1335,6 +1336,37 @@ void AppDocumentSearchTest::signatures()
     QCOMPARE(tab->getDocument()->getSignatureResults().size(), size_t(1));
     QCOMPARE(tab->getView()->getProxy()->getDocument(), tab->getDocument()->getDocument().data());
     QCOMPARE(tab->getView()->getProxy()->getSignatureVerificationResult().size(), size_t(1));
+}
+
+void AppDocumentSearchTest::signaturesVerifiedAgainAfterSave()
+{
+    pdftest::AppDocumentFixture fixture;
+    QString certificate;
+    const QString file = pdftest::AppDocumentSamples::signedDocument(fixture.folder(), &certificate);
+    QVERIFY(!file.isEmpty());
+
+    pdf::PDFAppDocumentTab* tab = openReady(fixture, file);
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppDocumentSignatureVerifier* verifier = handler(tab)->getSignatureVerifier();
+    QTRY_VERIFY_WITH_TIMEOUT(verifier->getVerification() && !verifier->isVerifying(), 30000);
+    QCOMPARE(document->getSignatureResults().size(), size_t(1));
+    QCOMPARE(pdf::PDFAppDocumentSignatureVerifier::getStatus(document->getSignatureResults().front(), false), pdf::PDFComponentPainter::SignatureStatus::Warning);
+
+    // The same bytes written again: nothing to verify
+    document->setSavedAs(document->getVersion(), file, document->getOriginalData());
+    QVERIFY(!verifier->isVerifying());
+
+    // A save at the same version and of the same path, whose bytes do not hold the signature
+    // any more: the panel, the status item and MCP must not keep the state of the old bytes
+    QByteArray changed = document->getOriginalData();
+    QVERIFY(changed.size() > 100);
+    changed[100] = char(changed[100] ^ 0x01);
+    document->setSavedAs(document->getVersion(), file, changed);
+    QVERIFY(verifier->isVerifying());
+    QTRY_VERIFY_WITH_TIMEOUT(!verifier->isVerifying(), 30000);
+    QCOMPARE(document->getSignatureResults().size(), size_t(1));
+    QCOMPARE(pdf::PDFAppDocumentSignatureVerifier::getStatus(document->getSignatureResults().front(), false), pdf::PDFComponentPainter::SignatureStatus::Invalid);
 }
 
 void AppDocumentSearchTest::signaturesTrust()

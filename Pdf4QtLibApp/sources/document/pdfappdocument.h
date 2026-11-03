@@ -463,6 +463,10 @@ Q_SIGNALS:
     /// The file of the document has changed (Save as): the path and the title
     void fileChanged();
 
+    /// The bytes of the file have changed at the same version (a save): what was found
+    /// in the old bytes, such as the state of a signature, is no longer valid
+    void originalDataChanged();
+
     /// The lock has changed (isLocked)
     void lockChanged();
 

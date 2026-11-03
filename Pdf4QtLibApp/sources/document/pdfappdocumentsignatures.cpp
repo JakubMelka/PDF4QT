@@ -210,6 +210,7 @@ PDFAppDocumentSignatureVerifier::PDFAppDocumentSignatureVerifier(PDFAppDocument*
     {
         connect(document, &PDFAppDocument::stateChanged, this, &PDFAppDocumentSignatureVerifier::onDocumentStateChanged);
         connect(document, &PDFAppDocument::documentChanged, this, &PDFAppDocumentSignatureVerifier::onDocumentChanged);
+        connect(document, &PDFAppDocument::originalDataChanged, this, &PDFAppDocumentSignatureVerifier::onOriginalDataChanged);
 
         PDFAppContext* context = document->getContext();
         if (context && context->getNotifier())
@@ -423,6 +424,15 @@ void PDFAppDocumentSignatureVerifier::applyResults()
     if (guard)
     {
         m_isApplyingResults = false;
+    }
+}
+
+void PDFAppDocumentSignatureVerifier::onOriginalDataChanged()
+{
+    // A whole write destroys a signature at the same version of the document
+    if (m_document && m_document->isReady() && !m_verifiedData.isSharedWith(m_document->getOriginalData()))
+    {
+        startVerification();
     }
 }
 

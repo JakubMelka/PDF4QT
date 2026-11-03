@@ -321,13 +321,14 @@ bool PDFOptimizer::performMergeIdenticalObjects()
 
         if (!entry.object.isNull())
         {
-            // We do not merge special objects, such as pages
+            // We do not merge objects, whose reference is their identity: pages, annotations,
+            // layers (two layers of the same name can have different states)
             if (const PDFDictionary* dictionary = m_storage.getDictionaryFromObject(entry.object))
             {
                 PDFObject nameObject = m_storage.getObject(dictionary->get("Type"));
                 if (nameObject.isName())
                 {
-                    if (nameObject.getString() == "Page")
+                    if (nameObject.getString() == "Page" || nameObject.getString() == "Annot" || nameObject.getString() == "OCG")
                     {
                         continue;
                     }

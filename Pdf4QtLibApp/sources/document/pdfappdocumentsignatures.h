@@ -168,6 +168,7 @@ private:
     void stopVerification();
     void onVerificationFinished();
     void onDocumentStateChanged();
+    void onOriginalDataChanged();
     void onDocumentChanged(const pdf::PDFModifiedDocument& modified);
     void onDatabaseChanged(const QString& topic, const QString& key);
     void onDatabaseEverythingChanged();

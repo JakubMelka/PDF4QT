@@ -285,6 +285,10 @@ void PDFAppDocument::setSavedAs(quint64 version, const QString& filePath, QByteA
     {
         Q_EMIT modifiedChanged();
     }
+    if (guard)
+    {
+        Q_EMIT originalDataChanged();
+    }
 }
 
 void PDFAppDocument::setLocked(bool locked)

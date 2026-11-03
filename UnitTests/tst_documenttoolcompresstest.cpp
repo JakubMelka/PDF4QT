@@ -62,6 +62,7 @@
 
 #include <array>
 #include <atomic>
+#include <cstdlib>
 #include <thread>
 
 #ifdef Q_OS_WIN
@@ -940,6 +941,13 @@ private Q_SLOTS:
     void imageKindsKeepTheirLook_data();
     void imageKindsKeepTheirLook();
     void sparseTransparencyKept();
+    void identicalLayersAndAnnotationsStayDistinct();
+    void grayTonesKept_data();
+    void grayTonesKept();
+    void blackAndWhiteStaysBitonal_data();
+    void blackAndWhiteStaysBitonal();
+    void sparseColorsKept_data();
+    void sparseColorsKept();
     void hostileDocuments_data();
     void hostileDocuments();
     void formDrawingItselfSkipped();
@@ -2732,6 +2740,255 @@ void DocumentToolCompressTest::sparseTransparencyKept()
     QCOMPARE(qAlpha(after.front().image.pixel(100, 100)), 0);
     QCOMPARE(qAlpha(after.front().image.pixel(103, 103)), 0);
     QCOMPARE(qAlpha(after.front().image.pixel(500, 500)), 255);
+}
+
+void DocumentToolCompressTest::identicalLayersAndAnnotationsStayDistinct()
+{
+    // The clean-up merges identical objects, but not these: the reference is their identity.
+    // Two layers of one name, one of them off: one object would show the hidden layer.
+    pdf::PDFDocumentBuilder builder;
+    const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 200, 200));
+
+    const auto createLayer = []()
+    {
+        pdf::PDFDictionaryBuilder layer;
+        layer.addEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("OCG"));
+        layer.addEntry(pdf::PDFInplaceOrMemoryString("Name"), pdf::PDFObject::createString("Notes"));
+        return pdf::PDFObject::createDictionary(std::move(layer));
+    };
+    const pdf::PDFObjectReference hiddenLayer = builder.addObject(createLayer());
+    const pdf::PDFObjectReference shownLayer = builder.addObject(createLayer());
+
+    pdf::PDFArrayBuilder layers;
+    layers.appendItem(pdf::PDFObject::createReference(hiddenLayer));
+    layers.appendItem(pdf::PDFObject::createReference(shownLayer));
+    pdf::PDFArrayBuilder off;
+    off.appendItem(pdf::PDFObject::createReference(hiddenLayer));
+    pdf::PDFDictionaryBuilder configuration;
+    configuration.addEntry(pdf::PDFInplaceOrMemoryString("OFF"), pdf::PDFObject::createArray(std::move(off)));
+    pdf::PDFDictionaryBuilder properties;
+    properties.addEntry(pdf::PDFInplaceOrMemoryString("OCGs"), pdf::PDFObject::createArray(std::move(layers)));
+    properties.addEntry(pdf::PDFInplaceOrMemoryString("D"), pdf::PDFObject::createDictionary(std::move(configuration)));
+    builder.setCatalogOptionalContentProperties(builder.addObject(pdf::PDFObject::createDictionary(std::move(properties))));
+
+    const auto createAnnotation = []()
+    {
+        pdf::PDFDictionaryBuilder annotation;
+        annotation.addEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("Annot"));
+        annotation.addEntry(pdf::PDFInplaceOrMemoryString("Subtype"), pdf::PDFObject::createName("Square"));
+        annotation.addEntry(pdf::PDFInplaceOrMemoryString("Rect"), CompressTestHelper::createNumberArray({ 10, 10, 50, 50 }));
+        return pdf::PDFObject::createDictionary(std::move(annotation));
+    };
+    const pdf::PDFObjectReference firstAnnotation = builder.addObject(createAnnotation());
+    const pdf::PDFObjectReference secondAnnotation = builder.addObject(createAnnotation());
+    pdf::PDFArrayBuilder annotations;
+    annotations.appendItem(pdf::PDFObject::createReference(firstAnnotation));
+    annotations.appendItem(pdf::PDFObject::createReference(secondAnnotation));
+    pdf::PDFDictionaryBuilder pageUpdate;
+    pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Annots"), pdf::PDFObject::createArray(std::move(annotations)));
+    builder.mergeTo(page, pdf::PDFObject::createDictionary(std::move(pageUpdate)));
+
+    // Two identical plain dictionaries are merged, so the clean-up did its work
+    pdf::PDFDictionaryBuilder plain;
+    plain.addEntry(pdf::PDFInplaceOrMemoryString("Sample"), pdf::PDFObject::createInteger(1));
+    const pdf::PDFObject plainObject = pdf::PDFObject::createDictionary(std::move(plain));
+    builder.addObject(plainObject);
+    builder.addObject(plainObject);
+    const pdf::PDFDocument input = builder.build();
+    QVERIFY(input.getCatalog()->getOptionalContentProperties()->isValid());
+
+    pdf::PDFDocumentToolCompress tool;
+    const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(input, QByteArray(10000000, 'x'), QStringLiteral("a.pdf"), false), CompressTestHelper::preset(pdf::PDFDocumentToolCompress::PRESET_BEST_QUALITY), nullptr, nullptr);
+    QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Success);
+
+    const pdf::PDFDocument output = CompressTestHelper::read(CompressTestHelper::write(*result.documents.front().document));
+    const pdf::PDFOptionalContentProperties* outputProperties = output.getCatalog()->getOptionalContentProperties();
+    QVERIFY(outputProperties->isValid());
+    QCOMPARE(outputProperties->getAllOptionalContentGroups().size(), size_t(2));
+    QVERIFY(outputProperties->getAllOptionalContentGroups().front() != outputProperties->getAllOptionalContentGroups().back());
+    QCOMPARE(outputProperties->getDefaultConfiguration().getOffArray().size(), size_t(1));
+
+    const std::vector<pdf::PDFObjectReference>& outputAnnotations = output.getCatalog()->getPage(0)->getAnnotations();
+    QCOMPARE(outputAnnotations.size(), size_t(2));
+    QVERIFY(outputAnnotations.front() != outputAnnotations.back());
+}
+
+void DocumentToolCompressTest::grayTonesKept_data()
+{
+    QTest::addColumn<int>("firstTone");
+    QTest::addColumn<int>("secondTone");
+    QTest::addColumn<int>("tolerance");
+
+    // A flat panel is one tone, a soft gradient lies inside of two steps of the analysis.
+    // The decoded tones are written as the samples and decoded again: the default color
+    // management moves a dark tone by more (30 is decoded as 24, then as 17)
+    QTest::newRow("light-panel-on-white") << 230 << 255 << 2;
+    QTest::newRow("solid-light-gray") << 200 << 200 << 2;
+    QTest::newRow("solid-middle-gray") << 128 << 128 << 2;
+    QTest::newRow("solid-dark-gray") << 30 << 30 << 8;
+    QTest::newRow("two-tones") << 64 << 220 << 2;
+    QTest::newRow("soft-gradient") << 203 << 212 << 2;
+    QTest::newRow("just-below-white") << 247 << 247 << 2;
+}
+
+void DocumentToolCompressTest::grayTonesKept()
+{
+    QFETCH(int, firstTone);
+    QFETCH(int, secondTone);
+    QFETCH(int, tolerance);
+
+    // An image of a few gray tones is not a text scan: the default preset must not make
+    // it black and white, a light gray panel turned black or disappeared
+    constexpr int SIZE = 64;
+    QByteArray samples(SIZE * SIZE, char(firstTone));
+    for (int i = 0; i < samples.size(); ++i)
+    {
+        if ((i / SIZE) % 8 == 0)
+        {
+            samples[i] = char(secondTone);
+        }
+    }
+
+    pdf::PDFDocumentBuilder builder;
+    const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 200, 200));
+    const pdf::PDFObjectReference image = CompressTestHelper::addRawImage(builder, SIZE, SIZE, 8, pdf::PDFObject::createName("DeviceGray"), samples);
+    CompressTestHelper::setPage(builder, page, "q 72 0 0 72 0 0 cm /Im Do Q", { { "Im", image } });
+    const pdf::PDFDocument input = builder.build();
+
+    pdf::PDFDocumentToolCompress tool;
+    const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(input, QByteArray(10000000, 'x'), QStringLiteral("a.pdf"), false), CompressTestHelper::preset("balanced"), nullptr, nullptr);
+    QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Success);
+    QCOMPARE(result.data.value(QStringLiteral("imagesRecompressed")).toInt(), 1);
+
+    const pdf::PDFDocument& output = *result.documents.front().document;
+    pdf::PDFImageCompressor compressor;
+    const pdf::PDFImageCompressor::ImageStatisticsList before = compressor.collectImages(&input);
+    const pdf::PDFImageCompressor::ImageStatisticsList after = compressor.collectImages(&output);
+    QCOMPARE(before.size(), size_t(1));
+    QCOMPARE(after.size(), size_t(1));
+    QCOMPARE(after.front().image.size(), QSize(SIZE, SIZE));
+
+    const int difference = CompressTestHelper::getColorDifference(before.front().image, after.front().image);
+    QVERIFY2(difference <= tolerance, qPrintable(QStringLiteral("The gray tones differ by %1: %2 -> %3").arg(difference).arg(qGray(before.front().image.pixel(5, 5))).arg(qGray(after.front().image.pixel(5, 5)))));
+
+    const pdf::PDFDictionary* dictionary = output.getObjectByReference(after.front().reference).getStream()->getDictionary();
+    QCOMPARE(pdf::PDFImageOptimizer::readFilterName(&output, dictionary), QStringLiteral("FlateDecode"));
+}
+
+void DocumentToolCompressTest::blackAndWhiteStaysBitonal_data()
+{
+    QTest::addColumn<int>("firstTone");
+    QTest::addColumn<int>("secondTone");
+
+    QTest::newRow("black-on-white") << 255 << 0;
+    QTest::newRow("near-black-on-near-white") << 248 << 7;
+    QTest::newRow("solid-white") << 255 << 255;
+    QTest::newRow("solid-black") << 0 << 0;
+
+    // Decoded as tones of the black: a threshold from their histogram made a part of them white
+    QTest::newRow("black-and-almost-black") << 16 << 0;
+    QTest::newRow("two-tones-of-the-black") << 16 << 12;
+}
+
+void DocumentToolCompressTest::blackAndWhiteStaysBitonal()
+{
+    QFETCH(int, firstTone);
+    QFETCH(int, secondTone);
+
+    // A real black and white page still gets the small coding by one bit, and every pixel
+    // keeps its side: a solid image has no threshold between two tones
+    constexpr int SIZE = 64;
+    QByteArray samples(SIZE * SIZE, char(firstTone));
+    for (int i = 0; i < samples.size(); ++i)
+    {
+        if ((i / SIZE) % 8 == 0)
+        {
+            samples[i] = char(secondTone);
+        }
+    }
+
+    pdf::PDFDocumentBuilder builder;
+    const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 200, 200));
+    const pdf::PDFObjectReference image = CompressTestHelper::addRawImage(builder, SIZE, SIZE, 8, pdf::PDFObject::createName("DeviceGray"), samples);
+    CompressTestHelper::setPage(builder, page, "q 72 0 0 72 0 0 cm /Im Do Q", { { "Im", image } });
+    const pdf::PDFDocument input = builder.build();
+
+    pdf::PDFDocumentToolCompress tool;
+    const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(input, QByteArray(10000000, 'x'), QStringLiteral("a.pdf"), false), CompressTestHelper::preset("balanced"), nullptr, nullptr);
+    QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Success);
+    QCOMPARE(result.data.value(QStringLiteral("imagesRecompressed")).toInt(), 1);
+
+    const pdf::PDFDocument& output = *result.documents.front().document;
+    const pdf::PDFImageCompressor::ImageStatisticsList before = pdf::PDFImageCompressor().collectImages(&input);
+    const pdf::PDFImageCompressor::ImageStatisticsList after = pdf::PDFImageCompressor().collectImages(&output);
+    QCOMPARE(before.size(), size_t(1));
+    QCOMPARE(after.size(), size_t(1));
+
+    const pdf::PDFDictionary* dictionary = output.getObjectByReference(after.front().reference).getStream()->getDictionary();
+    QCOMPARE(pdf::PDFImageOptimizer::readFilterName(&output, dictionary), QStringLiteral("JBIG2Decode"));
+
+    const QImage expected = before.front().image.convertToFormat(QImage::Format_RGB32);
+    const QImage decoded = after.front().image.convertToFormat(QImage::Format_RGB32);
+    for (int y = 0; y < SIZE; ++y)
+    {
+        QVERIFY2(std::abs(qGray(decoded.pixel(5, y)) - qGray(expected.pixel(5, y))) <= 8, qPrintable(QStringLiteral("Row %1 is %2, expected %3").arg(y).arg(qGray(decoded.pixel(5, y))).arg(qGray(expected.pixel(5, y)))));
+    }
+}
+
+void DocumentToolCompressTest::sparseColorsKept_data()
+{
+    QTest::addColumn<bool>("isBlackAndWhite");
+    QTest::addColumn<int>("rowOffset");
+
+    // Four neighboring rows: a sample of every fourth row misses at least three of them
+    for (int rowOffset = 0; rowOffset < 4; ++rowOffset)
+    {
+        QTest::addRow("gray-photo-row-%d", rowOffset) << false << rowOffset;
+        QTest::addRow("black-and-white-page-row-%d", rowOffset) << true << rowOffset;
+    }
+}
+
+void DocumentToolCompressTest::sparseColorsKept()
+{
+    QFETCH(bool, isBlackAndWhite);
+    QFETCH(int, rowOffset);
+
+    // A red line of one pixel on a large image keeps its color, wherever it lies (the analysis
+    // of the optimizer looked for the colors only at a sample of 256 pixels)
+    constexpr int SIZE = 1024;
+    const int redRow = 500 + rowOffset;
+    QByteArray samples;
+    samples.reserve(SIZE * SIZE * 3);
+    QRandomGenerator generator(rowOffset + 1);
+    for (int y = 0; y < SIZE; ++y)
+    {
+        for (int x = 0; x < SIZE; ++x)
+        {
+            const char tone = isBlackAndWhite ? ((y % 64 < 4) ? '\x00' : '\xFF') : char((x + y) * 200 / (2 * SIZE) + generator.bounded(40));
+            samples.append(y == redRow ? '\xFF' : tone);
+            samples.append(y == redRow ? '\x00' : tone);
+            samples.append(y == redRow ? '\x00' : tone);
+        }
+    }
+
+    pdf::PDFDocumentBuilder builder;
+    const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 720, 720));
+    const pdf::PDFObjectReference image = CompressTestHelper::addRawImage(builder, SIZE, SIZE, 8, pdf::PDFObject::createName("DeviceRGB"), samples);
+    CompressTestHelper::setPage(builder, page, "q 720 0 0 720 0 0 cm /Im Do Q", { { "Im", image } });
+    const pdf::PDFDocument input = builder.build();
+
+    pdf::PDFDocumentToolCompress tool;
+    const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(input, QByteArray(10000000, 'x'), QStringLiteral("a.pdf"), false), CompressTestHelper::preset("balanced"), nullptr, nullptr);
+    QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Success);
+    QCOMPARE(result.data.value(QStringLiteral("imagesRecompressed")).toInt(), 1);
+
+    const pdf::PDFImageCompressor::ImageStatisticsList after = pdf::PDFImageCompressor().collectImages(result.documents.front().document.data());
+    QCOMPARE(after.size(), size_t(1));
+    QCOMPARE(after.front().image.size(), QSize(SIZE, SIZE));
+
+    // The JPEG of a photograph softens a line of one pixel, its color must be seen
+    const QRgb pixel = after.front().image.pixel(SIZE / 2, redRow);
+    QVERIFY2(qRed(pixel) - qGreen(pixel) > 32, qPrintable(QStringLiteral("The line is rgb(%1, %2, %3)").arg(qRed(pixel)).arg(qGreen(pixel)).arg(qBlue(pixel))));
 }
 
 void DocumentToolCompressTest::hostileDocuments_data()

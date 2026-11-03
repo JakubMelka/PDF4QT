@@ -152,7 +152,7 @@ public:
     /// Image analysis results used to choose color mode and compression.
     struct ImageAnalysis
     {
-        bool grayscale = false; ///< True if image appears grayscale.
+        bool grayscale = false; ///< True if all pixels of the image are gray.
         int uniqueColors = 0; ///< Approximate count of unique colors (quantized).
         double edgeDensity = 0.0; ///< Edge density estimate.
         double variance = 0.0; ///< Luma variance estimate.
@@ -163,12 +163,13 @@ public:
         /// compression family in auto mode. The classification is based on a
         /// downscaled sample, approximate color count and simple edge/luma
         /// statistics; it is intentionally lightweight and not guaranteed to
-        /// match the semantic content perfectly.
+        /// match the semantic content perfectly. Only TextScan is decided by
+        /// all pixels: a color or a gray tone must not be lost by a sample.
         enum class Kind
         {
             Photo,    ///< Photographic content.
             LineArt,  ///< Line art / graphics.
-            TextScan  ///< Bi-tonal or text scan.
+            TextScan  ///< Only black and white pixels.
         } kind = Kind::Photo;
     };
 

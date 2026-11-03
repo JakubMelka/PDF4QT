@@ -1455,6 +1455,23 @@ void AppToolShellTest::pathRulesForAssistants()
     QVERIFY(pdf::PDFAppToolPathRules::isDeviceOrNetworkPath(QStringLiteral("//server/share/a.pdf")));
     QVERIFY(pdf::PDFAppMcpArguments::checkPath(QStringLiteral("//server/share/a.pdf"), true, &error).isEmpty());
     QCOMPARE(error, QStringLiteral("paths of devices and of network locations are refused; use a local file"));
+
+#ifdef Q_OS_WIN
+    // The prefix of the object manager opens another computer: refused by its name, before the
+    // path is touched - the folder of the file would be asked for at the server otherwise
+    for (const char* path : { "\\??\\UNC\\host.invalid\\share\\a.pdf", "/?\?/UNC/host.invalid/share/a.pdf", "/x/../?\?/UNC/host.invalid/share/a.pdf",
+                              "\\x\\..\\??\\UNC\\host.invalid\\share\\a.pdf", "\\??\\C:\\a.pdf",
+                              "/x/..//host.invalid/share/a.pdf", "/.//host.invalid/share/a.pdf", "\\x\\..\\\\host.invalid\\share\\a.pdf",
+                              "/.//?/UNC/host.invalid/share/a.pdf", "/x/..//?/UNC/host.invalid/share/a.pdf" })
+    {
+        const QString objectManagerPath = QString::fromLatin1(path);
+        QVERIFY2(pdf::PDFAppToolPathRules::isDeviceOrNetworkPath(objectManagerPath), path);
+        error.clear();
+        QVERIFY2(pdf::PDFAppMcpArguments::checkPath(objectManagerPath, true, &error).isEmpty(), path);
+        QCOMPARE(error, QStringLiteral("paths of devices and of network locations are refused; use a local file"));
+    }
+    QVERIFY(!pdf::PDFAppToolPathRules::isDeviceOrNetworkPath(folder + QStringLiteral("/x/../a.pdf")));
+#endif
     QVERIFY(!pdf::PDFAppToolPathRules::isNetworkPath(folder + QStringLiteral("/a.pdf")));
     QVERIFY(pdf::PDFAppToolPathRules::hasStream(QStringLiteral("C:/a.pdf:stream")));
     QVERIFY(!pdf::PDFAppToolPathRules::hasStream(QStringLiteral("C:/a.pdf")));

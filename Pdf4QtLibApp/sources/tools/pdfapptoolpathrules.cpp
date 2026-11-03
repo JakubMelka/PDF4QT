@@ -24,6 +24,7 @@
 #include "pdfappsysteminfo.h"
 #include "pdfrepositoryhelper.h"
 
+#include <QDir>
 #include <QFileInfo>
 #include <QStringList>
 
@@ -192,7 +193,26 @@ bool PDFAppToolPathRules::isNetworkPath(const QString& path)
 
 bool PDFAppToolPathRules::isDeviceOrNetworkPath(const QString& path)
 {
-    return PDFRepositoryHelper::isDevicePath(path) || isNetworkPath(path);
+    if (PDFRepositoryHelper::isDevicePath(path) || isNetworkPath(path))
+    {
+        return true;
+    }
+
+#ifdef Q_OS_WIN
+    // Qt removes the prefix \??\ of the object manager, when it opens a path: \??\UNC\host
+    // is \\host, and cleaning makes /x/..//host the same - the cleaned path decides too,
+    // before anything touches it (QDir::fromNativeSeparators removes the prefix itself,
+    // so the raw text is compared)
+    const QString slashPath = QString(path).replace(QLatin1Char('\\'), QLatin1Char('/'));
+    const QString cleanPath = QDir::cleanPath(QDir::fromNativeSeparators(path));
+    if (slashPath.startsWith(QLatin1String("/?\?/")) || cleanPath.startsWith(QLatin1String("/?\?/")) ||
+        PDFRepositoryHelper::isDevicePath(cleanPath) || isNetworkPath(cleanPath))
+    {
+        return true;
+    }
+#endif
+
+    return false;
 }
 
 QString PDFAppToolPathRules::resolveJunctions(const QString& canonicalPath)

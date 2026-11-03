@@ -47,6 +47,9 @@ namespace imageoptimizer
 constexpr int ANALYSIS_MAX_SIZE = 256;
 constexpr int MAX_UNIQUE_COLOR_SAMPLES = 512;
 constexpr int GRAYSCALE_TOLERANCE = 3;
+constexpr int BLACK_AND_WHITE_TOLERANCE = 7; ///< One step of the colors quantized by the analysis
+constexpr int BLACK_AND_WHITE_THRESHOLD = 128;
+constexpr int TONES_BAND_HEIGHT = 256;
 
 constexpr bool supportsJbig2Encoder()
 {
@@ -238,11 +241,10 @@ PDFImageOptimizer::ColorMode resolvePreservedColorMode(const PDFImageOptimizer::
     // decoded-pixel analysis only when metadata is inconclusive.
     const QString colorSpaceName = info.colorSpaceName;
 
+    // One bit of the file can mean other tones (/Decode, /Indexed): they would become black or white
     if (info.bitsPerComponent == 1 &&
         !analysis.hasTransparency &&
-        (analysis.grayscale ||
-         colorSpaceName == COLOR_SPACE_NAME_DEVICE_GRAY ||
-         colorSpaceName == COLOR_SPACE_NAME_CAL_GRAY))
+        analysis.kind == PDFImageOptimizer::ImageAnalysis::Kind::TextScan)
     {
         return PDFImageOptimizer::ColorMode::Bitonal;
     }
@@ -263,9 +265,7 @@ PDFImageOptimizer::ColorMode resolvePreservedColorMode(const PDFImageOptimizer::
 
     if (analysis.grayscale)
     {
-        return (info.bitsPerComponent == 1 && !analysis.hasTransparency)
-            ? PDFImageOptimizer::ColorMode::Bitonal
-            : PDFImageOptimizer::ColorMode::Grayscale;
+        return PDFImageOptimizer::ColorMode::Grayscale;
     }
 
     return PDFImageOptimizer::ColorMode::Color;
@@ -543,6 +543,16 @@ public:
     /// Information about a decoded image of the document
     static PDFImageOptimizer::ImageInfo createImageInfo(const PDFDocument* document, PDFImageCompressor::ImageStatistics statistics);
 
+    /// Tones of all pixels of an image. A sample would decide wrongly: a color of a thin
+    /// line would be lost, a gray of a detail would become black or white.
+    struct ImageTones
+    {
+        bool isGrayscale = true;
+        bool isBlackAndWhite = true;
+    };
+
+    static ImageTones getImageTones(const QImage& image);
+
     /// Encoding of one image, its pixels are not needed for the writing to the storage
     struct EncodedImage
     {
@@ -563,6 +573,47 @@ public:
                                     const PDFImageOptimizer::ImageOverrides& overrides,
                                     PDFRenderErrorReporter* reporter);
 };
+
+PDFImageOptimizerHelper::ImageTones PDFImageOptimizerHelper::getImageTones(const QImage& image)
+{
+    ImageTones tones;
+
+    // Converted by bands: a large image is not held twice in the memory, and the
+    // first colored pixel of a photograph ends the walk
+    for (int top = 0; top < image.height(); top += TONES_BAND_HEIGHT)
+    {
+        const QImage band = image.copy(0, top, image.width(), qMin(TONES_BAND_HEIGHT, image.height() - top)).convertToFormat(QImage::Format_RGBA8888);
+        if (band.isNull())
+        {
+            return ImageTones{ false, false };
+        }
+
+        for (int y = 0; y < band.height(); ++y)
+        {
+            const uchar* row = band.constScanLine(y);
+            for (int x = 0; x < band.width(); ++x)
+            {
+                const int lowest = qMin(int(row[0]), qMin(int(row[1]), int(row[2])));
+                const int highest = qMax(int(row[0]), qMax(int(row[1]), int(row[2])));
+
+                if (highest - lowest > GRAYSCALE_TOLERANCE)
+                {
+                    return ImageTones{ false, false };
+                }
+
+                // A half transparent black gives other tones over the page, when the alpha is flattened
+                if (row[3] != 255 || (highest > BLACK_AND_WHITE_TOLERANCE && lowest < 255 - BLACK_AND_WHITE_TOLERANCE))
+                {
+                    tones.isBlackAndWhite = false;
+                }
+
+                row += 4;
+            }
+        }
+    }
+
+    return tones;
+}
 
 PDFImageOptimizer::ImageInfo PDFImageOptimizerHelper::createImageInfo(const PDFDocument* document, PDFImageCompressor::ImageStatistics statistics)
 {
@@ -732,7 +783,8 @@ PDFImageOptimizer::ImageAnalysis PDFImageOptimizer::analyzeImage(const QImage& i
         return analysis;
     }
 
-    analysis.grayscale = true;
+    const PDFImageOptimizerHelper::ImageTones tones = PDFImageOptimizerHelper::getImageTones(image);
+    analysis.grayscale = tones.isGrayscale;
 
     QImage sample = image;
     if (qMax(image.width(), image.height()) > ANALYSIS_MAX_SIZE)
@@ -773,12 +825,6 @@ PDFImageOptimizer::ImageAnalysis PDFImageOptimizer::analyzeImage(const QImage& i
                 analysis.hasTransparency = true;
             }
 
-            if (analysis.grayscale &&
-                (std::abs(r - g) > GRAYSCALE_TOLERANCE || std::abs(g - b) > GRAYSCALE_TOLERANCE))
-            {
-                analysis.grayscale = false;
-            }
-
             const int quantized = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
             if (uniqueColors.size() < MAX_UNIQUE_COLOR_SAMPLES)
             {
@@ -817,7 +863,9 @@ PDFImageOptimizer::ImageAnalysis PDFImageOptimizer::analyzeImage(const QImage& i
         analysis.edgeDensity = static_cast<double>(edgeCount) / pixelCount;
     }
 
-    if (analysis.grayscale && analysis.uniqueColors <= 2)
+    // Only a black and white image can be written by one bit: an image of one or two other
+    // tones (a light gray panel) would become black or disappear
+    if (tones.isBlackAndWhite)
     {
         analysis.kind = ImageAnalysis::Kind::TextScan;
     }
@@ -890,6 +938,13 @@ PDFImageOptimizer::ResolvedPlan PDFImageOptimizer::resolvePlan(const ImageInfo& 
     options.jpegQuality = settings.exactJpegQuality ? qBound(0, profile.jpegQuality, 100) : adjustJpegQuality(profile.jpegQuality, settings.goal);
     options.jpeg2000Rate = adjustJpeg2000Rate(profile.jpeg2000Rate, settings.goal);
     options.monochromeThreshold = profile.monochromeThreshold;
+
+    // All tones lie at the ends: a threshold from the histogram could fall inside of the black
+    if (options.monochromeThreshold < 0 && analysis.kind == ImageAnalysis::Kind::TextScan)
+    {
+        options.monochromeThreshold = BLACK_AND_WHITE_THRESHOLD;
+    }
+
     options.enablePngPredictor = profile.enablePngPredictor;
     options.resampleFilter = profile.resampleFilter;
     options.alphaHandling = plan.useSoftMask ? PDFImage::AlphaHandling::DropAlphaPreserveColors : PDFImage::AlphaHandling::FlattenToWhite;
