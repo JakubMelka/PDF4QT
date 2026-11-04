@@ -481,6 +481,9 @@ public:
     /// \param softMask Soft mask
     static QImage createAlphaMask(const PDFImageData& softMask);
 
+    /// Throws an exception for a decoded image without its pixels (out of memory): it is never written into
+    static void checkImageAllocated(const QImage& image);
+
     /// Parses the desired color space. If desired color space is not found, then exception is thrown.
     /// If everything is OK, then shared pointer to the new color space is returned.
     /// \param colorSpaceDictionary Dictionary containing color spaces of the page

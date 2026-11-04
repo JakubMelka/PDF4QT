@@ -30,6 +30,7 @@
 #include "pdffluentwidgets.h"
 
 #include <QPointer>
+#include <QToolButton>
 #include <QWidget>
 
 #include <vector>

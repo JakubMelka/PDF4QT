@@ -29,6 +29,7 @@
 #include "pdfdocumenttool_compress.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumentwriter.h"
+#include "pdfexecutionpolicy.h"
 #include "pdfform.h"
 #include "pdfimage.h"
 #include "pdfimagecompressor.h"
@@ -40,6 +41,7 @@
 #include "pdfexception.h"
 #include "pdffont.h"
 #include "pdfmeshqualitysettings.h"
+#include "pdfocrpagepreparer.h"
 #include "pdfobjectutils.h"
 #include "pdfoptionalcontent.h"
 #include "pdfparser.h"
@@ -50,6 +52,8 @@
 
 #include <QBuffer>
 #include <QColor>
+#include <QColorSpace>
+#include <QThread>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QImage>
@@ -902,9 +906,32 @@ class DocumentToolCompressTest : public QObject
 private Q_SLOTS:
     void initTestCase();
 
-    // First: the peak of the memory of the process only grows
-    void fontsHeldOnlyForThePage();
+    // First: the peak of the memory of a process only grows, a test before it would hide what it measures
     void memoryBound();
+    void fontsHeldOnlyForThePage();
+    void textIgnoredByTheWalk();
+    void singleThreadOneImageAtATime();
+    void imagesRunInParallel_data();
+    void imagesRunInParallel();
+    void imageDecodedOncePerDocument_data();
+    void imageDecodedOncePerDocument();
+    void outOfMemoryIsClearResult_data();
+    void outOfMemoryIsClearResult();
+    void decodedNullImageStaysUnchanged();
+    void stopEndsTheRunSoon_data();
+    void stopEndsTheRunSoon();
+    void resultDoesNotDependOnThreads();
+    void analysisComputedOnce();
+    void grayNoDriftOverRuns_data();
+    void grayNoDriftOverRuns();
+    void grayNoDriftUnderGrayOutputIntent();
+    void grayKindsShownTheSame_data();
+    void grayKindsShownTheSame();
+    void grayTableOfTheColorManagement();
+    void softMaskNotShifted();
+    void maskEncodingFailureKeepsImage();
+    void wholeFileResultDocumentRule();
+    void colorImageWithOtherRgbIntentKept();
 
     void presetSettings_data();
     void presetSettings();
@@ -942,6 +969,13 @@ private Q_SLOTS:
     void imageKindsKeepTheirLook();
     void sparseTransparencyKept();
     void identicalLayersAndAnnotationsStayDistinct();
+    void identicalWithoutTypeStayDistinct();
+    void conformanceRemovedFromResult_data();
+    void conformanceRemovedFromResult();
+    void conformanceNotRemovable();
+    void customValuesNeedThePreset_data();
+    void customValuesNeedThePreset();
+    void damagedEncryptedThroughTool();
     void grayTonesKept_data();
     void grayTonesKept();
     void blackAndWhiteStaysBitonal_data();
@@ -1033,6 +1067,850 @@ void DocumentToolCompressTest::fontsHeldOnlyForThePage()
     }
 }
 
+void DocumentToolCompressTest::textIgnoredByTheWalk()
+{
+    // The walk over the images needs nothing of a text: the page draws an image behind a text, the image
+    // is found and no font is realized (an OCR layer has a font of its own size for almost every word)
+    pdf::PDFDocumentBuilder builder;
+    const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 200, 200));
+    const pdf::PDFObjectReference image = CompressTestHelper::addImage(builder, CompressTestHelper::createPhoto(64, 3));
+    CompressTestHelper::setPage(builder, page, "BT /F1 12 Tf (word) Tj [(a) 10 (b)] TJ ET q 200 0 0 200 0 0 cm /Im Do Q", { { "Im", image } });
+
+    pdf::PDFDictionaryBuilder fontDictionary;
+    fontDictionary.addEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("Font"));
+    fontDictionary.addEntry(pdf::PDFInplaceOrMemoryString("Subtype"), pdf::PDFObject::createName("Type1"));
+    fontDictionary.addEntry(pdf::PDFInplaceOrMemoryString("BaseFont"), pdf::PDFObject::createName("Helvetica"));
+    pdf::PDFDictionaryBuilder fonts;
+    fonts.addEntry(pdf::PDFInplaceOrMemoryString("F1"), pdf::PDFObject::createDictionary(std::move(fontDictionary)));
+    pdf::PDFDictionaryBuilder resources;
+    resources.addEntry(pdf::PDFInplaceOrMemoryString("Font"), pdf::PDFObject::createDictionary(std::move(fonts)));
+    pdf::PDFDictionaryBuilder pageUpdate;
+    pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Resources"), pdf::PDFObject::createDictionary(std::move(resources)));
+    builder.mergeTo(page, pdf::PDFObject::createDictionary(std::move(pageUpdate)));
+    const pdf::PDFDocument document = builder.build();
+
+    pdf::PDFImageCompressor compressor;
+    const pdf::PDFImageCompressor::Environment environment(&document);
+    const pdf::PDFImageCompressor::ImagePlacements placements = compressor.collectImagePlacements(environment);
+    QCOMPARE(placements.size(), size_t(1));
+    QCOMPARE(placements.front().reference, image);
+    QCOMPARE(environment.getFontCache()->getRealizedFontCount(), size_t(0));
+}
+
+void DocumentToolCompressTest::singleThreadOneImageAtATime()
+{
+    // Settings › Advanced › Multithreading strategy = Single thread: the owner's way to less memory. The
+    // images are decoded strictly one at a time and nothing runs outside of the calling thread.
+    const pdf::PDFDocument document = CompressTestHelper::createPhotoDocument(12, 200);
+    pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy::SingleThreaded);
+    const auto restore = qScopeGuard([]() { pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded); });
+
+    pdf::PDFImageCompressor compressor;
+    const pdf::PDFImageCompressor::Environment environment(&document);
+    const pdf::PDFImageCompressor::ImagePlacements placements = compressor.collectImagePlacements(environment);
+    QCOMPARE(placements.size(), size_t(12));
+
+    std::atomic<int> held = 0;
+    std::atomic<int> peak = 0;
+    std::atomic<int> count = 0;
+    std::atomic<int> otherThreads = 0;
+    const QThread* thread = QThread::currentThread();
+    compressor.visitImagesInParallel(environment, placements, [&](pdf::PDFImageCompressor::ImageStatistics statistics)
+    {
+        QVERIFY(!statistics.image.isNull());
+        peak = qMax(peak.load(), ++held);
+        otherThreads += QThread::currentThread() != thread ? 1 : 0;
+        QThread::msleep(2);
+        --held;
+        ++count;
+    }, nullptr);
+    QCOMPARE(count.load(), 12);
+    QCOMPARE(peak.load(), 1);
+    QCOMPARE(otherThreads.load(), 0);
+
+    // The whole tool
+    std::atomic<int> decodedElsewhere = 0;
+    pdf::PDFImageCompressor::setTestDecodeHook([&](pdf::PDFObjectReference, QImage image)
+    {
+        decodedElsewhere += QThread::currentThread() != thread ? 1 : 0;
+        return image;
+    });
+    const auto removeHook = qScopeGuard([]() { pdf::PDFImageCompressor::setTestDecodeHook(pdf::PDFImageCompressor::TestDecodeHook()); });
+    const pdf::PDFDocumentToolCompress tool;
+    const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(document, QByteArray(100000000, 'x'), QStringLiteral("a.pdf"), false), CompressTestHelper::preset("balanced"), nullptr, nullptr);
+    QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Success);
+    QCOMPARE(decodedElsewhere.load(), 0);
+}
+
+void DocumentToolCompressTest::imagesRunInParallel_data()
+{
+    QTest::addColumn<bool>("isOnePage");
+    QTest::newRow("an-image-per-page") << false;
+    QTest::newRow("all-images-on-one-page") << true;
+}
+
+void DocumentToolCompressTest::imagesRunInParallel()
+{
+    // The owner's remark 1 on Compress: more images at once in the threads of the policy, at most the
+    // threads of the pool less the one left for the canvas, each held only while its task works on it;
+    // also on one page (the pages of the test suites of the ECI have all their images on one page)
+    QFETCH(bool, isOnePage);
+    const int threads = pdf::PDFExecutionPolicy::getMaxThreadCount(pdf::PDFExecutionPolicy::Scope::Page);
+    if (threads < 3)
+    {
+        QSKIP("The pool of the pages has fewer than 3 threads");
+    }
+
+    const int imageCount = qMax(40, threads * 3);
+    pdf::PDFDocument document = CompressTestHelper::createPhotoDocument(imageCount, 100);
+    if (isOnePage)
+    {
+        pdf::PDFDocumentBuilder builder;
+        const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 200, 200));
+        QByteArray content;
+        std::vector<std::pair<QByteArray, pdf::PDFObjectReference>> images;
+        for (int i = 0; i < imageCount; ++i)
+        {
+            const QByteArray name = "Im" + QByteArray::number(i);
+            images.emplace_back(name, CompressTestHelper::addImage(builder, CompressTestHelper::createPhoto(100, quint32(i + 1))));
+            content += "q 10 0 0 10 0 0 cm /" + name + " Do Q\n";
+        }
+        CompressTestHelper::setPage(builder, page, content, images);
+        document = builder.build();
+    }
+
+    pdf::PDFImageCompressor compressor;
+    const pdf::PDFImageCompressor::Environment environment(&document);
+    const pdf::PDFImageCompressor::ImagePlacements placements = compressor.collectImagePlacements(environment);
+
+    std::atomic<int> held = 0;
+    std::atomic<int> peak = 0;
+    std::atomic<int> count = 0;
+    compressor.visitImagesInParallel(environment, placements, [&](pdf::PDFImageCompressor::ImageStatistics)
+    {
+        const int now = ++held;
+        int previous = peak.load();
+        while (previous < now && !peak.compare_exchange_weak(previous, now))
+        {
+        }
+        QThread::msleep(5);
+        --held;
+        ++count;
+    }, nullptr);
+    QCOMPARE(count.load(), int(placements.size()));
+    qInfo().noquote() << QStringLiteral("Images held at once: %1 of the %2 threads of the pool").arg(peak.load()).arg(threads);
+    QVERIFY2(peak.load() >= 2, qPrintable(QString::number(peak.load())));
+    QVERIFY2(peak.load() <= threads - 1, qPrintable(QString::number(peak.load())));
+}
+
+void DocumentToolCompressTest::imageDecodedOncePerDocument_data()
+{
+    QTest::addColumn<int>("strategy");
+    QTest::newRow("single-thread") << int(pdf::PDFExecutionPolicy::Strategy::SingleThreaded);
+    QTest::newRow("threads") << int(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded);
+}
+
+void DocumentToolCompressTest::imageDecodedOncePerDocument()
+{
+    // A logo drawn more times on its first page and on the other pages: it is decoded and encoded once,
+    // a second decoding would be counted as a second recompressed image and hold the memory twice
+    QFETCH(int, strategy);
+    pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy(strategy));
+    const auto restore = qScopeGuard([]() { pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded); });
+
+    pdf::PDFDocumentBuilder builder;
+    const pdf::PDFObjectReference logo = CompressTestHelper::addImage(builder, CompressTestHelper::createPhoto(64, 5));
+    const pdf::PDFObjectReference other = CompressTestHelper::addImage(builder, CompressTestHelper::createPhoto(64, 6));
+    for (int i = 0; i < 3; ++i)
+    {
+        const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 200, 200));
+        CompressTestHelper::setPage(builder, page, "q 50 0 0 50 0 0 cm /Logo Do Q q 50 0 0 50 50 0 cm /Logo Do Q q 50 0 0 50 100 0 cm /Other Do Q q 50 0 0 50 150 0 cm /Logo Do Q", { { "Logo", logo }, { "Other", other } });
+    }
+    const pdf::PDFDocument document = builder.build();
+
+    pdf::PDFImageCompressor compressor;
+    const pdf::PDFImageCompressor::Environment environment(&document);
+    const pdf::PDFImageCompressor::ImagePlacements placements = compressor.collectImagePlacements(environment);
+    QCOMPARE(placements.size(), size_t(2));
+
+    std::atomic<int> logoCount = 0;
+    std::atomic<int> otherCount = 0;
+    compressor.visitImagesInParallel(environment, placements, [&](pdf::PDFImageCompressor::ImageStatistics statistics)
+    {
+        (statistics.reference == logo ? logoCount : otherCount) += 1;
+    }, nullptr);
+    QCOMPARE(logoCount.load(), 1);
+    QCOMPARE(otherCount.load(), 1);
+}
+
+void DocumentToolCompressTest::outOfMemoryIsClearResult_data()
+{
+    QTest::addColumn<bool>("isPreview");
+    QTest::addColumn<int>("strategy");
+    QTest::newRow("run-threads") << false << int(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded);
+    QTest::newRow("preview-threads") << true << int(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded);
+    QTest::newRow("run-single-thread") << false << int(pdf::PDFExecutionPolicy::Strategy::SingleThreaded);
+}
+
+void DocumentToolCompressTest::outOfMemoryIsClearResult()
+{
+    // Out of memory is a clear result of its kind, never a crash and never a damaged result: an
+    // allocation of the decoded pixels failed by an injected failure, the input stays as it was
+    QFETCH(bool, isPreview);
+    QFETCH(int, strategy);
+
+    const pdf::PDFDocument document = CompressTestHelper::createPhotoDocument(8, 128);
+    const QByteArray before = CompressTestHelper::write(document);
+
+    pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy(strategy));
+    const auto restore = qScopeGuard([]() { pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded); });
+
+    std::atomic<int> decoded = 0;
+    pdf::PDFImageCompressor::setTestDecodeHook([&decoded](pdf::PDFObjectReference, QImage image) -> QImage
+    {
+        if (++decoded == 3)
+        {
+            throw std::bad_alloc();
+        }
+        return image;
+    });
+    const auto removeHook = qScopeGuard([]() { pdf::PDFImageCompressor::setTestDecodeHook(pdf::PDFImageCompressor::TestDecodeHook()); });
+
+    const pdf::PDFDocumentToolCompress tool;
+    const pdf::PDFDocumentToolContext context = CompressTestHelper::createContext(document, QByteArray(10000000, 'x'), QStringLiteral("a.pdf"), false);
+    const pdf::PDFDocumentToolResult result = isPreview ? tool.runPreview(context, CompressTestHelper::preset("balanced"), nullptr, nullptr)
+                                                        : tool.run(context, CompressTestHelper::preset("balanced"), nullptr, nullptr);
+    QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Failed);
+    QVERIFY(result.documents.empty());
+    QVERIFY(result.isOutOfMemory());
+    QVERIFY2(result.message.contains(QStringLiteral("not enough memory")), qPrintable(result.message));
+
+    // The setting is advised only while it is not on (owner 2026-11-04)
+    const bool hasAdvice = pdf::PDFExecutionPolicy::Strategy(strategy) != pdf::PDFExecutionPolicy::Strategy::SingleThreaded;
+    QCOMPARE(result.message.contains(QStringLiteral("Multithreading strategy")), hasAdvice);
+    QCOMPARE(result.message.contains(QStringLiteral("Single thread")), hasAdvice);
+    QCOMPARE(CompressTestHelper::write(document), before);
+}
+
+void DocumentToolCompressTest::decodedNullImageStaysUnchanged()
+{
+    // No memory for the pixels of one image (a null QImage): the image stays as it is in the file, as an
+    // undecodable one, the others are compressed
+    pdf::PDFDocumentBuilder builder;
+    std::vector<pdf::PDFObjectReference> images;
+    for (int i = 0; i < 4; ++i)
+    {
+        const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 200, 200));
+        images.push_back(CompressTestHelper::addImage(builder, CompressTestHelper::createPhoto(400, quint32(i + 1))));
+        CompressTestHelper::setPage(builder, page, "q 72 0 0 72 0 0 cm /Im Do Q", { { "Im", images.back() } });
+    }
+    const pdf::PDFDocument input = builder.build();
+
+    const pdf::PDFObjectReference failing = images[1];
+    pdf::PDFImageCompressor::setTestDecodeHook([failing](pdf::PDFObjectReference reference, QImage image) { return reference == failing ? QImage() : image; });
+    const auto removeHook = qScopeGuard([]() { pdf::PDFImageCompressor::setTestDecodeHook(pdf::PDFImageCompressor::TestDecodeHook()); });
+
+    const pdf::PDFDocumentToolCompress tool;
+    const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(input, QByteArray(40000000, 'x'), QStringLiteral("a.pdf"), false), CompressTestHelper::preset("smaller-file"), nullptr, nullptr);
+    QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Success);
+    QCOMPARE(result.data.value(QStringLiteral("imagesRecompressed")).toInt(), 3);
+
+    const pdf::PDFDocument& output = *result.documents.front().document;
+    const pdf::PDFStream* kept = CompressTestHelper::getStream(output, failing);
+    const pdf::PDFStream* original = CompressTestHelper::getStream(input, failing);
+    QVERIFY(kept && original);
+    QCOMPARE(*kept->getContent(), *original->getContent());
+    QVERIFY2(*CompressTestHelper::getStream(output, images[0])->getContent() != *CompressTestHelper::getStream(input, images[0])->getContent(), "The other images are compressed");
+}
+
+void DocumentToolCompressTest::stopEndsTheRunSoon_data()
+{
+    QTest::addColumn<int>("strategy");
+    QTest::newRow("threads") << int(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded);
+
+    // The remaining images alone would take seconds here
+    QTest::newRow("single-thread") << int(pdf::PDFExecutionPolicy::Strategy::SingleThreaded);
+}
+
+void DocumentToolCompressTest::stopEndsTheRunSoon()
+{
+    // Stop and a change of the preset end the run within about 0.5 s: the cancellation is checked before each image
+    QFETCH(int, strategy);
+    pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy(strategy));
+    const auto restore = qScopeGuard([]() { pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded); });
+    constexpr int IMAGE_COUNT = 64;
+    pdf::PDFDocumentBuilder builder;
+    for (int i = 0; i < IMAGE_COUNT; ++i)
+    {
+        const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 200, 200));
+        CompressTestHelper::setPage(builder, page, "q 200 0 0 200 0 0 cm /Im Do Q", { { "Im", CompressTestHelper::addImage(builder, CompressTestHelper::createPhoto(700, quint32(i + 1))) } });
+    }
+    const pdf::PDFDocument document = builder.build();
+
+    CompressTestControl control;
+    pdf::PDFProgress progress(nullptr);
+    QElapsedTimer cancelTimer;
+    std::atomic<bool> isCanceled = false;
+    QObject context;
+    connect(&progress, &pdf::PDFProgress::progressStep, &context, [&]()
+    {
+        if (!isCanceled.exchange(true))
+        {
+            cancelTimer.start();
+            control.cancel();
+        }
+    }, Qt::DirectConnection);
+
+    pdf::PDFDocumentToolCompress::Settings settings = pdf::PDFDocumentToolCompress::createSettings(CompressTestHelper::preset(pdf::PDFDocumentToolCompress::PRESET_BALANCED));
+    pdf::PDFDocumentToolCompress::Progress compressProgress;
+    compressProgress.images = &progress;
+    pdf::PDFDocumentToolCompress::compress(&document, settings, &control, compressProgress, nullptr);
+    QVERIFY(isCanceled.load());
+    const qint64 stopTime = cancelTimer.elapsed();
+    qInfo().noquote() << QStringLiteral("The run ended %1 ms after the cancellation").arg(stopTime);
+
+    const double factor = qEnvironmentVariableIsSet("PDF4QT_TEST_TIMEOUT_FACTOR") ? qEnvironmentVariable("PDF4QT_TEST_TIMEOUT_FACTOR").toDouble() : 1.0;
+    QVERIFY2(stopTime <= qint64(500 * qMax(1.0, factor)), qPrintable(QString::number(stopTime)));
+}
+
+void DocumentToolCompressTest::resultDoesNotDependOnThreads()
+{
+    // The written file does not depend on the number of the threads or on the order they finish: an image
+    // is decoded on its first page, the objects are written in the order of the references, new masks too
+    pdf::PDFDocumentBuilder builder;
+    pdf::PDFObjectReference shared = CompressTestHelper::addImage(builder, CompressTestHelper::createPhoto(300, 77));
+    for (int i = 0; i < 12; ++i)
+    {
+        const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 200, 200));
+        const pdf::PDFObjectReference image = CompressTestHelper::addImage(builder, i % 3 == 0 ? CompressTestHelper::createPhoto(400, quint32(i + 1)) : CompressTestHelper::createFlatImage(400, quint32(i + 1)));
+
+        // A gray image with its soft mask, and a color key, whose encoding is a new object of the mask
+        QByteArray gray = CompressTestHelper::createRamp(64, 1, 1);
+        const pdf::PDFObjectReference mask = CompressTestHelper::addRawImage(builder, 64, 64, 8, pdf::PDFObject::createName("DeviceGray"), gray);
+        const pdf::PDFObjectReference withMask = CompressTestHelper::addRawImage(builder, 64, 64, 8, pdf::PDFObject::createName("DeviceGray"), gray, { { "SMask", pdf::PDFObject::createReference(mask) } });
+
+        // Each with its own samples and its own mask: the clean-up merges identical images and masks, the numbers would say nothing
+        QByteArray colorKeySamples = CompressTestHelper::createRamp(96, 3, 1);
+        for (qsizetype sample = 2; sample < colorKeySamples.size(); sample += 3)
+        {
+            colorKeySamples[sample] = char(uchar(colorKeySamples[sample]) ^ uchar(i * 16));
+        }
+        const pdf::PDFObjectReference colorKey = CompressTestHelper::addRawImage(builder, 96, 96, 8, pdf::PDFObject::createName("DeviceRGB"), colorKeySamples, { { "Mask", CompressTestHelper::createIntegerArray({ 0, 127 - i * 8, 0, 127, 0, 255 }) } });
+        CompressTestHelper::setPage(builder, page, "q 100 0 0 100 0 0 cm /A Do Q q 100 0 0 100 100 0 cm /B Do Q q 100 0 0 100 0 100 cm /C Do Q q 50 0 0 50 100 100 cm /D Do Q", { { "A", image }, { "B", shared }, { "C", withMask }, { "D", colorKey } });
+    }
+    const pdf::PDFDocument document = builder.build();
+
+    // The later an image in the document, the sooner it is ready: the threads finish against the order of the
+    // references. Without the sort of the results the numbers of the new masks would follow the threads.
+    int lastObjectNumber = 0;
+    for (int number = int(document.getStorage().getObjects().size()) - 1; number > 0 && lastObjectNumber == 0; --number)
+    {
+        lastObjectNumber = document.getStorage().getObjects()[number].object.isNull() ? 0 : number;
+    }
+
+    const auto run = [&document, lastObjectNumber](pdf::PDFExecutionPolicy::Strategy strategy)
+    {
+        pdf::PDFExecutionPolicy::setStrategy(strategy);
+        if (strategy != pdf::PDFExecutionPolicy::Strategy::SingleThreaded)
+        {
+            pdf::PDFImageCompressor::setTestDecodeHook([lastObjectNumber](pdf::PDFObjectReference reference, QImage image)
+            {
+                QThread::msleep(qBound(0, 2 * (lastObjectNumber - int(reference.objectNumber)), 200));
+                return image;
+            });
+        }
+        const auto removeHook = qScopeGuard([]() { pdf::PDFImageCompressor::setTestDecodeHook(pdf::PDFImageCompressor::TestDecodeHook()); });
+        const pdf::PDFDocumentToolCompress tool;
+        const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(document, QByteArray(100000000, 'x'), QStringLiteral("a.pdf"), false), CompressTestHelper::preset("balanced"), nullptr, nullptr);
+        pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded);
+        return result.documents.empty() ? QByteArray() : CompressTestHelper::write(*result.documents.front().document);
+    };
+
+    const QByteArray single = run(pdf::PDFExecutionPolicy::Strategy::SingleThreaded);
+    QVERIFY(!single.isEmpty());
+
+    // The test is about the numbers of the new objects: each of the 12 color keys has got its new mask, the
+    // 12 identical gray images with their masks are one image of the clean-up
+    const pdf::PDFDocument singleDocument = CompressTestHelper::read(single);
+    int imagesWithMask = 0;
+    for (const pdf::PDFObjectStorage::Entry& entry : singleDocument.getStorage().getObjects())
+    {
+        imagesWithMask += entry.object.isStream() && entry.object.getStream()->getDictionary()->hasKey("SMask") ? 1 : 0;
+    }
+    QCOMPARE(imagesWithMask, 13);
+
+    for (int i = 0; i < 4; ++i)
+    {
+        QVERIFY2(run(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded) == single, "The file of the threads of the pages differs from the file of one thread");
+    }
+    QVERIFY2(run(pdf::PDFExecutionPolicy::Strategy::AlwaysMultithreaded) == single, "The file of all threads differs from the file of one thread");
+}
+
+void DocumentToolCompressTest::analysisComputedOnce()
+{
+    // The old dialog asks for a plan of all images at each click in the thread of the user interface: the
+    // walk over all pixels is done once when the image is collected and kept
+    pdf::PDFDocumentBuilder builder;
+    const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 200, 200));
+    const pdf::PDFObjectReference image = CompressTestHelper::addRawImage(builder, 64, 64, 8, pdf::PDFObject::createName("DeviceGray"), CompressTestHelper::createRamp(64, 1, 1));
+    CompressTestHelper::setPage(builder, page, "q 72 0 0 72 0 0 cm /Im Do Q", { { "Im", image } });
+    const pdf::PDFDocument document = builder.build();
+
+    std::vector<pdf::PDFImageOptimizer::ImageInfo> infos = pdf::PDFImageOptimizer::collectImageInfos(&document);
+    QCOMPARE(infos.size(), size_t(1));
+    QVERIFY(infos.front().analysis.has_value());
+    QVERIFY(infos.front().analysis->grayscale);
+
+    // A plan decides by what is kept: the pixels are not read again - other pixels (a color) change nothing
+    QImage colored(infos.front().image.size(), QImage::Format_RGB32);
+    colored.fill(QColor(255, 0, 0));
+    infos.front().image = colored;
+    pdf::PDFImageOptimizer::Settings settings = pdf::PDFImageOptimizer::Settings::createDefault();
+    settings.enabled = true;
+    QCOMPARE(pdf::PDFImageOptimizer::resolvePlan(infos.front(), settings).resolvedColorMode, pdf::PDFImageOptimizer::ColorMode::Grayscale);
+
+    // An information without an analysis (the OCR makes its own) is analyzed by the plan
+    infos.front().analysis.reset();
+    QCOMPARE(pdf::PDFImageOptimizer::resolvePlan(infos.front(), settings).resolvedColorMode, pdf::PDFImageOptimizer::ColorMode::Color);
+}
+
+void DocumentToolCompressTest::grayNoDriftOverRuns_data()
+{
+    QTest::addColumn<int>("tone");
+    QTest::newRow("dark 30") << 30;
+    QTest::newRow("dark 64") << 64;
+    QTest::newRow("middle 128") << 128;
+    QTest::newRow("light 200") << 200;
+    QTest::newRow("gradient") << -1;
+}
+
+void DocumentToolCompressTest::grayNoDriftOverRuns()
+{
+    // A decoded image holds the shown colors. Written as raw samples of DeviceGray, they went through the color
+    // management again: 30 is shown as 24, after Compress as 17, the next run darker still. What the user sees
+    // stays, also after two runs one over the other - from the shown values of the images, not from the code.
+    QFETCH(int, tone);
+
+    constexpr int SIZE = 64;
+    const QByteArray samples = tone >= 0 ? QByteArray(SIZE * SIZE, char(tone)) : CompressTestHelper::createRamp(SIZE, 1, 1);
+
+    pdf::PDFDocumentBuilder builder;
+    const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 200, 200));
+    const pdf::PDFObjectReference image = CompressTestHelper::addRawImage(builder, SIZE, SIZE, 8, pdf::PDFObject::createName("DeviceGray"), samples);
+    CompressTestHelper::setPage(builder, page, "q 72 0 0 72 0 0 cm /Im Do Q", { { "Im", image } });
+    pdf::PDFDocument current = builder.build();
+
+    QVariantMap parameters = CompressTestHelper::preset("custom");
+    parameters.insert(QStringLiteral("targetDpi"), 300);
+    parameters.insert(QStringLiteral("jpegQuality"), 100);
+    parameters.insert(QStringLiteral("goal"), QStringLiteral("prefer-quality"));
+    parameters.insert(QStringLiteral("keepOriginalIfLarger"), false);
+
+    pdf::PDFImageCompressor compressor;
+    const pdf::PDFImageCompressor::ImageStatisticsList original = compressor.collectImages(&current);
+    QCOMPARE(original.size(), size_t(1));
+
+    const pdf::PDFDocumentToolCompress tool;
+    for (int run = 0; run < 2; ++run)
+    {
+        const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(current, QByteArray(10000000, 'x'), QStringLiteral("a.pdf"), false), parameters, nullptr, nullptr);
+        QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Success);
+        QCOMPARE(result.data.value(QStringLiteral("imagesRecompressed")).toInt(), 1);
+        current = CompressTestHelper::read(CompressTestHelper::write(*result.documents.front().document));
+
+        const pdf::PDFImageCompressor::ImageStatisticsList shown = compressor.collectImages(&current);
+        QCOMPARE(shown.size(), size_t(1));
+        const int difference = CompressTestHelper::getColorDifference(original.front().image, shown.front().image);
+        QVERIFY2(difference <= 2, qPrintable(QStringLiteral("Run %1: the shown tones moved by %2").arg(run + 1).arg(difference)));
+    }
+}
+
+void DocumentToolCompressTest::grayNoDriftUnderGrayOutputIntent()
+{
+    // An output intent of a gray space (ISO 32000-2 14.11.5) is the space DeviceGray is shown through: here a
+    // linear one, far from the default curve (the sample 128 is shown about as 188). What the user sees stays.
+    constexpr int SIZE = 64;
+    const QByteArray profile = QColorSpace(QPointF(0.3127, 0.3290), QColorSpace::TransferFunction::Linear).iccProfile();
+    QVERIFY(!profile.isEmpty());
+
+    pdf::PDFDocumentBuilder builder;
+    const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 200, 200));
+    const pdf::PDFObjectReference image = CompressTestHelper::addRawImage(builder, SIZE, SIZE, 8, pdf::PDFObject::createName("DeviceGray"), CompressTestHelper::createRamp(SIZE, 1, 1));
+    CompressTestHelper::setPage(builder, page, "q 72 0 0 72 0 0 cm /Im Do Q", { { "Im", image } });
+
+    pdf::PDFDictionaryBuilder profileDictionary;
+    profileDictionary.addEntry(pdf::PDFInplaceOrMemoryString("N"), pdf::PDFObject::createInteger(1));
+    const pdf::PDFObjectReference profileStream = builder.addObject(CompressTestHelper::createStreamObject(profile, std::move(profileDictionary)));
+    pdf::PDFDictionaryBuilder intent;
+    intent.addEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("OutputIntent"));
+    intent.addEntry(pdf::PDFInplaceOrMemoryString("S"), pdf::PDFObject::createName("GTS_PDFA1"));
+    intent.addEntry(pdf::PDFInplaceOrMemoryString("DestOutputProfile"), pdf::PDFObject::createReference(profileStream));
+    pdf::PDFArrayBuilder intents;
+    intents.appendItem(pdf::PDFObject::createDictionary(std::move(intent)));
+    pdf::PDFDictionaryBuilder catalogUpdate;
+    catalogUpdate.addEntry(pdf::PDFInplaceOrMemoryString("OutputIntents"), pdf::PDFObject::createArray(std::move(intents)));
+    builder.mergeTo(builder.getCatalogReference(), pdf::PDFObject::createDictionary(std::move(catalogUpdate)));
+    pdf::PDFDocument current = builder.build();
+
+    pdf::PDFImageCompressor compressor;
+    const pdf::PDFImageCompressor::ImageStatisticsList original = compressor.collectImages(&current);
+    QCOMPARE(original.size(), size_t(1));
+
+    // The sample of the middle of the ramp is lighter than it is: the intent is used by the color management of this build
+    const int middleTone = qGray(original.front().image.pixel(SIZE / 2, 0));
+    if (qAbs(middleTone - 128) < 32)
+    {
+        QSKIP("The color management of this build does not use the output intent");
+    }
+
+    QVariantMap parameters = CompressTestHelper::preset("custom");
+    parameters.insert(QStringLiteral("targetDpi"), 300);
+    parameters.insert(QStringLiteral("jpegQuality"), 100);
+    parameters.insert(QStringLiteral("goal"), QStringLiteral("prefer-quality"));
+    parameters.insert(QStringLiteral("keepOriginalIfLarger"), false);
+
+    const pdf::PDFDocumentToolCompress tool;
+    for (int run = 0; run < 2; ++run)
+    {
+        const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(current, QByteArray(10000000, 'x'), QStringLiteral("a.pdf"), false), parameters, nullptr, nullptr);
+        QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Success);
+        QCOMPARE(result.data.value(QStringLiteral("imagesRecompressed")).toInt(), 1);
+        current = CompressTestHelper::read(CompressTestHelper::write(*result.documents.front().document));
+
+        const pdf::PDFImageCompressor::ImageStatisticsList shown = compressor.collectImages(&current);
+        QCOMPARE(shown.size(), size_t(1));
+        const int difference = CompressTestHelper::getColorDifference(original.front().image, shown.front().image);
+        QVERIFY2(difference <= 2, qPrintable(QStringLiteral("Run %1: the shown tones moved by %2").arg(run + 1).arg(difference)));
+    }
+}
+
+void DocumentToolCompressTest::grayKindsShownTheSame_data()
+{
+    QTest::addColumn<QString>("kind");
+    QTest::newRow("decode-inverted") << QStringLiteral("decode-inverted");
+    QTest::newRow("calgray") << QStringLiteral("calgray");
+    QTest::newRow("icc-gray") << QStringLiteral("icc-gray");
+    QTest::newRow("indexed-gray") << QStringLiteral("indexed-gray");
+    QTest::newRow("gray-2-bits") << QStringLiteral("gray-2-bits");
+    QTest::newRow("gray-4-bits") << QStringLiteral("gray-4-bits");
+    QTest::newRow("gray-16-bits") << QStringLiteral("gray-16-bits");
+}
+
+void DocumentToolCompressTest::grayKindsShownTheSame()
+{
+    // Whatever the gray image was before (ISO 32000-2 8.6.5, 8.6.6, 8.9.5.2), it is written as samples of DeviceGray,
+    // which the color management shows as the image was shown: within the rounding, also after a second run
+    QFETCH(QString, kind);
+    constexpr int SIZE = 64;
+
+    pdf::PDFDocumentBuilder builder;
+    const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 200, 200));
+    const pdf::PDFObject deviceGray = pdf::PDFObject::createName("DeviceGray");
+    const QByteArray ramp = CompressTestHelper::createRamp(SIZE, 1, 1);
+
+    pdf::PDFObjectReference image;
+    if (kind == QLatin1String("decode-inverted"))
+    {
+        image = CompressTestHelper::addRawImage(builder, SIZE, SIZE, 8, deviceGray, ramp, { { "Decode", CompressTestHelper::createNumberArray({ 1, 0 }) } });
+    }
+    else if (kind == QLatin1String("calgray"))
+    {
+        pdf::PDFDictionaryBuilder parameters;
+        parameters.addEntry(pdf::PDFInplaceOrMemoryString("WhitePoint"), CompressTestHelper::createNumberArray({ 0.9505, 1.0, 1.089 }));
+        parameters.addEntry(pdf::PDFInplaceOrMemoryString("Gamma"), pdf::PDFObject::createReal(1.8));
+        pdf::PDFArrayBuilder colorSpace;
+        colorSpace.appendItem(pdf::PDFObject::createName("CalGray"));
+        colorSpace.appendItem(pdf::PDFObject::createDictionary(std::move(parameters)));
+        image = CompressTestHelper::addRawImage(builder, SIZE, SIZE, 8, pdf::PDFObject::createArray(std::move(colorSpace)), ramp);
+    }
+    else if (kind == QLatin1String("icc-gray"))
+    {
+        const QByteArray profile = QColorSpace(QPointF(0.3127, 0.3290), QColorSpace::TransferFunction::Linear).iccProfile();
+        QVERIFY(!profile.isEmpty());
+        pdf::PDFDictionaryBuilder profileDictionary;
+        profileDictionary.addEntry(pdf::PDFInplaceOrMemoryString("N"), pdf::PDFObject::createInteger(1));
+        pdf::PDFArrayBuilder colorSpace;
+        colorSpace.appendItem(pdf::PDFObject::createName("ICCBased"));
+        colorSpace.appendItem(pdf::PDFObject::createReference(builder.addObject(CompressTestHelper::createStreamObject(profile, std::move(profileDictionary)))));
+        image = CompressTestHelper::addRawImage(builder, SIZE, SIZE, 8, pdf::PDFObject::createArray(std::move(colorSpace)), ramp);
+    }
+    else if (kind == QLatin1String("indexed-gray"))
+    {
+        QByteArray lookup(256, Qt::Uninitialized);
+        for (int i = 0; i < 256; ++i)
+        {
+            lookup[i] = char(255 - i);
+        }
+        pdf::PDFArrayBuilder colorSpace;
+        colorSpace.appendItem(pdf::PDFObject::createName("Indexed"));
+        colorSpace.appendItem(deviceGray);
+        colorSpace.appendItem(pdf::PDFObject::createInteger(255));
+        colorSpace.appendItem(pdf::PDFObject::createString(lookup));
+        image = CompressTestHelper::addRawImage(builder, SIZE, SIZE, 8, pdf::PDFObject::createArray(std::move(colorSpace)), ramp);
+    }
+    else if (kind == QLatin1String("gray-16-bits"))
+    {
+        image = CompressTestHelper::addRawImage(builder, SIZE, SIZE, 16, deviceGray, CompressTestHelper::createRamp(SIZE, 1, 2));
+    }
+    else
+    {
+        const int bits = kind == QLatin1String("gray-2-bits") ? 2 : 4;
+        const int stride = (SIZE * bits + 7) / 8;
+        QByteArray samples(stride * SIZE, char(0x1B));
+        for (qsizetype i = 0; i < samples.size(); ++i)
+        {
+            samples[i] = char((i % stride) * 251 / stride);
+        }
+        image = CompressTestHelper::addRawImage(builder, SIZE, SIZE, bits, deviceGray, samples);
+    }
+
+    CompressTestHelper::setPage(builder, page, "q 72 0 0 72 0 0 cm /Im Do Q", { { "Im", image } });
+    pdf::PDFDocument current = builder.build();
+
+    pdf::PDFImageCompressor compressor;
+    const pdf::PDFImageCompressor::ImageStatisticsList original = compressor.collectImages(&current);
+    QCOMPARE(original.size(), size_t(1));
+
+    QVariantMap parameters = CompressTestHelper::preset("custom");
+    parameters.insert(QStringLiteral("targetDpi"), 300);
+    parameters.insert(QStringLiteral("jpegQuality"), 100);
+    parameters.insert(QStringLiteral("goal"), QStringLiteral("prefer-quality"));
+    parameters.insert(QStringLiteral("keepOriginalIfLarger"), false);
+
+    const pdf::PDFDocumentToolCompress tool;
+    for (int run = 0; run < 2; ++run)
+    {
+        const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(current, QByteArray(10000000, 'x'), QStringLiteral("a.pdf"), false), parameters, nullptr, nullptr);
+        QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Success);
+        QCOMPARE(result.data.value(QStringLiteral("imagesRecompressed")).toInt(), 1);
+        current = CompressTestHelper::read(CompressTestHelper::write(*result.documents.front().document));
+
+        const pdf::PDFImageCompressor::ImageStatisticsList shown = compressor.collectImages(&current);
+        QCOMPARE(shown.size(), size_t(1));
+        const int difference = CompressTestHelper::getColorDifference(original.front().image, shown.front().image);
+        QVERIFY2(difference <= 3, qPrintable(QStringLiteral("Run %1: the shown tones moved by %2").arg(run + 1).arg(difference)));
+    }
+}
+
+void DocumentToolCompressTest::grayTableOfTheColorManagement()
+{
+    // Generic color management (the OCR path) shows each sample as it is: no table. The default one
+    // has a curve: the table gives the sample, which is shown as the tone.
+    pdf::PDFCMSGeneric generic;
+    QVERIFY(pdf::PDFImage::createGrayTable(&generic) == nullptr);
+    QVERIFY(pdf::PDFImage::isDeviceRGBShownExactly(&generic));
+
+    const pdf::PDFDocument document = CompressTestHelper::createPhotoDocument(1, 16);
+    const pdf::PDFImageCompressor::Environment environment(&document);
+    const std::shared_ptr<const std::array<uchar, 256>> table = pdf::PDFImage::createGrayTable(environment.getCMS());
+    if (!table)
+    {
+        QSKIP("The default color management of this build shows the samples of DeviceGray as they are");
+    }
+
+    std::vector<float> colors(256);
+    for (int i = 0; i < 256; ++i)
+    {
+        colors[i] = float(i) / 255.0f;
+    }
+    std::vector<unsigned char> shown(256 * 3);
+    pdf::PDFRenderErrorReporterDummy reporter;
+    QVERIFY(environment.getCMS()->fillRGBBufferFromDeviceGray(colors, pdf::RenderingIntent::Perceptual, shown.data(), &reporter));
+    for (int tone = 0; tone < 256; ++tone)
+    {
+        const int sample = (*table)[tone];
+        QVERIFY2(qAbs(int(shown[sample * 3]) - tone) <= 2, qPrintable(QStringLiteral("Tone %1, sample %2, shown %3").arg(tone).arg(sample).arg(int(shown[sample * 3]))));
+    }
+}
+
+void DocumentToolCompressTest::softMaskNotShifted()
+{
+    // The values of a soft mask are the alpha itself: no table of the shown tones
+    constexpr int SIZE = 64;
+    QImage image(SIZE, SIZE, QImage::Format_RGBA8888);
+    QByteArray maskSamples(SIZE * SIZE, Qt::Uninitialized);
+    for (int y = 0; y < SIZE; ++y)
+    {
+        for (int x = 0; x < SIZE; ++x)
+        {
+            image.setPixelColor(x, y, QColor(40, 40, 40, 30 + x));
+            maskSamples[y * SIZE + x] = char(30 + x);
+        }
+    }
+    pdf::PDFImageOptimizer::ImageInfo info;
+    info.image = image;
+    info.pixelSize = image.size();
+    info.hasTransparency = true;
+    info.minimalDpi = QPointF(72, 72);
+    std::shared_ptr<std::array<uchar, 256>> table = std::make_shared<std::array<uchar, 256>>();
+    table->fill(uchar(255));
+    info.grayTable = table;
+
+    pdf::PDFImageOptimizer::Settings settings = pdf::PDFImageOptimizer::Settings::createDefault();
+    settings.enabled = true;
+    settings.keepOriginalIfLarger = false;
+
+    // The plan writes the gray by the table, a stream of the options of the mask would be all white
+    const pdf::PDFImageOptimizer::ResolvedPlan plan = pdf::PDFImageOptimizer::resolvePlan(info, settings);
+    QVERIFY(plan.useSoftMask);
+    QCOMPARE(plan.encodeOptions.grayTable, info.grayTable);
+
+    pdf::PDFDocumentBuilder builder;
+    const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 200, 200));
+    const pdf::PDFObjectReference mask = CompressTestHelper::addRawImage(builder, SIZE, SIZE, 8, pdf::PDFObject::createName("DeviceGray"), maskSamples);
+    const pdf::PDFObjectReference reference = CompressTestHelper::addRawImage(builder, SIZE, SIZE, 8, pdf::PDFObject::createName("DeviceGray"), QByteArray(SIZE * SIZE, char(40)), { { "SMask", pdf::PDFObject::createReference(mask) } });
+    CompressTestHelper::setPage(builder, page, "q 72 0 0 72 0 0 cm /Im Do Q", { { "Im", reference } });
+    const pdf::PDFDocument input = builder.build();
+
+    pdf::PDFImageOptimizer optimizer;
+    const pdf::PDFDocument output = optimizer.optimize(&input, settings);
+    const pdf::PDFImageCompressor compressor;
+    const auto before = compressor.collectImages(&input);
+    const auto after = compressor.collectImages(&output);
+    QCOMPARE(before.size(), size_t(1));
+    QCOMPARE(after.size(), size_t(1));
+    QVERIFY2(CompressTestHelper::getAlphaDifference(before.front().image, after.front().image) <= 1, "The transparency stays");
+}
+
+void DocumentToolCompressTest::maskEncodingFailureKeepsImage()
+{
+    // No memory for the encoding of a soft mask: the image written without it would lose its transparency,
+    // silently (never a silently damaged result, owner 2026-11-04). Its stream stays, the other image is compressed.
+    constexpr int SIZE = 64;
+    QByteArray maskSamples(SIZE * SIZE, Qt::Uninitialized);
+    for (int y = 0; y < SIZE; ++y)
+    {
+        for (int x = 0; x < SIZE; ++x)
+        {
+            maskSamples[y * SIZE + x] = char(30 + x);
+        }
+    }
+
+    pdf::PDFDocumentBuilder builder;
+    const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 200, 200));
+    const pdf::PDFObjectReference mask = CompressTestHelper::addRawImage(builder, SIZE, SIZE, 8, pdf::PDFObject::createName("DeviceGray"), maskSamples);
+    const pdf::PDFObjectReference masked = CompressTestHelper::addRawImage(builder, SIZE, SIZE, 8, pdf::PDFObject::createName("DeviceGray"), CompressTestHelper::createRamp(SIZE, 1, 1), { { "SMask", pdf::PDFObject::createReference(mask) } });
+    QByteArray plainSamples = CompressTestHelper::createRamp(SIZE, 1, 1);
+    std::reverse(plainSamples.begin(), plainSamples.end());
+    const pdf::PDFObjectReference plain = CompressTestHelper::addRawImage(builder, SIZE, SIZE, 8, pdf::PDFObject::createName("DeviceGray"), plainSamples);
+    CompressTestHelper::setPage(builder, page, "q 72 0 0 72 0 0 cm /A Do Q q 72 0 0 72 72 0 cm /B Do Q", { { "A", masked }, { "B", plain } });
+    const pdf::PDFDocument input = builder.build();
+
+    pdf::PDFImageOptimizer::Settings settings = pdf::PDFImageOptimizer::Settings::createDefault();
+    settings.enabled = true;
+    settings.keepOriginalIfLarger = false;
+
+    pdf::PDFImageOptimizer::setTestMaskEncodeHook([]() { throw pdf::PDFException(QStringLiteral("There is not enough memory to encode the image.")); });
+    const auto removeHook = qScopeGuard([]() { pdf::PDFImageOptimizer::setTestMaskEncodeHook(std::function<void()>()); });
+
+    std::vector<pdf::PDFImageOptimizer::ImageResult> results;
+    const pdf::PDFImageOptimizer optimizer;
+    const pdf::PDFDocument output = optimizer.optimize(&input, settings, pdf::PDFImageOptimizer::ImageOverrides(), nullptr, nullptr, &results);
+
+    QCOMPARE(results.size(), size_t(2));
+    QCOMPARE(results.front().reference, masked);
+    QVERIFY(results.front().keptOriginal);
+    QCOMPARE(results.back().reference, plain);
+    QVERIFY(!results.back().keptOriginal);
+
+    const pdf::PDFStream* outputStream = CompressTestHelper::getStream(output, masked);
+    QVERIFY(outputStream);
+    QCOMPARE(*outputStream->getContent(), *CompressTestHelper::getStream(input, masked)->getContent());
+    QVERIFY(outputStream->getDictionary()->hasKey("SMask"));
+
+    const pdf::PDFImageCompressor compressor;
+    const auto before = compressor.collectImages(&input);
+    const auto after = compressor.collectImages(&output);
+    QCOMPARE(before.size(), size_t(2));
+    QCOMPARE(after.size(), size_t(2));
+    QCOMPARE(CompressTestHelper::getAlphaDifference(before.front().image, after.front().image), 0);
+}
+
+void DocumentToolCompressTest::wholeFileResultDocumentRule()
+{
+    // Compress and Optimize Structure exist for the size: a file, which is not smaller, has no result. Remove
+    // Hidden Data exists for the removal: its result has to go also when the rewritten file is larger
+    const pdf::PDFDocument document = CompressTestHelper::createPhotoDocument(1, 16);
+    const pdf::PDFDocumentToolContext context = CompressTestHelper::createContext(document, QByteArray(1000, 'x'), QStringLiteral("dir/Report.pdf"), false);
+    const pdf::PDFDocumentToolCompress tool;
+
+    for (const qint64 sizeAfter : { qint64(1000), qint64(1500) })
+    {
+        pdf::PDFDocumentToolResult whenSmaller;
+        tool.finishWholeFileResult(&whenSmaller, context.documents.front(), pdf::PDFDocument(document), 1000, sizeAfter, QStringLiteral("_sanitized"));
+        QVERIFY(whenSmaller.documents.empty());
+
+        pdf::PDFDocumentToolResult always;
+        tool.finishWholeFileResult(&always, context.documents.front(), pdf::PDFDocument(document), 1000, sizeAfter, QStringLiteral("_sanitized"), pdf::PDFDocumentTool::WholeFileDocument::Always);
+        QCOMPARE(always.documents.size(), size_t(1));
+        QCOMPARE(always.documents.front().suggestedFileName, QStringLiteral("Report_sanitized.pdf"));
+        QCOMPARE(always.documents.front().kind, pdf::PDFDocumentToolOutputDocument::Kind::Changed);
+
+        // The numbers say the truth: nothing was saved, also when the file grew
+        QCOMPARE(always.data.value(QStringLiteral("sizeBefore")).toInteger(), qint64(1000));
+        QCOMPARE(always.data.value(QStringLiteral("sizeAfter")).toInteger(), sizeAfter);
+        QCOMPARE(always.data.value(QStringLiteral("savedBytes")).toInteger(), qint64(0));
+        QCOMPARE(always.data.value(QStringLiteral("savedPercent")).toInt(), 0);
+    }
+
+    pdf::PDFDocumentToolResult smaller;
+    tool.finishWholeFileResult(&smaller, context.documents.front(), pdf::PDFDocument(document), 1000, 750, QStringLiteral("_compressed"));
+    QCOMPARE(smaller.documents.size(), size_t(1));
+    QCOMPARE(smaller.documents.front().suggestedFileName, QStringLiteral("Report_compressed.pdf"));
+    QCOMPARE(smaller.data.value(QStringLiteral("savedBytes")).toInteger(), qint64(250));
+    QCOMPARE(smaller.data.value(QStringLiteral("savedPercent")).toInt(), 25);
+}
+
+void DocumentToolCompressTest::colorImageWithOtherRgbIntentKept()
+{
+    // An output intent of another RGB space (Adobe RGB, ISO 32000-2 14.11.5): the document shows DeviceRGB through
+    // it. A decoded image, written as DeviceRGB, would go through it again, the colors would move. Its stream stays.
+    const QByteArray profile = QColorSpace(QColorSpace::AdobeRgb).iccProfile();
+    QVERIFY(!profile.isEmpty());
+
+    pdf::PDFDocumentBuilder builder;
+    const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 200, 200));
+    const pdf::PDFObjectReference image = CompressTestHelper::addRawImage(builder, 64, 64, 8, pdf::PDFObject::createName("DeviceRGB"), CompressTestHelper::createRamp(64, 3, 1));
+    CompressTestHelper::setPage(builder, page, "q 72 0 0 72 0 0 cm /Im Do Q", { { "Im", image } });
+
+    pdf::PDFDictionaryBuilder profileDictionary;
+    profileDictionary.addEntry(pdf::PDFInplaceOrMemoryString("N"), pdf::PDFObject::createInteger(3));
+    const pdf::PDFObjectReference profileStream = builder.addObject(CompressTestHelper::createStreamObject(profile, std::move(profileDictionary)));
+    pdf::PDFDictionaryBuilder intent;
+    intent.addEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("OutputIntent"));
+    intent.addEntry(pdf::PDFInplaceOrMemoryString("S"), pdf::PDFObject::createName("GTS_PDFA1"));
+    intent.addEntry(pdf::PDFInplaceOrMemoryString("DestOutputProfile"), pdf::PDFObject::createReference(profileStream));
+    pdf::PDFArrayBuilder intents;
+    intents.appendItem(pdf::PDFObject::createDictionary(std::move(intent)));
+    pdf::PDFDictionaryBuilder catalogUpdate;
+    catalogUpdate.addEntry(pdf::PDFInplaceOrMemoryString("OutputIntents"), pdf::PDFObject::createArray(std::move(intents)));
+    builder.mergeTo(builder.getCatalogReference(), pdf::PDFObject::createDictionary(std::move(catalogUpdate)));
+    const pdf::PDFDocument input = builder.build();
+
+    const pdf::PDFImageCompressor::Environment environment(&input);
+    if (pdf::PDFImage::isDeviceRGBShownExactly(environment.getCMS()))
+    {
+        QSKIP("The color management of this build does not use the output intent");
+    }
+
+    QVariantMap parameters = CompressTestHelper::preset("custom");
+    parameters.insert(QStringLiteral("targetDpi"), 300);
+    parameters.insert(QStringLiteral("jpegQuality"), 100);
+    parameters.insert(QStringLiteral("goal"), QStringLiteral("prefer-quality"));
+    parameters.insert(QStringLiteral("keepOriginalIfLarger"), false);
+    const pdf::PDFDocumentToolCompress tool;
+    const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(input, QByteArray(10000000, 'x'), QStringLiteral("a.pdf"), false), parameters, nullptr, nullptr);
+    QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Success);
+    QCOMPARE(result.data.value(QStringLiteral("imagesRecompressed")).toInt(), 0);
+
+    const pdf::PDFImageCompressor compressor;
+    const auto before = compressor.collectImages(&input);
+    const auto after = compressor.collectImages(result.documents.front().document.data());
+    QCOMPARE(before.size(), size_t(1));
+    QCOMPARE(after.size(), size_t(1));
+    QCOMPARE(CompressTestHelper::getColorDifference(before.front().image, after.front().image), 0);
+}
+
 void DocumentToolCompressTest::memoryBound()
 {
 #if defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)
@@ -1061,10 +1939,12 @@ void DocumentToolCompressTest::memoryBound()
         QSKIP("The peak of the memory cannot be read on this system");
     }
 
-    // The run of the tool: at most one decoded image with its raw samples at a time.
-    // The limit is a few images, far below all of them at once.
-    pdf::PDFDocumentToolCompress tool;
+    // Single thread (Settings › Advanced › Multithreading strategy): at most one decoded image with its
+    // raw samples at a time, far below all of them at once
+    pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy::SingleThreaded);
+    const pdf::PDFDocumentToolCompress tool;
     const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(document), CompressTestHelper::preset(pdf::PDFDocumentToolCompress::PRESET_BALANCED), nullptr, nullptr);
+    pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded);
     QVERIFY(result.status == pdf::PDFDocumentToolResultStatus::Success || result.status == pdf::PDFDocumentToolResultStatus::NothingToDo);
     const qint64 runPeak = CompressTestHelper::getPeakMemory();
 
@@ -1075,7 +1955,7 @@ void DocumentToolCompressTest::memoryBound()
 
     const qint64 runGrowth = runPeak - baseline;
     const qint64 holdingGrowth = holdingPeak - baseline;
-    qInfo().noquote() << QStringLiteral("Peak of the memory above the document: the tool %1 MB, all images decoded at once %2 MB (%3 images of %4 MB)")
+    qInfo().noquote() << QStringLiteral("Peak of the memory above the document: the tool in one thread %1 MB, all images decoded at once %2 MB (%3 images of %4 MB)")
                              .arg(runGrowth / (1024 * 1024)).arg(holdingGrowth / (1024 * 1024)).arg(IMAGE_COUNT).arg(decodedImageBytes / (1024 * 1024));
 
     QVERIFY2(runGrowth < decodedImageBytes * 6, qPrintable(QStringLiteral("The tool holds %1 bytes at once").arg(runGrowth)));
@@ -2813,6 +3693,237 @@ void DocumentToolCompressTest::identicalLayersAndAnnotationsStayDistinct()
     QVERIFY(outputAnnotations.front() != outputAnnotations.back());
 }
 
+void DocumentToolCompressTest::identicalWithoutTypeStayDistinct()
+{
+    // /Type is optional for a layer (ISO 32000-2 Table 96 says it is required, real files omit it) and for an
+    // annotation: what uses the object says, what it is. A hidden layer must stay hidden and each annotation one object.
+    pdf::PDFDocumentBuilder builder;
+    const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 200, 200));
+
+    const auto createLayer = []()
+    {
+        pdf::PDFDictionaryBuilder layer;
+        layer.addEntry(pdf::PDFInplaceOrMemoryString("Name"), pdf::PDFObject::createString("Notes"));
+        return pdf::PDFObject::createDictionary(std::move(layer));
+    };
+    const pdf::PDFObjectReference hiddenLayer = builder.addObject(createLayer());
+    const pdf::PDFObjectReference shownLayer = builder.addObject(createLayer());
+
+    // The list of the layers behind a reference, as the list of the annotations below
+    pdf::PDFArrayBuilder layers;
+    layers.appendItem(pdf::PDFObject::createReference(hiddenLayer));
+    layers.appendItem(pdf::PDFObject::createReference(shownLayer));
+    const pdf::PDFObjectReference layerList = builder.addObject(pdf::PDFObject::createArray(std::move(layers)));
+    pdf::PDFArrayBuilder off;
+    off.appendItem(pdf::PDFObject::createReference(hiddenLayer));
+    pdf::PDFDictionaryBuilder configuration;
+    configuration.addEntry(pdf::PDFInplaceOrMemoryString("OFF"), pdf::PDFObject::createArray(std::move(off)));
+    pdf::PDFDictionaryBuilder properties;
+    properties.addEntry(pdf::PDFInplaceOrMemoryString("OCGs"), pdf::PDFObject::createReference(layerList));
+    properties.addEntry(pdf::PDFInplaceOrMemoryString("D"), pdf::PDFObject::createDictionary(std::move(configuration)));
+    builder.setCatalogOptionalContentProperties(builder.addObject(pdf::PDFObject::createDictionary(std::move(properties))));
+
+    const auto createAnnotation = []()
+    {
+        pdf::PDFDictionaryBuilder annotation;
+        annotation.addEntry(pdf::PDFInplaceOrMemoryString("Subtype"), pdf::PDFObject::createName("Square"));
+        annotation.addEntry(pdf::PDFInplaceOrMemoryString("Rect"), CompressTestHelper::createNumberArray({ 10, 10, 50, 50 }));
+        return pdf::PDFObject::createDictionary(std::move(annotation));
+    };
+    pdf::PDFArrayBuilder annotations;
+    annotations.appendItem(pdf::PDFObject::createReference(builder.addObject(createAnnotation())));
+    annotations.appendItem(pdf::PDFObject::createReference(builder.addObject(createAnnotation())));
+    pdf::PDFDictionaryBuilder pageUpdate;
+    pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Annots"), pdf::PDFObject::createArray(std::move(annotations)));
+    builder.mergeTo(page, pdf::PDFObject::createDictionary(std::move(pageUpdate)));
+
+    // Two plain dictionaries of the same content are merged: the clean-up did its work
+    pdf::PDFDictionaryBuilder plain;
+    plain.addEntry(pdf::PDFInplaceOrMemoryString("Sample"), pdf::PDFObject::createInteger(1));
+    const pdf::PDFObject plainObject = pdf::PDFObject::createDictionary(std::move(plain));
+    pdf::PDFDictionaryBuilder holder;
+    holder.addEntry(pdf::PDFInplaceOrMemoryString("A"), pdf::PDFObject::createReference(builder.addObject(plainObject)));
+    holder.addEntry(pdf::PDFInplaceOrMemoryString("B"), pdf::PDFObject::createReference(builder.addObject(plainObject)));
+    pdf::PDFDictionaryBuilder pageHolder;
+    pageHolder.addEntry(pdf::PDFInplaceOrMemoryString("PieceInfo"), pdf::PDFObject::createDictionary(std::move(holder)));
+    builder.mergeTo(page, pdf::PDFObject::createDictionary(std::move(pageHolder)));
+    const pdf::PDFDocument input = builder.build();
+    QVERIFY(input.getCatalog()->getOptionalContentProperties()->isValid());
+
+    pdf::PDFDocumentToolCompress tool;
+    const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(input, QByteArray(10000000, 'x'), QStringLiteral("a.pdf"), false), CompressTestHelper::preset(pdf::PDFDocumentToolCompress::PRESET_BEST_QUALITY), nullptr, nullptr);
+    QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Success);
+
+    const pdf::PDFDocument output = CompressTestHelper::read(CompressTestHelper::write(*result.documents.front().document));
+    const pdf::PDFOptionalContentProperties* outputProperties = output.getCatalog()->getOptionalContentProperties();
+    QVERIFY(outputProperties->isValid());
+    QCOMPARE(outputProperties->getAllOptionalContentGroups().size(), size_t(2));
+    QVERIFY(outputProperties->getAllOptionalContentGroups().front() != outputProperties->getAllOptionalContentGroups().back());
+    QCOMPARE(outputProperties->getDefaultConfiguration().getOffArray().size(), size_t(1));
+
+    const std::vector<pdf::PDFObjectReference>& outputAnnotations = output.getCatalog()->getPage(0)->getAnnotations();
+    QCOMPARE(outputAnnotations.size(), size_t(2));
+    QVERIFY(outputAnnotations.front() != outputAnnotations.back());
+
+    const pdf::PDFDictionary* outputHolder = output.getDictionaryFromObject(output.getCatalog()->getPage(0)->getPageReference().isValid() ? output.getObjectByReference(output.getCatalog()->getPage(0)->getPageReference()) : pdf::PDFObject());
+    QVERIFY(outputHolder);
+    const pdf::PDFDictionary* outputPieceInfo = output.getDictionaryFromObject(outputHolder->get("PieceInfo"));
+    QVERIFY(outputPieceInfo);
+    QCOMPARE(outputPieceInfo->get("A").getReference(), outputPieceInfo->get("B").getReference());
+}
+
+void DocumentToolCompressTest::conformanceRemovedFromResult_data()
+{
+    QTest::addColumn<QString>("preset");
+    QTest::newRow("smaller-file") << QStringLiteral("smaller-file");
+    QTest::newRow("balanced") << QStringLiteral("balanced");
+    QTest::newRow("best-quality") << QStringLiteral("best-quality");
+}
+
+void DocumentToolCompressTest::conformanceRemovedFromResult()
+{
+    // Owner decision 2: the result is not checked against the standard the document declares (a recoded image
+    // can be against PDF/A), so it must not say it conforms, and the user is told in plain words
+    QFETCH(QString, preset);
+
+    const QByteArray xmp("<?xpacket begin=\"\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>"
+                         "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">"
+                         "<rdf:Description rdf:about=\"\" xmlns:pdfaid=\"http://www.aiim.org/pdfa/ns/id/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\">"
+                         "<pdfaid:part>1</pdfaid:part><pdfaid:conformance>B</pdfaid:conformance><dc:creator>Kept Author</dc:creator>"
+                         "</rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end=\"w\"?>");
+
+    pdf::PDFDocument photo = CompressTestHelper::createPhotoDocument(1, 900);
+    pdf::PDFDocumentBuilder builder(&photo);
+    builder.setCatalogMetadata(xmp);
+    const pdf::PDFDocument input = builder.build();
+    QStringList declarations;
+    QVERIFY(pdf::PDFOCRPagePreparer::hasConformanceDeclaration(&input, &declarations));
+    QCOMPARE(declarations, QStringList({ QStringLiteral("PDF/A") }));
+
+    pdf::PDFDocumentToolCompress tool;
+    const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(input, QByteArray(40000000, 'x'), QStringLiteral("a.pdf"), false), CompressTestHelper::preset(preset.toLatin1().constData()), nullptr, nullptr);
+    QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Success);
+
+    // The written file says nothing of PDF/A any more, the rest of its metadata stays
+    const QByteArray written = CompressTestHelper::write(*result.documents.front().document);
+    const pdf::PDFDocument output = CompressTestHelper::read(written);
+    QVERIFY(!pdf::PDFOCRPagePreparer::hasConformanceDeclaration(&output, nullptr));
+    const QByteArray metadata = output.getDecodedStream(output.getObject(output.getCatalog()->getMetadata()).getStream());
+    QVERIFY2(metadata.contains("Kept Author"), metadata.constData());
+    QVERIFY2(!metadata.contains("pdfaid:part"), metadata.constData());
+
+    // The result dialog, What changes and MCP say it
+    const QJsonArray removed = result.data.value(QStringLiteral("conformanceRemoved")).toArray();
+    QCOMPARE(removed.size(), 1);
+    QCOMPARE(removed.at(0).toString(), QStringLiteral("PDF/A"));
+    const auto findFact = [](const std::vector<pdf::PDFDocumentToolFact>& facts)
+    {
+        const auto it = std::find_if(facts.cbegin(), facts.cend(), [](const pdf::PDFDocumentToolFact& fact) { return fact.id == QLatin1String("conformance"); });
+        return it != facts.cend() ? it->value : QString();
+    };
+    QVERIFY2(findFact(result.facts).contains(QStringLiteral("no longer declares PDF/A")), qPrintable(findFact(result.facts)));
+    QCOMPARE(findFact(pdf::PDFDocumentToolCompress::getChangeRows(result)), findFact(result.facts));
+
+    // A document without a declaration has no such row
+    const pdf::PDFDocumentToolResult plainResult = tool.run(CompressTestHelper::createContext(photo, QByteArray(40000000, 'x'), QStringLiteral("a.pdf"), false), CompressTestHelper::preset(preset.toLatin1().constData()), nullptr, nullptr);
+    QCOMPARE(plainResult.status, pdf::PDFDocumentToolResultStatus::Success);
+    QVERIFY(findFact(plainResult.facts).isEmpty());
+    QVERIFY(!plainResult.data.contains(QStringLiteral("conformanceRemoved")));
+}
+
+void DocumentToolCompressTest::conformanceNotRemovable()
+{
+    // Metadata, which cannot be parsed, say PDF/A and cannot be changed: never a result, which keeps saying it
+    pdf::PDFDocument photo = CompressTestHelper::createPhotoDocument(1, 900);
+    pdf::PDFDocumentBuilder builder(&photo);
+    builder.setCatalogMetadata("<broken http://www.aiim.org/pdfa/ns/id/ no closing tag");
+    const pdf::PDFDocument input = builder.build();
+    QVERIFY(pdf::PDFOCRPagePreparer::hasConformanceDeclaration(&input, nullptr));
+
+    pdf::PDFDocumentToolCompress tool;
+    const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(input, QByteArray(40000000, 'x'), QStringLiteral("a.pdf"), false), CompressTestHelper::preset("balanced"), nullptr, nullptr);
+    QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Failed);
+    QVERIFY2(result.message.contains(QStringLiteral("PDF/A")), qPrintable(result.message));
+    QVERIFY(result.documents.empty());
+}
+
+void DocumentToolCompressTest::customValuesNeedThePreset_data()
+{
+    QTest::addColumn<QString>("parameter");
+    QTest::addColumn<QVariant>("value");
+    QTest::newRow("targetDpi") << QStringLiteral("targetDpi") << QVariant(36);
+    QTest::newRow("jpegQuality") << QStringLiteral("jpegQuality") << QVariant(1);
+    QTest::newRow("goal") << QStringLiteral("goal") << QVariant(QStringLiteral("minimum-size"));
+    QTest::newRow("keepOriginalIfLarger") << QStringLiteral("keepOriginalIfLarger") << QVariant(false);
+    QTest::newRow("preserveTransparency") << QStringLiteral("preserveTransparency") << QVariant(false);
+    QTest::newRow("cleanStructure") << QStringLiteral("cleanStructure") << QVariant(false);
+}
+
+void DocumentToolCompressTest::customValuesNeedThePreset()
+{
+    // Owner decision 5: an assistant asking for 36 dpi must not report a result of 200 dpi
+    QFETCH(QString, parameter);
+    QFETCH(QVariant, value);
+
+    pdf::PDFDocumentToolCompress tool;
+    QVariantMap given;
+    given.insert(parameter, value);
+    for (const QString& preset : { QString(), QStringLiteral("balanced"), QStringLiteral("best-quality"), QStringLiteral("smaller-file") })
+    {
+        if (!preset.isEmpty())
+        {
+            given.insert(QStringLiteral("preset"), preset);
+        }
+        const std::vector<pdf::PDFDocumentToolParameterError> errors = tool.checkGivenParameters(given);
+        QCOMPARE(errors.size(), size_t(1));
+        QCOMPARE(errors.front().parameter, parameter);
+        QVERIFY2(errors.front().message.contains(parameter) && errors.front().message.contains(QStringLiteral("preset to custom")), qPrintable(errors.front().message));
+    }
+
+    given.insert(QStringLiteral("preset"), QStringLiteral("custom"));
+    QVERIFY(tool.checkGivenParameters(given).empty());
+
+    // The preset alone is no such value
+    QVERIFY(tool.checkGivenParameters({ { QStringLiteral("preset"), QStringLiteral("balanced") } }).empty());
+    QVERIFY(tool.checkGivenParameters(QVariantMap()).empty());
+}
+
+void DocumentToolCompressTest::damagedEncryptedThroughTool()
+{
+    // The whole way of the review: a damaged encrypted file, Compress, the written file opens with the
+    // password and its image can be decoded - the first version encrypted the encrypted bytes again
+    const QString password = QStringLiteral("user-secret");
+    pdf::PDFDocument plain = CompressTestHelper::createPhotoDocument(1, 256);
+    pdf::PDFDocumentBuilder builder(&plain);
+    pdf::PDFSecurityHandlerFactory::SecuritySettings settings;
+    settings.algorithm = pdf::PDFSecurityHandlerFactory::AES_256;
+    settings.userPassword = password;
+    settings.ownerPassword = QStringLiteral("owner-secret");
+    settings.permissions = 0xFFFFFFFCu;
+    builder.setSecurityHandler(pdf::PDFSecurityHandlerFactory::createSecurityHandler(settings));
+    QByteArray file = CompressTestHelper::write(builder.build());
+    const qsizetype position = file.lastIndexOf("startxref");
+    QVERIFY(position != -1);
+    file.truncate(position);
+    file += "startxref\n99999999\n%%EOF\n";
+
+    pdf::PDFDocumentReader::Result readerResult = pdf::PDFDocumentReader::Result::Failed;
+    const pdf::PDFDocument opened = CompressTestHelper::read(file, password, &readerResult);
+    QCOMPARE(readerResult, pdf::PDFDocumentReader::Result::OK);
+    QCOMPARE(pdf::PDFImageOptimizer::collectImageInfos(&opened).size(), size_t(1));
+
+    pdf::PDFDocumentToolCompress tool;
+    const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(opened, file), CompressTestHelper::preset("balanced"), nullptr, nullptr);
+    QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Success);
+
+    const QByteArray written = CompressTestHelper::write(*result.documents.front().document);
+    const pdf::PDFDocument reopened = CompressTestHelper::read(written, password, &readerResult);
+    QCOMPARE(readerResult, pdf::PDFDocumentReader::Result::OK);
+    const std::vector<pdf::PDFImageOptimizer::ImageInfo> infos = pdf::PDFImageOptimizer::collectImageInfos(&reopened);
+    QCOMPARE(infos.size(), size_t(1));
+    QCOMPARE(infos.front().image.width(), 178);
+}
+
 void DocumentToolCompressTest::grayTonesKept_data()
 {
     QTest::addColumn<int>("firstTone");
@@ -2825,7 +3936,7 @@ void DocumentToolCompressTest::grayTonesKept_data()
     QTest::newRow("light-panel-on-white") << 230 << 255 << 2;
     QTest::newRow("solid-light-gray") << 200 << 200 << 2;
     QTest::newRow("solid-middle-gray") << 128 << 128 << 2;
-    QTest::newRow("solid-dark-gray") << 30 << 30 << 8;
+    QTest::newRow("solid-dark-gray") << 30 << 30 << 2;
     QTest::newRow("two-tones") << 64 << 220 << 2;
     QTest::newRow("soft-gradient") << 203 << 212 << 2;
     QTest::newRow("just-below-white") << 247 << 247 << 2;

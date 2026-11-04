@@ -875,6 +875,14 @@ void PDFAppMcpConfirmDialog::updateTexts()
         {
             label->setText(tr("The previous content of the file is replaced. It cannot be restored from the disk."));
         }
+        else if (kind == QLatin1String("signatureTitle") && confirmation.details.value(QStringLiteral("signatureLost")).toBool())
+        {
+            label->setText(tr("The signatures will stop being valid"));
+        }
+        else if (kind == QLatin1String("signatureText") && confirmation.details.value(QStringLiteral("signatureLost")).toBool())
+        {
+            label->setText(tr("This tool rewrites the whole file, so it cannot keep the signed revision. When you save the result, its signatures will no longer be valid."));
+        }
         else if (kind == QLatin1String("signatureTitle"))
         {
             if (signatureCount == 1)

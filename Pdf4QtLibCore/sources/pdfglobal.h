@@ -147,6 +147,10 @@ struct PDFVersion
 
     bool isValid() const { return major > 0; }
 
+    /// Version of a file, whose header cannot be read (a damaged file): a header of a written
+    /// file must name a valid version, 1.7 is the version readers understand best
+    static constexpr PDFVersion getFallback() { return PDFVersion(1, 7); }
+
     /// Versions are ordered by the major version, then by the minor version
     constexpr auto operator<=>(const PDFVersion&) const = default;
 };

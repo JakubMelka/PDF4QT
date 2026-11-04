@@ -30,6 +30,7 @@
 #include <QImage>
 #include <QPointF>
 
+#include <optional>
 #include <limits>
 #include <memory>
 #include <vector>
@@ -148,8 +149,14 @@ public:
                                       const PDFOperationControl* operationControl = nullptr,
                                       PDFProgress* progress = nullptr) const;
 
-    /// First pass over the pages: finds the image XObjects drawn by the document and
-    /// their placements. Nothing is decoded, the memory does not depend on the images.
+    /// As collectImages, in the given environment
+    ImageStatisticsList collectImages(const Environment& environment,
+                                      const PDFOperationControl* operationControl = nullptr,
+                                      PDFProgress* progress = nullptr) const;
+
+    /// First pass over the pages (in the threads of PDFExecutionPolicy): finds the image XObjects
+    /// drawn by the document and their placements, the result does not depend on the threads.
+    /// Nothing is decoded, the memory does not depend on the images.
     /// \param environment Environment of the processed document
     /// \param operationControl Cancellation, checked per page and per operator (optional)
     /// \param progress One step per page (optional)
@@ -157,6 +164,25 @@ public:
     ImagePlacements collectImagePlacements(const Environment& environment,
                                            const PDFOperationControl* operationControl = nullptr,
                                            PDFProgress* progress = nullptr) const;
+
+    /// Second pass in the threads of PDFExecutionPolicy (Scope::Page): the pages, which draw an image for
+    /// the first time, are processed at once, each task holds a decoded image only while the callback
+    /// works on it, nothing collects them: the peak is about the threads x the largest image, never the
+    /// sum of all images. The strategy Single thread (Settings › Advanced › Multithreading strategy)
+    /// decodes strictly one image at a time in the calling thread. One thread of the pool stays free for the
+    /// pages of the canvas. An image is decoded only on its first page, so its result does not depend
+    /// on the threads; an image, which gives no pixels there, is tried on its other pages afterwards
+    /// (one thread, as visitImages).
+    /// \param environment Environment of the processed document
+    /// \param placements Result of collectImagePlacements
+    /// \param callback Called for each image, by more threads at once in any order: it is thread-safe,
+    ///        it must not let a PDFException out (see visitImages); std::bad_alloc ends the
+    ///        other tasks and is thrown to the caller, after they have stopped
+    /// \param operationControl Cancellation, checked before each image (optional)
+    void visitImagesInParallel(const Environment& environment,
+                               const ImagePlacements& placements,
+                               const DecodedImageCallback& callback,
+                               const PDFOperationControl* operationControl) const;
 
     /// Second pass: decodes the images one at a time and hands each of them to the
     /// callback, with its resolution taken from the placements, before the next image
@@ -175,12 +201,20 @@ public:
                      const DecodedImageCallback& callback,
                      const PDFOperationControl* operationControl = nullptr) const;
 
+    /// Test only: replaces each decoded image (an allocation failure - a null image, an exception of
+    /// std::bad_alloc - cannot be caused otherwise). Set it before a run, an empty function removes it.
+    using TestDecodeHook = std::function<QImage(PDFObjectReference reference, QImage image)>;
+    static void setTestDecodeHook(TestDecodeHook hook);
+
     /// Returns the smaller of the resolutions of an axis; values, which are not
     /// positive or finite, are ignored
     static double updateAxisDpi(double currentValue, double candidate);
 
 private:
     class ImageCollectorProcessor;
+
+    /// Decodes one image: nullopt when nothing is left of it (canceled, no pixels)
+    static std::optional<ImageStatistics> decodeImage(const Environment& environment, const PDFImage& image, PDFObjectReference reference, const ImagePlacement& placement, const PDFOperationControl* operationControl);
 };
 
 }   // namespace pdf

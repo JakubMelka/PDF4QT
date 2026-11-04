@@ -26,7 +26,11 @@ Hints of the tool: changes PDF4QT or documents, destructive.
 
 The default of `optimize.compress` is `save_copy`, which needs `path`.
 
-A signed document: this tool rewrites the whole file, so its signatures would stop being valid. Only `save_copy` is possible; `keep` and `overwrite` return an error and nothing runs. The copy is written whole, without the signed revision, and its signature fields are visibly no longer valid. Tell the user before you make such a copy.
+A signed document with a file: this tool rewrites the whole file, so its signatures would stop being valid. Only `save_copy` is possible; `keep` and `overwrite` return an error and nothing runs. The copy is written whole, without the signed revision, and its signature fields are visibly no longer valid. Tell the user before you make such a copy.
+
+A signed document without a file (Edit a Copy, an attachment opened from the memory): `keep` works, also with Edit documents set to Allow. The signatures are intact until the document is saved, and they will no longer be valid after that; the `note` of the result says so and `document.get_signatures` has `invalidAfterSaving`. Tell the user. Undo brings the signed version back, when the `note` says so; once the document has been saved, its signatures are no longer valid and undo does not change that.
+
+A document declaring PDF/A or PDF/UA: the result is not checked against the standard, so the declaration is removed from its metadata and the fact `conformance` says so. Tell the user, when the file is meant for an archive. When the metadata cannot be changed, the tool fails and nothing is made.
 
 Other rules:
 
@@ -36,7 +40,8 @@ Other rules:
 - An encrypted document stays encrypted with the same password.
 - A document, which PDF4QT shows as the pages of an XFA form, is refused.
 - While a tool of PDF4QT runs on the document or its result dialog is open, the call returns the busy error; try again when the user has finished. An assistant may change a document, whose tool only waits for its parameters.
-- When the document changes while the tool runs, the tool runs again on the new version (at most 3 runs).
+- When the document changes while the tool runs, `keep` and `overwrite` run the tool again on the new version (at most 3 runs). `save_copy` writes the version of your call: later changes are not in the copy.
+- `targetDpi`, `jpegQuality`, `goal`, `keepOriginalIfLarger`, `preserveTransparency` and `cleanStructure` need `preset` set to `custom`; with another preset the call returns an error, which names them.
 
 A status `nothing-to-do` means that the result would not be smaller. Nothing is written and nothing changes; the facts of the result say why. It is no error: tell the user and offer a stronger `preset`.
 
@@ -78,6 +83,7 @@ Reduce the file size in one step.
 | `title` | string |  |
 | `undoDescription` | string |  |
 | `path` | string | The written file |
+| `note` | string | What the user must be told about the result |
 | `mimeType` | string | return_text: the type of the text |
 | `size` | integer, ≥ 0 | return_text: bytes of the whole output |
 | `truncated` | boolean | return_text: the text was cut at 8 MiB; save_file writes all of it |

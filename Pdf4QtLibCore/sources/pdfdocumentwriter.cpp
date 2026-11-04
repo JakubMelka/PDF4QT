@@ -268,7 +268,7 @@ PDFOperationResult PDFDocumentWriter::write(QIODevice* device, const PDFDocument
     }
 
     // Write header
-    PDFVersion version = document->getInfo()->version;
+    const PDFVersion version = document->getInfo()->version.isValid() ? document->getInfo()->version : PDFVersion::getFallback();
     device->write(QString("%PDF-%1.%2").arg(version.major).arg(version.minor).toLatin1());
     writeCRLF(device);
     device->write("% PDF producer: ");

@@ -32,7 +32,10 @@
 #include <QPointF>
 #include <QString>
 
+#include <array>
+#include <functional>
 #include <map>
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -122,33 +125,6 @@ public:
         static Settings createDefault();
     };
 
-    /// Collected metadata and decoded image for optimization decisions.
-    struct ImageInfo
-    {
-        PDFObjectReference reference; ///< Object reference of the image stream.
-        QImage image; ///< Decoded image data.
-        QPointF minimalDpi; ///< Minimal effective DPI (per-axis) observed in the document.
-        QSize pixelSize; ///< Pixel dimensions of the image.
-        QString colorSpaceName; ///< Name of the image color space, if known.
-        QString filterName; ///< Name of the last applied filter, if known.
-        int bitsPerComponent = 0; ///< Bits per component from the image dictionary.
-        bool hasSoftMask = false; ///< True if the image has a soft mask.
-        bool hasTransparency = false; ///< True if decoded pixels include transparency.
-        bool isImageMask = false; ///< True if the image is an ImageMask.
-        int originalBytes = 0; ///< Combined size of image and mask streams.
-    };
-
-    /// Per-image override for enabling/disabling or using custom settings.
-    struct ImageOverride
-    {
-        bool enabled = true; ///< If false, the image is skipped.
-        bool useCustomSettings = false; ///< If true, use custom settings instead of global ones.
-        Settings settings; ///< Custom settings for this image.
-    };
-
-    /// Overrides indexed by image object reference.
-    using ImageOverrides = std::map<PDFObjectReference, ImageOverride, PDFObjectReferenceLess>;
-
     /// Image analysis results used to choose color mode and compression.
     struct ImageAnalysis
     {
@@ -172,6 +148,36 @@ public:
             TextScan  ///< Only black and white pixels.
         } kind = Kind::Photo;
     };
+
+    /// Collected metadata and decoded image for optimization decisions.
+    struct ImageInfo
+    {
+        PDFObjectReference reference; ///< Object reference of the image stream.
+        QImage image; ///< Decoded image data.
+        QPointF minimalDpi; ///< Minimal effective DPI (per-axis) observed in the document.
+        QSize pixelSize; ///< Pixel dimensions of the image.
+        QString colorSpaceName; ///< Name of the image color space, if known.
+        QString filterName; ///< Name of the last applied filter, if known.
+        int bitsPerComponent = 0; ///< Bits per component from the image dictionary.
+        bool hasSoftMask = false; ///< True if the image has a soft mask.
+        bool hasTransparency = false; ///< True if decoded pixels include transparency.
+        bool isImageMask = false; ///< True if the image is an ImageMask.
+        int originalBytes = 0; ///< Combined size of image and mask streams.
+        std::optional<ImageAnalysis> analysis; ///< Analysis of the decoded image, computed once (createImageInfo); empty = resolvePlan computes it.
+        std::shared_ptr<const std::array<uchar, 256>> grayTable; ///< Written samples of the shown gray tones (PDFImage::createGrayTable), nullptr = the tones themselves.
+        bool isDeviceRGBShownExactly = true; ///< DeviceRGB is shown as it is by the color management (PDFImage::isDeviceRGBShownExactly), otherwise a color image keeps its stream.
+    };
+
+    /// Per-image override for enabling/disabling or using custom settings.
+    struct ImageOverride
+    {
+        bool enabled = true; ///< If false, the image is skipped.
+        bool useCustomSettings = false; ///< If true, use custom settings instead of global ones.
+        Settings settings; ///< Custom settings for this image.
+    };
+
+    /// Overrides indexed by image object reference.
+    using ImageOverrides = std::map<PDFObjectReference, ImageOverride, PDFObjectReferenceLess>;
 
     /// Resolved plan describing how the image will be encoded.
     struct ResolvedPlan
@@ -253,9 +259,17 @@ public:
     /// \returns Estimated size in bytes (0 on failure).
     static int estimateEncodedBytes(const ImageInfo& info, const ResolvedPlan& plan, PDFRenderErrorReporter* reporter = nullptr);
 
-    /// Optimizes images in a document and returns the updated document. The images
-    /// are decoded and encoded one at a time: at most one decoded image is held, so
-    /// the memory depends on the largest image, not on their number.
+    /// Test only: called before the soft mask of an image is encoded, a PDFException thrown by the hook is a mask,
+    /// which cannot be encoded (no memory, which cannot be caused otherwise). An empty function removes it.
+    static void setTestMaskEncodeHook(std::function<void()> hook);
+
+    /// Optimizes images in a document and returns the updated document. The images are decoded
+    /// and encoded in the threads of PDFExecutionPolicy (Scope::Page): a task holds a decoded image
+    /// only while it works on it, so the peak is about the threads x the largest image, never the sum
+    /// of all images, and the strategy Single thread handles strictly one image at a time. The
+    /// returned document does not depend on the threads: its objects are written in the order of
+    /// the references. Out of memory is std::bad_alloc thrown to the caller; an image, whose pixels
+    /// could not be allocated, stays unchanged.
     /// \param document Source document.
     /// \param settings Global settings for optimization.
     /// \param overrides Optional per-image overrides.

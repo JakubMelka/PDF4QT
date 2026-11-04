@@ -297,6 +297,8 @@ public:
     /// The parts of the dialog (tests, the shell)
     QWidget* getFactsWidget() const { return m_factsPanel; }
     PDFKeyValueList* getFacts() const { return m_facts; }
+    const QStringList& getContinueToolIds() const { return m_continueToolIds; }
+    const QString& getPreviousToolId() const { return m_input.previousToolId; }
     PDFContinueWith* getContinueWith() const { return m_continueWith; }
     PDFTintedCard* getSignedWarning() const { return m_signedWarning; }
     PDFTintedCard* getWriteError() const { return m_writeError; }

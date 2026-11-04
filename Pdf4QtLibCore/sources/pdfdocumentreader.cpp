@@ -35,6 +35,7 @@
 
 #include <regex>
 #include <cctype>
+#include <cstring>
 #include <algorithm>
 #include <execution>
 
@@ -631,7 +632,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
 
     // The failure of a handler of an encrypted document, which was already created (a wrong /Perms, a wrong key), is not
     // a damage of the file structure. Reading the objects from the bytes would ask for the password the second time,
-    // a caller with one password would call the right password wrong (the objects would stay encrypted anyway).
+    // a caller with one password would call the right password wrong.
     const bool isEncryptionFailure = m_securityHandler && m_securityHandler->getMode() != EncryptionMode::None;
     if (m_result == Result::Failed && m_permissive && shouldTryPermissiveReading && !isEncryptionFailure)
     {
@@ -646,126 +647,527 @@ QByteArray PDFDocumentReader::hash(const QByteArray& sourceData)
     return QCryptographicHash::hash(sourceData, QCryptographicHash::Sha256);
 }
 
-std::vector<std::pair<int, int>> PDFDocumentReader::findObjectByteOffsets(const QByteArray& buffer) const
+/// Finds the objects of a damaged file in its bytes, in one pass from the start of the file to its end. It reads what
+/// is inside of an object, so the bytes "12 0 obj" in the data of a stream or in a string are not another object, and
+/// an object without its endobj ends at the next object. The time is linear also for a hostile file: what was searched
+/// for is remembered until the pass gets behind it.
+class PDFDamagedFileScanner
 {
-    std::vector<std::pair<int, int>> offsets;
-    int lastOffset = 0;
-    const int shift = static_cast<int>(std::strlen(PDF_OBJECT_END_MARK));
-    while (lastOffset < buffer.size())
+public:
+    explicit PDFDamagedFileScanner(const QByteArray& buffer);
+
+    /// Returns the start and end offsets of the objects in the order of the file
+    std::vector<std::pair<int, int>> findObjects();
+
+private:
+    /// Bytes "N G obj" of the file: the start of N and the position behind obj
+    struct Header
     {
-        int offset = buffer.indexOf(PDF_OBJECT_END_MARK, lastOffset);
+        int start = 0;
+        int body = 0;
+    };
 
-        // Object end mark was not found
-        if (offset == -1)
+    /// The last integer objects of one reference tried as /Length of a stream
+    static constexpr size_t MAXIMUM_LENGTH_CANDIDATES = 8;
+
+    /// A larger number than any size of a file, the digits behind it are ignored
+    static constexpr PDFInteger MAXIMUM_INTEGER = 1000000000000000;
+
+    bool isAt(int position, const char* text) const;
+    bool isKeywordAt(int position, const char* text) const;
+    int skipWhitespace(int position) const;
+    int readInteger(int position, PDFInteger* value) const;
+    int findMark(const char* mark, int position, int& remembered) const;
+
+    void findHeaders();
+    int findObjectEnd(int start, int position);
+    int findLiteralStringEnd(int objectStart, int position);
+    int walkLiteralString(int position, int limit) const;
+    bool isObjectReadable(int start);
+    int findStreamEnd(int position, PDFInteger length, PDFObjectReference lengthReference);
+    int checkStreamLength(int position, PDFInteger length) const;
+
+    const QByteArray& m_buffer;
+    const char* m_data;
+    int m_size;
+
+    std::vector<Header> m_headers;
+    size_t m_nextHeader = 0;
+    std::map<PDFObjectReference, std::vector<PDFInteger>> m_integerObjects;
+
+    int m_nextEndObject = -1;
+    int m_nextEndStream = -1;
+
+    /// A string can contain endobj, until the first string, which would swallow a part of the file
+    bool m_stringsContainEndObject = true;
+
+    /// The object is proved to be readable with all its strings
+    int m_readableObject = -1;
+
+    /// A string starting in front of this position does not close in front of the next endobj
+    int m_unbalancedStringLimit = 0;
+};
+
+PDFDamagedFileScanner::PDFDamagedFileScanner(const QByteArray& buffer) :
+    m_buffer(buffer),
+    m_data(buffer.constData()),
+    m_size(static_cast<int>(buffer.size()))
+{
+
+}
+
+std::vector<std::pair<int, int>> PDFDamagedFileScanner::findObjects()
+{
+    findHeaders();
+
+    std::vector<std::pair<int, int>> offsets;
+    int position = 0;
+    for (size_t i = 0; i < m_headers.size(); ++i)
+    {
+        // A header behind this position lies inside of the previous object
+        const Header header = m_headers[i];
+        if (header.start >= position)
         {
-            break;
+            m_nextHeader = i + 1;
+            position = findObjectEnd(header.start, header.body);
+            offsets.emplace_back(header.start, position);
         }
-
-        offset += shift;
-
-        int startOffset = buffer.indexOf(PDF_OBJECT_START_MARK, lastOffset);
-        if (startOffset != -1 && startOffset < offset)
-        {
-            --startOffset;
-
-            // Skip whitespace between obj and generation number
-            while (startOffset >= 0 && PDFLexicalAnalyzer::isWhitespace(buffer[startOffset]))
-            {
-                --startOffset;
-            }
-
-            // Skip generation number
-            while (startOffset >= 0 && std::isdigit(buffer[startOffset]))
-            {
-                --startOffset;
-            }
-
-            // Skip whitespace between generation number and object number
-            while (startOffset >= 0 && PDFLexicalAnalyzer::isWhitespace(buffer[startOffset]))
-            {
-                --startOffset;
-            }
-
-            // Skip object number
-            while (startOffset >= 0 && std::isdigit(buffer[startOffset]))
-            {
-                --startOffset;
-            }
-
-            ++startOffset;
-
-            if (startOffset < offset)
-            {
-                offsets.emplace_back(startOffset, offset);
-            }
-        }
-
-        lastOffset = offset;
     }
-
     return offsets;
 }
 
-bool PDFDocumentReader::restoreObjects(std::map<PDFObjectReference, PDFObject>& restoredObjects, const std::vector<std::pair<int, int>>& offsets)
+bool PDFDamagedFileScanner::isAt(int position, const char* text) const
 {
-    QMutex restoredObjectsMutex;
-    std::atomic_bool succesfull = true;
+    const qsizetype length = qstrlen(text);
+    return position + length <= m_size && std::memcmp(m_data + position, text, length) == 0;
+}
 
-    auto getObject = [&restoredObjects, &restoredObjectsMutex](PDFParsingContext*, PDFObjectReference reference)
+bool PDFDamagedFileScanner::isKeywordAt(int position, const char* text) const
+{
+    const int end = position + static_cast<int>(qstrlen(text));
+    return isAt(position, text) && (end == m_size || !PDFLexicalAnalyzer::isRegular(m_data[end]));
+}
+
+int PDFDamagedFileScanner::skipWhitespace(int position) const
+{
+    while (position < m_size && PDFLexicalAnalyzer::isWhitespace(m_data[position]))
     {
-        QMutexLocker lock(&restoredObjectsMutex);
+        ++position;
+    }
+    return position;
+}
 
-        auto it = restoredObjects.find(reference);
-        if (it != restoredObjects.cend())
+int PDFDamagedFileScanner::readInteger(int position, PDFInteger* value) const
+{
+    *value = 0;
+    while (position < m_size && m_data[position] >= '0' && m_data[position] <= '9')
+    {
+        *value = qMin(*value * 10 + (m_data[position] - '0'), MAXIMUM_INTEGER);
+        ++position;
+    }
+    return position;
+}
+
+int PDFDamagedFileScanner::findMark(const char* mark, int position, int& remembered) const
+{
+    if (remembered < position)
+    {
+        const qsizetype found = m_buffer.indexOf(mark, position);
+        remembered = found != -1 ? static_cast<int>(found) : m_size;
+    }
+    return remembered;
+}
+
+void PDFDamagedFileScanner::findHeaders()
+{
+    const int markLength = static_cast<int>(qstrlen(PDF_OBJECT_START_MARK));
+    const auto isDigit = [this](int position) { return position >= 0 && m_data[position] >= '0' && m_data[position] <= '9'; };
+    const auto isSpace = [this](int position) { return position >= 0 && PDFLexicalAnalyzer::isWhitespace(m_data[position]); };
+
+    for (qsizetype mark = m_buffer.indexOf(PDF_OBJECT_START_MARK); mark != -1; mark = m_buffer.indexOf(PDF_OBJECT_START_MARK, mark + markLength))
+    {
+        const int body = static_cast<int>(mark) + markLength;
+
+        // From the end: white space, the generation, white space, the number
+        int position = static_cast<int>(mark) - 1;
+        while (isSpace(position))
         {
-            return it->second;
+            --position;
+        }
+        const int generationEnd = position;
+        while (isDigit(position))
+        {
+            --position;
+        }
+        const int generationStart = position + 1;
+        while (isSpace(position))
+        {
+            --position;
+        }
+        const int numberEnd = position;
+        while (isDigit(position))
+        {
+            --position;
+        }
+        const int start = position + 1;
+
+        if (generationStart > generationEnd || numberEnd == generationStart - 1 || start > numberEnd)
+        {
+            continue;
         }
 
-        return PDFObject();
+        m_headers.push_back(Header{ start, body });
+
+        // A stream can take its /Length from any revision of an integer object, also behind it
+        PDFInteger value = 0;
+        const int valueStart = skipWhitespace(body);
+        if (readInteger(valueStart, &value) > valueStart && value <= m_size)
+        {
+            PDFInteger number = 0;
+            PDFInteger generation = 0;
+            readInteger(start, &number);
+            readInteger(generationStart, &generation);
+
+            std::vector<PDFInteger>& values = m_integerObjects[PDFObjectReference(number, generation)];
+            if (values.size() == MAXIMUM_LENGTH_CANDIDATES)
+            {
+                values.erase(values.begin());
+            }
+            values.push_back(value);
+        }
+    }
+}
+
+int PDFDamagedFileScanner::findObjectEnd(int start, int position)
+{
+    PDFInteger length = -1;
+    PDFObjectReference lengthReference(-1, -1);
+    char previous = 0;
+
+    while (position < m_size)
+    {
+        while (m_nextHeader < m_headers.size() && m_headers[m_nextHeader].start < position)
+        {
+            ++m_nextHeader;
+        }
+        if (m_nextHeader < m_headers.size() && m_headers[m_nextHeader].start == position)
+        {
+            return position;
+        }
+
+        const char character = m_data[position];
+        if (character == '(')
+        {
+            // A string, which does not close, is a damaged object, not a reason to lose the file behind it
+            const int stringEnd = findLiteralStringEnd(start, position);
+            position = stringEnd != -1 ? stringEnd : position + 1;
+            previous = ')';
+        }
+        else if (character == '%')
+        {
+            while (position < m_size && m_data[position] != '\r' && m_data[position] != '\n')
+            {
+                ++position;
+            }
+        }
+        else if (isAt(position, PDF_OBJECT_END_MARK))
+        {
+            return position + static_cast<int>(qstrlen(PDF_OBJECT_END_MARK));
+        }
+        else if (previous == '>' && isKeywordAt(position, PDF_STREAM_START_COMMAND))
+        {
+            position = findStreamEnd(position + static_cast<int>(qstrlen(PDF_STREAM_START_COMMAND)), length, lengthReference);
+            previous = 0;
+        }
+        else if (PDFLexicalAnalyzer::isWhitespace(m_data[position - 1]) && (isKeywordAt(position, "xref") || isKeywordAt(position, PDF_XREF_TRAILER)))
+        {
+            // An object without its endobj at the end of a revision, this is no part of it
+            return position;
+        }
+        else if (isKeywordAt(position, "/Length"))
+        {
+            position += 7;
+
+            PDFInteger value = 0;
+            const int valueStart = skipWhitespace(position);
+            const int valueEnd = readInteger(valueStart, &value);
+            if (valueEnd > valueStart)
+            {
+                PDFInteger generation = 0;
+                const int generationStart = skipWhitespace(valueEnd);
+                const int generationEnd = readInteger(generationStart, &generation);
+                const int command = skipWhitespace(generationEnd);
+                const bool isReference = generationEnd > generationStart && isKeywordAt(command, PDF_REFERENCE_COMMAND);
+                length = isReference ? -1 : value;
+                lengthReference = isReference ? PDFObjectReference(value, generation) : PDFObjectReference(-1, -1);
+            }
+        }
+        else
+        {
+            previous = PDFLexicalAnalyzer::isWhitespace(character) ? previous : character;
+            ++position;
+        }
+    }
+
+    return m_size;
+}
+
+int PDFDamagedFileScanner::walkLiteralString(int position, int limit) const
+{
+    int depth = 0;
+    for (int i = position; i < limit; ++i)
+    {
+        switch (m_data[i])
+        {
+            case '\\':
+                ++i;
+                break;
+
+            case '(':
+                ++depth;
+                break;
+
+            case ')':
+                if (--depth == 0)
+                {
+                    return i + 1;
+                }
+                break;
+
+            default:
+                break;
+        }
+    }
+    return -1;
+}
+
+int PDFDamagedFileScanner::findLiteralStringEnd(int objectStart, int position)
+{
+    // A string, which would contain endobj, is either a text with these bytes, or a parenthesis without its
+    // pair, which is closed by chance somewhere in the following objects - the object must be readable by the parser.
+    if (m_stringsContainEndObject)
+    {
+        const int end = walkLiteralString(position, m_size);
+        if (end != -1 && (findMark(PDF_OBJECT_END_MARK, position, m_nextEndObject) >= end || isObjectReadable(objectStart)))
+        {
+            return end;
+        }
+        m_stringsContainEndObject = false;
+    }
+
+    if (position < m_unbalancedStringLimit)
+    {
+        return -1;
+    }
+
+    const int limit = findMark(PDF_OBJECT_END_MARK, position, m_nextEndObject);
+    const int end = walkLiteralString(position, limit);
+    if (end == -1)
+    {
+        m_unbalancedStringLimit = limit;
+    }
+    return end;
+}
+
+bool PDFDamagedFileScanner::isObjectReadable(int start)
+{
+    if (m_readableObject == start)
+    {
+        return true;
+    }
+
+    try
+    {
+        PDFParsingContext context([](PDFParsingContext*, PDFObjectReference) { return PDFObject(); });
+        PDFParser parser(m_data + start, m_data + m_size, &context, PDFParser::AllowStreams);
+        parser.getObject();
+        parser.getObject();
+        parser.fetchCommand(PDF_OBJECT_START_MARK);
+        parser.getObject();
+        m_readableObject = start;
+        return true;
+    }
+    catch (const PDFException&)
+    {
+        return false;
+    }
+}
+
+int PDFDamagedFileScanner::checkStreamLength(int position, PDFInteger length) const
+{
+    if (length >= 0 && length <= m_size - position)
+    {
+        const int end = skipWhitespace(position + static_cast<int>(length));
+        if (isAt(end, PDF_STREAM_END_COMMAND))
+        {
+            return end + static_cast<int>(qstrlen(PDF_STREAM_END_COMMAND));
+        }
+    }
+    return -1;
+}
+
+int PDFDamagedFileScanner::findStreamEnd(int position, PDFInteger length, PDFObjectReference lengthReference)
+{
+    // PDFLexicalAnalyzer::skipStreamStart
+    position += (position < m_size && m_data[position] == '\r') ? 1 : 0;
+    position += (position < m_size && m_data[position] == '\n') ? 1 : 0;
+
+    int end = checkStreamLength(position, length);
+    if (end != -1)
+    {
+        return end;
+    }
+
+    auto it = m_integerObjects.find(lengthReference);
+    if (it != m_integerObjects.cend())
+    {
+        for (auto value = it->second.crbegin(); value != it->second.crend(); ++value)
+        {
+            end = checkStreamLength(position, *value);
+            if (end != -1)
+            {
+                return end;
+            }
+        }
+    }
+
+    // No length fits, the parser will refuse this stream. The bytes inside of it are still no objects, so
+    // it ends at its endstream, the first endobj in front of it means there is none.
+    const int endObject = findMark(PDF_OBJECT_END_MARK, position, m_nextEndObject);
+    const int endStream = findMark(PDF_STREAM_END_COMMAND, position, m_nextEndStream);
+    return endStream < endObject ? endStream + static_cast<int>(qstrlen(PDF_STREAM_END_COMMAND)) : endObject;
+}
+
+std::vector<std::pair<int, int>> PDFDocumentReader::findObjectByteOffsets(const QByteArray& buffer) const
+{
+    PDFDamagedFileScanner scanner(buffer);
+    return scanner.findObjects();
+}
+
+PDFObjectStorage::PDFObjects PDFDocumentReader::createRestoredObjects(const std::map<PDFObjectReference, PDFObject>& restoredObjects)
+{
+    PDFObjectStorage::PDFObjects objects;
+    if (!restoredObjects.empty())
+    {
+        objects.resize(restoredObjects.rbegin()->first.objectNumber + 1);
+
+        // One number has one object: of more generations the highest one, a generation only grows
+        // over the revisions (ISO 32000-2, 7.5.4), references of the other generations are null.
+        for (const auto& objectItem : restoredObjects)
+        {
+            PDFObjectStorage::Entry& entry = objects[objectItem.first.objectNumber];
+            entry.generation = objectItem.first.generation;
+            entry.object = objectItem.second;
+        }
+    }
+    return objects;
+}
+
+bool PDFDocumentReader::isRestoredDocumentReadable(const std::map<PDFObjectReference, PDFObject>& restoredObjects, const PDFObject& trailerDictionaryObject) const
+{
+    try
+    {
+        // The catalog and the page tree do not depend on the decryption of strings and streams
+        PDFDocument document(PDFObjectStorage(createRestoredObjects(restoredObjects), PDFObject(trailerDictionaryObject), PDFSecurityHandlerPointer(new PDFNoneSecurityHandler())), m_version, QByteArray());
+        return true;
+    }
+    catch (const PDFException&)
+    {
+        return false;
+    }
+}
+
+void PDFDocumentReader::restoreObjects(std::map<PDFObjectReference, PDFObject>& restoredObjects, const std::vector<std::pair<int, int>>& offsets, RestoredRevision revision)
+{
+    // Each object of the file is read for itself into its own item, in the threads nothing else is written. The first
+    // pass needs nothing else, it gives also all integers. The second one reads the streams with /Length as a reference
+    // from the result of the first one, so it does not matter, in which order the threads have come.
+    struct RestoredObject
+    {
+        int startOffset = 0;
+        int endOffset = 0;
+        bool isRead = false;
+        PDFObjectReference reference;
+        PDFObject object;
     };
 
-    auto processOffsetEntry = [&, this](const std::pair<int, int>& offset)
+    std::vector<RestoredObject> items(offsets.size());
+    for (size_t i = 0; i < offsets.size(); ++i)
     {
-        PDFParsingContext context(getObject);
-        const int startOffset = offset.first;
-        const int endOffset = offset.second;
+        items[i].startOffset = offsets[i].first;
+        items[i].endOffset = offsets[i].second;
+    }
 
-        Q_ASSERT(startOffset >= 0 && startOffset < m_source.size());
-        Q_ASSERT(endOffset >= 0 && endOffset <= m_source.size());
-        Q_ASSERT(startOffset <= endOffset);
+    auto getObject = [&restoredObjects](PDFParsingContext*, PDFObjectReference reference)
+    {
+        auto it = restoredObjects.find(reference);
+        return it != restoredObjects.cend() ? it->second : PDFObject();
+    };
+
+    auto processItem = [&, this](RestoredObject& item)
+    {
+        if (item.isRead)
+        {
+            return;
+        }
+
+        Q_ASSERT(item.startOffset >= 0 && item.startOffset < m_source.size());
+        Q_ASSERT(item.endOffset >= 0 && item.endOffset <= m_source.size());
+        Q_ASSERT(item.startOffset <= item.endOffset);
 
         try
         {
-            const char* begin = m_source.constData() + startOffset;
-            const char* end = m_source.constData() + endOffset;
-
-            PDFParser parser(begin, end, &context, PDFParser::AllowStreams);
+            PDFParsingContext context(getObject);
+            PDFParser parser(m_source.constData() + item.startOffset, m_source.constData() + item.endOffset, &context, PDFParser::AllowStreams);
             PDFObject objectNumberObject = parser.getObject();
             PDFObject objectGenerationObject = parser.getObject();
             parser.fetchCommand(PDF_OBJECT_START_MARK);
             PDFObject object = parser.getObject();
 
-            if (objectNumberObject.isInt() && objectGenerationObject.isInt() && !object.isNull())
+            if (objectNumberObject.isInt() && objectGenerationObject.isInt())
             {
-                PDFObjectReference reference(objectNumberObject.getInteger(), objectGenerationObject.getInteger());
-                if (reference.isValid())
-                {
-                    QMutexLocker lock(&restoredObjectsMutex);
-                    if (!restoredObjects.count(reference))
-                    {
-                        restoredObjects[reference] = qMove(object);
-                    }
-                }
+                item.reference = PDFObjectReference(objectNumberObject.getInteger(), objectGenerationObject.getInteger());
+                item.object = qMove(object);
+                item.isRead = item.reference.isValid();
             }
         }
         catch (const PDFException&)
         {
-            // Do nothing
-            succesfull = false;
+            // Damaged object, an older revision is used, if there is any
         }
     };
-    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, offsets.cbegin(), offsets.cend(), processOffsetEntry);
-    return succesfull;
+
+    // ISO 32000-2, 7.5.6: a later revision supersedes the older one, also by the value null. What can't
+    // be read at all does not supersede anything: the end of a damaged file does not lose an object.
+    auto collectItem = [&restoredObjects](const RestoredObject& item)
+    {
+        if (item.isRead && item.object.isNull())
+        {
+            restoredObjects.erase(item.reference);
+        }
+        else if (item.isRead)
+        {
+            restoredObjects[item.reference] = item.object;
+        }
+    };
+
+    auto collectItems = [&]()
+    {
+        restoredObjects.clear();
+        if (revision == RestoredRevision::Last)
+        {
+            std::for_each(items.cbegin(), items.cend(), collectItem);
+        }
+        else
+        {
+            std::for_each(items.crbegin(), items.crend(), collectItem);
+        }
+    };
+
+    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, items.begin(), items.end(), processItem);
+    collectItems();
+    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, items.begin(), items.end(), processItem);
+    collectItems();
 }
 
 PDFDocument PDFDocumentReader::readDamagedDocumentFromBuffer(const QByteArray& buffer)
@@ -783,29 +1185,44 @@ PDFDocument PDFDocumentReader::readDamagedDocumentFromBuffer(const QByteArray& b
             throw PDFException(PDFTranslationContext::tr("Trailer dictionary is not valid."));
         }
 
-        // Jakub Melka: Try to parse objects - read offsets of objects. We must probably
-        // try second pass, if some streams have referenced objects.
-        std::vector<std::pair<int, int>> offsets = findObjectByteOffsets(buffer);
-        if (!restoreObjects(restoredObjects, offsets))
+        // Jakub Melka: Try to parse objects - read offsets of objects.
+        const std::vector<std::pair<int, int>> offsets = findObjectByteOffsets(buffer);
+        restoreObjects(restoredObjects, offsets, RestoredRevision::Last);
+
+        // The last revision has no document, which can be read (Signature/invalid/pdf-wrapping-6.pdf: a page twice in the
+        // page tree, also the strict reading refuses it), the file was opened before: its first objects still are a document.
+        if (!isRestoredDocumentReadable(restoredObjects, trailerDictionaryObject))
         {
-            restoreObjects(restoredObjects, offsets);
+            m_warnings << tr("The last changes of the damaged file can't be read, its oldest content is shown.");
+            restoreObjects(restoredObjects, offsets, RestoredRevision::First);
         }
 
         // We will create security handler.
-        PDFObjectStorage::PDFObjects objects;
+        PDFObjectStorage::PDFObjects objects = createRestoredObjects(restoredObjects);
         std::vector<PDFXRefTable::Entry> occupiedEntries;
 
         if (!restoredObjects.empty())
         {
-            objects.resize(restoredObjects.rbegin()->first.objectNumber + 1);
-
-            for (auto& objectItem : restoredObjects)
+            // The restored objects are read from the bytes of the file, so they are encrypted as the objects of
+            // the table of a valid file are: left undecrypted, a page could not be read and a written copy would
+            // be encrypted the second time
+            occupiedEntries.reserve(restoredObjects.size());
+            for (size_t objectNumber = 0; objectNumber < objects.size(); ++objectNumber)
             {
-                PDFObjectReference reference = objectItem.first;
-                PDFObjectStorage::Entry& entry = objects[reference.objectNumber];
-                entry.generation = reference.generation;
-                entry.object = qMove(objectItem.second);
+                if (!objects[objectNumber].object.isNull())
+                {
+                    PDFXRefTable::Entry entry;
+                    entry.reference = PDFObjectReference(PDFInteger(objectNumber), objects[objectNumber].generation);
+                    entry.type = PDFXRefTable::EntryType::Occupied;
+                    occupiedEntries.push_back(entry);
+                }
             }
+        }
+
+        // A failure of the structure comes before the header is read
+        if (!m_version.isValid())
+        {
+            m_version = findDamagedFileVersion(buffer);
         }
 
         if (processSecurityHandler(trailerDictionaryObject, occupiedEntries, objects) == Result::Cancelled)
@@ -823,6 +1240,35 @@ PDFDocument PDFDocumentReader::readDamagedDocumentFromBuffer(const QByteArray& b
     }
 
     return PDFDocument();
+}
+
+PDFVersion PDFDocumentReader::findDamagedFileVersion(const QByteArray& buffer)
+{
+    // Both forms of the header of PDF Reference 1.7, Appendix H end by "PDF-x.y"; a file
+    // can have any bytes before it, so the regular expression of checkHeader with its
+    // recursion over the bytes is not used here
+    static constexpr QByteArrayView HEADER_MARK("PDF-");
+
+    qsizetype position = buffer.indexOf(HEADER_MARK);
+    while (position != -1)
+    {
+        const qsizetype versionPosition = position + HEADER_MARK.size();
+        if (versionPosition + 3 <= buffer.size() &&
+            std::isdigit(static_cast<unsigned char>(buffer[versionPosition])) &&
+            buffer[versionPosition + 1] == '.' &&
+            std::isdigit(static_cast<unsigned char>(buffer[versionPosition + 2])))
+        {
+            const PDFVersion version(buffer[versionPosition] - '0', buffer[versionPosition + 2] - '0');
+            if (version.isValid())
+            {
+                return version;
+            }
+        }
+
+        position = buffer.indexOf(HEADER_MARK, position + 1);
+    }
+
+    return PDFVersion::getFallback();
 }
 
 void PDFDocumentReader::reset()

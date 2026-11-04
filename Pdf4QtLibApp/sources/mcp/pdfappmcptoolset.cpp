@@ -523,6 +523,7 @@ public:
 
             PDFMcpSchema output = outputObject();
             output.addProperty(QStringLiteral("signatures"), outputArray(QString(), item));
+            output.addProperty(QStringLiteral("invalidAfterSaving"), B::boolean(QStringLiteral("A tool rewrote the whole document: the signatures will no longer be valid when it is saved")));
             addOrigin(output);
             tool.actions.push_back(action(QStringLiteral("get_signatures"), QStringLiteral("Results of the verification of the signatures shown by PDF4QT"), Kind::Read, B::object(), output));
         }

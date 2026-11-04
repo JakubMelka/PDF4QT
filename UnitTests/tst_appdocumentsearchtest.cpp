@@ -1357,6 +1357,13 @@ void AppDocumentSearchTest::signaturesVerifiedAgainAfterSave()
     document->setSavedAs(document->getVersion(), file, document->getOriginalData());
     QVERIFY(!verifier->isVerifying());
 
+    // The same bytes in another buffer (a save without a change): a verification of many
+    // certificates would start for nothing
+    const QByteArray sameBytes(document->getOriginalData().constData(), document->getOriginalData().size());
+    QVERIFY(!sameBytes.isSharedWith(document->getOriginalData()));
+    document->setSavedAs(document->getVersion(), file, sameBytes);
+    QVERIFY(!verifier->isVerifying());
+
     // A save at the same version and of the same path, whose bytes do not hold the signature
     // any more: the panel, the status item and MCP must not keep the state of the old bytes
     QByteArray changed = document->getOriginalData();

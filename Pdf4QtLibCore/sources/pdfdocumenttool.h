@@ -109,6 +109,14 @@ enum class PDFDocumentToolResultStatus
     NothingToDo     ///< Nothing to change ("File cannot be reduced", 295:2182); counts as a use of the tool
 };
 
+/// Kind of a Failed result: what the shell of the tools does about it. The assistant reads
+/// only the message, so the kind is no part of PDFDocumentToolResult::toJson.
+enum class PDFDocumentToolFailureKind
+{
+    General,        ///< The message says why
+    OutOfMemory     ///< std::bad_alloc in the tool: the shell shows its dialog Not enough memory (owner 2026-11-04)
+};
+
 /// Document of the result: a changed input document or a new document
 class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolOutputDocument
 {
@@ -168,6 +176,7 @@ class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolResult
 {
 public:
     PDFDocumentToolResultStatus status = PDFDocumentToolResultStatus::Success;
+    PDFDocumentToolFailureKind failureKind = PDFDocumentToolFailureKind::General;   ///< Kind of Failed
     QString message;                                    ///< Reason of Failed / NothingToDo, a summary of Success (translated)
     std::vector<PDFDocumentToolOutputDocument> documents;   ///< Changed and new documents
     std::vector<PDFDocumentToolOutputFile> outputs;     ///< Files, which the caller writes
@@ -180,7 +189,15 @@ public:
     static PDFDocumentToolResult createStopped();
     static PDFDocumentToolResult createNothingToDo(const QString& message);
 
+    /// Failed for lack of memory. Its message is for a reader without the dialog of the shell (an
+    /// assistant): it names the setting of one thread only, while the strategy of the threads
+    /// runs the pages in more threads.
+    static PDFDocumentToolResult createOutOfMemory();
+
     bool isSuccess() const { return status == PDFDocumentToolResultStatus::Success; }
+
+    /// The run has failed for lack of memory
+    bool isOutOfMemory() const { return status == PDFDocumentToolResultStatus::Failed && failureKind == PDFDocumentToolFailureKind::OutOfMemory; }
 
     /// The run counts as a use of the tool (Success or NothingToDo, newapp_tools.md 3)
     bool isUse() const { return status == PDFDocumentToolResultStatus::Success || status == PDFDocumentToolResultStatus::NothingToDo; }
@@ -215,8 +232,8 @@ public:
 };
 
 /// Receiver of the progress of a run of a tool (the bar of the shell, the
-/// notifications of MCP). It is called in the thread of the run, so it must hand the
-/// values over by itself.
+/// notifications of MCP). It is called by the threads of the run, one at a time - never in
+/// the thread of the user interface -, so it must hand the values over by itself.
 class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolProgressListener
 {
 public:
@@ -314,6 +331,71 @@ public:
     /// \param storage Objects of the result (the last step of the tool)
     /// \param input Input document of the tool
     static PDFDocument createWholeFileDocument(PDFObjectStorage storage, const PDFDocument* input);
+
+    /// Largest file the application writes (PDFAppDocumentFileWriter::MAXIMUM_FILE_SIZE)
+    static constexpr qint64 MAXIMUM_RESULT_SIZE = qint64(2047) * 1024 * 1024;
+
+    /// Size of the input of a tool, which rewrites the whole file: the size of the file the user
+    /// sees; a document with unsaved changes has no such file, its size is measured as the size
+    /// of a result is. Negative: it cannot be measured.
+    /// \param input The input document
+    static qint64 getWholeFileInputSize(const PDFDocumentToolInputDocument& input);
+
+    /// Size of the written file of a result, and the failure of a result, which cannot
+    /// be written or is too large for the application
+    struct WholeFileSize
+    {
+        qint64 size = -1;   ///< Bytes of the written file, negative when \p error is set
+        QString error;      ///< Translated reason of a failure
+    };
+
+    /// Measures the file of a result by writing it
+    /// \param output The result
+    static WholeFileSize getWholeFileOutputSize(const PDFDocument* output);
+
+    /// When a result of a tool, which rewrites the whole file, gets its document
+    enum class WholeFileDocument
+    {
+        WhenSmaller,    ///< The size is the purpose (Compress, Optimize Structure): a file, which is not smaller, gets none, the caller has returned NothingToDo
+        Always          ///< The removal is the purpose (Remove Hidden Data): a rewritten file can be larger, what was removed still has to go
+    };
+
+    /// Finishes the result of a tool, which rewrites the whole file: "sizeBefore", "sizeAfter",
+    /// "savedBytes", "savedPercent", "signatureCount", "signatureImpact" in data, and - by
+    /// the rule - the changed document with its suggested name "<name><suffix>.pdf".
+    /// \param result The result of the tool
+    /// \param input The input document
+    /// \param output The document of the result
+    /// \param sizeBefore Size of the input (getWholeFileInputSize)
+    /// \param sizeAfter Size of the output (getWholeFileOutputSize)
+    /// \param fileNameSuffix Suffix of the suggested name ("_compressed")
+    /// \param documentRule When the result gets its document
+    void finishWholeFileResult(PDFDocumentToolResult* result, const PDFDocumentToolInputDocument& input, PDFDocument output, qint64 sizeBefore, qint64 sizeAfter, const QString& fileNameSuffix, WholeFileDocument documentRule = WholeFileDocument::WhenSmaller) const;
+
+    /// What was done with the declaration of conformance of a rewritten document
+    struct ConformanceRemoval
+    {
+        QStringList removed;    ///< Standards no longer declared ("PDF/A", "PDF/UA")
+        QStringList kept;       ///< Standards declared by metadata, which cannot be changed
+    };
+
+    /// Removes the declaration of PDF/A and PDF/UA of a document, whose content a tool has
+    /// rewritten: the result is not checked against the standard, so it must not say it
+    /// conforms (the rule of the copies of OCR, PDF-15). The removal is the one of
+    /// PDFOCRTextLayerWriter::removeConformanceDeclaration.
+    /// \param storage Objects of the result, the metadata are replaced in place
+    /// \param document The document of \p storage
+    static ConformanceRemoval removeConformanceDeclaration(PDFObjectStorage* storage, const PDFDocument* document);
+
+    /// The result said in plain words, the fact of the result dialog and of What changes
+    /// \param removed The standards, which are no longer declared (ConformanceRemoval::removed)
+    static PDFDocumentToolFact createConformanceFact(const QStringList& removed);
+
+    /// Checks the parameters a caller has written explicitly (an assistant by MCP), before they
+    /// are normalized: a value, which would be silently ignored, is an error, which names what
+    /// to set. The panels always hold all values, they do not call it. The default finds nothing.
+    /// \param given The parameters as they were given
+    virtual std::vector<PDFDocumentToolParameterError> checkGivenParameters(const QVariantMap& given) const;
 
 private:
     PDFDocumentToolResult prepare(const PDFDocumentToolContext& context, const QVariantMap& parameters, QVariantMap* normalizedParameters) const;

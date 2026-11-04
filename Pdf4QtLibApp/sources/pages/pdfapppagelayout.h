@@ -382,6 +382,20 @@ public:
     /// Label of a plain text of the font of the weight and size
     static PDFLabel* createLabel(const QString& text, QFont::Weight weight, int pixelSize, PDFThemeColors::Color color, QWidget* parent);
 
+    /// A label of a row of texts on one baseline, with its stretch in the row
+    struct BaselineLabel
+    {
+        PDFLabel* label = nullptr;
+        int stretch = 0;
+    };
+
+    /// Adds labels of one line to a row, so that their baselines lie on one line (items-baseline
+    /// of Figma): Qt::AlignBaseline does nothing in a QHBoxLayout, a layout item takes it as the
+    /// vertical center. The label with the lowest baseline keeps its place at the top of the row,
+    /// the others are moved down by their top margin (a fixed height of a label grows by it).
+    /// The fonts of the labels are set before the call.
+    static void addBaselineLabels(QHBoxLayout* layout, const std::vector<BaselineLabel>& labels);
+
     /// Plain text with the line height of the design ("leading normal" of Figma is
     /// the rounded line of Inter: 15 for 12 px, 16 for 13 px, 18 for 15 px; QLabel
     /// takes the line spacing of the font, which is 1 px more). The text wraps, its

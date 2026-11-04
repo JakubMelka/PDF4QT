@@ -344,11 +344,10 @@ QWidget* PDFAppToolCollectionEditor::createToolsSection(QWidget* parent)
     headerLayout->setSpacing(10);
     m_toolsTitle = new PDFLabel(QString(), PDFThemeFonts::Role::BodySemiBold, PDFThemeColors::TextPrimary, header);
     m_toolsTitle->setObjectName(QStringLiteral("toolsTitle"));
-    headerLayout->addWidget(m_toolsTitle, 0, Qt::AlignBaseline);
     m_toolsHint = new PDFLabel(QString(), PDFThemeFonts::Role::CaptionRegular, PDFThemeColors::TextMuted, header);
     m_toolsHint->setObjectName(QStringLiteral("toolsHint"));
     m_toolsHint->setWordWrap(true);
-    headerLayout->addWidget(m_toolsHint, 1, Qt::AlignBaseline);
+    PDFAppPageWidgets::addBaselineLabels(headerLayout, { { m_toolsTitle.data() }, { m_toolsHint.data(), 1 } });
     layout->addWidget(header);
 
     m_toolList = new PDFAppCollectionToolList(section);

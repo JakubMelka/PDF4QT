@@ -23,13 +23,10 @@
 #include "pdfdocumenttool_compress.h"
 
 #include "pdfdocumentsizebreakdown.h"
-#include "pdfdocumenttoolcatalog.h"
-#include "pdfdocumentwriter.h"
-#include "pdfform.h"
 #include "pdfoperationcontrol.h"
 
 #include <QElapsedTimer>
-#include <QFileInfo>
+#include <QJsonArray>
 
 namespace pdf
 {
@@ -68,21 +65,6 @@ public:
     static QString name(const char* parameter)
     {
         return QString::fromLatin1(parameter);
-    }
-
-    /// Name of a signature impact in JSON
-    static QString getSignatureImpactName(PDFDocumentToolSignatureImpact impact)
-    {
-        switch (impact)
-        {
-            case PDFDocumentToolSignatureImpact::None:
-                return QStringLiteral("none");
-            case PDFDocumentToolSignatureImpact::IncrementalSave:
-                return QStringLiteral("incremental-save");
-            case PDFDocumentToolSignatureImpact::LostCopyOnly:
-                return QStringLiteral("lost-copy-only");
-        }
-        return QString();
     }
 };
 
@@ -149,19 +131,36 @@ PDFDocument PDFDocumentToolCompress::compress(const PDFDocument* document, const
         PDFOptimizer optimizer(settings.structure, nullptr);
         optimizer.setOperationControl(control);
         optimizer.setProgress(progress.structure);
+        if (progress.structureMessage)
+        {
+            QObject::connect(&optimizer, &PDFOptimizer::optimizationProgress, &optimizer, progress.structureMessage, Qt::DirectConnection);
+        }
         optimizer.setStorage(storage);
         optimizer.optimize();
         localStatistics.structure = optimizer.getStatistics();
         storage = optimizer.takeStorage();
     }
 
+    // After the optimizer: its counters of the unused objects stay the same with the clean-up on
+    PDFDocument result = createWholeFileDocument(std::move(storage), document);
+
+    // The content has been rewritten and it is not checked against a standard the document
+    // declares (a recoded image can be against it, the rule of the copies of OCR)
+    if (!PDFOperationControl::isOperationCancelled(control))
+    {
+        PDFObjectStorage resultStorage = result.getStorage();
+        localStatistics.conformance = removeConformanceDeclaration(&resultStorage, &result);
+        if (!localStatistics.conformance.removed.isEmpty())
+        {
+            result = PDFDocument(std::move(resultStorage), document->getInfo()->version, document->getSourceDataHash());
+        }
+    }
+
     if (statistics)
     {
         *statistics = localStatistics;
     }
-
-    // After the optimizer: its counters of the unused objects stay the same with the clean-up on
-    return createWholeFileDocument(std::move(storage), document);
+    return result;
 }
 
 QString PDFDocumentToolCompress::getPresetDescription(const QVariantMap& parameters)
@@ -206,8 +205,40 @@ QString PDFDocumentToolCompress::getSavingText(const PDFDocumentToolResult& resu
 
 std::vector<PDFDocumentToolFact> PDFDocumentToolCompress::getChangeRows(const PDFDocumentToolResult& result)
 {
-    return PDFDocumentSizeBreakdown::createChangeRows(PDFDocumentSizeBreakdown::fromJson(result.data.value(QStringLiteral("breakdownBefore")).toObject()),
-                                                      PDFDocumentSizeBreakdown::fromJson(result.data.value(QStringLiteral("breakdownAfter")).toObject()));
+    std::vector<PDFDocumentToolFact> rows = PDFDocumentSizeBreakdown::createChangeRows(PDFDocumentSizeBreakdown::fromJson(result.data.value(QStringLiteral("breakdownBefore")).toObject()),
+                                                                                       PDFDocumentSizeBreakdown::fromJson(result.data.value(QStringLiteral("breakdownAfter")).toObject()));
+
+    // The file of the result does not say it conforms any more: the user reads it also before the decision
+    for (const PDFDocumentToolFact& fact : result.facts)
+    {
+        if (fact.id == QLatin1String("conformance"))
+        {
+            rows.push_back(fact);
+        }
+    }
+    return rows;
+}
+
+std::vector<PDFDocumentToolParameterError> PDFDocumentToolCompress::checkGivenParameters(const QVariantMap& given) const
+{
+    using Helper = PDFDocumentToolCompressHelper;
+
+    // A value of Custom with another preset would be ignored, the assistant would report a result it did not get
+    std::vector<PDFDocumentToolParameterError> errors;
+    if (given.value(Helper::name(PARAMETER_PRESET)).toString() == QLatin1String(PRESET_CUSTOM))
+    {
+        return errors;
+    }
+
+    for (const char* parameter : { PARAMETER_TARGET_DPI, PARAMETER_JPEG_QUALITY, PARAMETER_GOAL, PARAMETER_KEEP_ORIGINAL, PARAMETER_PRESERVE_TRANSPARENCY, PARAMETER_CLEAN_STRUCTURE })
+    {
+        const QString name = Helper::name(parameter);
+        if (given.contains(name))
+        {
+            errors.push_back({ name, tr("%1 is used only with the preset custom: set preset to custom, or leave %1 out.").arg(name) });
+        }
+    }
+    return errors;
 }
 
 QString PDFDocumentToolCompress::getId() const
@@ -259,9 +290,7 @@ PDFDocumentToolResult PDFDocumentToolCompress::execute(const PDFDocumentToolCont
     const PDFDocument* document = input.document.data();
     const Settings settings = createSettings(parameters);
 
-    // The size of the file the user sees; a document with unsaved changes has no such
-    // file, so its size is measured as the size of the result is
-    const qint64 sizeBefore = !input.originalData.isEmpty() && !input.isModified ? qint64(input.originalData.size()) : PDFDocumentWriter::getDocumentFileSize(document);
+    const qint64 sizeBefore = getWholeFileInputSize(input);
     if (sizeBefore < 0)
     {
         return PDFDocumentToolResult::createFailed(tr("The size of the document cannot be measured."));
@@ -288,17 +317,20 @@ PDFDocumentToolResult PDFDocumentToolCompress::execute(const PDFDocumentToolCont
         return PDFDocumentToolResult::createStopped();
     }
 
+    // Never a result, which still claims a standard it was not checked against
+    if (!statistics.conformance.kept.isEmpty())
+    {
+        return PDFDocumentToolResult::createFailed(tr("The document declares %1 and its metadata cannot be changed. The result would keep a declaration, which is not true, so nothing was made.").arg(statistics.conformance.kept.join(QStringLiteral(", "))));
+    }
+
     phases.beginPhase(measurePhase);
 
-    const qint64 sizeAfter = PDFDocumentWriter::getDocumentFileSize(&output);
-    if (sizeAfter < 0)
+    const WholeFileSize outputSize = getWholeFileOutputSize(&output);
+    if (!outputSize.error.isEmpty())
     {
-        return PDFDocumentToolResult::createFailed(tr("The result cannot be written."));
+        return PDFDocumentToolResult::createFailed(outputSize.error);
     }
-    if (sizeAfter > MAXIMUM_RESULT_SIZE)
-    {
-        return PDFDocumentToolResult::createFailed(tr("The result is too large to be saved."));
-    }
+    const qint64 sizeAfter = outputSize.size;
 
     const PDFDocumentSizeBreakdown breakdownBefore = PDFDocumentSizeBreakdown::create(document, sizeBefore, control);
     const PDFDocumentSizeBreakdown breakdownAfter = PDFDocumentSizeBreakdown::create(&output, sizeAfter, control);
@@ -310,7 +342,6 @@ PDFDocumentToolResult PDFDocumentToolCompress::execute(const PDFDocumentToolCont
     phases.finish();
 
     const qint64 duration = timer.elapsed();
-    const qint64 savedBytes = qMax(qint64(0), sizeBefore - sizeAfter);
     const int savedPercent = PDFDocumentToolFormat::getSavedPercent(sizeBefore, sizeAfter);
     const qint64 imagesKept = qMax(qint64(0), breakdownBefore.imageCount - statistics.imagesRecompressed);
 
@@ -326,34 +357,21 @@ PDFDocumentToolResult PDFDocumentToolCompress::execute(const PDFDocumentToolCont
     result.facts.push_back({ QStringLiteral("images"), tr("Images"), tr("%1 · %2").arg(tr("%Ln recompressed", nullptr, int(statistics.imagesRecompressed)), tr("%Ln kept", nullptr, int(imagesKept))) });
     result.facts.push_back({ QStringLiteral("time"), tr("Time"), PDFDocumentToolFormat::formatDuration(duration) });
 
+    // Only a result, which exists, has lost its declaration
+    if (sizeAfter < sizeBefore && !statistics.conformance.removed.isEmpty())
+    {
+        result.facts.push_back(createConformanceFact(statistics.conformance.removed));
+        result.data.insert(QStringLiteral("conformanceRemoved"), QJsonArray::fromStringList(statistics.conformance.removed));
+    }
+
     result.data.insert(QStringLiteral("preset"), parameters.value(Helper::name(PARAMETER_PRESET)).toString());
-    result.data.insert(QStringLiteral("sizeBefore"), sizeBefore);
-    result.data.insert(QStringLiteral("sizeAfter"), sizeAfter);
-    result.data.insert(QStringLiteral("savedBytes"), savedBytes);
-    result.data.insert(QStringLiteral("savedPercent"), savedPercent);
     result.data.insert(QStringLiteral("imagesRecompressed"), statistics.imagesRecompressed);
     result.data.insert(QStringLiteral("imagesKept"), imagesKept);
     result.data.insert(QStringLiteral("breakdownBefore"), breakdownBefore.toJson());
     result.data.insert(QStringLiteral("breakdownAfter"), breakdownAfter.toJson());
     result.data.insert(QStringLiteral("durationMilliseconds"), duration);
 
-    const PDFDocumentToolCatalogEntry* info = getInfo();
-    result.data.insert(QStringLiteral("signatureCount"), PDFForm::getSignatureCount(document));
-    result.data.insert(QStringLiteral("signatureImpact"), Helper::getSignatureImpactName(info ? info->getSignatureImpact() : PDFDocumentToolSignatureImpact::None));
-
-    if (sizeAfter < sizeBefore)
-    {
-        PDFDocumentToolOutputDocument outputDocument;
-        outputDocument.kind = PDFDocumentToolOutputDocument::Kind::Changed;
-        outputDocument.inputIndex = 0;
-        outputDocument.document = PDFDocumentPointer(new PDFDocument(std::move(output)));
-        outputDocument.flags = PDFModifiedDocument::Reset;
-
-        const QString baseName = QFileInfo(input.fileName).completeBaseName();
-        outputDocument.suggestedFileName = (baseName.isEmpty() ? QStringLiteral("document") : baseName) + QStringLiteral("_compressed.pdf");
-        result.documents.push_back(std::move(outputDocument));
-    }
-
+    finishWholeFileResult(&result, input, std::move(output), sizeBefore, sizeAfter, QStringLiteral("_compressed"));
     return result;
 }
 

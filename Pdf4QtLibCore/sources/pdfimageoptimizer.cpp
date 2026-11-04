@@ -32,6 +32,7 @@
 
 #include <QBuffer>
 #include <QImageWriter>
+#include <QMutexLocker>
 
 #include <algorithm>
 #include <cmath>
@@ -96,10 +97,11 @@ bool hasNonOpaquePixel(const QImage& image)
         return false;
     }
 
+    // No memory for the copy: the image is taken as a transparent one, whose mask decides below
     QImage rgba = image.convertToFormat(QImage::Format_RGBA8888);
     if (rgba.isNull())
     {
-        return false;
+        return true;
     }
 
     for (int y = 0; y < rgba.height(); ++y)
@@ -540,8 +542,58 @@ class PDFImageOptimizerHelper
 public:
     PDFImageOptimizerHelper() = delete;
 
-    /// Information about a decoded image of the document
-    static PDFImageOptimizer::ImageInfo createImageInfo(const PDFDocument* document, PDFImageCompressor::ImageStatistics statistics);
+    /// A reporter of the caller used by more threads: one report at a time
+    class LockedReporter : public PDFRenderErrorReporter
+    {
+    public:
+        explicit LockedReporter(PDFRenderErrorReporter* reporter, QMutex* mutex) :
+            m_reporter(reporter),
+            m_mutex(mutex)
+        {
+
+        }
+
+        virtual void reportRenderError(RenderErrorType type, QString message) override
+        {
+            if (m_reporter)
+            {
+                QMutexLocker locker(m_mutex);
+                m_reporter->reportRenderError(type, std::move(message));
+            }
+        }
+
+        virtual void reportRenderErrorOnce(RenderErrorType type, QString message) override
+        {
+            if (m_reporter)
+            {
+                QMutexLocker locker(m_mutex);
+                m_reporter->reportRenderErrorOnce(type, std::move(message));
+            }
+        }
+
+    private:
+        PDFRenderErrorReporter* m_reporter;
+        QMutex* m_mutex;
+    };
+
+    /// How the device colors of a document are shown, computed once per run
+    struct DeviceColors
+    {
+        std::shared_ptr<const std::array<uchar, 256>> grayTable;
+        bool isDeviceRGBShownExactly = true;
+    };
+
+    static DeviceColors createDeviceColors(const PDFCMS* cms)
+    {
+        DeviceColors colors;
+        colors.grayTable = PDFImage::createGrayTable(cms);
+        colors.isDeviceRGBShownExactly = PDFImage::isDeviceRGBShownExactly(cms);
+        return colors;
+    }
+
+    /// Information about a decoded image of the document, with its analysis (computed
+    /// once: it walks all pixels, the dialog of the images asks for each click)
+    static PDFImageOptimizer::ImageInfo createImageInfo(const PDFDocument* document, PDFImageCompressor::ImageStatistics statistics, const DeviceColors& deviceColors);
 
     /// Tones of all pixels of an image. A sample would decide wrongly: a color of a thin
     /// line would be lost, a gray of a detail would become black or white.
@@ -552,6 +604,12 @@ public:
     };
 
     static ImageTones getImageTones(const QImage& image);
+
+    static std::function<void()>& getTestMaskEncodeHook()
+    {
+        static std::function<void()> hook;
+        return hook;
+    }
 
     /// Encoding of one image, its pixels are not needed for the writing to the storage
     struct EncodedImage
@@ -615,7 +673,7 @@ PDFImageOptimizerHelper::ImageTones PDFImageOptimizerHelper::getImageTones(const
     return tones;
 }
 
-PDFImageOptimizer::ImageInfo PDFImageOptimizerHelper::createImageInfo(const PDFDocument* document, PDFImageCompressor::ImageStatistics statistics)
+PDFImageOptimizer::ImageInfo PDFImageOptimizerHelper::createImageInfo(const PDFDocument* document, PDFImageCompressor::ImageStatistics statistics, const DeviceColors& deviceColors)
 {
     PDFImageOptimizer::ImageInfo info;
     info.reference = statistics.reference;
@@ -623,6 +681,9 @@ PDFImageOptimizer::ImageInfo PDFImageOptimizerHelper::createImageInfo(const PDFD
     info.minimalDpi = statistics.minimalDpi;
     info.pixelSize = info.image.size();
     info.hasTransparency = hasNonOpaquePixel(info.image);
+    info.analysis = PDFImageOptimizer::analyzeImage(info.image);
+    info.grayTable = deviceColors.grayTable;
+    info.isDeviceRGBShownExactly = deviceColors.isDeviceRGBShownExactly;
 
     const PDFObject object = document->getObjectByReference(info.reference);
     if (object.isStream())
@@ -673,11 +734,18 @@ PDFImageOptimizerHelper::EncodedImage PDFImageOptimizerHelper::encodeImage(const
         return encoded;
     }
 
+    if (info.isImageMask)
+    {
+        return encoded;
+    }
+
     const PDFImageOptimizer::Settings& effectiveSettings = (overrideIt != overrides.end() && overrideIt->second.useCustomSettings) ? overrideIt->second.settings : settings;
     PDFImageOptimizer::ResolvedPlan plan = PDFImageOptimizer::resolvePlan(info, effectiveSettings);
     plan.originalBytes = info.originalBytes;
 
-    if (info.isImageMask)
+    // A decoded image holds the colors, which are shown: written as DeviceRGB under an output intent of
+    // another RGB space it would go through that space again. The stream of the file stays.
+    if (plan.resolvedColorMode == PDFImageOptimizer::ColorMode::Color && !info.isDeviceRGBShownExactly)
     {
         return encoded;
     }
@@ -697,22 +765,42 @@ PDFImageOptimizerHelper::EncodedImage PDFImageOptimizerHelper::encodeImage(const
     if (plan.useSoftMask)
     {
         QImage mask = extractAlphaMask(info.image);
-        if (!mask.isNull())
+
+        // No memory for the mask: an image without it would lose its transparency, its stream stays
+        if (mask.isNull())
+        {
+            encoded.stream = PDFStream();
+            encoded.newBytes = 0;
+            return encoded;
+        }
+
         {
             PDFImage::ImageEncodeOptions maskOptions = plan.encodeOptions;
             maskOptions.compression = PDFImage::ImageCompression::Flate;
             maskOptions.colorMode = PDFImage::ImageColorMode::Grayscale;
             maskOptions.alphaHandling = PDFImage::AlphaHandling::FlattenToWhite;
 
+            // The values of a soft mask are the alpha itself, no color management shows them
+            maskOptions.grayTable = nullptr;
+
             try
             {
+                if (const std::function<void()>& hook = getTestMaskEncodeHook())
+                {
+                    hook();
+                }
+
                 PDFStream maskStream = PDFImage::createStreamFromImage(mask, maskOptions, reporter);
                 encoded.maskStream = std::move(maskStream);
                 encoded.newBytes += encoded.maskStream->getContent() ? encoded.maskStream->getContent()->size() : 0;
             }
             catch (const PDFException&)
             {
+                // An image without its mask would lose its transparency: its stream stays
+                encoded.stream = PDFStream();
                 encoded.maskStream.reset();
+                encoded.newBytes = 0;
+                return encoded;
             }
         }
     }
@@ -755,6 +843,11 @@ PDFImageOptimizerHelper::EncodedImage PDFImageOptimizerHelper::encodeImage(const
     return encoded;
 }
 
+void PDFImageOptimizer::setTestMaskEncodeHook(std::function<void()> hook)
+{
+    PDFImageOptimizerHelper::getTestMaskEncodeHook() = std::move(hook);
+}
+
 std::vector<PDFImageOptimizer::ImageInfo> PDFImageOptimizer::collectImageInfos(const PDFDocument* document, const PDFOperationControl* operationControl)
 {
     std::vector<ImageInfo> results;
@@ -764,12 +857,14 @@ std::vector<PDFImageOptimizer::ImageInfo> PDFImageOptimizer::collectImageInfos(c
     }
 
     PDFImageCompressor compressor;
-    PDFImageCompressor::ImageStatisticsList stats = compressor.collectImages(document, operationControl);
+    PDFImageCompressor::Environment environment(document);
+    const PDFImageOptimizerHelper::DeviceColors deviceColors = PDFImageOptimizerHelper::createDeviceColors(environment.getCMS());
+    PDFImageCompressor::ImageStatisticsList stats = compressor.collectImages(environment, operationControl);
     results.reserve(stats.size());
 
     for (PDFImageCompressor::ImageStatistics& stat : stats)
     {
-        results.push_back(PDFImageOptimizerHelper::createImageInfo(document, std::move(stat)));
+        results.push_back(PDFImageOptimizerHelper::createImageInfo(document, std::move(stat), deviceColors));
     }
 
     return results;
@@ -886,7 +981,7 @@ PDFImageOptimizer::ResolvedPlan PDFImageOptimizer::resolvePlan(const ImageInfo& 
 {
     ResolvedPlan plan;
     plan.originalBytes = info.originalBytes;
-    ImageAnalysis analysis = analyzeImage(info.image);
+    ImageAnalysis analysis = info.analysis ? *info.analysis : analyzeImage(info.image);
 
     // The analysis looks at a sample of a large image, it may miss a few transparent pixels
     analysis.hasTransparency = analysis.hasTransparency || info.hasTransparency;
@@ -948,6 +1043,7 @@ PDFImageOptimizer::ResolvedPlan PDFImageOptimizer::resolvePlan(const ImageInfo& 
     options.enablePngPredictor = profile.enablePngPredictor;
     options.resampleFilter = profile.resampleFilter;
     options.alphaHandling = plan.useSoftMask ? PDFImage::AlphaHandling::DropAlphaPreserveColors : PDFImage::AlphaHandling::FlattenToWhite;
+    options.grayTable = info.grayTable;
 
     switch (resolvedMode)
     {
@@ -1030,6 +1126,7 @@ int PDFImageOptimizer::estimateEncodedBytes(const ImageInfo& info,
             maskOptions.compression = PDFImage::ImageCompression::Flate;
             maskOptions.colorMode = PDFImage::ImageColorMode::Grayscale;
             maskOptions.alphaHandling = PDFImage::AlphaHandling::FlattenToWhite;
+            maskOptions.grayTable = nullptr;
 
             try
             {
@@ -1078,8 +1175,8 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
     };
 
     // The first pass decodes nothing: it finds the images and the resolutions they have
-    // on the pages. The second one decodes and encodes one image at a time, so at most
-    // one decoded image is held - the memory depends on the largest image only.
+    // on the pages. The second one decodes and encodes them in the threads of the policy,
+    // a task holds its decoded image only while it works on it.
     PDFImageCompressor compressor;
     PDFImageCompressor::Environment environment(document);
     const PDFImageCompressor::ImagePlacements placements = compressor.collectImagePlacements(environment, operationControl, analysisProgress);
@@ -1099,22 +1196,40 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
     std::vector<PDFImageOptimizerHelper::EncodedImage> encodedResults;
     encodedResults.reserve(placements.size());
 
-    PDFRenderErrorReporterDummy dummyReporter;
-    if (!reporter)
-    {
-        reporter = &dummyReporter;
-    }
+    // The callers give a reporter of one thread and a progress serves one thread at a time
+    QMutex resultMutex;
+    PDFImageOptimizerHelper::LockedReporter lockedReporter(reporter, &resultMutex);
+    const PDFImageOptimizerHelper::DeviceColors deviceColors = PDFImageOptimizerHelper::createDeviceColors(environment.getCMS());
 
     const PDFImageCompressor::DecodedImageCallback encodeImage = [&](PDFImageCompressor::ImageStatistics statistics)
     {
-        const ImageInfo info = PDFImageOptimizerHelper::createImageInfo(document, std::move(statistics));
-        encodedResults.push_back(PDFImageOptimizerHelper::encodeImage(document, info, settings, overrides, reporter));
+        if (PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            return;
+        }
+
+        const ImageInfo info = PDFImageOptimizerHelper::createImageInfo(document, std::move(statistics), deviceColors);
+        if (PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            return;
+        }
+
+        PDFImageOptimizerHelper::EncodedImage encoded = PDFImageOptimizerHelper::encodeImage(document, info, settings, overrides, &lockedReporter);
+
+        // A canceled run has no results: images still in the hands of other threads say nothing
+        QMutexLocker locker(&resultMutex);
+        if (PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            return;
+        }
+        encodedResults.push_back(std::move(encoded));
         if (progress)
         {
             progress->step();
         }
     };
-    compressor.visitImages(environment, placements, encodeImage, operationControl);
+
+    compressor.visitImagesInParallel(environment, placements, encodeImage, operationControl);
 
     if (progress)
     {

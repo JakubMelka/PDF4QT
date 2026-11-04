@@ -132,6 +132,10 @@ public:
     /// Makes the tab current
     void activateTab(PDFAppTab* tab);
 
+    /// The modal dialog, for which the opening of a document and the dialog of the result of a
+    /// tool wait (a message box, which only informs, is not one), nullptr if none
+    static QWidget* getBlockingModalWidget();
+
     /// Closes the tab (not the Home tab). \returns false, if it is not closed.
     bool closeTab(PDFAppTab* tab);
 
@@ -340,10 +344,6 @@ private:
     /// The requests waiting for a modal dialog are opened (or wait for the next one)
     void processPendingRequests();
     void watchModalWidget(QWidget* widget);
-
-    /// The modal dialog, for which the opening waits (a message box, which only
-    /// informs, is not one), nullptr if none
-    QWidget* getBlockingModalWidget() const;
 
     /// Dynamic property of a message box of the window, which only informs
     static constexpr const char* NON_BLOCKING_PROPERTY = "pdf4qtNonBlocking";

@@ -31,12 +31,15 @@ Every preset decides how far images are reduced and how thoroughly the file stru
 - Images are downsampled to the preset resolution and recompressed; images that would get larger are kept.
 - Unused objects are removed, identical objects are merged and all streams are recompressed.
 - The file is written whole, with every setting: its old object streams, cross-reference streams and linearization data (Fast Web View) are not carried over.
-- Text, forms, annotations, outline and metadata stay exactly as they are.
+- Text, forms, annotations, outline and metadata stay exactly as they are, except for a declaration of PDF/A or PDF/UA: the result is not checked against the standard, so the declaration is removed from its metadata and the result says so.
 - A signed document can be saved only as a copy. The signatures of the copy are no longer valid.
 - CMYK and Lab images are converted to RGB when they are recompressed.
 
 > [!WARNING] When the file cannot be made smaller
 > If the chosen preset does not reduce the size, Compress says “File cannot be reduced with these settings” and writes nothing. Try Smaller file, or look at the size breakdown in the right panel.
+
+> [!WARNING] Not enough memory
+> Nothing was changed. The tool works on several images at once and the computer ran out of memory. Use One Thread in the dialog makes it slower, but it holds one image at a time. The setting also slows down the drawing of pages until you change it back in Settings › Advanced. Then run the tool again.
 
 > [!TIP] Fine control
 > Optimize Images and Optimize Structure expose every setting behind the presets: color mode, DPI, JPEG quality, resampling filter, object merging and more.

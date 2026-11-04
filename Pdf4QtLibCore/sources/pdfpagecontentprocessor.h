@@ -745,6 +745,11 @@ protected:
     /// shading, images, ...)
     virtual bool isContentKindSuppressed(ContentKind kind) const;
 
+    /// The processor needs nothing of the text: no font is loaded or realized and no glyph
+    /// is laid out (a walk over the images of a document: a text of a font of its own size for
+    /// each word took more memory and time than the images). The default is false.
+    virtual bool isTextIgnored() const { return false; }
+
     /// Override this function to limit the complexity of the processed tiling
     /// patterns. If this function returns false, then the tiling pattern is not
     /// painted at all. Default implementation processes all tiling patterns.

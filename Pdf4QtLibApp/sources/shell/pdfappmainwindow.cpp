@@ -1257,7 +1257,7 @@ void PDFAppMainWindow::connectDocumentTab(PDFAppDocumentTab* tab)
     connect(tab, &PDFAppDocumentTab::editCopyRequested, this, &PDFAppMainWindow::onEditCopyRequested);
 }
 
-QWidget* PDFAppMainWindow::getBlockingModalWidget() const
+QWidget* PDFAppMainWindow::getBlockingModalWidget()
 {
     // The message boxes, which only inform (open-failed, the errors of a drop), do
     // not stop the opening: they are not questions, whose answer the code waits for

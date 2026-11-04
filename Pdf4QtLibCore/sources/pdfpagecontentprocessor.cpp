@@ -2853,6 +2853,11 @@ void PDFPageContentProcessor::operatorTextSetLeading(PDFReal leading)
 
 void PDFPageContentProcessor::operatorTextSetFontAndFontSize(PDFOperandName fontName, PDFReal fontSize)
 {
+    if (isTextIgnored())
+    {
+        return;
+    }
+
     if (m_fontDictionary)
     {
         if (m_fontDictionary->hasKey(fontName.name))
@@ -2949,6 +2954,11 @@ void PDFPageContentProcessor::operatorTextMoveByLeading()
 
 void PDFPageContentProcessor::operatorTextShowTextString(PDFOperandString text)
 {
+    if (isTextIgnored())
+    {
+        return;
+    }
+
     if (m_graphicState.getTextFont())
     {
         // Get the realized font. Font is held, until the text is drawn: text sequence
@@ -2975,6 +2985,11 @@ void PDFPageContentProcessor::operatorTextShowTextString(PDFOperandString text)
 
 void PDFPageContentProcessor::operatorTextShowTextIndividualSpacing()
 {
+    if (isTextIgnored())
+    {
+        return;
+    }
+
     // Operand stack must be of this form [ ... text, number, text, number, number, text ... ]. We check it.
 
     if (m_operands.size() < 2)

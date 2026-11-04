@@ -107,6 +107,14 @@ public:
     int getLineHeight() const { return m_lineHeight; }
     void setLineHeight(int lineHeight);
 
+    /// The plain text of the label is data (a size, a path, a name): it is drawn in its own
+    /// direction (PDFComponentPainter::getDataTextDirection), also in an interface of the
+    /// other direction, where a painter would draw "807.2 kB" as "kB 807.2". The alignment
+    /// of the label stays by the direction of the label. Not for a text with a line height,
+    /// a rich text or a selectable text, which are not drawn by the label itself.
+    bool isDataText() const { return m_isDataText; }
+    void setDataText(bool isDataText);
+
     /// Returns the selected text (also of a text with a line height, which is
     /// selected by the label itself)
     QString selectedText() const;
@@ -154,6 +162,7 @@ private:
     PDFThemeFonts::Role m_fontRole = PDFThemeFonts::Role::Body;
     PDFThemeColors::Color m_color = PDFThemeColors::TextPrimary;
     int m_lineHeight = 0;
+    bool m_isDataText = false;
 
     // Selection of a text with a line height (positions in the text, the text of
     // the selection - QLabel::setText is not virtual, a new text ends it)

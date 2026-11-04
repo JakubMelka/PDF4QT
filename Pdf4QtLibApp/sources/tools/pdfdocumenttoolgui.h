@@ -185,8 +185,9 @@ public:
     virtual void onRunStateChanged(bool isRunning);
 
     /// The run has ended with NothingToDo or Failed; the default shows an info bar over
-    /// the canvas (295:2182 is a state of the panel: Compress overrides it). \returns
-    /// nothing, the tool stays open.
+    /// the canvas (295:2182 is a state of the panel: Compress overrides it), a lack of memory
+    /// says the shell by its dialog after this function, for every tool. \returns nothing, the
+    /// tool stays open.
     virtual void onRunNotAccepted(const PDFDocumentToolResult& result);
 
     /// A new version of the document is shown (the facts of the panels)

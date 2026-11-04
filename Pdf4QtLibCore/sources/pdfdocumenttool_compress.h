@@ -27,6 +27,8 @@
 #include "pdfimageoptimizer.h"
 #include "pdfoptimizer.h"
 
+#include <functional>
+
 namespace pdf
 {
 
@@ -40,7 +42,8 @@ namespace pdf
 ///   dialog 296:2761; data of the panel: "preset", "sizeBefore", "sizeAfter",
 ///   "savedBytes", "savedPercent", "imagesRecompressed", "imagesKept", "breakdownBefore",
 ///   "breakdownAfter" (PDFDocumentSizeBreakdown), "durationMilliseconds",
-///   "signatureCount", "signatureImpact";
+///   "signatureCount", "signatureImpact"; "conformanceRemoved" and the fact "conformance",
+///   when the document declared PDF/A or PDF/UA (the declaration is removed from the result);
 ///   NothingToDo - the file is not smaller (295:2182): the same facts and data, no document;
 ///   Stopped - canceled in any phase, no document.
 class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolCompress : public PDFDocumentTool
@@ -72,9 +75,6 @@ public:
     /// Resolutions offered by the custom panel (294:1340, "Downsample to")
     static std::vector<int> getOfferedResolutions() { return { 72, 96, 110, 150, 200, 300 }; }
 
-    /// Largest file the application writes (PDFAppDocumentFileWriter::MAXIMUM_FILE_SIZE)
-    static constexpr qint64 MAXIMUM_RESULT_SIZE = qint64(2047) * 1024 * 1024;
-
     /// What the tool runs
     struct Settings
     {
@@ -87,6 +87,7 @@ public:
     {
         qint64 imagesRecompressed = 0;              ///< Images replaced by a new encoding
         PDFOptimizer::Statistics structure;         ///< Counters of the structure optimizer
+        ConformanceRemoval conformance;             ///< The declaration of PDF/A and PDF/UA of the result
     };
 
     /// Progress of the phases of compress (each may be null)
@@ -95,6 +96,7 @@ public:
         PDFProgress* analysis = nullptr;    ///< Walk over the pages, a step per page
         PDFProgress* images = nullptr;      ///< Images, a step per image
         PDFProgress* structure = nullptr;   ///< Structure, a step per stage
+        std::function<void(const QString&)> structureMessage;   ///< Text of each stage of the structure, in the thread of the caller (optional)
     };
 
     /// What a preset runs: Smaller file 110 dpi, JPEG 60, minimum size; Balanced 200 dpi,
@@ -103,7 +105,8 @@ public:
     /// \param parameters Normalized parameters of the tool
     static Settings createSettings(const QVariantMap& parameters);
 
-    /// Compresses the document: first the images, then the structure. The source document
+    /// Compresses the document: first the images, then the structure, and the declaration of
+    /// PDF/A or PDF/UA is removed from the metadata of the result. The source document
     /// is not changed, the result keeps its PDF version (also its source hash).
     /// \param document Source document
     /// \param settings What runs
@@ -130,6 +133,7 @@ public:
     virtual bool isPreviewFinal() const override { return true; }
     virtual PDFDocumentToolResult computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const override;
     virtual PDFDocumentToolResult execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const override;
+    virtual std::vector<PDFDocumentToolParameterError> checkGivenParameters(const QVariantMap& given) const override;
 };
 
 }   // namespace pdf

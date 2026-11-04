@@ -124,6 +124,11 @@ public:
     /// The document has signature fields (known after the first verification)
     bool hasSignatures() const;
 
+    /// PDFAppDocument::isSignatureLostOnSave: the signatures are intact now, they will not be valid
+    /// after a save. Follows undo, redo and later changes (verificationChanged), a save ends it.
+    /// Signatures, which are all invalid already, have nothing to lose and say only their state.
+    bool isSignatureLostOnSave() const;
+
     /// Starts the verification of the current bytes of the file again
     void verify();
 
@@ -178,6 +183,7 @@ private:
     QPointer<Watcher> m_watcher;
     std::shared_ptr<PDFAppCancelFlag> m_cancelFlag;
     QByteArray m_verifiedData;          ///< Bytes of the file of the running or the last verification
+    bool m_wasSignatureLostOnSave = false;  ///< isSignatureLostOnSave of the last change of the document
     PDFAppSignatureVerificationPointer m_verification;
     bool m_isApplyingResults = false;
 };

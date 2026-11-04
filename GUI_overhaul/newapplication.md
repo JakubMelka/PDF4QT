@@ -31,7 +31,7 @@ Body I-xx z [components_review.md](components_review.md) se řeší později a p
 | 11 | **Druhé spuštění** (dvojklik na PDF, *Otevřít v programu*, příkazová řádka) otevře soubory jako nové taby v okně běžící instance, která drží jméno pro předání (první spuštěná; naposledy aktivní okno ze všech instancí se nesleduje): nový proces je předá přes `QLocalServer` / `QLocalSocket` (jméno podle uživatele a relace, zprávy jen cesty, stránka a aktivační token okna, délka omezená) a skončí. **Spuštění bez souborů** (ikona, nabídka Start) otevře nové okno = samostatnou instanci, nic nepředává. `--new-window` spustí samostatnou instanci, přenosný režim se předávání neúčastní. Soubor otevřený v jiné instanci se otevře znovu bez varování (změnu na disku pozná *Automatic refresh*). Rozhodnuto 19. 10. 2026. |
 | 12 | **Jedno okno na proces**, taby jde jen přeuspořádat; přetažení tabu do nového okna není ve fázi 1 (19. 10. 2026). |
 | 13 | **Instalace až po fázi 2** (WiX, Flatpak, AppImage, asociace `.pdf`); ve fázi 1 se aplikace spouští z build stromu (19. 10. 2026). |
-| 14 | **Fáze 3** = bezpečnostní úkoly ze [SECURITY_TODO.md](../SECURITY_TODO.md), až po fázi 2 (rozhodnutí O30, 29. 10. 2026). |
+| 14 | **Fáze 3** = bezpečnostní úkoly ze [SECURITY_TODO.md](../SECURITY_TODO.md), až po fázi 2 (rozhodnutí O30, 29. 10. 2026). Na jejím konci zrychlit dekódování obrázků s jednou složkou do 8 bitů tabulkou (`PDFAbstractColorSpace::getImage`, vlastník 4. 11. 2026). |
 
 ## 2. Moduly
 

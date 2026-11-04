@@ -379,6 +379,18 @@ bool PDFAppUndoStack::redo()
     return true;
 }
 
+bool PDFAppUndoStack::canUndoWholeFileRewrite() const
+{
+    for (const PDFAppUndoStep& step : m_undoSteps)
+    {
+        if (!step.isWholeFileRewritten)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 void PDFAppUndoStack::clear()
 {
     m_undoSteps.clear();

@@ -25,6 +25,7 @@
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumentreader.h"
 #include "pdfdocumentwriter.h"
+#include "pdfexecutionpolicy.h"
 #include "pdffont.h"
 #include "pdfocrpagepreparer.h"
 #include "pdfoptionalcontent.h"
@@ -70,10 +71,25 @@ private slots:
     void oldFileWithRawCarriageReturn_data();
     void oldFileWithRawCarriageReturn();
     void damagedFileIsStillRestored();
+    void damagedRevisionsLastOneWins_data();
+    void damagedRevisionsLastOneWins();
+    void damagedFileObjects_data();
+    void damagedFileObjects();
+    void damagedFileOldestContentIsTold();
+    void damagedFileNoDocumentInAnyRevision();
+    void damagedFileAttackedByIncrementalUpdate_data();
+    void damagedFileAttackedByIncrementalUpdate();
+    void damagedFileHostileSizes_data();
+    void damagedFileHostileSizes();
     void oldFileWithRawCarriageReturnInIdentifier();
     void oldEncryptedStringWithRawCarriageReturn_data();
     void oldEncryptedStringWithRawCarriageReturn();
     void trailerSizeOfTheWrittenTable();
+    void damagedEncryptedFileIsDecrypted_data();
+    void damagedEncryptedFileIsDecrypted();
+    void damagedFileVersion_data();
+    void damagedFileVersion();
+    void invalidVersionNeverWritten();
     void realNumberText_data();
     void realNumberText();
     void realNumbersRoundTrip_data();
@@ -103,6 +119,13 @@ private:
 
     /// Result of reading of a file by the given password
     static PDFDocument readWithPassword(const QByteArray& data, const QString& password, PDFDocumentReader::Result* result, bool permissive = false);
+
+    /// File with one page, followed by the given objects, without a cross-reference table
+    /// and with a wrong startxref: only the permissive reading opens it
+    static QByteArray createDamagedFile(const QByteArray& objects);
+
+    /// Text of an object: a string (text), a number, stream:data, null, a dictionary {key=value ...}
+    static QByteArray describeObject(const PDFObject& object);
 
     /// The old writer wrote a string without parentheses and backslashes as a literal one, whatever bytes
     /// it has. Replaces the hexadecimal string at the position by such a literal string and spaces, so the
@@ -606,6 +629,332 @@ void DocumentWriterTest::damagedFileIsStillRestored()
     QCOMPARE(page->get("Note").getString(), QByteArray("a\nb"));
 }
 
+QByteArray DocumentWriterTest::createDamagedFile(const QByteArray& objects)
+{
+    return "%PDF-1.7\n"
+           "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+           "2 0 obj\n<< /Type /Pages /Kids [ 3 0 R ] /Count 1 >>\nendobj\n"
+           "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 100 100 ] >>\nendobj\n" +
+           objects +
+           "\ntrailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n99999999\n%%EOF\n";
+}
+
+QByteArray DocumentWriterTest::describeObject(const PDFObject& object)
+{
+    if (object.isString())
+    {
+        return "(" + object.getString() + ")";
+    }
+    if (object.isInt())
+    {
+        return QByteArray::number(object.getInteger());
+    }
+    if (object.isName())
+    {
+        return "/" + object.getString();
+    }
+    if (object.isStream())
+    {
+        return "stream:" + *object.getStream()->getContent();
+    }
+    if (object.isDictionary())
+    {
+        QByteArray text = "{";
+        const PDFDictionary* dictionary = object.getDictionary();
+        for (size_t i = 0; i < dictionary->getCount(); ++i)
+        {
+            text += (i > 0 ? " " : "") + dictionary->getKey(i).getString() + "=" + describeObject(dictionary->getValue(i));
+        }
+        return text + "}";
+    }
+    return object.isNull() ? QByteArray("null") : QByteArray("other");
+}
+
+void DocumentWriterTest::damagedRevisionsLastOneWins_data()
+{
+    QTest::addColumn<int>("strategy");
+    QTest::newRow("single thread") << int(PDFExecutionPolicy::Strategy::SingleThreaded);
+    QTest::newRow("default") << int(PDFExecutionPolicy::Strategy::PageMultithreaded);
+    QTest::newRow("threads forced") << int(PDFExecutionPolicy::Strategy::AlwaysMultithreaded);
+}
+
+void DocumentWriterTest::damagedRevisionsLastOneWins()
+{
+    // ISO 32000-2, 7.5.6: a later revision supersedes the older one. Two revisions of 200 strings: the threads
+    // of the reader never show the old revision or a mix of both, whatever the order they come in.
+    QFETCH(int, strategy);
+    PDFExecutionPolicy::setStrategy(PDFExecutionPolicy::Strategy(strategy));
+    const auto restore = qScopeGuard([]() { PDFExecutionPolicy::setStrategy(PDFExecutionPolicy::Strategy::PageMultithreaded); });
+
+    constexpr int FIRST_NUMBER = 4;
+    constexpr int COUNT = 200;
+    QByteArray objects;
+    for (const char* const revision : { "old", "new" })
+    {
+        for (int i = 0; i < COUNT; ++i)
+        {
+            objects += QByteArray::number(FIRST_NUMBER + i) + " 0 obj\n(" + revision + " " + QByteArray::number(i) + ")\nendobj\n";
+        }
+        objects += "trailer\n<< /Root 1 0 R >>\nstartxref\n0\n%%EOF\n";
+    }
+    const QByteArray data = createDamagedFile(objects);
+
+    PDFDocumentReader::Result result = PDFDocumentReader::Result::OK;
+    readWithPassword(data, QString(), &result);
+    QCOMPARE(result, PDFDocumentReader::Result::Failed);
+
+    for (int read = 0; read < 100; ++read)
+    {
+        const PDFDocument document = readWithPassword(data, QString(), &result, true);
+        QCOMPARE(result, PDFDocumentReader::Result::OK);
+        for (int i = 0; i < COUNT; ++i)
+        {
+            const PDFObject& object = document.getStorage().getObject(PDFObjectReference(FIRST_NUMBER + i, 0));
+            QVERIFY(object.isString());
+            QCOMPARE(object.getString(), "new " + QByteArray::number(i));
+        }
+    }
+}
+
+void DocumentWriterTest::damagedFileObjects_data()
+{
+    QTest::addColumn<QByteArray>("objects");
+    QTest::addColumn<QStringList>("expected");
+
+    // Bytes of a stream, which look as the end of it and as other objects
+    const QByteArray fake = "12 0 obj (fake) endobj 13 0 obj (fake)";
+    const QByteArray fakeEnd = "a endstream endobj " + fake + " endobj";
+    const QByteArray fakeLength = QByteArray::number(fakeEnd.size());
+    const QString fakeResult = QString::fromLatin1("stream:" + fakeEnd);
+    const QStringList noFakes = { "12 0=null", "13 0=null" };
+
+    // An object without its endobj ends at the next object
+    QTest::newRow("no endobj, string") << QByteArray("4 0 obj (a)\n5 0 obj (b)\nendobj\n") << QStringList{ "4 0=(a)", "5 0=(b)" };
+    QTest::newRow("no endobj, integer") << QByteArray("4 0 obj 7\n5 0 obj (b)\nendobj\n") << QStringList{ "4 0=7", "5 0=(b)" };
+    QTest::newRow("no endobj, no space") << QByteArray("4 0 obj <</A 1>>5 0 obj (b)\nendobj\n") << QStringList{ "4 0={A=1}", "5 0=(b)" };
+    QTest::newRow("no endobj, stream") << QByteArray("4 0 obj << /Length 3 >> stream\nabc\nendstream\n5 0 obj (b)\nendobj\n") << QStringList{ "4 0=stream:abc", "5 0=(b)" };
+    QTest::newRow("no endobj, three") << QByteArray("4 0 obj (a)\n5 0 obj (b)\n6 0 obj (c)\n") << QStringList{ "4 0=(a)", "5 0=(b)", "6 0=(c)" };
+    QTest::newRow("no body") << QByteArray("4 0 obj\n5 0 obj (b)\nendobj\n") << QStringList{ "4 0=null", "5 0=(b)" };
+    QTest::newRow("no endobj, end of revision") << QByteArray("4 0 obj (a)\nxref\n0 1\n0000000000 65535 f \ntrailer\n<< /Size 4 >>\nstartxref\n0\n%%EOF\n5 0 obj (b)\nendobj\n") << QStringList{ "4 0=(a)", "5 0=(b)" };
+    QTest::newRow("no endobj, parenthesis of a trailer") << QByteArray("4 0 obj (a)\ntrailer\n<< /ID [ (x ] >>\n5 0 obj (b)\n6 0 obj 1 )\nendobj\n") << QStringList{ "4 0=(a)", "5 0=(b)" };
+
+    // Bytes inside of a stream are no objects
+    QTest::newRow("stream, header") << QByteArray("4 0 obj << /Length 8 >> stream\n12 0 obj\nendstream\nendobj\n") << QStringList{ "4 0=stream:12 0 obj", "12 0=null" };
+    QTest::newRow("stream, without endobj behind") << QByteArray("4 0 obj << /Length 8 >> stream\n12 0 obj\nendstream\n5 0 obj (b)\nendobj\n") << QStringList{ "4 0=stream:12 0 obj", "5 0=(b)", "12 0=null" };
+    QTest::newRow("stream, carriage return and line feed") << QByteArray("4 0 obj << /Length 8 >> stream\r\n12 0 obj\r\nendstream\r\nendobj\r\n") << QStringList{ "4 0=stream:12 0 obj", "12 0=null" };
+    QTest::newRow("stream, whole objects") << QByteArray("4 0 obj << /Length " + fakeLength + " >> stream\n" + fakeEnd + "\nendstream\nendobj\n5 0 obj (b)\nendobj\n") << QStringList{ "4 0=" + fakeResult, "5 0=(b)" } + noFakes;
+    QTest::newRow("stream, length behind") << QByteArray("4 0 obj << /Length 5 0 R >> stream\n" + fakeEnd + "\nendstream\nendobj\n5 0 obj " + fakeLength + "\nendobj\n") << QStringList{ "4 0=" + fakeResult, "5 0=" + QString::fromLatin1(fakeLength) } + noFakes;
+    QTest::newRow("stream, length in front") << QByteArray("5 0 obj " + fakeLength + "\nendobj\n4 0 obj << /Length 5 0 R >> stream\n" + fakeEnd + "\nendstream\nendobj\n") << QStringList{ "4 0=" + fakeResult, "5 0=" + QString::fromLatin1(fakeLength) } + noFakes;
+    QTest::newRow("stream, wrong length") << QByteArray("4 0 obj << /Length 1 >> stream\n12 0 obj (fake) 13 0 obj (fake)\nendstream\nendobj\n5 0 obj (b)\nendobj\n") << QStringList{ "4 0=null", "5 0=(b)" } + noFakes;
+    QTest::newRow("stream, no length") << QByteArray("4 0 obj << >> stream\n12 0 obj\nendstream\n5 0 obj (b)\nendobj\n") << QStringList{ "4 0=null", "5 0=(b)", "12 0=null" };
+    QTest::newRow("stream without endstream") << QByteArray("4 0 obj << /Length 1000 >> stream\nabc\nendobj\n5 0 obj (b)\nendobj\n6 0 obj << /Length 1 >> stream\nx\nendstream\nendobj\n") << QStringList{ "4 0=null", "5 0=(b)", "6 0=stream:x" };
+    QTest::newRow("name stream") << QByteArray("4 0 obj << /A /stream /Length 3 >>\n5 0 obj (b)\nendobj\n") << QStringList{ "4 0={A=/stream Length=3}", "5 0=(b)" };
+
+    // Bytes inside of a string or a comment are no objects
+    QTest::newRow("string, header") << QByteArray("4 0 obj (x 12 0 obj (fake) y)\nendobj\n") << QStringList{ "4 0=(x 12 0 obj (fake) y)", "12 0=null" };
+    QTest::newRow("string, in a dictionary") << QByteArray("4 0 obj << /A (12 0 obj) /B 1 >>\nendobj\n") << QStringList{ "4 0={A=(12 0 obj) B=1}", "12 0=null" };
+    QTest::newRow("string, whole objects") << QByteArray("4 0 obj (" + fake + " endobj)\nendobj\n") << QStringList{ "4 0=(" + QString::fromLatin1(fake) + " endobj)" } + noFakes;
+    QTest::newRow("string, endobj twice") << QByteArray("4 0 obj << /A (endobj) /B (endobj) >>\nendobj\n5 0 obj (b)\nendobj\n") << QStringList{ "4 0={A=(endobj) B=(endobj)}", "5 0=(b)" };
+    QTest::newRow("string, escaped parentheses") << QByteArray("4 0 obj (a\\) 12 0 obj \\( b)\nendobj\n") << QStringList{ "4 0=(a) 12 0 obj ( b)", "12 0=null" };
+    QTest::newRow("string, stream behind") << QByteArray("4 0 obj << /A (12 0 obj) /Length 8 >> stream\n13 0 obj\nendstream\nendobj\n") << QStringList{ "4 0=stream:13 0 obj" } + noFakes;
+    QTest::newRow("comment") << QByteArray("4 0 obj << % 12 0 obj (\n /A 1 >>\nendobj\n5 0 obj (b)\nendobj\n") << QStringList{ "4 0={A=1}", "5 0=(b)", "12 0=null" };
+
+    // A parenthesis without its pair: the damaged object does not swallow the file behind it
+    QTest::newRow("string not closed") << QByteArray("4 0 obj << /A (x >>\nendobj\n5 0 obj (b)\nendobj\n") << QStringList{ "4 0=null", "5 0=(b)" };
+    QTest::newRow("string not closed, no endobj") << QByteArray("4 0 obj << /A (x >>\n5 0 obj (b)\n") << QStringList{ "4 0=null", "5 0=(b)" };
+    QTest::newRow("string closed by another object") << QByteArray("4 0 obj << /A (x >>\nendobj\n5 0 obj (b)\nendobj\n6 0 obj 1 )\nendobj\n7 0 obj (c)\nendobj\n8 0 obj (12 0 obj y)\nendobj\n") << QStringList{ "4 0=null", "5 0=(b)", "7 0=(c)", "8 0=(12 0 obj y)", "12 0=null" };
+
+    // Revisions: the last object of a reference in the file, which can be read
+    QTest::newRow("revisions") << QByteArray("4 0 obj (a)\nendobj\n4 0 obj (b)\nendobj\n4 0 obj (c)\nendobj\n") << QStringList{ "4 0=(c)" };
+    QTest::newRow("revisions, the last one damaged") << QByteArray("4 0 obj (old)\nendobj\n4 0 obj << /A\nendobj\n") << QStringList{ "4 0=(old)" };
+    QTest::newRow("revisions, the last one cut") << QByteArray("4 0 obj (old)\nendobj\n4 0 obj << /A (x") << QStringList{ "4 0=(old)" };
+    QTest::newRow("revisions, the last one null") << QByteArray("4 0 obj (old)\nendobj\n4 0 obj null\nendobj\n") << QStringList{ "4 0=null" };
+    QTest::newRow("revisions, null revived") << QByteArray("4 0 obj (old)\nendobj\n4 0 obj null\nendobj\n4 0 obj (new)\nendobj\n") << QStringList{ "4 0=(new)" };
+
+    // One number: the highest generation, 7.5.4 - a generation only grows, what references the other one reads null
+    QTest::newRow("generation, later") << QByteArray("4 0 obj (g0)\nendobj\n4 1 obj (g1)\nendobj\n") << QStringList{ "4 1=(g1)", "4 0=null" };
+    QTest::newRow("generation, in front") << QByteArray("4 1 obj (g1)\nendobj\n4 0 obj (g0)\nendobj\n") << QStringList{ "4 1=(g1)", "4 0=null" };
+    QTest::newRow("generation, revisions") << QByteArray("4 1 obj (a)\nendobj\n4 0 obj (g0)\nendobj\n4 1 obj (b)\nendobj\n") << QStringList{ "4 1=(b)", "4 0=null" };
+
+    // /Length as a reference: only the winning object
+    QTest::newRow("length, two revisions") << QByteArray("4 0 obj << /Length 5 0 R >> stream\nabc\nendstream\nendobj\n5 0 obj 3\nendobj\n"
+                                                         "4 0 obj << /Length 5 0 R >> stream\nabcdefgh\nendstream\nendobj\n5 0 obj 8\nendobj\n") << QStringList{ "4 0=stream:abcdefgh", "5 0=8" };
+    QTest::newRow("length, new one in front of its stream") << QByteArray("4 0 obj << /Length 5 0 R >> stream\nabc\nendstream\nendobj\n5 0 obj 3\nendobj\n"
+                                                                          "5 0 obj 8\nendobj\n4 0 obj << /Length 5 0 R >> stream\nabcdefgh\nendstream\nendobj\n") << QStringList{ "4 0=stream:abcdefgh", "5 0=8" };
+    QTest::newRow("length, new one damaged") << QByteArray("5 0 obj 3\nendobj\n4 0 obj << /Length 5 0 R >> stream\nabc\nendstream\nendobj\n5 0 obj <<\nendobj\n") << QStringList{ "4 0=stream:abc", "5 0=3" };
+    QTest::newRow("length, generation") << QByteArray("5 0 obj 8\nendobj\n5 1 obj 3\nendobj\n4 0 obj << /Length 5 0 R >> stream\nabcdefgh\nendstream\nendobj\n") << QStringList{ "4 0=stream:abcdefgh", "5 1=3" };
+    QTest::newRow("length, old stream never by the old length") << QByteArray("4 0 obj << /Length 5 0 R >> stream\nabc\nendstream\nendobj\n5 0 obj 3\nendobj\n5 0 obj 8\nendobj\n") << QStringList{ "4 0=null", "5 0=8" };
+    QTest::newRow("length, the new stream has no length") << QByteArray("4 0 obj << /Length 3 >> stream\nabc\nendstream\nendobj\n4 0 obj << /Length 5 0 R >> stream\nabcdefgh\nendstream\nendobj\n") << QStringList{ "4 0=stream:abc" };
+    QTest::newRow("length of an unknown object") << QByteArray("4 0 obj << /Length 5 0 R >> stream\n12 0 obj\nendstream\nendobj\n6 0 obj (b)\nendobj\n") << QStringList{ "4 0=null", "6 0=(b)", "12 0=null" };
+
+    // The last objects are not a document, the first ones still are
+    const QByteArray oldRevision = "4 0 obj (old)\nendobj\n5 0 obj 3\nendobj\n6 0 obj << /Length 5 0 R >> stream\nabc\nendstream\nendobj\n4 0 obj (new)\nendobj\n5 0 obj 8\nendobj\n6 0 obj << /Length 5 0 R >> stream\nabcdefgh\nendstream\nendobj\n";
+    const QStringList oldObjects = { "4 0=(old)", "5 0=3", "6 0=stream:abc" };
+    QTest::newRow("page twice in the page tree") << QByteArray(oldRevision + "2 0 obj << /Type /Pages /Kids [ 3 0 R 3 0 R ] /Count 2 >>\nendobj\n") << oldObjects;
+    QTest::newRow("cycle of the page tree") << QByteArray(oldRevision + "2 0 obj << /Type /Pages /Kids [ 2 0 R ] /Count 1 >>\nendobj\n") << oldObjects;
+    QTest::newRow("missing page") << QByteArray(oldRevision + "2 0 obj << /Type /Pages /Kids [ 33 0 R ] /Count 1 >>\nendobj\n") << oldObjects;
+    QTest::newRow("page tree without a dictionary") << QByteArray(oldRevision + "2 0 obj 7\nendobj\n") << oldObjects;
+    QTest::newRow("catalog without a dictionary") << QByteArray(oldRevision + "1 0 obj 7\nendobj\n") << oldObjects;
+}
+
+void DocumentWriterTest::damagedFileObjects()
+{
+    QFETCH(QByteArray, objects);
+    QFETCH(QStringList, expected);
+
+    const auto restore = qScopeGuard([]() { PDFExecutionPolicy::setStrategy(PDFExecutionPolicy::Strategy::PageMultithreaded); });
+    const QByteArray data = createDamagedFile(objects);
+
+    for (const PDFExecutionPolicy::Strategy strategy : { PDFExecutionPolicy::Strategy::SingleThreaded, PDFExecutionPolicy::Strategy::AlwaysMultithreaded })
+    {
+        PDFExecutionPolicy::setStrategy(strategy);
+        for (int read = 0; read < 5; ++read)
+        {
+            PDFDocumentReader::Result result = PDFDocumentReader::Result::Failed;
+            const PDFDocument document = readWithPassword(data, QString(), &result, true);
+            QCOMPARE(result, PDFDocumentReader::Result::OK);
+            QCOMPARE(document.getCatalog()->getPageCount(), size_t(1));
+
+            for (const QString& item : expected)
+            {
+                const qsizetype equals = item.indexOf(QLatin1Char('='));
+                const QStringList reference = item.left(equals).split(QLatin1Char(' '));
+                const PDFObject& object = document.getStorage().getObject(PDFObjectReference(reference[0].toInt(), reference[1].toInt()));
+                QCOMPARE(reference[0] + QLatin1Char(' ') + reference[1] + QLatin1Char('=') + QString::fromLatin1(describeObject(object)), item);
+            }
+        }
+    }
+}
+
+void DocumentWriterTest::damagedFileOldestContentIsTold()
+{
+    // Only when the last objects are not a document, and the user is told, the file is not the one he saved last
+    QStringList warningsOfLastRevision;
+    {
+        PDFDocumentReader reader(nullptr, nullptr, true, false);
+        const PDFDocument document = reader.readFromBuffer(createDamagedFile("4 0 obj (old)\nendobj\n4 0 obj (new)\nendobj\n"));
+        QCOMPARE(reader.getReadingResult(), PDFDocumentReader::Result::OK);
+        QCOMPARE(document.getStorage().getObject(PDFObjectReference(4, 0)).getString(), QByteArray("new"));
+        warningsOfLastRevision = reader.getWarnings();
+    }
+
+    PDFDocumentReader reader(nullptr, nullptr, true, false);
+    const PDFDocument document = reader.readFromBuffer(createDamagedFile("4 0 obj (old)\nendobj\n4 0 obj (new)\nendobj\n2 0 obj << /Type /Pages /Kids [ 3 0 R 3 0 R ] /Count 2 >>\nendobj\n"));
+    QCOMPARE(reader.getReadingResult(), PDFDocumentReader::Result::OK);
+    QCOMPARE(document.getStorage().getObject(PDFObjectReference(4, 0)).getString(), QByteArray("old"));
+    QCOMPARE(reader.getWarnings().size(), warningsOfLastRevision.size() + 1);
+}
+
+void DocumentWriterTest::damagedFileNoDocumentInAnyRevision()
+{
+    // No revision is a document, the file stays refused - a choice of a revision does not make one
+    PDFDocumentReader::Result result = PDFDocumentReader::Result::OK;
+    const QByteArray data = "%PDF-1.7\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [ 2 0 R ] /Count 1 >>\nendobj\n1 0 obj\n7\nendobj\n"
+                            "trailer\n<< /Root 1 0 R >>\nstartxref\n99999999\n%%EOF\n";
+    readWithPassword(data, QString(), &result, true);
+    QCOMPARE(result, PDFDocumentReader::Result::Failed);
+}
+
+void DocumentWriterTest::damagedFileAttackedByIncrementalUpdate_data()
+{
+    QTest::addColumn<int>("strategy");
+    QTest::newRow("single thread") << int(PDFExecutionPolicy::Strategy::SingleThreaded);
+    QTest::newRow("default") << int(PDFExecutionPolicy::Strategy::PageMultithreaded);
+    QTest::newRow("threads forced") << int(PDFExecutionPolicy::Strategy::AlwaysMultithreaded);
+}
+
+void DocumentWriterTest::damagedFileAttackedByIncrementalUpdate()
+{
+    // The structure of testpdf/Signature/invalid/isa.pdf, an attack on a signature: the signed revision, a revision of the
+    // signature, a last update without an endobj of the page tree, with an empty table and no end of file. Some reads
+    // refused it, some showed the signed page: the last objects always win, so it is the page of the attacker.
+    QFETCH(int, strategy);
+    PDFExecutionPolicy::setStrategy(PDFExecutionPolicy::Strategy(strategy));
+    const auto restore = qScopeGuard([]() { PDFExecutionPolicy::setStrategy(PDFExecutionPolicy::Strategy::PageMultithreaded); });
+
+    const QByteArray content = "BT\n/F1 12 Tf\n(Manipulated page) Tj\nET\n";
+    const QByteArray data =
+        "%PDF-1.4\n%\xf6\xe4\xfc\xdf\n"
+        "1 0 obj\n<<\n/Type /Catalog\n/Pages 2 0 R\n>>\nendobj\n"
+        "2 0 obj\n<<\n/Type /Pages\n/Kids [3 0 R]\n/Count 1\n>>\nendobj\n"
+        "3 0 obj\n<<\n/Type /Page\n/MediaBox [0.0 0.0 612.0 792.0]\n/Parent 2 0 R\n/Contents 4 0 R\n>>\nendobj\n"
+        "4 0 obj\n<<\n/Length 19\n>>\nstream\nBT (Signed page) ET\nendstream\nendobj\n"
+        "xref\n0 5\n0000000000 65535 f \n0000000015 00000 n \ntrailer\n<<\n/Root 1 0 R\n/Size 5\n>>\nstartxref\n300\n%%EOF\n\n"
+        "1 0 obj\n<<\n/Type /Catalog\n/Pages 2 0 R\n/AcroForm <<\n/Fields [8 0 R]\n/SigFlags 3\n>>\n>>\nendobj\n"
+        "8 0 obj\n<<\n/FT /Sig\n/T (Signature1)\n/Contents <00112233>\n>>\nendobj\n"
+        "3 0 obj\n<<\n/Type /Page\n/MediaBox [0.0 0.0 612.0 792.0]\n/Parent 2 0 R\n/Contents 4 0 R\n/Annots [8 0 R]\n>>\nendobj\n"
+        "xref\n0 2\n0000000000 65535 f \n0000000300 00000 n \ntrailer\n<<\n/Root 1 0 R\n/Size 9\n/Prev 300\n>>\nstartxref\n700\n%%EOF\n\n"
+        "2 0 obj\n<<\n/Type /Pages\n/Kids [33 0 R]\n/Count 1\n>>\n"
+        "33 0 obj\n<<\n/Type /Page\n/MediaBox [0.0 0.0 612.0 792.0]\n/Parent 2 0 R\n/Contents 15 0 R\n/Annots [8 0 R]\n>>\nendobj\n"
+        "15 0 obj\n<< /Length " + QByteArray::number(content.size()) + " >>\nstream\n" + content + "\nendstream\nendobj\n"
+        "xref\ntrailer\n<<\n/Root 1 0 R\n>>\nstartxref\n23291 %Must be the correct byte offset of \"xref\"\n";
+
+    PDFDocumentReader::Result result = PDFDocumentReader::Result::OK;
+    readWithPassword(data, QString(), &result);
+    QCOMPARE(result, PDFDocumentReader::Result::Failed);
+
+    for (int read = 0; read < 300; ++read)
+    {
+        const PDFDocument document = readWithPassword(data, QString(), &result, true);
+        QCOMPARE(result, PDFDocumentReader::Result::OK);
+
+        QCOMPARE(document.getCatalog()->getPageCount(), size_t(1));
+        QCOMPARE(document.getCatalog()->getPage(0)->getPageReference(), PDFObjectReference(33, 0));
+        QCOMPARE(describeObject(document.getStorage().getObject(PDFObjectReference(15, 0))), "stream:" + content);
+        QVERIFY(document.getStorage().getObject(PDFObjectReference(1, 0)).getDictionary()->hasKey("AcroForm"));
+        QVERIFY(document.getStorage().getObject(PDFObjectReference(3, 0)).getDictionary()->hasKey("Annots"));
+    }
+}
+
+void DocumentWriterTest::damagedFileHostileSizes_data()
+{
+    QTest::addColumn<QByteArray>("head");
+    QTest::addColumn<QByteArray>("pattern");
+    QTest::addColumn<QByteArray>("tail");
+    QTest::addColumn<bool>("isLastObjectFound");
+
+    // Each of them is quadratic, when a search for something, which is not there, runs again to the end of the file
+    QTest::newRow("strings not closed") << QByteArray() << QByteArray("1 0 obj (") << QByteArray() << true;
+    QTest::newRow("strings not closed with endobj") << QByteArray() << QByteArray("1 0 obj (a endobj ") << QByteArray() << true;
+    QTest::newRow("parentheses in front of endobj") << QByteArray() << QByteArray("(") << QByteArray("endobj\n") << true;
+    QTest::newRow("strings closed behind a far endobj") << QByteArray() << QByteArray("(a)") << QByteArray("endobj\n") << true;
+    QTest::newRow("endobj in strings of one object") << QByteArray("[ ") << QByteArray("(endobj)") << QByteArray(" ] endobj\n") << true;
+    QTest::newRow("streams without endstream") << QByteArray() << QByteArray("1 0 obj << /Length 7 0 R >> stream\nendobj\n") << QByteArray() << true;
+    QTest::newRow("streams without endobj") << QByteArray() << QByteArray("1 0 obj << /Length 7 0 R >> stream\nendstream\n") << QByteArray() << true;
+    QTest::newRow("streams without anything") << QByteArray() << QByteArray("1 0 obj << /Length 7 0 R >> stream\n") << QByteArray() << false;
+    QTest::newRow("candidates of one length") << QByteArray() << QByteArray("7 0 obj 1\nendobj\n8 0 obj << /Length 7 0 R >> stream\nendobj\n") << QByteArray() << true;
+    QTest::newRow("headers") << QByteArray() << QByteArray("1 0 obj\n") << QByteArray() << true;
+    QTest::newRow("marks") << QByteArray() << QByteArray("obj ") << QByteArray() << true;
+    QTest::newRow("digits") << QByteArray() << QByteArray("1234567890 ") << QByteArray("obj\n") << true;
+}
+
+void DocumentWriterTest::damagedFileHostileSizes()
+{
+    QFETCH(QByteArray, head);
+    QFETCH(QByteArray, pattern);
+    QFETCH(QByteArray, tail);
+    QFETCH(bool, isLastObjectFound);
+
+    constexpr qsizetype SIZE = 4 * 1024 * 1024;
+    QByteArray objects = "4 0 obj " + head;
+    objects += pattern.repeated(SIZE / pattern.size());
+    objects += tail;
+    objects += "\n99 0 obj (last)\nendobj\n";
+    const QByteArray data = createDamagedFile(objects);
+
+    QElapsedTimer timer;
+    timer.start();
+    PDFDocumentReader::Result result = PDFDocumentReader::Result::Failed;
+    const PDFDocument document = readWithPassword(data, QString(), &result, true);
+    const qint64 limit = 20000 * qMax(1, qEnvironmentVariableIntValue("PDF4QT_TEST_TIMEOUT_FACTOR"));
+    QVERIFY2(timer.elapsed() < limit, qPrintable(QString::number(timer.elapsed())));
+    qInfo("%lld ms", timer.elapsed());
+
+    QCOMPARE(result, PDFDocumentReader::Result::OK);
+    QCOMPARE(document.getCatalog()->getPageCount(), size_t(1));
+    QCOMPARE(describeObject(document.getStorage().getObject(PDFObjectReference(99, 0))), isLastObjectFound ? QByteArray("(last)") : QByteArray("null"));
+}
+
 void DocumentWriterTest::oldFileWithRawCarriageReturnInIdentifier()
 {
     // Algorithm 2 of 3.5.2: the first string of /ID is an input of the key of RC4 / AES-128. The trailer
@@ -660,7 +1009,10 @@ void DocumentWriterTest::oldEncryptedStringWithRawCarriageReturn()
     const QByteArray plain = "This is the text of the string, which is long enough for 4 blocks of AES.";
     QCOMPARE(plain.size(), 73);
 
-    for (int attempt = 0; attempt < 200; ++attempt)
+    // The ciphertexts are random: a CRLF inside of the second block of AES, without another CR and without
+    // a parenthesis or a backslash in the 96 bytes, is 5.6e-5 per string, so 2.7 % per file. 200 attempts did
+    // not find it in 0.39 % of the runs; a typical run needs about 36 attempts, a miss here is 7e-25.
+    for (int attempt = 0; attempt < 2000; ++attempt)
     {
         PDFDocumentBuilder builder;
         builder.appendPage(QRectF(0, 0, 100, 100));
@@ -750,6 +1102,130 @@ void DocumentWriterTest::oldEncryptedStringWithRawCarriageReturn()
     }
 
     QFAIL("A string with the marker was not found");
+}
+
+void DocumentWriterTest::damagedEncryptedFileIsDecrypted_data()
+{
+    QTest::addColumn<int>("algorithm");
+
+    QTest::newRow("RC4") << int(PDFSecurityHandlerFactory::RC4);
+    QTest::newRow("AES 128") << int(PDFSecurityHandlerFactory::AES_128);
+    QTest::newRow("AES 256") << int(PDFSecurityHandlerFactory::AES_256);
+}
+
+void DocumentWriterTest::damagedEncryptedFileIsDecrypted()
+{
+    // A wrong offset of the table: the permissive reading restores the objects from the bytes, where
+    // they are encrypted. Left so, a page could not be read and a written copy would be encrypted twice:
+    // the file of the user, replaced by Overwrite, would be garbage also with the right password.
+    QFETCH(int, algorithm);
+
+    const QByteArray secretText("the content of the secret page");
+    const QByteArray secretValue("a secret value");
+
+    PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 100, 100));
+    const PDFObjectReference stringReference = builder.addObject(PDFObject::createString(secretValue));
+    PDFDictionaryBuilder streamDictionary;
+    streamDictionary.addEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(secretText.size()));
+    const PDFObjectReference streamReference = builder.addObject(PDFObject::createStream(PDFStream(std::move(streamDictionary), QByteArray(secretText))));
+
+    QByteArray data = writeEncrypted(builder, PDFSecurityHandlerFactory::Algorithm(algorithm), QStringLiteral("owner"));
+    QVERIFY(!data.contains(secretText));
+
+    const qsizetype position = data.lastIndexOf("startxref");
+    QVERIFY(position != -1);
+    data.truncate(position);
+    data += "startxref\n99999999\n%%EOF\n";
+
+    PDFDocumentReader::Result result = PDFDocumentReader::Result::OK;
+    readWithPassword(data, QStringLiteral("user"), &result);
+    QCOMPARE(result, PDFDocumentReader::Result::Failed);
+
+    // A wrong password is no document: the bytes are never handed out undecrypted
+    const PDFDocument wrongPassword = readWithPassword(data, QStringLiteral("wrong"), &result, true);
+    QCOMPARE(result, PDFDocumentReader::Result::Cancelled);
+    QCOMPARE(wrongPassword.getCatalog()->getPageCount(), size_t(0));
+
+    const PDFDocument restored = readWithPassword(data, QStringLiteral("user"), &result, true);
+    QCOMPARE(result, PDFDocumentReader::Result::OK);
+    QCOMPARE(restored.getObjectByReference(stringReference).getString(), secretValue);
+    QCOMPARE(restored.getDecodedStream(restored.getObjectByReference(streamReference).getStream()), secretText);
+
+    // Written again and read by the strict reader: one encryption, the same content
+    const QByteArray written = write(restored);
+    QVERIFY(!written.contains(secretText));
+    const PDFDocument reopened = readWithPassword(written, QStringLiteral("user"), &result);
+    QCOMPARE(result, PDFDocumentReader::Result::OK);
+    QCOMPARE(reopened.getObjectByReference(stringReference).getString(), secretValue);
+    QCOMPARE(reopened.getDecodedStream(reopened.getObjectByReference(streamReference).getStream()), secretText);
+}
+
+void DocumentWriterTest::damagedFileVersion_data()
+{
+    QTest::addColumn<QByteArray>("prefix");
+    QTest::addColumn<QByteArray>("header");
+    QTest::addColumn<QByteArray>("suffix");
+    QTest::addColumn<int>("major");
+    QTest::addColumn<int>("minor");
+
+    const QByteArray padding(2000, '\0');
+    QTest::newRow("padded at the end") << QByteArray() << QByteArray("%PDF-1.4") << padding << 1 << 4;
+    QTest::newRow("padded at the start") << padding << QByteArray("%PDF-1.5") << QByteArray() << 1 << 5;
+    QTest::newRow("the other form of the header") << padding << QByteArray("%!PS-Adobe-3.0 PDF-1.3") << QByteArray() << 1 << 3;
+    QTest::newRow("no header") << QByteArray() << QByteArray("%nothing") << padding << 1 << 7;
+    QTest::newRow("a header of no version") << QByteArray() << QByteArray("%PDF-0.0") << padding << 1 << 7;
+    QTest::newRow("a mark with no version, then a header") << QByteArray("PDF- is not a header\n") << QByteArray("%PDF-2.0") << padding << 2 << 0;
+}
+
+void DocumentWriterTest::damagedFileVersion()
+{
+    // More than 1 kB behind %%EOF or before the header: the structure fails before the header is read, the
+    // restored file had the version 0.0 and everything written from it the header %PDF-0.0 the strict reader refuses
+    QFETCH(QByteArray, prefix);
+    QFETCH(QByteArray, header);
+    QFETCH(QByteArray, suffix);
+    QFETCH(int, major);
+    QFETCH(int, minor);
+
+    QByteArray data = createDocument({ "<< /Type /Catalog /Pages 2 0 R >>",
+                                       "<< /Type /Pages /Kids [ 3 0 R ] /Count 1 >>",
+                                       "<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 100 100 ] >>" });
+    const qsizetype lineEnd = data.indexOf('\n');
+    QVERIFY(data.startsWith("%PDF-") && lineEnd != -1);
+    data = prefix + header + data.mid(lineEnd) + suffix;
+
+    PDFDocumentReader::Result result = PDFDocumentReader::Result::OK;
+    readWithPassword(data, QString(), &result);
+    QCOMPARE(result, PDFDocumentReader::Result::Failed);
+
+    const PDFDocument restored = readWithPassword(data, QString(), &result, true);
+    QCOMPARE(result, PDFDocumentReader::Result::OK);
+    QCOMPARE(restored.getCatalog()->getPageCount(), size_t(1));
+    QCOMPARE(int(restored.getInfo()->version.major), major);
+    QCOMPARE(int(restored.getInfo()->version.minor), minor);
+
+    const QByteArray written = write(restored);
+    QVERIFY2(written.startsWith(QStringLiteral("%PDF-%1.%2").arg(major).arg(minor).toLatin1()), written.left(16).constData());
+    const PDFDocument reopened = readWithPassword(written, QString(), &result);
+    QCOMPARE(result, PDFDocumentReader::Result::OK);
+    QCOMPARE(int(reopened.getInfo()->version.major), major);
+}
+
+void DocumentWriterTest::invalidVersionNeverWritten()
+{
+    // A written file always has a header a strict reader takes, whatever document it was given
+    PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 100, 100));
+    const PDFDocument built = builder.build();
+    const PDFDocument document(PDFObjectStorage(built.getStorage()), PDFVersion(), QByteArray());
+    QVERIFY(!document.getInfo()->version.isValid());
+
+    const QByteArray written = write(document);
+    QVERIFY2(written.startsWith("%PDF-1.7"), written.left(16).constData());
+    PDFDocumentReader::Result result = PDFDocumentReader::Result::Failed;
+    readWithPassword(written, QString(), &result);
+    QCOMPARE(result, PDFDocumentReader::Result::OK);
 }
 
 void DocumentWriterTest::trailerSizeOfTheWrittenTable()

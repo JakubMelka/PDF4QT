@@ -121,6 +121,7 @@ private slots:
     void queuedRequestsRebuild();
     void lockedBusyDialogOpen();
     void signedDocumentWarning();
+    void signatureLostWarning();
     void restrictedPermissions();
     void formsHeadless();
     void formsFormatsAndPassword();
@@ -1607,6 +1608,35 @@ void AppMcpEditTest::lockedBusyDialogOpen()
     QVERIFY2(H::text(readResult).contains(QStringLiteral("10 minutes without being shown")), qPrintable(H::text(readResult)));
     QVERIFY2(!H::text(readResult).contains(QStringLiteral("2 minutes")), qPrintable(H::text(readResult)));
     delete modal;
+}
+
+void AppMcpEditTest::signatureLostWarning()
+{
+    // Owner decision 4: a tool, which rewrites the whole file, says what will happen - never "may"
+    McpEditFixture fixture;
+    const auto getWarning = [&fixture](bool isLost)
+    {
+        std::shared_ptr<pdf::PDFAppMcpConfirmation> confirmation = std::make_shared<pdf::PDFAppMcpConfirmation>();
+        confirmation->kind = pdf::PDFAppMcpConfirmationKind::Change;
+        confirmation->details.insert(QStringLiteral("signatureCount"), 1);
+        confirmation->details.insert(QStringLiteral("signatureLost"), isLost);
+        pdf::PDFAppMcpConfirmDialog dialog(confirmation, nullptr, fixture.window);
+        const QWidget* card = dialog.findChild<QWidget*>(QStringLiteral("signatureWarning"));
+        QString text;
+        if (card)
+        {
+            for (const pdf::PDFLabel* label : card->findChildren<pdf::PDFLabel*>())
+            {
+                text += label->text() + QLatin1Char(' ');
+            }
+        }
+        return text;
+    };
+
+    const QString lost = getWarning(true);
+    QVERIFY2(lost.contains(QStringLiteral("The signatures will stop being valid")) && lost.contains(QStringLiteral("will no longer be valid")), qPrintable(lost));
+    QVERIFY2(!lost.contains(QStringLiteral(" may ")), qPrintable(lost));
+    QVERIFY2(getWarning(false).contains(QStringLiteral("may invalidate")), qPrintable(getWarning(false)));
 }
 
 void AppMcpEditTest::signedDocumentWarning()

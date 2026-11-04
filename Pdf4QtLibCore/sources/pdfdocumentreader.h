@@ -116,12 +116,28 @@ private:
     /// \param reference Reference to parsed object
     PDFObject getObject(PDFParsingContext* context, PDFInteger offset, PDFObjectReference reference) const;
 
-    /// Tries to restore objects from object list. This function can be used in multiple pass, because
-    /// for example streams, can have length defined in referred object. If such is the case, then
-    /// second pass is needed. Returns true, if all object were correctly read.
+    /// Which of more objects of one reference, which can be read, wins in a damaged file
+    enum class RestoredRevision
+    {
+        Last,   ///< The last one in the file, as in the order of incremental updates
+        First   ///< The first one in the file, when the last ones are not a document
+    };
+
+    /// Restores objects from the object list. The result does not depend on the threads. Streams can
+    /// have length defined in a referred object: its winning object is used.
     /// \param restoredObjects Map of restored objects
-    /// \param offsets Offsets, from which are objects being read
-    bool restoreObjects(std::map<PDFObjectReference, PDFObject>& restoredObjects, const std::vector<std::pair<int, int>>& offsets);
+    /// \param offsets Offsets, from which are objects being read, in the order of the file
+    /// \param revision Which object of a reference wins
+    void restoreObjects(std::map<PDFObjectReference, PDFObject>& restoredObjects, const std::vector<std::pair<int, int>>& offsets, RestoredRevision revision);
+
+    /// Returns objects of the storage from the restored objects: one object per number, the highest generation
+    /// \param restoredObjects Map of restored objects
+    static PDFObjectStorage::PDFObjects createRestoredObjects(const std::map<PDFObjectReference, PDFObject>& restoredObjects);
+
+    /// Returns true, if the catalog and the page tree of the restored objects can be read
+    /// \param restoredObjects Map of restored objects
+    /// \param trailerDictionaryObject Trailer dictionary
+    bool isRestoredDocumentReadable(const std::map<PDFObjectReference, PDFObject>& restoredObjects, const PDFObject& trailerDictionaryObject) const;
 
     /// Fetch object from reference table
     PDFObject getObjectFromXrefTable(PDFXRefTable* xrefTable, PDFParsingContext* context, PDFObjectReference reference) const;
@@ -133,10 +149,17 @@ private:
     /// PDF is read, then empty PDF document is returned. No exception is thrown.
     PDFDocument readDamagedDocumentFromBuffer(const QByteArray& buffer);
 
+    /// Version of a file read from its bytes, without the limits of a valid file (a damaged
+    /// file can have any bytes before its header): the first header of a valid version,
+    /// PDFVersion::getFallback when there is none. Never throws.
+    /// \param buffer Bytes of the file
+    static PDFVersion findDamagedFileVersion(const QByteArray& buffer);
+
     /// This function is used, when damaged pdf document is being restored. It returns
-    /// array of hints, where objects should appear. It constists of pair of start offset,
-    /// and end offset. Start offset is always a valid index to the buffer, end offset
-    /// can be one index after the buffers end (it is end iterator).
+    /// array of hints, where objects should appear, in the order of the file. It constists of pair of
+    /// start offset, and end offset. Start offset is always a valid index to the buffer, end offset
+    /// can be one index after the buffers end (it is end iterator). An object ends by endobj or
+    /// at the next object; the bytes of a stream or of a string are no objects.
     /// \param buffer Buffer
     std::vector<std::pair<int, int>> findObjectByteOffsets(const QByteArray& buffer) const;
 

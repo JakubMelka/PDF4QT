@@ -34,12 +34,15 @@
 #include "pdfappdocument.h"
 #include "pdfappdocumentloader.h"
 #include "pdfappdocumentsave.h"
+#include "pdfappdocumentstatusbar.h"
+#include "pdfappdocumentview.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappmainwindow.h"
 #include "pdfappmcpactivity.h"
 #include "pdfappmcpcatalogtools.h"
 #include "pdfappmcpconfirmation.h"
 #include "pdfappmcphost.h"
+#include "pdfapptooloutofmemorydialog.h"
 #include "pdfapptoolresultwriter.h"
 #include "pdfappundostack.h"
 
@@ -47,6 +50,7 @@
 #include "pdfdocumenttool_compress.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttoolregistry.h"
+#include "pdfexecutionpolicy.h"
 #include "pdfform.h"
 #include "pdfmcperrorcodes.h"
 #include "pdfmcplimits.h"
@@ -330,12 +334,36 @@ public:
                 fileAtCommit = readFile(file);
             }
         });
+
+        // F6: while the worker writes the file, the operation of the tool holds the document: a change
+        // meanwhile would move the version, the file would have a result the tab refuses
+        pdf::PDFAppDocumentSaver* saver = pdf::PDFAppDocumentFileCommandHandler::find(tab)->getSaver();
+        bool wasWriting = false;
+        bool wasBlocked = false;
+        bool wasChangeCommitted = false;
+        QObject::connect(saver, &pdf::PDFAppDocumentSaver::stateChanged, &receiver, [&, saver, document]()
+        {
+            if (saver->isRunning() && !wasWriting)
+            {
+                wasWriting = true;
+                wasBlocked = document->isBlockedByOperation();
+                pdf::PDFDocumentBuilder builder(document->getDocument().data());
+                builder.addObject(pdf::PDFObject::createInteger(1));
+                const pdf::PDFModifiedDocument change(pdf::PDFDocumentPointer(new pdf::PDFDocument(builder.build())), document->getOptionalContentActivity(), pdf::PDFModifiedDocument::None);
+                wasChangeCommitted = document->commit(change, QStringLiteral("A change during the write"), document->getVersion(), pdf::PDFAppChangeSource::User);
+            }
+        });
+
         const quint64 versionBefore = document->getVersion();
         call = fixture.startCall(toolName(id), arguments(id, QStringLiteral("title"), QStringLiteral("overwrite"), QString(), QStringLiteral("Overwritten")));
         QVERIFY(fixture.confirmDialog());
         QVERIFY(fixture.answer(pdf::PDFAppMcpDecision::Allowed));
         result = pdftest::AppMcpFixture::waitResult(call);
         QVERIFY(result);
+
+        QVERIFY(wasWriting);
+        QVERIFY2(wasBlocked, "The operation holds the document during the write");
+        QVERIFY2(!wasChangeCommitted, "A change is refused during the write");
 
         // The order of F6 itself, before anything else of the result: at the first announcement
         // of the new version the file has the result
@@ -494,6 +522,35 @@ public:
         QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
         QCOMPARE(pdftest::AppDocumentFixture::undoCount(copy), undoBefore + 1);
 
+        // Owner decision 4: no forced question with Edit = Allow, the result says it clearly, never "may"
+        const QString note = output(id, *result).value(QStringLiteral("note")).toString();
+        QVERIFY2(note.contains(QStringLiteral("will no longer be valid")), qPrintable(result->getFirstText()));
+        QVERIFY(!note.contains(QStringLiteral("may")));
+
+        // Owner decision 3: get_signatures of this version
+        QJsonObject signaturesCall;
+        signaturesCall.insert(QStringLiteral("action"), QStringLiteral("get_signatures"));
+        signaturesCall.insert(QStringLiteral("documentId"), copy->getId());
+        result = fixture.callTool(QStringLiteral("document"), signaturesCall);
+        QVERIFY(result);
+        QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+        QVERIFY2(result->getFirstText().contains(QStringLiteral("\"invalidAfterSaving\":true")) || result->getFirstText().contains(QStringLiteral("\"invalidAfterSaving\": true")), qPrintable(result->getFirstText()));
+        QVERIFY(copy->getUndoStack()->undo());
+        result = fixture.callTool(QStringLiteral("document"), signaturesCall);
+        QVERIFY(result);
+        QVERIFY2(result->getFirstText().contains(QStringLiteral("\"invalidAfterSaving\":false")) || result->getFirstText().contains(QStringLiteral("\"invalidAfterSaving\": false")), qPrintable(result->getFirstText()));
+
+        // Edit = Ask: the question says the same, it is not the "may" of a change of another kind
+        QVERIFY(fixture.setPermission(pdf::PDFAppMcpPermissionKind::Edit, pdf::PDFAppMcpPermission::Ask));
+        std::shared_ptr<pdf::PDFMcpCall> askCall = fixture.startCall(toolName(id), keepCall);
+        std::shared_ptr<pdf::PDFAppMcpConfirmation> question = fixture.confirmDialog();
+        QVERIFY(question);
+        QVERIFY(question->details.value(QStringLiteral("signatureLost")).toBool());
+        QVERIFY(fixture.answer(pdf::PDFAppMcpDecision::Allowed));
+        result = pdftest::AppMcpFixture::waitResult(askCall);
+        QVERIFY(result && !result->isError);
+        QVERIFY(fixture.setPermission(pdf::PDFAppMcpPermissionKind::Edit, pdf::PDFAppMcpPermission::Allow));
+
         // O31: the kept result of a tool rewriting the file is written whole, without
         // the signed revision of the original bytes it does not build on
         const QString target = QDir(fixture.folder()).absoluteFilePath(QStringLiteral("kept-result.pdf"));
@@ -513,6 +570,51 @@ public:
         QVERIFY(!written.startsWith(copy->getOriginalData()));
         QVERIFY(!written.contains("/Prev"));
         QCOMPARE(written.count("%%EOF"), qsizetype(1));
+    }
+
+    /// Owner decision 5: a value of Custom without the preset custom is an error, which names what to
+    /// set; decision 6: a copy of an assistant leaves its sign in the tab as files.save_copy
+    static void customValuesAndCopyMessage()
+    {
+        pdftest::AppMcpFixture fixture;
+        QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+        const QString file = createImageDocument(fixture.folder(), QStringLiteral("custom.pdf"));
+        pdf::PDFAppDocumentTab* tab = fixture.open(file);
+        QVERIFY(tab);
+        QTRY_VERIFY(tab->getDocument()->isReady());
+        pdf::PDFAppDocument* document = tab->getDocument();
+        const quint64 version = document->getVersion();
+        const QString target = fixture.path(QStringLiteral("custom-copy.pdf"));
+
+        const auto createCall = [&target](const QJsonObject& parameters)
+        {
+            QJsonObject call;
+            call.insert(QStringLiteral("action"), QStringLiteral("compress"));
+            call.insert(QStringLiteral("path"), target);
+            call.insert(QStringLiteral("compress"), parameters);
+            return call;
+        };
+
+        QJsonObject parameters;
+        parameters.insert(QStringLiteral("targetDpi"), 36);
+        std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("optimize"), createCall(parameters));
+        QVERIFY(result && result->isError);
+        QVERIFY2(result->getFirstText().contains(QStringLiteral("targetDpi")) && result->getFirstText().contains(QStringLiteral("preset to custom")), qPrintable(result->getFirstText()));
+        QVERIFY2(!QFileInfo::exists(target), "Nothing ran");
+
+        parameters.insert(QStringLiteral("preset"), QStringLiteral("balanced"));
+        result = fixture.callTool(QStringLiteral("optimize"), createCall(parameters));
+        QVERIFY(result && result->isError);
+        QVERIFY(!QFileInfo::exists(target));
+
+        // With the preset custom the value is used: the copy is written, the tab says it
+        parameters.insert(QStringLiteral("preset"), QStringLiteral("custom"));
+        result = fixture.callTool(QStringLiteral("optimize"), createCall(parameters));
+        QVERIFY(result);
+        QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+        QVERIFY(QFileInfo::exists(target));
+        QCOMPARE(document->getVersion(), version);
+        QCOMPARE(tab->getView()->getStatusBar()->getMessage(), QStringLiteral("custom-copy.pdf saved"));
     }
 
     /// O31: a tool rewriting the file refuses keep and overwrite of a signed document, F7:
@@ -1338,6 +1440,74 @@ public:
         QVERIFY(QFileInfo(file).size() < originalSize);
         QVERIFY(!document->isModified());
         QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 1);
+    }
+
+    /// A tool out of memory over HTTP in the three eras: the assistant gets the error text only -
+    /// the answer has the members of any other failure -, no dialog opens in the application, and
+    /// the text does not advise a setting, which is on already (owner 2026-11-04)
+    static void outOfMemoryOverHttp()
+    {
+        pdftest::AppMcpFixture fixture;
+        QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+        if (!fixture.startServer())
+        {
+            QSKIP("The MCP server does not start");
+        }
+
+        const QString rotateId = QStringLiteral("pages.rotate");
+        ToolReplacement rotate(fixture.host(), rotateId);
+        const QString file = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("memory.pdf"), 2);
+        pdf::PDFAppDocumentTab* tab = fixture.open(file);
+        QVERIFY(tab);
+        QTRY_VERIFY(tab->getDocument()->isReady());
+        pdf::PDFAppDocument* document = tab->getDocument();
+        const quint64 version = document->getVersion();
+        const auto restore = qScopeGuard([]() { pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded); });
+
+        const auto call = [&](pdftest::McpTestClient* client, const QString& mode)
+        {
+            QJsonObject callArguments = arguments(rotateId, mode, QStringLiteral("keep"));
+            callArguments.insert(QStringLiteral("documentId"), document->getId());
+            return client->callTool(toolName(rotateId), callArguments).value(QStringLiteral("result")).toObject();
+        };
+
+        for (pdftest::McpTestEra era : { pdftest::McpTestEra::Modern, pdftest::McpTestEra::Legacy20251125, pdftest::McpTestEra::Legacy20250618 })
+        {
+            std::unique_ptr<pdftest::McpTestClient> client = fixture.client(era);
+            if (era != pdftest::McpTestEra::Modern)
+            {
+                QVERIFY(!client->initialize().isEmpty());
+            }
+
+            pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded);
+            const QJsonObject otherFailure = call(client.get(), QStringLiteral("fail"));
+            QVERIFY(otherFailure.value(QStringLiteral("isError")).toBool());
+            const QJsonObject failure = call(client.get(), QStringLiteral("throw-memory"));
+            const QByteArray bytes = QJsonDocument(failure).toJson(QJsonDocument::Compact);
+            QVERIFY2(failure.value(QStringLiteral("isError")).toBool(), bytes.constData());
+
+            // The same members, the text is the only difference
+            QCOMPARE(failure.keys(), otherFailure.keys());
+            const QJsonArray content = failure.value(QStringLiteral("content")).toArray();
+            QCOMPARE(content.size(), otherFailure.value(QStringLiteral("content")).toArray().size());
+            QCOMPARE(content.first().toObject().keys(), otherFailure.value(QStringLiteral("content")).toArray().first().toObject().keys());
+            const QString text = content.first().toObject().value(QStringLiteral("text")).toString();
+            QVERIFY2(text.contains(QStringLiteral("not enough memory")) && text.contains(QStringLiteral("Multithreading strategy")), qPrintable(text));
+            QVERIFY(!bytes.contains("failureKind"));
+            QVERIFY(!bytes.contains("outOfMemory"));
+
+            // Single thread: no advice
+            pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy::SingleThreaded);
+            const QString singleText = call(client.get(), QStringLiteral("throw-memory")).value(QStringLiteral("content")).toArray().first().toObject().value(QStringLiteral("text")).toString();
+            QVERIFY2(singleText.contains(QStringLiteral("not enough memory")), qPrintable(singleText));
+            QVERIFY2(!singleText.contains(QStringLiteral("Multithreading strategy")) && !singleText.contains(QStringLiteral("Single thread")), qPrintable(singleText));
+
+            // Nothing in the application: no dialog, the document as it was
+            pdftest::AppDocumentFixture::settle();
+            QVERIFY(!fixture.window->findChild<pdf::PDFAppToolOutOfMemoryDialog*>());
+            QVERIFY(!QApplication::activeModalWidget());
+            QCOMPARE(document->getVersion(), version);
+        }
     }
 
     /// Every result and every refusal over HTTP in both eras, the question answered,

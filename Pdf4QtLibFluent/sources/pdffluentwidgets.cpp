@@ -22,6 +22,7 @@
 
 #include "pdffluentwidgets.h"
 #include "pdfcomponentbuttons.h"
+#include "pdfcomponentpainter.h"
 #include "pdfstylepainter.h"
 #include "pdfthemeiconengine.h"
 #include "pdfthememanager.h"
@@ -717,7 +718,22 @@ void PDFLabel::paintEvent(QPaintEvent* event)
 
     painter.setFont(font());
     painter.setPen(PDFStylePainter::color(isEnabled() ? m_color : PDFThemeColors::TextDisabled));
+    if (m_isDataText)
+    {
+        // The visual alignment is absolute (QStyle::visualAlignment): only the order of the
+        // characters takes the direction of the text
+        painter.setLayoutDirection(PDFComponentPainter::getDataTextDirection(text()));
+    }
     painter.drawText(rect, flags, text());
+}
+
+void PDFLabel::setDataText(bool isDataText)
+{
+    if (m_isDataText != isDataText)
+    {
+        m_isDataText = isDataText;
+        update();
+    }
 }
 
 void PDFLabel::init()

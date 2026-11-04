@@ -305,8 +305,9 @@ void PDFAppToolGUICompress::updateSegmentsEnabled()
 
 bool PDFAppToolGUICompress::isConfirmEnabled() const
 {
-    // 295:2182: nothing to keep; a failed measuring has said why in its card
-    return BaseClass::isConfirmEnabled() && m_measureState != MeasureState::NotReduced && m_measureState != MeasureState::Failed;
+    // 295:2182: nothing to keep; a failed measuring has said why in its card. Lack of memory is no
+    // property of the document: the user runs it again, also after the switch to one thread.
+    return BaseClass::isConfirmEnabled() && m_measureState != MeasureState::NotReduced && (m_measureState != MeasureState::Failed || m_isOutOfMemory);
 }
 
 QString PDFAppToolGUICompress::getRunningStatusText(const QString& stepText) const
@@ -504,7 +505,18 @@ void PDFAppToolGUICompress::updateParts()
 
     if (m_resultHeader)
     {
-        m_resultHeader->setHint(m_measureState == MeasureState::Measuring && !m_isRunning ? tr("measuring") : tr("measured"));
+        // 293:1355 and the running state 295:1711 say "measured"; a state without a number
+        // (Stopped, Failed) says nothing next to its "Not measured" / "Cannot be measured"
+        QString hint;
+        if (m_isRunning || isMeasured)
+        {
+            hint = tr("measured");
+        }
+        else if (m_measureState == MeasureState::Measuring)
+        {
+            hint = tr("measuring");
+        }
+        m_resultHeader->setHint(hint);
     }
 
     if (m_measuringCard)
@@ -522,7 +534,9 @@ void PDFAppToolGUICompress::updateParts()
                 m_measuringCard->getBar()->setVisible(false);
                 break;
             case MeasureState::Failed:
-                m_measuringCard->setProgress(0, tr("Cannot be measured"), m_errorText, QString());
+                // The message of a lack of memory is for a reader without the dialog of the shell:
+                // the card stays true also after Use One Thread
+                m_measuringCard->setProgress(0, tr("Cannot be measured"), m_isOutOfMemory ? tr("There is not enough memory. Press Compress or choose a preset to try again.") : m_errorText, QString());
                 m_measuringCard->getBar()->setVisible(false);
                 break;
             default:
@@ -620,6 +634,7 @@ void PDFAppToolGUICompress::onPreviewChanged(const PDFDocumentToolResult* previe
             break;
         case PDFDocumentToolResultStatus::Failed:
             m_result.reset();
+            m_isOutOfMemory = preview->isOutOfMemory();
             m_errorText = preview->message;
             setMeasureState(MeasureState::Failed);
             break;

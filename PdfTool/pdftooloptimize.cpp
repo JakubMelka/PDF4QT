@@ -21,8 +21,8 @@
 // SOFTWARE.
 
 #include "pdftooloptimize.h"
+#include "pdfdocumenttool_compress.h"
 #include "pdfdocumentwriter.h"
-#include "pdfimageoptimizer.h"
 
 namespace pdftool
 {
@@ -65,19 +65,25 @@ int PDFToolOptimize::execute(const PDFToolOptions& options)
         return ErrorDocumentReading;
     }
 
-    if (options.imageOptimizationSettings.enabled)
-    {
-        pdf::PDFImageOptimizer imageOptimizer;
-        document = imageOptimizer.optimize(&document, options.imageOptimizationSettings);
-    }
+    // One implementation with the tool Compress of the new application: the written file keeps the
+    // version of the input and it has no old revisions and no declaration of PDF/A, which is not checked
+    pdf::PDFDocumentToolCompress::Settings settings;
+    settings.images = options.imageOptimizationSettings;
+    settings.structure = options.optimizeFlags;
 
-    if (options.optimizeFlags)
+    pdf::PDFDocumentToolCompress::Progress progress;
+    progress.structureMessage = [&options](const QString& text) { PDFConsole::writeError(text, options.outputCodec); };
+
+    pdf::PDFDocumentToolCompress::Statistics statistics;
+    document = pdf::PDFDocumentToolCompress::compress(&document, settings, nullptr, progress, &statistics);
+
+    if (!statistics.conformance.removed.isEmpty())
     {
-        pdf::PDFOptimizer optimizer(options.optimizeFlags, nullptr);
-        QObject::connect(&optimizer, &pdf::PDFOptimizer::optimizationProgress, &optimizer, [&options](QString text) { PDFConsole::writeError(text, options.outputCodec); }, Qt::DirectConnection);
-        optimizer.setDocument(&document);
-        optimizer.optimize();
-        document = optimizer.takeOptimizedDocument();
+        PDFConsole::writeError(PDFToolTranslationContext::tr("The declaration of %1 was removed: the result was not checked against the standard.").arg(statistics.conformance.removed.join(QStringLiteral(", "))), options.outputCodec);
+    }
+    if (!statistics.conformance.kept.isEmpty())
+    {
+        PDFConsole::writeError(PDFToolTranslationContext::tr("The document still declares %1, its metadata cannot be changed: the result was not checked against the standard.").arg(statistics.conformance.kept.join(QStringLiteral(", "))), options.outputCodec);
     }
 
     pdf::PDFDocumentWriter writer(nullptr);

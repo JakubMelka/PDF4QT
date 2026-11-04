@@ -286,8 +286,9 @@ void PDFDocumentToolGUI::onRunStateChanged(bool isRunning)
 
 void PDFDocumentToolGUI::onRunNotAccepted(const PDFDocumentToolResult& result)
 {
+    // The shell has its dialog Not enough memory for every tool
     PDFAppToolHost* host = getHost();
-    if (!host)
+    if (!host || result.isOutOfMemory())
     {
         return;
     }

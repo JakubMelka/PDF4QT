@@ -27,6 +27,7 @@
 #include "pdfappdocumentsearch.h"
 #include "pdfappdocumentsearchindex.h"
 #include "pdfappdocumentview.h"
+#include "pdfappundostack.h"
 #include "pdfsettingdefinitions.h"
 #include "pdfsettingsrepository.h"
 #include "pdfdatabasenotifier.h"
@@ -211,6 +212,7 @@ PDFAppDocumentSignatureVerifier::PDFAppDocumentSignatureVerifier(PDFAppDocument*
         connect(document, &PDFAppDocument::stateChanged, this, &PDFAppDocumentSignatureVerifier::onDocumentStateChanged);
         connect(document, &PDFAppDocument::documentChanged, this, &PDFAppDocumentSignatureVerifier::onDocumentChanged);
         connect(document, &PDFAppDocument::originalDataChanged, this, &PDFAppDocumentSignatureVerifier::onOriginalDataChanged);
+        m_wasSignatureLostOnSave = document->isSignatureLostOnSave();
 
         PDFAppContext* context = document->getContext();
         if (context && context->getNotifier())
@@ -234,6 +236,21 @@ PDFAppDocumentSignatureVerifier::~PDFAppDocumentSignatureVerifier()
 bool PDFAppDocumentSignatureVerifier::hasSignatures() const
 {
     return m_verification && m_verification->signatureFieldCount > 0;
+}
+
+bool PDFAppDocumentSignatureVerifier::isSignatureLostOnSave() const
+{
+    if (!m_document || !m_document->isSignatureLostOnSave())
+    {
+        return false;
+    }
+
+    if (m_verification && m_verification->isVerified && !m_verification->results.empty())
+    {
+        const PDFAppSignatureSummary summary = getSummary(m_verification->results, m_verification->isStrict);
+        return summary.invalidCount < summary.signatureCount + summary.timestampCount;
+    }
+    return true;
 }
 
 void PDFAppDocumentSignatureVerifier::verify()
@@ -429,10 +446,25 @@ void PDFAppDocumentSignatureVerifier::applyResults()
 
 void PDFAppDocumentSignatureVerifier::onOriginalDataChanged()
 {
+    const bool isLostOnSave = m_document && m_document->isSignatureLostOnSave();
+    const bool isLostOnSaveChanged = isLostOnSave != m_wasSignatureLostOnSave;
+    m_wasSignatureLostOnSave = isLostOnSave;
+
     // A whole write destroys a signature at the same version of the document
-    if (m_document && m_document->isReady() && !m_verifiedData.isSharedWith(m_document->getOriginalData()))
+    if (m_document && m_document->isReady())
     {
-        startVerification();
+        const QByteArray& originalData = m_document->getOriginalData();
+        if (!m_verifiedData.isSharedWith(originalData) && m_verifiedData != originalData)
+        {
+            startVerification();
+            return;
+        }
+    }
+
+    // The same bytes: no verification says it (a save of a kept version ends the note)
+    if (isLostOnSaveChanged)
+    {
+        Q_EMIT verificationChanged();
     }
 }
 
@@ -470,13 +502,25 @@ void PDFAppDocumentSignatureVerifier::onDocumentChanged(const PDFModifiedDocumen
     // Other bytes of the file (a save, a reload): verified again; the same bytes:
     // the results are given to the new version
     const QByteArray& originalData = m_document->getOriginalData();
+    const bool isLostOnSave = m_document->isSignatureLostOnSave();
+    const bool isLostOnSaveChanged = isLostOnSave != m_wasSignatureLostOnSave;
+    m_wasSignatureLostOnSave = isLostOnSave;
     if (!m_verifiedData.isSharedWith(originalData) && m_verifiedData != originalData)
     {
         startVerification();
+        return;
     }
-    else if (!m_watcher)
+
+    QPointer<PDFAppDocumentSignatureVerifier> guard(this);
+    if (!m_watcher)
     {
         applyResults();
+    }
+
+    // Keep of a tool, undo and redo: the panel and the status item say what the next save does
+    if (guard && isLostOnSaveChanged)
+    {
+        Q_EMIT verificationChanged();
     }
 }
 
@@ -818,6 +862,14 @@ void PDFAppSignatureStatusItem::updateItem()
         }
         text = PDFAppDocumentSignatureVerifier::getStatusText(shown, verification->isVerified);
         isWarning = !verification->isVerified || summary.invalidCount > 0 || summary.warningCount > 0;
+
+        // The signed bytes are intact until the file is written (owner decision 3)
+        if (m_verifier->isSignatureLostOnSave())
+        {
+            text = tr("%1 · not valid after saving").arg(text);
+            isWarning = true;
+        }
+
         if (isWarning)
         {
             iconName = QStringLiteral("alert-triangle");
@@ -1079,6 +1131,25 @@ void PDFAppDocumentSignaturesPanel::rebuild()
         hue = PDFAccentHue::Neutral;
         bannerIcon = QStringLiteral("info");
         bannerTitle = tr("The signature fields are not signed");
+    }
+
+    // The cards below say the state of the signed bytes, this is the state of the next save (owner decision 3)
+    if (!isVerifying && m_verifier && m_verifier->isSignatureLostOnSave())
+    {
+        // A signature, which is invalid now, keeps the title of its state
+        const PDFAppDocument* document = getDocument();
+        if (hue != PDFAccentHue::Red)
+        {
+            const bool isOneSignature = document && PDFForm::getSignatureCount(document->getDocument().data()) == 1;
+            hue = PDFAccentHue::Amber;
+            bannerIcon = QStringLiteral("alert-triangle");
+            bannerTitle = isOneSignature ? tr("The signature will not be valid after saving") : tr("The signatures will not be valid after saving");
+        }
+
+        // Only when undo can do it: a copy of the rewritten version has no such step
+        bannerText = document && document->getUndoStack()->canUndoWholeFileRewrite()
+                         ? tr("A tool has rewritten the whole document, so the signed revision cannot be kept. When you save it, its signatures will no longer be valid. Undo brings the signed version back.")
+                         : tr("A tool has rewritten the whole document, so the signed revision cannot be kept. When you save it, its signatures will no longer be valid.");
     }
 
     if (m_banner)

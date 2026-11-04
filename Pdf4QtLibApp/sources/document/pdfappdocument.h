@@ -100,6 +100,11 @@ public:
     /// update of \p originalData
     bool isWholeFileRewritten = false;
 
+    /// The file of the document was written whole by this tab: its bytes hold no signed
+    /// revision, an update of them keeps no signature (also of a version without
+    /// isWholeFileRewritten, undo gives one back)
+    bool isSignedRevisionGone = false;
+
     bool isValid() const { return !document.isNull(); }
 };
 
@@ -280,6 +285,16 @@ public:
     /// the document still has signature fields: these tools never save incrementally (O31).
     /// Undo and redo give the state of their version back, a save of this version ends it.
     bool isWholeFileRewritten() const { return m_isWholeFileRewritten; }
+
+    /// The bytes of the file were written whole by this tab: they hold no signed revision any
+    /// more, whichever version undo or redo shows (setSavedAs). A reload ends it.
+    bool isSignedRevisionGone() const { return m_isSignedRevisionGone; }
+
+    /// The bytes still hold the signed revision, but the shown version was rewritten whole by a
+    /// tool, so the next save loses it: the signatures will not be valid after it (owner
+    /// decision 3). After the file has been written the signatures are what the verification of
+    /// the written bytes says, nothing is left to lose.
+    bool isSignatureLostOnSave() const;
 
     /// The last tool, whose result was accepted on this document (the pair of the
     /// suggestions of Then continue with, PDFDocumentToolUsage::recordRun), empty = none
@@ -512,6 +527,7 @@ private:
     bool m_isLocked = false;
     bool m_isPagedXFA = false;
     bool m_isWholeFileRewritten = false;
+    bool m_isSignedRevisionGone = false;    ///< The bytes of the file were written whole in this tab: they hold no signed revision (setSavedAs)
     bool m_areUserChangesSuspended = false;
     bool m_hasPendingEdits = false;
     bool m_isPasswordProtected = false;

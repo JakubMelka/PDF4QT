@@ -33,6 +33,8 @@
 #include "pdfappmcptoolset.h"
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
+#include "pdfappdocumenttab.h"
+#include "pdfappdocumentview.h"
 
 #include "pdfdocumenttoolregistry.h"
 #include "pdfmcperrorcodes.h"
@@ -43,6 +45,7 @@
 
 #include <QBuffer>
 #include <QDateTime>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QPixmap>
 #include <QTimer>
@@ -686,6 +689,20 @@ std::vector<std::shared_ptr<PDFAppMcpConfirmation>> PDFAppMcpHost::getPendingCon
         confirmations.push_back(item.second);
     }
     return confirmations;
+}
+
+void PDFAppMcpHost::showSavedMessage(PDFAppDocument* document, const QString& filePath) const
+{
+    if (PDFAppDocumentTab* tab = getResolver().findTab(document))
+    {
+        if (PDFAppDocumentView* view = tab->getView())
+        {
+            if (PDFAppDocumentStatusBar* statusBar = view->getStatusBar())
+            {
+                statusBar->showMessage(tr("%1 saved").arg(QFileInfo(filePath).fileName()), 10000);
+            }
+        }
+    }
 }
 
 bool PDFAppMcpHost::isConfirmationQueueFull(const PDFAppDocument* document) const

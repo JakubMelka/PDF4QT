@@ -118,7 +118,7 @@ public:
 
     /// Writes a copy of \p output in a worker: \p finished comes from the event loop.
     /// \returns false (no signal), when a write runs or the document is a display version
-    bool writeCopy(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const QString& filePath, bool isReplacing);
+    bool writeCopy(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const QString& filePath, const QString& markSourceFilePath, bool isReplacing);
 
     /// Writes a new document (Save as a file of a tool of the kind NewDocument)
     bool writeDocument(const PDFDocumentPointer& document, const QString& filePath, const QString& markSourceFilePath, bool isReplacing);

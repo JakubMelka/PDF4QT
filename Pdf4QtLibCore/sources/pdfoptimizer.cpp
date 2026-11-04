@@ -30,6 +30,8 @@
 #include "pdfstreamfilters.h"
 #include "pdfdocumentwriter.h"
 #include "pdfprogress.h"
+
+#include <set>
 #include "pdfdbgheap.h"
 
 namespace pdf
@@ -288,6 +290,81 @@ bool PDFOptimizer::performRemoveUnusedObjects()
     return counter > 0;
 }
 
+/// Helpers of the optimizer
+class PDFOptimizerHelper
+{
+public:
+    PDFOptimizerHelper() = delete;
+
+    /// Limit of the nesting of the direct objects of one object (arrays and dictionaries inside of it)
+    static constexpr int MAXIMUM_DEPTH = 64;
+
+    /// Adds the references of an array or of one reference
+    static void addReferences(const PDFObjectStorage& storage, const PDFObject& value, std::set<PDFObjectReference>& references)
+    {
+        if (value.isReference())
+        {
+            references.insert(value.getReference());
+        }
+
+        const PDFObject& resolved = storage.getObject(value);
+        if (resolved.isArray())
+        {
+            const PDFArray* array = resolved.getArray();
+            for (size_t i = 0, count = array->getCount(); i < count; ++i)
+            {
+                if (array->getItem(i).isReference())
+                {
+                    references.insert(array->getItem(i).getReference());
+                }
+            }
+        }
+    }
+
+    /// Finds the objects used as annotations (/Annots of a page) and as layers (/OCGs of the
+    /// optional content properties and of a membership dictionary) in an object, with its direct objects
+    static void collectIdentityReferences(const PDFObjectStorage& storage, const PDFObject& object, std::set<PDFObjectReference>& references, int depth)
+    {
+        if (depth > MAXIMUM_DEPTH)
+        {
+            return;
+        }
+
+        const PDFDictionary* dictionary = nullptr;
+        if (object.isDictionary())
+        {
+            dictionary = object.getDictionary();
+        }
+        else if (object.isStream())
+        {
+            dictionary = object.getStream()->getDictionary();
+        }
+        else if (object.isArray())
+        {
+            const PDFArray* array = object.getArray();
+            for (size_t i = 0, count = array->getCount(); i < count; ++i)
+            {
+                collectIdentityReferences(storage, array->getItem(i), references, depth + 1);
+            }
+        }
+
+        if (dictionary)
+        {
+            for (const char* key : { "Annots", "OCGs" })
+            {
+                if (dictionary->hasKey(key))
+                {
+                    addReferences(storage, dictionary->get(key), references);
+                }
+            }
+            for (size_t i = 0, count = dictionary->getCount(); i < count; ++i)
+            {
+                collectIdentityReferences(storage, dictionary->getValue(i), references, depth + 1);
+            }
+        }
+    }
+};
+
 bool PDFOptimizer::performMergeIdenticalObjects()
 {
     std::atomic<PDFInteger> counter = 0;
@@ -314,6 +391,13 @@ bool PDFOptimizer::performMergeIdenticalObjects()
         return false;
     }
 
+    // An annotation or a layer has not to say its /Type: what uses it as one says it
+    std::set<PDFObjectReference> identityReferences;
+    for (const PDFObjectStorage::Entry& entry : objects)
+    {
+        PDFOptimizerHelper::collectIdentityReferences(m_storage, entry.object, identityReferences, 0);
+    }
+
     // Find same object
     for (PDFInteger index : range)
     {
@@ -323,6 +407,11 @@ bool PDFOptimizer::performMergeIdenticalObjects()
         {
             // We do not merge objects, whose reference is their identity: pages, annotations,
             // layers (two layers of the same name can have different states)
+            if (identityReferences.count(PDFObjectReference(index, entry.generation)))
+            {
+                continue;
+            }
+
             if (const PDFDictionary* dictionary = m_storage.getDictionaryFromObject(entry.object))
             {
                 PDFObject nameObject = m_storage.getObject(dictionary->get("Type"));

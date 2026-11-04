@@ -26,6 +26,7 @@
 #include "pdfsettingdefinitions.h"
 
 #include "pdfdocumenttextindex.h"
+#include "pdfform.h"
 #include "pdfoptionalcontent.h"
 
 #include <QFileInfo>
@@ -257,6 +258,11 @@ void PDFAppDocument::setSavedAs(quint64 version, const QString& filePath, QByteA
     const bool isFileChanged = newPath != m_filePath || m_isCopy;
     const bool wasModified = isModified();
 
+    // An incremental update appends to the bytes, every other write leaves no signed revision
+    // in the file (a tool, which rewrote the file, or a document without bytes): undo or a next
+    // change cannot bring it back, and the Save never promises it again
+    m_isSignedRevisionGone = m_isSignedRevisionGone || m_originalData.isEmpty() || !data.startsWith(m_originalData);
+
     m_filePath = newPath;
     m_originalData = std::move(data);
     m_isCopy = false;
@@ -289,6 +295,11 @@ void PDFAppDocument::setSavedAs(quint64 version, const QString& filePath, QByteA
     {
         Q_EMIT originalDataChanged();
     }
+}
+
+bool PDFAppDocument::isSignatureLostOnSave() const
+{
+    return isReady() && m_isWholeFileRewritten && !m_isSignedRevisionGone && PDFForm::getSignatureCount(m_document.data()) > 0;
 }
 
 void PDFAppDocument::setLocked(bool locked)
@@ -353,6 +364,7 @@ PDFAppDocumentSnapshot PDFAppDocument::getSnapshot() const
     snapshot.isModified = isModified();
     snapshot.isPagedXFA = m_isPagedXFA;
     snapshot.isWholeFileRewritten = m_isWholeFileRewritten;
+    snapshot.isSignedRevisionGone = m_isSignedRevisionGone;
     return snapshot;
 }
 
@@ -696,6 +708,7 @@ void PDFAppDocument::setLoaded(PDFDocumentPointer document, QByteArray originalD
     m_isPasswordWrong = false;
     m_isPagedXFA = isPagedXFA;
     m_isWholeFileRewritten = false;
+    m_isSignedRevisionGone = false;
     m_isCopy = isFromMemory;
     if (!isFromMemory)
     {
@@ -727,6 +740,7 @@ void PDFAppDocument::reload(PDFDocumentPointer document, QByteArray data, bool i
     m_isPasswordProtected = isPasswordProtected;
     m_isPagedXFA = isPagedXFA;
     m_isWholeFileRewritten = false;
+    m_isSignedRevisionGone = false;
     m_undoStack->clear();
     setDocument(std::move(document), PDFModifiedDocument::ModificationFlags(PDFModifiedDocument::Reset | PDFModifiedDocument::PreserveView), true);
 }
@@ -775,6 +789,7 @@ bool PDFAppDocument::setCopyOf(const PDFAppDocument* source)
     // it, a copy may still be made by the lock popover of a locked document)
     m_isPagedXFA = source->isPagedXFA();
     m_isWholeFileRewritten = source->isWholeFileRewritten();
+    m_isSignedRevisionGone = source->m_isSignedRevisionGone;
     m_isPasswordProtected = false;
     m_isPasswordWrong = false;
     m_isLocked = false;

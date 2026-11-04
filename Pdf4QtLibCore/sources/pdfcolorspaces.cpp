@@ -357,6 +357,7 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
             case PDFImageData::MaskingType::None:
             {
                 QImage image(imageData.getWidth(), imageData.getHeight(), QImage::Format_RGB888);
+                PDFAbstractColorSpace::checkImageAllocated(image);
                 image.fill(QColor(Qt::white));
 
                 unsigned int componentCount = imageData.getComponents();
@@ -448,6 +449,7 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
             {
                 const bool hasMatte = !softMask.getMatte().empty();
                 QImage image(imageData.getWidth(), imageData.getHeight(), hasMatte ? QImage::Format_RGBA8888_Premultiplied : QImage::Format_RGBA8888);
+                PDFAbstractColorSpace::checkImageAllocated(image);
                 image.fill(QColor(Qt::white));
 
                 unsigned int componentCount = imageData.getComponents();
@@ -560,6 +562,7 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
             case PDFImageData::MaskingType::ColorKeyMasking:
             {
                 QImage image(imageData.getWidth(), imageData.getHeight(), QImage::Format_RGBA8888);
+                PDFAbstractColorSpace::checkImageAllocated(image);
                 image.fill(QColor(Qt::transparent));
 
                 unsigned int componentCount = imageData.getComponents();
@@ -720,6 +723,15 @@ QColor PDFAbstractColorSpace::getCheckedColor(const PDFColor& color, const PDFCM
     return getColor(color, cms, intent, reporter, true);
 }
 
+void PDFAbstractColorSpace::checkImageAllocated(const QImage& image)
+{
+    // Out of memory is a report of an undecodable image, never a write into a null image
+    if (image.isNull())
+    {
+        throw PDFException(PDFTranslationContext::tr("There is not enough memory to decode the image."));
+    }
+}
+
 QImage PDFAbstractColorSpace::createAlphaMask(const PDFImageData& softMask)
 {
     if (softMask.getMaskingType() != PDFImageData::MaskingType::None)
@@ -733,6 +745,7 @@ QImage PDFAbstractColorSpace::createAlphaMask(const PDFImageData& softMask)
     }
 
     QImage image(softMask.getWidth(), softMask.getHeight(), QImage::Format_Alpha8);
+    PDFAbstractColorSpace::checkImageAllocated(image);
 
     unsigned int componentCount = softMask.getComponents();
     if (componentCount != 1)
@@ -2336,6 +2349,7 @@ QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData,
             case PDFImageData::MaskingType::None:
             {
                 QImage image(imageData.getWidth(), imageData.getHeight(), QImage::Format_RGB888);
+                PDFAbstractColorSpace::checkImageAllocated(image);
                 image.fill(QColor(Qt::white));
 
                 unsigned int componentCount = imageData.getComponents();
@@ -2380,6 +2394,7 @@ QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData,
             {
                 const bool hasMatte = !softMask.getMatte().empty();
                 QImage image(imageData.getWidth(), imageData.getHeight(), hasMatte ? QImage::Format_RGBA8888_Premultiplied : QImage::Format_RGBA8888);
+                PDFAbstractColorSpace::checkImageAllocated(image);
 
                 unsigned int componentCount = imageData.getComponents();
                 PDFBitReader reader(&imageData.getData(), imageData.getBitsPerComponent());
@@ -2438,6 +2453,7 @@ QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData,
             case PDFImageData::MaskingType::ColorKeyMasking:
             {
                 QImage image(imageData.getWidth(), imageData.getHeight(), QImage::Format_RGBA8888);
+                PDFAbstractColorSpace::checkImageAllocated(image);
                 image.fill(QColor(Qt::transparent));
 
                 unsigned int componentCount = imageData.getComponents();

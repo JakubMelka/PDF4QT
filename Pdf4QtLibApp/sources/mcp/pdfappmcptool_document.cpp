@@ -514,7 +514,16 @@ void PDFAppMcpSignatureWaiter::answer()
     }
     m_isDone = true;
 
-    if (m_call && !m_call->isFinished() && !m_call->isCanceled())
+    // A canceled call has its row and its answer as every other one (PDFAppMcpHost::finishJob)
+    if (m_call && !m_call->isFinished() && m_call->isCanceled())
+    {
+        if (m_host)
+        {
+            m_host->recordActivity(m_call, QStringLiteral("document.get_signatures"), m_document, QJsonObject(), PDFMcpActivityStatus::Canceled);
+        }
+        m_call->finish(PDFAppMcpJobRunnable::createFailure(*m_call, QStringLiteral("The request was canceled.")));
+    }
+    else if (m_call && !m_call->isFinished())
     {
         if (!m_document || !m_host)
         {

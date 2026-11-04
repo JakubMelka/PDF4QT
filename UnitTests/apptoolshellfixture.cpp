@@ -34,6 +34,7 @@
 
 #include <QDir>
 #include <QElapsedTimer>
+#include <QSignalSpy>
 #include <QTest>
 #include <QtMath>
 

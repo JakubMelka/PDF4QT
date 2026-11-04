@@ -304,6 +304,9 @@ PDFAppToolPathLabel::PDFAppToolPathLabel(QWidget* parent) :
     setTextFormat(Qt::PlainText);
     setMinimumWidth(1);
     setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+
+    // A path is data: the ellipsis at its end also in a right-to-left interface
+    setDataText(true);
 }
 
 PDFAppToolPathLabel::~PDFAppToolPathLabel() = default;
@@ -840,6 +843,10 @@ void PDFAppToolResultDialog::createContinueWith(QVBoxLayout* layout, QWidget* pa
     // The scroll area takes the larger of the height for the width and of the minimal
     // height of its widget, and that one is of the smallest width with more wrapped lines
     m_continueWith->setMinimumHeight(1);
+
+    // Its minimal width has the longest word of each name: a long word of another language is
+    // elided in its tile, the row is never wider than the card, which does not scroll sideways
+    m_continueWith->setMinimumWidth(1);
     connect(m_continueWith, &PDFContinueWith::selectedChoiceChanged, this, &PDFAppToolResultDialog::onContinueChanged);
     connect(m_continueWith, &PDFContinueWith::anotherToolRequested, this, &PDFAppToolResultDialog::onAnotherToolRequested);
 
@@ -1566,7 +1573,7 @@ void PDFAppToolResultDialog::confirm()
         case Choice::Copy:
         {
             const PDFDocumentToolOutputDocument* output = findOutput(PDFDocumentToolOutputDocument::Kind::Changed);
-            if (checkTarget() && output && m_writer->writeCopy(m_input.tool, m_snapshot, output->document, getTargetFilePath(), m_isReplaceConfirmed))
+            if (checkTarget() && output && m_writer->writeCopy(m_input.tool, m_snapshot, output->document, getTargetFilePath(), getOriginFilePath(), m_isReplaceConfirmed))
             {
                 setBusy(true);
             }

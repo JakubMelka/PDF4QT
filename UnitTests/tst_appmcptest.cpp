@@ -23,6 +23,9 @@
 #include "appmcpfixture.h"
 #include "appmcpcatalogtests.h"
 #include "appmcpreadtests.h"
+#include "pdfappmcpdocumentreader.h"
+#include "pdfappdocumentsearch.h"
+#include "pdfappdocumentsignatures.h"
 #include "testdocumenttool.h"
 
 #include "pdfappaipage.h"
@@ -242,6 +245,9 @@ private slots:
     void catalogOverwrite() { AppMcpCatalogTests::overwrite(); }
     void catalogOverwriteRefused() { AppMcpCatalogTests::overwriteRefused(); }
     void catalogDocumentWithoutFile() { AppMcpCatalogTests::documentWithoutFile(); }
+    void catalogCustomValuesAndCopyMessage() { AppMcpCatalogTests::customValuesAndCopyMessage(); }
+    void reviewSignaturesPendingWhileVerifying();
+    void reviewSignaturesCanceledWhileWaiting();
     void catalogSignedDocuments() { AppMcpCatalogTests::signedDocuments(); }
     void catalogSignedAfterRerun() { AppMcpCatalogTests::signedAfterRerun(); }
     void catalogLockAndDisplayVersion() { AppMcpCatalogTests::lockAndDisplayVersion(); }
@@ -256,6 +262,7 @@ private slots:
     void catalogEncryptedCopy() { AppMcpCatalogTests::encryptedCopy(); }
     void catalogBridgeOverHttp() { AppMcpCatalogTests::bridgeOverHttp(); }
     void catalogMarkOfTheWeb() { AppMcpCatalogTests::markOfTheWeb(); }
+    void catalogOutOfMemoryOverHttp() { AppMcpCatalogTests::outOfMemoryOverHttp(); }
     void catalogCanceledWithResult() { AppMcpCatalogTests::canceledWithResult(); }
     void catalogPermissionMatrix() { AppMcpCatalogTests::permissionMatrix(); }
     void catalogModalDialog() { AppMcpCatalogTests::modalDialog(); }
@@ -491,6 +498,63 @@ void AppMcpTest::toolSetPermissionsFilter()
     const quint64 current = fixture.host()->getCatalogGeneration();
     fixture.host()->setPermissions(fixture.host()->getPermissions());
     QCOMPARE(fixture.host()->getCatalogGeneration(), current);
+}
+
+void AppMcpTest::reviewSignaturesPendingWhileVerifying()
+{
+    // The results of an older verification may be of other bytes (a save destroyed the signature): after
+    // the wait of 10 s the answer is pending, never the old state
+    pdftest::AppMcpFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::signedDocument(fixture.folder()));
+    QVERIFY(tab);
+    QTRY_VERIFY(tab->getDocument()->isReady());
+    pdf::PDFAppDocument* document = tab->getDocument();
+    QTRY_VERIFY_WITH_TIMEOUT(!document->getSignatureResults().empty(), 30000);
+
+    const auto getStatuses = [document](bool isVerifying)
+    {
+        QStringList statuses;
+        const QJsonArray signatures = QJsonDocument::fromJson(pdf::PDFAppMcpDocumentReader::getSignatures(document, isVerifying)).object().value(QStringLiteral("signatures")).toArray();
+        for (const QJsonValue& signature : signatures)
+        {
+            statuses << signature.toObject().value(QStringLiteral("status")).toString();
+        }
+        return statuses;
+    };
+
+    const QStringList verified = getStatuses(false);
+    QCOMPARE(verified.size(), 1);
+    QVERIFY(verified.front() != QStringLiteral("pending"));
+    QCOMPARE(getStatuses(true), QStringList({ QStringLiteral("pending") }));
+}
+
+void AppMcpTest::reviewSignaturesCanceledWhileWaiting()
+{
+    // A call canceled while it waits for the verification has its answer and its row as every other
+    // canceled call (PDFAppMcpHost::finishJob); it never stays open for the grace time of the server
+    pdftest::AppMcpFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::signedDocument(fixture.folder()));
+    QVERIFY(tab);
+    QTRY_VERIFY(tab->getDocument()->isReady());
+    pdf::PDFAppDocumentSignatureVerifier* verifier = pdf::PDFAppDocumentSearchCommandHandler::findHandler(tab)->getSignatureVerifier();
+    QTRY_VERIFY_WITH_TIMEOUT(!verifier->isVerifying(), 30000);
+
+    QJsonObject arguments;
+    arguments.insert(QStringLiteral("action"), QStringLiteral("get_signatures"));
+    arguments.insert(QStringLiteral("documentId"), tab->getDocument()->getId());
+    verifier->verify();
+    QVERIFY(verifier->isVerifying());
+    std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("document"), arguments);
+    QVERIFY(call);
+    QVERIFY(verifier->isVerifying());
+    QVERIFY(!call->isFinished());
+    call->cancel(pdf::PDFMcpCancelReason::StreamClosed);
+
+    const std::optional<pdf::PDFMcpCallResult> result = pdftest::AppMcpFixture::waitResult(call);
+    QVERIFY2(result, "The call has its answer");
+    QVERIFY(call->isFinished());
+    QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::Canceled));
 }
 
 void AppMcpTest::catalogToolBridge()

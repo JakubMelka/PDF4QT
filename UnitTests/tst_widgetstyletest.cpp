@@ -194,6 +194,7 @@ private slots:
     // Fixes of the Settings reviews of step 5 (FX5-3): texts of a right-to-left
     // application, the popup list of a combo box, the header of the Certificate row
     void rightToLeftAbsoluteText();
+    void labelDataText();
     void comboPopupGeometry();
     void certificateHeader();
 
@@ -4545,6 +4546,68 @@ void WidgetStyleTest::searchFieldFocusIcon()
     colors = iconColors();
     QVERIFY2(isNear(colors[true], token(pdf::PDFThemeColors::IconAccent), 24), qPrintable(colors[true].name()));
     QVERIFY2(isNear(colors[false], token(pdf::PDFThemeColors::IconMuted), 24), qPrintable(colors[false].name()));
+}
+
+void WidgetStyleTest::labelDataText()
+{
+    // PDFLabel::setDataText: a size keeps the order of its characters in a mirrored interface, the old
+    // behavior of a label without it is unchanged. The painter of a widget has the direction of the application.
+    const Qt::LayoutDirection direction = QApplication::layoutDirection();
+    const auto render = [](pdf::PDFLabel& label)
+    {
+        return label.grab().toImage().convertToFormat(QImage::Format_RGB32);
+    };
+
+    // The left and the right edge of the ink
+    const auto inkRange = [](const QImage& image)
+    {
+        int left = image.width();
+        int right = -1;
+        for (int y = 0; y < image.height(); ++y)
+        {
+            for (int x = 0; x < image.width(); ++x)
+            {
+                if (qAbs(qGray(image.pixel(x, y)) - qGray(image.pixel(0, 0))) > 48)
+                {
+                    left = qMin(left, x);
+                    right = qMax(right, x);
+                }
+            }
+        }
+        return std::make_pair(left, right);
+    };
+
+    pdf::PDFLabel label(QStringLiteral("807.2 kB"));
+    QVERIFY(!label.isDataText());
+    label.setLayoutDirection(Qt::LeftToRight);
+    label.resize(300, 30);
+
+    QApplication::setLayoutDirection(Qt::LeftToRight);
+    label.setLayoutDirection(Qt::LeftToRight);
+    const QImage leftToRight = render(label);
+    label.setDataText(true);
+    QCOMPARE(render(label), leftToRight);
+    label.setDataText(false);
+
+    QApplication::setLayoutDirection(Qt::RightToLeft);
+    label.setLayoutDirection(Qt::LeftToRight);
+    const QImage mirrored = render(label);
+    QVERIFY2(mirrored != leftToRight, "Without it a text takes the direction of the application, as it always did");
+    label.setDataText(true);
+    QVERIFY(label.isDataText());
+    QCOMPARE(render(label), leftToRight);
+
+    // The alignment stays by the direction of the label: the text at the trailing edge of a mirrored label
+    label.setLayoutDirection(Qt::RightToLeft);
+    QVERIFY2(inkRange(render(label)).first > 200, qPrintable(QString::number(inkRange(render(label)).first)));
+
+    // Data of the other direction in a left-to-right label: the direction of the characters, its place at the left
+    QApplication::setLayoutDirection(Qt::LeftToRight);
+    label.setLayoutDirection(Qt::LeftToRight);
+    label.setText(QString::fromUtf8("\xD7\x90\xD7\x91 807.2 kB"));
+    QVERIFY2(inkRange(render(label)).first < 100, qPrintable(QString::number(inkRange(render(label)).first)));
+
+    QApplication::setLayoutDirection(direction);
 }
 
 void WidgetStyleTest::rightToLeftAbsoluteText()

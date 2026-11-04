@@ -185,6 +185,12 @@ public:
     /// which needs a confirmation, is refused (getConfirmationQueueFullText)
     bool isConfirmationQueueFull(const PDFAppDocument* document) const;
 
+    /// Status message "Project_Report.pdf saved" of the tab of a document, after an assistant has
+    /// written a file (955:144508). A document without a tab shows nothing.
+    /// \param document The document of the call
+    /// \param filePath The written file
+    void showSavedMessage(PDFAppDocument* document, const QString& filePath) const;
+
     /// Text of a request refused by a full queue (docs/errors.md)
     static QString getConfirmationQueueFullText();
 

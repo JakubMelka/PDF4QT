@@ -114,15 +114,16 @@ public:
         QHBoxLayout* layout = new QHBoxLayout(header);
         layout->setContentsMargins(0, 0, 0, 0);
         layout->setSpacing(SECTION_GAP);
-        layout->addWidget(PDFAppPageWidgets::createLabel(title, QFont::DemiBold, 15, PDFThemeColors::TextPrimary, header), 0, Qt::AlignBaseline);
+        PDFLabel* titleLabel = PDFAppPageWidgets::createLabel(title, QFont::DemiBold, 15, PDFThemeColors::TextPrimary, header);
         if (!hint.isEmpty())
         {
             PDFLabel* hintLabel = PDFAppPageWidgets::createLabel(hint, QFont::Normal, 12, PDFThemeColors::TextMuted, header);
             hintLabel->setMinimumWidth(1);
-            layout->addWidget(hintLabel, 1, Qt::AlignBaseline);
+            PDFAppPageWidgets::addBaselineLabels(layout, { { titleLabel }, { hintLabel, 1 } });
         }
         else
         {
+            layout->addWidget(titleLabel);
             layout->addStretch(1);
         }
         return header;

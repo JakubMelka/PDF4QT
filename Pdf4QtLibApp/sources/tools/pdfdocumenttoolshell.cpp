@@ -22,19 +22,24 @@
 
 #include "pdfdocumenttoolshell.h"
 
+#include "pdfappcontext.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentdialogs.h"
+#include "pdfappdocumentregistry.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
+#include "pdfappmainwindow.h"
 #include "pdfapppagelayout.h"
 #include "pdfappsettingcontrol.h"
 #include "pdfapptoolhost.h"
+#include "pdfapptooloutofmemorydialog.h"
 #include "pdfapptoolpanelparts.h"
 #include "pdfapptoolparametermodel.h"
 #include "pdfapptooltoolbar.h"
 #include "pdfdocumenttoolgui.h"
 
 #include "pdfdocumenttoolcatalog.h"
+#include "pdfdocumenttoolusage.h"
 #include "pdfmessagebox.h"
 #include "pdfthemefonts.h"
 
@@ -335,6 +340,9 @@ void PDFDocumentToolShell::close()
         m_resultDialog->disconnect(this);
     }
     m_pendingResult.reset();
+    m_isWaitingForModal = false;
+    m_isOutOfMemoryPending = false;
+    watchModalDialog(nullptr);
     if (m_leaveDialog)
     {
         // The question of a run, which has ended without the user: its own loop ends
@@ -345,6 +353,12 @@ void PDFDocumentToolShell::close()
         m_permissionDialog->disconnect(this);
         m_permissionDialog->hide();
         m_permissionDialog->deleteLater();
+    }
+    if (m_outOfMemoryDialog)
+    {
+        m_outOfMemoryDialog->disconnect(this);
+        m_outOfMemoryDialog->hide();
+        m_outOfMemoryDialog->deleteLater();
     }
     if (m_runner)
     {
@@ -568,10 +582,27 @@ void PDFDocumentToolShell::commitPendingValues()
 
 void PDFDocumentToolShell::stop()
 {
-    if (m_state == State::Running && m_runner)
+    if (m_state != State::Running || !m_runner)
     {
-        m_runner->stop();
+        return;
     }
+
+    // The result waits for a modal dialog of another window: the run has ended, Stop drops it
+    if (m_isWaitingForModal && m_pendingResult)
+    {
+        QPointer<PDFDocumentToolShell> guard(this);
+        m_pendingResult.reset();
+        m_isWaitingForModal = false;
+        watchModalDialog(nullptr);
+        m_runner->endDecision();
+        if (guard)
+        {
+            finishRun(PDFDocumentToolResult::createStopped());
+        }
+        return;
+    }
+
+    m_runner->stop();
 }
 
 void PDFDocumentToolShell::cancel()
@@ -761,6 +792,14 @@ void PDFDocumentToolShell::openResultDialog(const PDFDocumentToolResult& result)
         return;
     }
 
+    // The run may have gone on behind another tab (F1): the user decides about a document, which is shown
+    QPointer<PDFDocumentToolShell> activateGuard(this);
+    m_host->activate();
+    if (!activateGuard || !m_host || !m_runner || !m_gui)
+    {
+        return;
+    }
+
     PDFAppToolResultInput input;
     input.tool = getCatalogEntry();
     input.result = result;
@@ -824,6 +863,62 @@ void PDFDocumentToolShell::onPermissionDialogFinished()
     cancel();
 }
 
+PDFAppToolOutOfMemoryDialog* PDFDocumentToolShell::getOutOfMemoryDialog() const
+{
+    return m_outOfMemoryDialog.data();
+}
+
+void PDFDocumentToolShell::showOutOfMemoryDialog()
+{
+    if (m_state != State::Editing || !m_host || m_outOfMemoryDialog)
+    {
+        return;
+    }
+
+    // The user is deciding about something else (the rule of the result dialog); an open panel
+    // of the tool ends first too: a popup would keep the keys of the dialog
+    QWidget* blocker = PDFAppMainWindow::getBlockingModalWidget();
+    if (!blocker)
+    {
+        blocker = QApplication::activePopupWidget();
+    }
+    if (blocker)
+    {
+        m_isOutOfMemoryPending = true;
+        watchModalDialog(blocker);
+        return;
+    }
+    m_isOutOfMemoryPending = false;
+
+    // The run may have gone on behind another tab (F1): the dialog is about a document, which is shown
+    QPointer<PDFDocumentToolShell> guard(this);
+    m_host->activate();
+    if (!guard || !m_host || m_state != State::Editing || m_outOfMemoryDialog)
+    {
+        return;
+    }
+
+    QWidget* keyWidget = m_host->getKeyWidget();
+    PDFAppToolOutOfMemoryDialog* dialog = new PDFAppToolOutOfMemoryDialog(m_host->getContext(), keyWidget ? keyWidget->window() : nullptr);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    connect(dialog, &QDialog::accepted, this, &PDFDocumentToolShell::onOneThreadChosen);
+    m_outOfMemoryDialog = dialog;
+    m_isOutOfMemoryShown = true;
+
+    // Last: a slot of its show may delete anything
+    dialog->open();
+}
+
+void PDFDocumentToolShell::onOneThreadChosen()
+{
+    // The tool is not run again: the user does it
+    const PDFDocumentToolCatalogEntry* tool = getCatalogEntry();
+    if (m_host && tool)
+    {
+        m_host->showTransientMessage(tr("One thread is now set. Run %1 to try again.").arg(tool->getTitle()));
+    }
+}
+
 void PDFDocumentToolShell::onParameterChanged(const QString& name)
 {
     QPointer<PDFDocumentToolShell> guard(this);
@@ -856,6 +951,7 @@ void PDFDocumentToolShell::onPreviewFinished(const PDFDocumentToolResult& result
 {
     // The hook says, that the Primary button has changed: a slot may delete this shell
     QPointer<PDFDocumentToolShell> guard(this);
+    const bool isOutOfMemory = result.isOutOfMemory();
     if (m_gui)
     {
         m_gui->onPreviewChanged(&result);
@@ -863,6 +959,13 @@ void PDFDocumentToolShell::onPreviewFinished(const PDFDocumentToolResult& result
     if (guard && m_toolbar)
     {
         updateToolbar();
+    }
+
+    // The measuring runs by itself after every change of a parameter: the user hears about the
+    // memory once for an opened tool, the panel keeps saying it (a run always asks)
+    if (guard && isOutOfMemory && !m_isOutOfMemoryShown)
+    {
+        showOutOfMemoryDialog();
     }
 }
 
@@ -880,6 +983,13 @@ void PDFDocumentToolShell::onRunStarted()
     m_percentage = 0;
     m_stepText.clear();
     m_state = State::Running;
+
+    // A measuring, whose dialog still waits for a modal one, is out of date: the run says its own
+    if (m_isOutOfMemoryPending)
+    {
+        m_isOutOfMemoryPending = false;
+        watchModalDialog(nullptr);
+    }
 
     QPointer<PDFDocumentToolShell> guard(this);
     if (m_gui)
@@ -918,8 +1028,81 @@ void PDFDocumentToolShell::onRunFinished(const PDFDocumentToolResult& result)
     finishRun(result);
 }
 
+bool PDFDocumentToolShell::waitForModalDialog(const PDFDocumentToolResult& result)
+{
+    // No new dialog while a modal dialog of the application is open (the rule of the opening of
+    // documents and of the requests of an assistant): the user is deciding about something else
+    // there, also in another tab, which is not taken away from below the dialog. The operation of
+    // the runner keeps the document.
+    QWidget* modal = result.isSuccess() ? PDFAppMainWindow::getBlockingModalWidget() : nullptr;
+    if (!modal)
+    {
+        return false;
+    }
+
+    m_pendingResult = result;
+    m_isWaitingForModal = true;
+    watchModalDialog(modal);
+    updateProgress(100, m_stepText);
+    return true;
+}
+
+void PDFDocumentToolShell::watchModalDialog(QWidget* dialog)
+{
+    if (m_watchedModal == dialog)
+    {
+        return;
+    }
+
+    if (m_watchedModal)
+    {
+        m_watchedModal->removeEventFilter(this);
+    }
+
+    // A dialog hides itself also in its destructor: its event tells the end of every dialog
+    m_watchedModal = dialog;
+    if (dialog)
+    {
+        dialog->installEventFilter(this);
+    }
+}
+
+void PDFDocumentToolShell::onWatchedModalClosed()
+{
+    // The dialog Not enough memory comes after the modal dialog (another one is waited for again)
+    if (m_isOutOfMemoryPending)
+    {
+        m_isOutOfMemoryPending = false;
+        watchModalDialog(nullptr);
+        showOutOfMemoryDialog();
+        return;
+    }
+
+    if (!m_isWaitingForModal || !m_pendingResult || m_state != State::Running)
+    {
+        return;
+    }
+
+    watchModalDialog(nullptr);
+    m_isWaitingForModal = false;
+
+    // The operation may have been canceled meanwhile (Stop of a dialog close-running): the result
+    // has no document to go to
+    const bool isHeld = m_runner && m_runner->getState() == PDFDocumentToolRunner::State::Waiting;
+    const PDFDocumentToolResult result = isHeld ? *m_pendingResult : PDFDocumentToolResult::createStopped();
+    m_pendingResult.reset();
+
+    // Another modal dialog may have come: the result waits for it again
+    finishRun(result);
+}
+
 void PDFDocumentToolShell::finishRun(const PDFDocumentToolResult& result)
 {
+    if (waitForModalDialog(result))
+    {
+        return;
+    }
+
     QPointer<PDFDocumentToolShell> guard(this);
     showProgress(false);
     if (m_gui)
@@ -938,10 +1121,46 @@ void PDFDocumentToolShell::finishRun(const PDFDocumentToolResult& result)
         return;
     }
 
+    // A run, which has nothing to do, is a use of the tool (newapp_tools.md 3): the user has
+    // run it and the tool has said its answer; a preview is none
+    if (result.status == PDFDocumentToolResultStatus::NothingToDo)
+    {
+        recordNothingToDo();
+
+        // The pair is recorded: the next tool over this document is not the first one after that
+        // tool, nor is a second try of this tool a new pair (newapp_tools.md 3)
+        if (PDFAppDocument* document = m_host ? m_host->getDocument() : nullptr)
+        {
+            document->setLastFinishedToolId(QString());
+        }
+    }
+
+    const bool isOutOfMemory = result.isOutOfMemory();
     setState(State::Editing);
     if (guard && m_gui && result.status != PDFDocumentToolResultStatus::Stopped)
     {
         m_gui->onRunNotAccepted(result);
+    }
+
+    if (guard && isOutOfMemory)
+    {
+        showOutOfMemoryDialog();
+    }
+}
+
+void PDFDocumentToolShell::recordNothingToDo()
+{
+    const PDFAppContext* context = m_host ? m_host->getContext() : nullptr;
+    const PDFAppDocument* document = m_host ? m_host->getDocument() : nullptr;
+    if (!context || !context->getDatabase() || !m_tool)
+    {
+        return;
+    }
+
+    const PDFDatabaseError error = PDFDocumentToolUsage(context->getDatabase()).recordRun(m_tool->getId(), document ? document->getLastFinishedToolId() : QString());
+    if (error.isError())
+    {
+        qWarning("The use of the tool was not recorded: %s", qPrintable(error.toString()));
     }
 }
 
@@ -1007,9 +1226,36 @@ void PDFDocumentToolShell::onDialogDecided(const PDFAppToolResultOutcome& outcom
     }
     if (m_host && m_tool)
     {
+        // The next tool over the result of this one is the pair: the document, which holds
+        // the result - this tab after Keep or Overwrite, the opened copy or new tab otherwise
+        // (a copy, which was not opened, is nowhere to go on from)
+        PDFAppDocument* resultDocument = nullptr;
+        const PDFAppContext* context = m_host->getContext();
+        switch (decided.action)
+        {
+            case PDFAppToolResultOutcome::Action::Kept:
+            case PDFAppToolResultOutcome::Action::Overwritten:
+                resultDocument = m_host->getDocument();
+                break;
+
+            default:
+                if (context && context->getDocumentRegistry() && !decided.continueDocumentId.isEmpty())
+                {
+                    resultDocument = context->getDocumentRegistry()->findDocument(decided.continueDocumentId);
+                }
+                break;
+        }
+
+        // The tool has been used on the document of this tab: the next tool there is not the
+        // first one after the tool before this one (newapp_tools.md 3)
         if (PDFAppDocument* document = m_host->getDocument())
         {
-            document->setLastFinishedToolId(m_tool->getId());
+            document->setLastFinishedToolId(QString());
+        }
+
+        if (resultDocument)
+        {
+            resultDocument->setLastFinishedToolId(m_tool->getId());
         }
     }
 
@@ -1074,6 +1320,12 @@ void PDFDocumentToolShell::onLanguageChanged()
 
 bool PDFDocumentToolShell::eventFilter(QObject* watched, QEvent* event)
 {
+    // Also a dialog only hidden: the event comes before the dialog leaves the list of the modal widgets
+    if (watched == m_watchedModal.data() && (event->type() == QEvent::Hide || event->type() == QEvent::Close))
+    {
+        QMetaObject::invokeMethod(this, &PDFDocumentToolShell::onWatchedModalClosed, Qt::QueuedConnection);
+    }
+
     // The toolbar is a part of the tool always shown: one change of the language
     if (watched == m_toolbar && event->type() == QEvent::LanguageChange && !m_isRebuilding)
     {

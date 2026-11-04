@@ -512,16 +512,7 @@ public:
         // Status message "Project_Report.pdf saved" (955:144508)
         if (document && m_host)
         {
-            if (PDFAppDocumentTab* tab = m_host->getResolver().findTab(document))
-            {
-                if (PDFAppDocumentView* view = tab->getView())
-                {
-                    if (PDFAppDocumentStatusBar* statusBar = view->getStatusBar())
-                    {
-                        statusBar->showMessage(PDFAppMcpFilesToolHelper::tr("%1 saved").arg(QFileInfo(result.filePath).fileName()), 10000);
-                    }
-                }
-            }
+            m_host->showSavedMessage(document, result.filePath);
         }
 
         PDFAppMcpOutputMembers output;

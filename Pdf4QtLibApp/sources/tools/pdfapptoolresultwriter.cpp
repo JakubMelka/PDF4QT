@@ -39,7 +39,7 @@ namespace pdf
 {
 
 // The limit of a result of a tool and of a written file is the same limit of a QByteArray
-static_assert(PDFDocumentToolCompress::MAXIMUM_RESULT_SIZE == PDFAppDocumentFileWriter::MAXIMUM_FILE_SIZE);
+static_assert(PDFDocumentTool::MAXIMUM_RESULT_SIZE == PDFAppDocumentFileWriter::MAXIMUM_FILE_SIZE);
 
 /// Helpers of the writer
 class PDFAppToolResultWriterHelper
@@ -97,7 +97,7 @@ PDFAppDocumentFileWriter::Request PDFAppToolResultWriter::createCopyRequest(cons
     // result without any signed field (the signed page was removed) has nothing to keep,
     // a version an earlier tool has rewritten is no update of the original bytes.
     if (tool && tool->getSignatureImpact() == PDFDocumentToolSignatureImpact::IncrementalSave &&
-        !snapshot.originalData.isEmpty() && !snapshot.isWholeFileRewritten && PDFForm::getSignatureCount(output.data()) > 0)
+        !snapshot.originalData.isEmpty() && !snapshot.isWholeFileRewritten && !snapshot.isSignedRevisionGone && PDFForm::getSignatureCount(output.data()) > 0)
     {
         request.originalData = snapshot.originalData;
         request.isIncremental = true;
@@ -219,7 +219,7 @@ void PDFAppToolResultWriter::start(QFuture<Result> future)
     watcher->setFuture(future);
 }
 
-bool PDFAppToolResultWriter::writeCopy(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const QString& filePath, bool isReplacing)
+bool PDFAppToolResultWriter::writeCopy(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const QString& filePath, const QString& markSourceFilePath, bool isReplacing)
 {
     // A display version of an XFA form is never written as a changed copy (F5)
     if (isWriting() || snapshot.isPagedXFA || output.isNull())
@@ -227,7 +227,9 @@ bool PDFAppToolResultWriter::writeCopy(const PDFDocumentToolCatalogEntry* tool, 
         return false;
     }
 
-    start(QtConcurrent::run(&PDFAppToolResultWriter::writeRequest, createCopyRequest(tool, snapshot, output, filePath), isReplacing));
+    PDFAppDocumentFileWriter::Request request = createCopyRequest(tool, snapshot, output, filePath);
+    request.markSourceFilePath = markSourceFilePath;
+    start(QtConcurrent::run(&PDFAppToolResultWriter::writeRequest, std::move(request), isReplacing));
     return true;
 }
 

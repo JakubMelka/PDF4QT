@@ -29,6 +29,7 @@
 #include "pdfappmcpreadsupport.h"
 #include "pdfappmcptoolset.h"
 #include "pdfappdocument.h"
+#include "pdfappundostack.h"
 #include "pdfappdocumentsave.h"
 #include "pdfappdocumenttab.h"
 #include "pdfapptoolresultwriter.h"
@@ -235,6 +236,7 @@ public:
         result.addProperty(QStringLiteral("title"), B::string(QString()));
         result.addProperty(QStringLiteral("undoDescription"), B::string(QString()));
         result.addProperty(QStringLiteral("path"), B::string(QStringLiteral("The written file")));
+        result.addProperty(QStringLiteral("note"), B::string(QStringLiteral("What the user must be told about the result")));
         result.addProperty(QStringLiteral("mimeType"), B::string(QStringLiteral("return_text: the type of the text")));
         result.addProperty(QStringLiteral("size"), B::integer(QStringLiteral("return_text: bytes of the whole output"), 0, std::numeric_limits<int>::max()));
         result.addProperty(QStringLiteral("truncated"), B::boolean(QStringLiteral("return_text: the text was cut at 8 MiB; save_file writes all of it")));
@@ -718,6 +720,14 @@ private:
         return m_request.mode == PDFAppMcpToolResultMode::Keep || m_request.mode == PDFAppMcpToolResultMode::Overwrite;
     }
 
+    /// A signed document without a file keeps the result (F5): its signatures stop being
+    /// valid when it is saved, this is what the user and the assistant are told (owner decision 4)
+    bool isSignatureLost() const
+    {
+        return m_request.mode == PDFAppMcpToolResultMode::Keep &&
+               PDFAppToolResultWriter::isSignatureLost(m_request.tool->getInfo(), PDFForm::getSignatureCount(getSnapshot().document.data()) > 0);
+    }
+
     QString getUndoDescription() const
     {
         const PDFAppMcpClientInfo client = PDFAppMcpHost::getClientInfo(getCall()->getRequest().client);
@@ -806,6 +816,7 @@ private:
             case PDFAppMcpToolResultMode::Keep:
                 confirmation->kind = PDFAppMcpConfirmationKind::Change;
                 confirmation->details.insert(QStringLiteral("signatureCount"), PDFForm::getSignatureCount(getSnapshot().document.data()));
+                confirmation->details.insert(QStringLiteral("signatureLost"), isSignatureLost());
                 break;
             case PDFAppMcpToolResultMode::Overwrite:
                 confirmation->kind = PDFAppMcpConfirmationKind::Save;
@@ -1037,7 +1048,17 @@ private:
             return;
         }
 
-        succeed(PDFAppMcpCatalogToolsHelper::createResult(m_request.actionName, m_result, m_request.document, QString(), m_writeResult.filePath));
+        // A new file appears on the disk: a sign in the tab as by files.save_copy (owner decision 6).
+        // The answer first: the call is over, whatever the message does.
+        const PDFMcpCallResult result = PDFAppMcpCatalogToolsHelper::createResult(m_request.actionName, m_result, m_request.document, QString(), m_writeResult.filePath);
+        const QString writtenPath = m_writeResult.filePath;
+        QPointer<PDFAppDocument> document = m_request.document;
+        QPointer<PDFAppMcpHost> host = m_host;
+        succeed(result);
+        if (host && document)
+        {
+            host->showSavedMessage(document, writtenPath);
+        }
     }
 
     /// The text of the output is the result of the call, data of the document with its
@@ -1071,7 +1092,14 @@ private:
         const std::shared_ptr<PDFAppMcpJob> keepAlive = shared_from_this();
         const std::shared_ptr<PDFMcpCall>& call = getCall();
         PDFAppDocument* document = m_request.document;
-        const PDFMcpCallResult result = PDFAppMcpCatalogToolsHelper::createResult(m_request.actionName, m_result, document, undoDescription, writtenPath);
+        QJsonObject extra;
+        if (isSignatureLost())
+        {
+            const bool canUndo = document && document->getUndoStack()->canUndoWholeFileRewrite();
+            extra.insert(QStringLiteral("note"), canUndo ? QStringLiteral("The tool rewrote the whole document, so it cannot keep the signed revision. When the document is saved, its signatures will no longer be valid; undo brings the signed version back. Tell the user.")
+                                                         : QStringLiteral("The tool rewrote the whole document, so it cannot keep the signed revision. When the document is saved, its signatures will no longer be valid. Tell the user."));
+        }
+        const PDFMcpCallResult result = PDFAppMcpCatalogToolsHelper::createResult(m_request.actionName, m_result, document, undoDescription, writtenPath, extra);
 
         // The row and the answer first: the bar is the only thing, which is left to do
         succeed(result);
@@ -1349,13 +1377,28 @@ public:
             snapshot = document->getSnapshot();
         }
 
+        // A value, which the tool would silently ignore, is an error naming what to set
+        // (owner decision 5); only an assistant writes single values, a panel holds all of them
+        const QVariantMap givenParameters = invocation.actionArguments.toVariantMap();
+        const std::vector<PDFDocumentToolParameterError> givenErrors = tool->checkGivenParameters(givenParameters);
+        if (!givenErrors.empty())
+        {
+            QStringList messages;
+            for (const PDFDocumentToolParameterError& error : givenErrors)
+            {
+                messages << error.message;
+            }
+            host->finishWithError(call, toolId, document, QStringLiteral("Invalid arguments: %1").arg(messages.join(QLatin1Char(' '))), PDFMcpActivityStatus::Failed);
+            return;
+        }
+
         // The parameters of the tool are the object of the action (normalized and
         // validated again by PDFDocumentTool::run, with the permissions of the document)
         PDFAppMcpCatalogToolRequest request;
         request.tool = tool;
         request.toolName = invocation.toolName;
         request.actionName = invocation.actionName;
-        request.parameters = invocation.actionArguments.toVariantMap();
+        request.parameters = givenParameters;
         request.environment.authorName = PDFAppMcpHost::getClientInfo(call->getRequest().client).displayName;
         request.mode = mode;
         request.path = path;

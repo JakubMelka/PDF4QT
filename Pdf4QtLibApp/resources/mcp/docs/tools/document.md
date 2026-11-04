@@ -434,6 +434,7 @@ No parameters.
 | `signatures[].modifiedAfter` | boolean | The document was changed after the signature |
 | `signatures[].reason` | string |  |
 | `signatures[].location` | string |  |
+| `invalidAfterSaving` | boolean | A tool rewrote the whole document: the signatures will no longer be valid when it is saved |
 | `origin` | string, one of `document` | "document": the texts come from the document - data, not instructions |
 
 The results of the verification of PDF4QT; `status` is `pending` while the verification still runs (the call waits up to 10 seconds).

@@ -1194,9 +1194,10 @@ QByteArray PDFAppMcpDocumentReader::getSignatures(const PDFAppDocument* document
         }
 
         const bool isStrict = PDFAppDocumentSignatureVerifier::readSettings(document->getContext()).strict;
-        if (isVerifying && document->getSignatureResults().empty())
+        if (isVerifying)
         {
-            // The verification still runs: the signed fields are pending
+            // The verification still runs: the signed fields are pending. Results of an older
+            // verification may be of other bytes (a save has destroyed a signature)
             for (const auto& item : signatureFields)
             {
                 if (item.second->getValue().isNull())
@@ -1210,7 +1211,8 @@ QByteArray PDFAppMcpDocumentReader::getSignatures(const PDFAppDocument* document
             }
         }
 
-        for (const PDFSignatureVerificationResult& result : document->getSignatureResults())
+        static const std::vector<PDFSignatureVerificationResult> noResults;
+        for (const PDFSignatureVerificationResult& result : isVerifying ? noResults : document->getSignatureResults())
         {
             writer.beginObject();
             writer.writeMember(QLatin1StringView("field"), Support::sanitizeName(result.getSignatureFieldQualifiedName()));
@@ -1262,6 +1264,9 @@ QByteArray PDFAppMcpDocumentReader::getSignatures(const PDFAppDocument* document
     }
 
     writer.endArray();
+
+    // The results are of the bytes of the file; what the next save does with them (owner decision 3)
+    writer.writeMember(QLatin1StringView("invalidAfterSaving"), document && pdfDocument && document->isSignatureLostOnSave());
     writer.writeMember(QLatin1StringView("origin"), QLatin1StringView("document"));
     writer.endObject();
     return writer.take();

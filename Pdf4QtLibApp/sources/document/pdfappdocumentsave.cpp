@@ -212,7 +212,7 @@ int PDFAppDocumentFileWriter::getSignatureCount(const PDFDocument* document)
 
 int PDFAppDocumentFileWriter::getIncrementalSignatureCount(const PDFAppDocumentSnapshot& snapshot)
 {
-    if (snapshot.originalData.isEmpty() || snapshot.isPagedXFA || snapshot.isWholeFileRewritten)
+    if (snapshot.originalData.isEmpty() || snapshot.isPagedXFA || snapshot.isWholeFileRewritten || snapshot.isSignedRevisionGone)
     {
         return 0;
     }

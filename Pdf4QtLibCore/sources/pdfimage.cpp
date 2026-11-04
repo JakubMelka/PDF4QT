@@ -200,6 +200,10 @@ static PreparedImageData prepareImageData(const QImage& source,
     prepared.height = working.height();
     bool hadTransparency = false;
     QImage flattened = normalizeImageToArgb32(working, options.alphaHandling, hadTransparency);
+    if (flattened.isNull())
+    {
+        throw PDFException(PDFTranslationContext::tr("There is not enough memory to encode the image."));
+    }
 
     if (resolvedMode == PDFImage::ImageColorMode::Monochrome && !supportsBinaryMonochrome)
     {
@@ -250,9 +254,20 @@ static PreparedImageData prepareImageData(const QImage& source,
                 const QRgb* src = reinterpret_cast<const QRgb*>(flattened.constScanLine(y));
                 uchar* dst = reinterpret_cast<uchar*>(prepared.pixels.data() + y * prepared.stride);
 
-                for (int x = 0; x < prepared.width; ++x)
+                if (options.grayTable)
                 {
-                    dst[x] = static_cast<uchar>(qGray(src[x]));
+                    const std::array<uchar, 256>& grayTable = *options.grayTable;
+                    for (int x = 0; x < prepared.width; ++x)
+                    {
+                        dst[x] = grayTable[qGray(src[x])];
+                    }
+                }
+                else
+                {
+                    for (int x = 0; x < prepared.width; ++x)
+                    {
+                        dst[x] = static_cast<uchar>(qGray(src[x]));
+                    }
                 }
             }
             break;
@@ -1466,6 +1481,82 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
     return image;
 }
 
+std::shared_ptr<const std::array<uchar, 256>> PDFImage::createGrayTable(const PDFCMS* cms)
+{
+    if (!cms)
+    {
+        return nullptr;
+    }
+
+    std::vector<float> colors(256);
+    for (int i = 0; i < 256; ++i)
+    {
+        colors[i] = float(i) / 255.0f;
+    }
+
+    std::array<unsigned char, 256 * 3> shown{};
+    PDFRenderErrorReporterDummy reporter;
+    PDFDeviceGrayColorSpace().fillRGBBuffer(colors, shown.data(), RenderingIntent::Perceptual, cms, &reporter);
+
+    std::shared_ptr<std::array<uchar, 256>> table = std::make_shared<std::array<uchar, 256>>();
+    bool isIdentity = true;
+    for (int tone = 0; tone < 256; ++tone)
+    {
+        // The closest shown tone; of equally close samples the one closest to the tone
+        int bestSample = tone;
+        int bestDistance = std::numeric_limits<int>::max();
+        for (int sample = 0; sample < 256; ++sample)
+        {
+            const int distance = std::abs(qGray(shown[sample * 3], shown[sample * 3 + 1], shown[sample * 3 + 2]) - tone);
+            if (distance < bestDistance || (distance == bestDistance && std::abs(sample - tone) < std::abs(bestSample - tone)))
+            {
+                bestDistance = distance;
+                bestSample = sample;
+            }
+        }
+        (*table)[tone] = uchar(bestSample);
+        isIdentity = isIdentity && bestSample == tone;
+    }
+    return isIdentity ? nullptr : table;
+}
+
+bool PDFImage::isDeviceRGBShownExactly(const PDFCMS* cms)
+{
+    if (!cms)
+    {
+        return true;
+    }
+
+    static constexpr int GRID = 5;
+    static constexpr int TOLERANCE = 3;
+    std::vector<float> colors;
+    colors.reserve(GRID * GRID * GRID * 3);
+    for (int r = 0; r < GRID; ++r)
+    {
+        for (int g = 0; g < GRID; ++g)
+        {
+            for (int b = 0; b < GRID; ++b)
+            {
+                colors.push_back(float(r) / float(GRID - 1));
+                colors.push_back(float(g) / float(GRID - 1));
+                colors.push_back(float(b) / float(GRID - 1));
+            }
+        }
+    }
+
+    std::vector<unsigned char> shown(colors.size());
+    PDFRenderErrorReporterDummy reporter;
+    PDFDeviceRGBColorSpace().fillRGBBuffer(colors, shown.data(), RenderingIntent::Perceptual, cms, &reporter);
+    for (size_t i = 0; i < colors.size(); ++i)
+    {
+        if (std::abs(int(shown[i]) - int(colors[i] * 255.0f + 0.5f)) > TOLERANCE)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 PDFStream PDFImage::createStreamFromImage(const QImage& image,
                                           const ImageEncodeOptions& options,
                                           PDFRenderErrorReporter* reporter)
@@ -1647,6 +1738,7 @@ QImage PDFImage::getImage(const PDFCMS* cms,
         }
 
         QImage image(m_imageData.getWidth(), m_imageData.getHeight(), QImage::Format_Alpha8);
+        PDFAbstractColorSpace::checkImageAllocated(image);
 
         const bool flip01 = !m_imageData.getDecode().empty() && qFuzzyCompare(m_imageData.getDecode().front(), 1.0);
         PDFBitReader reader(&m_imageData.getData(), m_imageData.getBitsPerComponent());

@@ -106,6 +106,10 @@ public:
     bool canUndo() const { return !m_undoSteps.empty(); }
     bool canRedo() const { return !m_redoSteps.empty(); }
 
+    /// Undo reaches a version, which no tool has rewritten whole (PDFAppUndoStep::isWholeFileRewritten):
+    /// not in a copy of a rewritten version, nor when its step was dropped by the limits
+    bool canUndoWholeFileRewrite() const;
+
     /// Descriptions of the next undo / redo step (empty = none)
     QString getUndoDescription() const;
     QString getRedoDescription() const;

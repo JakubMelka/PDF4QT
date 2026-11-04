@@ -30,6 +30,9 @@
 #include <QByteArray>
 #include <QSize>
 
+#include <array>
+#include <memory>
+
 class QByteArray;
 
 namespace pdf
@@ -126,7 +129,24 @@ public:
         bool enablePngPredictor = true;         ///< Adds PNG predictor metadata for Flate
         ResampleFilter resampleFilter = ResampleFilter::Bicubic; ///< Resampling filter for scaling
         AlphaHandling alphaHandling = AlphaHandling::FlattenToWhite; ///< Alpha compositing mode
+        std::shared_ptr<const std::array<uchar, 256>> grayTable; ///< Written sample of each shown gray tone (createGrayTable), nullptr = the tone itself
     };
+
+    /// A decoded image holds the colors, which are shown: the samples of a DeviceGray image
+    /// went through the color management. Written as they are, they would go through it again
+    /// at the next reading, and dark tones get darker with each run (30 is shown as 24, then
+    /// as 17). The table gives the sample of DeviceGray, which the same color management shows as
+    /// the tone: index = the shown tone, value = the sample, the closest one for a tone,
+    /// which no sample gives.
+    /// \param cms Color management, which has decoded the image
+    /// \returns The table, nullptr when each sample is shown as it is (a table is not needed)
+    static std::shared_ptr<const std::array<uchar, 256>> createGrayTable(const PDFCMS* cms);
+
+    /// Colors of DeviceRGB are shown as they are by the color management (within 3 of 255 per
+    /// channel, the rounding of a transformation). They are not with an output intent of another
+    /// RGB space: a decoded image written as DeviceRGB would go through that space again.
+    /// \param cms Color management, which has decoded the image
+    static bool isDeviceRGBShownExactly(const PDFCMS* cms);
 
     /// Creates PDF stream representing supplied image.
     static PDFStream createStreamFromImage(const QImage& image,

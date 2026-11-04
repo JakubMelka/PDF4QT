@@ -537,6 +537,15 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     set_tests_properties(UnitTestsOCRDialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;PDF4QT_OCR_DATA_DIRECTORY=${PDF4QT_OCR_BUILD_DATA_DIR}")
 endif()
 
+# The command 'PdfTool optimize' is the tool Compress: its old options, the version of the input kept
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    add_test(NAME PdfToolOptimizeSmoke
+             COMMAND ${CMAKE_COMMAND} -DPDFTOOL=$<TARGET_FILE:PdfTool>
+                                      -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/PdfToolOptimizeSmoke
+                                      -P ${CMAKE_CURRENT_SOURCE_DIR}/pdftooloptimizesmoke.cmake)
+    set_tests_properties(PdfToolOptimizeSmoke PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
+
 # Smoke test of the command 'PdfTool ocr' with the Tesseract engine and the built-in models
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY AND PDF4QT_ENABLE_OCR)
     if(PDF4QT_OCR_REQUIRED)

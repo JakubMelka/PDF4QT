@@ -50,7 +50,11 @@
 #include "pdfaccenthue.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumentreader.h"
+#include "pdfappdocumentstatusbar.h"
+#include "pdfapptooloutofmemorydialog.h"
 #include "pdfdocumenttool_compress.h"
+#include "pdfexecutionpolicy.h"
+#include "pdfimagecompressor.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttoolregistry.h"
 #include "pdfdrawspacecontroller.h"
@@ -371,6 +375,44 @@ public:
         return QRect(widget->mapTo(widget->window(), QPoint(0, 0)), widget->size());
     }
 
+    /// The last row of the ink of a label of a text without a descender, in the coordinates of the window
+    static int inkBottom(QWidget* label)
+    {
+        const QImage image = label->window()->grab().toImage().convertToFormat(QImage::Format_RGB32);
+        const QRect rect = inWindow(label);
+        const QRgb background = image.pixel(rect.right(), rect.top());
+        for (int y = rect.bottom(); y >= rect.top(); --y)
+        {
+            for (int x = rect.left(); x <= rect.right(); ++x)
+            {
+                if (qAbs(qGray(image.pixel(x, y)) - qGray(background)) > 48)
+                {
+                    return y;
+                }
+            }
+        }
+        return -1;
+    }
+
+    /// The last row of the ink of a label in an image of \p reference at a device pixel ratio
+    static int inkBottomInImage(const QImage& image, const QWidget* reference, const QWidget* label, qreal ratio)
+    {
+        const QRect logical(label->mapTo(reference, QPoint(0, 0)), label->size());
+        const QRect rect(qFloor(logical.left() * ratio), qFloor(logical.top() * ratio), qCeil(logical.width() * ratio), qCeil(logical.height() * ratio));
+        const QRgb background = image.pixel(rect.right() - 1, rect.top());
+        for (int y = qMin(rect.bottom(), image.height() - 1); y >= rect.top(); --y)
+        {
+            for (int x = rect.left(); x <= rect.right() && x < image.width(); ++x)
+            {
+                if (qAbs(qGray(image.pixel(x, y)) - qGray(background)) > 48)
+                {
+                    return y;
+                }
+            }
+        }
+        return -1;
+    }
+
     static QString preset(PDFDocumentToolShell* shell)
     {
         return shell->getModel()->getValue(QStringLiteral("preset")).toString();
@@ -403,6 +445,7 @@ private slots:
 
     // Compress
     void registered();
+    void outOfMemoryPanelAndDialog();
     void frameGeometry();
     void measuredPanel();
     void changeRowsNotElided();
@@ -446,6 +489,7 @@ private slots:
     void panelsTranslatedSchemaEnglish();
     void accessibility();
     void deletedDuringMeasuring();
+    void measuringKeepsTheEventLoop();
 
     // The overlay
     void overlayLeftOriginalRightResult();
@@ -490,6 +534,78 @@ void AppToolCompressTest::registered()
     const auto tool = pdf::PDFDocumentToolRegistry::getTool(CompressGuiHelper::TOOL_ID);
     pdf::PDFAppToolGUICompress::registerTools();
     QCOMPARE(pdf::PDFDocumentToolRegistry::getTool(CompressGuiHelper::TOOL_ID), tool);
+}
+
+void AppToolCompressTest::outOfMemoryPanelAndDialog()
+{
+    // The real tool: the measuring runs out of memory. The dialog of the shell once, the card of the
+    // panel keeps its state Cannot be measured and stays true after Use One Thread; the user can run
+    // the tool again from it. A real run always shows the dialog and the tool runs once the memory
+    // is there (an allocation failure cannot be caused otherwise than by the hook).
+    using H = CompressGuiHelper;
+    pdf::PDFImageCompressor::setTestDecodeHook([](pdf::PDFObjectReference, QImage) -> QImage { throw std::bad_alloc(); });
+    const auto removeHook = qScopeGuard([]() { pdf::PDFImageCompressor::setTestDecodeHook(pdf::PDFImageCompressor::TestDecodeHook()); });
+    const auto restoreStrategy = qScopeGuard([]() { pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded); });
+
+    AppToolShellFixture fixture(QSize(1440, 960));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writePhoto(fixture.path(QStringLiteral("report.pdf"))));
+    QVERIFY(tab);
+    PDFDocumentToolShell* shell = H::openCompress(fixture, tab);
+    PDFAppToolGUICompress* gui = H::gui(shell);
+    QVERIFY(gui);
+    QVERIFY(H::waitMeasured(gui));
+    QCOMPARE(gui->getMeasureState(), PDFAppToolGUICompress::MeasureState::Failed);
+    QVERIFY(AppToolShellFixture::waitFor([shell]() { return shell->getOutOfMemoryDialog() != nullptr; }));
+    AppToolShellFixture::settle();
+
+    const auto checkCard = [&]()
+    {
+        const pdf::PDFAppToolProgressCard* card = gui->getMeasuringCard();
+        return card->isVisibleTo(card->parentWidget()) && card->getTitleLabel()->text() == QStringLiteral("Cannot be measured") &&
+               card->getStepLabel()->text().contains(QStringLiteral("not enough memory")) && !card->getStepLabel()->text().contains(QStringLiteral("Multithreading"));
+    };
+    QVERIFY(checkCard());
+    QVERIFY(!tab->getView()->findInfoBar(QStringLiteral("tool-result")));
+
+    QPointer<pdf::PDFAppToolOutOfMemoryDialog> dialog = shell->getOutOfMemoryDialog();
+    dialog->getCloseButton()->click();
+    AppToolShellFixture::settle();
+    QVERIFY(!dialog);
+    QVERIFY(shell->getToolbar()->getConfirmButton()->isEnabled());
+
+    // Another preset measures again: the same card, no second dialog
+    QVERIFY(shell->getModel()->setValue(QStringLiteral("preset"), QStringLiteral("smaller-file")).isEmpty());
+    QVERIFY(H::waitMeasured(gui));
+    AppToolShellFixture::settle();
+    QVERIFY(AppToolShellFixture::waitFor([shell]() { return !shell->getRunner()->isPreviewPending(); }));
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getMeasureState(), PDFAppToolGUICompress::MeasureState::Failed);
+    QVERIFY(!shell->getOutOfMemoryDialog());
+    QVERIFY(checkCard());
+
+    // A real run from the state Failed: the dialog, Use One Thread, nothing runs by itself
+    shell->getToolbar()->getConfirmButton()->click();
+    QVERIFY(AppToolShellFixture::waitFor([shell]() { return shell->getOutOfMemoryDialog() != nullptr; }));
+    AppToolShellFixture::settle();
+    dialog = shell->getOutOfMemoryDialog();
+    QVERIFY(dialog->getOneThreadButton()->isVisible());
+    dialog->getOneThreadButton()->click();
+    AppToolShellFixture::settle();
+    QVERIFY(!dialog);
+    QVERIFY(AppToolShellFixture::waitFor([]() { return !pdf::PDFExecutionPolicy::isParallelizing(pdf::PDFExecutionPolicy::Scope::Page); }));
+    QVERIFY(checkCard());
+    QVERIFY(shell->getToolbar()->getConfirmButton()->isEnabled());
+    QVERIFY(tab->getView()->getStatusBar()->getMessage().contains(QStringLiteral("Compress")));
+    QCOMPARE(shell->getState(), PDFDocumentToolShell::State::Editing);
+
+    // The memory is there: the user runs it, the result dialog comes
+    pdf::PDFImageCompressor::setTestDecodeHook(pdf::PDFImageCompressor::TestDecodeHook());
+    shell->getToolbar()->getConfirmButton()->click();
+    QVERIFY(AppToolShellFixture::waitFor([shell]() { return shell->getResultDialog() != nullptr; }, 60000));
+    AppToolShellFixture::settle();
+    QVERIFY(!shell->getOutOfMemoryDialog());
+    shell->getResultDialog()->reject();
+    AppToolShellFixture::settle();
 }
 
 void AppToolCompressTest::frameGeometry()
@@ -571,6 +687,32 @@ void AppToolCompressTest::measuredPanel()
     pdf::PDFAppToolMeasuredCard* card = gui->getMeasuredCard();
     QVERIFY(card->isVisible());
     QCOMPARE(H::inWindow(card), QRect(1137, 128, 287, 85));
+
+    // 293:1359 items-baseline: both sizes end on one line, y 160 of 291:994
+    const int beforeBottom = H::inkBottom(card->getBeforeLabel());
+    const int afterBottom = H::inkBottom(card->getAfterLabel());
+    QCOMPARE(beforeBottom, afterBottom);
+    QVERIFY2(qAbs(afterBottom + 1 - 160) <= 1, qPrintable(QString::number(afterBottom)));
+
+    // 293:1355 items-baseline: "Result" and "measured" on one line
+    QCOMPARE(H::inkBottom(gui->getResultHeader()->getHintLabel()), H::inkBottom(gui->getResultHeader()->getTitleLabel()));
+
+    // The places of the frames: 293:1359 before y 5 height 18, after y 0 height 24; 293:1355 hint y 2
+    const QWidget* sizesRow = card->getBeforeLabel()->parentWidget();
+    QCOMPARE(card->getBeforeLabel()->contentsRect().translated(card->getBeforeLabel()->mapTo(sizesRow, QPoint(0, 0))).top(), 5);
+    QCOMPARE(card->getBeforeLabel()->contentsRect().height(), 18);
+    QCOMPARE(card->getAfterLabel()->contentsRect().translated(card->getAfterLabel()->mapTo(sizesRow, QPoint(0, 0))).top(), 0);
+    QCOMPARE(card->getAfterLabel()->contentsRect().height(), 24);
+    QCOMPARE(gui->getResultHeader()->getHintLabel()->contentsRect().translated(gui->getResultHeader()->getHintLabel()->mapTo(gui->getResultHeader(), QPoint(0, 0))).top(), 2);
+
+    // One line at every scale, also in the dark theme and right-to-left: at most a device pixel apart by rounding
+    for (const qreal ratio : { 1.0, 1.5, 2.0 })
+    {
+        const QImage image = AppToolShellFixture::render(card, ratio).convertToFormat(QImage::Format_RGB32);
+        const int before = H::inkBottomInImage(image, card, card->getBeforeLabel(), ratio);
+        const int after = H::inkBottomInImage(image, card, card->getAfterLabel(), ratio);
+        QVERIFY2(before >= 0 && qAbs(before - after) <= 1, qPrintable(QStringLiteral("%1: %2, %3").arg(ratio).arg(before).arg(after)));
+    }
 
     // The sizes are the size of the file and of the written result
     const qint64 sizeBefore = QFileInfo(filePath).size();
@@ -809,6 +951,9 @@ void AppToolCompressTest::stopGoesBackWithoutResult()
     QCOMPARE(gui->getMeasureState(), PDFAppToolGUICompress::MeasureState::Stopped);
     QVERIFY(gui->getMeasuringCard()->isVisible());
     QCOMPARE(gui->getMeasuringCard()->getTitleLabel()->text(), QStringLiteral("Not measured"));
+
+    // No hint "measured" next to "Not measured"
+    QVERIFY(gui->getResultHeader()->getHintLabel()->isHidden());
     QVERIFY(gui->getChangesHeader()->isEnabled());
     QVERIFY(gui->getPresetControl()->getSegmentedControl()->isEnabled());
     QVERIFY(shell->getToolbar()->getConfirmButton()->isEnabled());
@@ -1609,6 +1754,18 @@ void AppToolCompressTest::reviewMeasuredCardDirection()
     QCOMPARE(card->getBeforeLabel()->layoutDirection(), Qt::LeftToRight);
     QCOMPARE(card->getAfterLabel()->layoutDirection(), Qt::LeftToRight);
     QVERIFY2(H::inWindow(card->getBeforeLabel()).right() < H::inWindow(card->getAfterLabel()).left(), "The size before stays before the size after");
+
+    // The characters of a size are in their order: the painter of a widget has the direction of the
+    // application, a plain text there would read "kB 807.2". The same pixels as left-to-right.
+    const QImage beforeRightToLeft = card->getBeforeLabel()->grab().toImage();
+    const QImage afterRightToLeft = card->getAfterLabel()->grab().toImage();
+    QApplication::setLayoutDirection(Qt::LeftToRight);
+    const QImage beforeLeftToRight = card->getBeforeLabel()->grab().toImage();
+    const QImage afterLeftToRight = card->getAfterLabel()->grab().toImage();
+    QCOMPARE(beforeRightToLeft, beforeLeftToRight);
+    QCOMPARE(afterRightToLeft, afterLeftToRight);
+    QApplication::setLayoutDirection(Qt::RightToLeft);
+    AppToolShellFixture::settle();
     QCOMPARE(H::inWindow(card->getAfterLabel()).right() + 1, H::inWindow(card).right() + 1 - pdf::PDFAppToolMeasuredCard::PADDING);
 
     // The card itself stays in the panel at the leading side of the window
@@ -1912,6 +2069,46 @@ void AppToolCompressTest::reviewSameResultKeepsPixmaps()
     AppToolShellFixture::settle();
 }
 
+void AppToolCompressTest::measuringKeepsTheEventLoop()
+{
+    // The owner's remark 1: the images run in the threads of the policy, nothing of the thread of the user
+    // interface waits for them - while they measure, when another preset comes and when they are stopped
+    using H = CompressGuiHelper;
+    AppToolShellFixture fixture(QSize(1440, 960));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writePhoto(fixture.path(QStringLiteral("many.pdf")), 900, 24));
+    QVERIFY(tab);
+
+    qint64 longestStop = 0;
+    QElapsedTimer loopTimer;
+    loopTimer.start();
+    QTimer loopProbe;
+    loopProbe.setInterval(5);
+    QObject::connect(&loopProbe, &QTimer::timeout, [&]()
+    {
+        longestStop = qMax(longestStop, loopTimer.restart());
+    });
+
+    PDFDocumentToolShell* shell = H::openCompress(fixture, tab);
+    PDFAppToolGUICompress* gui = H::gui(shell);
+    QVERIFY(gui);
+    loopTimer.restart();
+    loopProbe.start();
+
+    // Another preset during the measuring: the panel says it at once
+    QElapsedTimer timer;
+    timer.start();
+    shell->getModel()->setValue(QStringLiteral("preset"), QStringLiteral("smaller-file"));
+    const qint64 changeTime = timer.elapsed();
+    QCOMPARE(gui->getMeasureState(), PDFAppToolGUICompress::MeasureState::Measuring);
+
+    QVERIFY(H::waitMeasured(gui));
+    const qint64 measureTime = timer.elapsed();
+    loopProbe.stop();
+    qInfo().noquote() << QStringLiteral("A change of the preset %1 ms, the measuring %2 ms, the longest stop of the event loop %3 ms").arg(changeTime).arg(measureTime).arg(longestStop);
+    QVERIFY2(changeTime < 500 * AppToolShellFixture::getTimeoutFactor(), qPrintable(QString::number(changeTime)));
+    QVERIFY2(longestStop < 1000 * AppToolShellFixture::getTimeoutFactor(), qPrintable(QString::number(longestStop)));
+}
+
 void AppToolCompressTest::reviewMeasuringBenchmark()
 {
     // PDF4QT_COMPRESS_BENCHMARK=<files separated by ;>: a real file - time of the measuring,
@@ -1945,7 +2142,7 @@ void AppToolCompressTest::reviewMeasuringBenchmark()
                 const qint64 memory = CompressGuiHelper::getCurrentMemoryMB();
                 if (step != lastStep || percentage / 5 != lastPercentage / 5)
                 {
-                    qInfo("BENCHMARK core: %d %% %s: %lld MB", percentage, qPrintable(stepText), memory);
+                    qInfo("BENCHMARK core: %lld ms %d %% %s: %lld MB", timer.elapsed(), percentage, qPrintable(stepText), memory);
                     lastStep = step;
                     lastPercentage = percentage;
                 }
@@ -1953,15 +2150,53 @@ void AppToolCompressTest::reviewMeasuringBenchmark()
 
             QString lastStep;
             int lastPercentage = 0;
+            QElapsedTimer timer;
         };
 
+        // PDF4QT_COMPRESS_BENCHMARK_IMAGES=<n>: the first n images one by one - where the time of an image goes
+        if (const int imageCount = qEnvironmentVariableIntValue("PDF4QT_COMPRESS_BENCHMARK_IMAGES"); imageCount > 0)
+        {
+            pdf::PDFImageOptimizer::Settings settings = pdf::PDFDocumentToolCompress::createSettings({ { QStringLiteral("preset"), qEnvironmentVariable("PDF4QT_COMPRESS_BENCHMARK_PRESET", QStringLiteral("balanced")) } }).images;
+            pdf::PDFImageCompressor compressor;
+            pdf::PDFImageCompressor::Environment environment(document.data());
+            int printed = 0;
+            QElapsedTimer stageTimer;
+            stageTimer.start();
+            compressor.visitImages(environment, compressor.collectImagePlacements(environment), [&](pdf::PDFImageCompressor::ImageStatistics statistics)
+            {
+                if (printed++ >= imageCount)
+                {
+                    return;
+                }
+                const qint64 decodeTime = stageTimer.restart();
+                pdf::PDFImageOptimizer::ImageInfo info;
+                info.reference = statistics.reference;
+                info.image = statistics.image;
+                info.minimalDpi = statistics.minimalDpi;
+                const pdf::PDFImageOptimizer::ResolvedPlan plan = pdf::PDFImageOptimizer::resolvePlan(info, settings);
+                const qint64 planTime = stageTimer.restart();
+                pdf::PDFRenderErrorReporterDummy reporter;
+                const pdf::PDFStream stream = pdf::PDFImage::createStreamFromImage(info.image, plan.encodeOptions, &reporter);
+                const qint64 encodeTime = stageTimer.restart();
+                const pdf::PDFStream* original = document->getObjectByReference(statistics.reference).getStream();
+                qInfo("BENCHMARK image %d: %d x %d format %d, %s, dpi %.0f, target %d x %d, mode %d, algorithm %d: decode %lld ms, plan %lld ms, encode %lld ms, %lld -> %lld bytes",
+                      printed, info.image.width(), info.image.height(), int(info.image.format()), qPrintable(pdf::PDFImageOptimizer::readFilterName(document.data(), original->getDictionary())), statistics.minimalDpi.x(),
+                      plan.targetSize.width(), plan.targetSize.height(), int(plan.resolvedColorMode), int(plan.algorithm), decodeTime, planTime, encodeTime, qint64(original->getContent()->size()), qint64(stream.getContent()->size()));
+            });
+            return;
+        }
+
+        // PDF4QT_COMPRESS_BENCHMARK_PRESET: the preset of the run, Smaller file by default
         Listener listener;
+        listener.timer.start();
         pdf::PDFDocumentToolProgressAdapter progress(&listener);
         pdf::PDFDocumentToolCompress tool;
         QVariantMap parameters;
-        parameters.insert(QStringLiteral("preset"), QStringLiteral("smaller-file"));
+        const QString benchmarkPreset = qEnvironmentVariable("PDF4QT_COMPRESS_BENCHMARK_PRESET", QStringLiteral("smaller-file"));
+        parameters.insert(QStringLiteral("preset"), benchmarkPreset);
         const pdf::PDFDocumentToolResult result = tool.runPreview(pdf::PDFDocumentToolContext::create(pdf::PDFDocumentToolInputDocument::create(document, data, filePath, false)), parameters, nullptr, &progress);
-        qInfo("BENCHMARK core: status %d, peak %lld MB, now %lld MB", int(result.status), H::getPeakMemoryMB(), H::getCurrentMemoryMB());
+        qInfo("BENCHMARK core: %s status %d, time %lld ms, size %lld -> %lld, peak %lld MB, now %lld MB", qPrintable(benchmarkPreset), int(result.status), listener.timer.elapsed(),
+              result.data.value(QStringLiteral("sizeBefore")).toInteger(), result.data.value(QStringLiteral("sizeAfter")).toInteger(), H::getPeakMemoryMB(), H::getCurrentMemoryMB());
         return;
     }
 
@@ -2771,8 +3006,9 @@ void AppToolCompressTest::startPageTexts()
     QCOMPARE(facts->getValue(4), QStringLiteral("Lost (copy only)"));
     QCOMPARE(facts->getValue(5), QStringLiteral("pdftool optimize"));
 
-    // Often used next from the suggestions of O21: the default of the catalog first
-    QVERIFY2(page->createOftenNextText().startsWith(QStringLiteral("Protect with Password")), qPrintable(page->createOftenNextText()));
+    // Often used next from the suggestions of O21: the three defaults of the catalog in its order, the
+    // same three as Then continue with
+    QCOMPARE(page->createOftenNextText(), QStringLiteral("Merge, Protect with Password, Sign with Certificate"));
     QCOMPARE(page->getOftenNextText()->text(), page->createOftenNextText());
 
     // The manual of the topic: K9, K10, the row of CMYK and Lab; the name of a preset of the

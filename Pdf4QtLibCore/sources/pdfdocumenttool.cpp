@@ -22,9 +22,15 @@
 
 #include "pdfdocumenttool.h"
 #include "pdfcatalog.h"
+#include "pdfdocumentbuilder.h"
 #include "pdfdocumenttoolcatalog.h"
+#include "pdfdocumentwriter.h"
 #include "pdfexception.h"
+#include "pdfexecutionpolicy.h"
+#include "pdfform.h"
 #include "pdfobjectutils.h"
+#include "pdfocrpagepreparer.h"
+#include "pdfocrtextlayerwriter.h"
 #include "pdfoperationcontrol.h"
 
 #include <QCoreApplication>
@@ -44,6 +50,32 @@ class PDFDocumentToolHelper
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocumentTool)
 
 public:
+    /// More threads hold more data at once; the user, who needs less, has the setting. A setting,
+    /// which is on already, is no advice.
+    static QString getOutOfMemoryText()
+    {
+        if (!PDFExecutionPolicy::isParallelizing(PDFExecutionPolicy::Scope::Page))
+        {
+            return tr("There is not enough memory to finish the tool, nothing was changed.");
+        }
+        return tr("There is not enough memory to finish the tool, nothing was changed. Set Multithreading strategy in Settings › Advanced to Single thread and run it again: it holds one image at a time.");
+    }
+
+    /// Name of a signature impact in JSON
+    static QString getSignatureImpactName(PDFDocumentToolSignatureImpact impact)
+    {
+        switch (impact)
+        {
+            case PDFDocumentToolSignatureImpact::None:
+                return QStringLiteral("none");
+            case PDFDocumentToolSignatureImpact::IncrementalSave:
+                return QStringLiteral("incremental-save");
+            case PDFDocumentToolSignatureImpact::LostCopyOnly:
+                return QStringLiteral("lost-copy-only");
+        }
+        return QString();
+    }
+
     PDFDocumentToolHelper() = delete;
 
     /// Failed result of the errors of a validation
@@ -172,6 +204,13 @@ PDFDocumentToolResult PDFDocumentToolResult::createNothingToDo(const QString& me
     PDFDocumentToolResult result;
     result.status = PDFDocumentToolResultStatus::NothingToDo;
     result.message = message;
+    return result;
+}
+
+PDFDocumentToolResult PDFDocumentToolResult::createOutOfMemory()
+{
+    PDFDocumentToolResult result = createFailed(PDFDocumentToolHelper::getOutOfMemoryText());
+    result.failureKind = PDFDocumentToolFailureKind::OutOfMemory;
     return result;
 }
 
@@ -378,6 +417,85 @@ PDFDocument PDFDocumentTool::createWholeFileDocument(PDFObjectStorage storage, c
     return PDFDocument(std::move(storage), input->getInfo()->version, input->getSourceDataHash());
 }
 
+qint64 PDFDocumentTool::getWholeFileInputSize(const PDFDocumentToolInputDocument& input)
+{
+    return !input.originalData.isEmpty() && !input.isModified ? qint64(input.originalData.size()) : PDFDocumentWriter::getDocumentFileSize(input.document.data());
+}
+
+PDFDocumentTool::WholeFileSize PDFDocumentTool::getWholeFileOutputSize(const PDFDocument* output)
+{
+    WholeFileSize result;
+    result.size = PDFDocumentWriter::getDocumentFileSize(output);
+    if (result.size < 0)
+    {
+        result.error = PDFDocumentToolHelper::tr("The result cannot be written.");
+    }
+    else if (result.size > MAXIMUM_RESULT_SIZE)
+    {
+        result.size = -1;
+        result.error = PDFDocumentToolHelper::tr("The result is too large to be saved.");
+    }
+    return result;
+}
+
+void PDFDocumentTool::finishWholeFileResult(PDFDocumentToolResult* result, const PDFDocumentToolInputDocument& input, PDFDocument output, qint64 sizeBefore, qint64 sizeAfter, const QString& fileNameSuffix, WholeFileDocument documentRule) const
+{
+    result->data.insert(QStringLiteral("sizeBefore"), sizeBefore);
+    result->data.insert(QStringLiteral("sizeAfter"), sizeAfter);
+    result->data.insert(QStringLiteral("savedBytes"), qMax(qint64(0), sizeBefore - sizeAfter));
+    result->data.insert(QStringLiteral("savedPercent"), PDFDocumentToolFormat::getSavedPercent(sizeBefore, sizeAfter));
+
+    const PDFDocumentToolCatalogEntry* info = getInfo();
+    result->data.insert(QStringLiteral("signatureCount"), PDFForm::getSignatureCount(input.document.data()));
+    result->data.insert(QStringLiteral("signatureImpact"), PDFDocumentToolHelper::getSignatureImpactName(info ? info->getSignatureImpact() : PDFDocumentToolSignatureImpact::None));
+
+    if (documentRule == WholeFileDocument::Always || sizeAfter < sizeBefore)
+    {
+        PDFDocumentToolOutputDocument outputDocument;
+        outputDocument.kind = PDFDocumentToolOutputDocument::Kind::Changed;
+        outputDocument.inputIndex = 0;
+        outputDocument.document = PDFDocumentPointer(new PDFDocument(std::move(output)));
+        outputDocument.flags = PDFModifiedDocument::Reset;
+
+        const QString baseName = QFileInfo(input.fileName).completeBaseName();
+        outputDocument.suggestedFileName = (baseName.isEmpty() ? QStringLiteral("document") : baseName) + fileNameSuffix + QStringLiteral(".pdf");
+        result->documents.push_back(std::move(outputDocument));
+    }
+}
+
+PDFDocumentTool::ConformanceRemoval PDFDocumentTool::removeConformanceDeclaration(PDFObjectStorage* storage, const PDFDocument* document)
+{
+    ConformanceRemoval removal;
+    QStringList declarations;
+    if (!PDFOCRPagePreparer::hasConformanceDeclaration(document, &declarations))
+    {
+        return removal;
+    }
+
+    PDFDocumentBuilder builder(document);
+    if (!PDFOCRTextLayerWriter::removeConformanceDeclaration(&builder, document))
+    {
+        removal.kept = declarations;
+        return removal;
+    }
+
+    *storage = *builder.getStorage();
+    removal.removed = declarations;
+    return removal;
+}
+
+PDFDocumentToolFact PDFDocumentTool::createConformanceFact(const QStringList& removed)
+{
+    return { QStringLiteral("conformance"), PDFDocumentToolHelper::tr("Declared standard"),
+             PDFDocumentToolHelper::tr("The result no longer declares %1: it has not been checked against the standard").arg(removed.join(QStringLiteral(", "))) };
+}
+
+std::vector<PDFDocumentToolParameterError> PDFDocumentTool::checkGivenParameters(const QVariantMap& given) const
+{
+    Q_UNUSED(given);
+    return { };
+}
+
 PDFDocumentToolResult PDFDocumentTool::prepare(const PDFDocumentToolContext& context, const QVariantMap& parameters, QVariantMap* normalizedParameters) const
 {
     if (!getInfo())
@@ -428,7 +546,7 @@ PDFDocumentToolResult PDFDocumentTool::run(const PDFDocumentToolContext& context
     }
     catch (const std::bad_alloc&)
     {
-        return PDFDocumentToolResult::createFailed(PDFDocumentToolHelper::tr("There is not enough memory to finish the tool."));
+        return PDFDocumentToolResult::createOutOfMemory();
     }
     catch (const std::exception&)
     {
@@ -473,7 +591,7 @@ PDFDocumentToolResult PDFDocumentTool::runPreview(const PDFDocumentToolContext& 
     }
     catch (const std::bad_alloc&)
     {
-        return PDFDocumentToolResult::createFailed(PDFDocumentToolHelper::tr("There is not enough memory to finish the tool."));
+        return PDFDocumentToolResult::createOutOfMemory();
     }
     catch (const std::exception&)
     {

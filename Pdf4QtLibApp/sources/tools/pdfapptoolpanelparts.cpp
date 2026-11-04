@@ -234,14 +234,16 @@ PDFAppToolMeasuredCard::PDFAppToolMeasuredCard(QWidget* parent) :
     m_before = PDFAppPageWidgets::createLabel(QString(), QFont::Medium, 15, PDFThemeColors::TextTertiary, sizesRow);
     m_before->setObjectName(QStringLiteral("toolMeasuredBefore"));
     m_before->setFixedHeight(18);
-    sizes->addWidget(m_before, 0, Qt::AlignBaseline);
+    m_before->setDataText(true);
     PDFLabel* arrow = PDFAppPageWidgets::createLabel(QStringLiteral("→"), QFont::Medium, 15, PDFThemeColors::TextMuted, sizesRow);
     arrow->setFixedHeight(18);
-    sizes->addWidget(arrow, 0, Qt::AlignBaseline);
     m_after = PDFAppPageWidgets::createLabel(QString(), QFont::DemiBold, 20, PDFThemeColors::TextPrimary, sizesRow);
     m_after->setObjectName(QStringLiteral("toolMeasuredAfter"));
     m_after->setFixedHeight(24);
-    sizes->addWidget(m_after, 0, Qt::AlignBaseline);
+    m_after->setDataText(true);
+
+    // 293:1359: items-baseline, both sizes end on one line
+    PDFAppPageWidgets::addBaselineLabels(sizes, { { m_before.data() }, { arrow }, { m_after.data() } });
 
     // The alignment of a layout item takes the direction of its widget: the stretch of a
     // mirrored row keeps the sizes at the leading edge of the card
@@ -288,12 +290,13 @@ PDFAppToolSectionHeader::PDFAppToolSectionHeader(const QString& title, const QSt
 
     m_title = PDFAppPageWidgets::createLabel(title, QFont::DemiBold, 13, PDFThemeColors::TextPrimary, this);
     m_title->setObjectName(QStringLiteral("toolSectionTitle"));
-    layout->addWidget(m_title, 0, Qt::AlignBaseline);
 
     m_hint = PDFAppPageWidgets::createLabel(hint, QFont::Normal, 11, PDFThemeColors::TextMuted, this);
     m_hint->setObjectName(QStringLiteral("toolSectionHint"));
     m_hint->setVisible(!hint.isEmpty());
-    layout->addWidget(m_hint, 0, Qt::AlignBaseline);
+
+    // 293:1355: items-baseline
+    PDFAppPageWidgets::addBaselineLabels(layout, { { m_title.data() }, { m_hint.data() } });
     layout->addStretch(1);
 }
 
@@ -312,11 +315,10 @@ void PDFAppToolSectionHeader::setCountStyle()
     QHBoxLayout* countLayout = new QHBoxLayout(this);
     countLayout->setContentsMargins(0, COUNT_STYLE_HEIGHT - HEIGHT, 0, 0);
     countLayout->setSpacing(GAP);
-    countLayout->addWidget(m_title, 1, Qt::AlignBaseline);
     m_hint = PDFAppPageWidgets::createLabel(QString(), QFont::Normal, 12, PDFThemeColors::TextTertiary, this);
     m_hint->setObjectName(QStringLiteral("toolSectionHint"));
     m_hint->hide();
-    countLayout->addWidget(m_hint, 0, Qt::AlignBaseline);
+    PDFAppPageWidgets::addBaselineLabels(countLayout, { { m_title.data(), 1 }, { m_hint.data() } });
 }
 
 void PDFAppToolSectionHeader::setHint(const QString& hint)

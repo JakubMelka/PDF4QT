@@ -50,6 +50,14 @@ class PDFAppPageLayoutHelper
 public:
     PDFAppPageLayoutHelper() = delete;
 
+    /// The text of one line lies in the center of its label: its baseline from the top of the label
+    static qreal getLabelBaseline(const PDFLabel* label)
+    {
+        const QFontMetricsF metrics(label->font());
+        const qreal height = label->minimumHeight() == label->maximumHeight() ? label->minimumHeight() : QFontMetrics(label->font()).height();
+        return (height - metrics.height()) / 2.0 + metrics.ascent();
+    }
+
     /// Narrowest width, which a box layout gives the widget (the rule of the
     /// layouts of Qt: the minimal width set on the widget, else the minimal size
     /// hint by the size policy); a hidden widget takes no place. \p isOwnLimit
@@ -974,6 +982,26 @@ PDFLabel* PDFAppPageWidgets::createLabel(const QString& text, QFont::Weight weig
     PDFLabel* label = createLabel(text, PDFThemeFonts::Role::Body, color, parent);
     label->setFont(PDFThemeFonts::getFont(weight, pixelSize));
     return label;
+}
+
+void PDFAppPageWidgets::addBaselineLabels(QHBoxLayout* layout, const std::vector<BaselineLabel>& labels)
+{
+    qreal lowestBaseline = 0.0;
+    for (const BaselineLabel& item : labels)
+    {
+        lowestBaseline = qMax(lowestBaseline, PDFAppPageLayoutHelper::getLabelBaseline(item.label));
+    }
+
+    for (const BaselineLabel& item : labels)
+    {
+        const int margin = qRound(lowestBaseline - PDFAppPageLayoutHelper::getLabelBaseline(item.label));
+        if (item.label->minimumHeight() == item.label->maximumHeight())
+        {
+            item.label->setFixedHeight(item.label->minimumHeight() + margin);
+        }
+        item.label->setContentsMargins(0, margin, 0, 0);
+        layout->addWidget(item.label, item.stretch, Qt::AlignTop);
+    }
 }
 
 PDFAppParagraph* PDFAppPageWidgets::createText(const QString& text, const QFont& font, int lineHeight, PDFThemeColors::Color color, QWidget* parent)
