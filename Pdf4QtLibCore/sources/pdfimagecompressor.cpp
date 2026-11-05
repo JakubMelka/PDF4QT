@@ -90,11 +90,10 @@ public:
         const int taskCount = int(qMin(size_t(getTaskCount()), count));
 
         std::atomic<size_t> nextIndex = 0;
-        std::atomic<bool> hasFailed = false;
         PDFIntegerRange<int> tasks(0, taskCount);
         PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, tasks.begin(), tasks.end(), [&](int)
         {
-            while (!hasFailed.load(std::memory_order_relaxed) && !PDFOperationControl::isOperationCancelled(operationControl))
+            while (!PDFOperationControl::isOperationCancelled(operationControl))
             {
                 const size_t index = nextIndex.fetch_add(1, std::memory_order_relaxed);
                 if (index >= count)
@@ -102,17 +101,7 @@ public:
                     break;
                 }
 
-                // Out of memory: the other tasks free theirs and take nothing new, the policy
-                // throws it to the caller after they have stopped
-                try
-                {
-                    function(index);
-                }
-                catch (...)
-                {
-                    hasFailed.store(true, std::memory_order_relaxed);
-                    throw;
-                }
+                function(index);
             }
         });
     }

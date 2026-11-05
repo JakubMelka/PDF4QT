@@ -24,6 +24,7 @@
 #define PDFAPPAUTOREFRESH_H
 
 #include "pdfappglobal.h"
+#include "pdfappdocument.h"
 
 #include "pdfdocument.h"
 
@@ -76,6 +77,7 @@ public:
         QByteArray data;                ///< Bytes of the file (Changed, PasswordRequired)
         bool isPasswordProtected = false;
         bool isPagedXFA = false;        ///< \p document is the paged layout of the XFA form of the file (step 8)
+        PDFAppDocumentRestoration restoration = PDFAppDocumentRestoration::None;    ///< The new file is damaged (Changed)
         QString errorMessage;           ///< Error of Failed
     };
 

@@ -31,6 +31,7 @@
 #include "pdfappfiledrop.h"
 #include "pdfappmainwindow.h"
 #include "pdfappprint.h"
+#include "pdfapprestoredfilebar.h"
 #include "pdfappsendmail.h"
 #include "pdfappthumbnailer.h"
 #include "pdfrecentrepository.h"
@@ -113,10 +114,6 @@ PDFAppDocumentFileWriter::Result PDFAppDocumentFileWriter::write(Request request
     catch (const PDFException& exception)
     {
         result.errorMessage = exception.getMessage();
-    }
-    catch (const std::bad_alloc&)
-    {
-        result.errorMessage = tr("There is not enough memory to save the document.");
     }
 
     return result;
@@ -212,11 +209,34 @@ int PDFAppDocumentFileWriter::getSignatureCount(const PDFDocument* document)
 
 int PDFAppDocumentFileWriter::getIncrementalSignatureCount(const PDFAppDocumentSnapshot& snapshot)
 {
-    if (snapshot.originalData.isEmpty() || snapshot.isPagedXFA || snapshot.isWholeFileRewritten || snapshot.isSignedRevisionGone)
+    if (snapshot.originalData.isEmpty() || snapshot.isPagedXFA || snapshot.isWholeFileRewritten || snapshot.isSignedRevisionGone ||
+        snapshot.restoration != PDFAppDocumentRestoration::None)
     {
         return 0;
     }
     return getSignatureCount(snapshot.document.data());
+}
+
+bool PDFAppDocumentFileWriter::isOnlyCopyWritable(const PDFAppDocumentSnapshot& snapshot)
+{
+    if (snapshot.isPagedXFA)
+    {
+        return false;
+    }
+
+    switch (snapshot.restoration)
+    {
+        case PDFAppDocumentRestoration::None:
+            return false;
+
+        case PDFAppDocumentRestoration::Restored:
+            return getSignatureCount(snapshot.document.data()) > 0;
+
+        case PDFAppDocumentRestoration::OldestContent:
+            // The signatures of the last changes are not in the shown document, so it cannot tell
+            return true;
+    }
+    return false;
 }
 
 bool PDFAppDocumentFileWriter::isWritable(const QString& filePath)
@@ -349,6 +369,12 @@ QString PDFAppDocumentSaver::getProposedFilePath() const
 
     if (!document->getFilePath().isEmpty())
     {
+        // A file, which only a copy may leave, is not the proposed target
+        if (PDFAppDocumentFileWriter::isOnlyCopyWritable(document->getSnapshot()))
+        {
+            const QFileInfo fileInfo(document->getFilePath());
+            return fileInfo.dir().absoluteFilePath(QStringLiteral("%1_copy.pdf").arg(fileInfo.completeBaseName()));
+        }
         return document->getFilePath();
     }
 
@@ -384,9 +410,18 @@ void PDFAppDocumentSaver::start(bool isSaveAs)
         return;
     }
 
+    // A damaged file only a copy may leave: the same question for Save and for Save as, the
+    // signatures do not hold in the copy
+    const PDFAppDocumentSnapshot snapshot = document->getSnapshot();
+    if (PDFAppDocumentFileWriter::isOnlyCopyWritable(snapshot))
+    {
+        showRestoredDialog(snapshot);
+        return;
+    }
+
     // No incremental update and no question for a display version of an XFA form (step 8)
     // and for the result of a tool, which rewrites the file (O31)
-    const int signatureCount = PDFAppDocumentFileWriter::getIncrementalSignatureCount(document->getSnapshot());
+    const int signatureCount = PDFAppDocumentFileWriter::getIncrementalSignatureCount(snapshot);
     const bool isIncremental = signatureCount > 0;
 
     if (isSaveAs || document->getFilePath().isEmpty())
@@ -437,6 +472,15 @@ void PDFAppDocumentSaver::writeFile(const QString& filePath, bool isIncremental)
     }
 
     const QString nativePath = QDir::toNativeSeparators(QFileInfo(filePath).absoluteFilePath());
+
+    // The copy of a damaged file never replaces it: the name of the file, chosen with the
+    // question of the file dialog, is not the word of the user about the signed bytes
+    if (!document->getFilePath().isEmpty() && PDFAppDocumentFileWriter::isOnlyCopyWritable(document->getSnapshot()) && QFileInfo(filePath) == QFileInfo(document->getFilePath()))
+    {
+        showErrorDialog(filePath, tr("This is the damaged file itself, and it stays as it is. Choose another name for the copy."), nativePath);
+        return;
+    }
+
     if (isOpenInAnotherDocument(filePath))
     {
         showErrorDialog(filePath, tr("The file is open in another tab. Your changes are still in the document – save them to another file, or close the other tab and save again."),
@@ -507,6 +551,10 @@ bool PDFAppDocumentSaver::writeSilently(PDFAppDocumentFileWriter::Request reques
     else if (isRunning())
     {
         error = tr("The document is being saved. Try it again when it ends.");
+    }
+    else if (PDFAppDocumentFileWriter::isOnlyCopyWritable(document->getSnapshot()))
+    {
+        error = tr("The file is damaged, so it stays as it is. Only a copy can be saved.");
     }
     else if (isOpenInAnotherDocument(request.filePath))
     {
@@ -694,6 +742,74 @@ void PDFAppDocumentSaver::showSignedDialog(int signatureCount)
     Q_EMIT stateChanged();
 }
 
+void PDFAppDocumentSaver::showRestoredDialog(const PDFAppDocumentSnapshot& snapshot)
+{
+    PDFAppDocument* document = getDocument();
+    if (!document)
+    {
+        finish(false);
+        return;
+    }
+
+    closeDialog();
+
+    // The two reasons of PDFAppDocumentFileWriter::isOnlyCopyWritable, what the user can see of them
+    const int signatureCount = PDFAppDocumentFileWriter::getSignatureCount(snapshot.document.data());
+    QString text;
+    if (signatureCount == 1)
+    {
+        text = tr("%1 is damaged and has a signature. PDF4QT cannot add your changes to the signed file, so it stays as it is. The copy is a new, whole file, and the signature will not be valid in it.");
+    }
+    else if (signatureCount > 1)
+    {
+        text = tr("%1 is damaged and has %Ln signatures. PDF4QT cannot add your changes to the signed file, so it stays as it is. The copy is a new, whole file, and the signatures will not be valid in it.", nullptr, signatureCount);
+    }
+    else
+    {
+        text = tr("Only the oldest content of %1 can be read. Saving over the file would lose the rest of it, so it stays as it is. The copy is a new file with what you see.");
+    }
+
+    PDFMessageBox* dialog = new PDFMessageBox(PDFThemeIcons::Badge::Warning, tr("This damaged file can be saved only as a copy"), text.arg(document->getTitle()),
+                                              QDialogButtonBox::NoButton, getDialogParent());
+    dialog->setObjectName(QStringLiteral("saveRestoredDialog"));
+    dialog->setCardWidth(PDFAppDocumentSaveHelper::MESSAGE_BOX_WIDTH);
+    PDFAppMainWindow::prepareDialog(dialog, m_tab);
+
+    // No button of Save over the file: it could only fail. Cancel next to the primary button (958:28033)
+    QPushButton* cancelButton = dialog->addActionButton(tr("Cancel"), PDFMessageBox::ActionPosition::Trailing, false);
+    cancelButton->setObjectName(QStringLiteral("cancelButton"));
+    QPushButton* saveCopyButton = dialog->addActionButton(tr("Save as Copy…"), PDFMessageBox::ActionPosition::Trailing, true);
+    saveCopyButton->setObjectName(QStringLiteral("saveCopyButton"));
+
+    connect(cancelButton, &QPushButton::clicked, dialog, &QDialog::reject);
+    connect(saveCopyButton, &QPushButton::clicked, dialog, &QDialog::accept);
+    connect(dialog, &QDialog::finished, this, &PDFAppDocumentSaver::onRestoredDialogFinished);
+
+    m_dialog = dialog;
+    m_step = Step::RestoredDialog;
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->open();
+    Q_EMIT stateChanged();
+}
+
+void PDFAppDocumentSaver::onRestoredDialogFinished(int result)
+{
+    if (sender() != m_dialog.data() || m_step != Step::RestoredDialog)
+    {
+        return;
+    }
+
+    m_dialog = nullptr;
+    PDFAppDocument* document = getDocument();
+    if (result != QDialog::Accepted || !document || !document->isReady())
+    {
+        finish(false);
+        return;
+    }
+
+    chooseFileAndWrite(false);
+}
+
 void PDFAppDocumentSaver::onSignedDialogFinished(int result)
 {
     if (sender() != m_dialog.data() || m_step != Step::SignedDialog)
@@ -841,6 +957,7 @@ PDFAppDocumentFileCommandHandler::PDFAppDocumentFileCommandHandler(PDFAppDocumen
     m_autoRefresh = new PDFAppAutoRefresh(tab, this);
     m_printController = new PDFAppPrintController(tab, this);
     m_sendMail = new PDFAppSendMail(tab, m_saver, this);
+    m_restoredFileBar = new PDFAppRestoredFileBar(tab, this);
 
     connect(m_saver, &PDFAppDocumentSaver::stateChanged, this, &PDFAppDocumentFileCommandHandler::onPartStateChanged);
     connect(m_saver, &PDFAppDocumentSaver::finished, this, &PDFAppDocumentFileCommandHandler::onSaverFinished);

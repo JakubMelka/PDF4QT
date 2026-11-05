@@ -35,6 +35,7 @@
 #include <QScrollArea>
 #include <QWidget>
 
+class QFontMetricsF;
 class QVBoxLayout;
 
 namespace pdf
@@ -174,6 +175,14 @@ public:
 
     void setTexts(const QString& title, const QString& text);
 
+    /// The callout of a narrow panel (Remove Hidden Data 438:12703, Remove External Links
+    /// 438:15026): radius 8, the head and the text 4 apart, the text Regular 11 in lines of 13
+    void setCompactStyle();
+
+    static constexpr int COMPACT_RADIUS = 8;
+    static constexpr int COMPACT_GAP = 4;
+    static constexpr int COMPACT_TEXT_LINE = 13;
+
     PDFLabel* getTitleLabel() const { return m_title; }
     PDFAppParagraph* getTextLabel() const { return m_text; }
 
@@ -246,6 +255,33 @@ private:
     QPointer<PDFLabel> m_saving;
 };
 
+/// Header of a whole panel (438:12686, 438:12810: "Hidden data" / "Found in Report.pdf"): the
+/// title Semi Bold 14, 1 px below it the subtitle Regular 11 text/tertiary, 31 high
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolPanelHeader : public QWidget
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QWidget;
+
+public:
+    static constexpr int TITLE_LINE = 17;
+    static constexpr int SUBTITLE_LINE = 13;
+    static constexpr int GAP = 1;
+
+    explicit PDFAppToolPanelHeader(const QString& title, const QString& subtitle, QWidget* parent);
+    virtual ~PDFAppToolPanelHeader() override;
+
+    void setTexts(const QString& title, const QString& subtitle);
+
+    PDFLabel* getTitleLabel() const { return m_title; }
+    PDFLabel* getSubtitleLabel() const { return m_subtitle; }
+
+private:
+    QPointer<PDFLabel> m_title;
+    QPointer<PDFLabel> m_subtitle;
+};
+
 /// Header of a section of a panel (header 293:1355): the title Semi Bold 13 and the
 /// hint Regular 11 text/muted on one baseline, 8 px apart, 16 high
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolSectionHeader : public QWidget
@@ -272,9 +308,68 @@ public:
     PDFLabel* getHintLabel() const { return m_hint; }
     void setHint(const QString& hint);
 
+    /// Puts a widget at the trailing edge of the header, the title takes the rest (the link
+    /// Copy report 303:5371: the title and the link 8 apart, centered); the header owns it
+    void addTrailingWidget(QWidget* widget);
+
 private:
     QPointer<PDFLabel> m_title;
     QPointer<PDFLabel> m_hint;
+};
+
+/// A chip over the canvas of a tool (the chips BEFORE / AFTER of Compress 293:1350, the chip
+/// Lossless of Optimize Structure 302:4542): a pill icon/strong with Semi Bold 11 bg/surface and
+/// an optional icon 14 at its leading side. The drawing is one function for the overlay of
+/// Compress, which draws its chips into the canvas, and for this widget, which lies over the
+/// canvas centered at the top (CHIP_TOP of the frames). The widget takes no mouse and no focus:
+/// the wheel and the clicks reach the canvas below it. A child of the canvas area (the shell
+/// deletes it, the canvas area when it dies first); it emits no signals.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolCanvasChip : public QWidget
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QWidget;
+
+public:
+    static constexpr int HEIGHT = 24;           ///< chip-lossless 302:4542
+    static constexpr int TOP = 36;              ///< Below the top of the canvas (126 of 90)
+    static constexpr int FONT_SIZE = 11;
+    static constexpr int ICON_SIZE = 14;
+    static constexpr int ICON_GAP = 6;
+    static constexpr int PADDING_LEADING = 10;  ///< With an icon; without it the padding is the same at both sides
+    static constexpr int PADDING_TRAILING = 12;
+    static constexpr int MARGIN = 8;            ///< Distance from the edges of a narrow canvas, where the text is elided
+
+    /// \param canvasArea The canvas area, the parent
+    explicit PDFAppToolCanvasChip(QWidget* canvasArea);
+    virtual ~PDFAppToolCanvasChip() override;
+
+    /// The text and the icon of the chip; an empty text hides the chip
+    void setChip(const QString& text, const QString& iconName);
+    const QString& getText() const { return m_text; }
+    const QString& getIconName() const { return m_iconName; }
+
+    /// Width of a chip of the text: \p padding at each side, or the paddings of a chip with an icon
+    static int getChipWidth(const QString& text, const QString& iconName, int padding);
+
+    /// Draws a chip into its rectangle, in the direction (the icon at the leading side); the text
+    /// is elided to the room of the chip
+    static void paintChip(QPainter* painter, const QRect& rect, const QString& text, const QString& iconName, int padding, Qt::LayoutDirection direction);
+
+protected:
+    virtual bool eventFilter(QObject* watched, QEvent* event) override;
+    virtual void paintEvent(QPaintEvent* event) override;
+    virtual void changeEvent(QEvent* event) override;
+
+private:
+    static QString elideText(const QFontMetricsF& metrics, const QString& text, int room);
+    void updatePlacement();
+    void onThemeChanged();
+
+    QPointer<QWidget> m_canvasArea;
+    QString m_text;
+    QString m_iconName;
 };
 
 }   // namespace pdf

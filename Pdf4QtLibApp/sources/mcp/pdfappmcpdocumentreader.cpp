@@ -496,6 +496,8 @@ QByteArray PDFAppMcpDocumentReader::getInfo(const PDFAppDocument* document)
     writer.writeMember(QLatin1StringView("pageMode"), Helper::getPageModeName(catalog->getPageMode()));
     writer.writeMember(QLatin1StringView("isLocked"), document->isLocked());
     writer.writeMember(QLatin1StringView("isModified"), document->isModified());
+    writer.writeMember(QLatin1StringView("fileRestored"), document->getRestoration() != PDFAppDocumentRestoration::None);
+    writer.writeMember(QLatin1StringView("oldestContentShown"), document->getRestoration() == PDFAppDocumentRestoration::OldestContent);
     writer.writeMember(QLatin1StringView("version"), qint64(document->getVersion()));
     writer.writeMember(QLatin1StringView("origin"), QLatin1StringView("document"));
     writer.endObject();
@@ -1245,6 +1247,7 @@ QByteArray PDFAppMcpDocumentReader::getSignatures(const PDFAppDocument* document
             const bool hasUncoveredBytes = result.hasFlag(PDFSignatureVerificationResult::Warning_Signature_NotCoveredBytes);
             writer.writeMember(QLatin1StringView("coversWholeDocument"), !hasUncoveredBytes);
             writer.writeMember(QLatin1StringView("modifiedAfter"), hasUncoveredBytes);
+            writer.writeMember(QLatin1StringView("fileRestored"), result.hasFlag(PDFSignatureVerificationResult::Warning_Signature_FileRestored));
 
             auto fieldIt = signatureFields.find(result.getSignatureFieldReference());
             if (fieldIt != signatureFields.end())

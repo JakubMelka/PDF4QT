@@ -107,6 +107,10 @@ public:
     /// Editable keys of the Info dictionary of the group Description
     static QList<QByteArray> getEditableInfoKeys();
 
+    /// Name of the standard paper format of a size in millimeters ("A4", either orientation),
+    /// empty = no standard format (also the paper of a page in Remove Pages, 388:20614)
+    static QString getPaperFormatName(const QSizeF& sizeMM);
+
     /// Groups of the section Properties: Description, Content, File, Custom
     /// properties (the last only when the document has some)
     /// \param document Document (nullptr = no groups)

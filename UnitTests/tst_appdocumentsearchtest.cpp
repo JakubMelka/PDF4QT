@@ -229,6 +229,7 @@ private slots:
     void reviewNewQueryDropsResults();
     void reviewSignatureCardsKeepExpansion();
     void reviewTrustedRepositoryLimit();
+    void reviewSignatureOfRestoredFile();
     void reviewSpeechLongBlock();
 
     void screenshots();
@@ -1517,6 +1518,13 @@ void AppDocumentSearchTest::signatureCards()
     QCOMPARE(Verifier::getStatus(covered, false), Status::Warning);
     card = Verifier::getCard(covered, false, {});
     QCOMPARE(card.summary, QStringLiteral("The signature is intact, but a part of the document is not covered by it."));
+
+    // A change after the signature comes before the certificate: it is what the page shows (Signature/invalid/siwa.pdf)
+    Result coveredUntrusted = covered;
+    coveredUntrusted.addCertificateSelfSignedError();
+    QCOMPARE(Verifier::getStatus(coveredUntrusted, false), Status::Warning);
+    QCOMPARE(Verifier::getCard(coveredUntrusted, false, {}).summary, QStringLiteral("The signature is intact, but a part of the document is not covered by it."));
+
     bool notVerified = false;
     bool partOfDocument = false;
     for (const pdf::PDFComponentPainter::SignatureDetail& detail : card.details)
@@ -2285,6 +2293,54 @@ void AppDocumentSearchTest::reviewTrustedRepositoryLimit()
     QVERIFY(!error.getMessage().isEmpty());
     QVERIFY(!repository.contains(data));
     QCOMPARE(countRows(data), qint64(0));
+}
+
+void AppDocumentSearchTest::reviewSignatureOfRestoredFile()
+{
+    // A signature over every byte of a file, whose objects had to be restored from the bytes: the page shown is one the
+    // signer has never seen. "The document has not been changed" next to it would be the forgery the signature is for.
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = openReady(fixture, pdftest::AppDocumentSamples::restoredSignedDocument(fixture.folder()));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentSignatureVerifier* verifier = handler(tab)->getSignatureVerifier();
+    QTRY_VERIFY_WITH_TIMEOUT(verifier->getVerification() && !verifier->isVerifying(), 30000 * getTimeoutFactor());
+    QCOMPARE(tab->getDocument()->getSignatureResults().size(), size_t(1));
+
+    // The certificate of the signer is trusted: nothing else can say it needs attention
+    const std::vector<pdf::PDFCertificateInfo> certificates(tab->getDocument()->getSignatureResults().front().getCertificateInfos().begin(), tab->getDocument()->getSignatureResults().front().getCertificateInfos().end());
+    QVERIFY(!certificates.empty());
+    for (const pdf::PDFCertificateInfo& certificate : certificates)
+    {
+        QVERIFY(verifier->trustCertificate(certificate.getCertificateData()).isEmpty());
+    }
+    QTRY_VERIFY_WITH_TIMEOUT(verifier->getVerification() && !verifier->isVerifying(), 30000 * getTimeoutFactor());
+
+    QCOMPARE(tab->getDocument()->getSignatureResults().size(), size_t(1));
+    const pdf::PDFSignatureVerificationResult& result = tab->getDocument()->getSignatureResults().front();
+    QVERIFY(result.isCertificateValid());
+    QVERIFY(result.isSignatureValid());
+    QVERIFY(!result.hasFlag(pdf::PDFSignatureVerificationResult::Warning_Signature_NotCoveredBytes));
+    QCOMPARE(pdf::PDFAppDocumentSignatureVerifier::getStatus(result, false), pdf::PDFComponentPainter::SignatureStatus::Warning);
+    QCOMPARE(pdf::PDFAppDocumentSignatureVerifier::getStatus(result, true), pdf::PDFComponentPainter::SignatureStatus::Invalid);
+
+    const QString restoredText = QStringLiteral("The file is damaged and its content was restored, so what is shown may not be what was signed.");
+    QCOMPARE(pdf::PDFAppDocumentSignatureVerifier::getCard(result, true, {}).summary, restoredText);
+
+    pdf::PDFAppSignatureStatusItem* item = tab->getView()->findChild<pdf::PDFAppSignatureStatusItem*>();
+    QVERIFY(item);
+    QVERIFY(!item->isHidden());
+    // Never "valid" next to the restored content; the damaged file is saved only as a whole copy, in which the
+    // signature does not hold (P2RESTORE, owner 2026-11-05: PDFAppDocument::isSignatureLostOnSave of a restored file)
+    QCOMPARE(item->text(), QStringLiteral("1 signature · 1 needs attention · not valid after saving"));
+    QVERIFY(!item->text().contains(QStringLiteral(" valid ·")));
+    QVERIFY(tab->getDocument()->isSignatureLostOnSave());
+
+    item->click();
+    pdf::PDFAppDocumentSignaturesPanel* panel = qobject_cast<pdf::PDFAppDocumentSignaturesPanel*>(tab->getView()->getSidebar()->findPanel(pdf::PDFAppDocumentPanelIds::signatures()));
+    QVERIFY(panel);
+    QCOMPARE(panel->getCards().size(), size_t(1));
+    QCOMPARE(panel->getCards().front()->getStatus(), pdf::PDFComponentPainter::SignatureStatus::Warning);
+    QCOMPARE(panel->getCards().front()->getSummary(), restoredText);
 }
 
 void AppDocumentSearchTest::reviewSpeechLongBlock()

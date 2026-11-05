@@ -3,7 +3,7 @@ title: Save, print and send
 category: open-and-view
 order: 50
 summary: Save and Save as, signed documents, the automatic refresh, printing and sending a document by e-mail.
-keywords: save, save as, signed, signature, incremental, read-only, refresh, reload, changed on the disk, print, printer, copies, paper, e-mail, mail, send
+keywords: save, save as, signed, signature, incremental, read-only, damaged, repaired, copy, refresh, reload, changed on the disk, print, printer, copies, paper, e-mail, mail, send
 related: /help/read-documents, /help/signatures, /help/keyboard-shortcuts
 ---
 The commands of this topic are in the **File** panel of the toolbar of a document: the tiles **Save**, **Save as**, **Print** and **E-mail**, and the rows **Properties…**, **Automatic refresh**, **Lock document**, **Settings…** and **Close document**.
@@ -19,6 +19,12 @@ A file, which cannot be written (it is read-only, its folder does not exist any 
 ## Signed documents
 
 A document with digital signatures is saved as an *incremental update*: the signed versions stay in the file byte by byte and the new changes are appended after them, so the signatures can still be verified. The first **Save** of a signed document asks *Save the signed document?*: **Save Incrementally** saves it so, **Save as Copy…** writes the signed document with your changes into another file and leaves the original untouched, **Cancel** saves nothing. The signatures panel then lists the changes made after signing.
+
+## Damaged files
+
+When a file is damaged, PDF4QT repairs it to open it and says so in a bar above the page: *This file is damaged*. Something may be missing or differ from the original. When even the latest changes of the file cannot be read, the bar says *you may be seeing an old version*. You can close the bar; it comes back only when the file changes.
+
+A damaged file with a signature, or one of which only the oldest content can be read, is never saved over: that would lose the signed version or the changes PDF4QT cannot read. **Save** and **Save as** ask *This damaged file can be saved only as a copy*: **Save as Copy…** writes a new, whole file with your changes, the damaged file stays as it is. The signatures are not valid in the copy. Any other damaged file is saved as usual and is a valid file afterwards.
 
 ## Automatic refresh
 

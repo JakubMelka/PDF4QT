@@ -39,6 +39,7 @@
 #include "pdfoptimizedocumentdialog.h"
 #include "pdfoptimizeimagesdialog.h"
 #include "pdfsanitizedocumentdialog.h"
+#include "pdfdocumentlinkoperations.h"
 #include "pdfcreatebitonaldocumentdialog.h"
 #include "pdfocrdocumentdialog.h"
 #include "pdfscanpreparationdialog.h"
@@ -1565,58 +1566,24 @@ void PDFProgramController::onActionRemoveExternalLinksTriggered()
         return;
     }
 
-    pdf::PDFDocumentModifier modifier(m_pdfDocument.data());
-    pdf::PDFDocumentBuilder* builder = modifier.getBuilder();
-    builder->flattenPageTree();
-
-    const pdf::PDFObjectStorage* storage = builder->getStorage();
-    pdf::PDFDocumentDataLoaderDecorator loader(storage);
-
-    std::vector<std::pair<pdf::PDFObjectReference, pdf::PDFObjectReference>> annotationsToRemove;
-    std::vector<pdf::PDFObjectReference> pageReferences = builder->getPages();
-
-    for (const pdf::PDFObjectReference pageReference : pageReferences)
-    {
-        const pdf::PDFObject& pageObject = storage->getObjectByReference(pageReference);
-        const pdf::PDFDictionary* pageDictionary = storage->getDictionaryFromObject(pageObject);
-        if (!pageDictionary)
-        {
-            continue;
-        }
-
-        std::vector<pdf::PDFObjectReference> annotationReferences = loader.readReferenceArrayFromDictionary(pageDictionary, "Annots");
-        for (const pdf::PDFObjectReference& annotationReference : annotationReferences)
-        {
-            pdf::PDFAnnotationPtr annotation = pdf::PDFAnnotation::parse(storage, annotationReference);
-            if (pdf::PDFAnnotation::isExternalLinkAnnotation(annotation.data()))
-            {
-                annotationsToRemove.emplace_back(pageReference, annotationReference);
-            }
-        }
-    }
-
-    if (annotationsToRemove.empty())
+    // The rule and the removal are shared with PdfTool and the tool Remove External Links
+    const pdf::PDFDocumentLinkOperations::RemovalResult result = pdf::PDFDocumentLinkOperations::removeExternalLinkAnnotations(m_pdfDocument.data());
+    if (result.removed == 0)
     {
         QMessageBox::information(m_mainWindow, QApplication::applicationDisplayName(), tr("No external link annotations found."));
         m_mainWindowInterface->setStatusBarMessage(tr("No external link annotations found."), 4000);
         return;
     }
 
-    for (const auto& item : annotationsToRemove)
+    if (result.document)
     {
-        builder->removeAnnotation(item.first, item.second);
-    }
-    modifier.markAnnotationsChanged();
-
-    if (modifier.finalize())
-    {
-        pdf::PDFModifiedDocument document(modifier.getDocument(), m_optionalContentActivity, modifier.getFlags());
+        pdf::PDFModifiedDocument document(result.document, m_optionalContentActivity, result.flags);
         onDocumentModified(qMove(document));
     }
 
     QMessageBox::information(m_mainWindow, QApplication::applicationDisplayName(),
-                             tr("External link annotations removed: %1.").arg(annotationsToRemove.size()));
-    m_mainWindowInterface->setStatusBarMessage(tr("External link annotations removed: %1.").arg(annotationsToRemove.size()), 4000);
+                             tr("External link annotations removed: %1.").arg(result.removed));
+    m_mainWindowInterface->setStatusBarMessage(tr("External link annotations removed: %1.").arg(result.removed), 4000);
 }
 
 void PDFProgramController::onActionPageGeometryTriggered()

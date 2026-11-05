@@ -122,6 +122,7 @@ Save a copy of the document; the tab is unchanged.
 | `documentId` | string | Id of the document - pass it to the next calls |
 | `title` | string | Title of the document tab |
 | `path` | string |  |
+| `note` | string | What the user must be told about the copy (absent when there is nothing) |
 
 The tab keeps its document and file. Without `path`, PDF4QT asks the user (default `<name>_copy.pdf` next to the file).
 

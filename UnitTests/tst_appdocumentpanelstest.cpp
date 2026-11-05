@@ -44,6 +44,7 @@
 #include "pdfappdocumenttoolbar.h"
 #include "pdfappdocumentview.h"
 #include "pdfappnavigator.h"
+#include "pdfapptooldocumentpage.h"
 #include "pdfappundostack.h"
 #include "pdfbookmarkrepository.h"
 #include "pdfdatabasestatement.h"
@@ -1141,7 +1142,7 @@ void AppDocumentPanelsTest::thumbnailsContextMenu()
     QTRY_VERIFY(tab->isViewShown());
     delete menu;
 
-    for (const QString& name : { QStringLiteral("insertPages"), QStringLiteral("movePages"), QStringLiteral("removePages") })
+    for (const QString& name : { QStringLiteral("insertPages"), QStringLiteral("movePages") })
     {
         QPointer<QMenu> toolMenu = thumbnails->createContextMenu();
         PanelsTestHelper::findAction(toolMenu, name)->trigger();
@@ -1150,6 +1151,24 @@ void AppDocumentPanelsTest::thumbnailsContextMenu()
         fixture.window->getNavigator()->goBack(tab);
         fixture.settle();
         QTRY_VERIFY(tab->isViewShown());
+        delete toolMenu;
+    }
+
+    // Remove Pages has its tool (package 2A): the view in the tool mode of pages.remove, Back leaves it
+    {
+        QPointer<QMenu> toolMenu = thumbnails->createContextMenu();
+        PanelsTestHelper::findAction(toolMenu, QStringLiteral("removePages"))->trigger();
+        fixture.settle();
+        pdf::PDFAppToolDocumentPage* toolPage = qobject_cast<pdf::PDFAppToolDocumentPage*>(tab->getPage());
+        QVERIFY(toolPage);
+        QCOMPARE(toolPage->getToolId(), QStringLiteral("pages.remove"));
+        QVERIFY(toolPage->getShell());
+        QVERIFY(tab->getView()->isToolModeActive());
+        fixture.window->getNavigator()->goBack(tab);
+        fixture.settle();
+        QTRY_VERIFY(tab->isViewShown());
+        QVERIFY(!qobject_cast<pdf::PDFAppToolDocumentPage*>(tab->getPage()));
+        QVERIFY(!tab->getView()->isToolModeActive());
         delete toolMenu;
     }
 

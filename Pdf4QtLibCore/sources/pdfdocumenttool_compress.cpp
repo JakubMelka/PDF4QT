@@ -142,19 +142,9 @@ PDFDocument PDFDocumentToolCompress::compress(const PDFDocument* document, const
     }
 
     // After the optimizer: its counters of the unused objects stay the same with the clean-up on
-    PDFDocument result = createWholeFileDocument(std::move(storage), document);
-
     // The content has been rewritten and it is not checked against a standard the document
     // declares (a recoded image can be against it, the rule of the copies of OCR)
-    if (!PDFOperationControl::isOperationCancelled(control))
-    {
-        PDFObjectStorage resultStorage = result.getStorage();
-        localStatistics.conformance = removeConformanceDeclaration(&resultStorage, &result);
-        if (!localStatistics.conformance.removed.isEmpty())
-        {
-            result = PDFDocument(std::move(resultStorage), document->getInfo()->version, document->getSourceDataHash());
-        }
-    }
+    PDFDocument result = createWholeFileDocument(std::move(storage), document, PDFOperationControl::isOperationCancelled(control) ? nullptr : &localStatistics.conformance);
 
     if (statistics)
     {
@@ -320,7 +310,7 @@ PDFDocumentToolResult PDFDocumentToolCompress::execute(const PDFDocumentToolCont
     // Never a result, which still claims a standard it was not checked against
     if (!statistics.conformance.kept.isEmpty())
     {
-        return PDFDocumentToolResult::createFailed(tr("The document declares %1 and its metadata cannot be changed. The result would keep a declaration, which is not true, so nothing was made.").arg(statistics.conformance.kept.join(QStringLiteral(", "))));
+        return createConformanceFailure(statistics.conformance.kept);
     }
 
     phases.beginPhase(measurePhase);
@@ -358,10 +348,9 @@ PDFDocumentToolResult PDFDocumentToolCompress::execute(const PDFDocumentToolCont
     result.facts.push_back({ QStringLiteral("time"), tr("Time"), PDFDocumentToolFormat::formatDuration(duration) });
 
     // Only a result, which exists, has lost its declaration
-    if (sizeAfter < sizeBefore && !statistics.conformance.removed.isEmpty())
+    if (sizeAfter < sizeBefore)
     {
-        result.facts.push_back(createConformanceFact(statistics.conformance.removed));
-        result.data.insert(QStringLiteral("conformanceRemoved"), QJsonArray::fromStringList(statistics.conformance.removed));
+        addConformanceFact(&result, statistics.conformance.removed);
     }
 
     result.data.insert(QStringLiteral("preset"), parameters.value(Helper::name(PARAMETER_PRESET)).toString());

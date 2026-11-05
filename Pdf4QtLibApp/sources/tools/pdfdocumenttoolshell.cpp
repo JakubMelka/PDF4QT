@@ -32,7 +32,6 @@
 #include "pdfapppagelayout.h"
 #include "pdfappsettingcontrol.h"
 #include "pdfapptoolhost.h"
-#include "pdfapptooloutofmemorydialog.h"
 #include "pdfapptoolpanelparts.h"
 #include "pdfapptoolparametermodel.h"
 #include "pdfapptooltoolbar.h"
@@ -341,7 +340,6 @@ void PDFDocumentToolShell::close()
     }
     m_pendingResult.reset();
     m_isWaitingForModal = false;
-    m_isOutOfMemoryPending = false;
     watchModalDialog(nullptr);
     if (m_leaveDialog)
     {
@@ -353,12 +351,6 @@ void PDFDocumentToolShell::close()
         m_permissionDialog->disconnect(this);
         m_permissionDialog->hide();
         m_permissionDialog->deleteLater();
-    }
-    if (m_outOfMemoryDialog)
-    {
-        m_outOfMemoryDialog->disconnect(this);
-        m_outOfMemoryDialog->hide();
-        m_outOfMemoryDialog->deleteLater();
     }
     if (m_runner)
     {
@@ -508,7 +500,7 @@ void PDFDocumentToolShell::updatePreview()
     }
 
     applyEnvironment();
-    m_runner->requestPreview(m_gui->getRunParameters());
+    m_runner->requestPreview(m_gui->getPreviewParameters());
 }
 
 void PDFDocumentToolShell::confirm()
@@ -780,7 +772,7 @@ void PDFDocumentToolShell::updateProgress(int percentage, const QString& stepTex
     m_stepText = stepText;
     if (m_progressCard && m_gui)
     {
-        m_progressCard->setProgress(percentage, m_gui->getRunningTitle(percentage), stepText, m_gui->getRunningTimeText(getRemainingSeconds(percentage)));
+        m_progressCard->setProgress(percentage, m_gui->getRunningCardTitle(percentage, stepText), m_gui->getRunningCardStepText(stepText), m_gui->getRunningTimeText(getRemainingSeconds(percentage)));
     }
     updateStatus();
 }
@@ -863,62 +855,6 @@ void PDFDocumentToolShell::onPermissionDialogFinished()
     cancel();
 }
 
-PDFAppToolOutOfMemoryDialog* PDFDocumentToolShell::getOutOfMemoryDialog() const
-{
-    return m_outOfMemoryDialog.data();
-}
-
-void PDFDocumentToolShell::showOutOfMemoryDialog()
-{
-    if (m_state != State::Editing || !m_host || m_outOfMemoryDialog)
-    {
-        return;
-    }
-
-    // The user is deciding about something else (the rule of the result dialog); an open panel
-    // of the tool ends first too: a popup would keep the keys of the dialog
-    QWidget* blocker = PDFAppMainWindow::getBlockingModalWidget();
-    if (!blocker)
-    {
-        blocker = QApplication::activePopupWidget();
-    }
-    if (blocker)
-    {
-        m_isOutOfMemoryPending = true;
-        watchModalDialog(blocker);
-        return;
-    }
-    m_isOutOfMemoryPending = false;
-
-    // The run may have gone on behind another tab (F1): the dialog is about a document, which is shown
-    QPointer<PDFDocumentToolShell> guard(this);
-    m_host->activate();
-    if (!guard || !m_host || m_state != State::Editing || m_outOfMemoryDialog)
-    {
-        return;
-    }
-
-    QWidget* keyWidget = m_host->getKeyWidget();
-    PDFAppToolOutOfMemoryDialog* dialog = new PDFAppToolOutOfMemoryDialog(m_host->getContext(), keyWidget ? keyWidget->window() : nullptr);
-    dialog->setAttribute(Qt::WA_DeleteOnClose);
-    connect(dialog, &QDialog::accepted, this, &PDFDocumentToolShell::onOneThreadChosen);
-    m_outOfMemoryDialog = dialog;
-    m_isOutOfMemoryShown = true;
-
-    // Last: a slot of its show may delete anything
-    dialog->open();
-}
-
-void PDFDocumentToolShell::onOneThreadChosen()
-{
-    // The tool is not run again: the user does it
-    const PDFDocumentToolCatalogEntry* tool = getCatalogEntry();
-    if (m_host && tool)
-    {
-        m_host->showTransientMessage(tr("One thread is now set. Run %1 to try again.").arg(tool->getTitle()));
-    }
-}
-
 void PDFDocumentToolShell::onParameterChanged(const QString& name)
 {
     QPointer<PDFDocumentToolShell> guard(this);
@@ -951,7 +887,6 @@ void PDFDocumentToolShell::onPreviewFinished(const PDFDocumentToolResult& result
 {
     // The hook says, that the Primary button has changed: a slot may delete this shell
     QPointer<PDFDocumentToolShell> guard(this);
-    const bool isOutOfMemory = result.isOutOfMemory();
     if (m_gui)
     {
         m_gui->onPreviewChanged(&result);
@@ -959,13 +894,6 @@ void PDFDocumentToolShell::onPreviewFinished(const PDFDocumentToolResult& result
     if (guard && m_toolbar)
     {
         updateToolbar();
-    }
-
-    // The measuring runs by itself after every change of a parameter: the user hears about the
-    // memory once for an opened tool, the panel keeps saying it (a run always asks)
-    if (guard && isOutOfMemory && !m_isOutOfMemoryShown)
-    {
-        showOutOfMemoryDialog();
     }
 }
 
@@ -983,13 +911,6 @@ void PDFDocumentToolShell::onRunStarted()
     m_percentage = 0;
     m_stepText.clear();
     m_state = State::Running;
-
-    // A measuring, whose dialog still waits for a modal one, is out of date: the run says its own
-    if (m_isOutOfMemoryPending)
-    {
-        m_isOutOfMemoryPending = false;
-        watchModalDialog(nullptr);
-    }
 
     QPointer<PDFDocumentToolShell> guard(this);
     if (m_gui)
@@ -1069,15 +990,6 @@ void PDFDocumentToolShell::watchModalDialog(QWidget* dialog)
 
 void PDFDocumentToolShell::onWatchedModalClosed()
 {
-    // The dialog Not enough memory comes after the modal dialog (another one is waited for again)
-    if (m_isOutOfMemoryPending)
-    {
-        m_isOutOfMemoryPending = false;
-        watchModalDialog(nullptr);
-        showOutOfMemoryDialog();
-        return;
-    }
-
     if (!m_isWaitingForModal || !m_pendingResult || m_state != State::Running)
     {
         return;
@@ -1135,16 +1047,10 @@ void PDFDocumentToolShell::finishRun(const PDFDocumentToolResult& result)
         }
     }
 
-    const bool isOutOfMemory = result.isOutOfMemory();
     setState(State::Editing);
     if (guard && m_gui && result.status != PDFDocumentToolResultStatus::Stopped)
     {
         m_gui->onRunNotAccepted(result);
-    }
-
-    if (guard && isOutOfMemory)
-    {
-        showOutOfMemoryDialog();
     }
 }
 

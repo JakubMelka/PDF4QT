@@ -41,6 +41,7 @@ class PDFAppDocumentOperation;
 class PDFAppDocumentSnapshot;
 class PDFAppDocumentTab;
 class PDFAppPrintController;
+class PDFAppRestoredFileBar;
 class PDFAppSendMail;
 class PDFMessageBox;
 
@@ -99,8 +100,16 @@ public:
     /// Number of the signatures a save of the version keeps by an incremental update of the
     /// original bytes; 0 means a whole write: no signature, no original bytes (a document
     /// without any file), a display version of an XFA form (written from its original bytes,
-    /// which keep its signatures) or the result of a tool, which rewrites the file (O31)
+    /// which keep its signatures), the result of a tool, which rewrites the file (O31), or a
+    /// damaged file (no update goes by the table of its bytes, isOnlyCopyWritable)
     static int getIncrementalSignatureCount(const PDFAppDocumentSnapshot& snapshot);
+
+    /// The file of the document is damaged and a whole write over it would lose what is not in the
+    /// shown document: its signed revision, or its last changes, which cannot be read (they may hold
+    /// signatures too). Nothing may replace the file nor update it, what can be written is a copy,
+    /// written whole; the signatures do not hold in it (owner 2026-11-05). A damaged file with neither
+    /// keeps its whole write, a display version of an XFA form writes the original bytes.
+    static bool isOnlyCopyWritable(const PDFAppDocumentSnapshot& snapshot);
 
     /// The file can be written: an existing file, which is writable, or a new file
     /// in an existing folder
@@ -134,6 +143,9 @@ private:
 ///   not ask again until the document is opened again or reloaded from the disk.
 /// - A file, which cannot be written (read-only), is not touched: the dialog
 ///   save-error offers Save As…; it also reports a failed writing (a full disk).
+/// - A damaged file, which only a copy may leave (isOnlyCopyWritable), is never replaced:
+///   Save and Save as ask by the dialog save-restored (Cancel / Save as Copy…, no frame of
+///   the design), the copy is written whole and the file itself is refused as its target.
 /// - The document stays usable while it is written (the operation Save does not
 ///   block changes); a change made meanwhile keeps the document modified.
 /// - After a successful save the written version is the saved one with the file and
@@ -214,6 +226,7 @@ private:
     {
         Idle,           ///< Nothing runs
         SignedDialog,   ///< The dialog save-signed is open
+        RestoredDialog, ///< The dialog save-restored is open
         FileDialog,     ///< The native file dialog runs
         Writing,        ///< The worker writes the file
         ErrorDialog     ///< The dialog save-error is open
@@ -230,11 +243,13 @@ private:
     void writeFile(const QString& filePath, bool isIncremental);
 
     void showSignedDialog(int signatureCount);
+    void showRestoredDialog(const PDFAppDocumentSnapshot& snapshot);
     void showErrorDialog(const QString& filePath, const QString& text, const QString& details);
     void closeDialog();
 
     void onSignedDialogFinished(int result);
     void onSignedDialogSaveAsCopy();
+    void onRestoredDialogFinished(int result);
     void onErrorDialogSaveAs();
     void onErrorDialogRejected();
     void onWriterFinished();
@@ -314,6 +329,7 @@ private:
     QPointer<PDFAppAutoRefresh> m_autoRefresh;
     QPointer<PDFAppPrintController> m_printController;
     QPointer<PDFAppSendMail> m_sendMail;
+    QPointer<PDFAppRestoredFileBar> m_restoredFileBar;
 };
 
 }   // namespace pdf

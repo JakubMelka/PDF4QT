@@ -85,12 +85,14 @@ public:
     /// O31: the tool rewrites the file, so its result of a signed document can only be a
     /// copy (Keep and Overwrite are refused). Without a file nothing is signed by this
     /// rule (F5). One rule of the result dialog and of MCP.
-    static bool isCopyOnly(const PDFDocumentToolCatalogEntry* tool, bool isSigned, bool hasFile);
+    /// \param isOnlyCopyWritable PDFAppDocumentFileWriter::isOnlyCopyWritable of the document
+    static bool isCopyOnly(const PDFDocumentToolCatalogEntry* tool, bool isSigned, bool hasFile, bool isOnlyCopyWritable);
 
     /// The tool rewrites the file, so the signatures of a signed document do not survive a
     /// save of its result, also without a file, where the result can be kept (the warning of
     /// the result dialog; owner 2026-11-02)
-    static bool isSignatureLost(const PDFDocumentToolCatalogEntry* tool, bool isSigned);
+    /// \param isOnlyCopyWritable PDFAppDocumentFileWriter::isOnlyCopyWritable of the document
+    static bool isSignatureLost(const PDFDocumentToolCatalogEntry* tool, bool isSigned, bool isOnlyCopyWritable);
 
     /// Request of a copy of the result of \p tool by the rule of a copy (thread safe)
     /// \param tool Entry of the catalog of the tool (nullptr: the whole write)

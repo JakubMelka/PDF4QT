@@ -177,6 +177,22 @@ public:
                                                       const PDFDocument* modifiedDocument,
                                                       const std::set<PDFObjectReference>& replacedObjects);
 
+    /// Binds the own OCR layers of pages, which a tool of PDF4QT has changed on purpose
+    /// without touching their text (Rotate Pages writes /Rotate - the words are in the
+    /// unrotated space of the page; Remove Pages removes the links and layers of removed
+    /// pages from the pages, which stay): a layer is rebound only if it was bound to its page
+    /// in the original document, and only the pages of the pairs are checked. The builder
+    /// must be created from the modified document. Returns the pages (indices of the
+    /// modified document), whose layer was rebound.
+    /// \param builder Builder of the modified document
+    /// \param originalDocument Document before the change
+    /// \param modifiedDocument Document after the change
+    /// \param pages Pairs { index of the page in the original document, its index in the modified document }
+    static std::vector<PDFInteger> rebindFingerprintsOfPages(PDFDocumentBuilder* builder,
+                                                             const PDFDocument* originalDocument,
+                                                             const PDFDocument* modifiedDocument,
+                                                             const std::vector<std::pair<PDFInteger, PDFInteger>>& pages);
+
     /// Rebinds the own OCR layers of the optimized document (see rebindFingerprints)
     /// and returns the new document, or the optimized document, if nothing was rebound
     static PDFDocument rebindOptimizedDocument(const PDFDocument* originalDocument,
@@ -261,6 +277,9 @@ private:
     static PDFObjectReference createStream(PDFDocumentBuilder* builder, PDFDictionaryBuilder dictionary, const QByteArray& data, bool compress);
     static QByteArray serializeLayerData(const PDFOCRPageResult& result, const QString& layerId, bool keepReviewData);
     static bool deserializeLayerData(const QByteArray& data, PDFOCRPageResult& result, bool* hasReviewData);
+
+    /// Writes the fingerprint into the private data of the layer of the page, false = the page has no such data
+    static bool writePageFingerprint(PDFDocumentBuilder* builder, PDFObjectReference pageReference, const QByteArray& fingerprint);
 };
 
 }   // namespace pdf

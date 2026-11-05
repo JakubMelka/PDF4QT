@@ -29,8 +29,6 @@
 #include <QTimer>
 #include <QtConcurrent/QtConcurrentRun>
 
-#include <new>
-
 namespace pdf
 {
 
@@ -185,10 +183,6 @@ std::shared_ptr<const PDFDocumentTextIndex> PDFAppDocumentTextIndexer::buildInde
         return PDFDocumentTextIndex::build(document.data(), nullptr, &job->cancelFlag, nullptr, &job->processedPageCount);
     }
     catch (const PDFException&)
-    {
-        return nullptr;
-    }
-    catch (const std::bad_alloc&)
     {
         return nullptr;
     }

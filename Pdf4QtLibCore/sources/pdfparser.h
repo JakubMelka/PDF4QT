@@ -320,6 +320,10 @@ public:
 
     Q_DECLARE_FLAGS(Features, Feature)
 
+    /// Arrays and dictionaries inside of each other, each of them takes a part of the stack of the
+    /// thread (a small hostile file would overflow it, the application would end). A deeper object is an error.
+    static constexpr int MAXIMUM_NESTING = 256;
+
     explicit PDFParser(const QByteArray& data, PDFParsingContext* context, Features features);
     explicit PDFParser(const char* begin, const char* end, PDFParsingContext* context, Features features);
     explicit PDFParser(std::function<PDFLexicalAnalyzer::Token(void)> tokenFetcher);
@@ -357,6 +361,23 @@ private:
     /// Returns data of the current name token. Own lexical analyzer doesn't copy
     /// names, so names, which are too long to be stored inplace, are copied here.
     QByteArray getNameData() const;
+
+    /// Increases the depth of the arrays and dictionaries for the time of its life, a too deep one is an error
+    class NestingGuard
+    {
+    public:
+        explicit NestingGuard(PDFParser* parser);
+        ~NestingGuard();
+
+        NestingGuard(const NestingGuard&) = delete;
+        NestingGuard& operator=(const NestingGuard&) = delete;
+
+    private:
+        PDFParser* m_parser;
+    };
+
+    /// Arrays and dictionaries being read
+    int m_nesting = 0;
 
     /// Functor for fetching tokens
     std::function<PDFLexicalAnalyzer::Token(void)> m_tokenFetcher;

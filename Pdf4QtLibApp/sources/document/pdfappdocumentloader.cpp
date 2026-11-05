@@ -33,8 +33,6 @@
 #include <QFileInfo>
 #include <QtConcurrent/QtConcurrentRun>
 
-#include <new>
-
 namespace pdf
 {
 
@@ -177,6 +175,7 @@ PDFAppDocumentReading::Result PDFAppDocumentReading::read(Request request)
                 result.isEncrypted = securityHandler && securityHandler->getMode() != EncryptionMode::None;
                 result.document = PDFDocumentPointer(new PDFDocument(std::move(document)));
                 result.status = Status::Loaded;
+                result.restoration = PDFAppDocument::getRestoration(reader);
 
                 // A dynamic XFA form, whose layout has more pages or pages of other
                 // sizes, is shown with the pages of its layout (step 8): the paged
@@ -205,12 +204,6 @@ PDFAppDocumentReading::Result PDFAppDocumentReading::read(Request request)
         result.status = Status::Failed;
         result.document.reset();
         result.errorMessage = exception.getMessage();
-    }
-    catch (const std::bad_alloc&)
-    {
-        result.status = Status::Failed;
-        result.document.reset();
-        result.errorMessage = tr("There is not enough memory to open the file.");
     }
 
     if (request.progress)
@@ -403,11 +396,11 @@ void PDFAppDocumentLoader::onReadingFinished()
         case PDFAppDocumentReading::Status::Loaded:
             if (m_isReload)
             {
-                m_document->reload(result.document, std::move(result.data), result.isEncrypted, result.isPagedXFA);
+                m_document->reload(result.document, std::move(result.data), result.isEncrypted, result.isPagedXFA, result.restoration);
             }
             else
             {
-                m_document->setLoaded(result.document, std::move(result.data), m_filePath, result.isEncrypted, result.isPagedXFA);
+                m_document->setLoaded(result.document, std::move(result.data), m_filePath, result.isEncrypted, result.isPagedXFA, result.restoration);
             }
             break;
 

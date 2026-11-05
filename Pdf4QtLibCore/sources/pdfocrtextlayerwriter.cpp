@@ -1857,25 +1857,74 @@ std::vector<PDFInteger> PDFOCRTextLayerWriter::rebindFingerprints(PDFDocumentBui
             continue;
         }
 
-        // The private data of the layer are updated (/PieceInfo /PDF4QT_OCR /Private /PageFingerprint)
-        const PDFObjectReference pageReference = modifiedCatalog->getPage(i)->getPageReference();
-        PDFDictionaryBuilder pageDictionary = PDFObjectUtils::copyDictionary(builder->getStorage(), builder->getObjectByReference(pageReference));
-        PDFDictionaryBuilder pieceInfo = PDFObjectUtils::copyDictionary(builder->getStorage(), pageDictionary.get("PieceInfo"));
-        PDFDictionaryBuilder entry = PDFObjectUtils::copyDictionary(builder->getStorage(), pieceInfo.get(PIECE_INFO_KEY));
-        PDFDictionaryBuilder privateData = PDFObjectUtils::copyDictionary(builder->getStorage(), entry.get("Private"));
-        if (!privateData.hasKey("PageFingerprint"))
+        if (writePageFingerprint(builder, modifiedCatalog->getPage(i)->getPageReference(), newFingerprint))
+        {
+            reboundPages.push_back(pageIndex);
+        }
+    }
+
+    return reboundPages;
+}
+
+bool PDFOCRTextLayerWriter::writePageFingerprint(PDFDocumentBuilder* builder, PDFObjectReference pageReference, const QByteArray& fingerprint)
+{
+    // The private data of the layer are updated (/PieceInfo /PDF4QT_OCR /Private /PageFingerprint)
+    PDFDictionaryBuilder pageDictionary = PDFObjectUtils::copyDictionary(builder->getStorage(), builder->getObjectByReference(pageReference));
+    PDFDictionaryBuilder pieceInfo = PDFObjectUtils::copyDictionary(builder->getStorage(), pageDictionary.get("PieceInfo"));
+    PDFDictionaryBuilder entry = PDFObjectUtils::copyDictionary(builder->getStorage(), pieceInfo.get(PIECE_INFO_KEY));
+    PDFDictionaryBuilder privateData = PDFObjectUtils::copyDictionary(builder->getStorage(), entry.get("Private"));
+    if (!privateData.hasKey("PageFingerprint"))
+    {
+        return false;
+    }
+
+    PDFObjectFactory fingerprintFactory;
+    fingerprintFactory << QString::fromLatin1(fingerprint.toHex());
+    privateData.setEntry(PDFInplaceOrMemoryString("PageFingerprint"), fingerprintFactory.takeObject());
+    entry.setEntry(PDFInplaceOrMemoryString("Private"), PDFObject::createDictionary(std::move(privateData)));
+    pieceInfo.setEntry(PDFInplaceOrMemoryString(PIECE_INFO_KEY), PDFObject::createDictionary(std::move(entry)));
+    pageDictionary.setEntry(PDFInplaceOrMemoryString("PieceInfo"), PDFObject::createDictionary(std::move(pieceInfo)));
+    builder->setObject(pageReference, PDFObject::createDictionary(std::move(pageDictionary)));
+    return true;
+}
+
+std::vector<PDFInteger> PDFOCRTextLayerWriter::rebindFingerprintsOfPages(PDFDocumentBuilder* builder,
+                                                                         const PDFDocument* originalDocument,
+                                                                         const PDFDocument* modifiedDocument,
+                                                                         const std::vector<std::pair<PDFInteger, PDFInteger>>& pages)
+{
+    std::vector<PDFInteger> reboundPages;
+    if (!builder || !originalDocument || !modifiedDocument)
+    {
+        return reboundPages;
+    }
+
+    const size_t originalCount = originalDocument->getCatalog()->getPageCount();
+    const size_t modifiedCount = modifiedDocument->getCatalog()->getPageCount();
+    for (const auto& [originalIndex, modifiedIndex] : pages)
+    {
+        if (originalIndex < 0 || size_t(originalIndex) >= originalCount || modifiedIndex < 0 || size_t(modifiedIndex) >= modifiedCount)
         {
             continue;
         }
 
-        PDFObjectFactory fingerprintFactory;
-        fingerprintFactory << QString::fromLatin1(newFingerprint.toHex());
-        privateData.setEntry(PDFInplaceOrMemoryString("PageFingerprint"), fingerprintFactory.takeObject());
-        entry.setEntry(PDFInplaceOrMemoryString("Private"), PDFObject::createDictionary(std::move(privateData)));
-        pieceInfo.setEntry(PDFInplaceOrMemoryString(PIECE_INFO_KEY), PDFObject::createDictionary(std::move(entry)));
-        pageDictionary.setEntry(PDFInplaceOrMemoryString("PieceInfo"), PDFObject::createDictionary(std::move(pieceInfo)));
-        builder->setObject(pageReference, PDFObject::createDictionary(std::move(pageDictionary)));
-        reboundPages.push_back(pageIndex);
+        // Only a layer bound to its page is rebound; an unbound layer stays unbound
+        const LayerInfo originalInfo = readLayerInfo(originalDocument, originalIndex);
+        if (!originalInfo.isPresent || !originalInfo.fingerprintMatches || !originalInfo.isContentOwn)
+        {
+            continue;
+        }
+
+        const QByteArray newFingerprint = PDFOCRPagePreparer::computePageFingerprint(modifiedDocument, modifiedIndex);
+        if (newFingerprint.isEmpty() || newFingerprint == originalInfo.pageFingerprint)
+        {
+            continue;
+        }
+
+        if (writePageFingerprint(builder, modifiedDocument->getCatalog()->getPage(size_t(modifiedIndex))->getPageReference(), newFingerprint))
+        {
+            reboundPages.push_back(modifiedIndex);
+        }
     }
 
     return reboundPages;

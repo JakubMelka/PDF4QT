@@ -152,10 +152,12 @@ public:
 
     QString pages;          ///< Range text, empty = all pages
     Filters filters;        ///< Filters of the component Page selection
+    bool isNone = false;    ///< No page (the mode Selected of a panel without a selected page, Remove Pages before a page is marked); never in the schema of MCP
 
-    bool operator==(const PDFDocumentToolPageSelection& other) const { return pages == other.pages && filters == other.filters; }
+    bool operator==(const PDFDocumentToolPageSelection& other) const { return pages == other.pages && filters == other.filters && isNone == other.isNone; }
 
-    /// Canonical value { "pages": text, "filters": [ "even", "odd", "portrait", "landscape" ] }
+    /// Canonical value { "pages": text, "filters": [ "even", "odd", "portrait", "landscape" ] },
+    /// a selection of no page has also "none": true
     QVariant toVariant() const;
 
     /// Selection from a canonical value, from a JSON object converted to a variant

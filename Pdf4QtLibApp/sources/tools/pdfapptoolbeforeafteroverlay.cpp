@@ -23,6 +23,7 @@
 #include "pdfapptoolbeforeafteroverlay.h"
 
 #include "pdfapppagerendercontext.h"
+#include "pdfapptoolpanelparts.h"
 
 #include "pdfcatalog.h"
 #include "pdfcomponentpainter.h"
@@ -296,7 +297,7 @@ QRect PDFAppToolBeforeAfterOverlay::getLineRect() const
 
 int PDFAppToolBeforeAfterOverlay::getChipWidth(const QString& text) const
 {
-    return QFontMetrics(PDFThemeFonts::getFont(QFont::DemiBold, CHIP_FONT_SIZE)).horizontalAdvance(text) + 2 * CHIP_PADDING;
+    return PDFAppToolCanvasChip::getChipWidth(text, QString(), CHIP_PADDING);
 }
 
 QRect PDFAppToolBeforeAfterOverlay::getBeforeChipRect() const
@@ -519,10 +520,8 @@ void PDFAppToolBeforeAfterOverlay::drawPage(QPainter* painter,
 
 void PDFAppToolBeforeAfterOverlay::drawChip(QPainter* painter, const QRect& rect, const QString& text) const
 {
-    PDFStylePainter::fill(painter, QRectF(rect), PDFStylePainter::Radii(qreal(CHIP_HEIGHT) / 2.0), PDFThemeColors::IconStrong);
-    painter->setFont(PDFThemeFonts::getFont(QFont::DemiBold, CHIP_FONT_SIZE));
-    painter->setPen(PDFThemeManager::getInstance()->getColor(PDFThemeColors::BgSurface));
-    painter->drawText(rect, Qt::AlignCenter | Qt::TextSingleLine, text);
+    // The chips of the frames have no icon here: the direction does not move anything
+    PDFAppToolCanvasChip::paintChip(painter, rect, text, QString(), CHIP_PADDING, layoutDirection());
 }
 
 void PDFAppToolBeforeAfterOverlay::drawPostRendering(QPainter* painter, QRect rect) const

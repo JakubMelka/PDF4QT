@@ -64,7 +64,7 @@ public:
     QString description;        ///< Translated description
     QString iconName;           ///< Icon of the tile
     QString offDescription;     ///< Description of a step, which is off ("Will be skipped", 319:7386); empty = the same
-    QString groupCaption;       ///< Caption of a group of rows, which starts by this row (339:9500 "FROM THE TAGS…"), only in a menu
+    QString groupCaption;       ///< Caption of a group of rows, which starts by this row (339:9500 "FROM THE TAGS…" of a menu, 438:12714 "About the document" of a check list)
 };
 
 /// Menu of an Enum parameter (Order 339:8765): the button of the toolbar says the title of
@@ -144,9 +144,20 @@ private:
     std::map<QString, QPointer<PDFTileRow>> m_rows;
 };
 
+/// What a step of a finished run did (Steps performed 303:5370)
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolStepResult
+{
+public:
+    QString parameter;  ///< The Bool parameter of the step
+    QString text;       ///< "1,204 objects embedded", "Skipped – not selected"
+    bool isRun = false; ///< The step has run
+};
+
 /// The steps of the right panel (steps 319:7343): a card of rows, which show the Bool
 /// parameters: on - the check mark and the tile of the accent, off - the mark minus,
-/// the muted tile and the description of a skipped step
+/// the muted tile and the description of a skipped step. After \p setResults the rows show
+/// what a run did (319:7398): a step, which has run - check-circle accent/green/icon and its
+/// text in text/secondary; a skipped step - the muted tile, the mark minus and its text.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolStepList : public PDFAppToolCard
 {
     Q_OBJECT
@@ -160,12 +171,17 @@ public:
 
     PDFTileRow* getRow(const QString& parameter) const;
 
+    /// The rows show the results of a run instead of the parameters (a row without a result
+    /// is skipped); an empty list shows the parameters again
+    void setResults(std::vector<PDFAppToolStepResult> results);
+
 private:
     void refresh();
     void onParameterChanged(const QString& name);
 
     QPointer<PDFAppToolParameterModel> m_model;
     std::vector<PDFAppToolFlagItem> m_items;
+    std::vector<PDFAppToolStepResult> m_results;
     std::map<QString, QPointer<PDFTileRow>> m_rows;
 };
 
@@ -183,6 +199,10 @@ public:
     virtual ~PDFAppToolChecklist() override;
 
     PDFTileRow* getRow(const QString& parameter) const;
+
+    /// A row of a kind, which the document does not have, has its check box disabled and
+    /// unticked; the value of the parameter stays (a preset may set it)
+    void setRowAvailable(const QString& parameter, bool isAvailable);
 
 private:
     void refresh();
@@ -214,6 +234,16 @@ public:
     /// Range text of a list of pages from 1, sorted ("1-3, 5")
     static QString createRangeText(const QList<int>& pages);
 
+    /// The pages chosen by the user outside of the selection (a click on a tile of the grid of
+    /// Rotate or Remove, Keep, Keep All Pages): a range stays the range with the new pages,
+    /// another mode becomes Selected with them, the filters are cleared. From now on the
+    /// pages selected in the thumbnails do not replace them. One undo step.
+    /// \param pages Pages numbered from 1, sorted, without duplicates; empty = no page
+    void setPages(const QList<int>& pages);
+
+    /// The mode at the entry of a tool, which is no change of the user (no undo step)
+    void setEntryMode(PDFPageSelection::Mode mode);
+
 private:
     void updatePages();
     void updateViewPages();
@@ -229,6 +259,7 @@ private:
     QString m_parameter;
     QPointer<PDFPageSelection> m_selection;
     bool m_isUpdating = false;
+    bool m_isOwnSelection = false;  ///< The pages of the mode Selected are of setPages, not of the thumbnails
 };
 
 /// A list of pending changes (Pending rotation 389:20177, Marked for removal 388:20614):
@@ -348,6 +379,9 @@ public:
 
     /// A text in a card (result 303:4509: Regular 12 in lines of 17)
     PDFAppParagraph* addTextCard(const QString& text);
+
+    /// Header of the whole panel (438:12686 "Hidden data" / "Found in …")
+    PDFAppToolPanelHeader* addPanelHeader(const QString& title, const QString& subtitle);
 
     /// Callout (295:2156, 389:20177)
     PDFAppToolCallout* addCallout(PDFAccentHue hue, const QString& iconName, const QString& title, const QString& text = QString());

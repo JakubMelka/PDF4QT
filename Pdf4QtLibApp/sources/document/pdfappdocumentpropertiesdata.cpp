@@ -122,17 +122,7 @@ public:
     /// Name of the standard paper format of the size (empty = no standard format)
     static QString paperFormat(const QSizeF& size)
     {
-        if (!(size.width() > 0.0) || !(size.height() > 0.0) || !qIsFinite(size.width()) || !qIsFinite(size.height()))
-        {
-            return QString();
-        }
-
-        const QPageSize::PageSizeId id = QPageSize::id(size, QPageSize::Millimeter, QPageSize::FuzzyOrientationMatch);
-        if (id == QPageSize::Custom)
-        {
-            return QString();
-        }
-        return QPageSize::name(id);
+        return PDFAppDocumentPropertiesData::getPaperFormatName(size);
     }
 
     /// Size of the page in millimeters (rotated, nothing for an invalid page)
@@ -398,6 +388,21 @@ QString PDFAppFontInfo::getStatusText() const
         return PDFAppDocumentPropertiesData::tr("Not embedded");
     }
     return isSubset ? PDFAppDocumentPropertiesData::tr("Embedded subset") : PDFAppDocumentPropertiesData::tr("Embedded");
+}
+
+QString PDFAppDocumentPropertiesData::getPaperFormatName(const QSizeF& sizeMM)
+{
+    if (!(sizeMM.width() > 0.0) || !(sizeMM.height() > 0.0) || !qIsFinite(sizeMM.width()) || !qIsFinite(sizeMM.height()))
+    {
+        return QString();
+    }
+
+    const QPageSize::PageSizeId id = QPageSize::id(sizeMM, QPageSize::Millimeter, QPageSize::FuzzyOrientationMatch);
+    if (id == QPageSize::Custom)
+    {
+        return QString();
+    }
+    return QPageSize::name(id);
 }
 
 QList<QByteArray> PDFAppDocumentPropertiesData::getEditableInfoKeys()

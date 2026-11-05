@@ -85,6 +85,15 @@ public:
     /// Returns warning messages
     const QStringList& getWarnings() const { return m_warnings; }
 
+    /// Returns true, if the document is not what the cross-reference table of the file says: its objects
+    /// were restored from the bytes of a damaged file, which can hold objects no reader by the table shows,
+    /// or an object of the table could not be read and it is missing. What is shown does not prove what was signed.
+    bool isDocumentRestored() const { return m_isDocumentRestored; }
+
+    /// Returns true, if the last objects of a damaged file are not a document, so its oldest ones are
+    /// shown (isDocumentRestored is true then): the last changes of the file are not in the document.
+    bool isOldestContentShown() const { return m_isOldestContentShown; }
+
     static QByteArray hash(const QByteArray& sourceData);
 
 private:
@@ -142,8 +151,12 @@ private:
     /// Fetch object from reference table
     PDFObject getObjectFromXrefTable(PDFXRefTable* xrefTable, PDFParsingContext* context, PDFObjectReference reference) const;
 
-    /// Tries to read damaged trailer dictionary
-    PDFObject readDamagedTrailerDictionary() const;
+    /// Tries to read damaged trailer dictionary: an entry of the trailer of the given revision
+    /// wins (ISO 32000-2, 7.5.6). The bytes of a trailer inside of the objects (a stream, a
+    /// string) are used only when no other trailer has the catalog.
+    /// \param offsets Offsets of the objects, in the order of the file
+    /// \param revision Which trailer of an entry wins
+    PDFObject readDamagedTrailerDictionary(const std::vector<std::pair<int, int>>& offsets, RestoredRevision revision) const;
 
     /// Attempts to read a damaged PDF document from the specified buffer (byte array). If incorrect
     /// PDF is read, then empty PDF document is returned. No exception is thrown.
@@ -201,6 +214,12 @@ private:
 
     /// Warnings
     QStringList m_warnings;
+
+    /// Objects were restored from the bytes of the file
+    bool m_isDocumentRestored = false;
+
+    /// The objects of the first revision of the file were restored
+    bool m_isOldestContentShown = false;
 };
 
 }   // namespace pdf

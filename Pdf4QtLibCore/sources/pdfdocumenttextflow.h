@@ -31,6 +31,7 @@ namespace pdf
 {
 class PDFDocument;
 class PDFOperationControl;
+class PDFProgress;
 
 /// Text flow extracted from document. Text flow can be created \p PDFDocumentTextFlowFactory.
 /// Flow can contain various items, not just text ones. Also, some manipulation functions
@@ -153,10 +154,47 @@ public:
     /// far: it is not to be used, check the control.
     void setOperationControl(const PDFOperationControl* operationControl) { m_operationControl = operationControl; }
 
+    /// Sets the progress of create, a step per page (optional, it must outlive create)
+    void setProgress(PDFProgress* progress) { m_progress = progress; }
+
+    /// The structure algorithm gives what the structure items say as an export needs it: the
+    /// titles of the items (the old callers get an empty item, their output stays as it
+    /// was), and the title, language, description, expanded form, actual text and phoneme of
+    /// an item only, when the item belongs to one of the processed pages (/Pg of the item or of its
+    /// parents, ISO 32000-2 14.7.2) - an item without a page only with its text. The algorithm
+    /// Content gives all text of the content streams, also the text outside of a marked
+    /// content of the structure (the old callers get the marked text only, an untagged page
+    /// gives them nothing).
+    /// \param isExport The structure items are limited to the pages
+    void setStructureExport(bool isExport) { m_isStructureExport = isExport; m_isStructureTitleText = isExport; m_isUnmarkedText = isExport; }
+
+    /// The item StructureTitle has the title of its structure item (/T). Without it the item is
+    /// empty, as the callers of the older versions got it. setStructureExport sets it too.
+    void setStructureTitleText(bool isTitleText) { m_isStructureTitleText = isTitleText; }
+
+    /// The algorithm Content gives all text of the content streams, also the text outside of a
+    /// marked content of the structure; without it only the marked text (an untagged page gives
+    /// nothing). setStructureExport sets it too.
+    void setUnmarkedText(bool isUnmarkedText) { m_isUnmarkedText = isUnmarkedText; }
+
+    /// The algorithm create really uses for the document: Auto is Structure for a marked
+    /// document with a valid structure tree, otherwise Layout.
+    /// \param document Document
+    /// \param algorithm Requested algorithm
+    static Algorithm getEffectiveAlgorithm(const PDFDocument* document, Algorithm algorithm);
+
+    /// The document has a valid structure tree (the algorithm Structure can run)
+    /// \param document Document
+    static bool hasValidStructureTree(const PDFDocument* document);
+
 private:
     QList<PDFRenderError> m_errors;
     bool m_calculateBoundingBoxes = false;
+    bool m_isStructureExport = false;
+    bool m_isStructureTitleText = false;
+    bool m_isUnmarkedText = false;
     const PDFOperationControl* m_operationControl = nullptr;
+    PDFProgress* m_progress = nullptr;
 };
 
 /// Editor which can edit document text flow, modify user text,

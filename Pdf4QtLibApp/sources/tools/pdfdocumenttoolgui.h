@@ -140,12 +140,22 @@ public:
     /// pages · 24.8 MB" (291:994)
     virtual QString getStatusText() const;
 
+    /// The part of the status message after the name of the document: "1,592 pages" (291:994),
+    /// Optimize Structure "48,210 objects" (302:4072); empty = none
+    virtual QString getStatusDetailText() const;
+
     /// Message of the status bar during a run: "Compress: Recompressing images · 152 of
     /// 412 · press Stop or Esc to stop" (295:1711)
     virtual QString getRunningStatusText(const QString& stepText) const;
 
     /// Title of the card of the progress: "Compress… 37 %" (295:2151)
     virtual QString getRunningTitle(int percentage) const;
+
+    /// Title and step line of the card of the progress (default: getRunningTitle and the step).
+    /// A tool, whose step is its title, says it there (356:13079 "Reading page 640 of 1,592",
+    /// no step line).
+    virtual QString getRunningCardTitle(int percentage, const QString& stepText) const;
+    virtual QString getRunningCardStepText(const QString& stepText) const;
 
     /// Line of the time left of the card (295:2155 "About 40 seconds left", 356:13079 with
     /// the note of its tool), \p seconds -1 = not known yet, empty = no line (438:14093)
@@ -168,6 +178,11 @@ public:
 
     /// Parameters of a run or of a preview (default: the values of the model)
     virtual QVariantMap getRunParameters() const;
+
+    /// Parameters of a preview (default: getRunParameters). A tool, whose preview does not
+    /// depend on its parameters (the scan of Remove Hidden Data, the links of Remove External
+    /// Links), gives the same ones: a change of a parameter takes the cached preview.
+    virtual QVariantMap getPreviewParameters() const;
 
     /// Inputs of a run besides the snapshot (default: as the host fills them)
     virtual void prepareEnvironment(PDFAppToolRunEnvironment* environment) const;

@@ -27,6 +27,8 @@
 #include "apptoolshellfixture.h"
 
 #include "pdfappcontext.h"
+#include "pdfsettingdefinitions.h"
+#include "pdfsettingsrepository.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentdialogs.h"
 #include "pdfappdocumenttab.h"
@@ -51,7 +53,7 @@
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumentreader.h"
 #include "pdfappdocumentstatusbar.h"
-#include "pdfapptooloutofmemorydialog.h"
+#include "pdfappvaluestore.h"
 #include "pdfdocumenttool_compress.h"
 #include "pdfexecutionpolicy.h"
 #include "pdfimagecompressor.h"
@@ -445,7 +447,8 @@ private slots:
 
     // Compress
     void registered();
-    void outOfMemoryPanelAndDialog();
+    void oneThreadReachesTheNextRun_data();
+    void oneThreadReachesTheNextRun();
     void frameGeometry();
     void measuredPanel();
     void changeRowsNotElided();
@@ -536,75 +539,118 @@ void AppToolCompressTest::registered()
     QCOMPARE(pdf::PDFDocumentToolRegistry::getTool(CompressGuiHelper::TOOL_ID), tool);
 }
 
-void AppToolCompressTest::outOfMemoryPanelAndDialog()
+void AppToolCompressTest::oneThreadReachesTheNextRun_data()
 {
-    // The real tool: the measuring runs out of memory. The dialog of the shell once, the card of the
-    // panel keeps its state Cannot be measured and stays true after Use One Thread; the user can run
-    // the tool again from it. A real run always shows the dialog and the tool runs once the memory
-    // is there (an allocation failure cannot be caused otherwise than by the hook).
+    QTest::addColumn<QString>("way");
+    QTest::newRow("this-instance") << QStringLiteral("own");
+    QTest::newRow("other-instance-tab-hidden") << QStringLiteral("hidden");
+    QTest::newRow("other-window-closed") << QStringLiteral("window");
+}
+
+void AppToolCompressTest::oneThreadReachesTheNextRun()
+{
+    // The setting Multithreading strategy = Single thread, written by the path of its row of Settings ›
+    // Advanced or by another instance, reaches the process through the views of the documents: the next
+    // computation of the tool, in its tool mode, with its tab hidden, in a second window, whose first one
+    // has gone, really has one image at a time in one thread - counted at the decoding, not read from
+    // the policy.
     using H = CompressGuiHelper;
-    pdf::PDFImageCompressor::setTestDecodeHook([](pdf::PDFObjectReference, QImage) -> QImage { throw std::bad_alloc(); });
+    if (pdf::PDFExecutionPolicy::getMaxThreadCount(pdf::PDFExecutionPolicy::Scope::Page) < 3)
+    {
+        QSKIP("The pool has too few threads to tell the strategies");
+    }
+    QFETCH(QString, way);
+
+    std::atomic<int> held = 0;
+    std::atomic<int> peak = 0;
+    pdf::PDFImageCompressor::setTestDecodeHook([&](pdf::PDFObjectReference, QImage image) -> QImage
+    {
+        const int current = ++held;
+        int previous = peak.load();
+        while (previous < current && !peak.compare_exchange_weak(previous, current))
+        {
+        }
+        QThread::msleep(40);
+        --held;
+        return image;
+    });
     const auto removeHook = qScopeGuard([]() { pdf::PDFImageCompressor::setTestDecodeHook(pdf::PDFImageCompressor::TestDecodeHook()); });
     const auto restoreStrategy = qScopeGuard([]() { pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded); });
 
     AppToolShellFixture fixture(QSize(1440, 960));
-    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writePhoto(fixture.path(QStringLiteral("report.pdf"))));
+    const QString firstFile = H::writePhoto(fixture.path(QStringLiteral("first.pdf")), 120, 10);
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, firstFile);
     QVERIFY(tab);
-    PDFDocumentToolShell* shell = H::openCompress(fixture, tab);
+
+    // The tool of the row: its tab, or the tab of a second window
+    std::unique_ptr<pdf::PDFAppMainWindow> secondWindow;
+    pdf::PDFAppDocumentTab* toolTab = tab;
+    PDFDocumentToolShell* firstShell = H::openCompress(fixture, tab);
+    QVERIFY(firstShell);
+
+    // The control: the same computation in more threads holds more images at once
+    QVERIFY(H::waitMeasured(H::gui(firstShell)));
+    QVERIFY2(peak.load() >= 2, qPrintable(QString::number(peak.load())));
+    AppToolShellFixture::settle();
+
+    PDFDocumentToolShell* shell = firstShell;
+    if (way == QLatin1String("window"))
+    {
+        secondWindow = std::make_unique<pdf::PDFAppMainWindow>(fixture.context.get());
+        secondWindow->resize(1440, 960);
+        secondWindow->show();
+        const QString secondFile = H::writePhoto(fixture.path(QStringLiteral("second.pdf")), 120, 10);
+        secondWindow->openDocuments(QStringList({ secondFile }), 0);
+        QVERIFY(AppToolShellFixture::waitFor([&]() { const auto tabs = secondWindow->getDocumentTabs(); return !tabs.isEmpty() && tabs.front()->getDocument() && tabs.front()->getDocument()->isReady(); }));
+        AppToolShellFixture::settle();
+        toolTab = secondWindow->getDocumentTabs().front();
+        secondWindow->getNavigator()->navigate(pdf::PDFAppRoutes::documentTool(toolTab->getDocumentId(), CompressGuiHelper::TOOL_ID));
+        AppToolShellFixture::settle();
+        shell = AppToolShellFixture::getShell(toolTab);
+        QVERIFY(shell);
+    }
     PDFAppToolGUICompress* gui = H::gui(shell);
     QVERIFY(gui);
     QVERIFY(H::waitMeasured(gui));
-    QCOMPARE(gui->getMeasureState(), PDFAppToolGUICompress::MeasureState::Failed);
-    QVERIFY(AppToolShellFixture::waitFor([shell]() { return shell->getOutOfMemoryDialog() != nullptr; }));
     AppToolShellFixture::settle();
 
-    const auto checkCard = [&]()
+    if (way == QLatin1String("hidden"))
     {
-        const pdf::PDFAppToolProgressCard* card = gui->getMeasuringCard();
-        return card->isVisibleTo(card->parentWidget()) && card->getTitleLabel()->text() == QStringLiteral("Cannot be measured") &&
-               card->getStepLabel()->text().contains(QStringLiteral("not enough memory")) && !card->getStepLabel()->text().contains(QStringLiteral("Multithreading"));
-    };
-    QVERIFY(checkCard());
-    QVERIFY(!tab->getView()->findInfoBar(QStringLiteral("tool-result")));
+        fixture.window->activateTab(fixture.window->getHomeTab());
+        AppToolShellFixture::settle();
+        QVERIFY(!tab->getView()->isVisible());
+        QVERIFY(tab->getView()->isToolModeActive());
+        const pdf::PDFSettingRegistry* registry = fixture.context->getSettingRegistry();
+        QVERIFY(fixture.writeFromOtherConnection([registry](pdf::PDFDatabase* database) { return pdf::PDFSettingsRepository(database, registry).setValue(pdf::PDFSettingKeys::renderingMultithreading(), QStringLiteral("singleThread")); },
+                                                 pdf::PDFSettingsRepository::getTopic()));
+    }
+    else
+    {
+        // The path of the row of Settings › Advanced (PDFAppSettingControl) in this instance
+        pdf::PDFAppSettingsValueStore store(fixture.context.get());
+        QVERIFY(store.isAvailable());
+        QCOMPARE(store.writeValue(pdf::PDFSettingKeys::renderingMultithreading(), QStringLiteral("singleThread")), QString());
+        AppToolShellFixture::settle();
+    }
 
-    QPointer<pdf::PDFAppToolOutOfMemoryDialog> dialog = shell->getOutOfMemoryDialog();
-    dialog->getCloseButton()->click();
-    AppToolShellFixture::settle();
-    QVERIFY(!dialog);
-    QVERIFY(shell->getToolbar()->getConfirmButton()->isEnabled());
+    if (way == QLatin1String("window"))
+    {
+        // The first window goes, with its document and its view
+        delete fixture.window.data();
+        AppToolShellFixture::settle();
+    }
 
-    // Another preset measures again: the same card, no second dialog
-    QVERIFY(shell->getModel()->setValue(QStringLiteral("preset"), QStringLiteral("smaller-file")).isEmpty());
+    // The next computation: another preset measures, in the mode of the tool
+    QVERIFY(AppToolShellFixture::waitFor([shell]() { return !shell->getRunner()->isPreviewPending(); }, 60000));
+    peak.store(0);
+    QVERIFY(shell->getModel()->setValue(QStringLiteral("preset"), QString::fromLatin1(pdf::PDFDocumentToolCompress::PRESET_SMALLER_FILE)).isEmpty());
+    QVERIFY(AppToolShellFixture::waitFor([&peak]() { return peak.load() > 0; }, 60000));
     QVERIFY(H::waitMeasured(gui));
+    QVERIFY(AppToolShellFixture::waitFor([shell]() { return !shell->getRunner()->isPreviewPending(); }, 60000));
     AppToolShellFixture::settle();
-    QVERIFY(AppToolShellFixture::waitFor([shell]() { return !shell->getRunner()->isPreviewPending(); }));
-    AppToolShellFixture::settle();
-    QCOMPARE(gui->getMeasureState(), PDFAppToolGUICompress::MeasureState::Failed);
-    QVERIFY(!shell->getOutOfMemoryDialog());
-    QVERIFY(checkCard());
-
-    // A real run from the state Failed: the dialog, Use One Thread, nothing runs by itself
-    shell->getToolbar()->getConfirmButton()->click();
-    QVERIFY(AppToolShellFixture::waitFor([shell]() { return shell->getOutOfMemoryDialog() != nullptr; }));
-    AppToolShellFixture::settle();
-    dialog = shell->getOutOfMemoryDialog();
-    QVERIFY(dialog->getOneThreadButton()->isVisible());
-    dialog->getOneThreadButton()->click();
-    AppToolShellFixture::settle();
-    QVERIFY(!dialog);
-    QVERIFY(AppToolShellFixture::waitFor([]() { return !pdf::PDFExecutionPolicy::isParallelizing(pdf::PDFExecutionPolicy::Scope::Page); }));
-    QVERIFY(checkCard());
-    QVERIFY(shell->getToolbar()->getConfirmButton()->isEnabled());
-    QVERIFY(tab->getView()->getStatusBar()->getMessage().contains(QStringLiteral("Compress")));
-    QCOMPARE(shell->getState(), PDFDocumentToolShell::State::Editing);
-
-    // The memory is there: the user runs it, the result dialog comes
-    pdf::PDFImageCompressor::setTestDecodeHook(pdf::PDFImageCompressor::TestDecodeHook());
-    shell->getToolbar()->getConfirmButton()->click();
-    QVERIFY(AppToolShellFixture::waitFor([shell]() { return shell->getResultDialog() != nullptr; }, 60000));
-    AppToolShellFixture::settle();
-    QVERIFY(!shell->getOutOfMemoryDialog());
-    shell->getResultDialog()->reject();
+    QCOMPARE(peak.load(), 1);
+    QVERIFY(!pdf::PDFExecutionPolicy::isParallelizing(pdf::PDFExecutionPolicy::Scope::Page));
+    secondWindow.reset();
     AppToolShellFixture::settle();
 }
 
@@ -2194,9 +2240,19 @@ void AppToolCompressTest::reviewMeasuringBenchmark()
         QVariantMap parameters;
         const QString benchmarkPreset = qEnvironmentVariable("PDF4QT_COMPRESS_BENCHMARK_PRESET", QStringLiteral("smaller-file"));
         parameters.insert(QStringLiteral("preset"), benchmarkPreset);
+
+        // PDF4QT_COMPRESS_BENCHMARK_STRATEGY=single: the strategy Single thread (under a limit of the memory
+        // of the process: one image at a time needs less memory)
+        const bool isSingleThread = qEnvironmentVariable("PDF4QT_COMPRESS_BENCHMARK_STRATEGY") == QLatin1String("single");
+        if (isSingleThread)
+        {
+            pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy::SingleThreaded);
+        }
+        const auto restoreStrategy = qScopeGuard([]() { pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded); });
+
         const pdf::PDFDocumentToolResult result = tool.runPreview(pdf::PDFDocumentToolContext::create(pdf::PDFDocumentToolInputDocument::create(document, data, filePath, false)), parameters, nullptr, &progress);
-        qInfo("BENCHMARK core: %s status %d, time %lld ms, size %lld -> %lld, peak %lld MB, now %lld MB", qPrintable(benchmarkPreset), int(result.status), listener.timer.elapsed(),
-              result.data.value(QStringLiteral("sizeBefore")).toInteger(), result.data.value(QStringLiteral("sizeAfter")).toInteger(), H::getPeakMemoryMB(), H::getCurrentMemoryMB());
+        qInfo("BENCHMARK core: %s%s status %d, time %lld ms, size %lld -> %lld, peak %lld MB, now %lld MB: %s", qPrintable(benchmarkPreset), isSingleThread ? " in one thread" : "", int(result.status), listener.timer.elapsed(),
+              result.data.value(QStringLiteral("sizeBefore")).toInteger(), result.data.value(QStringLiteral("sizeAfter")).toInteger(), H::getPeakMemoryMB(), H::getCurrentMemoryMB(), qPrintable(result.message));
         return;
     }
 

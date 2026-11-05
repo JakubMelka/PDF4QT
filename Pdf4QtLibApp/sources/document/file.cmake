@@ -31,6 +31,8 @@ list(APPEND PDF4QT_LIBAPP_DOCUMENT_SOURCES
     sources/document/pdfappprint.h
     sources/document/pdfappprintdialog.cpp
     sources/document/pdfappprintdialog.h
+    sources/document/pdfapprestoredfilebar.cpp
+    sources/document/pdfapprestoredfilebar.h
     sources/document/pdfappsendmail.cpp
     sources/document/pdfappsendmail.h
 )

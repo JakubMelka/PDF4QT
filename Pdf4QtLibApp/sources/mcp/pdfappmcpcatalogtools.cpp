@@ -33,6 +33,7 @@
 #include "pdfappdocumentsave.h"
 #include "pdfappdocumenttab.h"
 #include "pdfapptoolresultwriter.h"
+#include "pdfdocumenttextexporter.h"
 #include "pdfdocumenttoolrunner.h"
 
 #include "pdfdocumenttool.h"
@@ -81,6 +82,25 @@ public:
     static QString getSignedText()
     {
         return QStringLiteral("The document is signed: this tool rewrites the file, so its signatures would stop being valid. Use result save_copy with a path.");
+    }
+
+    /// A damaged file only a copy may leave (PDFAppDocumentFileWriter::isOnlyCopyWritable)
+    static QString getDamagedText()
+    {
+        return QStringLiteral("The file of the document is damaged and its content was restored, so PDF4QT does not change it nor replace it; the signatures do not hold in a written file. Use result save_copy with a path.");
+    }
+
+    /// The reason a result cannot be kept or overwrite the file; empty = it can
+    static QString getCopyOnlyText(const PDFDocumentToolCatalogEntry* entry, const PDFAppDocument* document)
+    {
+        const PDFAppDocumentSnapshot snapshot = document->getSnapshot();
+        const bool isSigned = PDFForm::getSignatureCount(snapshot.document.data()) > 0;
+        const bool isOnlyCopyWritable = PDFAppDocumentFileWriter::isOnlyCopyWritable(snapshot);
+        if (!PDFAppToolResultWriter::isCopyOnly(entry, isSigned, !document->getFilePath().isEmpty(), isOnlyCopyWritable))
+        {
+            return QString();
+        }
+        return isOnlyCopyWritable ? getDamagedText() : getSignedText();
     }
 
     static QString getBusyText()
@@ -142,12 +162,11 @@ public:
     }
 
     /// The text of an output file: its beginning of at most \p maximumSize bytes, decoded
-    /// by the charset of its type (UTF-8 without one). false: it is not a text.
+    /// by the charset of its type (UTF-8 without one; the code page of Windows also without
+    /// ICU - PDFDocumentTextExporter::createDecoder). false: it is not a text.
     static bool decodeText(const PDFDocumentToolOutputFile& output, qint64 maximumSize, QString* text, bool* isTruncated)
     {
-        const qsizetype charsetIndex = output.mimeType.indexOf(QLatin1String("charset="), 0, Qt::CaseInsensitive);
-        const QString charset = charsetIndex >= 0 ? output.mimeType.mid(charsetIndex + 8).section(QLatin1Char(';'), 0, 0).trimmed() : QStringLiteral("UTF-8");
-        QStringDecoder decoder(charset.toLatin1().constData());
+        QStringDecoder decoder = PDFDocumentTextExporter::createDecoder(output.mimeType);
         if (!decoder.isValid())
         {
             return false;
@@ -725,7 +744,7 @@ private:
     bool isSignatureLost() const
     {
         return m_request.mode == PDFAppMcpToolResultMode::Keep &&
-               PDFAppToolResultWriter::isSignatureLost(m_request.tool->getInfo(), PDFForm::getSignatureCount(getSnapshot().document.data()) > 0);
+               PDFAppToolResultWriter::isSignatureLost(m_request.tool->getInfo(), PDFForm::getSignatureCount(getSnapshot().document.data()) > 0, PDFAppDocumentFileWriter::isOnlyCopyWritable(getSnapshot()));
     }
 
     QString getUndoDescription() const
@@ -770,11 +789,15 @@ private:
         }
 
         // O31, also of a version, which has become signed meanwhile (F8)
-        if (isChangingDocument() && PDFAppToolResultWriter::isCopyOnly(entry, PDFForm::getSignatureCount(document->getDocument().data()) > 0, !document->getFilePath().isEmpty()))
+        if (isChangingDocument())
         {
-            *text = PDFAppMcpCatalogToolsHelper::getSignedText();
-            *status = PDFMcpActivityStatus::Failed;
-            return false;
+            const QString copyOnlyText = PDFAppMcpCatalogToolsHelper::getCopyOnlyText(entry, document);
+            if (!copyOnlyText.isEmpty())
+            {
+                *text = copyOnlyText;
+                *status = PDFMcpActivityStatus::Failed;
+                return false;
+            }
         }
         return true;
     }
@@ -817,6 +840,7 @@ private:
                 confirmation->kind = PDFAppMcpConfirmationKind::Change;
                 confirmation->details.insert(QStringLiteral("signatureCount"), PDFForm::getSignatureCount(getSnapshot().document.data()));
                 confirmation->details.insert(QStringLiteral("signatureLost"), isSignatureLost());
+                confirmation->details.insert(QStringLiteral("fileDamaged"), getSnapshot().restoration != PDFAppDocumentRestoration::None);
                 break;
             case PDFAppMcpToolResultMode::Overwrite:
                 confirmation->kind = PDFAppMcpConfirmationKind::Save;
@@ -1096,7 +1120,9 @@ private:
         if (isSignatureLost())
         {
             const bool canUndo = document && document->getUndoStack()->canUndoWholeFileRewrite();
-            extra.insert(QStringLiteral("note"), canUndo ? QStringLiteral("The tool rewrote the whole document, so it cannot keep the signed revision. When the document is saved, its signatures will no longer be valid; undo brings the signed version back. Tell the user.")
+            extra.insert(QStringLiteral("note"), getSnapshot().restoration != PDFAppDocumentRestoration::None
+                                                     ? QStringLiteral("The document comes from a damaged file, so it cannot keep the signed revision. When the document is saved, its signatures will no longer be valid. Tell the user.")
+                                                 : canUndo ? QStringLiteral("The tool rewrote the whole document, so it cannot keep the signed revision. When the document is saved, its signatures will no longer be valid; undo brings the signed version back. Tell the user.")
                                                          : QStringLiteral("The tool rewrote the whole document, so it cannot keep the signed revision. When the document is saved, its signatures will no longer be valid. Tell the user."));
         }
         const PDFMcpCallResult result = PDFAppMcpCatalogToolsHelper::createResult(m_request.actionName, m_result, document, undoDescription, writtenPath, extra);
@@ -1340,10 +1366,14 @@ public:
             }
 
             // O31: nothing is switched silently, no run for a result, which cannot be kept
-            if (isChangingDocument && PDFAppToolResultWriter::isCopyOnly(entry, PDFForm::getSignatureCount(document->getDocument().data()) > 0, !document->getFilePath().isEmpty()))
+            if (isChangingDocument)
             {
-                host->finishWithError(call, toolId, document, Helper::getSignedText(), PDFMcpActivityStatus::Failed);
-                return;
+                const QString copyOnlyText = Helper::getCopyOnlyText(entry, document);
+                if (!copyOnlyText.isEmpty())
+                {
+                    host->finishWithError(call, toolId, document, copyOnlyText, PDFMcpActivityStatus::Failed);
+                    return;
+                }
             }
 
             // F5: a document without a file has no original to overwrite

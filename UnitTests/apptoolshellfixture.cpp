@@ -38,6 +38,12 @@
 #include <QTest>
 #include <QtMath>
 
+#include <algorithm>
+#include <functional>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
 namespace pdftest
 {
 
@@ -335,16 +341,72 @@ QImage AppToolShellFixture::render(QWidget* widget, qreal devicePixelRatio)
 
 int AppToolShellFixture::countLeakPixels(const QImage& image)
 {
-    const QRgb leak = pdf::PDFThemeColors::getLeakColor().rgb() & 0xFFFFFF;
-    int count = 0;
+    // A filled area has pixels of exactly the leak color, a text does not: a glyph of 12 px has almost no
+    // pixel of full coverage, so a text in the leak color has to be found as its blend with what it is
+    // drawn over. The backgrounds are the colors covering the most of the picture; a pixel is a leak,
+    // when it lies on the way from one of them to the leak color, at least at the coverage of a stem.
+    constexpr int MAXIMUM_BACKGROUNDS = 6;
+    constexpr double MINIMUM_COVERAGE = 0.4;
+    constexpr double MAXIMUM_DISTANCE = 10.0;
+
     const QImage converted = image.convertToFormat(QImage::Format_RGB32);
+    const QRgb leak = pdf::PDFThemeColors::getLeakColor().rgb() & 0xFFFFFF;
+
+    std::unordered_map<QRgb, int> histogram;
     for (int y = 0; y < converted.height(); ++y)
     {
         const QRgb* line = reinterpret_cast<const QRgb*>(converted.constScanLine(y));
         for (int x = 0; x < converted.width(); ++x)
         {
-            count += (line[x] & 0xFFFFFF) == leak ? 1 : 0;
+            ++histogram[line[x] & 0xFFFFFF];
         }
+    }
+
+    std::vector<std::pair<int, QRgb>> frequent;
+    const int minimumArea = qMax(1, converted.width() * converted.height() / 100);
+    for (const auto& [color, area] : histogram)
+    {
+        if (area >= minimumArea && color != leak)
+        {
+            frequent.emplace_back(area, color);
+        }
+    }
+    std::sort(frequent.begin(), frequent.end(), std::greater<>());
+    if (frequent.size() > size_t(MAXIMUM_BACKGROUNDS))
+    {
+        frequent.resize(MAXIMUM_BACKGROUNDS);
+    }
+
+    // The colors are few: the answer of each color is computed once
+    int count = 0;
+    for (const auto& [color, area] : histogram)
+    {
+        bool isLeak = color == leak;
+        for (size_t i = 0; !isLeak && i < frequent.size(); ++i)
+        {
+            const QRgb background = frequent[i].second;
+            if (color == background)
+            {
+                continue;
+            }
+
+            const double wayRed = qRed(leak) - qRed(background);
+            const double wayGreen = qGreen(leak) - qGreen(background);
+            const double wayBlue = qBlue(leak) - qBlue(background);
+            const double wayLength = wayRed * wayRed + wayGreen * wayGreen + wayBlue * wayBlue;
+            const double red = qRed(color) - qRed(background);
+            const double green = qGreen(color) - qGreen(background);
+            const double blue = qBlue(color) - qBlue(background);
+            const double coverage = wayLength > 0.0 ? (red * wayRed + green * wayGreen + blue * wayBlue) / wayLength : 0.0;
+            if (coverage >= MINIMUM_COVERAGE && coverage <= 1.0)
+            {
+                const double offRed = red - coverage * wayRed;
+                const double offGreen = green - coverage * wayGreen;
+                const double offBlue = blue - coverage * wayBlue;
+                isLeak = offRed * offRed + offGreen * offGreen + offBlue * offBlue <= MAXIMUM_DISTANCE * MAXIMUM_DISTANCE;
+            }
+        }
+        count += isLeak ? area : 0;
     }
     return count;
 }

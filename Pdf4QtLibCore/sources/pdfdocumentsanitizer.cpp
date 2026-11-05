@@ -28,6 +28,13 @@
 #include "pdfparser.h"
 #include "pdfstreamfilters.h"
 #include "pdffont.h"
+#include "pdfannotation.h"
+#include "pdfform.h"
+#include "pdfocrtextlayerwriter.h"
+
+#include <optional>
+#include <set>
+
 #include "pdfdbgheap.h"
 
 namespace pdf
@@ -65,12 +72,12 @@ public:
     static bool isInlineImageOperator(const QByteArray& command);
     static PDFInteger readDirectIntegerFromDictionary(const PDFDictionary* dictionary, const char* key, PDFInteger defaultValue);
     static QByteArray readDirectNameFromDictionary(const PDFDictionary* dictionary, const char* key);
-    static QByteArray sanitizeInvisibleTextInContent(const QByteArray& content, bool* changed);
+    static QByteArray sanitizeInvisibleTextInContent(const QByteArray& content, PDFDocumentSanitizer::InvisibleTextState* state, bool* changed);
     static PDFObject createCompressedContentStream(const PDFStream* originalStream, QByteArray decodedContent, PDFDictionaryBuilder dictionary);
     static bool isFormXObject(const PDFObject& object, PDFDocumentBuilder& builder);
     static SanitizedObjectResult sanitizeResourcesObject(PDFDocumentBuilder& builder, const PDFObject& resourcesObject, InvisibleTextSanitizationContext& context);
     static SanitizedObjectResult sanitizeFormXObject(PDFDocumentBuilder& builder, const PDFObject& object, InvisibleTextSanitizationContext& context);
-    static SanitizedObjectResult sanitizeContentsObject(PDFDocumentBuilder& builder, const PDFObject& contentsObject, InvisibleTextSanitizationContext& context);
+    static SanitizedObjectResult sanitizeContentsObject(PDFDocumentBuilder& builder, const PDFObject& contentsObject, InvisibleTextSanitizationContext& context, PDFDocumentSanitizer::InvisibleTextState* state);
 };
 
 bool PDFInvisibleTextSanitizerHelper::isTextShowingOperator(const QByteArray& command)
@@ -115,9 +122,10 @@ QByteArray PDFInvisibleTextSanitizerHelper::readDirectNameFromDictionary(const P
     return object.isName() ? object.getString() : QByteArray();
 }
 
-QByteArray PDFInvisibleTextSanitizerHelper::sanitizeInvisibleTextInContent(const QByteArray& content, bool* changed)
+QByteArray PDFInvisibleTextSanitizerHelper::sanitizeInvisibleTextInContent(const QByteArray& content, PDFDocumentSanitizer::InvisibleTextState* state, bool* changed)
 {
     Q_ASSERT(changed);
+    Q_ASSERT(state);
     *changed = false;
 
     struct GraphicState
@@ -131,9 +139,14 @@ QByteArray PDFInvisibleTextSanitizerHelper::sanitizeInvisibleTextInContent(const
     QByteArray output;
     std::vector<PDFLexicalAnalyzer::Token> operands;
     std::vector<GraphicState> graphicStateStack;
+    for (int mode : state->stack)
+    {
+        graphicStateStack.push_back({ static_cast<TextRenderingMode>(mode) });
+    }
 
     GraphicState currentGraphicState;
-    bool inTextObject = false;
+    currentGraphicState.textRenderingMode = static_cast<TextRenderingMode>(state->renderingMode);
+    bool inTextObject = state->isInTextObject;
     PDFInteger copyPosition = 0;
     PDFInteger operandStartPosition = -1;
 
@@ -324,6 +337,15 @@ QByteArray PDFInvisibleTextSanitizerHelper::sanitizeInvisibleTextInContent(const
         operandStartPosition = -1;
     }
 
+    // The next stream of the page goes on with this state
+    state->renderingMode = static_cast<int>(currentGraphicState.textRenderingMode);
+    state->isInTextObject = inTextObject;
+    state->stack.clear();
+    for (const GraphicState& graphicState : graphicStateStack)
+    {
+        state->stack.push_back(static_cast<int>(graphicState.textRenderingMode));
+    }
+
     if (*changed)
     {
         output.append(content.constData() + copyPosition, content.size() - copyPosition);
@@ -397,7 +419,8 @@ SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeFormXObject(PDFDo
     PDFDictionaryBuilder dictionary(*stream->getDictionary());
     QByteArray decodedContent = builder.getDecodedStream(stream);
     bool contentChanged = false;
-    QByteArray sanitizedContent = sanitizeInvisibleTextInContent(decodedContent, &contentChanged);
+    PDFDocumentSanitizer::InvisibleTextState formState;
+    QByteArray sanitizedContent = sanitizeInvisibleTextInContent(decodedContent, &formState, &contentChanged);
 
     bool resourcesChanged = false;
     if (dictionary.hasKey("Resources"))
@@ -489,7 +512,8 @@ SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeResourcesObject(P
 
 SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeContentsObject(PDFDocumentBuilder& builder,
                                                                               const PDFObject& contentsObject,
-                                                                              InvisibleTextSanitizationContext& context)
+                                                                              InvisibleTextSanitizationContext& context,
+                                                                              PDFDocumentSanitizer::InvisibleTextState* state)
 {
     if (contentsObject.isReference())
     {
@@ -500,7 +524,7 @@ SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeContentsObject(PD
         }
 
         const PDFObject referencedObject = builder.getObjectByReference(reference);
-        SanitizedObjectResult result = sanitizeContentsObject(builder, referencedObject, context);
+        SanitizedObjectResult result = sanitizeContentsObject(builder, referencedObject, context, state);
         if (result.changed)
         {
             builder.setObject(reference, qMove(result.object));
@@ -515,7 +539,7 @@ SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeContentsObject(PD
 
         for (size_t i = 0, count = updatedArray.getCount(); i < count; ++i)
         {
-            SanitizedObjectResult result = sanitizeContentsObject(builder, updatedArray.getItem(i), context);
+            SanitizedObjectResult result = sanitizeContentsObject(builder, updatedArray.getItem(i), context, state);
             if (result.changed)
             {
                 updatedArray.setItem(qMove(result.object), i);
@@ -534,7 +558,7 @@ SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeContentsObject(PD
     const PDFStream* stream = contentsObject.getStream();
     const QByteArray decodedContent = builder.getDecodedStream(stream);
     bool changed = false;
-    QByteArray sanitizedContent = sanitizeInvisibleTextInContent(decodedContent, &changed);
+    QByteArray sanitizedContent = sanitizeInvisibleTextInContent(decodedContent, state, &changed);
 
     if (!changed)
     {
@@ -545,12 +569,15 @@ SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeContentsObject(PD
     return { createCompressedContentStream(stream, qMove(sanitizedContent), PDFDictionaryBuilder(*stream->getDictionary())), true };
 }
 
-class PDFRemoveMetadataVisitor : public PDFUpdateObjectVisitor
+/// Removes the entries of the given keys from every dictionary of an object, also from the
+/// dictionaries of streams (the keys of the XMP metadata, of the embedded files)
+class PDFRemoveEntriesVisitor : public PDFUpdateObjectVisitor
 {
 public:
-    explicit PDFRemoveMetadataVisitor(const PDFObjectStorage* storage, std::atomic<PDFInteger>* counter) :
+    explicit PDFRemoveEntriesVisitor(const PDFObjectStorage* storage, std::atomic<PDFInteger>* counter, const std::vector<const char*>* keys) :
         PDFUpdateObjectVisitor(storage),
-        m_counter(counter)
+        m_counter(counter),
+        m_keys(keys)
     {
 
     }
@@ -558,10 +585,25 @@ public:
     virtual void visitDictionary(const PDFDictionary* dictionary) override;
 
 private:
+    bool isRemovedKey(const PDFInplaceOrMemoryString& key) const;
+
     std::atomic<PDFInteger>* m_counter;
+    const std::vector<const char*>* m_keys;
 };
 
-void PDFRemoveMetadataVisitor::visitDictionary(const PDFDictionary* dictionary)
+bool PDFRemoveEntriesVisitor::isRemovedKey(const PDFInplaceOrMemoryString& key) const
+{
+    for (const char* removedKey : *m_keys)
+    {
+        if (key == removedKey)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void PDFRemoveEntriesVisitor::visitDictionary(const PDFDictionary* dictionary)
 {
     Q_ASSERT(dictionary);
 
@@ -572,7 +614,7 @@ void PDFRemoveMetadataVisitor::visitDictionary(const PDFDictionary* dictionary)
     {
         dictionary->getValue(i).accept(this);
         Q_ASSERT(!m_objectStack.empty());
-        if (dictionary->getKey(i) != "Metadata")
+        if (!isRemovedKey(dictionary->getKey(i)))
         {
             entries.emplace_back(dictionary->getKey(i), m_objectStack.back());
         }
@@ -586,6 +628,232 @@ void PDFRemoveMetadataVisitor::visitDictionary(const PDFDictionary* dictionary)
     m_objectStack.push_back(PDFObject::createDictionary(qMove(entries)));
 }
 
+/// Helpers of the steps of the sanitizer, which change the items of the arrays /Annots
+class PDFDocumentSanitizerHelper
+{
+public:
+    PDFDocumentSanitizerHelper() = delete;
+
+    /// Removes the entries of \p keys from every object of the storage
+    static PDFInteger removeEntries(PDFObjectStorage* storage, const std::vector<const char*>& keys, const PDFDocumentSanitizer* sanitizer)
+    {
+        std::atomic<PDFInteger> counter = 0;
+        PDFObjectStorage::PDFObjects objects = storage->getObjects();
+        const PDFObjectStorage* readStorage = storage;
+        auto processEntry = [sanitizer, readStorage, &counter, &keys](PDFObjectStorage::Entry& entry)
+        {
+            if (sanitizer->isCanceled())
+            {
+                return;
+            }
+
+            PDFRemoveEntriesVisitor visitor(readStorage, &counter, &keys);
+            entry.object.accept(&visitor);
+            entry.object = visitor.getObject();
+        };
+
+        PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, objects.begin(), objects.end(), processEntry);
+        storage->setObjects(qMove(objects));
+        return counter.load();
+    }
+
+    /// The references of the pages: an annotation, which is a page of a hostile document, is
+    /// never replaced by a null object
+    static std::set<PDFObjectReference> getPageSet(const std::vector<PDFObjectReference>& pages)
+    {
+        return std::set<PDFObjectReference>(pages.cbegin(), pages.cend());
+    }
+
+    /// The annotation of an item of /Annots: an object, which says it is no annotation (a
+    /// /Type other than /Annot), is not one of them
+    static PDFAnnotationPtr parseAnnotation(const PDFObjectStorage* storage, const PDFObject& item)
+    {
+        const PDFDictionary* dictionary = storage->getDictionaryFromObject(item);
+        if (!dictionary)
+        {
+            return PDFAnnotationPtr();
+        }
+        const PDFObject& type = storage->getObject(dictionary->get("Type"));
+        if (type.isName() && type.getString() != "Annot")
+        {
+            return PDFAnnotationPtr();
+        }
+        return PDFAnnotation::parseItem(storage, item);
+    }
+
+    /// Removes the items of the array /Annots of a page, for which \p isRemoved is true, and the
+    /// popup annotations of the removed annotations (only a /Popup, which is a popup annotation);
+    /// the removed indirect annotations are collected in \p nulledAnnotations
+    /// \returns number of the removed annotations, which matched (the popups are not counted)
+    template<typename Predicate>
+    static int removePageAnnotations(PDFDocumentBuilder* builder,
+                                     PDFObjectReference pageReference,
+                                     const std::set<PDFObjectReference>& pages,
+                                     Predicate isRemoved,
+                                     std::set<PDFObjectReference>* nulledAnnotations)
+    {
+        const PDFObjectStorage* storage = builder->getStorage();
+        const PDFDictionary* pageDictionary = storage->getDictionaryFromObject(storage->getObjectByReference(pageReference));
+        if (!pageDictionary)
+        {
+            return 0;
+        }
+
+        const PDFObject& annotationsObject = storage->getObject(pageDictionary->get("Annots"));
+        if (!annotationsObject.isArray())
+        {
+            return 0;
+        }
+
+        const PDFArray* annotations = annotationsObject.getArray();
+        std::vector<bool> isItemRemoved(annotations->getCount(), false);
+        std::set<PDFObjectReference> removedReferences;
+        int removedCount = 0;
+
+        for (size_t i = 0, count = annotations->getCount(); i < count; ++i)
+        {
+            const PDFObject& item = annotations->getItem(i);
+            if (item.isReference() && pages.count(item.getReference()))
+            {
+                continue;
+            }
+
+            PDFAnnotationPtr annotation = parseAnnotation(storage, item);
+            if (!annotation || !isRemoved(annotation.get(), storage->getDictionaryFromObject(item)))
+            {
+                continue;
+            }
+
+            isItemRemoved[i] = true;
+            ++removedCount;
+            if (item.isReference())
+            {
+                removedReferences.insert(item.getReference());
+            }
+
+            // The popup window of the removed annotation holds its text too
+            const PDFDictionary* dictionary = storage->getDictionaryFromObject(item);
+            const PDFObject popup = dictionary ? dictionary->get("Popup") : PDFObject();
+            if (popup.isReference() && !pages.count(popup.getReference()))
+            {
+                const PDFDictionary* popupDictionary = storage->getDictionaryFromObject(storage->getObjectByReference(popup.getReference()));
+                const PDFObject subtype = popupDictionary ? storage->getObject(popupDictionary->get("Subtype")) : PDFObject();
+                if (subtype.isName() && subtype.getString() == "Popup")
+                {
+                    removedReferences.insert(popup.getReference());
+                }
+            }
+        }
+
+        if (removedCount == 0)
+        {
+            return 0;
+        }
+
+        PDFArrayBuilder keptItems;
+        for (size_t i = 0, count = annotations->getCount(); i < count; ++i)
+        {
+            const PDFObject& item = annotations->getItem(i);
+            if (isItemRemoved[i] || (item.isReference() && removedReferences.count(item.getReference())))
+            {
+                continue;
+            }
+            keptItems.appendItem(item);
+        }
+
+        // The page gets its own array: an array shared by more pages stays for the others
+        PDFDictionaryBuilder updatedPage(*pageDictionary);
+        if (keptItems.getCount() > 0)
+        {
+            updatedPage.setEntry(PDFInplaceOrMemoryString("Annots"), PDFObject::createArray(std::move(keptItems)));
+        }
+        else
+        {
+            updatedPage.removeEntry("Annots");
+        }
+        builder->setObject(pageReference, PDFObject::createDictionary(std::move(updatedPage)));
+
+        nulledAnnotations->insert(removedReferences.cbegin(), removedReferences.cend());
+        return removedCount;
+    }
+
+    /// Removes the signature fields of an array of fields (/Fields, /Kids), the fields which
+    /// stay are written again, when their kids have changed
+    /// \returns the new array, std::nullopt = unchanged
+    static std::optional<PDFObject> removeSignatureFields(PDFDocumentBuilder* builder,
+                                                          const PDFObject& fieldsObject,
+                                                          int depth,
+                                                          std::set<PDFObjectReference>* visited,
+                                                          std::set<PDFObjectReference>* nulledFields)
+    {
+        const PDFObjectStorage* storage = builder->getStorage();
+        const PDFObject& dereferenced = storage->getObject(fieldsObject);
+        if (!dereferenced.isArray() || depth > PDFFormField::MAX_FIELD_TREE_DEPTH)
+        {
+            return std::nullopt;
+        }
+
+        const PDFArray* fields = dereferenced.getArray();
+        PDFArrayBuilder keptFields;
+        bool isChanged = false;
+        for (size_t i = 0, count = fields->getCount(); i < count; ++i)
+        {
+            PDFObject item = fields->getItem(i);
+            if (item.isReference() && !visited->insert(item.getReference()).second)
+            {
+                // A cycle or a field shared by more parents: it was decided once
+                if (!nulledFields->count(item.getReference()))
+                {
+                    keptFields.appendItem(item);
+                }
+                else
+                {
+                    isChanged = true;
+                }
+                continue;
+            }
+
+            const PDFDictionary* field = storage->getDictionaryFromObject(item);
+            if (field && PDFDocumentSanitizer::isSignatureField(storage, field))
+            {
+                isChanged = true;
+                if (item.isReference())
+                {
+                    nulledFields->insert(item.getReference());
+                }
+                continue;
+            }
+
+            if (field && field->hasKey("Kids"))
+            {
+                std::optional<PDFObject> kids = removeSignatureFields(builder, field->get("Kids"), depth + 1, visited, nulledFields);
+                if (kids)
+                {
+                    PDFDictionaryBuilder updatedField(*field);
+                    updatedField.setEntry(PDFInplaceOrMemoryString("Kids"), std::move(*kids));
+                    PDFObject updatedFieldObject = PDFObject::createDictionary(std::move(updatedField));
+                    if (item.isReference())
+                    {
+                        builder->setObject(item.getReference(), std::move(updatedFieldObject));
+                    }
+                    else
+                    {
+                        item = std::move(updatedFieldObject);
+                        isChanged = true;
+                    }
+                }
+            }
+            keptFields.appendItem(item);
+        }
+
+        if (!isChanged)
+        {
+            return std::nullopt;
+        }
+        return PDFObject::createArray(std::move(keptFields));
+    }
+};
+
 PDFDocumentSanitizer::PDFDocumentSanitizer(SanitizationFlag flags, QObject* parent) :
     QObject(parent),
     m_flags(flags)
@@ -593,53 +861,98 @@ PDFDocumentSanitizer::PDFDocumentSanitizer(SanitizationFlag flags, QObject* pare
 
 }
 
+QByteArray PDFDocumentSanitizer::removeInvisibleText(const QByteArray& content, InvisibleTextState* state, bool* changed)
+{
+    return PDFInvisibleTextSanitizerHelper::sanitizeInvisibleTextInContent(content, state, changed);
+}
+
+bool PDFDocumentSanitizer::isCommentAnnotation(const PDFAnnotation* annotation)
+{
+    return annotation && (annotation->asMarkupAnnotation() != nullptr || annotation->getType() == AnnotationType::Popup);
+}
+
+bool PDFDocumentSanitizer::isSignatureField(const PDFObjectStorage* storage, const PDFDictionary* dictionary)
+{
+    const PDFDictionary* current = dictionary;
+    for (int depth = 0; current && depth <= PDFFormField::MAX_FIELD_TREE_DEPTH; ++depth)
+    {
+        const PDFObject& fieldType = storage->getObject(current->get("FT"));
+        if (fieldType.isName())
+        {
+            return fieldType.getString() == "Sig";
+        }
+        current = storage->getDictionaryFromObject(current->get("Parent"));
+    }
+    return false;
+}
+
+std::vector<PDFDocumentSanitizer::SanitizationFlag> PDFDocumentSanitizer::getSteps(SanitizationFlags flags)
+{
+    // The order of the rows of Remove Hidden Data (438:12588)
+    std::vector<SanitizationFlag> steps;
+    for (SanitizationFlag flag : { DocumentInfo, Metadata, MarkupAnnotations, FileAttachments, Outline, PageLabels, EmbeddedSearchIndex, PageThumbnails, InvisibleText, SignatureFields })
+    {
+        if (flags.testFlag(flag))
+        {
+            steps.push_back(flag);
+        }
+    }
+    return steps;
+}
+
 void PDFDocumentSanitizer::sanitize()
 {
     Q_EMIT sanitizationStarted();
 
+    for (SanitizationFlag step : getSteps(m_flags))
+    {
+        if (isCanceled())
+        {
+            break;
+        }
+
+        Q_EMIT sanitizationStepStarted(step);
+        switch (step)
+        {
+            case DocumentInfo:
+                performSanitizeDocumentInfo();
+                break;
+            case Metadata:
+                performSanitizeMetadata();
+                break;
+            case MarkupAnnotations:
+                performSanitizeMarkupAnnotations();
+                break;
+            case FileAttachments:
+                performSanitizeFileAttachments();
+                break;
+            case Outline:
+                performSanitizeOutline();
+                break;
+            case PageLabels:
+                performSanitizePageLabels();
+                break;
+            case EmbeddedSearchIndex:
+                performSanitizeEmbeddedSearchIndex();
+                break;
+            case PageThumbnails:
+                performSanitizePageThumbnails();
+                break;
+            case InvisibleText:
+                performSanitizeInvisibleText();
+                break;
+            case SignatureFields:
+                performSanitizeSignatureFields();
+                break;
+            default:
+                break;
+        }
+    }
+
+    // The builders of the steps have written /Producer and /ModDate into the information dictionary
     if (m_flags.testFlag(DocumentInfo) && !isCanceled())
     {
-        performSanitizeDocumentInfo();
-    }
-
-    if (m_flags.testFlag(Metadata) && !isCanceled())
-    {
-        performSanitizeMetadata();
-    }
-
-    if (m_flags.testFlag(Outline) && !isCanceled())
-    {
-        performSanitizeOutline();
-    }
-
-    if (m_flags.testFlag(FileAttachments) && !isCanceled())
-    {
-        performSanitizeFileAttachments();
-    }
-
-    if (m_flags.testFlag(EmbeddedSearchIndex) && !isCanceled())
-    {
-        performSanitizeEmbeddedSearchIndex();
-    }
-
-    if (m_flags.testFlag(MarkupAnnotations) && !isCanceled())
-    {
-        performSanitizeMarkupAnnotations();
-    }
-
-    if (m_flags.testFlag(PageThumbnails) && !isCanceled())
-    {
-        performSanitizePageThumbnails();
-    }
-
-    if (m_flags.testFlag(PageLabels) && !isCanceled())
-    {
-        performSanitizePageLabels();
-    }
-
-    if (m_flags.testFlag(InvisibleText) && !isCanceled())
-    {
-        performSanitizeInvisibleText();
+        removeDocumentInfoEntry();
     }
 
     // Optimize - remove unused objects
@@ -664,40 +977,29 @@ void PDFDocumentSanitizer::setFlags(SanitizationFlags flags)
 
 void PDFDocumentSanitizer::performSanitizeDocumentInfo()
 {
-    PDFObjectReference emptyDocumentInfoReference = m_storage.addObject(PDFObject());
-
+    // The entry /Info of the trailer is removed after the last step (removeDocumentInfoEntry)
     PDFDocumentBuilder builder(m_storage, PDFVersion(2, 0));
-    const bool hasDocumentInfo = builder.getDocumentInfo().isValid();
-    builder.setDocumentInfo(emptyDocumentInfoReference);
-    PDFDocument document = builder.build();
-    m_storage = document.getStorage();
-
-    if (hasDocumentInfo)
+    if (builder.getDocumentInfo().isValid())
     {
         Q_EMIT sanitizationProgress(tr("Document info was removed."));
     }
 }
 
+void PDFDocumentSanitizer::removeDocumentInfoEntry()
+{
+    PDFObjectFactory factory;
+    factory.beginDictionary();
+    factory.beginDictionaryItem("Info");
+    factory << PDFObject();
+    factory.endDictionaryItem();
+    factory.endDictionary();
+    m_storage.updateTrailerDictionary(factory.takeObject());
+}
+
 void PDFDocumentSanitizer::performSanitizeMetadata()
 {
-    std::atomic<PDFInteger> counter = 0;
-
-    PDFObjectStorage::PDFObjects objects =  m_storage.getObjects();
-    auto processEntry = [this, &counter](PDFObjectStorage::Entry& entry)
-    {
-        if (isCanceled())
-        {
-            return;
-        }
-
-        PDFRemoveMetadataVisitor visitor(&m_storage, &counter);
-        entry.object.accept(&visitor);
-        entry.object = visitor.getObject();
-    };
-
-    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, objects.begin(), objects.end(), processEntry);
-    m_storage.setObjects(qMove(objects));
-    Q_EMIT sanitizationProgress(tr("Metadata streams removed: %1").arg(counter.load()));
+    const PDFInteger count = PDFDocumentSanitizerHelper::removeEntries(&m_storage, { "Metadata" }, this);
+    Q_EMIT sanitizationProgress(tr("Metadata streams removed: %1").arg(count));
 }
 
 void PDFDocumentSanitizer::performSanitizeOutline()
@@ -718,41 +1020,61 @@ void PDFDocumentSanitizer::performSanitizeOutline()
 
 void PDFDocumentSanitizer::performSanitizeFileAttachments()
 {
-    auto filter = [](const PDFAnnotation* annotation)
+    auto filter = [](const PDFAnnotation* annotation, const PDFDictionary*)
     {
         return annotation->getType() == AnnotationType::FileAttachment;
     };
     removeAnnotations(filter, tr("File attachments removed: %1."));
-
-    // Remove files in name tree
-    PDFDocumentBuilder builder(m_storage, PDFVersion(2, 0));
-    PDFObject catalogObject = builder.getObjectByReference(builder.getCatalogReference());
-    const PDFDictionary* catalogDictionary = builder.getDictionaryFromObject(catalogObject);
-    const bool hasNames = catalogDictionary && catalogDictionary->hasKey("Names");
-
-    if (hasNames)
+    if (isCanceled())
     {
-        PDFObject namesObject = builder.getObject(catalogDictionary->get("Names"));
-        const PDFDictionary* namesDictionary = builder.getDictionaryFromObject(namesObject);
-        if (namesDictionary->hasKey("EmbeddedFiles"))
-        {
-            PDFDictionaryBuilder dictionaryCopy(*namesDictionary);
-            dictionaryCopy.setEntry(PDFInplaceOrMemoryString("EmbeddedFiles"), PDFObject());
-            namesObject = PDFObject::createDictionary(qMove(dictionaryCopy));
-
-            PDFObjectFactory factory;
-            factory.beginDictionary();
-            factory.beginDictionaryItem("Names");
-            factory << namesObject;
-            factory.endDictionaryItem();
-            factory.endDictionary();
-            PDFObject newCatalog = factory.takeObject();
-            builder.mergeTo(builder.getCatalogReference(), std::move(newCatalog));
-            PDFDocument document = builder.build();
-            m_storage = document.getStorage();
-            Q_EMIT sanitizationProgress(tr("Embedded files were removed."));
-        }
+        return;
     }
+
+    // The embedded files of every file specification, the associated files (/AF, PDF 2.0)
+    // and the related files: an embedded file is not reached by the name tree only
+    PDFDocumentSanitizerHelper::removeEntries(&m_storage, { "EF", "RF", "AF" }, this);
+
+    // The name tree of the embedded files and the portable collection of the catalog
+    PDFDocumentBuilder builder(m_storage, PDFVersion(2, 0));
+    const PDFObjectReference catalogReference = builder.getCatalogReference();
+    const PDFDictionary* catalogDictionary = builder.getDictionaryFromObject(builder.getObjectByReference(catalogReference));
+    if (!catalogDictionary)
+    {
+        return;
+    }
+
+    PDFDictionaryBuilder updatedCatalog(*catalogDictionary);
+    bool isCatalogChanged = false;
+    if (catalogDictionary->hasKey("Collection"))
+    {
+        updatedCatalog.removeEntry("Collection");
+        isCatalogChanged = true;
+    }
+
+    const PDFObject& namesObject = catalogDictionary->get("Names");
+    const PDFDictionary* namesDictionary = builder.getDictionaryFromObject(namesObject);
+    if (namesDictionary && namesDictionary->hasKey("EmbeddedFiles"))
+    {
+        PDFDictionaryBuilder updatedNames(*namesDictionary);
+        updatedNames.removeEntry("EmbeddedFiles");
+        PDFObject updatedNamesObject = PDFObject::createDictionary(std::move(updatedNames));
+        if (namesObject.isReference())
+        {
+            builder.setObject(namesObject.getReference(), std::move(updatedNamesObject));
+        }
+        else
+        {
+            updatedCatalog.setEntry(PDFInplaceOrMemoryString("Names"), std::move(updatedNamesObject));
+            isCatalogChanged = true;
+        }
+        Q_EMIT sanitizationProgress(tr("Embedded files were removed."));
+    }
+
+    if (isCatalogChanged)
+    {
+        builder.setObject(catalogReference, PDFObject::createDictionary(std::move(updatedCatalog)));
+    }
+    m_storage = *builder.getStorage();
 }
 
 void PDFDocumentSanitizer::performSanitizeEmbeddedSearchIndex()
@@ -766,7 +1088,7 @@ void PDFDocumentSanitizer::performSanitizeEmbeddedSearchIndex()
     {
         PDFObject pieceInfoObject = builder.getObject(catalogDictionary->get("PieceInfo"));
         const PDFDictionary* pieceInfoDictionary = builder.getDictionaryFromObject(pieceInfoObject);
-        if (pieceInfoDictionary->hasKey("SearchIndex"))
+        if (pieceInfoDictionary && pieceInfoDictionary->hasKey("SearchIndex"))
         {
             PDFDictionaryBuilder dictionaryCopy(*pieceInfoDictionary);
             dictionaryCopy.setEntry(PDFInplaceOrMemoryString("SearchIndex"), PDFObject());
@@ -789,9 +1111,10 @@ void PDFDocumentSanitizer::performSanitizeEmbeddedSearchIndex()
 
 void PDFDocumentSanitizer::performSanitizeMarkupAnnotations()
 {
-    auto filter = [](const PDFAnnotation* annotation)
+    // A popup annotation holds the text of its comment
+    auto filter = [](const PDFAnnotation* annotation, const PDFDictionary*)
     {
-        return annotation->asMarkupAnnotation() != nullptr;
+        return isCommentAnnotation(annotation);
     };
     removeAnnotations(filter, tr("Markup annotations removed: %1."));
 }
@@ -879,7 +1202,9 @@ void PDFDocumentSanitizer::performSanitizeInvisibleText()
 
         if (pageDictionary->hasKey("Contents"))
         {
-            SanitizedObjectResult result = PDFInvisibleTextSanitizerHelper::sanitizeContentsObject(builder, pageDictionary->get("Contents"), context);
+            // One state for the streams of the page (they are one content stream)
+            PDFDocumentSanitizer::InvisibleTextState state;
+            SanitizedObjectResult result = PDFInvisibleTextSanitizerHelper::sanitizeContentsObject(builder, pageDictionary->get("Contents"), context, &state);
             if (result.changed)
             {
                 updatedPageDictionary.setEntry(PDFInplaceOrMemoryString("Contents"), qMove(result.object));
@@ -897,6 +1222,24 @@ void PDFDocumentSanitizer::performSanitizeInvisibleText()
             }
         }
 
+        // The private data of an own OCR layer of PDF4QT hold the recognized words
+        // (PDFOCRTextLayerWriter, /PieceInfo /PDF4QT_OCR): they go with the invisible text
+        const PDFDictionary* pieceInfo = builder.getDictionaryFromObject(pageDictionary->get("PieceInfo"));
+        if (pieceInfo && pieceInfo->hasKey(PDFOCRTextLayerWriter::PIECE_INFO_KEY))
+        {
+            PDFDictionaryBuilder updatedPieceInfo(*pieceInfo);
+            updatedPieceInfo.removeEntry(PDFOCRTextLayerWriter::PIECE_INFO_KEY);
+            if (updatedPieceInfo.getCount() > 0)
+            {
+                updatedPageDictionary.setEntry(PDFInplaceOrMemoryString("PieceInfo"), PDFObject::createDictionary(std::move(updatedPieceInfo)));
+            }
+            else
+            {
+                updatedPageDictionary.removeEntry("PieceInfo");
+            }
+            pageChanged = true;
+        }
+
         if (pageChanged)
         {
             builder.setObject(pageReference, PDFObject::createDictionary(qMove(updatedPageDictionary)));
@@ -912,54 +1255,148 @@ void PDFDocumentSanitizer::performSanitizeInvisibleText()
     }
 }
 
-void PDFDocumentSanitizer::removeAnnotations(const std::function<bool (const PDFAnnotation*)>& filter,
-                                             QString message)
+void PDFDocumentSanitizer::performSanitizeSignatureFields()
 {
+    using Helper = PDFDocumentSanitizerHelper;
+
     PDFDocumentBuilder builder(m_storage, PDFVersion(2, 0));
     builder.flattenPageTree();
-    std::vector<PDFObjectReference> pageReferences = builder.getPages();
-    std::vector<std::pair<PDFObjectReference, PDFObjectReference>> annotationsToBeRemoved;
+    const std::vector<PDFObjectReference> pageReferences = builder.getPages();
+    const std::set<PDFObjectReference> pages = Helper::getPageSet(pageReferences);
+    std::set<PDFObjectReference> nulledObjects;
 
-    PDFDocumentDataLoaderDecorator loader(&m_storage);
-    for (const PDFObjectReference pageReference : pageReferences)
+    // The widgets of the signature fields on the pages (also a widget, which is not in the field tree)
+    int removedWidgets = 0;
+    const PDFObjectStorage* storage = builder.getStorage();
+    for (const PDFObjectReference& pageReference : pageReferences)
     {
         if (isCanceled())
         {
             return;
         }
 
-        const PDFObject& pageObject = m_storage.getObjectByReference(pageReference);
-        const PDFDictionary* pageDictionary = m_storage.getDictionaryFromObject(pageObject);
-
-        if (!pageDictionary)
+        auto filter = [storage](const PDFAnnotation* annotation, const PDFDictionary* dictionary)
         {
-            continue;
+            return annotation->getType() == AnnotationType::Widget && dictionary && isSignatureField(storage, dictionary);
+        };
+        removedWidgets += Helper::removePageAnnotations(&builder, pageReference, pages, filter, &nulledObjects);
+    }
+
+    // The field tree, the signature flags, the permissions (DocMDP, UR3 refer to the
+    // signatures) and the security store of the validation (certificates, OCSP, CRL)
+    const PDFObjectReference catalogReference = builder.getCatalogReference();
+    const PDFDictionary* catalogDictionary = builder.getDictionaryFromObject(builder.getObjectByReference(catalogReference));
+    if (!catalogDictionary)
+    {
+        return;
+    }
+
+    PDFDictionaryBuilder updatedCatalog(*catalogDictionary);
+    bool isCatalogChanged = false;
+    for (const char* key : { "Perms", "DSS" })
+    {
+        if (catalogDictionary->hasKey(key))
+        {
+            updatedCatalog.removeEntry(key);
+            isCatalogChanged = true;
+        }
+    }
+
+    int removedFields = 0;
+    const PDFObject& formObject = catalogDictionary->get("AcroForm");
+    if (const PDFDictionary* formDictionary = builder.getDictionaryFromObject(formObject))
+    {
+        std::set<PDFObjectReference> visited;
+        std::set<PDFObjectReference> nulledFields;
+        std::optional<PDFObject> fields = Helper::removeSignatureFields(&builder, formDictionary->get("Fields"), 0, &visited, &nulledFields);
+
+        // The dictionary of the form is read again: removeSignatureFields may have written it
+        formDictionary = builder.getDictionaryFromObject(builder.getObject(formObject));
+        if (formDictionary && (fields || formDictionary->hasKey("SigFlags")))
+        {
+            PDFDictionaryBuilder updatedForm(*formDictionary);
+            if (fields)
+            {
+                updatedForm.setEntry(PDFInplaceOrMemoryString("Fields"), std::move(*fields));
+            }
+            updatedForm.removeEntry("SigFlags");
+
+            PDFObject updatedFormObject = PDFObject::createDictionary(std::move(updatedForm));
+            if (formObject.isReference())
+            {
+                builder.setObject(formObject.getReference(), std::move(updatedFormObject));
+            }
+            else
+            {
+                updatedCatalog.setEntry(PDFInplaceOrMemoryString("AcroForm"), std::move(updatedFormObject));
+                isCatalogChanged = true;
+            }
         }
 
-        std::vector<PDFObjectReference> annotationReferences = loader.readReferenceArrayFromDictionary(pageDictionary, "Annots");
-        for (const PDFObjectReference& annotationReference : annotationReferences)
+        for (const PDFObjectReference& reference : nulledFields)
         {
-            PDFAnnotationPtr annotation = PDFAnnotation::parse(&m_storage, annotationReference);
-            if (filter(annotation.get()))
+            if (!pages.count(reference) && reference != catalogReference)
             {
-                annotationsToBeRemoved.emplace_back(pageReference, annotationReference);
+                nulledObjects.insert(reference);
+                ++removedFields;
             }
         }
     }
 
-    if (!annotationsToBeRemoved.empty())
+    if (isCatalogChanged)
     {
-        for (const auto& item : annotationsToBeRemoved)
-        {
-            const PDFObjectReference pageReference = item.first;
-            const PDFObjectReference annotationReference = item.second;
-            builder.removeAnnotation(pageReference, annotationReference);
-        }
-
-        PDFDocument document = builder.build();
-        m_storage = document.getStorage();
-        Q_EMIT sanitizationProgress(message.arg(annotationsToBeRemoved.size()));
+        builder.setObject(catalogReference, PDFObject::createDictionary(std::move(updatedCatalog)));
     }
+
+    for (const PDFObjectReference& reference : nulledObjects)
+    {
+        if (reference != catalogReference)
+        {
+            builder.setObject(reference, PDFObject());
+        }
+    }
+
+    m_storage = *builder.getStorage();
+    if (removedWidgets > 0 || removedFields > 0 || isCatalogChanged)
+    {
+        Q_EMIT sanitizationProgress(tr("Signature fields removed: %1.").arg(qMax(removedWidgets, removedFields)));
+    }
+}
+
+void PDFDocumentSanitizer::removeAnnotations(const std::function<bool(const PDFAnnotation*, const PDFDictionary*)>& filter, QString message)
+{
+    using Helper = PDFDocumentSanitizerHelper;
+
+    PDFDocumentBuilder builder(m_storage, PDFVersion(2, 0));
+    builder.flattenPageTree();
+    const std::vector<PDFObjectReference> pageReferences = builder.getPages();
+    const std::set<PDFObjectReference> pages = Helper::getPageSet(pageReferences);
+    std::set<PDFObjectReference> nulledAnnotations;
+    int removedCount = 0;
+
+    for (const PDFObjectReference& pageReference : pageReferences)
+    {
+        if (isCanceled())
+        {
+            return;
+        }
+        removedCount += Helper::removePageAnnotations(&builder, pageReference, pages, filter, &nulledAnnotations);
+    }
+
+    if (removedCount == 0)
+    {
+        return;
+    }
+
+    // The removed annotations become null objects: an object, which still refers to them (the
+    // structure tree, a reply, a link of a page shared by more pages), does not keep their text
+    for (const PDFObjectReference& reference : nulledAnnotations)
+    {
+        builder.setObject(reference, PDFObject());
+    }
+
+    m_storage = *builder.getStorage();
+    Q_EMIT sanitizationProgress(message.arg(removedCount));
 }
 
 }   // namespace pdf

@@ -31,6 +31,7 @@
 #include "pdfapptoolpathrules.h"
 #include "pdfapptoolpresentation.h"
 #include "pdfappworkspace.h"
+#include "pdfdocumenttextexporter.h"
 #include "pdfdocumenttoolrunner.h"
 #include "pdfdocumenttoolusage.h"
 
@@ -471,7 +472,7 @@ std::vector<PDFAppToolResultDialog::Choice> PDFAppToolResultDialog::getChoices(c
         {
             // O31: a tool, which rewrites the file, cannot keep a signature; only a copy
             // says so honestly. Without a file nothing is signed by this rule (F5).
-            const bool isCopyOnly = PDFAppToolResultWriter::isCopyOnly(tool, state.isSigned, state.hasFile);
+            const bool isCopyOnly = PDFAppToolResultWriter::isCopyOnly(tool, state.isSigned, state.hasFile, state.isOnlyCopyWritable);
             std::vector<Choice> choices;
             if (!isCopyOnly && !state.isLocked)
             {
@@ -556,6 +557,7 @@ PDFAppToolResultDialog::PDFAppToolResultDialog(PDFAppContext* context, PDFAppDoc
     m_state.hasFile = document && !document->getFilePath().isEmpty();
     m_state.isSigned = m_snapshot.isValid() && PDFForm::getSignatureCount(m_snapshot.document.data()) > 0;
     m_state.isLocked = document && document->isLocked();
+    m_state.isOnlyCopyWritable = m_snapshot.isValid() && PDFAppDocumentFileWriter::isOnlyCopyWritable(m_snapshot);
 
     m_writer = new PDFAppToolResultWriter(this);
     connect(m_writer, &PDFAppToolResultWriter::finished, this, &PDFAppToolResultDialog::onWriterFinished);
@@ -623,7 +625,25 @@ void PDFAppToolResultDialog::createHead()
     m_titleLabel->setObjectName(QStringLiteral("toolResultTitle"));
     m_subtitleLabel = PDFAppPageWidgets::createText(QString(), PDFThemeFonts::getFont(QFont::Normal, 12), 15, PDFThemeColors::TextSecondary, head);
     m_subtitleLabel->setObjectName(QStringLiteral("toolResultSubtitle"));
-    textLayout->addWidget(m_titleLabel);
+    if (m_input.reportText.isEmpty())
+    {
+        textLayout->addWidget(m_titleLabel);
+    }
+    else
+    {
+        // No frame of the design: the link Copy report of the panel (303:5373) cannot get a
+        // click beside this modal dialog, so the dialog has it too, at the trailing edge of the
+        // line of its title (the head keeps its height)
+        QHBoxLayout* titleLayout = new QHBoxLayout();
+        titleLayout->setContentsMargins(0, 0, 0, 0);
+        titleLayout->setSpacing(Helper::HEAD_GAP);
+        titleLayout->addWidget(m_titleLabel, 1);
+        m_reportLink = new PDFTextLink(head);
+        m_reportLink->setObjectName(QStringLiteral("toolResultReportLink"));
+        connect(m_reportLink.data(), &PDFTextLink::clicked, this, &PDFAppToolResultDialog::onReportLinkClicked);
+        titleLayout->addWidget(m_reportLink, 0, Qt::AlignVCenter);
+        textLayout->addLayout(titleLayout);
+    }
     textLayout->addWidget(m_subtitleLabel);
     headLayout->addLayout(textLayout, 1);
     setHeadWidget(head);
@@ -683,7 +703,8 @@ void PDFAppToolResultDialog::createFacts(QVBoxLayout* layout, QWidget* parent)
 
     // The warning of chapter 4 below the facts (O31): no frame of the design, the
     // parts of 295:2621
-    if (m_kind == ResultKind::ChangeDocument && PDFAppToolResultWriter::isSignatureLost(m_input.tool, m_state.isSigned))
+    if (m_kind == ResultKind::ChangeDocument && (PDFAppToolResultWriter::isSignatureLost(m_input.tool, m_state.isSigned, m_state.isOnlyCopyWritable) ||
+                                                 PDFAppToolResultWriter::isCopyOnly(m_input.tool, m_state.isSigned, m_state.hasFile, m_state.isOnlyCopyWritable)))
     {
         PDFLabel* title = nullptr;
         PDFAppParagraph* text = nullptr;
@@ -946,6 +967,10 @@ void PDFAppToolResultDialog::updateTexts()
     setText(subtitle);
     m_titleLabel->setText(title);
     m_subtitleLabel->setText(subtitle);
+    if (m_reportLink)
+    {
+        m_reportLink->setText(m_isReportCopied ? tr("Report copied") : tr("Copy report"));
+    }
 
     if (m_signedWarning)
     {
@@ -953,16 +978,26 @@ void PDFAppToolResultDialog::updateTexts()
         // frame of the design (owner 2026-11-02)
         if (PDFLabel* warningTitle = m_signedWarning->findChild<PDFLabel*>(QStringLiteral("signedWarningTitle")))
         {
-            warningTitle->setText(m_state.hasFile ? tr("The signatures of the copy will not be valid") : tr("The signatures will stop being valid"));
+            warningTitle->setText(!m_state.isSigned ? tr("Only a copy can be saved")
+                                                    : (m_state.hasFile ? tr("The signatures of the copy will not be valid") : tr("The signatures will stop being valid")));
         }
         if (PDFAppParagraph* warningText = m_signedWarning->findChild<PDFAppParagraph*>(QStringLiteral("signedWarningText")))
         {
-            warningText->setText(m_state.hasFile ? tr("This tool rewrites the whole file, so it cannot keep the signed revision. Only a copy can be saved; the open document and its file stay as they are.")
-                                                 : tr("This tool rewrites the whole file, so it cannot keep the signed revision. When you save the result, its signatures will no longer be valid."));
+            if (m_state.isOnlyCopyWritable)
+            {
+                // The file is damaged: the reason is not the tool
+                warningText->setText(m_state.hasFile ? tr("The file is damaged, so PDF4QT does not change it. Only a copy can be saved; the open document and its file stay as they are.")
+                                                     : tr("This document comes from a damaged file, so it cannot keep the signed revision. When you save the result, its signatures will no longer be valid."));
+            }
+            else
+            {
+                warningText->setText(m_state.hasFile ? tr("This tool rewrites the whole file, so it cannot keep the signed revision. Only a copy can be saved; the open document and its file stay as they are.")
+                                                     : tr("This tool rewrites the whole file, so it cannot keep the signed revision. When you save the result, its signatures will no longer be valid."));
+            }
         }
     }
 
-    const bool isCopyOnly = PDFAppToolResultWriter::isCopyOnly(m_input.tool, m_state.isSigned, m_state.hasFile);
+    const bool isCopyOnly = PDFAppToolResultWriter::isCopyOnly(m_input.tool, m_state.isSigned, m_state.hasFile, m_state.isOnlyCopyWritable);
     const Choice preselected = getPreselectedChoice(m_input.tool, getChoices(m_input.tool, m_kind, m_state));
     const QString documentFileName = QFileInfo(m_snapshot.filePath).fileName();
     for (const auto& item : m_options)
@@ -1616,7 +1651,8 @@ void PDFAppToolResultDialog::confirm()
         case Choice::Clipboard:
             if (!m_input.result.outputs.empty())
             {
-                QStringDecoder decoder(QStringDecoder::Utf8);
+                // The charset of the output (Latin-1, the code page of the system)
+                QStringDecoder decoder = PDFDocumentTextExporter::createDecoder(m_input.result.outputs.front().mimeType);
                 const QString text = decoder.decode(m_input.result.outputs.front().data);
                 QGuiApplication::clipboard()->setText(text);
                 outcome.action = PDFAppToolResultOutcome::Action::CopiedToClipboard;
@@ -1886,6 +1922,20 @@ void PDFAppToolResultDialog::onAnotherToolRequested()
     chooser->setAttribute(Qt::WA_DeleteOnClose);
     connect(chooser, &QDialog::finished, this, &PDFAppToolResultDialog::onChooserFinished);
     chooser->QDialog::open();
+}
+
+void PDFAppToolResultDialog::onReportLinkClicked()
+{
+    // The link says it first; the clipboard is the last thing (its signals reach the application)
+    m_isReportCopied = true;
+    if (m_reportLink)
+    {
+        m_reportLink->setText(tr("Report copied"));
+    }
+    if (QClipboard* clipboard = QGuiApplication::clipboard())
+    {
+        clipboard->setText(m_input.reportText);
+    }
 }
 
 void PDFAppToolResultDialog::onChooserFinished(int result)

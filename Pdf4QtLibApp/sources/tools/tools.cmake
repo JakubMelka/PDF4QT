@@ -87,8 +87,6 @@ list(APPEND PDF4QT_LIBAPP_TOOLS_SOURCES
     sources/tools/pdfapptooldocumentpage.h
     sources/tools/pdfapptoolhost.cpp
     sources/tools/pdfapptoolhost.h
-    sources/tools/pdfapptooloutofmemorydialog.cpp
-    sources/tools/pdfapptooloutofmemorydialog.h
     sources/tools/pdfapptoolpanelbuilder.cpp
     sources/tools/pdfapptoolpanelbuilder.h
     sources/tools/pdfapptoolpanelparts.cpp

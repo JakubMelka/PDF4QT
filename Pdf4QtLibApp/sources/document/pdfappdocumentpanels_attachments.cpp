@@ -393,14 +393,6 @@ QByteArray PDFAppAttachments::decode(const PDFDocumentPointer& document, const P
         *error = exception.getMessage();
         return QByteArray();
     }
-    catch (const std::bad_alloc&)
-    {
-        // A decompression bomb (nested Flate filters of a few kB decode to
-        // terabytes): the exception would be thrown again by the result of the
-        // future in the thread of the user interface and end the application
-        *error = QCoreApplication::translate("pdf::PDFAppAttachments", "The attachment is too large.");
-        return QByteArray();
-    }
 
     if (data.size() > MAXIMUM_FILE_SIZE)
     {

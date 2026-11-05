@@ -379,6 +379,10 @@ QVariant PDFDocumentToolPageSelection::toVariant() const
     QVariantMap map;
     map.insert(QStringLiteral("pages"), pages);
     map.insert(QStringLiteral("filters"), filterNames);
+    if (isNone)
+    {
+        map.insert(QStringLiteral("none"), true);
+    }
     return map;
 }
 
@@ -400,7 +404,7 @@ std::optional<PDFDocumentToolPageSelection> PDFDocumentToolPageSelection::fromVa
         const QVariantMap map = value.toMap();
         for (auto it = map.cbegin(); it != map.cend(); ++it)
         {
-            if (it.key() != QLatin1String("pages") && it.key() != QLatin1String("filters"))
+            if (it.key() != QLatin1String("pages") && it.key() != QLatin1String("filters") && it.key() != QLatin1String("none"))
             {
                 error = PDFDocumentToolParameterHelper::tr("Unknown key “%1” of the page selection.").arg(PDFDocumentToolParameterDefinition::sanitizeForMessage(it.key()));
                 return std::nullopt;
@@ -420,6 +424,17 @@ std::optional<PDFDocumentToolPageSelection> PDFDocumentToolPageSelection::fromVa
         {
             error = PDFDocumentToolParameterHelper::tr("The pages must be a text such as 1-3, 5, 8-.");
             return std::nullopt;
+        }
+
+        const QVariant none = map.value(QStringLiteral("none"));
+        if (!Helper::isMissing(none))
+        {
+            if (none.typeId() != QMetaType::Bool)
+            {
+                error = PDFDocumentToolParameterHelper::tr("The value “none” of the page selection must be true or false.");
+                return std::nullopt;
+            }
+            selection.isNone = none.toBool();
         }
 
         const QVariant filters = map.value(QStringLiteral("filters"));
@@ -487,6 +502,12 @@ std::vector<PDFInteger> PDFDocumentToolPageSelection::getPageIndices(const std::
     if (pageCount == 0)
     {
         error = PDFDocumentToolParameterHelper::tr("The document has no pages.");
+        return indices;
+    }
+
+    if (isNone)
+    {
+        error = PDFDocumentToolParameterHelper::tr("No page is selected.");
         return indices;
     }
 

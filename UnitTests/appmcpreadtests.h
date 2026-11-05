@@ -31,6 +31,7 @@
 #include "testdocumenttool.h"
 
 #include "pdfappcontext.h"
+#include "pdftrustedcertificaterepository.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentregistry.h"
 #include "pdfappdocumentsearch.h"
@@ -2048,8 +2049,7 @@ public:
             Finish,
             ThrowPdf,
             ThrowStandard,
-            ThrowOther,
-            ThrowBadAlloc
+            ThrowOther
         };
 
         TestJob(std::shared_ptr<pdf::PDFMcpCall> call, Mode mode, std::shared_ptr<std::atomic<int>> runs) :
@@ -2074,8 +2074,6 @@ public:
                     throw std::runtime_error("secret text of the document");
                 case Mode::ThrowOther:
                     throw 42;
-                case Mode::ThrowBadAlloc:
-                    throw std::bad_alloc();
             }
         }
 
@@ -2156,8 +2154,6 @@ public:
         result = runJob(fixture, pdf::PDFMcpCallKind::ResourceRead, TestJob::Mode::ThrowOther, false, &runs);
         QVERIFY(result && result->kind == pdf::PDFMcpCallResult::Kind::Error);
         QCOMPARE(result->errorCode, pdf::PDFMcpErrorCodes::INTERNAL_ERROR);
-        result = runJob(fixture, pdf::PDFMcpCallKind::ToolCall, TestJob::Mode::ThrowBadAlloc, false, &runs);
-        QVERIFY(result->getFirstText().contains(QStringLiteral("out of memory")));
     }
 
     static int countStatus(const std::vector<pdf::PDFMcpActivityRow>& rows, pdf::PDFMcpActivityStatus status)
@@ -3074,7 +3070,26 @@ public:
         const QString status = verified.at(0).toObject().value(QStringLiteral("status")).toString();
         QVERIFY2(status == QLatin1String("valid") || status == QLatin1String("invalid") || status == QLatin1String("unknown"), qPrintable(status));
         QVERIFY(verified.at(0).toObject().contains(QStringLiteral("coversWholeDocument")));
+        QCOMPARE(verified.at(0).toObject().value(QStringLiteral("fileRestored")).toBool(true), false);
         QVERIFY(parseObject(pdf::PDFAppMcpDocumentReader::getSignatures(nullptr, false)).value(QStringLiteral("signatures")).toArray().isEmpty());
+
+        // A signature over the whole of a file restored from its bytes: an assistant is told, as the user is, that it
+        // does not vouch for the shown page (its certificate is trusted, the file is covered, nothing else is wrong)
+        pdf::PDFAppDocumentTab* restoredTab = openReady(fixture, pdftest::AppDocumentSamples::restoredSignedDocument(fixture.folder()));
+        QVERIFY(restoredTab);
+        pdf::PDFAppDocument* restoredDocument = restoredTab->getDocument();
+        QTRY_VERIFY_WITH_TIMEOUT(!restoredDocument->getSignatureResults().empty(), 20000 * fixture.getTimeoutFactor());
+        pdf::PDFTrustedCertificateRepository repository(fixture.context->getDatabase());
+        for (const pdf::PDFCertificateInfo& certificate : restoredDocument->getSignatureResults().front().getCertificateInfos())
+        {
+            QVERIFY(!repository.addCertificate(certificate.getCertificateData()).isError());
+        }
+        QTRY_VERIFY_WITH_TIMEOUT(!restoredDocument->getSignatureResults().empty() && restoredDocument->getSignatureResults().front().isCertificateValid(), 20000 * fixture.getTimeoutFactor());
+        const QJsonObject restored = parseObject(pdf::PDFAppMcpDocumentReader::getSignatures(restoredDocument, false)).value(QStringLiteral("signatures")).toArray().at(0).toObject();
+        QCOMPARE(restored.value(QStringLiteral("trusted")).toBool(), true);
+        QCOMPARE(restored.value(QStringLiteral("coversWholeDocument")).toBool(), true);
+        QCOMPARE(restored.value(QStringLiteral("fileRestored")).toBool(), true);
+        QCOMPARE(restored.value(QStringLiteral("status")).toString(), QStringLiteral("unknown"));
     }
 
     static void readerTextTruncatedAndHostileFiles()

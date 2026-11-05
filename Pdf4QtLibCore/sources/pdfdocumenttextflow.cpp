@@ -29,7 +29,10 @@
 #include "pdfoperationcontrol.h"
 #include "pdftextlayoutgenerator.h"
 #include "pdfpagecontentprocessor.h"
+#include "pdfprogress.h"
 #include "pdfdbgheap.h"
+
+#include <set>
 
 namespace pdf
 {
@@ -129,6 +132,7 @@ public:
         AdjustReversedText  = 0x0002,   ///< Adjust reversed text
         CreateTreeMapping   = 0x0004,   ///< Create text mapping to structure tree item
         BoundingBoxes       = 0x0008,   ///< Compute bounding boxes of the texts
+        KeepUnmarkedText    = 0x0010,   ///< Text outside of a marked content with MCID is a text of the sequence (not an unmatched text)
     };
     Q_DECLARE_FLAGS(Options, Option)
 
@@ -136,6 +140,9 @@ public:
 
     /// Sets the cancellation of perform, checked per page and per operator (optional)
     void setOperationControl(const PDFOperationControl* operationControl) { m_operationControl = operationControl; }
+
+    /// Sets the progress of perform, a step per page (optional)
+    void setProgress(PDFProgress* progress) { m_progress = progress; }
 
     /// Performs text extracting algorithm. Only \p pageIndices
     /// pages are processed for text extraction.
@@ -174,6 +181,7 @@ private:
     const PDFDocument* m_document;
     const PDFStructureTree* m_tree;
     const PDFOperationControl* m_operationControl = nullptr;
+    PDFProgress* m_progress = nullptr;
     QStringList m_unmatchedText;
     std::map<PDFInteger, PDFStructureTreeTextSequence> m_textSequences;
     std::map<const PDFStructureItem*, TextItems> m_textForItems;
@@ -211,6 +219,16 @@ public:
 
     PDFStructureTreeTextSequence& takeSequence() { return m_textSequence; }
     QStringList& takeUnmatchedTexts() { return m_unmatchedText; }
+
+    /// The page has been processed: the text after the last marked content is a text of the
+    /// sequence (KeepUnmarkedText), also the text of a marked content, which the page has not closed
+    void finishPage()
+    {
+        if (m_extractorOptions.testFlag(PDFStructureTreeTextExtractor::KeepUnmarkedText))
+        {
+            finishText();
+        }
+    }
 
 protected:
     virtual bool isContentSuppressedByOC(PDFObjectReference ocgOrOcmd) override;
@@ -346,7 +364,11 @@ void PDFStructureTreeTextContentProcessor::performMarkedContentEnd()
     }
 
     // Check for text, which doesn't belong to any structure tree item
-    if (m_markedContentInfoStack.empty())
+    if (m_markedContentInfoStack.empty() && m_extractorOptions.testFlag(PDFStructureTreeTextExtractor::KeepUnmarkedText))
+    {
+        finishText();
+    }
+    else if (m_markedContentInfoStack.empty())
     {
         m_currentText = m_currentText.trimmed();
         if (!m_currentText.isEmpty())
@@ -465,11 +487,18 @@ void PDFStructureTreeTextExtractor::perform(const std::vector<PDFInteger>& pageI
         PDFStructureTreeTextContentProcessor processor(PDFRenderer::IgnoreOptionalContent, page, m_document, &fontCache, &iccProfileCache, &cms, &oca, QTransform(), mqs, m_tree, &mapping, m_options);
         processor.setOperationControl(m_operationControl);
         QList<PDFRenderError> errors = processor.processContents();
+        processor.finishPage();
 
         QMutexLocker lock(&mutex);
         m_textSequences[pageIndex] = qMove(processor.takeSequence());
         m_unmatchedText << qMove(processor.takeUnmatchedTexts());
         m_errors.append(qMove(errors));
+        lock.unlock();
+
+        if (m_progress)
+        {
+            m_progress->step();
+        }
     };
 
     PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, pageIndices.begin(), pageIndices.end(), generateTextLayout);
@@ -547,6 +576,23 @@ public:
 
     }
 
+    /// The export of PDFDocumentTextFlowFactory::setStructureExport: the titles, and the
+    /// texts of the items of the given pages only
+    /// \param catalog Catalog of the document
+    /// \param pageIndices Processed pages
+    /// The item StructureTitle has its title (PDFDocumentTextFlowFactory::setStructureTitleText)
+    void setTitleText(bool isTitleText)
+    {
+        m_isTitleText = isTitleText;
+    }
+
+    void setExport(const PDFCatalog* catalog, const std::vector<PDFInteger>& pageIndices)
+    {
+        m_catalog = catalog;
+        m_isExport = true;
+        m_pageIndices = std::set<PDFInteger>(pageIndices.cbegin(), pageIndices.cend());
+    }
+
     virtual void visitStructureTree(const PDFStructureTree* structureTree) override;
     virtual void visitStructureElement(const PDFStructureElement* structureElement) override;
     virtual void visitStructureMarkedContentReference(const PDFStructureMarkedContentReference* structureMarkedContentReference) override;
@@ -555,9 +601,16 @@ public:
 private:
     void markHasContent();
 
+    /// The item belongs to a processed page (its /Pg or the /Pg of a parent)
+    bool isOnProcessedPage(const PDFStructureElement* structureElement) const;
+
     PDFDocumentTextFlow::Items* m_items;
     const PDFStructureTreeTextExtractor* m_extractor;
     std::vector<bool> m_hasContentStack;
+    const PDFCatalog* m_catalog = nullptr;
+    bool m_isExport = false;
+    bool m_isTitleText = false;
+    std::set<PDFInteger> m_pageIndices;
 };
 
 void PDFStructureTreeTextFlowCollector::visitStructureTree(const PDFStructureTree* structureTree)
@@ -565,6 +618,31 @@ void PDFStructureTreeTextFlowCollector::visitStructureTree(const PDFStructureTre
     m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, QString(), PDFDocumentTextFlow::StructureItemStart, {} });
     acceptChildren(structureTree);
     m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, QString(), PDFDocumentTextFlow::StructureItemEnd, {} });
+}
+
+bool PDFStructureTreeTextFlowCollector::isOnProcessedPage(const PDFStructureElement* structureElement) const
+{
+    // /Pg is inherited from the parents (ISO 32000-2 14.7.2, Table 355); the depth is bounded
+    // for a hostile tree
+    constexpr int MAXIMUM_DEPTH = 1024;
+    int depth = 0;
+    const PDFStructureItem* item = structureElement;
+    while (item && depth++ < MAXIMUM_DEPTH)
+    {
+        if (const PDFStructureElement* element = item->asStructureElement())
+        {
+            const PDFObjectReference pageReference = element->getPageReference();
+            if (pageReference.isValid())
+            {
+                const size_t pageIndex = m_catalog ? m_catalog->getPageIndexFromPageReference(pageReference) : PDFCatalog::INVALID_PAGE_INDEX;
+                return pageIndex != PDFCatalog::INVALID_PAGE_INDEX && m_pageIndices.count(PDFInteger(pageIndex));
+            }
+        }
+        item = item->getParent();
+    }
+
+    // An item without a page has only its text in an export
+    return false;
 }
 
 void PDFStructureTreeTextFlowCollector::markHasContent()
@@ -583,17 +661,22 @@ void PDFStructureTreeTextFlowCollector::visitStructureElement(const PDFStructure
     // Mark stack so we can delete unused items
     m_hasContentStack.push_back(false);
 
-    QString title = structureElement->getText(PDFStructureElement::Title);
-    QString language = structureElement->getText(PDFStructureElement::Language);
-    QString alternativeDescription = structureElement->getText(PDFStructureElement::AlternativeDescription);
-    QString expandedForm = structureElement->getText(PDFStructureElement::ExpandedForm);
-    QString actualText = structureElement->getText(PDFStructureElement::ActualText);
-    QString phoneme = structureElement->getText(PDFStructureElement::Phoneme);
+    // An export takes the texts of the item only for its pages (an item of another page would
+    // bring its description into the text of the selected pages)
+    const bool isItemTextUsed = !m_isExport || isOnProcessedPage(structureElement);
+    QString title = isItemTextUsed ? structureElement->getText(PDFStructureElement::Title) : QString();
+    QString language = isItemTextUsed ? structureElement->getText(PDFStructureElement::Language) : QString();
+    QString alternativeDescription = isItemTextUsed ? structureElement->getText(PDFStructureElement::AlternativeDescription) : QString();
+    QString expandedForm = isItemTextUsed ? structureElement->getText(PDFStructureElement::ExpandedForm) : QString();
+    QString actualText = isItemTextUsed ? structureElement->getText(PDFStructureElement::ActualText) : QString();
+    QString phoneme = isItemTextUsed ? structureElement->getText(PDFStructureElement::Phoneme) : QString();
 
     if (!title.isEmpty())
     {
         markHasContent();
-        m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, QString(), PDFDocumentTextFlow::StructureTitle, {} });
+
+        // Without setStructureTitleText the item is empty, as the older versions gave it (the audio book)
+        m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, m_isTitleText ? title : QString(), PDFDocumentTextFlow::StructureTitle, {} });
     }
 
     if (!language.isEmpty())
@@ -682,6 +765,11 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
 
     Q_ASSERT(algorithm != Algorithm::Auto);
 
+    if (m_progress && !pageIndices.empty())
+    {
+        m_progress->start(pageIndices.size(), ProgressStartupInfo());
+    }
+
     // Perform algorithm to retrieve document text
     switch (algorithm)
     {
@@ -729,6 +817,12 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
                 QMutexLocker lock(&mutex);
                 items[pageIndex] = qMove(flowItems);
                 m_errors.append(qMove(errors));
+                lock.unlock();
+
+                if (m_progress)
+                {
+                    m_progress->step();
+                }
             };
 
             PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, pageIndices.begin(), pageIndices.end(), generateTextLayout);
@@ -757,10 +851,16 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
             options.setFlag(PDFStructureTreeTextExtractor::BoundingBoxes, m_calculateBoundingBoxes);
             PDFStructureTreeTextExtractor extractor(document, &structureTree, options);
             extractor.setOperationControl(m_operationControl);
+            extractor.setProgress(m_progress);
             extractor.perform(pageIndices);
 
             PDFDocumentTextFlow::Items flowItems;
             PDFStructureTreeTextFlowCollector collector(&flowItems, &extractor);
+            collector.setTitleText(m_isStructureTitleText);
+            if (m_isStructureExport)
+            {
+                collector.setExport(catalog, pageIndices);
+            }
             structureTree.accept(&collector);
 
             result = PDFDocumentTextFlow(qMove(flowItems));
@@ -772,8 +872,13 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
         {
             PDFStructureTreeTextExtractor::Options options = PDFStructureTreeTextExtractor::None;
             options.setFlag(PDFStructureTreeTextExtractor::BoundingBoxes, m_calculateBoundingBoxes);
+
+            // The order of the content stream is all of its text: also the text, which is not in
+            // a marked content of the structure (an untagged page has only such text)
+            options.setFlag(PDFStructureTreeTextExtractor::KeepUnmarkedText, m_isUnmarkedText);
             PDFStructureTreeTextExtractor extractor(document, &structureTree, options);
             extractor.setOperationControl(m_operationControl);
+            extractor.setProgress(m_progress);
             extractor.perform(pageIndices);
 
             PDFDocumentTextFlow::Items flowItems;
@@ -800,7 +905,28 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
             break;
     }
 
+    if (m_progress && !pageIndices.empty())
+    {
+        m_progress->finish();
+    }
+
     return result;
+}
+
+PDFDocumentTextFlowFactory::Algorithm PDFDocumentTextFlowFactory::getEffectiveAlgorithm(const PDFDocument* document, Algorithm algorithm)
+{
+    if (algorithm != Algorithm::Auto)
+    {
+        return algorithm;
+    }
+
+    // The rule of create
+    return document->getCatalog()->isLogicalStructureMarked() && hasValidStructureTree(document) ? Algorithm::Structure : Algorithm::Layout;
+}
+
+bool PDFDocumentTextFlowFactory::hasValidStructureTree(const PDFDocument* document)
+{
+    return PDFStructureTree::parse(&document->getStorage(), document->getCatalog()->getStructureTreeRoot()).isValid();
 }
 
 PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* document, Algorithm algorithm)

@@ -43,7 +43,6 @@
 #include <QtConcurrent/QtConcurrentRun>
 
 #include <algorithm>
-#include <new>
 
 namespace pdf
 {
@@ -586,11 +585,6 @@ PDFAppDocumentSearchResultsPointer PDFAppDocumentSearchController::runSearch(std
         {
             results->result = PDFDocumentTextSearchResult();
             results->result.error = exception.getMessage();
-        }
-        catch (const std::bad_alloc&)
-        {
-            results->result = PDFDocumentTextSearchResult();
-            results->result.error = tr("There is not enough memory to search the document.");
         }
     }
     return results;

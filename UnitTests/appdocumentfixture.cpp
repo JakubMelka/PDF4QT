@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "appdocumentfixture.h"
+#include "restoredsignedfile.h"
 
 #include "pdfappdocument.h"
 #include "pdfappdocumenttab.h"
@@ -395,6 +396,79 @@ QString AppDocumentSamples::signedDocument(const QString& folder, QString* certi
     const QString filePath = QDir(folder).absoluteFilePath(QStringLiteral("signed.pdf"));
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly) || file.write(signedData) != signedData.size())
+    {
+        return QString();
+    }
+    return filePath;
+}
+
+QString AppDocumentSamples::restoredSignedDocument(const QString& folder)
+{
+    pdf::PDFCertificateManager::NewCertificateInfo info;
+    info.fileName = QDir(folder).absoluteFilePath(QStringLiteral("signature-restored-test.p12"));
+    info.privateKeyPasword = getCertificatePassword();
+    info.certCommonName = QStringLiteral("PDF4QT restored file test");
+    info.rsaKeyLength = 2048;
+    pdf::PDFCertificateManager().createCertificate(info);
+
+    QFile certificateFile(info.fileName);
+    if (!certificateFile.open(QIODevice::ReadOnly))
+    {
+        return QString();
+    }
+    pdf::PDFCertificateEntry certificate;
+    certificate.pkcs12 = certificateFile.readAll();
+    certificateFile.close();
+
+    const QByteArray data = RestoredSignedFile::create(certificate, getCertificatePassword());
+    const QString filePath = QDir(folder).absoluteFilePath(QStringLiteral("restored-signed.pdf"));
+    QFile file(filePath);
+    if (data.isEmpty() || !file.open(QIODevice::WriteOnly) || file.write(data) != data.size())
+    {
+        return QString();
+    }
+    return filePath;
+}
+
+QString AppDocumentSamples::oldestContentSignedDocument(const QString& folder)
+{
+    const QString restored = restoredSignedDocument(folder);
+    QFile file(restored);
+    if (restored.isEmpty() || !file.open(QIODevice::ReadWrite | QIODevice::Append))
+    {
+        return QString();
+    }
+    const QByteArray revision = "2 0 obj\n<< /Type /Pages /Kids [ 3 0 R 3 0 R ] /Count 2 >>\nendobj\n";
+    if (file.write(revision) != revision.size())
+    {
+        return QString();
+    }
+    file.close();
+
+    const QString filePath = QDir(folder).absoluteFilePath(QStringLiteral("oldest-content-signed.pdf"));
+    QFile::remove(filePath);
+    return QFile::rename(restored, filePath) ? filePath : QString();
+}
+
+QString AppDocumentSamples::damagedCopy(const QString& source, const QString& name)
+{
+    QFile sourceFile(source);
+    if (!sourceFile.open(QIODevice::ReadOnly))
+    {
+        return QString();
+    }
+    QByteArray data = sourceFile.readAll();
+    const qsizetype position = data.lastIndexOf("startxref");
+    if (position == -1)
+    {
+        return QString();
+    }
+    data.truncate(position);
+    data += "startxref\n99999999\n%%EOF\n";
+
+    const QString filePath = QFileInfo(source).absoluteDir().absoluteFilePath(name);
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly) || file.write(data) != data.size())
     {
         return QString();
     }

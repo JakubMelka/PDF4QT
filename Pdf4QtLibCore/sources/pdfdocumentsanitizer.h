@@ -26,6 +26,9 @@
 #include "pdfdocument.h"
 #include "pdfoperationcontrol.h"
 
+#include <functional>
+#include <vector>
+
 namespace pdf
 {
 class PDFAnnotation;
@@ -50,12 +53,42 @@ public:
         MarkupAnnotations   = 0x0020, ///< Remove markup annotations from all pages
         PageThumbnails      = 0x0040, ///< Remove page thumbnails
         PageLabels          = 0x0080, ///< Remove page labels
-        InvisibleText       = 0x0100, ///< Remove text-showing operators executed with rendering mode Tr = 3 from page and form content streams
-        All                 = 0xFFFF, ///< All sanitization turned on
+        InvisibleText       = 0x0100, ///< Remove text-showing operators executed with rendering mode Tr = 3 from page and form content streams, and the private data of an own OCR layer of a page
+        SignatureFields     = 0x0200, ///< Remove the signature fields, their widgets and signature values (names, reasons, certificates), /Perms and /DSS (owner answer Q10: only when it is chosen)
+        All                 = 0x01FF, ///< The nine kinds of the old applications; SignatureFields is never a part of it (owner answer Q10)
     };
     Q_DECLARE_FLAGS(SanitizationFlags, SanitizationFlag)
 
+    /// State of the text of the content streams of one page, processed in their order: the
+    /// streams of /Contents are one content stream (ISO 32000-2, 7.8.2), so the rendering
+    /// mode and the text object go on from one stream to the next one
+    struct InvisibleTextState
+    {
+        int renderingMode = 0;              ///< Tr of the current graphic state
+        std::vector<int> stack;             ///< Tr of the saved graphic states (q)
+        bool isInTextObject = false;
+    };
+
     explicit PDFDocumentSanitizer(SanitizationFlag flags, QObject* parent);
+
+    /// Removes the text showing operators of the invisible rendering mode (Tr 3) from a
+    /// decoded content stream; the other operators stay byte by byte
+    /// \param content Decoded content stream
+    /// \param state State of the text before the stream, after it on return
+    /// \param changed Something was removed
+    /// \returns the content without the invisible text (\p content when nothing was removed)
+    static QByteArray removeInvisibleText(const QByteArray& content, InvisibleTextState* state, bool* changed);
+
+    /// The annotation is removed by MarkupAnnotations: a markup annotation (comments,
+    /// highlights, ... with their replies) and a popup annotation (the window of a text)
+    static bool isCommentAnnotation(const PDFAnnotation* annotation);
+
+    /// The field (or the widget of a field) is a signature field: /FT /Sig of itself or of
+    /// the nearest parent, which has /FT (the depth bounded by PDFFormField::MAX_FIELD_TREE_DEPTH)
+    static bool isSignatureField(const PDFObjectStorage* storage, const PDFDictionary* dictionary);
+
+    /// Steps performed by sanitize in their order (the flags, which are set)
+    static std::vector<SanitizationFlag> getSteps(SanitizationFlags flags);
 
     /// Sets the cancellation of sanitize, checked between the steps and per page or object,
     /// also in the final optimization (optional, it must outlive sanitize). The storage of
@@ -95,6 +128,9 @@ signals:
     void sanitizationProgress(QString progressText);
     void sanitizationFinished();
 
+    /// A step begins (\p flag is a SanitizationFlag), in the thread of sanitize
+    void sanitizationStepStarted(int flag);
+
 private:
     void performSanitizeDocumentInfo();
     void performSanitizeMetadata();
@@ -107,8 +143,13 @@ private:
     /// Removes invisible OCR-like text from page and form content streams while
     /// keeping the remaining content stream structure intact as much as possible.
     void performSanitizeInvisibleText();
+    void performSanitizeSignatureFields();
 
-    void removeAnnotations(const std::function<bool(const PDFAnnotation*)>& filter, QString message);
+    /// Removes the trailer entry /Info (after every builder of the steps: PDFDocumentBuilder::build
+    /// writes /Producer and /ModDate into the information dictionary)
+    void removeDocumentInfoEntry();
+
+    void removeAnnotations(const std::function<bool(const PDFAnnotation*, const PDFDictionary*)>& filter, QString message);
 
     SanitizationFlags m_flags;
     PDFObjectStorage m_storage;

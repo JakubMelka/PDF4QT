@@ -109,14 +109,6 @@ enum class PDFDocumentToolResultStatus
     NothingToDo     ///< Nothing to change ("File cannot be reduced", 295:2182); counts as a use of the tool
 };
 
-/// Kind of a Failed result: what the shell of the tools does about it. The assistant reads
-/// only the message, so the kind is no part of PDFDocumentToolResult::toJson.
-enum class PDFDocumentToolFailureKind
-{
-    General,        ///< The message says why
-    OutOfMemory     ///< std::bad_alloc in the tool: the shell shows its dialog Not enough memory (owner 2026-11-04)
-};
-
 /// Document of the result: a changed input document or a new document
 class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolOutputDocument
 {
@@ -176,7 +168,6 @@ class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolResult
 {
 public:
     PDFDocumentToolResultStatus status = PDFDocumentToolResultStatus::Success;
-    PDFDocumentToolFailureKind failureKind = PDFDocumentToolFailureKind::General;   ///< Kind of Failed
     QString message;                                    ///< Reason of Failed / NothingToDo, a summary of Success (translated)
     std::vector<PDFDocumentToolOutputDocument> documents;   ///< Changed and new documents
     std::vector<PDFDocumentToolOutputFile> outputs;     ///< Files, which the caller writes
@@ -189,15 +180,7 @@ public:
     static PDFDocumentToolResult createStopped();
     static PDFDocumentToolResult createNothingToDo(const QString& message);
 
-    /// Failed for lack of memory. Its message is for a reader without the dialog of the shell (an
-    /// assistant): it names the setting of one thread only, while the strategy of the threads
-    /// runs the pages in more threads.
-    static PDFDocumentToolResult createOutOfMemory();
-
     bool isSuccess() const { return status == PDFDocumentToolResultStatus::Success; }
-
-    /// The run has failed for lack of memory
-    bool isOutOfMemory() const { return status == PDFDocumentToolResultStatus::Failed && failureKind == PDFDocumentToolFailureKind::OutOfMemory; }
 
     /// The run counts as a use of the tool (Success or NothingToDo, newapp_tools.md 3)
     bool isUse() const { return status == PDFDocumentToolResultStatus::Success || status == PDFDocumentToolResultStatus::NothingToDo; }
@@ -390,6 +373,25 @@ public:
     /// The result said in plain words, the fact of the result dialog and of What changes
     /// \param removed The standards, which are no longer declared (ConformanceRemoval::removed)
     static PDFDocumentToolFact createConformanceFact(const QStringList& removed);
+
+    /// Document of a tool, which rewrites the whole file, without the declaration of PDF/A and
+    /// PDF/UA (the last step of Compress and Optimize Structure): createWholeFileDocument and
+    /// removeConformanceDeclaration in their order.
+    /// \param storage Objects of the result
+    /// \param input Input document of the tool
+    /// \param conformance What was done with the declaration; nullptr = nothing is removed (a canceled run)
+    static PDFDocument createWholeFileDocument(PDFObjectStorage storage, const PDFDocument* input, ConformanceRemoval* conformance);
+
+    /// A result, which would keep a declaration that is not true: the metadata of the document
+    /// cannot be changed, so the tool has made nothing
+    /// \param kept The standards (ConformanceRemoval::kept)
+    static PDFDocumentToolResult createConformanceFailure(const QStringList& kept);
+
+    /// Tells the result, that it no longer declares the standards: the fact "conformance" and
+    /// "conformanceRemoved" in data; nothing for an empty list
+    /// \param result The result of the tool
+    /// \param removed The standards (ConformanceRemoval::removed)
+    static void addConformanceFact(PDFDocumentToolResult* result, const QStringList& removed);
 
     /// Checks the parameters a caller has written explicitly (an assistant by MCP), before they
     /// are normalized: a value, which would be silently ignored, is an error, which names what

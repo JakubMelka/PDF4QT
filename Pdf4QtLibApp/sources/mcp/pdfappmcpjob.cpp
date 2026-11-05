@@ -28,8 +28,6 @@
 #include "pdfmcperrorcodes.h"
 #include "pdfmcpjson.h"
 
-#include <new>
-
 namespace pdf
 {
 
@@ -90,13 +88,6 @@ void PDFAppMcpJobRunnable::execute(PDFAppMcpJob* job)
         {
             const QString message = PDFMcpJson::sanitizeString(exception.getMessage(), PDFMcpJson::SanitizeFlag::RemoveBidi, MAXIMUM_MESSAGE_LENGTH);
             call->finish(createFailure(*call, QStringLiteral("PDF4QT could not process the document: %1").arg(message)));
-        }
-    }
-    catch (const std::bad_alloc&)
-    {
-        if (call)
-        {
-            call->finish(createFailure(*call, QStringLiteral("PDF4QT ran out of memory. Ask for less data (fewer pages, a lower dpi).")));
         }
     }
     catch (...)

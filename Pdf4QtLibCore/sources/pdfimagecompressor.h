@@ -176,8 +176,7 @@ public:
     /// \param environment Environment of the processed document
     /// \param placements Result of collectImagePlacements
     /// \param callback Called for each image, by more threads at once in any order: it is thread-safe,
-    ///        it must not let a PDFException out (see visitImages); std::bad_alloc ends the
-    ///        other tasks and is thrown to the caller, after they have stopped
+    ///        it must not let a PDFException out (see visitImages)
     /// \param operationControl Cancellation, checked before each image (optional)
     void visitImagesInParallel(const Environment& environment,
                                const ImagePlacements& placements,
@@ -201,8 +200,8 @@ public:
                      const DecodedImageCallback& callback,
                      const PDFOperationControl* operationControl = nullptr) const;
 
-    /// Test only: replaces each decoded image (an allocation failure - a null image, an exception of
-    /// std::bad_alloc - cannot be caused otherwise). Set it before a run, an empty function removes it.
+    /// Test only: replaces each decoded image (an image, whose pixels could not be allocated - a null
+    /// image - cannot be caused otherwise). Set it before a run, an empty function removes it.
     using TestDecodeHook = std::function<QImage(PDFObjectReference reference, QImage image)>;
     static void setTestDecodeHook(TestDecodeHook hook);
 

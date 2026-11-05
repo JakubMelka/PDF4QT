@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappdocument.h"
+#include "pdfdocumentreader.h"
 #include "pdfappcontext.h"
 #include "pdfappundostack.h"
 #include "pdfsettingdefinitions.h"
@@ -263,6 +264,9 @@ void PDFAppDocument::setSavedAs(quint64 version, const QString& filePath, QByteA
     // change cannot bring it back, and the Save never promises it again
     m_isSignedRevisionGone = m_isSignedRevisionGone || m_originalData.isEmpty() || !data.startsWith(m_originalData);
 
+    // A file written by this tab is whole, also when the document came from a damaged one
+    m_restoration = PDFAppDocumentRestoration::None;
+
     m_filePath = newPath;
     m_originalData = std::move(data);
     m_isCopy = false;
@@ -299,7 +303,16 @@ void PDFAppDocument::setSavedAs(quint64 version, const QString& filePath, QByteA
 
 bool PDFAppDocument::isSignatureLostOnSave() const
 {
-    return isReady() && m_isWholeFileRewritten && !m_isSignedRevisionGone && PDFForm::getSignatureCount(m_document.data()) > 0;
+    return isReady() && (m_isWholeFileRewritten || m_restoration != PDFAppDocumentRestoration::None) && !m_isSignedRevisionGone && PDFForm::getSignatureCount(m_document.data()) > 0;
+}
+
+PDFAppDocumentRestoration PDFAppDocument::getRestoration(const PDFDocumentReader& reader)
+{
+    if (reader.isOldestContentShown())
+    {
+        return PDFAppDocumentRestoration::OldestContent;
+    }
+    return reader.isDocumentRestored() ? PDFAppDocumentRestoration::Restored : PDFAppDocumentRestoration::None;
 }
 
 void PDFAppDocument::setLocked(bool locked)
@@ -365,6 +378,7 @@ PDFAppDocumentSnapshot PDFAppDocument::getSnapshot() const
     snapshot.isPagedXFA = m_isPagedXFA;
     snapshot.isWholeFileRewritten = m_isWholeFileRewritten;
     snapshot.isSignedRevisionGone = m_isSignedRevisionGone;
+    snapshot.restoration = m_restoration;
     return snapshot;
 }
 
@@ -690,7 +704,7 @@ bool PDFAppDocument::setLoadingFromMemory(const QString& title, const QString& o
     return true;
 }
 
-void PDFAppDocument::setLoaded(PDFDocumentPointer document, QByteArray originalData, const QString& filePath, bool isPasswordProtected, bool isPagedXFA)
+void PDFAppDocument::setLoaded(PDFDocumentPointer document, QByteArray originalData, const QString& filePath, bool isPasswordProtected, bool isPagedXFA, PDFAppDocumentRestoration restoration)
 {
     if (document.isNull())
     {
@@ -709,6 +723,7 @@ void PDFAppDocument::setLoaded(PDFDocumentPointer document, QByteArray originalD
     m_isPagedXFA = isPagedXFA;
     m_isWholeFileRewritten = false;
     m_isSignedRevisionGone = false;
+    m_restoration = restoration;
     m_isCopy = isFromMemory;
     if (!isFromMemory)
     {
@@ -727,7 +742,7 @@ void PDFAppDocument::setLoaded(PDFDocumentPointer document, QByteArray originalD
     }
 }
 
-void PDFAppDocument::reload(PDFDocumentPointer document, QByteArray data, bool isPasswordProtected, bool isPagedXFA)
+void PDFAppDocument::reload(PDFDocumentPointer document, QByteArray data, bool isPasswordProtected, bool isPagedXFA, PDFAppDocumentRestoration restoration)
 {
     if (!isReady() || document.isNull())
     {
@@ -741,6 +756,7 @@ void PDFAppDocument::reload(PDFDocumentPointer document, QByteArray data, bool i
     m_isPagedXFA = isPagedXFA;
     m_isWholeFileRewritten = false;
     m_isSignedRevisionGone = false;
+    m_restoration = restoration;
     m_undoStack->clear();
     setDocument(std::move(document), PDFModifiedDocument::ModificationFlags(PDFModifiedDocument::Reset | PDFModifiedDocument::PreserveView), true);
 }
@@ -790,6 +806,7 @@ bool PDFAppDocument::setCopyOf(const PDFAppDocument* source)
     m_isPagedXFA = source->isPagedXFA();
     m_isWholeFileRewritten = source->isWholeFileRewritten();
     m_isSignedRevisionGone = source->m_isSignedRevisionGone;
+    m_restoration = source->m_restoration;
     m_isPasswordProtected = false;
     m_isPasswordWrong = false;
     m_isLocked = false;

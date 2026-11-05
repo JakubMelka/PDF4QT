@@ -190,18 +190,30 @@ QString PDFDocumentToolGUI::getStatusText() const
 
     const PDFAppDocumentSnapshot snapshot = document->getSnapshot();
     QString text = QStringLiteral("%1 · %2").arg(title, document->getTitle());
-    const PDFInteger pageCount = document->getPageCount();
-    if (pageCount > 0)
+    const QString detail = getStatusDetailText();
+    if (!detail.isEmpty())
     {
-        // The singular has its own text: right in English also without a translation
-        const int count = int(qMin<PDFInteger>(pageCount, std::numeric_limits<int>::max()));
-        text += QStringLiteral(" · ") + (count == 1 ? tr("%Ln page", nullptr, count) : tr("%Ln pages", nullptr, count));
+        text += QStringLiteral(" · ") + detail;
     }
     if (!snapshot.originalData.isEmpty())
     {
         text += QStringLiteral(" · ") + PDFDocumentToolFormat::formatSize(snapshot.originalData.size());
     }
     return text;
+}
+
+QString PDFDocumentToolGUI::getStatusDetailText() const
+{
+    const PDFAppDocument* document = getDocument();
+    const PDFInteger pageCount = document ? document->getPageCount() : 0;
+    if (pageCount <= 0)
+    {
+        return QString();
+    }
+
+    // The singular has its own text: right in English also without a translation
+    const int count = int(qMin<PDFInteger>(pageCount, std::numeric_limits<int>::max()));
+    return count == 1 ? tr("%Ln page", nullptr, count) : tr("%Ln pages", nullptr, count);
 }
 
 QString PDFDocumentToolGUI::getRunningStatusText(const QString& stepText) const
@@ -215,6 +227,17 @@ QString PDFDocumentToolGUI::getRunningTitle(int percentage) const
 {
     const PDFDocumentToolCatalogEntry* tool = getTool();
     return tr("%1… %2 %").arg(tool ? tool->getTitle() : QString()).arg(percentage);
+}
+
+QString PDFDocumentToolGUI::getRunningCardTitle(int percentage, const QString& stepText) const
+{
+    Q_UNUSED(stepText);
+    return getRunningTitle(percentage);
+}
+
+QString PDFDocumentToolGUI::getRunningCardStepText(const QString& stepText) const
+{
+    return stepText;
 }
 
 QString PDFDocumentToolGUI::getRunningTimeText(int seconds) const
@@ -258,6 +281,11 @@ QVariantMap PDFDocumentToolGUI::getRunParameters() const
     return model ? model->getValues() : QVariantMap();
 }
 
+QVariantMap PDFDocumentToolGUI::getPreviewParameters() const
+{
+    return getRunParameters();
+}
+
 void PDFDocumentToolGUI::prepareEnvironment(PDFAppToolRunEnvironment* environment) const
 {
     Q_UNUSED(environment);
@@ -286,9 +314,8 @@ void PDFDocumentToolGUI::onRunStateChanged(bool isRunning)
 
 void PDFDocumentToolGUI::onRunNotAccepted(const PDFDocumentToolResult& result)
 {
-    // The shell has its dialog Not enough memory for every tool
     PDFAppToolHost* host = getHost();
-    if (!host || result.isOutOfMemory())
+    if (!host)
     {
         return;
     }

@@ -75,7 +75,13 @@ private slots:
     void damagedRevisionsLastOneWins();
     void damagedFileObjects_data();
     void damagedFileObjects();
-    void damagedFileOldestContentIsTold();
+    void damagedFileOldestContentWarning();
+    void incrementalUpdateOfDamagedFiles();
+    void damagedFileIsToldRestored();
+    void damagedFileTrailers_data();
+    void damagedFileTrailers();
+    void damagedFileTrailerOnlyInObject();
+    void damagedFileFallbackUsesFirstTrailer();
     void damagedFileNoDocumentInAnyRevision();
     void damagedFileAttackedByIncrementalUpdate_data();
     void damagedFileAttackedByIncrementalUpdate();
@@ -87,6 +93,8 @@ private slots:
     void trailerSizeOfTheWrittenTable();
     void damagedEncryptedFileIsDecrypted_data();
     void damagedEncryptedFileIsDecrypted();
+    void damagedEncryptedRevisions_data();
+    void damagedEncryptedRevisions();
     void damagedFileVersion_data();
     void damagedFileVersion();
     void invalidVersionNeverWritten();
@@ -758,6 +766,10 @@ void DocumentWriterTest::damagedFileObjects_data()
     QTest::newRow("string, escaped parentheses") << QByteArray("4 0 obj (a\\) 12 0 obj \\( b)\nendobj\n") << QStringList{ "4 0=(a) 12 0 obj ( b)", "12 0=null" };
     QTest::newRow("string, stream behind") << QByteArray("4 0 obj << /A (12 0 obj) /Length 8 >> stream\n13 0 obj\nendstream\nendobj\n") << QStringList{ "4 0=stream:13 0 obj" } + noFakes;
     QTest::newRow("comment") << QByteArray("4 0 obj << % 12 0 obj (\n /A 1 >>\nendobj\n5 0 obj (b)\nendobj\n") << QStringList{ "4 0={A=1}", "5 0=(b)", "12 0=null" };
+    QTest::newRow("comment between objects") << QByteArray("% 12 0 obj (fake) endobj\n5 0 obj (b)\nendobj\n") << QStringList{ "5 0=(b)", "12 0=null" };
+    QTest::newRow("comment of carriage returns") << QByteArray("% 12 0 obj (fake)\r5 0 obj (b)\rendobj\r") << QStringList{ "5 0=(b)", "12 0=null" };
+    QTest::newRow("comment behind an object") << QByteArray("4 0 obj (a) endobj % 12 0 obj (fake)\n5 0 obj (b)\nendobj\n") << QStringList{ "4 0=(a)", "5 0=(b)", "12 0=null" };
+    QTest::newRow("glued behind the end of file mark") << QByteArray("%%EOF5 0 obj (b)\nendobj\n%%EOF 6 0 obj (c)\nendobj\n") << QStringList{ "5 0=(b)", "6 0=(c)" };
 
     // A parenthesis without its pair: the damaged object does not swallow the file behind it
     QTest::newRow("string not closed") << QByteArray("4 0 obj << /A (x >>\nendobj\n5 0 obj (b)\nendobj\n") << QStringList{ "4 0=null", "5 0=(b)" };
@@ -795,6 +807,7 @@ void DocumentWriterTest::damagedFileObjects_data()
     QTest::newRow("missing page") << QByteArray(oldRevision + "2 0 obj << /Type /Pages /Kids [ 33 0 R ] /Count 1 >>\nendobj\n") << oldObjects;
     QTest::newRow("page tree without a dictionary") << QByteArray(oldRevision + "2 0 obj 7\nendobj\n") << oldObjects;
     QTest::newRow("catalog without a dictionary") << QByteArray(oldRevision + "1 0 obj 7\nendobj\n") << oldObjects;
+    QTest::newRow("page tree without a page") << QByteArray(oldRevision + "2 0 obj << /Type /Pages /Kids [ ] /Count 0 >>\nendobj\n") << oldObjects;
 }
 
 void DocumentWriterTest::damagedFileObjects()
@@ -826,15 +839,18 @@ void DocumentWriterTest::damagedFileObjects()
     }
 }
 
-void DocumentWriterTest::damagedFileOldestContentIsTold()
+void DocumentWriterTest::damagedFileOldestContentWarning()
 {
-    // Only when the last objects are not a document, and the user is told, the file is not the one he saved last
+    // Only when the last objects are not a document: a warning and the typed state of the reader, which the
+    // application tells the user by its info bar (UnitTestsAppDocumentFile restoredFileBar)
     QStringList warningsOfLastRevision;
     {
         PDFDocumentReader reader(nullptr, nullptr, true, false);
         const PDFDocument document = reader.readFromBuffer(createDamagedFile("4 0 obj (old)\nendobj\n4 0 obj (new)\nendobj\n"));
         QCOMPARE(reader.getReadingResult(), PDFDocumentReader::Result::OK);
         QCOMPARE(document.getStorage().getObject(PDFObjectReference(4, 0)).getString(), QByteArray("new"));
+        QVERIFY(reader.isDocumentRestored());
+        QVERIFY(!reader.isOldestContentShown());
         warningsOfLastRevision = reader.getWarnings();
     }
 
@@ -843,6 +859,192 @@ void DocumentWriterTest::damagedFileOldestContentIsTold()
     QCOMPARE(reader.getReadingResult(), PDFDocumentReader::Result::OK);
     QCOMPARE(document.getStorage().getObject(PDFObjectReference(4, 0)).getString(), QByteArray("old"));
     QCOMPARE(reader.getWarnings().size(), warningsOfLastRevision.size() + 1);
+    QVERIFY(reader.isDocumentRestored());
+    QVERIFY(reader.isOldestContentShown());
+
+    // The same reader on a valid file forgets it
+    reader.readFromBuffer(createDocument({ "<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [ 3 0 R ] /Count 1 >>", "<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 100 100 ] >>" }));
+    QCOMPARE(reader.getReadingResult(), PDFDocumentReader::Result::OK);
+    QVERIFY(!reader.isOldestContentShown());
+    QVERIFY(!reader.isDocumentRestored());
+}
+
+void DocumentWriterTest::incrementalUpdateOfDamagedFiles()
+{
+    // An incremental update goes by the table of the file (ISO 32000-2, 7.5.6): a file without the end of file mark
+    // (7.5.5), which the permissive reading opens by its table, is updated and its bytes stay; a file restored from
+    // its bytes has no table to go by, it is refused
+    const QByteArray valid = createDocument({ "<< /Type /Catalog /Pages 2 0 R >>",
+                                              "<< /Type /Pages /Kids [ 3 0 R ] /Count 1 >>",
+                                              "<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 100 100 ] >>" });
+    QByteArray noMark = valid;
+    noMark.truncate(noMark.lastIndexOf("%%EOF"));
+
+    for (const QByteArray& original : { valid, noMark })
+    {
+        PDFDocumentReader reader(nullptr, nullptr, true, false);
+        const PDFDocument document = reader.readFromBuffer(original);
+        QCOMPARE(reader.getReadingResult(), PDFDocumentReader::Result::OK);
+        QVERIFY(!reader.isDocumentRestored());
+
+        PDFDocumentBuilder builder(&document);
+        builder.setDocumentTitle(QStringLiteral("Updated"));
+        const PDFDocument updated = builder.build();
+
+        QByteArray data;
+        QBuffer buffer(&data);
+        QVERIFY(buffer.open(QIODevice::WriteOnly));
+        PDFDocumentWriter writer(nullptr);
+        const PDFOperationResult result = writer.writeIncrementalUpdate(&buffer, original, &updated);
+        QVERIFY2(result, qPrintable(result.getErrorMessage()));
+        QVERIFY(data.startsWith(original));
+        QVERIFY(data.size() > original.size());
+
+        PDFDocumentReader strictReader(nullptr, nullptr, false, false);
+        const PDFDocument reopened = strictReader.readFromBuffer(data);
+        QCOMPARE(strictReader.getReadingResult(), PDFDocumentReader::Result::OK);
+        QCOMPARE(reopened.getInfo()->title, QStringLiteral("Updated"));
+    }
+
+    const QByteArray damaged = createDamagedFile(QByteArray());
+    PDFDocumentReader reader(nullptr, nullptr, true, false);
+    const PDFDocument document = reader.readFromBuffer(damaged);
+    QVERIFY(reader.isDocumentRestored());
+    QByteArray data;
+    QBuffer buffer(&data);
+    QVERIFY(buffer.open(QIODevice::WriteOnly));
+    PDFDocumentWriter writer(nullptr);
+    const PDFOperationResult result = writer.writeIncrementalUpdate(&buffer, damaged, &document);
+    QVERIFY(!result);
+    QCOMPARE(result.getErrorMessage(), QStringLiteral("Original document cannot be read, so it cannot be updated incrementally."));
+    QVERIFY(data.isEmpty());
+}
+
+void DocumentWriterTest::damagedFileIsToldRestored()
+{
+    // Only when the objects really come from the bytes, not from a table: the signatures of a file depend on it
+    const QByteArray valid = createDocument({ "<< /Type /Catalog /Pages 2 0 R >>",
+                                              "<< /Type /Pages /Kids [ 3 0 R ] /Count 1 >>",
+                                              "<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 100 100 ] >>" });
+    {
+        PDFDocumentReader reader(nullptr, nullptr, true, false);
+        reader.readFromBuffer(valid);
+        QCOMPARE(reader.getReadingResult(), PDFDocumentReader::Result::OK);
+        QVERIFY(!reader.isDocumentRestored());
+    }
+
+    // The end of file mark of 7.5.5 is missing: the permissive reading still goes by the table
+    {
+        QByteArray noMark = valid;
+        const qsizetype position = noMark.lastIndexOf("%%EOF");
+        QVERIFY(position != -1);
+        noMark.truncate(position);
+        PDFDocumentReader strictReader(nullptr, nullptr, false, false);
+        strictReader.readFromBuffer(noMark);
+        QCOMPARE(strictReader.getReadingResult(), PDFDocumentReader::Result::Failed);
+
+        PDFDocumentReader reader(nullptr, nullptr, true, false);
+        reader.readFromBuffer(noMark);
+        QCOMPARE(reader.getReadingResult(), PDFDocumentReader::Result::OK);
+        QVERIFY(!reader.isDocumentRestored());
+    }
+
+    PDFDocumentReader reader(nullptr, nullptr, true, false);
+    reader.readFromBuffer(createDamagedFile(QByteArray()));
+    QCOMPARE(reader.getReadingResult(), PDFDocumentReader::Result::OK);
+    QVERIFY(reader.isDocumentRestored());
+
+    // The same reader on another file forgets it
+    reader.readFromBuffer(valid);
+    QVERIFY(!reader.isDocumentRestored());
+}
+
+void DocumentWriterTest::damagedFileTrailers_data()
+{
+    QTest::addColumn<QByteArray>("objects");
+    QTest::addColumn<QByteArray>("trailers");
+    QTest::addColumn<int>("expectedRoot");
+    QTest::addColumn<int>("expectedInfo");
+
+    const QByteArray secondCatalog = "5 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n";
+    const QByteArray fakeTrailer = "trailer << /Root 9 0 R /Encrypt << /Filter /Standard /V 1 /R 2 /O (x) /U (y) /P 0 >> >> ";
+    const QByteArray inStream = "4 0 obj\n<< /Length " + QByteArray::number(fakeTrailer.size()) + " >>\nstream\n" + fakeTrailer + "\nendstream\nendobj\n";
+
+    // Bytes of a trailer in a stream or a string are data (an attached PDF, a text): no other root and no password
+    QTest::newRow("in a stream") << inStream << QByteArray() << 1 << 0;
+    QTest::newRow("in a string") << QByteArray("4 0 obj (" + fakeTrailer + ")\nendobj\n") << QByteArray() << 1 << 0;
+    QTest::newRow("behind the real one") << QByteArray() << inStream << 1 << 0;
+
+    // ISO 32000-2, 7.5.6: of more trailers the last one wins, an entry only in an older one stays, null removes it
+    QTest::newRow("the last one wins") << secondCatalog << QByteArray("trailer\n<< /Root 5 0 R >>\n") << 5 << 0;
+    QTest::newRow("older entry stays") << QByteArray("trailer\n<< /Info 7 0 R >>\n") << QByteArray() << 1 << 7;
+    QTest::newRow("removed by null") << QByteArray("trailer\n<< /Info 7 0 R >>\n") << QByteArray("trailer\n<< /Info null >>\n") << 1 << 0;
+
+    // A damaged trailer does not take the others away
+    QTest::newRow("not closed string") << QByteArray("trailer\n<< /Info (1 >>\n") << QByteArray() << 1 << 0;
+    QTest::newRow("not a dictionary") << QByteArray("trailer\n[ 1 ]\n") << QByteArray() << 1 << 0;
+}
+
+void DocumentWriterTest::damagedFileTrailers()
+{
+    QFETCH(QByteArray, objects);
+    QFETCH(QByteArray, trailers);
+    QFETCH(int, expectedRoot);
+    QFETCH(int, expectedInfo);
+
+    int passwordRequests = 0;
+    PDFDocumentReader reader(nullptr, [&passwordRequests](bool* ok) { ++passwordRequests; *ok = false; return QString(); }, true, false);
+    const PDFDocument document = reader.readFromBuffer(createDamagedFile(objects) + trailers);
+
+    QCOMPARE(reader.getReadingResult(), PDFDocumentReader::Result::OK);
+    QCOMPARE(passwordRequests, 0);
+    QCOMPARE(document.getStorage().getSecurityHandler()->getMode(), EncryptionMode::None);
+    QCOMPARE(document.getCatalog()->getPageCount(), size_t(1));
+
+    const PDFDictionary* trailer = document.getTrailerDictionary();
+    QVERIFY(!trailer->hasKey("Encrypt"));
+    QCOMPARE(trailer->get("Root").getReference(), PDFObjectReference(expectedRoot, 0));
+    QCOMPARE(trailer->get("Size").getInteger(), PDFInteger(4));
+    QCOMPARE(trailer->hasKey("Info"), expectedInfo != 0);
+    if (expectedInfo != 0)
+    {
+        QCOMPARE(trailer->get("Info").getReference(), PDFObjectReference(expectedInfo, 0));
+    }
+}
+
+void DocumentWriterTest::damagedFileTrailerOnlyInObject()
+{
+    // No other trailer has the catalog: the file was opened before, it stays readable by the bytes in its stream
+    const QByteArray trailer = "trailer << /Root 1 0 R >> ";
+    const QByteArray data = "%PDF-1.7\n"
+                            "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+                            "2 0 obj\n<< /Type /Pages /Kids [ 3 0 R ] /Count 1 >>\nendobj\n"
+                            "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 100 100 ] >>\nendobj\n"
+                            "4 0 obj\n<< /Length " + QByteArray::number(trailer.size()) + " >>\nstream\n" + trailer + "\nendstream\nendobj\n"
+                            "startxref\n99999999\n%%EOF\n";
+
+    PDFDocumentReader::Result result = PDFDocumentReader::Result::Failed;
+    const PDFDocument document = readWithPassword(data, QString(), &result, true);
+    QCOMPARE(result, PDFDocumentReader::Result::OK);
+    QCOMPARE(document.getCatalog()->getPageCount(), size_t(1));
+}
+
+void DocumentWriterTest::damagedFileFallbackUsesFirstTrailer()
+{
+    // The oldest content is the first objects with the first trailer: the root of the last trailer, which leads to
+    // the broken page tree of the last revision, is no part of it (a page twice in the page tree refuses the document)
+    const QByteArray lastRevision = "6 0 obj\n<< /Type /Catalog /Pages 7 0 R >>\nendobj\n"
+                                    "7 0 obj\n<< /Type /Pages /Kids [ 33 0 R 33 0 R ] /Count 2 >>\nendobj\n"
+                                    "33 0 obj\n<< /Type /Page /Parent 7 0 R /MediaBox [ 0 0 200 200 ] >>\nendobj\n"
+                                    "trailer\n<< /Root 6 0 R >>\n";
+
+    PDFDocumentReader reader(nullptr, nullptr, true, false);
+    const PDFDocument document = reader.readFromBuffer(createDamagedFile(QByteArray()) + lastRevision);
+    QCOMPARE(reader.getReadingResult(), PDFDocumentReader::Result::OK);
+    QCOMPARE(document.getCatalog()->getPageCount(), size_t(1));
+    QCOMPARE(document.getCatalog()->getPage(0)->getPageReference(), PDFObjectReference(3, 0));
+    QCOMPARE(document.getTrailerDictionary()->get("Root").getReference(), PDFObjectReference(1, 0));
+    QVERIFY(reader.getWarnings().contains(PDFDocumentReader::tr("The last changes of the damaged file can't be read, its oldest content is shown.")));
 }
 
 void DocumentWriterTest::damagedFileNoDocumentInAnyRevision()
@@ -913,6 +1115,8 @@ void DocumentWriterTest::damagedFileHostileSizes_data()
     QTest::addColumn<QByteArray>("tail");
     QTest::addColumn<bool>("isLastObjectFound");
 
+    constexpr qsizetype SIZE = 4 * 1024 * 1024;
+
     // Each of them is quadratic, when a search for something, which is not there, runs again to the end of the file
     QTest::newRow("strings not closed") << QByteArray() << QByteArray("1 0 obj (") << QByteArray() << true;
     QTest::newRow("strings not closed with endobj") << QByteArray() << QByteArray("1 0 obj (a endobj ") << QByteArray() << true;
@@ -926,6 +1130,41 @@ void DocumentWriterTest::damagedFileHostileSizes_data()
     QTest::newRow("headers") << QByteArray() << QByteArray("1 0 obj\n") << QByteArray() << true;
     QTest::newRow("marks") << QByteArray() << QByteArray("obj ") << QByteArray() << true;
     QTest::newRow("digits") << QByteArray() << QByteArray("1234567890 ") << QByteArray("obj\n") << true;
+
+    // A parenthesis or a comment in front of each mark, read to the end of the file again for each of them
+    QTest::newRow("trailers with comments") << QByteArray() << QByteArray("trailer%") << QByteArray("\n") << true;
+    QTest::newRow("trailers with strings") << QByteArray() << QByteArray("trailer<</a(") << QByteArray() << true;
+
+    // Dictionaries of many keys: each of them searched in all of them
+    QByteArray trailerKeys;
+    QByteArray oneTrailer = "trailer<<";
+    for (int i = 0; trailerKeys.size() < SIZE / 8; ++i)
+    {
+        trailerKeys += "trailer<</a" + QByteArray::number(i) + " 1>>\n";
+        oneTrailer += "/a" + QByteArray::number(i) + " 1\n";
+    }
+    QTest::newRow("trailers of other keys") << trailerKeys << QByteArray(" ") << QByteArray() << true;
+    QTest::newRow("one trailer of many keys") << QByteArray(oneTrailer + ">>\n") << QByteArray(" ") << QByteArray() << true;
+
+    // Each of the objects is read by a level of the stack of the thread
+    QTest::newRow("arrays inside of each other") << QByteArray() << QByteArray("[") << QByteArray() << true;
+    QTest::newRow("dictionaries inside of each other") << QByteArray() << QByteArray("<</a") << QByteArray() << true;
+
+    // Each /Length of many streams leads to one run of white space without endstream behind it
+    const QByteArray lengthStart = " 0 obj<</Length ";
+    const QByteArray streamStart = ">>stream\n";
+    const QByteArray objectEnd = "endobj\n";
+    constexpr int NUMBER_SIZE = 8;
+    constexpr int LENGTH_SIZE = 10;
+    const qsizetype objectSize = NUMBER_SIZE + lengthStart.size() + LENGTH_SIZE + streamStart.size() + objectEnd.size();
+    const qsizetype objectCount = SIZE / objectSize;
+    QByteArray streams;
+    for (qsizetype i = 0; i < objectCount; ++i)
+    {
+        const qsizetype dataStart = i * objectSize + NUMBER_SIZE + lengthStart.size() + LENGTH_SIZE + streamStart.size();
+        streams += QByteArray::number(10 + i).rightJustified(NUMBER_SIZE, '0') + lengthStart + QByteArray::number(objectCount * objectSize - dataStart).rightJustified(LENGTH_SIZE, '0') + streamStart + objectEnd;
+    }
+    QTest::newRow("lengths leading to one white space") << streams << QByteArray(" ") << QByteArray("X") << true;
 }
 
 void DocumentWriterTest::damagedFileHostileSizes()
@@ -1159,6 +1398,66 @@ void DocumentWriterTest::damagedEncryptedFileIsDecrypted()
     QCOMPARE(result, PDFDocumentReader::Result::OK);
     QCOMPARE(reopened.getObjectByReference(stringReference).getString(), secretValue);
     QCOMPARE(reopened.getDecodedStream(reopened.getObjectByReference(streamReference).getStream()), secretText);
+}
+
+void DocumentWriterTest::damagedEncryptedRevisions_data()
+{
+    QTest::addColumn<int>("algorithm");
+
+    QTest::newRow("RC4") << int(PDFSecurityHandlerFactory::RC4);
+    QTest::newRow("AES 128") << int(PDFSecurityHandlerFactory::AES_128);
+    QTest::newRow("AES 256") << int(PDFSecurityHandlerFactory::AES_256);
+}
+
+void DocumentWriterTest::damagedEncryptedRevisions()
+{
+    // ISO 32000-2, 7.6.3.3: the key of RC4 and AES 128 depends on the object number and the generation. Only
+    // the winning object is decrypted, once, by the reference it has in the file, whichever revision wins.
+    QFETCH(int, algorithm);
+
+    const QByteArray firstValue("the value of the first revision");
+    PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 100, 100));
+    const PDFObjectReference stringReference = builder.addObject(PDFObject::createString(firstValue));
+    const PDFObjectReference generationReference = builder.addObject(PDFObject::createString(QByteArray("the value of generation 0")));
+    QByteArray data = writeEncrypted(builder, PDFSecurityHandlerFactory::Algorithm(algorithm), QStringLiteral("owner"));
+
+    PDFDocumentReader::Result result = PDFDocumentReader::Result::Failed;
+    const PDFDocument valid = readWithPassword(data, QStringLiteral("user"), &result);
+    QCOMPARE(result, PDFDocumentReader::Result::OK);
+    const PDFSecurityHandler* handler = valid.getStorage().getSecurityHandler();
+    const PDFObjectReference pageReference = valid.getCatalog()->getPage(0)->getPageReference();
+    const PDFObjectReference pagesReference = valid.getObject(valid.getTrailerDictionary()->get("Root")).getDictionary()->get("Pages").getReference();
+
+    const auto encrypted = [handler](PDFObjectReference reference, const QByteArray& value)
+    {
+        const QByteArray bytes = handler->encryptObject(PDFObject::createString(QByteArray(value)), reference).getString();
+        return QByteArray::number(reference.objectNumber) + " " + QByteArray::number(reference.generation) + " obj\n<" + bytes.toHex() + ">\nendobj\n";
+    };
+
+    // The table is damaged, the second revision has another value and a higher generation of the other object
+    data.truncate(data.lastIndexOf("startxref"));
+    const QByteArray end = "startxref\n99999999\n%%EOF\n";
+    const PDFObjectReference secondGeneration(generationReference.objectNumber, 1);
+    const QByteArray secondRevision = encrypted(stringReference, QByteArray("the value of the second revision")) + encrypted(secondGeneration, QByteArray("the value of generation 1"));
+
+    const PDFDocument restored = readWithPassword(data + secondRevision + end, QStringLiteral("user"), &result, true);
+    QCOMPARE(result, PDFDocumentReader::Result::OK);
+    QCOMPARE(restored.getStorage().getObject(stringReference).getString(), QByteArray("the value of the second revision"));
+    QCOMPARE(restored.getStorage().getObject(secondGeneration).getString(), QByteArray("the value of generation 1"));
+    QVERIFY(restored.getStorage().getObject(generationReference).isNull());
+
+    // A wrong password is no document, whichever revision would win
+    const PDFDocument wrongPassword = readWithPassword(data + secondRevision + end, QStringLiteral("wrong"), &result, true);
+    QCOMPARE(result, PDFDocumentReader::Result::Cancelled);
+    QCOMPARE(wrongPassword.getCatalog()->getPageCount(), size_t(0));
+
+    // The last revision is not a document: the oldest content is decrypted the same way
+    const QByteArray brokenPages = QByteArray::number(pagesReference.objectNumber) + " 0 obj\n<< /Type /Pages /Kids [ " + QByteArray::number(pageReference.objectNumber) + " 0 R " + QByteArray::number(pageReference.objectNumber) + " 0 R ] /Count 2 >>\nendobj\n";
+    const PDFDocument oldest = readWithPassword(data + secondRevision + brokenPages + end, QStringLiteral("user"), &result, true);
+    QCOMPARE(result, PDFDocumentReader::Result::OK);
+    QCOMPARE(oldest.getCatalog()->getPageCount(), size_t(1));
+    QCOMPARE(oldest.getStorage().getObject(stringReference).getString(), firstValue);
 }
 
 void DocumentWriterTest::damagedFileVersion_data()

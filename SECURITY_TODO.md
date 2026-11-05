@@ -139,8 +139,8 @@ Each entry: where, the attack, the proposed fix. Remove an entry when it is fixe
 ### 21. A compiled page without a limit of its memory, std::bad_alloc out of the compilation
 
 - **Where:** `PDFRenderer::compile` and `PDFPrecompiledPageGenerator` (`Pdf4QtLibCore/sources/pdfrenderer.cpp`, `pdfpainter.cpp`), every viewer of a page; found by `UnitTestsDocumentToolCorpus` on `testpdf/Bugs/runsforever-poppler.pdf` (9.7 MB, 1 page).
-- **Problem:** nested forms repeat their content (`processForm` → `processContent` → `operatorPathStroke` → `PDFPrecompiledPageGenerator::performPathPainting`, entry 19 is the work, this is the memory): every path is one more instruction of the compiled page. The compilation of the page held 1.9 GB after 55 s; on Windows `std::bad_alloc` ended it after 409 s. `compile` says that no exception is thrown and catches nothing of this kind, and `PDFAsynchronousPageCompiler` (`Pdf4QtLibWidgets/sources/pdfcompiler.cpp`) has no `catch` either, so in a worker thread the exception would end the application (read from the code, not reproduced in the application).
-- **Fix:** a limit of the instructions / memory of one compiled page, with the page reported as a rendering error; `std::bad_alloc` caught at the boundary of the compilation.
+- **Problem:** nested forms repeat their content (`processForm` → `processContent` → `operatorPathStroke` → `PDFPrecompiledPageGenerator::performPathPainting`, entry 19 is the work, this is the memory): every path is one more instruction of the compiled page. The compilation of the page held 1.9 GB after 55 s; on Windows `std::bad_alloc` ended it after 409 s. `compile` says that no exception is thrown and catches nothing of this kind. The end of the application by the exception in the worker of `PDFAsynchronousPageCompiler` was reproduced by a limit of the memory of the process (review RP2FIX2, 2026-11-05). The owner does not want a `catch` of `std::bad_alloc` there (2026-11-05: when the allocator runs out, the application ends anywhere), so it stays.
+- **Fix:** what stays: a limit of the instructions / memory of one compiled page, with the page reported as a rendering error.
 
 ### 22. Drawing of a compiled mesh without a limit and without the cancellation
 
@@ -165,3 +165,27 @@ Each entry: where, the attack, the proposed fix. Remove an entry when it is fixe
 - **Where:** `PDFDocumentReader::createRestoredObjects` (`Pdf4QtLibCore/sources/pdfdocumentreader.cpp`, `objects.resize(...)`; the same line was in `readDamagedDocumentFromBuffer` before item 24 was fixed); found 2026-11-04.
 - **Problem:** the permissive reading takes the object number from the bytes without a limit. A file of 300 bytes with `999999999999 0 obj 1 endobj` and a wrong `startxref` asks for terabytes: run under ASan it ends by out-of-memory in this line (`build/work/P2READER`); from the code, in a normal build `std::bad_alloc` leaves the reader, which catches only `PDFException` (not run). A number of 100 million takes gigabytes without any failure.
 - **Fix:** an object number above the limit of ISO 32000-2 Annex C or above the number of bytes of the file skipped by `restoreObjects`, as a damaged object; the same check for the table of the strict reader.
+
+### 28. A file over 2 GB ends PdfTool and the old applications
+
+- **Where:** `PDFDocumentReader` (`Pdf4QtLibCore/sources/pdfdocumentreader.cpp`): `findFromEnd` (`const int size = byteArray.size()`), the offsets of `PDFDamagedFileScanner` and `findObjectByteOffsets` are `int`; found 2026-11-05.
+- **Problem:** a buffer of 2200 MB gives a negative size, the search starts in front of the buffer: SEGV under ASan in `readFromBuffer` (`build/work/RP2READER`). The new application is safe by its limit of 2047 MB (`PDFAppDocumentLoader::MAXIMUM_FILE_SIZE`, also the automatic refresh), `readFromFile` of PdfTool and of the old applications has no limit.
+- **Fix:** `readFromBuffer` refuses a buffer larger than `INT_MAX` with an error, as the loader does.
+
+### 27. The text layout of the whole document ends the application without memory
+
+- **Where:** `PDFAsynchronousTextLayoutCompiler::makeTextLayout` and `onTextLayoutCreated` (`Pdf4QtLibWidgets/sources/pdfcompiler.cpp`, `m_textLayoutCompileFuture.result()`), the old applications and the text selection of the new one; found by the review RP2FIX2, read from the code, not reproduced.
+- **Problem:** `std::bad_alloc` in the worker of the layout is kept by the future as `QUnhandledException`, `result()` throws it in the slot of the user interface thread, nothing catches it: `std::terminate`. A heavy tool holding the memory while the user selects a text is enough. The same worker sets `result.setTextLayout` for no page left without the memory, `m_isRunning` would stay set.
+- **Fix:** none planned: the owner does not want a `catch` of `std::bad_alloc` (2026-11-05: when the allocator runs out, the application ends anywhere). Kept as a record of the behavior.
+
+### 29. A name tree, which is its own kid, ends the reading of the document
+
+- **Where:** `PDFNameTreeLoader::parseImpl` (`pdfnametreeloader.h`), every name tree of the catalog (`/Names /Dests`, `/AP`, `/JavaScript`, `/Pages`, `/Templates`, `/IDS`, `/URLS`, `/EmbeddedFiles`); found by the test of Remove Pages of package 2A (`removeHostile`), reproduced: the process ends with an access violation (stack overflow) while the document is read.
+- **Attack:** a node of a name tree lists itself (or an ancestor) in `/Kids`: the recursion never ends. A small hostile file ends every application, which opens it, also the thumbnailer of the new application.
+- **Fix:** the set of the visited nodes and a depth limit as in `PDFObjectUtils::readNumberTree` (the walk of `PDFDocumentPageRemoval::readNameTree` of Remove Pages is bounded already).
+
+### 30. The removal of an annotation follows /Popup to any object
+
+- **Where:** `PDFDocumentBuilder::removeAnnotation` (`pdfdocumentbuilder.cpp`): the delete of annotations of the old Editor and of the annotation operations of the new application, and the old commands of Remove External Links (`PDFDocumentLinkOperations::removeExternalLinkAnnotations`, PdfTool `remove-external-links`, the Editor); found by package 2B of phase 2, read from the code.
+- **Attack:** an annotation of a hostile file has `/Popup` pointing at the catalog or at a page. The removal of the annotation replaces the object of `/Popup` by a null object without looking at it: the document loses its catalog or a page, the next reading or writing fails. The same function reads `/Annots` by `readReferenceArray`, which gives nothing for an array with one direct item: the array is not rewritten, the removed annotation stays listed as a null reference.
+- **Fix:** follow `/Popup` only to a dictionary of `/Subtype /Popup`, never to a page; rewrite `/Annots` item by item (the tools of phase 2 do it: `PDFDocumentLinkOperations::removeLinks`, `PDFDocumentSanitizer::removeAnnotations`).

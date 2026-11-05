@@ -169,7 +169,6 @@ private:
     std::optional<PDFDocumentToolResult> m_result;  ///< The measured result of the current parameters
     mutable std::optional<PDFDocumentToolResult> m_dialogResult;    ///< The result of the dialog, which is opening (a run, which has joined the preview)
     QString m_errorText;
-    bool m_isOutOfMemory = false;   ///< The state Failed is a lack of memory
     int m_percentage = 0;
     QString m_stepText;
     bool m_isRunning = false;

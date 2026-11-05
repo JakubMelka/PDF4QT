@@ -50,7 +50,6 @@ class QEvent;
 namespace pdf
 {
 
-class PDFAppToolOutOfMemoryDialog;
 class PDFDocumentToolCatalogEntry;
 
 /// How a shell asks its page to end (the page chooses the route, F15)
@@ -165,9 +164,6 @@ public:
     PDFAppToolResultDialog* getResultDialog() const { return m_resultDialog.data(); }
     PDFMessageBox* getPermissionDialog() const { return m_permissionDialog.data(); }
 
-    /// The dialog Not enough memory (nullptr = none is open)
-    PDFAppToolOutOfMemoryDialog* getOutOfMemoryDialog() const;
-
     /// The document does not give the permission of the tool (339:10328)
     bool isPermissionRefused() const { return m_isPermissionRefused; }
 
@@ -205,11 +201,6 @@ private:
     bool waitForModalDialog(const PDFDocumentToolResult& result);
     void watchModalDialog(QWidget* dialog);
     void onWatchedModalClosed();
-
-    /// Shows the dialog Not enough memory over the document of the failure, after a modal
-    /// dialog or a popup, which is open (every tool gets it from here, no tool has code of it)
-    void showOutOfMemoryDialog();
-    void onOneThreadChosen();
     void showPermissionRefusal();
     void requestClose(const PDFAppToolCloseRequest& request);
     void onLanguageChanged();
@@ -255,7 +246,6 @@ private:
     QPointer<PDFAppToolCallout> m_busyCallout;
     QPointer<PDFAppToolResultDialog> m_resultDialog;
     QPointer<PDFMessageBox> m_permissionDialog;
-    QPointer<PDFAppToolOutOfMemoryDialog> m_outOfMemoryDialog;  ///< A child of the window, deleted on its closing
     QPointer<QDialog> m_leaveDialog;    ///< The question of the leaving during a run (F14)
     QPointer<QWidget> m_watchedModal;   ///< The modal dialog of the application, for which a result waits
     QPointer<QAction> m_escapeAction;
@@ -269,8 +259,6 @@ private:
     State m_state = State::Created;
     bool m_isAskingLeave = false;
     bool m_isWaitingForModal = false;   ///< m_pendingResult waits for m_watchedModal
-    bool m_isOutOfMemoryPending = false;    ///< The dialog Not enough memory waits for m_watchedModal
-    bool m_isOutOfMemoryShown = false;  ///< The dialog has been shown: a measuring does not show it again
     bool m_isPermissionRefused = false;
     bool m_isRebuilding = false;
     bool m_isCloseRequested = false;

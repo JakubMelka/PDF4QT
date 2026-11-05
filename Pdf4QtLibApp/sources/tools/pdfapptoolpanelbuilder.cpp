@@ -384,8 +384,46 @@ PDFTileRow* PDFAppToolStepList::getRow(const QString& parameter) const
     return it != m_rows.end() ? it->second.data() : nullptr;
 }
 
+void PDFAppToolStepList::setResults(std::vector<PDFAppToolStepResult> results)
+{
+    m_results = std::move(results);
+    refresh();
+}
+
 void PDFAppToolStepList::refresh()
 {
+    if (!m_results.empty())
+    {
+        // 319:7398: what the run did
+        for (const PDFAppToolFlagItem& item : m_items)
+        {
+            PDFTileRow* row = getRow(item.parameter);
+            if (!row)
+            {
+                continue;
+            }
+
+            const PDFAppToolStepResult* result = nullptr;
+            for (const PDFAppToolStepResult& candidate : m_results)
+            {
+                result = !result && candidate.parameter == item.parameter ? &candidate : result;
+            }
+            const bool isRun = result && result->isRun;
+            row->setTone(isRun ? PDFTileRow::Tone::Accent : PDFTileRow::Tone::Muted);
+            row->setEndIcon(isRun ? QStringLiteral("check-circle") : QStringLiteral("minus"), isRun ? PDFThemeColors::AccentGreenIcon : PDFThemeColors::IconMuted);
+            row->setDescription(result ? result->text : item.offDescription);
+            if (isRun)
+            {
+                row->setDescriptionColor(PDFThemeColors::TextSecondary);
+            }
+            else
+            {
+                row->resetDescriptionColor();
+            }
+        }
+        return;
+    }
+
     if (!m_model)
     {
         return;
@@ -403,6 +441,7 @@ void PDFAppToolStepList::refresh()
         row->setTone(isOn ? PDFTileRow::Tone::Accent : PDFTileRow::Tone::Muted);
         row->setEndIcon(isOn ? QStringLiteral("check") : QStringLiteral("minus"), isOn ? PDFThemeColors::IconAccent : PDFThemeColors::IconMuted);
         row->setDescription(!isOn && !item.offDescription.isEmpty() ? item.offDescription : item.description);
+        row->resetDescriptionColor();
     }
 }
 
@@ -423,10 +462,19 @@ PDFAppToolChecklist::PDFAppToolChecklist(PDFAppToolParameterModel* model, std::v
 {
     setObjectName(QStringLiteral("toolChecklist"));
 
+    // 438:12713: padding 8 + the border, the rows 2 apart, a caption of the card 21 high
     getBodyLayout()->setContentsMargins(9, 9, 9, 9);
-    getBodyLayout()->setSpacing(0);
+    getBodyLayout()->setSpacing(2);
     for (const PDFAppToolFlagItem& item : m_items)
     {
+        if (!item.groupCaption.isEmpty())
+        {
+            PDFTileRow* caption = new PDFTileRow(item.groupCaption, QString(), QString(), PDFTileRow::Kind::Caption, this);
+            caption->setObjectName(QStringLiteral("toolCheckCaption"));
+            caption->setClickable(false);
+            getBodyLayout()->addWidget(caption);
+        }
+
         PDFTileRow* row = new PDFTileRow(item.title, item.description, item.iconName, PDFTileRow::Kind::ListItem, this);
         row->setObjectName(QStringLiteral("toolCheck-") + item.parameter);
         row->setProperty(PDFAppToolPanelBuilderHelper::ROW_KEY_PROPERTY, item.parameter);
@@ -452,6 +500,15 @@ PDFTileRow* PDFAppToolChecklist::getRow(const QString& parameter) const
     return it != m_rows.end() ? it->second.data() : nullptr;
 }
 
+void PDFAppToolChecklist::setRowAvailable(const QString& parameter, bool isAvailable)
+{
+    if (PDFTileRow* row = getRow(parameter))
+    {
+        row->setCheckBoxEnabled(isAvailable);
+        refresh();
+    }
+}
+
 void PDFAppToolChecklist::refresh()
 {
     if (!m_model)
@@ -464,7 +521,8 @@ void PDFAppToolChecklist::refresh()
         if (item.second)
         {
             const QSignalBlocker blocker(item.second);
-            item.second->setCheckBoxChecked(m_model->getValue(item.first).toBool());
+            // A kind, which is not there, is shown unticked (438:12588 "Not found"); its value stays
+            item.second->setCheckBoxChecked(m_model->getValue(item.first).toBool() && item.second->isCheckBoxEnabled());
             item.second->update();
         }
     }
@@ -582,7 +640,8 @@ void PDFAppToolPageSelectionBinder::updatePages()
         for (int i = 0; i < pageCount; ++i)
         {
             const PDFPage* page = catalog->getPage(i);
-            sizes.append(page ? page->getRotatedMediaBox().size() : QSizeF());
+            // The visible box, as PDFDocumentToolPageSelection decides the orientation of a page
+            sizes.append(page ? page->getRotatedCropBox().size() : QSizeF());
         }
         m_selection->setPageSizes(sizes);
     }
@@ -630,13 +689,16 @@ void PDFAppToolPageSelectionBinder::updateViewPages()
     const PDFInteger currentPage = host->getCurrentPage();
     m_selection->setCurrentPage(currentPage >= 0 ? int(currentPage) + 1 : 0);
 
-    QList<int> pages;
-    for (const PDFInteger page : host->getSelectedPages())
+    if (!m_isOwnSelection)
     {
-        pages.append(int(page) + 1);
+        QList<int> pages;
+        for (const PDFInteger page : host->getSelectedPages())
+        {
+            pages.append(int(page) + 1);
+        }
+        std::sort(pages.begin(), pages.end());
+        m_selection->setSelectedPages(pages);
     }
-    std::sort(pages.begin(), pages.end());
-    m_selection->setSelectedPages(pages);
     m_isUpdating = false;
 
     // Only Current and Selected read the pages of the view
@@ -658,8 +720,10 @@ void PDFAppToolPageSelectionBinder::writeValue(bool isUserChange)
         return;
     }
 
+    // The error of the text of the range only: the error of the application shown by the
+    // selection is the refusal of the last value by the model, which the next value replaces
     PDFAppToolParameterModel* model = m_gui->getModel();
-    const QString rangeError = m_selection->getError();
+    const QString rangeError = m_selection->getMode() == PDFPageSelection::Mode::Range ? m_selection->getRangeError() : QString();
     if (!rangeError.isEmpty())
     {
         m_gui->setInputError(m_parameter, rangeError);
@@ -685,6 +749,9 @@ void PDFAppToolPageSelectionBinder::writeValue(bool isUserChange)
     PDFDocumentToolPageSelection value;
     value.pages = pages;
     value.filters = PDFAppToolPanelBuilderHelper::toToolFilters(m_selection->getFilters());
+
+    // The mode Selected without a selected page selects no page, not all of them
+    value.isNone = m_selection->getMode() == PDFPageSelection::Mode::Selected && m_selection->getSelectedPages().isEmpty();
 
     // A selection of more pages than a range text can hold is refused by the model
     m_isUpdating = true;
@@ -724,7 +791,13 @@ void PDFAppToolPageSelectionBinder::onParameterChanged(const QString& name)
 
     m_isUpdating = true;
     m_selection->setFilters(PDFAppToolPanelBuilderHelper::toSelectionFilters(value->filters));
-    if (value->pages.isEmpty())
+    if (value->isNone)
+    {
+        m_isOwnSelection = true;
+        m_selection->setSelectedPages(QList<int>());
+        m_selection->setMode(PDFPageSelection::Mode::Selected);
+    }
+    else if (value->pages.isEmpty())
     {
         m_selection->setMode(PDFPageSelection::Mode::All);
     }
@@ -743,6 +816,54 @@ void PDFAppToolPageSelectionBinder::onParameterChanged(const QString& name)
     // The shown value is the value of the model again: a range with an error (the Primary
     // button is disabled by it) is gone after Undo
     m_gui->setInputError(m_parameter, m_selection->getError());
+}
+
+void PDFAppToolPageSelectionBinder::setPages(const QList<int>& pages)
+{
+    if (!m_selection)
+    {
+        return;
+    }
+
+    // The signals of the selection reach slots of the tool
+    QPointer<PDFAppToolPageSelectionBinder> guard(this);
+    m_isUpdating = true;
+    m_isOwnSelection = true;
+    m_selection->setFilters(PDFPageSelection::Filters());
+    const QString rangeText = createRangeText(pages);
+    if (guard && m_selection && m_selection->getMode() == PDFPageSelection::Mode::Range && !pages.isEmpty() && rangeText.size() <= PDFDocumentToolPageSelection::MAXIMUM_PAGES_LENGTH)
+    {
+        m_selection->setRange(rangeText);
+    }
+    else if (guard && m_selection)
+    {
+        m_selection->setSelectedPages(pages);
+        m_selection->setMode(PDFPageSelection::Mode::Selected);
+    }
+    if (!guard)
+    {
+        return;
+    }
+    m_isUpdating = false;
+    writeValue(true);
+}
+
+void PDFAppToolPageSelectionBinder::setEntryMode(PDFPageSelection::Mode mode)
+{
+    if (!m_selection)
+    {
+        return;
+    }
+
+    QPointer<PDFAppToolPageSelectionBinder> guard(this);
+    m_isUpdating = true;
+    m_selection->setMode(mode);
+    if (!guard)
+    {
+        return;
+    }
+    m_isUpdating = false;
+    writeValue(false);
 }
 
 // ------------------------------------------------------------ PDFAppToolPendingList
@@ -1001,6 +1122,13 @@ PDFAppParagraph* PDFAppToolPanelBuilder::addTextCard(const QString& text)
     card->getBodyLayout()->addWidget(paragraph);
     addWidget(card);
     return paragraph;
+}
+
+PDFAppToolPanelHeader* PDFAppToolPanelBuilder::addPanelHeader(const QString& title, const QString& subtitle)
+{
+    PDFAppToolPanelHeader* header = new PDFAppToolPanelHeader(title, subtitle, m_widget);
+    addWidget(header);
+    return header;
 }
 
 PDFAppToolCallout* PDFAppToolPanelBuilder::addCallout(PDFAccentHue hue, const QString& iconName, const QString& title, const QString& text)

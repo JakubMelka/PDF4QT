@@ -57,8 +57,6 @@
 #include <QVBoxLayout>
 #include <QtConcurrent/QtConcurrentRun>
 
-#include <new>
-
 namespace pdf
 {
 
@@ -195,6 +193,12 @@ public:
             return QStringLiteral("SHA-%1").arg(text.mid(3));
         }
         return text;
+    }
+
+    /// Summary of a signature of a damaged file, whose objects were restored from its bytes
+    static QString getFileRestoredText()
+    {
+        return PDFAppDocumentSignatureVerifier::tr("The file is damaged and its content was restored, so what is shown may not be what was signed.");
     }
 
     static bool contains(const std::vector<QByteArray>& certificates, const QByteArray& data)
@@ -352,10 +356,6 @@ PDFAppSignatureVerificationPointer PDFAppDocumentSignatureVerifier::runVerificat
         std::erase_if(verification->results, PDFAppDocumentSignaturesHelper::isUnsignedResult);
     }
     catch (const PDFException&)
-    {
-        verification->results.clear();
-    }
-    catch (const std::bad_alloc&)
     {
         verification->results.clear();
     }
@@ -680,17 +680,22 @@ PDFComponentPainter::SignatureCard PDFAppDocumentSignatureVerifier::getCard(cons
             break;
 
         case Status::Warning:
-            if (result.hasFlag(Flag::Error_Certificate_Expired))
+            // What is shown may not be what was signed, this comes before the certificate
+            if (result.hasFlag(Flag::Warning_Signature_FileRestored))
+            {
+                card.summary = PDFAppDocumentSignaturesHelper::getFileRestoredText();
+            }
+            else if (result.hasFlag(Flag::Warning_Signature_NotCoveredBytes))
+            {
+                card.summary = tr("The signature is intact, but a part of the document is not covered by it.");
+            }
+            else if (result.hasFlag(Flag::Error_Certificate_Expired))
             {
                 card.summary = tr("The signature is intact, but the certificate of the signer has expired.");
             }
             else if (result.hasCertificateError())
             {
                 card.summary = tr("The signature is intact, but the certificate of the signer is not trusted.");
-            }
-            else if (result.hasFlag(Flag::Warning_Signature_NotCoveredBytes))
-            {
-                card.summary = tr("The signature is intact, but a part of the document is not covered by it.");
             }
             else
             {
@@ -706,6 +711,10 @@ PDFComponentPainter::SignatureCard PDFAppDocumentSignatureVerifier::getCard(cons
             else if (result.hasSignatureError())
             {
                 card.summary = tr("The document has been changed since it was signed, or the signature is damaged.");
+            }
+            else if (result.hasFlag(Flag::Warning_Signature_FileRestored))
+            {
+                card.summary = PDFAppDocumentSignaturesHelper::getFileRestoredText();
             }
             else if (!result.getErrors().isEmpty())
             {
@@ -1147,7 +1156,9 @@ void PDFAppDocumentSignaturesPanel::rebuild()
         }
 
         // Only when undo can do it: a copy of the rewritten version has no such step
-        bannerText = document && document->getUndoStack()->canUndoWholeFileRewrite()
+        bannerText = document && document->getRestoration() != PDFAppDocumentRestoration::None
+                         ? tr("The file is damaged, so the signed revision cannot be kept. Your changes can be saved only as a copy, and its signatures will not be valid.")
+                     : document && document->getUndoStack()->canUndoWholeFileRewrite()
                          ? tr("A tool has rewritten the whole document, so the signed revision cannot be kept. When you save it, its signatures will no longer be valid. Undo brings the signed version back.")
                          : tr("A tool has rewritten the whole document, so the signed revision cannot be kept. When you save it, its signatures will no longer be valid.");
     }

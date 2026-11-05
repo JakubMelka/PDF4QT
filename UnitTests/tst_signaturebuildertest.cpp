@@ -28,6 +28,8 @@
 #include "pdfdocumentreader.h"
 #include "pdfdocumentwriter.h"
 #include "pdfobjectutils.h"
+#include "restoredsignedfile.h"
+#include "pdfcatalog.h"
 
 #include <QtTest>
 #include <QBuffer>
@@ -84,6 +86,7 @@ private slots:
     void multipleSignatures();
     void signedObjectStreamsUpdatedIncrementally();
     void signedFileWithRawCarriageReturn();
+    void signatureOfRestoredFile();
     void signingOverInvalidSignature();
     void existingSignaturesNotPreserved();
     void preservesAcroForm_data();
@@ -595,6 +598,118 @@ void SignatureBuilderTest::signedObjectStreamsUpdatedIncrementally()
     QByteArray signedResult;
     QCOMPARE(signDocument(signedReplaced, signedData, certificate, password, "Second", signedResult), PDFDocumentSigner::Result::ExistingSignaturesNotPreserved);
     QVERIFY(signedResult.isEmpty());
+}
+
+void SignatureBuilderTest::signatureOfRestoredFile()
+{
+    // A signature is about bytes, a table of a file (ISO 32000-2, 7.5.4) says, which objects are the document. Without
+    // a table the reader can read, the objects come from the bytes, so a signature over each of the bytes proves nothing
+    // about the shown page: the attacker has put a page into the file, which no reader by the table shows to the signer.
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    PDFCertificateEntry certificate;
+    QString password;
+    QVERIFY(createTestCertificate(directory, certificate, password));
+
+    using Sample = pdftest::RestoredSignedFile;
+
+    // The content of the page: the streams of /Contents, a missing one gives nothing
+    const auto readContent = [](const PDFDocument& document)
+    {
+        QByteArray content;
+        const PDFObject contents = document.getObject(document.getCatalog()->getPage(0)->getContents());
+        if (contents.isArray())
+        {
+            for (size_t i = 0; i < contents.getArray()->getCount(); ++i)
+            {
+                const PDFObject item = document.getObject(contents.getArray()->getItem(i));
+                content += item.isStream() ? document.getDecodedStream(item.getStream()) : QByteArray();
+            }
+        }
+        return content;
+    };
+    const auto verifyTrustingSigner = [](const PDFDocument& document, const QByteArray& data)
+    {
+        // The certificate of the signer is trusted, as a real certificate of a real signer is
+        const PDFForm form = PDFForm::parse(&document, document.getCatalog()->getFormObject());
+        PDFSignatureHandler::Parameters parameters;
+        parameters.useSystemCertificateStore = false;
+        std::vector<PDFSignatureVerificationResult> results = PDFSignatureHandler::verifySignatures(form, data, parameters);
+        if (results.size() != 1 || results.front().getCertificateInfos().empty())
+        {
+            return results;
+        }
+
+        PDFCertificateStore store;
+        for (const PDFCertificateInfo& info : results.front().getCertificateInfos())
+        {
+            store.add(PDFCertificateEntry::EntryType::User, info.getCertificateData());
+        }
+        parameters.store = &store;
+        return PDFSignatureHandler::verifySignatures(form, data, parameters);
+    };
+
+    // The control: the same file valid for the strict reader, the page of the table is shown and the signature is valid
+    const QByteArray validData = Sample::create(certificate, password, Sample::Damage::None);
+    QVERIFY(!validData.isEmpty());
+    {
+        PDFDocumentReader reader(nullptr, nullptr, false, false);
+        const PDFDocument document = reader.readFromBuffer(validData);
+        QCOMPARE(reader.getReadingResult(), PDFDocumentReader::Result::OK);
+        QVERIFY(!reader.isDocumentRestored());
+        QVERIFY(readContent(document).contains(Sample::SIGNED_TEXT));
+        QVERIFY(readContent(document).contains(Sample::LOST_TEXT));
+        QVERIFY(!readContent(document).contains(Sample::HIDDEN_TEXT));
+
+        const std::vector<PDFSignatureVerificationResult> results = verifyTrustingSigner(document, validData);
+        QCOMPARE(results.size(), size_t(1));
+        QVERIFY2(results.front().isValid(), qPrintable(results.front().getErrors().join('\n')));
+        QVERIFY(!results.front().hasFlag(PDFSignatureVerificationResult::Warning_Signature_NotCoveredBytes));
+        QVERIFY(!results.front().hasFlag(PDFSignatureVerificationResult::Warning_Signature_FileRestored));
+        QVERIFY(!results.front().hasWarning());
+    }
+
+    // A wrong count of the first table: the reader refuses the table, the shown page is not the signed one
+    const QByteArray data = Sample::create(certificate, password, Sample::Damage::TableCount);
+    QVERIFY(!data.isEmpty());
+    {
+        PDFDocumentReader strictReader(nullptr, nullptr, false, false);
+        strictReader.readFromBuffer(data);
+        QCOMPARE(strictReader.getReadingResult(), PDFDocumentReader::Result::Failed);
+    }
+
+    PDFDocumentReader reader(nullptr, nullptr, true, false);
+    const PDFDocument document = reader.readFromBuffer(data);
+    QCOMPARE(reader.getReadingResult(), PDFDocumentReader::Result::OK);
+    QVERIFY(reader.isDocumentRestored());
+    QVERIFY(readContent(document).contains(Sample::HIDDEN_TEXT));
+
+    // The signature itself is intact and covers the whole file - and the result says, that it does not vouch for the page
+    const std::vector<PDFSignatureVerificationResult> results = verifyTrustingSigner(document, data);
+    QCOMPARE(results.size(), size_t(1));
+    QVERIFY2(results.front().isSignatureValid(), qPrintable(results.front().getErrors().join('\n')));
+    QVERIFY(!results.front().hasFlag(PDFSignatureVerificationResult::Warning_Signature_NotCoveredBytes));
+    QVERIFY(results.front().hasFlag(PDFSignatureVerificationResult::Warning_Signature_FileRestored));
+    QVERIFY(results.front().hasSignatureWarning());
+    QVERIFY(results.front().hasWarning());
+    QCOMPARE(results.front().getWarnings().size(), 1);
+
+    // A wrong length of a stream of the page: the reader goes by the table and leaves the stream out, a part of
+    // the page the signer has read is not shown. Nothing was changed in the bytes, only the reader sees it.
+    const QByteArray streamData = Sample::create(certificate, password, Sample::Damage::StreamLength);
+    QVERIFY(!streamData.isEmpty());
+    PDFDocumentReader streamReader(nullptr, nullptr, true, false);
+    const PDFDocument streamDocument = streamReader.readFromBuffer(streamData);
+    QCOMPARE(streamReader.getReadingResult(), PDFDocumentReader::Result::OK);
+    QVERIFY(streamReader.isDocumentRestored());
+    QVERIFY(readContent(streamDocument).contains(Sample::SIGNED_TEXT));
+    QVERIFY(!readContent(streamDocument).contains(Sample::LOST_TEXT));
+
+    const std::vector<PDFSignatureVerificationResult> streamResults = verifyTrustingSigner(streamDocument, streamData);
+    QCOMPARE(streamResults.size(), size_t(1));
+    QVERIFY2(streamResults.front().isSignatureValid(), qPrintable(streamResults.front().getErrors().join('\n')));
+    QVERIFY(!streamResults.front().hasFlag(PDFSignatureVerificationResult::Warning_Signature_NotCoveredBytes));
+    QVERIFY(streamResults.front().hasFlag(PDFSignatureVerificationResult::Warning_Signature_FileRestored));
 }
 
 void SignatureBuilderTest::signingOverInvalidSignature()

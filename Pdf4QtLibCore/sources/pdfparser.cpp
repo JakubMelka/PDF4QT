@@ -876,6 +876,21 @@ PDFParser::PDFParser(std::function<PDFLexicalAnalyzer::Token ()> tokenFetcher) :
     m_lookAhead2 = fetch();
 }
 
+PDFParser::NestingGuard::NestingGuard(PDFParser* parser) :
+    m_parser(parser)
+{
+    if (m_parser->m_nesting >= MAXIMUM_NESTING)
+    {
+        m_parser->error(tr("Arrays and dictionaries are nested too deeply."));
+    }
+    ++m_parser->m_nesting;
+}
+
+PDFParser::NestingGuard::~NestingGuard()
+{
+    --m_parser->m_nesting;
+}
+
 PDFObject PDFParser::getObject()
 {
     switch (m_lookAhead1.type)
@@ -940,6 +955,7 @@ PDFObject PDFParser::getObject()
 
         case PDFLexicalAnalyzer::TokenType::ArrayStart:
         {
+            NestingGuard nestingGuard(this);
             shift();
 
             // Collect items on the scratch stack (if the exception is thrown, items
@@ -970,6 +986,7 @@ PDFObject PDFParser::getObject()
         }
         case PDFLexicalAnalyzer::TokenType::DictionaryStart:
         {
+            NestingGuard nestingGuard(this);
             shift();
 
             // Start reading the dictionary. BEWARE! It can also be a stream. In this case,

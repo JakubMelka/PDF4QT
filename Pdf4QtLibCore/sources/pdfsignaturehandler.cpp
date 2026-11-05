@@ -22,6 +22,7 @@
 
 #include "pdfsignaturehandler.h"
 #include "pdfdocument.h"
+#include "pdfdocumentreader.h"
 #include "pdfencoding.h"
 #include "pdfform.h"
 #include "pdfutils.h"
@@ -218,6 +219,28 @@ void PDFSignatureHandler::releaseThreadResources()
     OPENSSL_thread_stop();
 }
 
+/// Helpers of the verification of the signatures of a file
+class PDFSignatureHandlerHelper
+{
+public:
+    PDFSignatureHandlerHelper() = delete;
+
+    /// Returns true, if the reader of the application restores the objects of the file from its bytes
+    static bool isFileRestoredByReader(const QByteArray& sourceData)
+    {
+        // An encrypted file: the reader decides before it needs the password, a refused password changes nothing
+        auto refusePassword = [](bool* ok)
+        {
+            *ok = false;
+            return QString();
+        };
+
+        PDFDocumentReader reader(nullptr, refusePassword, true, false);
+        reader.readFromBuffer(sourceData);
+        return reader.isDocumentRestored();
+    }
+};
+
 std::vector<PDFSignatureVerificationResult> PDFSignatureHandler::verifySignatures(const PDFForm& form, const QByteArray& sourceData, const Parameters& parameters)
 {
     std::vector<PDFSignatureVerificationResult> result;
@@ -237,12 +260,22 @@ std::vector<PDFSignatureVerificationResult> PDFSignatureHandler::verifySignature
         form.apply(getSignatureFields);
         result.reserve(signatureFields.size());
 
+        // A signature proves its bytes, not the shown objects. Without a cross-reference table, which can
+        // be read, the reader takes the objects from the bytes, also those no reader by the table shows
+        // and the signer has never seen, so a signature over the whole file proves nothing about them.
+        const bool isFileRestored = !signatureFields.empty() && PDFSignatureHandlerHelper::isFileRestoredByReader(sourceData);
+
         for (const PDFFormFieldSignature* signatureField : signatureFields)
         {
             if (const PDFSignatureHandler* signatureHandler = createHandler(signatureField, sourceData, parameters))
             {
                 result.emplace_back(signatureHandler->verify());
                 delete signatureHandler;
+
+                if (isFileRestored)
+                {
+                    result.back().addSignatureFileRestoredWarning();
+                }
             }
             else
             {
@@ -375,6 +408,15 @@ void PDFSignatureVerificationResult::addSignatureTimestampNotVerifiedWarning()
     {
         m_flags.setFlag(Warning_Signature_TimestampNotVerified);
         m_warnings << PDFTranslationContext::tr("Timestamp of the signature could not be verified, the time of the signing is not attested by a timestamp authority.");
+    }
+}
+
+void PDFSignatureVerificationResult::addSignatureFileRestoredWarning()
+{
+    if (!m_flags.testFlag(Warning_Signature_FileRestored))
+    {
+        m_flags.setFlag(Warning_Signature_FileRestored);
+        m_warnings << PDFTranslationContext::tr("The file is damaged and its content was restored from its bytes, the shown content may not be what was signed.");
     }
 }
 

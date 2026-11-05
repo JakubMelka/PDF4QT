@@ -268,8 +268,7 @@ public:
     /// only while it works on it, so the peak is about the threads x the largest image, never the sum
     /// of all images, and the strategy Single thread handles strictly one image at a time. The
     /// returned document does not depend on the threads: its objects are written in the order of
-    /// the references. Out of memory is std::bad_alloc thrown to the caller; an image, whose pixels
-    /// could not be allocated, stays unchanged.
+    /// the references. An image, whose pixels could not be allocated, stays unchanged.
     /// \param document Source document.
     /// \param settings Global settings for optimization.
     /// \param overrides Optional per-image overrides.

@@ -69,6 +69,12 @@ public:
         return QCoreApplication::translate("pdf::PDFAppMcpFilesTool", text, nullptr, count);
     }
 
+    /// files.save of a damaged file only a copy may leave (PDFAppDocumentFileWriter::isOnlyCopyWritable)
+    static QString getDamagedSaveText()
+    {
+        return QStringLiteral("The file of the document is damaged and its content was restored, so PDF4QT does not save over it: that would lose what is not shown or signed. Use save_copy with a path; the signatures will not be valid in the copy.");
+    }
+
     static bool hasPdfHeader(const QString& path)
     {
         QFile file(path);
@@ -432,6 +438,15 @@ public:
                 facts.append(fact);
                 confirmation->details.insert(QStringLiteral("facts"), facts);
             }
+            else if (const int lostSignatureCount = getLostSignatureCount(m_document->getSnapshot()))
+            {
+                QJsonArray facts;
+                QJsonObject fact;
+                fact.insert(QStringLiteral("key"), PDFAppMcpFilesToolHelper::tr("Signatures"));
+                fact.insert(QStringLiteral("value"), PDFAppMcpFilesToolHelper::tr("%n no longer valid in the written file", lostSignatureCount));
+                facts.append(fact);
+                confirmation->details.insert(QStringLiteral("facts"), facts);
+            }
         }
         confirmation->receiver = std::shared_ptr<PDFAppMcpConfirmationReceiver>(shared_from_this(), static_cast<PDFAppMcpConfirmationReceiver*>(this));
         m_holder = shared_from_this();
@@ -521,6 +536,10 @@ public:
             output.emplace_back(QStringLiteral("saved"), true);
         }
         output.emplace_back(QStringLiteral("path"), QDir::toNativeSeparators(result.filePath));
+        if (m_isSignatureLostInCopy)
+        {
+            output.emplace_back(QStringLiteral("note"), QStringLiteral("The file of the document is damaged, so the copy was written whole and its signatures are not valid. The file of the document stays as it was. Tell the user."));
+        }
         succeed(PDFAppMcpChangeJob::createResult(m_mode == Mode::Save ? QStringLiteral("save") : QStringLiteral("save_copy"), document, output));
     }
 
@@ -560,6 +579,12 @@ public:
 
 private:
     void proceed(PDFMcpActivityStatus status);
+
+    /// The signatures of a written copy of a damaged file, which do not hold in it
+    static int getLostSignatureCount(const PDFAppDocumentSnapshot& snapshot)
+    {
+        return PDFAppDocumentFileWriter::isOnlyCopyWritable(snapshot) ? PDFAppDocumentFileWriter::getSignatureCount(snapshot.document.data()) : 0;
+    }
 
     static QString getDeniedText()
     {
@@ -626,6 +651,7 @@ private:
     bool m_isOverwrite = false;
     int m_page = 0;
     bool m_activate = true;
+    bool m_isSignatureLostInCopy = false;
     qint64 m_activityId = 0;
     PDFMcpActivityStatus m_status = PDFMcpActivityStatus::Ok;
     QPointer<PDFAppDocumentOperation> m_operation;
@@ -904,8 +930,15 @@ void PDFAppMcpFileRequest::proceed(PDFMcpActivityStatus status)
         }
     }
 
-    // A signed document keeps its signatures: the changes are appended
+    // A signed document keeps its signatures: the changes are appended. A file reloaded as a
+    // damaged one while the question waited is not replaced.
     const PDFAppDocumentSnapshot snapshot = document->getSnapshot();
+    if (m_mode == Mode::Save && PDFAppDocumentFileWriter::isOnlyCopyWritable(snapshot))
+    {
+        fail(PDFAppMcpFilesToolHelper::getDamagedSaveText(), PDFMcpActivityStatus::Failed);
+        return;
+    }
+    m_isSignatureLostInCopy = getLostSignatureCount(snapshot) > 0;
     const bool isIncremental = PDFAppDocumentFileWriter::getIncrementalSignatureCount(snapshot) > 0;
     const QString originFilePath = document->getOriginFilePath();
 
@@ -990,6 +1023,11 @@ void PDFAppMcpFilesTool::handle(const PDFAppMcpToolInvocation& invocation)
         if (path.isEmpty())
         {
             host->finishWithError(call, actionId, document, QStringLiteral("The document has no file yet (a copy or an attachment); use save_copy with a path."), PDFMcpActivityStatus::Failed);
+            return;
+        }
+        if (PDFAppDocumentFileWriter::isOnlyCopyWritable(document->getSnapshot()))
+        {
+            host->finishWithError(call, actionId, document, PDFAppMcpFilesToolHelper::getDamagedSaveText(), PDFMcpActivityStatus::Failed);
             return;
         }
         if (!PDFAppDocumentFileWriter::isWritable(path))

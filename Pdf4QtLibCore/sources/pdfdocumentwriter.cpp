@@ -456,9 +456,12 @@ PDFOperationResult PDFDocumentWriter::writeIncrementalUpdate(QIODevice* device, 
     // The original document is parsed again from its data, because the document
     // being written can be derived from an edited version of it - the objects are
     // compared with what is really stored in the data.
-    PDFDocumentReader reader(nullptr, nullptr, false, false);
+    // Its objects must be what the cross-reference table of the file says, an update goes by the
+    // table; the end of file mark is no part of that (it can be missing in a signed file, which
+    // the application has opened, only the table is needed here).
+    PDFDocumentReader reader(nullptr, nullptr, true, false);
     const PDFDocument originalDocument = reader.readFromBuffer(originalData);
-    if (reader.getReadingResult() != PDFDocumentReader::Result::OK)
+    if (reader.getReadingResult() != PDFDocumentReader::Result::OK || reader.isDocumentRestored())
     {
         return tr("Original document cannot be read, so it cannot be updated incrementally.");
     }

@@ -95,9 +95,10 @@ PDFAppDocumentFileWriter::Request PDFAppToolResultWriter::createCopyRequest(cons
     // The signed revision stays in the file only by an incremental update; a tool, which
     // rewrites the file, writes it whole: no old revision is left in the file (O31). A
     // result without any signed field (the signed page was removed) has nothing to keep,
-    // a version an earlier tool has rewritten is no update of the original bytes.
+    // a version an earlier tool has rewritten and a damaged file are no update of the original bytes.
     if (tool && tool->getSignatureImpact() == PDFDocumentToolSignatureImpact::IncrementalSave &&
-        !snapshot.originalData.isEmpty() && !snapshot.isWholeFileRewritten && !snapshot.isSignedRevisionGone && PDFForm::getSignatureCount(output.data()) > 0)
+        !snapshot.originalData.isEmpty() && !snapshot.isWholeFileRewritten && !snapshot.isSignedRevisionGone &&
+        snapshot.restoration == PDFAppDocumentRestoration::None && PDFForm::getSignatureCount(output.data()) > 0)
     {
         request.originalData = snapshot.originalData;
         request.isIncremental = true;
@@ -133,14 +134,14 @@ PDFAppToolResultWriter::DocumentRefusal PDFAppToolResultWriter::getDocumentRefus
     return DocumentRefusal::None;
 }
 
-bool PDFAppToolResultWriter::isCopyOnly(const PDFDocumentToolCatalogEntry* tool, bool isSigned, bool hasFile)
+bool PDFAppToolResultWriter::isCopyOnly(const PDFDocumentToolCatalogEntry* tool, bool isSigned, bool hasFile, bool isOnlyCopyWritable)
 {
-    return isSignatureLost(tool, isSigned) && hasFile;
+    return hasFile && (isOnlyCopyWritable || isSignatureLost(tool, isSigned, isOnlyCopyWritable));
 }
 
-bool PDFAppToolResultWriter::isSignatureLost(const PDFDocumentToolCatalogEntry* tool, bool isSigned)
+bool PDFAppToolResultWriter::isSignatureLost(const PDFDocumentToolCatalogEntry* tool, bool isSigned, bool isOnlyCopyWritable)
 {
-    return tool && tool->getSignatureImpact() == PDFDocumentToolSignatureImpact::LostCopyOnly && isSigned;
+    return isSigned && (isOnlyCopyWritable || (tool && tool->getSignatureImpact() == PDFDocumentToolSignatureImpact::LostCopyOnly));
 }
 
 PDFAppToolResultWriter::Result PDFAppToolResultWriter::writeRequest(PDFAppDocumentFileWriter::Request request, bool isReplacing)
@@ -201,11 +202,6 @@ PDFAppToolResultWriter::Result PDFAppToolResultWriter::writeToMemory(PDFDocument
     catch (const PDFException& exception)
     {
         result.errorMessage = exception.getMessage();
-        result.data.clear();
-    }
-    catch (const std::bad_alloc&)
-    {
-        result.errorMessage = PDFAppToolResultWriterHelper::tr("There is not enough memory to save the document.");
         result.data.clear();
     }
     return result;

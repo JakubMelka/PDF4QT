@@ -66,7 +66,11 @@ enum class PDFAppMcpToolResultMode
 /// permissions) and the definitions of its parameters decide. An output file of the
 /// result (PDFDocumentToolOutputFile): one file per run; its type says the extensions of
 /// save_file (F9) and its encoding ("text/plain; charset=windows-1250", UTF-8 without
-/// a charset) for return_text.
+/// a charset) for return_text: decoded by PDFDocumentTextExporter::createDecoder. Verified on
+/// Windows (code page 1250, Qt 6.11.2 without ICU) by UnitTestsDocumentToolExtractText
+/// systemEncodingDecoder and UnitTestsAppToolExtractText mcpReturnTextEncodings: Qt knows
+/// "windows-1250" by its name, createDecoder takes the code page of the system as the
+/// encoding System also for a Qt, which does not.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppMcpCatalogTools
 {
 public:

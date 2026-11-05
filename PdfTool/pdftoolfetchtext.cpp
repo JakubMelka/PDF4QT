@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdftoolfetchtext.h"
+#include "pdfdocumenttextexporter.h"
 #include "pdfdocumenttextflow.h"
 
 namespace pdftool
@@ -73,50 +74,24 @@ int PDFToolFetchTextApplication::execute(const PDFToolOptions& options)
         return ErrorInvalidArguments;
     }
 
+    // The owner 2026-11-05: the titles of the structure are printed, the order of the content
+    // stream gives also the text outside of a marked content
     pdf::PDFDocumentTextFlowFactory factory;
+    factory.setStructureTitleText(true);
+    factory.setUnmarkedText(true);
     pdf::PDFDocumentTextFlow documentTextFlow = factory.create(&document, pages, options.textAnalysisAlgorithm);
 
+    pdf::PDFDocumentTextExporter::Options exportOptions;
+    exportOptions.showPageNumbers = options.textShowPageNumbers;
+    exportOptions.showStructureTitles = options.textShowStructTitles;
+    exportOptions.showStructureLanguage = options.textShowStructLanguage;
+    exportOptions.showStructureAlternativeDescription = options.textShowStructAlternativeDescription;
+    exportOptions.showStructureExpandedForm = options.textShowStructExpandedForm;
+    exportOptions.showStructureActualText = options.textShowStructActualText;
+    exportOptions.showStructurePhoneme = options.textShowStructPhoneme;
+
     PDFOutputFormatter formatter(options.outputStyle);
-    formatter.beginDocument("text-extraction", QString());
-    formatter.endl();
-
-    for (const pdf::PDFDocumentTextFlow::Item& item : documentTextFlow.getItems())
-    {
-        if (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructureItemStart))
-        {
-            formatter.beginHeader("item", item.text);
-        }
-
-        if (!item.text.isEmpty())
-        {
-            bool showText = (item.flags.testFlag(pdf::PDFDocumentTextFlow::Text)) ||
-                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::PageStart) && options.textShowPageNumbers) ||
-                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::PageEnd) && options.textShowPageNumbers) ||
-                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructureTitle) && options.textShowStructTitles) ||
-                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructureLanguage) && options.textShowStructLanguage) ||
-                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructureAlternativeDescription) && options.textShowStructAlternativeDescription) ||
-                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructureExpandedForm) && options.textShowStructExpandedForm) ||
-                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructureActualText) && options.textShowStructActualText) ||
-                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructurePhoneme) && options.textShowStructPhoneme);
-
-            if (showText)
-            {
-                formatter.writeText("text", item.text);
-            }
-        }
-
-        if (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructureItemEnd))
-        {
-            formatter.endHeader();
-        }
-
-        if (item.flags.testFlag(pdf::PDFDocumentTextFlow::PageEnd))
-        {
-            formatter.endl();
-        }
-    }
-
-    formatter.endDocument();
+    pdf::PDFDocumentTextExporter::write(documentTextFlow, exportOptions, formatter);
 
     for (const pdf::PDFRenderError& error : factory.getErrors())
     {

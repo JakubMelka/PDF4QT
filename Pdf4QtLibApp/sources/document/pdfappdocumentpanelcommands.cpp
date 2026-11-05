@@ -29,7 +29,7 @@
 #include "pdfappdocumentview.h"
 
 #include "pdfcatalog.h"
-#include "pdfdocumentbuilder.h"
+#include "pdfdocumentpageoperations.h"
 #include "pdfexception.h"
 #include "pdfmessagebox.h"
 
@@ -119,18 +119,9 @@ bool PDFAppDocumentPanelCommandHandler::rotatePages(const std::vector<PDFInteger
         return false;
     }
 
-    const PDFCatalog* catalog = current->getCatalog();
-    std::vector<PDFInteger> validPages;
-    for (const PDFInteger page : pages)
-    {
-        if (page >= 0 && page < PDFInteger(catalog->getPageCount()))
-        {
-            validPages.push_back(page);
-        }
-    }
-    std::sort(validPages.begin(), validPages.end());
-    validPages.erase(std::unique(validPages.begin(), validPages.end()), validPages.end());
-    if (validPages.empty())
+    // One implementation of the rotation with the tool Rotate Pages (plan of the first batch, 2.7)
+    const std::vector<PDFDocumentPageOperations::PageRotationChange> changes = PDFDocumentPageOperations::createTurnChanges(current.data(), pages, isRight ? PageRotation::Rotate90 : PageRotation::Rotate270);
+    if (changes.empty())
     {
         return false;
     }
@@ -138,14 +129,7 @@ bool PDFAppDocumentPanelCommandHandler::rotatePages(const std::vector<PDFInteger
     PDFDocumentPointer rotated;
     try
     {
-        PDFDocumentBuilder builder(current.data());
-        for (const PDFInteger pageIndex : validPages)
-        {
-            const PDFPage* page = catalog->getPage(size_t(pageIndex));
-            const PageRotation rotation = isRight ? getPageRotationRotatedRight(page->getPageRotation()) : getPageRotationRotatedLeft(page->getPageRotation());
-            builder.setPageRotation(page->getPageReference(), rotation);
-        }
-        rotated = PDFDocumentPointer(new PDFDocument(builder.build()));
+        rotated = PDFDocumentPointer(new PDFDocument(PDFDocumentPageOperations::rotatePages(current.data(), changes)));
     }
     catch (const PDFException& exception)
     {

@@ -41,16 +41,16 @@
 #include "pdfappmcpactivity.h"
 #include "pdfappmcpcatalogtools.h"
 #include "pdfappmcpconfirmation.h"
+#include "pdfappmcpdocumentreader.h"
 #include "pdfappmcphost.h"
-#include "pdfapptooloutofmemorydialog.h"
 #include "pdfapptoolresultwriter.h"
 #include "pdfappundostack.h"
 
+#include "pdfdocumentbuilder.h"
 #include "pdfdocumentreader.h"
 #include "pdfdocumenttool_compress.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttoolregistry.h"
-#include "pdfexecutionpolicy.h"
 #include "pdfform.h"
 #include "pdfmcperrorcodes.h"
 #include "pdfmcplimits.h"
@@ -710,6 +710,103 @@ public:
             QVERIFY(result && !result->isError);
             QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 1);
         }
+    }
+
+    /// A damaged signed file (Signature/invalid/isa.pdf, owner 2026-11-05): no tool keeps its result over it or
+    /// overwrites it - also a tool of the impact IncrementalSave, no update goes by the table of its bytes -, a copy is
+    /// written whole and the question says the signatures do not hold in it; files.save is refused with the way to
+    /// save_copy, save_copy writes the whole copy with a note; document.get_info says the file is restored
+    static void restoredDocuments()
+    {
+        pdftest::AppMcpFixture fixture;
+        QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+        const QString file = pdftest::AppDocumentSamples::restoredSignedDocument(fixture.folder());
+        pdf::PDFAppDocumentTab* tab = fixture.open(file);
+        QVERIFY(tab);
+        QTRY_VERIFY(tab->getDocument()->isReady());
+        pdf::PDFAppDocument* document = tab->getDocument();
+        QCOMPARE(document->getRestoration(), pdf::PDFAppDocumentRestoration::Restored);
+        const QByteArray original = readFile(file);
+
+        const QJsonObject info = QJsonDocument::fromJson(pdf::PDFAppMcpDocumentReader::getInfo(document)).object();
+        QCOMPARE(info.value(QStringLiteral("fileRestored")).toBool(false), true);
+        QCOMPARE(info.value(QStringLiteral("oldestContentShown")).toBool(true), false);
+
+        const QString damaged = QStringLiteral("The file of the document is damaged and its content was restored, so PDF4QT does not change it nor replace it; the signatures do not hold in a written file. Use result save_copy with a path.");
+        for (const QString& id : { QStringLiteral("pages.rotate"), QStringLiteral("optimize.compress") })
+        {
+            ToolReplacement replacement(fixture.host(), id);
+            for (const QString& value : { QStringLiteral("keep"), QStringLiteral("overwrite") })
+            {
+                const std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(toolName(id), arguments(id, QStringLiteral("title"), value));
+                QVERIFY(result && result->isError);
+                QCOMPARE(result->getFirstText(), damaged);
+                QCOMPARE(replacement.tool->getExecuteCount(), 0);
+            }
+        }
+        QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 0);
+        QCOMPARE(readFile(file), original);
+
+        // save_copy of Rotate: whole, its question says the signature is lost
+        {
+            const QString id = QStringLiteral("pages.rotate");
+            ToolReplacement replacement(fixture.host(), id);
+            const QString copy = fixture.path(QStringLiteral("rotated-copy.pdf"));
+            const std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(toolName(id), arguments(id, QStringLiteral("title"), QStringLiteral("save_copy"), copy));
+            QVERIFY(result);
+            QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+            const QByteArray written = readFile(copy);
+            QCOMPARE(written.count("%%EOF"), qsizetype(1));
+            QVERIFY(!written.startsWith(original));
+            QCOMPARE(readFile(file), original);
+
+            QVERIFY(fixture.setPermission(pdf::PDFAppMcpPermissionKind::Files, pdf::PDFAppMcpPermission::Ask));
+            std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(toolName(id), arguments(id, QStringLiteral("title"), QStringLiteral("save_copy"), fixture.path(QStringLiteral("rotated-asked.pdf"))));
+            std::shared_ptr<pdf::PDFAppMcpConfirmation> confirmation = fixture.confirmDialog();
+            QVERIFY(confirmation);
+            QVERIFY2(findFact(*confirmation, QStringLiteral("Signatures")).contains(QStringLiteral("no longer valid")), qPrintable(findFact(*confirmation, QStringLiteral("Signatures"))));
+            QVERIFY(fixture.answer(pdf::PDFAppMcpDecision::DeniedUser));
+            QVERIFY(pdftest::AppMcpFixture::waitResult(call));
+            QVERIFY(fixture.setPermission(pdf::PDFAppMcpPermissionKind::Files, pdf::PDFAppMcpPermission::Allow));
+        }
+
+        // files.save: refused before any question, with the way to save_copy
+        {
+            pdf::PDFDocumentBuilder builder(document->getDocument().data());
+            builder.setDocumentTitle(QStringLiteral("Changed"));
+            pdf::PDFDocumentPointer changed(new pdf::PDFDocument(builder.build()));
+            QVERIFY(document->commit(pdf::PDFModifiedDocument(changed, nullptr, pdf::PDFModifiedDocument::None), QStringLiteral("Changed"), document->getVersion(), pdf::PDFAppChangeSource::User));
+        }
+        const std::optional<pdf::PDFMcpCallResult> save = fixture.callTool(QStringLiteral("files"), QJsonDocument::fromJson(R"({"action":"save"})").object());
+        QVERIFY(save && save->isError);
+        QCOMPARE(save->getFirstText(), QStringLiteral("The file of the document is damaged and its content was restored, so PDF4QT does not save over it: that would lose what is not shown or signed. Use save_copy with a path; the signatures will not be valid in the copy."));
+        QCOMPARE(readFile(file), original);
+        QVERIFY(document->isModified());
+
+        // files.save_copy: the whole copy and the note for the user; the tab and its file stay
+        QJsonObject copyArguments;
+        copyArguments.insert(QStringLiteral("action"), QStringLiteral("save_copy"));
+        const QString copy = fixture.path(QStringLiteral("files-copy.pdf"));
+        copyArguments.insert(QStringLiteral("save_copy"), QJsonObject({ { QStringLiteral("path"), copy } }));
+        const std::optional<pdf::PDFMcpCallResult> copyResult = fixture.callTool(QStringLiteral("files"), copyArguments);
+        QVERIFY(copyResult);
+        QVERIFY2(!copyResult->isError, qPrintable(copyResult->getFirstText()));
+        QVERIFY2(copyResult->getFirstText().contains(QStringLiteral("the copy was written whole and its signatures are not valid")), qPrintable(copyResult->getFirstText()));
+        const QByteArray written = readFile(copy);
+        QCOMPARE(written.count("%%EOF"), qsizetype(1));
+        QVERIFY(!written.startsWith(original));
+        QCOMPARE(titleOf(copy), QStringLiteral("Changed"));
+        QCOMPARE(readFile(file), original);
+        QCOMPARE(document->getFilePath(), QFileInfo(file).canonicalFilePath());
+        QCOMPARE(document->getRestoration(), pdf::PDFAppDocumentRestoration::Restored);
+
+        // A valid file is no restored one
+        pdf::PDFAppDocumentTab* valid = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("valid.pdf"), 1));
+        QVERIFY(valid);
+        QTRY_VERIFY(valid->getDocument()->isReady());
+        const QJsonObject validInfo = QJsonDocument::fromJson(pdf::PDFAppMcpDocumentReader::getInfo(valid->getDocument())).object();
+        QCOMPARE(validInfo.value(QStringLiteral("fileRestored")).toBool(true), false);
+        QCOMPARE(validInfo.value(QStringLiteral("oldestContentShown")).toBool(true), false);
     }
 
     /// F8: the rule of O31 is repeated on the version a rerun works on
@@ -1440,74 +1537,6 @@ public:
         QVERIFY(QFileInfo(file).size() < originalSize);
         QVERIFY(!document->isModified());
         QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 1);
-    }
-
-    /// A tool out of memory over HTTP in the three eras: the assistant gets the error text only -
-    /// the answer has the members of any other failure -, no dialog opens in the application, and
-    /// the text does not advise a setting, which is on already (owner 2026-11-04)
-    static void outOfMemoryOverHttp()
-    {
-        pdftest::AppMcpFixture fixture;
-        QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
-        if (!fixture.startServer())
-        {
-            QSKIP("The MCP server does not start");
-        }
-
-        const QString rotateId = QStringLiteral("pages.rotate");
-        ToolReplacement rotate(fixture.host(), rotateId);
-        const QString file = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("memory.pdf"), 2);
-        pdf::PDFAppDocumentTab* tab = fixture.open(file);
-        QVERIFY(tab);
-        QTRY_VERIFY(tab->getDocument()->isReady());
-        pdf::PDFAppDocument* document = tab->getDocument();
-        const quint64 version = document->getVersion();
-        const auto restore = qScopeGuard([]() { pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded); });
-
-        const auto call = [&](pdftest::McpTestClient* client, const QString& mode)
-        {
-            QJsonObject callArguments = arguments(rotateId, mode, QStringLiteral("keep"));
-            callArguments.insert(QStringLiteral("documentId"), document->getId());
-            return client->callTool(toolName(rotateId), callArguments).value(QStringLiteral("result")).toObject();
-        };
-
-        for (pdftest::McpTestEra era : { pdftest::McpTestEra::Modern, pdftest::McpTestEra::Legacy20251125, pdftest::McpTestEra::Legacy20250618 })
-        {
-            std::unique_ptr<pdftest::McpTestClient> client = fixture.client(era);
-            if (era != pdftest::McpTestEra::Modern)
-            {
-                QVERIFY(!client->initialize().isEmpty());
-            }
-
-            pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded);
-            const QJsonObject otherFailure = call(client.get(), QStringLiteral("fail"));
-            QVERIFY(otherFailure.value(QStringLiteral("isError")).toBool());
-            const QJsonObject failure = call(client.get(), QStringLiteral("throw-memory"));
-            const QByteArray bytes = QJsonDocument(failure).toJson(QJsonDocument::Compact);
-            QVERIFY2(failure.value(QStringLiteral("isError")).toBool(), bytes.constData());
-
-            // The same members, the text is the only difference
-            QCOMPARE(failure.keys(), otherFailure.keys());
-            const QJsonArray content = failure.value(QStringLiteral("content")).toArray();
-            QCOMPARE(content.size(), otherFailure.value(QStringLiteral("content")).toArray().size());
-            QCOMPARE(content.first().toObject().keys(), otherFailure.value(QStringLiteral("content")).toArray().first().toObject().keys());
-            const QString text = content.first().toObject().value(QStringLiteral("text")).toString();
-            QVERIFY2(text.contains(QStringLiteral("not enough memory")) && text.contains(QStringLiteral("Multithreading strategy")), qPrintable(text));
-            QVERIFY(!bytes.contains("failureKind"));
-            QVERIFY(!bytes.contains("outOfMemory"));
-
-            // Single thread: no advice
-            pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy::SingleThreaded);
-            const QString singleText = call(client.get(), QStringLiteral("throw-memory")).value(QStringLiteral("content")).toArray().first().toObject().value(QStringLiteral("text")).toString();
-            QVERIFY2(singleText.contains(QStringLiteral("not enough memory")), qPrintable(singleText));
-            QVERIFY2(!singleText.contains(QStringLiteral("Multithreading strategy")) && !singleText.contains(QStringLiteral("Single thread")), qPrintable(singleText));
-
-            // Nothing in the application: no dialog, the document as it was
-            pdftest::AppDocumentFixture::settle();
-            QVERIFY(!fixture.window->findChild<pdf::PDFAppToolOutOfMemoryDialog*>());
-            QVERIFY(!QApplication::activeModalWidget());
-            QCOMPARE(document->getVersion(), version);
-        }
     }
 
     /// Every result and every refusal over HTTP in both eras, the question answered,
@@ -2477,12 +2506,34 @@ public:
         QVERIFY(stream);
         QVERIFY(stream->waitForMessages(1, 10000));
 
-        // The list_changed of the opened document (its resources) has passed: only the new tool
-        // gives the next one
+        // The tools of the category pages of the application (package 2A) are taken away for
+        // the time of the test and registered again at its end: the category has no tool, its
+        // first tool is a new tool of the list
+        std::vector<std::shared_ptr<const pdf::PDFDocumentTool>> builtinPagesTools;
+        for (const QString& builtinId : { QStringLiteral("pages.rotate"), QStringLiteral("pages.remove") })
+        {
+            if (std::shared_ptr<const pdf::PDFDocumentTool> builtinTool = pdf::PDFDocumentToolRegistry::getTool(builtinId))
+            {
+                builtinPagesTools.push_back(builtinTool);
+                pdf::PDFDocumentToolRegistry::unregisterTool(builtinId);
+            }
+        }
+        const auto restoreBuiltin = qScopeGuard([&builtinPagesTools]()
+        {
+            for (const std::shared_ptr<const pdf::PDFDocumentTool>& builtinTool : builtinPagesTools)
+            {
+                pdf::PDFDocumentToolRegistry::registerTool(builtinTool);
+            }
+        });
+
+        // The list_changed of the opened document (its resources) and of the removed tools has
+        // passed: only the new tool gives the next one
+        QTest::qWait(500);
+        pdftest::AppDocumentFixture::settle();
+        QTRY_VERIFY(!fixture.host()->getCatalog()->findTool(u"pages"));
         QTest::qWait(500);
         pdftest::AppDocumentFixture::settle();
         const int messagesBefore = int(stream->messages().size());
-        QVERIFY(!fixture.host()->getCatalog()->findTool(u"pages"));
 
         const QString id = QStringLiteral("pages.rotate");
         const std::shared_ptr<pdftest::TestDocumentTool> tool = std::make_shared<pdftest::TestDocumentTool>(id);

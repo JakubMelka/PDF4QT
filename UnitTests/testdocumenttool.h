@@ -36,7 +36,6 @@
 
 #include <atomic>
 #include <functional>
-#include <new>
 #include <optional>
 #include <stdexcept>
 
@@ -52,8 +51,8 @@ namespace pdftest
 ///   mode = files   - one file of the result: the text "title" (outputs; only setResultKindModes)
 ///   mode = nothing - NothingToDo
 ///   mode = fail    - Failed
-///   mode = throw, throw-memory, throw-std - throws PDFException / std::bad_alloc /
-///                    std::runtime_error from execute and computePreview (the checked run converts it)
+///   mode = throw, throw-std - throws PDFException / std::runtime_error from execute and
+///                    computePreview (the checked run converts it)
 /// The cancellation is checked before each page; the progress has a step per page
 /// and "repeat" (the pages are counted "repeat" times). setHold keeps execute and
 /// computePreview at their start until it is released or the run is canceled. The id
@@ -82,7 +81,6 @@ public:
             { QStringLiteral("nothing"), QT_TR_NOOP("Nothing to do") },
             { QStringLiteral("fail"), QT_TR_NOOP("Fail") },
             { QStringLiteral("throw"), QT_TR_NOOP("Throw") },
-            { QStringLiteral("throw-memory"), QT_TR_NOOP("Throw bad_alloc") },
             { QStringLiteral("throw-std"), QT_TR_NOOP("Throw std::exception") },
         };
         if (m_hasResultKindModes)
@@ -302,16 +300,12 @@ private:
         return result;
     }
 
-    /// Modes throw, throw-memory and throw-std throw the exception
+    /// Modes throw and throw-std throw the exception
     static void throwByMode(const QString& mode)
     {
         if (mode == QLatin1String("throw"))
         {
             throw pdf::PDFException(QStringLiteral("Thrown on purpose"));
-        }
-        if (mode == QLatin1String("throw-memory"))
-        {
-            throw std::bad_alloc();
         }
         if (mode == QLatin1String("throw-std"))
         {

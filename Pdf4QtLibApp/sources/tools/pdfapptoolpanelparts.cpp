@@ -25,11 +25,15 @@
 #include "pdfapppagelayout.h"
 
 #include "pdfcomponentpainter.h"
+#include "pdfpainterutils.h"
+#include "pdfstylepainter.h"
 #include "pdfthemefonts.h"
 #include "pdfthememanager.h"
 #include "pdfwidgetstyleproperties.h"
 #include "pdfwidgetstyle.h"
 
+#include <QEvent>
+#include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QPainter>
 #include <QVBoxLayout>
@@ -196,6 +200,58 @@ PDFAppToolCallout::PDFAppToolCallout(PDFAccentHue hue, const QString& iconName, 
 
 PDFAppToolCallout::~PDFAppToolCallout() = default;
 
+void PDFAppToolCallout::setCompactStyle()
+{
+    setRadius(COMPACT_RADIUS);
+    m_layout->setSpacing(COMPACT_GAP);
+
+    // The text has its own line height: a new one replaces it
+    PDFAppParagraph* text = PDFAppPageWidgets::createText(m_text ? m_text->text() : QString(), PDFThemeFonts::getFont(QFont::Normal, 11), COMPACT_TEXT_LINE, PDFThemeColors::TextSecondary, this);
+    text->setObjectName(QStringLiteral("toolCalloutText"));
+    text->setMinimumWidth(1);
+    text->setVisible(!text->text().isEmpty());
+    if (m_text)
+    {
+        // The layout gives the item of the old text back: it is owned by the caller
+        delete m_layout->replaceWidget(m_text, text);
+        delete m_text.data();
+    }
+    else
+    {
+        m_layout->addWidget(text);
+    }
+    m_text = text;
+}
+
+PDFAppToolPanelHeader::PDFAppToolPanelHeader(const QString& title, const QString& subtitle, QWidget* parent) :
+    BaseClass(parent)
+{
+    setObjectName(QStringLiteral("toolPanelHeader"));
+    QVBoxLayout* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(GAP);
+
+    m_title = PDFAppPageWidgets::createLabel(title, QFont::DemiBold, 14, PDFThemeColors::TextPrimary, this);
+    m_title->setObjectName(QStringLiteral("toolPanelTitle"));
+    m_title->setLineHeight(TITLE_LINE);
+    m_title->setMinimumWidth(1);
+    layout->addWidget(m_title);
+
+    m_subtitle = PDFAppPageWidgets::createLabel(subtitle, QFont::Normal, 11, PDFThemeColors::TextTertiary, this);
+    m_subtitle->setObjectName(QStringLiteral("toolPanelSubtitle"));
+    m_subtitle->setLineHeight(SUBTITLE_LINE);
+    m_subtitle->setMinimumWidth(1);
+    layout->addWidget(m_subtitle);
+}
+
+PDFAppToolPanelHeader::~PDFAppToolPanelHeader() = default;
+
+void PDFAppToolPanelHeader::setTexts(const QString& title, const QString& subtitle)
+{
+    m_title->setText(title);
+    m_subtitle->setText(subtitle);
+}
+
 void PDFAppToolCallout::setTexts(const QString& title, const QString& text)
 {
     m_title->setText(title);
@@ -325,6 +381,148 @@ void PDFAppToolSectionHeader::setHint(const QString& hint)
 {
     m_hint->setText(hint);
     m_hint->setVisible(!hint.isEmpty());
+}
+
+void PDFAppToolSectionHeader::addTrailingWidget(QWidget* widget)
+{
+    QHBoxLayout* headerLayout = qobject_cast<QHBoxLayout*>(layout());
+    if (!widget || !headerLayout)
+    {
+        return;
+    }
+
+    // The stretch at the end goes, the widget takes its place (the title stays at the leading side)
+    if (headerLayout->count() > 0 && headerLayout->itemAt(headerLayout->count() - 1)->spacerItem())
+    {
+        delete headerLayout->takeAt(headerLayout->count() - 1);
+        headerLayout->addStretch(1);
+    }
+    widget->setParent(this);
+    headerLayout->addWidget(widget, 0, Qt::AlignVCenter);
+}
+
+// --------------------------------------------------------- PDFAppToolCanvasChip
+
+PDFAppToolCanvasChip::PDFAppToolCanvasChip(QWidget* canvasArea) :
+    BaseClass(canvasArea),
+    m_canvasArea(canvasArea)
+{
+    setObjectName(QStringLiteral("toolCanvasChip"));
+    setAttribute(Qt::WA_TransparentForMouseEvents);
+    setFocusPolicy(Qt::NoFocus);
+    setFixedHeight(HEIGHT);
+    hide();
+
+    if (canvasArea)
+    {
+        canvasArea->installEventFilter(this);
+    }
+    connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppToolCanvasChip::onThemeChanged);
+}
+
+PDFAppToolCanvasChip::~PDFAppToolCanvasChip() = default;
+
+void PDFAppToolCanvasChip::setChip(const QString& text, const QString& iconName)
+{
+    m_text = text;
+    m_iconName = iconName;
+    setAccessibleName(text);
+    updatePlacement();
+    update();
+}
+
+int PDFAppToolCanvasChip::getChipWidth(const QString& text, const QString& iconName, int padding)
+{
+    const int textWidth = QFontMetrics(PDFThemeFonts::getFont(QFont::DemiBold, FONT_SIZE)).horizontalAdvance(text);
+    return iconName.isEmpty() ? textWidth + 2 * padding : PADDING_LEADING + ICON_SIZE + ICON_GAP + textWidth + PADDING_TRAILING;
+}
+
+void PDFAppToolCanvasChip::paintChip(QPainter* painter, const QRect& rect, const QString& text, const QString& iconName, int padding, Qt::LayoutDirection direction)
+{
+    if (!painter || rect.isEmpty())
+    {
+        return;
+    }
+
+    // chip 293:1350 / 302:4542: the pill icon/strong, the text and the icon on it bg/surface
+    PDFPainterStateGuard guard(painter);
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    PDFStylePainter::fill(painter, QRectF(rect), PDFStylePainter::Radii(qreal(rect.height()) / 2.0), PDFThemeColors::IconStrong);
+    painter->setFont(PDFThemeFonts::getFont(QFont::DemiBold, FONT_SIZE));
+    painter->setPen(PDFThemeManager::getInstance()->getColor(PDFThemeColors::BgSurface));
+
+    const QFontMetricsF metrics(painter->font());
+    if (iconName.isEmpty())
+    {
+        painter->drawText(rect, Qt::AlignCenter | Qt::TextSingleLine, elideText(metrics, text, qMax(0, rect.width() - 2 * padding)));
+        return;
+    }
+
+    // The icon at the leading side, the text after it: positions mirrored for right-to-left
+    const bool isRightToLeft = direction == Qt::RightToLeft;
+    const int iconLeft = isRightToLeft ? rect.right() + 1 - PADDING_LEADING - ICON_SIZE : rect.left() + PADDING_LEADING;
+    const QRectF iconRect(iconLeft, rect.top() + (rect.height() - ICON_SIZE) / 2.0, ICON_SIZE, ICON_SIZE);
+    PDFStylePainter::icon(painter, iconRect, iconName, PDFThemeColors::BgSurface);
+
+    const int textWidth = qMax(0, rect.width() - PADDING_LEADING - ICON_SIZE - ICON_GAP - PADDING_TRAILING);
+    const int textLeft = isRightToLeft ? rect.left() + PADDING_TRAILING : rect.left() + PADDING_LEADING + ICON_SIZE + ICON_GAP;
+    const QRect textRect(textLeft, rect.top(), textWidth + 1, rect.height());
+    painter->drawText(textRect, (isRightToLeft ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter | Qt::TextSingleLine, elideText(metrics, text, textWidth));
+}
+
+QString PDFAppToolCanvasChip::elideText(const QFontMetricsF& metrics, const QString& text, int room)
+{
+    // The width of a chip has the advance of its text rounded to whole pixels: only a chip
+    // narrower than that elides its text
+    return metrics.horizontalAdvance(text) <= qreal(room) + 1.0 ? text : metrics.elidedText(text, Qt::ElideRight, qreal(room));
+}
+
+void PDFAppToolCanvasChip::updatePlacement()
+{
+    if (m_text.isEmpty() || !m_canvasArea)
+    {
+        hide();
+        return;
+    }
+
+    // Centered at the top of the canvas (283 of 814 for 249), inside of a narrow canvas
+    const int canvasWidth = m_canvasArea->width();
+    const int width = qMax(0, qMin(getChipWidth(m_text, m_iconName, PADDING_LEADING), canvasWidth - 2 * MARGIN));
+    setFixedWidth(width);
+    move((canvasWidth - width) / 2, TOP);
+    raise();
+    show();
+}
+
+bool PDFAppToolCanvasChip::eventFilter(QObject* watched, QEvent* event)
+{
+    if (watched == m_canvasArea && event->type() == QEvent::Resize)
+    {
+        updatePlacement();
+    }
+    return BaseClass::eventFilter(watched, event);
+}
+
+void PDFAppToolCanvasChip::paintEvent(QPaintEvent* event)
+{
+    Q_UNUSED(event);
+
+    QPainter painter(this);
+    paintChip(&painter, rect(), m_text, m_iconName, PADDING_LEADING, layoutDirection());
+}
+
+void PDFAppToolCanvasChip::changeEvent(QEvent* event)
+{
+    BaseClass::changeEvent(event);
+    if (event->type() == QEvent::LayoutDirectionChange)
+    {
+        update();
+    }
+}
+
+void PDFAppToolCanvasChip::onThemeChanged()
+{
+    update();
 }
 
 }   // namespace pdf

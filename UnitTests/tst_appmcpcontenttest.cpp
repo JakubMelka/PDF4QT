@@ -646,9 +646,15 @@ void AppMcpContentTest::docsLinksAndNames()
         QRegularExpressionMatchIterator iterator = code.globalMatch(text);
         while (iterator.hasNext())
         {
-            const QString span = iterator.next().captured(1).trimmed();
+            const QRegularExpressionMatch spanMatch = iterator.next();
+            const QString span = spanMatch.captured(1).trimmed();
             const QRegularExpressionMatch reference = toolAction.match(span);
-            if (reference.hasMatch())
+
+            // The first cell of a row of a generated table is the path of a parameter or of a
+            // field ("pages.filters" of the parameter pages), never a reference tool.action
+            const qsizetype lineStart = text.lastIndexOf(QChar::LineFeed, spanMatch.capturedStart(0)) + 1;
+            const bool isTableKey = text.mid(lineStart, spanMatch.capturedStart(0) - lineStart) == QStringLiteral("| ");
+            if (reference.hasMatch() && !isTableKey)
             {
                 const pdf::PDFAppMcpToolSpec* tool = findSpec(reference.captured(1));
                 if (tool)
@@ -716,7 +722,9 @@ void AppMcpContentTest::docsLinksAndNames()
     // category with the summary of its heading, in the table of the tools; no row of a stub
     QVERIFY2(!index.contains(QStringLiteral("catalog tools")), "The placeholder of the rows is served");
     QVERIFY(index.contains(QStringLiteral("| `optimize` | Make files smaller | pdf4qt://docs/tools/optimize.md |\n")));
-    QVERIFY(index.contains(QStringLiteral("| pdf4qt://docs/tools/files.md |\n| `optimize` |")));
+    QVERIFY(index.contains(QStringLiteral("| `pages` | Arrange the pages | pdf4qt://docs/tools/pages.md |\n")));
+    QVERIFY(!implementedCategories.isEmpty());
+    QVERIFY(index.contains(QStringLiteral("| pdf4qt://docs/tools/files.md |\n| `%1` |").arg(implementedCategories.first())));
     for (const pdf::PDFDocumentToolCategoryInfo& category : pdf::PDFDocumentToolCatalog::getCategories())
     {
         const QString row = QStringLiteral("| `%1` |").arg(category.getId());

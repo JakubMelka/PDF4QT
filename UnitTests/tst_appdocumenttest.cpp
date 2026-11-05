@@ -284,6 +284,7 @@ private slots:
     void closeTab();
     void closeUnsaved();
     void closeUnsavedSave();
+    void closeAndQuitUnsavedRestoredSigned();
     void closeRunning();
     void quitUnsaved();
     void quitSaveAll();
@@ -1419,6 +1420,81 @@ void AppDocumentTest::closeUnsavedSave()
     QTest::qWait(100);
     QVERIFY(copyGuard);
     QVERIFY(!copyTab->isClosingAfterSave());
+}
+
+void AppDocumentTest::closeAndQuitUnsavedRestoredSigned()
+{
+    // Save of close-unsaved and Save All of quit-unsaved of a damaged signed file: never over the file, the question
+    // of the copy (PDFAppDocumentSaver, save-restored); its Cancel keeps the tab and the window, the copy closes them
+    pdftest::AppDocumentFixture fixture;
+    const QString file = pdftest::AppDocumentSamples::restoredSignedDocument(fixture.folder());
+    QVERIFY(!file.isEmpty());
+    const QByteArray original = [&file]() { QFile f(file); return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray(); }();
+    auto findRestoredDialog = [&fixture]() -> pdf::PDFMessageBox*
+    {
+        for (pdf::PDFMessageBox* box : fixture.window->findChildren<pdf::PDFMessageBox*>(QStringLiteral("saveRestoredDialog")))
+        {
+            if (box->isVisible())
+            {
+                return box;
+            }
+        }
+        return nullptr;
+    };
+    auto readFile = [](const QString& path) { QFile f(path); return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray(); };
+
+    pdf::PDFAppDocumentTab* tab = fixture.open(file);
+    QVERIFY(tab);
+    QTRY_VERIFY_WITH_TIMEOUT(tab->getDocument()->isReady(), 20000);
+    QPointer<pdf::PDFAppDocumentTab> guard(tab);
+    QVERIFY(AppDocumentTestHelper::change(tab->getDocument(), QStringLiteral("Changed")));
+    const QString target = fixture.path(QStringLiteral("Closed copy.pdf"));
+    pdf::PDFAppFileDialogs::setSaveFileHandler([target](QWidget*, const QString&) { return target; });
+
+    // close-unsaved, Save: the question of the copy, Cancel keeps the tab with its changes
+    AppDocumentTestHelper::choose<pdf::PDFAppCloseUnsavedDialog>(pdf::PDFAppDocumentChoice::Save);
+    QVERIFY(!fixture.window->closeTab(tab));
+    pdf::PDFMessageBox* dialog = nullptr;
+    QTRY_VERIFY((dialog = findRestoredDialog()) != nullptr);
+    dialog->findChild<QPushButton*>(QStringLiteral("cancelButton"))->click();
+    fixture.settle();
+    QVERIFY(guard);
+    QVERIFY(tab->getDocument()->isModified());
+    QCOMPARE(readFile(file), original);
+
+    // Save as Copy…: the copy is written, the tab closes, the file stays
+    AppDocumentTestHelper::choose<pdf::PDFAppCloseUnsavedDialog>(pdf::PDFAppDocumentChoice::Save);
+    QVERIFY(!fixture.window->closeTab(tab));
+    QTRY_VERIFY((dialog = findRestoredDialog()) != nullptr);
+    dialog->findChild<QPushButton*>(QStringLiteral("saveCopyButton"))->click();
+    QTRY_VERIFY_WITH_TIMEOUT(!guard, 20000);
+    QCOMPARE(readFile(file), original);
+    QVERIFY(!readFile(target).startsWith(original));
+    QVERIFY(readFile(target).startsWith("%PDF-"));
+
+    // quit-unsaved, Save All: the same question; Cancel keeps the window, the copy lets it close
+    tab = fixture.open(file);
+    QVERIFY(tab);
+    QTRY_VERIFY_WITH_TIMEOUT(tab->getDocument()->isReady(), 20000);
+    QVERIFY(AppDocumentTestHelper::change(tab->getDocument(), QStringLiteral("Quit")));
+    const QString quitTarget = fixture.path(QStringLiteral("Quit copy.pdf"));
+    pdf::PDFAppFileDialogs::setSaveFileHandler([quitTarget](QWidget*, const QString&) { return quitTarget; });
+    AppDocumentTestHelper::choose<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Save);
+    QVERIFY(!fixture.window->close());
+    QTRY_VERIFY((dialog = findRestoredDialog()) != nullptr);
+    dialog->findChild<QPushButton*>(QStringLiteral("cancelButton"))->click();
+    fixture.settle();
+    QTest::qWait(100);
+    QVERIFY(fixture.window->isVisible());
+    QVERIFY(tab->getDocument()->isModified());
+
+    AppDocumentTestHelper::choose<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Save);
+    QVERIFY(!fixture.window->close());
+    QTRY_VERIFY((dialog = findRestoredDialog()) != nullptr);
+    dialog->findChild<QPushButton*>(QStringLiteral("saveCopyButton"))->click();
+    QTRY_VERIFY_WITH_TIMEOUT(!fixture.window->isVisible(), 20000);
+    QCOMPARE(readFile(file), original);
+    QVERIFY(readFile(quitTarget).startsWith("%PDF-"));
 }
 
 void AppDocumentTest::closeRunning()

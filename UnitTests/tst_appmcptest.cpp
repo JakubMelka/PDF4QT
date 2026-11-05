@@ -249,6 +249,7 @@ private slots:
     void reviewSignaturesPendingWhileVerifying();
     void reviewSignaturesCanceledWhileWaiting();
     void catalogSignedDocuments() { AppMcpCatalogTests::signedDocuments(); }
+    void catalogRestoredDocuments() { AppMcpCatalogTests::restoredDocuments(); }
     void catalogSignedAfterRerun() { AppMcpCatalogTests::signedAfterRerun(); }
     void catalogLockAndDisplayVersion() { AppMcpCatalogTests::lockAndDisplayVersion(); }
     void catalogDocumentPermissions() { AppMcpCatalogTests::documentPermissions(); }
@@ -262,7 +263,6 @@ private slots:
     void catalogEncryptedCopy() { AppMcpCatalogTests::encryptedCopy(); }
     void catalogBridgeOverHttp() { AppMcpCatalogTests::bridgeOverHttp(); }
     void catalogMarkOfTheWeb() { AppMcpCatalogTests::markOfTheWeb(); }
-    void catalogOutOfMemoryOverHttp() { AppMcpCatalogTests::outOfMemoryOverHttp(); }
     void catalogCanceledWithResult() { AppMcpCatalogTests::canceledWithResult(); }
     void catalogPermissionMatrix() { AppMcpCatalogTests::permissionMatrix(); }
     void catalogModalDialog() { AppMcpCatalogTests::modalDialog(); }

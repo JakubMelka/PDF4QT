@@ -21,83 +21,11 @@
 // SOFTWARE.
 
 #include "pdftoolremoveexternallinks.h"
-#include "pdfannotation.h"
-#include "pdfdocumentbuilder.h"
+#include "pdfdocumentlinkoperations.h"
 #include "pdfdocumentwriter.h"
 
 namespace pdftool
 {
-
-namespace removeexternallinks
-{
-struct RemovalResult
-{
-    pdf::PDFDocumentPointer document;
-    pdf::PDFModifiedDocument::ModificationFlags flags;
-    int removed = 0;
-};
-
-RemovalResult removeExternalLinkAnnotations(const pdf::PDFDocument* document)
-{
-    RemovalResult result;
-    if (!document)
-    {
-        return result;
-    }
-
-    pdf::PDFDocumentModifier modifier(document);
-    pdf::PDFDocumentBuilder* builder = modifier.getBuilder();
-    builder->flattenPageTree();
-
-    const pdf::PDFObjectStorage* storage = builder->getStorage();
-    pdf::PDFDocumentDataLoaderDecorator loader(storage);
-
-    std::vector<std::pair<pdf::PDFObjectReference, pdf::PDFObjectReference>> annotationsToRemove;
-    std::vector<pdf::PDFObjectReference> pageReferences = builder->getPages();
-
-    for (const pdf::PDFObjectReference pageReference : pageReferences)
-    {
-        const pdf::PDFObject& pageObject = storage->getObjectByReference(pageReference);
-        const pdf::PDFDictionary* pageDictionary = storage->getDictionaryFromObject(pageObject);
-        if (!pageDictionary)
-        {
-            continue;
-        }
-
-        std::vector<pdf::PDFObjectReference> annotationReferences = loader.readReferenceArrayFromDictionary(pageDictionary, "Annots");
-        for (const pdf::PDFObjectReference& annotationReference : annotationReferences)
-        {
-            pdf::PDFAnnotationPtr annotation = pdf::PDFAnnotation::parse(storage, annotationReference);
-            if (pdf::PDFAnnotation::isExternalLinkAnnotation(annotation.data()))
-            {
-                annotationsToRemove.emplace_back(pageReference, annotationReference);
-            }
-        }
-    }
-
-    result.removed = static_cast<int>(annotationsToRemove.size());
-    if (annotationsToRemove.empty())
-    {
-        return result;
-    }
-
-    for (const auto& item : annotationsToRemove)
-    {
-        builder->removeAnnotation(item.first, item.second);
-    }
-
-    modifier.markAnnotationsChanged();
-    if (modifier.finalize())
-    {
-        result.document = modifier.getDocument();
-        result.flags = modifier.getFlags();
-    }
-
-    return result;
-}
-}   // namespace removeexternallinks
-
-using namespace removeexternallinks;
 
 static PDFToolRemoveExternalLinks s_removeExternalLinksApplication;
 
@@ -131,7 +59,7 @@ int PDFToolRemoveExternalLinks::execute(const PDFToolOptions& options)
         return ErrorDocumentReading;
     }
 
-    RemovalResult result = removeExternalLinkAnnotations(&document);
+    const pdf::PDFDocumentLinkOperations::RemovalResult result = pdf::PDFDocumentLinkOperations::removeExternalLinkAnnotations(&document);
 
     PDFOutputFormatter formatter(options.outputStyle);
     formatter.beginDocument("remove-external-links", PDFToolTranslationContext::tr("Remove External Links"));

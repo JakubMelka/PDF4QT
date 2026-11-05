@@ -447,6 +447,13 @@ bool PDFOptimizer::performMergeIdenticalObjects()
         {
             objects[i].object = PDFObjectUtils::replaceReferences(objects[i].object, replacementMap);
         }
+
+        // No reference leads to a merged duplicate any more: it is gone also without the step
+        // RemoveUnusedObjects - kept, it would be merged again by the next pass, forever
+        for (const auto& replacement : replacementMap)
+        {
+            objects[size_t(replacement.first.objectNumber)].object = PDFObject();
+        }
         PDFObject trailerDictionary = PDFObjectUtils::replaceReferences(m_storage.getTrailerDictionary(), replacementMap);
         m_storage.setTrailerDictionary(trailerDictionary);
     }

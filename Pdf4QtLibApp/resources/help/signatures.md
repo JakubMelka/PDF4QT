@@ -13,7 +13,7 @@ When a signed document is shown, PDF4QT verifies its signatures and timestamps i
 | Result | Meaning |
 | --- | --- |
 | Valid | The document has not been changed since it was signed, and the certificate of the signer is trusted |
-| Needs attention | The signature is intact, but something is not certain – usually the certificate of the signer is not trusted, or it has expired |
+| Needs attention | The signature is intact, but something is not certain – usually the certificate of the signer is not trusted or has expired, the document was changed after it was signed, or the file is damaged and what is shown may not be what was signed |
 | Invalid | The document has been changed after it was signed, the signature is damaged, or the certificate has been revoked |
 
 Expand a card of a signature to see when it was signed, its hash algorithm, which part of the document it covers, its timestamp and the chain of the certificates from the signer to the root.

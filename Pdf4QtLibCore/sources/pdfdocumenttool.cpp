@@ -26,7 +26,6 @@
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumentwriter.h"
 #include "pdfexception.h"
-#include "pdfexecutionpolicy.h"
 #include "pdfform.h"
 #include "pdfobjectutils.h"
 #include "pdfocrpagepreparer.h"
@@ -38,7 +37,7 @@
 #include <QJsonArray>
 #include <QLocale>
 
-#include <new>
+#include <exception>
 
 namespace pdf
 {
@@ -50,17 +49,6 @@ class PDFDocumentToolHelper
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocumentTool)
 
 public:
-    /// More threads hold more data at once; the user, who needs less, has the setting. A setting,
-    /// which is on already, is no advice.
-    static QString getOutOfMemoryText()
-    {
-        if (!PDFExecutionPolicy::isParallelizing(PDFExecutionPolicy::Scope::Page))
-        {
-            return tr("There is not enough memory to finish the tool, nothing was changed.");
-        }
-        return tr("There is not enough memory to finish the tool, nothing was changed. Set Multithreading strategy in Settings › Advanced to Single thread and run it again: it holds one image at a time.");
-    }
-
     /// Name of a signature impact in JSON
     static QString getSignatureImpactName(PDFDocumentToolSignatureImpact impact)
     {
@@ -204,13 +192,6 @@ PDFDocumentToolResult PDFDocumentToolResult::createNothingToDo(const QString& me
     PDFDocumentToolResult result;
     result.status = PDFDocumentToolResultStatus::NothingToDo;
     result.message = message;
-    return result;
-}
-
-PDFDocumentToolResult PDFDocumentToolResult::createOutOfMemory()
-{
-    PDFDocumentToolResult result = createFailed(PDFDocumentToolHelper::getOutOfMemoryText());
-    result.failureKind = PDFDocumentToolFailureKind::OutOfMemory;
     return result;
 }
 
@@ -490,6 +471,35 @@ PDFDocumentToolFact PDFDocumentTool::createConformanceFact(const QStringList& re
              PDFDocumentToolHelper::tr("The result no longer declares %1: it has not been checked against the standard").arg(removed.join(QStringLiteral(", "))) };
 }
 
+PDFDocument PDFDocumentTool::createWholeFileDocument(PDFObjectStorage storage, const PDFDocument* input, ConformanceRemoval* conformance)
+{
+    PDFDocument result = createWholeFileDocument(std::move(storage), input);
+    if (conformance)
+    {
+        PDFObjectStorage resultStorage = result.getStorage();
+        *conformance = removeConformanceDeclaration(&resultStorage, &result);
+        if (!conformance->removed.isEmpty())
+        {
+            result = PDFDocument(std::move(resultStorage), input->getInfo()->version, input->getSourceDataHash());
+        }
+    }
+    return result;
+}
+
+PDFDocumentToolResult PDFDocumentTool::createConformanceFailure(const QStringList& kept)
+{
+    return PDFDocumentToolResult::createFailed(PDFDocumentToolHelper::tr("The document declares %1 and its metadata cannot be changed. The result would keep a declaration, which is not true, so nothing was made.").arg(kept.join(QStringLiteral(", "))));
+}
+
+void PDFDocumentTool::addConformanceFact(PDFDocumentToolResult* result, const QStringList& removed)
+{
+    if (!removed.isEmpty())
+    {
+        result->facts.push_back(createConformanceFact(removed));
+        result->data.insert(QStringLiteral("conformanceRemoved"), QJsonArray::fromStringList(removed));
+    }
+}
+
 std::vector<PDFDocumentToolParameterError> PDFDocumentTool::checkGivenParameters(const QVariantMap& given) const
 {
     Q_UNUSED(given);
@@ -544,10 +554,6 @@ PDFDocumentToolResult PDFDocumentTool::run(const PDFDocumentToolContext& context
     {
         return PDFDocumentToolResult::createFailed(exception.getMessage());
     }
-    catch (const std::bad_alloc&)
-    {
-        return PDFDocumentToolResult::createOutOfMemory();
-    }
     catch (const std::exception&)
     {
         return PDFDocumentToolResult::createFailed(PDFDocumentToolHelper::tr("The tool failed with an unexpected error."));
@@ -588,10 +594,6 @@ PDFDocumentToolResult PDFDocumentTool::runPreview(const PDFDocumentToolContext& 
     catch (const PDFException& exception)
     {
         return PDFDocumentToolResult::createFailed(exception.getMessage());
-    }
-    catch (const std::bad_alloc&)
-    {
-        return PDFDocumentToolResult::createOutOfMemory();
     }
     catch (const std::exception&)
     {

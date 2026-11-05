@@ -38,9 +38,6 @@
 #include "pdfappdocumenttoolspanel.h"
 #include "pdfappnavigator.h"
 #include "pdfapppagenotfound.h"
-#include "pdfappsettingrow.h"
-#include "pdfappsettingspage.h"
-#include "pdfapptooloutofmemorydialog.h"
 #include "pdfapptoolpanelbuilder.h"
 #include "pdfapptoolpanelparts.h"
 #include "pdfapptoolpresentation.h"
@@ -61,11 +58,7 @@
 #include "pdfdocumenttoolregistry.h"
 #include "pdfappworkspace.h"
 #include "pdfdocumenttoolrunner.h"
-#include "pdfdatabasenotifier.h"
 #include "pdfdatabasestatement.h"
-#include "pdfexecutionpolicy.h"
-#include "pdfsettingdefinitions.h"
-#include "pdfsettingsrepository.h"
 #include "pdftoolparameterrepository.h"
 #include "pdftoolrepository.h"
 
@@ -95,11 +88,9 @@
 #include <QFileInfo>
 #include <QPushButton>
 #include <QRadioButton>
-#include <QScopeGuard>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSignalSpy>
-#include <QThread>
 #include <QThreadPool>
 #include <QTest>
 #include <QTranslator>
@@ -277,6 +268,7 @@ private slots:
     void signedCopyKeptWithoutFile_data();
     void signedCopyKeptWithoutFile();
     void signedCopyIncrementalOfRotate();
+    void restoredDocumentCopyOnly();
     void encryptedCopyStaysEncrypted();
 
     // The result dialog
@@ -404,28 +396,8 @@ private slots:
     void shellViewStateInEveryExit();
     void shellTabOrder();
 
-    // The dialog Not enough memory (owner 2026-11-04)
-    void outOfMemoryDialog();
-    void outOfMemoryUseOneThread();
-    void outOfMemoryWriteRefused();
-    void outOfMemorySingleThread();
-    void outOfMemoryFollowsOtherInstance();
-    void outOfMemoryOtherFailures_data();
-    void outOfMemoryOtherFailures();
-    void outOfMemoryMeasuringOnce();
-    void outOfMemoryWaitsForModal_data();
-    void outOfMemoryWaitsForModal();
-    void outOfMemoryWaitsForPanel();
-    void outOfMemoryDeletedFromActivation();
-    void outOfMemoryThemesAndScales_data();
-    void outOfMemoryThemesAndScales();
-    void outOfMemoryRightToLeft();
-    void outOfMemoryMinimalWindow();
-    void outOfMemoryKeyboardAndAccessibility();
-    void outOfMemoryLanguageChange();
-    void outOfMemoryDocumentLeavesReady();
-    void outOfMemoryDeletion_data();
-    void outOfMemoryDeletion();
+    void leakDetectorSeesText_data();
+    void leakDetectorSeesText();
 };
 
 void AppToolShellTest::initTestCase()
@@ -561,7 +533,6 @@ void AppToolShellTest::runnerUnsuccessfulStatuses_data()
     QTest::newRow("nothing") << QStringLiteral("nothing") << int(pdf::PDFDocumentToolResultStatus::NothingToDo) << QStringLiteral("Nothing to count");
     QTest::newRow("fail") << QStringLiteral("fail") << int(pdf::PDFDocumentToolResultStatus::Failed) << QStringLiteral("Failed on purpose");
     QTest::newRow("throw") << QStringLiteral("throw") << int(pdf::PDFDocumentToolResultStatus::Failed) << QStringLiteral("Thrown on purpose");
-    QTest::newRow("throw-memory") << QStringLiteral("throw-memory") << int(pdf::PDFDocumentToolResultStatus::Failed) << QString();
     QTest::newRow("throw-std") << QStringLiteral("throw-std") << int(pdf::PDFDocumentToolResultStatus::Failed) << QString();
 }
 
@@ -1898,6 +1869,66 @@ void AppToolShellTest::signedCopyWholeWithoutOldRevision()
     QCOMPARE(ToolShellTestHelper::readFile(signedFile), original);
     QCOMPARE(AppToolShellFixture::undoCount(tab->getDocument()), 0);
     QVERIFY(!tab->getDocument()->isBlockedByOperation());
+}
+
+void AppToolShellTest::restoredDocumentCopyOnly()
+{
+    // A damaged signed file (Signature/invalid/isa.pdf, owner 2026-11-05): no update goes by the table of its bytes,
+    // so also a tool of the impact IncrementalSave offers only a copy, written whole, with the warning, whose reason is
+    // the file, not the tool; without a file the result can be kept (F5) and the signatures stop being valid
+    using DocumentState = PDFAppToolResultDialog::DocumentState;
+    const int change = int(PDFAppToolResultDialog::ResultKind::ChangeDocument);
+    const pdf::PDFDocumentToolCatalogEntry* rotate = pdf::PDFDocumentToolCatalog::findTool(TOOL_ROTATE);
+    const pdf::PDFDocumentToolCatalogEntry* compress = pdf::PDFDocumentToolCatalog::findTool(TOOL_COMPRESS);
+    DocumentState restored;
+    restored.hasFile = true;
+    restored.isSigned = true;
+    restored.isOnlyCopyWritable = true;
+    QVERIFY(PDFAppToolResultDialog::getChoices(rotate, PDFAppToolResultDialog::ResultKind(change), restored) == std::vector<Choice>({ Choice::Copy }));
+    QVERIFY(PDFAppToolResultDialog::getChoices(compress, PDFAppToolResultDialog::ResultKind(change), restored) == std::vector<Choice>({ Choice::Copy }));
+    DocumentState oldestContent = restored;
+    oldestContent.isSigned = false;
+    QVERIFY(PDFAppToolResultDialog::getChoices(rotate, PDFAppToolResultDialog::ResultKind(change), oldestContent) == std::vector<Choice>({ Choice::Copy }));
+    DocumentState withoutFile = restored;
+    withoutFile.hasFile = false;
+    QVERIFY(PDFAppToolResultDialog::getChoices(rotate, PDFAppToolResultDialog::ResultKind(change), withoutFile) == std::vector<Choice>({ Choice::Keep, Choice::Copy }));
+    QVERIFY(pdf::PDFAppToolResultWriter::isSignatureLost(rotate, true, true));
+    QVERIFY(!pdf::PDFAppToolResultWriter::isSignatureLost(rotate, true, false));
+    QVERIFY(!pdf::PDFAppToolResultWriter::isSignatureLost(rotate, false, true));
+
+    AppToolShellFixture fixture;
+    const QString file = pdftest::AppDocumentSamples::restoredSignedDocument(fixture.folder());
+    pdf::PDFAppDocumentTab* tab = fixture.open(file);
+    QVERIFY(tab && AppToolShellFixture::waitFor([tab]() { return tab->getDocument()->isReady(); }));
+    const QByteArray original = ToolShellTestHelper::readFile(file);
+    QCOMPARE(tab->getDocument()->getRestoration(), pdf::PDFAppDocumentRestoration::Restored);
+
+    // F7 of a damaged file: never an incremental update
+    const pdf::PDFAppDocumentSnapshot snapshot = tab->getDocument()->getSnapshot();
+    QVERIFY(!pdf::PDFAppToolResultWriter::createCopyRequest(rotate, snapshot, snapshot.document, fixture.path(QStringLiteral("a.pdf"))).isIncremental);
+    QVERIFY(!pdf::PDFAppToolResultWriter::createOverwriteRequest(rotate, snapshot, snapshot.document, tab->getDocument()).isIncremental);
+
+    PDFAppToolResultDialog* dialog = fixture.openDialog(tab, TOOL_ROTATE, QStringLiteral("title"));
+    QVERIFY(dialog);
+    pdf::PDFTintedCard* warning = dialog->getSignedWarning();
+    QVERIFY(warning);
+    QCOMPARE(warning->findChild<pdf::PDFLabel*>(QStringLiteral("signedWarningTitle"))->text(), QStringLiteral("The signatures of the copy will not be valid"));
+    const QString warningText = warning->findChild<pdf::PDFAppParagraph*>(QStringLiteral("signedWarningText"))->text();
+    QCOMPARE(warningText, QStringLiteral("The file is damaged, so PDF4QT does not change it. Only a copy can be saved; the open document and its file stay as they are."));
+
+    QSignalSpy decidedSpy(dialog, &PDFAppToolResultDialog::decided);
+    dialog->getFileNameField()->setText(QStringLiteral("rotated-whole.pdf"));
+    dialog->getOpenCheckBox()->setChecked(false);
+    dialog->confirm();
+    QVERIFY(ToolShellTestHelper::waitForDecision(decidedSpy));
+
+    const QByteArray written = ToolShellTestHelper::readFile(fixture.path(QStringLiteral("rotated-whole.pdf")));
+    QVERIFY(!written.isEmpty());
+    QCOMPARE(written.count("%%EOF"), qsizetype(1));
+    QVERIFY(!written.contains("/Prev"));
+    QVERIFY(!written.startsWith(original.left(original.size() - 16)));
+    QCOMPARE(ToolShellTestHelper::readFile(file), original);
+    QCOMPARE(AppToolShellFixture::undoCount(tab->getDocument()), 0);
 }
 
 void AppToolShellTest::signedCopyIncrementalOfRotate()
@@ -4110,7 +4141,7 @@ public:
             // A text of the definition of a tool
             return QStringLiteral("Translated text");
         }
-        return name == QLatin1String("pdf::PDFAppToolToolbar") || name == QLatin1String("pdf::PDFDocumentToolGUI") || name == QLatin1String("pdf::PDFAppToolOutOfMemoryDialog") ? QStringLiteral("XX ") + QString::fromUtf8(sourceText) : QString();
+        return name == QLatin1String("pdf::PDFAppToolToolbar") || name == QLatin1String("pdf::PDFDocumentToolGUI") ?QStringLiteral("XX ") + QString::fromUtf8(sourceText) : QString();
     }
 };
 
@@ -8199,656 +8230,7 @@ void AppToolShellTest::shellTabOrder()
     AppToolShellFixture::settle();
 }
 
-// ---------------------------------------------------------------- the dialog Not enough memory
-
-/// Helpers of the tests of the dialog Not enough memory
-class ToolShellMemoryHelper
-{
-public:
-    ToolShellMemoryHelper() = delete;
-
-    using Dialog = pdf::PDFAppToolOutOfMemoryDialog;
-
-    /// The tool without its preview in the mode, which runs out of memory
-    static pdf::PDFDocumentToolShell* openThrowing(AppToolShellFixture& fixture, pdf::PDFAppDocumentTab* tab, ShellTestTool* tool)
-    {
-        tool->setPreview(false, false);
-        pdf::PDFDocumentToolShell* shell = fixture.openTool(tab, TOOL_ROTATE);
-        if (shell)
-        {
-            shell->getModel()->setValue(QStringLiteral("mode"), QStringLiteral("throw-memory"));
-        }
-        return shell;
-    }
-
-    /// A real run, then the dialog
-    static Dialog* runToDialog(pdf::PDFDocumentToolShell* shell)
-    {
-        shell->confirm();
-        AppToolShellFixture::waitFor([shell]() { return shell->getOutOfMemoryDialog() != nullptr; });
-        AppToolShellFixture::settle();
-        return shell->getOutOfMemoryDialog();
-    }
-
-    /// The stored setting read by another connection, as another instance reads it
-    static QString readInOtherConnection(AppToolShellFixture& fixture)
-    {
-        QString value;
-        pdf::PDFDatabase* database = fixture.context->getDatabase();
-        const pdf::PDFSettingRegistry* registry = fixture.context->getSettingRegistry();
-        std::unique_ptr<QThread> thread(QThread::create([&value, database, registry]() { value = pdf::PDFSettingsRepository(database, registry).getString(pdf::PDFSettingKeys::renderingMultithreading()); }));
-        thread->start();
-        thread->wait();
-        return value;
-    }
-
-    static bool writeInOtherConnection(AppToolShellFixture& fixture, const QString& value)
-    {
-        const pdf::PDFSettingRegistry* registry = fixture.context->getSettingRegistry();
-        return fixture.writeFromOtherConnection([registry, value](pdf::PDFDatabase* database) { return pdf::PDFSettingsRepository(database, registry).setValue(pdf::PDFSettingKeys::renderingMultithreading(), value); },
-                                                pdf::PDFSettingsRepository::getTopic());
-    }
-
-    static QString setting(const AppToolShellFixture& fixture)
-    {
-        return fixture.context->getSettings().getString(pdf::PDFSettingKeys::renderingMultithreading());
-    }
-
-    /// The value shown by the row of Settings › Advanced
-    static QVariant shownByRow(AppToolShellFixture& fixture)
-    {
-        fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::settings(QStringLiteral("advanced"), QString()), pdf::PDFAppNavigationMode::Push);
-        AppToolShellFixture::settle();
-        const pdf::PDFAppSettingsPage* page = fixture.page<pdf::PDFAppSettingsPage>();
-        const pdf::PDFAppSettingRow* row = page ? page->findRow(QStringLiteral("multithreading-strategy")) : nullptr;
-        return row ? row->getControl()->getShownValue() : QVariant();
-    }
-
-    /// The card in the coordinates of the dialog (the window without its shadow margins)
-    static QRect cardRect(const Dialog* dialog)
-    {
-        return dialog->rect().marginsRemoved(dialog->getShadowMargins());
-    }
-
-    /// The process keeps its strategy over the tests of one process: the next view applies
-    /// its setting anyway, the core tests of the same process have the default
-    static auto restoreStrategy()
-    {
-        return qScopeGuard([]() { pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded); });
-    }
-};
-
-void AppToolShellTest::outOfMemoryDialog()
-{
-    // A real run: the dialog of the design over the body of the window, no info bar. Close leaves
-    // the tool open, nothing is written, nothing has changed.
-    using H = ToolShellFlowHelper;
-    using M = ToolShellMemoryHelper;
-    const auto restore = M::restoreStrategy();
-
-    AppToolShellFixture fixture;
-    std::shared_ptr<ShellTestTool> tool = fixture.registerShellTool(TOOL_ROTATE);
-    QVERIFY(tool);
-    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
-    QVERIFY(tab);
-    pdf::PDFDocumentToolShell* shell = M::openThrowing(fixture, tab, tool.get());
-    QVERIFY(shell);
-    const quint64 version = tab->getDocument()->getVersion();
-    const QString settingBefore = M::setting(fixture);
-    QVERIFY(settingBefore != QLatin1String("singleThread"));
-
-    QPointer<M::Dialog> dialog = M::runToDialog(shell);
-    QVERIFY(dialog);
-    QVERIFY(dialog->isVisible());
-    QCOMPARE(QApplication::activeModalWidget(), static_cast<QWidget*>(dialog.data()));
-    QCOMPARE(tool->getExecuteCount(), 1);
-
-    // Over the body of the window, as the other dialogs of the shell
-    QCOMPARE(dialog->getScrimTarget(), pdf::PDFAppMainWindow::findDialogHost(tab));
-    QVERIFY(dialog->getScrim() && dialog->getScrim()->isVisible());
-    QCOMPARE(dialog->getCardWidth(), 440);
-    QVERIFY(dialog->isBadgeVisible());
-
-    // The texts of the brief
-    QCOMPARE(dialog->accessibleName(), QStringLiteral("Not enough memory"));
-    const QString body = dialog->accessibleDescription();
-    QVERIFY2(body.contains(QStringLiteral("Nothing was changed")), qPrintable(body));
-    QVERIFY2(body.contains(QStringLiteral("several images at once")) && body.contains(QStringLiteral("ran out of memory")), qPrintable(body));
-    QVERIFY2(body.contains(QStringLiteral("slower")) && body.contains(QStringLiteral("one image at a time")), qPrintable(body));
-    QVERIFY2(body.contains(QStringLiteral("slows down the drawing of pages")) && body.contains(QStringLiteral("Settings › Advanced")), qPrintable(body));
-
-    // Close (Secondary), then Use One Thread (Primary) at the trailing edge
-    const QList<QPushButton*> buttons = dialog->getActionButtons();
-    QCOMPARE(buttons.size(), 2);
-    QCOMPARE(buttons[0], dialog->getCloseButton());
-    QCOMPARE(buttons[1], dialog->getOneThreadButton());
-    QCOMPARE(buttons[0]->text(), QStringLiteral("Close"));
-    QCOMPARE(buttons[1]->text(), QStringLiteral("Use One Thread"));
-    QVERIFY(!buttons[0]->property(pdf::PDFWidgetStyleProperties::PRIMARY).toBool());
-    QVERIFY(buttons[1]->property(pdf::PDFWidgetStyleProperties::PRIMARY).toBool());
-    QVERIFY(buttons[0]->geometry().right() < buttons[1]->geometry().left());
-    QVERIFY(buttons[0]->isVisible() && buttons[1]->isVisible());
-    QVERIFY(!dialog->getErrorLabel()->isVisible());
-
-    // No second way of telling it, nothing has changed
-    QVERIFY(!tab->getView()->findInfoBar(QStringLiteral("tool-result")));
-    QCOMPARE(shell->getState(), pdf::PDFDocumentToolShell::State::Editing);
-    QCOMPARE(tab->getDocument()->getVersion(), version);
-    QCOMPARE(AppToolShellFixture::undoCount(tab->getDocument()), 0);
-    QVERIFY(!tab->getDocument()->isBlockedByOperation());
-    QVERIFY(!shell->getResultDialog());
-    QVERIFY(!shell->getProgressCard());
-
-    AppToolShellFixture::screenshotDialog(dialog, QStringLiteral("tool-out-of-memory"));
-
-    buttons[0]->click();
-    AppToolShellFixture::settle();
-    QVERIFY(!dialog);
-    QCOMPARE(M::setting(fixture), settingBefore);
-    QCOMPARE(AppToolShellFixture::getShell(tab), shell);
-    QCOMPARE(shell->getState(), pdf::PDFDocumentToolShell::State::Editing);
-    QVERIFY(tab->getView()->isToolModeActive());
-    QVERIFY(shell->getToolbar()->getConfirmButton()->isEnabled());
-    QCOMPARE(tool->getExecuteCount(), 1);
-    QVERIFY(!tab->getView()->getStatusBar()->getMessage().contains(QStringLiteral("One thread")));
-    QVERIFY(pdf::PDFExecutionPolicy::isParallelizing(pdf::PDFExecutionPolicy::Scope::Page));
-}
-
-void AppToolShellTest::outOfMemoryUseOneThread()
-{
-    // Use One Thread writes the setting by the path of the row: the process follows, another
-    // connection reads it, the row shows it. The tool is not run again, the tab says so.
-    using H = ToolShellFlowHelper;
-    using M = ToolShellMemoryHelper;
-    const auto restore = M::restoreStrategy();
-
-    AppToolShellFixture fixture;
-    std::shared_ptr<ShellTestTool> tool = fixture.registerShellTool(TOOL_ROTATE);
-    QVERIFY(tool);
-    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
-    QVERIFY(tab);
-    pdf::PDFDocumentToolShell* shell = M::openThrowing(fixture, tab, tool.get());
-    QVERIFY(shell);
-    QPointer<M::Dialog> dialog = M::runToDialog(shell);
-    QVERIFY(dialog);
-    QVERIFY(pdf::PDFExecutionPolicy::isParallelizing(pdf::PDFExecutionPolicy::Scope::Page));
-
-    QSignalSpy changedSpy(fixture.context->getNotifier(), &pdf::PDFDatabaseNotifier::changed);
-    dialog->getOneThreadButton()->click();
-    AppToolShellFixture::settle();
-
-    // The dialog is closed, the setting written and announced
-    QVERIFY(!dialog);
-    QCOMPARE(M::setting(fixture), QStringLiteral("singleThread"));
-    QCOMPARE(M::readInOtherConnection(fixture), QStringLiteral("singleThread"));
-    bool isAnnounced = false;
-    for (const QList<QVariant>& arguments : std::as_const(changedSpy))
-    {
-        isAnnounced = isAnnounced || (arguments.value(0).toString() == pdf::PDFSettingsRepository::getTopic() && arguments.value(1).toString() == pdf::PDFSettingKeys::renderingMultithreading());
-    }
-    QVERIFY(isAnnounced);
-
-    // The open document applies it to the process
-    QVERIFY(AppToolShellFixture::waitFor([]() { return !pdf::PDFExecutionPolicy::isParallelizing(pdf::PDFExecutionPolicy::Scope::Page); }));
-
-    // The short message in the tab, the tool stays open and is not run again
-    const QString message = tab->getView()->getStatusBar()->getMessage();
-    QVERIFY2(message.contains(QStringLiteral("One thread")) && message.contains(QStringLiteral("Rotate")), qPrintable(message));
-    QCOMPARE(shell->getState(), pdf::PDFDocumentToolShell::State::Editing);
-    QTest::qWait((PDFDocumentToolRunner::PREVIEW_DELAY + 100) * AppToolShellFixture::getTimeoutFactor());
-    AppToolShellFixture::settle();
-    QCOMPARE(tool->getExecuteCount(), 1);
-    QCOMPARE(tool->getPreviewCount(), 0);
-
-    // A real run always shows the dialog, now without the button
-    QPointer<M::Dialog> second = M::runToDialog(shell);
-    QVERIFY(second);
-    QCOMPARE(tool->getExecuteCount(), 2);
-    QVERIFY(second->getOneThreadButton()->isHidden());
-    second->reject();
-    AppToolShellFixture::settle();
-
-    // The row of Settings shows the choice
-    QCOMPARE(M::shownByRow(fixture).toString(), QStringLiteral("singleThread"));
-}
-
-void AppToolShellTest::outOfMemoryWriteRefused()
-{
-    // A refused write is said in the dialog, which stays open; it can be tried again
-    using H = ToolShellFlowHelper;
-    using M = ToolShellMemoryHelper;
-    const auto restore = M::restoreStrategy();
-
-    AppToolShellFixture fixture;
-    std::shared_ptr<ShellTestTool> tool = fixture.registerShellTool(TOOL_ROTATE);
-    QVERIFY(tool);
-    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
-    QVERIFY(tab);
-    pdf::PDFDocumentToolShell* shell = M::openThrowing(fixture, tab, tool.get());
-    QVERIFY(shell);
-    const QString settingBefore = M::setting(fixture);
-    QPointer<M::Dialog> dialog = M::runToDialog(shell);
-    QVERIFY(dialog);
-
-    pdf::PDFDatabaseConnection* connection = fixture.context->getDatabase()->getConnection();
-    QVERIFY(!connection->execute("CREATE TEMP TRIGGER test_refuse_insert BEFORE INSERT ON main.setting BEGIN SELECT RAISE(ABORT, 'refused by the test'); END").isError());
-    QVERIFY(!connection->execute("CREATE TEMP TRIGGER test_refuse_update BEFORE UPDATE ON main.setting BEGIN SELECT RAISE(ABORT, 'refused by the test'); END").isError());
-
-    const QString messageBefore = tab->getView()->getStatusBar()->getMessage();
-    dialog->getOneThreadButton()->click();
-    AppToolShellFixture::settle();
-
-    QVERIFY(dialog);
-    QVERIFY(dialog->isVisible());
-    QVERIFY(dialog->getErrorLabel()->isVisible());
-    QVERIFY2(dialog->getErrorLabel()->text().contains(QStringLiteral("The setting was not changed")), qPrintable(dialog->getErrorLabel()->text()));
-    QVERIFY2(dialog->getErrorLabel()->text().contains(QStringLiteral("refused by the test")), qPrintable(dialog->getErrorLabel()->text()));
-    QCOMPARE(M::setting(fixture), settingBefore);
-    QVERIFY(pdf::PDFExecutionPolicy::isParallelizing(pdf::PDFExecutionPolicy::Scope::Page));
-    QVERIFY(dialog->getOneThreadButton()->isVisible());
-    QCOMPARE(tab->getView()->getStatusBar()->getMessage(), messageBefore);
-    QCOMPARE(AppToolShellFixture::countLeakPixels(AppToolShellFixture::render(dialog, 1.0)), 0);
-
-    // The database takes it again
-    QVERIFY(!connection->execute("DROP TRIGGER test_refuse_insert").isError());
-    QVERIFY(!connection->execute("DROP TRIGGER test_refuse_update").isError());
-    dialog->getOneThreadButton()->click();
-    AppToolShellFixture::settle();
-    QVERIFY(!dialog);
-    QCOMPARE(M::setting(fixture), QStringLiteral("singleThread"));
-}
-
-void AppToolShellTest::outOfMemorySingleThread()
-{
-    // The strategy is single thread already: nothing is offered, Enter and Esc close
-    using H = ToolShellFlowHelper;
-    using M = ToolShellMemoryHelper;
-    const auto restore = M::restoreStrategy();
-
-    AppToolShellFixture fixture;
-    QVERIFY(!fixture.context->getSettings().setValue(pdf::PDFSettingKeys::renderingMultithreading(), QStringLiteral("singleThread")).isError());
-    std::shared_ptr<ShellTestTool> tool = fixture.registerShellTool(TOOL_ROTATE);
-    QVERIFY(tool);
-    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
-    QVERIFY(tab);
-    QVERIFY(AppToolShellFixture::waitFor([]() { return !pdf::PDFExecutionPolicy::isParallelizing(pdf::PDFExecutionPolicy::Scope::Page); }));
-    pdf::PDFDocumentToolShell* shell = M::openThrowing(fixture, tab, tool.get());
-    QVERIFY(shell);
-
-    QPointer<M::Dialog> dialog = M::runToDialog(shell);
-    QVERIFY(dialog);
-    QCOMPARE(dialog->accessibleName(), QStringLiteral("Not enough memory"));
-    QCOMPARE(dialog->accessibleDescription(), QStringLiteral("There is not enough memory for this tool. Nothing was changed."));
-    QVERIFY(dialog->getOneThreadButton()->isHidden());
-    QVERIFY(dialog->getCloseButton()->isVisible());
-    QCOMPARE(dialog->focusWidget(), static_cast<QWidget*>(dialog->getCloseButton()));
-    QVERIFY(dialog->getCloseButton()->isDefault());
-    QVERIFY(!dialog->getOneThreadButton()->isDefault());
-    AppToolShellFixture::screenshotDialog(dialog, QStringLiteral("tool-out-of-memory-single-thread"));
-
-    QTest::keyClick(dialog.data(), Qt::Key_Return);
-    AppToolShellFixture::settle();
-    QVERIFY(!dialog);
-    QCOMPARE(shell->getState(), pdf::PDFDocumentToolShell::State::Editing);
-
-    QPointer<M::Dialog> second = M::runToDialog(shell);
-    QVERIFY(second);
-    QTest::keyClick(second.data(), Qt::Key_Escape);
-    AppToolShellFixture::settle();
-    QVERIFY(!second);
-    QCOMPARE(AppToolShellFixture::getShell(tab), shell);
-    QCOMPARE(tool->getExecuteCount(), 2);
-    QVERIFY(!tab->getView()->getStatusBar()->getMessage().contains(QStringLiteral("One thread")));
-}
-
-void AppToolShellTest::outOfMemoryFollowsOtherInstance()
-{
-    // Another instance changes the setting while the dialog is open: the dialog stays true
-    using H = ToolShellFlowHelper;
-    using M = ToolShellMemoryHelper;
-    const auto restore = M::restoreStrategy();
-
-    AppToolShellFixture fixture;
-    std::shared_ptr<ShellTestTool> tool = fixture.registerShellTool(TOOL_ROTATE);
-    QVERIFY(tool);
-    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
-    QVERIFY(tab);
-    pdf::PDFDocumentToolShell* shell = M::openThrowing(fixture, tab, tool.get());
-    QVERIFY(shell);
-    QPointer<M::Dialog> dialog = M::runToDialog(shell);
-    QVERIFY(dialog);
-    const QString offeredText = dialog->accessibleDescription();
-    QVERIFY(dialog->getOneThreadButton()->isVisible());
-
-    QVERIFY(M::writeInOtherConnection(fixture, QStringLiteral("singleThread")));
-    QVERIFY(dialog);
-    QVERIFY(dialog->isVisible());
-    QVERIFY(dialog->getOneThreadButton()->isHidden());
-    QCOMPARE(dialog->accessibleDescription(), QStringLiteral("There is not enough memory for this tool. Nothing was changed."));
-
-    QVERIFY(M::writeInOtherConnection(fixture, QStringLiteral("loadBalanced")));
-    QVERIFY(dialog->getOneThreadButton()->isVisible());
-    QVERIFY(dialog->getOneThreadButton()->isDefault());
-    QVERIFY(!dialog->getCloseButton()->isDefault());
-    QCOMPARE(dialog->accessibleDescription(), offeredText);
-    dialog->getOneThreadButton()->click();
-    AppToolShellFixture::settle();
-    QVERIFY(!dialog);
-    QCOMPARE(M::readInOtherConnection(fixture), QStringLiteral("singleThread"));
-}
-
-void AppToolShellTest::outOfMemoryOtherFailures_data()
-{
-    QTest::addColumn<QString>("mode");
-    QTest::addColumn<QString>("text");
-    QTest::newRow("fail") << QStringLiteral("fail") << QStringLiteral("Failed on purpose");
-    QTest::newRow("throw") << QStringLiteral("throw") << QStringLiteral("Thrown on purpose");
-    QTest::newRow("throw-std") << QStringLiteral("throw-std") << QStringLiteral("unexpected error");
-}
-
-void AppToolShellTest::outOfMemoryOtherFailures()
-{
-    // Another failure of the tool keeps its info bar, no dialog: a text of a failure mentioning
-    // memory is no lack of memory either (a typed field decides)
-    using H = ToolShellFlowHelper;
-    QFETCH(QString, mode);
-    QFETCH(QString, text);
-
-    AppToolShellFixture fixture;
-    std::shared_ptr<ShellTestTool> tool = fixture.registerShellTool(TOOL_ROTATE);
-    QVERIFY(tool);
-    tool->setPreview(false, false);
-    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
-    QVERIFY(tab);
-    pdf::PDFDocumentToolShell* shell = fixture.openTool(tab, TOOL_ROTATE);
-    QVERIFY(shell);
-    shell->getModel()->setValue(QStringLiteral("mode"), mode);
-    shell->confirm();
-    QVERIFY(AppToolShellFixture::waitFor([&]() { return tab->getView()->findInfoBar(QStringLiteral("tool-result")) != nullptr; }));
-    AppToolShellFixture::settle();
-
-    const pdf::PDFAppInfoBarRequest* bar = tab->getView()->findInfoBar(QStringLiteral("tool-result"));
-    QCOMPARE(int(bar->tone), int(pdf::PDFAppInfoBarTone::Error));
-    QVERIFY2(bar->text.contains(text), qPrintable(bar->text));
-    QVERIFY(!shell->getOutOfMemoryDialog());
-    QVERIFY(!fixture.window->findChild<ToolShellMemoryHelper::Dialog*>());
-    QVERIFY(!QApplication::activeModalWidget());
-}
-
-void AppToolShellTest::outOfMemoryMeasuringOnce()
-{
-    // The automatic preview runs out of memory: at most one dialog for an opened tool, not after
-    // every change of a parameter. A real run always shows it, the next opening has its own.
-    using H = ToolShellFlowHelper;
-    using M = ToolShellMemoryHelper;
-    const auto restore = M::restoreStrategy();
-
-    AppToolShellFixture fixture;
-    std::shared_ptr<ShellTestTool> tool = fixture.registerShellTool(TOOL_ROTATE);
-    QVERIFY(tool);
-    tool->setPreview(true, false);
-    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
-    QVERIFY(tab);
-    pdf::PDFDocumentToolShell* shell = fixture.openTool(tab, TOOL_ROTATE);
-    QVERIFY(shell);
-    QVERIFY(AppToolShellFixture::waitFor([shell]() { return !shell->getRunner()->isPreviewPending(); }));
-    const int previewsBefore = tool->getPreviewCount();
-
-    shell->getModel()->setValue(QStringLiteral("mode"), QStringLiteral("throw-memory"));
-    QVERIFY(AppToolShellFixture::waitFor([shell]() { return shell->getOutOfMemoryDialog() != nullptr; }));
-    AppToolShellFixture::settle();
-    QCOMPARE(tool->getExecuteCount(), 0);
-    QCOMPARE(tool->getPreviewCount(), previewsBefore + 1);
-    QPointer<M::Dialog> dialog = shell->getOutOfMemoryDialog();
-    QVERIFY(dialog->isVisible());
-    QVERIFY(dialog->accessibleDescription().contains(QStringLiteral("Nothing was changed")));
-    dialog->getCloseButton()->click();
-    AppToolShellFixture::settle();
-    QVERIFY(!dialog);
-
-    // Each change measures again, nobody is asked again
-    for (int repeat = 2; repeat <= 4; ++repeat)
-    {
-        const int previews = tool->getPreviewCount();
-        shell->getModel()->setValue(QStringLiteral("repeat"), repeat);
-        QVERIFY(AppToolShellFixture::waitFor([&tool, previews]() { return tool->getPreviewCount() > previews; }));
-        QVERIFY(AppToolShellFixture::waitFor([shell]() { return !shell->getRunner()->isPreviewPending(); }));
-        AppToolShellFixture::settle();
-        QVERIFY2(!shell->getOutOfMemoryDialog(), qPrintable(QString::number(repeat)));
-        QVERIFY(!QApplication::activeModalWidget());
-    }
-    QVERIFY(!tab->getView()->findInfoBar(QStringLiteral("tool-result")));
-
-    // A real run always shows it
-    for (int run = 1; run <= 2; ++run)
-    {
-        QPointer<M::Dialog> ofRun = M::runToDialog(shell);
-        QVERIFY(ofRun);
-        QCOMPARE(tool->getExecuteCount(), run);
-        ofRun->reject();
-        AppToolShellFixture::settle();
-        QVERIFY(!ofRun);
-    }
-
-    // The tool opened again: once more
-    shell->cancel();
-    AppToolShellFixture::settle();
-    QVERIFY(!AppToolShellFixture::getShell(tab));
-    pdf::PDFDocumentToolShell* reopened = fixture.openTool(tab, TOOL_ROTATE);
-    QVERIFY(reopened);
-    QVERIFY(AppToolShellFixture::waitFor([reopened]() { return !reopened->getRunner()->isPreviewPending(); }));
-    reopened->getModel()->setValue(QStringLiteral("mode"), QStringLiteral("throw-memory"));
-    QVERIFY(AppToolShellFixture::waitFor([reopened]() { return reopened->getOutOfMemoryDialog() != nullptr; }));
-    reopened->getOutOfMemoryDialog()->reject();
-    AppToolShellFixture::settle();
-}
-
-void AppToolShellTest::outOfMemoryWaitsForModal_data()
-{
-    QTest::addColumn<bool>("isPreview");
-    QTest::addColumn<QString>("end");
-    for (const bool isPreview : { false, true })
-    {
-        for (const char* end : { "closed", "deleted", "another-dialog", "tab-closed" })
-        {
-            QTest::addRow("%s-%s", isPreview ? "measuring" : "run", end) << isPreview << QString::fromLatin1(end);
-        }
-    }
-    QTest::newRow("measuring-run-started") << true << QStringLiteral("run-started");
-}
-
-void AppToolShellTest::outOfMemoryWaitsForModal()
-{
-    // No new dialog over a modal dialog of the application, the tab below it stays. The dialog comes
-    // after it, with the document of the failure shown.
-    using H = ToolShellFlowHelper;
-    using M = ToolShellMemoryHelper;
-    QFETCH(bool, isPreview);
-    QFETCH(QString, end);
-    const auto restore = M::restoreStrategy();
-
-    AppToolShellFixture fixture;
-    std::shared_ptr<ShellTestTool> tool = fixture.registerShellTool(TOOL_ROTATE);
-    QVERIFY(tool);
-    tool->setPreview(isPreview, false);
-    QPointer<pdf::PDFAppDocumentTab> tab = H::openReady(fixture);
-    QVERIFY(tab);
-    QPointer<pdf::PDFDocumentToolShell> shell = fixture.openTool(tab, TOOL_ROTATE);
-    QVERIFY(shell);
-    QVERIFY(AppToolShellFixture::waitFor([&shell]() { return !shell->getRunner()->isPreviewPending(); }));
-
-    tool->setHold(true);
-    shell->getModel()->setValue(QStringLiteral("mode"), QStringLiteral("throw-memory"));
-    if (!isPreview)
-    {
-        shell->confirm();
-    }
-    QVERIFY(AppToolShellFixture::waitFor([&tool]() { return tool->getHeldCount() == 1; }));
-
-    pdf::PDFAppTab* homeTab = fixture.window->getHomeTab();
-    fixture.window->activateTab(homeTab);
-    AppToolShellFixture::settle();
-
-    QPointer<QDialog> modal = new QDialog(fixture.window);
-    modal->setModal(true);
-    modal->show();
-    AppToolShellFixture::settle();
-    QCOMPARE(QApplication::activeModalWidget(), static_cast<QWidget*>(modal.data()));
-
-    tool->setHold(false);
-    QVERIFY(AppToolShellFixture::waitFor([&tool, &shell]() { return tool->getHeldCount() == 0 && shell->getRunner()->getState() == RunnerState::Idle && !shell->getRunner()->isPreviewPending(); }));
-    AppToolShellFixture::settle();
-
-    QVERIFY2(!shell->getOutOfMemoryDialog(), "No dialog over the other dialog");
-    QCOMPARE(fixture.window->getCurrentTab(), homeTab);
-    QCOMPARE(QApplication::activeModalWidget(), static_cast<QWidget*>(modal.data()));
-    QCOMPARE(shell->getState(), H::State::Editing);
-
-    if (end == QLatin1String("tab-closed"))
-    {
-        delete tab.data();
-        AppToolShellFixture::settle();
-        QVERIFY(!shell);
-        delete modal.data();
-        AppToolShellFixture::settle();
-        QVERIFY(!QApplication::activeModalWidget());
-        QCOMPARE(fixture.window->getCurrentTab(), homeTab);
-        return;
-    }
-
-    if (end == QLatin1String("run-started"))
-    {
-        // A measuring out of date: the run started behind the other window says its own
-        QVERIFY(tool->getExecuteCount() == 0);
-        shell->getModel()->setValue(QStringLiteral("mode"), QStringLiteral("count"));
-        shell->confirm();
-        QVERIFY(AppToolShellFixture::waitFor([&shell]() { return shell->getRunner()->getState() == RunnerState::Waiting; }));
-        AppToolShellFixture::settle();
-        QVERIFY(!shell->getResultDialog());
-        modal->reject();
-        delete modal.data();
-        QVERIFY(AppToolShellFixture::waitFor([&shell]() { return shell->getResultDialog() != nullptr; }));
-        AppToolShellFixture::settle();
-        QVERIFY(!shell->getOutOfMemoryDialog());
-        shell->getResultDialog()->reject();
-        AppToolShellFixture::settle();
-        return;
-    }
-
-    if (end == QLatin1String("another-dialog"))
-    {
-        // The next dialog is waited for too
-        QPointer<QDialog> second = new QDialog(fixture.window);
-        second->setModal(true);
-        modal->reject();
-        second->show();
-        AppToolShellFixture::settle();
-        QVERIFY(!shell->getOutOfMemoryDialog());
-        QCOMPARE(fixture.window->getCurrentTab(), homeTab);
-        second->reject();
-        delete second.data();
-    }
-    else if (end == QLatin1String("deleted"))
-    {
-        delete modal.data();
-    }
-    else
-    {
-        modal->reject();
-    }
-
-    QVERIFY(AppToolShellFixture::waitFor([&shell]() { return shell->getOutOfMemoryDialog() != nullptr; }));
-    AppToolShellFixture::settle();
-    QCOMPARE(fixture.window->getCurrentTab(), static_cast<pdf::PDFAppTab*>(tab.data()));
-    QVERIFY(tab->getView()->isVisible());
-    QVERIFY(shell->getOutOfMemoryDialog()->isVisible());
-    QCOMPARE(QApplication::activeModalWidget(), static_cast<QWidget*>(shell->getOutOfMemoryDialog()));
-    shell->getOutOfMemoryDialog()->reject();
-    AppToolShellFixture::settle();
-    delete modal.data();
-}
-
-void AppToolShellTest::outOfMemoryWaitsForPanel()
-{
-    // An open panel of the tool ends first: a popup would keep the keys of the dialog
-    using H = ToolShellFlowHelper;
-    const auto restore = ToolShellMemoryHelper::restoreStrategy();
-
-    AppToolShellFixture fixture;
-    std::shared_ptr<ShellTestTool> tool = fixture.registerShellTool(TOOL_ROTATE);
-    QVERIFY(tool);
-    tool->setPreview(true, false);
-    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
-    QVERIFY(tab);
-    pdf::PDFDocumentToolShell* shell = fixture.openTool(tab, TOOL_ROTATE);
-    QVERIFY(shell);
-    QVERIFY(AppToolShellFixture::waitFor([shell]() { return !shell->getRunner()->isPreviewPending(); }));
-
-    tool->setHold(true);
-    shell->getModel()->setValue(QStringLiteral("mode"), QStringLiteral("throw-memory"));
-    QVERIFY(AppToolShellFixture::waitFor([&tool]() { return tool->getHeldCount() == 1; }));
-    pdf::PDFAppToolPanelPopup* panel = shell->getToolbar()->openPanel(AppToolShellFixture::getGUI(shell)->flagsMenu->getButton());
-    QVERIFY(panel);
-    AppToolShellFixture::settle();
-    QVERIFY(QApplication::activePopupWidget());
-
-    tool->setHold(false);
-    QVERIFY(AppToolShellFixture::waitFor([&tool, shell]() { return tool->getHeldCount() == 0 && !shell->getRunner()->isPreviewPending(); }));
-    AppToolShellFixture::settle();
-    QVERIFY(!shell->getOutOfMemoryDialog());
-    QVERIFY(panel->isVisible());
-
-    panel->close();
-    QVERIFY(AppToolShellFixture::waitFor([shell]() { return shell->getOutOfMemoryDialog() != nullptr; }));
-    AppToolShellFixture::settle();
-    QVERIFY(shell->getOutOfMemoryDialog()->isVisible());
-    shell->getOutOfMemoryDialog()->reject();
-    AppToolShellFixture::settle();
-}
-
-void AppToolShellTest::outOfMemoryDeletedFromActivation()
-{
-    // The dialog brings its tab: a slot of the switch of the tabs may delete the tab with the shell (run it under ASan)
-    using H = ToolShellFlowHelper;
-    using M = ToolShellMemoryHelper;
-    const auto restore = M::restoreStrategy();
-
-    AppToolShellFixture fixture;
-    std::shared_ptr<ShellTestTool> tool = fixture.registerShellTool(TOOL_ROTATE);
-    QVERIFY(tool);
-    QPointer<pdf::PDFAppDocumentTab> tab = H::openReady(fixture);
-    QVERIFY(tab);
-    QPointer<pdf::PDFDocumentToolShell> shell = M::openThrowing(fixture, tab, tool.get());
-    QVERIFY(shell);
-
-    tool->setHold(true);
-    shell->confirm();
-    QVERIFY(AppToolShellFixture::waitFor([&tool]() { return tool->getHeldCount() == 1; }));
-    pdf::PDFAppTab* homeTab = fixture.window->getHomeTab();
-    fixture.window->activateTab(homeTab);
-    AppToolShellFixture::settle();
-
-    bool isDeleted = false;
-    QObject receiver;
-    QObject::connect(fixture.window->getTabBar(), &QTabBar::currentChanged, &receiver, [&]()
-    {
-        if (!isDeleted)
-        {
-            isDeleted = true;
-            delete tab.data();
-        }
-    });
-    tool->setHold(false);
-    QVERIFY(AppToolShellFixture::waitFor([&isDeleted]() { return isDeleted; }));
-    AppToolShellFixture::settle();
-    QVERIFY(!tab);
-    QVERIFY(!shell);
-    QCOMPARE(fixture.window->getCurrentTab(), homeTab);
-    QVERIFY(!fixture.window->findChild<M::Dialog*>());
-    QVERIFY(!QApplication::activeModalWidget());
-}
-
-void AppToolShellTest::outOfMemoryThemesAndScales_data()
+void AppToolShellTest::leakDetectorSeesText_data()
 {
     QTest::addColumn<bool>("isDark");
     QTest::addColumn<qreal>("scale");
@@ -8861,325 +8243,79 @@ void AppToolShellTest::outOfMemoryThemesAndScales_data()
     }
 }
 
-void AppToolShellTest::outOfMemoryThemesAndScales()
+void AppToolShellTest::leakDetectorSeesText()
 {
-    // The tokens of the card and of the Primary button, no leak color; the theme changes while it is open
+    // The detector proved on a real dialog of the shell, the refusal of a missing permission 339:10328
+    // (a violet pixel is a bug, CLAUDE.md): a rich text of a stock QLabel is drawn by its text control
+    // from the leak palette of the application (a plain one goes through the style, which never reads
+    // a palette) - a text of 12 px has nearly no pixel of the exact color, which is what the detector
+    // used to look for - and a filled area is found too. The dialog itself, with the tokens of the
+    // theme, has none.
     using H = ToolShellFlowHelper;
-    using M = ToolShellMemoryHelper;
     QFETCH(bool, isDark);
     QFETCH(qreal, scale);
-    const auto restore = M::restoreStrategy();
 
     AppToolShellFixture fixture;
-    pdf::PDFThemeManager::getInstance()->setScheme(isDark ? pdf::PDFThemeColors::Scheme::Light : pdf::PDFThemeColors::Scheme::Dark);
-    std::shared_ptr<ShellTestTool> tool = fixture.registerShellTool(TOOL_ROTATE);
-    QVERIFY(tool);
-    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
-    QVERIFY(tab);
-    pdf::PDFDocumentToolShell* shell = M::openThrowing(fixture, tab, tool.get());
-    QVERIFY(shell);
-    QPointer<M::Dialog> dialog = M::runToDialog(shell);
-    QVERIFY(dialog);
-
     pdf::PDFThemeManager::getInstance()->setScheme(isDark ? pdf::PDFThemeColors::Scheme::Dark : pdf::PDFThemeColors::Scheme::Light);
+    // Remove External Links needs the permission of the annotations, which the sample does not give
+    const QString toolId = QStringLiteral("protect.remove-links");
+    std::shared_ptr<ShellTestTool> tool = fixture.registerShellTool(toolId);
+    QVERIFY(tool);
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, pdftest::AppDocumentSamples::restricted(fixture.folder()));
+    QVERIFY(tab);
+    pdf::PDFDocumentToolShell* shell = fixture.openTool(tab, toolId);
+    QVERIFY(shell);
     AppToolShellFixture::settle();
+    QPointer<pdf::PDFMessageBox> dialog = shell->getPermissionDialog();
     QVERIFY(dialog && dialog->isVisible());
+    QCOMPARE(AppToolShellFixture::countLeakPixels(AppToolShellFixture::render(dialog, scale)), 0);
 
-    const QImage image = AppToolShellFixture::render(dialog, scale);
-    QCOMPARE(AppToolShellFixture::countLeakPixels(image), 0);
-    const QRect card = M::cardRect(dialog);
-    QCOMPARE(H::pixel(image, QPoint(card.left() + 8, card.center().y()), scale), H::token(pdf::PDFThemeColors::BgSurface));
+    QLabel* leakedText = new QLabel(QStringLiteral("<span>A text drawn by the palette of the application</span>"), dialog);
+    leakedText->setTextFormat(Qt::RichText);
+    leakedText->setFont(pdf::PDFThemeFonts::getFont(QFont::Normal, 12));
+    dialog->addContent(leakedText);
+    dialog->adjustSize();
+    QCoreApplication::processEvents();
+    const QImage textImage = AppToolShellFixture::render(dialog, scale);
+    int exactCount = 0;
+    const QRgb leak = pdf::PDFThemeColors::getLeakColor().rgb() & 0xFFFFFF;
+    const QImage converted = textImage.convertToFormat(QImage::Format_RGB32);
+    for (int y = 0; y < converted.height(); ++y)
+    {
+        const QRgb* line = reinterpret_cast<const QRgb*>(converted.constScanLine(y));
+        for (int x = 0; x < converted.width(); ++x)
+        {
+            exactCount += (line[x] & 0xFFFFFF) == leak ? 1 : 0;
+        }
+    }
+    const int textCount = AppToolShellFixture::countLeakPixels(textImage);
+    qInfo("Pixels of a text of 12 px in the leak color at %g: %d of the exact color, %d found", scale, exactCount, textCount);
+    QVERIFY2(textCount >= 40, qPrintable(QString::number(textCount)));
+    delete leakedText;
 
-    const QRect primary = H::rectIn(dialog->getOneThreadButton(), dialog);
-    QCOMPARE(H::pixel(image, QPoint(primary.left() + 6, primary.center().y()), scale), H::token(pdf::PDFThemeColors::BgAccent));
-    const QRect secondary = H::rectIn(dialog->getCloseButton(), dialog);
-    QVERIFY(H::pixel(image, QPoint(secondary.left() + 6, secondary.center().y()), scale) != H::token(pdf::PDFThemeColors::BgAccent));
-    AppToolShellFixture::screenshotDialog(dialog, QStringLiteral("tool-out-of-memory-%1").arg(isDark ? QStringLiteral("dark") : QStringLiteral("light")));
+    // A short text as the name of a button
+    QLabel* leakedWord = new QLabel(QStringLiteral("<span>Close</span>"), dialog);
+    leakedWord->setTextFormat(Qt::RichText);
+    leakedWord->setFont(pdf::PDFThemeFonts::getFont(QFont::Normal, 12));
+    dialog->addContent(leakedWord);
+    dialog->adjustSize();
+    QCoreApplication::processEvents();
+    const int wordCount = AppToolShellFixture::countLeakPixels(AppToolShellFixture::render(dialog, scale));
+    QVERIFY2(wordCount >= 10, qPrintable(QString::number(wordCount)));
+    delete leakedWord;
+
+    QPixmap leakedPixmap(100, 10);
+    leakedPixmap.fill(pdf::PDFThemeColors::getLeakColor());
+    QLabel* leakedArea = new QLabel(dialog);
+    leakedArea->setPixmap(leakedPixmap);
+    dialog->addContent(leakedArea);
+    dialog->adjustSize();
+    QCoreApplication::processEvents();
+    const int areaCount = AppToolShellFixture::countLeakPixels(AppToolShellFixture::render(dialog, scale));
+    QVERIFY2(areaCount >= 100 * 10, qPrintable(QString::number(areaCount)));
 
     dialog->reject();
     AppToolShellFixture::settle();
-}
-
-void AppToolShellTest::outOfMemoryRightToLeft()
-{
-    using H = ToolShellFlowHelper;
-    using M = ToolShellMemoryHelper;
-    const auto restore = M::restoreStrategy();
-    QApplication::setLayoutDirection(Qt::RightToLeft);
-
-    AppToolShellFixture fixture;
-    std::shared_ptr<ShellTestTool> tool = fixture.registerShellTool(TOOL_ROTATE);
-    QVERIFY(tool);
-    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
-    QVERIFY(tab);
-    pdf::PDFDocumentToolShell* shell = M::openThrowing(fixture, tab, tool.get());
-    QVERIFY(shell);
-    QPointer<M::Dialog> dialog = M::runToDialog(shell);
-    QVERIFY(dialog);
-
-    // The row mirrored: the Primary button at the trailing edge, which is the left one
-    const QRect primary = H::rectIn(dialog->getOneThreadButton(), dialog);
-    const QRect secondary = H::rectIn(dialog->getCloseButton(), dialog);
-    QVERIFY(primary.right() < secondary.left());
-    QVERIFY(primary.left() < M::cardRect(dialog).center().x());
-    QCOMPARE(AppToolShellFixture::countLeakPixels(AppToolShellFixture::render(dialog, 1.0)), 0);
-    AppToolShellFixture::screenshotDialog(dialog, QStringLiteral("tool-out-of-memory-rtl"));
-    dialog->reject();
-    AppToolShellFixture::settle();
-}
-
-void AppToolShellTest::outOfMemoryMinimalWindow()
-{
-    // 720 x 480: the whole card with the wrapped text inside of the body of the window
-    using H = ToolShellFlowHelper;
-    using M = ToolShellMemoryHelper;
-    const auto restore = M::restoreStrategy();
-
-    AppToolShellFixture fixture(QSize(720, 480));
-    std::shared_ptr<ShellTestTool> tool = fixture.registerShellTool(TOOL_ROTATE);
-    QVERIFY(tool);
-    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
-    QVERIFY(tab);
-    pdf::PDFDocumentToolShell* shell = M::openThrowing(fixture, tab, tool.get());
-    QVERIFY(shell);
-    QPointer<M::Dialog> dialog = M::runToDialog(shell);
-    QVERIFY(dialog);
-    QCOMPARE(fixture.window->width(), 720);
-
-    const QWidget* host = pdf::PDFAppMainWindow::findDialogHost(tab);
-    QVERIFY(host);
-    const QRect hostRect(host->mapToGlobal(QPoint(0, 0)), host->size());
-    const QRect card = M::cardRect(dialog).translated(dialog->mapToGlobal(QPoint(0, 0)));
-    QVERIFY2(hostRect.contains(card), qPrintable(QStringLiteral("%1 %2 %3 x %4").arg(card.x()).arg(card.y()).arg(card.width()).arg(card.height())));
-    QCOMPARE(qAbs(card.center().x() - hostRect.center().x()) <= 1, true);
-    for (const QPushButton* button : dialog->getActionButtons())
-    {
-        QVERIFY(button->isVisible());
-        QVERIFY(card.contains(QRect(button->mapToGlobal(QPoint(0, 0)), button->size())));
-    }
-    QCOMPARE(AppToolShellFixture::countLeakPixels(AppToolShellFixture::render(dialog, 1.0)), 0);
-    AppToolShellFixture::screenshotDialog(dialog, QStringLiteral("tool-out-of-memory-720"));
-    dialog->reject();
-    AppToolShellFixture::settle();
-}
-
-void AppToolShellTest::outOfMemoryKeyboardAndAccessibility()
-{
-    using H = ToolShellFlowHelper;
-    using M = ToolShellMemoryHelper;
-    const auto restore = M::restoreStrategy();
-
-    AppToolShellFixture fixture;
-    std::shared_ptr<ShellTestTool> tool = fixture.registerShellTool(TOOL_ROTATE);
-    QVERIFY(tool);
-    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
-    QVERIFY(tab);
-    pdf::PDFDocumentToolShell* shell = M::openThrowing(fixture, tab, tool.get());
-    QVERIFY(shell);
-    const QString settingBefore = M::setting(fixture);
-
-    // Esc closes without a choice, the tool stays
-    QPointer<M::Dialog> dialog = M::runToDialog(shell);
-    QVERIFY(dialog);
-    QTest::keyClick(dialog.data(), Qt::Key_Escape);
-    AppToolShellFixture::settle();
-    QVERIFY(!dialog);
-    QCOMPARE(M::setting(fixture), settingBefore);
-    QCOMPARE(AppToolShellFixture::getShell(tab), shell);
-
-    // The first focus on the default button, Tab reaches both; names for assistive technologies
-    dialog = M::runToDialog(shell);
-    QVERIFY(dialog);
-    QCOMPARE(dialog->focusWidget(), static_cast<QWidget*>(dialog->getOneThreadButton()));
-    QVERIFY(dialog->getOneThreadButton()->isDefault());
-    QVERIFY(dialog->getCloseButton()->focusPolicy() & Qt::TabFocus);
-    QAccessibleInterface* closeInterface = QAccessible::queryAccessibleInterface(dialog->getCloseButton());
-    QAccessibleInterface* oneThreadInterface = QAccessible::queryAccessibleInterface(dialog->getOneThreadButton());
-    QVERIFY(closeInterface && oneThreadInterface);
-    QCOMPARE(closeInterface->text(QAccessible::Name), QStringLiteral("Close"));
-    QCOMPARE(oneThreadInterface->text(QAccessible::Name), QStringLiteral("Use One Thread"));
-    QVERIFY(dialog->accessibleDescription().contains(QStringLiteral("one image at a time")));
-
-    // Enter is Use One Thread
-    QTest::keyClick(dialog.data(), Qt::Key_Return);
-    AppToolShellFixture::settle();
-    QVERIFY(!dialog);
-    QCOMPARE(M::setting(fixture), QStringLiteral("singleThread"));
-}
-
-void AppToolShellTest::outOfMemoryLanguageChange()
-{
-    // The open dialog follows the language, with its error, and comes back
-    using H = ToolShellFlowHelper;
-    using M = ToolShellMemoryHelper;
-    const auto restore = M::restoreStrategy();
-
-    AppToolShellFixture fixture;
-    std::shared_ptr<ShellTestTool> tool = fixture.registerShellTool(TOOL_ROTATE);
-    QVERIFY(tool);
-    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
-    QVERIFY(tab);
-    pdf::PDFDocumentToolShell* shell = M::openThrowing(fixture, tab, tool.get());
-    QVERIFY(shell);
-    QPointer<M::Dialog> dialog = M::runToDialog(shell);
-    QVERIFY(dialog);
-    const QString body = dialog->accessibleDescription();
-
-    pdf::PDFDatabaseConnection* connection = fixture.context->getDatabase()->getConnection();
-    QVERIFY(!connection->execute("CREATE TEMP TRIGGER test_refuse_insert BEFORE INSERT ON main.setting BEGIN SELECT RAISE(ABORT, 'refused by the test'); END").isError());
-    dialog->getOneThreadButton()->click();
-    AppToolShellFixture::settle();
-    QVERIFY(dialog->getErrorLabel()->isVisible());
-
-    ToolShellFlowTranslator translator;
-    QCoreApplication::installTranslator(&translator);
-    AppToolShellFixture::settle();
-    QVERIFY(dialog);
-    QVERIFY(dialog->isVisible());
-    QCOMPARE(dialog->accessibleName(), QStringLiteral("XX Not enough memory"));
-    QCOMPARE(dialog->accessibleDescription(), QStringLiteral("XX ") + body);
-    QCOMPARE(dialog->getCloseButton()->text(), QStringLiteral("XX Close"));
-    QCOMPARE(dialog->getOneThreadButton()->text(), QStringLiteral("XX Use One Thread"));
-    QVERIFY(dialog->getErrorLabel()->text().startsWith(QStringLiteral("XX ")));
-    QCOMPARE(AppToolShellFixture::countLeakPixels(AppToolShellFixture::render(dialog, 1.0)), 0);
-
-    QCoreApplication::removeTranslator(&translator);
-    AppToolShellFixture::settle();
-    QCOMPARE(dialog->accessibleName(), QStringLiteral("Not enough memory"));
-    QCOMPARE(dialog->getCloseButton()->text(), QStringLiteral("Close"));
-    QVERIFY(!connection->execute("DROP TRIGGER test_refuse_insert").isError());
-    dialog->reject();
-    AppToolShellFixture::settle();
-}
-
-void AppToolShellTest::outOfMemoryDocumentLeavesReady()
-{
-    // F2: the document leaves the state Ready: the shell closes and the dialog goes with it
-    using H = ToolShellFlowHelper;
-    using M = ToolShellMemoryHelper;
-    const auto restore = M::restoreStrategy();
-
-    AppToolShellFixture fixture;
-    std::shared_ptr<ShellTestTool> tool = fixture.registerShellTool(TOOL_ROTATE);
-    QVERIFY(tool);
-    const QString file = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("LostMemory.pdf"), 2);
-    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, file);
-    QVERIFY(tab);
-    pdf::PDFDocumentToolShell* shell = M::openThrowing(fixture, tab, tool.get());
-    QVERIFY(shell);
-    QPointer<M::Dialog> dialog = M::runToDialog(shell);
-    QVERIFY(dialog);
-    QPointer<QWidget> scrim = dialog->getScrim();
-    QVERIFY(scrim);
-
-    tab->getDocument()->setPasswordRequired(file, false);
-    AppToolShellFixture::settle();
-    QVERIFY(!dialog);
-    QVERIFY(!scrim || !scrim->isVisible());
-    QVERIFY(!AppToolShellFixture::getShell(tab));
-    QVERIFY(!tab->getView()->isToolModeActive());
-    QVERIFY(!QApplication::activeModalWidget());
-}
-
-void AppToolShellTest::outOfMemoryDeletion_data()
-{
-    QTest::addColumn<QString>("victim");
-    QTest::addColumn<QString>("moment");
-    for (const char* victim : { "tab", "window", "page", "shell" })
-    {
-        for (const char* moment : { "open", "notified", "accepted", "rejected" })
-        {
-            QTest::addRow("%s-%s", victim, moment) << QString::fromLatin1(victim) << QString::fromLatin1(moment);
-        }
-    }
-}
-
-void AppToolShellTest::outOfMemoryDeletion()
-{
-    // The tab, the window, the page and the shell deleted with the dialog open and from the signals
-    // of its buttons and of the notification of the setting (run it under ASan)
-    using H = ToolShellFlowHelper;
-    using M = ToolShellMemoryHelper;
-    QFETCH(QString, victim);
-    QFETCH(QString, moment);
-    const auto restore = M::restoreStrategy();
-
-    AppToolShellFixture fixture;
-    std::shared_ptr<ShellTestTool> tool = fixture.registerShellTool(TOOL_ROTATE);
-    QVERIFY(tool);
-    QPointer<pdf::PDFAppDocumentTab> tab = H::openReady(fixture);
-    QVERIFY(tab);
-    QPointer<pdf::PDFDocumentToolShell> shell = M::openThrowing(fixture, tab, tool.get());
-    QVERIFY(shell);
-    QPointer<pdf::PDFAppDocumentView> view = tab->getView();
-    QObject receiver;
-    bool isDeleted = false;
-
-    const auto destroyVictim = [&]()
-    {
-        if (isDeleted)
-        {
-            return;
-        }
-        isDeleted = true;
-        if (victim == QLatin1String("tab"))
-        {
-            delete tab.data();
-        }
-        else if (victim == QLatin1String("window"))
-        {
-            delete fixture.window.data();
-        }
-        else if (victim == QLatin1String("page"))
-        {
-            delete tab->getPage();
-        }
-        else
-        {
-            delete shell.data();
-        }
-    };
-
-    QPointer<M::Dialog> dialog = M::runToDialog(shell);
-    QVERIFY(dialog);
-    QPointer<QWidget> scrim = dialog->getScrim();
-    if (moment == QLatin1String("open"))
-    {
-        destroyVictim();
-    }
-    else if (moment == QLatin1String("notified"))
-    {
-        QObject::connect(fixture.context->getNotifier(), &pdf::PDFDatabaseNotifier::changed, &receiver, destroyVictim);
-        dialog->getOneThreadButton()->click();
-    }
-    else if (moment == QLatin1String("accepted"))
-    {
-        QObject::connect(dialog.data(), &QDialog::accepted, &receiver, destroyVictim);
-        dialog->getOneThreadButton()->click();
-    }
-    else
-    {
-        QObject::connect(dialog.data(), &QDialog::rejected, &receiver, destroyVictim);
-        dialog->getCloseButton()->click();
-    }
-    AppToolShellFixture::settle();
-
-    QVERIFY(isDeleted);
-    QVERIFY(!dialog || !dialog->isVisible());
-    QVERIFY(!scrim || !scrim->isVisible());
-    QVERIFY(!QApplication::activeModalWidget());
-    if (tab && view && !AppToolShellFixture::getShell(tab))
-    {
-        QVERIFY(!view->isToolModeActive());
-    }
-    if (tab)
-    {
-        QVERIFY(!tab->getDocument()->isBlockedByOperation());
-    }
-    if (fixture.window)
-    {
-        QVERIFY(fixture.window->isVisible());
-    }
 }
 
 QTEST_MAIN(AppToolShellTest)

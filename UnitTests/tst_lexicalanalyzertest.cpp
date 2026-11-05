@@ -75,6 +75,7 @@ private slots:
     void test_dictionary_lookup();
     void test_invalid_input();
     void test_header_regexp();
+    void test_parser_nesting();
     void test_flat_map();
     void test_lzw_filter();
     void test_flate_filter_truncated();
@@ -806,6 +807,53 @@ void LexicalAnalyzerTest::test_header_regexp()
             QVERIFY(cmatch[1].matched || cmatch[2].matched);
         }
     }
+}
+
+void LexicalAnalyzerTest::test_parser_nesting()
+{
+    // Each array or dictionary inside of another one takes a part of the stack of the reading thread:
+    // a deep object is an error of the object, a small hostile file does not end the application
+    const auto parse = [](const QByteArray& data)
+    {
+        pdf::PDFParser parser(data, nullptr, pdf::PDFParser::None);
+        return parser.getObject();
+    };
+    const auto isRefused = [&parse](const QByteArray& data)
+    {
+        try
+        {
+            parse(data);
+            return false;
+        }
+        catch (const pdf::PDFException&)
+        {
+            return true;
+        }
+    };
+
+    constexpr int LIMIT = pdf::PDFParser::MAXIMUM_NESTING;
+    pdf::PDFObject object = parse(QByteArray("[").repeated(LIMIT) + "7" + QByteArray("]").repeated(LIMIT));
+    for (int i = 0; i < LIMIT; ++i)
+    {
+        QVERIFY(object.isArray());
+        QCOMPARE(object.getArray()->getCount(), size_t(1));
+        const pdf::PDFObject item = object.getArray()->getItem(0);
+        object = item;
+    }
+    QCOMPARE(object.getInteger(), pdf::PDFInteger(7));
+
+    // Two siblings at the limit: the depth goes down again
+    const QByteArray deep = QByteArray("[").repeated(LIMIT - 1) + QByteArray("]").repeated(LIMIT - 1);
+    QVERIFY(!isRefused("[ " + deep + " " + deep + " ]"));
+
+    QVERIFY(isRefused(QByteArray("[").repeated(LIMIT + 1) + QByteArray("]").repeated(LIMIT + 1)));
+    QVERIFY(isRefused(QByteArray("<</a").repeated(LIMIT + 1) + " 1" + QByteArray(">>").repeated(LIMIT + 1)));
+    QVERIFY(!isRefused(QByteArray("<</a").repeated(LIMIT) + " 1" + QByteArray(">>").repeated(LIMIT)));
+    QVERIFY(isRefused(QByteArray("[<</a").repeated(LIMIT / 2 + 1)));
+
+    // Far behind the limit, as in a file of a few megabytes
+    QVERIFY(isRefused(QByteArray("[").repeated(4 * 1024 * 1024)));
+    QVERIFY(isRefused(QByteArray("<</a").repeated(1024 * 1024)));
 }
 
 void LexicalAnalyzerTest::test_flat_map()

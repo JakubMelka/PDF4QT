@@ -24,8 +24,13 @@
 #include "pdfcms.h"
 #include "pdfconstants.h"
 #include "pdfdocumentreader.h"
+#include "pdfdocumenttextexporter.h"
 #include "pdfdocumenttextflow.h"
+#include "pdfdocumenttool_extracttext.h"
 #include "pdfdocumenttool_compress.h"
+#include "pdfdocumenttool_protect.h"
+#include "pdfdocumenttool_pages.h"
+#include "pdfdocumenttool_structure.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumentwriter.h"
 #include "pdfexception.h"
@@ -52,6 +57,7 @@
 #include <QLockFile>
 #include <QPainter>
 #include <QRegularExpression>
+#include <QXmlStreamReader>
 #include <QtTest>
 
 #include <algorithm>
@@ -121,6 +127,18 @@ struct CorpusPageOrigin
 /// row of Rotate or Remove says it, the checks of the pages are the same for all tools
 using CorpusPageMap = std::vector<CorpusPageOrigin>(*)(const pdf::PDFDocument* input);
 
+/// A tool, whose result is no document (Extract Text: a file), checks its result by its own
+/// assertion instead of the checks of a document (Success and NothingToDo)
+/// \param input The input document
+/// \param result The result of the tool
+/// \param parameters The parameters of the row
+/// \param failures The failures of the row
+using CorpusResultCheck = void(*)(const pdf::PDFDocument* input, const pdf::PDFDocumentToolResult& result, const QVariantMap& parameters, QStringList* failures);
+
+/// The tool refuses the input by its contract with the parameters of the row (Remove Pages of
+/// the even pages of a document of one page: a document keeps at least one page)
+using CorpusRefusal = bool(*)(const pdf::PDFDocument* input);
+
 /// A tool with its parameters. A new tool of the core is one row (or a few) of
 /// ToolCorpusHelper::getToolRows: nothing else in this file knows the tools.
 struct CorpusToolRow
@@ -132,6 +150,8 @@ struct CorpusToolRow
     CorpusLook look;
     int promises;
     CorpusPageMap pageMap = nullptr;
+    CorpusResultCheck resultCheck = nullptr;
+    CorpusRefusal refusal = nullptr;
 
     QString getName() const { return QString::fromLatin1(toolId) + QLatin1Char('/') + QString::fromLatin1(variant); }
 };
@@ -398,9 +418,11 @@ public:
     static const std::vector<CorpusExclusion>& getExclusions()
     {
         static const std::vector<CorpusExclusion> exclusions = {
-            { "^Bugs/SLOW_PERF_BTN_TRX_BigData_0513pdf\\(5\\)\\.pdf$", "/(smaller-file|balanced|best-quality)$", "SECURITY_TODO 22",
+            { "^Bugs/SLOW_PERF_BTN_TRX_BigData_0513pdf\\(5\\)\\.pdf$", "/(smaller-file|balanced|best-quality|all-steps)$", "SECURITY_TODO 22",
               "PDFPrecompiledPage::draw of the meshes of the shadings of the page runs for more than 10 minutes, the cancellation does not reach it" },
             { "^GhentOutputSuite/.*GWG", ".", "Owner 2026-11-01", "known, needs a change of the renderer, ignored for now" },
+            { "^Bugs/SLOW_PERF_BTN_TRX_BigData_0513pdf\\(5\\)\\.pdf$", "^convert\\.extract-text/", "SECURITY_TODO 22",
+              "the content of its pages runs for more than 10 minutes (the meshes of the shadings), the walks of Extract Text read the same content" },
         };
         return exclusions;
     }
@@ -592,7 +614,19 @@ public:
     {
         pdf::PDFDocumentTextFlowFactory factory;
         factory.setOperationControl(control);
-        return factory.create(document, { pdf::PDFInteger(pageIndex) }, pdf::PDFDocumentTextFlowFactory::Algorithm::Content).getText();
+        const pdf::PDFDocumentTextFlow flow = factory.create(document, { pdf::PDFInteger(pageIndex) }, pdf::PDFDocumentTextFlowFactory::Algorithm::Content);
+
+        // The text of the page, not its number: the item "Page 5" of the flow says the index of the
+        // page, which another tool changes (Remove Pages)
+        QStringList texts;
+        for (const pdf::PDFDocumentTextFlow::Item& item : flow.getItems())
+        {
+            if (!item.flags.testFlag(pdf::PDFDocumentTextFlow::PageStart))
+            {
+                texts << item.text.trimmed();
+            }
+        }
+        return texts.join(QLatin1Char(' '));
     }
 
     /// The decoded content of a page. A stream, which cannot be decoded, by its stored data:
@@ -778,7 +812,226 @@ public:
         after.save(QDir(folder).absoluteFilePath(name + QStringLiteral("_after.png")));
     }
 
+    /// Characters other than white space with their counts (the soft hyphen U+00AD, which the
+    /// layout removes, does not count)
+    static std::map<char32_t, qint64> countCharacters(const QString& text)
+    {
+        std::map<char32_t, qint64> counts;
+        for (const char32_t character : text.toUcs4())
+        {
+            if (!QChar::isSpace(character) && character != 0x00AD)
+            {
+                ++counts[character];
+            }
+        }
+        return counts;
+    }
+
+    /// The text of a page as the order of the content stream reads all of it (the text items only,
+    /// no "Page N", also the text outside of a marked content - setStructureExport)
+    static QString getExtractReferenceText(const pdf::PDFDocument* document, size_t pageIndex, const pdf::PDFOperationControl* control)
+    {
+        pdf::PDFDocumentTextFlowFactory factory;
+        factory.setOperationControl(control);
+        factory.setStructureExport(true);
+        QString text;
+        const pdf::PDFDocumentTextFlow flow = factory.create(document, { pdf::PDFInteger(pageIndex) }, pdf::PDFDocumentTextFlowFactory::Algorithm::Content);
+        for (const pdf::PDFDocumentTextFlow::Item& item : flow.getItems())
+        {
+            if (item.isText())
+            {
+                text += item.text + QLatin1Char(' ');
+            }
+        }
+        return text;
+    }
+
+    /// Extract Text: the text of the file against the text of the pages, read by the order of
+    /// the content stream (an independent reading for the other orders). Every character of the
+    /// file is a character of a page (or of a line "Page N" of the row); at most 2 % of the
+    /// characters of the pages are missing (the layout merges a hyphen of a line end). A markup
+    /// file is well formed. NothingToDo: no page has a text. A tagged document read by the
+    /// structure has its own text (artifacts are left out), only the file is checked.
+    static void checkExtractedText(const pdf::PDFDocument* input, const pdf::PDFDocumentToolResult& result, const QVariantMap& parameters, QStringList* failures)
+    {
+        using Tool = pdf::PDFDocumentToolExtractText;
+
+        std::map<char32_t, qint64> pageCounts;
+        const bool isLatin1 = parameters.value(QString::fromLatin1(Tool::PARAMETER_ENCODING)).toString() == QLatin1String(Tool::ENCODING_LATIN1);
+        qint64 notInLatin1 = 0;
+        for (size_t i = 0; i < input->getCatalog()->getPageCount(); ++i)
+        {
+            const CorpusPageBudget budget(getPageTimeLimit());
+            for (const auto& item : countCharacters(getExtractReferenceText(input, i, &budget)))
+            {
+                const bool isLost = isLatin1 && item.first > 0xFF;
+                pageCounts[isLost ? char32_t('?') : item.first] += item.second;
+                notInLatin1 += isLost ? item.second : 0;
+            }
+        }
+
+        qint64 pageTotal = 0;
+        for (const auto& item : pageCounts)
+        {
+            pageTotal += item.second;
+        }
+
+        if (result.status == pdf::PDFDocumentToolResultStatus::NothingToDo)
+        {
+            if (pageTotal > 0 && result.data.value(QStringLiteral("order")).toString() != QLatin1String(Tool::ORDER_STRUCTURE))
+            {
+                *failures << QStringLiteral("NothingToDo, but the pages have %1 characters").arg(pageTotal);
+            }
+            return;
+        }
+
+        if (result.outputs.size() != 1)
+        {
+            *failures << QStringLiteral("%1 output files instead of one").arg(result.outputs.size());
+            return;
+        }
+
+        const pdf::PDFDocumentToolOutputFile& output = result.outputs.front();
+        if (output.data.isEmpty())
+        {
+            *failures << QStringLiteral("An empty file");
+        }
+        QStringDecoder decoder = pdf::PDFDocumentTextExporter::createDecoder(output.mimeType);
+        if (!decoder.isValid())
+        {
+            *failures << QStringLiteral("The charset of '%1' is not known").arg(output.mimeType);
+            return;
+        }
+
+        // The text of the file: a plain text as it is, the text elements of the markup
+        QString text;
+        const pdf::PDFOutputFormatter::Style style = Tool::getStyle(parameters);
+        if (style == pdf::PDFOutputFormatter::Style::Text)
+        {
+            text = decoder.decode(output.data);
+        }
+        else
+        {
+            const QString element = style == pdf::PDFOutputFormatter::Style::Xml ? QStringLiteral("text") : QStringLiteral("p");
+            QXmlStreamReader reader(output.data);
+            QStringList stack;
+            while (!reader.atEnd())
+            {
+                switch (reader.readNext())
+                {
+                    case QXmlStreamReader::StartElement:
+                        stack << reader.name().toString();
+                        break;
+                    case QXmlStreamReader::EndElement:
+                        stack.removeLast();
+                        break;
+                    case QXmlStreamReader::Characters:
+                        if (!stack.isEmpty() && stack.last() == element)
+                        {
+                            text += reader.text().toString() + QLatin1Char('\n');
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            }
+            if (reader.hasError())
+            {
+                *failures << QStringLiteral("The %1 file is not well formed: %2 at line %3").arg(element == QLatin1String("p") ? QStringLiteral("HTML") : QStringLiteral("XML"), reader.errorString()).arg(reader.lineNumber());
+                return;
+            }
+        }
+
+        if (result.data.value(QStringLiteral("order")).toString() == QLatin1String(Tool::ORDER_STRUCTURE))
+        {
+            return;
+        }
+
+        // The lines "Page N" of the row are no text of a page
+        if (parameters.value(QString::fromLatin1(Tool::PARAMETER_INCLUDE_PAGE_NUMBERS)).toBool())
+        {
+            for (size_t i = 0; i < input->getCatalog()->getPageCount(); ++i)
+            {
+                const QString line = QStringLiteral("Page %1").arg(i + 1);
+                const qsizetype index = text.indexOf(line);
+                if (index < 0)
+                {
+                    *failures << QStringLiteral("The line '%1' is missing").arg(line);
+                    return;
+                }
+                text.remove(index, line.size());
+            }
+        }
+
+        qint64 missing = 0;
+        const std::map<char32_t, qint64> fileCounts = countCharacters(text);
+        for (const auto& item : fileCounts)
+        {
+            const auto it = pageCounts.find(item.first);
+            const qint64 pageCount = it != pageCounts.cend() ? it->second : 0;
+            if (item.second > pageCount)
+            {
+                *failures << QStringLiteral("The file has %1 x U+%2, the pages %3").arg(item.second).arg(qint64(item.first), 4, 16, QLatin1Char('0')).arg(pageCount);
+                return;
+            }
+        }
+        for (const auto& item : pageCounts)
+        {
+            const auto it = fileCounts.find(item.first);
+            missing += item.second - (it != fileCounts.cend() ? it->second : 0);
+        }
+        if (missing * 50 > pageTotal)
+        {
+            *failures << QStringLiteral("%1 of %2 characters of the pages are not in the file").arg(missing).arg(pageTotal);
+        }
+
+        // Latin-1 counts the characters, which it replaces (white space too)
+        if (isLatin1 && result.data.value(QStringLiteral("lostCharacters")).toInteger() < notInLatin1)
+        {
+            *failures << QStringLiteral("%1 characters reported lost, the pages have %2 outside of Latin-1").arg(result.data.value(QStringLiteral("lostCharacters")).toInteger()).arg(notInLatin1);
+        }
+    }
+
 private:
+    /// The pages of Rotate Pages of the odd pages turned right
+    static std::vector<CorpusPageOrigin> mapOddPagesTurnedRight(const pdf::PDFDocument* input)
+    {
+        std::vector<CorpusPageOrigin> origins(input->getCatalog()->getPageCount());
+        for (size_t i = 0; i < origins.size(); ++i)
+        {
+            origins[i] = { i, i % 2 == 0 ? pdf::PageRotation::Rotate90 : pdf::PageRotation::None };
+        }
+        return origins;
+    }
+
+    /// The pages of Rotate Pages of all pages turned upside down
+    static std::vector<CorpusPageOrigin> mapAllPagesTurnedHalf(const pdf::PDFDocument* input)
+    {
+        std::vector<CorpusPageOrigin> origins(input->getCatalog()->getPageCount());
+        for (size_t i = 0; i < origins.size(); ++i)
+        {
+            origins[i] = { i, pdf::PageRotation::Rotate180 };
+        }
+        return origins;
+    }
+
+    /// The pages of Remove Pages of the even pages: the odd ones stay
+    static std::vector<CorpusPageOrigin> mapOddPagesStay(const pdf::PDFDocument* input)
+    {
+        std::vector<CorpusPageOrigin> origins;
+        for (size_t i = 0; i < input->getCatalog()->getPageCount(); i += 2)
+        {
+            origins.push_back({ i, pdf::PageRotation::None });
+        }
+        return origins;
+    }
+
+    /// A document of one page has no even page to remove
+    static bool hasOnePage(const pdf::PDFDocument* input)
+    {
+        return input->getCatalog()->getPageCount() < 2;
+    }
+
     static std::vector<CorpusToolRow> createToolRows()
     {
         using Compress = pdf::PDFDocumentToolCompress;
@@ -806,6 +1059,93 @@ private:
         rows.push_back({ Compress::TOOL_ID, "balanced", createCompress, preset(Compress::PRESET_BALANCED), CorpusLook::Close, PromiseAll });
         rows.push_back({ Compress::TOOL_ID, "best-quality", createCompress, preset(Compress::PRESET_BEST_QUALITY), CorpusLook::Exact, PromiseAll });
         rows.push_back({ Compress::TOOL_ID, "custom-images-only", createCompress, imagesOnly, CorpusLook::Close, PromiseAll });
+
+        // Optimize Structure: lossless, the strict limits of the pages
+        const auto createStructure = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<pdf::PDFDocumentToolStructure>();
+        };
+        rows.push_back({ pdf::PDFDocumentToolStructure::TOOL_ID, "all-steps", createStructure, QVariantMap(), CorpusLook::Exact, PromiseAll });
+
+        // Rotate Pages and Remove Pages: the pages change by their maps, the look of a page is lossless
+        const auto createRotate = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<pdf::PDFDocumentToolRotatePages>();
+        };
+        const auto createRemove = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<pdf::PDFDocumentToolRemovePages>();
+        };
+        const auto pages = [](const char* range, const QStringList& filters, const char* rotation)
+        {
+            QVariantMap pageSelection;
+            pageSelection.insert(QStringLiteral("pages"), QString::fromLatin1(range));
+            pageSelection.insert(QStringLiteral("filters"), filters);
+            QVariantMap parameters;
+            parameters.insert(QStringLiteral("pages"), pageSelection);
+            if (rotation)
+            {
+                parameters.insert(QStringLiteral("rotation"), QString::fromLatin1(rotation));
+            }
+            return parameters;
+        };
+        constexpr int PAGES_PROMISES = PromiseVersion | PromiseEncryption | PromiseText | PromiseTransparency;
+        rows.push_back({ pdf::PDFDocumentToolRotatePages::TOOL_ID, "odd-right", createRotate, pages("", { QStringLiteral("odd") }, "right"), CorpusLook::Exact,
+                         PAGES_PROMISES | PromiseSignatures | PromiseContent, &ToolCorpusHelper::mapOddPagesTurnedRight });
+        rows.push_back({ pdf::PDFDocumentToolRotatePages::TOOL_ID, "all-half", createRotate, pages("", {}, "half"), CorpusLook::Exact,
+                         PAGES_PROMISES | PromiseSignatures | PromiseContent, &ToolCorpusHelper::mapAllPagesTurnedHalf });
+        rows.push_back({ pdf::PDFDocumentToolRemovePages::TOOL_ID, "even", createRemove, pages("", { QStringLiteral("even") }, nullptr), CorpusLook::Exact,
+                         PAGES_PROMISES, &ToolCorpusHelper::mapOddPagesStay, nullptr, &ToolCorpusHelper::hasOnePage });
+
+        // Extract Text: a file, no document - its own assertion
+        using Extract = pdf::PDFDocumentToolExtractText;
+        const auto createExtract = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<Extract>();
+        };
+        const auto extract = [](const char* format, const char* order, const char* encoding, bool isPageNumbers)
+        {
+            QVariantMap parameters;
+            parameters.insert(QString::fromLatin1(Extract::PARAMETER_FORMAT), QString::fromLatin1(format));
+            parameters.insert(QString::fromLatin1(Extract::PARAMETER_ORDER), QString::fromLatin1(order));
+            parameters.insert(QString::fromLatin1(Extract::PARAMETER_ENCODING), QString::fromLatin1(encoding));
+            parameters.insert(QString::fromLatin1(Extract::PARAMETER_INCLUDE_PAGE_NUMBERS), isPageNumbers);
+            return parameters;
+        };
+        rows.push_back({ Extract::TOOL_ID, "text-layout", createExtract, extract(Extract::FORMAT_TEXT, Extract::ORDER_LAYOUT, Extract::ENCODING_UTF8, false), CorpusLook::Exact, PromiseNone, nullptr, &ToolCorpusHelper::checkExtractedText });
+        rows.push_back({ Extract::TOOL_ID, "html-auto", createExtract, extract(Extract::FORMAT_HTML, Extract::ORDER_AUTO, Extract::ENCODING_UTF8, false), CorpusLook::Exact, PromiseNone, nullptr, &ToolCorpusHelper::checkExtractedText });
+        rows.push_back({ Extract::TOOL_ID, "xml-content-stream-pages", createExtract, extract(Extract::FORMAT_XML, Extract::ORDER_CONTENT_STREAM, Extract::ENCODING_UTF8, true), CorpusLook::Exact, PromiseNone, nullptr, &ToolCorpusHelper::checkExtractedText });
+        rows.push_back({ Extract::TOOL_ID, "text-latin-1", createExtract, extract(Extract::FORMAT_TEXT, Extract::ORDER_LAYOUT, Extract::ENCODING_LATIN1, false), CorpusLook::Exact, PromiseNone, nullptr, &ToolCorpusHelper::checkExtractedText });
+
+        // Remove Hidden Data: the kinds, which nothing on the pages shows, keep the look exactly;
+        // the invisible text keeps it too (callout of 438:12588: page content is not changed),
+        // its text is gone by the purpose
+        const auto createSanitize = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<pdf::PDFDocumentToolSanitize>();
+        };
+        const auto kinds = [](const QStringList& names)
+        {
+            QVariantMap parameters = pdf::PDFDocumentToolSanitize::getPresetValues(pdf::PDFDocumentToolSanitize::Preset::Custom);
+            for (const QString& name : names)
+            {
+                parameters.insert(name, true);
+            }
+            return parameters;
+        };
+        constexpr int SANITIZE_PROMISES = PromiseVersion | PromiseEncryption | PromiseSignatures | PromiseTransparency;
+        rows.push_back({ pdf::PDFDocumentToolSanitize::TOOL_ID, "unseen-kinds", createSanitize,
+                         kinds({ QStringLiteral("documentInfo"), QStringLiteral("metadata"), QStringLiteral("outline"), QStringLiteral("pageLabels"), QStringLiteral("searchIndex"), QStringLiteral("thumbnails") }),
+                         CorpusLook::Exact, SANITIZE_PROMISES | PromiseText });
+        rows.push_back({ pdf::PDFDocumentToolSanitize::TOOL_ID, "invisible-text", createSanitize, kinds({ QStringLiteral("invisibleText") }), CorpusLook::Exact, SANITIZE_PROMISES });
+
+        // Remove External Links: only the links go, the pages keep their look and text
+        const auto createRemoveLinks = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<pdf::PDFDocumentToolRemoveLinks>();
+        };
+        rows.push_back({ pdf::PDFDocumentToolRemoveLinks::TOOL_ID, "all", createRemoveLinks, QVariantMap(), CorpusLook::Exact,
+                         PromiseVersion | PromiseEncryption | PromiseSignatures | PromiseText | PromiseTransparency });
         return rows;
     }
 
@@ -1015,6 +1355,10 @@ void DocumentToolCorpusTest::toolOnFile()
                 break;
 
             case pdf::PDFDocumentToolResultStatus::NothingToDo:
+                if (row.resultCheck)
+                {
+                    row.resultCheck(&input, result, row.parameters, &failures);
+                }
                 if (!result.documents.empty())
                 {
                     failures << QStringLiteral("NothingToDo with a document of the result");
@@ -1039,7 +1383,7 @@ void DocumentToolCorpusTest::toolOnFile()
                 {
                     failures << QStringLiteral("Failed without a message");
                 }
-                if (tool->getInfo() && !tool->getInfo()->isPermitted(&input))
+                if ((tool->getInfo() && !tool->getInfo()->isPermitted(&input)) || (row.refusal && row.refusal(&input)))
                 {
                     // The tool refused the file by its contract: permissions of the document. An
                     // invalid parameter of a row comes with the same errors, it is a failure.
@@ -1060,7 +1404,14 @@ void DocumentToolCorpusTest::toolOnFile()
 
         if (result.status == pdf::PDFDocumentToolResultStatus::Success)
         {
-            checkResultDocument(row, file, QString(), &input, inputData, result, &summary, &failures);
+            if (row.resultCheck)
+            {
+                row.resultCheck(&input, result, row.parameters, &failures);
+            }
+            else
+            {
+                checkResultDocument(row, file, QString(), &input, inputData, result, &summary, &failures);
+            }
         }
     }
     catch (const pdf::PDFException& exception)

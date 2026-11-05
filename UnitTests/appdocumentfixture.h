@@ -104,6 +104,19 @@ public:
     /// which is written to \p certificatePath (PKCS#12, getCertificatePassword)
     static QString signedDocument(const QString& folder, QString* certificatePath = nullptr);
 
+    /// The file of RestoredSignedFile signed by a new certificate: a signature over the
+    /// whole file, which the application has to restore from the bytes
+    static QString restoredSignedDocument(const QString& folder);
+
+    /// The file of restoredSignedDocument with a later revision, whose page tree has one page twice
+    /// (Signature/invalid/pdf-wrapping-6.pdf): the reader shows the oldest content of the file, which
+    /// has no signature field, the signature is in the bytes of the file
+    static QString oldestContentSignedDocument(const QString& folder);
+
+    /// A copy \p name of the file \p source with a wrong offset of its table (startxref): the reader
+    /// restores its objects from the bytes (PDFDocumentReader::isDocumentRestored), the content is the same
+    static QString damagedCopy(const QString& source, const QString& name);
+
     /// \p pageCount pages (2000 by default), text on every page (large documents, D11)
     static QString large(const QString& folder, int pageCount = 2000);
 

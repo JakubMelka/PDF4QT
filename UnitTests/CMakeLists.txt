@@ -1233,6 +1233,7 @@ add_executable(UnitTestsDocumentToolExtractText
     tst_documenttoolextracttexttest.cpp
 )
 target_link_libraries(UnitTestsDocumentToolExtractText PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+target_compile_definitions(UnitTestsDocumentToolExtractText PRIVATE PDF4QT_TEST_FONT_DIRECTORY="${CMAKE_SOURCE_DIR}/Pdf4QtLibFluent/resources/fonts")
 pdf4qt_target_precompile_headers(UnitTestsDocumentToolExtractText REUSE_FROM UnitTestsPchCore)
 set_target_properties(UnitTestsDocumentToolExtractText PROPERTIES
     WIN32_EXECUTABLE OFF

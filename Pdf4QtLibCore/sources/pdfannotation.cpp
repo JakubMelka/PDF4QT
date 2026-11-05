@@ -493,7 +493,24 @@ void PDFAnnotation::setSelfReference(const PDFObjectReference& selfReference)
 
 PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObjectReference reference)
 {
-    PDFObject object = storage->getObjectByReference(reference);
+    return parseObject(storage, storage->getObjectByReference(reference), reference);
+}
+
+PDFAnnotationPtr PDFAnnotation::parseItem(const PDFObjectStorage* storage, const PDFObject& item)
+{
+    if (item.isReference())
+    {
+        return parse(storage, item.getReference());
+    }
+    if (item.isDictionary())
+    {
+        return parseObject(storage, item, PDFObjectReference());
+    }
+    return PDFAnnotationPtr();
+}
+
+PDFAnnotationPtr PDFAnnotation::parseObject(const PDFObjectStorage* storage, const PDFObject& object, PDFObjectReference reference)
+{
     PDFAnnotationPtr result;
 
     const PDFDictionary* dictionary = storage->getDictionaryFromObject(object);

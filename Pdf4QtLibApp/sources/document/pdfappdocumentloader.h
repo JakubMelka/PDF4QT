@@ -24,6 +24,7 @@
 #define PDFAPPDOCUMENTLOADER_H
 
 #include "pdfappglobal.h"
+#include "pdfappdocument.h"
 
 #include "pdfdocument.h"
 
@@ -92,6 +93,7 @@ public:
         QByteArray data;                ///< Bytes of the file (kept for a second reading)
         bool isEncrypted = false;       ///< The file is encrypted (the tab shows the password icon)
         bool isPagedXFA = false;        ///< \p document is the paged layout of the XFA form of the file (PDFXFAPaging, step 8)
+        PDFAppDocumentRestoration restoration = PDFAppDocumentRestoration::None;    ///< The file is damaged (Loaded)
         QString errorMessage;           ///< Translated error (Failed)
     };
 

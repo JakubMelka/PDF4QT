@@ -204,7 +204,8 @@ public:
     /// Picture of a widget at the device pixel ratio over the canvas color
     static QImage render(QWidget* widget, qreal devicePixelRatio);
 
-    /// Number of the pixels of the leak color
+    /// Number of the pixels of the leak color: a filled area and also a text in the leak
+    /// color, whose glyphs are blends of it with the background (leakDetectorSeesText)
     static int countLeakPixels(const QImage& image);
 
     /// Writes the picture of the dialog as <name>.png and <name>-2x.png into the

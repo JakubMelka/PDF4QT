@@ -915,8 +915,6 @@ private Q_SLOTS:
     void imagesRunInParallel();
     void imageDecodedOncePerDocument_data();
     void imageDecodedOncePerDocument();
-    void outOfMemoryIsClearResult_data();
-    void outOfMemoryIsClearResult();
     void decodedNullImageStaysUnchanged();
     void stopEndsTheRunSoon_data();
     void stopEndsTheRunSoon();
@@ -1241,55 +1239,6 @@ void DocumentToolCompressTest::imageDecodedOncePerDocument()
     }, nullptr);
     QCOMPARE(logoCount.load(), 1);
     QCOMPARE(otherCount.load(), 1);
-}
-
-void DocumentToolCompressTest::outOfMemoryIsClearResult_data()
-{
-    QTest::addColumn<bool>("isPreview");
-    QTest::addColumn<int>("strategy");
-    QTest::newRow("run-threads") << false << int(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded);
-    QTest::newRow("preview-threads") << true << int(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded);
-    QTest::newRow("run-single-thread") << false << int(pdf::PDFExecutionPolicy::Strategy::SingleThreaded);
-}
-
-void DocumentToolCompressTest::outOfMemoryIsClearResult()
-{
-    // Out of memory is a clear result of its kind, never a crash and never a damaged result: an
-    // allocation of the decoded pixels failed by an injected failure, the input stays as it was
-    QFETCH(bool, isPreview);
-    QFETCH(int, strategy);
-
-    const pdf::PDFDocument document = CompressTestHelper::createPhotoDocument(8, 128);
-    const QByteArray before = CompressTestHelper::write(document);
-
-    pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy(strategy));
-    const auto restore = qScopeGuard([]() { pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded); });
-
-    std::atomic<int> decoded = 0;
-    pdf::PDFImageCompressor::setTestDecodeHook([&decoded](pdf::PDFObjectReference, QImage image) -> QImage
-    {
-        if (++decoded == 3)
-        {
-            throw std::bad_alloc();
-        }
-        return image;
-    });
-    const auto removeHook = qScopeGuard([]() { pdf::PDFImageCompressor::setTestDecodeHook(pdf::PDFImageCompressor::TestDecodeHook()); });
-
-    const pdf::PDFDocumentToolCompress tool;
-    const pdf::PDFDocumentToolContext context = CompressTestHelper::createContext(document, QByteArray(10000000, 'x'), QStringLiteral("a.pdf"), false);
-    const pdf::PDFDocumentToolResult result = isPreview ? tool.runPreview(context, CompressTestHelper::preset("balanced"), nullptr, nullptr)
-                                                        : tool.run(context, CompressTestHelper::preset("balanced"), nullptr, nullptr);
-    QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Failed);
-    QVERIFY(result.documents.empty());
-    QVERIFY(result.isOutOfMemory());
-    QVERIFY2(result.message.contains(QStringLiteral("not enough memory")), qPrintable(result.message));
-
-    // The setting is advised only while it is not on (owner 2026-11-04)
-    const bool hasAdvice = pdf::PDFExecutionPolicy::Strategy(strategy) != pdf::PDFExecutionPolicy::Strategy::SingleThreaded;
-    QCOMPARE(result.message.contains(QStringLiteral("Multithreading strategy")), hasAdvice);
-    QCOMPARE(result.message.contains(QStringLiteral("Single thread")), hasAdvice);
-    QCOMPARE(CompressTestHelper::write(document), before);
 }
 
 void DocumentToolCompressTest::decodedNullImageStaysUnchanged()

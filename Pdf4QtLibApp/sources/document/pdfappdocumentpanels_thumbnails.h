@@ -199,6 +199,10 @@ public:
 
     /// Size of one item (the grid adds the gaps)
     void setItemSize(const QSize& size);
+
+    /// Least space at each side of the columns (the padding of the sidebar, 14 by default); a
+    /// panel, which has its own padding, gives 0 (the left panel of Extract Text, 339:8282)
+    void setSidePadding(int padding);
     QSize getItemSize() const { return m_itemSize; }
 
     /// A press or a release of the right button is handled: the page under it is
@@ -220,6 +224,7 @@ private:
     void updateMargins();
 
     QSize m_itemSize;
+    int m_sidePadding = -1;     ///< -1 = the padding of the sidebar
     bool m_isUpdatingMargins = false;
     bool m_isContextClick = false;
 };

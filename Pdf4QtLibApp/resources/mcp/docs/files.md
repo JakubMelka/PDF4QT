@@ -30,6 +30,7 @@ The tool `files` opens PDF files in PDF4QT and saves documents (Open and save fi
 - `save` writes the document over its own file. It is **always confirmed** by the user – also when Open and save files is Allow – because it replaces the file on the disk.
 - A signed document is saved incrementally: the signed bytes stay unchanged, and the signatures stay valid as far as the signers allowed changes.
 - A copy made in PDF4QT (Edit a Copy) has no file: use `save_copy`.
+- A damaged file, which PDF4QT restored (`document.get_info` says `fileRestored`), is never saved over when it has a signature or only its oldest content is shown (`oldestContentShown`): `save` is refused, use `save_copy`. The copy is written whole, its signatures are not valid, and its result has a `note` to tell the user.
 - A locked document is not saved; a document without changes needs no saving.
 
 ## Save a copy

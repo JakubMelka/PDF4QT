@@ -157,6 +157,7 @@ public:
     QString fileDescription;    ///< Description of Save as a file of an export ("The text is written to a new .txt file. …", 339:10300)
     QString fileConfirmText;    ///< Button of Save as a file of an export ("Save Text", 339:10323)
     QString previousToolId;     ///< Tool, after whose result this one ran (the pair of the suggestions)
+    QString reportText;         ///< Report of the run for the clipboard: the link Copy report in the head, empty = no link (Optimize Structure 303:5373, see the tool)
     QPointer<QWidget> scrimTarget;  ///< The covered widget: the canvas of the tool (312:7373); null = the body of the window
 };
 
@@ -263,6 +264,7 @@ public:
         bool hasFile = true;        ///< The document has a file (not Edit a Copy, not an attachment from the memory)
         bool isSigned = false;      ///< The document has a signed signature field
         bool isLocked = false;      ///< The document is locked
+        bool isOnlyCopyWritable = false;    ///< PDFAppDocumentFileWriter::isOnlyCopyWritable: its file is damaged
     };
 
     /// Kind of the dialog of a result
@@ -312,6 +314,9 @@ public:
     QPushButton* getDiscardButton() const { return m_discardButton; }
     QPushButton* getConfirmButton() const { return m_confirmButton; }
     QScrollArea* getScrollArea() const { return m_scrollArea; }
+
+    /// The link Copy report of the head (PDFAppToolResultInput::reportText), nullptr = none
+    PDFTextLink* getReportLink() const { return m_reportLink; }
 
     /// The target of the write of the selected choice
     QString getTargetFilePath() const;
@@ -401,6 +406,7 @@ private:
     void onContinueChanged();
     void onAnotherToolRequested();
     void onChooserFinished(int result);
+    void onReportLinkClicked();
     void onWriterFinished(const pdf::PDFAppToolResultWriter::Result& result);
     void onRunnerGone();
 
@@ -440,6 +446,8 @@ private:
     QPointer<QPushButton> m_chooseLocationButton;
     QPointer<PDFAppParagraph> m_titleLabel;
     QPointer<PDFAppParagraph> m_subtitleLabel;
+    QPointer<PDFTextLink> m_reportLink;
+    bool m_isReportCopied = false;  ///< The link says, that the report is on the clipboard
     QPointer<PDFLabel> m_nameError;
     QPointer<PDFLineEdit> m_fileNameField;
     QPointer<PDFLineEdit> m_filePathField;

@@ -351,6 +351,8 @@ public:
             output.addProperty(QStringLiteral("pageMode"), outputString(QString()));
             output.addProperty(QStringLiteral("isLocked"), B::boolean(QString()));
             output.addProperty(QStringLiteral("isModified"), B::boolean(QString()));
+            output.addProperty(QStringLiteral("fileRestored"), B::boolean(QStringLiteral("The file is damaged: PDF4QT restored its content from its bytes, so something may be missing or differ. Tell the user")));
+            output.addProperty(QStringLiteral("oldestContentShown"), B::boolean(QStringLiteral("The last changes of the damaged file cannot be read, its oldest content is shown. Tell the user; only save_copy can write it")));
             output.addProperty(QStringLiteral("version"), outputInteger(QStringLiteral("Version of the document in PDF4QT (grows with every change)")));
             addOrigin(output);
             tool.actions.push_back(action(QStringLiteral("get_info"), QStringLiteral("Metadata, page count, form, encryption and counts of the document"), Kind::Read, B::object(), output));
@@ -518,12 +520,13 @@ public:
             item.addProperty(QStringLiteral("trusted"), B::boolean(QString()));
             item.addProperty(QStringLiteral("coversWholeDocument"), B::boolean(QString()));
             item.addProperty(QStringLiteral("modifiedAfter"), B::boolean(QStringLiteral("The document was changed after the signature")));
+            item.addProperty(QStringLiteral("fileRestored"), B::boolean(QStringLiteral("The file is damaged and its content was restored from its bytes: what is shown may not be what was signed")));
             item.addProperty(QStringLiteral("reason"), outputString(QString()));
             item.addProperty(QStringLiteral("location"), outputString(QString()));
 
             PDFMcpSchema output = outputObject();
             output.addProperty(QStringLiteral("signatures"), outputArray(QString(), item));
-            output.addProperty(QStringLiteral("invalidAfterSaving"), B::boolean(QStringLiteral("A tool rewrote the whole document: the signatures will no longer be valid when it is saved")));
+            output.addProperty(QStringLiteral("invalidAfterSaving"), B::boolean(QStringLiteral("A tool rewrote the whole document, or the file is damaged: the signatures will not be valid in a written file")));
             addOrigin(output);
             tool.actions.push_back(action(QStringLiteral("get_signatures"), QStringLiteral("Results of the verification of the signatures shown by PDF4QT"), Kind::Read, B::object(), output));
         }
@@ -1023,6 +1026,7 @@ public:
 
             PDFMcpSchema output = outputObject();
             output.addProperty(QStringLiteral("path"), outputString(QString()));
+            output.addProperty(QStringLiteral("note"), outputString(QStringLiteral("What the user must be told about the copy (absent when there is nothing)")));
             tool.actions.push_back(action(QStringLiteral("save_copy"), QStringLiteral("Save a copy of the document; the tab is unchanged"), Kind::Files, input, output));
         }
 

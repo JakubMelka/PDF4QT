@@ -23,6 +23,89 @@
 #ifndef PDFOUTPUTFORMATTER_H
 #define PDFOUTPUTFORMATTER_H
 
-// PDFOutputFormatter moved from PdfTool: stub of package 2D of the plan of the first batch of phase 2.
+#include "pdfglobal.h"
+
+#include <QString>
+
+namespace pdf
+{
+class PDFOutputFormatterImpl;
+
+/// Output formatter for text output in various format (text, xml, html...)
+/// to the output console. Text output is in form of a structure tree,
+/// for example, xml format.
+class PDF4QTLIBCORESHARED_EXPORT PDFOutputFormatter
+{
+public:
+    enum class Style
+    {
+        Text,
+        Xml,
+        Html
+    };
+
+    explicit PDFOutputFormatter(Style style);
+    ~PDFOutputFormatter();
+
+    PDFOutputFormatter(const PDFOutputFormatter&) = delete;
+    PDFOutputFormatter& operator=(const PDFOutputFormatter&) = delete;
+
+    enum class Element
+    {
+        Root,               ///< Root element, this must be used only once at start/end of writing
+        Header,             ///< Header
+        Text,               ///< Ordinary text
+        Table,              ///< Table of rows/columns (2D grid)
+        TableHeaderRow,     ///< Table header row (consists of columns)
+        TableHeaderColumn,  ///< Table header column
+        TableRow,           ///< Table row (consists of columns)
+        TableColumn         ///< Table column
+    };
+
+    /// Starts a new element in structure tree. Each call of this function must be
+    /// accompanied with matching call to \p endElement function. Element can have
+    /// internal name (in xml file), text description for user (as string), and reference
+    /// number. Also alignment can also be specified. Element type and name must
+    /// always be specified.
+    /// \param type Element type
+    /// \param name Internal element name (for example, xml tag if style is XML)
+    /// \param description Text description for user
+    /// \param alignment Cell alignment in table
+    /// \param reference Reference number
+    void beginElement(Element type, QString name, QString description = QString(), Qt::Alignment alignment = Qt::AlignLeft, int reference = 0);
+
+    /// Ends current element. Must match with a call of \p beginElement
+    void endElement();
+
+    inline void beginDocument(QString name, QString description) { beginElement(Element::Root, name, description); }
+    inline void endDocument() { endElement(); }
+    inline void beginTable(QString name, QString description) { beginElement(Element::Table, name, description); }
+    inline void endTable() { endElement(); }
+    inline void beginTableHeaderRow(QString name) { beginElement(Element::TableHeaderRow, name); }
+    inline void endTableHeaderRow() { endElement(); }
+    inline void beginTableRow(QString name) { beginElement(Element::TableRow, name); }
+    inline void beginTableRow(QString name, int reference) { beginElement(Element::TableRow, name, QString(), Qt::AlignLeft, reference); }
+    inline void endTableRow() { endElement(); }
+    inline void writeTableHeaderColumn(QString name, QString description, Qt::Alignment alignment = Qt::AlignLeft) { beginElement(Element::TableHeaderColumn, name, description, alignment); endElement(); }
+    inline void writeTableColumn(QString name, QString description, Qt::Alignment alignment = Qt::AlignLeft) { beginElement(Element::TableColumn, name, description, alignment); endElement(); }
+    inline void writeText(QString name, QString description, int reference = 0) { beginElement(Element::Text, name, description, Qt::AlignLeft, reference); endElement(); }
+    inline void beginHeader(QString name, QString description, int reference = 0) { beginElement(Element::Header, name, description, Qt::AlignLeft, reference); }
+    inline void endHeader() { endElement(); }
+
+    /// Ends current line
+    void endl();
+
+    /// The style Text writes a plain text: no indentation of the structure and no line of an
+    /// empty root element. Call it before the first element. (Other styles ignore it.)
+    void setPlainText(bool isPlainText);
+
+    /// Get result string in unicode.
+    QString getString() const;
+
+private:
+    PDFOutputFormatterImpl* m_impl;
+};
+
+}   // namespace pdf
 
 #endif // PDFOUTPUTFORMATTER_H

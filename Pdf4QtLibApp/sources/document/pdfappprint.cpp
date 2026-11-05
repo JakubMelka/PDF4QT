@@ -633,10 +633,6 @@ QImage PDFAppPrintRenderer::renderPreview(PDFDocumentPointer document, PDFCMSSet
     {
         return QImage();
     }
-    catch (const std::bad_alloc&)
-    {
-        return QImage();
-    }
 }
 
 std::vector<PDFAppPrintJob::Item> PDFAppPrintJob::getItems(const PDFAppPrintSettings& settings)
@@ -787,12 +783,6 @@ PDFAppPrintJob::Result PDFAppPrintJob::run(Data data)
     catch (const PDFException& exception)
     {
         result.errorMessage = exception.getMessage();
-        result.printedCount = state->printedCount.load();
-        result.remainingItems = PDFAppPrintHelper::getRemainingItems(items, size_t(qMax(0, result.printedCount)));
-    }
-    catch (const std::bad_alloc&)
-    {
-        result.errorMessage = tr("There is not enough memory to print the document.");
         result.printedCount = state->printedCount.load();
         result.remainingItems = PDFAppPrintHelper::getRemainingItems(items, size_t(qMax(0, result.printedCount)));
     }

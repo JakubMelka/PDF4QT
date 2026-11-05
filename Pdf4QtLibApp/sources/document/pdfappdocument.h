@@ -42,6 +42,7 @@ namespace pdf
 
 class PDFAppContext;
 class PDFAppUndoStack;
+class PDFDocumentReader;
 class PDFDocumentTextIndex;
 class PDFOptionalContentActivity;
 
@@ -77,6 +78,15 @@ enum class PDFAppDocumentOperationKind
     Tool        ///< A run of a tool of the catalog and its result waiting for the decision of the user (phase 2)
 };
 
+/// What the reader has done with a damaged file (PDFDocumentReader::isDocumentRestored and
+/// isOldestContentShown): the document is not what the cross-reference table of its bytes says
+enum class PDFAppDocumentRestoration
+{
+    None,           ///< The document is what the file says
+    Restored,       ///< The objects were restored from the bytes of the damaged file, or some of them are missing
+    OldestContent   ///< The last changes of the damaged file cannot be read, its oldest objects are shown
+};
+
 /// Snapshot of a document for a worker thread: the immutable document of one
 /// version, the original bytes of the file and its path. A worker may build a
 /// modified copy by PDFDocumentModifier and commit it with the version of the
@@ -104,6 +114,9 @@ public:
     /// revision, an update of them keeps no signature (also of a version without
     /// isWholeFileRewritten, undo gives one back)
     bool isSignedRevisionGone = false;
+
+    /// PDFAppDocument::getRestoration: \p originalData are a damaged file
+    PDFAppDocumentRestoration restoration = PDFAppDocumentRestoration::None;
 
     bool isValid() const { return !document.isNull(); }
 };
@@ -290,10 +303,19 @@ public:
     /// more, whichever version undo or redo shows (setSavedAs). A reload ends it.
     bool isSignedRevisionGone() const { return m_isSignedRevisionGone; }
 
-    /// The bytes still hold the signed revision, but the shown version was rewritten whole by a
-    /// tool, so the next save loses it: the signatures will not be valid after it (owner
-    /// decision 3). After the file has been written the signatures are what the verification of
-    /// the written bytes says, nothing is left to lose.
+    /// The original bytes are a damaged file the reader has restored (a reload reads it again; a
+    /// file written by this tab is whole, it ends the state). No file is an update of such bytes,
+    /// PDFAppDocumentFileWriter::isOnlyCopyWritable says what may be written.
+    PDFAppDocumentRestoration getRestoration() const { return m_restoration; }
+
+    /// The value of getRestoration for what the reader has read
+    static PDFAppDocumentRestoration getRestoration(const PDFDocumentReader& reader);
+
+    /// The bytes still hold the signed revision, but no file written from the shown version can
+    /// keep it - a tool has rewritten the version whole (owner decision 3), or the bytes are a
+    /// damaged file: the signatures will not be valid in the written file. After the file has been
+    /// written the signatures are what the verification of the written bytes says, nothing is left
+    /// to lose.
     bool isSignatureLostOnSave() const;
 
     /// The last tool, whose result was accepted on this document (the pair of the
@@ -439,13 +461,15 @@ public:
     /// (setLoadingFromMemory, an empty \p filePath) stays a modified copy.
     /// \p isPagedXFA says, that \p document is the paged layout of the XFA form
     /// of the file (isPagedXFA, the loader pages it in its worker thread).
-    void setLoaded(PDFDocumentPointer document, QByteArray originalData, const QString& filePath, bool isPasswordProtected, bool isPagedXFA = false);
+    void setLoaded(PDFDocumentPointer document, QByteArray originalData, const QString& filePath, bool isPasswordProtected, bool isPagedXFA = false,
+                   PDFAppDocumentRestoration restoration = PDFAppDocumentRestoration::None);
 
     /// Result of a reload of the file (automatic refresh of package E): the document
     /// is replaced (flags Reset and PreserveView, the state stays Ready), the undo
     /// stack is cleared and the new version is saved. Ignored, when the document is
     /// not shown.
-    void reload(PDFDocumentPointer document, QByteArray data, bool isPasswordProtected, bool isPagedXFA = false);
+    void reload(PDFDocumentPointer document, QByteArray data, bool isPasswordProtected, bool isPagedXFA = false,
+                PDFAppDocumentRestoration restoration = PDFAppDocumentRestoration::None);
 
     /// Result of a loader: the file needs a password (\p isWrong after a wrong
     /// password, 228:8965)
@@ -528,6 +552,7 @@ private:
     bool m_isPagedXFA = false;
     bool m_isWholeFileRewritten = false;
     bool m_isSignedRevisionGone = false;    ///< The bytes of the file were written whole in this tab: they hold no signed revision (setSavedAs)
+    PDFAppDocumentRestoration m_restoration = PDFAppDocumentRestoration::None;
     bool m_areUserChangesSuspended = false;
     bool m_hasPendingEdits = false;
     bool m_isPasswordProtected = false;

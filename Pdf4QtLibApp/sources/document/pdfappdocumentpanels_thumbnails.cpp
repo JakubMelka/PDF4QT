@@ -511,6 +511,12 @@ void PDFAppThumbnailListView::updateGeometries()
     }
 }
 
+void PDFAppThumbnailListView::setSidePadding(int padding)
+{
+    m_sidePadding = qMax(0, padding);
+    updateMargins();
+}
+
 void PDFAppThumbnailListView::updateMargins()
 {
     if (!m_itemSize.isValid())
@@ -523,7 +529,8 @@ void PDFAppThumbnailListView::updateMargins()
     const QMargins current = viewportMargins();
     const int total = viewport()->width() + current.left() + current.right();
     const int gridWidth = m_itemSize.width() + PDFAppThumbnailsHelper::GRID_GAP_X;
-    const int available = qMax(0, total - 2 * PDFAppThumbnailsHelper::GRID_PADDING_SIDE + PDFAppThumbnailsHelper::GRID_GAP_X - PDFAppThumbnailsHelper::GRID_SLACK);
+    const int sidePadding = m_sidePadding >= 0 ? m_sidePadding : PDFAppThumbnailsHelper::GRID_PADDING_SIDE;
+    const int available = qMax(0, total - 2 * sidePadding + PDFAppThumbnailsHelper::GRID_GAP_X - PDFAppThumbnailsHelper::GRID_SLACK);
     const int columns = qMax(1, available / qMax(1, gridWidth));
     const int contentWidth = columns * gridWidth;
     const int side = qMax(0, (total - contentWidth) / 2);

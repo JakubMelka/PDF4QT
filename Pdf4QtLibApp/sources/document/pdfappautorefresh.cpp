@@ -129,6 +129,7 @@ PDFAppAutoRefreshReader::Result PDFAppAutoRefreshReader::read(QString filePath, 
                 result.document = PDFDocumentPointer(new PDFDocument(std::move(document)));
                 result.data = std::move(data);
                 result.outcome = Outcome::Changed;
+                result.restoration = PDFAppDocument::getRestoration(reader);
 
                 // The file of a dynamic XFA form is paged again (step 8)
                 if (PDFDocumentPointer pagedDocument = PDFXFAPaging::createPagedDocument(result.document.data()))
@@ -155,11 +156,6 @@ PDFAppAutoRefreshReader::Result PDFAppAutoRefreshReader::read(QString filePath, 
     {
         result.outcome = Outcome::Failed;
         result.errorMessage = exception.getMessage();
-    }
-    catch (const std::bad_alloc&)
-    {
-        result.outcome = Outcome::Failed;
-        result.errorMessage = tr("There is not enough memory to read the file.");
     }
 
     return result;
@@ -482,7 +478,7 @@ void PDFAppAutoRefresh::applyResult(const PDFAppAutoRefreshReader::Result& resul
 
     ++m_reloadCount;
     QPointer<PDFAppAutoRefresh> guard(this);
-    document->reload(result.document, result.data, result.isPasswordProtected, result.isPagedXFA);
+    document->reload(result.document, result.data, result.isPasswordProtected, result.isPagedXFA, result.restoration);
     if (guard)
     {
         Q_EMIT reloaded();
@@ -554,7 +550,7 @@ void PDFAppAutoRefresh::onDialogFinished(int result)
         }
         else
         {
-            document->reload(pending.document, pending.data, pending.isPasswordProtected, pending.isPagedXFA);
+            document->reload(pending.document, pending.data, pending.isPasswordProtected, pending.isPagedXFA, pending.restoration);
             if (guard)
             {
                 Q_EMIT reloaded();

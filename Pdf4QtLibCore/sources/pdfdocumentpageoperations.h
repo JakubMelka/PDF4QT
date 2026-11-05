@@ -23,6 +23,98 @@
 #ifndef PDFDOCUMENTPAGEOPERATIONS_H
 #define PDFDOCUMENTPAGEOPERATIONS_H
 
-// PDFDocumentPageOperations (rotate and remove pages): stub of package 2A of the plan of the first batch of phase 2.
+#include "pdfglobal.h"
+#include "pdfdocument.h"
+#include "pdfpage.h"
+
+#include <QCoreApplication>
+
+#include <vector>
+
+namespace pdf
+{
+
+class PDFOperationControl;
+
+/// Operations on the pages of a document (plan of the first batch of phase 2, chapters
+/// 2.7 and 7): the rotation of the pages, used by Rotate Pages and by the commands
+/// Rotate Left / Right of the thumbnails, and the removal of pages with everything,
+/// which points at them. The input document is never changed; every function returns
+/// a new document, which keeps the numbers of the objects of the input (a signed
+/// document is saved by an incremental update, chapter 12 of the plan), its version
+/// and the hash of its source data. A document, which cannot be changed, throws
+/// PDFException.
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentPageOperations
+{
+    Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocumentPageOperations)
+
+public:
+    PDFDocumentPageOperations() = delete;
+
+    /// The rotation a page gets (the value of /Rotate written into the page)
+    struct PageRotationChange
+    {
+        PDFInteger pageIndex = -1;                      ///< Index of the page (from 0)
+        PageRotation rotation = PageRotation::None;     ///< The new rotation of the page
+    };
+
+    /// Changes of the pages \p pages turned by \p turn from their current rotation
+    /// (Rotate Left = Rotate270, Rotate Right = Rotate90); pages, which the document
+    /// does not have, and duplicates are left out
+    static std::vector<PageRotationChange> createTurnChanges(const PDFDocument* document, const std::vector<PDFInteger>& pages, PageRotation turn);
+
+    /// Writes the rotations of the pages (/Rotate of each page; the inherited values of
+    /// the other pages stay). An own OCR layer of a rotated page, which was bound to its
+    /// page, stays bound: its words are in the unrotated space of the page, only the
+    /// rotation of the page has changed (PDFOCRTextLayerWriter::rebindFingerprintsOfPages).
+    /// \param document The document
+    /// \param changes The rotations, an invalid page throws PDFException
+    static PDFDocument rotatePages(const PDFDocument* document, const std::vector<PageRotationChange>& changes);
+
+    /// What a removal of pages has changed besides the pages
+    struct RemovalStatistics
+    {
+        qint64 outlineItemsRemoved = 0;         ///< Items of the outline, which led to a removed page and had no other item below them
+        qint64 outlineTargetsRemoved = 0;       ///< Items, which stay as headings of their items, whose own target was a removed page
+        qint64 namedDestinationsRemoved = 0;    ///< Named destinations of a removed page (/Names /Dests and /Dests)
+        qint64 namedPagesRemoved = 0;           ///< Entries of /Names /Pages and /Names /Templates, which were a removed page
+        qint64 linksRemoved = 0;                ///< Links of the pages, which stay, to a removed page
+        qint64 actionsRemoved = 0;              ///< Other actions (of buttons, of pages), which went to a removed page
+        qint64 fieldsRemoved = 0;               ///< Form fields, which had their widgets only on removed pages
+        qint64 signaturesRemoved = 0;           ///< Signature fields among them
+        qint64 layersRemoved = 0;               ///< Optional content groups used only by removed pages
+        qint64 objectsRemoved = 0;              ///< Objects, which nothing refers to any more (they are null now)
+        bool structureTreeRemoved = false;      ///< The document had a structure tree (tags), it is removed
+        bool threadsRemoved = false;            ///< The document had articles, they are removed
+        bool documentActionsRemoved = false;    ///< The document had an action at its opening or document actions, they are removed
+        bool pageLabelsRewritten = false;       ///< The page labels have been written again, so that every page keeps its label
+        bool isCanceled = false;                ///< The removal has been canceled, the returned document is empty
+    };
+
+    /// Removes the pages and everything, which points at them, so that no object of the
+    /// result points at a removed page (plan of the first batch, chapter 7): the outline
+    /// (all levels; an item is removed, when its target was a removed page and no item
+    /// below it stays; an item, which keeps items below it, loses only its target), the
+    /// named destinations, /Names /Pages and /Names /Templates, the links and the GoTo
+    /// actions of the pages, which stay, the widgets of the removed pages with their
+    /// fields (a field without a widget is removed, also a signature field and its
+    /// /Perms), the optional content groups used only by the removed pages, the page
+    /// labels (each page, which stays, keeps its label). As the old PageMaster, the
+    /// structure tree, the articles and the document actions are removed (owner answer
+    /// Q8). The objects, which nothing refers to any more, are null; the pages of the
+    /// result are one flat page tree. Removing every page throws PDFException.
+    /// \param document The document
+    /// \param pages Indices of the pages to remove (from 0); invalid ones and duplicates are left out
+    /// \param control Cancellation (optional)
+    /// \param statistics What has changed (optional)
+    static PDFDocument removePages(const PDFDocument* document, const std::vector<PDFInteger>& pages, const PDFOperationControl* control, RemovalStatistics* statistics);
+
+    /// Text of pages numbered from 1 in ranges ("4–6, 20", "9, 10, 15": an en dash in a range
+    /// of three pages and more), at most \p maximumParts parts, the rest is "…"
+    /// \param pageIndices Indices of the pages (from 0), sorted
+    static QString formatPageNumbers(const std::vector<PDFInteger>& pageIndices, int maximumParts = 6);
+};
+
+}   // namespace pdf
 
 #endif // PDFDOCUMENTPAGEOPERATIONS_H

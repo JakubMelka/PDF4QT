@@ -27,14 +27,12 @@
 #include "pdfdocumenttoolparameter.h"
 #include "pdfdocumenttoolregistry.h"
 #include "pdfdocumenttoolsuggestions.h"
-#include "pdfexecutionpolicy.h"
 
 #include "testdocumenttool.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QRandomGenerator>
-#include <QScopeGuard>
 #include <QSignalSpy>
 #include <QTranslator>
 #include <QtTest>
@@ -292,9 +290,6 @@ private Q_SLOTS:
     void testToolExecute();
     void testToolCancellation();
     void testToolPreview();
-    void outOfMemoryKind_data();
-    void outOfMemoryKind();
-    void otherFailuresAreGeneral();
 };
 
 void DocumentToolTest::cleanup()
@@ -1256,7 +1251,7 @@ void DocumentToolTest::parameterDefinitionsEachType()
     // Enum
     QCOMPARE(Helper::normalized(find("mode"), QStringLiteral("title")), QVariant(QStringLiteral("title")));
     QVERIFY(!Helper::normalizeError(find("mode"), QStringLiteral("Title")).isEmpty());
-    QCOMPARE(find("mode").getOptions().size(), size_t(7));
+    QCOMPARE(find("mode").getOptions().size(), size_t(6));
     QCOMPARE(find("mode").getOptions().front().iconName, QStringLiteral("hash"));
 
     // PageSelection from a text and from an object
@@ -1516,8 +1511,8 @@ void DocumentToolTest::jsonSchemaExact()
                 "default": { "pages": "", "filters": [] }
             },
             "mode": {
-                "type": "string", "title": "Mode", "enum": [ "count", "title", "nothing", "fail", "throw", "throw-memory", "throw-std" ],
-                "description": "What the tool does\n- count: Count pages (Counts the selected pages)\n- title: Set title\n- nothing: Nothing to do\n- fail: Fail\n- throw: Throw\n- throw-memory: Throw bad_alloc\n- throw-std: Throw std::exception",
+                "type": "string", "title": "Mode", "enum": [ "count", "title", "nothing", "fail", "throw", "throw-std" ],
+                "description": "What the tool does\n- count: Count pages (Counts the selected pages)\n- title: Set title\n- nothing: Nothing to do\n- fail: Fail\n- throw: Throw\n- throw-std: Throw std::exception",
                 "default": "count"
             },
             "detailed": { "type": "boolean", "title": "Detailed", "description": "List the page numbers", "default": false },
@@ -2177,10 +2172,6 @@ void DocumentToolTest::testToolExecute()
     result = tool.run(context, parameters, nullptr, nullptr);
     QCOMPARE(result.status, Status::Failed);
     QCOMPARE(result.message, QStringLiteral("Thrown on purpose"));
-    parameters.insert(QStringLiteral("mode"), QStringLiteral("throw-memory"));
-    result = tool.run(context, parameters, nullptr, nullptr);
-    QCOMPARE(result.status, Status::Failed);
-    QVERIFY(result.message.contains(QStringLiteral("memory")));
     parameters.insert(QStringLiteral("mode"), QStringLiteral("throw-std"));
     result = tool.run(context, parameters, nullptr, nullptr);
     QCOMPARE(result.status, Status::Failed);
@@ -2301,7 +2292,7 @@ void DocumentToolTest::testToolPreview()
     QCOMPARE(tool.runPreview(context, parameters, nullptr).status, pdf::PDFDocumentToolResultStatus::Failed);
 
     // Exceptions of the preview are failures
-    for (const char* mode : { "throw", "throw-memory", "throw-std" })
+    for (const char* mode : { "throw", "throw-std" })
     {
         QVariantMap throwing;
         throwing.insert(QStringLiteral("mode"), QString::fromLatin1(mode));
@@ -2319,91 +2310,6 @@ void DocumentToolTest::testToolPreview()
     QCOMPARE(empty.status, pdf::PDFDocumentToolResultStatus::Success);
     QVERIFY(empty.facts.empty());
     QVERIFY(empty.documents.empty());
-}
-
-void DocumentToolTest::outOfMemoryKind_data()
-{
-    using Strategy = pdf::PDFExecutionPolicy::Strategy;
-
-    QTest::addColumn<bool>("isPreview");
-    QTest::addColumn<int>("strategy");
-    QTest::addColumn<bool>("hasAdvice");
-    for (const bool isPreview : { false, true })
-    {
-        const char* name = isPreview ? "preview" : "run";
-        QTest::addRow("%s-single", name) << isPreview << int(Strategy::SingleThreaded) << false;
-        QTest::addRow("%s-pages", name) << isPreview << int(Strategy::PageMultithreaded) << true;
-        QTest::addRow("%s-always", name) << isPreview << int(Strategy::AlwaysMultithreaded) << true;
-    }
-}
-
-void DocumentToolTest::outOfMemoryKind()
-{
-    // std::bad_alloc of a tool is told by a typed field, not by a text. The text is what an assistant
-    // reads: it advises the setting of one thread only while the pages run in more threads. The JSON
-    // of the assistant has no new member.
-    QFETCH(bool, isPreview);
-    QFETCH(int, strategy);
-    QFETCH(bool, hasAdvice);
-
-    pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy(strategy));
-    const auto restore = qScopeGuard([]() { pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded); });
-
-    pdftest::TestDocumentTool tool;
-    tool.setPreview(true, false);
-    const pdf::PDFDocumentPointer document = DocumentToolTestHelper::createMixedDocument();
-    const pdf::PDFDocumentToolContext context = DocumentToolTestHelper::createContext(document);
-    QVariantMap parameters;
-    parameters.insert(QStringLiteral("mode"), QStringLiteral("throw-memory"));
-
-    const pdf::PDFDocumentToolResult result = isPreview ? tool.runPreview(context, parameters, nullptr) : tool.run(context, parameters, nullptr, nullptr);
-    QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Failed);
-    QCOMPARE(result.failureKind, pdf::PDFDocumentToolFailureKind::OutOfMemory);
-    QVERIFY(result.isOutOfMemory());
-    QVERIFY(result.documents.empty());
-
-    QVERIFY2(result.message.contains(QStringLiteral("not enough memory")) && result.message.contains(QStringLiteral("nothing was changed")), qPrintable(result.message));
-    QCOMPARE(result.message.contains(QStringLiteral("Multithreading strategy")), hasAdvice);
-    QCOMPARE(result.message.contains(QStringLiteral("Single thread")), hasAdvice);
-
-    // The same members as any other failure: nothing tells the kind but the text
-    const QJsonObject json = result.toJson();
-    QCOMPARE(json.keys(), pdf::PDFDocumentToolResult::createFailed(QStringLiteral("Other")).toJson().keys());
-    QCOMPARE(json.value(QStringLiteral("status")).toString(), QStringLiteral("failed"));
-    QCOMPARE(json.value(QStringLiteral("message")).toString(), result.message);
-    QVERIFY(!QString::fromUtf8(QJsonDocument(json).toJson()).contains(QStringLiteral("failureKind")));
-}
-
-void DocumentToolTest::otherFailuresAreGeneral()
-{
-    // Only std::bad_alloc is the kind: the texts do not decide, a tool may mention memory
-    pdftest::TestDocumentTool tool;
-    tool.setPreview(true, true);
-    const pdf::PDFDocumentPointer document = DocumentToolTestHelper::createMixedDocument();
-    const pdf::PDFDocumentToolContext context = DocumentToolTestHelper::createContext(document);
-
-    for (const char* mode : { "fail", "throw", "throw-std" })
-    {
-        QVariantMap parameters;
-        parameters.insert(QStringLiteral("mode"), QString::fromLatin1(mode));
-        for (const pdf::PDFDocumentToolResult& result : { tool.run(context, parameters, nullptr, nullptr), tool.runPreview(context, parameters, nullptr) })
-        {
-            QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Failed);
-            QCOMPARE(result.failureKind, pdf::PDFDocumentToolFailureKind::General);
-            QVERIFY(!result.isOutOfMemory());
-        }
-    }
-
-    // The very text of the kind is not the kind
-    const pdf::PDFDocumentToolResult sameText = pdf::PDFDocumentToolResult::createFailed(pdf::PDFDocumentToolResult::createOutOfMemory().message);
-    QVERIFY(!sameText.isOutOfMemory());
-
-    // The kind means something only for a failure
-    pdf::PDFDocumentToolResult notFailed = pdf::PDFDocumentToolResult::createNothingToDo(QStringLiteral("Nothing"));
-    notFailed.failureKind = pdf::PDFDocumentToolFailureKind::OutOfMemory;
-    QVERIFY(!notFailed.isOutOfMemory());
-    QVERIFY(!pdf::PDFDocumentToolResult().isOutOfMemory());
-    QVERIFY(!pdf::PDFDocumentToolResult::createStopped().isOutOfMemory());
 }
 
 QTEST_GUILESS_MAIN(DocumentToolTest)

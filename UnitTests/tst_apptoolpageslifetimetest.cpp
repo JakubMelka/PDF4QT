@@ -43,7 +43,6 @@
 #include "pdfappnavigator.h"
 #include "pdfapproute.h"
 #include "pdfappsettingcontrol.h"
-#include "pdfapptooloutofmemorydialog.h"
 #include "pdfapptoolpanelbuilder.h"
 #include "pdfapptooltoolbar.h"
 
@@ -668,21 +667,6 @@ public:
         return current ? current->getResultDialog() : nullptr;
     }
 
-    /// The dialog Not enough memory, nullptr = none or gone
-    static pdf::PDFAppToolOutOfMemoryDialog* outOfMemoryDialog(const ToolPagesLifetimeRun& run)
-    {
-        pdf::PDFDocumentToolShell* current = shell(run);
-        return current ? current->getOutOfMemoryDialog() : nullptr;
-    }
-
-    /// Waits for the dialog Not enough memory; the victim may go meanwhile
-    static bool waitOutOfMemoryDialog(const ToolPagesLifetimeRun& run)
-    {
-        const bool isShown = wait(run, [&run]() { return !shell(run) || outOfMemoryDialog(run); }) && outOfMemoryDialog(run);
-        settle();
-        return isShown;
-    }
-
     /// The scenarios of the test tool; the scenarios of the tools added by the next waves
     /// are new names here (plan of the first batch, chapter 8)
     static std::vector<ToolPagesLifetimeStep> scenario(const QString& name);
@@ -848,58 +832,6 @@ std::vector<ToolPagesLifetimeStep> ToolPagesLifetimeHelper::scenario(const QStri
                 settle();
             }
             return true;
-        });
-        steps.push_back([](ToolPagesLifetimeRun& run) { return click(toolbar(run) ? toolbar(run)->getCancelButton() : nullptr); });
-    }
-    else if (name == QLatin1String("memory"))
-    {
-        // Not enough memory: the dialog of the measuring and of a run, a language and a theme
-        // while it is open, Close, Esc, Use One Thread, the dialog without its button
-        steps.push_back(&H::openTool);
-        steps.push_back([](ToolPagesLifetimeRun& run)
-        {
-            pdf::PDFDocumentToolShell* current = shell(run);
-            return current && current->getModel()->setValue(QStringLiteral("mode"), QStringLiteral("throw-memory")).isEmpty() && waitOutOfMemoryDialog(run);
-        });
-        steps.push_back([](ToolPagesLifetimeRun& run)
-        {
-            pdf::PDFAppToolOutOfMemoryDialog* dialog = outOfMemoryDialog(run);
-            return dialog && click(dialog->getCloseButton());
-        });
-        steps.push_back([](ToolPagesLifetimeRun& run) { return click(toolbar(run) ? toolbar(run)->getConfirmButton() : nullptr) && waitOutOfMemoryDialog(run); });
-        steps.push_back([](ToolPagesLifetimeRun& run)
-        {
-            ToolPagesLifetimeTranslator translator;
-            QCoreApplication::installTranslator(&translator);
-            settle();
-            QCoreApplication::removeTranslator(&translator);
-            settle();
-            return run.window != nullptr;
-        });
-        steps.push_back([](ToolPagesLifetimeRun& run)
-        {
-            pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Dark);
-            settle();
-            pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
-            settle();
-            return run.window != nullptr;
-        });
-        steps.push_back([](ToolPagesLifetimeRun& run)
-        {
-            pdf::PDFAppToolOutOfMemoryDialog* dialog = outOfMemoryDialog(run);
-            return dialog && key(dialog, Qt::Key_Escape);
-        });
-        steps.push_back([](ToolPagesLifetimeRun& run) { return click(toolbar(run) ? toolbar(run)->getConfirmButton() : nullptr) && waitOutOfMemoryDialog(run); });
-        steps.push_back([](ToolPagesLifetimeRun& run)
-        {
-            pdf::PDFAppToolOutOfMemoryDialog* dialog = outOfMemoryDialog(run);
-            return dialog && click(dialog->getOneThreadButton());
-        });
-        steps.push_back([](ToolPagesLifetimeRun& run) { return click(toolbar(run) ? toolbar(run)->getConfirmButton() : nullptr) && waitOutOfMemoryDialog(run); });
-        steps.push_back([](ToolPagesLifetimeRun& run)
-        {
-            pdf::PDFAppToolOutOfMemoryDialog* dialog = outOfMemoryDialog(run);
-            return dialog && click(dialog->getCloseButton());
         });
         steps.push_back([](ToolPagesLifetimeRun& run) { return click(toolbar(run) ? toolbar(run)->getCancelButton() : nullptr); });
     }
@@ -1177,7 +1109,7 @@ private Q_SLOTS:
 private:
     static constexpr int PART_COUNT = 3;
 
-    static QStringList getScenarios() { return { QStringLiteral("parameters"), QStringLiteral("run"), QStringLiteral("leave"), QStringLiteral("memory"), QStringLiteral("compress"), QStringLiteral("compressrun") }; }
+    static QStringList getScenarios() { return { QStringLiteral("parameters"), QStringLiteral("run"), QStringLiteral("leave"), QStringLiteral("compress"), QStringLiteral("compressrun") }; }
 
     /// Runs the scenario. In the replay mode the victim is deleted at the target
     /// site. \returns the sites seen (discovery), whether the victim was deleted and
@@ -1477,7 +1409,7 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges_data()
 {
     QTest::addColumn<QString>("popup");
     QTest::addColumn<QString>("change");
-    for (const char* popup : { "panel", "dialog", "leave", "permission", "custom", "memory" })
+    for (const char* popup : { "panel", "dialog", "leave", "permission", "custom" })
     {
         for (const char* change : { "language", "document", "theme" })
         {
@@ -1602,20 +1534,6 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges()
         H::settle();
         H::releaseHold(run);
         QVERIFY(!H::shell(run));
-    }
-    else if (popup == QLatin1String("memory"))
-    {
-        run.tool->setPreview(false, false);
-        QVERIFY(H::shell(run)->getModel()->setValue(QStringLiteral("mode"), QStringLiteral("throw-memory")).isEmpty());
-        H::shell(run)->confirm();
-        QVERIFY(H::waitOutOfMemoryDialog(run));
-        QPointer<pdf::PDFAppToolOutOfMemoryDialog> dialog = H::outOfMemoryDialog(run);
-        applyChange();
-        QVERIFY(dialog);
-        QVERIFY(dialog->isVisible());
-        QCOMPARE(dialog->accessibleName(), QStringLiteral("Not enough memory"));
-        dialog->reject();
-        H::settle();
     }
     else
     {

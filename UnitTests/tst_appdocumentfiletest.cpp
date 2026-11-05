@@ -42,19 +42,25 @@
 #include "pdfappdocumentpanels_attachments.h"
 #include "pdfappdocumentsave.h"
 #include "pdfappdocumenttab.h"
+#include "pdfappdocumentinfobar.h"
+#include "pdfappdocumentloader.h"
 #include "pdfappdocumentview.h"
 #include "pdfappfiledrop.h"
 #include "pdfappprint.h"
 #include "pdfappprintdialog.h"
+#include "pdfapprestoredfilebar.h"
 #include "pdfappsendmail.h"
 #include "pdfappundostack.h"
 #include "pdfrecentrepository.h"
 #include "pdfsettingdefinitions.h"
 
+#include "pdfaccenthue.h"
+#include "pdfcomponentbadges.h"
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpanels.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumentreader.h"
+#include "pdfdrawwidget.h"
 #include "pdffluentwidgets.h"
 #include "pdfmessagebox.h"
 #include "pdfthemecolors.h"
@@ -75,6 +81,7 @@
 #include <QtTest>
 
 #include <atomic>
+#include <functional>
 
 /// Helpers of the tests of package E
 class FileTestHelper
@@ -165,6 +172,31 @@ public:
         return nullptr;
     }
 
+    /// Texts of the labels of a widget, joined
+    static QString texts(const QWidget* widget)
+    {
+        QStringList result;
+        for (const QLabel* label : widget ? widget->findChildren<QLabel*>() : QList<QLabel*>())
+        {
+            result << label->text();
+        }
+        return result.join(QLatin1Char('\n'));
+    }
+
+    /// The bar of a restored file shown by the view of the tab (nullptr = none)
+    static const pdf::PDFAppInfoBarRequest* restoredBar(pdf::PDFAppDocumentTab* tab)
+    {
+        return tab && tab->getView() ? tab->getView()->findInfoBar(pdf::PDFAppRestoredFileBar::getBarId()) : nullptr;
+    }
+
+    /// The file is a whole file of one revision, which the strict reader reads by its table
+    static bool isWholeValidFile(const QByteArray& data)
+    {
+        pdf::PDFDocumentReader reader(nullptr, nullptr, false, false);
+        reader.readFromBuffer(data);
+        return reader.getReadingResult() == pdf::PDFDocumentReader::Result::OK && !reader.isDocumentRestored() && data.count("%%EOF") == 1;
+    }
+
     static void click(QWidget* dialog, const QString& buttonName)
     {
         QPushButton* button = dialog ? dialog->findChild<QPushButton*>(buttonName) : nullptr;
@@ -252,6 +284,15 @@ private slots:
     void saveSignedIncremental();
     void saveSignedCanceled();
     void saveSignedAsCopy();
+    void saveRestoredSigned();
+    void saveRestoredSignedOwnFile();
+    void saveRestoredUnsigned();
+    void saveOldestContent();
+    void restoredFileBar();
+    void restoredFileBarStates();
+    void restoredFileBarLook();
+    void restoredFileBarDeletion_data();
+    void restoredFileBarDeletion();
     void saveChangedDuringWrite();
     void writerUnitCases();
 
@@ -840,6 +881,417 @@ void AppDocumentFileTest::saveSignedAsCopy()
     QCOMPARE(FileTestHelper::readFile(file), original);
     QVERIFY(FileTestHelper::readFile(target).startsWith(original));
     QCOMPARE(tab->getDocument()->getFilePath(), QFileInfo(target).canonicalFilePath());
+}
+
+void AppDocumentFileTest::saveRestoredSigned()
+{
+    // Signature/invalid/isa.pdf: a signature over the whole of a damaged file. No update goes by the table of its
+    // bytes, so Save Incrementally can only fail and is not offered; the file stays as it is, the copy is written
+    // whole and the dialog says, that the signature does not hold in it (owner 2026-11-05)
+    pdftest::AppDocumentFixture fixture;
+    const QString file = pdftest::AppDocumentSamples::restoredSignedDocument(fixture.folder());
+    QVERIFY(!file.isEmpty());
+    pdf::PDFAppDocumentTab* tab = FileTestHelper::openReady(fixture, file);
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppDocumentFileCommandHandler* handler = FileTestHelper::handler(tab);
+    QCOMPARE(document->getRestoration(), pdf::PDFAppDocumentRestoration::Restored);
+    QCOMPARE(pdf::PDFAppDocumentFileWriter::getSignatureCount(document->getDocument().data()), 1);
+    QVERIFY(pdf::PDFAppDocumentFileWriter::isOnlyCopyWritable(document->getSnapshot()));
+    QCOMPARE(pdf::PDFAppDocumentFileWriter::getIncrementalSignatureCount(document->getSnapshot()), 0);
+    QVERIFY(document->isSignatureLostOnSave());
+    const QByteArray original = FileTestHelper::readFile(file);
+    QVERIFY(FileTestHelper::modify(document, QStringLiteral("Restored and changed")));
+
+    QStringList proposedPaths;
+    const QString target = fixture.path(QStringLiteral("Restored copy.pdf"));
+    pdf::PDFAppFileDialogs::setSaveFileHandler([&proposedPaths, target](QWidget*, const QString& proposed) { proposedPaths << proposed; return target; });
+    QSignalSpy finishedSpy(handler, &pdf::PDFAppDocumentFileCommandHandler::saveFinished);
+
+    // Save: the question of a copy, never the dialog of an incremental save
+    QVERIFY(handler->save());
+    QVERIFY(!FileTestHelper::findDialog(fixture, QStringLiteral("saveSignedDialog")));
+    pdf::PDFMessageBox* dialog = FileTestHelper::findDialog(fixture, QStringLiteral("saveRestoredDialog"));
+    QVERIFY(dialog);
+    QCOMPARE(dialog->getActionButtons().size(), 2);
+    QCOMPARE(dialog->getActionButtons().at(0)->objectName(), QStringLiteral("cancelButton"));
+    QCOMPARE(dialog->getActionButtons().at(1)->objectName(), QStringLiteral("saveCopyButton"));
+    QVERIFY(!dialog->findChild<QPushButton*>(QStringLiteral("saveButton")));
+    const QString text = FileTestHelper::texts(dialog);
+    QVERIFY2(text.contains(QStringLiteral("restored-signed.pdf is damaged and has a signature")), qPrintable(text));
+    QVERIFY2(text.contains(QStringLiteral("the signature will not be valid in it")), qPrintable(text));
+
+    // Cancel: nothing is written, no file is asked for
+    FileTestHelper::click(dialog, QStringLiteral("cancelButton"));
+    QTRY_COMPARE(finishedSpy.count(), 1);
+    QCOMPARE(finishedSpy.at(0).at(0).toBool(), false);
+    QVERIFY(proposedPaths.isEmpty());
+    QCOMPARE(FileTestHelper::readFile(file), original);
+
+    // Save as Copy…: the proposed file is a copy, the copy is one whole revision
+    QVERIFY(handler->save());
+    dialog = FileTestHelper::findDialog(fixture, QStringLiteral("saveRestoredDialog"));
+    QVERIFY(dialog);
+    FileTestHelper::click(dialog, QStringLiteral("saveCopyButton"));
+    QTRY_COMPARE_WITH_TIMEOUT(finishedSpy.count(), 2, 20000);
+    QVERIFY(finishedSpy.at(1).at(0).toBool());
+    QCOMPARE(proposedPaths.size(), 1);
+    QCOMPARE(QFileInfo(proposedPaths.front()).fileName(), QStringLiteral("restored-signed_copy.pdf"));
+    QCOMPARE(FileTestHelper::readFile(file), original);
+    const QByteArray copy = FileTestHelper::readFile(target);
+    QVERIFY(!copy.startsWith(original));
+    QVERIFY(FileTestHelper::isWholeValidFile(copy));
+    QCOMPARE(FileTestHelper::getTitle(target), QStringLiteral("Restored and changed"));
+
+    // The tab has the copy: a whole file, it is no damaged file any more and its bar is gone
+    QCOMPARE(document->getFilePath(), QFileInfo(target).canonicalFilePath());
+    QCOMPARE(document->getRestoration(), pdf::PDFAppDocumentRestoration::None);
+    QVERIFY(!pdf::PDFAppDocumentFileWriter::isOnlyCopyWritable(document->getSnapshot()));
+    QVERIFY(!document->isSignatureLostOnSave());
+    QVERIFY(!FileTestHelper::restoredBar(tab));
+}
+
+void AppDocumentFileTest::saveRestoredSignedOwnFile()
+{
+    // Save As of a damaged signed file asks the same question; the file itself is no target of the copy, also when
+    // the file dialog has asked, whether it is replaced; the silent write of a tool refuses it as well
+    pdftest::AppDocumentFixture fixture;
+    const QString file = pdftest::AppDocumentSamples::restoredSignedDocument(fixture.folder());
+    pdf::PDFAppDocumentTab* tab = FileTestHelper::openReady(fixture, file);
+    QVERIFY(tab);
+    pdf::PDFAppDocumentFileCommandHandler* handler = FileTestHelper::handler(tab);
+    const QByteArray original = FileTestHelper::readFile(file);
+    QVERIFY(!tab->getDocument()->isModified());
+
+    QString answer = file;
+    pdf::PDFAppFileDialogs::setSaveFileHandler([&answer](QWidget*, const QString&) { return answer; });
+    QSignalSpy finishedSpy(handler, &pdf::PDFAppDocumentFileCommandHandler::saveFinished);
+    QVERIFY(handler->saveAs());
+    pdf::PDFMessageBox* dialog = FileTestHelper::findDialog(fixture, QStringLiteral("saveRestoredDialog"));
+    QVERIFY(dialog);
+    FileTestHelper::click(dialog, QStringLiteral("saveCopyButton"));
+    pdf::PDFMessageBox* error = nullptr;
+    QTRY_VERIFY((error = FileTestHelper::findDialog(fixture, QStringLiteral("saveErrorDialog"))) != nullptr);
+    QVERIFY2(FileTestHelper::texts(error).contains(QStringLiteral("This is the damaged file itself")), qPrintable(FileTestHelper::texts(error)));
+    QCOMPARE(finishedSpy.count(), 0);
+    QCOMPARE(FileTestHelper::readFile(file), original);
+
+    // Save As… of the error: another file is the copy
+    answer = fixture.path(QStringLiteral("Other copy.pdf"));
+    FileTestHelper::click(error, QStringLiteral("saveAsButton"));
+    QTRY_COMPARE_WITH_TIMEOUT(finishedSpy.count(), 1, 20000);
+    QVERIFY(finishedSpy.at(0).at(0).toBool());
+    QCOMPARE(FileTestHelper::readFile(file), original);
+    QVERIFY(FileTestHelper::isWholeValidFile(FileTestHelper::readFile(answer)));
+
+    // The silent write of an overwrite (a tool) is refused before it starts
+    pdf::PDFAppDocumentTab* second = FileTestHelper::openReady(fixture, file);
+    QVERIFY(second && second != tab);
+    pdf::PDFAppDocumentFileWriter::Request request;
+    request.document = second->getDocument()->getDocument();
+    request.filePath = file;
+    QString silentError;
+    QVERIFY(!FileTestHelper::handler(second)->getSaver()->writeSilently(request, &silentError));
+    QCOMPARE(silentError, QStringLiteral("The file is damaged, so it stays as it is. Only a copy can be saved."));
+    QCOMPARE(FileTestHelper::readFile(file), original);
+}
+
+void AppDocumentFileTest::saveRestoredUnsigned()
+{
+    // A damaged file without a signature keeps its whole write: Save writes the shown document over the file,
+    // which is valid then (no question, the bar goes)
+    pdftest::AppDocumentFixture fixture;
+    const QString file = pdftest::AppDocumentSamples::damagedCopy(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Source.pdf"), 2), QStringLiteral("Damaged.pdf"));
+    pdf::PDFAppDocumentTab* tab = FileTestHelper::openReady(fixture, file);
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    QCOMPARE(document->getRestoration(), pdf::PDFAppDocumentRestoration::Restored);
+    QVERIFY(!pdf::PDFAppDocumentFileWriter::isOnlyCopyWritable(document->getSnapshot()));
+    QVERIFY(FileTestHelper::restoredBar(tab));
+    QVERIFY(!FileTestHelper::isWholeValidFile(FileTestHelper::readFile(file)));
+
+    QVERIFY(FileTestHelper::modify(document, QStringLiteral("Repaired")));
+    QSignalSpy finishedSpy(FileTestHelper::handler(tab), &pdf::PDFAppDocumentFileCommandHandler::saveFinished);
+    QVERIFY(FileTestHelper::handler(tab)->save());
+    QVERIFY(!FileTestHelper::findDialog(fixture, QStringLiteral("saveRestoredDialog")));
+    QTRY_COMPARE_WITH_TIMEOUT(finishedSpy.count(), 1, 20000);
+    QVERIFY(finishedSpy.at(0).at(0).toBool());
+    QVERIFY(FileTestHelper::isWholeValidFile(FileTestHelper::readFile(file)));
+    QCOMPARE(FileTestHelper::getTitle(file), QStringLiteral("Repaired"));
+    QCOMPARE(document->getRestoration(), pdf::PDFAppDocumentRestoration::None);
+    QVERIFY(!FileTestHelper::restoredBar(tab));
+}
+
+void AppDocumentFileTest::saveOldestContent()
+{
+    // The last changes of the file cannot be read (Signature/invalid/pdf-wrapping-6.pdf): the oldest content has no
+    // signature, the bytes of the file have one. A Save would replace them by the oldest content, so only a copy
+    pdftest::AppDocumentFixture fixture;
+    const QString file = pdftest::AppDocumentSamples::oldestContentSignedDocument(fixture.folder());
+    QVERIFY(!file.isEmpty());
+    pdf::PDFAppDocumentTab* tab = FileTestHelper::openReady(fixture, file);
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    QCOMPARE(document->getRestoration(), pdf::PDFAppDocumentRestoration::OldestContent);
+    QCOMPARE(pdf::PDFAppDocumentFileWriter::getSignatureCount(document->getDocument().data()), 0);
+    QVERIFY(FileTestHelper::readFile(file).contains("/ByteRange"));
+    QVERIFY(pdf::PDFAppDocumentFileWriter::isOnlyCopyWritable(document->getSnapshot()));
+    const QByteArray original = FileTestHelper::readFile(file);
+
+    QVERIFY(FileTestHelper::modify(document, QStringLiteral("Old")));
+    QSignalSpy finishedSpy(FileTestHelper::handler(tab), &pdf::PDFAppDocumentFileCommandHandler::saveFinished);
+    QVERIFY(FileTestHelper::handler(tab)->save());
+    pdf::PDFMessageBox* dialog = FileTestHelper::findDialog(fixture, QStringLiteral("saveRestoredDialog"));
+    QVERIFY(dialog);
+    QVERIFY2(FileTestHelper::texts(dialog).contains(QStringLiteral("Only the oldest content of oldest-content-signed.pdf can be read")), qPrintable(FileTestHelper::texts(dialog)));
+    QTest::keyClick(dialog, Qt::Key_Escape);
+    QTRY_COMPARE(finishedSpy.count(), 1);
+    QCOMPARE(finishedSpy.at(0).at(0).toBool(), false);
+    QCOMPARE(FileTestHelper::readFile(file), original);
+}
+
+void AppDocumentFileTest::restoredFileBar()
+{
+    // The info bar of a restored document (no frame: the tone Warning of 1028:24277); a closed bar stays closed for
+    // the bytes, a reload of other damaged bytes shows it again, a valid file removes it
+    pdftest::AppDocumentFixture fixture;
+    const QString file = pdftest::AppDocumentSamples::restoredSignedDocument(fixture.folder());
+    pdf::PDFAppDocumentTab* tab = FileTestHelper::openReady(fixture, file);
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    const pdf::PDFAppInfoBarRequest* request = FileTestHelper::restoredBar(tab);
+    QVERIFY(request);
+    QCOMPARE(request->tone, pdf::PDFAppInfoBarTone::Warning);
+    QCOMPARE(request->title, QStringLiteral("This file is damaged"));
+    QCOMPARE(request->text, QStringLiteral("PDF4QT repaired it to open it, so something may be missing or differ from the original."));
+    QVERIFY(request->isClosable);
+    QVERIFY(request->actions.empty());
+    pdf::PDFAppInfoBar* bar = view->findInfoBarWidget(pdf::PDFAppRestoredFileBar::getBarId());
+    QVERIFY(bar);
+    QTRY_VERIFY(bar->isVisible());
+    QCOMPARE(bar->findChild<QLabel*>(QStringLiteral("infoBarTitle"))->text(), QStringLiteral("This file is damaged"));
+
+    // A change of the user keeps it, the close button removes it
+    QVERIFY(FileTestHelper::modify(tab->getDocument(), QStringLiteral("x")));
+    QVERIFY(FileTestHelper::restoredBar(tab));
+    tab->getDocument()->setSaved();
+    bar->getCloseButton()->click();
+    QTRY_VERIFY(!FileTestHelper::restoredBar(tab));
+    QVERIFY(FileTestHelper::modify(tab->getDocument(), QStringLiteral("y")));
+    tab->getDocument()->setSaved();
+    QVERIFY(!FileTestHelper::restoredBar(tab));
+
+    // Closed for these bytes also over a new language of the user interface (the bar is built again then)
+    QEvent languageChange(QEvent::LanguageChange);
+    QCoreApplication::sendEvent(view, &languageChange);
+    QVERIFY(!FileTestHelper::restoredBar(tab));
+
+    // The automatic refresh reads other damaged bytes: they are told again
+    pdf::PDFAppAutoRefresh* refresh = FileTestHelper::handler(tab)->getAutoRefresh();
+    QSignalSpy reloadedSpy(refresh, &pdf::PDFAppAutoRefresh::reloaded);
+    const QString other = pdftest::AppDocumentSamples::damagedCopy(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Other.pdf"), 3), QStringLiteral("OtherDamaged.pdf"));
+    QVERIFY(FileTestHelper::replaceFile(file, FileTestHelper::readFile(other)));
+    if (!reloadedSpy.wait(5000))
+    {
+        refresh->checkNow();
+    }
+    QTRY_VERIFY_WITH_TIMEOUT(reloadedSpy.count() >= 1, 20000);
+    QCOMPARE(tab->getDocument()->getPageCount(), pdf::PDFInteger(3));
+    QCOMPARE(tab->getDocument()->getRestoration(), pdf::PDFAppDocumentRestoration::Restored);
+    QVERIFY(FileTestHelper::restoredBar(tab));
+
+    // A valid file: the bar goes
+    QVERIFY(FileTestHelper::replaceFile(file, FileTestHelper::readFile(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Valid.pdf"), 4))));
+    refresh->checkNow();
+    QTRY_VERIFY_WITH_TIMEOUT(tab->getDocument()->getPageCount() == 4, 20000);
+    QCOMPARE(tab->getDocument()->getRestoration(), pdf::PDFAppDocumentRestoration::None);
+    QVERIFY(!FileTestHelper::restoredBar(tab));
+
+    // The last changes, which cannot be read: the stronger text
+    pdf::PDFAppDocumentTab* oldest = FileTestHelper::openReady(fixture, pdftest::AppDocumentSamples::oldestContentSignedDocument(fixture.folder()));
+    QVERIFY(oldest);
+    request = FileTestHelper::restoredBar(oldest);
+    QVERIFY(request);
+    QCOMPARE(request->title, QStringLiteral("This file is damaged and you may be seeing an old version"));
+    QCOMPARE(request->text, QStringLiteral("Its latest changes cannot be read and are not shown. You can save it only as a copy."));
+
+    // A valid file has none
+    pdf::PDFAppDocumentTab* valid = FileTestHelper::openReady(fixture, pdftest::AppDocumentSamples::signedDocument(fixture.folder()));
+    QVERIFY(valid);
+    QVERIFY(!FileTestHelper::restoredBar(valid));
+}
+
+void AppDocumentFileTest::restoredFileBarStates()
+{
+    pdftest::AppDocumentFixture fixture;
+
+    // A password: the state screen first, the bar with the document
+    const QString encrypted = pdftest::AppDocumentSamples::damagedCopy(pdftest::AppDocumentSamples::userPassword(fixture.folder()), QStringLiteral("DamagedEncrypted.pdf"));
+    pdf::PDFAppDocumentTab* tab = fixture.open(encrypted);
+    QVERIFY(tab);
+    QTRY_COMPARE_WITH_TIMEOUT(tab->getDocument()->getState(), pdf::PDFAppDocumentState::PasswordRequired, 20000);
+    QVERIFY(!FileTestHelper::restoredBar(tab));
+    QVERIFY(tab->getLoader()->setPassword(pdftest::AppDocumentSamples::getUserPassword()));
+    QTRY_VERIFY_WITH_TIMEOUT(tab->getDocument()->isReady(), 20000);
+    QCOMPARE(tab->getDocument()->getRestoration(), pdf::PDFAppDocumentRestoration::Restored);
+    QVERIFY(FileTestHelper::restoredBar(tab));
+
+    // An attachment opened from the memory (O18) and Edit a Copy are restored documents too; the copy is no file,
+    // which a save could change, and it keeps the question of a signed one
+    const QString signedFile = pdftest::AppDocumentSamples::restoredSignedDocument(fixture.folder());
+    pdf::PDFAppDocumentTab* memory = fixture.window->openDocumentFromMemory(FileTestHelper::readFile(signedFile), QStringLiteral("Attachment.pdf"), encrypted);
+    QVERIFY(memory);
+    QTRY_VERIFY_WITH_TIMEOUT(memory->getDocument()->isReady(), 20000);
+    QCOMPARE(memory->getDocument()->getRestoration(), pdf::PDFAppDocumentRestoration::Restored);
+    QVERIFY(FileTestHelper::restoredBar(memory));
+    QVERIFY(pdf::PDFAppDocumentFileWriter::isOnlyCopyWritable(memory->getDocument()->getSnapshot()));
+    pdf::PDFAppFileDialogs::setSaveFileHandler([](QWidget*, const QString&) { return QString(); });
+    QSignalSpy finishedSpy(FileTestHelper::handler(memory), &pdf::PDFAppDocumentFileCommandHandler::saveFinished);
+    QVERIFY(FileTestHelper::handler(memory)->save());
+    QVERIFY(FileTestHelper::findDialog(fixture, QStringLiteral("saveRestoredDialog")));
+    FileTestHelper::click(FileTestHelper::findDialog(fixture, QStringLiteral("saveRestoredDialog")), QStringLiteral("cancelButton"));
+    QTRY_COMPARE(finishedSpy.count(), 1);
+
+    pdf::PDFAppDocumentTab* copy = fixture.window->openDocumentCopy(memory->getDocument());
+    QVERIFY(copy);
+    QCOMPARE(copy->getDocument()->getRestoration(), pdf::PDFAppDocumentRestoration::Restored);
+    QVERIFY(FileTestHelper::restoredBar(copy));
+}
+
+void AppDocumentFileTest::restoredFileBarLook()
+{
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = FileTestHelper::openReady(fixture, pdftest::AppDocumentSamples::restoredSignedDocument(fixture.folder()));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    QPointer<pdf::PDFAppInfoBar> bar = view->findInfoBarWidget(pdf::PDFAppRestoredFileBar::getBarId());
+    QVERIFY(bar);
+    fixture.settle();
+
+    // Both themes at 1 / 1.5 / 2: the card bg/surface, the badge of the tone Warning (accent/amber), no leak color
+    pdf::PDFThemeManager* manager = pdf::PDFThemeManager::getInstance();
+    for (const pdf::PDFThemeColors::Scheme scheme : { pdf::PDFThemeColors::Scheme::Light, pdf::PDFThemeColors::Scheme::Dark })
+    {
+        manager->setScheme(scheme);
+        for (const qreal ratio : { 1.0, 1.5, 2.0 })
+        {
+            QImage image((QSizeF(bar->size()) * ratio).toSize(), QImage::Format_ARGB32_Premultiplied);
+            image.setDevicePixelRatio(ratio);
+            image.fill(Qt::transparent);
+            // The bar is masked to its card: without IgnoreMask QWidget::render places the card at the origin
+            bar->render(&image, QPoint(), QRegion(), QWidget::RenderFlags(QWidget::DrawChildren | QWidget::IgnoreMask));
+            QCOMPARE(FileTestHelper::countLeakPixels(image), 0);
+
+            const QRect card = bar->getCardRect();
+            const QPoint surface = (QPointF(card.center().x(), card.top() + 3) * ratio).toPoint();
+            QCOMPARE(QColor(image.pixel(surface)).rgb() & 0xFFFFFF, manager->getColor(pdf::PDFThemeColors::BgSurface).rgb() & 0xFFFFFF);
+            const pdf::PDFIconBadge* badge = bar->findChild<pdf::PDFIconBadge*>();
+            QVERIFY(badge);
+            // The circle of the badge beside its icon, in the coordinates of the bar
+            const QPointF badgePoint = QPointF(badge->geometry().center()) + QPointF(-9, 0);
+            const QColor amber = manager->getColor(pdf::PDFAccentHueColors::getColor(pdf::PDFAccentHue::Amber, pdf::PDFAccentHueColors::Role::Background));
+            QCOMPARE(QColor(image.pixel((badgePoint * ratio).toPoint())).rgb() & 0xFFFFFF, amber.rgb() & 0xFFFFFF);
+        }
+    }
+    manager->setScheme(pdf::PDFThemeColors::Scheme::Light);
+
+    // Right-to-left: the badge at the right, the close button at the left
+    QApplication::setLayoutDirection(Qt::RightToLeft);
+    fixture.settle();
+    QTRY_VERIFY(bar->findChild<pdf::PDFIconBadge*>()->geometry().center().x() > bar->width() / 2);
+    QVERIFY(bar->getCloseButton()->geometry().center().x() < bar->width() / 2);
+    QApplication::setLayoutDirection(Qt::LeftToRight);
+    fixture.settle();
+
+    // 720 x 480: the card inside the canvas
+    fixture.window->resize(720, 480);
+    fixture.settle();
+    QTRY_VERIFY(bar->geometry().width() > 0);
+    const QRect canvas = view->getPdfWidget()->geometry();
+    const QRect card = bar->getCardRect().translated(bar->pos());
+    QVERIFY2(canvas.contains(card), qPrintable(QStringLiteral("%1 %2 %3 %4 / %5 %6 %7 %8").arg(card.x()).arg(card.y()).arg(card.width()).arg(card.height()).arg(canvas.x()).arg(canvas.y()).arg(canvas.width()).arg(canvas.height())));
+
+    // A change of the language: the texts of the bar in the new language
+    class Translator : public QTranslator
+    {
+    public:
+        virtual bool isEmpty() const override { return false; }
+        virtual QString translate(const char* context, const char* sourceText, const char*, int) const override
+        {
+            return QByteArray(context) == "pdf::PDFAppRestoredFileBar" ? QStringLiteral("§") + QString::fromUtf8(sourceText) : QString();
+        }
+    };
+    Translator translator;
+    QCoreApplication::installTranslator(&translator);
+    fixture.settle();
+    QTRY_COMPARE(FileTestHelper::restoredBar(tab)->title, QStringLiteral("§This file is damaged"));
+    QCOMPARE(bar->findChild<QLabel*>(QStringLiteral("infoBarTitle"))->text(), QStringLiteral("§This file is damaged"));
+    QCoreApplication::removeTranslator(&translator);
+    fixture.settle();
+    QTRY_COMPARE(FileTestHelper::restoredBar(tab)->title, QStringLiteral("This file is damaged"));
+}
+
+void AppDocumentFileTest::restoredFileBarDeletion_data()
+{
+    QTest::addColumn<QString>("site");
+    QTest::addColumn<bool>("deleteWindow");
+    for (const char* site : { "barClosed", "restoredDialog" })
+    {
+        QTest::newRow(QStringLiteral("%1-tab").arg(QLatin1String(site)).toLatin1().constData()) << QString::fromLatin1(site) << false;
+        QTest::newRow(QStringLiteral("%1-window").arg(QLatin1String(site)).toLatin1().constData()) << QString::fromLatin1(site) << true;
+    }
+}
+
+void AppDocumentFileTest::restoredFileBarDeletion()
+{
+    // The tab or the window deleted synchronously from the close of the bar and with the question of the copy open
+    QFETCH(QString, site);
+    QFETCH(bool, deleteWindow);
+
+    pdftest::AppDocumentFixture fixture;
+    const QString file = pdftest::AppDocumentSamples::restoredSignedDocument(fixture.folder());
+    pdf::PDFAppDocumentTab* tab = FileTestHelper::openReady(fixture, file);
+    QVERIFY(tab);
+    QPointer<pdf::PDFAppDocumentTab> tabGuard(tab);
+    const QByteArray original = FileTestHelper::readFile(file);
+    std::function<void()> remove = [&fixture, tabGuard, deleteWindow]()
+    {
+        if (deleteWindow)
+        {
+            delete fixture.window.data();
+        }
+        else
+        {
+            delete tabGuard.data();
+        }
+    };
+
+    QPointer<QWidget> shown;
+    if (site == QStringLiteral("barClosed"))
+    {
+        pdf::PDFAppInfoBar* bar = tab->getView()->findInfoBarWidget(pdf::PDFAppRestoredFileBar::getBarId());
+        QVERIFY(bar);
+        shown = bar;
+        connect(tab->getView(), &pdf::PDFAppDocumentView::infoBarActionTriggered, tab, [&remove](const QString&, const QString&) { remove(); });
+        bar->getCloseButton()->click();
+        QTRY_VERIFY(!tabGuard || !fixture.window);
+    }
+    else
+    {
+        QVERIFY(FileTestHelper::modify(tab->getDocument(), QStringLiteral("x")));
+        QVERIFY(FileTestHelper::handler(tab)->save());
+        shown = FileTestHelper::findDialog(fixture, QStringLiteral("saveRestoredDialog"));
+        QVERIFY(shown);
+        remove();
+    }
+
+    fixture.settle();
+    QThreadPool::globalInstance()->waitForDone(30000);
+    QTest::qWait(200);
+    fixture.settle();
+    QVERIFY(!tabGuard);
+    QVERIFY(!shown || !shown->isVisible());
+    QCOMPARE(FileTestHelper::readFile(file), original);
 }
 
 void AppDocumentFileTest::saveChangedDuringWrite()

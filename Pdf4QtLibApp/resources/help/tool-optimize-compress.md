@@ -38,8 +38,8 @@ Every preset decides how far images are reduced and how thoroughly the file stru
 > [!WARNING] When the file cannot be made smaller
 > If the chosen preset does not reduce the size, Compress says “File cannot be reduced with these settings” and writes nothing. Try Smaller file, or look at the size breakdown in the right panel.
 
-> [!WARNING] Not enough memory
-> Nothing was changed. The tool works on several images at once and the computer ran out of memory. Use One Thread in the dialog makes it slower, but it holds one image at a time. The setting also slows down the drawing of pages until you change it back in Settings › Advanced. Then run the tool again.
+> [!NOTE] Memory
+> The tool works on several images at once. With [Multithreading strategy](/settings/advanced#multithreading-strategy) set to Single thread, it holds one image at a time: it is slower, but it needs less memory. The setting also slows down the drawing of pages until you change it back.
 
 > [!TIP] Fine control
 > Optimize Images and Optimize Structure expose every setting behind the presets: color mode, DPI, JPEG quality, resampling filter, object merging and more.
