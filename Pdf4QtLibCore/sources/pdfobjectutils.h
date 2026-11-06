@@ -33,6 +33,7 @@ namespace pdf
 {
 class PDFObjectStorage;
 class PDFDocument;
+class PDFObjectWalk;
 
 /// Utilities for manipulation with objects
 class PDF4QTLIBCORESHARED_EXPORT PDFObjectUtils
@@ -61,8 +62,8 @@ public:
     static PDFDictionaryBuilder copyDictionary(const PDFObjectStorage* storage, const PDFObject& object);
 
     /// Reads the entries of a number tree in the order of the tree. The values of the
-    /// entries are not dereferenced. Kids are followed up to the maximal depth, which
-    /// protects against cyclic trees of damaged documents.
+    /// entries are not dereferenced. The kids are read by one PDFObjectWalk: each node once
+    /// (a kid listed twice or a cycle of a damaged document adds nothing), up to the maximal depth.
     /// \param storage Storage
     /// \param root Root node of the number tree
     /// \param maximumDepth Maximal depth of the kids
@@ -101,61 +102,80 @@ public:
 private:
     PDFObjectUtils() = delete;
 
-    static void readNumberTreeNode(const PDFObjectStorage* storage, const PDFObject& node, int depth, int maximumDepth, std::vector<std::pair<PDFInteger, PDFObject>>& entries);
+    static void readNumberTreeNode(const PDFObjectStorage* storage, const PDFObject& node, int depth, PDFObjectWalk* walk, std::vector<std::pair<PDFInteger, PDFObject>>& entries);
 };
 
-/// Storage, which can mark objects (for example, when we want to mark already visited objects
-/// during parsing some complex structure, such as tree)
-class PDFMarkedObjectsContext
+/// One walk over a graph of the objects of a document: the outline (/First, /Next), the page
+/// tree, the name and number trees, the structure tree (/K), the fields (/Kids, /Parent), the
+/// actions (/Next), the forms of the resources, the closure of the references, ...
+///
+/// Why (review RCORE, 2026-11-06): the walk of the outline of Remove Pages had its set of the
+/// visited items for one chain of siblings. Two items, whose /First lead back to the first of
+/// them, made each path a new walk of the same two items - about 2^256 steps within its depth
+/// limit, the tool never ended. A set per path or per chain (a reference forgotten, when its
+/// subtree is done) stops a cycle, but not a node shared by more paths: the work doubles with
+/// each level. So every walk has
+///  - one set of the visited references for the whole walk: an indirect object is entered once,
+///    whatever path leads to it; a cycle and a shared node end at the second visit,
+///  - a depth limit: the recursion of the caller and its stack stay bounded,
+///  - a budget of the entered nodes: the work stays linear in the number of objects, also for
+///    the direct objects, which have no reference to remember.
+/// A direct object is a tree inside of its indirect object (it has no cycle): it is walked by
+/// the depth and the budget only, so it is entered each time its container is read.
+///
+/// A node refused because it was visited is a part of the graph, which the walk has read already
+/// (the result is the one of the reachable graph, each node counted once). A node refused by the
+/// depth or the budget is not read at all: isLimitReached() says so, and a caller, which must
+/// not change a document from an incomplete walk, fails. Not thread-safe: one walk, one thread.
+class PDF4QTLIBCORESHARED_EXPORT PDFObjectWalk
 {
 public:
-    inline explicit PDFMarkedObjectsContext() = default;
+    /// Depth of a walk, whose caller has no own limit
+    static constexpr int DEFAULT_MAXIMUM_DEPTH = 256;
 
-    inline bool isMarked(PDFObjectReference reference) const { return m_markedReferences.count(reference); }
-    inline void mark(PDFObjectReference reference) { m_markedReferences.insert(reference); }
-    inline void unmark(PDFObjectReference reference) { m_markedReferences.erase(reference); }
+    /// Twice the limit of the number of the indirect objects of ISO 32000-2, Annex C
+    /// (8 388 607): a walk, which enters each object once, never spends it on a conforming file
+    static constexpr qint64 DEFAULT_MAXIMUM_NODES = qint64(16) * 1024 * 1024;
 
-private:
-    std::set<PDFObjectReference> m_markedReferences;
-};
+    /// \param maximumDepth Maximal depth of an entered node (the root has the depth 0)
+    /// \param maximumNodes Maximal number of the entered nodes
+    explicit PDFObjectWalk(int maximumDepth = DEFAULT_MAXIMUM_DEPTH, qint64 maximumNodes = DEFAULT_MAXIMUM_NODES);
 
-/// Class for marking/unmarking objects functioning as guard. If not already marked, then
-/// during existence of this guard, object is marked and then it is unmarked. If it is
-/// already marked, then nothing happens and locked flag is set to false.
-class PDFMarkedObjectsLock
-{
-public:
-    explicit inline PDFMarkedObjectsLock(PDFMarkedObjectsContext* context, PDFObjectReference reference) :
-        m_context(context),
-        m_reference(reference),
-        m_locked(!reference.isValid() || !context->isMarked(reference))
-    {
-        if (m_locked && reference.isValid())
-        {
-            context->mark(reference);
-        }
-    }
+    /// Enters a node of the walk: true = the caller reads it. A reference is entered once in the
+    /// whole walk, a direct object (or an invalid reference) each time it is reached.
+    /// \param node Node (a reference or a direct object)
+    /// \param depth Depth of the node
+    bool enter(const PDFObject& node, int depth);
 
-    explicit inline PDFMarkedObjectsLock(PDFMarkedObjectsContext* context, const PDFObject& object) :
-        PDFMarkedObjectsLock(context, object.isReference() ? object.getReference() : PDFObjectReference())
-    {
+    /// Enters an indirect object (see enter)
+    /// \param reference Reference of the object
+    /// \param depth Depth of the object
+    bool enterReference(PDFObjectReference reference, int depth);
 
-    }
+    /// True, if the object was entered by this walk
+    bool isVisited(PDFObjectReference reference) const { return m_visited.count(reference) > 0; }
 
-    inline ~PDFMarkedObjectsLock()
-    {
-        if (m_locked && m_reference.isValid())
-        {
-            m_context->unmark(m_reference);
-        }
-    }
+    /// True, if a node was refused by the depth or by the budget: the walk has not read the
+    /// whole graph (a node refused as visited does not count)
+    bool isLimitReached() const { return m_isLimitReached; }
 
-    explicit operator bool() const { return m_locked; }
+    /// Number of the entered nodes
+    qint64 getNodeCount() const { return m_nodeCount; }
+
+    int getMaximumDepth() const { return m_maximumDepth; }
+
+    /// The entered indirect objects
+    const std::set<PDFObjectReference>& getVisitedReferences() const { return m_visited; }
 
 private:
-    PDFMarkedObjectsContext* m_context;
-    PDFObjectReference m_reference;
-    bool m_locked;
+    /// Checks the depth and spends the budget of one node
+    bool enterNode(int depth);
+
+    int m_maximumDepth;
+    qint64 m_maximumNodes;
+    qint64 m_nodeCount = 0;
+    bool m_isLimitReached = false;
+    std::set<PDFObjectReference> m_visited;
 };
 
 /// Classifies objects according to their type. Some heuristic is used

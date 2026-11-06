@@ -95,6 +95,10 @@ public:
     /// Results kept by the cache of the previews
     static constexpr int MAXIMUM_CACHED_PREVIEWS = 8;
 
+    /// Interval of the reading of the progress of a computation (ms): the computation steps
+    /// a PDFProgressCounter, the runner reads it in the GUI thread (the first read at once)
+    static constexpr int PROGRESS_INTERVAL = 100;
+
     /// State of the run
     enum class State
     {
@@ -123,6 +127,10 @@ public:
     /// of MCP, F17): a valid snapshot is the first input document
     static PDFDocumentToolContext createContext(const PDFAppDocumentSnapshot& snapshot, const PDFAppToolRunEnvironment& environment = PDFAppToolRunEnvironment());
 
+    /// Text of the step of a progress in the language of the user interface: the text of
+    /// the phase, with its count when the phase shows it ("Recompressing images · 152 of 412")
+    static QString getStepText(const PDFProgressCounter::Snapshot& snapshot);
+
     /// The changed document of the first input of a result, nullptr = none
     static const PDFDocumentToolOutputDocument* findChangedDocument(const PDFDocumentToolResult& result);
 
@@ -147,7 +155,8 @@ public:
 
     State getState() const { return m_state; }
 
-    /// Progress of the run or of the preview, 0 - 100, and the text of the step
+    /// Progress of the run or of the preview, 0 - 100, and the text of the step (the last
+    /// value read from the computation; runProgress and previewProgress tell its changes)
     int getProgress() const { return m_progress; }
     const QString& getStepText() const { return m_stepText; }
 
@@ -234,7 +243,7 @@ private:
         PDFDocumentToolResult result;
     };
 
-    void onJobProgress(const std::shared_ptr<pdf::PDFDocumentToolRunnerJob>& job, int percentage, const QString& stepText);
+    void onProgressTimeout();
     void onJobFinished(const std::shared_ptr<pdf::PDFDocumentToolRunnerJob>& job);
     void onPreviewTimeout();
     void onDocumentChanged();
@@ -261,6 +270,10 @@ private:
     void addToCache(quint64 version, const QVariantMap& parameters, const PDFDocumentToolResult& result);
     const CachedPreview* findCached(quint64 version, const QVariantMap& parameters) const;
     void setProgress(int percentage, const QString& stepText);
+
+    /// Reads the progress of the computation of \p job and tells its change (runProgress,
+    /// previewProgress). \returns false, when the runner has been deleted by a slot
+    bool readProgress(const std::shared_ptr<PDFDocumentToolRunnerJob>& job);
     void loseDocument();
     PDFAppDocumentSnapshot createSnapshot() const;
 
@@ -283,6 +296,7 @@ private:
     PDFAppDocumentSnapshot m_resultSnapshot;
 
     QTimer m_previewTimer;
+    QTimer m_progressTimer;
     bool m_isPreviewRequested = false;
     bool m_isPreviewDeferred = false;
     QVariantMap m_previewParameters;

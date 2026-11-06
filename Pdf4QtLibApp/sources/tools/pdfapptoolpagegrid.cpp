@@ -203,10 +203,23 @@ void PDFAppToolPageGridView::updateGeometries()
 {
     BaseClass::updateGeometries();
 
-    // The layout of the tiles is done: the page of the tool takes the new height of its content
+    // The layout of the tiles is done: the page of the tool takes the new height of its content.
+    // The height is announced from the event loop - Qt uses the view after updateGeometries
+    // (its layout, its resize, its timer), a slot may delete the view.
+    if (getContentHeight() != m_lastContentHeight && !m_isContentHeightQueued)
+    {
+        m_isContentHeightQueued = true;
+        QMetaObject::invokeMethod(this, &PDFAppToolPageGridView::emitContentHeight, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppToolPageGridView::emitContentHeight()
+{
+    m_isContentHeightQueued = false;
     const int height = getContentHeight();
     if (height != m_lastContentHeight)
     {
+        // The last thing: a slot may delete the view
         m_lastContentHeight = height;
         Q_EMIT contentHeightChanged(height);
     }
@@ -328,8 +341,8 @@ PDFAppToolPageGrid::PDFAppToolPageGrid(const QSize& slotSize, QWidget* parent) :
 
     connect(m_view, &PDFAppToolPageGridView::pageClicked, this, &PDFAppToolPageGrid::pageClicked);
     connect(m_view, &PDFAppToolPageGridView::deleteRequested, this, &PDFAppToolPageGrid::deleteRequested);
-    // From the event loop: the signal comes from inside of the layout of the view
-    connect(m_view, &PDFAppToolPageGridView::contentHeightChanged, this, &PDFAppToolPageGrid::onContentHeightChanged, Qt::QueuedConnection);
+    // The view emits the height from the event loop, after its layout
+    connect(m_view, &PDFAppToolPageGridView::contentHeightChanged, this, &PDFAppToolPageGrid::onContentHeightChanged);
 
     updatePictureSize();
 }

@@ -249,12 +249,12 @@ bool PDFDocumentToolCatalogEntry::isPermitted(const PDFDocument* document) const
 
     for (const PDFSecurityHandler::Permission permission : permissions)
     {
-        if (securityHandler->isAllowed(permission))
+        if (!securityHandler->isAllowed(permission))
         {
-            return true;
+            return false;
         }
     }
-    return false;
+    return true;
 }
 
 QString PDFDocumentToolCatalogEntry::getHelpTopic() const
@@ -372,15 +372,28 @@ const std::vector<PDFDocumentToolExtendedData>& PDFDocumentToolCatalog::getExten
     // permissions differ from the defaults of the kind only where a row names them:
     // a copy for the tools, which cannot be taken back (tools.md 9.3 point 11, K1 of
     // the plan of the first batch), a whole rewrite for Compress, Optimize Structure
-    // and Remove Hidden Data (O31), the permissions of chapter 7 of the plan
-    // (ISO 32000-2 Table 22: Assemble covers rotating and deleting pages, Modify the rest).
+    // and Remove Hidden Data (O31). The permissions: every bit of the mask is needed, a
+    // tool needs the bits of what it changes (owner 2026-11-06), ISO 32000-2, 7.6.4.2,
+    // Table 22 (an owner password grants everything, PDFSecurityHandler::isAllowed):
+    //  - bit 4 Modify: "Modify the contents of the document by operations other than those
+    //    controlled by bits 6, 9, and 11" - Compress, Optimize Structure and Remove Hidden
+    //    Data rewrite the content and the objects of the document;
+    //  - bit 5 CopyContent: "Copy or otherwise extract text and graphics from the document" -
+    //    Extract Text (bit 10, the extraction for accessibility, is deprecated in PDF 2.0);
+    //  - bit 6 ModifyInteractiveItems: "Add or modify text annotations, fill in interactive
+    //    form fields, and, if bit 4 is also set, create or modify interactive form fields
+    //    (including signature fields)" - Remove External Links removes link annotations only;
+    //    Remove Hidden Data needs it too, when its kinds remove annotations or fields
+    //    (PDFDocumentToolSanitize::getInteractiveKinds, checked before its run);
+    //  - bit 11 Assemble: "Assemble the document (insert, rotate, or delete pages and create
+    //    document outline items or thumbnail images), even if bit 4 is clear" - Rotate Pages
+    //    and Remove Pages; bit 4 alone does not allow them.
     using Input = PDFDocumentToolInputKind;
     using Result = PDFDocumentToolResultKind;
     using Dependency = PDFDocumentToolExternalDependency;
     using Preselected = PDFDocumentToolPreselectedResult;
     using Signature = PDFDocumentToolSignatureImpact;
     using Permission = PDFSecurityHandler::Permission;
-    constexpr uint32_t ASSEMBLE_OR_MODIFY = uint32_t(Permission::Assemble) | uint32_t(Permission::Modify);
     static const std::vector<PDFDocumentToolExtendedData> data =
     {
         PDFDocumentToolExtendedData("pages.merge", Input::Multiple, Result::NewDocument, Dependency::None, "unite", "edit.page-numbers,optimize.compress,protect.password"),
@@ -390,8 +403,8 @@ const std::vector<PDFDocumentToolExtendedData>& PDFDocumentToolCatalog::getExten
         PDFDocumentToolExtendedData("pages.manage", Input::Multiple, Result::ChangeDocument, Dependency::None, "", "edit.page-numbers,optimize.compress,protect.password"),
         PDFDocumentToolExtendedData("pages.insert", Input::One, Result::ChangeDocument, Dependency::None, "", "edit.page-numbers,optimize.compress"),
         PDFDocumentToolExtendedData("pages.add-image", Input::One, Result::ChangeDocument, Dependency::None, "", "convert.ocr,optimize.compress"),
-        PDFDocumentToolExtendedData("pages.remove", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.compress,edit.page-numbers,protect.password", Preselected::Keep, Signature::IncrementalSave, ASSEMBLE_OR_MODIFY),
-        PDFDocumentToolExtendedData("pages.rotate", Input::One, Result::ChangeDocument, Dependency::None, "", "convert.ocr,optimize.compress,pages.remove", Preselected::Keep, Signature::IncrementalSave, ASSEMBLE_OR_MODIFY),
+        PDFDocumentToolExtendedData("pages.remove", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.compress,edit.page-numbers,protect.password", Preselected::Keep, Signature::IncrementalSave, uint32_t(Permission::Assemble)),
+        PDFDocumentToolExtendedData("pages.rotate", Input::One, Result::ChangeDocument, Dependency::None, "", "convert.ocr,optimize.compress,pages.remove", Preselected::Keep, Signature::IncrementalSave, uint32_t(Permission::Assemble)),
         PDFDocumentToolExtendedData("pages.crop", Input::One, Result::ChangeDocument, Dependency::None, "", "pages.resize,optimize.compress"),
         PDFDocumentToolExtendedData("pages.resize", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.compress,edit.page-numbers"),
         PDFDocumentToolExtendedData("pages.boxes", Input::One, Result::ChangeDocument, Dependency::None, "", "review.output-preview"),

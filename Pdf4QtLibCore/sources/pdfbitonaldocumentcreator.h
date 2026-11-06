@@ -28,6 +28,7 @@
 #include "pdfimageconversion.h"
 #include "pdfoperationcontrol.h"
 #include "pdfrenderer.h"
+#include "pdfprogress.h"
 
 #include <QImage>
 
@@ -39,7 +40,6 @@
 namespace pdf
 {
 class PDFPage;
-class PDFProgress;
 class PDFDocumentBuilder;
 class PDFRasterizerPool;
 
@@ -63,7 +63,7 @@ public:
     /// \param progress Progress reporting (can be nullptr)
     explicit PDFBitonalDocumentCreator(const PDFDocument* document,
                                        PDFRasterizerPool* rasterizerPool,
-                                       PDFProgress* progress);
+                                       PDFProgressSink* progress);
 
     /// Source of the bitonal conversion
     enum class ConversionSource
@@ -400,7 +400,7 @@ private:
 
     const PDFDocument* m_document;
     PDFRasterizerPool* m_rasterizerPool;
-    PDFProgress* m_progress;
+    PDFProgressSink* m_progress;
 
     /// Decoded ICC profiles of the color spaces of the images of the document
     PDFICCProfileCache m_iccProfileCache;

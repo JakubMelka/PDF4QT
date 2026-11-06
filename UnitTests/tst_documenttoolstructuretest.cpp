@@ -43,6 +43,8 @@
 #include "pdfsecurityhandler.h"
 #include "pdfstreamfilters.h"
 
+#include "testprogressrecorder.h"
+
 #include <QBuffer>
 #include <QImage>
 #include <QJsonArray>
@@ -66,25 +68,21 @@ private:
 };
 
 /// Records the progress; cancels the run at a step of the text
-class StructureTestListener : public pdf::PDFDocumentToolProgressListener
+class StructureTestListener : public pdftest::TestProgressRecorder
 {
 public:
-    QList<int> percentages;
-    QStringList texts;
     QString cancelOnText;
     StructureTestControl* control = nullptr;
 
-    virtual void onToolProgress(int percentage, const QString& stepText) override
+    StructureTestListener()
     {
-        percentages << percentage;
-        if (texts.isEmpty() || texts.back() != stepText)
+        onText = [this](const QString& stepText)
         {
-            texts << stepText;
-        }
-        if (control && !cancelOnText.isEmpty() && stepText.startsWith(cancelOnText))
-        {
-            control->cancel();
-        }
+            if (control && !cancelOnText.isEmpty() && stepText.startsWith(cancelOnText))
+            {
+                control->cancel();
+            }
+        };
     }
 };
 
@@ -624,8 +622,7 @@ void DocumentToolStructureTest::canceled()
     StructureTestListener listener;
     listener.control = &runningControl;
     listener.cancelOnText = QStringLiteral("Cleaning up the structure");
-    pdf::PDFDocumentToolProgressAdapter adapter(&listener);
-    const pdf::PDFDocumentToolResult during = tool.run(H::createContext(input), H::steps(true), &runningControl, &adapter);
+    const pdf::PDFDocumentToolResult during = tool.run(H::createContext(input), H::steps(true), &runningControl, &listener);
     QCOMPARE(during.status, pdf::PDFDocumentToolResultStatus::Stopped);
     QVERIFY(during.documents.empty());
     for (const QString& text : listener.texts)
@@ -639,9 +636,8 @@ void DocumentToolStructureTest::progressOverPhases()
     // One bar over the stages of the optimizer and the measuring of the written file
     using H = StructureTestHelper;
     StructureTestListener listener;
-    pdf::PDFDocumentToolProgressAdapter adapter(&listener);
     const pdf::PDFDocumentToolStructure tool;
-    const pdf::PDFDocumentToolResult result = tool.run(H::createContext(H::createDocument(nullptr)), H::steps(true), nullptr, &adapter);
+    const pdf::PDFDocumentToolResult result = tool.run(H::createContext(H::createDocument(nullptr)), H::steps(true), nullptr, &listener);
     QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Success);
 
     QVERIFY(!listener.percentages.isEmpty());

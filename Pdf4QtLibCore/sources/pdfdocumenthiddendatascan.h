@@ -25,10 +25,12 @@
 
 #include "pdfdocument.h"
 #include "pdfdocumentsanitizer.h"
+#include "pdfprogress.h"
 
 #include <QCoreApplication>
 #include <QJsonObject>
 #include <QString>
+#include <QStringList>
 
 #include <array>
 #include <vector>
@@ -37,7 +39,6 @@ namespace pdf
 {
 
 class PDFOperationControl;
-class PDFProgress;
 
 /// What a document has of the hidden data, which Remove Hidden Data removes (Figma
 /// 438:12588: the rows of the form, the card Scan; plan of the first batch, chapter 7). The
@@ -94,6 +95,19 @@ public:
     {
         std::array<KindResult, KIND_COUNT> kinds;
         QString pageLabelsText;     ///< The ranges of the page labels ("i–xii, 1–1,580")
+
+        /// The properties of the XMP metadata of the document, which are its document info
+        /// ("dc:title", PDFDocumentSanitizer::removeDocumentInfoProperties): the kind DocumentInfo
+        /// counts them with the entries of the information dictionary
+        QStringList documentInfoXmp;
+
+        /// The XMP metadata of the document cannot be read and may have the document info
+        /// (PDFDocumentSanitizer::DocumentInfoProperties::isReadable): DocumentInfo without
+        /// Metadata cannot remove them
+        bool isDocumentInfoXmpReadable = true;
+
+        /// File attachment annotations: the kind Attachments changes annotations, when it has some
+        qint64 attachmentAnnotations = 0;
         bool isCanceled = false;    ///< The scan was canceled: the result is not to be used
 
         const KindResult& get(Kind kind) const { return kinds[size_t(kind)]; }
@@ -113,7 +127,7 @@ public:
     ///        decoding of the content is the longest part of the scan)
     /// \param control Cancellation (optional)
     /// \param progress Progress, a step per page (optional)
-    static Result scan(const PDFDocument* document, bool includeInvisibleText, const PDFOperationControl* control, PDFProgress* progress);
+    static Result scan(const PDFDocument* document, bool includeInvisibleText, const PDFOperationControl* control, PDFProgressSink* progress);
 
     /// All kinds in their order
     static std::vector<Kind> getKinds();

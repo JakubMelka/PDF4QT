@@ -177,6 +177,26 @@ public:
 
     /// Names of the filters in JSON ("even", "odd", "portrait", "landscape")
     static QStringList getFilterNames();
+
+    /// Range text of the pages ("1-3, 5"), which fromVariant reads back
+    /// \param pageIndices Indices of the pages (from 0), sorted, without duplicates
+    static QString createRangeText(const std::vector<PDFInteger>& pageIndices);
+
+    /// Where the pages of \p from are in \p to, another version of the same document (an
+    /// assistant has removed or moved pages): for each page of \p from its index in \p to by
+    /// the reference of its page object, -1 for a page, which is not there. A page object,
+    /// which is in a page tree more times, matches its occurrences in their order.
+    static std::vector<PDFInteger> mapPageIndices(const PDFDocument* from, const PDFDocument* to);
+
+    /// The selection of the same pages in another version of the document: a range names
+    /// pages of \p from by their numbers there - the pages it selects with its filters
+    /// follow their page objects and become a range of their numbers in the other version
+    /// without filters (none, when no page of them is there). All pages (an empty range) with
+    /// or without filters is a rule over the pages of a version, not a list: it stays, as a
+    /// selection of no page does. A range, which is not valid for \p from, stays too.
+    /// \param from The version, whose pages the selection names
+    /// \param pageMap mapPageIndices of \p from to the other version
+    PDFDocumentToolPageSelection mapPages(const PDFDocument* from, const std::vector<PDFInteger>& pageMap) const;
 };
 
 /// Error of a parameter (validation): the name of the parameter (empty = the

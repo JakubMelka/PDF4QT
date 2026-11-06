@@ -31,6 +31,7 @@
 #include "pdfcomponentdelegates.h"
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
+#include "pdfglobal.h"
 
 #include <QObject>
 #include <QPointer>
@@ -51,6 +52,7 @@ namespace pdf
 
 class PDFAppSettingControl;
 class PDFAppToolParameterModel;
+class PDFDocument;
 class PDFDocumentToolGUI;
 class PDFListView;
 
@@ -243,6 +245,14 @@ public:
 
     /// The mode at the entry of a tool, which is no change of the user (no undo step)
     void setEntryMode(PDFPageSelection::Mode mode);
+
+    /// The document has another version (an assistant has removed or moved pages): the pages
+    /// chosen by the user - a range, the pages of setPages - follow their page objects, a page,
+    /// which is gone, drops out (none: Selected without a page). The modes Current and Selected
+    /// of the thumbnails follow the view, All is a rule: they stay. No undo step.
+    /// \param from The version, whose pages the value names
+    /// \param pageMap PDFDocumentToolPageSelection::mapPageIndices of \p from to the shown version
+    void followPages(const PDFDocument* from, const std::vector<PDFInteger>& pageMap);
 
 private:
     void updatePages();

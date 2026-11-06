@@ -22,6 +22,7 @@
 
 #include "pdfdocumenttoolrunner.h"
 
+#include "pdfapplocale.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfexecutionpolicy.h"
 #include "pdfoperationcontrol.h"
@@ -56,16 +57,6 @@ public:
         m_runner = nullptr;
     }
 
-    void postProgress(const std::shared_ptr<PDFDocumentToolRunnerJob>& job, int percentage, const QString& stepText)
-    {
-        QMutexLocker locker(&m_mutex);
-        if (m_runner)
-        {
-            PDFThreadAnnotations::TransportScope transportScope;
-            QMetaObject::invokeMethod(m_runner, &PDFDocumentToolRunner::onJobProgress, Qt::QueuedConnection, job, percentage, stepText);
-        }
-    }
-
     void postFinished(const std::shared_ptr<PDFDocumentToolRunnerJob>& job)
     {
         QMutexLocker locker(&m_mutex);
@@ -84,9 +75,9 @@ private:
 
 /// One computation in the pool. All members except of the cancellation and of the
 /// progress are written before the start or read after the end (the hand-offs are
-/// annotated).
+/// annotated). The computation steps the progress counter, the runner reads it by its
+/// timer in the GUI thread (nothing of the runner runs in the worker).
 class PDFDocumentToolRunnerJob : public PDFOperationControl,
-                                 public PDFDocumentToolProgressListener,
                                  public std::enable_shared_from_this<PDFDocumentToolRunnerJob>
 {
 public:
@@ -111,33 +102,23 @@ public:
         return m_isCanceled.load(std::memory_order_relaxed);
     }
 
-    virtual void onToolProgress(int percentage, const QString& stepText) override
-    {
-        // At most one queued call per a change: a tool may report thousands of steps
-        if (m_lastPercentage != percentage || m_lastStepText != stepText)
-        {
-            m_lastPercentage = percentage;
-            m_lastStepText = stepText;
-            m_link->postProgress(shared_from_this(), percentage, stepText);
-        }
-    }
-
     void cancel() { m_isCanceled.store(true, std::memory_order_relaxed); }
 
     /// The computation (a thread of the pool)
     void execute()
     {
-        // The tool converts its exceptions to a failed result; the adapter lives
-        // on the stack of the worker
-        PDFDocumentToolProgressAdapter progress(this);
-        m_result = m_isPreview ? m_tool->runPreview(m_context, m_parameters, this, &progress)
-                               : m_tool->run(m_context, m_parameters, this, &progress);
+        // The tool converts its exceptions to a failed result
+        m_result = m_isPreview ? m_tool->runPreview(m_context, m_parameters, this, &m_progress)
+                               : m_tool->run(m_context, m_parameters, this, &m_progress);
         m_link->postFinished(shared_from_this());
     }
 
     const PDFAppDocumentSnapshot& getSnapshot() const { return m_snapshot; }
     const QVariantMap& getParameters() const { return m_parameters; }
     const PDFDocumentToolResult& getResult() const { return m_result; }
+
+    /// Progress of the computation (any thread)
+    const PDFProgressCounter& getProgress() const { return m_progress; }
 
 private:
     std::shared_ptr<PDFDocumentToolRunnerLink> m_link;
@@ -147,8 +128,7 @@ private:
     QVariantMap m_parameters;
     bool m_isPreview;
     std::atomic<bool> m_isCanceled = false;
-    int m_lastPercentage = -1;
-    QString m_lastStepText;
+    PDFProgressCounter m_progress;
     PDFDocumentToolResult m_result;
 };
 
@@ -194,6 +174,17 @@ public:
     }
 };
 
+QString PDFDocumentToolRunner::getStepText(const PDFProgressCounter::Snapshot& snapshot)
+{
+    if (!snapshot.showCount || snapshot.count == 0 || snapshot.text.isEmpty())
+    {
+        return snapshot.text;
+    }
+
+    // 295:1711: "Recompressing images · 152 of 412"
+    return tr("%1 · %2 of %3").arg(snapshot.text, PDFAppLocale::formatNumber(qint64(snapshot.done)), PDFAppLocale::formatNumber(qint64(snapshot.count)));
+}
+
 const PDFDocumentToolOutputDocument* PDFDocumentToolRunner::findChangedDocument(const PDFDocumentToolResult& result)
 {
     for (const PDFDocumentToolOutputDocument& output : result.documents)
@@ -218,6 +209,7 @@ PDFDocumentToolRunner::PDFDocumentToolRunner(PDFAppDocument* document, std::shar
     m_previewTimer.setSingleShot(true);
     m_previewTimer.setInterval(PREVIEW_DELAY);
     connect(&m_previewTimer, &QTimer::timeout, this, &PDFDocumentToolRunner::onPreviewTimeout);
+    connect(&m_progressTimer, &QTimer::timeout, this, &PDFDocumentToolRunner::onProgressTimeout);
 
     if (m_document)
     {
@@ -280,6 +272,9 @@ std::shared_ptr<PDFDocumentToolRunnerJob> PDFDocumentToolRunner::startJob(const 
 {
     std::shared_ptr<PDFDocumentToolRunnerJob> job = std::make_shared<PDFDocumentToolRunnerJob>(m_link, m_tool, createContext(snapshot, m_environment), snapshot, parameters, isPreview);
     PDFExecutionPolicy::startTask(QThreadPool::globalInstance(), PDFDocumentToolRunnerTask(job));
+
+    // The first read of the progress at once (from the event loop), then by the interval
+    m_progressTimer.start(0);
     return job;
 }
 
@@ -707,33 +702,68 @@ void PDFDocumentToolRunner::setProgress(int percentage, const QString& stepText)
     m_stepText = stepText;
 }
 
-void PDFDocumentToolRunner::onJobProgress(const std::shared_ptr<PDFDocumentToolRunnerJob>& job, int percentage, const QString& stepText)
+void PDFDocumentToolRunner::onProgressTimeout()
 {
+    // At most one computation runs: a run cancels or takes over the preview
+    const std::shared_ptr<PDFDocumentToolRunnerJob> job = m_runJob ? m_runJob : m_previewJob;
+    if (!job)
+    {
+        m_progressTimer.stop();
+        return;
+    }
+
+    if (m_progressTimer.interval() != PROGRESS_INTERVAL)
+    {
+        m_progressTimer.setInterval(PROGRESS_INTERVAL);
+    }
+    readProgress(job);
+}
+
+bool PDFDocumentToolRunner::readProgress(const std::shared_ptr<PDFDocumentToolRunnerJob>& job)
+{
+    // Only a change is told: the percentage never goes back, the text is built here, in the
+    // GUI thread (the computation has only the counter)
+    const PDFProgressCounter::Snapshot snapshot = job->getProgress().snapshot();
+    const int percentage = snapshot.percentage;
+    const QString stepText = getStepText(snapshot);
+    if (percentage == m_progress && stepText == m_stepText)
+    {
+        return true;
+    }
+
+    QPointer<PDFDocumentToolRunner> guard(this);
     if (job == m_runJob)
     {
         setProgress(percentage, stepText);
-
-        QPointer<PDFDocumentToolRunner> guard(this);
         if (m_operation)
         {
             m_operation->setProgress(percentage);
+            if (!guard)
+            {
+                return false;
+            }
         }
-        if (guard)
-        {
-            Q_EMIT runProgress(percentage, stepText);
-        }
+        Q_EMIT runProgress(percentage, stepText);
     }
     else if (job == m_previewJob)
     {
         setProgress(percentage, stepText);
         Q_EMIT previewProgress(percentage, stepText);
     }
+    return !guard.isNull();
 }
 
 void PDFDocumentToolRunner::onJobFinished(const std::shared_ptr<PDFDocumentToolRunnerJob>& job)
 {
     PDFThreadAnnotations::happensAfter(job.get());
     PDFThreadAnnotations::forget(job.get());
+
+    // The last value of the computation; a slot may delete the runner, stop the run or
+    // start another one (the job is compared again below)
+    if ((job == m_runJob || job == m_previewJob) && job->getResult().status != PDFDocumentToolResultStatus::Stopped && !readProgress(job))
+    {
+        return;
+    }
 
     if (job == m_runJob)
     {

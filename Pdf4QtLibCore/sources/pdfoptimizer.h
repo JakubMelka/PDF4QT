@@ -25,12 +25,12 @@
 
 #include "pdfdocument.h"
 #include "pdfoperationcontrol.h"
+#include "pdfprogress.h"
 
 #include <QObject>
 
 namespace pdf
 {
-class PDFProgress;
 
 /// Class for optimalizing documents. Can examine object structure and it's dependencies,
 /// and remove unused objects, merge same objects, or even recompress some streams
@@ -78,9 +78,9 @@ public:
     /// The operation control has canceled the optimization
     bool isCanceled() const { return PDFOperationControl::isOperationCancelled(m_operationControl); }
 
-    /// Sets the progress of optimize: one step per stage, which has a step to run
-    /// (optional, it must outlive optimize)
-    void setProgress(PDFProgress* progress) { m_progress = progress; }
+    /// Sets the progress of optimize: one step per stage, which has a step to run, and the
+    /// texts of the work (PDFProgressSink::addMessage; optional, it must outlive optimize)
+    void setProgress(PDFProgressSink* progress) { m_progress = progress; }
 
     /// Returns the counters of the last run of optimize
     const Statistics& getStatistics() const { return m_statistics; }
@@ -123,10 +123,13 @@ private:
     bool performShrinkObjectStorage();
     bool performRecompressFlateStreams();
 
+    /// A text of the work: the progress (addMessage) and the signal optimizationProgress
+    void reportProgress(const QString& text);
+
     OptimizationFlags m_flags;
     PDFObjectStorage m_storage;
     const PDFOperationControl* m_operationControl = nullptr;
-    PDFProgress* m_progress = nullptr;
+    PDFProgressSink* m_progress = nullptr;
     Statistics m_statistics;
 };
 

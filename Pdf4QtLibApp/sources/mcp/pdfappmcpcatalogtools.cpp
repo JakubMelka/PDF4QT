@@ -50,6 +50,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QStringDecoder>
+#include <QTimer>
 
 #include <limits>
 
@@ -399,22 +400,54 @@ public:
     }
 };
 
-/// Listener of the progress of a run: the progress of the call (the worker thread)
-class PDFAppMcpCatalogToolProgress : public PDFDocumentToolProgressListener
+/// The progress of a run of a tool for the assistant (the pull model): the computation
+/// steps the counter of its job, this reader reads it by a timer in the GUI thread and
+/// notifies the call of each new percentage. A child of the host: it goes by itself,
+/// when its call has finished; the job stops it in its finish with the last value.
+class PDFAppMcpCatalogToolProgress : public QObject
 {
 public:
-    PDFAppMcpCatalogToolProgress(std::shared_ptr<PDFMcpCall> call, QString message) :
+    PDFAppMcpCatalogToolProgress(std::shared_ptr<PDFMcpCall> call, std::shared_ptr<const PDFProgressCounter> counter, QString message, QObject* parent) :
+        QObject(parent),
         m_call(std::move(call)),
+        m_counter(std::move(counter)),
         m_message(std::move(message))
     {
-
+        // The first read at once (from the event loop), then by the interval of the runner
+        connect(&m_timer, &QTimer::timeout, this, &PDFAppMcpCatalogToolProgress::onTimeout);
+        m_timer.start(0);
     }
 
-    virtual void onToolProgress(int percentage, const QString& stepText) override
+    /// Reads the last value and goes (later: the caller may be in a slot of the timer)
+    void stop()
     {
-        // The text of a step changes without a new percentage: no notification of
-        // the same progress
-        Q_UNUSED(stepText);
+        m_timer.stop();
+        read();
+        deleteLater();
+    }
+
+private:
+    void onTimeout()
+    {
+        if (!m_call || m_call->isFinished())
+        {
+            m_timer.stop();
+            deleteLater();
+            return;
+        }
+
+        if (m_timer.interval() != PDFDocumentToolRunner::PROGRESS_INTERVAL)
+        {
+            m_timer.setInterval(PDFDocumentToolRunner::PROGRESS_INTERVAL);
+        }
+        read();
+    }
+
+    void read()
+    {
+        // The call takes the notification in any thread (it posts it), nothing runs here;
+        // the same percentage is no new notification
+        const int percentage = m_counter->snapshot().percentage;
         if (m_call && percentage != m_percentage)
         {
             m_percentage = percentage;
@@ -422,9 +455,10 @@ public:
         }
     }
 
-private:
+    QTimer m_timer;
     int m_percentage = -1;
     std::shared_ptr<PDFMcpCall> m_call;
+    std::shared_ptr<const PDFProgressCounter> m_counter;
     QString m_message;
 };
 
@@ -487,6 +521,16 @@ public:
     /// limit of the host keeps workers free for the light reads)
     virtual bool isHeavy() const override { return true; }
 
+    /// Starts \p job in the host; a run gets the reader of its progress (GUI thread)
+    static void start(PDFAppMcpHost* host, const std::shared_ptr<PDFAppMcpCatalogToolJob>& job)
+    {
+        if (job->m_phase == Phase::Run)
+        {
+            job->m_progressReader = new PDFAppMcpCatalogToolProgress(job->getCall(), job->m_progress, QStringLiteral("Running %1").arg(job->getActionId()), host);
+        }
+        host->startJob(job);
+    }
+
     virtual void execute() override
     {
         if (m_phase == Phase::Write)
@@ -508,13 +552,19 @@ public:
             return;
         }
 
-        PDFAppMcpCatalogToolProgress listener(getCall(), QStringLiteral("Running %1").arg(getActionId()));
-        PDFDocumentToolProgressAdapter progress(&listener);
-        m_result = m_request.tool->run(PDFDocumentToolRunner::createContext(getSnapshot(), m_request.environment), m_request.parameters, getCall().get(), &progress);
+        // The counter is read in the GUI thread (PDFAppMcpCatalogToolProgress)
+        m_result = m_request.tool->run(PDFDocumentToolRunner::createContext(getSnapshot(), m_request.environment), m_request.parameters, getCall().get(), m_progress.get());
     }
 
     virtual void finish(PDFAppMcpHost* host) override
     {
+        // The last value of the run before its result
+        if (PDFAppMcpCatalogToolProgress* progressReader = m_progressReader.data())
+        {
+            m_progressReader = nullptr;
+            progressReader->stop();
+        }
+
         m_host = host;
         const std::shared_ptr<PDFMcpCall>& call = getCall();
         if (!call || call->isFinished())
@@ -1025,12 +1075,17 @@ private:
             return;
         }
 
-        std::shared_ptr<PDFAppMcpCatalogToolJob> rerun = std::make_shared<PDFAppMcpCatalogToolJob>(getCall(), document->getSnapshot(), m_request, m_attempt + 1);
+        // The pages, which the call names by their numbers in the version this run had, follow
+        // their page objects to the new version (pages.md: a page removed meanwhile is left out)
+        const PDFAppDocumentSnapshot snapshot = document->getSnapshot();
+        PDFAppMcpCatalogToolRequest request = m_request;
+        request.parameters = m_request.tool->mapParameters(m_request.parameters, getSnapshot().document.data(), snapshot.document.data());
+        std::shared_ptr<PDFAppMcpCatalogToolJob> rerun = std::make_shared<PDFAppMcpCatalogToolJob>(getCall(), snapshot, std::move(request), m_attempt + 1);
         rerun->m_isConfirmed = m_isConfirmed;
         rerun->m_confirmedFilePath = m_confirmedFilePath;
         rerun->m_activityId = m_activityId;
         rerun->m_status = m_status;
-        m_host->startJob(rerun);
+        start(m_host, rerun);
     }
 
     /// The write runs in a second job (a worker)
@@ -1147,6 +1202,8 @@ private:
     PDFAppMcpCatalogToolRequest m_request;
     int m_attempt = 0;
     Phase m_phase = Phase::Run;
+    std::shared_ptr<PDFProgressCounter> m_progress = std::make_shared<PDFProgressCounter>();  ///< Stepped by the run (the worker), read by m_progressReader
+    QPointer<PDFAppMcpCatalogToolProgress> m_progressReader;    ///< The reader of the progress of a run, a child of the host
     PDFDocumentToolResult m_result;
     PDFDocumentPointer m_outputDocument;
     PDFModifiedDocument::ModificationFlags m_outputFlags = PDFModifiedDocument::Reset;
@@ -1433,7 +1490,7 @@ public:
         request.mode = mode;
         request.path = path;
         request.document = document;
-        host->startJob(std::make_shared<PDFAppMcpCatalogToolJob>(call, snapshot, std::move(request), 0));
+        PDFAppMcpCatalogToolJob::start(host, std::make_shared<PDFAppMcpCatalogToolJob>(call, snapshot, std::move(request), 0));
     }
 };
 

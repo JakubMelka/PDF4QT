@@ -29,6 +29,7 @@
 #include "pdfmeshqualitysettings.h"
 #include "pdfutils.h"
 #include "pdfcolorconvertor.h"
+#include "pdfprogress.h"
 
 #include <QMutex>
 #include <QSemaphore>
@@ -40,7 +41,6 @@ class QPainter;
 namespace pdf
 {
 class PDFCMS;
-class PDFProgress;
 class PDFFontCache;
 class PDFICCProfileCache;
 class PDFCMSManager;
@@ -290,7 +290,7 @@ public:
     void render(const std::vector<PDFInteger>& pageIndices,
                 const PageImageSizeGetter& imageSizeGetter,
                 const ProcessImageMethod& processImage,
-                PDFProgress* progress,
+                PDFProgressSink* progress,
                 const PDFOperationControl* operationControl = nullptr);
 
     /// Returns default rasterizer count

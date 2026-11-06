@@ -798,14 +798,20 @@ PDFDictionaryBuilder PDFObjectUtils::copyDictionary(const PDFObjectStorage* stor
 std::vector<std::pair<PDFInteger, PDFObject>> PDFObjectUtils::readNumberTree(const PDFObjectStorage* storage, const PDFObject& root, int maximumDepth)
 {
     std::vector<std::pair<PDFInteger, PDFObject>> entries;
-    readNumberTreeNode(storage, root, 0, maximumDepth, entries);
+    PDFObjectWalk walk(maximumDepth);
+    readNumberTreeNode(storage, root, 0, &walk, entries);
     return entries;
 }
 
-void PDFObjectUtils::readNumberTreeNode(const PDFObjectStorage* storage, const PDFObject& node, int depth, int maximumDepth, std::vector<std::pair<PDFInteger, PDFObject>>& entries)
+void PDFObjectUtils::readNumberTreeNode(const PDFObjectStorage* storage, const PDFObject& node, int depth, PDFObjectWalk* walk, std::vector<std::pair<PDFInteger, PDFObject>>& entries)
 {
+    if (!walk->enter(node, depth))
+    {
+        return;
+    }
+
     const PDFDictionary* dictionary = storage->getDictionaryFromObject(node);
-    if (!dictionary || depth > maximumDepth)
+    if (!dictionary)
     {
         return;
     }
@@ -829,9 +835,55 @@ void PDFObjectUtils::readNumberTreeNode(const PDFObjectStorage* storage, const P
     {
         for (size_t i = 0; i < kids.getArray()->getCount(); ++i)
         {
-            readNumberTreeNode(storage, kids.getArray()->getItem(i), depth + 1, maximumDepth, entries);
+            readNumberTreeNode(storage, kids.getArray()->getItem(i), depth + 1, walk, entries);
         }
     }
+}
+
+PDFObjectWalk::PDFObjectWalk(int maximumDepth, qint64 maximumNodes) :
+    m_maximumDepth(maximumDepth),
+    m_maximumNodes(maximumNodes)
+{
+
+}
+
+bool PDFObjectWalk::enter(const PDFObject& node, int depth)
+{
+    return node.isReference() ? enterReference(node.getReference(), depth) : enterNode(depth);
+}
+
+bool PDFObjectWalk::enterReference(PDFObjectReference reference, int depth)
+{
+    if (!reference.isValid())
+    {
+        return enterNode(depth);
+    }
+
+    if (m_visited.count(reference))
+    {
+        return false;
+    }
+
+    if (!enterNode(depth))
+    {
+        // Not marked: a shorter path may still reach the object
+        return false;
+    }
+
+    m_visited.insert(reference);
+    return true;
+}
+
+bool PDFObjectWalk::enterNode(int depth)
+{
+    if (depth < 0 || depth > m_maximumDepth || m_nodeCount >= m_maximumNodes)
+    {
+        m_isLimitReached = true;
+        return false;
+    }
+
+    ++m_nodeCount;
+    return true;
 }
 
 }   // namespace pdf

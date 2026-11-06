@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfcms.h"
+#include "pdfcompiler.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfdrawwidget.h"
@@ -28,7 +29,12 @@
 
 #include <QtTest>
 #include <QLayout>
+#include <QPainter>
 #include <QScrollBar>
+#include <QThread>
+
+#include <algorithm>
+#include <vector>
 
 class DrawSpaceTest : public QObject
 {
@@ -40,6 +46,8 @@ private slots:
     void fitPageFillsViewport();
     void fitIsIndependentOfLogicalSizeZooming();
     void fitDoesNotOscillate();
+    void compilerServesRequestsOfIdleWorker();
+    void compilerStoppedDuringCompilation();
 };
 
 struct DrawSpaceFixture
@@ -110,6 +118,23 @@ struct DrawSpaceFixture
         return QSizeF(proxy->transformDeviceSpaceToPixel(pageSizeMM.width()),
                       proxy->transformDeviceSpaceToPixel(pageSizeMM.height()));
     }
+
+    /// Multiplier of the time limits: PDF4QT_TEST_TIMEOUT_FACTOR (at most 1000), or 20
+    /// under valgrind
+    static int getTimeoutFactor()
+    {
+        bool ok = false;
+        const int factor = qEnvironmentVariableIntValue("PDF4QT_TEST_TIMEOUT_FACTOR", &ok);
+        if (ok && factor > 0)
+        {
+            return qMin(factor, 1000);
+        }
+        if (qEnvironmentVariable("LD_PRELOAD").contains(QLatin1String("vgpreload")))
+        {
+            return 20;
+        }
+        return 1;
+    }
 };
 
 static pdf::PDFDocument createDocument(int pageCount)
@@ -120,6 +145,33 @@ static pdf::PDFDocument createDocument(int pageCount)
     {
         // A4 portrait, in the default user space units (1/72 inch)
         builder.appendPage(QRectF(0, 0, 595, 842));
+    }
+
+    return builder.build();
+}
+
+/// A document of empty pages except of the page \p heavyPage, which has many
+/// operators (its compilation takes a while and polls the cancellation per operator)
+static pdf::PDFDocument createDocumentWithHeavyPage(int pageCount, int heavyPage)
+{
+    pdf::PDFDocumentBuilder builder;
+
+    for (int i = 0; i < pageCount; ++i)
+    {
+        const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 595, 842));
+
+        if (i == heavyPage)
+        {
+            pdf::PDFPageContentStreamBuilder content(&builder);
+            QPainter* painter = content.begin(page);
+            painter->setPen(Qt::NoPen);
+            for (int rectangle = 0; rectangle < 20000; ++rectangle)
+            {
+                painter->setBrush(QColor::fromRgb(rectangle % 256, (rectangle / 256) % 256, 128));
+                painter->drawRect(QRectF((rectangle % 100) * 5.0, (rectangle / 100) % 160 * 5.0, 4.0, 4.0));
+            }
+            content.end(painter);
+        }
     }
 
     return builder.build();
@@ -211,6 +263,105 @@ void DrawSpaceTest::fitDoesNotOscillate()
         fixture.widget.layout()->activate();
         fixture.widget.getDrawWidgetProxy()->update();
         QCOMPARE(fixture.widget.getDrawWidgetProxy()->getZoom(), zoom);
+    }
+}
+
+void DrawSpaceTest::compilerServesRequestsOfIdleWorker()
+{
+    // The worker of the asynchronous page compiler waits on a wait condition, when
+    // it has no task; the wait unlocks the mutex of the tasks (inside of Qt) and the
+    // GUI thread locks it meanwhile to add a task and to set the active pages. A
+    // page requested while the worker waits wakes the worker up, is compiled and
+    // announced by pageImageChanged; a persistent request is not cancelled by the
+    // active pages (pdfcompiler.h). Under ThreadSanitizer the test also checks, that
+    // the wait is announced to the detector (PDFThreadAnnotations::wait): without
+    // it, the next lock of the GUI thread is reported as a double lock of the mutex
+    // and the accesses of the tasks as data races.
+    constexpr pdf::PDFInteger PAGE_COUNT = 20;
+    DrawSpaceFixture fixture(createDocument(PAGE_COUNT), pdf::PageLayout::OneColumn, QSize(800, 600));
+    pdf::PDFAsynchronousPageCompiler* compiler = fixture.widget.getDrawWidgetProxy()->getCompiler();
+    QCOMPARE(compiler->getState(), pdf::PDFAsynchronousPageCompiler::State::Active);
+
+    std::vector<pdf::PDFInteger> announcedPages;
+    QObject context;
+    QObject::connect(compiler, &pdf::PDFAsynchronousPageCompiler::pageImageChanged, &context, [&announcedPages](bool all, const std::vector<pdf::PDFInteger>& pages)
+    {
+        if (!all)
+        {
+            announcedPages.insert(announcedPages.end(), pages.cbegin(), pages.cend());
+        }
+    });
+
+    const int timeout = 10000 * DrawSpaceFixture::getTimeoutFactor();
+    using CompileMode = pdf::PDFAsynchronousPageCompiler::CompileMode;
+
+    // The pages at the end of the document: neither displayed nor prefetched by the
+    // widget (it shows the first pages)
+    for (pdf::PDFInteger pageIndex : { 12, 14, 16, 18 })
+    {
+        // Nothing to compile: the worker reaches its wait
+        QTest::qWait(50);
+        QVERIFY2(!compiler->getCompiledPage(pageIndex, CompileMode::None), qPrintable(QString("Page %1 is compiled before its request").arg(pageIndex)));
+
+        announcedPages.clear();
+        compiler->getCompiledPage(pageIndex, CompileMode::Persistent);
+        compiler->setActivePages({ 0 });
+
+        QTRY_VERIFY_WITH_TIMEOUT(compiler->getCompiledPage(pageIndex, CompileMode::None) != nullptr, timeout);
+        QVERIFY(std::find(announcedPages.cbegin(), announcedPages.cend(), pageIndex) != announcedPages.cend());
+    }
+}
+
+void DrawSpaceTest::compilerStoppedDuringCompilation()
+{
+    // stop() stops the compilation of a page, which is running in other threads
+    // (pdfcompiler.h): it announces the stopping by the state of the compiler, which
+    // the compiling threads poll (isOperationCancelled) while stop() changes it, and
+    // waits for the worker. A stopped compilation is thrown away, it never puts a
+    // part of the page into the cache: after a restart the page is compiled whole,
+    // equal to an uninterrupted compilation. Under ThreadSanitizer the test also
+    // checks, that the state is safe to read from the compiling threads.
+    constexpr int PAGE_COUNT = 20;
+    constexpr int HEAVY_PAGE = 15;
+    DrawSpaceFixture fixture(createDocumentWithHeavyPage(PAGE_COUNT, HEAVY_PAGE), pdf::PageLayout::OneColumn, QSize(800, 600));
+    pdf::PDFAsynchronousPageCompiler* compiler = fixture.widget.getDrawWidgetProxy()->getCompiler();
+    QCOMPARE(compiler->getState(), pdf::PDFAsynchronousPageCompiler::State::Active);
+
+    const int timeout = 30000 * DrawSpaceFixture::getTimeoutFactor();
+    using CompileMode = pdf::PDFAsynchronousPageCompiler::CompileMode;
+    using State = pdf::PDFAsynchronousPageCompiler::State;
+
+    // The uninterrupted compilation
+    compiler->getCompiledPage(HEAVY_PAGE, CompileMode::Persistent);
+    QTRY_VERIFY_WITH_TIMEOUT(compiler->getCompiledPage(HEAVY_PAGE, CompileMode::None) != nullptr, timeout);
+    const pdf::PDFPrecompiledPage* page = compiler->getCompiledPage(HEAVY_PAGE, CompileMode::None);
+    QVERIFY(page->isValid());
+    QVERIFY(page->getErrors().isEmpty());
+    const qint64 wholePageSize = page->getMemoryConsumptionEstimate();
+
+    for (int attempt = 0; attempt < 3; ++attempt)
+    {
+        // A new compilation (the cache is cleared), stopped while it runs
+        compiler->stop(true);
+        QCOMPARE(compiler->getState(), State::Inactive);
+        compiler->start();
+        QCOMPARE(compiler->getState(), State::Active);
+        QVERIFY(!compiler->getCompiledPage(HEAVY_PAGE, CompileMode::Persistent));
+        QThread::msleep(5);
+        compiler->stop(false);
+        QCOMPARE(compiler->getState(), State::Inactive);
+        QVERIFY(!compiler->getCompiledPage(HEAVY_PAGE, CompileMode::None));
+
+        // After the restart the page is compiled whole
+        compiler->start();
+        const pdf::PDFPrecompiledPage* restartedPage = compiler->getCompiledPage(HEAVY_PAGE, CompileMode::Persistent);
+        if (!restartedPage)
+        {
+            QTRY_VERIFY_WITH_TIMEOUT(compiler->getCompiledPage(HEAVY_PAGE, CompileMode::None) != nullptr, timeout);
+            restartedPage = compiler->getCompiledPage(HEAVY_PAGE, CompileMode::None);
+        }
+        QVERIFY(restartedPage->getErrors().isEmpty());
+        QCOMPARE(restartedPage->getMemoryConsumptionEstimate(), wholePageSize);
     }
 }
 

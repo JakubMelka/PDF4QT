@@ -155,7 +155,7 @@ void PDFOptimizer::optimize()
             break;
         }
 
-        Q_EMIT optimizationProgress(tr("Stage %1").arg(stage++));
+        reportProgress(tr("Stage %1").arg(stage++));
         OptimizationFlags currentSteps = flags & m_flags;
 
         int passIndex = 1;
@@ -163,7 +163,7 @@ void PDFOptimizer::optimize()
         bool pass = true;
         while (pass && !isCanceled())
         {
-            Q_EMIT optimizationProgress(tr("Pass %1").arg(passIndex++));
+            reportProgress(tr("Pass %1").arg(passIndex++));
             pass = false;
 
             if (currentSteps.testFlag(DereferenceSimpleObjects) && !isCanceled())
@@ -214,6 +214,17 @@ void PDFOptimizer::setFlags(OptimizationFlags flags)
     m_flags = flags;
 }
 
+void PDFOptimizer::reportProgress(const QString& text)
+{
+    // The thread of optimize: the progress of the caller (PdfTool prints the texts), then the
+    // signal of the old dialogs (queued to their GUI thread)
+    if (m_progress)
+    {
+        m_progress->addMessage(text);
+    }
+    Q_EMIT optimizationProgress(text);
+}
+
 bool PDFOptimizer::performDereferenceSimpleObjects()
 {
     std::atomic<PDFInteger> counter = 0;
@@ -234,7 +245,7 @@ bool PDFOptimizer::performDereferenceSimpleObjects()
     PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, objects.begin(), objects.end(), processEntry);
     m_storage.setObjects(qMove(objects));
     m_statistics.simpleObjectsDereferenced += counter.load();
-    Q_EMIT optimizationProgress(tr("Simple objects dereferenced and embedded: %1").arg(counter.load()));
+    reportProgress(tr("Simple objects dereferenced and embedded: %1").arg(counter.load()));
 
     return false;
 }
@@ -259,7 +270,7 @@ bool PDFOptimizer::performRemoveNullObjects()
     PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, objects.begin(), objects.end(), processEntry);
     m_storage.setObjects(qMove(objects));
     m_statistics.nullEntriesRemoved += counter.load();
-    Q_EMIT optimizationProgress(tr("Null objects entries from dictionaries removed: %1").arg(counter.load()));
+    reportProgress(tr("Null objects entries from dictionaries removed: %1").arg(counter.load()));
 
     return false;
 }
@@ -285,7 +296,7 @@ bool PDFOptimizer::performRemoveUnusedObjects()
     PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, range.begin(), range.end(), processEntry);
     m_storage.setObjects(qMove(objects));
     m_statistics.unusedObjectsRemoved += counter.load();
-    Q_EMIT optimizationProgress(tr("Unused objects removed: %1").arg(counter.load()));
+    reportProgress(tr("Unused objects removed: %1").arg(counter.load()));
 
     return counter > 0;
 }
@@ -460,7 +471,7 @@ bool PDFOptimizer::performMergeIdenticalObjects()
 
     m_storage.setObjects(qMove(objects));
     m_statistics.identicalObjectsMerged += counter.load();
-    Q_EMIT optimizationProgress(tr("Identical objects merged: %1").arg(counter.load()));
+    reportProgress(tr("Identical objects merged: %1").arg(counter.load()));
 
     return counter > 0;
 }
@@ -557,7 +568,7 @@ bool PDFOptimizer::performShrinkObjectStorage()
     const size_t newObjectCount = objects.size();
     m_storage.setObjects(qMove(objects));
     m_statistics.objectEntriesShrunk += qint64(objectCount - newObjectCount);
-    Q_EMIT optimizationProgress(tr("Object list shrinked by: %1").arg(objectCount - newObjectCount));
+    reportProgress(tr("Object list shrinked by: %1").arg(objectCount - newObjectCount));
 
     return false;
 }
@@ -623,7 +634,7 @@ bool PDFOptimizer::performRecompressFlateStreams()
     m_storage.setObjects(qMove(objects));
     m_statistics.streamsRecompressed += streamsRecompressed.load();
     m_statistics.recompressedBytesSaved += bytesSaved.load();
-    Q_EMIT optimizationProgress(tr("Bytes saved by recompressing stream: %1").arg(bytesSaved.load()));
+    reportProgress(tr("Bytes saved by recompressing stream: %1").arg(bytesSaved.load()));
 
     return false;
 }

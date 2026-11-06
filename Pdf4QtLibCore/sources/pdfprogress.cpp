@@ -23,10 +23,32 @@
 #include "pdfprogress.h"
 #include "pdfdbgheap.h"
 
-#include <QLocale>
+#include <algorithm>
 
 namespace pdf
 {
+
+PDFProgressSink::~PDFProgressSink() = default;
+
+void PDFProgressSink::setPhases(std::vector<PDFProgressPhase> phases)
+{
+    Q_UNUSED(phases);
+}
+
+void PDFProgressSink::beginPhase(int index)
+{
+    Q_UNUSED(index);
+}
+
+void PDFProgressSink::finishPhases()
+{
+
+}
+
+void PDFProgressSink::addMessage(const QString& message)
+{
+    Q_UNUSED(message);
+}
 
 PDFProgress::PDFProgress(QObject* parent) :
     QObject(parent)
@@ -71,84 +93,192 @@ void PDFProgress::finish()
     Q_EMIT progressFinished();
 }
 
-void PDFProgress::setStepText(const QString& text)
+PDFProgressCounter::PDFProgressCounter() = default;
+
+PDFProgressCounter::~PDFProgressCounter() = default;
+
+void PDFProgressCounter::start(size_t stepCount, ProgressStartupInfo startupInfo)
 {
-    Q_EMIT progressStepText(text);
+    Q_UNUSED(startupInfo);
+
+    // The steps of the part come after its start (the same thread, or a parallel loop started after it)
+    m_done.store(0, std::memory_order_relaxed);
+    m_count.store(stepCount, std::memory_order_release);
 }
 
-/// One phase of PDFProgressPhases: its own progress and the connection to the owner
-class PDFProgressPhases::Phase : public QObject
+void PDFProgressCounter::step()
+{
+    const size_t done = m_done.fetch_add(1, std::memory_order_acq_rel) + 1;
+    const size_t count = m_count.load(std::memory_order_acquire);
+    if (count > 0)
+    {
+        raisePercentage(getPercentage(m_table.load(std::memory_order_acquire), m_phase.load(std::memory_order_acquire), done, count));
+    }
+}
+
+void PDFProgressCounter::finish()
+{
+    // The end of the current part: the end of its phase (or of the whole bar)
+    raisePercentage(getPercentage(m_table.load(std::memory_order_acquire), m_phase.load(std::memory_order_acquire), 1, 1));
+}
+
+void PDFProgressCounter::setPhases(std::vector<PDFProgressPhase> phases)
+{
+    std::unique_ptr<PhaseTable> table = std::make_unique<PhaseTable>();
+    table->phases = std::move(phases);
+    for (PDFProgressPhase& phase : table->phases)
+    {
+        phase.weight = qMax(phase.weight, 0);
+        table->startWeights.push_back(table->totalWeight);
+        table->totalWeight += phase.weight;
+    }
+
+    // An older table stays owned: a reader may be reading it now
+    const PhaseTable* published = table.get();
+    m_tables.push_back(std::move(table));
+    m_phase.store(-1, std::memory_order_relaxed);
+    m_table.store(published, std::memory_order_release);
+}
+
+void PDFProgressCounter::beginPhase(int index)
+{
+    const PhaseTable* table = m_table.load(std::memory_order_acquire);
+    if (!table || index < 0 || index >= int(table->phases.size()))
+    {
+        return;
+    }
+
+    // The counts are reset before the phase is published: a reader, which sees the
+    // phase, sees the counts of it
+    m_count.store(0, std::memory_order_relaxed);
+    m_done.store(0, std::memory_order_relaxed);
+    m_phase.store(index, std::memory_order_release);
+    raisePercentage(getPercentage(table, index, 0, 0));
+}
+
+void PDFProgressCounter::finishPhases()
+{
+    raisePercentage(100);
+}
+
+PDFProgressCounter::Snapshot PDFProgressCounter::snapshot() const
+{
+    Snapshot result;
+    result.percentage = m_percentage.load(std::memory_order_acquire);
+
+    // The phase is read again after its counts: a phase begun meanwhile reads them again
+    // (a few times at most - a run does not switch the phases so fast)
+    for (int attempt = 0; attempt < 3; ++attempt)
+    {
+        result.phase = m_phase.load(std::memory_order_acquire);
+        result.count = m_count.load(std::memory_order_acquire);
+        result.done = m_done.load(std::memory_order_acquire);
+        if (m_phase.load(std::memory_order_acquire) == result.phase)
+        {
+            break;
+        }
+    }
+    result.done = std::min(result.done, result.count);
+
+    const PhaseTable* table = m_table.load(std::memory_order_acquire);
+    if (table && result.phase >= 0 && result.phase < int(table->phases.size()))
+    {
+        const PDFProgressPhase& phase = table->phases[size_t(result.phase)];
+        result.text = phase.text;
+        result.showCount = phase.showCount;
+    }
+    else
+    {
+        result.phase = -1;
+    }
+    return result;
+}
+
+int PDFProgressCounter::getPercentage(const PhaseTable* table, int phase, size_t done, size_t count)
+{
+    const double fraction = count > 0 ? double(std::min(done, count)) / double(count) : 0.0;
+    if (!table)
+    {
+        // No phases: the part is the whole bar
+        return qBound(0, int(fraction * 100.0), 100);
+    }
+
+    if (phase < 0 || phase >= int(table->phases.size()) || table->totalWeight <= 0)
+    {
+        return 0;
+    }
+
+    const double start = table->startWeights[size_t(phase)];
+    const double weight = table->phases[size_t(phase)].weight;
+    return qBound(0, int((start + weight * fraction) * 100.0 / double(table->totalWeight)), 100);
+}
+
+void PDFProgressCounter::raisePercentage(int percentage)
+{
+    // An atomic maximum: two threads may step in the other order, the bar never goes back
+    int current = m_percentage.load(std::memory_order_relaxed);
+    while (current < percentage && !m_percentage.compare_exchange_weak(current, percentage, std::memory_order_release, std::memory_order_relaxed))
+    {
+    }
+}
+
+/// The progress of one phase: its start begins the phase of the target, its steps are
+/// the steps of the target (any thread, nothing of its own is changed)
+class PDFProgressPhases::Phase : public PDFProgressSink
 {
 public:
-    Phase(PDFProgressPhases* owner, int weight, int startWeight, const QString& text, bool showCount) :
-        m_owner(owner),
-        m_progress(nullptr),
-        m_weight(weight),
-        m_startWeight(startWeight),
-        m_text(text),
-        m_showCount(showCount)
+    Phase(PDFProgressSink* target, int index) :
+        m_target(target),
+        m_index(index)
     {
-        connect(&m_progress, &PDFProgress::progressStarted, this, &Phase::onStarted, Qt::DirectConnection);
-        connect(&m_progress, &PDFProgress::progressStep, this, &Phase::onStep, Qt::DirectConnection);
+
     }
 
-    PDFProgress* getProgress() { return &m_progress; }
-    int getWeight() const { return m_weight; }
-    int getStartWeight() const { return m_startWeight; }
-
-    /// Text of the step of the current state of the phase
-    QString getStepText() const
+    virtual void start(size_t stepCount, ProgressStartupInfo startupInfo) override
     {
-        const size_t count = m_progress.getStepCount();
-        if (!m_showCount || count == 0)
-        {
-            return m_text;
-        }
-
-        const QLocale locale;
-        return PDFTranslationContext::tr("%1 · %2 of %3").arg(m_text, locale.toString(qulonglong(m_progress.getCurrentStep())), locale.toString(qulonglong(count)));
+        m_target->beginPhase(m_index);
+        m_target->start(stepCount, std::move(startupInfo));
     }
 
-private:
-    void onStarted(pdf::ProgressStartupInfo)
+    virtual void step() override
     {
-        m_owner->updatePhase(this, 0);
+        m_target->step();
     }
 
-    void onStep(int percentage)
-    {
-        m_owner->updatePhase(this, percentage);
-    }
-
-    PDFProgressPhases* m_owner;
-    PDFProgress m_progress;
-    int m_weight;
-    int m_startWeight;
-    QString m_text;
-    bool m_showCount;
-};
-
-PDFProgressPhases::PDFProgressPhases(PDFProgress* target, const QString& title) :
-    m_target(target),
-    m_title(title)
-{
-
-}
-
-PDFProgressPhases::~PDFProgressPhases()
-{
-    // A run left early (stopped, failed) does not fill the bar, its start stays balanced
-    if (m_target && m_isStarted && !m_isFinished)
+    virtual void finish() override
     {
         m_target->finish();
     }
+
+    virtual void addMessage(const QString& message) override
+    {
+        m_target->addMessage(message);
+    }
+
+private:
+    PDFProgressSink* m_target;
+    int m_index;
+};
+
+PDFProgressPhases::PDFProgressPhases(PDFProgressSink* target) :
+    m_target(target)
+{
+
 }
+
+PDFProgressPhases::~PDFProgressPhases() = default;
 
 int PDFProgressPhases::addPhase(int weight, const QString& text, bool showCount)
 {
+    Q_ASSERT(!m_isStarted);
+
     const int index = int(m_phases.size());
-    m_phases.push_back(std::make_unique<Phase>(this, qMax(weight, 0), m_totalWeight, text, showCount));
-    m_totalWeight += qMax(weight, 0);
+    PDFProgressPhase phase;
+    phase.weight = qMax(weight, 0);
+    phase.text = text;
+    phase.showCount = showCount;
+    m_phases.push_back(std::move(phase));
+    m_phaseSinks.push_back(std::make_unique<Phase>(m_target, index));
     return index;
 }
 
@@ -157,22 +287,19 @@ void PDFProgressPhases::start()
     if (m_target && !m_isStarted)
     {
         m_isStarted = true;
-
-        ProgressStartupInfo info;
-        info.text = m_title;
-        m_target->start(100, std::move(info));
+        m_target->setPhases(m_phases);
     }
 }
 
-PDFProgress* PDFProgressPhases::getPhase(int index)
+PDFProgressSink* PDFProgressPhases::getPhase(int index)
 {
-    if (!m_target || index < 0 || index >= int(m_phases.size()))
+    if (!m_target || index < 0 || index >= int(m_phaseSinks.size()))
     {
         return nullptr;
     }
 
     start();
-    return m_phases[size_t(index)]->getProgress();
+    return m_phaseSinks[size_t(index)].get();
 }
 
 void PDFProgressPhases::beginPhase(int index)
@@ -180,39 +307,16 @@ void PDFProgressPhases::beginPhase(int index)
     if (m_target && index >= 0 && index < int(m_phases.size()))
     {
         start();
-        updatePhase(m_phases[size_t(index)].get(), 0);
+        m_target->beginPhase(index);
     }
 }
 
 void PDFProgressPhases::finish()
 {
-    if (m_target && m_isStarted && !m_isFinished)
+    if (m_target)
     {
-        m_isFinished = true;
-        for (; m_percentage < 100; ++m_percentage)
-        {
-            m_target->step();
-        }
-        m_target->finish();
-    }
-}
-
-void PDFProgressPhases::updatePhase(const Phase* phase, int phasePercentage)
-{
-    if (!m_target || m_isFinished)
-    {
-        return;
-    }
-
-    m_target->setStepText(phase->getStepText());
-
-    if (m_totalWeight > 0)
-    {
-        const int percentage = qBound(0, (phase->getStartWeight() * 100 + phase->getWeight() * qBound(0, phasePercentage, 100)) / m_totalWeight, 100);
-        for (; m_percentage < percentage; ++m_percentage)
-        {
-            m_target->step();
-        }
+        start();
+        m_target->finishPhases();
     }
 }
 

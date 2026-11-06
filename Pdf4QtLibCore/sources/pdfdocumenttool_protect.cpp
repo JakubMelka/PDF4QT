@@ -240,6 +240,64 @@ std::vector<PDFDocumentToolSanitize::Kind> PDFDocumentToolSanitize::getChosenKin
     return kinds;
 }
 
+std::vector<PDFDocumentToolSanitize::Kind> PDFDocumentToolSanitize::getInteractiveKinds(const PDFDocumentHiddenDataScan::Result& scan, const std::vector<Kind>& removedKinds)
+{
+    // ISO 32000-2, 7.6.4.2, Table 22: bit 4 "Modify the contents of the document by operations
+    // other than those controlled by bits 6, 9, and 11"; bit 6 "Add or modify text annotations,
+    // fill in interactive form fields, and, if bit 4 is also set, create or modify interactive
+    // form fields (including signature fields)". Every kind rewrites the document: bit 4 of the
+    // catalog. A kind, which removes annotations or fields, needs bit 6 too: the comments (markup
+    // and popup annotations), the attachments of file attachment annotations, the signature
+    // fields (also /Perms and /DSS alone are bit 4 only).
+    std::vector<Kind> kinds;
+    for (const Kind kind : removedKinds)
+    {
+        const PDFDocumentHiddenDataScan::KindResult& found = scan.get(kind);
+        bool isInteractive = false;
+        switch (kind)
+        {
+            case Kind::Comments:
+                isInteractive = found.isPresent;
+                break;
+            case Kind::Attachments:
+                isInteractive = scan.attachmentAnnotations > 0 || !found.isComplete;
+                break;
+            case Kind::SignatureFields:
+                isInteractive = found.count > 0 || !found.isComplete;
+                break;
+            default:
+                break;
+        }
+        if (isInteractive)
+        {
+            kinds.push_back(kind);
+        }
+    }
+    return kinds;
+}
+
+QString PDFDocumentToolSanitize::getPermissionRefusal(const PDFDocument* document, const PDFDocumentHiddenDataScan::Result& scan, const std::vector<Kind>& removedKinds)
+{
+    const PDFSecurityHandler* securityHandler = document ? document->getStorage().getSecurityHandler() : nullptr;
+    if (!securityHandler || securityHandler->isAllowed(PDFSecurityHandler::Permission::ModifyInteractiveItems))
+    {
+        return QString();
+    }
+
+    const std::vector<Kind> kinds = getInteractiveKinds(scan, removedKinds);
+    if (kinds.empty())
+    {
+        return QString();
+    }
+
+    QStringList titles;
+    for (const Kind kind : kinds)
+    {
+        titles << getKindTitle(kind);
+    }
+    return tr("The permissions of the document do not allow changing its annotations and form fields: untick %1 to remove the other kinds.").arg(titles.join(QStringLiteral(", ")));
+}
+
 QString PDFDocumentToolSanitize::getId() const
 {
     return QString::fromLatin1(TOOL_ID);
@@ -267,7 +325,7 @@ PDFDocumentToolParameterDefinitions PDFDocumentToolSanitize::getParameters() con
     return definitions;
 }
 
-PDFDocumentToolResult PDFDocumentToolSanitize::computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const
+PDFDocumentToolResult PDFDocumentToolSanitize::computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const
 {
     Q_UNUSED(parameters);
 
@@ -284,7 +342,7 @@ PDFDocumentToolResult PDFDocumentToolSanitize::computePreview(const PDFDocumentT
     return result;
 }
 
-PDFDocumentToolResult PDFDocumentToolSanitize::execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const
+PDFDocumentToolResult PDFDocumentToolSanitize::execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const
 {
     using Helper = PDFDocumentToolProtectHelper;
 
@@ -322,6 +380,20 @@ PDFDocumentToolResult PDFDocumentToolSanitize::execute(const PDFDocumentToolCont
         return PDFDocumentToolResult::createNothingToDo(tr("The chosen kinds of hidden data are not in this document: there is nothing to remove."));
     }
 
+    // Before anything is changed: what the chosen kinds change must be permitted (the same
+    // check and text as the panel of the tool), and the document info must be removable from
+    // the XMP metadata, which stay
+    const QString permissionRefusal = getPermissionRefusal(document, scan, removedKinds);
+    if (!permissionRefusal.isEmpty())
+    {
+        return PDFDocumentToolResult::createFailed(permissionRefusal);
+    }
+    const bool isDocumentInfoRemoved = std::find(removedKinds.cbegin(), removedKinds.cend(), Kind::DocumentInfo) != removedKinds.cend();
+    if (isDocumentInfoRemoved && !flags.testFlag(PDFDocumentSanitizer::Metadata) && !scan.isDocumentInfoXmpReadable)
+    {
+        return PDFDocumentToolResult::createFailed(tr("The XMP metadata of the document cannot be read, so the document info in them cannot be removed. Tick All metadata too: it removes the metadata whole."));
+    }
+
     const qint64 sizeBefore = getWholeFileInputSize(input);
     if (sizeBefore < 0)
     {
@@ -330,7 +402,7 @@ PDFDocumentToolResult PDFDocumentToolSanitize::execute(const PDFDocumentToolCont
 
     // One bar over the steps: "Comments and markup · step 3 of 8" (438:14093)
     const int stepCount = int(removedKinds.size()) + 1;
-    PDFProgressPhases phases(progress, tr("Removing hidden data…"));
+    PDFProgressPhases phases(progress);
     std::map<int, int> phaseOfFlag;
     for (size_t i = 0; i < removedKinds.size(); ++i)
     {
@@ -341,45 +413,35 @@ PDFDocumentToolResult PDFDocumentToolSanitize::execute(const PDFDocumentToolCont
     const int measurePhase = phases.addPhase(10, tr("Measuring the result · step %1 of %2").arg(stepCount).arg(stepCount), false);
     phases.start();
 
-    // The declaration of PDF/A or PDF/UA: the result is not checked against the standard. Its
-    // metadata, which go, take it with them.
-    PDFObjectStorage storage = document->getStorage();
+    // The declaration of PDF/A or PDF/UA: the result is not checked against the standard.
+    // Metadata, which go, take it with them; otherwise the whole write removes it as for
+    // Compress and Optimize Structure (createWholeFileDocument below).
     ConformanceRemoval conformance;
-    if (flags.testFlag(PDFDocumentSanitizer::Metadata))
+    const bool isMetadataRemoved = flags.testFlag(PDFDocumentSanitizer::Metadata);
+    if (isMetadataRemoved)
     {
         PDFOCRPagePreparer::hasConformanceDeclaration(document, &conformance.removed);
-    }
-    else
-    {
-        conformance = removeConformanceDeclaration(&storage, document);
-        if (!conformance.kept.isEmpty())
-        {
-            return PDFDocumentToolResult::createFailed(tr("The document declares %1 and its metadata cannot be changed. The result would keep a declaration, which is not true, so nothing was made.").arg(conformance.kept.join(QStringLiteral(", "))));
-        }
     }
 
     // A local sanitizer: it has a state, one instance of the tool serves more threads
     PDFDocumentSanitizer sanitizer(PDFDocumentSanitizer::None, nullptr);
     sanitizer.setFlags(flags);
     sanitizer.setOperationControl(control);
-    sanitizer.setStorage(storage);
-    auto onStep = [&phases, &phaseOfFlag](int flag)
-    {
-        const auto it = phaseOfFlag.find(flag);
-        if (it != phaseOfFlag.cend())
-        {
-            phases.beginPhase(it->second);
-        }
-    };
-    QObject::connect(&sanitizer, &PDFDocumentSanitizer::sanitizationStepStarted, &sanitizer, onStep, Qt::DirectConnection);
+    sanitizer.setStorage(document->getStorage());
+    sanitizer.setProgress(progress, std::move(phaseOfFlag));
     sanitizer.sanitize();
     if (sanitizer.isCanceled())
     {
         return PDFDocumentToolResult::createStopped();
     }
 
-    // Last: the dead containers of the organization of the file go, the version stays
-    PDFDocument output = createWholeFileDocument(sanitizer.takeStorage(), document);
+    // Last: the dead containers of the organization of the file go, the version stays, a
+    // declaration of a standard goes with the kept metadata
+    PDFDocument output = createWholeFileDocument(sanitizer.takeStorage(), document, isMetadataRemoved ? nullptr : &conformance);
+    if (!conformance.kept.isEmpty())
+    {
+        return createConformanceFailure(conformance.kept);
+    }
 
     phases.beginPhase(measurePhase);
     const WholeFileSize outputSize = getWholeFileOutputSize(&output);
@@ -409,15 +471,20 @@ PDFDocumentToolResult PDFDocumentToolSanitize::execute(const PDFDocumentToolCont
     result.facts.push_back({ QStringLiteral("size"), tr("File size"), PDFDocumentToolFormat::formatSizeChange(sizeBefore, outputSize.size) });
     const QString keptText = keptTitles.isEmpty() ? tr("Nothing") : (keptTitles.size() <= 2 ? keptTitles.join(QStringLiteral(", ")) : formatKindCount(int(keptTitles.size()), false));
     result.facts.push_back({ QStringLiteral("kept"), tr("Kept"), keptText });
-    if (!conformance.removed.isEmpty())
+
+    // The document info went also from the XMP metadata, which stay (ISO 32000-2, Table 349)
+    const QStringList documentInfoXmp = sanitizer.getRemovedDocumentInfoProperties();
+    if (!documentInfoXmp.isEmpty())
     {
-        result.facts.push_back(createConformanceFact(conformance.removed));
-        result.data.insert(QStringLiteral("conformanceRemoved"), QJsonArray::fromStringList(conformance.removed));
+        result.facts.push_back({ QStringLiteral("documentInfoXmp"), tr("Document info"),
+                                 Helper::plural(int(documentInfoXmp.size()), QT_TR_NOOP("Removed also from the XMP metadata: %Ln property"), QT_TR_NOOP("Removed also from the XMP metadata: %Ln properties")) });
     }
+    addConformanceFact(&result, conformance.removed);
 
     result.data.insert(QStringLiteral("removedKinds"), removedNames);
     result.data.insert(QStringLiteral("keptKinds"), keptNames);
     result.data.insert(QStringLiteral("scan"), scan.toJson());
+    result.data.insert(QStringLiteral("documentInfoXmp"), QJsonArray::fromStringList(documentInfoXmp));
 
     // The removal is the purpose: also a larger file has its document (review RP2FIX1-CORE)
     finishWholeFileResult(&result, input, std::move(output), sizeBefore, outputSize.size, QStringLiteral("_clean"), WholeFileDocument::Always);
@@ -468,7 +535,7 @@ std::vector<PDFDocumentToolParameterError> PDFDocumentToolRemoveLinks::validate(
     return errors;
 }
 
-PDFDocumentToolResult PDFDocumentToolRemoveLinks::computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const
+PDFDocumentToolResult PDFDocumentToolRemoveLinks::computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const
 {
     Q_UNUSED(parameters);
     Q_UNUSED(progress);
@@ -486,7 +553,7 @@ PDFDocumentToolResult PDFDocumentToolRemoveLinks::computePreview(const PDFDocume
     return result;
 }
 
-PDFDocumentToolResult PDFDocumentToolRemoveLinks::execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const
+PDFDocumentToolResult PDFDocumentToolRemoveLinks::execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const
 {
     using Helper = PDFDocumentToolProtectHelper;
     Q_UNUSED(progress);
@@ -497,7 +564,9 @@ PDFDocumentToolResult PDFDocumentToolRemoveLinks::execute(const PDFDocumentToolC
     std::set<QString> excludedIds;
     PDFDocumentLinkOperations::parseIds(parameters.value(QString::fromLatin1(PARAMETER_EXCLUDE)).toString(), &excludedIds, nullptr);
 
-    const PDFDocumentLinkOperations::LinkList list = PDFDocumentLinkOperations::listExternalLinks(document, control);
+    // Every link of the document, also behind the bound of the listing of the preview: none of
+    // them stays, unless the caller keeps it
+    const PDFDocumentLinkOperations::LinkList list = PDFDocumentLinkOperations::listExternalLinks(document, control, std::numeric_limits<size_t>::max());
     if (PDFOperationControl::isOperationCancelled(control))
     {
         return PDFDocumentToolResult::createStopped();

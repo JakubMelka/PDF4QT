@@ -186,6 +186,25 @@ public:
     }
 };
 
+/// A language, which marks the texts of the canvas page of Extract Text and of its GUI
+class ExtractTextTestTranslator : public QTranslator
+{
+public:
+    virtual bool isEmpty() const override { return false; }
+
+    virtual QString translate(const char* context, const char* sourceText, const char* disambiguation, int n) const override
+    {
+        Q_UNUSED(disambiguation);
+        Q_UNUSED(n);
+        const QByteArray name(context);
+        if (name.contains("PDFAppToolTextPreviewPage") || name.contains("PDFAppToolGUIExtractText"))
+        {
+            return QStringLiteral("[T] ") + QString::fromUtf8(sourceText);
+        }
+        return QString();
+    }
+};
+
 class AppToolExtractTextTest : public QObject
 {
     Q_OBJECT
@@ -204,6 +223,8 @@ private slots:
     void resultDialogClipboard();
     void nothingToDoInfoBar();
     void permissionRefused();
+    void documentWithoutPages();
+    void languageChange();
     void themesAndDirection();
     void deletionWhilePreviewPending();
     void mcpReturnTextEncodings();
@@ -580,6 +601,79 @@ void AppToolExtractTextTest::permissionRefused()
     QVERIFY(!gui->getPageRunner());
     QVERIFY(!H::findButton(shell, QStringLiteral("Order:"))->isEnabled());
     QVERIFY(!H::findButton(shell, QStringLiteral("Include:"))->isEnabled());
+}
+
+void AppToolExtractTextTest::documentWithoutPages()
+{
+    // A page tree without a page (/Count 0, hostile or damaged): the pane PAGE has no page to
+    // show - no title, no paper - in Fit and at 100 %, the canvas is drawn
+    using H = ExtractTextGuiHelper;
+    AppToolShellFixture fixture(QSize(1440, 960));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writeDocument(fixture.path(QStringLiteral("empty.pdf")), {}));
+    QVERIFY(tab);
+    QCOMPARE(tab->getDocument()->getDocument()->getCatalog()->getPageCount(), size_t(0));
+    PDFAppToolGUIExtractText* gui = H::gui(fixture.openTool(tab, H::TOOL_ID));
+    QVERIFY(gui && gui->getPreviewPage());
+    AppToolShellFixture::settle();
+
+    pdf::PDFAppToolTextPreviewPage* page = gui->getPreviewPage();
+    pdf::PDFAppToolPagePicture* picture = page->getPicture();
+    QCOMPARE(gui->getPreviewPageIndex(), pdf::PDFInteger(-1));
+    QCOMPARE(page->getTitleLabel()->text(), QString());
+    QCOMPARE(picture->getActualSize(), QSize());
+
+    const QImage fit = picture->grab().toImage();
+    QVERIFY(!fit.isNull());
+    QVERIFY(!picture->getPaperRect().isValid());
+
+    page->getZoomControl()->setCurrentIndex(1);
+    AppToolShellFixture::settle();
+    QVERIFY(!picture->isFit());
+    QVERIFY(!picture->grab().toImage().isNull());
+    QVERIFY(!picture->getPaperRect().isValid());
+}
+
+void AppToolExtractTextTest::languageChange()
+{
+    // The shell keeps the canvas page over a change of the language: the captions of the panes,
+    // Fit / 100 % and the bar 339:8629 are in the new language at once, the zoom stays
+    using H = ExtractTextGuiHelper;
+    AppToolShellFixture fixture(QSize(1440, 960));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writeDocument(fixture.path(QStringLiteral("report.pdf")), { QStringLiteral("alpha") }));
+    PDFAppToolGUIExtractText* gui = H::gui(fixture.openTool(tab, H::TOOL_ID));
+    QVERIFY(H::waitPreviews(gui));
+    pdf::PDFAppToolTextPreviewPage* page = gui->getPreviewPage();
+    page->getZoomControl()->setCurrentIndex(1);
+    AppToolShellFixture::settle();
+
+    const auto captions = [page]()
+    {
+        QStringList texts;
+        for (const pdf::PDFLabel* label : page->findChildren<pdf::PDFLabel*>(QStringLiteral("toolPaneCaption")))
+        {
+            texts << label->text();
+        }
+        for (const QToolButton* button : page->getZoomControl()->findChildren<QToolButton*>(QString(), Qt::FindDirectChildrenOnly))
+        {
+            texts << button->text();
+        }
+        return texts;
+    };
+    QCOMPARE(captions(), QStringList({ QStringLiteral("PAGE"), QStringLiteral("EXTRACTED TEXT"), QStringLiteral("Fit"), QStringLiteral("100 %") }));
+
+    ExtractTextTestTranslator translator;
+    QCoreApplication::installTranslator(&translator);
+    AppToolShellFixture::settle();
+    QCOMPARE(captions(), QStringList({ QStringLiteral("[T] PAGE"), QStringLiteral("[T] EXTRACTED TEXT"), QStringLiteral("[T] Fit"), QStringLiteral("[T] 100 %") }));
+    QCOMPARE(page->getZoomControl()->accessibleName(), QStringLiteral("[T] Size of the page"));
+    QCOMPARE(page->getTitleLabel()->text(), QStringLiteral("[T] Page 1 · preview of the extracted text"));
+    QCOMPARE(page->getZoomControl()->getCurrentIndex(), 1);
+    QVERIFY(!page->getPicture()->isFit());
+
+    QCoreApplication::removeTranslator(&translator);
+    AppToolShellFixture::settle();
+    QCOMPARE(captions(), QStringList({ QStringLiteral("PAGE"), QStringLiteral("EXTRACTED TEXT"), QStringLiteral("Fit"), QStringLiteral("100 %") }));
+    QCOMPARE(page->getTitleLabel()->text(), QStringLiteral("Page 1 · preview of the extracted text"));
 }
 
 void AppToolExtractTextTest::themesAndDirection()

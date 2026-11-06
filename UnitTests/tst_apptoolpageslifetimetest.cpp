@@ -30,7 +30,10 @@
 // Nothing may crash (run it under ASan: freed memory stays readable in a Release build on
 // Windows), the window and the tab work afterwards. A second test keeps each popup of the
 // tool open, while a translator is installed, the document or the theme changes. The
-// scenarios use the test tool; the tools of the next waves add their scenarios.
+// scenarios parameters, run and leave use the test tool, the others the real tools of the
+// first batch (Compress, Rotate and Remove Pages, Remove Hidden Data, Remove Links, Optimize
+// Structure, Extract Text) through their own panels, menus and result dialogs; the tools of
+// the next batches add their scenarios.
 
 #include "apptoolshellfixture.h"
 
@@ -50,11 +53,25 @@
 #include "pdfdatabasenotifier.h"
 #include "pdfapptoolbeforeafteroverlay.h"
 #include "pdfapptoolgui_compress.h"
+#include "pdfapptoolgui_extracttext.h"
+#include "pdfapptoolgui_pages.h"
+#include "pdfapptoolgui_protect.h"
+#include "pdfapptoolgui_structure.h"
+#include "pdfapptoolpagegrid.h"
+#include "pdfapptoolpanelparts.h"
+#include "pdfappworkspace.h"
+#include "pdfapptoolresultdialog.h"
+#include "pdfcomponentpanels.h"
+#include "pdfcomponentrows.h"
+#include "pdfdocumentbuilder.h"
+#include "pdfdocumentpageoperations.h"
+#include "pdfdocumenthiddendatascan.h"
 #include "pdffluentwidgets.h"
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
 
 #include <QAbstractItemModel>
+#include <QAbstractItemView>
 #include <QApplication>
 #include <QHash>
 #include <QLineEdit>
@@ -63,6 +80,7 @@
 #include <QScopedValueRollback>
 #include <QSet>
 #include <QTimer>
+#include <QToolButton>
 #include <QTranslator>
 #include <QPainter>
 #include <QPdfWriter>
@@ -565,6 +583,21 @@ public:
         return current ? current->getToolbar() : nullptr;
     }
 
+    /// An assistant removes the first page below the open tool (pages.md): the marks of
+    /// Rotate Pages and Remove Pages follow their pages, the model announces the changes
+    static bool removeFirstPage(ToolPagesLifetimeRun& run)
+    {
+        pdf::PDFAppDocument* document = run.tab ? run.tab->getDocument() : nullptr;
+        if (!document || !document->getDocument() || document->getPageCount() < 2)
+        {
+            return false;
+        }
+        const pdf::PDFDocumentPointer changed(new pdf::PDFDocument(pdf::PDFDocumentPageOperations::removePages(document->getDocument().data(), { 0 }, nullptr, nullptr)));
+        document->commit(pdf::PDFModifiedDocument(changed, nullptr, pdf::PDFModifiedDocument::Reset), QStringLiteral("Assistant"), document->getVersion(), pdf::PDFAppChangeSource::Mcp);
+        settle();
+        return true;
+    }
+
     static bool openTool(ToolPagesLifetimeRun& run)
     {
         if (!run.window || !run.tab || !run.window->getNavigator())
@@ -706,6 +739,247 @@ public:
         }
         painter.drawImage(QRectF(50, 50, 200, 200), image);
         return filePath;
+    }
+
+    /// The GUI of a real tool of the batch, nullptr = none or gone
+    template<typename GUI>
+    static GUI* realGui(const ToolPagesLifetimeRun& run)
+    {
+        pdf::PDFDocumentToolShell* current = shell(run);
+        return current ? qobject_cast<GUI*>(current->getGUI()) : nullptr;
+    }
+
+    /// Clicks the tile of the page in the grid of Rotate / Remove Pages by the mouse
+    static bool clickTile(const ToolPagesLifetimeRun& run, int page, Qt::KeyboardModifiers modifiers = Qt::NoModifier)
+    {
+        pdf::PDFAppPageMarkingToolGUI* current = realGui<pdf::PDFAppPageMarkingToolGUI>(run);
+        pdf::PDFAppToolPageGridView* view = current && current->getGrid() ? current->getGrid()->getView() : nullptr;
+        if (!view || page >= view->model()->rowCount())
+        {
+            return false;
+        }
+        QPointer<pdf::PDFAppToolPageGridView> guard(view);
+        view->scrollTo(view->model()->index(page, 0));
+        settle();
+        if (!guard)
+        {
+            return true;
+        }
+        const QPoint center = guard->visualRect(guard->model()->index(page, 0)).center();
+        QTest::mouseClick(guard->viewport(), Qt::LeftButton, modifiers, center);
+        settle();
+        return true;
+    }
+
+    /// Clicks the row of a list view by the mouse
+    static bool clickRow(QAbstractItemView* view, int row)
+    {
+        if (!view || !view->model() || row >= view->model()->rowCount())
+        {
+            return false;
+        }
+        QPointer<QAbstractItemView> guard(view);
+        view->scrollTo(view->model()->index(row, 0));
+        settle();
+        if (guard)
+        {
+            QTest::mouseClick(guard->viewport(), Qt::LeftButton, Qt::NoModifier, guard->visualRect(guard->model()->index(row, 0)).center());
+            settle();
+        }
+        return true;
+    }
+
+    /// The button of the toolbar of the tool, whose text starts by \p textStart
+    static QToolButton* findToolButton(const ToolPagesLifetimeRun& run, const QString& textStart)
+    {
+        pdf::PDFDocumentToolShell* current = shell(run);
+        if (!current || !current->getToolActions())
+        {
+            return nullptr;
+        }
+        for (QToolButton* button : current->getToolActions()->findChildren<QToolButton*>())
+        {
+            if (button->text().startsWith(textStart))
+            {
+                return button;
+            }
+        }
+        return nullptr;
+    }
+
+    /// Opens the panel of the button of the toolbar by the mouse, then clicks its row \p row
+    static bool clickPanelRow(const ToolPagesLifetimeRun& run, QToolButton* button, int row)
+    {
+        if (!click(button))
+        {
+            return false;
+        }
+        pdf::PDFAppToolPanelPopup* panel = toolbar(run) ? toolbar(run)->getOpenPanel() : nullptr;
+        return panel && row < int(panel->getRows().size()) && click(panel->getRows()[row]);
+    }
+
+    /// Esc on the open panel of the toolbar, nothing without a panel
+    static bool closePanel(const ToolPagesLifetimeRun& run)
+    {
+        pdf::PDFAppToolPanelPopup* panel = toolbar(run) ? toolbar(run)->getOpenPanel() : nullptr;
+        if (panel && panel->isVisible())
+        {
+            key(panel, Qt::Key_Escape);
+        }
+        return true;
+    }
+
+    /// Waits for the result dialog of the shell after the Primary button, nullptr = none
+    static pdf::PDFAppToolResultDialog* confirmToDialog(ToolPagesLifetimeRun& run)
+    {
+        if (!click(toolbar(run) ? toolbar(run)->getConfirmButton() : nullptr))
+        {
+            return nullptr;
+        }
+        wait(run, [&run]() { pdf::PDFDocumentToolShell* current = shell(run); return !current || (current->getResultDialog() && current->getResultDialog()->isVisible()); });
+        settle();
+        pdf::PDFDocumentToolShell* current = shell(run);
+        return current ? current->getResultDialog() : nullptr;
+    }
+
+    /// The confirmation button of the result dialog by the mouse, then the end of the shell
+    /// (the write of a file ends within the click or after it, both in this step)
+    static bool confirmDialog(ToolPagesLifetimeRun& run, pdf::PDFAppToolResultDialog* dialog)
+    {
+        if (!dialog || !click(dialog->getConfirmButton()))
+        {
+            return false;
+        }
+        wait(run, [&run]() { return !shell(run); });
+        settle();
+        return true;
+    }
+
+    /// Save as a copy into the folder of the test, the copy not opened
+    static bool confirmCopy(ToolPagesLifetimeRun& run, pdf::PDFAppToolResultDialog* dialog)
+    {
+        if (!dialog)
+        {
+            return false;
+        }
+        QPointer<pdf::PDFAppToolResultDialog> guard(dialog);
+        guard->selectChoice(pdf::PDFAppToolResultDialog::Choice::Copy);
+        static int s_counter = 0;
+        if (guard && guard->getFileNameField())
+        {
+            guard->getFileNameField()->setText(QStringLiteral("lifetime-tool-copy-%1.pdf").arg(++s_counter));
+        }
+        if (guard && guard->getOpenCheckBox())
+        {
+            guard->getOpenCheckBox()->setChecked(false);
+        }
+        return !guard || confirmDialog(run, guard.data());
+    }
+
+    /// A PDF, which Optimize Structure makes smaller: an unused object and two identical streams
+    static QString writeReducible(const QString& filePath)
+    {
+        pdf::PDFDocumentBuilder builder;
+        for (int i = 0; i < 2; ++i)
+        {
+            const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 200, 200));
+            pdf::PDFDictionaryBuilder content;
+            const QByteArray data = "1 0 0 rg 10 10 80 80 re f";
+            content.addEntry(pdf::PDFInplaceOrMemoryString("Length"), pdf::PDFObject::createInteger(data.size()));
+            const pdf::PDFObjectReference contentReference = builder.addObject(pdf::PDFObject::createStream(pdf::PDFStream(std::move(content), QByteArray(data))));
+            pdf::PDFDictionaryBuilder update;
+            update.addEntry(pdf::PDFInplaceOrMemoryString("Contents"), pdf::PDFObject::createReference(contentReference));
+            builder.mergeTo(page, pdf::PDFObject::createDictionary(std::move(update)));
+        }
+        builder.addObject(pdf::PDFObject::createString(QByteArray("An object, which nothing references")));
+        pdf::PDFDocument document = builder.build();
+        return pdftest::AppDocumentSamples::write(document, filePath) ? filePath : QString();
+    }
+
+    /// The tool of a scenario: the real tools of the batch by their names, the test tool
+    /// under the id of Rotate Pages otherwise
+    static QString getScenarioToolId(const QString& name)
+    {
+        static const std::pair<const char*, const char*> s_tools[] = { { "compress", "optimize.compress" }, { "compressrun", "optimize.compress" },
+                                                                         { "rotate", "pages.rotate" }, { "remove", "pages.remove" },
+                                                                         { "sanitize", "protect.sanitize" }, { "removelinks", "protect.remove-links" },
+                                                                         { "structure", "optimize.structure" }, { "extracttext", "convert.extract-text" } };
+        for (const auto& [scenario, toolId] : s_tools)
+        {
+            if (name == QLatin1String(scenario))
+            {
+                return QString::fromLatin1(toolId);
+            }
+        }
+        return QString();
+    }
+
+    /// The document of a scenario of a real tool (the test tool: three plain pages)
+    static pdf::PDFAppDocumentTab* openScenarioDocument(pdftest::AppToolShellFixture& fixture, const QString& name)
+    {
+        if (name.startsWith(QLatin1String("compress")))
+        {
+            return fixture.open(writePhoto(fixture.path(QStringLiteral("photo.pdf"))));
+        }
+        if (name == QLatin1String("rotate") || name == QLatin1String("remove"))
+        {
+            return fixture.openDocument(6);
+        }
+        if (name == QLatin1String("sanitize"))
+        {
+            return fixture.open(pdftest::AppDocumentSamples::annotations(fixture.folder()));
+        }
+        if (name == QLatin1String("removelinks"))
+        {
+            return fixture.open(pdftest::AppDocumentSamples::links(fixture.folder()));
+        }
+        if (name == QLatin1String("structure"))
+        {
+            return fixture.open(writeReducible(fixture.path(QStringLiteral("reducible.pdf"))));
+        }
+        return fixture.openDocument(3);
+    }
+
+    /// Brings a real tool to a state, where its Primary button runs it (the panels of
+    /// openPopupsSurviveChanges)
+    static bool prepareRun(ToolPagesLifetimeRun& run)
+    {
+        if (pdf::PDFAppToolGUIRotatePages* rotate = realGui<pdf::PDFAppToolGUIRotatePages>(run))
+        {
+            rotate->rotateRight();
+            settle();
+            return true;
+        }
+        if (pdf::PDFAppToolGUISanitize* sanitize = realGui<pdf::PDFAppToolGUISanitize>(run))
+        {
+            const QPointer<pdf::PDFAppToolGUISanitize> guard(sanitize);
+            return wait(run, [&guard]() { return !guard || guard->isScanned(); }) && guard;
+        }
+        if (pdf::PDFAppToolGUIRemoveLinks* links = realGui<pdf::PDFAppToolGUIRemoveLinks>(run))
+        {
+            const QPointer<pdf::PDFAppToolGUIRemoveLinks> guard(links);
+            return wait(run, [&guard]() { return !guard || guard->isListed(); }) && guard;
+        }
+        return true;
+    }
+
+    /// Waits for the previews of Extract Text: the estimate of the result and the text of the
+    /// shown page; the victim may go meanwhile
+    static bool waitExtractPreviews(ToolPagesLifetimeRun& run)
+    {
+        return pdftest::AppToolShellFixture::waitFor([&run]()
+        {
+            const pdf::PDFAppToolGUIExtractText* current = realGui<pdf::PDFAppToolGUIExtractText>(run);
+            return !current || (current->getResultRows() && current->getResultRows()->getRowCount() == 3 && current->getResultRows()->getValue(0) != QStringLiteral("–") &&
+                                current->getPreviewPage() && !current->getPreviewPage()->getTextLabel()->text().isEmpty());
+        }) && realGui<pdf::PDFAppToolGUIExtractText>(run) != nullptr;
+    }
+
+    /// The first panel button of the toolbar of a real tool
+    static QToolButton* firstPanelButton(const ToolPagesLifetimeRun& run)
+    {
+        const std::vector<QToolButton*> buttons = toolbar(run) ? toolbar(run)->getPanelButtons() : std::vector<QToolButton*>();
+        return buttons.empty() ? nullptr : buttons.front();
     }
 };
 
@@ -1091,6 +1365,278 @@ std::vector<ToolPagesLifetimeStep> ToolPagesLifetimeHelper::scenario(const QStri
             return true;
         });
     }
+    else if (name == QLatin1String("rotate"))
+    {
+        // Rotate Pages: the tiles by the mouse, the buttons of the turns, Undo / Redo, a pending
+        // row, the result dialog Keep, then Discard of a second run
+        steps.push_back(&H::openTool);
+        steps.push_back([](ToolPagesLifetimeRun& run) { return clickTile(run, 3) && clickTile(run, 5, Qt::ShiftModifier); });
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolGUIRotatePages* current = realGui<pdf::PDFAppToolGUIRotatePages>(run);
+            return current && click(current->getRotateRightButton());
+        });
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolGUIRotatePages* current = realGui<pdf::PDFAppToolGUIRotatePages>(run);
+            return current && click(current->getRotateHalfButton());
+        });
+        steps.push_back(&H::removeFirstPage);
+        steps.push_back([](ToolPagesLifetimeRun& run) { return click(toolbar(run) ? toolbar(run)->getUndoButton() : nullptr); });
+        steps.push_back([](ToolPagesLifetimeRun& run) { return click(toolbar(run) ? toolbar(run)->getRedoButton() : nullptr); });
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            // Undo of a pending row (the link of the row)
+            pdf::PDFAppToolGUIRotatePages* current = realGui<pdf::PDFAppToolGUIRotatePages>(run);
+            if (!current || current->getPendingModel()->rowCount() == 0)
+            {
+                return false;
+            }
+            Q_EMIT current->getPendingList()->linkActivated(current->getPendingModel()->index(0));
+            settle();
+            return true;
+        });
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolGUIRotatePages* current = realGui<pdf::PDFAppToolGUIRotatePages>(run);
+            return current && click(current->getRotateLeftButton());
+        });
+        steps.push_back([](ToolPagesLifetimeRun& run) { return confirmDialog(run, confirmToDialog(run)); });
+        steps.push_back(&H::openTool);
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolGUIRotatePages* current = realGui<pdf::PDFAppToolGUIRotatePages>(run);
+            if (!current || !click(current->getRotateRightButton()))
+            {
+                return false;
+            }
+            current = realGui<pdf::PDFAppToolGUIRotatePages>(run);
+            if (!current || !click(current->getResetButton()))
+            {
+                return false;
+            }
+            current = realGui<pdf::PDFAppToolGUIRotatePages>(run);
+            return current && click(current->getRotateRightButton());
+        });
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolResultDialog* dialog = confirmToDialog(run);
+            return dialog && click(dialog->getDiscardButton());
+        });
+    }
+    else if (name == QLatin1String("remove"))
+    {
+        // Remove Pages: the tiles by the mouse and Delete, Keep of a pending row, Keep All Pages,
+        // Undo, a copy of the result
+        steps.push_back(&H::openTool);
+        steps.push_back([](ToolPagesLifetimeRun& run) { return clickTile(run, 2) && clickTile(run, 4, Qt::ShiftModifier); });
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolGUIRemovePages* current = realGui<pdf::PDFAppToolGUIRemovePages>(run);
+            if (!current || current->getPendingModel()->rowCount() < 2)
+            {
+                return false;
+            }
+            Q_EMIT current->getPendingList()->linkActivated(current->getPendingModel()->index(1));
+            settle();
+            return true;
+        });
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            // Delete marks the current tile
+            pdf::PDFAppToolGUIRemovePages* current = realGui<pdf::PDFAppToolGUIRemovePages>(run);
+            pdf::PDFAppToolPageGridView* view = current ? current->getGrid()->getView() : nullptr;
+            if (!view)
+            {
+                return false;
+            }
+            view->setFocus();
+            view->setCurrentIndex(view->model()->index(5, 0));
+            return key(view, Qt::Key_Delete);
+        });
+        steps.push_back(&H::removeFirstPage);
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolGUIRemovePages* current = realGui<pdf::PDFAppToolGUIRemovePages>(run);
+            return current && click(current->getKeepAllButton());
+        });
+        steps.push_back([](ToolPagesLifetimeRun& run) { return click(toolbar(run) ? toolbar(run)->getUndoButton() : nullptr); });
+        steps.push_back([](ToolPagesLifetimeRun& run) { return confirmCopy(run, confirmToDialog(run)); });
+    }
+    else if (name == QLatin1String("sanitize"))
+    {
+        // Remove Hidden Data: the scan, the panel Preset, a kind by its check box, Undo, the
+        // result dialog with the steps beside it, a copy (the only choice of LostCopyOnly besides Keep)
+        steps.push_back(&H::openTool);
+        steps.push_back(&H::prepareRun);
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolGUISanitize* current = realGui<pdf::PDFAppToolGUISanitize>(run);
+            if (!current || !click(current->getPresetButton()))
+            {
+                return false;
+            }
+            current = realGui<pdf::PDFAppToolGUISanitize>(run);
+            pdf::PDFTileRow* row = current ? current->getPresetRow(pdf::PDFAppToolGUISanitize::Preset::Everything) : nullptr;
+            return row && click(row);
+        });
+        steps.push_back(&H::closePanel);
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolGUISanitize* current = realGui<pdf::PDFAppToolGUISanitize>(run);
+            pdf::PDFTileRow* row = current ? current->getKindRow(pdf::PDFDocumentHiddenDataScan::Kind::Comments) : nullptr;
+            return row && click(row->getCheckBox());
+        });
+        steps.push_back([](ToolPagesLifetimeRun& run) { return click(toolbar(run) ? toolbar(run)->getUndoButton() : nullptr); });
+        steps.push_back([](ToolPagesLifetimeRun& run) { return confirmCopy(run, confirmToDialog(run)); });
+    }
+    else if (name == QLatin1String("removelinks"))
+    {
+        // Remove Links: the list, a check box of a row, the current row (the overlay shows its
+        // page), the panel Show, Select None / All, the result dialog Keep
+        steps.push_back(&H::openTool);
+        steps.push_back(&H::prepareRun);
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolGUIRemoveLinks* current = realGui<pdf::PDFAppToolGUIRemoveLinks>(run);
+            pdf::PDFAppToolLinkListModel* model = current ? current->getListModel() : nullptr;
+            if (!model)
+            {
+                return false;
+            }
+            for (int row = 0; row < model->rowCount(); ++row)
+            {
+                if (model->getLink(row))
+                {
+                    model->setData(model->index(row), Qt::Unchecked, Qt::CheckStateRole);
+                    settle();
+                    return true;
+                }
+            }
+            return false;
+        });
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolGUIRemoveLinks* current = realGui<pdf::PDFAppToolGUIRemoveLinks>(run);
+            return current && clickRow(current->getListView(), current->getListModel()->rowCount() - 1);
+        });
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolGUIRemoveLinks* current = realGui<pdf::PDFAppToolGUIRemoveLinks>(run);
+            if (!current || !click(current->getShowButton()))
+            {
+                return false;
+            }
+            current = realGui<pdf::PDFAppToolGUIRemoveLinks>(run);
+            pdf::PDFTileRow* row = current ? current->getFilterRow(pdf::PDFAppToolGUIRemoveLinks::Filter::Web) : nullptr;
+            return row && click(row);
+        });
+        steps.push_back(&H::closePanel);
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolGUIRemoveLinks* current = realGui<pdf::PDFAppToolGUIRemoveLinks>(run);
+            return current && click(current->getSelectNoneButton());
+        });
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolGUIRemoveLinks* current = realGui<pdf::PDFAppToolGUIRemoveLinks>(run);
+            return current && click(current->getSelectAllButton());
+        });
+        steps.push_back([](ToolPagesLifetimeRun& run) { return confirmDialog(run, confirmToDialog(run)); });
+    }
+    else if (name == QLatin1String("structure"))
+    {
+        // Optimize Structure: the panel of the steps, Restore defaults, Clear / Select all, the
+        // result dialog with Copy report, Keep; a second run, which does not reduce the file
+        steps.push_back(&H::openTool);
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolGUIStructure* current = realGui<pdf::PDFAppToolGUIStructure>(run);
+            return current && clickPanelRow(run, current->getStepsMenu()->getButton(), 4);
+        });
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolGUIStructure* current = realGui<pdf::PDFAppToolGUIStructure>(run);
+            return current && click(current->getRestoreDefaultsLink());
+        });
+        steps.push_back(&H::closePanel);
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolGUIStructure* current = realGui<pdf::PDFAppToolGUIStructure>(run);
+            return current && click(current->getClearButton());
+        });
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolGUIStructure* current = realGui<pdf::PDFAppToolGUIStructure>(run);
+            return current && click(current->getSelectAllButton());
+        });
+        steps.push_back([](ToolPagesLifetimeRun& run) { return confirmToDialog(run) != nullptr; });
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolGUIStructure* current = realGui<pdf::PDFAppToolGUIStructure>(run);
+            return current && click(current->getCopyReportLink());
+        });
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFDocumentToolShell* current = shell(run);
+            return current && confirmDialog(run, current->getResultDialog());
+        });
+        steps.push_back(&H::openTool);
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            // The kept result does not get smaller again: the card Result says it, no dialog
+            if (!click(toolbar(run) ? toolbar(run)->getConfirmButton() : nullptr))
+            {
+                return false;
+            }
+            return wait(run, [&run]()
+            {
+                pdf::PDFAppToolGUIStructure* current = realGui<pdf::PDFAppToolGUIStructure>(run);
+                return !current || (shell(run)->getState() == pdf::PDFDocumentToolShell::State::Editing && shell(run)->getRunner()->getState() == pdf::PDFDocumentToolRunner::State::Idle);
+            });
+        });
+    }
+    else if (name == QLatin1String("extracttext"))
+    {
+        // Extract Text: the menus Format / Order / Include - Format back to Plain text finds its
+        // previews in the caches of the runners, they come within the change of the value -, the
+        // preview of another page, the zoom of the page, Save Text of the result dialog; a second
+        // run to the clipboard
+        steps.push_back(&H::openTool);
+        steps.push_back(&H::waitExtractPreviews);
+        steps.push_back([](ToolPagesLifetimeRun& run) { return clickPanelRow(run, findToolButton(run, QStringLiteral("Format:")), 1); });
+        steps.push_back(&H::closePanel);
+        steps.push_back(&H::waitExtractPreviews);
+        steps.push_back([](ToolPagesLifetimeRun& run) { return clickPanelRow(run, findToolButton(run, QStringLiteral("Format:")), 0); });
+        steps.push_back(&H::closePanel);
+        steps.push_back([](ToolPagesLifetimeRun& run) { return clickPanelRow(run, findToolButton(run, QStringLiteral("Order:")), 1); });
+        steps.push_back(&H::closePanel);
+        steps.push_back([](ToolPagesLifetimeRun& run) { return clickPanelRow(run, findToolButton(run, QStringLiteral("Include:")), 0); });
+        steps.push_back(&H::closePanel);
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            if (run.tab)
+            {
+                run.tab->getView()->goToPage(1);
+            }
+            settle();
+            pdf::PDFAppToolGUIExtractText* current = realGui<pdf::PDFAppToolGUIExtractText>(run);
+            const QList<QToolButton*> buttons = current ? current->getPreviewPage()->getZoomControl()->findChildren<QToolButton*>() : QList<QToolButton*>();
+            return !buttons.isEmpty() && click(buttons.back());
+        });
+        steps.push_back([](ToolPagesLifetimeRun& run) { return confirmDialog(run, confirmToDialog(run)); });
+        steps.push_back(&H::openTool);
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppToolResultDialog* dialog = confirmToDialog(run);
+            if (!dialog)
+            {
+                return false;
+            }
+            dialog->selectChoice(pdf::PDFAppToolResultDialog::Choice::Clipboard);
+            return confirmDialog(run, dialog);
+        });
+    }
     return steps;
 }
 
@@ -1109,7 +1655,14 @@ private Q_SLOTS:
 private:
     static constexpr int PART_COUNT = 3;
 
-    static QStringList getScenarios() { return { QStringLiteral("parameters"), QStringLiteral("run"), QStringLiteral("leave"), QStringLiteral("compress"), QStringLiteral("compressrun") }; }
+    /// The scenarios of the test tool (parameters, run, leave) and of the real tools of the
+    /// first batch (the next batches add theirs)
+    static QStringList getScenarios()
+    {
+        return { QStringLiteral("parameters"), QStringLiteral("run"), QStringLiteral("leave"), QStringLiteral("compress"), QStringLiteral("compressrun"),
+                 QStringLiteral("rotate"), QStringLiteral("remove"), QStringLiteral("sanitize"), QStringLiteral("removelinks"), QStringLiteral("structure"),
+                 QStringLiteral("extracttext") };
+    }
 
     /// Runs the scenario. In the replay mode the victim is deleted at the target
     /// site. \returns the sites seen (discovery), whether the victim was deleted and
@@ -1162,16 +1715,17 @@ void AppToolPagesLifetimeTest::runScenario(const QString& name, ToolPagesLifetim
 
     ToolPagesLifetimeRun run;
     run.fixture = &fixture;
-    const bool isCompress = name.startsWith(QLatin1String("compress"));
-    run.toolId = isCompress ? QStringLiteral("optimize.compress") : QStringLiteral("pages.rotate");
-    if (!isCompress)
+    const QString realToolId = ToolPagesLifetimeHelper::getScenarioToolId(name);
+    const bool isRealTool = !realToolId.isEmpty();
+    run.toolId = isRealTool ? realToolId : QStringLiteral("pages.rotate");
+    if (!isRealTool)
     {
         run.tool = fixture.registerShellTool(run.toolId, true);
         QVERIFY(run.tool);
         run.tool->setPreview(true, false);
     }
     run.window = fixture.window;
-    run.tab = isCompress ? fixture.open(ToolPagesLifetimeHelper::writePhoto(fixture.path(QStringLiteral("photo.pdf")))) : fixture.openDocument(3);
+    run.tab = ToolPagesLifetimeHelper::openScenarioDocument(fixture, name);
     QVERIFY(run.tab);
     QVERIFY(pdftest::AppToolShellFixture::waitFor([&run]() { return run.tab->getDocument() && run.tab->getDocument()->isReady(); }));
     const std::vector<ToolPagesLifetimeStep> steps = ToolPagesLifetimeHelper::scenario(name);
@@ -1349,14 +1903,20 @@ void AppToolPagesLifetimeTest::deleteFromEverySignal()
     QVERIFY(!sites.empty());
 
     // PDF4QT_LIFETIME_SITE=<n> replays one site only (debugging)
-    const int onlySite = qEnvironmentVariableIsSet("PDF4QT_LIFETIME_SITE") ? qEnvironmentVariableIntValue("PDF4QT_LIFETIME_SITE") : -1;
+    // PDF4QT_LIFETIME_SITE=<first>-<last> replays the sites of the range (of the part), one
+    // process for all of them (a damage left by a replay shows in a later one)
+    const QString siteText = qEnvironmentVariable("PDF4QT_LIFETIME_SITE");
+    const bool isSiteRange = siteText.contains(QLatin1Char('-'));
+    const int firstSite = isSiteRange ? siteText.section(QLatin1Char('-'), 0, 0).toInt() : 0;
+    const int lastSite = isSiteRange ? siteText.section(QLatin1Char('-'), 1, 1).toInt() : int(sites.size());
+    const int onlySite = !siteText.isEmpty() && !isSiteRange ? siteText.toInt() : -1;
     QStringList notReproduced;
     int replayed = 0;
     int deferred = 0;
     int withoutVictim = 0;
     for (size_t i = 0; i < sites.size(); ++i)
     {
-        if (onlySite >= 0 ? int(i) != onlySite : int(i) % PART_COUNT != part)
+        if (onlySite >= 0 ? int(i) != onlySite : (int(i) % PART_COUNT != part || int(i) < firstSite || int(i) > lastSite))
         {
             continue;
         }
@@ -1399,10 +1959,10 @@ void AppToolPagesLifetimeTest::deleteFromEverySignal()
     // At least 80 % of the sites are reproduced for every victim (a site of a timer or of
     // the order of the events may move to another step); a site, which came while the victim
     // does not exist, has nothing to delete. Only the tab and the window exist at each site.
-    QVERIFY2(onlySite >= 0 || replayed * 10 >= (replayed + int(notReproduced.size())) * 8, qPrintable(notReproduced.join(QLatin1Char('\n'))));
+    QVERIFY2(onlySite >= 0 || isSiteRange || replayed * 10 >= (replayed + int(notReproduced.size())) * 8, qPrintable(notReproduced.join(QLatin1Char('\n'))));
     const bool isVictimAlways = victim == int(ToolPagesLifetimeVictim::Tab) || victim == int(ToolPagesLifetimeVictim::Window);
-    QVERIFY2(onlySite >= 0 || !isVictimAlways || withoutVictim == 0, qPrintable(QString::number(withoutVictim)));
-    QVERIFY(replayed > 0 || onlySite >= 0);
+    QVERIFY2(onlySite >= 0 || isSiteRange || !isVictimAlways || withoutVictim == 0, qPrintable(QString::number(withoutVictim)));
+    QVERIFY(replayed > 0 || onlySite >= 0 || isSiteRange);
 }
 
 void AppToolPagesLifetimeTest::openPopupsSurviveChanges_data()
@@ -1410,6 +1970,17 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges_data()
     QTest::addColumn<QString>("popup");
     QTest::addColumn<QString>("change");
     for (const char* popup : { "panel", "dialog", "leave", "permission", "custom" })
+    {
+        for (const char* change : { "language", "document", "theme" })
+        {
+            QTest::addRow("%s-%s", popup, change) << QString::fromLatin1(popup) << QString::fromLatin1(change);
+        }
+    }
+
+    // The real tools of the batch: the result dialog of each, the first panel of the toolbar of
+    // those, which have one (Rotate and Remove Pages have none)
+    for (const char* popup : { "dialog-rotate", "dialog-remove", "dialog-sanitize", "dialog-removelinks", "dialog-structure", "dialog-extracttext",
+                               "panel-sanitize", "panel-removelinks", "panel-structure", "panel-extracttext" })
     {
         for (const char* change : { "language", "document", "theme" })
         {
@@ -1430,15 +2001,29 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges()
     ToolPagesLifetimeRun run;
     run.fixture = &fixture;
     const bool isCustomPanel = popup == QLatin1String("custom");
+    const QString realScenario = popup.section(QLatin1Char('-'), 1);
+    const bool isRealTool = !realScenario.isEmpty();
     run.toolId = popup == QLatin1String("permission") ? QStringLiteral("protect.remove-links") : (isCustomPanel ? QStringLiteral("optimize.compress") : QStringLiteral("pages.rotate"));
-    if (!isCustomPanel)
+    if (isRealTool)
+    {
+        run.toolId = H::getScenarioToolId(realScenario);
+        QVERIFY(!run.toolId.isEmpty());
+    }
+    else if (!isCustomPanel)
     {
         run.tool = fixture.registerShellTool(run.toolId, true);
         QVERIFY(run.tool);
     }
     run.window = fixture.window;
-    run.tab = popup == QLatin1String("permission") ? fixture.open(pdftest::AppDocumentSamples::restricted(fixture.folder()))
-                                                   : (isCustomPanel ? fixture.open(H::writePhoto(fixture.path(QStringLiteral("photo.pdf")))) : fixture.openDocument(3));
+    if (isRealTool)
+    {
+        run.tab = H::openScenarioDocument(fixture, realScenario);
+    }
+    else
+    {
+        run.tab = popup == QLatin1String("permission") ? fixture.open(pdftest::AppDocumentSamples::restricted(fixture.folder()))
+                                                       : (isCustomPanel ? fixture.open(H::writePhoto(fixture.path(QStringLiteral("photo.pdf")))) : fixture.openDocument(3));
+    }
     QVERIFY(run.tab);
     QVERIFY(pdftest::AppToolShellFixture::waitFor([&run]() { return run.tab->getDocument()->isReady(); }));
     QVERIFY(H::openTool(run));
@@ -1470,7 +2055,53 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges()
         }
     };
 
-    if (isCustomPanel)
+    if (isRealTool && popup.startsWith(QLatin1String("dialog-")))
+    {
+        // The result dialog of a real tool: it stays open over the change, Cancel keeps the document
+        QVERIFY(H::prepareRun(run));
+        pdf::PDFAppToolResultDialog* dialog = H::confirmToDialog(run);
+        QVERIFY(dialog);
+        QVERIFY(dialog->isVisible());
+        const QPointer<pdf::PDFAppToolResultDialog> dialogGuard(dialog);
+        applyChange();
+        QVERIFY(dialogGuard);
+        QVERIFY(H::shell(run));
+        QCOMPARE(H::shell(run)->getResultDialog(), dialog);
+        QVERIFY(dialog->isVisible());
+        // Discard ends the tool
+        dialog->reject();
+        QVERIFY(pdftest::AppToolShellFixture::waitFor([&run]() { return !H::shell(run); }));
+        H::settle();
+    }
+    else if (isRealTool)
+    {
+        // The first panel of the toolbar of a real tool open over the change; afterwards the
+        // tool works - a panel opens again and the toolbar of the tool is there
+        QVERIFY(H::prepareRun(run));
+        QToolButton* button = H::firstPanelButton(run);
+        QVERIFY(button);
+        QVERIFY(H::toolbar(run)->openPanel(button));
+        H::settle();
+        QVERIFY(H::toolbar(run)->getOpenPanel());
+        applyChange();
+        QVERIFY(H::shell(run));
+        if (H::toolbar(run)->getOpenPanel())
+        {
+            H::toolbar(run)->getOpenPanel()->close();
+            H::settle();
+        }
+
+        // A new version of the document lists the links again: Show waits for the list
+        QVERIFY(H::prepareRun(run));
+        button = H::firstPanelButton(run);
+        QVERIFY(button);
+        QVERIFY(H::toolbar(run)->openPanel(button));
+        H::settle();
+        QVERIFY(H::toolbar(run)->getOpenPanel() && H::toolbar(run)->getOpenPanel()->isVisible());
+        H::toolbar(run)->getOpenPanel()->close();
+        H::settle();
+    }
+    else if (isCustomPanel)
     {
         pdf::PDFAppToolGUICompress* gui = H::compressGui(run);
         QVERIFY(gui);

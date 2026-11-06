@@ -887,7 +887,7 @@ public:
                              const PDFCMSManager* cmsManager,
                              const PDFOptionalContentActivity* optionalContentActivity,
                              const PDFInkMapper* inkMapper,
-                             PDFProgress* progress,
+                             PDFProgressSink* progress,
                              PDFTransparencyRendererSettings settings);
 
     struct InkCoverageChannelInfo
@@ -936,7 +936,7 @@ private:
     const PDFCMSManager* m_cmsManager;
     const PDFOptionalContentActivity* m_optionalContentActivity;
     const PDFInkMapper* m_inkMapper;
-    PDFProgress* m_progress;
+    PDFProgressSink* m_progress;
     PDFTransparencyRendererSettings m_settings;
 
     QMutex m_mutex;

@@ -22,17 +22,27 @@
 
 #include "pdfannotation.h"
 #include "pdfcatalog.h"
+#include "pdfcms.h"
+#include "pdfconstants.h"
 #include "pdfdocumenthiddendatascan.h"
 #include "pdfdocumentlinkoperations.h"
 #include "pdfdocumentreader.h"
 #include "pdfdocumentsanitizer.h"
 #include "pdfdocumenttool_protect.h"
 #include "pdfdocumentwriter.h"
+#include "pdfsecurityhandler.h"
 #include "pdfform.h"
+#include "pdffont.h"
+#include "pdfocrpagepreparer.h"
 #include "pdfoperationcontrol.h"
+#include "pdfoptionalcontent.h"
 #include "pdfstreamfilters.h"
+#include "pdftextlayoutgenerator.h"
+
+#include "testprogressrecorder.h"
 
 #include <QBuffer>
+#include <QJsonArray>
 #include <QtTest>
 
 #include <functional>
@@ -113,6 +123,21 @@ public:
     virtual bool isOperationCancelled() const override { return true; }
 };
 
+/// The glyphs of a page with their origins in the space of the page (also the invisible ones)
+class ProtectGlyphRecorder : public pdf::PDFTextLayoutGenerator
+{
+public:
+    using pdf::PDFTextLayoutGenerator::PDFTextLayoutGenerator;
+
+    std::vector<std::pair<QChar, QPointF>> glyphs;
+
+protected:
+    virtual void performOutputCharacter(const pdf::PDFTextCharacterInfo& info) override
+    {
+        glyphs.emplace_back(info.character, info.matrix.map(QPointF(0, 0)));
+    }
+};
+
 /// The kinds of hidden data with their markers
 struct HiddenMarkers
 {
@@ -145,6 +170,23 @@ public:
         pdf::PDFDocumentReader reader(nullptr, getPassword, false, false);
         pdf::PDFDocument document = reader.readFromBuffer(data);
         return reader.getReadingResult() == pdf::PDFDocumentReader::Result::OK ? document : pdf::PDFDocument();
+    }
+
+    /// The glyphs of the first page in the order of its content stream
+    static std::vector<std::pair<QChar, QPointF>> getGlyphOrigins(const pdf::PDFDocument& document)
+    {
+        pdf::PDFFontCache fontCache(pdf::DEFAULT_FONT_CACHE_LIMIT, pdf::DEFAULT_REALIZED_FONT_CACHE_LIMIT);
+        pdf::PDFICCProfileCache iccProfileCache;
+        pdf::PDFCMSGeneric cms;
+        pdf::PDFMeshQualitySettings meshQualitySettings;
+        pdf::PDFOptionalContentActivity optionalContentActivity(&document, pdf::OCUsage::Export, nullptr);
+        pdf::PDFModifiedDocument modifiedDocument(const_cast<pdf::PDFDocument*>(&document), &optionalContentActivity);
+        fontCache.setDocument(modifiedDocument);
+        iccProfileCache.setDocument(modifiedDocument);
+
+        ProtectGlyphRecorder recorder(pdf::PDFRenderer::IgnoreOptionalContent, document.getCatalog()->getPage(0), &document, &fontCache, &iccProfileCache, &cms, &optionalContentActivity, QTransform(), meshQualitySettings);
+        recorder.processContents();
+        return recorder.glyphs;
     }
 
     static pdf::PDFDocumentToolContext createContext(const pdf::PDFDocument& document, const QByteArray& data)
@@ -268,6 +310,79 @@ public:
         return values;
     }
 
+    /// An XMP packet with every property of Table 349 of ISO 32000-2 (the counterparts of the
+    /// entries of the information dictionary: element and attribute forms, another prefix of a
+    /// namespace, a CRLF line, text outside of Latin-1) and other properties, which stay (the
+    /// declaration of PDF/A, the rights, the date of the metadata, the padding of the packet).
+    /// \p expected is the packet without the counterparts, written by hand from the same parts.
+    static QByteArray createDocumentInfoXmp(QByteArray* expected)
+    {
+        const std::vector<std::pair<QString, bool>> parts = {
+            { QStringLiteral("<?xpacket begin=\"\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n"
+                             " <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n"
+                             "  <rdf:Description rdf:about=\"\" xmlns:pdf=\"http://ns.adobe.com/pdf/1.3/\""), false },
+            { QStringLiteral(" pdf:Producer=\"MarkerXmpProducer\""), true },
+            { QStringLiteral(" pdf:Trapped='False'"), true },
+            { QStringLiteral("\n    xmlns:pdfaid=\"http://www.aiim.org/pdfa/ns/id/\" pdfaid:part=\"2\" pdfaid:conformance=\"B\">"), false },
+            { QStringLiteral("\n   <pdf:Keywords>MarkerXmpKeywords</pdf:Keywords>"), true },
+            { QStringLiteral("\n  </rdf:Description>\n  <rdf:Description rdf:about=\"\" xmlns:d=\"http://purl.org/dc/elements/1.1/\">"), false },
+            { QStringLiteral("\n   <d:title><rdf:Alt><rdf:li xml:lang=\"x-default\">MarkerXmpTitle Žluťoučký kůň \U0001F600</rdf:li></rdf:Alt></d:title>"), true },
+            { QStringLiteral("\n   <d:creator><rdf:Seq><rdf:li>MarkerXmpAuthor</rdf:li></rdf:Seq></d:creator>"), true },
+            { QStringLiteral("\n   <d:description><rdf:Alt><rdf:li xml:lang=\"x-default\">MarkerXmpSubject</rdf:li></rdf:Alt></d:description>"), true },
+            { QStringLiteral("\n   <d:rights><rdf:Alt><rdf:li xml:lang=\"x-default\">Kept Rights Žluťoučký \U0001F600</rdf:li></rdf:Alt></d:rights>"), false },
+            { QStringLiteral("\n  </rdf:Description>\n  <rdf:Description rdf:about=\"\" xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\">"), false },
+            { QStringLiteral("\n   <xmp:CreatorTool>MarkerXmpCreatorTool</xmp:CreatorTool>"), true },
+            { QStringLiteral("\r\n   <xmp:CreateDate>2026-01-02T03:04:05Z</xmp:CreateDate>"), true },
+            { QStringLiteral("\n   <xmp:ModifyDate/>"), true },
+            { QStringLiteral("\n   <xmp:MetadataDate>2026-01-04T03:04:05Z</xmp:MetadataDate>"), false },
+            { QStringLiteral("\n  </rdf:Description>\n </rdf:RDF>\n</x:xmpmeta>\n") + QString(200, QLatin1Char(' ')) + QStringLiteral("\n<?xpacket end=\"w\"?>"), false },
+        };
+
+        QString packet;
+        QString kept;
+        for (const auto& [text, isRemoved] : parts)
+        {
+            packet += text;
+            if (!isRemoved)
+            {
+                kept += text;
+            }
+        }
+        *expected = kept.toUtf8();
+        return packet.toUtf8();
+    }
+
+    /// A document with the packet of createDocumentInfoXmp (compressed) and the information dictionary
+    static QByteArray createDocumentInfoXmpDocument(const QByteArray& xmp)
+    {
+        RawPdf pdf;
+        pdf.add(1, "<< /Type /Catalog /Pages 2 0 R /Metadata 4 0 R >>");
+        pdf.add(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+        pdf.add(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>");
+        pdf.addStream(4, "/Type /Metadata /Subtype /XML", xmp, true);
+        pdf.add(5, "<< /Title (MarkerInfoTitle) /Author (MarkerInfoAuthor) >>");
+        return pdf.build(1, 5);
+    }
+
+    /// The document with a security handler, which grants only \p permissions (a user password)
+    static pdf::PDFDocument withPermissions(const pdf::PDFDocument& document, uint32_t permissions)
+    {
+        class PermissionHandler : public pdf::PDFNoneSecurityHandler
+        {
+        public:
+            explicit PermissionHandler(uint32_t grantedPermissions) : m_permissions(grantedPermissions) { }
+            virtual bool isAllowed(pdf::PDFSecurityHandler::Permission permission) const override { return m_permissions & uint32_t(permission); }
+            virtual pdf::PDFSecurityHandler* clone() const override { return new PermissionHandler(m_permissions); }
+
+        private:
+            uint32_t m_permissions;
+        };
+
+        pdf::PDFObjectStorage storage = document.getStorage();
+        storage.setSecurityHandler(pdf::PDFSecurityHandlerPointer(new PermissionHandler(permissions)));
+        return pdf::PDFDocument(std::move(storage), document.getInfo()->version, QByteArray());
+    }
+
     /// A page of links: an indirect web link, a direct mailto link, an ftp link, an internal
     /// link, a web link with its own contents and a comment
     static QByteArray createLinkDocument()
@@ -305,14 +420,23 @@ private slots:
     void sanitizeRemovesKind_data();
     void sanitizeRemovesKind();
     void sanitizeStepsAndFacts();
+    void sanitizeProgress();
     void sanitizeNothingToDo();
     void sanitizeWholeFileWithoutOldRevision();
+    void sanitizeConformanceDeclaration_data();
+    void sanitizeConformanceDeclaration();
     void invisibleTextOverStreams();
+    void invisibleTextKeepsVisibleLayout();
     void ownOcrDataRemoved();
     void signatureFieldsNotInAll();
     void sanitizeHostile();
     void scanBounded();
     void presets();
+
+    void documentInfoXmpProperties();
+    void sanitizeDocumentInfoXmp();
+    void sanitizeDocumentInfoXmpUnreadable();
+    void sanitizePermissions();
 };
 
 void DocumentToolProtectTest::listExternalLinks()
@@ -530,7 +654,8 @@ void DocumentToolProtectTest::removeLinksListBounded()
     pdf.add(1, "<< /Type /Catalog /Pages 2 0 R >>");
     pdf.add(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
     pdf.add(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [" + annotations + "] >>");
-    const pdf::PDFDocument document = ProtectTestHelper::read(pdf.build(1));
+    const QByteArray data = pdf.build(1);
+    const pdf::PDFDocument document = ProtectTestHelper::read(data);
     const pdf::PDFDocumentLinkOperations::LinkList list = pdf::PDFDocumentLinkOperations::listExternalLinks(&document);
     QCOMPARE(int(list.links.size()), pdf::PDFDocumentLinkOperations::MAXIMUM_LINKS);
     QVERIFY(list.isTruncated);
@@ -538,6 +663,16 @@ void DocumentToolProtectTest::removeLinksListBounded()
     // A canceled listing stops at once
     ProtectCanceledControl control;
     QVERIFY(pdf::PDFDocumentLinkOperations::listExternalLinks(&document, &control).links.empty());
+
+    // The removal of every link is not bounded by the listing: no link of the page stays (review RCORE)
+    pdf::PDFDocumentToolRemoveLinks tool;
+    const pdf::PDFDocumentToolResult result = tool.run(ProtectTestHelper::createContext(document, data), QVariantMap(), nullptr, nullptr);
+    QVERIFY2(result.isSuccess(), qPrintable(result.message));
+    QCOMPARE(result.data.value(QStringLiteral("removed")).toInt(), pdf::PDFDocumentLinkOperations::MAXIMUM_LINKS + 1);
+    QCOMPARE(result.data.value(QStringLiteral("kept")).toInt(), 0);
+    const pdf::PDFDocumentLinkOperations::LinkList rest = pdf::PDFDocumentLinkOperations::listExternalLinks(result.documents.front().document.data());
+    QVERIFY(rest.links.empty());
+    QVERIFY(!rest.isTruncated);
 }
 
 void DocumentToolProtectTest::scanFindsEveryKind()
@@ -678,6 +813,29 @@ void DocumentToolProtectTest::sanitizeStepsAndFacts()
     QVERIFY(result.data.value(QStringLiteral("sizeAfter")).toInteger() > 0);
 }
 
+void DocumentToolProtectTest::sanitizeProgress()
+{
+    // 438:14093: one bar over the removed kinds, "Comments and markup · step 3 of 8"; the
+    // sanitizer begins the phase of each of its steps (in the order of the form), the
+    // measuring is the last step; the bar grows to 100 %
+    const QByteArray data = ProtectTestHelper::createHiddenDataDocument();
+    const pdf::PDFDocument document = ProtectTestHelper::read(data);
+    pdf::PDFDocumentToolSanitize tool;
+
+    pdftest::TestProgressRecorder progress;
+    const pdf::PDFDocumentToolResult result = tool.run(ProtectTestHelper::createContext(document, data), QVariantMap(), nullptr, &progress);
+    QVERIFY2(result.isSuccess(), qPrintable(result.message));
+
+    QCOMPARE(progress.phases, QList<int>({ 0, 1, 2, 3, 4, 5, 6, 7, 8 }));
+    QCOMPARE(progress.texts, QStringList({ QStringLiteral("Document info · step 1 of 9"), QStringLiteral("All metadata · step 2 of 9"),
+                                           QStringLiteral("Comments and markup · step 3 of 9"), QStringLiteral("File attachments · step 4 of 9"),
+                                           QStringLiteral("Outline · step 5 of 9"), QStringLiteral("Page labels · step 6 of 9"),
+                                           QStringLiteral("Embedded search index · step 7 of 9"), QStringLiteral("Page thumbnails · step 8 of 9"),
+                                           QStringLiteral("Measuring the result · step 9 of 9") }));
+    QVERIFY(progress.isMonotonic());
+    QCOMPARE(progress.percentages.back(), 100);
+}
+
 void DocumentToolProtectTest::sanitizeNothingToDo()
 {
     const QByteArray data = ProtectTestHelper::createLinkDocument();
@@ -719,6 +877,76 @@ void DocumentToolProtectTest::sanitizeWholeFileWithoutOldRevision()
     QCOMPARE(result.documents.front().document->getInfo()->version, document.getInfo()->version);
 }
 
+void DocumentToolProtectTest::sanitizeConformanceDeclaration_data()
+{
+    QTest::addColumn<QString>("kind");
+    QTest::addColumn<bool>("isBroken");
+    QTest::newRow("metadata-kept") << QStringLiteral("documentInfo") << false;
+    QTest::newRow("metadata-removed") << QStringLiteral("metadata") << false;
+    QTest::newRow("metadata-not-changeable") << QStringLiteral("documentInfo") << true;
+}
+
+void DocumentToolProtectTest::sanitizeConformanceDeclaration()
+{
+    // The whole file is rewritten and not checked against the standard it declares (as Compress
+    // and Optimize Structure, PDFDocumentTool::createWholeFileDocument): the declaration of PDF/A
+    // goes with the kept metadata or with the removed ones, the fact Declared standard says it;
+    // metadata, which cannot be changed, would keep a declaration, which is not true - nothing is made
+    QFETCH(QString, kind);
+    QFETCH(bool, isBroken);
+
+    const QByteArray xmp = isBroken ? QByteArray("<broken http://www.aiim.org/pdfa/ns/id/ no closing tag")
+                                    : QByteArray("<?xpacket begin=\"\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>"
+                                                 "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">"
+                                                 "<rdf:Description rdf:about=\"\" xmlns:pdfaid=\"http://www.aiim.org/pdfa/ns/id/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\">"
+                                                 "<pdfaid:part>2</pdfaid:part><pdfaid:conformance>B</pdfaid:conformance><dc:rights>Kept Rights</dc:rights>"
+                                                 "<dc:creator><rdf:Seq><rdf:li>MarkerXmpCreator</rdf:li></rdf:Seq></dc:creator>"
+                                                 "</rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end=\"w\"?>");
+    RawPdf pdf;
+    pdf.add(1, "<< /Type /Catalog /Pages 2 0 R /Metadata 4 0 R >>");
+    pdf.add(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+    pdf.add(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>");
+    pdf.addStream(4, "/Type /Metadata /Subtype /XML", xmp, false);
+    pdf.add(5, "<< /Title (MarkerTitle) >>");
+    const QByteArray data = pdf.build(1, 5);
+    const pdf::PDFDocument document = ProtectTestHelper::read(data);
+    QVERIFY(pdf::PDFOCRPagePreparer::hasConformanceDeclaration(&document, nullptr));
+
+    pdf::PDFDocumentToolSanitize tool;
+    const pdf::PDFDocumentToolResult result = tool.run(ProtectTestHelper::createContext(document, data), ProtectTestHelper::only(kind), nullptr, nullptr);
+    if (isBroken)
+    {
+        QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Failed);
+        QVERIFY(result.documents.empty());
+        QVERIFY2(result.message.contains(QStringLiteral("metadata cannot be changed")), qPrintable(result.message));
+        return;
+    }
+
+    QVERIFY2(result.isSuccess(), qPrintable(result.message));
+    QCOMPARE(int(result.documents.size()), 1);
+    const QByteArray written = ProtectTestHelper::write(*result.documents.front().document);
+    const pdf::PDFDocument output = ProtectTestHelper::read(written);
+    QCOMPARE(output.getCatalog()->getPageCount(), size_t(1));
+    QVERIFY(!pdf::PDFOCRPagePreparer::hasConformanceDeclaration(&output, nullptr));
+
+    // The kind chosen is removed, the other one stays: kept metadata keep their other properties,
+    // the author goes with the document info also from them (ISO 32000-2, Table 349: dc:creator)
+    QCOMPARE(ProtectTestHelper::contains(written, QStringLiteral("MarkerTitle")), kind != QLatin1String("documentInfo"));
+    QCOMPARE(ProtectTestHelper::contains(written, QStringLiteral("Kept Rights")), kind != QLatin1String("metadata"));
+    QVERIFY(!ProtectTestHelper::contains(written, QStringLiteral("MarkerXmpCreator")));
+
+    QString conformanceFact;
+    for (const pdf::PDFDocumentToolFact& fact : result.facts)
+    {
+        if (fact.id == QLatin1String("conformance"))
+        {
+            conformanceFact = fact.value;
+        }
+    }
+    QVERIFY2(conformanceFact.contains(QStringLiteral("no longer declares PDF/A")), qPrintable(conformanceFact));
+    QCOMPARE(result.data.value(QStringLiteral("conformanceRemoved")).toArray(), QJsonArray({ QStringLiteral("PDF/A") }));
+}
+
 void DocumentToolProtectTest::invisibleTextOverStreams()
 {
     // The streams of /Contents are one content stream (ISO 32000-2, 7.8.2): Tr 3 of the first
@@ -741,6 +969,52 @@ void DocumentToolProtectTest::invisibleTextOverStreams()
     const QByteArray written = ProtectTestHelper::write(*result.documents.front().document);
     QVERIFY(!ProtectTestHelper::contains(written, QStringLiteral("MarkerSplit")));
     QVERIFY(ProtectTestHelper::contains(written, QStringLiteral("VisibleAfterQ")));
+}
+
+void DocumentToolProtectTest::invisibleTextKeepsVisibleLayout()
+{
+    // ' moves to the next line before it shows its text, " also sets the word and the character
+    // spacing, which stay for the next text objects (ISO 32000-2, 9.3.1 and Table 106). Without
+    // the invisible text the visible text stays where it was: "AB" one line below the line of
+    // the removed ' (14 below 686 = 672), "C D" with the spacing of the removed ".
+    RawPdf pdf;
+    pdf.add(1, "<< /Type /Catalog /Pages 2 0 R >>");
+    pdf.add(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+    pdf.add(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 6 0 R >> >> >>");
+    pdf.addStream(4, "", "BT /F1 12 Tf 14 TL 72 700 Td 3 Tr(MarkerQuote)' 0 Tr 0 -14 Td (AB) Tj ET\n"
+                         "BT /F1 12 Tf 3 Tr 72 600 Td 5 2 (MarkerDoubleQuote) \" ET\n"
+                         "BT /F1 12 Tf 0 Tr 72 500 Td (C D) Tj ET", true);
+    pdf.add(6, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+    const QByteArray data = pdf.build(1);
+    const pdf::PDFDocument document = ProtectTestHelper::read(data);
+
+    pdf::PDFDocumentToolSanitize tool;
+    const pdf::PDFDocumentToolResult result = tool.run(ProtectTestHelper::createContext(document, data), ProtectTestHelper::only(QStringLiteral("invisibleText")), nullptr, nullptr);
+    QVERIFY2(result.isSuccess(), qPrintable(result.message));
+    const QByteArray written = ProtectTestHelper::write(*result.documents.front().document);
+    QVERIFY(!ProtectTestHelper::contains(written, QStringLiteral("MarkerQuote")));
+    QVERIFY(!ProtectTestHelper::contains(written, QStringLiteral("MarkerDoubleQuote")));
+
+    const std::vector<std::pair<QChar, QPointF>> before = ProtectTestHelper::getGlyphOrigins(document);
+    const std::vector<std::pair<QChar, QPointF>> after = ProtectTestHelper::getGlyphOrigins(ProtectTestHelper::read(written));
+    QCOMPARE(int(after.size()), 5);
+    QString text;
+    for (const auto& [character, origin] : after)
+    {
+        text += character;
+    }
+    QCOMPARE(text, QStringLiteral("ABC D"));
+    QCOMPARE(after[0].second, QPointF(72, 672));
+    QCOMPARE(after[2].second, QPointF(72, 500));
+
+    // Each visible glyph is where it was before (the invisible glyphs of the input come first)
+    QCOMPARE(int(before.size()), 5 + int(qstrlen("MarkerQuote") + qstrlen("MarkerDoubleQuote")));
+    const std::vector<std::pair<QChar, QPointF>> visibleBefore = { before[11], before[12], before.end()[-3], before.end()[-2], before.end()[-1] };
+    for (size_t i = 0; i < after.size(); ++i)
+    {
+        QCOMPARE(after[i].first, visibleBefore[i].first);
+        QVERIFY2(QLineF(after[i].second, visibleBefore[i].second).length() < 0.001, qPrintable(QStringLiteral("%1 moved").arg(after[i].first)));
+    }
 }
 
 void DocumentToolProtectTest::ownOcrDataRemoved()
@@ -882,6 +1156,198 @@ void DocumentToolProtectTest::presets()
     }
     QCOMPARE(Sanitize::formatKindCount(1, false), QStringLiteral("1 kind"));
     QCOMPARE(Sanitize::formatKindCount(7, true), QStringLiteral("7 kinds of hidden data"));
+}
+
+void DocumentToolProtectTest::documentInfoXmpProperties()
+{
+    // ISO 32000-2, 14.3.3, Table 349: the entries of the information dictionary and their
+    // properties of XMP - Title dc:title, Author dc:creator, Subject dc:description, Keywords
+    // pdf:Keywords, Creator xmp:CreatorTool, Producer pdf:Producer, CreationDate xmp:CreateDate,
+    // ModDate xmp:ModifyDate, Trapped pdf:Trapped
+    using Sanitizer = pdf::PDFDocumentSanitizer;
+    const QStringList table = { "dc:title", "dc:creator", "dc:description", "pdf:Keywords", "xmp:CreatorTool", "pdf:Producer", "xmp:CreateDate", "xmp:ModifyDate", "pdf:Trapped" };
+    QCOMPARE(Sanitizer::getDocumentInfoPropertyNames(), table);
+
+    // Exactly these go, the rest of the packet stays byte by byte (the declaration of PDF/A too)
+    QByteArray expected;
+    const QByteArray packet = ProtectTestHelper::createDocumentInfoXmp(&expected);
+    const Sanitizer::DocumentInfoProperties properties = Sanitizer::removeDocumentInfoProperties(packet);
+    QVERIFY(properties.isReadable);
+    QCOMPARE(properties.names, table);
+    QCOMPARE(properties.metadata, expected);
+    QVERIFY(expected.contains("pdfaid:part=\"2\""));
+
+    // What is left has none of them: nothing more goes
+    const Sanitizer::DocumentInfoProperties again = Sanitizer::removeDocumentInfoProperties(properties.metadata);
+    QVERIFY(again.names.isEmpty());
+    QCOMPARE(again.metadata, expected);
+
+    // A property of another namespace with the same name stays; outside of rdf:Description too
+    const QByteArray other = "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">"
+                             "<rdf:Description rdf:about=\"\" xmlns:o=\"http://example.org/other/\" o:Producer=\"Kept\"><o:title>Kept</o:title></rdf:Description>"
+                             "</rdf:RDF></x:xmpmeta>";
+    QVERIFY(Sanitizer::removeDocumentInfoProperties(other).names.isEmpty());
+    QCOMPARE(Sanitizer::removeDocumentInfoProperties(other).metadata, other);
+
+    // A packet, which cannot be parsed: unreadable, when it names a namespace of them
+    const QByteArray broken = "<x:xmpmeta xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><dc:title>MarkerBroken";
+    QVERIFY(!Sanitizer::removeDocumentInfoProperties(broken).isReadable);
+    QCOMPARE(Sanitizer::removeDocumentInfoProperties(broken).metadata, broken);
+    QVERIFY(Sanitizer::removeDocumentInfoProperties("<x:xmpmeta>no namespaces").isReadable);
+    QVERIFY(Sanitizer::removeDocumentInfoProperties(QByteArray()).isReadable);
+}
+
+void DocumentToolProtectTest::sanitizeDocumentInfoXmp()
+{
+    // Document info without All metadata: the information dictionary and its counterparts in the
+    // XMP metadata of the document go, the other properties stay (owner 2026-11-06)
+    QByteArray expected;
+    const QByteArray data = ProtectTestHelper::createDocumentInfoXmpDocument(ProtectTestHelper::createDocumentInfoXmp(&expected));
+    const pdf::PDFDocument document = ProtectTestHelper::read(data);
+
+    // The scan counts what goes: two entries and nine properties
+    const pdf::PDFDocumentHiddenDataScan::Result scan = pdf::PDFDocumentHiddenDataScan::scan(&document, false, nullptr, nullptr);
+    QCOMPARE(scan.get(pdf::PDFDocumentHiddenDataScan::Kind::DocumentInfo).count, 11);
+    QCOMPARE(scan.documentInfoXmp, pdf::PDFDocumentSanitizer::getDocumentInfoPropertyNames());
+    const pdf::PDFDocumentHiddenDataScan::Result back = pdf::PDFDocumentHiddenDataScan::Result::fromJson(scan.toJson());
+    QCOMPARE(back.documentInfoXmp, scan.documentInfoXmp);
+    QVERIFY(back.isDocumentInfoXmpReadable);
+
+    pdf::PDFDocumentToolSanitize tool;
+    const pdf::PDFDocumentToolResult result = tool.run(ProtectTestHelper::createContext(document, data), ProtectTestHelper::only(QStringLiteral("documentInfo")), nullptr, nullptr);
+    QVERIFY2(result.isSuccess(), qPrintable(result.message));
+    const QByteArray written = ProtectTestHelper::write(*result.documents.front().document);
+    for (const char* marker : { "MarkerInfoTitle", "MarkerInfoAuthor", "MarkerXmpProducer", "MarkerXmpKeywords", "MarkerXmpTitle", "MarkerXmpAuthor", "MarkerXmpSubject", "MarkerXmpCreatorTool", "2026-01-02T03:04:05Z" })
+    {
+        QVERIFY2(!ProtectTestHelper::contains(written, QString::fromLatin1(marker)), marker);
+    }
+    QVERIFY(ProtectTestHelper::contains(written, QStringLiteral("Kept Rights")));
+    QVERIFY(ProtectTestHelper::contains(written, QStringLiteral("2026-01-04T03:04:05Z")));
+
+    // The fact and the data of MCP say it; the declaration of PDF/A goes by the rule of the
+    // whole write (the result is not checked against the standard), its fact says it
+    QStringList factIds;
+    QString xmpFact;
+    for (const pdf::PDFDocumentToolFact& fact : result.facts)
+    {
+        factIds << fact.id;
+        if (fact.id == QLatin1String("documentInfoXmp"))
+        {
+            xmpFact = fact.value;
+        }
+    }
+    QCOMPARE(factIds, QStringList({ "removed", "size", "kept", "documentInfoXmp", "conformance" }));
+    QCOMPARE(xmpFact, QStringLiteral("Removed also from the XMP metadata: 9 properties"));
+    QCOMPARE(result.data.value(QStringLiteral("documentInfoXmp")).toArray(), QJsonArray::fromStringList(pdf::PDFDocumentSanitizer::getDocumentInfoPropertyNames()));
+    QCOMPARE(result.data.value(QStringLiteral("conformanceRemoved")).toArray(), QJsonArray({ QStringLiteral("PDF/A") }));
+
+    // With All metadata the packet goes whole: nothing is removed from it first
+    QVariantMap both = ProtectTestHelper::only(QStringLiteral("documentInfo"));
+    both.insert(QStringLiteral("metadata"), true);
+    const pdf::PDFDocumentToolResult whole = tool.run(ProtectTestHelper::createContext(document, data), both, nullptr, nullptr);
+    QVERIFY2(whole.isSuccess(), qPrintable(whole.message));
+    QVERIFY(whole.data.value(QStringLiteral("documentInfoXmp")).toArray().isEmpty());
+    QVERIFY(!ProtectTestHelper::contains(ProtectTestHelper::write(*whole.documents.front().document), QStringLiteral("Kept Rights")));
+    for (const pdf::PDFDocumentToolFact& fact : whole.facts)
+    {
+        QVERIFY(fact.id != QLatin1String("documentInfoXmp"));
+    }
+
+    // Only the XMP has the document info: the kind is found and removed
+    RawPdf pdf;
+    pdf.add(1, "<< /Type /Catalog /Pages 2 0 R /Metadata 4 0 R >>");
+    pdf.add(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+    pdf.add(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>");
+    pdf.addStream(4, "/Type /Metadata /Subtype /XML", ProtectTestHelper::createDocumentInfoXmp(&expected), false);
+    const QByteArray onlyXmp = pdf.build(1);
+    const pdf::PDFDocument onlyXmpDocument = ProtectTestHelper::read(onlyXmp);
+    QCOMPARE(pdf::PDFDocumentHiddenDataScan::scan(&onlyXmpDocument, false, nullptr, nullptr).get(pdf::PDFDocumentHiddenDataScan::Kind::DocumentInfo).count, 9);
+    const pdf::PDFDocumentToolResult onlyXmpResult = tool.run(ProtectTestHelper::createContext(onlyXmpDocument, onlyXmp), ProtectTestHelper::only(QStringLiteral("documentInfo")), nullptr, nullptr);
+    QVERIFY2(onlyXmpResult.isSuccess(), qPrintable(onlyXmpResult.message));
+    QVERIFY(!ProtectTestHelper::contains(ProtectTestHelper::write(*onlyXmpResult.documents.front().document), QStringLiteral("MarkerXmpAuthor")));
+}
+
+void DocumentToolProtectTest::sanitizeDocumentInfoXmpUnreadable()
+{
+    // XMP metadata, which cannot be read, may keep the document info: the run refuses to say it
+    // removed it, unless the metadata go whole
+    const QByteArray data = ProtectTestHelper::createDocumentInfoXmpDocument("<x:xmpmeta xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><dc:creator>MarkerBroken");
+    const pdf::PDFDocument document = ProtectTestHelper::read(data);
+    const pdf::PDFDocumentHiddenDataScan::Result scan = pdf::PDFDocumentHiddenDataScan::scan(&document, false, nullptr, nullptr);
+    QVERIFY(!scan.isDocumentInfoXmpReadable);
+    QVERIFY(!pdf::PDFDocumentHiddenDataScan::Result::fromJson(scan.toJson()).isDocumentInfoXmpReadable);
+
+    pdf::PDFDocumentToolSanitize tool;
+    const pdf::PDFDocumentToolResult refused = tool.run(ProtectTestHelper::createContext(document, data), ProtectTestHelper::only(QStringLiteral("documentInfo")), nullptr, nullptr);
+    QCOMPARE(refused.status, pdf::PDFDocumentToolResultStatus::Failed);
+    QVERIFY(refused.documents.empty());
+    QVERIFY2(refused.message.contains(QStringLiteral("cannot be read")), qPrintable(refused.message));
+
+    QVariantMap both = ProtectTestHelper::only(QStringLiteral("documentInfo"));
+    both.insert(QStringLiteral("metadata"), true);
+    const pdf::PDFDocumentToolResult whole = tool.run(ProtectTestHelper::createContext(document, data), both, nullptr, nullptr);
+    QVERIFY2(whole.isSuccess(), qPrintable(whole.message));
+    QVERIFY(!ProtectTestHelper::contains(ProtectTestHelper::write(*whole.documents.front().document), QStringLiteral("MarkerBroken")));
+}
+
+void DocumentToolProtectTest::sanitizePermissions()
+{
+    // ISO 32000-2, Table 22: every kind rewrites the document (bit 4 Modify); a kind, which
+    // removes annotations or fields, needs bit 6 too ("Add or modify text annotations, fill in
+    // interactive form fields, and, if bit 4 is also set, create or modify interactive form
+    // fields (including signature fields)")
+    using Permission = pdf::PDFSecurityHandler::Permission;
+    using Kind = pdf::PDFDocumentHiddenDataScan::Kind;
+    const QByteArray data = ProtectTestHelper::createHiddenDataDocument();
+    const pdf::PDFDocument document = ProtectTestHelper::read(data);
+    const pdf::PDFDocument modifyOnly = ProtectTestHelper::withPermissions(document, uint32_t(Permission::Modify));
+    const pdf::PDFDocument both = ProtectTestHelper::withPermissions(document, uint32_t(Permission::Modify) | uint32_t(Permission::ModifyInteractiveItems));
+    const pdf::PDFDocument interactiveOnly = ProtectTestHelper::withPermissions(document, uint32_t(Permission::ModifyInteractiveItems));
+
+    // The comments, the file attachment annotation and the signature field of the document
+    const pdf::PDFDocumentHiddenDataScan::Result scan = pdf::PDFDocumentHiddenDataScan::scan(&document, false, nullptr, nullptr);
+    QCOMPARE(scan.attachmentAnnotations, qint64(1));
+    const std::vector<Kind> all = { Kind::DocumentInfo, Kind::Metadata, Kind::Comments, Kind::Attachments, Kind::Outline, Kind::PageLabels, Kind::SearchIndex, Kind::Thumbnails, Kind::SignatureFields };
+    QCOMPARE(pdf::PDFDocumentToolSanitize::getInteractiveKinds(scan, all), (std::vector<Kind>{ Kind::Comments, Kind::Attachments, Kind::SignatureFields }));
+
+    pdf::PDFDocumentToolSanitize tool;
+    const auto run = [&tool, &data](const pdf::PDFDocument& input, const QString& kind)
+    {
+        return tool.run(ProtectTestHelper::createContext(input, data), ProtectTestHelper::only(kind), nullptr, nullptr);
+    };
+
+    for (const QString& kind : { QStringLiteral("comments"), QStringLiteral("attachments"), QStringLiteral("signatureFields") })
+    {
+        const pdf::PDFDocumentToolResult refused = run(modifyOnly, kind);
+        QVERIFY2(refused.status == pdf::PDFDocumentToolResultStatus::Failed, qPrintable(kind));
+        QVERIFY(refused.documents.empty());
+        QVERIFY2(refused.message.startsWith(QStringLiteral("The permissions of the document do not allow changing its annotations and form fields")), qPrintable(refused.message));
+        QVERIFY2(run(both, kind).isSuccess(), qPrintable(kind));
+    }
+    QCOMPARE(run(modifyOnly, QStringLiteral("comments")).message,
+             QStringLiteral("The permissions of the document do not allow changing its annotations and form fields: untick Comments and markup to remove the other kinds."));
+
+    // Bit 4 alone is enough for the kinds, which change no annotation or field
+    for (const QString& kind : { QStringLiteral("documentInfo"), QStringLiteral("metadata"), QStringLiteral("outline"), QStringLiteral("pageLabels"), QStringLiteral("thumbnails") })
+    {
+        const pdf::PDFDocumentToolResult result = run(modifyOnly, kind);
+        QVERIFY2(result.isSuccess(), qPrintable(kind + QStringLiteral(": ") + result.message));
+    }
+
+    // Bit 6 without bit 4: the tool is refused by the permissions of the catalog
+    QCOMPARE(run(interactiveOnly, QStringLiteral("comments")).message, QStringLiteral("The permissions of the document do not allow this tool."));
+
+    // The attachments of the name tree only (no annotation): bit 4 is enough
+    RawPdf pdf;
+    pdf.add(1, "<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles << /Names [(a.txt) 20 0 R] >> >> >>");
+    pdf.add(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+    pdf.add(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>");
+    pdf.add(20, "<< /Type /Filespec /F (a.txt) /EF << /F 21 0 R >> >>");
+    pdf.addStream(21, "/Type /EmbeddedFile", "MarkerAttachment payload", true);
+    const QByteArray fileData = pdf.build(1);
+    const pdf::PDFDocument files = ProtectTestHelper::withPermissions(ProtectTestHelper::read(fileData), uint32_t(Permission::Modify));
+    const pdf::PDFDocumentToolResult filesResult = tool.run(ProtectTestHelper::createContext(files, fileData), ProtectTestHelper::only(QStringLiteral("attachments")), nullptr, nullptr);
+    QVERIFY2(filesResult.isSuccess(), qPrintable(filesResult.message));
 }
 
 QTEST_MAIN(DocumentToolProtectTest)

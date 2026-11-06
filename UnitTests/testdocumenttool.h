@@ -54,7 +54,8 @@ namespace pdftest
 ///   mode = throw, throw-std - throws PDFException / std::runtime_error from execute and
 ///                    computePreview (the checked run converts it)
 /// The cancellation is checked before each page; the progress has a step per page
-/// and "repeat" (the pages are counted "repeat" times). setHold keeps execute and
+/// and "repeat" (the pages are counted "repeat" times), setStepDelay makes each step
+/// last (a run, which a reader of the progress sees running). setHold keeps execute and
 /// computePreview at their start until it is released or the run is canceled. The id
 /// of another tool of the catalog gives the test tool the signature impact, the
 /// preselected result and the texts of that tool (the result dialog of the shell).
@@ -104,7 +105,7 @@ public:
     pdf::PDFDocumentToolResult execute(const pdf::PDFDocumentToolContext& context,
                                        const QVariantMap& parameters,
                                        const pdf::PDFOperationControl* control,
-                                       pdf::PDFProgress* progress) const override
+                                       pdf::PDFProgressSink* progress) const override
     {
         ++m_executeCount;
         if (m_executeCallback)
@@ -122,7 +123,7 @@ public:
     bool hasPreview() const override { return m_hasPreview; }
     bool isPreviewFinal() const override { return m_isPreviewFinal; }
 
-    pdf::PDFDocumentToolResult computePreview(const pdf::PDFDocumentToolContext& context, const QVariantMap& parameters, const pdf::PDFOperationControl* control, pdf::PDFProgress* progress) const override
+    pdf::PDFDocumentToolResult computePreview(const pdf::PDFDocumentToolContext& context, const QVariantMap& parameters, const pdf::PDFOperationControl* control, pdf::PDFProgressSink* progress) const override
     {
         ++m_previewCount;
         if (!waitWhileHeld(control))
@@ -157,6 +158,9 @@ public:
     /// Number of the workers waiting at the moment
     int getHeldCount() const { return m_heldCount.load(); }
 
+    /// Time of each counted page in microseconds (0 = none)
+    void setStepDelay(int microseconds) { m_stepDelay.store(microseconds); }
+
     void setPreview(bool hasPreview, bool isPreviewFinal) { m_hasPreview = hasPreview; m_isPreviewFinal = isPreviewFinal; }
 
     /// The modes of a new document and of a file of the result are offered (the shell of
@@ -187,7 +191,7 @@ private:
         return true;
     }
 
-    pdf::PDFDocumentToolResult compute(const pdf::PDFDocumentToolContext& context, const QVariantMap& parameters, const pdf::PDFOperationControl* control, pdf::PDFProgress* progress) const
+    pdf::PDFDocumentToolResult compute(const pdf::PDFDocumentToolContext& context, const QVariantMap& parameters, const pdf::PDFOperationControl* control, pdf::PDFProgressSink* progress) const
     {
         const QString mode = parameters.value(QStringLiteral("mode")).toString();
         if (mode == QLatin1String("nothing"))
@@ -269,6 +273,10 @@ private:
                 }
 
                 ++counted;
+                if (const int delay = m_stepDelay.load(); delay > 0)
+                {
+                    QThread::usleep(ulong(delay));
+                }
                 if (progress)
                 {
                     progress->step();
@@ -321,6 +329,7 @@ private:
     std::function<void()> m_executeCallback;
     std::atomic<bool> m_hold = false;
     mutable std::atomic<int> m_heldCount = 0;
+    std::atomic<int> m_stepDelay = 0;
     mutable std::atomic<int> m_previewCount = 0;
     mutable std::atomic<int> m_executeCount = 0;
 };

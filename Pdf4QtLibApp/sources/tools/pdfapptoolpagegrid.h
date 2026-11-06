@@ -115,7 +115,8 @@ Q_SIGNALS:
     /// Delete on the current tile
     void deleteRequested(int pageIndex);
 
-    /// The layout of the tiles has another height (emitted inside of the layout of the view)
+    /// The layout of the tiles has another height (emitted from the event loop after the
+    /// layout of the view, never inside of it)
     void contentHeightChanged(int height);
 
 protected:
@@ -127,9 +128,11 @@ protected:
 private:
     void queueClick(int pageIndex, Qt::KeyboardModifiers modifiers, bool isDelete);
     void emitQueued();
+    void emitContentHeight();
 
     int m_pressedPage = -1;
     int m_lastContentHeight = -1;
+    bool m_isContentHeightQueued = false;
     int m_queuedPage = -1;
     Qt::KeyboardModifiers m_queuedModifiers;
     bool m_isQueuedDelete = false;

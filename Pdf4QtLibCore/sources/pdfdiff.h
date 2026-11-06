@@ -330,7 +330,7 @@ public:
 
     /// Sets progress object
     /// \param progress Progress object
-    void setProgress(PDFProgress* progress) { m_progress = progress; }
+    void setProgress(PDFProgressSink* progress) { m_progress = progress; }
 
     /// Enables or disables comparator engine option
     /// \param option Option
@@ -393,7 +393,7 @@ private:
     /// \param page Page
     PDFReal calculateEpsilonForPage(const PDFPage* page) const;
 
-    PDFProgress* m_progress;
+    PDFProgressSink* m_progress;
     const PDFDocument* m_leftDocument;
     const PDFDocument* m_rightDocument;
     PDFClosedIntervalSet m_pagesForLeftDocument;

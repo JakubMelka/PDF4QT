@@ -70,6 +70,41 @@ public:
     }
 };
 
+/// The values of Rotate Pages and Remove Pages for a new version of the document: the pages
+/// follow their page objects (PDFDocumentTool::mapParameters). The current page selection is
+/// followed by its binder (it knows its mode), a selection of all pages is a rule: both stay.
+class PDFAppToolPageFollower : public PDFAppToolValueMapper
+{
+public:
+    PDFAppToolPageFollower(const PDFDocumentTool* tool, const PDFDocument* from, const PDFDocument* to) :
+        m_tool(tool),
+        m_from(from),
+        m_to(to)
+    {
+
+    }
+
+    virtual QVariantMap mapValues(const QVariantMap& values, bool isCurrent) const override
+    {
+        const QString pagesKey = QString::fromLatin1(PDFDocumentToolRotatePages::PARAMETER_PAGES);
+        QVariantMap mapped = m_tool->mapParameters(values, m_from, m_to);
+
+        QString error;
+        const std::optional<PDFDocumentToolPageSelection> selection = PDFDocumentToolPageSelection::fromVariant(values.value(pagesKey), &error);
+        const bool isAllPages = selection && !selection->isNone && selection->pages.trimmed().isEmpty();
+        if (isCurrent || isAllPages)
+        {
+            mapped.insert(pagesKey, values.value(pagesKey));
+        }
+        return mapped;
+    }
+
+private:
+    const PDFDocumentTool* m_tool;
+    const PDFDocument* m_from;
+    const PDFDocument* m_to;
+};
+
 /// Registers the tool and its GUI under the id, when they are not registered yet
 template<typename Tool, typename GUI>
 class PDFAppToolGUIPagesRegistration
@@ -208,6 +243,12 @@ void PDFAppPageMarkingToolGUI::onDeleteRequested(PDFInteger page)
     Q_UNUSED(page);
 }
 
+bool PDFAppPageMarkingToolGUI::isPendingListShown(const std::vector<PDFInteger>& pendingPages) const
+{
+    // No frame of an empty list (389:20177 without a turn)
+    return !pendingPages.empty();
+}
+
 void PDFAppPageMarkingToolGUI::updatePanels()
 {
 
@@ -285,12 +326,53 @@ void PDFAppPageMarkingToolGUI::describeLeftPanel(PDFAppToolPanelBuilder& builder
     updateAll();
 }
 
+void PDFAppPageMarkingToolGUI::followPages()
+{
+    const PDFDocumentPointer document = getShownDocument();
+    const PDFDocumentPointer previousDocument = m_pageDocument;
+    if (!document || document == previousDocument)
+    {
+        return;
+    }
+
+    // The state first: a slot of the model, which runs this again, finds the new version
+    m_pageDocument = document;
+    const PDFDocumentToolShell* shell = getShell();
+    PDFAppToolParameterModel* model = getModel();
+    if (!previousDocument || !shell || !shell->getTool() || !model)
+    {
+        return;
+    }
+
+    // The selection of the left panel (its mode decides), then the other values and the steps
+    // of Undo and Redo; each change is announced by the model
+    const std::shared_ptr<const PDFDocumentTool> tool = shell->getTool();
+    QPointer<PDFAppPageMarkingToolGUI> guard(this);
+    if (m_binder)
+    {
+        m_binder->followPages(previousDocument.data(), PDFDocumentToolPageSelection::mapPageIndices(previousDocument.data(), document.data()));
+        if (!guard)
+        {
+            return;
+        }
+    }
+    if (PDFAppToolParameterModel* currentModel = getModel())
+    {
+        currentModel->mapValues(PDFAppToolPageFollower(tool.get(), previousDocument.data(), document.data()));
+    }
+}
+
 void PDFAppPageMarkingToolGUI::updateTargets()
 {
     using Helper = PDFAppToolGUIPagesHelper;
 
     m_targets.clear();
     const PDFDocumentPointer document = getShownDocument();
+    if (!m_pageDocument)
+    {
+        // The version, whose pages the values of the entry name
+        m_pageDocument = document;
+    }
     const PDFAppToolParameterModel* model = getModel();
     if (document && model)
     {
@@ -344,8 +426,7 @@ void PDFAppPageMarkingToolGUI::updateAll()
     }
     if (m_pendingList)
     {
-        // No frame of an empty list: 388:21466 has no list
-        m_pendingList->setVisible(!pending.empty() && size_t(pending.size()) < size_t(getPageCount()));
+        m_pendingList->setVisible(isPendingListShown(pending));
     }
     if (m_leftHint)
     {
@@ -353,8 +434,15 @@ void PDFAppPageMarkingToolGUI::updateAll()
     }
 
     updatePanels();
+
+    // The slots of the state of the Primary button may delete this GUI (the tab is closed from
+    // them): the status is said only by a living GUI, the last thing
+    QPointer<PDFAppPageMarkingToolGUI> guard(this);
     updateConfirmState();
-    updateStatusText();
+    if (guard)
+    {
+        updateStatusText();
+    }
 }
 
 void PDFAppPageMarkingToolGUI::onParametersChanged(const QString& name)
@@ -365,7 +453,14 @@ void PDFAppPageMarkingToolGUI::onParametersChanged(const QString& name)
 
 void PDFAppPageMarkingToolGUI::onDocumentChanged()
 {
-    // An assistant may change the pages below an open tool: the tiles of the new pages
+    // An assistant may change the pages below an open tool: the marks follow their pages,
+    // the tiles show the new pages
+    QPointer<PDFAppPageMarkingToolGUI> guard(this);
+    followPages();
+    if (!guard)
+    {
+        return;
+    }
     if (m_grid)
     {
         PDFAppDocument* document = getDocument();
@@ -615,7 +710,13 @@ void PDFAppToolGUIRotatePages::onParametersChanged(const QString& name)
 
 void PDFAppToolGUIRotatePages::onDocumentChanged()
 {
-    // The plan is read by the pages of the new version
+    // The plan follows its pages, then it is read by the pages of the new version
+    QPointer<PDFAppToolGUIRotatePages> guard(this);
+    followPages();
+    if (!guard)
+    {
+        return;
+    }
     readTurns();
     BaseClass::onDocumentChanged();
 }
@@ -873,6 +974,12 @@ PDFAppToolPageGridModel::Tile PDFAppToolGUIRemovePages::createTile(PDFInteger pa
         tile.badgeIconName = QStringLiteral("trash");
     }
     return tile;
+}
+
+bool PDFAppToolGUIRemovePages::isPendingListShown(const std::vector<PDFInteger>& pendingPages) const
+{
+    // 388:21466: every page marked is refused, the frame has no list
+    return BaseClass::isPendingListShown(pendingPages) && !isEveryPageMarked();
 }
 
 void PDFAppToolGUIRemovePages::onPendingLinkActivated(PDFInteger page)

@@ -39,6 +39,8 @@ Other rules:
 - While a tool of PDF4QT runs on the document or its result dialog is open, the call returns the busy error; try again when the user has finished. An assistant may change a document, whose tool only waits for its parameters.
 - When the document changes while the tool runs, `keep` and `overwrite` run the tool again on the new version (at most 3 runs). `save_copy` writes the version of your call: later changes are not in the copy.
 - Pages are numbered from 1 in the order of the document, not by their labels; `document.get_pages` gives the labels.
+- The numbers of `pages` and of `plan` name the pages of the version your call saw. When the tool runs again on a new version, the same pages are used: a page, which was moved meanwhile, keeps its turn or its removal under its new number, a page, which was removed meanwhile, is left out. When none of your pages is left, the call fails and nothing changes. `pages` without a range (all pages, with or without `filters`) is a rule: it selects the pages of the version the tool runs on.
+- An encrypted document must allow assembling it (ISO 32000-2, Table 22, bit 11: insert, rotate or delete pages); otherwise both actions fail and nothing changes.
 
 ## `pages.remove`
 

@@ -25,6 +25,7 @@
 #include "pdfappdocument.h"
 #include "pdfappdocumentpanels_thumbnails.h"
 #include "pdfappdocumentview.h"
+#include "pdfapplocale.h"
 #include "pdfapppagelayout.h"
 #include "pdfapptoolhost.h"
 #include "pdfapptoolpanelparts.h"
@@ -44,7 +45,6 @@
 
 #include <QHBoxLayout>
 #include <QJsonObject>
-#include <QLocale>
 #include <QPainter>
 #include <QScrollArea>
 #include <QToolButton>
@@ -235,8 +235,10 @@ void PDFAppToolPagePicture::setFit(bool isFit)
 
 QSize PDFAppToolPagePicture::getActualSize() const
 {
+    // No page (-1) or a page the document no longer has: PDFCatalog::getPage throws for it
     const PDFDocument* document = m_proxy ? m_proxy->getDocument() : nullptr;
-    const PDFPage* page = document ? document->getCatalog()->getPage(m_pageIndex) : nullptr;
+    const PDFCatalog* catalog = document ? document->getCatalog() : nullptr;
+    const PDFPage* page = catalog && m_pageIndex >= 0 && size_t(m_pageIndex) < catalog->getPageCount() ? catalog->getPage(size_t(m_pageIndex)) : nullptr;
     if (!page)
     {
         return QSize();
@@ -366,10 +368,9 @@ PDFAppToolTextPreviewPage::PDFAppToolTextPreviewPage(QWidget* parent) :
     barLayout->addWidget(m_title, 1);
     m_zoom = new PDFSegmentedControl(bar);
     m_zoom->setObjectName(QStringLiteral("toolPreviewZoom"));
-    m_zoom->addSegment(tr("Fit"));
-    m_zoom->addSegment(tr("100 %"));
+    m_zoom->addSegment(QString());
+    m_zoom->addSegment(QString());
     m_zoom->setFixedWidth(2 * Helper::ZOOM_SEGMENT_WIDTH);
-    m_zoom->setAccessibleName(tr("Size of the page"));
     connect(m_zoom.data(), &PDFSegmentedControl::currentIndexChanged, this, &PDFAppToolTextPreviewPage::onZoomChanged);
     barLayout->addWidget(m_zoom);
     layout->addWidget(bar);
@@ -392,10 +393,18 @@ PDFAppToolTextPreviewPage::PDFAppToolTextPreviewPage(QWidget* parent) :
         paneLayout->setSpacing(Helper::PANE_GAP);
 
         // PAGE / EXTRACTED TEXT: Semi Bold 11 text/tertiary, centered
-        PDFLabel* caption = PDFAppPageWidgets::createLabel(i == 0 ? tr("PAGE") : tr("EXTRACTED TEXT"), QFont::DemiBold, 11, PDFThemeColors::TextTertiary, pane);
+        PDFLabel* caption = PDFAppPageWidgets::createLabel(QString(), QFont::DemiBold, 11, PDFThemeColors::TextTertiary, pane);
         caption->setObjectName(QStringLiteral("toolPaneCaption"));
         caption->setAlignment(Qt::AlignCenter);
         paneLayout->addWidget(caption);
+        if (i == 0)
+        {
+            m_pageCaption = caption;
+        }
+        else
+        {
+            m_textCaption = caption;
+        }
 
         QScrollArea* area = Helper::createScrollArea(pane);
         paneLayout->addWidget(area, 1);
@@ -446,9 +455,43 @@ PDFAppToolTextPreviewPage::PDFAppToolTextPreviewPage(QWidget* parent) :
     estimateLayout->addWidget(m_estimate);
     estimateLayout->addWidget(m_estimateDetail, 1);
     layout->addWidget(estimate);
+
+    updateTexts();
 }
 
 PDFAppToolTextPreviewPage::~PDFAppToolTextPreviewPage() = default;
+
+void PDFAppToolTextPreviewPage::updateTexts()
+{
+    // The shell keeps the canvas page over a change of the language: its own texts follow it
+    if (m_pageCaption)
+    {
+        m_pageCaption->setText(tr("PAGE"));
+    }
+    if (m_textCaption)
+    {
+        m_textCaption->setText(tr("EXTRACTED TEXT"));
+    }
+    if (m_zoom)
+    {
+        const QStringList segments = { tr("Fit"), tr("100 %") };
+        const QList<QToolButton*> buttons = m_zoom->findChildren<QToolButton*>(QString(), Qt::FindDirectChildrenOnly);
+        for (qsizetype i = 0; i < buttons.size() && i < segments.size(); ++i)
+        {
+            buttons[i]->setText(segments[i]);
+        }
+        m_zoom->setAccessibleName(tr("Size of the page"));
+    }
+}
+
+void PDFAppToolTextPreviewPage::changeEvent(QEvent* event)
+{
+    BaseClass::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange)
+    {
+        updateTexts();
+    }
+}
 
 void PDFAppToolTextPreviewPage::setContentShown(bool isShown)
 {
@@ -788,7 +831,6 @@ void PDFAppToolGUIExtractText::onDocumentChanged()
     updateRows();
     updatePreviewPage();
 }
-
 void PDFAppToolGUIExtractText::updateButtons()
 {
     // 339:8132: "Include: 1 extra", "Format: Text" (the menu row says "Plain text")
@@ -826,7 +868,7 @@ QString PDFAppToolGUIExtractText::getFormatText() const
 
 QString PDFAppToolGUIExtractText::getEstimateText(qint64 value) const
 {
-    return tr("about %1").arg(QLocale().toString(value));
+    return tr("about %1").arg(PDFAppLocale::formatNumber(value));
 }
 
 void PDFAppToolGUIExtractText::updateRows()
@@ -835,7 +877,6 @@ void PDFAppToolGUIExtractText::updateRows()
     using Tool = PDFDocumentToolExtractText;
 
     const QString none = QStringLiteral("–");
-    const QLocale locale;
     const PDFAppToolParameterModel* model = getModel();
     const PDFAppDocument* appDocument = getDocument();
     const PDFDocument* document = appDocument && appDocument->getDocument() ? appDocument->getDocument().get() : nullptr;
@@ -848,7 +889,7 @@ void PDFAppToolGUIExtractText::updateRows()
         const bool isCopyAllowed = document && document->getStorage().getSecurityHandler()->isAllowed(PDFSecurityHandler::Permission::CopyContent);
         m_documentRows->clear();
         m_documentRows->addRow(tr("Tagged"), hasPreview ? (data.value(QStringLiteral("tagged")).toBool() ? tr("Yes") : tr("No")) : none);
-        m_documentRows->addRow(tr("Pages with text"), hasPreview ? tr("%1 of %2").arg(locale.toString(data.value(QStringLiteral("pagesWithText")).toInteger()), locale.toString(data.value(QStringLiteral("pageCount")).toInteger())) : none);
+        m_documentRows->addRow(tr("Pages with text"), hasPreview ? tr("%1 of %2").arg(PDFAppLocale::formatNumber(data.value(QStringLiteral("pagesWithText")).toInteger()), PDFAppLocale::formatNumber(data.value(QStringLiteral("pageCount")).toInteger())) : none);
         m_documentRows->addRow(tr("Copying content"), isCopyAllowed ? tr("Allowed") : tr("Not allowed"));
     }
 
@@ -864,7 +905,7 @@ void PDFAppToolGUIExtractText::updateRows()
         {
             const std::vector<PDFInteger> pages = selection->getPageIndices(document, &errorMessage);
             const bool isAll = selection->pages.trimmed().isEmpty() && selection->filters == PDFDocumentToolPageSelection::Filters();
-            pagesText = tr("%1 · %2").arg(isAll ? tr("All") : selection->pages.trimmed().isEmpty() ? tr("Filtered") : selection->pages.trimmed(), locale.toString(qint64(pages.size())));
+            pagesText = tr("%1 · %2").arg(isAll ? tr("All") : selection->pages.trimmed().isEmpty() ? tr("Filtered") : selection->pages.trimmed(), PDFAppLocale::formatNumber(qint64(pages.size())));
         }
 
         // Reading order: "Auto → structure" by the order the preview has used
@@ -932,8 +973,7 @@ void PDFAppToolGUIExtractText::updatePreviewPage()
     m_previewPage->setContentShown(!isRefused);
 
     const PDFInteger pageIndex = getPreviewPageIndex();
-    const QLocale locale;
-    const QString pageNumber = locale.toString(pageIndex + 1);
+    const QString pageNumber = PDFAppLocale::formatNumber(pageIndex + 1);
     m_previewPage->getPicture()->setPageIndex(pageIndex);
     m_previewPage->setTitle(pageIndex >= 0 ? tr("Page %1 · preview of the extracted text").arg(pageNumber) : QString());
     m_previewPage->setTextFooter(getFormatText());

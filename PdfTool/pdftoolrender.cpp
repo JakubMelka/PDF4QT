@@ -26,6 +26,8 @@
 
 #include <QColorSpace>
 #include <QElapsedTimer>
+#include <QMutex>
+#include <QMutexLocker>
 
 namespace pdftool
 {
@@ -193,10 +195,16 @@ int PDFToolRenderBase::execute(const PDFToolOptions& options)
                                           pdf::PDFRasterizerPool::getCorrectedRasterizerCount(options.renderRasterizerCount),
                                           options.renderEngine, nullptr);
 
-    auto onRenderError = [this](pdf::PDFInteger pageIndex, pdf::PDFRenderError error)
+    // renderError is emitted in the threads of the rasterizers and the command has no event
+    // loop: the direct connection stays (the signal is kept for the old Editor, whose dialog
+    // takes it queued). The errors are collected under a lock - two rasterizers may report
+    // at once, also the errors of one page (its vector is not thread-safe).
+    QMutex errorMutex;
+    auto onRenderError = [this, &errorMutex](pdf::PDFInteger pageIndex, pdf::PDFRenderError error)
     {
         if (pageIndex != pdf::PDFCatalog::INVALID_PAGE_INDEX)
         {
+            QMutexLocker locker(&errorMutex);
             m_pageInfo[pageIndex].errors.emplace_back(qMove(error));
         }
     };

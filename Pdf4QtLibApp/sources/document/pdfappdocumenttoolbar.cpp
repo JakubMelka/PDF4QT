@@ -674,7 +674,7 @@ void PDFAppDocumentToolbar::onMenuButtonClicked()
 void PDFAppDocumentToolbar::onPanelDestroyed(QObject* object)
 {
     // ~QWidget emits destroyed before the QPointer of the panel is cleared: the
-    // dying panel is only compared, none of its members is called (CLAUDE.md)
+    // dying panel is only compared, none of its members is called (arch/conventions.md)
     for (const auto& item : m_panels)
     {
         if (item.second.data() == object)

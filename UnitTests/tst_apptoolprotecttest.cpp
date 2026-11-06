@@ -243,6 +243,9 @@ private slots:
     void linksRunAndKeep();
     void mcpRemoveLinksAndSanitize();
     void screenshots();
+
+    void sanitizePermissionRefusal();
+    void mcpSanitizePermissions();
 };
 
 void AppToolProtectTest::initTestCase()
@@ -802,6 +805,67 @@ void AppToolProtectTest::screenshots()
         }
     }
     pdf::PDFThemeManager::getInstance()->setTheme(QStringLiteral("light"));
+}
+
+void AppToolProtectTest::sanitizePermissionRefusal()
+{
+    // ISO 32000-2, Table 22: the sample allows the changes of bit 4, not those of annotations and
+    // fields (bits 6 and 9); its square annotation is a comment. The tool is allowed, the kind
+    // Comments and markup is not: the Primary button is off and the status bar says why.
+    using H = ProtectAppHelper;
+    AppToolShellFixture fixture(QSize(1440, 960));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, pdftest::AppDocumentSamples::restricted(fixture.folder()));
+    QVERIFY(tab);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, H::SANITIZE_ID);
+    PDFAppToolGUISanitize* gui = H::sanitize(shell);
+    QVERIFY(gui && AppToolShellFixture::waitFor([gui]() { return gui->isScanned(); }));
+    AppToolShellFixture::settle();
+    QVERIFY(!shell->isPermissionRefused());
+
+    const QString refusal = QStringLiteral("The permissions of the document do not allow changing its annotations and form fields: untick Comments and markup to remove the other kinds.");
+    QVERIFY(shell->getModel()->getValue(QStringLiteral("comments")).toBool());
+    QVERIFY(!shell->getToolbar()->getConfirmButton()->isEnabled());
+    QCOMPARE(shell->getStatusMessage(), refusal);
+    QCOMPARE(H::statusMessage(tab), refusal);
+
+    // Without the comments the rest can be removed
+    QCOMPARE(shell->getModel()->setValue(QStringLiteral("comments"), false), QString());
+    AppToolShellFixture::settle();
+    QVERIFY(shell->getToolbar()->getConfirmButton()->isEnabled());
+    QVERIFY(shell->getStatusMessage() != refusal);
+
+    // Ticked again: refused again
+    QCOMPARE(shell->getModel()->setValue(QStringLiteral("comments"), true), QString());
+    AppToolShellFixture::settle();
+    QVERIFY(!shell->getToolbar()->getConfirmButton()->isEnabled());
+    QCOMPARE(shell->getStatusMessage(), refusal);
+}
+
+void AppToolProtectTest::mcpSanitizePermissions()
+{
+    // The same check refuses the call of an assistant with the same text; nothing is written
+    using H = ProtectAppHelper;
+    pdftest::AppMcpFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, pdftest::AppDocumentSamples::restricted(fixture.folder()));
+    QVERIFY(tab);
+
+    const QString copy = fixture.path(QStringLiteral("restricted_clean.pdf"));
+    QJsonObject sanitize;
+    sanitize.insert(QStringLiteral("action"), QStringLiteral("sanitize"));
+    sanitize.insert(QStringLiteral("documentId"), tab->getDocument()->getId());
+    sanitize.insert(QStringLiteral("path"), copy);
+    std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("protect"), sanitize);
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText().contains(QStringLiteral("The permissions of the document do not allow changing its annotations and form fields: untick Comments and markup to remove the other kinds.")),
+             qPrintable(result->getFirstText()));
+    QVERIFY(!QFile::exists(copy));
+
+    sanitize.insert(QStringLiteral("sanitize"), QJsonObject({ { QStringLiteral("comments"), false } }));
+    result = fixture.callTool(QStringLiteral("protect"), sanitize);
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    QVERIFY(QFile::exists(copy));
 }
 
 QTEST_MAIN(AppToolProtectTest)

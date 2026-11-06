@@ -25,6 +25,7 @@
 
 #include "pdfglobal.h"
 #include "pdfobject.h"
+#include "pdfprogress.h"
 
 #include <QByteArray>
 #include <QCoreApplication>
@@ -38,7 +39,6 @@ namespace pdf
 class PDFDocument;
 class PDFDocumentBuilder;
 class PDFForm;
-class PDFProgress;
 
 /// Creates a digitally signed document.
 ///
@@ -114,7 +114,7 @@ public:
         QDateTime signingTime = QDateTime::currentDateTime();
 
         /// Progress reporting of the document writer, can be nullptr
-        PDFProgress* progress = nullptr;
+        PDFProgressSink* progress = nullptr;
     };
 
     /// Signs the document. Returns Result::OK and fills \p signedDocument only

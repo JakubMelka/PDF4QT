@@ -26,6 +26,7 @@
 #include "pdfglobal.h"
 #include "pdfdocumenttextflow.h"
 #include "pdfoutputformatter.h"
+#include "pdfprogress.h"
 
 #include <QByteArray>
 #include <QString>
@@ -38,7 +39,6 @@ namespace pdf
 
 class PDFDocument;
 class PDFOperationControl;
-class PDFProgress;
 
 /// Writes the text flow of a document (PDFDocumentTextFlowFactory) by an output formatter:
 /// the one loop of `PdfTool fetch-text` and of the tool Extract Text. The text is encoded
@@ -145,7 +145,7 @@ public:
     /// \param control Cancellation (optional)
     /// \param progress Progress, a step per page (optional)
     /// \returns Indices of the pages with a text, sorted
-    static std::vector<PDFInteger> findPagesWithText(const PDFDocument* document, const std::vector<PDFInteger>& pageIndices, const PDFOperationControl* control, PDFProgress* progress);
+    static std::vector<PDFInteger> findPagesWithText(const PDFDocument* document, const std::vector<PDFInteger>& pageIndices, const PDFOperationControl* control, PDFProgressSink* progress);
 };
 
 }   // namespace pdf

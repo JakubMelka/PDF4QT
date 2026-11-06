@@ -62,8 +62,9 @@ void PDFAsynchronousPageCompilerWorkerThread::run()
             // with the mutex locked, so the check above and the wait form one atomic
             // step - no wake up can be lost (otherwise stop() could wait forever).
             // The timeout is just a safety net, the loop checks everything again.
-            m_waitCondition->wait(locker.mutex(), QDeadlineTimer(500));
-            PDFThreadAnnotations::happensAfter(locker.mutex()); // relocked inside of Qt
+            // The wait unlocks and relocks the mutex inside of Qt (the race detectors
+            // are told by PDFThreadAnnotations::wait).
+            PDFThreadAnnotations::wait(*m_waitCondition, locker.mutex(), QDeadlineTimer(500));
             continue;
         }
 

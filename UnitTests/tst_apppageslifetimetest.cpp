@@ -51,7 +51,7 @@
 // (it would run code of the application after its window and context are gone),
 // and no warning of Qt was printed. The detectors are checked by detectorSelfTest.
 // Freed memory stays readable in a Release build on Windows - run the test under
-// ASan (CLAUDE.md).
+// ASan (arch/checks.md).
 
 #include "apptoolsfixture.h"
 

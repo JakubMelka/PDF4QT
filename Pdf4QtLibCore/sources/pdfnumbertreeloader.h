@@ -24,6 +24,7 @@
 #define PDFNUMBERTREELOADER_H
 
 #include "pdfdocument.h"
+#include "pdfobjectutils.h"
 
 #include <vector>
 
@@ -40,13 +41,16 @@ public:
     using Objects = std::vector<Type>;
 
     /// Parses the number tree and loads its items into the array. Some errors are ignored,
-    /// e.g. when kid is null. Type must contain methods to load object array.
+    /// e.g. when kid is null. Type must contain methods to load object array. The nodes are
+    /// read by one PDFObjectWalk: a node once (a kid listed twice, a kid, which is its own
+    /// ancestor, adds nothing), up to its default depth.
     static Objects parse(const PDFObjectStorage* storage, const PDFObject& root)
     {
         Objects result;
 
         // First, try to load items from the tree into the array
-        parseImpl(result, storage, root);
+        PDFObjectWalk walk;
+        parseImpl(result, storage, root, &walk, 0);
 
         // Array may not be sorted. Sort it using comparison operator for Type.
         std::stable_sort(result.begin(), result.end());
@@ -55,8 +59,13 @@ public:
     }
 
 private:
-    static void parseImpl(Objects& objects, const PDFObjectStorage* storage, const PDFObject& root)
+    static void parseImpl(Objects& objects, const PDFObjectStorage* storage, const PDFObject& root, PDFObjectWalk* walk, int depth)
     {
+        if (!walk->enter(root, depth))
+        {
+            return;
+        }
+
         if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(root))
         {
             // First, load the objects into the array
@@ -89,7 +98,7 @@ private:
                 const size_t count = kidsArray->getCount();
                 for (size_t i = 0; i < count; ++i)
                 {
-                    parseImpl(objects, storage, kidsArray->getItem(i));
+                    parseImpl(objects, storage, kidsArray->getItem(i), walk, depth + 1);
                 }
             }
         }

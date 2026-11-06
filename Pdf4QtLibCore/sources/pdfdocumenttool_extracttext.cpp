@@ -178,7 +178,7 @@ QString PDFDocumentToolExtractText::getExtension(const QVariantMap& parameters)
     return QStringLiteral("txt");
 }
 
-PDFDocumentTextFlow PDFDocumentToolExtractText::createFlow(const PDFDocument* document, const std::vector<PDFInteger>& pageIndices, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress)
+PDFDocumentTextFlow PDFDocumentToolExtractText::createFlow(const PDFDocument* document, const std::vector<PDFInteger>& pageIndices, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress)
 {
     PDFDocumentTextFlowFactory factory;
     factory.setOperationControl(control);
@@ -287,7 +287,7 @@ std::vector<PDFDocumentToolParameterError> PDFDocumentToolExtractText::validate(
     return errors;
 }
 
-PDFDocumentToolResult PDFDocumentToolExtractText::computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const
+PDFDocumentToolResult PDFDocumentToolExtractText::computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const
 {
     using Helper = PDFDocumentToolExtractTextHelper;
 
@@ -295,7 +295,7 @@ PDFDocumentToolResult PDFDocumentToolExtractText::computePreview(const PDFDocume
     QString errorMessage;
     const std::vector<PDFInteger> pages = getSelectedPages(document, parameters, &errorMessage);
 
-    PDFProgressPhases phases(progress, tr("Measuring the text…"));
+    PDFProgressPhases phases(progress);
     const int scanPhase = phases.addPhase(60, tr("Looking for text"), true);
     const int samplePhase = phases.addPhase(40, tr("Reading pages"), true);
     phases.start();
@@ -326,7 +326,7 @@ PDFDocumentToolResult PDFDocumentToolExtractText::computePreview(const PDFDocume
     return result;
 }
 
-PDFDocumentToolResult PDFDocumentToolExtractText::execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const
+PDFDocumentToolResult PDFDocumentToolExtractText::execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const
 {
     using Helper = PDFDocumentToolExtractTextHelper;
 
@@ -341,7 +341,7 @@ PDFDocumentToolResult PDFDocumentToolExtractText::execute(const PDFDocumentToolC
     }
 
     // 356:13079: "Reading page 640 of 1,592"
-    PDFProgressPhases phases(progress, tr("Reading pages…"));
+    PDFProgressPhases phases(progress);
     const int readPhase = phases.addPhase(95, tr("Reading page"), true);
     const int writePhase = phases.addPhase(5, tr("Writing the text"), false);
     phases.start();
@@ -417,7 +417,7 @@ PDFDocumentToolParameterDefinitions PDFDocumentToolExtractTextPage::getParameter
     return definitions;
 }
 
-PDFDocumentToolResult PDFDocumentToolExtractTextPage::computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const
+PDFDocumentToolResult PDFDocumentToolExtractTextPage::computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const
 {
     Q_UNUSED(progress);
 

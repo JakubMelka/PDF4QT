@@ -27,11 +27,13 @@
 #include "pdfoperationcontrol.h"
 
 #include <functional>
+#include <map>
 #include <vector>
 
 namespace pdf
 {
 class PDFAnnotation;
+class PDFProgressSink;
 
 /// Class for sanitizing documents. Can remove sensitive content from the document
 /// and can also perform selected low-level content stream cleanups.
@@ -90,6 +92,39 @@ public:
     /// Steps performed by sanitize in their order (the flags, which are set)
     static std::vector<SanitizationFlag> getSteps(SanitizationFlags flags);
 
+    /// The properties of the XMP metadata of the document, which are the entries of the
+    /// document information dictionary, in the order of ISO 32000-2, 14.3.3, Table 349 (and
+    /// ISO 19005-1, Table 1): Title dc:title, Author dc:creator, Subject dc:description,
+    /// Keywords pdf:Keywords, Creator xmp:CreatorTool, Producer pdf:Producer, CreationDate
+    /// xmp:CreateDate, ModDate xmp:ModifyDate, Trapped pdf:Trapped
+    static QStringList getDocumentInfoPropertyNames();
+
+    /// What the XMP packet has of the properties of the document information
+    struct DocumentInfoProperties
+    {
+        QStringList names;          ///< The properties found ("dc:title", the prefixes of getDocumentInfoPropertyNames), in their order
+        QByteArray metadata;        ///< The packet without them: the other bytes unchanged (the same bytes, when there are none)
+        bool isReadable = true;     ///< false: the packet cannot be parsed and its text names a namespace of them, so they may be in it
+    };
+
+    /// Removes the properties of the document information from an XMP packet (DocumentInfo
+    /// without Metadata: the same data must not stay in the metadata of the document). A
+    /// property is recognized by its namespace and its name, not by the prefix, in the element
+    /// form and in the attribute form of a child of rdf:Description; everything else - the
+    /// declaration of PDF/A (pdfaid), the other properties, the xpacket wrapper and its
+    /// padding - stays byte by byte.
+    /// \param metadata The XMP packet
+    static DocumentInfoProperties removeDocumentInfoProperties(const QByteArray& metadata);
+
+    /// The XMP packet of the catalog (/Metadata), empty for none
+    /// \param storage Objects of the document
+    /// \param reference Reference of the stream (optional, invalid for none)
+    static QByteArray getCatalogMetadata(const PDFObjectStorage* storage, PDFObjectReference* reference);
+
+    /// The properties of the document information, which the last sanitize removed from the
+    /// XMP metadata of the document (DocumentInfo without Metadata)
+    const QStringList& getRemovedDocumentInfoProperties() const { return m_removedDocumentInfoProperties; }
+
     /// Sets the cancellation of sanitize, checked between the steps and per page or object,
     /// also in the final optimization (optional, it must outlive sanitize). The storage of
     /// a canceled sanitization is valid, but hidden data may stay in it: it is not to be used.
@@ -97,6 +132,13 @@ public:
 
     /// The operation control has canceled the sanitization
     bool isCanceled() const { return PDFOperationControl::isOperationCancelled(m_operationControl); }
+
+    /// Sets the progress of sanitize: a step begins the phase, which \p phaseOfStep gives to
+    /// its flag (PDFProgressSink::beginPhase, in the thread of sanitize); a step without a
+    /// phase begins none (optional, the progress must outlive sanitize)
+    /// \param progress Progress of the run (may be null)
+    /// \param phaseOfStep Index of the phase of a step (a SanitizationFlag)
+    void setProgress(PDFProgressSink* progress, std::map<int, int> phaseOfStep) { m_progress = progress; m_phaseOfStep = std::move(phaseOfStep); }
 
     /// Set document, which should be sanitized
     /// \param document Document to be sanitized
@@ -128,9 +170,6 @@ signals:
     void sanitizationProgress(QString progressText);
     void sanitizationFinished();
 
-    /// A step begins (\p flag is a SanitizationFlag), in the thread of sanitize
-    void sanitizationStepStarted(int flag);
-
 private:
     void performSanitizeDocumentInfo();
     void performSanitizeMetadata();
@@ -153,7 +192,10 @@ private:
 
     SanitizationFlags m_flags;
     PDFObjectStorage m_storage;
+    QStringList m_removedDocumentInfoProperties;
     const PDFOperationControl* m_operationControl = nullptr;
+    PDFProgressSink* m_progress = nullptr;
+    std::map<int, int> m_phaseOfStep;
 };
 
 }   // namespace pdf

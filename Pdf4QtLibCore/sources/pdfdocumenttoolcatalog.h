@@ -319,9 +319,10 @@ public:
     /// What the result does with the signatures of a signed document (default None)
     PDFDocumentToolSignatureImpact getSignatureImpact() const;
 
-    /// Permissions of an encrypted document, which allow the tool: at least one of
-    /// them must be granted (Rotate Pages: Assemble or Modify, ISO 32000-2 Table 22).
-    /// Empty = the tool asks for no permission.
+    /// Permissions of an encrypted document, which the tool needs: every one of them
+    /// must be granted (ISO 32000-2 Table 22: a tool needs the bits of what it changes;
+    /// Rotate Pages: Assemble). A tool, whose options change more (Remove Hidden Data),
+    /// checks the rest by itself before its run. Empty = the tool asks for no permission.
     std::vector<PDFSecurityHandler::Permission> getRequiredPermissions() const;
 
     /// The security handler of the document grants what the tool needs: a document
@@ -374,7 +375,7 @@ public:
     }
 
     /// \param requiredPermissions Mask of the values of PDFSecurityHandler::Permission,
-    ///        at least one of them must be granted (0 = none needed)
+    ///        every one of them must be granted (0 = none needed)
     constexpr PDFDocumentToolExtendedData(const char* id,
                                           PDFDocumentToolInputKind inputKind,
                                           PDFDocumentToolResultKind resultKind,
@@ -430,7 +431,7 @@ public:
     PDFDocumentToolPreselectedResult getPreselectedResult() const { return m_preselectedResult; }
     PDFDocumentToolSignatureImpact getSignatureImpact() const { return m_signatureImpact; }
 
-    /// Mask of the values of PDFSecurityHandler::Permission, at least one of them must be granted
+    /// Mask of the values of PDFSecurityHandler::Permission, every one of them must be granted
     uint32_t getRequiredPermissionMask() const { return m_requiredPermissions; }
 
     /// Command of PdfTool (empty = none)

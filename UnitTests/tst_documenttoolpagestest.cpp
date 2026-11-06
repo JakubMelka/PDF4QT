@@ -41,6 +41,8 @@
 #include <QBuffer>
 #include <QtTest>
 
+#include <algorithm>
+#include <iterator>
 #include <map>
 
 using namespace pdf;
@@ -259,9 +261,11 @@ private slots:
     void rotatePlanText();
 
     void removeOutline();
+    void removeOutlineCountsAbove();
     void removeNamedDestinations();
     void removeLinksAndActions();
     void removeFormFields();
+    void removeFieldsWithWidgetKids();
     void removePageLabels();
     void removeStructureThreadsActions();
     void removeLayers();
@@ -274,6 +278,9 @@ private slots:
     void removeHostile_data();
     void removeHostile();
     void formatPageNumbers();
+
+    void followPagesMap();
+    void followPagesTools();
 };
 
 void DocumentToolPagesTest::rotateTurns_data()
@@ -538,6 +545,38 @@ void DocumentToolPagesTest::removeOutline()
     QVERIFY(result.getObjectByReference(PDFObjectReference(27, 0)).isNull());
 }
 
+void DocumentToolPagesTest::removeOutlineCountsAbove()
+{
+    // A (open) > A1 (open) > A1a -> page 2; B (closed) > B1 -> page 1, B2 -> page 2. /Count of an
+    // open item is the number of its visible descendants, of a closed one the negative number of
+    // the descendants, which would be visible when it opens; the root counts its visible items
+    // (ISO 32000-2, Table 152 and 153). Before: A, A1, A1a and B are visible.
+    PagesTestPdf pdf = PagesTestPdf::createPages("/Outlines 20 0 R");
+    pdf.set(20, "<< /Type /Outlines /First 21 0 R /Last 24 0 R /Count 4 >>");
+    pdf.set(21, "<< /Title (A) /Parent 20 0 R /Next 24 0 R /First 22 0 R /Last 22 0 R /Count 2 /Dest [3 0 R /Fit] >>");
+    pdf.set(22, "<< /Title (A1) /Parent 21 0 R /First 23 0 R /Last 23 0 R /Count 1 /Dest [3 0 R /Fit] >>");
+    pdf.set(23, "<< /Title (A1a) /Parent 22 0 R /Dest [4 0 R /Fit] >>");
+    pdf.set(24, "<< /Title (B) /Parent 20 0 R /Prev 21 0 R /First 25 0 R /Last 26 0 R /Count -2 /Dest [3 0 R /Fit] >>");
+    pdf.set(25, "<< /Title (B1) /Parent 24 0 R /Next 26 0 R /Dest [3 0 R /Fit] >>");
+    pdf.set(26, "<< /Title (B2) /Parent 24 0 R /Prev 25 0 R /Dest [4 0 R /Fit] >>");
+    const PDFDocument document = pdf.read();
+    QCOMPARE(PagesTestHelper::getOutline(document.getCatalog()->getOutlineRootPtr().data()), QStringLiteral("A[A1[A1a]] B[B1 B2]"));
+
+    PDFDocumentPageOperations::RemovalStatistics statistics;
+    const PDFDocument result = PagesTestHelper::remove(document, { 2 }, &statistics);
+    QCOMPARE(PagesTestHelper::getOutline(result.getCatalog()->getOutlineRootPtr().data()), QStringLiteral("A[A1] B[B1]"));
+    QCOMPARE(statistics.outlineItemsRemoved, 2);
+
+    // A1 has no item below it; A has one visible descendant (A1); B, closed, would show B1
+    QVERIFY(!PagesTestHelper::getDictionary(result, PDFObjectReference(22, 0))->hasKey("Count"));
+    QCOMPARE(PagesTestHelper::getDictionary(result, PDFObjectReference(21, 0))->get("Count").getInteger(), 1);
+    QCOMPARE(PagesTestHelper::getDictionary(result, PDFObjectReference(24, 0))->get("Count").getInteger(), -1);
+
+    // The root: A, A1 and B are visible
+    QCOMPARE(PagesTestHelper::getDictionary(result, PDFObjectReference(20, 0))->get("Count").getInteger(), 3);
+    QVERIFY(PagesTestHelper::getDanglingReferences(result).isEmpty());
+}
+
 void DocumentToolPagesTest::removeNamedDestinations()
 {
     // A name tree with kids (7.9.6) and the dictionary /Dests of PDF 1.1; /Names /Pages
@@ -637,6 +676,57 @@ void DocumentToolPagesTest::removeFormFields()
     QVERIFY(!catalog->hasKey("Perms"));
     QVERIFY(result.getObjectByReference(PDFObjectReference(55, 0)).isNull());
     QVERIFY(PagesTestHelper::getDanglingReferences(result).isEmpty());
+}
+
+void DocumentToolPagesTest::removeFieldsWithWidgetKids()
+{
+    // A terminal field, whose kids are its widgets (ISO 32000-2, 12.7.4.1): the signature "sig"
+    // with its widget on page 2 and /Perms /DocMDP of its signature; the text field "twice" with
+    // both widgets on page 2. Both fields go with their last widget.
+    PagesTestPdf pdf = PagesTestPdf::createPages("/AcroForm << /Fields [50 0 R 53 0 R 56 0 R] /SigFlags 3 >> /Perms << /DocMDP 52 0 R >>",
+                                                 { { 2, "/Annots [51 0 R 54 0 R 55 0 R]" }, { 3, "/Annots [57 0 R]" } });
+    pdf.set(50, "<< /FT /Sig /T (sig) /V 52 0 R /Kids [51 0 R] >>");
+    pdf.set(51, "<< /Type /Annot /Subtype /Widget /Parent 50 0 R /Rect [0 0 0 0] /P 4 0 R >>");
+    pdf.set(52, "<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /ByteRange [0 0 0 0] /Contents <00> /Name (SIGNERMARKER) >>");
+    pdf.set(53, "<< /FT /Tx /T (twice) /V (FIELDMARKER) /Kids [54 0 R 55 0 R] >>");
+    pdf.set(54, "<< /Type /Annot /Subtype /Widget /Parent 53 0 R /Rect [0 0 10 10] /P 4 0 R >>");
+    pdf.set(55, "<< /Type /Annot /Subtype /Widget /Parent 53 0 R /Rect [20 0 30 10] /P 4 0 R >>");
+    pdf.set(56, "<< /FT /Tx /T (keep) /Kids [57 0 R] >>");
+    pdf.set(57, "<< /Type /Annot /Subtype /Widget /Parent 56 0 R /Rect [0 0 10 10] /P 5 0 R >>");
+    const PDFDocument document = pdf.read();
+
+    // The form of PDF4QT counts the widget of the signature as a second signature field
+    QVERIFY(PDFForm::getSignatureCount(&document) > 0);
+
+    PDFDocumentPageOperations::RemovalStatistics statistics;
+    const PDFDocument result = PagesTestHelper::remove(document, { 2 }, &statistics);
+    QCOMPARE(statistics.fieldsRemoved, 2);
+    QCOMPARE(statistics.signaturesRemoved, 1);
+    QCOMPARE(PDFForm::getSignatureCount(&result), 0);
+
+    // Only "keep" stays; no signature field: no signature flags, no permissions of the signature
+    const PDFDictionary* catalog = PagesTestHelper::getCatalog(result);
+    const PDFDictionary* form = result.getDictionaryFromObject(catalog->get("AcroForm"));
+    const PDFArray* fields = form->get("Fields").getArray();
+    QCOMPARE(fields->getCount(), size_t(1));
+    QCOMPARE(fields->getItem(0), PDFObject::createReference(PDFObjectReference(56, 0)));
+    QVERIFY(!form->hasKey("SigFlags"));
+    QVERIFY(!catalog->hasKey("Perms"));
+    QVERIFY(result.getObjectByReference(PDFObjectReference(52, 0)).isNull());
+    QVERIFY(result.getObjectByReference(PDFObjectReference(53, 0)).isNull());
+    QVERIFY(PagesTestHelper::getDanglingReferences(result).isEmpty());
+
+    // The written file has neither the signer nor the value of the removed field
+    const QByteArray written = PagesTestHelper::writeWhole(result);
+    QVERIFY(!written.contains("SIGNERMARKER"));
+    QVERIFY(!written.contains("FIELDMARKER"));
+
+    // The tool says the signature is gone with its page
+    PDFDocumentToolRemovePages tool;
+    const PDFDocumentToolResult toolResult = tool.run(PagesTestHelper::context(document), PagesTestHelper::pages(QStringLiteral("2")), nullptr, nullptr);
+    QVERIFY2(toolResult.isSuccess(), qPrintable(toolResult.message));
+    QCOMPARE(toolResult.data.value(QStringLiteral("signaturesRemoved")).toInteger(), 1);
+    QCOMPARE(toolResult.data.value(QStringLiteral("fieldsRemoved")).toInteger(), 2);
 }
 
 void DocumentToolPagesTest::removePageLabels()
@@ -871,13 +961,18 @@ void DocumentToolPagesTest::removeHostile_data()
     // A field, which is its own kid, a name tree, which is its own kid
     QTest::newRow("field cycle") << QByteArray("/AcroForm << /Fields [50 0 R] >>") << 50 << QByteArray("<< /T (x) /Kids [50 0 R 51 0 R] >>")
                                  << 51 << QByteArray("<< /Type /Annot /Subtype /Widget /Parent 50 0 R /Rect [0 0 1 1] /P 4 0 R >>");
-    // A kid of a name tree listed twice (a name tree, which is its own kid, ends the reader of the
-    // document before the tool: SECURITY_TODO 29)
+    // A kid of a name tree listed twice (a name tree, which is its own kid: UnitTestsObjectWalk)
     QTest::newRow("name tree shared kid") << QByteArray("/Names << /Dests 30 0 R >>") << 30 << QByteArray("<< /Kids [31 0 R 31 0 R] >>")
                                           << 31 << QByteArray("<< /Names [(a) [4 0 R /Fit]] >>");
     // An outline item reached by /Next, which is a page: the chain ends there, the page stays
     QTest::newRow("outline to page") << QByteArray("/Outlines 20 0 R") << 20 << QByteArray("<< /First 21 0 R /Last 21 0 R >>")
                                      << 21 << QByteArray("<< /Title (A) /Parent 20 0 R /Next 5 0 R >>");
+    // Two items, whose /First leads back to the first of them: each path is a new outline of the
+    // same two items, the walk of every path would take 2^256 steps (review RCORE). Each item is
+    // read once, both items keep their targets of page 1.
+    QTest::newRow("outline items shared by paths") << QByteArray("/Outlines << /First 21 0 R /Last 22 0 R /Count 2 >>")
+                                                   << 21 << QByteArray("<< /Title (A) /Next 22 0 R /First 21 0 R /Last 22 0 R /Dest [3 0 R /Fit] >>")
+                                                   << 22 << QByteArray("<< /Title (B) /Prev 21 0 R /First 21 0 R /Last 22 0 R /Dest [3 0 R /Fit] >>");
     // A widget, which says it is on the removed page, but page 1 lists it
     QTest::newRow("lying widget") << QByteArray("/AcroForm << /Fields [50 0 R] >>") << 50 << QByteArray("<< /Type /Annot /Subtype /Widget /FT /Tx /T (x) /Rect [0 0 1 1] /P 4 0 R >>")
                                   << 3 << QByteArray("<< /Type /Page /Parent 2 0 R /Contents 13 0 R /Resources << >> /Annots [50 0 R] >>");
@@ -905,6 +1000,11 @@ void DocumentToolPagesTest::removeHostile()
 
     // The page reached by the hostile outline stays a page of the document
     QCOMPARE(result.getCatalog()->getPage(1)->getPageReference(), PDFObjectReference(5, 0));
+    if (QByteArray(QTest::currentDataTag()) == "outline items shared by paths")
+    {
+        // The items point at page 1, they stay
+        QCOMPARE(PagesTestHelper::getOutline(result.getCatalog()->getOutlineRootPtr().data()), QStringLiteral("A B"));
+    }
     if (QByteArray(QTest::currentDataTag()) == "lying widget")
     {
         // Page 1 keeps its widget, its field stays
@@ -920,6 +1020,141 @@ void DocumentToolPagesTest::formatPageNumbers()
     QCOMPARE(PDFDocumentPageOperations::formatPageNumbers({ 0, 1, 2, 4, 5 }), QStringLiteral("1–3, 5, 6"));
     QCOMPARE(PDFDocumentPageOperations::formatPageNumbers({ 0, 2, 4, 6 }, 2), QStringLiteral("1, 3, …"));
     QCOMPARE(PDFDocumentPageOperations::formatPageNumbers({}), QString());
+}
+
+/// Versions of the five pages of createPages, which an assistant has made (owner 2026-11-06:
+/// the marks follow the pages, not their numbers): page 2 removed, then the last page moved first
+class PagesTestVersions
+{
+public:
+    PagesTestVersions() :
+        original(PagesTestPdf::createPages().read()),
+        removed(PagesTestHelper::remove(original, { 2 }))
+    {
+        PDFDocumentBuilder builder(&removed);
+        builder.flattenPageTree();
+        std::vector<PDFObjectReference> pages = builder.getPages();
+        std::rotate(pages.begin(), std::prev(pages.end()), pages.end());
+        builder.setPages(pages);
+        moved = builder.build();
+    }
+
+    /// The page objects of a version (by the pages of the original: "P1 P3 P4 P5")
+    QStringList getPages(const PDFDocument& document) const
+    {
+        QStringList pages;
+        for (size_t i = 0; i < document.getCatalog()->getPageCount(); ++i)
+        {
+            const PDFObjectReference reference = document.getCatalog()->getPage(i)->getPageReference();
+            for (size_t j = 0; j < original.getCatalog()->getPageCount(); ++j)
+            {
+                if (original.getCatalog()->getPage(j)->getPageReference() == reference)
+                {
+                    pages << QStringLiteral("P%1").arg(j + 1);
+                }
+            }
+        }
+        return pages;
+    }
+
+    PDFDocument original;   ///< P1 P2 P3 P4 P5
+    PDFDocument removed;    ///< P1 P3 P4 P5
+    PDFDocument moved;      ///< P5 P1 P3 P4
+};
+
+void DocumentToolPagesTest::followPagesMap()
+{
+    const PagesTestVersions versions;
+    QCOMPARE(versions.getPages(versions.removed), QStringList({ "P1", "P3", "P4", "P5" }));
+    QCOMPARE(versions.getPages(versions.moved), QStringList({ "P5", "P1", "P3", "P4" }));
+
+    // Each page of the original where its page object is now, -1 for the removed one
+    QCOMPARE(PDFDocumentToolPageSelection::mapPageIndices(&versions.original, &versions.removed), std::vector<PDFInteger>({ 0, -1, 1, 2, 3 }));
+    const std::vector<PDFInteger> pageMap = PDFDocumentToolPageSelection::mapPageIndices(&versions.original, &versions.moved);
+    QCOMPARE(pageMap, std::vector<PDFInteger>({ 1, -1, 2, 3, 0 }));
+
+    const auto map = [&](const QString& range, PDFDocumentToolPageSelection::Filters filters)
+    {
+        PDFDocumentToolPageSelection selection;
+        selection.pages = range;
+        selection.filters = filters;
+        return selection.mapPages(&versions.original, pageMap);
+    };
+
+    // A range names pages: P2 is gone, P3 and P4 are pages 3 and 4, P5 is page 1
+    PDFDocumentToolPageSelection mapped = map(QStringLiteral("2-5"), PDFDocumentToolPageSelection::Filters());
+    QCOMPARE(mapped.pages, QStringLiteral("1, 3-4"));
+    QVERIFY(!mapped.isNone);
+    QCOMPARE(mapped.getPageIndices(&versions.moved, nullptr), std::vector<PDFInteger>({ 0, 2, 3 }));
+
+    // The filters decide on the version of the range (even: P2, P4), the result is a list
+    mapped = map(QStringLiteral("1-5"), PDFDocumentToolPageSelection::Filter::Even);
+    QCOMPARE(mapped.pages, QStringLiteral("4"));
+    QCOMPARE(mapped.filters, PDFDocumentToolPageSelection::Filters());
+
+    // A range, whose pages are all gone, selects none - never all pages
+    mapped = map(QStringLiteral("2"), PDFDocumentToolPageSelection::Filters());
+    QVERIFY(mapped.isNone);
+    QVERIFY(mapped.pages.isEmpty());
+    QVERIFY(mapped.getPageIndices(&versions.moved, nullptr).empty());
+
+    // All pages is a rule over the version, not a list: it stays, with its filters
+    mapped = map(QString(), PDFDocumentToolPageSelection::Filter::Odd);
+    QVERIFY(!mapped.isNone);
+    QVERIFY(mapped.pages.isEmpty());
+    QCOMPARE(mapped.filters, PDFDocumentToolPageSelection::Filters(PDFDocumentToolPageSelection::Filter::Odd));
+
+    // The range text reads back
+    QCOMPARE(PDFDocumentToolPageSelection::createRangeText({ 0, 1, 2, 4, 7, 8 }), QStringLiteral("1-3, 5, 8-9"));
+}
+
+void DocumentToolPagesTest::followPagesTools()
+{
+    const PagesTestVersions versions;
+    PDFDocumentToolRotatePages rotate;
+    PDFDocumentToolRemovePages remove;
+
+    // The plan of P2 right, P4 and P5 half, P1 reset, made for the moved version: P2 is gone,
+    // P5 and P4 are pages 1 and 4, P1 page 2 (the groups right, left, half, reset)
+    QVariantMap parameters;
+    parameters.insert(QStringLiteral("plan"), QStringLiteral("2:right; 4-5:half; 1:reset"));
+    QVariantMap mapped = rotate.mapParameters(parameters, &versions.original, &versions.moved);
+    QCOMPARE(mapped.value(QStringLiteral("plan")).toString(), QStringLiteral("1,4:half; 2:reset"));
+    PDFDocumentToolResult result = rotate.run(PagesTestHelper::context(versions.moved), mapped, nullptr, nullptr);
+    QCOMPARE(result.status, PDFDocumentToolResultStatus::Success);
+    QCOMPARE(PagesTestHelper::getRotations(*result.documents.front().document), QStringList({ "180", "0", "0", "180" }));
+
+    // A plan, whose every page is gone: no page turns (without the plan the rotation would
+    // turn all pages)
+    parameters.insert(QStringLiteral("plan"), QStringLiteral("2:right"));
+    mapped = rotate.mapParameters(parameters, &versions.original, &versions.moved);
+    QVERIFY(mapped.value(QStringLiteral("plan")).toString().isEmpty());
+    result = rotate.run(PagesTestHelper::context(versions.moved), mapped, nullptr, nullptr);
+    QCOMPARE(result.status, PDFDocumentToolResultStatus::Failed);
+    QVERIFY(result.documents.empty());
+
+    // The pages and the rotation: P4, P5 turn right
+    parameters = PagesTestHelper::pages(QStringLiteral("4-5"));
+    parameters.insert(QStringLiteral("rotation"), QStringLiteral("right"));
+    mapped = rotate.mapParameters(parameters, &versions.original, &versions.moved);
+    result = rotate.run(PagesTestHelper::context(versions.moved), mapped, nullptr, nullptr);
+    QCOMPARE(result.status, PDFDocumentToolResultStatus::Success);
+    QCOMPARE(PagesTestHelper::getRotations(*result.documents.front().document), QStringList({ "90", "0", "0", "90" }));
+
+    // Remove Pages: P2 and P5 marked - P2 is gone, P5 (page 1 now) goes
+    mapped = remove.mapParameters(PagesTestHelper::pages(QStringLiteral("2, 5")), &versions.original, &versions.moved);
+    result = remove.run(PagesTestHelper::context(versions.moved), mapped, nullptr, nullptr);
+    QCOMPARE(result.status, PDFDocumentToolResultStatus::Success);
+    QCOMPARE(versions.getPages(*result.documents.front().document), QStringList({ "P1", "P3", "P4" }));
+
+    // Only the removed page marked: nothing goes
+    mapped = remove.mapParameters(PagesTestHelper::pages(QStringLiteral("2")), &versions.original, &versions.moved);
+    result = remove.run(PagesTestHelper::context(versions.moved), mapped, nullptr, nullptr);
+    QCOMPARE(result.status, PDFDocumentToolResultStatus::Failed);
+    QVERIFY(result.documents.empty());
+
+    // The same version: nothing changes
+    QCOMPARE(remove.mapParameters(PagesTestHelper::pages(QStringLiteral("2")), &versions.original, &versions.original), PagesTestHelper::pages(QStringLiteral("2")));
 }
 
 QTEST_MAIN(DocumentToolPagesTest)

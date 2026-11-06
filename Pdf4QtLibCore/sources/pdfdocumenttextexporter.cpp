@@ -387,7 +387,7 @@ QStringDecoder PDFDocumentTextExporter::createDecoder(const QString& mimeType)
     return QStringDecoder(charset.toLatin1().constData());
 }
 
-std::vector<PDFInteger> PDFDocumentTextExporter::findPagesWithText(const PDFDocument* document, const std::vector<PDFInteger>& pageIndices, const PDFOperationControl* control, PDFProgress* progress)
+std::vector<PDFInteger> PDFDocumentTextExporter::findPagesWithText(const PDFDocument* document, const std::vector<PDFInteger>& pageIndices, const PDFOperationControl* control, PDFProgressSink* progress)
 {
     std::vector<PDFInteger> pagesWithText;
     if (!document || pageIndices.empty())

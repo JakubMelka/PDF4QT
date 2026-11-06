@@ -93,10 +93,9 @@ public:
     /// Progress of the phases of compress (each may be null)
     struct Progress
     {
-        PDFProgress* analysis = nullptr;    ///< Walk over the pages, a step per page
-        PDFProgress* images = nullptr;      ///< Images, a step per image
-        PDFProgress* structure = nullptr;   ///< Structure, a step per stage
-        std::function<void(const QString&)> structureMessage;   ///< Text of each stage of the structure, in the thread of the caller (optional)
+        PDFProgressSink* analysis = nullptr;    ///< Walk over the pages, a step per page
+        PDFProgressSink* images = nullptr;      ///< Images, a step per image
+        PDFProgressSink* structure = nullptr;   ///< Structure, a step per stage and the texts of the stages (PDFProgressSink::addMessage)
     };
 
     /// What a preset runs: Smaller file 110 dpi, JPEG 60, minimum size; Balanced 200 dpi,
@@ -131,8 +130,8 @@ public:
     virtual PDFDocumentToolParameterDefinitions getParameters() const override;
     virtual bool hasPreview() const override { return true; }
     virtual bool isPreviewFinal() const override { return true; }
-    virtual PDFDocumentToolResult computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const override;
-    virtual PDFDocumentToolResult execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const override;
+    virtual PDFDocumentToolResult computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const override;
+    virtual PDFDocumentToolResult execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const override;
     virtual std::vector<PDFDocumentToolParameterError> checkGivenParameters(const QVariantMap& given) const override;
 };
 

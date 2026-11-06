@@ -90,6 +90,23 @@ public:
     }
 
     static constexpr const char* ROTATION_MIXED = "mixed";
+
+    /// The page selection of the parameter follows the page objects (PDFDocumentToolPageSelection::mapPages)
+    static void mapSelection(QVariantMap* parameters, const char* parameter, const PDFDocument* from, const std::vector<PDFInteger>& pageMap)
+    {
+        const QString key = name(parameter);
+        if (!parameters->contains(key))
+        {
+            return;
+        }
+
+        QString error;
+        const std::optional<PDFDocumentToolPageSelection> selection = PDFDocumentToolPageSelection::fromVariant(parameters->value(key), &error);
+        if (selection)
+        {
+            parameters->insert(key, selection->mapPages(from, pageMap).toVariant());
+        }
+    }
 };
 
 // ------------------------------------------------------- PDFDocumentToolRotatePages
@@ -218,14 +235,25 @@ std::optional<std::map<PDFInteger, PDFDocumentToolRotatePages::Turn>> PDFDocumen
 
 QString PDFDocumentToolRotatePages::createPlan(const std::map<PDFInteger, PageRotation>& turns)
 {
-    // One group per rotation (the order right, left, half), a long group is split
+    std::map<PDFInteger, Turn> planTurns;
+    for (const auto& [page, turn] : turns)
+    {
+        planTurns.emplace(page, Turn{ turn, false });
+    }
+    return createPlan(planTurns);
+}
+
+QString PDFDocumentToolRotatePages::createPlan(const std::map<PDFInteger, Turn>& turns)
+{
+    // One group per rotation (the order right, left, half, reset), a long group is split
     QStringList groups;
-    for (const PageRotation turn : { PageRotation::Rotate90, PageRotation::Rotate270, PageRotation::Rotate180 })
+    for (const Turn groupTurn : { Turn{ PageRotation::Rotate90, false }, Turn{ PageRotation::Rotate270, false }, Turn{ PageRotation::Rotate180, false }, Turn{ PageRotation::None, true } })
     {
         std::vector<PDFInteger> pages;
         for (const auto& [page, pageTurn] : turns)
         {
-            if (pageTurn == turn && page >= 0)
+            const bool isGroup = groupTurn.isReset ? pageTurn.isReset : (!pageTurn.isReset && pageTurn.turn == groupTurn.turn);
+            if (isGroup && page >= 0)
             {
                 pages.push_back(page);
             }
@@ -233,7 +261,7 @@ QString PDFDocumentToolRotatePages::createPlan(const std::map<PDFInteger, PageRo
 
         QStringList parts;
         int length = 0;
-        const QString suffix = QLatin1Char(':') + getTurnName(turn);
+        const QString suffix = QLatin1Char(':') + (groupTurn.isReset ? QString::fromLatin1(ROTATION_RESET) : getTurnName(groupTurn.turn));
         for (size_t i = 0; i < pages.size();)
         {
             size_t last = i;
@@ -385,7 +413,7 @@ std::vector<PDFDocumentToolParameterError> PDFDocumentToolRotatePages::validate(
     return errors;
 }
 
-PDFDocumentToolResult PDFDocumentToolRotatePages::execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const
+PDFDocumentToolResult PDFDocumentToolRotatePages::execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const
 {
     Q_UNUSED(progress);
     using Helper = PDFDocumentToolPagesHelper;
@@ -438,6 +466,47 @@ PDFDocumentToolResult PDFDocumentToolRotatePages::execute(const PDFDocumentToolC
     result.data.insert(QStringLiteral("rotation"), turns.size() == 1 ? getTurnName(*turns.begin()) : QString::fromLatin1(Helper::ROTATION_MIXED));
     Helper::addDocument(&result, input, std::move(output), QStringLiteral("_rotated"));
     return result;
+}
+
+QVariantMap PDFDocumentToolRotatePages::mapParameters(const QVariantMap& parameters, const PDFDocument* from, const PDFDocument* to) const
+{
+    using Helper = PDFDocumentToolPagesHelper;
+
+    if (!from || !to || from == to)
+    {
+        return parameters;
+    }
+
+    const std::vector<PDFInteger> pageMap = PDFDocumentToolPageSelection::mapPageIndices(from, to);
+    QVariantMap mapped = parameters;
+    Helper::mapSelection(&mapped, PARAMETER_PAGES, from, pageMap);
+
+    const QString plan = parameters.value(Helper::name(PARAMETER_PLAN)).toString();
+    QString error;
+    const std::optional<std::map<PDFInteger, Turn>> turns = plan.trimmed().isEmpty() ? std::nullopt : parsePlan(plan, from, &error);
+    if (turns)
+    {
+        std::map<PDFInteger, Turn> mappedTurns;
+        for (const auto& [page, turn] : *turns)
+        {
+            if (size_t(page) < pageMap.size() && pageMap[size_t(page)] >= 0)
+            {
+                mappedTurns.emplace(pageMap[size_t(page)], turn);
+            }
+        }
+        mapped.insert(Helper::name(PARAMETER_PLAN), createPlan(mappedTurns));
+
+        // Without the plan the pages and the rotation would turn: all pages by default
+        QString selectionError;
+        const std::optional<PDFDocumentToolPageSelection> selection = PDFDocumentToolPageSelection::fromVariant(mapped.value(Helper::name(PARAMETER_PAGES)), &selectionError);
+        if (mappedTurns.empty() && (!selection || (!selection->isNone && selection->pages.trimmed().isEmpty())))
+        {
+            PDFDocumentToolPageSelection none;
+            none.isNone = true;
+            mapped.insert(Helper::name(PARAMETER_PAGES), none.toVariant());
+        }
+    }
+    return mapped;
 }
 
 // ------------------------------------------------------- PDFDocumentToolRemovePages
@@ -499,7 +568,7 @@ std::vector<PDFDocumentToolParameterError> PDFDocumentToolRemovePages::validate(
     return errors;
 }
 
-PDFDocumentToolResult PDFDocumentToolRemovePages::execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const
+PDFDocumentToolResult PDFDocumentToolRemovePages::execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const
 {
     Q_UNUSED(progress);
     using Helper = PDFDocumentToolPagesHelper;
@@ -567,6 +636,18 @@ PDFDocumentToolResult PDFDocumentToolRemovePages::execute(const PDFDocumentToolC
     result.data.insert(QStringLiteral("threadsRemoved"), statistics.threadsRemoved);
     Helper::addDocument(&result, input, std::move(output), QStringLiteral("_removed"));
     return result;
+}
+
+QVariantMap PDFDocumentToolRemovePages::mapParameters(const QVariantMap& parameters, const PDFDocument* from, const PDFDocument* to) const
+{
+    if (!from || !to || from == to)
+    {
+        return parameters;
+    }
+
+    QVariantMap mapped = parameters;
+    PDFDocumentToolPagesHelper::mapSelection(&mapped, PARAMETER_PAGES, from, PDFDocumentToolPageSelection::mapPageIndices(from, to));
+    return mapped;
 }
 
 }   // namespace pdf

@@ -791,7 +791,7 @@ void PDFAppThumbnailsPanel::onConnectedViewDestroyed()
 {
     // QWidget emits destroyed before it deletes its children (also this panel) and a
     // QPointer is cleared only in ~QObject: the dying view is forgotten here, so the
-    // destructor of the panel never calls into it (CLAUDE.md, a slot of destroyed only
+    // destructor of the panel never calls into it (arch/conventions.md, a slot of destroyed only
     // forgets the pointer)
     m_connectedView = nullptr;
 }

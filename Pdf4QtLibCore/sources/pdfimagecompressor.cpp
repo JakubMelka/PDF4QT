@@ -285,7 +285,7 @@ double PDFImageCompressor::updateAxisDpi(double currentValue, double candidate)
     return currentValue;
 }
 
-PDFImageCompressor::ImageStatisticsList PDFImageCompressor::collectImages(const PDFDocument* document, const PDFOperationControl* operationControl, PDFProgress* progress) const
+PDFImageCompressor::ImageStatisticsList PDFImageCompressor::collectImages(const PDFDocument* document, const PDFOperationControl* operationControl, PDFProgressSink* progress) const
 {
     ImageStatisticsList result;
     if (!document || !document->getCatalog())
@@ -297,7 +297,7 @@ PDFImageCompressor::ImageStatisticsList PDFImageCompressor::collectImages(const 
     return collectImages(environment, operationControl, progress);
 }
 
-PDFImageCompressor::ImageStatisticsList PDFImageCompressor::collectImages(const Environment& environment, const PDFOperationControl* operationControl, PDFProgress* progress) const
+PDFImageCompressor::ImageStatisticsList PDFImageCompressor::collectImages(const Environment& environment, const PDFOperationControl* operationControl, PDFProgressSink* progress) const
 {
     ImageStatisticsList result;
     const ImagePlacements placements = collectImagePlacements(environment, operationControl, progress);
@@ -329,7 +329,7 @@ PDFImageCompressor::ImageStatisticsList PDFImageCompressor::collectImages(const 
     return result;
 }
 
-PDFImageCompressor::ImagePlacements PDFImageCompressor::collectImagePlacements(const Environment& environment, const PDFOperationControl* operationControl, PDFProgress* progress) const
+PDFImageCompressor::ImagePlacements PDFImageCompressor::collectImagePlacements(const Environment& environment, const PDFOperationControl* operationControl, PDFProgressSink* progress) const
 {
     ImagePlacements result;
     const PDFDocument* document = environment.getDocument();

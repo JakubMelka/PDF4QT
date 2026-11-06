@@ -5377,7 +5377,8 @@ void AppDataTest::toolUsageRecording()
     pdf::PDFDocumentToolUsage none(nullptr);
     QVERIFY(none.recordRun(QStringLiteral("pages.merge")).isError());
     QVERIFY(none.isSuggestNextEnabled());
-    QCOMPARE(none.getSuggestions(QStringLiteral("optimize.compress"), availability), QStringList({ QStringLiteral("protect.password") }));
+    // The three defaults of Compress (owner 2026-11-04), shown in the order of O21
+    QCOMPARE(none.getSuggestions(QStringLiteral("optimize.compress"), availability), QStringList({ QStringLiteral("pages.merge"), QStringLiteral("protect.password"), QStringLiteral("protect.sign") }));
 }
 
 void AppDataTest::toolUsageTwoProcesses()

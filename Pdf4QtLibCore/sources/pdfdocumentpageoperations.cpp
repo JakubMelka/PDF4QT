@@ -88,8 +88,9 @@ public:
 
 /// Removal of pages (PDFDocumentPageOperations::removePages). The objects of the
 /// document are read and written raw - the parsed structures do not say, where an
-/// object is referenced. Every walk is bounded (depths, visited objects): a hostile
-/// document cannot make it loop.
+/// object is referenced. Every walk over the graph is one PDFObjectWalk (one set of the
+/// visited objects for the whole walk, a depth, a budget): a hostile document cannot make
+/// it loop or repeat a shared part.
 class PDFDocumentPageRemoval
 {
 public:
@@ -129,7 +130,7 @@ private:
     bool isActionRemoved(const PDFObject& action) const;
 
     /// Reads the entries of a name tree in the order of the tree
-    void readNameTree(const PDFObject& node, int depth, References& visited, std::vector<std::pair<QByteArray, PDFObject>>& entries) const;
+    void readNameTree(const PDFObject& node, int depth, PDFObjectWalk* walk, std::vector<std::pair<QByteArray, PDFObject>>& entries) const;
 
     /// A flat name tree of the entries (an empty one = null)
     static PDFObject createNameTree(std::vector<std::pair<QByteArray, PDFObject>> entries);
@@ -137,19 +138,31 @@ private:
     void filterNameTrees();
     void filterOutline();
 
-    /// Filters the children of an outline item; returns the number of the visible descendants
-    /// (PDF 2.0, 12.3.3) and writes \p keptCount - the number of the children, which stay
-    PDFInteger filterOutlineChildren(PDFObjectReference parentReference, PDFDictionaryBuilder& parent, int depth, size_t* keptCount);
+    /// What filterOutlineChildren has done with the children of an item
+    struct OutlineChildren
+    {
+        PDFInteger visibleCount = 0;    ///< Visible descendants after the removal (PDF 2.0, 12.3.3)
+        size_t originalCount = 0;       ///< Children of the item, which the walk has read
+        size_t keptCount = 0;           ///< Children, which stay
+        bool isChanged = false;         ///< An item of the subtree is removed or has lost its target: the counts above it change
+    };
+
+    /// Filters the children of an outline item, \p parent gets its new /First, /Last and /Count
+    OutlineChildren filterOutlineChildren(PDFDictionaryBuilder& parent, int depth);
 
     void filterForm();
-    bool filterField(const PDFObject& field, int depth, bool isSignatureParent, References& visited);
+    bool filterField(const PDFObject& field, int depth, bool isSignatureParent, PDFObjectWalk* walk);
+
+    /// Counts a removed terminal field; a signature field takes its signature dictionary with it
+    void removeTerminalField(const PDFDictionary* dictionary, bool isSignature);
     void filterPagesOfDocument();
     PDFObject filterActions(const PDFObject& actions) const;
     void rewritePageLabels();
     void filterLayers();
 
     /// Collects the objects reachable from the trailer; the catalog entry \p skippedCatalogKey
-    /// is not followed, the objects of \p excluded are not entered
+    /// is not followed, the objects of \p excluded are not entered. Throws PDFException, when
+    /// the walk cannot read every object (the sweep would remove reachable objects).
     References collectReachable(const PDFObjectStorage* storage, const References& excluded, const char* skippedCatalogKey) const;
 
     /// Removes every reference of the removed objects from the reachable objects and makes the
@@ -170,6 +183,8 @@ private:
     References m_keptAnnotations;
     References m_removedAnnotations;
     References m_removedObjects;        ///< The removed pages, their annotations, the removed fields, signatures and layers
+    PDFObjectWalk m_outlineWalk;        ///< Each item of the outline is read once (a hostile outline, whose items come back, is not walked again for each path)
+    bool m_isSignatureKept = false;     ///< A widget of a signature field stays (or a field, which was not looked at)
     std::set<QByteArray> m_removedDestinationNames;
 };
 
@@ -177,7 +192,8 @@ PDFDocumentPageRemoval::PDFDocumentPageRemoval(const PDFDocument* document, cons
     m_document(document),
     m_control(control),
     m_builder(document),
-    m_removedIndices(PDFDocumentPageOperationsHelper::getValidPages(document, removedPages))
+    m_removedIndices(PDFDocumentPageOperationsHelper::getValidPages(document, removedPages)),
+    m_outlineWalk(MAXIMUM_DEPTH)
 {
 
 }
@@ -269,13 +285,9 @@ void PDFDocumentPageRemoval::collectPages()
     m_removedObjects.insert(m_removedAnnotations.cbegin(), m_removedAnnotations.cend());
 }
 
-void PDFDocumentPageRemoval::readNameTree(const PDFObject& node, int depth, References& visited, std::vector<std::pair<QByteArray, PDFObject>>& entries) const
+void PDFDocumentPageRemoval::readNameTree(const PDFObject& node, int depth, PDFObjectWalk* walk, std::vector<std::pair<QByteArray, PDFObject>>& entries) const
 {
-    if (depth > MAXIMUM_DEPTH)
-    {
-        return;
-    }
-    if (node.isReference() && !visited.insert(node.getReference()).second)
+    if (!walk->enter(node, depth))
     {
         return;
     }
@@ -305,7 +317,7 @@ void PDFDocumentPageRemoval::readNameTree(const PDFObject& node, int depth, Refe
     {
         for (const PDFObject& kid : *kids.getArray())
         {
-            readNameTree(kid, depth + 1, visited, entries);
+            readNameTree(kid, depth + 1, walk, entries);
         }
     }
 }
@@ -339,8 +351,8 @@ void PDFDocumentPageRemoval::collectNamedDestinations()
     if (const PDFDictionary* names = getDictionary(catalog.get("Names")))
     {
         std::vector<std::pair<QByteArray, PDFObject>> entries;
-        References visited;
-        readNameTree(names->get("Dests"), 0, visited, entries);
+        PDFObjectWalk walk(MAXIMUM_DEPTH);
+        readNameTree(names->get("Dests"), 0, &walk, entries);
         for (const auto& [name, value] : entries)
         {
             if (isDestinationRemoved(value))
@@ -434,8 +446,8 @@ void PDFDocumentPageRemoval::filterNameTrees()
         }
 
         std::vector<std::pair<QByteArray, PDFObject>> entries;
-        References visited;
-        readNameTree(names->get(key), 0, visited, entries);
+        PDFObjectWalk walk(MAXIMUM_DEPTH);
+        readNameTree(names->get(key), 0, &walk, entries);
 
         std::vector<std::pair<QByteArray, PDFObject>> kept;
         const bool isDestinations = qstrcmp(key, "Dests") == 0;
@@ -472,10 +484,8 @@ void PDFDocumentPageRemoval::filterNameTrees()
     }
 }
 
-PDFInteger PDFDocumentPageRemoval::filterOutlineChildren(PDFObjectReference parentReference, PDFDictionaryBuilder& parent, int depth, size_t* keptCount)
+PDFDocumentPageRemoval::OutlineChildren PDFDocumentPageRemoval::filterOutlineChildren(PDFDictionaryBuilder& parent, int depth)
 {
-    Q_UNUSED(parentReference);
-
     struct KeptItem
     {
         PDFObjectReference reference;
@@ -483,40 +493,47 @@ PDFInteger PDFDocumentPageRemoval::filterOutlineChildren(PDFObjectReference pare
         bool isChanged = false;
     };
 
+    OutlineChildren children;
+
+    // A deeper outline is not changed below the limit
+    if (depth > MAXIMUM_DEPTH)
+    {
+        children.originalCount = parent.get("First").isReference() ? 1 : 0;
+        children.keptCount = children.originalCount;
+        return children;
+    }
+
     std::vector<KeptItem> keptItems;
-    std::vector<PDFObjectReference> originalItems;
-    PDFInteger visibleCount = 0;
 
     // The chain of the siblings: /First, then /Next; a hostile chain ends at an object, which
-    // is no item (it has no /Title), which was seen already or which is a page
-    References visited;
+    // is no item (it has no /Title), which was seen already anywhere in the outline (an item
+    // is walked once, also when more items lead to it) or which is a page
     PDFObject next = parent.get("First");
-    while (next.isReference() && depth <= MAXIMUM_DEPTH)
+    while (next.isReference())
     {
         const PDFObjectReference reference = next.getReference();
         const PDFDictionary* dictionary = getDictionary(next);
-        if (!visited.insert(reference).second || !dictionary || !dictionary->hasKey("Title") || m_keptPageSet.count(reference) || m_removedPageSet.count(reference))
+        if (!dictionary || !dictionary->hasKey("Title") || m_keptPageSet.count(reference) || m_removedPageSet.count(reference) || !m_outlineWalk.enter(next, depth))
         {
             break;
         }
-        originalItems.push_back(reference);
+        ++children.originalCount;
         next = dictionary->get("Next");
 
         KeptItem item;
         item.reference = reference;
         item.dictionary = PDFDictionaryBuilder(*dictionary);
 
-        size_t keptChildren = 0;
-        const bool hadChildren = dictionary->get("First").isReference();
-        const PDFInteger childVisible = hadChildren ? filterOutlineChildren(reference, item.dictionary, depth + 1, &keptChildren) : 0;
+        const OutlineChildren itemChildren = dictionary->get("First").isReference() ? filterOutlineChildren(item.dictionary, depth + 1) : OutlineChildren();
         item.isChanged = !(item.dictionary == PDFDictionaryBuilder(*dictionary));
 
         const bool isTargetRemoved = isDestinationRemoved(dictionary->get("Dest")) || isActionRemoved(dictionary->get("A"));
         const bool hasOtherTarget = !isTargetRemoved && (dictionary->hasKey("Dest") || dictionary->hasKey("A"));
-        const bool isRemoved = (isTargetRemoved && keptChildren == 0) || (hadChildren && keptChildren == 0 && !hasOtherTarget);
+        const bool isRemoved = (isTargetRemoved && itemChildren.keptCount == 0) || (itemChildren.originalCount > 0 && itemChildren.keptCount == 0 && !hasOtherTarget);
         if (isRemoved)
         {
             ++m_statistics.outlineItemsRemoved;
+            children.isChanged = true;
             continue;
         }
 
@@ -531,15 +548,9 @@ PDFInteger PDFDocumentPageRemoval::filterOutlineChildren(PDFObjectReference pare
 
         const PDFDocumentDataLoaderDecorator loader(m_builder.getStorage());
         const bool isOpen = loader.readIntegerFromDictionary(dictionary, "Count", 0) > 0;
-        visibleCount += 1 + (isOpen ? childVisible : 0);
+        children.visibleCount += 1 + (isOpen ? itemChildren.visibleCount : 0);
+        children.isChanged = children.isChanged || (isOpen && itemChildren.isChanged);
         keptItems.push_back(std::move(item));
-    }
-
-    // A deeper outline is not changed below the limit
-    if (depth > MAXIMUM_DEPTH)
-    {
-        *keptCount = parent.get("First").isReference() ? 1 : 0;
-        return 0;
     }
 
     // The links of the siblings: only an object, whose links or content change, is written
@@ -572,7 +583,7 @@ PDFInteger PDFDocumentPageRemoval::filterOutlineChildren(PDFObjectReference pare
         }
     }
 
-    const bool isChainChanged = keptItems.size() != originalItems.size();
+    const bool isChainChanged = keptItems.size() != children.originalCount;
     if (keptItems.empty())
     {
         parent.removeEntry("First");
@@ -586,17 +597,18 @@ PDFInteger PDFDocumentPageRemoval::filterOutlineChildren(PDFObjectReference pare
     }
 
     // /Count: positive of an open item, the negative number of the descendants, which would be
-    // visible, of a closed one (PDF 2.0, Table 153); the root has the number of the visible items
-    if (!keptItems.empty() && isChainChanged)
+    // visible, of a closed one (PDF 2.0, Table 153); the root has the number of the visible items.
+    // A removal deeper in the outline changes the counts of all open items above it.
+    if (!keptItems.empty() && children.isChanged)
     {
         const PDFDocumentDataLoaderDecorator loader(m_builder.getStorage());
         const PDFInteger oldCount = loader.readInteger(parent.get("Count"), 0);
-        const PDFInteger newCount = depth == 0 || oldCount > 0 ? visibleCount : -visibleCount;
+        const PDFInteger newCount = depth == 0 || oldCount > 0 ? children.visibleCount : -children.visibleCount;
         parent.setEntry(PDFInplaceOrMemoryString("Count"), PDFObject::createInteger(newCount));
     }
 
-    *keptCount = keptItems.size();
-    return visibleCount;
+    children.keptCount = keptItems.size();
+    return children;
 }
 
 void PDFDocumentPageRemoval::filterOutline()
@@ -609,14 +621,13 @@ void PDFDocumentPageRemoval::filterOutline()
     }
 
     PDFDictionaryBuilder newRoot(*root);
-    size_t keptCount = 0;
-    filterOutlineChildren(outlines.isReference() ? outlines.getReference() : PDFObjectReference(), newRoot, 0, &keptCount);
+    const OutlineChildren children = filterOutlineChildren(newRoot, 0);
     if (newRoot == PDFDictionaryBuilder(*root))
     {
         return;
     }
 
-    if (keptCount == 0)
+    if (children.keptCount == 0)
     {
         setCatalogEntry("Outlines", PDFObject());
     }
@@ -626,16 +637,19 @@ void PDFDocumentPageRemoval::filterOutline()
     }
 }
 
-bool PDFDocumentPageRemoval::filterField(const PDFObject& field, int depth, bool isSignatureParent, References& visited)
+bool PDFDocumentPageRemoval::filterField(const PDFObject& field, int depth, bool isSignatureParent, PDFObjectWalk* walk)
 {
-    // \returns true = the field stays
+    // \returns true = the field stays (a field, which is not walked, stays with its type)
     if (depth > PDFFormField::MAX_FIELD_TREE_DEPTH || !field.isReference())
     {
+        const PDFDictionary* dictionary = getDictionary(field);
+        const PDFObject& fieldType = dictionary ? getObject(dictionary->get("FT")) : PDFObject();
+        m_isSignatureKept = m_isSignatureKept || (fieldType.isName() ? fieldType.getString() == "Sig" : isSignatureParent);
         return true;
     }
 
     const PDFObjectReference reference = field.getReference();
-    if (!visited.insert(reference).second)
+    if (!walk->enter(field, depth))
     {
         return true;
     }
@@ -651,10 +665,11 @@ bool PDFDocumentPageRemoval::filterField(const PDFObject& field, int depth, bool
     const PDFObject& kids = getObject(dictionary->get("Kids"));
     if (kids.isArray() && kids.getArray()->getCount() > 0)
     {
+        const qint64 fieldsRemovedBefore = m_statistics.fieldsRemoved;
         PDFArrayBuilder keptKids;
         for (const PDFObject& kid : *kids.getArray())
         {
-            if (filterField(kid, depth + 1, isSignature, visited))
+            if (filterField(kid, depth + 1, isSignature, walk))
             {
                 keptKids.appendItem(kid);
             }
@@ -662,6 +677,12 @@ bool PDFDocumentPageRemoval::filterField(const PDFObject& field, int depth, bool
 
         if (keptKids.isEmpty())
         {
+            // A terminal field, whose kids are its widgets (PDF 2.0, 12.7.4.1): no kid has counted
+            // itself as a field, the field is removed with its last widget
+            if (m_statistics.fieldsRemoved == fieldsRemovedBefore)
+            {
+                removeTerminalField(dictionary, isSignature);
+            }
             return false;
         }
 
@@ -689,6 +710,7 @@ bool PDFDocumentPageRemoval::filterField(const PDFObject& field, int depth, bool
                            (page.isReference() && m_removedPageSet.count(page.getReference()) && !m_keptAnnotations.count(reference));
     if (!isRemoved)
     {
+        m_isSignatureKept = m_isSignatureKept || isSignature;
         return true;
     }
 
@@ -696,18 +718,24 @@ bool PDFDocumentPageRemoval::filterField(const PDFObject& field, int depth, bool
     const bool isTerminalField = dictionary->hasKey("T") || !dictionary->hasKey("Parent");
     if (isTerminalField)
     {
-        ++m_statistics.fieldsRemoved;
-        if (isSignature)
-        {
-            ++m_statistics.signaturesRemoved;
-            const PDFObject& value = dictionary->get("V");
-            if (value.isReference())
-            {
-                m_removedObjects.insert(value.getReference());
-            }
-        }
+        removeTerminalField(dictionary, isSignature);
     }
     return false;
+}
+
+void PDFDocumentPageRemoval::removeTerminalField(const PDFDictionary* dictionary, bool isSignature)
+{
+    ++m_statistics.fieldsRemoved;
+    if (isSignature)
+    {
+        // The signature dictionary goes with its field, also from /Perms (PDF 2.0, 12.8.4)
+        ++m_statistics.signaturesRemoved;
+        const PDFObject& value = dictionary->get("V");
+        if (value.isReference())
+        {
+            m_removedObjects.insert(value.getReference());
+        }
+    }
 }
 
 void PDFDocumentPageRemoval::filterForm()
@@ -725,12 +753,12 @@ void PDFDocumentPageRemoval::filterForm()
         return;
     }
 
-    References visited;
+    PDFObjectWalk walk(PDFFormField::MAX_FIELD_TREE_DEPTH);
     PDFArrayBuilder keptFields;
     std::vector<PDFObjectReference> removedFields;
     for (const PDFObject& field : *fields.getArray())
     {
-        if (filterField(field, 0, false, visited))
+        if (filterField(field, 0, false, &walk))
         {
             keptFields.appendItem(field);
         }
@@ -746,7 +774,6 @@ void PDFDocumentPageRemoval::filterForm()
         m_removedObjects.insert(reference);
     }
 
-    const qint64 signaturesBefore = PDFForm::getSignatureCount(m_document);
     PDFDictionaryBuilder newForm(*form);
     if (keptFields.getCount() != fields.getArray()->getCount())
     {
@@ -762,7 +789,7 @@ void PDFDocumentPageRemoval::filterForm()
     }
 
     // No signature field stays: the flags of the signatures say nothing any more (PDF 2.0, Table 225)
-    if (m_statistics.signaturesRemoved > 0 && m_statistics.signaturesRemoved >= signaturesBefore)
+    if (m_statistics.signaturesRemoved > 0 && !m_isSignatureKept)
     {
         newForm.removeEntry("SigFlags");
     }
@@ -990,7 +1017,9 @@ void PDFDocumentPageRemoval::rewritePageLabels()
 
 PDFDocumentPageRemoval::References PDFDocumentPageRemoval::collectReachable(const PDFObjectStorage* storage, const References& excluded, const char* skippedCatalogKey) const
 {
-    References reachable;
+    // The closure of the references: a reference is entered once, the stack holds each object
+    // at most once for each reference to it (the work is linear in the size of the objects)
+    PDFObjectWalk walk;
     std::vector<PDFObjectReference> stack;
 
     const PDFObject catalogReference = storage->getTrailerDictionary().isDictionary() ? storage->getTrailerDictionary().getDictionary()->get("Root") : PDFObject();
@@ -1003,7 +1032,7 @@ PDFDocumentPageRemoval::References PDFDocumentPageRemoval::collectReachable(cons
     {
         const PDFObjectReference reference = stack.back();
         stack.pop_back();
-        if (excluded.count(reference) || !reachable.insert(reference).second)
+        if (excluded.count(reference) || !walk.enterReference(reference, 0))
         {
             continue;
         }
@@ -1031,7 +1060,12 @@ PDFDocumentPageRemoval::References PDFDocumentPageRemoval::collectReachable(cons
             stack.push_back(child);
         }
     }
-    return reachable;
+
+    if (walk.isLimitReached())
+    {
+        throw PDFException(PDFDocumentPageOperations::tr("The document has too many objects to be changed."));
+    }
+    return walk.getVisitedReferences();
 }
 
 void PDFDocumentPageRemoval::filterLayers()

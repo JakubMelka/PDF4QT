@@ -25,6 +25,7 @@
 #include "pdfappdocument.h"
 #include "pdfappdocumentpanels_common.h"
 #include "pdfappdocumentview.h"
+#include "pdfapplocale.h"
 #include "pdfapppagelayout.h"
 #include "pdfapptoolhost.h"
 #include "pdfapptoolpanelparts.h"
@@ -47,7 +48,6 @@
 
 #include <QEvent>
 #include <QHBoxLayout>
-#include <QLocale>
 #include <QPainter>
 #include <QScrollBar>
 #include <QVBoxLayout>
@@ -622,7 +622,7 @@ void PDFAppToolGUISanitize::updateParts()
         Helper::setRows(m_scanRows, {
             { tr("Kinds found"), tr("%1 of %2").arg(int(getPresentKinds().size())).arg(shownCount) },
             { tr("File size"), fileSize > 0 ? PDFDocumentToolFormat::formatSize(fileSize) : none },
-            { tr("Pages"), QLocale().toString(qlonglong(qMax<qint64>(0, m_pageCount))) },
+            { tr("Pages"), PDFAppLocale::formatNumber(qMax<qint64>(0, m_pageCount)) },
         });
     }
     else
@@ -719,10 +719,22 @@ QVariantMap PDFAppToolGUISanitize::getPreviewParameters() const
     return QVariantMap();
 }
 
+QString PDFAppToolGUISanitize::getPermissionRefusal() const
+{
+    // The check of the core before the run, with the ticks of now (ISO 32000-2, Table 22)
+    const PDFAppDocument* document = getDocument();
+    if (!m_scan || !document)
+    {
+        return QString();
+    }
+    return PDFDocumentToolSanitize::getPermissionRefusal(document->getDocument().data(), *m_scan, getRemovedKinds());
+}
+
 bool PDFAppToolGUISanitize::isConfirmEnabled() const
 {
-    // 438:13607, 438:13839: nothing is chosen, nothing is found
-    return BaseClass::isConfirmEnabled() && m_scan.has_value() && !getRemovedKinds().empty();
+    // 438:13607, 438:13839: nothing is chosen, nothing is found; a kind, which the permissions
+    // of the document refuse, is chosen
+    return BaseClass::isConfirmEnabled() && m_scan.has_value() && !getRemovedKinds().empty() && getPermissionRefusal().isEmpty();
 }
 
 QString PDFAppToolGUISanitize::getStatusText() const
@@ -740,6 +752,13 @@ QString PDFAppToolGUISanitize::getStatusText() const
     if (removed == 0)
     {
         return tr("Choose at least one kind of data to remove");
+    }
+
+    // Why the Primary button is disabled: the text, which a run and MCP get too
+    const QString refusal = getPermissionRefusal();
+    if (!refusal.isEmpty())
+    {
+        return refusal;
     }
     return tr("%1 will be removed · nothing is changed until you confirm").arg(PDFDocumentToolSanitize::formatKindCount(removed, true));
 }
@@ -986,7 +1005,7 @@ QVariant PDFAppToolLinkListModel::data(const QModelIndex& index, int role) const
         switch (role)
         {
             case Qt::DisplayRole:
-                return tr("Page %1").arg(QLocale().toString(qlonglong(row.pageIndex + 1)));
+                return tr("Page %1").arg(PDFAppLocale::formatNumber(row.pageIndex + 1));
             case PDFComponentRoles::TileRowKindRole:
                 return int(PDFComponentPainter::TileRowKind::Caption);
             default:
@@ -1405,7 +1424,7 @@ void PDFAppToolGUIRemoveLinks::onDisplayedPageChanged()
     if (m_overlay && view)
     {
         const PDFInteger page = view->getDisplayedPageIndex();
-        m_overlay->setPageText(page >= 0 ? tr("Page %1").arg(QLocale().toString(qlonglong(page + 1))) : QString());
+        m_overlay->setPageText(page >= 0 ? tr("Page %1").arg(PDFAppLocale::formatNumber(page + 1)) : QString());
     }
 }
 
@@ -1481,7 +1500,7 @@ void PDFAppToolGUIRemoveLinks::updateParts()
         }
         else if (m_isListed)
         {
-            subtitle = tr("%1 found · %2 will be removed").arg(QLocale().toString(total), QLocale().toString(removed));
+            subtitle = tr("%1 found · %2 will be removed").arg(PDFAppLocale::formatNumber(total), PDFAppLocale::formatNumber(removed));
         }
         m_leftHeader->setTexts(tr("External links"), subtitle);
     }
@@ -1498,10 +1517,10 @@ void PDFAppToolGUIRemoveLinks::updateParts()
     // Links 438:15010: External links, Removed, Kept, Internal links
     const QString none = QStringLiteral("–");
     Helper::setRows(m_summaryRows, {
-        { tr("External links"), m_isListed ? QLocale().toString(total) : none },
-        { tr("Removed"), m_isListed ? QLocale().toString(removed) : none },
-        { tr("Kept"), m_isListed ? QLocale().toString(kept) : none },
-        { tr("Internal links"), m_isListed ? tr("%1 · not touched").arg(QLocale().toString(qlonglong(m_internalLinkCount))) : none },
+        { tr("External links"), m_isListed ? PDFAppLocale::formatNumber(total) : none },
+        { tr("Removed"), m_isListed ? PDFAppLocale::formatNumber(removed) : none },
+        { tr("Kept"), m_isListed ? PDFAppLocale::formatNumber(kept) : none },
+        { tr("Internal links"), m_isListed ? tr("%1 · not touched").arg(PDFAppLocale::formatNumber(m_internalLinkCount)) : none },
     });
 
     updateListHeight();
@@ -1560,10 +1579,9 @@ void PDFAppToolGUIRemoveLinks::updateMoreHint()
         return;
     }
 
-    const QLocale locale;
     const QString links = Helper::plural("pdf::PDFAppToolGUIRemoveLinks", count, QT_TR_NOOP("%Ln more link"), QT_TR_NOOP("%Ln more links"));
-    const QString pages = firstPage == lastPage ? tr("on page %1").arg(locale.toString(qlonglong(firstPage + 1)))
-                                                : tr("on pages %1–%2").arg(locale.toString(qlonglong(firstPage + 1)), locale.toString(qlonglong(lastPage + 1)));
+    const QString pages = firstPage == lastPage ? tr("on page %1").arg(PDFAppLocale::formatNumber(firstPage + 1))
+                                                : tr("on pages %1–%2").arg(PDFAppLocale::formatNumber(firstPage + 1), PDFAppLocale::formatNumber(lastPage + 1));
     m_moreHint->setText(tr("%1 %2 · scroll to see them").arg(links, pages));
     m_moreHint->setVisible(true);
 }

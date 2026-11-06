@@ -42,7 +42,7 @@
 namespace pdf
 {
 
-PDFDocumentReader::PDFDocumentReader(PDFProgress* progress, const std::function<QString(bool*)>& getPasswordCallback, bool permissive, bool authorizeOwnerOnly) :
+PDFDocumentReader::PDFDocumentReader(PDFProgressSink* progress, const std::function<QString(bool*)>& getPasswordCallback, bool permissive, bool authorizeOwnerOnly) :
     m_result(Result::OK),
     m_getPasswordCallback(getPasswordCallback),
     m_progress(progress),

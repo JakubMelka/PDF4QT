@@ -68,6 +68,8 @@
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
 
+#include "testprogressrecorder.h"
+
 #include <QAccessible>
 #include <QCheckBox>
 #include <QDrag>
@@ -2179,19 +2181,24 @@ void AppToolCompressTest::reviewMeasuringBenchmark()
         const pdf::PDFDocumentPointer document(new pdf::PDFDocument(reader.readFromBuffer(data)));
         qInfo("BENCHMARK core: read %lld MB", H::getCurrentMemoryMB());
 
-        class Listener : public pdf::PDFDocumentToolProgressListener
+        // The calls of the computation, recorded one at a time (pdftest::TestProgressRecorder)
+        class Listener : public pdftest::TestProgressRecorder
         {
         public:
-            virtual void onToolProgress(int percentage, const QString& stepText) override
+            Listener()
             {
-                const QString step = stepText.section(QStringLiteral(" · "), 0, 0);
-                const qint64 memory = CompressGuiHelper::getCurrentMemoryMB();
-                if (step != lastStep || percentage / 5 != lastPercentage / 5)
+                onText = [this](const QString& stepText)
                 {
-                    qInfo("BENCHMARK core: %lld ms %d %% %s: %lld MB", timer.elapsed(), percentage, qPrintable(stepText), memory);
-                    lastStep = step;
-                    lastPercentage = percentage;
-                }
+                    const int percentage = percentages.back();
+                    const QString step = stepText.section(QStringLiteral(" · "), 0, 0);
+                    const qint64 memory = CompressGuiHelper::getCurrentMemoryMB();
+                    if (step != lastStep || percentage / 5 != lastPercentage / 5)
+                    {
+                        qInfo("BENCHMARK core: %lld ms %d %% %s: %lld MB", timer.elapsed(), percentage, qPrintable(stepText), memory);
+                        lastStep = step;
+                        lastPercentage = percentage;
+                    }
+                };
             }
 
             QString lastStep;
@@ -2235,7 +2242,6 @@ void AppToolCompressTest::reviewMeasuringBenchmark()
         // PDF4QT_COMPRESS_BENCHMARK_PRESET: the preset of the run, Smaller file by default
         Listener listener;
         listener.timer.start();
-        pdf::PDFDocumentToolProgressAdapter progress(&listener);
         pdf::PDFDocumentToolCompress tool;
         QVariantMap parameters;
         const QString benchmarkPreset = qEnvironmentVariable("PDF4QT_COMPRESS_BENCHMARK_PRESET", QStringLiteral("smaller-file"));
@@ -2250,7 +2256,7 @@ void AppToolCompressTest::reviewMeasuringBenchmark()
         }
         const auto restoreStrategy = qScopeGuard([]() { pdf::PDFExecutionPolicy::setStrategy(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded); });
 
-        const pdf::PDFDocumentToolResult result = tool.runPreview(pdf::PDFDocumentToolContext::create(pdf::PDFDocumentToolInputDocument::create(document, data, filePath, false)), parameters, nullptr, &progress);
+        const pdf::PDFDocumentToolResult result = tool.runPreview(pdf::PDFDocumentToolContext::create(pdf::PDFDocumentToolInputDocument::create(document, data, filePath, false)), parameters, nullptr, &listener);
         qInfo("BENCHMARK core: %s%s status %d, time %lld ms, size %lld -> %lld, peak %lld MB, now %lld MB: %s", qPrintable(benchmarkPreset), isSingleThread ? " in one thread" : "", int(result.status), listener.timer.elapsed(),
               result.data.value(QStringLiteral("sizeBefore")).toInteger(), result.data.value(QStringLiteral("sizeAfter")).toInteger(), H::getPeakMemoryMB(), H::getCurrentMemoryMB(), qPrintable(result.message));
         return;

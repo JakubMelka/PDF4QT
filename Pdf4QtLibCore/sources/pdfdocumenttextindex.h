@@ -25,6 +25,7 @@
 
 #include "pdfglobal.h"
 #include "pdftextlayout.h"
+#include "pdfprogress.h"
 
 #include <QPolygonF>
 #include <QRectF>
@@ -40,7 +41,6 @@ namespace pdf
 class PDFDocument;
 class PDFOperationControl;
 class PDFOptionalContentActivity;
-class PDFProgress;
 
 /// Text layout of the whole document (newapplication.md 2, step 3 plan 1.1): it is
 /// built in a worker thread from a snapshot of the document (build), immutable
@@ -68,12 +68,12 @@ public:
     /// \param progress Progress (nullptr = none), one step per page
     /// \param processedPageCount Counter of the processed pages (nullptr = none), it
     ///        is incremented from the worker threads; a caller, which cannot keep a
-    ///        PDFProgress alive during the build, reads it by a timer
+    ///        progress alive during the build, reads it by a timer
     /// \returns the index, or nullptr, when the build was canceled or the document is nullptr
     static std::shared_ptr<const PDFDocumentTextIndex> build(const PDFDocument* document,
                                                              const PDFOptionalContentActivity* optionalContentActivity,
                                                              const PDFOperationControl* operationControl,
-                                                             PDFProgress* progress,
+                                                             PDFProgressSink* progress,
                                                              std::atomic<PDFInteger>* processedPageCount = nullptr);
 
     /// Number of pages of the index

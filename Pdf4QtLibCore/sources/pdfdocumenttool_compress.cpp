@@ -131,10 +131,6 @@ PDFDocument PDFDocumentToolCompress::compress(const PDFDocument* document, const
         PDFOptimizer optimizer(settings.structure, nullptr);
         optimizer.setOperationControl(control);
         optimizer.setProgress(progress.structure);
-        if (progress.structureMessage)
-        {
-            QObject::connect(&optimizer, &PDFOptimizer::optimizationProgress, &optimizer, progress.structureMessage, Qt::DirectConnection);
-        }
         optimizer.setStorage(storage);
         optimizer.optimize();
         localStatistics.structure = optimizer.getStatistics();
@@ -264,12 +260,12 @@ PDFDocumentToolParameterDefinitions PDFDocumentToolCompress::getParameters() con
     return definitions;
 }
 
-PDFDocumentToolResult PDFDocumentToolCompress::computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const
+PDFDocumentToolResult PDFDocumentToolCompress::computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const
 {
     return execute(context, parameters, control, progress);
 }
 
-PDFDocumentToolResult PDFDocumentToolCompress::execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const
+PDFDocumentToolResult PDFDocumentToolCompress::execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const
 {
     using Helper = PDFDocumentToolCompressHelper;
 
@@ -287,7 +283,7 @@ PDFDocumentToolResult PDFDocumentToolCompress::execute(const PDFDocumentToolCont
     }
 
     // One bar over the phases; the weights are the usual shares of the time
-    PDFProgressPhases phases(progress, tr("Compressing…"));
+    PDFProgressPhases phases(progress);
     const int analysisPhase = settings.images.enabled ? phases.addPhase(5, tr("Looking for images"), false) : -1;
     const int imagesPhase = settings.images.enabled ? phases.addPhase(65, tr("Recompressing images"), true) : -1;
     const int structurePhase = settings.structure ? phases.addPhase(20, tr("Cleaning up the structure"), false) : -1;

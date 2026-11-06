@@ -86,6 +86,10 @@ public:
     /// ranges, a group never longer than PDFDocumentToolPageSelection::MAXIMUM_PAGES_LENGTH
     static QString createPlan(const std::map<PDFInteger, PageRotation>& turns);
 
+    /// The plan text of turns and resets of pages (indices from 0): the groups right, left,
+    /// half, reset in this order (parsePlan reads it back)
+    static QString createPlan(const std::map<PDFInteger, Turn>& turns);
+
     /// The changes of the pages, which the parameters ask for (by the plan, else by the
     /// pages and the rotation); std::nullopt and the reason for invalid parameters
     static std::optional<std::vector<PDFDocumentPageOperations::PageRotationChange>> createChanges(const PDFDocument* document, const QVariantMap& parameters, QString* errorMessage);
@@ -97,7 +101,11 @@ public:
     virtual PDFDocumentToolParameterDefinitions getParameters() const override;
     virtual std::vector<PDFDocumentToolParameterError> validate(const PDFDocumentToolContext& context, const QVariantMap& parameters) const override;
     virtual std::vector<PDFDocumentToolParameterError> checkGivenParameters(const QVariantMap& given) const override;
-    virtual PDFDocumentToolResult execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const override;
+    virtual PDFDocumentToolResult execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const override;
+
+    /// The pages and the plan follow their page objects; a plan, whose pages are all gone, is
+    /// empty and the pages select none (an empty plan never turns every page)
+    virtual QVariantMap mapParameters(const QVariantMap& parameters, const PDFDocument* from, const PDFDocument* to) const override;
 };
 
 /// The tool Remove Pages (pages.remove, Figma 388:20614, 388:21466, 388:22315; plan of the
@@ -126,7 +134,10 @@ public:
     virtual QString getId() const override;
     virtual PDFDocumentToolParameterDefinitions getParameters() const override;
     virtual std::vector<PDFDocumentToolParameterError> validate(const PDFDocumentToolContext& context, const QVariantMap& parameters) const override;
-    virtual PDFDocumentToolResult execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const override;
+    virtual PDFDocumentToolResult execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const override;
+
+    /// The marked pages follow their page objects; a page, which is gone, is no longer marked
+    virtual QVariantMap mapParameters(const QVariantMap& parameters, const PDFDocument* from, const PDFDocument* to) const override;
 };
 
 }   // namespace pdf

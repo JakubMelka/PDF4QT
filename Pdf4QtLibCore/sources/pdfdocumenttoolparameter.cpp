@@ -32,6 +32,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <map>
 
 namespace pdf
 {
@@ -573,6 +574,94 @@ std::vector<PDFInteger> PDFDocumentToolPageSelection::getPageIndices(const PDFDo
 QStringList PDFDocumentToolPageSelection::getFilterNames()
 {
     return { QStringLiteral("even"), QStringLiteral("odd"), QStringLiteral("portrait"), QStringLiteral("landscape") };
+}
+
+QString PDFDocumentToolPageSelection::createRangeText(const std::vector<PDFInteger>& pageIndices)
+{
+    QStringList parts;
+    for (size_t i = 0; i < pageIndices.size();)
+    {
+        size_t last = i;
+        while (last + 1 < pageIndices.size() && pageIndices[last + 1] == pageIndices[last] + 1)
+        {
+            ++last;
+        }
+        parts << (last == i ? QString::number(pageIndices[i] + 1) : QStringLiteral("%1-%2").arg(pageIndices[i] + 1).arg(pageIndices[last] + 1));
+        i = last + 1;
+    }
+    return parts.join(QStringLiteral(", "));
+}
+
+std::vector<PDFInteger> PDFDocumentToolPageSelection::mapPageIndices(const PDFDocument* from, const PDFDocument* to)
+{
+    std::vector<PDFInteger> pageMap;
+    if (!from)
+    {
+        return pageMap;
+    }
+
+    const PDFCatalog* fromCatalog = from->getCatalog();
+    pageMap.assign(fromCatalog->getPageCount(), -1);
+    if (!to)
+    {
+        return pageMap;
+    }
+
+    // The occurrences of each page object in the other version, in their order
+    std::map<PDFObjectReference, std::vector<PDFInteger>> occurrences;
+    const PDFCatalog* toCatalog = to->getCatalog();
+    for (size_t i = 0, count = toCatalog->getPageCount(); i < count; ++i)
+    {
+        occurrences[toCatalog->getPage(i)->getPageReference()].push_back(PDFInteger(i));
+    }
+
+    std::map<PDFObjectReference, size_t> used;
+    for (size_t i = 0; i < pageMap.size(); ++i)
+    {
+        const PDFObjectReference reference = fromCatalog->getPage(i)->getPageReference();
+        const auto it = occurrences.find(reference);
+        size_t& usedCount = used[reference];
+        if (it != occurrences.cend() && usedCount < it->second.size())
+        {
+            pageMap[i] = it->second[usedCount++];
+        }
+    }
+    return pageMap;
+}
+
+PDFDocumentToolPageSelection PDFDocumentToolPageSelection::mapPages(const PDFDocument* from, const std::vector<PDFInteger>& pageMap) const
+{
+    if (isNone || pages.trimmed().isEmpty() || !from)
+    {
+        return *this;
+    }
+
+    QString error;
+    const std::vector<PDFInteger> fromPages = getPageIndices(from, &error);
+    if (!error.isEmpty())
+    {
+        return *this;
+    }
+
+    std::vector<PDFInteger> mappedPages;
+    for (const PDFInteger page : fromPages)
+    {
+        if (page >= 0 && size_t(page) < pageMap.size() && pageMap[size_t(page)] >= 0)
+        {
+            mappedPages.push_back(pageMap[size_t(page)]);
+        }
+    }
+    std::sort(mappedPages.begin(), mappedPages.end());
+    mappedPages.erase(std::unique(mappedPages.begin(), mappedPages.end()), mappedPages.end());
+
+    PDFDocumentToolPageSelection mapped;
+    mapped.pages = createRangeText(mappedPages);
+    mapped.isNone = mappedPages.empty() || mapped.pages.size() > MAXIMUM_PAGES_LENGTH;
+    if (mapped.isNone)
+    {
+        mapped.pages.clear();
+    }
+    return mapped;
 }
 
 PDFDocumentToolParameterOption::PDFDocumentToolParameterOption(const QString& id, PDFDocumentToolText title, PDFDocumentToolText description, const QString& iconName) :

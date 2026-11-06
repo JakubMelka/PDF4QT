@@ -288,7 +288,7 @@ std::vector<PDFDocumentToolParameterError> PDFDocumentToolStructure::validate(co
     return errors;
 }
 
-PDFDocumentToolResult PDFDocumentToolStructure::execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const
+PDFDocumentToolResult PDFDocumentToolStructure::execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const
 {
     using Helper = PDFDocumentToolStructureHelper;
 
@@ -306,7 +306,7 @@ PDFDocumentToolResult PDFDocumentToolStructure::execute(const PDFDocumentToolCon
     }
 
     // One bar over the phases: the stages of the optimizer and the written file
-    PDFProgressPhases phases(progress, tr("Optimizing…"));
+    PDFProgressPhases phases(progress);
     const int structurePhase = phases.addPhase(85, tr("Cleaning up the structure"), true);
     const int measurePhase = phases.addPhase(15, tr("Measuring the result"), false);
     phases.start();

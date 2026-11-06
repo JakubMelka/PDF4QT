@@ -50,6 +50,8 @@
 #include "pdfsecurityhandler.h"
 #include "pdfstreamfilters.h"
 
+#include "testprogressrecorder.h"
+
 #include <QBuffer>
 #include <QColor>
 #include <QColorSpace>
@@ -96,26 +98,21 @@ private:
 };
 
 /// Records the progress of a run; cancels it when a step of the given text comes
-class CompressTestListener : public pdf::PDFDocumentToolProgressListener
+class CompressTestListener : public pdftest::TestProgressRecorder
 {
 public:
-    QList<int> percentages;
-    QStringList texts;
     QString cancelOnText;
     CompressTestControl* control = nullptr;
 
-    virtual void onToolProgress(int percentage, const QString& stepText) override
+    CompressTestListener()
     {
-        percentages << percentage;
-        if (texts.isEmpty() || texts.back() != stepText)
+        onText = [this](const QString& stepText)
         {
-            texts << stepText;
-        }
-
-        if (control && !cancelOnText.isEmpty() && stepText.startsWith(cancelOnText))
-        {
-            control->cancel();
-        }
+            if (control && !cancelOnText.isEmpty() && stepText.startsWith(cancelOnText))
+            {
+                control->cancel();
+            }
+        };
     }
 };
 
@@ -1297,18 +1294,17 @@ void DocumentToolCompressTest::stopEndsTheRunSoon()
     const pdf::PDFDocument document = builder.build();
 
     CompressTestControl control;
-    pdf::PDFProgress progress(nullptr);
+    pdftest::TestProgressRecorder progress;
     QElapsedTimer cancelTimer;
     std::atomic<bool> isCanceled = false;
-    QObject context;
-    connect(&progress, &pdf::PDFProgress::progressStep, &context, [&]()
+    progress.onStep = [&]()
     {
         if (!isCanceled.exchange(true))
         {
             cancelTimer.start();
             control.cancel();
         }
-    }, Qt::DirectConnection);
+    };
 
     pdf::PDFDocumentToolCompress::Settings settings = pdf::PDFDocumentToolCompress::createSettings(CompressTestHelper::preset(pdf::PDFDocumentToolCompress::PRESET_BALANCED));
     pdf::PDFDocumentToolCompress::Progress compressProgress;
@@ -2404,9 +2400,8 @@ void DocumentToolCompressTest::progressOverPhases()
     const pdf::PDFDocument input = CompressTestHelper::createPhotoDocument(4, 200);
 
     CompressTestListener listener;
-    pdf::PDFDocumentToolProgressAdapter adapter(&listener);
     pdf::PDFDocumentToolCompress tool;
-    const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(input), CompressTestHelper::preset("balanced"), nullptr, &adapter);
+    const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(input), CompressTestHelper::preset("balanced"), nullptr, &listener);
     QVERIFY(result.status == pdf::PDFDocumentToolResultStatus::Success || result.status == pdf::PDFDocumentToolResultStatus::NothingToDo);
 
     // One growing bar up to 100 %
@@ -2430,8 +2425,7 @@ void DocumentToolCompressTest::progressOverPhases()
 
     // Without images no phase of the images
     CompressTestListener bestListener;
-    pdf::PDFDocumentToolProgressAdapter bestAdapter(&bestListener);
-    tool.run(CompressTestHelper::createContext(input), CompressTestHelper::preset("best-quality"), nullptr, &bestAdapter);
+    tool.run(CompressTestHelper::createContext(input), CompressTestHelper::preset("best-quality"), nullptr, &bestListener);
     QVERIFY(!bestListener.texts.contains(QStringLiteral("Looking for images")));
     QVERIFY(bestListener.texts.contains(QStringLiteral("Cleaning up the structure")));
     QCOMPARE(bestListener.percentages.back(), 100);
@@ -2460,19 +2454,15 @@ void DocumentToolCompressTest::canceledInEachPhase()
     CompressTestListener listener;
     listener.control = &control;
     listener.cancelOnText = cancelOn;
-    pdf::PDFDocumentToolProgressAdapter adapter(&listener);
-    QSignalSpy started(&adapter, &pdf::PDFProgress::progressStarted);
-    QSignalSpy finished(&adapter, &pdf::PDFProgress::progressFinished);
 
     pdf::PDFDocumentToolCompress tool;
-    const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(input), CompressTestHelper::preset("balanced"), &control, &adapter);
+    const pdf::PDFDocumentToolResult result = tool.run(CompressTestHelper::createContext(input), CompressTestHelper::preset("balanced"), &control, &listener);
 
     QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Stopped);
 
-    // A listener of the start gets its end also from a stopped run, the bar is not filled
-    QCOMPARE(started.count(), 1);
-    QCOMPARE(finished.count(), 1);
-    QVERIFY(listener.percentages.isEmpty() || listener.percentages.back() < 100);
+    // A stopped run does not fill the bar
+    QVERIFY(!listener.percentages.isEmpty());
+    QVERIFY(listener.percentages.back() < 100);
     QVERIFY(result.documents.empty());
     QVERIFY(result.facts.empty());
     QCOMPARE(CompressTestHelper::getImageWidths(input), widths);
@@ -2509,44 +2499,36 @@ void DocumentToolCompressTest::imageOptimizerCancellation()
     // Canceled while the images are encoded: the next images are not decoded, the
     // returned document is the source
     CompressTestControl control;
-    pdf::PDFProgress progress(nullptr);
-    int steps = 0;
-    QObject context;
-    connect(&progress, &pdf::PDFProgress::progressStep, &context, [&]() { ++steps; control.cancel(); }, Qt::DirectConnection);
+    pdftest::TestProgressRecorder progress;
+    progress.onStep = [&control]() { control.cancel(); };
 
     pdf::PDFImageOptimizer optimizer;
     std::vector<pdf::PDFImageOptimizer::ImageResult> results;
     results.emplace_back();
     const pdf::PDFDocument canceled = optimizer.optimize(&input, settings, pdf::PDFImageOptimizer::ImageOverrides(), &progress, nullptr, &results, &control);
-    QCOMPARE(steps, 1);
+    QCOMPARE(progress.stepCount, 1);
     QVERIFY(results.empty());
     QCOMPARE(CompressTestHelper::getImageWidths(canceled), CompressTestHelper::getImageWidths(input));
 
     // Canceled in the walk over the pages: not a single image encoded
     CompressTestControl analysisControl;
-    pdf::PDFProgress analysis(nullptr);
-    pdf::PDFProgress images(nullptr);
-    int analysisSteps = 0;
-    int imageSteps = 0;
-    connect(&analysis, &pdf::PDFProgress::progressStep, &context, [&]() { ++analysisSteps; analysisControl.cancel(); }, Qt::DirectConnection);
-    connect(&images, &pdf::PDFProgress::progressStep, &context, [&]() { ++imageSteps; }, Qt::DirectConnection);
+    pdftest::TestProgressRecorder analysis;
+    pdftest::TestProgressRecorder images;
+    analysis.onStep = [&analysisControl]() { analysisControl.cancel(); };
     const pdf::PDFDocument canceledAnalysis = optimizer.optimize(&input, settings, pdf::PDFImageOptimizer::ImageOverrides(), &images, nullptr, &results, &analysisControl, &analysis);
-    QCOMPARE(analysisSteps, 1);
-    QCOMPARE(imageSteps, 0);
+    QCOMPARE(analysis.stepCount, 1);
+    QCOMPARE(images.stepCount, 0);
     QVERIFY(results.empty());
     QCOMPARE(CompressTestHelper::getImageWidths(canceledAnalysis), CompressTestHelper::getImageWidths(input));
 
     // Without the cancellation: all images, a step per image and per page, the same
     // result as the old call without the new arguments
-    pdf::PDFProgress fullAnalysis(nullptr);
-    pdf::PDFProgress fullImages(nullptr);
-    int fullAnalysisSteps = 0;
-    int fullImageSteps = 0;
-    connect(&fullAnalysis, &pdf::PDFProgress::progressStep, &context, [&]() { ++fullAnalysisSteps; }, Qt::DirectConnection);
-    connect(&fullImages, &pdf::PDFProgress::progressStep, &context, [&]() { ++fullImageSteps; }, Qt::DirectConnection);
+    pdftest::TestProgressRecorder fullAnalysis;
+    pdftest::TestProgressRecorder fullImages;
     const pdf::PDFDocument full = optimizer.optimize(&input, settings, pdf::PDFImageOptimizer::ImageOverrides(), &fullImages, nullptr, &results, nullptr, &fullAnalysis);
-    QCOMPARE(fullAnalysisSteps, 6);
-    QCOMPARE(fullImageSteps, 6);
+    QCOMPARE(fullAnalysis.stepCount, 6);
+    QCOMPARE(fullImages.stepCount, 6);
+    QCOMPARE(fullImages.percentages.back(), 100);
     QCOMPARE(results.size(), size_t(6));
     for (size_t i = 1; i < results.size(); ++i)
     {

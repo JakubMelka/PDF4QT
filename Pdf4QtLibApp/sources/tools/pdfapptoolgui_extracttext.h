@@ -145,13 +145,19 @@ public:
 
 protected:
     virtual void paintEvent(QPaintEvent* event) override;
+    virtual void changeEvent(QEvent* event) override;
 
 private:
     void onZoomChanged(int index);
 
+    /// The texts of the page itself (the captions of the panes, Fit / 100 %), also in a new language
+    void updateTexts();
+
     QPointer<QWidget> m_content;
     QPointer<PDFLabel> m_title;
     QPointer<PDFSegmentedControl> m_zoom;
+    QPointer<PDFLabel> m_pageCaption;
+    QPointer<PDFLabel> m_textCaption;
     QPointer<QScrollArea> m_pictureArea;
     QPointer<PDFAppToolPagePicture> m_picture;
     QPointer<PDFLabel> m_pageFooter;

@@ -605,18 +605,13 @@ PDFAppToolPageSelectionBinder::~PDFAppToolPageSelectionBinder()
 
 QString PDFAppToolPageSelectionBinder::createRangeText(const QList<int>& pages)
 {
-    QStringList parts;
-    for (qsizetype i = 0; i < pages.size();)
+    std::vector<PDFInteger> pageIndices;
+    pageIndices.reserve(size_t(pages.size()));
+    for (const int page : pages)
     {
-        qsizetype last = i;
-        while (last + 1 < pages.size() && pages[last + 1] == pages[last] + 1)
-        {
-            ++last;
-        }
-        parts << (last == i ? QString::number(pages[i]) : QStringLiteral("%1-%2").arg(pages[i]).arg(pages[last]));
-        i = last + 1;
+        pageIndices.push_back(PDFInteger(page) - 1);
     }
-    return parts.join(QStringLiteral(", "));
+    return PDFDocumentToolPageSelection::createRangeText(pageIndices);
 }
 
 void PDFAppToolPageSelectionBinder::updatePages()
@@ -858,6 +853,68 @@ void PDFAppToolPageSelectionBinder::setEntryMode(PDFPageSelection::Mode mode)
     QPointer<PDFAppToolPageSelectionBinder> guard(this);
     m_isUpdating = true;
     m_selection->setMode(mode);
+    if (!guard)
+    {
+        return;
+    }
+    m_isUpdating = false;
+    writeValue(false);
+}
+
+void PDFAppToolPageSelectionBinder::followPages(const PDFDocument* from, const std::vector<PDFInteger>& pageMap)
+{
+    PDFAppToolParameterModel* model = m_gui ? m_gui->getModel() : nullptr;
+    if (!m_selection || !model || !from)
+    {
+        return;
+    }
+
+    const PDFPageSelection::Mode mode = m_selection->getMode();
+    const bool isRange = mode == PDFPageSelection::Mode::Range;
+    if (!isRange && !(mode == PDFPageSelection::Mode::Selected && m_isOwnSelection))
+    {
+        return;
+    }
+
+    QString error;
+    const std::optional<PDFDocumentToolPageSelection> value = PDFDocumentToolPageSelection::fromVariant(model->getValue(m_parameter), &error);
+    if (!value)
+    {
+        return;
+    }
+
+    const PDFDocumentToolPageSelection mapped = value->mapPages(from, pageMap);
+    if (mapped == *value)
+    {
+        return;
+    }
+
+    QList<int> pages;
+    if (!mapped.isNone)
+    {
+        // The pages of the shown version: the highest index of the map is one of them
+        const PDFInteger highestPage = pageMap.empty() ? -1 : *std::max_element(pageMap.cbegin(), pageMap.cend());
+        const std::vector<QSizeF> pageSizes(size_t(qMax<PDFInteger>(m_selection->getPageCount(), highestPage + 1)));
+        for (const PDFInteger page : mapped.getPageIndices(pageSizes, &error))
+        {
+            pages.append(int(page) + 1);
+        }
+    }
+
+    // The signals of the selection reach slots of the tool
+    QPointer<PDFAppToolPageSelectionBinder> guard(this);
+    m_isUpdating = true;
+    m_selection->setFilters(PDFPageSelection::Filters());
+    if (guard && m_selection && isRange && !pages.isEmpty())
+    {
+        m_selection->setRange(mapped.pages);
+    }
+    else if (guard && m_selection)
+    {
+        m_isOwnSelection = true;
+        m_selection->setSelectedPages(pages);
+        m_selection->setMode(PDFPageSelection::Mode::Selected);
+    }
     if (!guard)
     {
         return;

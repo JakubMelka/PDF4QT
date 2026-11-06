@@ -89,6 +89,8 @@ public:
     }
 };
 
+PDFAppToolValueMapper::~PDFAppToolValueMapper() = default;
+
 PDFAppToolParameterModel::PDFAppToolParameterModel(PDFAppContext* context, QString toolId, PDFDocumentToolParameterDefinitions definitions, QObject* parent) :
     BaseClass(parent),
     m_context(context),
@@ -176,6 +178,38 @@ QString PDFAppToolParameterModel::setFollowingValue(const QString& name, const Q
         applyValues(newValues);
     }
     return error;
+}
+
+QVariantMap PDFAppToolParameterModel::mergeMappedValues(const QVariantMap& values, const QVariantMap& mapped) const
+{
+    QVariantMap result = values;
+    for (auto it = mapped.cbegin(); it != mapped.cend(); ++it)
+    {
+        const PDFDocumentToolParameterDefinition* definition = PDFDocumentToolParameters::find(m_definitions, it.key());
+        QVariant normalizedValue;
+        if (definition && definition->normalize(it.value(), &normalizedValue).isEmpty())
+        {
+            result.insert(it.key(), normalizedValue);
+        }
+    }
+    return result;
+}
+
+void PDFAppToolParameterModel::mapValues(const PDFAppToolValueMapper& mapper)
+{
+    for (std::vector<QVariantMap>* stack : { &m_undoStack, &m_redoStack })
+    {
+        for (QVariantMap& step : *stack)
+        {
+            step = mergeMappedValues(step, mapper.mapValues(step, false));
+        }
+    }
+
+    const QVariantMap values = mergeMappedValues(m_values, mapper.mapValues(m_values, true));
+    if (values != m_values)
+    {
+        applyValues(values);
+    }
 }
 
 std::vector<PDFDocumentToolParameterError> PDFAppToolParameterModel::getErrors() const

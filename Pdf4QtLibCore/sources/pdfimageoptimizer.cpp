@@ -1146,11 +1146,11 @@ int PDFImageOptimizer::estimateEncodedBytes(const ImageInfo& info,
 PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
                                         const Settings& settings,
                                         const ImageOverrides& overrides,
-                                        PDFProgress* progress,
+                                        PDFProgressSink* progress,
                                         PDFRenderErrorReporter* reporter,
                                         std::vector<ImageResult>* results,
                                         const PDFOperationControl* operationControl,
-                                        PDFProgress* analysisProgress) const
+                                        PDFProgressSink* analysisProgress) const
 {
     if (results)
     {

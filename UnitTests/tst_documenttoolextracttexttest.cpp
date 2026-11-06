@@ -61,6 +61,7 @@ private slots:
     void copyPermission();
     void structureOrder();
     void structureItemsOfSelectedPages();
+    void structureItemsWithoutPage();
     void structureTitlesOfOldCallers();
     void fetchTextTitlesAndUnmarkedText();
     void untaggedStructureRefused();
@@ -119,7 +120,7 @@ public:
     /// A tagged document (ISO 32000-2 14.7): each page is one marked content /P <</MCID 0>> of
     /// an element /P; page 2 has also a /Figure with /Alt and /T and a /P with /T of page 1 is
     /// titled. The texts drawn by the pages are wrapped by BDC / EMC streams.
-    static pdf::PDFDocument createTaggedDocument(const QStringList& pageTexts, bool isMarked = true)
+    static pdf::PDFDocument createTaggedDocument(const QStringList& pageTexts, bool isMarked = true, bool isPageOfReference = false)
     {
         const pdf::PDFDocument drawn = createDocument(pageTexts);
         pdf::PDFDocumentBuilder builder(&drawn);
@@ -183,10 +184,33 @@ public:
                 figure.setEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("StructElem"));
                 figure.setEntry(pdf::PDFInplaceOrMemoryString("S"), pdf::PDFObject::createName("Figure"));
                 figure.setEntry(pdf::PDFInplaceOrMemoryString("P"), pdf::PDFObject::createReference(structureRoot));
-                figure.setEntry(pdf::PDFInplaceOrMemoryString("Pg"), pdf::PDFObject::createReference(pageReference));
+                if (isPageOfReference)
+                {
+                    // Its page is the page of its marked content reference (Table 357)
+                    pdf::PDFDictionaryBuilder reference;
+                    reference.setEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("MCR"));
+                    reference.setEntry(pdf::PDFInplaceOrMemoryString("Pg"), pdf::PDFObject::createReference(pageReference));
+                    reference.setEntry(pdf::PDFInplaceOrMemoryString("MCID"), pdf::PDFObject::createInteger(1));
+                    figure.setEntry(pdf::PDFInplaceOrMemoryString("K"), pdf::PDFObject::createDictionary(std::move(reference)));
+                }
+                else
+                {
+                    figure.setEntry(pdf::PDFInplaceOrMemoryString("Pg"), pdf::PDFObject::createReference(pageReference));
+                }
                 figure.setEntry(pdf::PDFInplaceOrMemoryString("Alt"), pdf::PDFObject::createString("Chart of the revenue"));
                 kids.appendItem(pdf::PDFObject::createReference(builder.addObject(pdf::PDFObject::createDictionary(std::move(figure)))));
             }
+        }
+
+        if (isPageOfReference)
+        {
+            // An element of no page: its description belongs to the whole document
+            pdf::PDFDictionaryBuilder note;
+            note.setEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("StructElem"));
+            note.setEntry(pdf::PDFInplaceOrMemoryString("S"), pdf::PDFObject::createName("Note"));
+            note.setEntry(pdf::PDFInplaceOrMemoryString("P"), pdf::PDFObject::createReference(structureRoot));
+            note.setEntry(pdf::PDFInplaceOrMemoryString("Alt"), pdf::PDFObject::createString("Note of the whole document"));
+            kids.appendItem(pdf::PDFObject::createReference(builder.addObject(pdf::PDFObject::createDictionary(std::move(note)))));
         }
 
         pdf::PDFDictionaryBuilder parentTree;
@@ -569,6 +593,32 @@ void DocumentToolExtractTextTest::structureItemsOfSelectedPages()
     const QString second = H::outputText(H::run(document, parameters)).simplified();
     QVERIFY2(second.contains(QStringLiteral("Chart of the revenue")), qPrintable(second));
     QVERIFY2(!second.contains(QStringLiteral("Opening part")), qPrintable(second));
+}
+
+void DocumentToolExtractTextTest::structureItemsWithoutPage()
+{
+    // ISO 32000-2 14.7.2: /Pg of an element is optional, a marked content reference has its own
+    // /Pg (Table 357). The picture of page 2 says its page only by its reference; the note has
+    // no page at all, its description belongs to the whole document (review RCORE).
+    using H = ExtractTextTestHelper;
+    const pdf::PDFDocument document = H::createTaggedDocument({ QStringLiteral("first tagged"), QStringLiteral("second tagged") }, true, true);
+
+    QVariantMap parameters;
+    parameters.insert(QStringLiteral("pages"), QStringLiteral("2"));
+    const QString second = H::outputText(H::run(document, parameters)).simplified();
+    QVERIFY2(second.contains(QStringLiteral("second tagged")), qPrintable(second));
+    QVERIFY2(second.contains(QStringLiteral("Chart of the revenue")), qPrintable(second));
+    QVERIFY2(!second.contains(QStringLiteral("Note of the whole document")), qPrintable(second));
+
+    parameters.insert(QStringLiteral("pages"), QStringLiteral("1"));
+    const QString first = H::outputText(H::run(document, parameters)).simplified();
+    QVERIFY2(!first.contains(QStringLiteral("Chart of the revenue")), qPrintable(first));
+    QVERIFY2(!first.contains(QStringLiteral("Note of the whole document")), qPrintable(first));
+
+    // All pages: both descriptions
+    const QString all = H::outputText(H::run(document)).simplified();
+    QVERIFY2(all.contains(QStringLiteral("Chart of the revenue")), qPrintable(all));
+    QVERIFY2(all.contains(QStringLiteral("Note of the whole document")), qPrintable(all));
 }
 
 void DocumentToolExtractTextTest::structureTitlesOfOldCallers()

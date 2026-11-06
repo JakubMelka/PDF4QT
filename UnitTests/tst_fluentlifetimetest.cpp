@@ -46,7 +46,7 @@
 // theme manager, style, ...) may keep more connections of its signals or more
 // event filters than before, no popup may stay open and no warning of Qt may be
 // printed. Use-after-free, which reads freed memory without such a side effect,
-// is found by running the test under valgrind (CLAUDE.md) - the real detector.
+// is found by running the test under valgrind (arch/checks.md) - the real detector.
 //
 // QtTest's option -vs (QSignalDumper) replaces the signal spy callbacks, the
 // test refuses it.
@@ -4628,7 +4628,7 @@ QString LifetimeTest::runPopupCase(PageHost& host, QWidget* ownerWidget, const s
                 // A popup in its own event loop may be an object on the stack of
                 // its owner (QMenu menu; menu.exec()), it is closed - unless it is
                 // a popup of the library or of a widget of the library, which never
-                // runs a popup on the stack (CLAUDE.md, the lifetime rule); a part
+                // runs a popup on the stack (arch/conventions.md, the lifetime rule); a part
                 // of a widget of Qt (popup of a combo box, calendar) is closed too
                 const bool isInternal = popup && (popup->inherits("QComboBoxPrivateContainer") || popup->inherits("QCalendarPopup") || popup->objectName().startsWith(QLatin1String("qt_")));
                 bool isLibraryPopup = false;

@@ -80,29 +80,6 @@ private:
     PDFAppDocumentPasswordState* m_state;
 };
 
-/// Receiver of the progress of the reader in the worker thread (direct
-/// connection): it only stores the percentage, the GUI reads it by a timer
-class PDFAppDocumentProgressReceiver
-{
-public:
-    explicit PDFAppDocumentProgressReceiver(std::shared_ptr<std::atomic<int>> progress) :
-        m_progress(std::move(progress))
-    {
-
-    }
-
-    void operator()(int percentage) const
-    {
-        if (m_progress)
-        {
-            m_progress->store(qBound(0, percentage, 100));
-        }
-    }
-
-private:
-    std::shared_ptr<std::atomic<int>> m_progress;
-};
-
 PDFAppDocumentReading::Result PDFAppDocumentReading::read(Request request)
 {
     Result result;
@@ -160,10 +137,8 @@ PDFAppDocumentReading::Result PDFAppDocumentReading::read(Request request)
         passwordState.password = passwordState.hasPassword && !passwordState.isRefused ? request.password : QString();
         request.password.clear();
 
-        PDFProgress progress(nullptr);
-        QObject::connect(&progress, &PDFProgress::progressStep, &progress, PDFAppDocumentProgressReceiver(request.progress), Qt::DirectConnection);
-
-        PDFDocumentReader reader(&progress, PDFAppDocumentPasswordCallback(&passwordState), true, false);
+        // The reader steps the counter, the GUI reads it by its timer
+        PDFDocumentReader reader(request.progress.get(), PDFAppDocumentPasswordCallback(&passwordState), true, false);
         PDFDocument document = reader.readFromBuffer(request.data);
         passwordState.password.clear();
 
@@ -208,7 +183,7 @@ PDFAppDocumentReading::Result PDFAppDocumentReading::read(Request request)
 
     if (request.progress)
     {
-        request.progress->store(100);
+        request.progress->finishPhases();
     }
     return result;
 }
@@ -342,7 +317,7 @@ void PDFAppDocumentLoader::cancel()
 void PDFAppDocumentLoader::startReading(PDFAppDocumentReading::Request request, bool isReload)
 {
     m_isReload = isReload;
-    m_progress = std::make_shared<std::atomic<int>>(-1);
+    m_progress = std::make_shared<PDFProgressCounter>();
     request.progress = m_progress;
 
     if (!m_progressTimer)
@@ -363,7 +338,9 @@ void PDFAppDocumentLoader::onProgressTimeout()
 {
     if (m_document && m_progress && !m_isReload)
     {
-        m_document->setLoadingProgress(m_progress->load());
+        // -1 until the reader has started (no bar of an unknown length)
+        const PDFProgressCounter::Snapshot snapshot = m_progress->snapshot();
+        m_document->setLoadingProgress(snapshot.count > 0 || snapshot.percentage > 0 ? snapshot.percentage : -1);
     }
 }
 

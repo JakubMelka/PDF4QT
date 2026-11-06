@@ -27,6 +27,7 @@
 #include "pdfcatalog.h"
 #include "pdfexception.h"
 #include "pdfform.h"
+#include "pdfobjectutils.h"
 #include "pdfocrtextlayerwriter.h"
 #include "pdfoperationcontrol.h"
 #include "pdfoutline.h"
@@ -61,8 +62,7 @@ public:
     /// embedded files (the keys, which the sanitizer removes)
     static void scanObjects(const PDFObjectStorage* storage, const PDFOperationControl* control, Result* result)
     {
-        const size_t objectCount = storage->getObjects().size();
-        std::vector<bool> isVisited(objectCount, false);
+        PDFObjectWalk walk;
         std::set<PDFObjectReference> embeddedFiles;
         std::vector<PDFObject> stack;
         stack.push_back(storage->getTrailerDictionary());
@@ -83,11 +83,10 @@ public:
             {
                 case PDFObject::Type::Reference:
                 {
-                    const PDFObjectReference reference = object.getReference();
-                    if (reference.objectNumber >= 0 && size_t(reference.objectNumber) < objectCount && !isVisited[size_t(reference.objectNumber)])
+                    // The stack has no depth: the walk enters each object once
+                    if (walk.enter(object, 0))
                     {
-                        isVisited[size_t(reference.objectNumber)] = true;
-                        stack.push_back(storage->getObjectByReference(reference));
+                        stack.push_back(storage->getObjectByReference(object.getReference()));
                     }
                     break;
                 }
@@ -159,6 +158,16 @@ public:
             }
         }
 
+        // ... and their properties in the XMP metadata of the document, which the sanitizer
+        // removes with them (a packet, which cannot be read, may have them: the kind is offered,
+        // the tool says, why it cannot remove them)
+        const PDFDocumentSanitizer::DocumentInfoProperties xmp = PDFDocumentSanitizer::removeDocumentInfoProperties(PDFDocumentSanitizer::getCatalogMetadata(storage, nullptr));
+        result->documentInfoXmp = xmp.names;
+        result->isDocumentInfoXmpReadable = xmp.isReadable;
+        KindResult& documentInfo = result->get(Kind::DocumentInfo);
+        documentInfo.count += qint64(xmp.names.size());
+        documentInfo.isPresent = documentInfo.count > 0 || !xmp.isReadable;
+
         const PDFDictionary* trailerDictionary = storage->getDictionaryFromObject(storage->getTrailerDictionary());
         const PDFDictionary* catalogDictionary = trailerDictionary ? storage->getDictionaryFromObject(trailerDictionary->get("Root")) : nullptr;
         if (!catalogDictionary)
@@ -192,17 +201,18 @@ public:
         KindResult& signatures = result->get(Kind::SignatureFields);
         if (const PDFDictionary* form = storage->getDictionaryFromObject(catalogDictionary->get("AcroForm")))
         {
-            std::set<PDFObjectReference> visited;
-            signatures.count = countSignatureFields(storage, form->get("Fields"), 0, &visited);
+            PDFObjectWalk walk(PDFFormField::MAX_FIELD_TREE_DEPTH);
+            signatures.count = countSignatureFields(storage, form->get("Fields"), 0, &walk);
         }
         signatures.isPresent = signatures.count > 0 || catalogDictionary->hasKey("Perms") || catalogDictionary->hasKey("DSS");
     }
 
-    /// Signature fields of an array of fields (cycles and depth bounded)
-    static qint64 countSignatureFields(const PDFObjectStorage* storage, const PDFObject& fieldsObject, int depth, std::set<PDFObjectReference>* visited)
+    /// Signature fields of an array of fields: one walk of the field tree (a field once, also
+    /// when more parents list it)
+    static qint64 countSignatureFields(const PDFObjectStorage* storage, const PDFObject& fieldsObject, int depth, PDFObjectWalk* walk)
     {
         const PDFObject& fields = storage->getObject(fieldsObject);
-        if (!fields.isArray() || depth > PDFFormField::MAX_FIELD_TREE_DEPTH)
+        if (!fields.isArray())
         {
             return 0;
         }
@@ -212,7 +222,7 @@ public:
         for (size_t i = 0, itemCount = array->getCount(); i < itemCount; ++i)
         {
             const PDFObject& item = array->getItem(i);
-            if (item.isReference() && !visited->insert(item.getReference()).second)
+            if (!walk->enter(item, depth))
             {
                 continue;
             }
@@ -228,7 +238,7 @@ public:
             }
             else if (field->hasKey("Kids"))
             {
-                count += countSignatureFields(storage, field->get("Kids"), depth + 1, visited);
+                count += countSignatureFields(storage, field->get("Kids"), depth + 1, walk);
             }
         }
         return count;
@@ -308,6 +318,7 @@ public:
         qint64 decodedBytes = 0;
         bool isLimitReached = false;
         std::map<PDFObjectReference, bool> forms;   ///< A form looked at: it has invisible text
+        PDFObjectWalk formWalk = PDFObjectWalk(PDFDocumentHiddenDataScan::MAXIMUM_FORM_DEPTH); ///< The forms of all pages: each form once, to the depth of the forms
     };
 
     /// The decoded streams, within the limit (a stream, which cannot be decoded, has no text)
@@ -381,7 +392,7 @@ public:
         const PDFObjectStorage* storage = &scan->document->getStorage();
         const PDFDictionary* resourcesDictionary = storage->getDictionaryFromObject(resources);
         const PDFDictionary* xobjects = resourcesDictionary ? storage->getDictionaryFromObject(resourcesDictionary->get("XObject")) : nullptr;
-        if (!xobjects || depth > PDFDocumentHiddenDataScan::MAXIMUM_FORM_DEPTH)
+        if (!xobjects)
         {
             return false;
         }
@@ -404,7 +415,12 @@ public:
                 continue;
             }
 
-            // Marked before it is looked at: a form, which draws itself, ends here
+            // Marked before it is looked at: a form, which draws itself, ends here; a form deeper
+            // than the limit is not looked at (and not marked: a shorter path may reach it)
+            if (!scan->formWalk.enter(item, depth))
+            {
+                continue;
+            }
             scan->forms[item.getReference()] = false;
             const PDFObject& object = storage->getObject(item);
             if (!object.isStream())
@@ -431,7 +447,7 @@ public:
     }
 
     /// The pages: comments, attachments of annotations, thumbnails, invisible text
-    static void scanPages(const PDFDocument* document, bool includeInvisibleText, const PDFOperationControl* control, PDFProgress* progress, Result* result)
+    static void scanPages(const PDFDocument* document, bool includeInvisibleText, const PDFOperationControl* control, PDFProgressSink* progress, Result* result)
     {
         const PDFObjectStorage* storage = &document->getStorage();
         const PDFCatalog* catalog = document->getCatalog();
@@ -551,6 +567,7 @@ public:
         comments.isComplete = !isAnnotationLimitReached;
 
         KindResult& attachments = result->get(Kind::Attachments);
+        result->attachmentAnnotations = fileAttachmentAnnotations;
         attachments.isPresent = attachments.isPresent || fileAttachmentAnnotations > 0;
         attachments.count = qMax(attachments.count, fileAttachmentAnnotations);
         attachments.isComplete = !isAnnotationLimitReached;
@@ -592,6 +609,19 @@ QJsonObject PDFDocumentHiddenDataScan::Result::toJson() const
         {
             kindObject.insert(QStringLiteral("complete"), false);
         }
+        if (kind == Kind::DocumentInfo)
+        {
+            // The properties of the XMP metadata among them ("dc:title")
+            kindObject.insert(QStringLiteral("xmp"), QJsonArray::fromStringList(documentInfoXmp));
+            if (!isDocumentInfoXmpReadable)
+            {
+                kindObject.insert(QStringLiteral("xmpReadable"), false);
+            }
+        }
+        if (kind == Kind::Attachments && attachmentAnnotations > 0)
+        {
+            kindObject.insert(QStringLiteral("annotations"), qint64(attachmentAnnotations));
+        }
         object.insert(getName(kind), kindObject);
     }
     if (!pageLabelsText.isEmpty())
@@ -613,11 +643,18 @@ PDFDocumentHiddenDataScan::Result PDFDocumentHiddenDataScan::Result::fromJson(co
         item.bytes = qMax<qint64>(0, kindObject.value(QStringLiteral("bytes")).toInteger());
         item.isComplete = kindObject.value(QStringLiteral("complete")).toBool(true);
     }
+    const QJsonObject documentInfoObject = object.value(getName(Kind::DocumentInfo)).toObject();
+    for (const QJsonValue& name : documentInfoObject.value(QStringLiteral("xmp")).toArray())
+    {
+        result.documentInfoXmp << name.toString();
+    }
+    result.isDocumentInfoXmpReadable = documentInfoObject.value(QStringLiteral("xmpReadable")).toBool(true);
+    result.attachmentAnnotations = qMax<qint64>(0, object.value(getName(Kind::Attachments)).toObject().value(QStringLiteral("annotations")).toInteger());
     result.pageLabelsText = object.value(QStringLiteral("pageLabelsText")).toString();
     return result;
 }
 
-PDFDocumentHiddenDataScan::Result PDFDocumentHiddenDataScan::scan(const PDFDocument* document, bool includeInvisibleText, const PDFOperationControl* control, PDFProgress* progress)
+PDFDocumentHiddenDataScan::Result PDFDocumentHiddenDataScan::scan(const PDFDocument* document, bool includeInvisibleText, const PDFOperationControl* control, PDFProgressSink* progress)
 {
     using Helper = PDFDocumentHiddenDataScanHelper;
 

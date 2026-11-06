@@ -49,6 +49,17 @@ class PDFDocumentToolHelper
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocumentTool)
 
 public:
+    /// A run, which is a use of the tool, ends with a full bar (the tool may not have
+    /// reached it: a tool without steps, a phase left early); returns \p result
+    static const PDFDocumentToolResult& finishProgress(const PDFDocumentToolResult& result, PDFProgressSink* progress)
+    {
+        if (progress && result.isUse())
+        {
+            progress->finishPhases();
+        }
+        return result;
+    }
+
     /// Name of a signature impact in JSON
     static QString getSignatureImpactName(PDFDocumentToolSignatureImpact impact)
     {
@@ -308,31 +319,6 @@ int PDFDocumentToolFormat::getSavedPercent(qint64 before, qint64 after)
     return qBound(0, int((double(before - after) * 100.0) / double(before) + 0.5), 100);
 }
 
-PDFDocumentToolProgressListener::~PDFDocumentToolProgressListener() = default;
-
-PDFDocumentToolProgressAdapter::PDFDocumentToolProgressAdapter(PDFDocumentToolProgressListener* listener) :
-    PDFProgress(nullptr),
-    m_listener(listener)
-{
-    connect(this, &PDFProgress::progressStep, this, &PDFDocumentToolProgressAdapter::onStep, Qt::DirectConnection);
-    connect(this, &PDFProgress::progressStepText, this, &PDFDocumentToolProgressAdapter::onStepText, Qt::DirectConnection);
-}
-
-void PDFDocumentToolProgressAdapter::onStep(int percentage)
-{
-    m_percentage = percentage;
-    m_listener->onToolProgress(m_percentage, m_stepText);
-}
-
-void PDFDocumentToolProgressAdapter::onStepText(QString text)
-{
-    if (m_stepText != text)
-    {
-        m_stepText = std::move(text);
-        m_listener->onToolProgress(m_percentage, m_stepText);
-    }
-}
-
 PDFDocumentTool::~PDFDocumentTool() = default;
 
 const PDFDocumentToolCatalogEntry* PDFDocumentTool::getInfo() const
@@ -383,7 +369,7 @@ std::vector<PDFDocumentToolParameterError> PDFDocumentTool::validate(const PDFDo
     return errors;
 }
 
-PDFDocumentToolResult PDFDocumentTool::computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const
+PDFDocumentToolResult PDFDocumentTool::computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const
 {
     Q_UNUSED(context);
     Q_UNUSED(parameters);
@@ -506,6 +492,13 @@ std::vector<PDFDocumentToolParameterError> PDFDocumentTool::checkGivenParameters
     return { };
 }
 
+QVariantMap PDFDocumentTool::mapParameters(const QVariantMap& parameters, const PDFDocument* from, const PDFDocument* to) const
+{
+    Q_UNUSED(from);
+    Q_UNUSED(to);
+    return parameters;
+}
+
 PDFDocumentToolResult PDFDocumentTool::prepare(const PDFDocumentToolContext& context, const QVariantMap& parameters, QVariantMap* normalizedParameters) const
 {
     if (!getInfo())
@@ -531,7 +524,7 @@ PDFDocumentToolResult PDFDocumentTool::prepare(const PDFDocumentToolContext& con
     return PDFDocumentToolResult();
 }
 
-PDFDocumentToolResult PDFDocumentTool::run(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const
+PDFDocumentToolResult PDFDocumentTool::run(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const
 {
     PDFDocumentToolResult result;
     try
@@ -569,10 +562,10 @@ PDFDocumentToolResult PDFDocumentTool::run(const PDFDocumentToolContext& context
     {
         return PDFDocumentToolResult::createFailed(PDFDocumentToolHelper::tr("The tool returned an invalid result."));
     }
-    return result;
+    return PDFDocumentToolHelper::finishProgress(result, progress);
 }
 
-PDFDocumentToolResult PDFDocumentTool::runPreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const
+PDFDocumentToolResult PDFDocumentTool::runPreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const
 {
     PDFDocumentToolResult result;
     try
@@ -612,14 +605,14 @@ PDFDocumentToolResult PDFDocumentTool::runPreview(const PDFDocumentToolContext& 
         {
             return PDFDocumentToolResult::createFailed(PDFDocumentToolHelper::tr("The tool returned an invalid result."));
         }
-        return result;
+        return PDFDocumentToolHelper::finishProgress(result, progress);
     }
 
     // A preview has facts only
     result.documents.clear();
     result.outputs.clear();
     result.writtenFiles.clear();
-    return result;
+    return PDFDocumentToolHelper::finishProgress(result, progress);
 }
 
 }   // namespace pdf

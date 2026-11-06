@@ -214,36 +214,6 @@ public:
     static int getSavedPercent(qint64 before, qint64 after);
 };
 
-/// Receiver of the progress of a run of a tool (the bar of the shell, the
-/// notifications of MCP). It is called by the threads of the run, one at a time - never in
-/// the thread of the user interface -, so it must hand the values over by itself.
-class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolProgressListener
-{
-public:
-    virtual ~PDFDocumentToolProgressListener();
-
-    /// \param percentage Progress of the run, 0 to 100
-    /// \param stepText Text of the current step ("Recompressing images · 152 of 412"), may be empty
-    virtual void onToolProgress(int percentage, const QString& stepText) = 0;
-};
-
-/// PDFProgress of a run, which tells its listener the percentage and the step: one
-/// adapter of the GUI and of MCP. It lives in the thread of the run, on the stack of the run.
-class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolProgressAdapter : public PDFProgress
-{
-public:
-    /// \param listener Receiver, must outlive the adapter
-    explicit PDFDocumentToolProgressAdapter(PDFDocumentToolProgressListener* listener);
-
-private:
-    void onStep(int percentage);
-    void onStepText(QString text);
-
-    PDFDocumentToolProgressListener* m_listener;
-    int m_percentage = 0;
-    QString m_stepText;
-};
-
 /// A tool of the catalog (newapp_tools.md 2, Běh). One instance serves all runs:
 /// every function is const and reentrant - it works only with its arguments, never
 /// with the user interface or a mutable global state, checks the cancellation at
@@ -288,21 +258,23 @@ public:
     /// Preview of the result: facts only ("24.8 MB → 6.1 MB"), no documents, unless
     /// isPreviewFinal. \p control and \p progress may be null. The default returns an
     /// empty successful result.
-    virtual PDFDocumentToolResult computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const;
+    virtual PDFDocumentToolResult computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const;
 
     /// Runs the tool with normalized and validated parameters. \p control and
     /// \p progress may be null; a tool, which sees the cancellation, returns Stopped.
-    virtual PDFDocumentToolResult execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const = 0;
+    /// The progress is called by the threads of the run (PDFProgressSink), a reader polls it.
+    virtual PDFDocumentToolResult execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const = 0;
 
     /// Checked run of untrusted parameters (the runner of phase 2, MCP): the values
     /// are normalized by the definitions (defaults of the missing optional ones),
     /// validated with the context, then execute runs; an exception becomes Failed,
     /// a canceled operation Stopped. Errors of the validation give Failed with the
-    /// messages joined and "errors" in data.
-    PDFDocumentToolResult run(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const;
+    /// messages joined and "errors" in data. A run, which is a use of the tool (Success,
+    /// NothingToDo), ends with a full bar (PDFProgressSink::finishPhases).
+    PDFDocumentToolResult run(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const;
 
     /// Checked preview (as run, for computePreview)
-    PDFDocumentToolResult runPreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress = nullptr) const;
+    PDFDocumentToolResult runPreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress = nullptr) const;
 
     /// Document of a tool, which rewrites the whole file (PDFDocumentToolSignatureImpact::LostCopyOnly:
     /// Compress, Optimize Structure, Remove Hidden Data; owner 2026-11-02). The containers of the
@@ -398,6 +370,16 @@ public:
     /// to set. The panels always hold all values, they do not call it. The default finds nothing.
     /// \param given The parameters as they were given
     virtual std::vector<PDFDocumentToolParameterError> checkGivenParameters(const QVariantMap& given) const;
+
+    /// The parameters given for the document \p from, made for \p to, another version of it
+    /// (MCP runs a tool again on a new version; an open tool keeps its values, when an
+    /// assistant changes the pages below it): a page named by its number follows its page
+    /// object (PDFDocumentToolPageSelection::mapPages), a page, which is gone, is left out.
+    /// The default changes nothing (a tool, whose parameters name no page).
+    /// \param parameters The parameters (normalized or as given)
+    /// \param from The version, whose pages the parameters name
+    /// \param to The other version
+    virtual QVariantMap mapParameters(const QVariantMap& parameters, const PDFDocument* from, const PDFDocument* to) const;
 
 private:
     PDFDocumentToolResult prepare(const PDFDocumentToolContext& context, const QVariantMap& parameters, QVariantMap* normalizedParameters) const;

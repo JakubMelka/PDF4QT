@@ -1228,6 +1228,21 @@ set_target_properties(UnitTestsDocumentToolStructure PROPERTIES
 add_test(UnitTestsDocumentToolStructure "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDocumentToolStructure")
 set_tests_properties(UnitTestsDocumentToolStructure PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# The walks over the object graph (PDFObjectWalk) of the tools of phase 2 and of the core
+add_executable(UnitTestsObjectWalk
+    tst_objectwalktest.cpp
+)
+target_link_libraries(UnitTestsObjectWalk PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsObjectWalk REUSE_FROM UnitTestsPchCore)
+set_target_properties(UnitTestsObjectWalk PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsObjectWalk "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsObjectWalk")
+set_tests_properties(UnitTestsObjectWalk PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 # The tool of package 2 of phase 2, first batch (a stub until the package)
 add_executable(UnitTestsDocumentToolExtractText
     tst_documenttoolextracttexttest.cpp

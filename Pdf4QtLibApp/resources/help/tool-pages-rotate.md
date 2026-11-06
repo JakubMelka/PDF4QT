@@ -18,6 +18,8 @@ Rotate Pages turns pages of the document in steps of 90°, and the rotation is s
 
 Undo and Redo of the toolbar undo the steps of the tool while it is open; after the result is kept in the tab, Undo of the document brings the original pages back.
 
+When an AI assistant removes or moves pages while the tool is open, the pending rotations stay with their pages: a moved page keeps its turn under its new number, a removed page loses it. A document protected by permissions must allow assembling it (inserting, rotating and deleting pages).
+
 ### What happens to the file
 
 - Only the rotation of each turned page changes. The content, the annotations and the form fields of the page turn with it.

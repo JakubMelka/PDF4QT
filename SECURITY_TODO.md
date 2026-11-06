@@ -55,7 +55,7 @@ Each entry: where, the attack, the proposed fix. Remove an entry when it is fixe
 - **Where:** `PDFOutlineItem::parseImpl` (`pdfoutline.cpp`), called when every document is opened (`PDFCatalog::parse`).
 - **Attack:** a deep chain of `/First` items recurses once per level (a stack overflow of the reading thread for tens of thousands of levels); each level copies the whole set of the visited items (`currentVisitedOutlineItems`), so a wide outline with children costs O(N²) time and memory; shared subtrees under several items are parsed again for each of them.
 - **Today:** the outline editing of the new application (step 4, package C) reads the outline itself without recursion, refuses outlines deeper than 256 levels or larger than 100 000 items and outlines with shared items; the parser of Core is unchanged.
-- **Fix:** an iterative parser with one visited set and limits of the depth and of the number of items (the same as `PDFAppAnnotationOperations::MAXIMUM_OUTLINE_DEPTH` / `MAXIMUM_OUTLINE_ITEMS`).
+- **Fix:** an iterative parser with one visited set and limits of the depth and of the number of items (the same as `PDFAppAnnotationOperations::MAXIMUM_OUTLINE_DEPTH` / `MAXIMUM_OUTLINE_ITEMS`), by `PDFObjectWalk` (`pdfobjectutils.h`), as the outline walk of Remove Pages.
 
 ### 9. Annotations pasted or dropped from another process
 
@@ -154,6 +154,13 @@ Each entry: where, the attack, the proposed fix. Remove an entry when it is fixe
 - **Problem:** `visited` holds only the path from the root (a reference is erased after its digest) and no digest is remembered, so an object shared by more paths is digested once per path, its streams hashed again. Read from the code, not run: 64 levels (`MaximumDepth`) of arrays with two references to the next level are about 2^64 visits, a hang of the OCR analysis of a page.
 - **Fix:** a digest remembered per reference for one fingerprint (the same document, the same skip rules), at most one hash of a stream per fingerprint; a cycle stays `R` by the path, so the remembered digest of an object inside of a cycle needs care.
 
+### 24. Reading of a damaged file depends on the order of the threads
+
+- **Where:** `PDFDocumentReader::restoreObjects` of the permissive reading (`Pdf4QtLibCore/sources/pdfdocumentreader.cpp`, the parallel `processOffsetEntry`); seen on `testpdf/Signature/invalid/isa.pdf`, `isa-1.pdf`, `isa-2.pdf`, `siwa-2.pdf` (attacks on signatures by incremental saving), found when two builds of the reader were compared.
+- **Problem:** the first thread to finish an object of a number wins, and a file with more objects of one number gives other objects from run to run in the same build; `isa.pdf` read by 8 processes at once opened with another content or failed in 4 of 18 runs, `isa-1.pdf` / `isa-2.pdf` gave 2 and 3 variants in 30 reads of one process. It is not only a file made to confuse the reader: every incremental update has more objects of one number. A hand-made file of two revisions of 200 strings with a damaged `startxref` read 100 times shows the old revision 99 times and a mix of 171 old and 29 new values once, so the last saved changes are silently not shown. The reader of the applications is permissive, so the user meets it by opening such a file: other annotations and values at each opening, the automatic refresh, the thumbnail and an MCP read may each see another version, a tab with a signature shows the verdict over the bytes of the file next to values of another revision.
+- **Fix:** the object chosen by its offset (the last object of a number in the file wins, the order of the updates), independent of the threads.
+- **Status:** fixed in phase 2 by P2READER (2026-11-04, commit 41b424c8): the object of a number is chosen by its offset, independent of the threads. The item stays for the security check of documents.
+
 ### 25. The prefix `\??\` and a cleaned path pass the other checks of network paths
 
 - **Where:** `PDFAppNetworkPaths::isNetworkPathByName` and `PDFRepositoryHelper::isDevicePath`; used by `pdfappcolorprofiles.cpp:118`, `pdfappsettingcontrol.cpp:1023`, `pdfappsettingssection_storage.cpp:586`, `pdfapphomebasepage.cpp:687` and the links `pdfappdocumentactions.cpp:1019` (a PDF link with a `..` in front of `\??\UNC\`). Read from the code, not run; only `PDFAppToolPathRules::isDeviceOrNetworkPath` of the tools and of MCP knows them (fixed 2026-11-03).
@@ -183,9 +190,28 @@ Each entry: where, the attack, the proposed fix. Remove an entry when it is fixe
 - **Where:** `PDFNameTreeLoader::parseImpl` (`pdfnametreeloader.h`), every name tree of the catalog (`/Names /Dests`, `/AP`, `/JavaScript`, `/Pages`, `/Templates`, `/IDS`, `/URLS`, `/EmbeddedFiles`); found by the test of Remove Pages of package 2A (`removeHostile`), reproduced: the process ends with an access violation (stack overflow) while the document is read.
 - **Attack:** a node of a name tree lists itself (or an ancestor) in `/Kids`: the recursion never ends. A small hostile file ends every application, which opens it, also the thumbnailer of the new application.
 - **Fix:** the set of the visited nodes and a depth limit as in `PDFObjectUtils::readNumberTree` (the walk of `PDFDocumentPageRemoval::readNameTree` of Remove Pages is bounded already).
+- **Status:** fixed in phase 2 by P2WALK (2026-11-06): `PDFNameTreeLoader` and `PDFNumberTreeLoader` walk by `PDFObjectWalk` (one visited set, a depth limit); tests `UnitTestsObjectWalk` (`nameTree`, `pageLabelsTree`). The item stays for the security check of documents.
 
 ### 30. The removal of an annotation follows /Popup to any object
 
 - **Where:** `PDFDocumentBuilder::removeAnnotation` (`pdfdocumentbuilder.cpp`): the delete of annotations of the old Editor and of the annotation operations of the new application, and the old commands of Remove External Links (`PDFDocumentLinkOperations::removeExternalLinkAnnotations`, PdfTool `remove-external-links`, the Editor); found by package 2B of phase 2, read from the code.
 - **Attack:** an annotation of a hostile file has `/Popup` pointing at the catalog or at a page. The removal of the annotation replaces the object of `/Popup` by a null object without looking at it: the document loses its catalog or a page, the next reading or writing fails. The same function reads `/Annots` by `readReferenceArray`, which gives nothing for an array with one direct item: the array is not rewritten, the removed annotation stays listed as a null reference.
 - **Fix:** follow `/Popup` only to a dictionary of `/Subtype /Popup`, never to a page; rewrite `/Annots` item by item (the tools of phase 2 do it: `PDFDocumentLinkOperations::removeLinks`, `PDFDocumentSanitizer::removeAnnotations`).
+
+### 31. The permissions of a revision 2 security handler are read by the table of revision 3
+
+- **Where:** `PDFStandardSecurityHandler::isAllowed` (`pdfsecurityhandler.cpp`): the new tools (catalog bits of ISO 32000-2 Table 22) and the old applications; found by P2DECIDE of phase 2, read from the code.
+- **Attack:** bits 9 to 12 of `/P` exist only from revision 3; with revision 2 the assembly of pages, filling of forms and high-quality print fall under bits 4, 6 and 3. `isAllowed` ignores the revision, and a revision 2 file usually has the higher bits set to 1: a document, which forbids changes by bit 4, still lets Rotate and Remove Pages run (bit 11).
+- **Fix:** with `/R 2` answer bits 9 to 12 by bits 3, 4 and 6 as the table of revision 2 says (the owner decided 2026-11-06: phase 3, it changes the old applications too).
+
+### 32. The page tree is read by a recursion without a depth limit
+
+- **Where:** `PDFPage::parseImpl` (`pdfpage.cpp`), called when every document is read (`PDFCatalog::parse`) and by `PDFDocumentBuilder::flattenPageTree` (Remove Pages, Remove Hidden Data, the old Remove External Links); found by P2WALK of phase 2, read from the code.
+- **Attack:** a chain of tens of thousands of `/Pages` nodes, each the only kid of the previous one, recurses once per level: the stack of the reading thread overflows and the application ends. The visited set is one for the whole tree (no cycle, no repeated subtree), but a page or a node listed by two parents makes the whole document unreadable ("Detected cycles in page tree").
+- **Fix:** the walk by `PDFObjectWalk` (`pdfobjectutils.h`) with a depth limit far above any real tree (a balanced tree of 8 million pages has a depth below 30), a deeper tree reported as damaged; a node listed twice skipped instead of refusing the document.
+
+### 33. The visibility expression of optional content is read by a recursion without a depth limit
+
+- **Where:** the parser of `/VE` of an optional content membership dictionary (`pdfoptionalcontent.cpp`, the recursive `parseNode`), when the page content refers to the dictionary (every renderer); found by P2WALK of phase 2, read from the code.
+- **Attack:** a direct array nested tens of thousands of times (`[/Not [/Not [/Not ...]]]`) or a chain of indirect arrays recurses once per level: the stack overflows. An operand array shared by two operators is refused as a cycle (one set for the whole expression), so a valid expression, which repeats a sub-expression, does not work.
+- **Fix:** a depth limit (ISO 32000-2, 8.11.2.2 sets none; 64 levels suffice) and a node of a shared operand array parsed once and reused (a cycle stays refused) - never a set per path, which repeats a shared part for each path (the reason of `PDFObjectWalk`).

@@ -27,6 +27,7 @@
 #include "pdfobject.h"
 #include "pdfimage.h"
 #include "pdfimagecompressor.h"
+#include "pdfprogress.h"
 
 #include <QImage>
 #include <QPointF>
@@ -44,7 +45,6 @@ namespace pdf
 class PDFDocument;
 class PDFOperationControl;
 class PDFRenderErrorReporter;
-class PDFProgress;
 
 /// Comparator for ordering PDF object references by object number and generation.
 struct PDFObjectReferenceLess
@@ -283,11 +283,11 @@ public:
     PDFDocument optimize(const PDFDocument* document,
                          const Settings& settings,
                          const ImageOverrides& overrides = ImageOverrides(),
-                         PDFProgress* progress = nullptr,
+                         PDFProgressSink* progress = nullptr,
                          PDFRenderErrorReporter* reporter = nullptr,
                          std::vector<ImageResult>* results = nullptr,
                          const PDFOperationControl* operationControl = nullptr,
-                         PDFProgress* analysisProgress = nullptr) const;
+                         PDFProgressSink* analysisProgress = nullptr) const;
 };
 
 }   // namespace pdf

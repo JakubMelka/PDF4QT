@@ -43,8 +43,12 @@ namespace pdf
 /// Result:
 ///   Success - the changed document "<name>_clean.pdf"; facts "removed", "size", "kept"; a step
 ///   per removed kind (438:14342); data "removedKinds", "keptKinds", "scan", the sizes and
-///   signatures of finishWholeFileResult, "conformanceRemoved" with the fact "conformance";
-///   NothingToDo - no chosen kind is in the document.
+///   signatures of finishWholeFileResult, "conformanceRemoved" with the fact "conformance",
+///   "documentInfoXmp" (the properties of the XMP metadata removed with the document info) with
+///   the fact "documentInfoXmp", when there are some;
+///   NothingToDo - no chosen kind is in the document;
+///   Failed - the permissions refuse a chosen kind (getPermissionRefusal), the document info
+///   cannot be removed from XMP metadata, which cannot be read and stay.
 class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolSanitize : public PDFDocumentTool
 {
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocumentToolSanitize)
@@ -87,11 +91,21 @@ public:
     /// Count of kinds as a text ("7 kinds of hidden data", "1 kind")
     static QString formatKindCount(int count, bool isOfHiddenData);
 
+    /// The removed kinds (chosen and found by \p scan), which change annotations or form fields
+    /// of the document: they need the permission ModifyInteractiveItems (ISO 32000-2, Table 22,
+    /// bit 6) in addition to Modify of the catalog, which every kind needs
+    static std::vector<Kind> getInteractiveKinds(const PDFDocumentHiddenDataScan::Result& scan, const std::vector<Kind>& removedKinds);
+
+    /// Why the permissions of the document refuse the removal of the kinds (translated, empty =
+    /// permitted): the run checks it before it changes anything, the panel shows it and disables
+    /// its Primary button, MCP gets it as the message of the failed run
+    static QString getPermissionRefusal(const PDFDocument* document, const PDFDocumentHiddenDataScan::Result& scan, const std::vector<Kind>& removedKinds);
+
     virtual QString getId() const override;
     virtual PDFDocumentToolParameterDefinitions getParameters() const override;
     virtual bool hasPreview() const override { return true; }
-    virtual PDFDocumentToolResult computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const override;
-    virtual PDFDocumentToolResult execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const override;
+    virtual PDFDocumentToolResult computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const override;
+    virtual PDFDocumentToolResult execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const override;
 };
 
 /// The tool Remove External Links (protect.remove-links, Figma 438:14751 …, plan of the first
@@ -122,8 +136,8 @@ public:
     virtual PDFDocumentToolParameterDefinitions getParameters() const override;
     virtual std::vector<PDFDocumentToolParameterError> validate(const PDFDocumentToolContext& context, const QVariantMap& parameters) const override;
     virtual bool hasPreview() const override { return true; }
-    virtual PDFDocumentToolResult computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const override;
-    virtual PDFDocumentToolResult execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const override;
+    virtual PDFDocumentToolResult computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const override;
+    virtual PDFDocumentToolResult execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const override;
 };
 
 }   // namespace pdf

@@ -44,7 +44,7 @@ class PDF4QTLIBCORESHARED_EXPORT PDFDocumentReader
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocumentReader)
 
 public:
-    explicit PDFDocumentReader(PDFProgress* progress, const std::function<QString(bool*)>& getPasswordCallback, bool permissive, bool authorizeOwnerOnly);
+    explicit PDFDocumentReader(PDFProgressSink* progress, const std::function<QString(bool*)>& getPasswordCallback, bool permissive, bool authorizeOwnerOnly);
 
     constexpr inline PDFDocumentReader(const PDFDocumentReader&) = delete;
     constexpr inline PDFDocumentReader(PDFDocumentReader&&) = delete;
@@ -197,7 +197,7 @@ private:
     std::function<QString(bool*)> m_getPasswordCallback;
 
     /// Progress indicator
-    PDFProgress* m_progress;
+    PDFProgressSink* m_progress;
 
     /// Raw document data (byte array containing source data for created document)
     QByteArray m_source;

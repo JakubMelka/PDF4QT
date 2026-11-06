@@ -21,15 +21,20 @@
 // SOFTWARE.
 
 #include "pdfdocumentbuilder.h"
+#include "pdfdocumentreader.h"
 #include "pdfdocumenttool.h"
 #include "pdfdocumenttool_compress.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttoolparameter.h"
 #include "pdfdocumenttoolregistry.h"
 #include "pdfdocumenttoolsuggestions.h"
+#include "pdfexecutionpolicy.h"
+#include "pdfdocumentwriter.h"
+#include "pdfsecurityhandler.h"
 
 #include "testdocumenttool.h"
 
+#include <QBuffer>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QRandomGenerator>
@@ -37,8 +42,11 @@
 #include <QTranslator>
 #include <QtTest>
 
+#include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cmath>
+#include <functional>
 #include <limits>
 #include <map>
 #include <memory>
@@ -197,7 +205,7 @@ public:
                  pdf::PDFDocumentToolParameterDefinition::createBool(pdftest::TestDocumentTool::tr, QStringLiteral("a"), nullptr, nullptr, true) };
     }
 
-    pdf::PDFDocumentToolResult execute(const pdf::PDFDocumentToolContext&, const QVariantMap&, const pdf::PDFOperationControl*, pdf::PDFProgress*) const override
+    pdf::PDFDocumentToolResult execute(const pdf::PDFDocumentToolContext&, const QVariantMap&, const pdf::PDFOperationControl*, pdf::PDFProgressSink*) const override
     {
         return pdf::PDFDocumentToolResult();
     }
@@ -212,7 +220,7 @@ public:
     QString getId() const override { return m_id; }
     pdf::PDFDocumentToolParameterDefinitions getParameters() const override { return {}; }
 
-    pdf::PDFDocumentToolResult execute(const pdf::PDFDocumentToolContext&, const QVariantMap&, const pdf::PDFOperationControl*, pdf::PDFProgress*) const override
+    pdf::PDFDocumentToolResult execute(const pdf::PDFDocumentToolContext&, const QVariantMap&, const pdf::PDFOperationControl*, pdf::PDFProgressSink*) const override
     {
         return pdf::PDFDocumentToolResult();
     }
@@ -230,7 +238,7 @@ public:
     QString getId() const override { return QStringLiteral("convert.blank"); }
     pdf::PDFDocumentToolParameterDefinitions getParameters() const override { return {}; }
 
-    pdf::PDFDocumentToolResult execute(const pdf::PDFDocumentToolContext&, const QVariantMap&, const pdf::PDFOperationControl*, pdf::PDFProgress*) const override
+    pdf::PDFDocumentToolResult execute(const pdf::PDFDocumentToolContext&, const QVariantMap&, const pdf::PDFOperationControl*, pdf::PDFProgressSink*) const override
     {
         pdf::PDFDocumentToolResult result;
         pdf::PDFDocumentToolOutputDocument output;
@@ -262,11 +270,13 @@ private Q_SLOTS:
     void catalogExtendedData();
     void catalogResultColumns();
     void catalogPermissions();
+    void catalogPermissionsOwnerPassword();
     void catalogStartTexts();
     void catalogHelpTopics();
     void contextFromSnapshot();
     void progressPhases();
-    void progressAdapter();
+    void progressCounter();
+    void progressFromThreads();
     void parameterStored();
     void resultOutputFiles();
     void finalPreview();
@@ -409,13 +419,16 @@ void DocumentToolTest::catalogPermissions()
     using Permission = pdf::PDFSecurityHandler::Permission;
     using Permissions = std::vector<Permission>;
 
-    // Chapter 7 of the plan of the first batch; a tool of the catalog outside of it
-    // asks for nothing until it is implemented. Rotate and Remove: ISO 32000-2 Table 22 -
-    // bit 11 allows to rotate and delete pages even if bit 4 is clear, so Modify or Assemble.
+    // ISO 32000-2, 7.6.4.2, Table 22, every bit of the list is needed (owner 2026-11-06); a tool
+    // of the catalog outside of the first batch asks for nothing until it is implemented.
+    // Bit 11 "Assemble the document (insert, rotate, or delete pages ...)": Rotate, Remove; bit 4
+    // "Modify the contents ... other than those controlled by bits 6, 9, and 11": the tools,
+    // which rewrite the document; bit 6 "Add or modify text annotations ...": the links; bit 5
+    // "Copy or otherwise extract text and graphics": Extract Text.
     const std::map<QString, Permissions> expected =
     {
-        { QStringLiteral("pages.rotate"), Permissions({ Permission::Modify, Permission::Assemble }) },
-        { QStringLiteral("pages.remove"), Permissions({ Permission::Modify, Permission::Assemble }) },
+        { QStringLiteral("pages.rotate"), Permissions({ Permission::Assemble }) },
+        { QStringLiteral("pages.remove"), Permissions({ Permission::Assemble }) },
         { QStringLiteral("optimize.compress"), Permissions({ Permission::Modify }) },
         { QStringLiteral("optimize.structure"), Permissions({ Permission::Modify }) },
         { QStringLiteral("protect.sanitize"), Permissions({ Permission::Modify }) },
@@ -429,7 +442,7 @@ void DocumentToolTest::catalogPermissions()
         QVERIFY2(tool.getRequiredPermissions() == (iterator != expected.end() ? iterator->second : Permissions()), qPrintable(tool.getId()));
     }
 
-    // Documents: no handler grants everything, nullptr nothing. One of the permissions is enough.
+    // Documents: no handler grants everything, nullptr nothing
     const pdf::PDFDocumentToolCatalogEntry* rotate = pdf::PDFDocumentToolCatalog::findTool(u"pages.rotate");
     const pdf::PDFDocumentToolCatalogEntry* compress = pdf::PDFDocumentToolCatalog::findTool(u"optimize.compress");
     const pdf::PDFDocumentToolCatalogEntry* statistics = pdf::PDFDocumentToolCatalog::findTool(u"review.statistics");
@@ -461,7 +474,9 @@ void DocumentToolTest::catalogPermissions()
     const pdf::PDFDocument modifyOnly = createDocument(uint32_t(Permission::Modify));
     const pdf::PDFDocument nothing = createDocument(0);
     QVERIFY(rotate->isPermitted(&assembleOnly));
-    QVERIFY(rotate->isPermitted(&modifyOnly));
+
+    // Bit 4 covers the changes other than those of bit 11: it does not allow to turn a page
+    QVERIFY(!rotate->isPermitted(&modifyOnly));
     QVERIFY(!rotate->isPermitted(&nothing));
     QVERIFY(!compress->isPermitted(&assembleOnly));
     QVERIFY(compress->isPermitted(&modifyOnly));
@@ -473,7 +488,7 @@ void DocumentToolTest::catalogPermissions()
     public:
         QString getId() const override { return QStringLiteral("optimize.compress"); }
         pdf::PDFDocumentToolParameterDefinitions getParameters() const override { return { }; }
-        pdf::PDFDocumentToolResult execute(const pdf::PDFDocumentToolContext&, const QVariantMap&, const pdf::PDFOperationControl*, pdf::PDFProgress*) const override
+        pdf::PDFDocumentToolResult execute(const pdf::PDFDocumentToolContext&, const QVariantMap&, const pdf::PDFOperationControl*, pdf::PDFProgressSink*) const override
         {
             ++m_executeCount;
             return pdf::PDFDocumentToolResult();
@@ -491,6 +506,61 @@ void DocumentToolTest::catalogPermissions()
     context = pdf::PDFDocumentToolContext::create(pdf::PDFDocumentToolInputDocument::create(pdf::PDFDocumentPointer(new pdf::PDFDocument(modifyOnly)), QByteArray(), QString(), false));
     QCOMPARE(tool.run(context, QVariantMap(), nullptr, nullptr).status, pdf::PDFDocumentToolResultStatus::Success);
     QCOMPARE(tool.m_executeCount, 1);
+}
+
+void DocumentToolTest::catalogPermissionsOwnerPassword()
+{
+    // ISO 32000-2, 7.6.4.2: the owner password gives the full access; the user password only
+    // what /P permits - here bit 4 (Modify) and bit 5 (CopyContent), no bit 6, no bit 11
+    using Permission = pdf::PDFSecurityHandler::Permission;
+    pdf::PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 100, 100));
+    pdf::PDFSecurityHandlerFactory::SecuritySettings settings;
+    settings.algorithm = pdf::PDFSecurityHandlerFactory::AES_256;
+    settings.userPassword = QStringLiteral("user");
+    settings.ownerPassword = QStringLiteral("owner");
+    settings.permissions = uint32_t(Permission::Modify) | uint32_t(Permission::CopyContent);
+    builder.setSecurityHandler(pdf::PDFSecurityHandlerFactory::createSecurityHandler(settings));
+    pdf::PDFDocument document = builder.build();
+
+    QByteArray data;
+    QBuffer buffer(&data);
+    QVERIFY(buffer.open(QIODevice::WriteOnly));
+    QVERIFY(bool(pdf::PDFDocumentWriter(nullptr).write(&buffer, &document)));
+    buffer.close();
+
+    const auto read = [&data](const QString& password)
+    {
+        int calls = 0;
+        const auto getPassword = [&calls, password](bool* ok)
+        {
+            *ok = calls++ == 0;
+            return password;
+        };
+        pdf::PDFDocumentReader reader(nullptr, getPassword, false, false);
+        pdf::PDFDocument result = reader.readFromBuffer(data);
+        return reader.getReadingResult() == pdf::PDFDocumentReader::Result::OK ? result : pdf::PDFDocument();
+    };
+
+    const pdf::PDFDocument asUser = read(QStringLiteral("user"));
+    const pdf::PDFDocument asOwner = read(QStringLiteral("owner"));
+    QVERIFY(asUser.getStorage().getSecurityHandler() && asOwner.getStorage().getSecurityHandler());
+    QCOMPARE(asUser.getStorage().getSecurityHandler()->getAuthorizationResult(), pdf::PDFSecurityHandler::AuthorizationResult::UserAuthorized);
+    QCOMPARE(asOwner.getStorage().getSecurityHandler()->getAuthorizationResult(), pdf::PDFSecurityHandler::AuthorizationResult::OwnerAuthorized);
+
+    // Table 22: the tools of bit 11 and bit 6 need what the user password does not give
+    for (const char16_t* id : { u"pages.rotate", u"pages.remove", u"protect.remove-links" })
+    {
+        const pdf::PDFDocumentToolCatalogEntry* tool = pdf::PDFDocumentToolCatalog::findTool(id);
+        QVERIFY2(!tool->isPermitted(&asUser), qPrintable(tool->getId()));
+        QVERIFY2(tool->isPermitted(&asOwner), qPrintable(tool->getId()));
+    }
+    for (const char16_t* id : { u"optimize.compress", u"optimize.structure", u"protect.sanitize", u"convert.extract-text" })
+    {
+        const pdf::PDFDocumentToolCatalogEntry* tool = pdf::PDFDocumentToolCatalog::findTool(id);
+        QVERIFY2(tool->isPermitted(&asUser), qPrintable(tool->getId()));
+        QVERIFY2(tool->isPermitted(&asOwner), qPrintable(tool->getId()));
+    }
 }
 
 void DocumentToolTest::catalogStartTexts()
@@ -547,75 +617,82 @@ void DocumentToolTest::contextFromSnapshot()
 
 void DocumentToolTest::progressPhases()
 {
-    pdf::PDFProgress target(nullptr);
-    QSignalSpy started(&target, &pdf::PDFProgress::progressStarted);
-    QSignalSpy steps(&target, &pdf::PDFProgress::progressStep);
-    QSignalSpy texts(&target, &pdf::PDFProgress::progressStepText);
-    QSignalSpy finished(&target, &pdf::PDFProgress::progressFinished);
+    // One bar over the phases of a run (pdfprogress.h): the weights 1, 1, 2, 0 are 25 %,
+    // 25 %, 50 % and 0 % of it; a phase begins at the start of its part, a phase, which
+    // did not run, is passed, the end of the run fills the bar
+    pdf::PDFProgressCounter counter;
+    QCOMPARE(counter.snapshot().percentage, 0);
+    QCOMPARE(counter.snapshot().phase, -1);
 
-    pdf::PDFProgressPhases phases(&target, QStringLiteral("Compressing"));
+    pdf::PDFProgressPhases phases(&counter);
     const int first = phases.addPhase(1, QStringLiteral("First"), false);
     const int skipped = phases.addPhase(1, QStringLiteral("Skipped"), false);
     const int counted = phases.addPhase(2, QStringLiteral("Counted"), true);
     const int last = phases.addPhase(0, QStringLiteral("Last"), false);
+    QCOMPARE(skipped, 1);
 
     QVERIFY(phases.getPhase(-1) == nullptr);
     QVERIFY(phases.getPhase(4) == nullptr);
 
-    // The first part: 25 %
-    pdf::PDFProgress* firstProgress = phases.getPhase(first);
+    // The first part: 2 steps of 25 %
+    pdf::PDFProgressSink* firstProgress = phases.getPhase(first);
     QVERIFY(firstProgress);
-    QCOMPARE(started.count(), 1);
-    QCOMPARE(started.first().first().value<pdf::ProgressStartupInfo>().text, QStringLiteral("Compressing"));
-
+    QCOMPARE(counter.snapshot().phase, -1);
     firstProgress->start(2, pdf::ProgressStartupInfo());
-    QCOMPARE(texts.last().first().toString(), QStringLiteral("First"));
+    pdf::PDFProgressCounter::Snapshot snapshot = counter.snapshot();
+    QCOMPARE(snapshot.phase, first);
+    QCOMPARE(snapshot.text, QStringLiteral("First"));
+    QVERIFY(!snapshot.showCount);
+    QCOMPARE(snapshot.count, size_t(2));
+    QCOMPARE(snapshot.done, size_t(0));
+    QCOMPARE(snapshot.percentage, 0);
     firstProgress->step();
-    QCOMPARE(steps.last().first().toInt(), 12);
+    QCOMPARE(counter.snapshot().percentage, 12);
+    QCOMPARE(counter.snapshot().done, size_t(1));
     firstProgress->step();
-    QCOMPARE(steps.last().first().toInt(), 25);
+    QCOMPARE(counter.snapshot().percentage, 25);
     firstProgress->finish();
-    QCOMPARE(finished.count(), 0);
+    QCOMPARE(counter.snapshot().percentage, 25);
 
-    // The phase, which did not run, is passed: the third phase starts at 50 %
-    Q_UNUSED(skipped);
-    pdf::PDFProgress* countedProgress = phases.getPhase(counted);
+    // The phase, which did not run, is passed: the third phase starts at 50 %, with its count
+    pdf::PDFProgressSink* countedProgress = phases.getPhase(counted);
     countedProgress->start(4, pdf::ProgressStartupInfo());
-    QCOMPARE(steps.last().first().toInt(), 50);
-    const QLocale locale;
-    QCOMPARE(texts.last().first().toString(), QStringLiteral("Counted · %1 of %2").arg(locale.toString(0), locale.toString(4)));
+    snapshot = counter.snapshot();
+    QCOMPARE(snapshot.phase, counted);
+    QCOMPARE(snapshot.text, QStringLiteral("Counted"));
+    QVERIFY(snapshot.showCount);
+    QCOMPARE(snapshot.done, size_t(0));
+    QCOMPARE(snapshot.count, size_t(4));
+    QCOMPARE(snapshot.percentage, 50);
     countedProgress->step();
-    QCOMPARE(steps.last().first().toInt(), 62);
-    QCOMPARE(texts.last().first().toString(), QStringLiteral("Counted · %1 of %2").arg(locale.toString(1), locale.toString(4)));
+    QCOMPARE(counter.snapshot().percentage, 62);
+    QCOMPARE(counter.snapshot().done, size_t(1));
 
-    // A phase without its own steps
+    // A phase without its own steps (no count), and without a weight: the bar is at its end
     phases.beginPhase(last);
-    QCOMPARE(texts.last().first().toString(), QStringLiteral("Last"));
-    QCOMPARE(steps.last().first().toInt(), 100);
+    snapshot = counter.snapshot();
+    QCOMPARE(snapshot.phase, last);
+    QCOMPARE(snapshot.text, QStringLiteral("Last"));
+    QCOMPARE(snapshot.count, size_t(0));
+    QCOMPARE(snapshot.percentage, 100);
 
-    // The bar never goes back; the end is reported once
-    int previous = 0;
-    for (const QList<QVariant>& step : steps)
-    {
-        QVERIFY(step.first().toInt() >= previous);
-        previous = step.first().toInt();
-    }
+    // The bar never goes back: a late step of an earlier part does not move it
+    countedProgress->step();
+    QCOMPARE(counter.snapshot().percentage, 100);
     phases.finish();
-    phases.finish();
-    QCOMPARE(finished.count(), 1);
-    QCOMPARE(steps.last().first().toInt(), 100);
+    QCOMPARE(counter.snapshot().percentage, 100);
 
     // Filled at the finish
-    pdf::PDFProgress shortTarget(nullptr);
-    QSignalSpy shortSteps(&shortTarget, &pdf::PDFProgress::progressStep);
-    pdf::PDFProgressPhases shortPhases(&shortTarget, QString());
+    pdf::PDFProgressCounter shortCounter;
+    pdf::PDFProgressPhases shortPhases(&shortCounter);
     shortPhases.addPhase(1, QStringLiteral("Only"), false);
     shortPhases.start();
+    QCOMPARE(shortCounter.snapshot().percentage, 0);
     shortPhases.finish();
-    QCOMPARE(shortSteps.last().first().toInt(), 100);
+    QCOMPARE(shortCounter.snapshot().percentage, 100);
 
     // No target: nothing to report, a run works with the null progress
-    pdf::PDFProgressPhases noTarget(nullptr, QString());
+    pdf::PDFProgressPhases noTarget(nullptr);
     const int noTargetPhase = noTarget.addPhase(1, QStringLiteral("Phase"), true);
     noTarget.start();
     QVERIFY(noTarget.getPhase(noTargetPhase) == nullptr);
@@ -623,54 +700,161 @@ void DocumentToolTest::progressPhases()
     noTarget.finish();
 
     // Phases without a weight do not divide by zero
-    pdf::PDFProgress zeroTarget(nullptr);
-    QSignalSpy zeroSteps(&zeroTarget, &pdf::PDFProgress::progressStep);
-    pdf::PDFProgressPhases zeroPhases(&zeroTarget, QString());
+    pdf::PDFProgressCounter zeroCounter;
+    pdf::PDFProgressPhases zeroPhases(&zeroCounter);
     const int zeroPhase = zeroPhases.addPhase(0, QStringLiteral("Zero"), false);
-    zeroPhases.beginPhase(zeroPhase);
-    QCOMPARE(zeroSteps.count(), 0);
+    zeroPhases.getPhase(zeroPhase)->start(2, pdf::ProgressStartupInfo());
+    zeroPhases.getPhase(zeroPhase)->step();
+    QCOMPARE(zeroCounter.snapshot().percentage, 0);
+    QCOMPARE(zeroCounter.snapshot().text, QStringLiteral("Zero"));
     zeroPhases.finish();
-    QCOMPARE(zeroSteps.last().first().toInt(), 100);
+    QCOMPARE(zeroCounter.snapshot().percentage, 100);
 }
 
-void DocumentToolTest::progressAdapter()
+void DocumentToolTest::progressCounter()
 {
-    class Listener : public pdf::PDFDocumentToolProgressListener
+    // Without phases the whole bar is one part (the reader of the document loader); a
+    // part started again does not move the bar back, its count is new
+    pdf::PDFProgressCounter counter;
+    counter.step();
+    QCOMPARE(counter.snapshot().percentage, 0);
+    counter.start(4, pdf::ProgressStartupInfo());
+    counter.step();
+    pdf::PDFProgressCounter::Snapshot snapshot = counter.snapshot();
+    QCOMPARE(snapshot.phase, -1);
+    QVERIFY(snapshot.text.isEmpty());
+    QCOMPARE(snapshot.done, size_t(1));
+    QCOMPARE(snapshot.count, size_t(4));
+    QCOMPARE(snapshot.percentage, 25);
+    counter.step();
+    counter.step();
+    counter.step();
+    QCOMPARE(counter.snapshot().percentage, 100);
+
+    counter.start(10, pdf::ProgressStartupInfo());
+    counter.step();
+    snapshot = counter.snapshot();
+    QCOMPARE(snapshot.done, size_t(1));
+    QCOMPARE(snapshot.count, size_t(10));
+    QCOMPARE(snapshot.percentage, 100);
+
+    // More steps than the count: the done steps of a snapshot stay within the count
+    pdf::PDFProgressCounter over;
+    over.start(1, pdf::ProgressStartupInfo());
+    over.step();
+    over.step();
+    QCOMPARE(over.snapshot().done, size_t(1));
+    QCOMPARE(over.snapshot().percentage, 100);
+
+    // finish fills the part without steps
+    pdf::PDFProgressCounter finished;
+    finished.start(3, pdf::ProgressStartupInfo());
+    finished.finish();
+    QCOMPARE(finished.snapshot().percentage, 100);
+
+    // The table of the phases is checked: a phase out of the table begins nothing
+    pdf::PDFProgressCounter table;
+    table.setPhases({ { 1, QStringLiteral("A"), false }, { 3, QStringLiteral("B"), true } });
+    table.beginPhase(2);
+    table.beginPhase(-1);
+    QCOMPARE(table.snapshot().phase, -1);
+    QCOMPARE(table.snapshot().percentage, 0);
+    table.beginPhase(1);
+    QCOMPARE(table.snapshot().phase, 1);
+    QCOMPARE(table.snapshot().text, QStringLiteral("B"));
+    QCOMPARE(table.snapshot().percentage, 25);
+    table.finish();
+    QCOMPARE(table.snapshot().percentage, 100);
+
+    // The old progress of the old applications is a progress of the run too (it ignores
+    // the phases): its signals still tell the start, the percentage and the end
+    pdf::PDFProgress progress(nullptr);
+    QSignalSpy started(&progress, &pdf::PDFProgress::progressStarted);
+    QSignalSpy steps(&progress, &pdf::PDFProgress::progressStep);
+    QSignalSpy ended(&progress, &pdf::PDFProgress::progressFinished);
+    pdf::PDFProgressPhases oldPhases(&progress);
+    const int oldPhase = oldPhases.addPhase(1, QStringLiteral("Old"), true);
+    pdf::PDFProgressSink* oldSink = oldPhases.getPhase(oldPhase);
+    oldSink->start(2, pdf::ProgressStartupInfo());
+    oldSink->step();
+    oldSink->step();
+    oldSink->finish();
+    oldPhases.finish();
+    QCOMPARE(started.count(), 1);
+    QCOMPARE(steps.count(), 2);
+    QCOMPARE(steps.last().first().toInt(), 100);
+    QCOMPARE(ended.count(), 1);
+}
+
+void DocumentToolTest::progressFromThreads()
+{
+    // The counter stepped by the threads of a parallel loop (the images of Compress, the pages
+    // of Extract Text) while the GUI polls it in its own thread: the steps of a phase are
+    // counted exactly, the percentage seen by the reader never goes back, the phases switched
+    // by the thread of the run come in their order, and the run ends at 100 %. A step of a
+    // plain counter (not atomic) loses steps and is a data race of TSan.
+    constexpr size_t FIRST_STEPS = 20000;
+    constexpr size_t SECOND_STEPS = 30000;
+
+    pdf::PDFProgressCounter counter;
+    pdf::PDFProgressPhases phases(&counter);
+    const int firstPhase = phases.addPhase(1, QStringLiteral("First"), true);
+    const int secondPhase = phases.addPhase(2, QStringLiteral("Second"), true);
+    const int lastPhase = phases.addPhase(1, QStringLiteral("Last"), false);
+    phases.start();
+
+    // The reader: snapshots as fast as it can until the run ends
+    std::atomic<bool> isRunning = true;
+    std::atomic<int> snapshotCount = 0;
+    std::atomic<int> backSteps = 0;
+    std::atomic<int> backPhases = 0;
+    std::thread reader([&]()
     {
-    public:
-        QList<std::pair<int, QString>> calls;
-
-        void onToolProgress(int percentage, const QString& stepText) override
+        int lastPercentage = 0;
+        int lastPhaseIndex = -1;
+        while (isRunning.load())
         {
-            calls.append({ percentage, stepText });
+            const pdf::PDFProgressCounter::Snapshot snapshot = counter.snapshot();
+            backSteps += snapshot.percentage < lastPercentage ? 1 : 0;
+            backPhases += snapshot.phase < lastPhaseIndex ? 1 : 0;
+            lastPercentage = snapshot.percentage;
+            lastPhaseIndex = snapshot.phase;
+            ++snapshotCount;
         }
-    };
+    });
 
-    Listener listener;
-    pdf::PDFDocumentToolProgressAdapter adapter(&listener);
-    adapter.start(2, pdf::ProgressStartupInfo());
-    QVERIFY(listener.calls.isEmpty());
+    std::vector<int> items(FIRST_STEPS);
+    pdf::PDFProgressSink* first = phases.getPhase(firstPhase);
+    first->start(FIRST_STEPS, pdf::ProgressStartupInfo());
+    pdf::PDFExecutionPolicy::execute(pdf::PDFExecutionPolicy::Scope::Unknown, items.begin(), items.end(), [first](int&) { first->step(); });
+    first->finish();
+    const pdf::PDFProgressCounter::Snapshot afterFirst = counter.snapshot();
 
-    // A step without a text, a text with the percentage so far, the same text is no news
-    adapter.step();
-    QCOMPARE(listener.calls.size(), 1);
-    QCOMPARE(listener.calls.last().first, 50);
-    QVERIFY(listener.calls.last().second.isEmpty());
+    items.resize(SECOND_STEPS);
+    pdf::PDFProgressSink* second = phases.getPhase(secondPhase);
+    second->start(SECOND_STEPS, pdf::ProgressStartupInfo());
+    pdf::PDFExecutionPolicy::execute(pdf::PDFExecutionPolicy::Scope::Unknown, items.begin(), items.end(), [second](int&) { second->step(); });
+    const pdf::PDFProgressCounter::Snapshot afterSecond = counter.snapshot();
+    phases.beginPhase(lastPhase);
+    phases.finish();
 
-    adapter.setStepText(QStringLiteral("Step"));
-    QCOMPARE(listener.calls.size(), 2);
-    QCOMPARE(listener.calls.last().first, 50);
-    QCOMPARE(listener.calls.last().second, QStringLiteral("Step"));
+    isRunning = false;
+    reader.join();
 
-    adapter.setStepText(QStringLiteral("Step"));
-    QCOMPARE(listener.calls.size(), 2);
+    // Exactly the steps of each phase; the first one ends at 25 %, the second one at 75 %
+    QCOMPARE(afterFirst.phase, firstPhase);
+    QCOMPARE(afterFirst.done, FIRST_STEPS);
+    QCOMPARE(afterFirst.count, FIRST_STEPS);
+    QCOMPARE(afterFirst.percentage, 25);
+    QCOMPARE(afterSecond.phase, secondPhase);
+    QCOMPARE(afterSecond.done, SECOND_STEPS);
+    QCOMPARE(afterSecond.percentage, 75);
+    QCOMPARE(counter.snapshot().percentage, 100);
+    QCOMPARE(counter.snapshot().phase, lastPhase);
 
-    adapter.step();
-    QCOMPARE(listener.calls.last().first, 100);
-    QCOMPARE(listener.calls.last().second, QStringLiteral("Step"));
-
-    QCOMPARE(adapter.getStepCount(), size_t(2));
-    QCOMPARE(adapter.getCurrentStep(), size_t(2));
+    QVERIFY(snapshotCount.load() > 0);
+    QCOMPARE(backSteps.load(), 0);
+    QCOMPARE(backPhases.load(), 0);
 }
 
 void DocumentToolTest::parameterStored()
@@ -722,12 +906,12 @@ void DocumentToolTest::finalPreview()
         bool hasPreview() const override { return true; }
         bool isPreviewFinal() const override { return m_isFinal; }
 
-        pdf::PDFDocumentToolResult execute(const pdf::PDFDocumentToolContext&, const QVariantMap&, const pdf::PDFOperationControl*, pdf::PDFProgress*) const override
+        pdf::PDFDocumentToolResult execute(const pdf::PDFDocumentToolContext&, const QVariantMap&, const pdf::PDFOperationControl*, pdf::PDFProgressSink*) const override
         {
             return createResult();
         }
 
-        pdf::PDFDocumentToolResult computePreview(const pdf::PDFDocumentToolContext&, const QVariantMap&, const pdf::PDFOperationControl*, pdf::PDFProgress* progress) const override
+        pdf::PDFDocumentToolResult computePreview(const pdf::PDFDocumentToolContext&, const QVariantMap&, const pdf::PDFOperationControl*, pdf::PDFProgressSink* progress) const override
         {
             if (progress)
             {
@@ -1667,7 +1851,7 @@ void DocumentToolTest::definitionOldFormRefused()
         {
             return { Definition::createBool(nullptr, QStringLiteral("a"), "A", nullptr, false) };
         }
-        pdf::PDFDocumentToolResult execute(const pdf::PDFDocumentToolContext&, const QVariantMap&, const pdf::PDFOperationControl*, pdf::PDFProgress*) const override
+        pdf::PDFDocumentToolResult execute(const pdf::PDFDocumentToolContext&, const QVariantMap&, const pdf::PDFOperationControl*, pdf::PDFProgressSink*) const override
         {
             return pdf::PDFDocumentToolResult::createNothingToDo(QString());
         }

@@ -111,7 +111,7 @@ public:
     /// \param parameters Normalized parameters
     /// \param control Cancellation (optional)
     /// \param progress Progress, a step per page (optional)
-    static PDFDocumentTextFlow createFlow(const PDFDocument* document, const std::vector<PDFInteger>& pageIndices, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress);
+    static PDFDocumentTextFlow createFlow(const PDFDocument* document, const std::vector<PDFInteger>& pageIndices, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress);
 
     /// Writes and encodes the text of a flow by the parameters
     /// \param flow Text flow
@@ -123,8 +123,8 @@ public:
     virtual PDFDocumentToolParameterDefinitions getParameters() const override;
     virtual std::vector<PDFDocumentToolParameterError> validate(const PDFDocumentToolContext& context, const QVariantMap& parameters) const override;
     virtual bool hasPreview() const override { return true; }
-    virtual PDFDocumentToolResult computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const override;
-    virtual PDFDocumentToolResult execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const override;
+    virtual PDFDocumentToolResult computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const override;
+    virtual PDFDocumentToolResult execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const override;
 
 protected:
     /// Definitions of the parameters of the tool (the preview of a page adds its own)
@@ -151,7 +151,7 @@ public:
     static constexpr int PREVIEW_TEXT_LIMIT = 20000;
 
     virtual PDFDocumentToolParameterDefinitions getParameters() const override;
-    virtual PDFDocumentToolResult computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgress* progress) const override;
+    virtual PDFDocumentToolResult computePreview(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const override;
 };
 
 }   // namespace pdf

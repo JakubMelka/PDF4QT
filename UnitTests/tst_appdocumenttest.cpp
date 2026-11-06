@@ -487,11 +487,15 @@ void AppDocumentTest::openAsynchronous()
     QVERIFY(!result.errorMessage.isEmpty());
 
     request.filePath = file;
-    request.progress = std::make_shared<std::atomic<int>>(-1);
+    request.progress = std::make_shared<pdf::PDFProgressCounter>();
     result = pdf::PDFAppDocumentReading::read(request);
     QCOMPARE(result.status, pdf::PDFAppDocumentReading::Status::Loaded);
     QVERIFY(result.document);
-    QCOMPARE(request.progress->load(), 100);
+    // The reader has stepped the counter of the GUI (a step per object), the end is full
+    const pdf::PDFProgressCounter::Snapshot progress = request.progress->snapshot();
+    QVERIFY(progress.count > 0);
+    QCOMPARE(progress.done, progress.count);
+    QCOMPARE(progress.percentage, 100);
     QVERIFY(!result.isEncrypted);
 }
 

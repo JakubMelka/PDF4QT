@@ -39,7 +39,7 @@ class PDF4QTLIBCORESHARED_EXPORT PDFDocumentWriter
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocumentWriter)
 
 public:
-    explicit inline PDFDocumentWriter(PDFProgress* progress)
+    explicit inline PDFDocumentWriter(PDFProgressSink* progress)
     {
         Q_UNUSED(progress);
     }

@@ -54,7 +54,7 @@ public:
                                 const PDFCMS* cms,
                                 const PDFOptionalContentActivity* optionalContentActivity,
                                 const PDFOperationControl* operationControl,
-                                PDFProgress* progress,
+                                PDFProgressSink* progress,
                                 std::atomic<PDFInteger>* processedPageCount) :
         m_index(index),
         m_document(document),
@@ -103,7 +103,7 @@ private:
     const PDFCMS* m_cms;
     const PDFOptionalContentActivity* m_optionalContentActivity;
     const PDFOperationControl* m_operationControl;
-    PDFProgress* m_progress;
+    PDFProgressSink* m_progress;
     std::atomic<PDFInteger>* m_processedPageCount;
 };
 
@@ -240,7 +240,7 @@ private:
 std::shared_ptr<const PDFDocumentTextIndex> PDFDocumentTextIndex::build(const PDFDocument* document,
                                                                         const PDFOptionalContentActivity* optionalContentActivity,
                                                                         const PDFOperationControl* operationControl,
-                                                                        PDFProgress* progress,
+                                                                        PDFProgressSink* progress,
                                                                         std::atomic<PDFInteger>* processedPageCount)
 {
     if (!document)

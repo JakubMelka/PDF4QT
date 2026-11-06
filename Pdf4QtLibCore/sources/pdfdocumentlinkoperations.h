@@ -99,7 +99,9 @@ public:
     /// Lists the external links of the document
     /// \param document The document
     /// \param control Cancellation (optional): a canceled listing is incomplete
-    static LinkList listExternalLinks(const PDFDocument* document, const PDFOperationControl* control = nullptr);
+    /// \param maximumLinks Most links listed, the rest is only counted (isTruncated); the removal
+    ///        lists all of them, so that no link of a large document stays
+    static LinkList listExternalLinks(const PDFDocument* document, const PDFOperationControl* control = nullptr, size_t maximumLinks = MAXIMUM_LINKS);
 
     /// Kind of an address by its scheme (case insensitive)
     static LinkKind getLinkKind(const QByteArray& address);

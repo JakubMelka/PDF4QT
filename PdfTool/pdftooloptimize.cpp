@@ -24,8 +24,43 @@
 #include "pdfdocumenttool_compress.h"
 #include "pdfdocumentwriter.h"
 
+#include <QMutex>
+#include <QMutexLocker>
+
 namespace pdftool
 {
+
+/// The texts of the structure optimizer: kept by the computation, printed by the command
+/// after it (the progress never runs foreign code, PDFProgressSink)
+class PDFToolOptimizeMessages : public pdf::PDFProgressSink
+{
+public:
+    virtual void start(size_t stepCount, pdf::ProgressStartupInfo startupInfo) override
+    {
+        Q_UNUSED(stepCount);
+        Q_UNUSED(startupInfo);
+    }
+
+    virtual void step() override { }
+    virtual void finish() override { }
+
+    virtual void addMessage(const QString& message) override
+    {
+        QMutexLocker locker(&m_mutex);
+        m_messages << message;
+    }
+
+    /// The texts in their order (after the computation)
+    QStringList takeMessages()
+    {
+        QMutexLocker locker(&m_mutex);
+        return std::move(m_messages);
+    }
+
+private:
+    QMutex m_mutex;
+    QStringList m_messages;
+};
 
 static PDFToolOptimize s_optimizeApplication;
 
@@ -71,11 +106,16 @@ int PDFToolOptimize::execute(const PDFToolOptions& options)
     settings.images = options.imageOptimizationSettings;
     settings.structure = options.optimizeFlags;
 
+    PDFToolOptimizeMessages messages;
     pdf::PDFDocumentToolCompress::Progress progress;
-    progress.structureMessage = [&options](const QString& text) { PDFConsole::writeError(text, options.outputCodec); };
+    progress.structure = &messages;
 
     pdf::PDFDocumentToolCompress::Statistics statistics;
     document = pdf::PDFDocumentToolCompress::compress(&document, settings, nullptr, progress, &statistics);
+    for (const QString& message : messages.takeMessages())
+    {
+        PDFConsole::writeError(message, options.outputCodec);
+    }
 
     if (!statistics.conformance.removed.isEmpty())
     {

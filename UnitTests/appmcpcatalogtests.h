@@ -1294,27 +1294,35 @@ public:
         QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 0);
         QVERIFY(document->getDocument()->getInfo()->title != QStringLiteral("Late"));
 
-        // The progress grows strictly and ends by the result
+        // The progress grows strictly and ends by the result: a run of at least a quarter of a second, whose
+        // counter the GUI thread reads every PDFDocumentToolRunner::PROGRESS_INTERVAL
         QJsonObject counting = arguments(id, QStringLiteral("count"));
         QJsonObject parameters = counting.value(actionName(id)).toObject();
-        parameters.insert(QStringLiteral("repeat"), 50);
+        parameters.insert(QStringLiteral("repeat"), 10);
         counting.insert(actionName(id), parameters);
+        replacement.tool->setStepDelay(5000);
         call = fixture.startCall(toolName(id), counting, true);
         result = pdftest::AppMcpFixture::waitResult(call);
+        replacement.tool->setStepDelay(0);
         QVERIFY(result);
         QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
         double last = -1.0;
         int progressEvents = 0;
+        bool isAfterResult = false;
         for (const pdf::PDFMcpCallEvent& event : call->takeEvents())
         {
             if (event.type == pdf::PDFMcpCallEvent::Type::Progress)
             {
+                QVERIFY(!isAfterResult);
                 QVERIFY(event.progress > last);
+                QCOMPARE(event.total, 100.0);
                 last = event.progress;
                 ++progressEvents;
             }
+            isAfterResult = isAfterResult || event.type == pdf::PDFMcpCallEvent::Type::Finished;
         }
         QVERIFY(progressEvents > 1);
+        QCOMPARE(last, 100.0);
     }
 
     /// A new version of the document: the tool runs again, at most 3 times (plan 2.5)

@@ -17,6 +17,8 @@ Remove Pages marks pages and removes them from the document. Together with the p
 
 A document must keep at least one page: when every page is marked, the tool says so and removes nothing.
 
+When an AI assistant removes or moves pages while the tool is open, the marks stay on their pages: a moved page keeps its mark under its new number, a removed page loses its mark. A document protected by permissions must allow assembling it (inserting, rotating and deleting pages).
+
 ### What else is removed
 
 | Part of the document | What happens |

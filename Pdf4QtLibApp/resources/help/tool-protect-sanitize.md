@@ -14,7 +14,7 @@ The tool looks at the document first. A kind, which is not in the document, has 
 
 | Kind | What goes |
 | --- | --- |
-| Document info | Author, title, subject, keywords, producer and dates |
+| Document info | Author, title, subject, keywords, producer and dates – also their copies in the XMP metadata of the document; its other metadata stay |
 | All metadata | The XMP metadata streams of the document and of its pages, images and fonts |
 | Comments and markup | Comments, highlights and the other markup annotations with their replies and pop-up windows |
 | File attachments | The files embedded in the document and in its annotations |
@@ -49,6 +49,7 @@ A preset only ticks the list, nothing runs. You can change any row afterwards; t
 - The file is written whole: old revisions of the file, which an incremental save would keep, are not carried over, so what was removed is really gone from the file.
 - A signed document can be saved only as a copy. Its signatures are no longer valid in the copy; tick Signature fields to remove them altogether.
 - A declaration of PDF/A or PDF/UA is removed: the result is not checked against the standard.
+- A document protected by permissions must allow changes. Comments, the attachments of comments and the signature fields also need the permission to change annotations and form fields; without it Remove Hidden Data stays disabled while they are ticked, and the status bar says which kinds to untick.
 - Visible content of the pages is not removed. Use Redact Content for it.
 
 > [!WARNING] The invisible text of scanned pages

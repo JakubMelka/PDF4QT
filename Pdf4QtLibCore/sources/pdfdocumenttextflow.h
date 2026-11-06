@@ -26,12 +26,12 @@
 #include "pdfglobal.h"
 #include "pdfexception.h"
 #include "pdfutils.h"
+#include "pdfprogress.h"
 
 namespace pdf
 {
 class PDFDocument;
 class PDFOperationControl;
-class PDFProgress;
 
 /// Text flow extracted from document. Text flow can be created \p PDFDocumentTextFlowFactory.
 /// Flow can contain various items, not just text ones. Also, some manipulation functions
@@ -155,13 +155,14 @@ public:
     void setOperationControl(const PDFOperationControl* operationControl) { m_operationControl = operationControl; }
 
     /// Sets the progress of create, a step per page (optional, it must outlive create)
-    void setProgress(PDFProgress* progress) { m_progress = progress; }
+    void setProgress(PDFProgressSink* progress) { m_progress = progress; }
 
     /// The structure algorithm gives what the structure items say as an export needs it: the
     /// titles of the items (the old callers get an empty item, their output stays as it
     /// was), and the title, language, description, expanded form, actual text and phoneme of
     /// an item only, when the item belongs to one of the processed pages (/Pg of the item or of its
-    /// parents, ISO 32000-2 14.7.2) - an item without a page only with its text. The algorithm
+    /// parents, ISO 32000-2 14.7.2, else /Pg of its marked content and object references) - an
+    /// item without any page belongs to an export of all pages, else only its text. The algorithm
     /// Content gives all text of the content streams, also the text outside of a marked
     /// content of the structure (the old callers get the marked text only, an untagged page
     /// gives them nothing).
@@ -194,7 +195,7 @@ private:
     bool m_isStructureTitleText = false;
     bool m_isUnmarkedText = false;
     const PDFOperationControl* m_operationControl = nullptr;
-    PDFProgress* m_progress = nullptr;
+    PDFProgressSink* m_progress = nullptr;
 };
 
 /// Editor which can edit document text flow, modify user text,

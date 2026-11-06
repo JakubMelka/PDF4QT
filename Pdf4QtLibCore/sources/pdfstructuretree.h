@@ -325,9 +325,10 @@ public:
     /// null pointer is returned.
     /// \param storage Storage
     /// \param object Structure tree item object
-    /// \param context Parsing context
+    /// \param walk Walk of the whole tree (each object is read once, see PDFObjectWalk)
+    /// \param depth Depth of the item (the kids of the root have 1)
     /// \param parent Parent item
-    static PDFStructureItemPointer parse(const PDFObjectStorage* storage, PDFObject object, PDFMarkedObjectsContext* context, PDFStructureItem* parent);
+    static PDFStructureItemPointer parse(const PDFObjectStorage* storage, PDFObject object, PDFObjectWalk* walk, int depth, PDFStructureItem* parent);
 
     /// Get structure tree type from name
     /// \param name Name
@@ -339,11 +340,13 @@ protected:
     /// \param storage Storage
     /// \param parentItem Parent item, where children are inserted
     /// \param dictionary Dictionary
-    /// \param context Context
+    /// \param walk Walk of the whole tree
+    /// \param depth Depth of the kids
     static void parseKids(const PDFObjectStorage* storage,
                           PDFStructureItem* parentItem,
                           const PDFDictionary* dictionary,
-                          PDFMarkedObjectsContext* context);
+                          PDFObjectWalk* walk,
+                          int depth);
 
     PDFStructureItem* m_parent;
     PDFStructureTree* m_root;
@@ -510,12 +513,14 @@ public:
     /// Parses structure element from the object. If error occurs, nullptr is returned.
     /// \param storage Storage
     /// \param object Structure element object
-    /// \param context Visited elements context
+    /// \param walk Walk of the whole tree (each object is read once, see PDFObjectWalk)
+    /// \param depth Depth of the item
     /// \param parent Parent structure tree item
     /// \param root Structure tree root
     static PDFStructureItemPointer parseElement(const PDFObjectStorage* storage,
                                                 PDFObject object,
-                                                PDFMarkedObjectsContext* context,
+                                                PDFObjectWalk* walk,
+                                                int depth,
                                                 PDFStructureItem* parent,
                                                 PDFStructureTree* root);
 
@@ -567,12 +572,14 @@ public:
     /// Parses structure marked content reference from the object. If error occurs, nullptr is returned.
     /// \param storage Storage
     /// \param object Structure marked content reference
-    /// \param context Visited items context
+    /// \param walk Walk of the whole tree (each object is read once, see PDFObjectWalk)
+    /// \param depth Depth of the item
     /// \param parent Parent structure tree item
     /// \param root Structure tree root
     static PDFStructureItemPointer parseMarkedContentReference(const PDFObjectStorage* storage,
                                                                PDFObject object,
-                                                               PDFMarkedObjectsContext* context,
+                                                               PDFObjectWalk* walk,
+                                                               int depth,
                                                                PDFStructureItem* parent,
                                                                PDFStructureTree* root);
 
@@ -603,12 +610,14 @@ public:
     /// Parses structure object reference from the object. If error occurs, nullptr is returned.
     /// \param storage Storage
     /// \param object Structure marked content reference
-    /// \param context Visited items context
+    /// \param walk Walk of the whole tree (each object is read once, see PDFObjectWalk)
+    /// \param depth Depth of the item
     /// \param parent Parent structure tree item
     /// \param root Structure tree root
     static PDFStructureItemPointer parseObjectReference(const PDFObjectStorage* storage,
                                                         PDFObject object,
-                                                        PDFMarkedObjectsContext* context,
+                                                        PDFObjectWalk* walk,
+                                                        int depth,
                                                         PDFStructureItem* parent,
                                                         PDFStructureTree* root);
 

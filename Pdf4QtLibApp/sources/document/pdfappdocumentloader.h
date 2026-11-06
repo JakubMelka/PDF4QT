@@ -27,6 +27,7 @@
 #include "pdfappdocument.h"
 
 #include "pdfdocument.h"
+#include "pdfprogress.h"
 
 #include <QByteArray>
 #include <QCoreApplication>
@@ -72,8 +73,9 @@ public:
         bool hasPassword = false;   ///< \p password is tried (an empty password, too)
         QString password;           ///< Password of the user (never logged, never stored)
 
-        /// Progress of the reading 0 - 100 (written by the worker, -1 = not started)
-        std::shared_ptr<std::atomic<int>> progress;
+        /// Progress of the reading (stepped by the reader in the worker, read by the GUI;
+        /// full at the end of the reading)
+        std::shared_ptr<PDFProgressCounter> progress;
     };
 
     /// Result of the reading
@@ -169,7 +171,7 @@ private:
     QString m_password;
     bool m_hasPassword = false;
     bool m_isReload = false;
-    std::shared_ptr<std::atomic<int>> m_progress;
+    std::shared_ptr<PDFProgressCounter> m_progress;
     QPointer<QFutureWatcher<PDFAppDocumentReading::Result>> m_watcher;
     QPointer<QTimer> m_progressTimer;
 };

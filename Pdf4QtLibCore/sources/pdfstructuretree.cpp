@@ -555,8 +555,12 @@ PDFStructureTree PDFStructureTree::parse(const PDFObjectStorage* storage, PDFObj
     {
         PDFDocumentDataLoaderDecorator loader(storage);
 
-        PDFMarkedObjectsContext context;
-        parseKids(storage, &tree, dictionary, &context);
+        // One walk of the whole tree: an element is read once, also when more parents list it
+        // or when it is its own kid (ISO 32000-2, 14.7.2: each element has one parent); the root
+        // is a part of the walk, a kid, which is the root, is no element
+        PDFObjectWalk walk;
+        walk.enter(object, 0);
+        parseKids(storage, &tree, dictionary, &walk, 1);
 
         if (dictionary->hasKey("IDTree"))
         {
@@ -660,7 +664,7 @@ PDFStructureTree::ParentTreeEntry PDFStructureTree::getParentTreeEntry(PDFIntege
     return ParentTreeEntry();
 }
 
-PDFStructureItemPointer PDFStructureItem::parse(const PDFObjectStorage* storage, PDFObject object, PDFMarkedObjectsContext* context, PDFStructureItem* parent)
+PDFStructureItemPointer PDFStructureItem::parse(const PDFObjectStorage* storage, PDFObject object, PDFObjectWalk* walk, int depth, PDFStructureItem* parent)
 {
     if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
     {
@@ -669,15 +673,15 @@ PDFStructureItemPointer PDFStructureItem::parse(const PDFObjectStorage* storage,
 
         if (typeName == "MCR")
         {
-            return PDFStructureMarkedContentReference::parseMarkedContentReference(storage, object, context, parent, parent->getTree());
+            return PDFStructureMarkedContentReference::parseMarkedContentReference(storage, object, walk, depth, parent, parent->getTree());
         }
         else if (typeName == "OBJR")
         {
-            return PDFStructureObjectReference::parseObjectReference(storage, object, context, parent, parent->getTree());
+            return PDFStructureObjectReference::parseObjectReference(storage, object, walk, depth, parent, parent->getTree());
         }
         else
         {
-            return PDFStructureElement::parseElement(storage, object, context, parent, parent->getTree());
+            return PDFStructureElement::parseElement(storage, object, walk, depth, parent, parent->getTree());
         }
     }
 
@@ -697,7 +701,7 @@ PDFStructureItem::Type PDFStructureItem::getTypeFromName(const QByteArray& name)
     return Invalid;
 }
 
-void PDFStructureItem::parseKids(const PDFObjectStorage* storage, PDFStructureItem* parentItem, const PDFDictionary* dictionary, PDFMarkedObjectsContext* context)
+void PDFStructureItem::parseKids(const PDFObjectStorage* storage, PDFStructureItem* parentItem, const PDFDictionary* dictionary, PDFObjectWalk* walk, int depth)
 {
     PDFObject kids = dictionary->get("K");
     if (kids.isArray())
@@ -705,7 +709,7 @@ void PDFStructureItem::parseKids(const PDFObjectStorage* storage, PDFStructureIt
         const PDFArray* kidsArray = kids.getArray();
         for (const PDFObject& object : *kidsArray)
         {
-            PDFStructureItemPointer item = PDFStructureItem::parse(storage, object, context, parentItem);
+            PDFStructureItemPointer item = PDFStructureItem::parse(storage, object, walk, depth, parentItem);
             if (item)
             {
                 parentItem->m_children.emplace_back(qMove(item));
@@ -714,7 +718,7 @@ void PDFStructureItem::parseKids(const PDFObjectStorage* storage, PDFStructureIt
     }
     else if (!kids.isNull())
     {
-        PDFStructureItemPointer item = PDFStructureItem::parse(storage, kids, context, parentItem);
+        PDFStructureItemPointer item = PDFStructureItem::parse(storage, kids, walk, depth, parentItem);
         if (item)
         {
             parentItem->m_children.emplace_back(qMove(item));
@@ -795,7 +799,8 @@ const PDFStructureTreeAttribute* PDFStructureElement::findAttributeImpl(Attribut
 
 PDFStructureItemPointer PDFStructureElement::parseElement(const PDFObjectStorage* storage,
                                                           PDFObject object,
-                                                          PDFMarkedObjectsContext* context,
+                                                          PDFObjectWalk* walk,
+                                                          int depth,
                                                           PDFStructureItem* parent,
                                                           PDFStructureTree* root)
 {
@@ -803,7 +808,7 @@ PDFStructureItemPointer PDFStructureElement::parseElement(const PDFObjectStorage
 
     Q_ASSERT(root);
 
-    if (auto lock = PDFMarkedObjectsLock(context, object))
+    if (walk->enter(object, depth))
     {
         if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
         {
@@ -870,7 +875,7 @@ PDFStructureItemPointer PDFStructureElement::parseElement(const PDFObjectStorage
             item->m_namespace = loader.readReferenceFromDictionary(dictionary, "NS");
             item->m_phoneticAlphabet = loader.readNameFromDictionary(dictionary, "PhoneticAlphabet");
 
-            parseKids(storage, item, dictionary, context);
+            parseKids(storage, item, dictionary, walk, depth + 1);
         }
     }
 
@@ -879,7 +884,8 @@ PDFStructureItemPointer PDFStructureElement::parseElement(const PDFObjectStorage
 
 PDFStructureItemPointer PDFStructureMarkedContentReference::parseMarkedContentReference(const PDFObjectStorage* storage,
                                                                                         PDFObject object,
-                                                                                        PDFMarkedObjectsContext* context,
+                                                                                        PDFObjectWalk* walk,
+                                                                                        int depth,
                                                                                         PDFStructureItem* parent,
                                                                                         PDFStructureTree* root)
 {
@@ -887,7 +893,7 @@ PDFStructureItemPointer PDFStructureMarkedContentReference::parseMarkedContentRe
 
     Q_ASSERT(root);
 
-    if (auto lock = PDFMarkedObjectsLock(context, object))
+    if (walk->enter(object, depth))
     {
         if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
         {
@@ -912,7 +918,8 @@ PDFStructureItemPointer PDFStructureMarkedContentReference::parseMarkedContentRe
 
 PDFStructureItemPointer PDFStructureObjectReference::parseObjectReference(const PDFObjectStorage* storage,
                                                                           PDFObject object,
-                                                                          PDFMarkedObjectsContext* context,
+                                                                          PDFObjectWalk* walk,
+                                                                          int depth,
                                                                           PDFStructureItem* parent,
                                                                           PDFStructureTree* root)
 {
@@ -920,7 +927,7 @@ PDFStructureItemPointer PDFStructureObjectReference::parseObjectReference(const 
 
     Q_ASSERT(root);
 
-    if (auto lock = PDFMarkedObjectsLock(context, object))
+    if (walk->enter(object, depth))
     {
         if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(object))
         {

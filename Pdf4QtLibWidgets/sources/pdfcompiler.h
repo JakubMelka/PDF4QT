@@ -207,7 +207,9 @@ private:
     /// small, so that between two batches we can react to the viewport changes.
     static constexpr size_t MAXIMAL_TASK_BATCH_SIZE = 8;
 
-    State m_state = State::Inactive;
+    /// Changed only by the thread of the compiler; read also by the compiling threads
+    /// (isOperationCancelled - stop() announces the stopping while they compile)
+    std::atomic<State> m_state = State::Inactive;
     QMutex m_mutex;
     QWaitCondition m_waitCondition;
     PDFAsynchronousPageCompilerWorkerThread* m_thread = nullptr;

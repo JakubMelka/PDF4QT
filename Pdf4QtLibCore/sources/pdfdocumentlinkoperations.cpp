@@ -188,7 +188,7 @@ QString PDFDocumentLinkOperations::createTitle(const QString& address, LinkKind 
     return title.isEmpty() ? address : title;
 }
 
-PDFDocumentLinkOperations::LinkList PDFDocumentLinkOperations::listExternalLinks(const PDFDocument* document, const PDFOperationControl* control)
+PDFDocumentLinkOperations::LinkList PDFDocumentLinkOperations::listExternalLinks(const PDFDocument* document, const PDFOperationControl* control, size_t maximumLinks)
 {
     using Helper = PDFDocumentLinkOperationsHelper;
 
@@ -229,7 +229,7 @@ PDFDocumentLinkOperations::LinkList PDFDocumentLinkOperations::listExternalLinks
                 continue;
             }
 
-            if (list.links.size() >= size_t(MAXIMUM_LINKS))
+            if (list.links.size() >= maximumLinks)
             {
                 list.isTruncated = true;
                 continue;

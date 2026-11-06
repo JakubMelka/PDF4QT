@@ -391,7 +391,7 @@ void PDFRasterizerPool::release(pdf::PDFRasterizer* rasterizer)
 void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
                                const PDFRasterizerPool::PageImageSizeGetter& imageSizeGetter,
                                const PDFRasterizerPool::ProcessImageMethod& processImage,
-                               PDFProgress* progress,
+                               PDFProgressSink* progress,
                                const PDFOperationControl* operationControl)
 {
     if (pageIndices.empty())

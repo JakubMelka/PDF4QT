@@ -25,10 +25,12 @@
 // The expected values are the numbers and the texts of the frames.
 
 #include "apptoolshellfixture.h"
+#include "appmcpfixture.h"
 
 #include "pdfappdocument.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
+#include "pdfappmcphost.h"
 #include "pdfappmainwindow.h"
 #include "pdfapptoolgui_pages.h"
 #include "pdfapptoolpanelbuilder.h"
@@ -39,10 +41,15 @@
 
 #include "pdfcatalog.h"
 #include "pdfdocumentbuilder.h"
+#include "pdfdocumentpageoperations.h"
+#include "pdfdocumenttool_pages.h"
 #include "pdfdocumenttoolregistry.h"
+#include "pdfmcpcall.h"
+#include "pdfsecurityhandler.h"
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
 
+#include <QScopeGuard>
 #include <QSignalSpy>
 #include <QTranslator>
 #include <QtTest>
@@ -161,6 +168,88 @@ public:
     {
         return AppToolShellFixture::countLeakPixels(AppToolShellFixture::render(widget, 1.0));
     }
+
+    /// A change of the document by an assistant (pages.md: allowed below an open tool)
+    static bool commitAssistantChange(pdf::PDFAppDocument* document, pdf::PDFDocument changed)
+    {
+        const pdf::PDFDocumentPointer pointer(new pdf::PDFDocument(std::move(changed)));
+        return document->commit(pdf::PDFModifiedDocument(pointer, document->getOptionalContentActivity(), pdf::PDFModifiedDocument::Reset), QStringLiteral("Assistant"), document->getVersion(), pdf::PDFAppChangeSource::Mcp);
+    }
+
+    /// The document without the page (index from 0)
+    static pdf::PDFDocument removePage(pdf::PDFAppDocument* document, pdf::PDFInteger page)
+    {
+        return pdf::PDFDocumentPageOperations::removePages(document->getDocument().data(), { page }, nullptr, nullptr);
+    }
+
+    /// The document with its last page moved in front of the first one
+    static pdf::PDFDocument moveLastFirst(pdf::PDFAppDocument* document)
+    {
+        pdf::PDFDocumentBuilder builder(document->getDocument().data());
+        builder.flattenPageTree();
+        std::vector<pdf::PDFObjectReference> pages = builder.getPages();
+        std::rotate(pages.begin(), std::prev(pages.end()), pages.end());
+        builder.setPages(pages);
+        return builder.build();
+    }
+
+    /// Pages, whose widths name them: page n is 100 + n wide
+    static QString writeNamedPages(const QString& filePath, int pageCount, uint32_t permissions = 0)
+    {
+        pdf::PDFDocumentBuilder builder;
+        for (int i = 1; i <= pageCount; ++i)
+        {
+            builder.appendPage(QRectF(0, 0, 100 + i, 842));
+        }
+        if (permissions)
+        {
+            // An owner password only: it opens without a password, with the permissions
+            pdf::PDFSecurityHandlerFactory::SecuritySettings settings;
+            settings.algorithm = pdf::PDFSecurityHandlerFactory::AES_256;
+            settings.ownerPassword = QStringLiteral("owner");
+            settings.permissions = permissions;
+            builder.setSecurityHandler(pdf::PDFSecurityHandlerFactory::createSecurityHandler(settings));
+        }
+        pdf::PDFDocument document = builder.build();
+        return AppDocumentSamples::write(document, filePath) ? filePath : QString();
+    }
+
+    /// The names of the pages of a document by their widths ("2 3 5")
+    static QString pageNames(const pdf::PDFDocument* document)
+    {
+        QStringList names;
+        for (size_t i = 0; i < document->getCatalog()->getPageCount(); ++i)
+        {
+            names << QString::number(qRound(document->getCatalog()->getPage(i)->getMediaBox().width()) - 100);
+        }
+        return names.join(QLatin1Char(' '));
+    }
+
+    static QStringList pendingTitles(const pdf::PDFAppToolPendingPagesModel* model)
+    {
+        QStringList titles;
+        for (int i = 0; i < model->rowCount(); ++i)
+        {
+            titles << model->index(i).data(Qt::DisplayRole).toString();
+        }
+        return titles;
+    }
+};
+
+/// Remove Pages, which lets the test change the document under its run (as an assistant would)
+class PagesTestRemoveWithChange : public pdf::PDFDocumentToolRemovePages
+{
+public:
+    std::function<void()> beforeRun;
+
+    virtual pdf::PDFDocumentToolResult execute(const pdf::PDFDocumentToolContext& context, const QVariantMap& parameters, const pdf::PDFOperationControl* control, pdf::PDFProgressSink* progress) const override
+    {
+        if (beforeRun)
+        {
+            beforeRun();
+        }
+        return pdf::PDFDocumentToolRemovePages::execute(context, parameters, control, progress);
+    }
 };
 
 class AppToolPagesTest : public QObject
@@ -176,6 +265,7 @@ private slots:
     void rotateClicksAndUndo();
     void rotateMixedAndReset();
     void rotateWithoutTurnsDisabled();
+    void rotateEveryPageListed();
     void rotateRunKeepsInTab();
     void rotateEntryCurrentPage();
     void thumbnailsCommandStillRotates();
@@ -191,6 +281,11 @@ private slots:
     void languageChange();
     void deletedWithToolOpen();
     void screenshots();
+
+    void removeMarksFollowPages();
+    void rotatePlanFollowsPages();
+    void mcpRerunFollowsPages();
+    void pagesNeedAssemble();
 };
 
 void AppToolPagesTest::initTestCase()
@@ -474,6 +569,34 @@ void AppToolPagesTest::rotateWithoutTurnsDisabled()
     tab->getView()->setSelectedPages({ 1, 2 });
     AppToolShellFixture::settle();
     QVERIFY(gui->getTargetPages().empty());
+}
+
+void AppToolPagesTest::rotateEveryPageListed()
+{
+    // A turn of every page (a whole scan) is a valid plan: Pending rotation (389:20403) lists
+    // every page with its Undo; only Remove Pages refuses every page (388:21466 has no list)
+    using H = PagesGuiHelper;
+    AppToolShellFixture fixture(QSize(1440, 960));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writePages(fixture.path(QStringLiteral("scan.pdf")), 3));
+    PDFDocumentToolShell* shell = fixture.openTool(tab, H::ROTATE_ID);
+    PDFAppToolGUIRotatePages* gui = H::gui<PDFAppToolGUIRotatePages>(shell);
+    QVERIFY(gui);
+    H::setPages(shell, QStringLiteral("1-3"));
+    gui->rotateLeft();
+    AppToolShellFixture::settle();
+
+    QCOMPARE(gui->getTurns().size(), size_t(3));
+    QCOMPARE(gui->getPendingModel()->rowCount(), 3);
+    QVERIFY(gui->getPendingList()->isVisible());
+    QCOMPARE(gui->getGrid()->getHeaderLabel()->text(), QStringLiteral("3 of 3 pages will be turned"));
+    QVERIFY(shell->getToolbar()->getConfirmButton()->isEnabled());
+
+    // Undo of a row of the list keeps that page as it is
+    Q_EMIT gui->getPendingList()->linkActivated(gui->getPendingModel()->index(1));
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getTurns().size(), size_t(2));
+    QVERIFY(!gui->getTurns().count(1));
+    QVERIFY(gui->getPendingList()->isVisible());
 }
 
 void AppToolPagesTest::rotateRunKeepsInTab()
@@ -878,6 +1001,257 @@ void AppToolPagesTest::screenshots()
     AppToolShellFixture::screenshotDialog(fixture.window, QStringLiteral("388-20614-pages-remove"));
     H::setPages(shell, QString());
     AppToolShellFixture::screenshotDialog(fixture.window, QStringLiteral("388-21466-pages-remove-all"));
+}
+
+void AppToolPagesTest::removeMarksFollowPages()
+{
+    // Owner 2026-11-06: an assistant removes or moves pages below the open tool (pages.md) - the
+    // marks stay on their pages, a page, which is gone, loses its mark; the counts, the Primary
+    // button, the tiles and the steps of Undo follow
+    using H = PagesGuiHelper;
+    AppToolShellFixture fixture(QSize(1440, 960));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writePages(fixture.path(QStringLiteral("doc.pdf")), 10));
+    QVERIFY(tab);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, H::REMOVE_ID);
+    PDFAppToolGUIRemovePages* gui = H::gui<PDFAppToolGUIRemovePages>(shell);
+    QVERIFY(gui);
+    AppToolShellFixture::settle();
+    gui->setTargetPages({});
+    for (const int page : { 1, 2, 4, 7 })
+    {
+        H::clickTile(gui->getGrid(), page);
+    }
+    QCOMPARE(gui->getTargetPages(), std::vector<pdf::PDFInteger>({ 1, 2, 4, 7 }));
+    QCOMPARE(shell->getToolbar()->getConfirmText(), QStringLiteral("Remove 4 Pages"));
+
+    // The assistant removes page 2, which is marked: pages 3, 5, 8 are pages 2, 4, 7 now
+    pdf::PDFAppDocument* document = tab->getDocument();
+    QVERIFY(H::commitAssistantChange(document, H::removePage(document, 1)));
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getPageCount(), 9);
+    QCOMPARE(gui->getTargetPages(), std::vector<pdf::PDFInteger>({ 1, 3, 6 }));
+    QCOMPARE(shell->getToolbar()->getConfirmText(), QStringLiteral("Remove 3 Pages"));
+    QVERIFY(shell->getToolbar()->getConfirmButton()->isEnabled());
+    QCOMPARE(gui->getPageSelection()->getMode(), pdf::PDFPageSelection::Mode::Selected);
+    QCOMPARE(gui->getPageSelection()->getSelectedPages(), QList<int>({ 2, 4, 7 }));
+    QCOMPARE(H::pendingTitles(gui->getPendingModel()), QStringList({ QStringLiteral("Page 2"), QStringLiteral("Page 4"), QStringLiteral("Page 7") }));
+    const pdf::PDFAppToolPageGridModel* tiles = gui->getGrid()->getModel();
+    for (int page = 0; page < 9; ++page)
+    {
+        const bool isMarked = page == 1 || page == 3 || page == 6;
+        QCOMPARE(tiles->getTile(page).state == pdf::PDFComponentPainter::PageTileState::Marked, isMarked);
+    }
+    QCOMPARE(gui->getGrid()->getHeaderLabel()->text(), QStringLiteral("6 of 9 pages stay"));
+    QCOMPARE(shell->getStatusMessage(), QStringLiteral("Remove Pages · 3 pages will be removed · 6 of 9 pages stay"));
+
+    // The assistant moves the last page to the front: the marks move with their pages
+    QVERIFY(H::commitAssistantChange(document, H::moveLastFirst(document)));
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getTargetPages(), std::vector<pdf::PDFInteger>({ 2, 4, 7 }));
+    QVERIFY(tiles->getTile(1).state != pdf::PDFComponentPainter::PageTileState::Marked);
+    QCOMPARE(tiles->getTile(7).state, pdf::PDFComponentPainter::PageTileState::Marked);
+
+    // Undo of the tool: the step before the last click marked the pages 2, 3, 5 of the first
+    // version - page 2 is gone, pages 3 and 5 are pages 3 and 5 of this version again
+    shell->getModel()->undo();
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getTargetPages(), std::vector<pdf::PDFInteger>({ 2, 4 }));
+    shell->getModel()->redo();
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getTargetPages(), std::vector<pdf::PDFInteger>({ 2, 4, 7 }));
+
+    // A typed range follows too; the run removes the marked pages of this version
+    H::setPages(shell, QStringLiteral("1, 9"));
+    QCOMPARE(gui->getPageSelection()->getMode(), pdf::PDFPageSelection::Mode::Range);
+    QVERIFY(H::commitAssistantChange(document, H::removePage(document, 4)));
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getPageSelection()->getMode(), pdf::PDFPageSelection::Mode::Range);
+    QCOMPARE(gui->getPageSelection()->getRange(), QStringLiteral("1, 8"));
+    QCOMPARE(gui->getTargetPages(), std::vector<pdf::PDFInteger>({ 0, 7 }));
+
+    // The marked pages go: every mark gone leaves no page marked
+    QVERIFY(H::commitAssistantChange(document, H::removePage(document, 7)));
+    AppToolShellFixture::settle();
+    QVERIFY(H::commitAssistantChange(document, H::removePage(document, 0)));
+    AppToolShellFixture::settle();
+    QVERIFY(gui->getTargetPages().empty());
+    QCOMPARE(shell->getToolbar()->getConfirmText(), QStringLiteral("Remove Pages"));
+    QVERIFY(!shell->getToolbar()->getConfirmButton()->isEnabled());
+}
+
+void AppToolPagesTest::rotatePlanFollowsPages()
+{
+    // The plan of Rotate Pages follows its pages as the marks of Remove Pages do
+    using H = PagesGuiHelper;
+    AppToolShellFixture fixture(QSize(1440, 960));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writeNamedPages(fixture.path(QStringLiteral("named.pdf")), 10));
+    QVERIFY(tab);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, H::ROTATE_ID);
+    PDFAppToolGUIRotatePages* gui = H::gui<PDFAppToolGUIRotatePages>(shell);
+    QVERIFY(gui);
+    AppToolShellFixture::settle();
+
+    // Page 9 right, page 2 upside down
+    gui->setTargetPages({ 8 });
+    gui->rotateRight();
+    gui->setTargetPages({ 1 });
+    gui->rotateHalf();
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getTurns(), (std::map<pdf::PDFInteger, pdf::PageRotation>{ { 1, pdf::PageRotation::Rotate180 }, { 8, pdf::PageRotation::Rotate90 } }));
+
+    // The assistant removes page 1: pages 2 and 9 are pages 1 and 8
+    pdf::PDFAppDocument* document = tab->getDocument();
+    QVERIFY(H::commitAssistantChange(document, H::removePage(document, 0)));
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getTurns(), (std::map<pdf::PDFInteger, pdf::PageRotation>{ { 0, pdf::PageRotation::Rotate180 }, { 7, pdf::PageRotation::Rotate90 } }));
+    QCOMPARE(gui->getTargetPages(), std::vector<pdf::PDFInteger>({ 0 }));
+    QCOMPARE(shell->getToolbar()->getConfirmText(), QStringLiteral("Rotate 2 Pages"));
+    QCOMPARE(H::pendingTitles(gui->getPendingModel()), QStringList({ QStringLiteral("Page 1"), QStringLiteral("Page 8") }));
+    const pdf::PDFAppToolPageGridModel* tiles = gui->getGrid()->getModel();
+    QCOMPARE(tiles->getTile(7).extraRotation, pdf::PageRotation::Rotate90);
+    QCOMPARE(tiles->getTile(7).caption, QStringLiteral("90° right"));
+    QCOMPARE(tiles->getTile(0).extraRotation, pdf::PageRotation::Rotate180);
+    QCOMPARE(tiles->getTile(8).extraRotation, pdf::PageRotation::None);
+
+    // The assistant removes the upside down page: its turn and its selection go
+    QVERIFY(H::commitAssistantChange(document, H::removePage(document, 0)));
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getTurns(), (std::map<pdf::PDFInteger, pdf::PageRotation>{ { 6, pdf::PageRotation::Rotate90 } }));
+    QVERIFY(gui->getTargetPages().empty());
+    QVERIFY(!gui->getRotateRightButton()->isEnabled());
+    QVERIFY(shell->getToolbar()->getConfirmButton()->isEnabled());
+
+    // The run turns page 9 of the first version
+    shell->confirm();
+    QVERIFY(AppToolShellFixture::waitForState(shell, PDFDocumentToolShell::State::Deciding));
+    QPointer<PDFDocumentToolShell> guard(shell);
+    shell->getResultDialog()->getConfirmButton()->click();
+    QVERIFY(AppToolShellFixture::waitFor([&guard]() { return !guard || guard->getState() == PDFDocumentToolShell::State::Closed; }));
+    AppToolShellFixture::settle();
+    const pdf::PDFDocumentPointer result = tab->getDocument()->getDocument();
+    QCOMPARE(H::pageNames(result.data()), QStringLiteral("3 4 5 6 7 8 9 10"));
+    for (size_t i = 0; i < result->getCatalog()->getPageCount(); ++i)
+    {
+        QCOMPARE(result->getCatalog()->getPage(i)->getPageRotation(), i == 6 ? pdf::PageRotation::Rotate90 : pdf::PageRotation::None);
+    }
+}
+
+void AppToolPagesTest::mcpRerunFollowsPages()
+{
+    // pages.md: the document changes while the tool runs - keep runs it again on the new
+    // version; the pages of the call are the pages of the version it saw (owner 2026-11-06)
+    using H = PagesGuiHelper;
+    pdftest::AppMcpFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    pdf::PDFAppDocumentTab* tab = fixture.open(H::writeNamedPages(fixture.path(QStringLiteral("rerun.pdf")), 5));
+    QVERIFY(tab);
+    QTRY_VERIFY(tab->getDocument()->isReady());
+    pdf::PDFAppDocument* document = tab->getDocument();
+
+    const QString id = H::REMOVE_ID;
+    const std::shared_ptr<const pdf::PDFDocumentTool> previous = pdf::PDFDocumentToolRegistry::getTool(id);
+    const std::shared_ptr<PagesTestRemoveWithChange> tool = std::make_shared<PagesTestRemoveWithChange>();
+    pdf::PDFDocumentToolRegistry::unregisterTool(id);
+    pdf::PDFDocumentToolRegistry::registerTool(tool);
+    fixture.host()->checkToolRegistry();
+    const auto restore = qScopeGuard([&]()
+    {
+        pdf::PDFDocumentToolRegistry::unregisterTool(id);
+        pdf::PDFDocumentToolRegistry::registerTool(previous);
+        fixture.host()->checkToolRegistry();
+    });
+
+    // The first run: the assistant removes page 1 meanwhile (in the thread of the user interface)
+    int changesLeft = 0;
+    QPointer<pdf::PDFAppDocument> documentGuard(document);
+    tool->beforeRun = [&changesLeft, documentGuard]()
+    {
+        QMetaObject::invokeMethod(documentGuard.data(), [&changesLeft, documentGuard]()
+        {
+            if (changesLeft > 0 && documentGuard)
+            {
+                --changesLeft;
+                PagesGuiHelper::commitAssistantChange(documentGuard.data(), PagesGuiHelper::removePage(documentGuard.data(), 0));
+            }
+        }, Qt::BlockingQueuedConnection);
+    };
+
+    const auto call = [&](const QString& pages)
+    {
+        QJsonObject arguments;
+        arguments.insert(QStringLiteral("action"), QStringLiteral("remove"));
+        arguments.insert(QStringLiteral("documentId"), document->getId());
+        arguments.insert(QStringLiteral("result"), QStringLiteral("keep"));
+        arguments.insert(QStringLiteral("remove"), QJsonObject({ { QStringLiteral("pages"), QJsonObject({ { QStringLiteral("pages"), pages } }) } }));
+        return pdftest::AppMcpFixture::waitResult(fixture.startCall(QStringLiteral("pages"), arguments));
+    };
+
+    // Page 4 of the call is page 3 of the new version: that one goes, not the new page 4
+    changesLeft = 1;
+    std::optional<pdf::PDFMcpCallResult> result = call(QStringLiteral("4"));
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    QCOMPARE(changesLeft, 0);
+    QCOMPARE(H::pageNames(document->getDocument().data()), QStringLiteral("2 3 5"));
+    const QJsonObject data = result->toQJson().value(QStringLiteral("structuredContent")).toObject().value(QStringLiteral("remove")).toObject().value(QStringLiteral("data")).toObject();
+    QCOMPARE(data.value(QStringLiteral("removedPages")).toArray(), QJsonArray({ 3 }));
+
+    // The page of the call is gone meanwhile: nothing more is removed, the call says so
+    changesLeft = 1;
+    result = call(QStringLiteral("1"));
+    QVERIFY(result);
+    QVERIFY(result->isError);
+    QCOMPARE(H::pageNames(document->getDocument().data()), QStringLiteral("3 5"));
+}
+
+void AppToolPagesTest::pagesNeedAssemble()
+{
+    // ISO 32000-2, Table 22: bit 11 "Assemble the document (insert, rotate, or delete pages ...)";
+    // bit 4 covers the changes other than those of bits 6, 9 and 11 - a document, which allows
+    // every change but the assembly, refuses Rotate Pages and Remove Pages in the panel and in MCP
+    using H = PagesGuiHelper;
+    const uint32_t withoutAssemble = 0xFFFFFFFCu & ~uint32_t(pdf::PDFSecurityHandler::Permission::Assemble);
+    {
+        AppToolShellFixture fixture(QSize(1440, 960));
+        pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writeNamedPages(fixture.path(QStringLiteral("locked.pdf")), 3, withoutAssemble));
+        QVERIFY(tab);
+        for (const QString& id : { H::ROTATE_ID, H::REMOVE_ID })
+        {
+            PDFDocumentToolShell* shell = fixture.openTool(tab, id);
+            QVERIFY(shell);
+            AppToolShellFixture::settle();
+            QVERIFY2(shell->isPermissionRefused(), qPrintable(id));
+            QVERIFY(!shell->getToolbar()->getConfirmButton()->isEnabled());
+            QPointer<PDFDocumentToolShell> guard(shell);
+            shell->cancel();
+            QVERIFY(AppToolShellFixture::waitFor([&guard]() { return !guard || guard->getState() == PDFDocumentToolShell::State::Closed; }));
+            AppToolShellFixture::settle();
+        }
+    }
+
+    pdftest::AppMcpFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    pdf::PDFAppDocumentTab* tab = fixture.open(H::writeNamedPages(fixture.path(QStringLiteral("locked.pdf")), 3, withoutAssemble));
+    QVERIFY(tab);
+    QTRY_VERIFY(tab->getDocument()->isReady());
+    QJsonObject arguments;
+    arguments.insert(QStringLiteral("action"), QStringLiteral("rotate"));
+    arguments.insert(QStringLiteral("documentId"), tab->getDocument()->getId());
+    arguments.insert(QStringLiteral("rotate"), QJsonObject({ { QStringLiteral("rotation"), QStringLiteral("right") } }));
+    std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("pages"), arguments);
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText().contains(QStringLiteral("The permissions of the document do not allow this tool.")), qPrintable(result->getFirstText()));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(tab->getDocument()), 0);
+
+    // With the assembly allowed and the modification not, the pages turn
+    pdf::PDFAppDocumentTab* assembleTab = fixture.open(H::writeNamedPages(fixture.path(QStringLiteral("assemble.pdf")), 3, uint32_t(pdf::PDFSecurityHandler::Permission::Assemble)));
+    QVERIFY(assembleTab);
+    QTRY_VERIFY(assembleTab->getDocument()->isReady());
+    arguments.insert(QStringLiteral("documentId"), assembleTab->getDocument()->getId());
+    result = fixture.callTool(QStringLiteral("pages"), arguments);
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    QCOMPARE(assembleTab->getDocument()->getDocument()->getCatalog()->getPage(0)->getPageRotation(), pdf::PageRotation::Rotate90);
 }
 
 QTEST_MAIN(AppToolPagesTest)

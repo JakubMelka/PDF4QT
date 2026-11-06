@@ -45,7 +45,7 @@ class GalleryBuilder;
 
 /// Hints of a live sample for the lifetime test (UnitTestsFluentLifetime): what
 /// an application does with the widget, which the generic input of the test
-/// cannot do. A new widget gets them by its sample (CLAUDE.md, the lifetime rule).
+/// cannot do. A new widget gets them by its sample (arch/conventions.md, the lifetime rule).
 struct GalleryLifetimeHints
 {
     /// Called on each new instance of the page before the test (an application

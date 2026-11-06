@@ -30,8 +30,15 @@
 #include "pdffont.h"
 #include "pdfannotation.h"
 #include "pdfform.h"
+#include "pdfobjectutils.h"
 #include "pdfocrtextlayerwriter.h"
+#include "pdfprogress.h"
 
+#include <QStringDecoder>
+#include <QStringEncoder>
+#include <QXmlStreamReader>
+
+#include <algorithm>
 #include <optional>
 #include <set>
 
@@ -46,11 +53,13 @@ struct SanitizedObjectResult
     bool changed = false;
 };
 
+/// The walks of the sanitization of the invisible text: each object is rewritten once (a
+/// stream or a form shared by more pages, a form, which draws itself), the forms are followed
+/// to the default depth of PDFObjectWalk (form levels, more than the scan looks at)
 struct InvisibleTextSanitizationContext
 {
-    std::set<PDFObjectReference> processedContentObjects;
-    std::set<PDFObjectReference> processedResourceObjects;
-    std::set<PDFObjectReference> processedXObjectObjects;
+    PDFObjectWalk contentWalk;  ///< The content streams of the pages
+    PDFObjectWalk formWalk;     ///< The resources and their forms
     PDFInteger modifiedStreamCount = 0;
 };
 
@@ -75,9 +84,9 @@ public:
     static QByteArray sanitizeInvisibleTextInContent(const QByteArray& content, PDFDocumentSanitizer::InvisibleTextState* state, bool* changed);
     static PDFObject createCompressedContentStream(const PDFStream* originalStream, QByteArray decodedContent, PDFDictionaryBuilder dictionary);
     static bool isFormXObject(const PDFObject& object, PDFDocumentBuilder& builder);
-    static SanitizedObjectResult sanitizeResourcesObject(PDFDocumentBuilder& builder, const PDFObject& resourcesObject, InvisibleTextSanitizationContext& context);
-    static SanitizedObjectResult sanitizeFormXObject(PDFDocumentBuilder& builder, const PDFObject& object, InvisibleTextSanitizationContext& context);
-    static SanitizedObjectResult sanitizeContentsObject(PDFDocumentBuilder& builder, const PDFObject& contentsObject, InvisibleTextSanitizationContext& context, PDFDocumentSanitizer::InvisibleTextState* state);
+    static SanitizedObjectResult sanitizeResourcesObject(PDFDocumentBuilder& builder, const PDFObject& resourcesObject, InvisibleTextSanitizationContext& context, int depth);
+    static SanitizedObjectResult sanitizeFormXObject(PDFDocumentBuilder& builder, const PDFObject& object, InvisibleTextSanitizationContext& context, int depth);
+    static SanitizedObjectResult sanitizeContentsObject(PDFDocumentBuilder& builder, const PDFObject& contentsObject, InvisibleTextSanitizationContext& context, PDFDocumentSanitizer::InvisibleTextState* state, int depth);
 };
 
 bool PDFInvisibleTextSanitizerHelper::isTextShowingOperator(const QByteArray& command)
@@ -138,6 +147,7 @@ QByteArray PDFInvisibleTextSanitizerHelper::sanitizeInvisibleTextInContent(const
     PDFLexicalAnalyzer parser(content.constBegin(), content.constEnd());
     QByteArray output;
     std::vector<PDFLexicalAnalyzer::Token> operands;
+    std::vector<std::pair<PDFInteger, PDFInteger>> operandRanges;
     std::vector<GraphicState> graphicStateStack;
     for (int mode : state->stack)
     {
@@ -169,6 +179,7 @@ QByteArray PDFInvisibleTextSanitizerHelper::sanitizeInvisibleTextInContent(const
             }
 
             operands.push_back(std::move(token));
+            operandRanges.emplace_back(tokenStartPosition, tokenEndPosition);
             continue;
         }
 
@@ -275,6 +286,7 @@ QByteArray PDFInvisibleTextSanitizerHelper::sanitizeInvisibleTextInContent(const
             }
 
             operands.clear();
+            operandRanges.clear();
             operandStartPosition = -1;
             continue;
         }
@@ -292,6 +304,25 @@ QByteArray PDFInvisibleTextSanitizerHelper::sanitizeInvisibleTextInContent(const
             output.append(content.constData() + copyPosition, operandStartPosition - copyPosition);
             copyPosition = tokenEndPosition;
             *changed = true;
+
+            // Only the text goes: ' moves to the next line before it shows the text, " sets the
+            // word and the character spacing too (ISO 32000-2, Table 106). The text, which follows,
+            // keeps its line and its spacing. The written operators start with a space: the removed
+            // operand may have been glued to the token in front of it ("Tr(text)'").
+            if (command == "\"" && operandRanges.size() >= 3)
+            {
+                const auto& [wordSpacingStart, wordSpacingEnd] = operandRanges[operandRanges.size() - 3];
+                const auto& [characterSpacingStart, characterSpacingEnd] = operandRanges[operandRanges.size() - 2];
+                output.append(' ');
+                output.append(content.constData() + wordSpacingStart, wordSpacingEnd - wordSpacingStart);
+                output.append(" Tw ");
+                output.append(content.constData() + characterSpacingStart, characterSpacingEnd - characterSpacingStart);
+                output.append(" Tc T*");
+            }
+            else if (command == "'" || command == "\"")
+            {
+                output.append(" T*");
+            }
         }
 
         if (command == "q")
@@ -334,6 +365,7 @@ QByteArray PDFInvisibleTextSanitizerHelper::sanitizeInvisibleTextInContent(const
         }
 
         operands.clear();
+        operandRanges.clear();
         operandStartPosition = -1;
     }
 
@@ -391,18 +423,19 @@ bool PDFInvisibleTextSanitizerHelper::isFormXObject(const PDFObject& object, PDF
 
 SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeFormXObject(PDFDocumentBuilder& builder,
                                                                            const PDFObject& object,
-                                                                           InvisibleTextSanitizationContext& context)
+                                                                           InvisibleTextSanitizationContext& context,
+                                                                           int depth)
 {
     if (object.isReference())
     {
         const PDFObjectReference reference = object.getReference();
-        if (!context.processedXObjectObjects.insert(reference).second)
+        if (!context.formWalk.enter(object, depth))
         {
             return { object, false };
         }
 
         const PDFObject referencedObject = builder.getObjectByReference(reference);
-        SanitizedObjectResult result = sanitizeFormXObject(builder, referencedObject, context);
+        SanitizedObjectResult result = sanitizeFormXObject(builder, referencedObject, context, depth);
         if (result.changed)
         {
             builder.setObject(reference, qMove(result.object));
@@ -427,7 +460,7 @@ SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeFormXObject(PDFDo
     {
         // OCR text may also be nested inside Form XObjects referenced from this
         // form, so sanitize the local resource tree recursively.
-        SanitizedObjectResult resourcesResult = sanitizeResourcesObject(builder, dictionary.get("Resources"), context);
+        SanitizedObjectResult resourcesResult = sanitizeResourcesObject(builder, dictionary.get("Resources"), context, depth + 1);
         if (resourcesResult.changed)
         {
             dictionary.setEntry(PDFInplaceOrMemoryString("Resources"), qMove(resourcesResult.object));
@@ -450,18 +483,19 @@ SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeFormXObject(PDFDo
 
 SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeResourcesObject(PDFDocumentBuilder& builder,
                                                                                const PDFObject& resourcesObject,
-                                                                               InvisibleTextSanitizationContext& context)
+                                                                               InvisibleTextSanitizationContext& context,
+                                                                               int depth)
 {
     if (resourcesObject.isReference())
     {
         const PDFObjectReference reference = resourcesObject.getReference();
-        if (!context.processedResourceObjects.insert(reference).second)
+        if (!context.formWalk.enter(resourcesObject, depth))
         {
             return { resourcesObject, false };
         }
 
         const PDFObject referencedObject = builder.getObjectByReference(reference);
-        SanitizedObjectResult result = sanitizeResourcesObject(builder, referencedObject, context);
+        SanitizedObjectResult result = sanitizeResourcesObject(builder, referencedObject, context, depth);
         if (result.changed)
         {
             builder.setObject(reference, qMove(result.object));
@@ -492,7 +526,7 @@ SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeResourcesObject(P
     {
         const PDFInplaceOrMemoryString key = xobjectDictionary->getKey(i);
         const PDFObject currentObject = xobjectDictionary->getValue(i);
-        SanitizedObjectResult result = sanitizeFormXObject(builder, currentObject, context);
+        SanitizedObjectResult result = sanitizeFormXObject(builder, currentObject, context, depth);
         if (result.changed)
         {
             updatedXObjectDictionary.setEntry(key, qMove(result.object));
@@ -513,18 +547,19 @@ SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeResourcesObject(P
 SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeContentsObject(PDFDocumentBuilder& builder,
                                                                               const PDFObject& contentsObject,
                                                                               InvisibleTextSanitizationContext& context,
-                                                                              PDFDocumentSanitizer::InvisibleTextState* state)
+                                                                              PDFDocumentSanitizer::InvisibleTextState* state,
+                                                                              int depth)
 {
     if (contentsObject.isReference())
     {
         const PDFObjectReference reference = contentsObject.getReference();
-        if (!context.processedContentObjects.insert(reference).second)
+        if (!context.contentWalk.enter(contentsObject, depth))
         {
             return { contentsObject, false };
         }
 
         const PDFObject referencedObject = builder.getObjectByReference(reference);
-        SanitizedObjectResult result = sanitizeContentsObject(builder, referencedObject, context, state);
+        SanitizedObjectResult result = sanitizeContentsObject(builder, referencedObject, context, state, depth + 1);
         if (result.changed)
         {
             builder.setObject(reference, qMove(result.object));
@@ -539,7 +574,7 @@ SanitizedObjectResult PDFInvisibleTextSanitizerHelper::sanitizeContentsObject(PD
 
         for (size_t i = 0, count = updatedArray.getCount(); i < count; ++i)
         {
-            SanitizedObjectResult result = sanitizeContentsObject(builder, updatedArray.getItem(i), context, state);
+            SanitizedObjectResult result = sanitizeContentsObject(builder, updatedArray.getItem(i), context, state, depth + 1);
             if (result.changed)
             {
                 updatedArray.setItem(qMove(result.object), i);
@@ -783,7 +818,7 @@ public:
     static std::optional<PDFObject> removeSignatureFields(PDFDocumentBuilder* builder,
                                                           const PDFObject& fieldsObject,
                                                           int depth,
-                                                          std::set<PDFObjectReference>* visited,
+                                                          PDFObjectWalk* walk,
                                                           std::set<PDFObjectReference>* nulledFields)
     {
         const PDFObjectStorage* storage = builder->getStorage();
@@ -799,7 +834,7 @@ public:
         for (size_t i = 0, count = fields->getCount(); i < count; ++i)
         {
             PDFObject item = fields->getItem(i);
-            if (item.isReference() && !visited->insert(item.getReference()).second)
+            if (item.isReference() && !walk->enter(item, depth))
             {
                 // A cycle or a field shared by more parents: it was decided once
                 if (!nulledFields->count(item.getReference()))
@@ -826,7 +861,7 @@ public:
 
             if (field && field->hasKey("Kids"))
             {
-                std::optional<PDFObject> kids = removeSignatureFields(builder, field->get("Kids"), depth + 1, visited, nulledFields);
+                std::optional<PDFObject> kids = removeSignatureFields(builder, field->get("Kids"), depth + 1, walk, nulledFields);
                 if (kids)
                 {
                     PDFDictionaryBuilder updatedField(*field);
@@ -854,6 +889,323 @@ public:
     }
 };
 
+/// The properties of the XMP metadata, which are the entries of the document information
+/// dictionary (ISO 32000-2, 14.3.3, Table 349; ISO 19005-1, Table 1)
+class PDFDocumentInfoXmpHelper
+{
+public:
+    PDFDocumentInfoXmpHelper() = delete;
+
+    static constexpr const char* DC_NAMESPACE = "http://purl.org/dc/elements/1.1/";
+    static constexpr const char* XMP_NAMESPACE = "http://ns.adobe.com/xap/1.0/";
+    static constexpr const char* PDF_NAMESPACE = "http://ns.adobe.com/pdf/1.3/";
+    static constexpr const char* RDF_NAMESPACE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
+
+    struct Property
+    {
+        const char* namespaceUri;
+        const char* name;
+        const char* qualifiedName;  ///< The name with the usual prefix (the documents may use another one)
+    };
+
+    // The entries Title, Author, Subject, Keywords, Creator, Producer, CreationDate, ModDate, Trapped
+    static constexpr Property PROPERTIES[] = {
+        { DC_NAMESPACE, "title", "dc:title" },
+        { DC_NAMESPACE, "creator", "dc:creator" },
+        { DC_NAMESPACE, "description", "dc:description" },
+        { PDF_NAMESPACE, "Keywords", "pdf:Keywords" },
+        { XMP_NAMESPACE, "CreatorTool", "xmp:CreatorTool" },
+        { PDF_NAMESPACE, "Producer", "pdf:Producer" },
+        { XMP_NAMESPACE, "CreateDate", "xmp:CreateDate" },
+        { XMP_NAMESPACE, "ModifyDate", "xmp:ModifyDate" },
+        { PDF_NAMESPACE, "Trapped", "pdf:Trapped" },
+    };
+
+    static constexpr size_t PROPERTY_COUNT = std::size(PROPERTIES);
+
+    /// Index of the property in PROPERTIES, -1 for another one
+    static int find(QStringView namespaceUri, QStringView name)
+    {
+        for (size_t i = 0; i < PROPERTY_COUNT; ++i)
+        {
+            if (namespaceUri == QLatin1StringView(PROPERTIES[i].namespaceUri) && name == QLatin1StringView(PROPERTIES[i].name))
+            {
+                return int(i);
+            }
+        }
+        return -1;
+    }
+
+    static bool isSpace(QChar character)
+    {
+        return character == QLatin1Char(' ') || character == QLatin1Char('\t') || character == QLatin1Char('\r') || character == QLatin1Char('\n');
+    }
+
+    /// The start of a removed element, which is alone on its line: its indentation and the line
+    /// break in front of it go with it (no empty line stays)
+    static qsizetype extendOverIndentation(QStringView text, qsizetype start)
+    {
+        qsizetype position = start;
+        while (position > 0 && (text[position - 1] == QLatin1Char(' ') || text[position - 1] == QLatin1Char('\t')))
+        {
+            --position;
+        }
+        if (position > 0 && text[position - 1] == QLatin1Char('\n'))
+        {
+            --position;
+            if (position > 0 && text[position - 1] == QLatin1Char('\r'))
+            {
+                --position;
+            }
+            return position;
+        }
+        if (position > 0 && text[position - 1] == QLatin1Char('\r'))
+        {
+            return position - 1;
+        }
+        return start;
+    }
+
+    /// The parts of the attributes \p qualifiedNames of a start tag: the white space in front of
+    /// each attribute, its name, its equal sign and its quoted value (positions in \p text)
+    static void findAttributes(QStringView text, qsizetype tagStart, qsizetype tagEnd, const QStringList& qualifiedNames, std::vector<std::pair<qsizetype, qsizetype>>* ranges)
+    {
+        // The name of the element
+        qsizetype position = tagStart + 1;
+        while (position < tagEnd && !isSpace(text[position]) && text[position] != QLatin1Char('>') && text[position] != QLatin1Char('/'))
+        {
+            ++position;
+        }
+
+        while (position < tagEnd)
+        {
+            const qsizetype spaceStart = position;
+            while (position < tagEnd && isSpace(text[position]))
+            {
+                ++position;
+            }
+            const qsizetype nameStart = position;
+            while (position < tagEnd && !isSpace(text[position]) && text[position] != QLatin1Char('=') && text[position] != QLatin1Char('>') && text[position] != QLatin1Char('/'))
+            {
+                ++position;
+            }
+            if (position == nameStart)
+            {
+                return;
+            }
+            const QStringView name = text.mid(nameStart, position - nameStart);
+            while (position < tagEnd && isSpace(text[position]))
+            {
+                ++position;
+            }
+            if (position >= tagEnd || text[position] != QLatin1Char('='))
+            {
+                return;
+            }
+            ++position;
+            while (position < tagEnd && isSpace(text[position]))
+            {
+                ++position;
+            }
+            if (position >= tagEnd || (text[position] != QLatin1Char('"') && text[position] != QLatin1Char('\'')))
+            {
+                return;
+            }
+            const qsizetype valueEnd = text.indexOf(text[position], position + 1);
+            if (valueEnd < 0 || valueEnd >= tagEnd)
+            {
+                return;
+            }
+            position = valueEnd + 1;
+            if (qualifiedNames.contains(name))
+            {
+                ranges->emplace_back(spaceStart, position);
+            }
+        }
+    }
+
+    /// The text of the packet names a namespace of the properties
+    static bool hasNamespaceText(const QByteArray& metadata)
+    {
+        return metadata.contains(DC_NAMESPACE) || metadata.contains(XMP_NAMESPACE) || metadata.contains(PDF_NAMESPACE);
+    }
+
+    /// Finds the properties: their parts in \p text and their indices
+    /// \returns false, when the text cannot be parsed up to the end of its root element
+    static bool scan(QStringView text, std::vector<std::pair<qsizetype, qsizetype>>* ranges, std::vector<bool>* found)
+    {
+        QXmlStreamReader reader(text);
+        std::vector<bool> isDescriptionStack;
+        bool isRootClosed = false;
+        while (!reader.atEnd())
+        {
+            const QXmlStreamReader::TokenType token = reader.readNext();
+            if (token == QXmlStreamReader::StartElement)
+            {
+                // The start tag: from its "<" to its ">" (no "<" in a value of an attribute)
+                const qsizetype tagEnd = text.lastIndexOf(QLatin1Char('>'), reader.characterOffset() - 1) + 1;
+                const qsizetype tagStart = tagEnd > 0 ? text.lastIndexOf(QLatin1Char('<'), tagEnd - 1) : -1;
+                if (tagStart < 0)
+                {
+                    return false;
+                }
+
+                const bool isParentDescription = !isDescriptionStack.empty() && isDescriptionStack.back();
+                const int index = isParentDescription ? find(reader.namespaceUri(), reader.name()) : -1;
+                if (index >= 0)
+                {
+                    // The element form: the element with its value goes
+                    reader.skipCurrentElement();
+                    if (reader.hasError())
+                    {
+                        break;
+                    }
+                    const qsizetype elementEnd = text.lastIndexOf(QLatin1Char('>'), reader.characterOffset() - 1) + 1;
+                    ranges->emplace_back(extendOverIndentation(text, tagStart), qMax(elementEnd, tagEnd));
+                    (*found)[size_t(index)] = true;
+                    continue;
+                }
+
+                const bool isDescription = reader.namespaceUri() == QLatin1StringView(RDF_NAMESPACE) && reader.name() == QLatin1StringView("Description");
+                if (isDescription)
+                {
+                    // The attribute form of the properties of rdf:Description
+                    QStringList qualifiedNames;
+                    for (const QXmlStreamAttribute& attribute : reader.attributes())
+                    {
+                        const int attributeIndex = find(attribute.namespaceUri(), attribute.name());
+                        if (attributeIndex >= 0)
+                        {
+                            qualifiedNames << attribute.qualifiedName().toString();
+                            (*found)[size_t(attributeIndex)] = true;
+                        }
+                    }
+                    if (!qualifiedNames.isEmpty())
+                    {
+                        findAttributes(text, tagStart, tagEnd, qualifiedNames, ranges);
+                    }
+                }
+                isDescriptionStack.push_back(isDescription);
+            }
+            else if (token == QXmlStreamReader::EndElement && !isDescriptionStack.empty())
+            {
+                isDescriptionStack.pop_back();
+                isRootClosed = isDescriptionStack.empty();
+            }
+        }
+
+        // Bytes after the root element (some producers pad the packet by zeros) do not matter
+        return !reader.hasError() || isRootClosed;
+    }
+};
+
+QStringList PDFDocumentSanitizer::getDocumentInfoPropertyNames()
+{
+    QStringList names;
+    for (const PDFDocumentInfoXmpHelper::Property& property : PDFDocumentInfoXmpHelper::PROPERTIES)
+    {
+        names << QString::fromLatin1(property.qualifiedName);
+    }
+    return names;
+}
+
+PDFDocumentSanitizer::DocumentInfoProperties PDFDocumentSanitizer::removeDocumentInfoProperties(const QByteArray& metadata)
+{
+    using Helper = PDFDocumentInfoXmpHelper;
+
+    DocumentInfoProperties result;
+    result.metadata = metadata;
+    if (metadata.isEmpty())
+    {
+        return result;
+    }
+
+    // XMP is UTF-8, UTF-16 or UTF-32 (the packet starts by "<"); a byte order mark stays where it is
+    const QStringConverter::Encoding encoding = QStringConverter::encodingForData(metadata, u'<').value_or(QStringConverter::Utf8);
+    QStringDecoder decoder(encoding, QStringConverter::Flag::ConvertInitialBom);
+    const QString text = decoder.decode(metadata);
+    const qsizetype bodyStart = text.startsWith(QChar(0xFEFF)) ? 1 : 0;
+    const QStringView body = QStringView(text).mid(bodyStart);
+
+    std::vector<std::pair<qsizetype, qsizetype>> ranges;
+    std::vector<bool> found(Helper::PROPERTY_COUNT, false);
+    if (decoder.hasError() || !Helper::scan(body, &ranges, &found))
+    {
+        // Nothing can be removed from it: it may have them, when it names their namespaces
+        result.isReadable = !Helper::hasNamespaceText(metadata);
+        return result;
+    }
+
+    for (size_t i = 0; i < Helper::PROPERTY_COUNT; ++i)
+    {
+        if (found[i])
+        {
+            result.names << QString::fromLatin1(Helper::PROPERTIES[i].qualifiedName);
+        }
+    }
+    if (ranges.empty())
+    {
+        return result;
+    }
+
+    std::sort(ranges.begin(), ranges.end());
+    QString cleaned = text.left(bodyStart);
+    qsizetype position = 0;
+    for (const auto& [start, end] : ranges)
+    {
+        if (start > position)
+        {
+            cleaned += body.mid(position, start - position);
+        }
+        position = qMax(position, end);
+    }
+    cleaned += body.mid(position);
+
+    QStringEncoder encoder(encoding);
+    const QByteArray cleanedMetadata = encoder.encode(cleaned);
+
+    // The removal is verified: the packet is still read and has none of them
+    std::vector<std::pair<qsizetype, qsizetype>> verificationRanges;
+    std::vector<bool> verificationFound(Helper::PROPERTY_COUNT, false);
+    const qsizetype cleanedBodyStart = cleaned.startsWith(QChar(0xFEFF)) ? 1 : 0;
+    if (encoder.hasError() || !Helper::scan(QStringView(cleaned).mid(cleanedBodyStart), &verificationRanges, &verificationFound) || !verificationRanges.empty())
+    {
+        result.names.clear();
+        result.isReadable = false;
+        return result;
+    }
+
+    result.metadata = cleanedMetadata;
+    return result;
+}
+
+QByteArray PDFDocumentSanitizer::getCatalogMetadata(const PDFObjectStorage* storage, PDFObjectReference* reference)
+{
+    if (reference)
+    {
+        *reference = PDFObjectReference();
+    }
+
+    const PDFDictionary* trailer = storage->getDictionaryFromObject(storage->getTrailerDictionary());
+    const PDFDictionary* catalog = trailer ? storage->getDictionaryFromObject(trailer->get("Root")) : nullptr;
+    if (!catalog)
+    {
+        return QByteArray();
+    }
+
+    const PDFObject& metadataItem = catalog->get("Metadata");
+    const PDFObject& metadataObject = storage->getObject(metadataItem);
+    if (!metadataObject.isStream())
+    {
+        return QByteArray();
+    }
+    if (reference && metadataItem.isReference())
+    {
+        *reference = metadataItem.getReference();
+    }
+    return storage->getDecodedStream(metadataObject.getStream());
+}
+
 PDFDocumentSanitizer::PDFDocumentSanitizer(SanitizationFlag flags, QObject* parent) :
     QObject(parent),
     m_flags(flags)
@@ -873,15 +1225,19 @@ bool PDFDocumentSanitizer::isCommentAnnotation(const PDFAnnotation* annotation)
 
 bool PDFDocumentSanitizer::isSignatureField(const PDFObjectStorage* storage, const PDFDictionary* dictionary)
 {
+    // The inherited type of the field (ISO 32000-2, Table 226): the chain of /Parent, each parent once
+    PDFObjectWalk walk(PDFFormField::MAX_FIELD_TREE_DEPTH);
     const PDFDictionary* current = dictionary;
-    for (int depth = 0; current && depth <= PDFFormField::MAX_FIELD_TREE_DEPTH; ++depth)
+    for (int depth = 1; current; ++depth)
     {
         const PDFObject& fieldType = storage->getObject(current->get("FT"));
         if (fieldType.isName())
         {
             return fieldType.getString() == "Sig";
         }
-        current = storage->getDictionaryFromObject(current->get("Parent"));
+
+        const PDFObject& parent = current->get("Parent");
+        current = walk.enter(parent, depth) ? storage->getDictionaryFromObject(parent) : nullptr;
     }
     return false;
 }
@@ -902,6 +1258,7 @@ std::vector<PDFDocumentSanitizer::SanitizationFlag> PDFDocumentSanitizer::getSte
 
 void PDFDocumentSanitizer::sanitize()
 {
+    m_removedDocumentInfoProperties.clear();
     Q_EMIT sanitizationStarted();
 
     for (SanitizationFlag step : getSteps(m_flags))
@@ -911,7 +1268,12 @@ void PDFDocumentSanitizer::sanitize()
             break;
         }
 
-        Q_EMIT sanitizationStepStarted(step);
+        const auto phase = m_progress ? m_phaseOfStep.find(int(step)) : m_phaseOfStep.cend();
+        if (phase != m_phaseOfStep.cend())
+        {
+            m_progress->beginPhase(phase->second);
+        }
+
         switch (step)
         {
             case DocumentInfo:
@@ -977,6 +1339,20 @@ void PDFDocumentSanitizer::setFlags(SanitizationFlags flags)
 
 void PDFDocumentSanitizer::performSanitizeDocumentInfo()
 {
+    // The same data in the XMP metadata of the document (ISO 32000-2, 14.3.3, Table 349) go
+    // too, unless every metadata stream goes in the next step; the other properties stay
+    if (!m_flags.testFlag(Metadata))
+    {
+        const DocumentInfoProperties properties = removeDocumentInfoProperties(getCatalogMetadata(&m_storage, nullptr));
+        if (!properties.names.isEmpty())
+        {
+            PDFDocumentBuilder metadataBuilder(m_storage, PDFVersion(2, 0));
+            metadataBuilder.setCatalogMetadata(properties.metadata);
+            m_storage = metadataBuilder.build().getStorage();
+            m_removedDocumentInfoProperties = properties.names;
+        }
+    }
+
     // The entry /Info of the trailer is removed after the last step (removeDocumentInfoEntry)
     PDFDocumentBuilder builder(m_storage, PDFVersion(2, 0));
     if (builder.getDocumentInfo().isValid())
@@ -1204,7 +1580,7 @@ void PDFDocumentSanitizer::performSanitizeInvisibleText()
         {
             // One state for the streams of the page (they are one content stream)
             PDFDocumentSanitizer::InvisibleTextState state;
-            SanitizedObjectResult result = PDFInvisibleTextSanitizerHelper::sanitizeContentsObject(builder, pageDictionary->get("Contents"), context, &state);
+            SanitizedObjectResult result = PDFInvisibleTextSanitizerHelper::sanitizeContentsObject(builder, pageDictionary->get("Contents"), context, &state, 0);
             if (result.changed)
             {
                 updatedPageDictionary.setEntry(PDFInplaceOrMemoryString("Contents"), qMove(result.object));
@@ -1214,7 +1590,7 @@ void PDFDocumentSanitizer::performSanitizeInvisibleText()
 
         if (pageDictionary->hasKey("Resources"))
         {
-            SanitizedObjectResult result = PDFInvisibleTextSanitizerHelper::sanitizeResourcesObject(builder, pageDictionary->get("Resources"), context);
+            SanitizedObjectResult result = PDFInvisibleTextSanitizerHelper::sanitizeResourcesObject(builder, pageDictionary->get("Resources"), context, 0);
             if (result.changed)
             {
                 updatedPageDictionary.setEntry(PDFInplaceOrMemoryString("Resources"), qMove(result.object));
@@ -1306,9 +1682,9 @@ void PDFDocumentSanitizer::performSanitizeSignatureFields()
     const PDFObject& formObject = catalogDictionary->get("AcroForm");
     if (const PDFDictionary* formDictionary = builder.getDictionaryFromObject(formObject))
     {
-        std::set<PDFObjectReference> visited;
+        PDFObjectWalk walk(PDFFormField::MAX_FIELD_TREE_DEPTH);
         std::set<PDFObjectReference> nulledFields;
-        std::optional<PDFObject> fields = Helper::removeSignatureFields(&builder, formDictionary->get("Fields"), 0, &visited, &nulledFields);
+        std::optional<PDFObject> fields = Helper::removeSignatureFields(&builder, formDictionary->get("Fields"), 0, &walk, &nulledFields);
 
         // The dictionary of the form is read again: removeSignatureFields may have written it
         formDictionary = builder.getDictionaryFromObject(builder.getObject(formObject));

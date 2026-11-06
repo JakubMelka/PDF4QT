@@ -142,7 +142,7 @@ public:
     void setOperationControl(const PDFOperationControl* operationControl) { m_operationControl = operationControl; }
 
     /// Sets the progress of perform, a step per page (optional)
-    void setProgress(PDFProgress* progress) { m_progress = progress; }
+    void setProgress(PDFProgressSink* progress) { m_progress = progress; }
 
     /// Performs text extracting algorithm. Only \p pageIndices
     /// pages are processed for text extraction.
@@ -181,7 +181,7 @@ private:
     const PDFDocument* m_document;
     const PDFStructureTree* m_tree;
     const PDFOperationControl* m_operationControl = nullptr;
-    PDFProgress* m_progress = nullptr;
+    PDFProgressSink* m_progress = nullptr;
     QStringList m_unmatchedText;
     std::map<PDFInteger, PDFStructureTreeTextSequence> m_textSequences;
     std::map<const PDFStructureItem*, TextItems> m_textForItems;
@@ -641,8 +641,35 @@ bool PDFStructureTreeTextFlowCollector::isOnProcessedPage(const PDFStructureElem
         item = item->getParent();
     }
 
-    // An item without a page has only its text in an export
-    return false;
+    // Without /Pg the page of the item is the page of its content items: a marked content
+    // reference or an object reference has its own /Pg (Tables 357 and 358)
+    bool hasPage = false;
+    for (size_t i = 0, count = structureElement->getChildCount(); i < count; ++i)
+    {
+        const PDFStructureItem* child = structureElement->getChild(i);
+        PDFObjectReference pageReference;
+        if (const PDFStructureMarkedContentReference* markedContentReference = child->asStructureMarkedContentReference())
+        {
+            pageReference = markedContentReference->getPageReference();
+        }
+        else if (const PDFStructureObjectReference* objectReference = child->asStructureObjectReference())
+        {
+            pageReference = objectReference->getPageReference();
+        }
+
+        if (pageReference.isValid())
+        {
+            hasPage = true;
+            const size_t pageIndex = m_catalog ? m_catalog->getPageIndexFromPageReference(pageReference) : PDFCatalog::INVALID_PAGE_INDEX;
+            if (pageIndex != PDFCatalog::INVALID_PAGE_INDEX && m_pageIndices.count(PDFInteger(pageIndex)))
+            {
+                return true;
+            }
+        }
+    }
+
+    // An item without any page belongs to the whole document: it is in an export of all pages
+    return !hasPage && m_catalog && m_pageIndices.size() >= m_catalog->getPageCount();
 }
 
 void PDFStructureTreeTextFlowCollector::markHasContent()

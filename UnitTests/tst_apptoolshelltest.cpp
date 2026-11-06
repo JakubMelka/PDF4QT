@@ -69,6 +69,11 @@
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
 #include "pdfdocumentreader.h"
+#include "pdfdocumenttool_compress.h"
+#include "pdfdocumenttool_extracttext.h"
+#include "pdfdocumenttool_pages.h"
+#include "pdfdocumenttool_protect.h"
+#include "pdfdocumenttool_structure.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttoolsuggestions.h"
 #include "pdfdocumentwriter.h"
@@ -138,6 +143,48 @@ public:
 class ToolShellTestHelper
 {
 public:
+    /// Parameters of Remove Hidden Data, which choose one kind of the hidden data
+    static QVariantMap onlyKind(const QString& kind)
+    {
+        QVariantMap parameters;
+        for (const QString& name : { QStringLiteral("documentInfo"), QStringLiteral("metadata"), QStringLiteral("comments"), QStringLiteral("attachments"), QStringLiteral("outline"),
+                                     QStringLiteral("pageLabels"), QStringLiteral("searchIndex"), QStringLiteral("thumbnails"), QStringLiteral("invisibleText"), QStringLiteral("signatureFields") })
+        {
+            parameters.insert(name, name == kind);
+        }
+        return parameters;
+    }
+
+    /// A tool of the first batch of phase 2 (the real computation)
+    static std::shared_ptr<const pdf::PDFDocumentTool> createTool(const QString& id)
+    {
+        if (id == QLatin1String("optimize.compress"))
+        {
+            return std::make_shared<pdf::PDFDocumentToolCompress>();
+        }
+        if (id == QLatin1String("optimize.structure"))
+        {
+            return std::make_shared<pdf::PDFDocumentToolStructure>();
+        }
+        if (id == QLatin1String("protect.sanitize"))
+        {
+            return std::make_shared<pdf::PDFDocumentToolSanitize>();
+        }
+        if (id == QLatin1String("protect.remove-links"))
+        {
+            return std::make_shared<pdf::PDFDocumentToolRemoveLinks>();
+        }
+        if (id == QLatin1String("convert.extract-text"))
+        {
+            return std::make_shared<pdf::PDFDocumentToolExtractText>();
+        }
+        if (id == QLatin1String("pages.rotate"))
+        {
+            return std::make_shared<pdf::PDFDocumentToolRotatePages>();
+        }
+        return std::make_shared<pdf::PDFDocumentToolRemovePages>();
+    }
+
     static PDFAppToolResultOutcome firstOutcome(const QSignalSpy& spy)
     {
         return spy.first().first().value<PDFAppToolResultOutcome>();
@@ -219,6 +266,10 @@ private slots:
     // The runner
     void runnerRunAndCommit();
     void runnerProgress();
+    void runnerProgressOfTools_data();
+    void runnerProgressOfTools();
+    void runnerStopInParallelPhase();
+    void runnerProgressText();
     void runnerUnsuccessfulStatuses_data();
     void runnerUnsuccessfulStatuses();
     void runnerStopAtOnce();
@@ -479,8 +530,11 @@ void AppToolShellTest::runnerProgress()
 {
     AppToolShellFixture fixture;
     pdf::PDFAppDocumentTab* tab = fixture.openDocument(5);
-    PDFDocumentToolRunner* runner = fixture.createRunner(tab, TOOL_ROTATE);
+    std::shared_ptr<TestDocumentTool> rotateTool;
+    PDFDocumentToolRunner* runner = fixture.createRunner(tab, TOOL_ROTATE, &rotateTool);
 
+    // A run of at least half a second: the runner reads its progress every PROGRESS_INTERVAL
+    rotateTool->setStepDelay(5000);
     QSignalSpy progressSpy(runner, &PDFDocumentToolRunner::runProgress);
     QSignalSpy tabProgressSpy(tab->getDocument(), &pdf::PDFAppDocument::operationProgressChanged);
 
@@ -491,13 +545,13 @@ void AppToolShellTest::runnerProgress()
     QObject::connect(runner, &PDFDocumentToolRunner::runProgress, &context, [&]() { tabProgress = qMax(tabProgress, tab->getTabProgress()); });
 
     QVariantMap parameters = AppToolShellFixture::parameters(QStringLiteral("count"));
-    parameters.insert(QStringLiteral("repeat"), 100);
+    parameters.insert(QStringLiteral("repeat"), 20);
     pdf::PDFDocumentToolResult result;
     QVERIFY(fixture.runTool(runner, parameters, &result));
-    QCOMPARE(result.data.value(QStringLiteral("counted")).toInteger(), qint64(500));
+    QCOMPARE(result.data.value(QStringLiteral("counted")).toInteger(), qint64(100));
 
     QVERIFY(progressSpy.size() > 2);
-    QVERIFY(progressSpy.size() <= 202);
+    QVERIFY(progressSpy.size() <= 101);
     int last = -1;
     for (const QList<QVariant>& arguments : progressSpy)
     {
@@ -506,7 +560,7 @@ void AppToolShellTest::runnerProgress()
         QVERIFY(percentage >= 0 && percentage <= 100);
         last = percentage;
     }
-    QVERIFY(last > 90);
+    QCOMPARE(last, 100);
     QVERIFY(tabProgressSpy.size() >= progressSpy.size());
     QVERIFY(tabProgress > 0.9);
     QCOMPARE(runner->getProgress(), last);
@@ -515,6 +569,7 @@ void AppToolShellTest::runnerProgress()
     std::shared_ptr<TestDocumentTool> tool;
     PDFDocumentToolRunner* previewRunner = fixture.createRunner(tab, TOOL_COMPRESS, &tool);
     tool->setPreview(true, true);
+    tool->setStepDelay(5000);
     runner->endDecision();
     QSignalSpy previewProgressSpy(previewRunner, &PDFDocumentToolRunner::previewProgress);
     QSignalSpy previewSpy(previewRunner, &PDFDocumentToolRunner::previewFinished);
@@ -522,6 +577,146 @@ void AppToolShellTest::runnerProgress()
     QVERIFY(AppToolShellFixture::waitFor([&previewSpy]() { return previewSpy.size() >= 1; }));
     QVERIFY(previewProgressSpy.size() > 2);
     QVERIFY(tab->getDocument()->getOperations().empty());
+}
+
+void AppToolShellTest::runnerProgressOfTools_data()
+{
+    QTest::addColumn<QString>("toolId");
+    QTest::addColumn<QString>("sample");
+    QTest::addColumn<QVariantMap>("parameters");
+    QTest::addColumn<QString>("lastText");
+
+    // The text of the last phase of each tool (tools.md 4, 5; Figma 295:1711, 438:14093,
+    // 356:13079); a tool without phases has no text of its steps
+    QTest::newRow("optimize.compress") << QStringLiteral("optimize.compress") << QStringLiteral("simple") << QVariantMap() << QStringLiteral("Measuring the result");
+    QTest::newRow("optimize.structure") << QStringLiteral("optimize.structure") << QStringLiteral("simple") << QVariantMap() << QStringLiteral("Measuring the result");
+    QTest::newRow("protect.sanitize") << QStringLiteral("protect.sanitize") << QStringLiteral("attachments") << ToolShellTestHelper::onlyKind(QStringLiteral("attachments")) << QStringLiteral("Measuring the result · step 2 of 2");
+    QTest::newRow("convert.extract-text") << QStringLiteral("convert.extract-text") << QStringLiteral("simple") << QVariantMap() << QStringLiteral("Writing the text");
+    QTest::newRow("protect.remove-links") << QStringLiteral("protect.remove-links") << QStringLiteral("links") << QVariantMap() << QString();
+    QTest::newRow("pages.rotate") << QStringLiteral("pages.rotate") << QStringLiteral("simple") << QVariantMap({ { QStringLiteral("rotation"), QStringLiteral("half") } }) << QString();
+    QTest::newRow("pages.remove") << QStringLiteral("pages.remove") << QStringLiteral("simple") << QVariantMap({ { QStringLiteral("pages"), QStringLiteral("1") } }) << QString();
+}
+
+void AppToolShellTest::runnerProgressOfTools()
+{
+    // The real computation of each tool of the first batch: the runner reads the counter of
+    // the run in the GUI thread, its percentage grows to 100 and the last value is the text
+    // of the last phase
+    QFETCH(QString, toolId);
+    QFETCH(QString, sample);
+    QFETCH(QVariantMap, parameters);
+    QFETCH(QString, lastText);
+
+    AppToolShellFixture fixture;
+    QString file;
+    if (sample == QLatin1String("links"))
+    {
+        file = pdftest::AppDocumentSamples::links(fixture.folder());
+    }
+    else if (sample == QLatin1String("attachments"))
+    {
+        file = pdftest::AppDocumentSamples::attachments(fixture.folder());
+    }
+    else
+    {
+        file = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Progress.pdf"), 3);
+    }
+    pdf::PDFAppDocumentTab* tab = fixture.open(file);
+    QVERIFY(tab);
+    QVERIFY(AppToolShellFixture::waitFor([tab]() { return tab->getDocument() && tab->getDocument()->isReady(); }));
+
+    PDFDocumentToolRunner* runner = new PDFDocumentToolRunner(tab->getDocument(), ToolShellTestHelper::createTool(toolId), tab);
+    QSignalSpy progressSpy(runner, &PDFDocumentToolRunner::runProgress);
+    QSignalSpy finishedSpy(runner, &PDFDocumentToolRunner::runFinished);
+    QVERIFY(runner->run(parameters));
+    QVERIFY(AppToolShellFixture::waitFor([&finishedSpy]() { return finishedSpy.size() >= 1; }));
+    const pdf::PDFDocumentToolResult result = finishedSpy.first().first().value<pdf::PDFDocumentToolResult>();
+    QVERIFY2(result.isUse(), qPrintable(result.message));
+
+    QVERIFY(!progressSpy.isEmpty());
+    int last = -1;
+    for (const QList<QVariant>& arguments : progressSpy)
+    {
+        QVERIFY(arguments.first().toInt() >= last);
+        last = arguments.first().toInt();
+    }
+    QCOMPARE(last, 100);
+    QCOMPARE(runner->getProgress(), 100);
+    QCOMPARE(progressSpy.last().at(1).toString(), lastText);
+    QCOMPARE(runner->getStepText(), lastText);
+    runner->endDecision();
+}
+
+void AppToolShellTest::runnerStopInParallelPhase()
+{
+    // Stop while the pages are read by the threads of a parallel loop (Extract Text): the
+    // run ends at once as Stopped, the bar is not full, nothing of the worker comes later
+    AppToolShellFixture fixture;
+    const QString file = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Large.pdf"), 1500);
+    pdf::PDFAppDocumentTab* tab = fixture.open(file);
+    QVERIFY(tab);
+    QVERIFY(AppToolShellFixture::waitFor([tab]() { return tab->getDocument() && tab->getDocument()->isReady(); }, 120000));
+    pdf::PDFAppDocument* document = tab->getDocument();
+
+    QPointer<PDFDocumentToolRunner> runner = new PDFDocumentToolRunner(document, ToolShellTestHelper::createTool(QStringLiteral("convert.extract-text")), tab);
+    QSignalSpy finishedSpy(runner.data(), &PDFDocumentToolRunner::runFinished);
+    int progressAfterStop = 0;
+    int stoppedAt = -1;
+    QString stoppedText;
+    QObject context;
+    QObject::connect(runner.data(), &PDFDocumentToolRunner::runProgress, &context, [&](int percentage, const QString& stepText)
+    {
+        if (stoppedAt >= 0)
+        {
+            ++progressAfterStop;
+        }
+        else if (stepText.startsWith(QStringLiteral("Reading page · ")) && percentage < 90)
+        {
+            stoppedAt = percentage;
+            stoppedText = stepText;
+            runner->stop();
+        }
+    });
+    QVERIFY(runner->run(QVariantMap()));
+    QVERIFY(AppToolShellFixture::waitFor([&finishedSpy]() { return finishedSpy.size() >= 1; }, 120000));
+    QVERIFY2(stoppedAt >= 0, "the run ended before the reading of its pages was seen");
+    QCOMPARE(finishedSpy.first().first().value<pdf::PDFDocumentToolResult>().status, pdf::PDFDocumentToolResultStatus::Stopped);
+    QVERIFY2(QRegularExpression(QStringLiteral("^Reading page · \\d+ of 1,500$")).match(stoppedText).hasMatch(), qPrintable(stoppedText));
+    QCOMPARE(runner->getState(), RunnerState::Idle);
+    QVERIFY(document->getOperations().empty());
+
+    // The canceled worker ends; its last values are dropped
+    QThreadPool::globalInstance()->waitForDone();
+    AppToolShellFixture::settle();
+    QCOMPARE(progressAfterStop, 0);
+    QCOMPARE(finishedSpy.size(), 1);
+    QVERIFY(runner->getProgress() < 100);
+}
+
+void AppToolShellTest::runnerProgressText()
+{
+    // The text of the step, built in the GUI thread: the text of the phase, its count when the
+    // phase shows it, the numbers by the locale of the application (295:1711)
+    pdf::PDFProgressCounter::Snapshot snapshot;
+    QVERIFY(PDFDocumentToolRunner::getStepText(snapshot).isEmpty());
+
+    snapshot.text = QStringLiteral("Recompressing images");
+    QCOMPARE(PDFDocumentToolRunner::getStepText(snapshot), QStringLiteral("Recompressing images"));
+
+    snapshot.showCount = true;
+    QCOMPARE(PDFDocumentToolRunner::getStepText(snapshot), QStringLiteral("Recompressing images"));
+
+    snapshot.done = 152;
+    snapshot.count = 412;
+    QCOMPARE(PDFDocumentToolRunner::getStepText(snapshot), QStringLiteral("Recompressing images · 152 of 412"));
+
+    snapshot.text = QStringLiteral("Reading page");
+    snapshot.done = 640;
+    snapshot.count = 1592;
+    QCOMPARE(PDFDocumentToolRunner::getStepText(snapshot), QStringLiteral("Reading page · 640 of 1,592"));
+
+    snapshot.showCount = false;
+    QCOMPARE(PDFDocumentToolRunner::getStepText(snapshot), QStringLiteral("Reading page"));
 }
 
 void AppToolShellTest::runnerUnsuccessfulStatuses_data()
@@ -7333,7 +7528,7 @@ class EnvironmentTestTool : public pdftest::ShellTestTool
 public:
     using pdftest::ShellTestTool::ShellTestTool;
 
-    pdf::PDFDocumentToolResult execute(const pdf::PDFDocumentToolContext& context, const QVariantMap& parameters, const pdf::PDFOperationControl* control, pdf::PDFProgress* progress) const override
+    pdf::PDFDocumentToolResult execute(const pdf::PDFDocumentToolContext& context, const QVariantMap& parameters, const pdf::PDFOperationControl* control, pdf::PDFProgressSink* progress) const override
     {
         // The test reads it after the end of the run
         selectedPages = context.selectedPages;

@@ -26,6 +26,7 @@
 #include "pdfglobal.h"
 #include "pdfobject.h"
 #include "pdfcms.h"
+#include "pdfprogress.h"
 
 #include <QImage>
 #include <QPointF>
@@ -45,7 +46,6 @@ class PDFICCProfileCache;
 class PDFFontCacheShrinkGuard;
 class PDFOperationControl;
 class PDFOptionalContentActivity;
-class PDFProgress;
 
 /// Helper responsible for gathering image statistics needed for compression.
 class PDF4QTLIBCORESHARED_EXPORT PDFImageCompressor
@@ -147,12 +147,12 @@ public:
     /// \return Collected statistics for every unique image reference
     ImageStatisticsList collectImages(const PDFDocument* document,
                                       const PDFOperationControl* operationControl = nullptr,
-                                      PDFProgress* progress = nullptr) const;
+                                      PDFProgressSink* progress = nullptr) const;
 
     /// As collectImages, in the given environment
     ImageStatisticsList collectImages(const Environment& environment,
                                       const PDFOperationControl* operationControl = nullptr,
-                                      PDFProgress* progress = nullptr) const;
+                                      PDFProgressSink* progress = nullptr) const;
 
     /// First pass over the pages (in the threads of PDFExecutionPolicy): finds the image XObjects
     /// drawn by the document and their placements, the result does not depend on the threads.
@@ -163,7 +163,7 @@ public:
     /// \return Placements sorted by the reference; incomplete, when canceled
     ImagePlacements collectImagePlacements(const Environment& environment,
                                            const PDFOperationControl* operationControl = nullptr,
-                                           PDFProgress* progress = nullptr) const;
+                                           PDFProgressSink* progress = nullptr) const;
 
     /// Second pass in the threads of PDFExecutionPolicy (Scope::Page): the pages, which draw an image for
     /// the first time, are processed at once, each task holds a decoded image only while the callback

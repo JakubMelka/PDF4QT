@@ -3661,7 +3661,7 @@ PDFInkCoverageCalculator::PDFInkCoverageCalculator(const PDFDocument* document,
                                                    const PDFCMSManager* cmsManager,
                                                    const PDFOptionalContentActivity* optionalContentActivity,
                                                    const PDFInkMapper* inkMapper,
-                                                   PDFProgress* progress,
+                                                   PDFProgressSink* progress,
                                                    PDFTransparencyRendererSettings settings) :
     m_document(document),
     m_fontCache(fontCache),

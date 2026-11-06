@@ -1347,8 +1347,7 @@ void AppMcpContentTest::helpTopicsMatchCode()
     }
     QVERIFY(tools->markdown.contains(QStringLiteral("/help/ai-permissions")));
 
-    // "Available now": names only tools an assistant can run. The parts of package 2 register
-    // their tools in parallel, 2E adds them to this line and the check becomes an equality.
+    // "Available now": names exactly the tools an assistant can run, in the order of the catalog
     static const QRegularExpression available(QStringLiteral("Available now: ([^|]+?) \\|"));
     const QRegularExpressionMatch availableMatch = available.match(tools->markdown);
     QVERIFY(availableMatch.hasMatch());
@@ -1362,10 +1361,7 @@ void AppMcpContentTest::helpTopicsMatchCode()
     }
     const QStringList availableTitles = availableMatch.captured(1).split(QStringLiteral(", "));
     QVERIFY(!availableTitles.isEmpty());
-    for (const QString& title : availableTitles)
-    {
-        QVERIFY2(implementedTitles.contains(title), qPrintable(title));
-    }
+    QCOMPARE(availableTitles, implementedTitles);
 }
 
 int main(int argc, char* argv[])

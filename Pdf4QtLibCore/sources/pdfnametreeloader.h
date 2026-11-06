@@ -24,6 +24,7 @@
 #define PDFNAMETREELOADER_H
 
 #include "pdfdocument.h"
+#include "pdfobjectutils.h"
 
 #include <map>
 #include <functional>
@@ -42,20 +43,28 @@ public:
     using LoadMethod = std::function<Type(const PDFObjectStorage*, const PDFObject&)>;
 
     /// Parses the name tree and loads its items into the map. Some errors are ignored,
-    /// e.g. when kid is null. Objects are retrieved by \p loadMethod.
+    /// e.g. when kid is null. Objects are retrieved by \p loadMethod. The nodes are read by one
+    /// PDFObjectWalk: a node once (a kid listed twice, a kid, which is its own ancestor, adds
+    /// nothing), up to its default depth.
     /// \param storage Object storage
     /// \param root Root of the name tree
     /// \param loadMethod Parsing method, which retrieves parsed object
     static MappedObjects parse(const PDFObjectStorage* storage, const PDFObject& root, const LoadMethod& loadMethod)
     {
         MappedObjects result;
-        parseImpl(result, storage, root, loadMethod);
+        PDFObjectWalk walk;
+        parseImpl(result, storage, root, loadMethod, &walk, 0);
         return result;
     }
 
 private:
-    static void parseImpl(MappedObjects& objects, const PDFObjectStorage* storage, const PDFObject& root, const LoadMethod& loadMethod)
+    static void parseImpl(MappedObjects& objects, const PDFObjectStorage* storage, const PDFObject& root, const LoadMethod& loadMethod, PDFObjectWalk* walk, int depth)
     {
+        if (!walk->enter(root, depth))
+        {
+            return;
+        }
+
         if (const PDFDictionary* dictionary = storage->getDictionaryFromObject(root))
         {
             // Jakub Melka: First, load the objects into the map
@@ -87,7 +96,7 @@ private:
                 const size_t count = kidsArray->getCount();
                 for (size_t i = 0; i < count; ++i)
                 {
-                    parseImpl(objects, storage, kidsArray->getItem(i), loadMethod);
+                    parseImpl(objects, storage, kidsArray->getItem(i), loadMethod, walk, depth + 1);
                 }
             }
         }

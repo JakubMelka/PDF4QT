@@ -40,6 +40,10 @@
 // understands too - drd.h assigns the same request codes to its happens-before
 // annotations; outside of valgrind a client request is a few instructions).
 
+#include <QtCore/QDeadlineTimer>
+#include <QtCore/QMutex>
+#include <QtCore/QWaitCondition>
+
 #if defined(__SANITIZE_THREAD__)
 #define PDF4QT_THREAD_ANNOTATIONS_TSAN
 #elif defined(__has_feature)
@@ -137,6 +141,37 @@ public:
         }
 #else
         (void)address;
+#endif
+    }
+
+    /// Waits on a wait condition with a mutex locked by the code of PDF4QT (use it
+    /// instead of QWaitCondition::wait). The detectors see the lock and the unlock of
+    /// a QMutex only in our code (the inline functions of qmutex.h call the hooks of
+    /// qtsan_impl.h), while the wait unlocks and relocks the mutex inside of the Qt
+    /// library. ThreadSanitizer then believes, that the waiting thread holds the mutex
+    /// during the whole wait: the next lock of another thread is a "double lock of a
+    /// mutex", the mutex is broken for it from then on and every access guarded by it
+    /// is reported as a data race. The unlock is announced before the wait and the
+    /// relock after it, as the instrumented Qt would do it; valgrind gets the same
+    /// hand-offs as by the hooks of the lock and the unlock (threadannotations/QtCore/qtsan_impl.h).
+    /// \param condition Wait condition
+    /// \param mutex Mutex locked by this thread
+    /// \param deadline Deadline of the wait
+    /// \returns false, if the wait timed out (QWaitCondition::wait)
+    static inline bool wait(QWaitCondition& condition, QMutex* mutex, QDeadlineTimer deadline = QDeadlineTimer(QDeadlineTimer::Forever))
+    {
+#if defined(PDF4QT_THREAD_ANNOTATIONS_TSAN)
+        __tsan_mutex_pre_unlock(mutex, 0);
+        __tsan_mutex_post_unlock(mutex, 0);
+        const bool result = condition.wait(mutex, deadline);
+        __tsan_mutex_pre_lock(mutex, 0);
+        __tsan_mutex_post_lock(mutex, 0, 0);
+        return result;
+#else
+        happensBefore(mutex);
+        const bool result = condition.wait(mutex, deadline);
+        happensAfter(mutex);
+        return result;
 #endif
     }
 

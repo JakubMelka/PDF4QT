@@ -166,6 +166,9 @@ private:
     QString getKindDescription(Kind kind) const;
     static QString getPresetTitle(Preset preset);
 
+    /// Why the permissions of the document refuse the chosen kinds (empty = permitted)
+    QString getPermissionRefusal() const;
+
     void onPresetRowClicked();
     void onShellStateChanged(pdf::PDFDocumentToolShell::State state);
 

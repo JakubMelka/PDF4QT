@@ -43,6 +43,18 @@ namespace pdf
 
 class PDFAppContext;
 
+/// The values of an open tool for a new version of its document (PDFAppToolParameterModel::mapValues)
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolValueMapper
+{
+public:
+    virtual ~PDFAppToolValueMapper();
+
+    /// The values made for the new version
+    /// \param values The values (the current ones or a step of Undo and Redo)
+    /// \param isCurrent \p values are the current values
+    virtual QVariantMap mapValues(const QVariantMap& values, bool isCurrent) const = 0;
+};
+
 /// The only model of the values of the parameters of an open tool (plan of the first
 /// batch, chapter 2.1): the widgets of the panels, the binder PDFAppSettingControl and
 /// the runner all use it.
@@ -101,6 +113,13 @@ public:
     /// of the user), the steps keep it. \returns the translated reason of a refusal.
     QString setFollowingValue(const QString& name, const QVariant& value);
 
+    /// The values follow a new version of the document (an assistant has removed or moved
+    /// pages below the tool: its marks follow their pages): the current values and every step
+    /// of Undo and Redo are made for it by \p mapper; no undo step, \p changed for each changed
+    /// current value (the last thing: the slots may delete the model). A mapped value, which
+    /// is not valid, keeps the value it had.
+    void mapValues(const PDFAppToolValueMapper& mapper);
+
     /// Errors of the current values (required parameters without a value)
     std::vector<PDFDocumentToolParameterError> getErrors() const;
 
@@ -140,6 +159,9 @@ Q_SIGNALS:
 private:
     /// Replaces the values, emits \p changed for what differs and \p undoStateChanged
     void applyValues(const QVariantMap& values);
+
+    /// \p values with the canonical values of \p mapped (an invalid one is left out)
+    QVariantMap mergeMappedValues(const QVariantMap& values, const QVariantMap& mapped) const;
 
     void loadLastValues();
 

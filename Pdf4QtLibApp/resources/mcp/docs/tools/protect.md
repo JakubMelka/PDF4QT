@@ -90,10 +90,13 @@ Strip metadata, comments and more.
 
 Each kind of hidden data is a boolean; an omitted one takes its default, which is the preset Standard of PDF4QT: everything except `invisibleText` and `signatureFields`. A kind, which the document does not have, changes nothing. The page content stays: visible text and images are not removed (that is Redact Content).
 
+- `documentInfo` removes the information dictionary and the same data from the XMP metadata of the document, when `metadata` does not remove them whole: the properties `dc:title`, `dc:creator`, `dc:description`, `pdf:Keywords`, `xmp:CreatorTool`, `pdf:Producer`, `xmp:CreateDate`, `xmp:ModifyDate` and `pdf:Trapped` (ISO 32000-2, Table 349). The other XMP properties stay. `data.documentInfoXmp` names the removed properties and a fact of the result says how many; `data.scan.documentInfo.xmp` lists them before the run. XMP metadata, which cannot be read, make `documentInfo` alone fail: add `metadata`.
 - `comments` removes every markup annotation (also file attachment annotations, which are markup annotations) with its replies and its pop-up window.
 - `attachments` removes the embedded files of the name tree, of file attachment annotations, of the associated files (`/AF`) and of the file specifications of the document.
 - `invisibleText` removes the text drawn in the invisible rendering mode (the OCR layer of scanned pages) and the private data of an OCR layer of PDF4QT: search and copy stop working on these pages. Tell the user before you remove it.
 - `signatureFields` removes the signature fields, the names, reasons and certificates of the signatures and the permissions of a certified document.
+
+An encrypted document must allow changes (ISO 32000-2, Table 22, bit 4). `comments`, `attachments` with file attachment annotations and `signatureFields` change annotations and form fields: they need bit 6 too. Without it the call fails with a message, which names the kinds to leave out; nothing is written.
 
 The steps of the result say what was removed; `data.removedKinds` and `data.keptKinds` name the kinds by their parameters, `data.scan` has what the document had.
 

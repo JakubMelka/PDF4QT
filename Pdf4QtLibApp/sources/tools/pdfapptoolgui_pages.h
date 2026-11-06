@@ -159,6 +159,9 @@ protected:
     virtual PDFAppToolPendingPagesModel::Row createPendingRow(PDFInteger page) const = 0;
     virtual PDFAppToolPageGridModel::Tile createTile(PDFInteger page) const = 0;
 
+    /// The list of the pending changes is shown (a list with a row)
+    virtual bool isPendingListShown(const std::vector<PDFInteger>& pendingPages) const;
+
     /// The link of a pending row (Undo, Keep), Delete on a tile
     virtual void onPendingLinkActivated(PDFInteger page) = 0;
     virtual void onDeleteRequested(PDFInteger page);
@@ -171,6 +174,14 @@ protected:
 
     /// Everything, which shows the pages (also after a change of the language)
     void updateAll();
+
+    /// The pages of the tool follow their page objects to the version of the document shown
+    /// now (an assistant has removed or moved pages below the tool, pages.md): the pages chosen
+    /// by the user (PDFAppToolPageSelectionBinder::followPages), the parameters of the tool and
+    /// every step of its Undo and Redo (PDFDocumentTool::mapParameters); a page, which is gone,
+    /// loses its mark. Nothing for the version seen before. The model announces the changes:
+    /// a slot may delete this GUI.
+    void followPages();
 
     /// The document shown in the tab (nullptr = none)
     PDFDocumentPointer getShownDocument() const;
@@ -196,6 +207,7 @@ private:
     QPointer<PDFAppParagraph> m_leftHint;
     std::vector<PDFInteger> m_targets;
     std::vector<char> m_isTarget;
+    PDFDocumentPointer m_pageDocument;  ///< The version, whose pages the parameters name
     int m_anchorPage = -1;
     bool m_isEntryModeApplied = false;
     bool m_isShellConnected = false;
@@ -320,6 +332,7 @@ protected:
     virtual std::vector<PDFInteger> getPendingPages() const override;
     virtual PDFAppToolPendingPagesModel::Row createPendingRow(PDFInteger page) const override;
     virtual PDFAppToolPageGridModel::Tile createTile(PDFInteger page) const override;
+    virtual bool isPendingListShown(const std::vector<PDFInteger>& pendingPages) const override;
     virtual void onPendingLinkActivated(PDFInteger page) override;
     virtual void onDeleteRequested(PDFInteger page) override;
     virtual void updatePanels() override;

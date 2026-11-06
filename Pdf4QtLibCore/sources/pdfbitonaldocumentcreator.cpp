@@ -91,7 +91,7 @@ static QImage compositePageImageOntoWhite(const QImage& image)
 
 PDFBitonalDocumentCreator::PDFBitonalDocumentCreator(const PDFDocument* document,
                                                      PDFRasterizerPool* rasterizerPool,
-                                                     PDFProgress* progress) :
+                                                     PDFProgressSink* progress) :
     m_document(document),
     m_rasterizerPool(rasterizerPool),
     m_progress(progress)
