@@ -118,7 +118,9 @@ jobs:
           # The archives of the binary cache are named by the ABI hash of the package. The archives, which were
           # not used by this build, are deleted, so the cache does not grow with outdated binaries. The cache is
           # saved only when its content has changed.
-          cat "$VCPKG_INSTALLED_DIR"/vcpkg/status "$VCPKG_INSTALLED_DIR"/vcpkg/updates/* 2>/dev/null | tr -d '\r' | sed -n 's/^Abi: *//p' | sort -u > vcpkg-cache-used.txt
+          # The directory updates exists only when the status was not yet compacted into the status file
+          shopt -s nullglob
+          { cat "$VCPKG_INSTALLED_DIR"/vcpkg/status "$VCPKG_INSTALLED_DIR"/vcpkg/updates/* || true; } | tr -d '\r' | sed -n 's/^Abi: *//p' | sort -u > vcpkg-cache-used.txt
           if [ -s vcpkg-cache-used.txt ]; then
             find vcpkg-binary-cache -type f -name '*.zip' | while read -r archive; do
               grep -qxF "$(basename "$archive" .zip)" vcpkg-cache-used.txt || rm -f "$archive"
