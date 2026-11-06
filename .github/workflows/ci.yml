@@ -4,167 +4,177 @@ on:
   push:
     branches:
       - master
-      
+
   workflow_dispatch:
 
+# A newer push to the same branch cancels the run, which is still in progress
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  QT_VERSION: '6.11.3'
+
 jobs:
-  build_ubuntu:
-    runs-on: ubuntu-latest
-    env:
-      VCPKG_OVERLAY_PORTS: ${{ github.workspace }}/pdf4qt/vcpkg/overlays/linux:${{ github.workspace }}/pdf4qt/vcpkg/overlays/general
-      VCPKG_INSTALLED_DIR: ${{ github.workspace }}/vcpkg_installed
-      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
-      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.vcpkg-binary-cache
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 150
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Ubuntu
+            os: ubuntu-latest
+            # Release only triplets build the dependencies once, not in the debug and release configuration
+            triplet: x64-linux-release
+            bootstrap: bootstrap-vcpkg.sh
+            # The overlay of libpng avoids the crash of the incompatible libpng on Linux (the general overlays are
+            # listed in vcpkg-configuration.json)
+            vcpkg-args: --overlay-ports=pdf4qt/vcpkg/overlays/linux
+            qt-host: linux
+            qt-arch: ''
+            aqtsource: ''
+            cmake-args: -DPDF4QT_INSTALL_QT_DEPENDENCIES=OFF
+          - name: Windows
+            os: windows-latest
+            triplet: x64-windows-release
+            bootstrap: bootstrap-vcpkg.bat
+            vcpkg-args: ''
+            qt-host: windows
+            qt-arch: win64_msvc2022_64
+            # aqtinstall 3.3 cannot read the Windows repository layout of Qt 6.11+, use a commit of its master
+            # until a release supports it
+            aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7'
+            cmake-args: >-
+              -DPDF4QT_INSTALL_QT_DEPENDENCIES=ON
+              -DPDF4QT_INSTALL_DEPENDENCIES=ON
+              -DPDF4QT_QT_ROOT="$QT_ROOT_DIR"
+              -DPDF4QT_INSTALL_MSVC_REDISTRIBUTABLE=ON
+              -DPDF4QT_INSTALL_PREPARE_WIX_INSTALLER=ON
+              -DPDF4QT_INSTALL_TO_USR=ON
+
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: pdf4qt
 
-      - name: Prepare vcpkg directories
+      - name: Set up paths
         run: |
-          mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
-          
-      - name: Install Dependencies
+          # Paths with forward slashes on all platforms (CMake and vcpkg accept them also on Windows)
+          workspace="$GITHUB_WORKSPACE"
+          if [ "$RUNNER_OS" = Windows ]; then workspace="$(cygpath -m "$workspace")"; fi
+          {
+            echo "VCPKG_ROOT=$workspace/vcpkg"
+            echo "VCPKG_INSTALLED_DIR=$workspace/vcpkg_installed"
+            echo "VCPKG_DEFAULT_BINARY_CACHE=$workspace/vcpkg-binary-cache"
+            echo "VCPKG_DISABLE_METRICS=1"
+          } >> "$GITHUB_ENV"
+
+      - name: Install system packages
+        if: runner.os == 'Linux'
         run: |
-          sudo apt update
-          sudo apt install -y libcups2 libcups2-dev libfontconfig1-dev
-          
+          sudo apt-get update
+          sudo apt-get install -y libcups2 libcups2-dev libfontconfig1-dev
+
       - name: 'VCPKG: Set up VCPKG'
         run: |
-          git clone --depth=1 https://github.com/microsoft/vcpkg.git
-          cd vcpkg
-          # vcpkg.json pins the versions of the dependencies by builtin-baseline, the shallow clone
-          # has to contain that commit
-          git fetch --depth=1 origin "$(sed -n 's/.*"builtin-baseline": *"\([0-9a-f]*\)".*/\1/p' ../pdf4qt/vcpkg.json)"
-          ./bootstrap-vcpkg.sh
-          ./vcpkg integrate install
-        
-      - name: 'VCPKG: Cache vcpkg dependencies'
-        uses: actions/cache@v4
+          # vcpkg is checked out exactly at the builtin-baseline of vcpkg.json. The ABI hashes of the binary
+          # cache depend also on the scripts and tools of vcpkg, a checkout of its master would change them
+          # with each commit of vcpkg and all dependencies would be built again.
+          baseline="$(sed -n 's/.*"builtin-baseline": *"\([0-9a-f]*\)".*/\1/p' pdf4qt/vcpkg.json)"
+          git init -q vcpkg
+          git -C vcpkg remote add origin https://github.com/microsoft/vcpkg.git
+          git -C vcpkg fetch -q --depth=1 origin "$baseline"
+          git -C vcpkg checkout -q --detach FETCH_HEAD
+          ./vcpkg/${{ matrix.bootstrap }} -disableMetrics
+
+      - name: 'VCPKG: Restore binary cache'
+        uses: actions/cache/restore@v6
         with:
-          path: |
-            ./vcpkg/downloads
-            ./vcpkg/packages
-            ./vcpkg_installed
-          key: ${{ runner.os }}-vcpkg-v2-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json') }}
+          path: vcpkg-binary-cache
+          key: vcpkg-bin-v1-${{ matrix.triplet }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            ${{ runner.os }}-vcpkg-v2-
+            vcpkg-bin-v1-${{ matrix.triplet }}-
 
       - name: 'VCPKG: Install project dependencies'
         run: |
-          ./vcpkg install --x-manifest-root=$GITHUB_WORKSPACE/pdf4qt --x-install-root=$VCPKG_INSTALLED_DIR --clean-buildtrees-after-build --clean-packages-after-build
-        working-directory: vcpkg
-        
+          mkdir -p vcpkg-binary-cache
+          find vcpkg-binary-cache -type f -name '*.zip' | sort > vcpkg-cache-before.txt
+          ./vcpkg/vcpkg install --x-manifest-root=pdf4qt --x-install-root="$VCPKG_INSTALLED_DIR" --triplet=${{ matrix.triplet }} --host-triplet=${{ matrix.triplet }} ${{ matrix.vcpkg-args }} --clean-buildtrees-after-build --clean-packages-after-build
+
+      - name: 'VCPKG: Prune binary cache'
+        id: vcpkg-cache
+        run: |
+          # The archives of the binary cache are named by the ABI hash of the package. The archives, which were
+          # not used by this build, are deleted, so the cache does not grow with outdated binaries. The cache is
+          # saved only when its content has changed.
+          cat "$VCPKG_INSTALLED_DIR"/vcpkg/status "$VCPKG_INSTALLED_DIR"/vcpkg/updates/* 2>/dev/null | tr -d '\r' | sed -n 's/^Abi: *//p' | sort -u > vcpkg-cache-used.txt
+          if [ -s vcpkg-cache-used.txt ]; then
+            find vcpkg-binary-cache -type f -name '*.zip' | while read -r archive; do
+              grep -qxF "$(basename "$archive" .zip)" vcpkg-cache-used.txt || rm -f "$archive"
+            done
+          else
+            echo "::warning::ABI hashes of the installed packages were not found, the binary cache is not pruned"
+          fi
+          find vcpkg-binary-cache -type f -name '*.zip' | sort > vcpkg-cache-after.txt
+          echo "Packages: $(wc -l < vcpkg-cache-after.txt), cache size: $(du -sh vcpkg-binary-cache | cut -f1)"
+          if cmp -s vcpkg-cache-before.txt vcpkg-cache-after.txt; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Saved right after the installation of the dependencies, so a failure of the build does not lose them
+      - name: 'VCPKG: Save binary cache'
+        if: steps.vcpkg-cache.outputs.changed == 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: vcpkg-binary-cache
+          key: vcpkg-bin-v1-${{ matrix.triplet }}-${{ github.run_id }}-${{ github.run_attempt }}
+
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.11.3'
-          host: 'linux'
+          version: ${{ env.QT_VERSION }}
+          host: ${{ matrix.qt-host }}
           target: 'desktop'
+          arch: ${{ matrix.qt-arch }}
           dir: '${{ github.workspace }}/qt/'
           install-deps: 'true'
           modules: 'qtspeech qtmultimedia'
           cache: 'true'
-          cache-key-prefix: ${{ runner.os }}-qt-6113
+          cache-key-prefix: ${{ runner.os }}-qt
+          aqtsource: ${{ matrix.aqtsource }}
 
-      - name: Build project
+      - name: Configure
         working-directory: pdf4qt
         run: |
-          cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_VCPKG_BUILD_TYPE=Release
-          cmake --build build --target all release_translations --config Release -j6
-          cmake --install build
+          # The dependencies are already installed, CMake must not run vcpkg install again into the build tree
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} -DVCPKG_HOST_TRIPLET=${{ matrix.triplet }} -DVCPKG_INSTALLED_DIR="$VCPKG_INSTALLED_DIR" -DVCPKG_MANIFEST_INSTALL=OFF ${{ matrix.cmake-args }}
+
+      - name: Build
+        working-directory: pdf4qt
+        run: |
+          cmake --build build --config Release --target release_translations -j6
+          cmake --build build --config Release -j6
+
+      - name: Install
+        working-directory: pdf4qt
+        run: |
+          cmake --install build --config Release
 
       - name: Make DEB package
+        if: runner.os == 'Linux'
         working-directory: pdf4qt/build
         run: |
           sh make-package.sh
-          
-      - name: Upload DEB package
-        uses: actions/upload-artifact@v4
-        with:
-          name: ubuntu-deb-package
-          path: ./pdf4qt/build/*.deb
-          retention-days: 30
-
-  build_windows:
-    runs-on: windows-latest
-    env:
-      VCPKG_OVERLAY_PORTS: ${{ github.workspace }}\pdf4qt\vcpkg\overlays\general
-      VCPKG_INSTALLED_DIR: ${{ github.workspace }}\vcpkg_installed
-      VCPKG_ROOT: ${{ github.workspace }}\vcpkg
-      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}\vcpkg-binary-cache
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          path: pdf4qt
-
-      - name: Prepare vcpkg directories
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
-
-      - name: 'VCPKG: Set up VCPKG'
-        shell: pwsh
-        run: |
-          git clone --depth=1 https://github.com/microsoft/vcpkg.git
-          cd vcpkg
-          # vcpkg.json pins the versions of the dependencies by builtin-baseline, the shallow clone
-          # has to contain that commit
-          git fetch --depth=1 origin (Get-Content -Raw ..\pdf4qt\vcpkg.json | ConvertFrom-Json).'builtin-baseline'
-          .\bootstrap-vcpkg.bat -disableMetrics
-          .\vcpkg integrate install
-
-      - name: 'VCPKG: Cache vcpkg dependencies'
-        uses: actions/cache@v4
-        with:
-          path: |
-            ./vcpkg/downloads
-            ./vcpkg/packages
-            ./vcpkg/installed
-            ./vcpkg/archives
-          key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json') }}
-          restore-keys: |
-            ${{ runner.os }}-vcpkg-
-
-
-      - name: 'VCPKG: Install project dependencies'
-        run: |
-          $manifestRoot = Join-Path $env:GITHUB_WORKSPACE 'pdf4qt'
-          .\vcpkg install --triplet x64-windows --x-manifest-root=$manifestRoot --x-install-root=$env:VCPKG_INSTALLED_DIR --clean-buildtrees-after-build --clean-packages-after-build
-        working-directory: vcpkg
-        
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: '6.11.3'
-          host: 'windows'
-          target: 'desktop'
-          arch: 'win64_msvc2022_64'
-          dir: '${{ github.workspace }}/qt/'
-          install-deps: 'true'
-          modules: 'qtspeech qtmultimedia'
-          cache: 'true'
-          cache-key-prefix: ${{ runner.os }}-qt-6113
-          # aqtinstall 3.3 cannot read the Windows repository layout of Qt 6.11+, use a commit of its master
-          # until a release supports it
-          aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7'
-
-      - name: Build project
-        working-directory: pdf4qt
-        shell: pwsh
-        run: |
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_VCPKG_BUILD_TYPE=Release -DPDF4QT_INSTALL_QT_DEPENDENCIES=ON -DPDF4QT_INSTALL_DEPENDENCIES=ON -DCMAKE_TOOLCHAIN_FILE="${env:GITHUB_WORKSPACE}\vcpkg\scripts\buildsystems\vcpkg.cmake" -DPDF4QT_QT_ROOT="${env:QT_ROOT_DIR}" -DPDF4QT_INSTALL_MSVC_REDISTRIBUTABLE=ON -DPDF4QT_INSTALL_PREPARE_WIX_INSTALLER=ON -DPDF4QT_INSTALL_TO_USR=ON 
-          cmake --build build --target release_translations --config Release -j6
-          cmake --build build --config Release -j6
-          cmake --install build --config Release
- 
-      - name: Upload Windows package
-        uses: actions/upload-artifact@v4
-        with:
-          name: 'pdf4qt-${{ runner.os }}.zip'
-          path: .\pdf4qt\build\install\usr\bin
-          retention-days: 30
