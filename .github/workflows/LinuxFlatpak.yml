@@ -3,62 +3,97 @@ name: Linux_Flatpak
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+env:
+  APP_ID: io.github.JakubMelka.Pdf4qt
+  KDE_RUNTIME_VERSION: '6.11'
+
 jobs:
   build_ubuntu:
     runs-on: ubuntu-latest
+    timeout-minutes: 150
+
+    defaults:
+      run:
+        shell: bash
 
     steps:
-      - name: Verify AppStream Version
-        run: |
-           appstreamcli --version
-    
       - name: Setup Flatpak
         run: |
-          sudo apt update
-          sudo apt install -y flatpak-builder flatpak
-
-      - name: Add Flatpak repository
-        run: |
+          appstreamcli --version
+          sudo apt-get update
+          sudo apt-get install -y flatpak-builder flatpak
           sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-          
+
       - name: Install KDE SDK and Runtime
         run: |
-          sudo flatpak install -y flathub org.kde.Sdk/x86_64/6.11 org.kde.Platform/x86_64/6.11
-          
-      - name: List Flatpak Installed Packages and Version
-        run: |
+          sudo flatpak install -y flathub org.kde.Sdk/x86_64/$KDE_RUNTIME_VERSION org.kde.Platform/x86_64/$KDE_RUNTIME_VERSION
           flatpak --version
           flatpak list
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - name: Cache Flatpak builder artifacts
-        uses: actions/cache@v4
+      # flatpak-builder keeps the built modules in .flatpak-builder in the working directory. The modules are
+      # reused, when neither the manifest, nor the SDK have changed, only the module pdf4qt (a new commit) is
+      # built again. The key contains the commits of the SDK and of the runtime (an update of them invalidates
+      # the built modules) and the hash of the manifest, a new cache is saved only when one of them changes.
+      - name: 'Flatpak builder cache: Key'
+        id: flatpak-key
+        run: |
+          sdk="$(flatpak info --show-commit org.kde.Sdk//$KDE_RUNTIME_VERSION)"
+          platform="$(flatpak info --show-commit org.kde.Platform//$KDE_RUNTIME_VERSION)"
+          hash="$(printf '%s\n' "$sdk" "$platform" | cat - Flatpak/$APP_ID.json | sha256sum | cut -c1-16)"
+          echo "key=flatpak-builder-v1-$KDE_RUNTIME_VERSION-$hash" >> "$GITHUB_OUTPUT"
+
+      - name: 'Flatpak builder cache: Restore'
+        id: flatpak-cache
+        uses: actions/cache/restore@v6
         with:
-          path: |
-            ~/.cache/flatpak-builder
-            ~/.var/cache/flatpak-builder
-          key: ${{ runner.os }}-flatpak-${{ hashFiles('Flatpak/*.json') }}
+          path: .flatpak-builder
+          key: ${{ steps.flatpak-key.outputs.key }}
           restore-keys: |
-            ${{ runner.os }}-flatpak-
+            flatpak-builder-v1-${{ env.KDE_RUNTIME_VERSION }}-
 
       - name: Inject Git commit hash into Flatpak manifest
         run: |
           COMMIT_HASH=$(git rev-parse HEAD)
           echo "Current commit hash: $COMMIT_HASH"
-          sed -i "s/PDF4QT_LAST_COMMIT/$COMMIT_HASH/g" ./Flatpak/io.github.JakubMelka.Pdf4qt.json
+          sed -i "s/PDF4QT_LAST_COMMIT/$COMMIT_HASH/g" ./Flatpak/$APP_ID.json
 
       - name: Build Flatpak
         run: |
-          flatpak-builder --repo=repo --sandbox --force-clean  build-dir ./Flatpak/io.github.JakubMelka.Pdf4qt.json 
+          flatpak-builder --repo=repo --sandbox --force-clean build-dir ./Flatpak/$APP_ID.json 2>&1 | tee flatpak-builder.log
+          # The package must never contain an unoptimized build (the module is not built again, when it was
+          # restored from the cache)
+          if grep -q "Building module pdf4qt" flatpak-builder.log; then
+            grep -q "Build type - CMAKE_BUILD_TYPE: Release" flatpak-builder.log || { echo "::error::The build type of pdf4qt is not Release"; exit 1; }
+          fi
+
+      # Saved only after a successful build, a cache with an exact key is never saved again and so it must
+      # contain all modules
+      - name: 'Flatpak builder cache: Clean up'
+        if: steps.flatpak-cache.outputs.cache-hit != 'true'
+        run: |
+          # Build directories and temporary files are not part of the cache
+          rm -rf .flatpak-builder/build .flatpak-builder/rofiles
+          du -sh .flatpak-builder
+
+      - name: 'Flatpak builder cache: Save'
+        if: steps.flatpak-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: .flatpak-builder
+          key: ${{ steps.flatpak-key.outputs.key }}
 
       - name: Build Flatpak Package
         run: |
-          flatpak build-bundle repo io.github.JakubMelka.Pdf4qt.flatpak io.github.JakubMelka.Pdf4qt
+          flatpak build-bundle repo $APP_ID.flatpak $APP_ID
 
       - name: Upload Flatpak Package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: io.github.JakubMelka.Pdf4qt.flatpak
           path: ./io.github.JakubMelka.Pdf4qt.flatpak

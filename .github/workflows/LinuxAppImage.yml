@@ -3,181 +3,274 @@ name: Linux_AppImage
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+env:
+  QT_VERSION: '6.11.3'
+  QT_MODULES: 'qtspeech qtmultimedia'
+  # Release only triplet, the dependencies are built once, not in the debug and release configuration
+  VCPKG_TRIPLET: x64-linux-release
+
 jobs:
   build_ubuntu:
+    # The oldest supported Ubuntu, the AppImage runs on the distributions with the same or a newer glibc
     runs-on: ubuntu-22.04
+    timeout-minutes: 150
     env:
-      VCPKG_OVERLAY_PORTS: ${{ github.workspace }}/pdf4qt/vcpkg/overlays/linux:${{ github.workspace }}/pdf4qt/vcpkg/overlays/general
-      VCPKG_INSTALLED_DIR: ${{ github.workspace }}/vcpkg_installed
       GNUPGHOME: ${{ github.workspace }}/gnupg
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      VCPKG_INSTALLED_DIR: ${{ github.workspace }}/vcpkg_installed
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg-binary-cache
+      VCPKG_DISABLE_METRICS: 1
+
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libxcb-cursor0 libspeechd2 gnupg2 wget appstream libcups2 libcups2-dev
-          wget -c "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+          # Requirements of Qt (the list of install-qt-action, which does not install them when Qt is restored
+          # from the cache)
+          sudo apt-get install -y build-essential libgl1-mesa-dev libgstreamer-gl1.0-0 libpulse-dev libxcb-glx0 \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-render0 \
+            libxcb-shape0 libxcb-shm0 libxcb-sync1 libxcb-util1 libxcb-xfixes0 libxcb-xinerama0 libxcb1 \
+            libxkbcommon-dev libxkbcommon-x11-0 libxcb-xkb-dev libxcb-cursor0
+          wget -q -c "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
           chmod +x appimagetool-x86_64.AppImage
           sudo mv appimagetool-x86_64.AppImage /usr/local/bin/appimagetool
 
-      - name: Prepare GPG home
+      - name: 'GPG: Configure'
         run: |
           rm -rf "$GNUPGHOME"
           install -d -m 700 "$GNUPGHOME"
-          
-      - name: Configure GPG
-        run: |
           echo "use-agent" >> "$GNUPGHOME/gpg.conf"
           echo "pinentry-mode loopback" >> "$GNUPGHOME/gpg.conf"
           echo "allow-loopback-pinentry" >> "$GNUPGHOME/gpg-agent.conf"
           echo "allow-preset-passphrase" >> "$GNUPGHOME/gpg-agent.conf"
           gpgconf --kill gpg-agent
-          echo "GPG configuration complete."
-        env:
-          GNUPGHOME: ${{ env.GNUPGHOME }}
 
-      - name: Import PGP private key
+      - name: 'GPG: Import private key'
+        env:
+          PGP_PRIVATE_KEY: ${{ secrets.PGP_PRIVATE_KEY }}
+          PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
+          PGP_KEY_ID: ${{ secrets.PGP_KEY_ID }}
         run: |
-          echo "${{ secrets.PGP_PRIVATE_KEY }}" | gpg --batch --import
-          for keygrip in $(gpg --list-secret-keys --with-keygrip "${{ secrets.PGP_KEY_ID }}" | grep Keygrip | awk '{print $3}'); do
-            echo "${{ secrets.PGP_PASSPHRASE }}" | "$(gpgconf --list-dirs libexecdir)/gpg-preset-passphrase" --preset "$keygrip"
+          printf '%s\n' "$PGP_PRIVATE_KEY" | gpg --batch --import
+          for keygrip in $(gpg --list-secret-keys --with-keygrip "$PGP_KEY_ID" | grep Keygrip | awk '{print $3}'); do
+            printf '%s\n' "$PGP_PASSPHRASE" | "$(gpgconf --list-dirs libexecdir)/gpg-preset-passphrase" --preset "$keygrip"
           done
-        env:
-          GNUPGHOME: ${{ env.GNUPGHOME }}
-          
-      - name: Create Test signature
-        run: |
-          echo "TEST" >> ~/test_with_passphrase.txt
-          echo "TEST" >> ~/test_without_passphrase.txt
-          gpg --batch --yes --verbose --passphrase "${{ secrets.PGP_PASSPHRASE }}" --pinentry-mode loopback --detach-sign --local-user "${{ secrets.PGP_KEY_ID }}" --output ~/test_with_passphrase.txt.sig ~/test_with_passphrase.txt
-          gpg --batch --yes --verbose --pinentry-mode loopback --detach-sign --local-user "${{ secrets.PGP_KEY_ID }}" --output ~/test_without_passphrase.txt.sig ~/test_without_passphrase.txt
-        env:
-          GNUPGHOME: ${{ env.GNUPGHOME }}
 
-      - name: Verify Test signature
-        run: |
-          gpg --batch --yes --verbose --verify ~/test_with_passphrase.txt.sig ~/test_with_passphrase.txt
-          gpg --batch --yes --verbose --verify ~/test_without_passphrase.txt.sig ~/test_without_passphrase.txt
+      # Checked before the long build, a problem of the key is found in a few seconds
+      - name: 'GPG: Check signing'
         env:
-          GNUPGHOME: ${{ env.GNUPGHOME }}
-          
+          PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
+          PGP_KEY_ID: ${{ secrets.PGP_KEY_ID }}
+        run: |
+          echo "TEST" > ~/test_with_passphrase.txt
+          echo "TEST" > ~/test_without_passphrase.txt
+          gpg --batch --yes --passphrase "$PGP_PASSPHRASE" --pinentry-mode loopback --detach-sign --local-user "$PGP_KEY_ID" --output ~/test_with_passphrase.txt.sig ~/test_with_passphrase.txt
+          gpg --batch --yes --pinentry-mode loopback --detach-sign --local-user "$PGP_KEY_ID" --output ~/test_without_passphrase.txt.sig ~/test_without_passphrase.txt
+          gpg --batch --verify ~/test_with_passphrase.txt.sig ~/test_with_passphrase.txt
+          gpg --batch --verify ~/test_without_passphrase.txt.sig ~/test_without_passphrase.txt
+
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: pdf4qt
-          
+
       - name: 'VCPKG: Set up VCPKG'
         run: |
-          git clone --depth=1 https://github.com/microsoft/vcpkg.git
-          cd vcpkg
-          # vcpkg.json pins the versions of the dependencies by builtin-baseline, the shallow clone
-          # has to contain that commit
-          git fetch --depth=1 origin "$(sed -n 's/.*"builtin-baseline": *"\([0-9a-f]*\)".*/\1/p' ../pdf4qt/vcpkg.json)"
-          ./bootstrap-vcpkg.sh
-          ./vcpkg integrate install
-        
-      - name: 'VCPKG: Cache vcpkg dependencies'
-        uses: actions/cache@v4
-        with:
-          path: |
-            ./vcpkg/downloads
-            ./vcpkg/packages
-            ./vcpkg_installed
-          key: ${{ runner.os }}-vcpkg-v2-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json') }}
-          restore-keys: |
-            ${{ runner.os }}-vcpkg-v2-
+          # vcpkg is checked out exactly at the builtin-baseline of vcpkg.json. The ABI hashes of the binary
+          # cache depend also on the scripts and tools of vcpkg, a checkout of its master would change them
+          # with each commit of vcpkg and all dependencies would be built again.
+          baseline="$(sed -n 's/.*"builtin-baseline": *"\([0-9a-f]*\)".*/\1/p' pdf4qt/vcpkg.json)"
+          git init -q vcpkg
+          git -C vcpkg remote add origin https://github.com/microsoft/vcpkg.git
+          git -C vcpkg fetch -q --depth=1 origin "$baseline"
+          git -C vcpkg checkout -q --detach FETCH_HEAD
+          ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
 
-      - name: 'VCPKG: Install Project Dependencies'
+      # The key contains the runner image, the compiler differs from the CI build (ubuntu-latest) and the
+      # binaries of the two builds would push each other out of the cache
+      - name: 'VCPKG: Restore binary cache'
+        uses: actions/cache/restore@v6
+        with:
+          path: vcpkg-binary-cache
+          key: vcpkg-bin-v1-ubuntu-22.04-${{ env.VCPKG_TRIPLET }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            vcpkg-bin-v1-ubuntu-22.04-${{ env.VCPKG_TRIPLET }}-
+
+      - name: 'VCPKG: Install project dependencies'
         run: |
-          ./vcpkg install --triplet x64-linux-release --x-manifest-root=${{ github.workspace }}/pdf4qt --x-install-root=$VCPKG_INSTALLED_DIR --clean-buildtrees-after-build --clean-packages-after-build
-        working-directory: vcpkg
-        
-      - name: Install Qt
+          mkdir -p vcpkg-binary-cache
+          find vcpkg-binary-cache -type f -name '*.zip' | sort > vcpkg-cache-before.txt
+          # The overlay of libpng avoids the crash of the incompatible libpng on Linux (the general overlays are
+          # listed in vcpkg-configuration.json)
+          ./vcpkg/vcpkg install --x-manifest-root=pdf4qt --x-install-root="$VCPKG_INSTALLED_DIR" --triplet=$VCPKG_TRIPLET --host-triplet=$VCPKG_TRIPLET --overlay-ports=pdf4qt/vcpkg/overlays/linux --clean-buildtrees-after-build --clean-packages-after-build
+
+      - name: 'VCPKG: Prune binary cache'
+        id: vcpkg-cache
+        run: |
+          # The archives of the binary cache are named by the ABI hash of the package. The archives, which were
+          # not used by this build, are deleted, so the cache does not grow with outdated binaries. The cache is
+          # saved only when its content has changed.
+          # The directory updates exists only when the status was not yet compacted into the status file
+          shopt -s nullglob
+          { cat "$VCPKG_INSTALLED_DIR"/vcpkg/status "$VCPKG_INSTALLED_DIR"/vcpkg/updates/* || true; } | tr -d '\r' | sed -n 's/^Abi: *//p' | sort -u > vcpkg-cache-used.txt
+          if [ -s vcpkg-cache-used.txt ]; then
+            find vcpkg-binary-cache -type f -name '*.zip' | while read -r archive; do
+              grep -qxF "$(basename "$archive" .zip)" vcpkg-cache-used.txt || rm -f "$archive"
+            done
+          else
+            echo "::warning::ABI hashes of the installed packages were not found, the binary cache is not pruned"
+          fi
+          find vcpkg-binary-cache -type f -name '*.zip' | sort > vcpkg-cache-after.txt
+          echo "Packages: $(wc -l < vcpkg-cache-after.txt), cache size: $(du -sh vcpkg-binary-cache | cut -f1)"
+          if cmp -s vcpkg-cache-before.txt vcpkg-cache-after.txt; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Saved right after the installation of the dependencies, so a failure of the build does not lose them
+      - name: 'VCPKG: Save binary cache'
+        if: steps.vcpkg-cache.outputs.changed == 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: vcpkg-binary-cache
+          key: vcpkg-bin-v1-ubuntu-22.04-${{ env.VCPKG_TRIPLET }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      # Qt is cached by own steps with the same key as in the CI build (the binaries of Qt do not depend on
+      # the runner image), the automatic cache of install-qt-action has a long key containing also the kernel
+      # version of the runner
+      - name: 'Qt: Cache key'
+        id: qt-key
+        run: |
+          hash="$(printf '%s\n' "$QT_VERSION" "linux" "" "$QT_MODULES" "" | sha256sum | cut -c1-16)"
+          echo "key=$RUNNER_OS-qt-$QT_VERSION-$hash" >> "$GITHUB_OUTPUT"
+
+      - name: 'Qt: Restore cache'
+        id: qt-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: qt
+          key: ${{ steps.qt-key.outputs.key }}
+
+      - name: 'Qt: Install'
+        if: steps.qt-cache.outputs.cache-hit != 'true'
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.11.3'
+          version: ${{ env.QT_VERSION }}
           host: 'linux'
           target: 'desktop'
           dir: '${{ github.workspace }}/qt/'
-          install-deps: 'true'
-          modules: 'qtspeech qtmultimedia'
-          cache: 'true'
-          cache-key-prefix: ${{ runner.os }}-qt-6113
+          modules: ${{ env.QT_MODULES }}
+          install-deps: 'false'
+          cache: 'false'
+          # The environment is set by the step below, the same for an installed and for a restored Qt
+          set-env: 'false'
 
-      - name: Build Project
+      - name: 'Qt: Save cache'
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: qt
+          key: ${{ steps.qt-key.outputs.key }}
+
+      - name: 'Qt: Set up environment'
+        run: |
+          # The same variables as install-qt-action sets
+          qt_root="$GITHUB_WORKSPACE/qt/Qt/$QT_VERSION/gcc_64"
+          if [ ! -d "$qt_root/bin" ]; then echo "::error::Qt not found in $qt_root"; exit 1; fi
+          {
+            echo "QT_ROOT_DIR=$qt_root"
+            echo "QT_PLUGIN_PATH=$qt_root/plugins"
+            echo "QML2_IMPORT_PATH=$qt_root/qml"
+            echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$qt_root/lib"
+            echo "PKG_CONFIG_PATH=${PKG_CONFIG_PATH:+$PKG_CONFIG_PATH:}$qt_root/lib/pkgconfig"
+          } >> "$GITHUB_ENV"
+          echo "$qt_root/bin" >> "$GITHUB_PATH"
+
+      - name: Build project
         working-directory: pdf4qt
         run: |
-          cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_VCPKG_BUILD_TYPE=Release -DPDF4QT_INSTALL_TO_USR=ON
+          # The dependencies are already installed, CMake must not run vcpkg install again into the build tree
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=$VCPKG_TRIPLET -DVCPKG_HOST_TRIPLET=$VCPKG_TRIPLET -DVCPKG_INSTALLED_DIR="$VCPKG_INSTALLED_DIR" -DVCPKG_MANIFEST_INSTALL=OFF -DPDF4QT_INSTALL_QT_DEPENDENCIES=OFF -DPDF4QT_INSTALL_TO_USR=ON
+          # The package must never contain an unoptimized build
+          grep -qx 'CMAKE_BUILD_TYPE:STRING=Release' build/CMakeCache.txt || { echo "::error::The build type is not Release"; exit 1; }
           cmake --build build --target all release_translations -j6
           cmake --install build
-          
+
       - name: Read version
-        id: get_version
+        id: version
         run: |
           version=$(cat "pdf4qt/build/version.txt")
           echo "Version: $version"
-          echo "appimagefilename=PDF4QT-$version-x86_64.AppImage" >> $GITHUB_ENV
-          echo "appimage_update_info=gh-releases-zsync|JakubMelka|PDF4QT|latest|PDF4QT-*-x86_64.AppImage.zsync" >> $GITHUB_ENV
+          echo "appimagefilename=PDF4QT-$version-x86_64.AppImage" >> "$GITHUB_ENV"
+          echo "appimagefilename=PDF4QT-$version-x86_64.AppImage" >> "$GITHUB_OUTPUT"
+          echo "appimage_update_info=gh-releases-zsync|JakubMelka|PDF4QT|latest|PDF4QT-*-x86_64.AppImage.zsync" >> "$GITHUB_ENV"
           echo "AppImage file name: PDF4QT-$version-x86_64.AppImage"
-        env:
-          appimagefilename: ${{ env.appimagefilename }}
-          
+
       - name: 'Linux Deploy Qt'
         working-directory: pdf4qt/build
         run: |
           cp install/usr/share/icons/hicolor/scalable/apps/io.github.JakubMelka.Pdf4qt.svg install/io.github.JakubMelka.Pdf4qt.svg
-          wget -O deploy.AppImage https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage
+          wget -q -O deploy.AppImage https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage
           chmod +x deploy.AppImage
           ./deploy.AppImage install/usr/share/applications/io.github.JakubMelka.Pdf4qt.desktop -executable-dir=install/usr/bin -bundle-non-qt-libs -extra-plugins=iconengines,imageformats,texttospeech
-          
+
       - name: Sign and Repack AppImage
         working-directory: pdf4qt/build
-        run: |
-          appimagetool -u "${{ env.appimage_update_info }}" -s --sign-key "${{ secrets.PGP_KEY_ID }}" install/ ${{ env.appimagefilename }}
         env:
-          GNUPGHOME: ${{ env.GNUPGHOME }}
-          
+          PGP_KEY_ID: ${{ secrets.PGP_KEY_ID }}
+        run: |
+          appimagetool -u "$appimage_update_info" -s --sign-key "$PGP_KEY_ID" install/ "$appimagefilename"
+
       - name: Manual signature
-        run: |
-          gpg --batch --yes --verbose --pinentry-mode loopback --detach-sign --passphrase "${{ secrets.PGP_PASSPHRASE }}" --local-user "${{ secrets.PGP_KEY_ID }}" --output pdf4qt/build/${{ env.appimagefilename }}.sig pdf4qt/build/${{ env.appimagefilename }}
         env:
-          GNUPGHOME: ${{ env.GNUPGHOME }}
+          PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
+          PGP_KEY_ID: ${{ secrets.PGP_KEY_ID }}
+        run: |
+          gpg --batch --yes --pinentry-mode loopback --detach-sign --passphrase "$PGP_PASSPHRASE" --local-user "$PGP_KEY_ID" --output "pdf4qt/build/$appimagefilename.sig" "pdf4qt/build/$appimagefilename"
 
       - name: Verify AppImage Detached Signature
-        run: |
-          echo "${{ secrets.PGP_PUBLIC_KEY }}" | gpg --batch --import
-          gpg --verify pdf4qt/build/${{ env.appimagefilename }}.sig pdf4qt/build/${{ env.appimagefilename }}
         env:
-          GNUPGHOME: ${{ env.GNUPGHOME }}
+          PGP_PUBLIC_KEY: ${{ secrets.PGP_PUBLIC_KEY }}
+        run: |
+          printf '%s\n' "$PGP_PUBLIC_KEY" | gpg --batch --import
+          gpg --verify "pdf4qt/build/$appimagefilename.sig" "pdf4qt/build/$appimagefilename"
 
       - name: Upload AppImage Package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: ${{ env.appimagefilename }}
-          path: ./pdf4qt/build/${{ env.appimagefilename }}
+          name: ${{ steps.version.outputs.appimagefilename }}
+          path: ./pdf4qt/build/${{ steps.version.outputs.appimagefilename }}
           retention-days: 30
           compression-level: 0
-          
+
       - name: Upload AppImage Signature File
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: ${{ env.appimagefilename }}.sig
-          path: ./pdf4qt/build/${{ env.appimagefilename }}.sig
+          name: ${{ steps.version.outputs.appimagefilename }}.sig
+          path: ./pdf4qt/build/${{ steps.version.outputs.appimagefilename }}.sig
           retention-days: 30
           if-no-files-found: warn
           compression-level: 0
-          
+
       - name: Upload AppImage zsync File
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: ${{ env.appimagefilename }}.zsync
-          path: ./pdf4qt/build/${{ env.appimagefilename }}.zsync
+          name: ${{ steps.version.outputs.appimagefilename }}.zsync
+          path: ./pdf4qt/build/${{ steps.version.outputs.appimagefilename }}.zsync
           retention-days: 30
           if-no-files-found: warn
           compression-level: 0
 
       - name: Cleanup GPG home
+        if: always()
         run: |
           rm -rf "$GNUPGHOME"
-        env:
-          GNUPGHOME: ${{ env.GNUPGHOME }}
