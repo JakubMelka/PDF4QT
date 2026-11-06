@@ -97,5 +97,5 @@ jobs:
         with:
           name: io.github.JakubMelka.Pdf4qt.flatpak
           path: ./io.github.JakubMelka.Pdf4qt.flatpak
-          retention-days: 30
+          retention-days: 7
           compression-level: 0

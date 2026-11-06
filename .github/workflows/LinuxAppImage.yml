@@ -249,7 +249,7 @@ jobs:
         with:
           name: ${{ steps.version.outputs.appimagefilename }}
           path: ./pdf4qt/build/${{ steps.version.outputs.appimagefilename }}
-          retention-days: 30
+          retention-days: 7
           compression-level: 0
 
       - name: Upload AppImage Signature File
@@ -257,7 +257,7 @@ jobs:
         with:
           name: ${{ steps.version.outputs.appimagefilename }}.sig
           path: ./pdf4qt/build/${{ steps.version.outputs.appimagefilename }}.sig
-          retention-days: 30
+          retention-days: 7
           if-no-files-found: warn
           compression-level: 0
 
@@ -266,7 +266,7 @@ jobs:
         with:
           name: ${{ steps.version.outputs.appimagefilename }}.zsync
           path: ./pdf4qt/build/${{ steps.version.outputs.appimagefilename }}.zsync
-          retention-days: 30
+          retention-days: 7
           if-no-files-found: warn
           compression-level: 0
 
