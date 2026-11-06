@@ -17,6 +17,7 @@ permissions:
 
 env:
   QT_VERSION: '6.11.3'
+  QT_MODULES: 'qtspeech qtmultimedia'
 
 jobs:
   build:
@@ -38,6 +39,8 @@ jobs:
             vcpkg-args: --overlay-ports=pdf4qt/vcpkg/overlays/linux
             qt-host: linux
             qt-arch: ''
+            # Directory of the installed Qt under qt/Qt/<version>
+            qt-arch-dir: gcc_64
             aqtsource: ''
             cmake-args: -DPDF4QT_INSTALL_QT_DEPENDENCIES=OFF
           - name: Windows
@@ -47,6 +50,7 @@ jobs:
             vcpkg-args: ''
             qt-host: windows
             qt-arch: win64_msvc2022_64
+            qt-arch-dir: msvc2022_64
             # aqtinstall 3.3 cannot read the Windows repository layout of Qt 6.11+, use a commit of its master
             # until a release supports it
             aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7'
@@ -85,6 +89,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libcups2 libcups2-dev libfontconfig1-dev
+          # Requirements of Qt (the list of install-qt-action, which does not install them when Qt is restored
+          # from the cache)
+          sudo apt-get install -y build-essential libgl1-mesa-dev libgstreamer-gl1.0-0 libpulse-dev libxcb-glx0 \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-render0 \
+            libxcb-shape0 libxcb-shm0 libxcb-sync1 libxcb-util1 libxcb-xfixes0 libxcb-xinerama0 libxcb1 \
+            libxkbcommon-dev libxkbcommon-x11-0 libxcb-xkb-dev libxcb-cursor0
 
       - name: 'VCPKG: Set up VCPKG'
         run: |
@@ -144,7 +154,23 @@ jobs:
           path: vcpkg-binary-cache
           key: vcpkg-bin-v1-${{ matrix.triplet }}-${{ github.run_id }}-${{ github.run_attempt }}
 
-      - name: Install Qt
+      # Qt is cached by own steps, the automatic cache of install-qt-action has a long key containing also the
+      # kernel version of the runner (an update of the runner image would invalidate the cache)
+      - name: 'Qt: Cache key'
+        id: qt-key
+        run: |
+          hash="$(printf '%s\n' "$QT_VERSION" "${{ matrix.qt-host }}" "${{ matrix.qt-arch }}" "$QT_MODULES" "${{ matrix.aqtsource }}" | sha256sum | cut -c1-16)"
+          echo "key=$RUNNER_OS-qt-$QT_VERSION-$hash" >> "$GITHUB_OUTPUT"
+
+      - name: 'Qt: Restore cache'
+        id: qt-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: qt
+          key: ${{ steps.qt-key.outputs.key }}
+
+      - name: 'Qt: Install'
+        if: steps.qt-cache.outputs.cache-hit != 'true'
         uses: jurplel/install-qt-action@v4
         with:
           version: ${{ env.QT_VERSION }}
@@ -152,11 +178,37 @@ jobs:
           target: 'desktop'
           arch: ${{ matrix.qt-arch }}
           dir: '${{ github.workspace }}/qt/'
-          install-deps: 'true'
-          modules: 'qtspeech qtmultimedia'
-          cache: 'true'
-          cache-key-prefix: ${{ runner.os }}-qt
+          modules: ${{ env.QT_MODULES }}
           aqtsource: ${{ matrix.aqtsource }}
+          install-deps: 'false'
+          cache: 'false'
+          # The environment is set by the step below, the same for an installed and for a restored Qt
+          set-env: 'false'
+
+      - name: 'Qt: Save cache'
+        if: steps.qt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: qt
+          key: ${{ steps.qt-key.outputs.key }}
+
+      - name: 'Qt: Set up environment'
+        run: |
+          # The same variables as install-qt-action sets
+          workspace="$GITHUB_WORKSPACE"
+          if [ "$RUNNER_OS" = Windows ]; then workspace="$(cygpath -m "$workspace")"; fi
+          qt_root="$workspace/qt/Qt/$QT_VERSION/${{ matrix.qt-arch-dir }}"
+          if [ ! -d "$qt_root/bin" ]; then echo "::error::Qt not found in $qt_root"; exit 1; fi
+          {
+            echo "QT_ROOT_DIR=$qt_root"
+            echo "QT_PLUGIN_PATH=$qt_root/plugins"
+            echo "QML2_IMPORT_PATH=$qt_root/qml"
+            if [ "$RUNNER_OS" = Linux ]; then
+              echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$qt_root/lib"
+              echo "PKG_CONFIG_PATH=${PKG_CONFIG_PATH:+$PKG_CONFIG_PATH:}$qt_root/lib/pkgconfig"
+            fi
+          } >> "$GITHUB_ENV"
+          echo "$qt_root/bin" >> "$GITHUB_PATH"
 
       - name: Configure
         working-directory: pdf4qt
@@ -174,9 +226,3 @@ jobs:
         working-directory: pdf4qt
         run: |
           cmake --install build --config Release
-
-      - name: Make DEB package
-        if: runner.os == 'Linux'
-        working-directory: pdf4qt/build
-        run: |
-          sh make-package.sh
