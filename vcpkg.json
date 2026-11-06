@@ -1,6 +1,6 @@
 {
   "name": "pdf4qt",
   "version-string": "1.5.2",
-  "builtin-baseline": "0a76d776dcb77d588cff9de746c6e73d06028503",
+  "builtin-baseline": "84297877a7c1a155661ea562462f1b72fab080d1",
   "dependencies": [ "tbb", "openssl", "lcms", "zlib", "openjpeg", "freetype", "libjpeg-turbo", "libpng", "blend2d", "clipper2", "tesseract" ]
 }
