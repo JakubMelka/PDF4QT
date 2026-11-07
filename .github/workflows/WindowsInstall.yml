@@ -175,21 +175,23 @@ jobs:
       - name: Find VC Redistributable Directories
         shell: pwsh
         run: |
-          $basePath = "C:\Program Files\Microsoft Visual Studio\2022\*\VC\Redist\MSVC"
+          # The runtime of the default (newest) toolset of Visual Studio, which compiles the project. The runtime
+          # must not be older than the toolset; the image contains also 14.29 of VS 2019, which was shipped by
+          # mistake earlier (the first directory in alphabetical order).
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $version = (Get-Content "$vs\VC\Auxiliary\Build\Microsoft.VCRedistVersion.default.txt" -Raw).Trim()
           $arch = "x64"
-          $redistDirs = Get-ChildItem -Path $basePath -Recurse -Directory -Filter "Microsoft.VC*.CRT" | Where-Object { $_.FullName -notmatch "debug_nonredist" -and $_.FullName -match "\\$arch\\" -and $_.FullName -notmatch "onecore" }
-          if (-not $redistDirs) {
-            Write-Error "No valid redistributable directories found."
+          $redistDir = Get-ChildItem "$vs\VC\Redist\MSVC\$version\$arch" -Directory -Filter "Microsoft.VC*.CRT" | Select-Object -First 1
+          if (-not $redistDir) {
+            Write-Error "No redistributable of MSVC $version found."
             exit 1
           }
-          $firstRedistDir = $redistDirs | Select-Object -First 1
-          $toolsetVersion = $firstRedistDir.Name -replace '^Microsoft\.VC(\d+)\.CRT$', '$1'
-          Write-Host "Found MSVC Toolset Version: $toolsetVersion"
-          Write-Host "Found MSVC Redistributable Full Path: $firstRedistDir"
+          $toolsetVersion = $redistDir.Name -replace '^Microsoft\.VC(\d+)\.CRT$', '$1'
+          Write-Host "Found MSVC Redistributable $version, toolset $toolsetVersion, $($redistDir.FullName)"
           echo "MSVC_TOOLSET_VERSION=$toolsetVersion" >> $env:GITHUB_ENV
-          echo "VCToolsRedistDir=$($firstRedistDir.Parent.Parent.Parent.FullName)" >> $env:GITHUB_ENV
+          echo "VCToolsRedistDir=$vs\VC\Redist\MSVC\$version" >> $env:GITHUB_ENV
           echo "VSCMD_ARG_TGT_ARCH=$arch" >> $env:GITHUB_ENV
-          echo "MSVC_REDISTRIBUTABLES_PATH=$firstRedistDir" >> $env:GITHUB_ENV
+          echo "MSVC_REDISTRIBUTABLES_PATH=$($redistDir.FullName)" >> $env:GITHUB_ENV
 
       - name: Build project
         working-directory: pdf4qt
@@ -218,6 +220,17 @@ jobs:
           }
           if ($failed) { exit 1 }
           Write-Host "Release binaries confirmed"
+
+          # The shipped runtime of MSVC must not be older than the compiler (compiler 19.xx belongs to the
+          # runtime 14.xx)
+          $compilerFile = Get-ChildItem "pdf4qt\build\CMakeFiles\*\CMakeCXXCompiler.cmake" | Select-Object -First 1
+          $compiler = [version](Select-String -Path $compilerFile.FullName -Pattern 'set\(CMAKE_CXX_COMPILER_VERSION "([0-9.]+)"\)').Matches[0].Groups[1].Value
+          $runtime = (Get-Item "pdf4qt\build\install\usr\bin\msvcp140.dll").VersionInfo.FileVersionRaw
+          if ($runtime.Minor -lt $compiler.Minor) {
+            Write-Host "::error::The shipped runtime of MSVC $runtime is older than the compiler $compiler"
+            exit 1
+          }
+          Write-Host "Runtime of MSVC $runtime, compiler $compiler"
 
       - name: Read version
         shell: pwsh
@@ -264,7 +277,23 @@ jobs:
           7z a -tzip -mx=9 "..\..\PDF4QT-Windows-${{ env.pdf4qt_version }}.zip" *
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      # The transparency log of Sigstore fails sometimes (HTTP 500), the attestation is tried once more
       - name: Attest packages
+        id: attest
+        continue-on-error: true
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            ${{ github.workspace }}/pdf4qt/build/install/${{ env.msipackagefilename }}
+            ${{ github.workspace }}/pdf4qt/build/install/JakubMelka.PDF4QT_${{ env.pdf4qt_version }}.msix
+            ${{ github.workspace }}/pdf4qt/build/install/PDF4QT-Windows-${{ env.pdf4qt_version }}.zip
+
+      - name: Attest packages (wait before the retry)
+        if: steps.attest.outcome == 'failure'
+        run: sleep 60
+
+      - name: Attest packages (retry)
+        if: steps.attest.outcome == 'failure'
         uses: actions/attest@v4
         with:
           subject-path: |

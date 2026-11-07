@@ -256,7 +256,23 @@ jobs:
           gpg --verify "pdf4qt/build/$appimagefilename.sig" "pdf4qt/build/$appimagefilename"
 
       # The attested files are the files of the release (Create_Release_Draft takes them unchanged)
+      # The transparency log of Sigstore fails sometimes (HTTP 500), the attestation is tried once more
       - name: Attest AppImage
+        id: attest
+        continue-on-error: true
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            ${{ github.workspace }}/pdf4qt/build/${{ steps.version.outputs.appimagefilename }}
+            ${{ github.workspace }}/pdf4qt/build/${{ steps.version.outputs.appimagefilename }}.sig
+            ${{ github.workspace }}/pdf4qt/build/${{ steps.version.outputs.appimagefilename }}.zsync
+
+      - name: Attest AppImage (wait before the retry)
+        if: steps.attest.outcome == 'failure'
+        run: sleep 60
+
+      - name: Attest AppImage (retry)
+        if: steps.attest.outcome == 'failure'
         uses: actions/attest@v4
         with:
           subject-path: |
