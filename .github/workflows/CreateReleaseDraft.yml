@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         
       - name: Install tools
         run: |
@@ -45,10 +45,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
       
+      # Only the builds of master are released, test builds of other branches are ignored
       - name: Get latest run ID for Linux_AppImage
         id: get_linux_run_id
         run: |
-          latest_run=$(gh run list --workflow=Linux_AppImage --json databaseId,conclusion --jq '.[0]')
+          latest_run=$(gh run list --workflow=Linux_AppImage --branch master --json databaseId,conclusion --jq '.[0]')
           linux_run_id=$(echo $latest_run | jq -r .databaseId)
           echo "linux_run_id=$linux_run_id" >> $GITHUB_ENV
           conclusion=$(echo $latest_run | jq -r .conclusion)
@@ -62,12 +63,17 @@ jobs:
       - name: Get latest run ID for Windows_MSI
         id: get_windows_run_id
         run: |
-          latest_run=$(gh run list --workflow=Windows_MSI --json databaseId,conclusion --jq '.[0]')
+          latest_run=$(gh run list --workflow=Windows_MSI --branch master --json databaseId,conclusion,displayTitle --jq '.[0]')
           windows_run_id=$(echo $latest_run | jq -r .databaseId)
           echo "windows_run_id=$windows_run_id" >> $GITHUB_ENV
           conclusion=$(echo $latest_run | jq -r .conclusion)
           if [ "$conclusion" != "success" ]; then
             echo "Latest Windows_MSI workflow run failed."
+            exit 1
+          fi
+          # A build without the signature of the MSI package is marked in the name of the run
+          if echo $latest_run | jq -r .displayTitle | grep -qi unsigned; then
+            echo "::error::Latest Windows_MSI workflow run is an unsigned test build."
             exit 1
           fi
         env:
@@ -91,17 +97,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
           
-      - name: Rezip zip file
-        id: rezip_zip_file
-        run: |
-          cd artifacts/PDF4QT-Windows-${{ env.pdf4qt_version }}.zip
-          zip -r ../PDF4QT-Windows-${{ env.pdf4qt_version }}.zip.backup *
-
-      - name: Rename zip archive
-        run: |
-          rm -rf artifacts/PDF4QT-Windows-${{ env.pdf4qt_version }}.zip/
-          mv artifacts/PDF4QT-Windows-${{ env.pdf4qt_version }}.zip.backup artifacts/PDF4QT-Windows-${{ env.pdf4qt_version }}.zip
-          
+      # Each artifact is downloaded into a directory of its name, the files are moved out of them (the zip
+      # archive of Windows is created by Windows_MSI, so it is the attested file)
       - name: Correct file paths
         run: |
           find artifacts -mindepth 2 -type f -exec sh -c 'mv "$1" "artifacts/$(basename "$1")_moved"' _ {} \;
@@ -114,6 +111,17 @@ jobs:
         run: |
           echo "Listing all files in artifacts:"
           find artifacts -type f -print
+
+      # Each file of the release must have a GitHub attestation of a build of master of this repository
+      - name: Verify attestations
+        run: |
+          for file in artifacts/*; do
+            echo "::group::$file"
+            gh attestation verify "$file" --repo "${{ github.repository }}" --source-ref refs/heads/master
+            echo "::endgroup::"
+          done
+        env:
+          GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
 
       - name: Create Release Draft
         id: create_release

@@ -17,6 +17,12 @@ jobs:
     # The oldest supported Ubuntu, the AppImage runs on the distributions with the same or a newer glibc
     runs-on: ubuntu-22.04
     timeout-minutes: 150
+    permissions:
+      contents: read
+      # GitHub artifact attestations of the AppImage
+      id-token: write
+      attestations: write
+      artifact-metadata: write
     env:
       GNUPGHOME: ${{ github.workspace }}/gnupg
       VCPKG_ROOT: ${{ github.workspace }}/vcpkg
@@ -32,7 +38,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libxcb-cursor0 libspeechd2 gnupg2 wget appstream libcups2 libcups2-dev
+          sudo apt-get install -y libxcb-cursor0 libspeechd2 gnupg2 wget appstream libcups2 libcups2-dev librsvg2-bin
           # Requirements of Qt (the list of install-qt-action, which does not install them when Qt is restored
           # from the cache)
           sudo apt-get install -y build-essential libgl1-mesa-dev libgstreamer-gl1.0-0 libpulse-dev libxcb-glx0 \
@@ -222,6 +228,11 @@ jobs:
           wget -q -O deploy.AppImage https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage
           chmod +x deploy.AppImage
           ./deploy.AppImage install/usr/share/applications/io.github.JakubMelka.Pdf4qt.desktop -executable-dir=install/usr/bin -bundle-non-qt-libs -extra-plugins=iconengines,imageformats,texttospeech
+          # .DirIcon (the icon of the AppImage in file managers) must be a PNG, linuxdeployqt makes it from
+          # the SVG icon of the application
+          rm -f install/.DirIcon
+          rsvg-convert -w 256 -h 256 install/io.github.JakubMelka.Pdf4qt.svg -o install/.DirIcon
+          file install/.DirIcon
 
       - name: Sign and Repack AppImage
         working-directory: pdf4qt/build
@@ -243,6 +254,15 @@ jobs:
         run: |
           printf '%s\n' "$PGP_PUBLIC_KEY" | gpg --batch --import
           gpg --verify "pdf4qt/build/$appimagefilename.sig" "pdf4qt/build/$appimagefilename"
+
+      # The attested files are the files of the release (Create_Release_Draft takes them unchanged)
+      - name: Attest AppImage
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            ${{ github.workspace }}/pdf4qt/build/${{ steps.version.outputs.appimagefilename }}
+            ${{ github.workspace }}/pdf4qt/build/${{ steps.version.outputs.appimagefilename }}.sig
+            ${{ github.workspace }}/pdf4qt/build/${{ steps.version.outputs.appimagefilename }}.zsync
 
       - name: Upload AppImage Package
         uses: actions/upload-artifact@v7
