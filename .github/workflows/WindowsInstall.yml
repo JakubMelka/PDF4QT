@@ -1,14 +1,7 @@
 name: Windows_MSI
-# A build without the signature is marked in the name of the run, Create_Release_Draft does not take it
-run-name: ${{ inputs.sign_msi && 'Windows_MSI' || 'Windows_MSI (unsigned test build)' }}
 
 on:
   workflow_dispatch:
-    inputs:
-      sign_msi:
-        description: 'Sign the MSI package (uses a signature of DigiCert KeyLocker), a release needs a signed build'
-        type: boolean
-        default: true
 
 permissions:
   contents: read
@@ -21,7 +14,6 @@ env:
   AQT_SOURCE: 'git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7'
   # Release only triplet, the dependencies are built once, not in the debug and release configuration
   VCPKG_TRIPLET: x64-windows-release
-  SIGN_MSI: ${{ vars.SIGN_MSI == 'true' && inputs.sign_msi }}
 
 jobs:
   build_windows:
@@ -34,11 +26,6 @@ jobs:
       id-token: write
       attestations: write
       artifact-metadata: write
-    env:
-      SM_HOST: ${{ secrets.SM_HOST }}
-      SM_API_KEY: ${{ secrets.SM_API_KEY }}
-      SM_CLIENT_CERT_PASSWORD: ${{ secrets.SM_CLIENT_CERT_PASSWORD }}
-      SM_CLIENT_CERT_FILE: ${{ github.workspace }}\JM_AuthCert.p12
 
     defaults:
       run:
@@ -75,30 +62,6 @@ jobs:
           }
           Write-Host "Adding $sdkPath to PATH"
           echo "$sdkPath" >> $env:GITHUB_PATH
-
-      - name: 'Signing: Install Keylocker KSP'
-        if: env.SIGN_MSI == 'true'
-        shell: pwsh
-        env:
-          SM_CLIENT_CERT_FILE_B64: ${{ secrets.SM_CLIENT_CERT_FILE_B64 }}
-        run: |
-          [System.IO.File]::WriteAllBytes($env:SM_CLIENT_CERT_FILE, [Convert]::FromBase64String($env:SM_CLIENT_CERT_FILE_B64))
-          $hash = Get-FileHash -Path $env:SM_CLIENT_CERT_FILE -Algorithm SHA256
-          Write-Host "Authorization certificate hash: $($hash.Hash)"
-
-          echo "C:\Program Files (x86)\Windows Kits\10\App Certification Kit" >> $env:GITHUB_PATH
-          echo "C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.8 Tools" >> $env:GITHUB_PATH
-          echo "C:\Program Files\DigiCert\DigiCert Keylocker Tools" >> $env:GITHUB_PATH
-
-          curl.exe -sSf -X GET https://one.digicert.com/signingmanager/api-ui/v1/releases/Keylockertools-windows-x64.msi/download -H "x-api-key:$env:SM_API_KEY" -o Keylockertools-windows-x64.msi
-          Start-Process msiexec.exe -ArgumentList '/i', 'Keylockertools-windows-x64.msi', '/quiet', '/qn' -Wait
-
-      # Checked before the long build, a problem of the credentials is found in a few seconds
-      - name: 'Signing: Certificates Sync'
-        if: env.SIGN_MSI == 'true'
-        shell: pwsh
-        run: |
-          smctl windows certsync
 
       - name: 'VCPKG: Set up VCPKG'
         run: |
@@ -286,18 +249,6 @@ jobs:
           Light -v -out ${{ github.workspace }}\pdf4qt\build\install\${{ env.msipackagefilename }} -pdbout .\bin\Release\PDF4QT.wixpdb -cultures:null -ext "${{ env.wixuiextpath }}" -contentsfile obj\Release\PDF4QT.wixproj.BindContentsFileListnull.txt -outputsfile obj\Release\PDF4QT.wixproj.BindOutputsFileListnull.txt -builtoutputsfile obj\Release\PDF4QT.wixproj.BindBuiltOutputsFileListnull.txt -wixprojectfile .\PDF4QT.wixproj obj\Release\Product.wixobj
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: 'Signing: Sign MSI Package'
-        if: env.SIGN_MSI == 'true'
-        shell: pwsh
-        env:
-          SM_CODE_SIGNING_CERT_SHA1_HASH: ${{ secrets.SM_CODE_SIGNING_CERT_SHA1_HASH }}
-        run: |
-          $msi = "${{ github.workspace }}\pdf4qt\build\install\${{ env.msipackagefilename }}"
-          signtool.exe sign /sha1 $env:SM_CODE_SIGNING_CERT_SHA1_HASH /tr http://timestamp.digicert.com /td SHA256 /fd SHA256 "$msi"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          signtool.exe verify /v /pa "$msi"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
       - name: Create MSIX Package
         shell: pwsh
         run: |
@@ -344,9 +295,3 @@ jobs:
           path: .\pdf4qt\build\install\${{ env.msipackagefilename }}
           retention-days: 7
           compression-level: 0
-
-      - name: 'Signing: Remove certificate'
-        if: always()
-        shell: pwsh
-        run: |
-          Remove-Item -Force -ErrorAction SilentlyContinue $env:SM_CLIENT_CERT_FILE

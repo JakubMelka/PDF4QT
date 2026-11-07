@@ -63,17 +63,12 @@ jobs:
       - name: Get latest run ID for Windows_MSI
         id: get_windows_run_id
         run: |
-          latest_run=$(gh run list --workflow=Windows_MSI --branch master --json databaseId,conclusion,displayTitle --jq '.[0]')
+          latest_run=$(gh run list --workflow=Windows_MSI --branch master --json databaseId,conclusion --jq '.[0]')
           windows_run_id=$(echo $latest_run | jq -r .databaseId)
           echo "windows_run_id=$windows_run_id" >> $GITHUB_ENV
           conclusion=$(echo $latest_run | jq -r .conclusion)
           if [ "$conclusion" != "success" ]; then
             echo "Latest Windows_MSI workflow run failed."
-            exit 1
-          fi
-          # A build without the signature of the MSI package is marked in the name of the run
-          if echo $latest_run | jq -r .displayTitle | grep -qi unsigned; then
-            echo "::error::Latest Windows_MSI workflow run is an unsigned test build."
             exit 1
           fi
         env:
