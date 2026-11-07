@@ -10,7 +10,7 @@ Extract Text saves the text of the chosen pages as one file: plain text, HTML or
 
 ### Step by step
 
-1. Choose the pages in the left panel: all pages, the current page, the pages selected in the thumbnails or a range. The filters keep only even, odd, portrait or landscape pages.
+1. Choose the pages in the left panel: all pages, the current page, the pages selected in the thumbnails or a range. The filters keep only even, odd, portrait or landscape pages. The tool opens with the pages selected in Thumbnails; a range with an empty field selects no page.
 2. The canvas shows the page next to the text extracted from it. Click another thumbnail to see another page. Fit and 100 % change the size of the page.
 3. Choose the reading order, what else is included and the format with its encoding in the toolbar.
 4. The right panel estimates the number of words and the size of the file, and says how many pages have no text.

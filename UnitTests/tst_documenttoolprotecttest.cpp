@@ -436,6 +436,7 @@ private slots:
     void documentInfoXmpProperties();
     void sanitizeDocumentInfoXmp();
     void sanitizeDocumentInfoXmpUnreadable();
+    void documentInfoXmpAfterRoot();
     void sanitizePermissions();
 };
 
@@ -1288,6 +1289,68 @@ void DocumentToolProtectTest::sanitizeDocumentInfoXmpUnreadable()
     const pdf::PDFDocumentToolResult whole = tool.run(ProtectTestHelper::createContext(document, data), both, nullptr, nullptr);
     QVERIFY2(whole.isSuccess(), qPrintable(whole.message));
     QVERIFY(!ProtectTestHelper::contains(ProtectTestHelper::write(*whole.documents.front().document), QStringLiteral("MarkerBroken")));
+}
+
+void DocumentToolProtectTest::documentInfoXmpAfterRoot()
+{
+    // After the root element of the packet only the padding and the trailer of the packet may
+    // follow (ISO 16684-1, 7.3: the xpacket wrapper; some producers pad by zeros). Another element
+    // there is not XML, which the reader can take apart: the properties in it cannot be removed,
+    // so the packet is not readable - it must never pass as cleaned with its creator in it.
+    using Sanitizer = pdf::PDFDocumentSanitizer;
+    const QByteArray root = "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">"
+                            "<rdf:Description rdf:about=\"\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><dc:title>MarkerFirstTitle</dc:title></rdf:Description>"
+                            "</rdf:RDF></x:xmpmeta>";
+    const QByteArray rootCleaned = "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">"
+                                   "<rdf:Description rdf:about=\"\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\"></rdf:Description>"
+                                   "</rdf:RDF></x:xmpmeta>";
+    const QByteArray second = "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">"
+                              "<rdf:Description rdf:about=\"\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><dc:creator><rdf:Seq><rdf:li>MarkerSecondCreator</rdf:li></rdf:Seq></dc:creator></rdf:Description>"
+                              "</rdf:RDF></x:xmpmeta>";
+
+    // A second root: refused, nothing changed
+    const Sanitizer::DocumentInfoProperties twoRoots = Sanitizer::removeDocumentInfoProperties(root + "\n" + second);
+    QVERIFY(!twoRoots.isReadable);
+    QCOMPARE(twoRoots.metadata, root + "\n" + second);
+    QVERIFY(!Sanitizer::removeDocumentInfoProperties(root + "<?" + second).isReadable);
+    QVERIFY(!Sanitizer::removeDocumentInfoProperties(root + "<!-- note -->" + second).isReadable);
+    QVERIFY(Sanitizer::removeDocumentInfoProperties(root + "<!-- note <dc:creator> -->\n<?xpacket end=\"w\"?>").isReadable);
+
+    // The padding by zeros and by spaces and the trailer of the packet stay; the property goes
+    const QByteArray trailer = "\n" + QByteArray(64, ' ') + QByteArray(16, '\0') + "<?xpacket end=\"w\"?>" + QByteArray(8, '\0');
+    const Sanitizer::DocumentInfoProperties padded = Sanitizer::removeDocumentInfoProperties(root + trailer);
+    QVERIFY(padded.isReadable);
+    QCOMPARE(padded.names, QStringList({ QStringLiteral("dc:title") }));
+    QCOMPARE(padded.metadata, rootCleaned + trailer);
+
+    // The tool: the document info cannot be removed from such a packet, it is not made
+    const QByteArray data = ProtectTestHelper::createDocumentInfoXmpDocument(root + "\n" + second);
+    const pdf::PDFDocument document = ProtectTestHelper::read(data);
+    pdf::PDFDocumentToolSanitize tool;
+    const pdf::PDFDocumentToolResult refused = tool.run(ProtectTestHelper::createContext(document, data), ProtectTestHelper::only(QStringLiteral("documentInfo")), nullptr, nullptr);
+    QCOMPARE(refused.status, pdf::PDFDocumentToolResultStatus::Failed);
+    QVERIFY(refused.documents.empty());
+
+    // The log of the old Editor (Sanitize document) says what went from the XMP metadata and
+    // when they could not be cleaned
+    const auto getLog = [](const QByteArray& xmp)
+    {
+        const pdf::PDFDocument logDocument = ProtectTestHelper::read(ProtectTestHelper::createDocumentInfoXmpDocument(xmp));
+        pdf::PDFDocumentSanitizer sanitizer(pdf::PDFDocumentSanitizer::DocumentInfo, nullptr);
+        sanitizer.setStorage(logDocument.getStorage());
+        QSignalSpy spy(&sanitizer, &pdf::PDFDocumentSanitizer::sanitizationProgress);
+        sanitizer.sanitize();
+        QStringList log;
+        for (const QList<QVariant>& arguments : spy)
+        {
+            log << arguments.front().toString();
+        }
+        return log;
+    };
+    QVERIFY(getLog(root + trailer).contains(QStringLiteral("Document info removed from the XMP metadata: dc:title.")));
+    const QStringList refusedLog = getLog(root + "\n" + second);
+    QVERIFY(refusedLog.contains(QStringLiteral("The XMP metadata cannot be read: the document info in them was not removed (remove all metadata).")));
+    QVERIFY(!refusedLog.join(QString()).contains(QStringLiteral("removed from the XMP")));
 }
 
 void DocumentToolProtectTest::sanitizePermissions()

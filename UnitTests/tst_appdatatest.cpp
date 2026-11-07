@@ -3551,12 +3551,15 @@ void AppDataTest::abandonedWorkers()
     options.stopWaitTime = 100;
     fixture.thumbnailer->setOptions(options);
 
-    // The worker reads the stored state by its own connection, then it sleeps in the
-    // test delay: the stop comes certainly during the sleep (a fixed wait would not
-    // guarantee, that the worker has started on a loaded machine)
+    // The worker has read the stored state by its own connection, then it sleeps in the
+    // test delay, the stop comes certainly during the sleep. Neither a fixed wait nor the
+    // new connection guarantee it - the worker opens its connection already for the
+    // markers at its start, a stop before it reads the stored state ends the request in
+    // time (seen under ThreadSanitizer).
     const int connections = fixture.database->getConnectionCount();
     fixture.thumbnailer->requestThumbnail(path);
-    QTRY_VERIFY_WITH_TIMEOUT(fixture.database->getConnectionCount() > connections, 10000 * factor);
+    QTRY_VERIFY_WITH_TIMEOUT(fixture.thumbnailer->isRequestRunning(), 10000 * factor);
+    QVERIFY(fixture.database->getConnectionCount() > connections);
 
     QElapsedTimer timer;
     timer.start();

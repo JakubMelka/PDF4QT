@@ -26,10 +26,12 @@
 #include "pdfwidgetsglobal.h"
 #include "pdfglobal.h"
 #include "pdfobject.h"
+#include "pdfoptionalcontent.h"
 
 #include <QIcon>
 #include <QPixmapCache>
 #include <QAbstractItemModel>
+#include <QPointer>
 
 #include <set>
 
@@ -144,8 +146,7 @@ class PDF4QTLIBWIDGETSSHARED_EXPORT PDFOptionalContentTreeItemModel : public PDF
     Q_OBJECT
 public:
     inline explicit PDFOptionalContentTreeItemModel(QObject* parent) :
-        PDFTreeItemModel(parent),
-        m_activity(nullptr)
+        PDFTreeItemModel(parent)
     {
 
     }
@@ -159,7 +160,9 @@ public:
     virtual bool setData(const QModelIndex& index, const QVariant& value, int role) override;
 
 private:
-    PDFOptionalContentActivity* m_activity;
+    /// The activity belongs to its document (the program controller, the document of the
+    /// application): a deleted one becomes null, never freed memory (owner 2026-11-07)
+    QPointer<PDFOptionalContentActivity> m_activity;
 };
 
 class PDFOutlineTreeItem : public PDFTreeItem

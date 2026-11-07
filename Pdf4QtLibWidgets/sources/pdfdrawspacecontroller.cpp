@@ -52,7 +52,6 @@ namespace pdf
 PDFDrawSpaceController::PDFDrawSpaceController(QObject* parent) :
     QObject(parent),
     m_document(nullptr),
-    m_optionalContentActivity(nullptr),
     m_pageLayoutMode(PageLayout::OneColumn),
     m_verticalSpacingMM(5.0),
     m_horizontalSpacingMM(1.0),
@@ -73,7 +72,9 @@ void PDFDrawSpaceController::setDocument(const PDFModifiedDocument& document)
     // always, the pointer cannot tell, if the document is another version of the old one.
     m_iccProfileCache.setDocument(document);
 
-    if (document != m_document)
+    // The same document with another activity of its layers (a reset of the document of the
+    // application) is a change too: the old activity may be deleted
+    if (document != m_document || document.getOptionalContentActivity() != m_optionalContentActivity)
     {
         m_document = document;
         m_fontCache.setDocument(document);
@@ -506,7 +507,9 @@ PDFDrawWidgetProxy::~PDFDrawWidgetProxy()
 
 void PDFDrawWidgetProxy::setDocument(const PDFModifiedDocument& document, std::vector<PDFSignatureVerificationResult> signatureVerificationResult)
 {
-    if (getDocument() != document)
+    // Another activity of the layers of the same document is a change too: the compilers,
+    // which read it in their threads, are stopped first
+    if (getDocument() != document || getOptionalContentActivity() != document.getOptionalContentActivity())
     {
         m_cacheClearTimer->stop();
         m_scaledImageCache.clear();

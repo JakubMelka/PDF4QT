@@ -649,15 +649,31 @@ void AppMcpTest::catalogToolBridge()
         result = fixture.callTool(QStringLiteral("review"), saveCopy);
         QVERIFY(result && result->isError);
 
-        // repeat=50: progress per page
+        // repeat=50 with a progress token: the progress grows strictly and nothing comes after
+        // the result (newapp_mcp.md 2.1). The GUI thread polls the counter of the run every
+        // PDFDocumentToolRunner::PROGRESS_INTERVAL, so the number of the notifications
+        // depends on the duration of the run, not on the pages; the step delay of the test
+        // tool makes the run last 150 x 5 ms, several intervals (more than one notification)
+        registration.tool->setStepDelay(5000);
         std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("review"), AppMcpTestHelper::arguments(R"({"action":"statistics","statistics":{"repeat":50}})"), true);
         result = pdftest::AppMcpFixture::waitResult(call);
+        registration.tool->setStepDelay(0);
         QVERIFY(result && !result->isError);
         QVERIFY(call->getLastProgress() > 0);
+        double lastProgress = -1.0;
         int progressEvents = 0;
+        bool isAfterResult = false;
         for (const pdf::PDFMcpCallEvent& event : call->takeEvents())
         {
-            progressEvents += event.type == pdf::PDFMcpCallEvent::Type::Progress ? 1 : 0;
+            if (event.type == pdf::PDFMcpCallEvent::Type::Progress)
+            {
+                QVERIFY(!isAfterResult);
+                QVERIFY(event.progress > lastProgress);
+                QVERIFY(event.total <= 0.0 || event.progress <= event.total);
+                lastProgress = event.progress;
+                ++progressEvents;
+            }
+            isAfterResult = isAfterResult || event.type == pdf::PDFMcpCallEvent::Type::Finished;
         }
         QVERIFY(progressEvents > 1);
 

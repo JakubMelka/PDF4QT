@@ -115,6 +115,7 @@ private slots:
     void outline();
     void outlineHostile();
     void layers();
+    void thumbnailsLayersAfterResetToSameDocument();
     void layersKeptOverReset();
     void outlineSamePage();
     void annotationListsShared();
@@ -950,7 +951,7 @@ void AppDocumentPanelsTest::thumbnails()
     QTRY_VERIFY_WITH_TIMEOUT(PanelsTestHelper::countVisiblePictures(thumbnails) == PanelsTestHelper::countVisibleRows(thumbnails), 20000);
     QVERIFY(PanelsTestHelper::countVisibleRows(thumbnails) >= 2);
     QVERIFY(thumbnails->getScheduler()->getDrawnCount() >= 2);
-    QVERIFY(thumbnails->getScheduler()->getMaximumPendingCount() <= pdf::PDFAppThumbnailScheduler::MAXIMUM_PENDING_COMPILES);
+    QVERIFY(thumbnails->getScheduler()->getMaximumPendingCount() <= pdf::PDFAppThumbnailScheduler::MAXIMUM_PENDING_PAGES);
 
     // Two columns centered in the sidebar (193:929: x 21.5 and 153.5 of 299)
     QListView* view = thumbnails->getListView();
@@ -1279,9 +1280,9 @@ void AppDocumentPanelsTest::thumbnailsLargeDocument()
     {
         scrollBar->setValue(scrollBar->maximum() * step / 100);
         QApplication::processEvents();
-        QVERIFY(thumbnails->getScheduler()->getPendingCount() <= pdf::PDFAppThumbnailScheduler::MAXIMUM_PENDING_COMPILES);
+        QVERIFY(thumbnails->getScheduler()->getPendingCount() <= pdf::PDFAppThumbnailScheduler::MAXIMUM_PENDING_PAGES);
     }
-    QVERIFY(thumbnails->getScheduler()->getMaximumPendingCount() <= pdf::PDFAppThumbnailScheduler::MAXIMUM_PENDING_COMPILES);
+    QVERIFY(thumbnails->getScheduler()->getMaximumPendingCount() <= pdf::PDFAppThumbnailScheduler::MAXIMUM_PENDING_PAGES);
     QTRY_VERIFY_WITH_TIMEOUT(PanelsTestHelper::countVisiblePictures(thumbnails) == PanelsTestHelper::countVisibleRows(thumbnails), 60000);
     const qint64 scrollPictures = timer.elapsed();
 
@@ -1898,6 +1899,53 @@ void AppDocumentPanelsTest::layers()
     activity->setState(ocgs.front(), pdf::OCState::OFF);
     QVERIFY(spy.count() > 0);
     QCOMPARE(layerA.data(Qt::CheckStateRole).toInt(), int(Qt::Unchecked));
+}
+
+void AppDocumentPanelsTest::thumbnailsLayersAfterResetToSameDocument()
+{
+    // The pictures of the thumbnails show the layers as the view (a layer switched off is not
+    // drawn). A change with the flag Reset, which keeps the same document (an assistant, a
+    // user change of the tool runs, UnitTestsAppMcp catalogRerunsOnNewVersions), keeps the
+    // activity of the layers: the view and the thumbnails never read a deleted one
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::layers(fixture.folder()));
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppThumbnailsPanel* thumbnails = PanelsTestHelper::panel<pdf::PDFAppThumbnailsPanel>(tab, QStringLiteral("thumbnails"));
+    QVERIFY(thumbnails);
+
+    // Layer A: the blue square 10 10 50 50 of the page 300 x 400 (layers.pdf; its content
+    // follows the stream of the text, whose matrix turns the y axis down)
+    const auto pictureColor = [thumbnails]() -> QColor
+    {
+        const QImage image = thumbnails->getModel()->index(0).data(pdf::PDFComponentRoles::PixmapRole).value<QPixmap>().toImage();
+        if (image.isNull())
+        {
+            return QColor();
+        }
+        const double scale = double(image.height()) / 400.0;
+        return image.pixelColor(int(35.0 * scale), int(35.0 * scale));
+    };
+    QTRY_VERIFY2_WITH_TIMEOUT(pictureColor() == QColor(0, 0, 255), qPrintable(pictureColor().name()), 20000);
+
+    // The layer switched off in the view: the picture is drawn again without it
+    pdf::PDFOptionalContentActivity* activity = document->getOptionalContentActivity();
+    const std::vector<pdf::PDFObjectReference> groups = document->getDocument()->getCatalog()->getOptionalContentProperties()->getAllOptionalContentGroups();
+    QCOMPARE(groups.size(), size_t(2));
+    activity->setState(groups.front(), pdf::OCState::OFF);
+    QTRY_VERIFY_WITH_TIMEOUT(pictureColor() == QColor(255, 255, 255), 20000);
+
+    // A reset to the same document: the activity stays (also for the view), the layer stays off
+    const quint64 version = document->getVersion();
+    QVERIFY(document->commit(pdf::PDFModifiedDocument(document->getDocument(), document->getOptionalContentActivity(), pdf::PDFModifiedDocument::Reset),
+                             QStringLiteral("Change"), version, pdf::PDFAppChangeSource::User));
+    fixture.settle();
+    QCOMPARE(document->getVersion(), version + 1);
+    QCOMPARE(document->getOptionalContentActivity(), activity);
+    QCOMPARE(tab->getView()->getProxy()->getOptionalContentActivity(), document->getOptionalContentActivity());
+    QCOMPARE(activity->getState(groups.front()), pdf::OCState::OFF);
+    QTRY_VERIFY_WITH_TIMEOUT(PanelsTestHelper::countVisiblePictures(thumbnails) == PanelsTestHelper::countVisibleRows(thumbnails), 20000);
+    QCOMPARE(pictureColor(), QColor(255, 255, 255));
 }
 
 void AppDocumentPanelsTest::layersKeptOverReset()

@@ -266,6 +266,7 @@ private slots:
     void removeLinksAndActions();
     void removeFormFields();
     void removeFieldsWithWidgetKids();
+    void removeNestedFieldWithWidgetKids();
     void removePageLabels();
     void removeStructureThreadsActions();
     void removeLayers();
@@ -727,6 +728,42 @@ void DocumentToolPagesTest::removeFieldsWithWidgetKids()
     QVERIFY2(toolResult.isSuccess(), qPrintable(toolResult.message));
     QCOMPARE(toolResult.data.value(QStringLiteral("signaturesRemoved")).toInteger(), 1);
     QCOMPARE(toolResult.data.value(QStringLiteral("fieldsRemoved")).toInteger(), 2);
+}
+
+void DocumentToolPagesTest::removeNestedFieldWithWidgetKids()
+{
+    // A terminal field below a non-terminal one (ISO 32000-2, 12.7.4.1), whose kids are its two
+    // widgets, both on page 2; it is in the calculation order /CO (12.7.3, Table 224) with its
+    // sibling on page 3. The field goes with its widgets: also from /CO, its value too.
+    PagesTestPdf pdf = PagesTestPdf::createPages("/AcroForm << /Fields [60 0 R] /CO [61 0 R 64 0 R] >>",
+                                                 { { 2, "/Annots [62 0 R 63 0 R]" }, { 3, "/Annots [65 0 R]" } });
+    pdf.set(60, "<< /T (parent) /Kids [61 0 R 64 0 R] >>");
+    pdf.set(61, "<< /FT /Tx /T (child) /Parent 60 0 R /V (NESTEDMARKER) /Kids [62 0 R 63 0 R] >>");
+    pdf.set(62, "<< /Type /Annot /Subtype /Widget /Parent 61 0 R /Rect [0 0 10 10] /P 4 0 R >>");
+    pdf.set(63, "<< /Type /Annot /Subtype /Widget /Parent 61 0 R /Rect [20 0 30 10] /P 4 0 R >>");
+    pdf.set(64, "<< /FT /Tx /T (other) /Parent 60 0 R /Kids [65 0 R] >>");
+    pdf.set(65, "<< /Type /Annot /Subtype /Widget /Parent 64 0 R /Rect [0 0 10 10] /P 5 0 R >>");
+    const PDFDocument document = pdf.read();
+
+    PDFDocumentPageOperations::RemovalStatistics statistics;
+    const PDFDocument result = PagesTestHelper::remove(document, { 2 }, &statistics);
+    QCOMPARE(statistics.fieldsRemoved, 1);
+
+    // The parent keeps its other kid, /CO has only the field, which stays
+    const PDFDictionary* catalog = PagesTestHelper::getCatalog(result);
+    const PDFDictionary* form = result.getDictionaryFromObject(catalog->get("AcroForm"));
+    const PDFObject& calculationOrder = result.getObject(form->get("CO"));
+    QVERIFY(calculationOrder.isArray());
+    QCOMPARE(calculationOrder.getArray()->getCount(), size_t(1));
+    QCOMPARE(calculationOrder.getArray()->getItem(0), PDFObject::createReference(PDFObjectReference(64, 0)));
+    const PDFDictionary* parent = result.getDictionaryFromObject(result.getObjectByReference(PDFObjectReference(60, 0)));
+    QVERIFY(parent);
+    const PDFObject& parentKids = result.getObject(parent->get("Kids"));
+    QCOMPARE(parentKids.getArray()->getCount(), size_t(1));
+    QCOMPARE(parentKids.getArray()->getItem(0), PDFObject::createReference(PDFObjectReference(64, 0)));
+    QVERIFY(result.getObjectByReference(PDFObjectReference(61, 0)).isNull());
+    QVERIFY(PagesTestHelper::getDanglingReferences(result).isEmpty());
+    QVERIFY(!PagesTestHelper::writeWhole(result).contains("NESTEDMARKER"));
 }
 
 void DocumentToolPagesTest::removePageLabels()

@@ -2,7 +2,7 @@
 
 Security weaknesses found during the work on the GUI overhaul (new application `PDF4QT`), which lie outside its scope - mostly in `Pdf4QtLibCore` and therefore also in the old applications (Editor, Viewer, PageMaster, Diff, PdfTool). They are collected here and solved together in a separate task, not in the redesign (owner decision, 2026-10-24).
 
-Each entry: where, the attack, the proposed fix. Remove an entry when it is fixed (with its test); the commit message names it.
+Each entry: where, the attack, the proposed fix. An entry is never removed, also when it is fixed (owner 2026-11-06: a security check of documents will be built on them): a fixed entry gets a line `- **Status:** fixed ... (who, date, tests)`; the commit message names it.
 
 ## Open
 

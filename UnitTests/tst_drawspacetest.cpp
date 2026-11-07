@@ -21,10 +21,14 @@
 // SOFTWARE.
 
 #include "pdfcms.h"
+#include "pdfconstants.h"
 #include "pdfcompiler.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfdrawwidget.h"
+#include "pdfannotation.h"
+#include "pdfitemmodels.h"
+#include "pdfoptionalcontent.h"
 #include "pdfprogress.h"
 
 #include <QtTest>
@@ -48,6 +52,7 @@ private slots:
     void fitDoesNotOscillate();
     void compilerServesRequestsOfIdleWorker();
     void compilerStoppedDuringCompilation();
+    void activityDiesBeforeItsHolders();
 };
 
 struct DrawSpaceFixture
@@ -363,6 +368,62 @@ void DrawSpaceTest::compilerStoppedDuringCompilation()
         QVERIFY(restartedPage->getErrors().isEmpty());
         QCOMPARE(restartedPage->getMemoryConsumptionEstimate(), wholePageSize);
     }
+}
+
+void DrawSpaceTest::activityDiesBeforeItsHolders()
+{
+    // Owner 2026-11-07: the holders of an optional content activity of another owner (the
+    // draw space of a view, the tree of the layers, the annotations) keep it by QPointer -
+    // an activity deleted first is null for them (every layer drawn, no state shown), never
+    // freed memory (UnitTestsAppMcp catalogRerunsOnNewVersions read a deleted one)
+    pdf::PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 200, 200));
+    const auto name = [](const char* text) { return pdf::PDFObject::createName(QByteArray(text)); };
+    pdf::PDFDictionaryBuilder layer;
+    layer.setEntry(pdf::PDFInplaceOrMemoryString("Type"), name("OCG"));
+    layer.setEntry(pdf::PDFInplaceOrMemoryString("Name"), pdf::PDFObject::createString(QByteArray("Layer")));
+    const pdf::PDFObjectReference layerReference = builder.addObject(pdf::PDFObject::createDictionary(std::move(layer)));
+    pdf::PDFArrayBuilder groups;
+    groups.appendItem(pdf::PDFObject::createReference(layerReference));
+    pdf::PDFArrayBuilder order;
+    order.appendItem(pdf::PDFObject::createReference(layerReference));
+    pdf::PDFDictionaryBuilder configuration;
+    configuration.setEntry(pdf::PDFInplaceOrMemoryString("Order"), pdf::PDFObject::createArray(std::move(order)));
+    pdf::PDFDictionaryBuilder properties;
+    properties.setEntry(pdf::PDFInplaceOrMemoryString("OCGs"), pdf::PDFObject::createArray(std::move(groups)));
+    properties.setEntry(pdf::PDFInplaceOrMemoryString("D"), pdf::PDFObject::createDictionary(std::move(configuration)));
+    builder.setCatalogOptionalContentProperties(builder.addObject(pdf::PDFObject::createDictionary(std::move(properties))));
+    DrawSpaceFixture fixture(builder.build(), pdf::PageLayout::OneColumn, QSize(400, 400));
+    pdf::PDFDocument& document = fixture.document;
+    QVERIFY(document.getCatalog()->getOptionalContentProperties()->isValid());
+
+    // The widget is never shown: no page is compiled, nothing reads the activity in a worker
+    pdf::PDFOptionalContentActivity* activity = new pdf::PDFOptionalContentActivity(&document, pdf::OCUsage::View, nullptr);
+    const pdf::PDFModifiedDocument modified(&document, activity, pdf::PDFModifiedDocument::Reset);
+    fixture.widget.setDocument(modified, {});
+    const pdf::PDFDrawWidgetProxy* proxy = fixture.widget.getDrawWidgetProxy();
+    pdf::PDFOptionalContentTreeItemModel model(nullptr);
+    model.setDocument(modified);
+    model.setActivity(activity);
+    pdf::PDFFontCache fontCache(pdf::DEFAULT_FONT_CACHE_LIMIT, pdf::DEFAULT_REALIZED_FONT_CACHE_LIMIT);
+    pdf::PDFCMSManager cmsManager(nullptr);
+    pdf::PDFAnnotationManager annotationManager(&fontCache, nullptr, &cmsManager, activity, pdf::PDFMeshQualitySettings(), pdf::PDFRenderer::getDefaultFeatures(),
+                                                pdf::PDFAnnotationManager::Target::View, nullptr);
+
+    // The layer is on by the default configuration (ISO 32000-2, 8.11.4.3: /BaseState ON)
+    QCOMPARE(proxy->getOptionalContentActivity(), activity);
+    QCOMPARE(annotationManager.getOptionalActivity(), activity);
+    QCOMPARE(model.rowCount(QModelIndex()), 1);
+    const QModelIndex row = model.index(0, 0, QModelIndex());
+    QCOMPARE(row.data(Qt::CheckStateRole).toInt(), int(Qt::Checked));
+
+    delete activity;
+
+    // Nobody holds the deleted activity: no state is shown, nothing can be switched
+    QVERIFY(proxy->getOptionalContentActivity() == nullptr);
+    QVERIFY(annotationManager.getOptionalActivity() == nullptr);
+    QCOMPARE(row.data(Qt::CheckStateRole).toInt(), int(Qt::PartiallyChecked));
+    QVERIFY(!model.setData(row, int(Qt::Unchecked), Qt::CheckStateRole));
 }
 
 QTEST_MAIN(DrawSpaceTest)

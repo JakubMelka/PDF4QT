@@ -185,7 +185,10 @@ public:
     /// Where the pages of \p from are in \p to, another version of the same document (an
     /// assistant has removed or moved pages): for each page of \p from its index in \p to by
     /// the reference of its page object, -1 for a page, which is not there. A page object,
-    /// which is in a page tree more times, matches its occurrences in their order.
+    /// which is in a page tree more times, matches its occurrences in their order. Both
+    /// versions with the same count of pages, each page found by its reference at its own
+    /// place: the pages are the same, the ones not found were renumbered by a whole rewrite
+    /// of the file (Shrink object storage), and each page maps to its own place.
     static std::vector<PDFInteger> mapPageIndices(const PDFDocument* from, const PDFDocument* to);
 
     /// The selection of the same pages in another version of the document: a range names

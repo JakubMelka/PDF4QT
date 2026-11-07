@@ -1037,6 +1037,7 @@ public:
         QXmlStreamReader reader(text);
         std::vector<bool> isDescriptionStack;
         bool isRootClosed = false;
+        qsizetype rootEnd = 0;
         while (!reader.atEnd())
         {
             const QXmlStreamReader::TokenType token = reader.readNext();
@@ -1091,11 +1092,40 @@ public:
             {
                 isDescriptionStack.pop_back();
                 isRootClosed = isDescriptionStack.empty();
+                if (isRootClosed)
+                {
+                    rootEnd = reader.characterOffset();
+                }
             }
         }
 
-        // Bytes after the root element (some producers pad the packet by zeros) do not matter
-        return !reader.hasError() || isRootClosed;
+        // Bytes after the root element (some producers pad the packet by zeros) do not matter,
+        // but no markup may be there: a second root is not read, its properties would stay
+        return !reader.hasError() || (isRootClosed && isTrailer(text.mid(rootEnd)));
+    }
+
+    /// The text after the root element of a packet has no element (no "<", which is not the start
+    /// of a processing instruction or of a comment): padding, the trailer of the packet
+    static bool isTrailer(QStringView text)
+    {
+        for (qsizetype position = text.indexOf(QLatin1Char('<')); position >= 0; position = text.indexOf(QLatin1Char('<'), position + 1))
+        {
+            const QStringView rest = text.mid(position);
+            const char* end = rest.startsWith(QLatin1StringView("<?")) ? "?>" : (rest.startsWith(QLatin1StringView("<!--")) ? "-->" : nullptr);
+            if (!end)
+            {
+                return false;
+            }
+
+            const qsizetype endPosition = text.indexOf(QLatin1StringView(end), position + 2);
+            if (endPosition < 0)
+            {
+                // A trailer cut off: no markup may follow its start
+                return !text.mid(position + 2).contains(QLatin1Char('<'));
+            }
+            position = endPosition;
+        }
+        return true;
     }
 };
 
@@ -1341,9 +1371,11 @@ void PDFDocumentSanitizer::performSanitizeDocumentInfo()
 {
     // The same data in the XMP metadata of the document (ISO 32000-2, 14.3.3, Table 349) go
     // too, unless every metadata stream goes in the next step; the other properties stay
+    bool isXmpReadable = true;
     if (!m_flags.testFlag(Metadata))
     {
         const DocumentInfoProperties properties = removeDocumentInfoProperties(getCatalogMetadata(&m_storage, nullptr));
+        isXmpReadable = properties.isReadable;
         if (!properties.names.isEmpty())
         {
             PDFDocumentBuilder metadataBuilder(m_storage, PDFVersion(2, 0));
@@ -1353,11 +1385,21 @@ void PDFDocumentSanitizer::performSanitizeDocumentInfo()
         }
     }
 
-    // The entry /Info of the trailer is removed after the last step (removeDocumentInfoEntry)
+    // The entry /Info of the trailer is removed after the last step (removeDocumentInfoEntry).
+    // The texts of the log of the old Editor come last.
     PDFDocumentBuilder builder(m_storage, PDFVersion(2, 0));
-    if (builder.getDocumentInfo().isValid())
+    const bool hasDocumentInfo = builder.getDocumentInfo().isValid();
+    if (hasDocumentInfo)
     {
         Q_EMIT sanitizationProgress(tr("Document info was removed."));
+    }
+    if (!m_removedDocumentInfoProperties.isEmpty())
+    {
+        Q_EMIT sanitizationProgress(tr("Document info removed from the XMP metadata: %1.").arg(m_removedDocumentInfoProperties.join(QStringLiteral(", "))));
+    }
+    if (!isXmpReadable)
+    {
+        Q_EMIT sanitizationProgress(tr("The XMP metadata cannot be read: the document info in them was not removed (remove all metadata)."));
     }
 }
 

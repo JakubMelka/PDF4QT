@@ -160,7 +160,26 @@ public:
     static constexpr int HINT_GAP = 10;
     static constexpr int TILE_SPACING = 6;
 
-    /// \param slotSize Slot of the page of the tiles (104 x 104 Rotate, 82 x 112 Remove)
+    /// Size of the tiles chosen in the toolbar of the tool (Thumbnails: Small / Medium /
+    /// Large, pages-rotate-menus 1359:33500); Small is the slot of the frames, Medium the
+    /// default (owner 2026-11-07)
+    enum class TileSize
+    {
+        Small,
+        Medium,
+        Large
+    };
+
+    /// Scale of the slot of a size (Small 1, Medium 1.5, Large 2)
+    static double getTileScale(TileSize size);
+
+    /// Stored value of a size ("small", "medium", "large", the state setting
+    /// PDFSettingKeys::toolsPageGridSize) and back (an unknown text is Medium)
+    static QString getTileSizeId(TileSize size);
+    static TileSize getTileSizeFromId(const QString& id);
+
+    /// \param slotSize Slot of the page of the tiles in the size Small, the slot of the frames
+    ///        (104 x 104 Rotate, 82 x 112 Remove); the grid starts in the size Medium
     /// \param parent Parent widget
     explicit PDFAppToolPageGrid(const QSize& slotSize, QWidget* parent);
     virtual ~PDFAppToolPageGrid() override;
@@ -173,6 +192,11 @@ public:
 
     /// The tiles of the tool: one dataChanged and, when a size may change, one sizeHintChanged
     void setTiles(std::vector<PDFAppToolPageGridModel::Tile> tiles);
+
+    /// The size of the tiles: the slot of the delegate is the slot of Medium scaled, the
+    /// tiles are laid out again and their pictures are rendered for the new size
+    void setTileSize(TileSize size);
+    TileSize getTileSize() const { return m_tileSize; }
 
     PDFAppToolPageGridView* getView() const { return m_view; }
     PDFAppToolPageGridModel* getModel() const { return m_model; }
@@ -191,6 +215,7 @@ protected:
 
 private:
     void updatePictureSize();
+    QSize getScaledSlotSize(TileSize size) const;
     void onContentHeightChanged(int height);
 
     QPointer<PDFLabel> m_header;
@@ -199,6 +224,8 @@ private:
     QPointer<PDFPageTileDelegate> m_delegate;
     QPointer<PDFAppThumbnailScheduler> m_scheduler;
     QPointer<PDFAppParagraph> m_hint;
+    QSize m_baseSlotSize;
+    TileSize m_tileSize = TileSize::Medium;
 };
 
 }   // namespace pdf

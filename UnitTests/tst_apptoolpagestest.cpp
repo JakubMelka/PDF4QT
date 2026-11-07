@@ -28,27 +28,39 @@
 #include "appmcpfixture.h"
 
 #include "pdfappdocument.h"
+#include "pdfappdocumentpanels_thumbnails.h"
+#include "pdfappdocumentsidebar.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
 #include "pdfappmcphost.h"
 #include "pdfappmainwindow.h"
 #include "pdfapptoolgui_pages.h"
 #include "pdfapptoolpanelbuilder.h"
+#include "pdfapptoolpanelpopup.h"
 #include "pdfapptoolpageregistry.h"
 #include "pdfapptoolpagegrid.h"
 #include "pdfapptoolparametermodel.h"
 #include "pdfapptooltoolbar.h"
+#include "pdfsettingdefinition.h"
+#include "pdfsettingdefinitions.h"
+#include "pdfsettingsrepository.h"
 
 #include "pdfcatalog.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumentpageoperations.h"
 #include "pdfdocumenttool_pages.h"
+#include "pdfdocumenttool_structure.h"
 #include "pdfdocumenttoolregistry.h"
+#include "pdfdocumenttoolrunner.h"
+#include "pdfdrawspacecontroller.h"
+#include "pdfexecutionpolicy.h"
 #include "pdfmcpcall.h"
 #include "pdfsecurityhandler.h"
 #include "pdfthememanager.h"
+#include "pdfthreadannotations.h"
 #include "pdfwidgetstyle.h"
 
+#include <QPainter>
 #include <QScopeGuard>
 #include <QSignalSpy>
 #include <QTranslator>
@@ -103,6 +115,14 @@ public:
         }
         pdf::PDFDocument document = builder.build();
         return AppDocumentSamples::write(document, filePath) ? filePath : QString();
+    }
+
+    /// The frames draw the tiles in the size Small (the slot of the design; owner 2026-11-07:
+    /// Medium, 1.5 times of it, is the default): the setting of the page grids for a test of
+    /// the geometry of a frame
+    static void useFrameTileSize(AppToolShellFixture& fixture)
+    {
+        QVERIFY(!fixture.context->getSettings().setValue(pdf::PDFSettingKeys::toolsPageGridSize(), QStringLiteral("small")).isError());
     }
 
     static pdf::PDFAppDocumentTab* openReady(AppToolShellFixture& fixture, const QString& filePath)
@@ -191,6 +211,77 @@ public:
         std::rotate(pages.begin(), std::prev(pages.end()), pages.end());
         builder.setPages(pages);
         return builder.build();
+    }
+
+    /// Pages covered by a red image of the size (a page, whose rendering takes a while: the
+    /// image is decoded and scaled down for each picture); the pages share the content and
+    /// the image of the first one
+    static QString writeHeavyPages(const QString& filePath, int pageCount, int imageSize)
+    {
+        QImage image(imageSize, imageSize, QImage::Format_RGB32);
+        image.fill(Qt::red);
+        pdf::PDFDocumentBuilder builder;
+        const pdf::PDFObjectReference firstPage = builder.appendPage(QRectF(0, 0, 300, 400));
+        {
+            pdf::PDFPageContentStreamBuilder content(&builder);
+            QPainter* painter = content.begin(firstPage);
+            if (!painter)
+            {
+                return QString();
+            }
+            painter->drawImage(QRectF(0, 0, 300, 400), image);
+            content.end(painter);
+        }
+
+        const pdf::PDFDictionary* firstDictionary = builder.getObjectByReference(firstPage).getDictionary();
+        const pdf::PDFObject contents = firstDictionary->get("Contents");
+        const pdf::PDFObject resources = firstDictionary->get("Resources");
+        for (int i = 1; i < pageCount; ++i)
+        {
+            const pdf::PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 400));
+            pdf::PDFDictionaryBuilder shared;
+            shared.setEntry(pdf::PDFInplaceOrMemoryString("Contents"), contents);
+            shared.setEntry(pdf::PDFInplaceOrMemoryString("Resources"), resources);
+            builder.mergeTo(page, pdf::PDFObject::createDictionary(std::move(shared)));
+        }
+        pdf::PDFDocument document = builder.build();
+        return AppDocumentSamples::write(document, filePath) ? filePath : QString();
+    }
+
+    /// Visible tiles of the grid and those of them, which have their pictures
+    static std::pair<int, int> countVisiblePictures(const pdf::PDFAppToolPageGrid* grid)
+    {
+        const pdf::PDFAppToolPageGridView* view = grid->getView();
+        int visible = 0;
+        int pictures = 0;
+        for (int i = 0; i < grid->getModel()->rowCount(); ++i)
+        {
+            if (view->visualRect(grid->getModel()->index(i)).intersects(view->viewport()->rect()))
+            {
+                ++visible;
+                pictures += grid->getModel()->hasPicture(i) ? 1 : 0;
+            }
+        }
+        return { visible, pictures };
+    }
+
+    static bool waitForVisiblePictures(const pdf::PDFAppToolPageGrid* grid)
+    {
+        return AppToolShellFixture::waitFor([grid]() { const std::pair<int, int> count = countVisiblePictures(grid); return count.first > 0 && count.first == count.second; }, 60000);
+    }
+
+    /// Color of the center of the picture of the page (the picture of the thumbnails)
+    static QColor getPictureCenter(const pdf::PDFAppToolPageGrid* grid, int page)
+    {
+        const QPixmap pixmap = grid->getModel()->index(page).data(pdf::PDFComponentRoles::PixmapRole).value<QPixmap>();
+        const QImage image = pixmap.toImage();
+        return image.isNull() ? QColor() : image.pixelColor(image.width() / 2, image.height() / 2);
+    }
+
+    /// The colors are the same up to the rounding of the scaling of an image (2 of 255)
+    static bool isNear(const QColor& color, const QColor& expected)
+    {
+        return color.isValid() && qAbs(color.red() - expected.red()) <= 2 && qAbs(color.green() - expected.green()) <= 2 && qAbs(color.blue() - expected.blue()) <= 2;
     }
 
     /// Pages, whose widths name them: page n is 100 + n wide
@@ -286,6 +377,19 @@ private slots:
     void rotatePlanFollowsPages();
     void mcpRerunFollowsPages();
     void pagesNeedAssemble();
+    void marksSurviveWholeFileRewrite();
+
+    void gridPicturesInParallel();
+    void gridPicturesLeaveQueueScrolledAway();
+
+    void selectionOfThumbnailsAtOpen_data();
+    void selectionOfThumbnailsAtOpen();
+    void rangeWithoutTextSelectsNoPage_data();
+    void rangeWithoutTextSelectsNoPage();
+    void gridTileSize_data();
+    void gridTileSize();
+    void gridPicturesOfHostilePages();
+    void gridWorkersLeaveGlobalPoolWhenIdle();
 };
 
 void AppToolPagesTest::initTestCase()
@@ -310,6 +414,7 @@ void AppToolPagesTest::rotateFrame()
     // 389:20177: 48 pages, 9, 10 and 15 selected in the thumbnails, every click on Rotate Right
     using H = PagesGuiHelper;
     AppToolShellFixture fixture(QSize(1440, 960));
+    H::useFrameTileSize(fixture);
     pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writePages(fixture.path(QStringLiteral("Handbook.pdf")), 48));
     QVERIFY(tab);
     tab->getView()->setSelectedPages({ 8, 9, 14 });
@@ -402,6 +507,7 @@ void AppToolPagesTest::rotateLandscapeTip()
     // 389:20910: All + Landscape selects the pages, which lie on their side; Rotate Left fixes them
     using H = PagesGuiHelper;
     AppToolShellFixture fixture(QSize(1440, 960));
+    H::useFrameTileSize(fixture);
     pdf::PDFDocumentBuilder builder;
     for (int i = 0; i < 18; ++i)
     {
@@ -686,6 +792,7 @@ void AppToolPagesTest::removeFrame()
     // 388:20614: 48 pages A4, the range "4-6, 20"
     using H = PagesGuiHelper;
     AppToolShellFixture fixture(QSize(1440, 960));
+    H::useFrameTileSize(fixture);
     pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writePages(fixture.path(QStringLiteral("Handbook.pdf")), 48));
     PDFDocumentToolShell* shell = fixture.openTool(tab, H::REMOVE_ID);
     PDFAppToolGUIRemovePages* gui = H::gui<PDFAppToolGUIRemovePages>(shell);
@@ -870,7 +977,7 @@ void AppToolPagesTest::gridOneChangeForManyTiles()
     QCOMPARE(gui->getTurns().size(), size_t(2000));
 
     // Only the visible tiles ask for their pictures
-    QVERIFY(gui->getGrid()->getScheduler()->getMaximumPendingCount() <= pdf::PDFAppThumbnailScheduler::MAXIMUM_PENDING_COMPILES);
+    QVERIFY(gui->getGrid()->getScheduler()->getMaximumPendingCount() <= pdf::PDFAppThumbnailScheduler::MAXIMUM_PENDING_PAGES);
 }
 
 void AppToolPagesTest::themesAndDirection()
@@ -986,6 +1093,7 @@ void AppToolPagesTest::screenshots()
 
     using H = PagesGuiHelper;
     AppToolShellFixture fixture(QSize(1440, 960));
+    H::useFrameTileSize(fixture);
     pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writePages(fixture.path(QStringLiteral("Handbook.pdf")), 48));
     tab->getView()->setSelectedPages({ 8, 9, 14 });
     AppToolShellFixture::settle();
@@ -1166,6 +1274,9 @@ void AppToolPagesTest::mcpRerunFollowsPages()
     QPointer<pdf::PDFAppDocument> documentGuard(document);
     tool->beforeRun = [&changesLeft, documentGuard]()
     {
+        // Posted from the worker thread: the copy of the functor into the event of Qt
+        // is read by the thread of the user interface (CLAUDE.md, TransportScope)
+        pdf::PDFThreadAnnotations::TransportScope transportScope;
         QMetaObject::invokeMethod(documentGuard.data(), [&changesLeft, documentGuard]()
         {
             if (changesLeft > 0 && documentGuard)
@@ -1252,6 +1363,427 @@ void AppToolPagesTest::pagesNeedAssemble()
     QVERIFY(result);
     QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
     QCOMPARE(assembleTab->getDocument()->getDocument()->getCatalog()->getPage(0)->getPageRotation(), pdf::PageRotation::Rotate90);
+}
+
+void AppToolPagesTest::marksSurviveWholeFileRewrite()
+{
+    // An assistant runs Optimize Structure (keep) below the open Remove Pages: the whole file is
+    // written again and Shrink object storage renumbers the objects (tools.md 4, "Renumbers objects
+    // without gaps"). No page is removed or moved, so every mark stays on its page (owner
+    // 2026-11-06: only a page, which no longer exists, loses its mark)
+    using H = PagesGuiHelper;
+    AppToolShellFixture fixture(QSize(1440, 960));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writeNamedPages(fixture.path(QStringLiteral("rewrite.pdf")), 10));
+    QVERIFY(tab);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, H::REMOVE_ID);
+    PDFAppToolGUIRemovePages* gui = H::gui<PDFAppToolGUIRemovePages>(shell);
+    QVERIFY(gui);
+    AppToolShellFixture::settle();
+    gui->setTargetPages({});
+    for (const int page : { 2, 7, 9 })
+    {
+        H::clickTile(gui->getGrid(), page);
+    }
+    QCOMPARE(gui->getTargetPages(), std::vector<pdf::PDFInteger>({ 2, 7, 9 }));
+
+    // The assistant removes page 1 (its objects leave free entries), then rewrites the file
+    pdf::PDFAppDocument* document = tab->getDocument();
+    QVERIFY(H::commitAssistantChange(document, H::removePage(document, 0)));
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getTargetPages(), std::vector<pdf::PDFInteger>({ 1, 6, 8 }));
+
+    const pdf::PDFDocumentPointer before = document->getDocument();
+    const pdf::PDFDocumentToolStructure structure;
+    const pdf::PDFDocumentToolResult result = structure.run(pdf::PDFDocumentToolRunner::createContext(document->getSnapshot()), QVariantMap(), nullptr, nullptr);
+    const pdf::PDFDocumentToolOutputDocument* output = pdf::PDFDocumentToolRunner::findChangedDocument(result);
+    QVERIFY2(output, qPrintable(result.message));
+    QVERIFY(document->commit(pdf::PDFModifiedDocument(output->document, document->getOptionalContentActivity(), pdf::PDFModifiedDocument::Reset), QStringLiteral("Assistant"), document->getVersion(), pdf::PDFAppChangeSource::Mcp));
+    AppToolShellFixture::settle();
+
+    // The case of the test: the same pages, some of them under other object numbers
+    const pdf::PDFDocumentPointer after = document->getDocument();
+    QCOMPARE(H::pageNames(after.data()), H::pageNames(before.data()));
+    size_t renumbered = 0;
+    for (size_t i = 0; i < after->getCatalog()->getPageCount(); ++i)
+    {
+        renumbered += after->getCatalog()->getPage(i)->getPageReference() != before->getCatalog()->getPage(i)->getPageReference() ? 1 : 0;
+    }
+    QVERIFY2(renumbered > 0, "the rewrite has kept every page object under its number");
+
+    // Each page is at its place (also for the rerun of a call of MCP, PDFDocumentTool::mapParameters)
+    QCOMPARE(pdf::PDFDocumentToolPageSelection::mapPageIndices(before.data(), after.data()), std::vector<pdf::PDFInteger>({ 0, 1, 2, 3, 4, 5, 6, 7, 8 }));
+    QCOMPARE(gui->getTargetPages(), std::vector<pdf::PDFInteger>({ 1, 6, 8 }));
+    QCOMPARE(shell->getToolbar()->getConfirmText(), QStringLiteral("Remove 3 Pages"));
+}
+
+void AppToolPagesTest::gridPicturesInParallel()
+{
+    // Owner 2026-11-07: the tiles of a page grid are rendered in parallel, each picture shows
+    // its page as the view draws it (the color mode of the view included)
+    using H = PagesGuiHelper;
+    QVERIFY(pdf::PDFAppThumbnailScheduler::getRenderThreadCount() >= 2);
+    AppToolShellFixture fixture(QSize(1440, 960));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writeHeavyPages(fixture.path(QStringLiteral("heavy.pdf")), 36, 1000));
+    QVERIFY(tab);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, H::ROTATE_ID);
+    PDFAppToolGUIRotatePages* gui = H::gui<PDFAppToolGUIRotatePages>(shell);
+    QVERIFY(gui);
+    pdf::PDFAppToolPageGrid* grid = gui->getGrid();
+    QVERIFY(H::waitForVisiblePictures(grid));
+
+    // More pages at once (the visible tiles are many more than one), never more than the threads
+    const pdf::PDFAppThumbnailScheduler* scheduler = grid->getScheduler();
+    QVERIFY(scheduler->getMaximumRenderingCount() >= 2);
+    QVERIFY(scheduler->getMaximumRenderingCount() <= pdf::PDFAppThumbnailScheduler::getRenderThreadCount());
+    QVERIFY(scheduler->getMaximumPendingCount() <= pdf::PDFAppThumbnailScheduler::MAXIMUM_PENDING_PAGES);
+
+    // The page is red
+    QVERIFY2(H::isNear(H::getPictureCenter(grid, 0), QColor(255, 0, 0)), qPrintable(H::getPictureCenter(grid, 0).name()));
+
+    // Inverted colors of the view: every picture is rendered again, red becomes cyan
+    pdf::PDFDrawWidgetProxy* proxy = tab->getView()->getProxy();
+    proxy->setFeatures(proxy->getFeatures() | pdf::PDFRenderer::ColorAdjust_Invert);
+    QVERIFY(AppToolShellFixture::waitFor([grid]() { return H::isNear(H::getPictureCenter(grid, 0), QColor(0, 255, 255)); }, 60000));
+}
+
+void AppToolPagesTest::gridPicturesLeaveQueueScrolledAway()
+{
+    // The queued tiles, which scroll away before a worker takes them, are not rendered: one
+    // thread renders the pages one after another, the grid scrolls to its end at once
+    using H = PagesGuiHelper;
+    const int threadCount = pdf::PDFExecutionPolicy::getMaxThreadCount(pdf::PDFExecutionPolicy::Scope::Page);
+    pdf::PDFExecutionPolicy::setMaxThreadCount(pdf::PDFExecutionPolicy::Scope::Page, 1);
+    auto restore = qScopeGuard([threadCount]() { pdf::PDFExecutionPolicy::setMaxThreadCount(pdf::PDFExecutionPolicy::Scope::Page, threadCount); });
+    QCOMPARE(pdf::PDFAppThumbnailScheduler::getRenderThreadCount(), 1);
+
+    AppToolShellFixture fixture(QSize(1440, 960));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writeHeavyPages(fixture.path(QStringLiteral("heavy.pdf")), 80, 1600));
+    QVERIFY(tab);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, H::ROTATE_ID);
+    PDFAppToolGUIRotatePages* gui = H::gui<PDFAppToolGUIRotatePages>(shell);
+    QVERIFY(gui);
+    pdf::PDFAppToolPageGrid* grid = gui->getGrid();
+    pdf::PDFAppToolPageGridView* view = grid->getView();
+
+    // The first screen is queued; its pictures drawn by now
+    const std::pair<int, int> first = H::countVisiblePictures(grid);
+    QVERIFY(first.first >= 12);
+    QVERIFY(first.second < first.first);
+    view->scrollToBottom();
+    QVERIFY(H::waitForVisiblePictures(grid));
+
+    // Only the page, which the worker had taken, has come after the scroll
+    int topPictures = 0;
+    for (int i = 0; i < first.first; ++i)
+    {
+        topPictures += grid->getModel()->hasPicture(i) ? 1 : 0;
+    }
+    QVERIFY2(topPictures <= first.second + 1, qPrintable(QStringLiteral("%1 pictures at the top, %2 before the scroll").arg(topPictures).arg(first.second)));
+    QCOMPARE(grid->getScheduler()->getMaximumRenderingCount(), 1);
+}
+
+void AppToolPagesTest::selectionOfThumbnailsAtOpen_data()
+{
+    QTest::addColumn<QString>("toolId");
+    QTest::newRow("rotate") << PagesGuiHelper::ROTATE_ID;
+    QTest::newRow("remove") << PagesGuiHelper::REMOVE_ID;
+    QTest::newRow("extract-text") << QStringLiteral("convert.extract-text");
+}
+
+void AppToolPagesTest::selectionOfThumbnailsAtOpen()
+{
+    // tools.md "Operace v panelu Thumbnails (E2)", 9.6: a tool started from the catalog takes
+    // the pages selected in the panel Thumbnails as its preselected range (owner 2026-11-07:
+    // three pages selected in Thumbnails, the mode Selected of the tool has them, not the
+    // current page)
+    QFETCH(QString, toolId);
+    using H = PagesGuiHelper;
+    AppToolShellFixture fixture(QSize(1440, 960));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writePages(fixture.path(QStringLiteral("doc.pdf")), 20));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentSidebar* sidebar = tab->getView()->getSidebar();
+    QVERIFY(sidebar && sidebar->showPanel(QStringLiteral("thumbnails")));
+    pdf::PDFAppThumbnailsPanel* thumbnails = qobject_cast<pdf::PDFAppThumbnailsPanel*>(sidebar->findPanel(QStringLiteral("thumbnails")));
+    QVERIFY(thumbnails);
+    AppToolShellFixture::settle();
+    thumbnails->selectPages({ 2, 4, 6 });
+    AppToolShellFixture::settle();
+    QCOMPARE(tab->getView()->getSelectedPages(), std::vector<pdf::PDFInteger>({ 2, 4, 6 }));
+
+    PDFDocumentToolShell* shell = fixture.openTool(tab, toolId);
+    QVERIFY(shell);
+    AppToolShellFixture::settle();
+    pdf::PDFPageSelection* selection = shell->getLeftPanel() ? shell->getLeftPanel()->findChild<pdf::PDFPageSelection*>() : nullptr;
+    QVERIFY(selection);
+    QCOMPARE(selection->getMode(), pdf::PDFPageSelection::Mode::Selected);
+    QCOMPARE(selection->getStatusText(), QStringLiteral("3 pages selected · 3, 5, 7"));
+    pdf::PDFDocumentToolPageSelection expected;
+    expected.pages = QStringLiteral("3, 5, 7");
+    QString error;
+    const std::optional<pdf::PDFDocumentToolPageSelection> value = pdf::PDFDocumentToolPageSelection::fromVariant(shell->getModel()->getValue(QStringLiteral("pages")), &error);
+    QVERIFY2(value, qPrintable(error));
+    QCOMPARE(value->getPageIndices(tab->getDocument()->getDocument().data(), &error), std::vector<pdf::PDFInteger>({ 2, 4, 6 }));
+}
+
+void AppToolPagesTest::rangeWithoutTextSelectsNoPage_data()
+{
+    QTest::addColumn<QString>("toolId");
+    QTest::newRow("rotate") << PagesGuiHelper::ROTATE_ID;
+    QTest::newRow("remove") << PagesGuiHelper::REMOVE_ID;
+    QTest::newRow("extract-text") << QStringLiteral("convert.extract-text");
+}
+
+void AppToolPagesTest::rangeWithoutTextSelectsNoPage()
+{
+    // Owner 2026-11-07: Range with an empty field selects no page (All is the mode of all
+    // pages): the count says no page, no tile is marked, the tool has nothing to work on
+    QFETCH(QString, toolId);
+    using H = PagesGuiHelper;
+    AppToolShellFixture fixture(QSize(1440, 960));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writePages(fixture.path(QStringLiteral("doc.pdf")), 10));
+    QVERIFY(tab);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, toolId);
+    QVERIFY(shell);
+    AppToolShellFixture::settle();
+    pdf::PDFPageSelection* selection = shell->getLeftPanel()->findChild<pdf::PDFPageSelection*>();
+    QVERIFY(selection);
+
+    // A range of two pages first: the tool has them
+    selection->setMode(pdf::PDFPageSelection::Mode::Range);
+    selection->setRange(QStringLiteral("2-3"));
+    AppToolShellFixture::settle();
+    QCOMPARE(selection->getStatusText(), QStringLiteral("2 pages selected · 2 – 3"));
+
+    // The field emptied: no page
+    selection->setRange(QString());
+    AppToolShellFixture::settle();
+    QCOMPARE(selection->getMode(), pdf::PDFPageSelection::Mode::Range);
+    QCOMPARE(selection->getStatusText(), QStringLiteral("No pages selected"));
+    QString error;
+    const std::optional<pdf::PDFDocumentToolPageSelection> value = pdf::PDFDocumentToolPageSelection::fromVariant(shell->getModel()->getValue(QStringLiteral("pages")), &error);
+    QVERIFY2(value, qPrintable(error));
+    QVERIFY(value->isNone);
+    QVERIFY(value->getPageIndices(tab->getDocument()->getDocument().data(), &error).empty());
+    QCOMPARE(error, QStringLiteral("No page is selected."));
+
+    if (pdf::PDFAppPageMarkingToolGUI* gui = qobject_cast<pdf::PDFAppPageMarkingToolGUI*>(shell->getGUI()))
+    {
+        // No tile is marked, nothing to turn or to remove
+        QVERIFY(gui->getTargetPages().empty());
+        for (int page = 0; page < 10; ++page)
+        {
+            QCOMPARE(gui->getGrid()->getModel()->getTile(page).state, pdf::PDFComponentPainter::PageTileState::Normal);
+        }
+        if (PDFAppToolGUIRotatePages* rotate = qobject_cast<PDFAppToolGUIRotatePages*>(gui))
+        {
+            QVERIFY(!rotate->getRotateRightButton()->isEnabled());
+            QCOMPARE(gui->getGrid()->getHeaderLabel()->text(), QStringLiteral("0 of 10 pages will be turned"));
+        }
+        else
+        {
+            QCOMPARE(gui->getGrid()->getHeaderLabel()->text(), QStringLiteral("10 of 10 pages stay"));
+        }
+    }
+
+    // The Primary button is disabled: the tool has no page
+    QVERIFY(!shell->getToolbar()->getConfirmButton()->isEnabled());
+
+    // Undo gives the range of two pages back
+    QVERIFY(shell->getToolbar()->getUndoButton()->isEnabled());
+    shell->getToolbar()->getUndoButton()->click();
+    AppToolShellFixture::settle();
+    QCOMPARE(selection->getStatusText(), QStringLiteral("2 pages selected · 2 – 3"));
+}
+
+void AppToolPagesTest::gridTileSize_data()
+{
+    // The menu Thumbnails (pages-rotate-menus 1359:33500, owner 2026-11-07): Small is the slot
+    // of the frames (104 x 104, 82 x 112), Medium (the default) 1.5 and Large 2 times of it
+    // (help tool-pages-rotate.md); a tile is its slot with the padding 6 around it, the label
+    // and the space below (+ 12, + 28)
+    QTest::addColumn<QString>("toolId");
+    QTest::addColumn<QSize>("smallTile");
+    QTest::addColumn<QSize>("mediumTile");
+    QTest::addColumn<QSize>("largeTile");
+    QTest::newRow("rotate") << PagesGuiHelper::ROTATE_ID << QSize(116, 132) << QSize(168, 184) << QSize(220, 236);
+    QTest::newRow("remove") << PagesGuiHelper::REMOVE_ID << QSize(94, 140) << QSize(135, 196) << QSize(176, 252);
+}
+
+void AppToolPagesTest::gridTileSize()
+{
+    // Owner 2026-11-07: the size of the thumbnails of a page grid, chosen in the toolbar and
+    // remembered as a state setting of the database for every page grid
+    QFETCH(QString, toolId);
+    QFETCH(QSize, smallTile);
+    QFETCH(QSize, mediumTile);
+    QFETCH(QSize, largeTile);
+    using H = PagesGuiHelper;
+    using TileSize = pdf::PDFAppToolPageGrid::TileSize;
+    AppToolShellFixture fixture(QSize(1440, 960));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writePages(fixture.path(QStringLiteral("doc.pdf")), 30));
+    QVERIFY(tab);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, toolId);
+    pdf::PDFAppPageMarkingToolGUI* gui = qobject_cast<pdf::PDFAppPageMarkingToolGUI*>(shell ? shell->getGUI() : nullptr);
+    QVERIFY(gui);
+    AppToolShellFixture::settle();
+
+    // tb-thumbnail-size 1359:33481: "Thumbnails: Medium", the rows S / M / L, Medium checked
+    QToolButton* button = gui->getTileSizeButton();
+    QVERIFY(button && button->isVisible() && button->isEnabled());
+    QCOMPARE(button->text(), QStringLiteral("Thumbnails: Medium"));
+    QCOMPARE(button->toolTip(), QStringLiteral("Size of the page thumbnails"));
+    QCOMPARE(gui->getTileSizeRow(TileSize::Small)->getTileText(), QStringLiteral("S"));
+    QCOMPARE(gui->getTileSizeRow(TileSize::Large)->getTitle(), QStringLiteral("Large"));
+    QCOMPARE(gui->getTileSizeRow(TileSize::Medium)->getDescription(), QStringLiteral("The default size"));
+    QVERIFY(gui->getTileSizeRow(TileSize::Medium)->isChecked());
+    QVERIFY(!gui->getTileSizeRow(TileSize::Large)->isChecked());
+    // The tile 2 is no target (the current page 1 is the selection at the entry)
+    pdf::PDFAppToolPageGrid* grid = gui->getGrid();
+    QCOMPARE(H::tileInWindow(grid, 1).size(), mediumTile);
+
+    // Large: the panel closes, the tiles are larger, their pictures are drawn for the new size
+    button->click();
+    AppToolShellFixture::settle();
+    QVERIFY(gui->getTileSizePanel()->isVisible());
+    gui->getTileSizeRow(TileSize::Large)->click();
+    AppToolShellFixture::settle();
+    QVERIFY(!gui->getTileSizePanel()->isVisible());
+    QCOMPARE(button->text(), QStringLiteral("Thumbnails: Large"));
+    QVERIFY(gui->getTileSizeRow(TileSize::Large)->isChecked());
+    QVERIFY(!gui->getTileSizeRow(TileSize::Medium)->isChecked());
+    QCOMPARE(H::tileInWindow(grid, 1).size(), largeTile);
+    QCOMPARE(H::tileInWindow(grid, 2).left(), H::tileInWindow(grid, 1).right() + 1 + pdf::PDFAppToolPageGrid::TILE_SPACING);
+    QCOMPARE(grid->getModel()->getPictureSize(), largeTile - QSize(12, 28));
+    QVERIFY(H::waitForVisiblePictures(grid));
+    const QPixmap picture = grid->getModel()->index(1).data(pdf::PDFComponentRoles::PixmapRole).value<QPixmap>();
+    QCOMPARE(qMax(picture.width(), picture.height()), qRound(qMax(largeTile.width() - 12, largeTile.height() - 28) * picture.devicePixelRatio()));
+    QCOMPARE(fixture.context->getSettings().getString(pdf::PDFSettingKeys::toolsPageGridSize()), QStringLiteral("large"));
+
+    // A state setting: no row of the Settings page
+    const pdf::PDFSettingDefinition* definition = fixture.context->getSettingRegistry()->findDefinition(pdf::PDFSettingKeys::toolsPageGridSize());
+    QVERIFY(definition && !definition->isVisible());
+
+    // The choice is remembered: the other page grid has it, the tool opened again too
+    shell->cancel();
+    AppToolShellFixture::settle();
+    const QString otherToolId = toolId == H::ROTATE_ID ? H::REMOVE_ID : H::ROTATE_ID;
+    shell = fixture.openTool(tab, otherToolId);
+    gui = qobject_cast<pdf::PDFAppPageMarkingToolGUI*>(shell ? shell->getGUI() : nullptr);
+    QVERIFY(gui);
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getTileSize(), TileSize::Large);
+    QCOMPARE(gui->getTileSizeButton()->text(), QStringLiteral("Thumbnails: Large"));
+    shell->cancel();
+    AppToolShellFixture::settle();
+    shell = fixture.openTool(tab, toolId);
+    gui = qobject_cast<pdf::PDFAppPageMarkingToolGUI*>(shell ? shell->getGUI() : nullptr);
+    QVERIFY(gui);
+    AppToolShellFixture::settle();
+    QCOMPARE(H::tileInWindow(gui->getGrid(), 1).size(), largeTile);
+
+    // Small
+    gui->getTileSizeButton()->click();
+    AppToolShellFixture::settle();
+    gui->getTileSizeRow(TileSize::Small)->click();
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getTileSizeButton()->text(), QStringLiteral("Thumbnails: Small"));
+    QCOMPARE(H::tileInWindow(gui->getGrid(), 1).size(), smallTile);
+    QCOMPARE(fixture.context->getSettings().getString(pdf::PDFSettingKeys::toolsPageGridSize()), QStringLiteral("small"));
+}
+
+void AppToolPagesTest::gridPicturesOfHostilePages()
+{
+    // Hostile pages in the page grid (phase2_common.md, checklist 2): a media box without a
+    // width, a huge one, a damaged content stream, contents of a wrong type. Each visible tile
+    // gets its picture (a page, which cannot be drawn, is white), the drawable content is
+    // drawn: the red fill of the page (ISO 32000-2, 8.6.8 rg, 8.5.3.1 re, 8.5.3.3 f), also
+    // before the damaged part of a content stream
+    using H = PagesGuiHelper;
+    pdf::PDFDocumentBuilder builder;
+    const auto addPage = [&builder](const QRectF& mediaBox, const pdf::PDFObject& contents)
+    {
+        const pdf::PDFObjectReference page = builder.appendPage(mediaBox);
+        pdf::PDFDictionaryBuilder update;
+        update.setEntry(pdf::PDFInplaceOrMemoryString("Contents"), contents);
+        builder.mergeTo(page, pdf::PDFObject::createDictionary(std::move(update)));
+    };
+    const auto stream = [&builder](const QByteArray& data)
+    {
+        pdf::PDFDictionaryBuilder dictionary;
+        dictionary.setEntry(pdf::PDFInplaceOrMemoryString("Length"), pdf::PDFObject::createInteger(data.size()));
+        return pdf::PDFObject::createReference(builder.addObject(pdf::PDFObject::createStream(pdf::PDFStream(std::move(dictionary), QByteArray(data)))));
+    };
+    addPage(QRectF(0, 0, 300, 400), stream("1 0 0 rg 0 0 300 400 re f"));
+    addPage(QRectF(0, 0, 0, 400), stream("1 0 0 rg 0 0 300 400 re f"));
+    addPage(QRectF(0, 0, 10000000, 10000000), stream("1 0 0 rg 0 0 10000000 10000000 re f"));
+    addPage(QRectF(0, 0, 300, 400), stream("1 0 0 rg 0 0 300 400 re f Q Q ( unterminated BT ] } 1 2 cm /Missing Do /F9 12 Tf (x) Tj"));
+    addPage(QRectF(0, 0, 300, 400), pdf::PDFObject::createInteger(42));
+    pdf::PDFDocument document = builder.build();
+
+    AppToolShellFixture fixture(QSize(1440, 960));
+    const QString filePath = fixture.path(QStringLiteral("hostile.pdf"));
+    QVERIFY(AppDocumentSamples::write(document, filePath));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, filePath);
+    QVERIFY(tab);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, H::ROTATE_ID);
+    PDFAppToolGUIRotatePages* gui = H::gui<PDFAppToolGUIRotatePages>(shell);
+    QVERIFY(gui);
+    pdf::PDFAppToolPageGrid* grid = gui->getGrid();
+    QVERIFY(H::waitForVisiblePictures(grid));
+    QCOMPARE(H::countVisiblePictures(grid).first, 5);
+
+    QVERIFY2(H::isNear(H::getPictureCenter(grid, 0), QColor(255, 0, 0)), qPrintable(H::getPictureCenter(grid, 0).name()));
+    QVERIFY2(H::isNear(H::getPictureCenter(grid, 1), QColor(255, 255, 255)), qPrintable(H::getPictureCenter(grid, 1).name()));
+    QVERIFY2(H::isNear(H::getPictureCenter(grid, 2), QColor(255, 0, 0)), qPrintable(H::getPictureCenter(grid, 2).name()));
+    QVERIFY2(H::isNear(H::getPictureCenter(grid, 3), QColor(255, 0, 0)), qPrintable(H::getPictureCenter(grid, 3).name()));
+    QVERIFY2(H::isNear(H::getPictureCenter(grid, 4), QColor(255, 255, 255)), qPrintable(H::getPictureCenter(grid, 4).name()));
+
+    // A picture is rendered once: the painted rows do not ask for it again
+    const int drawn = grid->getScheduler()->getDrawnCount();
+    grid->getView()->viewport()->repaint();
+    AppToolShellFixture::settle();
+    QCOMPARE(grid->getScheduler()->getPendingCount(), 0);
+    QCOMPARE(grid->getScheduler()->getDrawnCount(), drawn);
+}
+
+void AppToolPagesTest::gridWorkersLeaveGlobalPoolWhenIdle()
+{
+    // The workers of the pictures are tasks of the global thread pool of Qt, which also runs
+    // the reading and the saving of the documents and the runs of the tools (QtConcurrent::run,
+    // PDFDocumentToolRunner). A worker waiting for the next page (WORKER_IDLE_TIMEOUT_MS) gives
+    // its thread to the other tasks (QThreadPool::releaseThread): with a pool as large as the
+    // workers, a task started after the last picture runs at once, not after the idle time
+    using H = PagesGuiHelper;
+    QThreadPool* pool = QThreadPool::globalInstance();
+    const int poolThreadCount = pool->maxThreadCount();
+    const int pageThreadCount = pdf::PDFExecutionPolicy::getMaxThreadCount(pdf::PDFExecutionPolicy::Scope::Page);
+    pdf::PDFExecutionPolicy::setMaxThreadCount(pdf::PDFExecutionPolicy::Scope::Page, 2);
+    pool->setMaxThreadCount(2);
+    auto restore = qScopeGuard([pool, poolThreadCount, pageThreadCount]()
+    {
+        pool->setMaxThreadCount(poolThreadCount);
+        pdf::PDFExecutionPolicy::setMaxThreadCount(pdf::PDFExecutionPolicy::Scope::Page, pageThreadCount);
+    });
+    QCOMPARE(pdf::PDFAppThumbnailScheduler::getRenderThreadCount(), 2);
+
+    AppToolShellFixture fixture(QSize(1440, 960));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writeHeavyPages(fixture.path(QStringLiteral("heavy.pdf")), 24, 600));
+    QVERIFY(tab);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, H::ROTATE_ID);
+    PDFAppToolGUIRotatePages* gui = H::gui<PDFAppToolGUIRotatePages>(shell);
+    QVERIFY(gui);
+    pdf::PDFAppToolPageGrid* grid = gui->getGrid();
+    QVERIFY(H::waitForVisiblePictures(grid));
+    QCOMPARE(grid->getScheduler()->getMaximumRenderingCount(), 2);
+
+    // Both workers wait for the next page now: the task gets a thread at once
+    std::shared_ptr<std::atomic_bool> isRun = std::make_shared<std::atomic_bool>(false);
+    QElapsedTimer timer;
+    timer.start();
+    pool->start([isRun]() { isRun->store(true); });
+    QVERIFY(AppToolShellFixture::waitFor([isRun]() { return isRun->load(); }, 10000));
+    const qint64 limit = qint64(pdf::PDFAppThumbnailScheduler::WORKER_IDLE_TIMEOUT_MS / 2) * AppToolShellFixture::getTimeoutFactor();
+    QVERIFY2(timer.elapsed() < limit, qPrintable(QStringLiteral("the task has waited %1 ms").arg(timer.elapsed())));
 }
 
 QTEST_MAIN(AppToolPagesTest)

@@ -745,8 +745,11 @@ void PDFAppToolPageSelectionBinder::writeValue(bool isUserChange)
     value.pages = pages;
     value.filters = PDFAppToolPanelBuilderHelper::toToolFilters(m_selection->getFilters());
 
-    // The mode Selected without a selected page selects no page, not all of them
-    value.isNone = m_selection->getMode() == PDFPageSelection::Mode::Selected && m_selection->getSelectedPages().isEmpty();
+    // The mode Selected without a selected page selects no page, not all of them; the mode
+    // Range without a page in its text (an empty field) too (owner 2026-11-07): All is the
+    // mode of all pages
+    value.isNone = (m_selection->getMode() == PDFPageSelection::Mode::Selected && m_selection->getSelectedPages().isEmpty()) ||
+                   (m_selection->getMode() == PDFPageSelection::Mode::Range && isRangeWithoutPages());
 
     // A selection of more pages than a range text can hold is refused by the model
     m_isUpdating = true;
@@ -768,6 +771,13 @@ void PDFAppToolPageSelectionBinder::writeValue(bool isUserChange)
     }
 }
 
+bool PDFAppToolPageSelectionBinder::isRangeWithoutPages() const
+{
+    // The parts of the text are pages ("1-3, 5"); a text without a part (empty, only
+    // spaces or commas) names no page
+    return m_selection && PDFPageRange::parse(m_selection->getRange(), m_selection->getPageCount()).intervals.isEmpty() && m_selection->getRangeError().isEmpty();
+}
+
 void PDFAppToolPageSelectionBinder::onParameterChanged(const QString& name)
 {
     PDFAppToolParameterModel* model = m_gui ? m_gui->getModel() : nullptr;
@@ -786,7 +796,15 @@ void PDFAppToolPageSelectionBinder::onParameterChanged(const QString& name)
 
     m_isUpdating = true;
     m_selection->setFilters(PDFAppToolPanelBuilderHelper::toSelectionFilters(value->filters));
-    if (value->isNone)
+    if (value->isNone && m_selection->getMode() == PDFPageSelection::Mode::Range)
+    {
+        // No page in the mode Range is its empty field (Undo to the emptied field): the mode stays
+        if (!isRangeWithoutPages())
+        {
+            m_selection->setRange(QString());
+        }
+    }
+    else if (value->isNone)
     {
         m_isOwnSelection = true;
         m_selection->setSelectedPages(QList<int>());

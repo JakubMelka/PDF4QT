@@ -348,6 +348,11 @@ protected:
                           PDFObjectWalk* walk,
                           int depth);
 
+    /// The kids of this item get this item as their parent and all items below it
+    /// get \p root as their tree (a moved tree: the items point to the tree object)
+    /// \param root Tree of the items
+    void adoptChildren(PDFStructureTree* root);
+
     PDFStructureItem* m_parent;
     PDFStructureTree* m_root;
     PDFObjectReference m_selfReference;
@@ -381,6 +386,14 @@ class PDF4QTLIBCORESHARED_EXPORT PDFStructureTree : public PDFStructureItem
 {
 public:
     explicit inline PDFStructureTree() : PDFStructureItem(nullptr, this) { }
+
+    /// The items of the tree point to the tree object (getParent of its kids, getTree of
+    /// all items): a move hands them to the new object, a copy would share them, so the
+    /// tree cannot be copied
+    PDFStructureTree(PDFStructureTree&& other);
+    PDFStructureTree& operator=(PDFStructureTree&& other);
+    PDFStructureTree(const PDFStructureTree&) = delete;
+    PDFStructureTree& operator=(const PDFStructureTree&) = delete;
 
     virtual PDFStructureTree* asStructureTree() override { return this; }
     virtual const PDFStructureTree* asStructureTree() const override { return this; }

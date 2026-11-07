@@ -60,6 +60,15 @@ PDFAppPageRenderContext::PDFAppPageRenderContext(const PDFDocument* document, co
     m_annotationManager.setDocument(modifiedDocument);
 }
 
+void PDFAppPageRenderContext::setOptionalContentStates(const std::map<PDFObjectReference, OCState>& states)
+{
+    // The activity of this context has no receivers: its signal reaches nobody
+    for (const auto& [group, state] : states)
+    {
+        m_optionalContentActivity.setState(group, state, false);
+    }
+}
+
 void PDFAppPageRenderContext::draw(QPainter* painter, PDFInteger pageIndex, const QTransform& pageToImage, bool showAnnotations, const PDFOperationControl* control)
 {
     const PDFPage* page = m_document->getCatalog()->getPage(size_t(pageIndex));

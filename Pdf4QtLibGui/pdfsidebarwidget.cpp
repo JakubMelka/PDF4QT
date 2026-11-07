@@ -90,7 +90,6 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
     m_notesTreeModel(nullptr),
     m_notesSortProxyTreeModel(nullptr),
     m_document(nullptr),
-    m_optionalContentActivity(nullptr),
     m_attachmentsTreeModel(nullptr)
 {
     ui->setupUi(this);
@@ -251,7 +250,7 @@ void PDFSidebarWidget::setDocument(const pdf::PDFModifiedDocument& document, con
 
     // Update optional content
     m_optionalContentTreeModel->setDocument(document);
-    m_optionalContentTreeModel->setActivity(m_optionalContentActivity);
+    m_optionalContentTreeModel->setActivity(m_optionalContentActivity.data());
     ui->optionalContentTreeView->expandAll();
 
     // Update attachments
@@ -819,12 +818,12 @@ void PDFSidebarWidget::updateNotes()
         pdf::PDFAnnotationManager annotationManager(m_proxy->getFontCache(),
                                                     m_proxy->getIccProfileCache(),
                                                     m_proxy->getCMSManager(),
-                                                    m_optionalContentActivity,
+                                                    m_optionalContentActivity.data(),
                                                     pdf::PDFMeshQualitySettings(),
                                                     m_proxy->getFeatures(),
                                                     pdf::PDFAnnotationManager::Target::View,
                                                     nullptr);
-        annotationManager.setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(m_document), m_optionalContentActivity));
+        annotationManager.setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(m_document), m_optionalContentActivity.data()));
 
         pdf::PDFInteger pageCount = m_document->getCatalog()->getPageCount();
         for (pdf::PDFInteger pageIndex = 0; pageIndex < pageCount; ++pageIndex)
@@ -1882,7 +1881,7 @@ void PDFSidebarWidget::onOutlineItemsChanged()
         builder.setOutline(m_outlineTreeModel->getRootOutlineItem());
 
         pdf::PDFDocumentPointer pointer(new pdf::PDFDocument(builder.build()));
-        pdf::PDFModifiedDocument document(qMove(pointer), m_optionalContentActivity, pdf::PDFModifiedDocument::None);
+        pdf::PDFModifiedDocument document(qMove(pointer), m_optionalContentActivity.data(), pdf::PDFModifiedDocument::None);
         Q_EMIT documentModified(qMove(document));
     }
 }

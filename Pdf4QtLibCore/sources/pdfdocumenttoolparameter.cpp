@@ -626,6 +626,23 @@ std::vector<PDFInteger> PDFDocumentToolPageSelection::mapPageIndices(const PDFDo
             pageMap[i] = it->second[usedCount++];
         }
     }
+
+    // A whole rewrite of the file (Compress, Optimize Structure: Shrink object storage, Merge
+    // identical objects) gives page objects other numbers, but it never removes or moves a
+    // page: with the same count of pages, each found at its place, a page not found by its
+    // reference is the page at its place (else a renumbered page would lose its mark)
+    if (pageMap.size() == toCatalog->getPageCount())
+    {
+        bool isEveryFoundPageInPlace = true;
+        for (size_t i = 0; i < pageMap.size() && isEveryFoundPageInPlace; ++i)
+        {
+            isEveryFoundPageInPlace = pageMap[i] < 0 || pageMap[i] == PDFInteger(i);
+        }
+        for (size_t i = 0; i < pageMap.size() && isEveryFoundPageInPlace; ++i)
+        {
+            pageMap[i] = PDFInteger(i);
+        }
+    }
     return pageMap;
 }
 

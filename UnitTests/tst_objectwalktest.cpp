@@ -153,6 +153,20 @@ public:
         return parts.join(QLatin1Char(' '));
     }
 
+    /// The items below \p item, whose parent is not the item above them or whose tree
+    /// is not \p tree
+    static qint64 countWrongLinks(const PDFStructureItem* item, const PDFStructureTree* tree)
+    {
+        qint64 count = 0;
+        for (size_t i = 0; i < item->getChildCount(); ++i)
+        {
+            const PDFStructureItem* child = item->getChild(i);
+            count += (child->getParent() != item || child->getTree() != tree) ? 1 : 0;
+            count += countWrongLinks(child, tree);
+        }
+        return count;
+    }
+
     static qint64 countItems(const PDFStructureItem* item)
     {
         qint64 count = 0;
@@ -191,6 +205,7 @@ private slots:
     void structureTree();
     void structureTreeSharedChain();
     void structureParentTree();
+    void structureTreeMoved();
     void extractTextSharedElement();
     void removePagesTrees();
     void sanitizerFormsAndFields();
@@ -385,6 +400,32 @@ void ObjectWalkTest::structureParentTree()
     QCOMPARE(tree.getParentTreeEntry(0).reference, PDFObjectReference(11, 0));
     QVERIFY(!tree.getParentTreeEntry(1).reference.isValid());
     QCOMPARE(WalkTestHelper::getTree(&tree), QStringLiteral("P"));
+}
+
+void ObjectWalkTest::structureTreeMoved()
+{
+    // The order Structure of Extract Text assigns the parsed tree to its own object and walks
+    // up the parents for the inherited /Pg (ISO 32000-2, 14.7.2, Table 355: /P is the parent,
+    // the kids of the root have the root). The kids of the tree pointed to the destroyed
+    // temporary (P2TSAN: a crash in PDFStructureTreeTextFlowCollector::isOnProcessedPage).
+    WalkTestPdf pdf = WalkTestPdf::createPages(1, "/StructTreeRoot 8 0 R /MarkInfo << /Marked true >>");
+    pdf.set(8, "<< /Type /StructTreeRoot /K [9 0 R 10 0 R 8 0 R] >>");
+    pdf.set(9, "<< /Type /StructElem /S /Sect /P 8 0 R /K [11 0 R 9 0 R] >>");
+    pdf.set(10, "<< /Type /StructElem /S /Sect /P 8 0 R /K [11 0 R << /Type /MCR /Pg 3 0 R /MCID 0 >>] >>");
+    pdf.set(11, "<< /Type /StructElem /S /Figure /P 9 0 R /Alt (Shared figure) >>");
+    const PDFDocument document = pdf.read();
+
+    PDFStructureTree assigned;
+    assigned = PDFStructureTree::parse(&document.getStorage(), document.getCatalog()->getStructureTreeRoot());
+    QCOMPARE(WalkTestHelper::getTree(&assigned), QStringLiteral("Sect[Figure] Sect[?]"));
+    QCOMPARE(WalkTestHelper::countWrongLinks(&assigned, &assigned), qint64(0));
+    QCOMPARE(assigned.getChild(0)->getParent(), static_cast<const PDFStructureItem*>(&assigned));
+
+    // A moved tree hands its items to the new object, the old one is empty
+    PDFStructureTree moved(std::move(assigned));
+    QCOMPARE(WalkTestHelper::getTree(&moved), QStringLiteral("Sect[Figure] Sect[?]"));
+    QCOMPARE(WalkTestHelper::countWrongLinks(&moved, &moved), qint64(0));
+    QVERIFY(!assigned.isValid());
 }
 
 void ObjectWalkTest::extractTextSharedElement()

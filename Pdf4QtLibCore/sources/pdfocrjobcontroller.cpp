@@ -28,6 +28,7 @@
 #include "pdfmeshqualitysettings.h"
 #include "pdfexception.h"
 #include "pdfexecutionpolicy.h"
+#include "pdfthreadannotations.h"
 
 #include <QRunnable>
 #include <QDateTime>
@@ -294,8 +295,8 @@ bool PDFOCRJobController::acquireMemory(Job& job, qint64 bytes, const PDFOperati
             }
             return false;
         }
-        m_memoryCondition.wait(&m_mutex, QDeadlineTimer(qMin<qint64>(100, deadline.isForever() ? 100 : qMax<qint64>(1, deadline.remainingTime()))));
-        PDFThreadAnnotations::happensAfter(&m_mutex); // relocked inside of Qt
+        // The unlock and the relock inside of Qt are told to the race detectors
+        PDFThreadAnnotations::wait(m_memoryCondition, &m_mutex, QDeadlineTimer(qMin<qint64>(100, deadline.isForever() ? 100 : qMax<qint64>(1, deadline.remainingTime()))));
     }
 
     m_memoryUsed += bytes;
@@ -553,6 +554,11 @@ void PDFOCRJobController::finishPage(Job& job, PDFOCRPageResult result)
         }
     }
 
+    // The signals are emitted in a worker and received by queued connections: the
+    // arguments are copied into the posted events in the transport scope, the queue of
+    // Qt between the threads is invisible to the race detectors. The data of the copies
+    // are implicitly shared (atomic reference counts, which ThreadSanitizer sees).
+    PDFThreadAnnotations::TransportScope transportScope;
     Q_EMIT pageFinished(job.generation, std::move(result));
     Q_EMIT jobProgress(job.generation, finished, total);
 }
@@ -573,6 +579,9 @@ void PDFOCRJobController::finishJob(Job& job)
     }
 
     m_running.store(false, std::memory_order_release);
+
+    // Queued to the receivers, the copy of the summary in the transport scope (finishPage)
+    PDFThreadAnnotations::TransportScope transportScope;
     Q_EMIT jobFinished(job.generation, summary);
 }
 
@@ -652,7 +661,11 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
     const int maximumDimension = capabilities.maximumImageSize.isEmpty() ? 0 : qMin(capabilities.maximumImageSize.width(), capabilities.maximumImageSize.height());
 
     // 1. Preparing: rasterization
-    Q_EMIT pageStateChanged(job.generation, task.pageIndex, int(PDFOCRPageState::Preparing), PDFTranslationContext::tr("Rendering"));
+    {
+        const QString phase = PDFTranslationContext::tr("Rendering");
+        PDFThreadAnnotations::TransportScope transportScope; // queued, see finishPage
+        Q_EMIT pageStateChanged(job.generation, task.pageIndex, int(PDFOCRPageState::Preparing), phase);
+    }
 
     const Environment& environment = job.environment;
     const PDFCatalog* catalog = environment.document->getCatalog();
@@ -738,7 +751,11 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
     {
         if (capabilities.supportsOrientationDetection && job.description.models.hasOrientationData)
         {
-            Q_EMIT pageStateChanged(job.generation, task.pageIndex, int(PDFOCRPageState::Preparing), PDFTranslationContext::tr("Orientation detection"));
+            {
+                const QString phase = PDFTranslationContext::tr("Orientation detection");
+                PDFThreadAnnotations::TransportScope transportScope; // queued, see finishPage
+                Q_EMIT pageStateChanged(job.generation, task.pageIndex, int(PDFOCRPageState::Preparing), phase);
+            }
             PDFOCRError orientationError;
             orientation = engine->detectOrientation(raster.image, raster.geometry.dpi, operationControl, &orientationError, getRemainingMilliseconds());
             if (orientation)
@@ -772,7 +789,11 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
     }
 
     // 4. Preprocessing
-    Q_EMIT pageStateChanged(job.generation, task.pageIndex, int(PDFOCRPageState::Preparing), PDFTranslationContext::tr("Preprocessing"));
+    {
+        const QString phase = PDFTranslationContext::tr("Preprocessing");
+        PDFThreadAnnotations::TransportScope transportScope; // queued, see finishPage
+        Q_EMIT pageStateChanged(job.generation, task.pageIndex, int(PDFOCRPageState::Preparing), phase);
+    }
     PDFOCRPagePreparer::PreprocessResult preprocessed = PDFOCRPagePreparer::preprocess(raster.image, raster.geometry, configuration.preprocessing, orientation, operationControl);
     if (preprocessed.error)
     {
@@ -822,7 +843,11 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
     }
 
     // 6. Recognition
-    Q_EMIT pageStateChanged(job.generation, task.pageIndex, int(PDFOCRPageState::Recognizing), PDFTranslationContext::tr("Recognition"));
+    {
+        const QString phase = PDFTranslationContext::tr("Recognition");
+        PDFThreadAnnotations::TransportScope transportScope; // queued, see finishPage
+        Q_EMIT pageStateChanged(job.generation, task.pageIndex, int(PDFOCRPageState::Recognizing), phase);
+    }
 
     PDFOCRConfiguration preparedConfiguration = job.description.configuration;
 
@@ -969,7 +994,10 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
             {
                 total = int((100 * currentRectangle + qBound(0, percent, 100)) / rectangleCount);
             }
-            Q_EMIT pageProgress(job.generation, task.pageIndex, total);
+            {
+                PDFThreadAnnotations::TransportScope transportScope; // queued, see finishPage
+                Q_EMIT pageProgress(job.generation, task.pageIndex, total);
+            }
         };
 
         PDFOCRRecognitionOutput output = engine->recognize(input, operationControl, progressCallback);

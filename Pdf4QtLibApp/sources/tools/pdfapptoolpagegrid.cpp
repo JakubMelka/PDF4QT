@@ -38,6 +38,7 @@
 #include <QTransform>
 #include <QVBoxLayout>
 
+#include <cmath>
 #include <limits>
 
 namespace pdf
@@ -301,8 +302,49 @@ void PDFAppToolPageGridView::emitQueued()
 
 // -------------------------------------------------------------- PDFAppToolPageGrid
 
+double PDFAppToolPageGrid::getTileScale(TileSize size)
+{
+    switch (size)
+    {
+        case TileSize::Small:
+            break;
+        case TileSize::Medium:
+            return 1.5;
+        case TileSize::Large:
+            return 2.0;
+    }
+    return 1.0;
+}
+
+QString PDFAppToolPageGrid::getTileSizeId(TileSize size)
+{
+    switch (size)
+    {
+        case TileSize::Small:
+            return QStringLiteral("small");
+        case TileSize::Large:
+            return QStringLiteral("large");
+        case TileSize::Medium:
+            break;
+    }
+    return QStringLiteral("medium");
+}
+
+PDFAppToolPageGrid::TileSize PDFAppToolPageGrid::getTileSizeFromId(const QString& id)
+{
+    for (const TileSize size : { TileSize::Small, TileSize::Medium, TileSize::Large })
+    {
+        if (getTileSizeId(size) == id)
+        {
+            return size;
+        }
+    }
+    return TileSize::Medium;
+}
+
 PDFAppToolPageGrid::PDFAppToolPageGrid(const QSize& slotSize, QWidget* parent) :
-    BaseClass(parent)
+    BaseClass(parent),
+    m_baseSlotSize(slotSize)
 {
     setObjectName(QStringLiteral("toolPageGrid"));
 
@@ -325,7 +367,7 @@ PDFAppToolPageGrid::PDFAppToolPageGrid(const QSize& slotSize, QWidget* parent) :
     m_view->setAccessibleName(tr("Pages"));
     m_model = new PDFAppToolPageGridModel(m_view);
     m_delegate = new PDFPageTileDelegate(m_view);
-    m_delegate->setSlotSize(slotSize);
+    m_delegate->setSlotSize(getScaledSlotSize(m_tileSize));
     m_view->setModel(m_model);
     m_view->setItemDelegate(m_delegate);
     m_scheduler = new PDFAppThumbnailScheduler(m_model, m_view, this);
@@ -357,6 +399,7 @@ void PDFAppToolPageGrid::setDocument(PDFDocumentPointer document, const QString&
     }
 
     m_scheduler->setProxy(view ? view->getProxy() : nullptr);
+    m_scheduler->setAppDocument(view ? view->getDocument() : nullptr);
     m_model->setPageDocument(std::move(document), documentId);
     m_scheduler->reset();
 }
@@ -392,6 +435,32 @@ void PDFAppToolPageGrid::setTiles(std::vector<PDFAppToolPageGridModel::Tile> til
         // A tile with a caption is higher, a selected one larger: one layout of all tiles
         Q_EMIT m_delegate->sizeHintChanged(m_model->index(range.first));
     }
+}
+
+void PDFAppToolPageGrid::setTileSize(TileSize size)
+{
+    if (m_tileSize == size || !m_delegate || !m_model || !m_view)
+    {
+        m_tileSize = size;
+        return;
+    }
+
+    m_tileSize = size;
+    m_delegate->setSlotSize(getScaledSlotSize(size));
+
+    // New keys of the pictures (their size), then one layout of all tiles; the signals reach the views only
+    QPointer<PDFAppToolPageGrid> guard(this);
+    updatePictureSize();
+    if (guard && m_delegate && m_model && m_model->rowCount() > 0)
+    {
+        Q_EMIT m_delegate->sizeHintChanged(m_model->index(0));
+    }
+}
+
+QSize PDFAppToolPageGrid::getScaledSlotSize(TileSize size) const
+{
+    const double scale = getTileScale(size);
+    return QSize(int(std::lround(m_baseSlotSize.width() * scale)), int(std::lround(m_baseSlotSize.height() * scale)));
 }
 
 void PDFAppToolPageGrid::updatePictureSize()

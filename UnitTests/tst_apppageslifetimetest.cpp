@@ -117,10 +117,16 @@
 #include <memory>
 #include <mutex>
 #include <tuple>
+#include <typeinfo>
 #include <unordered_set>
 #include <vector>
 
 using PagesObjectSet = std::unordered_set<const QObject*>;
+
+/// An object of a class without Q_OBJECT (detectorSelfTest): its class name is QObject
+class PagesObjectWithoutMetaObject : public QObject
+{
+};
 
 /// Tracks the living objects by the hooks of QtCore (installed before the
 /// application object is created)
@@ -206,8 +212,14 @@ public:
             }
             else
             {
+                // A class without Q_OBJECT (or an object, whose destructor runs in another
+                // thread now) has the class name QObject: the dynamic type names it
                 const QObject* parent = object->parent();
-                result << QStringLiteral("%1 '%2' (parent %3)").arg(QString::fromLatin1(className), object->objectName(),
+                const bool isDeleted = QObjectPrivate::get(const_cast<QObject*>(object))->wasDeleted;
+                const bool isPlain = className != "QObject" || (typeid(*object) == typeid(QObject) && !isDeleted);
+                const QString name = isPlain ? QString::fromLatin1(className)
+                                             : QStringLiteral("QObject [%1%2]").arg(QString::fromLatin1(typeid(*object).name()), isDeleted ? QStringLiteral(", being deleted") : QString());
+                result << QStringLiteral("%1 '%2' (parent %3)").arg(name, object->objectName(),
                                                                    parent ? QString::fromLatin1(parent->metaObject()->className()) : QStringLiteral("none"));
             }
 
@@ -2165,6 +2177,7 @@ void AppPagesLifetimeTest::detectorSelfTest()
     window->show();
     QObject* object = new QObject();
     object->setObjectName(QStringLiteral("leakedObject"));
+    PagesObjectWithoutMetaObject* objectWithoutMetaObject = new PagesObjectWithoutMetaObject();
     QObject* receiver = new QObject();
     QTimer::singleShot(60000, receiver, []() {});
     delete receiver;
@@ -2177,6 +2190,10 @@ void AppPagesLifetimeTest::detectorSelfTest()
     const QStringList left = PagesObjectTracker::describeNewObjects(before, m_server, 10);
     QVERIFY2(left.contains(QStringLiteral("QObject 'leakedObject' (parent none)")), qPrintable(left.join(QStringLiteral("; "))));
     QVERIFY2(left.contains(QStringLiteral("QWidget 'leakedWindow' (parent none)")), qPrintable(left.join(QStringLiteral("; "))));
+
+    // A class without Q_OBJECT has the class name QObject: its dynamic type names it
+    const QString withoutMetaObject = QStringLiteral("QObject [%1] '' (parent none)").arg(QString::fromLatin1(typeid(PagesObjectWithoutMetaObject).name()));
+    QVERIFY2(left.contains(withoutMetaObject), qPrintable(left.join(QStringLiteral("; "))));
     QVERIFY2(!left.contains(QStringLiteral("a pending single shot timer, whose timeout is connected")), qPrintable(left.join(QStringLiteral("; "))));
 
     QCOMPARE(PagesMessageCollector::takeMessages(), QStringList(QStringLiteral("pages lifetime self test")));
@@ -2187,6 +2204,7 @@ void AppPagesLifetimeTest::detectorSelfTest()
 
     delete window;
     delete object;
+    delete objectWithoutMetaObject;
     PagesLifetimeHelper::settle();
     QVERIFY(PagesLifetimeHelper::describeVisibleTopLevels(nullptr).isEmpty());
 

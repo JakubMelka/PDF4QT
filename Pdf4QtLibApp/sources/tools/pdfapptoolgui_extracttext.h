@@ -194,6 +194,7 @@ public:
 
     virtual QWidget* createCanvasPage(QWidget* parent) override;
     virtual QString getStatusText() const override;
+    virtual bool isConfirmEnabled() const override;
     virtual QString getRunningStatusText(const QString& stepText) const override;
     virtual QString getRunningCardTitle(int percentage, const QString& stepText) const override;
     virtual QString getRunningCardStepText(const QString& stepText) const override;

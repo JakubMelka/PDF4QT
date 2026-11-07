@@ -1523,7 +1523,6 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
 
         Q_ASSERT(m_fontCache);
         Q_ASSERT(m_cmsManager);
-        Q_ASSERT(m_optionalActivity);
 
         int fontCacheLock = 0;
         const PDFCMSPointer cms = m_cmsManager->getCurrentCMS();
@@ -1821,10 +1820,11 @@ PDFColorConvertor PDFAnnotationManager::getAnnotationColorConvertor(const PDFCMS
 
 void PDFAnnotationManager::setDocument(const PDFModifiedDocument& document)
 {
+    // The activity of the layers also for the same document (a reset may bring another one)
+    m_optionalActivity = document.getOptionalContentActivity();
     if (m_document != document)
     {
         m_document = document;
-        m_optionalActivity = document.getOptionalContentActivity();
 
         if (document.hasReset() || document.hasFlag(PDFModifiedDocument::Annotation))
         {

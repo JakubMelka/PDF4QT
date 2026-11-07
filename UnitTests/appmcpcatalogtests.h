@@ -55,6 +55,7 @@
 #include "pdfmcperrorcodes.h"
 #include "pdfmcplimits.h"
 #include "pdfsignaturehandler.h"
+#include "pdfthreadannotations.h"
 
 #include "mcpshape.h"
 
@@ -1285,6 +1286,9 @@ public:
         QPointer<pdf::PDFAppDocument> documentGuard(document);
         replacement.tool->setExecuteCallback([&lateCall, documentGuard]()
         {
+            // The functor is copied into the posted event of the queue of Qt, which the race
+            // detectors do not see
+            pdf::PDFThreadAnnotations::TransportScope transportScope;
             QMetaObject::invokeMethod(documentGuard.data(), [&lateCall]() { lateCall->cancel(pdf::PDFMcpCancelReason::StreamClosed); }, Qt::BlockingQueuedConnection);
         });
         lateCall = fixture.startCall(toolName(id), arguments(id, QStringLiteral("title"), QStringLiteral("keep"), QString(), QStringLiteral("Late")));
@@ -1343,6 +1347,9 @@ public:
         QPointer<pdf::PDFAppDocument> documentGuard(document);
         replacement.tool->setExecuteCallback([&changesLeft, documentGuard]()
         {
+            // The functor is copied into the posted event of the queue of Qt, which the race
+            // detectors do not see
+            pdf::PDFThreadAnnotations::TransportScope transportScope;
             QMetaObject::invokeMethod(documentGuard.data(), [&changesLeft, documentGuard]()
             {
                 if (changesLeft > 0 && documentGuard)

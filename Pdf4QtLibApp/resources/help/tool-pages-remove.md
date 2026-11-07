@@ -10,12 +10,16 @@ Remove Pages marks pages and removes them from the document. Together with the p
 
 ### Step by step
 
-1. Choose the pages in **Pages to remove**: the current page, the pages selected in Thumbnails, a range such as `4-6, 20`, or all pages narrowed by Even, Odd, Portrait or Landscape. The tool opens with the pages selected in Thumbnails, else with the current page.
+1. Choose the pages in **Pages to remove**: the current page, the pages selected in Thumbnails, a range such as `4-6, 20`, or all pages narrowed by Even, Odd, Portrait or Landscape. The tool opens with the pages selected in Thumbnails, else with the current page. A range with an empty field selects no page.
 2. Click a page in the preview to mark it or to keep it. Shift marks the pages between the page you clicked before and this one; Delete marks the page with the keyboard focus.
 3. **Marked for removal** lists the marked pages. **Keep** of a row keeps that page, **Keep All Pages** keeps all of them.
 4. Press **Remove Pages**. The result can stay in this tab, be saved as a copy or overwrite the original file.
 
 A document must keep at least one page: when every page is marked, the tool says so and removes nothing.
+
+### The size of the thumbnails
+
+**Thumbnails** in the toolbar chooses the size of the pages in the preview: **Small** shows the most pages on the screen at once, **Medium** (the default) shows them one and a half times larger, **Large** twice as large, with more detail of each page. The choice is remembered for the next time and for every tool with a preview of pages.
 
 When an AI assistant removes or moves pages while the tool is open, the marks stay on their pages: a moved page keeps its mark under its new number, a removed page loses its mark. A document protected by permissions must allow assembling it (inserting, rotating and deleting pages).
 

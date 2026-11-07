@@ -677,6 +677,10 @@ void PDFSettingDefinitions::registerState(PDFSettingRegistry* registry)
     add(registry, PDFSettingDefinition::createInteger(PDFSettingKeys::updateLastSuccess(), 0, 0, std::numeric_limits<qint64>::max()));
     add(registry, PDFSettingDefinition::createString(PDFSettingKeys::storageBackupFolder(), QString(), 32767));
     add(registry, PDFSettingDefinition::createString(PDFSettingKeys::windowGeometry(), QString(), 1024)); // PDFAppWindowGeometry::MAXIMUM_TEXT_LENGTH
+    add(registry, PDFSettingDefinition::createOption(PDFSettingKeys::toolsPageGridSize(), QStringLiteral("medium"),
+                                                     { { QStringLiteral("small"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Small")), false },
+                                                       { QStringLiteral("medium"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Medium")), false },
+                                                       { QStringLiteral("large"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Large")), false } }));
 }
 
 }   // namespace pdf

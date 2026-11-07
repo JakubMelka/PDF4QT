@@ -95,6 +95,7 @@ public:
     QSet<QString> pending;              ///< Queued or running paths
     bool hasDatabase = false;           ///< A database was given and stop() has not run (mutex)
     bool isStopped = false;
+    bool isRequestRunning = false;      ///< The worker has read the stored state of a request, it runs it to its end (mutex)
 
     /// Cancellation of the running request (read by the renderer in the worker)
     std::atomic_bool isCanceled = false;
@@ -284,8 +285,8 @@ void PDFAppThumbnailerThread::run()
             QMutexLocker locker(&m_state->mutex);
             while (m_state->queue.empty() && !m_state->isStopped)
             {
-                m_state->condition.wait(&m_state->mutex);
-                PDFThreadAnnotations::happensAfter(&m_state->mutex); // relocked inside of Qt
+                // The unlock and the relock inside of Qt are told to the race detectors
+                PDFThreadAnnotations::wait(m_state->condition, &m_state->mutex);
             }
 
             if (m_state->isStopped)
@@ -298,6 +299,11 @@ void PDFAppThumbnailerThread::run()
         }
 
         process(path);
+
+        {
+            QMutexLocker locker(&m_state->mutex);
+            m_state->isRequestRunning = false;
+        }
     }
 }
 
@@ -332,6 +338,13 @@ void PDFAppThumbnailerThread::process(const QString& path)
             storedModified = file->thumbnailModified;
             storedState = file->thumbnailState;
         }
+    }
+
+    {
+        // Set after the stored state is read, not after the check of the stop: a stop
+        // between them closes the database and the request ends before its test delay
+        QMutexLocker locker(&m_state->mutex);
+        m_state->isRequestRunning = true;
     }
 
     PDFAppThumbnailResult result;
@@ -660,6 +673,12 @@ bool PDFAppThumbnailer::isIdle() const
 {
     QMutexLocker locker(&m_state->mutex);
     return m_state->pending.isEmpty();
+}
+
+bool PDFAppThumbnailer::isRequestRunning() const
+{
+    QMutexLocker locker(&m_state->mutex);
+    return m_state->isRequestRunning;
 }
 
 int PDFAppThumbnailer::getPendingCount() const

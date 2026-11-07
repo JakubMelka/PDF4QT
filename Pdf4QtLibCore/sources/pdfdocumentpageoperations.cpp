@@ -683,6 +683,10 @@ bool PDFDocumentPageRemoval::filterField(const PDFObject& field, int depth, bool
             {
                 removeTerminalField(dictionary, isSignature);
             }
+
+            // A field without kids goes everywhere (the calculation order /CO, also below a
+            // parent, which stays), not only from the /Kids of its parent
+            m_removedObjects.insert(reference);
             return false;
         }
 

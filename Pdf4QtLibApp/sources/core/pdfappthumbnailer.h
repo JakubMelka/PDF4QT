@@ -195,6 +195,11 @@ public:
     /// Nothing is pending or running
     bool isIdle() const;
 
+    /// The worker runs a request: it has read the stored state of the file before a stop,
+    /// from then on a stop does not end the request before its test delay (tests: wait
+    /// until a request really runs)
+    bool isRequestRunning() const;
+
     /// Number of the pending and running requests
     int getPendingCount() const;
 

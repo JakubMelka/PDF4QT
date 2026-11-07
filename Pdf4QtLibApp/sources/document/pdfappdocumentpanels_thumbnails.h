@@ -35,7 +35,9 @@
 #include <QPointer>
 #include <QSize>
 
+#include <atomic>
 #include <map>
+#include <memory>
 #include <set>
 #include <vector>
 
@@ -48,7 +50,10 @@ class QTimer;
 namespace pdf
 {
 
+class PDFAppDocument;
 class PDFAppThumbnailsModel;
+class PDFAppThumbnailRenderJob;
+class PDFAppThumbnailRenderLink;
 class PDFDrawWidgetProxy;
 
 /// Pages of the thumbnails (one row per page). The picture of a page (PixmapRole)
@@ -73,6 +78,9 @@ public:
 
     /// Sets the document; the rows are reset, when the number of pages changes
     void setDocument(PDFDocumentPointer document, const QString& documentId);
+
+    /// The document of the pages (nullptr = none)
+    const PDFDocumentPointer& getDocument() const { return m_document; }
 
     /// Size of the picture of a page in logical pixels (the slot of the delegate)
     /// and the device pixel ratio of the view
@@ -116,15 +124,23 @@ private:
     mutable std::set<int> m_requestedPages;
 };
 
-/// Scheduler of the pictures of the thumbnails (newapp/step3_large_documents.md):
-/// as the Editor, a picture is drawn from the compiled page of the canvas in the
-/// GUI thread (PDFDrawWidgetProxy::drawThumbnailImage: the annotations, the color
-/// mode, the layers and the color management of the view). A page, which is not
-/// compiled, is requested from the compiler of the view; such requests cannot be
-/// canceled, so at most MAXIMUM_PENDING_COMPILES of them are waiting at once and
-/// only the rows visible in the view are requested - scrolling over 2000 pages
-/// queues nothing more. A request, which does not end (a compiler stopped by a
-/// change of the document), expires after PENDING_TIMEOUT_MS.
+/// Scheduler of the pictures of the thumbnails (newapp/step3_large_documents.md) of the
+/// panel Thumbnails and of the page grid of the tools. Only the rows visible in the view
+/// ask for their pictures (scrolling over 2000 pages queues nothing more); the pages are
+/// rendered in parallel in the thread pool (PDFExecutionPolicy::startTask, at most
+/// getRenderThreadCount() pages at once), each worker with its own PDFAppPageRenderContext
+/// - its own compilation, never a compiled page of the canvas, so no QPainterPath is used by
+/// two threads. The pictures have what the view shows: the features (color mode,
+/// annotations), the color management and the states of the layers, taken as values in the
+/// GUI thread when a render job starts.
+///
+/// Ownership and lifetime: the scheduler owns its current render job by a shared pointer;
+/// the job holds only plain data (the document pointer, the settings, the queue and the
+/// finished images) and a link back to the scheduler, which the destructor cuts. The
+/// workers hold the job, never the scheduler; nobody waits for them: a new document, other
+/// settings, the deletion of the view cancel the job (the compilation stops at its next
+/// check) and a late result is dropped. A page, which has scrolled away before a worker
+/// took it, leaves the queue. The images come back by a queued call to the GUI thread.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppThumbnailScheduler : public QObject
 {
     Q_OBJECT
@@ -133,54 +149,79 @@ private:
     using BaseClass = QObject;
 
 public:
-    /// Most compilations of the pages of the thumbnails waiting at once
-    static constexpr int MAXIMUM_PENDING_COMPILES = 4;
+    /// Most pages queued or being rendered at once (more visible rows wait for the next pass)
+    static constexpr int MAXIMUM_PENDING_PAGES = 64;
 
-    /// Most pictures drawn in one pass of the event loop
-    static constexpr int MAXIMUM_PICTURES_PER_PASS = 8;
+    /// Most pages rendered at once (the threads of the pool used by one view)
+    static constexpr int MAXIMUM_RENDER_THREADS = 16;
 
-    /// Time after which a request of a compilation is forgotten
-    static constexpr int PENDING_TIMEOUT_MS = 10000;
-
-    /// Interval of the next try of the visible pages, which wait for a compilation
-    static constexpr int RETRY_INTERVAL_MS = 500;
+    /// A worker without work waits so long for the next page before it ends (its caches
+    /// stay for the next scroll); meanwhile its thread belongs to the other tasks of the pool
+    static constexpr int WORKER_IDLE_TIMEOUT_MS = 1000;
 
     explicit PDFAppThumbnailScheduler(PDFAppThumbnailsModel* model, QAbstractItemView* view, QObject* parent);
     virtual ~PDFAppThumbnailScheduler() override;
 
-    /// Proxy of the canvas, whose compiled pages are drawn (nullptr = none)
+    /// Proxy of the canvas, whose settings the pictures follow (nullptr = the defaults)
     void setProxy(PDFDrawWidgetProxy* proxy);
 
-    /// Forgets the requests (a new document)
+    /// The document of the application, whose states of the layers the pictures show (its
+    /// own optional content activity, only while its document is the one of the model;
+    /// nullptr = the default states)
+    void setAppDocument(PDFAppDocument* document);
+
+    /// Forgets the requests and cancels the rendering (a new document)
     void reset();
 
-    /// Number of the waiting compilations (tests)
-    int getPendingCount() const { return int(m_pending.size()); }
+    /// Number of the pages queued or being rendered (tests)
+    int getPendingCount() const { return int(m_requested.size()); }
 
-    /// Largest number of waiting compilations seen (tests)
+    /// Largest number of pages queued or being rendered seen (tests)
     int getMaximumPendingCount() const { return m_maximumPending; }
 
     /// Number of the drawn pictures (tests)
     int getDrawnCount() const { return m_drawnCount; }
 
-    /// Draws the pictures of the visible rows now (also from a timer)
+    /// Largest number of the pages rendered at once by the workers (tests)
+    int getMaximumRenderingCount() const { return m_maximumRenderingCount; }
+
+    /// Number of the pages rendered at once (PDFExecutionPolicy, at most MAXIMUM_RENDER_THREADS)
+    static int getRenderThreadCount();
+
+    /// Queues the pictures of the visible rows now (also from a timer)
     void process();
 
 private:
+    friend class PDFAppThumbnailRenderLink;
+
     void onPictureRequested();
     void onPageImageChanged(bool all, const std::vector<PDFInteger>& pages);
     void onProxyDestroyed();
+    void onRenderResults(const std::shared_ptr<pdf::PDFAppThumbnailRenderJob>& job);
     bool isRowVisible(int row) const;
     void schedule();
+    void cancelJob();
+    void startJob();
 
     QPointer<PDFAppThumbnailsModel> m_model;
     QPointer<QAbstractItemView> m_view;
     QPointer<PDFDrawWidgetProxy> m_proxy;
+    QPointer<PDFAppDocument> m_appDocument;
     QPointer<QTimer> m_timer;
-    QPointer<QTimer> m_retryTimer;
+    std::shared_ptr<PDFAppThumbnailRenderLink> m_link;
+    std::shared_ptr<PDFAppThumbnailRenderJob> m_job;
     std::set<int> m_waiting;                            ///< Visible pages without a picture
-    std::map<PDFInteger, QElapsedTimer> m_pending;      ///< Requested compilations
+    /// A page queued or being rendered by the job: the key of its picture and its own
+    /// cancellation (set, when its row scrolls away; read by the worker)
+    struct Request
+    {
+        QString key;
+        std::shared_ptr<std::atomic_bool> isCanceled;
+    };
+
+    std::map<int, Request> m_requested;                 ///< Pages queued or being rendered by the job
     int m_maximumPending = 0;
+    int m_maximumRenderingCount = 0;
     int m_drawnCount = 0;
 };
 
@@ -328,7 +369,9 @@ private:
     void onMovePages();
     void onExtractPages();
     void onRemovePages();
-    void applyDocument(bool isNewVersion);
+    /// \param initialSelection The selection of a view, which the panel joins (a new version
+    ///        keeps the selection of the panel instead)
+    void applyDocument(bool isNewVersion, const std::vector<PDFInteger>& initialSelection = std::vector<PDFInteger>());
     void updateViewSelection();
     void updatePictureSize();
     void syncToCurrentPage(bool force);

@@ -26,11 +26,15 @@
 #include "pdfappdocumentpanels_common.h"
 #include "pdfappdocumentpropertiesdata.h"
 #include "pdfappdocumentview.h"
+#include "pdfappcontext.h"
 #include "pdfapplocale.h"
 #include "pdfapptoolhost.h"
 #include "pdfapptoolpanelbuilder.h"
+#include "pdfapptoolpanelpopup.h"
 #include "pdfapptoolparametermodel.h"
 #include "pdfdocumenttoolguiregistry.h"
+#include "pdfsettingdefinitions.h"
+#include "pdfsettingsrepository.h"
 
 #include "pdfcatalog.h"
 #include "pdfdocumentpageoperations.h"
@@ -60,6 +64,12 @@ public:
     /// Slots of the pages of the tiles (389:20177: 104 x 104, 388:20614: 82 x 112)
     static constexpr QSize ROTATE_SLOT = QSize(104, 104);
     static constexpr QSize REMOVE_SLOT = QSize(82, 112);
+
+    /// Width of the panel of the size of the tiles (panel-thumbnail-size 1359:33719)
+    static constexpr int TILE_SIZE_PANEL_WIDTH = 260;
+
+    /// Property of a row of the panel of the size: the size
+    static constexpr const char* TILE_SIZE_PROPERTY = "pdf4qtTileSize";
 
     /// Size of a page in millimeters, as it is shown
     static QSizeF getSizeMM(const PDFPage* page)
@@ -264,10 +274,150 @@ void PDFAppPageMarkingToolGUI::onShellStateChangedSlot(PDFDocumentToolShell::Sta
     onShellStateChanged(state);
 }
 
+void PDFAppPageMarkingToolGUI::readTileSize()
+{
+    if (m_isTileSizeRead)
+    {
+        return;
+    }
+
+    // The state setting of all page grids (the last choice of the user)
+    m_isTileSizeRead = true;
+    const PDFAppContext* context = getContext();
+    if (context && context->getDatabase())
+    {
+        m_tileSize = PDFAppToolPageGrid::getTileSizeFromId(context->getSettings().getString(PDFSettingKeys::toolsPageGridSize()));
+    }
+}
+
+PDFAppToolPageGrid::TileSize PDFAppPageMarkingToolGUI::getTileSize() const
+{
+    return m_tileSize;
+}
+
+void PDFAppPageMarkingToolGUI::setTileSize(PDFAppToolPageGrid::TileSize size)
+{
+    m_isTileSizeRead = true;
+    const bool isChanged = m_tileSize != size;
+    m_tileSize = size;
+    updateTileSizeMenu();
+    if (m_grid)
+    {
+        m_grid->setTileSize(size);
+    }
+
+    // The store announces the change of the setting to its readers (the last call)
+    PDFAppContext* context = getContext();
+    if (isChanged && context && context->getDatabase())
+    {
+        const PDFDatabaseError error = context->getSettings().setValue(PDFSettingKeys::toolsPageGridSize(), PDFAppToolPageGrid::getTileSizeId(size));
+        if (error.isError())
+        {
+            qWarning("The size of the page grid cannot be stored: %s", qPrintable(error.toString()));
+        }
+    }
+}
+
+QToolButton* PDFAppPageMarkingToolGUI::getTileSizeButton() const
+{
+    return m_tileSizePanel ? m_tileSizePanel->getButton() : nullptr;
+}
+
+PDFTileRow* PDFAppPageMarkingToolGUI::getTileSizeRow(PDFAppToolPageGrid::TileSize size) const
+{
+    const auto it = m_tileSizeRows.find(size);
+    return it != m_tileSizeRows.cend() ? it->second.data() : nullptr;
+}
+
+void PDFAppPageMarkingToolGUI::addTileSizeMenu(PDFAppToolPanelBuilder& builder)
+{
+    using Helper = PDFAppToolGUIPagesHelper;
+    using TileSize = PDFAppToolPageGrid::TileSize;
+
+    readTileSize();
+
+    // divider + tb-thumbnail-size (Toolbar menu button, icon/pages) with panel-thumbnail-size:
+    // S / M / L tiles, the title and its description, the check of the chosen size
+    builder.addActionDivider();
+    m_tileSizePanel = builder.addMenu(QStringLiteral("thumbnailSize"), QStringLiteral("pages"), QString(), Helper::TILE_SIZE_PANEL_WIDTH);
+    m_tileSizeRows.clear();
+    if (!m_tileSizePanel)
+    {
+        return;
+    }
+
+    struct SizeRow
+    {
+        TileSize size;
+        QString tileText;
+        QString title;
+        QString description;
+    };
+    const SizeRow rows[] = {
+        { TileSize::Small, tr("S", "the tile of the size Small"), tr("Small"), tr("More pages on the screen at once") },
+        { TileSize::Medium, tr("M", "the tile of the size Medium"), tr("Medium"), tr("The default size") },
+        { TileSize::Large, tr("L", "the tile of the size Large"), tr("Large"), tr("More detail of each page") },
+    };
+    for (const SizeRow& sizeRow : rows)
+    {
+        PDFTileRow* row = m_tileSizePanel->addRow(sizeRow.title, sizeRow.description, QString(), PDFTileRow::Kind::MenuItem);
+        row->setTileText(sizeRow.tileText);
+        row->setObjectName(QStringLiteral("toolTileSize-%1").arg(PDFAppToolPageGrid::getTileSizeId(sizeRow.size)));
+        row->setProperty(Helper::TILE_SIZE_PROPERTY, int(sizeRow.size));
+        row->setSelectionBehavior(PDFComponentButton::SelectionBehavior::Exclusive);
+        connect(row, &PDFTileRow::clicked, this, &PDFAppPageMarkingToolGUI::onTileSizeRowClicked);
+        m_tileSizeRows[sizeRow.size] = row;
+    }
+    updateTileSizeMenu();
+}
+
+void PDFAppPageMarkingToolGUI::updateTileSizeMenu()
+{
+    // "Thumbnails: Medium" and the check of the chosen size
+    if (QToolButton* button = getTileSizeButton())
+    {
+        const PDFTileRow* row = getTileSizeRow(m_tileSize);
+        button->setText(tr("Thumbnails: %1").arg(row ? row->getTitle() : QString()));
+        button->setToolTip(tr("Size of the page thumbnails"));
+        button->setAccessibleName(button->text());
+        button->setAccessibleDescription(button->toolTip());
+    }
+    for (const auto& [size, row] : m_tileSizeRows)
+    {
+        if (row)
+        {
+            row->setChecked(size == m_tileSize);
+        }
+    }
+}
+
+void PDFAppPageMarkingToolGUI::onTileSizeRowClicked()
+{
+    PDFTileRow* row = qobject_cast<PDFTileRow*>(sender());
+    if (!row)
+    {
+        return;
+    }
+
+    // The panel closes first (it may run code of the application), then the size is applied
+    const PDFAppToolPageGrid::TileSize size = PDFAppToolPageGrid::TileSize(row->property(PDFAppToolGUIPagesHelper::TILE_SIZE_PROPERTY).toInt());
+    QPointer<PDFAppPageMarkingToolGUI> guard(this);
+    if (m_tileSizePanel)
+    {
+        m_tileSizePanel->close();
+    }
+    if (guard)
+    {
+        setTileSize(size);
+    }
+}
+
 QWidget* PDFAppPageMarkingToolGUI::createCanvasPage(QWidget* parent)
 {
     // The grid in the place of the canvas (document-canvas 389:20210); it lives with the parts of the shell
+    readTileSize();
     m_grid = new PDFAppToolPageGrid(getSlotSize(), parent);
+    m_grid->setTileSize(m_tileSize);
     connect(m_grid.data(), &PDFAppToolPageGrid::pageClicked, this, &PDFAppPageMarkingToolGUI::onGridPageClicked);
     connect(m_grid.data(), &PDFAppToolPageGrid::deleteRequested, this, &PDFAppPageMarkingToolGUI::onGridDeleteRequested);
 
@@ -799,6 +949,7 @@ void PDFAppToolGUIRotatePages::describeToolbar(PDFAppToolPanelBuilder& builder)
     m_rotateHalf = builder.addAction(tr("Rotate 180°"), QStringLiteral("rotate-180"), this, &PDFAppToolGUIRotatePages::rotateHalf);
     builder.addActionDivider();
     m_reset = builder.addAction(tr("Reset Rotation"), QStringLiteral("rotation-reset"), this, &PDFAppToolGUIRotatePages::resetRotation);
+    addTileSizeMenu(builder);
     updatePanels();
 }
 
@@ -825,6 +976,11 @@ void PDFAppToolGUIRotatePages::updatePanels()
         {
             button->setEnabled(hasTargets && !m_isDeciding);
         }
+    }
+    if (QToolButton* button = getTileSizeButton())
+    {
+        // pages-rotate-done 389:21590: nothing of the toolbar below the result dialog
+        button->setEnabled(!m_isDeciding);
     }
 
     if (m_summary && m_summary->getRowCount() == 3)
@@ -1010,6 +1166,7 @@ void PDFAppToolGUIRemovePages::describeToolbar(PDFAppToolPanelBuilder& builder)
 {
     // tb-restore-all 388:20707
     m_keepAll = builder.addAction(tr("Keep All Pages"), QStringLiteral("trash-restore"), this, &PDFAppToolGUIRemovePages::keepAllPages);
+    addTileSizeMenu(builder);
     updatePanels();
 }
 
@@ -1036,6 +1193,11 @@ void PDFAppToolGUIRemovePages::updatePanels()
     if (m_keepAll)
     {
         m_keepAll->setEnabled(!pages.empty() && !m_isDeciding);
+    }
+    if (QToolButton* button = getTileSizeButton())
+    {
+        // pages-remove-done 388:22315
+        button->setEnabled(!m_isDeciding);
     }
     if (m_allPagesCallout)
     {

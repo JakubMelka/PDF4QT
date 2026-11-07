@@ -29,6 +29,7 @@
 #include "pdfappdocumentpanels_common.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
+#include "pdfapppagerendercontext.h"
 #include "pdfapproute.h"
 #include "pdfsettingdefinitions.h"
 #include "pdfsettingsrepository.h"
@@ -37,6 +38,10 @@
 #include "pdfcompiler.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdrawspacecontroller.h"
+#include "pdfexception.h"
+#include "pdfexecutionpolicy.h"
+#include "pdfoptionalcontent.h"
+#include "pdfthreadannotations.h"
 #include "pdfthemeiconengine.h"
 #include "pdfwidgetstyleproperties.h"
 
@@ -47,17 +52,24 @@
 #include <QLocale>
 #include <QMenu>
 #include <QMouseEvent>
+#include <QMutex>
+#include <QPainter>
 #include <QPixmapCache>
 #include <QResizeEvent>
 #include <QScrollBar>
 #include <QSlider>
+#include <QThreadPool>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
+#include <QWaitCondition>
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
+#include <deque>
 #include <limits>
+#include <memory>
 
 namespace pdf
 {
@@ -253,21 +265,306 @@ QVariant PDFAppThumbnailsModel::data(const QModelIndex& index, int role) const
     return QVariant();
 }
 
+/// The way of the finished pages of a render job back to the scheduler: cut by the
+/// destructor of the scheduler, a job never holds the scheduler (a late result goes
+/// with the job)
+class PDFAppThumbnailRenderLink
+{
+public:
+    explicit PDFAppThumbnailRenderLink(PDFAppThumbnailScheduler* scheduler) :
+        m_scheduler(scheduler)
+    {
+
+    }
+
+    void detach()
+    {
+        QMutexLocker locker(&m_mutex);
+        m_scheduler = nullptr;
+    }
+
+    /// A worker has finished pages (a thread of the pool): the scheduler takes them in its
+    /// own thread by a queued call
+    void notify(const std::shared_ptr<PDFAppThumbnailRenderJob>& job)
+    {
+        QMutexLocker locker(&m_mutex);
+        if (m_scheduler)
+        {
+            PDFThreadAnnotations::happensBefore(job.get());
+            PDFThreadAnnotations::TransportScope transportScope;
+            QMetaObject::invokeMethod(m_scheduler, &PDFAppThumbnailScheduler::onRenderResults, Qt::QueuedConnection, job);
+        }
+    }
+
+private:
+    QMutex m_mutex;
+    PDFAppThumbnailScheduler* m_scheduler;
+};
+
+/// A page of a render job: the request (the GUI thread) and its image (a worker)
+class PDFAppThumbnailRenderPage
+{
+public:
+    int pageIndex = -1;
+    QString key;                    ///< Key of the picture in the model, when it was requested
+    int pixelSize = 1;              ///< Longest edge of the image in pixels
+    qreal devicePixelRatio = 1.0;
+    std::shared_ptr<std::atomic_bool> isCanceled;   ///< The row has scrolled away (set by the GUI thread)
+    QImage image;
+};
+
+/// Cancellation of the rendering of one page: the job or the page (its row has scrolled away)
+class PDFAppThumbnailPageControl : public PDFOperationControl
+{
+public:
+    PDFAppThumbnailPageControl(const PDFOperationControl* job, const std::atomic_bool* isPageCanceled) :
+        m_job(job),
+        m_isPageCanceled(isPageCanceled)
+    {
+
+    }
+
+    virtual bool isOperationCancelled() const override
+    {
+        return m_job->isOperationCancelled() || (m_isPageCanceled && m_isPageCanceled->load(std::memory_order_relaxed));
+    }
+
+private:
+    const PDFOperationControl* m_job;
+    const std::atomic_bool* m_isPageCanceled;
+};
+
+/// One rendering of the pictures of a view in the pool: the settings are plain values
+/// written in the GUI thread before the first worker starts and only read afterwards; the
+/// queue, the results and the counts are guarded by the mutex. The job is the operation
+/// control of its compilations (the cancellation).
+class PDFAppThumbnailRenderJob : public PDFOperationControl
+{
+public:
+    std::shared_ptr<PDFAppThumbnailRenderLink> link;
+    PDFDocumentPointer document;
+    PDFCMSSettings cmsSettings;
+    PDFRenderer::Features features = PDFAppPageRenderContext::getDefaultFeatures();
+    std::map<PDFObjectReference, OCState> optionalContentStates;
+    int threadCount = 1;
+
+    /// The pool of the workers: the global pool of Qt, which also reads and saves the
+    /// documents and runs the tools (a waiting worker gives its thread back to it)
+    QThreadPool* pool = QThreadPool::globalInstance();
+
+    virtual bool isOperationCancelled() const override
+    {
+        return m_isCanceled.load(std::memory_order_relaxed);
+    }
+
+    /// GUI thread: the job is canceled, the waiting workers end
+    void cancel()
+    {
+        QMutexLocker locker(&m_mutex);
+        m_isCanceled.store(true, std::memory_order_relaxed);
+        m_queue.clear();
+        m_condition.wakeAll();
+    }
+
+    /// GUI thread: the queued pages, which are not in \p keptPages, leave the queue (they
+    /// have scrolled away; a page taken by a worker is rendered to its end), \p addedPages
+    /// join it. \returns the number of the workers to start (they are counted already)
+    int updateQueue(const std::set<int>& keptPages, std::vector<PDFAppThumbnailRenderPage> addedPages, std::vector<int>* removedPages)
+    {
+        QMutexLocker locker(&m_mutex);
+        for (auto it = m_queue.begin(); it != m_queue.end();)
+        {
+            if (keptPages.count(it->pageIndex) == 0)
+            {
+                removedPages->push_back(it->pageIndex);
+                it = m_queue.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+
+        for (PDFAppThumbnailRenderPage& page : addedPages)
+        {
+            m_queue.push_back(std::move(page));
+        }
+
+        if (m_queue.empty() || isOperationCancelled())
+        {
+            return 0;
+        }
+
+        // The idle workers take the pages first, new ones only up to the count of the threads
+        m_condition.wakeAll();
+        const int needed = int(m_queue.size()) - m_idleCount;
+        const int startCount = qBound(0, qMin(needed, threadCount - m_workerCount), threadCount);
+        m_workerCount += startCount;
+        return startCount;
+    }
+
+    /// GUI thread: the finished pages since the last call and the largest number of the
+    /// pages rendered at once so far
+    std::vector<PDFAppThumbnailRenderPage> takeResults(int* maximumRunningCount)
+    {
+        QMutexLocker locker(&m_mutex);
+        m_isNotifyQueued = false;
+        *maximumRunningCount = m_maximumRunningCount;
+        std::vector<PDFAppThumbnailRenderPage> results = std::move(m_results);
+        m_results.clear();
+        return results;
+    }
+
+    /// A worker (a thread of the pool): renders the queued pages, then waits a while for
+    /// more of them. Its render context (its own caches and managers) lives in this thread only.
+    void run(const std::shared_ptr<PDFAppThumbnailRenderJob>& self)
+    {
+        std::unique_ptr<PDFAppPageRenderContext> context;
+        while (true)
+        {
+            PDFAppThumbnailRenderPage page;
+            {
+                QMutexLocker locker(&m_mutex);
+                if (m_queue.empty() && !isOperationCancelled())
+                {
+                    // A waiting worker is no task of the pool: the other tasks (the reading,
+                    // the saving, a run of a tool) get its thread meanwhile, it is taken
+                    // again for the next page (else 16 waiting workers hold the pool for
+                    // WORKER_IDLE_TIMEOUT_MS, RGRID 2026-11-07)
+                    ++m_idleCount;
+                    pool->releaseThread();
+                    PDFThreadAnnotations::wait(m_condition, &m_mutex, QDeadlineTimer(PDFAppThumbnailScheduler::WORKER_IDLE_TIMEOUT_MS));
+                    pool->reserveThread();
+                    --m_idleCount;
+                }
+
+                if (m_queue.empty() || isOperationCancelled())
+                {
+                    --m_workerCount;
+                    break;
+                }
+
+                page = std::move(m_queue.front());
+                m_queue.pop_front();
+                ++m_runningCount;
+                m_maximumRunningCount = qMax(m_maximumRunningCount, m_runningCount);
+            }
+
+            if (!context)
+            {
+                context = std::make_unique<PDFAppPageRenderContext>(document.data(), cmsSettings, features);
+                context->setOptionalContentStates(optionalContentStates);
+            }
+            const PDFAppThumbnailPageControl control(this, page.isCanceled.get());
+            if (!control.isOperationCancelled())
+            {
+                page.image = render(context.get(), page, &control);
+            }
+
+            bool isNotifyNeeded = false;
+            {
+                QMutexLocker locker(&m_mutex);
+                --m_runningCount;
+
+                // A page, whose row has scrolled away, gives no picture (its request is forgotten)
+                if (!control.isOperationCancelled())
+                {
+                    m_results.push_back(std::move(page));
+                    isNotifyNeeded = !m_isNotifyQueued;
+                    m_isNotifyQueued = true;
+                }
+            }
+
+            if (isNotifyNeeded)
+            {
+                link->notify(self);
+            }
+        }
+    }
+
+private:
+    /// The picture of the page: its rotated media box scaled to the longest edge, the paper
+    /// white (as PDFRasterizer). A page, which cannot be drawn, is a white picture (no
+    /// request again for each paint).
+    QImage render(PDFAppPageRenderContext* context, const PDFAppThumbnailRenderPage& page, const PDFOperationControl* control) const
+    {
+        const PDFCatalog* catalog = document ? document->getCatalog() : nullptr;
+        const PDFPage* pdfPage = catalog && page.pageIndex >= 0 && size_t(page.pageIndex) < catalog->getPageCount() ? catalog->getPage(size_t(page.pageIndex)) : nullptr;
+        if (!pdfPage)
+        {
+            return QImage();
+        }
+
+        QSizeF pageSize = pdfPage->getRotatedMediaBox().size();
+        if (!std::isfinite(pageSize.width()) || !std::isfinite(pageSize.height()) || pageSize.width() <= 0.0 || pageSize.height() <= 0.0)
+        {
+            pageSize = QSizeF(1.0, 1.0);
+        }
+        pageSize.scale(page.pixelSize, page.pixelSize, Qt::KeepAspectRatio);
+        const QSize imageSize(qBound(1, int(std::lround(pageSize.width())), page.pixelSize), qBound(1, int(std::lround(pageSize.height())), page.pixelSize));
+
+        QImage image(imageSize, QImage::Format_ARGB32_Premultiplied);
+        if (image.isNull())
+        {
+            return QImage();
+        }
+        image.fill(Qt::white);
+
+        try
+        {
+            QPainter painter(&image);
+            const QTransform pageToImage = PDFRenderer::createPagePointToDevicePointMatrix(pdfPage, QRectF(QPointF(0, 0), QSizeF(imageSize)));
+            context->draw(&painter, page.pageIndex, pageToImage, features.testFlag(PDFRenderer::DisplayAnnotations), control);
+        }
+        catch (const PDFException&)
+        {
+            // A damaged page: the white picture
+            image.fill(Qt::white);
+        }
+        return image;
+    }
+
+    QMutex m_mutex;
+    QWaitCondition m_condition;
+    std::deque<PDFAppThumbnailRenderPage> m_queue;
+    std::vector<PDFAppThumbnailRenderPage> m_results;
+    int m_workerCount = 0;          ///< Workers started and not ended (also the idle ones)
+    int m_idleCount = 0;            ///< Workers waiting for a page
+    int m_runningCount = 0;         ///< Pages being rendered now
+    int m_maximumRunningCount = 0;  ///< Most pages rendered at once
+    bool m_isNotifyQueued = false;  ///< A queued call takes the results
+    std::atomic_bool m_isCanceled = false;
+};
+
+/// The task of the pool: it holds the job, never the scheduler
+class PDFAppThumbnailRenderTask
+{
+public:
+    explicit PDFAppThumbnailRenderTask(std::shared_ptr<PDFAppThumbnailRenderJob> job) :
+        m_job(std::move(job))
+    {
+
+    }
+
+    void operator()()
+    {
+        m_job->run(m_job);
+    }
+
+private:
+    std::shared_ptr<PDFAppThumbnailRenderJob> m_job;
+};
+
 PDFAppThumbnailScheduler::PDFAppThumbnailScheduler(PDFAppThumbnailsModel* model, QAbstractItemView* view, QObject* parent) :
     BaseClass(parent),
     m_model(model),
-    m_view(view)
+    m_view(view),
+    m_link(std::make_shared<PDFAppThumbnailRenderLink>(this))
 {
     m_timer = new QTimer(this);
     m_timer->setSingleShot(true);
     m_timer->setInterval(0);
     connect(m_timer, &QTimer::timeout, this, &PDFAppThumbnailScheduler::process);
-
-    // Visible pages, which wait for a free place of a compilation, are tried again
-    m_retryTimer = new QTimer(this);
-    m_retryTimer->setSingleShot(true);
-    m_retryTimer->setInterval(RETRY_INTERVAL_MS);
-    connect(m_retryTimer, &QTimer::timeout, this, &PDFAppThumbnailScheduler::process);
 
     if (model)
     {
@@ -277,10 +574,22 @@ PDFAppThumbnailScheduler::PDFAppThumbnailScheduler(PDFAppThumbnailsModel* model,
 
 PDFAppThumbnailScheduler::~PDFAppThumbnailScheduler()
 {
+    // Nobody waits: the workers go on with the data of the job and end at their next check
+    m_link->detach();
+    cancelJob();
     if (m_proxy)
     {
         m_proxy->disconnect(this);
     }
+}
+
+int PDFAppThumbnailScheduler::getRenderThreadCount()
+{
+    if (!PDFExecutionPolicy::isParallelizing(PDFExecutionPolicy::Scope::Page))
+    {
+        return 1;
+    }
+    return qBound(1, PDFExecutionPolicy::getMaxThreadCount(PDFExecutionPolicy::Scope::Page), MAXIMUM_RENDER_THREADS);
 }
 
 void PDFAppThumbnailScheduler::setProxy(PDFDrawWidgetProxy* proxy)
@@ -305,10 +614,29 @@ void PDFAppThumbnailScheduler::setProxy(PDFDrawWidgetProxy* proxy)
     }
 }
 
+void PDFAppThumbnailScheduler::setAppDocument(PDFAppDocument* document)
+{
+    if (m_appDocument != document)
+    {
+        m_appDocument = document;
+        reset();
+    }
+}
+
 void PDFAppThumbnailScheduler::reset()
 {
     m_waiting.clear();
-    m_pending.clear();
+    cancelJob();
+}
+
+void PDFAppThumbnailScheduler::cancelJob()
+{
+    if (m_job)
+    {
+        m_job->cancel();
+        m_job.reset();
+    }
+    m_requested.clear();
 }
 
 void PDFAppThumbnailScheduler::onProxyDestroyed()
@@ -333,26 +661,18 @@ void PDFAppThumbnailScheduler::schedule()
 
 void PDFAppThumbnailScheduler::onPageImageChanged(bool all, const std::vector<PDFInteger>& pages)
 {
-    if (!m_model)
+    // A page compiled by the canvas is no change of its picture (the pictures have their
+    // own rendering, a new version of the document has new keys). The drawing has
+    // changed (features, color mode, layers, color management): every picture is
+    // rendered again with the new settings.
+    Q_UNUSED(pages);
+    if (!m_model || !all)
     {
         return;
     }
 
-    if (all)
-    {
-        // The drawing has changed (features, color mode, document): every picture
-        // is drawn again, the compiler has dropped its tasks
-        m_pending.clear();
-        m_model->invalidateAll();
-    }
-    else
-    {
-        for (const PDFInteger page : pages)
-        {
-            m_pending.erase(page);
-        }
-        m_model->invalidatePages(pages);
-    }
+    cancelJob();
+    m_model->invalidateAll();
     schedule();
 }
 
@@ -367,6 +687,38 @@ bool PDFAppThumbnailScheduler::isRowVisible(int row) const
     return rect.isValid() && rect.intersects(m_view->viewport()->rect());
 }
 
+void PDFAppThumbnailScheduler::startJob()
+{
+    // The settings of the view as values, taken now in the GUI thread
+    std::shared_ptr<PDFAppThumbnailRenderJob> job = std::make_shared<PDFAppThumbnailRenderJob>();
+    job->link = m_link;
+    job->document = m_model->getDocument();
+    job->threadCount = getRenderThreadCount();
+    if (m_proxy)
+    {
+        job->features = m_proxy->getFeatures();
+        if (const PDFCMSManager* cmsManager = m_proxy->getCMSManager())
+        {
+            job->cmsSettings = cmsManager->getSettings();
+        }
+
+    }
+
+    // The states of the layers from their owner, the document of the application, only
+    // for its current version (the activity of a view may still be the one of an older
+    // version, which the document deletes)
+    const PDFOptionalContentActivity* activity = m_appDocument && job->document && m_appDocument->getDocument() == job->document ? m_appDocument->getOptionalContentActivity() : nullptr;
+    const PDFOptionalContentProperties* properties = activity ? activity->getProperties() : nullptr;
+    if (properties)
+    {
+        for (const PDFObjectReference group : properties->getAllOptionalContentGroups())
+        {
+            job->optionalContentStates[group] = activity->getState(group);
+        }
+    }
+    m_job = std::move(job);
+}
+
 void PDFAppThumbnailScheduler::process()
 {
     if (!m_model || !m_view)
@@ -379,26 +731,46 @@ void PDFAppThumbnailScheduler::process()
         m_waiting.insert(page);
     }
 
-    // Requests, which have not ended, expire (a compiler stopped by a change)
-    for (auto it = m_pending.begin(); it != m_pending.end();)
+    if (!m_model->getDocument())
     {
-        if (it->second.hasExpired(PENDING_TIMEOUT_MS))
-        {
-            it = m_pending.erase(it);
-        }
-        else
-        {
-            ++it;
-        }
+        m_waiting.clear();
+        cancelJob();
+        return;
     }
 
-    PDFAsynchronousPageCompiler* compiler = m_proxy ? m_proxy->getCompiler() : nullptr;
+    // A job renders the document, for which it was started
+    if (m_job && m_job->document != m_model->getDocument())
+    {
+        cancelJob();
+    }
+    if (!m_job)
+    {
+        startJob();
+    }
+
     const qreal devicePixelRatio = m_view->devicePixelRatioF();
     const QSize pictureSize = m_model->getPictureSize();
     const int pixelSize = qBound(1, int(std::ceil(qMax(pictureSize.width(), pictureSize.height()) * devicePixelRatio)), 4096);
 
-    int drawn = 0;
-    bool hasMore = false;
+    // The requested pages, which are still visible, stay in the queue; the others are canceled
+    // (also a page, which a worker renders now: it stops at its next check)
+    std::set<int> keptPages;
+    for (auto it = m_requested.begin(); it != m_requested.end();)
+    {
+        if (isRowVisible(it->first))
+        {
+            keptPages.insert(it->first);
+            ++it;
+        }
+        else
+        {
+            it->second.isCanceled->store(true, std::memory_order_relaxed);
+            it = m_requested.erase(it);
+        }
+    }
+
+    // The visible rows without a picture join the queue in their order (top to bottom)
+    std::vector<PDFAppThumbnailRenderPage> addedPages;
     for (auto it = m_waiting.begin(); it != m_waiting.end();)
     {
         const int page = *it;
@@ -410,55 +782,96 @@ void PDFAppThumbnailScheduler::process()
             continue;
         }
 
-        if (!compiler || compiler->getState() != PDFAsynchronousPageCompiler::State::Active)
+        const QString key = m_model->getKey(page);
+        const auto requested = m_requested.find(page);
+        if (requested != m_requested.end() && requested->second.key == key)
         {
+            it = m_waiting.erase(it);
+            continue;
+        }
+
+        if (requested == m_requested.end() && int(m_requested.size()) >= MAXIMUM_PENDING_PAGES)
+        {
+            // It waits for the next pass (a result makes room)
             ++it;
             continue;
         }
 
-        const PDFPrecompiledPage* compiledPage = compiler->getCompiledPage(page, PDFAsynchronousPageCompiler::CompileMode::None);
-        if (compiledPage)
+        // A request of an older key of the page is canceled
+        if (requested != m_requested.end())
         {
-            if (drawn >= MAXIMUM_PICTURES_PER_PASS)
-            {
-                hasMore = true;
-                ++it;
-                continue;
-            }
+            requested->second.isCanceled->store(true, std::memory_order_relaxed);
+        }
+        const std::shared_ptr<std::atomic_bool> isCanceled = std::make_shared<std::atomic_bool>(false);
+        m_requested[page] = Request{ key, isCanceled };
+        keptPages.insert(page);
 
-            QImage image = m_proxy->drawThumbnailImage(page, pixelSize);
-            ++drawn;
-            ++m_drawnCount;
-            it = m_waiting.erase(it);
-            if (!image.isNull())
-            {
-                image.setDevicePixelRatio(devicePixelRatio);
-                m_model->setPicture(page, QPixmap::fromImage(std::move(image)));
-            }
+        PDFAppThumbnailRenderPage request;
+        request.pageIndex = page;
+        request.key = key;
+        request.isCanceled = isCanceled;
+        request.pixelSize = pixelSize;
+        request.devicePixelRatio = devicePixelRatio;
+        addedPages.push_back(std::move(request));
+        it = m_waiting.erase(it);
+    }
+
+    std::vector<int> removedPages;
+    const int startCount = m_job->updateQueue(keptPages, std::move(addedPages), &removedPages);
+    for (const int page : removedPages)
+    {
+        m_requested.erase(page);
+    }
+    m_maximumPending = qMax(m_maximumPending, int(m_requested.size()));
+
+    for (int i = 0; i < startCount; ++i)
+    {
+        PDFExecutionPolicy::startTask(m_job->pool, PDFAppThumbnailRenderTask(m_job));
+    }
+}
+
+void PDFAppThumbnailScheduler::onRenderResults(const std::shared_ptr<PDFAppThumbnailRenderJob>& job)
+{
+    PDFThreadAnnotations::happensAfter(job.get());
+    PDFThreadAnnotations::forget(job.get());
+
+    // A job of an older document or of older settings
+    if (job != m_job)
+    {
+        return;
+    }
+
+    QPointer<PDFAppThumbnailScheduler> self(this);
+    int maximumRunningCount = 0;
+    std::vector<PDFAppThumbnailRenderPage> results = job->takeResults(&maximumRunningCount);
+    m_maximumRenderingCount = qMax(m_maximumRenderingCount, maximumRunningCount);
+    for (PDFAppThumbnailRenderPage& page : results)
+    {
+        const auto requested = m_requested.find(page.pageIndex);
+        if (requested != m_requested.end() && requested->second.isCanceled == page.isCanceled)
+        {
+            m_requested.erase(requested);
+        }
+
+        // A picture of an older key (the page or the size has changed meanwhile) is dropped
+        if (page.image.isNull() || !m_model || m_model->getKey(page.pageIndex) != page.key)
+        {
             continue;
         }
 
-        if (m_pending.count(page) == 0 && int(m_pending.size()) < MAXIMUM_PENDING_COMPILES)
+        ++m_drawnCount;
+        page.image.setDevicePixelRatio(page.devicePixelRatio);
+
+        // The model repaints the row (its views only)
+        m_model->setPicture(page.pageIndex, QPixmap::fromImage(std::move(page.image)));
+        if (!self)
         {
-            // The page is compiled by the compiler of the canvas; the request
-            // cannot be canceled, so only a few of them wait at once
-            compiler->getCompiledPage(page, PDFAsynchronousPageCompiler::CompileMode::Persistent);
-            QElapsedTimer timer;
-            timer.start();
-            m_pending[page] = timer;
-            m_maximumPending = qMax(m_maximumPending, int(m_pending.size()));
+            return;
         }
-        ++it;
     }
 
-    if (hasMore)
-    {
-        schedule();
-    }
-    else if (!m_waiting.empty() && m_retryTimer && !m_retryTimer->isActive())
-    {
-        m_retryTimer->start();
-    }
+    // The visible rows, which have waited for room in the queue
+    schedule();
 }
 
 PDFAppThumbnailListView::PDFAppThumbnailListView(QWidget* parent) :
@@ -692,6 +1105,19 @@ void PDFAppThumbnailsPanel::setDocument(PDFAppDocument* document, PDFAppDocument
         m_connectedView->disconnect(this);
     }
 
+    // A panel, which joins a view with a selection of the thumbnails (the panel of the left
+    // panel of a tool, a panel built again), shows that selection: the view keeps it, a tool
+    // opened from it takes it (tools.md 9.6, owner 2026-11-07). The current page alone is no selection.
+    std::vector<PDFInteger> viewSelection;
+    if (view && view != m_connectedView)
+    {
+        std::vector<PDFInteger> pages = view->getSelectedPages();
+        if (pages.size() > 1 || (pages.size() == 1 && pages.front() != view->getCurrentPageIndex()))
+        {
+            viewSelection = std::move(pages);
+        }
+    }
+
     BaseClass::setDocument(document, view);
 
     if (document && m_connectedDocument != document)
@@ -709,16 +1135,17 @@ void PDFAppThumbnailsPanel::setDocument(PDFAppDocument* document, PDFAppDocument
     m_connectedView = view;
     m_lastCurrentPageIndex = -1;
     m_shownSelectedPage = -1;
-    m_userSelectedPage = -1;
+    m_userSelectedPage = viewSelection.size() == 1 ? viewSelection.front() : -1;
 
     if (m_scheduler)
     {
         m_scheduler->setProxy(view ? view->getProxy() : nullptr);
+        m_scheduler->setAppDocument(document);
     }
-    applyDocument(false);
+    applyDocument(false, viewSelection);
 }
 
-void PDFAppThumbnailsPanel::applyDocument(bool isNewVersion)
+void PDFAppThumbnailsPanel::applyDocument(bool isNewVersion, const std::vector<PDFInteger>& initialSelection)
 {
     PDFAppDocument* document = getDocument();
     if (!m_model || !m_view)
@@ -729,7 +1156,7 @@ void PDFAppThumbnailsPanel::applyDocument(bool isNewVersion)
     // A new version of the document (Rotate, undo, an annotation) keeps the selection
     // of the user and the scroll position of the list: the next click of the user
     // lands on the page, which he sees there
-    const std::vector<PDFInteger> selection = isNewVersion ? getSelectedPages() : std::vector<PDFInteger>();
+    const std::vector<PDFInteger> selection = isNewVersion ? getSelectedPages() : initialSelection;
     const PDFInteger userSelectedPage = m_userSelectedPage;
     const int scrollPosition = m_view->verticalScrollBar()->value();
     const int rowCount = m_model->rowCount();

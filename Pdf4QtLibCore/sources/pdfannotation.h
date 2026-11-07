@@ -33,10 +33,12 @@
 #include "pdfrenderer.h"
 #include "pdfblendfunction.h"
 #include "pdfdocument.h"
+#include "pdfoptionalcontent.h"
 #include "pdfcolorconvertor.h"
 #include "pdftextlayout.h"
 
 #include <QCursor>
+#include <QPointer>
 #include <QPainterPath>
 
 #include <array>
@@ -1700,7 +1702,9 @@ protected:
     PDFFontCache* m_fontCache;
     const PDFICCProfileCache* m_iccProfileCache;
     const PDFCMSManager* m_cmsManager;
-    const PDFOptionalContentActivity* m_optionalActivity;
+    /// The activity belongs to its document (a view, the program controller): a deleted one
+    /// becomes null, never freed memory (owner 2026-11-07); null draws every layer
+    QPointer<const PDFOptionalContentActivity> m_optionalActivity;
     PDFFormManager* m_formManager;
     PDFMeshQualitySettings m_meshQualitySettings;
     PDFRenderer::Features m_features;

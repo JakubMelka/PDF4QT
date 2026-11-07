@@ -1150,8 +1150,13 @@ std::vector<ToolPagesLifetimeStep> ToolPagesLifetimeHelper::scenario(const QStri
             {
                 return false;
             }
-            dialog->selectChoice(pdf::PDFAppToolResultDialog::Choice::Keep);
-            dialog->confirm();
+            // The choice may delete the dialog with its window (a deletion from its signal)
+            QPointer<pdf::PDFAppToolResultDialog> guard(dialog);
+            guard->selectChoice(pdf::PDFAppToolResultDialog::Choice::Keep);
+            if (guard)
+            {
+                guard->confirm();
+            }
             settle();
             return true;
         });
@@ -1373,6 +1378,18 @@ std::vector<ToolPagesLifetimeStep> ToolPagesLifetimeHelper::scenario(const QStri
         steps.push_back([](ToolPagesLifetimeRun& run) { return clickTile(run, 3) && clickTile(run, 5, Qt::ShiftModifier); });
         steps.push_back([](ToolPagesLifetimeRun& run)
         {
+            // The size of the tiles (owner 2026-11-07): the panel Thumbnails, Large - the grid is laid out again
+            pdf::PDFAppToolGUIRotatePages* current = realGui<pdf::PDFAppToolGUIRotatePages>(run);
+            if (!current || !click(current->getTileSizeButton()))
+            {
+                return false;
+            }
+            current = realGui<pdf::PDFAppToolGUIRotatePages>(run);
+            pdf::PDFTileRow* row = current ? current->getTileSizeRow(pdf::PDFAppToolPageGrid::TileSize::Large) : nullptr;
+            return row && click(row);
+        });
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
             pdf::PDFAppToolGUIRotatePages* current = realGui<pdf::PDFAppToolGUIRotatePages>(run);
             return current && click(current->getRotateRightButton());
         });
@@ -1430,6 +1447,18 @@ std::vector<ToolPagesLifetimeStep> ToolPagesLifetimeHelper::scenario(const QStri
         // Undo, a copy of the result
         steps.push_back(&H::openTool);
         steps.push_back([](ToolPagesLifetimeRun& run) { return clickTile(run, 2) && clickTile(run, 4, Qt::ShiftModifier); });
+        steps.push_back([](ToolPagesLifetimeRun& run)
+        {
+            // The size of the tiles: the panel Thumbnails, Small
+            pdf::PDFAppToolGUIRemovePages* current = realGui<pdf::PDFAppToolGUIRemovePages>(run);
+            if (!current || !click(current->getTileSizeButton()))
+            {
+                return false;
+            }
+            current = realGui<pdf::PDFAppToolGUIRemovePages>(run);
+            pdf::PDFTileRow* row = current ? current->getTileSizeRow(pdf::PDFAppToolPageGrid::TileSize::Small) : nullptr;
+            return row && click(row);
+        });
         steps.push_back([](ToolPagesLifetimeRun& run)
         {
             pdf::PDFAppToolGUIRemovePages* current = realGui<pdf::PDFAppToolGUIRemovePages>(run);
@@ -1633,8 +1662,10 @@ std::vector<ToolPagesLifetimeStep> ToolPagesLifetimeHelper::scenario(const QStri
             {
                 return false;
             }
-            dialog->selectChoice(pdf::PDFAppToolResultDialog::Choice::Clipboard);
-            return confirmDialog(run, dialog);
+            // The choice may delete the dialog with its window (a deletion from its signal)
+            QPointer<pdf::PDFAppToolResultDialog> guard(dialog);
+            guard->selectChoice(pdf::PDFAppToolResultDialog::Choice::Clipboard);
+            return !guard || confirmDialog(run, guard.data());
         });
     }
     return steps;

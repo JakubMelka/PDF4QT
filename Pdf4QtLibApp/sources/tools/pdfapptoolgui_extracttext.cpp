@@ -1031,6 +1031,22 @@ void PDFAppToolGUIExtractText::updatePreviewPage()
     }
 }
 
+bool PDFAppToolGUIExtractText::isConfirmEnabled() const
+{
+    // No page (Range with an empty field, Selected without a page): nothing to extract, the
+    // page selection says "No pages selected" (owner 2026-11-07)
+    const PDFAppToolParameterModel* model = getModel();
+    const PDFAppDocument* document = getDocument();
+    if (!BaseClass::isConfirmEnabled() || !model || !document || !document->getDocument())
+    {
+        return false;
+    }
+
+    QString errorMessage;
+    const std::optional<PDFDocumentToolPageSelection> selection = PDFDocumentToolPageSelection::fromVariant(model->getValue(PDFAppToolGUIExtractTextHelper::name(PDFDocumentToolExtractText::PARAMETER_PAGES)), &errorMessage);
+    return selection && !selection->getPageIndices(document->getDocument().data(), &errorMessage).empty();
+}
+
 QString PDFAppToolGUIExtractText::getStatusText() const
 {
     const PDFDocumentToolCatalogEntry* tool = getTool();

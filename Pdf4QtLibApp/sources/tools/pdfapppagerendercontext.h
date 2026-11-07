@@ -34,6 +34,8 @@
 
 #include <QTransform>
 
+#include <map>
+
 class QPainter;
 
 namespace pdf
@@ -57,6 +59,10 @@ public:
     ///        of the user interface; never a pointer to an object of a view)
     /// \param features Features of the rendering
     explicit PDFAppPageRenderContext(const PDFDocument* document, const PDFCMSSettings& cmsSettings = PDFCMSSettings(), PDFRenderer::Features features = getDefaultFeatures());
+
+    /// The states of the layers (the optional content groups), as a view has them (values
+    /// taken in the thread of the user interface); a group not given keeps its default state
+    void setOptionalContentStates(const std::map<PDFObjectReference, OCState>& states);
 
     /// Draws the page: its content and its annotations
     /// \param painter Painter

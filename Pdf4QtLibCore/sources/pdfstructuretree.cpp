@@ -547,6 +547,57 @@ const std::vector<PDFStructureTreeAttribute>& PDFStructureTree::getClassAttribut
     return dummy;
 }
 
+PDFStructureTree::PDFStructureTree(PDFStructureTree&& other) :
+    PDFStructureItem(nullptr, this)
+{
+    *this = std::move(other);
+}
+
+PDFStructureTree& PDFStructureTree::operator=(PDFStructureTree&& other)
+{
+    if (this != &other)
+    {
+        // The tree stays the root (no parent, its own tree)
+        m_selfReference = other.m_selfReference;
+        m_children = std::move(other.m_children);
+        other.m_children.clear();
+        m_idTreeMap = std::move(other.m_idTreeMap);
+        m_parentTreeEntries = std::move(other.m_parentTreeEntries);
+        m_parentNextKey = other.m_parentNextKey;
+        m_roleMap = std::move(other.m_roleMap);
+        m_classMap = std::move(other.m_classMap);
+        m_namespaces = std::move(other.m_namespaces);
+        m_pronunciationLexicons = std::move(other.m_pronunciationLexicons);
+        m_associatedFiles = std::move(other.m_associatedFiles);
+        adoptChildren(this);
+    }
+
+    return *this;
+}
+
+void PDFStructureItem::adoptChildren(PDFStructureTree* root)
+{
+    for (const PDFStructureItemPointer& child : m_children)
+    {
+        child->m_parent = this;
+    }
+
+    // Each item has one parent (PDFStructureTree::parse reads each element once), the
+    // walk by a stack is bounded by the number of the items and has no recursion
+    std::vector<PDFStructureItem*> stack = { this };
+    while (!stack.empty())
+    {
+        PDFStructureItem* item = stack.back();
+        stack.pop_back();
+
+        item->m_root = root;
+        for (const PDFStructureItemPointer& child : item->m_children)
+        {
+            stack.push_back(child.get());
+        }
+    }
+}
+
 PDFStructureTree PDFStructureTree::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFStructureTree tree;

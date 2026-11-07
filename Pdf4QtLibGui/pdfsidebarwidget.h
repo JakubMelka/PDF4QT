@@ -26,7 +26,9 @@
 #include "pdfglobal.h"
 #include "pdfviewerglobal.h"
 #include "pdfbookmarkmanager.h"
+#include "pdfoptionalcontent.h"
 
+#include <QPointer>
 #include <QWidget>
 #include <QAbstractItemDelegate>
 
@@ -236,7 +238,7 @@ private:
     QStandardItemModel* m_notesTreeModel;
     QSortFilterProxyModel* m_notesSortProxyTreeModel;
     const pdf::PDFDocument* m_document;
-    pdf::PDFOptionalContentActivity* m_optionalContentActivity;
+    QPointer<pdf::PDFOptionalContentActivity> m_optionalContentActivity;   ///< Of the program controller: a deleted one becomes null
     pdf::PDFAttachmentsTreeItemModel* m_attachmentsTreeModel;
     std::map<Page, PageInfo> m_pageInfo;
     std::vector<pdf::PDFSignatureVerificationResult> m_signatures;

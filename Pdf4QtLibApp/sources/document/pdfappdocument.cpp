@@ -516,9 +516,12 @@ void PDFAppDocument::setDocument(PDFDocumentPointer document, PDFModifiedDocumen
         m_outlineVersion = m_version;
     }
 
-    // A new optional content activity for a reset (the old one refers to the old
-    // document); otherwise the activity is kept and points to the new document
-    if (isReset || !m_optionalContentActivity)
+    // A new optional content activity for a reset to another document (the old one refers
+    // to the old document); otherwise the activity is kept and points to the new document.
+    // A reset to the same document keeps its activity: the managers of a view compare the
+    // documents only, they would keep an activity deleted below (use after free of the
+    // thumbnails and of the canvas, P2GRID 2026-11-07)
+    if ((isReset && m_document != oldDocument) || !m_optionalContentActivity)
     {
         oldActivity = m_optionalContentActivity;
         m_optionalContentActivity = new PDFOptionalContentActivity(m_document.data(), OCUsage::View, this);

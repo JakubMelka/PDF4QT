@@ -262,6 +262,9 @@ private:
     /// Writes the value: \p isUserChange an undo step of a change of the user, otherwise a
     /// value following the pages of the view
     void writeValue(bool isUserChange);
+
+    /// The mode Range has a text without a page (an empty field: no page is selected)
+    bool isRangeWithoutPages() const;
     void onUserChange();
     void onParameterChanged(const QString& name);
 

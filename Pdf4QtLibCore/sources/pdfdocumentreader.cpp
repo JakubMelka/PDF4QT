@@ -136,7 +136,12 @@ void PDFDocumentReader::checkHeader(const QByteArray& buffer)
     //  - %PDF-x.x
     //  - %!PS-Adobe-y.y PDF-x.x
     // We will search for both of these formats.
-    std::regex headerRegExp(PDF_FILE_HEADER_REGEXP);
+    // Built once (thread-safe initialization of a local static): documents are read in
+    // several threads at once and building a std::regex is not thread-safe in libstdc++
+    // (it fills the narrow cache of std::ctype<char> of the global locale without a
+    // lock). The match only reads the regex and the caches of its bracket expressions,
+    // which are filled while the regex is built.
+    static const std::regex headerRegExp(PDF_FILE_HEADER_REGEXP);
     std::cmatch headerMatch;
 
     auto itBegin = buffer.cbegin();

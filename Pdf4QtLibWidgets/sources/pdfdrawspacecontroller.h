@@ -27,6 +27,7 @@
 #include "pdfwidgetsglobal.h"
 #include "pdfglobal.h"
 #include "pdfdocument.h"
+#include "pdfoptionalcontent.h"
 #include "pdfrenderer.h"
 #include "pdffont.h"
 #include "pdfcolorspaces.h"
@@ -34,6 +35,7 @@
 #include "pdfwidgetsnapshot.h"
 #include "pdfimagescaling.h"
 
+#include <QPointer>
 #include <QRectF>
 #include <QObject>
 #include <QMarginsF>
@@ -132,7 +134,7 @@ public:
     const PDFICCProfileCache* getIccProfileCache() const { return &m_iccProfileCache; }
 
     /// Returns optional content activity
-    const PDFOptionalContentActivity* getOptionalContentActivity() const { return m_optionalContentActivity; }
+    const PDFOptionalContentActivity* getOptionalContentActivity() const { return m_optionalContentActivity.data(); }
 
     /// Returns reference bounding box for correct calculation of zoom fit/fit vertical/fit horizontal.
     /// If zoom is set in a way to display this bounding box on a screen, then it is assured that
@@ -178,7 +180,9 @@ private:
     using BlockItems = std::vector<LayoutBlock>;
 
     const PDFDocument* m_document;
-    const PDFOptionalContentActivity* m_optionalContentActivity;
+    /// The activity belongs to the document of the application: a deleted one becomes null,
+    /// never freed memory (owner 2026-11-07); null draws every layer
+    QPointer<const PDFOptionalContentActivity> m_optionalContentActivity;
 
     PageLayout m_pageLayoutMode;
     LayoutItems m_layoutItems;

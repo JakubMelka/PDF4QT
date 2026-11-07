@@ -40,6 +40,8 @@
 #include <QTest>
 #include <QThread>
 
+#include <atomic>
+
 namespace pdftest
 {
 
@@ -79,18 +81,20 @@ public:
     {
     }
 
-    bool isSuccess() const { return m_isSuccess; }
+    // The result is read after QThread::wait, whose join inside of Qt the race detectors
+    // do not see: the atomic hands it over
+    bool isSuccess() const { return m_isSuccess.load(std::memory_order_acquire); }
 
 protected:
     virtual void run() override
     {
-        m_isSuccess = m_write && !m_write(m_database).isError();
+        m_isSuccess.store(m_write && !m_write(m_database).isError(), std::memory_order_release);
     }
 
 private:
     pdf::PDFDatabase* m_database;
     std::function<pdf::PDFDatabaseError(pdf::PDFDatabase*)> m_write;
-    bool m_isSuccess = false;
+    std::atomic<bool> m_isSuccess = false;
 };
 
 AppToolsFixture::AppToolsFixture(QSize size) :

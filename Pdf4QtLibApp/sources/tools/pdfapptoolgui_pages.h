@@ -42,6 +42,8 @@ namespace pdf
 {
 
 class PDFAppToolPageSelectionBinder;
+class PDFAppToolPanelPopup;
+class PDFTileRow;
 
 /// The tools pages.rotate and pages.remove (package 2A of the plan of the first batch, chapter 9)
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolGUIPages
@@ -136,6 +138,17 @@ public:
     /// The pages of the selection: one undo step (Keep, Keep All Pages)
     void setTargetPages(const std::vector<PDFInteger>& pages);
 
+    /// The size of the tiles of the grid (the menu Thumbnails of the toolbar, pages-rotate-menus
+    /// 1359:33500): the grid is laid out again, the choice is stored as the state setting
+    /// PDFSettingKeys::toolsPageGridSize (all page grids of the tools share it)
+    void setTileSize(PDFAppToolPageGrid::TileSize size);
+    PDFAppToolPageGrid::TileSize getTileSize() const;
+
+    /// The button of the size of the tiles and the row of a size in its panel (nullptr = none)
+    QToolButton* getTileSizeButton() const;
+    PDFTileRow* getTileSizeRow(PDFAppToolPageGrid::TileSize size) const;
+    PDFAppToolPanelPopup* getTileSizePanel() const { return m_tileSizePanel.data(); }
+
     /// Parts (nullptr = none)
     PDFAppToolPageGrid* getGrid() const { return m_grid.data(); }
     PDFPageSelection* getPageSelection() const { return m_pageSelection.data(); }
@@ -169,6 +182,10 @@ protected:
     /// The panels of the tool show the current state (the summary, the toolbar)
     virtual void updatePanels();
 
+    /// The divider and the menu Thumbnails at the end of the actions of the toolbar (all tools
+    /// with a page grid: tb-thumbnail-size 1359:33481)
+    void addTileSizeMenu(PDFAppToolPanelBuilder& builder);
+
     /// The shell has another state (Deciding: nothing can be chosen)
     virtual void onShellStateChanged(pdf::PDFDocumentToolShell::State state);
 
@@ -198,8 +215,15 @@ private:
     void onGridDeleteRequested(int page);
     void onPendingLink(const QModelIndex& index);
     void onShellStateChangedSlot(pdf::PDFDocumentToolShell::State state);
+    void onTileSizeRowClicked();
+    void readTileSize();
+    void updateTileSizeMenu();
 
     QPointer<PDFAppToolPageGrid> m_grid;
+    QPointer<PDFAppToolPanelPopup> m_tileSizePanel;
+    std::map<PDFAppToolPageGrid::TileSize, QPointer<PDFTileRow>> m_tileSizeRows;
+    PDFAppToolPageGrid::TileSize m_tileSize = PDFAppToolPageGrid::TileSize::Medium;
+    bool m_isTileSizeRead = false;
     QPointer<PDFPageSelection> m_pageSelection;
     QPointer<PDFAppToolPageSelectionBinder> m_binder;
     QPointer<PDFAppToolPendingList> m_pendingList;

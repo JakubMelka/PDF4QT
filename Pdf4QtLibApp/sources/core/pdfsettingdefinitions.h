@@ -50,6 +50,10 @@ public:
     static QString toolsSuggestNext() { return QStringLiteral("tools.suggestNext"); }
     static QString toolsHistoryRuns() { return QStringLiteral("tools.historyRuns"); }
 
+    // The size of the tiles of the page grids of the tools (Thumbnails: Small / Medium /
+    // Large, PDFAppToolPageGrid::getTileSizeId; a state key, owner 2026-11-07)
+    static QString toolsPageGridSize() { return QStringLiteral("tools.pageGridSize"); }
+
     // Settings › General › Updates (newapp_whatsnew.md 5)
     static QString updateAutoCheck() { return QStringLiteral("update.autoCheck"); }
     static QString updateLastCheck() { return QStringLiteral("update.lastCheck"); }
