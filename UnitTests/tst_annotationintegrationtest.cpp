@@ -56,6 +56,18 @@ class AnnotationIntegrationTest : public QObject
 {
     Q_OBJECT
 
+public:
+    /// Called by QTEST_MAIN before the application is created. The test needs the platform
+    /// offscreen also when it is not run by ctest (for example from Qt Creator) - the clipboard
+    /// of Windows is shared with the other processes and it can be locked by them.
+    static void initMain()
+    {
+        if (!qEnvironmentVariableIsSet("QT_QPA_PLATFORM"))
+        {
+            qputenv("QT_QPA_PLATFORM", "offscreen");
+        }
+    }
+
 private slots:
     void initTestCase();
     void undoRedoOfThread();

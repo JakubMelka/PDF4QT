@@ -1,4 +1,6 @@
 CURRENT:
+
+V: 1.7.0.0 8.11.2026
  - Issue #431: Blend2D is crashing on some cropped images
  - Issue #430: Text layout optimization
  - Issue #417: Allow Digital Signature support with visible signatures

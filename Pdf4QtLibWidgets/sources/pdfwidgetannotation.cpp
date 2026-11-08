@@ -4466,8 +4466,14 @@ bool PDFWidgetAnnotationManager::copyAnnotationsToClipboard(const std::vector<PD
         mimeData->setText(texts.join(QString("\n\n")));
     }
 
-    QApplication::clipboard()->setMimeData(mimeData, QClipboard::Clipboard);
-    return true;
+    QClipboard* clipboard = QApplication::clipboard();
+    clipboard->setMimeData(mimeData, QClipboard::Clipboard);
+
+    // The clipboard of the system can be locked by another process (for example by the clipboard
+    // history of Windows) - then the data are not set and the clipboard keeps its old content.
+    // The success is checked by the data, because the old content can also contain annotations.
+    const QMimeData* clipboardData = clipboard->mimeData(QClipboard::Clipboard);
+    return clipboardData && clipboardData->data(PDFAnnotationManipulator::getMimeType()) == data;
 }
 
 std::vector<PDFObjectReference> PDFWidgetAnnotationManager::getDeletableSelectedAnnotations() const

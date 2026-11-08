@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Copyright 2023-2025 Jakub Melka -->
+<!-- Copyright 2023-2026 Jakub Melka -->
 <component type="desktop-application">
   <id>io.github.JakubMelka.Pdf4qt</id>
   <metadata_license>CC0-1.0</metadata_license>
@@ -23,6 +23,53 @@
   <content_rating type="oars-1.1"/>
   <launchable type="desktop-id">io.github.JakubMelka.Pdf4qt.desktop</launchable>
   <releases>
+    <release version="1.7.0.0" date="2026-11-08">
+      <description>
+        <ul>
+          <li>Issue #431: Blend2D is crashing on some cropped images</li>
+          <li>Issue #430: Text layout optimization</li>
+          <li>Issue #417: Allow digital signature support with visible signatures</li>
+          <li>Issue #427: Bitonal scans lose thin strokes: precompiled page images are downsampled bilinearly instead of area-averaged</li>
+          <li>Issue #425: Update bitonal document feature</li>
+          <li>Issue #424: Improved measurement functionality</li>
+          <li>Issue #422: Streamline outline creation</li>
+          <li>Issue #420: Allow changing default border color when redacting rectangles</li>
+          <li>Issue #419: Invert redaction rectangles as well in dark mode</li>
+          <li>Issue #416: Optimize Images: allow global defaults to be run for multiple/all images</li>
+          <li>Issue #415: PDF is presented as completely blank</li>
+          <li>Issue #413: Editor: embedded images (signatures) flipped vertically after editing page content</li>
+          <li>Issue #412: Change default note author name (do not use the system name)</li>
+          <li>Issue #411: Edit mode UX issues</li>
+          <li>Issue #410: All text is inverted after exiting edit mode</li>
+          <li>Issue #409: Choose color of redact rectangle</li>
+          <li>Issue #408: Make XYZ shortcut refer to outline item when selected</li>
+          <li>Issue #398: Enhancing speech support: locale add-ons and system voice detection</li>
+          <li>Issue #397: No audio output when using text-to-speech</li>
+          <li>Issue #395: White crosshair easier to see in dark mode</li>
+          <li>Issue #393: Text in some PDFs is displayed incorrectly</li>
+          <li>Issue #392: Checkboxes not working</li>
+          <li>Issue #391: View options to fit page are not working on Windows</li>
+          <li>Issue #337: Text removed from page when adding image with editor</li>
+          <li>Issue #332: Some suggestions and problem reports for PDF editors</li>
+          <li>Issue #328: PDF viewer display error visible only at some zoom levels</li>
+          <li>Issue #327: Does not handle forms correctly</li>
+          <li>Issue #299: PDF element display error</li>
+          <li>Issue #278: PDF4QT Diff</li>
+          <li>Issue #258: Insert page number</li>
+          <li>Issue #252: Select elements (annotations)</li>
+          <li>Issue #238: Editor: "Edit page content" makes image disappear</li>
+          <li>Issue #231: PDF4QT Diff does not open files on Linux</li>
+          <li>Issue #223: Page corrupted</li>
+          <li>Issue #211: Text is inverted on edit</li>
+          <li>Issue #204: Editor corrupts some vector graphics</li>
+          <li>Issue #203: Editor seems to forget location of text after editing it</li>
+          <li>Issue #196: Not able to edit PDF files</li>
+          <li>Issue #188: Timestamp feature request</li>
+          <li>Issue #169: Option to render text as text when using QPainter backend</li>
+          <li>Issue #85: Add OCR</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.6.0.0" date="2026-06-14">
       <description>
         <ul>

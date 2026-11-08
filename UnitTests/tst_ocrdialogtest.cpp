@@ -281,6 +281,18 @@ class OCRDialogTest : public QObject
 {
     Q_OBJECT
 
+public:
+    /// Called by QTEST_MAIN before the application is created. The test needs the platform
+    /// offscreen also when it is not run by ctest (for example from Qt Creator) - the native
+    /// file dialogs of the platform are not widgets, so they cannot be operated by the test.
+    static void initMain()
+    {
+        if (!qEnvironmentVariableIsSet("QT_QPA_PLATFORM"))
+        {
+            qputenv("QT_QPA_PLATFORM", "offscreen");
+        }
+    }
+
 private slots:
     void initTestCase();
     void workflowWithTestEngine();

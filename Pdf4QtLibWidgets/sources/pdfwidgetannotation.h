@@ -608,7 +608,8 @@ private:
     /// Returns true, if some annotation on the displayed pages can be selected
     bool hasSelectableAnnotation() const;
 
-    /// Copies the annotations to the clipboard, returns true on success
+    /// Copies the annotations to the clipboard, returns true, if the clipboard
+    /// contains the copied annotations afterwards
     bool copyAnnotationsToClipboard(const std::vector<PDFObjectReference>& annotations);
 
     /// Returns the selected annotations, which can be deleted
