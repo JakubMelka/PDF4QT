@@ -245,8 +245,8 @@ QByteArray JBIG2Test::createGenericRegionData(uint32_t width, uint32_t height)
     data.append(char(0x00));
 
     // Adaptive template pixels of the template 0 - four signed byte pairs
-    const char atPixels[] = { 3, -1, -3, -1, 2, -2, -2, -2 };
-    data.append(atPixels, sizeof(atPixels));
+    const signed char atPixels[] = { 3, -1, -3, -1, 2, -2, -2, -2 };
+    data.append(reinterpret_cast<const char*>(atPixels), sizeof(atPixels));
 
     return data;
 }
@@ -260,8 +260,8 @@ QByteArray JBIG2Test::createSymbolDictionaryData(uint16_t flags, uint32_t number
     data.append(char(flags & 0xFF));
 
     // Symbol dictionary AT flags - present, because SDHUFF is 0 and SDTEMPLATE is 0
-    const char atPixels[] = { 3, -1, -3, -1, 2, -2, -2, -2 };
-    data.append(atPixels, sizeof(atPixels));
+    const signed char atPixels[] = { 3, -1, -3, -1, 2, -2, -2, -2 };
+    data.append(reinterpret_cast<const char*>(atPixels), sizeof(atPixels));
 
     appendUInt32(data, numberOfExportedSymbols);
     appendUInt32(data, numberOfNewSymbols);
@@ -1213,8 +1213,8 @@ void JBIG2Test::test_refinement_region_segments()
         data.append(char(GRTEMPLATE | (TPGRON ? 0x02 : 0x00)));
         if (GRTEMPLATE == 0)
         {
-            const char atPixels[] = { -1, -1, -1, -1 };
-            data.append(atPixels, sizeof(atPixels));
+            const signed char atPixels[] = { -1, -1, -1, -1 };
+            data.append(reinterpret_cast<const char*>(atPixels), sizeof(atPixels));
         }
 
         data.append(codedData);
