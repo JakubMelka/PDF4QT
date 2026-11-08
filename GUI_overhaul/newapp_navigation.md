@@ -56,7 +56,7 @@ Ostatní odkazy: *Manage* u Workspaces = `/recent?filter=workspaces`; *Add…* u
 | `/document/{documentId}` | dokument (`?page=` číslo fyzické stránky od 1, `?panel=thumbnails\|outline\|…`, `?q=` hledání v dokumentu) | 193:756 |
 | `/document/{documentId}/properties/{section}` | vlastnosti: `general` (ve Figmě *Properties*), `security`, `fonts`, `display`, `xmp`; *Back to document* = zpět v historii | 236:8882 … 236:9574 |
 | `/document/{documentId}/tool/{toolId}` | tool v kartě dokumentu (fáze 2) | 291:994 |
-| `/tool/{toolId}/{instanceId}` | tool s vlastní kartou: Merge, Interleave Pages, Manage Pages, Compare, Manage Certificates, Images to PDF (tab *New document*), dávkové OCR (tab *Batch OCR*) (fáze 2) | 378:1049 |
+| `/tool/{toolId}/{instanceId}` | tool s vlastní kartou: Merge, Interleave Pages, Manage Pages, Compare, Manage Certificates, Blank PDF (tab *New document*; *Create PDF* ho nahradí tabem nového dokumentu, K1 kroku 2), Images to PDF (tab *New document*), dávkové OCR (tab *Batch OCR*) (fáze 2) | 378:1049, 337:1976 |
 
 `documentId` je neprůhledné id tabu (128 bitů náhody, base32), platí po dobu života tabu; stejné id používá MCP. Heslo dokumentu (228:8709) je stav stránky dokumentu, ne cesta.
 

@@ -49,6 +49,7 @@ namespace pdf
 {
 
 class PDFAppAnnotationController;
+class PDFAppCommandRegistry;
 class PDFAppCommentPopup;
 class PDFAppContext;
 class PDFAppDocument;
@@ -58,6 +59,7 @@ class PDFAppDocumentToolbar;
 class PDFAppFormController;
 class PDFAppInfoBar;
 class PDFAppOutlineEditor;
+class PDFAppToolModeLayout;
 class PDFAppToolUndoTarget;
 class PDFCMSManager;
 class PDFDrawWidgetProxy;
@@ -347,6 +349,11 @@ public:
     /// an unreadable database leaves the defaults) - shared by the toolbar and its panels.
     QString getCommandToolTip(const QString& commandId, bool isEmptyWithoutShortcut) const;
 
+    /// The same text for any place of a tool (the own tab of a tool has no view)
+    /// \param registry Commands of the application, may be null (empty text)
+    /// \param userShortcuts Shortcuts of the user (PDFAppCommandRegistry::UserShortcuts)
+    static QString formatCommandToolTip(const PDFAppCommandRegistry* registry, const QString& commandId, const std::map<QString, QString>& userShortcuts, bool isEmptyWithoutShortcut);
+
     // ------------------------------------------------------------- view
 
     /// Page layout of the view
@@ -468,9 +475,13 @@ public:
 
     /// A part of the tool is shown in the place of the toolbar / of the sidebar. The commands
     /// with their user interface in that place are disabled (Go to, Find without the field).
-    bool isToolToolbarShown() const { return !m_toolToolbar.widget.isNull(); }
-    bool isToolLeftPanelShown() const { return !m_toolLeftPanel.widget.isNull(); }
-    bool isToolCanvasPageShown() const { return !m_toolCanvasPage.widget.isNull(); }
+    bool isToolToolbarShown() const;
+    bool isToolLeftPanelShown() const;
+    bool isToolCanvasPageShown() const;
+
+    /// The layout of the places of the view, shared with the own tab of a tool (plan of
+    /// step 2 of phase 2, 4.2)
+    PDFAppToolModeLayout* getModeLayout() const;
 
     /// Message of the tool in the status bar during the mode ("Compress · Report.pdf · 24.8 MB",
     /// plain text, bounded); ignored out of the mode, the mode shows "Ready" again at its end
@@ -570,8 +581,6 @@ private:
     void onDatabaseChanged(const QString& topic, const QString& key);
     void onEverythingChanged();
     void onApplySettingsQueued();
-    void onInfoBarAction(const QString& infoBarId, const QString& actionId);
-    void onInfoBarClosed(const QString& infoBarId);
     void onToolMessage(const QString& text, int timeout);
     void onActiveToolChanged(PDFWidgetTool* tool);
     void onDefaultCanvasToolQueued();
@@ -594,17 +603,8 @@ private:
     void applySplitterSizes();
     void onSplitterMoved();
 
-    /// A part of the tool mode with the parent, which it goes back to
-    struct ToolPart
-    {
-        QPointer<QWidget> widget;
-        QPointer<QWidget> parent;
-    };
-
     void installToolParts(const PDFAppToolModeParts& parts);
     void removeToolParts();
-    void watchToolPart(ToolPart& part, QWidget* widget);
-    void releaseToolPart(ToolPart& part);
     bool isToolPartAlive() const;
     void updatePageItem();
     void updateZoomItem();
@@ -618,8 +618,6 @@ private:
     QPointer<PDFAppDocumentTab> m_tab;
     QPointer<PDFAppDocumentToolbar> m_toolbar;
     QPointer<QStackedWidget> m_toolbarStack;    ///< The toolbar of the document or the toolbar of a tool
-    QPointer<QHBoxLayout> m_bodyLayout;         ///< The splitter and the right panel of a tool
-    QPointer<QStackedLayout> m_canvasLayout;    ///< Layout of the canvas area: the PDFWidget or the canvas page of a tool
     QPointer<QSplitter> m_splitter;
     QPointer<PDFAppDocumentSidebar> m_sidebar;
     QPointer<QWidget> m_canvasArea;
@@ -637,8 +635,6 @@ private:
     QPointer<PDFAppCommentPopup> m_commentPopup;
     std::map<QString, QPointer<QAction>> m_canvasActions;
     std::map<QString, QString> m_userShortcuts;   ///< Shortcuts of the user (PDFAppCommandRegistry::UserShortcuts, updateCanvasShortcuts)
-    std::vector<PDFAppInfoBarRequest> m_infoBars;
-    std::vector<QPointer<PDFAppInfoBar>> m_infoBarWidgets;
     std::vector<PDFInteger> m_selectedPages;
     PDFInteger m_chosenPageIndex = -1;          ///< The page chosen by the user in the thumbnails (setSelectedPages)
     PDFInteger m_lastPageIndex = -1;
@@ -659,14 +655,10 @@ private:
     int m_sidebarWidth = 300;
     AppliedSettings m_appliedSettings;
 
-    // Tool mode
-    ToolPart m_toolToolbar;
-    ToolPart m_toolLeftPanel;
-    ToolPart m_toolCanvasPage;
-    ToolPart m_toolRightPanel;
+    // Tool mode: the places and the parts are in the layout
+    QPointer<PDFAppToolModeLayout> m_modeLayout;
     QPointer<PDFAppToolUndoTarget> m_toolUndoTarget;
     QString m_toolMessage;
-    int m_toolLeftWidth = 300;                  ///< Width of the left panel of the tool (sidebar-left 291:1030)
     bool m_isToolModeActive = false;
     bool m_hasToolParts = false;                ///< The mode was entered with a part or a target (gone all = the mode ends)
     bool m_isToolPartsUpdateQueued = false;

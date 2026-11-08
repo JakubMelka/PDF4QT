@@ -80,6 +80,9 @@ Facts needed to run them:
 | `UnitTestsDocumentTool` | [tst_documenttooltest.cpp](../UnitTests/tst_documenttooltest.cpp) | Core of the tools: catalog, parameters, schema, registry, suggestions, the test tool. |
 | `UnitTestsDocumentToolCompress` | [tst_documenttoolcompresstest.cpp](../UnitTests/tst_documenttoolcompresstest.cpp) | Compress; `memoryBound` is skipped under the sanitizers. |
 | `UnitTestsDocumentToolPages` | [tst_documenttoolpagestest.cpp](../UnitTests/tst_documenttoolpagestest.cpp) | Rotate Pages, Remove Pages. |
+| `UnitTestsDocumentMerger` | [tst_documentmergertest.cpp](../UnitTests/tst_documentmergertest.cpp) | The merger of Merge, Blank PDF, PageMaster, PdfTool unite and Diff; image pages. |
+| `UnitTestsDocumentToolMerge` | [tst_documenttoolmergetest.cpp](../UnitTests/tst_documenttoolmergetest.cpp) | The tools Merge and Blank PDF of the core, PdfTool unite. |
+| `UnitTestsDocumentManipulator` | [tst_documentmanipulatortest.cpp](../UnitTests/tst_documentmanipulatortest.cpp) | PageMaster's PDFDocumentManipulator over the merger. |
 | `UnitTestsDocumentToolProtect` | [tst_documenttoolprotecttest.cpp](../UnitTests/tst_documenttoolprotecttest.cpp) | Remove Hidden Data, Remove External Links. |
 | `UnitTestsDocumentToolStructure` | [tst_documenttoolstructuretest.cpp](../UnitTests/tst_documenttoolstructuretest.cpp) | Optimize Structure. |
 | `UnitTestsDocumentToolExtractText` | [tst_documenttoolextracttexttest.cpp](../UnitTests/tst_documenttoolextracttexttest.cpp) | Extract Text and the exporter of PdfTool fetch-text. |
@@ -93,7 +96,12 @@ Facts needed to run them:
 | `UnitTestsAppToolProtect` | [tst_apptoolprotecttest.cpp](../UnitTests/tst_apptoolprotecttest.cpp) | Remove Hidden Data, Remove External Links in the application. |
 | `UnitTestsAppToolStructure` | [tst_apptoolstructuretest.cpp](../UnitTests/tst_apptoolstructuretest.cpp) | Optimize Structure in the application. |
 | `UnitTestsAppToolExtractText` | [tst_apptoolextracttexttest.cpp](../UnitTests/tst_apptoolextracttexttest.cpp) | Extract Text in the application. |
-| `UnitTestsAppToolPagesLifetime` | [tst_apptoolpageslifetimetest.cpp](../UnitTests/tst_apptoolpageslifetimetest.cpp) | Lifetime sweep of the tools in a document tab. |
+| `UnitTestsAppToolPagesLifetime` | [tst_apptoolpageslifetimetest.cpp](../UnitTests/tst_apptoolpageslifetimetest.cpp) | Lifetime sweep of the tools in a document tab and in an own tab. |
+| `UnitTestsAppToolInputs` | [tst_apptoolinputstest.cpp](../UnitTests/tst_apptoolinputstest.cpp) | Inputs of a tool with more inputs: list, loader, password dialog, previews, chooser. |
+| `UnitTestsAppOwnerPassword` | [tst_appownerpasswordtest.cpp](../UnitTests/tst_appownerpasswordtest.cpp) | Owner password of a restricted document: shared permission check, unlock for the session, routed actions, MCP. |
+| `UnitTestsAppToolOwnTab` | [tst_apptoolowntabtest.cpp](../UnitTests/tst_apptoolowntabtest.cpp) | Own tab of a tool: route, tab, host, close and result of a new document, MCP. |
+| `UnitTestsAppToolBlank` | [tst_apptoolblanktest.cpp](../UnitTests/tst_apptoolblanktest.cpp) | Blank PDF in the application: frames, size menu, field limits, tab replacement, MCP. |
+| `UnitTestsAppToolMerge` | [tst_apptoolmergetest.cpp](../UnitTests/tst_apptoolmergetest.cpp) | Merge in the application: plan of the pages, frames, file states, Undo / Redo, keys, drop, run, MCP. |
 | `UnitTestsAppMcp` | [tst_appmcptest.cpp](../UnitTests/tst_appmcptest.cpp) | MCP in the application: contract, permissions, read tools, catalog bridge. |
 | `UnitTestsAppMcpEdit` | [tst_appmcpedittest.cpp](../UnitTests/tst_appmcpedittest.cpp) | MCP edit tools and their confirmations. |
 | `UnitTestsAppAi` | [tst_appaitest.cpp](../UnitTests/tst_appaitest.cpp) | The page AI. |

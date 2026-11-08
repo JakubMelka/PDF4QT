@@ -1050,12 +1050,9 @@ bool PDFAppNotesPanel::deleteSelectedNotes()
     {
         return false;
     }
-    if (!controller->isAnnotationEditingAllowed())
+    if (!controller->requestAnnotationEditing())
     {
-        if (PDFAppDocumentView* view = getView(); view && view->getStatusBar())
-        {
-            view->getStatusBar()->showMessage(controller->getEditingRefusalReason(), PDFAppAnnotationController::STATUS_MESSAGE_TIMEOUT);
-        }
+        // The reason in the status bar, or the owner password dialog (the shared check)
         return false;
     }
 
@@ -1090,12 +1087,9 @@ bool PDFAppNotesPanel::setSelectedNotesHidden(bool hidden)
     {
         return false;
     }
-    if (!controller->isAnnotationEditingAllowed())
+    if (!controller->requestAnnotationEditing())
     {
-        if (PDFAppDocumentView* view = getView(); view && view->getStatusBar())
-        {
-            view->getStatusBar()->showMessage(controller->getEditingRefusalReason(), PDFAppAnnotationController::STATUS_MESSAGE_TIMEOUT);
-        }
+        // The reason in the status bar, or the owner password dialog (the shared check)
         return false;
     }
 

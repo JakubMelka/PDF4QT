@@ -23,6 +23,7 @@
 #include "pdfappdocumentpanelcommands.h"
 #include "pdfappcommand.h"
 #include "pdfappdocument.h"
+#include "pdfappdocumentpermissions.h"
 #include "pdfappdocumentpanels_bookmarks.h"
 #include "pdfappdocumentstatusbar.h"
 #include "pdfappdocumenttab.h"
@@ -104,8 +105,10 @@ bool PDFAppDocumentPanelCommandHandler::isEnabled(const QString& commandId) cons
     }
     if (commandId == PDFAppCommands::rotatePagesLeft() || commandId == PDFAppCommands::rotatePagesRight())
     {
-        // A locked document is not changed (also not by a running operation)
-        return document->isEditable() && !document->isBlockedByOperation() && document->getPageCount() > 0;
+        // A locked document is not changed (also not by a running operation); the permissions
+        // of Rotate Pages (bit 11 of Table 22), or the owner password, which can lift them
+        return document->isEditable() && !document->isBlockedByOperation() && document->getPageCount() > 0 &&
+               PDFAppDocumentPermissions::isAvailable(document->getDocument().data(), PDFAppPermissionRequest::createTool(QStringLiteral("pages.rotate")));
     }
     return false;
 }
@@ -115,6 +118,13 @@ bool PDFAppDocumentPanelCommandHandler::rotatePages(const std::vector<PDFInteger
     PDFAppDocument* document = getDocument();
     PDFDocumentPointer current = document && document->isReady() ? document->getDocument() : PDFDocumentPointer();
     if (!current || !document->isEditable() || document->isBlockedByOperation())
+    {
+        return false;
+    }
+
+    // The permissions of the tool Rotate Pages (the shared check): a restricted document
+    // asks for its owner password, the user rotates again after the unlock
+    if (!PDFAppDocumentPermissions::request(document, PDFAppPermissionRequest::createTool(QStringLiteral("pages.rotate")), getView()))
     {
         return false;
     }

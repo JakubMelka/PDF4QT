@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappdocumentpropertiesdata.h"
+#include "pdfappdocumentpermissions.h"
 #include "pdfapplocale.h"
 
 #include "pdfcatalog.h"
@@ -103,10 +104,11 @@ public:
         return PDFAppDocumentPropertiesData::tr("%1 × %2 mm").arg(formatMillimeters(size.width()), formatMillimeters(size.height()));
     }
 
-    /// The permission is granted (always for a document, which is not encrypted)
-    static bool isAllowed(const PDFSecurityHandler* handler, PDFSecurityHandler::Permission permission)
+    /// The permission is granted (always without a document, or for a document, which is
+    /// not encrypted; the shared check of the new application - the table of revision 2 too)
+    static bool isAllowed(const PDFDocument* document, PDFSecurityHandler::Permission permission)
     {
-        return !handler || handler->getMode() == EncryptionMode::None || handler->isAllowed(permission);
+        return !document || PDFAppDocumentPermissions::isAllowed(document, permission);
     }
 
     /// Sets the message of a failed validation. \returns false
@@ -693,7 +695,7 @@ QString PDFAppDocumentPropertiesData::getSecurityNote(const PDFDocument* documen
     {
         if (!permission.isAllowed)
         {
-            return tr("You opened the document without the owner password. Open it with the owner password to lift the restrictions.");
+            return tr("You opened the document without the owner password. If you own it, unlock it with its owner password to lift the restrictions until it is closed.");
         }
     }
     return QString();
@@ -705,16 +707,15 @@ std::vector<PDFAppPermissionItem> PDFAppDocumentPropertiesData::createPermission
 
     using Helper = PDFAppDocumentPropertiesDataHelper;
 
-    const PDFSecurityHandler* handler = document ? document->getStorage().getSecurityHandler() : nullptr;
     std::vector<PDFAppPermissionItem> permissions;
-    permissions.push_back({ tr("Print (low resolution)"), Helper::isAllowed(handler, Permission::PrintLowResolution) });
-    permissions.push_back({ tr("Print (high resolution)"), Helper::isAllowed(handler, Permission::PrintHighResolution) });
-    permissions.push_back({ tr("Content extraction"), Helper::isAllowed(handler, Permission::CopyContent) });
-    permissions.push_back({ tr("Content extraction (accessibility)"), Helper::isAllowed(handler, Permission::Accessibility) });
-    permissions.push_back({ tr("Page assembling"), Helper::isAllowed(handler, Permission::Assemble) });
-    permissions.push_back({ tr("Modify content"), Helper::isAllowed(handler, Permission::Modify) });
-    permissions.push_back({ tr("Modify interactive items"), Helper::isAllowed(handler, Permission::ModifyInteractiveItems) });
-    permissions.push_back({ tr("Fill form fields"), Helper::isAllowed(handler, Permission::ModifyFormFields) });
+    permissions.push_back({ tr("Print (low resolution)"), Helper::isAllowed(document, Permission::PrintLowResolution) });
+    permissions.push_back({ tr("Print (high resolution)"), Helper::isAllowed(document, Permission::PrintHighResolution) });
+    permissions.push_back({ tr("Content extraction"), Helper::isAllowed(document, Permission::CopyContent) });
+    permissions.push_back({ tr("Content extraction (accessibility)"), Helper::isAllowed(document, Permission::Accessibility) });
+    permissions.push_back({ tr("Page assembling"), Helper::isAllowed(document, Permission::Assemble) });
+    permissions.push_back({ tr("Modify content"), Helper::isAllowed(document, Permission::Modify) });
+    permissions.push_back({ tr("Modify interactive items"), Helper::isAllowed(document, Permission::ModifyInteractiveItems) });
+    permissions.push_back({ tr("Fill form fields"), Helper::isAllowed(document, Permission::ModifyFormFields) });
     return permissions;
 }
 

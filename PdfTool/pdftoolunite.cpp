@@ -21,9 +21,8 @@
 // SOFTWARE.
 
 #include "pdftoolunite.h"
-#include "pdfdocumentbuilder.h"
+#include "pdfdocumentmerger.h"
 #include "pdfdocumentreader.h"
-#include "pdfoptimizer.h"
 #include "pdfdocumentwriter.h"
 
 #include <QFileInfo>
@@ -72,156 +71,81 @@ int PDFToolUnite::execute(const PDFToolOptions& options)
         return ErrorFailedWriteToFile;
     }
 
-    try
+    // One implementation with the tool Merge of the new application (PDFDocumentMerger, plan of
+    // step 2 of phase 2, 5.1): every page of every document, an outline item and a document
+    // part per document (the default of Merge)
+    std::vector<pdf::PDFDocumentMerger::Source> sources;
+    std::vector<pdf::PDFDocumentMerger::Item> items;
+    for (const QString& fileName : files)
     {
-        pdf::PDFDocumentBuilder documentBuilder;
-        documentBuilder.createDocument();
-
-        std::vector<size_t> documentPartPageCounts;
-
-        pdf::PDFObjectReference ocPropertiesMerged = documentBuilder.addObject(pdf::PDFObject());
-        pdf::PDFObjectReference formMerged = documentBuilder.addObject(pdf::PDFObject());
-        pdf::PDFObjectReference namesMerged = documentBuilder.addObject(pdf::PDFObject());
-
-        std::vector<pdf::PDFObjectReference> pages;
-        for (const QString& fileName : files)
+        // The password of --pswd (B15): one password, tried once for each encrypted document
+        bool isFirstPasswordAttempt = true;
+        auto passwordCallback = [&options, &isFirstPasswordAttempt](bool* ok) -> QString
         {
-            pdf::PDFDocumentReader reader(nullptr, [](bool* ok) { *ok = false; return QString(); }, options.permissiveReading, false);
-            pdf::PDFDocument document = reader.readFromFile(fileName);
-            if (reader.getReadingResult() != pdf::PDFDocumentReader::Result::OK)
-            {
-                PDFConsole::writeError(PDFToolTranslationContext::tr("Cannot open document '%1'.").arg(fileName), options.outputCodec);
-                return ErrorDocumentReading;
-            }
+            *ok = isFirstPasswordAttempt && !options.password.isEmpty();
+            isFirstPasswordAttempt = false;
+            return options.password;
+        };
 
-            if (!document.getStorage().getSecurityHandler()->isAllowed(pdf::PDFSecurityHandler::Permission::Assemble))
-            {
-                PDFConsole::writeError(PDFToolTranslationContext::tr("Document doesn't allow to assemble pages."), options.outputCodec);
-                return ErrorPermissions;
-            }
-
-            pdf::PDFDocumentBuilder temporaryBuilder(&document);
-            temporaryBuilder.flattenPageTree();
-
-            std::vector<pdf::PDFObjectReference> currentPages = temporaryBuilder.getPages();
-            std::vector<pdf::PDFObjectReference> objectsToMerge = currentPages;
-
-            pdf::PDFObjectReference acroFormReference;
-            pdf::PDFObjectReference namesReference;
-            pdf::PDFObjectReference ocPropertiesReference;
-
-            pdf::PDFObject formObject = document.getCatalog()->getFormObject();
-            if (formObject.isReference())
-            {
-                acroFormReference = formObject.getReference();
-            }
-            else
-            {
-                acroFormReference = temporaryBuilder.addObject(formObject);
-            }
-
-            if (const pdf::PDFDictionary* catalogDictionary = temporaryBuilder.getDictionaryFromObject(temporaryBuilder.getObjectByReference(temporaryBuilder.getCatalogReference())))
-            {
-                pdf::PDFObject namesObject = catalogDictionary->get("Names");
-                if (namesObject.isReference())
-                {
-                    namesReference = namesObject.getReference();
-                }
-
-                pdf::PDFObject ocPropertiesObject = catalogDictionary->get("OCProperties");
-                if (ocPropertiesObject.isReference())
-                {
-                    ocPropertiesReference = ocPropertiesObject.getReference();
-                }
-            }
-
-            if (!namesReference.isValid())
-            {
-                namesReference = temporaryBuilder.addObject(pdf::PDFObject());
-            }
-
-            if (!ocPropertiesReference.isValid())
-            {
-                ocPropertiesReference = temporaryBuilder.addObject(pdf::PDFObject());
-            }
-
-            objectsToMerge.insert(objectsToMerge.end(), { acroFormReference, namesReference, ocPropertiesReference });
-
-            // Now, we are ready to merge objects into target document builder
-            std::vector<pdf::PDFObjectReference> references = pdf::PDFDocumentBuilder::createReferencesFromObjects(documentBuilder.copyFrom(pdf::PDFDocumentBuilder::createObjectsFromReferences(objectsToMerge), *temporaryBuilder.getStorage(), true));
-
-            ocPropertiesReference = references.back();
-            references.pop_back();
-            namesReference = references.back();
-            references.pop_back();
-            acroFormReference = references.back();
-            references.pop_back();
-
-            documentPartPageCounts.push_back(references.size());
-
-            documentBuilder.appendTo(ocPropertiesMerged, documentBuilder.getObjectByReference(ocPropertiesReference));
-            documentBuilder.appendTo(formMerged, documentBuilder.getObjectByReference(acroFormReference));
-            documentBuilder.mergeNames(namesMerged, namesReference);
-            pages.insert(pages.end(), references.cbegin(), references.cend());
+        pdf::PDFDocumentReader reader(nullptr, passwordCallback, options.permissiveReading, false);
+        pdf::PDFDocument document = reader.readFromFile(fileName);
+        if (reader.getReadingResult() == pdf::PDFDocumentReader::Result::Cancelled)
+        {
+            PDFConsole::writeError(PDFToolTranslationContext::tr("Document '%1' is encrypted: give its password by --pswd.").arg(fileName), options.outputCodec);
+            return ErrorDocumentReading;
+        }
+        if (reader.getReadingResult() != pdf::PDFDocumentReader::Result::OK)
+        {
+            PDFConsole::writeError(PDFToolTranslationContext::tr("Cannot open document '%1'.").arg(fileName), options.outputCodec);
+            return ErrorDocumentReading;
         }
 
-        documentBuilder.setPages(pages);
-        if (!documentBuilder.getObjectByReference(ocPropertiesMerged).isNull())
+        // ISO 32000-2, Table 22 (owner answer Q2): the merged document is not encrypted. A document
+        // with an empty user password is opened by it without asking for --pswd (7.6.4.4), so the
+        // password is verified as its owner password (most restricted files are such)
+        const bool isOwnerPasswordVerified = !options.password.isEmpty() && pdf::PDFDocumentMerger::verifyOwnerPassword(document.getStorage().getSecurityHandler(), options.password);
+        const pdf::PDFDocumentMerger::Permission permission = pdf::PDFDocumentMerger::getPermission(&document, isOwnerPasswordVerified);
+        if (permission != pdf::PDFDocumentMerger::Permission::Permitted)
         {
-            documentBuilder.setCatalogOptionalContentProperties(ocPropertiesMerged);
+            // The owner password is given by --pswd (the core says to unlock it by the owner password)
+            PDFConsole::writeError(PDFToolTranslationContext::tr("%1 Give the owner password of '%2' by --pswd.").arg(pdf::PDFDocumentMerger::getPermissionText(permission, QFileInfo(fileName).fileName()), fileName), options.outputCodec);
+            return ErrorPermissions;
         }
 
-        if (!documentBuilder.getObjectByReference(namesMerged).isNull())
+        const size_t sourceIndex = sources.size();
+        const size_t pageCount = document.getCatalog()->getPageCount();
+        sources.push_back(pdf::PDFDocumentMerger::Source::createDocument(pdf::PDFDocumentPointer(new pdf::PDFDocument(std::move(document))), QFileInfo(fileName).fileName()));
+        sources.back().isOwnerPasswordVerified = isOwnerPasswordVerified;
+        for (size_t i = 0; i < pageCount; ++i)
         {
-            documentBuilder.setCatalogNames(namesMerged);
-        }
-
-        if (!documentBuilder.getObjectByReference(formMerged).isNull())
-        {
-            documentBuilder.setCatalogAcroForm(formMerged);
-        }
-
-        // Correct page tree (invalid parents are present)
-        documentBuilder.flattenPageTree();
-        documentBuilder.createDocumentParts(documentPartPageCounts);
-        pdf::PDFDocument mergedDocument = documentBuilder.build();
-
-        // Optimize document - remove unused objects and shrink object storage
-        pdf::PDFOptimizer optimizer(pdf::PDFOptimizer::RemoveUnusedObjects | pdf::PDFOptimizer::ShrinkObjectStorage | pdf::PDFOptimizer::DereferenceSimpleObjects | pdf::PDFOptimizer::MergeIdenticalObjects, nullptr);
-        optimizer.setDocument(&mergedDocument);
-        optimizer.optimize();
-        mergedDocument = optimizer.takeOptimizedDocument();
-
-        // We must adjust some objects - they can be merged
-        pdf::PDFDocumentBuilder finalBuilder(&mergedDocument);
-        if (const pdf::PDFDictionary* dictionary = finalBuilder.getDictionaryFromObject(finalBuilder.getObjectByReference(finalBuilder.getCatalogReference())))
-        {
-            pdf::PDFDocumentDataLoaderDecorator loader(finalBuilder.getStorage());
-            pdf::PDFObjectReference ocPropertiesReference = loader.readReferenceFromDictionary(dictionary, "OCProperties");
-            if (ocPropertiesReference.isValid())
-            {
-                finalBuilder.setObject(ocPropertiesReference, pdf::PDFObjectManipulator::removeDuplicitReferencesInArrays(finalBuilder.getObjectByReference(ocPropertiesReference)));
-            }
-            pdf::PDFObjectReference acroFormReference = loader.readReferenceFromDictionary(dictionary, "AcroForm");
-            if (acroFormReference.isValid())
-            {
-                finalBuilder.setObject(acroFormReference, pdf::PDFObjectManipulator::removeDuplicitReferencesInArrays(finalBuilder.getObjectByReference(acroFormReference)));
-            }
-        }
-        mergedDocument = finalBuilder.build();
-
-        pdf::PDFDocumentWriter writer(nullptr);
-        pdf::PDFOperationResult result = writer.write(targetFile, &mergedDocument, false);
-        if (!result)
-        {
-            PDFConsole::writeError(result.getErrorMessage(), options.outputCodec);
-            return ErrorFailedWriteToFile;
+            pdf::PDFDocumentMerger::Item item;
+            item.source = sourceIndex;
+            item.pageIndex = pdf::PDFInteger(i);
+            items.push_back(item);
         }
     }
-    catch (const pdf::PDFException &exception)
+
+    pdf::PDFDocumentMerger::Settings settings;
+    settings.outline = pdf::PDFDocumentMerger::OutlineMode::DocumentParts;
+    settings.checkPermissions = true;
+    pdf::PDFDocumentMerger::Result result = pdf::PDFDocumentMerger::merge(sources, items, settings, nullptr, nullptr);
+    if (!result.isSuccess)
     {
-        PDFConsole::writeError(exception.getMessage(), options.outputCodec);
+        PDFConsole::writeError(result.errorMessage, options.outputCodec);
         return ErrorUnknown;
+    }
+    if (!result.leftOut.empty())
+    {
+        PDFConsole::writeError(result.leftOut.front().reason, options.outputCodec);
+        return ErrorDocumentReading;
+    }
+
+    pdf::PDFDocumentWriter writer(nullptr);
+    pdf::PDFOperationResult writeResult = writer.write(targetFile, &result.document, false);
+    if (!writeResult)
+    {
+        PDFConsole::writeError(writeResult.getErrorMessage(), options.outputCodec);
+        return ErrorFailedWriteToFile;
     }
 
     return ExitSuccess;

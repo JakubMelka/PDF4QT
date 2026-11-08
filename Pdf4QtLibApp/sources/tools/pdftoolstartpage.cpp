@@ -30,10 +30,14 @@
 #include "pdfappmarkdownview.h"
 #include "pdfapproute.h"
 #include "pdfapptooldocumentchooser.h"
+#include "pdfapptoolinputlist.h"
 #include "pdfapptoolpageregistry.h"
 #include "pdfapptoolpresentation.h"
 #include "pdfapptoolstate.h"
 #include "pdfsettingsrepository.h"
+#include "pdfappmainwindow.h"
+#include "pdfdocumenttoolgui.h"
+#include "pdfdocumenttoolguiregistry.h"
 
 #include "pdfaccenthue.h"
 #include "pdfcomponentbadges.h"
@@ -45,7 +49,12 @@
 #include "pdfstylepainter.h"
 #include "pdfthemefonts.h"
 
+#include <QDragEnterEvent>
+#include <QDragLeaveEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
 #include <QEvent>
+#include <QMimeData>
 #include <QHBoxLayout>
 #include <QPainter>
 #include <QPushButton>
@@ -137,16 +146,22 @@ public:
             case PDFDocumentToolInputKind::One:
                 return PDFToolStartPage::tr("One open PDF");
             case PDFDocumentToolInputKind::Multiple:
-                return PDFToolStartPage::tr("More PDF files");
+                // K9, 531:3390
+                return PDFToolStartPage::tr("Two or more PDFs");
             case PDFDocumentToolInputKind::None:
                 return PDFToolStartPage::tr("No document");
         }
         return QString();
     }
 
-    /// What the tool does with an open document
-    static QString getOpenDocumentText(PDFDocumentToolInputKind kind)
+    /// What the tool does with an open document (K9: a new document leaves the open
+    /// documents of a tool with more inputs unchanged, 531:3392)
+    static QString getOpenDocumentText(PDFDocumentToolInputKind kind, PDFDocumentToolResultKind resultKind)
     {
+        if (kind == PDFDocumentToolInputKind::Multiple && resultKind == PDFDocumentToolResultKind::NewDocument)
+        {
+            return PDFToolStartPage::tr("Stay unchanged");
+        }
         return kind == PDFDocumentToolInputKind::None ? PDFToolStartPage::tr("Not used") : PDFToolStartPage::tr("Your choice");
     }
 
@@ -164,8 +179,14 @@ public:
         return QString();
     }
 
-    static QString getSignatureText(PDFDocumentToolSignatureImpact impact)
+    static QString getSignatureText(PDFDocumentToolSignatureImpact impact, PDFDocumentToolInputKind kind, PDFDocumentToolResultKind resultKind)
     {
+        // K9, 531:3394: the signatures of the inputs are not in a new document of more inputs
+        if (kind == PDFDocumentToolInputKind::Multiple && resultKind == PDFDocumentToolResultKind::NewDocument)
+        {
+            return PDFToolStartPage::tr("Not kept (new file)");
+        }
+
         switch (impact)
         {
             case PDFDocumentToolSignatureImpact::LostCopyOnly:
@@ -185,10 +206,24 @@ PDFToolStartPage::PDFToolStartPage(PDFAppContext* context, const QString& toolId
 {
     setObjectName(QStringLiteral("toolStartPage"));
     PDFAppPageWidgets::createColumn(this, 0);
+
+    // The inputs of a tool with more inputs belong to the page (they survive a rebuild); the
+    // files dropped anywhere on the page join them (K8)
+    const PDFDocumentToolCatalogEntry* tool = getTool();
+    if (tool && tool->getInputKind() == PDFDocumentToolInputKind::Multiple)
+    {
+        m_inputList = new PDFAppToolInputList(this);
+        setAcceptDrops(true);
+    }
     build();
 }
 
 PDFToolStartPage::~PDFToolStartPage() = default;
+
+PDFAppToolInputList* PDFToolStartPage::getInputList() const
+{
+    return m_inputList.data();
+}
 
 const PDFDocumentToolCatalogEntry* PDFToolStartPage::getTool() const
 {
@@ -233,9 +268,11 @@ QList<PDFAppBreadcrumbItem> PDFToolStartPage::getHeaderBreadcrumbs() const
         tools.route = PDFAppRoutes::tools();
         items << tools;
 
+        // The title of the category, not its short chip (531:3208 "Organize Pages", 1392:4528
+        // "Create & Convert"; the chips of the catalog page are short, tools.md 3)
         const PDFDocumentToolCategoryInfo* category = PDFDocumentToolCatalog::getCategoryInfo(tool->getCategory());
         PDFAppBreadcrumbItem categoryItem;
-        categoryItem.text = category ? category->getChipText() : QString();
+        categoryItem.text = category ? category->getTitle() : QString();
         categoryItem.route = category ? PDFAppRoutes::tools(category->getId()) : PDFAppRoutes::tools();
         items << categoryItem;
 
@@ -260,8 +297,9 @@ PDFAppHeaderIcon PDFToolStartPage::getHeaderIcon() const
 QString PDFToolStartPage::getHeaderTag() const
 {
     const PDFDocumentToolCatalogEntry* tool = getTool();
+    // The Tag of the header has the title of the category (531:3208, 1392:4528)
     const PDFDocumentToolCategoryInfo* category = tool ? PDFDocumentToolCatalog::getCategoryInfo(tool->getCategory()) : nullptr;
-    return category ? category->getChipText() : QString();
+    return category ? category->getTitle() : QString();
 }
 
 QString PDFToolStartPage::getHelpTopic() const
@@ -292,7 +330,20 @@ void PDFToolStartPage::build()
 
     QWidget* main = m_columns->getMainColumn();
     QWidget* side = m_columns->getSideColumn();
-    m_columns->getMainLayout()->addWidget(createChooseDocument(main));
+    const PDFDocumentToolCatalogEntry* tool = getTool();
+    const PDFDocumentToolInputKind inputKind = tool ? tool->getInputKind() : PDFDocumentToolInputKind::One;
+    switch (inputKind)
+    {
+        case PDFDocumentToolInputKind::One:
+            m_columns->getMainLayout()->addWidget(createChooseDocument(main));
+            break;
+        case PDFDocumentToolInputKind::Multiple:
+            m_columns->getMainLayout()->addWidget(createChooseDocuments(main));
+            break;
+        case PDFDocumentToolInputKind::None:
+            m_columns->getMainLayout()->addWidget(createOpenTool(main));
+            break;
+    }
     m_columns->getMainLayout()->addWidget(createManual(main));
     m_columns->getMainLayout()->addStretch(1);
     m_columns->getSideLayout()->addWidget(createTutorial(side));
@@ -492,11 +543,19 @@ QWidget* PDFToolStartPage::createAtGlance(QWidget* parent)
     m_facts->setObjectName(QStringLiteral("toolFacts"));
     if (tool)
     {
+        // K9 (531:3389): a tool with more inputs speaks of the open documents; the row Locked
+        // document is the text of the GUI of the tool, when it has one. A new document is "One
+        // new document" (K9, also of a tool without an input: Blank PDF 1392:4710)
+        const bool isMultiple = tool->getInputKind() == PDFDocumentToolInputKind::Multiple;
+        const bool isNewDocument = tool->getResultKind() == PDFDocumentToolResultKind::NewDocument;
+        const QString lockedText = getLockedGlanceText();
         m_facts->addRow(tr("Input"), Helper::getInputText(tool->getInputKind()));
-        m_facts->addRow(tr("Result"), tool->getResultSummary());
-        m_facts->addRow(tr("Open document"), Helper::getOpenDocumentText(tool->getInputKind()));
-        m_facts->addRow(tr("Locked document"), Helper::getLockedText(tool->getLockedAccess()));
-        m_facts->addRow(tr("Signatures"), Helper::getSignatureText(tool->getSignatureImpact()));
+        m_facts->addRow(tr("Result"), isNewDocument ? tr("One new document") : tool->getResultSummary());
+        // A tool without an input speaks of all the open documents too (1392:4712)
+        const bool isPlural = isMultiple || tool->getInputKind() == PDFDocumentToolInputKind::None;
+        m_facts->addRow(isPlural ? tr("Open documents") : tr("Open document"), Helper::getOpenDocumentText(tool->getInputKind(), tool->getResultKind()));
+        m_facts->addRow(tr("Locked document"), lockedText.isEmpty() ? Helper::getLockedText(tool->getLockedAccess()) : lockedText);
+        m_facts->addRow(tr("Signatures"), Helper::getSignatureText(tool->getSignatureImpact(), tool->getInputKind(), tool->getResultKind()));
         const QString command = tool->getPdfToolCommand();
         if (!command.isEmpty())
         {
@@ -579,6 +638,204 @@ void PDFToolStartPage::onMarkdownLinkActivated(const QString& link)
 void PDFToolStartPage::onManualLinkClicked()
 {
     openLink(PDFAppRoutes::help(getHelpTopic()).toString());
+}
+
+QString PDFToolStartPage::getLockedGlanceText() const
+{
+    // The GUI of the tool may have its own text (Merge "Can be merged"); it is made only
+    // for the text and deleted at once (no parent, no document)
+    const std::shared_ptr<const PDFDocumentToolGUIFactory> factory = PDFDocumentToolGUIRegistry::getFactory(m_toolId);
+    if (!factory)
+    {
+        return QString();
+    }
+
+    const std::unique_ptr<PDFDocumentToolGUI> gui(factory->createGUI());
+    return gui ? gui->getLockedGlanceText() : QString();
+}
+
+QWidget* PDFToolStartPage::createChooseDocuments(QWidget* parent)
+{
+    using Helper = PDFToolStartPageHelper;
+
+    // choose-document 531:3261: the header, the card of the inputs, the note; gap 12
+    const PDFDocumentToolCatalogEntry* tool = getTool();
+    const QString title = tool ? tool->getTitle() : QString();
+    QWidget* section = new QWidget(parent);
+    section->setObjectName(QStringLiteral("toolChooseDocument"));
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(section, Helper::SECTION_GAP);
+    layout->addWidget(Helper::createHeader(tr("Choose documents"), tr("%1 combines two or more PDFs and images · check open documents, add files, then open the tool").arg(title), section));
+
+    m_inputChooser = new PDFAppToolInputChooser(getContext(), m_toolId, m_inputList, section);
+    connect(m_inputChooser.data(), &PDFAppToolInputChooser::openToolRequested, this, &PDFToolStartPage::onOpenToolRequested);
+    layout->addWidget(m_inputChooser);
+
+    // note 531:3288: the icon info 14, gap 8, Regular 12 text/secondary
+    QWidget* note = new QWidget(section);
+    note->setObjectName(QStringLiteral("toolStartNote"));
+    QHBoxLayout* noteLayout = new QHBoxLayout(note);
+    noteLayout->setContentsMargins(0, 0, 0, 0);
+    noteLayout->setSpacing(8);
+    PDFIconBadge* icon = new PDFIconBadge(QStringLiteral("info"), 14, 14, note);
+    icon->setColors(std::nullopt, PDFThemeColors::IconDefault);
+    noteLayout->addWidget(icon, 0, Qt::AlignTop);
+    const QString noteText = tr("%1 opens in its own tab with the documents in this order. The open documents are not changed; an unsaved document is used in its state at the moment it is added.").arg(title);
+    PDFAppParagraph* noteParagraph = PDFAppPageWidgets::createText(noteText, PDFThemeFonts::getFont(QFont::Normal, 12), 15, PDFThemeColors::TextSecondary, note);
+    noteParagraph->setObjectName(QStringLiteral("toolStartNoteText"));
+    noteParagraph->setMinimumWidth(1);
+    noteLayout->addWidget(noteParagraph, 1);
+    layout->addWidget(note);
+    return section;
+}
+
+QWidget* PDFToolStartPage::createOpenTool(QWidget* parent)
+{
+    using Helper = PDFToolStartPageHelper;
+
+    // Q10 / R21, choose-document of pdf4qt-tool-start-blank 1392:4584: a tool without an input
+    // has no document to choose - the Primary Open … in the place of the chooser opens its own
+    // tab. The texts are of the tool (its GUI), else generic ones.
+    const PDFDocumentToolCatalogEntry* tool = getTool();
+    const QString title = tool ? tool->getTitle() : QString();
+    const QString sectionTitle = getStartPageText(PDFAppToolStartPageText::Title);
+    const QString hint = getStartPageText(PDFAppToolStartPageText::Hint);
+    const QString cardText = getStartPageText(PDFAppToolStartPageText::Card);
+    const QString noteText = getStartPageText(PDFAppToolStartPageText::Note);
+    QWidget* section = new QWidget(parent);
+    section->setObjectName(QStringLiteral("toolChooseDocument"));
+    QVBoxLayout* layout = PDFAppPageWidgets::createColumn(section, Helper::SECTION_GAP);
+    layout->addWidget(Helper::createHeader(sectionTitle.isEmpty() ? tr("Start") : sectionTitle, hint.isEmpty() ? tr("%1 needs no document · it creates a new one").arg(title) : hint, section));
+
+    // document-list 1392:4588: the card with the padding 8, the text Regular 12 text/secondary
+    // and the Primary button 12 apart (cta 1392:4636)
+    PDFAppCard* card = PDFAppPageWidgets::createCard(8, 0, section);
+    card->setObjectName(QStringLiteral("toolOpenToolCard"));
+    QHBoxLayout* row = new QHBoxLayout();
+    row->setContentsMargins(0, 0, 0, 0);
+    row->setSpacing(12);
+    PDFAppParagraph* text = PDFAppPageWidgets::createText(cardText.isEmpty() ? tr("The tool opens in its own tab. Nothing is created until you press Create PDF.") : cardText,
+                                                          PDFThemeFonts::getFont(QFont::Normal, 12), 15, PDFThemeColors::TextSecondary, card);
+    text->setObjectName(QStringLiteral("toolOpenToolText"));
+    text->setMinimumWidth(1);
+    row->addWidget(text, 1, Qt::AlignVCenter);
+    m_openToolButton = PDFAppPageWidgets::createButton(tr("Open %1").arg(title), tool ? tool->getIconName() : QString(), true, card);
+    m_openToolButton->setObjectName(QStringLiteral("toolOpenTool"));
+    connect(m_openToolButton.data(), &QPushButton::clicked, this, &PDFToolStartPage::onOpenToolRequested);
+    row->addWidget(m_openToolButton, 0, Qt::AlignVCenter);
+    card->getLayout()->addLayout(row);
+    layout->addWidget(card);
+
+    // note 1392:4639: the icon info 14, gap 8, Regular 12 text/secondary
+    if (!noteText.isEmpty())
+    {
+        QWidget* note = new QWidget(section);
+        note->setObjectName(QStringLiteral("toolStartNote"));
+        QHBoxLayout* noteLayout = new QHBoxLayout(note);
+        noteLayout->setContentsMargins(0, 0, 0, 0);
+        noteLayout->setSpacing(8);
+        PDFIconBadge* icon = new PDFIconBadge(QStringLiteral("info"), 14, 14, note);
+        icon->setColors(std::nullopt, PDFThemeColors::IconDefault);
+        noteLayout->addWidget(icon, 0, Qt::AlignTop);
+        PDFAppParagraph* noteParagraph = PDFAppPageWidgets::createText(noteText, PDFThemeFonts::getFont(QFont::Normal, 12), 15, PDFThemeColors::TextSecondary, note);
+        noteParagraph->setObjectName(QStringLiteral("toolStartNoteText"));
+        noteParagraph->setMinimumWidth(1);
+        noteLayout->addWidget(noteParagraph, 1);
+        layout->addWidget(note);
+    }
+    return section;
+}
+
+QString PDFToolStartPage::getStartPageText(PDFAppToolStartPageText text) const
+{
+    // As getLockedGlanceText: the GUI of the tool is made only for its text
+    const std::shared_ptr<const PDFDocumentToolGUIFactory> factory = PDFDocumentToolGUIRegistry::getFactory(m_toolId);
+    if (!factory)
+    {
+        return QString();
+    }
+
+    const std::unique_ptr<PDFDocumentToolGUI> gui(factory->createGUI());
+    return gui ? gui->getStartPageText(text) : QString();
+}
+
+void PDFToolStartPage::onOpenToolRequested()
+{
+    PDFAppMainWindow* window = qobject_cast<PDFAppMainWindow*>(this->window());
+    if (!window)
+    {
+        return;
+    }
+
+    // R13: the list goes to the tab in this one synchronous call (setParent); the navigation
+    // may run code of the application, the page may go meanwhile
+    QPointer<PDFToolStartPage> guard(this);
+    QPointer<PDFAppToolInputList> list(m_inputList);
+    window->createToolTab(m_toolId, list.data());
+    if (!guard || !m_inputList)
+    {
+        return;
+    }
+
+    // The tool took the list: the page starts with a new empty one
+    if (m_inputList->parent() != this)
+    {
+        m_inputList = new PDFAppToolInputList(this);
+        if (m_inputChooser)
+        {
+            m_inputChooser->setInputList(m_inputList);
+        }
+    }
+}
+
+void PDFToolStartPage::setDropActive(bool isActive)
+{
+    if (m_inputChooser && m_inputChooser->getDropZone())
+    {
+        m_inputChooser->getDropZone()->setDropActive(isActive);
+    }
+}
+
+void PDFToolStartPage::dragEnterEvent(QDragEnterEvent* event)
+{
+    // Only a page with more inputs takes the drops itself (K8); otherwise the window does
+    if (m_inputChooser && PDFAppFileDrop::hasLocalFiles(event->mimeData()))
+    {
+        event->setDropAction(Qt::CopyAction);
+        event->accept();
+        setDropActive(true);
+        return;
+    }
+    BaseClass::dragEnterEvent(event);
+}
+
+void PDFToolStartPage::dragMoveEvent(QDragMoveEvent* event)
+{
+    if (m_inputChooser && PDFAppFileDrop::hasLocalFiles(event->mimeData()))
+    {
+        event->setDropAction(Qt::CopyAction);
+        event->accept();
+        return;
+    }
+    BaseClass::dragMoveEvent(event);
+}
+
+void PDFToolStartPage::dragLeaveEvent(QDragLeaveEvent* event)
+{
+    setDropActive(false);
+    BaseClass::dragLeaveEvent(event);
+}
+
+void PDFToolStartPage::dropEvent(QDropEvent* event)
+{
+    setDropActive(false);
+    if (m_inputChooser && PDFAppFileDrop::hasLocalFiles(event->mimeData()))
+    {
+        event->setDropAction(Qt::CopyAction);
+        event->accept();
+        m_inputChooser->dropFiles(event->mimeData());
+        return;
+    }
+    BaseClass::dropEvent(event);
 }
 
 PDFAppPage* PDFToolStartPageFactory::createPage(PDFAppContext* context, QWidget* parent) const

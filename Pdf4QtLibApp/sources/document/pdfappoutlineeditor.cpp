@@ -23,6 +23,7 @@
 #include "pdfappoutlineeditor.h"
 #include "pdfappannotationcontroller.h"
 #include "pdfappdocument.h"
+#include "pdfappdocumentpermissions.h"
 #include "pdfappdocumentpanel.h"
 #include "pdfappdocumentpanels_outline.h"
 #include "pdfappdocumentsidebar.h"
@@ -57,13 +58,11 @@ public:
     /// Dynamic property of PDFAppDocument: a new outline item waits for its title
     static constexpr const char* PENDING_PROPERTY = "pdf4qtOutlineCreationPending";
 
-    /// The document allows the editing of its outline (no security handler =
-    /// everything; the outline belongs to the assembly and to the modification)
+    /// The document allows the editing of its outline (the shared check: the outline
+    /// belongs to the assembly and to the modification, bit 11 or bit 4 of Table 22)
     static bool isAllowed(const PDFDocument* document)
     {
-        const PDFSecurityHandler* securityHandler = document ? document->getStorage().getSecurityHandler() : nullptr;
-        return document && (!securityHandler || securityHandler->isAllowed(PDFSecurityHandler::Permission::Assemble) ||
-                            securityHandler->isAllowed(PDFSecurityHandler::Permission::Modify));
+        return PDFAppDocumentPermissions::isAllowed(document, PDFAppPermissionRequest::create(PDFAppPermissionAction::EditOutline));
     }
 
     /// Path of the parent of the item (empty for a top level item)
@@ -255,7 +254,7 @@ QString PDFAppOutlineEditor::getEditingRefusalReason() const
     }
     if (!PDFAppOutlineEditorHelper::isAllowed(document->getDocument().data()))
     {
-        return tr("The document does not allow changes.");
+        return PDFAppDocumentPermissions::getRefusalText(document->getDocument().data(), PDFAppPermissionRequest::create(PDFAppPermissionAction::EditOutline));
     }
     if (!isEditingAllowed())
     {
@@ -430,6 +429,20 @@ PDFAppOutlinePanel* PDFAppOutlineEditor::findPanel() const
     return sidebar ? qobject_cast<PDFAppOutlinePanel*>(sidebar->findPanel(PDFAppDocumentPanelIds::outline())) : nullptr;
 }
 
+void PDFAppOutlineEditor::refuseEditing() const
+{
+    // Refused only by the permissions of the document: the owner password dialog of the
+    // shared check (the last call; the user edits again after the unlock)
+    PDFAppDocument* document = getDocument();
+    if (document && document->isEditable() && !PDFAppOutlineEditorHelper::isAllowed(document->getDocument().data()) &&
+        PDFAppDocumentPermissions::canUnlock(document->getDocument().data()))
+    {
+        PDFAppDocumentPermissions::request(document, PDFAppPermissionRequest::create(PDFAppPermissionAction::EditOutline), m_view.data());
+        return;
+    }
+    showStatusMessage(getEditingRefusalReason());
+}
+
 void PDFAppOutlineEditor::showStatusMessage(const QString& text) const
 {
     if (m_view && m_view->getStatusBar() && !text.isEmpty())
@@ -442,7 +455,7 @@ bool PDFAppOutlineEditor::createItemAtCurrentView()
 {
     if (!m_view || !isEditingAllowed())
     {
-        showStatusMessage(getEditingRefusalReason());
+        refuseEditing();
         return false;
     }
 
@@ -468,7 +481,7 @@ bool PDFAppOutlineEditor::createItemAtCurrentView()
         }
         if (!isEditingAllowed())
         {
-            showStatusMessage(getEditingRefusalReason());
+            refuseEditing();
             return false;
         }
     }
@@ -801,7 +814,7 @@ bool PDFAppOutlineEditor::renameItem(const OutlinePath& item, const QString& tit
     PDFAppDocument* document = getDocument();
     if (!document || !isEditingAllowed())
     {
-        showStatusMessage(getEditingRefusalReason());
+        refuseEditing();
         return false;
     }
     return commit(PDFAppAnnotationOperations::renameOutlineItem(document->getDocument(), item, title), tr("Rename outline item"), item);
@@ -813,7 +826,7 @@ bool PDFAppOutlineEditor::deleteItem(const OutlinePath& item)
     const PDFOutlineItem* parent = item.empty() ? nullptr : findItem(PDFAppOutlineEditorHelper::getParent(item));
     if (!document || !isEditingAllowed() || !parent || item.back() >= parent->getChildCount())
     {
-        showStatusMessage(getEditingRefusalReason());
+        refuseEditing();
         return false;
     }
 
@@ -838,7 +851,7 @@ bool PDFAppOutlineEditor::moveItem(const OutlinePath& item, const OutlinePath& n
     PDFAppDocument* document = getDocument();
     if (!document || !isEditingAllowed())
     {
-        showStatusMessage(getEditingRefusalReason());
+        refuseEditing();
         return false;
     }
 
@@ -863,7 +876,7 @@ bool PDFAppOutlineEditor::setItemTargetToCurrentView(const OutlinePath& item)
     const std::optional<PDFDestination> destination = getCurrentViewDestination();
     if (!document || !destination || !isEditingAllowed())
     {
-        showStatusMessage(getEditingRefusalReason());
+        refuseEditing();
         return false;
     }
     return commit(PDFAppAnnotationOperations::setOutlineItemDestination(document->getDocument(), item, *destination), tr("Set outline item target"), item);
@@ -874,7 +887,7 @@ bool PDFAppOutlineEditor::deleteItems(const std::vector<OutlinePath>& items)
     PDFAppDocument* document = getDocument();
     if (!document || !isEditingAllowed() || items.empty())
     {
-        showStatusMessage(getEditingRefusalReason());
+        refuseEditing();
         return false;
     }
 
@@ -901,7 +914,7 @@ bool PDFAppOutlineEditor::moveItems(const std::vector<OutlinePath>& items, const
     PDFAppDocument* document = getDocument();
     if (!document || !isEditingAllowed() || items.empty())
     {
-        showStatusMessage(getEditingRefusalReason());
+        refuseEditing();
         return false;
     }
 
@@ -1029,7 +1042,7 @@ bool PDFAppOutlineEditor::setCurrentItemTarget(DestinationType type)
     const std::optional<PDFDestination> destination = getCurrentViewDestination(type);
     if (!hasCurrentItem() || !destination || !isEditingAllowed())
     {
-        showStatusMessage(getEditingRefusalReason());
+        refuseEditing();
         return false;
     }
     return setItemDestination(m_currentItem, *destination, tr("Set outline item target"));
@@ -1041,7 +1054,7 @@ bool PDFAppOutlineEditor::pickCurrentItemTarget(DestinationType type)
     PDFAppDocument* document = getDocument();
     if (!m_view || !document || !item || !isEditingAllowed() || !PDFAppOutlineTargetPicker::isPickedType(type))
     {
-        showStatusMessage(getEditingRefusalReason());
+        refuseEditing();
         return false;
     }
 
@@ -1095,7 +1108,7 @@ bool PDFAppOutlineEditor::chooseCurrentItemNamedDestination()
     QWidget* parent = getDialogParent();
     if (!m_view || !document || !item || !parent || !isEditingAllowed())
     {
-        showStatusMessage(getEditingRefusalReason());
+        refuseEditing();
         return false;
     }
 
@@ -1207,7 +1220,7 @@ bool PDFAppOutlineEditor::setCurrentItemKeepZoom(bool keepZoom)
     PDFAppDocument* document = getDocument();
     if (!document || !item || !isEditingAllowed())
     {
-        showStatusMessage(getEditingRefusalReason());
+        refuseEditing();
         return false;
     }
 
@@ -1251,7 +1264,7 @@ bool PDFAppOutlineEditor::keepZoomForAllItems()
     QWidget* parent = getDialogParent();
     if (!m_view || !document || !parent || !isEditingAllowed())
     {
-        showStatusMessage(getEditingRefusalReason());
+        refuseEditing();
         return false;
     }
 
@@ -1322,7 +1335,7 @@ bool PDFAppOutlineEditor::setItemDestination(const OutlinePath& item, const PDFD
     PDFAppDocument* document = getDocument();
     if (!document || !isEditingAllowed())
     {
-        showStatusMessage(getEditingRefusalReason());
+        refuseEditing();
         return false;
     }
     return commit(PDFAppAnnotationOperations::setOutlineItemDestination(document->getDocument(), item, destination), description, item);
@@ -1333,7 +1346,7 @@ bool PDFAppOutlineEditor::setItemStyle(const OutlinePath& item, bool bold, bool 
     PDFAppDocument* document = getDocument();
     if (!document || !isEditingAllowed())
     {
-        showStatusMessage(getEditingRefusalReason());
+        refuseEditing();
         return false;
     }
     return commit(PDFAppAnnotationOperations::setOutlineItemStyle(document->getDocument(), item, bold, italic), tr("Change outline item style"), item);

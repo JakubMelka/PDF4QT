@@ -137,6 +137,7 @@ public:
     virtual QString getRunningTitle(int percentage) const override;
     virtual QString getRunningStatusText(const QString& stepText) const override;
     virtual QString getRunningTimeText(int seconds) const override;
+    virtual std::vector<PDFSecurityHandler::Permission> getRunPermissions() const override;
     virtual void fillResultInput(PDFAppToolResultInput* input) const override;
     virtual void onParametersChanged(const QString& name) override;
     virtual void onPreviewChanged(const PDFDocumentToolResult* preview) override;
@@ -168,6 +169,9 @@ private:
 
     /// Why the permissions of the document refuse the chosen kinds (empty = permitted)
     QString getPermissionRefusal() const;
+
+    /// The owner password of the document can lift a refusal (PDFAppDocumentPermissions::canUnlock)
+    bool isUnlockOffered() const;
 
     void onPresetRowClicked();
     void onShellStateChanged(pdf::PDFDocumentToolShell::State state);

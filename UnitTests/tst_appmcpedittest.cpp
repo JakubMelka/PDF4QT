@@ -4073,7 +4073,8 @@ void AppMcpEditTest::fixDialogTextsEveryKind()
     facts.append(QJsonObject({ { QStringLiteral("key"), QStringLiteral("Signatures") }, { QStringLiteral("value"), QStringLiteral("2 kept") } }));
 
     const pdf::PDFAppMcpConfirmationKind kinds[] = { pdf::PDFAppMcpConfirmationKind::ReadDocuments, pdf::PDFAppMcpConfirmationKind::Change, pdf::PDFAppMcpConfirmationKind::Save,
-                                                     pdf::PDFAppMcpConfirmationKind::SaveCopy, pdf::PDFAppMcpConfirmationKind::Open, pdf::PDFAppMcpConfirmationKind::Close };
+                                                     pdf::PDFAppMcpConfirmationKind::SaveCopy, pdf::PDFAppMcpConfirmationKind::Open, pdf::PDFAppMcpConfirmationKind::Close,
+                                                     pdf::PDFAppMcpConfirmationKind::NewTab };
     QSet<QString> titles;
     QSet<QString> bodies;
     for (pdf::PDFAppMcpConfirmationKind kind : kinds)
@@ -4110,6 +4111,14 @@ void AppMcpEditTest::fixDialogTextsEveryKind()
             QCOMPARE(dialog.getTitleText(), pdf::PDFAppMcpConfirmDialog::createTitle(*confirmation));
             QVERIFY(!dialog.getReasonText().isEmpty());
             QCOMPARE(dialog.getCountdownText(), QStringLiteral("Denied automatically in 1:05"));
+            if (kind == pdf::PDFAppMcpConfirmationKind::SaveCopy || kind == pdf::PDFAppMcpConfirmationKind::NewTab)
+            {
+                // The new tab of a tool has no frame: it is compared with Save a copy 958:27539
+                dialog.show();
+                QCoreApplication::processEvents();
+                AppMcpEditTestHelper::saveScreenshot(&dialog, QStringLiteral("mcp-confirm-kind-%1-%2").arg(int(kind)).arg(variant));
+                dialog.hide();
+            }
             titles.insert(dialog.getTitleText());
 
             pdf::PDFAppMcpWaitingBanner banner(nullptr);
@@ -4120,8 +4129,8 @@ void AppMcpEditTest::fixDialogTextsEveryKind()
             QVERIFY(!banner.getTitleText().isEmpty());
         }
     }
-    QVERIFY2(titles.size() >= 7, qPrintable(QStringList(titles.values()).join(QStringLiteral(" | "))));
-    QVERIFY2(bodies.size() >= 7, qPrintable(QStringList(bodies.values()).join(QStringLiteral(" | "))));
+    QVERIFY2(titles.size() >= 8, qPrintable(QStringList(titles.values()).join(QStringLiteral(" | "))));
+    QVERIFY2(bodies.size() >= 8, qPrintable(QStringList(bodies.values()).join(QStringLiteral(" | "))));
 }
 
 void AppMcpEditTest::fixGhostShapes()

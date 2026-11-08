@@ -821,6 +821,7 @@ int PDFDocumentToolParameterDefinition::getTypeMaximumLength() const
     switch (m_type)
     {
         case PDFDocumentToolParameterType::String:
+            return m_panelOnly ? MAXIMUM_PANEL_TEXT_LENGTH : MAXIMUM_TEXT_LENGTH;
         case PDFDocumentToolParameterType::FileNameTemplate:
             return MAXIMUM_TEXT_LENGTH;
         case PDFDocumentToolParameterType::FilePath:
@@ -1486,6 +1487,12 @@ QJsonObject PDFDocumentToolParameters::toJsonSchema(const PDFDocumentToolParamet
     QJsonArray required;
     for (const PDFDocumentToolParameterDefinition& definition : definitions)
     {
+        // A value only the panels give is no part of the schema of a client
+        if (definition.isPanelOnly())
+        {
+            continue;
+        }
+
         properties.insert(definition.getName(), definition.toJsonSchema());
         if (definition.isRequired())
         {

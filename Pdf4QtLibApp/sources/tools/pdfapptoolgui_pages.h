@@ -147,7 +147,7 @@ public:
     /// The button of the size of the tiles and the row of a size in its panel (nullptr = none)
     QToolButton* getTileSizeButton() const;
     PDFTileRow* getTileSizeRow(PDFAppToolPageGrid::TileSize size) const;
-    PDFAppToolPanelPopup* getTileSizePanel() const { return m_tileSizePanel.data(); }
+    PDFAppToolPanelPopup* getTileSizePanel() const { return m_tileSizeMenu ? m_tileSizeMenu->getPanel() : nullptr; }
 
     /// Parts (nullptr = none)
     PDFAppToolPageGrid* getGrid() const { return m_grid.data(); }
@@ -215,13 +215,11 @@ private:
     void onGridDeleteRequested(int page);
     void onPendingLink(const QModelIndex& index);
     void onShellStateChangedSlot(pdf::PDFDocumentToolShell::State state);
-    void onTileSizeRowClicked();
+    void onTileSizeChosen(pdf::PDFAppToolPageGrid::TileSize size);
     void readTileSize();
-    void updateTileSizeMenu();
 
     QPointer<PDFAppToolPageGrid> m_grid;
-    QPointer<PDFAppToolPanelPopup> m_tileSizePanel;
-    std::map<PDFAppToolPageGrid::TileSize, QPointer<PDFTileRow>> m_tileSizeRows;
+    QPointer<PDFAppToolTileSizeMenu> m_tileSizeMenu;
     PDFAppToolPageGrid::TileSize m_tileSize = PDFAppToolPageGrid::TileSize::Medium;
     bool m_isTileSizeRead = false;
     QPointer<PDFPageSelection> m_pageSelection;

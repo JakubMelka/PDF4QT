@@ -682,6 +682,9 @@ public:
     /// is a page of the document tab or of the home tab)
     static bool backToDocument(ToolsLifetimeRun& run)
     {
+        // The queued navigation of the previous step first: a tool with its own tab (Merge)
+        // opens a new tab, which becomes the current one (plan of step 2 of phase 2, 4.1)
+        settle();
         pdf::PDFAppTab* tab = run.tab.data();
         if (!tab || !run.window)
         {

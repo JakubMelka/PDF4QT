@@ -811,7 +811,9 @@ void AppToolProtectTest::sanitizePermissionRefusal()
 {
     // ISO 32000-2, Table 22: the sample allows the changes of bit 4, not those of annotations and
     // fields (bits 6 and 9); its square annotation is a comment. The tool is allowed, the kind
-    // Comments and markup is not: the Primary button is off and the status bar says why.
+    // Comments and markup needs bit 6: the document opened by the user password can be unlocked
+    // by its owner password, so the Primary button stays on and asks for it (owner 2026-11-08,
+    // UnitTestsAppOwnerPassword sanitizeAsksOwnerPassword); the status bar says why and what to do.
     using H = ProtectAppHelper;
     AppToolShellFixture fixture(QSize(1440, 960));
     pdf::PDFAppDocumentTab* tab = H::openReady(fixture, pdftest::AppDocumentSamples::restricted(fixture.folder()));
@@ -822,22 +824,24 @@ void AppToolProtectTest::sanitizePermissionRefusal()
     AppToolShellFixture::settle();
     QVERIFY(!shell->isPermissionRefused());
 
-    const QString refusal = QStringLiteral("The permissions of the document do not allow changing its annotations and form fields: untick Comments and markup to remove the other kinds.");
+    const QString refusal = QStringLiteral("The document does not allow changing its annotations and form fields, which removing Comments and markup needs: Remove Hidden Data asks for its owner password, or untick Comments and markup to remove the other kinds.");
     QVERIFY(shell->getModel()->getValue(QStringLiteral("comments")).toBool());
-    QVERIFY(!shell->getToolbar()->getConfirmButton()->isEnabled());
+    QVERIFY(shell->getToolbar()->getConfirmButton()->isEnabled());
+    QCOMPARE(gui->getRunPermissions(), std::vector<pdf::PDFSecurityHandler::Permission>({ pdf::PDFSecurityHandler::Permission::ModifyInteractiveItems }));
     QCOMPARE(shell->getStatusMessage(), refusal);
     QCOMPARE(H::statusMessage(tab), refusal);
 
-    // Without the comments the rest can be removed
+    // Without the comments the rest needs no more permission
     QCOMPARE(shell->getModel()->setValue(QStringLiteral("comments"), false), QString());
     AppToolShellFixture::settle();
     QVERIFY(shell->getToolbar()->getConfirmButton()->isEnabled());
+    QVERIFY(gui->getRunPermissions().empty());
     QVERIFY(shell->getStatusMessage() != refusal);
 
-    // Ticked again: refused again
+    // Ticked again: asked again
     QCOMPARE(shell->getModel()->setValue(QStringLiteral("comments"), true), QString());
     AppToolShellFixture::settle();
-    QVERIFY(!shell->getToolbar()->getConfirmButton()->isEnabled());
+    QVERIFY(shell->getToolbar()->getConfirmButton()->isEnabled());
     QCOMPARE(shell->getStatusMessage(), refusal);
 }
 

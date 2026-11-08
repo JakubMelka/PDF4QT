@@ -23,6 +23,7 @@
 #include "pdfappannotationcreator.h"
 #include "pdfannotationstylerepository.h"
 #include "pdfappannotationcontroller.h"
+#include "pdfappdocumentpermissions.h"
 #include "pdfappannotationcreatedialogs.h"
 #include "pdfappannotationcreatetools.h"
 #include "pdfappannotationstylestorage.h"
@@ -1149,6 +1150,13 @@ bool PDFAppAnnotationCreator::startTool(PDFAppAnnotationToolKind kind)
 
     if (!isCreationAllowed())
     {
+        // A restriction, which the owner password can lift: the dialog of the shared check
+        // (the last call - the user starts the tool again after the unlock)
+        if (m_controller && m_controller->isAnnotationEditingAvailable())
+        {
+            m_controller->requestAnnotationEditing();
+            return false;
+        }
         showStatusHint(m_controller ? m_controller->getEditingRefusalReason() : QString());
         return false;
     }
@@ -1904,10 +1912,14 @@ bool PDFAppAnnotationCreator::commentTextSelection()
 
 void PDFAppAnnotationCreator::copyTextSelection()
 {
-    if (PDFSelectTextTool* selectTextTool = getSelectTextTool())
+    // The same check as Copy of the canvas (bit 5 of Table 22, the owner password)
+    PDFSelectTextTool* selectTextTool = getSelectTextTool();
+    if (!selectTextTool || !selectTextTool->hasSelection() || !m_controller ||
+        !PDFAppDocumentPermissions::request(m_controller->getDocument(), PDFAppPermissionRequest::create(PDFAppPermissionAction::CopyContent), getView()))
     {
-        selectTextTool->copyText();
+        return;
     }
+    selectTextTool->copyText();
 }
 
 void PDFAppAnnotationCreator::cancelCompose()

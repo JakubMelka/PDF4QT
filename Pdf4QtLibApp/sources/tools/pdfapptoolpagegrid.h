@@ -38,12 +38,16 @@
 #include <vector>
 
 class QScrollBar;
+class QToolButton;
 
 namespace pdf
 {
 
+class PDFAppContext;
 class PDFAppDocumentView;
 class PDFAppParagraph;
+class PDFAppToolPanelPopup;
+class PDFTileRow;
 
 /// The pages of the grid of a tool (Rotate 389:20177, Remove 388:20614): the pictures of the
 /// thumbnails of the document (PDFAppThumbnailsModel, the same scheduler and cache keys) and
@@ -83,6 +87,11 @@ public:
     Tile getTile(int pageIndex) const;
 
     virtual QVariant data(const QModelIndex& index, int role) const override;
+
+    /// The picture of a page turned by \p turn as it will be saved (the grids of the tools,
+    /// which turn pages: Rotate, Merge); the turned picture is kept in QPixmapCache under
+    /// \p key with the turn. A picture, which is no QPixmap, or no turn: the picture itself.
+    static QVariant getTurnedPicture(const QVariant& picture, const QString& key, PageRotation turn);
 
 private:
     PDFDocumentPointer m_pageDocument;
@@ -226,6 +235,64 @@ private:
     QPointer<PDFAppParagraph> m_hint;
     QSize m_baseSlotSize;
     TileSize m_tileSize = TileSize::Medium;
+};
+
+/// The menu of the size of the tiles of a page grid, one implementation for every tool with a
+/// page grid: Thumbnails: Medium in the toolbar of Rotate and Remove (tb-thumbnail-size
+/// 1359:33481, panel-thumbnail-size 1359:33719), Size: Small in the bar of the preview of
+/// Merge (1370:34102, K11). The panel has the rows S / M / L (the tile, the title, the
+/// description, the check of the chosen size); the button says the chosen size by its format.
+/// The chosen size is the state setting PDFSettingKeys::toolsPageGridSize shared by all page
+/// grids (readSize, storeSize).
+///
+/// Ownership: the panel belongs to its button (the toolbar of the tool), the menu is a child
+/// of the GUI of the tool and holds the panel and the rows by QPointer. A row closes the panel
+/// first, then the menu emits sizeChosen (the last statement: a slot may delete the menu).
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolTileSizeMenu : public QObject
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QObject;
+
+public:
+    using TileSize = PDFAppToolPageGrid::TileSize;
+
+    /// Width of panel-thumbnail-size 1359:33719
+    static constexpr int PANEL_WIDTH = 260;
+
+    /// \param panel The panel of the button (the rows are added to it)
+    /// \param titleFormat Text of the button with %1 the title of the size ("Thumbnails: %1")
+    /// \param parent Parent object (the GUI of the tool)
+    explicit PDFAppToolTileSizeMenu(PDFAppToolPanelPopup* panel, const QString& titleFormat, QObject* parent);
+    virtual ~PDFAppToolTileSizeMenu() override;
+
+    /// The size of the tiles stored by the user (Medium without a database)
+    static TileSize readSize(const PDFAppContext* context);
+
+    /// Stores the size of the tiles (the store announces it to its readers: the last call)
+    static void storeSize(PDFAppContext* context, TileSize size);
+
+    /// The chosen size shown by the button and the check of its row (no signal)
+    void setSize(TileSize size);
+    TileSize getSize() const { return m_size; }
+
+    QToolButton* getButton() const;
+    PDFAppToolPanelPopup* getPanel() const;
+    PDFTileRow* getRow(TileSize size) const;
+
+Q_SIGNALS:
+    /// The user has chosen a size in the panel (the panel is closed)
+    void sizeChosen(pdf::PDFAppToolPageGrid::TileSize size);
+
+private:
+    void update();
+    void onRowClicked();
+
+    QPointer<PDFAppToolPanelPopup> m_panel;
+    std::vector<std::pair<TileSize, QPointer<PDFTileRow>>> m_rows;
+    QString m_titleFormat;
+    TileSize m_size = TileSize::Medium;
 };
 
 }   // namespace pdf

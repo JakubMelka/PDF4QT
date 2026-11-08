@@ -24,6 +24,7 @@
 
 #include "pdfapptooldocumentpage.h"
 #include "pdfapptoolpageregistry.h"
+#include "pdfapptooltab.h"
 #include "pdftoolstartpage.h"
 
 #include "pdfdocumenttoolcatalog.h"
@@ -83,6 +84,13 @@ bool PDFDocumentToolGUIRegistry::registerFactory(const QString& toolId, std::sha
     {
         PDFAppToolPageRegistry::registerFactory(PDFAppToolPageKind::Start, toolId, std::make_shared<PDFToolStartPageFactory>());
     }
+
+    // A tool with its own tab (plan of step 2 of phase 2, 4.1): /tool/{toolId}/{instanceId}
+    const PDFDocumentToolCatalogEntry* tool = PDFDocumentToolCatalog::findTool(toolId);
+    if (tool && tool->hasOwnTab() && !PDFAppToolPageRegistry::hasPage(PDFAppToolPageKind::OwnTab, toolId))
+    {
+        PDFAppToolPageRegistry::registerFactory(PDFAppToolPageKind::OwnTab, toolId, std::make_shared<PDFAppToolTabPageFactory>());
+    }
     return true;
 }
 
@@ -110,6 +118,11 @@ void PDFDocumentToolGUIRegistry::unregisterFactory(const QString& toolId)
     if (dynamic_cast<const PDFToolStartPageFactory*>(startPage.get()))
     {
         PDFAppToolPageRegistry::unregisterFactory(PDFAppToolPageKind::Start, toolId);
+    }
+    const std::shared_ptr<const PDFAppPageFactory> ownTabPage = PDFAppToolPageRegistry::getFactory(PDFAppToolPageKind::OwnTab, toolId);
+    if (dynamic_cast<const PDFAppToolTabPageFactory*>(ownTabPage.get()))
+    {
+        PDFAppToolPageRegistry::unregisterFactory(PDFAppToolPageKind::OwnTab, toolId);
     }
 }
 

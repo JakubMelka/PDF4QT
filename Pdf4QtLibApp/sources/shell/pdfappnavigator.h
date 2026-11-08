@@ -102,6 +102,9 @@ public:
     /// The window is being destroyed: the navigator does nothing any more
     void detachWindow() { m_window = nullptr; }
 
+    /// A navigation runs (a navigation requested now is done after it, the last one wins)
+    bool isNavigating() const { return m_isNavigating; }
+
     /// Text of the last announcement of a page change (tests)
     const QString& getLastAnnouncement() const { return m_lastAnnouncement; }
 

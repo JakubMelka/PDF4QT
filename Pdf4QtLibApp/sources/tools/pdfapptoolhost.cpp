@@ -43,6 +43,27 @@ PDFAppToolHost::PDFAppToolHost(QObject* parent) :
 
 PDFAppToolHost::~PDFAppToolHost() = default;
 
+void PDFAppToolHost::setStatusItems(const QString& pageText, const QString& zoomText)
+{
+    Q_UNUSED(pageText);
+    Q_UNUSED(zoomText);
+}
+
+PDFAppTab* PDFAppToolHost::getTab() const
+{
+    return nullptr;
+}
+
+PDFAppToolInputList* PDFAppToolHost::getInputList() const
+{
+    return nullptr;
+}
+
+bool PDFAppToolHost::isOwnTab() const
+{
+    return false;
+}
+
 PDFAppDocumentToolHost::PDFAppDocumentToolHost(PDFAppDocumentTab* tab, QObject* parent) :
     BaseClass(parent),
     m_tab(tab),
@@ -252,6 +273,11 @@ PDFInteger PDFAppDocumentToolHost::getCurrentPage() const
 std::vector<PDFInteger> PDFAppDocumentToolHost::getSelectedPages() const
 {
     return m_view ? m_view->getSelectedPages() : std::vector<PDFInteger>();
+}
+
+PDFAppTab* PDFAppDocumentToolHost::getTab() const
+{
+    return m_tab.data();
 }
 
 void PDFAppDocumentToolHost::onToolModeChanged(bool isActive)

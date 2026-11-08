@@ -1351,7 +1351,9 @@ void AppToolPagesTest::pagesNeedAssemble()
     arguments.insert(QStringLiteral("rotate"), QJsonObject({ { QStringLiteral("rotation"), QStringLiteral("right") } }));
     std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("pages"), arguments);
     QVERIFY(result && result->isError);
-    QVERIFY2(result->getFirstText().contains(QStringLiteral("The permissions of the document do not allow this tool.")), qPrintable(result->getFirstText()));
+    // The shared check of the application names the missing permission and the unlock by the
+    // user (owner 2026-11-08), before the run
+    QVERIFY2(result->getFirstText().startsWith(QStringLiteral("The document does not allow inserting, rotating and removing pages (its security settings, ISO 32000-2 Table 22).")), qPrintable(result->getFirstText()));
     QCOMPARE(pdftest::AppDocumentFixture::undoCount(tab->getDocument()), 0);
 
     // With the assembly allowed and the modification not, the pages turn

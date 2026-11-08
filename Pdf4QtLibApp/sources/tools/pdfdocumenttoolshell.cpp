@@ -25,6 +25,7 @@
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentdialogs.h"
+#include "pdfappdocumentpermissions.h"
 #include "pdfappdocumentregistry.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
@@ -32,6 +33,7 @@
 #include "pdfapppagelayout.h"
 #include "pdfappsettingcontrol.h"
 #include "pdfapptoolhost.h"
+#include "pdfapptoolinputlist.h"
 #include "pdfapptoolpanelparts.h"
 #include "pdfapptoolparametermodel.h"
 #include "pdfapptooltoolbar.h"
@@ -64,14 +66,26 @@ public:
     explicit PDFAppToolLeaveRunningDialog(const QString& title, const PDFAppDocument* document, int percentage, QWidget* parent) :
         PDFAppDocumentChoiceDialog(PDFThemeIcons::Badge::Warning,
                                    PDFDocumentToolShell::tr("Stop %1 and leave the tool?").arg(title.left(256)),
-                                   // One call: the title of a document is no text of further arguments
-                                   PDFDocumentToolShell::tr("%1 is still running on %2 (%3 % done). Leaving the tool stops it. The document and the file stay unchanged.")
-                                       .arg(title.left(256), document ? document->getTitle() : QString(), QString::number(percentage)),
+                                   getText(title, document, percentage),
                                    440, parent)
     {
         setObjectName(QStringLiteral("toolLeaveRunningDialog"));
         addChoice(PDFDocumentToolShell::tr("Stop and Leave"), PDFAppDocumentChoice::Stop, false, true, QStringLiteral("stopAndLeaveButton"));
         addChoice(PDFDocumentToolShell::tr("Keep Running"), PDFAppDocumentChoice::Keep, true, false, QStringLiteral("keepRunningButton"));
+    }
+
+    /// The text: the document of the run, or none (the own tab of a tool, plan of step 2 of
+    /// phase 2, 4.2: "Merge is still running (37 % done)")
+    static QString getText(const QString& title, const PDFAppDocument* document, int percentage)
+    {
+        if (!document)
+        {
+            return PDFDocumentToolShell::tr("%1 is still running (%2 % done). Leaving the tool stops it. Nothing has been written yet.").arg(title.left(256), QString::number(percentage));
+        }
+
+        // One call: the title of a document is no text of further arguments
+        return PDFDocumentToolShell::tr("%1 is still running on %2 (%3 % done). Leaving the tool stops it. The document and the file stay unchanged.")
+            .arg(title.left(256), document->getTitle(), QString::number(percentage));
     }
 };
 
@@ -89,7 +103,10 @@ PDFDocumentToolShell::PDFDocumentToolShell(PDFAppToolHost* host, std::shared_ptr
 
 PDFDocumentToolShell::~PDFDocumentToolShell()
 {
-    // The mode ends silently: nobody is asked and nothing is reported any more
+    // The mode ends silently: nobody is asked and nothing is reported any more. A dying shell
+    // emits nothing (it dies with its page and tab: a slot of its signal could delete them a
+    // second time, the lifetime sweep of the own tab of a tool, step 2 of phase 2)
+    blockSignals(true);
     if (m_state != State::Closed && m_state != State::Created)
     {
         m_isCloseRequested = true;
@@ -146,7 +163,7 @@ bool PDFDocumentToolShell::enter()
     connect(m_gui.data(), &PDFDocumentToolGUI::confirmStateChanged, this, &PDFDocumentToolShell::onConfirmStateChanged);
     connect(m_gui.data(), &PDFDocumentToolGUI::statusTextChanged, this, &PDFDocumentToolShell::updateStatus);
 
-    m_isPermissionRefused = document && document->getDocument() && !getCatalogEntry()->isPermitted(document->getDocument().get());
+    m_isPermissionRefused = isRefusedByPermissions();
 
     // The parts wait in a hidden holder, until the view takes them (and it gives them back)
     m_partsParent = new QWidget();
@@ -186,6 +203,14 @@ bool PDFDocumentToolShell::enter()
     if (document)
     {
         connect(document, &PDFAppDocument::documentChanged, this, &PDFDocumentToolShell::onDocumentChanged);
+    }
+
+    // The inputs of a tool of more inputs in its own tab (K33): a change of their content
+    // gives a new generation, the preview is computed again
+    if (PDFAppToolInputList* inputList = m_host->getInputList())
+    {
+        connect(inputList, &PDFAppToolInputList::inputsChanged, this, &PDFDocumentToolShell::onInputsChanged);
+        connect(inputList, &PDFAppToolInputList::inputChanged, this, &PDFDocumentToolShell::onInputsChanged);
     }
 
     // The keys of the tool: the actions of the view reach them from every part of the tool
@@ -341,6 +366,13 @@ void PDFDocumentToolShell::close()
     m_pendingResult.reset();
     m_isWaitingForModal = false;
     watchModalDialog(nullptr);
+    if (PDFAppToolResultWriter* writer = m_skippedWriter.data())
+    {
+        // The write of a result without the dialog: its late bytes go nowhere
+        m_skippedWriter = nullptr;
+        writer->disconnect(this);
+        writer->deleteLater();
+    }
     if (m_leaveDialog)
     {
         // The question of a run, which has ended without the user: its own loop ends
@@ -479,6 +511,12 @@ void PDFDocumentToolShell::updateStatus()
     if (m_host && m_state != State::Closed && m_state != State::Created)
     {
         m_host->setMessage(getStatusMessage());
+
+        // The own tab has no view: its page and zoom items come from the GUI (K12)
+        if (m_gui && m_host && m_host->isOwnTab())
+        {
+            m_host->setStatusItems(m_gui->getOwnTabPageText(), m_gui->getOwnTabZoomText());
+        }
     }
 }
 
@@ -489,6 +527,47 @@ void PDFDocumentToolShell::applyEnvironment()
         PDFAppToolRunEnvironment environment = m_host->createEnvironment();
         m_gui->prepareEnvironment(&environment);
         m_runner->setEnvironment(environment);
+
+        // K33: the content of the inputs is a part of the key of the previews
+        if (const PDFAppToolInputList* inputList = m_host->getInputList())
+        {
+            m_runner->setInputGeneration(inputList->getGeneration());
+        }
+    }
+}
+
+void PDFDocumentToolShell::refreshPreview()
+{
+    if (m_state == State::Editing)
+    {
+        updatePreview();
+    }
+}
+
+void PDFDocumentToolShell::resumeEditing()
+{
+    if (m_state == State::Editing)
+    {
+        m_isCloseRequested = false;
+    }
+}
+
+void PDFDocumentToolShell::onInputsChanged()
+{
+    // The GUI rebuilds its parts by its own connections to the list; the shell says the
+    // Primary button, the status and a new preview
+    QPointer<PDFDocumentToolShell> guard(this);
+    updateToolbar();
+    updateStatus();
+    if (guard && m_state == State::Editing)
+    {
+        updatePreview();
+    }
+
+    // The title and the dot of the own tab follow the list (K16); the tab only reads
+    if (guard && m_gui)
+    {
+        m_gui->updateOwnTabState();
     }
 }
 
@@ -511,16 +590,39 @@ void PDFDocumentToolShell::confirm()
         popup->close();
     }
 
-    if (m_state != State::Editing || !m_gui || !m_runner || !m_host || m_isPermissionRefused || !m_gui->isConfirmEnabled())
+    if (m_state != State::Editing || !m_gui || !m_runner || !m_host || m_isPermissionRefused || !m_gui->isConfirmEnabled() || m_runPermissionDialog)
     {
         return;
+    }
+
+    // A permission, which only the chosen values need (Remove Hidden Data), is asked as every
+    // other action asks it (owner 2026-11-08): the owner password dialog of the shared check, or
+    // its refusal; the user confirms again after the unlock. The dialog runs no nested event
+    // loop, the function ends right after it is opened (the shell is checked after the foreign
+    // code of the dialog anyway; the dialog is owned by its window and deletes itself on close).
+    QPointer<PDFDocumentToolShell> guard(this);
+    const std::vector<PDFSecurityHandler::Permission> runPermissions = m_gui->getRunPermissions();
+    PDFAppDocument* permissionDocument = m_host->getDocument();
+    if (!runPermissions.empty() && permissionDocument)
+    {
+        QWidget* parent = m_host->getKeyWidget() ? m_host->getKeyWidget()->window() : nullptr;
+        QDialog* permissionDialog = nullptr;
+        const bool isAllowed = PDFAppDocumentPermissions::request(permissionDocument, PDFAppPermissionRequest::createTool(getCatalogEntry()->getId(), runPermissions), parent, &permissionDialog);
+        if (!guard || !m_host || !m_runner || m_state != State::Editing)
+        {
+            return;
+        }
+        if (!isAllowed)
+        {
+            m_runPermissionDialog = permissionDialog;
+            return;
+        }
     }
 
     m_host->hideInfoBar(QStringLiteral("tool-result"));
 
     // An open editor is a change of the document (F4 has committed it at the entry, the
     // model of an application with another way in may have one)
-    QPointer<PDFDocumentToolShell> guard(this);
     if (PDFAppDocument* document = m_host->getDocument())
     {
         document->commitPendingEdits();
@@ -576,6 +678,21 @@ void PDFDocumentToolShell::stop()
 {
     if (m_state != State::Running || !m_runner)
     {
+        return;
+    }
+
+    // The new document of a result without the dialog is being written (4.6): Stop drops it
+    if (PDFAppToolResultWriter* writer = m_skippedWriter.data())
+    {
+        QPointer<PDFDocumentToolShell> guard(this);
+        m_skippedWriter = nullptr;
+        writer->disconnect(this);
+        writer->deleteLater();
+        m_runner->endDecision();
+        if (guard)
+        {
+            finishRun(PDFDocumentToolResult::createStopped());
+        }
         return;
     }
 
@@ -796,6 +913,11 @@ void PDFDocumentToolShell::openResultDialog(const PDFDocumentToolResult& result)
     input.tool = getCatalogEntry();
     input.result = result;
     input.scrimTarget = m_host->getCanvasArea();
+    if (m_host->isOwnTab())
+    {
+        // A new tab of the result opens next to the own tab of the tool (4.5)
+        input.anchorTab = m_host->getTab();
+    }
     if (const PDFAppDocument* document = m_host->getDocument())
     {
         input.previousToolId = document->getLastFinishedToolId();
@@ -830,16 +952,37 @@ void PDFDocumentToolShell::showPermissionRefusal()
         return;
     }
 
+    // A document, which its owner password can unlock, asks for it (owner 2026-11-08): the
+    // dialog of the shared check, the tool continues after the unlock (onDocumentChanged),
+    // Cancel closes the tool as Close of the refusal does
+    QWidget* parent = m_host->getKeyWidget() ? m_host->getKeyWidget()->window() : nullptr;
+    PDFAppDocument* document = m_host->getDocument();
+    QDialog* ownerDialog = nullptr;
+    if (document && PDFAppDocumentPermissions::canUnlock(document->getDocument().data()))
+    {
+        PDFAppDocumentPermissions::request(document, PDFAppPermissionRequest::createTool(getCatalogEntry()->getId()), parent, &ownerDialog);
+        if (PDFMessageBox* box = qobject_cast<PDFMessageBox*>(ownerDialog))
+        {
+            m_permissionDialog = box;
+            connect(box, &QDialog::finished, this, &PDFDocumentToolShell::onPermissionDialogFinished);
+            return;
+        }
+    }
+
     // 339:10328: 480 wide, the title and its line, the text, Close (the button Open
     // Restrict Permissions comes with that tool, Q7). The scrim covers the canvas as
-    // the other dialogs of a tool.
-    QWidget* parent = m_host->getKeyWidget() ? m_host->getKeyWidget()->window() : nullptr;
+    // the other dialogs of a tool. A document of the public-key handler has no owner
+    // password: its permissions come from the certificate.
+    const PDFDocument* pdfDocument = document ? document->getDocument().data() : nullptr;
+    const QString text = PDFAppDocumentPermissions::isCertificateSecurity(pdfDocument)
+                       ? PDFAppDocumentPermissions::getRefusalText(pdfDocument, PDFAppPermissionRequest::createTool(getCatalogEntry()->getId()))
+                       : m_gui->getPermissionText();
     PDFMessageBox* box = new PDFMessageBox(PDFThemeIcons::Badge::Warning, m_gui->getPermissionTitle(), m_gui->getPermissionSubtitle(), QDialogButtonBox::NoButton, parent);
     box->setObjectName(QStringLiteral("toolPermissionDialog"));
     box->setAttribute(Qt::WA_DeleteOnClose);
     box->setCardWidth(480);
     box->setScrimTarget(m_host->getCanvasArea());
-    box->addContent(PDFAppPageWidgets::createText(m_gui->getPermissionText(), PDFThemeFonts::getFont(QFont::Normal, 12), 15, PDFThemeColors::TextSecondary, box));
+    box->addContent(PDFAppPageWidgets::createText(text, PDFThemeFonts::getFont(QFont::Normal, 12), 15, PDFThemeColors::TextSecondary, box));
 
     QPushButton* closeButton = box->addActionButton(tr("Close"), PDFMessageBox::ActionPosition::Leading, false);
     closeButton->setObjectName(QStringLiteral("toolPermissionClose"));
@@ -852,7 +995,23 @@ void PDFDocumentToolShell::showPermissionRefusal()
 
 void PDFDocumentToolShell::onPermissionDialogFinished()
 {
+    // Unlocked by the owner password: the tool goes on (onDocumentChanged has updated it)
+    m_permissionDialog = nullptr;
+    if (!isRefusedByPermissions())
+    {
+        return;
+    }
     cancel();
+}
+
+bool PDFDocumentToolShell::isRefusedByPermissions() const
+{
+    // The one check of the new application (PDFAppDocumentPermissions): the permissions of
+    // the catalog entry of the tool (ISO 32000-2, Table 22)
+    const PDFDocumentToolCatalogEntry* entry = getCatalogEntry();
+    const PDFAppDocument* document = m_host ? m_host->getDocument() : nullptr;
+    const PDFDocumentPointer pdfDocument = document ? document->getDocument() : PDFDocumentPointer();
+    return entry && pdfDocument && !PDFAppDocumentPermissions::isAllowed(pdfDocument.data(), PDFAppPermissionRequest::createTool(entry->getId()));
 }
 
 void PDFDocumentToolShell::onParameterChanged(const QString& name)
@@ -1029,6 +1188,13 @@ void PDFDocumentToolShell::finishRun(const PDFDocumentToolResult& result)
 
     if (result.isSuccess())
     {
+        // Blank PDF (4.6): no dialog, the new document replaces the own tab
+        if (m_gui && m_gui->isResultDialogSkipped() && m_host && m_host->isOwnTab() && PDFAppToolResultDialog::getResultKind(result) == PDFAppToolResultDialog::ResultKind::NewDocument)
+        {
+            acceptWithoutDialog(result);
+            return;
+        }
+
         openResultDialog(result);
         return;
     }
@@ -1037,7 +1203,7 @@ void PDFDocumentToolShell::finishRun(const PDFDocumentToolResult& result)
     // run it and the tool has said its answer; a preview is none
     if (result.status == PDFDocumentToolResultStatus::NothingToDo)
     {
-        recordNothingToDo();
+        recordUse();
 
         // The pair is recorded: the next tool over this document is not the first one after that
         // tool, nor is a second try of this tool a new pair (newapp_tools.md 3)
@@ -1054,7 +1220,7 @@ void PDFDocumentToolShell::finishRun(const PDFDocumentToolResult& result)
     }
 }
 
-void PDFDocumentToolShell::recordNothingToDo()
+void PDFDocumentToolShell::recordUse()
 {
     const PDFAppContext* context = m_host ? m_host->getContext() : nullptr;
     const PDFAppDocument* document = m_host ? m_host->getDocument() : nullptr;
@@ -1086,14 +1252,29 @@ void PDFDocumentToolShell::onDocumentLostQueued()
 
 void PDFDocumentToolShell::onDocumentChanged()
 {
+    // The owner password has lifted the restriction (or a version restricts it again):
+    // the state is changed first, the hooks of the tool see it
+    const bool wasRefused = m_isPermissionRefused;
+    m_isPermissionRefused = isRefusedByPermissions();
+
     QPointer<PDFDocumentToolShell> guard(this);
     if (m_gui)
     {
         m_gui->onDocumentChanged();
     }
-    if (guard)
+    if (!guard)
     {
-        updateStatus();
+        return;
+    }
+
+    updateStatus();
+    if (wasRefused != m_isPermissionRefused)
+    {
+        updateToolbar();
+        if (guard && !m_isPermissionRefused)
+        {
+            updatePreview();
+        }
     }
 }
 
@@ -1110,6 +1291,13 @@ void PDFDocumentToolShell::onDialogDecided(const PDFAppToolResultOutcome& outcom
 
         case PDFAppToolResultOutcome::Action::Discarded:
         {
+            // The own tab keeps the tool with its inputs and its parameters (Q9)
+            if (m_host && m_host->isOwnTab())
+            {
+                returnToEditing();
+                return;
+            }
+
             PDFAppToolCloseRequest request;
             request.reason = PDFAppToolCloseRequest::Reason::Discarded;
             requestClose(request);
@@ -1179,6 +1367,123 @@ void PDFDocumentToolShell::onDialogDecided(const PDFAppToolResultOutcome& outcom
 void PDFDocumentToolShell::onDialogStatusChanged()
 {
     updateStatus();
+}
+
+void PDFDocumentToolShell::returnToEditing()
+{
+    // The dialog deletes itself; the runner has ended the decision already
+    QPointer<PDFDocumentToolShell> guard(this);
+    m_resultDialog = nullptr;
+    setState(State::Editing);
+    if (guard)
+    {
+        updatePreview();
+    }
+}
+
+void PDFDocumentToolShell::acceptWithoutDialog(const PDFDocumentToolResult& result)
+{
+    const PDFDocumentToolOutputDocument* output = nullptr;
+    for (const PDFDocumentToolOutputDocument& document : result.documents)
+    {
+        if (document.kind == PDFDocumentToolOutputDocument::Kind::New && document.document)
+        {
+            output = &document;
+            break;
+        }
+    }
+
+    // The bytes measured by the run are the file (plan 4.5: one write)
+    if (output && !output->writtenData.isEmpty())
+    {
+        finishAccepted(output->writtenData);
+        return;
+    }
+
+    // Otherwise the writer writes the document in a worker; the run is not over until then
+    // (the operation of the runner is held, Stop drops the write)
+    if (output && m_runner)
+    {
+        m_skippedWriter = new PDFAppToolResultWriter(this);
+        connect(m_skippedWriter.data(), &PDFAppToolResultWriter::finished, this, &PDFDocumentToolShell::onSkippedWriteFinished);
+        if (m_skippedWriter->writeDocumentToMemory(output->document))
+        {
+            m_state = State::Running;
+            updateToolbar();
+            updateStatus();
+            return;
+        }
+        delete m_skippedWriter.data();
+    }
+
+    PDFAppToolResultWriter::Result failure;
+    failure.errorMessage = tr("The new document could not be written.");
+    onSkippedWriteFinished(failure);
+}
+
+void PDFDocumentToolShell::onSkippedWriteFinished(const PDFAppToolResultWriter::Result& result)
+{
+    if (PDFAppToolResultWriter* writer = m_skippedWriter.data())
+    {
+        m_skippedWriter = nullptr;
+        writer->disconnect(this);
+        writer->deleteLater();
+    }
+
+    if (result.isWritten && !result.data.isEmpty())
+    {
+        finishAccepted(result.data);
+        return;
+    }
+
+    // The tool stays open with the reason (a state of its panel, 4.6)
+    QPointer<PDFDocumentToolShell> guard(this);
+    if (m_runner)
+    {
+        m_runner->endDecision();
+        if (!guard)
+        {
+            return;
+        }
+    }
+
+    const PDFDocumentToolResult failed = PDFDocumentToolResult::createFailed(result.errorMessage.isEmpty() ? tr("The new document could not be written.") : result.errorMessage);
+    setState(State::Editing);
+    if (guard && m_gui)
+    {
+        m_gui->onRunNotAccepted(failed);
+    }
+}
+
+void PDFDocumentToolShell::finishAccepted(const QByteArray& data)
+{
+    QPointer<PDFDocumentToolShell> guard(this);
+    if (m_runner)
+    {
+        m_runner->endDecision();
+        if (!guard)
+        {
+            return;
+        }
+    }
+
+    // The accepted result: the last values of the tool and its use (newapp_tools.md 3); no
+    // pair of the suggestions (no Then continue with, K2)
+    if (m_model)
+    {
+        const PDFDatabaseError error = m_model->storeLastValues();
+        if (error.isError())
+        {
+            qWarning("The last values of the tool were not stored: %s", qPrintable(error.toString()));
+        }
+    }
+    recordUse();
+
+    PDFAppToolCloseRequest request;
+    request.reason = PDFAppToolCloseRequest::Reason::Accepted;
+    request.newDocumentData = data;
+    request.newDocumentTitle = tr("Untitled");
+    requestClose(request);
 }
 
 void PDFDocumentToolShell::onModeLeft()

@@ -27,6 +27,7 @@
 #include <QTimeZone>
 
 #include <atomic>
+#include <cmath>
 #include <map>
 #include <vector>
 
@@ -212,6 +213,43 @@ QString PDFAppLocale::formatDateTime(const QDateTime& dateTime)
 QString PDFAppLocale::formatDataSize(qint64 bytes, int precision, QLocale::DataSizeFormats format)
 {
     return getUiLocale().formattedDataSize(qMax(qint64(0), bytes), qBound(0, precision, 3), format);
+}
+
+QString PDFAppLocale::formatDataSizeOfTotal(qint64 part, qint64 total, int precision, QLocale::DataSizeFormats format)
+{
+    const QLocale locale = getUiLocale();
+    const qint64 whole = qMax(qint64(0), total);
+    const qint64 bounded = qBound(qint64(0), part, whole);
+    const int boundedPrecision = qBound(0, precision, 3);
+    const QString wholeText = locale.formattedDataSize(whole, boundedPrecision, format);
+
+    // The unit of the whole by the rule of QLocale::formattedDataSize: the largest power
+    // of 1000 (1024) not above the whole, the number with at most 3 decimals per power
+    int power = 0;
+    double base = 1000.0;
+    if (whole > 0)
+    {
+        if (format.testFlag(QLocale::DataSizeBase1000))
+        {
+            power = int(std::log10(double(whole))) / 3;
+        }
+        else
+        {
+            power = int(std::log2(double(whole))) / 10;
+            base = 1024.0;
+        }
+    }
+
+    const int decimals = qMin(boundedPrecision, 3 * power);
+    const QString wholeNumber = power > 0 ? locale.toString(double(whole) / std::pow(base, power), 'f', decimals) : locale.toString(whole);
+    if (!wholeText.startsWith(wholeNumber))
+    {
+        // The unit stands before the number: both sizes whole
+        return tr("%1 of %2").arg(locale.formattedDataSize(bounded, boundedPrecision, format), wholeText);
+    }
+
+    const QString partNumber = power > 0 ? locale.toString(double(bounded) / std::pow(base, power), 'f', decimals) : locale.toString(bounded);
+    return tr("%1 of %2").arg(partNumber, wholeText);
 }
 
 QString PDFAppLocale::formatRecentTime(const QDateTime& time, const QDateTime& now, RecentTimeUse use)

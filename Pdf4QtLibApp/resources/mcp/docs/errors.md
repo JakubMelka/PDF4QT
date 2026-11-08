@@ -22,6 +22,7 @@ PDF4QT reports two kinds of errors:
 | "The user does not allow …" | The permission is Deny | Tell the user; the permission can be changed on the AI page |
 | "PDF4QT cannot ask the user …" | No confirmation can be shown right now | Ask the user to allow the action on the AI page, or try later |
 | "The document is locked in PDF4QT …" | The user locked the document | Ask the user to unlock it or to use Edit a Copy |
+| "The document does not allow … (its security settings, ISO 32000-2 Table 22) …" | The author of the encrypted document restricts the action (printing, copying, annotations, forms, pages, changes) | Tell the user which permission is missing; the user can unlock the document in PDF4QT with its owner password (until the tab is closed). Never ask for the password; call again after the user has unlocked it. "… come from the certificate …": no password can lift it |
 | "PDF4QT is busy with another operation …" | A save, a print or a tool runs on the document | Try again when it has finished |
 | "PDF4QT shows a dialog …" | A dialog of PDF4QT is open; changes are refused meanwhile | Try again after the user closes it |
 | "Too many requests are waiting for the user …" | 16 requests wait in the tab | Wait for the answers; send fewer calls with more items each |

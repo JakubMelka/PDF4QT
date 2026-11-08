@@ -35,6 +35,8 @@
 #include "pdfapptab.h"
 #include "pdfapptooldocumentpage.h"
 #include "pdfapptoolhost.h"
+#include "pdfapptoolinputlist.h"
+#include "pdfapptooltab.h"
 #include "pdfapptopbar.h"
 #include "pdfappwindowframe.h"
 #include "pdfappwindowgeometry.h"
@@ -475,9 +477,123 @@ bool PDFAppMainWindow::closeTab(PDFAppTab* tab)
     return true;
 }
 
+PDFAppToolTab* PDFAppMainWindow::addToolTab(const QString& toolId, const QString& instanceId, PDFAppToolInputList* inputList)
+{
+    PDFDocumentTabBar* tabBar = getTabBar();
+    if (!tabBar || !m_stack || tabBar->count() >= MAXIMUM_TABS || !PDFAppToolTabPageFactory::hasOwnTabPage(toolId) ||
+        !PDFAppRouteValues::documentId().accepts(instanceId) || findToolTab(instanceId))
+    {
+        return nullptr;
+    }
+
+    // The tab takes the list over in this call (R13)
+    PDFAppToolTab* tab = new PDFAppToolTab(m_context, toolId, instanceId, inputList, m_stack);
+    connect(tab, &PDFAppToolTab::tabStateChanged, this, &PDFAppMainWindow::onToolTabStateChanged);
+    addTab(tab, tabBar->currentIndex() + 1);
+    return tab;
+}
+
+PDFAppToolTab* PDFAppMainWindow::createToolTab(const QString& toolId, PDFAppToolInputList* inputList)
+{
+    PDFAppToolTab* createdTab = addToolTab(toolId, PDFAppDocument::createId(), inputList);
+    if (!createdTab)
+    {
+        return nullptr;
+    }
+
+    // The route of the tab is shown in it: code of the tool runs, the tab or the window may
+    // be deleted meanwhile. Within a navigation (a page asks for the tool from its setRoute)
+    // the navigator would keep only its last request: the tab asks from the event loop.
+    QPointer<PDFAppToolTab> tab(createdTab);
+    QPointer<PDFAppMainWindow> guard(this);
+    if (m_navigator && m_navigator->isNavigating())
+    {
+        QMetaObject::invokeMethod(tab.data(), &PDFAppToolTab::showRoute, Qt::QueuedConnection);
+    }
+    else if (m_navigator)
+    {
+        m_navigator->navigate(tab->getRoute(), PDFAppNavigationMode::Push, tab);
+    }
+    return guard ? tab.data() : nullptr;
+}
+
+PDFAppToolTab* PDFAppMainWindow::createToolTabForDocument(const QString& toolId, PDFAppDocumentTab* documentTab)
+{
+    PDFAppToolInputList* inputList = new PDFAppToolInputList(nullptr);
+    if (documentTab && documentTab->getDocument())
+    {
+        inputList->addOpenDocument(documentTab->getDocument());
+    }
+
+    // The list goes to the tab in one call (R13); not taken by a tab, it stays here
+    QPointer<PDFAppToolInputList> listGuard(inputList);
+    PDFAppToolTab* tab = createToolTab(toolId, inputList);
+    if (listGuard && !listGuard->parent())
+    {
+        delete listGuard.data();
+    }
+    return tab;
+}
+
+PDFAppToolTab* PDFAppMainWindow::findToolTab(const QString& instanceId) const
+{
+    if (instanceId.isEmpty())
+    {
+        return nullptr;
+    }
+
+    for (const QPointer<PDFAppTab>& tab : m_tabs)
+    {
+        PDFAppToolTab* toolTab = qobject_cast<PDFAppToolTab*>(tab.data());
+        if (toolTab && toolTab->getInstanceId() == instanceId)
+        {
+            return toolTab;
+        }
+    }
+    return nullptr;
+}
+
+QList<PDFAppToolTab*> PDFAppMainWindow::getToolTabs() const
+{
+    QList<PDFAppToolTab*> toolTabs;
+    for (PDFAppTab* tab : getTabs())
+    {
+        if (PDFAppToolTab* toolTab = qobject_cast<PDFAppToolTab*>(tab))
+        {
+            toolTabs << toolTab;
+        }
+    }
+    return toolTabs;
+}
+
+PDFAppDocumentTab* PDFAppMainWindow::replaceToolTab(PDFAppToolTab* tab, QByteArray bytes, const QString& title)
+{
+    const int index = tab ? findTabIndex(tab->getId()) : -1;
+    if (index < 0)
+    {
+        return nullptr;
+    }
+
+    // The document tab first at the place of the tool tab (pushed right of it), then the tool
+    // tab goes: the new tab takes its index. The tool tab may be the sender (deleteLater).
+    QPointer<PDFAppToolTab> toolTab(tab);
+    QPointer<PDFAppMainWindow> guard(this);
+    PDFAppDocumentTab* documentTab = openDocumentFromMemoryAt(std::move(bytes), title, QString(), index);
+    if (!guard)
+    {
+        return nullptr;
+    }
+    QPointer<PDFAppDocumentTab> newTab(documentTab);
+    if (toolTab && newTab)
+    {
+        toolTab->setCloseConfirmed(true);
+        closeTab(toolTab);
+    }
+    return guard ? newTab.data() : nullptr;
+}
+
 PDFAppTab* PDFAppMainWindow::findDocumentTab(const QString& id) const
 {
-    // Tools with their own tab (phase 2) do not exist yet
     if (id.isEmpty())
     {
         return nullptr;
@@ -528,6 +644,15 @@ void PDFAppMainWindow::updateTab(PDFAppTab* tab)
             tabBar->setTabUnsaved(index, documentTab->isTabUnsaved());
             tabBar->setTabPasswordProtected(index, documentTab->isTabPasswordProtected());
             tabBar->setTabProgress(index, documentTab->getTabProgress());
+        }
+
+        // The own tab of a tool: its icon from its GUI, the dot of the list (K16), the
+        // progress of a run (tools.md 9.3 point 15)
+        if (const PDFAppToolTab* toolTab = qobject_cast<const PDFAppToolTab*>(tab))
+        {
+            tabBar->setTabIcon(index, PDFThemeIcons::getIcon(toolTab->getTabIconName()));
+            tabBar->setTabUnsaved(index, toolTab->isTabUnsaved());
+            tabBar->setTabProgress(index, toolTab->getTabProgress());
         }
     }
 
@@ -866,6 +991,12 @@ void PDFAppMainWindow::onTabCommandStatesChanged()
     {
         updateCommandStates();
     }
+}
+
+void PDFAppMainWindow::onToolTabStateChanged()
+{
+    // The tab does not identify itself in the signal
+    updateTab(qobject_cast<PDFAppTab*>(sender()));
 }
 
 void PDFAppMainWindow::synchronizeCurrentTab()
@@ -1459,7 +1590,26 @@ int PDFAppMainWindow::getTabIndexAfter(const PDFAppDocument* source) const
     return tabBar->currentIndex() + 1;
 }
 
+int PDFAppMainWindow::getTabIndexAfter(const PDFAppTab* tab) const
+{
+    PDFDocumentTabBar* tabBar = getTabBar();
+    if (!tabBar)
+    {
+        return 0;
+    }
+
+    const int index = tab ? findTabIndex(tab->getId()) : -1;
+    return index >= 0 ? index + 1 : tabBar->currentIndex() + 1;
+}
+
 PDFAppDocumentTab* PDFAppMainWindow::openDocumentFromMemory(QByteArray bytes, const QString& title, const QString& originFilePath, const PDFAppDocument* source)
+{
+    // The document opens after the tab of its source (the user may have switched
+    // the tab, while the attachment was decoded)
+    return openDocumentFromMemoryAt(std::move(bytes), title, originFilePath, getTabIndexAfter(source));
+}
+
+PDFAppDocumentTab* PDFAppMainWindow::openDocumentFromMemoryAt(QByteArray bytes, const QString& title, const QString& originFilePath, int index)
 {
     PDFDocumentTabBar* tabBar = getTabBar();
     if (!tabBar || !m_stack || tabBar->count() >= MAXIMUM_TABS)
@@ -1471,16 +1621,25 @@ PDFAppDocumentTab* PDFAppMainWindow::openDocumentFromMemory(QByteArray bytes, co
         return nullptr;
     }
 
-    // The document opens after the tab of its source (the user may have switched
-    // the tab, while the attachment was decoded)
-    const int index = getTabIndexAfter(source);
-    PDFAppDocumentTab* documentTab = new PDFAppDocumentTab(m_context, m_stack);
+    // The tab is created without a parent: the signals of its construction (the registry of the
+    // documents, the view) run code of the application, which may delete the window - a tab of
+    // the stack would go with it half constructed. The stack takes it over in addTab.
+    QPointer<PDFAppMainWindow> guard(this);
+    PDFAppDocumentTab* documentTab = new PDFAppDocumentTab(m_context, nullptr);
     QPointer<PDFAppDocumentTab> tab(documentTab);
+    if (!guard || !m_stack)
+    {
+        delete tab.data();
+        return nullptr;
+    }
+    if (!tab)
+    {
+        return nullptr;
+    }
     connectDocumentTab(documentTab);
     addTab(documentTab, index);
 
-    QPointer<PDFAppMainWindow> guard(this);
-    if (!tab || !tab->openFromMemory(std::move(bytes), title, originFilePath))
+    if (!guard || !tab || !tab->openFromMemory(std::move(bytes), title, originFilePath))
     {
         if (guard && tab)
         {
@@ -1639,6 +1798,27 @@ bool PDFAppMainWindow::confirmClose()
     if (m_quitSavingTab)
     {
         return false;
+    }
+
+    // The own tabs of the tools ask first, each shown with its question (K16: the list of the
+    // inputs is lost; a run asks as close-running; an open result dialog keeps the window).
+    // A slot may delete a tab or the window.
+    QPointer<PDFAppMainWindow> toolGuard(this);
+    std::vector<QPointer<PDFAppToolTab>> toolTabs;
+    for (PDFAppToolTab* toolTab : getToolTabs())
+    {
+        toolTabs.emplace_back(toolTab);
+    }
+    for (const QPointer<PDFAppToolTab>& toolTab : toolTabs)
+    {
+        if (toolTab && !toolTab->confirmClose())
+        {
+            return false;
+        }
+        if (!toolGuard)
+        {
+            return false;
+        }
     }
 
     // Open editors of form fields are changes too (step 4, package D); a slot

@@ -41,6 +41,7 @@
 #include "pdfappmcpactivity.h"
 #include "pdfappmcpcatalogtools.h"
 #include "pdfappmcpconfirmation.h"
+#include "pdfappmcpconfirmdialog.h"
 #include "pdfappmcpdocumentreader.h"
 #include "pdfappmcphost.h"
 #include "pdfapptoolresultwriter.h"
@@ -988,7 +989,12 @@ public:
             { P::Allow, P::Allow, P::Deny, true, true },
             { P::Allow, P::Deny, P::Allow, true, true },
             { P::Allow, P::Deny, P::Deny, true, false },
-            { P::Deny, P::Allow, P::Allow, false, false },
+            // Plan of step 2 of phase 2, 7: convert.blank reads no document, its new document
+            // needs Edit (open_new_tab) or Files (save_file); pages.merge needs Read of its inputs
+            { P::Deny, P::Allow, P::Allow, true, false },
+            { P::Deny, P::Allow, P::Deny, true, false },
+            { P::Deny, P::Deny, P::Allow, true, false },
+            { P::Deny, P::Deny, P::Deny, false, false },
         };
         for (const auto& row : table)
         {
@@ -1052,7 +1058,9 @@ public:
         const pdf::PDFMcpToolDefinition* definition = fixture.host()->getCatalog()->findTool(u"convert");
         QVERIFY(definition);
         const QJsonObject properties = QJsonDocument::fromJson(definition->inputSchema).object().value(QStringLiteral("properties")).toObject();
-        QCOMPARE(properties.value(QStringLiteral("result")).toObject().value(QStringLiteral("enum")).toArray(), QJsonArray({ QStringLiteral("return_text"), QStringLiteral("save_file") }));
+        // The values of the category: convert.blank (a new document: open_new_tab, save_file)
+        // comes first in the catalog, then the export (return_text, save_file)
+        QCOMPARE(properties.value(QStringLiteral("result")).toObject().value(QStringLiteral("enum")).toArray(), QJsonArray({ QStringLiteral("open_new_tab"), QStringLiteral("save_file"), QStringLiteral("return_text") }));
 
         // Files = Deny and Edit = Deny do not touch it
         QVERIFY(fixture.setPermission(pdf::PDFAppMcpPermissionKind::Files, pdf::PDFAppMcpPermission::Deny));
@@ -1867,7 +1875,9 @@ public:
                     // The offer of tools/list
                     const bool isChangeOffered = read != P::Deny && (edit != P::Deny || files != P::Deny);
                     QVERIFY2((fixture.host()->getCatalog()->findTool(u"pages") != nullptr) == isChangeOffered, qPrintable(name));
-                    QVERIFY2((fixture.host()->getCatalog()->findTool(u"convert") != nullptr) == (read != P::Deny), qPrintable(name));
+                    // convert.blank reads no document (its new document needs Edit or Files, plan
+                    // of step 2 of phase 2, 7), the export needs Read
+                    QVERIFY2((fixture.host()->getCatalog()->findTool(u"convert") != nullptr) == (read != P::Deny || edit != P::Deny || files != P::Deny), qPrintable(name));
 
                     for (const Case& testCase : cases)
                     {
@@ -1975,6 +1985,161 @@ public:
             }
         }
         confirmations->setAutoAnswer(std::nullopt);
+    }
+
+    /// The new document of a tool (plan of step 2 of phase 2, chapter 7, binding): open_new_tab =
+    /// Read of the inputs + Edit (a new tab is a new document, not a file), save_file = Read of the
+    /// inputs + Files; Blank PDF reads no document: Edit / Files only, never the read approval.
+    /// Every combination of Read, Edit and Files: the offer of the action, the run, the questions
+    /// and what the call makes (the real tools Merge and Blank PDF)
+    static void newDocumentPermissions()
+    {
+        using P = pdf::PDFAppMcpPermission;
+        using K = pdf::PDFAppMcpPermissionKind;
+        using C = pdf::PDFAppMcpConfirmationKind;
+
+        pdftest::AppMcpFixture fixture;
+        QVERIFY(fixture.setPermissions(P::Allow));
+        pdf::PDFAppDocumentTab* first = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("first.pdf"), 2));
+        pdf::PDFAppDocumentTab* second = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("second.pdf"), 1));
+        QVERIFY(first && second);
+        QTRY_VERIFY(first->getDocument()->isReady() && second->getDocument()->isReady());
+        const QJsonArray documentIds({ first->getDocument()->getId(), second->getDocument()->getId() });
+        pdftest::TestConfirmationProvider* confirmations = fixture.confirmations();
+        confirmations->setAutoAnswer(pdf::PDFAppMcpDecision::Allowed);
+
+        const QString assistantKey = fixture.createRequest(QStringLiteral("convert"), QJsonObject()).client.assistantKey;
+        pdf::PDFMcpAssistantEvent forget;
+        forget.kind = pdf::PDFMcpAssistantEvent::Kind::Idle;
+        forget.key = assistantKey;
+
+        // The actions of a category in its definition (tools/list)
+        const auto isOffered = [&fixture](const char16_t* toolName, const QString& action)
+        {
+            const pdf::PDFMcpToolDefinition* definition = fixture.host()->getCatalog()->findTool(toolName);
+            if (!definition)
+            {
+                return false;
+            }
+            const QJsonObject properties = QJsonDocument::fromJson(definition->inputSchema).object().value(QStringLiteral("properties")).toObject();
+            return properties.value(QStringLiteral("action")).toObject().value(QStringLiteral("enum")).toArray().contains(action);
+        };
+
+        class Case
+        {
+        public:
+            bool isMerge;
+            bool isNewTab;
+        };
+        const std::vector<Case> cases = { { false, true }, { false, false }, { true, true }, { true, false } };
+
+        int index = 0;
+        for (const P read : { P::Allow, P::Ask, P::Deny })
+        {
+            for (const P edit : { P::Allow, P::Ask, P::Deny })
+            {
+                for (const P files : { P::Allow, P::Ask, P::Deny })
+                {
+                    QVERIFY(fixture.setPermission(K::Read, read));
+                    QVERIFY(fixture.setPermission(K::Edit, edit));
+                    QVERIFY(fixture.setPermission(K::Files, files));
+                    const QString name = QStringLiteral("R%1 E%2 F%3").arg(int(read)).arg(int(edit)).arg(int(files));
+
+                    // The offer: an action is offered, when one of its results can run
+                    QVERIFY2(isOffered(u"convert", QStringLiteral("blank")) == (edit != P::Deny || files != P::Deny), qPrintable(name));
+                    QVERIFY2(isOffered(u"pages", QStringLiteral("merge")) == (read != P::Deny && (edit != P::Deny || files != P::Deny)), qPrintable(name));
+
+                    for (const Case& testCase : cases)
+                    {
+                        ++index;
+                        fixture.host()->assistantEvent(forget);
+                        const QString context = name + (testCase.isMerge ? QStringLiteral(" merge ") : QStringLiteral(" blank ")) + (testCase.isNewTab ? QStringLiteral("open_new_tab") : QStringLiteral("save_file"));
+                        const QString path = fixture.path(QStringLiteral("new-%1.pdf").arg(index));
+
+                        QJsonObject arguments;
+                        arguments.insert(QStringLiteral("result"), testCase.isNewTab ? QStringLiteral("open_new_tab") : QStringLiteral("save_file"));
+                        if (!testCase.isNewTab)
+                        {
+                            arguments.insert(QStringLiteral("path"), path);
+                        }
+                        if (testCase.isMerge)
+                        {
+                            arguments.insert(QStringLiteral("action"), QStringLiteral("merge"));
+                            arguments.insert(QStringLiteral("documentIds"), documentIds);
+                        }
+                        else
+                        {
+                            arguments.insert(QStringLiteral("action"), QStringLiteral("blank"));
+                            arguments.insert(QStringLiteral("blank"), QJsonObject({ { QStringLiteral("pageCount"), 2 } }));
+                        }
+
+                        const auto tabsBefore = fixture.window->getTabs().size();
+                        const size_t shownBefore = confirmations->shown.size();
+                        const std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(testCase.isMerge ? QStringLiteral("pages") : QStringLiteral("convert"), arguments);
+                        QVERIFY2(result, qPrintable(context));
+
+                        std::vector<C> asked;
+                        for (size_t i = shownBefore; i < confirmations->shown.size(); ++i)
+                        {
+                            asked.push_back(confirmations->shown[i]->kind);
+                        }
+
+                        const bool needsRead = testCase.isMerge;
+                        const P resultPermission = testCase.isNewTab ? edit : files;
+                        const bool isDenied = (needsRead && read == P::Deny) || resultPermission == P::Deny;
+                        if (isDenied)
+                        {
+                            // Nothing is made; a tool without an input never asks the read approval
+                            QVERIFY2(result->kind == pdf::PDFMcpCallResult::Kind::Error || result->isError, qPrintable(context));
+                            QVERIFY2(fixture.window->getTabs().size() == tabsBefore, qPrintable(context));
+                            QVERIFY2(!QFile::exists(path), qPrintable(context));
+                            QVERIFY2(asked.empty() || (needsRead && asked.size() == 1 && asked.front() == C::ReadDocuments), qPrintable(context));
+                            continue;
+                        }
+
+                        QVERIFY2(!result->isError, qPrintable(context + QStringLiteral(": ") + result->getFirstText()));
+                        std::vector<C> expected;
+                        if (needsRead && read == P::Ask)
+                        {
+                            expected.push_back(C::ReadDocuments);
+                        }
+                        if (resultPermission == P::Ask)
+                        {
+                            expected.push_back(testCase.isNewTab ? C::NewTab : C::SaveCopy);
+                        }
+                        QVERIFY2(asked == expected, qPrintable(context + QStringLiteral(": %1 questions").arg(asked.size())));
+                        if (resultPermission == P::Ask)
+                        {
+                            const pdf::PDFAppMcpConfirmation& last = *confirmations->shown.back();
+                            QVERIFY2(last.permissions == pdf::PDFAppMcpPermissionKinds(testCase.isNewTab ? K::Edit : K::Files), qPrintable(context));
+                        }
+
+                        // A new tab or a written file, never both
+                        QVERIFY2(fixture.window->getTabs().size() == tabsBefore + (testCase.isNewTab ? 1 : 0), qPrintable(context));
+                        QVERIFY2(QFile::exists(path) == !testCase.isNewTab, qPrintable(context));
+                    }
+                }
+            }
+        }
+        confirmations->setAutoAnswer(std::nullopt);
+
+        // The question of a new tab (no frame in Figma, as Save a copy 958:27539): it opens a new
+        // document, the reason names Edit documents, nothing says a file is saved
+        QVERIFY(fixture.setPermissions(P::Allow));
+        QVERIFY(fixture.setPermission(K::Edit, P::Ask));
+        std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("convert"), QJsonObject({ { QStringLiteral("action"), QStringLiteral("blank") }, { QStringLiteral("result"), QStringLiteral("open_new_tab") } }));
+        std::shared_ptr<pdf::PDFAppMcpConfirmation> confirmation = fixture.confirmDialog();
+        QVERIFY(confirmation);
+        QCOMPARE(confirmation->kind, C::NewTab);
+        QVERIFY(confirmation->details.value(QStringLiteral("path")).toString().isEmpty());
+        {
+            pdf::PDFAppMcpConfirmDialog dialog(confirmation, &fixture.host()->getResolver(), nullptr);
+            QVERIFY2(dialog.getTitleText().endsWith(QStringLiteral("wants to open a new document")), qPrintable(dialog.getTitleText()));
+            QVERIFY2(dialog.getReasonText().contains(QStringLiteral("Edit documents")), qPrintable(dialog.getReasonText()));
+            QVERIFY(!dialog.findChild<QWidget*>(QStringLiteral("overwriteNote")));
+        }
+        QVERIFY(fixture.answer(pdf::PDFAppMcpDecision::DeniedUser));
+        QVERIFY(pdftest::AppMcpFixture::waitResult(call));
     }
 
     /// A commit under a modal dialog of the application is refused as of the changes of
@@ -2521,12 +2686,17 @@ public:
         QVERIFY(stream);
         QVERIFY(stream->waitForMessages(1, 10000));
 
-        // The tools of the category pages of the application (package 2A) are taken away for
-        // the time of the test and registered again at its end: the category has no tool, its
-        // first tool is a new tool of the list
+        // The tools of the category pages of the application (all of them: Rotate, Remove,
+        // Merge, ...) are taken away for the time of the test and registered again at its end:
+        // the category has no tool, its first tool is a new tool of the list
         std::vector<std::shared_ptr<const pdf::PDFDocumentTool>> builtinPagesTools;
-        for (const QString& builtinId : { QStringLiteral("pages.rotate"), QStringLiteral("pages.remove") })
+        for (const QString& builtinId : pdf::PDFDocumentToolRegistry::getImplementedTools())
         {
+            if (!builtinId.startsWith(QLatin1String("pages.")))
+            {
+                continue;
+            }
+
             if (std::shared_ptr<const pdf::PDFDocumentTool> builtinTool = pdf::PDFDocumentToolRegistry::getTool(builtinId))
             {
                 builtinPagesTools.push_back(builtinTool);

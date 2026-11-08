@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappmcptool_outline.h"
+#include "pdfappdocumentpermissions.h"
 #include "pdfappmcparguments.h"
 #include "pdfappmcpchange.h"
 #include "pdfappmcphost.h"
@@ -568,10 +569,11 @@ void PDFAppMcpOutlineTool::handle(const PDFAppMcpToolInvocation& invocation)
     }
 
     const PDFDocument* pdfDocument = document->getDocument().data();
-    const PDFSecurityHandler* securityHandler = pdfDocument ? pdfDocument->getStorage().getSecurityHandler() : nullptr;
-    if (securityHandler && !securityHandler->isAllowed(PDFSecurityHandler::Permission::Modify) && !securityHandler->isAllowed(PDFSecurityHandler::Permission::Assemble))
+    // The shared check (bit 11 or bit 4 of Table 22); the owner password only by the user
+    const PDFAppPermissionRequest permissionRequest = PDFAppPermissionRequest::create(PDFAppPermissionAction::EditOutline);
+    if (pdfDocument && !PDFAppDocumentPermissions::isAllowed(pdfDocument, permissionRequest))
     {
-        host->finishWithError(call, actionId, document, QStringLiteral("The document does not allow changes of its outline (its security settings)."), PDFMcpActivityStatus::Failed);
+        host->finishWithError(call, actionId, document, PDFAppDocumentPermissions::getMcpRefusalText(pdfDocument, permissionRequest), PDFMcpActivityStatus::Failed);
         return;
     }
 

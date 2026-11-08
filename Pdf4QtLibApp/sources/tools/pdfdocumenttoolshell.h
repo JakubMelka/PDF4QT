@@ -70,6 +70,12 @@ public:
     QString continueDocumentId;     ///< The document of the next tool (F11)
     QString statusMessage;          ///< Message of the status bar after the end, empty = none
     QString folderToOpen;           ///< Open the folder afterwards (an export), empty = no
+
+    /// A result without the result dialog (PDFDocumentToolGUI::isResultDialogSkipped, Blank
+    /// PDF, plan of step 2 of phase 2, 4.6): the written new document, which replaces the
+    /// own tab of the tool (Accepted); empty = none
+    QByteArray newDocumentData;
+    QString newDocumentTitle;       ///< Title of the new document ("Untitled"; Save As offers "<title>.pdf")
 };
 
 /// The common part of a tool in a tab (plan of the first batch, chapters 2.1 and 2.4).
@@ -137,6 +143,15 @@ public:
     /// The shell may be deleted meanwhile.
     bool confirmLeave();
 
+    /// The page has refused a close request of the state Editing (the own tab of a tool
+    /// stays, the user has canceled the question K16): the shell takes requests again
+    void resumeEditing();
+
+    /// Computes the preview again (the inputs of a tool of more inputs have changed under
+    /// the same parameters: a password accepted, a reading finished). Nothing outside of
+    /// the state Editing.
+    void refreshPreview();
+
     State getState() const { return m_state; }
 
     PDFAppToolHost* getHost() const { return m_host.data(); }
@@ -163,6 +178,10 @@ public:
     /// The result dialog and the refusal of a missing permission (nullptr = none is open)
     PDFAppToolResultDialog* getResultDialog() const { return m_resultDialog.data(); }
     PDFMessageBox* getPermissionDialog() const { return m_permissionDialog.data(); }
+
+    /// The question of a permission, which the values of the run need (PDFDocumentToolGUI::getRunPermissions):
+    /// the owner password dialog or the refusal, nullptr = none is open; it deletes itself when closed
+    QDialog* getRunPermissionDialog() const { return m_runPermissionDialog.data(); }
 
     /// The document does not give the permission of the tool (339:10328)
     bool isPermissionRefused() const { return m_isPermissionRefused; }
@@ -202,6 +221,9 @@ private:
     void watchModalDialog(QWidget* dialog);
     void onWatchedModalClosed();
     void showPermissionRefusal();
+
+    /// The permissions of the document do not allow the tool (PDFAppDocumentPermissions)
+    bool isRefusedByPermissions() const;
     void requestClose(const PDFAppToolCloseRequest& request);
     void onLanguageChanged();
     void deleteParts();
@@ -216,7 +238,7 @@ private:
     void onRunProgress(int percentage, const QString& stepText);
     void onRunFinished(const pdf::PDFDocumentToolResult& result);
     void finishRun(const PDFDocumentToolResult& result);
-    void recordNothingToDo();
+    void recordUse();
     void commitPendingValues();
     void onDocumentLost();
     void onDocumentLostQueued();
@@ -226,6 +248,17 @@ private:
     void onModeLeft();
     void onLockChanged(bool isLocked);
     void onPermissionDialogFinished();
+    void onInputsChanged();
+
+    /// A result, which needs no decision (PDFDocumentToolGUI::isResultDialogSkipped, plan of
+    /// step 2 of phase 2, 4.6): the new document is written (its bytes from the worker of the
+    /// run, else by the writer in a worker) and the own tab is replaced by it
+    void acceptWithoutDialog(const PDFDocumentToolResult& result);
+    void onSkippedWriteFinished(const pdf::PDFAppToolResultWriter::Result& result);
+    void finishAccepted(const QByteArray& data);
+
+    /// Discard result of the own tab of a tool (Q9): the tool stays with its inputs
+    void returnToEditing();
 
     QPointer<PDFAppToolHost> m_host;
     std::shared_ptr<const PDFDocumentTool> m_tool;
@@ -246,7 +279,9 @@ private:
     QPointer<PDFAppToolCallout> m_busyCallout;
     QPointer<PDFAppToolResultDialog> m_resultDialog;
     QPointer<PDFMessageBox> m_permissionDialog;
-    QPointer<QDialog> m_leaveDialog;    ///< The question of the leaving during a run (F14)
+    QPointer<QDialog> m_runPermissionDialog;    ///< Not owned: the dialog of PDFAppDocumentPermissions::request deletes itself
+    QPointer<QDialog> m_leaveDialog;   ///< The question of the leaving during a run (F14)
+    QPointer<PDFAppToolResultWriter> m_skippedWriter;   ///< Writes the new document of a result without the dialog (4.6)
     QPointer<QWidget> m_watchedModal;   ///< The modal dialog of the application, for which a result waits
     QPointer<QAction> m_escapeAction;
     QPointer<QAction> m_confirmAction;

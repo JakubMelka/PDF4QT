@@ -31,6 +31,7 @@
 #include "pdfdocument.h"
 
 #include <QAbstractListModel>
+#include <QByteArray>
 #include <QElapsedTimer>
 #include <QPointer>
 #include <QSize>
@@ -55,6 +56,20 @@ class PDFAppThumbnailsModel;
 class PDFAppThumbnailRenderJob;
 class PDFAppThumbnailRenderLink;
 class PDFDrawWidgetProxy;
+
+/// Source of the picture of a row of a model of thumbnails: a page of a PDF document or a
+/// frame of an image (the bytes of its file, decoded by the worker). A value: the scheduler
+/// copies it to its render job in the GUI thread, the workers only read it (the document is
+/// immutable and shared, the bytes are implicitly shared and only read).
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppThumbnailSource
+{
+public:
+    PDFDocumentPointer document;    ///< Document of the page (a PDF source)
+    QByteArray imageData;           ///< Bytes of an image file (an image source, \p document is null)
+    int pageIndex = -1;             ///< Page of the document, frame of the image (from 0)
+
+    bool isValid() const { return pageIndex >= 0 && (!document.isNull() || !imageData.isEmpty()); }
+};
 
 /// Pages of the thumbnails (one row per page). The picture of a page (PixmapRole)
 /// is asked only for the painted rows (as the Editor, newapp/step3_large_documents.md):
@@ -86,15 +101,30 @@ public:
     /// and the device pixel ratio of the view
     void setPictureSize(const QSize& size, qreal devicePixelRatio);
     QSize getPictureSize() const { return m_pictureSize; }
+    qreal getDevicePixelRatio() const { return m_devicePixelRatio; }
 
     /// All pictures are drawn again (the drawing or the document has changed)
     void invalidateAll();
 
+    /// Generation of the pictures, unique in the process (a new one at each invalidateAll):
+    /// a subclass puts it into its own keys
+    quint64 getGeneration() const;
+
     /// The pictures of the pages are drawn again (a page has been compiled again)
     void invalidatePages(const std::vector<PDFInteger>& pages);
 
-    /// Key of the picture of the page in QPixmapCache
-    QString getKey(int pageIndex) const;
+    /// Key of the picture of the row in QPixmapCache (a model of another source of the
+    /// rows - the pages of more documents of a tool - gives its own key)
+    virtual QString getKey(int pageIndex) const;
+
+    /// The model has rows, whose pictures can be drawn (the default: it has a document)
+    virtual bool hasPictureSources() const;
+
+    /// Source of the picture of the row (the default: the page of the row of the document).
+    /// The pictures of the document of the model show the states of the layers of its tab
+    /// (PDFAppThumbnailScheduler::setAppDocument), the pictures of other documents their
+    /// default states.
+    virtual PDFAppThumbnailSource getPictureSource(int row) const;
 
     /// The picture of the page is ready (in QPixmapCache)
     bool hasPicture(int pageIndex) const;
@@ -130,7 +160,8 @@ private:
 /// rendered in parallel in the thread pool (PDFExecutionPolicy::startTask, at most
 /// getRenderThreadCount() pages at once), each worker with its own PDFAppPageRenderContext
 /// - its own compilation, never a compiled page of the canvas, so no QPainterPath is used by
-/// two threads. The pictures have what the view shows: the features (color mode,
+/// two threads (a worker keeps a context per document of its rows, a row of an image is
+/// decoded from the bytes of its file, PDFAppThumbnailSource). The pictures have what the view shows: the features (color mode,
 /// annotations), the color management and the states of the layers, taken as values in the
 /// GUI thread when a render job starts.
 ///

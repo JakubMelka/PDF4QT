@@ -492,6 +492,11 @@ std::vector<PDFDocumentToolParameterError> PDFDocumentTool::checkGivenParameters
     return { };
 }
 
+QVariantMap PDFDocumentTool::completeGivenParameters(const QVariantMap& given) const
+{
+    return given;
+}
+
 QVariantMap PDFDocumentTool::mapParameters(const QVariantMap& parameters, const PDFDocument* from, const PDFDocument* to) const
 {
     Q_UNUSED(from);
@@ -512,7 +517,7 @@ PDFDocumentToolResult PDFDocumentTool::prepare(const PDFDocumentToolContext& con
         return PDFDocumentToolResult::createFailed(PDFDocumentToolHelper::tr("The parameters of the tool are not valid."));
     }
 
-    std::vector<PDFDocumentToolParameterError> errors = PDFDocumentToolParameters::normalize(definitions, parameters, normalizedParameters);
+    std::vector<PDFDocumentToolParameterError> errors = PDFDocumentToolParameters::normalize(definitions, completeGivenParameters(parameters), normalizedParameters);
     if (errors.empty())
     {
         errors = validate(context, *normalizedParameters);

@@ -110,6 +110,12 @@ public:
     /// "1.3 kB" (QLocale::formattedDataSize in the locale of the user interface)
     static QString formatDataSize(qint64 bytes, int precision, QLocale::DataSizeFormats format);
 
+    /// A part of a size in the unit of the whole, the unit once at the end: "24.1 of
+    /// 48.2 MB" (1390:34131). The whole is formatDataSize(total, precision, format), the
+    /// part (bounded to 0 … total) has the same unit and precision. A locale, which
+    /// writes the unit before the number, gets both sizes whole ("MB 24.1 of MB 48.2").
+    static QString formatDataSizeOfTotal(qint64 part, qint64 total, int precision, QLocale::DataSizeFormats format);
+
     /// Place of a time of recent activity in a text (formatRecentTime)
     enum class RecentTimeUse
     {

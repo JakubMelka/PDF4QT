@@ -674,6 +674,14 @@ public:
     const QString& getLinkText() const { return m_linkText; }
     void setLinkText(const QString& linkText);
 
+    /// Keyboard shortcut of an item of a menu, drawn at the trailing side as in the
+    /// menus (Regular 11 text/muted, 378:2505); an empty text hides it. Only a text:
+    /// the action of the shortcut belongs to the application, which gives the native
+    /// text of its key sequence (QKeySequence::toString(QKeySequence::NativeText)).
+    /// The accessible description names it.
+    const QString& getShortcutText() const { return m_row.shortcutText; }
+    void setShortcutText(const QString& shortcutText);
+
     /// The check box at the leading side (signal checkBoxToggled); \p setCheckBoxChecked
     /// and \p setCheckBoxEnabled do nothing, until \p setCheckBoxVisible has created it
     bool isCheckBoxVisible() const;

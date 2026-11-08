@@ -131,6 +131,10 @@ public:
     /// Identifiers of the info bars of the controller
     static QString getCalculatedFieldsBarId() { return QStringLiteral("form-calculated-fields"); }
     static QString getXFABarId() { return QStringLiteral("form-xfa"); }
+    static QString getRestrictedBarId() { return QStringLiteral("form-restricted"); }
+
+    /// Action of the bar of a restricted form: the owner password dialog
+    static QString getUnlockActionId() { return QStringLiteral("unlock"); }
 
 protected:
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
@@ -157,6 +161,7 @@ private:
     bool m_isInfoBarUpdateNeeded = true;
     bool m_isCalculatedBarDismissed = false;
     bool m_isXFABarDismissed = false;
+    bool m_isRestrictedBarDismissed = false;
     bool m_isUpdatingPendingEdits = false;
 };
 

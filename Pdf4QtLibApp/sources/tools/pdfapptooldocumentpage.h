@@ -90,6 +90,10 @@ private:
     /// Leaves the tool for the document (setRoute runs in a navigation: the navigator does
     /// the route, which this asks for, after it)
     void leaveToDocument(const QString& message);
+
+    /// A tool with its own tab: the new tab of the tool gets the document as its input,
+    /// this tab goes back to the document
+    void openOwnTab();
     void onCloseRequested(const pdf::PDFAppToolCloseRequest& request);
 
     QString m_toolId;

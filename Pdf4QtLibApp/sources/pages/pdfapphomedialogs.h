@@ -69,6 +69,13 @@ public:
     /// else at the trailing edge in the order of the calls. \p isPrimary is the
     /// default button (Enter). The button does not close the dialog by itself.
     QPushButton* addActionButton(const QString& text, bool isPrimary, bool isLeading);
+
+    /// Label of a field of a form of a card dialog (Semi Bold 13 text/primary)
+    static PDFLabel* createFieldLabel(const QString& text, QWidget* parent);
+
+    /// Error row of a field (hidden): the icon alert-circle 14 and the text Regular 12
+    /// text/danger, gap 6; \p text gets the label of the text
+    static QWidget* createErrorRow(QWidget* parent, PDFAppParagraph** text);
 };
 
 /// Dialog of a name (Rename workspace 955:150171, also a pinned location): the

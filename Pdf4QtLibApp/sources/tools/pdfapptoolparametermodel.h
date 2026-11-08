@@ -123,6 +123,11 @@ public:
     /// Errors of the current values (required parameters without a value)
     std::vector<PDFDocumentToolParameterError> getErrors() const;
 
+    /// Values of the parameter in the current values and in every step of Undo and Redo (a
+    /// value of the history refers to data, which must live while the step does: the parked
+    /// inputs of Merge); an invalid value of a step without the parameter is left out
+    std::vector<QVariant> getHistoryValues(const QString& name) const;
+
     virtual bool canUndo() const override { return !m_undoStack.empty(); }
     virtual bool canRedo() const override { return !m_redoStack.empty(); }
     virtual void undo() override;

@@ -48,7 +48,8 @@ enum class PDFAppMcpConfirmationKind
     Save,           ///< Save over the own file 940:134248
     SaveCopy,       ///< Save a copy 958:27539
     Open,           ///< Open a file 940:136305
-    Close           ///< Close a tab (no frame in Figma)
+    Close,          ///< Close a tab (no frame in Figma)
+    NewTab          ///< The new document of a tool opens unsaved in a new tab (Merge, Blank PDF; no frame in Figma, built as Save a copy 958:27539)
 };
 
 /// How a confirmation ended (plan 2.5; the activity status follows it)

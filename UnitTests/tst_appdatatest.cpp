@@ -772,8 +772,10 @@ void AppDataTest::catalogTools()
     QCOMPARE(noDocument, 3);
 
     // newapp_navigation.md 3: Merge, Interleave Pages, Manage Pages, Compare,
-    // Manage Certificates, Images to PDF
-    QCOMPARE(ownTabs, 6);
+    // Manage Certificates, Images to PDF, and Blank PDF in its tab "New document"
+    // (Figma 337:1976, K1 of the plan of step 2 of phase 2)
+    QCOMPARE(ownTabs, 7);
+    QVERIFY(pdf::PDFDocumentToolCatalog::findTool(QStringLiteral("convert.blank"))->hasOwnTab());
     for (const char* id : { "pages.merge", "pages.interleave", "pages.manage", "review.compare", "protect.certificates", "convert.images-to-pdf" })
     {
         QVERIFY(pdf::PDFDocumentToolCatalog::findTool(QString::fromLatin1(id))->hasOwnTab());

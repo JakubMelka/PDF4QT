@@ -249,6 +249,7 @@ PDFDocumentToolContext PDFDocumentToolRunner::createContext(const PDFAppDocument
     }
 
     context.documents.insert(context.documents.end(), environment.additionalDocuments.cbegin(), environment.additionalDocuments.cend());
+    context.images = environment.images;
     context.selectedPages = environment.selectedPages;
     context.currentPage = environment.currentPage;
     context.cms = environment.cms;
@@ -265,7 +266,31 @@ void PDFDocumentToolRunner::setEnvironment(const PDFAppToolRunEnvironment& envir
 
 PDFAppDocumentSnapshot PDFDocumentToolRunner::createSnapshot() const
 {
-    return m_document ? m_document->getSnapshot() : PDFAppDocumentSnapshot();
+    if (m_document)
+    {
+        return m_document->getSnapshot();
+    }
+
+    // A tool without a document (K33): the generation of its inputs is the version of the
+    // key of the cache, so the content of an input changed under the same id never takes an
+    // old preview
+    PDFAppDocumentSnapshot snapshot;
+    snapshot.version = m_hasDocument ? 0 : m_inputGeneration;
+    return snapshot;
+}
+
+void PDFDocumentToolRunner::setInputGeneration(quint64 generation)
+{
+    if (m_inputGeneration == generation)
+    {
+        return;
+    }
+
+    m_inputGeneration = generation;
+    if (!m_hasDocument)
+    {
+        dropPreviews();
+    }
 }
 
 std::shared_ptr<PDFDocumentToolRunnerJob> PDFDocumentToolRunner::startJob(const PDFAppDocumentSnapshot& snapshot, const QVariantMap& parameters, bool isPreview)
@@ -829,6 +854,11 @@ const PDFDocumentToolRunner::CachedPreview* PDFDocumentToolRunner::findCached(qu
 
 void PDFDocumentToolRunner::onDocumentChanged()
 {
+    dropPreviews();
+}
+
+void PDFDocumentToolRunner::dropPreviews()
+{
     // A new version: nothing of the previews is valid (F2 of the plan)
     const bool hadPreview = !m_previewCache.empty() || m_previewJob != nullptr;
     m_previewCache.clear();
@@ -845,7 +875,9 @@ void PDFDocumentToolRunner::onDocumentChanged()
         }
     }
 
-    if (m_isPreviewRequested && m_tool->hasPreview() && m_state == State::Idle && m_document && m_document->isReady())
+    // A tool without a document computes again for the new generation of its inputs
+    const bool isInputReady = m_document ? m_document->isReady() : !m_hasDocument;
+    if (m_isPreviewRequested && m_tool->hasPreview() && m_state == State::Idle && isInputReady)
     {
         m_previewTimer.start();
     }

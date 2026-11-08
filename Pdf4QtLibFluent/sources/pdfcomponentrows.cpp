@@ -1395,6 +1395,16 @@ void PDFTileRow::setLinkText(const QString& linkText)
     invalidateHeight();
 }
 
+void PDFTileRow::setShortcutText(const QString& shortcutText)
+{
+    if (m_row.shortcutText != shortcutText)
+    {
+        m_row.shortcutText = shortcutText;
+        invalidateHeight();
+        announceDescription();
+    }
+}
+
 bool PDFTileRow::isCheckBoxVisible() const
 {
     return isNestedShown(m_checkBox.data());
@@ -1518,7 +1528,7 @@ int PDFTileRow::computeHeightForWidth(int width) const
 
 QString PDFTileRow::getDefaultAccessibleDescription() const
 {
-    const QString description = joinTexts({ m_row.description, m_row.tag }, getListPattern());
+    const QString description = joinTexts({ m_row.description, m_row.tag, m_row.shortcutText }, getListPattern());
     return description.isEmpty() ? BaseClass::getDefaultAccessibleDescription() : description;
 }
 

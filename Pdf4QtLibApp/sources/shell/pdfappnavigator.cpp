@@ -26,7 +26,9 @@
 #include "pdfappmainwindow.h"
 #include "pdfapppageregistry.h"
 #include "pdfapppagenotfound.h"
+#include "pdfappdocumenttab.h"
 #include "pdfapptab.h"
+#include "pdfapptooltab.h"
 
 #include <QAccessible>
 #include <QDesktopServices>
@@ -178,13 +180,26 @@ PDFAppTab* PDFAppNavigator::chooseTab(const PDFAppRouteMatch& match, PDFAppNavig
     const PDFAppRouteEntry* entry = match.entry;
     const bool isNewTabRoute = entry && entry->isNewTabRoute && match.result != PDFAppRouteMatch::Result::InvalidParameter;
 
-    // Document and tool tabs: the tab of the id (step 3, phase 2)
-    if (entry && (entry->tabKind == PDFAppTabKind::Document || entry->tabKind == PDFAppTabKind::Tool) &&
-        match.result != PDFAppRouteMatch::Result::InvalidParameter)
+    // Document tabs: the tab of the id (step 3)
+    if (entry && entry->tabKind == PDFAppTabKind::Document && match.result != PDFAppRouteMatch::Result::InvalidParameter)
     {
-        const QString id = entry->tabKind == PDFAppTabKind::Document ? match.getParameter(QStringLiteral("documentId"))
-                                                                     : match.getParameter(QStringLiteral("instanceId"));
-        if (PDFAppTab* tab = m_window->findDocumentTab(id))
+        if (PDFAppTab* tab = m_window->findDocumentTab(match.getParameter(QStringLiteral("documentId"))))
+        {
+            return tab;
+        }
+    }
+
+    // The own tab of a tool (plan of step 2 of phase 2, 4.1): the tab of the instance; a route
+    // without its tab (the history, a link) opens a new tab of that instance with an empty
+    // list of inputs (378:1657). A tool without its own tab ends on Page Not Found.
+    if (entry && entry->tabKind == PDFAppTabKind::Tool && match.isFound())
+    {
+        const QString instanceId = match.getParameter(QStringLiteral("instanceId"));
+        if (PDFAppTab* tab = m_window->findToolTab(instanceId))
+        {
+            return tab;
+        }
+        if (PDFAppTab* tab = m_window->addToolTab(match.getParameter(QStringLiteral("toolId")), instanceId, nullptr))
         {
             return tab;
         }
@@ -246,6 +261,20 @@ void PDFAppNavigator::navigateImpl(const PDFAppRoute& route, PDFAppNavigationMod
 
     PDFAppRoute target = route;
     const PDFAppRouteMatch match = resolve(&target);
+
+    // A tool with its own tab asked for over a document (the panel Tools, Then continue with,
+    // a link): a new tab of the tool with the document as its first input; the route leaves
+    // no entry in the history of the document tab (plan of step 2 of phase 2, 4.1)
+    if (match.isFound() && match.entry && match.entry->tabKind == PDFAppTabKind::Document && match.entry->subject == PDFAppRouteSubject::Tool)
+    {
+        const QString toolId = match.getParameter(QStringLiteral("toolId"));
+        PDFAppDocumentTab* documentTab = qobject_cast<PDFAppDocumentTab*>(m_window->findDocumentTab(match.getParameter(QStringLiteral("documentId"))));
+        if (documentTab && PDFAppToolTabPageFactory::hasOwnTabPage(toolId))
+        {
+            m_window->createToolTabForDocument(toolId, documentTab);
+            return;
+        }
+    }
 
     QPointer<PDFAppTab> tab = chooseTab(match, mode, sourceTab);
     if (!tab)

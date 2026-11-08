@@ -1121,7 +1121,9 @@ void AppHomeTest::homeLinks()
 
     const Link links[] = {
         { [](pdf::PDFAppHomePage* page) { return page->getQuickActionTiles().front(); }, QStringLiteral("/open"), QStringLiteral("pdf::PDFAppOpenPage") },
-        { [](pdf::PDFAppHomePage* page) { return page->getQuickActionTiles()[5]; }, QStringLiteral("/tools/pages.merge"), QStringLiteral("pdf::PDFPageNotFoundPage") },
+        // Merge has its start page since step 2 of phase 2 (plan 4.1: catalog and search open
+        // /tools/pages.merge, the start page); Sign with Certificate below has no page yet
+        { [](pdf::PDFAppHomePage* page) { return page->getQuickActionTiles()[5]; }, QStringLiteral("/tools/pages.merge"), QStringLiteral("pdf::PDFToolStartPage") },
         { [](pdf::PDFAppHomePage* page) { return page->getQuickActionTiles().back(); }, QStringLiteral("/tools"), QString() },
         { [](pdf::PDFAppHomePage* page) { return page->getResourceCards()[0]; }, QStringLiteral("/support"), QStringLiteral("pdf::PDFAppSupportPage") },
         { [](pdf::PDFAppHomePage* page) { return page->getSupportRows()[2]; }, QStringLiteral("/sponsor"), QStringLiteral("pdf::PDFAppSponsorPage") },

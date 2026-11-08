@@ -215,6 +215,9 @@ void PDFAppMcpWaitingBanner::updateTexts()
         case PDFAppMcpConfirmationKind::Close:
             request = tr("%1 asks to close %2.").arg(m_clientName, m_documentTitle);
             break;
+        case PDFAppMcpConfirmationKind::NewTab:
+            request = tr("%1 asks to open a new document.").arg(m_clientName);
+            break;
     }
 
     if (m_titleLabel)

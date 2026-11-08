@@ -25,6 +25,7 @@
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentproperties.h"
+#include "pdfappdocumentpermissions.h"
 #include "pdfappdocumentstatusbar.h"
 #include "pdfappdocumenttab.h"
 #include "pdfapppagelayout.h"
@@ -614,6 +615,13 @@ QString PDFAppDocumentPropertiesPage::getCopyText() const
     return PDFAppDocumentPropertiesData::createCopyText(tr("Document properties – %1").arg(m_document->getTitle()), groups);
 }
 
+void PDFAppDocumentPropertiesPage::onUnlockClicked()
+{
+    // The owner password dialog of the shared check; the section is built again by the
+    // change of the document after the unlock
+    PDFAppDocumentPermissions::request(m_document.data(), PDFAppPermissionRequest::create(PDFAppPermissionAction::Unlock), this);
+}
+
 void PDFAppDocumentPropertiesPage::onCopyAllClicked()
 {
     QApplication::clipboard()->setText(getCopyText());
@@ -946,8 +954,12 @@ QWidget* PDFAppDocumentPropertiesPage::buildSecurity(QWidget* parent)
     {
         left->addWidget(createGroup(PDFAppDocumentPropertiesData::createEncryptionGroup(document), columns->getColumn(0)));
 
-        // note 236:9160: accent/blue card with the lock (restrictions of the user password)
-        const QString noteText = PDFAppDocumentPropertiesData::getSecurityNote(document);
+        // note 236:9160: accent/blue card with the lock (restrictions of the user password);
+        // the unlock by the owner password for this session (owner 2026-11-08, no frame -
+        // Q17: a button of the note) and its state after the unlock
+        const bool isOwnerUnlocked = m_document && m_document->isOwnerUnlocked();
+        const QString noteText = isOwnerUnlocked ? tr("You unlocked the document with its owner password: its restrictions are lifted until it is closed. A saved file keeps them.")
+                                                 : PDFAppDocumentPropertiesData::getSecurityNote(document);
         if (!noteText.isEmpty())
         {
             PDFTintedCard* note = new PDFTintedCard(PDFAccentHue::Blue, columns->getColumn(0));
@@ -958,8 +970,24 @@ QWidget* PDFAppDocumentPropertiesPage::buildSecurity(QWidget* parent)
             PDFIconBadge* icon = new PDFIconBadge(QStringLiteral("lock"), 16, 16, note);
             icon->setColors(std::nullopt, PDFThemeColors::AccentBlueIcon);
             PDFAppParagraph* text = PDFAppPageWidgets::createText(noteText, PDFThemeFonts::getFont(PDFThemeFonts::Role::Small), 15, PDFThemeColors::TextSecondary, note);
+            text->setObjectName(QStringLiteral("securityNoteText"));
             noteLayout->addWidget(icon, 0, Qt::AlignTop);
-            noteLayout->addWidget(text, 1);
+            if (PDFAppDocumentPermissions::canUnlock(document))
+            {
+                QVBoxLayout* textLayout = new QVBoxLayout();
+                textLayout->setContentsMargins(0, 0, 0, 0);
+                textLayout->setSpacing(10);
+                textLayout->addWidget(text);
+                QPushButton* unlockButton = PDFAppPageWidgets::createButton(tr("Unlock with Owner Password…"), QStringLiteral("key"), false, note);
+                unlockButton->setObjectName(QStringLiteral("unlockOwnerPassword"));
+                connect(unlockButton, &QPushButton::clicked, this, &PDFAppDocumentPropertiesPage::onUnlockClicked);
+                textLayout->addWidget(unlockButton, 0, Qt::AlignLeading);
+                noteLayout->addLayout(textLayout, 1);
+            }
+            else
+            {
+                noteLayout->addWidget(text, 1);
+            }
             left->addWidget(note);
         }
 

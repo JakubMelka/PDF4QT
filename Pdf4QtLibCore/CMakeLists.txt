@@ -49,6 +49,8 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfdocumentbuilder.h
     sources/pdfdocumentmanipulator.cpp
     sources/pdfdocumentmanipulator.h
+    sources/pdfdocumentmerger.cpp
+    sources/pdfdocumentmerger.h
     sources/pdfdocumentsigner.cpp
     sources/pdfdocumentsigner.h
     sources/pdfpagegeometry.cpp
@@ -69,6 +71,8 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfdocumenttool_compress.h
     sources/pdfdocumenttool_extracttext.cpp
     sources/pdfdocumenttool_extracttext.h
+    sources/pdfdocumenttool_merge.cpp
+    sources/pdfdocumenttool_merge.h
     sources/pdfdocumenttool_pages.cpp
     sources/pdfdocumenttool_pages.h
     sources/pdfdocumenttool_protect.cpp
@@ -199,6 +203,8 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfimagecompressor.h
     sources/pdfimageoptimizer.cpp
     sources/pdfimageoptimizer.h
+    sources/pdfimagepagefactory.cpp
+    sources/pdfimagepagefactory.h
     sources/pdfimage.cpp
     sources/pdfimage.h
     sources/pdfdocumentsanitizer.h

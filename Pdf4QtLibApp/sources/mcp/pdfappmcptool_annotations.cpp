@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappmcptool_annotations.h"
+#include "pdfappdocumentpermissions.h"
 #include "pdfappmcparguments.h"
 #include "pdfappmcpchange.h"
 #include "pdfappmcphost.h"
@@ -964,13 +965,13 @@ void PDFAppMcpAnnotationsTool::handle(const PDFAppMcpToolInvocation& invocation)
         return;
     }
 
-    // Restricted permissions of the document (O8): no annotations
+    // Restricted permissions of the document (O8): no annotations - the shared check; the
+    // user may unlock the document by its owner password in PDF4QT, never the assistant
     const PDFDocument* pdfDocument = document->getDocument().data();
-    const PDFSecurityHandler* securityHandler = pdfDocument ? pdfDocument->getStorage().getSecurityHandler() : nullptr;
-    if (securityHandler && !securityHandler->isAllowed(PDFSecurityHandler::Permission::ModifyInteractiveItems))
+    const PDFAppPermissionRequest permissionRequest = PDFAppPermissionRequest::create(PDFAppPermissionAction::Annotate);
+    if (pdfDocument && !PDFAppDocumentPermissions::isAllowed(pdfDocument, permissionRequest))
     {
-        host->finishWithError(call, actionId, document, QStringLiteral("The document does not allow changes of annotations (its security settings). Ask the user to use Edit a Copy, if the user may change it."),
-                              PDFMcpActivityStatus::Failed);
+        host->finishWithError(call, actionId, document, PDFAppDocumentPermissions::getMcpRefusalText(pdfDocument, permissionRequest), PDFMcpActivityStatus::Failed);
         return;
     }
 

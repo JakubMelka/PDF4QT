@@ -439,7 +439,7 @@ void AppToolsPanelTest::panelPinnedAndRecent()
     pdftest::AppToolsFixture fixture;
 
     // Eight pins: the first six in the order of the pins
-    const QStringList pins = { QStringLiteral("review.compare"), QStringLiteral("pages.split"), QStringLiteral("protect.sign"), QStringLiteral("pages.merge"),
+    const QStringList pins = { QStringLiteral("review.compare"), QStringLiteral("pages.merge"), QStringLiteral("protect.sign"), QStringLiteral("pages.split"),
                                QStringLiteral("optimize.images"), QStringLiteral("convert.ocr"), QStringLiteral("edit.content"), QStringLiteral("review.measure") };
     QVERIFY(H::pin(fixture, pins));
 
@@ -462,14 +462,14 @@ void AppToolsPanelTest::panelPinnedAndRecent()
 
     // A shortcut opens the tool on the document: Page Not Found of the tool in the
     // tab of the document until phase 2 registers its page
-    QCOMPARE(panel->getToolRoute(QStringLiteral("pages.merge")).toString(), H::documentToolRoute(tab, QStringLiteral("pages.merge")));
+    QCOMPARE(panel->getToolRoute(QStringLiteral("pages.split")).toString(), H::documentToolRoute(tab, QStringLiteral("pages.split")));
     panel->getPinnedShortcuts().at(3)->click();
     QVERIFY(!panel->isVisible());
     pdftest::AppDocumentFixture::settle();
     QCOMPARE(fixture.currentTab(), static_cast<pdf::PDFAppTab*>(tab));
-    QCOMPARE(fixture.currentRoute(), H::documentToolRoute(tab, QStringLiteral("pages.merge")));
+    QCOMPARE(fixture.currentRoute(), H::documentToolRoute(tab, QStringLiteral("pages.split")));
     QVERIFY(fixture.notFoundPage());
-    QCOMPARE(fixture.notFoundPage()->getDescriptionText(), QString::fromUtf8("Tool “Merge”"));
+    QCOMPARE(fixture.notFoundPage()->getDescriptionText(), QString::fromUtf8("Tool “Split”"));
     QVERIFY(!H::toolbar(tab)->getToolsButton()->isChecked());
 
     // A recent row with a registered page of the tool: the page in the tab of the document
@@ -544,10 +544,10 @@ void AppToolsPanelTest::panelSearchToolsAndCommands()
     const int sectionsHeight = H::panelRect(panel).height();
 
     // A tool: the results replace the sections, the first result is current
-    QTest::keyClicks(panel->getSearchField(), QStringLiteral("merge"));
+    QTest::keyClicks(panel->getSearchField(), QStringLiteral("split"));
     QVERIFY(panel->isSearching());
     QVERIFY(!panel->getResultRows().empty());
-    QCOMPARE(panel->getResultRows().front()->getResult().key, QStringLiteral("pages.merge"));
+    QCOMPARE(panel->getResultRows().front()->getResult().key, QStringLiteral("pages.split"));
     QVERIFY(panel->getResultRows().front()->isCurrent());
     QVERIFY(panel->getResultRows().size() <= size_t(2 * pdf::PDFAppDocumentToolsPanel::MAXIMUM_GROUP_RESULTS));
     QVERIFY(!panel->getPinnedShortcuts().front()->isVisible());
@@ -560,7 +560,7 @@ void AppToolsPanelTest::panelSearchToolsAndCommands()
     QTest::keyClick(panel->getSearchField(), Qt::Key_Return);
     QVERIFY(!panel->isVisible());
     pdftest::AppDocumentFixture::settle();
-    QCOMPARE(fixture.currentRoute(), H::documentToolRoute(tab, QStringLiteral("pages.merge")));
+    QCOMPARE(fixture.currentRoute(), H::documentToolRoute(tab, QStringLiteral("pages.split")));
     H::back(fixture, tab);
 
     // The panel opens with an empty search
@@ -613,7 +613,7 @@ void AppToolsPanelTest::panelSearchToolsAndCommands()
     H::screenshot(panel, QStringLiteral("tools-panel-no-results"));
 
     // All tools takes the text to the catalog
-    panel->getSearchField()->setText(QStringLiteral("merge"));
+    panel->getSearchField()->setText(QStringLiteral("split"));
 
     // Esc clears the text first, then it closes the panel
     QTest::keyClick(panel->getSearchField(), Qt::Key_Escape);
@@ -628,11 +628,11 @@ void AppToolsPanelTest::panelSearchToolsAndCommands()
     pdftest::AppDocumentFixture::settle();
 
     panel = H::open(tab);
-    panel->getSearchField()->setText(QStringLiteral("merge"));
+    panel->getSearchField()->setText(QStringLiteral("split"));
     panel->getAllToolsRow()->click();
     pdftest::AppDocumentFixture::settle();
     QCOMPARE(fixture.currentTab(), static_cast<pdf::PDFAppTab*>(fixture.window->getHomeTab()));
-    QCOMPARE(fixture.currentRoute(), QStringLiteral("/tools?q=merge"));
+    QCOMPARE(fixture.currentRoute(), QStringLiteral("/tools?q=split"));
 }
 
 void AppToolsPanelTest::panelSearchHostileTexts()
@@ -1191,32 +1191,32 @@ void AppToolsPanelTest::globalSearchToolRoute()
     pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
     QVERIFY(tab);
 
-    fixture.navigate(QStringLiteral("/search?q=merge"));
+    fixture.navigate(QStringLiteral("/search?q=split"));
     pdf::PDFAppSearchPage* searchPage = fixture.page<pdf::PDFAppSearchPage>();
     QVERIFY(searchPage);
-    const pdf::PDFAppSearchResult* result = searchPage->getResults().findResult(pdf::PDFAppSearchGroup::Tools, QStringLiteral("pages.merge"));
+    const pdf::PDFAppSearchResult* result = searchPage->getResults().findResult(pdf::PDFAppSearchGroup::Tools, QStringLiteral("pages.split"));
     QVERIFY(result);
-    QCOMPARE(result->route.toString(), QStringLiteral("/tools/pages.merge"));
+    QCOMPARE(result->route.toString(), QStringLiteral("/tools/pages.split"));
     const pdf::PDFAppSearchResult resultCopy = *result;
     searchPage->activateResult(resultCopy);
     pdftest::AppDocumentFixture::settle();
-    QCOMPARE(fixture.currentRoute(), QStringLiteral("/tools/pages.merge"));
+    QCOMPARE(fixture.currentRoute(), QStringLiteral("/tools/pages.split"));
     QVERIFY(fixture.notFoundPage());
-    QCOMPARE(fixture.notFoundPage()->getDescriptionText(), QString::fromUtf8("Tool “Merge”"));
+    QCOMPARE(fixture.notFoundPage()->getDescriptionText(), QString::fromUtf8("Tool “Split”"));
 
     // The same tool from the panel: on the document
     fixture.window->activateTab(tab);
     pdftest::AppDocumentFixture::settle();
     pdf::PDFAppDocumentToolsPanel* panel = H::open(tab);
     QVERIFY(panel);
-    panel->getSearchField()->setText(QStringLiteral("merge"));
-    pdf::PDFAppSearchResultRow* row = panel->findChild<pdf::PDFAppSearchResultRow*>(QStringLiteral("result:pages.merge"));
+    panel->getSearchField()->setText(QStringLiteral("split"));
+    pdf::PDFAppSearchResultRow* row = panel->findChild<pdf::PDFAppSearchResultRow*>(QStringLiteral("result:pages.split"));
     QVERIFY(row);
-    QCOMPARE(row->getResult().route.toString(), QStringLiteral("/tools/pages.merge"));
+    QCOMPARE(row->getResult().route.toString(), QStringLiteral("/tools/pages.split"));
     row->click();
     pdftest::AppDocumentFixture::settle();
     QCOMPARE(fixture.currentTab(), static_cast<pdf::PDFAppTab*>(tab));
-    QCOMPARE(fixture.currentRoute(), H::documentToolRoute(tab, QStringLiteral("pages.merge")));
+    QCOMPARE(fixture.currentRoute(), H::documentToolRoute(tab, QStringLiteral("pages.split")));
 }
 
 void AppToolsPanelTest::hostileStoredRows()

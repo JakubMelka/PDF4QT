@@ -153,9 +153,11 @@ PDFAppPage* PDFAppToolRoutePageFactory::createPageForRoute(PDFAppContext* contex
 
 bool PDFAppToolRoutePageFactory::isSamePage(const PDFAppRoute& pageRoute, const PDFAppRoute& route) const
 {
-    // Both segments of the document kind: the tool and the document of the tab
+    // Both segments of the document kind: the tool and the document of the tab; the own tab
+    // of a tool: the tool and its instance
     const QString toolId = getToolId(m_kind, pageRoute);
-    if (toolId.isEmpty() || toolId != getToolId(m_kind, route) || pageRoute.getSegments().mid(0, 2) != route.getSegments().mid(0, 2))
+    const qsizetype fixedSegments = m_kind == PDFAppToolPageKind::OwnTab ? 3 : 2;
+    if (toolId.isEmpty() || toolId != getToolId(m_kind, route) || pageRoute.getSegments().mid(0, fixedSegments) != route.getSegments().mid(0, fixedSegments))
     {
         return false;
     }
@@ -179,6 +181,8 @@ QString PDFAppToolRoutePageFactory::getToolId(PDFAppToolPageKind kind, const PDF
             return segments.size() == 2 && segments[0] == QLatin1String("tools") ? segments[1] : QString();
         case PDFAppToolPageKind::Document:
             return segments.size() == 4 && segments[0] == QLatin1String("document") && segments[2] == QLatin1String("tool") ? segments[3] : QString();
+        case PDFAppToolPageKind::OwnTab:
+            return segments.size() == 3 && segments[0] == QLatin1String("tool") ? segments[1] : QString();
     }
     return QString();
 }

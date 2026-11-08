@@ -49,6 +49,7 @@ class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolRunEnvironment
 {
 public:
     std::vector<PDFDocumentToolInputDocument> additionalDocuments;  ///< The other inputs of a tool of more documents (Merge)
+    std::vector<PDFDocumentToolInputImage> images;                  ///< The input images of a tool of more inputs (Merge, R16; PDFDocumentToolContext::images)
     std::vector<PDFInteger> selectedPages;                          ///< Pages selected in the thumbnails of the document
     PDFInteger currentPage = -1;                                    ///< Current page of the view
     PDFCMSPointer cms;                                              ///< Color management of the application, null = the default settings
@@ -139,6 +140,14 @@ public:
 
     /// Inputs of the following computations (selected pages, color management, ...)
     void setEnvironment(const PDFAppToolRunEnvironment& environment);
+
+    /// Generation of the inputs of a tool without a document (K33 of the plan of step 2 of
+    /// phase 2: PDFAppToolInputList::getGeneration): a part of the key of the cache of the
+    /// previews besides the version of the document, so the content of an input changed under
+    /// the same id (a password accepted, a reading finished) is never served by an old preview.
+    /// A new generation drops the shown preview and computes the requested one again.
+    void setInputGeneration(quint64 generation);
+    quint64 getInputGeneration() const { return m_inputGeneration; }
 
     /// Starts the computation of the tool on the current version. The parameters are
     /// normalized and validated by the tool. \returns false, when it cannot start
@@ -247,6 +256,7 @@ private:
     void onJobFinished(const std::shared_ptr<pdf::PDFDocumentToolRunnerJob>& job);
     void onPreviewTimeout();
     void onDocumentChanged();
+    void dropPreviews();
     void onDocumentStateChanged();
     void onDocumentAboutToBeDestroyed();
     void onOperationCancelRequested();
@@ -282,6 +292,7 @@ private:
     bool resumeDeferredPreview();
 
     QPointer<PDFAppDocument> m_document;
+    quint64 m_inputGeneration = 0;  ///< Generation of the inputs of a tool without a document (K33)
     bool m_hasDocument = false;     ///< Created with a document: a lost document is no tool without a document
     std::shared_ptr<const PDFDocumentTool> m_tool;
     std::shared_ptr<PDFDocumentToolRunnerLink> m_link;

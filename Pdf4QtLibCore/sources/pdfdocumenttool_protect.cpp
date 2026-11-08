@@ -289,13 +289,17 @@ QString PDFDocumentToolSanitize::getPermissionRefusal(const PDFDocument* documen
     {
         return QString();
     }
+    return tr("The permissions of the document do not allow changing its annotations and form fields: untick %1 to remove the other kinds.").arg(joinKindTitles(kinds));
+}
 
+QString PDFDocumentToolSanitize::joinKindTitles(const std::vector<Kind>& kinds)
+{
     QStringList titles;
     for (const Kind kind : kinds)
     {
         titles << getKindTitle(kind);
     }
-    return tr("The permissions of the document do not allow changing its annotations and form fields: untick %1 to remove the other kinds.").arg(titles.join(QStringLiteral(", ")));
+    return titles.join(QStringLiteral(", "));
 }
 
 QString PDFDocumentToolSanitize::getId() const

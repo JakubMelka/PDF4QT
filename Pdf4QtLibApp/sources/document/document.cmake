@@ -44,6 +44,13 @@ list(APPEND PDF4QT_LIBAPP_DOCUMENT_SOURCES
     sources/document/pdfappfloatingbar.h
 )
 
+# Phase 2, step 2, package O - the permissions of an encrypted document, one shared
+# check of every action and the unlock by the owner password
+list(APPEND PDF4QT_LIBAPP_DOCUMENT_SOURCES
+    sources/document/pdfappdocumentpermissions.cpp
+    sources/document/pdfappdocumentpermissions.h
+)
+
 # Package A - model, lifecycle, undo / redo, window integration
 include(${CMAKE_CURRENT_LIST_DIR}/model.cmake)
 

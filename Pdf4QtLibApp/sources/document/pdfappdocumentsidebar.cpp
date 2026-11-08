@@ -536,15 +536,28 @@ void PDFAppDocumentSidebar::onEverythingChanged()
 
 void PDFAppDocumentSidebar::showFirstAvailablePanel()
 {
+    // showPanel announces the panel: a slot may delete this sidebar (its tab, the window) -
+    // the ids are a copy, the sidebar is asked again after each try (the lifetime sweep of the
+    // own tab of a tool found the loop over the freed tabs, step 2 of phase 2)
+    QPointer<PDFAppDocumentSidebar> guard(this);
     const QString defaultPanel = getDefaultPanelId();
-    if (isPanelAvailable(defaultPanel) && showPanel(defaultPanel))
+    if ((isPanelAvailable(defaultPanel) && showPanel(defaultPanel)) || !guard)
     {
         return;
     }
 
+    QStringList panelIds;
     for (const TabInfo& tab : m_tabs)
     {
-        if (isPanelAvailable(tab.panelId) && showPanel(tab.panelId))
+        panelIds << tab.panelId;
+    }
+    for (const QString& panelId : panelIds)
+    {
+        if (!guard)
+        {
+            return;
+        }
+        if (isPanelAvailable(panelId) && showPanel(panelId))
         {
             return;
         }

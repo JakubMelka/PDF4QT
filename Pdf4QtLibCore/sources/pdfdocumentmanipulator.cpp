@@ -21,32 +21,39 @@
 // SOFTWARE.
 
 #include "pdfdocumentmanipulator.h"
-#include "pdfdocumentbuilder.h"
-#include "pdfoptimizer.h"
+#include "pdfdocumentmerger.h"
+#include "pdfimagepagefactory.h"
 #include "pdfdbgheap.h"
+
+#include <algorithm>
+#include <optional>
 
 namespace pdf
 {
 
-static QMarginsF mapCropMarginsToUnrotatedPage(QMarginsF cropMargins, PageRotation visualRotation)
+/// Helpers of the adapter of PageMaster
+class PDFDocumentManipulatorHelper
 {
-    switch (visualRotation)
+public:
+    PDFDocumentManipulatorHelper() = delete;
+
+    /// The side of a page in points within the limits of the merger (PageMaster allows any size)
+    static double getSide(double millimeters)
     {
-        case PageRotation::None:
-            return cropMargins;
-
-        case PageRotation::Rotate90:
-            return QMarginsF(cropMargins.top(), cropMargins.right(), cropMargins.bottom(), cropMargins.left());
-
-        case PageRotation::Rotate180:
-            return QMarginsF(cropMargins.right(), cropMargins.bottom(), cropMargins.left(), cropMargins.top());
-
-        case PageRotation::Rotate270:
-            return QMarginsF(cropMargins.bottom(), cropMargins.left(), cropMargins.top(), cropMargins.right());
+        return std::clamp(millimeters * PDF_MM_TO_POINT, PDFImagePageFactory::MINIMUM_SIDE, PDFImagePageFactory::MAXIMUM_SIDE);
     }
 
-    return cropMargins;
-}
+    static QSizeF getPageSize(QSizeF millimeters)
+    {
+        return QSizeF(getSide(millimeters.width()), getSide(millimeters.height()));
+    }
+
+    /// The documents of PageMaster outlive the call of assemble, the merger only reads them
+    static void keepDocument(PDFDocument*)
+    {
+
+    }
+};
 
 PDFOperationResult PDFDocumentManipulator::assemble(const AssembledPages& pages)
 {
@@ -55,83 +62,118 @@ PDFOperationResult PDFDocumentManipulator::assemble(const AssembledPages& pages)
         return tr("Empty page list.");
     }
 
-    m_flags = None;
-    m_mergedObjects = { };
     m_assembledDocument = PDFDocument();
 
-    try
+    std::vector<PDFDocumentMerger::Source> sources;
+    std::vector<PDFDocumentMerger::Item> items;
+    std::map<PDFInteger, size_t> documentSources;
+    std::map<PDFInteger, size_t> imageSources;
+    std::optional<size_t> blankSource;
+    items.reserve(pages.size());
+
+    for (const AssembledPage& page : pages)
     {
-        classify(pages);
-        const PDFDocument* singleDocument = nullptr;
-
-        pdf::PDFDocumentBuilder documentBuilder;
-        if (m_flags.testFlag(SingleDocument))
+        PDFDocumentMerger::Item item;
+        if (page.isDocumentPage())
         {
-            PDFInteger documentIndex = -1;
-
-            for (const AssembledPage& assembledPage : pages)
+            auto document = m_documents.find(page.documentIndex);
+            if (document == m_documents.cend() || !document->second)
             {
-                if (assembledPage.isDocumentPage())
-                {
-                    documentIndex = assembledPage.documentIndex;
-                }
+                return tr("Invalid document.");
+            }
+            if (page.pageIndex < 0 || page.pageIndex >= PDFInteger(document->second->getCatalog()->getPageCount()))
+            {
+                return tr("Missing page (%1) in a document.").arg(page.pageIndex);
             }
 
-            if (documentIndex == -1 || !m_documents.count(documentIndex))
+            auto source = documentSources.find(page.documentIndex);
+            if (source == documentSources.cend())
             {
-                throw PDFException(tr("Invalid document."));
+                PDFDocumentPointer pointer(const_cast<PDFDocument*>(document->second), &PDFDocumentManipulatorHelper::keepDocument);
+                source = documentSources.emplace(page.documentIndex, sources.size()).first;
+                sources.push_back(PDFDocumentMerger::Source::createDocument(pointer, QString()));
             }
 
-            singleDocument = m_documents.at(documentIndex);
-            documentBuilder.setDocument(singleDocument);
+            // PageMaster gives the rotation of the page, the merger its turn
+            const PageRotation current = document->second->getCatalog()->getPage(size_t(page.pageIndex))->getPageRotation();
+            item.source = source->second;
+            item.pageIndex = page.pageIndex;
+            item.turn = getPageRotationCombined(page.pageRotation, getPageRotationInversed(current));
+            item.cropMargins = QMarginsF(page.cropMarginsMM.left() * PDF_MM_TO_POINT, page.cropMarginsMM.top() * PDF_MM_TO_POINT,
+                                         page.cropMarginsMM.right() * PDF_MM_TO_POINT, page.cropMarginsMM.bottom() * PDF_MM_TO_POINT);
+        }
+        else if (page.isImagePage())
+        {
+            auto image = m_images.find(page.imageIndex);
+            if (image == m_images.cend() || image->second.isNull())
+            {
+                return tr("Missing image.");
+            }
+
+            auto source = imageSources.find(page.imageIndex);
+            if (source == imageSources.cend())
+            {
+                source = imageSources.emplace(page.imageIndex, sources.size()).first;
+                sources.push_back(PDFDocumentMerger::Source::createImage(image->second, 0.0, QString()));
+            }
+
+            item.source = source->second;
+            item.pageIndex = 0;
+            item.turn = page.pageRotation;
+            item.pageSize = PDFDocumentManipulatorHelper::getPageSize(page.pageSize);
+
+            // The crop of the image in the coordinates of its page before the crop
+            const QSizeF sourceSize = page.sourcePageSize.isEmpty() ? page.pageSize : page.sourcePageSize;
+            if (!sourceSize.isEmpty())
+            {
+                const QMarginsF& margins = page.cropMarginsMM;
+                QRectF clip(margins.left() / sourceSize.width(), margins.top() / sourceSize.height(),
+                            1.0 - (margins.left() + margins.right()) / sourceSize.width(), 1.0 - (margins.top() + margins.bottom()) / sourceSize.height());
+                clip = clip.intersected(QRectF(0.0, 0.0, 1.0, 1.0));
+                item.imageClip = (clip.isValid() && !clip.isEmpty()) ? clip : QRectF();
+            }
         }
         else
         {
-            documentBuilder.createDocument();
+            if (!blankSource)
+            {
+                blankSource = sources.size();
+                sources.push_back(PDFDocumentMerger::Source::createBlank());
+            }
+            item.source = *blankSource;
+            item.turn = page.pageRotation;
+            item.pageSize = PDFDocumentManipulatorHelper::getPageSize(page.pageSize);
         }
-
-        initializeMergedObjects(documentBuilder);
-
-        ProcessedPages processedPages = processPages(documentBuilder, pages);
-        std::vector<PDFObjectReference> adjustedPages;
-        std::transform(processedPages.cbegin(), processedPages.cend(), std::back_inserter(adjustedPages), [](const auto& page) { return page.targetPageReference; });
-        documentBuilder.setPages(adjustedPages);
-
-        // Correct page tree (invalid parents are present)
-        documentBuilder.flattenPageTree();
-        if (!m_flags.testFlag(SingleDocument))
-        {
-            documentBuilder.removeOutline();
-        }
-
-        if (!m_flags.testFlag(SingleDocument) || m_flags.testFlag(RemovedPages))
-        {
-            documentBuilder.removeThreads();
-            documentBuilder.removeDocumentActions();
-            documentBuilder.removeStructureTree();
-        }
-
-        // Jakub Melka: we also create document parts for each document part (if we aren't
-        // manipulating a single document).
-        if (!m_flags.testFlag(SingleDocument))
-        {
-            addOutlineAndDocumentParts(documentBuilder, pages, adjustedPages);
-        }
-        else if (m_flags.testFlag(RemovedPages) && singleDocument)
-        {
-            filterOutline(documentBuilder, singleDocument, adjustedPages);
-        }
-
-        pdf::PDFDocument mergedDocument = documentBuilder.build();
-
-        // Optimize document - remove unused objects and shrink object storage
-        finalizeDocument(&mergedDocument);
+        items.push_back(item);
     }
-    catch (const PDFException& exception)
+
+    PDFDocumentMerger::Settings settings;
+    settings.checkPermissions = true;
+    switch (m_outlineMode)
     {
-        return exception.getMessage();
+        case OutlineMode::NoOutline:
+            settings.outline = PDFDocumentMerger::OutlineMode::NoOutline;
+            break;
+        case OutlineMode::Join:
+            settings.outline = PDFDocumentMerger::OutlineMode::Join;
+            break;
+        case OutlineMode::DocumentParts:
+            settings.outline = PDFDocumentMerger::OutlineMode::DocumentParts;
+            break;
     }
 
+    PDFDocumentMerger::Result result = PDFDocumentMerger::merge(sources, items, settings, nullptr, nullptr);
+    if (!result.isSuccess)
+    {
+        return result.errorMessage.isEmpty() ? tr("Error occured during page creation.") : result.errorMessage;
+    }
+    if (!result.leftOut.empty())
+    {
+        // PageMaster has no partial result: an input, which cannot be copied, is an error
+        return result.leftOut.front().reason;
+    }
+
+    m_assembledDocument = std::move(result.document);
     return true;
 }
 
@@ -160,578 +202,6 @@ PDFDocumentManipulator::AssembledPages PDFDocumentManipulator::createAllDocument
     }
 
     return assembledPages;
-}
-
-PDFDocumentManipulator::ProcessedPages PDFDocumentManipulator::processPages(PDFDocumentBuilder& documentBuilder, const AssembledPages& pages)
-{
-    ProcessedPages processedPages;
-
-    // First, decide, if we are manipulating a single document, or
-    // an array of documents. If the former is the case, then we do not
-    // want to copy objects, it is just unnecessary. If the latter is the case,
-    // then we must
-
-    if (m_flags.testFlag(SingleDocument))
-    {
-        documentBuilder.flattenPageTree();
-        std::vector<PDFObjectReference> pageReferences = documentBuilder.getPages();
-        std::set<PDFObjectReference> usedPages;
-
-        processedPages.reserve(pageReferences.size());
-        for (const AssembledPage& assembledPage : pages)
-        {
-            ProcessedPage processedPage;
-            processedPage.assembledPage = assembledPage;
-
-            if (assembledPage.isDocumentPage())
-            {
-                const PDFInteger pageIndex = assembledPage.pageIndex;
-
-                if (pageIndex < 0 || pageIndex >= PDFInteger(pageReferences.size()))
-                {
-                    throw PDFException(tr("Missing page (%1) in a document.").arg(pageIndex));
-                }
-
-                PDFObjectReference pageReference = pageReferences[pageIndex];
-                if (!usedPages.count(pageReference))
-                {
-                    processedPage.targetPageReference = pageReference;
-                    usedPages.insert(pageReference);
-                }
-                else
-                {
-                    // Page is being cloned. So we must clone it...
-                    std::vector<pdf::PDFObjectReference> references = pdf::PDFDocumentBuilder::createReferencesFromObjects(documentBuilder.copyFrom(pdf::PDFDocumentBuilder::createObjectsFromReferences({ pageReference }), *documentBuilder.getStorage(), true));
-                    Q_ASSERT(references.size() == 1);
-                    processedPage.targetPageReference = references.front();
-                    usedPages.insert(references.front());
-                }
-            }
-
-            processedPages.push_back(processedPage);
-        }
-    }
-    else
-    {
-        processedPages = collectObjectsAndCopyPages(documentBuilder, pages);
-    }
-
-    // Now, create "special" pages, such as image pages or blank pages, and rotate
-    // final pages (we must check, that page object exists).
-    for (ProcessedPage& processedPage : processedPages)
-    {
-        if (processedPage.assembledPage.isBlankPage() || processedPage.assembledPage.isImagePage())
-        {
-            QImage image;
-
-            if (processedPage.assembledPage.isImagePage())
-            {
-                const PDFInteger imageIndex = processedPage.assembledPage.imageIndex;
-
-                if (!m_images.count(imageIndex))
-                {
-                    throw PDFException(tr("Missing image."));
-                }
-
-                image = m_images.at(imageIndex);
-
-                if (image.isNull())
-                {
-                    throw PDFException(tr("Missing image."));
-                }
-            }
-
-            QRectF pageRect = QRectF(QPointF(0, 0), processedPage.assembledPage.pageSize * PDF_MM_TO_POINT);
-            processedPage.targetPageReference = documentBuilder.appendPage(pageRect);
-            PDFPageContentStreamBuilder contentStreamBuilder(&documentBuilder);
-
-            QPainter* painter = contentStreamBuilder.begin(processedPage.targetPageReference);
-
-            if (processedPage.assembledPage.isImagePage())
-            {
-                QSizeF sourcePageSize = processedPage.assembledPage.sourcePageSize;
-                if (sourcePageSize.isEmpty())
-                {
-                    sourcePageSize = processedPage.assembledPage.pageSize;
-                }
-
-                const QMarginsF cropMargins = processedPage.assembledPage.cropMarginsMM;
-                QRectF sourceImageRect(QPointF(0.0, 0.0), QSizeF(image.size()));
-                if (!sourcePageSize.isEmpty())
-                {
-                    const double left = cropMargins.left() / sourcePageSize.width() * image.width();
-                    const double top = cropMargins.top() / sourcePageSize.height() * image.height();
-                    const double right = cropMargins.right() / sourcePageSize.width() * image.width();
-                    const double bottom = cropMargins.bottom() / sourcePageSize.height() * image.height();
-                    sourceImageRect.adjust(left, top, -right, -bottom);
-                    sourceImageRect = sourceImageRect.intersected(QRectF(QPointF(0.0, 0.0), QSizeF(image.size())));
-                }
-                if (!sourceImageRect.isValid())
-                {
-                    sourceImageRect = QRectF(QPointF(0.0, 0.0), QSizeF(image.size()));
-                }
-                painter->drawImage(pageRect, image, sourceImageRect);
-            }
-
-            contentStreamBuilder.end(painter);
-        }
-
-        if (!processedPage.targetPageReference.isValid())
-        {
-            throw PDFException(tr("Error occured during page creation."));
-        }
-
-        documentBuilder.setPageRotation(processedPage.targetPageReference, processedPage.assembledPage.pageRotation);
-        if (processedPage.assembledPage.isDocumentPage() &&
-            (processedPage.assembledPage.cropMarginsMM.left() > 0.0 ||
-             processedPage.assembledPage.cropMarginsMM.top() > 0.0 ||
-             processedPage.assembledPage.cropMarginsMM.right() > 0.0 ||
-             processedPage.assembledPage.cropMarginsMM.bottom() > 0.0))
-        {
-            QSizeF unrotatedSourcePageSize = PDFPage::getRotatedSize(processedPage.assembledPage.sourcePageSize,
-                                                                      processedPage.assembledPage.sourcePageRotation);
-            if (unrotatedSourcePageSize.isEmpty())
-            {
-                unrotatedSourcePageSize = processedPage.assembledPage.pageSize;
-            }
-
-            const QMarginsF cropMargins = mapCropMarginsToUnrotatedPage(processedPage.assembledPage.cropMarginsMM,
-                                                                        processedPage.assembledPage.sourcePageRotation);
-            QRectF cropBox(cropMargins.left() * PDF_MM_TO_POINT,
-                           cropMargins.bottom() * PDF_MM_TO_POINT,
-                           qMax(1.0, unrotatedSourcePageSize.width() - cropMargins.left() - cropMargins.right()) * PDF_MM_TO_POINT,
-                           qMax(1.0, unrotatedSourcePageSize.height() - cropMargins.top() - cropMargins.bottom()) * PDF_MM_TO_POINT);
-            documentBuilder.setPageCropBox(processedPage.targetPageReference, cropBox);
-        }
-    }
-
-    return processedPages;
-}
-
-PDFDocumentManipulator::ProcessedPages PDFDocumentManipulator::collectObjectsAndCopyPages(PDFDocumentBuilder& documentBuilder, const AssembledPages& pages)
-{
-    ProcessedPages processedPages;
-    processedPages.reserve(pages.size());
-
-    std::map<std::pair<int, int>, PDFObjectReference> documentPages;
-
-    for (const AssembledPage& assembledPage : pages)
-    {
-        ProcessedPage processedPage;
-        processedPage.assembledPage = assembledPage;
-        processedPages.push_back(processedPage);
-
-        if (assembledPage.isDocumentPage())
-        {
-            documentPages[std::make_pair(assembledPage.documentIndex, assembledPage.pageIndex)] = PDFObjectReference();
-        }
-    }
-
-    for (auto it = documentPages.begin(); it != documentPages.end();)
-    {
-        const int documentIndex = it->first.first;
-
-        // Jakub Melka: we will find end of a single document page range
-        auto itEnd = it;
-        while (itEnd != documentPages.end() && itEnd->first.first == documentIndex)
-        {
-            ++itEnd;
-        }
-
-        if (documentIndex != -1)
-        {
-            // Check we have the document
-            if (!m_documents.count(documentIndex))
-            {
-                throw PDFException(tr("Invalid document."));
-            }
-            const PDFDocument* document = m_documents.at(documentIndex);
-
-            // Copy the pages into the target document builder
-            std::vector<PDFInteger> pageIndices;
-            for (auto currentIt = it; currentIt != itEnd; ++currentIt)
-            {
-                pageIndices.push_back(currentIt->first.second);
-            }
-
-            pdf::PDFDocumentBuilder temporaryBuilder(document);
-            temporaryBuilder.flattenPageTree();
-
-            std::vector<pdf::PDFObjectReference> currentPages = temporaryBuilder.getPages();
-            std::vector<pdf::PDFObjectReference> objectsToMerge;
-            objectsToMerge.reserve(std::distance(it, itEnd));
-
-            for (PDFInteger pageIndex : pageIndices)
-            {
-                if (pageIndex < 0 || pageIndex >= static_cast< PDFInteger >(currentPages.size()))
-                {
-                    throw PDFException(tr("Missing page (%1) in a document.").arg(pageIndex));
-                }
-
-                objectsToMerge.push_back(currentPages[pageIndex]);
-            }
-
-            pdf::PDFObjectReference acroFormReference;
-            pdf::PDFObjectReference namesReference;
-            pdf::PDFObjectReference ocPropertiesReference;
-            pdf::PDFObjectReference outlineReference;
-
-            pdf::PDFObject formObject = document->getCatalog()->getFormObject();
-            if (formObject.isReference())
-            {
-                acroFormReference = formObject.getReference();
-            }
-            else
-            {
-                acroFormReference = temporaryBuilder.addObject(formObject);
-            }
-
-            if (const pdf::PDFDictionary* catalogDictionary = temporaryBuilder.getDictionaryFromObject(temporaryBuilder.getObjectByReference(temporaryBuilder.getCatalogReference())))
-            {
-                pdf::PDFObject namesObject = catalogDictionary->get("Names");
-                if (namesObject.isReference())
-                {
-                    namesReference = namesObject.getReference();
-                }
-
-                pdf::PDFObject ocPropertiesObject = catalogDictionary->get("OCProperties");
-                if (ocPropertiesObject.isReference())
-                {
-                    ocPropertiesReference = ocPropertiesObject.getReference();
-                }
-
-                pdf::PDFObject outlineObject = catalogDictionary->get("Outlines");
-                if (outlineObject.isReference())
-                {
-                    outlineReference = outlineObject.getReference();
-                }
-            }
-
-            if (!namesReference.isValid())
-            {
-                namesReference = temporaryBuilder.addObject(pdf::PDFObject());
-            }
-
-            if (!ocPropertiesReference.isValid())
-            {
-                ocPropertiesReference = temporaryBuilder.addObject(pdf::PDFObject());
-            }
-
-            if (!outlineReference.isValid())
-            {
-                outlineReference = temporaryBuilder.addObject(pdf::PDFObject());
-            }
-
-            objectsToMerge.insert(objectsToMerge.end(), { acroFormReference, namesReference, ocPropertiesReference, outlineReference });
-
-            // Now, we are ready to merge objects into target document builder
-            std::vector<pdf::PDFObjectReference> references = pdf::PDFDocumentBuilder::createReferencesFromObjects(documentBuilder.copyFrom(pdf::PDFDocumentBuilder::createObjectsFromReferences(objectsToMerge), *temporaryBuilder.getStorage(), true));
-
-            outlineReference = references.back();
-            references.pop_back();
-            ocPropertiesReference = references.back();
-            references.pop_back();
-            namesReference = references.back();
-            references.pop_back();
-            acroFormReference = references.back();
-            references.pop_back();
-
-            documentBuilder.appendTo(m_mergedObjects[MOT_OCProperties], documentBuilder.getObjectByReference(ocPropertiesReference));
-            documentBuilder.appendTo(m_mergedObjects[MOT_Form], documentBuilder.getObjectByReference(acroFormReference));
-            documentBuilder.mergeNames(m_mergedObjects[MOT_Names], namesReference);
-            m_outlines[documentIndex] = outlineReference;
-
-            Q_ASSERT(references.size() == size_t(std::distance(it, itEnd)));
-
-            auto referenceIt = references.begin();
-            for (auto currentIt = it; currentIt != itEnd; ++currentIt, ++referenceIt)
-            {
-                currentIt->second = *referenceIt;
-            }
-        }
-
-        // Advance the index
-        it = itEnd;
-    }
-
-    std::set<PDFObjectReference> usedReferences;
-    for (ProcessedPage& processedPage : processedPages)
-    {
-        if (processedPage.assembledPage.isDocumentPage())
-        {
-            auto key = std::make_pair(processedPage.assembledPage.documentIndex, processedPage.assembledPage.pageIndex);
-            Q_ASSERT(documentPages.count(key));
-
-            PDFObjectReference pageReference = documentPages.at(key);
-            if (!usedReferences.count(pageReference))
-            {
-                processedPage.targetPageReference = pageReference;
-                usedReferences.insert(pageReference);
-            }
-            else
-            {
-                // Page is being cloned. So we must clone it...
-                std::vector<pdf::PDFObjectReference> references = pdf::PDFDocumentBuilder::createReferencesFromObjects(documentBuilder.copyFrom(pdf::PDFDocumentBuilder::createObjectsFromReferences({ pageReference }), *documentBuilder.getStorage(), true));
-                Q_ASSERT(references.size() == 1);
-                processedPage.targetPageReference = references.front();
-                usedReferences.insert(references.front());
-            }
-        }
-    }
-
-    return processedPages;
-}
-
-void PDFDocumentManipulator::classify(const AssembledPages& pages)
-{
-    m_flags = None;
-
-    std::set<PDFInteger> documentIndices;
-    std::set<PDFInteger> pageIndices;
-    for (const AssembledPage& assembledPage : pages)
-    {
-        documentIndices.insert(assembledPage.documentIndex);
-        pageIndices.insert(assembledPage.pageIndex);
-    }
-
-    documentIndices.erase(-1);
-    pageIndices.erase(-1);
-
-    m_flags.setFlag(SingleDocument, documentIndices.size() == 1);
-
-    if (m_flags.testFlag(SingleDocument) && m_documents.count(*documentIndices.begin()))
-    {
-        const PDFDocument* document = m_documents.at(*documentIndices.begin());
-        const bool pagesRemoved = pageIndices.size() < document->getCatalog()->getPageCount();
-        m_flags.setFlag(RemovedPages, pagesRemoved);
-    }
-}
-
-void PDFDocumentManipulator::initializeMergedObjects(PDFDocumentBuilder& documentBuilder)
-{
-    m_mergedObjects[MOT_OCProperties] = documentBuilder.addObject(PDFObject());
-    m_mergedObjects[MOT_Form] = documentBuilder.addObject(PDFObject());
-    m_mergedObjects[MOT_Names] = documentBuilder.addObject(PDFObject());
-}
-
-void PDFDocumentManipulator::finalizeMergedObjects(PDFDocumentBuilder& documentBuilder)
-{
-    if (!m_flags.testFlag(SingleDocument))
-    {
-        if (!documentBuilder.getObjectByReference(m_mergedObjects[MOT_OCProperties]).isNull())
-        {
-            documentBuilder.setCatalogOptionalContentProperties(m_mergedObjects[MOT_OCProperties]);
-        }
-
-        if (!documentBuilder.getObjectByReference(m_mergedObjects[MOT_Names]).isNull())
-        {
-            documentBuilder.setCatalogNames(m_mergedObjects[MOT_Names]);
-        }
-
-        if (!documentBuilder.getObjectByReference(m_mergedObjects[MOT_Form]).isNull())
-        {
-            documentBuilder.setCatalogAcroForm(m_mergedObjects[MOT_Form]);
-        }
-    }
-}
-
-void PDFDocumentManipulator::finalizeDocument(PDFDocument* document)
-{
-    auto optimizationFlags = pdf::PDFOptimizer::OptimizationFlags(PDFOptimizer::RemoveUnusedObjects |
-                                                                  PDFOptimizer::ShrinkObjectStorage |
-                                                                  PDFOptimizer::DereferenceSimpleObjects |
-                                                                  PDFOptimizer::MergeIdenticalObjects);
-    PDFOptimizer optimizer(optimizationFlags, nullptr);
-    optimizer.setDocument(document);
-    optimizer.optimize();
-    PDFDocument mergedDocument = optimizer.takeOptimizedDocument();
-
-    // We must adjust some objects - they can have merged objects
-    pdf::PDFDocumentBuilder finalBuilder(&mergedDocument);
-    if (const pdf::PDFDictionary* dictionary = finalBuilder.getDictionaryFromObject(finalBuilder.getObjectByReference(finalBuilder.getCatalogReference())))
-    {
-        pdf::PDFDocumentDataLoaderDecorator loader(finalBuilder.getStorage());
-        pdf::PDFObjectReference ocPropertiesReference = loader.readReferenceFromDictionary(dictionary, "OCProperties");
-        if (ocPropertiesReference.isValid())
-        {
-            finalBuilder.setObject(ocPropertiesReference, pdf::PDFObjectManipulator::removeDuplicitReferencesInArrays(finalBuilder.getObjectByReference(ocPropertiesReference)));
-        }
-        pdf::PDFObjectReference acroFormReference = loader.readReferenceFromDictionary(dictionary, "AcroForm");
-        if (acroFormReference.isValid())
-        {
-            finalBuilder.setObject(acroFormReference, pdf::PDFObjectManipulator::removeDuplicitReferencesInArrays(finalBuilder.getObjectByReference(acroFormReference)));
-        }
-    }
-    m_assembledDocument = finalBuilder.build();
-}
-
-void PDFDocumentManipulator::filterOutline(PDFDocumentBuilder& documentBuilder,
-                                           const PDFDocument* singleDocument,
-                                           const std::vector<PDFObjectReference>& adjustedPages)
-{
-    QSharedPointer<PDFOutlineItem> outline = singleDocument->getCatalog()->getOutlineRootPtr();
-    if (outline)
-    {
-        outline = outline->clone();
-        std::set<PDFObjectReference> adjustedPagesSet(adjustedPages.cbegin(), adjustedPages.cend());
-
-        std::function<void(QSharedPointer<PDFOutlineItem>&)> filter = [&adjustedPagesSet](QSharedPointer<PDFOutlineItem>& item)
-        {
-            for (size_t i = 0; i < item->getChildCount();)
-            {
-                bool shouldRemove = false;
-                const PDFOutlineItem* childItem = item->getChild(i);
-                const PDFAction* action = childItem->getAction();
-                const PDFActionGoTo* actionGoTo = dynamic_cast<const PDFActionGoTo*>(action);
-                if (actionGoTo)
-                {
-                    const PDFObjectReference pageReference = actionGoTo->getDestination().getPageReference();
-                    shouldRemove = !adjustedPagesSet.count(pageReference);
-                }
-
-                if (shouldRemove)
-                {
-                    item->removeChild(i);
-                }
-                else
-                {
-                    ++i;
-                }
-            }
-        };
-
-        filter(outline);
-        documentBuilder.setOutline(outline.data());
-    }
-}
-
-void PDFDocumentManipulator::addOutlineAndDocumentParts(PDFDocumentBuilder& documentBuilder,
-                                                        const AssembledPages& pages,
-                                                        const std::vector<PDFObjectReference>& adjustedPages)
-{
-    PDFInteger lastDocumentIndex = pages.front().documentIndex;
-
-    struct DocumentPartInfo
-    {
-        size_t pageCount = 0;
-        PDFInteger documentIndex = 0;
-        bool isWholeDocument = false;
-        QString caption;
-        PDFObjectReference firstPageReference;
-    };
-    std::vector<DocumentPartInfo> documentParts = { DocumentPartInfo() };
-
-    PDFClosedIntervalSet pageNumbers;
-    PDFInteger imageCount = 0;
-    PDFInteger blankPageCount = 0;
-    PDFInteger totalPageCount = 0;
-
-    auto addDocumentPartCaption = [&](PDFInteger documentIndex)
-    {
-        DocumentPartInfo& info = documentParts.back();
-
-        QString documentTitle;
-        if (documentIndex != -1 && m_documents.count(documentIndex))
-        {
-            const PDFDocument* document = m_documents.at(documentIndex);
-            documentTitle = document->getInfo()->title;
-            if (documentTitle.isEmpty())
-            {
-                documentTitle = tr("Document %1").arg(documentIndex);
-            }
-
-            if (pageNumbers.getTotalLength() < PDFInteger(document->getCatalog()->getPageCount()))
-            {
-                documentTitle = tr("%1, p. %2").arg(documentTitle, pageNumbers.toText(true));
-            }
-            else
-            {
-                info.isWholeDocument = true;
-            }
-        }
-        else if (imageCount > 0 && blankPageCount == 0)
-        {
-            documentTitle = tr("%1 Images").arg(imageCount);
-        }
-        else
-        {
-            documentTitle = tr("%1 Pages").arg(imageCount + blankPageCount);
-        }
-
-        info.caption = documentTitle;
-        info.documentIndex = documentIndex;
-        info.firstPageReference = (totalPageCount < PDFInteger(adjustedPages.size())) ? adjustedPages[totalPageCount] : PDFObjectReference();
-
-        pageNumbers = PDFClosedIntervalSet();
-        imageCount = 0;
-        blankPageCount = 0;
-        totalPageCount += info.pageCount;
-    };
-
-    for (const AssembledPage& page : pages)
-    {
-        if (page.documentIndex == lastDocumentIndex)
-        {
-            ++documentParts.back().pageCount;
-        }
-        else
-        {
-            addDocumentPartCaption(lastDocumentIndex);
-            documentParts.push_back(DocumentPartInfo());
-            ++documentParts.back().pageCount;
-            lastDocumentIndex = page.documentIndex;
-        }
-
-        if (page.isDocumentPage())
-        {
-            pageNumbers.addValue(page.pageIndex + 1);
-        }
-
-        if (page.isImagePage())
-        {
-            ++imageCount;
-        }
-
-        if (page.isBlankPage())
-        {
-            ++blankPageCount;
-        }
-    }
-    addDocumentPartCaption(lastDocumentIndex);
-
-    std::vector<size_t> documentPartPageCounts;
-    std::transform(documentParts.cbegin(), documentParts.cend(), std::back_inserter(documentPartPageCounts), [](const auto& part) { return part.pageCount; });
-    documentBuilder.createDocumentParts(documentPartPageCounts);
-
-    if (m_outlineMode != OutlineMode::NoOutline)
-    {
-        QSharedPointer<PDFOutlineItem> rootItem(new PDFOutlineItem());
-
-        for (const DocumentPartInfo& info : documentParts)
-        {
-            QSharedPointer<PDFOutlineItem> documentPartItem(new PDFOutlineItem);
-            documentPartItem->setAction(PDFActionPtr(new PDFActionGoTo(PDFDestination::createFit(info.firstPageReference), PDFDestination())));
-            documentPartItem->setTitle(info.caption);
-            documentPartItem->setFontBold(true);
-
-            if (m_outlineMode == OutlineMode::Join && info.isWholeDocument)
-            {
-                const PDFInteger documentIndex = info.documentIndex;
-                QSharedPointer<PDFOutlineItem> outline = PDFOutlineItem::parse(documentBuilder.getStorage(), PDFObject::createReference(m_outlines.at(documentIndex)));
-                if (outline)
-                {
-                    for (size_t i = 0; i < outline->getChildCount(); ++i)
-                    {
-                        documentPartItem->addChild(outline->getChildPtr(i));
-                    }
-                }
-            }
-
-            rootItem->addChild(std::move(documentPartItem));
-        }
-
-        documentBuilder.setOutline(rootItem.data());
-    }
 }
 
 PDFDocumentManipulator::OutlineMode PDFDocumentManipulator::getOutlineMode() const

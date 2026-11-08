@@ -31,6 +31,7 @@
 #include "pdfappannotatecommands.h"
 #include "pdfappannotatepanels.h"
 #include "pdfappannotationcontroller.h"
+#include "pdfapppassworddialog.h"
 #include "pdfappannotationcreatedialogs.h"
 #include "pdfappannotationcreatetools.h"
 #include "pdfappannotationcreator.h"
@@ -2419,13 +2420,18 @@ void AppAnnotateTest::permissionDenied()
     QVERIFY(tab);
     pdf::PDFAppAnnotationCreator* creator = H::creator(tab);
 
-    // No permission to modify annotations: the other text of O8
+    // No permission to modify annotations (O8): the owner password can lift it (owner
+    // 2026-11-08), so Annotate and Insert stay enabled and a tool asks for the password
     QVERIFY(!creator->isCreationAllowed());
-    QVERIFY(!tab->isCommandEnabled(pdf::PDFAppCommands::insertPanel()));
-    QVERIFY(!tab->isCommandEnabled(pdf::PDFAppCommands::annotateHighlight()));
-    QCOMPARE(tab->getView()->getToolbar()->getAnnotateButton()->toolTip(), QStringLiteral("The document does not allow changes."));
+    QVERIFY(tab->isCommandEnabled(pdf::PDFAppCommands::insertPanel()));
+    QVERIFY(tab->isCommandEnabled(pdf::PDFAppCommands::annotateHighlight()));
     QVERIFY(!creator->startTool(Kind::Stamp));
     QCOMPARE(creator->getActiveKind(), Kind::None);
+    QPointer<pdf::PDFAppPasswordDialog> ownerDialog = pdftest::AppDocumentFixture::findDialog<pdf::PDFAppPasswordDialog>();
+    QVERIFY(ownerDialog && ownerDialog->isDocumentMode() && ownerDialog->getDocument() == tab->getDocument());
+    ownerDialog->reject();
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(!ownerDialog);
     QVERIFY(H::selectAllText(tab));
     QVERIFY(!creator->markTextSelection(pdf::AnnotationType::Highlight));
     QVERIFY(creator->getMarkupBar() && creator->getMarkupBar()->isVisible());

@@ -74,6 +74,14 @@ public:
         return PDFAppMcpPermissionKind::Read;
     }
 
+    /// A tool of the catalog, which reads no document (Blank PDF: no input), needs no read
+    /// approval - its result asks Edit or Files only (plan of step 2 of phase 2, 7)
+    static bool isCatalogToolWithoutDocument(const QString& toolName, const QString& actionName)
+    {
+        const PDFDocumentToolCatalogEntry* entry = PDFDocumentToolCatalog::findTool(PDFAppMcpCatalogTools::getToolId(toolName, actionName));
+        return entry && entry->getInputKind() == PDFDocumentToolInputKind::None;
+    }
+
     /// The action exists (a tool of phase 1 or of the catalog), so a call of it,
     /// which is not offered, is a denial (not an unknown name)
     static bool isKnownAction(const QString& toolName, const QString& actionName)
@@ -908,8 +916,9 @@ void PDFAppMcpHost::handleToolCall(const std::shared_ptr<PDFMcpCall>& call)
     // change, which needs the read approval too, is one dialog with both
     // reasons (958:28030; the handlers of package C ask Read with Edit)
     const bool isCatalogTool = PDFAppMcpCatalogTools::isCatalogToolName(toolName);
+    const bool isReadingCatalogTool = isCatalogTool && !PDFAppMcpHostHelper::isCatalogToolWithoutDocument(toolName, actionName);
     if (m_policy.getKindsToConfirm(PDFAppMcpPermissionKind::Read, request.client.assistantKey, hasOpenDocuments).testFlag(PDFAppMcpPermissionKind::Read) &&
-        (permission == PDFAppMcpPermissionKind::Read || (isCatalogTool && (permission == PDFAppMcpPermissionKind::Edit || permission == PDFAppMcpPermissionKind::Files))))
+        (permission == PDFAppMcpPermissionKind::Read || (isReadingCatalogTool && (permission == PDFAppMcpPermissionKind::Edit || permission == PDFAppMcpPermissionKind::Files))))
     {
         std::shared_ptr<PDFAppMcpReadApproval> receiver = std::make_shared<PDFAppMcpReadApproval>(this, call, toolName, actionName, request.arguments);
 

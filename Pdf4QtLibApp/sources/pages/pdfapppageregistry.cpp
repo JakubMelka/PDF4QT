@@ -84,6 +84,7 @@ void PDFAppPageRegistry::registerFactories(PDFAppRouteTable& table)
     table.setFactory(QStringLiteral("/tools/collections/{collectionId}"), std::make_shared<PDFAppToolCollectionsPageFactory>());
     table.setFactory(QStringLiteral("/tools/{toolId}"), std::make_shared<PDFAppToolRoutePageFactory>(PDFAppToolPageKind::Start));
     table.setFactory(QStringLiteral("/document/{documentId}/tool/{toolId}"), std::make_shared<PDFAppToolRoutePageFactory>(PDFAppToolPageKind::Document));
+    table.setFactory(QStringLiteral("/tool/{toolId}/{instanceId}"), std::make_shared<PDFAppToolRoutePageFactory>(PDFAppToolPageKind::OwnTab));
 
     // The AI page (step 7): the MCP server, its connection, permissions, assistants and activity
     table.setFactory(QStringLiteral("/ai"), std::make_shared<PDFAppAiPageFactory>());

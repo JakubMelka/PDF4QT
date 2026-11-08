@@ -338,6 +338,8 @@ QString PDFAppMcpConfirmDialog::createTitle(const PDFAppMcpConfirmation& confirm
             return tr("%1 wants to open a document").arg(client);
         case PDFAppMcpConfirmationKind::Close:
             return tr("%1 wants to close %2").arg(client, document);
+        case PDFAppMcpConfirmationKind::NewTab:
+            return tr("%1 wants to open a new document").arg(client);
     }
     return QString();
 }
@@ -659,12 +661,19 @@ void PDFAppMcpConfirmDialog::addSaveBody()
     layout->setSpacing(0);
 
     const bool isCopy = m_confirmation->kind == PDFAppMcpConfirmationKind::SaveCopy;
+    const bool isNewTab = m_confirmation->kind == PDFAppMcpConfirmationKind::NewTab;
     const bool isOverwrite = m_confirmation->details.value(QStringLiteral("overwrite")).toBool();
     const QString path = m_confirmation->details.value(QStringLiteral("path")).toString();
 
     PDFKeyValueList* facts = new PDFKeyValueList(box);
     facts->setObjectName(QStringLiteral("factsList"));
-    if (isCopy)
+    if (isNewTab)
+    {
+        // A new document of a tool: no file is written, no document is changed
+        facts->addRow(tr("Open"), tr("In a new tab – nothing is saved to the disk"));
+        facts->addRow(tr("Content"), sanitize(m_confirmation->details.value(QStringLiteral("content")).toString(), 256));
+    }
+    else if (isCopy)
     {
         facts->addRow(tr("Save"), isOverwrite ? tr("Replace the existing file") : tr("As a new file – the original stays unchanged"));
         facts->addRow(tr("File"), sanitize(path, 1024), PDFComponentPainter::TextKind::FileName);
@@ -693,7 +702,7 @@ void PDFAppMcpConfirmDialog::addSaveBody()
     addContent(box);
 
     // The overwrite note (940:134698): the previous content of the file is lost
-    if (!isCopy || isOverwrite)
+    if ((!isCopy && !isNewTab) || isOverwrite)
     {
         PDFLabel* noteLabel = nullptr;
         QWidget* noteRow = createInfoRow(QStringLiteral("alert-triangle"), &noteLabel);
@@ -763,6 +772,7 @@ void PDFAppMcpConfirmDialog::build()
             break;
         case PDFAppMcpConfirmationKind::Save:
         case PDFAppMcpConfirmationKind::SaveCopy:
+        case PDFAppMcpConfirmationKind::NewTab:
             addSaveBody();
             break;
         case PDFAppMcpConfirmationKind::Open:
@@ -940,6 +950,7 @@ void PDFAppMcpConfirmDialog::updateTexts()
                 m_allowButton->setText(tr("Save Copy"));
                 break;
             case PDFAppMcpConfirmationKind::Open:
+            case PDFAppMcpConfirmationKind::NewTab:
                 m_allowButton->setText(tr("Open"));
                 break;
             case PDFAppMcpConfirmationKind::Close:

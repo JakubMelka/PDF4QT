@@ -270,9 +270,63 @@ QString PDFDocumentToolGUI::getPermissionText() const
     return tr("The restriction can be removed in Restrict Permissions if you know the owner password. The document can still be read on screen.");
 }
 
+std::vector<PDFSecurityHandler::Permission> PDFDocumentToolGUI::getRunPermissions() const
+{
+    return { };
+}
+
 void PDFDocumentToolGUI::fillResultInput(PDFAppToolResultInput* input) const
 {
     Q_UNUSED(input);
+}
+
+bool PDFDocumentToolGUI::isResultDialogSkipped() const
+{
+    return false;
+}
+
+QString PDFDocumentToolGUI::getOwnTabTitle() const
+{
+    const PDFDocumentToolCatalogEntry* tool = getTool();
+    return tool ? tool->getTitle() : QString();
+}
+
+QString PDFDocumentToolGUI::getOwnTabIconName() const
+{
+    const PDFDocumentToolCatalogEntry* tool = getTool();
+    return tool ? tool->getIconName() : QString();
+}
+
+QString PDFDocumentToolGUI::getOwnTabLossText() const
+{
+    return QString();
+}
+
+QString PDFDocumentToolGUI::getLockedGlanceText() const
+{
+    return QString();
+}
+
+QString PDFDocumentToolGUI::getStartPageText(PDFAppToolStartPageText text) const
+{
+    Q_UNUSED(text);
+    return QString();
+}
+
+QString PDFDocumentToolGUI::getOwnTabPageText() const
+{
+    return QString();
+}
+
+QString PDFDocumentToolGUI::getOwnTabZoomText() const
+{
+    return QString();
+}
+
+PDFAppToolInputList* PDFDocumentToolGUI::getInputList() const
+{
+    const PDFAppToolHost* host = getHost();
+    return host ? host->getInputList() : nullptr;
 }
 
 QVariantMap PDFDocumentToolGUI::getRunParameters() const
@@ -367,6 +421,11 @@ void PDFDocumentToolGUI::updateConfirmState()
 void PDFDocumentToolGUI::updateStatusText()
 {
     Q_EMIT statusTextChanged();
+}
+
+void PDFDocumentToolGUI::updateOwnTabState()
+{
+    Q_EMIT ownTabStateChanged();
 }
 
 PDFDocumentToolGUIFactory::~PDFDocumentToolGUIFactory() = default;

@@ -465,12 +465,6 @@ public:
     /// \returns List of references to created document parts
     std::vector<PDFObjectReference> createDocumentParts(const std::vector<size_t>& parts);
 
-    /// Merges two independent 'Names' entry in catalog dictionary. It is used,
-    /// for example, when documents are being merged.
-    /// \param a First 'Names' entry
-    /// \param b Second 'Names' entry
-    void mergeNames(PDFObjectReference a, PDFObjectReference b);
-
     /// Updates document info by merging object info to actual info
     void updateDocumentInfo(PDFObject info);
 

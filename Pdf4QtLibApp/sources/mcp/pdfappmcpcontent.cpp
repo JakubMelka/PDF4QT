@@ -765,10 +765,12 @@ QString PDFAppMcpContent::createActionReference(const PDFAppMcpToolSpec& tool, c
         description += QLatin1Char('.');
     }
 
+    // An action without a document (Blank PDF) still takes the result and its path
     QStringList common;
-    if (action.usesDocument)
+    for (const auto& property : tool.commonProperties)
     {
-        for (const auto& property : tool.commonProperties)
+        const bool isDocumentProperty = property.first == QLatin1String("documentId") || property.first == QLatin1String("documentIds");
+        if (action.usesDocument || !isDocumentProperty)
         {
             common << QStringLiteral("`%1`").arg(property.first);
         }

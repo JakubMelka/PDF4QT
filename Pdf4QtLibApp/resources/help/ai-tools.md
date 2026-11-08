@@ -21,7 +21,7 @@ An assistant connected to the MCP server of PDF4QT (see [Connect an AI assistant
 | Fill forms | Fill and reset form fields | Edit documents |
 | Edit the outline | Add, rename, move and delete outline items, or build a new outline | Edit documents |
 | Open and save files | Open a PDF file whose path it knows, save a document, save a copy | Open and save files |
-| Tools of PDF4QT | Run the tools of PDF4QT on a document, one tool per request. Available now: Remove Pages, Rotate Pages, Extract Text, Remove Hidden Data, Remove External Links, Compress, Optimize Structure | Read documents, then by what happens with the result: Edit documents for a result that stays in the tab, Open and save files for a new file, both for replacing the original file |
+| Tools of PDF4QT | Run the tools of PDF4QT on a document, one tool per request. Available now: Merge, Remove Pages, Rotate Pages, Blank PDF, Extract Text, Remove Hidden Data, Remove External Links, Compress, Optimize Structure | Read documents, then by what happens with the result: Edit documents for a result that stays in the tab or opens as a new document in a new tab, Open and save files for a new file, both for replacing the original file. Blank PDF reads no document, so it needs no Read documents |
 
 The permissions are explained in [Permissions of assistants](/help/ai-permissions). An action set to Deny is not offered to assistants at all.
 

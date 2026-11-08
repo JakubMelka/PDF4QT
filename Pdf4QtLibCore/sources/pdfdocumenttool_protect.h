@@ -96,9 +96,13 @@ public:
     /// bit 6) in addition to Modify of the catalog, which every kind needs
     static std::vector<Kind> getInteractiveKinds(const PDFDocumentHiddenDataScan::Result& scan, const std::vector<Kind>& removedKinds);
 
+    /// The titles of the kinds joined ("Comments and markup, Signature fields")
+    static QString joinKindTitles(const std::vector<Kind>& kinds);
+
     /// Why the permissions of the document refuse the removal of the kinds (translated, empty =
-    /// permitted): the run checks it before it changes anything, the panel shows it and disables
-    /// its Primary button, MCP gets it as the message of the failed run
+    /// permitted): the run checks it before it changes anything, MCP gets it as the message of
+    /// the failed run; the panel asks for the owner password of a document, which can be
+    /// unlocked (owner 2026-11-08), else it shows the refusal and disables its Primary button
     static QString getPermissionRefusal(const PDFDocument* document, const PDFDocumentHiddenDataScan::Result& scan, const std::vector<Kind>& removedKinds);
 
     virtual QString getId() const override;

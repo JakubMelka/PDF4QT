@@ -29,6 +29,8 @@
 #include <QImage>
 #include <QMarginsF>
 
+#include <map>
+
 namespace pdf
 {
 
@@ -36,6 +38,12 @@ namespace pdf
 /// to a new document, where pages are inserted/removed/moved, or joined
 /// from another documents, or blank pages/image pages inserted. Document
 /// is also optimized.
+///
+/// The adapter of the old PageMaster over PDFDocumentMerger (plan of step 2 of phase 2,
+/// 5.1): the API stays, the merge is the one of the new tool Merge - a page, which is not
+/// taken, never reaches the result (B3), a clone copies only the page and its annotations
+/// (B4), the catalogs are joined (B1, B2), the crop margins start at the crop box (B14),
+/// a document without the permission of the merge is refused (R2, B13).
 class PDF4QTLIBCORESHARED_EXPORT PDFDocumentManipulator
 {
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocumentManipulator)
@@ -110,61 +118,10 @@ public:
     void setOutlineMode(OutlineMode outlineMode);
 
 private:
-
-    struct ProcessedPage
-    {
-        AssembledPage assembledPage;
-        PDFObjectReference targetPageReference;
-    };
-
-    using ProcessedPages = std::vector<ProcessedPage>;
-
-    enum AssembleFlag
-    {
-        None            = 0x0000,
-        SingleDocument  = 0x0001, ///< We are assembling a single page document (possibly with blank pages / image pages
-        RemovedPages    = 0x0002, ///< Document contains removed pages
-    };
-    Q_DECLARE_FLAGS(AssembleFlags, AssembleFlag)
-
-    enum MergedObjectType
-    {
-        MOT_OCProperties,
-        MOT_Form,
-        MOT_Names,
-        MOT_Last
-    };
-
-    /// Processes pages given a page list and a document builder.
-    /// \param documentBuilder Document builder
-    /// \param pages Pages to be processed
-    /// \returns Processed pages
-    ProcessedPages processPages(PDFDocumentBuilder& documentBuilder, const AssembledPages& pages);
-
-    /// Collects objects and copies them into the target document builder.
-    /// \param documentBuilder Document builder
-    /// \param pages Pages to be copied
-    /// \returns Processed pages
-    ProcessedPages collectObjectsAndCopyPages(PDFDocumentBuilder& documentBuilder, const AssembledPages& pages);
-
-    void classify(const AssembledPages& pages);
-    void initializeMergedObjects(PDFDocumentBuilder& documentBuilder);
-    void finalizeMergedObjects(PDFDocumentBuilder& documentBuilder);
-    void finalizeDocument(PDFDocument* document);
-    void addOutlineAndDocumentParts(PDFDocumentBuilder& documentBuilder,
-                                    const AssembledPages& pages,
-                                    const std::vector<PDFObjectReference>& adjustedPages);
-    void filterOutline(PDFDocumentBuilder& documentBuilder,
-                       const PDFDocument* singleDocument,
-                       const std::vector<PDFObjectReference>& adjustedPages);
-
     std::map<PDFInteger, const PDFDocument*> m_documents;
     std::map<PDFInteger, QImage> m_images;
-    AssembleFlags m_flags = None;
-    std::array<PDFObjectReference, MOT_Last> m_mergedObjects = { };
     PDFDocument m_assembledDocument;
     OutlineMode m_outlineMode = OutlineMode::DocumentParts;
-    std::map<PDFInteger, PDFObjectReference> m_outlines;
 };
 
 }   // namespace pdf

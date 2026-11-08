@@ -94,6 +94,15 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     set_target_properties(UnitTestsAppToolShellFixture PROPERTIES QT_EXCLUDE_FROM_TRANSLATION ON)
     pdf4qt_target_precompile_headers(UnitTestsAppToolShellFixture REUSE_FROM UnitTestsAppDocumentFixture)
 
+    # The test tool of the own tab of a tool (step 2 of phase 2, package B1)
+    add_library(UnitTestsAppToolOwnTabFixture OBJECT
+        apptoolowntabfixture.cpp
+        apptoolowntabfixture.h
+    )
+    target_link_libraries(UnitTestsAppToolOwnTabFixture PUBLIC UnitTestsAppDocumentFixture)
+    set_target_properties(UnitTestsAppToolOwnTabFixture PROPERTIES QT_EXCLUDE_FROM_TRANSLATION ON)
+    pdf4qt_target_precompile_headers(UnitTestsAppToolOwnTabFixture REUSE_FROM UnitTestsAppDocumentFixture)
+
     add_library(UnitTestsAppMcpFixture OBJECT
         appmcpfixture.cpp
         appmcpfixture.h
@@ -998,7 +1007,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_executable(UnitTestsAppToolPagesLifetime
         tst_apptoolpageslifetimetest.cpp
     )
-    target_link_libraries(UnitTestsAppToolPagesLifetime PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+    target_link_libraries(UnitTestsAppToolPagesLifetime PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture UnitTestsAppToolOwnTabFixture Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
     pdf4qt_target_precompile_headers(UnitTestsAppToolPagesLifetime REUSE_FROM UnitTestsAppDocumentFixture)
     set_target_properties(UnitTestsAppToolPagesLifetime PROPERTIES
         WIN32_EXECUTABLE OFF
@@ -1008,6 +1017,86 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     )
     add_test(UnitTestsAppToolPagesLifetime "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppToolPagesLifetime")
     set_tests_properties(UnitTestsAppToolPagesLifetime PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # The own tab of a tool (step 2 of phase 2, package B1): the tab, its host, the layout,
+    # the close questions, the result of a new document, Blank without the dialog, MCP
+    add_executable(UnitTestsAppToolOwnTab
+        tst_apptoolowntabtest.cpp
+    )
+    target_link_libraries(UnitTestsAppToolOwnTab PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture UnitTestsAppToolOwnTabFixture UnitTestsAppMcpFixture UnitTestsMcpTestClient Pdf4QtLibApp Pdf4QtLibMcp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsAppToolOwnTab REUSE_FROM UnitTestsAppDocumentFixture)
+    set_target_properties(UnitTestsAppToolOwnTab PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsAppToolOwnTab "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppToolOwnTab")
+    set_tests_properties(UnitTestsAppToolOwnTab PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # The inputs of a tool with more inputs (step 2 of phase 2, package B2): the input list,
+    # its loader, the password dialog, the previews of the inputs, the chooser Multiple
+    add_executable(UnitTestsAppToolInputs
+        tst_apptoolinputstest.cpp
+    )
+    target_link_libraries(UnitTestsAppToolInputs PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsAppToolInputs REUSE_FROM UnitTestsAppDocumentFixture)
+    set_target_properties(UnitTestsAppToolInputs PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsAppToolInputs "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppToolInputs")
+    set_tests_properties(UnitTestsAppToolInputs PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # The owner password, when an action needs a permission (step 2 of phase 2, package O):
+    # the shared check of the permissions, the unlock for the session, the routed actions, MCP
+    add_executable(UnitTestsAppOwnerPassword
+        tst_appownerpasswordtest.cpp
+    )
+    target_link_libraries(UnitTestsAppOwnerPassword PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture UnitTestsAppMcpFixture UnitTestsMcpTestClient Pdf4QtLibApp Pdf4QtLibMcp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::PrintSupport Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsAppOwnerPassword REUSE_FROM UnitTestsAppDocumentFixture)
+    set_target_properties(UnitTestsAppOwnerPassword PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsAppOwnerPassword "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppOwnerPassword")
+    set_tests_properties(UnitTestsAppOwnerPassword PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # The GUI of Blank PDF (step 2 of phase 2, package D): the frames, the limits of the fields,
+    # the replacement of the own tab by the new document, MCP
+    add_executable(UnitTestsAppToolBlank
+        tst_apptoolblanktest.cpp
+    )
+    target_link_libraries(UnitTestsAppToolBlank PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture UnitTestsAppToolOwnTabFixture UnitTestsAppMcpFixture UnitTestsMcpTestClient Pdf4QtLibApp Pdf4QtLibMcp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsAppToolBlank REUSE_FROM UnitTestsAppDocumentFixture)
+    set_target_properties(UnitTestsAppToolBlank PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsAppToolBlank "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppToolBlank")
+    set_tests_properties(UnitTestsAppToolBlank PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # The GUI of Merge (step 2 of phase 2, package C): the frames, the files and the pages, the
+    # plan and its Undo / Redo, the keys, the drop, the run and the partial result, MCP
+    add_executable(UnitTestsAppToolMerge
+        tst_apptoolmergetest.cpp
+    )
+    target_link_libraries(UnitTestsAppToolMerge PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture UnitTestsAppToolOwnTabFixture UnitTestsAppMcpFixture UnitTestsMcpTestClient Pdf4QtLibApp Pdf4QtLibMcp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsAppToolMerge REUSE_FROM UnitTestsAppDocumentFixture)
+    set_target_properties(UnitTestsAppToolMerge PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsAppToolMerge "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppToolMerge")
+    set_tests_properties(UnitTestsAppToolMerge PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
     # The application side of a tool of the first batch (plan, chapter 8): the waves and the
     # parallel parts of package 2 add only their file tst_apptool<part>test.cpp, a target
@@ -1197,6 +1286,59 @@ set_target_properties(UnitTestsDocumentToolPages PROPERTIES
 )
 add_test(UnitTestsDocumentToolPages "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDocumentToolPages")
 set_tests_properties(UnitTestsDocumentToolPages PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The core of Merge and Blank PDF (PDFDocumentMerger, PDFImagePageFactory), step 2 of phase 2
+add_executable(UnitTestsDocumentMerger
+    tst_documentmergertest.cpp
+    mergetestpdf.h
+)
+target_link_libraries(UnitTestsDocumentMerger PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsDocumentMerger REUSE_FROM UnitTestsPchCore)
+set_target_properties(UnitTestsDocumentMerger PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsDocumentMerger "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDocumentMerger")
+set_tests_properties(UnitTestsDocumentMerger PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The tools Merge and Blank PDF of the core (parameters, plan, validation, results)
+add_executable(UnitTestsDocumentToolMerge
+    tst_documenttoolmergetest.cpp
+    mergetestpdf.h
+)
+target_link_libraries(UnitTestsDocumentToolMerge PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsDocumentToolMerge REUSE_FROM UnitTestsPchCore)
+set_target_properties(UnitTestsDocumentToolMerge PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsDocumentToolMerge "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDocumentToolMerge")
+set_tests_properties(UnitTestsDocumentToolMerge PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+# The command PdfTool unite runs the merger of the tool (Q12, B15)
+if(TARGET PdfTool)
+    target_compile_definitions(UnitTestsDocumentToolMerge PRIVATE PDF4QT_TEST_PDFTOOL="$<TARGET_FILE:PdfTool>")
+    add_dependencies(UnitTestsDocumentToolMerge PdfTool)
+endif()
+
+# PDFDocumentManipulator of PageMaster as the adapter of PDFDocumentMerger
+add_executable(UnitTestsDocumentManipulator
+    tst_documentmanipulatortest.cpp
+    mergetestpdf.h
+)
+target_link_libraries(UnitTestsDocumentManipulator PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+pdf4qt_target_precompile_headers(UnitTestsDocumentManipulator REUSE_FROM UnitTestsPchCore)
+set_target_properties(UnitTestsDocumentManipulator PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsDocumentManipulator "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDocumentManipulator")
+set_tests_properties(UnitTestsDocumentManipulator PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 # The tool of package 2 of phase 2, first batch (a stub until the package)
 add_executable(UnitTestsDocumentToolProtect

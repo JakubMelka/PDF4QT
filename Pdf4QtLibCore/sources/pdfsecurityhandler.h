@@ -186,6 +186,19 @@ public:
     /// If owner is authorized, then this function allways returns true.
     virtual bool isAllowed(Permission permission) const = 0;
 
+    /// The permission by the table of the revision of the standard security handler (ISO
+    /// 32000-2, 7.6.4.2, Table 22): bits 9 to 12 exist from revision 3, a handler of revision
+    /// 2 answers them by its bits 6, 5, 4 and 3 (getRevision2Permission). The one rule of the
+    /// new tools (the catalog, the merge, the new application; SECURITY_TODO 31) - isAllowed
+    /// keeps the literal bits of the old applications. A null handler allows everything (a
+    /// document without encryption).
+    static bool isAllowedByRevision(const PDFSecurityHandler* securityHandler, Permission permission);
+
+    /// The bit of revision 2, which governs the permission (Table 22): filling of forms by
+    /// bit 6, the extraction for accessibility by bit 5, the assembly by bit 4 and the
+    /// high-quality print by bit 3; the other permissions are their own bits
+    static Permission getRevision2Permission(Permission permission);
+
     /// Returns true, if metadata are encrypted
     virtual bool isMetadataEncrypted() const = 0;
 
@@ -339,6 +352,9 @@ public:
     virtual bool isMetadataEncrypted() const override { return m_encryptMetadata; }
     virtual bool isAllowed(Permission permission) const override { return m_authorizationData.authorizationResult == AuthorizationResult::OwnerAuthorized || (m_permissions & static_cast<uint32_t>(permission)); }
     virtual PDFObject createEncryptionDictionaryObject() const override;
+
+    /// Revision of the handler (/R of its encryption dictionary)
+    int getRevision() const { return m_R; }
 
 private:
     friend class PDFSecurityHandler;

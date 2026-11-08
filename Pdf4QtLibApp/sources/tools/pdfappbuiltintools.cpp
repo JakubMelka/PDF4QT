@@ -22,8 +22,10 @@
 
 #include "pdfappbuiltintools.h"
 
+#include "pdfapptoolgui_blank.h"
 #include "pdfapptoolgui_compress.h"
 #include "pdfapptoolgui_extracttext.h"
+#include "pdfapptoolgui_merge.h"
 #include "pdfapptoolgui_pages.h"
 #include "pdfapptoolgui_protect.h"
 #include "pdfapptoolgui_structure.h"
@@ -40,6 +42,8 @@ void PDFAppBuiltinTools::registerAll()
     PDFAppToolGUIProtect::registerTools();
     PDFAppToolGUIStructure::registerTools();
     PDFAppToolGUIExtractText::registerTools();
+    PDFAppMergeToolGUI::registerTools();
+    PDFAppBlankToolGUI::registerTools();
 }
 
 }   // namespace pdf

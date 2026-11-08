@@ -28,6 +28,7 @@
 #include "pdfdocumenttextflow.h"
 #include "pdfdocumenttool_extracttext.h"
 #include "pdfdocumenttool_compress.h"
+#include "pdfdocumenttool_merge.h"
 #include "pdfdocumenttool_protect.h"
 #include "pdfdocumenttool_pages.h"
 #include "pdfdocumenttool_structure.h"
@@ -152,6 +153,7 @@ struct CorpusToolRow
     CorpusPageMap pageMap = nullptr;
     CorpusResultCheck resultCheck = nullptr;
     CorpusRefusal refusal = nullptr;
+    int inputCount = 1;     ///< The file is given this many times (Merge of a file with itself, every collision of names)
 
     QString getName() const { return QString::fromLatin1(toolId) + QLatin1Char('/') + QString::fromLatin1(variant); }
 };
@@ -425,6 +427,22 @@ public:
               "the content of its pages runs for more than 10 minutes (the meshes of the shadings), the walks of Extract Text read the same content" },
         };
         return exclusions;
+    }
+
+    /// Exclusions by the content of a read file (any folder): a signed input of Merge - a signature
+    /// with a value (PDFForm::getSignatureCount) - is removed with its appearance, so the pages of a
+    /// signed file look different by design (owner answer Q4 of step 2 of phase 2)
+    static const CorpusExclusion* findContentExclusion(const pdf::PDFDocument* input, const QString& tool)
+    {
+        static const CorpusExclusion signedMerge = { "", "^pages\\.merge/", "Owner answer Q4 of step 2 of phase 2",
+                                                     "Merge removes a signature with its appearance (the field stays empty): the pages of a signed file look different by design" };
+        if (qEnvironmentVariableIntValue("PDF4QT_TOOL_CORPUS_NO_EXCLUSIONS") != 0)
+        {
+            return nullptr;
+        }
+
+        const bool isSigned = pdf::PDFForm::getSignatureCount(input) > 0;
+        return isSigned && QRegularExpression(QString::fromLatin1(signedMerge.variantPattern)).match(tool).hasMatch() ? &signedMerge : nullptr;
     }
 
     /// Files the reader refuses, each with its reason. Another file refused fails its row: a
@@ -1032,6 +1050,27 @@ private:
         return input->getCatalog()->getPageCount() < 2;
     }
 
+    /// The pages of Merge of a file with itself: every page twice, in the order of the file
+    static std::vector<CorpusPageOrigin> mapPagesTwice(const pdf::PDFDocument* input)
+    {
+        std::vector<CorpusPageOrigin> origins;
+        for (size_t copy = 0; copy < 2; ++copy)
+        {
+            for (size_t i = 0; i < input->getCatalog()->getPageCount(); ++i)
+            {
+                origins.push_back({ i, pdf::PageRotation::None });
+            }
+        }
+        return origins;
+    }
+
+    /// Merge refuses a file without pages, and one, which restricts more than the assembly without
+    /// its owner password (owner answer Q2 of step 2 of phase 2)
+    static bool isMergeRefused(const pdf::PDFDocument* input)
+    {
+        return input->getCatalog()->getPageCount() == 0 || pdf::PDFDocumentMerger::getPermission(input) != pdf::PDFDocumentMerger::Permission::Permitted;
+    }
+
     static std::vector<CorpusToolRow> createToolRows()
     {
         using Compress = pdf::PDFDocumentToolCompress;
@@ -1096,6 +1135,29 @@ private:
                          PAGES_PROMISES | PromiseSignatures | PromiseContent, &ToolCorpusHelper::mapAllPagesTurnedHalf });
         rows.push_back({ pdf::PDFDocumentToolRemovePages::TOOL_ID, "even", createRemove, pages("", { QStringLiteral("even") }, nullptr), CorpusLook::Exact,
                          PAGES_PROMISES, &ToolCorpusHelper::mapOddPagesStay, nullptr, &ToolCorpusHelper::hasOnePage });
+
+        // Merge of a file with itself (plan of step 2 of phase 2, chapter 8): every name collides
+        // (fields, destinations, layers, attachments, the structure); each page looks as in the
+        // file and keeps its text. A signature loses its appearance (owner answer Q4): the look of
+        // a signed file is not promised, its row says it by the attribute "signed".
+        const auto createMerge = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<pdf::PDFDocumentToolMerge>();
+        };
+        const auto outline = [](const char* mode)
+        {
+            QVariantMap parameters;
+            parameters.insert(QString::fromLatin1(pdf::PDFDocumentToolMerge::PARAMETER_OUTLINE), QString::fromLatin1(mode));
+            return parameters;
+        };
+        CorpusToolRow mergeParts{ pdf::PDFDocumentToolMerge::TOOL_ID, "self-document-parts", createMerge, outline(pdf::PDFDocumentToolMerge::OUTLINE_DOCUMENT_PARTS), CorpusLook::Exact,
+                                  PromiseText | PromiseTransparency, &ToolCorpusHelper::mapPagesTwice, nullptr, &ToolCorpusHelper::isMergeRefused };
+        mergeParts.inputCount = 2;
+        rows.push_back(mergeParts);
+        CorpusToolRow mergeJoin{ pdf::PDFDocumentToolMerge::TOOL_ID, "self-join", createMerge, outline(pdf::PDFDocumentToolMerge::OUTLINE_JOIN), CorpusLook::Exact,
+                                 PromiseText | PromiseTransparency, &ToolCorpusHelper::mapPagesTwice, nullptr, &ToolCorpusHelper::isMergeRefused };
+        mergeJoin.inputCount = 2;
+        rows.push_back(mergeJoin);
 
         // Extract Text: a file, no document - its own assertion
         using Extract = pdf::PDFDocumentToolExtractText;
@@ -1342,8 +1404,21 @@ void DocumentToolCorpusTest::toolOnFile()
         }
         summary.attributes = attributes.join(QLatin1Char(','));
 
+        if (const CorpusExclusion* exclusion = ToolCorpusHelper::findContentExclusion(&input, summary.tool))
+        {
+            summary.status = QStringLiteral("excluded");
+            summary.note = QStringLiteral("%1: %2").arg(QString::fromUtf8(exclusion->reference), QString::fromUtf8(exclusion->reason));
+            summary.milliseconds = timer.elapsed();
+            summary.print();
+            QSKIP(qPrintable(summary.note));
+        }
+
         const std::shared_ptr<const pdf::PDFDocumentTool> tool = row.createTool();
         pdf::PDFDocumentToolContext context = pdf::PDFDocumentToolContext::create(pdf::PDFDocumentToolInputDocument::create(pdf::PDFDocumentPointer(new pdf::PDFDocument(input)), inputData, path, false));
+        for (int copy = 1; copy < row.inputCount; ++copy)
+        {
+            context.documents.push_back(context.documents.front());
+        }
         const pdf::PDFDocumentToolResult result = tool->run(context, row.parameters, nullptr, nullptr);
 
         summary.status = ToolCorpusHelper::getStatusName(result.status);

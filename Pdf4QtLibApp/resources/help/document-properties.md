@@ -3,7 +3,7 @@ title: Document properties, links and rendering issues
 category: open-and-view
 order: 60
 summary: The properties of a document, how links and actions of a document are opened, rendering issues and the developer view.
-keywords: properties, information, title, author, subject, keywords, custom properties, metadata, XMP, fonts, embedded, security, encryption, permissions, password, viewer preferences, print settings, link, web link, URL, program, launch, JavaScript, script, form, rendering issues, errors, developer, text blocks, render times
+keywords: properties, information, title, author, subject, keywords, custom properties, metadata, XMP, fonts, embedded, security, encryption, permissions, password, owner password, restricted, unlock, viewer preferences, print settings, link, web link, URL, program, launch, JavaScript, script, form, rendering issues, errors, developer, text blocks, render times
 related: /help/read-documents, /help/signatures, /help/settings-security, /settings/security
 ---
 The properties of a document describe the document itself and the file on the disk. Open them by **File › Properties…** or by **Ctrl+D**. They replace the view of the document in its tab; **Back to document** returns to the pages.
@@ -26,6 +26,14 @@ The title, the subject, the author, the keywords and the custom properties have 
 
 > [!NOTE] Locked documents
 > A locked document cannot be changed. Unlock it first, or use **Edit a Copy**.
+
+## Restricted documents and the owner password
+
+The author of an encrypted document can restrict what may be done with it: printing, copying text and images, annotations, filling in forms, inserting, rotating and removing pages or other changes. Such a document opens without a question, and PDF4QT respects its restrictions everywhere – also for an AI assistant. **Security** lists what the document allows.
+
+When you start an action, which the document does not allow, PDF4QT says which permission is missing and asks for the **owner password** of the document. If you own the document, type it and press **Unlock**: the restrictions are lifted until you close the tab. **Unlock with Owner Password…** in **Security** does the same without an action. Then start the action again (a tool goes on by itself). The password is not stored; a saved file keeps the encryption and its restrictions, so it is restricted again when you open it.
+
+A document encrypted for certificates has no owner password: its permissions come from the certificate, with which you opened it, and no password can change them. There is no setting to ignore the restrictions of a document.
 
 ## Links and actions
 

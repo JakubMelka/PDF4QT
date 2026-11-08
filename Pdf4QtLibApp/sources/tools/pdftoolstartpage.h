@@ -39,7 +39,9 @@
 namespace pdf
 {
 
+class PDFAppToolInputList;
 class PDFDocumentToolCatalogEntry;
+enum class PDFAppToolStartPageText;
 
 /// Start page of a tool (/tools/{toolId}, Figma 276:1737): it is built from the catalog,
 /// from the help topic of the tool and from the suggestions, so every tool with a GUI has
@@ -48,6 +50,15 @@ class PDFDocumentToolCatalogEntry;
 /// Q5), at a glance and the link to the manual. A chosen document opens the tool in the tab of
 /// the document; a file opened or dropped on this page opens it too. Rebuilt at a change
 /// of the language with the scroll position and the focus kept.
+///
+/// A tool with more inputs (Merge, 531:3208, plan of step 2 of phase 2, 4.3) has the chooser
+/// of the mode Multiple instead (PDFAppToolInputChooser over the PDFAppToolInputList of the
+/// page): the files dropped anywhere on the page join the list (PDF files and images, K8),
+/// Open Merge with … hands the list over to the own tab of the tool
+/// (PDFAppMainWindow::createToolTab, R13) and the page gets a new empty list. A tool without
+/// an input (Blank PDF, Q10 / R21, 1392:4528) has the Primary Open … in the place of the
+/// chooser, which opens its own tab, with the texts of its GUI (getStartPageText). The list
+/// is a child of the page (it survives a rebuild).
 class PDF4QTLIBAPPSHARED_EXPORT PDFToolStartPage : public PDFAppContentPage
 {
     Q_OBJECT
@@ -77,6 +88,9 @@ public:
     /// Parts (tests)
     PDFAppColumns* getColumns() const { return m_columns.data(); }
     PDFAppToolDocumentChooser* getChooser() const { return m_chooser.data(); }
+    PDFAppToolInputChooser* getInputChooser() const { return m_inputChooser.data(); }
+    PDFAppToolInputList* getInputList() const;
+    QPushButton* getOpenToolButton() const { return m_openToolButton.data(); }
     PDFAppMarkdownView* getManualView() const { return m_manualView.data(); }
     PDFTintedCard* getTutorialCard() const { return m_tutorialCard.data(); }
     QPushButton* getWatchButton() const { return m_watchButton.data(); }
@@ -89,6 +103,10 @@ public:
 
 protected:
     virtual void changeEvent(QEvent* event) override;
+    virtual void dragEnterEvent(QDragEnterEvent* event) override;
+    virtual void dragMoveEvent(QDragMoveEvent* event) override;
+    virtual void dragLeaveEvent(QDragLeaveEvent* event) override;
+    virtual void dropEvent(QDropEvent* event) override;
 
 private:
     const PDFDocumentToolCatalogEntry* getTool() const;
@@ -96,6 +114,12 @@ private:
     void build();
     void rebuild();
     QWidget* createChooseDocument(QWidget* parent);
+    QWidget* createChooseDocuments(QWidget* parent);
+    QWidget* createOpenTool(QWidget* parent);
+    QString getLockedGlanceText() const;
+
+    /// A text of the section of a tool without an input from its GUI, empty = the generic one
+    QString getStartPageText(PDFAppToolStartPageText text) const;
     QWidget* createManual(QWidget* parent);
     QWidget* createTutorial(QWidget* parent);
     QWidget* createAtGlance(QWidget* parent);
@@ -103,6 +127,8 @@ private:
 
     void onDocumentChosen(const QString& documentId);
     void onOpenFileRequested();
+    void onOpenToolRequested();
+    void setDropActive(bool isActive);
     void onMarkdownLinkActivated(const QString& link);
     void onManualLinkClicked();
 
@@ -110,6 +136,9 @@ private:
     QPointer<QWidget> m_content;
     QPointer<PDFAppColumns> m_columns;
     QPointer<PDFAppToolDocumentChooser> m_chooser;
+    QPointer<PDFAppToolInputChooser> m_inputChooser;
+    QPointer<PDFAppToolInputList> m_inputList;
+    QPointer<QPushButton> m_openToolButton;
     QPointer<PDFAppMarkdownView> m_manualView;
     QPointer<PDFTintedCard> m_tutorialCard;
     QPointer<QPushButton> m_watchButton;

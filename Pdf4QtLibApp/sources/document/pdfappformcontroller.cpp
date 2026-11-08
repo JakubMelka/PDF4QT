@@ -24,6 +24,7 @@
 #include "pdfappannotationcontroller.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentactions.h"
+#include "pdfappdocumentpermissions.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
 #include "pdfsettingdefinitions.h"
@@ -234,6 +235,7 @@ void PDFAppFormController::setDocument(PDFAppDocument* document)
     m_focusedWidget = PDFObjectReference();
     m_isCalculatedBarDismissed = false;
     m_isXFABarDismissed = false;
+    m_isRestrictedBarDismissed = false;
     m_isInfoBarUpdateNeeded = true;
 
     if (document)
@@ -603,6 +605,32 @@ void PDFAppFormController::updateInfoBars()
     {
         view->hideInfoBar(getCalculatedFieldsBarId());
     }
+
+    // A form, which the permissions of the document do not let fill in, while its owner
+    // password can lift them (owner 2026-11-08; no frame - Q17: the bar of the XFA form
+    // with an action): the place, where the restriction of the form is seen
+    const bool isFormRestricted = document && !isXFA && formManager && formManager->getDocument() == document && formManager->hasAcroForm() &&
+                                  m_document->isEditable() && PDFAppDocumentPermissions::canUnlock(document) &&
+                                  !PDFAppDocumentPermissions::isAllowed(document, PDFAppPermissionRequest::create(PDFAppPermissionAction::FillForm));
+    if (isFormRestricted && !m_isRestrictedBarDismissed)
+    {
+        PDFAppInfoBarRequest request;
+        request.id = getRestrictedBarId();
+        request.tone = PDFAppInfoBarTone::Information;
+        request.iconName = QStringLiteral("lock");
+        request.title = tr("This form cannot be filled in");
+        request.text = PDFAppDocumentPermissions::getRefusalText(document, PDFAppPermissionRequest::create(PDFAppPermissionAction::FillForm));
+        request.actions.push_back({ getUnlockActionId(), tr("Unlock with Owner Password…"), QStringLiteral("key") });
+        const PDFAppInfoBarRequest* shown = view->findInfoBar(request.id);
+        if (!shown || !(*shown == request))
+        {
+            view->showInfoBar(request);
+        }
+    }
+    else if (view->findInfoBar(getRestrictedBarId()))
+    {
+        view->hideInfoBar(getRestrictedBarId());
+    }
 }
 
 // ---------------------------------------------------------------------- slots
@@ -757,6 +785,14 @@ bool PDFAppFormController::isResetEffective(const PDFFormManager* formManager, c
 
 void PDFAppFormController::onInfoBarActionTriggered(const QString& infoBarId, const QString& actionId)
 {
+    // Unlock of a restricted form: the owner password dialog of the shared check (the
+    // last call; the form is filled after the unlock)
+    if (infoBarId == getRestrictedBarId() && actionId == getUnlockActionId())
+    {
+        PDFAppDocumentPermissions::request(m_document.data(), PDFAppPermissionRequest::create(PDFAppPermissionAction::FillForm), m_view.data());
+        return;
+    }
+
     // The close button of a bar (an empty action): it stays closed for the document
     if (!actionId.isEmpty())
     {
@@ -770,6 +806,10 @@ void PDFAppFormController::onInfoBarActionTriggered(const QString& infoBarId, co
     else if (infoBarId == getXFABarId())
     {
         m_isXFABarDismissed = true;
+    }
+    else if (infoBarId == getRestrictedBarId())
+    {
+        m_isRestrictedBarDismissed = true;
     }
 }
 

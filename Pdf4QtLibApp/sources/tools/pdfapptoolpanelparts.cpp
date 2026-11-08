@@ -204,6 +204,11 @@ void PDFAppToolCallout::setCompactStyle()
 {
     setRadius(COMPACT_RADIUS);
     m_layout->setSpacing(COMPACT_GAP);
+    m_layout->setContentsMargins(PADDING_H, PADDING_TOP, PADDING_H, COMPACT_PADDING_BOTTOM);
+    if (m_title)
+    {
+        m_title->setLineHeight(COMPACT_TITLE_LINE);
+    }
 
     // The text has its own line height: a new one replaces it
     PDFAppParagraph* text = PDFAppPageWidgets::createText(m_text ? m_text->text() : QString(), PDFThemeFonts::getFont(QFont::Normal, 11), COMPACT_TEXT_LINE, PDFThemeColors::TextSecondary, this);

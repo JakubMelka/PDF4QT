@@ -53,6 +53,7 @@ namespace pdf
 
 class PDFAppContext;
 class PDFAppDocumentTab;
+class PDFAppTab;
 class PDFAppToolChooserDialog;
 class PDFDocumentToolCatalogEntry;
 class PDFDocumentToolRunner;
@@ -159,6 +160,7 @@ public:
     QString previousToolId;     ///< Tool, after whose result this one ran (the pair of the suggestions)
     QString reportText;         ///< Report of the run for the clipboard: the link Copy report in the head, empty = no link (Optimize Structure 303:5373, see the tool)
     QPointer<QWidget> scrimTarget;  ///< The covered widget: the canvas of the tool (312:7373); null = the body of the window
+    QPointer<PDFAppTab> anchorTab;  ///< A new tab of the result goes after this tab (the own tab of a tool, plan of step 2 of phase 2, 4.5); null = after the tab of the input document
 };
 
 /// The decision of the user in the result dialog
@@ -237,6 +239,9 @@ public:
     /// Most rows of the search of Another tool…
     static constexpr int MAXIMUM_CHOOSER_ROWS = 12;
 
+    /// Most reasons of the left out inputs in the callout of a partial result
+    static constexpr int MAXIMUM_LEFT_OUT_REASONS = 5;
+
     /// A choice of the dialog
     enum class Choice
     {
@@ -303,6 +308,15 @@ public:
     const QString& getPreviousToolId() const { return m_input.previousToolId; }
     PDFContinueWith* getContinueWith() const { return m_continueWith; }
     PDFTintedCard* getSignedWarning() const { return m_signedWarning; }
+
+    /// A partial result (378:4376, owner answer Q5): inputs of a tool of more inputs are not
+    /// in the result (PDFDocumentToolResult::leftOutInputs). The dialog says it by the badge
+    /// alert-triangle, the default title "<Tool> finished without %Ln file(s)" (a tool may say
+    /// more by PDFAppToolResultInput::title: Merge "Merged without %Ln file(s)"), the subtitle
+    /// "The new document is ready, but it is not complete.", a fact Left out per input and
+    /// the amber callout of the reason; it has no Then continue with (tools.md 9.3 point 12)
+    bool isPartial() const { return m_isPartial; }
+    PDFTintedCard* getPartialWarning() const { return m_partialWarning; }
     PDFTintedCard* getWriteError() const { return m_writeError; }
     PDFLabel* getNameError() const { return m_nameError; }
     PDFLineEdit* getFileNameField() const { return m_fileNameField; }
@@ -363,6 +377,7 @@ private:
     /// Texts, which depend on the language
     void updateTexts();
     QString getDefaultTitle() const;
+    int getLeftOutCount() const;
     QString getDefaultSubtitle() const;
     QString getConfirmText() const;
     QString getConfirmIconName() const;
@@ -440,6 +455,7 @@ private:
     QPointer<PDFContinueWith> m_continueWith;
     QStringList m_continueToolIds;
     QPointer<PDFTintedCard> m_signedWarning;
+    QPointer<PDFTintedCard> m_partialWarning;
     QPointer<PDFTintedCard> m_writeError;
     QPointer<PDFAppParagraph> m_writeErrorText;
     QPointer<PDFLabel> m_writeErrorTitle;
@@ -468,6 +484,7 @@ private:
     bool m_isOverwriteRunning = false;
     bool m_isFileWrittenError = false;  ///< The shown error says, that the file has been written
     bool m_isDisplayVersion = false;    ///< A changed document of a display version of an XFA form: nothing can be done with it (F5)
+    bool m_isPartial = false;           ///< Inputs are left out of the result (378:4376)
 };
 
 }   // namespace pdf

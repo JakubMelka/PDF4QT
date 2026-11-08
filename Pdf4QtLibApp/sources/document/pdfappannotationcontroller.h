@@ -175,6 +175,17 @@ public:
     /// form is not an XFA form (shown only, PDFAppFormController::isXFAForm)
     bool isFormFillingAllowed() const;
 
+    /// Annotations can be edited after the owner password (owner 2026-11-08): the document
+    /// is editable and allows the editing or its owner password can lift the restriction
+    /// (PDFAppDocumentPermissions::isAvailable) - the enabled state of Annotate and Insert
+    bool isAnnotationEditingAvailable() const;
+
+    /// The check of an action of the user, which changes annotations: allowed = true;
+    /// refused only by the permissions of the document = the owner password dialog of the
+    /// shared check (PDFAppDocumentPermissions::request, the user acts again after the
+    /// unlock); refused otherwise = the reason in the status bar. \returns false when refused
+    bool requestAnnotationEditing();
+
     /// Reason, why annotations cannot be changed, for a tooltip or a status
     /// message (O8: a locked document and a document without the permission have
     /// different texts); empty when the editing is allowed

@@ -27,6 +27,7 @@
 #include "pdfappcommand.h"
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
+#include "pdfappdocumentpermissions.h"
 #include "pdfappdocumentview.h"
 #include "pdfappmainwindow.h"
 #include "pdfapppage.h"
@@ -390,6 +391,13 @@ void PDFAppAnnotationMenus::fillSelectionMenu(QMenu* menu, const PDFAnnotationMe
         addCommand(menu, C::deleteSelection(), tr("Delete"), QStringLiteral("trash"), target);
     }
 
+    // The permissions of the document hide the changes; its owner password can lift them
+    // (owner 2026-11-08, no frame - Q17: an item of the menu as the others)
+    if (!isEditingAllowed && !isChooser && controller->isAnnotationEditingAvailable())
+    {
+        addOperation(menu, QStringLiteral("annotation.unlock"), tr("Unlock with Owner Password…"), QStringLiteral("key"));
+    }
+
     if (isChooser)
     {
         setPanelWidth(menu, SUBMENU_WIDTH);
@@ -630,6 +638,11 @@ void PDFAppAnnotationMenus::runOperation(const QString& id)
     if (id == QStringLiteral("annotation.openComment"))
     {
         controller->requestComment(request.annotation, false);
+    }
+    else if (id == QStringLiteral("annotation.unlock"))
+    {
+        // The dialog of the shared check (it opens without a loop, the guard below holds)
+        controller->requestAnnotationEditing();
     }
     else if (id == QStringLiteral("annotation.openProperties"))
     {

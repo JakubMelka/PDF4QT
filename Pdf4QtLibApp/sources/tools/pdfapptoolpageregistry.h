@@ -38,7 +38,8 @@ namespace pdf
 enum class PDFAppToolPageKind
 {
     Start,      ///< /tools/{toolId}: the introduction page of the tool in the Home tab (276:1737)
-    Document    ///< /document/{documentId}/tool/{toolId}: the tool in the tab of the document (291:994)
+    Document,   ///< /document/{documentId}/tool/{toolId}: the tool in the tab of the document (291:994)
+    OwnTab      ///< /tool/{toolId}/{instanceId}: a tool with its own tab (378:1049, 337:1976; plan of step 2 of phase 2, 4.1)
 };
 
 /// Pages of the tools of the catalog (plan of step 6, chapter 3): the hook of the

@@ -218,6 +218,27 @@ std::vector<PDFDocumentToolParameterError> PDFAppToolParameterModel::getErrors()
     return PDFDocumentToolParameters::normalize(m_definitions, m_values, &normalizedValues);
 }
 
+std::vector<QVariant> PDFAppToolParameterModel::getHistoryValues(const QString& name) const
+{
+    std::vector<QVariant> values;
+    values.reserve(m_undoStack.size() + m_redoStack.size() + 1);
+    if (m_values.contains(name))
+    {
+        values.push_back(m_values.value(name));
+    }
+    for (const std::vector<QVariantMap>* stack : { &m_undoStack, &m_redoStack })
+    {
+        for (const QVariantMap& step : *stack)
+        {
+            if (step.contains(name))
+            {
+                values.push_back(step.value(name));
+            }
+        }
+    }
+    return values;
+}
+
 void PDFAppToolParameterModel::undo()
 {
     if (m_undoStack.empty())

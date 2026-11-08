@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappdocument.h"
+#include "pdfappdocumentpermissions.h"
 #include "pdfdocumentreader.h"
 #include "pdfappcontext.h"
 #include "pdfappundostack.h"
@@ -484,6 +485,20 @@ void PDFAppDocument::restore(PDFDocumentPointer document, PDFModifiedDocument::M
 
 void PDFAppDocument::setDocument(PDFDocumentPointer document, PDFModifiedDocument::ModificationFlags flags, bool isSaved)
 {
+    // The unlock of the session follows every version with the same encryption (undo and
+    // redo to a version before the unlock, a result of a job started before it, a reload
+    // of the same file): the owner password of one is the owner password of the other
+    const PDFSecurityHandler* securityHandler = document ? document->getStorage().getSecurityHandler() : nullptr;
+    if (m_ownerSecurityHandler && securityHandler && securityHandler->getAuthorizationResult() != PDFSecurityHandler::AuthorizationResult::OwnerAuthorized &&
+        PDFAppDocumentPermissions::hasSameEncryption(securityHandler, m_ownerSecurityHandler.data()))
+    {
+        PDFDocumentPointer unlocked = PDFAppDocumentPermissions::createWithSecurityHandler(document.data(), m_ownerSecurityHandler);
+        if (unlocked)
+        {
+            document = std::move(unlocked);
+        }
+    }
+
     const bool wasModified = isModified();
     const bool isReset = flags.testFlag(PDFModifiedDocument::Reset);
 
@@ -565,6 +580,41 @@ void PDFAppDocument::setDocument(PDFDocumentPointer document, PDFModifiedDocumen
     {
         Q_EMIT modifiedChanged();
     }
+}
+
+bool PDFAppDocument::isOwnerUnlocked() const
+{
+    return m_ownerSecurityHandler && m_document && m_document->getStorage().getSecurityHandler() == m_ownerSecurityHandler.data();
+}
+
+bool PDFAppDocument::unlockWithOwnerPassword(const QString& ownerPassword)
+{
+    if (!isReady() || !m_document || !PDFAppDocumentPermissions::canUnlock(m_document.data()))
+    {
+        return false;
+    }
+
+    // The password is verified by a copy of the handler of the document (the encryption
+    // dictionary of the file, which it holds); it is not kept anywhere
+    const PDFSecurityHandler* securityHandler = m_document->getStorage().getSecurityHandler();
+    PDFSecurityHandlerPointer ownerSecurityHandler = PDFAppDocumentPermissions::authenticateOwner(securityHandler, ownerPassword);
+    if (!ownerSecurityHandler)
+    {
+        return false;
+    }
+
+    PDFDocumentPointer unlocked = PDFAppDocumentPermissions::createWithSecurityHandler(m_document.data(), ownerSecurityHandler);
+    if (!unlocked)
+    {
+        return false;
+    }
+
+    // State first, the signal last (setDocument emits): no undo step, the modified state
+    // stays as it is (an unmodified document stays saved - its file has the same bytes)
+    m_userSecurityHandler = PDFSecurityHandlerPointer(securityHandler->clone());
+    m_ownerSecurityHandler = std::move(ownerSecurityHandler);
+    setDocument(std::move(unlocked), PDFModifiedDocument::Authorization, !isModified());
+    return true;
 }
 
 void PDFAppDocument::setState(PDFAppDocumentState state)
@@ -728,6 +778,8 @@ void PDFAppDocument::setLoaded(PDFDocumentPointer document, QByteArray originalD
     m_isSignedRevisionGone = false;
     m_restoration = restoration;
     m_isCopy = isFromMemory;
+    m_ownerSecurityHandler.reset();     // another file: locked until its owner password
+    m_userSecurityHandler.reset();
     if (!isFromMemory)
     {
         m_copyTitle.clear();
@@ -797,6 +849,19 @@ bool PDFAppDocument::setCopyOf(const PDFAppDocument* source)
         return false;
     }
 
+    // The unlock belongs to the tab of the source (until it closes): the copy has the
+    // handler, with which the source was opened, its restrictions are back
+    PDFDocumentPointer document = source->getDocument();
+    if (source->isOwnerUnlocked() && source->m_userSecurityHandler)
+    {
+        PDFDocumentPointer locked = PDFAppDocumentPermissions::createWithSecurityHandler(document.data(), source->m_userSecurityHandler);
+        if (!locked)
+        {
+            return false;
+        }
+        document = std::move(locked);
+    }
+
     // The copy has no file: it is modified until it is saved (Save As of package E)
     m_filePath.clear();
     m_copyTitle = tr("Copy of %1").arg(source->getTitle());
@@ -816,9 +881,11 @@ bool PDFAppDocument::setCopyOf(const PDFAppDocument* source)
     m_errorMessage.clear();
     m_undoStack->clear();
     m_state = PDFAppDocumentState::Ready;
+    m_ownerSecurityHandler.reset();
+    m_userSecurityHandler.reset();
 
     QPointer<PDFAppDocument> guard(this);
-    setDocument(source->getDocument(), PDFModifiedDocument::Reset, false);
+    setDocument(std::move(document), PDFModifiedDocument::Reset, false);
     if (guard)
     {
         Q_EMIT stateChanged();

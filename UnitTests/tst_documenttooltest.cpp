@@ -424,11 +424,14 @@ void DocumentToolTest::catalogPermissions()
     // Bit 11 "Assemble the document (insert, rotate, or delete pages ...)": Rotate, Remove; bit 4
     // "Modify the contents ... other than those controlled by bits 6, 9, and 11": the tools,
     // which rewrite the document; bit 6 "Add or modify text annotations ...": the links; bit 5
-    // "Copy or otherwise extract text and graphics": Extract Text.
+    // "Copy or otherwise extract text and graphics": Extract Text. Merge inserts the pages of a
+    // document into another one (bit 11; its validation needs also the owner password of a
+    // document with another restriction, step 2 of phase 2, Q2). Blank PDF has no input.
     const std::map<QString, Permissions> expected =
     {
         { QStringLiteral("pages.rotate"), Permissions({ Permission::Assemble }) },
         { QStringLiteral("pages.remove"), Permissions({ Permission::Assemble }) },
+        { QStringLiteral("pages.merge"), Permissions({ Permission::Assemble }) },
         { QStringLiteral("optimize.compress"), Permissions({ Permission::Modify }) },
         { QStringLiteral("optimize.structure"), Permissions({ Permission::Modify }) },
         { QStringLiteral("protect.sanitize"), Permissions({ Permission::Modify }) },

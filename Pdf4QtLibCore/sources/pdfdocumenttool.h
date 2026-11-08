@@ -61,6 +61,8 @@ public:
     QByteArray originalData;        ///< Data of the original file (incremental save, signatures); may be empty
     QString fileName;               ///< Name of the file (for the suggested names of the results); may be empty
     bool isModified = true;         ///< The document may differ from \p originalData (unsaved changes). The safe default: only a caller, which knows that the bytes are of this very document, says false (PDFAppDocumentSnapshot::isModified); a size is then measured by writing it.
+    QString inputId;                ///< Id of the input of a tool of more inputs (PDFAppToolInputList, the parameter "inputs" of Merge); empty = the inputs are taken in the order of the context
+    bool isOwnerPasswordVerified = false;   ///< The owner password of the original file was verified (PDFDocumentMerger::verifyOwnerPassword; a snapshot of an open tab with unsaved changes, owner answer Q15): the permission check of Merge (Q2) accepts the input as opened by its owner
 
     /// Input document of a snapshot of an open document: the file name is taken from
     /// its path
@@ -69,6 +71,22 @@ public:
     /// \param filePath Path of the file, may be empty
     /// \param isModified The document differs from the data of the file
     static PDFDocumentToolInputDocument create(PDFDocumentPointer document, QByteArray originalData, const QString& filePath, bool isModified);
+};
+
+/// Input image of a tool of more inputs (Merge, plan of step 2 of phase 2, 5.3): the
+/// bytes of an image file (or of an image of the clipboard, saved as PNG). A value: the
+/// bytes are implicitly shared and never changed. The tool decodes them itself in the
+/// worker (PDFImagePageFactory), under the limits of hostile images (R15): a page per
+/// frame (every frame of a multi-page TIFF, at most PDFImagePageFactory::MAXIMUM_FRAME_COUNT),
+/// the page size by the resolution of the image.
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolInputImage
+{
+public:
+    QByteArray data;            ///< Bytes of the image file (never empty in a valid context)
+    QByteArray format;          ///< Format of QImageReader ("jpeg", "png", "tiff"); empty = by the content
+    QString fileName;           ///< Name of the file (texts of the result, left out inputs); "Pasted image" of the clipboard
+    QString inputId;            ///< Id of the input (as PDFDocumentToolInputDocument::inputId); empty = the order of the context
+    double dotsPerInch = 0.0;   ///< Resolution given by the caller; 0 = the resolution of the file (a value outside 72 to 2400, zero, negative or NaN gives 300, R15)
 };
 
 /// Context of one run of a tool: the inputs and the environment. A value - the
@@ -84,6 +102,11 @@ public:
     /// Input documents: none (PDFDocumentToolInputKind::None), the document of the
     /// tab (One) or more documents (Multiple, the first is the document of the tab)
     std::vector<PDFDocumentToolInputDocument> documents;
+
+    /// Input images of a tool of more inputs (Merge; the documents and the images together
+    /// are its inputs, ordered by its parameter "inputs" through their input ids; without
+    /// ids the documents come first, then the images)
+    std::vector<PDFDocumentToolInputImage> images;
 
     /// Pages selected in the thumbnails of the first document (indices from 0)
     std::vector<PDFInteger> selectedPages;
@@ -124,6 +147,25 @@ public:
     PDFDocumentPointer document;                                            ///< The document
     PDFModifiedDocument::ModificationFlags flags = PDFModifiedDocument::Reset;  ///< What changed (hints of the update)
     QString suggestedFileName;                                              ///< Suggested name of the file (without a folder)
+
+    /// The file of \p document, when the tool has written it already (a New document,
+    /// whose size it measured by writing it, plan of step 2 of phase 2, 4.5): exactly the
+    /// bytes PDFDocumentWriter writes for \p document, so the caller opens or saves these
+    /// bytes and never writes the document a second time. Empty = not written (the caller
+    /// writes \p document itself).
+    QByteArray writtenData;
+};
+
+/// Input of a tool of more inputs, which is not in the result (a partial result, Figma
+/// 378:4376, owner answer Q5: only when the copy of the input fails during the run)
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolLeftOutInput
+{
+public:
+    QString inputId;            ///< Id of the input (PDFDocumentToolInputDocument::inputId), may be empty
+    int inputIndex = -1;        ///< Index of the input in the order of the tool (the letter A = 0)
+    QString name;               ///< Name of the input ("Annex_A.pdf")
+    PDFInteger pageCount = 0;   ///< Pages of the input, which the result should have had
+    QString reason;             ///< Translated reason ("The file cannot be read: ...")
 };
 
 /// File of the result, which the tool does not write itself: the result dialog or MCP
@@ -174,6 +216,7 @@ public:
     QStringList writtenFiles;                           ///< Files written by the tool (absolute paths)
     std::vector<PDFDocumentToolFact> facts;             ///< Facts of the result dialog
     std::vector<PDFDocumentToolStep> steps;             ///< Rows of the steps
+    std::vector<PDFDocumentToolLeftOutInput> leftOutInputs;    ///< Inputs, which are not in the result (Success = a partial result; empty = complete)
     QJsonObject data;                                   ///< Structured data of the tool for MCP
 
     static PDFDocumentToolResult createFailed(const QString& message);
@@ -370,6 +413,14 @@ public:
     /// to set. The panels always hold all values, they do not call it. The default finds nothing.
     /// \param given The parameters as they were given
     virtual std::vector<PDFDocumentToolParameterError> checkGivenParameters(const QVariantMap& given) const;
+
+    /// The values, whose default depends on another given value, added to the parameters as they
+    /// were given, before they are normalized (run, runPreview): a caller, who gives only some
+    /// values (an assistant by MCP), gets the default of the combination it gave (Blank PDF: a
+    /// 16:9 page without an orientation is landscape, owner answer Q22). The panels hold every
+    /// value, nothing is added for them. The default adds nothing.
+    /// \param given The parameters as they were given
+    virtual QVariantMap completeGivenParameters(const QVariantMap& given) const;
 
     /// The parameters given for the document \p from, made for \p to, another version of it
     /// (MCP runs a tool again on a new version; an open tool keeps its values, when an

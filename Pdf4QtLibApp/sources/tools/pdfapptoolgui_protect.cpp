@@ -23,6 +23,7 @@
 #include "pdfapptoolgui_protect.h"
 
 #include "pdfappdocument.h"
+#include "pdfappdocumentpermissions.h"
 #include "pdfappdocumentpanels_common.h"
 #include "pdfappdocumentview.h"
 #include "pdfapplocale.h"
@@ -730,11 +731,29 @@ QString PDFAppToolGUISanitize::getPermissionRefusal() const
     return PDFDocumentToolSanitize::getPermissionRefusal(document->getDocument().data(), *m_scan, getRemovedKinds());
 }
 
+bool PDFAppToolGUISanitize::isUnlockOffered() const
+{
+    const PDFAppDocument* document = getDocument();
+    return document && document->isReady() && PDFAppDocumentPermissions::canUnlock(document->getDocument().data());
+}
+
+std::vector<PDFSecurityHandler::Permission> PDFAppToolGUISanitize::getRunPermissions() const
+{
+    // ISO 32000-2, Table 22: the chosen kinds, which change annotations or form fields, need
+    // bit 6; the shell asks for it by the shared check (the owner password dialog)
+    if (!m_scan || PDFDocumentToolSanitize::getInteractiveKinds(*m_scan, getRemovedKinds()).empty())
+    {
+        return { };
+    }
+    return { PDFSecurityHandler::Permission::ModifyInteractiveItems };
+}
+
 bool PDFAppToolGUISanitize::isConfirmEnabled() const
 {
     // 438:13607, 438:13839: nothing is chosen, nothing is found; a kind, which the permissions
-    // of the document refuse, is chosen
-    return BaseClass::isConfirmEnabled() && m_scan.has_value() && !getRemovedKinds().empty() && getPermissionRefusal().isEmpty();
+    // of the document refuse, is chosen and no owner password can allow it (a document, which
+    // can be unlocked, asks for the password at the Primary button, owner 2026-11-08)
+    return BaseClass::isConfirmEnabled() && m_scan.has_value() && !getRemovedKinds().empty() && (getPermissionRefusal().isEmpty() || isUnlockOffered());
 }
 
 QString PDFAppToolGUISanitize::getStatusText() const
@@ -754,8 +773,14 @@ QString PDFAppToolGUISanitize::getStatusText() const
         return tr("Choose at least one kind of data to remove");
     }
 
-    // Why the Primary button is disabled: the text, which a run and MCP get too
+    // Why the Primary button is disabled: the text, which a run and MCP get too; a document,
+    // which its owner password can unlock, asks for it at the Primary button
     const QString refusal = getPermissionRefusal();
+    if (!refusal.isEmpty() && isUnlockOffered() && m_scan)
+    {
+        const QString kinds = PDFDocumentToolSanitize::joinKindTitles(PDFDocumentToolSanitize::getInteractiveKinds(*m_scan, getRemovedKinds()));
+        return tr("The document does not allow changing its annotations and form fields, which removing %1 needs: %2 asks for its owner password, or untick %1 to remove the other kinds.").arg(kinds, getConfirmText());
+    }
     if (!refusal.isEmpty())
     {
         return refusal;

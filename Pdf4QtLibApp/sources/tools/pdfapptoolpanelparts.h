@@ -176,12 +176,15 @@ public:
     void setTexts(const QString& title, const QString& text);
 
     /// The callout of a narrow panel (Remove Hidden Data 438:12703, Remove External Links
-    /// 438:15026): radius 8, the head and the text 4 apart, the text Regular 11 in lines of 13
+    /// 438:15026, Merge 378:3015, Blank PDF 337:2215): radius 8, paddings 10 / 12 / 10 / 12,
+    /// the head and the text 4 apart, the title in lines of 15, the text Regular 11 in lines of 13
     void setCompactStyle();
 
     static constexpr int COMPACT_RADIUS = 8;
     static constexpr int COMPACT_GAP = 4;
     static constexpr int COMPACT_TEXT_LINE = 13;
+    static constexpr int COMPACT_TITLE_LINE = 15;       ///< Two lines of the title are 30 (337:2219)
+    static constexpr int COMPACT_PADDING_BOTTOM = 11;   ///< Padding 10 + the border
 
     PDFLabel* getTitleLabel() const { return m_title; }
     PDFAppParagraph* getTextLabel() const { return m_text; }

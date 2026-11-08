@@ -35,7 +35,7 @@ The result has the readable JSON in a text block and the same data in `structure
 | `files` | Open a PDF file, save a document, save a copy | pdf4qt://docs/tools/files.md |
 <!-- catalog tools -->
 
-The tools named after the categories of the tool catalog of PDF4QT run its tools on a document, one action per tool; `tools/list` shows the categories with an implemented tool. Their common parameter `result` says what happens with what the tool made: it stays in the tab as one undo step, or it is written to a file.
+The tools named after the categories of the tool catalog of PDF4QT run its tools on a document, one action per tool; `tools/list` shows the categories with an implemented tool. Their common parameter `result` says what happens with what the tool made: it stays in the tab as one undo step, a new document (Merge, Blank PDF) opens in a new tab, or it is written to a file.
 
 ## Permissions in one paragraph
 

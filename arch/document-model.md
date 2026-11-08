@@ -5,6 +5,7 @@
 - Changes flow as `PDFModifiedDocument`: the new document plus flags (`Reset`, `Annotation`, `FormField`, `PageContents`, ...). Consumers skip expensive rebuilds by the flags; when unsure, `Reset` is the conservative choice.
 - Values are read out of dictionaries by `PDFDocumentDataLoaderDecorator` (defaulted and throwing accessors), not by hand.
 - The whole document is parsed at open, so the file is not needed afterwards - no lazy loading, by design.
+- The permissions of an encrypted document (ISO 32000-2, 7.6.4, Table 22) are respected everywhere in the new application, by one shared check (`PDFAppDocumentPermissions`); only the owner password lifts them, for the session of the tab (the security handler authorized as the owner, the encryption dictionary and `/P` of every write unchanged) - there is no setting to ignore them (owner 2026-11-08: conformance, not a deviation).
 - A damaged file is restored by the permissive reading from the bytes (of more objects of one reference the last readable one wins). A restored file is told to the user, and a restored signed file is saved only as a copy written whole (owner 2026-11-05).
 
 ## Writing

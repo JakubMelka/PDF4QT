@@ -71,6 +71,7 @@ public:
         QByteArray data;            ///< Bytes of the file read before (a second reading with a password)
         bool isFromMemory = false;  ///< \p data is the document (an attachment), no file is read
         bool hasPassword = false;   ///< \p password is tried (an empty password, too)
+        bool isOwnerOnly = false;   ///< Only the owner password authorizes (ISO 32000-2, 7.6.4.3.3): a password of the user is wrong (an input of a tool, whose result loses the restrictions)
         QString password;           ///< Password of the user (never logged, never stored)
 
         /// Progress of the reading (stepped by the reader in the worker, read by the GUI;

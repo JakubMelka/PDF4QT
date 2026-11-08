@@ -124,6 +124,16 @@ QPushButton* PDFAppCardDialog::addActionButton(const QString& text, bool isPrima
     return BaseClass::addActionButton(text, isLeading ? ActionPosition::Leading : ActionPosition::Trailing, isPrimary);
 }
 
+PDFLabel* PDFAppCardDialog::createFieldLabel(const QString& text, QWidget* parent)
+{
+    return PDFAppHomeDialogsHelper::createFieldLabel(text, parent);
+}
+
+QWidget* PDFAppCardDialog::createErrorRow(QWidget* parent, PDFAppParagraph** text)
+{
+    return PDFAppHomeDialogsHelper::createErrorRow(parent, text);
+}
+
 PDFAppNameDialog::PDFAppNameDialog(const QString& title, const QString& text, const QString& name, const QString& actionText, QWidget* parent) :
     BaseClass(PDFThemeIcons::Badge::Information, false, title, text, 440, parent)
 {

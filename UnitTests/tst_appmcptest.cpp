@@ -265,6 +265,7 @@ private slots:
     void catalogMarkOfTheWeb() { AppMcpCatalogTests::markOfTheWeb(); }
     void catalogCanceledWithResult() { AppMcpCatalogTests::canceledWithResult(); }
     void catalogPermissionMatrix() { AppMcpCatalogTests::permissionMatrix(); }
+    void catalogNewDocumentPermissions() { AppMcpCatalogTests::newDocumentPermissions(); }
     void catalogModalDialog() { AppMcpCatalogTests::modalDialog(); }
     void catalogPermissionChangedDuringCall() { AppMcpCatalogTests::permissionChangedDuringCall(); }
     void catalogSchemaInEnglish() { AppMcpCatalogTests::schemaInEnglish(); }

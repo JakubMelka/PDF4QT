@@ -534,6 +534,40 @@ bool PDFSecurityHandler::isNoDRM()
     return s_noDrmMode;
 }
 
+bool PDFSecurityHandler::isAllowedByRevision(const PDFSecurityHandler* securityHandler, Permission permission)
+{
+    if (!securityHandler)
+    {
+        return true;
+    }
+
+    // Table 22: bits 9 to 12 exist from revision 3 (an owner authorized handler allows
+    // everything by isAllowed)
+    if (securityHandler->getMode() == EncryptionMode::Standard && static_cast<const PDFStandardSecurityHandler*>(securityHandler)->getRevision() == 2)
+    {
+        permission = getRevision2Permission(permission);
+    }
+    return securityHandler->isAllowed(permission);
+}
+
+PDFSecurityHandler::Permission PDFSecurityHandler::getRevision2Permission(Permission permission)
+{
+    switch (permission)
+    {
+        case Permission::ModifyFormFields:
+            return Permission::ModifyInteractiveItems;
+        case Permission::Accessibility:
+            return Permission::CopyContent;
+        case Permission::Assemble:
+            return Permission::Modify;
+        case Permission::PrintHighResolution:
+            return Permission::PrintLowResolution;
+        default:
+            break;
+    }
+    return permission;
+}
+
 void PDFSecurityHandler::fillEncryptionDictionary(PDFObjectFactory& factory, bool publicKeyHandler) const
 {
     factory.beginDictionaryItem("V");

@@ -97,6 +97,13 @@ void PDFAppAnnotateCommandHandler::execute(const QString& commandId)
         return;
     }
 
+    // Not allowed by the permissions: the owner password first (the shared check)
+    PDFAppAnnotationController* controller = view->getAnnotationController();
+    if (!controller || !controller->requestAnnotationEditing())
+    {
+        return;
+    }
+
     // The panel opens below its menu button (the command toggles it, as the button)
     if (commandId == PDFAppCommands::annotatePanel() || commandId == PDFAppCommands::insertPanel())
     {
@@ -167,10 +174,12 @@ bool PDFAppAnnotateCommandHandler::isEnabled(const QString& commandId) const
         return false;
     }
 
-    // Locked document, no permission (O8, O20): Annotate and Insert are disabled
+    // Locked document, no permission (O8, O20): Annotate and Insert are disabled; a
+    // restriction, which the owner password can lift, keeps them enabled - they ask for
+    // the password (owner 2026-11-08)
     const PDFAppDocumentView* view = getView();
     const PDFAppAnnotationController* controller = view ? view->getAnnotationController() : nullptr;
-    if (!controller || !controller->isAnnotationEditingAllowed())
+    if (!controller || !controller->isAnnotationEditingAvailable())
     {
         return false;
     }

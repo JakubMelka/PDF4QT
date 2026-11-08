@@ -178,6 +178,10 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
 
     if (optionFlags.testFlag(Unite))
     {
+        if (!optionFlags.testFlag(OpenDocument))
+        {
+            parser->addOption(QCommandLineOption("pswd", "Password of the encrypted documents (the owner password of a document, which restricts printing, copying or changes).", "password"));
+        }
         parser->addPositionalArgument("source", "Documents to be merged into single document.", "file1.pdf [file2.pdf, ...]");
         parser->addPositionalArgument("target", "Merged document filename.");
     }
@@ -1134,6 +1138,10 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
     if (optionFlags.testFlag(Unite))
     {
         options.uniteFiles = positionalArguments;
+        if (!optionFlags.testFlag(OpenDocument))
+        {
+            options.password = parser->isSet("pswd") ? parser->value("pswd") : QString();
+        }
     }
 
     if (optionFlags.testFlag(Diff))

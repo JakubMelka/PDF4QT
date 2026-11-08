@@ -186,9 +186,9 @@ void AppToolsTest::routesAndNavHighlight_data()
     QTest::newRow("custom-99999999999 page") << "/tools/collections/custom-99999999999" << QString() << QString();
     QTest::newRow("custom-01 page") << "/tools/collections/custom-01" << QString() << QString();
     QTest::newRow("unknown collection page") << "/tools/collections/unknown" << QString() << QString();
-    QTest::newRow("tool without page") << "/tools/pages.merge" << QString() << QString();
+    QTest::newRow("tool without page") << "/tools/pages.split" << QString() << QString();
     QTest::newRow("unknown tool") << "/tools/convert.epub" << QString() << QString();
-    QTest::newRow("null in tool") << "/tools/pages.merge%00" << QString() << QString();
+    QTest::newRow("null in tool") << "/tools/pages.split%00" << QString() << QString();
 }
 
 void AppToolsTest::routesAndNavHighlight()
@@ -231,13 +231,13 @@ void AppToolsTest::notFoundToolTitle()
     pdftest::AppToolsFixture fixture;
 
     // A tool of the catalog without a page: its title (940:134845) and the search for it
-    fixture.navigate(QStringLiteral("/tools/pages.merge"));
+    fixture.navigate(QStringLiteral("/tools/pages.split"));
     pdf::PDFPageNotFoundPage* page = fixture.notFoundPage();
     QVERIFY(page);
-    QCOMPARE(page->getDescriptionText(), QString::fromUtf8("Tool “Merge”"));
-    QCOMPARE(page->getRequest().searchText, QStringLiteral("Merge"));
-    QCOMPARE(page->getSearchButton()->text(), QString::fromUtf8("Search for “Merge”"));
-    QCOMPARE(page->getPathText(), QStringLiteral("/tools/pages.merge"));
+    QCOMPARE(page->getDescriptionText(), QString::fromUtf8("Tool “Split”"));
+    QCOMPARE(page->getRequest().searchText, QStringLiteral("Split"));
+    QCOMPARE(page->getSearchButton()->text(), QString::fromUtf8("Search for “Split”"));
+    QCOMPARE(page->getPathText(), QStringLiteral("/tools/pages.split"));
 
     // An unknown tool keeps its id, bounded
     fixture.navigate(QStringLiteral("/tools/convert.epub"));
@@ -259,66 +259,66 @@ void AppToolsTest::notFoundToolTitle()
     pdf::PDFAppDocumentTab* tab = fixture.openDocument();
     QVERIFY(tab);
     const QString documentId = tab->getDocumentId();
-    fixture.navigate(QStringLiteral("/document/%1/tool/pages.merge").arg(documentId));
+    fixture.navigate(QStringLiteral("/document/%1/tool/pages.split").arg(documentId));
     QCOMPARE(fixture.currentTab(), static_cast<pdf::PDFAppTab*>(tab));
     page = fixture.notFoundPage();
     QVERIFY(page);
-    QCOMPARE(page->getDescriptionText(), QString::fromUtf8("Tool “Merge”"));
-    QCOMPARE(page->getRequest().searchText, QStringLiteral("Merge"));
+    QCOMPARE(page->getDescriptionText(), QString::fromUtf8("Tool “Split”"));
+    QCOMPARE(page->getRequest().searchText, QStringLiteral("Split"));
 }
 
 void AppToolsTest::toolPageRegistryPath()
 {
     // The registry rules: catalog ids only, no null factory, no route factory
     QVERIFY(!pdf::PDFAppToolPageRegistry::registerFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("convert.epub"), std::make_shared<pdftest::AppToolsTestPageFactory>()));
-    QVERIFY(!pdf::PDFAppToolPageRegistry::registerFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.merge"), nullptr));
-    QVERIFY(!pdf::PDFAppToolPageRegistry::registerFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.merge"),
+    QVERIFY(!pdf::PDFAppToolPageRegistry::registerFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.split"), nullptr));
+    QVERIFY(!pdf::PDFAppToolPageRegistry::registerFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.split"),
                                                           std::make_shared<pdf::PDFAppToolRoutePageFactory>(pdf::PDFAppToolPageKind::Start)));
-    QVERIFY(!pdf::PDFAppToolPageRegistry::hasPage(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.merge")));
+    QVERIFY(!pdf::PDFAppToolPageRegistry::hasPage(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.split")));
     QVERIFY(!pdf::PDFAppToolPageRegistry::hasPage(pdf::PDFAppToolPageKind::Start, QStringLiteral("convert.epub")));
     QVERIFY(!pdf::PDFAppToolPageRegistry::getFactory(pdf::PDFAppToolPageKind::Start, QString(1000, QLatin1Char('x'))));
 
     {
         pdftest::AppToolsFixture fixture;
-        QVERIFY(fixture.registerTestToolPage(QStringLiteral("pages.merge")));
+        QVERIFY(fixture.registerTestToolPage(QStringLiteral("pages.split")));
         QVERIFY(fixture.registerTestToolPage(QStringLiteral("review.statistics"), pdf::PDFAppToolPageKind::Document));
 
         // The page of the test and the start pages of the tools with a GUI (phase 2), nothing else
         QStringList toolsWithPage = pdf::PDFAppToolPageRegistry::getToolsWithPage(pdf::PDFAppToolPageKind::Start);
-        QVERIFY(toolsWithPage.removeOne(QStringLiteral("pages.merge")));
+        QVERIFY(toolsWithPage.removeOne(QStringLiteral("pages.split")));
         QCOMPARE(toolsWithPage, pdf::PDFDocumentToolGUIRegistry::getTools());
-        QVERIFY(!pdf::PDFAppToolPageRegistry::hasPage(pdf::PDFAppToolPageKind::Document, QStringLiteral("pages.merge")));
+        QVERIFY(!pdf::PDFAppToolPageRegistry::hasPage(pdf::PDFAppToolPageKind::Document, QStringLiteral("pages.split")));
 
         // The route
-        fixture.navigate(QStringLiteral("/tools/pages.merge"));
+        fixture.navigate(QStringLiteral("/tools/pages.split"));
         pdftest::AppToolsTestPage* testPage = fixture.page<pdftest::AppToolsTestPage>();
         QVERIFY(testPage);
-        QCOMPARE(testPage->getToolId(), QStringLiteral("pages.merge"));
+        QCOMPARE(testPage->getToolId(), QStringLiteral("pages.split"));
         QCOMPARE(fixture.currentTab()->getNavItem(), pdf::PDFAppNavItem::Tools);
 
         // A row of the Tools page: a registered tool opens its page, another one Page Not Found
         fixture.openTools(QStringLiteral("/tools"));
-        pdf::PDFToolRow* row = fixture.findToolRow(QStringLiteral("pages.merge"));
+        pdf::PDFToolRow* row = fixture.findToolRow(QStringLiteral("pages.split"));
         QVERIFY(row);
         row->click();
 
         pdftest::AppDocumentFixture::settle();
         QVERIFY(fixture.page<pdftest::AppToolsTestPage>());
-        QCOMPARE(fixture.currentRoute(), QStringLiteral("/tools/pages.merge"));
+        QCOMPARE(fixture.currentRoute(), QStringLiteral("/tools/pages.split"));
 
         fixture.openTools(QStringLiteral("/tools"));
-        row = fixture.findToolRow(QStringLiteral("pages.split"));
+        row = fixture.findToolRow(QStringLiteral("pages.crop"));
         QVERIFY(row);
         row->click();
         pdftest::AppDocumentFixture::settle();
         QVERIFY(fixture.notFoundPage());
-        QCOMPARE(fixture.notFoundPage()->getDescriptionText(), QString::fromUtf8("Tool “Split”"));
+        QCOMPARE(fixture.notFoundPage()->getDescriptionText(), QString::fromUtf8("Tool “Crop Pages”"));
 
         // The global search: the tool result navigates to the page of the tool
-        fixture.navigate(QStringLiteral("/search?q=merge"));
+        fixture.navigate(QStringLiteral("/search?q=split"));
         pdf::PDFAppSearchPage* searchPage = fixture.page<pdf::PDFAppSearchPage>();
         QVERIFY(searchPage);
-        const pdf::PDFAppSearchResult* result = searchPage->getResults().findResult(pdf::PDFAppSearchGroup::Tools, QStringLiteral("pages.merge"));
+        const pdf::PDFAppSearchResult* result = searchPage->getResults().findResult(pdf::PDFAppSearchGroup::Tools, QStringLiteral("pages.split"));
         QVERIFY(result);
         const pdf::PDFAppSearchResult resultCopy = *result;
         searchPage->activateResult(resultCopy);
@@ -333,13 +333,13 @@ void AppToolsTest::toolPageRegistryPath()
         testPage = fixture.page<pdftest::AppToolsTestPage>();
         QVERIFY(testPage);
         QCOMPARE(testPage->getToolId(), QStringLiteral("review.statistics"));
-        fixture.navigate(QStringLiteral("/document/%1/tool/pages.merge").arg(tab->getDocumentId()));
+        fixture.navigate(QStringLiteral("/document/%1/tool/pages.split").arg(tab->getDocumentId()));
         QVERIFY(fixture.notFoundPage());
 
         // Unregistered: Page Not Found again
-        pdf::PDFAppToolPageRegistry::unregisterFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.merge"));
-        pdf::PDFAppToolPageRegistry::unregisterFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.merge"));
-        fixture.navigate(QStringLiteral("/tools/pages.merge"));
+        pdf::PDFAppToolPageRegistry::unregisterFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.split"));
+        pdf::PDFAppToolPageRegistry::unregisterFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.split"));
+        fixture.navigate(QStringLiteral("/tools/pages.split"));
         QVERIFY(fixture.notFoundPage());
     }
 
@@ -1890,10 +1890,10 @@ void AppToolsTest::toolActivationRoutes()
     QVERIFY(page);
 
     // A row, a tile, a recent tool: Page Not Found of the tool (phase 2 has no pages yet)
-    page->findToolRow(QStringLiteral("pages.merge"))->click();
+    page->findToolRow(QStringLiteral("pages.split"))->click();
     pdftest::AppDocumentFixture::settle();
     QVERIFY(fixture.notFoundPage());
-    QCOMPARE(fixture.notFoundPage()->getDescriptionText(), QString::fromUtf8("Tool “Merge”"));
+    QCOMPARE(fixture.notFoundPage()->getDescriptionText(), QString::fromUtf8("Tool “Split”"));
 
     page = AppToolsPageTestHelper::open(fixture);
     page->findTile(QStringLiteral("optimize.compress"))->click();
@@ -1915,9 +1915,9 @@ void AppToolsTest::toolActivationRoutes()
     QCOMPARE(fixture.currentRoute(), QStringLiteral("/tools/pages.split"));
 
     // A registered page of the tool is shown
-    QVERIFY(fixture.registerTestToolPage(QStringLiteral("pages.merge")));
+    QVERIFY(fixture.registerTestToolPage(QStringLiteral("pages.split")));
     page = AppToolsPageTestHelper::open(fixture);
-    page->findToolRow(QStringLiteral("pages.merge"))->click();
+    page->findToolRow(QStringLiteral("pages.split"))->click();
     pdftest::AppDocumentFixture::settle();
     QVERIFY(fixture.page<pdftest::AppToolsTestPage>());
 }

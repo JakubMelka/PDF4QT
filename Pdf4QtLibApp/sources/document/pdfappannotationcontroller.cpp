@@ -23,6 +23,7 @@
 #include "pdfappannotationcontroller.h"
 #include "pdfannotationstylerepository.h"
 #include "pdfappcontext.h"
+#include "pdfappdocumentpermissions.h"
 #include "pdfappdocumentstatusbar.h"
 #include "pdfappdocumentview.h"
 #include "pdfappformcontroller.h"
@@ -49,11 +50,10 @@ class PDFAppAnnotationControllerHelper
 public:
     PDFAppAnnotationControllerHelper() = delete;
 
-    /// The document allows the permission (no security handler = everything)
-    static bool isAllowed(const PDFDocument* document, PDFSecurityHandler::Permission permission)
+    /// The document allows the action (the shared check of the permissions, Table 22)
+    static bool isAllowed(const PDFDocument* document, PDFAppPermissionAction action)
     {
-        const PDFSecurityHandler* securityHandler = document ? document->getStorage().getSecurityHandler() : nullptr;
-        return document && (!securityHandler || securityHandler->isAllowed(permission));
+        return PDFAppDocumentPermissions::isAllowed(document, PDFAppPermissionRequest::create(action));
     }
 
     /// The object of the reference is a dictionary of the document (an annotation,
@@ -499,7 +499,32 @@ bool PDFAppAnnotationController::isAnnotationEditingAllowed() const
     {
         return false;
     }
-    return PDFAppAnnotationControllerHelper::isAllowed(document->getDocument().data(), PDFSecurityHandler::Permission::ModifyInteractiveItems);
+    return PDFAppAnnotationControllerHelper::isAllowed(document->getDocument().data(), PDFAppPermissionAction::Annotate);
+}
+
+bool PDFAppAnnotationController::isAnnotationEditingAvailable() const
+{
+    const PDFAppDocument* document = m_document.data();
+    return document && document->isEditable() &&
+           PDFAppDocumentPermissions::isAvailable(document->getDocument().data(), PDFAppPermissionRequest::create(PDFAppPermissionAction::Annotate));
+}
+
+bool PDFAppAnnotationController::requestAnnotationEditing()
+{
+    if (isAnnotationEditingAllowed())
+    {
+        return true;
+    }
+
+    // Refused by the permissions only: the owner password (the dialog is the last call)
+    PDFAppDocument* document = m_document.data();
+    if (document && document->isEditable() && PDFAppDocumentPermissions::canUnlock(document->getDocument().data()))
+    {
+        PDFAppDocumentPermissions::request(document, PDFAppPermissionRequest::create(PDFAppPermissionAction::Annotate), getView());
+        return false;
+    }
+    showStatusMessage(getEditingRefusalReason());
+    return false;
 }
 
 bool PDFAppAnnotationController::isFormFillingAllowed() const
@@ -517,8 +542,7 @@ bool PDFAppAnnotationController::isFormFillingAllowed() const
     {
         return false;
     }
-    return PDFAppAnnotationControllerHelper::isAllowed(pdfDocument, PDFSecurityHandler::Permission::ModifyFormFields) ||
-           PDFAppAnnotationControllerHelper::isAllowed(pdfDocument, PDFSecurityHandler::Permission::ModifyInteractiveItems);
+    return PDFAppAnnotationControllerHelper::isAllowed(pdfDocument, PDFAppPermissionAction::FillForm);
 }
 
 QString PDFAppAnnotationController::getEditingRefusalReason() const
@@ -542,7 +566,7 @@ QString PDFAppAnnotationController::getEditingRefusalReason() const
     }
     if (!isAnnotationEditingAllowed())
     {
-        return tr("The document does not allow changes.");
+        return PDFAppDocumentPermissions::getRefusalText(document->getDocument().data(), PDFAppPermissionRequest::create(PDFAppPermissionAction::Annotate));
     }
     return QString();
 }
@@ -715,9 +739,8 @@ bool PDFAppAnnotationController::activateTool(PDFWidgetTool* tool)
         endActiveTool();
         return true;
     }
-    if (isCreationTool(tool) && !isAnnotationEditingAllowed())
+    if (isCreationTool(tool) && !requestAnnotationEditing())
     {
-        showStatusMessage(getEditingRefusalReason());
         return false;
     }
 
@@ -1005,9 +1028,8 @@ void PDFAppAnnotationController::onCopyToPagesRequested()
 
 void PDFAppAnnotationController::onCreationRequestedQueued(const PDFAnnotationCreationRequest& request)
 {
-    if (!isAnnotationEditingAllowed())
+    if (!requestAnnotationEditing())
     {
-        showStatusMessage(getEditingRefusalReason());
         return;
     }
     Q_EMIT creationRequested(request);

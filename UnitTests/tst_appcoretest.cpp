@@ -2118,6 +2118,19 @@ void AppCoreTest::uiLocale()
     QCOMPARE(pdf::PDFAppLocale::formatDataSize(1234567, 1, QLocale::DataSizeSIFormat), QStringLiteral("1.2 MB"));
     QCOMPARE(pdf::PDFAppLocale::formatDataSize(-5, 0, QLocale::DataSizeSIFormat), pdf::PDFAppLocale::formatDataSize(0, 0, QLocale::DataSizeSIFormat));
 
+    // A part of a size with the unit once at the end, "24.1 of 48.2 MB" (1390:34131): the part
+    // in the unit and the precision of the whole, bounded to 0 … the whole
+    const qint64 mebibyte = 1024 * 1024;
+    const qint64 whole = qRound64(48.2 * mebibyte);
+    QCOMPARE(pdf::PDFAppLocale::formatDataSize(whole, 1, QLocale::DataSizeTraditionalFormat), QStringLiteral("48.2 MB"));
+    QCOMPARE(pdf::PDFAppLocale::formatDataSizeOfTotal(qRound64(24.1 * mebibyte), whole, 1, QLocale::DataSizeTraditionalFormat), QStringLiteral("24.1 of 48.2 MB"));
+    QCOMPARE(pdf::PDFAppLocale::formatDataSizeOfTotal(512 * 1024, 2 * mebibyte, 1, QLocale::DataSizeTraditionalFormat), QStringLiteral("0.5 of 2.0 MB"));
+    QCOMPARE(pdf::PDFAppLocale::formatDataSizeOfTotal(2 * whole, whole, 1, QLocale::DataSizeTraditionalFormat), QStringLiteral("48.2 of 48.2 MB"));
+    QCOMPARE(pdf::PDFAppLocale::formatDataSizeOfTotal(-7, whole, 1, QLocale::DataSizeTraditionalFormat), QStringLiteral("0.0 of 48.2 MB"));
+    QCOMPARE(pdf::PDFAppLocale::formatDataSizeOfTotal(617284, 1234567, 1, QLocale::DataSizeSIFormat), QStringLiteral("0.6 of 1.2 MB"));
+    QCOMPARE(pdf::PDFAppLocale::formatDataSizeOfTotal(512, 1000, 1, QLocale::DataSizeTraditionalFormat), QStringLiteral("512 of 1,000 bytes"));
+    QCOMPARE(pdf::PDFAppLocale::formatDataSizeOfTotal(0, 0, 1, QLocale::DataSizeTraditionalFormat), QStringLiteral("0 of 0 bytes"));
+
     // The paper and the units of the printer are regional settings of the system
     QCOMPARE(pdf::PDFAppLocale::getRegionalLocale(), QLocale::system());
 

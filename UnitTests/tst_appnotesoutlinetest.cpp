@@ -24,6 +24,7 @@
 
 #include "pdfappannotationcontroller.h"
 #include "pdfappannotationoperations.h"
+#include "pdfapppassworddialog.h"
 #include "pdfappcommand.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentcommands.h"
@@ -2459,8 +2460,14 @@ void AppNotesOutlineTest::notesLockedDocument()
     menu = H::noteMenu(restrictedPanel, { restrictedPanel->getModel()->getNote(1)->reference });
     QCOMPARE(H::actionNames(menu), QStringList({ "notesOpenComment", "notesProperties" }));
     delete menu;
+    // Delete asks for the owner password (owner 2026-11-08); nothing is deleted
     QVERIFY(!restrictedPanel->deleteSelectedNotes());
-    QCOMPARE(restricted->getView()->getStatusBar()->getMessage(), QStringLiteral("The document does not allow changes."));
+    QPointer<pdf::PDFAppPasswordDialog> ownerDialog = pdftest::AppDocumentFixture::findDialog<pdf::PDFAppPasswordDialog>();
+    QVERIFY(ownerDialog && ownerDialog->isDocumentMode());
+    QVERIFY(ownerDialog->getText().contains(QStringLiteral("adding and changing annotations")));
+    ownerDialog->reject();
+    fixture.settle();
+    QVERIFY(!ownerDialog);
 }
 
 void AppNotesOutlineTest::notesLargeDocument()

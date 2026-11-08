@@ -360,6 +360,21 @@ public:
     /// State PasswordRequired after a wrong password (228:8965)
     bool isPasswordWrong() const { return m_isPasswordWrong; }
 
+    /// The restrictions of the document are lifted by its owner password for this session
+    /// (unlockWithOwnerPassword): the current document has the owner-authorized handler
+    bool isOwnerUnlocked() const;
+
+    /// Unlocks a restricted document by its owner password (owner 2026-11-08; ISO 32000-2,
+    /// 7.6.4.4, Algorithm 7 / 2.A): the password is verified by the security handler of the
+    /// document, the file is not read again and the password is not kept. The document gets
+    /// the handler authorized by the owner password - every permission, until the tab
+    /// closes or another file is loaded into it; no undo step, the modified state is kept,
+    /// the encryption dictionary (/P, /O, /U) of every write is unchanged. Every later
+    /// version with the same encryption (undo, redo, a result of a tool, a reload of the
+    /// same file) gets the handler too (setDocument). Emits documentChanged (Authorization):
+    /// a slot may delete the document. \returns true for the owner password
+    bool unlockWithOwnerPassword(const QString& ownerPassword);
+
     /// Progress of the reading of the file 0 - 100, -1 = unknown (state Loading)
     int getLoadingProgress() const { return m_loadingProgress; }
     void setLoadingProgress(int progress);
@@ -557,6 +572,8 @@ private:
     bool m_hasPendingEdits = false;
     bool m_isPasswordProtected = false;
     bool m_isPasswordWrong = false;
+    PDFSecurityHandlerPointer m_ownerSecurityHandler;   ///< Owner-authorized handler of the session (unlockWithOwnerPassword; GUI thread, the documents share it immutable)
+    PDFSecurityHandlerPointer m_userSecurityHandler;    ///< Handler, with which the document was unlocked (a copy of the tab gets it back - it is not unlocked)
     int m_loadingProgress = -1;
     std::unique_ptr<PDFAppUndoStack> m_undoStack;
     std::vector<QPointer<PDFAppDocumentOperation>> m_operations;

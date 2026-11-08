@@ -54,6 +54,7 @@
 #include "pdfsettingdefinitions.h"
 #include "pdfshortcutrepository.h"
 #include "pdfsupportvideocatalog.h"
+#include "pdftoolstartpage.h"
 
 #include "pdfaccenthue.h"
 #include "pdffluentwidgets.h"
@@ -1495,6 +1496,7 @@ void AppSearchTest::pageActivation_data()
     QTest::addColumn<QString>("key");
 
     QTest::newRow("tool") << "merge" << int(pdf::PDFAppSearchGroup::Tools) << "pages.merge";
+    QTest::newRow("tool without page") << "sign with certificate" << int(pdf::PDFAppSearchGroup::Tools) << "protect.sign";
     QTest::newRow("setting") << "color scheme" << int(pdf::PDFAppSearchGroup::Settings) << pdf::PDFSettingKeys::colorScheme();
     QTest::newRow("ai") << "edit documents" << int(pdf::PDFAppSearchGroup::Settings) << "ai.edit-documents";
     QTest::newRow("help") << "portable" << int(pdf::PDFAppSearchGroup::Help) << "/help/portable-mode";
@@ -1559,8 +1561,21 @@ void AppSearchTest::pageActivation()
             }
             else
             {
-                // Tools have no pages in step 2: Page Not Found (expected)
-                QVERIFY(navigated.last().at(2).toBool());
+                // A tool with its pages (Merge since step 2 of phase 2, plan 4.1: the catalog
+                // and the search open its start page); a tool without them yet (Sign with
+                // Certificate): Page Not Found (expected)
+                const bool hasPage = result.key == QLatin1String("pages.merge");
+                QCOMPARE(navigated.last().at(2).toBool(), !hasPage);
+                if (hasPage)
+                {
+                    const pdf::PDFToolStartPage* startPage = qobject_cast<const pdf::PDFToolStartPage*>(fixture.currentPage());
+                    QVERIFY(startPage);
+                    QCOMPARE(startPage->getToolId(), result.key);
+                }
+                else
+                {
+                    QVERIFY(qobject_cast<pdf::PDFPageNotFoundPage*>(fixture.currentPage()));
+                }
             }
             break;
 

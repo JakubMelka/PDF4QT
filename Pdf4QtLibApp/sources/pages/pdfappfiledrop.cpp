@@ -30,6 +30,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QImageReader>
 #include <QMimeData>
 #include <QPointer>
 #include <QUrl>
@@ -86,7 +87,7 @@ bool PDFAppFileDrop::hasLocalFiles(const QMimeData* mimeData)
     return false;
 }
 
-PDFAppFileDrop::Result PDFAppFileDrop::getFiles(const QMimeData* mimeData, int maximumFiles)
+PDFAppFileDrop::Result PDFAppFileDrop::getFiles(const QMimeData* mimeData, int maximumFiles, bool isImageAccepted)
 {
     Result result;
     if (!mimeData || !mimeData->hasUrls())
@@ -127,9 +128,9 @@ PDFAppFileDrop::Result PDFAppFileDrop::getFiles(const QMimeData* mimeData, int m
             continue;
         }
 
-        if (!isPdfFile(info.absoluteFilePath()))
+        if (!isPdfFile(info.absoluteFilePath()) && !(isImageAccepted && isImageFile(info.absoluteFilePath())))
         {
-            PDFAppFileDropHelper::refuse(result, displayPath, Refusal::NotPdf);
+            PDFAppFileDropHelper::refuse(result, displayPath, isImageAccepted ? Refusal::NotPdfOrImage : Refusal::NotPdf);
             continue;
         }
 
@@ -169,8 +170,17 @@ bool PDFAppFileDrop::isPdfFile(const QString& filePath)
         return false;
     }
 
-    const QByteArray header = file.read(HEADER_LENGTH);
-    return header.contains("%PDF-");
+    return isPdfData(file.read(HEADER_LENGTH));
+}
+
+bool PDFAppFileDrop::isImageFile(const QString& filePath)
+{
+    return !isNetworkPath(filePath) && !QImageReader::imageFormat(filePath).isEmpty();
+}
+
+bool PDFAppFileDrop::isPdfData(const QByteArray& data)
+{
+    return data.left(HEADER_LENGTH).contains("%PDF-");
 }
 
 bool PDFAppFileDrop::isNetworkPath(const QString& filePath)
@@ -202,6 +212,8 @@ QString PDFAppFileDrop::getRefusalText(Refusal refusal)
             return QCoreApplication::translate("pdf::PDFAppFileDrop", "The file does not exist");
         case Refusal::NotPdf:
             return QCoreApplication::translate("pdf::PDFAppFileDrop", "Not a PDF file");
+        case Refusal::NotPdfOrImage:
+            return QCoreApplication::translate("pdf::PDFAppFileDrop", "Neither a PDF file nor an image");
         case Refusal::TooMany:
             return QCoreApplication::translate("pdf::PDFAppFileDrop", "Too many files at once");
     }
@@ -217,6 +229,23 @@ QStringList PDFAppFileDialogs::getOpenFileNames(QWidget* parent, const QString& 
 
     return QFileDialog::getOpenFileNames(parent, QCoreApplication::translate("pdf::PDFAppFileDialogs", "Open PDF Files"), folder,
                                          QCoreApplication::translate("pdf::PDFAppFileDialogs", "PDF files (*.pdf);;All files (*)"));
+}
+
+QStringList PDFAppFileDialogs::getOpenInputFileNames(QWidget* parent, const QString& folder)
+{
+    if (const OpenFilesHandler& handler = getOpenFilesHandler())
+    {
+        return handler(parent, folder);
+    }
+
+    // The formats QImageReader reads, next to the PDF files
+    QStringList patterns{ QStringLiteral("*.pdf") };
+    for (const QByteArray& format : QImageReader::supportedImageFormats())
+    {
+        patterns << QStringLiteral("*.") + QString::fromLatin1(format);
+    }
+    return QFileDialog::getOpenFileNames(parent, QCoreApplication::translate("pdf::PDFAppFileDialogs", "Add Files"), folder,
+                                         QCoreApplication::translate("pdf::PDFAppFileDialogs", "PDF files and images (%1);;All files (*)").arg(patterns.join(QLatin1Char(' '))));
 }
 
 QString PDFAppFileDialogs::getExistingDirectory(QWidget* parent, const QString& folder)

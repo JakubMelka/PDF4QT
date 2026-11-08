@@ -229,6 +229,10 @@ public:
     /// Longest text of String / FileNameTemplate (default and upper bound of setMaximumLength)
     static constexpr int MAXIMUM_TEXT_LENGTH = 65536;
 
+    /// Upper bound of setMaximumLength of a String, which only the panels give (setPanelOnly:
+    /// the plan of the pages of Merge, never in the schema of MCP)
+    static constexpr int MAXIMUM_PANEL_TEXT_LENGTH = 16 * 1024 * 1024;
+
     /// Longest path of FilePath / FolderPath
     static constexpr int MAXIMUM_PATH_LENGTH = 4096;
 
@@ -270,6 +274,16 @@ public:
     /// which belongs to one document (the pages of a selection, a plan of rotations, the
     /// exceptions of the links), is not kept. A Secret is never kept.
     PDFDocumentToolParameterDefinition& setStored(bool stored) { m_stored = stored; return *this; }
+
+    /// Only the panels of the tool give the value (the inputs and the plan of the pages of
+    /// Merge, owner answer Q11 of step 2 of phase 2): the parameter is left out of the JSON
+    /// Schema of MCP (PDFDocumentToolParameters::toJsonSchema), so a client cannot give it,
+    /// and a String may then be longer than MAXIMUM_TEXT_LENGTH (MAXIMUM_PANEL_TEXT_LENGTH).
+    /// Call it before setMaximumLength.
+    PDFDocumentToolParameterDefinition& setPanelOnly(bool panelOnly) { m_panelOnly = panelOnly; return *this; }
+
+    /// The parameter is given only by the panels (setPanelOnly)
+    bool isPanelOnly() const { return m_panelOnly; }
 
     const QString& getName() const { return m_name; }
     PDFDocumentToolParameterType getType() const { return m_type; }
@@ -352,6 +366,7 @@ private:
     QVariant m_defaultValue;
     bool m_required = false;
     bool m_stored = true;
+    bool m_panelOnly = false;
     qint64 m_integerMinimum = 0;
     qint64 m_integerMaximum = 0;
     double m_realMinimum = 0.0;
@@ -391,7 +406,8 @@ public:
 
     /// JSON Schema of the object of the parameters: "type": "object", the
     /// properties in the order of the definitions, "required" and
-    /// "additionalProperties": false - never "oneOf" / "anyOf" / "allOf" at the top level
+    /// "additionalProperties": false - never "oneOf" / "anyOf" / "allOf" at the top level;
+    /// a parameter, which only the panels give (setPanelOnly), is left out
     static QJsonObject toJsonSchema(const PDFDocumentToolParameterDefinitions& definitions);
 
     /// JSON object of canonical values (Secrets left out)

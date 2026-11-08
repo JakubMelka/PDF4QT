@@ -529,8 +529,7 @@ void AppAnnotationEditTest::controllerRefusesWhenLocked()
     QVERIFY(!restrictedController->isFormFillingAllowed());
     QVERIFY(restrictedController->getAnnotationManager()->isReadOnly());
     QVERIFY(restrictedController->getFormManager()->getAppearanceFlags().testFlag(pdf::PDFFormManager::ReadOnlyForm));
-    QCOMPARE(restrictedController->getEditingRefusalReason(), QObject::tr("The document does not allow changes."));
-    QVERIFY(!fixture.window->getCommandAction(pdf::PDFAppCommands::insertPanel())->isEnabled());
+    QCOMPARE(restrictedController->getEditingRefusalReason(), QStringLiteral("The document does not allow adding and changing annotations. If you own it, unlock it with its owner password."));
 
     // The permissions are checked by the commit itself (security review RS4): an
     // operation computed outside of the user interface (a dialog opened before a

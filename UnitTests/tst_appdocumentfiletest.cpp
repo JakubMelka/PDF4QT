@@ -46,6 +46,7 @@
 #include "pdfappdocumentloader.h"
 #include "pdfappdocumentview.h"
 #include "pdfappfiledrop.h"
+#include "pdfapppassworddialog.h"
 #include "pdfappprint.h"
 #include "pdfappprintdialog.h"
 #include "pdfapprestoredfilebar.h"
@@ -604,7 +605,7 @@ void AppDocumentFileTest::saveMarkOfTheWeb()
     QCOMPARE(fixture.currentDocumentTab(), otherTab);
     const int sourceIndex = fixture.window->getDocumentTabs().indexOf(tab);
     QVERIFY(sourceIndex >= 0);
-    QCOMPARE(fixture.window->getTabIndexAfter(document), fixture.window->getTabIndexAfter(nullptr) - 1);
+    QCOMPARE(fixture.window->getTabIndexAfter(document), fixture.window->getTabIndexAfter(static_cast<const pdf::PDFAppDocument*>(nullptr)) - 1);
     QPointer<pdf::PDFAppDocumentTab> memoryTab = fixture.window->openDocumentFromMemory(inner, QStringLiteral("Inner.pdf"), document->getOriginFilePath(), document);
     QVERIFY(memoryTab);
     QCOMPARE(fixture.window->getDocumentTabs().indexOf(memoryTab.data()), sourceIndex + 1);
@@ -2248,10 +2249,16 @@ void AppDocumentFileTest::printPermission()
     pdf::PDFAppDocumentTab* tab = FileTestHelper::openReady(fixture, pdftest::AppDocumentSamples::ownerPassword(fixture.folder()));
     QVERIFY(tab);
 
-    // The owner password sample does not allow printing: Print is disabled
+    // The owner password sample does not allow printing: Print asks for the owner password
+    // (owner 2026-11-08), no print dialog opens
     QVERIFY(!pdf::PDFAppPrintController::isPrintAllowed(tab->getDocument()->getDocument().data()));
-    QVERIFY(!FileTestHelper::handler(tab)->isEnabled(pdf::PDFAppCommands::print()));
+    QVERIFY(FileTestHelper::handler(tab)->isEnabled(pdf::PDFAppCommands::print()));
     QVERIFY(!FileTestHelper::openPrintDialog(tab));
+    QPointer<pdf::PDFAppPasswordDialog> ownerDialog = pdftest::AppDocumentFixture::findDialog<pdf::PDFAppPasswordDialog>();
+    QVERIFY(ownerDialog && ownerDialog->isDocumentMode());
+    ownerDialog->reject();
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(!ownerDialog);
     QVERIFY(!pdf::PDFAppPrintController::isPrintAllowed(nullptr));
     QVERIFY(!pdf::PDFAppPrintController::isHighResolutionAllowed(nullptr));
 

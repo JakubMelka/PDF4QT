@@ -33,7 +33,9 @@
 //    toolbar), a dialog of the page or pending work (a notification of another
 //    connection, an update check, a search, thumbnails and folder information of
 //    Recent, the minute ticker), then closed, or the page, the tab and the window
-//    deleted in every order;
+//    deleted in every order (a dialog run by exec - Close Merge? of a tool with its
+//    own tab - is held open: the deletions run inside of its event loop, a close of
+//    the tab answers its question by the choice, which closes);
 //  - deleteFromEverySignal: the route opened, a child focused and hovered, its
 //    filter field and the field of the global search typed into, the popup of the
 //    global search used by the pointer and Enter (a result activated), its popups
@@ -58,6 +60,7 @@
 #include "pdfappbuiltintoolcollections.h"
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
+#include "pdfappdocumentdialogs.h"
 #include "pdfappdocumentpage.h"
 #include "pdfappdocumentpanel.h"
 #include "pdfappdocumenttab.h"
@@ -409,13 +412,21 @@ public:
     {
         if (isWidgetStateEvent(event->type()) && receiver && receiver->isWidgetType())
         {
+            const bool isLanguageChange = event->type() == QEvent::LanguageChange;
+            s_languageChangeDepth += isLanguageChange ? 1 : 0;
             s_stateEventReceivers.push_back(QPointer<QObject>(receiver));
             const bool result = QApplication::notify(receiver, event);
             s_stateEventReceivers.pop_back();
+            s_languageChangeDepth -= isLanguageChange ? 1 : 0;
             return result;
         }
         return QApplication::notify(receiver, event);
     }
+
+    /// The language changes: QWidget::event of every ancestor sends the event to its
+    /// children by a copied list of raw pointers - also a sibling of the receiver (another
+    /// tab of the stack) is used after it (the same rule as UnitTestsAppToolPagesLifetime)
+    static bool isLanguageChangeInside() { return s_languageChangeDepth > 0; }
 
     /// Events, whose delivery Qt does not survive, when the receiving widget is
     /// deleted inside of it: QWidgetPrivate::show_helper / hide_helper use the widget
@@ -447,9 +458,11 @@ public:
 
 private:
     static std::vector<QPointer<QObject>> s_stateEventReceivers;
+    static int s_languageChangeDepth;
 };
 
 std::vector<QPointer<QObject>> PagesLifetimeApplication::s_stateEventReceivers;
+int PagesLifetimeApplication::s_languageChangeDepth = 0;
 
 /// Server of the update checks of the test: it accepts the connections on the
 /// loopback and never answers (a check of the run stays pending)
@@ -539,10 +552,14 @@ public:
     /// each with the reason why no code can survive it:
     ///  - a signal of a destructor (PDFAppPage::aboutToBeDestroyed, ...): the dying
     ///    object is still a child of its parents, a deletion of an ancestor deletes
-    ///    it twice (Qt)
+    ///    it twice (Qt);
+    ///  - PDFAppToolModeLayout::partDestroyed: the relay of QObject::destroyed of a part of
+    ///    a tool, emitted from the destructor of the part - the tab of a tool closed by
+    ///    Cancel deletes its parts in its own destructor, the dying tab is still a child of
+    ///    the window (the same reason; the layout documents "queue what follows")
     static bool isDeferredSite(const Site& site)
     {
-        return site.key.endsWith(QStringLiteral("::aboutToBeDestroyed()"));
+        return site.key.endsWith(QStringLiteral("::aboutToBeDestroyed()")) || site.key.endsWith(QStringLiteral("PDFAppToolModeLayout::partDestroyed()"));
     }
 
     /// The state of the emission defers the deletion of the victim:
@@ -866,9 +883,8 @@ public:
     static const std::vector<std::tuple<const char*, bool, const char*>>& getNotFoundCases()
     {
         static const std::vector<std::tuple<const char*, bool, const char*>> cases = {
-            { "/tools/{toolId}", false, "the first tool of the catalog (Merge) has no page in the first batch of phase 2 (PDFAppToolPageRegistry)" },
-            { "/document/{documentId}/tool/{toolId}", false, "the first tool of the catalog (Merge) has no page in the first batch of phase 2 (PDFAppToolPageRegistry)" },
-            { "/tool/{toolId}/{instanceId}", false, "a tool with its own tab has no page in the first batch of phase 2 (PDFAppToolPageRegistry)" },
+            // The first tool of the catalog (Merge) has its pages since step 2 of phase 2: the
+            // start page, its own tab (also over a document) - no Page Not Found there
             { "/tools", true, "a collection together with a category or a text is refused (owner decision Q1); the filters are driven by UnitTestsAppToolsLifetime" }
         };
         return cases;
@@ -1388,6 +1404,43 @@ public:
         return true;
     }
 
+    /// Runs \p action (a click, a close of a tab) and, when it runs a dialog by exec (a question
+    /// of the page: the action returns only after the dialog ends), \p whileModal inside of the
+    /// event loop of the dialog - where the user acts too. A dialog still open after
+    /// \p whileModal is rejected (the action returns, nothing waits for an answer).
+    /// \returns true, if such a dialog ran.
+    static bool runWithModal(const std::function<void()>& action, const std::function<void(QDialog*)>& whileModal)
+    {
+        const int baseLevel = QThread::currentThread()->loopLevel();
+        bool isModal = false;
+        QTimer watcher;
+        watcher.setInterval(10);
+        QObject::connect(&watcher, &QTimer::timeout, &watcher, [&watcher, &isModal, &whileModal, baseLevel]()
+        {
+            // Only a dialog, whose own event loop runs now (a dialog shown by open() is not
+            // modal in this sense: the action has returned before it)
+            QPointer<QDialog> dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+            if (isModal || !dialog || !dialog->isVisible() || QThread::currentThread()->loopLevel() <= baseLevel)
+            {
+                return;
+            }
+            isModal = true;
+            watcher.stop();
+            if (whileModal)
+            {
+                whileModal(dialog.data());
+            }
+            if (dialog && dialog->isVisible())
+            {
+                dialog->reject();
+            }
+        });
+        watcher.start();
+        action();
+        watcher.stop();
+        return isModal;
+    }
+
     /// The filter of the page: the first editable line edit of the page, which is
     /// not the global search of the header
     static bool typeFilter(PagesRun& run)
@@ -1653,18 +1706,25 @@ public:
     }
 
     /// After an attempt, which has not shown a dialog: the popups closed, the tab of
-    /// the route current again, its page shown again by Back, when a click left it
+    /// the route current again, its page shown again by Back, when a click left it, the
+    /// route opened again, when a click closed its tab (Cancel of a tool with its own tab,
+    /// step 2 of phase 2)
     static void restoreAfterAttempt(PagesRun& run, const QPointer<pdf::PDFAppPage>& shownPage)
     {
         closePopups(run);
         returnToRoute(run, shownPage);
+        // (not a route of a document, whose tab is gone: the victim of a replay)
+        if (run.window && !run.tab && (!isDocumentRoute(run.routeCase) || run.documentTab))
+        {
+            open(run);
+        }
     }
 
     /// Opens a dialog of the page by an item of the menu of a "more" button, whose
     /// text ends by an ellipsis (the convention of a command, which asks before it
     /// acts: Rename..., Delete...); the item is chosen by the keyboard in the open menu.
     /// \returns false, if no such item shows a dialog.
-    static bool openMenuDialog(PagesRun& run)
+    static bool openMenuDialog(PagesRun& run, const std::function<void(QDialog*)>& whileModal)
     {
         for (int buttonIndex = 0; buttonIndex < 16; ++buttonIndex)
         {
@@ -1700,8 +1760,7 @@ public:
                 }
 
                 menu->setActiveAction(actions[actionIndex]);
-                key(menu, Qt::Key_Return);
-                if (isDialogVisible(run))
+                if (runWithModal([menu]() { key(menu, Qt::Key_Return); }, whileModal) || isDialogVisible(run))
                 {
                     return true;
                 }
@@ -1713,15 +1772,18 @@ public:
 
     /// Opens a dialog of the page: the push buttons and the text links of the page
     /// are clicked in their order, until a dialog is shown (a page left by a click
-    /// is shown again by Back), then the items of the menus of the "more" buttons,
-    /// which ask before they act (openMenuDialog). \returns false, if nothing shows
-    /// a dialog.
-    static bool openDialog(PagesRun& run)
+    /// is shown again by Back, a tab closed by it is opened again), then the items of
+    /// the menus of the "more" buttons, which ask before they act (openMenuDialog). A
+    /// dialog run by exec (a question: Close Merge? of a tool with its own tab) is held
+    /// open by \p whileModal running inside of its event loop, the dialog then
+    /// rejected; a dialog shown by open() is open, when this returns. \returns false,
+    /// if nothing shows a dialog.
+    static bool openDialog(PagesRun& run, const std::function<void(QDialog*)>& whileModal)
     {
-        return openButtonDialog(run) || openMenuDialog(run);
+        return openButtonDialog(run, whileModal) || openMenuDialog(run, whileModal);
     }
 
-    static bool openButtonDialog(PagesRun& run)
+    static bool openButtonDialog(PagesRun& run, const std::function<void(QDialog*)>& whileModal)
     {
         for (int index = 0; index < 16; ++index)
         {
@@ -1744,7 +1806,15 @@ public:
             }
 
             QPointer<pdf::PDFAppPage> guard(shownPage);
-            click(buttons[index]);
+            if (qEnvironmentVariableIsSet("PDF4QT_LIFETIME_TRACE"))
+            {
+                qInfo().noquote() << QStringLiteral("button %1: %2 '%3' '%4'").arg(index).arg(QString::fromLatin1(buttons[index]->metaObject()->className()), buttons[index]->objectName(), buttons[index]->text());
+            }
+            QPointer<QAbstractButton> button = buttons[index];
+            if (runWithModal([button]() { click(button.data()); }, whileModal))
+            {
+                return true;
+            }
             if (!run.window)
             {
                 return false;
@@ -1812,7 +1882,9 @@ public:
     }
 
     /// The tab of the route closed (the Home tab, which cannot be closed, shows
-    /// another page: the old page is deleted by the tab)
+    /// another page: the old page is deleted by the tab); a question of the tab (Close
+    /// Merge? of a tool with its own tab and its inputs, K16) is answered by its choice,
+    /// which closes it, as the user does
     static bool closeTab(PagesRun& run)
     {
         if (!run.window || !run.tab)
@@ -1821,7 +1893,24 @@ public:
         }
         if (run.tab->isClosable())
         {
-            run.window->closeTab(run.tab.data());
+            QPointer<pdf::PDFAppMainWindow> window = run.window;
+            QPointer<pdf::PDFAppTab> tab = run.tab;
+            runWithModal([window, tab]()
+            {
+                if (window && tab)
+                {
+                    window->closeTab(tab.data());
+                }
+            },
+            [](QDialog* dialog)
+            {
+                pdf::PDFAppDocumentChoiceDialog* question = qobject_cast<pdf::PDFAppDocumentChoiceDialog*>(dialog);
+                QPushButton* closeButton = question ? question->getChoiceButton(pdf::PDFAppDocumentChoice::Discard) : nullptr;
+                if (closeButton)
+                {
+                    closeButton->click();
+                }
+            });
         }
         else
         {
@@ -2013,15 +2102,22 @@ std::vector<PagesStep> PagesLifetimeHelper::createSweepSteps()
     });
     steps.push_back([](PagesRun& run)
     {
-        // A dialog open while the language changes
-        if (H::openDialog(run))
+        // A dialog open while the language changes (inside of its event loop, when the page
+        // runs it by exec)
+        bool isChanged = false;
+        const auto changeLanguage = [&run, &isChanged]()
         {
+            isChanged = true;
             PagesLifetimeTranslator translator;
             QCoreApplication::installTranslator(&translator);
             H::settle();
             QCoreApplication::removeTranslator(&translator);
             H::settle();
             H::closePopups(run);
+        };
+        if (H::openDialog(run, [&changeLanguage](QDialog*) { changeLanguage(); }) && !isChanged)
+        {
+            changeLanguage();
         }
         return true;
     });
@@ -2368,6 +2464,66 @@ void AppPagesLifetimeTest::runOrder(const PagesRouteCase& routeCase, const QStri
         QVERIFY2(H::open(run), qPrintable(description));
         H::focusAndHover(run);
 
+        // The victims in the order (an empty step = the tab closed by the user). With a
+        // dialog, which the page runs by exec (a question: Close Merge?), they go inside of
+        // its event loop; the user closes the tab there by the choice of the question, which
+        // closes it - the close and the rest go on after the loop of the dialog has ended
+        // (the window opens no document while a modal dialog runs: it defers the request)
+        const QStringList victims = order.split(QLatin1Char('-'));
+        qsizetype nextVictim = 0;
+        bool isStarted = false;
+        const auto deleteParts = [&run, &victims, &nextVictim, &description, &isStarted](QDialog* modalDialog)
+        {
+            isStarted = true;
+            while (nextVictim < victims.size())
+            {
+                const QString victim = victims.at(nextVictim);
+                if (victim == QStringLiteral("close") && modalDialog)
+                {
+                    pdf::PDFAppDocumentChoiceDialog* question = qobject_cast<pdf::PDFAppDocumentChoiceDialog*>(modalDialog);
+                    QPushButton* closeButton = question ? question->getChoiceButton(pdf::PDFAppDocumentChoice::Discard) : nullptr;
+                    if (closeButton)
+                    {
+                        closeButton->click();
+                    }
+                    return;
+                }
+                ++nextVictim;
+
+                if (victim == QStringLiteral("close"))
+                {
+                    H::closeTab(run);
+                }
+                else if (victim == QStringLiteral("page"))
+                {
+                    QVERIFY2(H::page(run), qPrintable(description));
+                    delete H::page(run);
+                }
+                else if (victim == QStringLiteral("tab"))
+                {
+                    QVERIFY2(run.tab, qPrintable(description));
+                    delete run.tab.data();
+                }
+                else
+                {
+                    delete run.window.data();
+                }
+                H::settle();
+
+                // No popup or dialog of the deleted part is left (a popup of a surviving
+                // tab - the document view, when its page adapter is deleted - may stay)
+                const QStringList stray = H::describeStrayPopups(run.window.data());
+                QVERIFY2(stray.isEmpty(), qPrintable(QStringLiteral("%1 after %2: %3").arg(description, victim, stray.join(QStringLiteral(", ")))));
+
+                // The next victim is the window: the window works before it goes
+                if (run.window && nextVictim < victims.size() && victims.at(nextVictim) == QStringLiteral("window"))
+                {
+                    const QString failure = H::checkWindowWorks(run);
+                    QVERIFY2(failure.isEmpty(), qPrintable(QStringLiteral("%1 after %2: %3").arg(description, victim, failure)));
+                }
+            }
+        };
+
         // The state of the page at the deletion
         bool isStateReached = true;
         if (state == QStringLiteral("popup"))
@@ -2376,7 +2532,7 @@ void AppPagesLifetimeTest::runOrder(const PagesRouteCase& routeCase, const QStri
         }
         else if (state == QStringLiteral("dialog"))
         {
-            isStateReached = H::openDialog(run);
+            isStateReached = H::openDialog(run, [&deleteParts](QDialog* dialog) { deleteParts(dialog); });
         }
         else if (state == QStringLiteral("pending"))
         {
@@ -2395,52 +2551,18 @@ void AppPagesLifetimeTest::runOrder(const PagesRouteCase& routeCase, const QStri
         if (qEnvironmentVariableIsSet("PDF4QT_LIFETIME_TRACE"))
         {
             const QWidget* popup = H::findOpenPopup(run.window.data());
-            qInfo().noquote() << QStringLiteral("%1: page %2, state reached %3, popup %4").arg(description, H::page(run) ? QString::fromLatin1(H::page(run)->metaObject()->className()) : QStringLiteral("none"))
-                                                                                       .arg(isStateReached).arg(popup ? QString::fromLatin1(popup->metaObject()->className()) : QStringLiteral("none"));
+            qInfo().noquote() << QStringLiteral("%1: page %2, state reached %3, deleted in a dialog %4, popup %5")
+                                     .arg(description, H::page(run) ? QString::fromLatin1(H::page(run)->metaObject()->className()) : QStringLiteral("none"))
+                                     .arg(isStateReached).arg(isStarted).arg(popup ? QString::fromLatin1(popup->metaObject()->className()) : QStringLiteral("none"));
         }
-        if (!isStateReached || !run.window || !run.tab)
+        if (QTest::currentTestFailed() || !isStateReached || (!isStarted && (!run.window || !run.tab)))
         {
             return;
         }
-
-        // The victims in the order (an empty step = the tab closed by the user)
-        const QStringList victims = order.split(QLatin1Char('-'));
-        for (const QString& victim : victims)
+        deleteParts(nullptr);
+        if (QTest::currentTestFailed())
         {
-            if (victim == QStringLiteral("close"))
-            {
-                H::closeTab(run);
-            }
-            else if (victim == QStringLiteral("page"))
-            {
-                QVERIFY2(H::page(run), qPrintable(description));
-                delete H::page(run);
-            }
-            else if (victim == QStringLiteral("tab"))
-            {
-                QVERIFY2(run.tab, qPrintable(description));
-                delete run.tab.data();
-            }
-            else
-            {
-                delete run.window.data();
-            }
-            H::settle();
-
-            // No popup or dialog of the deleted part is left (a popup of a surviving
-            // tab - the document view, when its page adapter is deleted - may stay)
-            const QStringList stray = H::describeStrayPopups(run.window.data());
-            QVERIFY2(stray.isEmpty(), qPrintable(QStringLiteral("%1 after %2: %3").arg(description, victim, stray.join(QStringLiteral(", ")))));
-
-            if (run.window && victim != victims.back())
-            {
-                // The next victim is the window: the window works before it goes
-                if (victims.at(victims.indexOf(victim) + 1) == QStringLiteral("window"))
-                {
-                    const QString failure = H::checkWindowWorks(run);
-                    QVERIFY2(failure.isEmpty(), qPrintable(QStringLiteral("%1 after %2: %3").arg(description, victim, failure)));
-                }
-            }
+            return;
         }
         QVERIFY2(!run.window, qPrintable(description));
     }
@@ -2564,7 +2686,11 @@ void AppPagesLifetimeTest::runSweep(const PagesRouteCase& routeCase, PagesLifeti
                 {
                     return PagesLifetimeRecorder::Action::None;
                 }
-                if (PagesLifetimeRecorder::isDeferredSite(site) || PagesLifetimeRecorder::isDeferredState(site, object))
+                // A tab deleted inside of a language change: a sibling of the receiver of the
+                // event (the route of an own tab of a tool shows its page in the Home tab while
+                // a document tab is open, step 2 of phase 2)
+                const bool isLanguageChange = victim != PagesVictim::Window && PagesLifetimeApplication::isLanguageChangeInside();
+                if (PagesLifetimeRecorder::isDeferredSite(site) || PagesLifetimeRecorder::isDeferredState(site, object) || isLanguageChange)
                 {
                     object->deleteLater();
                     return PagesLifetimeRecorder::Action::Deferred;
@@ -2586,6 +2712,12 @@ void AppPagesLifetimeTest::runSweep(const PagesRouteCase& routeCase, PagesLifeti
             if (recorder.isFired())
             {
                 break;
+            }
+            if (mode == PagesLifetimeRecorder::Mode::Discover && qEnvironmentVariableIsSet("PDF4QT_LIFETIME_TRACE"))
+            {
+                pdf::PDFAppPage* shownPage = H::page(run);
+                qInfo().noquote() << QStringLiteral("step %1: %2, tab %3, page %4").arg(i).arg(isOk).arg(run.tab ? QString::fromLatin1(run.tab->metaObject()->className()) : QStringLiteral("none"),
+                                                                                           shownPage ? QString::fromLatin1(shownPage->metaObject()->className()) : QStringLiteral("none"));
             }
             if (mode == PagesLifetimeRecorder::Mode::Discover)
             {

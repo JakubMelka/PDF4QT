@@ -779,8 +779,13 @@ void AppMcpContentTest::examplesValidate()
             {
                 const bool isCatalogTool = pdf::PDFAppMcpCatalogTools::isCatalogToolName(call.toolName);
                 const bool isCommon = it.key() == QStringLiteral("action") || it.key() == QStringLiteral("documentId") ||
-                                      (isCatalogTool && (it.key() == QStringLiteral("result") || it.key() == QStringLiteral("path")));
+                                      (isCatalogTool && (it.key() == QStringLiteral("result") || it.key() == QStringLiteral("path") || it.key() == QStringLiteral("documentIds")));
                 QVERIFY2(isCommon || it.key() == action, qPrintable(context + QStringLiteral(": the object of another action ") + it.key()));
+            }
+            for (const QJsonValue& documentId : call.arguments.value(QStringLiteral("documentIds")).toArray())
+            {
+                // The ids of a tool of more documents have the form of a document id too
+                QVERIFY2(QRegularExpression(QStringLiteral("^[A-Z2-7]{26}$")).match(documentId.toString()).hasMatch(), qPrintable(context));
             }
             if (call.arguments.contains(QStringLiteral("documentId")))
             {

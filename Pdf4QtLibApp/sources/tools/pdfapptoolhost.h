@@ -43,6 +43,8 @@ class PDFAppContext;
 class PDFAppDocument;
 class PDFAppDocumentTab;
 class PDFAppDocumentView;
+class PDFAppTab;
+class PDFAppToolInputList;
 class PDFDrawWidgetProxy;
 class PDFWidget;
 
@@ -104,6 +106,11 @@ public:
     /// Message of the tool in the status bar during the mode ("Compress · Report.pdf · 24.8 MB")
     virtual void setMessage(const QString& text) = 0;
 
+    /// Texts of the page and zoom items of the status bar of a host without a view (the own
+    /// tab of a tool: PDFDocumentToolGUI::getOwnTabPageText / getOwnTabZoomText); the document
+    /// view has its own items. Default: nothing.
+    virtual void setStatusItems(const QString& pageText, const QString& zoomText);
+
     /// A message for a moment (a refusal), also after the mode has ended
     virtual void showTransientMessage(const QString& text) = 0;
 
@@ -135,6 +142,19 @@ public:
     /// empty list = none selected
     virtual PDFInteger getCurrentPage() const = 0;
     virtual std::vector<PDFInteger> getSelectedPages() const = 0;
+
+    /// The tab of the tool: the document tab, or the own tab of a tool (the anchor of a new
+    /// tab of a result, getTabIndexAfter); nullptr = gone or none. Default: nullptr.
+    virtual PDFAppTab* getTab() const;
+
+    /// The list of the inputs of a tool of more inputs in its own tab (owned by the tab),
+    /// nullptr = none (the document tab: its input is the document). Default: nullptr.
+    virtual PDFAppToolInputList* getInputList() const;
+
+    /// The tool works in its own tab (plan of step 2 of phase 2, 4.1): no document, Cancel
+    /// and an accepted result close the tab, Discard result keeps the tool with its inputs
+    /// (Q9), the texts of the shell name no document. Default: false.
+    virtual bool isOwnTab() const;
 
 Q_SIGNALS:
     /// The parts of the tool have been taken away without \p leaveMode of the shell (the
@@ -193,6 +213,7 @@ public:
     virtual PDFAppToolRunEnvironment createEnvironment() const override;
     virtual PDFInteger getCurrentPage() const override;
     virtual std::vector<PDFInteger> getSelectedPages() const override;
+    virtual PDFAppTab* getTab() const override;
 
     /// Longest time of a transient message (ms)
     static constexpr int MESSAGE_TIMEOUT = 8000;

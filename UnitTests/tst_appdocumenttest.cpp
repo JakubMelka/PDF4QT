@@ -59,6 +59,7 @@
 #include "pdfannotationstyle.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumentreader.h"
+#include "pdfsecurityhandler.h"
 #include "pdfutils.h"
 #include "pdfwidgetannotation.h"
 #include "pdfoptionalcontent.h"
@@ -217,8 +218,8 @@ public:
     }
 
     /// PDF4QT 1.6.0.0 wrote a string with a CR as a literal one with the raw byte, a reader of PDF Reference 1.7, 3.2.3
-    /// takes it as a line feed. Writes the first bytes of the value of the key (an entry of the encryption dictionary)
-    /// by such a marker, a file with the same offsets. The other bytes need no escape in the literal string.
+    /// takes it as a line feed. Writes bytes of the value of the key (an entry of the encryption dictionary) by such
+    /// a marker, a file with the same offsets. The other bytes need no escape in the literal string.
     static bool writeRawMarker(const QString& path, const QByteArray& key, const QByteArray& marker)
     {
         QFile file(path);
@@ -239,10 +240,21 @@ public:
         position = isHexadecimal ? position : position + key.size();
 
         const qsizetype end = data.indexOf(isHexadecimal ? '>' : ')', position);
-        QByteArray value = data.mid(position + 1, end - position - 1);
-        value = isHexadecimal ? QByteArray::fromHex(value) : value;
-        value.replace('(', 'x').replace(')', 'x').replace('\\', 'x').replace('\r', 'x');
-        value.replace(0, marker.size(), marker);
+        const QByteArray written = data.mid(position + 1, end - position - 1);
+        const QByteArray original = isHexadecimal ? QByteArray::fromHex(written) : written;
+        QByteArray value = original;
+        // Also LF: a random LF right after the raw CR marker would make CR LF one end of line
+        // (7.3.4.2), the string would be one byte shorter and the reader would report its length
+        value.replace('(', 'x').replace(')', 'x').replace('\\', 'x').replace('\r', 'x').replace('\n', 'x');
+
+        // The reader takes a one byte marker as an LF: over an LF of the value (1 of 256 random values) it would
+        // change nothing, the file would stay right. It goes to the first byte, which is not an LF.
+        qsizetype markerPosition = 0;
+        while (marker.size() == 1 && markerPosition < original.size() && original.at(markerPosition) == '\n')
+        {
+            ++markerPosition;
+        }
+        value.replace(markerPosition, marker.size(), marker);
 
         QByteArray literal = "(" + value + ")";
         const qsizetype length = end - position + 1;
@@ -250,6 +262,44 @@ public:
         data.replace(position, length, literal);
 
         return file.open(QIODevice::WriteOnly | QIODevice::Truncate) && file.write(data) == data.size();
+    }
+
+    /// A page encrypted by AES-256 (the passwords and permissions of AppDocumentSamples) whose entry \p key of the
+    /// encryption dictionary starts with an LF and has no other byte, which writeRawMarker changes (( ) \ CR LF):
+    /// a raw CR over its first byte would read as the same value. The values are random, so new ones are made until
+    /// one fits (about 1 of 650 for /U, 1 of 340 for /Perms).
+    static QString leadingLineFeed(const QString& folder, const QString& userPassword, const char* key)
+    {
+        pdf::PDFSecurityHandlerFactory::SecuritySettings settings;
+        settings.algorithm = pdf::PDFSecurityHandlerFactory::AES_256;
+        settings.userPassword = userPassword;
+        settings.ownerPassword = pdftest::AppDocumentSamples::getOwnerPassword();
+        settings.permissions = 0xFFFFFFFCu;
+
+        pdf::PDFSecurityHandlerPointer handler;
+        for (int attempt = 0; attempt < 100000 && !handler; ++attempt)
+        {
+            pdf::PDFSecurityHandlerPointer candidate = pdf::PDFSecurityHandlerFactory::createSecurityHandler(settings);
+            const pdf::PDFObject dictionary = candidate->createEncryptionDictionaryObject();
+            const pdf::PDFObject& value = dictionary.getDictionary()->get(key);
+            const QByteArray bytes = value.isString() ? value.getString() : QByteArray();
+            const QByteArray rest = bytes.mid(1);
+            if (bytes.startsWith('\n') && !rest.contains('(') && !rest.contains(')') && !rest.contains('\\') && !rest.contains('\r') && !rest.contains('\n'))
+            {
+                handler = candidate;
+            }
+        }
+        if (!handler)
+        {
+            return QString();
+        }
+
+        pdf::PDFDocumentBuilder builder;
+        builder.appendPage(QRectF(0, 0, 300, 400));
+        builder.setSecurityHandler(handler);
+        pdf::PDFDocument document = builder.build();
+        const QString path = QDir(folder).absoluteFilePath(QStringLiteral("leading-line-feed-%1.pdf").arg(QString::fromLatin1(key)));
+        return pdftest::AppDocumentSamples::write(document, path) ? path : QString();
     }
 };
 
@@ -271,6 +321,7 @@ private slots:
     void passwordClose();
     void ownerPassword();
     void oldFileRawCarriageReturn();
+    void oldFileRawCarriageReturnOverLineFeed();
     void pagePrecedence();
     void routeWriteBack();
     void readingState();
@@ -834,6 +885,51 @@ void AppDocumentTest::oldFileRawCarriageReturn()
         fixture.window->openDocuments(QStringList({ file }), 0);
         getReason();
         QVERIFY2(reason.contains(QStringLiteral("entry 'U'")), qPrintable(reason));
+        QCOMPARE(fixture.closeMessageBoxes(), 1);
+    }
+
+    QTRY_VERIFY(fixture.context->getDocumentRegistry()->getDocuments().empty());
+}
+
+void AppDocumentTest::oldFileRawCarriageReturnOverLineFeed()
+{
+    // The raw CR of the old writer is read as an LF (7.3.4.2). A value, which starts with an LF (1 of 256 random
+    // values of the encryption), is damaged too - the application answers as for any other one
+    pdftest::AppDocumentFixture fixture;
+    const QString rightPassword = pdftest::AppDocumentSamples::getUserPassword();
+
+    // /U: the right password does not fit any more
+    {
+        const QString file = AppDocumentTestHelper::leadingLineFeed(fixture.folder(), rightPassword, "U");
+        QVERIFY(!file.isEmpty());
+        QVERIFY(AppDocumentTestHelper::writeRawMarker(file, "/U ", "\r"));
+        pdf::PDFAppDocumentTab* tab = fixture.open(file);
+        QVERIFY(tab);
+        QCOMPARE(tab->getDocument()->getState(), pdf::PDFAppDocumentState::PasswordRequired);
+
+        pdf::PDFAppDocumentStateScreen* screen = tab->getStateScreen();
+        QTest::keyClicks(screen->getPasswordField(), rightPassword);
+        screen->getOpenButton()->click();
+        QVERIFY(AppDocumentTestHelper::waitLoaded(tab));
+        QCOMPARE(tab->getDocument()->getState(), pdf::PDFAppDocumentState::PasswordRequired);
+        QVERIFY(tab->getDocument()->isPasswordWrong());
+
+        QPointer<pdf::PDFAppDocumentTab> guard(tab);
+        screen->getCloseButton()->click();
+        fixture.settle();
+        QVERIFY(!guard);
+    }
+
+    // /Perms of a file without a user password: open-failed at once with the reason of the reader
+    {
+        const QString file = AppDocumentTestHelper::leadingLineFeed(fixture.folder(), QString(), "Perms");
+        QVERIFY(!file.isEmpty());
+        QVERIFY(AppDocumentTestHelper::writeRawMarker(file, "/Perms ", "\r"));
+        fixture.window->openDocuments(QStringList({ file }), 0);
+        QTRY_VERIFY_WITH_TIMEOUT(fixture.window->getOpenFailedDialog(), 30000);
+        const std::vector<pdf::PDFAppOpenFailure> failures = fixture.window->getOpenFailedDialog()->getFailures();
+        QCOMPARE(failures.size(), size_t(1));
+        QVERIFY2(failures.front().reason.contains(QStringLiteral("ermissions")), qPrintable(failures.front().reason));
         QCOMPARE(fixture.closeMessageBoxes(), 1);
     }
 

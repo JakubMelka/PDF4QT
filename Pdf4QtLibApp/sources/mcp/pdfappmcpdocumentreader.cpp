@@ -22,6 +22,7 @@
 
 
 #include "pdfappmcpdocumentreader.h"
+#include "pdfappdocumentpermissions.h"
 #include "pdfappmcparguments.h"
 #include "pdfappmcpreadsupport.h"
 #include "pdfappcontext.h"
@@ -122,9 +123,10 @@ public:
         return 0;
     }
 
-    static bool isAllowed(const PDFSecurityHandler* handler, PDFSecurityHandler::Permission permission)
+    /// The shared check of the new application (an unlock by the owner password included)
+    static bool isAllowed(const PDFDocument* document, PDFSecurityHandler::Permission permission)
     {
-        return !handler || handler->getMode() == EncryptionMode::None || handler->isAllowed(permission);
+        return PDFAppDocumentPermissions::isAllowed(document, permission);
     }
 
     /// The crypt filter of the streams of an encryption of version 4 is RC4 (/CFM
@@ -482,12 +484,13 @@ QByteArray PDFAppMcpDocumentReader::getInfo(const PDFAppDocument* document)
         writer.key(QLatin1StringView("permissions"));
         writer.beginObject();
         using Permission = PDFSecurityHandler::Permission;
-        writer.writeMember(QLatin1StringView("print"), Helper::isAllowed(handler, Permission::PrintLowResolution) || Helper::isAllowed(handler, Permission::PrintHighResolution));
-        writer.writeMember(QLatin1StringView("modify"), Helper::isAllowed(handler, Permission::Modify));
-        writer.writeMember(QLatin1StringView("copy"), Helper::isAllowed(handler, Permission::CopyContent));
-        writer.writeMember(QLatin1StringView("annotate"), Helper::isAllowed(handler, Permission::ModifyInteractiveItems));
-        writer.writeMember(QLatin1StringView("fillForms"), Helper::isAllowed(handler, Permission::ModifyFormFields) || Helper::isAllowed(handler, Permission::ModifyInteractiveItems));
-        writer.writeMember(QLatin1StringView("assemble"), Helper::isAllowed(handler, Permission::Assemble));
+        const PDFDocument* permissionDocument = pdfDocument.data();
+        writer.writeMember(QLatin1StringView("print"), Helper::isAllowed(permissionDocument, Permission::PrintLowResolution) || Helper::isAllowed(permissionDocument, Permission::PrintHighResolution));
+        writer.writeMember(QLatin1StringView("modify"), Helper::isAllowed(permissionDocument, Permission::Modify));
+        writer.writeMember(QLatin1StringView("copy"), Helper::isAllowed(permissionDocument, Permission::CopyContent));
+        writer.writeMember(QLatin1StringView("annotate"), Helper::isAllowed(permissionDocument, Permission::ModifyInteractiveItems));
+        writer.writeMember(QLatin1StringView("fillForms"), Helper::isAllowed(permissionDocument, Permission::ModifyFormFields) || Helper::isAllowed(permissionDocument, Permission::ModifyInteractiveItems));
+        writer.writeMember(QLatin1StringView("assemble"), Helper::isAllowed(permissionDocument, Permission::Assemble));
         writer.endObject();
         writer.endObject();
     }

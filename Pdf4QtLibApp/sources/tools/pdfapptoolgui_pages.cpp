@@ -65,12 +65,6 @@ public:
     static constexpr QSize ROTATE_SLOT = QSize(104, 104);
     static constexpr QSize REMOVE_SLOT = QSize(82, 112);
 
-    /// Width of the panel of the size of the tiles (panel-thumbnail-size 1359:33719)
-    static constexpr int TILE_SIZE_PANEL_WIDTH = 260;
-
-    /// Property of a row of the panel of the size: the size
-    static constexpr const char* TILE_SIZE_PROPERTY = "pdf4qtTileSize";
-
     /// Size of a page in millimeters, as it is shown
     static QSizeF getSizeMM(const PDFPage* page)
     {
@@ -283,11 +277,7 @@ void PDFAppPageMarkingToolGUI::readTileSize()
 
     // The state setting of all page grids (the last choice of the user)
     m_isTileSizeRead = true;
-    const PDFAppContext* context = getContext();
-    if (context && context->getDatabase())
-    {
-        m_tileSize = PDFAppToolPageGrid::getTileSizeFromId(context->getSettings().getString(PDFSettingKeys::toolsPageGridSize()));
-    }
+    m_tileSize = PDFAppToolTileSizeMenu::readSize(getContext());
 }
 
 PDFAppToolPageGrid::TileSize PDFAppPageMarkingToolGUI::getTileSize() const
@@ -298,118 +288,47 @@ PDFAppToolPageGrid::TileSize PDFAppPageMarkingToolGUI::getTileSize() const
 void PDFAppPageMarkingToolGUI::setTileSize(PDFAppToolPageGrid::TileSize size)
 {
     m_isTileSizeRead = true;
-    const bool isChanged = m_tileSize != size;
     m_tileSize = size;
-    updateTileSizeMenu();
+    if (m_tileSizeMenu)
+    {
+        m_tileSizeMenu->setSize(size);
+    }
     if (m_grid)
     {
         m_grid->setTileSize(size);
     }
 
     // The store announces the change of the setting to its readers (the last call)
-    PDFAppContext* context = getContext();
-    if (isChanged && context && context->getDatabase())
-    {
-        const PDFDatabaseError error = context->getSettings().setValue(PDFSettingKeys::toolsPageGridSize(), PDFAppToolPageGrid::getTileSizeId(size));
-        if (error.isError())
-        {
-            qWarning("The size of the page grid cannot be stored: %s", qPrintable(error.toString()));
-        }
-    }
+    PDFAppToolTileSizeMenu::storeSize(getContext(), size);
 }
 
 QToolButton* PDFAppPageMarkingToolGUI::getTileSizeButton() const
 {
-    return m_tileSizePanel ? m_tileSizePanel->getButton() : nullptr;
+    return m_tileSizeMenu ? m_tileSizeMenu->getButton() : nullptr;
 }
 
 PDFTileRow* PDFAppPageMarkingToolGUI::getTileSizeRow(PDFAppToolPageGrid::TileSize size) const
 {
-    const auto it = m_tileSizeRows.find(size);
-    return it != m_tileSizeRows.cend() ? it->second.data() : nullptr;
+    return m_tileSizeMenu ? m_tileSizeMenu->getRow(size) : nullptr;
 }
 
 void PDFAppPageMarkingToolGUI::addTileSizeMenu(PDFAppToolPanelBuilder& builder)
 {
-    using Helper = PDFAppToolGUIPagesHelper;
-    using TileSize = PDFAppToolPageGrid::TileSize;
-
     readTileSize();
 
-    // divider + tb-thumbnail-size (Toolbar menu button, icon/pages) with panel-thumbnail-size:
-    // S / M / L tiles, the title and its description, the check of the chosen size
+    // divider + tb-thumbnail-size (Toolbar menu button, icon/pages) with panel-thumbnail-size
+    // (the menu belongs to its panel: the parts built again after a change of the language
+    // take the old menu with the old panel)
     builder.addActionDivider();
-    m_tileSizePanel = builder.addMenu(QStringLiteral("thumbnailSize"), QStringLiteral("pages"), QString(), Helper::TILE_SIZE_PANEL_WIDTH);
-    m_tileSizeRows.clear();
-    if (!m_tileSizePanel)
-    {
-        return;
-    }
-
-    struct SizeRow
-    {
-        TileSize size;
-        QString tileText;
-        QString title;
-        QString description;
-    };
-    const SizeRow rows[] = {
-        { TileSize::Small, tr("S", "the tile of the size Small"), tr("Small"), tr("More pages on the screen at once") },
-        { TileSize::Medium, tr("M", "the tile of the size Medium"), tr("Medium"), tr("The default size") },
-        { TileSize::Large, tr("L", "the tile of the size Large"), tr("Large"), tr("More detail of each page") },
-    };
-    for (const SizeRow& sizeRow : rows)
-    {
-        PDFTileRow* row = m_tileSizePanel->addRow(sizeRow.title, sizeRow.description, QString(), PDFTileRow::Kind::MenuItem);
-        row->setTileText(sizeRow.tileText);
-        row->setObjectName(QStringLiteral("toolTileSize-%1").arg(PDFAppToolPageGrid::getTileSizeId(sizeRow.size)));
-        row->setProperty(Helper::TILE_SIZE_PROPERTY, int(sizeRow.size));
-        row->setSelectionBehavior(PDFComponentButton::SelectionBehavior::Exclusive);
-        connect(row, &PDFTileRow::clicked, this, &PDFAppPageMarkingToolGUI::onTileSizeRowClicked);
-        m_tileSizeRows[sizeRow.size] = row;
-    }
-    updateTileSizeMenu();
+    PDFAppToolPanelPopup* panel = builder.addMenu(QStringLiteral("thumbnailSize"), QStringLiteral("pages"), QString(), PDFAppToolTileSizeMenu::PANEL_WIDTH);
+    m_tileSizeMenu = new PDFAppToolTileSizeMenu(panel, tr("Thumbnails: %1"), panel);
+    m_tileSizeMenu->setSize(m_tileSize);
+    connect(m_tileSizeMenu.data(), &PDFAppToolTileSizeMenu::sizeChosen, this, &PDFAppPageMarkingToolGUI::onTileSizeChosen);
 }
 
-void PDFAppPageMarkingToolGUI::updateTileSizeMenu()
+void PDFAppPageMarkingToolGUI::onTileSizeChosen(PDFAppToolPageGrid::TileSize size)
 {
-    // "Thumbnails: Medium" and the check of the chosen size
-    if (QToolButton* button = getTileSizeButton())
-    {
-        const PDFTileRow* row = getTileSizeRow(m_tileSize);
-        button->setText(tr("Thumbnails: %1").arg(row ? row->getTitle() : QString()));
-        button->setToolTip(tr("Size of the page thumbnails"));
-        button->setAccessibleName(button->text());
-        button->setAccessibleDescription(button->toolTip());
-    }
-    for (const auto& [size, row] : m_tileSizeRows)
-    {
-        if (row)
-        {
-            row->setChecked(size == m_tileSize);
-        }
-    }
-}
-
-void PDFAppPageMarkingToolGUI::onTileSizeRowClicked()
-{
-    PDFTileRow* row = qobject_cast<PDFTileRow*>(sender());
-    if (!row)
-    {
-        return;
-    }
-
-    // The panel closes first (it may run code of the application), then the size is applied
-    const PDFAppToolPageGrid::TileSize size = PDFAppToolPageGrid::TileSize(row->property(PDFAppToolGUIPagesHelper::TILE_SIZE_PROPERTY).toInt());
-    QPointer<PDFAppPageMarkingToolGUI> guard(this);
-    if (m_tileSizePanel)
-    {
-        m_tileSizePanel->close();
-    }
-    if (guard)
-    {
-        setTileSize(size);
-    }
+    setTileSize(size);
 }
 
 QWidget* PDFAppPageMarkingToolGUI::createCanvasPage(QWidget* parent)

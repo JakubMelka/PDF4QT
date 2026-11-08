@@ -168,6 +168,7 @@ private:
     void onNavIndexChanged(int index);
     void onBackClicked();
     void onCopyAllClicked();
+    void onUnlockClicked();
     void onPropertyEdited(const QString& value);
     void onRowEditingChanged(bool isEditing);
     void onDocumentChanged();

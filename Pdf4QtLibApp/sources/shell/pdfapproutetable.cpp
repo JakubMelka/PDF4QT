@@ -619,7 +619,7 @@ PDFAppRouteTable PDFAppRouteTable::createDefault()
     // Tools with their own tab (phase 2)
     PDFAppRouteEntry toolTab = createEntry(QStringLiteral("/tool/{toolId}/{instanceId}"), Tab::Tool, Nav::None, Subject::Tool, QT_TRANSLATE_NOOP("pdf::PDFAppRouteTable", "Tool"));
     toolTab.parameters[QStringLiteral("toolId")] = Values::slug();
-    toolTab.parameters[QStringLiteral("instanceId")] = Values::slug();
+    toolTab.parameters[QStringLiteral("instanceId")] = Values::documentId();
     table.addDefaultEntry(toolTab);
 
     return table;

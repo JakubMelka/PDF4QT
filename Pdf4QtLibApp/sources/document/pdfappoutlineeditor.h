@@ -259,6 +259,10 @@ private:
     PDFAppOutlinePanel* findPanel() const;
     bool commit(const PDFAppAnnotationResult& result, const QString& description, const OutlinePath& selectedItem);
     void showStatusMessage(const QString& text) const;
+
+    /// A refused edit: the owner password dialog, when only the permissions refuse it
+    /// (PDFAppDocumentPermissions::request), else the reason in the status bar
+    void refuseEditing() const;
     void setPendingProperty(bool pending);
     void onDocumentChanged();
     void onDocumentDestroyed();

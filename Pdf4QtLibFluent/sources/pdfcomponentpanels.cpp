@@ -340,6 +340,17 @@ void PDFKeyValueList::clear()
     update();
 }
 
+void PDFKeyValueList::setRowGap(int gap)
+{
+    gap = qMax(0, gap);
+    if (m_rowGap != gap)
+    {
+        m_rowGap = gap;
+        updateGeometry();
+        update();
+    }
+}
+
 QString PDFKeyValueList::getKey(int index) const
 {
     return index >= 0 && index < getRowCount() ? m_rows[index].key : QString();
@@ -385,7 +396,7 @@ QRect PDFKeyValueList::getRowRect(int index) const
     int top = contentsRect().top();
     for (int i = 0; i < index; ++i)
     {
-        top += getRowHeight(i);
+        top += getRowHeight(i) + m_rowGap;
     }
 
     return QRect(contentsRect().left(), top, contentsRect().width(), getRowHeight(index));
@@ -408,10 +419,11 @@ int PDFKeyValueList::heightForWidth(int width) const
 {
     Q_UNUSED(width);
 
+    // The gaps lie only between the rows
     int height = 0;
     for (int i = 0; i < getRowCount(); ++i)
     {
-        height += getRowHeight(i);
+        height += getRowHeight(i) + (i > 0 ? m_rowGap : 0);
     }
 
     const QMargins margins = contentsMargins();

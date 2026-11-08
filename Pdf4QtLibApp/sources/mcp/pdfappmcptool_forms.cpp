@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappmcptool_forms.h"
+#include "pdfappdocumentpermissions.h"
 #include "pdfappmcparguments.h"
 #include "pdfappmcpchange.h"
 #include "pdfappmcphost.h"
@@ -845,11 +846,11 @@ void PDFAppMcpFormsTool::handle(const PDFAppMcpToolInvocation& invocation)
         return;
     }
 
-    const PDFSecurityHandler* securityHandler = pdfDocument ? pdfDocument->getStorage().getSecurityHandler() : nullptr;
-    if (securityHandler && !securityHandler->isAllowed(PDFSecurityHandler::Permission::ModifyFormFields) &&
-        !securityHandler->isAllowed(PDFSecurityHandler::Permission::ModifyInteractiveItems))
+    // The shared check (bit 9 or bit 6 of Table 22); the owner password only by the user
+    const PDFAppPermissionRequest permissionRequest = PDFAppPermissionRequest::create(PDFAppPermissionAction::FillForm);
+    if (pdfDocument && !PDFAppDocumentPermissions::isAllowed(pdfDocument, permissionRequest))
     {
-        host->finishWithError(call, actionId, document, QStringLiteral("The document does not allow filling its form (its security settings)."), PDFMcpActivityStatus::Failed);
+        host->finishWithError(call, actionId, document, PDFAppDocumentPermissions::getMcpRefusalText(pdfDocument, permissionRequest), PDFMcpActivityStatus::Failed);
         return;
     }
 

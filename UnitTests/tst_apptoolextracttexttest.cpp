@@ -29,6 +29,7 @@
 #include "pdfappdocumentview.h"
 #include "pdfappmainwindow.h"
 #include "pdfappmcphost.h"
+#include "pdfapppassworddialog.h"
 #include "pdfapptoolgui_extracttext.h"
 #include "pdfapptoolpanelbuilder.h"
 #include "pdfapptoolpanelparts.h"
@@ -574,7 +575,8 @@ void AppToolExtractTextTest::nothingToDoInfoBar()
 
 void AppToolExtractTextTest::permissionRefused()
 {
-    // 339:10328 (Q7: only Close, the scrim over the canvas): the canvas is empty, copying "Not allowed"
+    // 339:10328 (Q7, the scrim over the canvas): the canvas is empty, copying "Not allowed"; the
+    // owner password can lift the restriction - the dialog asks for it (owner 2026-11-08)
     using H = ExtractTextGuiHelper;
     AppToolShellFixture fixture(QSize(1440, 960));
     const uint32_t permissions = 0xFFFFFFFCu & ~uint32_t(pdf::PDFSecurityHandler::Permission::CopyContent);
@@ -584,13 +586,9 @@ void AppToolExtractTextTest::permissionRefused()
     PDFAppToolGUIExtractText* gui = H::gui(shell);
     QVERIFY(shell->isPermissionRefused());
     QVERIFY(AppToolShellFixture::waitFor([shell]() { return shell->getPermissionDialog() && shell->getPermissionDialog()->isVisible(); }));
-    QStringList texts;
-    for (const pdf::PDFLabel* label : shell->getPermissionDialog()->findChildren<pdf::PDFLabel*>())
-    {
-        texts << label->text();
-    }
-    QVERIFY2(texts.contains(QStringLiteral("This document does not allow copying")), qPrintable(texts.join(QLatin1Char('|'))));
-    QVERIFY2(texts.contains(QStringLiteral("Its author restricted the extraction of text and images.")), qPrintable(texts.join(QLatin1Char('|'))));
+    const pdf::PDFAppPasswordDialog* ownerDialog = qobject_cast<const pdf::PDFAppPasswordDialog*>(shell->getPermissionDialog());
+    QVERIFY(ownerDialog && ownerDialog->isDocumentMode());
+    QCOMPARE(ownerDialog->getText(), QStringLiteral("The author of this document does not allow copying text and images, which Extract Text needs. If you own the document, enter its owner password to allow it until the document is closed."));
     AppToolShellFixture::settle();
     fixture.screenshot(QStringLiteral("extract-text-339-10328"));
     QCOMPARE(shell->getStatusMessage(), QStringLiteral("Extract Text · the document does not allow copying its content"));

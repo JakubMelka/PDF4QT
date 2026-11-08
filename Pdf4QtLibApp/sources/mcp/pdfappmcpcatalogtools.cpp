@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfappmcpcatalogtools.h"
+#include "pdfappdocumentpermissions.h"
 #include "pdfappmcparguments.h"
 #include "pdfappmcpchange.h"
 #include "pdfappmcpconfirmationui.h"
@@ -32,6 +33,8 @@
 #include "pdfappundostack.h"
 #include "pdfappdocumentsave.h"
 #include "pdfappdocumenttab.h"
+#include "pdfappmainwindow.h"
+#include "pdfapptoolpathrules.h"
 #include "pdfapptoolresultwriter.h"
 #include "pdfdocumenttextexporter.h"
 #include "pdfdocumenttoolrunner.h"
@@ -71,6 +74,56 @@ public:
     static bool usesDocument(PDFDocumentToolInputKind kind)
     {
         return kind != PDFDocumentToolInputKind::None;
+    }
+
+    /// Fewest input documents of a tool of more documents (Merge: "two or more PDFs"); the
+    /// schema of documentIds has 1 to 100 for every such tool (R20), the bridge checks this
+    static constexpr int MINIMUM_INPUT_DOCUMENTS = 2;
+
+    /// The documents of documentIds of a tool of more documents (K34) in their order, each
+    /// open and read; a locked one only for a tool, which works on a locked document. The
+    /// same id twice is the same document twice (the core maps its objects by the input).
+    /// \returns false with \p errorText for the model
+    static bool resolveInputDocuments(PDFAppMcpHost* host, const PDFAppMcpToolInvocation& invocation, const PDFDocumentToolCatalogEntry* entry,
+                                      std::vector<QPointer<PDFAppDocument>>* documents, QString* errorText)
+    {
+        const QJsonValue value = invocation.arguments.value(QLatin1StringView("documentIds"));
+        if (!invocation.documentId.isEmpty())
+        {
+            *errorText = QStringLiteral("documentId: %1 works with more documents; give all of them in their order by documentIds.").arg(entry->getSourceTitle());
+            return false;
+        }
+
+        const QJsonArray ids = value.toArray();
+        if (!value.isArray() || ids.size() < MINIMUM_INPUT_DOCUMENTS)
+        {
+            *errorText = QStringLiteral("documentIds: %1 needs the ids of at least %2 open documents in the order of the result (application.get_state lists them).").arg(entry->getSourceTitle()).arg(MINIMUM_INPUT_DOCUMENTS);
+            return false;
+        }
+
+        for (qsizetype i = 0; i < ids.size(); ++i)
+        {
+            const PDFAppMcpResolvedDocument resolved = host->getResolver().resolve(ids.at(i).toString(), true);
+            if (!resolved.isResolved())
+            {
+                *errorText = QStringLiteral("documentIds[%1]: %2").arg(i).arg(resolved.errorText);
+                return false;
+            }
+
+            switch (PDFAppToolResultWriter::getDocumentRefusal(entry, resolved.document))
+            {
+                case PDFAppToolResultWriter::DocumentRefusal::Locked:
+                    *errorText = QStringLiteral("documentIds[%1]: %2").arg(i).arg(PDFAppMcpChangeJob::getLockedText());
+                    return false;
+                case PDFAppToolResultWriter::DocumentRefusal::DisplayVersion:
+                    *errorText = QStringLiteral("documentIds[%1]: %2").arg(i).arg(PDFAppMcpChangeJob::getPagedXFAText());
+                    return false;
+                case PDFAppToolResultWriter::DocumentRefusal::None:
+                    break;
+            }
+            documents->emplace_back(resolved.document);
+        }
+        return true;
     }
 
     /// In the order of PDFAppMcpToolResultMode
@@ -114,20 +167,27 @@ public:
         return QStringLiteral("The tab of the document was closed.");
     }
 
-    /// The text of a permission set to Deny, which a value of "result" needs
-    static QString getDeniedText(PDFAppMcpToolResultMode mode)
+    /// The text of a permission set to Deny, which a value of "result" needs: the first of
+    /// \p kinds (getResultPermissions), which \p permissions deny
+    static QString getDeniedText(PDFAppMcpToolResultMode mode, PDFAppMcpPermissionKinds kinds, const PDFAppMcpPermissions& permissions)
     {
+        if (kinds.testFlag(PDFAppMcpPermissionKind::Read) && !permissions.isAvailable(PDFAppMcpPermissionKind::Read))
+        {
+            return QStringLiteral("The user does not allow assistants to read documents (Read documents is set to Deny in PDF4QT).");
+        }
+
         switch (mode)
         {
             case PDFAppMcpToolResultMode::Keep:
                 return QStringLiteral("This result changes the document, but the user does not allow assistants to edit documents (Edit documents is set to Deny in PDF4QT).");
             case PDFAppMcpToolResultMode::Overwrite:
                 return QStringLiteral("The user does not allow assistants to overwrite the file of a document (result overwrite needs Edit documents and Open and save files in PDF4QT).");
+            case PDFAppMcpToolResultMode::OpenNewTab:
+                return QStringLiteral("This result opens a new document in a new tab, but the user does not allow assistants to edit documents (Edit documents is set to Deny in PDF4QT). "
+                                      "Use the result save_file with a path, if Open and save files is allowed.");
             case PDFAppMcpToolResultMode::ReturnText:
-                return QStringLiteral("The user does not allow assistants to read documents (Read documents is set to Deny in PDF4QT).");
             case PDFAppMcpToolResultMode::SaveCopy:
             case PDFAppMcpToolResultMode::SaveFile:
-            case PDFAppMcpToolResultMode::OpenNewTab:
                 break;
         }
         return QStringLiteral("The user does not allow assistants to save files (Open and save files is set to Deny in PDF4QT).");
@@ -288,7 +348,8 @@ public:
     }
 
     /// The permission of a tool in its reference: it depends on the value of "result"
-    static QString getPermissionText(PDFDocumentToolResultKind kind)
+    /// (getResultPermissions) and on the input documents, which the tool reads
+    static QString getPermissionText(PDFDocumentToolResultKind kind, PDFDocumentToolInputKind inputKind)
     {
         switch (kind)
         {
@@ -297,7 +358,8 @@ public:
             case PDFDocumentToolResultKind::Files:
                 return QStringLiteral("Read documents; `save_file` also Open and save files");
             case PDFDocumentToolResultKind::NewDocument:
-                return QStringLiteral("Read documents, Open and save files");
+                return usesDocument(inputKind) ? QStringLiteral("Read documents, then by `result`: Edit documents (`open_new_tab`) or Open and save files (`save_file`)")
+                                               : QStringLiteral("By `result`: Edit documents (`open_new_tab`) or Open and save files (`save_file`); no document is read");
             case PDFDocumentToolResultKind::Analysis:
                 break;
         }
@@ -359,7 +421,7 @@ public:
             action.name = entry->getId().section(QLatin1Char('.'), 1);
             action.description = entry->getSourceDescription();
             action.permission = permission;
-            action.permissionText = getPermissionText(entry->getResultKind());
+            action.permissionText = getPermissionText(entry->getResultKind(), entry->getInputKind());
             action.usesDocument = entry->getInputKind() != PDFDocumentToolInputKind::None;
             action.input = std::move(*schema);
             action.output = createResultSchema();
@@ -539,7 +601,28 @@ public:
             // confirmation waits up to 2 minutes): a copy never replaces a file -
             // an overwrite is always confirmed as such (plan 3.9, review RW7-0).
             // One rule of a copy for the result dialog and for an assistant (F7).
-            if (m_request.mode == PDFAppMcpToolResultMode::SaveFile)
+            if (m_request.mode == PDFAppMcpToolResultMode::OpenNewTab)
+            {
+                // The bytes of the new tab (the run has not written them)
+                m_writeResult = PDFAppToolResultWriter::writeToMemory(m_newDocument);
+            }
+            else if (m_request.mode == PDFAppMcpToolResultMode::SaveFile && m_newDocument)
+            {
+                // A new document is written whole: the bytes of the run, else the document
+                if (!m_newDocumentData.isEmpty())
+                {
+                    m_writeResult = PDFAppToolResultWriter::writeFileData(m_request.path, m_newDocumentData, m_markSourceFilePath, false);
+                }
+                else
+                {
+                    PDFAppDocumentFileWriter::Request request;
+                    request.document = m_newDocument;
+                    request.filePath = m_request.path;
+                    request.markSourceFilePath = m_markSourceFilePath;
+                    m_writeResult = PDFAppToolResultWriter::writeRequest(std::move(request), false);
+                }
+            }
+            else if (m_request.mode == PDFAppMcpToolResultMode::SaveFile)
             {
                 m_writeResult = PDFAppToolResultWriter::writeFileData(m_request.path, m_result.outputs.front().data, m_markSourceFilePath, false);
             }
@@ -599,30 +682,43 @@ public:
                 break;
         }
 
-        // The changed document of the result (a new document needs the result
-        // writer of a later batch)
+        // A new document (Merge, Blank PDF, plan of step 2 of phase 2, 7): open_new_tab or
+        // save_file; its bytes, when the run has written them already (4.5: one write)
         for (const PDFDocumentToolOutputDocument& output : m_result.documents)
         {
-            if (output.kind == PDFDocumentToolOutputDocument::Kind::New)
+            if (output.kind == PDFDocumentToolOutputDocument::Kind::New && output.document)
             {
-                fail(QStringLiteral("The tool created a new document, which this version of PDF4QT cannot deliver to assistants yet."), PDFMcpActivityStatus::Failed);
-                return;
+                m_newDocument = output.document;
+                m_newDocumentData = output.writtenData;
+                m_newDocumentName = output.suggestedFileName;
+                break;
             }
         }
+        if (m_newDocument && m_request.mode != PDFAppMcpToolResultMode::OpenNewTab && m_request.mode != PDFAppMcpToolResultMode::SaveFile)
+        {
+            fail(QStringLiteral("The tool created a new document; use the result open_new_tab or save_file."), PDFMcpActivityStatus::Failed);
+            return;
+        }
+        if (!m_newDocument && m_request.mode == PDFAppMcpToolResultMode::OpenNewTab)
+        {
+            fail(QStringLiteral("The tool did not create a new document; the result open_new_tab has nothing to open."), PDFMcpActivityStatus::Failed);
+            return;
+        }
+
         if (const PDFDocumentToolOutputDocument* output = PDFDocumentToolRunner::findChangedDocument(m_result))
         {
             m_outputDocument = output->document;
             m_outputFlags = output->flags;
         }
 
-        const bool deliversOutput = m_request.mode == PDFAppMcpToolResultMode::ReturnText || m_request.mode == PDFAppMcpToolResultMode::SaveFile;
+        const bool deliversOutput = (m_request.mode == PDFAppMcpToolResultMode::ReturnText || m_request.mode == PDFAppMcpToolResultMode::SaveFile) && !m_newDocument;
         if (deliversOutput && m_outputDocument)
         {
             fail(QStringLiteral("The tool changed the document; the result %1 delivers only the files of a tool.").arg(PDFAppMcpCatalogToolsHelper::getResultValueNames().value(int(m_request.mode))), PDFMcpActivityStatus::Failed);
             return;
         }
 
-        if (!m_outputDocument && (!deliversOutput || m_result.outputs.empty()))
+        if (!m_outputDocument && !m_newDocument && (!deliversOutput || m_result.outputs.empty()))
         {
             // Analysis or nothing to do: Read was checked before the run
             succeed(PDFAppMcpCatalogToolsHelper::createResult(m_request.actionName, m_result, m_request.document, QString(), QString()));
@@ -645,13 +741,13 @@ public:
         }
 
         // The permission of the result (plan 3.10)
-        const PDFAppMcpPermissionKinds kinds = PDFAppMcpCatalogTools::getResultPermissions(m_request.mode);
+        const PDFAppMcpPermissionKinds kinds = getResultPermissions();
         const QString assistantKey = call->getRequest().client.assistantKey;
         const PDFAppMcpPermissionPolicy& policy = host->getPolicy();
         const PDFAppMcpPolicyResult policyResult = policy.evaluate(kinds, assistantKey, true);
         if (policyResult == PDFAppMcpPolicyResult::Denied)
         {
-            fail(PDFAppMcpCatalogToolsHelper::getDeniedText(m_request.mode), PDFMcpActivityStatus::DeniedPermission);
+            fail(PDFAppMcpCatalogToolsHelper::getDeniedText(m_request.mode, kinds, policy.getPermissions()), PDFMcpActivityStatus::DeniedPermission);
             return;
         }
 
@@ -789,6 +885,13 @@ private:
         return m_request.mode == PDFAppMcpToolResultMode::Keep || m_request.mode == PDFAppMcpToolResultMode::Overwrite;
     }
 
+    /// What the result needs (a tool, which is not in the catalog, is taken as one reading a document)
+    PDFAppMcpPermissionKinds getResultPermissions() const
+    {
+        const PDFDocumentToolCatalogEntry* entry = m_request.tool->getInfo();
+        return PDFAppMcpCatalogTools::getResultPermissions(m_request.mode, entry ? entry->getInputKind() : PDFDocumentToolInputKind::One);
+    }
+
     /// A signed document without a file keeps the result (F5): its signatures stop being
     /// valid when it is saved, this is what the user and the assistant are told (owner decision 4)
     bool isSignatureLost() const
@@ -901,8 +1004,12 @@ private:
                 break;
             case PDFAppMcpToolResultMode::SaveCopy:
             case PDFAppMcpToolResultMode::SaveFile:
-            case PDFAppMcpToolResultMode::OpenNewTab:
                 confirmation->kind = PDFAppMcpConfirmationKind::SaveCopy;
+                confirmation->details.insert(QStringLiteral("content"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "The result of %1").arg(title));
+                break;
+            case PDFAppMcpToolResultMode::OpenNewTab:
+                // Edit (plan of step 2, 7): a new unsaved document, nothing is written
+                confirmation->kind = PDFAppMcpConfirmationKind::NewTab;
                 confirmation->details.insert(QStringLiteral("content"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "The result of %1").arg(title));
                 break;
         }
@@ -970,9 +1077,10 @@ private:
 
         // A permission set to Deny while the question waited (plan 7: a change during a
         // call is an execution error), as the read approval (PDFAppMcpHost::continueToolCall)
-        if (m_host->getPolicy().evaluate(PDFAppMcpCatalogTools::getResultPermissions(m_request.mode), call->getRequest().client.assistantKey, true) == PDFAppMcpPolicyResult::Denied)
+        const PDFAppMcpPermissionKinds kinds = getResultPermissions();
+        if (m_host->getPolicy().evaluate(kinds, call->getRequest().client.assistantKey, true) == PDFAppMcpPolicyResult::Denied)
         {
-            fail(PDFAppMcpCatalogToolsHelper::getDeniedText(m_request.mode), PDFMcpActivityStatus::DeniedPermission);
+            fail(PDFAppMcpCatalogToolsHelper::getDeniedText(m_request.mode, kinds, m_host->getPolicy().getPermissions()), PDFMcpActivityStatus::DeniedPermission);
             return;
         }
 
@@ -1031,7 +1139,15 @@ private:
                 break;
 
             case PDFAppMcpToolResultMode::OpenNewTab:
-                fail(QStringLiteral("The result open_new_tab is not available in this version of PDF4QT."), PDFMcpActivityStatus::Failed);
+                // The bytes of the run open at once, else the write phase writes them first
+                if (!m_newDocumentData.isEmpty())
+                {
+                    finishOpenNewTab(m_newDocumentData);
+                }
+                else
+                {
+                    startWrite();
+                }
                 return;
         }
 
@@ -1094,19 +1210,26 @@ private:
         // The rules of the paths checked again after the confirmation (up to 2
         // minutes): a folder of the path replaced meanwhile by a link to the
         // data of PDF4QT or to a network location (as files.save_copy, review RC7-H)
-        QString pathError;
-        const bool isCopy = m_request.mode == PDFAppMcpToolResultMode::SaveCopy;
-        const QString path = PDFAppMcpArguments::checkPath(m_request.path, isCopy, m_host->getContext(), &pathError);
-        if (path.isEmpty() || path != m_request.path)
+        // (open_new_tab writes into the memory: no path)
+        if (m_request.mode != PDFAppMcpToolResultMode::OpenNewTab)
         {
-            fail(QStringLiteral("path: %1").arg(path.isEmpty() ? pathError : QStringLiteral("the path has changed since the confirmation; try again")), PDFMcpActivityStatus::Failed);
-            return;
+            QString pathError;
+            const bool isCopy = m_request.mode == PDFAppMcpToolResultMode::SaveCopy;
+            const QString path = PDFAppMcpArguments::checkPath(m_request.path, isCopy, m_host->getContext(), &pathError);
+            if (path.isEmpty() || path != m_request.path)
+            {
+                fail(QStringLiteral("path: %1").arg(path.isEmpty() ? pathError : QStringLiteral("the path has changed since the confirmation; try again")), PDFMcpActivityStatus::Failed);
+                return;
+            }
         }
 
         std::shared_ptr<PDFAppMcpCatalogToolJob> writeJob = std::make_shared<PDFAppMcpCatalogToolJob>(getCall(), getSnapshot(), m_request, m_attempt);
         writeJob->m_phase = Phase::Write;
         writeJob->m_result = m_result;
         writeJob->m_outputDocument = m_outputDocument;
+        writeJob->m_newDocument = m_newDocument;
+        writeJob->m_newDocumentData = m_newDocumentData;
+        writeJob->m_newDocumentName = m_newDocumentName;
         writeJob->m_status = m_status;
         writeJob->m_activityId = m_activityId;
         writeJob->m_markSourceFilePath = m_request.document ? m_request.document->getOriginFilePath() : getSnapshot().filePath;
@@ -1127,6 +1250,12 @@ private:
             return;
         }
 
+        if (m_request.mode == PDFAppMcpToolResultMode::OpenNewTab)
+        {
+            finishOpenNewTab(m_writeResult.data);
+            return;
+        }
+
         // A new file appears on the disk: a sign in the tab as by files.save_copy (owner decision 6).
         // The answer first: the call is over, whatever the message does.
         const PDFMcpCallResult result = PDFAppMcpCatalogToolsHelper::createResult(m_request.actionName, m_result, m_request.document, QString(), m_writeResult.filePath);
@@ -1138,6 +1267,42 @@ private:
         {
             host->showSavedMessage(document, writtenPath);
         }
+    }
+
+    /// open_new_tab: the new document opens unsaved in a new tab of the window of the first
+    /// input, without one in the active window (R20); the answer names the new document
+    void finishOpenNewTab(const QByteArray& data)
+    {
+        PDFAppMainWindow* window = nullptr;
+        if (const PDFAppDocument* document = m_request.document)
+        {
+            const QWidget* tab = qobject_cast<const QWidget*>(document->parent());
+            window = tab ? qobject_cast<PDFAppMainWindow*>(tab->window()) : nullptr;
+        }
+        if (!window)
+        {
+            window = PDFAppMainWindow::getLastActiveMainWindow();
+        }
+        if (!window || data.isEmpty())
+        {
+            fail(QStringLiteral("No window of PDF4QT can show the new document; use the result save_file with a path."), PDFMcpActivityStatus::Failed);
+            return;
+        }
+
+        // The name comes from the names of the inputs (T2): a hostile one is not the title
+        const QString title = !m_newDocumentName.isEmpty() && PDFAppToolPathRules::checkFileName(m_newDocumentName) == PDFAppToolPathRules::NameProblem::None
+                                  ? m_newDocumentName : QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "Untitled");
+
+        // The opening runs the code of the application: anything may be deleted meanwhile
+        const std::shared_ptr<PDFAppMcpJob> keepAlive = shared_from_this();
+        QPointer<PDFAppDocumentTab> tab = window->openDocumentFromMemory(data, title, QString(), m_request.document);
+        PDFAppDocument* newDocument = tab ? tab->getDocument() : nullptr;
+        if (!newDocument)
+        {
+            fail(QStringLiteral("The new document could not be opened (too many tabs); use the result save_file with a path."), PDFMcpActivityStatus::Failed);
+            return;
+        }
+        succeed(PDFAppMcpCatalogToolsHelper::createResult(m_request.actionName, m_result, newDocument, QString(), QString()));
     }
 
     /// The text of the output is the result of the call, data of the document with its
@@ -1207,6 +1372,9 @@ private:
     PDFDocumentToolResult m_result;
     PDFDocumentPointer m_outputDocument;
     PDFModifiedDocument::ModificationFlags m_outputFlags = PDFModifiedDocument::Reset;
+    PDFDocumentPointer m_newDocument;           ///< The new document of the result (open_new_tab, save_file)
+    QByteArray m_newDocumentData;               ///< Its bytes written by the run (empty = written by the write phase)
+    QString m_newDocumentName;                  ///< Its suggested file name
     PDFAppToolResultWriter::Result m_writeResult;
     PDFMcpActivityStatus m_status = PDFMcpActivityStatus::Ok;
     qint64 m_activityId = 0;                    ///< The row of the question of the call
@@ -1349,18 +1517,32 @@ public:
         }
 
         const PDFAppMcpToolResultMode mode = PDFAppMcpCatalogTools::getResultMode(resultValue.value_or(PDFAppMcpCatalogTools::getDefaultResult(*entry))).value_or(PDFAppMcpToolResultMode::Keep);
-        if (resultKind == PDFDocumentToolResultKind::NewDocument)
+
+        // The inputs of a tool of more documents (K34): documentIds in the order of the
+        // result, at least two (R20: the schema allows 1 to 100 for every such tool)
+        std::vector<QPointer<PDFAppDocument>> inputDocuments;
+        if (entry->getInputKind() == PDFDocumentToolInputKind::Multiple)
         {
-            host->finishWithError(call, toolId, nullptr, QStringLiteral("The tool creates a new document, which this version of PDF4QT cannot deliver to assistants yet."), PDFMcpActivityStatus::Failed);
+            QString inputError;
+            if (!Helper::resolveInputDocuments(host, invocation, entry, &inputDocuments, &inputError))
+            {
+                host->finishWithError(call, toolId, nullptr, inputError, PDFMcpActivityStatus::Failed);
+                return;
+            }
+        }
+        else if (invocation.arguments.contains(QLatin1StringView("documentIds")))
+        {
+            host->finishWithError(call, toolId, nullptr, QStringLiteral("documentIds: %1 works with one document; give it by documentId.").arg(entry->getSourceTitle()), PDFMcpActivityStatus::Failed);
             return;
         }
 
         // What the result needs is known before the run (an analysis is raised to what
         // its result contains, after the run)
+        const PDFAppMcpPermissionKinds resultPermissions = PDFAppMcpCatalogTools::getResultPermissions(mode, entry->getInputKind());
         if (resultKind != PDFDocumentToolResultKind::Analysis &&
-            host->getPolicy().evaluate(PDFAppMcpCatalogTools::getResultPermissions(mode), call->getRequest().client.assistantKey, true) == PDFAppMcpPolicyResult::Denied)
+            host->getPolicy().evaluate(resultPermissions, call->getRequest().client.assistantKey, true) == PDFAppMcpPolicyResult::Denied)
         {
-            host->finishWithError(call, toolId, nullptr, Helper::getDeniedText(mode), PDFMcpActivityStatus::DeniedPermission);
+            host->finishWithError(call, toolId, nullptr, Helper::getDeniedText(mode, resultPermissions, host->getPolicy().getPermissions()), PDFMcpActivityStatus::DeniedPermission);
             return;
         }
 
@@ -1391,10 +1573,48 @@ public:
             return;
         }
 
+        // A new document is a PDF file (plan of step 2 of phase 2, 7: save_file only .pdf)
+        if (resultKind == PDFDocumentToolResultKind::NewDocument && mode == PDFAppMcpToolResultMode::SaveFile && QFileInfo(path).suffix().toLower() != QLatin1String("pdf"))
+        {
+            host->finishWithError(call, toolId, nullptr, QStringLiteral("path: the result is a PDF document; the file must have the extension pdf."), PDFMcpActivityStatus::Failed);
+            return;
+        }
+
         // The input document
         PDFAppDocument* document = nullptr;
         PDFAppDocumentSnapshot snapshot;
-        if (Helper::usesDocument(entry->getInputKind()))
+        std::vector<PDFDocumentToolInputDocument> additionalDocuments;
+        if (!inputDocuments.empty())
+        {
+            // The first input is the main one (the snapshot of the job), the others go to the
+            // context in their order (R16: PDFAppToolRunEnvironment::additionalDocuments);
+            // their documents stay unchanged, nothing is committed to them
+            // The permissions of every input (the shared check, Table 22; a new document of the
+            // inputs keeps none of their restrictions, so Merge needs every permission): a
+            // restricted one is refused, named by its index in documentIds (no title of a document
+            // in the text), with the text of the unlock by the user - never a password here
+            for (size_t i = 0; i < inputDocuments.size(); ++i)
+            {
+                const QPointer<PDFAppDocument>& inputDocument = inputDocuments[i];
+                const PDFDocument* inputPdfDocument = inputDocument ? inputDocument->getDocument().data() : nullptr;
+                if (inputPdfDocument && !PDFAppDocumentPermissions::isAllowed(inputPdfDocument, PDFAppPermissionRequest::createTool(toolId)))
+                {
+                    const QString refusal = PDFAppDocumentPermissions::getMcpRefusalText(inputPdfDocument, PDFAppPermissionRequest::createTool(toolId));
+                    host->finishWithError(call, toolId, inputDocument.data(), QStringLiteral("documentIds[%1]: %2").arg(i).arg(refusal),
+                                          PDFMcpActivityStatus::Failed);
+                    return;
+                }
+            }
+
+            document = inputDocuments.front();
+            snapshot = document->getSnapshot();
+            for (size_t i = 1; i < inputDocuments.size(); ++i)
+            {
+                const PDFAppDocumentSnapshot inputSnapshot = inputDocuments[i]->getSnapshot();
+                additionalDocuments.push_back(PDFDocumentToolInputDocument::create(inputSnapshot.document, inputSnapshot.originalData, inputSnapshot.filePath, inputSnapshot.isModified));
+            }
+        }
+        else if (Helper::usesDocument(entry->getInputKind()))
         {
             const PDFAppMcpResolvedDocument resolved = host->getResolver().resolve(invocation.documentId, true);
             if (!resolved.isResolved())
@@ -1419,6 +1639,16 @@ public:
             if (isChangingDocument && document->isLocked())
             {
                 host->finishWithError(call, toolId, document, PDFAppMcpChangeJob::getLockedText(), PDFMcpActivityStatus::DeniedLocked);
+                return;
+            }
+
+            // The permissions of the document (the shared check, Table 22): which permission
+            // is missing and that the user can unlock the document in PDF4QT - the assistant
+            // never asks for the owner password and never receives it (owner 2026-11-08)
+            const PDFDocument* pdfDocument = document->isReady() ? document->getDocument().data() : nullptr;
+            if (pdfDocument && !PDFAppDocumentPermissions::isAllowed(pdfDocument, PDFAppPermissionRequest::createTool(toolId)))
+            {
+                host->finishWithError(call, toolId, document, PDFAppDocumentPermissions::getMcpRefusalText(pdfDocument, PDFAppPermissionRequest::createTool(toolId)), PDFMcpActivityStatus::Failed);
                 return;
             }
 
@@ -1487,6 +1717,7 @@ public:
         request.actionName = invocation.actionName;
         request.parameters = givenParameters;
         request.environment.authorName = PDFAppMcpHost::getClientInfo(call->getRequest().client).displayName;
+        request.environment.additionalDocuments = std::move(additionalDocuments);
         request.mode = mode;
         request.path = path;
         request.document = document;
@@ -1574,12 +1805,20 @@ std::optional<PDFAppMcpToolResultMode> PDFAppMcpCatalogTools::getResultMode(cons
     return PDFAppMcpToolResultMode(index);
 }
 
-PDFAppMcpPermissionKinds PDFAppMcpCatalogTools::getResultPermissions(PDFAppMcpToolResultMode mode)
+PDFAppMcpPermissionKinds PDFAppMcpCatalogTools::getResultPermissions(PDFAppMcpToolResultMode mode, PDFDocumentToolInputKind inputKind)
 {
-    PDFAppMcpPermissionKinds kinds = PDFAppMcpPermissionKind::Read;
+    // Read of the input documents (a tool without an input reads none: Blank PDF)
+    PDFAppMcpPermissionKinds kinds;
+    if (PDFAppMcpCatalogToolsHelper::usesDocument(inputKind))
+    {
+        kinds |= PDFAppMcpPermissionKind::Read;
+    }
+
     switch (mode)
     {
         case PDFAppMcpToolResultMode::Keep:
+        case PDFAppMcpToolResultMode::OpenNewTab:
+            // A new tab is a new document of the application, not a file (plan of step 2, 7)
             kinds |= PDFAppMcpPermissionKind::Edit;
             break;
         case PDFAppMcpToolResultMode::Overwrite:
@@ -1587,11 +1826,11 @@ PDFAppMcpPermissionKinds PDFAppMcpCatalogTools::getResultPermissions(PDFAppMcpTo
             kinds |= PDFAppMcpPermissionKind::Files;
             break;
         case PDFAppMcpToolResultMode::SaveCopy:
-        case PDFAppMcpToolResultMode::OpenNewTab:
         case PDFAppMcpToolResultMode::SaveFile:
             kinds |= PDFAppMcpPermissionKind::Files;
             break;
         case PDFAppMcpToolResultMode::ReturnText:
+            kinds |= PDFAppMcpPermissionKind::Read;
             break;
     }
     return kinds;
@@ -1611,10 +1850,10 @@ PDFAppMcpPermissionKind PDFAppMcpCatalogTools::getBasePermission(const PDFDocume
             // return_text of an export needs only Read, save_file is checked by its value
             return PDFAppMcpPermissionKind::Read;
         case PDFDocumentToolResultKind::ChangeDocument:
-            // keep needs Edit, save_copy Files (R + E / R + F, chapter 6 of the plan)
-            return permissions.isAvailable(PDFAppMcpPermissionKind::Edit) ? PDFAppMcpPermissionKind::Edit : PDFAppMcpPermissionKind::Files;
         case PDFDocumentToolResultKind::NewDocument:
-            return PDFAppMcpPermissionKind::Files;
+            // keep / open_new_tab need Edit, save_copy / save_file Files (R + E / R + F, chapter 6
+            // of the plan; a new document without an input E / F, plan of step 2, 7)
+            return permissions.isAvailable(PDFAppMcpPermissionKind::Edit) ? PDFAppMcpPermissionKind::Edit : PDFAppMcpPermissionKind::Files;
     }
     return PDFAppMcpPermissionKind::Edit;
 }

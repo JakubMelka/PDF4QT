@@ -126,4 +126,32 @@ list(APPEND PDF4QT_LIBAPP_TOOLS_SOURCES
     # Package 2D (convert.extract-text)
     sources/tools/pdfapptoolgui_extracttext.cpp
     sources/tools/pdfapptoolgui_extracttext.h
+    # Step 2 of phase 2, package B1 (own tab of a tool, its host and the shared layout)
+    sources/tools/pdfappowntabtoolhost.cpp
+    sources/tools/pdfappowntabtoolhost.h
+    sources/tools/pdfapptoolmodelayout.cpp
+    sources/tools/pdfapptoolmodelayout.h
+    sources/tools/pdfapptooltab.cpp
+    sources/tools/pdfapptooltab.h
+    # Step 2 of phase 2, package B2 (inputs of a tool with more inputs)
+    sources/tools/pdfapppassworddialog.cpp
+    sources/tools/pdfapppassworddialog.h
+    sources/tools/pdfapptoolinputlist.cpp
+    sources/tools/pdfapptoolinputlist.h
+    sources/tools/pdfapptoolinputloader.cpp
+    sources/tools/pdfapptoolinputloader.h
+    # Step 2 of phase 2, package C (Merge)
+    sources/tools/pdfapptoolgui_merge.cpp
+    sources/tools/pdfapptoolgui_merge.h
+    sources/tools/pdfapptoolinputrow.cpp
+    sources/tools/pdfapptoolinputrow.h
+    sources/tools/pdfapptoolmergemodel.cpp
+    sources/tools/pdfapptoolmergemodel.h
+    sources/tools/pdfapptoolmergeview.cpp
+    sources/tools/pdfapptoolmergeview.h
+    # Step 2 of phase 2, package D (Blank PDF)
+    sources/tools/pdfapppagesizepreview.cpp
+    sources/tools/pdfapppagesizepreview.h
+    sources/tools/pdfapptoolgui_blank.cpp
+    sources/tools/pdfapptoolgui_blank.h
 )

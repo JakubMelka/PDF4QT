@@ -24,6 +24,7 @@
 #include "pdfapplocale.h"
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
+#include "pdfappdocumentpermissions.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
 #include "pdfappmainwindow.h"
@@ -844,27 +845,34 @@ PDFMessageBox* PDFAppPrintController::getErrorDialog() const
 
 bool PDFAppPrintController::isPrintAllowed(const PDFDocument* document)
 {
-    const PDFSecurityHandler* securityHandler = document ? document->getStorage().getSecurityHandler() : nullptr;
     // Bit 3 allows printing; bit 12 adds the high resolution only together with it
-    return document && (!securityHandler || securityHandler->isAllowed(PDFSecurityHandler::Permission::PrintLowResolution));
+    return PDFAppDocumentPermissions::isAllowed(document, PDFAppPermissionRequest::create(PDFAppPermissionAction::Print));
 }
 
 bool PDFAppPrintController::isHighResolutionAllowed(const PDFDocument* document)
 {
-    const PDFSecurityHandler* securityHandler = document ? document->getStorage().getSecurityHandler() : nullptr;
-    return isPrintAllowed(document) && (!securityHandler || securityHandler->isAllowed(PDFSecurityHandler::Permission::PrintHighResolution));
+    return isPrintAllowed(document) && PDFAppDocumentPermissions::isAllowed(document, PDFSecurityHandler::Permission::PrintHighResolution);
 }
 
 bool PDFAppPrintController::canPrint() const
 {
+    // A document, which does not allow printing, but which its owner password can unlock:
+    // Print asks for the password (owner 2026-11-08)
     const PDFAppDocument* document = m_document.data();
-    return document && document->isReady() && document->getPageCount() > 0 && isPrintAllowed(document->getDocument().data()) &&
+    return document && document->isReady() && document->getPageCount() > 0 &&
+           PDFAppDocumentPermissions::isAvailable(document->getDocument().data(), PDFAppPermissionRequest::create(PDFAppPermissionAction::Print)) &&
            !isPrinting() && !m_dialog && !m_errorDialog;
 }
 
 void PDFAppPrintController::showPrintDialog()
 {
     if (!canPrint())
+    {
+        return;
+    }
+
+    // Not allowed: the owner password dialog; the user prints again after the unlock
+    if (!PDFAppDocumentPermissions::request(m_document.data(), PDFAppPermissionRequest::create(PDFAppPermissionAction::Print), m_tab.data()))
     {
         return;
     }
@@ -893,7 +901,7 @@ void PDFAppPrintController::openDialog(const std::vector<PDFInteger>& initialPag
 
     PDFAppDocument* document = m_document.data();
     PDFAppDocumentView* view = m_tab ? m_tab->getView() : nullptr;
-    if (!document || !document->isReady() || !view)
+    if (!document || !document->isReady() || !view || !isPrintAllowed(document->getDocument().data()))
     {
         return;
     }

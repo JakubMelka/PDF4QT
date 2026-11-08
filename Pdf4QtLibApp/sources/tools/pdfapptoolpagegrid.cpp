@@ -22,11 +22,16 @@
 
 #include "pdfapptoolpagegrid.h"
 
+#include "pdfappcontext.h"
 #include "pdfappdocumentpanels_common.h"
 #include "pdfappdocumentview.h"
 #include "pdfapppagelayout.h"
+#include "pdfapptoolpanelpopup.h"
+#include "pdfsettingdefinitions.h"
+#include "pdfsettingsrepository.h"
 
 #include "pdfcatalog.h"
+#include "pdfcomponentrows.h"
 #include "pdfthemefonts.h"
 #include "pdfthememanager.h"
 
@@ -144,30 +149,32 @@ QVariant PDFAppToolPageGridModel::data(const QModelIndex& index, int role) const
 
         case PDFComponentRoles::PixmapRole:
         case Qt::DecorationRole:
-        {
-            const QVariant picture = BaseClass::data(index, PDFComponentRoles::PixmapRole);
-            const int quarterTurns = PDFAppToolPageGridHelper::getQuarterTurns(tile.extraRotation);
-            if (quarterTurns == 0 || picture.typeId() != QMetaType::QPixmap)
-            {
-                return picture;
-            }
-
-            // The picture of the thumbnails turned by the tool, kept by its own key
-            const QString key = getKey(index.row()) + QStringLiteral("/turn%1").arg(quarterTurns);
-            QPixmap turned;
-            if (!QPixmapCache::find(key, &turned))
-            {
-                const QPixmap pixmap = picture.value<QPixmap>();
-                turned = pixmap.transformed(QTransform().rotate(90.0 * quarterTurns));
-                turned.setDevicePixelRatio(pixmap.devicePixelRatio());
-                QPixmapCache::insert(key, turned);
-            }
-            return turned;
-        }
+            return getTurnedPicture(BaseClass::data(index, PDFComponentRoles::PixmapRole), getKey(index.row()), tile.extraRotation);
 
         default:
             return BaseClass::data(index, role);
     }
+}
+
+QVariant PDFAppToolPageGridModel::getTurnedPicture(const QVariant& picture, const QString& key, PageRotation turn)
+{
+    const int quarterTurns = PDFAppToolPageGridHelper::getQuarterTurns(turn);
+    if (quarterTurns == 0 || picture.typeId() != QMetaType::QPixmap)
+    {
+        return picture;
+    }
+
+    // The picture of the thumbnails turned by the tool, kept by its own key
+    const QString turnedKey = key + QStringLiteral("/turn%1").arg(quarterTurns);
+    QPixmap turned;
+    if (!QPixmapCache::find(turnedKey, &turned))
+    {
+        const QPixmap pixmap = picture.value<QPixmap>();
+        turned = pixmap.transformed(QTransform().rotate(90.0 * quarterTurns));
+        turned.setDevicePixelRatio(pixmap.devicePixelRatio());
+        QPixmapCache::insert(turnedKey, turned);
+    }
+    return turned;
 }
 
 // ---------------------------------------------------------- PDFAppToolPageGridView
@@ -499,6 +506,139 @@ void PDFAppToolPageGrid::changeEvent(QEvent* event)
     else if (event->type() == QEvent::LanguageChange && m_view)
     {
         m_view->setAccessibleName(tr("Pages"));
+    }
+}
+
+// ---------------------------------------------------------- PDFAppToolTileSizeMenu
+
+PDFAppToolTileSizeMenu::PDFAppToolTileSizeMenu(PDFAppToolPanelPopup* panel, const QString& titleFormat, QObject* parent) :
+    BaseClass(parent),
+    m_panel(panel),
+    m_titleFormat(titleFormat)
+{
+    if (!m_panel)
+    {
+        return;
+    }
+
+    // panel-thumbnail-size 1359:33719: S / M / L tiles, the title and its description, the
+    // check of the chosen size
+    struct SizeRow
+    {
+        TileSize size;
+        QString tileText;
+        QString title;
+        QString description;
+    };
+    const SizeRow rows[] = {
+        { TileSize::Small, tr("S", "the tile of the size Small"), tr("Small"), tr("More pages on the screen at once") },
+        { TileSize::Medium, tr("M", "the tile of the size Medium"), tr("Medium"), tr("The default size") },
+        { TileSize::Large, tr("L", "the tile of the size Large"), tr("Large"), tr("More detail of each page") },
+    };
+    for (const SizeRow& sizeRow : rows)
+    {
+        PDFTileRow* row = m_panel->addRow(sizeRow.title, sizeRow.description, QString(), PDFTileRow::Kind::MenuItem);
+        row->setTileText(sizeRow.tileText);
+        row->setObjectName(QStringLiteral("toolTileSize-%1").arg(PDFAppToolPageGrid::getTileSizeId(sizeRow.size)));
+        row->setSelectionBehavior(PDFComponentButton::SelectionBehavior::Exclusive);
+        connect(row, &PDFTileRow::clicked, this, &PDFAppToolTileSizeMenu::onRowClicked);
+        m_rows.emplace_back(sizeRow.size, row);
+    }
+    update();
+}
+
+PDFAppToolTileSizeMenu::~PDFAppToolTileSizeMenu() = default;
+
+PDFAppToolTileSizeMenu::TileSize PDFAppToolTileSizeMenu::readSize(const PDFAppContext* context)
+{
+    if (context && context->getDatabase())
+    {
+        return PDFAppToolPageGrid::getTileSizeFromId(context->getSettings().getString(PDFSettingKeys::toolsPageGridSize()));
+    }
+    return TileSize::Medium;
+}
+
+void PDFAppToolTileSizeMenu::storeSize(PDFAppContext* context, TileSize size)
+{
+    if (context && context->getDatabase() && readSize(context) != size)
+    {
+        const PDFDatabaseError error = context->getSettings().setValue(PDFSettingKeys::toolsPageGridSize(), PDFAppToolPageGrid::getTileSizeId(size));
+        if (error.isError())
+        {
+            qWarning("The size of the page grid cannot be stored: %s", qPrintable(error.toString()));
+        }
+    }
+}
+
+void PDFAppToolTileSizeMenu::setSize(TileSize size)
+{
+    m_size = size;
+    update();
+}
+
+PDFAppToolPanelPopup* PDFAppToolTileSizeMenu::getPanel() const
+{
+    return m_panel.data();
+}
+
+QToolButton* PDFAppToolTileSizeMenu::getButton() const
+{
+    return m_panel ? m_panel->getButton() : nullptr;
+}
+
+PDFTileRow* PDFAppToolTileSizeMenu::getRow(TileSize size) const
+{
+    for (const auto& [rowSize, row] : m_rows)
+    {
+        if (rowSize == size)
+        {
+            return row.data();
+        }
+    }
+    return nullptr;
+}
+
+void PDFAppToolTileSizeMenu::update()
+{
+    // "Thumbnails: Medium" / "Size: Small" and the check of the chosen size
+    if (QToolButton* button = getButton())
+    {
+        const PDFTileRow* row = getRow(m_size);
+        button->setText(m_titleFormat.arg(row ? row->getTitle() : QString()));
+        button->setToolTip(tr("Size of the page thumbnails"));
+        button->setAccessibleName(button->text());
+        button->setAccessibleDescription(button->toolTip());
+    }
+    for (const auto& [size, row] : m_rows)
+    {
+        if (row)
+        {
+            row->setChecked(size == m_size);
+        }
+    }
+}
+
+void PDFAppToolTileSizeMenu::onRowClicked()
+{
+    QObject* row = sender();
+    TileSize size = m_size;
+    for (const auto& [rowSize, rowPointer] : m_rows)
+    {
+        if (rowPointer == row)
+        {
+            size = rowSize;
+        }
+    }
+
+    // The panel closes first (it may run code of the application), then the size is announced
+    QPointer<PDFAppToolTileSizeMenu> guard(this);
+    if (m_panel)
+    {
+        m_panel->close();
+    }
+    if (guard)
+    {
+        Q_EMIT sizeChosen(size);
     }
 }
 

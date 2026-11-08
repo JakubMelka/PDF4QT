@@ -247,9 +247,11 @@ bool PDFDocumentToolCatalogEntry::isPermitted(const PDFDocument* document) const
         return true;
     }
 
+    // The table of the revision of the handler (Table 22, SECURITY_TODO 31): the same rule as
+    // the new application asks by (PDFAppDocumentPermissions)
     for (const PDFSecurityHandler::Permission permission : permissions)
     {
-        if (!securityHandler->isAllowed(permission))
+        if (!PDFSecurityHandler::isAllowedByRevision(securityHandler, permission))
         {
             return false;
         }
@@ -386,8 +388,11 @@ const std::vector<PDFDocumentToolExtendedData>& PDFDocumentToolCatalog::getExten
     //    Remove Hidden Data needs it too, when its kinds remove annotations or fields
     //    (PDFDocumentToolSanitize::getInteractiveKinds, checked before its run);
     //  - bit 11 Assemble: "Assemble the document (insert, rotate, or delete pages and create
-    //    document outline items or thumbnail images), even if bit 4 is clear" - Rotate Pages
-    //    and Remove Pages; bit 4 alone does not allow them.
+    //    document outline items or thumbnail images), even if bit 4 is clear" - Rotate Pages,
+    //    Remove Pages and Merge (it inserts the pages of a document into another one); bit 4
+    //    alone does not allow them. Merge needs also the owner password of a document, which
+    //    restricts anything else, because its result is not encrypted (owner answer Q2 of
+    //    step 2 of phase 2, PDFDocumentMerger::getPermission in its validation).
     using Input = PDFDocumentToolInputKind;
     using Result = PDFDocumentToolResultKind;
     using Dependency = PDFDocumentToolExternalDependency;
@@ -396,7 +401,7 @@ const std::vector<PDFDocumentToolExtendedData>& PDFDocumentToolCatalog::getExten
     using Permission = PDFSecurityHandler::Permission;
     static const std::vector<PDFDocumentToolExtendedData> data =
     {
-        PDFDocumentToolExtendedData("pages.merge", Input::Multiple, Result::NewDocument, Dependency::None, "unite", "edit.page-numbers,optimize.compress,protect.password"),
+        PDFDocumentToolExtendedData("pages.merge", Input::Multiple, Result::NewDocument, Dependency::None, "unite", "edit.page-numbers,optimize.compress,protect.password", Preselected::NewTab, Signature::None, uint32_t(Permission::Assemble)),
         PDFDocumentToolExtendedData("pages.split", Input::One, Result::Files, Dependency::None, "separate", ""),
         PDFDocumentToolExtendedData("pages.extract", Input::One, Result::NewDocument, Dependency::None, "", "optimize.compress,protect.password"),
         PDFDocumentToolExtendedData("pages.interleave", Input::Multiple, Result::NewDocument, Dependency::None, "", "convert.ocr,optimize.compress"),
@@ -568,7 +573,7 @@ const std::vector<PDFDocumentToolCatalogEntry>& PDFDocumentToolCatalog::getTools
         "file",
         //: Comma separated search keywords of the tool, lower case. They are never shown, English keywords are searched too.
         QT_TRANSLATE_NOOP("pdf::PDFDocumentToolCatalog", "blank pdf, new pdf, empty document, new document, create pdf, empty page, insert empty page, from scratch, white page, start new"),
-        false, false, PDFDocumentToolLockedAccess::NoDocument),
+        true, false, PDFDocumentToolLockedAccess::NoDocument),
     PDFDocumentToolCatalogEntry("convert.scan", PDFDocumentToolCategory::Convert, "create",
         QT_TRANSLATE_NOOP("pdf::PDFDocumentToolCatalog", "Scan to PDF"),
         QT_TRANSLATE_NOOP("pdf::PDFDocumentToolCatalog", "Scan paper pages from a scanner"),

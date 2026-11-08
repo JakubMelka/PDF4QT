@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfapptoolgui_extracttext.h"
+#include "pdfappdocumentpermissions.h"
 
 #include "pdfappdocument.h"
 #include "pdfappdocumentpanels_thumbnails.h"
@@ -886,7 +887,7 @@ void PDFAppToolGUIExtractText::updateRows()
     if (m_documentRows)
     {
         // section-Document 339:8717 (339:10328: copying "Not allowed", the other rows as they are)
-        const bool isCopyAllowed = document && document->getStorage().getSecurityHandler()->isAllowed(PDFSecurityHandler::Permission::CopyContent);
+        const bool isCopyAllowed = PDFAppDocumentPermissions::isAllowed(document, PDFAppPermissionRequest::create(PDFAppPermissionAction::CopyContent));
         m_documentRows->clear();
         m_documentRows->addRow(tr("Tagged"), hasPreview ? (data.value(QStringLiteral("tagged")).toBool() ? tr("Yes") : tr("No")) : none);
         m_documentRows->addRow(tr("Pages with text"), hasPreview ? tr("%1 of %2").arg(PDFAppLocale::formatNumber(data.value(QStringLiteral("pagesWithText")).toInteger()), PDFAppLocale::formatNumber(data.value(QStringLiteral("pageCount")).toInteger())) : none);

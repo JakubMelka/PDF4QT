@@ -68,6 +68,7 @@ public:
         Folder,     ///< A folder
         Missing,    ///< The file does not exist
         NotPdf,     ///< Neither the extension nor the content is of a PDF
+        NotPdfOrImage,  ///< Neither a PDF nor an image of QImageReader (a drop of the inputs of a tool, K8 of step 2 of phase 2)
         TooMany     ///< More files than MAXIMUM_FILES
     };
 
@@ -89,11 +90,19 @@ public:
     /// to the file system, it runs at each move of the pointer)
     static bool hasLocalFiles(const QMimeData* mimeData);
 
-    /// Files of the drop (it reads the file system)
-    static Result getFiles(const QMimeData* mimeData, int maximumFiles = MAXIMUM_FILES);
+    /// Files of the drop (it reads the file system); \p isImageAccepted takes also the images
+    /// of QImageReader (the inputs of a tool with more inputs: PDF files and images)
+    static Result getFiles(const QMimeData* mimeData, int maximumFiles = MAXIMUM_FILES, bool isImageAccepted = false);
 
     /// The local file is a PDF (by its extension or its content)
     static bool isPdfFile(const QString& filePath);
+
+    /// The local file is an image of QImageReader by its content (a network path is never read)
+    static bool isImageFile(const QString& filePath);
+
+    /// The bytes (the start of a file) contain the signature of a PDF "%PDF-" in their first
+    /// HEADER_LENGTH bytes (ISO 32000-2, 7.5.2)
+    static bool isPdfData(const QByteArray& data);
 
     /// The path lies on another computer (UNC path, a network share), its content is not read
     static bool isNetworkPath(const QString& filePath);
@@ -115,6 +124,10 @@ public:
 
     /// Browse files…: PDF files of the folder (multi-select); an empty list = canceled
     static QStringList getOpenFileNames(QWidget* parent, const QString& folder);
+
+    /// Add Files… of a tool with more inputs (Merge): PDF files and images (multi-select);
+    /// the handler of getOpenFileNames replaces it in the tests; an empty list = canceled
+    static QStringList getOpenInputFileNames(QWidget* parent, const QString& folder);
 
     /// Add… of Pinned Locations: a folder; an empty text = canceled
     static QString getExistingDirectory(QWidget* parent, const QString& folder);

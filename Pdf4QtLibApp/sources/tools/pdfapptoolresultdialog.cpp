@@ -28,6 +28,7 @@
 #include "pdfappfiledrop.h"
 #include "pdfappmainwindow.h"
 #include "pdfapppagelayout.h"
+#include "pdfapptoolpanelparts.h"
 #include "pdfapptoolpathrules.h"
 #include "pdfapptoolpresentation.h"
 #include "pdfappworkspace.h"
@@ -52,6 +53,7 @@
 #include "pdfwidgetstyleproperties.h"
 
 #include <algorithm>
+#include <limits>
 
 #include <QButtonGroup>
 #include <QCheckBox>
@@ -538,6 +540,7 @@ PDFAppToolResultDialog::PDFAppToolResultDialog(PDFAppContext* context, PDFAppDoc
     setCardWidth(CARD_WIDTH);
 
     m_kind = getResultKind(m_input.result);
+    m_isPartial = !m_input.result.leftOutInputs.empty() && m_kind != ResultKind::Analysis;
     if (m_runner)
     {
         m_snapshot = m_runner->getResultSnapshot();
@@ -613,9 +616,10 @@ void PDFAppToolResultDialog::createHead()
     headLayout->setContentsMargins(0, 0, 0, 0);
     headLayout->setSpacing(Helper::HEAD_GAP);
 
-    PDFIconBadge* badge = new PDFIconBadge(QStringLiteral("check"), Helper::HEAD_BADGE, Helper::HEAD_ICON, head);
+    // A partial result has the warning of 378:4376 (alert-triangle in amber)
+    PDFIconBadge* badge = new PDFIconBadge(m_isPartial ? QStringLiteral("alert-triangle") : QStringLiteral("check"), Helper::HEAD_BADGE, Helper::HEAD_ICON, head);
     badge->setObjectName(QStringLiteral("toolResultBadge"));
-    badge->setHue(PDFAccentHue::Green);
+    badge->setHue(m_isPartial ? PDFAccentHue::Amber : PDFAccentHue::Green);
     headLayout->addWidget(badge, 0, Qt::AlignVCenter);
 
     QVBoxLayout* textLayout = new QVBoxLayout();
@@ -683,7 +687,7 @@ void PDFAppToolResultDialog::createFacts(QVBoxLayout* layout, QWidget* parent)
 {
     using Helper = PDFAppToolResultDialogHelper;
 
-    if (!m_input.result.facts.empty())
+    if (!m_input.result.facts.empty() || m_isPartial)
     {
         PDFAppToolResultFactsPanel* panel = new PDFAppToolResultFactsPanel(parent);
         panel->setObjectName(QStringLiteral("toolResultFacts"));
@@ -697,8 +701,32 @@ void PDFAppToolResultDialog::createFacts(QVBoxLayout* layout, QWidget* parent)
         {
             m_facts->addRow(fact.title, fact.value);
         }
+
+        // 378:4376: Left out "Annex_A.pdf · 9 pages", a row per input not in the result
+        for (const PDFDocumentToolLeftOutInput& input : m_input.result.leftOutInputs)
+        {
+            const int pageCount = int(qBound(PDFInteger(0), input.pageCount, PDFInteger(std::numeric_limits<int>::max())));
+            const QString pages = pageCount == 1 ? tr("%Ln page", nullptr, pageCount) : tr("%Ln pages", nullptr, pageCount);
+            m_facts->addRow(tr("Left out"), pageCount > 0 ? tr("%1 · %2").arg(input.name.left(256), pages) : input.name.left(256));
+        }
         panelLayout->addWidget(m_facts);
         layout->addWidget(panel);
+    }
+
+    // 378:4376: the amber callout of the reason below the facts - callout-amber 378:5028 is the
+    // compact callout (radius 8, paddings 10 / 12, the head and the text 4 apart, the text
+    // Regular 11 in lines of 13)
+    if (m_isPartial)
+    {
+        PDFAppToolCallout* callout = new PDFAppToolCallout(PDFAccentHue::Amber, QStringLiteral("alert-triangle"), QString(), QString(), parent);
+        callout->setCompactStyle();
+        callout->setObjectName(QStringLiteral("partialWarning"));
+        callout->getTitleLabel()->setObjectName(QStringLiteral("partialWarningTitle"));
+        callout->getTextLabel()->setObjectName(QStringLiteral("partialWarningText"));
+        // The reason comes with updateTexts: the text is not hidden as an empty one
+        callout->getTextLabel()->setVisible(true);
+        m_partialWarning = callout;
+        layout->addWidget(m_partialWarning);
     }
 
     // The warning of chapter 4 below the facts (O31): no frame of the design, the
@@ -852,8 +880,9 @@ void PDFAppToolResultDialog::createOptions(QVBoxLayout* layout, QWidget* parent)
 
 void PDFAppToolResultDialog::createContinueWith(QVBoxLayout* layout, QWidget* parent)
 {
-    // Not for an export (K20) and not for an analysis, which has no result to go on with
-    if (m_kind != ResultKind::ChangeDocument && m_kind != ResultKind::NewDocument)
+    // Not for an export (K20), not for an analysis, which has no result to go on with, and
+    // not for a partial result (tools.md 9.3 point 12, 378:4376)
+    if ((m_kind != ResultKind::ChangeDocument && m_kind != ResultKind::NewDocument) || m_isPartial)
     {
         return;
     }
@@ -918,11 +947,27 @@ void PDFAppToolResultDialog::selectChoice(Choice choice)
 
 QString PDFAppToolResultDialog::getDefaultTitle() const
 {
-    return tr("%1 finished").arg(m_input.tool ? m_input.tool->getTitle() : QString());
+    const QString toolTitle = m_input.tool ? m_input.tool->getTitle() : QString();
+    if (m_isPartial)
+    {
+        const int count = getLeftOutCount();
+        return count == 1 ? tr("%1 finished without %Ln file", nullptr, count).arg(toolTitle) : tr("%1 finished without %Ln files", nullptr, count).arg(toolTitle);
+    }
+    return tr("%1 finished").arg(toolTitle);
+}
+
+int PDFAppToolResultDialog::getLeftOutCount() const
+{
+    return int(qMin<size_t>(m_input.result.leftOutInputs.size(), size_t(std::numeric_limits<int>::max())));
 }
 
 QString PDFAppToolResultDialog::getDefaultSubtitle() const
 {
+    if (m_isPartial)
+    {
+        return tr("The new document is ready, but it is not complete.");
+    }
+
     switch (m_kind)
     {
         case ResultKind::ChangeDocument:
@@ -994,6 +1039,34 @@ void PDFAppToolResultDialog::updateTexts()
                 warningText->setText(m_state.hasFile ? tr("This tool rewrites the whole file, so it cannot keep the signed revision. Only a copy can be saved; the open document and its file stay as they are.")
                                                      : tr("This tool rewrites the whole file, so it cannot keep the signed revision. When you save the result, its signatures will no longer be valid."));
             }
+        }
+    }
+
+    if (m_partialWarning && !m_input.result.leftOutInputs.empty())
+    {
+        // 378:4376 (K36 corrected): "Annex_A.pdf could not be copied" and the reason of the core (Q5: the copy of
+        // the input failed during the run; the text of the frame about a change on the disk
+        // is not used, K36)
+        const std::vector<PDFDocumentToolLeftOutInput>& leftOut = m_input.result.leftOutInputs;
+        const int count = getLeftOutCount();
+        if (PDFLabel* warningTitle = m_partialWarning->findChild<PDFLabel*>(QStringLiteral("partialWarningTitle")))
+        {
+            warningTitle->setText(count == 1 ? tr("%1 could not be copied").arg(leftOut.front().name.left(256)) : tr("%Ln files could not be copied", nullptr, count));
+        }
+        if (PDFAppParagraph* warningText = m_partialWarning->findChild<PDFAppParagraph*>(QStringLiteral("partialWarningText")))
+        {
+            QStringList reasons;
+            for (const PDFDocumentToolLeftOutInput& input : leftOut)
+            {
+                const QString reason = input.reason.isEmpty() ? tr("Its pages could not be copied.") : input.reason.left(512);
+                reasons << (count == 1 ? reason : tr("%1: %2").arg(input.name.left(256), reason));
+                if (reasons.size() >= MAXIMUM_LEFT_OUT_REASONS)
+                {
+                    break;
+                }
+            }
+            reasons << tr("The other files are in the new document; Discard result returns to the list of files.");
+            warningText->setText(reasons.join(QStringLiteral(" ")));
         }
     }
 
@@ -1508,6 +1581,13 @@ QString PDFAppToolResultDialog::getStatusText() const
     }
 
     const QString toolTitle = m_input.tool ? m_input.tool->getTitle() : QString();
+    if (m_isPartial)
+    {
+        // 378:4376 "Merge finished without 1 file · …"
+        const int count = getLeftOutCount();
+        return count == 1 ? tr("%1 finished without %Ln file · the incomplete document is waiting for your decision", nullptr, count).arg(toolTitle)
+                          : tr("%1 finished without %Ln files · the incomplete document is waiting for your decision", nullptr, count).arg(toolTitle);
+    }
     return m_kind == ResultKind::NewDocument ? tr("%1 finished · the new document is waiting for your decision").arg(toolTitle)
                                              : tr("%1 finished · the result is waiting for your decision").arg(toolTitle);
 }
@@ -1618,7 +1698,16 @@ void PDFAppToolResultDialog::confirm()
         case Choice::NewTab:
         {
             const PDFDocumentToolOutputDocument* output = findOutput(PDFDocumentToolOutputDocument::Kind::New);
-            if (output && m_writer->writeDocumentToMemory(output->document))
+            if (output && !output->writtenData.isEmpty())
+            {
+                // The run has written the document already (its size, plan of step 2 of
+                // phase 2, 4.5): the new tab reads these bytes, nothing is written twice
+                PDFAppToolResultWriter::Result written;
+                written.isWritten = true;
+                written.data = output->writtenData;
+                onWriterFinished(written);
+            }
+            else if (output && m_writer->writeDocumentToMemory(output->document))
             {
                 setBusy(true);
             }
@@ -1639,7 +1728,9 @@ void PDFAppToolResultDialog::confirm()
             }
             else if (const PDFDocumentToolOutputDocument* output = findOutput(PDFDocumentToolOutputDocument::Kind::New))
             {
-                isStarted = m_writer->writeDocument(output->document, getTargetFilePath(), getOriginFilePath(), m_isReplaceConfirmed);
+                // The bytes of the run, when it has written the document (4.5: one write)
+                isStarted = output->writtenData.isEmpty() ? m_writer->writeDocument(output->document, getTargetFilePath(), getOriginFilePath(), m_isReplaceConfirmed)
+                                                          : m_writer->writeFile(output->writtenData, getTargetFilePath(), getOriginFilePath(), m_isReplaceConfirmed);
             }
             if (isStarted)
             {
@@ -1850,8 +1941,10 @@ void PDFAppToolResultDialog::openResult(PDFAppToolResultOutcome* outcome)
         case PDFAppToolResultOutcome::Action::OpenedInNewTab:
             if (window && !m_input.result.outputs.empty())
             {
+                // After the own tab of the tool (4.5), else after the tab of the input document
                 const QString title = getSuggestedFileName();
-                if (const PDFAppDocumentTab* tab = window->openDocumentFromMemory(m_input.result.outputs.front().data, title, getOriginFilePath(), document))
+                const int index = m_input.anchorTab ? window->getTabIndexAfter(m_input.anchorTab.data()) : window->getTabIndexAfter(document);
+                if (const PDFAppDocumentTab* tab = window->openDocumentFromMemoryAt(m_input.result.outputs.front().data, title, getOriginFilePath(), index))
                 {
                     outcome->continueDocumentId = tab->getDocumentId();
                 }
@@ -2034,7 +2127,14 @@ void PDFAppToolResultDialog::adaptToHost()
         return;
     }
 
-    // Its controls are laid out again by the selection
+    // Its controls are laid out again by the selection. The nested layouts too: a text set
+    // before the event loop ran (the reason of the partial warning, 378:4376) has not
+    // invalidated the cached height of its card yet, the body would be measured without it
+    // and the last option would be cut off below a scroll bar
+    for (QLayout* nestedLayout : m_body->findChildren<QLayout*>())
+    {
+        nestedLayout->invalidate();
+    }
     if (QLayout* bodyLayout = m_body->layout())
     {
         bodyLayout->invalidate();
@@ -2049,6 +2149,7 @@ void PDFAppToolResultDialog::adaptToHost()
 
     if (!host)
     {
+        m_scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         m_scrollArea->setFixedHeight(bodyHeight);
         return;
     }
@@ -2058,6 +2159,10 @@ void PDFAppToolResultDialog::adaptToHost()
     const int otherHeight = sizeHint().height() - shadowMargins.top() - shadowMargins.bottom() - m_scrollArea->minimumHeight();
     const int availableHeight = host->height() - 2 * HOST_MARGIN - qMax(0, otherHeight);
     const int scrollAreaHeight = qMax(int(MINIMUM_BODY_HEIGHT), qMin(bodyHeight, availableHeight));
+    // A body, which fits, has no scroll bar (378:3674): the overlay bar, which became visible
+    // while the area was lower, sometimes stayed with the range 0 as a full slider over the
+    // facts. The height of the body is measured with every nested layout invalidated above.
+    m_scrollArea->setVerticalScrollBarPolicy(bodyHeight > scrollAreaHeight ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff);
     m_scrollArea->setFixedHeight(scrollAreaHeight);
 
     // The height for the width of the card is cached by the layout

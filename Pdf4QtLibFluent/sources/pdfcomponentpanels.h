@@ -93,7 +93,9 @@ private:
 /// rows of the card. A row is 28 px high, the label (Regular 12 text/tertiary)
 /// has the width 120 and it wraps, the value (Medium 12 text/primary) is aligned
 /// to the right and elided, its whole text is the tooltip of an elided value.
-/// The context menu of a row copies its value.
+/// The context menu of a row copies its value. The rows follow each other without
+/// a gap; a card, which draws them apart (the right panel of Merge 378:1630, a
+/// pitch of 36), sets the gap by \p setRowGap.
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFKeyValueList : public QWidget
 {
     Q_OBJECT
@@ -119,6 +121,11 @@ public:
 
     /// Removes all rows
     void clear();
+
+    /// Gap between two rows (0 by default, 8 in the cards of Merge 378:1630, 378:1643);
+    /// a negative gap is 0. The gap is no part of a row: the pointer above it finds no row.
+    int getRowGap() const { return m_rowGap; }
+    void setRowGap(int gap);
 
     int getRowCount() const { return static_cast<int>(m_rows.size()); }
     QString getKey(int index) const;
@@ -155,6 +162,7 @@ private:
     void updateDescription();
 
     std::vector<Row> m_rows;
+    int m_rowGap = 0;
 };
 
 class PDFDocumentTabCloseButton;

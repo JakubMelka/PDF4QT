@@ -47,8 +47,8 @@ enum class PDFAppMcpToolResultMode
     Keep,           ///< "keep": the changed document is committed to its tab (one undo step)
     SaveCopy,       ///< "save_copy": the changed document is written to "path"; the tab is unchanged
     Overwrite,      ///< "overwrite": the file of the document gets the result first, then the tab (one undo step, saved); always confirmed
-    OpenNewTab,     ///< "open_new_tab": a new document opens in a new tab (not delivered yet)
-    SaveFile,       ///< "save_file": the one output file of the tool is written to "path"
+    OpenNewTab,     ///< "open_new_tab": the new document of the tool opens unsaved in a new tab (Edit, no file is written)
+    SaveFile,       ///< "save_file": the one output file or the new document of the tool is written to "path"
     ReturnText      ///< "return_text": the text of the one output file is the result of the call (Read only)
 };
 
@@ -98,12 +98,18 @@ public:
     /// Mode of a value of "result"
     static std::optional<PDFAppMcpToolResultMode> getResultMode(const QString& value);
 
-    /// What a value of "result" needs (R, R + E, R + F, R + E + F; chapter 6 of the plan)
-    static PDFAppMcpPermissionKinds getResultPermissions(PDFAppMcpToolResultMode mode);
+    /// What a value of "result" needs (chapter 6 of the plan of phase 2 and chapter 7 of the
+    /// plan of its step 2): Read of the documents the tool reads (none for a tool without an
+    /// input: Blank PDF), then keep R + E, save_copy R + F, overwrite R + E + F, return_text R,
+    /// open_new_tab Edit (a new tab is a new document, not a file), save_file Files
+    /// \param mode The value of "result"
+    /// \param inputKind The input of the tool (PDFDocumentToolInputKind::None reads no document)
+    static PDFAppMcpPermissionKinds getResultPermissions(PDFAppMcpToolResultMode mode, PDFDocumentToolInputKind inputKind);
 
     /// The permission, whose Deny takes the tool out of the offer (before the value of
     /// "result" is known): Read of a tool with a document, then a tool changing the
-    /// document needs Edit or Files (one of its results is still possible)
+    /// document or making a new one needs Edit or Files (one of its results is still
+    /// possible). A category is offered, when at least one of its tools is.
     static PDFAppMcpPermissionKind getBasePermission(const PDFDocumentToolCatalogEntry& entry, const PDFAppMcpPermissions& permissions);
 
     /// Input schema of a category with its implemented tools; std::nullopt when

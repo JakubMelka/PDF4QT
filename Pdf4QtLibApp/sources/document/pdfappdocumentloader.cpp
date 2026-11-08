@@ -138,7 +138,7 @@ PDFAppDocumentReading::Result PDFAppDocumentReading::read(Request request)
         request.password.clear();
 
         // The reader steps the counter, the GUI reads it by its timer
-        PDFDocumentReader reader(request.progress.get(), PDFAppDocumentPasswordCallback(&passwordState), true, false);
+        PDFDocumentReader reader(request.progress.get(), PDFAppDocumentPasswordCallback(&passwordState), true, request.isOwnerOnly);
         PDFDocument document = reader.readFromBuffer(request.data);
         passwordState.password.clear();
 

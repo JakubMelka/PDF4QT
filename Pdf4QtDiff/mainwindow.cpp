@@ -30,7 +30,7 @@
 #include "pdfwidgetutils.h"
 #include "pdfdocumentreader.h"
 #include "pdfdrawspacecontroller.h"
-#include "pdfdocumentmanipulator.h"
+#include "pdfdocumentmerger.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumentwriter.h"
 #include "pdfwidgetutils.h"
@@ -243,24 +243,30 @@ void MainWindow::onComparationFinished()
         }
     }
 
-    // Create merged document
-    pdf::PDFDocumentManipulator manipulator;
-    manipulator.setOutlineMode(pdf::PDFDocumentManipulator::OutlineMode::NoOutline);
-    manipulator.addDocument(1, &m_leftDocument);
-    manipulator.addDocument(2, &m_rightDocument);
-
-    pdf::PDFDocumentManipulator::AssembledPages assembledPages1 = pdf::PDFDocumentManipulator::createAllDocumentPages(1, &m_leftDocument);
-    pdf::PDFDocumentManipulator::AssembledPages assembledPages2 = pdf::PDFDocumentManipulator::createAllDocumentPages(2, &m_rightDocument);
-    assembledPages1.insert(assembledPages1.end(), std::make_move_iterator(assembledPages2.begin()), std::make_move_iterator(assembledPages2.end()));
-
-    if (manipulator.assemble(assembledPages1))
+    // Create merged document: the pages of the left document, then of the right one, by the
+    // merger of the tool Merge (one implementation); the combined document is shown only, never
+    // given to the user, so the permissions of the inputs are not checked (R2 of the plan of
+    // step 2 of phase 2). The same document on both sides is two inputs.
+    std::vector<pdf::PDFDocumentMerger::Source> sources = { pdf::PDFDocumentMerger::Source::createDocument(pdf::PDFDocumentPointer(new pdf::PDFDocument(m_leftDocument)), QString()),
+                                                            pdf::PDFDocumentMerger::Source::createDocument(pdf::PDFDocumentPointer(new pdf::PDFDocument(m_rightDocument)), QString()) };
+    std::vector<pdf::PDFDocumentMerger::Item> items;
+    for (size_t source = 0; source < sources.size(); ++source)
     {
-        m_combinedDocument = manipulator.takeAssembledDocument();
+        const size_t pageCount = sources[source].document->getCatalog()->getPageCount();
+        for (size_t i = 0; i < pageCount; ++i)
+        {
+            pdf::PDFDocumentMerger::Item item;
+            item.source = source;
+            item.pageIndex = pdf::PDFInteger(i);
+            items.push_back(item);
+        }
     }
-    else
-    {
-        m_combinedDocument = pdf::PDFDocument();
-    }
+
+    pdf::PDFDocumentMerger::Settings settings;
+    settings.outline = pdf::PDFDocumentMerger::OutlineMode::NoOutline;
+    settings.checkPermissions = false;
+    pdf::PDFDocumentMerger::Result merged = pdf::PDFDocumentMerger::merge(sources, items, settings, nullptr, nullptr);
+    m_combinedDocument = (merged.isSuccess && merged.leftOut.empty()) ? std::move(merged.document) : pdf::PDFDocument();
 
     updateAll(true);
 }

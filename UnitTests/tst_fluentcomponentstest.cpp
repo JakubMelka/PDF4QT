@@ -612,6 +612,7 @@ private slots:
     void keyValueListDirection();
     void keyValueListElision();
     void keyValueListValueWidth();
+    void keyValueListRowGap();
     void pageRangeReview();
     void pageSelectionReview();
     void pageSelectionHugeDocument();
@@ -719,6 +720,7 @@ private slots:
     void tileRowInteraction();
     void tileRowDirectionAndData();
     void tileRowDefensive();
+    void tileRowShortcut();
     void tileRowDelegate();
     void pageTileGeometry();
     void pageTilePixels_data();
@@ -10460,6 +10462,46 @@ void FluentComponentsTest::keyValueListDirection()
     }
 }
 
+void FluentComponentsTest::keyValueListRowGap()
+{
+    // Owner 2026-11-08: the cards of Merge 378:1630 / 378:1643 draw the rows of 28 with a pitch
+    // of 36 (the card 114 = 7 + 3 x 28 + 2 x 8 + 7); the other cards keep the rows together
+    pdf::PDFKeyValueList list;
+    list.addRow(QStringLiteral("Source"), QStringLiteral("A · Contract.pdf"));
+    list.addRow(QStringLiteral("Size"), QStringLiteral("A4 · Portrait"));
+    list.addRow(QStringLiteral("Rotation"), QStringLiteral("None"));
+    QCOMPARE(list.getRowGap(), 0);
+    QCOMPARE(list.heightForWidth(261), 3 * 28);
+    QCOMPARE(list.getRowRect(1).top(), 28);
+
+    list.setRowGap(8);
+    QCOMPARE(list.getRowGap(), 8);
+    QCOMPARE(list.heightForWidth(261), 3 * 28 + 2 * 8);
+    QCOMPARE(list.sizeHint().height(), 3 * 28 + 2 * 8);
+    list.resize(261, list.heightForWidth(261));
+    QCOMPARE(list.getRowRect(0), QRect(0, 0, 261, 28));
+    QCOMPARE(list.getRowRect(1), QRect(0, 36, 261, 28));
+    QCOMPARE(list.getRowRect(2), QRect(0, 72, 261, 28));
+
+    // The gap belongs to no row (no tooltip, no copy of a value there)
+    QCOMPARE(list.getRowAt(QPoint(50, 31)), -1);
+    QCOMPARE(list.getRowAt(QPoint(50, 40)), 1);
+    QCOMPARE(list.getRowAt(QPoint(50, 99)), 2);
+
+    // The second key is drawn in its row 36 below the first, the gap stays empty
+    const QColor surface = token(Color::BgSurface);
+    const QImage image = renderWidget(&list, 1.0);
+    QVERIFY(isNear(strongestInk(image, QRect(0, 28, 261, 8), surface), surface));
+    QVERIFY(isNear(strongestInk(image, QRect(0, 64, 261, 8), surface), surface));
+    QVERIFY(colorDistance(strongestInk(image, QRect(10, 36, 110, 28), surface), token(Color::TextTertiary)) < 60);
+    QVERIFY(colorDistance(strongestInk(image, QRect(10, 72, 110, 28), surface), token(Color::TextTertiary)) < 60);
+
+    // A negative gap is no gap
+    list.setRowGap(-5);
+    QCOMPARE(list.getRowGap(), 0);
+    QCOMPARE(list.heightForWidth(261), 3 * 28);
+}
+
 void FluentComponentsTest::keyValueListValueWidth()
 {
     // components.md 6.6: the key from the leading edge in a column of 120, the value at the
@@ -18383,6 +18425,88 @@ void FluentComponentsTest::tileRowGeometry()
     }
     QVERIFY(widget.sizePolicy().hasHeightForWidth());
     QCOMPARE(widget.heightForWidth(width), height);
+}
+
+void FluentComponentsTest::tileRowShortcut()
+{
+    using Kind = ToolSamples::Kind;
+
+    // Owner 2026-11-08, panel-add 378:2497: item-Files… 378:2498 (272 x 44) has the shortcut
+    // 378:2505 "Ctrl+I" at 233, 15.5, 29 x 13 - the trailing padding 10, the gap 12 after the
+    // texts 52 … 221; item-Paste image 378:2506 (272 x 57) "Ctrl+V" 378:2513 at 229, 22, 33 x 13
+    // and the texts 165 wide. Qt measures a text by whole pixels (one pixel of tolerance).
+    Painter::TileRow files = ToolSamples::row(Kind::MenuItem, QStringLiteral("Files…"), QStringLiteral("PDF documents and images"), QStringLiteral("folder-open"));
+    files.shortcutText = QStringLiteral("Ctrl+I");
+    Painter::TileRow paste = ToolSamples::row(Kind::MenuItem, QStringLiteral("Paste image"), QStringLiteral("Adds the picture from the clipboard"), QStringLiteral("clipboard"));
+    paste.shortcutText = QStringLiteral("Ctrl+V");
+
+    struct Expected
+    {
+        Painter::TileRow row;
+        int height;
+        int shortcutTop;
+        int shortcutWidth;
+        int textWidth;
+    };
+    const Expected expectations[] = { { files, 44, 15, 29, 169 }, { paste, 57, 22, 33, 165 } };
+    const Painter::State ltr = state(QStyle::State_None);
+    const Painter::State rtl = state(QStyle::State_None, Qt::RightToLeft);
+    for (const Expected& expected : expectations)
+    {
+        QCOMPARE(Painter::getTileRowHeight(expected.row, 272), expected.height);
+        const QRectF rect(0, 0, 272, expected.height);
+        const QRectF shortcut = Painter::getTileRowShortcutRect(rect, expected.row, ltr);
+        QCOMPARE(shortcut.right(), 262.0);
+        QCOMPARE(shortcut.top(), qreal(expected.shortcutTop));
+        QCOMPARE(shortcut.height(), 13.0);
+        QVERIFY2(qAbs(shortcut.width() - expected.shortcutWidth) <= 1.0, qPrintable(QString::number(shortcut.width())));
+        const QRectF text = Painter::getTileRowTextRect(rect, expected.row);
+        QCOMPARE(text.left(), 52.0);
+        QCOMPARE(text.right(), shortcut.left() - 12.0);
+        QVERIFY2(qAbs(text.width() - expected.textWidth) <= 1.0, qPrintable(QString::number(text.width())));
+
+        // Mirrored: the shortcut keeps its distance from the trailing (left) edge
+        QCOMPARE(Painter::getTileRowShortcutRect(rect, expected.row, rtl), QRectF(10.0, shortcut.top(), shortcut.width(), shortcut.height()));
+    }
+
+    // A chosen item has its check mark at the trailing padding, the shortcut stands before it
+    Painter::TileRow chosen = files;
+    chosen.chosen = true;
+    const QRectF chosenRect(0, 0, 272, 44);
+    QCOMPARE(Painter::getTileRowEndIconRect(chosenRect, chosen, ltr).toRect(), QRect(246, 14, 16, 16));
+    QCOMPARE(Painter::getTileRowShortcutRect(chosenRect, chosen, ltr).right(), 246.0 - 12.0);
+
+    // No text, no shortcut and no place of it; a caption has none
+    Painter::TileRow plain = files;
+    plain.shortcutText.clear();
+    QVERIFY(Painter::getTileRowShortcutRect(chosenRect, plain, ltr).isNull());
+    QCOMPARE(Painter::getTileRowTextRect(chosenRect, plain).width(), 272.0 - 52.0 - 10.0);
+    QCOMPARE(Painter::getTileRowSize(files).width(), Painter::getTileRowSize(plain).width() + qRound(Painter::getTileRowShortcutRect(chosenRect, files, ltr).width()) + 12);
+    Painter::TileRow caption = ToolSamples::caption();
+    caption.shortcutText = QStringLiteral("Ctrl+I");
+    QVERIFY(Painter::getTileRowShortcutRect(QRectF(0, 0, 261, 21), caption, ltr).isNull());
+
+    // The widget: the text of the shortcut is drawn Regular 11 text/muted (as the rows of the
+    // menus), it is named by the accessible description; an empty text removes it
+    pdf::PDFTileRow widget(QStringLiteral("Files…"), QStringLiteral("PDF documents and images"), QStringLiteral("folder-open"), Kind::MenuItem);
+    widget.setShortcutText(QStringLiteral("Ctrl+I"));
+    QCOMPARE(widget.getShortcutText(), QStringLiteral("Ctrl+I"));
+    QCOMPARE(widget.getContent().shortcutText, QStringLiteral("Ctrl+I"));
+    QVERIFY(widget.getAccessibleDescriptionText().contains(QStringLiteral("Ctrl+I")));
+    widget.resize(272, widget.heightForWidth(272));
+    QCOMPARE(widget.height(), 44);
+
+    const QColor surface = token(Color::BgSurface);
+    const QRect shortcutArea = Painter::getTileRowShortcutRect(QRectF(widget.rect()), widget.getContent(), ltr).toAlignedRect();
+    QImage image = renderWidget(&widget, 1.0);
+    const QColor ink = strongestInk(image, shortcutArea, surface);
+    QVERIFY2(colorDistance(ink, token(Color::TextMuted)) < colorDistance(ink, token(Color::TextPrimary)), qPrintable(ink.name()));
+    QVERIFY(!isNear(ink, surface));
+
+    widget.setShortcutText(QString());
+    QVERIFY(!widget.getAccessibleDescriptionText().contains(QStringLiteral("Ctrl+I")));
+    image = renderWidget(&widget, 1.0);
+    QVERIFY(isNear(strongestInk(image, shortcutArea, surface), surface));
 }
 
 void FluentComponentsTest::tileRowPixels_data()

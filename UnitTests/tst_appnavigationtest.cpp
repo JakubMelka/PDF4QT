@@ -419,6 +419,9 @@ public:
         cases.push_back({ QStringLiteral("/about#third-party"), QStringLiteral("getting-started") });
         cases.push_back({ QStringLiteral("/support?topic=pages"), QStringLiteral("getting-started") });
         cases.push_back({ QStringLiteral("/document/%1?page=2").arg(documentId), QStringLiteral("read-documents") });
+        // The own tab of a tool, which has its topic (Merge, plan of step 2 of phase 2, 7): the
+        // route without its tab opens the empty tool (R13), F1 its topic
+        cases.push_back({ QStringLiteral("/tool/pages.merge/%1").arg(pdf::PDFAppDocument::createId()), QStringLiteral("tool-pages-merge") });
         cases.push_back({ QStringLiteral("/settings/no-such-section"), QStringLiteral("getting-started"), true });
         cases.push_back({ QStringLiteral("/no/such/route"), QStringLiteral("getting-started"), true });
         return cases;
@@ -1056,7 +1059,7 @@ void AppNavigationTest::routeBuilders()
                                             Routes::about("third-party"), Routes::support(), Routes::sponsor(), Routes::help("topic"), Routes::settings(),
                                             Routes::recent("workspaces", "last-opened", "q"), Routes::support("pages", "merge"), Routes::releaseNotes("1.6.0"),
                                             Routes::settings("advanced", "row"), Routes::search("x", "help"), Routes::document(documentId(), 3),
-                                            Routes::documentProperties(documentId(), "xmp"), Routes::documentTool(documentId(), "ocr"), Routes::toolTab("merge", "m1"),
+                                            Routes::documentProperties(documentId(), "xmp"), Routes::documentTool(documentId(), "ocr"), Routes::toolTab("merge", documentId()),
                                             Routes::tools("pinned", "merge"), Routes::tools(QString(), QString(), "custom-1"), Routes::toolCollectionNew("pages.merge") })
     {
         // The list of the collections is redirected to the first collection (step 6)
@@ -1162,7 +1165,8 @@ void AppNavigationTest::routeTable_data()
         add(route, "/document/{documentId}/properties/{section}", route, Tab::Document, Nav::None);
     }
     add(QStringLiteral("/document/%1/tool/compress").arg(id), "/document/{documentId}/tool/{toolId}", QStringLiteral("/document/%1/tool/compress").arg(id), Tab::Document, Nav::None);
-    add("/tool/merge/merge-1", "/tool/{toolId}/{instanceId}", "/tool/merge/merge-1", Tab::Tool, Nav::None);
+    // The instance of an own tab has the form of a document id (R19 of the plan of step 2 of phase 2)
+    add(QStringLiteral("/tool/merge/%1").arg(id), "/tool/{toolId}/{instanceId}", QStringLiteral("/tool/merge/%1").arg(id), Tab::Tool, Nav::None);
 }
 
 void AppNavigationTest::routeTable()

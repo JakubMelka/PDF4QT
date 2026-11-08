@@ -84,6 +84,6 @@ Every annotation has an `id` (`obj:gen`, such as `12:0`), its `type`, `page`, `r
 ## When a change is refused
 
 - The document is locked in PDF4QT (`isLocked` of `application.get_state`): no change is possible. Ask the user to unlock it, or to use Edit a Copy.
-- The document does not allow annotations (its permissions, an encrypted document): explain it to the user.
+- The document does not allow annotations (its permissions, an encrypted document): explain it to the user. The user can unlock it in PDF4QT with the owner password of the document; never ask for the password (pdf4qt://docs/security.md).
 - A signed document: PDF4QT warns the user that new annotations may invalidate the signatures; the user decides.
 - The user denied the request: do not repeat it. pdf4qt://docs/permissions.md and pdf4qt://docs/errors.md list every case.

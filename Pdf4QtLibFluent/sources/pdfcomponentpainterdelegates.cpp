@@ -321,7 +321,17 @@ public:
         {
             width += TILE_END_ICON + metrics.gap;
         }
+        if (!row.shortcutText.isEmpty())
+        {
+            width += getTileRowShortcutWidth(row) + metrics.gap;
+        }
         return width;
+    }
+
+    /// Returns the width of the shortcut of a row (Regular 11, 378:2505), 0 for a row without it
+    static int getTileRowShortcutWidth(const PDFComponentPainter::TileRow& row)
+    {
+        return isTileRowCaption(row) ? 0 : textWidth(boundedTileText(row.shortcutText), font(PDFThemeFonts::Role::CaptionRegular));
     }
 
     /// Returns the width of what stands at the leading side of the texts of a row with its gaps
@@ -1071,6 +1081,24 @@ QRectF PDFComponentPainter::getTileRowEndIconRect(const QRectF& rect, const Tile
     return state.visualRect(rect, Helper::line(rect, left, Helper::TILE_END_ICON, Helper::TILE_END_ICON));
 }
 
+QRectF PDFComponentPainter::getTileRowShortcutRect(const QRectF& rect, const TileRow& row, const State& state)
+{
+    using Helper = PDFComponentDelegatePainterHelper;
+    const int width = Helper::getTileRowShortcutWidth(row);
+    if (width <= 0)
+    {
+        return QRectF();
+    }
+
+    // 378:2498: the shortcut at the trailing padding, centered vertically; an ending icon
+    // and a link stand after it
+    const Helper::TileRowMetrics metrics = Helper::getTileRowMetrics(row.kind);
+    const int linkWidth = row.linkText.isEmpty() ? 0 : getTextLinkSize(TextLink{ Helper::boundedTileText(row.linkText) }).width() + metrics.gap;
+    const int endIconWidth = Helper::hasTileRowEndPlace(row) ? Helper::TILE_END_ICON + metrics.gap : 0;
+    const qreal left = rect.right() - metrics.horizontalPadding - linkWidth - endIconWidth - width;
+    return state.visualRect(rect, Helper::line(rect, left, width, Helper::LINE_11));
+}
+
 QRectF PDFComponentPainter::getTileRowTextRect(const QRectF& rect, const TileRow& row)
 {
     using Helper = PDFComponentDelegatePainterHelper;
@@ -1192,6 +1220,14 @@ void PDFComponentPainter::paintTileRow(QPainter* painter, const QRectF& rect, co
     else if (!row.endIconName.isEmpty())
     {
         PDFStylePainter::icon(painter, endIconRect, row.endIconName, Helper::icon(state, Helper::isValidColor(row.endIconColor) ? row.endIconColor : Color::IconAccent));
+    }
+
+    // The shortcut of an item of a menu: Regular 11 text/muted as the rows of the menus (378:2505)
+    const QRectF shortcutRect = getTileRowShortcutRect(rect, row, state);
+    if (!shortcutRect.isEmpty())
+    {
+        drawElidedText(painter, state, shortcutRect, Helper::boundedTileText(row.shortcutText), Helper::font(PDFThemeFonts::Role::CaptionRegular),
+                       Helper::text(state, Color::TextMuted), TextKind::Interface);
     }
 
     if (row.paintNested && !row.linkText.isEmpty())

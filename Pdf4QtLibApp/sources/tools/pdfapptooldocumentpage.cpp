@@ -26,7 +26,10 @@
 #include "pdfappdocument.h"
 #include "pdfappdocumenttab.h"
 #include "pdfapptoolhost.h"
+#include "pdfapptoolinputlist.h"
 #include "pdfapptoolpageregistry.h"
+#include "pdfapptooltab.h"
+#include "pdfappmainwindow.h"
 #include "pdfapptoolresultwriter.h"
 #include "pdfdocumenttoolguiregistry.h"
 
@@ -190,6 +193,16 @@ void PDFAppToolDocumentPage::applyRoute()
         return;
     }
 
+    // A tool with its own tab (Merge, plan of step 2 of phase 2, 4.1): the panel Tools, Then
+    // continue with and this route open a new tab of the tool with this document as its
+    // first input; the route of the tool leaves the history of the document tab
+    const PDFDocumentToolCatalogEntry* entry = PDFDocumentToolCatalog::findTool(m_toolId);
+    if (entry && entry->hasOwnTab())
+    {
+        openOwnTab();
+        return;
+    }
+
     m_shell = new PDFDocumentToolShell(m_host, tool, factory->createGUI(), this);
     connect(m_shell.data(), &PDFDocumentToolShell::closeRequested, this, &PDFAppToolDocumentPage::onCloseRequested);
 
@@ -204,6 +217,25 @@ void PDFAppToolDocumentPage::applyRoute()
         {
             leaveToDocument(tr("This tool cannot run on this document."));
         }
+    }
+}
+
+void PDFAppToolDocumentPage::openOwnTab()
+{
+    PDFAppDocumentTab* tab = getDocumentTab();
+    PDFAppMainWindow* mainWindow = tab ? qobject_cast<PDFAppMainWindow*>(tab->window()) : nullptr;
+    if (!tab || !mainWindow)
+    {
+        leaveToDocument(tr("This tool is not available."));
+        return;
+    }
+
+    // The new tab shows its route after this navigation; a slot may delete this page
+    QPointer<PDFAppToolDocumentPage> guard(this);
+    PDFAppToolTab* toolTab = mainWindow->createToolTabForDocument(m_toolId, tab);
+    if (guard)
+    {
+        leaveToDocument(toolTab ? QString() : tr("This tool is not available."));
     }
 }
 

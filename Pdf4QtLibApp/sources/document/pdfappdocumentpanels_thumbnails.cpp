@@ -31,6 +31,7 @@
 #include "pdfappdocumentview.h"
 #include "pdfapppagerendercontext.h"
 #include "pdfapproute.h"
+#include "pdfapptoolinputloader.h"
 #include "pdfsettingdefinitions.h"
 #include "pdfsettingsrepository.h"
 
@@ -45,9 +46,11 @@
 #include "pdfthemeiconengine.h"
 #include "pdfwidgetstyleproperties.h"
 
+#include <QBuffer>
 #include <QContextMenuEvent>
 #include <QEvent>
 #include <QHBoxLayout>
+#include <QImageReader>
 #include <QItemSelectionModel>
 #include <QLocale>
 #include <QMenu>
@@ -158,10 +161,16 @@ void PDFAppThumbnailsModel::setPictureSize(const QSize& size, qreal devicePixelR
 void PDFAppThumbnailsModel::invalidateAll()
 {
     m_generation = PDFAppThumbnailsHelper::nextGeneration();
-    if (m_pageCount > 0)
+    const int count = rowCount();
+    if (count > 0)
     {
-        Q_EMIT dataChanged(index(0), index(m_pageCount - 1), { PDFComponentRoles::PixmapRole });
+        Q_EMIT dataChanged(index(0), index(count - 1), { PDFComponentRoles::PixmapRole });
     }
+}
+
+quint64 PDFAppThumbnailsModel::getGeneration() const
+{
+    return m_generation;
 }
 
 void PDFAppThumbnailsModel::invalidatePages(const std::vector<PDFInteger>& pages)
@@ -175,6 +184,22 @@ void PDFAppThumbnailsModel::invalidatePages(const std::vector<PDFInteger>& pages
             Q_EMIT dataChanged(row, row, { PDFComponentRoles::PixmapRole });
         }
     }
+}
+
+bool PDFAppThumbnailsModel::hasPictureSources() const
+{
+    return !m_document.isNull();
+}
+
+PDFAppThumbnailSource PDFAppThumbnailsModel::getPictureSource(int row) const
+{
+    PDFAppThumbnailSource source;
+    if (m_document && row >= 0 && row < m_pageCount)
+    {
+        source.document = m_document;
+        source.pageIndex = row;
+    }
+    return source;
 }
 
 QString PDFAppThumbnailsModel::getKey(int pageIndex) const
@@ -192,7 +217,7 @@ bool PDFAppThumbnailsModel::hasPicture(int pageIndex) const
 
 void PDFAppThumbnailsModel::setPicture(int pageIndex, const QPixmap& pixmap)
 {
-    if (pageIndex < 0 || pageIndex >= m_pageCount || pixmap.isNull())
+    if (pageIndex < 0 || pageIndex >= rowCount() || pixmap.isNull())
     {
         return;
     }
@@ -225,7 +250,9 @@ Qt::ItemFlags PDFAppThumbnailsModel::flags(const QModelIndex& index) const
 
 QVariant PDFAppThumbnailsModel::data(const QModelIndex& index, int role) const
 {
-    if (!index.isValid() || index.row() >= m_pageCount || !m_document)
+    // The rows of another source (a model of more documents of a tool) have no document of
+    // the model: only their pictures are given here, a subclass gives its texts
+    if (!index.isValid() || index.row() >= rowCount() || !hasPictureSources())
     {
         return QVariant();
     }
@@ -234,11 +261,11 @@ QVariant PDFAppThumbnailsModel::data(const QModelIndex& index, int role) const
     switch (role)
     {
         case Qt::DisplayRole:
-            return PDFAppPanelWidgets::getPageLabel(m_document->getCatalog(), pageIndex);
+            return m_document && pageIndex < m_pageCount ? PDFAppPanelWidgets::getPageLabel(m_document->getCatalog(), pageIndex) : QVariant();
 
         case Qt::ToolTipRole:
         case Qt::AccessibleTextRole:
-            return PDFAppPanelWidgets::getPageTitle(m_document->getCatalog(), pageIndex);
+            return m_document && pageIndex < m_pageCount ? PDFAppPanelWidgets::getPageTitle(m_document->getCatalog(), pageIndex) : QVariant();
 
         case PDFComponentRoles::PixmapRole:
         {
@@ -305,7 +332,8 @@ private:
 class PDFAppThumbnailRenderPage
 {
 public:
-    int pageIndex = -1;
+    int pageIndex = -1;             ///< Row of the model
+    PDFAppThumbnailSource source;   ///< What the row shows (a copy taken in the GUI thread)
     QString key;                    ///< Key of the picture in the model, when it was requested
     int pixelSize = 1;              ///< Longest edge of the image in pixels
     qreal devicePixelRatio = 1.0;
@@ -342,7 +370,7 @@ class PDFAppThumbnailRenderJob : public PDFOperationControl
 {
 public:
     std::shared_ptr<PDFAppThumbnailRenderLink> link;
-    PDFDocumentPointer document;
+    PDFDocumentPointer document;    ///< Document of the model: its pictures get the states of the layers of its tab
     PDFCMSSettings cmsSettings;
     PDFRenderer::Features features = PDFAppPageRenderContext::getDefaultFeatures();
     std::map<PDFObjectReference, OCState> optionalContentStates;
@@ -419,7 +447,9 @@ public:
     /// more of them. Its render context (its own caches and managers) lives in this thread only.
     void run(const std::shared_ptr<PDFAppThumbnailRenderJob>& self)
     {
-        std::unique_ptr<PDFAppPageRenderContext> context;
+        // A context per document of the rows (the pages of more inputs of a tool), each
+        // with its own caches; it holds its document while it lives
+        std::vector<RenderContext> contexts;
         while (true)
         {
             PDFAppThumbnailRenderPage page;
@@ -450,15 +480,17 @@ public:
                 m_maximumRunningCount = qMax(m_maximumRunningCount, m_runningCount);
             }
 
-            if (!context)
-            {
-                context = std::make_unique<PDFAppPageRenderContext>(document.data(), cmsSettings, features);
-                context->setOptionalContentStates(optionalContentStates);
-            }
             const PDFAppThumbnailPageControl control(this, page.isCanceled.get());
             if (!control.isOperationCancelled())
             {
-                page.image = render(context.get(), page, &control);
+                if (page.source.document)
+                {
+                    page.image = render(getContext(&contexts, page.source.document), page, &control);
+                }
+                else
+                {
+                    page.image = renderImage(page);
+                }
             }
 
             bool isNotifyNeeded = false;
@@ -482,14 +514,120 @@ public:
         }
     }
 
+    /// Most documents, whose contexts a worker keeps at once
+    static constexpr size_t MAXIMUM_WORKER_CONTEXTS = 4;
+
 private:
+    struct RenderContext
+    {
+        PDFDocumentPointer document;
+        std::unique_ptr<PDFAppPageRenderContext> context;
+    };
+
+    /// The context of the document (a worker thread): made at the first page of the document;
+    /// the oldest one goes, when the worker has MAXIMUM_WORKER_CONTEXTS of them
+    PDFAppPageRenderContext* getContext(std::vector<RenderContext>* contexts, const PDFDocumentPointer& pageDocument) const
+    {
+        for (const RenderContext& item : *contexts)
+        {
+            if (item.document == pageDocument)
+            {
+                return item.context.get();
+            }
+        }
+
+        if (contexts->size() >= MAXIMUM_WORKER_CONTEXTS)
+        {
+            contexts->erase(contexts->begin());
+        }
+
+        RenderContext item;
+        item.document = pageDocument;
+        item.context = std::make_unique<PDFAppPageRenderContext>(pageDocument.data(), cmsSettings, features);
+
+        // The states of the layers of the tab belong to the document of the model only; the
+        // pages of another document show its default states (no state of a tab is shared)
+        if (pageDocument == document)
+        {
+            item.context->setOptionalContentStates(optionalContentStates);
+        }
+        contexts->push_back(std::move(item));
+        return contexts->back().context.get();
+    }
+
+    /// The picture of a frame of an image: decoded from the bytes of its file scaled to the
+    /// longest edge (the EXIF orientation applied, the allocation limit of the inputs, R15);
+    /// a transparent image lies on white paper. A frame, which cannot be decoded, is a white
+    /// picture (no request again for each paint).
+    static QImage renderImage(const PDFAppThumbnailRenderPage& page)
+    {
+        QByteArray data = page.source.imageData;
+        QBuffer buffer(&data);
+        buffer.open(QIODevice::ReadOnly);
+        QImageReader reader(&buffer);
+        reader.setAutoTransform(true);
+
+        // The allocation limit of Qt is one value of the process (static): never written by a
+        // worker (the write would race with the readers of it); the default of the process is
+        // the limit of the inputs (PDFAppToolInputLoader::IMAGE_ALLOCATION_LIMIT_MB), the pixel
+        // limit of the frame is checked before it is decoded
+        if (page.source.pageIndex > 0 && !reader.jumpToImage(page.source.pageIndex))
+        {
+            return createWhiteImage(page.pixelSize);
+        }
+
+        // The decoder scales the stored frame (before its EXIF turn): its edges are turned too
+        const QSize storedSize = reader.size();
+        if (storedSize.isValid() && qint64(storedSize.width()) * qint64(storedSize.height()) > PDFAppToolInputLoader::MAXIMUM_IMAGE_PIXELS)
+        {
+            return createWhiteImage(page.pixelSize);
+        }
+        const bool isTransposed = reader.transformation().testFlag(QImageIOHandler::TransformationRotate90);
+        if (storedSize.isValid() && !storedSize.isEmpty())
+        {
+            QSize shownSize = isTransposed ? storedSize.transposed() : storedSize;
+            shownSize.scale(page.pixelSize, page.pixelSize, Qt::KeepAspectRatio);
+            shownSize = shownSize.expandedTo(QSize(1, 1));
+            reader.setScaledSize(isTransposed ? shownSize.transposed() : shownSize);
+        }
+
+        QImage frame = reader.read();
+        if (frame.isNull())
+        {
+            return createWhiteImage(page.pixelSize);
+        }
+        if (frame.width() > page.pixelSize || frame.height() > page.pixelSize)
+        {
+            frame = frame.scaled(page.pixelSize, page.pixelSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        }
+
+        QImage image(frame.size(), QImage::Format_ARGB32_Premultiplied);
+        if (image.isNull())
+        {
+            return QImage();
+        }
+        image.fill(Qt::white);
+        QPainter painter(&image);
+        painter.drawImage(QPoint(0, 0), frame);
+        return image;
+    }
+
+    static QImage createWhiteImage(int pixelSize)
+    {
+        QImage image(QSize(qMax(1, pixelSize * 3 / 4), qMax(1, pixelSize)), QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::white);
+        return image;
+    }
+
     /// The picture of the page: its rotated media box scaled to the longest edge, the paper
     /// white (as PDFRasterizer). A page, which cannot be drawn, is a white picture (no
     /// request again for each paint).
     QImage render(PDFAppPageRenderContext* context, const PDFAppThumbnailRenderPage& page, const PDFOperationControl* control) const
     {
-        const PDFCatalog* catalog = document ? document->getCatalog() : nullptr;
-        const PDFPage* pdfPage = catalog && page.pageIndex >= 0 && size_t(page.pageIndex) < catalog->getPageCount() ? catalog->getPage(size_t(page.pageIndex)) : nullptr;
+        const PDFDocument* pageDocument = page.source.document.data();
+        const PDFInteger pageIndex = page.source.pageIndex;
+        const PDFCatalog* catalog = pageDocument ? pageDocument->getCatalog() : nullptr;
+        const PDFPage* pdfPage = catalog && pageIndex >= 0 && size_t(pageIndex) < catalog->getPageCount() ? catalog->getPage(size_t(pageIndex)) : nullptr;
         if (!pdfPage)
         {
             return QImage();
@@ -514,7 +652,7 @@ private:
         {
             QPainter painter(&image);
             const QTransform pageToImage = PDFRenderer::createPagePointToDevicePointMatrix(pdfPage, QRectF(QPointF(0, 0), QSizeF(imageSize)));
-            context->draw(&painter, page.pageIndex, pageToImage, features.testFlag(PDFRenderer::DisplayAnnotations), control);
+            context->draw(&painter, pageIndex, pageToImage, features.testFlag(PDFRenderer::DisplayAnnotations), control);
         }
         catch (const PDFException&)
         {
@@ -731,7 +869,7 @@ void PDFAppThumbnailScheduler::process()
         m_waiting.insert(page);
     }
 
-    if (!m_model->getDocument())
+    if (!m_model->hasPictureSources())
     {
         m_waiting.clear();
         cancelJob();
@@ -808,6 +946,7 @@ void PDFAppThumbnailScheduler::process()
 
         PDFAppThumbnailRenderPage request;
         request.pageIndex = page;
+        request.source = m_model->getPictureSource(page);
         request.key = key;
         request.isCanceled = isCanceled;
         request.pixelSize = pixelSize;

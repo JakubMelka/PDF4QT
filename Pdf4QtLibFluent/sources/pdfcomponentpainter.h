@@ -1849,7 +1849,8 @@ public:
 
     /// Content of a tile row: an optional check box, the tile with an icon or a
     /// text, the title with an optional tag, the description and the ending - the
-    /// check mark of a chosen item, an icon of a state or a link.
+    /// shortcut of an item of a menu, the check mark of a chosen item, an icon of a
+    /// state or a link.
     ///
     /// The kind says, what is selected. An item of a choice list (MenuItem, PanelStep)
     /// is chosen by \p chosen: bg/hover and the check mark (438:15319, 313:7291); the
@@ -1874,6 +1875,7 @@ public:
         QString endIconName;        ///< Icon of a state at the trailing side (minus, check-circle), not shown beside the check mark of a chosen item
         PDFThemeColors::Color endIconColor = PDFThemeColors::IconAccent;
         QString linkText;           ///< Link at the trailing side (Undo, Keep)
+        QString shortcutText;       ///< Keyboard shortcut of an item of a menu ("Ctrl+I", Regular 11 text/muted, 378:2505) before the ending icon and the link
         bool checkBoxVisible = false;
         bool checkBoxChecked = false;
         bool checkBoxEnabled = true;
@@ -1917,6 +1919,10 @@ public:
 
     /// Returns the rectangle of the ending icon (16 x 16), empty for a row without it
     static QRectF getTileRowEndIconRect(const QRectF& rect, const TileRow& row, const State& state);
+
+    /// Returns the rectangle of the shortcut (its text in a line of 13, a gap before the
+    /// ending icon and the link), empty for a row without it
+    static QRectF getTileRowShortcutRect(const QRectF& rect, const TileRow& row, const State& state);
 
     /// Returns the rectangle of the texts in the left-to-right layout of the row
     static QRectF getTileRowTextRect(const QRectF& rect, const TileRow& row);

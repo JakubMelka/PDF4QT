@@ -52,6 +52,8 @@ class PDFAppDocument;
 class PDFAppDocumentTab;
 class PDFAppOpenFailedDialog;
 class PDFAppOpenFailure;
+class PDFAppToolInputList;
+class PDFAppToolTab;
 
 /// Main window of the application (newapplication.md 3, decisions 9 and 12): one
 /// window per process without the frame of the system, the top bar with the tabs
@@ -139,9 +141,43 @@ public:
     /// Closes the tab (not the Home tab). \returns false, if it is not closed.
     bool closeTab(PDFAppTab* tab);
 
-    /// Tab of the document id (step 3) or of the instance of a tool (phase 2: there
-    /// are no such tabs yet); nullptr if there is none
+    /// Tab of the document id (step 3); nullptr if there is none (the own tab of a tool
+    /// is found by findToolTab)
     PDFAppTab* findDocumentTab(const QString& id) const;
+
+    /// Own tab of a tool (plan of step 2 of phase 2, 4.1, R13): a new tab after the current
+    /// one with the route /tool/{toolId}/{a new instance id}, which is shown in it and
+    /// made current in this call (within a navigation the route is shown after it). The tab
+    /// takes \p inputList over (setParent in this one synchronous call; nullptr = an empty
+    /// list, the empty state 378:1657). The navigation may run code of the application.
+    /// \returns the tab; nullptr for a tool without its own tab or its GUI, or too many tabs:
+    /// \p inputList then stays with the caller.
+    PDFAppToolTab* createToolTab(const QString& toolId, PDFAppToolInputList* inputList);
+
+    /// Adds an own tab of a tool of the instance (the route /tool/{toolId}/{instanceId} of
+    /// the history or of a link, which has no tab: the empty state 378:1657) after the
+    /// current tab, not shown, no route yet. \returns nullptr as createToolTab.
+    PDFAppToolTab* addToolTab(const QString& toolId, const QString& instanceId, PDFAppToolInputList* inputList);
+
+    /// createToolTab with the snapshot of the document of \p documentTab as the first input
+    /// (R11: a document, which is not read yet, is not added); a tool with its own tab asked
+    /// for over a document (the panel Tools, Then continue with, /document/{id}/tool/{toolId})
+    PDFAppToolTab* createToolTabForDocument(const QString& toolId, PDFAppDocumentTab* documentTab);
+
+    /// Own tab of the instance of a tool, nullptr if there is none
+    PDFAppToolTab* findToolTab(const QString& instanceId) const;
+
+    /// Own tabs of tools of the window in the order of the tab bar
+    QList<PDFAppToolTab*> getToolTabs() const;
+
+    /// The own tab of a tool, whose result needs no decision (Blank PDF, 4.6), is replaced
+    /// by a document tab at the same index, which reads the document from the memory
+    /// \p bytes and behaves as a copy titled \p title (no file, Save As "<title>.pdf", not
+    /// recorded in Recent, unsaved); the new tab becomes current, the tool tab is removed
+    /// from the tab bar and deleted later (it may be the sender). Nothing asks: the tool
+    /// has accepted its result. \returns the new tab, nullptr (the tool tab stays) when
+    /// \p tab is not a tab of this window.
+    PDFAppDocumentTab* replaceToolTab(PDFAppToolTab* tab, QByteArray bytes, const QString& title);
 
     /// Document tabs of the window in the order of the tab bar
     QList<PDFAppDocumentTab*> getDocumentTabs() const;
@@ -224,12 +260,19 @@ public:
     /// \p source is not shown in this window)
     int getTabIndexAfter(const PDFAppDocument* source) const;
 
+    /// Index of a new tab after \p tab (the own tab of a tool, plan of step 2 of phase 2,
+    /// 4.5), after the current tab, when \p tab is null or not a tab of this window
+    int getTabIndexAfter(const PDFAppTab* tab) const;
+
     /// A PDF attachment (O18): a new document tab after the tab of \p source (the
     /// current tab, when \p source is not shown in this window), which reads the
     /// document from the memory \p bytes (no temporary file) and behaves as a copy
     /// titled \p title (no file, Save As, not recorded in Recent).
     /// \returns the tab, nullptr when there are too many tabs.
     PDFAppDocumentTab* openDocumentFromMemory(QByteArray bytes, const QString& title, const QString& originFilePath, const PDFAppDocument* source = nullptr);
+
+    /// The same at the index \p index of the tab bar (after the own tab of a tool, 4.5)
+    PDFAppDocumentTab* openDocumentFromMemoryAt(QByteArray bytes, const QString& title, const QString& originFilePath, int index);
 
     /// Stores the documents of the window as the last session (Restore last
     /// session of Home / Open): the files with their current pages
@@ -379,6 +422,7 @@ private:
     void onOpenRequested(const pdf::PDFAppInstanceRequest& request);
     void onPageTitleChanged();
     void onTabCommandStatesChanged();
+    void onToolTabStateChanged();
 
     QPointer<PDFAppContext> m_context;
     QPointer<PDFAppTopBar> m_topBar;

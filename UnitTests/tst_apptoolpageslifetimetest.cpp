@@ -35,8 +35,10 @@
 // Structure, Extract Text) through their own panels, menus and result dialogs; the tools of
 // the next batches add their scenarios.
 
+#include "apptoolowntabfixture.h"
 #include "apptoolshellfixture.h"
 
+#include "pdfappcommand.h"
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentdialogs.h"
@@ -47,13 +49,19 @@
 #include "pdfapproute.h"
 #include "pdfappsettingcontrol.h"
 #include "pdfapptoolpanelbuilder.h"
+#include "pdfapptooltab.h"
 #include "pdfapptooltoolbar.h"
 
 #include "pdfcomponentbuttons.h"
 #include "pdfdatabasenotifier.h"
 #include "pdfapptoolbeforeafteroverlay.h"
+#include "pdfapppagesizepreview.h"
+#include "pdfapptoolgui_blank.h"
 #include "pdfapptoolgui_compress.h"
 #include "pdfapptoolgui_extracttext.h"
+#include "pdfapptoolgui_merge.h"
+#include "pdfapptoolinputrow.h"
+#include "pdfapptoolmergeview.h"
 #include "pdfapptoolgui_pages.h"
 #include "pdfapptoolgui_protect.h"
 #include "pdfapptoolgui_structure.h"
@@ -535,11 +543,13 @@ public:
 /// State of one run of a scenario
 struct ToolPagesLifetimeRun
 {
-    pdftest::AppToolShellFixture* fixture = nullptr;
+    pdftest::AppToolOwnTabFixture* fixture = nullptr;
     std::shared_ptr<pdftest::ShellTestTool> tool;
     QPointer<pdf::PDFAppMainWindow> window;
     QPointer<pdf::PDFAppDocumentTab> tab;
     QString toolId;
+    QPointer<pdf::PDFAppToolTab> toolTab;               ///< The own tab of a tool (the scenarios "owntab*", step 2 of phase 2)
+    std::shared_ptr<pdftest::OwnTabTestTool> ownTabTool;
 };
 
 using ToolPagesLifetimeStep = std::function<bool(ToolPagesLifetimeRun&)>;
@@ -562,14 +572,251 @@ public:
 
     static void settle() { pdftest::AppDocumentFixture::settle(); }
 
-    static pdf::PDFAppToolDocumentPage* page(const ToolPagesLifetimeRun& run)
+    static pdf::PDFAppPage* page(const ToolPagesLifetimeRun& run)
     {
+        // The page of the own tab of a tool, while it exists, else the tool of the document tab
+        // (a tab in its destructor is no longer of its class: qobject_cast fails)
+        if (run.toolTab)
+        {
+            const pdf::PDFAppToolTab* toolTab = qobject_cast<const pdf::PDFAppToolTab*>(run.toolTab.data());
+            return toolTab ? toolTab->getToolPage() : nullptr;
+        }
         return run.tab ? qobject_cast<pdf::PDFAppToolDocumentPage*>(run.tab->getPage()) : nullptr;
     }
 
     static pdf::PDFDocumentToolShell* shell(const ToolPagesLifetimeRun& run)
     {
+        if (run.toolTab)
+        {
+            const pdf::PDFAppToolTab* toolTab = qobject_cast<const pdf::PDFAppToolTab*>(run.toolTab.data());
+            return toolTab ? toolTab->getShell() : nullptr;
+        }
         return pdftest::AppToolShellFixture::getShell(run.tab.data());
+    }
+
+    /// The own tab is gone and the current tab is the new document, read
+    static bool isNewDocumentReady(const ToolPagesLifetimeRun& run)
+    {
+        const pdf::PDFAppDocumentTab* current = run.window ? qobject_cast<const pdf::PDFAppDocumentTab*>(run.window->getCurrentTab()) : nullptr;
+        return run.toolTab.isNull() && current && current != run.tab.data() && current->getDocument() && current->getDocument()->isReady();
+    }
+
+    /// A scenario of the own tab of a tool (step 2 of phase 2, R17)
+    static bool isOwnTabScenario(const QString& name)
+    {
+        return name.startsWith(QLatin1String("owntab"));
+    }
+
+    /// The steps of the own tab: the tool tab opens (Merge over the document of the run, Blank by
+    /// createToolTab), the tool runs; Merge accepts its result (Open in a new tab, with Then
+    /// continue with in "owntabcontinue"), the tab closes after the new tab opens; Blank
+    /// replaces its tab by the new document (no dialog)
+    static void addOwnTabSteps(const QString& name, std::vector<ToolPagesLifetimeStep>* steps)
+    {
+        const bool isBlank = name == QLatin1String("owntabblank");
+        const bool isContinue = name == QLatin1String("owntabcontinue");
+        steps->push_back([isBlank](ToolPagesLifetimeRun& run)
+        {
+            if (!run.window || !run.window->getNavigator())
+            {
+                return false;
+            }
+            if (isBlank)
+            {
+                run.toolTab = run.window->createToolTab(QStringLiteral("convert.blank"), nullptr);
+            }
+            else if (run.tab)
+            {
+                run.window->getNavigator()->navigate(pdf::PDFAppRoutes::documentTool(run.tab->getDocumentId(), QStringLiteral("pages.merge")));
+            }
+            settle();
+            if (!isBlank && run.window && !run.window->getToolTabs().isEmpty())
+            {
+                run.toolTab = run.window->getToolTabs().front();
+            }
+            return run.toolTab && shell(run) && shell(run)->getState() == pdf::PDFDocumentToolShell::State::Editing;
+        });
+        steps->push_back([isBlank](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFDocumentToolShell* current = shell(run);
+            if (!current || !click(current->getToolbar() ? current->getToolbar()->getConfirmButton() : nullptr))
+            {
+                return false;
+            }
+            pdftest::AppToolShellFixture::waitFor([&run, isBlank]()
+            {
+                const pdf::PDFDocumentToolShell* waited = shell(run);
+                return (isBlank && isNewDocumentReady(run)) || (!isBlank && (!run.toolTab || !waited || waited->getState() == pdf::PDFDocumentToolShell::State::Deciding));
+            });
+            return isBlank ? isNewDocumentReady(run) : (shell(run) && shell(run)->getResultDialog());
+        });
+        if (!isBlank)
+        {
+            steps->push_back([isContinue](ToolPagesLifetimeRun& run)
+            {
+                pdf::PDFDocumentToolShell* current = shell(run);
+                pdf::PDFAppToolResultDialog* dialog = current ? current->getResultDialog() : nullptr;
+                if (!dialog)
+                {
+                    return false;
+                }
+                if (isContinue)
+                {
+                    const int index = int(dialog->getContinueToolIds().indexOf(QStringLiteral("optimize.compress")));
+                    if (index < 0 || !dialog->getContinueWith())
+                    {
+                        return false;
+                    }
+                    dialog->getContinueWith()->setSelectedChoice(index);
+                }
+                if (!click(dialog->getConfirmButton()))
+                {
+                    return false;
+                }
+                // The new document is read in a worker: the step ends, when it is shown, so its
+                // signals come in this step in every run
+                pdftest::AppToolShellFixture::waitFor([&run]() { return isNewDocumentReady(run); });
+                return isNewDocumentReady(run);
+            });
+        }
+        // (no settle: the late signals of the new document tab are of no step, their order
+        // differs between the runs)
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            return run.window && run.window->getToolTabs().isEmpty();
+        });
+    }
+
+    /// The GUI of Blank PDF in its own tab (step 2 of phase 2, package D, "owntabblankgui"):
+    /// the size menu (a named size, 16:9, a size of the open document), the orientation with
+    /// Undo and Redo, Custom with the fields W and H (an error, a value), the field Pages with
+    /// Up, a tile of a page, the zoom of the preview, Create PDF replaces the tab
+    static pdf::PDFAppBlankToolGUI* blankGui(const ToolPagesLifetimeRun& run)
+    {
+        pdf::PDFDocumentToolShell* current = shell(run);
+        return current ? qobject_cast<pdf::PDFAppBlankToolGUI*>(current->getGUI()) : nullptr;
+    }
+
+    /// Opens the panel of the size and clicks its row (a size id, or the first open document)
+    static bool chooseBlankSize(ToolPagesLifetimeRun& run, const QString& sizeId)
+    {
+        pdf::PDFAppBlankToolGUI* current = blankGui(run);
+        if (!current || !click(current->getSizeButton()))
+        {
+            return false;
+        }
+        current = blankGui(run);
+        pdf::PDFAppBlankSizePanel* panel = current ? current->getSizePanel() : nullptr;
+        if (!panel || !panel->isVisible())
+        {
+            return false;
+        }
+        if (sizeId.isEmpty())
+        {
+            return !panel->getDocumentRows().empty() && click(panel->getDocumentRows().front());
+        }
+        return click(current->getSizeRow(sizeId));
+    }
+
+    /// Writes a text into a field of the toolbar of Blank PDF and leaves it by Enter
+    static bool typeBlankField(ToolPagesLifetimeRun& run, pdf::PDFToolBarField* (pdf::PDFAppBlankToolGUI::*field)() const, const QString& text)
+    {
+        pdf::PDFAppBlankToolGUI* current = blankGui(run);
+        QPointer<QLineEdit> edit = current ? (current->*field)() : nullptr;
+        if (!edit || !edit->isVisible())
+        {
+            return false;
+        }
+        edit->setFocus(Qt::OtherFocusReason);
+        edit->selectAll();
+        QTest::keyClicks(edit.data(), text);
+        settle();
+        if (edit)
+        {
+            QTest::keyClick(edit.data(), Qt::Key_Return);
+        }
+        settle();
+        return true;
+    }
+
+    static void addBlankGuiSteps(std::vector<ToolPagesLifetimeStep>* steps)
+    {
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            if (!run.window)
+            {
+                return false;
+            }
+            run.toolTab = run.window->createToolTab(QStringLiteral("convert.blank"), nullptr);
+            settle();
+            return run.toolTab && blankGui(run) && shell(run)->getState() == pdf::PDFDocumentToolShell::State::Editing;
+        });
+        steps->push_back([](ToolPagesLifetimeRun& run) { return chooseBlankSize(run, QStringLiteral("letter")); });
+        steps->push_back([](ToolPagesLifetimeRun& run) { return chooseBlankSize(run, QStringLiteral("16x9")); });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppBlankToolGUI* current = blankGui(run);
+            return current && click(current->getPortraitButton());
+        });
+        steps->push_back([](ToolPagesLifetimeRun& run) { return click(toolbar(run) ? toolbar(run)->getUndoButton() : nullptr); });
+        steps->push_back([](ToolPagesLifetimeRun& run) { return click(toolbar(run) ? toolbar(run)->getRedoButton() : nullptr); });
+        steps->push_back([](ToolPagesLifetimeRun& run) { return chooseBlankSize(run, QStringLiteral("custom")); });
+        steps->push_back([](ToolPagesLifetimeRun& run) { return typeBlankField(run, &pdf::PDFAppBlankToolGUI::getWidthField, QStringLiteral("200")); });
+        steps->push_back([](ToolPagesLifetimeRun& run) { return typeBlankField(run, &pdf::PDFAppBlankToolGUI::getHeightField, QStringLiteral("x")); });
+        steps->push_back([](ToolPagesLifetimeRun& run) { return typeBlankField(run, &pdf::PDFAppBlankToolGUI::getHeightField, QStringLiteral("280")); });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppBlankToolGUI* current = blankGui(run);
+            return current && click(current->getLandscapeButton());
+        });
+        steps->push_back([](ToolPagesLifetimeRun& run) { return typeBlankField(run, &pdf::PDFAppBlankToolGUI::getPagesField, QStringLiteral("4")); });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppBlankToolGUI* current = blankGui(run);
+            return current && key(current->getPagesField(), Qt::Key_Up);
+        });
+        steps->push_back([](ToolPagesLifetimeRun& run) { return chooseBlankSize(run, QString()); });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            // The second tile, the zoom 100 % and Fit
+            pdf::PDFAppBlankToolGUI* current = blankGui(run);
+            QPointer<pdf::PDFListView> view = current ? current->getPageView() : nullptr;
+            if (!view || !view->model() || view->model()->rowCount() < 2)
+            {
+                return false;
+            }
+            const QPoint point = view->visualRect(view->model()->index(1, 0)).center();
+            QTest::mouseClick(view->viewport(), Qt::LeftButton, Qt::NoModifier, point);
+            settle();
+            current = blankGui(run);
+            QPointer<pdf::PDFSegmentedControl> zoom = current && current->getPreview() ? current->getPreview()->getZoomControl() : nullptr;
+            if (!zoom)
+            {
+                return false;
+            }
+            zoom->setCurrentIndex(1);
+            settle();
+            if (zoom)
+            {
+                zoom->setCurrentIndex(0);
+            }
+            settle();
+            return true;
+        });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            // Create PDF: the tab of the new document in the place of the own tab (4.6)
+            if (!click(toolbar(run) ? toolbar(run)->getConfirmButton() : nullptr))
+            {
+                return false;
+            }
+            pdftest::AppToolShellFixture::waitFor([&run]() { return isNewDocumentReady(run); });
+            return isNewDocumentReady(run);
+        });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            return run.window && run.window->getToolTabs().isEmpty();
+        });
     }
 
     static pdftest::ShellTestGUI* gui(const ToolPagesLifetimeRun& run)
@@ -975,6 +1222,177 @@ public:
         }) && realGui<pdf::PDFAppToolGUIExtractText>(run) != nullptr;
     }
 
+    /// The GUI of Merge in its own tab (step 2 of phase 2, package C, "owntabmergegui")
+    static pdf::PDFAppMergeToolGUI* mergeGui(const ToolPagesLifetimeRun& run)
+    {
+        pdf::PDFDocumentToolShell* current = shell(run);
+        return current ? qobject_cast<pdf::PDFAppMergeToolGUI*>(current->getGUI()) : nullptr;
+    }
+
+    /// The inputs of the own tab are read
+    static bool waitMergeInputs(const ToolPagesLifetimeRun& run)
+    {
+        pdftest::AppToolShellFixture::waitFor([&run]()
+        {
+            const pdf::PDFAppToolTab* toolTab = run.toolTab ? qobject_cast<const pdf::PDFAppToolTab*>(run.toolTab.data()) : nullptr;
+            const pdf::PDFAppToolInputList* list = toolTab ? toolTab->getInputList() : nullptr;
+            return !list || (list->getLoadingCount() == 0 && list->getLoader()->getRunningCount() == 0);
+        });
+        settle();
+        return mergeGui(run) != nullptr;
+    }
+
+    /// Opens a panel of the toolbar of Merge and clicks its row
+    static bool clickMergeRow(ToolPagesLifetimeRun& run, const QString& panelName, const QString& rowName)
+    {
+        pdf::PDFAppMergeToolGUI* current = mergeGui(run);
+        if (!current || !click(current->getAction(panelName)))
+        {
+            return false;
+        }
+        current = mergeGui(run);
+        return current && click(current->getPanelRow(rowName));
+    }
+
+    /// The real GUI of Merge (no test tool): the tab of Merge from the Tools panel of the
+    /// document, a file added, the pages turned, cloned, removed by Delete and moved by Alt, the
+    /// menus Sort, Outline and the size of the tiles, Details, Undo, a file moved by Alt + Down,
+    /// Create PDF and Open Document (the tab closes, R17)
+    static void addMergeGuiSteps(std::vector<ToolPagesLifetimeStep>* steps)
+    {
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            if (!run.window || !run.tab || !run.window->getNavigator())
+            {
+                return false;
+            }
+            run.window->getNavigator()->navigate(pdf::PDFAppRoutes::documentTool(run.tab->getDocumentId(), QStringLiteral("pages.merge")));
+            settle();
+            if (run.window && !run.window->getToolTabs().isEmpty())
+            {
+                run.toolTab = run.window->getToolTabs().front();
+            }
+            return run.toolTab && waitMergeInputs(run);
+        });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppMergeToolGUI* current = mergeGui(run);
+            if (!current || !run.fixture)
+            {
+                return false;
+            }
+            current->addFiles({ pdftest::AppDocumentSamples::simple(run.fixture->folder(), QStringLiteral("merge-second.pdf"), 3) });
+            return waitMergeInputs(run) && mergeGui(run)->getCanvas()->getModel()->rowCount() > 2;
+        });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppMergeToolGUI* current = mergeGui(run);
+            if (!current)
+            {
+                return false;
+            }
+            current->selectRows({ 1 });
+            for (const char* action : { "rotateRight", "clone" })
+            {
+                current = mergeGui(run);
+                if (!current || !click(current->getAction(QString::fromLatin1(action))))
+                {
+                    return false;
+                }
+            }
+            current = mergeGui(run);
+            QPointer<pdf::PDFAppToolMergePageView> view = current ? current->getCanvas()->getPageView() : nullptr;
+            if (!view)
+            {
+                return false;
+            }
+            view->setFocus();
+            QTest::keyClick(view, Qt::Key_Right, Qt::AltModifier);
+            settle();
+            if (view)
+            {
+                QTest::keyClick(view, Qt::Key_Delete);
+            }
+            settle();
+            return true;
+        });
+        steps->push_back([](ToolPagesLifetimeRun& run) { return clickMergeRow(run, QStringLiteral("sort"), QStringLiteral("sort-page")); });
+        steps->push_back([](ToolPagesLifetimeRun& run) { return clickMergeRow(run, QStringLiteral("outline"), QStringLiteral("outline-join-outlines")); });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            // The size of the tiles, Details and back
+            pdf::PDFAppMergeToolGUI* current = mergeGui(run);
+            if (!current || !click(current->getCanvas()->getTileSizeButton()))
+            {
+                return false;
+            }
+            current = mergeGui(run);
+            if (!current || !current->getTileSizeMenu() || !click(current->getTileSizeMenu()->getRow(pdf::PDFAppToolPageGrid::TileSize::Large)))
+            {
+                return false;
+            }
+            current = mergeGui(run);
+            QPointer<pdf::PDFSegmentedControl> viewSwitch = current ? current->getCanvas()->getViewSwitch() : nullptr;
+            if (!viewSwitch)
+            {
+                return false;
+            }
+            viewSwitch->setCurrentIndex(1);
+            settle();
+            if (viewSwitch)
+            {
+                viewSwitch->setCurrentIndex(0);
+            }
+            settle();
+            return true;
+        });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            // Undo of the tab, a file moved by Alt + Down
+            if (!run.toolTab || !run.toolTab->executeCommand(pdf::PDFAppCommands::undo()))
+            {
+                return false;
+            }
+            settle();
+            pdf::PDFAppMergeToolGUI* current = mergeGui(run);
+            const std::vector<pdf::PDFAppToolInputRow*> rows = current ? current->getFilesPanel()->getRows() : std::vector<pdf::PDFAppToolInputRow*>();
+            if (rows.empty())
+            {
+                return false;
+            }
+            QPointer<pdf::PDFAppToolInputRow> row = rows.front();
+            row->setFocus();
+            QTest::keyClick(row, Qt::Key_Down, Qt::AltModifier);
+            settle();
+            return true;
+        });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFDocumentToolShell* current = shell(run);
+            if (!current || !click(current->getToolbar() ? current->getToolbar()->getConfirmButton() : nullptr))
+            {
+                return false;
+            }
+            pdftest::AppToolShellFixture::waitFor([&run]()
+            {
+                const pdf::PDFDocumentToolShell* waited = shell(run);
+                return !run.toolTab || !waited || waited->getState() == pdf::PDFDocumentToolShell::State::Deciding;
+            });
+            current = shell(run);
+            pdf::PDFAppToolResultDialog* dialog = current ? current->getResultDialog() : nullptr;
+            if (!dialog || !click(dialog->getConfirmButton()))
+            {
+                return false;
+            }
+            pdftest::AppToolShellFixture::waitFor([&run]() { return isNewDocumentReady(run); });
+            return isNewDocumentReady(run);
+        });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            return run.window && run.window->getToolTabs().isEmpty();
+        });
+    }
+
     /// The first panel button of the toolbar of a real tool
     static QToolButton* firstPanelButton(const ToolPagesLifetimeRun& run)
     {
@@ -987,6 +1405,22 @@ std::vector<ToolPagesLifetimeStep> ToolPagesLifetimeHelper::scenario(const QStri
 {
     using H = ToolPagesLifetimeHelper;
     std::vector<ToolPagesLifetimeStep> steps;
+
+    if (name == QLatin1String("owntabblankgui"))
+    {
+        addBlankGuiSteps(&steps);
+        return steps;
+    }
+    if (name == QLatin1String("owntabmergegui"))
+    {
+        addMergeGuiSteps(&steps);
+        return steps;
+    }
+    if (isOwnTabScenario(name))
+    {
+        addOwnTabSteps(name, &steps);
+        return steps;
+    }
 
     if (name == QLatin1String("parameters"))
     {
@@ -1692,7 +2126,8 @@ private:
     {
         return { QStringLiteral("parameters"), QStringLiteral("run"), QStringLiteral("leave"), QStringLiteral("compress"), QStringLiteral("compressrun"),
                  QStringLiteral("rotate"), QStringLiteral("remove"), QStringLiteral("sanitize"), QStringLiteral("removelinks"), QStringLiteral("structure"),
-                 QStringLiteral("extracttext") };
+                 QStringLiteral("extracttext"), QStringLiteral("owntabaccept"), QStringLiteral("owntabcontinue"), QStringLiteral("owntabblank"),
+                 QStringLiteral("owntabblankgui"), QStringLiteral("owntabmergegui") };
     }
 
     /// Runs the scenario. In the replay mode the victim is deleted at the target
@@ -1741,11 +2176,21 @@ void AppToolPagesLifetimeTest::deleteFromEverySignal_data()
 void AppToolPagesLifetimeTest::runScenario(const QString& name, ToolPagesLifetimeRecorder::Mode mode, const ToolPagesLifetimeRecorder::Site& target, ToolPagesLifetimeVictim victim,
                                            std::vector<ToolPagesLifetimeRecorder::Site>* sites, bool* isFired, bool* isDeferred, bool* isReached)
 {
-    pdftest::AppToolShellFixture fixture;
+    pdftest::AppToolOwnTabFixture fixture;
     QVERIFY(fixture.window);
 
     ToolPagesLifetimeRun run;
     run.fixture = &fixture;
+    const bool isOwnTab = ToolPagesLifetimeHelper::isOwnTabScenario(name);
+    if (isOwnTab && name != QLatin1String("owntabmergegui"))
+    {
+        // The test tool of the own tab (the real GUI of Merge in "owntabmergegui") (Merge, Blank PDF without the dialog) and a test tool of
+        // Compress for Then continue with
+        run.ownTabTool = name == QLatin1String("owntabblank") ? fixture.registerOwnTabTool(QStringLiteral("convert.blank"), true, QStringLiteral("New document"))
+                                                              : fixture.registerOwnTabTool(QStringLiteral("pages.merge"));
+        QVERIFY(run.ownTabTool);
+        QVERIFY(fixture.registerShellTool(QStringLiteral("optimize.compress")));
+    }
     const QString realToolId = ToolPagesLifetimeHelper::getScenarioToolId(name);
     const bool isRealTool = !realToolId.isEmpty();
     run.toolId = isRealTool ? realToolId : QStringLiteral("pages.rotate");
@@ -1779,7 +2224,8 @@ void AppToolPagesLifetimeTest::runScenario(const QString& name, ToolPagesLifetim
                     break;
 
                 case ToolPagesLifetimeVictim::Tab:
-                    object = qobject_cast<pdf::PDFAppDocumentTab*>(run.tab.data());
+                    // The own tab of a tool while it exists, else the document tab
+                    object = run.toolTab ? static_cast<QObject*>(qobject_cast<pdf::PDFAppToolTab*>(run.toolTab.data())) : qobject_cast<pdf::PDFAppDocumentTab*>(run.tab.data());
                     break;
 
                 case ToolPagesLifetimeVictim::Page:
@@ -1862,7 +2308,17 @@ void AppToolPagesLifetimeTest::runScenario(const QString& name, ToolPagesLifetim
         QTest::qWait(pdf::PDFDocumentToolRunner::PREVIEW_DELAY + 50);
         pdftest::AppDocumentFixture::settle();
 
-        switch (victim)
+        if (isOwnTab && victim != ToolPagesLifetimeVictim::Window)
+        {
+            // The window lives, the document is free; the own tab of the tool opens again
+            QVERIFY(run.window);
+            QVERIFY(!run.tab || !run.tab->getDocument()->isBlockedByOperation());
+            QPointer<pdf::PDFAppToolTab> again = fixture.createToolTab(name.startsWith(QLatin1String("owntabblank")) ? QStringLiteral("convert.blank") : QStringLiteral("pages.merge"));
+            QVERIFY(again);
+            QVERIFY(again->getShell());
+            QCOMPARE(again->getShell()->getState(), pdf::PDFDocumentToolShell::State::Editing);
+        }
+        else switch (victim)
         {
             case ToolPagesLifetimeVictim::Window:
                 QVERIFY(!run.window);
@@ -1991,7 +2447,8 @@ void AppToolPagesLifetimeTest::deleteFromEverySignal()
     // the order of the events may move to another step); a site, which came while the victim
     // does not exist, has nothing to delete. Only the tab and the window exist at each site.
     QVERIFY2(onlySite >= 0 || isSiteRange || replayed * 10 >= (replayed + int(notReproduced.size())) * 8, qPrintable(notReproduced.join(QLatin1Char('\n'))));
-    const bool isVictimAlways = victim == int(ToolPagesLifetimeVictim::Tab) || victim == int(ToolPagesLifetimeVictim::Window);
+    // (the own tab of a tool goes by the scenario itself: its tab is not always there)
+    const bool isVictimAlways = (victim == int(ToolPagesLifetimeVictim::Tab) && !ToolPagesLifetimeHelper::isOwnTabScenario(scenario)) || victim == int(ToolPagesLifetimeVictim::Window);
     QVERIFY2(onlySite >= 0 || isSiteRange || !isVictimAlways || withoutVictim == 0, qPrintable(QString::number(withoutVictim)));
     QVERIFY(replayed > 0 || onlySite >= 0 || isSiteRange);
 }
@@ -2028,7 +2485,7 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges()
     QFETCH(QString, popup);
     QFETCH(QString, change);
 
-    pdftest::AppToolShellFixture fixture;
+    pdftest::AppToolOwnTabFixture fixture;
     ToolPagesLifetimeRun run;
     run.fixture = &fixture;
     const bool isCustomPanel = popup == QLatin1String("custom");

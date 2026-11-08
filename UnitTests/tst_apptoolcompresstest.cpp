@@ -3400,7 +3400,7 @@ void AppToolCompressTest::noGuiStaysNotFound()
 {
     // Chapter 8: a tool without its GUI stays Page Not Found; Compress with its GUI has its page
     AppToolShellFixture fixture(QSize(1440, 960));
-    fixture.navigate(QStringLiteral("/tools/pages.merge"));
+    fixture.navigate(QStringLiteral("/tools/pages.split"));
     QVERIFY(fixture.notFoundPage());
     fixture.navigate(QStringLiteral("/tools/optimize.compress"));
     QVERIFY(fixture.page<PDFToolStartPage>());

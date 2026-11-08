@@ -38,6 +38,7 @@
 #include "pdfappdocumenttoolspanel.h"
 #include "pdfappnavigator.h"
 #include "pdfapppagenotfound.h"
+#include "pdfapppassworddialog.h"
 #include "pdfapptoolpanelbuilder.h"
 #include "pdfapptoolpanelparts.h"
 #include "pdfapptoolpresentation.h"
@@ -5089,12 +5090,19 @@ void AppToolShellTest::shellFlowCopyOpensCopy()
     QVERIFY(dialog);
     QCOMPARE(dialog->getSelectedChoice(), Choice::Copy);
 
-    // The first of the row (the order of O21)
-    const QStringList successors = dialog->getContinueToolIds();
-    QVERIFY(!successors.isEmpty());
+    // The first of the row (the order of O21), which works in the tab of a document: a tool with
+    // its own tab (Merge) opens its own tab over the copy (plan of step 2 of phase 2, 4.1)
+    QStringList successors = dialog->getContinueToolIds();
+    int successorIndex = 0;
+    while (successorIndex < successors.size() && pdf::PDFDocumentToolCatalog::findTool(successors[successorIndex])->hasOwnTab())
+    {
+        ++successorIndex;
+    }
+    QVERIFY(successorIndex < successors.size());
+    successors = successors.mid(successorIndex);
     QVERIFY(fixture.registerShellTool(successors.front()));
     dialog->getFileNameField()->setText(QStringLiteral("copy-of-shell.pdf"));
-    dialog->getContinueWith()->setSelectedChoice(0);
+    dialog->getContinueWith()->setSelectedChoice(successorIndex);
     dialog->confirm();
     QVERIFY(AppToolShellFixture::waitFor([&]() { return fixture.currentTab() != tab; }));
     pdf::PDFAppDocumentTab* copyTab = nullptr;
@@ -5453,35 +5461,37 @@ void AppToolShellTest::shellPageNotFoundWithoutGUI()
     // A tool without a GUI or without an implementation keeps Page Not Found, also a
     // route of another document; a document page without a tool behaves as before
     using H = ToolShellFlowHelper;
+    // A tool of the catalog without its implementation (Merge has its GUI since step 2 of phase 2)
+    const QString TOOL_WITHOUT_GUI = QStringLiteral("pages.split");
     AppToolShellFixture fixture;
     pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
     QVERIFY(tab);
 
-    fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::documentTool(tab->getDocumentId(), TOOL_MERGE));
+    fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::documentTool(tab->getDocumentId(), TOOL_WITHOUT_GUI));
     AppToolShellFixture::settle();
     QVERIFY(fixture.notFoundPage());
-    QCOMPARE(fixture.notFoundPage()->getDescriptionText(), QString::fromUtf8("Tool “Merge”"));
+    QCOMPARE(fixture.notFoundPage()->getDescriptionText(), QString::fromUtf8("Tool “Split”"));
 
     // Only the implementation, only the GUI
-    std::shared_ptr<TestDocumentTool> tool = std::make_shared<TestDocumentTool>(TOOL_MERGE);
+    std::shared_ptr<TestDocumentTool> tool = std::make_shared<TestDocumentTool>(TOOL_WITHOUT_GUI);
     QCOMPARE(pdf::PDFDocumentToolRegistry::registerTool(tool), pdf::PDFDocumentToolRegistration::Registered);
     fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::document(tab->getDocumentId()));
     AppToolShellFixture::settle();
-    fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::documentTool(tab->getDocumentId(), TOOL_MERGE));
+    fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::documentTool(tab->getDocumentId(), TOOL_WITHOUT_GUI));
     AppToolShellFixture::settle();
     QVERIFY(fixture.notFoundPage());
-    QVERIFY(pdf::PDFDocumentToolRegistry::unregisterTool(TOOL_MERGE));
+    QVERIFY(pdf::PDFDocumentToolRegistry::unregisterTool(TOOL_WITHOUT_GUI));
 
-    QVERIFY(pdf::PDFDocumentToolGUIRegistry::registerFactory(TOOL_MERGE, std::make_shared<pdftest::ShellTestGUIFactory>(false)));
-    QVERIFY(pdf::PDFAppToolPageRegistry::hasPage(pdf::PDFAppToolPageKind::Document, TOOL_MERGE));
+    QVERIFY(pdf::PDFDocumentToolGUIRegistry::registerFactory(TOOL_WITHOUT_GUI, std::make_shared<pdftest::ShellTestGUIFactory>(false)));
+    QVERIFY(pdf::PDFAppToolPageRegistry::hasPage(pdf::PDFAppToolPageKind::Document, TOOL_WITHOUT_GUI));
     fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::document(tab->getDocumentId()));
     AppToolShellFixture::settle();
-    fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::documentTool(tab->getDocumentId(), TOOL_MERGE));
+    fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::documentTool(tab->getDocumentId(), TOOL_WITHOUT_GUI));
     AppToolShellFixture::settle();
     QVERIFY(fixture.notFoundPage());
-    pdf::PDFDocumentToolGUIRegistry::unregisterFactory(TOOL_MERGE);
-    QVERIFY(!pdf::PDFAppToolPageRegistry::hasPage(pdf::PDFAppToolPageKind::Document, TOOL_MERGE));
-    QVERIFY(pdf::PDFDocumentToolGUIRegistry::getTools().isEmpty() || !pdf::PDFDocumentToolGUIRegistry::getTools().contains(TOOL_MERGE));
+    pdf::PDFDocumentToolGUIRegistry::unregisterFactory(TOOL_WITHOUT_GUI);
+    QVERIFY(!pdf::PDFAppToolPageRegistry::hasPage(pdf::PDFAppToolPageKind::Document, TOOL_WITHOUT_GUI));
+    QVERIFY(pdf::PDFDocumentToolGUIRegistry::getTools().isEmpty() || !pdf::PDFDocumentToolGUIRegistry::getTools().contains(TOOL_WITHOUT_GUI));
 
     // An id outside of the catalog is refused
     QVERIFY(!pdf::PDFDocumentToolGUIRegistry::registerFactory(QStringLiteral("no.such-tool"), std::make_shared<pdftest::ShellTestGUIFactory>(false)));
@@ -5544,7 +5554,10 @@ void AppToolShellTest::shellDisplayVersionRefused()
 void AppToolShellTest::shellPermissionRefused()
 {
     // 339:10328 (owner answer C): a document without the permission of the tool shows the
-    // panels disabled for it and the message box over the canvas, Close leaves the tool
+    // panels disabled for it and a dialog over the canvas; a document, which its owner
+    // password can unlock (owner 2026-11-08), asks for the password in it (the refusal
+    // 339:10328 stays for the public-key handler, UnitTestsAppOwnerPassword), Cancel leaves
+    // the tool
     using H = ToolShellFlowHelper;
     AppToolShellFixture fixture;
     // Remove External Links needs the permission of the annotations, which the sample does not give
@@ -5562,13 +5575,14 @@ void AppToolShellTest::shellPermissionRefused()
     QVERIFY(!shell->getToolbar()->getConfirmButton()->isEnabled());
     QVERIFY(tab->getView()->getToolMessage().contains(QStringLiteral("does not allow")));
 
-    pdf::PDFMessageBox* box = shell->getPermissionDialog();
+    pdf::PDFAppPasswordDialog* box = qobject_cast<pdf::PDFAppPasswordDialog*>(shell->getPermissionDialog());
     QVERIFY(box && box->isVisible());
-    QCOMPARE(box->getCardWidth(), 480);
-    QCOMPARE(box->getScrimTarget(), tab->getView()->getCanvasArea());
-    QPushButton* closeButton = box->findChild<QPushButton*>(QStringLiteral("toolPermissionClose"));
+    QVERIFY(box->isDocumentMode());
+    QCOMPARE(box->getDocument(), tab->getDocument());
+    QVERIFY(box->getText().contains(QStringLiteral("which Remove External Links needs")));
+    QPushButton* closeButton = box->getCancelButton();
     QVERIFY(closeButton);
-    QCOMPARE(closeButton->text(), QStringLiteral("Close"));
+    QCOMPARE(closeButton->text(), QStringLiteral("Cancel"));
     QVERIFY(!closeButton->property(pdf::PDFWidgetStyleProperties::PRIMARY).toBool());
 
     // Nothing runs behind it
