@@ -362,7 +362,7 @@ void PDFAppInsertPositionStrip::paintEvent(QPaintEvent* event)
         }
         if (std::binary_search(m_replacedPages.cbegin(), m_replacedPages.cend(), PDFInteger(item.pageIndex)))
         {
-            tile.tileState = PDFComponentPainter::PageTileState::Marked;
+            tile.tileState = PDFComponentPainter::PageTileState::Replaced;
             tile.caption = tr("replaced");
             tile.badgeIconName = QStringLiteral("replace");
         }

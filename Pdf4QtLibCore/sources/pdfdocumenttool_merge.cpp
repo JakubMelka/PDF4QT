@@ -751,8 +751,9 @@ std::vector<PDFDocumentToolParameterError> PDFDocumentToolBlank::checkGivenParam
     return errors;
 }
 
-QVariantMap PDFDocumentToolBlank::completeGivenParameters(const QVariantMap& given) const
+QVariantMap PDFDocumentToolBlank::completeGivenParameters(const PDFDocumentToolContext& context, const QVariantMap& given) const
 {
+    Q_UNUSED(context);
     using Helper = PDFDocumentToolMergeHelper;
 
     // Owner answer Q22 (as the GUI, Q14): a presentation page without an orientation is on its

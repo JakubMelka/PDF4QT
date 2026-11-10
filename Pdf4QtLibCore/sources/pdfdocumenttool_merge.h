@@ -266,7 +266,7 @@ public:
     virtual PDFDocumentToolParameterDefinitions getParameters() const override;
     virtual std::vector<PDFDocumentToolParameterError> validate(const PDFDocumentToolContext& context, const QVariantMap& parameters) const override;
     virtual std::vector<PDFDocumentToolParameterError> checkGivenParameters(const QVariantMap& given) const override;
-    virtual QVariantMap completeGivenParameters(const QVariantMap& given) const override;
+    virtual QVariantMap completeGivenParameters(const PDFDocumentToolContext& context, const QVariantMap& given) const override;
     virtual PDFDocumentToolResult execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const override;
 };
 

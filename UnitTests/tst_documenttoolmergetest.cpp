@@ -713,7 +713,7 @@ void DocumentToolMergeTest::blankResult()
     QCOMPARE(mediaBoxOf(parameters({ { "pageSize", QStringLiteral("16x9") }, { "orientation", QStringLiteral("landscape") } })), QRectF(0, 0, 960, 540));
     QCOMPARE(mediaBoxOf(parameters({ { "pageSize", QStringLiteral("letter") } })), QRectF(0, 0, 612, 792));
     QCOMPARE(tool.run(context, parameters({ { "pageSize", QStringLiteral("16x9") } }), nullptr, nullptr).data.value(QStringLiteral("orientation")).toString(), QStringLiteral("landscape"));
-    QVERIFY(!tool.completeGivenParameters(parameters({ { "pageSize", QStringLiteral("a4") } })).contains(QStringLiteral("orientation")));
+    QVERIFY(!tool.completeGivenParameters(context, parameters({ { "pageSize", QStringLiteral("a4") } })).contains(QStringLiteral("orientation")));
 }
 
 void DocumentToolMergeTest::catalogRows()

@@ -33,6 +33,7 @@
 #include "pdfappmainwindow.h"
 #include "pdfappimagepagepreview.h"
 #include "pdfapppassworddialog.h"
+#include "pdfapptoolgui_images.h"
 #include "pdfapptoolgui_insert.h"
 #include "pdfapptoolinputrow.h"
 #include "pdfapptoolinsertstrip.h"
@@ -62,6 +63,7 @@
 #include <QPainter>
 #include <QRadioButton>
 #include <QStandardItemModel>
+#include <QToolButton>
 #include <QTranslator>
 #include <QtTest>
 
@@ -577,6 +579,28 @@ void AppToolInsertTest::positionMenuAndReplace()
                                                  QStringLiteral("13@0,148"), QStringLiteral("14@89,148"), QStringLiteral("15@178,148") }));
     QCOMPARE(gui->getStripHint()->text(), QStringLiteral("Pages 13–14 are selected in Thumbnails and will be replaced by the inserted pages."));
 
+    // Owner 2026-11-09 (388:17167): a replaced page has the amber badge (accent/amber, #C2410C in
+    // the light theme) - not the red one of a removed page (Replaced of the page tile)
+    {
+        const QImage picture = strip->viewport()->grab().toImage();
+        const qreal ratio = picture.devicePixelRatio();
+        const QColor amber = pdf::PDFThemeManager::getInstance()->getColor(pdf::PDFThemeColors::AccentAmberIcon);
+        const QColor red = pdf::PDFThemeManager::getInstance()->getColor(pdf::PDFThemeColors::AccentRedIcon);
+        int amberCount = 0;
+        int redCount = 0;
+        for (int y = int(148 * ratio); y < qMin(picture.height(), int((148 + 40) * ratio)); ++y)
+        {
+            for (int x = 0; x < qMin(picture.width(), int(89 * ratio)); ++x)
+            {
+                const QColor color = picture.pixelColor(x, y);
+                const auto distance = [&color](const QColor& other) { return qAbs(color.red() - other.red()) + qAbs(color.green() - other.green()) + qAbs(color.blue() - other.blue()); };
+                amberCount += distance(amber) < 40 ? 1 : 0;
+                redCount += distance(red) < 40 ? 1 : 0;
+            }
+        }
+        QVERIFY2(amberCount > 0 && redCount == 0, qPrintable(QStringLiteral("%1 %2").arg(amberCount).arg(redCount)));
+    }
+
     // A click on the strip leaves Replace
     H::click(strip->viewport(), H::tilePoint(strip, 9, false));
     QCOMPARE(gui->getPositionValueText(), QStringLiteral("After page 10"));
@@ -617,8 +641,12 @@ void AppToolInsertTest::blankPages()
     QCOMPARE(view->visualRect(model->index(0)), QRect(0, 0, 173, 264));
     QCOMPARE(view->visualRect(model->index(1)), QRect(181, 0, 173, 264));
     QCOMPARE(view->getContentHeight(), 264);
-    // 388:16811 has no hint below the blank pages
+    // 388:16811 has no hint below the blank pages, and the toolbar button removing the selected
+    // source (tb-remove-source 388:16916) is Disabled: the blank pages alone are no source card
     QVERIFY(gui->getCanvas()->getHintLabel()->isHidden());
+    QToolButton* removeSource = gui->getAction(QStringLiteral("remove"));
+    QVERIFY(removeSource);
+    QVERIFY(!removeSource->isEnabled());
     // The page of the tile is the slot of the delegate scaled for the blank pages
     const pdf::PDFAppToolPageTileDelegate* delegate = qobject_cast<const pdf::PDFAppToolPageTileDelegate*>(gui->getCanvas()->getDelegate());
     QVERIFY(delegate);
@@ -628,6 +656,11 @@ void AppToolInsertTest::blankPages()
     QVERIFY(H::waitLoaded(gui->getSourceList()));
     QVERIFY(!model->getGroups()[0].isPlain);
     QVERIFY(!gui->getCanvas()->getHintLabel()->isHidden());
+    // The cards of the sources: the selected one can be removed (388:15487)
+    QVERIFY(removeSource->isEnabled());
+    gui->setCurrentSource(QStringLiteral("blank"));
+    AppToolShellFixture::settle();
+    QVERIFY(removeSource->isEnabled());
     QCOMPARE(model->getGroups()[0].title, QStringLiteral("Blank pages"));
     QCOMPARE(view->getTileSize(0), QSize(173, 264));
     QCOMPARE(view->getTileSize(1), QSize(85, 128));
@@ -636,6 +669,7 @@ void AppToolInsertTest::blankPages()
     shell->getModel()->undo();
     AppToolShellFixture::settle();
     QVERIFY(model->getGroups()[0].isPlain);
+    QVERIFY(!removeSource->isEnabled());
     gui->setCurrentSource(QStringLiteral("blank"));
     AppToolShellFixture::settle();
     QVERIFY(gui->getBlankSection()->isVisible());
@@ -648,6 +682,18 @@ void AppToolInsertTest::blankPages()
     const QVariantMap parameters = gui->getRunParameters();
     QCOMPARE(parameters.value(QStringLiteral("inputs")).toString(), QStringLiteral("blank"));
     QCOMPARE(parameters.value(QStringLiteral("blankPages")).toLongLong(), 2);
+
+    // Owner 2026-11-09 (388:16811): Orientation is enabled with "As page 12", which starts in the
+    // orientation of page 12 (A4 portrait); Landscape turns its size - A4 landscape
+    QWidget* orientation = shell->getRightPanel()->findChild<QWidget*>(QStringLiteral("insertBlankOrientation"));
+    QVERIFY(orientation);
+    QVERIFY(orientation->isEnabled());
+    QCOMPARE(H::parameter(shell, "blankOrientation"), QStringLiteral("portrait"));
+    QVERIFY(shell->getModel()->setValue(QStringLiteral("blankOrientation"), QStringLiteral("landscape")).isEmpty());
+    AppToolShellFixture::settle();
+    QCOMPARE(model->getRow(0)->caption, QStringLiteral("blank · A4 landscape"));
+    QCOMPARE(gui->getBlankNote()->text(), QStringLiteral("Same as page 12: A4, 297 × 210 mm."));
+    QCOMPARE(gui->getBlankSizeCombo()->currentText(), QStringLiteral("As page 12"));
 
     // Letter, landscape: the tiles say it
     const int letter = gui->getBlankSizeCombo()->findData(QStringLiteral("letter"));
@@ -1009,6 +1055,18 @@ void AppToolInsertTest::addImageFrame()
     QVERIFY(rows[0]->getContent().firstLine.startsWith(QStringLiteral("403 × 302 px · ")));
     QCOMPARE(rows[0]->getContent().secondLine, QStringLiteral("New page 13 · A4 landscape"));
     QCOMPARE(rows[1]->getContent().secondLine, QStringLiteral("New page 14 · A4 portrait"));
+    // RS3FIGMA M10 (thumb 336:2128 as Images to PDF): the rows show the pictures of the images,
+    // decoded in the pool, the longer side at most 128 pixels (403 x 302 -> 128 x 96)
+    QVERIFY(AppToolShellFixture::waitFor([gui]()
+    {
+        const std::vector<pdf::PDFAppToolInputRow*> shownRows = gui->getImagesPanel()->getRows();
+        return shownRows.size() == 2 && !shownRows[0]->getContent().thumbnail.isNull() && !shownRows[1]->getContent().thumbnail.isNull();
+    }));
+    QVERIFY(gui->getImagesPanel()->getRows()[0]->getContent().hasThumbnail);
+    QCOMPARE(gui->getImagesPanel()->getRows()[0]->getContent().thumbnail.width(), 128);
+    QVERIFY(qAbs(gui->getImagesPanel()->getRows()[0]->getContent().thumbnail.height() - 96) <= 1);
+    QCOMPARE(gui->getImagesPanel()->getRows()[1]->getContent().thumbnail.height(), 128);
+    QCOMPARE(gui->getThumbnailCache()->getPendingCount(), 0);
     QVERIFY(gui->getStrip());
     QVERIFY(H::inWindow(gui->getStrip()).top() > H::inWindow(gui->getImagesPanel()).top());
     QCOMPARE(gui->getStrip()->getGap(), 12);
@@ -1041,6 +1099,9 @@ void AppToolInsertTest::addImageFrame()
     QCOMPARE(H::parameter(shell, "turns"), QStringLiteral("90,"));
     QCOMPARE(gui->getImagesPanel()->getRows()[0]->getContent().secondLine, QStringLiteral("New page 13 · A4 portrait"));
     QCOMPARE(gui->getImagesPanel()->getRows()[0]->getContent().tag, QStringLiteral("rotated 90°"));
+    // M10: the thumbnail of the row is turned with the image
+    QCOMPARE(gui->getImagesPanel()->getRows()[0]->getContent().thumbnail.height(), 128);
+    QVERIFY(qAbs(gui->getImagesPanel()->getRows()[0]->getContent().thumbnail.width() - 96) <= 1);
 
     // Custom: Width and Height appear in Page layout
     QVERIFY(shell->getModel()->setValue(QStringLiteral("pageSize"), QStringLiteral("custom")).isEmpty());

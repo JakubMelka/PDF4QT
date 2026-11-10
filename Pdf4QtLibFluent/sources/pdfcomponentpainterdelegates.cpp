@@ -1248,6 +1248,7 @@ PDFComponentPainter::PageTileState PDFComponentPainter::normalized(PageTileState
         case PageTileState::Normal:
         case PageTileState::Selected:
         case PageTileState::Marked:
+        case PageTileState::Replaced:
             return tileState;
     }
     return PageTileState::Normal;
@@ -1338,6 +1339,8 @@ void PDFComponentPainter::paintPageTile(QPainter* painter, const QRectF& rect, c
     const PageTileState tileState = normalized(tile.tileState);
     const bool isSelected = tileState == PageTileState::Selected;
     const bool isMarked = tileState == PageTileState::Marked;
+    const bool isReplaced = tileState == PageTileState::Replaced;
+    const bool isDimmed = isMarked || isReplaced;
     const Helper::Radii radii(Helper::PAGE_TILE_RADIUS);
 
     const PDFStylePainterGuard guard(painter);
@@ -1357,18 +1360,19 @@ void PDFComponentPainter::paintPageTile(QPainter* painter, const QRectF& rect, c
     }
 
     // The page: the paper with its border below the picture, which covers it. A
-    // marked page is dimmed by the opacities of the layers of 388:20614, so its
-    // border shows through (a content preview, not a control, rule N-22).
+    // marked or replaced page is dimmed by the opacities of the layers of 388:20614
+    // and 388:17167, so its border shows through (a content preview, not a control,
+    // rule N-22).
     const QRectF page = getPageTilePageRect(rect, tile);
     {
         const PDFStylePainterGuard paperGuard(painter);
-        painter->setOpacity(painter->opacity() * (isMarked ? Helper::PAGE_TILE_PAPER_OPACITY : 1.0));
+        painter->setOpacity(painter->opacity() * (isDimmed ? Helper::PAGE_TILE_PAPER_OPACITY : 1.0));
         PDFStylePainter::fillRect(painter, page, Color::SampleWhite);
         PDFStylePainter::strokeInside(painter, page, Helper::Radii(0.0), Color::BorderStrong, 1.0);
     }
     {
         const PDFStylePainterGuard previewGuard(painter);
-        painter->setOpacity(painter->opacity() * (isMarked ? Helper::PAGE_TILE_PREVIEW_OPACITY : 1.0));
+        painter->setOpacity(painter->opacity() * (isDimmed ? Helper::PAGE_TILE_PREVIEW_OPACITY : 1.0));
         PDFStylePainter::fillRect(painter, page, Color::ReadingPaperPage);
         if (!tile.pixmap.isNull())
         {
@@ -1376,11 +1380,11 @@ void PDFComponentPainter::paintPageTile(QPainter* painter, const QRectF& rect, c
         }
     }
 
-    // The badge at the corner of the page
+    // The badge at the corner of the page: red deletes, amber replaces (accent/amber/*), blue changes
     const QRectF badgeRect = getPageTileBadgeRect(rect, tile, state);
     if (!badgeRect.isEmpty())
     {
-        const PDFAccentHue hue = isMarked ? PDFAccentHue::Red : PDFAccentHue::Blue;
+        const PDFAccentHue hue = isMarked ? PDFAccentHue::Red : (isReplaced ? PDFAccentHue::Amber : PDFAccentHue::Blue);
         const Helper::Radii badgeRadii(Helper::PAGE_TILE_BADGE / 2.0);
         PDFStylePainter::fill(painter, badgeRect, badgeRadii, PDFAccentHueColors::getColor(hue, PDFAccentHueColors::Role::Background));
         PDFStylePainter::strokeInside(painter, badgeRect, badgeRadii, PDFAccentHueColors::getColor(hue, PDFAccentHueColors::Role::Border), 1.0);

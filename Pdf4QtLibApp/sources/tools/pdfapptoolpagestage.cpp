@@ -43,6 +43,7 @@
 #include <QMutexLocker>
 #include <QPainter>
 #include <QScrollArea>
+#include <QStyle>
 #include <QThreadPool>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -170,6 +171,7 @@ public:
     explicit PDFAppToolPageArrow(QWidget* parent) :
         QWidget(parent)
     {
+        setObjectName(QStringLiteral("toolPageArrow"));
         setFixedWidth(PDFAppToolPageCanvas::COLUMN_GAP);
         setAttribute(Qt::WA_TransparentForMouseEvents, true);
     }
@@ -180,7 +182,14 @@ protected:
         Q_UNUSED(event);
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
-        PDFStylePainter::icon(&painter, PDFStylePainter::centered(QRectF(rect()), QSizeF(16, 16)), QStringLiteral("chevron-right"), PDFThemeColors::IconMuted);
+        PDFStylePainter::icon(&painter, PDFStylePainter::centered(QRectF(rect()), QSizeF(16, 16)), getIconName(), PDFThemeColors::IconMuted);
+    }
+
+public:
+    /// From Now to After: right to left the chevron points to the left (After is there)
+    QString getIconName() const
+    {
+        return layoutDirection() == Qt::RightToLeft ? QStringLiteral("chevron-left") : QStringLiteral("chevron-right");
     }
 };
 
@@ -325,13 +334,155 @@ double PDFAppToolPageStage::getScale() const
         return ACTUAL_DPI / 72.0 * (page ? page->getEffectiveUserUnit() : 1.0);
     }
 
-    const QRectF area = QRectF(rect()).adjusted(MARGIN, MARGIN, -MARGIN, -MARGIN);
-    if (area.isEmpty())
+    // M11: the sheet with its texts takes FIT_SHARE of the stage (the frames), never more than the
+    // stage without its margins
+    const double textHeight = getTextHeight(true) + getTextHeight(false);
+    const QSizeF room(width() - 2.0 * MARGIN, height() - 2.0 * MARGIN - textHeight);
+    if (room.width() <= 0.0 || room.height() <= 0.0)
+    {
+        return 0.0;
+    }
+    const QSizeF share(width() * FIT_SHARE, (height() - textHeight) * FIT_SHARE);
+    const QSizeF area(qMin(room.width(), share.width()), qMin(room.height(), share.height()));
+    if (area.width() <= 0.0 || area.height() <= 0.0)
     {
         return 0.0;
     }
     const QSizeF fitted = m_fitExtent.isEmpty() ? sheet : m_fitExtent.expandedTo(sheet);
     return qMin(area.width() / fitted.width(), area.height() / fitted.height());
+}
+
+int PDFAppToolPageStage::getWidgetHeight(const QWidget* widget, int width)
+{
+    if (!widget || widget->isHidden())
+    {
+        return -1;
+    }
+    return widget->hasHeightForWidth() ? widget->heightForWidth(width) : widget->sizeHint().height();
+}
+
+int PDFAppToolPageStage::getTextHeight(bool isAbove) const
+{
+    const int textWidth = qMax(1, width() - 2 * MARGIN);
+    int height = 0;
+    if (isAbove)
+    {
+        const int textHeight = getWidgetHeight(m_textAbove.data(), textWidth);
+        return textHeight >= 0 ? m_textGap + textHeight : 0;
+    }
+    for (const QPointer<QWidget>& text : m_textsBelow)
+    {
+        const int textHeight = getWidgetHeight(text.data(), textWidth);
+        if (textHeight >= 0)
+        {
+            height += m_textGap + textHeight;
+        }
+    }
+    return height;
+}
+
+bool PDFAppToolPageStage::isText(const QWidget* widget) const
+{
+    if (widget && widget == m_textAbove.data())
+    {
+        return true;
+    }
+    for (const QPointer<QWidget>& text : m_textsBelow)
+    {
+        if (widget && widget == text.data())
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void PDFAppToolPageStage::setTexts(QWidget* above, const std::vector<QWidget*>& below, int gap)
+{
+    m_textAbove = above;
+    m_textsBelow.clear();
+    for (QWidget* text : below)
+    {
+        if (text)
+        {
+            m_textsBelow.emplace_back(text);
+        }
+    }
+    m_textGap = qMax(0, gap);
+    if (above)
+    {
+        above->setParent(this);
+    }
+    for (QWidget* text : below)
+    {
+        if (text)
+        {
+            text->setParent(this);
+        }
+    }
+    updateTextGeometry();
+}
+
+void PDFAppToolPageStage::setVerticalAlignment(Qt::Alignment alignment)
+{
+    const Qt::Alignment vertical = alignment & Qt::AlignTop ? Qt::AlignTop : Qt::AlignVCenter;
+    if (m_verticalAlignment != vertical)
+    {
+        m_verticalAlignment = vertical;
+        onGeometryChanged();
+    }
+}
+
+void PDFAppToolPageStage::setHorizontalAlignment(Qt::Alignment alignment)
+{
+    // Qt::AlignLeading or Qt::AlignTrailing (mirrored right to left), anything else is centered
+    Qt::Alignment horizontal = Qt::AlignHCenter;
+    if (alignment & Qt::AlignLeading)
+    {
+        horizontal = Qt::AlignLeading;
+    }
+    else if (alignment & Qt::AlignTrailing)
+    {
+        horizontal = Qt::AlignTrailing;
+    }
+    if (m_horizontalAlignment != horizontal)
+    {
+        m_horizontalAlignment = horizontal;
+        onGeometryChanged();
+    }
+}
+
+void PDFAppToolPageStage::updateTextGeometry()
+{
+    onGeometryChanged();
+}
+
+void PDFAppToolPageStage::layoutTexts()
+{
+    // Directly above and below the sheet (M11), centered on it and as wide as the stage allows
+    // on both sides of its center without the margins (the whole stage for a centered sheet, the
+    // sheet at a side); the texts are not mirrored, they are centered
+    const QRectF sheetRect = getSheetRect();
+    const double sheetCenter = sheetRect.isEmpty() ? width() * 0.5 : sheetRect.center().x();
+    const int halfWidth = qMax(1, qFloor(qMin(sheetCenter, width() - sheetCenter)) - MARGIN);
+    const int textLeft = qRound(sheetCenter) - halfWidth;
+    const int textWidth = 2 * halfWidth;
+    const int aboveHeight = getWidgetHeight(m_textAbove.data(), textWidth);
+    if (aboveHeight >= 0)
+    {
+        m_textAbove->setGeometry(textLeft, qRound(sheetRect.top()) - m_textGap - aboveHeight, textWidth, aboveHeight);
+    }
+    int top = qRound(sheetRect.bottom());
+    for (const QPointer<QWidget>& text : m_textsBelow)
+    {
+        const int height = getWidgetHeight(text.data(), textWidth);
+        if (height >= 0)
+        {
+            top += m_textGap;
+            text->setGeometry(textLeft, top, textWidth, height);
+            top += height;
+        }
+    }
 }
 
 void PDFAppToolPageStage::setFitExtent(const QSizeF& extent)
@@ -360,10 +511,22 @@ QRectF PDFAppToolPageStage::getSheetRect() const
         return QRectF();
     }
 
-    // Centered; 100 % keeps its margin at the top left in a larger stage
+    // Centered horizontally, or in Fit at the side of the stage towards the chevron (Resize
+    // 391:23594); vertically the sheet with its texts is centered or at the top (M11); 100 %
+    // keeps its margin at the top left in a larger stage. Whole pixels: the texts touch it.
     const QSizeF size(sheet.width() * scale, sheet.height() * scale);
     const QPointF center = QRectF(rect()).center();
-    return QRectF(QPointF(qMax(double(MARGIN), center.x() - size.width() * 0.5), qMax(double(MARGIN), center.y() - size.height() * 0.5)), size);
+    const double above = getTextHeight(true);
+    const double below = getTextHeight(false);
+    const double blockTop = m_verticalAlignment == Qt::AlignTop ? double(MARGIN) : center.y() - (above + size.height() + below) * 0.5;
+    double left = qMax(double(MARGIN), center.x() - size.width() * 0.5);
+    if (m_zoom == Zoom::Fit && m_horizontalAlignment != Qt::AlignHCenter)
+    {
+        const Qt::Alignment side = QStyle::visualAlignment(layoutDirection(), m_horizontalAlignment);
+        left = (side & Qt::AlignLeft) ? 0.0 : qMax(0.0, width() - size.width());
+    }
+    const double top = qMax(double(MARGIN), blockTop) + above;
+    return QRectF(QPointF(std::round(left), std::round(top)), size);
 }
 
 QRectF PDFAppToolPageStage::getPageRect() const
@@ -427,7 +590,7 @@ QSize PDFAppToolPageStage::sizeHint() const
 {
     if (m_zoom == Zoom::Actual)
     {
-        return getActualSize() + QSize(2 * MARGIN, 2 * MARGIN);
+        return getActualSize() + QSize(2 * MARGIN, 2 * MARGIN + getTextHeight(true) + getTextHeight(false));
     }
     return QSize(320, 420);
 }
@@ -443,10 +606,15 @@ QSize PDFAppToolPageStage::minimumSizeHint() const
 
 void PDFAppToolPageStage::onGeometryChanged()
 {
+    // The overlays cover the stage, the texts lie at the sheet
     for (QWidget* child : findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly))
     {
-        child->setGeometry(rect());
+        if (!isText(child))
+        {
+            child->setGeometry(rect());
+        }
     }
+    layoutTexts();
     updateGeometry();
     update();
     scheduleRender();
@@ -660,36 +828,33 @@ PDFAppToolPageCanvas::PDFAppToolPageCanvas(int stageCount, QWidget* parent) :
             columns->addWidget(new PDFAppToolPageArrow(content));
         }
 
-        QVBoxLayout* column = new QVBoxLayout();
-        column->setContentsMargins(0, 0, 0, 0);
-        column->setSpacing(4);
-        PDFLabel* stageTitle = PDFAppPageWidgets::createLabel(QString(), QFont::DemiBold, 13, PDFThemeColors::TextPrimary, content);
+        // M11: the title and the caption lie directly at the page (the stage places them); one
+        // page at the top of the stage (389:22819, gap 10), Now and After centered (391:23594,
+        // gap 8) at the chevron between them (gap 20, the chevron 20, gap 20). The title Semi
+        // Bold 12 (391:23595 "Now"), the caption Regular 11 (389:22819, 391:23595, 391:26688).
+        PDFAppToolPageStage* stage = new PDFAppToolPageStage(content);
+        stage->setObjectName(QStringLiteral("toolPageStage%1").arg(i));
+        PDFLabel* stageTitle = PDFAppPageWidgets::createLabel(QString(), QFont::DemiBold, 12, PDFThemeColors::TextPrimary, stage);
         stageTitle->setObjectName(QStringLiteral("toolStageTitle%1").arg(i));
         stageTitle->setAlignment(Qt::AlignHCenter);
         stageTitle->setVisible(false);
-        column->addWidget(stageTitle);
-        PDFAppToolPageStage* stage = new PDFAppToolPageStage(content);
-        stage->setObjectName(QStringLiteral("toolPageStage%1").arg(i));
-        column->addWidget(stage, 1);
-        PDFLabel* caption = PDFAppPageWidgets::createLabel(QString(), QFont::Normal, 12, PDFThemeColors::TextSecondary, content);
+        PDFLabel* caption = PDFAppPageWidgets::createLabel(QString(), QFont::Normal, 11, PDFThemeColors::TextSecondary, stage);
         caption->setObjectName(QStringLiteral("toolStageCaption%1").arg(i));
         caption->setAlignment(Qt::AlignHCenter);
         caption->setWordWrap(true);
-        column->addWidget(caption);
-        columns->addLayout(column, 1);
+        stage->setVerticalAlignment(count == 1 ? Qt::AlignTop : Qt::AlignVCenter);
+        if (count > 1)
+        {
+            stage->setHorizontalAlignment(i == 0 ? Qt::AlignTrailing : Qt::AlignLeading);
+        }
+        stage->setTexts(stageTitle, { caption }, count == 1 ? SINGLE_TEXT_GAP : DOUBLE_TEXT_GAP);
+        columns->addWidget(stage, 1);
 
         m_stages.emplace_back(stage);
         m_stageTitles.emplace_back(stageTitle);
         m_captions.emplace_back(caption);
     }
     contentLayout->addLayout(columns, 1);
-
-    m_bottomHolder = new QWidget(content);
-    m_bottomHolder->setObjectName(QStringLiteral("toolStageBottom"));
-    QVBoxLayout* bottomLayout = new QVBoxLayout(m_bottomHolder);
-    bottomLayout->setContentsMargins(0, 0, 0, 0);
-    m_bottomHolder->setVisible(false);
-    contentLayout->addWidget(m_bottomHolder);
 
     m_scrollArea->setWidget(content);
     layout->addWidget(m_scrollArea, 1);
@@ -710,6 +875,10 @@ void PDFAppToolPageCanvas::setStageTitle(int index, const QString& title)
         label->setText(title);
         label->setVisible(!title.isEmpty());
     }
+    if (PDFAppToolPageStage* stage = getStage(index))
+    {
+        stage->updateTextGeometry();
+    }
 }
 
 void PDFAppToolPageCanvas::setCaption(int index, const QString& caption, bool isError)
@@ -719,17 +888,23 @@ void PDFAppToolPageCanvas::setCaption(int index, const QString& caption, bool is
         label->setText(caption);
         label->setTextColor(isError ? PDFThemeColors::TextDanger : PDFThemeColors::TextSecondary);
     }
+    if (PDFAppToolPageStage* stage = getStage(index))
+    {
+        stage->updateTextGeometry();
+    }
 }
 
 void PDFAppToolPageCanvas::setBottomWidget(QWidget* widget)
 {
-    if (!m_bottomHolder || !widget)
+    PDFAppToolPageStage* stage = getStage(0);
+    if (!stage || !widget)
     {
         return;
     }
-    widget->setParent(m_bottomHolder);
-    m_bottomHolder->layout()->addWidget(widget);
-    m_bottomHolder->setVisible(true);
+
+    // 391:26688: the legend 10 below the sheet, the caption 10 below the legend
+    widget->show();
+    stage->setTexts(getStageTitleLabel(0), { widget, getCaptionLabel(0) }, getStageCount() == 1 ? SINGLE_TEXT_GAP : DOUBLE_TEXT_GAP);
 }
 
 void PDFAppToolPageCanvas::setZoom(PDFAppToolPageStage::Zoom zoom)

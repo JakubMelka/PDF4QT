@@ -348,6 +348,22 @@ PDFDocumentToolResult PDFDocumentToolFileOutput::writeFiles(const PDFDocumentToo
         return PDFDocumentToolResult::createFailed(error);
     }
 
+    // A phase per file named by the file (383:10232 "Handbook_3.pdf · file 3 of 4"): the reader
+    // of the progress knows the file being written and the files before it, the phases begin in
+    // this thread (the receiver below), the splitter itself reports nothing; the run of the tool
+    // finishes the phases (PDFDocumentTool::run)
+    if (progress && !files.empty())
+    {
+        std::vector<PDFProgressPhase> phases;
+        phases.reserve(files.size());
+        for (const File& file : files)
+        {
+            phases.push_back({ 1, file.fileName, false });
+        }
+        progress->setPhases(std::move(phases));
+        progress->beginPhase(0);
+    }
+
     // The receiver runs in this thread (PDFDocumentSplitter): the files are written one by
     // one, in their order - the order of the names and Stop
     qint64 sizeTotal = 0;
@@ -377,12 +393,18 @@ PDFDocumentToolResult PDFDocumentToolFileOutput::writeFiles(const PDFDocumentToo
         {
             sizeTotal += part.data.size();
         }
+
+        // The next file is being written
+        if (progress && part.partIndex + 1 < files.size())
+        {
+            progress->beginPhase(int(part.partIndex + 1));
+        }
         return !sink->isStopped();
     };
 
     PDFDocumentSplitter::Settings settings;
     settings.imageSettings = imageSettings;
-    const PDFDocumentSplitter::Result split = PDFDocumentSplitter::split(input.document.data(), parts, settings, control, progress, receiver);
+    const PDFDocumentSplitter::Result split = PDFDocumentSplitter::split(input.document.data(), parts, settings, control, nullptr, receiver);
 
     PDFDocumentToolResult result;
     result.writtenFiles = sink->getWrittenFiles();
@@ -841,8 +863,8 @@ PDFDocumentToolParameterDefinitions PDFDocumentToolExtract::getParameters() cons
                                                           QT_TR_NOOP("The pages, which are copied in the order of the document")).setRequired(true).setStored(false));
     definitions.push_back(Definition::createEnum(tr, Helper::name(PARAMETER_OUTPUT), QT_TR_NOOP("Output"), QT_TR_NOOP("What is made of the pages"),
                                                  {
-                                                     { QString::fromLatin1(OUTPUT_ONE_FILE), QT_TR_NOOP("One file"), QT_TR_NOOP("All selected pages in one new document") },
-                                                     { QString::fromLatin1(OUTPUT_FILE_PER_PAGE), QT_TR_NOOP("One file per page"), QT_TR_NOOP("Every selected page becomes its own file") },
+                                                     { QString::fromLatin1(OUTPUT_ONE_FILE), QT_TR_NOOP("One file"), QT_TR_NOOP("All selected pages in one new document"), QStringLiteral("file") },
+                                                     { QString::fromLatin1(OUTPUT_FILE_PER_PAGE), QT_TR_NOOP("One file per page"), QT_TR_NOOP("Every selected page becomes its own file"), QStringLiteral("split-pages") },
                                                  },
                                                  QString::fromLatin1(OUTPUT_ONE_FILE)));
     PDFDocumentToolFileOutput::addDefinitions(&definitions, tr, QStringLiteral("{source_base}_p@"));

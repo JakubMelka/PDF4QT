@@ -10,9 +10,10 @@ Extract Pages saves the selected pages as a new PDF, or as one file per page. Th
 
 ### Step by step
 
-1. Choose the pages in **Pages to extract**: the pages selected in Thumbnails, a range such as `2-5, 9`, or all pages narrowed by Even, Odd, Portrait or Landscape. Click a page in the preview to add it or to leave it out.
-2. Choose **Output** in the toolbar: **One file** or **One file per page**.
-3. Press **Extract Pages**. One file opens as a new document in a new tab or is saved as a file; one file per page is written into the folder of **Output files**.
+1. Choose the pages in **Pages to extract**: the pages selected in Thumbnails, a range such as `2-5, 9`, or all pages narrowed by Even, Odd, Portrait or Landscape. Click a page in the thumbnails below to add it or to leave it out; the selected thumbnails are the pages to extract.
+2. The preview shows only the pages of the result, each with the page it comes from ("from page 8"). Delete on a page of the preview leaves it out.
+3. Choose **Output** in the toolbar: **One file** or **One file per page**.
+4. Press **Extract Pages**. One file opens as a new document in a new tab or is saved as a file; one file per page is written into the folder of **Output files**.
 
 The pages keep the order of the document. To remove the pages from the document afterwards, use Remove Pages.
 

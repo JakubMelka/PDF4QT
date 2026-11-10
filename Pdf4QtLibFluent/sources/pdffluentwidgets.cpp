@@ -49,12 +49,14 @@
 #include <QPicture>
 #include <QResizeEvent>
 #include <QStyle>
+#include <QStyleOption>
 #include <QStyleOptionSpinBox>
 #include <QTableView>
 #include <QTextBlock>
 #include <QTextCharFormat>
 #include <QTextDocument>
 #include <QTextLayout>
+#include <QTextOption>
 #include <QToolButton>
 #include <QtMath>
 
@@ -880,9 +882,108 @@ void PDFLineEdit::resizeEvent(QResizeEvent* event)
     placePasswordButton();
 }
 
+void PDFLineEdit::setElidedWhenInactive(bool elided)
+{
+    if (m_isElidedWhenInactive != elided)
+    {
+        m_isElidedWhenInactive = elided;
+        update();
+    }
+}
+
+QRect PDFLineEdit::getTextLineRect(int lineHeight) const
+{
+    // As QLineEdit::paintEvent: the contents without the text margins, 2 px at the sides
+    // (QLineEditPrivate::horizontalMargin), the line centered vertically
+    QStyleOptionFrame panel;
+    initStyleOption(&panel);
+    const QRect contents = style()->subElementRect(QStyle::SE_LineEditContents, &panel, this).marginsRemoved(textMargins());
+    return QRect(contents.x() + 2, contents.y() + (contents.height() - lineHeight + 1) / 2, contents.width() - 4, lineHeight);
+}
+
+bool PDFLineEdit::isTextElided() const
+{
+    // The side widgets of the actions move the text (private margins of QLineEdit)
+    if (!m_isElidedWhenInactive || hasFocus() || echoMode() != QLineEdit::Normal || text().isEmpty() || !actions().isEmpty())
+    {
+        return false;
+    }
+
+    const QFontMetrics metrics = fontMetrics();
+    return metrics.horizontalAdvance(text()) > getTextLineRect(metrics.height()).width();
+}
+
+QString PDFLineEdit::getDisplayedText() const
+{
+    if (!isTextElided())
+    {
+        return text();
+    }
+
+    const QFontMetrics metrics = fontMetrics();
+    return metrics.elidedText(text(), Qt::ElideRight, getTextLineRect(metrics.height()).width());
+}
+
+void PDFLineEdit::paintElidedText()
+{
+    // The panel of the style as QLineEdit, the value elided at its end: its first line
+    // from the leading edge (the place of an unscrolled text), the baseline as QLineEdit
+    QPainter painter(this);
+    QStyleOptionFrame panel;
+    initStyleOption(&panel);
+    style()->drawPrimitive(QStyle::PE_PanelLineEdit, &panel, &painter, this);
+
+    const QFontMetrics metrics = fontMetrics();
+    const QString displayedText = getDisplayedText();
+    const int lineHeight = qMax(metrics.height(), metrics.boundingRect(text()).height());
+    const QRect lineRect = getTextLineRect(lineHeight);
+
+    // The text is laid out as by the line control of QLineEdit (one line, the direction of the
+    // field, trailing spaces), so the elided value lies, where the same value would lie unscrolled
+    QTextLayout layout(displayedText, font());
+    QTextOption option = layout.textOption();
+    option.setTextDirection(layoutDirection());
+    option.setFlags(QTextOption::IncludeTrailingSpaces);
+    layout.setTextOption(option);
+    layout.beginLayout();
+    QTextLine line = layout.createLine();
+    layout.endLayout();
+
+    // QLineEdit: the indent of the line by the visual alignment of a text, which fits
+    const int widthUsed = qRound(line.naturalTextWidth()) + 1;
+    int indent = 0;
+    switch (QStyle::visualAlignment(layoutDirection(), alignment()) & Qt::AlignHorizontal_Mask & ~Qt::AlignAbsolute)
+    {
+        case Qt::AlignRight:
+            indent = widthUsed - lineRect.width() + 1;
+            break;
+
+        case Qt::AlignHCenter:
+            indent = (widthUsed - lineRect.width()) / 2;
+            break;
+
+        default:
+            break;
+    }
+
+    // The color of the text by its tokens (the field binds them, its palette is never read)
+    const QVariant textToken = property(isEnabled() ? PDFFluentWidgetsHelper::TEXT_COLOR : PDFFluentWidgetsHelper::DISABLED_TEXT_COLOR);
+    const PDFThemeColors::Color color = textToken.isValid() ? static_cast<PDFThemeColors::Color>(textToken.toInt()) : PDFThemeColors::TextPrimary;
+    painter.setClipRect(style()->subElementRect(QStyle::SE_LineEditContents, &panel, this).marginsRemoved(textMargins()));
+    painter.setPen(PDFThemeManager::getInstance()->getColor(color));
+    layout.draw(&painter, QPointF(lineRect.topLeft() - QPoint(indent, qRound(line.ascent()) - metrics.ascent())));
+}
+
 void PDFLineEdit::paintEvent(QPaintEvent* event)
 {
-    QLineEdit::paintEvent(event);
+    if (isTextElided())
+    {
+        paintElidedText();
+    }
+    else
+    {
+        QLineEdit::paintEvent(event);
+    }
 
     if (!m_isPasswordField)
     {

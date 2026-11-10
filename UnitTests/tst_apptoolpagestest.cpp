@@ -430,9 +430,10 @@ void AppToolPagesTest::rotateFrame()
     QVERIFY(gui);
     AppToolShellFixture::settle();
 
-    // page-selection: Selected, "3 pages selected · 9, 10, 15"
+    // page-selection: Selected, "3 pages selected · 9, 10, 15" of the frame; owner D3 (2026-11-10):
+    // a run of two pages is a range ("9–10, 15")
     QCOMPARE(gui->getPageSelection()->getMode(), pdf::PDFPageSelection::Mode::Selected);
-    QCOMPARE(gui->getPageSelection()->getStatusText(), QStringLiteral("3 pages selected · 9, 10, 15"));
+    QCOMPARE(gui->getPageSelection()->getStatusText(), QStringLiteral("3 pages selected · 9–10, 15"));
     QCOMPARE(gui->getTargetPages(), std::vector<pdf::PDFInteger>({ 8, 9, 14 }));
 
     // K15: no turn yet
@@ -498,8 +499,8 @@ void AppToolPagesTest::rotateFrame()
     // The hint 389:20402
     QCOMPARE(gui->getLeftHint()->text(), QStringLiteral("The selection comes from Thumbnails. Click pages in the preview to change it; every click on a Rotate button turns the selected pages by another 90°."));
 
-    // Summary 389:20891, the callout 389:20904
-    QCOMPARE(H::values(gui->getSummary()), QStringList({ QStringLiteral("3 · 9, 10, 15"), QStringLiteral("90° right"), QStringLiteral("45 unchanged") }));
+    // Summary 389:20891 (owner D3: "3 · 9–10, 15"), the callout 389:20904
+    QCOMPARE(H::values(gui->getSummary()), QStringList({ QStringLiteral("3 · 9–10, 15"), QStringLiteral("90° right"), QStringLiteral("45 unchanged") }));
     QCOMPARE(gui->getCallout()->getTitleLabel()->text(), QStringLiteral("The pages are turned in the file"));
     QCOMPARE(H::inWindow(gui->getSummary()->parentWidget()).left(), 1137);
 
@@ -877,8 +878,8 @@ void AppToolPagesTest::removeFrame()
     AppToolShellFixture::settle();
     // "4-6," on the way is a range of the field, which the core refuses (its error is shown); the
     // next valid text is written again
-    // The status of the range of PDFPageSelection says its first and last page ("4 – 20"), the
-    // frame 388:20614 names the pages ("4–6, 20"): a deviation of the component, in the report
+    // The status names the pages as the frame 388:20614 does (owner D2: canonical ranges)
+    QCOMPARE(gui->getPageSelection()->getStatusText(), QStringLiteral("4 pages selected · 4–6, 20"));
     QCOMPARE(gui->getTargetPages(), std::vector<pdf::PDFInteger>({ 3, 4, 5, 19 }));
 
     // The toolbar 388:20620: Keep All Pages, Remove 4 Pages
@@ -1630,7 +1631,7 @@ void AppToolPagesTest::rangeWithoutTextSelectsNoPage()
     selection->setMode(pdf::PDFPageSelection::Mode::Range);
     selection->setRange(QStringLiteral("2-3"));
     AppToolShellFixture::settle();
-    QCOMPARE(selection->getStatusText(), QStringLiteral("2 pages selected · 2 – 3"));
+    QCOMPARE(selection->getStatusText(), QStringLiteral("2 pages selected · 2–3"));
 
     // The field emptied: no page
     selection->setRange(QString());
@@ -1670,7 +1671,7 @@ void AppToolPagesTest::rangeWithoutTextSelectsNoPage()
     QVERIFY(shell->getToolbar()->getUndoButton()->isEnabled());
     shell->getToolbar()->getUndoButton()->click();
     AppToolShellFixture::settle();
-    QCOMPARE(selection->getStatusText(), QStringLiteral("2 pages selected · 2 – 3"));
+    QCOMPARE(selection->getStatusText(), QStringLiteral("2 pages selected · 2–3"));
 }
 
 void AppToolPagesTest::gridTileSize_data()

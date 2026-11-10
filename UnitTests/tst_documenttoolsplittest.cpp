@@ -31,6 +31,7 @@
 #include "pdfdocumenttool_split.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfoperationcontrol.h"
+#include "pdfprogress.h"
 
 #include <QFile>
 #include <QProcess>
@@ -69,6 +70,36 @@ public:
 
 private:
     int m_stopAfter;
+};
+
+/// A progress, which records its phases and, at the beginning of each phase, the files given to
+/// the file sink before it
+class SplitToolTestProgress : public PDFProgressSink
+{
+public:
+    explicit SplitToolTestProgress(const SplitToolTestSink* sink) : m_sink(sink) { }
+
+    virtual void start(size_t count, ProgressStartupInfo startupInfo) override { Q_UNUSED(count); Q_UNUSED(startupInfo); ++startCount; }
+    virtual void step() override { ++stepCount; }
+    virtual void finish() override { }
+    virtual void setPhases(std::vector<PDFProgressPhase> phases) override
+    {
+        for (const PDFProgressPhase& phase : phases)
+        {
+            phaseTexts << phase.text;
+        }
+    }
+    virtual void beginPhase(int index) override { begunPhases.emplace_back(index, int(m_sink->files.size())); }
+    virtual void finishPhases() override { ++finishCount; }
+
+    QStringList phaseTexts;
+    std::vector<std::pair<int, int>> begunPhases;   ///< The phase and the files written before it began
+    int startCount = 0;
+    int stepCount = 0;
+    int finishCount = 0;
+
+private:
+    const SplitToolTestSink* m_sink;
 };
 
 /// A control, which is canceled from the beginning
@@ -165,6 +196,7 @@ private Q_SLOTS:
     void splitDuplicateNames();
     void splitTooManyFiles();
     void splitRun();
+    void splitProgressPhases();
     void splitStopped();
     void splitWithoutSink();
     void splitPermissions();
@@ -373,6 +405,32 @@ void DocumentToolSplitTest::splitRun()
     QCOMPARE(result.toJson().value("files").toArray().size(), 4);
 }
 
+void DocumentToolSplitTest::splitProgressPhases()
+{
+    // 383:10232 "Handbook_3.pdf · file 3 of 4": a phase of the progress per file, named by the
+    // file; the phase of a file begins after the files before it are written, the phases end with
+    // the run; no other part of the progress (a reader sees the file being written)
+    const PDFDocument document = MergeTestPdf::createPages("", 48).read();
+    PDFDocumentToolSplit tool;
+    SplitToolTestSink sink;
+    SplitToolTestProgress progress(&sink);
+    const PDFDocumentToolResult result = tool.run(SplitToolTestHelper::context(document, &sink), { { "rule", "every-n-pages" }, { "pagesPerFile", 12 } }, nullptr, &progress);
+    QVERIFY2(result.isSuccess(), qPrintable(result.message));
+    QCOMPARE(progress.phaseTexts, QStringList({ "Handbook_1.pdf", "Handbook_2.pdf", "Handbook_3.pdf", "Handbook_4.pdf" }));
+    const std::vector<std::pair<int, int>> phases = { { 0, 0 }, { 1, 1 }, { 2, 2 }, { 3, 3 } };
+    QCOMPARE(progress.begunPhases, phases);
+    QVERIFY(progress.finishCount >= 1);
+    QCOMPARE(progress.startCount, 0);
+
+    // Extract one file per page names its files the same way
+    SplitToolTestSink pageSink;
+    SplitToolTestProgress pageProgress(&pageSink);
+    PDFDocumentToolExtract extract;
+    const PDFDocumentToolResult extracted = extract.run(SplitToolTestHelper::context(document, &pageSink), { { "pages", SplitToolTestHelper::pages(QStringLiteral("2, 5")) }, { "output", "one-file-per-page" } }, nullptr, &pageProgress);
+    QVERIFY2(extracted.isSuccess(), qPrintable(extracted.message));
+    QCOMPARE(pageProgress.phaseTexts, QStringList({ "Handbook_p2.pdf", "Handbook_p5.pdf" }));
+}
+
 void DocumentToolSplitTest::splitStopped()
 {
     // 403:29978: Stop after 2 of 4 files - the 2 written are named, the 2 others not written
@@ -467,6 +525,11 @@ void DocumentToolSplitTest::extractOneFile()
     // 385:12395: Pages "4 · 1–3, 8", Source "Handbook.pdf · not changed"
     QCOMPARE(result.facts[0].value, QStringLiteral("4 · 1–3, 8"));
     QCOMPARE(result.facts[1].value, QStringLiteral("Handbook.pdf · not changed"));
+
+    // Owner D3 (2026-11-10): a run of two pages is a range too ("13–14" of 388:17167)
+    const PDFDocumentToolResult two = extract.run(SplitToolTestHelper::context(document), { { "pages", SplitToolTestHelper::pages(QStringLiteral("5-6, 9")) } }, nullptr, nullptr);
+    QVERIFY2(two.isSuccess(), qPrintable(two.message));
+    QCOMPARE(two.facts[0].value, QStringLiteral("3 · 5–6, 9"));
 
     // 385:11855: a page outside of the document is refused
     const PDFDocumentToolResult invalid = extract.run(SplitToolTestHelper::context(document), { { "pages", SplitToolTestHelper::pages(QStringLiteral("1-3, 60")) } }, nullptr, nullptr);

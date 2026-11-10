@@ -85,6 +85,53 @@ public:
     static QString getPageDescription(const QSizeF& sizeInPoints);
 };
 
+/// The thumbnails of the rows of the images of a tool (thumb 336:2128 of Images to PDF, the rows of
+/// Add Image as Page 388:18837 - RS3FIGMA M10): decoded in the pool (PDFExecutionPolicy) from
+/// copies of the bytes (the first frame, the orientation of EXIF, at most 128 pixels), kept by
+/// "<id>/<generation>" of the input. A late thumbnail is dropped by the link, which the destructor
+/// cuts; nobody waits for a decoding.
+///
+/// Ownership (checklist point 1): the GUI of the tool owns the cache (a child); a job holds only
+/// its own values and the link, never the cache or the input. thumbnailDecoded is emitted from the
+/// event loop, the last statement.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppImageThumbnailCache : public QObject
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QObject;
+
+public:
+    explicit PDFAppImageThumbnailCache(QObject* parent);
+    virtual ~PDFAppImageThumbnailCache() override;
+
+    /// The key of the thumbnail of the input ("<id>/<generation>")
+    static QString getKey(const PDFAppToolInput& input);
+
+    /// The decoded thumbnail of the image; null while it is decoded (the decoding is started
+    /// for a missing one) or when the image cannot be decoded
+    QImage getThumbnail(const PDFAppToolInput& input);
+
+    /// Forgets the thumbnails and cancels the decodings of the keys, which are not in \p keys
+    void retain(const std::set<QString>& keys);
+
+    /// Number of the decodings running in the pool (tests)
+    int getPendingCount() const { return int(m_pending.size()); }
+
+Q_SIGNALS:
+    /// A thumbnail has been decoded (from the event loop)
+    void thumbnailDecoded();
+
+private:
+    friend class PDFAppImageThumbnailLink;
+
+    void onThumbnailDecoded(const std::shared_ptr<pdf::PDFAppImageThumbnailJob>& job);
+
+    std::shared_ptr<PDFAppImageThumbnailLink> m_link;
+    std::map<QString, QImage> m_thumbnails;     ///< A null picture = the image cannot be decoded
+    std::map<QString, std::shared_ptr<PDFAppImageThumbnailJob>> m_pending;
+};
+
 /// The section of the selected item of a right panel (section Selected image 336:1976: the title
 /// Semi Bold 13, the Tag "1 of 6", the link Rename at the trailing edge, the card of the rows
 /// Name, Folder, Pixels, Rotation, Crop, Page; also the Selection of Manage Pages in 3b). The
@@ -150,6 +197,10 @@ public:
     static constexpr int SEGMENT_HEIGHT = 32;
     static constexpr int STAGE_MARGIN = 32;     ///< Room of the shadow of the page in the stage
 
+    /// Share of the stage, which the page takes in Fit (336:2234: the A4 landscape page 600 of
+    /// the 774 wide stage - RS3FIGMA M11); its caption lies GAP below it
+    static constexpr double FIT_SHARE = 600.0 / 774.0;
+
     explicit PDFAppImagesToPdfCanvas(QWidget* parent);
     virtual ~PDFAppImagesToPdfCanvas() override;
 
@@ -188,11 +239,16 @@ Q_SIGNALS:
 protected:
     virtual void paintEvent(QPaintEvent* event) override;
     virtual void changeEvent(QEvent* event) override;
+    virtual bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     void onZoomIndexChanged(int index);
     void updateTexts();
     void updateStage();
+
+    /// M11: the room of the caption below the stage, the margins of Fit and the caption directly
+    /// below the page (or the image of the crop)
+    void placeCaption();
 
     QPointer<PDFLabel> m_title;
     QPointer<PDFSegmentedControl> m_zoom;
@@ -455,7 +511,7 @@ public:
     QImage getRowThumbnail(const QString& inputId) const;
 
     /// Number of the decodings of thumbnails running in the pool (tests)
-    int getPendingThumbnailCount() const { return int(m_pendingThumbnails.size()); }
+    int getPendingThumbnailCount() const { return m_thumbnailCache ? m_thumbnailCache->getPendingCount() : 0; }
 
     /// The adjustment of the image (no turn and no crop = none)
     PDFDocumentToolImagesToPdf::Adjustment getAdjustment(const QString& inputId) const;
@@ -489,8 +545,6 @@ protected:
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
-    friend class PDFAppImageThumbnailLink;
-
     using Adjustments = std::map<QString, PDFDocumentToolImagesToPdf::Adjustment>;
 
     void connectList();
@@ -519,7 +573,7 @@ private:
     void onCropPanelEdited();
     void onCropReset();
     void onCropApply();
-    void onThumbnailDecoded(const std::shared_ptr<pdf::PDFAppImageThumbnailJob>& job);
+    void onThumbnailDecoded();
 
     void updateAll();
     void updateImages();
@@ -544,7 +598,6 @@ private:
     /// The thumbnail of the row: the decoded one with its crop and turn; a decoding is started
     /// for a missing one
     QImage getThumbnail(const PDFAppToolInput& input);
-    void startThumbnail(const PDFAppToolInput& input, const QString& key);
 
     /// Size of the shown image in points by its resolution
     static QSizeF getImageSizeInPoints(const PDFAppToolInput& input);
@@ -581,12 +634,10 @@ private:
     bool m_isCropEqual = true;
     bool m_isCropAll = false;
 
-    /// The thumbnails of the rows: decoded pictures by "<id>/<generation>", the pictures with
-    /// their crop and turn by "<key>/<turn>/<crop>"; the decodings running in the pool
-    std::shared_ptr<PDFAppImageThumbnailLink> m_thumbnailLink;
-    std::map<QString, QImage> m_thumbnails;
+    /// The thumbnails of the rows: the decoded pictures (a child of this GUI), the pictures with
+    /// their crop and turn by "<key>/<turn>/<crop>"
+    QPointer<PDFAppImageThumbnailCache> m_thumbnailCache;
     std::map<QString, QImage> m_adjustedThumbnails;
-    std::map<QString, std::shared_ptr<PDFAppImageThumbnailJob>> m_pendingThumbnails;
 
     bool m_isFit = true;
     bool m_isValuesInitialized = false;

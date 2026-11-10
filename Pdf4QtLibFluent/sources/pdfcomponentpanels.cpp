@@ -2119,18 +2119,87 @@ QString PDFPageSelection::computeStatus() const
         return tr("%Ln page selected · %1", nullptr, count).arg(getPageText(m_summary.first));
     }
 
-    // The few pages chosen in the thumbnails are named (389:20177 "3 pages selected · 9, 10, 15"),
-    // the first and the last one of more of them and of a range
-    if (m_mode == Mode::Selected && count <= MAX_NAMED_SELECTED_PAGES)
+    // Every page of the document is only counted (389:22382, 383:3315 "48 pages selected")
+    if (m_summary.count >= m_pageCount)
     {
-        QStringList pages;
-        for (const int page : getResultPages())
-        {
-            pages << getPageText(page);
-        }
-        return tr("%Ln pages selected · %1", nullptr, count).arg(pages.join(QStringLiteral(", ")));
+        return tr("%Ln pages selected", nullptr, count);
     }
-    return tr("%Ln pages selected · %1 – %2", nullptr, count).arg(getPageText(m_summary.first), getPageText(m_summary.last));
+
+    // The pages in canonical ranges (owner D2 / D3 2026-11-10, 385:9405 "7 pages selected · 1–3, 8,
+    // 10–12"): every run of consecutive pages, also of two pages, is a range with an en dash without
+    // spaces - the text of the page lists of the tools (PDFDocumentPageOperations::formatPageNumbers,
+    // the core is not linked by Fluent); at most MAX_STATUS_PARTS parts, then "…"
+    const QList<PDFPageRange::Interval> runs = computeLeadingRuns(MAX_STATUS_PARTS + 1);
+    QStringList parts;
+    for (const PDFPageRange::Interval& run : runs)
+    {
+        if (parts.size() == MAX_STATUS_PARTS)
+        {
+            parts << QStringLiteral("…");
+            break;
+        }
+        parts << (run.first == run.last ? getPageText(run.first) : QStringLiteral("%1–%2").arg(getPageText(run.first), getPageText(run.last)));
+    }
+    return tr("%Ln pages selected · %1", nullptr, count).arg(parts.join(QStringLiteral(", ")));
+}
+
+QList<PDFPageRange::Interval> PDFPageSelection::computeLeadingRuns(qsizetype maximumCount) const
+{
+    // The first runs of the result in the ascending order, without building the whole result
+    // (the status of a huge document); the work is bounded by the count, an orientation filter
+    // by the pages of known sizes as computeSummary
+    QList<PDFPageRange::Interval> runs;
+    if (!isParityFilter() && !isOrientationFilter())
+    {
+        // The intervals of the mode are sorted and merged (adjacent ones joined)
+        runs = m_base.first(qMin(maximumCount, m_base.size()));
+    }
+    else if (!isOrientationFilter())
+    {
+        // Every second page: a run of one page each
+        const bool isEven = m_filters.testFlag(Filter::Even);
+        for (const PDFPageRange::Interval& interval : m_base)
+        {
+            const qint64 first = PDFPageSelectionHelper::firstOfParity(interval.first, interval.last, isEven);
+            for (qint64 page = first; first > 0 && page <= interval.last && runs.size() < maximumCount; page += 2)
+            {
+                runs << PDFPageRange::Interval{ static_cast<int>(page), static_cast<int>(page) };
+            }
+            if (runs.size() >= maximumCount)
+            {
+                break;
+            }
+        }
+    }
+    else
+    {
+        const qint64 knownPages = m_pageSizes.size();
+        for (const PDFPageRange::Interval& interval : m_base)
+        {
+            const qint64 last = qMin<qint64>(interval.last, knownPages);
+            for (qint64 page = interval.first; page <= last; ++page)
+            {
+                if (!passesFilters(static_cast<int>(page)))
+                {
+                    continue;
+                }
+
+                if (!runs.isEmpty() && static_cast<qint64>(runs.back().last) + 1 == page)
+                {
+                    runs.back().last = static_cast<int>(page);
+                }
+                else if (runs.size() < maximumCount)
+                {
+                    runs << PDFPageRange::Interval{ static_cast<int>(page), static_cast<int>(page) };
+                }
+                else
+                {
+                    return runs;
+                }
+            }
+        }
+    }
+    return runs;
 }
 
 void PDFPageSelection::updateResult(int flags)

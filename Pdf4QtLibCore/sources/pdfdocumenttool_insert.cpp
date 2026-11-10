@@ -24,6 +24,7 @@
 
 #include "pdfcatalog.h"
 #include "pdfdocmdppermissions.h"
+#include "pdfdocumentpageoperations.h"
 #include "pdfdocumenttool_geometry.h"
 #include "pdfdocumenttool_merge.h"
 #include "pdfform.h"
@@ -274,27 +275,7 @@ QString PDFDocumentToolInsertBase::getPlacementText(const Placement& placement)
     {
         return tr("at the end");
     }
-    return tr("in place of pages %1").arg(formatPageRuns(placement.replacedPages));
-}
-
-QString PDFDocumentToolInsertBase::formatPageRuns(const std::vector<PDFInteger>& pageIndices, const std::function<QString(PDFInteger)>& formatNumber)
-{
-    const auto number = [&formatNumber](PDFInteger pageIndex) { return formatNumber ? formatNumber(pageIndex + 1) : QString::number(pageIndex + 1); };
-
-    // 388:17167 "13–14": a run of two pages is a range too (unlike the lists of Rotate / Remove)
-    QStringList parts;
-    size_t i = 0;
-    while (i < pageIndices.size())
-    {
-        size_t j = i;
-        while (j + 1 < pageIndices.size() && pageIndices[j + 1] == pageIndices[j] + 1)
-        {
-            ++j;
-        }
-        parts << (j > i ? QStringLiteral("%1–%2").arg(number(pageIndices[i]), number(pageIndices[j])) : number(pageIndices[i]));
-        i = j + 1;
-    }
-    return parts.join(QStringLiteral(", "));
+    return tr("in place of pages %1").arg(PDFDocumentPageOperations::formatPageNumbers(placement.replacedPages));
 }
 
 PDFDocumentToolInputCountRange PDFDocumentToolInsertBase::getInputCountRange() const
@@ -439,7 +420,7 @@ PDFDocumentToolResult PDFDocumentToolInsertBase::execute(const PDFDocumentToolCo
     result.facts.push_back({ QStringLiteral("document"), tr("Document"), tr("%Ln pages (was %1)", nullptr, int(pageCount)).arg(pageCountBefore) });
     if (statistics.replacedPageCount > 0)
     {
-        result.facts.push_back({ QStringLiteral("replaced"), tr("Replaced"), tr("%Ln pages · %1", nullptr, int(statistics.replacedPageCount)).arg(formatPageRuns(placement->replacedPages)) });
+        result.facts.push_back({ QStringLiteral("replaced"), tr("Replaced"), tr("%Ln pages · %1", nullptr, int(statistics.replacedPageCount)).arg(PDFDocumentPageOperations::formatPageNumbers(placement->replacedPages)) });
     }
     if (statistics.fieldsRenamed > 0)
     {
@@ -581,6 +562,19 @@ std::optional<std::vector<std::vector<PDFInteger>>> PDFDocumentToolInsertPages::
     return ranges;
 }
 
+QSizeF PDFDocumentToolInsertPages::getOrientedSize(QSizeF shownSize, const QVariantMap& parameters)
+{
+    using Helper = PDFDocumentToolInsertHelper;
+
+    const bool isLandscape = parameters.value(Helper::name(PARAMETER_BLANK_ORIENTATION)).toString() == QLatin1String(ORIENTATION_LANDSCAPE);
+    const bool isShownLandscape = shownSize.width() > shownSize.height();
+    if (shownSize.width() != shownSize.height() && isShownLandscape != isLandscape)
+    {
+        shownSize.transpose();
+    }
+    return shownSize;
+}
+
 QString PDFDocumentToolInsertPages::getId() const
 {
     return QString::fromLatin1(TOOL_ID);
@@ -613,7 +607,7 @@ PDFDocumentToolParameterDefinitions PDFDocumentToolInsertPages::getParameters() 
                                                      { QString::fromLatin1(PDFPageSizePresets::LEGAL), QT_TR_NOOP("Legal"), QT_TR_NOOP("216 × 356 mm") },
                                                  },
                                                  QString::fromLatin1(SIZE_SAME_AS_PAGE)));
-    definitions.push_back(Definition::createEnum(tr, Helper::name(PARAMETER_BLANK_ORIENTATION), QT_TR_NOOP("Orientation"), QT_TR_NOOP("Orientation of the blank pages of a named size"),
+    definitions.push_back(Definition::createEnum(tr, Helper::name(PARAMETER_BLANK_ORIENTATION), QT_TR_NOOP("Orientation"), QT_TR_NOOP("Orientation of the blank pages, also of the size of the neighboring page (not given: that size keeps the orientation of the page)"),
                                                  {
                                                      { QString::fromLatin1(ORIENTATION_PORTRAIT), QT_TR_NOOP("Portrait"), QT_TR_NOOP("Higher than wide") },
                                                      { QString::fromLatin1(ORIENTATION_LANDSCAPE), QT_TR_NOOP("Landscape"), QT_TR_NOOP("Wider than high") },
@@ -651,11 +645,42 @@ std::vector<PDFDocumentToolParameterError> PDFDocumentToolInsertPages::checkGive
             errors.push_back({ Helper::name(parameter), tr("%1 is used only with blankPages.").arg(Helper::name(parameter)) });
         }
     }
-    if (given.value(Helper::name(PARAMETER_BLANK_SIZE)).toString() == QLatin1String(SIZE_SAME_AS_PAGE) && given.contains(Helper::name(PARAMETER_BLANK_ORIENTATION)))
-    {
-        errors.push_back({ Helper::name(PARAMETER_BLANK_ORIENTATION), tr("blankOrientation is used only with a named blankSize: same-as-page takes the rotation of the page.") });
-    }
     return errors;
+}
+
+QVariantMap PDFDocumentToolInsertPages::completeGivenParameters(const PDFDocumentToolContext& context, const QVariantMap& given) const
+{
+    using Helper = PDFDocumentToolInsertHelper;
+
+    QVariantMap completed = PDFDocumentToolInsertBase::completeGivenParameters(context, given);
+    if (completed.contains(Helper::name(PARAMETER_BLANK_ORIENTATION)))
+    {
+        return completed;
+    }
+
+    // The values as the run will see them (the defaults of the missing ones): blank pages of the
+    // size of the neighboring page
+    QVariantMap normalized;
+    if (!PDFDocumentToolParameters::normalize(getParameters(), completed, &normalized).empty() ||
+        normalized.value(Helper::name(PARAMETER_BLANK_PAGES)).toLongLong() <= 0 ||
+        normalized.value(Helper::name(PARAMETER_BLANK_SIZE)).toString() != QLatin1String(SIZE_SAME_AS_PAGE))
+    {
+        return completed;
+    }
+
+    const PDFDocument* target = context.getDocument();
+    const std::optional<Placement> placement = resolvePlacement(target, normalized, nullptr);
+    if (!placement)
+    {
+        return completed;
+    }
+
+    // The page as it is shown (its rotation applied); a square page or a page of no size keeps
+    // the default, which leaves it as it is
+    const QSizeF shownSize = getShownPageSize(target, placement->neighborPage);
+    const bool isLandscape = shownSize.width() > shownSize.height();
+    completed.insert(Helper::name(PARAMETER_BLANK_ORIENTATION), QString::fromLatin1(isLandscape ? ORIENTATION_LANDSCAPE : ORIENTATION_PORTRAIT));
+    return completed;
 }
 
 QVariantMap PDFDocumentToolInsertPages::mapParameters(const QVariantMap& parameters, const PDFDocument* from, const PDFDocument* to) const
@@ -720,7 +745,9 @@ std::optional<PDFDocumentToolInsertBase::InsertionPlan> PDFDocumentToolInsertPag
     {
         if (i == blankIndex && blankCount > 0)
         {
-            // 388:16811 "As page 12": the media box and the rotation of the neighboring page
+            // 388:16811 "As page 12": the media box and the rotation of the neighboring page, the
+            // orientation turns its size as it is shown (owner 2026-11-09: A4 portrait + Landscape
+            // = A4 landscape; the rotation stays, the media box is transposed)
             PDFDocumentMerger::Item item;
             item.source = plan.sources.size();
             const QString sizeId = parameters.value(Helper::name(PARAMETER_BLANK_SIZE)).toString();
@@ -729,14 +756,15 @@ std::optional<PDFDocumentToolInsertBase::InsertionPlan> PDFDocumentToolInsertPag
                 const PDFPage* neighbor = target->getCatalog()->getPage(size_t(placement.neighborPage));
                 item.pageSize = neighbor ? neighbor->getMediaBox().size() : QSizeF();
                 item.turn = neighbor ? neighbor->getPageRotation() : PageRotation::None;
-            }
-            else
-            {
-                item.pageSize = PDFPageSizePresets::getSize(sizeId).value_or(QSizeF());
-                if (parameters.value(Helper::name(PARAMETER_BLANK_ORIENTATION)).toString() == QLatin1String(ORIENTATION_LANDSCAPE))
+                const QSizeF shownSize = PDFPage::getRotatedSize(item.pageSize, item.turn);
+                if (getOrientedSize(shownSize, parameters) != shownSize)
                 {
                     item.pageSize.transpose();
                 }
+            }
+            else
+            {
+                item.pageSize = getOrientedSize(PDFPageSizePresets::getSize(sizeId).value_or(QSizeF()), parameters);
             }
             if (!PDFPageSizePresets::isValidSide(item.pageSize.width()) || !PDFPageSizePresets::isValidSide(item.pageSize.height()))
             {

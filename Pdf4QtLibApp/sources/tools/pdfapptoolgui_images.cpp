@@ -130,13 +130,13 @@ private:
     std::atomic_bool m_isCanceled = false;
 };
 
-/// The way of a decoded thumbnail back to the GUI: cut by the destructor of the GUI (a late
+/// The way of a decoded thumbnail back to the cache: cut by the destructor of the cache (a late
 /// thumbnail is dropped, nobody waits)
 class PDFAppImageThumbnailLink
 {
 public:
-    explicit PDFAppImageThumbnailLink(PDFAppImagesToPdfToolGUI* gui) :
-        m_gui(gui)
+    explicit PDFAppImageThumbnailLink(PDFAppImageThumbnailCache* cache) :
+        m_cache(cache)
     {
 
     }
@@ -144,23 +144,23 @@ public:
     void detach()
     {
         QMutexLocker locker(&m_mutex);
-        m_gui = nullptr;
+        m_cache = nullptr;
     }
 
     void finished(const std::shared_ptr<PDFAppImageThumbnailJob>& job)
     {
         QMutexLocker locker(&m_mutex);
-        if (m_gui)
+        if (m_cache)
         {
             PDFThreadAnnotations::happensBefore(job.get());
             PDFThreadAnnotations::TransportScope transportScope;
-            QMetaObject::invokeMethod(m_gui, &PDFAppImagesToPdfToolGUI::onThumbnailDecoded, Qt::QueuedConnection, job);
+            QMetaObject::invokeMethod(m_cache, &PDFAppImageThumbnailCache::onThumbnailDecoded, Qt::QueuedConnection, job);
         }
     }
 
 private:
     QMutex m_mutex;
-    PDFAppImagesToPdfToolGUI* m_gui;
+    PDFAppImageThumbnailCache* m_cache;
 };
 
 /// The task of the pool: it holds the job, never the GUI
@@ -479,9 +479,10 @@ PDFAppImageCropPanel::PDFAppImageCropPanel(QWidget* parent) :
     sectionLayout->addWidget(header);
 
     // The card: Equal margins (Margin), Crop box (Left, Top, Width, Height), Apply to
+    // (336:3448: padding 12 inside of the border, gap 8 - the card pads 12 / 6 itself)
     PDFAppToolCard* card = new PDFAppToolCard(section);
     QGridLayout* grid = new QGridLayout();
-    grid->setContentsMargins(12, 8, 12, 8);
+    grid->setContentsMargins(0, PDFAppToolCard::PADDING_H - PDFAppToolCard::PADDING_V, 0, PDFAppToolCard::PADDING_H - PDFAppToolCard::PADDING_V);
     grid->setHorizontalSpacing(12);
     grid->setVerticalSpacing(8);
     grid->setColumnStretch(0, 1);
@@ -796,10 +797,14 @@ PDFAppImagesToPdfCanvas::PDFAppImagesToPdfCanvas(QWidget* parent) :
     m_cropStage->setObjectName(QStringLiteral("imagesCropStage"));
     m_cropStage->hide();
     stageLayout->addWidget(m_cropStage, 1);
+    // M11: the caption lies directly below the page (placeCaption), not at the bottom of the stage
     m_caption = PDFAppPageWidgets::createLabel(QString(), QFont::Normal, 11, PDFThemeColors::TextSecondary, m_stage);
     m_caption->setObjectName(QStringLiteral("imagesStageCaption"));
     m_caption->setAlignment(Qt::AlignCenter);
-    stageLayout->addWidget(m_caption);
+    m_stage->installEventFilter(this);
+    m_preview->installEventFilter(this);
+    m_cropStage->installEventFilter(this);
+    connect(m_cropStage.data(), &PDFAppToolPageStage::pageGeometryChanged, this, &PDFAppImagesToPdfCanvas::placeCaption);
     m_scrollArea->setWidget(m_stage);
     layout->addWidget(m_scrollArea, 1);
 
@@ -845,12 +850,65 @@ void PDFAppImagesToPdfCanvas::setCaption(const QString& caption)
 {
     m_caption->setText(caption);
     m_preview->setAccessibleName(caption);
+    placeCaption();
 }
 
 void PDFAppImagesToPdfCanvas::setPage(const QImage& image, QSizeF imageSize, const PDFImagePageLayout& layout)
 {
     m_preview->setImage(image, imageSize);
     m_preview->setPageLayout(layout);
+    placeCaption();
+}
+
+bool PDFAppImagesToPdfCanvas::eventFilter(QObject* watched, QEvent* event)
+{
+    // The type first: a resize or a show comes only to a living stage
+    if ((event->type() == QEvent::Resize || event->type() == QEvent::Show) &&
+        (watched == m_stage.data() || watched == m_preview.data() || watched == m_cropStage.data()))
+    {
+        placeCaption();
+    }
+    return BaseClass::eventFilter(watched, event);
+}
+
+void PDFAppImagesToPdfCanvas::placeCaption()
+{
+    if (!m_stage || !m_preview || !m_cropStage || !m_caption || !m_zoom)
+    {
+        return;
+    }
+
+    // The room of the caption below the page area (336:2234: the caption 12 below the page)
+    const int captionHeight = m_caption->text().isEmpty() ? 0 : m_caption->sizeHint().height();
+    const int bottom = captionHeight > 0 ? captionHeight + GAP : 0;
+    if (QLayout* layout = m_stage->layout(); layout && layout->contentsMargins().bottom() != bottom)
+    {
+        layout->setContentsMargins(0, 0, 0, bottom);
+    }
+
+    // Fit: the page takes FIT_SHARE of the stage, centered with its caption; at least the room of
+    // the shadow (the crop stage has its own share)
+    QMargins margins(STAGE_MARGIN, STAGE_MARGIN, STAGE_MARGIN, STAGE_MARGIN);
+    if (m_zoom->getCurrentIndex() == 0)
+    {
+        const int horizontal = qMax(STAGE_MARGIN, qRound(m_preview->width() * (1.0 - FIT_SHARE) * 0.5));
+        const int vertical = qMax(STAGE_MARGIN, qRound(m_preview->height() * (1.0 - FIT_SHARE) * 0.5));
+        margins = QMargins(horizontal, vertical, horizontal, vertical);
+    }
+    if (m_preview->contentsMargins() != margins)
+    {
+        m_preview->setContentsMargins(margins);
+    }
+
+    const bool isCrop = isCropMode();
+    QWidget* shown = isCrop ? static_cast<QWidget*>(m_cropStage.data()) : static_cast<QWidget*>(m_preview.data());
+    const QRectF pageRect = isCrop ? m_cropStage->getPageRect() : m_preview->getPageRect();
+    int top = m_stage->height() - captionHeight;
+    if (!pageRect.isEmpty())
+    {
+        top = shown->mapTo(m_stage.data(), QPoint(0, qCeil(pageRect.bottom()))).y() + GAP;
+    }
+    m_caption->setGeometry(0, top, m_stage->width(), captionHeight);
 }
 
 void PDFAppImagesToPdfCanvas::setFit(bool isFit)
@@ -883,6 +941,7 @@ void PDFAppImagesToPdfCanvas::setCropMode(bool isCropMode)
     m_preview->setVisible(!isCropMode);
     m_cropStage->setVisible(isCropMode);
     updateStage();
+    placeCaption();
 }
 
 bool PDFAppImagesToPdfCanvas::isCropMode() const
@@ -905,6 +964,7 @@ void PDFAppImagesToPdfCanvas::updateStage()
     m_cropStage->setZoom(isFit ? PDFAppToolPageStage::Zoom::Fit : PDFAppToolPageStage::Zoom::Actual);
     m_scrollArea->setHorizontalScrollBarPolicy(isFit ? Qt::ScrollBarAlwaysOff : Qt::ScrollBarAsNeeded);
     m_scrollArea->setVerticalScrollBarPolicy(isFit ? Qt::ScrollBarAlwaysOff : Qt::ScrollBarAsNeeded);
+    placeCaption();
 }
 
 void PDFAppImagesToPdfCanvas::updateTexts()
@@ -937,23 +997,108 @@ void PDFAppImagesToPdfCanvas::changeEvent(QEvent* event)
     }
 }
 
-// ------------------------------------------------------------ PDFAppImagesToPdfToolGUI
+// ------------------------------------------------------------ PDFAppImageThumbnailCache
 
-PDFAppImagesToPdfToolGUI::PDFAppImagesToPdfToolGUI(QObject* parent) :
+PDFAppImageThumbnailCache::PDFAppImageThumbnailCache(QObject* parent) :
     BaseClass(parent),
-    m_thumbnailLink(std::make_shared<PDFAppImageThumbnailLink>(this))
+    m_link(std::make_shared<PDFAppImageThumbnailLink>(this))
 {
 
 }
 
-PDFAppImagesToPdfToolGUI::~PDFAppImagesToPdfToolGUI()
+PDFAppImageThumbnailCache::~PDFAppImageThumbnailCache()
 {
     // The decodings go on with their own values, their late thumbnails are dropped; nobody waits
-    m_thumbnailLink->detach();
-    for (const auto& item : m_pendingThumbnails)
+    m_link->detach();
+    for (const auto& item : m_pending)
     {
         item.second->cancel();
     }
+}
+
+QString PDFAppImageThumbnailCache::getKey(const PDFAppToolInput& input)
+{
+    return input.id + QLatin1Char('/') + QString::number(input.contentGeneration);
+}
+
+QImage PDFAppImageThumbnailCache::getThumbnail(const PDFAppToolInput& input)
+{
+    const QString key = getKey(input);
+    auto it = m_thumbnails.find(key);
+    if (it != m_thumbnails.cend())
+    {
+        // A null picture: the image could not be decoded (the empty slot)
+        return it->second;
+    }
+    if (m_pending.count(key) || input.imageData.isEmpty())
+    {
+        return QImage();
+    }
+
+    // Checklist point 1: the job gets copies of plain values (the bytes are implicitly shared and
+    // never written), never the input or the list
+    std::shared_ptr<PDFAppImageThumbnailJob> job = std::make_shared<PDFAppImageThumbnailJob>();
+    job->link = m_link;
+    job->key = key;
+    job->data = input.imageData;
+    job->format = input.imageFormat;
+    m_pending[key] = job;
+    PDFExecutionPolicy::startTask(QThreadPool::globalInstance(), PDFAppImageThumbnailTask(std::move(job)));
+    return QImage();
+}
+
+void PDFAppImageThumbnailCache::retain(const std::set<QString>& keys)
+{
+    for (auto it = m_thumbnails.begin(); it != m_thumbnails.end();)
+    {
+        it = keys.count(it->first) ? std::next(it) : m_thumbnails.erase(it);
+    }
+    for (auto it = m_pending.begin(); it != m_pending.end();)
+    {
+        if (keys.count(it->first))
+        {
+            ++it;
+            continue;
+        }
+        it->second->cancel();
+        it = m_pending.erase(it);
+    }
+}
+
+void PDFAppImageThumbnailCache::onThumbnailDecoded(const std::shared_ptr<PDFAppImageThumbnailJob>& job)
+{
+    PDFThreadAnnotations::happensAfter(job.get());
+    PDFThreadAnnotations::forget(job.get());
+
+    // A thumbnail of an image, which is not in the list any more (retain), is dropped
+    auto it = m_pending.find(job->key);
+    if (it == m_pending.end() || it->second != job)
+    {
+        return;
+    }
+    m_pending.erase(it);
+    if (job->isCanceled())
+    {
+        return;
+    }
+    m_thumbnails[job->key] = std::move(job->picture);
+    Q_EMIT thumbnailDecoded();
+}
+
+// ------------------------------------------------------------ PDFAppImagesToPdfToolGUI
+
+PDFAppImagesToPdfToolGUI::PDFAppImagesToPdfToolGUI(QObject* parent) :
+    BaseClass(parent),
+    m_thumbnailCache(new PDFAppImageThumbnailCache(this))
+{
+    connect(m_thumbnailCache.data(), &PDFAppImageThumbnailCache::thumbnailDecoded, this, &PDFAppImagesToPdfToolGUI::onThumbnailDecoded);
+}
+
+PDFAppImagesToPdfToolGUI::~PDFAppImagesToPdfToolGUI()
+{
+    // The cache (a child) cuts its link: the decodings go on with their own values, their late
+    // thumbnails are dropped; nobody waits
+    delete m_thumbnailCache.data();
 
     // The dialog of Rename holds this GUI by a QPointer; it goes with the tool
     if (m_renameDialog)
@@ -2026,24 +2171,19 @@ QSizeF PDFAppImagesToPdfToolGUI::getImagePageSize(const QString& inputId) const
 
 QImage PDFAppImagesToPdfToolGUI::getThumbnail(const PDFAppToolInput& input)
 {
-    const QString key = input.id + QLatin1Char('/') + QString::number(input.contentGeneration);
-    auto it = m_thumbnails.find(key);
-    if (it == m_thumbnails.cend())
+    // The decoded picture (null while it is decoded or when it cannot be decoded: the empty slot)
+    const QImage picture = m_thumbnailCache ? m_thumbnailCache->getThumbnail(input) : QImage();
+    if (picture.isNull())
     {
-        startThumbnail(input, key);
         return QImage();
     }
-    if (it->second.isNull())
-    {
-        // The image could not be decoded: the empty slot
-        return QImage();
-    }
+    const QString key = PDFAppImageThumbnailCache::getKey(input);
 
     // The crop and the turn of the image (the same rule as the page: the crop before the turn)
     const PDFDocumentToolImagesToPdf::Adjustment adjustment = getAdjustment(input.id);
     if (adjustment.isEmpty())
     {
-        return it->second;
+        return picture;
     }
     const QString adjustedKey = QStringLiteral("%1/%2/%3,%4,%5,%6").arg(key).arg(int(adjustment.turn)).arg(adjustment.crop.left()).arg(adjustment.crop.top()).arg(adjustment.crop.right()).arg(adjustment.crop.bottom());
     auto adjustedIt = m_adjustedThumbnails.find(adjustedKey);
@@ -2052,7 +2192,6 @@ QImage PDFAppImagesToPdfToolGUI::getThumbnail(const PDFAppToolInput& input)
         return adjustedIt->second;
     }
 
-    const QImage& picture = it->second;
     const QRectF clip = PDFDocumentToolImagesToPdf::getClip(adjustment.crop, input.imageSize);
     QImage adjusted = picture;
     if (!clip.isEmpty())
@@ -2069,48 +2208,9 @@ QImage PDFAppImagesToPdfToolGUI::getThumbnail(const PDFAppToolInput& input)
     return adjusted;
 }
 
-void PDFAppImagesToPdfToolGUI::startThumbnail(const PDFAppToolInput& input, const QString& key)
+void PDFAppImagesToPdfToolGUI::onThumbnailDecoded()
 {
-    if (m_pendingThumbnails.count(key) || input.imageData.isEmpty())
-    {
-        return;
-    }
-
-    // Checklist point 1: the job gets copies of plain values (the bytes are implicitly shared and
-    // never written), never the input or the list
-    std::shared_ptr<PDFAppImageThumbnailJob> job = std::make_shared<PDFAppImageThumbnailJob>();
-    job->link = m_thumbnailLink;
-    job->key = key;
-    job->data = input.imageData;
-    job->format = input.imageFormat;
-    m_pendingThumbnails[key] = job;
-    PDFExecutionPolicy::startTask(QThreadPool::globalInstance(), PDFAppImageThumbnailTask(std::move(job)));
-}
-
-void PDFAppImagesToPdfToolGUI::onThumbnailDecoded(const std::shared_ptr<PDFAppImageThumbnailJob>& job)
-{
-    PDFThreadAnnotations::happensAfter(job.get());
-    PDFThreadAnnotations::forget(job.get());
-
-    auto it = m_pendingThumbnails.find(job->key);
-    if (it == m_pendingThumbnails.end() || it->second != job)
-    {
-        return;
-    }
-    m_pendingThumbnails.erase(it);
-
-    // A thumbnail of an image, which is not in the list any more, is dropped
-    bool isKnown = false;
-    for (int i = 0; m_list && i < m_list->getCount() && !isKnown; ++i)
-    {
-        const PDFAppToolInput* input = m_list->getInput(i);
-        isKnown = job->key == input->id + QLatin1Char('/') + QString::number(input->contentGeneration);
-    }
-    if (isKnown && !job->isCanceled())
-    {
-        m_thumbnails[job->key] = std::move(job->picture);
-        updateImages();
-    }
+    updateImages();
 }
 
 QImage PDFAppImagesToPdfToolGUI::getRowThumbnail(const QString& inputId) const
@@ -2490,12 +2590,11 @@ void PDFAppImagesToPdfToolGUI::updateImages()
     std::set<QString> keys;
     for (int i = 0; m_list && i < m_list->getCount(); ++i)
     {
-        const PDFAppToolInput* input = m_list->getInput(i);
-        keys.insert(input->id + QLatin1Char('/') + QString::number(input->contentGeneration));
+        keys.insert(PDFAppImageThumbnailCache::getKey(*m_list->getInput(i)));
     }
-    for (auto it = m_thumbnails.begin(); it != m_thumbnails.end();)
+    if (m_thumbnailCache)
     {
-        it = keys.count(it->first) ? std::next(it) : m_thumbnails.erase(it);
+        m_thumbnailCache->retain(keys);
     }
     for (auto it = m_adjustedThumbnails.begin(); it != m_adjustedThumbnails.end();)
     {

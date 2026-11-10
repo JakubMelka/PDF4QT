@@ -74,6 +74,10 @@ public:
     /// (383:9088 "Add # to the file name…")
     void setPreview(const QStringList& fileNames, const QString& hint, const QString& error, const QString& errorText = QString());
 
+    /// Every file would have one name (383:9088): the box says "Handbook.pdf × 4" in red and "The
+    /// names must differ", the callout at the top of the panel the error and its remedy
+    void setDuplicateNames(const QString& fileName, int count, const QString& error, const QString& errorText);
+
     /// The section is shown (Extract: only One file per page)
     void setVisible(bool isVisible);
 
@@ -100,7 +104,14 @@ private:
     void onBrowseClicked();
     void onTokenClicked();
     void updateFolderPlaceholder();
+    void updatePreview();
 
+    QStringList m_fileNames;
+    QString m_hint;
+    QString m_error;
+    QString m_errorText;
+    QString m_duplicateName;
+    int m_duplicateCount = 0;
     QPointer<PDFDocumentToolGUI> m_gui;
     QPointer<QWidget> m_container;
     QPointer<QPushButton> m_browseButton;

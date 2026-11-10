@@ -180,8 +180,13 @@ QVariant PDFAppToolPendingPagesModel::data(const QModelIndex& index, int role) c
         case Qt::AccessibleTextRole:
             return row.title;
         case PDFComponentRoles::SubtitleRole:
-        case Qt::AccessibleDescriptionRole:
             return row.description;
+        case Qt::AccessibleDescriptionRole:
+            return row.status.isEmpty() ? row.description : tr("%1 · %2").arg(row.description, row.status);
+        case StatusRole:
+            return row.status.isEmpty() ? QVariant() : QVariant(row.status);
+        case StatusColorRole:
+            return int(row.statusColor);
         case PDFComponentRoles::IconNameRole:
             return row.iconName.isEmpty() ? QVariant() : QVariant(row.iconName);
         case PDFComponentRoles::TileTextRole:
@@ -247,6 +252,16 @@ PDFPageSelection::Mode PDFAppPageMarkingToolGUI::getEntryModeWithoutSelection() 
     return PDFPageSelection::Mode::Current;
 }
 
+PDFAppToolPageGrid::TileSize PDFAppPageMarkingToolGUI::getDefaultTileSize() const
+{
+    return PDFAppToolPageGrid::TileSize::Medium;
+}
+
+void PDFAppPageMarkingToolGUI::describeLeftPanelParts(PDFAppToolPanelBuilder& builder)
+{
+    Q_UNUSED(builder);
+}
+
 void PDFAppPageMarkingToolGUI::onDeleteRequested(PDFInteger page)
 {
     Q_UNUSED(page);
@@ -282,7 +297,7 @@ void PDFAppPageMarkingToolGUI::readTileSize()
 
     // The state setting of all page grids (the last choice of the user)
     m_isTileSizeRead = true;
-    m_tileSize = PDFAppToolTileSizeMenu::readSize(getContext());
+    m_tileSize = PDFAppToolTileSizeMenu::readSize(getContext(), getDefaultTileSize());
 }
 
 PDFAppToolPageGrid::TileSize PDFAppPageMarkingToolGUI::getTileSize() const
@@ -327,6 +342,7 @@ void PDFAppPageMarkingToolGUI::addTileSizeMenu(PDFAppToolPanelBuilder& builder)
     builder.addActionDivider();
     PDFAppToolPanelPopup* panel = builder.addMenu(QStringLiteral("thumbnailSize"), QStringLiteral("pages"), QString(), PDFAppToolTileSizeMenu::PANEL_WIDTH);
     m_tileSizeMenu = new PDFAppToolTileSizeMenu(panel, tr("Thumbnails: %1"), panel);
+    m_tileSizeMenu->setDefaultSize(getDefaultTileSize());
     m_tileSizeMenu->setSize(m_tileSize);
     connect(m_tileSizeMenu.data(), &PDFAppToolTileSizeMenu::sizeChosen, this, &PDFAppPageMarkingToolGUI::onTileSizeChosen);
 }
@@ -355,8 +371,11 @@ QWidget* PDFAppPageMarkingToolGUI::createCanvasPage(QWidget* parent)
         connect(shell, &PDFDocumentToolShell::stateChanged, this, &PDFAppPageMarkingToolGUI::onShellStateChangedSlot);
     }
 
+    // updateAll announces the state (a slot may delete this GUI): the grid is returned by its
+    // own guard, nothing of this GUI is read after it
+    QPointer<PDFAppToolPageGrid> grid(m_grid);
     updateAll();
-    return m_grid.data();
+    return grid.data();
 }
 
 void PDFAppPageMarkingToolGUI::describeLeftPanel(PDFAppToolPanelBuilder& builder)
@@ -393,6 +412,14 @@ void PDFAppPageMarkingToolGUI::describeLeftPanel(PDFAppToolPanelBuilder& builder
     if (!hint.isEmpty())
     {
         m_leftHint = builder.addHint(hint);
+    }
+
+    // The parts of the tool (the bookmarks of Split 383:6771)
+    QPointer<PDFAppPageMarkingToolGUI> guard(this);
+    describeLeftPanelParts(builder);
+    if (!guard)
+    {
+        return;
     }
 
     // Pending rotation 389:20403, Marked for removal 388:20818
@@ -514,11 +541,15 @@ void PDFAppPageMarkingToolGUI::updateAll()
         m_leftHint->setText(getLeftHintText());
     }
 
-    updatePanels();
-
-    // The slots of the state of the Primary button may delete this GUI (the tab is closed from
-    // them): the status is said only by a living GUI, the last thing
+    // The panels of a tool may announce their changes (the rows and the groups of the grid of
+    // Split: groupsChanged), a slot may delete this GUI; the slots of the state of the Primary
+    // button too (the tab is closed from them): the status is said only by a living GUI, the last thing
     QPointer<PDFAppPageMarkingToolGUI> guard(this);
+    updatePanels();
+    if (!guard)
+    {
+        return;
+    }
     updateConfirmState();
     if (guard)
     {
@@ -916,10 +947,10 @@ void PDFAppToolGUIRotatePages::updatePanels()
 
     if (m_summary && m_summary->getRowCount() == 3)
     {
-        // 389:20895 "3 · 9, 10, 15", "90° right" / Mixed (K14), "45 unchanged"
+        // 389:20895 "3 · 9, 10, 15" (owner D3: "3 · 9–10, 15"), "90° right" / Mixed (K14), "45 unchanged"
         const std::vector<PDFInteger> pages = getPendingPages();
         const QString count = PDFAppLocale::formatNumber(qint64(pages.size()));
-        m_summary->setValue(0, pages.empty() ? count : tr("%1 · %2").arg(count, PDFDocumentPageOperations::formatPageNumbers(pages)));
+        m_summary->setValue(0, pages.empty() ? count : tr("%1 · %2").arg(count, PDFAppLocale::formatPageNumbers(pages)));
         const QString rotation = getRotationText();
         m_summary->setValue(1, rotation.isEmpty() ? QStringLiteral("–") : rotation);
         m_summary->setValue(2, tr("%Ln unchanged", nullptr, int(getPageCount() - PDFInteger(pages.size()))));
@@ -1139,7 +1170,7 @@ void PDFAppToolGUIRemovePages::updatePanels()
         // 388:21459 "4 pages · 4–6, 20", "44 pages"; every page: "48 pages", "0 pages"
         const int count = int(pages.size());
         const QString removed = tr("%Ln pages", nullptr, count);
-        m_summary->setValue(0, pages.empty() || isAll ? removed : tr("%1 · %2").arg(removed, PDFDocumentPageOperations::formatPageNumbers(pages)));
+        m_summary->setValue(0, pages.empty() || isAll ? removed : tr("%1 · %2").arg(removed, PDFAppLocale::formatPageNumbers(pages)));
         m_summary->setValue(1, tr("%Ln pages", nullptr, int(getPageCount()) - count));
     }
 }

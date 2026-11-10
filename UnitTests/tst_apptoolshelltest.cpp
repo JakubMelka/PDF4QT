@@ -74,6 +74,7 @@
 #include "pdfdocumenttool_extracttext.h"
 #include "pdfdocumenttool_pages.h"
 #include "pdfdocumenttool_protect.h"
+#include "pdfdocumenttool_split.h"
 #include "pdfdocumenttool_structure.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttoolsuggestions.h"
@@ -388,6 +389,7 @@ private slots:
     void shellFlowCopyOpensCopy();
     void shellCancelAndDiscard_data();
     void shellCancelAndDiscard();
+    void shellCancelAfterRunWrittenFiles();
     void shellKeys();
     void shellHelpTopic();
     void shellLeaveWhileRunning();
@@ -5259,6 +5261,7 @@ void AppToolShellTest::shellCancelAndDiscard_data()
     QTest::newRow("back") << QStringLiteral("back");
     QTest::newRow("discard") << QStringLiteral("discard");
     QTest::newRow("dialog-escape") << QStringLiteral("dialog-escape");
+    QTest::newRow("toolbar-cancel-after-run") << QStringLiteral("toolbar-cancel-after-run");
 }
 
 void AppToolShellTest::shellCancelAndDiscard()
@@ -5301,6 +5304,14 @@ void AppToolShellTest::shellCancelAndDiscard()
         {
             dialog->getDiscardButton()->click();
         }
+        else if (way == QLatin1String("toolbar-cancel-after-run"))
+        {
+            // RS3APP Low 6, owner 2026-11-09: Cancel of the toolbar is Enabled after the run
+            // (296:2761) and works as Cancel of the dialog; it leaves the tool as in Editing
+            QCOMPARE(shell->getState(), H::State::Deciding);
+            QVERIFY(shell->getToolbar()->getCancelButton()->isEnabled());
+            shell->getToolbar()->getCancelButton()->click();
+        }
         else
         {
             QTest::keyClick(dialog, Qt::Key_Escape);
@@ -5323,6 +5334,40 @@ void AppToolShellTest::shellCancelAndDiscard()
     QVERIFY(!fixture.tools().getUsedTools().contains(TOOL_ROTATE));
     again->cancel();
     AppToolShellFixture::settle();
+}
+
+void AppToolShellTest::shellCancelAfterRunWrittenFiles()
+{
+    // 383:11374: after the run of Split the toolbar Cancel and Close of the result dialog lead to
+    // the same frame (their prototype links): Cancel is Close - the written files stay, the run
+    // is a use of the tool, the tool ends
+    using H = ToolShellFlowHelper;
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, 4);
+    QVERIFY(tab);
+    const QString splitId = QString::fromLatin1(pdf::PDFDocumentToolSplit::TOOL_ID);
+    pdf::PDFDocumentToolShell* shell = fixture.openTool(tab, splitId);
+    QVERIFY(shell);
+    const QString folder = fixture.path(QStringLiteral("parts"));
+    QVERIFY(QDir().mkpath(folder));
+    QVERIFY(shell->getModel()->setValues({ { QString::fromLatin1(pdf::PDFDocumentToolSplit::PARAMETER_RULE), QString::fromLatin1(pdf::PDFDocumentToolSplit::RULE_EVERY_N_PAGES) },
+                                           { QString::fromLatin1(pdf::PDFDocumentToolSplit::PARAMETER_PAGES_PER_FILE), 2 },
+                                           { QString::fromLatin1(pdf::PDFDocumentToolFileOutput::PARAMETER_FOLDER), folder } }).isEmpty());
+    AppToolShellFixture::settle();
+    shell->confirm();
+    QVERIFY(AppToolShellFixture::waitForState(shell, H::State::Deciding));
+    QPointer<PDFAppToolResultDialog> dialog = shell->getResultDialog();
+    QVERIFY(dialog);
+    QCOMPARE(dialog->getResultKind(), PDFAppToolResultDialog::ResultKind::WrittenFiles);
+    QVERIFY(!dialog->isStoppedRun());
+
+    QVERIFY(shell->getToolbar()->getCancelButton()->isEnabled());
+    shell->getToolbar()->getCancelButton()->click();
+    QVERIFY(AppToolShellFixture::waitFor([tab]() { return !AppToolShellFixture::getShell(tab); }));
+    AppToolShellFixture::settle();
+    QVERIFY(!dialog);
+    QCOMPARE(QDir(folder).entryList({ QStringLiteral("*.pdf") }, QDir::Files).size(), 2);
+    QVERIFY(fixture.tools().getUsedTools().contains(splitId));
 }
 
 void AppToolShellTest::shellKeys()
@@ -8064,11 +8109,11 @@ void AppToolShellTest::shellPageSelectionFollowsUndoAndDocument()
     QVERIFY(selection->getError().isEmpty());
     QVERIFY(toolbar->getConfirmButton()->isEnabled());
 
-    // 389:20177: the pages chosen in the thumbnails are named
+    // 389:20177: the pages chosen in the thumbnails are named (owner D3: "9–10, 15")
     tab->getView()->setSelectedPages({ 8, 9, 14 });
     selection->setMode(pdf::PDFPageSelection::Mode::Selected);
     AppToolShellFixture::settle();
-    QCOMPARE(selection->getStatusText(), QStringLiteral("3 pages selected · 9, 10, 15"));
+    QCOMPARE(selection->getStatusText(), QStringLiteral("3 pages selected · 9–10, 15"));
     selection->setMode(pdf::PDFPageSelection::Mode::All);
     AppToolShellFixture::settle();
 
@@ -8083,12 +8128,18 @@ void AppToolShellTest::shellPageSelectionFollowsUndoAndDocument()
     shell->cancel();
     AppToolShellFixture::settle();
 
-    // The labels of the document are shown next to the numbers
+    // The labels of the document are shown next to the numbers of a part of the pages (every page
+    // is only counted, owner D2)
     pdf::PDFAppDocumentTab* labeled = H::openReady(fixture, pdftest::AppDocumentSamples::pageLabels(fixture.folder()));
     QVERIFY(labeled);
     pdf::PDFDocumentToolShell* labeledShell = fixture.openTool(labeled, TOOL_ROTATE);
     QVERIFY(labeledShell);
-    const QString status = AppToolShellFixture::getGUI(labeledShell)->pageSelection->getStatusText();
+    pdf::PDFPageSelection* labeledSelection = AppToolShellFixture::getGUI(labeledShell)->pageSelection;
+    labeledSelection->setMode(pdf::PDFPageSelection::Mode::Range);
+    labeledSelection->setRange(QStringLiteral("1-2"));
+    AppToolShellFixture::settle();
+    const QString status = labeledSelection->getStatusText();
+    QVERIFY2(status.startsWith(QStringLiteral("2 pages selected · ")), qPrintable(status));
     QVERIFY2(status.contains(QLatin1Char('(')), qPrintable(status));
     labeledShell->cancel();
     AppToolShellFixture::settle();

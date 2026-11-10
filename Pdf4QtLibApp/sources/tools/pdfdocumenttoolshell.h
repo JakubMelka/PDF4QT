@@ -143,7 +143,8 @@ public:
     /// Stops the run (Stop, Esc): nothing is kept, the user edits again
     void stop();
 
-    /// Cancel, Esc: the tool ends, the document stays as it is
+    /// Cancel, Esc: the tool ends, the document stays as it is; after the run (Deciding) it is
+    /// Cancel / Close of the result dialog first (cancelResult)
     void cancel();
 
     /// The tab leaves the tool by a navigation (F14). A run asks as close-running:
@@ -152,7 +153,9 @@ public:
     bool confirmLeave();
 
     /// The page has refused a close request of the state Editing (the own tab of a tool
-    /// stays, the user has canceled the question K16): the shell takes requests again
+    /// stays, the user has canceled the question K16): the shell takes requests again. A
+    /// refused close of a decided result (its written file has not opened in the own tab)
+    /// returns the tool to Editing with its inputs.
     void resumeEditing();
 
     /// Computes the preview again (the inputs of a tool of more inputs have changed under
@@ -224,7 +227,14 @@ private:
     void applyEnvironment();
     void showProgress(bool isShown);
     void updateProgress(int percentage, const QString& stepText);
-    void openResultDialog(const PDFDocumentToolResult& result);
+    /// \param isStoppedFilesResult The written files of a stopped run (403:29978): the tool returns
+    ///        to its settings after the dialog; the flag is set only, when the dialog is opened
+    void openResultDialog(const PDFDocumentToolResult& result, bool isStoppedFilesResult);
+
+    /// Cancel of the toolbar after the run (owner 2026-11-09): the decision ends as Cancel / Close
+    /// of the result dialog (383:11374, 403:29978); where the frames say nothing more, the tool
+    /// is then left as Cancel leaves it in Editing
+    void cancelResult();
     bool waitForModalDialog(const PDFDocumentToolResult& result);
     void watchModalDialog(QWidget* dialog);
     void onWatchedModalClosed();

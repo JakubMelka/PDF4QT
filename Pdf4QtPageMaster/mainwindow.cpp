@@ -3515,6 +3515,9 @@ void MainWindow::performOperation(Operation operation)
             const pdf::PDFInteger pageCount = assembledPages.empty() ? 0 : pdf::PDFInteger(assembledPages.front().size());
             dialog.setPageCount(pageCount);
 
+            // B27, owner 2026-11-09: an export applies the settings to each of its outputs
+            dialog.setRangeAppliesToEachOutput(true);
+
             if (m_hasPageGeometrySettings)
             {
                 dialog.setSettings(m_pageGeometrySettings);

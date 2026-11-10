@@ -44,6 +44,7 @@
 #include "pdfcomponentpanels.h"
 #include "pdffluentwidgets.h"
 #include "pdfimagepagefactory.h"
+#include "pdfwatchedpointer.h"
 
 #include <QImage>
 #include <QKeySequence>
@@ -71,6 +72,7 @@ namespace pdf
 {
 
 class PDFAppImagePagePreview;
+class PDFAppImageThumbnailCache;
 class PDFAppInsertPositionStrip;
 class PDFAppParagraph;
 class PDFAppPasswordDialog;
@@ -450,6 +452,7 @@ private:
     QPointer<PDFLabel> m_header;
     QPointer<QWidget> m_stage;
     QPointer<PDFAppToolMergePageView> m_pageView;
+    PDFWatchedPointer<QWidget> m_pageViewport;      ///< The viewport of m_pageView (filtered): the event filter compares only its address
     QPointer<PDFAppParagraph> m_hint;
     QPointer<QWidget> m_emptyState;
     PDFAppToolPageGrid::TileSize m_tileSize = PDFAppToolPageGrid::TileSize::Medium;
@@ -930,6 +933,10 @@ private:
     QString getHeaderText() const;
     PDFInteger getBlankCount() const;
     QSizeF getBlankPageSize() const;
+
+    /// The orientation of the neighboring page as it is shown (ORIENTATION_*): "As page N" starts
+    /// in it, when the blank pages are added or the size is chosen (388:16811)
+    QString getNeighborOrientation() const;
     void onChoiceChanged(const QString& id);
     void onRangeChosen(const QString& text);
     void onRangeErrorChanged(const QString& error);
@@ -1015,6 +1022,7 @@ public:
     // Parts (tests)
     PDFAppAddImageCanvas* getCanvas() const { return m_canvas.data(); }
     PDFAppToolInputFilesPanel* getImagesPanel() const { return m_imagesPanel.data(); }
+    PDFAppImageThumbnailCache* getThumbnailCache() const;
     QWidget* getSizeFields() const { return m_sizeFields.data(); }
     PDFAppToolAnchorField* getAnchorField() const;
     PDFAppParagraph* getNote() const { return m_note.data(); }
@@ -1051,9 +1059,11 @@ private:
     void onCardClicked(const QString& inputId);
     void onZoomChanged(bool isFit);
     void onPageRowClicked();
+    void onThumbnailDecoded();
 
     QPointer<PDFAppAddImageCanvas> m_canvas;
     QPointer<PDFAppToolInputFilesPanel> m_imagesPanel;
+    QPointer<PDFAppImageThumbnailCache> m_thumbnailCache;      ///< The thumbnails of the rows (M10, of Images to PDF; a child)
     QPointer<QWidget> m_sizeFields;
     QPointer<PDFAppToolAnchorField> m_anchorField;
     QPointer<PDFAppParagraph> m_note;

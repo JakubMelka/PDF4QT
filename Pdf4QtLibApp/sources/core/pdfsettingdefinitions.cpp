@@ -677,8 +677,12 @@ void PDFSettingDefinitions::registerState(PDFSettingRegistry* registry)
     add(registry, PDFSettingDefinition::createInteger(PDFSettingKeys::updateLastSuccess(), 0, 0, std::numeric_limits<qint64>::max()));
     add(registry, PDFSettingDefinition::createString(PDFSettingKeys::storageBackupFolder(), QString(), 32767));
     add(registry, PDFSettingDefinition::createString(PDFSettingKeys::windowGeometry(), QString(), 1024)); // PDFAppWindowGeometry::MAXIMUM_TEXT_LENGTH
-    add(registry, PDFSettingDefinition::createOption(PDFSettingKeys::toolsPageGridSize(), QStringLiteral("medium"),
-                                                     { { QStringLiteral("small"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Small")), false },
+    // The size of the tiles of the page grids of the tools chosen by the user; "default" = no
+    // choice, each tool has its own default (Medium, Small of Split, Extract and Interleave -
+    // owner 2026-11-09), so a chosen Medium is stored too
+    add(registry, PDFSettingDefinition::createOption(PDFSettingKeys::toolsPageGridSize(), QStringLiteral("default"),
+                                                     { { QStringLiteral("default"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Default of the tool")), false },
+                                                       { QStringLiteral("small"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Small")), false },
                                                        { QStringLiteral("medium"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Medium")), false },
                                                        { QStringLiteral("large"), QStringLiteral(QT_TRANSLATE_NOOP("pdf::PDFSettingDefinitions", "Large")), false } }));
 }

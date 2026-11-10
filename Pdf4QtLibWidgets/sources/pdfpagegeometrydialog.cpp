@@ -73,6 +73,7 @@ PDFPageGeometryDialog::PDFPageGeometryDialog(QWidget* parent) :
     QDialog(parent),
     m_pageCountLabel(nullptr),
     m_pageRangeEdit(nullptr),
+    m_pageRangeHintLabel(nullptr),
     m_pageSubsetCombo(nullptr),
     m_referenceBoxCombo(nullptr),
     m_applyMediaBoxCheckBox(nullptr),
@@ -113,6 +114,10 @@ PDFPageGeometryDialog::PDFPageGeometryDialog(QWidget* parent) :
     m_pageSubsetCombo->addItem(tr("Landscape pages"), int(PDFPageGeometrySettings::PageSubset::LandscapePages));
     pageFilterLayout->addRow(m_pageCountLabel);
     pageFilterLayout->addRow(tr("Page range"), m_pageRangeEdit);
+    m_pageRangeHintLabel = new QLabel(tr("The page range applies to each output file separately: page 1 is the first page of each output file."), pageFilterGroup);
+    m_pageRangeHintLabel->setWordWrap(true);
+    m_pageRangeHintLabel->setVisible(false);
+    pageFilterLayout->addRow(QString(), m_pageRangeHintLabel);
     pageFilterLayout->addRow(tr("Subset"), m_pageSubsetCombo);
     mainLayout->addWidget(pageFilterGroup);
 
@@ -237,6 +242,11 @@ PDFPageGeometryDialog::PDFPageGeometryDialog(QWidget* parent) :
 void PDFPageGeometryDialog::setPageCount(PDFInteger pageCount)
 {
     m_pageCountLabel->setText(tr("Document page count: %1").arg(pageCount));
+}
+
+void PDFPageGeometryDialog::setRangeAppliesToEachOutput(bool rangeAppliesToEachOutput)
+{
+    m_pageRangeHintLabel->setVisible(rangeAppliesToEachOutput);
 }
 
 void PDFPageGeometryDialog::setSettings(const PDFPageGeometrySettings& settings)

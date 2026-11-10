@@ -131,6 +131,35 @@ void AppMcpPagesPackages::registerInsertCases(std::vector<AppMcpPagesCase>* case
         QCOMPARE(H::widths(tab->getDocument()->getDocument().data()), QStringLiteral("792 101 102"));
     } });
 
+    // Owner D6 (2026-11-10): blank pages "As page N" without blankOrientation take the orientation of
+    // the neighboring page (page 2 is A4 landscape, 842 wide); an explicit portrait wins (595 wide)
+    cases->push_back({ QStringLiteral("insert-blank-neighbor-orientation"), [](pdftest::AppMcpFixture& fixture)
+    {
+        QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+        pdf::PDFDocumentBuilder builder;
+        builder.appendPage(QRectF(0, 0, 595.276, 841.89));
+        builder.appendPage(QRectF(0, 0, 841.89, 595.276));
+        pdf::PDFDocument document = builder.build();
+        const QString filePath = fixture.path(QStringLiteral("a4.pdf"));
+        QVERIFY(pdftest::AppDocumentSamples::write(document, filePath));
+        pdf::PDFAppDocumentTab* tab = fixture.open(filePath);
+        QVERIFY(tab);
+        QVERIFY(QTest::qWaitFor([tab]() { return tab->getDocument() && tab->getDocument()->isReady(); }, 30000));
+
+        const QJsonObject parameters({ { QStringLiteral("position"), QStringLiteral("after") }, { QStringLiteral("page"), 2 }, { QStringLiteral("blankPages"), 1 } });
+        std::optional<pdf::PDFMcpCallResult> result = H::call(fixture, QStringLiteral("insert"), tab->getDocument()->getId(), parameters, QStringLiteral("keep"));
+        QVERIFY(result);
+        QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+        QCOMPARE(H::widths(tab->getDocument()->getDocument().data()), QStringLiteral("595 842 842"));
+
+        QJsonObject portrait = parameters;
+        portrait.insert(QStringLiteral("blankOrientation"), QStringLiteral("portrait"));
+        result = H::call(fixture, QStringLiteral("insert"), tab->getDocument()->getId(), portrait, QStringLiteral("keep"));
+        QVERIFY(result);
+        QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+        QCOMPARE(H::widths(tab->getDocument()->getDocument().data()), QStringLiteral("595 842 595 842"));
+    } });
+
     // A value, which would be silently ignored, is refused with what to set (checkGivenParameters):
     // the position after without its page; nothing changes
     cases->push_back({ QStringLiteral("insert-position-needs-page"), [](pdftest::AppMcpFixture& fixture)

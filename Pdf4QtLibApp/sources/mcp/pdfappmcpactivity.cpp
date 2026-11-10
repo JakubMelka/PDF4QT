@@ -23,12 +23,15 @@
 #include "pdfappmcpactivity.h"
 #include "pdfdatabase.h"
 
+#include "pdfdocumentpageoperations.h"
 #include "pdfdocumenttoolcatalog.h"
 
 #include <QDateTime>
 #include <QTimer>
 
 #include <algorithm>
+#include <limits>
+#include <vector>
 
 namespace pdf
 {
@@ -220,21 +223,14 @@ QString PDFAppMcpActivity::getStatusText(PDFMcpActivityStatus status, const QStr
 
 QString PDFAppMcpActivity::formatPages(const std::set<int>& pages)
 {
-    QStringList parts;
-    auto it = pages.cbegin();
-    while (it != pages.cend())
+    // The one text of the page lists (owner D3), every part: parsePages reads it back
+    std::vector<PDFInteger> pageIndices;
+    pageIndices.reserve(pages.size());
+    for (const int page : pages)
     {
-        const int first = *it;
-        int last = first;
-        ++it;
-        while (it != pages.cend() && *it == last + 1)
-        {
-            last = *it;
-            ++it;
-        }
-        parts << (first == last ? QString::number(first) : QStringLiteral("%1–%2").arg(first).arg(last));
+        pageIndices.push_back(PDFInteger(page) - 1);
     }
-    return parts.join(QStringLiteral(", "));
+    return PDFDocumentPageOperations::formatPageNumbers(pageIndices, std::numeric_limits<int>::max());
 }
 
 std::set<int> PDFAppMcpActivity::parsePages(const QString& text)

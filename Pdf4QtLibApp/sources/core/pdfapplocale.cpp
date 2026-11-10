@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfapplocale.h"
+#include "pdfdocumentpageoperations.h"
 
 #include <QMutex>
 #include <QMutexLocker>
@@ -184,6 +185,16 @@ QLocale PDFAppLocale::getRegionalLocale()
 QString PDFAppLocale::formatNumber(qint64 value)
 {
     return getUiLocale().toString(value);
+}
+
+QString PDFAppLocale::formatPageNumbers(const std::vector<PDFInteger>& pageIndices, int maximumParts)
+{
+    return PDFDocumentPageOperations::formatPageNumbers(pageIndices, maximumParts, &PDFAppLocale::formatPageNumber);
+}
+
+QString PDFAppLocale::formatPageNumber(PDFInteger pageNumber)
+{
+    return formatNumber(static_cast<qint64>(pageNumber));
 }
 
 QString PDFAppLocale::formatDate(const QDate& date)

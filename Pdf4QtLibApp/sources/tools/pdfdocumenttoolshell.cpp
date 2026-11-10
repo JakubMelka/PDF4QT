@@ -555,6 +555,15 @@ void PDFDocumentToolShell::resumeEditing()
     if (m_state == State::Editing)
     {
         m_isCloseRequested = false;
+        return;
+    }
+
+    // A decided result, whose close the page has refused (the written file of Save as a file
+    // has not opened in the own tab): the tool stays with its inputs and its parameters
+    if (m_state == State::Deciding && m_isCloseRequested)
+    {
+        m_isCloseRequested = false;
+        returnToEditing();
     }
 }
 
@@ -722,12 +731,45 @@ void PDFDocumentToolShell::stop()
 
 void PDFDocumentToolShell::cancel()
 {
+    if (m_state == State::Deciding)
+    {
+        cancelResult();
+        return;
+    }
+
     if (m_state == State::Editing)
     {
         PDFAppToolCloseRequest request;
         request.reason = PDFAppToolCloseRequest::Reason::Canceled;
         requestClose(request);
     }
+}
+
+void PDFDocumentToolShell::cancelResult()
+{
+    PDFAppToolResultDialog* dialog = m_resultDialog.data();
+    if (!dialog)
+    {
+        return;
+    }
+
+    // 383:11374, 403:29978: Cancel and Close of the written files lead to the same frame, so
+    // Cancel is Close there; the other after-run frames (296:2761, 336:3572) give Cancel no
+    // target: the result is canceled as by the dialog and the tool is left as Cancel leaves it
+    const bool isCancelClose = dialog->getResultKind() == PDFAppToolResultDialog::ResultKind::WrittenFiles;
+
+    // The decision runs onDialogDecided, which may close the tool and delete this shell; a
+    // dialog, which is writing, refuses it and the state stays Deciding
+    QPointer<PDFDocumentToolShell> guard(this);
+    dialog->reject();
+    if (!guard || isCancelClose || m_state != State::Editing)
+    {
+        return;
+    }
+
+    PDFAppToolCloseRequest request;
+    request.reason = PDFAppToolCloseRequest::Reason::Canceled;
+    requestClose(request);
 }
 
 void PDFDocumentToolShell::onEscape()
@@ -900,8 +942,10 @@ void PDFDocumentToolShell::updateProgress(int percentage, const QString& stepTex
     updateStatus();
 }
 
-void PDFDocumentToolShell::openResultDialog(const PDFDocumentToolResult& result)
+void PDFDocumentToolShell::openResultDialog(const PDFDocumentToolResult& result, bool isStoppedFilesResult)
 {
+    // RS3APP: a flag of an earlier dialog, which was not opened, never reaches a later one
+    m_isStoppedFilesResult = false;
     if (!m_host || !m_runner || !m_gui)
     {
         return;
@@ -932,6 +976,7 @@ void PDFDocumentToolShell::openResultDialog(const PDFDocumentToolResult& result)
     m_gui->fillResultInput(&input);
 
     m_state = State::Deciding;
+    m_isStoppedFilesResult = isStoppedFilesResult;
     updateToolbar();
 
     // Connected before it is shown: a slot of its show may delete anything
@@ -1205,7 +1250,7 @@ void PDFDocumentToolShell::finishRun(const PDFDocumentToolResult& result)
             return;
         }
 
-        openResultDialog(result);
+        openResultDialog(result, false);
         return;
     }
 
@@ -1214,8 +1259,7 @@ void PDFDocumentToolShell::finishRun(const PDFDocumentToolResult& result)
     if (result.status == PDFDocumentToolResultStatus::Stopped && !result.writtenFiles.isEmpty() &&
         PDFAppToolResultDialog::getResultKind(result) == PDFAppToolResultDialog::ResultKind::WrittenFiles)
     {
-        m_isStoppedFilesResult = true;
-        openResultDialog(result);
+        openResultDialog(result, true);
         return;
     }
 

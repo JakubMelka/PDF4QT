@@ -237,6 +237,7 @@ private Q_SLOTS:
     void unreachableSourceObjectsLeftOut();
     void orderedSourcePages();
     void blankPagesAsNeighbor();
+    void blankOrientationNotGiven();
     void imageSourcesAndAddImage();
     void addImageValidation();
     void placementValidation();
@@ -654,12 +655,8 @@ void DocumentToolInsertTest::replaceSelectedPages()
     QVERIFY(contents[4].contains("TPAGE5"));
     QCOMPARE(InsertTestHelper::fact(result, QStringLiteral("document")), QStringLiteral("5 pages (was 5)"));
     // The pages as the frame says them (388:17167 "Replace pages 13–14": a run of two pages is a
-    // range, one helper with the GUI)
+    // range, the one text of the page lists PDFDocumentPageOperations::formatPageNumbers)
     QCOMPARE(InsertTestHelper::fact(result, QStringLiteral("replaced")), QStringLiteral("2 pages · 2–3"));
-    QCOMPARE(PDFDocumentToolInsertBase::formatPageRuns({ 12, 13 }), QStringLiteral("13–14"));
-    QCOMPARE(PDFDocumentToolInsertBase::formatPageRuns({ 1, 4, 5, 6, 8 }), QStringLiteral("2, 5–7, 9"));
-    QCOMPARE(PDFDocumentToolInsertBase::formatPageRuns({}), QString());
-    QCOMPARE(PDFDocumentToolInsertBase::formatPageRuns({ 0, 1 }, [](PDFInteger number) { return QStringLiteral("<%1>").arg(number); }), QStringLiteral("<1>–<2>"));
     QCOMPARE(result.data.value(QStringLiteral("replacedPages")).toArray(), QJsonArray({ 2, 3 }));
     QCOMPARE(result.data.value(QStringLiteral("insertedPages")).toArray(), QJsonArray({ 2, 3 }));
     // The objects of the pages, which stay, keep their numbers
@@ -936,12 +933,14 @@ void DocumentToolInsertTest::orderedSourcePages()
 
 void DocumentToolInsertTest::blankPagesAsNeighbor()
 {
-    // 388:16811 "As page 12": the media box and the rotation of the neighboring page; a named size
-    // in its orientation (A4 = 595.276 x 841.89 points, landscape swapped)
+    // 388:16811 "As page 12": the media box and the rotation of the neighboring page (shown 500 x
+    // 300, landscape - its orientation); a named size in its orientation (A4 = 595.276 x 841.89
+    // points, landscape swapped)
     const PDFDocument target = MergeTestPdf::createPages("T", 2, QByteArray(), { { 2, "/MediaBox [0 0 300 500] /Rotate 90" } }).read();
     PDFDocumentToolInsertPages tool;
     QVariantMap parameters = InsertTestHelper::parameters(QStringLiteral("after"), 2);
     parameters.insert(QStringLiteral("blankPages"), 2);
+    parameters.insert(QStringLiteral("blankOrientation"), QStringLiteral("landscape"));
     const PDFDocumentToolResult result = tool.run(InsertTestHelper::context(target), parameters, nullptr, nullptr);
     QVERIFY2(result.isSuccess(), qPrintable(result.message));
     const PDFDocument document = InsertTestHelper::output(result);
@@ -951,6 +950,26 @@ void DocumentToolInsertTest::blankPagesAsNeighbor()
         QCOMPARE(document.getCatalog()->getPage(i)->getMediaBox(), QRectF(0, 0, 300, 500));
         QCOMPARE(document.getCatalog()->getPage(i)->getPageRotation(), PageRotation::Rotate90);
     }
+
+    // Owner 2026-11-09: the orientation turns the size of the neighboring page as it is shown - the
+    // rotation stays, the media box is transposed (shown 300 x 500, portrait); A4 portrait +
+    // Landscape = A4 landscape
+    parameters.insert(QStringLiteral("blankOrientation"), QStringLiteral("portrait"));
+    const PDFDocumentToolResult portrait = tool.run(InsertTestHelper::context(target), parameters, nullptr, nullptr);
+    QVERIFY2(portrait.isSuccess(), qPrintable(portrait.message));
+    QCOMPARE(InsertTestHelper::output(portrait).getCatalog()->getPage(2)->getMediaBox(), QRectF(0, 0, 500, 300));
+    QCOMPARE(InsertTestHelper::output(portrait).getCatalog()->getPage(2)->getPageRotation(), PageRotation::Rotate90);
+    const PDFDocument a4Target = MergeTestPdf::createPages("T", 2, QByteArray(), { { 1, "/MediaBox [0 0 595.276 841.89]" } }).read();
+    QVariantMap a4Parameters = InsertTestHelper::parameters(QStringLiteral("after"), 1);
+    a4Parameters.insert(QStringLiteral("blankPages"), 1);
+    a4Parameters.insert(QStringLiteral("blankSize"), QStringLiteral("same-as-page"));
+    a4Parameters.insert(QStringLiteral("blankOrientation"), QStringLiteral("landscape"));
+    QVERIFY(tool.checkGivenParameters(a4Parameters).empty());
+    const PDFDocumentToolResult a4Landscape = tool.run(InsertTestHelper::context(a4Target), a4Parameters, nullptr, nullptr);
+    QVERIFY2(a4Landscape.isSuccess(), qPrintable(a4Landscape.message));
+    const QRectF a4Box = InsertTestHelper::output(a4Landscape).getCatalog()->getPage(1)->getMediaBox();
+    QVERIFY(qAbs(a4Box.width() - 841.89) < 0.01 && qAbs(a4Box.height() - 595.276) < 0.01);
+    QCOMPARE(InsertTestHelper::output(a4Landscape).getCatalog()->getPage(1)->getPageRotation(), PageRotation::None);
 
     parameters.insert(QStringLiteral("blankSize"), QStringLiteral("a4"));
     parameters.insert(QStringLiteral("blankOrientation"), QStringLiteral("landscape"));
@@ -974,6 +993,86 @@ void DocumentToolInsertTest::blankPagesAsNeighbor()
     const PDFDocumentToolResult nothing = tool.run(InsertTestHelper::context(target), InsertTestHelper::parameters(QStringLiteral("end")), nullptr, nullptr);
     QCOMPARE(nothing.status, PDFDocumentToolResultStatus::Failed);
     QVERIFY(nothing.message.contains(QStringLiteral("nothing to insert")));
+}
+
+void DocumentToolInsertTest::blankOrientationNotGiven()
+{
+    // Owner D6 (2026-11-10): blank pages "As page N" given without "blankOrientation" (an assistant
+    // by MCP) take the orientation of the neighboring page as it is shown, as the GUI does; a given
+    // orientation wins; a named size keeps the default portrait. A4 = 595.276 x 841.89 points.
+    // Page 1 A4 portrait, page 2 A4 landscape, page 3 A4 portrait turned by /Rotate 90 (shown landscape)
+    const PDFDocument target = MergeTestPdf::createPages("T", 3, QByteArray(),
+                                                         { { 1, "/MediaBox [0 0 595.276 841.89]" }, { 2, "/MediaBox [0 0 841.89 595.276]" },
+                                                           { 3, "/MediaBox [0 0 595.276 841.89] /Rotate 90" } }).read();
+    PDFDocumentToolInsertPages tool;
+    auto blankPage = [&tool, &target](const QVariantMap& given, size_t pageIndex)
+    {
+        const PDFDocumentToolResult result = tool.run(InsertTestHelper::context(target), given, nullptr, nullptr);
+        if (!result.isSuccess())
+        {
+            qWarning() << result.message;
+            return std::pair<QSizeF, PageRotation>(QSizeF(), PageRotation::None);
+        }
+        // The output document is held, the page points into its catalog
+        const PDFDocument output = InsertTestHelper::output(result);
+        const PDFPage* page = output.getCatalog()->getPage(pageIndex);
+        return std::pair<QSizeF, PageRotation>(page->getMediaBox().size(), page->getPageRotation());
+    };
+    auto isSize = [](const QSizeF& size, double width, double height) { return qAbs(size.width() - width) < 0.01 && qAbs(size.height() - height) < 0.01; };
+
+    // A4 landscape neighbor, no orientation (and no size: the default "same-as-page") = A4 landscape
+    QVariantMap given = InsertTestHelper::parameters(QStringLiteral("after"), 2);
+    given.insert(QStringLiteral("blankPages"), 1);
+    QVERIFY(tool.checkGivenParameters(given).empty());
+    std::pair<QSizeF, PageRotation> page = blankPage(given, 2);
+    QVERIFY2(isSize(page.first, 841.89, 595.276), qPrintable(QStringLiteral("%1 x %2").arg(page.first.width()).arg(page.first.height())));
+    QCOMPARE(page.second, PageRotation::None);
+    given.insert(QStringLiteral("blankSize"), QStringLiteral("same-as-page"));
+    QVERIFY(isSize(blankPage(given, 2).first, 841.89, 595.276));
+
+    // The same with an explicit portrait = A4 portrait
+    QVariantMap portrait = given;
+    portrait.insert(QStringLiteral("blankOrientation"), QStringLiteral("portrait"));
+    QVERIFY(isSize(blankPage(portrait, 2).first, 595.276, 841.89));
+
+    // A portrait neighbor (before page 1) stays portrait; an explicit landscape turns it
+    QVariantMap first = InsertTestHelper::parameters(QStringLiteral("before"), 1);
+    first.insert(QStringLiteral("blankPages"), 1);
+    QVERIFY(isSize(blankPage(first, 0).first, 595.276, 841.89));
+    first.insert(QStringLiteral("blankOrientation"), QStringLiteral("landscape"));
+    QVERIFY(isSize(blankPage(first, 0).first, 841.89, 595.276));
+
+    // The orientation as the page is shown: a portrait media box turned by /Rotate 90 is landscape,
+    // the blank page keeps its media box and its rotation
+    QVariantMap turned = InsertTestHelper::parameters(QStringLiteral("end"));
+    turned.insert(QStringLiteral("blankPages"), 1);
+    page = blankPage(turned, 3);
+    QVERIFY(isSize(page.first, 595.276, 841.89));
+    QCOMPARE(page.second, PageRotation::Rotate90);
+
+    // A named size without an orientation keeps the default portrait, also next to a landscape page
+    QVariantMap named = InsertTestHelper::parameters(QStringLiteral("after"), 2);
+    named.insert(QStringLiteral("blankPages"), 1);
+    named.insert(QStringLiteral("blankSize"), QStringLiteral("a4"));
+    QVERIFY(isSize(blankPage(named, 2).first, 595.276, 841.89));
+
+    // The completed values: only "As page N" with blank pages gets the orientation of the page
+    const PDFDocumentToolContext context = InsertTestHelper::context(target);
+    QCOMPARE(tool.completeGivenParameters(context, given).value(QStringLiteral("blankOrientation")).toString(), QStringLiteral("landscape"));
+    QCOMPARE(tool.completeGivenParameters(context, portrait).value(QStringLiteral("blankOrientation")).toString(), QStringLiteral("portrait"));
+    QVERIFY(!tool.completeGivenParameters(context, named).contains(QStringLiteral("blankOrientation")));
+    QVERIFY(!tool.completeGivenParameters(context, InsertTestHelper::parameters(QStringLiteral("after"), 2)).contains(QStringLiteral("blankOrientation")));
+
+    // Hostile values: a page, which does not exist, an invalid value, no document - nothing is
+    // added (the run reports the error of the value)
+    QVariantMap outside = InsertTestHelper::parameters(QStringLiteral("after"), 60);
+    outside.insert(QStringLiteral("blankPages"), 1);
+    QVERIFY(!tool.completeGivenParameters(context, outside).contains(QStringLiteral("blankOrientation")));
+    QVariantMap invalid = given;
+    invalid.insert(QStringLiteral("blankPages"), QStringLiteral("many"));
+    QVERIFY(!tool.completeGivenParameters(context, invalid).contains(QStringLiteral("blankOrientation")));
+    QCOMPARE(tool.run(context, invalid, nullptr, nullptr).status, PDFDocumentToolResultStatus::Failed);
+    QVERIFY(!tool.completeGivenParameters(PDFDocumentToolContext(), given).contains(QStringLiteral("blankOrientation")));
 }
 
 /// Access to the plan of the tools (the layout given to the merger)

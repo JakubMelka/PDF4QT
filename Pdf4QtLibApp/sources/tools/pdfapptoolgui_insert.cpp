@@ -191,19 +191,6 @@ public:
         return parts.join(QStringLiteral(", "));
     }
 
-    /// The pages (indices from 0, sorted) for the texts of the frames: "13–14", "2, 5–9" (388:17167;
-    /// a run of two pages is a range too)
-    static QString formatPages(const std::vector<PDFInteger>& pageIndices)
-    {
-        // The text of the core fact "replaced" (one helper) with the numbers of the locale
-        return PDFDocumentToolInsertBase::formatPageRuns(pageIndices, &PDFAppInsertToolGUIHelper::formatPageNumber);
-    }
-
-    static QString formatPageNumber(PDFInteger pageNumber)
-    {
-        return PDFAppLocale::formatNumber(static_cast<qint64>(pageNumber));
-    }
-
     /// The value of a source of "sourcePages" means all its pages (empty or "all")
     static bool isAllPages(const QString& value)
     {
@@ -1077,7 +1064,10 @@ PDFAppInsertCanvas::PDFAppInsertCanvas(QWidget* parent) :
     m_pageView->setTileDelegate(m_delegate);
     m_pageView->setEditable(false);
     m_pageView->setMaximumHeight(1);
-    m_pageView->viewport()->installEventFilter(this);
+    // The view dies only with the canvas (a child of the stage); the filter compares only the
+    // address of the viewport (no call through the view, which may be in its destructor)
+    m_pageViewport = m_pageView->viewport();
+    m_pageViewport->installEventFilter(this);
     stageLayout->addWidget(m_pageView, 1);
     connect(m_pageView.data(), &PDFAppToolMergePageView::contentHeightChanged, this, &PDFAppInsertCanvas::onContentHeightChanged);
     connect(m_pageView.data(), &PDFAppToolMergePageView::actionTriggered, this, &PDFAppInsertCanvas::groupActionTriggered);
@@ -1181,7 +1171,9 @@ void PDFAppInsertCanvas::changeEvent(QEvent* event)
 
 bool PDFAppInsertCanvas::eventFilter(QObject* watched, QEvent* event)
 {
-    if (m_pageView && watched == m_pageView->viewport())
+    // The type first, then the address of the viewport: the mouse events come only to a living view
+    const bool isMouseButton = event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonRelease;
+    if (isMouseButton && m_pageViewport.isObject(watched) && m_pageView)
     {
         switch (event->type())
         {
@@ -2140,7 +2132,7 @@ QString PDFAppInsertToolGUIBase::getPositionValueText() const
     }
     if (position == QLatin1String(PDFDocumentToolInsertBase::POSITION_REPLACE))
     {
-        return tr("Replace %1").arg(PDFAppInsertToolGUIHelper::formatPages(getReplacedPages()));
+        return tr("Replace %1").arg(PDFAppLocale::formatPageNumbers(getReplacedPages()));
     }
     return tr("At the end");
 }
@@ -2164,7 +2156,7 @@ QString PDFAppInsertToolGUIBase::getPlaceClause() const
     }
     if (position == QLatin1String(PDFDocumentToolInsertBase::POSITION_REPLACE))
     {
-        return tr("replace pages %1").arg(PDFAppInsertToolGUIHelper::formatPages(getReplacedPages()));
+        return tr("replace pages %1").arg(PDFAppLocale::formatPageNumbers(getReplacedPages()));
     }
     return tr("at the end");
 }
@@ -2558,7 +2550,7 @@ void PDFAppInsertToolGUIBase::updateStrip()
     if (m_stripHint)
     {
         // 388:15743; 388:17167 "Pages 13–14 are selected in Thumbnails and will be replaced by the inserted pages."
-        const QString pages = Helper::formatPages(replaced);
+        const QString pages = PDFAppLocale::formatPageNumbers(replaced);
         m_stripHint->setText(replaced.empty() ? tr("Click between two pages to move the insertion line, or drop files there.")
                                               : (replaced.size() == 1 ? tr("Page %1 is selected in Thumbnails and will be replaced by the inserted pages.").arg(pages)
                                                                       : tr("Pages %1 are selected in Thumbnails and will be replaced by the inserted pages.").arg(pages)));
@@ -2625,7 +2617,7 @@ void PDFAppInsertToolGUIBase::updatePositionRows()
     {
         // tb-position 388:15585 "Position: After page 12", 388:17167 "Position: Replace pages 13–14"
         const bool isReplace = position == QLatin1String(PDFDocumentToolInsertBase::POSITION_REPLACE);
-        const QString value = isReplace ? tr("Replace pages %1").arg(Helper::formatPages(getReplacedPages())) : getPositionValueText();
+        const QString value = isReplace ? tr("Replace pages %1").arg(PDFAppLocale::formatPageNumbers(getReplacedPages())) : getPositionValueText();
         button->setText(tr("Position: %1").arg(value));
         button->setToolTip(button->text());
         QString iconName = QStringLiteral("insert-after");
@@ -3324,19 +3316,22 @@ PDFInteger PDFAppInsertToolGUI::getBlankCount() const
 
 QSizeF PDFAppInsertToolGUI::getBlankPageSize() const
 {
-    // 388:16811 "As page 12": the page as it is shown; a named size in its orientation
+    // 388:16811 "As page 12": the page as it is shown; both it and a named size in the orientation
+    // (owner 2026-11-09: A4 portrait + Landscape = A4 landscape) - the rule of the core
     const QString sizeId = getParameter(PDFDocumentToolInsertPages::PARAMETER_BLANK_SIZE);
     const PDFAppDocument* document = getDocument();
-    if (sizeId == QLatin1String(PDFDocumentToolInsertPages::SIZE_SAME_AS_PAGE) || sizeId.isEmpty())
-    {
-        return PDFDocumentToolInsertBase::getShownPageSize(document ? document->getDocument().data() : nullptr, getNeighborPage());
-    }
-    QSizeF size = PDFPageSizePresets::getSize(sizeId).value_or(QSizeF());
-    if (getParameter(PDFDocumentToolInsertPages::PARAMETER_BLANK_ORIENTATION) == QLatin1String(PDFDocumentToolInsertPages::ORIENTATION_LANDSCAPE))
-    {
-        size.transpose();
-    }
-    return size;
+    const QSizeF size = sizeId == QLatin1String(PDFDocumentToolInsertPages::SIZE_SAME_AS_PAGE) || sizeId.isEmpty()
+                            ? PDFDocumentToolInsertBase::getShownPageSize(document ? document->getDocument().data() : nullptr, getNeighborPage())
+                            : PDFPageSizePresets::getSize(sizeId).value_or(QSizeF());
+    const PDFAppToolParameterModel* model = getModel();
+    return PDFDocumentToolInsertPages::getOrientedSize(size, model ? model->getValues() : QVariantMap());
+}
+
+QString PDFAppInsertToolGUI::getNeighborOrientation() const
+{
+    const PDFAppDocument* document = getDocument();
+    const QSizeF shown = PDFDocumentToolInsertBase::getShownPageSize(document ? document->getDocument().data() : nullptr, getNeighborPage());
+    return QString::fromLatin1(shown.width() > shown.height() ? PDFDocumentToolInsertPages::ORIENTATION_LANDSCAPE : PDFDocumentToolInsertPages::ORIENTATION_PORTRAIT);
 }
 
 std::optional<std::vector<PDFInteger>> PDFAppInsertToolGUI::getSourcePages(const QString& inputId) const
@@ -3488,7 +3483,11 @@ void PDFAppInsertToolGUI::updateToolbar()
     BaseClass::updateToolbar();
     if (QToolButton* remove = getAction(QStringLiteral("remove")))
     {
-        remove->setEnabled(isEditable() && !m_currentInput.isEmpty());
+        // 388:16811: the blank pages alone are no card of a selected source (they lie on the
+        // stage), the button removing the selected source is Disabled; their Count sets them
+        const QStringList ids = getModelInputIds();
+        const bool isBlankOnly = ids.size() == 1 && ids.front() == PDFAppInsertToolGUIHelper::blankId();
+        remove->setEnabled(isEditable() && !m_currentInput.isEmpty() && !isBlankOnly);
     }
     if (QToolButton* size = getAction(QStringLiteral("thumbnailSize")))
     {
@@ -3793,8 +3792,8 @@ void PDFAppInsertToolGUI::updateRightPanel()
         const bool isSame = sizeId == QLatin1String(PDFDocumentToolInsertPages::SIZE_SAME_AS_PAGE) || sizeId.isEmpty();
         if (m_blankOrientationControl)
         {
-            // The orientation of "As page N" is the one of the page
-            m_blankOrientationControl->setEnabled(!isSame && isEditable());
+            // 388:16811: the orientation turns also the size of "As page N" (owner 2026-11-09)
+            m_blankOrientationControl->setEnabled(isEditable());
         }
         if (m_blankNote)
         {
@@ -3897,6 +3896,12 @@ void PDFAppInsertToolGUI::addBlankPages()
     }
     QVariantMap extra;
     extra.insert(Helper::name(PDFDocumentToolInsertPages::PARAMETER_BLANK_PAGES), qint64(qMin(PDFInteger(count + 1), static_cast<PDFInteger>(PDFDocumentToolInsertPages::MAXIMUM_BLANK_PAGES))));
+    const QString sizeId = getParameter(PDFDocumentToolInsertPages::PARAMETER_BLANK_SIZE);
+    if (count == 0 && (sizeId.isEmpty() || sizeId == QLatin1String(PDFDocumentToolInsertPages::SIZE_SAME_AS_PAGE)))
+    {
+        // New blank pages "As page N" start in the orientation of the page (one step of Undo)
+        extra.insert(Helper::name(PDFDocumentToolInsertPages::PARAMETER_BLANK_ORIENTATION), getNeighborOrientation());
+    }
     m_currentInput = Helper::blankId();
     applySources(ids, getSourceValues(), extra);
 }
@@ -4067,8 +4072,15 @@ void PDFAppInsertToolGUI::onBlankSizeActivated(int index)
         return;
     }
     const QString sizeId = m_blankSizeCombo->itemData(index).toString();
+    QVariantMap values;
+    values.insert(PDFAppInsertToolGUIHelper::name(PDFDocumentToolInsertPages::PARAMETER_BLANK_SIZE), sizeId);
+    if (sizeId == QLatin1String(PDFDocumentToolInsertPages::SIZE_SAME_AS_PAGE))
+    {
+        // "As page N" starts in the orientation of the page; Orientation can turn it (owner 2026-11-09)
+        values.insert(PDFAppInsertToolGUIHelper::name(PDFDocumentToolInsertPages::PARAMETER_BLANK_ORIENTATION), getNeighborOrientation());
+    }
     QPointer<PDFAppInsertToolGUI> guard(this);
-    const QString error = model->setValue(PDFAppInsertToolGUIHelper::name(PDFDocumentToolInsertPages::PARAMETER_BLANK_SIZE), sizeId);
+    const QString error = model->setValues(values);
     if (guard && !error.isEmpty() && getHost())
     {
         getHost()->showTransientMessage(error);
@@ -4113,12 +4125,27 @@ void PDFAppInsertToolGUI::onEmptyStateBlankPages()
 // ------------------------------------------------------------- PDFAppAddImageToolGUI
 
 PDFAppAddImageToolGUI::PDFAppAddImageToolGUI(QObject* parent) :
-    BaseClass(parent)
+    BaseClass(parent),
+    m_thumbnailCache(new PDFAppImageThumbnailCache(this))
 {
-
+    connect(m_thumbnailCache.data(), &PDFAppImageThumbnailCache::thumbnailDecoded, this, &PDFAppAddImageToolGUI::onThumbnailDecoded);
 }
 
-PDFAppAddImageToolGUI::~PDFAppAddImageToolGUI() = default;
+PDFAppAddImageToolGUI::~PDFAppAddImageToolGUI()
+{
+    // The cache (a child) cuts its link first: a late thumbnail is dropped, nobody waits
+    delete m_thumbnailCache.data();
+}
+
+void PDFAppAddImageToolGUI::onThumbnailDecoded()
+{
+    updateImages();
+}
+
+PDFAppImageThumbnailCache* PDFAppAddImageToolGUI::getThumbnailCache() const
+{
+    return m_thumbnailCache.data();
+}
 
 PDFAppToolInputRules PDFAppAddImageToolGUI::getInputRules() const
 {
@@ -4702,6 +4729,18 @@ void PDFAppAddImageToolGUI::updateImages()
         content.letter = PDFAppToolInputList::getLetter(index);
         content.hue = PDFAppToolInputList::getHue(index, input);
         content.name = input->name;
+        if (input->isUsable() && input->isImage() && m_thumbnailCache)
+        {
+            // M10, thumb 336:2128 as Images to PDF: the picture of the image in its turn (decoded
+            // in the pool by the cache of Images to PDF)
+            content.hasThumbnail = true;
+            content.thumbnail = m_thumbnailCache->getThumbnail(*input);
+            const int angle = Helper::getTurnAngle(getTurn(id));
+            if (angle != 0 && !content.thumbnail.isNull())
+            {
+                content.thumbnail = content.thumbnail.transformed(QTransform().rotate(angle));
+            }
+        }
         if (input->state == PDFAppToolInputState::Loading)
         {
             content.firstLine = PDFAppToolInputList::getStateText(input->state);
@@ -4735,6 +4774,18 @@ void PDFAppAddImageToolGUI::updateImages()
         }
         rows.push_back(content);
     }
+
+    // The thumbnails of the images, which are not in the list any more, are forgotten
+    std::set<QString> keys;
+    for (int i = 0; i < count; ++i)
+    {
+        keys.insert(PDFAppImageThumbnailCache::getKey(*list->getInput(i)));
+    }
+    if (m_thumbnailCache)
+    {
+        m_thumbnailCache->retain(keys);
+    }
+
     m_imagesPanel->setRows(rows);
     m_imagesPanel->setCurrentInput(m_currentInput);
     m_imagesPanel->setEditable(isEditable());

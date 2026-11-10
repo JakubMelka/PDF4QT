@@ -13,7 +13,7 @@ Resize Pages changes the paper size of pages: the content is scaled to fit or ke
 1. Choose the pages in **Pages to resize** and click a thumbnail of the left panel to see that page: **Now** and **After** show it before and after the change.
 2. **Size** chooses the new paper: A5, A4, A3, Letter, Legal, **Custom** (the width and the height appear in the right panel) or **Keep page size** (only the margins and the placement change).
 3. **Orientation** of a named size: **Auto** gives a landscape sheet to a page, which is shown landscape, **Portrait** and **Landscape** give every page the same orientation.
-4. **Content: Scale to fit** enlarges or reduces the content to fit inside of the **Margins**; **Keep size** only places it - nothing on the page is rewritten, only the page boxes change.
+4. **Content: Scale to fit** enlarges or reduces the content to fit inside of the **Margins**; **Keep size** only places it - the content is not rewritten, the page shows the whole new size.
 5. **Anchor** places the content inside of the margins; **Offset X** moves it to the right, **Offset Y** down. **Preserve aspect ratio** keeps the proportions of the content, **Scale comments and form fields** scales them with it (otherwise they only move with it).
 6. Press **Resize Pages**. The result can stay in this tab, be saved as a copy or overwrite the original file.
 

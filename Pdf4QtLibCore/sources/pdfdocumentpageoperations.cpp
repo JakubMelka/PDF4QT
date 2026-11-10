@@ -1537,7 +1537,7 @@ PDFDocument PDFDocumentPageOperations::keepPages(const PDFDocument* document, co
     return result;
 }
 
-QString PDFDocumentPageOperations::formatPageNumbers(const std::vector<PDFInteger>& pageIndices, int maximumParts)
+QString PDFDocumentPageOperations::formatPageNumbers(const std::vector<PDFInteger>& pageIndices, int maximumParts, const std::function<QString(PDFInteger)>& formatNumber)
 {
     QStringList parts;
     for (size_t i = 0; i < pageIndices.size();)
@@ -1548,17 +1548,16 @@ QString PDFDocumentPageOperations::formatPageNumbers(const std::vector<PDFIntege
             break;
         }
 
-        // Two pages in a row are two numbers, a range has three pages at least (389:20895 "9, 10, 15", 388:21459 "4–6, 20")
+        // Owner D3 (2026-11-10): a run of two pages is a range too ("13–14", 388:17167)
         size_t last = i;
         while (last + 1 < pageIndices.size() && pageIndices[last + 1] == pageIndices[last] + 1)
         {
             ++last;
         }
-        if (last < i + 2)
-        {
-            last = i;
-        }
-        parts << (last == i ? QString::number(pageIndices[i] + 1) : QStringLiteral("%1–%2").arg(pageIndices[i] + 1).arg(pageIndices[last] + 1));
+        const PDFInteger firstNumber = pageIndices[i] + 1;
+        const PDFInteger lastNumber = pageIndices[last] + 1;
+        const QString firstText = formatNumber ? formatNumber(firstNumber) : QString::number(firstNumber);
+        parts << (last == i ? firstText : QStringLiteral("%1–%2").arg(firstText, formatNumber ? formatNumber(lastNumber) : QString::number(lastNumber)));
         i = last + 1;
     }
     return parts.join(QStringLiteral(", "));

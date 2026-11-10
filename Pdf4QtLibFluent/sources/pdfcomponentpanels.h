@@ -395,7 +395,7 @@ public:
 /// sizes given by \p setPageSizes (a page wider than high is landscape); a page
 /// of an unknown size passes no orientation filter. Ranges are in the physical
 /// order of the pages, the labels of the pages (\p setPageLabels) are shown next
-/// to the numbers in the status ("7 pages selected · 3 (iii) – 12 (xii)").
+/// to the numbers in the status ("7 pages selected · 3 (iii)–5 (v), 8 (viii), 10 (x)–12 (xii)").
 ///
 /// An invalid range is the state Error of the design: the error row with the
 /// message is shown (the widget is 24 px higher), the range field has the red
@@ -520,12 +520,14 @@ public:
     /// Returns the count of the pages of the result
     qint64 getResultCount() const { return m_summary.count; }
 
-    /// Returns the text of the status ("7 pages selected · 3 (iii) – 12 (xii)"; the mode
-    /// Selected names at most MAX_NAMED_SELECTED_PAGES pages: "3 pages selected · 9, 10, 15")
+    /// Returns the text of the status: the count and the pages in canonical ranges ("7 pages
+    /// selected · 1–3, 8, 10–12", a run of two pages is a range too: "9–10, 15"; owner D2 / D3),
+    /// at most MAX_STATUS_PARTS parts, then "…"; every page of the document is only counted
+    /// ("48 pages selected")
     const QString& getStatusText() const { return m_statusText; }
 
-    /// Most pages of the mode Selected named by the status (a line of 279 px, 389:20177)
-    static constexpr int MAX_NAMED_SELECTED_PAGES = 6;
+    /// Most parts of the pages named by the status (a line of 279 px, 389:20177)
+    static constexpr int MAX_STATUS_PARTS = 6;
 
     /// Nested widgets (for the tests, the styling and the accessibility)
     PDFSegmentedControl* getModeControl() const { return m_modes.data(); }
@@ -602,6 +604,7 @@ private:
     QList<PDFPageRange::Interval> computeBase() const;
     Summary computeSummary(const QList<PDFPageRange::Interval>& base) const;
     QString computeStatus() const;
+    QList<PDFPageRange::Interval> computeLeadingRuns(qsizetype maximumCount) const;
     static QStringList getModeTexts();
     static QStringList getFilterTexts();
 

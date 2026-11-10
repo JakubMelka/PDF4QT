@@ -7203,9 +7203,10 @@ void FluentComponentsTest::pageSelectionResult()
     QSignalSpy filtersSpy(&selection, &Selection::filtersChanged);
     QSignalSpy rangeSpy(&selection, &Selection::rangeChanged);
 
+    // Every page of the document is only counted (389:22382, 383:3315 "48 pages selected")
     selection.setPageCount(48);
     QCOMPARE(selection.getResultCount(), 48);
-    QCOMPARE(selection.getStatusText(), QStringLiteral("48 pages selected · 1 – 48"));
+    QCOMPARE(selection.getStatusText(), QStringLiteral("48 pages selected"));
     QCOMPARE(selection.getContent().total, QStringLiteral("48 pages"));
     QCOMPARE(resultSpy.count(), 1);
     selection.setPageCount(48);
@@ -7213,15 +7214,20 @@ void FluentComponentsTest::pageSelectionResult()
 
     // Labels are shown next to the numbers, a label equal to the number is not
     selection.setPageLabels(PanelSamples::labels());
-    QCOMPARE(selection.getStatusText(), QStringLiteral("48 pages selected · 1 (i) – 48 (36)"));
+    QCOMPARE(selection.getStatusText(), QStringLiteral("48 pages selected"));
     QStringList numbers;
     for (int page = 1; page <= 48; ++page)
     {
         numbers << QString::number(page);
     }
     selection.setPageLabels(numbers);
-    QCOMPARE(selection.getStatusText(), QStringLiteral("48 pages selected · 1 – 48"));
+    selection.setSelectedPages({ 3, 4, 5, 8 });
+    selection.setMode(Mode::Selected);
+    QCOMPARE(selection.getStatusText(), QStringLiteral("4 pages selected · 3–5, 8"));
     selection.setPageLabels(PanelSamples::labels());
+    QCOMPARE(selection.getStatusText(), QStringLiteral("4 pages selected · 3 (iii)–5 (v), 8 (viii)"));
+    selection.setMode(Mode::All);
+    modeSpy.clear();
 
     // Current page
     selection.setCurrentPage(3);
@@ -7242,13 +7248,24 @@ void FluentComponentsTest::pageSelectionResult()
     selection.setMode(Mode::Selected);
     QCOMPARE(selection.getResultPages(), (QList<int>{ 3, 5, 12 }));
 
-    // The status of the frame 389:20177 names the pages ("3 pages selected · 9, 10, 15"); from
-    // more than MAX_NAMED_SELECTED_PAGES on it says the first and the last one
+    // Owner D2 / D3 (2026-11-10): the pages in canonical ranges (385:9405 "1–3, 8, 10–12"), an en
+    // dash without spaces, a run of two pages is a range too (389:20177 "9, 10, 15" is "9–10, 15")
     QCOMPARE(selection.getStatusText(), QStringLiteral("3 pages selected · 3 (iii), 5 (v), 12 (xii)"));
+    selection.setSelectedPages({ 9, 10, 12 });
+    QCOMPARE(selection.getStatusText(), QStringLiteral("3 pages selected · 9 (ix)–10 (x), 12 (xii)"));
     selection.setSelectedPages({ 1, 2, 3, 4, 5, 6 });
-    QVERIFY2(selection.getStatusText().endsWith(QStringLiteral(", 6 (vi)")), qPrintable(selection.getStatusText()));
+    QCOMPARE(selection.getStatusText(), QStringLiteral("6 pages selected · 1 (i)–6 (vi)"));
     selection.setSelectedPages({ 1, 2, 3, 4, 5, 6, 7 });
-    QCOMPARE(selection.getStatusText(), QStringLiteral("7 pages selected · 1 (i) – 7 (vii)"));
+    QCOMPARE(selection.getStatusText(), QStringLiteral("7 pages selected · 1 (i)–7 (vii)"));
+
+    // At most MAX_STATUS_PARTS parts (a line of 279 px), then "…"
+    QCOMPARE(Selection::MAX_STATUS_PARTS, 6);
+    selection.setSelectedPages({ 1, 3, 5, 7, 9, 11 });
+    QCOMPARE(selection.getStatusText(), QStringLiteral("6 pages selected · 1 (i), 3 (iii), 5 (v), 7 (vii), 9 (ix), 11 (xi)"));
+    selection.setSelectedPages({ 1, 3, 5, 7, 9, 11, 12 });
+    QCOMPARE(selection.getStatusText(), QStringLiteral("7 pages selected · 1 (i), 3 (iii), 5 (v), 7 (vii), 9 (ix), 11 (xi)–12 (xii)"));
+    selection.setSelectedPages({ 1, 3, 5, 7, 9, 11, 13 });
+    QCOMPARE(selection.getStatusText(), QStringLiteral("7 pages selected · 1 (i), 3 (iii), 5 (v), 7 (vii), 9 (ix), 11 (xi), …"));
     selection.setSelectedPages({ 3, 5, 100, 12 });
     QCOMPARE(selection.getResultPages(), (QList<int>{ 3, 5, 12 }));
 
@@ -7259,7 +7276,7 @@ void FluentComponentsTest::pageSelectionResult()
     QCOMPARE(selection.getResultCount(), 3);
     selection.setMode(Mode::Range);
     QCOMPARE(selection.getResultCount(), 7);
-    QCOMPARE(selection.getStatusText(), QStringLiteral("7 pages selected · 3 (iii) – 12 (xii)"));
+    QCOMPARE(selection.getStatusText(), QStringLiteral("7 pages selected · 3 (iii)–5 (v), 8 (viii), 10 (x)–12 (xii)"));
     QCOMPARE(selection.getRange(), QStringLiteral("3-5, 8, 10-12"));
     QCOMPARE(selection.getRangeField()->text(), QStringLiteral("3-5, 8, 10-12"));
 
@@ -7267,6 +7284,7 @@ void FluentComponentsTest::pageSelectionResult()
     selection.setFilters(Filter::Even);
     QCOMPARE(filtersSpy.count(), 1);
     QCOMPARE(selection.getResultPages(), (QList<int>{ 4, 8, 10, 12 }));
+    QCOMPARE(selection.getStatusText(), QStringLiteral("4 pages selected · 4 (iv), 8 (viii), 10 (x), 12 (xii)"));
     QVERIFY(selection.getFilterCheckBox(Filter::Even)->isChecked());
     selection.setFilters(Filter::Even | Filter::Odd);
     QCOMPARE(selection.getResultCount(), 7);
@@ -7289,6 +7307,7 @@ void FluentComponentsTest::pageSelectionResult()
     QCOMPARE(selection.getResultPages(), (QList<int>{ 8, 11 }));
     selection.setFilters(Filter::Portrait);
     QCOMPARE(selection.getResultPages(), (QList<int>{ 3, 4, 12 }));
+    QCOMPARE(selection.getStatusText(), QStringLiteral("3 pages selected · 3 (iii)–4 (iv), 12 (xii)"));
     selection.setFilters(Filter::Portrait | Filter::Landscape | Filter::Odd);
     QCOMPARE(selection.getResultPages(), (QList<int>{ 3, 5, 11 }));
     selection.setFilters(Filter::Portrait | Filter::Odd);
@@ -7456,7 +7475,7 @@ void FluentComponentsTest::pageSelectionWidget()
     // Accessibility: the label is the name, the status (and the error) the description; a new error is announced
     QAccessibleInterface* accessible = QAccessible::queryAccessibleInterface(selection);
     QCOMPARE(accessible->text(QAccessible::Name), QStringLiteral("Pages"));
-    QCOMPARE(accessible->text(QAccessible::Description), QStringLiteral("4 pages selected · 2 (ii) – 9 (ix)"));
+    QCOMPARE(accessible->text(QAccessible::Description), QStringLiteral("4 pages selected · 2 (ii)–4 (iv), 9 (ix)"));
     QCOMPARE(QAccessible::queryAccessibleInterface(selection->getRangeField())->text(QAccessible::Name), QStringLiteral("Page range"));
     QVERIFY(!selection->getModeControl()->accessibleName().isEmpty());
     s_accessibleEvents.clear();
@@ -10776,6 +10795,12 @@ void FluentComponentsTest::pageSelectionReview()
     {
         QPointer<Selection> deleted = new Selection();
         deleted->setPageCount(5);
+        if (variant == 1)
+        {
+            // The status names the labels of a part of the pages (all pages are only counted)
+            deleted->setCurrentPage(1);
+            deleted->setMode(Mode::Current);
+        }
         connect(deleted.data(), &Selection::resultChanged, deleted.data(), [&deleted]() { delete deleted.data(); });
         switch (variant)
         {
@@ -10828,7 +10853,10 @@ void FluentComponentsTest::pageSelectionReview()
     // Review F5 and C9: the numbers of the locale, the plural forms of the language
     selection.setMode(Mode::All);
     QCOMPARE(selection.getContent().total, QStringLiteral("1,592 pages"));
-    QCOMPARE(selection.getStatusText(), QStringLiteral("1,592 pages selected · 1 – 1,592"));
+    QCOMPARE(selection.getStatusText(), QStringLiteral("1,592 pages selected"));
+    selection.setRange(QStringLiteral("999-1002, 1590-1591"));
+    selection.setMode(Mode::Range);
+    QCOMPARE(selection.getStatusText(), QStringLiteral("6 pages selected · 999–1,002, 1,590–1,591"));
     selection.setRange(QStringLiteral("1600"));
     QCOMPARE(selection.getRangeError(), QStringLiteral("Page 1600 does not exist – the document has 1,592 pages"));
     selection.setMode(Mode::Current);
@@ -10935,14 +10963,15 @@ void FluentComponentsTest::pageSelectionHugeDocument()
     }
     selection.setPageLabels({ QStringLiteral("i") });
     QCOMPARE(selection.getResultCount(), pdf::PDFPageRange::MAX_PAGE_COUNT / 2);
-    QCOMPARE(selection.getStatusText(), QStringLiteral("5,000,000 pages selected · 2 – 10,000,000"));
+    // The status names the first parts only, the result is not built for it
+    QCOMPARE(selection.getStatusText(), QStringLiteral("5,000,000 pages selected · 2, 4, 6, 8, 10, 12, …"));
     QVERIFY2(timer.elapsed() < 1000, qPrintable(QString::number(timer.elapsed())));
 
-    // A range with a parity filter: the first and the last page of the parity
+    // A range with a parity filter: every page of the parity is its own part
     selection.setRange(QStringLiteral("3-9, 20-21"));
     selection.setMode(Selection::Mode::Range);
     QCOMPARE(selection.getResultCount(), 4);
-    QCOMPARE(selection.getStatusText(), QStringLiteral("4 pages selected · 4 – 20"));
+    QCOMPARE(selection.getStatusText(), QStringLiteral("4 pages selected · 4, 6, 8, 20"));
     QCOMPARE(selection.getResultIntervals(), (QList<pdf::PDFPageRange::Interval>{ { 4, 4 }, { 6, 6 }, { 8, 8 }, { 20, 20 } }));
     selection.setFilters(Filter::Odd);
     QCOMPARE(selection.getResultPages(), (QList<int>{ 3, 5, 7, 9, 21 }));
@@ -18325,6 +18354,11 @@ public:
             content.caption = QStringLiteral("will be removed");
             content.badgeIconName = QStringLiteral("trash");
         }
+        else if (tileState == Painter::PageTileState::Replaced)
+        {
+            content.caption = QStringLiteral("replaced");
+            content.badgeIconName = QStringLiteral("replace");
+        }
         return content;
     }
 
@@ -19840,6 +19874,17 @@ void FluentComponentsTest::pageTilePixels()
     QVERIFY(isCloser(strongestInk(image, QRect(6, 139, 82, 12), surface), token(Color::TextDanger), token(Color::TextSecondary)));
     QVERIFY(isCloser(strongestInk(image, QRect(78, 4, 12, 12), token(Color::AccentRedBg)), token(Color::AccentRedIcon), token(Color::AccentBlueIcon)));
 
+    // Replaced 388:17167 (owner 2026-11-09): dimmed as Marked (paper @ 0.5, picture @ 0.35), but
+    // the caption text/muted and the badge accent/amber - bg, icon (#C2410C light) - not red
+    const Painter::PageTile replaced = ToolSamples::tile(TileState::Replaced, QSize(82, 112));
+    image = renderTile(replaced, QStyle::State_None);
+    QVERIFY(isNear(pixel(image, 47, 60), blend(withOpacity(picture, 0.35), blend(withOpacity(token(Color::ReadingPaperPage), 0.35), paper)), 4));
+    QVERIFY(isNear(pixel(image, 2, 60), surface));
+    QVERIFY(isCloser(strongestInk(image, QRect(6, 139, 82, 12), surface), token(Color::TextMuted), token(Color::TextDanger)));
+    QVERIFY(isNear(pixel(image, 77, 10), token(Color::AccentAmberBg), 12));
+    QVERIFY(isCloser(strongestInk(image, QRect(78, 4, 12, 12), token(Color::AccentAmberBg)), token(Color::AccentAmberIcon), token(Color::AccentRedIcon)));
+    QCOMPARE(countLeakPixels(image), 0);
+
     // Disabled (O-08): text/disabled, no hover
     image = render([&](QPainter& painter) { Painter::paintPageTile(&painter, QRectF(0, 0, 116, 132), normal, Painter::State(QStyle::State_MouseOver)); }, QSize(116, 132), scale);
     QVERIFY(isNear(pixel(image, 10, 60), surface));
@@ -19893,6 +19938,12 @@ void FluentComponentsTest::pageTileDelegate()
     hostileModel.appendRow(hostile);
     QCOMPARE(delegate.getContent(hostileModel.index(0, 0)).tileState, TileState::Normal);
     QVERIFY(!delegate.getContent(hostileModel.index(0, 0)).pageSize.isValid());
+
+    // The state Replaced of Insert Pages (388:17167) is a valid state of the role
+    QStandardItem* replacedItem = DelegateSamples::item(QStringLiteral("13"));
+    replacedItem->setData(int(TileState::Replaced), Roles::PageTileStateRole);
+    hostileModel.appendRow(replacedItem);
+    QCOMPARE(delegate.getContent(hostileModel.index(1, 0)).tileState, TileState::Replaced);
     QVERIFY(delegate.getContent(QModelIndex()).label.isEmpty());
     QCOMPARE(countLeakPixels(renderDelegate(&delegate, hostileModel.index(0, 0), QStyle::State_Enabled, QSize(116, 132))), 0);
 
@@ -20268,7 +20319,8 @@ void FluentComponentsTest::toolsGalleryPage()
             tileViews += qobject_cast<pdf::PDFPageTileDelegate*>(view->itemDelegate()) ? 1 : 0;
         }
         QCOMPARE(rowViews, 4);
-        QCOMPARE(tileViews, 2);
+        // Two live page grids and the live Replace strip of Insert Pages (388:17167)
+        QCOMPARE(tileViews, 3);
 
         // No leak color in both themes at 1x and 2x
         for (const char* theme : { "light", "dark" })

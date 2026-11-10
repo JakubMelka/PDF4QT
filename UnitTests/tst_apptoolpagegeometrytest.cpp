@@ -202,6 +202,8 @@ private Q_SLOTS:
     void themesAndDirection();
     void statusBarFollowsPreviewPage();
     void boxMenusHaveSwatches();
+    void canvasTextsAtThePage();
+    void thumbnailsShowPreviewPage();
 };
 
 void AppToolPageGeometryTest::initTestCase()
@@ -278,7 +280,7 @@ void AppToolPageGeometryTest::cropFrame()
 
     // K48: the page of the preview is the current page
     QCOMPARE(gui->getPreviewPage(), 7);
-    QCOMPARE(gui->getPageSelection()->getStatusText(), QStringLiteral("48 pages selected · 1 – 48"));
+    QCOMPARE(gui->getPageSelection()->getStatusText(), QStringLiteral("48 pages selected"));
 
     // The toolbar: Crop: Equal margins, Remove Crop, Crop 48 Pages
     QCOMPARE(gui->getModeButton()->text(), QStringLiteral("Crop: Equal margins"));
@@ -768,9 +770,14 @@ void AppToolPageGeometryTest::themesAndDirection()
     {
         for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
         {
-            QApplication::setLayoutDirection(direction);
             for (const QString& toolId : { H::CROP_ID, H::RESIZE_ID, H::BOXES_ID })
             {
+                // RS3FIGMA2: the end of the previous fixture changes the language and the
+                // application takes the direction of the language then - the direction is set
+                // after its events (else only the first tool of a row was right to left)
+                AppToolShellFixture::settle();
+                QApplication::setLayoutDirection(direction);
+
                 // The fixture sets the light scheme of its context: the theme of the row comes after it
                 AppToolShellFixture fixture(QSize(1440, 960));
                 pdf::PDFThemeManager::getInstance()->setTheme(theme);
@@ -779,6 +786,7 @@ void AppToolPageGeometryTest::themesAndDirection()
                 PDFDocumentToolShell* shell = H::openHandbook(fixture, toolId);
                 QVERIFY(shell);
                 QCOMPARE(H::countLeak(fixture.window), 0);
+                QCOMPARE(fixture.window->layoutDirection(), direction);
                 const QString suffix = QStringLiteral("-%1%2").arg(theme, direction == Qt::RightToLeft ? QStringLiteral("-rtl") : QString());
                 fixture.screenshot(toolId.mid(6) + suffix);
                 if (pdf::PDFAppCropToolGUI* crop = H::gui<pdf::PDFAppCropToolGUI>(shell))
@@ -885,6 +893,173 @@ void AppToolPageGeometryTest::boxMenusHaveSwatches()
         }
         panel->close();
         AppToolShellFixture::settle();
+    }
+}
+
+void AppToolPageGeometryTest::canvasTextsAtThePage()
+{
+    // RS3FIGMA M11: the title directly above and the caption directly below the page; in the
+    // stage 774 x 754 of the frames (the window 1440 x 960):
+    //  - Crop 389:22382: the page at the top of the stage, 440 x 622, the caption 10 below it
+    //  - Resize 391:23146: Now 300 x 388 and After 292 x 412 in the middle, the title and the
+    //    caption 8 from the page
+    //  - Set Page Boxes 391:26688: the legend 10 below the sheet, the caption 10 below the legend
+    // The page sizes of the three frames follow one share of the stage (FIT_SHARE) within 2 %.
+    using H = GeometryGuiHelper;
+    const auto windowRect = [](const QWidget* widget, const QRectF& rect)
+    {
+        const QPoint topLeft = widget->mapTo(widget->window(), QPoint(0, 0));
+        return rect.translated(topLeft);
+    };
+    const auto isFrameSize = [](double value, double frame) { return std::abs(value / frame - 1.0) <= 0.02; };
+    // The chevron between Now and After points to After: the ink of a chevron is high at its open
+    // side and short at its tip - the direction is +1 (to the right) or -1 (to the left)
+    const auto chevronDirection = [](QWidget* arrow)
+    {
+        const QImage image = AppToolShellFixture::render(arrow, 2.0).convertToFormat(QImage::Format_ARGB32);
+        const QRgb background = image.pixel(0, 0);
+        std::vector<int> heights;
+        for (int x = 0; x < image.width(); ++x)
+        {
+            int top = -1;
+            int bottom = -1;
+            for (int y = 0; y < image.height(); ++y)
+            {
+                const QRgb color = image.pixel(x, y);
+                if (std::abs(qGray(color) - qGray(background)) > 40)
+                {
+                    top = top < 0 ? y : top;
+                    bottom = y;
+                }
+            }
+            if (top >= 0)
+            {
+                heights.push_back(bottom - top);
+            }
+        }
+        return heights.size() < 2 ? 0 : (heights.front() > heights.back() ? 1 : (heights.front() < heights.back() ? -1 : 0));
+    };
+    {
+        AppToolShellFixture fixture(QSize(1440, 960));
+        PDFDocumentToolShell* shell = H::openHandbook(fixture, H::CROP_ID);
+        pdf::PDFAppCropToolGUI* gui = H::gui<pdf::PDFAppCropToolGUI>(shell);
+        QVERIFY(gui);
+        pdf::PDFAppToolPageCanvas* canvas = gui->getCanvas();
+        const QRectF page = windowRect(canvas->getStage(0), canvas->getStage(0)->getPageRect());
+        QVERIFY2(isFrameSize(page.height(), 622.0) && isFrameSize(page.width(), 440.0), qPrintable(QStringLiteral("%1 x %2").arg(page.width()).arg(page.height())));
+        QVERIFY2(page.top() - 158.0 <= pdf::PDFAppToolPageStage::MARGIN, qPrintable(QString::number(page.top())));
+        QVERIFY(std::abs(page.center().x() - (326.0 + 774.0 * 0.5)) <= 1.0);
+        QCOMPARE(H::inWindow(canvas->getCaptionLabel(0)).top(), qRound(page.bottom()) + 10);
+        // RS3FIGMA2, 389:22819: the caption Regular 11 (the canvas title stays Semi Bold 13)
+        QCOMPARE(canvas->getCaptionLabel(0)->font().pixelSize(), 11);
+        QCOMPARE(canvas->getCaptionLabel(0)->font().weight(), QFont::Normal);
+        QCOMPARE(canvas->getTitleLabel()->font().pixelSize(), 13);
+    }
+    {
+        AppToolShellFixture fixture(QSize(1440, 960));
+        PDFDocumentToolShell* shell = H::openHandbook(fixture, H::RESIZE_ID, QSizeF(612, 792));
+        pdf::PDFAppResizeToolGUI* gui = H::gui<pdf::PDFAppResizeToolGUI>(shell);
+        QVERIFY(gui);
+        shell->getModel()->setValues({ { QStringLiteral("pageSize"), QStringLiteral("a4") } });
+        AppToolShellFixture::settle();
+        pdf::PDFAppToolPageCanvas* canvas = gui->getCanvas();
+        const QRectF now = windowRect(canvas->getStage(0), canvas->getStage(0)->getSheetRect());
+        const QRectF after = windowRect(canvas->getStage(1), canvas->getStage(1)->getSheetRect());
+        QVERIFY2(isFrameSize(now.width(), 300.0) && isFrameSize(after.width(), 292.0), qPrintable(QStringLiteral("%1 %2").arg(now.width()).arg(after.width())));
+        QVERIFY2(isFrameSize(now.height(), 388.0) && isFrameSize(after.height(), 412.0), qPrintable(QStringLiteral("%1 %2").arg(now.height()).arg(after.height())));
+        // RS3FIGMA2, 391:23594: Now and After at the chevron - gap 20, the chevron 20, gap 20
+        // (Now ends at 687, After starts at 747), the pair in the middle of the stage; the title
+        // Semi Bold 12 centered above, the caption Regular 11 centered below each page
+        QVERIFY2(std::abs(after.left() - now.right() - 60.0) <= 1.0, qPrintable(QStringLiteral("%1 %2").arg(now.right()).arg(after.left())));
+        QVERIFY2(std::abs((now.left() + after.right()) * 0.5 - (326.0 + 774.0 * 0.5)) <= 6.0, qPrintable(QStringLiteral("%1 %2").arg(now.left()).arg(after.right())));
+        QWidget* arrow = canvas->findChild<QWidget*>(QStringLiteral("toolPageArrow"));
+        QVERIFY(arrow);
+        QCOMPARE(chevronDirection(arrow), 1);
+        for (int i = 0; i < 2; ++i)
+        {
+            const QRectF sheet = i == 0 ? now : after;
+            QCOMPARE(canvas->getStageTitleLabel(i)->font().pixelSize(), 12);
+            QCOMPARE(canvas->getStageTitleLabel(i)->font().weight(), QFont::DemiBold);
+            QCOMPARE(canvas->getCaptionLabel(i)->font().pixelSize(), 11);
+            QVERIFY(std::abs(QRectF(H::inWindow(canvas->getStageTitleLabel(i))).center().x() - sheet.center().x()) <= 1.0);
+            QVERIFY(std::abs(QRectF(H::inWindow(canvas->getCaptionLabel(i))).center().x() - sheet.center().x()) <= 1.0);
+        }
+        for (int i = 0; i < 2; ++i)
+        {
+            const QRectF sheet = i == 0 ? now : after;
+            QCOMPARE(H::inWindow(canvas->getStageTitleLabel(i)).bottom() + 1 + 8, qRound(sheet.top()));
+            QCOMPARE(H::inWindow(canvas->getCaptionLabel(i)).top(), qRound(sheet.bottom()) + 8);
+            // The page with its title and caption in the middle of the stage (391:23594 CENTER)
+            const double blockCenter = (H::inWindow(canvas->getStageTitleLabel(i)).top() + H::inWindow(canvas->getCaptionLabel(i)).bottom() + 1) * 0.5;
+            QVERIFY2(std::abs(blockCenter - (158.0 + 754.0 * 0.5)) <= 2.0, qPrintable(QString::number(blockCenter)));
+        }
+    }
+    {
+        // Right to left: After at the left of the chevron, Now at its right, 60 apart again
+        struct DirectionGuard
+        {
+            DirectionGuard()
+            {
+                // After the language change of the end of the previous fixture (themesAndDirection)
+                AppToolShellFixture::settle();
+                QApplication::setLayoutDirection(Qt::RightToLeft);
+            }
+            ~DirectionGuard() { QApplication::setLayoutDirection(Qt::LeftToRight); }
+        } direction;
+        AppToolShellFixture fixture(QSize(1440, 960));
+        PDFDocumentToolShell* shell = H::openHandbook(fixture, H::RESIZE_ID, QSizeF(612, 792));
+        pdf::PDFAppResizeToolGUI* gui = H::gui<pdf::PDFAppResizeToolGUI>(shell);
+        QVERIFY(gui);
+        shell->getModel()->setValues({ { QStringLiteral("pageSize"), QStringLiteral("a4") } });
+        AppToolShellFixture::settle();
+        pdf::PDFAppToolPageCanvas* canvas = gui->getCanvas();
+        const QRectF now = windowRect(canvas->getStage(0), canvas->getStage(0)->getSheetRect());
+        const QRectF after = windowRect(canvas->getStage(1), canvas->getStage(1)->getSheetRect());
+        QVERIFY2(std::abs(now.left() - after.right() - 60.0) <= 1.0, qPrintable(QStringLiteral("%1 %2").arg(after.right()).arg(now.left())));
+        QWidget* arrow = canvas->findChild<QWidget*>(QStringLiteral("toolPageArrow"));
+        QVERIFY(arrow);
+        QCOMPARE(chevronDirection(arrow), -1);
+    }
+    {
+        AppToolShellFixture fixture(QSize(1440, 960));
+        pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writeFlyer(fixture.path(QStringLiteral("Flyer_print.pdf"))));
+        QVERIFY(tab);
+        PDFDocumentToolShell* shell = fixture.openTool(tab, H::BOXES_ID);
+        pdf::PDFAppBoxesToolGUI* gui = H::gui<pdf::PDFAppBoxesToolGUI>(shell);
+        QVERIFY(gui);
+        AppToolShellFixture::settle();
+        pdf::PDFAppToolPageCanvas* canvas = gui->getCanvas();
+        const QRectF sheet = windowRect(canvas->getStage(0), canvas->getStage(0)->getSheetRect());
+        QVERIFY2(isFrameSize(sheet.height(), 595.0), qPrintable(QString::number(sheet.height())));
+        QCOMPARE(H::inWindow(gui->getLegend()).top(), qRound(sheet.bottom()) + 10);
+        QCOMPARE(H::inWindow(canvas->getCaptionLabel(0)).top(), H::inWindow(gui->getLegend()).bottom() + 1 + 10);
+    }
+}
+
+void AppToolPageGeometryTest::thumbnailsShowPreviewPage()
+{
+    // RS3FIGMA M12, K48: the left thumbnails mark the page of the preview (the current page at the
+    // entry, page 30 of 48 here) and open scrolled to it - for Crop, Resize and Set Page Boxes
+    using H = GeometryGuiHelper;
+    for (const QString& toolId : { H::CROP_ID, H::RESIZE_ID, H::BOXES_ID })
+    {
+        AppToolShellFixture fixture(QSize(1440, 960));
+        pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writePages(fixture.path(QStringLiteral("Handbook.pdf")), 48, QSizeF(595.2756, 841.8898)));
+        QVERIFY(tab);
+        tab->getView()->goToPage(29);
+        AppToolShellFixture::settle();
+        PDFDocumentToolShell* shell = fixture.openTool(tab, toolId);
+        QVERIFY(shell);
+        AppToolShellFixture::settle();
+        pdf::PDFAppPageGeometryToolGUI* gui = H::gui<pdf::PDFAppPageGeometryToolGUI>(shell);
+        QVERIFY(gui);
+        QCOMPARE(gui->getPreviewPage(), 29);
+        pdf::PDFAppThumbnailListView* view = gui->getThumbnailView();
+        QVERIFY(view && view->isVisible());
+        const QModelIndex index = view->model()->index(29, 0);
+        QVERIFY(view->selectionModel()->isSelected(index));
+        QCOMPARE(view->selectionModel()->selectedIndexes().size(), qsizetype(1));
+        QVERIFY2(view->viewport()->rect().contains(view->visualRect(index)), qPrintable(toolId));
     }
 }
 

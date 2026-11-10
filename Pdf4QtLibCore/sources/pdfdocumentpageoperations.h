@@ -29,6 +29,7 @@
 
 #include <QCoreApplication>
 
+#include <functional>
 #include <memory>
 #include <set>
 #include <vector>
@@ -159,10 +160,15 @@ public:
     /// \param statistics What has changed (optional)
     static PDFDocument keepPages(const PDFDocument* document, const PageIndex& index, const std::vector<PDFInteger>& keptPages, const PDFOperationControl* control, RemovalStatistics* statistics);
 
-    /// Text of pages numbered from 1 in ranges ("4–6, 20", "9, 10, 15": an en dash in a range
-    /// of three pages and more), at most \p maximumParts parts, the rest is "…"
+    /// Text of pages numbered from 1 in ranges, the one text of the page lists of the tools, their
+    /// facts and their MCP texts (owner D2 / D3 2026-11-10, 385:9405 "1–3, 8, 10–12", 388:17167
+    /// "13–14"): every run of consecutive pages, also of two pages, is a range with an en dash
+    /// without spaces, the parts are separated by ", "; at most \p maximumParts parts, then "…"
     /// \param pageIndices Indices of the pages (from 0), sorted
-    static QString formatPageNumbers(const std::vector<PDFInteger>& pageIndices, int maximumParts = 6);
+    /// \param maximumParts Most parts before "…" (at least 1)
+    /// \param formatNumber Formats a number of a page from 1 (the GUI: the locale of the
+    ///        application); nullptr = ASCII digits
+    static QString formatPageNumbers(const std::vector<PDFInteger>& pageIndices, int maximumParts = 6, const std::function<QString(PDFInteger)>& formatNumber = nullptr);
 };
 
 }   // namespace pdf

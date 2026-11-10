@@ -360,12 +360,17 @@ public:
     static QByteArray createContentPrefix(const QTransform& transform, const QRectF& clip, const PDFPageGeometryContentBalance& balance)
     {
         QByteArray prefix = "q\n";
-        for (const PDFReal value : { transform.m11(), transform.m12(), transform.m21(), transform.m22(), transform.dx(), transform.dy() })
+
+        // Resize Keep size has only the clip, the content stays where it is
+        if (!transform.isIdentity())
         {
-            prefix.append(PDFDocumentBuilder::formatPDFReal(value));
-            prefix.append(' ');
+            for (const PDFReal value : { transform.m11(), transform.m12(), transform.m21(), transform.m22(), transform.dx(), transform.dy() })
+            {
+                prefix.append(PDFDocumentBuilder::formatPDFReal(value));
+                prefix.append(' ');
+            }
+            prefix.append("cm\n");
         }
-        prefix.append("cm\n");
         if (clip.isValid())
         {
             for (const PDFReal value : { clip.left(), clip.top(), clip.width(), clip.height() })
@@ -982,16 +987,15 @@ PDFObject PDFPageGeometryEngine::transformPage(const PDFObject& object, const PD
         ++m_statistics.thumbnailsRemoved;
     }
 
-    if (change.hasContentTransform() && dictionary)
+    if ((change.hasContentTransform() || change.contentClip.isValid()) && dictionary)
     {
-        const QTransform& transform = *change.contentTransform;
-
-        // The content: "q matrix cm clip q..." + the streams + "Q..." (R7)
+        // The content: "q matrix cm clip q..." + the streams + "Q..." (R7); the streams of the
+        // page stay byte-identical, only the two new ones are around them
         std::vector<PDFObjectReference> streams = Helper::getContentStreams(&m_builder, m_storage, dictionary->get("Contents"));
         if (!streams.empty())
         {
             const PDFPageGeometryContentBalance balance = Helper::getContentBalance(m_document, page);
-            streams.insert(streams.begin(), Helper::addStream(&m_builder, Helper::createContentPrefix(transform, change.contentClip, balance)));
+            streams.insert(streams.begin(), Helper::addStream(&m_builder, Helper::createContentPrefix(change.contentTransform.value_or(QTransform()), change.contentClip, balance)));
             streams.push_back(Helper::addStream(&m_builder, Helper::createContentSuffix(balance)));
             PDFArrayBuilder contents;
             for (const PDFObjectReference reference : streams)
@@ -1001,6 +1005,11 @@ PDFObject PDFPageGeometryEngine::transformPage(const PDFObject& object, const PD
             entries.emplace_back("Contents", PDFObject::createArray(std::move(contents)));
             ++m_statistics.contentsTransformed;
         }
+    }
+
+    if (change.hasContentTransform() && dictionary)
+    {
+        const QTransform& transform = *change.contentTransform;
 
         // The patterns of the resources
         PDFObject resources = createPatternResources(page, transform);
@@ -1641,10 +1650,14 @@ PDFPageGeometry::ResizePlacement PDFPageGeometry::computeResize(const PDFPage* p
     }
     else
     {
-        // Keep size: nothing is rewritten, the media box moves around the content (391:24594)
+        // Keep size (391:24594, owner 2026-11-09, RS3CORE M2): the content is not moved, the media
+        // box moves around it and is the crop box too, so the page shows the new sheet (14.11.2:
+        // the crop box is the visible region); what the old crop box hid stays hidden by a clip
+        // around the content, whose streams stay byte-identical
         const QRectF media = contentTransform.inverted().mapRect(sheetBox);
         change.mediaBox = media;
-        change.cropBox = isCropOfMedia ? media : PDFPage::getEffectiveBox(visible, media);
+        change.cropBox = media;
+        change.contentClip = isCropOfMedia ? QRectF() : visible;
         for (const auto& [box, target] : { std::pair<Box, std::optional<QRectF>*>(Box::BleedBox, &change.bleedBox),
                                            std::pair<Box, std::optional<QRectF>*>(Box::TrimBox, &change.trimBox),
                                            std::pair<Box, std::optional<QRectF>*>(Box::ArtBox, &change.artBox) })

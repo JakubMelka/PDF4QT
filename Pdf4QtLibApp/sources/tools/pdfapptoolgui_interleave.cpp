@@ -688,15 +688,17 @@ void PDFAppInterleaveToolGUI::describeToolbar(PDFAppToolPanelBuilder& builder)
     builder.addEnumMenu(Helper::name(PDFDocumentToolInterleave::PARAMETER_BACK_SIDES), QStringLiteral("reverse"), tr("Back sides: %1"), Helper::BACK_SIDES_PANEL_WIDTH);
     builder.addEnumMenu(Helper::name(PDFDocumentToolInterleave::PARAMETER_EXTRA_PAGES), QStringLiteral("insert-last"), tr("Extra pages: %1"), Helper::EXTRA_PAGES_PANEL_WIDTH);
 
-    // Thumbnails: Small (K8, the menu of the size of the tiles)
+    // Thumbnails: Small (K8, the menu of the size of the tiles; Small without a choice of the
+    // user, owner 2026-11-09)
     if (!m_isTileSizeRead)
     {
         m_isTileSizeRead = true;
-        m_tileSize = PDFAppToolTileSizeMenu::readSize(getContext());
+        m_tileSize = PDFAppToolTileSizeMenu::readSize(getContext(), PDFAppToolPageGrid::TileSize::Small);
     }
     builder.addActionDivider();
     PDFAppToolPanelPopup* panel = builder.addMenu(QStringLiteral("thumbnailSize"), QStringLiteral("pages"), QString(), PDFAppToolTileSizeMenu::PANEL_WIDTH);
     m_tileSizeMenu = new PDFAppToolTileSizeMenu(panel, tr("Thumbnails: %1"), panel);
+    m_tileSizeMenu->setDefaultSize(PDFAppToolPageGrid::TileSize::Small);
     m_tileSizeMenu->setSize(m_tileSize);
     connect(m_tileSizeMenu.data(), &PDFAppToolTileSizeMenu::sizeChosen, this, &PDFAppInterleaveToolGUI::onTileSizeChosen);
 }
@@ -813,7 +815,7 @@ QWidget* PDFAppInterleaveToolGUI::createCanvasPage(QWidget* parent)
     if (!m_isTileSizeRead)
     {
         m_isTileSizeRead = true;
-        m_tileSize = PDFAppToolTileSizeMenu::readSize(getContext());
+        m_tileSize = PDFAppToolTileSizeMenu::readSize(getContext(), PDFAppToolPageGrid::TileSize::Small);
     }
 
     m_canvas = new PDFAppInterleaveCanvas(parent);

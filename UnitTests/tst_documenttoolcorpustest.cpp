@@ -451,11 +451,13 @@ public:
 
     /// Exclusions by the content of a read file (any folder): a signed input of Merge - a signature
     /// with a value (PDFForm::getSignatureCount) - is removed with its appearance, so the pages of a
-    /// signed file look different by design (owner answer Q4 of step 2 of phase 2)
+    /// signed file look different by design (owner answer Q4 of step 2 of phase 2). Split and Extract
+    /// write new documents by the same rule (plan of step 3 of phase 2, chapter 8: the values of the
+    /// signatures are removed, a new file).
     static const CorpusExclusion* findContentExclusion(const pdf::PDFDocument* input, const QString& tool)
     {
-        static const CorpusExclusion signedMerge = { "", "^pages\\.merge/", "Owner answer Q4 of step 2 of phase 2",
-                                                     "Merge removes a signature with its appearance (the field stays empty): the pages of a signed file look different by design" };
+        static const CorpusExclusion signedMerge = { "", "^pages\\.(merge|split|extract)/", "Owner answer Q4 of step 2 of phase 2",
+                                                     "Merge, Split and Extract remove a signature with its appearance (the field stays empty): the pages of a signed file look different by design" };
         if (qEnvironmentVariableIntValue("PDF4QT_TOOL_CORPUS_NO_EXCLUSIONS") != 0)
         {
             return nullptr;
@@ -1097,11 +1099,13 @@ private:
         return origins;
     }
 
-    /// Merge refuses a file without pages, and one, which restricts more than the assembly without
-    /// its owner password (owner answer Q2 of step 2 of phase 2)
+    /// Merge refuses a file without pages, one, which restricts more than the assembly without
+    /// its owner password (owner answer Q2 of step 2 of phase 2), and a dynamic XFA form (its
+    /// pages are made by the XFA form, the page tree has none to merge: the merger refuses it)
     static bool isMergeRefused(const pdf::PDFDocument* input)
     {
-        return input->getCatalog()->getPageCount() == 0 || pdf::PDFDocumentMerger::getPermission(input) != pdf::PDFDocumentMerger::Permission::Permitted;
+        return input->getCatalog()->getPageCount() == 0 || pdf::PDFDocumentMerger::getPermission(input) != pdf::PDFDocumentMerger::Permission::Permitted ||
+               input->getCatalog()->isXFANeedsRendering();
     }
 
     static std::vector<CorpusToolRow> createToolRows()

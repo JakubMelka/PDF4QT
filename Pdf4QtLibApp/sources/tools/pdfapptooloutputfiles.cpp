@@ -23,6 +23,7 @@
 #include "pdfapptooloutputfiles.h"
 #include "pdfappdocument.h"
 #include "pdfappfiledrop.h"
+#include "pdfapplocale.h"
 #include "pdfapppagelayout.h"
 #include "pdfappsettingcontrol.h"
 #include "pdfapptoolpanelbuilder.h"
@@ -35,6 +36,7 @@
 
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentrows.h"
+#include "pdffluentwidgets.h"
 #include "pdfstylepainter.h"
 #include "pdfthemefonts.h"
 #include "pdfthemeiconengine.h"
@@ -149,6 +151,17 @@ void PDFAppToolOutputFilesSection::describe(PDFAppToolPanelBuilder& builder)
 
     using Helper = PDFAppToolOutputFilesHelper;
 
+    // callout-red 383:9088: the error of the template at the top of the panel, above the section
+    m_errorCallout = builder.addCallout(PDFAccentHue::Red, QStringLiteral("alert-circle"), QString());
+    m_errorCallout->setObjectName(QStringLiteral("toolOutputError"));
+    m_errorCallout->setVisible(false);
+    if (PDFLabel* title = m_errorCallout->getTitleLabel())
+    {
+        // 383:9088: the title "Every file would be named Handbook.pdf" wraps to its second line
+        title->setWordWrap(true);
+        title->setMinimumWidth(1);
+    }
+
     // One container: Extract hides the whole section for One file (385:9405)
     QWidget* container = new QWidget();
     container->setObjectName(QStringLiteral("toolOutputFiles"));
@@ -187,6 +200,11 @@ void PDFAppToolOutputFilesSection::describe(PDFAppToolPanelBuilder& builder)
         field->setObjectName(QStringLiteral("toolOutputFolder"));
         Helper::makeFlexible(field);
         m_folderField = qobject_cast<QLineEdit*>(field);
+        if (PDFLineEdit* lineEdit = qobject_cast<PDFLineEdit*>(field))
+        {
+            // 383:4410: a long folder ends with "…" (its start stays visible) without the focus
+            lineEdit->setElidedWhenInactive(true);
+        }
     }
     m_browseButton = new QPushButton(tr("Browse…"), folderRow);
     m_browseButton->setObjectName(QStringLiteral("toolOutputBrowse"));
@@ -221,9 +239,6 @@ void PDFAppToolOutputFilesSection::describe(PDFAppToolPanelBuilder& builder)
     namesLayout->addWidget(m_previewHint);
     cardBuilder.addWidget(namesBox);
     m_namesBox = namesBox;
-    m_errorCallout = cardBuilder.addCallout(PDFAccentHue::Red, QStringLiteral("alert-circle"), QString());
-    m_errorCallout->setObjectName(QStringLiteral("toolOutputError"));
-    m_errorCallout->setVisible(false);
 
     // Existing files: the label and the combo box of 140 in one row, 10 apart (field-Existing
     // files 383:3315); Ask, Overwrite, Skip, Rename (383:4447)
@@ -245,6 +260,7 @@ void PDFAppToolOutputFilesSection::describe(PDFAppToolPanelBuilder& builder)
 
     updateFolderPlaceholder();
     container->setVisible(m_isVisible);
+    updatePreview();
 }
 
 void PDFAppToolOutputFilesSection::updateFolderPlaceholder()
@@ -325,10 +341,37 @@ void PDFAppToolOutputFilesSection::onTokenClicked()
 
 void PDFAppToolOutputFilesSection::setPreview(const QStringList& fileNames, const QString& hint, const QString& error, const QString& errorText)
 {
+    m_fileNames = fileNames;
+    m_hint = hint;
+    m_error = error;
+    m_errorText = errorText;
+    m_duplicateName.clear();
+    m_duplicateCount = 0;
+    updatePreview();
+}
+
+void PDFAppToolOutputFilesSection::setDuplicateNames(const QString& fileName, int count, const QString& error, const QString& errorText)
+{
+    m_fileNames.clear();
+    m_hint.clear();
+    m_error = error;
+    m_errorText = errorText;
+    m_duplicateName = fileName;
+    m_duplicateCount = count;
+    updatePreview();
+}
+
+void PDFAppToolOutputFilesSection::updatePreview()
+{
+    // 383:9088: equal names stay in the box (text/danger "Handbook.pdf × 4", "The names must
+    // differ"); another error of the template has only its callout
+    const bool isDuplicate = !m_duplicateName.isEmpty();
     if (m_preview)
     {
-        m_preview->setText(PDFDocumentToolFileOutput::formatFileNames(fileNames));
+        m_preview->setText(isDuplicate ? tr("%1 × %2").arg(m_duplicateName, PDFAppLocale::formatNumber(m_duplicateCount)) : PDFDocumentToolFileOutput::formatFileNames(m_fileNames));
+        m_preview->setTextColor(isDuplicate ? PDFThemeColors::TextDanger : PDFThemeColors::TextPrimary);
     }
+    const QString hint = isDuplicate ? tr("The names must differ") : m_hint;
     if (m_previewHint)
     {
         m_previewHint->setText(hint);
@@ -336,12 +379,12 @@ void PDFAppToolOutputFilesSection::setPreview(const QStringList& fileNames, cons
     }
     if (m_namesBox)
     {
-        m_namesBox->setVisible(error.isEmpty() && !fileNames.isEmpty());
+        m_namesBox->setVisible(isDuplicate || (m_error.isEmpty() && !m_fileNames.isEmpty()));
     }
     if (m_errorCallout)
     {
-        m_errorCallout->setTexts(error, errorText);
-        m_errorCallout->setVisible(!error.isEmpty());
+        m_errorCallout->setTexts(m_error, m_errorText);
+        m_errorCallout->setVisible(m_isVisible && !m_error.isEmpty());
     }
     updateFolderPlaceholder();
 }
@@ -352,6 +395,10 @@ void PDFAppToolOutputFilesSection::setVisible(bool isVisible)
     if (m_container)
     {
         m_container->setVisible(isVisible);
+    }
+    if (m_errorCallout)
+    {
+        m_errorCallout->setVisible(isVisible && !m_error.isEmpty());
     }
 }
 

@@ -1314,6 +1314,14 @@ void AppMcpTest::activityTexts()
 
     // Pages: formatting and parsing
     QCOMPARE(Activity::formatPages({ 1, 2, 3, 5, 7, 8 }), QStringLiteral("1\u20133, 5, 7\u20138"));
+    // The one text of the page lists (owner D3) with every part: parsePages reads it back, no "\u2026"
+    std::set<int> oddPages;
+    for (int page = 1; page <= 19; page += 2)
+    {
+        oddPages.insert(page);
+    }
+    QCOMPARE(Activity::formatPages(oddPages), QStringLiteral("1, 3, 5, 7, 9, 11, 13, 15, 17, 19"));
+    QCOMPARE(Activity::parsePages(Activity::formatPages(oddPages)), oddPages);
     QCOMPARE(Activity::parsePages(QStringLiteral("1\u20133, 5, 7\u20138")), std::set<int>({ 1, 2, 3, 5, 7, 8 }));
     QVERIFY(Activity::parsePages(QStringLiteral("x, 0, 5\u20131, 1\u20132\u20133")).empty());
     QCOMPARE(Activity::parsePages(QStringLiteral("1\u20131000000")).size(), size_t(10000));

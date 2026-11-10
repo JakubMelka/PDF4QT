@@ -24,7 +24,7 @@ A page range lists pages in the order they are inserted: `1-5, 7, 10-` inserts p
 
 ### Blank pages and images
 
-Blank pages have the size and the rotation of the page next to the place (**As page 12**), or a paper size in portrait or landscape. An image becomes one page of the size of the page next to the place, the whole image fit inside 10 mm margins, in the middle, turned to the orientation of the image. Use **Add Image as Page** to choose another layout.
+Blank pages have the size and the rotation of the page next to the place (**As page 12**, which starts in the orientation of that page), or a paper size; **Orientation** lays either of them in portrait or landscape (an A4 portrait page next to the place and Landscape give A4 landscape pages). An image becomes one page of the size of the page next to the place, the whole image fit inside 10 mm margins, in the middle, turned to the orientation of the image. Use **Add Image as Page** to choose another layout.
 
 ### What happens to the document
 

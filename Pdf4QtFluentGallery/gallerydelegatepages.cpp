@@ -1235,6 +1235,22 @@ GalleryPages::Page GalleryPages::createToolsPage(QWidget* parent)
     addTile(QStringLiteral("No picture yet, landscape"), placeholder, GalleryPages::Default);
     builder.row();
 
+    // Insert Pages, Replace (388:17167): the page is dimmed as a removed one, but it is replaced -
+    // the badge accent/amber, the caption text/muted (owner 2026-11-09)
+    builder.block(QStringLiteral("Page tile - Replaced 85 x 144 (Insert Pages, Replace)"), QStringLiteral("388:17167"));
+    Painter::PageTile replaced;
+    replaced.label = QStringLiteral("13");
+    replaced.slotSize = QSize(73, 100);
+    replaced.pixmap = Helper::createPagePicture(1);
+    replaced.caption = QStringLiteral("replaced");
+    replaced.badgeIconName = QStringLiteral("replace");
+    replaced.tileState = Painter::PageTileState::Replaced;
+    addTile(QStringLiteral("Replaced"), replaced, GalleryPages::Default, Qt::LeftToRight, QStringLiteral("388:17167"));
+    addTile(QStringLiteral("Replaced Hover"), replaced, GalleryPages::Hover);
+    addTile(QStringLiteral("Replaced Disabled (O-08)"), replaced, GalleryPages::Disabled);
+    addTile(QStringLiteral("Replaced right-to-left"), replaced, GalleryPages::Default, Qt::RightToLeft);
+    builder.row();
+
     const auto createTileView = [page](const QSize& slot, const std::vector<int>& states, QSize size)
     {
         QStandardItemModel* model = new QStandardItemModel();
@@ -1254,6 +1270,11 @@ GalleryPages::Page GalleryPages::createToolsPage(QWidget* parent)
                 item->setData(QStringLiteral("will be removed"), Roles::SubtitleRole);
                 item->setData(QStringLiteral("trash"), Roles::StateIconRole);
             }
+            else if (state == int(Painter::PageTileState::Replaced))
+            {
+                item->setData(QStringLiteral("replaced"), Roles::SubtitleRole);
+                item->setData(QStringLiteral("replace"), Roles::StateIconRole);
+            }
             item->setEditable(false);
             model->appendRow(item);
         }
@@ -1270,6 +1291,7 @@ GalleryPages::Page GalleryPages::createToolsPage(QWidget* parent)
     };
     builder.live(QStringLiteral("Live, Rotate"), createTileView(QSize(104, 104), { 0, 0, 1, 0, 1, 0 }, QSize(400, 320)));
     builder.live(QStringLiteral("Live, Remove"), createTileView(QSize(82, 112), { 0, 2, 2, 0, 0, 0, 2, 0 }, QSize(420, 340)));
+    builder.live(QStringLiteral("Live, Replace"), createTileView(QSize(73, 100), { 0, 3, 3, 0, 0 }, QSize(420, 180)));
     builder.note(QStringLiteral("The rendered page comes from the model, the delegate never asks for it while it computes a size. The state of a tile is a role of the model."));
 
     return builder.finish();

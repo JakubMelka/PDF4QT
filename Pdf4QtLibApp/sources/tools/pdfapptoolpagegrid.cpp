@@ -23,14 +23,18 @@
 #include "pdfapptoolpagegrid.h"
 
 #include "pdfappcontext.h"
+#include "pdfappdocument.h"
 #include "pdfappdocumentpanels_common.h"
 #include "pdfappdocumentview.h"
 #include "pdfapppagelayout.h"
+#include "pdfapptoolmergemodel.h"
+#include "pdfapptoolmergeview.h"
 #include "pdfapptoolpanelpopup.h"
 #include "pdfsettingdefinitions.h"
 #include "pdfsettingsrepository.h"
 
 #include "pdfcatalog.h"
+#include "pdfdrawspacecontroller.h"
 #include "pdfcomponentrows.h"
 #include "pdfpainterutils.h"
 #include "pdfstylepainter.h"
@@ -63,6 +67,12 @@ public:
     {
         return int(rotation);
     }
+
+    /// The row lies before the group (the order of std::upper_bound over the groups)
+    static bool isBeforeGroup(int row, const PDFAppToolGroupedPageModel::Group& group)
+    {
+        return row < group.firstRow;
+    }
 };
 
 // --------------------------------------------------------- PDFAppToolPageGridModel
@@ -77,6 +87,17 @@ PDFAppToolPageGridModel::~PDFAppToolPageGridModel() = default;
 
 void PDFAppToolPageGridModel::setPageDocument(PDFDocumentPointer document, const QString& documentId)
 {
+    if (m_rowPages.has_value() || !m_groups.empty())
+    {
+        // The rows are every page of the old document first (one reset), the base resets them,
+        // when the new document has another number of pages
+        beginResetModel();
+        m_rowPages.reset();
+        m_pageRows.clear();
+        m_groups.clear();
+        endResetModel();
+    }
+
     m_pageSizes.clear();
     if (document)
     {
@@ -100,10 +121,11 @@ std::pair<int, int> PDFAppToolPageGridModel::setTiles(std::vector<Tile> tiles)
     int last = -1;
     for (size_t i = 0; i < tiles.size(); ++i)
     {
-        if (!(tiles[i] == m_tiles[i]))
+        const int row = getRowOfPage(int(i));
+        if (row >= 0 && !(tiles[i] == m_tiles[i]))
         {
-            first = first < 0 ? int(i) : first;
-            last = int(i);
+            first = first < 0 ? row : qMin(first, row);
+            last = qMax(last, row);
         }
     }
 
@@ -121,16 +143,138 @@ PDFAppToolPageGridModel::Tile PDFAppToolPageGridModel::getTile(int pageIndex) co
     return pageIndex >= 0 && size_t(pageIndex) < m_tiles.size() ? m_tiles[size_t(pageIndex)] : Tile();
 }
 
+void PDFAppToolPageGridModel::setRows(std::optional<std::vector<int>> pages, std::vector<Group> groups)
+{
+    // The valid pages, each once, in their order
+    std::vector<int> pageRows(m_pageSizes.size(), -1);
+    if (pages.has_value())
+    {
+        std::vector<int> validPages;
+        validPages.reserve(pages->size());
+        for (const int page : *pages)
+        {
+            if (page >= 0 && size_t(page) < pageRows.size() && pageRows[size_t(page)] < 0)
+            {
+                pageRows[size_t(page)] = int(validPages.size());
+                validPages.push_back(page);
+            }
+        }
+        pages = std::move(validPages);
+    }
+
+    // The groups take their rows in their order (the last one ends at the last row)
+    const int rowCount = pages.has_value() ? int(pages->size()) : int(m_pageSizes.size());
+    int firstRow = 0;
+    for (Group& group : groups)
+    {
+        group.firstRow = qMin(firstRow, rowCount);
+        group.rowCount = qBound(0, group.rowCount, rowCount - group.firstRow);
+        firstRow = group.firstRow + group.rowCount;
+    }
+
+    const bool isRowsChanged = pages != m_rowPages;
+    const bool isGroupsChanged = groups != m_groups;
+    if (isRowsChanged)
+    {
+        beginResetModel();
+        m_rowPages = std::move(pages);
+        m_pageRows = m_rowPages.has_value() ? std::move(pageRows) : std::vector<int>();
+        m_groups = std::move(groups);
+        endResetModel();
+    }
+    else
+    {
+        m_groups = std::move(groups);
+    }
+
+    // The views lay out the groups again (the last thing: a slot may delete the model)
+    if (isRowsChanged || isGroupsChanged)
+    {
+        Q_EMIT groupsChanged();
+    }
+}
+
+int PDFAppToolPageGridModel::getPageOfRow(int row) const
+{
+    if (row < 0 || row >= rowCount())
+    {
+        return -1;
+    }
+    return m_rowPages.has_value() ? (*m_rowPages)[size_t(row)] : row;
+}
+
+int PDFAppToolPageGridModel::getRowOfPage(int page) const
+{
+    if (page < 0 || size_t(page) >= m_pageSizes.size())
+    {
+        return -1;
+    }
+    return m_rowPages.has_value() ? (size_t(page) < m_pageRows.size() ? m_pageRows[size_t(page)] : -1) : page;
+}
+
+int PDFAppToolPageGridModel::getGroupOfRow(int row) const
+{
+    // The groups are sorted by their first rows
+    auto it = std::upper_bound(m_groups.cbegin(), m_groups.cend(), row, PDFAppToolPageGridHelper::isBeforeGroup);
+    while (it != m_groups.cbegin())
+    {
+        --it;
+        if (row >= it->firstRow && row < it->firstRow + it->rowCount)
+        {
+            return int(it - m_groups.cbegin());
+        }
+        if (it->rowCount > 0)
+        {
+            break;
+        }
+    }
+    return -1;
+}
+
+bool PDFAppToolPageGridModel::isRowSelected(int row) const
+{
+    return getTile(getPageOfRow(row)).state == PDFComponentPainter::PageTileState::Selected;
+}
+
+QString PDFAppToolPageGridModel::getKey(int row) const
+{
+    // The picture of the page of the row: a page has one picture in every row
+    return BaseClass::getKey(getPageOfRow(row));
+}
+
+PDFAppThumbnailSource PDFAppToolPageGridModel::getPictureSource(int row) const
+{
+    return BaseClass::getPictureSource(getPageOfRow(row));
+}
+
+int PDFAppToolPageGridModel::rowCount(const QModelIndex& parent) const
+{
+    if (parent.isValid())
+    {
+        return 0;
+    }
+    return m_rowPages.has_value() ? int(m_rowPages->size()) : BaseClass::rowCount(parent);
+}
+
 QVariant PDFAppToolPageGridModel::data(const QModelIndex& index, int role) const
 {
-    if (!index.isValid() || size_t(index.row()) >= m_tiles.size())
+    const int page = index.isValid() ? getPageOfRow(index.row()) : -1;
+    if (page < 0 || size_t(page) >= m_tiles.size())
     {
         return QVariant();
     }
 
-    const Tile& tile = m_tiles[size_t(index.row())];
+    const Tile& tile = m_tiles[size_t(page)];
+    const PDFCatalog* catalog = m_pageDocument ? m_pageDocument->getCatalog() : nullptr;
     switch (role)
     {
+        case Qt::DisplayRole:
+            return !tile.label.isEmpty() ? tile.label : PDFAppPanelWidgets::getPageLabel(catalog, page);
+
+        case Qt::ToolTipRole:
+        case Qt::AccessibleTextRole:
+            return PDFAppPanelWidgets::getPageTitle(catalog, page);
+
         case PDFComponentRoles::PageTileStateRole:
             return int(tile.state);
 
@@ -149,13 +293,18 @@ QVariant PDFAppToolPageGridModel::data(const QModelIndex& index, int role) const
         case PDFAppToolPageTileDelegate::CutBeforeRole:
             return tile.markerBefore;
 
+        case PDFAppToolPageTileDelegate::PaperBorderRole:
+            // The pages on the white cards of the groups have the border of their paper (383:3315
+            // paper: border/strong), a blank page stays visible
+            return !m_groups.empty();
+
         case Qt::AccessibleDescriptionRole:
             return tile.caption;
 
         case PDFComponentRoles::PageSizeRole:
         {
             // The page as it will be saved: a quarter turn swaps its sides
-            const QSizeF size = m_pageSizes[size_t(index.row())];
+            const QSizeF size = m_pageSizes[size_t(page)];
             return PDFAppToolPageGridHelper::getQuarterTurns(tile.extraRotation) % 2 == 1 ? size.transposed() : size;
         }
 
@@ -245,20 +394,107 @@ void PDFAppToolPageGridView::emitContentHeight()
     }
 }
 
+void PDFAppToolPageGridView::setGapClicks(bool isGapClicks)
+{
+    m_isGapClicks = isGapClicks;
+    setMouseTracking(isGapClicks);
+    viewport()->setMouseTracking(isGapClicks);
+    if (!isGapClicks)
+    {
+        viewport()->unsetCursor();
+    }
+}
+
+int PDFAppToolPageGridView::getGapAt(const QPoint& point) const
+{
+    const QAbstractItemModel* itemModel = model();
+    const int count = itemModel ? itemModel->rowCount() : 0;
+    if (count < 2)
+    {
+        return -1;
+    }
+
+    // The flow goes from the leading edge (right to left: from the right edge); the gap of a
+    // tile is in front of its leading edge (with the mark of its cut), the gap after it behind
+    // its trailing edge
+    const bool isRightToLeft = layoutDirection() == Qt::RightToLeft;
+    const int direction = isRightToLeft ? -1 : 1;
+    QModelIndex index = indexAt(point);
+    if (!index.isValid())
+    {
+        // In the gap between two tiles: the tile behind the gap, else the tile in front of it
+        const int reach = spacing() + 1;
+        const QModelIndex next = indexAt(point + QPoint(direction * reach, 0));
+        if (next.isValid())
+        {
+            return next.row() > 0 ? next.row() : -1;
+        }
+        const QModelIndex previous = indexAt(point - QPoint(direction * reach, 0));
+        return previous.isValid() && previous.row() + 1 < count ? previous.row() + 1 : -1;
+    }
+
+    const QRect rect = visualRect(index);
+    const int markWidth = index.data(PDFAppToolPageTileDelegate::CutBeforeRole).toBool() ? PDFAppToolPageTileDelegate::CUT_SLOT : 0;
+    const int leading = isRightToLeft ? rect.right() - point.x() : point.x() - rect.left();
+    const int trailing = isRightToLeft ? point.x() - rect.left() : rect.right() - point.x();
+    if (leading < markWidth + GAP_ZONE)
+    {
+        return index.row() > 0 ? index.row() : -1;
+    }
+    if (trailing < GAP_ZONE)
+    {
+        return index.row() + 1 < count ? index.row() + 1 : -1;
+    }
+    return -1;
+}
+
 void PDFAppToolPageGridView::mousePressEvent(QMouseEvent* event)
 {
-    const QModelIndex index = indexAt(event->position().toPoint());
+    const QPoint position = event->position().toPoint();
+    const QModelIndex index = indexAt(position);
     m_pressedPage = event->button() == Qt::LeftButton && index.isValid() ? index.row() : -1;
+    m_pressedGap = event->button() == Qt::LeftButton && m_isGapClicks ? getGapAt(position) : -1;
     BaseClass::mousePressEvent(event);
+}
+
+void PDFAppToolPageGridView::mouseMoveEvent(QMouseEvent* event)
+{
+    BaseClass::mouseMoveEvent(event);
+    if (m_isGapClicks)
+    {
+        // The pointer over a gap says, that a click places a cut there
+        if (getGapAt(event->position().toPoint()) > 0)
+        {
+            viewport()->setCursor(Qt::SplitHCursor);
+        }
+        else
+        {
+            viewport()->unsetCursor();
+        }
+    }
 }
 
 void PDFAppToolPageGridView::mouseReleaseEvent(QMouseEvent* event)
 {
-    const QModelIndex index = indexAt(event->position().toPoint());
+    const QPoint position = event->position().toPoint();
+    const QModelIndex index = indexAt(position);
     const int pressedPage = m_pressedPage;
+    const int pressedGap = m_pressedGap;
     m_pressedPage = -1;
+    m_pressedGap = -1;
     const Qt::KeyboardModifiers modifiers = event->modifiers();
+    const int releasedGap = m_isGapClicks ? getGapAt(position) : -1;
     BaseClass::mouseReleaseEvent(event);
+
+    if (m_isGapClicks)
+    {
+        // A press and a release in one gap
+        if (event->button() == Qt::LeftButton && releasedGap > 0 && releasedGap == pressedGap)
+        {
+            queueClick(releasedGap, modifiers, false);
+        }
+        return;
+    }
 
     // A press and a release on one tile
     if (event->button() == Qt::LeftButton && index.isValid() && index.row() == pressedPage)
@@ -367,18 +603,14 @@ PDFAppToolPageGrid::PDFAppToolPageGrid(const QSize& slotSize, QWidget* parent) :
 {
     setObjectName(QStringLiteral("toolPageGrid"));
 
-    QVBoxLayout* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(PADDING - TILE_SPACING, PADDING, PADDING - TILE_SPACING, PADDING);
-    layout->setSpacing(0);
+    m_layout = new QVBoxLayout(this);
+    m_layout->setSpacing(0);
 
     // preview-bar 389:20436: the text Semi Bold 13 text/primary 10 below the top of the bar
     m_header = PDFAppPageWidgets::createLabel(QString(), QFont::DemiBold, 13, PDFThemeColors::TextPrimary, this);
     m_header->setObjectName(QStringLiteral("toolPageGridHeader"));
     m_header->setFixedHeight(BAR_HEIGHT);
-    m_header->setContentsMargins(TILE_SPACING, 0, TILE_SPACING, 0);
     m_header->setAlignment(Qt::AlignLeading | Qt::AlignVCenter);
-    layout->addWidget(m_header);
-    layout->addSpacing(BAR_GAP - TILE_SPACING);
 
     m_view = new PDFAppToolPageGridView(this);
     m_view->setObjectName(QStringLiteral("toolPageGridView"));
@@ -389,26 +621,101 @@ PDFAppToolPageGrid::PDFAppToolPageGrid(const QSize& slotSize, QWidget* parent) :
     m_delegate->setSlotSize(getScaledSlotSize(m_tileSize));
     m_view->setModel(m_model);
     m_view->setItemDelegate(m_delegate);
-    m_scheduler = new PDFAppThumbnailScheduler(m_model, m_view, this);
-    layout->addWidget(m_view, 1);
-    layout->addSpacing(HINT_GAP - TILE_SPACING);
+
+    // The cards of the groups (383:3315): the grouped view of the same model, its tiles on the
+    // cards (bg/surface below the veil of a muted page); shown in the place of the grid
+    m_groupPage = new QWidget(this);
+    m_groupPage->setObjectName(QStringLiteral("toolPageGridGroups"));
+    QVBoxLayout* groupLayout = new QVBoxLayout(m_groupPage);
+    groupLayout->setContentsMargins(0, 0, 0, 0);
+    m_groupView = new PDFAppToolMergePageView(m_groupPage);
+    m_groupView->setObjectName(QStringLiteral("toolPageGridGroupView"));
+    m_groupView->setAccessibleName(tr("Pages"));
+    m_groupView->setEditable(false);
+    m_groupView->setMaximumHeight(1);
+    PDFAppToolPageTileDelegate* groupDelegate = new PDFAppToolPageTileDelegate(m_groupView);
+    groupDelegate->setBackgroundColor(PDFThemeColors::BgSurface);
+    groupDelegate->setSlotSize(getScaledSlotSize(m_tileSize));
+    m_groupDelegate = groupDelegate;
+    m_groupView->setModel(m_model);
+    m_groupView->setTileDelegate(m_groupDelegate);
+    groupLayout->addWidget(m_groupView, 1);
+    groupLayout->addStretch(0);
+    m_groupPage->hide();
 
     // The hint 389:20890: Regular 11 text/tertiary in lines of 13
     m_hint = PDFAppPageWidgets::createText(QString(), PDFThemeFonts::getFont(QFont::Normal, 11), 13, PDFThemeColors::TextTertiary, this);
     m_hint->setObjectName(QStringLiteral("toolPageGridHint"));
-    m_hint->setContentsMargins(TILE_SPACING, 0, TILE_SPACING, 0);
-    layout->addWidget(m_hint);
-    layout->addStretch(0);
 
-    connect(m_view, &PDFAppToolPageGridView::pageClicked, this, &PDFAppToolPageGrid::pageClicked);
-    connect(m_view, &PDFAppToolPageGridView::deleteRequested, this, &PDFAppToolPageGrid::deleteRequested);
-    // The view emits the height from the event loop, after its layout
+    connect(m_view, &PDFAppToolPageGridView::pageClicked, this, &PDFAppToolPageGrid::onViewPageClicked);
+    connect(m_view, &PDFAppToolPageGridView::deleteRequested, this, &PDFAppToolPageGrid::onViewDeleteRequested);
+    // The views emit the heights from the event loop, after their layouts
     connect(m_view, &PDFAppToolPageGridView::contentHeightChanged, this, &PDFAppToolPageGrid::onContentHeightChanged);
+    connect(m_groupView.data(), &PDFAppToolMergePageView::contentHeightChanged, this, &PDFAppToolPageGrid::onGroupContentHeightChanged);
 
+    updateLayout();
+    updateScheduler();
     updatePictureSize();
 }
 
 PDFAppToolPageGrid::~PDFAppToolPageGrid() = default;
+
+PDFAppToolMergePageView* PDFAppToolPageGrid::getGroupView() const
+{
+    return m_groupView.data();
+}
+
+void PDFAppToolPageGrid::updateLayout()
+{
+    // The order of the stage: the bar, then the hint above the tiles (383:5715) or the tiles
+    // and the hint below them (389:20890, 385:9405); the spacing of the grid lies around its
+    // tiles, so the margins and the gaps lose it (the texts get it back as their padding)
+    while (QLayoutItem* item = m_layout->takeAt(0))
+    {
+        // The widgets stay children of the grid, the spacers die
+        delete item;
+    }
+
+    const int spacing = m_tileSpacing;
+    m_layout->setContentsMargins(PADDING - spacing, PADDING, PADDING - spacing, PADDING);
+    m_header->setContentsMargins(spacing, 0, spacing, 0);
+    m_hint->setContentsMargins(spacing, 0, spacing, 0);
+    m_groupPage->layout()->setContentsMargins(spacing, spacing, spacing, 0);
+
+    m_layout->addWidget(m_header);
+    if (m_isHintAbove)
+    {
+        m_layout->addSpacing(BAR_GAP);
+        m_layout->addWidget(m_hint);
+        m_layout->addSpacing(m_hintGap - spacing);
+        m_layout->addWidget(m_view, 1);
+        m_layout->addWidget(m_groupPage, 1);
+    }
+    else
+    {
+        m_layout->addSpacing(BAR_GAP - spacing);
+        m_layout->addWidget(m_view, 1);
+        m_layout->addWidget(m_groupPage, 1);
+        m_layout->addSpacing(m_hintGap - spacing);
+        m_layout->addWidget(m_hint);
+    }
+    m_layout->addStretch(0);
+    m_layout->invalidate();
+}
+
+void PDFAppToolPageGrid::updateScheduler()
+{
+    // The pictures of the shown view: a scheduler asks only for the rows visible in its view
+    QAbstractItemView* view = m_isGrouped ? static_cast<QAbstractItemView*>(m_groupView.data()) : static_cast<QAbstractItemView*>(m_view.data());
+    if (m_scheduler)
+    {
+        // Nobody waits for its workers; it is the sender of nothing, which runs now
+        delete m_scheduler.data();
+    }
+    m_scheduler = new PDFAppThumbnailScheduler(m_model, view, this);
+    m_scheduler->setProxy(m_proxy);
+    m_scheduler->setAppDocument(m_appDocument);
+}
 
 void PDFAppToolPageGrid::setDocument(PDFDocumentPointer document, const QString& documentId, PDFAppDocumentView* view)
 {
@@ -417,10 +724,110 @@ void PDFAppToolPageGrid::setDocument(PDFDocumentPointer document, const QString&
         return;
     }
 
-    m_scheduler->setProxy(view ? view->getProxy() : nullptr);
-    m_scheduler->setAppDocument(view ? view->getDocument() : nullptr);
+    m_proxy = view ? view->getProxy() : nullptr;
+    m_appDocument = view ? view->getDocument() : nullptr;
+    m_scheduler->setProxy(m_proxy);
+    m_scheduler->setAppDocument(m_appDocument);
     m_model->setPageDocument(std::move(document), documentId);
     m_scheduler->reset();
+}
+
+void PDFAppToolPageGrid::setRows(std::optional<std::vector<int>> pages, std::vector<PDFAppToolGroupedPageModel::Group> groups)
+{
+    if (!m_model)
+    {
+        return;
+    }
+
+    const bool isGrouped = !groups.empty();
+    QPointer<PDFAppToolPageGrid> guard(this);
+    m_model->setRows(std::move(pages), std::move(groups));
+    if (!guard || isGrouped == m_isGrouped)
+    {
+        return;
+    }
+
+    // The other view is shown, the scheduler draws its pictures
+    m_isGrouped = isGrouped;
+    m_view->setVisible(!isGrouped);
+    m_groupPage->setVisible(isGrouped);
+    updateScheduler();
+}
+
+void PDFAppToolPageGrid::setTileSpacing(int spacing)
+{
+    if (m_tileSpacing != spacing && spacing >= 0)
+    {
+        m_tileSpacing = spacing;
+        m_view->setSpacing(spacing);
+        updateLayout();
+    }
+}
+
+void PDFAppToolPageGrid::setHintPlacement(bool isAbove, int gap)
+{
+    if (m_isHintAbove != isAbove || m_hintGap != gap)
+    {
+        m_isHintAbove = isAbove;
+        m_hintGap = gap;
+        updateLayout();
+    }
+}
+
+void PDFAppToolPageGrid::setGapClicks(bool isGapClicks)
+{
+    m_view->setGapClicks(isGapClicks);
+}
+
+void PDFAppToolPageGrid::scrollToPage(int pageIndex)
+{
+    const int row = m_model ? m_model->getRowOfPage(pageIndex) : -1;
+    if (row < 0)
+    {
+        return;
+    }
+
+    if (m_isGrouped)
+    {
+        // The card of the group of the page at the top of the view
+        const int group = m_model->getGroupOfRow(row);
+        if (group >= 0)
+        {
+            m_groupView->scrollToGroup(group);
+        }
+    }
+    else
+    {
+        m_view->scrollTo(m_model->index(row), QAbstractItemView::PositionAtTop);
+    }
+}
+
+void PDFAppToolPageGrid::onViewPageClicked(int row, Qt::KeyboardModifiers modifiers)
+{
+    // The tool knows the pages, the grid the rows (the last thing: a slot may delete the grid)
+    const int page = m_model ? m_model->getPageOfRow(row) : -1;
+    if (page >= 0)
+    {
+        Q_EMIT pageClicked(page, modifiers);
+    }
+}
+
+void PDFAppToolPageGrid::onViewDeleteRequested(int row)
+{
+    const int page = m_model ? m_model->getPageOfRow(row) : -1;
+    if (page >= 0)
+    {
+        Q_EMIT deleteRequested(page);
+    }
+}
+
+void PDFAppToolPageGrid::onGroupContentHeightChanged(int height)
+{
+    // The cards hug their content (the hint follows them), a longer content scrolls
+    if (m_groupView)
+    {
+        m_groupView->setMaximumHeight(qMax(height, 1));
+    }
 }
 
 void PDFAppToolPageGrid::setHeaderText(const QString& text)
@@ -471,10 +878,18 @@ void PDFAppToolPageGrid::setTileSize(TileSize size)
 
     m_tileSize = size;
     m_delegate->setSlotSize(getScaledSlotSize(size));
+    if (m_groupDelegate)
+    {
+        m_groupDelegate->setSlotSize(getScaledSlotSize(size));
+    }
 
     // New keys of the pictures (their size), then one layout of all tiles; the signals reach the views only
     QPointer<PDFAppToolPageGrid> guard(this);
     updatePictureSize();
+    if (guard && m_groupView && m_groupDelegate)
+    {
+        m_groupView->setTileDelegate(m_groupDelegate);
+    }
     if (guard && m_delegate && m_model && m_model->rowCount() > 0)
     {
         Q_EMIT m_delegate->sizeHintChanged(m_model->index(0));
@@ -569,7 +984,19 @@ QSize PDFAppToolPageTileDelegate::getItemSize(const QStyleOptionViewItem& option
 {
     Q_UNUSED(option);
     Q_UNUSED(width);
-    return PDFComponentPainter::getPageTileSize(getTileContent(index, false));
+
+    // A tile with a cut has the mark of the cut in front of it (383:5715: insert-marker 10 + 4)
+    const QSize size = PDFComponentPainter::getPageTileSize(getTileContent(index, false));
+    return index.isValid() && index.data(CutBeforeRole).toBool() ? QSize(size.width() + CUT_SLOT, size.height()) : size;
+}
+
+QRectF PDFAppToolPageTileDelegate::getTileRect(const QRectF& rect, bool hasCut, bool isRightToLeft)
+{
+    if (!hasCut)
+    {
+        return rect;
+    }
+    return isRightToLeft ? rect.adjusted(0, 0, -CUT_SLOT, 0) : rect.adjusted(CUT_SLOT, 0, 0, 0);
 }
 
 PDFAppToolPageTileDelegate::MarkRects PDFAppToolPageTileDelegate::getMarkRects(const QStyleOptionViewItem& option, const QModelIndex& index) const
@@ -580,32 +1007,37 @@ PDFAppToolPageTileDelegate::MarkRects PDFAppToolPageTileDelegate::getMarkRects(c
         return rects;
     }
 
+    // The leading edge of the tile is mirrored for a right-to-left layout
+    const bool isRightToLeft = option.direction == Qt::RightToLeft;
+    const bool hasCut = index.data(CutBeforeRole).toBool();
     const QRectF rect = option.rect;
+    const QRectF tileRect = getTileRect(rect, hasCut, isRightToLeft);
     const PDFComponentPainter::PageTile content = getTileContent(index, false);
-    rects.page = PDFComponentPainter::getPageTilePageRect(rect, content);
+    rects.tile = tileRect;
+    rects.page = PDFComponentPainter::getPageTilePageRect(tileRect, content);
     if (rects.page.isEmpty())
     {
         return MarkRects();
     }
 
-    // The leading edge of the tile is mirrored for a right-to-left layout
-    const bool isRightToLeft = option.direction == Qt::RightToLeft;
-    if (index.data(CutBeforeRole).toBool())
+    const QSize slotSize = PDFComponentPainter::getPageTileSlotSize(content);
+    if (hasCut)
     {
-        // 383:5715: the amber line of the cut beside the page, inside of the tile
-        rects.cut = getMirrored(rect, QRectF(rect.left(), rects.page.top(), CUT_WIDTH, rects.page.height()), isRightToLeft);
+        // 383:5715: the amber line of 3 in the middle of the mark of 10, from the top of the tile
+        // as high as the slot of the page
+        rects.cut = getMirrored(rect, QRectF(rect.left() + (CUT_MARKER - CUT_WIDTH) / 2.0, rect.top(), CUT_WIDTH, slotSize.height()), isRightToLeft);
     }
 
     if (getDotHue(index).has_value())
     {
         // 383:5715: the dot in front of the label, which is centered below the slot (the page
         // is centered in its slot)
-        const QSize slotSize = PDFComponentPainter::getPageTileSlotSize(content);
         const qreal labelTop = rects.page.center().y() + slotSize.height() / 2.0 + LABEL_GAP;
         const QFontMetricsF metrics(PDFThemeFonts::getFont(PDFThemeFonts::Role::Caption));
-        const qreal labelWidth = qMin<qreal>(metrics.horizontalAdvance(content.label), rect.width());
-        const qreal dotLeft = qMax(rect.left(), rect.center().x() - labelWidth / 2.0 - DOT_GAP - DOT_SIZE);
-        rects.dot = getMirrored(rect, QRectF(dotLeft, labelTop + (LABEL_HEIGHT - DOT_SIZE) / 2.0, DOT_SIZE, DOT_SIZE), isRightToLeft);
+        const qreal labelWidth = qMin<qreal>(metrics.horizontalAdvance(content.label), tileRect.width());
+        const qreal dotLeft = qMax(tileRect.left(), tileRect.center().x() - labelWidth / 2.0 - DOT_GAP - DOT_SIZE);
+        const qreal dotRight = tileRect.left() + tileRect.right() - (dotLeft + DOT_SIZE);
+        rects.dot = QRectF(isRightToLeft ? dotRight : dotLeft, labelTop + (LABEL_HEIGHT - DOT_SIZE) / 2.0, DOT_SIZE, DOT_SIZE);
     }
     return rects;
 }
@@ -622,13 +1054,15 @@ void PDFAppToolPageTileDelegate::paintItem(QPainter* painter, const QStyleOption
         return;
     }
 
-    // The page tile with the slot of the row (the base paints the slot of the delegate)
-    PDFComponentPainter::paintPageTile(painter, QRectF(option.rect), getTileContent(index), state);
+    // The page tile with the slot of the row (the base paints the slot of the delegate), behind
+    // the mark of a cut
+    const bool hasCut = index.data(CutBeforeRole).toBool();
+    PDFComponentPainter::paintPageTile(painter, getTileRect(QRectF(option.rect), hasCut, option.direction == Qt::RightToLeft), getTileContent(index), state);
 
     const bool isDimmed = index.data(DimmedRole).toBool();
     const bool hasPaperBorder = index.data(PaperBorderRole).toBool();
     const std::optional<PDFAccentHue> dotHue = getDotHue(index);
-    if (!isDimmed && !hasPaperBorder && !dotHue.has_value() && !index.data(CutBeforeRole).toBool())
+    if (!isDimmed && !hasPaperBorder && !dotHue.has_value() && !hasCut)
     {
         return;
     }
@@ -692,13 +1126,13 @@ PDFAppToolTileSizeMenu::PDFAppToolTileSizeMenu(PDFAppToolPanelPopup* panel, cons
         QString description;
     };
     const SizeRow rows[] = {
-        { TileSize::Small, tr("S", "the tile of the size Small"), tr("Small"), tr("More pages on the screen at once") },
-        { TileSize::Medium, tr("M", "the tile of the size Medium"), tr("Medium"), tr("The default size") },
-        { TileSize::Large, tr("L", "the tile of the size Large"), tr("Large"), tr("More detail of each page") },
+        { TileSize::Small, tr("S", "the tile of the size Small"), tr("Small"), QString() },
+        { TileSize::Medium, tr("M", "the tile of the size Medium"), tr("Medium"), QString() },
+        { TileSize::Large, tr("L", "the tile of the size Large"), tr("Large"), QString() },
     };
     for (const SizeRow& sizeRow : rows)
     {
-        PDFTileRow* row = m_panel->addRow(sizeRow.title, sizeRow.description, QString(), PDFTileRow::Kind::MenuItem);
+        PDFTileRow* row = m_panel->addRow(sizeRow.title, getDescription(sizeRow.size), QString(), PDFTileRow::Kind::MenuItem);
         row->setTileText(sizeRow.tileText);
         row->setObjectName(QStringLiteral("toolTileSize-%1").arg(PDFAppToolPageGrid::getTileSizeId(sizeRow.size)));
         row->setSelectionBehavior(PDFComponentButton::SelectionBehavior::Exclusive);
@@ -710,18 +1144,58 @@ PDFAppToolTileSizeMenu::PDFAppToolTileSizeMenu(PDFAppToolPanelPopup* panel, cons
 
 PDFAppToolTileSizeMenu::~PDFAppToolTileSizeMenu() = default;
 
-PDFAppToolTileSizeMenu::TileSize PDFAppToolTileSizeMenu::readSize(const PDFAppContext* context)
+QString PDFAppToolTileSizeMenu::getDescription(TileSize size) const
 {
+    // 1359:33719: the size of the tool says it is the default
+    if (size == m_defaultSize)
+    {
+        return tr("The default size");
+    }
+    switch (size)
+    {
+        case TileSize::Small:
+            return tr("More pages on the screen at once");
+        case TileSize::Medium:
+            return tr("Larger pages, fewer on the screen");
+        case TileSize::Large:
+            break;
+    }
+    return tr("More detail of each page");
+}
+
+void PDFAppToolTileSizeMenu::setDefaultSize(TileSize size)
+{
+    m_defaultSize = size;
+    for (const auto& [rowSize, row] : m_rows)
+    {
+        if (row)
+        {
+            row->setDescription(getDescription(rowSize));
+        }
+    }
+}
+
+PDFAppToolTileSizeMenu::TileSize PDFAppToolTileSizeMenu::readSize(const PDFAppContext* context, TileSize defaultSize)
+{
+    // A size, which the user has not chosen (the default of the setting), is the default of the tool
     if (context && context->getDatabase())
     {
-        return PDFAppToolPageGrid::getTileSizeFromId(context->getSettings().getString(PDFSettingKeys::toolsPageGridSize()));
+        const QString id = context->getSettings().getString(PDFSettingKeys::toolsPageGridSize());
+        for (const TileSize size : { TileSize::Small, TileSize::Medium, TileSize::Large })
+        {
+            if (PDFAppToolPageGrid::getTileSizeId(size) == id)
+            {
+                return size;
+            }
+        }
     }
-    return TileSize::Medium;
+    return defaultSize;
 }
 
 void PDFAppToolTileSizeMenu::storeSize(PDFAppContext* context, TileSize size)
 {
-    if (context && context->getDatabase() && readSize(context) != size)
+    // Every chosen size is stored (also the default of a tool: the user has chosen it)
+    if (context && context->getDatabase() && context->getSettings().getString(PDFSettingKeys::toolsPageGridSize()) != PDFAppToolPageGrid::getTileSizeId(size))
     {
         const PDFDatabaseError error = context->getSettings().setValue(PDFSettingKeys::toolsPageGridSize(), PDFAppToolPageGrid::getTileSizeId(size));
         if (error.isError())

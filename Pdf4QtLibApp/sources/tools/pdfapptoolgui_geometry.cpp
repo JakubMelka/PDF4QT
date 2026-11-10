@@ -163,7 +163,7 @@ public:
 protected:
     virtual bool eventFilter(QObject* watched, QEvent* event) override
     {
-        if (watched == m_row && (event->type() == QEvent::Resize || event->type() == QEvent::LayoutDirectionChange || event->type() == QEvent::Show))
+        if ((event->type() == QEvent::Resize || event->type() == QEvent::LayoutDirectionChange || event->type() == QEvent::Show) && watched == m_row)
         {
             place();
         }
@@ -753,7 +753,15 @@ void PDFAppPageGeometryToolGUI::describeLeftPanel(PDFAppToolPanelBuilder& builde
     m_thumbnailModel->setPictureSize(Helper::THUMBNAIL_SLOT, view->devicePixelRatioF());
     m_thumbnailScheduler = new PDFAppThumbnailScheduler(m_thumbnailModel, view, view);
     connect(view, &QAbstractItemView::clicked, this, &PDFAppPageGeometryToolGUI::onThumbnailClicked);
+
+    // M12 filters the viewport. The filter sees the viewport also while the view is being
+    // destroyed (no longer a QAbstractScrollArea): it compares only the address of the viewport,
+    // and the filter goes with the view (the slot of destroyed, a former view here)
+    forgetThumbnailView();
     m_thumbnailView = view;
+    m_thumbnailViewport = view->viewport();
+    m_thumbnailViewport->installEventFilter(this);
+    connect(view, &QObject::destroyed, this, &PDFAppPageGeometryToolGUI::onThumbnailViewDestroyed);
     builder.addWidget(view);
     builder.setFillsPanel(view);
 
@@ -781,9 +789,59 @@ void PDFAppPageGeometryToolGUI::updateThumbnails()
     {
         const QSignalBlocker blocker(m_thumbnailView->selectionModel());
         m_thumbnailView->selectionModel()->setCurrentIndex(index, QItemSelectionModel::ClearAndSelect);
-        m_thumbnailView->scrollTo(index, QAbstractItemView::EnsureVisible);
         m_thumbnailView->viewport()->update();
     }
+    scrollToPreviewPage();
+}
+
+void PDFAppPageGeometryToolGUI::scrollToPreviewPage()
+{
+    if (!m_thumbnailView || !m_thumbnailModel)
+    {
+        return;
+    }
+    const QModelIndex index = m_thumbnailModel->index(int(m_previewPage), 0);
+    if (index.isValid())
+    {
+        // QListView lays out its pending items first: the columns of the width of now
+        m_thumbnailView->scrollTo(index, QAbstractItemView::EnsureVisible);
+    }
+}
+
+bool PDFAppPageGeometryToolGUI::eventFilter(QObject* watched, QEvent* event)
+{
+    // M12: the view had another width, when the thumbnail was scrolled into it (one column at
+    // the entry, two after the panel has its width): the scroll is done again after the view
+    // has laid out its items in the new width (from the event loop)
+    // The type first, then the address of the viewport only: no call through the view, which
+    // may be in its destructor (UBSan vptr)
+    if (event->type() == QEvent::Resize && m_thumbnailViewport.isObject(watched))
+    {
+        QMetaObject::invokeMethod(this, &PDFAppPageGeometryToolGUI::scrollToPreviewPage, Qt::QueuedConnection);
+    }
+    return BaseClass::eventFilter(watched, event);
+}
+
+void PDFAppPageGeometryToolGUI::onThumbnailViewDestroyed(QObject* object)
+{
+    // ~QWidget of the view emits destroyed before it deletes its children: the viewport is
+    // still a whole QWidget. Only the current view is forgotten (a former one is forgotten,
+    // when the new one comes)
+    QWidget* viewport = m_thumbnailViewport.data();
+    if (viewport && viewport->parent() == object)
+    {
+        forgetThumbnailView();
+    }
+}
+
+void PDFAppPageGeometryToolGUI::forgetThumbnailView()
+{
+    if (QWidget* viewport = m_thumbnailViewport.data())
+    {
+        viewport->removeEventFilter(this);
+    }
+    m_thumbnailViewport = nullptr;
+    m_thumbnailView = nullptr;
 }
 
 void PDFAppPageGeometryToolGUI::onThumbnailClicked(const QModelIndex& index)
@@ -2081,7 +2139,9 @@ void PDFAppBoxesToolGUI::updateTool()
     }
     if (m_legend)
     {
+        // The legend lies at the sheet (M11): the stage places it by its new height
         m_legend->setItems(std::move(legend));
+        stage->updateTextGeometry();
     }
 
     QString caption;

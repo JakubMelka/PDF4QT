@@ -24,11 +24,14 @@
 #define PDFAPPLOCALE_H
 
 #include "pdfappglobal.h"
+#include "pdfglobal.h"
 
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QLocale>
 #include <QString>
+
+#include <vector>
 
 namespace pdf
 {
@@ -94,6 +97,11 @@ public:
     /// "1,234"
     static QString formatNumber(qint64 value);
 
+    /// "1–3, 8, 10–12", "13–14": pages (indices from 0, sorted) numbered from 1 by the one text of
+    /// the page lists (PDFDocumentPageOperations::formatPageNumbers, owner D3) with the numbers
+    /// of formatNumber; at most \p maximumParts parts, then "…"
+    static QString formatPageNumbers(const std::vector<PDFInteger>& pageIndices, int maximumParts = 6);
+
     /// "Oct 23, 2026"
     static QString formatDate(const QDate& date);
 
@@ -147,6 +155,10 @@ public:
 
     /// Fixed current time (tests); 0 = the clock
     static void setCurrentTimeOverride(qint64 time);
+
+private:
+    /// A number of a page from 1 by formatNumber (formatPageNumbers)
+    static QString formatPageNumber(PDFInteger pageNumber);
 };
 
 }   // namespace pdf

@@ -143,6 +143,7 @@ private slots:
     void keyboardFocusFrame();
     void themeSwitch();
     void widgets();
+    void lineEditElidedWhenInactive();
     void toolTip();
     void toolTipCompact();
     void galleryHasNoLeak();
@@ -1751,6 +1752,66 @@ void WidgetStyleTest::themeSwitch()
     QCOMPARE(lineEdit.palette().color(QPalette::Text), token(pdf::PDFThemeColors::TextPrimary));
     QCOMPARE(lineEdit.palette().color(QPalette::Window), pdf::PDFThemeColors::getLeakColor());
     QCOMPARE(QApplication::palette().color(QPalette::Text), pdf::PDFThemeColors::getLeakColor());
+}
+
+void WidgetStyleTest::lineEditElidedWhenInactive()
+{
+    // Text field 383:4410 (the folder of Split, 161 x 34): a long path ends with "…" without the
+    // focus and its start stays visible ("C:\Users\Jakub\Doc…"); with the focus the field
+    // scrolls its text as every line edit
+    const QString path = QStringLiteral("C:\\Users\\Jakub\\Documents\\Exports\\Handbook parts\\2026");
+    QWidget window;
+    window.resize(400, 100);
+    pdf::PDFLineEdit* field = new pdf::PDFLineEdit(path, &window);
+    field->setGeometry(10, 10, 161, 34);
+    pdf::PDFLineEdit* other = new pdf::PDFLineEdit(&window);
+    other->setGeometry(10, 50, 161, 34);
+    window.show();
+    window.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&window));
+    other->setFocus();
+    QTRY_VERIFY(other->hasFocus());
+
+    // A plain field shows the part at its cursor (the end of the text)
+    QVERIFY(!field->isElidedWhenInactive());
+    QCOMPARE(field->getDisplayedText(), path);
+    const QImage scrolled = field->grab().toImage();
+
+    field->setElidedWhenInactive(true);
+    const QString displayed = field->getDisplayedText();
+    QVERIFY2(displayed.startsWith(QStringLiteral("C:\\Users\\")) && displayed.endsWith(QChar(0x2026)) && displayed.size() < path.size(), qPrintable(displayed));
+    QCOMPARE(displayed, field->fontMetrics().elidedText(path, Qt::ElideRight, field->fontMetrics().horizontalAdvance(displayed)));
+
+    // The field looks as a field, whose whole value is the elided text: the same panel, the
+    // text at the same place, in text/primary
+    // (its cursor at the start: the elided text fills the line, at its end QLineEdit would
+    // scroll it by the width of the cursor)
+    pdf::PDFLineEdit* reference = new pdf::PDFLineEdit(displayed, &window);
+    reference->setGeometry(200, 10, 161, 34);
+    reference->setCursorPosition(0);
+    reference->show();
+    const QImage elided = field->grab().toImage();
+    QCOMPARE(elided, reference->grab().toImage());
+    QVERIFY(elided != scrolled);
+
+    // A value, which fits, is shown whole
+    field->setText(QStringLiteral("C:\\Data"));
+    QCOMPARE(field->getDisplayedText(), QStringLiteral("C:\\Data"));
+
+    // With the focus the whole text, scrolled to the cursor
+    field->setText(path);
+    field->setFocus();
+    QTRY_VERIFY(field->hasFocus());
+    QCOMPARE(field->getDisplayedText(), path);
+    other->setFocus();
+    QTRY_VERIFY(!field->hasFocus());
+    QCOMPARE(field->getDisplayedText(), displayed);
+
+    // A disabled field: text/disabled as a disabled field with the elided text
+    field->setEnabled(false);
+    reference->setEnabled(false);
+    QCOMPARE(field->getDisplayedText(), displayed);
+    QCOMPARE(field->grab().toImage(), reference->grab().toImage());
 }
 
 void WidgetStyleTest::widgets()

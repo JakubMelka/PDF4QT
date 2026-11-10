@@ -93,6 +93,11 @@ public:
     /// Space around the sheet in the mode Fit (room for the handles of the overlays)
     static constexpr int MARGIN = 8;
 
+    /// Share of the stage, which the sheet with its texts takes in Fit (RS3FIGMA M11, the frames
+    /// in the stage 774 x 754: Crop 389:22382 the page 622 high of 731 below its caption, Set Page
+    /// Boxes 391:26688 595 of 708, Resize 391:23146 300 wide of 357 per page - 85 %)
+    static constexpr double FIT_SHARE = 0.85;
+
     explicit PDFAppToolPageStage(QWidget* parent);
     virtual ~PDFAppToolPageStage() override;
 
@@ -162,6 +167,27 @@ public:
     /// the size of the stage
     void addOverlay(QWidget* overlay);
 
+    /// The texts at the sheet (RS3FIGMA M11): \p above directly above the sheet, \p below
+    /// directly below it in their order, \p gap between the sheet and each of them (389:22382
+    /// the caption 10 below the page, 391:23146 the title and the caption 8 from it). The stage
+    /// takes them as its children (they are no overlays) and places them at the sheet; Fit
+    /// leaves room for them. A hidden text takes no room. nullptr = none.
+    void setTexts(QWidget* above, const std::vector<QWidget*>& below, int gap);
+
+    /// The vertical place of the sheet with its texts in Fit: Qt::AlignTop (the stages of Crop
+    /// 389:22819 and Set Page Boxes 391:26688) or Qt::AlignVCenter (Resize 391:23594, default)
+    void setVerticalAlignment(Qt::Alignment alignment);
+
+    /// The horizontal place of the sheet in Fit: Qt::AlignHCenter (default), or Qt::AlignLeading /
+    /// Qt::AlignTrailing - the sheet touches that side of the stage, its texts are centered on it
+    /// (Resize 391:23594: Now and After at the chevron between them, gap 20 + 20 + 20)
+    void setHorizontalAlignment(Qt::Alignment alignment);
+    Qt::Alignment getHorizontalAlignment() const { return m_horizontalAlignment; }
+
+    /// The texts have changed (their heights or visibility): the sheet and the texts are placed
+    /// again
+    void updateTextGeometry();
+
     /// A picture of the current page and size is shown / a rendering waits or runs (tests)
     bool hasPicture() const;
     bool isRenderPending() const;
@@ -187,6 +213,14 @@ private:
     /// Size of the sheet in pixels at 100 %
     QSize getActualSize() const;
 
+    /// Height of the texts above / below the sheet with their gaps (0 without a text)
+    int getTextHeight(bool isAbove) const;
+
+    /// Height of a text of the width; -1 for none or a hidden one
+    static int getWidgetHeight(const QWidget* widget, int width);
+    bool isText(const QWidget* widget) const;
+    void layoutTexts();
+
     void onGeometryChanged();
     void queueGeometryChanged();
     void emitGeometryChanged();
@@ -204,6 +238,11 @@ private:
     QSizeF m_fitExtent;
     QRectF m_contentRect;
     QPointer<PDFDrawWidgetProxy> m_proxy;
+    QPointer<QWidget> m_textAbove;                  ///< Children of the stage, placed at the sheet
+    std::vector<QPointer<QWidget>> m_textsBelow;
+    int m_textGap = 0;
+    Qt::Alignment m_verticalAlignment = Qt::AlignVCenter;
+    Qt::Alignment m_horizontalAlignment = Qt::AlignHCenter;
 
     std::shared_ptr<PDFAppToolPageStageLink> m_link;
     std::shared_ptr<PDFAppToolPageStageJob> m_job;
@@ -222,8 +261,10 @@ private:
 /// The canvas of the page tools (document-canvas 389:22382: bg/track, padding 20, gap 12): the
 /// bar of the preview (preview-bar: the title Semi Bold 13, the segments Fit / 100 % 60 wide
 /// each) and one or two pages (Resize: Now and After with an arrow, 391:23146), each with its
-/// title above and its caption below (Regular 12 text/secondary; an error text/danger), and a
-/// row below the captions (the legend of Set Page Boxes 391:26688). The stages are in a scroll
+/// title directly above and its caption directly below the page (Regular 12 text/secondary; an
+/// error text/danger; the stage places them, M11), and a row between the page and its caption
+/// (the legend of Set Page Boxes 391:26688). One page lies at the top of its stage, two are
+/// centered (389:22819, 391:23594). The stages are in a scroll
 /// area: 100 % scrolls. The texts are set by the tool; the segments follow the language.
 ///
 /// Ownership: the GUI of the tool creates it as its canvas page; the stages, the labels and the
@@ -242,7 +283,9 @@ public:
     static constexpr int BAR_HEIGHT = 36;
     static constexpr int SEGMENT_WIDTH = 60;
     static constexpr int SEGMENT_HEIGHT = 32;
-    static constexpr int COLUMN_GAP = 48;
+    static constexpr int COLUMN_GAP = 60;      ///< 391:23594: gap 20, the chevron 20, gap 20
+    static constexpr int SINGLE_TEXT_GAP = 10;  ///< 389:22819, 391:26688: the texts 10 from the page
+    static constexpr int DOUBLE_TEXT_GAP = 8;   ///< 391:23595: the title and the caption 8 from the page
 
     /// \param stageCount 1 (Crop, Boxes) or 2 (Resize: Now and After)
     explicit PDFAppToolPageCanvas(int stageCount, QWidget* parent);
@@ -280,7 +323,6 @@ private:
     QPointer<PDFLabel> m_title;
     QPointer<PDFSegmentedControl> m_zoomControl;
     QPointer<QScrollArea> m_scrollArea;
-    QPointer<QWidget> m_bottomHolder;
     std::vector<QPointer<PDFAppToolPageStage>> m_stages;
     std::vector<QPointer<PDFLabel>> m_stageTitles;
     std::vector<QPointer<PDFLabel>> m_captions;

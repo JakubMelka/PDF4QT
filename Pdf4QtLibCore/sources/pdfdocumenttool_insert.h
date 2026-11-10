@@ -129,12 +129,6 @@ public:
     /// "at the beginning", "at the end", "in place of pages 13–14"
     static QString getPlacementText(const Placement& placement);
 
-    /// The replaced pages (indices from 0, sorted) as the frames say them (388:17167 "13–14"):
-    /// runs of two or more pages are ranges with an en dash, separated by ", " ("2, 5–9"). One
-    /// text for the facts of the core and the texts of the GUI; \p formatNumber formats a number
-    /// of a page from 1 (the GUI: the locale of the application), nullptr = ASCII digits
-    static QString formatPageRuns(const std::vector<PDFInteger>& pageIndices, const std::function<QString(PDFInteger)>& formatNumber = nullptr);
-
     virtual PDFDocumentToolInputCountRange getInputCountRange() const override;
     virtual std::vector<PDFDocumentToolParameterError> validate(const PDFDocumentToolContext& context, const QVariantMap& parameters) const override;
     virtual PDFDocumentToolResult execute(const PDFDocumentToolContext& context, const QVariantMap& parameters, const PDFOperationControl* control, PDFProgressSink* progress) const override;
@@ -175,7 +169,9 @@ protected:
 /// the inputs, separated by ";": PDFPageRangeList "1-5, 7, 10-, odd, even", empty or "all" = all
 /// pages, K23), "blankPages" (count of blank pages, 0 to 10 000; their place is the id "blank" in
 /// "inputs", else after the sources), "blankSize" (same-as-page = the media box and /Rotate of the
-/// neighboring page, 388:16811 "As page 12"; or a named size), "blankOrientation" (of a named size).
+/// neighboring page, 388:16811 "As page 12"; or a named size), "blankOrientation" (of a named size,
+/// and of the neighboring page too: A4 portrait + Landscape = A4 landscape, owner 2026-11-09; not
+/// given: the neighboring page keeps its orientation, a named size is portrait, owner D6).
 class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolInsertPages : public PDFDocumentToolInsertBase
 {
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocumentToolInsertPages)
@@ -204,10 +200,22 @@ public:
     /// pages); std::nullopt and the translated reason ("Annex_A.pdf: Page 60 does not exist ...")
     static std::optional<std::vector<std::vector<PDFInteger>>> parseSourcePages(const QString& text, const std::vector<SourceInput>& inputs, QString* errorMessage);
 
+    /// The size \p shownSize as it is shown, laid by "blankOrientation" of \p parameters: landscape
+    /// = wider than high, portrait = higher than wide (a square stays). One rule of the core and
+    /// of the GUI (388:16811).
+    static QSizeF getOrientedSize(QSizeF shownSize, const QVariantMap& parameters);
+
     virtual QString getId() const override;
     virtual PDFDocumentToolParameterDefinitions getParameters() const override;
     virtual std::vector<PDFDocumentToolParameterError> checkGivenParameters(const QVariantMap& given) const override;
     virtual QVariantMap mapParameters(const QVariantMap& parameters, const PDFDocument* from, const PDFDocument* to) const override;
+
+    /// Owner D6 (2026-11-10): blank pages "As page N" given without "blankOrientation" take the
+    /// orientation of the neighboring page as it is shown, as the GUI does (an assistant does not
+    /// turn a landscape page next to them to portrait); a given orientation wins, a named size
+    /// keeps the default portrait. Parameters, which do not resolve to a place, are not completed
+    /// (their error comes from the normalization and the validation).
+    virtual QVariantMap completeGivenParameters(const PDFDocumentToolContext& context, const QVariantMap& given) const override;
 
 protected:
     virtual std::optional<InsertionPlan> createInsertionPlan(const PDFDocumentToolContext& context, const QVariantMap& parameters, const Placement& placement, QString* errorMessage) const override;

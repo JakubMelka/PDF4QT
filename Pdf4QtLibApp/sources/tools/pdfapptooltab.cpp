@@ -538,15 +538,26 @@ void PDFAppToolTabPage::onCloseRequested(const PDFAppToolCloseRequest& request)
 
     // "Save as a file" of a tool, whose result replaces its tab (336:3572, R16): the written file
     // opens right after this tab (the current one), then this tab goes - the document takes its
-    // place in the tab bar
+    // place in the tab bar. A file, which does not open (the window lists it in open-failed),
+    // leaves the tool in this tab with its inputs (RS3APP): the written file stays on the disk.
     if (!requestCopy.newDocumentFilePath.isEmpty())
     {
-        if (!closeShell() || !tab || !window)
+        // The opened file becomes the current tab (a new one, or its tab, when it is open already)
+        const QPointer<PDFAppTab> currentBefore = window->getCurrentTab();
+        window->openDocuments(QStringList({ requestCopy.newDocumentFilePath }), 0);
+        if (!guard || !tab || !window)
         {
             return;
         }
-        window->openDocuments(QStringList({ requestCopy.newDocumentFilePath }), 0);
-        if (!guard || !tab || !window)
+        if (window->getCurrentTab() == currentBefore.data())
+        {
+            if (m_shell)
+            {
+                m_shell->resumeEditing();
+            }
+            return;
+        }
+        if (!closeShell() || !tab || !window)
         {
             return;
         }

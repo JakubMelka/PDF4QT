@@ -25,18 +25,27 @@
 // dialog R3 (plan 6, 8)
 
 #include "apptoolpageslifetime.h"
+#include "mergetestpdf.h"
 
+#include "pdfappdocumentpanels_thumbnails.h"
 #include "pdfapptoolgui_split.h"
+#include "pdfapptoolmergemodel.h"
+#include "pdfapptoolmergeview.h"
 #include "pdfapptooloutputfiles.h"
+#include "pdfapptoolpanelbuilder.h"
 #include "pdfapptoolparametermodel.h"
 #include "pdfapptoolresultdialog.h"
 #include "pdfdocumenttoolshell.h"
 
+#include "pdfcomponentbuttons.h"
 #include "pdfdocumenttool_split.h"
 
 #include <QDir>
 #include <QFile>
+#include <QListView>
 #include <QtTest>
+
+using mergetest::MergeTestPdf;
 
 /// Helpers of the scenarios of package A
 class SplitLifetimeHelper
@@ -104,6 +113,73 @@ public:
         Steps::settle();
         return true;
     }
+
+    /// The GUI of the tool of the run, nullptr = none
+    template<typename GUI>
+    static GUI* gui(const ToolPagesLifetimeRun& run)
+    {
+        pdf::PDFDocumentToolShell* shell = Steps::shell(run);
+        return shell ? qobject_cast<GUI*>(shell->getGUI()) : nullptr;
+    }
+
+    /// A click of the mouse at the point of the viewport of the view (the view may die in it)
+    static bool clickAt(QAbstractItemView* view, const QPoint& point)
+    {
+        if (!view)
+        {
+            return false;
+        }
+        QPointer<QAbstractItemView> guard(view);
+        QTest::mouseClick(view->viewport(), Qt::LeftButton, Qt::NoModifier, point);
+        Steps::settle();
+        return true;
+    }
+
+    /// A click on the row of a view (scrolled to it first)
+    static bool clickRow(QAbstractItemView* view, int row)
+    {
+        if (!view || !view->model() || row >= view->model()->rowCount())
+        {
+            return false;
+        }
+        QPointer<QAbstractItemView> guard(view);
+        view->scrollTo(view->model()->index(row, 0));
+        Steps::settle();
+        return !guard || clickAt(guard, guard->visualRect(guard->model()->index(row, 0)).center());
+    }
+
+    /// Writes a value of the model of the tool (one undo step)
+    static bool setValue(const ToolPagesLifetimeRun& run, const QString& name, const QVariant& value)
+    {
+        pdf::PDFDocumentToolShell* shell = Steps::shell(run);
+        QPointer<pdf::PDFAppToolParameterModel> model = shell ? shell->getModel() : nullptr;
+        if (!model)
+        {
+            return false;
+        }
+        model->setValue(name, value);
+        Steps::settle();
+        return true;
+    }
+
+    /// A document of 6 pages with 3 bookmarks, one of them a child (383:6771)
+    static pdf::PDFAppDocumentTab* openBookmarkedDocument(pdftest::AppToolShellFixture& fixture)
+    {
+        MergeTestPdf pdf = MergeTestPdf::createPages("", 6, "/Outlines 30 0 R");
+        pdf.set(30, "<< /Type /Outlines /First 31 0 R /Last 32 0 R >>");
+        pdf.set(31, "<< /Title (One) /Parent 30 0 R /Next 32 0 R /First 33 0 R /Last 33 0 R /Dest [" + MergeTestPdf::page(1) + " /Fit] >>");
+        pdf.set(32, "<< /Title (Two) /Parent 30 0 R /Prev 31 0 R /Dest [" + MergeTestPdf::page(4) + " /Fit] >>");
+        pdf.set(33, "<< /Title (Child) /Parent 31 0 R /Dest [" + MergeTestPdf::page(2) + " /Fit] >>");
+        const QString filePath = QDir(fixture.folder()).filePath(QStringLiteral("Bookmarked.pdf"));
+        QFile file(filePath);
+        if (!file.open(QIODevice::WriteOnly))
+        {
+            return nullptr;
+        }
+        file.write(pdf.write());
+        file.close();
+        return fixture.open(filePath);
+    }
 };
 
 void ToolPagesLifetimePackages::registerSplitScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios)
@@ -111,7 +187,8 @@ void ToolPagesLifetimePackages::registerSplitScenarios(std::vector<ToolPagesLife
     using H = SplitLifetimeHelper;
     using Steps = ToolPagesLifetimeSteps;
 
-    // Split: a tile, the output files (Rename), the run, the dialog of the written files (R3), Close
+    // Split: a row of Files to create (its card is shown, 383:3315), a tile of a card, the output
+    // files (Rename), the run, the dialog of the written files (R3), Close
     ToolPagesLifetimeScenario split;
     split.name = QStringLiteral("split");
     split.toolId = QStringLiteral("pages.split");
@@ -121,11 +198,86 @@ void ToolPagesLifetimePackages::registerSplitScenarios(std::vector<ToolPagesLife
     split.addSteps = [](std::vector<ToolPagesLifetimeStep>* steps)
     {
         steps->push_back(&Steps::openTool);
-        steps->push_back([](ToolPagesLifetimeRun& run) { return Steps::clickTile(run, 1); });
+        steps->push_back([](ToolPagesLifetimeRun& run) { return H::setValue(run, QStringLiteral("rule"), QStringLiteral("every-page")); });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppSplitToolGUI* current = H::gui<pdf::PDFAppSplitToolGUI>(run);
+            return current && current->getPendingList() && H::clickRow(current->getPendingList()->getView(), 2);
+        });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppSplitToolGUI* current = H::gui<pdf::PDFAppSplitToolGUI>(run);
+            return current && current->getGrid() && H::clickRow(current->getGrid()->getGroupView(), 1);
+        });
         steps->push_back([](ToolPagesLifetimeRun& run) { return H::setOutput(run, QStringLiteral("rename")); });
         steps->push_back([](ToolPagesLifetimeRun& run) { return H::closeDialog(run, Steps::confirmToDialog(run)); });
     };
     scenarios->push_back(split);
+
+    // Split At selected pages (383:5715) and At bookmarks (383:6771): a click between two pages,
+    // Clear Cuts, the field "pages per file" (Enter), the checklist of the bookmarks by the mouse
+    // and Space, Top level
+    ToolPagesLifetimeScenario cuts;
+    cuts.name = QStringLiteral("splitcuts");
+    cuts.toolId = QStringLiteral("pages.split");
+    cuts.openDocument = &H::openBookmarkedDocument;
+    cuts.addSteps = [](std::vector<ToolPagesLifetimeStep>* steps)
+    {
+        steps->push_back(&Steps::openTool);
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppSplitToolGUI* current = H::gui<pdf::PDFAppSplitToolGUI>(run);
+            pdf::PDFAppToolNumberField* field = current ? current->getPagesPerFileField() : nullptr;
+            if (!field)
+            {
+                return false;
+            }
+            field->setFocus();
+            field->setText(QStringLiteral("2"));
+            return Steps::key(field, Qt::Key_Return);
+        });
+        steps->push_back([](ToolPagesLifetimeRun& run) { return H::setValue(run, QStringLiteral("rule"), QStringLiteral("at-pages")); });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppSplitToolGUI* current = H::gui<pdf::PDFAppSplitToolGUI>(run);
+            pdf::PDFAppToolPageGridView* view = current && current->getGrid() ? current->getGrid()->getView() : nullptr;
+            if (!view || !view->model() || view->model()->rowCount() < 3)
+            {
+                return false;
+            }
+            const QRect tile = view->visualRect(view->model()->index(2, 0));
+            return H::clickAt(view, QPoint(tile.left() + 2, tile.center().y()));
+        });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppSplitToolGUI* current = H::gui<pdf::PDFAppSplitToolGUI>(run);
+            return current && Steps::click(current->getClearCutsButton());
+        });
+        steps->push_back([](ToolPagesLifetimeRun& run) { return H::setValue(run, QStringLiteral("rule"), QStringLiteral("at-bookmarks")); });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppSplitToolGUI* current = H::gui<pdf::PDFAppSplitToolGUI>(run);
+            return current && H::clickRow(current->getBookmarkView(), 1);
+        });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppSplitToolGUI* current = H::gui<pdf::PDFAppSplitToolGUI>(run);
+            QListView* view = current ? current->getBookmarkView() : nullptr;
+            if (!view || !view->model() || view->model()->rowCount() < 3)
+            {
+                return false;
+            }
+            view->setFocus();
+            view->setCurrentIndex(view->model()->index(2, 0));
+            return Steps::key(view, Qt::Key_Space);
+        });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppSplitToolGUI* current = H::gui<pdf::PDFAppSplitToolGUI>(run);
+            return current && Steps::click(current->getTopLevelLink());
+        });
+    };
+    scenarios->push_back(cuts);
 
     // Split with Existing files Ask: the question of 356:11997 during the run (its Skip), the
     // dialog of the written files; the deletion of every victim while the question waits (the
@@ -181,7 +333,8 @@ void ToolPagesLifetimePackages::registerSplitScenarios(std::vector<ToolPagesLife
     };
     scenarios->push_back(ask);
 
-    // Extract Pages: a tile, the menu of the output, One file: the new document in a new tab
+    // Extract Pages: a thumbnail of the source (385:9405), Delete on a page of the result, the
+    // menu of the output, One file: the new document in a new tab
     ToolPagesLifetimeScenario extract;
     extract.name = QStringLiteral("extract");
     extract.toolId = QStringLiteral("pages.extract");
@@ -190,7 +343,28 @@ void ToolPagesLifetimePackages::registerSplitScenarios(std::vector<ToolPagesLife
     extract.addSteps = [](std::vector<ToolPagesLifetimeStep>* steps)
     {
         steps->push_back(&Steps::openTool);
-        steps->push_back([](ToolPagesLifetimeRun& run) { return Steps::clickTile(run, 2); });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppExtractToolGUI* current = H::gui<pdf::PDFAppExtractToolGUI>(run);
+            return current && H::clickRow(current->getThumbnailView(), 2);
+        });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppExtractToolGUI* current = H::gui<pdf::PDFAppExtractToolGUI>(run);
+            pdf::PDFAppToolPageGridView* view = current && current->getGrid() ? current->getGrid()->getView() : nullptr;
+            if (!view || !view->model() || view->model()->rowCount() < 2)
+            {
+                return false;
+            }
+            view->setFocus();
+            view->setCurrentIndex(view->model()->index(0, 0));
+            return Steps::key(view, Qt::Key_Delete);
+        });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFAppExtractToolGUI* current = H::gui<pdf::PDFAppExtractToolGUI>(run);
+            return current && H::clickRow(current->getThumbnailView(), 0);
+        });
         steps->push_back([](ToolPagesLifetimeRun& run) { return Steps::click(Steps::firstPanelButton(run)); });
         steps->push_back([](ToolPagesLifetimeRun&) { return Steps::key(QApplication::activePopupWidget() ? QApplication::activePopupWidget() : QApplication::focusWidget(), Qt::Key_Escape); });
         steps->push_back([](ToolPagesLifetimeRun& run) { return Steps::confirmDialog(run, Steps::confirmToDialog(run)); });

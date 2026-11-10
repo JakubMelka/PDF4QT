@@ -586,10 +586,12 @@ public:
     /// The values, whose default depends on another given value, added to the parameters as they
     /// were given, before they are normalized (run, runPreview): a caller, who gives only some
     /// values (an assistant by MCP), gets the default of the combination it gave (Blank PDF: a
-    /// 16:9 page without an orientation is landscape, owner answer Q22). The panels hold every
-    /// value, nothing is added for them. The default adds nothing.
+    /// 16:9 page without an orientation is landscape, owner answer Q22; Insert: blank pages
+    /// "As page N" without an orientation take the orientation of that page, owner D6). The
+    /// panels hold every value, nothing is added for them. The default adds nothing.
+    /// \param context The documents of the run (a default may depend on a page of them)
     /// \param given The parameters as they were given
-    virtual QVariantMap completeGivenParameters(const QVariantMap& given) const;
+    virtual QVariantMap completeGivenParameters(const PDFDocumentToolContext& context, const QVariantMap& given) const;
 
     /// The parameters given for the document \p from, made for \p to, another version of it
     /// (MCP runs a tool again on a new version; an open tool keeps its values, when an

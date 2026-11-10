@@ -45,6 +45,11 @@ public:
     explicit PDFPageGeometryDialog(QWidget* parent = nullptr);
 
     void setPageCount(PDFInteger pageCount);
+
+    /// PageMaster applies the settings to each output of an export (B27): the page range counts
+    /// the pages of each output from 1, which the dialog says under the range
+    void setRangeAppliesToEachOutput(bool rangeAppliesToEachOutput);
+
     void setSettings(const PDFPageGeometrySettings& settings);
     PDFPageGeometrySettings getSettings() const;
 
@@ -61,6 +66,7 @@ private:
 
     QLabel* m_pageCountLabel;
     QLineEdit* m_pageRangeEdit;
+    QLabel* m_pageRangeHintLabel;
     QComboBox* m_pageSubsetCombo;
 
     QComboBox* m_referenceBoxCombo;

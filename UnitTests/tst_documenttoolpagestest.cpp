@@ -346,7 +346,7 @@ void DocumentToolPagesTest::rotatePlan()
     parameters.insert(QStringLiteral("plan"), QStringLiteral("2,3:right; 5:right"));
     const PDFDocumentToolResult uniform = tool.run(PagesTestHelper::context(longDocument), parameters, nullptr, nullptr);
     QCOMPARE(uniform.status, PDFDocumentToolResultStatus::Success);
-    QCOMPARE(uniform.facts[0].value, QStringLiteral("3 pages · 2, 3, 5"));
+    QCOMPARE(uniform.facts[0].value, QStringLiteral("3 pages · 2–3, 5"));
     QCOMPARE(uniform.facts[1].value, QStringLiteral("90° right"));
 }
 
@@ -1052,11 +1052,26 @@ void DocumentToolPagesTest::removeHostile()
 
 void DocumentToolPagesTest::formatPageNumbers()
 {
+    // The one text of the page lists (owner D2 / D3 2026-11-10): every run of consecutive pages is
+    // a range with an en dash without spaces, also a run of two pages (388:17167 "13–14", 385:9405
+    // "1–3, 8, 10–12", 388:21459 "4–6, 20"); the parts are separated by ", "
     QCOMPARE(PDFDocumentPageOperations::formatPageNumbers({ 3, 4, 5, 19 }), QStringLiteral("4–6, 20"));
-    QCOMPARE(PDFDocumentPageOperations::formatPageNumbers({ 8, 9, 14 }), QStringLiteral("9, 10, 15"));
-    QCOMPARE(PDFDocumentPageOperations::formatPageNumbers({ 0, 1, 2, 4, 5 }), QStringLiteral("1–3, 5, 6"));
-    QCOMPARE(PDFDocumentPageOperations::formatPageNumbers({ 0, 2, 4, 6 }, 2), QStringLiteral("1, 3, …"));
+    QCOMPARE(PDFDocumentPageOperations::formatPageNumbers({ 0, 1, 2, 7, 9, 10, 11 }), QStringLiteral("1–3, 8, 10–12"));
+    QCOMPARE(PDFDocumentPageOperations::formatPageNumbers({ 12, 13 }), QStringLiteral("13–14"));
+    QCOMPARE(PDFDocumentPageOperations::formatPageNumbers({ 8, 9, 14 }), QStringLiteral("9–10, 15"));
+    QCOMPARE(PDFDocumentPageOperations::formatPageNumbers({ 0, 1, 2, 4, 5 }), QStringLiteral("1–3, 5–6"));
+    QCOMPARE(PDFDocumentPageOperations::formatPageNumbers({ 6 }), QStringLiteral("7"));
     QCOMPARE(PDFDocumentPageOperations::formatPageNumbers({}), QString());
+
+    // At most so many parts, then "…" (a run counts once)
+    QCOMPARE(PDFDocumentPageOperations::formatPageNumbers({ 0, 2, 4, 6 }, 2), QStringLiteral("1, 3, …"));
+    QCOMPARE(PDFDocumentPageOperations::formatPageNumbers({ 0, 1, 2, 4, 5 }, 2), QStringLiteral("1–3, 5–6"));
+    QCOMPARE(PDFDocumentPageOperations::formatPageNumbers({ 0, 1, 2, 4, 5 }, 1), QStringLiteral("1–3, …"));
+    QCOMPARE(PDFDocumentPageOperations::formatPageNumbers({ 0, 2 }, 0), QStringLiteral("1, …"));
+
+    // The numbers of a locale (the GUI): both bounds of a range are formatted
+    QCOMPARE(PDFDocumentPageOperations::formatPageNumbers({ 0, 1, 1233, 1234 }, 6, [](PDFInteger number) { return QStringLiteral("<%1>").arg(number); }),
+             QStringLiteral("<1>–<2>, <1234>–<1235>"));
 }
 
 /// Versions of the five pages of createPages, which an assistant has made (owner 2026-11-06:

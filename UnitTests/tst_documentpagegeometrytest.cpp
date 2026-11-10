@@ -242,6 +242,7 @@ private Q_SLOTS:
     void resizeBeadsPatternsAndLayoutBoxes();
     void resizePageBoxesFollowContent();
     void resizeKeepSizeRewritesNothing();
+    void resizeKeepSizeCroppedPageShowsNewSheet();
     void resizeRotatedPageAuto();
     void resizeMarginsWithoutRoomAreRefused();
     void resizeToolFactsAndPermissionBit();
@@ -795,6 +796,53 @@ void DocumentPageGeometryTest::resizeKeepSizeRewritesNothing()
     QVERIFY(GeometryTestHelper::isNear(GeometryTestHelper::rect(output, GeometryTestHelper::dictionary(output, 10)->get("Rect")), QRectF(100, 100, 100, 100)));
     QCOMPARE(statistics.annotationsTransformed, 0);
     QVERIFY(!PDFPageGeometry::isAnnotationChanged(&document, { PDFPageGeometry::computeResize(document.getCatalog()->getPage(0), settings).change }));
+}
+
+void DocumentPageGeometryTest::resizeKeepSizeCroppedPageShowsNewSheet()
+{
+    // Owner 2026-11-09 (RS3CORE M2): Keep size of a cropped page - the page shows the new sheet
+    // (14.11.2: the crop box is the region shown, so it is the new media box); the area hidden by
+    // the old crop box stays hidden by a clip around the content (8.5.4 "re W n" inside "q ... Q"),
+    // the content stream of the page stays the same object with the same bytes. The A5 crop box
+    // 419.5 x 595.3 on a Letter sheet, the A4 sheet 595.28 x 841.89 centered around it.
+    using H = GeometryTestHelper;
+    const PDFDocument document = GeometryTestPdf::createPage("/MediaBox [0 0 612 792] /CropBox [50 50 469.5 645.3]").read();
+    QVariantMap parameters;
+    parameters.insert(QStringLiteral("pages"), H::allPages());
+    parameters.insert(QStringLiteral("pageSize"), QStringLiteral("a4"));
+    parameters.insert(QStringLiteral("content"), QStringLiteral("keep-size"));
+    PDFDocumentToolResizePages tool;
+    const PDFDocumentToolResult result = tool.run(H::context(document), parameters, nullptr, nullptr);
+    QCOMPARE(result.status, PDFDocumentToolResultStatus::Success);
+    std::map<QString, QString> facts;
+    for (const PDFDocumentToolFact& fact : result.facts)
+    {
+        facts[fact.id] = fact.value;
+    }
+    QCOMPARE(facts[QStringLiteral("pageSize")], QStringLiteral("A4 · 210 × 297 mm (was A5)"));
+    QCOMPARE(facts[QStringLiteral("content")], QStringLiteral("Not scaled"));
+
+    QVERIFY(!result.documents.empty());
+    const PDFDocument& output = *result.documents.front().document;
+    const PDFPage* page = output.getCatalog()->getPage(0);
+    const QRectF center(50.0 + (419.5 - H::mm(210)) * 0.5, 50.0 + (595.3 - H::mm(297)) * 0.5, H::mm(210), H::mm(297));
+    QVERIFY(H::isNear(page->getMediaBox(), center));
+    QVERIFY(H::isNear(page->getCropBox(), center));
+
+    // [prefix, the old stream 4 0 R, suffix]; the prefix has no matrix (nothing moves), only the clip
+    const PDFObject& contentsObject = output.getObject(H::dictionary(output, 3)->get("Contents"));
+    QVERIFY(contentsObject.isArray());
+    const PDFArray* contents = contentsObject.getArray();
+    QCOMPARE(contents->getCount(), size_t(3));
+    QCOMPARE(contents->getItem(1), PDFObject::createReference(PDFObjectReference(4, 0)));
+    QCOMPARE(output.getDecodedStream(output.getObject(contents->getItem(1)).getStream()), QByteArray("0 0 m 10 10 l S"));
+    const QList<QByteArray> prefix = output.getDecodedStream(output.getObject(contents->getItem(0)).getStream()).simplified().split(' ');
+    QCOMPARE(prefix.size(), 8);
+    QCOMPARE(prefix.front(), QByteArray("q"));
+    const std::vector<double> clip = { prefix[1].toDouble(), prefix[2].toDouble(), prefix[3].toDouble(), prefix[4].toDouble() };
+    QVERIFY(H::isNear(QRectF(clip[0], clip[1], clip[2], clip[3]), QRectF(50, 50, 419.5, 595.3)));
+    QCOMPARE(prefix.mid(5), QList<QByteArray>({ "re", "W", "n" }));
+    QCOMPARE(output.getDecodedStream(output.getObject(contents->getItem(2)).getStream()).simplified(), QByteArray("Q"));
 }
 
 void DocumentPageGeometryTest::resizeRotatedPageAuto()

@@ -215,6 +215,17 @@ public:
     /// a password field (or the application has deleted the button)
     PDFIconButton* getPasswordButton() const;
 
+    /// The value of the field without the focus ends with "…", when it is wider than
+    /// the field (Text field 383:4410: a long path of a folder), instead of
+    /// showing the part at the cursor; the field with the focus scrolls its text as
+    /// every line edit. Only a field with a normal echo and without actions.
+    bool isElidedWhenInactive() const { return m_isElidedWhenInactive; }
+    void setElidedWhenInactive(bool elided);
+
+    /// Returns the text, which the field shows now: elided at its end (see
+    /// \p setElidedWhenInactive), or the whole text (scrolled to the cursor)
+    QString getDisplayedText() const;
+
 protected:
     virtual void changeEvent(QEvent* event) override;
     virtual void paintEvent(QPaintEvent* event) override;
@@ -228,7 +239,16 @@ private:
     void placePasswordButton();
     void onPasswordButtonToggled(bool isShown);
 
+    /// The rectangle of the line of the text (QLineEdit: the contents, the text margins,
+    /// the horizontal margin of 2); \p lineHeight the height of the line
+    QRect getTextLineRect(int lineHeight) const;
+
+    /// Returns true, if the field shows its value elided now
+    bool isTextElided() const;
+    void paintElidedText();
+
     bool m_isPasswordField = false;
+    bool m_isElidedWhenInactive = false;
     QPointer<QWidget> m_passwordButton; ///< PDFIconButton, a child, which the application may delete
     QString m_invalidMessage;
 };

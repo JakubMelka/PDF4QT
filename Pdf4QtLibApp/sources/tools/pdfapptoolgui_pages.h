@@ -67,6 +67,14 @@ private:
     using BaseClass = QAbstractListModel;
 
 public:
+    /// Roles of the line of a state below the description (Split: "Written" 383:10232, "Same
+    /// name as another file" 383:9088); a delegate of the tool draws it
+    enum Role
+    {
+        StatusRole = PDFComponentRoles::LastRole + 0x200,   ///< QString: the line, empty = none
+        StatusColorRole                                     ///< int: PDFThemeColors::Color of the line
+    };
+
     struct Row
     {
         PDFInteger page = -1;
@@ -76,6 +84,8 @@ public:
         QString tileText;       ///< Text of the tile ("4", the label of the page)
         PDFComponentPainter::TileRowTone tone = PDFComponentPainter::TileRowTone::Accent;
         QString linkText;       ///< "Undo", "Keep"
+        QString status;         ///< The line of a state below the description, empty = none
+        PDFThemeColors::Color statusColor = PDFThemeColors::TextSecondary;
 
         bool operator==(const Row&) const = default;
     };
@@ -183,6 +193,14 @@ protected:
     /// current page (Rotate, Remove, Extract - never every page at once), or every page (Split,
     /// 383:3315 "All")
     virtual PDFPageSelection::Mode getEntryModeWithoutSelection() const;
+
+    /// The size of the tiles without a choice of the user (Medium; Small of Split and Extract,
+    /// owner 2026-11-09)
+    virtual PDFAppToolPageGrid::TileSize getDefaultTileSize() const;
+
+    /// The parts of a tool between the page selection and the list of the pending changes of
+    /// the left panel (the bookmarks of Split 383:6771); nothing by default
+    virtual void describeLeftPanelParts(PDFAppToolPanelBuilder& builder);
 
     /// The link of a pending row (Undo, Keep), Delete on a tile
     virtual void onPendingLinkActivated(PDFInteger page) = 0;

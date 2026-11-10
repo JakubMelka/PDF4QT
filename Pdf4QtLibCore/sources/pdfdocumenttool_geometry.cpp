@@ -670,7 +670,7 @@ std::optional<std::vector<PDFPageGeometryChange>> PDFDocumentToolResizePages::cr
 
         // A page, which would stay as it is, is no change
         PDFPageGeometryChange& change = placement.change;
-        const bool isSame = !change.hasContentTransform() &&
+        const bool isSame = !change.hasContentTransform() && !change.contentClip.isValid() &&
                             (!change.mediaBox || Helper::isSame(*change.mediaBox, page->getMediaBox())) &&
                             (!change.cropBox || Helper::isSame(*change.cropBox, page->getCropBox()));
         if (isSame)

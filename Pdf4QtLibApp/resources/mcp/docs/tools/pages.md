@@ -163,6 +163,8 @@ Separate a document into several files.
 - The only result is `save_files`: the files go to `folder` (an absolute path of an existing folder on this computer; empty = the folder of the document). `existingFiles` has no `ask` for an assistant; `overwrite` is always confirmed by the user.
 - `rule`: `every-page`, `every-n-pages` with `pagesPerFile` (1 to 10,000), `at-pages` with `cuts` (each page number starts a new file, sorted, without duplicates, greater than 1), `at-bookmarks` with `bookmarks` (pages before the first bookmark go to the first file; a bookmark without a valid target is left out and named in the facts), `by-size` with `sizeMB` (approximate: the size of the objects of each page), `odd-even` (two files).
 - `fileName` is a template: `#` the number of the file (`##` pads it with zeros), `@` the number of its first page, {source_base} the name of the document, {group_name} the title of the bookmark (`at-bookmarks`), {date} the date. A template, which gives two files the same name, is an error. The extension `.pdf` is added.
+- `optimizeImages` recompresses the images of every file by the presets of `optimize.compress`: `prefer-quality` (Balanced) reduces them to 200 dpi with JPEG quality 80, `minimum-size` (Smaller file) to 110 dpi with JPEG quality 60; bi-tonal images (scans of a text) keep the default settings of their own profile. `off` (the default) stores them exactly as they are.
+- The progress of the call names the file being written (a phase per file).
 - Every file is a new document: a new identifier, the dates of its creation, not encrypted, no signatures (their fields stay empty), no declaration of PDF/A or PDF/UA. Bookmarks, named destinations, links, form fields and page labels follow their pages; a link to a page of another file is removed. The tags of the document are removed (as by `pages.remove`); the attachments of the document are only in the first file.
 - The open document never changes. `files` of the result lists the written files; a stopped call keeps the files written before it.
 
@@ -273,7 +275,7 @@ Add PDF pages, images or blank pages.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `blankOrientation` | string, one of `portrait`, `landscape`, default `portrait` | no | Orientation of the blank pages of a named size - portrait: Portrait (Higher than wide) - landscape: Landscape (Wider than high) |
+| `blankOrientation` | string, one of `portrait`, `landscape`, default `portrait` | no | Orientation of the blank pages, also of the size of the neighboring page (not given: that size keeps the orientation of the page) - portrait: Portrait (Higher than wide) - landscape: Landscape (Wider than high) |
 | `blankPages` | integer, 0–10000, default `0` | no | Number of blank pages inserted after the sources |
 | `blankSize` | string, one of `same-as-page`, `a4`, `a3`, `a5`, `letter`, `legal`, default `same-as-page` | no | Size of the blank pages - same-as-page: As the neighboring page (The size and the rotation of the page next to the place) - a4: A4 (210 × 297 mm) - a3: A3 (297 × 420 mm) - a5: A5 (148 × 210 mm) - letter: Letter (216 × 279 mm) - legal: Legal (216 × 356 mm) |
 | `page` | integer, ≥ 1, default `1` | no | The page (from 1) of the positions before and after |
@@ -311,6 +313,7 @@ Add PDF pages, images or blank pages.
 
 - The sources are open documents by `sourceDocumentIds` (in their order; open a file first with `files.open`) and images by `imagePaths` (each frame of a TIFF is a page), then `blankPages` blank pages; at least one of them. `sourcePages` gives the pages of each document source in its order, separated by semicolons ("1-5, 7; all"). The sources never change.
 - `position` `before` and `after` need `page`; `replace` needs `replacePages` (they are removed and the new pages take the place of the first of them, one undo step). A value, which the position does not use, is an error that names it.
+- Blank pages of `blankSize` `same-as-page` take the size and the rotation of the page next to the place; without `blankOrientation` they keep its orientation (a landscape page gives landscape blank pages), a given `blankOrientation` lays them portrait or landscape (an A4 portrait page and `landscape` give A4 landscape pages). A named size without `blankOrientation` is portrait.
 - The document keeps its object numbers, its identifier, its encryption and its signatures: a signed document is saved by an incremental update, so its signatures stay valid for the signed revision. Form fields of a source, whose names collide, are renamed; a declaration of PDF/A, PDF/UA or PDF/X of the document stays and the facts say that the inserted pages were not checked.
 - Each document source must allow assembling (Table 22, bit 11) and keeps none of its restrictions in the result: a restricted source is refused unless the user has unlocked it in PDF4QT.
 - A certified document can only be changed as a copy (see above).
@@ -462,7 +465,7 @@ Turn pages in 90° steps.
 - `left`, `right` and `half` turn a page from its current rotation; `reset` gives it the rotation 0. A page is in a plan at most once.
 - A text layer of Recognize Text (OCR) of a turned page stays valid.
 - A status `nothing-to-do` means, that every page has the rotation already (a `reset` of pages with the rotation 0). Nothing changes.
-- The facts are `rotated` ("3 pages · 9, 10, 15") and `rotation` ("90° right", "Mixed"); `data` has the numbers of the turned pages and the rotation of all of them (`right`, `left`, `half` or `mixed`).
+- The facts are `rotated` ("3 pages · 9–10, 15") and `rotation` ("90° right", "Mixed"); `data` has the numbers of the turned pages and the rotation of all of them (`right`, `left`, `half` or `mixed`).
 
 ## `pages.crop`
 

@@ -166,7 +166,7 @@ class PDF4QTLIBCORESHARED_EXPORT PDFPageGeometryStatistics
 {
 public:
     int pagesChanged = 0;               ///< Pages with a new box or content
-    int contentsTransformed = 0;        ///< Pages, whose content was scaled or moved
+    int contentsTransformed = 0;        ///< Pages, whose content was scaled, moved or clipped
     int annotationsTransformed = 0;     ///< Annotations, whose /Rect changed
     int destinationsTransformed = 0;    ///< Explicit destinations moved with their pages
     int viewportsTransformed = 0;       ///< Viewports (/VP) moved with their pages

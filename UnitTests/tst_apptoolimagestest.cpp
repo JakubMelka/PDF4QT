@@ -66,7 +66,11 @@
 #include <QApplication>
 #include <QColorSpace>
 #include <QImage>
+#include <QPushButton>
 #include <QRadioButton>
+#include <QScrollArea>
+#include <QTimer>
+#include <QtMath>
 #include <QtTest>
 
 #include <cmath>
@@ -99,6 +103,9 @@ private Q_SLOTS:
     void imagesColorManagedPreview();
     void themesDirectionAndScreenshots();
     void imagesSaveAsFileReplacesTab();
+    void imagesSaveAsFileNotOpenedKeepsTab();
+    void imagesCancelAfterRun();
+    void imagesCaptionAtThePage();
 };
 
 /// Helpers of the test
@@ -573,6 +580,16 @@ void AppToolImagesTest::imagesCropOfAnImage()
     QCOMPARE(gui->getCropOverlay()->getRect(), QRectF(0, 0, 4032, 3024));
     QVERIFY(gui->getCropPanel()->getEqualRadio()->isChecked());
 
+    // RS3FIGMA2: the card 336:3448 pads its rows 12 inside of its border of 1 (Equal margins at
+    // the leading edge 13, the fields end 13 before the trailing edge, the first row 13 below
+    // the top)
+    QWidget* cropCard = gui->getCropPanel()->getEqualRadio()->parentWidget();
+    QVERIFY(qobject_cast<pdf::PDFAppToolCard*>(cropCard));
+    QCOMPARE(gui->getCropPanel()->getEqualRadio()->geometry().left(), 13);
+    QCOMPARE(gui->getCropPanel()->getEqualRadio()->geometry().top(), 13);
+    QCOMPARE(gui->getCropPanel()->getMarginField()->mapTo(cropCard, QPoint(0, 0)).x() + gui->getCropPanel()->getMarginField()->width(), cropCard->width() - 13);
+    QCOMPARE(gui->getCropPanel()->getApplyToField()->geometry().bottom() + 1, cropCard->height() - 13);
+
     // Margin 120 (the field writes the box, the box and the Result follow)
     gui->getCropPanel()->getMarginField()->setValue(120);
     AppToolOwnTabFixture::settle();
@@ -994,6 +1011,115 @@ void AppToolImagesTest::imagesSaveAsFileReplacesTab()
     QVERIFY(current);
     QCOMPARE(QFileInfo(current->getDocument()->getFilePath()).absoluteFilePath(), written);
     QCOMPARE(int(fixture.window->getTabs().indexOf(current)), toolIndex);
+}
+
+void AppToolImagesTest::imagesSaveAsFileNotOpenedKeepsTab()
+{
+    // RS3APP: "Save as a file", whose written file does not open (the window lists it in
+    // open-failed), does not close the tab: the tool stays with its images
+    AppToolOwnTabFixture fixture;
+    const QString path = H::png(fixture.folder(), QStringLiteral("IMG_2042.png"), QSize(40, 30), 300);
+    pdf::PDFAppToolTab* tab = H::open(fixture, pdf::PDFDocumentToolImagesToPdf::TOOL_ID, { path });
+    QVERIFY(tab);
+    QPointer<pdf::PDFAppToolTab> toolTab(tab);
+    pdf::PDFDocumentToolShell* shell = AppToolOwnTabFixture::getShell(tab);
+    QVERIFY(shell);
+    const int tabCount = int(fixture.window->getTabs().size());
+
+    pdf::PDFAppToolCloseRequest request;
+    request.reason = pdf::PDFAppToolCloseRequest::Reason::Accepted;
+    request.newDocumentFilePath = QDir(fixture.folder()).absoluteFilePath(QStringLiteral("missing/Album.pdf"));
+    Q_EMIT shell->closeRequested(request);
+    AppToolOwnTabFixture::settle();
+    QVERIFY(toolTab);
+    QCOMPARE(int(fixture.window->getTabs().size()), tabCount);
+    QVERIFY(fixture.window->getRequestedFiles().contains(request.newDocumentFilePath));
+    QCOMPARE(AppToolOwnTabFixture::getShell(tab), shell);
+    QCOMPARE(shell->getState(), pdf::PDFDocumentToolShell::State::Editing);
+    QCOMPARE(tab->getInputList()->getCount(), 1);
+}
+
+void AppToolImagesTest::imagesCancelAfterRun()
+{
+    // RS3APP Low 6, owner 2026-11-09: Cancel of the toolbar after the run (Enabled, 336:3572 has
+    // no target of it) is Cancel of the result dialog - the new document is discarded - and then
+    // Cancel as in Editing: the own tab is closed, the window asks, because the images would be
+    // lost (K16); Cancel of that question keeps the tool with its images
+    AppToolOwnTabFixture fixture;
+    const QString path = H::png(fixture.folder(), QStringLiteral("IMG_2043.png"), QSize(40, 30), 300);
+    pdf::PDFAppToolTab* tab = H::open(fixture, pdf::PDFDocumentToolImagesToPdf::TOOL_ID, { path });
+    QVERIFY(tab);
+    QPointer<pdf::PDFAppToolTab> toolTab(tab);
+    pdf::PDFDocumentToolShell* shell = AppToolOwnTabFixture::getShell(tab);
+    QVERIFY(shell);
+    shell->confirm();
+    QVERIFY(AppToolOwnTabFixture::waitFor([shell]() { return shell->getState() == pdf::PDFDocumentToolShell::State::Deciding && shell->getResultDialog(); }));
+    QPointer<pdf::PDFAppToolResultDialog> dialog = shell->getResultDialog();
+    QCOMPARE(dialog->getResultKind(), pdf::PDFAppToolResultDialog::ResultKind::NewDocument);
+    QVERIFY(shell->getToolbar()->getCancelButton()->isEnabled());
+
+    bool isAsked = false;
+    QTimer* answer = new QTimer(qApp);
+    answer->setInterval(5);
+    QObject::connect(answer, &QTimer::timeout, answer, [answer, &isAsked]()
+    {
+        for (QWidget* widget : QApplication::topLevelWidgets())
+        {
+            QPushButton* button = widget->objectName() == QStringLiteral("toolTabCloseDialog") && widget->isVisible() ? widget->findChild<QPushButton*>(QStringLiteral("cancelButton")) : nullptr;
+            if (button)
+            {
+                isAsked = true;
+                answer->stop();
+                answer->deleteLater();
+                button->click();
+                return;
+            }
+        }
+    });
+    answer->start();
+    QTimer::singleShot(10000, answer, &QTimer::deleteLater);
+
+    shell->getToolbar()->getCancelButton()->click();
+    AppToolOwnTabFixture::settle();
+    QVERIFY(AppToolOwnTabFixture::waitFor([&isAsked]() { return isAsked; }));
+    AppToolOwnTabFixture::settle();
+    QVERIFY(!dialog);
+    QVERIFY(toolTab);
+    QCOMPARE(AppToolOwnTabFixture::getShell(tab), shell);
+    QCOMPARE(shell->getState(), pdf::PDFDocumentToolShell::State::Editing);
+    QCOMPARE(tab->getInputList()->getCount(), 1);
+    QVERIFY(fixture.window->getDocumentTabs().isEmpty());
+}
+
+void AppToolImagesTest::imagesCaptionAtThePage()
+{
+    // RS3FIGMA M11, 336:2234: the page of the image in Fit is 600 of the 774 wide stage (an A4
+    // landscape page 600 x 424), the caption lies 12 below the page, the page with its caption in
+    // the middle of the stage
+    AppToolOwnTabFixture fixture(QSize(1440, 960));
+    const QString path = H::png(fixture.folder(), QStringLiteral("IMG_2044.png"), QSize(400, 300), 72);
+    pdf::PDFAppToolTab* tab = H::open(fixture, pdf::PDFDocumentToolImagesToPdf::TOOL_ID, { path });
+    QVERIFY(tab);
+    pdf::PDFAppImagesToPdfToolGUI* gui = H::gui<pdf::PDFAppImagesToPdfToolGUI>(tab);
+    QVERIFY(gui);
+    QVERIFY(H::model(tab)->setValues({ { QStringLiteral("pageSize"), QStringLiteral("a4") }, { QStringLiteral("orientation"), QStringLiteral("landscape") } }).isEmpty());
+    AppToolOwnTabFixture::settle();
+    pdf::PDFAppImagesToPdfCanvas* canvas = gui->getCanvas();
+    QVERIFY(canvas && canvas->getPreview()->isVisible());
+    const QRectF page = canvas->getPreview()->getPageRect();
+    const double stageWidth = canvas->getScrollArea()->viewport()->width();
+    QVERIFY2(std::abs(page.width() - stageWidth * 600.0 / 774.0) <= 1.0, qPrintable(QString::number(page.width())));
+    QVERIFY(H::isNear(page.width() / page.height(), 297.0 / 210.0, 0.01));
+    const QPoint pageBottom = canvas->getPreview()->mapTo(canvas, QPoint(0, qCeil(page.bottom())));
+    const QPoint captionTop = canvas->getCaptionLabel()->mapTo(canvas, QPoint(0, 0));
+    QCOMPARE(captionTop.y() - pageBottom.y(), 12);
+    QVERIFY(!canvas->getCaptionLabel()->text().isEmpty());
+
+    // The page with its caption in the middle of the stage (336:2234 CENTER)
+    QWidget* viewport = canvas->getScrollArea()->viewport();
+    const double top = canvas->getPreview()->mapTo(viewport, page.topLeft().toPoint()).y();
+    const double bottom = canvas->getCaptionLabel()->mapTo(viewport, QPoint(0, canvas->getCaptionLabel()->height())).y();
+    QVERIFY2(std::abs((top + bottom) * 0.5 - viewport->height() * 0.5) <= 2.0, qPrintable(QStringLiteral("%1 %2 %3").arg(top).arg(bottom).arg(viewport->height())));
 }
 
 QTEST_MAIN(AppToolImagesTest)

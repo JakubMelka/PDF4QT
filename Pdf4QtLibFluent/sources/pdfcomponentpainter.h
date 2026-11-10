@@ -1391,7 +1391,7 @@ public:
         QString label;              ///< "Pages"
         QString total;              ///< "48 pages"
         QString filtersLabel;       ///< "Only"
-        QString status;             ///< "7 pages selected · 3 (iii) – 12 (xii)"
+        QString status;             ///< "7 pages selected · 1–3, 8, 10–12"
         QString error;              ///< Message of the error row; the row is shown, when it is not empty
         bool rangeVisible = false;  ///< The range field is shown (mode Range)
         QStringList modeLabels;     ///< Labels of the segments (All, Current, Selected, Range)
@@ -1937,7 +1937,8 @@ public:
     {
         Normal,     ///< The page stays as it is
         Selected,   ///< bg/accent-subtle with the border border/focus, the label Semi Bold text/accent, the caption text/accent (389:20177)
-        Marked      ///< The dimmed page, the caption text/danger (388:20614)
+        Marked,     ///< The dimmed page, the caption text/danger (388:20614)
+        Replaced    ///< The page dimmed as Marked, the badge of the hue Amber, the caption text/muted (388:17167): it is replaced, not deleted
     };
 
     /// Content of a page tile (389:20177, 389:20910, 388:20614): the page in the

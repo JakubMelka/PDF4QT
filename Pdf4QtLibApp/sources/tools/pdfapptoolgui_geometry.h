@@ -39,6 +39,7 @@
 #include "pdfdocument.h"
 #include "pdffluentwidgets.h"
 #include "pdfpagegeometry.h"
+#include "pdfwatchedpointer.h"
 
 #include <QPointer>
 #include <QToolButton>
@@ -321,8 +322,21 @@ protected:
     /// status bar (the last calls: they may delete this GUI)
     void updateAll();
 
+    virtual bool eventFilter(QObject* watched, QEvent* event) override;
+
 private:
     void updateThumbnails();
+
+    /// M12 (K48): the thumbnail of the page of the preview is in the view - also after the view
+    /// has its width (the columns of the thumbnails change with it)
+    void scrollToPreviewPage();
+
+    /// The view of the thumbnails is being destroyed (~QWidget emits destroyed before it deletes
+    /// the viewport): the filter of the viewport is removed, the pointers are forgotten
+    void onThumbnailViewDestroyed(QObject* object);
+
+    /// Removes the filter of the viewport of the view of the thumbnails and forgets both
+    void forgetThumbnailView();
     void onThumbnailClicked(const QModelIndex& index);
     void onShellStateChangedSlot(pdf::PDFDocumentToolShell::State state);
     void followPages();
@@ -334,6 +348,7 @@ private:
     QPointer<PDFPageSelection> m_pageSelection;
     QPointer<PDFAppToolPageSelectionBinder> m_binder;
     QPointer<PDFAppThumbnailListView> m_thumbnailView;
+    PDFWatchedPointer<QWidget> m_thumbnailViewport;    ///< The viewport of m_thumbnailView (filtered): the event filter compares only its address
     QPointer<PDFAppThumbnailsModel> m_thumbnailModel;
     QPointer<PDFThumbnailDelegate> m_thumbnailDelegate;
     QPointer<PDFAppThumbnailScheduler> m_thumbnailScheduler;
