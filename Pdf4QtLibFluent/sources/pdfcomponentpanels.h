@@ -358,6 +358,17 @@ public:
     /// Returns the intervals as a text of the range ("1-3, 8, 10-12")
     static QString format(const QList<Interval>& intervals);
 
+    /// Returns the text of the range in the canonical form, which the strict parser of the
+    /// core library (PDFDocumentToolPageSelection) reads: each number in ASCII digits without
+    /// a sign and leading zeros, "-" between the bounds without white space, "," between the
+    /// parts (followed by a space, when white space followed the separator of the text), no
+    /// empty part ("1–3، 8" with the en dash and the Arabic comma is "1-3, 8"). The parts keep
+    /// their order and meaning ("8-" stays "8-", "-" stays "-"), so the canonical text names
+    /// the same pages as \p text for every count of the pages; it is never longer than \p text.
+    /// A part, which is not a number or a range of numbers, is kept (trimmed): the core refuses
+    /// it as \p parse does.
+    static QString toCanonicalText(const QString& text);
+
     /// Returns the text of the error of a page, which does not exist ("Page 60
     /// does not exist – the document has 48 pages"; the plural form of the
     /// language, the count formatted by the default QLocale)

@@ -450,6 +450,23 @@ void PDFClosedIntervalSet::translate(PDFInteger offset)
     }
 }
 
+void PDFClosedIntervalSet::intersect(PDFInteger low, PDFInteger high)
+{
+    // The intervals are normalized: what stays of each of them is normalized too
+    std::vector<ClosedInterval> intervals;
+    intervals.reserve(m_intervals.size());
+    for (const ClosedInterval& interval : m_intervals)
+    {
+        const PDFInteger first = qMax(interval.first, low);
+        const PDFInteger last = qMin(interval.second, high);
+        if (first <= last)
+        {
+            intervals.emplace_back(first, last);
+        }
+    }
+    m_intervals = std::move(intervals);
+}
+
 PDFClosedIntervalSet PDFClosedIntervalSet::parse(PDFInteger first, PDFInteger last, const QString& text, QString* errorMessage)
 {
     PDFClosedIntervalSet result;

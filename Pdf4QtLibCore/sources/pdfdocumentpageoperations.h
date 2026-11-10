@@ -29,12 +29,15 @@
 
 #include <QCoreApplication>
 
+#include <memory>
+#include <set>
 #include <vector>
 
 namespace pdf
 {
 
 class PDFOperationControl;
+class PDFDocumentPageRemoval;
 
 /// Operations on the pages of a document (plan of the first batch of phase 2, chapters
 /// 2.7 and 7): the rotation of the pages, used by Rotate Pages and by the commands
@@ -108,6 +111,53 @@ public:
     /// \param control Cancellation (optional)
     /// \param statistics What has changed (optional)
     static PDFDocument removePages(const PDFDocument* document, const std::vector<PDFInteger>& pages, const PDFOperationControl* control, RemovalStatistics* statistics);
+
+    /// What the removal reads of the whole document, made once for many parts of it (plan of
+    /// step 3 of phase 2, R2: Split, Extract one file per page; PDFDocumentSplitter): the page
+    /// tree flattened once (the inherited attributes written into the pages), the sets of the
+    /// pages, of their annotations and of the layers, which the pages use. Without it every
+    /// part of a split of 10 000 pages would walk the whole document again.
+    ///
+    /// Immutable after createPageIndex: the threads of the parts read it at once (a value of
+    /// plain data and a document, whose storage is shared and never changed).
+    class PDF4QTLIBCORESHARED_EXPORT PageIndex
+    {
+    public:
+        /// The document of the index (its page tree flat, the object numbers of the document)
+        const PDFDocument& getFlattenedDocument() const { return m_flattenedDocument; }
+
+        /// Pages of the document
+        size_t getPageCount() const { return m_pageCount; }
+
+    private:
+        friend class PDFDocumentPageOperations;
+        friend class PDFDocumentPageRemoval;
+
+        PDFDocument m_flattenedDocument;
+        size_t m_pageCount = 0;
+        std::set<PDFObjectReference> m_pages;           ///< Every page object of the page tree
+        std::set<PDFObjectReference> m_annotations;     ///< Every annotation listed by a page
+        std::set<PDFObjectReference> m_layersOfPages;   ///< Optional content groups of /OCGs, which a page reaches
+    };
+
+    /// The index of the document for keepPages; nullptr when canceled. Throws PDFException,
+    /// when the document cannot be read.
+    /// \param document The document (it must live as long as the index is used)
+    /// \param control Cancellation (optional)
+    static std::shared_ptr<const PageIndex> createPageIndex(const PDFDocument* document, const PDFOperationControl* control);
+
+    /// A part of the document: the pages \p keptPages stay, every other page is removed by the
+    /// rules of removePages (the same filters, one implementation). Unlike removePages the
+    /// objects nothing refers to are not made null: the part is a new document, its caller
+    /// finishes it by PDFNewDocumentFinisher, which removes them and numbers the rest anew (R2).
+    /// The work is the size of the part and of the document-wide trees (outline, names, form),
+    /// never a walk over all objects. Reentrant: the parts of one index run in parallel.
+    /// \param document The document of the index
+    /// \param index Index of \p document (createPageIndex)
+    /// \param keptPages Pages of the part (indices from 0); invalid ones and duplicates are left out, at least one valid page
+    /// \param control Cancellation (optional)
+    /// \param statistics What has changed (optional)
+    static PDFDocument keepPages(const PDFDocument* document, const PageIndex& index, const std::vector<PDFInteger>& keptPages, const PDFOperationControl* control, RemovalStatistics* statistics);
 
     /// Text of pages numbered from 1 in ranges ("4–6, 20", "9, 10, 15": an en dash in a range
     /// of three pages and more), at most \p maximumParts parts, the rest is "…"

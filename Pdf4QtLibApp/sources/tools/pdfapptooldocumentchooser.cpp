@@ -32,6 +32,7 @@
 #include "pdfapppage.h"
 #include "pdfapppagelayout.h"
 #include "pdfapptoolinputlist.h"
+#include "pdfdocumenttoolguiregistry.h"
 
 #include "pdfaccenthue.h"
 #include "pdfdocumenttool.h"
@@ -627,10 +628,43 @@ public:
 
 // ------------------------------------------------------- PDFAppToolInputChooser
 
+PDFAppToolInputRules PDFAppToolInputChooser::getInputRules(const QString& toolId)
+{
+    // The GUI of the tool is made only for its rules and deleted at once (no parent, no document)
+    const std::shared_ptr<const PDFDocumentToolGUIFactory> factory = PDFDocumentToolGUIRegistry::getFactory(toolId);
+    const std::unique_ptr<PDFDocumentToolGUI> gui(factory ? factory->createGUI() : nullptr);
+    return gui ? gui->getInputRules() : PDFAppToolInputRules();
+}
+
+QString PDFAppToolInputChooser::getUnsupportedReason(const QString& toolId, const PDFAppToolInputRules& rules)
+{
+    const PDFDocumentToolCatalogEntry* tool = PDFDocumentToolCatalog::findTool(toolId);
+    const QString title = tool ? tool->getTitle() : QString();
+    if (!rules.acceptsImages)
+    {
+        return tr("%1 needs PDF files").arg(title);
+    }
+    if (!rules.acceptsPdf)
+    {
+        return tr("%1 takes images").arg(title);
+    }
+    return QString();
+}
+
+QString PDFAppToolInputChooser::getPlaceText(int index) const
+{
+    if (index >= 0 && index < m_rules.slotTitles.size())
+    {
+        return m_rules.slotTitles.at(index);
+    }
+    return getOrderText(index);
+}
+
 PDFAppToolInputChooser::PDFAppToolInputChooser(PDFAppContext* context, const QString& toolId, PDFAppToolInputList* list, QWidget* parent) :
     BaseClass(parent),
     m_context(context),
-    m_toolId(toolId)
+    m_toolId(toolId),
+    m_rules(getInputRules(toolId))
 {
     setObjectName(QStringLiteral("toolInputChooser"));
 
@@ -721,6 +755,8 @@ void PDFAppToolInputChooser::setInputList(PDFAppToolInputList* list)
     m_message.clear();
     if (list)
     {
+        // K41: the list takes what the tool takes (before the connections: no row is built twice)
+        list->setAcceptedInputs(m_rules.maximum, m_rules.acceptsPdf, m_rules.acceptsImages, getUnsupportedReason(m_toolId, m_rules));
         connect(list, &PDFAppToolInputList::inputsChanged, this, &PDFAppToolInputChooser::onListChanged);
         connect(list, &PDFAppToolInputList::inputChanged, this, &PDFAppToolInputChooser::onInputChanged);
 
@@ -846,7 +882,7 @@ PDFAppToolDocumentRow* PDFAppToolInputChooser::createInputRow(const QString& row
     PDFAppToolDocumentRow* row = new PDFAppToolDocumentRow(rowId, name, PDFAppToolDocumentChooser::getFolder(filePath), numbers, tagText, this);
     row->setCheckBoxVisible(true);
     row->setChecked(isChecked);
-    row->setActionText(isChecked && order >= 0 ? getOrderText(order) : QString());
+    row->setActionText(isChecked && order >= 0 ? getPlaceText(order) : QString());
     row->setTrailing(isChecked ? PDFAppToolDocumentRow::Trailing::Handle : PDFAppToolDocumentRow::Trailing::None);
     row->setRemovable(isFile);
     connect(row, &PDFAppToolDocumentRow::toggled, this, &PDFAppToolInputChooser::onRowToggled);
@@ -1014,7 +1050,15 @@ void PDFAppToolInputChooser::updateTexts()
     }
     if (m_dropText)
     {
-        m_dropText->setText(tr("or drag and drop PDF files and images here – they are added in the dropped order"));
+        if (!m_rules.acceptsImages)
+        {
+            // K29, K41: Interleave takes PDF files only
+            m_dropText->setText(tr("or drag and drop PDF files here – they are added in the dropped order"));
+        }
+        else
+        {
+            m_dropText->setText(tr("or drag and drop PDF files and images here – they are added in the dropped order"));
+        }
         if (m_dropZone)
         {
             m_dropZone->setAccessibleName(m_dropText->text());
@@ -1030,7 +1074,15 @@ void PDFAppToolInputChooser::updateTexts()
     const int pages = int(qMin<PDFInteger>(pageCount, std::numeric_limits<int>::max()));
 
     QString summary;
-    if (count < MINIMUM_INPUTS)
+    const bool isExactCount = m_rules.minimum == m_rules.maximum;
+    if (count < m_rules.minimum && isExactCount)
+    {
+        // K41: Interleave takes exactly two documents (the front sides and the back sides); both
+        // numbers are counts, each one has its own %Ln
+        const QString need = tr("%1 needs exactly %Ln documents – check another open document or add a file", nullptr, m_rules.minimum).arg(title);
+        summary = (count == 1 ? tr("%Ln document · %1", nullptr, count) : tr("%Ln documents · %1", nullptr, count)).arg(need);
+    }
+    else if (count < m_rules.minimum)
     {
         // 551:149074
         summary = (count == 1 ? tr("%Ln document · %1 needs at least two documents – check another open document or add a file", nullptr, count)
@@ -1053,8 +1105,9 @@ void PDFAppToolInputChooser::updateTexts()
 
     if (m_openToolButton)
     {
-        m_openToolButton->setText(count >= MINIMUM_INPUTS ? tr("Open %1 with %Ln Documents", nullptr, count).arg(title) : tr("Open %1").arg(title));
-        m_openToolButton->setEnabled(count >= MINIMUM_INPUTS);
+        const bool isEnough = count >= m_rules.minimum && count <= m_rules.maximum;
+        m_openToolButton->setText(isEnough ? tr("Open %1 with %Ln Documents", nullptr, count).arg(title) : tr("Open %1").arg(title));
+        m_openToolButton->setEnabled(isEnough);
     }
 }
 
@@ -1093,7 +1146,7 @@ void PDFAppToolInputChooser::addFiles(const QStringList& files)
         }
         if (result.id.isEmpty())
         {
-            refused << PDFAppToolInputList::getRefusalText(result.refusal, result.name);
+            refused << PDFAppToolInputList::getRefusalText(result.refusal, result.name, list->getMaximumCount());
         }
         else
         {
@@ -1150,7 +1203,8 @@ void PDFAppToolInputChooser::onAddFilesClicked()
 
 void PDFAppToolInputChooser::onOpenToolClicked()
 {
-    if (getDocumentCount() >= MINIMUM_INPUTS)
+    const int count = getDocumentCount();
+    if (count >= m_rules.minimum && count <= m_rules.maximum)
     {
         Q_EMIT openToolRequested();
     }

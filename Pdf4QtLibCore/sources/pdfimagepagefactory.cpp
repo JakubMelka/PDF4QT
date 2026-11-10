@@ -356,6 +356,10 @@ PDFImagePageFactory::ImageInfo PDFImagePageFactory::readInfo(const QByteArray& d
         info.error = tr("The image is too large (%1 × %2 pixels).").arg(size.width()).arg(size.height());
         return info;
     }
+    if (size.isValid())
+    {
+        info.size = reader.transformation().testFlag(QImageIOHandler::TransformationRotate90) ? size.transposed() : size;
+    }
 
     if (Helper::isTiff(info.format))
     {
@@ -397,8 +401,15 @@ QSizeF PDFImagePageFactory::getPageSize(QSize pixels, double resolutionX, double
         return QSizeF();
     }
 
-    double width = double(pixels.width()) / getResolution(resolutionX) * 72.0;
-    double height = double(pixels.height()) / getResolution(resolutionY) * 72.0;
+    const double width = double(pixels.width()) / getResolution(resolutionX) * 72.0;
+    const double height = double(pixels.height()) / getResolution(resolutionY) * 72.0;
+    return getBoundedSize(QSizeF(width, height));
+}
+
+QSizeF PDFImagePageFactory::getBoundedSize(QSizeF size)
+{
+    double width = (std::isfinite(size.width()) && size.width() > 0.0) ? size.width() : MINIMUM_SIDE;
+    double height = (std::isfinite(size.height()) && size.height() > 0.0) ? size.height() : MINIMUM_SIDE;
 
     // Into the limits, the aspect ratio kept (R15): a larger side shrinks first, then a smaller
     // side grows; an extreme aspect ratio, which cannot keep both, keeps the larger limit
@@ -678,6 +689,11 @@ PDFObject PDFImagePageFactory::createColorSpace(PDFDocumentBuilder* builder, con
 
 PDFObjectReference PDFImagePageFactory::createPage(PDFDocumentBuilder* builder, const Frame& frame, QSizeF pageSize, QRectF clip)
 {
+    return createPage(builder, frame, PDFImagePageLayout::createStretched(pageSize, clip));
+}
+
+PDFObjectReference PDFImagePageFactory::createPage(PDFDocumentBuilder* builder, const Frame& frame, const PDFImagePageLayout& layout)
+{
     using Helper = PDFImagePageFactoryHelper;
 
     // A compacted frame has no pixels, but its coded image or its JPEG
@@ -686,13 +702,14 @@ PDFObjectReference PDFImagePageFactory::createPage(PDFDocumentBuilder* builder, 
         throw PDFException(tr("The image is empty."));
     }
 
-    if (pageSize.isEmpty())
+    // The one rule of the page and of the preview (PDFImagePageLayout)
+    const QSizeF imageSize = getPageSize(frame);
+    const QSizeF pageSize = layout.getPageSize(imageSize);
+    const QRectF area = layout.getArea(pageSize);
+    const QRectF imageRect = layout.getImageRect(pageSize, imageSize);
+    if (area.isEmpty() || imageRect.isEmpty())
     {
-        pageSize = getPageSize(frame);
-    }
-    if (!clip.isValid() || clip.isEmpty())
-    {
-        clip = QRectF(0.0, 0.0, 1.0, 1.0);
+        throw PDFException(tr("The margins leave no room for the image."));
     }
 
     // The image XObject
@@ -748,15 +765,18 @@ PDFObjectReference PDFImagePageFactory::createPage(PDFDocumentBuilder* builder, 
     }
 
     // The matrix: the unit square of the image (its bottom left corner is the origin) to the
-    // page, through the orientation of EXIF of the stored JPEG and the clip of the shown image
+    // page, through the orientation of EXIF of the stored JPEG, the clip and the turn of the
+    // layout (mapShownImagePoint) and the rectangle of the image on the page (from its top left
+    // corner; the page space of PDF has its origin at the bottom left corner)
     const double width = pageSize.width();
     const double height = pageSize.height();
     auto mapImagePoint = [&](QPointF imagePoint)
     {
         const QPointF stored(imagePoint.x(), 1.0 - imagePoint.y());
         const QPointF shown = Helper::transformPoint(stored, frame.jpegData.isEmpty() ? QImageIOHandler::TransformationNone : frame.transformation);
-        const double x = (shown.x() - clip.left()) / clip.width() * width;
-        const double y = height - (shown.y() - clip.top()) / clip.height() * height;
+        const QPointF laidOut = layout.mapShownImagePoint(shown);
+        const double x = imageRect.left() + laidOut.x() * imageRect.width();
+        const double y = height - (imageRect.top() + laidOut.y() * imageRect.height());
         return QPointF(x, y);
     };
     const QPointF origin = mapImagePoint(QPointF(0.0, 0.0));
@@ -768,8 +788,9 @@ PDFObjectReference PDFImagePageFactory::createPage(PDFDocumentBuilder* builder, 
         return PDFDocumentWriter::getRealNumberText(std::abs(value) < 1e-9 ? 0.0 : value);
     };
 
+    // The clip of the area (8.5.4), the bottom left corner of the area in the page space
     QByteArray content;
-    content += "q 0 0 " + number(width) + " " + number(height) + " re W n ";
+    content += "q " + number(area.left()) + " " + number(height - area.bottom()) + " " + number(area.width()) + " " + number(area.height()) + " re W n ";
     content += number(xAxis.x()) + " " + number(xAxis.y()) + " " + number(yAxis.x()) + " " + number(yAxis.y()) + " " + number(origin.x()) + " " + number(origin.y()) + " cm /Im0 Do Q";
 
     PDFDictionaryBuilder contentDictionary;
@@ -793,6 +814,163 @@ PDFObjectReference PDFImagePageFactory::createPage(PDFDocumentBuilder* builder, 
     page.addEntry(PDFInplaceOrMemoryString("Resources"), PDFObject::createDictionary(std::move(resources)));
     page.addEntry(PDFInplaceOrMemoryString("Contents"), PDFObject::createReference(contentReference));
     return builder->addObject(PDFObject::createDictionary(std::move(page)));
+}
+
+// ------------------------------------------------------- PDFImagePageLayout
+
+PDFImagePageLayout PDFImagePageLayout::createStretched(QSizeF stretchedPageSize, QRectF imageClip)
+{
+    PDFImagePageLayout layout;
+    layout.pageSize = stretchedPageSize;
+    layout.clip = imageClip;
+    layout.scaling = Scaling::Stretch;
+
+    // The given size is kept as it is (a square or a portrait size is Portrait)
+    layout.orientation = (stretchedPageSize.width() > stretchedPageSize.height()) ? Orientation::Landscape : Orientation::Portrait;
+    return layout;
+}
+
+QRectF PDFImagePageLayout::getEffectiveClip() const
+{
+    const QRectF whole(0.0, 0.0, 1.0, 1.0);
+    if (!clip.isValid() || clip.isEmpty() || !std::isfinite(clip.left()) || !std::isfinite(clip.top()) ||
+        !std::isfinite(clip.width()) || !std::isfinite(clip.height()))
+    {
+        return whole;
+    }
+
+    const QRectF effective = clip.intersected(whole);
+    return effective.isEmpty() ? whole : effective;
+}
+
+QSizeF PDFImagePageLayout::getLaidOutImageSize(QSizeF imageSize) const
+{
+    const QRectF effectiveClip = getEffectiveClip();
+    const QSizeF clipped(imageSize.width() * effectiveClip.width(), imageSize.height() * effectiveClip.height());
+    return (turn == PageRotation::Rotate90 || turn == PageRotation::Rotate270) ? clipped.transposed() : clipped;
+}
+
+QSizeF PDFImagePageLayout::getPageSize(QSizeF imageSize) const
+{
+    const QSizeF image = getLaidOutImageSize(imageSize);
+
+    if (pageSize.isEmpty())
+    {
+        // Fit to image: the image by its resolution and the margins around it
+        return PDFImagePageFactory::getBoundedSize(QSizeF(image.width() + margins.left() + margins.right(), image.height() + margins.top() + margins.bottom()));
+    }
+
+    const QSizeF portrait = pageSize.width() <= pageSize.height() ? pageSize : pageSize.transposed();
+    const QSizeF landscape = portrait.transposed();
+    QSizeF result = pageSize;
+    switch (orientation)
+    {
+        case Orientation::Auto:
+            if (image.width() > image.height())
+            {
+                result = landscape;
+            }
+            else if (image.width() < image.height())
+            {
+                result = portrait;
+            }
+            break;
+
+        case Orientation::Portrait:
+            result = portrait;
+            break;
+
+        case Orientation::Landscape:
+            result = landscape;
+            break;
+    }
+    return PDFImagePageFactory::getBoundedSize(result);
+}
+
+QRectF PDFImagePageLayout::getArea(QSizeF laidOutPageSize) const
+{
+    const QRectF area = QRectF(QPointF(0.0, 0.0), laidOutPageSize).marginsRemoved(margins);
+    if (!area.isValid() || area.isEmpty() || !std::isfinite(area.width()) || !std::isfinite(area.height()))
+    {
+        return QRectF();
+    }
+    return area;
+}
+
+QRectF PDFImagePageLayout::getImageRect(QSizeF laidOutPageSize, QSizeF imageSize) const
+{
+    const QRectF area = getArea(laidOutPageSize);
+    const QSizeF image = getLaidOutImageSize(imageSize);
+    if (area.isEmpty() || image.isEmpty())
+    {
+        return QRectF();
+    }
+
+    // Fit to image places the image as Fit: the page is made around it
+    Scaling usedScaling = scaling;
+    if (pageSize.isEmpty() && usedScaling != Scaling::Stretch)
+    {
+        usedScaling = Scaling::Fit;
+    }
+
+    QSizeF size;
+    switch (usedScaling)
+    {
+        case Scaling::Fit:
+            size = image.scaled(area.size(), Qt::KeepAspectRatio);
+            break;
+        case Scaling::Fill:
+            size = image.scaled(area.size(), Qt::KeepAspectRatioByExpanding);
+            break;
+        case Scaling::Stretch:
+            return area;
+        case Scaling::OriginalSize:
+            size = image;
+            break;
+    }
+
+    // The anchor in the area (a missing flag is the center; never mirrored)
+    double x = area.left() + (area.width() - size.width()) * 0.5;
+    if (anchor.testFlag(Qt::AlignLeft))
+    {
+        x = area.left();
+    }
+    else if (anchor.testFlag(Qt::AlignRight))
+    {
+        x = area.right() - size.width();
+    }
+
+    double y = area.top() + (area.height() - size.height()) * 0.5;
+    if (anchor.testFlag(Qt::AlignTop))
+    {
+        y = area.top();
+    }
+    else if (anchor.testFlag(Qt::AlignBottom))
+    {
+        y = area.bottom() - size.height();
+    }
+
+    return QRectF(QPointF(x, y), size);
+}
+
+QPointF PDFImagePageLayout::mapShownImagePoint(QPointF point) const
+{
+    const QRectF effectiveClip = getEffectiveClip();
+    const QPointF clipped((point.x() - effectiveClip.left()) / effectiveClip.width(), (point.y() - effectiveClip.top()) / effectiveClip.height());
+
+    // The turn clockwise (the rotation of QImage: 90 degrees (u, v) -> (1 - v, u))
+    switch (turn)
+    {
+        case PageRotation::None:
+            return clipped;
+        case PageRotation::Rotate90:
+            return QPointF(1.0 - clipped.y(), clipped.x());
+        case PageRotation::Rotate180:
+            return QPointF(1.0 - clipped.x(), 1.0 - clipped.y());
+        case PageRotation::Rotate270:
+            return QPointF(clipped.y(), 1.0 - clipped.x());
+    }
+    return clipped;
 }
 
 }   // namespace pdf

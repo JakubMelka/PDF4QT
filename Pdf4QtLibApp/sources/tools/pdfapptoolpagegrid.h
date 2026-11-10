@@ -26,6 +26,7 @@
 #include "pdfappglobal.h"
 #include "pdfappdocumentpanels_thumbnails.h"
 
+#include "pdfaccenthue.h"
 #include "pdfcomponentdelegates.h"
 #include "pdfcomponentpainter.h"
 #include "pdffluentwidgets.h"
@@ -34,6 +35,7 @@
 #include <QPointer>
 #include <QWidget>
 
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -66,9 +68,15 @@ public:
     struct Tile
     {
         PDFComponentPainter::PageTileState state = PDFComponentPainter::PageTileState::Normal;
-        QString caption;                                ///< "90° right", "will be removed", empty = none
+        QString caption;                                ///< "90° right", "will be removed", "from page 8", empty = none
         QString badgeIconName;                          ///< Badge of the page, empty = none
         PageRotation extraRotation = PageRotation::None;///< Turn of the picture of the page (Rotate Pages)
+
+        // Step 3 of phase 2 (plan 4.3, K45 with R13; the skeleton adds the fields, package A
+        // draws them - the delegate and the roles of the model)
+        std::optional<PDFAccentHue> dotColor;           ///< Dot of the file or the source of the page (Split At selected pages 383:5715, Interleave front / back 385:13263), std::nullopt = none
+        bool isDimmed = false;                          ///< The page is drawn muted (not taken, Insert 388:15487; replaced, 388:17167)
+        bool markerBefore = false;                      ///< The mark of a cut before the tile: a new file starts at this page (Split 383:5715)
 
         bool operator==(const Tile&) const = default;
     };
@@ -147,6 +155,84 @@ private:
     bool m_isQueuedDelete = false;
 };
 
+/// The tile of the grid of a tool: the page tile of the design and the marks of a tile of
+/// the tool (K45), which the page tile has not: the dot of the file in front of the label
+/// (Split At selected pages 383:5715, Interleave 385:13263), the muted page (Insert
+/// 388:15487, the replaced pages 388:17167) and the cut before the tile (amber, Split
+/// 383:5715). The marks lie inside the rectangle of the tile, so the repaint of one tile never
+/// leaves a stale mark.
+///
+/// The marks come from the roles of any model (the grid of one document, the grouped view of
+/// Merge, Interleave, Split and Insert): PDFComponentRoles::HueRole (the int of PDFAccentHue,
+/// the dot), DimmedRole, CutBeforeRole and SlotScaleRole (a tile larger than the slot of the
+/// delegate: the blank pages of Insert 388:16811); the page tile reads the rest
+/// (PDFPageTileDelegate). GUI thread only.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolPageTileDelegate : public PDFPageTileDelegate
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFPageTileDelegate;
+
+public:
+    /// Roles of the marks (the roles of the components end at PDFComponentRoles::LastRole)
+    enum Role
+    {
+        DimmedRole = PDFComponentRoles::LastRole + 0x100,  ///< bool: the page is drawn muted
+        CutBeforeRole,                                      ///< bool: a new file starts at this page
+        SlotScaleRole,                                      ///< double: the slot of the tile is the slot of the delegate scaled (1 = none)
+        PaperBorderRole                                     ///< bool: a page without a picture shows the border of its paper (the blank pages 388:17078)
+    };
+
+    /// Diameter of the dot, its gap to the label, the width of the cut, the gap of the label
+    /// to the slot (PAGE_TILE_GAP of the page tile)
+    static constexpr int DOT_SIZE = 6;
+    static constexpr int DOT_GAP = 4;
+    static constexpr int CUT_WIDTH = 3;
+    static constexpr int LABEL_GAP = 4;
+    static constexpr int LABEL_HEIGHT = 13;
+
+    /// Opacity of the veil of a muted page: the page is drawn at 35 % (388:15756, the lines of the
+    /// dimmed pages 6-12 #9CA3AF become #DCDFE3 on the white card)
+    static constexpr double DIMMED_OPACITY = 0.65;
+
+    explicit PDFAppToolPageTileDelegate(QObject* parent);
+
+    /// The color below the tiles: the veil of a muted page has it (bg/track for the grids on
+    /// the canvas, the default; bg/surface for the tiles in the cards of a grouped view)
+    void setBackgroundColor(PDFThemeColors::Color color) { m_backgroundColor = color; }
+    PDFThemeColors::Color getBackgroundColor() const { return m_backgroundColor; }
+
+    /// The content of the tile with the slot of the row (SlotScaleRole)
+    PDFComponentPainter::PageTile getTileContent(const QModelIndex& index, bool withPixmap = true) const;
+
+    /// The slot of the delegate scaled by \p scale (each side rounded)
+    QSize getScaledSlotSize(double scale) const;
+
+    /// The rectangles of the marks of the tile in \p rect (empty = no mark): the page, the
+    /// dot and the cut; tests check the geometry by them
+    struct MarkRects
+    {
+        QRectF page;
+        QRectF dot;
+        QRectF cut;
+    };
+    MarkRects getMarkRects(const QStyleOptionViewItem& option, const QModelIndex& index) const;
+
+protected:
+    virtual void paintItem(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index, const PDFComponentPainter::State& state) const override;
+    virtual QSize getItemSize(const QStyleOptionViewItem& option, const QModelIndex& index, int width) const override;
+
+private:
+    /// The rectangle \p leftToRight of the tile \p rect mirrored for a right-to-left layout
+    static QRectF getMirrored(const QRectF& rect, const QRectF& leftToRight, bool isRightToLeft);
+
+    /// The dot of the row (HueRole), std::nullopt = none
+    static std::optional<PDFAccentHue> getDotHue(const QModelIndex& index);
+
+    PDFThemeColors::Color m_backgroundColor = PDFThemeColors::BgTrack;
+};
+
 /// The canvas page of a tool, which works on pages (Rotate 389:20177, Remove 388:20614):
 /// bg/track, the bar of the preview (preview-bar 389:20436: 36 high, Semi Bold 13), the
 /// grid of the page tiles in a QListView of the icon mode (2000 pages: only the visible
@@ -198,6 +284,9 @@ public:
 
     void setHeaderText(const QString& text);
     void setHintText(const QString& text);
+
+    /// The text of the header (tests)
+    QString getHeaderText() const;
 
     /// The tiles of the tool: one dataChanged and, when a size may change, one sizeHintChanged
     void setTiles(std::vector<PDFAppToolPageGridModel::Tile> tiles);

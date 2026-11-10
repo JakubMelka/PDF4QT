@@ -275,6 +275,41 @@ public:
     /// of 1 / 72 inch. Default value is 1.0.
     inline PDFReal getUserUnit() const { return m_userUnit; }
 
+    // The boxes as they take effect (ISO 32000-2, 14.11.2) and the sizes with /UserUnit (Table 31;
+    // plan of step 3 of phase 2, B40, B41, R6). The getters above keep their meaning (the
+    // rendering, the thumbnails, the merger and the old applications read them); the tools of
+    // step 3 and the page geometry read these.
+
+    /// Range of /UserUnit, which is taken as written (a hostile value outside of it, zero,
+    /// negative or not finite, is 1.0 - the default of Table 31)
+    static constexpr PDFReal MINIMUM_USER_UNIT = 0.1;
+    static constexpr PDFReal MAXIMUM_USER_UNIT = 75000.0;
+
+    /// The length of a unit of the page in points (1/72 inch): /UserUnit within its range, else 1.0
+    PDFReal getEffectiveUserUnit() const;
+
+    /// \p box reduced to its intersection with \p mediaBox (14.11.2: a box, which extends beyond the
+    /// media box, is effectively reduced to the intersection); \p mediaBox, when they do not overlap
+    static QRectF getEffectiveBox(const QRectF& box, const QRectF& mediaBox);
+
+    /// The crop box, the bleed box, the trim box and the art box as they take effect: reduced to
+    /// their intersection with the media box (the bleed, trim and art boxes default to the crop
+    /// box, Table 31)
+    QRectF getEffectiveCropBox() const { return getEffectiveBox(m_cropBox, m_mediaBox); }
+    QRectF getEffectiveBleedBox() const { return getEffectiveBox(m_bleedBox, m_mediaBox); }
+    QRectF getEffectiveTrimBox() const { return getEffectiveBox(m_trimBox, m_mediaBox); }
+    QRectF getEffectiveArtBox() const { return getEffectiveBox(m_artBox, m_mediaBox); }
+
+    /// The effective crop box as it is shown (its width and height swapped by /Rotate 90 and 270)
+    QRectF getRotatedEffectiveCropBox() const { return getRotatedBox(getEffectiveCropBox(), m_pageRotation); }
+
+    /// A rectangle in the units of the page converted to millimeters by the effective /UserUnit
+    /// (getRectMM ignores /UserUnit)
+    QRectF getPhysicalRectMM(const QRectF& rect) const;
+
+    /// Factor of a length in millimeters to the units of the page (the effective /UserUnit)
+    PDFReal getMillimetersToUnits() const;
+
     static QSizeF getRotatedSize(const QSizeF& size, PageRotation rotation);
     static QRectF getRotatedBox(const QRectF& rect, PageRotation rotation);
 

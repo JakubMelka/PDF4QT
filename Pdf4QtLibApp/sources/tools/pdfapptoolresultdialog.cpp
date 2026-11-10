@@ -26,6 +26,7 @@
 #include "pdfappdocumentregistry.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappfiledrop.h"
+#include "pdfapplocale.h"
 #include "pdfappmainwindow.h"
 #include "pdfapppagelayout.h"
 #include "pdfapptoolpanelparts.h"
@@ -33,6 +34,7 @@
 #include "pdfapptoolpresentation.h"
 #include "pdfappworkspace.h"
 #include "pdfdocumenttextexporter.h"
+#include "pdfdocumenttool_split.h"
 #include "pdfdocumenttoolrunner.h"
 #include "pdfdocumenttoolusage.h"
 
@@ -63,6 +65,7 @@
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QHBoxLayout>
+#include <QJsonArray>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
@@ -463,7 +466,13 @@ PDFAppToolResultDialog::ResultKind PDFAppToolResultDialog::getResultKind(const P
     {
         return ResultKind::NewDocument;
     }
-    return result.outputs.empty() ? ResultKind::Analysis : ResultKind::Files;
+    if (!result.outputs.empty())
+    {
+        return ResultKind::Files;
+    }
+
+    // R3: the files written by the tool itself (also a stopped run, which has written some)
+    return result.writtenFiles.isEmpty() && result.notWrittenFiles.isEmpty() ? ResultKind::Analysis : ResultKind::WrittenFiles;
 }
 
 std::vector<PDFAppToolResultDialog::Choice> PDFAppToolResultDialog::getChoices(const PDFDocumentToolCatalogEntry* tool, ResultKind kind, const DocumentState& state)
@@ -473,8 +482,9 @@ std::vector<PDFAppToolResultDialog::Choice> PDFAppToolResultDialog::getChoices(c
         case ResultKind::ChangeDocument:
         {
             // O31: a tool, which rewrites the file, cannot keep a signature; only a copy
-            // says so honestly. Without a file nothing is signed by this rule (F5).
-            const bool isCopyOnly = PDFAppToolResultWriter::isCopyOnly(tool, state.isSigned, state.hasFile, state.isOnlyCopyWritable);
+            // says so honestly. Without a file nothing is signed by this rule (F5). A certified
+            // document changed by a page tool is only a copy, also without a file (Q12, R10).
+            const bool isCopyOnly = state.isCertificationRemoved || PDFAppToolResultWriter::isCopyOnly(tool, state.isSigned, state.hasFile, state.isOnlyCopyWritable);
             std::vector<Choice> choices;
             if (!isCopyOnly && !state.isLocked)
             {
@@ -495,6 +505,7 @@ std::vector<PDFAppToolResultDialog::Choice> PDFAppToolResultDialog::getChoices(c
             return { Choice::File, Choice::Clipboard };
 
         case ResultKind::Analysis:
+        case ResultKind::WrittenFiles:
             break;
     }
     return { };
@@ -540,7 +551,8 @@ PDFAppToolResultDialog::PDFAppToolResultDialog(PDFAppContext* context, PDFAppDoc
     setCardWidth(CARD_WIDTH);
 
     m_kind = getResultKind(m_input.result);
-    m_isPartial = !m_input.result.leftOutInputs.empty() && m_kind != ResultKind::Analysis;
+    m_isPartial = !m_input.result.leftOutInputs.empty() && m_kind != ResultKind::Analysis && m_kind != ResultKind::WrittenFiles;
+    m_isStoppedRun = m_kind == ResultKind::WrittenFiles && m_input.result.status == PDFDocumentToolResultStatus::Stopped;
     if (m_runner)
     {
         m_snapshot = m_runner->getResultSnapshot();
@@ -561,6 +573,7 @@ PDFAppToolResultDialog::PDFAppToolResultDialog(PDFAppContext* context, PDFAppDoc
     m_state.isSigned = m_snapshot.isValid() && PDFForm::getSignatureCount(m_snapshot.document.data()) > 0;
     m_state.isLocked = document && document->isLocked();
     m_state.isOnlyCopyWritable = m_snapshot.isValid() && PDFAppDocumentFileWriter::isOnlyCopyWritable(m_snapshot);
+    m_state.isCertificationRemoved = PDFAppToolResultWriter::isCertificationRemoved(m_input.tool, &m_input.result);
 
     m_writer = new PDFAppToolResultWriter(this);
     connect(m_writer, &PDFAppToolResultWriter::finished, this, &PDFAppToolResultDialog::onWriterFinished);
@@ -573,12 +586,21 @@ PDFAppToolResultDialog::PDFAppToolResultDialog(PDFAppContext* context, PDFAppDoc
     m_discardButton->setIcon(PDFThemeIcons::getIcon(QStringLiteral("trash")));
     connect(m_discardButton, &QPushButton::clicked, this, &PDFAppToolResultDialog::onDiscardClicked);
 
+    // 383:11374, 403:29978: Close next to Open Folder (the Primary button)
+    if (m_kind == ResultKind::WrittenFiles)
+    {
+        m_closeButton = addActionButton(QString(), ActionPosition::Trailing, false);
+        m_closeButton->setObjectName(QStringLiteral("closeResultButton"));
+        connect(m_closeButton, &QPushButton::clicked, this, &PDFAppToolResultDialog::onCloseClicked);
+    }
+
     m_confirmButton = addActionButton(QString(), ActionPosition::Trailing, true);
     m_confirmButton->setObjectName(QStringLiteral("confirmResultButton"));
     connect(m_confirmButton, &QPushButton::clicked, this, &PDFAppToolResultDialog::onConfirmClicked);
 
-    // An analysis has nothing to discard
-    m_discardButton->setVisible(m_kind != ResultKind::Analysis);
+    // An analysis has nothing to discard; the written files of a finished run neither, those
+    // of a stopped run can be deleted (Delete Written Files, K46)
+    m_discardButton->setVisible(m_kind == ResultKind::WrittenFiles ? m_isStoppedRun && !getDeletableFiles().isEmpty() : m_kind != ResultKind::Analysis);
 
     updateTexts();
     updateContinueVisibility();
@@ -616,10 +638,12 @@ void PDFAppToolResultDialog::createHead()
     headLayout->setContentsMargins(0, 0, 0, 0);
     headLayout->setSpacing(Helper::HEAD_GAP);
 
-    // A partial result has the warning of 378:4376 (alert-triangle in amber)
-    PDFIconBadge* badge = new PDFIconBadge(m_isPartial ? QStringLiteral("alert-triangle") : QStringLiteral("check"), Helper::HEAD_BADGE, Helper::HEAD_ICON, head);
+    // A partial result has the warning of 378:4376 (alert-triangle in amber), a stopped run of
+    // more files too (403:29978)
+    const bool isWarning = m_isPartial || m_isStoppedRun;
+    PDFIconBadge* badge = new PDFIconBadge(isWarning ? QStringLiteral("alert-triangle") : QStringLiteral("check"), Helper::HEAD_BADGE, Helper::HEAD_ICON, head);
     badge->setObjectName(QStringLiteral("toolResultBadge"));
-    badge->setHue(m_isPartial ? PDFAccentHue::Amber : PDFAccentHue::Green);
+    badge->setHue(isWarning ? PDFAccentHue::Amber : PDFAccentHue::Green);
     headLayout->addWidget(badge, 0, Qt::AlignVCenter);
 
     QVBoxLayout* textLayout = new QVBoxLayout();
@@ -687,6 +711,12 @@ void PDFAppToolResultDialog::createFacts(QVBoxLayout* layout, QWidget* parent)
 {
     using Helper = PDFAppToolResultDialogHelper;
 
+    if (m_kind == ResultKind::WrittenFiles)
+    {
+        createWrittenFilesFacts(layout, parent);
+        return;
+    }
+
     if (!m_input.result.facts.empty() || m_isPartial)
     {
         PDFAppToolResultFactsPanel* panel = new PDFAppToolResultFactsPanel(parent);
@@ -731,8 +761,8 @@ void PDFAppToolResultDialog::createFacts(QVBoxLayout* layout, QWidget* parent)
 
     // The warning of chapter 4 below the facts (O31): no frame of the design, the
     // parts of 295:2621
-    if (m_kind == ResultKind::ChangeDocument && (PDFAppToolResultWriter::isSignatureLost(m_input.tool, m_state.isSigned, m_state.isOnlyCopyWritable) ||
-                                                 PDFAppToolResultWriter::isCopyOnly(m_input.tool, m_state.isSigned, m_state.hasFile, m_state.isOnlyCopyWritable)))
+    if (m_kind == ResultKind::ChangeDocument && (PDFAppToolResultWriter::isSignatureLost(m_input.tool, m_state.isSigned, m_state.isOnlyCopyWritable, &m_input.result) ||
+                                                 PDFAppToolResultWriter::isCopyOnly(m_input.tool, m_state.isSigned, m_state.hasFile, m_state.isOnlyCopyWritable, &m_input.result)))
     {
         PDFLabel* title = nullptr;
         PDFAppParagraph* text = nullptr;
@@ -863,6 +893,12 @@ void PDFAppToolResultDialog::createOptions(QVBoxLayout* layout, QWidget* parent)
                 // A file of an export has the whole path (339:10301), the frame of a
                 // new document does not draw it: the controls of a copy
                 createFileControls(option, m_kind == ResultKind::Files, m_kind != ResultKind::Files);
+                if (m_input.isResultInThisTab && m_kind == ResultKind::NewDocument && m_openCheckBox)
+                {
+                    // 336:3572: the written file always opens in this tab, nothing to choose
+                    m_openCheckBox->setChecked(true);
+                    m_openCheckBox->setVisible(false);
+                }
                 break;
             case Choice::Clipboard:
                 option->setObjectName(QStringLiteral("optionClipboard"));
@@ -953,6 +989,11 @@ QString PDFAppToolResultDialog::getDefaultTitle() const
         const int count = getLeftOutCount();
         return count == 1 ? tr("%1 finished without %Ln file", nullptr, count).arg(toolTitle) : tr("%1 finished without %Ln files", nullptr, count).arg(toolTitle);
     }
+    if (m_isStoppedRun)
+    {
+        // 403:29978 "Split stopped"
+        return tr("%1 stopped").arg(toolTitle);
+    }
     return tr("%1 finished").arg(toolTitle);
 }
 
@@ -976,6 +1017,13 @@ QString PDFAppToolResultDialog::getDefaultSubtitle() const
             return tr("The new document is ready – choose what to do with it.");
         case ResultKind::Files:
             return tr("Nothing has been written yet – choose what to do with the result.");
+        case ResultKind::WrittenFiles:
+        {
+            // 383:11374 "Handbook.pdf was not changed.", 403:29978 with the settings, which stay
+            const QString documentName = QFileInfo(m_snapshot.filePath).fileName();
+            const QString unchanged = documentName.isEmpty() ? tr("The document was not changed.") : tr("%1 was not changed.").arg(documentName);
+            return m_isStoppedRun ? tr("%1 The settings stay as they are, so the tool can be run again.").arg(unchanged) : unchanged;
+        }
         case ResultKind::Analysis:
             return tr("Nothing has been changed.");
     }
@@ -1023,12 +1071,19 @@ void PDFAppToolResultDialog::updateTexts()
         // frame of the design (owner 2026-11-02)
         if (PDFLabel* warningTitle = m_signedWarning->findChild<PDFLabel*>(QStringLiteral("signedWarningTitle")))
         {
-            warningTitle->setText(!m_state.isSigned ? tr("Only a copy can be saved")
-                                                    : (m_state.hasFile ? tr("The signatures of the copy will not be valid") : tr("The signatures will stop being valid")));
+            warningTitle->setText(m_state.isCertificationRemoved ? tr("The certification is removed in the copy")
+                                  : !m_state.isSigned ? tr("Only a copy can be saved")
+                                                      : (m_state.hasFile ? tr("The signatures of the copy will not be valid") : tr("The signatures will stop being valid")));
         }
         if (PDFAppParagraph* warningText = m_signedWarning->findChild<PDFAppParagraph*>(QStringLiteral("signedWarningText")))
         {
-            if (m_state.isOnlyCopyWritable)
+            if (m_state.isCertificationRemoved)
+            {
+                // Q12, R10 of step 3: no level of a certification allows a change of the pages
+                // (ISO 32000-2, 12.8.2.2, Table 257), an incremental update would show it broken
+                warningText->setText(tr("The document is certified and its certification allows no change of the pages. Only a copy without the certification and the signatures can be saved, written whole; the open document and its file stay as they are."));
+            }
+            else if (m_state.isOnlyCopyWritable)
             {
                 // The file is damaged: the reason is not the tool
                 warningText->setText(m_state.hasFile ? tr("The file is damaged, so PDF4QT does not change it. Only a copy can be saved; the open document and its file stay as they are.")
@@ -1070,7 +1125,7 @@ void PDFAppToolResultDialog::updateTexts()
         }
     }
 
-    const bool isCopyOnly = PDFAppToolResultWriter::isCopyOnly(m_input.tool, m_state.isSigned, m_state.hasFile, m_state.isOnlyCopyWritable);
+    const bool isCopyOnly = PDFAppToolResultWriter::isCopyOnly(m_input.tool, m_state.isSigned, m_state.hasFile, m_state.isOnlyCopyWritable, &m_input.result);
     const Choice preselected = getPreselectedChoice(m_input.tool, getChoices(m_input.tool, m_kind, m_state));
     const QString documentFileName = QFileInfo(m_snapshot.filePath).fileName();
     for (const auto& item : m_options)
@@ -1093,12 +1148,24 @@ void PDFAppToolResultDialog::updateTexts()
                 option->setTexts(tr("Overwrite the original file"), tr("The result replaces the document and is saved to %1 right away.").arg(documentFileName));
                 break;
             case Choice::NewTab:
-                option->setTexts(tr("Open in a new tab"), tr("The new document opens unsaved. Save it when you are ready."));
+                if (m_input.isResultInThisTab)
+                {
+                    // 336:3572: the new document replaces the own tab of the tool (R16)
+                    option->setTexts(tr("Open in this tab"), tr("The new document opens here as an unsaved document. Save it whenever you want."));
+                }
+                else
+                {
+                    option->setTexts(tr("Open in a new tab"), tr("The new document opens unsaved. Save it when you are ready."));
+                }
                 break;
             case Choice::File:
                 if (m_kind == ResultKind::Files)
                 {
                     option->setTexts(tr("Save as a file"), m_input.fileDescription.isEmpty() ? tr("The result is written to a new file. The document is not changed.") : m_input.fileDescription);
+                }
+                else if (m_input.isResultInThisTab)
+                {
+                    option->setTexts(tr("Save as a file"), tr("The PDF is written to a file you choose and then opened in this tab."));
                 }
                 else
                 {
@@ -1110,8 +1177,10 @@ void PDFAppToolResultDialog::updateTexts()
                 break;
         }
 
-        // A single choice recommends nothing (chapter 4), 378:3674 has no tag
-        option->setTagText(!isCopyOnly && m_kind != ResultKind::NewDocument && item.first == preselected ? tr("Recommended") : QString());
+        // A single choice recommends nothing (chapter 4), 378:3674 has no tag; Open in this tab
+        // is Recommended (336:3572)
+        const bool isRecommendedKind = m_kind != ResultKind::NewDocument || m_input.isResultInThisTab;
+        option->setTagText(!isCopyOnly && isRecommendedKind && item.first == preselected ? tr("Recommended") : QString());
     }
 
     if (m_browseButton)
@@ -1124,7 +1193,57 @@ void PDFAppToolResultDialog::updateTexts()
     }
     if (m_discardButton)
     {
-        m_discardButton->setText(tr("Discard result"));
+        m_discardButton->setText(m_kind == ResultKind::WrittenFiles ? tr("Delete Written Files") : tr("Discard result"));
+    }
+    if (m_closeButton)
+    {
+        m_closeButton->setText(tr("Close"));
+    }
+    if (m_kind == ResultKind::WrittenFiles && m_facts)
+    {
+        // 383:11374: Files, Folder, Size; 403:29978: Written, Not written, Folder - and the other
+        // facts of the tool (attachments, tags, ...)
+        const PDFDocumentToolResult& result = m_input.result;
+        QStringList writtenNames;
+        for (const QString& path : result.writtenFiles)
+        {
+            writtenNames << QFileInfo(path).fileName();
+        }
+        const int fileCount = int(result.writtenFiles.size() + result.notWrittenFiles.size());
+        m_facts->clear();
+        if (m_isStoppedRun)
+        {
+            m_facts->addRow(tr("Written"), tr("%1 of %Ln · %2", nullptr, fileCount).arg(PDFAppLocale::formatNumber(qint64(writtenNames.size())), PDFDocumentToolFileOutput::formatFileNames(writtenNames)));
+            m_facts->addRow(tr("Not written"), PDFDocumentToolFileOutput::formatFileNames(result.notWrittenFiles));
+            m_facts->addRow(tr("Folder"), QDir::toNativeSeparators(getWrittenFolder()), PDFComponentPainter::TextKind::FileName);
+        }
+        else
+        {
+            m_facts->addRow(tr("Files"), tr("%Ln · %1", nullptr, int(writtenNames.size())).arg(PDFDocumentToolFileOutput::formatFileNames(writtenNames)));
+            m_facts->addRow(tr("Folder"), QDir::toNativeSeparators(getWrittenFolder()), PDFComponentPainter::TextKind::FileName);
+            qint64 size = 0;
+            for (const QString& path : result.writtenFiles)
+            {
+                size += QFileInfo(path).size();
+            }
+            m_facts->addRow(tr("Size"), tr("%1 in total").arg(PDFAppLocale::formatDataSize(size, 1, QLocale::DataSizeTraditionalFormat)));
+            if (!result.notWrittenFiles.isEmpty())
+            {
+                m_facts->addRow(tr("Not written"), tr("%Ln · %1", nullptr, int(result.notWrittenFiles.size())).arg(PDFDocumentToolFileOutput::formatFileNames(result.notWrittenFiles)));
+            }
+        }
+        for (const PDFDocumentToolFact& fact : result.facts)
+        {
+            if (fact.id != QLatin1String("files") && fact.id != QLatin1String("size") && fact.id != QLatin1String("notWritten"))
+            {
+                m_facts->addRow(fact.title, fact.value);
+            }
+        }
+    }
+    if (m_openFilesCheckBox)
+    {
+        const int count = int(m_input.result.writtenFiles.size());
+        m_openFilesCheckBox->setText(count > MAXIMUM_OPENED_FILES ? tr("Open the first %Ln files in new tabs", nullptr, MAXIMUM_OPENED_FILES) : tr("Open the files in new tabs"));
     }
     if (m_writeErrorTitle)
     {
@@ -1171,6 +1290,10 @@ QString PDFAppToolResultDialog::getConfirmText() const
     {
         return tr("Close");
     }
+    if (m_kind == ResultKind::WrittenFiles)
+    {
+        return tr("Open Folder");
+    }
 
     switch (m_selectedChoice)
     {
@@ -1199,6 +1322,10 @@ QString PDFAppToolResultDialog::getConfirmIconName() const
     if (m_kind == ResultKind::Analysis)
     {
         return QStringLiteral("check");
+    }
+    if (m_kind == ResultKind::WrittenFiles)
+    {
+        return QStringLiteral("folder-open");
     }
 
     switch (m_selectedChoice)
@@ -1588,6 +1715,18 @@ QString PDFAppToolResultDialog::getStatusText() const
         return count == 1 ? tr("%1 finished without %Ln file · the incomplete document is waiting for your decision", nullptr, count).arg(toolTitle)
                           : tr("%1 finished without %Ln files · the incomplete document is waiting for your decision", nullptr, count).arg(toolTitle);
     }
+    if (m_kind == ResultKind::WrittenFiles)
+    {
+        // 383:11374 "Split finished · 4 files written to C:\…", 403:29978 "Split stopped · 2 of 4 files were written to …"
+        const QString folder = QDir::toNativeSeparators(getWrittenFolder());
+        const int written = int(m_input.result.writtenFiles.size());
+        if (m_isStoppedRun)
+        {
+            const int total = written + int(m_input.result.notWrittenFiles.size());
+            return tr("%1 stopped · %2 of %Ln files were written to %3", nullptr, total).arg(toolTitle, PDFAppLocale::formatNumber(written), folder);
+        }
+        return tr("%1 finished · %Ln files written to %2", nullptr, written).arg(toolTitle, folder);
+    }
     return m_kind == ResultKind::NewDocument ? tr("%1 finished · the new document is waiting for your decision").arg(toolTitle)
                                              : tr("%1 finished · the result is waiting for your decision").arg(toolTitle);
 }
@@ -1674,6 +1813,16 @@ void PDFAppToolResultDialog::confirm()
         finishWith(outcome);
         return;
     }
+    if (m_kind == ResultKind::WrittenFiles)
+    {
+        // Open Folder (383:11374): the folder opens after the tool closes (the navigator checks
+        // the address); a stopped run keeps the tool, the folder opens through its tab
+        outcome.action = m_isStoppedRun ? PDFAppToolResultOutcome::Action::Discarded : PDFAppToolResultOutcome::Action::Closed;
+        outcome.isOpenFolderRequested = true;
+        outcome.filePath = m_input.result.writtenFiles.isEmpty() ? QDir(getWrittenFolder()).filePath(QStringLiteral("_")) : m_input.result.writtenFiles.front();
+        finishWith(outcome);
+        return;
+    }
 
     switch (m_selectedChoice)
     {
@@ -1688,7 +1837,7 @@ void PDFAppToolResultDialog::confirm()
         case Choice::Copy:
         {
             const PDFDocumentToolOutputDocument* output = findOutput(PDFDocumentToolOutputDocument::Kind::Changed);
-            if (checkTarget() && output && m_writer->writeCopy(m_input.tool, m_snapshot, output->document, getTargetFilePath(), getOriginFilePath(), m_isReplaceConfirmed))
+            if (checkTarget() && output && m_writer->writeCopy(m_input.tool, m_snapshot, output->document, getTargetFilePath(), getOriginFilePath(), m_isReplaceConfirmed, &m_input.result))
             {
                 setBusy(true);
             }
@@ -1851,7 +2000,7 @@ void PDFAppToolResultDialog::onWriterFinished(const PDFAppToolResultWriter::Resu
             outcome.action = PDFAppToolResultOutcome::Action::Overwritten;
             break;
         case Choice::NewTab:
-            outcome.action = PDFAppToolResultOutcome::Action::OpenedInNewTab;
+            outcome.action = m_input.isResultInThisTab ? PDFAppToolResultOutcome::Action::OpenedInThisTab : PDFAppToolResultOutcome::Action::OpenedInNewTab;
             break;
         default:
             outcome.action = PDFAppToolResultOutcome::Action::FileSaved;
@@ -1871,7 +2020,92 @@ void PDFAppToolResultDialog::onWriterFinished(const PDFAppToolResultWriter::Resu
 
 void PDFAppToolResultDialog::onDiscardClicked()
 {
+    if (m_kind == ResultKind::WrittenFiles)
+    {
+        deleteWrittenFiles();
+        return;
+    }
     reject();
+}
+
+void PDFAppToolResultDialog::onCloseClicked()
+{
+    reject();
+}
+
+QString PDFAppToolResultDialog::getWrittenFolder() const
+{
+    if (!m_input.result.writtenFiles.isEmpty())
+    {
+        return QFileInfo(m_input.result.writtenFiles.front()).absolutePath();
+    }
+
+    // Nothing written: the folder of the parameters is not known here - the folder of the document
+    return m_snapshot.filePath.isEmpty() ? QString() : QFileInfo(m_snapshot.filePath).absolutePath();
+}
+
+QStringList PDFAppToolResultDialog::getDeletableFiles() const
+{
+    // K46: only the files this run created; an overwritten file cannot be restored
+    QStringList overwritten;
+    for (const QJsonValue& value : m_input.result.data.value(QStringLiteral("overwrittenFiles")).toArray())
+    {
+        overwritten << value.toString();
+    }
+
+    QStringList files;
+    for (const QString& path : m_input.result.writtenFiles)
+    {
+        if (!overwritten.contains(path) && QFileInfo(path).isFile())
+        {
+            files << path;
+        }
+    }
+    return files;
+}
+
+void PDFAppToolResultDialog::deleteWrittenFiles()
+{
+    if (isWriting() || m_isDecided)
+    {
+        return;
+    }
+
+    for (const QString& path : getDeletableFiles())
+    {
+        QFile::remove(path);
+    }
+
+    PDFAppToolResultOutcome outcome;
+    outcome.action = PDFAppToolResultOutcome::Action::Discarded;
+    finishWith(outcome);
+}
+
+void PDFAppToolResultDialog::createWrittenFilesFacts(QVBoxLayout* layout, QWidget* parent)
+{
+    // The rows are written by updateTexts (they follow the language)
+    PDFAppToolResultFactsPanel* panel = new PDFAppToolResultFactsPanel(parent);
+    panel->setObjectName(QStringLiteral("toolResultFacts"));
+    m_factsPanel = panel;
+    QVBoxLayout* panelLayout = new QVBoxLayout(panel);
+    panelLayout->setContentsMargins(12, 4, 12, 4);
+    panelLayout->setSpacing(0);
+    m_facts = new PDFKeyValueList(panel);
+    panelLayout->addWidget(m_facts);
+    layout->addWidget(panel);
+
+    // "Open the files in new tabs" (383:11374): PDF files of a finished run only (R14)
+    bool isPdf = !m_input.result.writtenFiles.isEmpty();
+    for (const QString& path : m_input.result.writtenFiles)
+    {
+        isPdf = isPdf && path.endsWith(QLatin1String(".pdf"), Qt::CaseInsensitive);
+    }
+    if (!m_isStoppedRun && isPdf)
+    {
+        m_openFilesCheckBox = new QCheckBox(parent);
+        m_openFilesCheckBox->setObjectName(QStringLiteral("resultOpenFilesCheck"));
+        layout->addWidget(m_openFilesCheckBox);
+    }
 }
 
 void PDFAppToolResultDialog::reject()
@@ -1882,6 +2116,14 @@ void PDFAppToolResultDialog::reject()
     }
 
     PDFAppToolResultOutcome outcome;
+    if (m_kind == ResultKind::WrittenFiles)
+    {
+        // Close: the files stay written (a finished run is a use of the tool, a stopped one
+        // returns to its settings)
+        outcome.action = m_isStoppedRun ? PDFAppToolResultOutcome::Action::Discarded : PDFAppToolResultOutcome::Action::Closed;
+        finishWith(outcome);
+        return;
+    }
     outcome.action = m_kind == ResultKind::Analysis && !m_isDisplayVersion ? PDFAppToolResultOutcome::Action::Closed : PDFAppToolResultOutcome::Action::Discarded;
     finishWith(outcome);
 }
@@ -1921,17 +2163,38 @@ void PDFAppToolResultDialog::openResult(PDFAppToolResultOutcome* outcome)
             outcome->continueDocumentId = document ? document->getId() : QString();
             break;
 
+        case PDFAppToolResultOutcome::Action::OpenedInThisTab:
+            // 336:3572 (R16): the page replaces the own tab of the tool by the new document
+            // (PDFAppToolCloseRequest::newDocumentData); nothing is opened here
+            if (!m_input.result.outputs.empty())
+            {
+                outcome->newDocumentData = m_input.result.outputs.front().data;
+                outcome->newDocumentTitle = QFileInfo(getSuggestedFileName()).completeBaseName();
+            }
+            break;
+
         case PDFAppToolResultOutcome::Action::CopySaved:
         case PDFAppToolResultOutcome::Action::FileSaved:
             if (m_kind == ResultKind::Files)
             {
                 outcome->isOpenFolderRequested = m_openCheckBox && m_openCheckBox->isChecked();
             }
+            else if (m_input.isResultInThisTab && m_kind == ResultKind::NewDocument)
+            {
+                // 336:3572: the written file is then opened in this tab (the page replaces it,
+                // PDFAppToolCloseRequest::newDocumentFilePath)
+                outcome->isFileOpenedInThisTab = true;
+            }
             else if (m_openCheckBox && m_openCheckBox->isChecked() && window)
             {
-                // The copy opens in its own tab: the next tool runs on it (F11)
+                // The copy opens in its own tab: the next tool runs on it (F11). The opening
+                // runs slots of the application, which may delete the window with this dialog.
                 window->openDocuments({ outcome->filePath }, 0);
-                if (const PDFAppDocument* opened = guard && m_context && m_context->getDocumentRegistry() ? m_context->getDocumentRegistry()->findByCanonicalPath(outcome->filePath) : nullptr)
+                if (!guard)
+                {
+                    return;
+                }
+                if (const PDFAppDocument* opened = m_context && m_context->getDocumentRegistry() ? m_context->getDocumentRegistry()->findByCanonicalPath(outcome->filePath) : nullptr)
                 {
                     outcome->continueDocumentId = opened->getId();
                 }
@@ -1944,7 +2207,14 @@ void PDFAppToolResultDialog::openResult(PDFAppToolResultOutcome* outcome)
                 // After the own tab of the tool (4.5), else after the tab of the input document
                 const QString title = getSuggestedFileName();
                 const int index = m_input.anchorTab ? window->getTabIndexAfter(m_input.anchorTab.data()) : window->getTabIndexAfter(document);
-                if (const PDFAppDocumentTab* tab = window->openDocumentFromMemoryAt(m_input.result.outputs.front().data, title, getOriginFilePath(), index))
+                // The opening runs slots of the application: a slot may delete the window with
+                // this dialog and the new tab, so both are checked before they are read
+                const QPointer<PDFAppDocumentTab> tab = window->openDocumentFromMemoryAt(m_input.result.outputs.front().data, title, getOriginFilePath(), index);
+                if (!guard)
+                {
+                    return;
+                }
+                if (tab)
                 {
                     outcome->continueDocumentId = tab->getDocumentId();
                 }
@@ -1955,6 +2225,33 @@ void PDFAppToolResultDialog::openResult(PDFAppToolResultOutcome* outcome)
             break;
     }
 
+    if (m_kind != ResultKind::WrittenFiles)
+    {
+        return;
+    }
+
+    // Open the files in new tabs (383:11374): at most MAXIMUM_OPENED_FILES; the window opens
+    // them after the modal dialogs are closed
+    if (window && m_openFilesCheckBox && m_openFilesCheckBox->isChecked())
+    {
+        window->openDocuments(m_input.result.writtenFiles.mid(0, MAXIMUM_OPENED_FILES), 0);
+        if (!guard)
+        {
+            return;
+        }
+    }
+
+    // A stopped run keeps the tool open (403:29978): its folder opens through the tab of the
+    // document, the navigator checks the address; a finished run opens it as the tool closes
+    if (m_isStoppedRun && outcome->isOpenFolderRequested && m_tab)
+    {
+        outcome->isOpenFolderRequested = false;
+        const QString folder = getWrittenFolder();
+        if (!folder.isEmpty())
+        {
+            Q_EMIT m_tab->externalUrlRequested(QUrl::fromLocalFile(folder));
+        }
+    }
 }
 
 void PDFAppToolResultDialog::finishWith(PDFAppToolResultOutcome outcome)

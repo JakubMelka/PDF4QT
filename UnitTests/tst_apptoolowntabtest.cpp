@@ -1075,7 +1075,8 @@ void AppToolOwnTabTest::mcpNewDocumentOverHttp()
     // One document is too few, an unknown id names its index, documentId is not the input
     QJsonObject answer = M::call(fixture, QStringLiteral("pages"), QStringLiteral("merge"), { { QStringLiteral("documentIds"), QJsonArray({ firstId }) }, { QStringLiteral("result"), openNewTab } });
     QVERIFY(answer.value(QStringLiteral("isErrorResult")).toBool());
-    QVERIFY2(M::text(answer).contains(QStringLiteral("at least 2 open documents")), qPrintable(M::text(answer)));
+    // K41 of step 3: the bounds of Merge (2 to 1000 inputs, PDFDocumentToolMerge::MAXIMUM_INPUT_COUNT)
+    QVERIFY2(M::text(answer).contains(QStringLiteral("2 to 1000 open documents")), qPrintable(M::text(answer)));
     answer = M::call(fixture, QStringLiteral("pages"), QStringLiteral("merge"), { { QStringLiteral("documentIds"), QJsonArray({ firstId, pdf::PDFAppDocument::createId() }) }, { QStringLiteral("result"), openNewTab } });
     QVERIFY(answer.value(QStringLiteral("isErrorResult")).toBool());
     QVERIFY2(M::text(answer).startsWith(QStringLiteral("documentIds[1]: ")), qPrintable(M::text(answer)));

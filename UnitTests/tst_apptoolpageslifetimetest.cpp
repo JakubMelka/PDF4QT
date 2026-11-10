@@ -33,9 +33,11 @@
 // scenarios parameters, run and leave use the test tool, the others the real tools of the
 // first batch (Compress, Rotate and Remove Pages, Remove Hidden Data, Remove Links, Optimize
 // Structure, Extract Text) through their own panels, menus and result dialogs; the tools of
-// the next batches add their scenarios.
+// the next batches add their scenarios (step 3a of phase 2: each package in its own file,
+// apptoolpageslifetime_<package>.cpp, ToolPagesLifetimePackages).
 
 #include "apptoolowntabfixture.h"
+#include "apptoolpageslifetime.h"
 #include "apptoolshellfixture.h"
 
 #include "pdfappcommand.h"
@@ -87,6 +89,7 @@
 #include <QPushButton>
 #include <QScopedValueRollback>
 #include <QSet>
+#include <QThread>
 #include <QTimer>
 #include <QToolButton>
 #include <QTranslator>
@@ -119,7 +122,14 @@ public:
         // a copied list of raw pointers after changeEvent, QWidgetPrivate::setGeometry_sys and
         // the layout of the parent (QLayoutPrivate::doResize) use the widget after its
         // QResizeEvent / QMoveEvent, QObjectPrivate::setParent_helper the child after the
-        // QChildEvent of its old parent (the pattern of UnitTestsAppPagesLifetime)
+        // QChildEvent of its old parent (the pattern of UnitTestsAppPagesLifetime). The
+        // bookkeeping is of the GUI thread only: a worker (the reading of an image by
+        // PDFAppToolInputLoader, QBuffer / QImageReader) sends its events here too, and the
+        // static counters must not be touched by it (a data race found by TSan)
+        if (!QThread::isMainThread())
+        {
+            return QApplication::notify(receiver, event);
+        }
         const QEvent::Type type = event->type();
         const QScopedValueRollback<int> languageDepth(s_languageChangeDepth, s_languageChangeDepth + (type == QEvent::LanguageChange ? 1 : 0));
         if ((type == QEvent::Show || type == QEvent::Hide || type == QEvent::LanguageChange || type == QEvent::Resize || type == QEvent::Move ||
@@ -540,20 +550,6 @@ public:
     virtual bool isEmpty() const override { return false; }
 };
 
-/// State of one run of a scenario
-struct ToolPagesLifetimeRun
-{
-    pdftest::AppToolOwnTabFixture* fixture = nullptr;
-    std::shared_ptr<pdftest::ShellTestTool> tool;
-    QPointer<pdf::PDFAppMainWindow> window;
-    QPointer<pdf::PDFAppDocumentTab> tab;
-    QString toolId;
-    QPointer<pdf::PDFAppToolTab> toolTab;               ///< The own tab of a tool (the scenarios "owntab*", step 2 of phase 2)
-    std::shared_ptr<pdftest::OwnTabTestTool> ownTabTool;
-};
-
-using ToolPagesLifetimeStep = std::function<bool(ToolPagesLifetimeRun&)>;
-
 /// Victim of the deletion
 enum class ToolPagesLifetimeVictim
 {
@@ -601,10 +597,12 @@ public:
         return run.toolTab.isNull() && current && current != run.tab.data() && current->getDocument() && current->getDocument()->isReady();
     }
 
-    /// A scenario of the own tab of a tool (step 2 of phase 2, R17)
+    /// A scenario of the own tab of a tool (step 2 of phase 2, R17; a registered scenario of a
+    /// package of step 3a by its flag)
     static bool isOwnTabScenario(const QString& name)
     {
-        return name.startsWith(QLatin1String("owntab"));
+        const ToolPagesLifetimeScenario* registered = ToolPagesLifetimePackages::findScenario(name);
+        return registered ? registered->isOwnTab : name.startsWith(QLatin1String("owntab"));
     }
 
     /// The steps of the own tab: the tool tab opens (Merge over the document of the run, Blank by
@@ -1147,6 +1145,11 @@ public:
     /// under the id of Rotate Pages otherwise
     static QString getScenarioToolId(const QString& name)
     {
+        if (const ToolPagesLifetimeScenario* registered = ToolPagesLifetimePackages::findScenario(name))
+        {
+            return registered->toolId;
+        }
+
         static const std::pair<const char*, const char*> s_tools[] = { { "compress", "optimize.compress" }, { "compressrun", "optimize.compress" },
                                                                          { "rotate", "pages.rotate" }, { "remove", "pages.remove" },
                                                                          { "sanitize", "protect.sanitize" }, { "removelinks", "protect.remove-links" },
@@ -1164,6 +1167,11 @@ public:
     /// The document of a scenario of a real tool (the test tool: three plain pages)
     static pdf::PDFAppDocumentTab* openScenarioDocument(pdftest::AppToolShellFixture& fixture, const QString& name)
     {
+        const ToolPagesLifetimeScenario* registered = ToolPagesLifetimePackages::findScenario(name);
+        if (registered && registered->openDocument)
+        {
+            return registered->openDocument(fixture);
+        }
         if (name.startsWith(QLatin1String("compress")))
         {
             return fixture.open(writePhoto(fixture.path(QStringLiteral("photo.pdf"))));
@@ -1191,6 +1199,13 @@ public:
     /// openPopupsSurviveChanges)
     static bool prepareRun(ToolPagesLifetimeRun& run)
     {
+        for (const ToolPagesLifetimeScenario& registered : ToolPagesLifetimePackages::getScenarios())
+        {
+            if (registered.toolId == run.toolId && registered.prepareRun)
+            {
+                return registered.prepareRun(run);
+            }
+        }
         if (pdf::PDFAppToolGUIRotatePages* rotate = realGui<pdf::PDFAppToolGUIRotatePages>(run))
         {
             rotate->rotateRight();
@@ -1405,6 +1420,16 @@ std::vector<ToolPagesLifetimeStep> ToolPagesLifetimeHelper::scenario(const QStri
 {
     using H = ToolPagesLifetimeHelper;
     std::vector<ToolPagesLifetimeStep> steps;
+
+    // A scenario of a package of step 3a: its own steps
+    if (const ToolPagesLifetimeScenario* registered = ToolPagesLifetimePackages::findScenario(name))
+    {
+        if (registered->addSteps)
+        {
+            registered->addSteps(&steps);
+        }
+        return steps;
+    }
 
     if (name == QLatin1String("owntabblankgui"))
     {
@@ -2124,10 +2149,17 @@ private:
     /// first batch (the next batches add theirs)
     static QStringList getScenarios()
     {
-        return { QStringLiteral("parameters"), QStringLiteral("run"), QStringLiteral("leave"), QStringLiteral("compress"), QStringLiteral("compressrun"),
-                 QStringLiteral("rotate"), QStringLiteral("remove"), QStringLiteral("sanitize"), QStringLiteral("removelinks"), QStringLiteral("structure"),
-                 QStringLiteral("extracttext"), QStringLiteral("owntabaccept"), QStringLiteral("owntabcontinue"), QStringLiteral("owntabblank"),
-                 QStringLiteral("owntabblankgui"), QStringLiteral("owntabmergegui") };
+        QStringList scenarios = { QStringLiteral("parameters"), QStringLiteral("run"), QStringLiteral("leave"), QStringLiteral("compress"), QStringLiteral("compressrun"),
+                                  QStringLiteral("rotate"), QStringLiteral("remove"), QStringLiteral("sanitize"), QStringLiteral("removelinks"), QStringLiteral("structure"),
+                                  QStringLiteral("extracttext"), QStringLiteral("owntabaccept"), QStringLiteral("owntabcontinue"), QStringLiteral("owntabblank"),
+                                  QStringLiteral("owntabblankgui"), QStringLiteral("owntabmergegui") };
+
+        // The scenarios of the packages of step 3a (their files, ToolPagesLifetimePackages)
+        for (const ToolPagesLifetimeScenario& registered : ToolPagesLifetimePackages::getScenarios())
+        {
+            scenarios << registered.name;
+        }
+        return scenarios;
     }
 
     /// Runs the scenario. In the replay mode the victim is deleted at the target
@@ -2182,7 +2214,8 @@ void AppToolPagesLifetimeTest::runScenario(const QString& name, ToolPagesLifetim
     ToolPagesLifetimeRun run;
     run.fixture = &fixture;
     const bool isOwnTab = ToolPagesLifetimeHelper::isOwnTabScenario(name);
-    if (isOwnTab && name != QLatin1String("owntabmergegui"))
+    const ToolPagesLifetimeScenario* registeredScenario = ToolPagesLifetimePackages::findScenario(name);
+    if (isOwnTab && name != QLatin1String("owntabmergegui") && !registeredScenario)
     {
         // The test tool of the own tab (the real GUI of Merge in "owntabmergegui") (Merge, Blank PDF without the dialog) and a test tool of
         // Compress for Then continue with
@@ -2313,7 +2346,9 @@ void AppToolPagesLifetimeTest::runScenario(const QString& name, ToolPagesLifetim
             // The window lives, the document is free; the own tab of the tool opens again
             QVERIFY(run.window);
             QVERIFY(!run.tab || !run.tab->getDocument()->isBlockedByOperation());
-            QPointer<pdf::PDFAppToolTab> again = fixture.createToolTab(name.startsWith(QLatin1String("owntabblank")) ? QStringLiteral("convert.blank") : QStringLiteral("pages.merge"));
+            const QString againToolId = registeredScenario ? registeredScenario->toolId
+                                                           : (name.startsWith(QLatin1String("owntabblank")) ? QStringLiteral("convert.blank") : QStringLiteral("pages.merge"));
+            QPointer<pdf::PDFAppToolTab> again = fixture.createToolTab(againToolId);
             QVERIFY(again);
             QVERIFY(again->getShell());
             QCOMPARE(again->getShell()->getState(), pdf::PDFDocumentToolShell::State::Editing);
@@ -2475,6 +2510,27 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges_data()
             QTest::addRow("%s-%s", popup, change) << QString::fromLatin1(popup) << QString::fromLatin1(change);
         }
     }
+
+    // The scenarios of the packages of step 3a, which have a result dialog or a panel
+    for (const ToolPagesLifetimeScenario& registered : ToolPagesLifetimePackages::getScenarios())
+    {
+        QStringList popups;
+        if (registered.hasResultDialog)
+        {
+            popups << QStringLiteral("dialog-") + registered.name;
+        }
+        if (registered.hasPanel)
+        {
+            popups << QStringLiteral("panel-") + registered.name;
+        }
+        for (const QString& popup : popups)
+        {
+            for (const char* change : { "language", "document", "theme" })
+            {
+                QTest::addRow("%s-%s", qPrintable(popup), change) << popup << QString::fromLatin1(change);
+            }
+        }
+    }
 }
 
 void AppToolPagesLifetimeTest::openPopupsSurviveChanges()
@@ -2514,7 +2570,14 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges()
     }
     QVERIFY(run.tab);
     QVERIFY(pdftest::AppToolShellFixture::waitFor([&run]() { return run.tab->getDocument()->isReady(); }));
-    QVERIFY(H::openTool(run));
+
+    // A tool in its own tab: its prepareRun opens the tab (the document tab stays open beside it,
+    // its document is the document of the change); the other tools open in the document tab
+    const bool isOwnTabTool = isRealTool && H::isOwnTabScenario(realScenario);
+    if (!isOwnTabTool)
+    {
+        QVERIFY(H::openTool(run));
+    }
     pdf::PDFAppDocument* document = run.tab->getDocument();
     const quint64 version = document->getVersion();
 
@@ -2556,9 +2619,10 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges()
         QVERIFY(H::shell(run));
         QCOMPARE(H::shell(run)->getResultDialog(), dialog);
         QVERIFY(dialog->isVisible());
-        // Discard ends the tool
+        // Discard ends the tool (in its own tab it returns to the editing of the tab)
         dialog->reject();
-        QVERIFY(pdftest::AppToolShellFixture::waitFor([&run]() { return !H::shell(run); }));
+        QVERIFY(pdftest::AppToolShellFixture::waitFor([&run]() { return !H::shell(run) || H::shell(run)->getState() == pdf::PDFDocumentToolShell::State::Editing; }));
+        QVERIFY(isOwnTabTool || !H::shell(run));
         H::settle();
     }
     else if (isRealTool)
@@ -2668,11 +2732,105 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges()
     QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 0);
     if (H::shell(run))
     {
+        // The own tab asks, whether its inputs may be lost (K16): Close Tab
+        if (isOwnTabTool)
+        {
+            H::answerLater(run, QStringLiteral("closeTabButton"));
+        }
         H::shell(run)->cancel();
         H::settle();
     }
+    QVERIFY(!isOwnTabTool || !run.toolTab);
     QVERIFY(!run.tab->getView()->isToolModeActive());
     QVERIFY(!document->isBlockedByOperation());
+}
+
+// ----------------------------------------------------- the part shared with the packages
+
+const std::vector<ToolPagesLifetimeScenario>& ToolPagesLifetimePackages::getScenarios()
+{
+    static const std::vector<ToolPagesLifetimeScenario> scenarios = []()
+    {
+        std::vector<ToolPagesLifetimeScenario> result;
+        registerSplitScenarios(&result);
+        registerGeometryScenarios(&result);
+        registerInsertScenarios(&result);
+        registerImageScenarios(&result);
+        return result;
+    }();
+    return scenarios;
+}
+
+const ToolPagesLifetimeScenario* ToolPagesLifetimePackages::findScenario(const QString& name)
+{
+    for (const ToolPagesLifetimeScenario& scenario : getScenarios())
+    {
+        if (scenario.name == name)
+        {
+            return &scenario;
+        }
+    }
+    return nullptr;
+}
+
+void ToolPagesLifetimeSteps::settle()
+{
+    ToolPagesLifetimeHelper::settle();
+}
+
+pdf::PDFDocumentToolShell* ToolPagesLifetimeSteps::shell(const ToolPagesLifetimeRun& run)
+{
+    return ToolPagesLifetimeHelper::shell(run);
+}
+
+pdf::PDFAppToolToolbar* ToolPagesLifetimeSteps::toolbar(const ToolPagesLifetimeRun& run)
+{
+    return ToolPagesLifetimeHelper::toolbar(run);
+}
+
+bool ToolPagesLifetimeSteps::openTool(ToolPagesLifetimeRun& run)
+{
+    return ToolPagesLifetimeHelper::openTool(run);
+}
+
+bool ToolPagesLifetimeSteps::click(QWidget* widget)
+{
+    return ToolPagesLifetimeHelper::click(widget);
+}
+
+bool ToolPagesLifetimeSteps::key(QWidget* widget, int keyCode, Qt::KeyboardModifiers modifiers)
+{
+    return ToolPagesLifetimeHelper::key(widget, keyCode, modifiers);
+}
+
+bool ToolPagesLifetimeSteps::wait(const ToolPagesLifetimeRun& run, const std::function<bool()>& condition)
+{
+    return ToolPagesLifetimeHelper::wait(run, condition);
+}
+
+void ToolPagesLifetimeSteps::answerLater(const ToolPagesLifetimeRun& run, const QString& buttonName)
+{
+    ToolPagesLifetimeHelper::answerLater(run, buttonName);
+}
+
+pdf::PDFAppToolResultDialog* ToolPagesLifetimeSteps::confirmToDialog(ToolPagesLifetimeRun& run)
+{
+    return ToolPagesLifetimeHelper::confirmToDialog(run);
+}
+
+bool ToolPagesLifetimeSteps::confirmDialog(ToolPagesLifetimeRun& run, pdf::PDFAppToolResultDialog* dialog)
+{
+    return ToolPagesLifetimeHelper::confirmDialog(run, dialog);
+}
+
+bool ToolPagesLifetimeSteps::clickTile(const ToolPagesLifetimeRun& run, int page, Qt::KeyboardModifiers modifiers)
+{
+    return ToolPagesLifetimeHelper::clickTile(run, page, modifiers);
+}
+
+QToolButton* ToolPagesLifetimeSteps::firstPanelButton(const ToolPagesLifetimeRun& run)
+{
+    return ToolPagesLifetimeHelper::firstPanelButton(run);
 }
 
 int main(int argc, char** argv)

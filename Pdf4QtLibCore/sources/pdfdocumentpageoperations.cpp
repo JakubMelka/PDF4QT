@@ -91,16 +91,41 @@ public:
 /// object is referenced. Every walk over the graph is one PDFObjectWalk (one set of the
 /// visited objects for the whole walk, a depth, a budget): a hostile document cannot make
 /// it loop or repeat a shared part.
+///
+/// With a page index (PDFDocumentPageOperations::keepPages, a part of Split) the removal
+/// starts from the flattened page tree of the index, knows the removed pages and their
+/// annotations by the index (a page or an annotation of the document, which is not kept)
+/// and leaves the unreachable objects to PDFNewDocumentFinisher: no walk over the whole
+/// document for each part (R2).
 class PDFDocumentPageRemoval
 {
 public:
     explicit PDFDocumentPageRemoval(const PDFDocument* document, const std::vector<PDFInteger>& removedPages, const PDFOperationControl* control);
+    explicit PDFDocumentPageRemoval(const PDFDocument* document, const PDFDocumentPageOperations::PageIndex* index, const std::vector<PDFInteger>& keptPages, const PDFOperationControl* control);
 
     /// Runs the removal; throws PDFException
     PDFDocument run(PDFDocumentPageOperations::RemovalStatistics* statistics);
 
 private:
     using References = std::set<PDFObjectReference>;
+
+    /// A page object of the document, which goes
+    bool isRemovedPage(const PDFObjectReference& reference) const
+    {
+        return m_index ? (m_index->m_pages.count(reference) && !m_keptPageSet.count(reference)) : m_removedPageSet.count(reference) > 0;
+    }
+
+    /// An annotation of a page, which goes, not listed by a page, which stays
+    bool isRemovedAnnotation(const PDFObjectReference& reference) const
+    {
+        return m_index ? (m_index->m_annotations.count(reference) && !m_keptAnnotations.count(reference)) : m_removedAnnotations.count(reference) > 0;
+    }
+
+    /// An object, which goes with the pages: a page, its annotations, a removed field, signature or layer
+    bool isRemovedObject(const PDFObjectReference& reference) const
+    {
+        return m_removedObjects.count(reference) || (m_index && (isRemovedPage(reference) || isRemovedAnnotation(reference)));
+    }
 
     /// Depth of the outline and of the name trees (an outline deeper than this is not changed below it)
     static constexpr int MAXIMUM_DEPTH = 256;
@@ -161,9 +186,10 @@ private:
     void filterLayers();
 
     /// Collects the objects reachable from the trailer; the catalog entry \p skippedCatalogKey
-    /// is not followed, the objects of \p excluded are not entered. Throws PDFException, when
-    /// the walk cannot read every object (the sweep would remove reachable objects).
-    References collectReachable(const PDFObjectStorage* storage, const References& excluded, const char* skippedCatalogKey) const;
+    /// is not followed, the removed objects are not entered when \p excludeRemoved. Throws
+    /// PDFException, when the walk cannot read every object (the sweep would remove reachable
+    /// objects).
+    References collectReachable(const PDFObjectStorage* storage, bool excludeRemoved, const char* skippedCatalogKey) const;
 
     /// Removes every reference of the removed objects from the reachable objects and makes the
     /// objects, which were reachable before and are not reachable now, null
@@ -171,6 +197,7 @@ private:
     PDFObject stripReferences(const PDFObject& object, int depth, bool* isChanged) const;
 
     const PDFDocument* m_document;
+    const PDFDocumentPageOperations::PageIndex* m_index = nullptr;  ///< Shared index of a part (keepPages), nullptr = removePages
     const PDFOperationControl* m_control;
     PDFDocumentBuilder m_builder;
     PDFDocumentPageOperations::RemovalStatistics m_statistics;
@@ -193,6 +220,17 @@ PDFDocumentPageRemoval::PDFDocumentPageRemoval(const PDFDocument* document, cons
     m_control(control),
     m_builder(document),
     m_removedIndices(PDFDocumentPageOperationsHelper::getValidPages(document, removedPages)),
+    m_outlineWalk(MAXIMUM_DEPTH)
+{
+
+}
+
+PDFDocumentPageRemoval::PDFDocumentPageRemoval(const PDFDocument* document, const PDFDocumentPageOperations::PageIndex* index, const std::vector<PDFInteger>& keptPages, const PDFOperationControl* control) :
+    m_document(document),
+    m_index(index),
+    m_control(control),
+    m_builder(&index->m_flattenedDocument),
+    m_keptIndices(PDFDocumentPageOperationsHelper::getValidPages(document, keptPages)),
     m_outlineWalk(MAXIMUM_DEPTH)
 {
 
@@ -238,6 +276,26 @@ void PDFDocumentPageRemoval::setCatalogDictionary(const char* key, PDFDictionary
 void PDFDocumentPageRemoval::collectPages()
 {
     const PDFCatalog* catalog = m_document->getCatalog();
+    if (m_index)
+    {
+        // A part: only its own pages are read, the other pages are known by the index
+        if (m_keptIndices.empty())
+        {
+            throw PDFException(PDFDocumentPageOperations::tr("A document must keep at least one page."));
+        }
+        for (const PDFInteger index : m_keptIndices)
+        {
+            const PDFPage* page = catalog->getPage(size_t(index));
+            m_keptPages.push_back(page->getPageReference());
+            m_keptPageSet.insert(page->getPageReference());
+            for (const PDFObjectReference& annotation : page->getAnnotations())
+            {
+                m_keptAnnotations.insert(annotation);
+            }
+        }
+        return;
+    }
+
     const size_t pageCount = catalog->getPageCount();
     const std::set<PDFInteger> removed(m_removedIndices.cbegin(), m_removedIndices.cend());
 
@@ -385,7 +443,7 @@ bool PDFDocumentPageRemoval::isDestinationRemoved(const PDFObject& destination, 
     if (object.isArray())
     {
         const PDFArray* array = object.getArray();
-        return array->getCount() > 0 && array->getItem(0).isReference() && m_removedPageSet.count(array->getItem(0).getReference());
+        return array->getCount() > 0 && array->getItem(0).isReference() && isRemovedPage(array->getItem(0).getReference());
     }
     if (const PDFDictionary* dictionary = getDictionary(object); dictionary && depth == 0)
     {
@@ -454,7 +512,7 @@ void PDFDocumentPageRemoval::filterNameTrees()
         for (auto& entry : entries)
         {
             const bool isRemoved = isDestinations ? m_removedDestinationNames.count(entry.first) > 0
-                                                  : entry.second.isReference() && m_removedPageSet.count(entry.second.getReference()) > 0;
+                                                  : entry.second.isReference() && isRemovedPage(entry.second.getReference());
             if (isRemoved)
             {
                 ++(isDestinations ? m_statistics.namedDestinationsRemoved : m_statistics.namedPagesRemoved);
@@ -513,7 +571,7 @@ PDFDocumentPageRemoval::OutlineChildren PDFDocumentPageRemoval::filterOutlineChi
     {
         const PDFObjectReference reference = next.getReference();
         const PDFDictionary* dictionary = getDictionary(next);
-        if (!dictionary || !dictionary->hasKey("Title") || m_keptPageSet.count(reference) || m_removedPageSet.count(reference) || !m_outlineWalk.enter(next, depth))
+        if (!dictionary || !dictionary->hasKey("Title") || m_keptPageSet.count(reference) || isRemovedPage(reference) || !m_outlineWalk.enter(next, depth))
         {
             break;
         }
@@ -710,8 +768,8 @@ bool PDFDocumentPageRemoval::filterField(const PDFObject& field, int depth, bool
     // A widget (a terminal field with its widget, or a kid): of a removed page, or a widget,
     // which says it is on a removed page and which no page, which stays, lists
     const PDFObject& page = dictionary->get("P");
-    const bool isRemoved = m_removedAnnotations.count(reference) ||
-                           (page.isReference() && m_removedPageSet.count(page.getReference()) && !m_keptAnnotations.count(reference));
+    const bool isRemoved = isRemovedAnnotation(reference) ||
+                           (page.isReference() && isRemovedPage(page.getReference()) && !m_keptAnnotations.count(reference));
     if (!isRemoved)
     {
         m_isSignatureKept = m_isSignatureKept || isSignature;
@@ -874,7 +932,7 @@ void PDFDocumentPageRemoval::filterPagesOfDocument()
                     continue;
                 }
 
-                if (annotation.isReference() && m_removedObjects.count(annotation.getReference()))
+                if (annotation.isReference() && isRemovedObject(annotation.getReference()))
                 {
                     continue;
                 }
@@ -1019,7 +1077,7 @@ void PDFDocumentPageRemoval::rewritePageLabels()
     m_statistics.pageLabelsRewritten = true;
 }
 
-PDFDocumentPageRemoval::References PDFDocumentPageRemoval::collectReachable(const PDFObjectStorage* storage, const References& excluded, const char* skippedCatalogKey) const
+PDFDocumentPageRemoval::References PDFDocumentPageRemoval::collectReachable(const PDFObjectStorage* storage, bool excludeRemoved, const char* skippedCatalogKey) const
 {
     // The closure of the references: a reference is entered once, the stack holds each object
     // at most once for each reference to it (the work is linear in the size of the objects)
@@ -1036,7 +1094,7 @@ PDFDocumentPageRemoval::References PDFDocumentPageRemoval::collectReachable(cons
     {
         const PDFObjectReference reference = stack.back();
         stack.pop_back();
-        if (excluded.count(reference) || !walk.enterReference(reference, 0))
+        if ((excludeRemoved && isRemovedObject(reference)) || !walk.enterReference(reference, 0))
         {
             continue;
         }
@@ -1090,7 +1148,14 @@ void PDFDocumentPageRemoval::filterLayers()
     }
 
     // What the removed pages used before the removal, what the rest of the document uses now
+    // (a part of Split: the layers, which a page of the document reaches, by the index - a
+    // layer, which the part reaches now, stays)
     References usedByRemoved;
+    if (m_index)
+    {
+        usedByRemoved = m_index->m_layersOfPages;
+    }
+    else
     {
         std::vector<PDFObject> roots;
         for (const PDFObjectReference& reference : m_removedObjects)
@@ -1099,7 +1164,7 @@ void PDFDocumentPageRemoval::filterLayers()
         }
         usedByRemoved = PDFObjectUtils::getReferences(roots, m_document->getStorage());
     }
-    const References usedNow = collectReachable(m_builder.getStorage(), m_removedObjects, "OCProperties");
+    const References usedNow = collectReachable(m_builder.getStorage(), true, "OCProperties");
 
     for (const PDFObject& group : *groups.getArray())
     {
@@ -1127,7 +1192,7 @@ PDFObject PDFDocumentPageRemoval::stripReferences(const PDFObject& object, int d
             bool isArrayChanged = false;
             for (const PDFObject& item : *array)
             {
-                if (item.isReference() && m_removedObjects.count(item.getReference()))
+                if (item.isReference() && isRemovedObject(item.getReference()))
                 {
                     // An item of a list (layers, fields) or the page of a destination - a
                     // destination without its page is no destination (PDFDestination::parse)
@@ -1155,7 +1220,7 @@ PDFObject PDFDocumentPageRemoval::stripReferences(const PDFObject& object, int d
             for (size_t i = 0; i < dictionary->getCount(); ++i)
             {
                 const PDFObject& value = dictionary->getValue(i);
-                if (value.isReference() && m_removedObjects.count(value.getReference()))
+                if (value.isReference() && isRemovedObject(value.getReference()))
                 {
                     // A null value is no entry (PDF 2.0, 7.3.7)
                     isDictionaryChanged = true;
@@ -1186,7 +1251,7 @@ void PDFDocumentPageRemoval::sweep(const References& reachableBefore)
 {
     // Every object, which stays, loses its references of the removed objects
     const PDFObjectStorage* storage = m_builder.getStorage();
-    const References reachable = collectReachable(storage, m_removedObjects, nullptr);
+    const References reachable = collectReachable(storage, true, nullptr);
     for (const PDFObjectReference& reference : reachable)
     {
         bool isChanged = false;
@@ -1197,9 +1262,16 @@ void PDFDocumentPageRemoval::sweep(const References& reachableBefore)
         }
     }
 
+    // A part of Split is finished as a new document (PDFNewDocumentFinisher removes what nothing
+    // refers to and numbers the objects anew): no walk over the whole document for each part
+    if (m_index)
+    {
+        return;
+    }
+
     // The objects, which nothing refers to now, are null; an object, which was not reachable
     // before (a container of the file structure, an old revision), is not a matter of this removal
-    const References reachableAfter = collectReachable(m_builder.getStorage(), References(), nullptr);
+    const References reachableAfter = collectReachable(m_builder.getStorage(), false, nullptr);
     for (const PDFObjectReference& reference : reachableBefore)
     {
         if (!reachableAfter.count(reference) && !m_builder.getObjectByReference(reference).isNull())
@@ -1214,10 +1286,14 @@ PDFDocument PDFDocumentPageRemoval::run(PDFDocumentPageOperations::RemovalStatis
 {
     collectPages();
     collectNamedDestinations();
-    const References reachableBefore = collectReachable(&m_document->getStorage(), References(), nullptr);
+    const References reachableBefore = m_index ? References() : collectReachable(&m_document->getStorage(), false, nullptr);
 
-    // A flat page tree of the pages, which stay (the inherited attributes are written into the pages)
-    m_builder.flattenPageTree();
+    // A flat page tree of the pages, which stay (the inherited attributes are written into the
+    // pages; the builder of a part starts from the page tree flattened by the index)
+    if (!m_index)
+    {
+        m_builder.flattenPageTree();
+    }
     m_builder.setPages(m_keptPages);
     if (isCanceled())
     {
@@ -1256,7 +1332,7 @@ PDFDocument PDFDocumentPageRemoval::run(PDFDocumentPageOperations::RemovalStatis
         for (size_t i = 0; i < permissions->getCount(); ++i)
         {
             const PDFObject& value = permissions->getValue(i);
-            if (!(value.isReference() && m_removedObjects.count(value.getReference())))
+            if (!(value.isReference() && isRemovedObject(value.getReference())))
             {
                 kept.addEntry(permissions->getKey(i), value);
             }
@@ -1286,10 +1362,30 @@ PDFDocument PDFDocumentPageRemoval::run(PDFDocumentPageOperations::RemovalStatis
 
     // A result without a signature is written whole: the dead containers of the file structure,
     // which hold the objects of the removed pages compressed, go with it (a signed result is
-    // saved by an incremental update, which keeps the numbers of the objects)
-    if (PDFForm::getSignatureCount(&result) == 0)
+    // saved by an incremental update, which keeps the numbers of the objects); a part of Split
+    // is written whole by its finishing
+    if (!m_index && PDFForm::getSignatureCount(&result) == 0)
     {
         result = PDFDocumentTool::createWholeFileDocument(PDFObjectStorage(result.getStorage()), m_document);
+    }
+    else if (m_index)
+    {
+        // A part keeps only the objects of its own pages and trees: the other entries are empty
+        // (one walk over the part, an empty table of the size of the document), so the finishing
+        // never visits the objects of the other parts (R2)
+        PDFObjectStorage storage = result.getStorage();
+        const References reachable = collectReachable(&storage, false, nullptr);
+        const PDFObjectStorage::PDFObjects& objects = storage.getObjects();
+        PDFObjectStorage::PDFObjects partObjects(objects.size());
+        for (const PDFObjectReference& reference : reachable)
+        {
+            if (reference.objectNumber >= 0 && size_t(reference.objectNumber) < objects.size())
+            {
+                partObjects[size_t(reference.objectNumber)] = objects[size_t(reference.objectNumber)];
+            }
+        }
+        storage.setObjects(std::move(partObjects));
+        result = PDFDocument(std::move(storage), result.getInfo()->version, result.getSourceDataHash());
     }
 
     std::vector<std::pair<PDFInteger, PDFInteger>> pageMap;
@@ -1354,6 +1450,85 @@ PDFDocument PDFDocumentPageOperations::removePages(const PDFDocument* document, 
 
     RemovalStatistics localStatistics;
     PDFDocumentPageRemoval removal(document, pages, control);
+    PDFDocument result = removal.run(&localStatistics);
+    if (statistics)
+    {
+        *statistics = localStatistics;
+    }
+    return result;
+}
+
+std::shared_ptr<const PDFDocumentPageOperations::PageIndex> PDFDocumentPageOperations::createPageIndex(const PDFDocument* document, const PDFOperationControl* control)
+{
+    if (!document)
+    {
+        throw PDFException(tr("There is no document."));
+    }
+
+    std::shared_ptr<PageIndex> index = std::make_shared<PageIndex>();
+    const PDFCatalog* catalog = document->getCatalog();
+    index->m_pageCount = catalog->getPageCount();
+
+    std::vector<PDFObject> pageObjects;
+    pageObjects.reserve(index->m_pageCount);
+    for (size_t i = 0; i < index->m_pageCount; ++i)
+    {
+        const PDFPage* page = catalog->getPage(i);
+        index->m_pages.insert(page->getPageReference());
+        pageObjects.push_back(PDFObject::createReference(page->getPageReference()));
+        for (const PDFObjectReference& annotation : page->getAnnotations())
+        {
+            index->m_annotations.insert(annotation);
+        }
+    }
+    index->m_pages.erase(PDFObjectReference());
+    index->m_annotations.erase(PDFObjectReference());
+    if (PDFOperationControl::isOperationCancelled(control))
+    {
+        return nullptr;
+    }
+
+    // The layers, which a page reaches (its content, resources, annotations - and, through
+    // /Parent, the rest of the page tree, as the walk of removePages from the removed pages)
+    PDFDocumentBuilder builder(document);
+    const PDFDictionary* catalogDictionary = builder.getDictionaryFromObject(builder.getObjectByReference(builder.getCatalogReference()));
+    const PDFDictionary* properties = catalogDictionary ? builder.getDictionaryFromObject(catalogDictionary->get("OCProperties")) : nullptr;
+    const PDFObject groups = properties ? builder.getObject(properties->get("OCGs")) : PDFObject();
+    if (groups.isArray() && groups.getArray()->getCount() > 0)
+    {
+        const std::set<PDFObjectReference> reachable = PDFObjectUtils::getReferences(pageObjects, document->getStorage());
+        for (const PDFObject& group : *groups.getArray())
+        {
+            if (group.isReference() && reachable.count(group.getReference()))
+            {
+                index->m_layersOfPages.insert(group.getReference());
+            }
+        }
+    }
+    if (PDFOperationControl::isOperationCancelled(control))
+    {
+        return nullptr;
+    }
+
+    // The page tree flattened once for all parts
+    builder.flattenPageTree();
+    index->m_flattenedDocument = PDFDocumentPageOperationsHelper::createDocument(builder, document);
+    return index;
+}
+
+PDFDocument PDFDocumentPageOperations::keepPages(const PDFDocument* document, const PageIndex& index, const std::vector<PDFInteger>& keptPages, const PDFOperationControl* control, RemovalStatistics* statistics)
+{
+    if (!document)
+    {
+        throw PDFException(tr("There is no document."));
+    }
+    if (index.m_pageCount != document->getCatalog()->getPageCount())
+    {
+        throw PDFException(tr("The index belongs to another document."));
+    }
+
+    RemovalStatistics localStatistics;
+    PDFDocumentPageRemoval removal(document, &index, keptPages, control);
     PDFDocument result = removal.run(&localStatistics);
     if (statistics)
     {

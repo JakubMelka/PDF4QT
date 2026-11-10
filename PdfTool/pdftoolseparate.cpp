@@ -21,12 +21,14 @@
 // SOFTWARE.
 
 #include "pdftoolseparate.h"
-#include "pdfdocumentbuilder.h"
-#include "pdfexception.h"
-#include "pdfoptimizer.h"
-#include "pdfdocumentwriter.h"
+#include "pdfdocumentmerger.h"
+#include "pdfdocumenttool_split.h"
+#include "pdffilenametemplate.h"
 
+#include <QDir>
 #include <QFileInfo>
+
+#include <limits>
 
 namespace pdftool
 {
@@ -56,6 +58,11 @@ QString PDFToolSeparate::getStandardString(StandardString standardString) const
 
 int PDFToolSeparate::execute(const PDFToolOptions& options)
 {
+    // One implementation with the tools Split and Extract Pages of the new application (plan of
+    // step 3 of phase 2, Q16): every page a new document of PDFDocumentSplitter (B37: no page of
+    // another file reaches it through the fields, the destinations or the links; the page labels
+    // follow the pages), the names by PDFFileNameTemplate ('%' of the pattern stays the page
+    // number, it is the token '@'), the files by the folder sink
     pdf::PDFDocument document;
     QByteArray sourceData;
     if (!readDocument(options, document, &sourceData, false))
@@ -63,18 +70,37 @@ int PDFToolSeparate::execute(const PDFToolOptions& options)
         return ErrorDocumentReading;
     }
 
-    if (!document.getStorage().getSecurityHandler()->isAllowed(pdf::PDFSecurityHandler::Permission::CopyContent))
+    // B38, owner answer Q4: the files are new documents without encryption - the rule of Merge
+    // (Assemble, and the owner password, when anything else is restricted; PdfTool unite)
+    const bool isOwnerPasswordVerified = !options.password.isEmpty() && pdf::PDFDocumentMerger::verifyOwnerPassword(document.getStorage().getSecurityHandler(), options.password);
+    const pdf::PDFDocumentMerger::Permission permission = pdf::PDFDocumentMerger::getPermission(&document, isOwnerPasswordVerified);
+    if (permission != pdf::PDFDocumentMerger::Permission::Permitted)
     {
-        PDFConsole::writeError(PDFToolTranslationContext::tr("Document doesn't allow to copy content."), options.outputCodec);
+        PDFConsole::writeError(PDFToolTranslationContext::tr("%1 Give the owner password of '%2' by --pswd.").arg(pdf::PDFDocumentMerger::getPermissionText(permission, QFileInfo(options.document).fileName()), options.document), options.outputCodec);
         return ErrorPermissions;
     }
 
     QString parseError;
-    std::vector<pdf::PDFInteger> pageIndices = options.getPageRange(document.getCatalog()->getPageCount(), parseError, true);
-
+    const pdf::PDFInteger pageCount = pdf::PDFInteger(document.getCatalog()->getPageCount());
+    const std::vector<pdf::PDFInteger> pageIndices = options.getPageRange(pageCount, parseError, true);
     if (!parseError.isEmpty())
     {
         PDFConsole::writeError(parseError, options.outputCodec);
+        return ErrorInvalidArguments;
+    }
+
+    // B36: a page outside of the document is an error, never a read outside of the pages
+    for (const pdf::PDFInteger pageIndex : pageIndices)
+    {
+        if (pageIndex < 0 || pageIndex >= pageCount)
+        {
+            PDFConsole::writeError(PDFToolTranslationContext::tr("Page %1 does not exist, the document has %Ln pages.", nullptr, int(qMin<pdf::PDFInteger>(pageCount, std::numeric_limits<int>::max()))).arg(pageIndex + 1), options.outputCodec);
+            return ErrorInvalidArguments;
+        }
+    }
+    if (pageIndices.empty())
+    {
+        PDFConsole::writeError(PDFToolTranslationContext::tr("No page is selected."), options.outputCodec);
         return ErrorInvalidArguments;
     }
 
@@ -84,58 +110,68 @@ int PDFToolSeparate::execute(const PDFToolOptions& options)
         return ErrorInvalidArguments;
     }
 
-    if (!options.separatePagePattern.contains("%"))
+    if (pageIndices.size() > 1 && !options.separatePagePattern.contains('%'))
     {
         PDFConsole::writeError(PDFToolTranslationContext::tr("File template must contain character '%' for page number."), options.outputCodec);
         return ErrorInvalidArguments;
     }
 
-    for (pdf::PDFInteger pageIndex : pageIndices)
+    // The pattern is a path: its folder, its file name the template ('%' -> '@'); an extension
+    // ".pdf" of the pattern stays the extension of the files, another one is a part of the name
+    const QFileInfo patternInfo(options.separatePagePattern);
+    const QString folder = patternInfo.absolutePath();
+    QString pattern = patternInfo.fileName();
+    QString extension;
+    if (pattern.endsWith(QLatin1String(".pdf"), Qt::CaseInsensitive) && pattern.size() > 4)
     {
-        try
+        extension = pattern.right(4);
+        pattern.chop(4);
+    }
+    pattern.replace(QLatin1Char('%'), QLatin1Char('@'));
+
+    std::vector<pdf::PDFDocumentToolFileOutput::File> files;
+    files.reserve(pageIndices.size());
+    for (const pdf::PDFInteger pageIndex : pageIndices)
+    {
+        pdf::PDFDocumentToolFileOutput::File file;
+        file.pages = { pageIndex };
+        files.push_back(std::move(file));
+    }
+
+    QString nameError;
+    if (!pdf::PDFDocumentToolFileOutput::createFileNames(&files, pdf::PDFFileNameTemplate(pattern, extension), QFileInfo(options.document).fileName(), QDate::currentDate(), &nameError))
+    {
+        PDFConsole::writeError(nameError, options.outputCodec);
+        return ErrorInvalidArguments;
+    }
+
+    // An existing file is never overwritten (as before): it is reported and left out
+    pdf::PDFDocumentToolFolderSink sink(folder, pdf::PDFDocumentToolFileSink::ExistingFiles::Skip);
+    pdf::PDFDocumentToolInputDocument input = pdf::PDFDocumentToolInputDocument::create(pdf::PDFDocumentPointer(new pdf::PDFDocument(std::move(document))), sourceData, options.document, false);
+    input.isOwnerPasswordVerified = isOwnerPasswordVerified;
+    pdf::PDFDocumentToolContext context = pdf::PDFDocumentToolContext::create(std::move(input));
+    context.fileSink = &sink;
+
+    const pdf::PDFDocumentToolResult result = pdf::PDFDocumentToolFileOutput::writeFiles(context, files, std::nullopt, nullptr, nullptr);
+    for (size_t i = 0; i < files.size(); ++i)
+    {
+        if (sink.getNotWrittenFiles().contains(files[i].fileName))
         {
-            pdf::PDFDocumentBuilder documentBuilder(&document);
-            documentBuilder.flattenPageTree();
-            std::vector<pdf::PDFObjectReference> pageReferences = documentBuilder.getPages();
-            std::vector<pdf::PDFObjectReference> singlePageRef = { pageReferences[pageIndex] };
-            documentBuilder.setPages(singlePageRef);
-            documentBuilder.removeOutline();
-            documentBuilder.removeThreads();
-            documentBuilder.removeDocumentActions();
-            documentBuilder.removeStructureTree();
-
-            pdf::PDFDocument singlePageDocument = documentBuilder.build();
-
-            // Optimize document - remove unused objects and shrink object storage
-            pdf::PDFOptimizer optimizer(pdf::PDFOptimizer::RemoveUnusedObjects | pdf::PDFOptimizer::ShrinkObjectStorage, nullptr);
-            optimizer.setDocument(&singlePageDocument);
-            optimizer.optimize();
-            singlePageDocument = optimizer.takeOptimizedDocument();
-
-            QString fileName = options.separatePagePattern;
-            fileName.replace('%', QString::number(pageIndex + 1));
-
-            if (QFileInfo::exists(fileName))
-            {
-                PDFConsole::writeError(PDFToolTranslationContext::tr("File '%1' already exists. Page %2 was not extracted.").arg(fileName).arg(pageIndex + 1), options.outputCodec);
-            }
-            else
-            {
-                pdf::PDFDocumentWriter writer(nullptr);
-                pdf::PDFOperationResult result = writer.write(fileName, &singlePageDocument, false);
-                if (!result)
-                {
-                    PDFConsole::writeError(result.getErrorMessage(), options.outputCodec);
-                }
-            }
-        }
-        catch (const pdf::PDFException &exception)
-        {
-            PDFConsole::writeError(exception.getMessage(), options.outputCodec);
+            const QString filePath = QDir(folder).filePath(files[i].fileName);
+            const QString reason = QFileInfo::exists(filePath) ? PDFToolTranslationContext::tr("File '%1' already exists.").arg(filePath)
+                                                               : PDFToolTranslationContext::tr("File '%1' cannot be written.").arg(filePath);
+            PDFConsole::writeError(PDFToolTranslationContext::tr("%1 Page %2 was not extracted.").arg(reason).arg(files[i].pages.front() + 1), options.outputCodec);
         }
     }
 
-    return ExitSuccess;
+    if (result.status == pdf::PDFDocumentToolResultStatus::Failed)
+    {
+        PDFConsole::writeError(result.message, options.outputCodec);
+        return ErrorUnknown;
+    }
+
+    // B38: a page, which was not extracted, is an error of the command
+    return result.notWrittenFiles.isEmpty() ? ExitSuccess : ErrorFailedWriteToFile;
 }
 
 PDFToolAbstractApplication::Options PDFToolSeparate::getOptionsFlags() const

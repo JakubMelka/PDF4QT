@@ -23,6 +23,7 @@
 #include "pdfdocumenttool_pages.h"
 
 #include "pdfcatalog.h"
+#include "pdfdocmdppermissions.h"
 #include "pdfdocumentwriter.h"
 #include "pdfexception.h"
 #include "pdfform.h"
@@ -457,6 +458,14 @@ PDFDocumentToolResult PDFDocumentToolRotatePages::execute(const PDFDocumentToolC
 
     PDFDocument output = PDFDocumentPageOperations::rotatePages(document, effective);
 
+    // Q12, R10: no level of a certification allows to rotate pages - the result is a copy
+    PDFInteger certificationSignaturesRemoved = 0;
+    const bool isCertified = !PDFDocMDPPermissions::isPageChangeAllowed(document);
+    if (isCertified)
+    {
+        output = PDFDocMDPPermissions::removeCertification(output, &certificationSignaturesRemoved);
+    }
+
     const QString rotationText = turns.size() == 1 ? getTurnText(*turns.begin()) : tr("Mixed");
     PDFDocumentToolResult result;
     result.facts.push_back({ QStringLiteral("rotated"), tr("Rotated"), tr("%Ln pages · %1", nullptr, int(pages.size())).arg(PDFDocumentPageOperations::formatPageNumbers(pages)) });
@@ -465,6 +474,10 @@ PDFDocumentToolResult PDFDocumentToolRotatePages::execute(const PDFDocumentToolC
     result.data.insert(QStringLiteral("rotatedPages"), Helper::getPageNumbers(pages));
     result.data.insert(QStringLiteral("rotation"), turns.size() == 1 ? getTurnName(*turns.begin()) : QString::fromLatin1(Helper::ROTATION_MIXED));
     Helper::addDocument(&result, input, std::move(output), QStringLiteral("_rotated"));
+    if (isCertified)
+    {
+        PDFDocMDPPermissions::addCertificationRemoved(&result, certificationSignaturesRemoved);
+    }
     return result;
 }
 
@@ -606,6 +619,14 @@ PDFDocumentToolResult PDFDocumentToolRemovePages::execute(const PDFDocumentToolC
         }
     }
 
+    // Q12, R10: no level of a certification allows to remove pages - the result is a copy
+    PDFInteger certificationSignaturesRemoved = 0;
+    const bool isCertified = !PDFDocMDPPermissions::isPageChangeAllowed(document);
+    if (isCertified)
+    {
+        output = PDFDocMDPPermissions::removeCertification(output, &certificationSignaturesRemoved);
+    }
+
     const size_t pageCountBefore = document->getCatalog()->getPageCount();
     const size_t pageCount = output.getCatalog()->getPageCount();
 
@@ -635,6 +656,10 @@ PDFDocumentToolResult PDFDocumentToolRemovePages::execute(const PDFDocumentToolC
     result.data.insert(QStringLiteral("structureTreeRemoved"), statistics.structureTreeRemoved);
     result.data.insert(QStringLiteral("threadsRemoved"), statistics.threadsRemoved);
     Helper::addDocument(&result, input, std::move(output), QStringLiteral("_removed"));
+    if (isCertified)
+    {
+        PDFDocMDPPermissions::addCertificationRemoved(&result, certificationSignaturesRemoved);
+    }
     return result;
 }
 

@@ -25,6 +25,7 @@
 #include "pdfappdocumentpanels_common.h"
 #include "pdfappdocumenttoolbar.h"
 #include "pdfapppagelayout.h"
+#include "pdfapptoolgroupedpagemodel.h"
 #include "pdfapptoolmergemodel.h"
 
 #include "pdfaccenthue.h"
@@ -43,6 +44,7 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPushButton>
 #include <QScrollBar>
 #include <QStackedLayout>
 #include <QStyledItemDelegate>
@@ -289,10 +291,10 @@ void PDFAppToolMergePageView::setModel(QAbstractItemModel* itemModel)
         disconnect(m_mergeModel.data(), nullptr, this, nullptr);
     }
     BaseClass::setModel(itemModel);
-    m_mergeModel = qobject_cast<PDFAppToolMergePageModel*>(itemModel);
+    m_mergeModel = qobject_cast<PDFAppToolGroupedPageModel*>(itemModel);
     if (m_mergeModel)
     {
-        connect(m_mergeModel.data(), &PDFAppToolMergePageModel::groupsChanged, this, &PDFAppToolMergePageView::onGroupsChanged);
+        connect(m_mergeModel.data(), &PDFAppToolGroupedPageModel::groupsChanged, this, &PDFAppToolMergePageView::onGroupsChanged);
     }
     layoutGroups();
 }
@@ -312,9 +314,23 @@ void PDFAppToolMergePageView::onGroupsChanged()
 
 QSize PDFAppToolMergePageView::getTileSize() const
 {
+    return getTileSize(-1);
+}
+
+QSize PDFAppToolMergePageView::getTileSize(int group) const
+{
+    // The page tile of the slot of the delegate (scaled for the group) with its label and the
+    // line of the caption, when the tiles of the group have one
+    const PDFAppToolGroupedPageModel::Group* item = m_mergeModel && group >= 0 && size_t(group) < m_mergeModel->getGroups().size() ? &m_mergeModel->getGroups()[size_t(group)] : nullptr;
+    const QSize slot = m_delegate ? m_delegate->getSlotSize() : PDFAppToolMergeCanvas::SMALL_SLOT;
+    const double scale = item ? item->tileScale : 1.0;
     PDFComponentPainter::PageTile tile;
-    tile.slotSize = m_delegate ? m_delegate->getSlotSize() : PDFAppToolMergeCanvas::SMALL_SLOT;
+    tile.slotSize = scale > 0.0 && !qFuzzyCompare(scale, 1.0) ? QSize(int(std::lround(slot.width() * scale)), int(std::lround(slot.height() * scale))) : slot;
     tile.label = QStringLiteral("1");
+    if (item && item->hasTileCaptions)
+    {
+        tile.caption = QStringLiteral("1");
+    }
     return PDFComponentPainter::getPageTileSize(tile);
 }
 
@@ -323,8 +339,12 @@ int PDFAppToolMergePageView::getInnerWidth() const
     return qMax(1, viewport()->width() - 2 * CARD_PADDING_SIDE);
 }
 
-int PDFAppToolMergePageView::getColumns() const
+int PDFAppToolMergePageView::getColumns(int group) const
 {
+    if (group >= 0 && size_t(group) < m_layouts.size())
+    {
+        return m_layouts[size_t(group)].columns;
+    }
     const QSize tile = getTileSize();
     return qMax(1, (getInnerWidth() + TILE_GAP) / qMax(1, tile.width() + TILE_GAP));
 }
@@ -358,15 +378,26 @@ void PDFAppToolMergePageView::layoutGroups()
     if (m_mergeModel)
     {
         const std::vector<PDFAppToolMergePageModel::Group>& groups = m_mergeModel->getGroups();
-        const QSize tile = getTileSize();
-        const int columns = getColumns();
         m_layouts.reserve(groups.size());
         for (size_t i = 0; i < groups.size(); ++i)
         {
             const PDFAppToolMergePageModel::Group& group = groups[i];
             GroupLayout layout;
             layout.top = top;
-            layout.tilesTop = top + CARD_PADDING_TOP + (group.tag.isEmpty() ? HEADER_HEIGHT : HEADER_TAG_HEIGHT) + HEADER_GAP;
+            layout.tileSize = getTileSize(int(i));
+            if (group.isPlain)
+            {
+                // 388:16811: only the tiles on the stage
+                layout.inset = 0;
+                layout.tilesTop = top;
+            }
+            else
+            {
+                layout.inset = CARD_PADDING_SIDE;
+                layout.tilesTop = top + CARD_PADDING_TOP + (group.tag.isEmpty() ? HEADER_HEIGHT : HEADER_TAG_HEIGHT) + HEADER_GAP;
+            }
+            const int innerWidth = qMax(1, viewport()->width() - 2 * layout.inset);
+            layout.columns = qMax(1, (innerWidth + TILE_GAP) / qMax(1, layout.tileSize.width() + TILE_GAP));
             int body = 0;
             if (group.callout != PDFAppToolMergePageModel::GroupCallout::None)
             {
@@ -375,17 +406,173 @@ void PDFAppToolMergePageView::layoutGroups()
             }
             else
             {
-                const int lines = (group.rowCount + columns - 1) / columns;
-                body = lines > 0 ? lines * tile.height() + (lines - 1) * TILE_GAP : 0;
+                const int lines = (group.rowCount + layout.columns - 1) / layout.columns;
+                body = lines > 0 ? lines * layout.tileSize.height() + (lines - 1) * TILE_GAP : 0;
             }
-            layout.height = layout.tilesTop - top + body + CARD_PADDING_BOTTOM;
+            if (!group.actions.empty())
+            {
+                // 388:17789: the buttons 8 below the callout
+                layout.actionsTop = layout.tilesTop + body + (body > 0 ? ACTION_GAP : 0);
+                body = layout.actionsTop - layout.tilesTop + ACTION_HEIGHT;
+            }
+            layout.height = layout.tilesTop - top + body + (group.isPlain ? 0 : CARD_PADDING_BOTTOM);
             m_layouts.push_back(layout);
             top += layout.height + GROUP_GAP;
         }
     }
     m_contentHeight = m_layouts.empty() ? 0 : top - GROUP_GAP;
     updateGeometries();
+    updateActionButtons();
     viewport()->update();
+
+    // The height is said from the event loop, never inside of the layout of a parent
+    if (m_contentHeight != m_emittedContentHeight && !m_isContentHeightQueued)
+    {
+        m_isContentHeightQueued = true;
+        QMetaObject::invokeMethod(this, &PDFAppToolMergePageView::emitContentHeight, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppToolMergePageView::emitContentHeight()
+{
+    m_isContentHeightQueued = false;
+    if (m_contentHeight != m_emittedContentHeight)
+    {
+        m_emittedContentHeight = m_contentHeight;
+        Q_EMIT contentHeightChanged(m_contentHeight);
+    }
+}
+
+void PDFAppToolMergePageView::setActionsEnabled(bool isEnabled)
+{
+    m_areActionsEnabled = isEnabled;
+    for (const ActionButton& action : m_actionButtons)
+    {
+        if (action.button)
+        {
+            action.button->setEnabled(isEnabled);
+        }
+    }
+}
+
+QPushButton* PDFAppToolMergePageView::getActionButton(const QString& inputId, const QString& actionId) const
+{
+    for (const ActionButton& action : m_actionButtons)
+    {
+        if (action.inputId == inputId && action.actionId == actionId)
+        {
+            return action.button.data();
+        }
+    }
+    return nullptr;
+}
+
+void PDFAppToolMergePageView::updateActionButtons()
+{
+    // The buttons of the groups (388:17789): a button of the same input, action and text stays,
+    // the others are made again; an old one may be the sender of the click, which has changed the
+    // groups - it is hidden and deleted later
+    std::vector<ActionButton> oldButtons = std::move(m_actionButtons);
+    m_actionButtons.clear();
+    if (m_mergeModel)
+    {
+        const std::vector<PDFAppToolGroupedPageModel::Group>& groups = m_mergeModel->getGroups();
+        for (size_t i = 0; i < groups.size(); ++i)
+        {
+            for (const PDFAppToolGroupedPageModel::Action& action : groups[i].actions)
+            {
+                ActionButton item;
+                item.inputId = groups[i].inputId;
+                item.actionId = action.id;
+                item.group = int(i);
+                for (ActionButton& old : oldButtons)
+                {
+                    if (old.button && old.inputId == item.inputId && old.actionId == item.actionId && old.button->text() == action.text)
+                    {
+                        item.button = old.button;
+                        old.button = nullptr;
+                        break;
+                    }
+                }
+                if (!item.button)
+                {
+                    item.button = PDFAppPageWidgets::createButton(action.text, action.iconName, false, viewport());
+                    item.button->setObjectName(QStringLiteral("groupAction-") + action.id);
+                    item.button->setProperty("pdf4qtGroupInput", item.inputId);
+                    item.button->setProperty("pdf4qtGroupAction", item.actionId);
+                    connect(item.button.data(), &QPushButton::clicked, this, &PDFAppToolMergePageView::onActionButtonClicked);
+                }
+                item.button->setEnabled(m_areActionsEnabled);
+                m_actionButtons.push_back(std::move(item));
+            }
+        }
+    }
+    for (ActionButton& old : oldButtons)
+    {
+        if (old.button)
+        {
+            old.button->hide();
+            old.button->deleteLater();
+        }
+    }
+    positionActionButtons();
+}
+
+void PDFAppToolMergePageView::positionActionButtons()
+{
+    // In the order of the actions from the leading edge of the card, 8 apart; the flow is mirrored
+    // for right-to-left
+    int x = 0;
+    int lastGroup = -1;
+    for (const ActionButton& action : m_actionButtons)
+    {
+        if (!action.button || action.group < 0 || size_t(action.group) >= m_layouts.size())
+        {
+            continue;
+        }
+        const GroupLayout& layout = m_layouts[size_t(action.group)];
+        if (action.group != lastGroup)
+        {
+            lastGroup = action.group;
+            x = layout.inset;
+        }
+        const QSize hint = action.button->sizeHint();
+        const QRect rect(x, layout.actionsTop, hint.width(), ACTION_HEIGHT);
+        action.button->setGeometry(toViewport(rect));
+        action.button->show();
+        x += hint.width() + ACTION_GAP;
+    }
+}
+
+void PDFAppToolMergePageView::onActionButtonClicked()
+{
+    const QObject* button = sender();
+    if (!button)
+    {
+        return;
+    }
+
+    // The slot may change the groups (and delete the button): from the event loop
+    m_queuedActionInput = button->property("pdf4qtGroupInput").toString();
+    m_queuedAction = button->property("pdf4qtGroupAction").toString();
+    if (!m_isActionQueued)
+    {
+        m_isActionQueued = true;
+        QMetaObject::invokeMethod(this, &PDFAppToolMergePageView::emitQueuedAction, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppToolMergePageView::emitQueuedAction()
+{
+    m_isActionQueued = false;
+    const QString inputId = m_queuedActionInput;
+    const QString actionId = m_queuedAction;
+    m_queuedActionInput.clear();
+    m_queuedAction.clear();
+    if (!actionId.isEmpty() && m_areActionsEnabled)
+    {
+        Q_EMIT actionTriggered(inputId, actionId);
+    }
 }
 
 void PDFAppToolMergePageView::updateGeometries()
@@ -409,12 +596,13 @@ QRect PDFAppToolMergePageView::getTileRect(int row) const
     }
 
     const PDFAppToolMergePageModel::Group& item = m_mergeModel->getGroups()[size_t(group)];
-    const QSize tile = getTileSize();
-    const int columns = getColumns();
+    const GroupLayout& layout = m_layouts[size_t(group)];
+    const QSize tile = layout.tileSize;
+    const int columns = layout.columns;
     const int index = row - item.firstRow;
     const int line = index / columns;
     const int column = index % columns;
-    return QRect(CARD_PADDING_SIDE + column * (tile.width() + TILE_GAP), m_layouts[size_t(group)].tilesTop + line * (tile.height() + TILE_GAP), tile.width(), tile.height());
+    return QRect(layout.inset + column * (tile.width() + TILE_GAP), layout.tilesTop + line * (tile.height() + TILE_GAP), tile.width(), tile.height());
 }
 
 QRect PDFAppToolMergePageView::toViewport(const QRect& contentRect) const
@@ -460,9 +648,10 @@ int PDFAppToolMergePageView::findRowAt(const QPoint& contentPoint) const
     }
 
     const PDFAppToolMergePageModel::Group& item = m_mergeModel->getGroups()[size_t(group)];
-    const QSize tile = getTileSize();
-    const int x = contentPoint.x() - CARD_PADDING_SIDE;
-    const int y = contentPoint.y() - m_layouts[size_t(group)].tilesTop;
+    const GroupLayout& layout = m_layouts[size_t(group)];
+    const QSize tile = layout.tileSize;
+    const int x = contentPoint.x() - layout.inset;
+    const int y = contentPoint.y() - layout.tilesTop;
     if (item.rowCount <= 0 || x < 0 || y < 0)
     {
         return -1;
@@ -470,12 +659,12 @@ int PDFAppToolMergePageView::findRowAt(const QPoint& contentPoint) const
 
     const int column = x / (tile.width() + TILE_GAP);
     const int line = y / (tile.height() + TILE_GAP);
-    if (column >= getColumns() || x % (tile.width() + TILE_GAP) >= tile.width() || y % (tile.height() + TILE_GAP) >= tile.height())
+    if (column >= layout.columns || x % (tile.width() + TILE_GAP) >= tile.width() || y % (tile.height() + TILE_GAP) >= tile.height())
     {
         return -1;
     }
 
-    const int index = line * getColumns() + column;
+    const int index = line * layout.columns + column;
     return index < item.rowCount ? item.firstRow + index : -1;
 }
 
@@ -938,11 +1127,12 @@ int PDFAppToolMergePageView::getDropRow(const QPoint& position) const
         return item.firstRow;
     }
 
-    const QSize tile = getTileSize();
-    const int columns = getColumns();
+    const GroupLayout& layout = m_layouts[size_t(group)];
+    const QSize tile = layout.tileSize;
+    const int columns = layout.columns;
     const int lines = (item.rowCount + columns - 1) / columns;
-    const int line = qBound(0, (content.y() - m_layouts[size_t(group)].tilesTop) / (tile.height() + TILE_GAP), lines - 1);
-    const int column = qBound(0, (content.x() - CARD_PADDING_SIDE + TILE_GAP / 2) / (tile.width() + TILE_GAP), columns);
+    const int line = qBound(0, (content.y() - layout.tilesTop) / (tile.height() + TILE_GAP), lines - 1);
+    const int column = qBound(0, (content.x() - layout.inset + TILE_GAP / 2) / (tile.width() + TILE_GAP), columns);
     const int lineFirst = line * columns;
     const int lineLast = qMin(item.rowCount, lineFirst + columns);
     const int index = qBound(lineFirst, lineFirst + column, lineLast);
@@ -1076,6 +1266,7 @@ void PDFAppToolMergePageView::scrollContentsBy(int dx, int dy)
 {
     Q_UNUSED(dx);
     Q_UNUSED(dy);
+    positionActionButtons();
     viewport()->update();
 }
 
@@ -1123,18 +1314,35 @@ void PDFAppToolMergePageView::paintGroup(QPainter* painter, int group, const QRe
         state.flags = QStyle::State_None;
     }
 
+    // A plain group has only its tiles on the stage (388:16811)
+    if (item.isPlain)
+    {
+        paintTiles(painter, group, paintRect);
+        return;
+    }
+
     // The card (bg/surface, border/default, radius 10)
     const QRectF card = QRectF(toViewport(QRect(0, layout.top, viewport()->width(), layout.height)));
     PDFStylePainter::fill(painter, card, PDFStylePainter::Radii(CARD_RADIUS), Color::BgSurface);
     PDFStylePainter::strokeInside(painter, card, PDFStylePainter::Radii(CARD_RADIUS), Color::BorderDefault);
 
-    // The header: the dot, the title, the run, the Tag (378:1243) on one line
+    // The header: the dot (or the icon of the source, 388:17789), the title, the run, the Tag
+    // (378:1243) on one line
     const int headerHeight = item.tag.isEmpty() ? HEADER_HEIGHT : HEADER_TAG_HEIGHT;
     const int headerTop = layout.top + CARD_PADDING_TOP;
     int x = CARD_PADDING_SIDE;
-    const QRect dotRect(x, headerTop + (headerHeight - DOT) / 2, DOT, DOT);
-    PDFStylePainter::fillEllipse(painter, QRectF(toViewport(dotRect)), PDFStylePainter::color(PDFAccentHueColors::getColor(item.hue, PDFAccentHueColors::Role::Icon)));
-    x += DOT + DOT_GAP;
+    if (!item.iconName.isEmpty())
+    {
+        const QRect iconRect(x, headerTop + (headerHeight - HEADER_ICON) / 2, HEADER_ICON, HEADER_ICON);
+        PDFStylePainter::icon(painter, QRectF(toViewport(iconRect)), item.iconName, isEnabled() ? Color::TextSecondary : Color::TextDisabled);
+        x += HEADER_ICON + DOT_GAP;
+    }
+    else
+    {
+        const QRect dotRect(x, headerTop + (headerHeight - DOT) / 2, DOT, DOT);
+        PDFStylePainter::fillEllipse(painter, QRectF(toViewport(dotRect)), PDFStylePainter::color(PDFAccentHueColors::getColor(item.hue, PDFAccentHueColors::Role::Icon)));
+        x += DOT + DOT_GAP;
+    }
 
     const int available = viewport()->width() - CARD_PADDING_SIDE - x;
     const QFont titleFont = Helper::getTitleFont();
@@ -1193,14 +1401,21 @@ void PDFAppToolMergePageView::paintGroup(QPainter* painter, int group, const QRe
         return;
     }
 
+    paintTiles(painter, group, paintRect);
+}
+
+void PDFAppToolMergePageView::paintTiles(QPainter* painter, int group, const QRect& paintRect)
+{
     // The tiles of the group, which lie in the painted rectangle
+    const PDFAppToolMergePageModel::Group& item = m_mergeModel->getGroups()[size_t(group)];
+    const GroupLayout& layout = m_layouts[size_t(group)];
     if (!m_delegate || item.rowCount <= 0)
     {
         return;
     }
 
-    const QSize tile = getTileSize();
-    const int columns = getColumns();
+    const QSize tile = layout.tileSize;
+    const int columns = layout.columns;
     const int lineHeight = tile.height() + TILE_GAP;
     const int paintTop = verticalOffset() + paintRect.top();
     const int paintBottom = verticalOffset() + paintRect.bottom();
@@ -1543,7 +1758,10 @@ PDFAppToolMergeCanvas::PDFAppToolMergeCanvas(QWidget* parent) :
     m_stack->setContentsMargins(0, 0, 0, 0);
 
     m_model = new PDFAppToolMergePageModel(this);
-    m_delegate = new PDFPageTileDelegate(this);
+    // The tiles with their marks (the dots and the captions of the sources, K45) on the cards
+    PDFAppToolPageTileDelegate* delegate = new PDFAppToolPageTileDelegate(this);
+    delegate->setBackgroundColor(PDFThemeColors::BgSurface);
+    m_delegate = delegate;
     m_pageView = new PDFAppToolMergePageView(m_pages);
     m_pageView->setModel(m_model);
     m_pageView->setTileDelegate(m_delegate);

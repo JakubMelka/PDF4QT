@@ -1148,8 +1148,8 @@ void AppToolCompressTest::confirmMeasuredOpensDialog()
     QVERIFY(!gui->getBeforeAfterOverlay()->isVisible());
     pdf::PDFAppToolToolbar* toolbar = shell->getToolbar();
     QVERIFY(toolbar->getTutorialButton()->isVisible());
-    QVERIFY(!toolbar->getCancelButton()->isVisible());
-    QVERIFY(!toolbar->getConfirmButton()->isVisible());
+    QVERIFY(toolbar->getCancelButton()->isVisible() && toolbar->getCancelButton()->isEnabled());
+    QVERIFY(toolbar->getConfirmButton()->isVisible() && !toolbar->getConfirmButton()->isEnabled());
     QCOMPARE(dialog->getSelectedChoice(), Choice::Copy);
     QVERIFY(dialog->getOption(Choice::Keep));
     QVERIFY(dialog->getOption(Choice::Overwrite));
@@ -3400,7 +3400,7 @@ void AppToolCompressTest::noGuiStaysNotFound()
 {
     // Chapter 8: a tool without its GUI stays Page Not Found; Compress with its GUI has its page
     AppToolShellFixture fixture(QSize(1440, 960));
-    fixture.navigate(QStringLiteral("/tools/pages.split"));
+    fixture.navigate(QStringLiteral("/tools/edit.page-numbers"));
     QVERIFY(fixture.notFoundPage());
     fixture.navigate(QStringLiteral("/tools/optimize.compress"));
     QVERIFY(fixture.page<PDFToolStartPage>());

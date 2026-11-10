@@ -31,6 +31,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QString>
+#include <QStringList>
 #include <QVariantMap>
 
 #include <map>
@@ -62,6 +63,20 @@ public:
     int cardIndex = 0;                      ///< Index of the card in the layout
     QBoxLayout* calloutLayout = nullptr;    ///< Layout of the callout, nullptr = below the card
     int calloutIndex = 0;                   ///< Index of the callout in the layout
+};
+
+/// What the list of the inputs of a tool accepts (plan of step 3 of phase 2, 9.3, K41): Merge 2
+/// to 1000 PDF files and images, Interleave exactly 2 PDF files in the slots Front sides and Back
+/// sides, Images to PDF 1 to 1000 images, Insert Pages its sources in the tab of the document.
+/// A value; PDFAppToolInputList, the chooser and the Primary button read it (package D).
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolInputRules
+{
+public:
+    int minimum = 2;                ///< Fewest usable inputs, which the tool runs with
+    int maximum = 1000;             ///< Most inputs
+    bool acceptsPdf = true;         ///< A PDF file or an open document is an input
+    bool acceptsImages = true;      ///< An image file or the clipboard is an input
+    QStringList slotTitles;         ///< Titles of the fixed places of the inputs ("Front sides", "Back sides"); empty = a free list
 };
 
 /// A text of the section of the start page of a tool without an input, which opens the tool
@@ -231,6 +246,19 @@ public:
     /// The list of the inputs of a tool of more inputs in its own tab (owned by the tab,
     /// PDFAppToolInputList of package B2), nullptr = none (a tool in a document tab)
     PDFAppToolInputList* getInputList() const;
+
+    /// What the list of the inputs accepts (plan of step 3 of phase 2, K41): the minimum and the
+    /// maximum by PDFDocumentToolCatalogEntry::getInputCountRange of the tool, when it takes more
+    /// inputs (else, and without a shell, 2 to 1000 as today), PDF files and images, no slots.
+    /// Interleave and Images to PDF override it.
+    virtual PDFAppToolInputRules getInputRules() const;
+
+    /// The new document of the result replaces the own tab of the tool by the choice "Open in
+    /// this tab" of the result dialog (Images to PDF 336:3572, Q13 / R16; Blank PDF replaces it
+    /// without the dialog, isResultDialogSkipped). The dialog offers Open in this tab instead
+    /// of Open in a new tab (the branch is package A's, the replacement package D's). Default:
+    /// false.
+    virtual bool isResultInThisTab() const;
 
     // ------------------------------------------------------------- flow
 

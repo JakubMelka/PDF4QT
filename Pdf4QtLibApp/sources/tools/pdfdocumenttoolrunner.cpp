@@ -23,11 +23,13 @@
 #include "pdfdocumenttoolrunner.h"
 
 #include "pdfapplocale.h"
+#include "pdfapptoolresultwriter.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfexecutionpolicy.h"
 #include "pdfoperationcontrol.h"
 #include "pdfthreadannotations.h"
 
+#include <QJsonArray>
 #include <QMutex>
 #include <QMutexLocker>
 #include <QThreadPool>
@@ -102,7 +104,32 @@ public:
         return m_isCanceled.load(std::memory_order_relaxed);
     }
 
-    void cancel() { m_isCanceled.store(true, std::memory_order_relaxed); }
+    void cancel()
+    {
+        m_isCanceled.store(true, std::memory_order_relaxed);
+
+        // A question of a file ends at once (the close of the tab = Stop Export, R3)
+        if (m_fileSink)
+        {
+            m_fileSink->stop();
+        }
+    }
+
+    /// The file sink of a run of a tool of more files (R3, R14): the job owns it for its whole
+    /// run - the job outlives the runner, the thread of the run never reaches a freed sink. Set
+    /// before the job starts.
+    void setFileSink(std::unique_ptr<PDFAppToolFileSink> fileSink)
+    {
+        m_fileSink = std::move(fileSink);
+        m_context.fileSink = m_fileSink.get();
+        if (m_fileSink)
+        {
+            m_fileSink->setOperationControl(this);
+        }
+    }
+
+    /// The sink of the run, nullptr = none (its question and answer are thread-safe)
+    PDFAppToolFileSink* getFileSink() const { return m_fileSink.get(); }
 
     /// The computation (a thread of the pool)
     void execute()
@@ -110,6 +137,11 @@ public:
         // The tool converts its exceptions to a failed result
         m_result = m_isPreview ? m_tool->runPreview(m_context, m_parameters, this, &m_progress)
                                : m_tool->run(m_context, m_parameters, this, &m_progress);
+        if (m_fileSink && !m_fileSink->getOverwrittenFiles().isEmpty())
+        {
+            // K46: Delete Written Files never deletes a file, which existed before
+            m_result.data.insert(QStringLiteral("overwrittenFiles"), QJsonArray::fromStringList(m_fileSink->getOverwrittenFiles()));
+        }
         m_link->postFinished(shared_from_this());
     }
 
@@ -130,6 +162,7 @@ private:
     std::atomic<bool> m_isCanceled = false;
     PDFProgressCounter m_progress;
     PDFDocumentToolResult m_result;
+    std::unique_ptr<PDFAppToolFileSink> m_fileSink;
 };
 
 /// The function of a thread of the pool
@@ -296,6 +329,11 @@ void PDFDocumentToolRunner::setInputGeneration(quint64 generation)
 std::shared_ptr<PDFDocumentToolRunnerJob> PDFDocumentToolRunner::startJob(const PDFAppDocumentSnapshot& snapshot, const QVariantMap& parameters, bool isPreview)
 {
     std::shared_ptr<PDFDocumentToolRunnerJob> job = std::make_shared<PDFDocumentToolRunnerJob>(m_link, m_tool, createContext(snapshot, m_environment), snapshot, parameters, isPreview);
+    if (!isPreview)
+    {
+        // A tool of more files writes them by the sink of its run (a preview writes nothing)
+        job->setFileSink(PDFAppToolFileSink::create(m_tool.get(), parameters, snapshot.filePath, m_environment.protectedFilePaths, m_environment.isNetworkFolderRefused));
+    }
     PDFExecutionPolicy::startTask(QThreadPool::globalInstance(), PDFDocumentToolRunnerTask(job));
 
     // The first read of the progress at once (from the event loop), then by the interval
@@ -394,6 +432,10 @@ bool PDFDocumentToolRunner::startRun()
         m_progress = 0;
         m_stepText.clear();
     }
+
+    // The question told for an earlier run belongs to it: the same question of this run (the
+    // same file after Stop Export) is told again (review RS3APP)
+    m_fileQuestion.reset();
 
     PDFDocumentToolResult cachedResult;
     if (cached)
@@ -593,7 +635,7 @@ PDFDocumentToolRunner::CommitStatus PDFDocumentToolRunner::commitResult(const PD
 
     const PDFModifiedDocument modified(outputDocument, document->getOptionalContentActivity(), flags);
     const PDFDocumentToolCatalogEntry* entry = m_tool->getInfo();
-    const bool isWholeFileRewrite = entry && entry->getSignatureImpact() == PDFDocumentToolSignatureImpact::LostCopyOnly;
+    const bool isWholeFileRewrite = PDFAppToolResultWriter::isRewrittenWhole(entry, &result);
     if (!document->commitToolResult(modified, description, version, PDFAppChangeSource::Tool, isWholeFileRewrite))
     {
         return guard ? Helper::refuse(errorMessage, tr("The document is busy with another operation. Run the tool again when it ends.")) : CommitStatus::Refused;
@@ -741,7 +783,34 @@ void PDFDocumentToolRunner::onProgressTimeout()
     {
         m_progressTimer.setInterval(PROGRESS_INTERVAL);
     }
-    readProgress(job);
+
+    // The question of a file is polled with the progress (R3: no direct connection from the run)
+    QPointer<PDFDocumentToolRunner> guard(this);
+    if (!readProgress(job) || !guard)
+    {
+        return;
+    }
+
+    const std::optional<PDFAppToolFileSink::Question> question = getFileQuestion();
+    if (question != m_fileQuestion)
+    {
+        m_fileQuestion = question;
+        Q_EMIT fileQuestionChanged();
+    }
+}
+
+std::optional<PDFAppToolFileSink::Question> PDFDocumentToolRunner::getFileQuestion() const
+{
+    const PDFAppToolFileSink* sink = m_runJob ? m_runJob->getFileSink() : nullptr;
+    return sink ? sink->getQuestion() : std::nullopt;
+}
+
+void PDFDocumentToolRunner::answerFileQuestion(PDFAppToolFileSink::Answer answer, bool isForAll)
+{
+    if (PDFAppToolFileSink* sink = m_runJob ? m_runJob->getFileSink() : nullptr)
+    {
+        sink->answer(answer, isForAll);
+    }
 }
 
 bool PDFDocumentToolRunner::readProgress(const std::shared_ptr<PDFDocumentToolRunnerJob>& job)

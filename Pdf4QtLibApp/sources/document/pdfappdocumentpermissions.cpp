@@ -118,12 +118,20 @@ public:
         }
     }
 
-    /// The tool of the request makes a new document of its input documents (Merge): the
-    /// result is not encrypted, so it keeps no restriction of an input
+    /// The tool of the request makes new documents of its input documents (Merge, Extract Pages,
+    /// Interleave Pages, Split - plan of step 3 of phase 2, Q4, R1 e): the results are not
+    /// encrypted, so they keep no restriction of an input
     static bool isNewDocumentOfInputs(const PDFAppPermissionRequest& request)
     {
         const PDFDocumentToolCatalogEntry* entry = request.action == PDFAppPermissionAction::Tool ? PDFDocumentToolCatalog::findTool(request.toolId) : nullptr;
-        return entry && entry->getResultKind() == PDFDocumentToolResultKind::NewDocument && entry->getInputKind() != PDFDocumentToolInputKind::None;
+        return entry && entry->isNewDocumentOfInputs();
+    }
+
+    /// The new documents of the tool are more files (Split): the texts name them in plural
+    static bool isFilesOfInputs(const PDFAppPermissionRequest& request)
+    {
+        const PDFDocumentToolCatalogEntry* entry = request.action == PDFAppPermissionAction::Tool ? PDFDocumentToolCatalog::findTool(request.toolId) : nullptr;
+        return entry && entry->getResultKind() == PDFDocumentToolResultKind::Files && isNewDocumentOfInputs(request);
     }
 
     /// English list of names ("printing and copying text and images")
@@ -352,6 +360,11 @@ QString PDFAppDocumentPermissions::getDialogText(const PDFDocument* document, co
     if (request.action == PDFAppPermissionAction::Tool)
     {
         const PDFDocumentToolCatalogEntry* entry = PDFDocumentToolCatalog::findTool(request.toolId);
+        if (entry && PDFAppDocumentPermissionsHelper::isFilesOfInputs(request))
+        {
+            return tr("The author of this document does not allow %1. The new files of %2 are not encrypted and would not keep this restriction. If you own the document, enter its owner password to allow it until the document is closed.")
+                    .arg(joinNames(missing), entry->getTitle());
+        }
         if (entry && PDFAppDocumentPermissionsHelper::isNewDocumentOfInputs(request))
         {
             return tr("The author of this document does not allow %1. The new document of %2 is not encrypted and would not keep this restriction. If you own the document, enter its owner password to allow it until the document is closed.")
@@ -385,6 +398,12 @@ QString PDFAppDocumentPermissions::getRefusalText(const PDFDocument* document, c
         return tr("The document does not allow %1. Its permissions come from the certificate, with which it was opened; no password can change them.").arg(names);
     }
     const PDFDocumentToolCatalogEntry* entry = PDFDocumentToolCatalog::findTool(request.toolId);
+    if (entry && PDFAppDocumentPermissionsHelper::isFilesOfInputs(request))
+    {
+        // Split writes several files (plan of step 3 of phase 2, Q4)
+        return canUnlock(document) ? tr("The document does not allow %1. The new files of %2 are not encrypted and would not keep this restriction. If you own it, unlock it with its owner password.").arg(names, entry->getTitle())
+                                   : tr("The document does not allow %1. The new files of %2 are not encrypted and would not keep this restriction.").arg(names, entry->getTitle());
+    }
     if (entry && PDFAppDocumentPermissionsHelper::isNewDocumentOfInputs(request))
     {
         return canUnlock(document) ? tr("The document does not allow %1. The new document of %2 is not encrypted and would not keep this restriction. If you own it, unlock it with its owner password.").arg(names, entry->getTitle())
@@ -406,8 +425,10 @@ QString PDFAppDocumentPermissions::getMcpRefusalText(const PDFDocument* document
         return QStringLiteral("The document does not allow %1 (its security settings, ISO 32000-2 Table 22). Its permissions come from the certificate, with which it was opened (public-key security); no password can lift them.").arg(names);
     }
     const PDFDocumentToolCatalogEntry* entry = PDFDocumentToolCatalog::findTool(request.toolId);
-    const QString newDocumentText = entry && PDFAppDocumentPermissionsHelper::isNewDocumentOfInputs(request)
-                                  ? QStringLiteral(" The new document of %1 is not encrypted and would not keep this restriction.").arg(entry->getSourceTitle()) : QString();
+    const QString newDocumentText = entry && PDFAppDocumentPermissionsHelper::isFilesOfInputs(request)
+                                  ? QStringLiteral(" The new files of %1 are not encrypted and would not keep this restriction.").arg(entry->getSourceTitle())
+                                  : (entry && PDFAppDocumentPermissionsHelper::isNewDocumentOfInputs(request)
+                                     ? QStringLiteral(" The new document of %1 is not encrypted and would not keep this restriction.").arg(entry->getSourceTitle()) : QString());
     return QStringLiteral("The document does not allow %1 (its security settings, ISO 32000-2 Table 22).%2 The user can unlock it in PDF4QT with the owner password of the document; it stays unlocked until its tab is closed. Never ask the user for the password - it is typed only in PDF4QT. Tell the user and try again after the user has unlocked the document.").arg(names, newDocumentText);
 }
 

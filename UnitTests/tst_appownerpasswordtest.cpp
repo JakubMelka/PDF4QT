@@ -1031,6 +1031,17 @@ void AppOwnerPasswordTest::mergeRefusalTexts()
     QVERIFY2(refusal.startsWith(QStringLiteral("The document does not allow printing")), qPrintable(refusal));
     QVERIFY2(refusal.endsWith(QStringLiteral("The new document of Merge is not encrypted and would not keep this restriction. If you own it, unlock it with its owner password.")), qPrintable(refusal));
 
+    // Split writes several new files of the pages (plan of step 3, Q4): the same rule, its texts
+    // name the files in plural - the GUI, the dialog of the owner password and an assistant
+    const PDFAppPermissionRequest splitRequest = PDFAppPermissionRequest::createTool(QStringLiteral("pages.split"));
+    QVERIFY(!PDFAppDocumentPermissions::isAllowed(restrictedDocument, splitRequest));
+    const QString splitRefusal = PDFAppDocumentPermissions::getRefusalText(restrictedDocument, splitRequest);
+    QVERIFY2(splitRefusal.endsWith(QStringLiteral("The new files of Split are not encrypted and would not keep this restriction. If you own it, unlock it with its owner password.")), qPrintable(splitRefusal));
+    const QString splitDialog = PDFAppDocumentPermissions::getDialogText(restrictedDocument, splitRequest);
+    QVERIFY2(splitDialog.contains(QStringLiteral("The new files of Split are not encrypted and would not keep this restriction.")), qPrintable(splitDialog));
+    const QString splitMcp = PDFAppDocumentPermissions::getMcpRefusalText(restrictedDocument, splitRequest);
+    QVERIFY2(splitMcp.contains(QStringLiteral("(its security settings, ISO 32000-2 Table 22). The new files of Split are not encrypted and would not keep this restriction.")), qPrintable(splitMcp));
+
     // MCP: refused before a run, with the unlock by the user and never the password
     QJsonObject merge;
     merge.insert(QStringLiteral("action"), QStringLiteral("merge"));

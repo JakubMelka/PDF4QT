@@ -270,6 +270,7 @@ private Q_SLOTS:
     void catalogExtendedData();
     void catalogResultColumns();
     void catalogPermissions();
+    void catalogResultKindsAndInputs();
     void catalogPermissionsOwnerPassword();
     void catalogStartTexts();
     void catalogHelpTopics();
@@ -420,18 +421,30 @@ void DocumentToolTest::catalogPermissions()
     using Permissions = std::vector<Permission>;
 
     // ISO 32000-2, 7.6.4.2, Table 22, every bit of the list is needed (owner 2026-11-06); a tool
-    // of the catalog outside of the first batch asks for nothing until it is implemented.
-    // Bit 11 "Assemble the document (insert, rotate, or delete pages ...)": Rotate, Remove; bit 4
-    // "Modify the contents ... other than those controlled by bits 6, 9, and 11": the tools,
-    // which rewrite the document; bit 6 "Add or modify text annotations ...": the links; bit 5
-    // "Copy or otherwise extract text and graphics": Extract Text. Merge inserts the pages of a
-    // document into another one (bit 11; its validation needs also the owner password of a
-    // document with another restriction, step 2 of phase 2, Q2). Blank PDF has no input.
+    // of the catalog outside of the first batch and of steps 2 and 3 asks for nothing until it is
+    // implemented. Bit 11 "Assemble the document (insert, rotate, or delete pages ...)": Rotate,
+    // Remove; bit 4 "Modify the contents ... other than those controlled by bits 6, 9, and 11":
+    // the tools, which rewrite the document; bit 6 "Add or modify text annotations ...": the
+    // links; bit 5 "Copy or otherwise extract text and graphics": Extract Text. Merge inserts the
+    // pages of a document into another one (bit 11; its validation needs also the owner password
+    // of a document with another restriction, step 2 of phase 2, Q2). Blank PDF has no input.
+    // Step 3 (plan Q4 with R4): Split, Extract Pages and Interleave Pages assemble new documents
+    // of the pages (bit 11 and the rule of Merge), Insert Pages and Add Image as Page insert
+    // pages (bit 11); Crop Pages, Resize Pages and Set Page Boxes change the boxes and the content
+    // of the pages, which bit 11 does not name (bit 4); Images to PDF has no input document.
     const std::map<QString, Permissions> expected =
     {
         { QStringLiteral("pages.rotate"), Permissions({ Permission::Assemble }) },
         { QStringLiteral("pages.remove"), Permissions({ Permission::Assemble }) },
         { QStringLiteral("pages.merge"), Permissions({ Permission::Assemble }) },
+        { QStringLiteral("pages.split"), Permissions({ Permission::Assemble }) },
+        { QStringLiteral("pages.extract"), Permissions({ Permission::Assemble }) },
+        { QStringLiteral("pages.interleave"), Permissions({ Permission::Assemble }) },
+        { QStringLiteral("pages.insert"), Permissions({ Permission::Assemble }) },
+        { QStringLiteral("pages.add-image"), Permissions({ Permission::Assemble }) },
+        { QStringLiteral("pages.crop"), Permissions({ Permission::Modify }) },
+        { QStringLiteral("pages.resize"), Permissions({ Permission::Modify }) },
+        { QStringLiteral("pages.boxes"), Permissions({ Permission::Modify }) },
         { QStringLiteral("optimize.compress"), Permissions({ Permission::Modify }) },
         { QStringLiteral("optimize.structure"), Permissions({ Permission::Modify }) },
         { QStringLiteral("protect.sanitize"), Permissions({ Permission::Modify }) },
@@ -509,6 +522,57 @@ void DocumentToolTest::catalogPermissions()
     context = pdf::PDFDocumentToolContext::create(pdf::PDFDocumentToolInputDocument::create(pdf::PDFDocumentPointer(new pdf::PDFDocument(modifyOnly)), QByteArray(), QString(), false));
     QCOMPARE(tool.run(context, QVariantMap(), nullptr, nullptr).status, pdf::PDFDocumentToolResultStatus::Success);
     QCOMPARE(tool.m_executeCount, 1);
+}
+
+void DocumentToolTest::catalogResultKindsAndInputs()
+{
+    using Kind = pdf::PDFDocumentToolResultKind;
+    using Kinds = std::vector<Kind>;
+    using Range = pdf::PDFDocumentToolInputCountRange;
+    const auto tool = [](const char* id) { return pdf::PDFDocumentToolCatalog::findTool(QString::fromLatin1(id)); };
+
+    // Plan of step 3 of phase 2, 4.2: Extract Pages makes one new document (one-file) or a file
+    // per page (one-file-per-page, written by the tool); the kind of the catalog goes first
+    QCOMPARE(tool("pages.extract")->getPossibleResultKinds(), Kinds({ Kind::NewDocument, Kind::Files }));
+    QCOMPARE(tool("pages.split")->getPossibleResultKinds(), Kinds({ Kind::Files }));
+    QCOMPARE(tool("pages.merge")->getPossibleResultKinds(), Kinds({ Kind::NewDocument }));
+    QCOMPARE(tool("pages.rotate")->getPossibleResultKinds(), Kinds({ Kind::ChangeDocument }));
+    for (const pdf::PDFDocumentToolCatalogEntry& entry : pdf::PDFDocumentToolCatalog::getTools())
+    {
+        QCOMPARE(entry.getPossibleResultKinds().front(), entry.getResultKind());
+    }
+
+    // K41: Merge 2 to 1000 inputs, Interleave exactly the front and the back sides, Images to PDF
+    // 1 to 1000 images (it opens no document), a tool of the tab one document, Blank PDF none
+    QCOMPARE(tool("pages.merge")->getInputCountRange(), (Range{ 2, 1000 }));
+    QCOMPARE(tool("pages.interleave")->getInputCountRange(), (Range{ 2, 2 }));
+    QCOMPARE(tool("convert.images-to-pdf")->getInputCountRange(), (Range{ 1, 1000 }));
+    QCOMPARE(tool("pages.split")->getInputCountRange(), (Range{ 1, 1 }));
+    QCOMPARE(tool("convert.blank")->getInputCountRange(), (Range{ 0, 0 }));
+    QVERIFY(!tool("pages.interleave")->getInputCountRange().contains(3));
+    QVERIFY(tool("pages.interleave")->getInputCountRange().contains(2));
+
+    // Q4 (owner answer Q2 of step 2): the new documents of the pages of the inputs are not
+    // encrypted - Merge, Extract Pages, Interleave Pages and the files of Split; a change of the
+    // open document, a text export and a tool without an input document are not
+    for (const char* id : { "pages.merge", "pages.extract", "pages.interleave", "pages.split" })
+    {
+        QVERIFY2(tool(id)->isNewDocumentOfInputs(), id);
+    }
+    for (const char* id : { "pages.rotate", "pages.insert", "pages.crop", "convert.extract-text", "convert.images-to-pdf", "convert.blank" })
+    {
+        QVERIFY2(!tool(id)->isNewDocumentOfInputs(), id);
+    }
+
+    // The defaults of a tool are the data of its catalog entry; a tool outside of the catalog
+    // changes the open document of one input
+    const pdftest::TestDocumentTool extract(QStringLiteral("pages.extract"));
+    QCOMPARE(extract.getResultKind(QVariantMap()), Kind::NewDocument);
+    QCOMPARE(extract.getPossibleResultKinds(), Kinds({ Kind::NewDocument, Kind::Files }));
+    QCOMPARE(extract.getInputCountRange(), (Range{ 1, 1 }));
+    const pdftest::TestDocumentTool unknown(QStringLiteral("unknown.tool"));
+    QCOMPARE(unknown.getResultKind(QVariantMap()), Kind::ChangeDocument);
+    QCOMPARE(unknown.getInputCountRange(), (Range{ 0, 0 }));
 }
 
 void DocumentToolTest::catalogPermissionsOwnerPassword()

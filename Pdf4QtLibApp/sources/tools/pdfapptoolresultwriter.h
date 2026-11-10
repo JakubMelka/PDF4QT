@@ -85,25 +85,46 @@ public:
     /// O31: the tool rewrites the file, so its result of a signed document can only be a
     /// copy (Keep and Overwrite are refused). Without a file nothing is signed by this
     /// rule (F5). One rule of the result dialog and of MCP.
+    /// Q12, R10 of step 3: the result of a certified document, whose certification the tool
+    /// has removed, is only a copy, also without a file.
     /// \param isOnlyCopyWritable PDFAppDocumentFileWriter::isOnlyCopyWritable of the document
-    static bool isCopyOnly(const PDFDocumentToolCatalogEntry* tool, bool isSigned, bool hasFile, bool isOnlyCopyWritable);
+    /// \param result The result (optional): its data may make it a whole-file rewrite (isRewrittenWhole)
+    static bool isCopyOnly(const PDFDocumentToolCatalogEntry* tool, bool isSigned, bool hasFile, bool isOnlyCopyWritable, const PDFDocumentToolResult* result = nullptr);
 
     /// The tool rewrites the file, so the signatures of a signed document do not survive a
     /// save of its result, also without a file, where the result can be kept (the warning of
     /// the result dialog; owner 2026-11-02)
     /// \param isOnlyCopyWritable PDFAppDocumentFileWriter::isOnlyCopyWritable of the document
-    static bool isSignatureLost(const PDFDocumentToolCatalogEntry* tool, bool isSigned, bool isOnlyCopyWritable);
+    /// \param result The result (optional): its data may make it a whole-file rewrite (isRewrittenWhole)
+    static bool isSignatureLost(const PDFDocumentToolCatalogEntry* tool, bool isSigned, bool isOnlyCopyWritable, const PDFDocumentToolResult* result = nullptr);
+
+    /// The result is written whole, never as an incremental update: the tool is of the impact
+    /// LostCopyOnly, or (Q12, R10 of step 3) a page tool of the impact IncrementalSave has
+    /// changed a certified document (DocMDP) - an incremental update would mark the certification
+    /// as broken (isCertificationRemoved)
+    /// \param tool Entry of the catalog of the tool (may be null)
+    /// \param result The result (may be null: the catalog decides)
+    static bool isRewrittenWhole(const PDFDocumentToolCatalogEntry* tool, const PDFDocumentToolResult* result);
+
+    /// The result comes from a certified document, whose pages the tool has changed (Q12, R10):
+    /// the data "signatureImpact" "lost-copy-only" of a tool, which does not rewrite the file by
+    /// its catalog, "certificationRemoved" (PDFDocMDPPermissions::addCertificationRemoved), or
+    /// "certified-copy-only" of Crop, Resize and Boxes (the same meaning)
+    /// \param tool Entry of the catalog of the tool (may be null)
+    /// \param result The result (may be null: false)
+    static bool isCertificationRemoved(const PDFDocumentToolCatalogEntry* tool, const PDFDocumentToolResult* result);
 
     /// Request of a copy of the result of \p tool by the rule of a copy (thread safe)
     /// \param tool Entry of the catalog of the tool (nullptr: the whole write)
     /// \param snapshot Snapshot of the document, from which the result comes
     /// \param output The changed document of the result
     /// \param filePath Target file
-    static PDFAppDocumentFileWriter::Request createCopyRequest(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const QString& filePath);
+    /// \param result The result of the output (optional, isRewrittenWhole: a certified document is written whole)
+    static PDFAppDocumentFileWriter::Request createCopyRequest(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const QString& filePath, const PDFDocumentToolResult* result = nullptr);
 
     /// Request of a result over the file of its document (F6): the rule of a copy, the
     /// Mark of the Web of the origin of the document
-    static PDFAppDocumentFileWriter::Request createOverwriteRequest(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const PDFAppDocument* document);
+    static PDFAppDocumentFileWriter::Request createOverwriteRequest(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const PDFAppDocument* document, const PDFDocumentToolResult* result = nullptr);
 
     /// The write of a request in the worker, which never replaces a file without
     /// \p isReplacing (the check is in the worker: a folder may lie on another computer)
@@ -120,7 +141,7 @@ public:
 
     /// Writes a copy of \p output in a worker: \p finished comes from the event loop.
     /// \returns false (no signal), when a write runs or the document is a display version
-    bool writeCopy(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const QString& filePath, const QString& markSourceFilePath, bool isReplacing);
+    bool writeCopy(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const QString& filePath, const QString& markSourceFilePath, bool isReplacing, const PDFDocumentToolResult* result = nullptr);
 
     /// Writes a new document (Save as a file of a tool of the kind NewDocument)
     bool writeDocument(const PDFDocumentPointer& document, const QString& filePath, const QString& markSourceFilePath, bool isReplacing);

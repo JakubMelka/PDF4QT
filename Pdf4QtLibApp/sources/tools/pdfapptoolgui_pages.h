@@ -132,8 +132,8 @@ public:
     PDFInteger getPageCount() const;
 
     /// A click on the tile of the page (the grid, Space): the page is added or taken away;
-    /// Shift adds the pages from the page clicked before
-    void clickPage(int page, Qt::KeyboardModifiers modifiers);
+    /// Shift adds the pages from the page clicked before (Split At selected pages: a cut)
+    virtual void clickPage(int page, Qt::KeyboardModifiers modifiers);
 
     /// The pages of the selection: one undo step (Keep, Keep All Pages)
     void setTargetPages(const std::vector<PDFInteger>& pages);
@@ -174,6 +174,15 @@ protected:
 
     /// The list of the pending changes is shown (a list with a row)
     virtual bool isPendingListShown(const std::vector<PDFInteger>& pendingPages) const;
+
+    /// The pages of the selection are read again (updateAll): a tool computes what it derives
+    /// from them, before the tiles and the rows are created (the files of Split)
+    virtual void onTargetsUpdated();
+
+    /// The mode of the selection at the entry, when no page is selected in the thumbnails: the
+    /// current page (Rotate, Remove, Extract - never every page at once), or every page (Split,
+    /// 383:3315 "All")
+    virtual PDFPageSelection::Mode getEntryModeWithoutSelection() const;
 
     /// The link of a pending row (Undo, Keep), Delete on a tile
     virtual void onPendingLinkActivated(PDFInteger page) = 0;

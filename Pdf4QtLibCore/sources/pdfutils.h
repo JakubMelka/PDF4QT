@@ -761,6 +761,11 @@ public:
     /// \param offset Offset
     void translate(PDFInteger offset);
 
+    /// Keeps only the values from \p low to \p high
+    /// \param low Lower bound of the kept values
+    /// \param high Upper bound of the kept values
+    void intersect(PDFInteger low, PDFInteger high);
+
     /// Parses text into closed interval set, text should be in form "1,3,4,7,-11,12-,52-53,-",
     /// where 1,3,4,7 means single pages, -11 means range from \p first to 11, 12- means range
     /// from 12 to \p last, and 52-53 means closed interval [52, 53]. If text is not in this form,

@@ -38,6 +38,15 @@
         <file>help/tool-protect-sanitize.md</file>
         <file>help/tool-convert-extract-text.md</file>
         <file>help/tool-convert-blank.md</file>
+        <file>help/tool-pages-split.md</file>
+        <file>help/tool-pages-extract.md</file>
+        <file>help/tool-pages-interleave.md</file>
+        <file>help/tool-pages-insert.md</file>
+        <file>help/tool-pages-add-image.md</file>
+        <file>help/tool-pages-crop.md</file>
+        <file>help/tool-pages-resize.md</file>
+        <file>help/tool-pages-boxes.md</file>
+        <file>help/tool-convert-images-to-pdf.md</file>
         <file>help/tools.md</file>
         <file>help/whats-new-and-updates.md</file>
         <file>help/window-and-tabs.md</file>

@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfocrapplyprocessor.h"
+#include "pdfdocmdppermissions.h"
 #include "pdfocrconfiguration.h"
 #include "pdfocrpagepreparer.h"
 #include "pdfocrengine.h"
@@ -75,47 +76,9 @@ PDFOCRApplyProcessor::Context PDFOCRApplyProcessor::createContext(const PDFDocum
 
 PDFOCRApplyProcessor::CertificationPermissions PDFOCRApplyProcessor::getCertificationPermissions(const PDFDocument* document)
 {
-    if (!document)
-    {
-        return CertificationPermissions::NotCertified;
-    }
-
-    const PDFDictionary* trailer = document->getTrailerDictionary();
-    const PDFDictionary* catalog = trailer ? document->getDictionaryFromObject(trailer->get("Root")) : nullptr;
-    const PDFDictionary* permissions = catalog ? document->getDictionaryFromObject(catalog->get("Perms")) : nullptr;
-    if (!permissions || !permissions->hasKey("DocMDP") || document->getObject(permissions->get("DocMDP")).isNull())
-    {
-        return CertificationPermissions::NotCertified;
-    }
-
-    // The permissions are in the transform parameters of the DocMDP signature reference;
-    // the default value of /P is 2 (ISO 32000-2, 12.8.2.2)
-    PDFInteger value = 2;
-    PDFDocumentDataLoaderDecorator loader(document);
-    if (const PDFDictionary* signature = document->getDictionaryFromObject(permissions->get("DocMDP")))
-    {
-        const PDFObject& referencesObject = document->getObject(signature->get("Reference"));
-        if (referencesObject.isArray() && referencesObject.getArray()->getCount() > 0)
-        {
-            const PDFDictionary* reference = document->getDictionaryFromObject(referencesObject.getArray()->getItem(0));
-            const PDFDictionary* transformParameters = reference ? document->getDictionaryFromObject(reference->get("TransformParams")) : nullptr;
-            if (transformParameters)
-            {
-                value = loader.readIntegerFromDictionary(transformParameters, "P", 2);
-            }
-        }
-    }
-
-    switch (value)
-    {
-        case 1:
-            return CertificationPermissions::NoChanges;
-        case 3:
-            return CertificationPermissions::FormFillingAndAnnotations;
-        default:
-            // An unknown value of /P is treated as the default value
-            return CertificationPermissions::FormFilling;
-    }
+    // The one reading of the certification (plan of step 3 of phase 2, Q12): the values of the
+    // levels equal the values of /P of both enumerations
+    return static_cast<CertificationPermissions>(PDFDocMDPPermissions::getLevel(document));
 }
 
 bool PDFOCRApplyProcessor::hasSignatureFields(const PDFDocument* document)

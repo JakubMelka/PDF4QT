@@ -26,6 +26,7 @@
 
 #include "apptoolshellfixture.h"
 #include "appmcpfixture.h"
+#include "mergetestpdf.h"
 
 #include "pdfappdocument.h"
 #include "pdfappdocumentpanels_thumbnails.h"
@@ -40,7 +41,9 @@
 #include "pdfapptoolpageregistry.h"
 #include "pdfapptoolpagegrid.h"
 #include "pdfapptoolparametermodel.h"
+#include "pdfapptoolresultdialog.h"
 #include "pdfapptooltoolbar.h"
+#include "pdffluentwidgets.h"
 #include "pdfsettingdefinition.h"
 #include "pdfsettingdefinitions.h"
 #include "pdfsettingsrepository.h"
@@ -358,6 +361,8 @@ private slots:
     void rotateWithoutTurnsDisabled();
     void rotateEveryPageListed();
     void rotateRunKeepsInTab();
+    void certifiedDocumentOnlyCopy_data();
+    void certifiedDocumentOnlyCopy();
     void rotateEntryCurrentPage();
     void thumbnailsCommandStillRotates();
 
@@ -743,6 +748,74 @@ void AppToolPagesTest::rotateRunKeepsInTab()
     QCOMPARE(AppToolShellFixture::undoCount(tab->getDocument()), undoBefore + 1);
 }
 
+void AppToolPagesTest::certifiedDocumentOnlyCopy_data()
+{
+    QTest::addColumn<QString>("toolId");
+    QTest::newRow("rotate") << PagesGuiHelper::ROTATE_ID;
+    QTest::newRow("remove") << PagesGuiHelper::REMOVE_ID;
+}
+
+void AppToolPagesTest::certifiedDocumentOnlyCopy()
+{
+    // Q12, R10: no level of a certification allows a change of the pages (ISO 32000-2, 12.8.2.2,
+    // Table 257) - the result dialog offers only Save as a copy with the reason; the copy is
+    // written whole (one end of the file, no incremental update) without /Perms, the open
+    // document and its file stay as they are
+    QFETCH(QString, toolId);
+    using H = PagesGuiHelper;
+    AppToolShellFixture fixture(QSize(1440, 960));
+    mergetest::MergeTestPdf pdf = mergetest::MergeTestPdf::createPages("C", 3, "/AcroForm << /Fields [60 0 R] /SigFlags 3 >> /Perms << /DocMDP 61 0 R >>", { { 1, "/Annots [60 0 R]" } });
+    pdf.set(60, "<< /Type /Annot /Subtype /Widget /FT /Sig /T (cert) /V 61 0 R /Rect [0 0 0 0] /P 3 0 R >>");
+    pdf.set(61, "<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /ByteRange [0 0 0 0] /Contents <00> /Reference [<< /TransformMethod /DocMDP /TransformParams << /P 2 >> >>] >>");
+    const QString filePath = fixture.path(QStringLiteral("Contract.pdf"));
+    const QByteArray original = pdf.write();
+    {
+        QFile file(filePath);
+        QVERIFY(file.open(QFile::WriteOnly) && file.write(original) == original.size());
+    }
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, filePath);
+    QVERIFY(tab);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, toolId);
+    QVERIFY(shell);
+    if (toolId == H::ROTATE_ID)
+    {
+        H::gui<PDFAppToolGUIRotatePages>(shell)->rotateRight();
+    }
+    else
+    {
+        H::setPages(shell, QStringLiteral("3"));
+    }
+    AppToolShellFixture::settle();
+
+    shell->confirm();
+    QVERIFY(AppToolShellFixture::waitForState(shell, PDFDocumentToolShell::State::Deciding));
+    pdf::PDFAppToolResultDialog* dialog = shell->getResultDialog();
+    QVERIFY(dialog);
+    QVERIFY(!dialog->getOption(pdf::PDFAppToolResultDialog::Choice::Keep));
+    QVERIFY(!dialog->getOption(pdf::PDFAppToolResultDialog::Choice::Overwrite));
+    QVERIFY(dialog->getOption(pdf::PDFAppToolResultDialog::Choice::Copy));
+    QCOMPARE(dialog->getSelectedChoice(), pdf::PDFAppToolResultDialog::Choice::Copy);
+    const pdf::PDFLabel* warningTitle = dialog->findChild<pdf::PDFLabel*>(QStringLiteral("signedWarningTitle"));
+    QVERIFY(warningTitle);
+    QCOMPARE(warningTitle->text(), QStringLiteral("The certification is removed in the copy"));
+
+    const QString target = dialog->getTargetFilePath();
+    QVERIFY(!target.isEmpty());
+    QPointer<PDFDocumentToolShell> guard(shell);
+    dialog->getConfirmButton()->click();
+    QVERIFY(AppToolShellFixture::waitFor([&guard]() { return !guard || guard->getState() == PDFDocumentToolShell::State::Closed; }));
+
+    QFile copy(target);
+    QVERIFY(copy.open(QFile::ReadOnly));
+    const QByteArray written = copy.readAll();
+    QCOMPARE(written.count("%%EOF"), qsizetype(1));
+    QVERIFY(!written.contains("/Perms"));
+    QFile source(filePath);
+    QVERIFY(source.open(QFile::ReadOnly));
+    QCOMPARE(source.readAll(), original);
+    QCOMPARE(tab->getDocument()->getPageCount(), pdf::PDFInteger(3));
+}
+
 void AppToolPagesTest::rotateEntryCurrentPage()
 {
     // Without a selection of the thumbnails the tool works on the current page, with one
@@ -988,9 +1061,12 @@ void AppToolPagesTest::themesAndDirection()
     {
         for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
         {
-            pdf::PDFThemeManager::getInstance()->setTheme(theme);
             QApplication::setLayoutDirection(direction);
+            // The fixture sets the light scheme of its context: the theme of the row comes after it
             AppToolShellFixture fixture(QSize(1440, 960));
+            pdf::PDFThemeManager::getInstance()->setTheme(theme);
+            AppToolShellFixture::settle();
+            QCOMPARE(pdf::PDFThemeManager::getInstance()->getTheme().getScheme(), theme == QLatin1String("dark") ? pdf::PDFThemeColors::Scheme::Dark : pdf::PDFThemeColors::Scheme::Light);
             pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writePages(fixture.path(QStringLiteral("doc.pdf")), 12));
             tab->getView()->setSelectedPages({ 2, 3 });
             AppToolShellFixture::settle();

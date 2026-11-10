@@ -25,12 +25,36 @@
 
 #include "pdfdocumenttool.h"
 #include "pdfdocumentmerger.h"
+#include "pdfdocumentpageplan.h"
 #include "pdfimageoptimizer.h"
+#include "pdfpagesizepresets.h"
 
 #include <optional>
 
 namespace pdf
 {
+
+/// The new document of a result of a tool, which builds it by PDFDocumentMerger (Merge, Blank
+/// PDF, Images to PDF, Interleave Pages): written into memory (the size is measured by writing
+/// it) and given to the result as a New document with its written bytes. Reentrant.
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolNewDocument
+{
+    Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocumentToolNewDocument)
+
+public:
+    PDFDocumentToolNewDocument() = delete;
+
+    /// Writes the document into memory; empty bytes and the translated reason for a failure or
+    /// a result larger than PDFDocumentTool::MAXIMUM_RESULT_SIZE
+    static QByteArray write(const PDFDocument* document, QString* errorMessage);
+
+    /// Adds the New document with its written bytes to the result
+    static void addToResult(PDFDocumentToolResult* result, PDFDocument document, QByteArray writtenData, const QString& suggestedFileName);
+
+    /// A number of millimeters for a text: at most one decimal place, no trailing zero (K25 of
+    /// step 2), in the default locale of the process
+    static QString formatMillimeters(double millimeters);
+};
 
 /// The tool Merge (pages.merge, Figma 378:1049 ... 412:32654; plan of step 2 of phase 2,
 /// chapters 5 to 7, R1-R10, owner answers Q1-Q7): the inputs (documents and images of the
@@ -103,18 +127,11 @@ public:
     static constexpr int MAXIMUM_INPUTS_LENGTH = 65536;
 
     /// Longest plan (a plan of 50 000 pages sorted by their numbers, K13, has about 400 000 characters)
-    static constexpr int MAXIMUM_PLAN_LENGTH = 4 * 1024 * 1024;
+    static constexpr int MAXIMUM_PLAN_LENGTH = PDFDocumentPagePlan::MAXIMUM_TEXT_LENGTH;
 
-    /// One page of the result in the plan
-    struct PlanItem
-    {
-        int input = 0;                          ///< Index of the input (A = 0)
-        PDFInteger pageIndex = 0;               ///< Index of the page of the input (from 0)
-        PageRotation turn = PageRotation::None; ///< Turn clockwise relative to the rotation of the page
-        bool isClone = false;                   ///< A further occurrence of the page
-
-        bool operator==(const PlanItem&) const = default;
-    };
+    /// One page of the result in the plan (the general plan of the pages, plan of step 3 of
+    /// phase 2, K44: Merge uses its input, page, turn and clone)
+    using PlanItem = PDFDocumentPagePlan::Item;
 
     /// An input of the merge in its order
     struct Input
@@ -200,13 +217,13 @@ public:
     static constexpr const char* PARAMETER_HEIGHT = "height";
     static constexpr const char* PARAMETER_ORIENTATION = "orientation";
 
-    /// Identifiers of the sizes (337:2221)
-    static constexpr const char* SIZE_A4 = "a4";
-    static constexpr const char* SIZE_A3 = "a3";
-    static constexpr const char* SIZE_A5 = "a5";
-    static constexpr const char* SIZE_LETTER = "letter";
-    static constexpr const char* SIZE_LEGAL = "legal";
-    static constexpr const char* SIZE_16X9 = "16x9";
+    /// Identifiers of the sizes (337:2221): the named sizes of PDFPageSizePresets and Custom
+    static constexpr const char* SIZE_A4 = PDFPageSizePresets::A4;
+    static constexpr const char* SIZE_A3 = PDFPageSizePresets::A3;
+    static constexpr const char* SIZE_A5 = PDFPageSizePresets::A5;
+    static constexpr const char* SIZE_LETTER = PDFPageSizePresets::LETTER;
+    static constexpr const char* SIZE_LEGAL = PDFPageSizePresets::LEGAL;
+    static constexpr const char* SIZE_16X9 = PDFPageSizePresets::SIZE_16X9;
     static constexpr const char* SIZE_CUSTOM = "custom";
 
     /// Identifiers of the orientations
@@ -218,25 +235,27 @@ public:
     static constexpr qint64 MAXIMUM_PAGE_COUNT = 10000;
     static constexpr qint64 DEFAULT_PAGE_COUNT = 1;
 
-    /// Limits of a side of a page in points (K26)
-    static constexpr double MINIMUM_SIDE_POINTS = 3.0;
-    static constexpr double MAXIMUM_SIDE_POINTS = 14400.0;
+    /// Limits of a side of a page in points (K26, PDFPageSizePresets)
+    static constexpr double MINIMUM_SIDE_POINTS = PDFPageSizePresets::MINIMUM_SIDE_POINTS;
+    static constexpr double MAXIMUM_SIDE_POINTS = PDFPageSizePresets::MAXIMUM_SIDE_POINTS;
 
     /// Limits of a side of a custom size in millimeters (3 and 14 400 points)
-    static constexpr double MINIMUM_SIDE_MILLIMETERS = MINIMUM_SIDE_POINTS * 25.4 / 72.0;
-    static constexpr double MAXIMUM_SIDE_MILLIMETERS = MAXIMUM_SIDE_POINTS * 25.4 / 72.0;
+    static constexpr double MINIMUM_SIDE_MILLIMETERS = PDFPageSizePresets::MINIMUM_SIDE_MILLIMETERS;
+    static constexpr double MAXIMUM_SIDE_MILLIMETERS = PDFPageSizePresets::MAXIMUM_SIDE_MILLIMETERS;
 
     /// Default custom size in millimeters (A4)
     static constexpr double DEFAULT_WIDTH_MILLIMETERS = 210.0;
     static constexpr double DEFAULT_HEIGHT_MILLIMETERS = 297.0;
 
     /// Portrait size of a named size in points, std::nullopt for custom or an unknown id
+    /// (PDFPageSizePresets::getSize)
     static std::optional<QSizeF> getNamedSize(const QString& sizeId);
 
-    /// Points of millimeters (mm x 72 / 25.4)
+    /// Points of millimeters (mm x 72 / 25.4, PDFPageSizePresets::getPoints)
     static double getPoints(double millimeters);
 
-    /// The side in points is a valid side of a page (MINIMUM_SIDE_POINTS to MAXIMUM_SIDE_POINTS, finite)
+    /// The side in points is a valid side of a page (MINIMUM_SIDE_POINTS to MAXIMUM_SIDE_POINTS,
+    /// finite; PDFPageSizePresets::isValidSide)
     static bool isValidSide(double points);
 
     /// Size of the pages of the normalized parameters in points; an empty size and the

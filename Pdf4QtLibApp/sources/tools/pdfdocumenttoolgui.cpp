@@ -329,6 +329,26 @@ PDFAppToolInputList* PDFDocumentToolGUI::getInputList() const
     return host ? host->getInputList() : nullptr;
 }
 
+PDFAppToolInputRules PDFDocumentToolGUI::getInputRules() const
+{
+    // The rules of today (Merge: 2 to 1000 PDF files and images); a tool of the catalog with
+    // more inputs has the range of its entry (K41)
+    PDFAppToolInputRules rules;
+    const PDFDocumentToolCatalogEntry* tool = getTool();
+    const PDFDocumentToolInputCountRange range = tool ? tool->getInputCountRange() : PDFDocumentToolInputCountRange();
+    if (range.maximum > 1)
+    {
+        rules.minimum = range.minimum;
+        rules.maximum = range.maximum;
+    }
+    return rules;
+}
+
+bool PDFDocumentToolGUI::isResultInThisTab() const
+{
+    return false;
+}
+
 QVariantMap PDFDocumentToolGUI::getRunParameters() const
 {
     const PDFAppToolParameterModel* model = getModel();

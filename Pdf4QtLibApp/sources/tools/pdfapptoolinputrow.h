@@ -28,8 +28,10 @@
 #include "pdfaccenthue.h"
 #include "pdfcomponentrows.h"
 
+#include <QImage>
 #include <QPointer>
 #include <QString>
+#include <QStringList>
 #include <QWidget>
 
 #include <vector>
@@ -73,6 +75,11 @@ public:
     static constexpr int PROGRESS_HEIGHT = 4;
     static constexpr int LINK_HEIGHT = 16;
 
+    /// The thumbnail of an image instead of the tile (image-IMG_2041.jpg 336:2136: thumb 56 x 43)
+    static constexpr int THUMBNAIL_WIDTH = 56;
+    static constexpr int THUMBNAIL_HEIGHT = 43;
+    static constexpr int THUMBNAIL_RADIUS = 4;
+
     /// What the row shows
     struct Content
     {
@@ -89,6 +96,8 @@ public:
         QString linkText;                       ///< "Enter password…", "Remove file", empty = none
         double progress = -1.0;                 ///< The reading (0 - 1), -1 = no bar
         QString toolTip;                        ///< The whole reason of a state (a line is elided)
+        bool hasThumbnail = false;              ///< The slot of a thumbnail 56 x 43 instead of the tile (Images to PDF 336:1976)
+        QImage thumbnail;                       ///< The picture of the thumbnail (a value; null = the empty slot while it is decoded)
 
         bool operator==(const Content&) const = default;
     };
@@ -104,6 +113,13 @@ public:
     /// The current row (the input of the current page of the canvas)
     bool isCurrent() const { return m_isCurrent; }
     void setCurrent(bool isCurrent);
+
+    /// A row of a selection of more rows (Ctrl or Shift, 336:1976): drawn as the current one
+    bool isSelected() const { return m_isSelected; }
+    void setSelected(bool isSelected);
+
+    /// The keys held by the last click of the row (Ctrl, Shift; none for a key of the keyboard)
+    Qt::KeyboardModifiers getClickModifiers() const { return m_clickModifiers; }
 
     /// The row can be dragged (false while the tool runs)
     void setDraggable(bool isDraggable);
@@ -148,7 +164,9 @@ private:
     QPointer<PDFTag> m_tag;
     QPointer<PDFTextLink> m_link;
     QPoint m_pressPosition;
+    Qt::KeyboardModifiers m_clickModifiers = Qt::NoModifier;
     bool m_isCurrent = false;
+    bool m_isSelected = false;
     bool m_isDraggable = true;
     bool m_isPressed = false;
     bool m_isDragging = false;
@@ -186,6 +204,13 @@ public:
 
     /// The current row (empty = none)
     void setCurrentInput(const QString& inputId);
+
+    /// The rows of a selection of more rows besides the current one (Images to PDF 336:1976:
+    /// "Ctrl or Shift selects more images"); empty = only the current row
+    void setSelectedInputs(const QStringList& inputIds);
+
+    /// The keys held by the last click of a row (rowClicked: Ctrl adds, Shift extends)
+    Qt::KeyboardModifiers getLastClickModifiers() const { return m_lastClickModifiers; }
 
     /// The rows can be dragged and moved (false while the tool runs)
     void setEditable(bool isEditable);
@@ -225,6 +250,8 @@ private:
     QPointer<QVBoxLayout> m_rowsLayout;
     std::vector<QPointer<PDFAppToolInputRow>> m_rows;
     QString m_currentInput;
+    QStringList m_selectedInputs;
+    Qt::KeyboardModifiers m_lastClickModifiers = Qt::NoModifier;
     int m_dropIndex = -1;
     bool m_isEditable = true;
 };

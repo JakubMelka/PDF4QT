@@ -84,7 +84,7 @@ PDFAppToolResultWriter::~PDFAppToolResultWriter()
     }
 }
 
-PDFAppDocumentFileWriter::Request PDFAppToolResultWriter::createCopyRequest(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const QString& filePath)
+PDFAppDocumentFileWriter::Request PDFAppToolResultWriter::createCopyRequest(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const QString& filePath, const PDFDocumentToolResult* result)
 {
     PDFAppDocumentFileWriter::Request request;
     request.document = output;
@@ -96,7 +96,8 @@ PDFAppDocumentFileWriter::Request PDFAppToolResultWriter::createCopyRequest(cons
     // rewrites the file, writes it whole: no old revision is left in the file (O31). A
     // result without any signed field (the signed page was removed) has nothing to keep,
     // a version an earlier tool has rewritten and a damaged file are no update of the original bytes.
-    if (tool && tool->getSignatureImpact() == PDFDocumentToolSignatureImpact::IncrementalSave &&
+    // A certified document changed by a page tool is written whole (Q12, R10 of step 3).
+    if (tool && tool->getSignatureImpact() == PDFDocumentToolSignatureImpact::IncrementalSave && !isRewrittenWhole(tool, result) &&
         !snapshot.originalData.isEmpty() && !snapshot.isWholeFileRewritten && !snapshot.isSignedRevisionGone &&
         snapshot.restoration == PDFAppDocumentRestoration::None && PDFForm::getSignatureCount(output.data()) > 0)
     {
@@ -106,9 +107,9 @@ PDFAppDocumentFileWriter::Request PDFAppToolResultWriter::createCopyRequest(cons
     return request;
 }
 
-PDFAppDocumentFileWriter::Request PDFAppToolResultWriter::createOverwriteRequest(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const PDFAppDocument* document)
+PDFAppDocumentFileWriter::Request PDFAppToolResultWriter::createOverwriteRequest(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const PDFAppDocument* document, const PDFDocumentToolResult* result)
 {
-    PDFAppDocumentFileWriter::Request request = createCopyRequest(tool, snapshot, output, document ? document->getFilePath() : QString());
+    PDFAppDocumentFileWriter::Request request = createCopyRequest(tool, snapshot, output, document ? document->getFilePath() : QString(), result);
     request.markSourceFilePath = document ? document->getOriginFilePath() : QString();
     return request;
 }
@@ -134,14 +135,35 @@ PDFAppToolResultWriter::DocumentRefusal PDFAppToolResultWriter::getDocumentRefus
     return DocumentRefusal::None;
 }
 
-bool PDFAppToolResultWriter::isCopyOnly(const PDFDocumentToolCatalogEntry* tool, bool isSigned, bool hasFile, bool isOnlyCopyWritable)
+bool PDFAppToolResultWriter::isCopyOnly(const PDFDocumentToolCatalogEntry* tool, bool isSigned, bool hasFile, bool isOnlyCopyWritable, const PDFDocumentToolResult* result)
 {
-    return hasFile && (isOnlyCopyWritable || isSignatureLost(tool, isSigned, isOnlyCopyWritable));
+    // Q12: a certified document changed by a page tool is only a copy, also without a file
+    return isCertificationRemoved(tool, result) || (hasFile && (isOnlyCopyWritable || isSignatureLost(tool, isSigned, isOnlyCopyWritable, result)));
 }
 
-bool PDFAppToolResultWriter::isSignatureLost(const PDFDocumentToolCatalogEntry* tool, bool isSigned, bool isOnlyCopyWritable)
+bool PDFAppToolResultWriter::isSignatureLost(const PDFDocumentToolCatalogEntry* tool, bool isSigned, bool isOnlyCopyWritable, const PDFDocumentToolResult* result)
 {
-    return isSigned && (isOnlyCopyWritable || (tool && tool->getSignatureImpact() == PDFDocumentToolSignatureImpact::LostCopyOnly));
+    return isSigned && (isOnlyCopyWritable || isRewrittenWhole(tool, result));
+}
+
+bool PDFAppToolResultWriter::isRewrittenWhole(const PDFDocumentToolCatalogEntry* tool, const PDFDocumentToolResult* result)
+{
+    return (tool && tool->getSignatureImpact() == PDFDocumentToolSignatureImpact::LostCopyOnly) || isCertificationRemoved(tool, result);
+}
+
+bool PDFAppToolResultWriter::isCertificationRemoved(const PDFDocumentToolCatalogEntry* tool, const PDFDocumentToolResult* result)
+{
+    if (!result)
+    {
+        return false;
+    }
+
+    // "lost-copy-only" in the data of a tool of the impact LostCopyOnly (Compress) is its
+    // catalog impact (finishWholeFileResult), not a certification
+    const QString impact = result->data.value(QStringLiteral("signatureImpact")).toString();
+    const bool isRewritingTool = tool && tool->getSignatureImpact() == PDFDocumentToolSignatureImpact::LostCopyOnly;
+    return result->data.value(QStringLiteral("certificationRemoved")).toBool() || impact == QLatin1String("certified-copy-only") ||
+           (impact == QLatin1String("lost-copy-only") && !isRewritingTool);
 }
 
 PDFAppToolResultWriter::Result PDFAppToolResultWriter::writeRequest(PDFAppDocumentFileWriter::Request request, bool isReplacing)
@@ -215,7 +237,7 @@ void PDFAppToolResultWriter::start(QFuture<Result> future)
     watcher->setFuture(future);
 }
 
-bool PDFAppToolResultWriter::writeCopy(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const QString& filePath, const QString& markSourceFilePath, bool isReplacing)
+bool PDFAppToolResultWriter::writeCopy(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const QString& filePath, const QString& markSourceFilePath, bool isReplacing, const PDFDocumentToolResult* result)
 {
     // A display version of an XFA form is never written as a changed copy (F5)
     if (isWriting() || snapshot.isPagedXFA || output.isNull())
@@ -223,7 +245,7 @@ bool PDFAppToolResultWriter::writeCopy(const PDFDocumentToolCatalogEntry* tool, 
         return false;
     }
 
-    PDFAppDocumentFileWriter::Request request = createCopyRequest(tool, snapshot, output, filePath);
+    PDFAppDocumentFileWriter::Request request = createCopyRequest(tool, snapshot, output, filePath, result);
     request.markSourceFilePath = markSourceFilePath;
     start(QtConcurrent::run(&PDFAppToolResultWriter::writeRequest, std::move(request), isReplacing));
     return true;
@@ -299,7 +321,7 @@ bool PDFAppToolResultWriter::overwrite(PDFDocumentToolRunner* runner, PDFAppDocu
     }
 
     const PDFAppDocumentSnapshot& snapshot = runner->getResultSnapshot();
-    PDFAppDocumentFileWriter::Request request = createOverwriteRequest(runner->getTool()->getInfo(), snapshot, output->document, document);
+    PDFAppDocumentFileWriter::Request request = createOverwriteRequest(runner->getTool()->getInfo(), snapshot, output->document, document, &result);
 
     m_runner = runner;
     m_saver = saver;

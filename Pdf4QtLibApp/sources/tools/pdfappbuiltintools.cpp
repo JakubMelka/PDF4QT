@@ -25,9 +25,13 @@
 #include "pdfapptoolgui_blank.h"
 #include "pdfapptoolgui_compress.h"
 #include "pdfapptoolgui_extracttext.h"
+#include "pdfapptoolgui_geometry.h"
+#include "pdfapptoolgui_images.h"
+#include "pdfapptoolgui_insert.h"
 #include "pdfapptoolgui_merge.h"
 #include "pdfapptoolgui_pages.h"
 #include "pdfapptoolgui_protect.h"
+#include "pdfapptoolgui_split.h"
 #include "pdfapptoolgui_structure.h"
 
 namespace pdf
@@ -44,6 +48,13 @@ void PDFAppBuiltinTools::registerAll()
     PDFAppToolGUIExtractText::registerTools();
     PDFAppMergeToolGUI::registerTools();
     PDFAppBlankToolGUI::registerTools();
+
+    // Step 3a of phase 2 (plan 9.1, 9.2): each package registers its tools in its own file,
+    // a tool stays unimplemented until its package registers it
+    PDFAppToolGUISplit::registerSplitTools();
+    PDFAppToolGUIGeometry::registerGeometryTools();
+    PDFAppToolGUIInsert::registerInsertTools();
+    PDFAppToolGUIImages::registerImageTools();
 }
 
 }   // namespace pdf

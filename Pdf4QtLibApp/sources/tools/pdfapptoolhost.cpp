@@ -59,6 +59,11 @@ PDFAppToolInputList* PDFAppToolHost::getInputList() const
     return nullptr;
 }
 
+std::vector<PDFInteger> PDFAppToolHost::getExplicitlySelectedPages() const
+{
+    return std::vector<PDFInteger>();
+}
+
 bool PDFAppToolHost::isOwnTab() const
 {
     return false;
@@ -273,6 +278,11 @@ PDFInteger PDFAppDocumentToolHost::getCurrentPage() const
 std::vector<PDFInteger> PDFAppDocumentToolHost::getSelectedPages() const
 {
     return m_view ? m_view->getSelectedPages() : std::vector<PDFInteger>();
+}
+
+std::vector<PDFInteger> PDFAppDocumentToolHost::getExplicitlySelectedPages() const
+{
+    return m_view ? m_view->getExplicitlySelectedPages() : std::vector<PDFInteger>();
 }
 
 PDFAppTab* PDFAppDocumentToolHost::getTab() const

@@ -89,6 +89,11 @@ public:
     /// Name of the point ("Top left", "Center", ...)
     static QString getPointName(int index);
 
+    /// The point, to which a key moves from \p index in the picture (the arrows, Home, End; the
+    /// grid is not mirrored for right-to-left); -1 = the key moves nothing. The one rule of the
+    /// keys of the 3 x 3 grids (PDFAnchorGrid).
+    static int getIndexAfterKey(int index, int key);
+
     virtual QSize sizeHint() const override;
     virtual QSize minimumSizeHint() const override;
 

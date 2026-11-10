@@ -143,6 +143,11 @@ public:
     virtual PDFInteger getCurrentPage() const = 0;
     virtual std::vector<PDFInteger> getSelectedPages() const = 0;
 
+    /// The pages the user has selected in the thumbnails, without the fallback of
+    /// getSelectedPages to the current page (Replace of Insert Pages, 388:16103: "Available when
+    /// pages are selected in Thumbnails"); an empty list = no selection. Default: none.
+    virtual std::vector<PDFInteger> getExplicitlySelectedPages() const;
+
     /// The tab of the tool: the document tab, or the own tab of a tool (the anchor of a new
     /// tab of a result, getTabIndexAfter); nullptr = gone or none. Default: nullptr.
     virtual PDFAppTab* getTab() const;
@@ -213,6 +218,7 @@ public:
     virtual PDFAppToolRunEnvironment createEnvironment() const override;
     virtual PDFInteger getCurrentPage() const override;
     virtual std::vector<PDFInteger> getSelectedPages() const override;
+    virtual std::vector<PDFInteger> getExplicitlySelectedPages() const override;
     virtual PDFAppTab* getTab() const override;
 
     /// Longest time of a transient message (ms)

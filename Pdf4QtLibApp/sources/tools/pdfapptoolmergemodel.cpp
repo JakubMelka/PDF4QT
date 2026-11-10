@@ -571,6 +571,28 @@ void PDFAppToolMergePageModel::setLeftOutInputs(const QStringList& inputIds)
     }
 }
 
+void PDFAppToolMergePageModel::setTileMarks(QStringList captions, bool areSourceDotsShown)
+{
+    if (m_tileCaptions == captions && m_areSourceDotsShown == areSourceDotsShown)
+    {
+        return;
+    }
+
+    m_tileCaptions = std::move(captions);
+    m_areSourceDotsShown = areSourceDotsShown;
+    QPointer<PDFAppToolMergePageModel> guard(this);
+    if (rowCount() > 0)
+    {
+        // A caption makes a tile higher: one change of every row (PDFPageTileDelegate)
+        Q_EMIT dataChanged(index(0, 0), index(rowCount() - 1, 0));
+    }
+    if (guard)
+    {
+        // The grouped view lays out the tiles of the groups with their captions (the last call)
+        updateGroups();
+    }
+}
+
 void PDFAppToolMergePageModel::updateGroups()
 {
     std::vector<Group> groups = createGroups();
@@ -687,6 +709,15 @@ std::vector<PDFAppToolMergePageModel::Group> PDFAppToolMergePageModel::createGro
         else
         {
             group.subtitle = getRunText(group.firstRow, group.rowCount);
+            // Interleave "front 1" (385:13263): the tiles of the group have the line of a caption
+            for (int row = group.firstRow; row < group.firstRow + group.rowCount && row < m_tileCaptions.size(); ++row)
+            {
+                if (!m_tileCaptions.at(row).isEmpty())
+                {
+                    group.hasTileCaptions = true;
+                    break;
+                }
+            }
             if (m_leftOutInputs.contains(input->id))
             {
                 group.tag = tr("Left out");
@@ -1014,6 +1045,18 @@ QVariant PDFAppToolMergePageModel::data(const QModelIndex& index, int role) cons
             case PDFComponentRoles::PixmapRole:
                 // Only the tiles draw the picture (Details has the number of the page)
                 return PDFAppToolPageGridModel::getTurnedPicture(BaseClass::data(index, PDFComponentRoles::PixmapRole), getKey(row), item->turn);
+
+            case PDFComponentRoles::SubtitleRole:
+                // Interleave: "front 1", "back 6" (385:13263)
+                return row < m_tileCaptions.size() ? QVariant(m_tileCaptions.at(row)) : QVariant();
+
+            case PDFComponentRoles::HueRole:
+                // K45: the dot of the source of the page (Interleave front / back)
+                if (m_areSourceDotsShown && input && m_list)
+                {
+                    return int(PDFAppToolInputList::getHue(m_list->indexOf(input->id), input));
+                }
+                return QVariant();
 
             case Qt::TextAlignmentRole:
                 return QVariant(Qt::AlignLeading | Qt::AlignVCenter);

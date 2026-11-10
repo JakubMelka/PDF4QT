@@ -1708,6 +1708,20 @@ void AppDocumentViewTest::findPageIndexHostile()
     QCOMPARE(selectedSpy.count(), 1);
     view->setSelectedPages({});
     QCOMPARE(view->getSelectedPages(), std::vector<pdf::PDFInteger>({ 0 }));
+
+    // The selection of the user has no fallback to the current page (Replace of Insert Pages,
+    // 388:16103); the one page chosen in the thumbnails is a selection, also the current one,
+    // and its change is said as a change of the selection
+    QVERIFY(view->getExplicitlySelectedPages().empty());
+    const int changes = selectedSpy.count();
+    view->setSelectedPages({}, 0);
+    QCOMPARE(view->getExplicitlySelectedPages(), std::vector<pdf::PDFInteger>({ 0 }));
+    QCOMPARE(view->getSelectedPages(), std::vector<pdf::PDFInteger>({ 0 }));
+    QCOMPARE(selectedSpy.count(), changes + 1);
+    view->setSelectedPages({ 1, 2 }, -1);
+    QCOMPARE(view->getExplicitlySelectedPages(), std::vector<pdf::PDFInteger>({ 1, 2 }));
+    view->setSelectedPages({}, 7);
+    QVERIFY(view->getExplicitlySelectedPages().empty());
 }
 
 void AppDocumentViewTest::colorModesAndAnnotations()
@@ -1816,6 +1830,28 @@ void AppDocumentViewTest::settingsApplied()
         QCOMPARE(view->getCMSManager()->getSettings().accuracy, std::get<3>(option));
         QCOMPARE(view->getCMSManager()->getSettings().colorAdaptationXYZ, std::get<4>(option));
     }
+
+    // K43: the reader of the view is the reader of the own tab of a tool - the same settings
+    // (also the colors of the color modes), a shared object of the system of the settings
+    QVERIFY(!settings.setValue(pdf::PDFSettingKeys::cmsBlackPointCompensation(), false).isError());
+    QVERIFY(!settings.setValue(pdf::PDFSettingKeys::colorModesBitonalThreshold(), 100).isError());
+    QVERIFY(!settings.setValue(pdf::PDFSettingKeys::colorModesTextColor(), QStringLiteral("#123456")).isError());
+    view->applySettings();
+    pdf::PDFCMSSettings ownTabSettings = view->getCMSManager()->getDefaultSettings();
+    pdf::PDFAppDocumentView::readCMSSettings(fixture.context->getSettings(), &ownTabSettings);
+    QVERIFY(ownTabSettings == view->getCMSManager()->getSettings());
+    QCOMPARE(ownTabSettings.system, pdf::PDFCMSSettings::System::Generic);
+    QCOMPARE(ownTabSettings.intent, pdf::RenderingIntent::Auto);
+    QVERIFY(!ownTabSettings.isBlackPointCompensationActive);
+    QCOMPARE(ownTabSettings.bitonalThreshold, 100);
+    QCOMPARE(ownTabSettings.foregroundColor, QColor(0x12, 0x34, 0x56));
+    const pdf::PDFCMSPointer cms = pdf::PDFAppDocumentView::createCMS(fixture.context.get());
+    QVERIFY(cms);
+    QVERIFY(dynamic_cast<const pdf::PDFCMSGeneric*>(cms.data()));
+    QVERIFY(!pdf::PDFAppDocumentView::createCMS(nullptr));
+    QVERIFY(!settings.resetValue(pdf::PDFSettingKeys::cmsBlackPointCompensation()).isError());
+    QVERIFY(!settings.resetValue(pdf::PDFSettingKeys::colorModesBitonalThreshold()).isError());
+    QVERIFY(!settings.resetValue(pdf::PDFSettingKeys::colorModesTextColor()).isError());
 
     // The threads of the process and the prefetch of the pages
     QVERIFY(!settings.setValue(pdf::PDFSettingKeys::renderingMultithreading(), QStringLiteral("singleThread")).isError());

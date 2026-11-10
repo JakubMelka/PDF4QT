@@ -536,6 +536,25 @@ void PDFAppToolTabPage::onCloseRequested(const PDFAppToolCloseRequest& request)
         return;
     }
 
+    // "Save as a file" of a tool, whose result replaces its tab (336:3572, R16): the written file
+    // opens right after this tab (the current one), then this tab goes - the document takes its
+    // place in the tab bar
+    if (!requestCopy.newDocumentFilePath.isEmpty())
+    {
+        if (!closeShell() || !tab || !window)
+        {
+            return;
+        }
+        window->openDocuments(QStringList({ requestCopy.newDocumentFilePath }), 0);
+        if (!guard || !tab || !window)
+        {
+            return;
+        }
+        tab->setCloseConfirmed(true);
+        window->closeTab(tab);
+        return;
+    }
+
     // An address of a folder, which the navigator checks (the page is still connected)
     if (!requestCopy.folderToOpen.isEmpty())
     {

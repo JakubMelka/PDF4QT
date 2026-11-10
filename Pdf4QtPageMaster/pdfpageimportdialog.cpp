@@ -23,6 +23,7 @@
 #include "pdfpageimportdialog.h"
 #include "ui_pdfpageimportdialog.h"
 
+#include "pdfpagerangelist.h"
 #include "pdfwidgetutils.h"
 
 #include <QCheckBox>
@@ -72,99 +73,34 @@ PDFPageImportDialog::~PDFPageImportDialog()
 
 std::vector<pdf::PDFInteger> PDFPageImportDialog::parsePageRangeText(QString text, pdf::PDFInteger pageCount, QString* errorMessage)
 {
+    // K23: the rules of the core (PDFPageRangeList) - the order of the text, a descending range
+    // ("5-1") and a page more times are allowed; an empty text and "all" are every page
     std::vector<pdf::PDFInteger> result;
-    text = text.trimmed();
 
-    auto appendPage = [&result](pdf::PDFInteger page)
+    // The old dialog read "Odd", "EVEN" and "All" in any case (nothing else of the syntax has letters)
+    text = text.trimmed().toLower();
+    if (text.isEmpty() || text.compare(QStringLiteral("all"), Qt::CaseInsensitive) == 0)
     {
-        if (std::find(result.cbegin(), result.cend(), page) == result.cend())
-        {
-            result.push_back(page);
-        }
-    };
-
-    auto appendRange = [&appendPage](pdf::PDFInteger first, pdf::PDFInteger last)
-    {
-        for (pdf::PDFInteger page = first; page <= last; ++page)
-        {
-            appendPage(page);
-        }
-    };
-
-    if (text.isEmpty())
-    {
-        appendRange(1, pageCount);
-        return result;
+        text = pageCount > 0 ? QStringLiteral("1-") : QString();
     }
 
-    const QStringList parts = text.split(',', Qt::SkipEmptyParts);
-    for (QString part : parts)
+    if (!text.isEmpty())
     {
-        part = part.trimmed();
-        if (part.isEmpty())
-        {
-            continue;
-        }
-
-        if (part.compare(QStringLiteral("all"), Qt::CaseInsensitive) == 0)
-        {
-            appendRange(1, pageCount);
-            continue;
-        }
-
-        if (part.compare(QStringLiteral("odd"), Qt::CaseInsensitive) == 0)
-        {
-            for (pdf::PDFInteger page = 1; page <= pageCount; page += 2)
-            {
-                appendPage(page);
-            }
-            continue;
-        }
-
-        if (part.compare(QStringLiteral("even"), Qt::CaseInsensitive) == 0)
-        {
-            for (pdf::PDFInteger page = 2; page <= pageCount; page += 2)
-            {
-                appendPage(page);
-            }
-            continue;
-        }
-
-        const int dashIndex = part.indexOf('-');
-        bool okStart = false;
-        bool okEnd = false;
-
-        if (dashIndex == -1)
-        {
-            const pdf::PDFInteger page = part.toLongLong(&okStart);
-            if (!okStart || page < 1 || page > pageCount)
-            {
-                if (errorMessage)
-                {
-                    *errorMessage = tr("Invalid page number '%1'.").arg(part);
-                }
-                return {};
-            }
-            appendPage(page);
-            continue;
-        }
-
-        const QString startText = part.left(dashIndex).trimmed();
-        const QString endText = part.mid(dashIndex + 1).trimmed();
-        const pdf::PDFInteger start = startText.isEmpty() ? 1 : startText.toLongLong(&okStart);
-        const pdf::PDFInteger end = endText.isEmpty() ? pageCount : endText.toLongLong(&okEnd);
-
-        if ((startText.isEmpty() || okStart) && (endText.isEmpty() || okEnd) && start >= 1 && end <= pageCount && start <= end)
-        {
-            appendRange(start, end);
-        }
-        else
+        QString parseError;
+        const std::optional<pdf::PDFPageRangeList> list = pdf::PDFPageRangeList::parse(text, pageCount, &parseError);
+        if (!list)
         {
             if (errorMessage)
             {
-                *errorMessage = tr("Invalid page range '%1'.").arg(part);
+                *errorMessage = parseError;
             }
             return {};
+        }
+
+        result.reserve(list->getPageIndices().size());
+        for (const pdf::PDFInteger pageIndex : list->getPageIndices())
+        {
+            result.push_back(pageIndex + 1);
         }
     }
 

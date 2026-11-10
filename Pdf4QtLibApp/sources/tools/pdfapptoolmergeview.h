@@ -34,6 +34,7 @@
 
 #include <vector>
 
+class QPushButton;
 class QStackedLayout;
 class QTimer;
 class QToolButton;
@@ -43,6 +44,7 @@ namespace pdf
 
 class PDFAppCard;
 class PDFAppParagraph;
+class PDFAppToolGroupedPageModel;
 class PDFAppToolMergePageModel;
 class PDFPageTileDelegate;
 class PDFSegmentedControl;
@@ -97,6 +99,16 @@ private:
 /// of a selected page moves the selected pages (moveRequested), Delete and Alt + an arrow ask
 /// for a removal and a move (removeRequested, moveByRequested). The signals come from the
 /// event handlers of the view, never from inside its layout; a slot may change the model.
+///
+/// The groups of the other tools (R1 b of step 3): a header icon instead of the dot (Insert
+/// 388:17789), the buttons of a group below its callout (Enter Password…, Remove File; real
+/// push buttons, children of the viewport, made again when the groups change - an old one is
+/// hidden and deleted later, it may be the sender of the click), tiles of their own size
+/// (Group::tileScale, Group::hasTileCaptions: the blank pages of Insert 388:16811, the
+/// captions of Interleave 385:13263) and a group without its card (Group::isPlain). A click of
+/// a button is said by actionTriggered from the event loop (the slot may change the groups).
+/// contentHeightChanged says the height of the cards from the event loop after the layout,
+/// so a canvas can hug the cards (the hint 10 below them, 388:15746).
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolMergePageView : public QAbstractItemView
 {
     Q_OBJECT
@@ -117,6 +129,13 @@ public:
     static constexpr int DOT = 8;
     static constexpr int DOT_GAP = 6;
     static constexpr int TILE_GAP = 8;
+
+    /// The icon of a header (388:17789: 14 x 14, the title 20 from its leading edge)
+    static constexpr int HEADER_ICON = 14;
+
+    /// The buttons of a group below its callout (388:17789: 36 high, 8 below the callout, 8 apart)
+    static constexpr int ACTION_HEIGHT = 36;
+    static constexpr int ACTION_GAP = 8;
 
     /// The callouts of a pending input (1390:34213, 1390:34515)
     static constexpr int CALLOUT_RADIUS = 8;
@@ -159,6 +178,15 @@ public:
     /// Height of the content (all cards)
     int getContentHeight() const { return m_contentHeight; }
 
+    /// Size of a tile of the group (-1: of a group of the default tiles)
+    QSize getTileSize(int group) const;
+
+    /// The buttons of the groups can be clicked (false while the tool runs)
+    void setActionsEnabled(bool isEnabled);
+
+    /// The button of the action of the group of the input (nullptr = none)
+    QPushButton* getActionButton(const QString& inputId, const QString& actionId) const;
+
     /// Row in front of which a drop at the position of the viewport places the pages
     int getDropRow(const QPoint& position) const;
 
@@ -181,6 +209,12 @@ Q_SIGNALS:
 
     /// Delete: the selected pages are removed
     void removeRequested();
+
+    /// A button of the group of the input has been clicked (from the event loop)
+    void actionTriggered(const QString& inputId, const QString& actionId);
+
+    /// The height of the cards has changed (from the event loop after the layout)
+    void contentHeightChanged(int height);
 
 protected:
     virtual QModelIndex moveCursor(CursorAction cursorAction, Qt::KeyboardModifiers modifiers) override;
@@ -210,6 +244,19 @@ private:
         int height = 0;         ///< Height of the card
         int tilesTop = 0;       ///< Top of the first line of the tiles
         int calloutHeight = 0;  ///< Height of the callout of a pending input
+        int actionsTop = 0;     ///< Top of the buttons below the callout
+        int inset = 0;          ///< Distance of the tiles from the edges (the padding of the card, 0 for a plain group)
+        QSize tileSize;         ///< Size of the tiles of the group
+        int columns = 1;        ///< Tiles in a line
+    };
+
+    /// A button of a group (388:17789)
+    struct ActionButton
+    {
+        QString inputId;
+        QString actionId;
+        int group = -1;
+        QPointer<QPushButton> button;
     };
 
     /// The y of the content is above the card (the order of std::upper_bound)
@@ -218,8 +265,13 @@ private:
     void layoutGroups();
     void onGroupsChanged();
     void onAutoScroll();
+    void onActionButtonClicked();
+    void emitQueuedAction();
+    void emitContentHeight();
+    void updateActionButtons();
+    void positionActionButtons();
     QSize getTileSize() const;
-    int getColumns() const;
+    int getColumns(int group) const;
     int getInnerWidth() const;
 
     /// Rectangle of the tile of the row in the content (left to right; empty for an invalid row)
@@ -242,21 +294,29 @@ private:
     void setCurrentRow(int row, QItemSelectionModel::SelectionFlags flags);
     QItemSelection createRowSelection(int first, int last) const;
     void paintGroup(QPainter* painter, int group, const QRect& paintRect);
+    void paintTiles(QPainter* painter, int group, const QRect& paintRect);
     void paintDropLine(QPainter* painter);
     int getNeighborRow(int row, int lineDelta) const;
     void updateDrag(const QPoint& viewportPosition);
 
-    QPointer<PDFAppToolMergePageModel> m_mergeModel;
+    QPointer<PDFAppToolGroupedPageModel> m_mergeModel;  ///< The groups of the model (the interface of the grouped view, R1 b of step 3)
     QPointer<PDFPageTileDelegate> m_delegate;
     QPointer<QTimer> m_autoScrollTimer;
     std::vector<GroupLayout> m_layouts;
+    std::vector<ActionButton> m_actionButtons;
     PDFAppToolMergeDragGesture m_gesture;
     QPoint m_lastDragPosition;
+    QString m_queuedActionInput;
+    QString m_queuedAction;
     int m_contentHeight = 0;
+    int m_emittedContentHeight = -1;
     int m_anchorRow = -1;
     int m_hoverRow = -1;
     int m_autoScrollDelta = 0;
     bool m_isEditable = true;
+    bool m_areActionsEnabled = true;
+    bool m_isActionQueued = false;
+    bool m_isContentHeightQueued = false;
 };
 
 /// The table Details (pages-merge-details 408:32003): the same pages as the thumbnails, a row

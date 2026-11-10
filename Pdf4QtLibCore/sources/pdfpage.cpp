@@ -24,6 +24,9 @@
 #include "pdfdocument.h"
 #include "pdfexception.h"
 #include "pdfencoding.h"
+
+#include <cmath>
+
 #include "pdfdbgheap.h"
 
 namespace pdf
@@ -126,6 +129,36 @@ QRectF PDFPage::getRectMM(const QRectF& rect) const
                   convertPDFPointToMM(rect.top()),
                   convertPDFPointToMM(rect.width()),
                   convertPDFPointToMM(rect.height()));
+}
+
+PDFReal PDFPage::getEffectiveUserUnit() const
+{
+    // Table 31: a positive number; a hostile value would make every length of the page useless
+    if (std::isfinite(m_userUnit) && m_userUnit >= MINIMUM_USER_UNIT && m_userUnit <= MAXIMUM_USER_UNIT)
+    {
+        return m_userUnit;
+    }
+    return 1.0;
+}
+
+QRectF PDFPage::getEffectiveBox(const QRectF& box, const QRectF& mediaBox)
+{
+    const QRectF intersection = box.normalized().intersected(mediaBox.normalized());
+    return intersection.isValid() ? intersection : mediaBox.normalized();
+}
+
+QRectF PDFPage::getPhysicalRectMM(const QRectF& rect) const
+{
+    const PDFReal factor = getEffectiveUserUnit();
+    return QRectF(convertPDFPointToMM(rect.left() * factor),
+                  convertPDFPointToMM(rect.top() * factor),
+                  convertPDFPointToMM(rect.width() * factor),
+                  convertPDFPointToMM(rect.height() * factor));
+}
+
+PDFReal PDFPage::getMillimetersToUnits() const
+{
+    return PDF_MM_TO_POINT / getEffectiveUserUnit();
 }
 
 QRectF PDFPage::getRotatedMediaBox() const

@@ -25,6 +25,8 @@
 #include "pdfappcommand.h"
 #include "pdfappcontext.h"
 #include "pdfappdocumentstatusbar.h"
+#include "pdfappdocumenttab.h"
+#include "pdfappdocumentview.h"
 #include "pdfappmainwindow.h"
 #include "pdfapptoolmodelayout.h"
 #include "pdfapptooltab.h"
@@ -483,11 +485,15 @@ QString PDFAppOwnTabToolHost::getCommandToolTip(const QString& commandId) const
 
 PDFAppToolRunEnvironment PDFAppOwnTabToolHost::createEnvironment() const
 {
-    // No selection and no current page (no document of a view). The color management is
-    // null = the default settings: no pointer to an object of a view ever goes to a run (F12).
-    // The inputs come from the list of the tab by PDFDocumentToolGUI::prepareEnvironment (R16).
+    // No selection and no current page (no document of a view). The inputs come from the list
+    // of the tab by PDFDocumentToolGUI::prepareEnvironment (R16).
     PDFAppToolRunEnvironment environment;
     environment.authorName = PDFAuthorSettings::getAuthorName();
+
+    // K43: the color management of the settings of the application by the one reader of the
+    // document views (PDFAppDocumentView::createCMS) - also without any document tab; a shared
+    // immutable object, never a pointer to the manager of a view (F12)
+    environment.cms = PDFAppDocumentView::createCMS(getContext());
     return environment;
 }
 

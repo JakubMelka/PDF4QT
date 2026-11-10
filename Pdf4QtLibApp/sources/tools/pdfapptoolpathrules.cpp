@@ -23,6 +23,7 @@
 #include "pdfapptoolpathrules.h"
 #include "pdfappsysteminfo.h"
 #include "pdfrepositoryhelper.h"
+#include "pdffilenametemplate.h"
 
 #include <QDir>
 #include <QFileInfo>
@@ -162,21 +163,8 @@ QString PDFAppToolPathRules::getNameProblemText(NameProblem problem)
 
 bool PDFAppToolPathRules::isReservedDeviceName(const QString& fileName)
 {
-    const QString base = fileName.section(QLatin1Char('.'), 0, 0).trimmed().toUpper();
-    static const QStringList names = { QStringLiteral("CON"), QStringLiteral("PRN"), QStringLiteral("AUX"), QStringLiteral("NUL"),
-                                       QStringLiteral("CONIN$"), QStringLiteral("CONOUT$") };
-    if (names.contains(base))
-    {
-        return true;
-    }
-
-    // COM1-9, LPT1-9 (also the superscript digits Windows accepts)
-    if (base.size() == 4 && (base.startsWith(QLatin1String("COM")) || base.startsWith(QLatin1String("LPT"))))
-    {
-        const QChar digit = base[3];
-        return (digit >= u'1' && digit <= u'9') || digit == QChar(0x00B9) || digit == QChar(0x00B2) || digit == QChar(0x00B3);
-    }
-    return false;
+    // One rule for the core (the names of the templates of the tools) and the application
+    return PDFFileNameTemplate::isReservedDeviceName(fileName);
 }
 
 bool PDFAppToolPathRules::hasStream(const QString& cleanPath)

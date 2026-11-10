@@ -111,6 +111,16 @@ PDFAppToolToolbar::PDFAppToolToolbar(PDFAppToolHost* host, const PDFDocumentTool
     m_titleLabel = PDFAppPageWidgets::createLabel(tool.getTitle(), QFont::DemiBold, 14, PDFThemeColors::TextPrimary, m_titleGroup);
     m_titleLabel->setObjectName(QStringLiteral("toolTitleName"));
     titleLayout->addWidget(m_titleLabel);
+    if (tool.isAdvanced())
+    {
+        // 391:26688: the Tag Advanced 8 after the title of a tool for experts (as in the
+        // catalog of the tools); it says, it does not act
+        m_advancedTag = new PDFTag(PDFAppToolPresentation::getAdvancedTagText(), m_titleGroup);
+        m_advancedTag->setObjectName(QStringLiteral("toolTitleAdvanced"));
+        m_advancedTag->setFocusPolicy(Qt::NoFocus);
+        m_advancedTag->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+        titleLayout->addWidget(m_advancedTag);
+    }
     m_leftLayout->addWidget(m_titleGroup);
 
     m_undoDivider = new PDFAppToolbarDivider(Qt::Vertical, 20, 6, PDFThemeColors::BorderSeparator, m_leftGroup);
@@ -195,6 +205,10 @@ void PDFAppToolToolbar::retranslate()
         m_titleGroup->setToolTip(tool->getTitle());
         m_titleGroup->setAccessibleName(tool->getTitle());
     }
+    if (m_advancedTag)
+    {
+        m_advancedTag->setText(PDFAppToolPresentation::getAdvancedTagText());
+    }
 
     m_tutorialButton->setText(tr("Tutorial"));
     m_tutorialButton->setToolTip(tr("Tutorial (no video yet)"));
@@ -272,8 +286,12 @@ void PDFAppToolToolbar::setToolActions(QWidget* actions)
 
 void PDFAppToolToolbar::setMode(Mode mode)
 {
+    // After the run (owner 2026-11-09, the after-run frames of Figma, e.g. 296:2761): the
+    // buttons keep their places - Cancel Enabled, the Primary button shown and Disabled
     m_mode = mode;
-    m_confirmButton->setVisible(mode == Mode::Editing);
+    m_confirmButton->setVisible(mode != Mode::Running);
+    m_confirmButton->setEnabled(m_isConfirmEnabled && mode != Mode::Finished);
+    m_cancelButton->setEnabled(true);
     m_stopButton->setVisible(mode == Mode::Running);
     updateCollapse();
 }
@@ -296,7 +314,8 @@ void PDFAppToolToolbar::setConfirmText(const QString& text, const QString& iconN
 
 void PDFAppToolToolbar::setConfirmEnabled(bool isEnabled)
 {
-    m_confirmButton->setEnabled(isEnabled);
+    m_isConfirmEnabled = isEnabled;
+    m_confirmButton->setEnabled(isEnabled && m_mode != Mode::Finished);
 }
 
 void PDFAppToolToolbar::onCommandClicked()
@@ -570,6 +589,10 @@ void PDFAppToolToolbar::applyCollapse(int level)
     m_tutorialButton->setIconSize(level >= H::TutorialIconOnly ? QSize(20, 20) : QSize(18, 18));
     m_tutorialButton->setVisible(level < H::TutorialHidden);
     m_titleLabel->setVisible(level < H::TitleHidden);
+    if (m_advancedTag)
+    {
+        m_advancedTag->setVisible(level < H::TitleHidden);
+    }
     m_undoButton->setVisible(level < H::UndoRedoHidden);
     m_redoButton->setVisible(level < H::UndoRedoHidden);
 
@@ -580,7 +603,7 @@ void PDFAppToolToolbar::applyCollapse(int level)
     // says its text by its tooltip and accessible name, Cancel stays as Esc
     m_confirmButton->setText(level >= H::ConfirmIconOnly ? QString() : m_confirmText);
     m_confirmButton->setToolTip(level >= H::ConfirmIconOnly ? m_confirmText : QString());
-    m_cancelButton->setVisible(m_mode == Mode::Editing && level < H::CancelHidden);
+    m_cancelButton->setVisible(m_mode != Mode::Running && level < H::CancelHidden);
 
     if (m_actions)
     {

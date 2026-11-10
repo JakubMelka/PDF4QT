@@ -188,6 +188,102 @@ PDFDocumentToolResultKind PDFDocumentToolCatalogEntry::getResultKind() const
     return data ? data->getResultKind() : PDFDocumentToolResultKind::ChangeDocument;
 }
 
+/// Kinds of the result of a tool, whose result depends on a parameter (a row per tool, the kind
+/// of the catalog first; plan of step 3 of phase 2, 4.2): Extract Pages one file (NewDocument)
+/// or one file per page (Files). Manage Pages (3b) is decided by its own plan (owner answer Q2).
+class PDFDocumentToolResultKindsRow
+{
+public:
+    const char* toolId;
+    PDFDocumentToolResultKind otherKind;
+};
+
+static constexpr PDFDocumentToolResultKindsRow TOOL_OTHER_RESULT_KINDS[] =
+{
+    { "pages.extract", PDFDocumentToolResultKind::Files },
+};
+
+/// Inputs of a tool, which differ from the default of its input kind (K41 of the plan of step 3
+/// of phase 2: the front and the back sides of Interleave; the images of Images to PDF, whose
+/// input kind None says it opens no document). Manage Pages (1 to 1000) comes with its plan (3b).
+class PDFDocumentToolInputCountRow
+{
+public:
+    const char* toolId;
+    int minimum;
+    int maximum;
+};
+
+static constexpr PDFDocumentToolInputCountRow TOOL_INPUT_COUNTS[] =
+{
+    { "pages.interleave", 2, 2 },
+    { "convert.images-to-pdf", 1, PDFDocumentToolCatalog::MAXIMUM_INPUT_COUNT },
+};
+
+/// Tools, whose files of the result are new PDF documents of the pages of the input document
+/// (Split; plan of step 3 of phase 2, Q4)
+static constexpr const char* TOOL_PDF_FILES_OF_INPUTS[] =
+{
+    "pages.split",
+};
+
+std::vector<PDFDocumentToolResultKind> PDFDocumentToolCatalogEntry::getPossibleResultKinds() const
+{
+    std::vector<PDFDocumentToolResultKind> kinds = { getResultKind() };
+    for (const PDFDocumentToolResultKindsRow& row : TOOL_OTHER_RESULT_KINDS)
+    {
+        if (getId() == QLatin1String(row.toolId) && std::find(kinds.cbegin(), kinds.cend(), row.otherKind) == kinds.cend())
+        {
+            kinds.push_back(row.otherKind);
+        }
+    }
+    return kinds;
+}
+
+PDFDocumentToolInputCountRange PDFDocumentToolCatalogEntry::getInputCountRange() const
+{
+    for (const PDFDocumentToolInputCountRow& row : TOOL_INPUT_COUNTS)
+    {
+        if (getId() == QLatin1String(row.toolId))
+        {
+            return PDFDocumentToolInputCountRange{ row.minimum, row.maximum };
+        }
+    }
+
+    switch (getInputKind())
+    {
+        case PDFDocumentToolInputKind::None:
+            return PDFDocumentToolInputCountRange{ 0, 0 };
+        case PDFDocumentToolInputKind::One:
+            return PDFDocumentToolInputCountRange{ 1, 1 };
+        case PDFDocumentToolInputKind::Multiple:
+            return PDFDocumentToolInputCountRange{ 2, PDFDocumentToolCatalog::MAXIMUM_INPUT_COUNT };
+    }
+    return PDFDocumentToolInputCountRange();
+}
+
+bool PDFDocumentToolCatalogEntry::isNewDocumentOfInputs() const
+{
+    if (getInputKind() == PDFDocumentToolInputKind::None)
+    {
+        return false;
+    }
+
+    const std::vector<PDFDocumentToolResultKind> kinds = getPossibleResultKinds();
+    if (std::find(kinds.cbegin(), kinds.cend(), PDFDocumentToolResultKind::NewDocument) != kinds.cend())
+    {
+        return true;
+    }
+    for (const char* toolId : TOOL_PDF_FILES_OF_INPUTS)
+    {
+        if (getId() == QLatin1String(toolId))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 PDFDocumentToolExternalDependency PDFDocumentToolCatalogEntry::getExternalDependency() const
 {
     const PDFDocumentToolExtendedData* data = PDFDocumentToolCatalog::findExtendedData(getId());
@@ -393,6 +489,13 @@ const std::vector<PDFDocumentToolExtendedData>& PDFDocumentToolCatalog::getExten
     //    alone does not allow them. Merge needs also the owner password of a document, which
     //    restricts anything else, because its result is not encrypted (owner answer Q2 of
     //    step 2 of phase 2, PDFDocumentMerger::getPermission in its validation).
+    // The tools of step 3 of phase 2 (plan, Q4 with R4): Split, Extract Pages and Interleave Pages
+    // make new documents of the pages of their inputs - bit 11 and the rule of Merge
+    // (PDFDocumentToolCatalogEntry::isNewDocumentOfInputs); Insert Pages and Add Image as Page
+    // insert pages into the open document - bit 11 (their sources are checked as the inputs of
+    // Merge by the tools); Crop Pages and Set Page Boxes change the boxes of the pages - bit 4
+    // (bit 11 does not name them); Resize Pages - bit 4, and bit 6 for a run, which moves or
+    // scales an annotation (checked by the tool); Images to PDF has no input document.
     using Input = PDFDocumentToolInputKind;
     using Result = PDFDocumentToolResultKind;
     using Dependency = PDFDocumentToolExternalDependency;
@@ -402,17 +505,17 @@ const std::vector<PDFDocumentToolExtendedData>& PDFDocumentToolCatalog::getExten
     static const std::vector<PDFDocumentToolExtendedData> data =
     {
         PDFDocumentToolExtendedData("pages.merge", Input::Multiple, Result::NewDocument, Dependency::None, "unite", "edit.page-numbers,optimize.compress,protect.password", Preselected::NewTab, Signature::None, uint32_t(Permission::Assemble)),
-        PDFDocumentToolExtendedData("pages.split", Input::One, Result::Files, Dependency::None, "separate", ""),
-        PDFDocumentToolExtendedData("pages.extract", Input::One, Result::NewDocument, Dependency::None, "", "optimize.compress,protect.password"),
-        PDFDocumentToolExtendedData("pages.interleave", Input::Multiple, Result::NewDocument, Dependency::None, "", "convert.ocr,optimize.compress"),
+        PDFDocumentToolExtendedData("pages.split", Input::One, Result::Files, Dependency::None, "separate", "", Preselected::File, Signature::None, uint32_t(Permission::Assemble)),
+        PDFDocumentToolExtendedData("pages.extract", Input::One, Result::NewDocument, Dependency::None, "", "optimize.compress,protect.password", Preselected::NewTab, Signature::None, uint32_t(Permission::Assemble)),
+        PDFDocumentToolExtendedData("pages.interleave", Input::Multiple, Result::NewDocument, Dependency::None, "", "convert.ocr,optimize.compress", Preselected::NewTab, Signature::None, uint32_t(Permission::Assemble)),
         PDFDocumentToolExtendedData("pages.manage", Input::Multiple, Result::ChangeDocument, Dependency::None, "", "edit.page-numbers,optimize.compress,protect.password"),
-        PDFDocumentToolExtendedData("pages.insert", Input::One, Result::ChangeDocument, Dependency::None, "", "edit.page-numbers,optimize.compress"),
-        PDFDocumentToolExtendedData("pages.add-image", Input::One, Result::ChangeDocument, Dependency::None, "", "convert.ocr,optimize.compress"),
+        PDFDocumentToolExtendedData("pages.insert", Input::One, Result::ChangeDocument, Dependency::None, "", "edit.page-numbers,optimize.compress", Preselected::Keep, Signature::IncrementalSave, uint32_t(Permission::Assemble)),
+        PDFDocumentToolExtendedData("pages.add-image", Input::One, Result::ChangeDocument, Dependency::None, "", "convert.ocr,optimize.compress", Preselected::Keep, Signature::IncrementalSave, uint32_t(Permission::Assemble)),
         PDFDocumentToolExtendedData("pages.remove", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.compress,edit.page-numbers,protect.password", Preselected::Keep, Signature::IncrementalSave, uint32_t(Permission::Assemble)),
         PDFDocumentToolExtendedData("pages.rotate", Input::One, Result::ChangeDocument, Dependency::None, "", "convert.ocr,optimize.compress,pages.remove", Preselected::Keep, Signature::IncrementalSave, uint32_t(Permission::Assemble)),
-        PDFDocumentToolExtendedData("pages.crop", Input::One, Result::ChangeDocument, Dependency::None, "", "pages.resize,optimize.compress"),
-        PDFDocumentToolExtendedData("pages.resize", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.compress,edit.page-numbers"),
-        PDFDocumentToolExtendedData("pages.boxes", Input::One, Result::ChangeDocument, Dependency::None, "", "review.output-preview"),
+        PDFDocumentToolExtendedData("pages.crop", Input::One, Result::ChangeDocument, Dependency::None, "", "pages.resize,optimize.compress", Preselected::Keep, Signature::IncrementalSave, uint32_t(Permission::Modify)),
+        PDFDocumentToolExtendedData("pages.resize", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.compress,edit.page-numbers", Preselected::Keep, Signature::IncrementalSave, uint32_t(Permission::Modify)),
+        PDFDocumentToolExtendedData("pages.boxes", Input::One, Result::ChangeDocument, Dependency::None, "", "review.output-preview", Preselected::Keep, Signature::IncrementalSave, uint32_t(Permission::Modify)),
         PDFDocumentToolExtendedData("convert.images-to-pdf", Input::None, Result::NewDocument, Dependency::None, "", "optimize.images"),
         PDFDocumentToolExtendedData("convert.blank", Input::None, Result::NewDocument, Dependency::None, "", ""),
         PDFDocumentToolExtendedData("convert.scan", Input::None, Result::NewDocument, Dependency::Scanner, "", "optimize.compress"),

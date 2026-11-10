@@ -242,6 +242,11 @@ QString PDFAppPageMarkingToolGUI::getLeftHintText() const
     return QString();
 }
 
+PDFPageSelection::Mode PDFAppPageMarkingToolGUI::getEntryModeWithoutSelection() const
+{
+    return PDFPageSelection::Mode::Current;
+}
+
 void PDFAppPageMarkingToolGUI::onDeleteRequested(PDFInteger page)
 {
     Q_UNUSED(page);
@@ -371,10 +376,11 @@ void PDFAppPageMarkingToolGUI::describeLeftPanel(PDFAppToolPanelBuilder& builder
         const PDFAppToolHost* host = getHost();
         const std::vector<PDFInteger> selectedPages = host ? host->getSelectedPages() : std::vector<PDFInteger>();
         const bool hasSelectedPages = selectedPages.size() > 1 || (selectedPages.size() == 1 && selectedPages.front() != host->getCurrentPage());
-        if (m_pageSelection->getMode() == PDFPageSelection::Mode::All && m_pageSelection->getFilters() == PDFPageSelection::Filters())
+        const PDFPageSelection::Mode entryMode = hasSelectedPages ? PDFPageSelection::Mode::Selected : getEntryModeWithoutSelection();
+        if (m_pageSelection->getMode() == PDFPageSelection::Mode::All && m_pageSelection->getFilters() == PDFPageSelection::Filters() && entryMode != PDFPageSelection::Mode::All)
         {
             QPointer<PDFAppPageMarkingToolGUI> guard(this);
-            m_binder->setEntryMode(hasSelectedPages ? PDFPageSelection::Mode::Selected : PDFPageSelection::Mode::Current);
+            m_binder->setEntryMode(entryMode);
             if (!guard)
             {
                 return;
@@ -464,9 +470,15 @@ void PDFAppPageMarkingToolGUI::updateTargets()
     }
 }
 
+void PDFAppPageMarkingToolGUI::onTargetsUpdated()
+{
+
+}
+
 void PDFAppPageMarkingToolGUI::updateAll()
 {
     updateTargets();
+    onTargetsUpdated();
 
     if (m_grid)
     {

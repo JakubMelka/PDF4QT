@@ -32,10 +32,15 @@
 #include "pdfocrtextlayerwriter.h"
 #include "pdfoperationcontrol.h"
 
+#include "pdffilenametemplate.h"
+
+#include <QBuffer>
 #include <QCoreApplication>
+#include <QDir>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QLocale>
+#include <QSaveFile>
 
 #include <exception>
 
@@ -170,6 +175,227 @@ PDFDocumentToolInputDocument PDFDocumentToolInputDocument::create(PDFDocumentPoi
     return input;
 }
 
+PDFDocumentToolFileSink::PDFDocumentToolFileSink(ExistingFiles policy) :
+    m_policy(policy)
+{
+
+}
+
+PDFDocumentToolFileSink::~PDFDocumentToolFileSink() = default;
+
+bool PDFDocumentToolFileSink::begin(const QStringList& fileNames, QString* errorText)
+{
+    Q_UNUSED(fileNames);
+    if (errorText)
+    {
+        errorText->clear();
+    }
+    return true;
+}
+
+bool PDFDocumentToolFileSink::isStopped() const
+{
+    return false;
+}
+
+void PDFDocumentToolFileSink::addWrittenFile(const QString& filePath)
+{
+    m_writtenFiles << filePath;
+}
+
+void PDFDocumentToolFileSink::addNotWrittenFile(const QString& fileName)
+{
+    m_notWrittenFiles << fileName;
+}
+
+PDFDocumentToolFolderSink::PDFDocumentToolFolderSink(QString folder, ExistingFiles policy) :
+    PDFDocumentToolFileSink(policy),
+    m_folder(folder.isEmpty() ? QString() : QDir::cleanPath(QDir(folder).absolutePath()))
+{
+
+}
+
+PDFDocumentToolFolderSink::~PDFDocumentToolFolderSink() = default;
+
+QString PDFDocumentToolFolderSink::getKey(const QString& fileName)
+{
+    return fileName.toCaseFolded();
+}
+
+bool PDFDocumentToolFolderSink::begin(const QStringList& fileNames, QString* errorText)
+{
+    QString dummy;
+    QString& error = errorText ? *errorText : dummy;
+    error.clear();
+
+    const QFileInfo folderInfo(m_folder);
+    if (m_folder.isEmpty() || !folderInfo.isDir())
+    {
+        error = tr("The folder does not exist.");
+        return false;
+    }
+
+    m_conflictFiles.clear();
+    m_reservedNames.clear();
+    const QDir folder(m_folder);
+    for (const QString& fileName : fileNames)
+    {
+        if (!checkFileName(fileName, &error))
+        {
+            return false;
+        }
+        const QString key = getKey(fileName);
+        if (m_reservedNames.contains(key))
+        {
+            error = tr("More files would be named %1.").arg(fileName);
+            return false;
+        }
+        m_reservedNames.insert(key);
+        if (QFileInfo::exists(folder.filePath(fileName)))
+        {
+            m_conflictFiles << fileName;
+        }
+    }
+    return true;
+}
+
+bool PDFDocumentToolFolderSink::checkFileName(const QString& fileName, QString* errorText) const
+{
+    if (fileName.isEmpty() || PDFFileNameTemplate::sanitize(fileName) != fileName)
+    {
+        *errorText = tr("\"%1\" cannot be a name of a file.").arg(fileName);
+        return false;
+    }
+    return true;
+}
+
+PDFDocumentToolFileSink::ExistingFiles PDFDocumentToolFolderSink::resolveConflict(const QString& fileName, bool isProtected)
+{
+    Q_UNUSED(fileName);
+    Q_UNUSED(isProtected);
+    return getPolicy() == ExistingFiles::Ask ? ExistingFiles::Skip : getPolicy();
+}
+
+bool PDFDocumentToolFolderSink::isProtectedPath(const QString& filePath) const
+{
+    Q_UNUSED(filePath);
+    return false;
+}
+
+QString PDFDocumentToolFolderSink::getRenamedFileName(const QString& fileName) const
+{
+    // "Report.pdf" -> "Report (2).pdf" (383:4447); the extension is the last suffix
+    const qsizetype dot = fileName.lastIndexOf(QLatin1Char('.'));
+    const QString base = dot > 0 ? fileName.left(dot) : fileName;
+    const QString extension = dot > 0 ? fileName.mid(dot) : QString();
+    const QDir folder(m_folder);
+    for (int number = 2; number < 100000; ++number)
+    {
+        const QString suffix = QStringLiteral(" (%1)").arg(number);
+        QString candidate = base;
+        const int maximumBase = PDFFileNameTemplate::MAXIMUM_FILE_NAME_LENGTH - int(suffix.size() + extension.size());
+        if (candidate.size() > maximumBase)
+        {
+            candidate = PDFFileNameTemplate::sanitize(candidate.left(qMax(1, maximumBase)));
+        }
+        candidate += suffix + extension;
+        if (!m_reservedNames.contains(getKey(candidate)) && !QFileInfo::exists(folder.filePath(candidate)) && !isProtectedPath(folder.filePath(candidate)))
+        {
+            return candidate;
+        }
+    }
+    return QString();
+}
+
+bool PDFDocumentToolFolderSink::write(const QString& fileName, const QByteArray& data, QString* errorText)
+{
+    QString dummy;
+    QString& error = errorText ? *errorText : dummy;
+    error.clear();
+
+    if (isStopped())
+    {
+        error = tr("The export has been stopped.");
+        addNotWrittenFile(fileName);
+        return false;
+    }
+    if (!checkFileName(fileName, &error))
+    {
+        m_lastProblem = error;
+        addNotWrittenFile(fileName);
+        return false;
+    }
+
+    const QDir folder(m_folder);
+    QString targetName = fileName;
+    QString targetPath = folder.filePath(targetName);
+    const bool isProtected = isProtectedPath(targetPath);
+    const bool isExisting = QFileInfo::exists(targetPath);
+    if (isExisting || isProtected)
+    {
+        const ExistingFiles decision = resolveConflict(fileName, isProtected);
+        if (isStopped())
+        {
+            error = tr("The export has been stopped.");
+            addNotWrittenFile(fileName);
+            return false;
+        }
+
+        switch (decision)
+        {
+            case ExistingFiles::Overwrite:
+                if (isProtected)
+                {
+                    // R14: a source or a file open in PDF4QT is never replaced
+                    error = tr("%1 is open in PDF4QT or is the source of the files - it is not overwritten.").arg(fileName);
+                    m_lastProblem = error;
+                    addNotWrittenFile(fileName);
+                    return false;
+                }
+                break;
+
+            case ExistingFiles::Rename:
+                targetName = getRenamedFileName(fileName);
+                if (targetName.isEmpty())
+                {
+                    error = tr("%1 exists and no free name was found.").arg(fileName);
+                    m_lastProblem = error;
+                    addNotWrittenFile(fileName);
+                    return false;
+                }
+                targetPath = folder.filePath(targetName);
+                break;
+
+            case ExistingFiles::Ask:
+            case ExistingFiles::Skip:
+                error = tr("%1 exists - it was skipped.").arg(fileName);
+                m_lastProblem = error;
+                addNotWrittenFile(fileName);
+                return false;
+        }
+    }
+
+    // Whole or not at all: the file appears only when every byte is written
+    const bool isOverwritten = QFileInfo::exists(targetPath);
+    QSaveFile file(targetPath);
+    if (!file.open(QIODevice::WriteOnly) || file.write(data) != data.size() || !file.commit())
+    {
+        error = tr("%1 cannot be written: %2").arg(targetName, file.errorString());
+        m_lastProblem = error;
+        addNotWrittenFile(fileName);
+        return false;
+    }
+
+    m_reservedNames.insert(getKey(targetName));
+    const QString writtenPath = QDir::cleanPath(QFileInfo(targetPath).absoluteFilePath());
+    if (isOverwritten)
+    {
+        m_overwrittenFiles << writtenPath;
+    }
+    addWrittenFile(writtenPath);
+    return true;
+}
+
 PDFDocumentToolContext PDFDocumentToolContext::create(PDFDocumentToolInputDocument input)
 {
     PDFDocumentToolContext context;
@@ -251,6 +477,10 @@ QJsonObject PDFDocumentToolResult::toJson() const
     }
     object.insert(QStringLiteral("documents"), documentArray);
     object.insert(QStringLiteral("files"), QJsonArray::fromStringList(writtenFiles));
+    if (!notWrittenFiles.isEmpty())
+    {
+        object.insert(QStringLiteral("notWrittenFiles"), QJsonArray::fromStringList(notWrittenFiles));
+    }
 
     if (!outputs.empty())
     {
@@ -324,6 +554,25 @@ PDFDocumentTool::~PDFDocumentTool() = default;
 const PDFDocumentToolCatalogEntry* PDFDocumentTool::getInfo() const
 {
     return PDFDocumentToolCatalog::findTool(getId());
+}
+
+PDFDocumentToolResultKind PDFDocumentTool::getResultKind(const QVariantMap& parameters) const
+{
+    Q_UNUSED(parameters);
+    const PDFDocumentToolCatalogEntry* entry = getInfo();
+    return entry ? entry->getResultKind() : PDFDocumentToolResultKind::ChangeDocument;
+}
+
+std::vector<PDFDocumentToolResultKind> PDFDocumentTool::getPossibleResultKinds() const
+{
+    const PDFDocumentToolCatalogEntry* entry = getInfo();
+    return entry ? entry->getPossibleResultKinds() : std::vector<PDFDocumentToolResultKind>({ PDFDocumentToolResultKind::ChangeDocument });
+}
+
+PDFDocumentToolInputCountRange PDFDocumentTool::getInputCountRange() const
+{
+    const PDFDocumentToolCatalogEntry* entry = getInfo();
+    return entry ? entry->getInputCountRange() : PDFDocumentToolInputCountRange();
 }
 
 std::vector<PDFDocumentToolParameterError> PDFDocumentTool::validate(const PDFDocumentToolContext& context, const QVariantMap& parameters) const
@@ -403,6 +652,36 @@ PDFDocumentTool::WholeFileSize PDFDocumentTool::getWholeFileOutputSize(const PDF
         result.error = PDFDocumentToolHelper::tr("The result is too large to be saved.");
     }
     return result;
+}
+
+QByteArray PDFDocumentTool::writeDocumentData(const PDFDocument* document, QString* errorMessage)
+{
+    QString dummy;
+    QString& error = errorMessage ? *errorMessage : dummy;
+    error.clear();
+
+    QByteArray data;
+    QBuffer buffer(&data);
+    buffer.open(QBuffer::WriteOnly);
+    PDFDocumentWriter writer(nullptr);
+    const PDFOperationResult result = writer.write(&buffer, document);
+    buffer.close();
+    if (!result)
+    {
+        error = result.getErrorMessage();
+        return QByteArray();
+    }
+    if (data.isEmpty())
+    {
+        error = PDFDocumentToolHelper::tr("The result cannot be written.");
+        return QByteArray();
+    }
+    if (data.size() > MAXIMUM_RESULT_SIZE)
+    {
+        error = PDFDocumentToolHelper::tr("The result is too large to be saved.");
+        return QByteArray();
+    }
+    return data;
 }
 
 void PDFDocumentTool::finishWholeFileResult(PDFDocumentToolResult* result, const PDFDocumentToolInputDocument& input, PDFDocument output, qint64 sizeBefore, qint64 sizeAfter, const QString& fileNameSuffix, WholeFileDocument documentRule) const
@@ -557,10 +836,15 @@ PDFDocumentToolResult PDFDocumentTool::run(const PDFDocumentToolContext& context
         return PDFDocumentToolResult::createFailed(PDFDocumentToolHelper::tr("The tool failed with an unexpected error."));
     }
 
-    // A canceled run is never used, also when the tool finished meanwhile
+    // A canceled run is never used, also when the tool finished meanwhile; the files, which a
+    // tool of more files has written before the stop, are on the disk - the stopped result names
+    // them (R3 of step 3, Split stopped: Written, Not written)
     if (result.status != PDFDocumentToolResultStatus::Failed && PDFOperationControl::isOperationCancelled(control))
     {
-        return PDFDocumentToolResult::createStopped();
+        PDFDocumentToolResult stopped = PDFDocumentToolResult::createStopped();
+        stopped.writtenFiles = result.writtenFiles;
+        stopped.notWrittenFiles = result.notWrittenFiles;
+        return stopped;
     }
 
     if (!PDFDocumentToolHelper::isConsistent(result, context))

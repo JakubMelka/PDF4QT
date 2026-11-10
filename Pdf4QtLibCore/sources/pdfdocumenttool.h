@@ -26,11 +26,14 @@
 #include "pdfglobal.h"
 #include "pdfcms.h"
 #include "pdfdocument.h"
+#include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttoolparameter.h"
 #include "pdfprogress.h"
 
 #include <QByteArray>
+#include <QCoreApplication>
 #include <QJsonObject>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 #include <QVariantMap>
@@ -89,6 +92,144 @@ public:
     double dotsPerInch = 0.0;   ///< Resolution given by the caller; 0 = the resolution of the file (a value outside 72 to 2400, zero, negative or NaN gives 300, R15)
 };
 
+/// Writer of the files of a tool, whose result is more files (Split, Extract Pages one file per
+/// page, the exports of Convert; plan of step 3 of phase 2, 4.2, 9.3, R3, R14): the tool never
+/// writes a file itself, it gives every file to the sink of its context.
+///
+/// Contract:
+///  - Ownership: the caller of the run owns the sink (the runner of the application,
+///    PDFAppToolFileSink, by a std::unique_ptr for the time of the run; a test or PdfTool its
+///    own) and keeps it alive until the run has returned; PDFDocumentToolContext::fileSink is
+///    only a pointer. The sink is no QObject and holds nothing of a view or a window: the
+///    folder, the policy and the rules of the paths are plain values given to its constructor.
+///  - Threads: the tool calls begin, write and isStopped from the one thread of its run, in the
+///    order of the files (the parts may be computed in parallel, they are written one by one -
+///    the order and Stop). getWrittenFiles and getNotWrittenFiles are read after the run has
+///    returned (the caller hands the result to the GUI thread). The base class keeps its lists
+///    without a lock.
+///  - Existing files: the policy of the constructor. Ask (the GUI only, 356:11997, R3) - an
+///    implementation stops in write at the first conflict, the GUI polls its state and answers
+///    through a thread-safe object, the thread waits by PDFThreadAnnotations::wait and checks
+///    the cancellation; MCP never asks (R17). A name equal to the path of a source or of a file
+///    open in a tab is a conflict, which Overwrite does not overwrite (R14).
+///  - A file is written whole or not at all (QSaveFile): Stop keeps the files written before.
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolFileSink
+{
+public:
+    /// What happens with a file, which exists already
+    enum class ExistingFiles
+    {
+        Ask,        ///< A question at the first conflict (the GUI, 356:11997)
+        Overwrite,  ///< The file is replaced (never a source or a file open in a tab)
+        Skip,       ///< The file is not written, it is in getNotWrittenFiles
+        Rename      ///< The name gets " (2)", " (3)", ... (383:4447)
+    };
+
+    explicit PDFDocumentToolFileSink(ExistingFiles policy);
+    virtual ~PDFDocumentToolFileSink();
+
+    PDFDocumentToolFileSink(const PDFDocumentToolFileSink&) = delete;
+    PDFDocumentToolFileSink& operator=(const PDFDocumentToolFileSink&) = delete;
+
+    ExistingFiles getPolicy() const { return m_policy; }
+
+    /// The run starts: the names of all files it will write (no folder, with the extension) in
+    /// their order, so the conflicts are counted before the first file ("37 files", R3). The
+    /// default accepts them. \returns false and the translated reason, when the run cannot start.
+    virtual bool begin(const QStringList& fileNames, QString* errorText);
+
+    /// Writes one file of the run: \p fileName without a folder (a name given to begin), the
+    /// bytes of the whole file. \returns false and the translated reason, when it was not written
+    /// (skipped, an error, stopped) - the name is then in getNotWrittenFiles.
+    virtual bool write(const QString& fileName, const QByteArray& data, QString* errorText) = 0;
+
+    /// The sink has been stopped (Stop Export of the question): the tool writes no further file
+    /// and ends as Stopped. The default is never stopped.
+    virtual bool isStopped() const;
+
+    /// Absolute paths of the files written in their order
+    const QStringList& getWrittenFiles() const { return m_writtenFiles; }
+
+    /// Names of the files, which were not written, in their order
+    const QStringList& getNotWrittenFiles() const { return m_notWrittenFiles; }
+
+protected:
+    /// An implementation records what has happened with a file
+    void addWrittenFile(const QString& filePath);
+    void addNotWrittenFile(const QString& fileName);
+
+private:
+    ExistingFiles m_policy;
+    QStringList m_writtenFiles;
+    QStringList m_notWrittenFiles;
+};
+
+/// A file sink, which writes the files into one folder (package A of step 3a of phase 2: the
+/// application derives PDFAppToolFileSink from it, PdfTool separate and the tests use it): each
+/// file by QSaveFile - whole or not at all -, the policies Overwrite, Skip and Rename, a file,
+/// which must never be overwritten (isProtectedPath), the names written in this run counted, so
+/// Rename never takes a name of a later file of the run. Ask is decided by resolveConflict: the
+/// base cannot ask and skips the file (the application asks, 356:11997).
+///
+/// Threads: as its base - one thread of the run, the lists read after it.
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolFolderSink : public PDFDocumentToolFileSink
+{
+    Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocumentToolFolderSink)
+
+public:
+    /// \param folder The folder of the files (it must exist)
+    /// \param policy What happens with a file, which exists already
+    explicit PDFDocumentToolFolderSink(QString folder, ExistingFiles policy);
+    virtual ~PDFDocumentToolFolderSink() override;
+
+    /// The folder exists, every name is a plain file name (checkFileName), no two names are equal
+    /// (case insensitive); the names of existing files are counted (getConflictFiles)
+    virtual bool begin(const QStringList& fileNames, QString* errorText) override;
+
+    /// Writes the file into the folder by the policy (see the class)
+    virtual bool write(const QString& fileName, const QByteArray& data, QString* errorText) override;
+
+    /// The folder (an absolute clean path)
+    const QString& getFolder() const { return m_folder; }
+
+    /// Names given to begin, whose files existed then (the conflicts of the run, "37 files", R3)
+    const QStringList& getConflictFiles() const { return m_conflictFiles; }
+
+    /// Absolute paths of the written files, which existed before and were overwritten (Delete
+    /// Written Files never deletes them, K46)
+    const QStringList& getOverwrittenFiles() const { return m_overwrittenFiles; }
+
+    /// Text of the last reason, why a file was not written (empty = none)
+    const QString& getLastProblem() const { return m_lastProblem; }
+
+protected:
+    /// What happens with \p fileName, whose file exists (\p isProtected: it must never be
+    /// overwritten); the default is the policy, Ask = Skip. A subclass may ask the user; it
+    /// returns Skip after a stop (isStopped).
+    virtual ExistingFiles resolveConflict(const QString& fileName, bool isProtected);
+
+    /// The path is a file, which is never overwritten (a source of the run, a file open in a
+    /// tab, R14); the default protects nothing
+    virtual bool isProtectedPath(const QString& filePath) const;
+
+    /// A plain file name of the folder; the default accepts a name, which
+    /// PDFFileNameTemplate::sanitize keeps unchanged
+    virtual bool checkFileName(const QString& fileName, QString* errorText) const;
+
+private:
+    /// A free name "<base> (2).<ext>", "(3)", ...: no file of the folder, no name of the run
+    QString getRenamedFileName(const QString& fileName) const;
+
+    /// The key of a name in the sets (case insensitive)
+    static QString getKey(const QString& fileName);
+
+    QString m_folder;
+    QStringList m_conflictFiles;
+    QStringList m_overwrittenFiles;
+    QSet<QString> m_reservedNames;      ///< Names of the run (begin) and the names written, keys
+    QString m_lastProblem;
+};
+
 /// Context of one run of a tool: the inputs and the environment. A value - the
 /// caller fills it in the GUI thread and passes it to the worker. It never holds a
 /// pointer to an object of a view or of a window (they may be gone before the
@@ -118,6 +259,11 @@ public:
     QString authorName;                                             ///< Author of the new content (annotations, signatures)
     std::shared_ptr<const PDFCertificateStore> certificateStore;    ///< Trusted certificates, may be null
     QString temporaryFolder;                                        ///< Folder of the temporary files of the run
+
+    /// Writer of the files of a tool, whose result is more files (PDFDocumentToolFileSink: owned
+    /// by the caller of the run for its whole time, used only by the thread of the run);
+    /// nullptr = none (a tool, which needs it, fails without it)
+    PDFDocumentToolFileSink* fileSink = nullptr;
 
     /// The first input document, nullptr = none
     const PDFDocument* getDocument() const;
@@ -214,6 +360,7 @@ public:
     std::vector<PDFDocumentToolOutputDocument> documents;   ///< Changed and new documents
     std::vector<PDFDocumentToolOutputFile> outputs;     ///< Files, which the caller writes
     QStringList writtenFiles;                           ///< Files written by the tool (absolute paths)
+    QStringList notWrittenFiles;                        ///< Files of the run, which were not written (names; skipped, failed or after Stop - R3 stopped, PDFDocumentToolFileSink)
     std::vector<PDFDocumentToolFact> facts;             ///< Facts of the result dialog
     std::vector<PDFDocumentToolStep> steps;             ///< Rows of the steps
     std::vector<PDFDocumentToolLeftOutInput> leftOutInputs;    ///< Inputs, which are not in the result (Success = a partial result; empty = complete)
@@ -283,6 +430,21 @@ public:
     /// Definitions of the parameters (valid as a set, PDFDocumentToolParameters::isValid)
     virtual PDFDocumentToolParameterDefinitions getParameters() const = 0;
 
+    /// Kind of the result of a run with the normalized parameters (plan of step 3 of phase 2,
+    /// 4.2: Extract Pages one file = NewDocument, one file per page = Files); the shell chooses
+    /// the text of the Primary button and the dialog by it, MCP the value of result. The default
+    /// is the kind of the catalog entry (ChangeDocument without an entry).
+    virtual PDFDocumentToolResultKind getResultKind(const QVariantMap& parameters) const;
+
+    /// Every kind, which getResultKind can give (the values of the parameter result of the
+    /// schema of MCP); the default is PDFDocumentToolCatalogEntry::getPossibleResultKinds
+    virtual std::vector<PDFDocumentToolResultKind> getPossibleResultKinds() const;
+
+    /// How many inputs (documents and images of the context) the tool takes - the bounds of
+    /// documentIds and imagePaths of MCP (K41); the default is
+    /// PDFDocumentToolCatalogEntry::getInputCountRange (0 to 0 without an entry)
+    virtual PDFDocumentToolInputCountRange getInputCountRange() const;
+
     /// Checks the context and the normalized parameters before a run. The default
     /// checks the input documents by the input kind of the catalog (None: any,
     /// One: exactly one, Multiple: at least one; never a null document) and the
@@ -350,6 +512,13 @@ public:
     /// Measures the file of a result by writing it
     /// \param output The result
     static WholeFileSize getWholeFileOutputSize(const PDFDocument* output);
+
+    /// The bytes of the whole file of a document (PDFDocumentWriter): a new document of a tool
+    /// (the parts of Split, PDFDocumentToolOutputDocument::writtenData). Empty and the translated
+    /// reason, when it cannot be written or is larger than MAXIMUM_RESULT_SIZE. Reentrant.
+    /// \param document The document
+    /// \param errorMessage Reason of a failure
+    static QByteArray writeDocumentData(const PDFDocument* document, QString* errorMessage);
 
     /// When a result of a tool, which rewrites the whole file, gets its document
     enum class WholeFileDocument

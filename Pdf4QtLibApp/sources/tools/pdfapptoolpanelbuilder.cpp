@@ -737,7 +737,9 @@ void PDFAppToolPageSelectionBinder::writeValue(bool isUserChange)
             pages = createRangeText(m_selection->getSelectedPages());
             break;
         case PDFPageSelection::Mode::Range:
-            pages = m_selection->getRange();
+            // K42: the field accepts the dashes, commas and digits of other scripts, the core
+            // reads only ASCII - the value is the canonical text of the same pages
+            pages = PDFPageRange::toCanonicalText(m_selection->getRange());
             break;
     }
 
@@ -814,7 +816,7 @@ void PDFAppToolPageSelectionBinder::onParameterChanged(const QString& name)
     {
         m_selection->setMode(PDFPageSelection::Mode::All);
     }
-    else if (m_selection->getMode() != PDFPageSelection::Mode::Range || m_selection->getRange() != value->pages)
+    else if (m_selection->getMode() != PDFPageSelection::Mode::Range || PDFPageRange::toCanonicalText(m_selection->getRange()) != value->pages)
     {
         const bool isCurrent = m_selection->getMode() == PDFPageSelection::Mode::Current && value->pages == QString::number(m_selection->getCurrentPage());
         const bool isSelected = m_selection->getMode() == PDFPageSelection::Mode::Selected && value->pages == createRangeText(m_selection->getSelectedPages());

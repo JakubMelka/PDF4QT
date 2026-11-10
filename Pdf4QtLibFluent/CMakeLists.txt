@@ -33,6 +33,8 @@ endif()
 add_library(Pdf4QtLibFluent SHARED
     sources/pdfaccenthue.cpp
     sources/pdfaccenthue.h
+    sources/pdfanchorgrid.cpp
+    sources/pdfanchorgrid.h
     sources/pdfcolorpickerdialog.cpp
     sources/pdfcolorpickerdialog.h
     sources/pdfcomponentassistants.cpp

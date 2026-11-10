@@ -582,6 +582,7 @@ private slots:
     void foreignStyle();
     void pageRangeParser();
     void pageRangeFuzz();
+    void pageRangeCanonicalText();
     void pageSelectionResult();
     void pageSelectionWidget();
     void continueWith();
@@ -7110,6 +7111,76 @@ void FluentComponentsTest::pageRangeFuzz()
         const Range::Result result = Range::parse(text, 50);
         QVERIFY(result.isValid() || result.intervals.isEmpty());
         QVERIFY(result.errorMessage.size() < 200);
+    }
+}
+
+void FluentComponentsTest::pageRangeCanonicalText()
+{
+    using Range = pdf::PDFPageRange;
+
+    // K42 (plan of step 3 of phase 2): the field accepts the separators and the digits of other
+    // scripts, the strict parser of the core reads ASCII digits, '-', ',' and spaces only
+    QCOMPARE(Range::toCanonicalText(QStringLiteral("1–" "3، 8")), QStringLiteral("1-3, 8"));
+    QCOMPARE(Range::toCanonicalText(QStringLiteral("٣-٥")), QStringLiteral("3-5"));
+    QCOMPARE(Range::toCanonicalText(QStringLiteral("１０－１２")), QStringLiteral("10-12"));
+    QCOMPARE(Range::toCanonicalText(QStringLiteral("2、4，6−7，8‐9、10‑11")), QStringLiteral("2,4,6-7,8-9,10-11"));
+
+    // The parts keep their order and meaning: open bounds stay open, the whole document stays "-"
+    QCOMPARE(Range::toCanonicalText(QStringLiteral("8, 1-3")), QStringLiteral("8, 1-3"));
+    QCOMPARE(Range::toCanonicalText(QStringLiteral(" 8 - ")), QStringLiteral("8-"));
+    QCOMPARE(Range::toCanonicalText(QStringLiteral("- 5")), QStringLiteral("-5"));
+    QCOMPARE(Range::toCanonicalText(QStringLiteral(" - ")), QStringLiteral("-"));
+
+    // A sign and leading zeros are left out, white space only after a separator, no empty part
+    QCOMPARE(Range::toCanonicalText(QStringLiteral("+007")), QStringLiteral("7"));
+    QCOMPARE(Range::toCanonicalText(QStringLiteral("00000000000003")), QStringLiteral("3"));
+    QCOMPARE(Range::toCanonicalText(QStringLiteral("1 ,  3")), QStringLiteral("1, 3"));
+    QCOMPARE(Range::toCanonicalText(QStringLiteral("1,,  ,3,")), QStringLiteral("1,3"));
+    QCOMPARE(Range::toCanonicalText(QStringLiteral("1,,  , 3")), QStringLiteral("1, 3"));
+    QCOMPARE(Range::toCanonicalText(QStringLiteral(",\t2")), QStringLiteral("2"));
+    QCOMPARE(Range::toCanonicalText(QString()), QString());
+    QCOMPARE(Range::toCanonicalText(QStringLiteral(" , ")), QString());
+
+    // A text the field already writes canonically stays as it is
+    QCOMPARE(Range::toCanonicalText(QStringLiteral("1-3, 8, 10-12")), QStringLiteral("1-3, 8, 10-12"));
+    QCOMPARE(Range::toCanonicalText(QStringLiteral("2,4")), QStringLiteral("2,4"));
+
+    // A part, which is no number, is kept: the core refuses it as the field does
+    QCOMPARE(Range::toCanonicalText(QStringLiteral(" x , 2-y")), QStringLiteral("x, 2-y"));
+    QCOMPARE(Range::toCanonicalText(QStringLiteral("1-2-3")), QStringLiteral("1-2-3"));
+
+    // Random texts: never longer, the same pages for every count, only the characters of the
+    // core for a valid text, canonical again
+    QRandomGenerator generator(20261109);
+    const QString alphabet = QStringLiteral("0123456789-,, +–٣،、３ a\t0");
+    for (int iteration = 0; iteration < 20000; ++iteration)
+    {
+        const int length = generator.bounded(0, 40);
+        QString text;
+        for (int i = 0; i < length; ++i)
+        {
+            text += alphabet.at(generator.bounded(static_cast<int>(alphabet.size())));
+        }
+
+        const QString canonical = Range::toCanonicalText(text);
+        QVERIFY2(canonical.size() <= text.size(), qPrintable(text));
+        QCOMPARE(Range::toCanonicalText(canonical), canonical);
+
+        for (const int pageCount : { 0, 7, 120 })
+        {
+            const Range::Result result = Range::parse(text, pageCount);
+            const Range::Result canonicalResult = Range::parse(canonical, pageCount);
+            QVERIFY2(result.isValid() == canonicalResult.isValid(), qPrintable(text));
+            QVERIFY2(result.intervals == canonicalResult.intervals, qPrintable(text));
+            if (result.isValid())
+            {
+                for (const QChar character : canonical)
+                {
+                    QVERIFY2((character >= QLatin1Char('0') && character <= QLatin1Char('9')) || character == QLatin1Char('-') ||
+                             character == QLatin1Char(',') || character == QLatin1Char(' '), qPrintable(text));
+                }
+            }
+        }
     }
 }
 

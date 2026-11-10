@@ -37,15 +37,11 @@ class PDFDocumentManipulatorHelper
 public:
     PDFDocumentManipulatorHelper() = delete;
 
-    /// The side of a page in points within the limits of the merger (PageMaster allows any size)
-    static double getSide(double millimeters)
-    {
-        return std::clamp(millimeters * PDF_MM_TO_POINT, PDFImagePageFactory::MINIMUM_SIDE, PDFImagePageFactory::MAXIMUM_SIDE);
-    }
-
+    /// The size of a page in points within the limits of the merger (PageMaster allows any
+    /// size); the aspect ratio is kept (B30 of the plan of step 3: each side was limited alone)
     static QSizeF getPageSize(QSizeF millimeters)
     {
-        return QSizeF(getSide(millimeters.width()), getSide(millimeters.height()));
+        return PDFImagePageFactory::getBoundedSize(QSizeF(millimeters.width() * PDF_MM_TO_POINT, millimeters.height() * PDF_MM_TO_POINT));
     }
 
     /// The documents of PageMaster outlive the call of assemble, the merger only reads them
@@ -175,33 +171,6 @@ PDFOperationResult PDFDocumentManipulator::assemble(const AssembledPages& pages)
 
     m_assembledDocument = std::move(result.document);
     return true;
-}
-
-PDFDocumentManipulator::AssembledPages PDFDocumentManipulator::createAllDocumentPages(int documentIndex, const PDFDocument* document)
-{
-    AssembledPages assembledPages;
-    size_t pageCount = document->getCatalog()->getPageCount();
-
-    for (size_t i = 0; i < pageCount; ++i)
-    {
-        pdf::PDFDocumentManipulator::AssembledPage assembledPage;
-
-        assembledPage.documentIndex = documentIndex;
-        assembledPage.imageIndex = -1;
-        assembledPage.pageIndex = i;
-
-        const pdf::PDFPage* page = document->getCatalog()->getPage(i);
-        const pdf::PageRotation originalPageRotation = page->getPageRotation();
-
-        assembledPage.pageRotation = originalPageRotation;
-        assembledPage.sourcePageRotation = originalPageRotation;
-        assembledPage.pageSize = page->getMediaBox().size();
-        assembledPage.sourcePageSize = assembledPage.pageSize;
-
-        assembledPages.emplace_back(assembledPage);
-    }
-
-    return assembledPages;
 }
 
 PDFDocumentManipulator::OutlineMode PDFDocumentManipulator::getOutlineMode() const

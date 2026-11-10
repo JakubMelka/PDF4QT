@@ -1193,6 +1193,31 @@ public:
     {
         return left.first < right.first || (left.first == right.first && left.last < right.last);
     }
+
+    /// Canonical text of a bound or a page (a trimmed text): the number in ASCII digits, an
+    /// empty bound stays empty, a text, which is not a number, stays as it is
+    static QString getCanonicalNumber(QStringView text)
+    {
+        qint64 value = 0;
+        if (!text.isEmpty() && parseNumber(text, value))
+        {
+            return QString::number(value);
+        }
+        return text.toString();
+    }
+
+    /// Canonical text of a trimmed part, which is not empty: a page, or two bounds joined by "-"
+    static QString getCanonicalPart(QStringView part)
+    {
+        for (qsizetype i = 0; i < part.size(); ++i)
+        {
+            if (PDFPageRange::isRangeSeparator(part.at(i)))
+            {
+                return getCanonicalNumber(part.left(i).trimmed()) + QLatin1Char('-') + getCanonicalNumber(part.mid(i + 1).trimmed());
+            }
+        }
+        return getCanonicalNumber(part);
+    }
 };
 
 bool PDFPageRange::isListSeparator(QChar character)
@@ -1296,6 +1321,44 @@ QString PDFPageRange::format(const QList<Interval>& intervals)
         parts << (interval.first == interval.last ? QString::number(interval.first) : QStringLiteral("%1-%2").arg(interval.first).arg(interval.last));
     }
     return parts.join(QStringLiteral(", "));
+}
+
+QString PDFPageRange::toCanonicalText(const QString& text)
+{
+    // Each character of the text gives at most one character of the result: a separator gives
+    // ',' or '-', the white space trimmed after a separator at most the one space, a digit at
+    // most one digit (a sign and leading zeros are left out)
+    QString result;
+    result.reserve(text.size());
+
+    const QStringView view(text);
+    qsizetype partStart = 0;
+    for (qsizetype i = 0; i <= view.size(); ++i)
+    {
+        if (i < view.size() && !isListSeparator(view.at(i)))
+        {
+            continue;
+        }
+
+        const QStringView rawPart = view.mid(partStart, i - partStart);
+        const QStringView part = rawPart.trimmed();
+        partStart = i + 1;
+        if (part.isEmpty())
+        {
+            continue;
+        }
+
+        if (!result.isEmpty())
+        {
+            result += QLatin1Char(',');
+            if (rawPart.front().isSpace())
+            {
+                result += QLatin1Char(' ');
+            }
+        }
+        result += PDFPageRangeHelper::getCanonicalPart(part);
+    }
+    return result;
 }
 
 QString PDFPageRange::getMissingPageText(qint64 page, int pageCount)

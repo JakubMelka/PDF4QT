@@ -85,8 +85,8 @@ public:
     enum class Mode
     {
         Editing,    ///< Tutorial, Cancel, the Primary button
-        Running,    ///< Tutorial, Stop
-        Finished    ///< Tutorial
+        Running,    ///< Tutorial, Stop (Split 383:10232)
+        Finished    ///< After the run (the result dialog, stopped): Tutorial, Cancel Enabled, the Primary button Disabled in its place (owner 2026-11-09)
     };
 
     /// \param host Host of the tool (the commands)
@@ -135,6 +135,9 @@ public:
     PDFToolBadge* getBadge() const { return m_badge; }
     PDFLabel* getTitleLabel() const { return m_titleLabel; }
     QWidget* getTitleGroup() const { return m_titleGroup; }
+
+    /// The Tag Advanced next to the title of a tool for experts (391:26688), null otherwise
+    PDFTag* getAdvancedTag() const { return m_advancedTag; }
     QToolButton* getUndoButton() const { return m_undoButton; }
     QToolButton* getRedoButton() const { return m_redoButton; }
     QToolButton* getTutorialButton() const { return m_tutorialButton; }
@@ -184,6 +187,7 @@ private:
     QPointer<QWidget> m_titleGroup;
     QPointer<PDFToolBadge> m_badge;
     QPointer<PDFLabel> m_titleLabel;
+    QPointer<PDFTag> m_advancedTag;
     QPointer<QToolButton> m_undoButton;
     QPointer<QToolButton> m_redoButton;
     QPointer<PDFAppToolbarDivider> m_undoDivider;
@@ -195,6 +199,7 @@ private:
     QPointer<QPushButton> m_stopButton;
     std::vector<PanelItem> m_panels;
     QString m_confirmText;
+    bool m_isConfirmEnabled = true;     ///< Asked by setConfirmEnabled; Finished shows the button Disabled anyway
     Mode m_mode = Mode::Editing;
     int m_collapseLevel = 0;
     bool m_isUpdatingCollapse = false;

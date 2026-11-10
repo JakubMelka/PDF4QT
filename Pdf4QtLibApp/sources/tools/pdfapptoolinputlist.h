@@ -237,8 +237,23 @@ public:
     /// which cannot be used is neutral
     static PDFAccentHue getHue(int index, const PDFAppToolInput* input = nullptr);
 
-    /// Translated text of a refusal ("Contract.pdf is already in the list")
-    static QString getRefusalText(Refusal refusal, const QString& name);
+    /// Translated text of a refusal ("Contract.pdf is already in the list"); \p maximum is the
+    /// most inputs of the list (TooMany)
+    static QString getRefusalText(Refusal refusal, const QString& name, int maximum = MAXIMUM_INPUTS);
+
+    // ---------------------------------------------------------------- rules (K41)
+
+    /// What the list accepts (plan of step 3 of phase 2, K41, PDFDocumentToolGUI::getInputRules):
+    /// at most \p maximum inputs (1 to MAXIMUM_INPUTS; an addition above it is TooMany), PDF
+    /// files and open documents only when \p acceptsPdf, images only when \p acceptsImages. An
+    /// input of a kind, which is not accepted, stays in the list as Unsupported with
+    /// \p unsupportedReason ("Interleave needs PDF files", K29) - the user sees why and removes
+    /// it. The inputs in the list are checked again at once. No signal for the inputs, which
+    /// did not change.
+    void setAcceptedInputs(int maximum, bool acceptsPdf, bool acceptsImages, const QString& unsupportedReason);
+    int getMaximumCount() const { return m_maximumCount; }
+    bool isPdfAccepted() const { return m_isPdfAccepted; }
+    bool areImagesAccepted() const { return m_areImagesAccepted; }
 
     /// Translated short text of a state ("Protected by a password", "Damaged – the file
     /// cannot be read", "Restricted – enter the owner password", "Loading…", "No pages",
@@ -270,6 +285,25 @@ public:
 
     /// Adds an image of the clipboard at the end (Paste image, stored as PNG bytes)
     AddResult addImage(const QImage& image, const QString& name);
+
+    /// Adds a copy of the input right after it (Duplicate of Images to PDF 336:1976: one more page
+    /// of the same image): a new id, the same bytes and state, nothing is read again. A copy of a
+    /// file is no duplicate refusal - the user asked for it. Refused: TooMany, Invalid (no input).
+    AddResult duplicateInput(const QString& id);
+
+    /// Longest name of an input given by the user (Rename)
+    static constexpr int MAXIMUM_NAME_LENGTH = 255;
+
+    /// The name given by the user (Rename of Images to PDF 336:1976) without its spaces at the
+    /// ends; empty for an invalid name (empty, longer than MAXIMUM_NAME_LENGTH, a control
+    /// character, a path separator)
+    static QString getValidName(const QString& name);
+
+    /// A copy of a ready input under another name, parked (setInputIds takes it in the place of
+    /// the input, so Rename is one undo step of the ids): a new id, the same bytes, nothing is
+    /// read again; the input itself does not change. Refused: Invalid (no ready input, an
+    /// invalid name). No signal.
+    AddResult createRenamedCopy(const QString& id, const QString& name);
 
     /// Moves the input to the index (clamped). \returns false, when nothing moved.
     bool moveInput(const QString& id, int index);
@@ -315,6 +349,10 @@ private:
     static void applyResult(PDFAppToolInput* input, const PDFAppToolInputLoader::Result& result);
     PDFAppToolInput* findMutableInput(const QString& id);
 
+    /// A ready input of a kind, which the list does not accept, becomes Unsupported (K41);
+    /// \returns true, when it changed
+    bool applyAcceptedKinds(PDFAppToolInput* input) const;
+
     QPointer<PDFAppToolInputLoader> m_loader;
     std::vector<PDFAppToolInput> m_inputs;
     std::map<QString, PDFAppToolInput> m_parked;
@@ -323,6 +361,10 @@ private:
     int m_nextId = 1;
     int m_clipboardCount = 0;
     int m_startedReadingCount = 0;
+    int m_maximumCount = MAXIMUM_INPUTS;
+    bool m_isPdfAccepted = true;
+    bool m_areImagesAccepted = true;
+    QString m_unsupportedReason;
 };
 
 }   // namespace pdf

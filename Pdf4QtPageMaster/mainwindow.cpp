@@ -36,6 +36,7 @@
 #include "pdfwidgetutils.h"
 #include "pdfdocumentreader.h"
 #include "pdfdocumentwriter.h"
+#include "pdffilenametemplate.h"
 #include "pdfimageoptimizer.h"
 #include "pdfoutline.h"
 #include "pdfprogress.h"
@@ -139,36 +140,6 @@ enum class SplitMode
     TopLevelBookmarks,
     ApproximateSize
 };
-
-QString sanitizeOutputFileName(QString fileName)
-{
-    static const QRegularExpression invalidCharacters(QStringLiteral("[<>:\"/\\\\|?*\\x00-\\x1F]"));
-    static const QRegularExpression trailingDotsAndSpaces(QStringLiteral("[. ]+$"));
-    static const QRegularExpression windowsReservedName(QStringLiteral("^(con|prn|aux|nul|com[1-9]|lpt[1-9])$"), QRegularExpression::CaseInsensitiveOption);
-
-    fileName.replace(invalidCharacters, QStringLiteral("_"));
-    while (fileName.contains(QStringLiteral("..")))
-    {
-        fileName.replace(QStringLiteral(".."), QStringLiteral("."));
-    }
-
-    fileName = fileName.trimmed();
-    fileName.remove(trailingDotsAndSpaces);
-
-    QFileInfo fileInfo(fileName);
-    QString baseName = fileInfo.completeBaseName();
-    const QString suffix = fileInfo.suffix();
-    if (baseName.isEmpty())
-    {
-        baseName = QStringLiteral("document");
-    }
-    if (windowsReservedName.match(baseName).hasMatch())
-    {
-        baseName.append(QLatin1Char('_'));
-    }
-
-    return suffix.isEmpty() ? baseName : QStringLiteral("%1.%2").arg(baseName, suffix);
-}
 
 QString normalizedOutputPathKey(const QString& fileName)
 {
@@ -284,54 +255,38 @@ pdf::PDFPageGeometrySettings pageGeometrySettingsFromJson(const QJsonObject& obj
     return settings;
 }
 
-void replaceInString(QString& templateString, QChar character, int number)
-{
-    int index = templateString.indexOf(character, 0, Qt::CaseSensitive);
-    if (index != -1)
-    {
-        int lastIndex = templateString.lastIndexOf(character, -1, Qt::CaseSensitive);
-        int count = lastIndex - index + 1;
-
-        QString textNumber = QString::number(number);
-        textNumber = textNumber.rightJustified(count, '0', false);
-
-        templateString.remove(index, count);
-        templateString.insert(index, textNumber);
-    }
-}
-
+/// The name of an output file by the template of the core (B25: every occurrence of a token is
+/// replaced, B26: {group_index} is the number of the group, not of the output)
 QString createOutputFileName(QString fileNameTemplate,
                              const QString& directory,
                              int outputIndex,
+                             int outputCount,
                              int groupIndex,
                              int sourceDocumentIndex,
                              int sourcePageIndex,
                              const QString& groupName,
-                             const QString& sourceName,
-                             const QString& sourceBase,
-                             const QString& sourceExtension)
+                             const QString& sourceName)
 {
-    replaceInString(fileNameTemplate, '#', outputIndex);
-    replaceInString(fileNameTemplate, '@', sourcePageIndex);
-    replaceInString(fileNameTemplate, '%', sourceDocumentIndex);
-
-    fileNameTemplate.replace("{source_name}", sourceName);
-    fileNameTemplate.replace("{source_base}", sourceBase);
-    fileNameTemplate.replace("{source_ext}", sourceExtension);
-    fileNameTemplate.replace("{source_page}", QString::number(sourcePageIndex));
-    fileNameTemplate.replace("{output_index}", QString::number(outputIndex));
-    fileNameTemplate.replace("{group_index}", QString::number(groupIndex));
-    fileNameTemplate.replace("{group_name}", groupName);
-    fileNameTemplate.replace("{date}", QDate::currentDate().toString(Qt::ISODate));
-
-    if (!fileNameTemplate.endsWith(".pdf", Qt::CaseInsensitive))
+    // The extension of the template is the extension of the files
+    const QString extension = QStringLiteral(".pdf");
+    if (fileNameTemplate.endsWith(extension, Qt::CaseInsensitive))
     {
-        fileNameTemplate += ".pdf";
+        fileNameTemplate.chop(extension.size());
     }
 
-    fileNameTemplate = sanitizeOutputFileName(fileNameTemplate);
+    pdf::PDFFileNameTemplate::Values values;
+    values.outputIndex = outputIndex;
+    values.outputCount = outputCount;
+    values.pageNumber = sourcePageIndex;
+    values.sourceIndex = sourceDocumentIndex;
+    values.groupIndex = groupIndex;
+    values.groupName = groupName;
+    values.sourceFileName = sourceName;
+    values.date = QDate::currentDate();
+
+    const pdf::PDFFileNameTemplate nameTemplate(fileNameTemplate, extension);
     QDir outputDirectory(directory);
-    return outputDirectory.filePath(fileNameTemplate);
+    return outputDirectory.filePath(nameTemplate.createFileName(values));
 }
 
 struct ExportJob
@@ -1281,7 +1236,8 @@ void MainWindow::onWorkspaceCustomContextMenuRequested(const QPoint& point)
     }
     QWidget* viewport = sourceWidget ? sourceWidget : ui->documentItemsView->viewport();
 
-    QMenu* contextMenu = new QMenu(this);
+    // B32: the menu is deleted after it closes (every right click made a new one)
+    QPointer<QMenu> contextMenu = new QMenu(this);
     contextMenu->addAction(ui->actionCut);
     contextMenu->addAction(ui->actionCopy);
     contextMenu->addAction(ui->actionPaste);
@@ -1319,6 +1275,10 @@ void MainWindow::onWorkspaceCustomContextMenuRequested(const QPoint& point)
     contextMenu->addAction(ui->actionProperties);
 
     contextMenu->exec(viewport->mapToGlobal(point));
+    if (contextMenu)
+    {
+        contextMenu->deleteLater();
+    }
 }
 
 void MainWindow::updateActions()
@@ -2358,7 +2318,7 @@ bool MainWindow::canPerformOperation(Operation operation) const
     return false;
 }
 
-void MainWindow::exportAssembledDocuments(std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> assembledDocuments, const QString& assembleModeText, std::vector<QString> assembledDocumentGroupNames)
+void MainWindow::exportAssembledDocuments(std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> assembledDocuments, const QString& assembleModeText, std::vector<QString> assembledDocumentGroupNames, std::vector<int> assembledDocumentGroupIndices)
 {
     if (assembledDocuments.empty())
     {
@@ -2369,6 +2329,14 @@ void MainWindow::exportAssembledDocuments(std::vector<std::vector<pdf::PDFDocume
     {
         assembledDocumentGroupNames.resize(assembledDocuments.size());
     }
+
+    // B26: {group_index} is the number of the group of the output; an output without a group
+    // (Split) is its own group
+    for (size_t i = assembledDocumentGroupIndices.size(); i < assembledDocuments.size(); ++i)
+    {
+        assembledDocumentGroupIndices.push_back(int(i + 1));
+    }
+    const int outputCount = int(assembledDocuments.size());
 
     auto sourceInfo = [this](const pdf::PDFDocumentManipulator::AssembledPage& page)
     {
@@ -2420,8 +2388,9 @@ void MainWindow::exportAssembledDocuments(std::vector<std::vector<pdf::PDFDocume
             const int sourceDocumentIndex = samplePage.documentIndex == -1 ? documentCount + samplePage.imageIndex : samplePage.documentIndex;
             const int sourcePageIndex = qMax(int(samplePage.pageIndex + 1), 1);
             const QString groupName = assembledDocumentGroupNames[outputIndex - 1];
-            auto [sourceName, sourceBase, sourceExtension] = sourceInfo(samplePage);
-            const QString fileName = createOutputFileName(dialog.getFileName(), dialog.getDirectory(), outputIndex, outputIndex, sourceDocumentIndex, sourcePageIndex, groupName, sourceName, sourceBase, sourceExtension);
+            const QString sourceName = std::get<0>(sourceInfo(samplePage));
+            const QString fileName = createOutputFileName(dialog.getFileName(), dialog.getDirectory(), outputIndex, outputCount, assembledDocumentGroupIndices[outputIndex - 1],
+                                                          sourceDocumentIndex, sourcePageIndex, groupName, sourceName);
 
             QString status = tr("Ready");
             bool isBlocking = false;
@@ -2485,8 +2454,9 @@ void MainWindow::exportAssembledDocuments(std::vector<std::vector<pdf::PDFDocume
         const int validationSourceDocumentIndex = samplePage.documentIndex == -1 ? documentCount + samplePage.imageIndex : samplePage.documentIndex;
         const int validationSourcePageIndex = qMax(int(samplePage.pageIndex + 1), 1);
         const QString validationGroupName = assembledDocumentGroupNames[validationOutputIndex - 1];
-        auto [validationSourceName, validationSourceBase, validationSourceExtension] = sourceInfo(samplePage);
-        const QString validationFileName = createOutputFileName(fileNameTemplate, directory, validationOutputIndex, validationOutputIndex, validationSourceDocumentIndex, validationSourcePageIndex, validationGroupName, validationSourceName, validationSourceBase, validationSourceExtension);
+        const QString validationSourceName = std::get<0>(sourceInfo(samplePage));
+        const QString validationFileName = createOutputFileName(fileNameTemplate, directory, validationOutputIndex, outputCount, assembledDocumentGroupIndices[validationOutputIndex - 1],
+                                                                validationSourceDocumentIndex, validationSourcePageIndex, validationGroupName, validationSourceName);
 
         const QString validationFileNameKey = normalizedOutputPathKey(validationFileName);
         if (generatedFileNames.contains(validationFileNameKey))
@@ -2517,6 +2487,9 @@ void MainWindow::exportAssembledDocuments(std::vector<std::vector<pdf::PDFDocume
     job.imageOptimizationSettings = imageOptimizationSettings;
     job.hasPageGeometrySettings = m_hasPageGeometrySettings;
     job.pageGeometrySettings = m_pageGeometrySettings;
+    // B27: the settings apply to each output - its pages beyond the range are no error (B46
+    // would refuse the whole export for an output shorter than the range)
+    job.pageGeometrySettings.isRangeLimitedToDocument = true;
     job.progress = m_exportProgress;
 
     setExportInProgress(true);
@@ -3347,6 +3320,10 @@ void MainWindow::performOperation(Operation operation)
             m_model->clear();
             m_checkpoints.clear();
             QPixmapCache::clear();
+
+            // B27: the page geometry of the cleared workspace does not survive Clear
+            m_hasPageGeometrySettings = false;
+            m_pageGeometrySettings = pdf::PDFPageGeometrySettings();
             updateActions();
             break;
         }
@@ -3683,37 +3660,41 @@ void MainWindow::performOperation(Operation operation)
                 break;
             }
 
+            // The name and the number of the group of each output (B26: the number of the group
+            // of the list, also when a group gives more outputs; an empty group gives none)
             std::vector<QString> assembledDocumentGroupNames;
+            std::vector<int> assembledDocumentGroupIndices;
             switch (assembleMode)
             {
                 case PageItemModel::AssembleMode::Unite:
                     assembledDocumentGroupNames.emplace_back();
+                    assembledDocumentGroupIndices.push_back(1);
                     break;
 
                 case PageItemModel::AssembleMode::Separate:
+                case PageItemModel::AssembleMode::SeparateGrouped:
+                {
+                    int groupIndex = 0;
                     for (const PageGroupItem& item : m_model->getPageGroupItems())
                     {
+                        ++groupIndex;
                         const QString groupName = m_model->getItemDisplayText(&item);
-                        for (size_t i = 0; i < item.groups.size(); ++i)
+                        const size_t outputs = assembleMode == PageItemModel::AssembleMode::Separate ? item.groups.size() : (item.groups.empty() ? 0 : 1);
+                        for (size_t i = 0; i < outputs; ++i)
                         {
                             assembledDocumentGroupNames.push_back(groupName);
+                            assembledDocumentGroupIndices.push_back(groupIndex);
                         }
                     }
                     break;
-
-                case PageItemModel::AssembleMode::SeparateGrouped:
-                    for (const PageGroupItem& item : m_model->getPageGroupItems())
-                    {
-                        assembledDocumentGroupNames.push_back(m_model->getItemDisplayText(&item));
-                    }
-                    break;
+                }
             }
             if (assembledDocumentGroupNames.size() < assembledDocuments.size())
             {
                 assembledDocumentGroupNames.resize(assembledDocuments.size());
             }
 
-            exportAssembledDocuments(std::move(assembledDocuments), assembleModeText, std::move(assembledDocumentGroupNames));
+            exportAssembledDocuments(std::move(assembledDocuments), assembleModeText, std::move(assembledDocumentGroupNames), std::move(assembledDocumentGroupIndices));
 
             break;
         }

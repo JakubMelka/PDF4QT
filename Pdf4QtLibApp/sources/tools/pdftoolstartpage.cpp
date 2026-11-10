@@ -664,7 +664,14 @@ QWidget* PDFToolStartPage::createChooseDocuments(QWidget* parent)
     QWidget* section = new QWidget(parent);
     section->setObjectName(QStringLiteral("toolChooseDocument"));
     QVBoxLayout* layout = PDFAppPageWidgets::createColumn(section, Helper::SECTION_GAP);
-    layout->addWidget(Helper::createHeader(tr("Choose documents"), tr("%1 combines two or more PDFs and images · check open documents, add files, then open the tool").arg(title), section));
+    // K37, K41: the hint says what the tool takes (Interleave: exactly two PDF files, 531:3208)
+    const PDFAppToolInputRules rules = PDFAppToolInputChooser::getInputRules(m_toolId);
+    QString hint = tr("%1 combines two or more PDFs and images · check open documents, add files, then open the tool").arg(title);
+    if (rules.minimum == 2 && rules.maximum == 2 && rules.slotTitles.size() == 2)
+    {
+        hint = tr("%1 takes two PDF files: %2 and %3 · check open documents, add files, then open the tool").arg(title, rules.slotTitles.at(0), rules.slotTitles.at(1));
+    }
+    layout->addWidget(Helper::createHeader(tr("Choose documents"), hint, section));
 
     m_inputChooser = new PDFAppToolInputChooser(getContext(), m_toolId, m_inputList, section);
     connect(m_inputChooser.data(), &PDFAppToolInputChooser::openToolRequested, this, &PDFToolStartPage::onOpenToolRequested);

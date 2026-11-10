@@ -31,6 +31,7 @@
 #include "pdfdocumenttool_merge.h"
 #include "pdfdocumenttool_protect.h"
 #include "pdfdocumenttool_pages.h"
+#include "pdfdocumenttool_split.h"
 #include "pdfdocumenttool_structure.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumentwriter.h"
@@ -154,6 +155,7 @@ struct CorpusToolRow
     CorpusResultCheck resultCheck = nullptr;
     CorpusRefusal refusal = nullptr;
     int inputCount = 1;     ///< The file is given this many times (Merge of a file with itself, every collision of names)
+    bool isFilePerPage = false; ///< The tool writes a file per page of the page map by the file sink of the context (Split, Extract), each one is checked as a new document of that page
 
     QString getName() const { return QString::fromLatin1(toolId) + QLatin1Char('/') + QString::fromLatin1(variant); }
 };
@@ -218,6 +220,24 @@ public:
             }
         }
     }
+};
+
+/// The file sink of a row of files: the files stay in the memory in the order of writing,
+/// nothing is written to the disk (the folder of the files is read only)
+class CorpusMemorySink : public pdf::PDFDocumentToolFileSink
+{
+public:
+    CorpusMemorySink() : pdf::PDFDocumentToolFileSink(ExistingFiles::Overwrite) { }
+
+    virtual bool write(const QString& fileName, const QByteArray& data, QString* errorText) override
+    {
+        Q_UNUSED(errorText);
+        files.emplace_back(fileName, data);
+        addWrittenFile(QStringLiteral("/memory/") + fileName);
+        return true;
+    }
+
+    std::vector<std::pair<QString, QByteArray>> files;
 };
 
 /// Ends a process, whose row runs over the limit of the time: a hang of one file is named
@@ -1010,6 +1030,19 @@ public:
         }
     }
 
+    /// The document has attachments of the document: /AF of the catalog or the name tree
+    /// /EmbeddedFiles (ISO 32000-2, 7.7.2 Table 29 AF, 7.7.4 Table 32 EmbeddedFiles, 7.11.4)
+    static bool hasDocumentAttachments(const pdf::PDFDocument* document)
+    {
+        const pdf::PDFDictionary* catalog = document->getDictionaryFromObject(document->getTrailerDictionary()->get("Root"));
+        if (!catalog)
+        {
+            return false;
+        }
+        const pdf::PDFDictionary* names = document->getDictionaryFromObject(catalog->get("Names"));
+        return catalog->hasKey("AF") || (names && names->hasKey("EmbeddedFiles"));
+    }
+
 private:
     /// The pages of Rotate Pages of the odd pages turned right
     static std::vector<CorpusPageOrigin> mapOddPagesTurnedRight(const pdf::PDFDocument* input)
@@ -1208,6 +1241,37 @@ private:
         };
         rows.push_back({ pdf::PDFDocumentToolRemoveLinks::TOOL_ID, "all", createRemoveLinks, QVariantMap(), CorpusLook::Exact,
                          PromiseVersion | PromiseEncryption | PromiseSignatures | PromiseText | PromiseTransparency });
+
+        // Split and Extract (plan of step 3 of phase 2, chapter 8): new unencrypted documents of
+        // the pages, which look as in the file and keep their text; the forms, destinations,
+        // structure, annotations and attachments of the file are what the rows are run for. They
+        // refuse what Merge refuses (Q4: Assemble and the owner password, a file without pages).
+        const auto createSplit = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<pdf::PDFDocumentToolSplit>();
+        };
+        const auto createExtractPages = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<pdf::PDFDocumentToolExtract>();
+        };
+        QVariantMap everyPage;
+        everyPage.insert(QString::fromLatin1(pdf::PDFDocumentToolSplit::PARAMETER_RULE), QString::fromLatin1(pdf::PDFDocumentToolSplit::RULE_EVERY_PAGE));
+        const auto extractOdd = [&pages](const char* output)
+        {
+            QVariantMap parameters = pages("", { QStringLiteral("odd") }, nullptr);
+            parameters.insert(QString::fromLatin1(pdf::PDFDocumentToolExtract::PARAMETER_OUTPUT), QString::fromLatin1(output));
+            return parameters;
+        };
+        CorpusToolRow splitEveryPage{ pdf::PDFDocumentToolSplit::TOOL_ID, "every-page", createSplit, everyPage, CorpusLook::Exact,
+                                      PromiseText | PromiseTransparency, nullptr, nullptr, &ToolCorpusHelper::isMergeRefused };
+        splitEveryPage.isFilePerPage = true;
+        rows.push_back(splitEveryPage);
+        rows.push_back({ pdf::PDFDocumentToolExtract::TOOL_ID, "odd-one-file", createExtractPages, extractOdd(pdf::PDFDocumentToolExtract::OUTPUT_ONE_FILE), CorpusLook::Exact,
+                         PromiseText | PromiseTransparency, &ToolCorpusHelper::mapOddPagesStay, nullptr, &ToolCorpusHelper::isMergeRefused });
+        CorpusToolRow extractFilePerPage{ pdf::PDFDocumentToolExtract::TOOL_ID, "odd-file-per-page", createExtractPages, extractOdd(pdf::PDFDocumentToolExtract::OUTPUT_FILE_PER_PAGE), CorpusLook::Exact,
+                                          PromiseText | PromiseTransparency, &ToolCorpusHelper::mapOddPagesStay, nullptr, &ToolCorpusHelper::isMergeRefused };
+        extractFilePerPage.isFilePerPage = true;
+        rows.push_back(extractFilePerPage);
         return rows;
     }
 
@@ -1265,6 +1329,26 @@ private:
                                     const pdf::PDFDocumentToolResult& result,
                                     CorpusSummary* summary,
                                     QStringList* failures);
+
+    static void checkResultFiles(const CorpusToolRow& row,
+                                 const QString& file,
+                                 const pdf::PDFDocument* input,
+                                 const CorpusMemorySink& sink,
+                                 const pdf::PDFDocumentToolResult& result,
+                                 CorpusSummary* summary,
+                                 QStringList* failures);
+
+    /// The pages of the result, which are drawn and compared: the first and the last page and
+    /// the page of the largest image, when it is a page of the result (sorted, unique)
+    static std::vector<size_t> getDrawnPages(const pdf::PDFDocument* input, const std::vector<CorpusPageOrigin>& origins);
+
+    /// The page of the output has the boxes, the rotation and the user unit of its page of the
+    /// input; false and a failure, when not
+    static bool checkPageGeometry(const pdf::PDFDocument* input,
+                                  const CorpusPageOrigin& origin,
+                                  const pdf::PDFDocument* output,
+                                  size_t outputPage,
+                                  QStringList* failures);
 
     static void checkContent(const pdf::PDFDocument* input,
                              const pdf::PDFDocument* output,
@@ -1419,6 +1503,11 @@ void DocumentToolCorpusTest::toolOnFile()
         {
             context.documents.push_back(context.documents.front());
         }
+        CorpusMemorySink sink;
+        if (row.isFilePerPage)
+        {
+            context.fileSink = &sink;
+        }
         const pdf::PDFDocumentToolResult result = tool->run(context, row.parameters, nullptr, nullptr);
 
         summary.status = ToolCorpusHelper::getStatusName(result.status);
@@ -1482,6 +1571,10 @@ void DocumentToolCorpusTest::toolOnFile()
             if (row.resultCheck)
             {
                 row.resultCheck(&input, result, row.parameters, &failures);
+            }
+            else if (row.isFilePerPage)
+            {
+                checkResultFiles(row, file, &input, sink, result, &summary, &failures);
             }
             else
             {
@@ -1638,30 +1731,10 @@ void DocumentToolCorpusTest::checkResultDocument(const CorpusToolRow& row,
         return;
     }
 
-    constexpr qreal PAGE_TOLERANCE = 0.01;
     for (size_t i = 0; i < origins.size(); ++i)
     {
-        const pdf::PDFPage* before = input->getCatalog()->getPage(origins[i].inputPage);
-        const pdf::PDFPage* after = output.getCatalog()->getPage(i);
-        const auto isSameBox = [](const QRectF& first, const QRectF& second)
+        if (!checkPageGeometry(input, origins[i], &output, i, failures))
         {
-            return qAbs(first.left() - second.left()) <= PAGE_TOLERANCE && qAbs(first.top() - second.top()) <= PAGE_TOLERANCE &&
-                   qAbs(first.width() - second.width()) <= PAGE_TOLERANCE && qAbs(first.height() - second.height()) <= PAGE_TOLERANCE;
-        };
-
-        if (!isSameBox(before->getMediaBox(), after->getMediaBox()) || !isSameBox(before->getCropBox(), after->getCropBox()))
-        {
-            failures->append(QStringLiteral("The boxes of the page %1 changed").arg(i + 1));
-            break;
-        }
-        if (pdf::getPageRotationCombined(before->getPageRotation(), origins[i].extraRotation) != after->getPageRotation())
-        {
-            failures->append(QStringLiteral("The rotation of the page %1 changed").arg(i + 1));
-            break;
-        }
-        if (qAbs(before->getUserUnit() - after->getUserUnit()) > PAGE_TOLERANCE)
-        {
-            failures->append(QStringLiteral("The user unit of the page %1 changed").arg(i + 1));
             break;
         }
     }
@@ -1682,10 +1755,117 @@ void DocumentToolCorpusTest::checkResultDocument(const CorpusToolRow& row,
     CorpusRenderer inputRenderer(&inputCopy);
     CorpusRenderer outputRenderer(&output);
 
-    // The first and the last page and the page of the largest image, when it is a page of the result
-    std::vector<size_t> pages = { 0, origins.size() - 1 };
+    for (const size_t page : getDrawnPages(&inputCopy, origins))
+    {
+        checkPage(row, file, &inputCopy, &output, &inputRenderer, &outputRenderer, page, origins[page], &notes, failures);
+    }
+
+    summary->note = notes.join(QStringLiteral("; "));
+}
+
+void DocumentToolCorpusTest::checkResultFiles(const CorpusToolRow& row,
+                                              const QString& file,
+                                              const pdf::PDFDocument* input,
+                                              const CorpusMemorySink& sink,
+                                              const pdf::PDFDocumentToolResult& result,
+                                              CorpusSummary* summary,
+                                              QStringList* failures)
+{
+    // A file per page of the map, in the order of the pages, each one reported as written
+    // (plan of step 3 of phase 2, 5.6, R2, R3)
+    std::vector<CorpusPageOrigin> origins;
+    if (row.pageMap)
+    {
+        origins = row.pageMap(input);
+    }
+    else
+    {
+        origins.resize(input->getCatalog()->getPageCount());
+        for (size_t i = 0; i < origins.size(); ++i)
+        {
+            origins[i].inputPage = i;
+        }
+    }
+
+    if (sink.files.size() != origins.size())
+    {
+        failures->append(QStringLiteral("The files %1 are not the pages %2").arg(sink.files.size()).arg(origins.size()));
+        return;
+    }
+    if (result.writtenFiles != sink.getWrittenFiles() || !result.notWrittenFiles.isEmpty())
+    {
+        failures->append(QStringLiteral("The reported files %1 (not written %2) are not the written files %3").arg(result.writtenFiles.size()).arg(result.notWrittenFiles.size()).arg(sink.getWrittenFiles().size()));
+    }
+
+    const bool hasAttachments = ToolCorpusHelper::hasDocumentAttachments(input);
+    pdf::PDFDocument inputCopy(*input);
+    CorpusRenderer inputRenderer(&inputCopy);
+    const std::vector<size_t> drawnPages = getDrawnPages(&inputCopy, origins);
+
+    QStringList notes;
+    qint64 size = 0;
+    for (size_t i = 0; i < sink.files.size(); ++i)
+    {
+        const QByteArray& data = sink.files[i].second;
+        size += data.size();
+
+        // The new document is not encrypted (R2): no password is asked
+        const auto refusePassword = [](bool* ok)
+        {
+            *ok = false;
+            return QString();
+        };
+        pdf::PDFDocumentReader reader(nullptr, refusePassword, false, false);
+        pdf::PDFDocument output = reader.readFromBuffer(data);
+        if (reader.getReadingResult() != pdf::PDFDocumentReader::Result::OK)
+        {
+            failures->append(QStringLiteral("The file %1 cannot be read: %2").arg(sink.files[i].first, reader.getErrorMessage()));
+            return;
+        }
+        if (output.getCatalog()->getPageCount() != 1)
+        {
+            failures->append(QStringLiteral("The file %1 has %2 pages, not one").arg(sink.files[i].first).arg(output.getCatalog()->getPageCount()));
+            return;
+        }
+        if (ToolCorpusHelper::getEncryptionMode(&output) != pdf::EncryptionMode::None)
+        {
+            failures->append(QStringLiteral("The file %1 is encrypted, a new document is not (R2)").arg(sink.files[i].first));
+        }
+
+        // Owner answer Q6: the attachments of the document are only in the first file
+        const bool isAttachmentExpected = i == 0 && hasAttachments;
+        if (ToolCorpusHelper::hasDocumentAttachments(&output) != isAttachmentExpected)
+        {
+            failures->append(QStringLiteral("The file %1 %2 the attachments of the document").arg(sink.files[i].first, isAttachmentExpected ? QStringLiteral("lost") : QStringLiteral("has")));
+        }
+
+        if (!checkPageGeometry(input, origins[i], &output, 0, failures))
+        {
+            return;
+        }
+
+        if (std::binary_search(drawnPages.cbegin(), drawnPages.cend(), i))
+        {
+            CorpusRenderer outputRenderer(&output);
+            checkPage(row, file, &inputCopy, &output, &inputRenderer, &outputRenderer, 0, origins[i], &notes, failures);
+        }
+    }
+
+    summary->sizeAfter = size;
+    summary->note = notes.join(QStringLiteral("; "));
+}
+
+std::vector<size_t> DocumentToolCorpusTest::getDrawnPages(const pdf::PDFDocument* input, const std::vector<CorpusPageOrigin>& origins)
+{
+    std::vector<size_t> pages;
+    if (origins.empty())
+    {
+        return pages;
+    }
+
+    pages = { 0, origins.size() - 1 };
     const CorpusPageBudget budget(ToolCorpusHelper::getPageTimeLimit());
-    if (const std::optional<size_t> imagePage = ToolCorpusHelper::getLargestImagePage(&inputCopy, &budget))
+    if (const std::optional<size_t> imagePage = ToolCorpusHelper::getLargestImagePage(input, &budget))
     {
         const auto origin = std::find_if(origins.cbegin(), origins.cend(), [imagePage](const CorpusPageOrigin& item) { return item.inputPage == *imagePage; });
         if (origin != origins.cend())
@@ -1695,13 +1875,40 @@ void DocumentToolCorpusTest::checkResultDocument(const CorpusToolRow& row,
     }
     std::sort(pages.begin(), pages.end());
     pages.erase(std::unique(pages.begin(), pages.end()), pages.end());
+    return pages;
+}
 
-    for (const size_t page : pages)
+bool DocumentToolCorpusTest::checkPageGeometry(const pdf::PDFDocument* input,
+                                               const CorpusPageOrigin& origin,
+                                               const pdf::PDFDocument* output,
+                                               size_t outputPage,
+                                               QStringList* failures)
+{
+    constexpr qreal PAGE_TOLERANCE = 0.01;
+    const pdf::PDFPage* before = input->getCatalog()->getPage(origin.inputPage);
+    const pdf::PDFPage* after = output->getCatalog()->getPage(outputPage);
+    const auto isSameBox = [](const QRectF& first, const QRectF& second)
     {
-        checkPage(row, file, &inputCopy, &output, &inputRenderer, &outputRenderer, page, origins[page], &notes, failures);
-    }
+        return qAbs(first.left() - second.left()) <= PAGE_TOLERANCE && qAbs(first.top() - second.top()) <= PAGE_TOLERANCE &&
+               qAbs(first.width() - second.width()) <= PAGE_TOLERANCE && qAbs(first.height() - second.height()) <= PAGE_TOLERANCE;
+    };
 
-    summary->note = notes.join(QStringLiteral("; "));
+    if (!isSameBox(before->getMediaBox(), after->getMediaBox()) || !isSameBox(before->getCropBox(), after->getCropBox()))
+    {
+        failures->append(QStringLiteral("The boxes of the page %1 changed").arg(outputPage + 1));
+        return false;
+    }
+    if (pdf::getPageRotationCombined(before->getPageRotation(), origin.extraRotation) != after->getPageRotation())
+    {
+        failures->append(QStringLiteral("The rotation of the page %1 changed").arg(outputPage + 1));
+        return false;
+    }
+    if (qAbs(before->getUserUnit() - after->getUserUnit()) > PAGE_TOLERANCE)
+    {
+        failures->append(QStringLiteral("The user unit of the page %1 changed").arg(outputPage + 1));
+        return false;
+    }
+    return true;
 }
 
 void DocumentToolCorpusTest::checkContent(const pdf::PDFDocument* input,

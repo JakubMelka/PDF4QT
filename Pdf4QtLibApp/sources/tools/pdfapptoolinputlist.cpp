@@ -346,7 +346,7 @@ PDFAccentHue PDFAppToolInputList::getHue(int index, const PDFAppToolInput* input
     return index >= 0 ? hues[index % std::size(hues)] : PDFAccentHue::Neutral;
 }
 
-QString PDFAppToolInputList::getRefusalText(Refusal refusal, const QString& name)
+QString PDFAppToolInputList::getRefusalText(Refusal refusal, const QString& name, int maximum)
 {
     switch (refusal)
     {
@@ -355,7 +355,7 @@ QString PDFAppToolInputList::getRefusalText(Refusal refusal, const QString& name
         case Refusal::Duplicate:
             return tr("%1 is already in the list").arg(name);
         case Refusal::TooMany:
-            return tr("The list has %Ln files, no more can be added", nullptr, MAXIMUM_INPUTS);
+            return tr("The list has %Ln files, no more can be added", nullptr, maximum);
         case Refusal::NotReady:
             return tr("%1 is not open yet").arg(name);
         case Refusal::Invalid:
@@ -430,12 +430,13 @@ PDFAppToolInputList::AddResult PDFAppToolInputList::addInput(PDFAppToolInput inp
 {
     AddResult result;
     result.name = input.name;
-    if (getCount() >= MAXIMUM_INPUTS)
+    if (getCount() >= m_maximumCount)
     {
         result.refusal = Refusal::TooMany;
         return result;
     }
 
+    applyAcceptedKinds(&input);
     input.id = createId();
     advanceGeneration();
     input.contentGeneration = m_generation;
@@ -644,7 +645,7 @@ bool PDFAppToolInputList::setInputIds(const QStringList& ids)
     for (const QString& id : ids)
     {
         auto it = m_parked.find(id);
-        if (it == m_parked.end() || getCount() >= MAXIMUM_INPUTS)
+        if (it == m_parked.end() || getCount() >= m_maximumCount)
         {
             // An unknown id, an id given twice, or more than the limit
             continue;
@@ -790,9 +791,136 @@ void PDFAppToolInputList::onReadingFinished(const QString& id, const PDFAppToolI
     }
 
     applyResult(input, result);
+    applyAcceptedKinds(input);
     advanceGeneration();
     input->contentGeneration = m_generation;
     Q_EMIT inputChanged(id);
+}
+
+PDFAppToolInputList::AddResult PDFAppToolInputList::duplicateInput(const QString& id)
+{
+    AddResult result;
+    const int index = indexOf(id);
+    if (index < 0)
+    {
+        result.refusal = Refusal::Invalid;
+        return result;
+    }
+
+    result.name = m_inputs[size_t(index)].name;
+    if (getCount() >= m_maximumCount)
+    {
+        result.refusal = Refusal::TooMany;
+        return result;
+    }
+
+    // A loading input is copied loading: its reading is started again for the copy
+    PDFAppToolInput copy = m_inputs[size_t(index)];
+    copy.id = createId();
+    advanceGeneration();
+    copy.contentGeneration = m_generation;
+    result.id = copy.id;
+    const bool isReadingNeeded = copy.state == PDFAppToolInputState::Loading;
+    m_inputs.insert(m_inputs.begin() + index + 1, copy);
+    if (isReadingNeeded)
+    {
+        startReading(copy, false, QString(), false);
+    }
+
+    Q_EMIT inputsChanged();
+    return result;
+}
+
+QString PDFAppToolInputList::getValidName(const QString& name)
+{
+    const QString trimmed = name.trimmed();
+    if (trimmed.isEmpty() || trimmed.size() > MAXIMUM_NAME_LENGTH)
+    {
+        return QString();
+    }
+    for (const QChar character : trimmed)
+    {
+        if (character.category() == QChar::Other_Control || character == QLatin1Char('/') || character == QLatin1Char('\\'))
+        {
+            return QString();
+        }
+    }
+    return trimmed;
+}
+
+PDFAppToolInputList::AddResult PDFAppToolInputList::createRenamedCopy(const QString& id, const QString& name)
+{
+    AddResult result;
+    const PDFAppToolInput* input = findInput(id);
+    const QString validName = getValidName(name);
+    result.name = input ? input->name : QString();
+    if (!input || input->state != PDFAppToolInputState::Ready || validName.isEmpty())
+    {
+        result.refusal = Refusal::Invalid;
+        return result;
+    }
+
+    // The copy waits among the parked inputs: the ids of the tool take it (one undo step)
+    PDFAppToolInput copy = *input;
+    copy.id = createId();
+    copy.name = validName;
+    advanceGeneration();
+    copy.contentGeneration = m_generation;
+    result.id = copy.id;
+    m_parked[copy.id] = std::move(copy);
+    return result;
+}
+
+bool PDFAppToolInputList::applyAcceptedKinds(PDFAppToolInput* input) const
+{
+    // Only a ready input has its kind for sure (a file is a PDF or an image by its content)
+    if (input->state != PDFAppToolInputState::Ready)
+    {
+        return false;
+    }
+
+    const bool isAccepted = input->isImage() ? m_areImagesAccepted : m_isPdfAccepted;
+    if (isAccepted)
+    {
+        return false;
+    }
+
+    input->state = PDFAppToolInputState::Unsupported;
+    input->reason = m_unsupportedReason;
+    return true;
+}
+
+void PDFAppToolInputList::setAcceptedInputs(int maximum, bool acceptsPdf, bool acceptsImages, const QString& unsupportedReason)
+{
+    m_maximumCount = qBound(1, maximum, MAXIMUM_INPUTS);
+    m_isPdfAccepted = acceptsPdf;
+    m_areImagesAccepted = acceptsImages;
+    m_unsupportedReason = unsupportedReason;
+
+    // The inputs in the list now: an input, which is not accepted, says so (each its signal, last)
+    QStringList changedIds;
+    for (PDFAppToolInput& input : m_inputs)
+    {
+        if (applyAcceptedKinds(&input))
+        {
+            changedIds << input.id;
+        }
+    }
+    if (changedIds.isEmpty())
+    {
+        return;
+    }
+
+    advanceGeneration();
+    QPointer<PDFAppToolInputList> guard(this);
+    for (const QString& id : changedIds)
+    {
+        Q_EMIT inputChanged(id);
+        if (!guard)
+        {
+            return;
+        }
+    }
 }
 
 }   // namespace pdf

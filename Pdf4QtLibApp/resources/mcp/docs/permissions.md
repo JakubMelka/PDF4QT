@@ -6,7 +6,7 @@ The user decides what assistants may do. The permissions are set on the AI page 
 | --- | --- | --- |
 | Read documents | Text, properties, outline, annotations, form fields, attachments and page images of the open documents; showing them in the window (`view`) and closing tabs | Allow |
 | Edit documents | Annotations, form fields, the outline and the tools of PDF4QT, whose result changes the document (`result` `keep`, `overwrite`) | Ask |
-| Open and save files | `files.open`, `files.save`, `files.save_copy` and the tools of PDF4QT, whose result is written to a file (`result` `save_copy`, `save_file`, `overwrite`) | Ask |
+| Open and save files | `files.open`, `files.save`, `files.save_copy`, the tools of PDF4QT, whose result is written to files (`result` `save_copy`, `save_file`, `save_files`, `overwrite`), and the image files read by `imagePaths` | Ask |
 
 - **Allow** – the action runs without a question.
 - **Ask** – PDF4QT shows a confirmation in its window and your call waits for the answer.

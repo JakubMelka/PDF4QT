@@ -1096,16 +1096,35 @@ std::vector<PDFInteger> PDFAppDocumentView::getSelectedPages() const
     return pages;
 }
 
+std::vector<PDFInteger> PDFAppDocumentView::getExplicitlySelectedPages() const
+{
+    if (!m_selectedPages.empty())
+    {
+        return m_selectedPages;
+    }
+
+    // The one page chosen in the thumbnails, also when it is the current page (the thumbnails
+    // report no selection for it, updateViewSelection)
+    std::vector<PDFInteger> pages;
+    if (m_chosenPageIndex >= 0 && m_chosenPageIndex < getPageCount())
+    {
+        pages.push_back(m_chosenPageIndex);
+    }
+    return pages;
+}
+
 void PDFAppDocumentView::setSelectedPages(std::vector<PDFInteger> pages, PDFInteger chosenPage)
 {
     PDFAppDocumentViewHelper::removePagesOutOfRange(pages, getPageCount());
     std::sort(pages.begin(), pages.end());
     pages.erase(std::unique(pages.begin(), pages.end()), pages.end());
+    const PDFInteger oldChosenPage = m_chosenPageIndex;
     m_chosenPageIndex = chosenPage >= 0 && chosenPage < getPageCount() ? chosenPage : -1;
 
-    // A slot may delete the view (the tab)
+    // A slot may delete the view (the tab). The chosen page alone changes the selection of the
+    // user too (getExplicitlySelectedPages)
     QPointer<PDFAppDocumentView> guard(this);
-    if (m_selectedPages != pages)
+    if (m_selectedPages != pages || (m_selectedPages.empty() && pages.empty() && oldChosenPage != m_chosenPageIndex))
     {
         m_selectedPages = std::move(pages);
         Q_EMIT selectedPagesChanged();
@@ -2368,6 +2387,66 @@ void PDFAppDocumentView::applyViewState(const PDFAppViewState& state)
 
 // ------------------------------------------------------------------ settings
 
+void PDFAppDocumentView::readCMSSettings(const PDFSettingsRepository& settings, PDFCMSSettings* cmsSettings)
+{
+    using H = PDFAppDocumentViewHelper;
+    using K = PDFSettingKeys;
+
+    cmsSettings->system = H::getSystem(settings.getString(K::cmsSystem()));
+    cmsSettings->intent = H::getIntent(settings.getString(K::cmsRenderingIntent()));
+    cmsSettings->accuracy = H::getAccuracy(settings.getString(K::cmsAccuracy()));
+    cmsSettings->colorAdaptationXYZ = H::getColorAdaptation(settings.getString(K::cmsColorAdaptation()));
+    cmsSettings->isBlackPointCompensationActive = settings.getBool(K::cmsBlackPointCompensation());
+    cmsSettings->isWhitePaperColorTransformed = settings.getBool(K::cmsWhitePaperTransformed());
+    cmsSettings->isConsiderOutputIntent = settings.getBool(K::cmsConsiderOutputIntent());
+
+    const std::pair<QString, QString*> profiles[] =
+    {
+        { K::cmsOutputProfile(), &cmsSettings->outputCS },
+        { K::cmsDeviceGrayProfile(), &cmsSettings->deviceGray },
+        { K::cmsDeviceRgbProfile(), &cmsSettings->deviceRGB },
+        { K::cmsDeviceCmykProfile(), &cmsSettings->deviceCMYK },
+        { K::cmsProfileDirectory(), &cmsSettings->profileDirectory }
+    };
+    for (const std::pair<QString, QString*>& profile : profiles)
+    {
+        // An empty value is the built-in default
+        const QString value = settings.getString(profile.first);
+        if (!value.isEmpty())
+        {
+            *profile.second = value;
+        }
+    }
+
+    // The color management reads every profile of the folder in this thread without
+    // limits (SECURITY_TODO.md): a network folder, a folder of thousands of files or
+    // of huge files is not given to it (step 5, package B)
+    if (!PDFAppColorProfiles::isDirectoryUsable(cmsSettings->profileDirectory))
+    {
+        cmsSettings->profileDirectory.clear();
+    }
+
+    cmsSettings->foregroundColor = H::getColor(settings.getString(K::colorModesTextColor()), QColor(0xFF, 0xB0, 0x00));
+    cmsSettings->backgroundColor = H::getColor(settings.getString(K::colorModesPageColor()), QColor(0x0B, 0x0B, 0x10));
+    cmsSettings->bitonalThreshold = int(qBound(qint64(0), settings.getInteger(K::colorModesBitonalThreshold()), qint64(255)));
+    cmsSettings->sigmoidSlopeFactor = qBound(1.0, settings.getReal(K::colorModesHighContrastStrength()), 100.0);
+}
+
+PDFCMSPointer PDFAppDocumentView::createCMS(const PDFAppContext* context)
+{
+    if (!context)
+    {
+        return PDFCMSPointer();
+    }
+
+    // A manager of its own only for the reading (the shared object outlives it)
+    PDFCMSManager manager(nullptr);
+    PDFCMSSettings cmsSettings = manager.getDefaultSettings();
+    readCMSSettings(context->getSettings(), &cmsSettings);
+    manager.setSettings(cmsSettings);
+    return manager.getCurrentCMS();
+}
+
 void PDFAppDocumentView::applySettings()
 {
     if (m_isApplyingSettings || !m_pdfWidget || !m_context)
@@ -2399,44 +2478,7 @@ void PDFAppDocumentView::applySettings()
 
     // Color management and the colors of the color modes
     PDFCMSSettings cmsSettings = m_cmsManager->getDefaultSettings();
-    cmsSettings.system = H::getSystem(settings.getString(K::cmsSystem()));
-    cmsSettings.intent = H::getIntent(settings.getString(K::cmsRenderingIntent()));
-    cmsSettings.accuracy = H::getAccuracy(settings.getString(K::cmsAccuracy()));
-    cmsSettings.colorAdaptationXYZ = H::getColorAdaptation(settings.getString(K::cmsColorAdaptation()));
-    cmsSettings.isBlackPointCompensationActive = settings.getBool(K::cmsBlackPointCompensation());
-    cmsSettings.isWhitePaperColorTransformed = settings.getBool(K::cmsWhitePaperTransformed());
-    cmsSettings.isConsiderOutputIntent = settings.getBool(K::cmsConsiderOutputIntent());
-
-    const std::pair<QString, QString*> profiles[] =
-    {
-        { K::cmsOutputProfile(), &cmsSettings.outputCS },
-        { K::cmsDeviceGrayProfile(), &cmsSettings.deviceGray },
-        { K::cmsDeviceRgbProfile(), &cmsSettings.deviceRGB },
-        { K::cmsDeviceCmykProfile(), &cmsSettings.deviceCMYK },
-        { K::cmsProfileDirectory(), &cmsSettings.profileDirectory }
-    };
-    for (const std::pair<QString, QString*>& profile : profiles)
-    {
-        // An empty value is the built-in default
-        const QString value = settings.getString(profile.first);
-        if (!value.isEmpty())
-        {
-            *profile.second = value;
-        }
-    }
-
-    // The color management reads every profile of the folder in this thread without
-    // limits (SECURITY_TODO.md): a network folder, a folder of thousands of files or
-    // of huge files is not given to it (step 5, package B)
-    if (!PDFAppColorProfiles::isDirectoryUsable(cmsSettings.profileDirectory))
-    {
-        cmsSettings.profileDirectory.clear();
-    }
-
-    cmsSettings.foregroundColor = H::getColor(settings.getString(K::colorModesTextColor()), QColor(0xFF, 0xB0, 0x00));
-    cmsSettings.backgroundColor = H::getColor(settings.getString(K::colorModesPageColor()), QColor(0x0B, 0x0B, 0x10));
-    cmsSettings.bitonalThreshold = int(qBound(qint64(0), settings.getInteger(K::colorModesBitonalThreshold()), qint64(255)));
-    cmsSettings.sigmoidSlopeFactor = qBound(1.0, settings.getReal(K::colorModesHighContrastStrength()), 100.0);
+    readCMSSettings(settings, &cmsSettings);
     if (!(m_cmsManager->getSettings() == cmsSettings))
     {
         m_cmsManager->setSettings(cmsSettings);

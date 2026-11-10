@@ -126,8 +126,11 @@ private:
 };
 
 /// Selection of the pages of a parameter of the type PageSelection: the range
-/// syntax of PDFClosedIntervalSet::parse / PDFPageRange (pages from 1, "1-3, 5,
-/// 8-"; empty = all pages) and the filters of the component Page selection.
+/// syntax of PDFClosedIntervalSet::parse in ASCII only (pages from 1, "1-3, 5,
+/// 8-"; empty = all pages; the field of the application accepts the separators
+/// and digits of other scripts and writes the canonical text by
+/// PDFPageRange::toCanonicalText of Pdf4QtLibFluent, K42) and the filters of the
+/// component Page selection.
 /// Filters of one kind are joined (Even + Odd = every page), the two kinds narrow
 /// each other (Odd + Landscape = odd landscape pages). A page is landscape, when
 /// its visible box (the crop box rotated by /Rotate) is wider than high.

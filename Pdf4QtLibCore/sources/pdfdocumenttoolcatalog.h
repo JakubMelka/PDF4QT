@@ -91,6 +91,22 @@ enum class PDFDocumentToolResultKind
     Analysis        ///< Nothing is written, the tool shows information
 };
 
+/// How many inputs a tool takes (plan of step 3 of phase 2, K41): the documents and the
+/// images of the context together (Merge 2 to 1000, Interleave exactly 2, Images to PDF 1 to
+/// 1000 images); the list of the inputs of an own tab and the parameter documentIds of MCP
+/// use it, a tool of one document has 1 to 1, a tool without an input 0 to 0
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolInputCountRange
+{
+public:
+    int minimum = 0;    ///< Fewest inputs
+    int maximum = 0;    ///< Most inputs
+
+    /// The count is inside of the range
+    bool contains(int count) const { return count >= minimum && count <= maximum; }
+
+    bool operator==(const PDFDocumentToolInputCountRange&) const = default;
+};
+
 /// External dependency of a tool, which may be missing at run time
 enum class PDFDocumentToolExternalDependency
 {
@@ -302,6 +318,24 @@ public:
     /// Result of the tool (default ChangeDocument)
     PDFDocumentToolResultKind getResultKind() const;
 
+    /// Every kind of the result, which the tool can have, getResultKind first: a tool, whose
+    /// result depends on a parameter (Extract Pages: one file = NewDocument, one file per
+    /// page = Files; plan of step 3 of phase 2, 4.2), has more (the values of the parameter
+    /// result of MCP); PDFDocumentTool::getResultKind gives the kind of the parameters of a run
+    std::vector<PDFDocumentToolResultKind> getPossibleResultKinds() const;
+
+    /// How many inputs the tool takes (K41): by the input kind - None 0 to 0, One 1 to 1,
+    /// Multiple 2 to MAXIMUM_INPUT_COUNT - unless the tool has its own range (Interleave
+    /// exactly 2, Images to PDF 1 to MAXIMUM_INPUT_COUNT images)
+    PDFDocumentToolInputCountRange getInputCountRange() const;
+
+    /// The result is one or more new PDF documents made of the pages of the input documents
+    /// (Merge, Extract Pages, Interleave Pages, Split): they are not encrypted, so they would
+    /// lose every restriction of an input - the tool needs every permission of
+    /// PDFDocumentMerger::getRequiredPermissions (owner answer Q2 of step 2 of phase 2, Q4 of
+    /// step 3); a tool without an input document never
+    bool isNewDocumentOfInputs() const;
+
     /// External dependency (default None)
     PDFDocumentToolExternalDependency getExternalDependency() const;
 
@@ -511,6 +545,10 @@ public:
 
     /// Most default successors of a tool (O21)
     static constexpr int MAXIMUM_DEFAULT_SUCCESSORS = 3;
+
+    /// Most inputs of a tool of more inputs (Merge, Images to PDF; chapter 6 of the plan of
+    /// step 2 of phase 2: PDFDocumentToolMerge::MAXIMUM_INPUT_COUNT)
+    static constexpr int MAXIMUM_INPUT_COUNT = 1000;
 
     /// Table of the extended data of the tools (input and result kinds, external
     /// dependency, command of PdfTool, default successors), at most one row per

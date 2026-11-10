@@ -49,240 +49,96 @@ public:
         return QString::fromLatin1(parameter);
     }
 
-    /// Longest letters of an input (more than enough for MAXIMUM_INPUT_COUNT, no overflow)
-    static constexpr int MAXIMUM_LETTERS = 6;
-
-    /// One parsed item of a plan
-    struct PlanToken
-    {
-        int input = -1;
-        PDFInteger firstPage = 0;   ///< Page number from 1
-        PDFInteger lastPage = 0;    ///< Page number from 1
-        PageRotation turn = PageRotation::None;
-        bool isClone = false;
-    };
-
-    /// Reads a decimal number of at most 10 digits at \p position
-    static bool readNumber(QStringView text, qsizetype* position, PDFInteger* value)
-    {
-        qsizetype end = *position;
-        while (end < text.size() && text[end] >= QLatin1Char('0') && text[end] <= QLatin1Char('9') && end - *position < 10)
-        {
-            ++end;
-        }
-        if (end == *position || (end < text.size() && text[end].isDigit()))
-        {
-            return false;
-        }
-
-        bool ok = false;
-        *value = text.mid(*position, end - *position).toLongLong(&ok);
-        *position = end;
-        return ok;
-    }
-
-    /// Parses "<letters><page>[-<page>][@<turn>][+]"
-    static std::optional<PlanToken> parseToken(QStringView text)
-    {
-        PlanToken token;
-        qsizetype position = 0;
-        while (position < text.size() && text[position] >= QLatin1Char('A') && text[position] <= QLatin1Char('Z'))
-        {
-            ++position;
-        }
-        if (position == 0 || position > MAXIMUM_LETTERS)
-        {
-            return std::nullopt;
-        }
-        token.input = PDFDocumentToolMerge::getInputIndex(text.left(position));
-
-        if (!readNumber(text, &position, &token.firstPage))
-        {
-            return std::nullopt;
-        }
-        token.lastPage = token.firstPage;
-
-        if (position < text.size() && text[position] == QLatin1Char('-'))
-        {
-            ++position;
-            if (!readNumber(text, &position, &token.lastPage))
-            {
-                return std::nullopt;
-            }
-        }
-
-        if (position < text.size() && text[position] == QLatin1Char('@'))
-        {
-            ++position;
-            PDFInteger angle = 0;
-            if (!readNumber(text, &position, &angle))
-            {
-                return std::nullopt;
-            }
-            switch (angle)
-            {
-                case 0:
-                    token.turn = PageRotation::None;
-                    break;
-                case 90:
-                    token.turn = PageRotation::Rotate90;
-                    break;
-                case 180:
-                    token.turn = PageRotation::Rotate180;
-                    break;
-                case 270:
-                    token.turn = PageRotation::Rotate270;
-                    break;
-                default:
-                    return std::nullopt;
-            }
-        }
-
-        if (position < text.size() && text[position] == QLatin1Char('+'))
-        {
-            token.isClone = true;
-            ++position;
-        }
-
-        if (position != text.size())
-        {
-            return std::nullopt;
-        }
-        return token;
-    }
-
-    /// Angle of a turn in a plan
-    static int getAngle(PageRotation turn)
-    {
-        switch (turn)
-        {
-            case PageRotation::Rotate90:
-                return 90;
-            case PageRotation::Rotate180:
-                return 180;
-            case PageRotation::Rotate270:
-                return 270;
-            default:
-                return 0;
-        }
-    }
-
-    /// Text of an item of a plan
-    static QString createToken(int input, PDFInteger firstPage, PDFInteger lastPage, PageRotation turn, bool isClone)
-    {
-        QString text = PDFDocumentToolMerge::getInputLetters(input) + QString::number(firstPage + 1);
-        if (lastPage != firstPage)
-        {
-            text += QLatin1Char('-') + QString::number(lastPage + 1);
-        }
-        if (turn != PageRotation::None)
-        {
-            text += QLatin1Char('@') + QString::number(getAngle(turn));
-        }
-        if (isClone)
-        {
-            text += QLatin1Char('+');
-        }
-        return text;
-    }
-
     /// Writes the document of a result into memory (the size is measured by writing it)
     static QByteArray writeDocument(const PDFDocument* document, QString* errorMessage)
     {
-        QByteArray data;
-        QBuffer buffer(&data);
-        buffer.open(QBuffer::WriteOnly);
-        PDFDocumentWriter writer(nullptr);
-        const PDFOperationResult result = writer.write(&buffer, document);
-        buffer.close();
-        if (!result)
-        {
-            *errorMessage = result.getErrorMessage();
-            return QByteArray();
-        }
-        if (data.isEmpty())
-        {
-            *errorMessage = PDFDocumentToolMerge::tr("The result cannot be written.");
-        }
-        else if (data.size() > PDFDocumentTool::MAXIMUM_RESULT_SIZE)
-        {
-            *errorMessage = PDFDocumentToolMerge::tr("The result is too large to be saved.");
-            return QByteArray();
-        }
-        return data;
+        return PDFDocumentToolNewDocument::write(document, errorMessage);
     }
 
     /// A number of millimeters for a text: at most one decimal place, no trailing zero (K25)
     static QString formatMillimeters(double millimeters)
     {
-        const double rounded = std::round(millimeters * 10.0) / 10.0;
-        QString text = QLocale().toString(rounded, 'f', 1);
-        const QString zero = QLocale().decimalPoint() + QLocale().zeroDigit();
-        if (text.endsWith(zero))
-        {
-            text.chop(zero.size());
-        }
-        return text;
+        return PDFDocumentToolNewDocument::formatMillimeters(millimeters);
     }
 
     /// Millimeters of points
     static double getMillimeters(double points)
     {
-        return points * 25.4 / 72.0;
+        return PDFPageSizePresets::getMillimeters(points);
     }
 
     /// The new document of a result with its written bytes
     static void addNewDocument(PDFDocumentToolResult* result, PDFDocument document, QByteArray writtenData, const QString& suggestedFileName)
     {
-        PDFDocumentToolOutputDocument output;
-        output.kind = PDFDocumentToolOutputDocument::Kind::New;
-        output.inputIndex = 0;
-        output.document = PDFDocumentPointer(new PDFDocument(std::move(document)));
-        output.flags = PDFModifiedDocument::Reset;
-        output.suggestedFileName = suggestedFileName;
-        output.writtenData = std::move(writtenData);
-        result->documents.push_back(std::move(output));
+        PDFDocumentToolNewDocument::addToResult(result, std::move(document), std::move(writtenData), suggestedFileName);
     }
 };
+
+// ------------------------------------------------- PDFDocumentToolNewDocument
+
+QByteArray PDFDocumentToolNewDocument::write(const PDFDocument* document, QString* errorMessage)
+{
+    QString dummy;
+    QString& error = errorMessage ? *errorMessage : dummy;
+
+    QByteArray data;
+    QBuffer buffer(&data);
+    buffer.open(QBuffer::WriteOnly);
+    PDFDocumentWriter writer(nullptr);
+    const PDFOperationResult result = writer.write(&buffer, document);
+    buffer.close();
+    if (!result)
+    {
+        error = result.getErrorMessage();
+        return QByteArray();
+    }
+    if (data.isEmpty())
+    {
+        error = tr("The result cannot be written.");
+    }
+    else if (data.size() > PDFDocumentTool::MAXIMUM_RESULT_SIZE)
+    {
+        error = tr("The result is too large to be saved.");
+        return QByteArray();
+    }
+    return data;
+}
+
+void PDFDocumentToolNewDocument::addToResult(PDFDocumentToolResult* result, PDFDocument document, QByteArray writtenData, const QString& suggestedFileName)
+{
+    PDFDocumentToolOutputDocument output;
+    output.kind = PDFDocumentToolOutputDocument::Kind::New;
+    output.inputIndex = 0;
+    output.document = PDFDocumentPointer(new PDFDocument(std::move(document)));
+    output.flags = PDFModifiedDocument::Reset;
+    output.suggestedFileName = suggestedFileName;
+    output.writtenData = std::move(writtenData);
+    result->documents.push_back(std::move(output));
+}
+
+QString PDFDocumentToolNewDocument::formatMillimeters(double millimeters)
+{
+    const double rounded = std::round(millimeters * 10.0) / 10.0;
+    QString text = QLocale().toString(rounded, 'f', 1);
+    const QString zero = QLocale().decimalPoint() + QLocale().zeroDigit();
+    if (text.endsWith(zero))
+    {
+        text.chop(zero.size());
+    }
+    return text;
+}
 
 // ------------------------------------------------------- PDFDocumentToolMerge
 
 QString PDFDocumentToolMerge::getInputLetters(int inputIndex)
 {
-    // Bijective base 26: A ... Z, AA, AB, ... (R20)
-    QString letters;
-    if (inputIndex < 0)
-    {
-        return letters;
-    }
-
-    qint64 value = qint64(inputIndex) + 1;
-    while (value > 0)
-    {
-        const qint64 remainder = (value - 1) % 26;
-        letters.prepend(QLatin1Char(char('A' + remainder)));
-        value = (value - 1) / 26;
-    }
-    return letters;
+    // The one plan of the pages (plan of step 3 of phase 2, K44)
+    return PDFDocumentPagePlan::getInputLetters(inputIndex);
 }
 
 int PDFDocumentToolMerge::getInputIndex(QStringView letters)
 {
-    if (letters.isEmpty() || letters.size() > PDFDocumentToolMergeHelper::MAXIMUM_LETTERS)
-    {
-        return -1;
-    }
-
-    qint64 value = 0;
-    for (const QChar character : letters)
-    {
-        if (character < QLatin1Char('A') || character > QLatin1Char('Z'))
-        {
-            return -1;
-        }
-        value = value * 26 + (character.unicode() - 'A' + 1);
-    }
-    return value - 1 <= std::numeric_limits<int>::max() ? int(value - 1) : -1;
+    return PDFDocumentPagePlan::getInputIndex(letters);
 }
 
 std::optional<std::vector<PDFDocumentToolMerge::Input>> PDFDocumentToolMerge::resolveInputs(const PDFDocumentToolContext& context, const QVariantMap& parameters, QString* errorMessage)
@@ -392,145 +248,17 @@ std::optional<std::vector<PDFDocumentToolMerge::Input>> PDFDocumentToolMerge::re
 
 std::optional<std::vector<PDFDocumentToolMerge::PlanItem>> PDFDocumentToolMerge::parsePlan(const QString& plan, const std::vector<PDFInteger>& pageCounts, QString* errorMessage)
 {
-    using Helper = PDFDocumentToolMergeHelper;
-
-    QString dummy;
-    QString& error = errorMessage ? *errorMessage : dummy;
-    error.clear();
-
-    if (plan.size() > MAXIMUM_PLAN_LENGTH)
-    {
-        error = tr("The plan of the pages is longer than %1 characters.").arg(MAXIMUM_PLAN_LENGTH);
-        return std::nullopt;
-    }
-
-    std::vector<PlanItem> items;
-    std::set<std::pair<int, PDFInteger>> usedPages;
-    const QStringView planView(plan);
-    qsizetype start = 0;
-    while (start <= planView.size())
-    {
-        qsizetype end = planView.indexOf(QLatin1Char(','), start);
-        if (end < 0)
-        {
-            end = planView.size();
-        }
-
-        const QStringView part = planView.mid(start, end - start).trimmed();
-        start = end + 1;
-        if (part.isEmpty())
-        {
-            continue;
-        }
-
-        const std::optional<Helper::PlanToken> token = Helper::parseToken(part);
-        if (!token)
-        {
-            error = tr("“%1” is not a part of a plan of the pages. Write the file and its pages, such as A1-6, B3@90 or A3+ (a turn @90, @180, @270; + a copy of a page).")
-                        .arg(PDFDocumentToolParameterDefinition::sanitizeForMessage(part.toString()));
-            return std::nullopt;
-        }
-        if (token->input < 0 || size_t(token->input) >= pageCounts.size())
-        {
-            error = tr("The plan of the pages names the file %1, which is not in the list.").arg(PDFDocumentToolParameterDefinition::sanitizeForMessage(part.toString()));
-            return std::nullopt;
-        }
-
-        const PDFInteger pageCount = pageCounts[size_t(token->input)];
-        if (token->firstPage < 1 || token->lastPage < 1 || token->firstPage > pageCount || token->lastPage > pageCount)
-        {
-            error = tr("The file %1 has no page %2 (it has %Ln pages).", nullptr, int(qMin<PDFInteger>(pageCount, std::numeric_limits<int>::max())))
-                        .arg(getInputLetters(token->input))
-                        .arg(token->firstPage > pageCount || token->firstPage < 1 ? token->firstPage : token->lastPage);
-            return std::nullopt;
-        }
-
-        const PDFInteger step = token->lastPage >= token->firstPage ? 1 : -1;
-        const PDFInteger count = (token->lastPage - token->firstPage) * step + 1;
-        if (PDFInteger(items.size()) + count > PDFDocumentMerger::MAXIMUM_PAGE_COUNT)
-        {
-            error = tr("The plan of the pages has more than %Ln pages.", nullptr, int(PDFDocumentMerger::MAXIMUM_PAGE_COUNT));
-            return std::nullopt;
-        }
-
-        for (PDFInteger page = token->firstPage - 1; ; page += step)
-        {
-            PlanItem item;
-            item.input = token->input;
-            item.pageIndex = page;
-            item.turn = token->turn;
-            item.isClone = !usedPages.emplace(token->input, page).second;
-            if (item.isClone && !token->isClone)
-            {
-                error = tr("The page %1 of the file %2 is in the plan of the pages more than once. Mark each further copy of it by +, such as %2%1+.")
-                            .arg(page + 1)
-                            .arg(getInputLetters(token->input));
-                return std::nullopt;
-            }
-            items.push_back(item);
-            if (page == token->lastPage - 1)
-            {
-                break;
-            }
-        }
-    }
-
-    if (items.empty())
-    {
-        error = tr("The plan of the pages has no page.");
-        return std::nullopt;
-    }
-    return items;
+    return PDFDocumentPagePlan::parse(plan, pageCounts, errorMessage);
 }
 
 QString PDFDocumentToolMerge::createPlan(const std::vector<PlanItem>& items)
 {
-    QStringList parts;
-    for (size_t i = 0; i < items.size();)
-    {
-        const PlanItem& first = items[i];
-        size_t last = i;
-        PDFInteger step = 0;
-        if (i + 1 < items.size())
-        {
-            const PlanItem& next = items[i + 1];
-            const PDFInteger difference = next.pageIndex - first.pageIndex;
-            if (next.input == first.input && next.turn == first.turn && next.isClone == first.isClone && (difference == 1 || difference == -1))
-            {
-                step = difference;
-            }
-        }
-        if (step != 0)
-        {
-            while (last + 1 < items.size() &&
-                   items[last + 1].input == first.input &&
-                   items[last + 1].turn == first.turn &&
-                   items[last + 1].isClone == first.isClone &&
-                   items[last + 1].pageIndex == items[last].pageIndex + step)
-            {
-                ++last;
-            }
-        }
-        parts << PDFDocumentToolMergeHelper::createToken(first.input, first.pageIndex, items[last].pageIndex, first.turn, first.isClone);
-        i = last + 1;
-    }
-    return parts.join(QLatin1Char(','));
+    return PDFDocumentPagePlan::toText(items);
 }
 
 std::vector<PDFDocumentToolMerge::PlanItem> PDFDocumentToolMerge::createDefaultPlan(const std::vector<PDFInteger>& pageCounts)
 {
-    std::vector<PlanItem> items;
-    for (size_t input = 0; input < pageCounts.size(); ++input)
-    {
-        for (PDFInteger page = 0; page < pageCounts[input]; ++page)
-        {
-            PlanItem item;
-            item.input = int(input);
-            item.pageIndex = page;
-            items.push_back(item);
-        }
-    }
-    return items;
+    return PDFDocumentPagePlan::createDefault(pageCounts);
 }
 
 PDFDocumentMerger::Settings PDFDocumentToolMerge::createSettings(const QVariantMap& parameters)
@@ -732,16 +460,7 @@ PDFDocumentToolResult PDFDocumentToolMerge::execute(const PDFDocumentToolContext
         return PDFDocumentToolResult::createFailed(error);
     }
 
-    std::vector<PDFDocumentMerger::Item> items;
-    items.reserve(plan->size());
-    for (const PlanItem& planItem : *plan)
-    {
-        PDFDocumentMerger::Item item;
-        item.source = size_t(planItem.input);
-        item.pageIndex = planItem.pageIndex;
-        item.turn = planItem.turn;
-        items.push_back(item);
-    }
+    const std::vector<PDFDocumentMerger::Item> items = PDFDocumentPagePlan::createMergerItems(*plan);
 
     const std::optional<PDFImageOptimizer::Settings> imageSettings = createImageSettings(parameters);
 
@@ -912,45 +631,18 @@ PDFDocumentToolResult PDFDocumentToolMerge::execute(const PDFDocumentToolContext
 
 std::optional<QSizeF> PDFDocumentToolBlank::getNamedSize(const QString& sizeId)
 {
-    // ISO 216 in millimeters, the US sizes and 16:9 in points (5.4 of the plan)
-    if (sizeId == QLatin1String(SIZE_A4))
-    {
-        return QSizeF(getPoints(210.0), getPoints(297.0));
-    }
-    if (sizeId == QLatin1String(SIZE_A3))
-    {
-        return QSizeF(getPoints(297.0), getPoints(420.0));
-    }
-    if (sizeId == QLatin1String(SIZE_A5))
-    {
-        return QSizeF(getPoints(148.0), getPoints(210.0));
-    }
-    if (sizeId == QLatin1String(SIZE_LETTER))
-    {
-        return QSizeF(612.0, 792.0);
-    }
-    if (sizeId == QLatin1String(SIZE_LEGAL))
-    {
-        return QSizeF(612.0, 1008.0);
-    }
-    if (sizeId == QLatin1String(SIZE_16X9))
-    {
-        return QSizeF(540.0, 960.0);
-    }
-    return std::nullopt;
+    // The one table of the named sizes (plan of step 3 of phase 2, 4.3)
+    return PDFPageSizePresets::getSize(sizeId);
 }
 
 double PDFDocumentToolBlank::getPoints(double millimeters)
 {
-    return millimeters * 72.0 / 25.4;
+    return PDFPageSizePresets::getPoints(millimeters);
 }
 
 bool PDFDocumentToolBlank::isValidSide(double points)
 {
-    // A limit given in millimeters (the definitions of width and height) is the limit in points
-    // up to the rounding of the conversion
-    static constexpr double TOLERANCE = 1e-9;
-    return std::isfinite(points) && points >= MINIMUM_SIDE_POINTS - TOLERANCE && points <= MAXIMUM_SIDE_POINTS + TOLERANCE;
+    return PDFPageSizePresets::isValidSide(points);
 }
 
 QSizeF PDFDocumentToolBlank::getPageSize(const QVariantMap& parameters, QString* errorMessage)

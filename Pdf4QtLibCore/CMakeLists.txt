@@ -99,6 +99,35 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfdocumenttoolsearch.h
     sources/pdfdocumenttoolsuggestions.cpp
     sources/pdfdocumenttoolsuggestions.h
+    # Step 3a of phase 2 (Pages): the shared part of the skeleton
+    sources/pdfnewdocumentfinisher.cpp
+    sources/pdfnewdocumentfinisher.h
+    sources/pdfpagesizepresets.cpp
+    sources/pdfpagesizepresets.h
+    # Step 3a, package A (Split, Extract Pages, more files)
+    sources/pdfdocumentsplitter.cpp
+    sources/pdfdocumentsplitter.h
+    sources/pdfdocumenttool_split.cpp
+    sources/pdfdocumenttool_split.h
+    sources/pdffilenametemplate.cpp
+    sources/pdffilenametemplate.h
+    sources/pdfoutlinebreakpoints.cpp
+    sources/pdfoutlinebreakpoints.h
+    sources/pdfpagerangelist.cpp
+    sources/pdfpagerangelist.h
+    # Step 3a, package B (Crop, Resize, Set Page Boxes)
+    sources/pdfdocumenttool_geometry.cpp
+    sources/pdfdocumenttool_geometry.h
+    # Step 3a, package C (Insert Pages, Add Image as Page, DocMDP)
+    sources/pdfdocmdppermissions.cpp
+    sources/pdfdocmdppermissions.h
+    sources/pdfdocumenttool_insert.cpp
+    sources/pdfdocumenttool_insert.h
+    # Step 3a, package D (Images to PDF, Interleave Pages, the plan of the pages)
+    sources/pdfdocumentpageplan.cpp
+    sources/pdfdocumentpageplan.h
+    sources/pdfdocumenttool_images.cpp
+    sources/pdfdocumenttool_images.h
     sources/pdfexecutionpolicy.cpp
     sources/pdfexecutionpolicy.h
     sources/pdfthreadannotations.cpp

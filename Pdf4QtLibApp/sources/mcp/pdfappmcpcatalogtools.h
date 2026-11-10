@@ -41,6 +41,8 @@
 namespace pdf
 {
 
+class PDFDocumentTool;
+
 /// What happens with the result of a tool of the catalog (the property "result")
 enum class PDFAppMcpToolResultMode
 {
@@ -49,7 +51,8 @@ enum class PDFAppMcpToolResultMode
     Overwrite,      ///< "overwrite": the file of the document gets the result first, then the tab (one undo step, saved); always confirmed
     OpenNewTab,     ///< "open_new_tab": the new document of the tool opens unsaved in a new tab (Edit, no file is written)
     SaveFile,       ///< "save_file": the one output file or the new document of the tool is written to "path"
-    ReturnText      ///< "return_text": the text of the one output file is the result of the call (Read only)
+    ReturnText,     ///< "return_text": the text of the one output file is the result of the call (Read only)
+    SaveFiles       ///< "save_files": the files of a tool of more files (Split, Extract one file per page) are written to the folder of its parameters (R17; Read + Open and save files)
 };
 
 /// The bridge of the tools of phase 2 (plan 3.10): one MCP tool per category
@@ -90,6 +93,14 @@ public:
 
     /// Values of "result" of a result kind
     static QStringList getResultValues(PDFDocumentToolResultKind kind);
+
+    /// The tool writes its files itself (its result can be Files and it has the parameters of
+    /// Output files, PDFDocumentToolFileOutput: Split, Extract one file per page)
+    static bool isWritingFiles(const PDFDocumentTool* tool);
+
+    /// Values of "result" of a tool: of every kind it can have (getPossibleResultKinds); the
+    /// files, which a tool writes itself, are save_files (R17)
+    static QStringList getToolResultValues(const PDFDocumentToolCatalogEntry& entry, const PDFDocumentTool* tool);
 
     /// Default value of "result": the preselected choice of the result dialog
     /// (Save as a file of an export is return_text - only Read, chapter 6 of the plan)

@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfpagegeometrydialog.h"
+#include "pdfpagesizepresets.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -42,22 +43,31 @@
 namespace pdf
 {
 
-namespace pagegeometrydialog
+/// Helpers of the dialog Page Geometry
+class PDFPageGeometryDialogHelper
 {
+public:
+    PDFPageGeometryDialogHelper() = delete;
 
-QDoubleSpinBox* createMillimeterSpinBox(QWidget* parent, double value = 0.0)
-{
-    QDoubleSpinBox* spinBox = new QDoubleSpinBox(parent);
-    spinBox->setRange(-10000.0, 10000.0);
-    spinBox->setDecimals(2);
-    spinBox->setValue(value);
-    spinBox->setSuffix(QObject::tr(" mm"));
-    return spinBox;
-}
+    static QDoubleSpinBox* createMillimeterSpinBox(QWidget* parent, double value = 0.0)
+    {
+        QDoubleSpinBox* spinBox = new QDoubleSpinBox(parent);
+        spinBox->setRange(-10000.0, 10000.0);
+        spinBox->setDecimals(2);
+        spinBox->setValue(value);
+        spinBox->setSuffix(PDFPageGeometryDialog::tr(" mm"));
+        return spinBox;
+    }
 
-}   // namespace pagegeometrydialog
+    /// The size of a named size in millimeters, exact (B45: Letter is 215.9 x 279.4 mm, not 216 x 279)
+    static QSizeF getPresetSizeMM(const char* id)
+    {
+        const std::optional<QSizeF> size = PDFPageSizePresets::getSize(QString::fromLatin1(id));
+        return size ? QSizeF(PDFPageSizePresets::getMillimeters(size->width()), PDFPageSizePresets::getMillimeters(size->height())) : QSizeF();
+    }
+};
 
-using namespace pagegeometrydialog;
+using Helper = PDFPageGeometryDialogHelper;
 
 PDFPageGeometryDialog::PDFPageGeometryDialog(QWidget* parent) :
     QDialog(parent),
@@ -139,22 +149,22 @@ PDFPageGeometryDialog::PDFPageGeometryDialog(QWidget* parent) :
     m_useTargetPageSizeCheckBox = new QCheckBox(tr("Use target page size"), sizeGroup);
     m_pageSizePresetCombo = new QComboBox(sizeGroup);
     m_pageSizePresetCombo->addItem(tr("Custom"), QSizeF());
-    m_pageSizePresetCombo->addItem(tr("A5 148 x 210"), QSizeF(148.0, 210.0));
-    m_pageSizePresetCombo->addItem(tr("A4 210 x 297"), QSizeF(210.0, 297.0));
-    m_pageSizePresetCombo->addItem(tr("A3 297 x 420"), QSizeF(297.0, 420.0));
-    m_pageSizePresetCombo->addItem(tr("Letter 216 x 279"), QSizeF(216.0, 279.0));
-    m_pageSizePresetCombo->addItem(tr("Legal 216 x 356"), QSizeF(216.0, 356.0));
+    m_pageSizePresetCombo->addItem(tr("A5 148 x 210"), Helper::getPresetSizeMM(PDFPageSizePresets::A5));
+    m_pageSizePresetCombo->addItem(tr("A4 210 x 297"), Helper::getPresetSizeMM(PDFPageSizePresets::A4));
+    m_pageSizePresetCombo->addItem(tr("A3 297 x 420"), Helper::getPresetSizeMM(PDFPageSizePresets::A3));
+    m_pageSizePresetCombo->addItem(tr("Letter 216 x 279"), Helper::getPresetSizeMM(PDFPageSizePresets::LETTER));
+    m_pageSizePresetCombo->addItem(tr("Legal 216 x 356"), Helper::getPresetSizeMM(PDFPageSizePresets::LEGAL));
     m_pageSizePresetCombo->setCurrentIndex(2);
 
-    m_widthSpinBox = createMillimeterSpinBox(sizeGroup, 210.0);
-    m_heightSpinBox = createMillimeterSpinBox(sizeGroup, 297.0);
-    m_widthSpinBox->setRange(1.0, 10000.0);
-    m_heightSpinBox->setRange(1.0, 10000.0);
+    m_widthSpinBox = Helper::createMillimeterSpinBox(sizeGroup, 210.0);
+    m_heightSpinBox = Helper::createMillimeterSpinBox(sizeGroup, 297.0);
+    m_widthSpinBox->setRange(PDFPageSizePresets::MINIMUM_SIDE_MILLIMETERS, PDFPageSizePresets::MAXIMUM_SIDE_MILLIMETERS);
+    m_heightSpinBox->setRange(PDFPageSizePresets::MINIMUM_SIDE_MILLIMETERS, PDFPageSizePresets::MAXIMUM_SIDE_MILLIMETERS);
 
-    m_marginLeftSpinBox = createMillimeterSpinBox(sizeGroup, 0.0);
-    m_marginTopSpinBox = createMillimeterSpinBox(sizeGroup, 0.0);
-    m_marginRightSpinBox = createMillimeterSpinBox(sizeGroup, 0.0);
-    m_marginBottomSpinBox = createMillimeterSpinBox(sizeGroup, 0.0);
+    m_marginLeftSpinBox = Helper::createMillimeterSpinBox(sizeGroup, 0.0);
+    m_marginTopSpinBox = Helper::createMillimeterSpinBox(sizeGroup, 0.0);
+    m_marginRightSpinBox = Helper::createMillimeterSpinBox(sizeGroup, 0.0);
+    m_marginBottomSpinBox = Helper::createMillimeterSpinBox(sizeGroup, 0.0);
 
     sizeLayout->addWidget(m_useTargetPageSizeCheckBox, 0, 0, 1, 3);
     sizeLayout->addWidget(new QLabel(tr("Preset"), sizeGroup), 1, 0);
@@ -188,8 +198,8 @@ PDFPageGeometryDialog::PDFPageGeometryDialog(QWidget* parent) :
     m_anchorCombo->addItem(tr("Bottom right"), int(PDFPageGeometrySettings::Anchor::BottomRight));
     m_anchorCombo->setCurrentIndex(4);
 
-    m_offsetXSpinBox = createMillimeterSpinBox(placementGroup, 0.0);
-    m_offsetYSpinBox = createMillimeterSpinBox(placementGroup, 0.0);
+    m_offsetXSpinBox = Helper::createMillimeterSpinBox(placementGroup, 0.0);
+    m_offsetYSpinBox = Helper::createMillimeterSpinBox(placementGroup, 0.0);
 
     m_scaleContentCheckBox = new QCheckBox(tr("Scale content"), placementGroup);
     m_preserveAspectRatioCheckBox = new QCheckBox(tr("Preserve aspect ratio"), placementGroup);

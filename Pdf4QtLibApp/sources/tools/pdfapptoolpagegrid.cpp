@@ -32,9 +32,12 @@
 
 #include "pdfcatalog.h"
 #include "pdfcomponentrows.h"
+#include "pdfpainterutils.h"
+#include "pdfstylepainter.h"
 #include "pdfthemefonts.h"
 #include "pdfthememanager.h"
 
+#include <QFontMetricsF>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
@@ -136,6 +139,15 @@ QVariant PDFAppToolPageGridModel::data(const QModelIndex& index, int role) const
 
         case PDFComponentRoles::StateIconRole:
             return tile.badgeIconName;
+
+        case PDFComponentRoles::HueRole:
+            return tile.dotColor.has_value() ? QVariant(int(*tile.dotColor)) : QVariant();
+
+        case PDFAppToolPageTileDelegate::DimmedRole:
+            return tile.isDimmed;
+
+        case PDFAppToolPageTileDelegate::CutBeforeRole:
+            return tile.markerBefore;
 
         case Qt::AccessibleDescriptionRole:
             return tile.caption;
@@ -373,7 +385,7 @@ PDFAppToolPageGrid::PDFAppToolPageGrid(const QSize& slotSize, QWidget* parent) :
     PDFAppPanelWidgets::prepareView(m_view);
     m_view->setAccessibleName(tr("Pages"));
     m_model = new PDFAppToolPageGridModel(m_view);
-    m_delegate = new PDFPageTileDelegate(m_view);
+    m_delegate = new PDFAppToolPageTileDelegate(m_view);
     m_delegate->setSlotSize(getScaledSlotSize(m_tileSize));
     m_view->setModel(m_model);
     m_view->setItemDelegate(m_delegate);
@@ -417,6 +429,11 @@ void PDFAppToolPageGrid::setHeaderText(const QString& text)
     {
         m_header->setText(text);
     }
+}
+
+QString PDFAppToolPageGrid::getHeaderText() const
+{
+    return m_header ? m_header->text() : QString();
 }
 
 void PDFAppToolPageGrid::setHintText(const QString& text)
@@ -506,6 +523,150 @@ void PDFAppToolPageGrid::changeEvent(QEvent* event)
     else if (event->type() == QEvent::LanguageChange && m_view)
     {
         m_view->setAccessibleName(tr("Pages"));
+    }
+}
+
+// ---------------------------------------------------------- PDFAppToolPageTileDelegate
+
+PDFAppToolPageTileDelegate::PDFAppToolPageTileDelegate(QObject* parent) :
+    BaseClass(parent)
+{
+
+}
+
+QSize PDFAppToolPageTileDelegate::getScaledSlotSize(double scale) const
+{
+    const QSize slot = getSlotSize();
+    if (!(scale > 0.0) || qFuzzyCompare(scale, 1.0))
+    {
+        return slot;
+    }
+    return QSize(int(std::lround(slot.width() * scale)), int(std::lround(slot.height() * scale)));
+}
+
+PDFComponentPainter::PageTile PDFAppToolPageTileDelegate::getTileContent(const QModelIndex& index, bool withPixmap) const
+{
+    PDFComponentPainter::PageTile content = getContent(index, withPixmap);
+    const QVariant scale = index.isValid() ? index.data(SlotScaleRole) : QVariant();
+    if (scale.isValid())
+    {
+        content.slotSize = getScaledSlotSize(scale.toDouble());
+    }
+    return content;
+}
+
+std::optional<PDFAccentHue> PDFAppToolPageTileDelegate::getDotHue(const QModelIndex& index)
+{
+    const QVariant hue = index.isValid() ? index.data(PDFComponentRoles::HueRole) : QVariant();
+    if (!hue.isValid())
+    {
+        return std::nullopt;
+    }
+    return static_cast<PDFAccentHue>(hue.toInt());
+}
+
+QSize PDFAppToolPageTileDelegate::getItemSize(const QStyleOptionViewItem& option, const QModelIndex& index, int width) const
+{
+    Q_UNUSED(option);
+    Q_UNUSED(width);
+    return PDFComponentPainter::getPageTileSize(getTileContent(index, false));
+}
+
+PDFAppToolPageTileDelegate::MarkRects PDFAppToolPageTileDelegate::getMarkRects(const QStyleOptionViewItem& option, const QModelIndex& index) const
+{
+    MarkRects rects;
+    if (!index.isValid())
+    {
+        return rects;
+    }
+
+    const QRectF rect = option.rect;
+    const PDFComponentPainter::PageTile content = getTileContent(index, false);
+    rects.page = PDFComponentPainter::getPageTilePageRect(rect, content);
+    if (rects.page.isEmpty())
+    {
+        return MarkRects();
+    }
+
+    // The leading edge of the tile is mirrored for a right-to-left layout
+    const bool isRightToLeft = option.direction == Qt::RightToLeft;
+    if (index.data(CutBeforeRole).toBool())
+    {
+        // 383:5715: the amber line of the cut beside the page, inside of the tile
+        rects.cut = getMirrored(rect, QRectF(rect.left(), rects.page.top(), CUT_WIDTH, rects.page.height()), isRightToLeft);
+    }
+
+    if (getDotHue(index).has_value())
+    {
+        // 383:5715: the dot in front of the label, which is centered below the slot (the page
+        // is centered in its slot)
+        const QSize slotSize = PDFComponentPainter::getPageTileSlotSize(content);
+        const qreal labelTop = rects.page.center().y() + slotSize.height() / 2.0 + LABEL_GAP;
+        const QFontMetricsF metrics(PDFThemeFonts::getFont(PDFThemeFonts::Role::Caption));
+        const qreal labelWidth = qMin<qreal>(metrics.horizontalAdvance(content.label), rect.width());
+        const qreal dotLeft = qMax(rect.left(), rect.center().x() - labelWidth / 2.0 - DOT_GAP - DOT_SIZE);
+        rects.dot = getMirrored(rect, QRectF(dotLeft, labelTop + (LABEL_HEIGHT - DOT_SIZE) / 2.0, DOT_SIZE, DOT_SIZE), isRightToLeft);
+    }
+    return rects;
+}
+
+QRectF PDFAppToolPageTileDelegate::getMirrored(const QRectF& rect, const QRectF& leftToRight, bool isRightToLeft)
+{
+    return isRightToLeft ? QRectF(rect.left() + rect.right() - leftToRight.right(), leftToRight.top(), leftToRight.width(), leftToRight.height()) : leftToRight;
+}
+
+void PDFAppToolPageTileDelegate::paintItem(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index, const PDFComponentPainter::State& state) const
+{
+    if (!painter)
+    {
+        return;
+    }
+
+    // The page tile with the slot of the row (the base paints the slot of the delegate)
+    PDFComponentPainter::paintPageTile(painter, QRectF(option.rect), getTileContent(index), state);
+
+    const bool isDimmed = index.data(DimmedRole).toBool();
+    const bool hasPaperBorder = index.data(PaperBorderRole).toBool();
+    const std::optional<PDFAccentHue> dotHue = getDotHue(index);
+    if (!isDimmed && !hasPaperBorder && !dotHue.has_value() && !index.data(CutBeforeRole).toBool())
+    {
+        return;
+    }
+
+    const MarkRects rects = getMarkRects(option, index);
+    if (rects.page.isEmpty())
+    {
+        return;
+    }
+
+    PDFPainterStateGuard guard(painter);
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    painter->setPen(Qt::NoPen);
+    const PDFThemeManager* theme = PDFThemeManager::getInstance();
+    if (isDimmed)
+    {
+        // 388:15487, 388:17167: the page not taken is muted - the page and the border of its paper
+        // at 35 % over the color below the tiles (the label stays as it is)
+        QColor veil = theme->getColor(m_backgroundColor);
+        veil.setAlphaF(float(DIMMED_OPACITY));
+        painter->fillRect(rects.page, veil);
+    }
+    if (isDimmed || hasPaperBorder)
+    {
+        // The border of the paper (388:17078 border/strong; a muted page at 35 %)
+        PDFPainterStateGuard borderGuard(painter);
+        painter->setOpacity(painter->opacity() * (isDimmed ? 1.0 - DIMMED_OPACITY : 1.0));
+        PDFStylePainter::strokeInside(painter, rects.page, PDFStylePainter::Radii(0.0), PDFThemeColors::BorderStrong, 1.0);
+    }
+    if (!rects.cut.isEmpty())
+    {
+        painter->setBrush(theme->getColor(PDFAccentHueColors::getColor(PDFAccentHue::Amber, PDFAccentHueColors::Role::BorderStrong)));
+        painter->drawRoundedRect(rects.cut, CUT_WIDTH / 2.0, CUT_WIDTH / 2.0);
+    }
+    if (!rects.dot.isEmpty() && dotHue.has_value())
+    {
+        painter->setBrush(theme->getColor(PDFAccentHueColors::getColor(*dotHue, PDFAccentHueColors::Role::Icon)));
+        painter->drawEllipse(rects.dot);
     }
 }
 

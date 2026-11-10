@@ -1003,9 +1003,15 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     set_tests_properties(UnitTestsAppToolShell PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
     # The generic lifetime test of the tools in a document tab: the scenarios of the test
-    # tool, the next waves add the scenarios of their tools
+    # tool, the next waves add the scenarios of their tools (step 3a of phase 2: each package
+    # in its own file apptoolpageslifetime_<package>.cpp)
     add_executable(UnitTestsAppToolPagesLifetime
         tst_apptoolpageslifetimetest.cpp
+        apptoolpageslifetime.h
+        apptoolpageslifetime_split.cpp
+        apptoolpageslifetime_geometry.cpp
+        apptoolpageslifetime_insert.cpp
+        apptoolpageslifetime_images.cpp
     )
     target_link_libraries(UnitTestsAppToolPagesLifetime PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture UnitTestsAppToolOwnTabFixture Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
     pdf4qt_target_precompile_headers(UnitTestsAppToolPagesLifetime REUSE_FROM UnitTestsAppDocumentFixture)
@@ -1098,6 +1104,26 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_test(UnitTestsAppToolMerge "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppToolMerge")
     set_tests_properties(UnitTestsAppToolMerge PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+    # The GUI of the tools of step 3a of phase 2 (Pages, plan chapter 8): package A Split and
+    # Extract Pages, B Crop / Resize / Set Page Boxes, C Insert Pages and Add Image as Page,
+    # D Images to PDF and Interleave Pages - each package writes its file
+    foreach(PDF4QT_PAGES_TEST AppToolSplit AppToolPageGeometry AppToolInsert AppToolImages)
+        string(TOLOWER ${PDF4QT_PAGES_TEST} PDF4QT_PAGES_TEST_FILE)
+        add_executable(UnitTests${PDF4QT_PAGES_TEST}
+            tst_${PDF4QT_PAGES_TEST_FILE}test.cpp
+        )
+        target_link_libraries(UnitTests${PDF4QT_PAGES_TEST} PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture UnitTestsAppToolOwnTabFixture UnitTestsAppMcpFixture UnitTestsMcpTestClient Pdf4QtLibApp Pdf4QtLibMcp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+        pdf4qt_target_precompile_headers(UnitTests${PDF4QT_PAGES_TEST} REUSE_FROM UnitTestsAppDocumentFixture)
+        set_target_properties(UnitTests${PDF4QT_PAGES_TEST} PROPERTIES
+            WIN32_EXECUTABLE OFF
+            MACOSX_BUNDLE OFF
+            QT_EXCLUDE_FROM_TRANSLATION ON
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+        )
+        add_test(UnitTests${PDF4QT_PAGES_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_PAGES_TEST}")
+        set_tests_properties(UnitTests${PDF4QT_PAGES_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endforeach()
+
     # The application side of a tool of the first batch (plan, chapter 8): the waves and the
     # parallel parts of package 2 add only their file tst_apptool<part>test.cpp, a target
     # comes with the next configuration
@@ -1172,6 +1198,27 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     endforeach()
     # The print of a paged XFA form (the printers of the test)
     target_link_libraries(UnitTestsAppXfa PRIVATE Qt6::PrintSupport)
+
+    # The MCP actions of the tools of step 3a of phase 2 over HTTP (plan 7, 8): each package
+    # registers its cases in its own file appmcppages_<package>.cpp
+    add_executable(UnitTestsAppMcpPages
+        tst_appmcppagestest.cpp
+        appmcppages.h
+        appmcppages_split.cpp
+        appmcppages_geometry.cpp
+        appmcppages_insert.cpp
+        appmcppages_images.cpp
+    )
+    pdf4qt_target_precompile_headers(UnitTestsAppMcpPages REUSE_FROM UnitTestsAppDocumentFixture)
+    target_link_libraries(UnitTestsAppMcpPages PRIVATE UnitTestsAppDocumentFixture UnitTestsAppMcpFixture UnitTestsMcpTestClient Pdf4QtLibApp Pdf4QtLibMcp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+    set_target_properties(UnitTestsAppMcpPages PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsAppMcpPages "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppMcpPages")
+    set_tests_properties(UnitTestsAppMcpPages PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()
 
 # Generic lifetime test of the pages (step 9): every route of the route table opened,
@@ -1237,6 +1284,31 @@ set_target_properties(UnitTestsDocumentTool PROPERTIES
 )
 add_test(UnitTestsDocumentTool "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDocumentTool")
 set_tests_properties(UnitTestsDocumentTool PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The core of the tools of step 3a of phase 2 (Pages, plan chapter 8): package A the splitter
+# and Split / Extract Pages, B the page geometry, C the insertion, D the image layout, Images to
+# PDF and Interleave Pages - each package writes its file
+foreach(PDF4QT_PAGES_TEST DocumentSplitter DocumentToolSplit DocumentPageGeometry DocumentToolInsert DocumentToolImages)
+    string(TOLOWER ${PDF4QT_PAGES_TEST} PDF4QT_PAGES_TEST_FILE)
+    add_executable(UnitTests${PDF4QT_PAGES_TEST}
+        tst_${PDF4QT_PAGES_TEST_FILE}test.cpp
+    )
+    target_link_libraries(UnitTests${PDF4QT_PAGES_TEST} PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTests${PDF4QT_PAGES_TEST} REUSE_FROM UnitTestsPchCore)
+    set_target_properties(UnitTests${PDF4QT_PAGES_TEST} PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTests${PDF4QT_PAGES_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_PAGES_TEST}")
+    set_tests_properties(UnitTests${PDF4QT_PAGES_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endforeach()
+# The command PdfTool separate runs the splitter of Split (Q16, B36-B38)
+if(TARGET PdfTool)
+    target_compile_definitions(UnitTestsDocumentToolSplit PRIVATE PDF4QT_TEST_PDFTOOL="$<TARGET_FILE:PdfTool>")
+    add_dependencies(UnitTestsDocumentToolSplit PdfTool)
+endif()
 
 # The tool Compress of Pdf4QtLibCore and the streaming and cancellation of the
 # optimizers below it (phase 2, first batch, wave A)

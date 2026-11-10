@@ -51,6 +51,7 @@ namespace pdf
 {
 
 class PDFDocumentToolCatalogEntry;
+class PDFAppToolFileConflictDialog;
 
 /// How a shell asks its page to end (the page chooses the route, F15)
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolCloseRequest
@@ -74,8 +75,15 @@ public:
     /// A result without the result dialog (PDFDocumentToolGUI::isResultDialogSkipped, Blank
     /// PDF, plan of step 2 of phase 2, 4.6): the written new document, which replaces the
     /// own tab of the tool (Accepted); empty = none
+    /// Also "Open in this tab" of the result dialog (Images to PDF 336:3572, R16): the new
+    /// unsaved document replaces the own tab
     QByteArray newDocumentData;
     QString newDocumentTitle;       ///< Title of the new document ("Untitled"; Save As offers "<title>.pdf")
+
+    /// "Save as a file" of a tool, whose new document replaces its own tab (336:3572,
+    /// PDFDocumentToolGUI::isResultInThisTab): the written file, which the page opens in place
+    /// of the own tab (Accepted); empty = none
+    QString newDocumentFilePath;
 };
 
 /// The common part of a tool in a tab (plan of the first batch, chapters 2.1 and 2.4).
@@ -260,6 +268,11 @@ private:
     /// Discard result of the own tab of a tool (Q9): the tool stays with its inputs
     void returnToEditing();
 
+    /// The question of a file of the run (356:11997, R3): the conflict dialog is shown or closed
+    void onFileQuestionChanged();
+    void onFileConflictAnswered(pdf::PDFAppToolFileSink::Answer answer, bool isForAll);
+    void closeFileConflictDialog();
+
     QPointer<PDFAppToolHost> m_host;
     std::shared_ptr<const PDFDocumentTool> m_tool;
     QPointer<PDFDocumentToolGUI> m_gui;
@@ -278,6 +291,8 @@ private:
     QPointer<PDFAppToolProgressCard> m_progressCard;
     QPointer<PDFAppToolCallout> m_busyCallout;
     QPointer<PDFAppToolResultDialog> m_resultDialog;
+    QPointer<PDFAppToolFileConflictDialog> m_fileConflictDialog;   ///< The question of an existing file during a run (new, deletes itself)
+    bool m_isStoppedFilesResult = false;    ///< The result dialog shows the written files of a stopped run: the tool returns to its settings (403:29978)
     QPointer<PDFMessageBox> m_permissionDialog;
     QPointer<QDialog> m_runPermissionDialog;    ///< Not owned: the dialog of PDFAppDocumentPermissions::request deletes itself
     QPointer<QDialog> m_leaveDialog;   ///< The question of the leaving during a run (F14)

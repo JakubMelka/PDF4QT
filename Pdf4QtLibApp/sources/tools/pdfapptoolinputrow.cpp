@@ -115,6 +115,15 @@ void PDFAppToolInputRow::setCurrent(bool isCurrent)
     }
 }
 
+void PDFAppToolInputRow::setSelected(bool isSelected)
+{
+    if (m_isSelected != isSelected)
+    {
+        m_isSelected = isSelected;
+        update();
+    }
+}
+
 void PDFAppToolInputRow::setDraggable(bool isDraggable)
 {
     m_isDraggable = isDraggable;
@@ -122,7 +131,8 @@ void PDFAppToolInputRow::setDraggable(bool isDraggable)
 
 int PDFAppToolInputRow::getTextLeft() const
 {
-    return PADDING + TILE + GAP;
+    // image-IMG_2041.jpg 336:2136: the text 74 after the thumbnail of 56
+    return PADDING + (m_content.hasThumbnail ? THUMBNAIL_WIDTH : TILE) + GAP;
 }
 
 int PDFAppToolInputRow::getTextWidth() const
@@ -206,6 +216,11 @@ void PDFAppToolInputRow::keyPressEvent(QKeyEvent* event)
         Q_EMIT moveRequested(m_content.inputId, event->key() == Qt::Key_Up ? -1 : 1);
         return;
     }
+    if (event->key() == Qt::Key_Space || event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter)
+    {
+        // A click by the keyboard selects the row alone (Ctrl or Shift only by the mouse)
+        m_clickModifiers = Qt::NoModifier;
+    }
     if (event->key() == Qt::Key_Escape && m_isDragging)
     {
         event->accept();
@@ -244,6 +259,7 @@ void PDFAppToolInputRow::mousePressEvent(QMouseEvent* event)
         m_isPressed = true;
         m_isDragging = false;
         m_pressPosition = event->position().toPoint();
+        m_clickModifiers = event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier);
     }
     BaseClass::mousePressEvent(event);
 }
@@ -297,9 +313,11 @@ void PDFAppToolInputRow::paintContent(QPainter* painter, const QRect& rect, cons
     const PDFStylePainterGuard guard(painter);
     painter->setRenderHint(QPainter::Antialiasing, true);
 
-    // file-A 378:1199: the current row bg/accent-subtle, radius 8
+    // file-A 378:1199: the current row bg/accent-subtle, radius 8 (also a row of a selection of
+    // more rows, 336:1976)
     const PDFStylePainter::Radii radii(RADIUS);
-    if (m_isCurrent)
+    const bool isHighlighted = m_isCurrent || m_isSelected;
+    if (isHighlighted)
     {
         PDFStylePainter::fill(painter, QRectF(rect), radii, Color::BgAccentSubtle);
     }
@@ -307,7 +325,7 @@ void PDFAppToolInputRow::paintContent(QPainter* painter, const QRect& rect, cons
     {
         PDFStylePainter::fill(painter, QRectF(rect), radii, Color::BgPressed);
     }
-    else if (state.isEnabled() && state.isHovered() && !m_isCurrent)
+    else if (state.isEnabled() && state.isHovered() && !isHighlighted)
     {
         PDFStylePainter::fill(painter, QRectF(rect), radii, Color::BgHover);
     }
@@ -316,13 +334,36 @@ void PDFAppToolInputRow::paintContent(QPainter* painter, const QRect& rect, cons
         PDFComponentPainter::paintFocusRingInside(painter, QRectF(rect), radii);
     }
 
-    // The tile of the hue with the letter (icon-tile 378:1197)
     const Qt::LayoutDirection direction = layoutDirection();
-    const QRect tileRect = QStyle::visualRect(direction, rect, QRect(rect.left() + PADDING, rect.top() + (rect.height() - TILE) / 2, TILE, TILE));
-    const PDFAccentHue hue = state.isEnabled() ? m_content.hue : PDFAccentHue::Neutral;
-    PDFStylePainter::fill(painter, QRectF(tileRect), radii, PDFAccentHueColors::getColor(hue, PDFAccentHueColors::Role::Background));
-    PDFStylePainter::text(painter, QRectF(tileRect), Qt::AlignCenter, m_content.letter, Helper::getLetterFont(),
-                          PDFStylePainter::color(state.isEnabled() ? PDFAccentHueColors::getColor(hue, PDFAccentHueColors::Role::Icon) : Color::TextDisabled));
+    if (m_content.hasThumbnail)
+    {
+        // thumb 336:2128: 56 x 43 in the middle of the row, the picture fitted into it on
+        // bg/muted (the empty slot while the picture is decoded)
+        const QRect slot = QStyle::visualRect(direction, rect, QRect(rect.left() + PADDING, rect.top() + (rect.height() - THUMBNAIL_HEIGHT) / 2, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT));
+        const PDFStylePainter::Radii thumbnailRadii(THUMBNAIL_RADIUS);
+        PDFStylePainter::fill(painter, QRectF(slot), thumbnailRadii, Color::BgMuted);
+        if (!m_content.thumbnail.isNull())
+        {
+            const QSizeF pictureSize = QSizeF(m_content.thumbnail.deviceIndependentSize()).scaled(QSizeF(slot.size()), Qt::KeepAspectRatio);
+            const QRectF pictureRect(QPointF(slot.left() + (slot.width() - pictureSize.width()) * 0.5, slot.top() + (slot.height() - pictureSize.height()) * 0.5), pictureSize);
+            const PDFStylePainterGuard pictureGuard(painter);
+            painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
+            if (!state.isEnabled())
+            {
+                painter->setOpacity(0.5);
+            }
+            painter->drawImage(pictureRect, m_content.thumbnail);
+        }
+    }
+    else
+    {
+        // The tile of the hue with the letter (icon-tile 378:1197)
+        const QRect tileRect = QStyle::visualRect(direction, rect, QRect(rect.left() + PADDING, rect.top() + (rect.height() - TILE) / 2, TILE, TILE));
+        const PDFAccentHue hue = state.isEnabled() ? m_content.hue : PDFAccentHue::Neutral;
+        PDFStylePainter::fill(painter, QRectF(tileRect), radii, PDFAccentHueColors::getColor(hue, PDFAccentHueColors::Role::Background));
+        PDFStylePainter::text(painter, QRectF(tileRect), Qt::AlignCenter, m_content.letter, Helper::getLetterFont(),
+                              PDFStylePainter::color(state.isEnabled() ? PDFAccentHueColors::getColor(hue, PDFAccentHueColors::Role::Icon) : Color::TextDisabled));
+    }
 
     // The name, then the two lines
     const int left = rect.left() + getTextLeft();
@@ -478,6 +519,7 @@ void PDFAppToolInputFilesPanel::setRows(const std::vector<PDFAppToolInputRow::Co
     {
         m_rows[i]->setContent(rows[i]);
         m_rows[i]->setCurrent(rows[i].inputId == m_currentInput);
+        m_rows[i]->setSelected(m_selectedInputs.contains(rows[i].inputId));
     }
 
     // 378:1657: without rows the hint follows the header (one gap)
@@ -492,6 +534,18 @@ void PDFAppToolInputFilesPanel::setCurrentInput(const QString& inputId)
         if (row)
         {
             row->setCurrent(row->getInputId() == inputId);
+        }
+    }
+}
+
+void PDFAppToolInputFilesPanel::setSelectedInputs(const QStringList& inputIds)
+{
+    m_selectedInputs = inputIds;
+    for (const QPointer<PDFAppToolInputRow>& row : m_rows)
+    {
+        if (row)
+        {
+            row->setSelected(inputIds.contains(row->getInputId()));
         }
     }
 }
@@ -557,6 +611,7 @@ void PDFAppToolInputFilesPanel::onRowClicked()
     PDFAppToolInputRow* row = qobject_cast<PDFAppToolInputRow*>(sender());
     if (row)
     {
+        m_lastClickModifiers = row->getClickModifiers();
         Q_EMIT rowClicked(row->getInputId());
     }
 }

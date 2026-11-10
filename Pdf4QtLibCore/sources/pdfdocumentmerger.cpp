@@ -31,9 +31,9 @@
 #include "pdfexception.h"
 #include "pdfimagepagefactory.h"
 #include "pdfnametreeloader.h"
+#include "pdfnewdocumentfinisher.h"
 #include "pdfobjectutils.h"
 #include "pdfoperationcontrol.h"
-#include "pdfoptimizer.h"
 #include "pdfprogress.h"
 #include "pdfsecurityhandler.h"
 
@@ -42,7 +42,6 @@
 #include <QDateTime>
 #include <QFileInfo>
 #include <QUrl>
-#include <QUuid>
 
 #include <cmath>
 #include <limits>
@@ -482,6 +481,16 @@ public:
 
     Merger::Result run();
 
+    /// The insertion mode (PDFDocumentMerger::insert): source 0 is the target, which the items
+    /// never name; \p position is the index of the page of the target, before which they go
+    void setInsertion(PDFInteger position) { m_isInsert = true; m_position = position; }
+
+    /// The statistics of the removal of the replaced pages of the target (insert)
+    void setReplacement(const PDFDocumentPageOperations::RemovalStatistics& statistics, qint64 count) { m_statistics.replacement = statistics; m_statistics.replacedPageCount = count; }
+
+    /// PDFDocumentMerger::removeSignatures
+    PDFDocument runRemoveSignatures(const PDFDocument& document, PDFInteger* signaturesRemoved);
+
 private:
     /// A PDF input of the merge
     struct DocumentInput
@@ -566,6 +575,7 @@ private:
     PDFObject remapObject(const DocumentInput* input, const PDFObject& object, int depth) const;
     PDFObjectReference mapReference(const DocumentInput* input, PDFObjectReference reference) const;
     void buildPages(PDFObjectReference pageTreeRoot, bool isSingle);
+    bool createResultPage(size_t itemIndex, bool isInheritedBlank, ResultPage* resultPage);
     PDFObjectReference createBlankPage(QSizeF size, bool isInherited);
     PDFObjectReference clonePage(PDFObjectReference page);
     void cloneWidget(const PDFObject& annotation, PDFObjectReference newAnnotation);
@@ -578,11 +588,31 @@ private:
     std::vector<PDFObject> getFields(const PDFObject& acroForm) const;
     PDFObject replaceSplitFields(const PDFObject& fields) const;
     PDFObject createPageLabels() const;
-    PDFObject createId() const;
     Merger::Result finish(PDFVersion version, bool removeConformance);
 
     // One document (R3)
     Merger::Result runSingle(DocumentInput* input);
+
+    // The insertion into a target (insert)
+
+    /// A page of the page tree of the target: its node, the nodes above it (the root first) and
+    /// its index in /Kids of its parent
+    struct PageTreeLeaf
+    {
+        PDFObjectReference page;
+        std::vector<PDFObjectReference> ancestors;
+        size_t indexInParent = 0;
+    };
+
+    Merger::Result runInsert();
+    void createTargetInput();
+    void collectPageTreeLeaves(PDFObjectReference node, std::vector<PDFObjectReference>* ancestors, int depth, PDFObjectWalk* walk,
+                               std::vector<PageTreeLeaf>* leaves, std::map<PDFObjectReference, PDFInteger>* leafCounts) const;
+    void insertIntoPageTree(PDFObjectReference pageTreeRoot, const std::vector<PDFObjectReference>& newPages);
+    void makeInheritedValuesExplicit(PDFObjectReference page, const std::vector<PDFObjectReference>& ancestors);
+    void insertIntoDocumentParts(const std::vector<PDFObjectReference>& newPages);
+    PDFObjectStorage compactNewObjects(PDFObjectStorage storage) const;
+    bool isTargetInput(const DocumentInput* input) const { return m_isInsert && input == m_targetInput; }
 
     // More documents
     Merger::Result runMulti();
@@ -624,6 +654,12 @@ private:
     bool m_isStructureJoined = false;
     bool m_isSingleWithImages = false;     ///< One PDF input with images: its catalog stays, the outline mode applies (Q18)
     QDateTime m_now = QDateTime::currentDateTime();
+
+    // The insertion mode: m_sources[0] is the target, its input is the first of m_documents
+    bool m_isInsert = false;
+    PDFInteger m_position = 0;
+    DocumentInput* m_targetInput = nullptr;     ///< Owned by m_documents (its first input)
+    size_t m_targetObjectCount = 0;             ///< Objects of the target: the new ones follow
 };
 
 PDFDocumentMerger::Result PDFDocumentMerger::merge(const std::vector<Source>& sources, const std::vector<Item>& items, const Settings& settings, const PDFOperationControl* control, PDFProgressSink* progress)
@@ -679,7 +715,14 @@ PDFDocumentMerger::Result PDFDocumentMergerRun::run()
             }
         }
 
-        result = documentCount == 1 ? runSingle(single) : runMulti();
+        if (m_isInsert)
+        {
+            result = runInsert();
+        }
+        else
+        {
+            result = documentCount == 1 ? runSingle(single) : runMulti();
+        }
         if (m_progress)
         {
             m_progress->finish();
@@ -1411,6 +1454,61 @@ PDFObjectReference PDFDocumentMergerRun::clonePage(PDFObjectReference page)
     return clone;
 }
 
+bool PDFDocumentMergerRun::createResultPage(size_t itemIndex, bool isInheritedBlank, ResultPage* resultPage)
+{
+    // The page object of an item (the page of a document, its clone, an image page, a blank
+    // page) with its geometry; false = its input is left out
+    const Merger::Item& item = m_items[itemIndex];
+    const Merger::Source& source = m_sources[item.source];
+    resultPage->item = itemIndex;
+
+    switch (source.kind)
+    {
+        case Merger::Source::Kind::Document:
+        {
+            DocumentInput* input = m_documentOfSource.at(item.source);
+            if (input->isLeftOut)
+            {
+                return false;
+            }
+            const PDFInteger documentPage = input->pageMap[size_t(item.pageIndex)];
+            resultPage->input = input;
+            resultPage->documentPage = documentPage;
+            if (!input->isPagePlaced[size_t(documentPage)])
+            {
+                input->isPagePlaced[size_t(documentPage)] = true;
+                resultPage->page = input->pages[size_t(documentPage)];
+            }
+            else
+            {
+                resultPage->page = clonePage(input->pages[size_t(documentPage)]);
+                resultPage->isClone = true;
+            }
+            setPageGeometry(resultPage->page, item, input, documentPage);
+            return true;
+        }
+
+        case Merger::Source::Kind::Image:
+        {
+            const ImageInput& image = m_images.at(item.source);
+            if (image.isLeftOut)
+            {
+                return false;
+            }
+            const PDFImagePageLayout layout = item.imageLayout ? *item.imageLayout : PDFImagePageLayout::createStretched(item.pageSize, item.imageClip);
+            resultPage->page = PDFImagePageFactory::createPage(&m_builder, image.frames.at(item.pageIndex), layout);
+            setPageGeometry(resultPage->page, item, nullptr, -1);
+            return true;
+        }
+
+        case Merger::Source::Kind::Blank:
+            resultPage->page = createBlankPage(item.pageSize, isInheritedBlank);
+            setPageGeometry(resultPage->page, item, nullptr, -1);
+            return true;
+    }
+    return false;
+}
+
 void PDFDocumentMergerRun::buildPages(PDFObjectReference pageTreeRoot, bool isSingle)
 {
     Q_UNUSED(isSingle);
@@ -1431,53 +1529,10 @@ void PDFDocumentMergerRun::buildPages(PDFObjectReference pageTreeRoot, bool isSi
             return;
         }
 
-        const Merger::Item& item = m_items[itemIndex];
-        const Merger::Source& source = m_sources[item.source];
         ResultPage resultPage;
-        resultPage.item = itemIndex;
-
-        switch (source.kind)
+        if (!createResultPage(itemIndex, isInheritedBlank, &resultPage))
         {
-            case Merger::Source::Kind::Document:
-            {
-                DocumentInput* input = m_documentOfSource.at(item.source);
-                if (input->isLeftOut)
-                {
-                    continue;
-                }
-                const PDFInteger documentPage = input->pageMap[size_t(item.pageIndex)];
-                resultPage.input = input;
-                resultPage.documentPage = documentPage;
-                if (!input->isPagePlaced[size_t(documentPage)])
-                {
-                    input->isPagePlaced[size_t(documentPage)] = true;
-                    resultPage.page = input->pages[size_t(documentPage)];
-                }
-                else
-                {
-                    resultPage.page = clonePage(input->pages[size_t(documentPage)]);
-                    resultPage.isClone = true;
-                }
-                setPageGeometry(resultPage.page, item, input, documentPage);
-                break;
-            }
-
-            case Merger::Source::Kind::Image:
-            {
-                const ImageInput& image = m_images.at(item.source);
-                if (image.isLeftOut)
-                {
-                    continue;
-                }
-                resultPage.page = PDFImagePageFactory::createPage(&m_builder, image.frames.at(item.pageIndex), item.pageSize, item.imageClip);
-                setPageGeometry(resultPage.page, item, nullptr, -1);
-                break;
-            }
-
-            case Merger::Source::Kind::Blank:
-                resultPage.page = createBlankPage(item.pageSize, isInheritedBlank);
-                setPageGeometry(resultPage.page, item, nullptr, -1);
-                break;
+            continue;
         }
 
         PDFDictionaryBuilder parent;
@@ -1519,7 +1574,8 @@ void PDFDocumentMergerRun::computeRuns()
     m_runs.clear();
     for (size_t i = 0; i < m_resultPages.size(); ++i)
     {
-        const size_t source = m_items[m_resultPages[i].item].source;
+        // A page of the target (insert) has no item: its input is the source 0
+        const size_t source = m_resultPages[i].input ? m_resultPages[i].input->source : m_items[m_resultPages[i].item].source;
         if (m_runs.empty() || m_runs.back().source != source)
         {
             m_runs.push_back({ source, i, 0 });
@@ -1530,7 +1586,7 @@ void PDFDocumentMergerRun::computeRuns()
     std::set<size_t> sources;
     for (const Run& run : m_runs)
     {
-        if (m_sources[run.source].kind != Merger::Source::Kind::Blank)
+        if (m_sources[run.source].kind != Merger::Source::Kind::Blank && !(m_isInsert && run.source == 0))
         {
             sources.insert(run.source);
         }
@@ -1669,10 +1725,12 @@ PDFObject PDFDocumentMergerRun::createPageLabels() const
         PDFInteger number = 1;
     };
 
+    // Insert (5.7): only a target with labels gets them - its pages keep theirs
     bool hasLabels = false;
     for (const std::unique_ptr<DocumentInput>& input : m_documents)
     {
-        hasLabels = hasLabels || (!input->isLeftOut && !input->document->getCatalog()->getPageLabels().empty());
+        const bool isConsidered = !m_isInsert || isTargetInput(input.get());
+        hasLabels = hasLabels || (isConsidered && !input->isLeftOut && !input->document->getCatalog()->getPageLabels().empty());
     }
     if (!hasLabels)
     {
@@ -1742,17 +1800,6 @@ PDFObject PDFDocumentMergerRun::createPageLabels() const
     return Helper::createNumberTree(ranges);
 }
 
-PDFObject PDFDocumentMergerRun::createId() const
-{
-    // 14.4: a new file gets a new identifier, both strings are the same
-    QCryptographicHash hash(QCryptographicHash::Md5);
-    hash.addData(QUuid::createUuid().toRfc4122());
-    hash.addData(m_now.toString(Qt::ISODateWithMs).toUtf8());
-    hash.addData(QByteArray::number(qint64(m_resultPages.size())));
-    const QByteArray identifier = hash.result();
-    return Helper::createArray({ PDFObject::createString(identifier), PDFObject::createString(identifier) });
-}
-
 PDFDocumentMerger::Result PDFDocumentMergerRun::finish(PDFVersion version, bool removeConformance)
 {
     Merger::Result result;
@@ -1762,179 +1809,31 @@ PDFDocumentMerger::Result PDFDocumentMergerRun::finish(PDFVersion version, bool 
         return result;
     }
 
-    PDFDocument built = m_builder.build();
-    PDFObjectStorage storage = built.getStorage();
-
-    // A new document: a new identifier, not encrypted (owner answer Q2)
-    PDFDictionaryBuilder trailer;
-    trailer.addEntry(Helper::key("ID"), createId());
-    trailer.addEntry(Helper::key("Encrypt"), PDFObject());
-    storage.updateTrailerDictionary(PDFObject::createDictionary(std::move(trailer)));
-    storage.setSecurityHandler(PDFSecurityHandlerPointer(new PDFNoneSecurityHandler()));
-
-    const PDFDictionary* trailerDictionary = Helper::getTrailer(&storage);
-    const PDFObject infoObject = trailerDictionary ? trailerDictionary->get("Info") : PDFObject();
-    const PDFObject catalogObject = trailerDictionary ? trailerDictionary->get("Root") : PDFObject();
-
-    // Creation and modification of a new document are now (14.3.3); PDF 2.0 has them in XMP too
-    if (!m_statistics.isSingleDocument && infoObject.isReference())
-    {
-        if (const PDFDictionary* info = storage.getDictionaryFromObject(infoObject))
-        {
-            PDFDictionaryBuilder infoBuilder(*info);
-            const PDFObject date = PDFObject::createString(PDFEncoding::convertDateTimeToString(m_now));
-            infoBuilder.setEntry(Helper::key("CreationDate"), date);
-            infoBuilder.setEntry(Helper::key("ModDate"), date);
-            const QString producer = Helper::getText(info->get("Producer"));
-            storage.setObject(infoObject.getReference(), PDFObject::createDictionary(std::move(infoBuilder)));
-
-            if (version >= PDFVersion(2, 0) && catalogObject.isReference())
-            {
-                const QString date8601 = m_now.toOffsetFromUtc(m_now.offsetFromUtc()).toString(Qt::ISODate);
-                QByteArray xmp;
-                xmp += "<?xpacket begin=\"\xEF\xBB\xBF\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n";
-                xmp += "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n";
-                xmp += "<rdf:Description rdf:about=\"\" xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\" xmlns:pdf=\"http://ns.adobe.com/pdf/1.3/\">\n";
-                xmp += "<xmp:CreateDate>" + date8601.toUtf8() + "</xmp:CreateDate>\n";
-                xmp += "<xmp:ModifyDate>" + date8601.toUtf8() + "</xmp:ModifyDate>\n";
-                xmp += "<pdf:Producer>" + producer.toHtmlEscaped().toUtf8() + "</pdf:Producer>\n";
-                xmp += "</rdf:Description>\n</rdf:RDF>\n</x:xmpmeta>\n<?xpacket end=\"w\"?>";
-
-                PDFDictionaryBuilder metadataDictionary;
-                metadataDictionary.addEntry(Helper::key("Type"), PDFObject::createName("Metadata"));
-                metadataDictionary.addEntry(Helper::key("Subtype"), PDFObject::createName("XML"));
-                metadataDictionary.addEntry(Helper::key("Length"), PDFObject::createInteger(xmp.size()));
-                const PDFObjectReference metadata = storage.addObject(PDFObject::createStream(PDFStream(std::move(metadataDictionary), std::move(xmp))));
-                if (const PDFDictionary* catalog = storage.getDictionaryFromObject(catalogObject))
-                {
-                    PDFDictionaryBuilder catalogBuilder(*catalog);
-                    catalogBuilder.setEntry(Helper::key("Metadata"), PDFObject::createReference(metadata));
-                    storage.setObject(catalogObject.getReference(), PDFObject::createDictionary(std::move(catalogBuilder)));
-                }
-            }
-        }
-    }
-
-    // The objects nothing refers to go (the catalogs and the page trees of the inputs, ...)
-    PDFOptimizer optimizer(PDFOptimizer::OptimizationFlags(PDFOptimizer::RemoveUnusedObjects | PDFOptimizer::ShrinkObjectStorage |
-                                                           PDFOptimizer::DereferenceSimpleObjects | PDFOptimizer::MergeIdenticalObjects), nullptr);
-    optimizer.setOperationControl(m_control);
-    optimizer.setStorage(storage);
-    optimizer.optimize();
-    storage = optimizer.takeStorage();
-    if (isCanceled())
+    // R2 of step 3: the keys of a new document (/ID, no /Encrypt, the dates in /Info and XMP,
+    // the signatures, the layers, the declarations), the compacted storage and the limit of the
+    // objects - one implementation for the merger and the splitter
+    PDFNewDocumentFinisher::Settings settings;
+    settings.version = version;
+    settings.creationTime = m_now;
+    settings.isWholeSingleDocument = m_statistics.isSingleDocument;
+    settings.isNewFile = m_settings.isNewFile;
+    settings.removeConformance = removeConformance;
+    PDFNewDocumentFinisher::Result finished = PDFNewDocumentFinisher::finish(m_builder.build(), settings, m_control);
+    if (finished.isCanceled || isCanceled())
     {
         result.isCanceled = true;
         return result;
     }
-
-    // The merged identical objects can repeat a reference in an array of the layers or fields
-    PDFDocument document(PDFObjectStorage(storage), version, QByteArray());
+    if (!finished.isSuccess)
     {
-        PDFDocumentBuilder finalBuilder(&document);
-        const PDFDictionary* catalog = finalBuilder.getDictionaryFromObject(finalBuilder.getObjectByReference(finalBuilder.getCatalogReference()));
-        if (catalog)
-        {
-            PDFDocumentDataLoaderDecorator loader(finalBuilder.getStorage());
-            for (const char* key : { "OCProperties", "AcroForm" })
-            {
-                const PDFObjectReference reference = loader.readReferenceFromDictionary(catalog, key);
-                if (reference.isValid())
-                {
-                    finalBuilder.setObject(reference, PDFObjectManipulator::removeDuplicitReferencesInArrays(finalBuilder.getObjectByReference(reference)));
-                }
-            }
-        }
-
-        // 8.11.2.2 (R10): every layer, which the content or an annotation uses, is in /OCGs
-        if (!m_statistics.isSingleDocument && catalog)
-        {
-            const PDFObject ocPropertiesObject = catalog->get("OCProperties");
-            if (const PDFDictionary* ocProperties = finalBuilder.getDictionaryFromObject(ocPropertiesObject))
-            {
-                std::vector<PDFObject> groups = Helper::getItems(finalBuilder.getStorage(), ocProperties->get("OCGs"));
-                std::set<PDFObjectReference> listed;
-                for (const PDFObject& group : groups)
-                {
-                    if (group.isReference())
-                    {
-                        listed.insert(group.getReference());
-                    }
-                }
-                const PDFObjectStorage::PDFObjects& objects = finalBuilder.getStorage()->getObjects();
-                bool isChanged = false;
-                for (size_t i = 0; i < objects.size(); ++i)
-                {
-                    const PDFDictionary* dictionary = objects[i].object.isDictionary() ? objects[i].object.getDictionary() : nullptr;
-                    const PDFObjectReference reference(PDFInteger(i), objects[i].generation);
-                    if (dictionary && Helper::getName(dictionary->get("Type")) == "OCG" && !listed.count(reference))
-                    {
-                        groups.push_back(PDFObject::createReference(reference));
-                        listed.insert(reference);
-                        isChanged = true;
-                    }
-                }
-                if (isChanged)
-                {
-                    PDFDictionaryBuilder builder(*ocProperties);
-                    builder.setEntry(Helper::key("OCGs"), Helper::createArray(groups));
-                    if (ocPropertiesObject.isReference())
-                    {
-                        finalBuilder.setObject(ocPropertiesObject.getReference(), PDFObject::createDictionary(std::move(builder)));
-                    }
-                    else
-                    {
-                        PDFDictionaryBuilder catalogBuilder(*catalog);
-                        catalogBuilder.setEntry(Helper::key("OCProperties"), PDFObject::createDictionary(std::move(builder)));
-                        finalBuilder.setObject(finalBuilder.getCatalogReference(), PDFObject::createDictionary(std::move(catalogBuilder)));
-                    }
-                }
-            }
-        }
-
-        PDFDocument finalDocument = finalBuilder.build();
-        PDFObjectStorage finalStorage = finalDocument.getStorage();
-
-        // The build writes the time of now into /ModDate: a new document has the one time of its
-        // creation in /Info and in XMP (14.3.3)
-        const PDFDictionary* finalTrailer = Helper::getTrailer(&finalStorage);
-        const PDFObject finalInfo = finalTrailer ? finalTrailer->get("Info") : PDFObject();
-        const PDFDictionary* infoDictionary = finalStorage.getDictionaryFromObject(finalInfo);
-        if (!m_statistics.isSingleDocument && finalInfo.isReference() && infoDictionary)
-        {
-            PDFDictionaryBuilder infoBuilder(*infoDictionary);
-            infoBuilder.setEntry(Helper::key("ModDate"), PDFObject::createString(PDFEncoding::convertDateTimeToString(m_now)));
-            infoBuilder.setEntry(Helper::key("CreationDate"), PDFObject::createString(PDFEncoding::convertDateTimeToString(m_now)));
-            finalStorage.setObject(finalInfo.getReference(), PDFObject::createDictionary(std::move(infoBuilder)));
-        }
-        document = PDFDocument(std::move(finalStorage), version, QByteArray());
-    }
-
-    // One document keeps its metadata: it must not declare a standard it was not checked against (R7)
-    if (removeConformance)
-    {
-        PDFObjectStorage conformanceStorage = document.getStorage();
-        const PDFDocumentTool::ConformanceRemoval conformance = PDFDocumentTool::removeConformanceDeclaration(&conformanceStorage, &document);
-        if (!conformance.kept.isEmpty())
-        {
-            result.errorMessage = PDFDocumentTool::createConformanceFailure(conformance.kept).message;
-            return result;
-        }
-        if (!conformance.removed.isEmpty())
-        {
-            m_statistics.conformanceRemoved = conformance.removed;
-            document = PDFDocument(std::move(conformanceStorage), version, QByteArray());
-        }
-    }
-
-    if (qint64(document.getStorage().getObjects().size()) > Merger::MAXIMUM_OBJECT_COUNT)
-    {
-        result.errorMessage = PDFDocumentMerger::tr("The result would have more than %Ln objects.", nullptr, int(Merger::MAXIMUM_OBJECT_COUNT));
+        result.errorMessage = finished.errorMessage;
         return result;
     }
 
+    m_statistics.conformanceRemoved = finished.conformanceRemoved;
+    m_statistics.signaturesRemoved += finished.signaturesRemoved;
     result.isSuccess = true;
-    result.document = std::move(document);
+    result.document = std::move(finished.document);
     result.statistics = m_statistics;
     result.leftOut = m_leftOut;
     return result;
@@ -2245,6 +2144,681 @@ PDFDocumentMerger::Result PDFDocumentMergerRun::runMulti()
     return finish(version, false);
 }
 
+// ------------------------------------------------------- The insertion mode (PDFDocumentMerger::insert)
+
+void PDFDocumentMergerRun::createTargetInput()
+{
+    // The target is an input copied as itself: every object keeps its number (the identity map),
+    // so the joins of the catalogs read it as the first input and the rules of merge apply
+    const PDFDocument* document = m_sources.front().document.data();
+    const PDFObjectStorage& storage = document->getStorage();
+    const PDFObjectStorage::PDFObjects& objects = storage.getObjects();
+    const PDFCatalog* catalog = document->getCatalog();
+
+    std::unique_ptr<DocumentInput> input = std::make_unique<DocumentInput>();
+    input->source = 0;
+    input->document = document;
+    input->isWhole = true;
+    for (size_t i = 0; i < catalog->getPageCount(); ++i)
+    {
+        input->pageMap.push_back(PDFInteger(i));
+        input->sourcePages.push_back(PDFInteger(i));
+        input->pages.push_back(catalog->getPage(i)->getPageReference());
+    }
+    input->isPagePlaced.assign(input->pages.size(), true);
+
+    input->objectMap.assign(objects.size(), PDFObjectReference());
+    input->objectGenerations.assign(objects.size(), -1);
+    for (size_t i = 0; i < objects.size(); ++i)
+    {
+        if (!objects[i].object.isNull())
+        {
+            input->objectMap[i] = PDFObjectReference(PDFInteger(i), objects[i].generation);
+            input->objectGenerations[i] = objects[i].generation;
+        }
+    }
+    input->firstObject = 0;
+    input->lastObject = PDFInteger(objects.size()) - 1;
+
+    const PDFDictionary* trailer = Helper::getTrailer(&storage);
+    input->catalog = storage.getObject(trailer ? trailer->get("Root") : PDFObject());
+    input->title = document->getInfo()->title.trimmed();
+
+    m_targetInput = input.get();
+    m_documentOfSource[0] = input.get();
+    m_documents.insert(m_documents.begin(), std::move(input));
+}
+
+void PDFDocumentMergerRun::collectPageTreeLeaves(PDFObjectReference node, std::vector<PDFObjectReference>* ancestors, int depth, PDFObjectWalk* walk,
+                                                 std::vector<PageTreeLeaf>* leaves, std::map<PDFObjectReference, PDFInteger>* leafCounts) const
+{
+    // 7.7.3.2: an intermediate node has /Kids; a leaf is a page. One walk for the whole tree: a
+    // node reached twice or a cycle is read once - the leaves then differ from the pages of the
+    // catalog and the caller flattens the tree
+    if (!walk->enterReference(node, depth))
+    {
+        return;
+    }
+    const PDFDictionary* dictionary = getDictionary(PDFObject::createReference(node));
+    if (!dictionary)
+    {
+        return;
+    }
+
+    if (Helper::getName(dictionary->get("Type")) == "Pages" || (!dictionary->hasKey("Type") && dictionary->hasKey("Kids")))
+    {
+        ancestors->push_back(node);
+        const PDFInteger countBefore = PDFInteger(leaves->size());
+        const std::vector<PDFObject> kids = Helper::getItems(getStorage(), dictionary->get("Kids"));
+        for (size_t i = 0; i < kids.size(); ++i)
+        {
+            if (!kids[i].isReference())
+            {
+                continue;
+            }
+            const size_t leafCount = leaves->size();
+            collectPageTreeLeaves(kids[i].getReference(), ancestors, depth + 1, walk, leaves, leafCounts);
+            if (leaves->size() == leafCount + 1 && leaves->back().page == kids[i].getReference())
+            {
+                leaves->back().indexInParent = i;
+            }
+        }
+        (*leafCounts)[node] = PDFInteger(leaves->size()) - countBefore;
+        ancestors->pop_back();
+        return;
+    }
+
+    PageTreeLeaf leaf;
+    leaf.page = node;
+    leaf.ancestors = *ancestors;
+    leaves->push_back(std::move(leaf));
+}
+
+void PDFDocumentMergerRun::makeInheritedValuesExplicit(PDFObjectReference page, const std::vector<PDFObjectReference>& ancestors)
+{
+    // Table 31, 7.7.3.4: an inserted page must not inherit a value of the tree of the target -
+    // it has its own (the flattened source page, the image or blank page) or the default
+    const PDFDictionary* dictionary = getDictionary(PDFObject::createReference(page));
+    if (!dictionary)
+    {
+        return;
+    }
+
+    PDFDictionaryBuilder builder(*dictionary);
+    bool isChanged = false;
+    for (const char* key : { "Resources", "MediaBox", "CropBox", "Rotate" })
+    {
+        if (dictionary->hasKey(key))
+        {
+            continue;
+        }
+
+        bool isInherited = false;
+        for (const PDFObjectReference& ancestor : ancestors)
+        {
+            const PDFDictionary* node = getDictionary(PDFObject::createReference(ancestor));
+            isInherited = isInherited || (node && node->hasKey(key));
+        }
+        if (!isInherited)
+        {
+            continue;
+        }
+
+        const std::string_view name(key);
+        if (name == "Resources")
+        {
+            builder.setEntry(Helper::key(key), PDFObject::createDictionary(PDFDictionaryBuilder()));
+            isChanged = true;
+        }
+        else if (name == "CropBox" && dictionary->hasKey("MediaBox"))
+        {
+            // The default of the crop box is the media box of the page (14.11.2)
+            builder.setEntry(Helper::key(key), dictionary->get("MediaBox"));
+            isChanged = true;
+        }
+        else if (name == "Rotate")
+        {
+            builder.setEntry(Helper::key(key), PDFObject::createInteger(0));
+            isChanged = true;
+        }
+    }
+
+    if (isChanged)
+    {
+        m_builder.setObject(page, PDFObject::createDictionary(std::move(builder)));
+    }
+}
+
+void PDFDocumentMergerRun::insertIntoPageTree(PDFObjectReference pageTreeRoot, const std::vector<PDFObjectReference>& newPages)
+{
+    // R8: the new pages go into /Kids of the node, which holds the page at the position (the last
+    // page at the end), and /Count of every node above them grows; nothing else of the tree
+    // changes, so every inherited value of the pages of the target stays. A tree, whose pages
+    // are not the pages of the catalog (a damaged tree), is flattened first (its inherited
+    // values are written into its pages).
+    std::vector<PageTreeLeaf> leaves;
+    std::map<PDFObjectReference, PDFInteger> leafCounts;
+    {
+        std::vector<PDFObjectReference> ancestors;
+        PDFObjectWalk walk(Helper::MAXIMUM_TREE_DEPTH);
+        collectPageTreeLeaves(pageTreeRoot, &ancestors, 0, &walk, &leaves, &leafCounts);
+    }
+
+    bool isTreeValid = leaves.size() == m_targetInput->pages.size() && !leafCounts.empty();
+    for (size_t i = 0; isTreeValid && i < leaves.size(); ++i)
+    {
+        isTreeValid = leaves[i].page == m_targetInput->pages[i] && !leaves[i].ancestors.empty();
+    }
+    if (!isTreeValid)
+    {
+        m_builder.flattenPageTree();
+        m_statistics.isPageTreeFlattened = true;
+        leaves.clear();
+        leafCounts.clear();
+        for (size_t i = 0; i < m_targetInput->pages.size(); ++i)
+        {
+            PageTreeLeaf leaf;
+            leaf.page = m_targetInput->pages[i];
+            leaf.ancestors = { pageTreeRoot };
+            leaf.indexInParent = i;
+            leaves.push_back(std::move(leaf));
+        }
+        leafCounts[pageTreeRoot] = PDFInteger(leaves.size());
+    }
+
+    std::vector<PDFObjectReference> ancestors = { pageTreeRoot };
+    size_t index = 0;
+    if (!leaves.empty())
+    {
+        const size_t position = size_t(qBound<PDFInteger>(0, m_position, PDFInteger(leaves.size())));
+        const PageTreeLeaf& leaf = leaves[qMin(position, leaves.size() - 1)];
+        ancestors = leaf.ancestors;
+        index = leaf.indexInParent + (position < leaves.size() ? 0 : 1);
+    }
+    const PDFObjectReference parent = ancestors.back();
+
+    const PDFDictionary* parentDictionary = getDictionary(PDFObject::createReference(parent));
+    std::vector<PDFObject> kids = parentDictionary ? Helper::getItems(getStorage(), parentDictionary->get("Kids")) : std::vector<PDFObject>();
+    index = qMin(index, kids.size());
+    std::vector<PDFObject> newKids;
+    for (const PDFObjectReference& page : newPages)
+    {
+        newKids.push_back(PDFObject::createReference(page));
+    }
+    kids.insert(kids.begin() + qint64(index), newKids.cbegin(), newKids.cend());
+
+    for (const PDFObjectReference& node : ancestors)
+    {
+        const PDFDictionary* nodeDictionary = getDictionary(PDFObject::createReference(node));
+        PDFDictionaryBuilder nodeBuilder = nodeDictionary ? PDFDictionaryBuilder(*nodeDictionary) : PDFDictionaryBuilder();
+        if (node == parent)
+        {
+            nodeBuilder.setEntry(Helper::key("Kids"), Helper::createArray(kids));
+        }
+        nodeBuilder.setEntry(Helper::key("Count"), PDFObject::createInteger(leafCounts[node] + PDFInteger(newPages.size())));
+        m_builder.setObject(node, PDFObject::createDictionary(std::move(nodeBuilder)));
+    }
+
+    for (const PDFObjectReference& page : newPages)
+    {
+        PDFDictionaryBuilder parentEntry;
+        parentEntry.addEntry(Helper::key("Parent"), PDFObject::createReference(parent));
+        m_builder.mergeTo(page, PDFObject::createDictionary(std::move(parentEntry)));
+        makeInheritedValuesExplicit(page, ancestors);
+    }
+}
+
+void PDFDocumentMergerRun::insertIntoDocumentParts(const std::vector<PDFObjectReference>& newPages)
+{
+    // 14.12: the pages of a document part are a contiguous range from /Start to /End. The inserted
+    // pages join the part, inside of which they are inserted; at the border of two parts the part
+    // before them (its /End moves), at the beginning the first part (its /Start moves)
+    const PDFDictionary* catalog = getDictionary(m_targetInput->catalog);
+    if (!catalog || getObject(catalog->get("DPartRoot")).isNull() || newPages.empty() || m_targetInput->pages.empty())
+    {
+        return;
+    }
+
+    const size_t position = size_t(qBound<PDFInteger>(0, m_position, PDFInteger(m_targetInput->pages.size())));
+    auto getPart = [this](PDFObjectReference page) -> PDFObject
+    {
+        const PDFDictionary* dictionary = getDictionary(PDFObject::createReference(page));
+        return dictionary ? dictionary->get("DPart") : PDFObject();
+    };
+
+    const PDFObject before = position > 0 ? getPart(m_targetInput->pages[position - 1]) : PDFObject();
+    const PDFObject after = position < m_targetInput->pages.size() ? getPart(m_targetInput->pages[position]) : PDFObject();
+    const PDFObject part = before.isReference() ? before : after;
+    const PDFDictionary* partDictionary = part.isReference() ? getDictionary(part) : nullptr;
+    if (!partDictionary)
+    {
+        return;
+    }
+
+    PDFDictionaryBuilder partBuilder(*partDictionary);
+    bool isPartChanged = false;
+    if (before.isReference() && before != after)
+    {
+        // The pages follow the last page of the part before them
+        const PDFObject& end = partDictionary->get("End");
+        const PDFObjectReference lastPage = m_targetInput->pages[position - 1];
+        if ((end.isReference() && end.getReference() == lastPage) || (!end.isReference() && partDictionary->get("Start").isReference() && partDictionary->get("Start").getReference() == lastPage))
+        {
+            partBuilder.setEntry(Helper::key("End"), PDFObject::createReference(newPages.back()));
+            isPartChanged = true;
+        }
+    }
+    else if (!before.isReference())
+    {
+        // The pages are before the first page of the part after them
+        const PDFObject& start = partDictionary->get("Start");
+        if (start.isReference() && start.getReference() == m_targetInput->pages[position])
+        {
+            partBuilder.setEntry(Helper::key("Start"), PDFObject::createReference(newPages.front()));
+            if (!partDictionary->hasKey("End"))
+            {
+                partBuilder.setEntry(Helper::key("End"), PDFObject::createReference(m_targetInput->pages[position]));
+            }
+            isPartChanged = true;
+        }
+    }
+    if (isPartChanged)
+    {
+        m_builder.setObject(part.getReference(), PDFObject::createDictionary(std::move(partBuilder)));
+    }
+
+    for (const PDFObjectReference& page : newPages)
+    {
+        PDFDictionaryBuilder entry;
+        entry.addEntry(Helper::key("DPart"), part);
+        m_builder.mergeTo(page, PDFObject::createDictionary(std::move(entry)));
+    }
+}
+
+PDFObjectStorage PDFDocumentMergerRun::compactNewObjects(PDFObjectStorage storage) const
+{
+    // An incremental update adds only what the result reaches: the objects of the sources, which
+    // nothing refers to (their catalogs, page trees, outlines, encryption dictionaries), are
+    // left out, the others get the numbers from the end of the target without a gap. The objects
+    // of the target keep their numbers; a reference to a new object is rewritten only in the new
+    // objects and in the changed objects of the target.
+    const PDFObjectStorage::PDFObjects& objects = storage.getObjects();
+    const PDFObjectStorage::PDFObjects& targetObjects = m_targetInput->document->getStorage().getObjects();
+    const size_t targetCount = qMin(m_targetObjectCount, objects.size());
+    const std::set<PDFObjectReference> reachable = PDFObjectUtils::getReferences({ storage.getTrailerDictionary() }, storage);
+
+    PDFObjectStorage::PDFObjects compacted(objects.cbegin(), objects.cbegin() + qint64(targetCount));
+    std::map<PDFObjectReference, PDFObjectReference> mapping;
+    for (size_t i = targetCount; i < objects.size(); ++i)
+    {
+        const PDFObjectReference reference(PDFInteger(i), objects[i].generation);
+        if (objects[i].object.isNull() || !reachable.count(reference))
+        {
+            continue;
+        }
+        const PDFObjectReference newReference(PDFInteger(compacted.size()), 0);
+        if (newReference != reference)
+        {
+            mapping[reference] = newReference;
+        }
+        compacted.emplace_back(0, objects[i].object);
+    }
+
+    if (!mapping.empty())
+    {
+        for (size_t i = 0; i < compacted.size(); ++i)
+        {
+            const bool isTargetObject = i < targetCount && i < targetObjects.size();
+            if (isTargetObject && compacted[i] == targetObjects[i])
+            {
+                continue;
+            }
+            compacted[i].object = PDFObjectUtils::replaceReferences(compacted[i].object, mapping);
+        }
+    }
+
+    // The trailer refers to a new object too (/Info of a target, which had none)
+    const size_t size = compacted.size();
+    storage.setObjects(std::move(compacted));
+    PDFDictionaryBuilder trailer;
+    if (const PDFDictionary* trailerDictionary = Helper::getTrailer(&storage))
+    {
+        for (size_t i = 0; i < trailerDictionary->getCount(); ++i)
+        {
+            const PDFObject& value = trailerDictionary->getValue(i);
+            auto it = value.isReference() ? mapping.find(value.getReference()) : mapping.end();
+            if (it != mapping.end())
+            {
+                trailer.addEntry(trailerDictionary->getKey(i), PDFObject::createReference(it->second));
+            }
+        }
+    }
+    trailer.setEntry(Helper::key("Size"), PDFObject::createInteger(PDFInteger(size)));
+    storage.updateTrailerDictionary(PDFObject::createDictionary(std::move(trailer)));
+    return storage;
+}
+
+PDFDocumentMerger::Result PDFDocumentMergerRun::runInsert()
+{
+    const PDFDocument* target = m_sources.front().document.data();
+    m_targetObjectCount = target->getStorage().getObjects().size();
+    m_builder.setDocument(target);
+    createTargetInput();
+
+    // The sources get the numbers after the objects of the target; a copy, which fails, leaves
+    // the source out (owner answer Q5)
+    for (const std::unique_ptr<DocumentInput>& input : m_documents)
+    {
+        if (isCanceled())
+        {
+            Merger::Result result;
+            result.isCanceled = true;
+            return result;
+        }
+        if (input->isLeftOut || isTargetInput(input.get()))
+        {
+            continue;
+        }
+
+        try
+        {
+            copyInput(input.get());
+        }
+        catch (const PDFException& exception)
+        {
+            input->isLeftOut = true;
+            input->reason = exception.getMessage();
+            PDFInteger count = 0;
+            for (const Merger::Item& item : m_items)
+            {
+                count += item.source == input->source ? 1 : 0;
+            }
+            m_leftOut.push_back({ input->source, count, input->reason });
+        }
+    }
+
+    const PDFObjectReference catalogReference = m_builder.getCatalogReference();
+    const PDFDictionary* catalogDictionary = getDictionary(PDFObject::createReference(catalogReference));
+    if (!catalogDictionary || !catalogDictionary->get("Pages").isReference())
+    {
+        throw PDFException(PDFDocumentMerger::tr("The document has no page tree."));
+    }
+    const PDFObjectReference pageTreeRoot = catalogDictionary->get("Pages").getReference();
+
+    // The pages of the items
+    std::vector<ResultPage> newPages;
+    for (size_t itemIndex = 0; itemIndex < m_items.size(); ++itemIndex)
+    {
+        if (isCanceled())
+        {
+            Merger::Result result;
+            result.isCanceled = true;
+            return result;
+        }
+
+        ResultPage resultPage;
+        if (createResultPage(itemIndex, false, &resultPage))
+        {
+            newPages.push_back(resultPage);
+        }
+        if (m_progress)
+        {
+            m_progress->step();
+        }
+    }
+    if (newPages.empty())
+    {
+        Merger::Result result;
+        result.errorMessage = m_leftOut.empty() ? PDFDocumentMerger::tr("There is no page to insert.") : m_leftOut.front().reason;
+        return result;
+    }
+
+    std::vector<PDFObjectReference> newPageReferences;
+    for (const ResultPage& page : newPages)
+    {
+        newPageReferences.push_back(page.page);
+    }
+    insertIntoPageTree(pageTreeRoot, newPageReferences);
+
+    // The pages of the result in their order: the pages of the target with the new ones at the position
+    const size_t position = size_t(qBound<PDFInteger>(0, m_position, PDFInteger(m_targetInput->pages.size())));
+    for (size_t i = 0; i < m_targetInput->pages.size(); ++i)
+    {
+        if (i == position)
+        {
+            m_resultPages.insert(m_resultPages.end(), newPages.cbegin(), newPages.cend());
+        }
+        ResultPage page;
+        page.page = m_targetInput->pages[i];
+        page.input = m_targetInput;
+        page.documentPage = PDFInteger(i);
+        m_resultPages.push_back(page);
+    }
+    if (position >= m_targetInput->pages.size())
+    {
+        m_resultPages.insert(m_resultPages.end(), newPages.cbegin(), newPages.cend());
+    }
+    computeRuns();
+    m_statistics.insertedPageCount = qint64(newPages.size());
+    m_statistics.isPageTreeFlattened = m_statistics.isPageTreeFlattened || m_statistics.replacedPageCount > 0;
+
+    // The catalog of the target is the catalog of the result: the sources are joined to it
+    catalogDictionary = getDictionary(PDFObject::createReference(catalogReference));
+    PDFDictionaryBuilder catalog(*catalogDictionary);
+    mergeNames(&catalog);
+    mergeForm(&catalog);
+    mergeLayers(&catalog);
+    mergeStructure(&catalog);
+    mergeOtherKeys(&catalog);
+
+    if (!m_targetInput->document->getCatalog()->getPageLabels().empty())
+    {
+        const PDFObject labels = createPageLabels();
+        if (!labels.isNull())
+        {
+            catalog.setEntry(Helper::key("PageLabels"), PDFObject::createReference(m_builder.addObject(labels)));
+        }
+    }
+    insertIntoDocumentParts(newPageReferences);
+
+    // The version (7.2.2, Table 29 /Version): of the sources too; an incremental update cannot
+    // change the header, the catalog says it
+    PDFVersion version = target->getInfo()->version;
+    for (const std::unique_ptr<DocumentInput>& input : m_documents)
+    {
+        if (!input->isLeftOut)
+        {
+            version = qMax(version, input->document->getInfo()->version);
+        }
+    }
+    if (m_isStructureJoined)
+    {
+        version = qMax(version, PDFVersion(2, 0));
+    }
+    if (target->getInfo()->version < version)
+    {
+        catalog.setEntry(Helper::key("Version"), PDFObject::createName(QByteArray::number(version.major) + "." + QByteArray::number(version.minor)));
+    }
+    m_builder.setObject(catalogReference, PDFObject::createDictionary(std::move(catalog)));
+
+    for (const std::unique_ptr<DocumentInput>& input : m_documents)
+    {
+        // The target is rewritten only for its destinations of /Dests, which the tree took
+        const bool isRewritten = !input->isLeftOut && (!isTargetInput(input.get()) || !input->destinationRenames.empty());
+        if (isRewritten)
+        {
+            rewriteInputObjects(input.get());
+        }
+        if (isCanceled())
+        {
+            Merger::Result result;
+            result.isCanceled = true;
+            return result;
+        }
+    }
+
+    PDFDocument built = m_builder.build();
+    PDFObjectStorage storage = compactNewObjects(built.getStorage());
+    if (qint64(storage.getObjects().size()) > Merger::MAXIMUM_OBJECT_COUNT)
+    {
+        Merger::Result result;
+        result.errorMessage = PDFDocumentMerger::tr("The result would have more than %Ln objects.", nullptr, int(Merger::MAXIMUM_OBJECT_COUNT));
+        return result;
+    }
+
+    Merger::Result result;
+    result.isSuccess = true;
+    result.document = PDFDocument(std::move(storage), version, target->getSourceDataHash());
+    result.statistics = m_statistics;
+    result.statistics.pageCount = qint64(m_resultPages.size());
+    result.leftOut = m_leftOut;
+    return result;
+}
+
+PDFDocument PDFDocumentMergerRun::runRemoveSignatures(const PDFDocument& document, PDFInteger* signaturesRemoved)
+{
+    m_builder.setDocument(&document);
+    const PDFObjectReference catalogReference = m_builder.getCatalogReference();
+    const PDFDictionary* catalogDictionary = getDictionary(PDFObject::createReference(catalogReference));
+    if (!catalogDictionary)
+    {
+        return document;
+    }
+
+    const PDFObject acroFormObject = catalogDictionary->get("AcroForm");
+    removeSignatures(getFields(acroFormObject));
+
+    catalogDictionary = getDictionary(PDFObject::createReference(catalogReference));
+    PDFDictionaryBuilder catalog(*catalogDictionary);
+    const PDFDictionary* permissions = getDictionary(catalog.get("Perms"));
+    const bool isCertified = permissions && !getObject(permissions->get("DocMDP")).isNull();
+    if (m_statistics.signaturesRemoved == 0 && !isCertified)
+    {
+        if (signaturesRemoved)
+        {
+            *signaturesRemoved = 0;
+        }
+        return document;
+    }
+
+    // Bit 2 (AppendOnly) of /SigFlags goes with the signatures (Table 225)
+    if (const PDFDictionary* acroForm = getDictionary(acroFormObject))
+    {
+        const PDFObject& flags = getObject(acroForm->get("SigFlags"));
+        if (flags.isInt() && (flags.getInteger() & 2))
+        {
+            PDFDictionaryBuilder form(*acroForm);
+            form.setEntry(Helper::key("SigFlags"), PDFObject::createInteger(flags.getInteger() & ~PDFInteger(2)));
+            if (acroFormObject.isReference())
+            {
+                m_builder.setObject(acroFormObject.getReference(), PDFObject::createDictionary(std::move(form)));
+            }
+            else
+            {
+                catalog.setEntry(Helper::key("AcroForm"), PDFObject::createDictionary(std::move(form)));
+            }
+        }
+    }
+
+    // The certification, the usage rights and the validation data belong to the signatures
+    catalog.removeEntry("Perms");
+    catalog.removeEntry("DSS");
+    m_builder.setObject(catalogReference, PDFObject::createDictionary(std::move(catalog)));
+
+    if (signaturesRemoved)
+    {
+        *signaturesRemoved = m_statistics.signaturesRemoved;
+    }
+    PDFDocument built = m_builder.build();
+    return PDFDocument(PDFObjectStorage(built.getStorage()), document.getInfo()->version, document.getSourceDataHash());
+}
+
+PDFDocumentMerger::Result PDFDocumentMerger::insert(const PDFDocument& target, PDFInteger position, std::vector<PDFInteger> replacedPages, const std::vector<Source>& sources,
+                                                    const std::vector<Item>& items, const Settings& settings, const PDFOperationControl* control, PDFProgressSink* progress)
+{
+    Result result;
+    const PDFInteger pageCount = PDFInteger(target.getCatalog()->getPageCount());
+    if (position < 0 || position > pageCount)
+    {
+        result.errorMessage = tr("The place of the insertion is outside of the document of %Ln pages.", nullptr, int(pageCount));
+        return result;
+    }
+    if (target.getCatalog()->isXFANeedsRendering())
+    {
+        result.errorMessage = tr("The document is a dynamic XFA form: pages cannot be inserted into it.");
+        return result;
+    }
+
+    std::sort(replacedPages.begin(), replacedPages.end());
+    replacedPages.erase(std::unique(replacedPages.begin(), replacedPages.end()), replacedPages.end());
+    for (const PDFInteger page : replacedPages)
+    {
+        if (page < 0 || page >= pageCount)
+        {
+            result.errorMessage = tr("The document has no page %1.").arg(page + 1);
+            return result;
+        }
+    }
+    if (!replacedPages.empty() && PDFInteger(replacedPages.size()) >= pageCount)
+    {
+        result.errorMessage = tr("Every page of the document would be replaced. Insert the pages at the beginning and remove the old pages with Remove Pages.");
+        return result;
+    }
+
+    // B20: the replaced pages go with everything pointing at them; the result of the removal is the
+    // target of the insertion - a failure of either leaves the document as it was
+    PDFDocumentPointer targetDocument(new PDFDocument(target));
+    PDFDocumentPageOperations::RemovalStatistics removal;
+    if (!replacedPages.empty())
+    {
+        try
+        {
+            PDFDocument cleaned = PDFDocumentPageOperations::removePages(&target, replacedPages, control, &removal);
+            if (removal.isCanceled || PDFOperationControl::isOperationCancelled(control))
+            {
+                result.isCanceled = true;
+                return result;
+            }
+            targetDocument.reset(new PDFDocument(std::move(cleaned)));
+        }
+        catch (const PDFException& exception)
+        {
+            result.errorMessage = exception.getMessage();
+            return result;
+        }
+        position -= PDFInteger(std::lower_bound(replacedPages.cbegin(), replacedPages.cend(), position) - replacedPages.cbegin());
+    }
+
+    // The target is the source 0 (never named by an item), the sources follow it
+    std::vector<Source> allSources;
+    allSources.reserve(sources.size() + 1);
+    allSources.push_back(Source::createDocument(targetDocument, QString()));
+    allSources.insert(allSources.end(), sources.cbegin(), sources.cend());
+    std::vector<Item> allItems = items;
+    for (Item& item : allItems)
+    {
+        ++item.source;
+    }
+
+    PDFDocumentMergerRun run(allSources, allItems, settings, control, progress);
+    run.setInsertion(position);
+    run.setReplacement(removal, qint64(replacedPages.size()));
+    result = run.run();
+    for (LeftOut& leftOut : result.leftOut)
+    {
+        leftOut.source = leftOut.source > 0 ? leftOut.source - 1 : 0;
+    }
+    return result;
+}
+
+PDFDocument PDFDocumentMerger::removeSignatures(const PDFDocument& document, PDFInteger* signaturesRemoved)
+{
+    const std::vector<Source> sources;
+    const std::vector<Item> items;
+    PDFDocumentMergerRun run(sources, items, Settings(), nullptr, nullptr);
+    return run.runRemoveSignatures(document, signaturesRemoved);
+}
+
 PDFObjectReference PDFDocumentMergerRun::getTargetPage(const DocumentInput* input, const PDFDictionary* item, const std::map<QByteArray, PDFObject>& destinations) const
 {
     Q_UNUSED(input);
@@ -2330,9 +2904,10 @@ void PDFDocumentMergerRun::mergeNames(PDFDictionaryBuilder* catalog)
                 input->destinations = entries;
             }
 
-            if (std::string_view(tree) == "JavaScript")
+            if (std::string_view(tree) == "JavaScript" && !isTargetInput(input.get()))
             {
-                // Scripts of the documents are removed (Table 29, 12.6; Q8 of the first batch)
+                // Scripts of the documents are removed (Table 29, 12.6; Q8 of the first batch);
+                // the target of an insertion keeps its own
                 m_statistics.scriptsRemoved = m_statistics.scriptsRemoved || !entries.empty();
                 continue;
             }
@@ -2529,6 +3104,9 @@ void PDFDocumentMergerRun::mergeForm(PDFDictionaryBuilder* catalog)
     bool needAppearances = false;
     std::optional<QByteArray> resultAppearance;
     std::optional<PDFInteger> resultQuadding;
+    std::vector<PDFObject> sourceFields;                ///< Insert: the fields of the sources
+    std::optional<PDFDictionaryBuilder> targetForm;     ///< Insert: a copy of the form of the target
+    PDFObject targetFormObject;                         ///< Insert: the entry /AcroForm of the target
 
     for (const std::unique_ptr<DocumentInput>& input : m_documents)
     {
@@ -2540,7 +3118,14 @@ void PDFDocumentMergerRun::mergeForm(PDFDictionaryBuilder* catalog)
         }
         hasForm = true;
 
-        m_statistics.xfaRemoved = m_statistics.xfaRemoved || !getObject(acroForm->get("XFA")).isNull();
+        // The target of an insertion keeps its form as it is (only the sources are joined to it)
+        const bool isTarget = isTargetInput(input.get());
+        if (isTarget)
+        {
+            targetForm = PDFDictionaryBuilder(*acroForm);
+            targetFormObject = inputCatalog->get("AcroForm");
+        }
+        m_statistics.xfaRemoved = m_statistics.xfaRemoved || (!isTarget && !getObject(acroForm->get("XFA")).isNull());
         const PDFObject& needAppearancesObject = getObject(acroForm->get("NeedAppearances"));
         needAppearances = needAppearances || (needAppearancesObject.isBool() && needAppearancesObject.getBool());
 
@@ -2635,6 +3220,10 @@ void PDFDocumentMergerRun::mergeForm(PDFDictionaryBuilder* catalog)
         const std::vector<PDFObject> order = Helper::getItems(getStorage(), acroForm->get("CO"));
         calculationOrder.insert(calculationOrder.end(), order.cbegin(), order.cend());
         fields.insert(fields.end(), inputFields.cbegin(), inputFields.cend());
+        if (!isTarget)
+        {
+            sourceFields.insert(sourceFields.end(), inputFields.cbegin(), inputFields.cend());
+        }
     }
 
     if (!hasForm)
@@ -2643,7 +3232,8 @@ void PDFDocumentMergerRun::mergeForm(PDFDictionaryBuilder* catalog)
         return;
     }
 
-    removeSignatures(fields);
+    // The signatures of the target of an insertion stay (they are saved incrementally, 5.7)
+    removeSignatures(m_isInsert ? sourceFields : fields);
 
     // /SigFlags: bit 1 while a signature field stays (also an empty one, Q4), never bit 2
     bool hasSignatureField = false;
@@ -2674,19 +3264,31 @@ void PDFDocumentMergerRun::mergeForm(PDFDictionaryBuilder* catalog)
         }
     }
 
-    PDFDictionaryBuilder form;
-    form.addEntry(Helper::key("Fields"), Helper::createArray(fields));
+    // Insert: the form of the target is the base - its other keys (/XFA, /SigFlags with bit 2 of
+    // its signatures, /DA, /Q) stay, it keeps its object number
+    const bool isTargetFormKept = m_isInsert && targetForm.has_value();
+    PDFDictionaryBuilder form = isTargetFormKept ? *targetForm : PDFDictionaryBuilder();
+    form.setEntry(Helper::key("Fields"), Helper::createArray(fields));
     if (needAppearances)
     {
-        form.addEntry(Helper::key("NeedAppearances"), PDFObject::createBool(true));
+        form.setEntry(Helper::key("NeedAppearances"), PDFObject::createBool(true));
     }
-    if (hasSignatureField)
+    if (isTargetFormKept)
     {
-        form.addEntry(Helper::key("SigFlags"), PDFObject::createInteger(1));
+        const PDFObject& flags = getObject(form.get("SigFlags"));
+        const PDFInteger targetFlags = flags.isInt() ? flags.getInteger() : 0;
+        if (hasSignatureField && !(targetFlags & 1))
+        {
+            form.setEntry(Helper::key("SigFlags"), PDFObject::createInteger(targetFlags | 1));
+        }
+    }
+    else if (hasSignatureField)
+    {
+        form.setEntry(Helper::key("SigFlags"), PDFObject::createInteger(1));
     }
     if (!calculationOrder.empty())
     {
-        form.addEntry(Helper::key("CO"), Helper::createArray(calculationOrder));
+        form.setEntry(Helper::key("CO"), Helper::createArray(calculationOrder));
     }
     if (!resources.empty())
     {
@@ -2695,15 +3297,22 @@ void PDFDocumentMergerRun::mergeForm(PDFDictionaryBuilder* catalog)
         {
             resourceDictionary.addEntry(PDFInplaceOrMemoryString(category), PDFObject::createDictionary(std::move(entries)));
         }
-        form.addEntry(Helper::key("DR"), PDFObject::createDictionary(std::move(resourceDictionary)));
+        form.setEntry(Helper::key("DR"), PDFObject::createDictionary(std::move(resourceDictionary)));
     }
-    if (resultAppearance)
+    if (resultAppearance && !(isTargetFormKept && form.hasKey("DA")))
     {
-        form.addEntry(Helper::key("DA"), PDFObject::createString(*resultAppearance));
+        form.setEntry(Helper::key("DA"), PDFObject::createString(*resultAppearance));
     }
-    if (resultQuadding.value_or(0) != 0)
+    if (resultQuadding.value_or(0) != 0 && !(isTargetFormKept && form.hasKey("Q")))
     {
-        form.addEntry(Helper::key("Q"), PDFObject::createInteger(*resultQuadding));
+        form.setEntry(Helper::key("Q"), PDFObject::createInteger(*resultQuadding));
+    }
+
+    if (isTargetFormKept && targetFormObject.isReference())
+    {
+        m_builder.setObject(targetFormObject.getReference(), PDFObject::createDictionary(std::move(form)));
+        catalog->setEntry(Helper::key("AcroForm"), targetFormObject);
+        return;
     }
     catalog->setEntry(Helper::key("AcroForm"), PDFObject::createReference(m_builder.addObject(PDFObject::createDictionary(std::move(form)))));
 }
@@ -2747,7 +3356,9 @@ void PDFDocumentMergerRun::mergeLayers(PDFDictionaryBuilder* catalog)
 
         if (properties || !layers.groups.empty())
         {
-            m_statistics.layerConfigurationsRemoved = m_statistics.layerConfigurationsRemoved || (properties && !Helper::getItems(getStorage(), properties->get("Configs")).empty());
+            // The target of an insertion keeps its alternate configurations
+            m_statistics.layerConfigurationsRemoved = m_statistics.layerConfigurationsRemoved ||
+                                                      (!isTargetInput(input.get()) && properties && !Helper::getItems(getStorage(), properties->get("Configs")).empty());
             inputs.push_back(std::move(layers));
         }
     }
@@ -2823,7 +3434,12 @@ void PDFDocumentMergerRun::mergeLayers(PDFDictionaryBuilder* catalog)
             // Table 101 /Order: an array, whose first item is a text, is a labeled group; the
             // layers of each input are under its name
             std::vector<PDFObject> inputOrder = (configuration && configuration->hasKey("Order")) ? Helper::getItems(getStorage(), configuration->get("Order")) : inputGroups;
-            if (inputs.size() > 1)
+            if (isTargetInput(layers.input))
+            {
+                // The order of the target of an insertion stays as it is, the sources follow it
+                order.insert(order.end(), inputOrder.cbegin(), inputOrder.cend());
+            }
+            else if (inputs.size() > 1)
             {
                 const QString label = m_sources[layers.input->source].name.isEmpty() ? layers.input->title : m_sources[layers.input->source].name;
                 inputOrder.insert(inputOrder.begin(), PDFObjectFactory::createTextString(label));
@@ -2857,9 +3473,11 @@ void PDFDocumentMergerRun::mergeLayers(PDFDictionaryBuilder* catalog)
         }
     }
 
-    PDFDictionaryBuilder properties;
-    properties.addEntry(Helper::key("OCGs"), Helper::createArray(groups));
-    properties.addEntry(Helper::key("D"), PDFObject::createDictionary(std::move(configuration)));
+    // Insert: the properties of the target are the base (its alternate configurations stay)
+    const bool isTargetKept = m_isInsert && inputs.front().input == m_targetInput && inputs.front().properties;
+    PDFDictionaryBuilder properties = isTargetKept ? PDFDictionaryBuilder(*inputs.front().properties) : PDFDictionaryBuilder();
+    properties.setEntry(Helper::key("OCGs"), Helper::createArray(groups));
+    properties.setEntry(Helper::key("D"), PDFObject::createDictionary(std::move(configuration)));
     catalog->setEntry(Helper::key("OCProperties"), PDFObject::createReference(m_builder.addObject(PDFObject::createDictionary(std::move(properties)))));
 }
 
@@ -2967,8 +3585,50 @@ void PDFDocumentMergerRun::mergeStructure(PDFDictionaryBuilder* catalog)
         inputs.push_back(input.get());
     }
 
-    // 14.9.2: one language of all inputs is the language of the result
-    const bool hasCommonLanguage = languages.size() == 1 && !languages.begin()->isEmpty();
+    // Insert (5.7): the structure of the target stays; the sources join it as document fragments
+    // only when the target is tagged and every source is tagged and taken whole, else the inserted
+    // pages are outside of the structure (their tags go, the target is not touched)
+    QString targetLanguage;
+    if (m_isInsert)
+    {
+        bool isTargetTagged = false;
+        bool areSourcesJoinable = true;
+        for (DocumentInput* input : inputs)
+        {
+            const PDFDictionary* inputCatalog = getDictionary(input->catalog);
+            const bool isTagged = inputCatalog && getDictionary(inputCatalog->get("StructTreeRoot"));
+            if (isTargetInput(input))
+            {
+                isTargetTagged = isTagged && inputCatalog->get("StructTreeRoot").isReference();
+                targetLanguage = Helper::getText(getObject(inputCatalog->get("Lang")));
+            }
+            else
+            {
+                areSourcesJoinable = areSourcesJoinable && isTagged && input->isWhole;
+            }
+        }
+
+        bool hasUntaggedItem = false;
+        for (const Merger::Item& item : m_items)
+        {
+            hasUntaggedItem = hasUntaggedItem || m_sources[item.source].kind != Merger::Source::Kind::Document;
+        }
+
+        if (!isTargetTagged || !areSourcesJoinable || inputs.size() < 2)
+        {
+            for (DocumentInput* input : inputs)
+            {
+                input->isStructureStripped = !isTargetInput(input);
+            }
+            m_statistics.insertedPagesUntagged = isTargetTagged;
+            return;
+        }
+        m_statistics.insertedPagesUntagged = hasUntaggedItem;
+    }
+
+    // 14.9.2: one language of all inputs is the language of the result (the target of an
+    // insertion keeps its own; a fragment of another language says it)
+    const bool hasCommonLanguage = !m_isInsert && languages.size() == 1 && !languages.begin()->isEmpty();
     if (hasCommonLanguage)
     {
         catalog->setEntry(Helper::key("Lang"), PDFObjectFactory::createTextString(*languages.begin()));
@@ -2992,8 +3652,27 @@ void PDFDocumentMergerRun::mergeStructure(PDFDictionaryBuilder* catalog)
     const PDFObjectReference pdf2NamespaceReference = m_builder.addObject(PDFObject::createDictionary(std::move(pdf2Namespace)));
     PDFObjectReference pdf17NamespaceReference;
 
-    const PDFObjectReference rootReference = m_builder.addObject(PDFObject());
-    const PDFObjectReference documentReference = m_builder.addObject(PDFObject());
+    // Insert: the root of the target keeps its number; the fragments go below its Document
+    // element (the one top element of the type Document), else below the root itself
+    PDFObjectReference rootReference;
+    PDFObjectReference documentReference;
+    if (m_isInsert)
+    {
+        const PDFDictionary* targetCatalog = getDictionary(m_targetInput->catalog);
+        rootReference = targetCatalog->get("StructTreeRoot").getReference();
+        documentReference = rootReference;
+        const std::vector<PDFObject> topElements = Helper::getItems(getStorage(), getDictionary(PDFObject::createReference(rootReference))->get("K"));
+        const PDFDictionary* topElement = topElements.size() == 1 ? getDictionary(topElements.front()) : nullptr;
+        if (topElement && topElements.front().isReference() && Helper::getName(topElement->get("S")) == "Document")
+        {
+            documentReference = topElements.front().getReference();
+        }
+    }
+    else
+    {
+        rootReference = m_builder.addObject(PDFObject());
+        documentReference = m_builder.addObject(PDFObject());
+    }
 
     std::vector<PDFObject> fragments;
     std::vector<PDFObject> namespaces = { PDFObject::createReference(pdf2NamespaceReference) };
@@ -3023,9 +3702,11 @@ void PDFDocumentMergerRun::mergeStructure(PDFDictionaryBuilder* catalog)
             hasUserProperties = hasUserProperties || (userProperties.isBool() && userProperties.getBool());
         }
 
-        const PDFObjectReference fragmentReference = m_builder.addObject(PDFObject());
+        // The elements of the target of an insertion stay where they are
+        const bool isTarget = isTargetInput(input);
+        const PDFObjectReference fragmentReference = isTarget ? PDFObjectReference() : m_builder.addObject(PDFObject());
         std::vector<PDFObject> kids;
-        for (const PDFObject& kid : Helper::getItems(getStorage(), treeRoot->get("K")))
+        for (const PDFObject& kid : isTarget ? std::vector<PDFObject>() : Helper::getItems(getStorage(), treeRoot->get("K")))
         {
             const PDFDictionary* element = getDictionary(kid);
             if (!element)
@@ -3045,20 +3726,23 @@ void PDFDocumentMergerRun::mergeStructure(PDFDictionaryBuilder* catalog)
             }
         }
 
-        PDFDictionaryBuilder fragment;
-        fragment.addEntry(Helper::key("Type"), PDFObject::createName("StructElem"));
-        fragment.addEntry(Helper::key("S"), PDFObject::createName("DocumentFragment"));
-        fragment.addEntry(Helper::key("NS"), PDFObject::createReference(pdf2NamespaceReference));
-        fragment.addEntry(Helper::key("P"), PDFObject::createReference(documentReference));
-        fragment.addEntry(Helper::key("K"), Helper::createArray(kids));
-        const QString language = Helper::getText(getObject(inputCatalog->get("Lang")));
-        if (!hasCommonLanguage && !language.isEmpty())
+        if (!isTarget)
         {
-            fragment.addEntry(Helper::key("Lang"), PDFObjectFactory::createTextString(language));
+            PDFDictionaryBuilder fragment;
+            fragment.addEntry(Helper::key("Type"), PDFObject::createName("StructElem"));
+            fragment.addEntry(Helper::key("S"), PDFObject::createName("DocumentFragment"));
+            fragment.addEntry(Helper::key("NS"), PDFObject::createReference(pdf2NamespaceReference));
+            fragment.addEntry(Helper::key("P"), PDFObject::createReference(documentReference));
+            fragment.addEntry(Helper::key("K"), Helper::createArray(kids));
+            const QString language = Helper::getText(getObject(inputCatalog->get("Lang")));
+            if (!hasCommonLanguage && !language.isEmpty() && language != targetLanguage)
+            {
+                fragment.addEntry(Helper::key("Lang"), PDFObjectFactory::createTextString(language));
+            }
+            fragment.addEntry(Helper::key("T"), PDFObjectFactory::createTextString(input->title));
+            m_builder.setObject(fragmentReference, PDFObject::createDictionary(std::move(fragment)));
+            fragments.push_back(PDFObject::createReference(fragmentReference));
         }
-        fragment.addEntry(Helper::key("T"), PDFObjectFactory::createTextString(input->title));
-        m_builder.setObject(fragmentReference, PDFObject::createDictionary(std::move(fragment)));
-        fragments.push_back(PDFObject::createReference(fragmentReference));
 
         // /ParentTree (14.7.5.4): the keys of the input follow the keys of the inputs before
         const std::vector<std::pair<PDFInteger, PDFObject>> entries = PDFObjectUtils::readNumberTree(getStorage(), treeRoot->get("ParentTree"));
@@ -3167,44 +3851,71 @@ void PDFDocumentMergerRun::mergeStructure(PDFDictionaryBuilder* catalog)
         }
     }
 
-    PDFDictionaryBuilder document;
-    document.addEntry(Helper::key("Type"), PDFObject::createName("StructElem"));
-    document.addEntry(Helper::key("S"), PDFObject::createName("Document"));
-    document.addEntry(Helper::key("NS"), PDFObject::createReference(pdf2NamespaceReference));
-    document.addEntry(Helper::key("P"), PDFObject::createReference(rootReference));
-    document.addEntry(Helper::key("K"), Helper::createArray(fragments));
-    m_builder.setObject(documentReference, PDFObject::createDictionary(std::move(document)));
+    // Insert: the fragments follow the elements of the Document element of the target (or of
+    // its root); the root keeps its other keys
+    const PDFDictionary* targetRoot = m_isInsert ? getDictionary(PDFObject::createReference(rootReference)) : nullptr;
+    PDFDictionaryBuilder root = targetRoot ? PDFDictionaryBuilder(*targetRoot) : PDFDictionaryBuilder();
+    if (m_isInsert)
+    {
+        if (documentReference != rootReference)
+        {
+            const PDFDictionary* documentElement = getDictionary(PDFObject::createReference(documentReference));
+            std::vector<PDFObject> documentKids = Helper::getItems(getStorage(), documentElement->get("K"));
+            documentKids.insert(documentKids.end(), fragments.cbegin(), fragments.cend());
+            PDFDictionaryBuilder documentBuilder(*documentElement);
+            documentBuilder.setEntry(Helper::key("K"), Helper::createArray(documentKids));
+            m_builder.setObject(documentReference, PDFObject::createDictionary(std::move(documentBuilder)));
+        }
+        else
+        {
+            std::vector<PDFObject> rootKids = Helper::getItems(getStorage(), root.get("K"));
+            rootKids.insert(rootKids.end(), fragments.cbegin(), fragments.cend());
+            root.setEntry(Helper::key("K"), Helper::createArray(rootKids));
+        }
+    }
+    else
+    {
+        PDFDictionaryBuilder document;
+        document.addEntry(Helper::key("Type"), PDFObject::createName("StructElem"));
+        document.addEntry(Helper::key("S"), PDFObject::createName("Document"));
+        document.addEntry(Helper::key("NS"), PDFObject::createReference(pdf2NamespaceReference));
+        document.addEntry(Helper::key("P"), PDFObject::createReference(rootReference));
+        document.addEntry(Helper::key("K"), Helper::createArray(fragments));
+        m_builder.setObject(documentReference, PDFObject::createDictionary(std::move(document)));
 
-    PDFDictionaryBuilder root;
-    root.addEntry(Helper::key("Type"), PDFObject::createName("StructTreeRoot"));
-    root.addEntry(Helper::key("K"), PDFObject::createReference(documentReference));
+        root.addEntry(Helper::key("Type"), PDFObject::createName("StructTreeRoot"));
+        root.addEntry(Helper::key("K"), PDFObject::createReference(documentReference));
+    }
+
     std::sort(parentTree.begin(), parentTree.end(), [](const auto& left, const auto& right) { return left.first < right.first; });
-    root.addEntry(Helper::key("ParentTree"), PDFObject::createReference(m_builder.addObject(Helper::createNumberTree(parentTree))));
-    root.addEntry(Helper::key("ParentTreeNextKey"), PDFObject::createInteger(nextKey));
-    root.addEntry(Helper::key("Namespaces"), Helper::createArray(namespaces));
+    root.setEntry(Helper::key("ParentTree"), PDFObject::createReference(m_builder.addObject(Helper::createNumberTree(parentTree))));
+    root.setEntry(Helper::key("ParentTreeNextKey"), PDFObject::createInteger(nextKey));
+    root.setEntry(Helper::key("Namespaces"), Helper::createArray(namespaces));
     if (!roleMap.isEmpty())
     {
-        root.addEntry(Helper::key("RoleMap"), PDFObject::createDictionary(std::move(roleMap)));
+        root.setEntry(Helper::key("RoleMap"), PDFObject::createDictionary(std::move(roleMap)));
     }
     if (!classMap.isEmpty())
     {
-        root.addEntry(Helper::key("ClassMap"), PDFObject::createDictionary(std::move(classMap)));
+        root.setEntry(Helper::key("ClassMap"), PDFObject::createDictionary(std::move(classMap)));
     }
     if (!idTree.empty())
     {
-        root.addEntry(Helper::key("IDTree"), PDFObject::createReference(m_builder.addObject(Helper::createNameTree(idTree))));
+        root.setEntry(Helper::key("IDTree"), PDFObject::createReference(m_builder.addObject(Helper::createNameTree(idTree))));
     }
     m_builder.setObject(rootReference, PDFObject::createDictionary(std::move(root)));
 
-    PDFDictionaryBuilder markInfo;
-    markInfo.addEntry(Helper::key("Marked"), PDFObject::createBool(true));
+    // The mark information of the target stays, a suspect source makes it suspect
+    const PDFDictionary* targetMarkInfo = m_isInsert ? getDictionary(catalog->get("MarkInfo")) : nullptr;
+    PDFDictionaryBuilder markInfo = targetMarkInfo ? PDFDictionaryBuilder(*targetMarkInfo) : PDFDictionaryBuilder();
+    markInfo.setEntry(Helper::key("Marked"), PDFObject::createBool(true));
     if (isSuspect)
     {
-        markInfo.addEntry(Helper::key("Suspects"), PDFObject::createBool(true));
+        markInfo.setEntry(Helper::key("Suspects"), PDFObject::createBool(true));
     }
     if (hasUserProperties)
     {
-        markInfo.addEntry(Helper::key("UserProperties"), PDFObject::createBool(true));
+        markInfo.setEntry(Helper::key("UserProperties"), PDFObject::createBool(true));
     }
     catalog->setEntry(Helper::key("StructTreeRoot"), PDFObject::createReference(rootReference));
     catalog->setEntry(Helper::key("MarkInfo"), PDFObject::createDictionary(std::move(markInfo)));
@@ -3536,8 +4247,12 @@ void PDFDocumentMergerRun::mergeOtherKeys(PDFDictionaryBuilder* catalog)
         const std::vector<PDFObject> inputRequirements = Helper::getItems(getStorage(), inputCatalog->get("Requirements"));
         requirements.insert(requirements.end(), inputRequirements.cbegin(), inputRequirements.cend());
 
-        m_statistics.collectionRemoved = m_statistics.collectionRemoved || !getObject(inputCatalog->get("Collection")).isNull();
-        m_statistics.scriptsRemoved = m_statistics.scriptsRemoved || !getObject(inputCatalog->get("OpenAction")).isNull() || !getObject(inputCatalog->get("AA")).isNull();
+        // The catalog of the target of an insertion is the catalog of the result: its own keys stay
+        if (!isTargetInput(inputs[i]))
+        {
+            m_statistics.collectionRemoved = m_statistics.collectionRemoved || !getObject(inputCatalog->get("Collection")).isNull();
+            m_statistics.scriptsRemoved = m_statistics.scriptsRemoved || !getObject(inputCatalog->get("OpenAction")).isNull() || !getObject(inputCatalog->get("AA")).isNull();
+        }
 
         // 7.12: the extensions of all inputs, the highest level of each prefix
         if (const PDFDictionary* inputExtensions = getDictionary(inputCatalog->get("Extensions")))
@@ -3621,11 +4336,18 @@ void PDFDocumentMergerRun::mergeOtherKeys(PDFDictionaryBuilder* catalog)
     }
     else if (!bases.empty())
     {
+        // The target of an insertion keeps its base in its catalog, its URIs stay relative
         for (size_t i = 0; i < catalogs.size(); ++i)
         {
             const PDFDictionary* uri = getDictionary(catalogs[i]->get("URI"));
-            inputs[i]->uriBase = uri ? Helper::getText(getObject(uri->get("Base"))) : QString();
+            inputs[i]->uriBase = (uri && !isTargetInput(inputs[i])) ? Helper::getText(getObject(uri->get("Base"))) : QString();
         }
+    }
+
+    // R8: the output intents of the target of an insertion always stay (the catalog is its own)
+    if (m_isInsert)
+    {
+        return;
     }
 
     const bool isOutputIntentCommon = std::all_of(outputIntents.cbegin(), outputIntents.cend(), [&outputIntents](const QByteArray& intents) { return intents == outputIntents.front(); });

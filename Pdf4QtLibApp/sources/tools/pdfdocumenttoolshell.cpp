@@ -34,6 +34,7 @@
 #include "pdfappsettingcontrol.h"
 #include "pdfapptoolhost.h"
 #include "pdfapptoolinputlist.h"
+#include "pdfapptooloutputfiles.h"
 #include "pdfapptoolpanelparts.h"
 #include "pdfapptoolparametermodel.h"
 #include "pdfapptooltoolbar.h"
@@ -158,6 +159,7 @@ bool PDFDocumentToolShell::enter()
     connect(m_runner.data(), &PDFDocumentToolRunner::runProgress, this, &PDFDocumentToolShell::onRunProgress);
     connect(m_runner.data(), &PDFDocumentToolRunner::runFinished, this, &PDFDocumentToolShell::onRunFinished);
     connect(m_runner.data(), &PDFDocumentToolRunner::documentLost, this, &PDFDocumentToolShell::onDocumentLost);
+    connect(m_runner.data(), &PDFDocumentToolRunner::fileQuestionChanged, this, &PDFDocumentToolShell::onFileQuestionChanged);
 
     m_gui->attach(this);
     connect(m_gui.data(), &PDFDocumentToolGUI::confirmStateChanged, this, &PDFDocumentToolShell::onConfirmStateChanged);
@@ -384,6 +386,10 @@ void PDFDocumentToolShell::close()
         m_permissionDialog->hide();
         m_permissionDialog->deleteLater();
     }
+
+    // The close of the tab during the question of a file = Stop Export (R3): the deletion of
+    // the runner cancels the run, which stops the sink and wakes the waiting thread
+    closeFileConflictDialog();
     if (m_runner)
     {
         // Its deletion cancels the worker, ends the operation and closes the dialog; a slot
@@ -922,6 +928,7 @@ void PDFDocumentToolShell::openResultDialog(const PDFDocumentToolResult& result)
     {
         input.previousToolId = document->getLastFinishedToolId();
     }
+    input.isResultInThisTab = m_host->isOwnTab() && m_gui->isResultInThisTab();
     m_gui->fillResultInput(&input);
 
     m_state = State::Deciding;
@@ -1169,6 +1176,9 @@ void PDFDocumentToolShell::onWatchedModalClosed()
 
 void PDFDocumentToolShell::finishRun(const PDFDocumentToolResult& result)
 {
+    // The question of a file belongs to the run, which has ended
+    closeFileConflictDialog();
+
     if (waitForModalDialog(result))
     {
         return;
@@ -1195,6 +1205,16 @@ void PDFDocumentToolShell::finishRun(const PDFDocumentToolResult& result)
             return;
         }
 
+        openResultDialog(result);
+        return;
+    }
+
+    // R3, 403:29978: a stopped run of more files says, which files it has written (they stay on
+    // the disk); the tool keeps its settings after the dialog
+    if (result.status == PDFDocumentToolResultStatus::Stopped && !result.writtenFiles.isEmpty() &&
+        PDFAppToolResultDialog::getResultKind(result) == PDFAppToolResultDialog::ResultKind::WrittenFiles)
+    {
+        m_isStoppedFilesResult = true;
         openResultDialog(result);
         return;
     }
@@ -1283,6 +1303,14 @@ void PDFDocumentToolShell::onDialogDecided(const PDFAppToolResultOutcome& outcom
     const PDFAppToolResultOutcome decided = outcome;
     QPointer<PDFDocumentToolShell> guard(this);
 
+    // The written files of a stopped run: the tool stays with its settings (403:29978)
+    if (m_isStoppedFilesResult)
+    {
+        m_isStoppedFilesResult = false;
+        returnToEditing();
+        return;
+    }
+
     switch (decided.action)
     {
         case PDFAppToolResultOutcome::Action::Rerun:
@@ -1360,6 +1388,17 @@ void PDFDocumentToolShell::onDialogDecided(const PDFAppToolResultOutcome& outcom
     if (decided.isOpenFolderRequested && !decided.filePath.isEmpty())
     {
         request.folderToOpen = QFileInfo(decided.filePath).absolutePath();
+    }
+
+    // R16 (336:3572): the new document replaces the own tab - its bytes, or the written file
+    if (decided.action == PDFAppToolResultOutcome::Action::OpenedInThisTab)
+    {
+        request.newDocumentData = decided.newDocumentData;
+        request.newDocumentTitle = decided.newDocumentTitle.isEmpty() ? tr("Untitled") : decided.newDocumentTitle;
+    }
+    if (decided.isFileOpenedInThisTab && !decided.filePath.isEmpty())
+    {
+        request.newDocumentFilePath = decided.filePath;
     }
     requestClose(request);
 }
@@ -1544,6 +1583,51 @@ bool PDFDocumentToolShell::eventFilter(QObject* watched, QEvent* event)
         QMetaObject::invokeMethod(this, &PDFDocumentToolShell::onLanguageChanged, Qt::QueuedConnection);
     }
     return BaseClass::eventFilter(watched, event);
+}
+
+void PDFDocumentToolShell::onFileQuestionChanged()
+{
+    const std::optional<PDFAppToolFileSink::Question> question = m_runner ? m_runner->getFileQuestion() : std::nullopt;
+    if (!question || m_state != State::Running || !m_host)
+    {
+        closeFileConflictDialog();
+        return;
+    }
+    if (m_fileConflictDialog && m_fileConflictDialog->getQuestion() == *question)
+    {
+        return;
+    }
+    closeFileConflictDialog();
+
+    // 356:11997: the run waits, the question is a modal dialog over the window (new + QPointer,
+    // it deletes itself)
+    QWidget* keyWidget = m_host->getKeyWidget();
+    PDFAppToolFileConflictDialog* dialog = new PDFAppToolFileConflictDialog(*question, keyWidget ? keyWidget->window() : nullptr);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    m_fileConflictDialog = dialog;
+    connect(dialog, &PDFAppToolFileConflictDialog::answered, this, &PDFDocumentToolShell::onFileConflictAnswered);
+    dialog->QDialog::open();
+}
+
+void PDFDocumentToolShell::onFileConflictAnswered(PDFAppToolFileSink::Answer answer, bool isForAll)
+{
+    m_fileConflictDialog = nullptr;
+    if (m_runner)
+    {
+        m_runner->answerFileQuestion(answer, isForAll);
+    }
+}
+
+void PDFDocumentToolShell::closeFileConflictDialog()
+{
+    // The dialog answers nothing any more: the run has ended or is canceled
+    if (PDFAppToolFileConflictDialog* dialog = m_fileConflictDialog.data())
+    {
+        m_fileConflictDialog = nullptr;
+        dialog->disconnect(this);
+        dialog->hide();
+        dialog->deleteLater();
+    }
 }
 
 }   // namespace pdf

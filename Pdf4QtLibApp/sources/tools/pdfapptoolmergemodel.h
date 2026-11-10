@@ -25,6 +25,7 @@
 
 #include "pdfappglobal.h"
 #include "pdfappdocumentpanels_thumbnails.h"
+#include "pdfapptoolgroupedpagemodel.h"
 
 #include "pdfaccenthue.h"
 #include "pdfpage.h"
@@ -165,13 +166,15 @@ private:
 /// turn of the page. The model has the columns of Details; the thumbnails use the column 0.
 ///
 /// Ownership: a child of the canvas of the tool; the list is held by a QPointer (it outlives
-/// the views, the tab owns it). Thread: GUI only.
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolMergePageModel : public PDFAppThumbnailsModel
+/// the views, the tab owns it). Thread: GUI only. The groups are those of the grouped view
+/// (PDFAppToolGroupedPageModel, the skeleton of step 3a: Group, GroupCallout and groupsChanged
+/// come from there, unchanged).
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolMergePageModel : public PDFAppToolGroupedPageModel
 {
     Q_OBJECT
 
 private:
-    using BaseClass = PDFAppThumbnailsModel;
+    using BaseClass = PDFAppToolGroupedPageModel;
 
 public:
     /// Columns of Details (408:32003)
@@ -185,33 +188,6 @@ public:
         OrientationColumn,
         RotationColumn,
         ColumnCount
-    };
-
-    /// The callout of a group of a pending input
-    enum class GroupCallout
-    {
-        None,       ///< The pages of the group
-        Reading,    ///< callout-neutral 1390:34213: the reading of the file with its progress
-        Locked      ///< callout-red 378:2613, 1390:34515: a password is needed
-    };
-
-    /// A group of the canvas (group-A · Contract.pdf 378:1242)
-    struct Group
-    {
-        QString inputId;
-        int inputIndex = -1;        ///< Index of the input in the list (its letter and hue)
-        int firstRow = 0;           ///< First row of the group
-        int rowCount = 0;           ///< Rows of the group (0 for a pending input)
-        PDFAccentHue hue = PDFAccentHue::Neutral;
-        QString title;              ///< "A · Contract.pdf"
-        QString subtitle;           ///< "Pages 1–6", "Pages unknown until unlocked"
-        QString tag;                ///< "Image", "Repaired", "Left out", empty = none
-        GroupCallout callout = GroupCallout::None;
-        QString calloutTitle;       ///< "Password required", "Reading the file – 50 %"
-        QString calloutText;
-        double progress = -1.0;     ///< Progress of the reading (0 - 1), -1 = none
-
-        bool operator==(const Group&) const = default;
     };
 
     explicit PDFAppToolMergePageModel(QObject* parent);
@@ -232,6 +208,14 @@ public:
     /// The texts of the groups follow the list (a reading finished, its progress, a password)
     void updateGroups();
 
+    /// The captions of the tiles of the rows below their numbers (Interleave "front 1", "back 6",
+    /// 385:13263; PDFComponentRoles::SubtitleRole), and the dot of the hue of the input of each
+    /// tile (K45; PDFComponentRoles::HueRole, the int of PDFAccentHue). One dataChanged of all
+    /// rows. Empty captions and no dots = the tiles of Merge.
+    void setTileMarks(QStringList captions, bool areSourceDotsShown);
+    const QStringList& getTileCaptions() const { return m_tileCaptions; }
+    bool areSourceDotsShown() const { return m_areSourceDotsShown; }
+
     /// Item of the plan of the row (-1 for an invalid row)
     int getItemIndex(int row) const;
 
@@ -245,10 +229,10 @@ public:
     const PDFAppToolInput* getInput(int row) const;
 
     /// The groups in their order
-    const std::vector<Group>& getGroups() const { return m_groups; }
+    virtual const std::vector<Group>& getGroups() const override { return m_groups; }
 
     /// Index of the group of the row (-1 for an invalid row)
-    int getGroupOfRow(int row) const;
+    virtual int getGroupOfRow(int row) const override;
 
     /// Index of the group of the input, which is first in the canvas (-1 for none)
     int findGroupOfInput(const QString& inputId) const;
@@ -259,7 +243,7 @@ public:
 
     /// The rows drawn as selected (the selection of the views; PageTileStateRole Selected)
     void setSelectedRows(const std::vector<int>& rows);
-    bool isRowSelected(int row) const;
+    virtual bool isRowSelected(int row) const override;
 
     // ---------------------------------------------------------- texts
 
@@ -294,10 +278,6 @@ public:
     virtual bool hasPictureSources() const override;
     virtual PDFAppThumbnailSource getPictureSource(int row) const override;
 
-Q_SIGNALS:
-    /// The groups have changed (their rows, texts or callouts): the canvas is laid out again
-    void groupsChanged();
-
 private:
     void createRows();
     std::vector<Group> createGroups() const;
@@ -312,6 +292,8 @@ private:
     std::vector<char> m_isSelected;         ///< Selection of each row
     std::vector<Group> m_groups;
     QStringList m_leftOutInputs;
+    QStringList m_tileCaptions;
+    bool m_areSourceDotsShown = false;
     mutable std::map<QRgb, QPixmap> m_dots; ///< The dots of the sources of Details by their color
 };
 

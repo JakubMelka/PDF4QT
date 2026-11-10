@@ -23,6 +23,7 @@
 #include "gallerypages.h"
 
 #include "pdfaccenthue.h"
+#include "pdfanchorgrid.h"
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentcards.h"
 #include "pdfcomponentpanels.h"
@@ -1157,6 +1158,25 @@ GalleryPages::Page GalleryPages::createPanelsPage(QWidget* parent)
     referenceDisabled->setEnabled(false);
     builder.live(QStringLiteral("Live disabled"), referenceDisabled);
     builder.note(QStringLiteral("The grid is a picture of the corners of the annotation: it is not mirrored for right-to-left. The arrows move the chosen point, the focus ring is inside of the frame."));
+
+    // Anchor of the page tools (step 3a of phase 2, package B): the panel of Resize Pages, the
+    // popover of Add Image as Page and Images to PDF
+    builder.block(QStringLiteral("Anchor (PDFAnchorGrid) - 3 x 3 cells with dots, click / arrows + Space"), QStringLiteral("391:23821"));
+    pdf::PDFAnchorGrid* anchorGrid = new pdf::PDFAnchorGrid(builder.page());
+    anchorGrid->setAccessibleName(QStringLiteral("Anchor"));
+    builder.live(QStringLiteral("Live, middle center, cells 40 (391:23821)"), anchorGrid, QStringLiteral("391:23821"));
+    pdf::PDFAnchorGrid* anchorCompact = new pdf::PDFAnchorGrid(builder.page());
+    anchorCompact->setCellSize(pdf::PDFAnchorGrid::COMPACT_CELL_SIZE);
+    anchorCompact->setAnchor(Qt::AlignTop | Qt::AlignLeft);
+    builder.live(QStringLiteral("Live, top left, cells 36 (356:9556)"), anchorCompact, QStringLiteral("356:9556"));
+    pdf::PDFAnchorGrid* anchorRightToLeft = new pdf::PDFAnchorGrid(builder.page());
+    anchorRightToLeft->setLayoutDirection(Qt::RightToLeft);
+    anchorRightToLeft->setAnchor(Qt::AlignBottom | Qt::AlignRight);
+    builder.live(QStringLiteral("Live right-to-left (not mirrored), bottom right"), anchorRightToLeft);
+    pdf::PDFAnchorGrid* anchorDisabled = new pdf::PDFAnchorGrid(builder.page());
+    anchorDisabled->setEnabled(false);
+    builder.live(QStringLiteral("Live disabled"), anchorDisabled);
+    builder.note(QStringLiteral("The grid is a picture of the page: it is not mirrored for right-to-left. The arrows move the focus cell, Space or Enter chooses it, a click chooses the cell under the pointer."));
 
     // Property row: Editable x State (7 variants of the design)
     builder.block(QStringLiteral("Property row (PDFPropertyRow) - Editable False / True, State Default / Hover / Copied / Editing"), QStringLiteral("206:873"));

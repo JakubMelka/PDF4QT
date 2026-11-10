@@ -154,4 +154,35 @@ list(APPEND PDF4QT_LIBAPP_TOOLS_SOURCES
     sources/tools/pdfapppagesizepreview.h
     sources/tools/pdfapptoolgui_blank.cpp
     sources/tools/pdfapptoolgui_blank.h
+    # Step 3a of phase 2, the skeleton (fixed interfaces, only the coordinator changes them)
+    sources/tools/pdfapptoolgroupedpagemodel.cpp
+    sources/tools/pdfapptoolgroupedpagemodel.h
+    # Step 3a, package A (Split, Extract Pages, more files)
+    sources/tools/pdfapptoolfilesink.cpp
+    sources/tools/pdfapptoolfilesink.h
+    sources/tools/pdfapptoolgui_split.cpp
+    sources/tools/pdfapptoolgui_split.h
+    sources/tools/pdfapptooloutputfiles.cpp
+    sources/tools/pdfapptooloutputfiles.h
+    # Step 3a, package B (Crop, Resize, Set Page Boxes)
+    sources/tools/pdfapptoolboxesoverlay.cpp
+    sources/tools/pdfapptoolboxesoverlay.h
+    sources/tools/pdfapptoolcropoverlay.cpp
+    sources/tools/pdfapptoolcropoverlay.h
+    sources/tools/pdfapptoolgui_geometry.cpp
+    sources/tools/pdfapptoolgui_geometry.h
+    sources/tools/pdfapptoolpagestage.cpp
+    sources/tools/pdfapptoolpagestage.h
+    # Step 3a, package C (Insert Pages, Add Image as Page)
+    sources/tools/pdfapptoolgui_insert.cpp
+    sources/tools/pdfapptoolgui_insert.h
+    sources/tools/pdfapptoolinsertstrip.cpp
+    sources/tools/pdfapptoolinsertstrip.h
+    # Step 3a, package D (Images to PDF, Interleave Pages)
+    sources/tools/pdfappimagepagepreview.cpp
+    sources/tools/pdfappimagepagepreview.h
+    sources/tools/pdfapptoolgui_images.cpp
+    sources/tools/pdfapptoolgui_images.h
+    sources/tools/pdfapptoolgui_interleave.cpp
+    sources/tools/pdfapptoolgui_interleave.h
 )

@@ -34,27 +34,35 @@
 #include "pdfappdocumentsave.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappmainwindow.h"
+#include "pdfappcontext.h"
+#include "pdfappdocumentregistry.h"
+#include "pdfapptoolfilesink.h"
+#include "pdfapptoolinputloader.h"
 #include "pdfapptoolpathrules.h"
 #include "pdfapptoolresultwriter.h"
 #include "pdfdocumenttextexporter.h"
 #include "pdfdocumenttoolrunner.h"
 
 #include "pdfdocumenttool.h"
+#include "pdfdocumenttool_split.h"
 #include "pdfdocumenttoolparameter.h"
 #include "pdfdocumenttoolregistry.h"
 #include "pdfform.h"
+#include "pdfoperationcontrol.h"
 #include "pdfprogress.h"
 
 #include "pdfmcpjson.h"
 
 #include <QApplication>
 #include <QDateTime>
+#include <QDir>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QStringDecoder>
 #include <QTimer>
 
+#include <algorithm>
 #include <limits>
 
 namespace pdf
@@ -85,7 +93,7 @@ public:
     /// same id twice is the same document twice (the core maps its objects by the input).
     /// \returns false with \p errorText for the model
     static bool resolveInputDocuments(PDFAppMcpHost* host, const PDFAppMcpToolInvocation& invocation, const PDFDocumentToolCatalogEntry* entry,
-                                      std::vector<QPointer<PDFAppDocument>>* documents, QString* errorText)
+                                      const PDFDocumentToolInputCountRange& inputCountRange, std::vector<QPointer<PDFAppDocument>>* documents, QString* errorText)
     {
         const QJsonValue value = invocation.arguments.value(QLatin1StringView("documentIds"));
         if (!invocation.documentId.isEmpty())
@@ -94,29 +102,52 @@ public:
             return false;
         }
 
+        // K41: the bounds of the tool (Interleave exactly 2, Merge 2 to 1000); a tool without
+        // its own range takes at least two
+        const int minimum = qMax(inputCountRange.minimum, MINIMUM_INPUT_DOCUMENTS);
+        const int maximum = inputCountRange.maximum >= minimum ? inputCountRange.maximum : std::numeric_limits<int>::max();
         const QJsonArray ids = value.toArray();
-        if (!value.isArray() || ids.size() < MINIMUM_INPUT_DOCUMENTS)
+        if (!value.isArray() || ids.size() < minimum || ids.size() > maximum)
         {
-            *errorText = QStringLiteral("documentIds: %1 needs the ids of at least %2 open documents in the order of the result (application.get_state lists them).").arg(entry->getSourceTitle()).arg(MINIMUM_INPUT_DOCUMENTS);
+            if (minimum == maximum)
+            {
+                *errorText = QStringLiteral("documentIds: %1 needs the ids of exactly %2 open documents in the order of the result (application.get_state lists them).").arg(entry->getSourceTitle()).arg(minimum);
+            }
+            else if (maximum < std::numeric_limits<int>::max())
+            {
+                *errorText = QStringLiteral("documentIds: %1 needs the ids of %2 to %3 open documents in the order of the result (application.get_state lists them).").arg(entry->getSourceTitle()).arg(minimum).arg(maximum);
+            }
+            else
+            {
+                *errorText = QStringLiteral("documentIds: %1 needs the ids of at least %2 open documents in the order of the result (application.get_state lists them).").arg(entry->getSourceTitle()).arg(minimum);
+            }
             return false;
         }
 
+        return resolveDocumentIds(host, ids, QStringLiteral("documentIds"), entry, documents, errorText);
+    }
+
+    /// The open documents of the ids of \p argument (documentIds, sourceDocumentIds) in their
+    /// order: each open and read; a locked one only for a tool, which works on a locked document
+    static bool resolveDocumentIds(PDFAppMcpHost* host, const QJsonArray& ids, const QString& argument, const PDFDocumentToolCatalogEntry* entry,
+                                   std::vector<QPointer<PDFAppDocument>>* documents, QString* errorText)
+    {
         for (qsizetype i = 0; i < ids.size(); ++i)
         {
             const PDFAppMcpResolvedDocument resolved = host->getResolver().resolve(ids.at(i).toString(), true);
             if (!resolved.isResolved())
             {
-                *errorText = QStringLiteral("documentIds[%1]: %2").arg(i).arg(resolved.errorText);
+                *errorText = QStringLiteral("%1[%2]: %3").arg(argument).arg(i).arg(resolved.errorText);
                 return false;
             }
 
             switch (PDFAppToolResultWriter::getDocumentRefusal(entry, resolved.document))
             {
                 case PDFAppToolResultWriter::DocumentRefusal::Locked:
-                    *errorText = QStringLiteral("documentIds[%1]: %2").arg(i).arg(PDFAppMcpChangeJob::getLockedText());
+                    *errorText = QStringLiteral("%1[%2]: %3").arg(argument).arg(i).arg(PDFAppMcpChangeJob::getLockedText());
                     return false;
                 case PDFAppToolResultWriter::DocumentRefusal::DisplayVersion:
-                    *errorText = QStringLiteral("documentIds[%1]: %2").arg(i).arg(PDFAppMcpChangeJob::getPagedXFAText());
+                    *errorText = QStringLiteral("%1[%2]: %3").arg(argument).arg(i).arg(PDFAppMcpChangeJob::getPagedXFAText());
                     return false;
                 case PDFAppToolResultWriter::DocumentRefusal::None:
                     break;
@@ -126,10 +157,171 @@ public:
         return true;
     }
 
+    /// Most paths of imagePaths (Q10 of step 3: as the inputs of Merge and Images to PDF)
+    static constexpr int MAXIMUM_IMAGE_PATHS = 1000;
+
+    /// Most ids of sourceDocumentIds (the sources of Insert Pages, MAXIMUM_SOURCE_COUNT of the core)
+    static constexpr int MAXIMUM_SOURCE_DOCUMENTS = 1000;
+
+    /// Tools, which read image files of the disk given by imagePaths (Q10 of step 3: only
+    /// images, the permission Open and save files; a PDF file of the disk never - Q11 of step 2)
+    static bool isReadingImages(const QString& toolId)
+    {
+        static constexpr const char* TOOLS[] = { "pages.insert", "pages.add-image", "convert.images-to-pdf" };
+        for (const char* id : TOOLS)
+        {
+            if (toolId == QLatin1String(id))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// Tools, whose sources are open documents given by sourceDocumentIds besides their document
+    /// (Insert Pages: context.documents[1..], plan 7)
+    static bool isReadingSourceDocuments(const QString& toolId)
+    {
+        return toolId == QLatin1String("pages.insert");
+    }
+
+    /// The checked paths of imagePaths (the rules of the paths of an assistant, an existing
+    /// file); whether a file is an image is known when it is read (PDFAppToolInputLoader)
+    static bool checkImagePaths(const QJsonValue& value, const PDFAppContext* context, QStringList* paths, QString* errorText)
+    {
+        const QJsonArray array = value.toArray();
+        if (!value.isArray() || array.isEmpty() || array.size() > MAXIMUM_IMAGE_PATHS)
+        {
+            *errorText = QStringLiteral("imagePaths: give 1 to %1 absolute paths of image files.").arg(MAXIMUM_IMAGE_PATHS);
+            return false;
+        }
+
+        for (qsizetype i = 0; i < array.size(); ++i)
+        {
+            QString error;
+            const QString path = array.at(i).isString() ? PDFAppMcpArguments::checkPath(array.at(i).toString(), false, context, &error) : QString();
+            if (path.isEmpty())
+            {
+                *errorText = QStringLiteral("imagePaths[%1]: %2").arg(i).arg(error.isEmpty() ? QStringLiteral("an absolute path of an image file is expected") : error);
+                return false;
+            }
+            if (!QFileInfo(path).isFile())
+            {
+                *errorText = QStringLiteral("imagePaths[%1]: the file does not exist").arg(i);
+                return false;
+            }
+            paths->append(path);
+        }
+        return true;
+    }
+
+    /// Reads the image files in the worker of the run (thread safe: plain values only). An
+    /// input, which is no image (a PDF file: Q11 of step 2), cannot be read or exceeds the
+    /// limits of R15 (PDFAppToolInputLoader: the size, the pixels, the frames of a TIFF), fails.
+    static bool readImages(const QStringList& paths, const PDFOperationControl* control, std::vector<PDFDocumentToolInputImage>* images, QString* errorText)
+    {
+        for (qsizetype i = 0; i < paths.size(); ++i)
+        {
+            if (PDFOperationControl::isOperationCancelled(control))
+            {
+                return false;
+            }
+
+            PDFAppToolInputLoader::Request request;
+            request.filePath = paths.at(i);
+            request.name = QFileInfo(paths.at(i)).fileName();
+            PDFAppToolInputLoader::Result read = PDFAppToolInputLoader::read(std::move(request));
+            if (read.kind != PDFAppToolInputKind::Image)
+            {
+                *errorText = QStringLiteral("imagePaths[%1]: the file is no image (a PDF document is given by an open document, not by a path).").arg(i);
+                return false;
+            }
+            if (read.state != PDFAppToolInputState::Ready)
+            {
+                *errorText = QStringLiteral("imagePaths[%1]: the image cannot be used (%2).").arg(i).arg(read.reason);
+                return false;
+            }
+
+            PDFDocumentToolInputImage image;
+            image.data = std::move(read.data);
+            image.format = read.imageFormat;
+            image.fileName = QFileInfo(paths.at(i)).fileName();
+            images->push_back(std::move(image));
+        }
+        return true;
+    }
+
     /// In the order of PDFAppMcpToolResultMode
     static QStringList getResultValueNames()
     {
-        return { QStringLiteral("keep"), QStringLiteral("save_copy"), QStringLiteral("overwrite"), QStringLiteral("open_new_tab"), QStringLiteral("save_file"), QStringLiteral("return_text") };
+        return { QStringLiteral("keep"), QStringLiteral("save_copy"), QStringLiteral("overwrite"), QStringLiteral("open_new_tab"), QStringLiteral("save_file"), QStringLiteral("return_text"),
+                 QStringLiteral("save_files") };
+    }
+
+    /// The schema of the parameters of a tool for an assistant: Existing files has no Ask (R17,
+    /// the run never asks an assistant), its default is Rename
+    static QJsonObject createParameterSchema(const PDFDocumentTool* tool)
+    {
+        QJsonObject schema = PDFDocumentToolParameters::toJsonSchema(tool->getParameters());
+        QJsonObject properties = schema.value(QStringLiteral("properties")).toObject();
+        const QString existingKey = QString::fromLatin1(PDFDocumentToolFileOutput::PARAMETER_EXISTING_FILES);
+        if (PDFAppMcpCatalogTools::isWritingFiles(tool) && properties.contains(existingKey))
+        {
+            QJsonObject existing = properties.value(existingKey).toObject();
+            QJsonArray values = existing.value(QStringLiteral("enum")).toArray();
+            for (qsizetype i = values.size() - 1; i >= 0; --i)
+            {
+                if (values.at(i).toString() == QLatin1String(PDFDocumentToolFileOutput::EXISTING_ASK))
+                {
+                    values.removeAt(i);
+                }
+            }
+            existing.insert(QStringLiteral("enum"), values);
+            existing.insert(QStringLiteral("default"), QString::fromLatin1(PDFDocumentToolFileOutput::EXISTING_RENAME));
+            properties.insert(existingKey, existing);
+            schema.insert(QStringLiteral("properties"), properties);
+        }
+        return schema;
+    }
+
+    /// The paths of the documents open in the application: a file of save_files never replaces them (R14)
+    static QStringList getOpenDocumentPaths(const PDFAppMcpHost* host)
+    {
+        QStringList paths;
+        const PDFAppContext* context = host ? host->getContext() : nullptr;
+        const PDFAppDocumentRegistry* registry = context ? context->getDocumentRegistry() : nullptr;
+        for (const PDFAppDocument* document : registry ? registry->getDocuments() : std::vector<PDFAppDocument*>())
+        {
+            const QString canonicalPath = document && !document->getFilePath().isEmpty() ? QFileInfo(document->getFilePath()).canonicalFilePath() : QString();
+            if (!canonicalPath.isEmpty())
+            {
+                paths << canonicalPath;
+            }
+        }
+        return paths;
+    }
+
+    /// The folder of save_files (the parameter folder): an absolute path of an existing folder,
+    /// never a device or another computer (the rules of save_file); empty and the reason else
+    static QString checkFolder(const QString& folder, QString* errorText)
+    {
+        const QFileInfo info(folder);
+        if (folder.isEmpty() || !info.isAbsolute())
+        {
+            *errorText = QStringLiteral("folder: save_files needs the absolute path of an existing folder.");
+            return QString();
+        }
+        if (PDFAppToolPathRules::isDeviceOrNetworkPath(folder))
+        {
+            *errorText = QStringLiteral("folder: a device or a folder of another computer cannot be used.");
+            return QString();
+        }
+        if (!info.isDir())
+        {
+            *errorText = QStringLiteral("folder: the folder does not exist.");
+            return QString();
+        }
+        return QDir::cleanPath(info.absoluteFilePath());
     }
 
     /// Text of O31 (chapter 4 of the plan)
@@ -144,13 +336,25 @@ public:
         return QStringLiteral("The file of the document is damaged and its content was restored, so PDF4QT does not change it nor replace it; the signatures do not hold in a written file. Use result save_copy with a path.");
     }
 
-    /// The reason a result cannot be kept or overwrite the file; empty = it can
-    static QString getCopyOnlyText(const PDFDocumentToolCatalogEntry* entry, const PDFAppDocument* document)
+    /// Q12, R10 of step 3: a certified document changed by a page tool
+    static QString getCertifiedText()
     {
+        return QStringLiteral("The document is certified and its certification allows no change of the pages (ISO 32000-2, 12.8.2.2), so the result can only be saved as a copy without the certification and the signatures, written whole. Use result save_copy with a path.");
+    }
+
+    /// The reason a result cannot be kept or overwrite the file; empty = it can
+    /// \param result The result of the run (null before the run: the catalog decides)
+    static QString getCopyOnlyText(const PDFDocumentToolCatalogEntry* entry, const PDFAppDocument* document, const PDFDocumentToolResult* result)
+    {
+        if (PDFAppToolResultWriter::isCertificationRemoved(entry, result))
+        {
+            return getCertifiedText();
+        }
+
         const PDFAppDocumentSnapshot snapshot = document->getSnapshot();
         const bool isSigned = PDFForm::getSignatureCount(snapshot.document.data()) > 0;
         const bool isOnlyCopyWritable = PDFAppDocumentFileWriter::isOnlyCopyWritable(snapshot);
-        if (!PDFAppToolResultWriter::isCopyOnly(entry, isSigned, !document->getFilePath().isEmpty(), isOnlyCopyWritable))
+        if (!PDFAppToolResultWriter::isCopyOnly(entry, isSigned, !document->getFilePath().isEmpty(), isOnlyCopyWritable, result))
         {
             return QString();
         }
@@ -188,6 +392,7 @@ public:
             case PDFAppMcpToolResultMode::ReturnText:
             case PDFAppMcpToolResultMode::SaveCopy:
             case PDFAppMcpToolResultMode::SaveFile:
+            case PDFAppMcpToolResultMode::SaveFiles:
                 break;
         }
         return QStringLiteral("The user does not allow assistants to save files (Open and save files is set to Deny in PDF4QT).");
@@ -333,7 +538,8 @@ public:
             { "overwrite", "overwrite (the file of the document, always confirmed)" },
             { "open_new_tab", "open_new_tab (a new tab)" },
             { "save_file", "save_file (the output is written to path)" },
-            { "return_text", "return_text (the text of the output is the result, at most 8 MiB)" }
+            { "return_text", "return_text (the text of the output is the result, at most 8 MiB)" },
+            { "save_files", "save_files (the files are written to the folder of the parameters by fileName and existingFiles)" }
         };
 
         QStringList parts;
@@ -385,6 +591,8 @@ public:
 
         bool usesDocument = false;
         bool usesDocuments = false;
+        bool usesSourceDocuments = false;
+        bool usesImages = false;
         QStringList resultValues;
 
         for (const PDFDocumentToolCatalogEntry* entry : PDFAppMcpCatalogTools::getImplementedTools(category))
@@ -406,22 +614,28 @@ public:
             }
 
             QString error;
-            std::optional<PDFMcpSchema> schema = PDFMcpSchema::fromQJson(PDFDocumentToolParameters::toJsonSchema(tool->getParameters()), &error);
+            std::optional<PDFMcpSchema> schema = PDFMcpSchema::fromQJson(createParameterSchema(tool.get()), &error);
             if (!schema)
             {
                 qWarning("The parameters of the tool %s give no MCP schema: %s", qPrintable(entry->getId()), qPrintable(error));
                 continue;
             }
 
+            const QStringList toolResultValues = PDFAppMcpCatalogTools::getToolResultValues(*entry, tool.get());
             const QString defaultResult = PDFAppMcpCatalogTools::getDefaultResult(*entry);
             schema->setDescription(QStringLiteral("Parameters of %1: %2 Results: %3; the default is %4.")
-                                       .arg(entry->getSourceTitle(), entry->getSourceDescription(), PDFAppMcpCatalogTools::getResultValues(entry->getResultKind()).join(QStringLiteral(", ")), defaultResult));
+                                       .arg(entry->getSourceTitle(), entry->getSourceDescription(), toolResultValues.join(QStringLiteral(", ")), defaultResult));
 
             PDFAppMcpActionSpec action;
             action.name = entry->getId().section(QLatin1Char('.'), 1);
             action.description = entry->getSourceDescription();
             action.permission = permission;
             action.permissionText = getPermissionText(entry->getResultKind(), entry->getInputKind());
+            if (toolResultValues.contains(QStringLiteral("save_files")))
+            {
+                action.permissionText = toolResultValues.size() == 1 ? QStringLiteral("Read documents, then Open and save files (`save_files`)")
+                                                                     : QStringLiteral("Read documents, then by `result`: Edit documents (`open_new_tab`) or Open and save files (`save_file`, `save_files`)");
+            }
             action.usesDocument = entry->getInputKind() != PDFDocumentToolInputKind::None;
             action.input = std::move(*schema);
             action.output = createResultSchema();
@@ -429,7 +643,9 @@ public:
 
             usesDocument = usesDocument || entry->getInputKind() != PDFDocumentToolInputKind::None;
             usesDocuments = usesDocuments || entry->getInputKind() == PDFDocumentToolInputKind::Multiple;
-            for (const QString& value : PDFAppMcpCatalogTools::getResultValues(entry->getResultKind()))
+            usesSourceDocuments = usesSourceDocuments || isReadingSourceDocuments(entry->getId());
+            usesImages = usesImages || isReadingImages(entry->getId());
+            for (const QString& value : toolResultValues)
             {
                 if (!resultValues.contains(value))
                 {
@@ -452,6 +668,16 @@ public:
         {
             spec.commonProperties.emplace_back(QStringLiteral("documentIds"), B::array(QStringLiteral("Ids of the open documents of a tool, which works with more documents (the first is the main one)"),
                                                                                        B::string(QString(), PDFAppMcpToolSet::DOCUMENT_ID_LENGTH), 1, 100));
+        }
+        if (usesSourceDocuments)
+        {
+            spec.commonProperties.emplace_back(QStringLiteral("sourceDocumentIds"), B::array(QStringLiteral("Ids of open documents, whose pages a tool inserts into the document of documentId (pages.insert), in their order"),
+                                                                                             B::string(QString(), PDFAppMcpToolSet::DOCUMENT_ID_LENGTH), 1, MAXIMUM_SOURCE_DOCUMENTS));
+        }
+        if (usesImages)
+        {
+            spec.commonProperties.emplace_back(QStringLiteral("imagePaths"), B::array(QStringLiteral("Absolute paths of image files (PNG, JPEG, TIFF, ...; never PDF files), which a tool reads with the permission Open and save files (pages.insert, pages.add-image, convert.images-to-pdf), in the order of the pages"),
+                                                                                      B::string(QString(), PDFAppMcpToolSet::MAXIMUM_PATH_LENGTH), 1, MAXIMUM_IMAGE_PATHS));
         }
         if (!resultValues.isEmpty())
         {
@@ -535,6 +761,8 @@ public:
     PDFAppToolRunEnvironment environment;
     PDFAppMcpToolResultMode mode = PDFAppMcpToolResultMode::Keep;
     QString path;
+    QString folder;     ///< The folder of save_files (the parameter folder, checked)
+    QStringList imagePaths; ///< imagePaths, checked (Q10 of step 3): read in the worker of the run
     QPointer<PDFAppDocument> document;
 };
 
@@ -572,11 +800,18 @@ public:
 
     QString getActionId() const { return m_request.toolName + QLatin1Char('.') + m_request.actionName; }
 
+    /// save_files with existingFiles overwrite: the files of the folder with the names of the
+    /// run are replaced - always confirmed as an overwrite of save_file (R17)
+    bool isOverwritingFiles() const
+    {
+        return m_request.mode == PDFAppMcpToolResultMode::SaveFiles &&
+               PDFDocumentToolFileOutput::getPolicy(m_request.parameters) == PDFDocumentToolFileSink::ExistingFiles::Overwrite;
+    }
+
     /// The tool rewrites the whole file: PDFAppDocument::isWholeFileRewritten of its result
     bool isWholeFileRewrite() const
     {
-        const PDFDocumentToolCatalogEntry* entry = m_request.tool->getInfo();
-        return entry && entry->getSignatureImpact() == PDFDocumentToolSignatureImpact::LostCopyOnly;
+        return PDFAppToolResultWriter::isRewrittenWhole(m_request.tool->getInfo(), &m_result);
     }
 
     /// A tool works through a whole document and may decode all of its images (the
@@ -622,21 +857,68 @@ public:
                     m_writeResult = PDFAppToolResultWriter::writeRequest(std::move(request), false);
                 }
             }
+            else if (m_request.mode == PDFAppMcpToolResultMode::SaveFiles)
+            {
+                // R17: the files of the run into the folder by the rules of the application (R14:
+                // never a source or an open document; existingFiles never asks)
+                QStringList names;
+                for (const auto& file : m_files)
+                {
+                    names << file.first;
+                }
+                PDFAppToolFileSink sink(m_request.folder, PDFDocumentToolFileOutput::getPolicy(m_request.parameters), m_request.environment.protectedFilePaths, true);
+                QString error;
+                if (sink.begin(names, &error))
+                {
+                    for (const auto& file : m_files)
+                    {
+                        sink.write(file.first, file.second, &error);
+                    }
+                    m_writeError.clear();
+                }
+                else
+                {
+                    m_writeError = error;
+                }
+                m_writtenFiles = sink.getWrittenFiles();
+                m_notWrittenFiles = m_writeError.isEmpty() ? sink.getNotWrittenFiles() : names;
+                m_writeResult.isWritten = m_writeError.isEmpty();
+                m_writeResult.errorMessage = m_writeError;
+            }
             else if (m_request.mode == PDFAppMcpToolResultMode::SaveFile)
             {
                 m_writeResult = PDFAppToolResultWriter::writeFileData(m_request.path, m_result.outputs.front().data, m_markSourceFilePath, false);
             }
             else
             {
-                PDFAppDocumentFileWriter::Request request = PDFAppToolResultWriter::createCopyRequest(m_request.tool->getInfo(), getSnapshot(), m_outputDocument, m_request.path);
+                PDFAppDocumentFileWriter::Request request = PDFAppToolResultWriter::createCopyRequest(m_request.tool->getInfo(), getSnapshot(), m_outputDocument, m_request.path, &m_result);
                 request.markSourceFilePath = m_markSourceFilePath;
                 m_writeResult = PDFAppToolResultWriter::writeRequest(std::move(request), false);
             }
             return;
         }
 
-        // The counter is read in the GUI thread (PDFAppMcpCatalogToolProgress)
-        m_result = m_request.tool->run(PDFDocumentToolRunner::createContext(getSnapshot(), m_request.environment), m_request.parameters, getCall().get(), m_progress.get());
+        // The counter is read in the GUI thread (PDFAppMcpCatalogToolProgress). The files of
+        // save_files are kept in the memory: the permission of the result is asked after the
+        // run, as for every result (the write phase writes them)
+        PDFDocumentToolContext context = PDFDocumentToolRunner::createContext(getSnapshot(), m_request.environment);
+        if (!m_request.imagePaths.isEmpty())
+        {
+            // Q10: the images of imagePaths are read here, in the worker (whole files, R15)
+            QString imageError;
+            if (!PDFAppMcpCatalogToolsHelper::readImages(m_request.imagePaths, getCall().get(), &context.images, &imageError))
+            {
+                m_result = imageError.isEmpty() ? PDFDocumentToolResult::createStopped() : PDFDocumentToolResult::createFailed(imageError);
+                return;
+            }
+        }
+        PDFAppToolMemoryFileSink memorySink;
+        if (m_request.mode == PDFAppMcpToolResultMode::SaveFiles)
+        {
+            context.fileSink = &memorySink;
+        }
+        m_result = m_request.tool->run(context, m_request.parameters, getCall().get(), m_progress.get());
+        m_files = memorySink.getFiles();
     }
 
     virtual void finish(PDFAppMcpHost* host) override
@@ -711,6 +993,13 @@ public:
             m_outputFlags = output->flags;
         }
 
+        // save_files (R17): the files of the run, nothing else
+        if (m_request.mode == PDFAppMcpToolResultMode::SaveFiles && (m_files.empty() || m_outputDocument || m_newDocument))
+        {
+            fail(QStringLiteral("The tool made no files; the result save_files writes only the files of a tool."), PDFMcpActivityStatus::Failed);
+            return;
+        }
+
         const bool deliversOutput = (m_request.mode == PDFAppMcpToolResultMode::ReturnText || m_request.mode == PDFAppMcpToolResultMode::SaveFile) && !m_newDocument;
         if (deliversOutput && m_outputDocument)
         {
@@ -718,7 +1007,7 @@ public:
             return;
         }
 
-        if (!m_outputDocument && !m_newDocument && (!deliversOutput || m_result.outputs.empty()))
+        if (!m_outputDocument && !m_newDocument && m_request.mode != PDFAppMcpToolResultMode::SaveFiles && (!deliversOutput || m_result.outputs.empty()))
         {
             // Analysis or nothing to do: Read was checked before the run
             succeed(PDFAppMcpCatalogToolsHelper::createResult(m_request.actionName, m_result, m_request.document, QString(), QString()));
@@ -751,8 +1040,9 @@ public:
             return;
         }
 
-        // Overwriting the original file is always confirmed (958:28030)
-        const bool isAlwaysConfirmed = m_request.mode == PDFAppMcpToolResultMode::Overwrite;
+        // Overwriting the original file is always confirmed (958:28030), as the files of
+        // save_files with existingFiles overwrite (R17)
+        const bool isAlwaysConfirmed = m_request.mode == PDFAppMcpToolResultMode::Overwrite || isOverwritingFiles();
         if (!m_isConfirmed && (policyResult == PDFAppMcpPolicyResult::Ask || isAlwaysConfirmed))
         {
             requestConfirmation(policy.getKindsToConfirm(kinds, assistantKey, true), isAlwaysConfirmed);
@@ -889,7 +1179,15 @@ private:
     PDFAppMcpPermissionKinds getResultPermissions() const
     {
         const PDFDocumentToolCatalogEntry* entry = m_request.tool->getInfo();
-        return PDFAppMcpCatalogTools::getResultPermissions(m_request.mode, entry ? entry->getInputKind() : PDFDocumentToolInputKind::One);
+        PDFAppMcpPermissionKinds kinds = PDFAppMcpCatalogTools::getResultPermissions(m_request.mode, entry ? entry->getInputKind() : PDFDocumentToolInputKind::One);
+
+        // Q10 of step 3: image files of the disk are read with Open and save files - an Ask
+        // asks with the result (the files of imagePaths are the facts of the question)
+        if (!m_request.imagePaths.isEmpty())
+        {
+            kinds |= PDFAppMcpPermissionKind::Files;
+        }
+        return kinds;
     }
 
     /// A signed document without a file keeps the result (F5): its signatures stop being
@@ -897,7 +1195,7 @@ private:
     bool isSignatureLost() const
     {
         return m_request.mode == PDFAppMcpToolResultMode::Keep &&
-               PDFAppToolResultWriter::isSignatureLost(m_request.tool->getInfo(), PDFForm::getSignatureCount(getSnapshot().document.data()) > 0, PDFAppDocumentFileWriter::isOnlyCopyWritable(getSnapshot()));
+               PDFAppToolResultWriter::isSignatureLost(m_request.tool->getInfo(), PDFForm::getSignatureCount(getSnapshot().document.data()) > 0, PDFAppDocumentFileWriter::isOnlyCopyWritable(getSnapshot()), &m_result);
     }
 
     QString getUndoDescription() const
@@ -944,7 +1242,7 @@ private:
         // O31, also of a version, which has become signed meanwhile (F8)
         if (isChangingDocument())
         {
-            const QString copyOnlyText = PDFAppMcpCatalogToolsHelper::getCopyOnlyText(entry, document);
+            const QString copyOnlyText = PDFAppMcpCatalogToolsHelper::getCopyOnlyText(entry, document, &m_result);
             if (!copyOnlyText.isEmpty())
             {
                 *text = copyOnlyText;
@@ -1007,6 +1305,12 @@ private:
                 confirmation->kind = PDFAppMcpConfirmationKind::SaveCopy;
                 confirmation->details.insert(QStringLiteral("content"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "The result of %1").arg(title));
                 break;
+            case PDFAppMcpToolResultMode::SaveFiles:
+                // The files of the run into the folder (its path is the path of the question)
+                confirmation->kind = PDFAppMcpConfirmationKind::SaveCopy;
+                confirmation->details.insert(QStringLiteral("content"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "%n files of %1", nullptr, int(m_files.size())).arg(title));
+                confirmation->details.insert(QStringLiteral("overwrite"), isOverwritingFiles());
+                break;
             case PDFAppMcpToolResultMode::OpenNewTab:
                 // Edit (plan of step 2, 7): a new unsaved document, nothing is written
                 confirmation->kind = PDFAppMcpConfirmationKind::NewTab;
@@ -1020,7 +1324,8 @@ private:
         confirmation->actionId = getActionId();
         confirmation->details.insert(QStringLiteral("tool"), title);
         confirmation->details.insert(QStringLiteral("facts"), createFacts());
-        const QString path = m_request.mode == PDFAppMcpToolResultMode::Overwrite && m_request.document ? m_request.document->getFilePath() : m_request.path;
+        const QString path = m_request.mode == PDFAppMcpToolResultMode::Overwrite && m_request.document ? m_request.document->getFilePath()
+                                                                                                        : (m_request.mode == PDFAppMcpToolResultMode::SaveFiles ? m_request.folder : m_request.path);
         m_confirmedFilePath = m_request.mode == PDFAppMcpToolResultMode::Overwrite ? path : QString();
         if (!path.isEmpty())
         {
@@ -1046,11 +1351,20 @@ private:
     QJsonArray createFacts() const
     {
         QJsonArray facts = PDFAppMcpCatalogToolsHelper::createConfirmationFacts(m_result);
+        if (!m_request.imagePaths.isEmpty())
+        {
+            // Q10: the files, which were read (the first one and their count)
+            QJsonObject fact;
+            fact.insert(QStringLiteral("key"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "Images read"));
+            fact.insert(QStringLiteral("value"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "%n files: %1", nullptr, int(m_request.imagePaths.size()))
+                                                     .arg(QDir::toNativeSeparators(m_request.imagePaths.front())));
+            facts.append(fact);
+        }
         const bool isWritingDocument = m_request.mode == PDFAppMcpToolResultMode::SaveCopy || m_request.mode == PDFAppMcpToolResultMode::Overwrite;
         const int signatureCount = PDFForm::getSignatureCount(getSnapshot().document.data());
         if (isWritingDocument && m_outputDocument && signatureCount > 0)
         {
-            const bool isIncremental = PDFAppToolResultWriter::createCopyRequest(m_request.tool->getInfo(), getSnapshot(), m_outputDocument, m_request.path).isIncremental;
+            const bool isIncremental = PDFAppToolResultWriter::createCopyRequest(m_request.tool->getInfo(), getSnapshot(), m_outputDocument, m_request.path, &m_result).isIncremental;
             QJsonObject fact;
             fact.insert(QStringLiteral("key"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "Signatures"));
             fact.insert(QStringLiteral("value"), isIncremental ? QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "%n kept - the changes are appended", nullptr, signatureCount)
@@ -1131,6 +1445,7 @@ private:
 
             case PDFAppMcpToolResultMode::SaveCopy:
             case PDFAppMcpToolResultMode::SaveFile:
+            case PDFAppMcpToolResultMode::SaveFiles:
                 startWrite();
                 return;
 
@@ -1210,8 +1525,18 @@ private:
         // The rules of the paths checked again after the confirmation (up to 2
         // minutes): a folder of the path replaced meanwhile by a link to the
         // data of PDF4QT or to a network location (as files.save_copy, review RC7-H)
-        // (open_new_tab writes into the memory: no path)
-        if (m_request.mode != PDFAppMcpToolResultMode::OpenNewTab)
+        // (open_new_tab writes into the memory: no path; save_files checks its folder again)
+        if (m_request.mode == PDFAppMcpToolResultMode::SaveFiles)
+        {
+            QString folderError;
+            const QString folder = PDFAppMcpCatalogToolsHelper::checkFolder(m_request.folder, &folderError);
+            if (folder.isEmpty())
+            {
+                fail(folderError, PDFMcpActivityStatus::Failed);
+                return;
+            }
+        }
+        else if (m_request.mode != PDFAppMcpToolResultMode::OpenNewTab)
         {
             QString pathError;
             const bool isCopy = m_request.mode == PDFAppMcpToolResultMode::SaveCopy;
@@ -1230,6 +1555,7 @@ private:
         writeJob->m_newDocument = m_newDocument;
         writeJob->m_newDocumentData = m_newDocumentData;
         writeJob->m_newDocumentName = m_newDocumentName;
+        writeJob->m_files = m_files;
         writeJob->m_status = m_status;
         writeJob->m_activityId = m_activityId;
         writeJob->m_markSourceFilePath = m_request.document ? m_request.document->getOriginFilePath() : getSnapshot().filePath;
@@ -1242,6 +1568,21 @@ private:
 
     void finishWrite()
     {
+        if (m_request.mode == PDFAppMcpToolResultMode::SaveFiles)
+        {
+            if (!m_writeError.isEmpty())
+            {
+                fail(QStringLiteral("The files could not be written: %1").arg(m_writeError), PDFMcpActivityStatus::Failed);
+                return;
+            }
+
+            // The written files and those, which were not (skipped, a source, an error)
+            m_result.writtenFiles = m_writtenFiles;
+            m_result.notWrittenFiles = m_notWrittenFiles;
+            succeed(PDFAppMcpCatalogToolsHelper::createResult(m_request.actionName, m_result, m_request.document, QString(), QString()));
+            return;
+        }
+
         if (!m_writeResult.isWritten)
         {
             fail(m_writeResult.isTargetExisting ? QStringLiteral("The file could not be written: the file exists already; choose another name.")
@@ -1375,6 +1716,10 @@ private:
     PDFDocumentPointer m_newDocument;           ///< The new document of the result (open_new_tab, save_file)
     QByteArray m_newDocumentData;               ///< Its bytes written by the run (empty = written by the write phase)
     QString m_newDocumentName;                  ///< Its suggested file name
+    std::vector<std::pair<QString, QByteArray>> m_files;    ///< The files of save_files made by the run (name, bytes)
+    QStringList m_writtenFiles;                 ///< save_files: the written files (paths)
+    QStringList m_notWrittenFiles;              ///< save_files: the names, which were not written
+    QString m_writeError;                       ///< save_files: the folder or the names were refused
     PDFAppToolResultWriter::Result m_writeResult;
     PDFMcpActivityStatus m_status = PDFMcpActivityStatus::Ok;
     qint64 m_activityId = 0;                    ///< The row of the question of the call
@@ -1506,8 +1851,7 @@ public:
         }
 
         PDFMcpJsonReader reader(invocation.arguments, QStringLiteral("arguments"));
-        const PDFDocumentToolResultKind resultKind = entry->getResultKind();
-        const QStringList resultValues = PDFAppMcpCatalogTools::getResultValues(resultKind);
+        const QStringList resultValues = PDFAppMcpCatalogTools::getToolResultValues(*entry, tool.get());
         const std::optional<QString> resultValue = resultValues.isEmpty() ? std::nullopt : reader.getEnum(QLatin1StringView("result"), resultValues, false);
         const std::optional<QString> pathValue = reader.getString(QLatin1StringView("path"), PDFAppMcpToolSet::MAXIMUM_PATH_LENGTH, false, PDFMcpJson::SanitizeFlag::None);
         if (reader.hasErrors())
@@ -1518,13 +1862,54 @@ public:
 
         const PDFAppMcpToolResultMode mode = PDFAppMcpCatalogTools::getResultMode(resultValue.value_or(PDFAppMcpCatalogTools::getDefaultResult(*entry))).value_or(PDFAppMcpToolResultMode::Keep);
 
+        // The kind of the result of these parameters (Extract Pages: one file = a new document,
+        // one file per page = files, plan 4.2): save_files is the result of the files only
+        QVariantMap actionParameters = invocation.actionArguments.toVariantMap();
+        const PDFDocumentToolResultKind resultKind = tool->getResultKind(actionParameters);
+        const bool isWritingFiles = PDFAppMcpCatalogTools::isWritingFiles(tool.get()) && resultKind == PDFDocumentToolResultKind::Files;
+        if (isWritingFiles != (mode == PDFAppMcpToolResultMode::SaveFiles))
+        {
+            host->finishWithError(call, toolId, nullptr, isWritingFiles ? QStringLiteral("result: these parameters make files; use the result save_files.")
+                                                                        : QStringLiteral("result: these parameters make no files; save_files is not their result."),
+                                  PDFMcpActivityStatus::Failed);
+            return;
+        }
+
+        QString folder;
+        if (isWritingFiles)
+        {
+            // R17: the folder of the files (the rules of save_file), Existing files without Ask
+            QString folderError;
+            folder = PDFAppMcpCatalogToolsHelper::checkFolder(actionParameters.value(QString::fromLatin1(PDFDocumentToolFileOutput::PARAMETER_FOLDER)).toString(), &folderError);
+            if (folder.isEmpty())
+            {
+                host->finishWithError(call, toolId, nullptr, folderError, PDFMcpActivityStatus::Failed);
+                return;
+            }
+
+            const QString existingKey = QString::fromLatin1(PDFDocumentToolFileOutput::PARAMETER_EXISTING_FILES);
+            const QString existing = actionParameters.value(existingKey).toString();
+            if (existing == QLatin1String(PDFDocumentToolFileOutput::EXISTING_ASK))
+            {
+                host->finishWithError(call, toolId, nullptr, QStringLiteral("existingFiles: an assistant is never asked; use skip or rename."), PDFMcpActivityStatus::Failed);
+                return;
+            }
+            // R17: existingFiles overwrite is confirmed always, as an overwrite of save_file
+            // (PDFAppMcpCatalogToolJob::isOverwritingFiles); a source or an open document is
+            // never replaced (R14, PDFAppToolFileSink)
+            if (existing.isEmpty())
+            {
+                actionParameters.insert(existingKey, QString::fromLatin1(PDFDocumentToolFileOutput::EXISTING_RENAME));
+            }
+        }
+
         // The inputs of a tool of more documents (K34): documentIds in the order of the
         // result, at least two (R20: the schema allows 1 to 100 for every such tool)
         std::vector<QPointer<PDFAppDocument>> inputDocuments;
         if (entry->getInputKind() == PDFDocumentToolInputKind::Multiple)
         {
             QString inputError;
-            if (!Helper::resolveInputDocuments(host, invocation, entry, &inputDocuments, &inputError))
+            if (!Helper::resolveInputDocuments(host, invocation, entry, tool->getInputCountRange(), &inputDocuments, &inputError))
             {
                 host->finishWithError(call, toolId, nullptr, inputError, PDFMcpActivityStatus::Failed);
                 return;
@@ -1534,6 +1919,67 @@ public:
         {
             host->finishWithError(call, toolId, nullptr, QStringLiteral("documentIds: %1 works with one document; give it by documentId.").arg(entry->getSourceTitle()), PDFMcpActivityStatus::Failed);
             return;
+        }
+
+        // The sources of Insert Pages, which are open documents (plan 7: context.documents[1..])
+        std::vector<QPointer<PDFAppDocument>> sourceDocuments;
+        if (invocation.arguments.contains(QLatin1StringView("sourceDocumentIds")))
+        {
+            const QJsonValue value = invocation.arguments.value(QLatin1StringView("sourceDocumentIds"));
+            QString sourceError;
+            if (!Helper::isReadingSourceDocuments(toolId))
+            {
+                sourceError = QStringLiteral("sourceDocumentIds: %1 takes no further documents.").arg(entry->getSourceTitle());
+            }
+            else if (!value.isArray() || value.toArray().isEmpty() || value.toArray().size() > Helper::MAXIMUM_SOURCE_DOCUMENTS)
+            {
+                sourceError = QStringLiteral("sourceDocumentIds: give 1 to %1 ids of open documents (application.get_state lists them).").arg(Helper::MAXIMUM_SOURCE_DOCUMENTS);
+            }
+            else
+            {
+                Helper::resolveDocumentIds(host, value.toArray(), QStringLiteral("sourceDocumentIds"), entry, &sourceDocuments, &sourceError);
+            }
+            for (size_t i = 0; sourceError.isEmpty() && i < sourceDocuments.size(); ++i)
+            {
+                // The permissions of each source (the rule Q2 of step 2, Q4) are checked by the
+                // validation of the tool with the snapshot
+                const QPointer<PDFAppDocument>& source = sourceDocuments[i];
+                if (!source || !source->isReady() || !source->getDocument())
+                {
+                    sourceError = QStringLiteral("sourceDocumentIds[%1]: the document is not read yet; try again when it is open.").arg(i);
+                }
+            }
+            if (!sourceError.isEmpty())
+            {
+                host->finishWithError(call, toolId, nullptr, sourceError, PDFMcpActivityStatus::Failed);
+                return;
+            }
+        }
+
+        // Q10: image files of the disk (only images, the rules of the paths, at most 1 000);
+        // they are read with the permission Open and save files, Deny refuses them here
+        QStringList imagePaths;
+        if (invocation.arguments.contains(QLatin1StringView("imagePaths")))
+        {
+            QString imageError;
+            if (!Helper::isReadingImages(toolId))
+            {
+                imageError = QStringLiteral("imagePaths: %1 takes no images.").arg(entry->getSourceTitle());
+            }
+            else
+            {
+                Helper::checkImagePaths(invocation.arguments.value(QLatin1StringView("imagePaths")), host->getContext(), &imagePaths, &imageError);
+            }
+            if (!imageError.isEmpty())
+            {
+                host->finishWithError(call, toolId, nullptr, imageError, PDFMcpActivityStatus::Failed);
+                return;
+            }
+            if (host->getPolicy().evaluate(PDFAppMcpPermissionKind::Files, call->getRequest().client.assistantKey, true) == PDFAppMcpPolicyResult::Denied)
+            {
+                host->finishWithError(call, toolId, nullptr, Helper::getDeniedText(mode, PDFAppMcpPermissionKind::Files, host->getPolicy().getPermissions()), PDFMcpActivityStatus::DeniedPermission);
+                return;
+            }
         }
 
         // What the result needs is known before the run (an analysis is raised to what
@@ -1655,7 +2101,7 @@ public:
             // O31: nothing is switched silently, no run for a result, which cannot be kept
             if (isChangingDocument)
             {
-                const QString copyOnlyText = Helper::getCopyOnlyText(entry, document);
+                const QString copyOnlyText = Helper::getCopyOnlyText(entry, document, nullptr);
                 if (!copyOnlyText.isEmpty())
                 {
                     host->finishWithError(call, toolId, document, copyOnlyText, PDFMcpActivityStatus::Failed);
@@ -1692,11 +2138,23 @@ public:
                 return;
             }
             snapshot = document->getSnapshot();
+
+            // The sources after the document of the tool, in their order (never changed)
+            for (const QPointer<PDFAppDocument>& source : sourceDocuments)
+            {
+                if (!source)
+                {
+                    host->finishWithError(call, toolId, document, PDFAppMcpCatalogToolsHelper::getClosedText(), PDFMcpActivityStatus::DeniedClosed);
+                    return;
+                }
+                const PDFAppDocumentSnapshot sourceSnapshot = source->getSnapshot();
+                additionalDocuments.push_back(PDFDocumentToolInputDocument::create(sourceSnapshot.document, sourceSnapshot.originalData, sourceSnapshot.filePath, sourceSnapshot.isModified));
+            }
         }
 
         // A value, which the tool would silently ignore, is an error naming what to set
         // (owner decision 5); only an assistant writes single values, a panel holds all of them
-        const QVariantMap givenParameters = invocation.actionArguments.toVariantMap();
+        const QVariantMap givenParameters = actionParameters;
         const std::vector<PDFDocumentToolParameterError> givenErrors = tool->checkGivenParameters(givenParameters);
         if (!givenErrors.empty())
         {
@@ -1720,6 +2178,10 @@ public:
         request.environment.additionalDocuments = std::move(additionalDocuments);
         request.mode = mode;
         request.path = path;
+        request.folder = folder;
+        request.imagePaths = imagePaths;
+        request.environment.protectedFilePaths = PDFAppMcpCatalogToolsHelper::getOpenDocumentPaths(host);
+        request.environment.isNetworkFolderRefused = true;
         request.document = document;
         PDFAppMcpCatalogToolJob::start(host, std::make_shared<PDFAppMcpCatalogToolJob>(call, snapshot, std::move(request), 0));
     }
@@ -1778,8 +2240,53 @@ QStringList PDFAppMcpCatalogTools::getResultValues(PDFDocumentToolResultKind kin
     return QStringList();
 }
 
+bool PDFAppMcpCatalogTools::isWritingFiles(const PDFDocumentTool* tool)
+{
+    if (!tool)
+    {
+        return false;
+    }
+    const std::vector<PDFDocumentToolResultKind> kinds = tool->getPossibleResultKinds();
+    if (std::find(kinds.cbegin(), kinds.cend(), PDFDocumentToolResultKind::Files) == kinds.cend())
+    {
+        return false;
+    }
+
+    const PDFDocumentToolParameterDefinitions definitions = tool->getParameters();
+    return PDFDocumentToolParameters::find(definitions, QString::fromLatin1(PDFDocumentToolFileOutput::PARAMETER_FOLDER)) &&
+           PDFDocumentToolParameters::find(definitions, QString::fromLatin1(PDFDocumentToolFileOutput::PARAMETER_FILE_NAME));
+}
+
+QStringList PDFAppMcpCatalogTools::getToolResultValues(const PDFDocumentToolCatalogEntry& entry, const PDFDocumentTool* tool)
+{
+    if (!tool || !isWritingFiles(tool))
+    {
+        return getResultValues(entry.getResultKind());
+    }
+
+    QStringList values;
+    for (const PDFDocumentToolResultKind kind : tool->getPossibleResultKinds())
+    {
+        const QStringList kindValues = kind == PDFDocumentToolResultKind::Files ? QStringList({ QStringLiteral("save_files") }) : getResultValues(kind);
+        for (const QString& value : kindValues)
+        {
+            if (!values.contains(value))
+            {
+                values << value;
+            }
+        }
+    }
+    return values;
+}
+
 QString PDFAppMcpCatalogTools::getDefaultResult(const PDFDocumentToolCatalogEntry& entry)
 {
+    // A tool, whose files are its result, writes them (Split)
+    if (entry.getResultKind() == PDFDocumentToolResultKind::Files && isWritingFiles(PDFDocumentToolRegistry::getTool(entry.getId()).get()))
+    {
+        return QStringLiteral("save_files");
+    }
+
     switch (entry.getPreselectedResult())
     {
         case PDFDocumentToolPreselectedResult::Keep:
@@ -1827,6 +2334,7 @@ PDFAppMcpPermissionKinds PDFAppMcpCatalogTools::getResultPermissions(PDFAppMcpTo
             break;
         case PDFAppMcpToolResultMode::SaveCopy:
         case PDFAppMcpToolResultMode::SaveFile:
+        case PDFAppMcpToolResultMode::SaveFiles:
             kinds |= PDFAppMcpPermissionKind::Files;
             break;
         case PDFAppMcpToolResultMode::ReturnText:
@@ -1845,9 +2353,15 @@ PDFAppMcpPermissionKind PDFAppMcpCatalogTools::getBasePermission(const PDFDocume
 
     switch (entry.getResultKind())
     {
-        case PDFDocumentToolResultKind::Analysis:
         case PDFDocumentToolResultKind::Files:
+            // The files, which a tool writes itself, have no other result (save_files)
+            if (isWritingFiles(PDFDocumentToolRegistry::getTool(entry.getId()).get()))
+            {
+                return PDFAppMcpPermissionKind::Files;
+            }
             // return_text of an export needs only Read, save_file is checked by its value
+            return PDFAppMcpPermissionKind::Read;
+        case PDFDocumentToolResultKind::Analysis:
             return PDFAppMcpPermissionKind::Read;
         case PDFDocumentToolResultKind::ChangeDocument:
         case PDFDocumentToolResultKind::NewDocument:

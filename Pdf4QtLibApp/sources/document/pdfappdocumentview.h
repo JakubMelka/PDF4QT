@@ -30,6 +30,7 @@
 #include "pdfglobal.h"
 
 #include <QPointer>
+#include <QSharedPointer>
 #include <QSplitter>
 #include <QSplitterHandle>
 #include <QString>
@@ -61,8 +62,11 @@ class PDFAppInfoBar;
 class PDFAppOutlineEditor;
 class PDFAppToolModeLayout;
 class PDFAppToolUndoTarget;
+class PDFCMS;
 class PDFCMSManager;
+struct PDFCMSSettings;
 class PDFDrawWidgetProxy;
+class PDFSettingsRepository;
 class PDFModifiedDocument;
 class PDFProgress;
 class PDFToolManager;
@@ -292,6 +296,12 @@ public:
     /// otherwise the current page
     std::vector<PDFInteger> getSelectedPages() const;
 
+    /// Pages the user has selected in the thumbnails: more pages, one page other than the current
+    /// one, or the one page chosen there (a click, the keys); an empty list = no selection of the
+    /// user (no fallback to the current page). Replace of Insert Pages (388:16103 "Available when
+    /// pages are selected in Thumbnails").
+    std::vector<PDFInteger> getExplicitlySelectedPages() const;
+
     /// Pages selected in the thumbnails (package C); an empty list = no selection
     /// (getSelectedPages returns the current page). Pages out of range are dropped.
     /// \p chosenPage is the one page the user has chosen in the thumbnails (a click, the
@@ -353,6 +363,17 @@ public:
     /// \param registry Commands of the application, may be null (empty text)
     /// \param userShortcuts Shortcuts of the user (PDFAppCommandRegistry::UserShortcuts)
     static QString formatCommandToolTip(const PDFAppCommandRegistry* registry, const QString& commandId, const std::map<QString, QString>& userShortcuts, bool isEmptyWithoutShortcut);
+
+    /// The color management of the settings of the application (Color management, Color modes),
+    /// as every view applies them (applySettings): \p cmsSettings starts with the defaults of the
+    /// manager and gets the values of \p settings. One reader for the views and the own tab of a
+    /// tool (K43: Images to PDF converts the colors of its preview as a document tab does).
+    static void readCMSSettings(const PDFSettingsRepository& settings, PDFCMSSettings* cmsSettings);
+
+    /// The color management of the settings of \p context as a shared immutable object (a copy for
+    /// a run, F12; null without a context). GUI thread only: it reads the settings and the
+    /// profiles of the folder of the settings.
+    static QSharedPointer<PDFCMS> createCMS(const PDFAppContext* context);
 
     // ------------------------------------------------------------- view
 

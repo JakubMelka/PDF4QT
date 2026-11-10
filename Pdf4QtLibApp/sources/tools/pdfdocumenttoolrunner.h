@@ -24,6 +24,7 @@
 #define PDFDOCUMENTTOOLRUNNER_H
 
 #include "pdfappdocument.h"
+#include "pdfapptoolfilesink.h"
 
 #include "pdfdocumenttool.h"
 
@@ -34,6 +35,7 @@
 #include <QVariantMap>
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace pdf
@@ -56,6 +58,8 @@ public:
     QString authorName;                                             ///< Author of the new content
     std::shared_ptr<const PDFCertificateStore> certificateStore;    ///< Trusted certificates, may be null
     QString temporaryFolder;                                        ///< Folder of the temporary files of the run
+    QStringList protectedFilePaths;                                 ///< Files, which a tool of more files never overwrites (the open documents, R14; PDFAppToolFileSink)
+    bool isNetworkFolderRefused = false;                            ///< The files of a tool of more files never go to another computer (MCP)
 };
 
 /// One tool on one document of a tab (plan of the first batch, chapter 2.1 and 2.4). A
@@ -214,6 +218,15 @@ public:
     /// of the document (never kept over a return to the event loop).
     const PDFDocumentToolResult* getPreview() const;
 
+    /// The question of a file of the run, which exists (Existing files: Ask, 356:11997): the
+    /// run waits for answerFileQuestion; std::nullopt = none. The runner reads it with the
+    /// progress and tells its change by fileQuestionChanged.
+    std::optional<PDFAppToolFileSink::Question> getFileQuestion() const;
+
+    /// Answers the question of the run (nothing without a question); StopExport stops the
+    /// writing of the files, the run ends as Stopped with the files written before
+    void answerFileQuestion(PDFAppToolFileSink::Answer answer, bool isForAll);
+
 Q_SIGNALS:
     /// A preview has started in a worker
     void previewStarted();
@@ -236,6 +249,9 @@ Q_SIGNALS:
     /// The run has ended. Success: the state is Waiting, the user decides. Other
     /// statuses (Stopped, Failed, NothingToDo): the state is Idle.
     void runFinished(const pdf::PDFDocumentToolResult& result);
+
+    /// The question of a file of the run has appeared or has gone (getFileQuestion)
+    void fileQuestionChanged();
 
     /// The document has left the state Ready or it is being destroyed: everything is
     /// canceled, the state is Idle
@@ -305,6 +321,7 @@ private:
     QVariantMap m_runParameters;
     std::shared_ptr<PDFDocumentToolRunnerJob> m_runJob;
     PDFAppDocumentSnapshot m_resultSnapshot;
+    std::optional<PDFAppToolFileSink::Question> m_fileQuestion;    ///< The question told by fileQuestionChanged
 
     QTimer m_previewTimer;
     QTimer m_progressTimer;

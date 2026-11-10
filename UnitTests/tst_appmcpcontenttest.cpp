@@ -779,7 +779,8 @@ void AppMcpContentTest::examplesValidate()
             {
                 const bool isCatalogTool = pdf::PDFAppMcpCatalogTools::isCatalogToolName(call.toolName);
                 const bool isCommon = it.key() == QStringLiteral("action") || it.key() == QStringLiteral("documentId") ||
-                                      (isCatalogTool && (it.key() == QStringLiteral("result") || it.key() == QStringLiteral("path") || it.key() == QStringLiteral("documentIds")));
+                                      (isCatalogTool && (it.key() == QStringLiteral("result") || it.key() == QStringLiteral("path") || it.key() == QStringLiteral("documentIds") ||
+                                                         it.key() == QStringLiteral("sourceDocumentIds") || it.key() == QStringLiteral("imagePaths")));
                 QVERIFY2(isCommon || it.key() == action, qPrintable(context + QStringLiteral(": the object of another action ") + it.key()));
             }
             for (const QJsonValue& documentId : call.arguments.value(QStringLiteral("documentIds")).toArray())

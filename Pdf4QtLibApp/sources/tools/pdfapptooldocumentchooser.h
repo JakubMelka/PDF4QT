@@ -25,6 +25,7 @@
 
 #include "pdfappglobal.h"
 #include "pdfapphomewidgets.h"
+#include "pdfdocumenttoolgui.h"
 
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentrows.h"
@@ -254,8 +255,20 @@ private:
     using BaseClass = QWidget;
 
 public:
-    /// Least number of inputs of the tool (Merge: two, 551:149074)
+    /// Least number of inputs of Merge (two, 551:149074); the chooser takes the rules of its tool
+    /// (getInputRules, K41)
     static constexpr int MINIMUM_INPUTS = 2;
+
+    /// The rules of the inputs of a tool (PDFDocumentToolGUI::getInputRules of its GUI, made only
+    /// for them and deleted at once; a tool without a GUI has the defaults)
+    static PDFAppToolInputRules getInputRules(const QString& toolId);
+
+    /// The reason of an input of a kind, which the tool does not take ("Interleave Pages needs PDF
+    /// files", K29), empty when it takes both kinds
+    static QString getUnsupportedReason(const QString& toolId, const PDFAppToolInputRules& rules);
+
+    /// The rules of the chooser
+    const PDFAppToolInputRules& getRules() const { return m_rules; }
 
     /// \param context Context of the application
     /// \param toolId Id of the tool
@@ -297,6 +310,9 @@ public:
     /// Ordinal text of a place in the result ("1st in the result", "2nd in the result", ...)
     static QString getOrderText(int index);
 
+    /// Text of a place by the rules: the title of its slot ("Front sides", K41), else getOrderText
+    QString getPlaceText(int index) const;
+
 Q_SIGNALS:
     /// Open Merge with … has been clicked (the caller hands the list over to the tool)
     void openToolRequested();
@@ -324,8 +340,9 @@ private:
 
     QPointer<PDFAppContext> m_context;
     QString m_toolId;
+    PDFAppToolInputRules m_rules;
     QPointer<PDFAppToolInputList> m_list;
-    QStringList m_fileIds;                  ///< Inputs of the files added here (checked or parked), in the order of their addition
+    QStringList m_fileIds;                 ///< Inputs of the files added here (checked or parked), in the order of their addition
     QString m_message;                      ///< A refusal of the last addition (K29), shown by the summary until the next change
     QPointer<PDFLabel> m_documentGroupLabel;
     QPointer<QVBoxLayout> m_documentRowsLayout;

@@ -229,13 +229,27 @@ void PDFReferencePointPicker::mouseMoveEvent(QMouseEvent* event)
 
 void PDFReferencePointPicker::keyPressEvent(QKeyEvent* event)
 {
+    const int index = getIndexAfterKey(m_currentIndex, event->key());
+    if (index == -1)
+    {
+        BaseClass::keyPressEvent(event);
+        return;
+    }
+
+    setCurrentIndex(index);
+    event->accept();
+}
+
+int PDFReferencePointPicker::getIndexAfterKey(int index, int key)
+{
     // The arrows move in the picture (it is not mirrored for right-to-left)
-    const int column = m_currentIndex % 3;
-    const int row = m_currentIndex / 3;
+    const int boundedIndex = qBound(0, index, POINT_COUNT - 1);
+    const int column = boundedIndex % 3;
+    const int row = boundedIndex / 3;
     int newColumn = column;
     int newRow = row;
 
-    switch (event->key())
+    switch (key)
     {
         case Qt::Key_Left:
             newColumn = qMax(0, column - 1);
@@ -258,12 +272,10 @@ void PDFReferencePointPicker::keyPressEvent(QKeyEvent* event)
             newRow = 2;
             break;
         default:
-            BaseClass::keyPressEvent(event);
-            return;
+            return -1;
     }
 
-    setCurrentIndex(newRow * 3 + newColumn);
-    event->accept();
+    return newRow * 3 + newColumn;
 }
 
 bool PDFReferencePointPicker::event(QEvent* event)

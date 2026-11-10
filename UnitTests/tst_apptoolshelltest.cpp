@@ -353,6 +353,8 @@ private slots:
     void dialogSignedVariant();
     void dialogLocked();
     void dialogNewDocument();
+    void dialogNewDocumentInThisTab();
+    void writerCertifiedResult();
     void dialogFiles();
     void dialogAnalysis();
     void dialogRecordsUse();
@@ -439,6 +441,7 @@ private slots:
     void shellSameToolOpensAgainAfterClose();
     void shellConfirmCommitsTypedValue();
     void shellPageSelectionFollowsUndoAndDocument();
+    void shellPageSelectionCanonicalRange();
     void shellRunningTextsOfTool();
     void shellRunGetsViewAndOwnPlace();
     void shellKeysInPanelAndStates();
@@ -3439,6 +3442,127 @@ void AppToolShellTest::dialogNewDocument()
     }
 }
 
+void AppToolShellTest::dialogNewDocumentInThisTab()
+{
+    // 336:3572 (R16): the new document of a tool with its own tab replaces that tab - "Open in
+    // this tab" (Recommended) gives the bytes of the document in the outcome, nothing is opened
+    // by the dialog; "Save as a file" writes the file and asks the page to open it in this tab
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Report.pdf"), 2));
+    QVERIFY(tab && AppToolShellFixture::waitFor([tab]() { return tab->getDocument()->isReady(); }));
+    const size_t tabCount = fixture.window->getTabs().size();
+
+    const auto openDialog = [&](pdf::PDFDocumentToolRunner** runner) -> PDFAppToolResultDialog*
+    {
+        *runner = fixture.createRunner(tab, TOOL_MERGE);
+        pdf::PDFAppToolResultInput input;
+        input.tool = pdf::PDFDocumentToolCatalog::findTool(TOOL_MERGE);
+        input.isResultInThisTab = true;
+        if (!fixture.runTool(*runner, AppToolShellFixture::parameters(QStringLiteral("new-document")), &input.result))
+        {
+            return nullptr;
+        }
+        PDFAppToolResultDialog* dialog = PDFAppToolResultDialog::open(tab, *runner, std::move(input));
+        AppToolShellFixture::settle();
+        return dialog;
+    };
+
+    {
+        pdf::PDFDocumentToolRunner* runner = nullptr;
+        PDFAppToolResultDialog* dialog = openDialog(&runner);
+        QVERIFY(dialog);
+        QCOMPARE(dialog->getSelectedChoice(), Choice::NewTab);
+        pdf::PDFAppToolResultOption* option = dialog->getOption(Choice::NewTab);
+        QVERIFY(option);
+        QCOMPARE(option->getRadioButton()->text(), QStringLiteral("Open in this tab"));
+        QCOMPARE(option->getDescription(), QStringLiteral("The new document opens here as an unsaved document. Save it whenever you want."));
+        QVERIFY(option->getTag()->isVisibleTo(option));
+        QCOMPARE(option->getTag()->text(), QStringLiteral("Recommended"));
+        QCOMPARE(dialog->getOption(Choice::File)->getDescription(), QStringLiteral("The PDF is written to a file you choose and then opened in this tab."));
+        QCOMPARE(dialog->getConfirmButton()->text(), QStringLiteral("Open Document"));
+
+        QSignalSpy decidedSpy(dialog, &PDFAppToolResultDialog::decided);
+        dialog->confirm();
+        QVERIFY(ToolShellTestHelper::waitForDecision(decidedSpy));
+        const PDFAppToolResultOutcome outcome = ToolShellTestHelper::firstOutcome(decidedSpy);
+        QCOMPARE(outcome.action, Action::OpenedInThisTab);
+        QVERIFY(outcome.newDocumentData.startsWith("%PDF-"));
+        QCOMPARE(outcome.newDocumentTitle, QStringLiteral("titled"));
+        QVERIFY(outcome.isAccepted());
+        AppToolShellFixture::settle();
+        QCOMPARE(fixture.window->getTabs().size(), tabCount);
+    }
+
+    {
+        fixture.window->activateTab(tab);
+        AppToolShellFixture::settle();
+        pdf::PDFDocumentToolRunner* runner = nullptr;
+        PDFAppToolResultDialog* dialog = openDialog(&runner);
+        QVERIFY(dialog);
+        QSignalSpy decidedSpy(dialog, &PDFAppToolResultDialog::decided);
+        dialog->selectChoice(Choice::File);
+        QVERIFY(!dialog->getOpenCheckBox()->isVisibleTo(dialog));
+        dialog->confirm();
+        QVERIFY(ToolShellTestHelper::waitForDecision(decidedSpy));
+        const PDFAppToolResultOutcome outcome = ToolShellTestHelper::firstOutcome(decidedSpy);
+        QCOMPARE(outcome.action, Action::FileSaved);
+        QVERIFY(outcome.isFileOpenedInThisTab);
+        QCOMPARE(QFileInfo(outcome.filePath).fileName(), QStringLiteral("titled.pdf"));
+        QCOMPARE(ToolShellTestHelper::titleOf(fixture.path(QStringLiteral("titled.pdf"))), QStringLiteral("Result title"));
+        AppToolShellFixture::settle();
+        QCOMPARE(fixture.window->getTabs().size(), tabCount);
+    }
+}
+
+void AppToolShellTest::writerCertifiedResult()
+{
+    // Q12, R10: the data of a result of a page tool on a certified document (DocMDP) make it a
+    // whole-file rewrite, which only a copy takes - also without a file; "lost-copy-only" of a
+    // tool, which rewrites the file by its catalog (Compress), is its impact, not a certification
+    using Writer = pdf::PDFAppToolResultWriter;
+    const pdf::PDFDocumentToolCatalogEntry* rotate = pdf::PDFDocumentToolCatalog::findTool(TOOL_ROTATE);
+    const pdf::PDFDocumentToolCatalogEntry* compress = pdf::PDFDocumentToolCatalog::findTool(TOOL_COMPRESS);
+    const pdf::PDFDocumentToolCatalogEntry* crop = pdf::PDFDocumentToolCatalog::findTool(QStringLiteral("pages.crop"));
+    QVERIFY(rotate && compress && crop);
+
+    pdf::PDFDocumentToolResult plain;
+    plain.data.insert(QStringLiteral("signatureImpact"), QStringLiteral("incremental-save"));
+    pdf::PDFDocumentToolResult certified;
+    certified.data.insert(QStringLiteral("signatureImpact"), QStringLiteral("lost-copy-only"));
+    certified.data.insert(QStringLiteral("certificationRemoved"), true);
+    pdf::PDFDocumentToolResult geometry;
+    geometry.data.insert(QStringLiteral("signatureImpact"), QStringLiteral("certified-copy-only"));
+    pdf::PDFDocumentToolResult compressed;
+    compressed.data.insert(QStringLiteral("signatureImpact"), QStringLiteral("lost-copy-only"));
+
+    QVERIFY(!Writer::isCertificationRemoved(rotate, nullptr));
+    QVERIFY(!Writer::isCertificationRemoved(rotate, &plain));
+    QVERIFY(Writer::isCertificationRemoved(rotate, &certified));
+    QVERIFY(Writer::isCertificationRemoved(crop, &geometry));
+    QVERIFY(!Writer::isCertificationRemoved(compress, &compressed));
+
+    QVERIFY(!Writer::isRewrittenWhole(rotate, &plain));
+    QVERIFY(Writer::isRewrittenWhole(rotate, &certified));
+    QVERIFY(Writer::isRewrittenWhole(compress, &compressed));
+
+    // Only a copy: with a file and without one (a certified document is never kept changed)
+    QVERIFY(Writer::isCopyOnly(rotate, true, true, false, &certified));
+    QVERIFY(Writer::isCopyOnly(rotate, true, false, false, &certified));
+    QVERIFY(!Writer::isCopyOnly(rotate, true, true, false, &plain));
+    QVERIFY(!Writer::isCopyOnly(compress, false, true, false, &compressed));
+    QVERIFY(Writer::isSignatureLost(rotate, true, false, &certified));
+    QVERIFY(!Writer::isSignatureLost(rotate, true, false, &plain));
+
+    PDFAppToolResultDialog::DocumentState state;
+    state.hasFile = true;
+    state.isSigned = true;
+    QCOMPARE(PDFAppToolResultDialog::getChoices(rotate, PDFAppToolResultDialog::ResultKind::ChangeDocument, state), std::vector<Choice>({ Choice::Keep, Choice::Copy, Choice::Overwrite }));
+    state.isCertificationRemoved = true;
+    QCOMPARE(PDFAppToolResultDialog::getChoices(rotate, PDFAppToolResultDialog::ResultKind::ChangeDocument, state), std::vector<Choice>({ Choice::Copy }));
+    state.hasFile = false;
+    QCOMPARE(PDFAppToolResultDialog::getChoices(rotate, PDFAppToolResultDialog::ResultKind::ChangeDocument, state), std::vector<Choice>({ Choice::Copy }));
+}
+
 void AppToolShellTest::dialogFiles()
 {
     AppToolShellFixture fixture;
@@ -4945,9 +5069,15 @@ void AppToolShellTest::shellFlowKeep()
     QVERIFY(dialog);
     QCOMPARE(shell->getState(), H::State::Deciding);
 
-    // K2: only Tutorial while the user decides; F2: the operation is held; no run asks
-    QVERIFY(!shell->getToolbar()->getCancelButton()->isVisible());
-    QVERIFY(!shell->getToolbar()->getConfirmButton()->isVisible());
+    // After the run (owner 2026-11-09, 296:2761): Cancel Enabled, the Primary button shown and
+    // Disabled in its place (the buttons keep their order); F2: the operation is held; no run asks
+    pdf::PDFAppToolToolbar* decidingBar = shell->getToolbar();
+    QVERIFY(decidingBar->getCancelButton()->isVisible());
+    QVERIFY(decidingBar->getCancelButton()->isEnabled());
+    QVERIFY(decidingBar->getConfirmButton()->isVisible());
+    QVERIFY(!decidingBar->getConfirmButton()->isEnabled());
+    QVERIFY(H::rectIn(decidingBar->getCancelButton(), decidingBar).right() < H::rectIn(decidingBar->getConfirmButton(), decidingBar).left());
+    QCOMPARE(H::rectIn(decidingBar->getConfirmButton(), decidingBar).right() + 1, decidingBar->width() - pdf::PDFAppToolToolbar::PADDING_H);
     QVERIFY(!shell->getToolbar()->getStopButton()->isVisible());
     QVERIFY(shell->getToolbar()->getTutorialButton()->isVisible());
     QVERIFY(document->isBlockedByOperation());
@@ -5461,8 +5591,9 @@ void AppToolShellTest::shellPageNotFoundWithoutGUI()
     // A tool without a GUI or without an implementation keeps Page Not Found, also a
     // route of another document; a document page without a tool behaves as before
     using H = ToolShellFlowHelper;
-    // A tool of the catalog without its implementation (Merge has its GUI since step 2 of phase 2)
-    const QString TOOL_WITHOUT_GUI = QStringLiteral("pages.split");
+    // A tool of the catalog without its implementation (Merge has its GUI since step 2 of phase 2,
+    // Split since step 3; Add Page Numbers stays closed until the owner opens it, O32)
+    const QString TOOL_WITHOUT_GUI = QStringLiteral("edit.page-numbers");
     AppToolShellFixture fixture;
     pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
     QVERIFY(tab);
@@ -5470,7 +5601,7 @@ void AppToolShellTest::shellPageNotFoundWithoutGUI()
     fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::documentTool(tab->getDocumentId(), TOOL_WITHOUT_GUI));
     AppToolShellFixture::settle();
     QVERIFY(fixture.notFoundPage());
-    QCOMPARE(fixture.notFoundPage()->getDescriptionText(), QString::fromUtf8("Tool “Split”"));
+    QCOMPARE(fixture.notFoundPage()->getDescriptionText(), QString::fromUtf8("Tool “Add Page Numbers”"));
 
     // Only the implementation, only the GUI
     std::shared_ptr<TestDocumentTool> tool = std::make_shared<TestDocumentTool>(TOOL_WITHOUT_GUI);
@@ -7960,6 +8091,68 @@ void AppToolShellTest::shellPageSelectionFollowsUndoAndDocument()
     const QString status = AppToolShellFixture::getGUI(labeledShell)->pageSelection->getStatusText();
     QVERIFY2(status.contains(QLatin1Char('(')), qPrintable(status));
     labeledShell->cancel();
+    AppToolShellFixture::settle();
+}
+
+void AppToolShellTest::shellPageSelectionCanonicalRange()
+{
+    // K42 (plan of step 3 of phase 2): the field of the range takes the en dash, the Arabic comma
+    // and the digits of other scripts, the core reads ASCII only - the value of the parameter is
+    // the canonical text of the same pages, the text shown to the user stays as typed
+    using H = ToolShellFlowHelper;
+    AppToolShellFixture fixture;
+    std::shared_ptr<ShellTestTool> tool = fixture.registerShellTool(TOOL_ROTATE, true);
+    QVERIFY(tool);
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, 20);
+    QVERIFY(tab);
+    pdf::PDFDocumentToolShell* shell = fixture.openTool(tab, TOOL_ROTATE);
+    QVERIFY(shell);
+    pdf::PDFPageSelection* selection = AppToolShellFixture::getGUI(shell)->pageSelection;
+    pdf::PDFAppToolParameterModel* model = shell->getModel();
+    const pdf::PDFDocument* document = tab->getDocument()->getDocument().data();
+    const QString typedRange = QStringLiteral("1–" "3، 8");
+
+    selection->setMode(pdf::PDFPageSelection::Mode::Range);
+    selection->setRange(typedRange);
+    AppToolShellFixture::settle();
+    QVERIFY(selection->getError().isEmpty());
+    QVERIFY(shell->getToolbar()->getConfirmButton()->isEnabled());
+
+    QString error;
+    std::optional<pdf::PDFDocumentToolPageSelection> value = pdf::PDFDocumentToolPageSelection::fromVariant(model->getValue(QStringLiteral("pages")), &error);
+    QVERIFY(value);
+    QCOMPARE(value->pages, QStringLiteral("1-3, 8"));
+    QCOMPARE(value->getPageIndices(document, &error), (std::vector<pdf::PDFInteger>{ 0, 1, 2, 7 }));
+    QVERIFY(error.isEmpty());
+
+    // Arabic-Indic digits and an open range: from page 18 to the last page of the 20
+    selection->setRange(QStringLiteral("١٨−"));
+    AppToolShellFixture::settle();
+    value = pdf::PDFDocumentToolPageSelection::fromVariant(model->getValue(QStringLiteral("pages")), &error);
+    QVERIFY(value);
+    QCOMPARE(value->pages, QStringLiteral("18-"));
+    QCOMPARE(value->getPageIndices(document, &error), (std::vector<pdf::PDFInteger>{ 17, 18, 19 }));
+    model->undo();
+    AppToolShellFixture::settle();
+
+    // A filter is a step of its own; its Undo gives the value with the same pages back, the
+    // field keeps the text the user typed (it says the same pages)
+    QCOMPARE(pdf::PDFDocumentToolPageSelection::fromVariant(model->getValue(QStringLiteral("pages")), &error)->pages, QStringLiteral("1-3, 8"));
+    selection->setRange(typedRange);
+    AppToolShellFixture::settle();
+    selection->setFilters(pdf::PDFPageSelection::Filter::Odd);
+    AppToolShellFixture::settle();
+    value = pdf::PDFDocumentToolPageSelection::fromVariant(model->getValue(QStringLiteral("pages")), &error);
+    QVERIFY(value->filters.testFlag(pdf::PDFDocumentToolPageSelection::Filter::Odd));
+    QCOMPARE(value->getPageIndices(document, &error), (std::vector<pdf::PDFInteger>{ 0, 2 }));
+    model->undo();
+    AppToolShellFixture::settle();
+    QVERIFY(selection->getFilters() == pdf::PDFPageSelection::Filters());
+    QCOMPARE(selection->getRange(), typedRange);
+    QCOMPARE(selection->getMode(), pdf::PDFPageSelection::Mode::Range);
+    QVERIFY(shell->getToolbar()->getConfirmButton()->isEnabled());
+
+    shell->cancel();
     AppToolShellFixture::settle();
 }
 

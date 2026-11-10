@@ -108,8 +108,6 @@ public:
     /// \returns Assembled document
     PDFDocument&& takeAssembledDocument() { return std::move(m_assembledDocument); }
 
-    static AssembledPages createAllDocumentPages(int documentIndex, const PDFDocument* document);
-
     static AssembledPage createDocumentPage(int documentIndex, int pageIndex, QSizeF pageSize, PageRotation pageRotation) { AssembledPage page{ documentIndex, -1, pageIndex, pageSize, pageSize, QMarginsF(), pageRotation, pageRotation}; return page; }
     static AssembledPage createImagePage(int imageIndex, QSizeF pageSize, PageRotation pageRotation) { AssembledPage page{ -1, imageIndex, -1, pageSize, pageSize, QMarginsF(), PageRotation::None, pageRotation}; return page; }
     static AssembledPage createBlankPage(QSizeF pageSize, PageRotation pageRotation) { AssembledPage page{ -1, -1, -1, pageSize, pageSize, QMarginsF(), PageRotation::None, pageRotation}; return page; }

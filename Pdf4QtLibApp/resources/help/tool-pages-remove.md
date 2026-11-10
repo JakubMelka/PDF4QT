@@ -38,3 +38,4 @@ When an AI assistant removes or moves pages while the tool is open, the marks st
 - A page with a text layer of Recognize Text (OCR) that stays keeps its layer.
 - Removed pages come back with Undo until the document is closed. To keep them in another file first, use Extract Pages.
 - A document with a signature on a page that stays is saved after its signed part, so the signature stays: the removed pages are still inside the signed part of the file. When the last signed page is removed, the file is written whole and the removed pages are gone from it.
+- A document certified by its author (a certification signature) allows no change of its pages: the result can only be saved as a copy, written whole and without the signatures, and the tool says why. The certified original stays as it is.

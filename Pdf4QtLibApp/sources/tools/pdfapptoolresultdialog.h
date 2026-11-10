@@ -161,6 +161,7 @@ public:
     QString reportText;         ///< Report of the run for the clipboard: the link Copy report in the head, empty = no link (Optimize Structure 303:5373, see the tool)
     QPointer<QWidget> scrimTarget;  ///< The covered widget: the canvas of the tool (312:7373); null = the body of the window
     QPointer<PDFAppTab> anchorTab;  ///< A new tab of the result goes after this tab (the own tab of a tool, plan of step 2 of phase 2, 4.5); null = after the tab of the input document
+    bool isResultInThisTab = false; ///< PDFDocumentToolGUI::isResultInThisTab: a new document replaces the own tab - "Open in this tab" and "Save as a file" then opened in this tab (336:3572, R16)
 };
 
 /// The decision of the user in the result dialog
@@ -174,7 +175,8 @@ public:
         CopySaved,      ///< Save as a copy: the file is written
         Overwritten,    ///< Overwrite the original file: the file is written, one undo step
         OpenedInNewTab, ///< Open in a new tab: a new unsaved document
-        FileSaved,      ///< Save as a file: the file is written
+        OpenedInThisTab, ///< Open in this tab (336:3572): the new unsaved document replaces the own tab of the tool (newDocumentData)
+        FileSaved,      ///< Save as a file: the file is written (with isResultInThisTab it then replaces the own tab of the tool)
         CopiedToClipboard, ///< Copy to clipboard
         Closed,         ///< An analysis: nothing to decide
         Rerun           ///< The document has changed: the tool runs again, the runner reports its new result (the shell opens the dialog again)
@@ -185,6 +187,9 @@ public:
     QString continueToolId;         ///< The tool chosen by Then continue with (empty = none)
     QString continueDocumentId;     ///< The document it runs on: the document of the tab, the opened copy or the new tab (F11); empty = none
     bool isOpenFolderRequested = false;  ///< Open the folder afterwards (an export): the page asks the navigator, which checks the address
+    QByteArray newDocumentData;     ///< OpenedInThisTab: the bytes of the new document, which replaces the own tab
+    QString newDocumentTitle;       ///< OpenedInThisTab: its title (the suggested name)
+    bool isFileOpenedInThisTab = false; ///< FileSaved with isResultInThisTab: the written file (filePath) replaces the own tab
 
     /// The result was accepted: the tool counts as used
     bool isAccepted() const { return action != Action::Discarded && action != Action::Rerun; }
@@ -259,8 +264,12 @@ public:
         ChangeDocument,
         NewDocument,
         Files,
-        Analysis
+        Analysis,
+        WrittenFiles    ///< Files written by the tool itself (R3 of the plan of step 3 of phase 2, 383:11374: Files, Folder, Size, Open the files in new tabs, Close, Open Folder; stopped 403:29978: Written, Not written, Folder, Delete Written Files, Close, Open Folder); no Then continue with (9.3 point 12)
     };
+
+    /// Most files opened by "Open the files in new tabs" (plan 4.2: more = "Opens the first 20 files")
+    static constexpr int MAXIMUM_OPENED_FILES = 20;
 
     /// What the document allows
     class DocumentState
@@ -270,6 +279,7 @@ public:
         bool isSigned = false;      ///< The document has a signed signature field
         bool isLocked = false;      ///< The document is locked
         bool isOnlyCopyWritable = false;    ///< PDFAppDocumentFileWriter::isOnlyCopyWritable: its file is damaged
+        bool isCertificationRemoved = false; ///< PDFAppToolResultWriter::isCertificationRemoved of the result: only a copy written whole (Q12, R10)
     };
 
     /// Kind of the dialog of a result
@@ -327,6 +337,16 @@ public:
     QPushButton* getChooseLocationButton() const { return m_chooseLocationButton; }
     QPushButton* getDiscardButton() const { return m_discardButton; }
     QPushButton* getConfirmButton() const { return m_confirmButton; }
+
+    /// The written files (R3): Close, the check box Open the files in new tabs (nullptr = not
+    /// offered: a stopped run, no PDF file), a stopped run of the tool (403:29978)
+    QPushButton* getCloseButton() const { return m_closeButton; }
+    QCheckBox* getOpenFilesCheckBox() const { return m_openFilesCheckBox; }
+    bool isStoppedRun() const { return m_isStoppedRun; }
+
+    /// The written files, which Delete Written Files deletes: the files this run has created,
+    /// never one it has overwritten (K46)
+    QStringList getDeletableFiles() const;
     QScrollArea* getScrollArea() const { return m_scrollArea; }
 
     /// The link Copy report of the head (PDFAppToolResultInput::reportText), nullptr = none
@@ -424,6 +444,16 @@ private:
     void onReportLinkClicked();
     void onWriterFinished(const pdf::PDFAppToolResultWriter::Result& result);
     void onRunnerGone();
+    void onCloseClicked();
+
+    /// The facts and the options of the written files (R3)
+    void createWrittenFilesFacts(QVBoxLayout* layout, QWidget* parent);
+
+    /// The folder of the written files (the first written or not written file), empty = none
+    QString getWrittenFolder() const;
+
+    /// Delete Written Files (K46): the created files are deleted, the dialog closes
+    void deleteWrittenFiles();
 
     /// Commits the changed document (Keep in this tab)
     void commitKeep();
@@ -472,6 +502,9 @@ private:
     QPointer<QCheckBox> m_openCheckBox;
     QPointer<QPushButton> m_discardButton;
     QPointer<QPushButton> m_confirmButton;
+    QPointer<QPushButton> m_closeButton;            ///< Close of the written files (R3)
+    QPointer<QCheckBox> m_openFilesCheckBox;        ///< Open the files in new tabs (R3)
+    bool m_isStoppedRun = false;                    ///< The written files of a stopped run (403:29978)
     QPointer<PDFAppToolResultWriter> m_writer;
     QPointer<QWidget> m_host;
     QPointer<PDFAppToolChooserDialog> m_chooser;

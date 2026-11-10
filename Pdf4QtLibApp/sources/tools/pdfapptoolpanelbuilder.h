@@ -50,8 +50,14 @@ class QVBoxLayout;
 namespace pdf
 {
 
+class PDFAnchorGrid;
 class PDFAppSettingControl;
+class PDFAppToolAnchorField;
+class PDFAppToolChoiceSwitch;
+class PDFAppToolMarginFields;
+class PDFAppToolPageRangeField;
 class PDFAppToolParameterModel;
+class PDFAppToolSelectedItemCard;
 class PDFDocument;
 class PDFDocumentToolGUI;
 class PDFListView;
@@ -420,6 +426,44 @@ public:
     /// A control of a parameter through the binder (Custom…, 294:1340) with its value
     /// store; nullptr for a type without a control
     PDFAppSettingControl* addValueControl(const QString& parameter);
+
+    // ------------------------------------------------------------- elements of step 3
+    //
+    // The skeleton of step 3a of phase 2 (plan R1 d) declares the elements, which the packages
+    // B, C and D need; each package defines its element (the builder function and the class of
+    // the element) in its own files, so pdfapptoolpanelbuilder.* stays the file of package A.
+    // An element binds its parameters as the others do: it writes the model (one undo step),
+    // follows Undo and Redo, an invalid text is an input error of the GUI (setInputError).
+
+    /// Anchor of an Enum parameter of the nine anchors in a toolbar menu ("Anchor: Middle
+    /// center", Resize 391:23146 / 391:23821): the button and its panel with PDFAnchorGrid of
+    /// 40 x 40 cells. Defined by package B (pdfapptoolgui_geometry.cpp).
+    PDFAnchorGrid* addAnchorMenu(const QString& parameter, const QString& titleFormat, int panelWidth);
+
+    /// Anchor of an Enum parameter of the nine anchors as a combo of a panel with the grid in
+    /// its popover (Add Image 388:18837, Images to PDF 356:9556: 36 x 36 cells). Defined by
+    /// package B (pdfapptoolgui_geometry.cpp).
+    PDFAppToolAnchorField* addAnchorField(const QString& parameter, const QString& label);
+
+    /// Four margins of Real parameters in millimeters - left, top, right, bottom (Resize
+    /// "Margins" 391:23146, Set Page Boxes "New box = trim box +" 391:26688; never mirrored for
+    /// right-to-left, they belong to the page). Defined by package B (pdfapptoolgui_geometry.cpp).
+    PDFAppToolMarginFields* addMarginFields(const QStringList& parameters, const QString& label);
+
+    /// Switch of the options of an Enum parameter inside of a panel (the source of Insert
+    /// Pages: All pages / Page range, 388:15487). Defined by package C (pdfapptoolgui_insert.cpp).
+    PDFAppToolChoiceSwitch* addChoiceSwitch(const QString& parameter, const QString& label);
+
+    /// Field of an ordered page range of a Text parameter (PDFPageRangeList, K23: "1-5, 7,
+    /// 10-, odd, even", the examples below the field, 388:15487) - not the page selection of
+    /// tools.md 9.6. Defined by package C (pdfapptoolgui_insert.cpp).
+    PDFAppToolPageRangeField* addPageRangeField(const QString& parameter, const QString& label, const QString& hint);
+
+    /// Section of the selected item (Selected image 336:1976: the Tag "1 of 6", the link
+    /// Rename, the rows Name, Folder, Pixels, Rotation, Crop, Page; also the Selection of Manage
+    /// Pages in 3b): the tool fills the rows and reacts to Rename. Defined by package D
+    /// (pdfapptoolgui_images.cpp).
+    PDFAppToolSelectedItemCard* addSelectedItemCard(const QString& title);
 
     /// Any other widget, a child of the widget of the content
     void addWidget(QWidget* widget);

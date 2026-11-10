@@ -1150,6 +1150,27 @@ void AppToolMergeTest::tileSizeOfPreview()
     QCOMPARE(button->text(), QStringLiteral("Size: Large"));
     QCOMPARE(gui->getCanvas()->getPageView()->visualRect(gui->getCanvas()->getModel()->index(0, 0)).size(), QSize(146 + 12, 200 + 28));
     QCOMPARE(fixture.context->getSettings().getString(pdf::PDFSettingKeys::toolsPageGridSize()), QStringLiteral("large"));
+
+    // The marks of the tiles of the grouped view (K45, Interleave 385:13263 "front 1" with the dot
+    // of its source): the tiles of a group with captions have the line of the caption (16 more,
+    // as the captions of the page tiles 389:20177), the delegate draws the dot of HueRole
+    pdf::PDFAppToolMergePageModel* model = gui->getCanvas()->getModel();
+    model->setTileMarks({ QStringLiteral("front 1"), QStringLiteral("back 1") }, true);
+    AppToolOwnTabFixture::settle();
+    QVERIFY(model->getGroups()[0].hasTileCaptions);
+    QCOMPARE(gui->getCanvas()->getPageView()->visualRect(model->index(0, 0)).size(), QSize(146 + 12, 200 + 28 + 16));
+    QVERIFY(model->data(model->index(0, 0), pdf::PDFComponentRoles::HueRole).isValid());
+    const pdf::PDFAppToolPageTileDelegate* delegate = qobject_cast<const pdf::PDFAppToolPageTileDelegate*>(gui->getCanvas()->getDelegate());
+    QVERIFY(delegate);
+    QStyleOptionViewItem option;
+    option.direction = Qt::LeftToRight;
+    option.rect = gui->getCanvas()->getPageView()->visualRect(model->index(0, 0));
+    QVERIFY(!delegate->getMarkRects(option, model->index(0, 0)).dot.isEmpty());
+    model->setTileMarks({}, false);
+    AppToolOwnTabFixture::settle();
+    QVERIFY(!model->getGroups()[0].hasTileCaptions);
+    QCOMPARE(gui->getCanvas()->getPageView()->visualRect(model->index(0, 0)).size(), QSize(146 + 12, 200 + 28));
+    QVERIFY(delegate->getMarkRects(option, model->index(0, 0)).dot.isEmpty());
 }
 
 void AppToolMergeTest::dropAndShortcutsAddFiles()
