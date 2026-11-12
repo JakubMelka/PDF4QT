@@ -77,7 +77,13 @@ endif()
 
 qt_standard_project_setup(I18N_TRANSLATED_LANGUAGES en de cs es ko zh_CN zh_TW fr tr ru)
 
-find_package(OpenSSL 3.0 REQUIRED)
+# PDF4QT needs the OpenSSL 3.x API: OpenSSL 4.x has removed the low-level MD5/RC4/AES/SHA
+# and RSA interfaces this code uses, and made X509_get_subject_name() return a const
+# pointer.  cmake/Pdf4QtOpenSSL3.cmake lets the build target an explicit OpenSSL 3
+# installation (headers and libraries), which is needed on systems whose default OpenSSL
+# is 4.x and that keep a 3.x elsewhere.  See that file for the -DPDF4QT_OPENSSL3_* options.
+include("${CMAKE_CURRENT_LIST_DIR}/cmake/Pdf4QtOpenSSL3.cmake")
+pdf4qt_setup_openssl3()
 find_package(ZLIB REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(OpenJPEG CONFIG REQUIRED)
