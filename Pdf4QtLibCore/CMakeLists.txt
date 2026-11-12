@@ -232,7 +232,7 @@ GENERATE_EXPORT_HEADER(Pdf4QtLibCore
 
 target_link_libraries(Pdf4QtLibCore PRIVATE Qt6::Core Qt6::Gui Qt6::Xml Qt6::Svg Qt6::Network)
 target_link_libraries(Pdf4QtLibCore PRIVATE ${LCMS2_LIBRARIES})
-target_link_libraries(Pdf4QtLibCore PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+target_link_libraries(Pdf4QtLibCore PRIVATE ${PDF4QT_SSL_DEPS})
 target_link_libraries(Pdf4QtLibCore PRIVATE ZLIB::ZLIB)
 target_link_libraries(Pdf4QtLibCore PRIVATE Freetype::Freetype)
 target_link_libraries(Pdf4QtLibCore PRIVATE openjp2)
