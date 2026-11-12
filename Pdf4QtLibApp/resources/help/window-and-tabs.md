@@ -20,7 +20,7 @@ The window of PDF4QT has no title bar of the system. Its top bar holds the tabs,
 
 ## Drop files on the window
 
-Drop PDF files from the file manager anywhere on the window: each of them opens in its own tab (at most 100 files at once). Only PDF files on this computer are opened; folders, other files and files of other computers are left out and a message lists them.
+Drop PDF files from the file manager anywhere on the window: each of them opens in its own tab (at most 100 files at once). An assembly file of [Manage Pages](/help/tool-pages-manage) (`.pdf4qtassembly`) opens in Manage Pages, or switches to its tab when it is open already. Only PDF files and assemblies on this computer are opened; folders, other files and files of other computers are left out and a message lists them.
 
 ## Closing a tab and quitting
 

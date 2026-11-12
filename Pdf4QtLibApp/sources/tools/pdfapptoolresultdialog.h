@@ -285,11 +285,12 @@ public:
     /// Kind of the dialog of a result
     static ResultKind getResultKind(const PDFDocumentToolResult& result);
 
-    /// The offered choices in the order of the dialog (the rules of O31, F5)
-    static std::vector<Choice> getChoices(const PDFDocumentToolCatalogEntry* tool, ResultKind kind, const DocumentState& state);
+    /// The offered choices in the order of the dialog (the rules of O31, F5); \p tool are the
+    /// values of the output of the run (RB3 a of step 3b), a catalog entry gives its row
+    static std::vector<Choice> getChoices(const PDFDocumentToolOutputTraits& tool, ResultKind kind, const DocumentState& state);
 
-    /// The preselected choice among \p choices (the catalog, else the first one)
-    static Choice getPreselectedChoice(const PDFDocumentToolCatalogEntry* tool, const std::vector<Choice>& choices);
+    /// The preselected choice among \p choices (the output of the run, else the first one)
+    static Choice getPreselectedChoice(const PDFDocumentToolOutputTraits& tool, const std::vector<Choice>& choices);
 
     /// Creates the dialog of a result in the state Waiting of the runner, not shown yet
     /// \param context Context of the application (the use of the tool, the suggestions)
@@ -471,6 +472,7 @@ private:
     QPointer<PDFAppDocumentTab> m_tab;
     QPointer<PDFDocumentToolRunner> m_runner;
     PDFAppToolResultInput m_input;
+    PDFDocumentToolOutputTraits m_outputTraits;     ///< The output of the run (PDFDocumentToolRunner::getOutputTraits), else the row of m_input.tool (RB3 a of step 3b)
     PDFAppDocumentSnapshot m_snapshot;
     ResultKind m_kind = ResultKind::Analysis;
     DocumentState m_state;

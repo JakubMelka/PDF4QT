@@ -364,6 +364,15 @@ public:
     /// \param userShortcuts Shortcuts of the user (PDFAppCommandRegistry::UserShortcuts)
     static QString formatCommandToolTip(const PDFAppCommandRegistry* registry, const QString& commandId, const std::map<QString, QString>& userShortcuts, bool isEmptyWithoutShortcut);
 
+    /// The same text with another title of the command (\p title empty = the title of the command):
+    /// Undo and Redo of a tool with the text of their step (getToolUndoTitle)
+    static QString formatCommandToolTip(const PDFAppCommandRegistry* registry, const QString& commandId, const std::map<QString, QString>& userShortcuts, bool isEmptyWithoutShortcut, const QString& title);
+
+    /// Title of Undo / Redo of an open tool with the text of its step ("Undo Group", 387:12569;
+    /// plan of step 3b of phase 2, RB3 d); empty for another command, without a target or
+    /// without a text of the step. One rule of the tool in a document tab and in its own tab.
+    static QString getToolUndoTitle(const PDFAppToolUndoTarget* target, const QString& commandId);
+
     /// The color management of the settings of the application (Color management, Color modes),
     /// as every view applies them (applySettings): \p cmsSettings starts with the defaults of the
     /// manager and gets the values of \p settings. One reader for the views and the own tab of a
@@ -508,6 +517,12 @@ public:
     /// plain text, bounded); ignored out of the mode, the mode shows "Ready" again at its end
     void setToolMessage(const QString& text);
     QString getToolMessage() const { return m_toolMessage; }
+
+    /// Text of the page item of the status bar during the mode, which replaces "Page 1 / 10"
+    /// (a tool of the document host: Manage Pages "12 pages", 1479:34632; plain text, bounded);
+    /// empty = the page item of the view. Ignored out of the mode, the mode ends it.
+    void setToolPageText(const QString& text);
+    QString getToolPageText() const { return m_toolPageText; }
 
 Q_SIGNALS:
     /// The tool mode has been entered or left (also by itself: the document is gone, every
@@ -680,6 +695,7 @@ private:
     QPointer<PDFAppToolModeLayout> m_modeLayout;
     QPointer<PDFAppToolUndoTarget> m_toolUndoTarget;
     QString m_toolMessage;
+    QString m_toolPageText;                     ///< setToolPageText, empty = the page item of the view
     bool m_isToolModeActive = false;
     bool m_hasToolParts = false;                ///< The mode was entered with a part or a target (gone all = the mode ends)
     bool m_isToolPartsUpdateQueued = false;

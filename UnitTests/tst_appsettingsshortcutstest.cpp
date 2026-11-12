@@ -992,10 +992,13 @@ void AppSettingsShortcutsTest::storageFilesList()
 {
     // The other database files of the folder: an older one with Delete…, a newer
     // one with its tag; damaged names are ignored; the version, not the schema
+    // The versions relative to the schema of the application: an older file of it, this instance
+    // one more (the test migrations), a newer file two more
+    const int current = pdf::PDFDatabaseSchema::getCurrentVersion();
     QTemporaryDir directory;
     const QString folder = directory.path();
-    QVERIFY(ShortcutsTestHelper::createSchemaFile(pdf::PDFDatabaseFiles::getFilePath(folder, 1), 1, "dark"));
-    QVERIFY(ShortcutsTestHelper::createSchemaFile(pdf::PDFDatabaseFiles::getFilePath(folder, 3), 3, "light"));
+    QVERIFY(ShortcutsTestHelper::createSchemaFile(pdf::PDFDatabaseFiles::getFilePath(folder, current), current, "dark"));
+    QVERIFY(ShortcutsTestHelper::createSchemaFile(pdf::PDFDatabaseFiles::getFilePath(folder, current + 2), current + 2, "light"));
     for (const char* name : { "pdf4qt-01.db", "pdf4qt.db", "pdf4qt-1.db.damaged-2026-10-01", "pdf4qt-x.db" })
     {
         QFile file(QDir(folder).filePath(QLatin1String(name)));
@@ -1004,7 +1007,7 @@ void AppSettingsShortcutsTest::storageFilesList()
     }
 
     StorageFixture fixture(folder, 1);
-    QCOMPARE(fixture.context->getDatabase()->getState().filePath, pdf::PDFDatabaseFiles::getFilePath(folder, 2));
+    QCOMPARE(fixture.context->getDatabase()->getState().filePath, pdf::PDFDatabaseFiles::getFilePath(folder, current + 1));
     pdf::PDFAppSettingsPage* page = fixture.openSettings(QStringLiteral("storage"));
     pdf::PDFAppStorageSettingsSection* section = ShortcutsTestHelper::storage(page);
     QVERIFY(section);
@@ -1013,24 +1016,24 @@ void AppSettingsShortcutsTest::storageFilesList()
     QCOMPARE(page->getNavigationItem(QStringLiteral("storage"))->getSubtitle(), QStringLiteral("Database, backup, other files"));
 
     // Location and state
-    QCOMPARE(section->getLocationPath(), pdf::PDFDatabaseFiles::getFilePath(folder, 2));
+    QCOMPARE(section->getLocationPath(), pdf::PDFDatabaseFiles::getFilePath(folder, current + 1));
     QVERIFY(section->getShowInFolderButton()->isEnabled());
     QCOMPARE(section->getStateValue()->getText(), QStringLiteral("Saved on this computer"));
     QCOMPARE(section->getStateValue()->getIconName(), QStringLiteral("check-circle"));
     QCOMPARE(section->getStateRow()->getDescription(), QStringLiteral("Every PDF4QT window uses this file and sees each change at once."));
-    QCOMPARE(section->getLocationRow()->getDescriptionLabel()->toolTip(), QDir::toNativeSeparators(pdf::PDFDatabaseFiles::getFilePath(folder, 2)));
+    QCOMPARE(section->getLocationRow()->getDescriptionLabel()->toolTip(), QDir::toNativeSeparators(pdf::PDFDatabaseFiles::getFilePath(folder, current + 1)));
 
-    // The files of 1269:14388: the older one first (schema 1), then the newer one (schema 3)
+    // The files of 1269:14388: the older one first, then the newer one
     const QList<pdf::PDFAppSettingRow*> rows = section->getFileRows();
     QCOMPARE(rows.size(), 2);
-    QCOMPARE(rows[1]->getTitle(), QStringLiteral("pdf4qt-3.db"));
+    QCOMPARE(rows[1]->getTitle(), pdf::PDFDatabaseFiles::getFileName(current + 2));
     QCOMPARE(rows[1]->getTagText(), QStringLiteral("Newer version"));
     QVERIFY(rows[1]->getDescription().startsWith(QStringLiteral("Newer PDF4QT · ")));
     // The label and the tag say it is newer: no third "Used by a newer PDF4QT" (coordinator 2026-10-25)
     QVERIFY(!rows[1]->getDescription().contains(QStringLiteral("Used by")));
     QCOMPARE(rows[1]->getDescription().count(QStringLiteral(" · ")), 2);
     QVERIFY(!rows[1]->getControlWidget());
-    QCOMPARE(rows[0]->getTitle(), QStringLiteral("pdf4qt-1.db"));
+    QCOMPARE(rows[0]->getTitle(), pdf::PDFDatabaseFiles::getFileName(current));
     QVERIFY(rows[0]->getTagText().isEmpty());
     QVERIFY(rows[0]->getDescription().startsWith(QStringLiteral("PDF4QT 2.0 · ")));
     QVERIFY(!rows[0]->getDescription().contains(QStringLiteral("Schema")));
@@ -1041,7 +1044,7 @@ void AppSettingsShortcutsTest::storageFilesList()
     QVERIFY(!section->getFilesGroup()->isHidden());
 
     // A new file of another version appears, when the section is shown again
-    QVERIFY(ShortcutsTestHelper::createSchemaFile(pdf::PDFDatabaseFiles::getFilePath(folder, 4), 4, "light"));
+    QVERIFY(ShortcutsTestHelper::createSchemaFile(pdf::PDFDatabaseFiles::getFilePath(folder, current + 3), current + 3, "light"));
     fixture.navigate(QStringLiteral("/settings/general"));
     page = fixture.openSettings(QStringLiteral("storage"));
     QCOMPARE(ShortcutsTestHelper::storage(page)->getFileRows().size(), 3);
@@ -1438,7 +1441,8 @@ void AppSettingsShortcutsTest::storageReadOnlyNewer()
     // Only a newer file (copied into memory): Read only, Import disabled, the newer
     // open file is not an "other" file
     QTemporaryDir directory;
-    QVERIFY(ShortcutsTestHelper::createSchemaFile(pdf::PDFDatabaseFiles::getFilePath(directory.path(), 2), 2, "dark"));
+    const int newer = pdf::PDFDatabaseSchema::getCurrentVersion() + 1;
+    QVERIFY(ShortcutsTestHelper::createSchemaFile(pdf::PDFDatabaseFiles::getFilePath(directory.path(), newer), newer, "dark"));
     StorageFixture fixture(directory.path());
     QCOMPARE(fixture.context->getDatabase()->getState().mode, pdf::PDFDatabaseStorageMode::ReadOnlyNewerSchema);
     pdf::PDFAppStorageSettingsSection* section = ShortcutsTestHelper::storage(fixture.openSettings(QStringLiteral("storage")));
@@ -1582,10 +1586,11 @@ void AppSettingsShortcutsTest::storageFilterOfRebuiltRows()
 {
     // Review RC5-D: the rows of the files built again (the section shown, a change of
     // the state) keep the search of the page
+    const int current = pdf::PDFDatabaseSchema::getCurrentVersion();
     QTemporaryDir directory;
     const QString folder = directory.path();
-    QVERIFY(ShortcutsTestHelper::createSchemaFile(pdf::PDFDatabaseFiles::getFilePath(folder, 1), 1, "dark"));
-    QVERIFY(ShortcutsTestHelper::createSchemaFile(pdf::PDFDatabaseFiles::getFilePath(folder, 3), 3, "light"));
+    QVERIFY(ShortcutsTestHelper::createSchemaFile(pdf::PDFDatabaseFiles::getFilePath(folder, current), current, "dark"));
+    QVERIFY(ShortcutsTestHelper::createSchemaFile(pdf::PDFDatabaseFiles::getFilePath(folder, current + 2), current + 2, "light"));
     StorageFixture fixture(folder, 1);
     pdf::PDFAppStorageSettingsSection* section = ShortcutsTestHelper::storage(fixture.openSettings(QStringLiteral("storage")));
     QVERIFY(section);

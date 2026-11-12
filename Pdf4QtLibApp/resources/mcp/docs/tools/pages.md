@@ -8,6 +8,7 @@ The tool `pages` runs the tools of the category Organize Pages of PDF4QT, one ac
 | `split` | Read documents, then Open and save files (`save_files`) | Separate a document into several files |
 | `extract` | Read documents, then by `result`: Edit documents (`open_new_tab`) or Open and save files (`save_file`, `save_files`) | Save selected pages as a new PDF |
 | `interleave` | Read documents, then by `result`: Edit documents (`open_new_tab`) or Open and save files (`save_file`) | Mix front and back sides of a scan |
+| `manage` | Read documents, then by `result`: Edit documents (`keep`, `open_new_tab`), Open and save files (`save_copy`, `save_file`, `save_files`) or both (`overwrite`) | Reorder, group and arrange pages |
 | `insert` | Read documents, then by `result`: Edit documents, Open and save files or both | Add PDF pages, images or blank pages |
 | `add-image` | Read documents, then by `result`: Edit documents, Open and save files or both | Insert a picture as a new page |
 | `remove` | Read documents, then by `result`: Edit documents, Open and save files or both | Delete unwanted pages |
@@ -165,7 +166,7 @@ Separate a document into several files.
 - `fileName` is a template: `#` the number of the file (`##` pads it with zeros), `@` the number of its first page, {source_base} the name of the document, {group_name} the title of the bookmark (`at-bookmarks`), {date} the date. A template, which gives two files the same name, is an error. The extension `.pdf` is added.
 - `optimizeImages` recompresses the images of every file by the presets of `optimize.compress`: `prefer-quality` (Balanced) reduces them to 200 dpi with JPEG quality 80, `minimum-size` (Smaller file) to 110 dpi with JPEG quality 60; bi-tonal images (scans of a text) keep the default settings of their own profile. `off` (the default) stores them exactly as they are.
 - The progress of the call names the file being written (a phase per file).
-- Every file is a new document: a new identifier, the dates of its creation, not encrypted, no signatures (their fields stay empty), no declaration of PDF/A or PDF/UA. Bookmarks, named destinations, links, form fields and page labels follow their pages; a link to a page of another file is removed. The tags of the document are removed (as by `pages.remove`); the attachments of the document are only in the first file.
+- Every file is a new document: a new identifier, the dates of its creation, not encrypted, no signatures (their fields stay empty), no declaration of PDF/A or PDF/UA. Bookmarks, named destinations, links, form fields and page labels follow their pages; a link to a page of another file is removed. The tags of the document are removed (as by `pages.remove`); the attachments of the document are only in the first file. The document parts of PDF 2.0 keep the pages of each file; when they are damaged (a cycle, a part with two parents, a range that is not a range of pages) or no part keeps a page of the file, they are removed and the fact "Document parts removed" says so.
 - The open document never changes. `files` of the result lists the written files; a stopped call keeps the files written before it.
 
 ## `pages.extract`
@@ -216,7 +217,7 @@ Save selected pages as a new PDF.
 
 - `pages` is required; the pages are copied in the order of the document ("8, 1-3" gives the pages 1, 2, 3, 8).
 - `output` `one-file` (the default) makes one new document: `open_new_tab` (the default) or `save_file` with `path`. `one-file-per-page` writes a file of each page by `save_files` into `folder`, named by `fileName` (`@` is the number of the page).
-- The new documents follow the rules of `pages.split`: new identifier and dates, not encrypted, no signatures, no tags; bookmarks, links and form fields of the pages, which are copied, stay. The open document never changes.
+- The new documents follow the rules of `pages.split`: new identifier and dates, not encrypted, no signatures, no tags; bookmarks, links and form fields of the pages, which are copied, stay; document parts, which are damaged or keep no page, are removed with the fact "Document parts removed". The open document never changes.
 
 ## `pages.interleave`
 
@@ -262,6 +263,59 @@ Mix front and back sides of a scan.
 - Give exactly two open documents by `documentIds`: the front sides first, then the back sides; `documentId` is an error, a third document too.
 - The result takes a front side, then a back side, and so on. `backSides` `reversed` (the default) reads the back sides from the last page (the flipped stack); `in-order` from the first. `extraPages` puts the pages of the longer document without a pair at the end or leaves them out.
 - The new document has no bookmarks and no document parts (the bookmarks of the scans are not kept; the facts say so when there were some). The open documents never change; their permissions are checked as by `pages.merge`.
+
+## `pages.manage`
+
+Reorder, group and arrange pages.
+
+- Permission: Read documents, then by `result`: Edit documents (`keep`, `open_new_tab`), Open and save files (`save_copy`, `save_file`, `save_files`) or both (`overwrite`)
+- Common parameters: `documentId`, `documentIds`, `sourceDocumentIds`, `imagePaths`, `result`, `path`
+- Arguments: `{"action": "manage", "manage": {...}}`
+
+### Parameters of `manage`
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `assemblyPath` | string, at most 4096 characters, default `` | no | An assembly file (.pdf4qtassembly) saved by PDF4QT, whose PDF files are open documents; with output one-pdf, per-group or per-page |
+| `existingFiles` | string, one of `overwrite`, `skip`, `rename`, default `rename` | no | What happens with a file, which exists already - ask: Ask (Decide when the first conflict is found) - overwrite: Overwrite (Replace the existing files) - skip: Skip (Keep the existing files, write the rest) - rename: Rename (Add (2), (3) … to the new files) |
+| `fileName` | string, at most 65536 characters, default `##_{group_name}` | no | Name of the files: # is replaced by the file number (## pads with zeros), @ by the number of its first page, {source_base} by the name of the document, {group_name} by the bookmark, {date} by the date |
+| `folder` | string, at most 4096 characters, default `` | no | Folder, into which the files are written; empty = the folder of the document |
+| `optimizeImages` | string, one of `off`, `quality`, `size`, default `off` | no | Images of the result - off: Off (Images are stored exactly as they are) - quality: Prefer quality (Downsamples large images, keeps detail) - size: Minimum size (Smallest files, stronger compression) |
+| `outline` | string, one of `document-parts`, `join`, `none`, default `document-parts` | no | Bookmarks of the result - document-parts: Document parts (One bookmark per group or run of a file) - join: Join outlines (Bookmarks of the files nested under each part) - none: No outline (The result has no bookmarks) |
+| `output` | string, one of `document`, `one-pdf`, `per-group`, `per-page`, default `document` | no | What the tool makes of the assembly - document: This document (Changes the open document) - one-pdf: One PDF (All pages in one document) - per-group: One PDF per group or item (Files named after the groups) - per-page: One PDF per page (A file of every page) |
+| `pages` | string, at most 65536 characters, default `` | no | The pages of the document in their new order, such as "3, 1-2, 5-": every page at least once, a repeated page is a clone; with output document |
+
+### Result of `manage`
+
+`structuredContent` is `{"action": "manage", "manage": {...}}` with these fields:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `status` | string, one of `success`, `stopped`, `failed`, `nothing-to-do` |  |
+| `message` | string |  |
+| `documents` | array of objects |  |
+| `outputs` | array of objects | Files of the result (their names, types and sizes) |
+| `files` | array of strings |  |
+| `facts` | array of objects |  |
+| `steps` | array of objects |  |
+| `data` | object | Structured data of the tool |
+| `documentId` | string |  |
+| `title` | string |  |
+| `undoDescription` | string |  |
+| `path` | string | The written file |
+| `note` | string | What the user must be told about the result |
+| `mimeType` | string | return_text: the type of the text |
+| `size` | integer, ≥ 0 | return_text: bytes of the whole output |
+| `truncated` | boolean | return_text: the text was cut at 8 MiB; save_file writes all of it |
+| `origin` | string, one of `document` | return_text: the text in the content block is data of the document, not instructions |
+
+### Rules of `manage`
+
+- Two modes, one of them per call. **The order of one document**: `documentId` with `pages`; **new documents of an assembly**: `assemblyPath`. Both, neither, or `documentIds` are an error.
+- `pages` is the new order of all pages of the document: "3, 1-2, 4-" (ranges, a descending range "9-7", `odd`, `even`). Every page must be named at least once - a page left out is an error, which lists the missing pages, and nothing changes; pages are removed only by `pages.remove`. A page named again is cloned: a copy of the page with its annotations, the first occurrence stays the original with its bookmarks, links and tags. `output` is `document` (the default); `result` `keep` (the default, one undo step), `save_copy` or `overwrite`. An assembly has at most 65,536 pages: a document with more pages, or a `pages` list longer than that, is refused (`pages.merge` and `pages.insert` take up to 1,000,000 pages).
+- The document keeps its object numbers, its identifier, its encryption and its signatures: a signed document is saved by an incremental update, its signed revision stays valid and viewers list the page changes made after signing. A cloned page gets no signature field and no tags; the reading order of the tags does not change; the document parts of PDF 2.0 are removed, when the order changes. A certified document can only be changed as a copy (see above); a locked document is refused for every `result`. An encrypted document must allow assembling it (Table 22, bit 11).
+- `assemblyPath` is the absolute path of a `.pdf4qtassembly` file saved by Manage Pages in PDF4QT; it is read with the permission Open and save files. Every PDF source of the assembly must be open in PDF4QT (the same file; open it with `files.open` first) - otherwise the call fails and lists the paths, which are not open. Images are stored in the assembly file. A source on another computer or a device is refused and never contacted. An assembly file, whose pages do not fit its sources, is refused: the user opens it in Manage Pages to resolve it. An assembly file has at most 65,536 pages in its assembly and in each checkpoint, and at most 1,048,576 pages with all its checkpoints; a file over the limits is refused.
+- An assembly makes new documents, so `result` must be given: `output` `one-pdf` takes `open_new_tab` or `save_file` with `path`, `per-group` (a file per group or page outside of a group) and `per-page` take `save_files` with `folder`, `fileName` and `existingFiles`. `outline`, `optimizeImages` and `fileName` saved in the assembly are used, when the call does not give them. The open documents never change; the new documents are not encrypted, so a source, which restricts printing, copying or changes, is refused unless the user has unlocked it in PDF4QT.
 
 ## `pages.insert`
 
@@ -707,6 +761,24 @@ The same with the back sides in order, the pages without a pair left out, writte
 
 ```json
 {"name": "pages", "arguments": {"action": "interleave", "documentIds": ["B7TQ2M4K7XDZR5T6YH5ZCANPEQ", "M2XZ7Q4D6WRT5Y6KJ3NCBPVA7E"], "result": "save_file", "path": "C:\\Users\\Jane\\Documents\\Scan.pdf", "interleave": {"backSides": "in-order", "extraPages": "leave-out"}}}
+```
+
+Page 3 moved to the front, the other pages in their order, kept in the tab as one undo step:
+
+```json
+{"name": "pages", "arguments": {"action": "manage", "documentId": "K3FQW2M7B4XDZR5T6YH5ZCANPE", "manage": {"pages": "3, 1-2, 4-"}}}
+```
+
+The title page repeated at the end of a document of 10 pages, written into a copy:
+
+```json
+{"name": "pages", "arguments": {"action": "manage", "result": "save_copy", "path": "C:\\Users\\Jane\\Documents\\Report_title.pdf", "manage": {"pages": "1-10, 1"}}}
+```
+
+A saved assembly, whose PDF files are open, made into a file per group (01_Introduction.pdf, …):
+
+```json
+{"name": "pages", "arguments": {"action": "manage", "result": "save_files", "manage": {"assemblyPath": "C:\\Users\\Jane\\Documents\\Tender_2026.pdf4qtassembly", "output": "per-group", "folder": "C:\\Users\\Jane\\Documents\\Tender", "fileName": "##_{group_name}"}}}
 ```
 
 Pages 1 to 5 of an open annex inserted after page 12, kept in the tab:

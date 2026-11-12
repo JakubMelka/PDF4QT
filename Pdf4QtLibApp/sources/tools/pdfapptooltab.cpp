@@ -425,6 +425,29 @@ bool PDFAppToolTabPage::confirmClose()
             break;
     }
 
+    // RB3 c of step 3b: the tool asks its own question first (Manage Pages 405:30894 "Save the
+    // assembly …?"); its dialog runs foreign code - the page, the shell and the GUI may be gone
+    if (PDFDocumentToolGUI* gui = m_shell->getGUI())
+    {
+        const PDFAppToolCloseAnswer answer = gui->askOwnTabClose();
+        if (!guard || !m_shell)
+        {
+            return false;
+        }
+
+        switch (answer)
+        {
+            case PDFAppToolCloseAnswer::Generic:
+                break;
+            case PDFAppToolCloseAnswer::Close:
+                return true;
+            case PDFAppToolCloseAnswer::Cancel:
+            case PDFAppToolCloseAnswer::Saving:
+                // Saving: the tool closes the tab after its save (PDFDocumentToolGUI::closeOwnTab)
+                return false;
+        }
+    }
+
     // K16: the inputs are lost by the close (no frame: a deviation named in the report)
     const PDFAppToolTab* tab = getToolTab();
     const QString lossText = tab ? tab->getLossText() : QString();
@@ -576,6 +599,12 @@ void PDFAppToolTabPage::onCloseRequested(const PDFAppToolCloseRequest& request)
         }
     }
 
+    // RB3 b of step 3b (Manage Pages K31, 396:27563 "The assembly stays open"): the result is
+    // out (opened, saved, the folder asked for); the tool returns to editing with its inputs, Then
+    // continue with opens its tool beside it
+    const PDFDocumentToolGUI* gui = m_shell ? m_shell->getGUI() : nullptr;
+    const bool isTabKept = gui && gui->isTabKeptAfterResult();
+
     // R17: Then continue with starts on the new tab first, then this tab closes (Q9)
     if (!requestCopy.continueToolId.isEmpty() && !requestCopy.continueDocumentId.isEmpty())
     {
@@ -587,6 +616,15 @@ void PDFAppToolTabPage::onCloseRequested(const PDFAppToolCloseRequest& request)
         {
             return;
         }
+    }
+
+    if (isTabKept)
+    {
+        if (m_shell)
+        {
+            m_shell->resumeEditing();
+        }
+        return;
     }
 
     // The tool ends before its tab is deleted later: nothing of it is reported from the

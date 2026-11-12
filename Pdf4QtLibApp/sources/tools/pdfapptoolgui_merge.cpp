@@ -279,53 +279,12 @@ PDFAppToolMergeEmptyState::PDFAppToolMergeEmptyState(const std::vector<Document>
 
         for (const Document& document : documents)
         {
-            QWidget* row = new QWidget(card);
+            // tab-1 378:1851: the shared row of an open document
+            PDFAppToolOpenDocumentRow* row = new PDFAppToolOpenDocumentRow(document, card);
             row->setObjectName(QStringLiteral("mergeEmptyDocument-") + document.documentId);
-            row->setFixedHeight(ROW_HEIGHT);
-            QHBoxLayout* rowLayout = new QHBoxLayout(row);
-            rowLayout->setContentsMargins(8, 8, 8, 8);
-            rowLayout->setSpacing(10);
-
-            PDFIconBadge* tile = new PDFIconBadge(QStringLiteral("tab"), 30, 16, row);
-            tile->setRadius(8);
-            tile->setColors(PDFThemeColors::BgAccentSubtle, PDFThemeColors::IconAccent);
-            rowLayout->addWidget(tile);
-
-            QVBoxLayout* textLayout = new QVBoxLayout();
-            textLayout->setContentsMargins(0, 0, 0, 0);
-            textLayout->setSpacing(1);
-            QHBoxLayout* top = new QHBoxLayout();
-            top->setContentsMargins(0, 0, 0, 0);
-            top->setSpacing(6);
-            // text 378:1852: the name in a line of 15, 1 above the line of 13 (as the rows of Files)
-            PDFLabel* name = PDFAppPageWidgets::createLabel(document.name, QFont::DemiBold, 12, PDFThemeColors::TextPrimary, row);
-            name->setMinimumWidth(1);
-            name->setLineHeight(PDFAppToolInputRow::NAME_HEIGHT);
-            top->addWidget(name);
-            if (document.isModified)
-            {
-                PDFTag* tag = new PDFTag(tr("unsaved changes"), row);
-                tag->setFocusPolicy(Qt::NoFocus);
-                tag->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-                top->addWidget(tag);
-            }
-            top->addStretch(1);
-            textLayout->addLayout(top);
-            PDFLabel* details = PDFAppPageWidgets::createLabel(document.details, QFont::Normal, 11, PDFThemeColors::TextTertiary, row);
-            details->setLineHeight(PDFAppToolInputRow::LINE_HEIGHT);
-            textLayout->addWidget(details);
-            // The two lines stay together in the middle of the row (the labels do not grow)
-            textLayout->insertStretch(0, 1);
-            textLayout->addStretch(1);
-            rowLayout->addLayout(textLayout, 1);
-
-            QPushButton* add = PDFAppPageWidgets::createButton(tr("Add"), QStringLiteral("plus"), false, row);
-            add->setObjectName(QStringLiteral("mergeEmptyAdd"));
-            add->setProperty(PDFAppMergeToolGUIHelper::ROW_KEY, document.documentId);
-            add->setAccessibleDescription(document.name);
-            connect(add, &QPushButton::clicked, this, &PDFAppToolMergeEmptyState::onAddClicked);
-            rowLayout->addWidget(add);
-            m_addButtons.push_back(add);
+            row->getAddButton()->setObjectName(QStringLiteral("mergeEmptyAdd"));
+            connect(row, &PDFAppToolOpenDocumentRow::addRequested, this, &PDFAppToolMergeEmptyState::addDocumentRequested);
+            m_addButtons.push_back(row->getAddButton());
             layout->addWidget(row);
         }
     }
@@ -344,15 +303,6 @@ std::vector<QPushButton*> PDFAppToolMergeEmptyState::getAddButtons() const
         }
     }
     return buttons;
-}
-
-void PDFAppToolMergeEmptyState::onAddClicked()
-{
-    QObject* button = sender();
-    if (button)
-    {
-        Q_EMIT addDocumentRequested(button->property(PDFAppMergeToolGUIHelper::ROW_KEY).toString());
-    }
 }
 
 // ------------------------------------------------------------- PDFAppMergeToolGUI

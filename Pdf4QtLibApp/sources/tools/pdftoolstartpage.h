@@ -41,6 +41,7 @@ namespace pdf
 
 class PDFAppToolInputList;
 class PDFDocumentToolCatalogEntry;
+class PDFTextLink;
 enum class PDFAppToolStartPageText;
 
 /// Start page of a tool (/tools/{toolId}, Figma 276:1737): it is built from the catalog,
@@ -98,6 +99,15 @@ public:
     PDFAppParagraph* getOftenNextText() const { return m_oftenNext.data(); }
     PDFLinkRow* getManualLink() const { return m_manualLink.data(); }
 
+    /// "Edit Invoice.pdf in its tab" (QB1 of step 3b, owner answer 8 of 12. 11.): a tool with the
+    /// host of the tab of a document (Manage Pages, PDFDocumentToolCatalogEntry::hasDocumentHost),
+    /// whose list has exactly one input and that one is an open document, offers the tool in the tab
+    /// of that document - the own tab never changes its sources. Hidden otherwise.
+    PDFTextLink* getEditInTabLink() const { return m_editInTabLink.data(); }
+
+    /// The id of the open document of that link, empty = no link
+    QString getEditInTabDocumentId() const;
+
     /// The suggestions of "Often used next" as they are shown ("Protect with Password, Merge")
     QString createOftenNextText() const;
 
@@ -131,6 +141,9 @@ private:
     void setDropActive(bool isActive);
     void onMarkdownLinkActivated(const QString& link);
     void onManualLinkClicked();
+    void connectInputList();
+    void updateEditInTabLink();
+    void onEditInTabClicked();
 
     QString m_toolId;
     QPointer<QWidget> m_content;
@@ -145,6 +158,7 @@ private:
     QPointer<PDFKeyValueList> m_facts;
     QPointer<PDFAppParagraph> m_oftenNext;
     QPointer<PDFLinkRow> m_manualLink;
+    QPointer<PDFTextLink> m_editInTabLink;
     bool m_isRebuildPending = false;
 };
 

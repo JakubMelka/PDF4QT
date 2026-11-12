@@ -91,6 +91,9 @@ Facts needed to run them:
 | `UnitTestsDocumentPageGeometry` | [tst_documentpagegeometrytest.cpp](../UnitTests/tst_documentpagegeometrytest.cpp) | Page boxes and geometry, Crop / Resize / Set Page Boxes of the core (step 3a, B). |
 | `UnitTestsDocumentToolInsert` | [tst_documenttoolinserttest.cpp](../UnitTests/tst_documenttoolinserttest.cpp) | Insertion mode of the merger, Insert Pages, Add Image as Page, DocMDP (step 3a, C). |
 | `UnitTestsDocumentToolImages` | [tst_documenttoolimagestest.cpp](../UnitTests/tst_documenttoolimagestest.cpp) | Image page layout, Images to PDF, Interleave Pages, the page plan (step 3a, D). |
+| `UnitTestsDocumentAssembly` | [tst_documentassemblytest.cpp](../UnitTests/tst_documentassemblytest.cpp) | The assembly of Manage Pages, its operations and its file (step 3b, M1). |
+| `UnitTestsDocumentToolManage` | [tst_documenttoolmanagetest.cpp](../UnitTests/tst_documenttoolmanagetest.cpp) | Manage Pages in the core: catalog row, outputs, runs (step 3b, M1). |
+| `UnitTestsDocumentMergerArrange` | [tst_documentmergerarrangetest.cpp](../UnitTests/tst_documentmergerarrangetest.cpp) | Arrangement of a document, which keeps its object numbers (step 3b, M2). |
 | `UnitTestsObjectWalk` | [tst_objectwalktest.cpp](../UnitTests/tst_objectwalktest.cpp) | `PDFObjectWalk` and the walks over the object graph: cycles and shared nodes. |
 | `UnitTestsDocumentToolCorpus` | [tst_documenttoolcorpustest.cpp](../UnitTests/tst_documenttoolcorpustest.cpp) | Every tool over `testpdf` (never in the repository); only with `PDF4QT_TOOL_CORPUS_DIRECTORY` / `_RUN=1`, a filter - the whole corpus on the owner's request. |
 | `UnitTestsAppAnnotationLifetime` | [tst_appannotationlifetimetest.cpp](../UnitTests/tst_appannotationlifetimetest.cpp) | Lifetime sweep of the annotation scenarios. |
@@ -101,7 +104,7 @@ Facts needed to run them:
 | `UnitTestsAppToolProtect` | [tst_apptoolprotecttest.cpp](../UnitTests/tst_apptoolprotecttest.cpp) | Remove Hidden Data, Remove External Links in the application. |
 | `UnitTestsAppToolStructure` | [tst_apptoolstructuretest.cpp](../UnitTests/tst_apptoolstructuretest.cpp) | Optimize Structure in the application. |
 | `UnitTestsAppToolExtractText` | [tst_apptoolextracttexttest.cpp](../UnitTests/tst_apptoolextracttexttest.cpp) | Extract Text in the application. |
-| `UnitTestsAppToolPagesLifetime` | [tst_apptoolpageslifetimetest.cpp](../UnitTests/tst_apptoolpageslifetimetest.cpp) | Lifetime sweep of the tools in a document tab and in an own tab; the scenarios of step 3a in one file per package. |
+| `UnitTestsAppToolPagesLifetime` | [tst_apptoolpageslifetimetest.cpp](../UnitTests/tst_apptoolpageslifetimetest.cpp) | Lifetime sweep of the tools in a document tab and in an own tab; the scenarios of steps 3a and 3b in one file per package. |
 | `UnitTestsAppToolInputs` | [tst_apptoolinputstest.cpp](../UnitTests/tst_apptoolinputstest.cpp) | Inputs of a tool with more inputs: list, loader, password dialog, previews, chooser. |
 | `UnitTestsAppOwnerPassword` | [tst_appownerpasswordtest.cpp](../UnitTests/tst_appownerpasswordtest.cpp) | Owner password of a restricted document: shared permission check, unlock for the session, routed actions, MCP. |
 | `UnitTestsAppToolOwnTab` | [tst_apptoolowntabtest.cpp](../UnitTests/tst_apptoolowntabtest.cpp) | Own tab of a tool: route, tab, host, close and result of a new document, MCP. |
@@ -111,7 +114,9 @@ Facts needed to run them:
 | `UnitTestsAppToolPageGeometry` | [tst_apptoolpagegeometrytest.cpp](../UnitTests/tst_apptoolpagegeometrytest.cpp) | Crop, Resize, Set Page Boxes in the application (step 3a, B). |
 | `UnitTestsAppToolInsert` | [tst_apptoolinserttest.cpp](../UnitTests/tst_apptoolinserttest.cpp) | Insert Pages and Add Image as Page in the application (step 3a, C). |
 | `UnitTestsAppToolImages` | [tst_apptoolimagestest.cpp](../UnitTests/tst_apptoolimagestest.cpp) | Images to PDF and Interleave Pages in the application (step 3a, D). |
-| `UnitTestsAppMcpPages` | [tst_appmcppagestest.cpp](../UnitTests/tst_appmcppagestest.cpp) | MCP actions of the tools of step 3a over HTTP; a case per row, one file per package. |
+| `UnitTestsAppToolManage` | [tst_apptoolmanagetest.cpp](../UnitTests/tst_apptoolmanagetest.cpp) | Manage Pages in the application, both hosts (step 3b, M3). |
+| `UnitTestsAppAssembly` | [tst_appassemblytest.cpp](../UnitTests/tst_appassemblytest.cpp) | Assembly files, the dialog of the sources, recent assemblies (step 3b, M4). |
+| `UnitTestsAppMcpPages` | [tst_appmcppagestest.cpp](../UnitTests/tst_appmcppagestest.cpp) | MCP actions of the tools of steps 3a and 3b over HTTP; a case per row, one file per package. |
 | `UnitTestsAppMcp` | [tst_appmcptest.cpp](../UnitTests/tst_appmcptest.cpp) | MCP in the application: contract, permissions, read tools, catalog bridge. |
 | `UnitTestsAppMcpEdit` | [tst_appmcpedittest.cpp](../UnitTests/tst_appmcpedittest.cpp) | MCP edit tools and their confirmations. |
 | `UnitTestsAppAi` | [tst_appaitest.cpp](../UnitTests/tst_appaitest.cpp) | The page AI. |

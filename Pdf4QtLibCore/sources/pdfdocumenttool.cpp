@@ -575,6 +575,50 @@ PDFDocumentToolInputCountRange PDFDocumentTool::getInputCountRange() const
     return entry ? entry->getInputCountRange() : PDFDocumentToolInputCountRange();
 }
 
+PDFDocumentToolPreselectedResult PDFDocumentTool::getPreselectedResult(const QVariantMap& parameters) const
+{
+    Q_UNUSED(parameters);
+    const PDFDocumentToolCatalogEntry* entry = getInfo();
+    return entry ? entry->getPreselectedResult() : PDFDocumentToolPreselectedResult::None;
+}
+
+PDFDocumentToolSignatureImpact PDFDocumentTool::getSignatureImpact(const QVariantMap& parameters) const
+{
+    Q_UNUSED(parameters);
+    const PDFDocumentToolCatalogEntry* entry = getInfo();
+    return entry ? entry->getSignatureImpact() : PDFDocumentToolSignatureImpact::None;
+}
+
+bool PDFDocumentTool::isNewDocumentOfInputs(const QVariantMap& parameters) const
+{
+    Q_UNUSED(parameters);
+    const PDFDocumentToolCatalogEntry* entry = getInfo();
+    return entry && entry->isNewDocumentOfInputs();
+}
+
+PDFDocumentToolOutputTraits PDFDocumentTool::getOutputTraits(const QVariantMap& parameters) const
+{
+    PDFDocumentToolOutputTraits traits;
+    traits.entry = getInfo();
+    traits.resultKind = getResultKind(parameters);
+    traits.preselectedResult = getPreselectedResult(parameters);
+    traits.signatureImpact = getSignatureImpact(parameters);
+    traits.isNewDocumentOfInputs = isNewDocumentOfInputs(parameters);
+    return traits;
+}
+
+PDFDocumentToolOutputTraits::PDFDocumentToolOutputTraits(const PDFDocumentToolCatalogEntry* catalogEntry) :
+    entry(catalogEntry)
+{
+    if (entry)
+    {
+        resultKind = entry->getResultKind();
+        preselectedResult = entry->getPreselectedResult();
+        signatureImpact = entry->getSignatureImpact();
+        isNewDocumentOfInputs = entry->isNewDocumentOfInputs();
+    }
+}
+
 std::vector<PDFDocumentToolParameterError> PDFDocumentTool::validate(const PDFDocumentToolContext& context, const QVariantMap& parameters) const
 {
     Q_UNUSED(parameters);
@@ -728,6 +772,31 @@ PDFDocumentTool::ConformanceRemoval PDFDocumentTool::removeConformanceDeclaratio
     *storage = *builder.getStorage();
     removal.removed = declarations;
     return removal;
+}
+
+QStringList PDFDocumentTool::getConformanceDeclarations(const PDFDocument* document)
+{
+    QStringList declarations;
+    if (!document)
+    {
+        return declarations;
+    }
+
+    PDFOCRPagePreparer::hasConformanceDeclaration(document, &declarations);
+    const PDFDictionary* trailer = document->getTrailerDictionary();
+    const PDFDictionary* catalog = trailer ? document->getDictionaryFromObject(trailer->get("Root")) : nullptr;
+    // Held by value: a reference to the result of getObject may outlive its temporary
+    const PDFObject intents = catalog ? document->getObject(catalog->get("OutputIntents")) : PDFObject();
+    for (size_t i = 0; intents.isArray() && i < intents.getArray()->getCount(); ++i)
+    {
+        const PDFDictionary* intent = document->getDictionaryFromObject(intents.getArray()->getItem(i));
+        const PDFObject subtype = intent ? document->getObject(intent->get("S")) : PDFObject();
+        if (subtype.isName() && subtype.getString() == "GTS_PDFX" && !declarations.contains(QStringLiteral("PDF/X")))
+        {
+            declarations << QStringLiteral("PDF/X");
+        }
+    }
+    return declarations;
 }
 
 PDFDocumentToolFact PDFDocumentTool::createConformanceFact(const QStringList& removed)

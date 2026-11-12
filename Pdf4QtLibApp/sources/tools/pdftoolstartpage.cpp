@@ -23,6 +23,8 @@
 #include "pdftoolstartpage.h"
 
 #include "pdfappcontext.h"
+#include "pdfappdocument.h"
+#include "pdfappdocumentregistry.h"
 #include "pdfappfiledrop.h"
 #include "pdfapphelpcatalog.h"
 #include "pdfappinfowidgets.h"
@@ -41,9 +43,12 @@
 
 #include "pdfaccenthue.h"
 #include "pdfcomponentbadges.h"
+#include "pdfcomponentbuttons.h"
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
+#include "pdfdocumenttool.h"
 #include "pdfdocumenttoolcatalog.h"
+#include "pdfdocumenttoolregistry.h"
 #include "pdfdocumenttoolsuggestions.h"
 #include "pdffluentwidgets.h"
 #include "pdfstylepainter.h"
@@ -179,6 +184,14 @@ public:
         return QString();
     }
 
+    /// The output of a run with the default values of the tool (RB3 a of step 3b: Manage Pages);
+    /// the start page has no values yet. A tool without its implementation gives its catalog row.
+    static PDFDocumentToolOutputTraits getDefaultOutputTraits(const PDFDocumentToolCatalogEntry* entry)
+    {
+        const std::shared_ptr<const PDFDocumentTool> tool = entry ? PDFDocumentToolRegistry::getTool(entry->getId()) : nullptr;
+        return tool ? tool->getOutputTraits(PDFDocumentToolParameters::getDefaultValues(tool->getParameters())) : PDFDocumentToolOutputTraits(entry);
+    }
+
     static QString getSignatureText(PDFDocumentToolSignatureImpact impact, PDFDocumentToolInputKind kind, PDFDocumentToolResultKind resultKind)
     {
         // K9, 531:3394: the signatures of the inputs are not in a new document of more inputs
@@ -214,11 +227,75 @@ PDFToolStartPage::PDFToolStartPage(PDFAppContext* context, const QString& toolId
     {
         m_inputList = new PDFAppToolInputList(this);
         setAcceptDrops(true);
+        connectInputList();
+
+        // The link "Edit … in its tab" follows the open documents too (a tab closed, renamed)
+        if (tool->hasDocumentHost() && getContext() && getContext()->getDocumentRegistry())
+        {
+            PDFAppDocumentRegistry* registry = getContext()->getDocumentRegistry();
+            connect(registry, &PDFAppDocumentRegistry::documentAdded, this, &PDFToolStartPage::updateEditInTabLink);
+            connect(registry, &PDFAppDocumentRegistry::documentChanged, this, &PDFToolStartPage::updateEditInTabLink);
+            connect(registry, &PDFAppDocumentRegistry::documentRemoved, this, &PDFToolStartPage::updateEditInTabLink);
+        }
     }
     build();
 }
 
 PDFToolStartPage::~PDFToolStartPage() = default;
+
+void PDFToolStartPage::connectInputList()
+{
+    // The page is the context object: the connections end with the page or with the list
+    if (m_inputList)
+    {
+        connect(m_inputList.data(), &PDFAppToolInputList::inputsChanged, this, &PDFToolStartPage::updateEditInTabLink);
+        connect(m_inputList.data(), &PDFAppToolInputList::inputChanged, this, &PDFToolStartPage::updateEditInTabLink);
+    }
+}
+
+QString PDFToolStartPage::getEditInTabDocumentId() const
+{
+    // QB1: exactly one input, an open document, whose tab is still open, of a tool with the host of
+    // the tab of a document (only that host changes the document; the own tab works on a snapshot)
+    const PDFDocumentToolCatalogEntry* tool = getTool();
+    if (!tool || !tool->hasDocumentHost() || !m_inputList || m_inputList->getCount() != 1)
+    {
+        return QString();
+    }
+    const PDFAppToolInput* input = m_inputList->getInput(0);
+    PDFAppDocumentRegistry* registry = getContext() ? getContext()->getDocumentRegistry() : nullptr;
+    if (!input || input->kind != PDFAppToolInputKind::OpenTab || !registry || !registry->findDocument(input->documentId))
+    {
+        return QString();
+    }
+    return input->documentId;
+}
+
+void PDFToolStartPage::updateEditInTabLink()
+{
+    if (!m_editInTabLink)
+    {
+        return;
+    }
+    const QString documentId = getEditInTabDocumentId();
+    const PDFAppDocument* document = documentId.isEmpty() ? nullptr : getContext()->getDocumentRegistry()->findDocument(documentId);
+    if (document)
+    {
+        m_editInTabLink->setText(tr("Edit %1 in its tab").arg(document->getTitle()));
+    }
+    m_editInTabLink->setVisible(document != nullptr);
+}
+
+void PDFToolStartPage::onEditInTabClicked()
+{
+    // The tool in the tab of the document (the navigator opens Manage Pages there, QB1); the
+    // navigation runs code of the application: the last call
+    const QString documentId = getEditInTabDocumentId();
+    if (!documentId.isEmpty())
+    {
+        requestNavigation(PDFAppRoutes::documentTool(documentId, m_toolId), PDFAppNavigationMode::Push);
+    }
+}
 
 PDFAppToolInputList* PDFToolStartPage::getInputList() const
 {
@@ -546,16 +623,18 @@ QWidget* PDFToolStartPage::createAtGlance(QWidget* parent)
         // K9 (531:3389): a tool with more inputs speaks of the open documents; the row Locked
         // document is the text of the GUI of the tool, when it has one. A new document is "One
         // new document" (K9, also of a tool without an input: Blank PDF 1392:4710)
+        // The result and the signatures of a run with the default values (RB3 a of step 3b)
+        const PDFDocumentToolOutputTraits output = Helper::getDefaultOutputTraits(tool);
         const bool isMultiple = tool->getInputKind() == PDFDocumentToolInputKind::Multiple;
-        const bool isNewDocument = tool->getResultKind() == PDFDocumentToolResultKind::NewDocument;
+        const bool isNewDocument = output.resultKind == PDFDocumentToolResultKind::NewDocument;
         const QString lockedText = getLockedGlanceText();
         m_facts->addRow(tr("Input"), Helper::getInputText(tool->getInputKind()));
         m_facts->addRow(tr("Result"), isNewDocument ? tr("One new document") : tool->getResultSummary());
         // A tool without an input speaks of all the open documents too (1392:4712)
         const bool isPlural = isMultiple || tool->getInputKind() == PDFDocumentToolInputKind::None;
-        m_facts->addRow(isPlural ? tr("Open documents") : tr("Open document"), Helper::getOpenDocumentText(tool->getInputKind(), tool->getResultKind()));
+        m_facts->addRow(isPlural ? tr("Open documents") : tr("Open document"), Helper::getOpenDocumentText(tool->getInputKind(), output.resultKind));
         m_facts->addRow(tr("Locked document"), lockedText.isEmpty() ? Helper::getLockedText(tool->getLockedAccess()) : lockedText);
-        m_facts->addRow(tr("Signatures"), Helper::getSignatureText(tool->getSignatureImpact(), tool->getInputKind(), tool->getResultKind()));
+        m_facts->addRow(tr("Signatures"), Helper::getSignatureText(output.signatureImpact, tool->getInputKind(), output.resultKind));
         const QString command = tool->getPdfToolCommand();
         if (!command.isEmpty())
         {
@@ -692,6 +771,18 @@ QWidget* PDFToolStartPage::createChooseDocuments(QWidget* parent)
     noteParagraph->setMinimumWidth(1);
     noteLayout->addWidget(noteParagraph, 1);
     layout->addWidget(note);
+
+    // QB1, owner answer 8 of 12. 11. (no frame, built from the note 531:3288): one open document
+    // only - the link to the tool in the tab of the document, which changes that document; the
+    // Text link (49:152) at the leading edge below the note
+    if (tool && tool->hasDocumentHost())
+    {
+        m_editInTabLink = new PDFTextLink(section);
+        m_editInTabLink->setObjectName(QStringLiteral("toolStartEditInTab"));
+        connect(m_editInTabLink.data(), &PDFTextLink::clicked, this, &PDFToolStartPage::onEditInTabClicked);
+        layout->addWidget(m_editInTabLink, 0, Qt::AlignLeading);
+        updateEditInTabLink();
+    }
     return section;
 }
 
@@ -787,10 +878,12 @@ void PDFToolStartPage::onOpenToolRequested()
     if (m_inputList->parent() != this)
     {
         m_inputList = new PDFAppToolInputList(this);
+        connectInputList();
         if (m_inputChooser)
         {
             m_inputChooser->setInputList(m_inputList);
         }
+        updateEditInTabLink();
     }
 }
 

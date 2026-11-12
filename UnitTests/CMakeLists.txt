@@ -1012,6 +1012,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         apptoolpageslifetime_geometry.cpp
         apptoolpageslifetime_insert.cpp
         apptoolpageslifetime_images.cpp
+        apptoolpageslifetime_manage.cpp
     )
     target_link_libraries(UnitTestsAppToolPagesLifetime PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture UnitTestsAppToolOwnTabFixture Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
     pdf4qt_target_precompile_headers(UnitTestsAppToolPagesLifetime REUSE_FROM UnitTestsAppDocumentFixture)
@@ -1106,8 +1107,9 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
 
     # The GUI of the tools of step 3a of phase 2 (Pages, plan chapter 8): package A Split and
     # Extract Pages, B Crop / Resize / Set Page Boxes, C Insert Pages and Add Image as Page,
-    # D Images to PDF and Interleave Pages - each package writes its file
-    foreach(PDF4QT_PAGES_TEST AppToolSplit AppToolPageGeometry AppToolInsert AppToolImages)
+    # D Images to PDF and Interleave Pages - each package writes its file. Step 3b (Manage Pages,
+    # plan 8): package M3 the GUI, M4 the assembly files and the recent assemblies
+    foreach(PDF4QT_PAGES_TEST AppToolSplit AppToolPageGeometry AppToolInsert AppToolImages AppToolManage AppAssembly)
         string(TOLOWER ${PDF4QT_PAGES_TEST} PDF4QT_PAGES_TEST_FILE)
         add_executable(UnitTests${PDF4QT_PAGES_TEST}
             tst_${PDF4QT_PAGES_TEST_FILE}test.cpp
@@ -1208,6 +1210,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         appmcppages_geometry.cpp
         appmcppages_insert.cpp
         appmcppages_images.cpp
+        appmcppages_manage.cpp
     )
     pdf4qt_target_precompile_headers(UnitTestsAppMcpPages REUSE_FROM UnitTestsAppDocumentFixture)
     target_link_libraries(UnitTestsAppMcpPages PRIVATE UnitTestsAppDocumentFixture UnitTestsAppMcpFixture UnitTestsMcpTestClient Pdf4QtLibApp Pdf4QtLibMcp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
@@ -1287,8 +1290,10 @@ set_tests_properties(UnitTestsDocumentTool PROPERTIES ENVIRONMENT "QT_QPA_PLATFO
 
 # The core of the tools of step 3a of phase 2 (Pages, plan chapter 8): package A the splitter
 # and Split / Extract Pages, B the page geometry, C the insertion, D the image layout, Images to
-# PDF and Interleave Pages - each package writes its file
-foreach(PDF4QT_PAGES_TEST DocumentSplitter DocumentToolSplit DocumentPageGeometry DocumentToolInsert DocumentToolImages)
+# PDF and Interleave Pages - each package writes its file. Step 3b (Manage Pages, plan 8): package
+# M1 the assembly and its tool, M2 the arrangement of a document
+foreach(PDF4QT_PAGES_TEST DocumentSplitter DocumentToolSplit DocumentPageGeometry DocumentToolInsert DocumentToolImages
+                          DocumentAssembly DocumentToolManage DocumentMergerArrange)
     string(TOLOWER ${PDF4QT_PAGES_TEST} PDF4QT_PAGES_TEST_FILE)
     add_executable(UnitTests${PDF4QT_PAGES_TEST}
         tst_${PDF4QT_PAGES_TEST_FILE}test.cpp

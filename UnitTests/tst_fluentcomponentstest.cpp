@@ -92,8 +92,11 @@
 #include <QTreeView>
 #include <QTranslator>
 #include <QVBoxLayout>
+#include <QPaintEngine>
 
+#include <algorithm>
 #include <array>
+#include <climits>
 #include <functional>
 #include <limits>
 #include <thread>
@@ -548,6 +551,8 @@ private slots:
     void rowPixels();
     void rowWidgetsMatchPainter();
     void fileNameElision();
+    void pathElision();
+    void recentFileRowDetail();
     void rowNestedWidgets();
     void rowKeyboard();
     void rowAccessibility();
@@ -3563,6 +3568,289 @@ void FluentComponentsTest::fileNameElision()
     QCOMPARE(row.getFileName(), name);
     QCOMPARE(QAccessible::queryAccessibleInterface(&row)->text(QAccessible::Name), name);
     QCOMPARE(countLeakPixels(row.grab().toImage()), 0);
+}
+
+void FluentComponentsTest::pathElision()
+{
+    // A folder is elided in the middle as a file manager does it: the root (drive,
+    // share, "/") and the last folder stay, as many leading folders as fit
+    const QFont font = pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::CaptionRegular);
+    const QFontMetricsF metrics(font);
+    const QChar ellipsis(0x2026);
+    const QString folder = QStringLiteral("C:\\Users\\Jakub\\Documents\\Projects\\PDF4QT\\Tenders\\Specifications");
+
+    // A folder, which fits, is kept
+    QCOMPARE(Painter::elidedPath(folder, font, metrics.horizontalAdvance(folder) + 1.0), folder);
+    QCOMPARE(Painter::elidedPath(QStringLiteral("C:\\Tender"), font, 200.0), QStringLiteral("C:\\Tender"));
+
+    // The leading folders, which fit, stay before the ellipsis, the next one does not fit
+    const QString twoKept = QStringLiteral("C:\\Users\\Jakub\\") + ellipsis + QStringLiteral("\\Specifications");
+    const QString threeKept = QStringLiteral("C:\\Users\\Jakub\\Documents\\") + ellipsis + QStringLiteral("\\Specifications");
+    QVERIFY(metrics.horizontalAdvance(threeKept) > metrics.horizontalAdvance(twoKept) + 1.0);
+    QCOMPARE(Painter::elidedPath(folder, font, metrics.horizontalAdvance(twoKept) + 0.5), twoKept);
+    const QString rootOnly = QStringLiteral("C:\\") + ellipsis + QStringLiteral("\\Specifications");
+    QCOMPARE(Painter::elidedPath(folder, font, metrics.horizontalAdvance(rootOnly) + 0.5), rootOnly);
+
+    // A share keeps the server and the share, a Unix path its "/" and its separators
+    const QString share = QStringLiteral("\\\\server\\share\\Projects\\PDF4QT\\Tenders\\Specifications");
+    const QString shareElided = Painter::elidedPath(share, font, metrics.horizontalAdvance(share) - 20.0);
+    QVERIFY2(shareElided.startsWith(QStringLiteral("\\\\server\\share\\")) && shareElided.endsWith(QStringLiteral("\\Specifications")) && shareElided.contains(ellipsis), qPrintable(shareElided));
+    const QString unixPath = QStringLiteral("/home/jakub/projects/pdf4qt/tenders/specifications");
+    const QString unixElided = Painter::elidedPath(unixPath, font, metrics.horizontalAdvance(unixPath) - 20.0);
+    QVERIFY2(unixElided.startsWith(QStringLiteral("/home/")) && unixElided.endsWith(QStringLiteral("/specifications")) && unixElided.contains(ellipsis) && !unixElided.contains(QLatin1Char('\\')), qPrintable(unixElided));
+    const QString trailing = Painter::elidedPath(folder + QStringLiteral("\\"), font, metrics.horizontalAdvance(twoKept) + 0.5);
+    QCOMPARE(trailing, twoKept);
+
+    // Not even the root, an ellipsis and the last folder fit (or a single folder):
+    // elided in the middle by the characters, never wider than the width
+    for (const QString& path : { folder, QStringLiteral("C:\\A_single_folder_with_a_very_long_name_of_the_project") })
+    {
+        const qreal width = metrics.horizontalAdvance(QStringLiteral("Specifications")) * 0.8;
+        const QString elided = Painter::elidedPath(path, font, width);
+        QVERIFY2(elided.startsWith(QLatin1Char('C')) && elided.contains(ellipsis) && metrics.horizontalAdvance(elided) <= width + 0.5, qPrintable(elided));
+    }
+
+    // Hostile: thousands of folders (bisection), empty folders between separators
+    QString deep = QStringLiteral("C:");
+    for (int i = 0; i < 5000; ++i)
+    {
+        deep += QStringLiteral("\\f%1").arg(i);
+    }
+    deep += QStringLiteral("\\\\\\Last");
+    const QString deepElided = Painter::elidedPath(deep, font, 200.0);
+    QVERIFY2(deepElided.startsWith(QStringLiteral("C:\\f0\\")) && deepElided.endsWith(QString(ellipsis) + QStringLiteral("\\Last")), qPrintable(deepElided));
+    QVERIFY(metrics.horizontalAdvance(deepElided) <= 200.0);
+    QVERIFY(metrics.horizontalAdvance(deepElided) > 200.0 - 2.0 * metrics.horizontalAdvance(QStringLiteral("\\f00000")));
+
+    // Defensive inputs
+    QCOMPARE(Painter::elidedPath(QString(), font, 100.0), QString());
+    QCOMPARE(Painter::elidedPath(folder, font, 0.0), QString());
+    QCOMPARE(Painter::elidedPath(folder, font, -3.0), QString());
+    QCOMPARE(Painter::elidedPath(folder, font, qQNaN()), QString());
+    QCOMPARE(Painter::elidedTextOfKind(folder, font, metrics.horizontalAdvance(twoKept) + 0.5, Painter::TextKind::Path), twoKept);
+
+    // A text and its detail: the detail with the separator stays whole, the folder takes the rest
+    const QString detail = QStringLiteral("1,234 pages");
+    const QString separatedDetail = QStringLiteral(" \u00B7 ") + detail;
+    QCOMPARE(Painter::getDetailSeparator() + detail, separatedDetail);
+    const qreal width = metrics.horizontalAdvance(rootOnly) + metrics.horizontalAdvance(separatedDetail) + 20.0;
+    Painter::TextWithDetail line = Painter::elidedTextWithDetail(folder, detail, font, width, Painter::TextKind::Path);
+    QCOMPARE(line.detail, separatedDetail);
+    QVERIFY2(line.text.startsWith(QStringLiteral("C:\\")) && line.text.endsWith(QStringLiteral("\\Specifications")) && line.text.contains(ellipsis), qPrintable(line.text));
+    QCOMPARE(line.textWidth, metrics.horizontalAdvance(line.text));
+    QVERIFY(line.textWidth + metrics.horizontalAdvance(line.detail) <= width);
+    line = Painter::elidedTextWithDetail(QStringLiteral("C:\\Tender"), QStringLiteral("17 pages"), font, width, Painter::TextKind::Path);
+    QCOMPARE(line.text, QStringLiteral("C:\\Tender"));
+    QCOMPARE(line.detail, QStringLiteral(" \u00B7 17 pages"));
+
+    // No room for the folder: the detail alone (no separator), elided at its end; no detail, no separator
+    line = Painter::elidedTextWithDetail(folder, detail, font, metrics.horizontalAdvance(separatedDetail) + 1.0, Painter::TextKind::Path);
+    QCOMPARE(line.text, QString());
+    QCOMPARE(line.detail, detail);
+    line = Painter::elidedTextWithDetail(folder, detail, font, 20.0, Painter::TextKind::Path);
+    QVERIFY(line.text.isEmpty() && line.detail.endsWith(ellipsis) && metrics.horizontalAdvance(line.detail) <= 20.0);
+    line = Painter::elidedTextWithDetail(folder, QString(), font, width, Painter::TextKind::Path);
+    QCOMPARE(line.text, Painter::elidedPath(folder, font, width));
+    QCOMPARE(line.detail, QString());
+    line = Painter::elidedTextWithDetail(QString(), detail, font, width, Painter::TextKind::Path);
+    QCOMPARE(line.text, QString());
+    QCOMPARE(line.detail, detail);
+    line = Painter::elidedTextWithDetail(folder, detail, font, qQNaN(), Painter::TextKind::Path);
+    QVERIFY(line.text.isEmpty() && line.detail.isEmpty());
+    Painter::drawElidedTextWithDetail(nullptr, Painter::State(), QRectF(0, 0, 100, 13), folder, detail, font, Color::TextMuted, Painter::TextKind::Path);
+}
+
+/// Paint engine, which records the drawn text items (text, position of the
+/// baseline and width), so a test reads the texts a painter has drawn
+class FluentTextRecordingEngine : public QPaintEngine
+{
+public:
+    struct Item
+    {
+        QString text;
+        QPointF position;
+        qreal width = 0.0;
+    };
+
+    FluentTextRecordingEngine() : QPaintEngine(QPaintEngine::AllFeatures) { }
+
+    virtual bool begin(QPaintDevice*) override { return true; }
+    virtual bool end() override { return true; }
+    virtual void updateState(const QPaintEngineState&) override { }
+    virtual void drawPixmap(const QRectF&, const QPixmap&, const QRectF&) override { }
+    virtual void drawPath(const QPainterPath&) override { }
+    virtual void drawPolygon(const QPointF*, int, PolygonDrawMode) override { }
+    virtual Type type() const override { return QPaintEngine::User; }
+
+    virtual void drawTextItem(const QPointF& position, const QTextItem& item) override
+    {
+        m_items.push_back(Item{ item.text(), painter()->transform().map(position), item.width() });
+    }
+
+    const std::vector<Item>& getItems() const { return m_items; }
+
+private:
+    std::vector<Item> m_items;
+};
+
+/// Paint device of the recording engine (96 dpi, as the offscreen screen)
+class FluentTextRecordingDevice : public QPaintDevice
+{
+public:
+    explicit FluentTextRecordingDevice(QSize size) : m_size(size) { }
+
+    virtual QPaintEngine* paintEngine() const override { return &m_engine; }
+    const std::vector<FluentTextRecordingEngine::Item>& getItems() const { return m_engine.getItems(); }
+
+protected:
+    virtual int metric(PaintDeviceMetric metric) const override
+    {
+        switch (metric)
+        {
+            case PdmWidth:
+                return m_size.width();
+            case PdmHeight:
+                return m_size.height();
+            case PdmWidthMM:
+                return qRound(m_size.width() * 25.4 / 96.0);
+            case PdmHeightMM:
+                return qRound(m_size.height() * 25.4 / 96.0);
+            case PdmNumColors:
+                return INT_MAX;
+            case PdmDepth:
+                return 32;
+            case PdmDpiX:
+            case PdmDpiY:
+            case PdmPhysicalDpiX:
+            case PdmPhysicalDpiY:
+                return 96;
+            case PdmDevicePixelRatio:
+                return 1;
+            case PdmDevicePixelRatioScaled:
+                return int(QPaintDevice::devicePixelRatioFScale());
+            default:
+                return QPaintDevice::metric(metric);
+        }
+    }
+
+private:
+    QSize m_size;
+    mutable FluentTextRecordingEngine m_engine;
+};
+
+void FluentComponentsTest::recentFileRowDetail()
+{
+    // Owner 2026-11-12: the folder of a Recent file row is elided in the middle (the
+    // root and the last folder stay), its detail (" · 1,234 pages") is always whole
+    // and follows the folder in the reading order, also in right-to-left
+    const QChar ellipsis(0x2026);
+    const QString folder = QStringLiteral("C:\\Users\\Jakub\\Documents\\Projects\\PDF4QT\\Tenders\\Specifications");
+    const QString detail = QStringLiteral("1,234 pages");
+    QString expectedDetailCharacters = QStringLiteral(" \u00B7 ") + detail;
+    std::sort(expectedDetailCharacters.begin(), expectedDetailCharacters.end());
+
+    // Row 300 wide without a time and a star: the texts lie from 12 + 18 + 12 = 42
+    // to 300 - 12 - 16 - 12 = 260 (mirrored in right-to-left: 40 to 258)
+    const QSize size(300, 51);
+    for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
+    {
+        const bool isRightToLeft = direction == Qt::RightToLeft;
+        const qreal textLeft = isRightToLeft ? 40.0 : 42.0;
+        const qreal textRight = isRightToLeft ? 258.0 : 260.0;
+        for (const QString& path : { folder, QStringLiteral("C:\\Tender") })
+        {
+            Painter::RecentFileRow row;
+            row.fileName = QStringLiteral("Tender_2026");
+            row.path = path;
+            row.detail = detail;
+            row.starVisible = false;
+
+            FluentTextRecordingDevice device(size);
+            {
+                QPainter painter(&device);
+                Painter::paintRecentFileRow(&painter, QRectF(QPointF(0, 0), size), row, state(QStyle::State_None, direction));
+            }
+
+            // The items of the second line (the title lies above y = 30)
+            const FluentTextRecordingEngine::Item* folderItem = nullptr;
+            QString detailCharacters;
+            std::vector<const FluentTextRecordingEngine::Item*> detailItems;
+            for (const FluentTextRecordingEngine::Item& item : device.getItems())
+            {
+                if (item.position.y() < 30.0)
+                {
+                    continue;
+                }
+
+                const QString context = QStringLiteral("'%1' at %2 + %3").arg(item.text).arg(item.position.x()).arg(item.width);
+                QVERIFY2(item.position.x() >= textLeft - 0.5 && item.position.x() + item.width <= textRight + 0.5, qPrintable(context));
+                if (item.text.contains(QLatin1Char('\\')))
+                {
+                    QVERIFY2(!folderItem, qPrintable(context));
+                    folderItem = &item;
+                }
+                else
+                {
+                    QVERIFY2(!item.text.contains(ellipsis), qPrintable(context));
+                    detailCharacters += item.text;
+                    detailItems.push_back(&item);
+                }
+            }
+
+            QVERIFY(folderItem);
+            const QString context = QStringLiteral("%1 '%2'").arg(isRightToLeft ? QStringLiteral("RTL") : QStringLiteral("LTR"), folderItem->text);
+            if (path == folder)
+            {
+                QVERIFY2(folderItem->text.startsWith(QStringLiteral("C:\\")) && folderItem->text.endsWith(QStringLiteral("\\Specifications")) && folderItem->text.contains(ellipsis), qPrintable(context));
+            }
+            else
+            {
+                QCOMPARE(folderItem->text, path);
+            }
+
+            // The detail is whole and lies at the trailing side of the folder, at its leading edge it starts
+            std::sort(detailCharacters.begin(), detailCharacters.end());
+            QCOMPARE(detailCharacters, expectedDetailCharacters);
+            for (const FluentTextRecordingEngine::Item* item : detailItems)
+            {
+                if (isRightToLeft)
+                {
+                    QVERIFY2(item->position.x() + item->width <= folderItem->position.x() + 0.5, qPrintable(context));
+                }
+                else
+                {
+                    QVERIFY2(item->position.x() >= folderItem->position.x() + folderItem->width - 0.5, qPrintable(context));
+                }
+            }
+
+            // The folder starts at the leading edge of the texts
+            if (isRightToLeft)
+            {
+                QVERIFY2(qAbs(folderItem->position.x() + folderItem->width - textRight) <= 1.0, qPrintable(context));
+            }
+            else
+            {
+                QVERIFY2(qAbs(folderItem->position.x() - textLeft) <= 1.0, qPrintable(context));
+            }
+        }
+    }
+
+    // The widget: the detail is a part of the content and of the accessible description
+    pdf::PDFRecentFileRow fileRow(QStringLiteral("Tender_2026"), QStringLiteral("C:\\Tender"), QStringLiteral("Today"));
+    QCOMPARE(fileRow.getDetail(), QString());
+    QCOMPARE(QAccessible::queryAccessibleInterface(&fileRow)->text(QAccessible::Description), QStringLiteral("C:\\Tender, Today"));
+    fileRow.setDetail(QStringLiteral("17 pages"));
+    QCOMPARE(fileRow.getDetail(), QStringLiteral("17 pages"));
+    QCOMPARE(fileRow.getContent().detail, QStringLiteral("17 pages"));
+    QCOMPARE(QAccessible::queryAccessibleInterface(&fileRow)->text(QAccessible::Description), QStringLiteral("C:\\Tender, 17 pages, Today"));
+    fileRow.setStatus(pdf::PDFRecentFileRow::Status::Missing);
+    QCOMPARE(QAccessible::queryAccessibleInterface(&fileRow)->text(QAccessible::Description), Painter::getMissingFileText() + QStringLiteral(", C:\\Tender, 17 pages"));
+    fileRow.setStatus(pdf::PDFRecentFileRow::Status::Available);
+    fileRow.setPath(folder);
+    fileRow.resize(260, 51);
+    QCOMPARE(countLeakPixels(fileRow.grab().toImage()), 0);
+    fileRow.setLayoutDirection(Qt::RightToLeft);
+    QCOMPARE(countLeakPixels(fileRow.grab().toImage()), 0);
 }
 
 void FluentComponentsTest::rowNestedWidgets()

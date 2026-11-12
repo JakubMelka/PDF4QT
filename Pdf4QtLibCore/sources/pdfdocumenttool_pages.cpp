@@ -641,6 +641,11 @@ PDFDocumentToolResult PDFDocumentToolRemovePages::execute(const PDFDocumentToolC
     {
         result.facts.push_back({ QStringLiteral("signatures"), tr("Signatures"), tr("%Ln removed with their pages", nullptr, int(statistics.signaturesRemoved)) });
     }
+    if (statistics.documentPartsRemoved)
+    {
+        // 14.12: the parts keep the pages, which stay; only a damaged hierarchy is removed
+        result.facts.push_back({ QStringLiteral("documentParts"), tr("Document parts"), tr("Document parts removed") });
+    }
     addConformanceFact(&result, conformance.removed);
 
     result.data.insert(QStringLiteral("removedCount"), qint64(pages.size()));

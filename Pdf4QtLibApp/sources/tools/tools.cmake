@@ -185,4 +185,16 @@ list(APPEND PDF4QT_LIBAPP_TOOLS_SOURCES
     sources/tools/pdfapptoolgui_images.h
     sources/tools/pdfapptoolgui_interleave.cpp
     sources/tools/pdfapptoolgui_interleave.h
+    # Step 3b, package M3 (Manage Pages: the GUI, the canvas, the panels, the dialogs)
+    sources/tools/pdfappmanagecanvas.cpp
+    sources/tools/pdfappmanagecanvas.h
+    sources/tools/pdfappmanagedialogs.cpp
+    sources/tools/pdfappmanagedialogs.h
+    sources/tools/pdfappmanagepanels.cpp
+    sources/tools/pdfappmanagepanels.h
+    sources/tools/pdfapptoolgui_manage.cpp
+    sources/tools/pdfapptoolgui_manage.h
+    # Step 3b, package M4 (Manage Pages: the opening of an assembly file)
+    sources/tools/pdfappassemblyloader.cpp
+    sources/tools/pdfappassemblyloader.h
 )

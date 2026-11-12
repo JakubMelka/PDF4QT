@@ -627,6 +627,19 @@ GalleryPages::Page GalleryPages::createShellHomePage(QWidget* parent)
         Painter::paintRecentFileRow(&painter, rect, noStarRow, Helper::state(GalleryPages::Default));
     });
     builder.row();
+    Painter::RecentFileRow detailRow = fileRow;
+    detailRow.fileName = QStringLiteral("Tender_2026");
+    detailRow.path = QStringLiteral("C:\\Users\\Jakub\\Documents\\Projects\\PDF4QT\\Tenders\\Specifications");
+    detailRow.detail = QStringLiteral("1,234 pages");
+    Helper::rowSpecimen(builder, QStringLiteral("Long folder elided in the middle, detail kept"), Painter::getRecentFileRowSize(detailRow), [detailRow](QPainter& painter, const QRectF& rect)
+    {
+        Painter::paintRecentFileRow(&painter, rect, detailRow, Helper::state(GalleryPages::Default));
+    });
+    Helper::rowSpecimen(builder, QStringLiteral("Detail, right to left"), Painter::getRecentFileRowSize(detailRow), [detailRow](QPainter& painter, const QRectF& rect)
+    {
+        Painter::paintRecentFileRow(&painter, rect, detailRow, Painter::State(QStyle::State_Enabled, Qt::RightToLeft));
+    });
+    builder.row();
     Helper::liveStates(builder, [page]() { return new pdf::PDFRecentFileRow(QStringLiteral("Project_Report.pdf"), QStringLiteral("C:\\Users\\Jakub\\Documents"), QStringLiteral("Today 10:24"), page); });
     pdf::PDFRecentFileRow* missingFile = Helper::liveOnCard(builder, QStringLiteral("Live missing, pinned"), new pdf::PDFRecentFileRow(QStringLiteral("Annual_Budget_2025.xlsx.pdf"), QStringLiteral("D:\\Archive\\Finance"), QStringLiteral("Yesterday"), page));
     missingFile->setStatus(pdf::PDFRecentFileRow::Status::Missing);
@@ -634,6 +647,8 @@ GalleryPages::Page GalleryPages::createShellHomePage(QWidget* parent)
     builder.row();
     pdf::PDFRecentFileRow* longFile = Helper::liveOnCard(builder, QStringLiteral("Live long name"), new pdf::PDFRecentFileRow(QStringLiteral("Technical_Documentation_of_the_Project_v2.pdf"), QStringLiteral("C:\\Users\\Jakub\\Documents\\Projects\\PDF4QT\\Specifications"), QStringLiteral("Sep 12"), page));
     longFile->setStarVisible(false);
+    pdf::PDFRecentFileRow* detailFile = Helper::liveOnCard(builder, QStringLiteral("Live folder with a detail"), new pdf::PDFRecentFileRow(QStringLiteral("Tender_2026"), QStringLiteral("C:\\Users\\Jakub\\Documents\\Projects\\PDF4QT\\Tenders\\Specifications"), QStringLiteral("Sep 12"), page));
+    detailFile->setDetail(QStringLiteral("1,234 pages"));
     builder.row();
 
     // Recent tool row

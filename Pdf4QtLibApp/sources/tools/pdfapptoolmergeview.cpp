@@ -262,10 +262,29 @@ void PDFAppToolMergePageView::selectRows(const std::vector<int>& rows)
         return;
     }
 
+    // One range of each run of adjacent rows (as PDFAppManageCanvas::createRanges): a merge of row
+    // by row compares each row with every range before it - 10 000 pages took seconds
+    std::vector<int> sortedRows = rows;
+    std::sort(sortedRows.begin(), sortedRows.end());
+    sortedRows.erase(std::unique(sortedRows.begin(), sortedRows.end()), sortedRows.end());
+    const int rowCount = itemModel->rowCount();
+    const int lastColumn = qMax(0, itemModel->columnCount() - 1);
     QItemSelection items;
-    for (const int row : rows)
+    for (size_t i = 0; i < sortedRows.size();)
     {
-        items.merge(createRowSelection(row, row), QItemSelectionModel::Select);
+        const int firstRow = sortedRows[i];
+        size_t last = i;
+        while (last + 1 < sortedRows.size() && sortedRows[last + 1] == sortedRows[last] + 1)
+        {
+            ++last;
+        }
+        const int lastRow = qMin(sortedRows[last], rowCount - 1);
+        const int validFirstRow = qMax(firstRow, 0);
+        if (validFirstRow <= lastRow)
+        {
+            items.append(QItemSelectionRange(itemModel->index(validFirstRow, 0), itemModel->index(lastRow, lastColumn)));
+        }
+        i = last + 1;
     }
     const int first = rows.empty() ? -1 : rows.front();
     m_anchorRow = first;
@@ -326,12 +345,34 @@ QSize PDFAppToolMergePageView::getTileSize(int group) const
     const double scale = item ? item->tileScale : 1.0;
     PDFComponentPainter::PageTile tile;
     tile.slotSize = scale > 0.0 && !qFuzzyCompare(scale, 1.0) ? QSize(int(std::lround(slot.width() * scale)), int(std::lround(slot.height() * scale))) : slot;
+    if (isLooseGroup(group))
+    {
+        // 387:12938: the square box of the loose pages (the delegate fits the page into it too)
+        tile.slotSize = PDFAppToolPageTileDelegate::getSquareSlotSize(tile.slotSize);
+    }
     tile.label = QStringLiteral("1");
     if (item && item->hasTileCaptions)
     {
         tile.caption = QStringLiteral("1");
     }
     return PDFComponentPainter::getPageTileSize(tile);
+}
+
+bool PDFAppToolMergePageView::isLooseGroup(int group) const
+{
+    // The model says it by the role of the rows of the group (the first one stands for all)
+    if (!m_mergeModel || group < 0 || size_t(group) >= m_mergeModel->getGroups().size())
+    {
+        return false;
+    }
+    const PDFAppToolGroupedPageModel::Group& item = m_mergeModel->getGroups()[size_t(group)];
+    return item.isPlain && item.rowCount > 0 && m_mergeModel->index(item.firstRow, 0).data(PDFAppToolPageTileDelegate::SquareSlotRole).toBool();
+}
+
+int PDFAppToolMergePageView::getTileGapOfRow(int row) const
+{
+    const int group = m_mergeModel ? m_mergeModel->getGroupOfRow(row) : -1;
+    return group >= 0 && size_t(group) < m_layouts.size() ? m_layouts[size_t(group)].gap : TILE_GAP;
 }
 
 int PDFAppToolMergePageView::getInnerWidth() const
@@ -385,6 +426,7 @@ void PDFAppToolMergePageView::layoutGroups()
             GroupLayout layout;
             layout.top = top;
             layout.tileSize = getTileSize(int(i));
+            layout.gap = isLooseGroup(int(i)) ? LOOSE_TILE_GAP : TILE_GAP;
             if (group.isPlain)
             {
                 // 388:16811: only the tiles on the stage
@@ -397,7 +439,7 @@ void PDFAppToolMergePageView::layoutGroups()
                 layout.tilesTop = top + CARD_PADDING_TOP + (group.tag.isEmpty() ? HEADER_HEIGHT : HEADER_TAG_HEIGHT) + HEADER_GAP;
             }
             const int innerWidth = qMax(1, viewport()->width() - 2 * layout.inset);
-            layout.columns = qMax(1, (innerWidth + TILE_GAP) / qMax(1, layout.tileSize.width() + TILE_GAP));
+            layout.columns = qMax(1, (innerWidth + layout.gap) / qMax(1, layout.tileSize.width() + layout.gap));
             int body = 0;
             if (group.callout != PDFAppToolMergePageModel::GroupCallout::None)
             {
@@ -407,7 +449,7 @@ void PDFAppToolMergePageView::layoutGroups()
             else
             {
                 const int lines = (group.rowCount + layout.columns - 1) / layout.columns;
-                body = lines > 0 ? lines * layout.tileSize.height() + (lines - 1) * TILE_GAP : 0;
+                body = lines > 0 ? lines * layout.tileSize.height() + (lines - 1) * layout.gap : 0;
             }
             if (!group.actions.empty())
             {
@@ -602,7 +644,7 @@ QRect PDFAppToolMergePageView::getTileRect(int row) const
     const int index = row - item.firstRow;
     const int line = index / columns;
     const int column = index % columns;
-    return QRect(layout.inset + column * (tile.width() + TILE_GAP), layout.tilesTop + line * (tile.height() + TILE_GAP), tile.width(), tile.height());
+    return QRect(layout.inset + column * (tile.width() + layout.gap), layout.tilesTop + line * (tile.height() + layout.gap), tile.width(), tile.height());
 }
 
 QRect PDFAppToolMergePageView::toViewport(const QRect& contentRect) const
@@ -657,9 +699,9 @@ int PDFAppToolMergePageView::findRowAt(const QPoint& contentPoint) const
         return -1;
     }
 
-    const int column = x / (tile.width() + TILE_GAP);
-    const int line = y / (tile.height() + TILE_GAP);
-    if (column >= layout.columns || x % (tile.width() + TILE_GAP) >= tile.width() || y % (tile.height() + TILE_GAP) >= tile.height())
+    const int column = x / (tile.width() + layout.gap);
+    const int line = y / (tile.height() + layout.gap);
+    if (column >= layout.columns || x % (tile.width() + layout.gap) >= tile.width() || y % (tile.height() + layout.gap) >= tile.height())
     {
         return -1;
     }
@@ -1131,8 +1173,8 @@ int PDFAppToolMergePageView::getDropRow(const QPoint& position) const
     const QSize tile = layout.tileSize;
     const int columns = layout.columns;
     const int lines = (item.rowCount + columns - 1) / columns;
-    const int line = qBound(0, (content.y() - layout.tilesTop) / (tile.height() + TILE_GAP), lines - 1);
-    const int column = qBound(0, (content.x() - layout.inset + TILE_GAP / 2) / (tile.width() + TILE_GAP), columns);
+    const int line = qBound(0, (content.y() - layout.tilesTop) / (tile.height() + layout.gap), lines - 1);
+    const int column = qBound(0, (content.x() - layout.inset + layout.gap / 2) / (tile.width() + layout.gap), columns);
     const int lineFirst = line * columns;
     const int lineLast = qMin(item.rowCount, lineFirst + columns);
     const int index = qBound(lineFirst, lineFirst + column, lineLast);
@@ -1416,7 +1458,7 @@ void PDFAppToolMergePageView::paintTiles(QPainter* painter, int group, const QRe
 
     const QSize tile = layout.tileSize;
     const int columns = layout.columns;
-    const int lineHeight = tile.height() + TILE_GAP;
+    const int lineHeight = tile.height() + layout.gap;
     const int paintTop = verticalOffset() + paintRect.top();
     const int paintBottom = verticalOffset() + paintRect.bottom();
     const int firstLine = qMax(0, (paintTop - layout.tilesTop) / lineHeight);
@@ -1475,15 +1517,16 @@ void PDFAppToolMergePageView::paintDropLine(QPainter* painter)
     const QRect targetRect = target < rowCount ? getTileRect(target) : QRect();
     const QRect previousRect = target > 0 ? getTileRect(target - 1) : QRect();
     const int pointerY = toContent(m_lastDragPosition).y();
-    const bool isPointerAtPrevious = !previousRect.isNull() && pointerY >= previousRect.top() - TILE_GAP && pointerY <= previousRect.bottom() + TILE_GAP;
+    const int previousGap = getTileGapOfRow(target - 1);
+    const bool isPointerAtPrevious = !previousRect.isNull() && pointerY >= previousRect.top() - previousGap && pointerY <= previousRect.bottom() + previousGap;
     const bool isAfterPrevious = targetRect.isNull() || (isPointerAtPrevious && previousRect.top() != targetRect.top());
     if (!isAfterPrevious)
     {
-        line = QRect(targetRect.left() - TILE_GAP / 2 - DROP_LINE / 2, targetRect.top(), DROP_LINE, targetRect.height());
+        line = QRect(targetRect.left() - getTileGapOfRow(target) / 2 - DROP_LINE / 2, targetRect.top(), DROP_LINE, targetRect.height());
     }
     else if (!previousRect.isNull())
     {
-        line = QRect(previousRect.right() + 1 + TILE_GAP / 2 - DROP_LINE / 2, previousRect.top(), DROP_LINE, previousRect.height());
+        line = QRect(previousRect.right() + 1 + previousGap / 2 - DROP_LINE / 2, previousRect.top(), DROP_LINE, previousRect.height());
     }
 
     if (!line.isNull())
@@ -1550,8 +1593,13 @@ QSize PDFAppToolMergeDetailsView::sizeHint() const
 
 void PDFAppToolMergeDetailsView::setDefaultColumnWidths()
 {
+    setColumnWidths(std::vector<int>(std::cbegin(PDFAppToolMergeViewHelper::COLUMN_WIDTHS), std::cend(PDFAppToolMergeViewHelper::COLUMN_WIDTHS)));
+}
+
+void PDFAppToolMergeDetailsView::setColumnWidths(const std::vector<int>& widths)
+{
     int column = 0;
-    for (const int width : PDFAppToolMergeViewHelper::COLUMN_WIDTHS)
+    for (const int width : widths)
     {
         header()->resizeSection(column++, width);
     }

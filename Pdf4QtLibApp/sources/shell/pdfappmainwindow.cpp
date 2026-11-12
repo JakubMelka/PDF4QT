@@ -33,7 +33,9 @@
 #include "pdfappnavigator.h"
 #include "pdfappsessionend.h"
 #include "pdfapptab.h"
+#include "pdfappassemblyloader.h"
 #include "pdfapptooldocumentpage.h"
+#include "pdfapptoolgui_manage.h"
 #include "pdfapptoolhost.h"
 #include "pdfapptoolinputlist.h"
 #include "pdfapptooltab.h"
@@ -41,6 +43,7 @@
 #include "pdfappwindowframe.h"
 #include "pdfappwindowgeometry.h"
 #include "pdfdatabasenotifier.h"
+#include "pdfrecentassemblyrepository.h"
 #include "pdfsettingdefinitions.h"
 #include "pdfshortcutrepository.h"
 #include "pdfworkspacerepository.h"
@@ -54,6 +57,7 @@
 #include "pdfthememanager.h"
 
 #include "pdfannotationmanipulator.h"
+#include "pdfdocumenttool_manage.h"
 
 #include <QAction>
 #include <QApplication>
@@ -1236,6 +1240,25 @@ void PDFAppMainWindow::openDocuments(const std::vector<PDFAppOpenRequest>& reque
             continue;
         }
 
+        // An assembly file of Manage Pages opens the tool (plan of step 3b of phase 2, RB3 e)
+        if (PDFAppAssemblyLoader::isAssemblyFile(file))
+        {
+            QString assemblyError;
+            const bool isOpened = openAssembly(file, &assemblyError);
+            if (!guard)
+            {
+                return;
+            }
+            if (!isOpened)
+            {
+                PDFAppOpenFailure failure;
+                failure.name = file.left(1024);
+                failure.reason = assemblyError.isEmpty() ? tr("Not a PDF document") : assemblyError;
+                failures.push_back(std::move(failure));
+            }
+            continue;
+        }
+
         // A file without the extension .pdf and without the signature of a PDF is refused
         if (!PDFAppFileDrop::isPdfFile(file))
         {
@@ -1273,6 +1296,87 @@ void PDFAppMainWindow::openDocuments(const std::vector<PDFAppOpenRequest>& reque
     {
         reportOpenFailures(failures);
     }
+}
+
+bool PDFAppMainWindow::openAssembly(const QString& filePath, QString* errorText)
+{
+    if (errorText)
+    {
+        errorText->clear();
+    }
+
+    // The own tab of Manage Pages (plan of step 3b of phase 2, 4.6, RB3 e): its GUI takes the file
+    // from the list of the inputs at its start and loads it (PDFAppAssemblyLoader - the dialog of
+    // the sources, the bin, B24). Without the tool (not registered) the file is refused.
+    const QString toolId = QString::fromLatin1(PDFDocumentToolManage::TOOL_ID);
+    if (!PDFAppToolTabPageFactory::hasOwnTabPage(toolId))
+    {
+        if (errorText)
+        {
+            *errorText = tr("Manage Pages is not available");
+        }
+        return false;
+    }
+
+    const QString absolutePath = QDir::cleanPath(QFileInfo(filePath).absoluteFilePath());
+
+    // The file is recorded in the recent assemblies (409:32023, 409:32739, the page Open) as an
+    // opened PDF is recorded in Recent before it is read; its page count comes with the GUI,
+    // when the assembly is read (PDFRecentAssemblyRepository::recordOpened)
+    if (m_context && m_context->getDatabase())
+    {
+        const PDFDatabaseError error = PDFRecentAssemblyRepository(m_context->getDatabase()).recordOpened(absolutePath, -1);
+        if (error.isError())
+        {
+            qWarning("The assembly cannot be recorded in the recent assemblies: %s", qPrintable(error.toString()));
+        }
+    }
+
+    // An assembly open already (also being loaded) is not opened a second time: its tab becomes
+    // current - of this window first, else of another window, which comes to the front. The
+    // activation runs code of the application (the tab bar, the pages): it is the last call.
+    if (PDFAppToolTab* openTab = PDFAppManageToolGUI::findAssemblyTab(this, absolutePath))
+    {
+        activateTab(openTab);
+        return true;
+    }
+    for (QWidget* widget : QApplication::topLevelWidgets())
+    {
+        PDFAppMainWindow* window = qobject_cast<PDFAppMainWindow*>(widget);
+        PDFAppToolTab* openTab = window && window != this ? PDFAppManageToolGUI::findAssemblyTab(window, absolutePath) : nullptr;
+        if (openTab)
+        {
+            QPointer<PDFAppMainWindow> windowGuard(window);
+            window->activateTab(openTab);
+            if (windowGuard)
+            {
+                PDFAppActivation::activateWindow(windowGuard.data(), QString());
+            }
+            return true;
+        }
+    }
+
+    // The list goes to the tab in one call (R13); not taken by a tab, it stays here. The tab may
+    // show its route at once: the file is on the list before.
+    PDFAppToolInputList* inputList = new PDFAppToolInputList(nullptr);
+    PDFAppAssemblyLoader::setRequestedFile(inputList, absolutePath);
+    QPointer<PDFAppToolInputList> listGuard(inputList);
+    QPointer<PDFAppMainWindow> guard(this);
+    PDFAppToolTab* tab = createToolTab(toolId, inputList);
+    if (listGuard && !listGuard->parent())
+    {
+        delete listGuard.data();
+    }
+    if (!guard)
+    {
+        return false;
+    }
+
+    if (!tab && errorText)
+    {
+        *errorText = tr("Too many tabs are open");
+    }
+    return tab != nullptr;
 }
 
 void PDFAppMainWindow::openDocument(const PDFAppOpenRequest& request, std::vector<PDFAppOpenFailure>* failures, QPointer<PDFAppTab>* replacedTab)
@@ -1696,7 +1800,7 @@ void PDFAppMainWindow::browseDocuments(const QString& folder)
     // drop or the code of a page may delete the window meanwhile)
     QPointer<PDFAppMainWindow> guard(this);
     m_isBrowsingDocuments = true;
-    const QStringList files = PDFAppFileDialogs::getOpenFileNames(this, folder);
+    const QStringList files = PDFAppFileDialogs::getOpenDocumentFileNames(this, folder);
     if (!guard)
     {
         return;
@@ -2317,7 +2421,8 @@ void PDFAppMainWindow::dropEvent(QDropEvent* event)
         event->ignore();
         return;
     }
-    const PDFAppFileDrop::Result result = PDFAppFileDrop::getFiles(event->mimeData());
+    // PDF files and the assembly files of Manage Pages (openDocuments hands them to openAssembly)
+    const PDFAppFileDrop::Result result = PDFAppFileDrop::getFiles(event->mimeData(), PDFAppFileDrop::MAXIMUM_FILES, false, true);
     event->setDropAction(Qt::CopyAction);
     event->accept();
 
@@ -2330,7 +2435,7 @@ void PDFAppMainWindow::dropEvent(QDropEvent* event)
             items << tr("%1 – %2").arg(item.text, PDFAppFileDrop::getRefusalText(item.refusal));
         }
         showMessage(int(PDFThemeIcons::Badge::Warning), tr("Some items were not opened"),
-                    tr("Only PDF files on this computer can be opened. These items were left out:"),
+                    tr("Only PDF files and assemblies on this computer can be opened. These items were left out:"),
                     PDFAppMainWindowHelper::createList(items, 20));
     }
 

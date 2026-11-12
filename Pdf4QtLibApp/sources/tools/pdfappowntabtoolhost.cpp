@@ -477,10 +477,12 @@ void PDFAppOwnTabToolHost::requestCommand(const QString& commandId)
 
 QString PDFAppOwnTabToolHost::getCommandToolTip(const QString& commandId) const
 {
-    // The title of the command with the shortcut of the user, as the document view says it
+    // The title of the command with the shortcut of the user, as the document view says it;
+    // Undo and Redo of the tool name their step ("Undo Group", RB3 d of step 3b)
     PDFAppContext* context = getContext();
     const PDFAppCommandRegistry::UserShortcuts shortcuts = context && context->getDatabase() ? context->getShortcuts().getShortcuts() : PDFAppCommandRegistry::UserShortcuts();
-    return PDFAppDocumentView::formatCommandToolTip(context ? context->getCommandRegistry() : nullptr, commandId, shortcuts, false);
+    const PDFAppToolUndoTarget* target = m_view ? m_view->getUndoTarget() : nullptr;
+    return PDFAppDocumentView::formatCommandToolTip(context ? context->getCommandRegistry() : nullptr, commandId, shortcuts, false, PDFAppDocumentView::getToolUndoTitle(target, commandId));
 }
 
 PDFAppToolRunEnvironment PDFAppOwnTabToolHost::createEnvironment() const

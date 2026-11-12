@@ -349,6 +349,38 @@ bool PDFDocumentToolGUI::isResultInThisTab() const
     return false;
 }
 
+bool PDFDocumentToolGUI::isTabKeptAfterResult() const
+{
+    return false;
+}
+
+bool PDFDocumentToolGUI::handlesPermissionRefusal() const
+{
+    return false;
+}
+
+PDFAppToolCloseAnswer PDFDocumentToolGUI::askOwnTabClose()
+{
+    return PDFAppToolCloseAnswer::Generic;
+}
+
+QString PDFDocumentToolGUI::getCancelText() const
+{
+    return QString();
+}
+
+void PDFDocumentToolGUI::closeOwnTab()
+{
+    // Cancel of the toolbar closes the own tab (PDFAppToolTabPage::onCloseRequested): the last
+    // statement, the slots may delete the shell and this GUI
+    PDFDocumentToolShell* shell = getShell();
+    const PDFAppToolHost* host = getHost();
+    if (shell && host && host->isOwnTab() && shell->getState() == PDFDocumentToolShell::State::Editing)
+    {
+        shell->cancel();
+    }
+}
+
 QVariantMap PDFDocumentToolGUI::getRunParameters() const
 {
     const PDFAppToolParameterModel* model = getModel();

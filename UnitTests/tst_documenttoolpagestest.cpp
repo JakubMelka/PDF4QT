@@ -243,6 +243,92 @@ public:
         }
         return PDFDocumentPageOperations::removePages(&document, pageNumbers, nullptr, statistics);
     }
+
+    /// The ranges of the leaves of the document parts in the order of a depth-first walk (14.12.3)
+    /// as page numbers ("1-2", "3"), and what breaks Table 409 and 14.12.3: "End of one page" (/End
+    /// only for more pages), "invalid node", "page n not in its part" (/DPart of a page is the leaf,
+    /// whose range has it)
+    static QStringList getDocumentParts(const PDFDocument& document)
+    {
+        QStringList parts;
+        const PDFDictionary* root = document.getDictionaryFromObject(getCatalog(document)->get("DPartRoot"));
+        if (!root)
+        {
+            return parts;
+        }
+        std::map<PDFObjectReference, size_t> pageIndices;
+        const size_t pageCount = document.getCatalog()->getPageCount();
+        for (size_t i = 0; i < pageCount; ++i)
+        {
+            pageIndices[document.getCatalog()->getPage(i)->getPageReference()] = i;
+        }
+        std::set<PDFObjectReference> visited;
+        std::vector<PDFObjectReference> leafOfPage(pageCount);
+        readDocumentPart(document, root->get("DPartRootNode"), pageIndices, &visited, &leafOfPage, &parts);
+        for (size_t i = 0; i < pageCount; ++i)
+        {
+            const PDFObject& part = getDictionary(document, document.getCatalog()->getPage(i)->getPageReference())->get("DPart");
+            if (!part.isReference() || part.getReference() != leafOfPage[i])
+            {
+                parts << QStringLiteral("page %1 not in its part").arg(qint64(i + 1));
+            }
+        }
+        return parts;
+    }
+
+    static void readDocumentPart(const PDFDocument& document, const PDFObject& node, const std::map<PDFObjectReference, size_t>& pageIndices, std::set<PDFObjectReference>* visited,
+                                 std::vector<PDFObjectReference>* leafOfPage, QStringList* parts)
+    {
+        const PDFDictionary* dictionary = document.getDictionaryFromObject(node);
+        if (!node.isReference() || !visited->insert(node.getReference()).second || !dictionary)
+        {
+            *parts << QStringLiteral("invalid node");
+            return;
+        }
+        if (dictionary->hasKey("DParts"))
+        {
+            for (const PDFObject& children : *document.getObject(dictionary->get("DParts")).getArray())
+            {
+                for (const PDFObject& child : *document.getObject(children).getArray())
+                {
+                    readDocumentPart(document, child, pageIndices, visited, leafOfPage, parts);
+                }
+            }
+            return;
+        }
+        const PDFObject& start = dictionary->get("Start");
+        const PDFObject& end = dictionary->hasKey("End") ? dictionary->get("End") : start;
+        if (!start.isReference() || !end.isReference() || !pageIndices.count(start.getReference()) || !pageIndices.count(end.getReference()))
+        {
+            *parts << QStringLiteral("invalid node");
+            return;
+        }
+        const size_t first = pageIndices.at(start.getReference());
+        const size_t last = pageIndices.at(end.getReference());
+        *parts << (first == last ? QString::number(qint64(first + 1)) : QStringLiteral("%1-%2").arg(qint64(first + 1)).arg(qint64(last + 1)));
+        if (dictionary->hasKey("End") && first == last)
+        {
+            *parts << QStringLiteral("End of one page");
+        }
+        for (size_t i = first; i <= last && i < leafOfPage->size(); ++i)
+        {
+            (*leafOfPage)[i] = node.getReference();
+        }
+    }
+
+    /// Five pages in the document parts 62 (pages 1-2) and 63, which has 64 (page 3) and 65 (pages
+    /// 4-5, with its metadata /DPM); three levels named by /NodeNameList, /RecordLevel 2
+    static PagesTestPdf createDocumentParts()
+    {
+        PagesTestPdf pdf = PagesTestPdf::createPages("/DPartRoot 60 0 R", { { 1, "/DPart 62 0 R" }, { 2, "/DPart 62 0 R" }, { 3, "/DPart 64 0 R" }, { 4, "/DPart 65 0 R" }, { 5, "/DPart 65 0 R" } });
+        pdf.set(60, "<< /Type /DPartRoot /DPartRootNode 61 0 R /NodeNameList [/Document /Chapter /Range] /RecordLevel 2 >>");
+        pdf.set(61, "<< /Type /DPart /Parent 60 0 R /DParts [[62 0 R 63 0 R]] >>");
+        pdf.set(62, "<< /Type /DPart /Parent 61 0 R /Start 3 0 R /End 4 0 R >>");
+        pdf.set(63, "<< /Type /DPart /Parent 61 0 R /DParts [[64 0 R] [65 0 R]] >>");
+        pdf.set(64, "<< /Type /DPart /Parent 63 0 R /Start 5 0 R >>");
+        pdf.set(65, "<< /Type /DPart /Parent 63 0 R /Start 6 0 R /End 7 0 R /DPM << /Name (Annex) >> >>");
+        return pdf;
+    }
 };
 
 class DocumentToolPagesTest : public QObject
@@ -270,6 +356,9 @@ private slots:
     void removePageLabels();
     void removeStructureThreadsActions();
     void removeLayers();
+    void removeDocumentParts();
+    void removeDocumentPartsDamaged_data();
+    void removeDocumentPartsDamaged();
     void removeLeavesNoMarker();
     void removeSignedIncremental();
     void removeKeepsOcrLayer();
@@ -843,6 +932,139 @@ void DocumentToolPagesTest::removeLayers()
     QCOMPARE(configuration->get("Order").getArray()->getCount(), size_t(2));
     QCOMPARE(configuration->get("OFF").getArray()->getCount(), size_t(0));
     QVERIFY(PagesTestHelper::getDanglingReferences(result).isEmpty());
+}
+
+void DocumentToolPagesTest::removeDocumentParts()
+{
+    // 14.12 (RS3BCORE, owner fix wave 2026-11-12): the leaves of the document parts are ranges of
+    // pages in the order of the page tree, every page in one of them (14.12.2, 14.12.3). The pages,
+    // which stay, keep their order, so a part keeps the pages of its range, which stay: /Start and
+    // /End move to the first and the last of them, /End goes for one page (Table 409); a part
+    // without a page goes and so does a node without a part; /DPM of a node, which stays, is kept;
+    // /NodeNameList keeps a name per level, which stays, /RecordLevel only an existing level
+    // (Table 408)
+    const PDFDocument document = PagesTestHelper::createDocumentParts().read();
+    QCOMPARE(PagesTestHelper::getDocumentParts(document), QStringList({ QStringLiteral("1-2"), QStringLiteral("3"), QStringLiteral("4-5") }));
+
+    // The first and the last page: /Start of 62 and /End of 65 move
+    PDFDocumentPageOperations::RemovalStatistics statistics;
+    const PDFDocument ends = PagesTestHelper::remove(document, { 1, 5 }, &statistics);
+    QCOMPARE(PagesTestHelper::getDocumentParts(ends), QStringList({ QStringLiteral("1"), QStringLiteral("2"), QStringLiteral("3") }));
+    QVERIFY(!statistics.documentPartsRemoved);
+    QCOMPARE(PagesTestHelper::getDictionary(ends, PDFObjectReference(62, 0))->get("Start").getReference(), PDFObjectReference(4, 0));
+    QCOMPARE(PagesTestHelper::getDictionary(ends, PDFObjectReference(65, 0))->get("Start").getReference(), PDFObjectReference(6, 0));
+    QVERIFY(ends.getDictionaryFromObject(PagesTestHelper::getDictionary(ends, PDFObjectReference(65, 0))->get("DPM")));
+    const PDFDictionary* endsRoot = PagesTestHelper::getDictionary(ends, PDFObjectReference(60, 0));
+    QCOMPARE(endsRoot->get("NodeNameList").getArray()->getCount(), size_t(3));
+    QCOMPARE(endsRoot->get("RecordLevel"), PDFObject::createInteger(2));
+    QVERIFY(PagesTestHelper::getDanglingReferences(ends).isEmpty());
+
+    // The middle page of 62..65: the part 64 goes, its inner array of 63 too (an array of DParts is never empty)
+    const PDFDocument middle = PagesTestHelper::remove(document, { 3 });
+    QCOMPARE(PagesTestHelper::getDocumentParts(middle), QStringList({ QStringLiteral("1-2"), QStringLiteral("3-4") }));
+    const PDFArray* middleParts = PagesTestHelper::getDictionary(middle, PDFObjectReference(63, 0))->get("DParts").getArray();
+    QCOMPARE(middleParts->getCount(), size_t(1));
+    QCOMPARE(middleParts->getItem(0).getArray()->getCount(), size_t(1));
+    QCOMPARE(middleParts->getItem(0).getArray()->getItem(0).getReference(), PDFObjectReference(65, 0));
+    QVERIFY(middle.getObjectByReference(PDFObjectReference(64, 0)).isNull());
+    QVERIFY(PagesTestHelper::getDanglingReferences(middle).isEmpty());
+
+    // Every page of 63: 63, 64 and 65 go, the hierarchy has two levels
+    const PDFDocument tail = PagesTestHelper::remove(document, { 3, 4, 5 }, &statistics);
+    QVERIFY(!statistics.documentPartsRemoved);
+    QCOMPARE(PagesTestHelper::getDocumentParts(tail), QStringList({ QStringLiteral("1-2") }));
+    for (int object : { 63, 64, 65 })
+    {
+        QVERIFY(tail.getObjectByReference(PDFObjectReference(object, 0)).isNull());
+    }
+    const PDFDictionary* tailRoot = PagesTestHelper::getDictionary(tail, PDFObjectReference(60, 0));
+    QCOMPARE(tailRoot->get("NodeNameList").getArray()->getCount(), size_t(2));
+    QCOMPARE(tailRoot->get("NodeNameList").getArray()->getItem(1), PDFObject::createName(QByteArray("Chapter")));
+    QVERIFY(!tailRoot->hasKey("RecordLevel"));
+    QVERIFY(PagesTestHelper::getDanglingReferences(tail).isEmpty());
+
+    // The tool says nothing of the parts, they stay
+    const PDFDocumentToolResult result = PDFDocumentToolRemovePages().run(PagesTestHelper::context(document), PagesTestHelper::pages(QStringLiteral("2")), nullptr, nullptr);
+    QCOMPARE(result.status, PDFDocumentToolResultStatus::Success);
+    QCOMPARE(PagesTestHelper::getDocumentParts(*result.documents.front().document), QStringList({ QStringLiteral("1"), QStringLiteral("2"), QStringLiteral("3-4") }));
+    for (const PDFDocumentToolFact& fact : result.facts)
+    {
+        QVERIFY2(fact.id != QLatin1String("documentParts"), qPrintable(fact.value));
+    }
+}
+
+void DocumentToolPagesTest::removeDocumentPartsDamaged_data()
+{
+    QTest::addColumn<QVariantMap>("objects");
+
+    // 14.12.2: a tree, whose node has one parent; Table 408, 409: /DPartRootNode and the nodes are
+    // indirect, a node has /DParts (no array empty) or /Start, a range is of pages in their order.
+    // A hierarchy, which is none of it, is removed whole - the walk keeps one visited set and a
+    // depth limit (a cycle, a node shared by two paths, a chain deeper than 256 end)
+    auto objects = [](std::initializer_list<std::pair<int, QByteArray>> list)
+    {
+        QVariantMap map;
+        for (const auto& [number, text] : list)
+        {
+            map.insert(QString::number(number), text);
+        }
+        return map;
+    };
+    QTest::newRow("cycle") << objects({ { 63, "<< /Type /DPart /Parent 61 0 R /DParts [[64 0 R] [61 0 R]] >>" } });
+    QTest::newRow("node of two parents") << objects({ { 63, "<< /Type /DPart /Parent 61 0 R /DParts [[64 0 R 62 0 R] [65 0 R]] >>" } });
+    QTest::newRow("end before start") << objects({ { 62, "<< /Type /DPart /Parent 61 0 R /Start 4 0 R /End 3 0 R >>" } });
+    QTest::newRow("start is no page") << objects({ { 64, "<< /Type /DPart /Parent 63 0 R /Start 15 0 R >>" } });
+    QTest::newRow("start direct") << objects({ { 64, "<< /Type /DPart /Parent 63 0 R /Start << /Type /Page >> >>" } });
+    QTest::newRow("leaf with children") << objects({ { 64, "<< /Type /DPart /Parent 63 0 R /Start 5 0 R /DParts [[65 0 R]] >>" } });
+    QTest::newRow("no range, no children") << objects({ { 64, "<< /Type /DPart /Parent 63 0 R >>" } });
+    QTest::newRow("empty children") << objects({ { 63, "<< /Type /DPart /Parent 61 0 R /DParts [] >>" } });
+    QTest::newRow("empty array of children") << objects({ { 63, "<< /Type /DPart /Parent 61 0 R /DParts [[64 0 R] []] >>" } });
+    QTest::newRow("root node direct") << objects({ { 60, "<< /Type /DPartRoot /DPartRootNode << /DParts [[62 0 R 63 0 R]] >> >>" } });
+    QTest::newRow("root no dictionary") << objects({ { 60, "[61 0 R]" } });
+
+    QVariantMap deep = objects({ { 63, "<< /Type /DPart /Parent 61 0 R /DParts [[200 0 R]] >>" } });
+    for (int number = 200; number < 500; ++number)
+    {
+        deep.insert(QString::number(number), number + 1 < 500 ? "<< /Type /DPart /DParts [[" + QByteArray::number(number + 1) + " 0 R]] >>" : QByteArray("<< /Type /DPart /Start 5 0 R /End 7 0 R >>"));
+    }
+    QTest::newRow("deeper than 256") << deep;
+}
+
+void DocumentToolPagesTest::removeDocumentPartsDamaged()
+{
+    QFETCH(QVariantMap, objects);
+
+    PagesTestPdf pdf = PagesTestHelper::createDocumentParts();
+    for (auto it = objects.cbegin(); it != objects.cend(); ++it)
+    {
+        pdf.set(it.key().toInt(), it.value().toByteArray());
+    }
+    const PDFDocument document = pdf.read();
+
+    // The parts and /DPart of every page, which stays, are removed; nothing points at nothing
+    QElapsedTimer timer;
+    timer.start();
+    PDFDocumentPageOperations::RemovalStatistics statistics;
+    const PDFDocument result = PagesTestHelper::remove(document, { 2 }, &statistics);
+    QVERIFY(timer.elapsed() < 5000 * qMax(1, qEnvironmentVariableIntValue("PDF4QT_TEST_TIMEOUT_FACTOR")));
+    QVERIFY(statistics.documentPartsRemoved);
+    QCOMPARE(result.getCatalog()->getPageCount(), size_t(4));
+    QVERIFY(!PagesTestHelper::getCatalog(result)->hasKey("DPartRoot"));
+    for (size_t i = 0; i < 4; ++i)
+    {
+        QVERIFY(!PagesTestHelper::getDictionary(result, result.getCatalog()->getPage(i)->getPageReference())->hasKey("DPart"));
+    }
+    QVERIFY(PagesTestHelper::getDanglingReferences(result).isEmpty());
+
+    // The tool says so
+    const PDFDocumentToolResult toolResult = PDFDocumentToolRemovePages().run(PagesTestHelper::context(document), PagesTestHelper::pages(QStringLiteral("2")), nullptr, nullptr);
+    QCOMPARE(toolResult.status, PDFDocumentToolResultStatus::Success);
+    QString partsFact;
+    for (const PDFDocumentToolFact& fact : toolResult.facts)
+    {
+        partsFact = fact.id == QLatin1String("documentParts") ? fact.value : partsFact;
+    }
+    QCOMPARE(partsFact, QStringLiteral("Document parts removed"));
 }
 
 void DocumentToolPagesTest::removeLeavesNoMarker()

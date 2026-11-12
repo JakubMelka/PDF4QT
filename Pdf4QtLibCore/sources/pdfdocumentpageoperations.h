@@ -30,6 +30,7 @@
 #include <QCoreApplication>
 
 #include <functional>
+#include <map>
 #include <memory>
 #include <set>
 #include <vector>
@@ -92,6 +93,7 @@ public:
         bool threadsRemoved = false;            ///< The document had articles, they are removed
         bool documentActionsRemoved = false;    ///< The document had an action at its opening or document actions, they are removed
         bool pageLabelsRewritten = false;       ///< The page labels have been written again, so that every page keeps its label
+        bool documentPartsRemoved = false;      ///< The document had document parts (14.12), which are removed: damaged (a cycle, a node of two parents, a range, which is no range of pages) or no part keeps a page
         bool isCanceled = false;                ///< The removal has been canceled, the returned document is empty
     };
 
@@ -103,10 +105,13 @@ public:
     /// actions of the pages, which stay, the widgets of the removed pages with their
     /// fields (a field without a widget is removed, also a signature field and its
     /// /Perms), the optional content groups used only by the removed pages, the page
-    /// labels (each page, which stays, keeps its label). As the old PageMaster, the
-    /// structure tree, the articles and the document actions are removed (owner answer
-    /// Q8). The objects, which nothing refers to any more, are null; the pages of the
-    /// result are one flat page tree. Removing every page throws PDFException.
+    /// labels (each page, which stays, keeps its label), the document parts (14.12: a part
+    /// keeps the pages of its range, which stay - its /Start and /End move to the first and
+    /// the last of them, a part without a page is removed with the nodes left without a
+    /// part; a damaged hierarchy is removed whole with /DPart of the pages). As the old
+    /// PageMaster, the structure tree, the articles and the document actions are removed
+    /// (owner answer Q8). The objects, which nothing refers to any more, are null; the
+    /// pages of the result are one flat page tree. Removing every page throws PDFException.
     /// \param document The document
     /// \param pages Indices of the pages to remove (from 0); invalid ones and duplicates are left out
     /// \param control Cancellation (optional)
@@ -139,6 +144,8 @@ public:
         std::set<PDFObjectReference> m_pages;           ///< Every page object of the page tree
         std::set<PDFObjectReference> m_annotations;     ///< Every annotation listed by a page
         std::set<PDFObjectReference> m_layersOfPages;   ///< Optional content groups of /OCGs, which a page reaches
+        std::map<PDFObjectReference, PDFInteger> m_pageIndices;    ///< The index of each page object (the ranges of the document parts, 14.12)
+        bool m_hasRepeatedPage = false;                 ///< The page tree lists a page object more than once (the ranges of the document parts are not defined)
     };
 
     /// The index of the document for keepPages; nullptr when canceled. Throws PDFException,

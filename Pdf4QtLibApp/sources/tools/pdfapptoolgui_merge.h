@@ -91,16 +91,10 @@ public:
     static constexpr int PADDING_BOTTOM = 25;  ///< Padding 24 + the border
     static constexpr int GAP = 12;
     static constexpr int ICON_TILE = 44;
-    static constexpr int ROW_HEIGHT = 52;
+    static constexpr int ROW_HEIGHT = PDFAppToolOpenDocumentRow::HEIGHT;
 
-    /// An open document, which can be added
-    struct Document
-    {
-        QString documentId;
-        QString name;
-        QString details;        ///< "9 pages · 15.3 MB", "3 pages · the current unsaved state is used"
-        bool isModified = false;
-    };
+    /// An open document, which can be added ("9 pages · 15.3 MB", "3 pages · the current unsaved state is used")
+    using Document = PDFAppToolOpenDocumentRow::Document;
 
     explicit PDFAppToolMergeEmptyState(const std::vector<Document>& documents, QWidget* parent);
     virtual ~PDFAppToolMergeEmptyState() override;
@@ -114,8 +108,6 @@ Q_SIGNALS:
     void addDocumentRequested(const QString& documentId);
 
 private:
-    void onAddClicked();
-
     QPointer<QWidget> m_card;
     QPointer<QPushButton> m_addFilesButton;
     std::vector<QPointer<QPushButton>> m_addButtons;

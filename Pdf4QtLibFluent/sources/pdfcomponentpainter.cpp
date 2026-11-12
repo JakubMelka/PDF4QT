@@ -34,6 +34,9 @@
 #include <QTextLayout>
 #include <QtMath>
 
+#include <utility>
+#include <vector>
+
 namespace pdf
 {
 
@@ -100,6 +103,27 @@ public:
             line.chop(1);
         }
         return line;
+    }
+
+    /// Returns true, when the character separates the folders of a path ('\\' or '/')
+    static bool isPathSeparator(QChar character)
+    {
+        return character == QLatin1Char('\\') || character == QLatin1Char('/');
+    }
+
+    /// Returns the path elided by \p PDFComponentPainter::elidedPath: its root and
+    /// the first \p keptCount folders (with the separators between them, as in the
+    /// path), the separator and the tail (the ellipsis, the separator and the last folder)
+    static QString pathWithKeptFolders(const QString& path, qsizetype rootLength, const std::vector<std::pair<qsizetype, qsizetype>>& folders,
+                                       qsizetype keptCount, QChar separator, const QString& tail)
+    {
+        if (keptCount <= 0)
+        {
+            // The root as it is: "C:\", "/", "\\server\share\", "C:" of a path relative to a drive, nothing of a relative path
+            return path.left(rootLength) + tail;
+        }
+
+        return path.left(folders[size_t(keptCount - 1)].second) + separator + tail;
     }
 
     /// Layout of the placeholder lines of a page thumbnail
@@ -305,11 +329,182 @@ QString PDFComponentPainter::elidedTextOfKind(const QString& text, const QFont& 
         case TextKind::FileName:
             return elidedFileName(text, font, width);
 
+        case TextKind::Path:
+            return elidedPath(text, font, width);
+
         case TextKind::Interface:
         case TextKind::Data:
             break;
     }
     return elidedText(text, font, width);
+}
+
+QString PDFComponentPainter::elidedPath(const QString& path, const QFont& font, qreal width)
+{
+    if (path.isEmpty() || !(width > 0.0))
+    {
+        return QString();
+    }
+
+    const QFontMetricsF metrics(font);
+    if (metrics.horizontalAdvance(path) <= width)
+    {
+        return path;
+    }
+
+    // The root stays: a share "\\server\share\", a drive "C:\" or the leading separators
+    const qsizetype length = path.size();
+    qsizetype rootLength = 0;
+    if (length >= 2 && PDFComponentPainterHelper::isPathSeparator(path.at(0)) && PDFComponentPainterHelper::isPathSeparator(path.at(1)))
+    {
+        rootLength = 2;
+        for (int part = 0; part < 2 && rootLength < length; ++part)
+        {
+            while (rootLength < length && !PDFComponentPainterHelper::isPathSeparator(path.at(rootLength)))
+            {
+                ++rootLength;
+            }
+            if (rootLength < length)
+            {
+                ++rootLength;
+            }
+        }
+    }
+    else if (length >= 2 && path.at(1) == QLatin1Char(':') && path.at(0).isLetter())
+    {
+        rootLength = 2;
+    }
+    while (rootLength < length && PDFComponentPainterHelper::isPathSeparator(path.at(rootLength)))
+    {
+        ++rootLength;
+    }
+
+    // The folders after the root (their spans), the separators between them are skipped
+    std::vector<std::pair<qsizetype, qsizetype>> folders;
+    for (qsizetype i = rootLength; i < length;)
+    {
+        if (PDFComponentPainterHelper::isPathSeparator(path.at(i)))
+        {
+            ++i;
+            continue;
+        }
+
+        const qsizetype start = i;
+        while (i < length && !PDFComponentPainterHelper::isPathSeparator(path.at(i)))
+        {
+            ++i;
+        }
+        folders.emplace_back(start, i);
+    }
+
+    if (folders.size() >= 2)
+    {
+        // The last folder with the separator before it, the ellipsis replaces
+        // the folders between the kept leading folders and the last one. The
+        // width grows with the count of the kept leading folders: the largest
+        // count, which fits, is found by bisection (a hostile path may have
+        // thousands of folders).
+        const std::pair<qsizetype, qsizetype> last = folders.back();
+        const QChar separator = path.at(last.first - 1);
+        const QString tail = QString(QChar(0x2026)) + separator + path.mid(last.first, last.second - last.first);
+        const qsizetype maximumKept = qsizetype(folders.size()) - 2;
+        qsizetype low = 0;
+        qsizetype high = maximumKept;
+        QString best = PDFComponentPainterHelper::pathWithKeptFolders(path, rootLength, folders, 0, separator, tail);
+        if (metrics.horizontalAdvance(best) <= width)
+        {
+            while (low < high)
+            {
+                const qsizetype middle = low + (high - low + 1) / 2;
+                const QString candidate = PDFComponentPainterHelper::pathWithKeptFolders(path, rootLength, folders, middle, separator, tail);
+                if (metrics.horizontalAdvance(candidate) <= width)
+                {
+                    low = middle;
+                    best = candidate;
+                }
+                else
+                {
+                    high = middle - 1;
+                }
+            }
+            return best;
+        }
+    }
+
+    return elidedText(path, font, width, Qt::ElideMiddle);
+}
+
+QString PDFComponentPainter::getDetailSeparator()
+{
+    return QStringLiteral(" \u00B7 ");
+}
+
+PDFComponentPainter::TextWithDetail PDFComponentPainter::elidedTextWithDetail(const QString& text, const QString& detail, const QFont& font, qreal width, TextKind kind)
+{
+    TextWithDetail result;
+    if (!(width > 0.0))
+    {
+        return result;
+    }
+
+    const QFontMetricsF metrics(font);
+    if (!text.isEmpty())
+    {
+        const QString separatedDetail = detail.isEmpty() ? QString() : getDetailSeparator() + detail;
+        const qreal textSpace = width - metrics.horizontalAdvance(separatedDetail);
+        if (textSpace >= metrics.horizontalAdvance(QString(QChar(0x2026))))
+        {
+            result.text = elidedTextOfKind(text, font, textSpace, kind);
+        }
+
+        if (!result.text.isEmpty())
+        {
+            result.detail = separatedDetail;
+            result.textWidth = metrics.horizontalAdvance(result.text);
+            return result;
+        }
+    }
+
+    // The text is dropped (or there is none): the detail alone
+    result.detail = elidedText(detail, font, width);
+    return result;
+}
+
+void PDFComponentPainter::drawElidedTextWithDetail(QPainter* painter, const State& state, const QRectF& visualRect, const QString& text, const QString& detail,
+                                                   const QFont& font, PDFThemeColors::Color color, TextKind kind)
+{
+    if (!painter || !(visualRect.width() > 0.0) || !(visualRect.height() > 0.0) || (text.isEmpty() && detail.isEmpty()))
+    {
+        return;
+    }
+
+    const TextWithDetail line = elidedTextWithDetail(text, detail, font, visualRect.width(), kind);
+    const int alignment = Qt::AlignVCenter | Qt::TextSingleLine | state.leadingAlignment();
+    const QColor textColor = PDFStylePainter::color(color);
+
+    // The text (already elided) at the leading edge of the whole rectangle, the
+    // detail after it in the reading order of the component
+    const qreal textWidth = qMin(line.textWidth, visualRect.width());
+    const QRectF detailRect(state.isRightToLeft() ? visualRect.left() : visualRect.left() + textWidth, visualRect.top(), visualRect.width() - textWidth, visualRect.height());
+
+    if (!line.text.isEmpty())
+    {
+        switch (kind)
+        {
+            case TextKind::Data:
+            case TextKind::FileName:
+            case TextKind::Path:
+                // The direction of the whole text: the elision may cut its first strong character off (review C18)
+                drawDataText(painter, visualRect, alignment, line.text, font, textColor, getDataTextDirection(text));
+                break;
+
+            case TextKind::Interface:
+                PDFStylePainter::text(painter, visualRect, alignment, line.text, font, textColor);
+                break;
+        }
+    }
+
+    PDFStylePainter::text(painter, detailRect, alignment, line.detail, font, textColor);
 }
 
 void PDFComponentPainter::drawElidedText(QPainter* painter, const State& state, const QRectF& visualRect, const QString& text, const QFont& font,
@@ -326,6 +521,7 @@ void PDFComponentPainter::drawElidedText(QPainter* painter, const State& state, 
     {
         case TextKind::Data:
         case TextKind::FileName:
+        case TextKind::Path:
             // The direction of the whole text: the elision may cut its first strong character off (review C18)
             drawDataText(painter, visualRect, alignment, elidedTextOfKind(text, font, visualRect.width(), kind), font, textColor, getDataTextDirection(text));
             return;
@@ -1152,17 +1348,19 @@ public:
 
     /// Draws a title (Semi Bold 13, line 16) and a subtitle (Regular 11, line 13)
     /// as a block centered vertically in the outer rectangle; a title without the
-    /// subtitle is centered alone (an issue of the release without its description)
+    /// subtitle is centered alone (an issue of the release without its description).
+    /// A detail of the subtitle follows it and stays whole (\p PDFComponentPainter::drawElidedTextWithDetail).
     static void drawTextBlock(QPainter* painter, const State& state, const QRectF& outer, qreal left, qreal width,
                               const QString& title, Color titleColor, const QString& subtitle, Color subtitleColor,
-                              int gap, TextKind titleKind = TextKind::Interface, TextKind subtitleKind = TextKind::Interface)
+                              int gap, TextKind titleKind = TextKind::Interface, TextKind subtitleKind = TextKind::Interface,
+                              const QString& subtitleDetail = QString())
     {
         if (width <= 0.0)
         {
             return;
         }
 
-        if (subtitle.isEmpty())
+        if (subtitle.isEmpty() && subtitleDetail.isEmpty())
         {
             drawText(painter, state, outer, line(outer, left, width, TITLE_LINE), title, titleFont(), titleColor, false, titleKind);
             return;
@@ -1172,7 +1370,16 @@ public:
         const qreal blockHeight = TITLE_LINE + gap + SUBTITLE_LINE;
         const qreal top = outer.top() + qFloor((outer.height() - blockHeight) / 2.0);
         drawText(painter, state, outer, QRectF(left, top, width, TITLE_LINE), title, titleFont(), titleColor, false, titleKind);
-        drawText(painter, state, outer, QRectF(left, top + TITLE_LINE + gap, width, SUBTITLE_LINE), subtitle, subtitleFont(), subtitleColor, false, subtitleKind);
+
+        const QRectF subtitleRect(left, top + TITLE_LINE + gap, width, SUBTITLE_LINE);
+        if (subtitleDetail.isEmpty())
+        {
+            drawText(painter, state, outer, subtitleRect, subtitle, subtitleFont(), subtitleColor, false, subtitleKind);
+        }
+        else
+        {
+            PDFComponentPainter::drawElidedTextWithDetail(painter, state, state.visualRect(outer, subtitleRect), subtitle, subtitleDetail, subtitleFont(), subtitleColor, subtitleKind);
+        }
     }
 
     /// Fills the background of the pointer (pressed bg/pressed, hover bg/hover)
@@ -1609,7 +1816,7 @@ void PDFComponentPainter::paintRecentFileRow(QPainter* painter, const QRectF& re
     const qreal textLeft = iconRect.right() + Helper::FILE_GAP;
     const qreal textWidth = statusLeft - Helper::FILE_GAP - textLeft;
     Helper::drawTextBlock(painter, state, rect, textLeft, textWidth, row.fileName, Helper::text(state, isMissing ? Color::TextMuted : Color::TextPrimary),
-                          row.path, Helper::text(state, Color::TextMuted), Helper::FILE_TEXT_GAP, Helper::TextKind::FileName, Helper::TextKind::Data);
+                          row.path, Helper::text(state, Color::TextMuted), Helper::FILE_TEXT_GAP, Helper::TextKind::FileName, Helper::TextKind::Path, row.detail);
 }
 
 QSize PDFComponentPainter::getRecentToolRowSize(const RecentToolRow& row)

@@ -766,10 +766,13 @@ void AppDataTest::catalogTools()
         }
     }
 
-    // tools.md 4.7: 17 available, 26 unavailable, 3 without a document
-    QCOMPARE(available, 17);
-    QCOMPARE(unavailable, 26);
+    // tools.md 4.7: 18 available, 25 unavailable, 3 without a document (Manage Pages is available
+    // for a locked document since step 3b of phase 2, plan 4.5: only its output This document is
+    // Disabled - a locked document is a source of a new PDF)
+    QCOMPARE(available, 18);
+    QCOMPARE(unavailable, 25);
     QCOMPARE(noDocument, 3);
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"pages.manage")->getLockedAccess(), pdf::PDFDocumentToolLockedAccess::Available);
 
     // newapp_navigation.md 3: Merge, Interleave Pages, Manage Pages, Compare,
     // Manage Certificates, Images to PDF, and Blank PDF in its tab "New document"
@@ -779,6 +782,13 @@ void AppDataTest::catalogTools()
     for (const char* id : { "pages.merge", "pages.interleave", "pages.manage", "review.compare", "protect.certificates", "convert.images-to-pdf" })
     {
         QVERIFY(pdf::PDFDocumentToolCatalog::findTool(QString::fromLatin1(id))->hasOwnTab());
+    }
+
+    // Plan of step 3b of phase 2, QB1 B: Manage Pages started over a document runs in its tab;
+    // every other tool with its own tab always gets it
+    for (const pdf::PDFDocumentToolCatalogEntry& tool : tools)
+    {
+        QCOMPARE(tool.hasDocumentHost(), tool.getId() == QLatin1String("pages.manage"));
     }
 
     // Figma 272:12821: the tag Advanced

@@ -80,6 +80,7 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QStringListModel>
 #include <QToolButton>
 #include <QUrl>
 #include <QtTest>
@@ -124,9 +125,11 @@ private Q_SLOTS:
     void screenshotsOfFrames();
     void manyFilesKeepGuiResponsive();
     void largeInput();
+    void selectRowsOfManyPages();
     void deleteTabInEveryState_data();
     void deleteTabInEveryState();
     void mcpMergeOverHttp();
+    void cardTilesKeepTheirSlot();
 };
 
 /// Helpers of the test
@@ -1023,6 +1026,64 @@ void AppToolMergeTest::passwordOfFile()
     QCOMPARE(list->findInput(secondId)->state, pdf::PDFAppToolInputState::PasswordRequired);
 }
 
+void AppToolMergeTest::selectRowsOfManyPages()
+{
+    // The selection of the canvas of the page tools (Merge, Insert, Interleave, ... - an undo, Select
+    // all of the files, the pages of a file) is set as ranges of adjacent rows: 20 000 pages in one
+    // call within a second (the time limit scales by PDF4QT_TEST_TIMEOUT_FACTOR). The first row of
+    // the call is the current row; duplicates and rows outside of the model are left out.
+    constexpr int ROW_COUNT = 20000;
+    QStringList pages;
+    pages.reserve(ROW_COUNT);
+    for (int i = 0; i < ROW_COUNT; ++i)
+    {
+        pages << QString::number(i + 1);
+    }
+    QStringListModel model(pages);
+    pdf::PDFAppToolMergePageView view(nullptr);
+    view.setModel(&model);
+    const qint64 limit = 1000 * qint64(AppToolOwnTabFixture::getTimeoutFactor());
+
+    // Every row, the last one named first (an undo selects the moved pages in their order)
+    std::vector<int> rows = { ROW_COUNT - 1 };
+    for (int i = 0; i < ROW_COUNT - 1; ++i)
+    {
+        rows.push_back(i);
+    }
+    QElapsedTimer timer;
+    timer.start();
+    view.selectRows(rows);
+    const qint64 allTime = timer.elapsed();
+    QVERIFY2(allTime < limit, qPrintable(QStringLiteral("%1 ms").arg(allTime)));
+    QCOMPARE(view.selectionModel()->selection().size(), qsizetype(1));
+    QCOMPARE(view.getSelectedRows().size(), size_t(ROW_COUNT));
+    QCOMPARE(view.selectionModel()->currentIndex().row(), ROW_COUNT - 1);
+
+    // Every other row: a range of each
+    rows.clear();
+    for (int i = 0; i < ROW_COUNT; i += 2)
+    {
+        rows.push_back(i);
+    }
+    timer.restart();
+    view.selectRows(rows);
+    const qint64 oddTime = timer.elapsed();
+    QVERIFY2(oddTime < limit, qPrintable(QStringLiteral("%1 ms").arg(oddTime)));
+    QCOMPARE(view.getSelectedRows(), rows);
+    QCOMPARE(view.selectionModel()->currentIndex().row(), 0);
+
+    // Duplicates and rows outside of the model
+    view.selectRows({ 6, 5, 5, -1, ROW_COUNT, 7 });
+    QCOMPARE(view.getSelectedRows(), std::vector<int>({ 5, 6, 7 }));
+    QCOMPARE(view.selectionModel()->selection().size(), qsizetype(1));
+    QCOMPARE(view.selectionModel()->currentIndex().row(), 6);
+
+    // Nothing: no selection, no current row
+    view.selectRows({ });
+    QVERIFY(view.getSelectedRows().empty());
+    QVERIFY(!view.selectionModel()->currentIndex().isValid());
+}
+
 void AppToolMergeTest::detailsView()
 {
     // pages-merge-details 408:32003: the columns, the rows, the shared selection, the status
@@ -1716,6 +1777,40 @@ void AppToolMergeTest::mcpMergeOverHttp()
     result = fixture.callTool(QStringLiteral("pages"), arguments);
     QVERIFY(result);
     QVERIFY(result->isError);
+}
+
+void AppToolMergeTest::cardTilesKeepTheirSlot()
+{
+    // Owner Q4 of 12. 11. (plan of step 3b, 13 point 4) gives the loose pages of Manage a square
+    // box; Merge has only cards and keeps its frames (378:1242: the tile 85 x 128 with the box
+    // 73 x 100 in the size Small, 8 apart) - a landscape image of 4 : 3 is fitted into 73 x 100,
+    // 73 x 55 (73 * 3 / 4 = 54.75), centered in the box 6 below the top of its tile
+    AppToolOwnTabFixture fixture;
+    const QString document = AppDocumentSamples::simple(fixture.folder(), QStringLiteral("a.pdf"), 1);
+    const QString image = H::png(fixture.folder(), QStringLiteral("landscape.png"), QSize(400, 300), 300);
+    pdf::PDFAppToolTab* tab = H::open(fixture, { document, image });
+    QVERIFY(tab);
+    PDFAppMergeToolGUI* gui = H::gui(tab);
+    QVERIFY(gui);
+    gui->setTileSize(pdf::PDFAppToolPageGrid::TileSize::Small);
+    AppToolOwnTabFixture::settle();
+
+    pdf::PDFAppToolMergeCanvas* canvas = gui->getCanvas();
+    pdf::PDFAppToolMergePageModel* model = canvas->getModel();
+    QCOMPARE(model->rowCount(), 2);
+    const pdf::PDFAppToolPageTileDelegate* delegate = qobject_cast<const pdf::PDFAppToolPageTileDelegate*>(canvas->getDelegate());
+    QVERIFY(delegate);
+    QVERIFY(!model->data(model->index(1, 0), pdf::PDFAppToolPageTileDelegate::SquareSlotRole).toBool());
+
+    pdf::PDFAppToolMergePageView* view = canvas->getPageView();
+    QStyleOptionViewItem option;
+    option.direction = Qt::LeftToRight;
+    option.rect = view->visualRect(model->index(1, 0));
+    QCOMPARE(option.rect.size(), QSize(85, 128));
+    const QRectF page = delegate->getMarkRects(option, model->index(1, 0)).page;
+    QCOMPARE(page.size(), QSizeF(73, 55));
+    QCOMPARE(page.left() - option.rect.left(), 6.0);
+    QCOMPARE(page.top() - option.rect.top(), 6.0 + 22.0);
 }
 
 QTEST_MAIN(AppToolMergeTest)

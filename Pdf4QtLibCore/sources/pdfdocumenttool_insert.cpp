@@ -28,7 +28,6 @@
 #include "pdfdocumenttool_geometry.h"
 #include "pdfdocumenttool_merge.h"
 #include "pdfform.h"
-#include "pdfocrpagepreparer.h"
 #include "pdfoperationcontrol.h"
 #include "pdfpagerangelist.h"
 #include "pdfpagesizepresets.h"
@@ -59,27 +58,6 @@ public:
             numbers.append(qint64(first + i + 1));
         }
         return numbers;
-    }
-
-    /// The standards, which the target declares (Q18: they stay, the inserted pages are not
-    /// checked): PDF/A and PDF/UA by the metadata, PDF/X by its output intent (14.11.5)
-    static QStringList getDeclarations(const PDFDocument* document)
-    {
-        QStringList declarations;
-        PDFOCRPagePreparer::hasConformanceDeclaration(document, &declarations);
-        const PDFDictionary* trailer = document->getTrailerDictionary();
-        const PDFDictionary* catalog = trailer ? document->getDictionaryFromObject(trailer->get("Root")) : nullptr;
-        const PDFObject& intents = catalog ? document->getObject(catalog->get("OutputIntents")) : PDFObject();
-        for (size_t i = 0; intents.isArray() && i < intents.getArray()->getCount(); ++i)
-        {
-            const PDFDictionary* intent = document->getDictionaryFromObject(intents.getArray()->getItem(i));
-            const PDFObject& subtype = intent ? document->getObject(intent->get("S")) : PDFObject();
-            if (subtype.isName() && subtype.getString() == "GTS_PDFX" && !declarations.contains(QStringLiteral("PDF/X")))
-            {
-                declarations << QStringLiteral("PDF/X");
-            }
-        }
-        return declarations;
     }
 };
 
@@ -438,7 +416,8 @@ PDFDocumentToolResult PDFDocumentToolInsertBase::execute(const PDFDocumentToolCo
     {
         result.facts.push_back({ QStringLiteral("tagsRemoved"), tr("Tags"), tr("Removed: the structure of the whole document goes with the replaced pages") });
     }
-    const QStringList declarations = Helper::getDeclarations(target);
+    // Q18: the declarations stay, the inserted pages are not checked
+    const QStringList declarations = getConformanceDeclarations(target);
     if (!declarations.isEmpty())
     {
         result.facts.push_back({ QStringLiteral("conformance"), tr("Conformance"), tr("Inserted pages were not checked for %1").arg(declarations.join(QStringLiteral(", "))) });

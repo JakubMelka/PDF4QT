@@ -110,6 +110,10 @@ public:
     /// Text of the Primary button; the button itself has none in a very narrow window
     const QString& getConfirmText() const { return m_confirmText; }
 
+    /// Text of the button Cancel (PDFDocumentToolGUI::getCancelText; Manage Pages "Close" in its
+    /// own tab, RB3 f of step 3b); empty = "Cancel"
+    void setCancelText(const QString& text);
+
     /// Adds a panel of the actions: a click on \p button opens the panel below it
     /// (toolbar + PANEL_GAP), the button is checked while it is open
     void addPanel(QToolButton* button, PDFAppToolPanelPopup* panel);
@@ -199,6 +203,7 @@ private:
     QPointer<QPushButton> m_stopButton;
     std::vector<PanelItem> m_panels;
     QString m_confirmText;
+    QString m_cancelText;               ///< setCancelText; empty = "Cancel"
     bool m_isConfirmEnabled = true;     ///< Asked by setConfirmEnabled; Finished shows the button Disabled anyway
     Mode m_mode = Mode::Editing;
     int m_collapseLevel = 0;

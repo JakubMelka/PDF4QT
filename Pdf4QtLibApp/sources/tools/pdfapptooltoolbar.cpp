@@ -213,7 +213,7 @@ void PDFAppToolToolbar::retranslate()
     m_tutorialButton->setText(tr("Tutorial"));
     m_tutorialButton->setToolTip(tr("Tutorial (no video yet)"));
     m_tutorialButton->setAccessibleName(tr("Tutorial"));
-    m_cancelButton->setText(tr("Cancel"));
+    m_cancelButton->setText(m_cancelText.isEmpty() ? tr("Cancel") : m_cancelText);
     m_stopButton->setText(tr("Stop"));
     m_sidebarButton->setAccessibleName(tr("Sidebar"));
     m_undoButton->setAccessibleName(tr("Undo"));
@@ -316,6 +316,18 @@ void PDFAppToolToolbar::setConfirmEnabled(bool isEnabled)
 {
     m_isConfirmEnabled = isEnabled;
     m_confirmButton->setEnabled(isEnabled && m_mode != Mode::Finished);
+}
+
+void PDFAppToolToolbar::setCancelText(const QString& text)
+{
+    if (m_cancelText == text)
+    {
+        return;
+    }
+
+    m_cancelText = text;
+    m_cancelButton->setText(m_cancelText.isEmpty() ? tr("Cancel") : m_cancelText);
+    updateCollapse();
 }
 
 void PDFAppToolToolbar::onCommandClicked()

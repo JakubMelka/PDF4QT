@@ -118,8 +118,8 @@ private:
 /// the time. The star (24, pins the file) and the menu button are nested buttons:
 /// a click on them does not open the file. A right click shows the menu as well,
 /// the context menu key shows it below the menu button. The accessible
-/// description is the folder and the time ("No longer exists" and the folder of
-/// a missing file).
+/// description is the folder, its detail and the time ("No longer exists", the
+/// folder and its detail of a missing file).
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFRecentFileRow : public PDFRowButton
 {
     Q_OBJECT
@@ -138,9 +138,16 @@ public:
     QString getFileName() const { return text(); }
     void setFileName(const QString& fileName);
 
-    /// Folder of the file (also a part of the accessible description)
+    /// Folder of the file (also a part of the accessible description), elided in
+    /// the middle by its folders: the root and the last folder stay
     const QString& getPath() const { return m_row.path; }
     void setPath(const QString& path);
+
+    /// Detail drawn after the folder ("17 pages", a text of the user interface),
+    /// it stays whole when the folder is elided; also a part of the accessible
+    /// description after the folder. Empty by default.
+    const QString& getDetail() const { return m_row.detail; }
+    void setDetail(const QString& detail);
 
     /// Time of the last opening (also a part of the accessible description)
     const QString& getTime() const { return m_row.time; }

@@ -168,6 +168,16 @@ void PDFAppDocumentToolHost::setMessage(const QString& text)
     }
 }
 
+void PDFAppDocumentToolHost::setStatusItems(const QString& pageText, const QString& zoomText)
+{
+    // The zoom item stays the zoom of the view ("151 %" of 1479:34632)
+    Q_UNUSED(zoomText);
+    if (m_view)
+    {
+        m_view->setToolPageText(pageText);
+    }
+}
+
 void PDFAppDocumentToolHost::showTransientMessage(const QString& text)
 {
     if (m_view && m_view->getStatusBar())

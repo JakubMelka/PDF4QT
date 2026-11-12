@@ -27,6 +27,8 @@
 
 #include <sqlite3.h>
 
+#include <iterator>
+
 namespace pdf
 {
 
@@ -45,6 +47,11 @@ std::vector<PDFDatabaseMigration> PDFDatabaseSchema::getMigrations()
     version1.version = 1;
     version1.sql = createVersion1();
     migrations.push_back(std::move(version1));
+
+    PDFDatabaseMigration version2;
+    version2.version = 2;
+    version2.sql = createVersion2();
+    migrations.push_back(std::move(version2));
 
     return migrations;
 }
@@ -78,6 +85,44 @@ bool PDFDatabaseSchema::isValid(const std::vector<PDFDatabaseMigration>& migrati
 
 std::vector<PDFDatabaseTableInfo> PDFDatabaseSchema::getTables()
 {
+    // Every version with new tables (a migration, which adds a table, adds its version here)
+    std::vector<PDFDatabaseTableInfo> result;
+    for (const int version : { 1, 2 })
+    {
+        std::vector<PDFDatabaseTableInfo> tables = getTables(version);
+        result.insert(result.end(), std::make_move_iterator(tables.begin()), std::make_move_iterator(tables.end()));
+    }
+    return result;
+}
+
+std::vector<PDFDatabaseTableInfo> PDFDatabaseSchema::getTables(int version)
+{
+    // The tables of each migration with the triggers of the change log, in the order of their
+    // creation; the migration of a version creates the triggers of its own tables only (a
+    // released migration never changes: its SQL comes from its own list)
+    static const char* const tables2[][2] =
+    {
+        { "recent_assembly", "%1.path" },
+    };
+
+    if (version == 2)
+    {
+        std::vector<PDFDatabaseTableInfo> result;
+        for (const auto& table : tables2)
+        {
+            PDFDatabaseTableInfo info;
+            info.name = QString::fromLatin1(table[0]);
+            info.keyExpression = QString::fromLatin1(table[1]);
+            result.push_back(std::move(info));
+        }
+        return result;
+    }
+
+    if (version != 1)
+    {
+        return std::vector<PDFDatabaseTableInfo>();
+    }
+
     static const char* const tables[][2] =
     {
         { "setting", "%1.key" },
@@ -323,12 +368,37 @@ CREATE TABLE thumbnail_rendering(
     started INTEGER NOT NULL) WITHOUT ROWID;
 )SQL";
 
-    for (const PDFDatabaseTableInfo& table : getTables())
+    for (const PDFDatabaseTableInfo& table : getTables(1))
     {
         // The heartbeat of the MCP server is written every 2 s; it alone is not
         // a change (staleness is checked by time), so it is not logged
         const char* updateColumns = (table.name == QLatin1String("mcp_server")) ? "id, instance, pid, port, state, address" : nullptr;
         sql += createTriggers(table, updateColumns);
+    }
+
+    return sql;
+}
+
+QByteArray PDFDatabaseSchema::createVersion2()
+{
+    // Manage Pages (plan of step 3b of phase 2, 4.6, RB12): the recent assembly files of the menu
+    // 409:32023, of the empty state 409:32739 and of the page Open (PDFRecentAssemblyRepository).
+    // The folders of the dialogs are the existing table recent_folder. Times are milliseconds
+    // since the epoch (UTC); page_count is the result of the assembly, NULL = unknown.
+    QByteArray sql = R"SQL(
+CREATE TABLE recent_assembly(
+    path TEXT PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL,
+    folder TEXT NOT NULL,
+    last_opened INTEGER NOT NULL,
+    page_count INTEGER,
+    pinned INTEGER NOT NULL DEFAULT 0);
+CREATE INDEX recent_assembly_last_opened ON recent_assembly(last_opened);
+)SQL";
+
+    for (const PDFDatabaseTableInfo& table : getTables(2))
+    {
+        sql += createTriggers(table, nullptr);
     }
 
     return sql;

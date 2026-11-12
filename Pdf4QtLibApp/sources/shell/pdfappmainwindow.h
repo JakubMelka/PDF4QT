@@ -240,6 +240,19 @@ public:
     /// goes to the tool of the page (PDFAppPage::getOpenFilesToolId)
     void openDocumentsOfPage(const QStringList& files);
 
+    /// Opens an assembly file of Manage Pages (plan of step 3b of phase 2, 4.6, RB3 e): a double
+    /// click on the file, the command line, the Open dialog and a drop come through
+    /// openDocuments, which hands every file of the suffix .pdf4qtassembly
+    /// (PDFAppAssemblyLoader::isAssemblyFile) here. The own tab of pages.manage (createToolTab),
+    /// its GUI loads the file (PDFAppAssemblyLoader), the file is recorded in the recent
+    /// assemblies. A file open in a tab already (PDFAppManageToolGUI::findAssemblyTab: also while
+    /// it loads) activates that tab, of this window or another one. Code of the application
+    /// runs: the window may be deleted meanwhile (the caller guards it).
+    /// \param filePath The assembly file (absolute)
+    /// \param errorText Translated reason, when it is not opened (empty = the default reason of the caller)
+    /// \returns true, when the file is opened (or its open has started)
+    bool openAssembly(const QString& filePath, QString* errorText);
+
     /// Requests waiting for the closing of a modal dialog
     size_t getPendingRequestCount() const { return m_pendingRequests.size(); }
 

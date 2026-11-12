@@ -50,6 +50,7 @@
 
 #include "pdfaccenthue.h"
 #include "pdfcatalog.h"
+#include "pdfcomponentbadges.h"
 #include "pdfcomponentdelegates.h"
 #include "pdfcomponentrows.h"
 #include "pdfdocumentbuilder.h"
@@ -918,6 +919,24 @@ void AppToolInsertTest::emptyStateAndOpenDocuments()
     QCOMPARE(addButtons.size(), size_t(1));
     QVERIFY(empty->findChild<pdf::PDFTag*>(QStringLiteral("insertEmptyUnsavedTag")));
     QCOMPARE(empty->findChild<pdf::PDFTag*>(QStringLiteral("insertEmptyUnsavedTag"))->text(), QStringLiteral("unsaved changes"));
+
+    // tab-1 398:29243 (the row shared with Manage 409:32954 and Merge 378:1851): 482 x 52, the tile
+    // 30 at 8, 11, the name at 48 with the Tag 6 after it, the name in the middle of the line of
+    // the Tag (3 below its top, 398:29246) and the line of the numbers 19 below the name
+    // (398:29249 at 22), the Secondary "+ Add" 86 x 36 at 388, 8
+    {
+        const pdf::PDFAppToolOpenDocumentRow* row = empty->findChild<pdf::PDFAppToolOpenDocumentRow*>(QStringLiteral("insertEmptyDocument-") + invoice->getDocument()->getId());
+        QVERIFY(row);
+        QCOMPARE(row->size(), QSize(482, 52));
+        QCOMPARE(row->findChild<pdf::PDFIconBadge*>()->geometry(), QRect(8, 11, 30, 30));
+        QCOMPARE(row->getNameLabel()->x(), 48);
+        QCOMPARE(row->getNameLabel()->text(), QStringLiteral("Invoice.pdf"));
+        QCOMPARE(row->getTag()->x() - (row->getNameLabel()->geometry().right() + 1), 6);
+        QCOMPARE(row->getNameLabel()->y() - row->getTag()->y(), 3);
+        QCOMPARE(row->getDetailsLabel()->y() - row->getNameLabel()->y(), 19);
+        QCOMPARE(row->getAddButton()->geometry(), QRect(388, 8, 86, 36));
+        QCOMPARE(row->getAddButton(), addButtons.front());
+    }
     QCOMPARE(H::values(gui->getSummary()), QStringList({ QStringLiteral("–"), QStringLiteral("After page 12"), QStringLiteral("48 pages") }));
     QCOMPARE(shell->getToolbar()->getConfirmText(), QStringLiteral("Insert Pages"));
     QVERIFY(!shell->getToolbar()->getConfirmButton()->isEnabled());

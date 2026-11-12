@@ -46,7 +46,9 @@ namespace pdf
 /// accept a signature after leading garbage). The content is read only from a
 /// local disk, never from a network path (reading it could block the user
 /// interface for seconds and would contact the server). At most \p maximumFiles
-/// files are taken, the rest is refused.
+/// files are taken, the rest is refused. A drop onto the window takes also the assembly files of
+/// Manage Pages (by the suffix .pdf4qtassembly, PDFAppAssemblyLoader::isAssemblyFile; plan of
+/// step 3b of phase 2, RB3 e): PDFAppMainWindow::openDocuments opens them by openAssembly.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppFileDrop
 {
 public:
@@ -91,8 +93,9 @@ public:
     static bool hasLocalFiles(const QMimeData* mimeData);
 
     /// Files of the drop (it reads the file system); \p isImageAccepted takes also the images
-    /// of QImageReader (the inputs of a tool with more inputs: PDF files and images)
-    static Result getFiles(const QMimeData* mimeData, int maximumFiles = MAXIMUM_FILES, bool isImageAccepted = false);
+    /// of QImageReader (the inputs of a tool with more inputs: PDF files and images),
+    /// \p isAssemblyAccepted the assembly files of Manage Pages (a drop onto the window)
+    static Result getFiles(const QMimeData* mimeData, int maximumFiles = MAXIMUM_FILES, bool isImageAccepted = false, bool isAssemblyAccepted = false);
 
     /// The local file is a PDF (by its extension or its content)
     static bool isPdfFile(const QString& filePath);
@@ -122,8 +125,18 @@ public:
     using FolderHandler = std::function<QString(QWidget*, const QString&)>;
     using SaveFileHandler = std::function<QString(QWidget*, const QString&)>;
 
-    /// Browse files…: PDF files of the folder (multi-select); an empty list = canceled
+    /// Browse files… of the start page of a tool: PDF files of the folder (multi-select); an
+    /// empty list = canceled
     static QStringList getOpenFileNames(QWidget* parent, const QString& folder);
+
+    /// Open… of the window (Ctrl+O, Browse files… of Home and Open): PDF files and the assembly
+    /// files of Manage Pages (getOpenDocumentFilter, multi-select); the handler of
+    /// getOpenFileNames replaces it in the tests; an empty list = canceled
+    static QStringList getOpenDocumentFileNames(QWidget* parent, const QString& folder);
+
+    /// The filter of getOpenDocumentFileNames: PDF files and assemblies together first, then each
+    /// of them alone, then all files
+    static QString getOpenDocumentFilter();
 
     /// Add Files… of a tool with more inputs (Merge): PDF files and images (multi-select);
     /// the handler of getOpenFileNames replaces it in the tests; an empty list = canceled

@@ -81,9 +81,13 @@ public:
     /// The migrations are ordered and contiguous from version 1
     static bool isValid(const std::vector<PDFDatabaseMigration>& migrations);
 
-    /// Tables of the phase 1 schema, which have the triggers of the change log
-    /// (every table except change_log itself)
+    /// Tables of the schema of every version, which have the triggers of the change log
+    /// (every table except change_log itself and the tables of the internal state)
     static std::vector<PDFDatabaseTableInfo> getTables();
+
+    /// Tables with the triggers created by the migration of \p version (1: phase 1, 2:
+    /// recent_assembly of Manage Pages, plan of step 3b of phase 2, 4.6); empty for another one
+    static std::vector<PDFDatabaseTableInfo> getTables(int version);
 
     /// Migrates the database of the connection to \p targetVersion inside of one
     /// BEGIN EXCLUSIVE transaction, so only one instance migrates; the version is
@@ -116,6 +120,7 @@ public:
 
 private:
     static QByteArray createVersion1();
+    static QByteArray createVersion2();
     static QByteArray createTriggers(const PDFDatabaseTableInfo& table, const char* updateColumns);
 };
 

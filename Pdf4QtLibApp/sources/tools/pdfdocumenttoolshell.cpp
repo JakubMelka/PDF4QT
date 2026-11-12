@@ -492,6 +492,7 @@ void PDFDocumentToolShell::updateToolbar()
 
     m_toolbar->setConfirmText(m_gui->getConfirmText(), m_gui->getConfirmIconName());
     m_toolbar->setConfirmEnabled(!m_isPermissionRefused && m_gui->isConfirmEnabled());
+    m_toolbar->setCancelText(m_gui->getCancelText());
 }
 
 QString PDFDocumentToolShell::getStatusMessage() const
@@ -518,8 +519,10 @@ void PDFDocumentToolShell::updateStatus()
     {
         m_host->setMessage(getStatusMessage());
 
-        // The own tab has no view: its page and zoom items come from the GUI (K12)
-        if (m_gui && m_host && m_host->isOwnTab())
+        // The own tab has no view: its page and zoom items come from the GUI (K12). In the
+        // document host a page text of the GUI replaces the page item of the view (Manage
+        // Pages "12 pages", 1479:34632); the other tools have none and keep "Page 1 / 10".
+        if (m_gui && m_host)
         {
             m_host->setStatusItems(m_gui->getOwnTabPageText(), m_gui->getOwnTabZoomText());
         }
@@ -622,7 +625,7 @@ void PDFDocumentToolShell::confirm()
     {
         QWidget* parent = m_host->getKeyWidget() ? m_host->getKeyWidget()->window() : nullptr;
         QDialog* permissionDialog = nullptr;
-        const bool isAllowed = PDFAppDocumentPermissions::request(permissionDocument, PDFAppPermissionRequest::createTool(getCatalogEntry()->getId(), runPermissions), parent, &permissionDialog);
+        const bool isAllowed = PDFAppDocumentPermissions::request(permissionDocument, PDFAppPermissionRequest::createTool(getCatalogEntry()->getId(), runPermissions, m_gui->getRunParameters()), parent, &permissionDialog);
         if (!guard || !m_host || !m_runner || m_state != State::Editing)
         {
             return;
@@ -1059,7 +1062,13 @@ void PDFDocumentToolShell::onPermissionDialogFinished()
 bool PDFDocumentToolShell::isRefusedByPermissions() const
 {
     // The one check of the new application (PDFAppDocumentPermissions): the permissions of
-    // the catalog entry of the tool (ISO 32000-2, Table 22)
+    // the catalog entry of the tool (ISO 32000-2, Table 22). A GUI, which shows the refusal
+    // itself (Manage Pages in the tab of a document, 1479:35631), is not refused at the entry:
+    // its Primary button stays Disabled and the validation of the tool refuses the run.
+    if (m_gui && m_gui->handlesPermissionRefusal())
+    {
+        return false;
+    }
     const PDFDocumentToolCatalogEntry* entry = getCatalogEntry();
     const PDFAppDocument* document = m_host ? m_host->getDocument() : nullptr;
     const PDFDocumentPointer pdfDocument = document ? document->getDocument() : PDFDocumentPointer();

@@ -21,7 +21,9 @@
 // SOFTWARE.
 
 #include "pdfappfiledrop.h"
+#include "pdfappassemblyloader.h"
 #include "pdfappmainwindow.h"
+#include "pdfdocumentassemblyfile.h"
 #include "pdfdatabase.h"
 #include "pdfrepositoryhelper.h"
 
@@ -87,7 +89,7 @@ bool PDFAppFileDrop::hasLocalFiles(const QMimeData* mimeData)
     return false;
 }
 
-PDFAppFileDrop::Result PDFAppFileDrop::getFiles(const QMimeData* mimeData, int maximumFiles, bool isImageAccepted)
+PDFAppFileDrop::Result PDFAppFileDrop::getFiles(const QMimeData* mimeData, int maximumFiles, bool isImageAccepted, bool isAssemblyAccepted)
 {
     Result result;
     if (!mimeData || !mimeData->hasUrls())
@@ -128,7 +130,9 @@ PDFAppFileDrop::Result PDFAppFileDrop::getFiles(const QMimeData* mimeData, int m
             continue;
         }
 
-        if (!isPdfFile(info.absoluteFilePath()) && !(isImageAccepted && isImageFile(info.absoluteFilePath())))
+        // An assembly file is taken by its suffix (nothing is read; its loader checks the content)
+        const bool isAssembly = isAssemblyAccepted && PDFAppAssemblyLoader::isAssemblyFile(info.absoluteFilePath());
+        if (!isAssembly && !isPdfFile(info.absoluteFilePath()) && !(isImageAccepted && isImageFile(info.absoluteFilePath())))
         {
             PDFAppFileDropHelper::refuse(result, displayPath, isImageAccepted ? Refusal::NotPdfOrImage : Refusal::NotPdf);
             continue;
@@ -229,6 +233,22 @@ QStringList PDFAppFileDialogs::getOpenFileNames(QWidget* parent, const QString& 
 
     return QFileDialog::getOpenFileNames(parent, QCoreApplication::translate("pdf::PDFAppFileDialogs", "Open PDF Files"), folder,
                                          QCoreApplication::translate("pdf::PDFAppFileDialogs", "PDF files (*.pdf);;All files (*)"));
+}
+
+QStringList PDFAppFileDialogs::getOpenDocumentFileNames(QWidget* parent, const QString& folder)
+{
+    if (const OpenFilesHandler& handler = getOpenFilesHandler())
+    {
+        return handler(parent, folder);
+    }
+
+    return QFileDialog::getOpenFileNames(parent, QCoreApplication::translate("pdf::PDFAppFileDialogs", "Open"), folder, getOpenDocumentFilter());
+}
+
+QString PDFAppFileDialogs::getOpenDocumentFilter()
+{
+    const QString assemblies = QStringLiteral("*.") + QString::fromLatin1(PDFDocumentAssemblyFile::FILE_SUFFIX);
+    return QCoreApplication::translate("pdf::PDFAppFileDialogs", "PDF files and assemblies (*.pdf %1);;PDF files (*.pdf);;PDF4QT assemblies (%1);;All files (*)").arg(assemblies);
 }
 
 QStringList PDFAppFileDialogs::getOpenInputFileNames(QWidget* parent, const QString& folder)

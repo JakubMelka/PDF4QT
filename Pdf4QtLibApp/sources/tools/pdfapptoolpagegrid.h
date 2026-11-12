@@ -234,7 +234,8 @@ public:
         DimmedRole = PDFComponentRoles::LastRole + 0x100,  ///< bool: the page is drawn muted
         CutBeforeRole,                                      ///< bool: a new file starts at this page
         SlotScaleRole,                                      ///< double: the slot of the tile is the slot of the delegate scaled (1 = none)
-        PaperBorderRole                                     ///< bool: a page without a picture shows the border of its paper (the blank pages 388:17078)
+        PaperBorderRole,                                    ///< bool: a page without a picture shows the border of its paper (the blank pages 388:17078)
+        SquareSlotRole                                      ///< bool: the slot is a square of the longer side of the (scaled) slot - the loose pages of Manage (387:12938: the box 100 x 100 in the tile 112 x 128, a landscape page 100 wide)
     };
 
     /// Diameter of the dot, its gap to the label, the width of the cut, the gap of the label
@@ -258,11 +259,14 @@ public:
     void setBackgroundColor(PDFThemeColors::Color color) { m_backgroundColor = color; }
     PDFThemeColors::Color getBackgroundColor() const { return m_backgroundColor; }
 
-    /// The content of the tile with the slot of the row (SlotScaleRole)
+    /// The content of the tile with the slot of the row (SlotScaleRole, SquareSlotRole)
     PDFComponentPainter::PageTile getTileContent(const QModelIndex& index, bool withPixmap = true) const;
 
     /// The slot of the delegate scaled by \p scale (each side rounded)
     QSize getScaledSlotSize(double scale) const;
+
+    /// The square slot of \p slot: both sides the longer side of the slot (SquareSlotRole)
+    static QSize getSquareSlotSize(const QSize& slot);
 
     /// The rectangles of the marks of the tile in \p rect (empty = no mark): the page, the
     /// dot and the cut; tests check the geometry by them

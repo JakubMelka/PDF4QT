@@ -36,6 +36,8 @@
 
 #include <vector>
 
+class QPushButton;
+class QResizeEvent;
 class QVBoxLayout;
 
 namespace pdf
@@ -93,6 +95,7 @@ public:
         bool isFirstLineNotice = false;         ///< The first line is text/secondary (No pages 1390:34269)
         bool isNameMuted = false;               ///< The name is text/tertiary: the file adds no page (378:2809, 1390:34259, 1390:34268)
         QString secondLine;                     ///< "Pages 1–6 of the result"
+        bool isSingleLine = false;              ///< Only the first line (a source of Manage 387:12729: 275 x 46, with a Tag 1479:34681: 51)
         QString linkText;                       ///< "Enter password…", "Remove file", empty = none
         double progress = -1.0;                 ///< The reading (0 - 1), -1 = no bar
         QString toolTip;                        ///< The whole reason of a state (a line is elided)
@@ -127,8 +130,11 @@ public:
     PDFTag* getTag() const { return m_tag.data(); }
     PDFTextLink* getLink() const { return m_link.data(); }
 
-    /// Height of the content
+    /// Height of the content (at least the tile with the paddings: a row of one line is 46)
     static int getHeight(const Content& content);
+
+    /// Number of the lines below the name (1 or 2)
+    static int getLineCount(const Content& content);
 
 Q_SIGNALS:
     /// The link has been clicked
@@ -170,6 +176,68 @@ private:
     bool m_isDraggable = true;
     bool m_isPressed = false;
     bool m_isDragging = false;
+};
+
+/// A ready document of the window in the group "Open documents" of the empty state of a tool
+/// (Merge tab-1 378:1851, Insert 398:29243, Manage 409:32954; one row for all of them): 52 high,
+/// the padding 8, the tile tab 30 on bg/accent-subtle (radius 8), 10 from it the name Semi Bold
+/// 12 in a line of 15 with the Tag "unsaved changes" of a document with changes (K24) and 1
+/// below it the line Regular 11 text/tertiary, the two lines together in the middle of the row,
+/// and 10 from them the Secondary "+ Add" at the trailing edge. A long name is elided in the
+/// middle (its extension stays), a long line at its end; the tooltip has the whole texts.
+///
+/// The row is no button: only Add adds the document. addRequested is emitted last (a slot may
+/// delete the row).
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolOpenDocumentRow : public QWidget
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QWidget;
+
+public:
+    static constexpr int HEIGHT = 52;
+    static constexpr int PADDING = 8;
+    static constexpr int TILE = 30;
+    static constexpr int GAP = 10;
+    static constexpr int TAG_GAP = 6;
+
+    /// An open document, which can be added
+    struct Document
+    {
+        QString documentId;
+        QString name;
+        QString details;        ///< "3 pages", "9 pages · 15.3 MB", "3 pages · the current unsaved state is used"
+        bool isModified = false;
+    };
+
+    explicit PDFAppToolOpenDocumentRow(const Document& document, QWidget* parent);
+    virtual ~PDFAppToolOpenDocumentRow() override;
+
+    const Document& getDocument() const { return m_document; }
+    QPushButton* getAddButton() const { return m_addButton.data(); }
+    PDFTag* getTag() const { return m_tag.data(); }
+    PDFLabel* getNameLabel() const { return m_name.data(); }
+    PDFLabel* getDetailsLabel() const { return m_details.data(); }
+
+Q_SIGNALS:
+    /// Add of the row has been clicked (the id of the document)
+    void addRequested(const QString& documentId);
+
+protected:
+    virtual void resizeEvent(QResizeEvent* event) override;
+
+private:
+    void onAddClicked();
+
+    /// The texts elided to the width of the row
+    void updateTexts();
+
+    Document m_document;
+    QPointer<PDFLabel> m_name;
+    QPointer<PDFLabel> m_details;
+    QPointer<PDFTag> m_tag;
+    QPointer<QPushButton> m_addButton;
 };
 
 /// The panel Files of a tool with more inputs (sidebar-left 378:1076): the header "Files" Semi

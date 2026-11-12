@@ -304,9 +304,12 @@ Název *Assembly* odlišuje pracovní plochu PageMasteru od *Workspaces* na str�
 
 - **Co dělá:** Sestava (*Assembly*) s náhledy, na které se stránky z jednoho nebo více zdrojů přeskupují, seskupují a připravují pro výstup. U jediného otevřeného dokumentu stačí panel Thumbnails (viz úvod 5.1).
 - **Funkce:** přesun přetažením i bez tažení (9.7), vyjmout, kopírovat a vložit, klonování výběru, seskupení a zrušení skupiny, přejmenování položky nebo skupiny, vlastnosti položky (zdroj, původní číslo stránky, rozměr, orientace, rotace). Řazení podle názvu souboru, zdroje, čísla stránky a typu, obrácení pořadí. Výběr: vše, nic, rozsah, sudé, liché, na výšku, na šířku, viditelné, invertovat; *Invert* a *Search results* (= viditelné) jsou v nabídce *Select* toolu, společná komponenta 9.6 se nemění (K39 kroku 3). Hledání v sestavě (včetně slov *grouped*, *portrait*, *landscape*). Zvětšení náhledů, zobrazení názvu dokumentu u položek, zobrazení Details. Zpět a znovu s popisem kroku. Pojmenované kontrolní body (checkpoint), obnovení odebraných položek.
-- **Skupiny a výstup:** nabídka *Regroup* vytvoří skupiny automaticky: sudé a liché stránky, dvojice, podle záložek, každých N stran (*Every N pages…*), na zadaných číslech stran (*At page numbers…*), střídání dvou souborů, obrácené pořadí. Nabídka *Output* určuje, co vznikne: *One PDF*, *One PDF per group or item*, *One PDF per page*. Výstup po skupinách nahrazuje dělení celého workspace podle pravidla z PageMasteru, Manage Pages kvůli němu neodkazuje na Split. Dělení sestavy podle velikosti souboru se nenabízí. Výstup do více souborů má složku, šablonu názvu (`#` číslo výstupu, `@` číslo stránky, `%` index vstupu, `{group_name}` a další) a volbu pro existující soubory. Ořez a formát stránek se v sestavě nenastavují, použije se Crop Pages a Resize Pages na výsledný dokument.
+- **Skupiny a výstup:** nabídka *Regroup* vytvoří skupiny automaticky: sudé a liché stránky, dvojice, podle záložek, každých N stran (*Every N pages…*), na zadaných číslech stran (*At page numbers…*), střídání dvou souborů, obrácené pořadí. Nabídka *Output* určuje, co vznikne: *One PDF*, *One PDF per group or item*, *One PDF per page*. Výstup po skupinách nahrazuje dělení celého workspace podle pravidla z PageMasteru, Manage Pages kvůli němu neodkazuje na Split. Dělení sestavy podle velikosti souboru se nenabízí. Výstup do více souborů má složku, šablonu názvu (`#` číslo výstupu, `@` číslo stránky, `%` index vstupu, `{group_name}` a další) a volbu pro existující soubory. Ořez má sestava jako PageMaster (*Crop…*, Q17 kroku 3b, od viditelné oblasti B28); formát stránek (Page Geometry) ne – Resize Pages na výsledek (více souborů: One PDF → Resize Pages → Split).
 - **Ukládání a načítání sestavy:** *Open Assembly…* otevře uloženou sestavu (nabídka u tlačítka uložení, úvodní stav toolu se seznamem posledních sestav, stránka Open). *Save Assembly* (Ctrl+S) uloží rozpracovanou sestavu, ne PDF. PDF vznikne až tlačítkem *Create PDF*, které je jasně odlišené od uložení sestavy. Když při otevření uložené sestavy chybí nebo se změnil některý zdroj, aplikace nabídne jeho nahrazení jiným souborem. Soubory `.pagemaster` z dnešního PageMasteru se neotevírají, zpětná kompatibilita se neřeší.
 - **Vstup → výstup:** jeden nebo víc souborů → upravený dokument, nebo nové soubory přes Merge a Split. Vlastník 9. 11. 2026 (Q2 kroku 3): Manage nad jedním dokumentem edituje přímo ten dokument; výsledek nad více zdroji, Undo, inkrementální uložení, DocMDP a dostupnost u zamčeného dokumentu (4.7) určí plán kroku 3b.
+- **Dva hostitelé (krok 3b, QB1 B, QB7 b):** spuštěný nad dokumentem běží v jeho tabu (1479:34632) jen s výstupem *This document* (*Rearrange Pages*: přeskupení se zachováním čísel objektů, `/ID`, šifrování a podpisů, inkrementální uložení, jeden krok Undo dokumentu; klon nedostane widget podpisového pole ani zamčeného pole `/Lock`; zamčený dokument 1479:35631 jen s *Open as an Assembly*); bez dokumentu vlastní tab sestavy s výstupy *One PDF*, *One PDF per group or item*, *One PDF per page* (nové nešifrované dokumenty jako Merge / Split). Tab sestavy zůstává po výsledku otevřený (K31), při zavření se změnami se ptá (405:30894).
+- **Soubor sestavy `.pdf4qtassembly`:** JSON s limity (256 MB, hloubka 16), zdroje cestou, velikostí, časem a SHA-256, obrázky uvnitř souboru, kontrolní body a volby výstupu. Otevře ho dvojklik, příkazová řádka, dialog Open (Ctrl+O, filtr PDF i sestav), přetažení na okno, stránka Open (*Recent Assemblies*) a nabídka toolu; už otevřená sestava jen aktivuje svůj tab. Chybějící nebo změněný zdroj řeší dialog 387:16980 (*Locate…*, *Use Changed File*, *Open Without Them*); zdroj na jiném počítači se bez výslovné volby nikdy nekontaktuje. Posledních 20 sestav + připnuté v tabulce `recent_assembly` (newapp_storage.md).
+- **MCP:** akce `pages.manage` dvěma režimy: `documentId` + `pages` (nové pořadí všech stran, opakování = klon; `keep`, `save_copy`, `overwrite`) a `assemblyPath` (nové dokumenty: `open_new_tab`, `save_file`, `save_files`; zdroje musí být otevřené).
 - **Dnes:** PageMaster, hlavní okno.
 - **Klíčová slova:** `organize, manage, arrange, reorder, rearrange, resequence, move pages, sort, page order, thumbnails, group, duplicate, clone, reverse order, drag and drop, page sorter, reorganize pages, assembly, pagemaster, workspace`
 
@@ -761,35 +764,38 @@ Nastavení (dialog *Options*) přechází na stránku Settings: Engine, Renderin
 
 ### 6.2 PageMaster
 
+Každá funkce PageMasteru má místo v toolu `pages.manage` (krok 3b, inventura `newapp_tools_step3b.md` 4.8); jinde jen tři: Page Geometry na každý výstup, dělení podle velikosti souboru a vlastní nastavení obrázků. Tooly jednoho dokumentu (Rotate, Crop, Insert, Split …) jsou navíc pro práci bez sestavy.
+
 | Nabídka | Akce | Kam |
 | --- | --- | --- |
-| File | Add Documents | Tooly `pages.merge`, `pages.manage` (přidání zdrojů) |
-| File | Open Workspace, Save Workspace | Tool `pages.manage`: *Open Assembly*, *Save Assembly*. Soubory `.pagemaster` bez zpětné kompatibility |
-| File | Save Checkpoint, Load Checkpoint | Tool `pages.manage` |
-| File | Recent (soubory, pracovní plochy, složky), Clear Recent | Aplikace: stránka Recent (soubory, sestavy, složky) |
-| File | Clear, Close | Tool `pages.manage`, Aplikace |
-| Edit | Undo, Redo | Příkaz v rámci toolu |
-| Edit | Clone Selection, Cut, Copy, Paste | Tool `pages.manage` |
-| Edit | Remove Selection, Restore Removed Items | Tool `pages.manage`: odebrání výběru do koše *Removed pages* a obnovení z něj (R18 kroku 3). Odebrání stránek otevřeného dokumentu je Tool `pages.remove`, vrací se Undo |
-| Edit | Replace Selection | Tool `pages.insert` |
-| Edit | Page Geometry | Tooly `pages.resize`, `pages.boxes` |
-| Edit | Rotate Left, Rotate Right, Reset Rotation | Tool `pages.rotate` |
-| Edit | Group, Ungroup, Rename Item or Group, Properties | Tool `pages.manage` |
-| Edit | Crop Pages | Tool `pages.crop` |
-| Edit | Sort: by File Name, by Source, by Page Number, by Type, Reverse Order | Tool `pages.manage` |
-| Insert | Insert PDF, Insert PDF Pages, Insert Empty Page | Tool `pages.insert`. Prázdný dokument Tool `convert.blank` |
-| Insert | Insert Image | Tool `pages.add-image` (předvolba `pages.insert`). Dokument jen z obrázků Tool `convert.images-to-pdf` |
-| Regroup | by Even/Odd Pages, by Page Pairs, by Outline, by Reverse | Tool `pages.manage` (nabídka *Regroup*) |
-| Regroup | by Alternating Pages, by Alternating Pages (Reversed Order) | Tool `pages.interleave` |
-| View | Select None, All, Page Range, Even, Odd, Portrait, Landscape, Visible, Invert Selection | Společná komponenta pro výběr stránek ve všech toolech (9.6) |
-| View | Zoom In, Zoom Out, Show Document Title in Items, Details View | Tool `pages.manage` |
-| View | Hledání na pracovní ploše, Clear Search | Tool `pages.manage` (hledání v sestavě) |
-| Make | United Document | Tool `pages.merge`. Pro výběr stránek Tool `pages.extract` |
-| Make | Separate to Multiple Documents, Separate to Multiple Documents (Grouped), Split | Tool `pages.split` pro jeden dokument. Nad sestavou výstup *One PDF per page* a *One PDF per group or item* toolu `pages.manage` |
-| Make | Volba Optimize images in output PDFs, Image Optimization Settings | Volba výstupu v `pages.merge` a `pages.split`, jinak Tool `optimize.images` |
+| File | Add Documents | `pages.manage`: *Add* › *Files…* Ctrl+I (PDF i obrázky), přetažení na místo (R18). Spojení bez sestavy Tool `pages.merge` |
+| File | Open Workspace, Save Workspace | `pages.manage`: *Open Assembly…* Ctrl+Shift+O, *Save Assembly* Ctrl+S, *Save Assembly As…* Ctrl+Shift+S (409:32023), soubor `.pdf4qtassembly`. Soubory `.pagemaster` bez zpětné kompatibility (A6) |
+| File | Save Checkpoint, Load Checkpoint | `pages.manage`: panel *Checkpoints* (*Save checkpoint*, *Restore*; B22, B23) |
+| File | Recent (soubory, pracovní plochy, složky), Clear Recent | Aplikace: stránka Recent (soubory), *Recent Assemblies* stránky Open a úvodního stavu toolu (409:32739), složky `recent_folder` |
+| File | Clear, Close | `pages.manage`: zavření tabu s dotazem 405:30894; vyprázdnění = Select All + Remove (vratné) |
+| Edit | Undo, Redo | `pages.manage`: lišta, 100 kroků s textem kroku (Undo Group) |
+| Edit | Clone Selection, Cut, Copy, Paste | `pages.manage`: *More* a kontext (387:14220), schránka jen do téže sestavy |
+| Edit | Remove Selection, Restore Removed Items | `pages.manage`: koš *Removed pages*, *Restore all* Ctrl+Shift+R, obnovení po položkách (B21). Odebrání stránek otevřeného dokumentu bez sestavy Tool `pages.remove` |
+| Edit | Replace Selection | `pages.manage`: *More* › *Replace selection…* Ctrl+Alt+R (B20). V dokumentu bez sestavy Tool `pages.insert` (Replace) |
+| Edit | Page Geometry | Mimo sestavu: `pages.resize`, `pages.boxes` na výsledek; více souborů se stejnou geometrií One PDF → Resize → Split (B27) |
+| Edit | Rotate Left, Rotate Right, Reset Rotation | `pages.manage`: lišta Shift+F4 / F4, *More* › *Reset rotation*. Bez sestavy Tool `pages.rotate` |
+| Edit | Group, Ungroup, Rename Item or Group, Properties | `pages.manage`: *Group*, *Rename…* F2, *More* › *Properties…* (387:15926) |
+| Edit | Crop Pages | `pages.manage`: *Crop…* v *More* a kontextu (Q17, od viditelné oblasti B28). Bez sestavy Tool `pages.crop` |
+| Edit | Sort: by File Name, by Source, by Page Number, by Type, Reverse Order | `pages.manage`: *Sort* (387:13288) |
+| Insert | Insert PDF, Insert PDF Pages, Insert Empty Page | `pages.manage`: *Add* › *Files…*, *Pages of a PDF…* (rozsah, 387:15926), *Blank page* Ctrl+Shift+I. Bez sestavy Tool `pages.insert`, prázdný dokument `convert.blank` |
+| Insert | Insert Image | `pages.manage`: *Add* › *Files…*, *Paste image* Ctrl+V. Bez sestavy `pages.add-image`, dokument jen z obrázků `convert.images-to-pdf` |
+| Regroup | by Even/Odd Pages, by Page Pairs, by Outline, by Reverse | `pages.manage`: *Group* › regroup (387:13288), *Regroup by bookmarks* (387:15926); navíc *Every N*, *At page numbers* |
+| Regroup | by Alternating Pages, by Alternating Pages (Reversed Order) | `pages.manage`: *Group* › regroup. Dvě skenované strany bez sestavy Tool `pages.interleave` |
+| View | Select None, All, Page Range, Even, Odd, Portrait, Landscape, Visible, Invert Selection | `pages.manage`: *Select* (387:13288), *Select page range* (387:15926); společná komponenta výběru stránek ostatních toolů (9.6) |
+| View | Zoom In, Zoom Out, Show Document Title in Items, Details View | `pages.manage`: *Size* S / M / L, Ctrl++ / Ctrl+-, *More* › *Show document titles*, *Details* (387:15072) |
+| View | Hledání na pracovní ploše, Clear Search | `pages.manage`: pole hledání (grouped, ungrouped, portrait, landscape, image, blank) |
+| Make | United Document | `pages.manage`: výstup *One PDF*, *Create PDF* Ctrl+Enter. Bez sestavy `pages.merge`, výběr stránek `pages.extract` |
+| Make | Separate to Multiple Documents, Separate to Multiple Documents (Grouped), Split | `pages.manage`: *One PDF per page*, *One PDF per group or item* (396:26763), dělení podle pravidla = *Regroup* + *One PDF per group*. Podle velikosti souboru One PDF → Tool `pages.split` (*By file size*) |
+| Make | Volba Optimize images in output PDFs, Image Optimization Settings | `pages.manage`: *Output* › Images (*Prefer quality*, *Minimum size*); vlastní nastavení Tool `optimize.images` nad výsledkem |
 | Toolbars | Zobrazení lišt | Lišty v novém UI nejsou. Kontrolu nad plochou stránky zachovává tlačítko pro skrytí postranního panelu, splitter pro změnu jeho šířky, celá obrazovka a nastavení *Show sidebar when opening documents*. Přesouvání lišt a odpojování panelů do plovoucích oken se vědomě nenahrazuje |
 | Help | Get Source, Become a Sponsor, About | Aplikace |
 | Help | Prepare Icon Theme | Vývojářská akce, zaniká |
+| – | Příkazová řádka (`--no-drm`, motiv, konfigurace) | `--no-drm` nikdy (B35, `SECURITY_TODO.md` 37); soubor sestavy otevře aplikace z příkazové řádky (RB3 e) |
 
 ### 6.3 Diff
 

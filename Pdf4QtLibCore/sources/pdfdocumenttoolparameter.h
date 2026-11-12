@@ -67,7 +67,8 @@ enum class PDFDocumentToolParameterType
     FilePath,
     FolderPath,
     FileNameTemplate,
-    Secret              ///< A password or a key: never stored, never echoed (JSON Schema writeOnly)
+    Secret,             ///< A password or a key: never stored, never echoed (JSON Schema writeOnly)
+    Value               ///< A value of a registered C++ type of the tool, which only its panels give (the assembly of Manage Pages, plan of step 3b, RB7): implicitly shared and immutable, compared by its operator==; never stored, never in the schema of MCP (createValue)
 };
 
 /// The function tr of the class of a tool (Q_DECLARE_TR_FUNCTIONS): it translates the
@@ -266,6 +267,14 @@ public:
     static PDFDocumentToolParameterDefinition createFileNameTemplate(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description, const QString& defaultValue);
     static PDFDocumentToolParameterDefinition createSecret(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description);
 
+    /// A Value parameter (PDFDocumentToolParameterType::Value): the type of \p defaultValue is the
+    /// only type accepted (a value of another type is refused by normalize; the tool checks the
+    /// content in its validation). The parameter is panel-only and never stored: the panels hold
+    /// the value, MCP gives the tool other parameters, from which the tool makes it. The type must
+    /// be registered (Q_DECLARE_METATYPE) with operator== - the undo steps of the parameter model
+    /// and QVariantMap comparisons use it; an implicitly shared value compares by identity (RB7).
+    static PDFDocumentToolParameterDefinition createValue(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description, const QVariant& defaultValue);
+
     /// A value must be given (a missing value is an error, not the default; an
     /// empty text of a text type is missing)
     PDFDocumentToolParameterDefinition& setRequired(bool required) { m_required = required; return *this; }
@@ -312,8 +321,8 @@ public:
     int getMaximumLength() const { return m_maximumLength; }
     const std::vector<PDFDocumentToolParameterOption>& getOptions() const { return m_options; }
 
-    /// The value is stored as the last value of the tool (setStored, never a Secret)
-    bool isStored() const { return m_stored && m_type != PDFDocumentToolParameterType::Secret; }
+    /// The value is stored as the last value of the tool (setStored, never a Secret nor a Value)
+    bool isStored() const { return m_stored && m_type != PDFDocumentToolParameterType::Secret && m_type != PDFDocumentToolParameterType::Value; }
 
     /// The definition itself is valid: the function translating its texts, a valid name,
     /// minimum <= default <= maximum, valid unique option ids with the default among them,

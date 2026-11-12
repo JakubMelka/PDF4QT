@@ -959,6 +959,12 @@ QSize PDFAppToolPageTileDelegate::getScaledSlotSize(double scale) const
     return QSize(int(std::lround(slot.width() * scale)), int(std::lround(slot.height() * scale)));
 }
 
+QSize PDFAppToolPageTileDelegate::getSquareSlotSize(const QSize& slot)
+{
+    const int side = qMax(slot.width(), slot.height());
+    return QSize(side, side);
+}
+
 PDFComponentPainter::PageTile PDFAppToolPageTileDelegate::getTileContent(const QModelIndex& index, bool withPixmap) const
 {
     PDFComponentPainter::PageTile content = getContent(index, withPixmap);
@@ -966,6 +972,11 @@ PDFComponentPainter::PageTile PDFAppToolPageTileDelegate::getTileContent(const Q
     if (scale.isValid())
     {
         content.slotSize = getScaledSlotSize(scale.toDouble());
+    }
+    if (index.isValid() && index.data(SquareSlotRole).toBool())
+    {
+        // 387:12938: the page is fitted into the square box (a landscape page as wide as the box)
+        content.slotSize = getSquareSlotSize(content.slotSize.isValid() ? content.slotSize : getSlotSize());
     }
     return content;
 }

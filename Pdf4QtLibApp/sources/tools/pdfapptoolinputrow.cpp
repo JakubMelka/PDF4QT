@@ -24,6 +24,7 @@
 
 #include "pdfapppagelayout.h"
 
+#include "pdfcomponentbadges.h"
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpainter.h"
 #include "pdffluentwidgets.h"
@@ -32,9 +33,12 @@
 #include "pdfthemefonts.h"
 
 #include <QApplication>
+#include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPushButton>
+#include <QResizeEvent>
 #include <QStyle>
 #include <QVBoxLayout>
 
@@ -69,9 +73,14 @@ PDFAppToolInputRow::PDFAppToolInputRow(QWidget* parent) :
 
 PDFAppToolInputRow::~PDFAppToolInputRow() = default;
 
+int PDFAppToolInputRow::getLineCount(const Content& content)
+{
+    return content.isSingleLine ? 1 : 2;
+}
+
 int PDFAppToolInputRow::getHeight(const Content& content)
 {
-    int height = PADDING + (content.tag.isEmpty() ? NAME_HEIGHT : TAG_HEIGHT) + 2 * (LINE_GAP + LINE_HEIGHT) + PADDING;
+    int height = PADDING + (content.tag.isEmpty() ? NAME_HEIGHT : TAG_HEIGHT) + getLineCount(content) * (LINE_GAP + LINE_HEIGHT) + PADDING;
     if (!content.linkText.isEmpty())
     {
         height += LINE_GAP + LINK_HEIGHT;
@@ -80,7 +89,10 @@ int PDFAppToolInputRow::getHeight(const Content& content)
     {
         height += LINE_GAP + PROGRESS_HEIGHT;
     }
-    return height;
+
+    // The tile with its paddings (387:12729: a row of one line is 46 high, its texts centered
+    // by 8.5 - the name lies at the padding 8 here)
+    return qMax(height, TILE + 2 * PADDING);
 }
 
 void PDFAppToolInputRow::setContent(const Content& content)
@@ -184,7 +196,7 @@ void PDFAppToolInputRow::updateChildren()
     {
         m_link->setText(m_content.linkText);
         const QSize linkSize = m_link->sizeHint();
-        const int top = PADDING + (m_content.tag.isEmpty() ? NAME_HEIGHT : TAG_HEIGHT) + 2 * (LINE_GAP + LINE_HEIGHT) + LINE_GAP;
+        const int top = PADDING + (m_content.tag.isEmpty() ? NAME_HEIGHT : TAG_HEIGHT) + getLineCount(m_content) * (LINE_GAP + LINE_HEIGHT) + LINE_GAP;
         const QRect logical(getTextLeft(), top, qMin(linkSize.width(), getTextWidth()), LINK_HEIGHT);
         m_link->setGeometry(QStyle::visualRect(layoutDirection(), rect(), logical));
     }
@@ -381,15 +393,121 @@ void PDFAppToolInputRow::paintContent(QPainter* painter, const QRect& rect, cons
     }
     PDFComponentPainter::drawElidedText(painter, state, QRectF(QStyle::visualRect(direction, rect, QRect(left, top, width, LINE_HEIGHT))), m_content.firstLine, Helper::getLineFont(), firstColor);
     top += LINE_HEIGHT + LINE_GAP;
-    PDFComponentPainter::drawElidedText(painter, state, QRectF(QStyle::visualRect(direction, rect, QRect(left, top, width, LINE_HEIGHT))), m_content.secondLine, Helper::getLineFont(),
-                                        state.isEnabled() ? Color::TextTertiary : Color::TextDisabled);
-    top += LINE_HEIGHT + LINE_GAP;
+    if (getLineCount(m_content) > 1)
+    {
+        PDFComponentPainter::drawElidedText(painter, state, QRectF(QStyle::visualRect(direction, rect, QRect(left, top, width, LINE_HEIGHT))), m_content.secondLine, Helper::getLineFont(),
+                                            state.isEnabled() ? Color::TextTertiary : Color::TextDisabled);
+        top += LINE_HEIGHT + LINE_GAP;
+    }
 
     // The reading of the file (1390:34124)
     if (m_content.linkText.isEmpty() && m_content.progress >= 0.0)
     {
         PDFComponentPainter::paintProgressBar(painter, QRectF(QStyle::visualRect(direction, rect, QRect(left, top, width, PROGRESS_HEIGHT))), m_content.progress, state);
     }
+}
+
+// ----------------------------------------------------- PDFAppToolOpenDocumentRow
+
+PDFAppToolOpenDocumentRow::PDFAppToolOpenDocumentRow(const Document& document, QWidget* parent) :
+    BaseClass(parent),
+    m_document(document)
+{
+    setFixedHeight(HEIGHT);
+    QHBoxLayout* rowLayout = new QHBoxLayout(this);
+    rowLayout->setContentsMargins(PADDING, PADDING, PADDING, PADDING);
+    rowLayout->setSpacing(GAP);
+
+    // icon-tile 409:32943: bg/accent-subtle, icon/tab 16
+    PDFIconBadge* tile = new PDFIconBadge(QStringLiteral("tab"), TILE, 16, this);
+    tile->setRadius(PDFAppToolInputRow::RADIUS);
+    tile->setColors(PDFThemeColors::BgAccentSubtle, PDFThemeColors::IconAccent);
+    rowLayout->addWidget(tile);
+
+    // text 409:32955: the name in a line of 15, 1 above the line of 13 (as the rows of Files)
+    QVBoxLayout* textLayout = new QVBoxLayout();
+    textLayout->setContentsMargins(0, 0, 0, 0);
+    textLayout->setSpacing(PDFAppToolInputRow::LINE_GAP);
+    QHBoxLayout* top = new QHBoxLayout();
+    top->setContentsMargins(0, 0, 0, 0);
+    top->setSpacing(TAG_GAP);
+    m_name = PDFAppPageWidgets::createLabel(document.name, QFont::DemiBold, 12, PDFThemeColors::TextPrimary, this);
+    m_name->setMinimumWidth(1);
+    m_name->setLineHeight(PDFAppToolInputRow::NAME_HEIGHT);
+
+    // The name in the middle of the line of the Tag (398:29245: the name 3 below the top of the
+    // line of 21, the line of the numbers 1 below it)
+    top->addWidget(m_name, 0, Qt::AlignVCenter);
+    if (document.isModified)
+    {
+        // K24: the snapshot of an unsaved tab is said by the Tag
+        m_tag = new PDFTag(tr("unsaved changes"), this);
+        m_tag->setFocusPolicy(Qt::NoFocus);
+        m_tag->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+        top->addWidget(m_tag);
+    }
+    top->addStretch(1);
+    textLayout->addLayout(top);
+    m_details = PDFAppPageWidgets::createLabel(document.details, QFont::Normal, 11, PDFThemeColors::TextTertiary, this);
+    m_details->setMinimumWidth(1);
+    m_details->setLineHeight(PDFAppToolInputRow::LINE_HEIGHT);
+    textLayout->addWidget(m_details);
+
+    // The two lines stay together in the middle of the row (the labels do not grow)
+    textLayout->insertStretch(0, 1);
+    textLayout->addStretch(1);
+    rowLayout->addLayout(textLayout, 1);
+
+    // btn-add-1 409:32946: Secondary "+ Add" (86 x 36)
+    m_addButton = PDFAppPageWidgets::createButton(tr("Add"), QStringLiteral("plus"), false, this);
+    m_addButton->setAccessibleDescription(document.name);
+    connect(m_addButton.data(), &QPushButton::clicked, this, &PDFAppToolOpenDocumentRow::onAddClicked);
+    rowLayout->addWidget(m_addButton);
+}
+
+PDFAppToolOpenDocumentRow::~PDFAppToolOpenDocumentRow() = default;
+
+void PDFAppToolOpenDocumentRow::resizeEvent(QResizeEvent* event)
+{
+    BaseClass::resizeEvent(event);
+    updateTexts();
+}
+
+void PDFAppToolOpenDocumentRow::updateTexts()
+{
+    if (!m_name || !m_details || !m_addButton)
+    {
+        return;
+    }
+
+    // The text takes the row without the padding, the tile, the button and their gaps
+    const int textWidth = width() - 2 * PADDING - TILE - 2 * GAP - m_addButton->sizeHint().width();
+    const int nameWidth = textWidth - (m_tag ? m_tag->sizeHint().width() + TAG_GAP : 0);
+    if (textWidth <= 0 || nameWidth <= 0)
+    {
+        return;
+    }
+
+    using TextKind = PDFComponentPainter::TextKind;
+    const QString name = PDFComponentPainter::elidedTextOfKind(m_document.name, m_name->font(), nameWidth, TextKind::FileName);
+    const QString details = PDFComponentPainter::elidedTextOfKind(m_document.details, m_details->font(), textWidth, TextKind::Data);
+    if (m_name->text() != name)
+    {
+        m_name->setText(name);
+        m_name->setToolTip(name != m_document.name ? m_document.name : QString());
+    }
+    if (m_details->text() != details)
+    {
+        m_details->setText(details);
+        m_details->setToolTip(details != m_document.details ? m_document.details : QString());
+    }
+}
+
+void PDFAppToolOpenDocumentRow::onAddClicked()
+{
+    // A copy: a slot may delete the row with its document
+    const QString documentId = m_document.documentId;
+    Q_EMIT addRequested(documentId);
 }
 
 // ----------------------------------------------------- PDFAppToolInputFilesPanel

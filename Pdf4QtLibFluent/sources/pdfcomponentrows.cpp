@@ -175,6 +175,16 @@ void PDFRecentFileRow::setPath(const QString& path)
     }
 }
 
+void PDFRecentFileRow::setDetail(const QString& detail)
+{
+    if (m_row.detail != detail)
+    {
+        m_row.detail = detail;
+        updateDescription();
+        update();
+    }
+}
+
 void PDFRecentFileRow::setTime(const QString& time)
 {
     if (m_row.time != time)
@@ -247,11 +257,11 @@ void PDFRecentFileRow::updateDescription()
     QString description;
     if (m_row.status == Status::Missing)
     {
-        description = joinTexts({ PDFComponentPainter::getMissingFileText(), m_row.path }, pattern);
+        description = joinTexts({ PDFComponentPainter::getMissingFileText(), m_row.path, m_row.detail }, pattern);
     }
     else
     {
-        description = joinTexts({ m_row.path, m_row.time }, pattern);
+        description = joinTexts({ m_row.path, m_row.detail, m_row.time }, pattern);
     }
 
     replaceAccessibleDescription(m_description, description);

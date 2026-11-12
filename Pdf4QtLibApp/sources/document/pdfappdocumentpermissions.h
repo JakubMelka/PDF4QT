@@ -31,7 +31,9 @@
 #include <QCoreApplication>
 #include <QString>
 #include <QStringList>
+#include <QVariantMap>
 
+#include <optional>
 #include <vector>
 
 class QDialog;
@@ -65,10 +67,12 @@ public:
     PDFAppPermissionAction action = PDFAppPermissionAction::Print;
     QString toolId;     ///< Tool: the id of the catalog entry (PDFDocumentToolCatalog::findTool)
     std::vector<PDFSecurityHandler::Permission> permissions;   ///< Tool: what the chosen values need besides the catalog entry (Remove Hidden Data: bit 6 for comments, attachments, signature fields)
+    std::optional<QVariantMap> parameters;  ///< Tool: the parameters of the run - a tool, whose output decides, answers by them whether it makes new documents of its inputs (PDFDocumentTool::isNewDocumentOfInputs; Manage Pages, RB3 a of step 3b); std::nullopt = the row of the catalog
 
     static PDFAppPermissionRequest create(PDFAppPermissionAction action);
     static PDFAppPermissionRequest createTool(const QString& toolId);
     static PDFAppPermissionRequest createTool(const QString& toolId, std::vector<PDFSecurityHandler::Permission> permissions);
+    static PDFAppPermissionRequest createTool(const QString& toolId, std::vector<PDFSecurityHandler::Permission> permissions, QVariantMap parameters);
 };
 
 /// The permissions of an encrypted document in the new application - the one place of

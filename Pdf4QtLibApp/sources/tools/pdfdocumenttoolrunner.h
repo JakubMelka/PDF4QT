@@ -142,6 +142,13 @@ public:
     PDFAppDocument* getDocument() const { return m_document.data(); }
     const std::shared_ptr<const PDFDocumentTool>& getTool() const { return m_tool; }
 
+    /// The parameters of the last run (\p run), empty before the first one
+    const QVariantMap& getRunParameters() const { return m_runParameters; }
+
+    /// What the output of the last run is (PDFDocumentTool::getOutputTraits with its parameters;
+    /// plan of step 3b of phase 2, RB3 a): the rules of its result - the dialog, the copy, the commit
+    PDFDocumentToolOutputTraits getOutputTraits() const;
+
     /// Inputs of the following computations (selected pages, color management, ...)
     void setEnvironment(const PDFAppToolRunEnvironment& environment);
 

@@ -328,16 +328,10 @@ public:
     static constexpr int PADDING_BOTTOM = 25;   ///< Padding 24 + the border
     static constexpr int GAP = 12;
     static constexpr int ICON_TILE = 44;
-    static constexpr int ROW_HEIGHT = 52;
+    static constexpr int ROW_HEIGHT = PDFAppToolOpenDocumentRow::HEIGHT;
 
-    /// An open document, which can be added
-    struct Document
-    {
-        QString documentId;
-        QString name;
-        QString details;        ///< "3 pages · the current unsaved state is used"
-        bool isModified = false;
-    };
+    /// An open document, which can be added ("3 pages · the current unsaved state is used")
+    using Document = PDFAppToolOpenDocumentRow::Document;
 
     /// What the zone shows
     struct Content
@@ -368,8 +362,6 @@ Q_SIGNALS:
     void addDocumentRequested(const QString& documentId);
 
 private:
-    void onAddClicked();
-
     QPointer<QWidget> m_card;
     QPointer<PDFLabel> m_title;
     QPointer<PDFLabel> m_text;

@@ -188,9 +188,11 @@ PDFDocumentToolResultKind PDFDocumentToolCatalogEntry::getResultKind() const
     return data ? data->getResultKind() : PDFDocumentToolResultKind::ChangeDocument;
 }
 
-/// Kinds of the result of a tool, whose result depends on a parameter (a row per tool, the kind
-/// of the catalog first; plan of step 3 of phase 2, 4.2): Extract Pages one file (NewDocument)
-/// or one file per page (Files). Manage Pages (3b) is decided by its own plan (owner answer Q2).
+/// Kinds of the result of a tool, whose result depends on a parameter (a row per other kind, the
+/// kind of the catalog first; plan of step 3 of phase 2, 4.2): Extract Pages one file (NewDocument)
+/// or one file per page (Files). Manage Pages (plan of step 3b, 4.4): This document (the kind of
+/// the catalog, ChangeDocument), One PDF (NewDocument), One PDF per group or item and One PDF per
+/// page (Files).
 class PDFDocumentToolResultKindsRow
 {
 public:
@@ -201,11 +203,14 @@ public:
 static constexpr PDFDocumentToolResultKindsRow TOOL_OTHER_RESULT_KINDS[] =
 {
     { "pages.extract", PDFDocumentToolResultKind::Files },
+    { "pages.manage", PDFDocumentToolResultKind::NewDocument },
+    { "pages.manage", PDFDocumentToolResultKind::Files },
 };
 
 /// Inputs of a tool, which differ from the default of its input kind (K41 of the plan of step 3
 /// of phase 2: the front and the back sides of Interleave; the images of Images to PDF, whose
-/// input kind None says it opens no document). Manage Pages (1 to 1000) comes with its plan (3b).
+/// input kind None says it opens no document; Manage Pages 1 to 1000 sources - one document is
+/// arranged by it too, plan of step 3b, 1 point 7).
 class PDFDocumentToolInputCountRow
 {
 public:
@@ -218,6 +223,14 @@ static constexpr PDFDocumentToolInputCountRow TOOL_INPUT_COUNTS[] =
 {
     { "pages.interleave", 2, 2 },
     { "convert.images-to-pdf", 1, PDFDocumentToolCatalog::MAXIMUM_INPUT_COUNT },
+    { "pages.manage", 1, PDFDocumentToolCatalog::MAXIMUM_INPUT_COUNT },
+};
+
+/// Tools with their own tab, which run in the tab of a document, when they are started over
+/// one (PDFDocumentToolCatalogEntry::hasDocumentHost; plan of step 3b of phase 2, QB1 B)
+static constexpr const char* TOOL_DOCUMENT_HOSTS[] =
+{
+    "pages.manage",
 };
 
 /// Tools, whose files of the result are new PDF documents of the pages of the input document
@@ -262,6 +275,23 @@ PDFDocumentToolInputCountRange PDFDocumentToolCatalogEntry::getInputCountRange()
     return PDFDocumentToolInputCountRange();
 }
 
+bool PDFDocumentToolCatalogEntry::hasDocumentHost() const
+{
+    if (!m_hasOwnTab)
+    {
+        return false;
+    }
+
+    for (const char* toolId : TOOL_DOCUMENT_HOSTS)
+    {
+        if (getId() == QLatin1String(toolId))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool PDFDocumentToolCatalogEntry::isNewDocumentOfInputs() const
 {
     if (getInputKind() == PDFDocumentToolInputKind::None)
@@ -269,8 +299,9 @@ bool PDFDocumentToolCatalogEntry::isNewDocumentOfInputs() const
         return false;
     }
 
-    const std::vector<PDFDocumentToolResultKind> kinds = getPossibleResultKinds();
-    if (std::find(kinds.cbegin(), kinds.cend(), PDFDocumentToolResultKind::NewDocument) != kinds.cend())
+    // The kind of the row of the catalog: a tool, whose output decides, answers by its
+    // parameters (PDFDocumentTool::isNewDocumentOfInputs; Manage Pages, RB3 a of step 3b)
+    if (getResultKind() == PDFDocumentToolResultKind::NewDocument)
     {
         return true;
     }
@@ -496,6 +527,11 @@ const std::vector<PDFDocumentToolExtendedData>& PDFDocumentToolCatalog::getExten
     // Merge by the tools); Crop Pages and Set Page Boxes change the boxes of the pages - bit 4
     // (bit 11 does not name them); Resize Pages - bit 4, and bit 6 for a run, which moves or
     // scales an annotation (checked by the tool); Images to PDF has no input document.
+    // Manage Pages (plan of step 3b of phase 2, RB3 a): the row is its output This document in
+    // the tab of a document (a change of its pages, Keep, an incremental update of a signed file,
+    // bit 11); the other outputs make new documents of its inputs, their values come from the
+    // tool by its parameters (PDFDocumentTool::getResultKind, getPreselectedResult,
+    // getSignatureImpact, isNewDocumentOfInputs).
     using Input = PDFDocumentToolInputKind;
     using Result = PDFDocumentToolResultKind;
     using Dependency = PDFDocumentToolExternalDependency;
@@ -508,7 +544,7 @@ const std::vector<PDFDocumentToolExtendedData>& PDFDocumentToolCatalog::getExten
         PDFDocumentToolExtendedData("pages.split", Input::One, Result::Files, Dependency::None, "separate", "", Preselected::File, Signature::None, uint32_t(Permission::Assemble)),
         PDFDocumentToolExtendedData("pages.extract", Input::One, Result::NewDocument, Dependency::None, "", "optimize.compress,protect.password", Preselected::NewTab, Signature::None, uint32_t(Permission::Assemble)),
         PDFDocumentToolExtendedData("pages.interleave", Input::Multiple, Result::NewDocument, Dependency::None, "", "convert.ocr,optimize.compress", Preselected::NewTab, Signature::None, uint32_t(Permission::Assemble)),
-        PDFDocumentToolExtendedData("pages.manage", Input::Multiple, Result::ChangeDocument, Dependency::None, "", "edit.page-numbers,optimize.compress,protect.password"),
+        PDFDocumentToolExtendedData("pages.manage", Input::Multiple, Result::ChangeDocument, Dependency::None, "", "edit.page-numbers,optimize.compress,protect.password", Preselected::Keep, Signature::IncrementalSave, uint32_t(Permission::Assemble)),
         PDFDocumentToolExtendedData("pages.insert", Input::One, Result::ChangeDocument, Dependency::None, "", "edit.page-numbers,optimize.compress", Preselected::Keep, Signature::IncrementalSave, uint32_t(Permission::Assemble)),
         PDFDocumentToolExtendedData("pages.add-image", Input::One, Result::ChangeDocument, Dependency::None, "", "convert.ocr,optimize.compress", Preselected::Keep, Signature::IncrementalSave, uint32_t(Permission::Assemble)),
         PDFDocumentToolExtendedData("pages.remove", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.compress,edit.page-numbers,protect.password", Preselected::Keep, Signature::IncrementalSave, uint32_t(Permission::Assemble)),
@@ -613,7 +649,9 @@ const std::vector<PDFDocumentToolCatalogEntry>& PDFDocumentToolCatalog::getTools
         "grid",
         //: Comma separated search keywords of the tool, lower case. They are never shown, English keywords are searched too.
         QT_TRANSLATE_NOOP("pdf::PDFDocumentToolCatalog", "organize, manage, arrange, reorder, rearrange, resequence, move pages, sort, page order, thumbnails, group, duplicate, clone, reverse order, drag and drop, page sorter, reorganize pages, assembly, pagemaster, workspace"),
-        true, false, PDFDocumentToolLockedAccess::Unavailable),
+        // A locked document is a source of a new PDF; only its output This document is
+        // Disabled (plan of step 3b of phase 2, 4.5)
+        true, false, PDFDocumentToolLockedAccess::Available),
     PDFDocumentToolCatalogEntry("pages.insert", PDFDocumentToolCategory::Pages, "arrange",
         QT_TRANSLATE_NOOP("pdf::PDFDocumentToolCatalog", "Insert Pages"),
         QT_TRANSLATE_NOOP("pdf::PDFDocumentToolCatalog", "Add PDF pages, images or blank pages"),

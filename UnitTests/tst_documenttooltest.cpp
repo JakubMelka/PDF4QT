@@ -432,8 +432,11 @@ void DocumentToolTest::catalogPermissions()
     // of the pages (bit 11 and the rule of Merge), Insert Pages and Add Image as Page insert
     // pages (bit 11); Crop Pages, Resize Pages and Set Page Boxes change the boxes and the content
     // of the pages, which bit 11 does not name (bit 4); Images to PDF has no input document.
+    // Step 3b (plan RB3 a): the row of Manage Pages is its output This document - bit 11; its new
+    // documents follow the rule of Merge by its parameters (PDFDocumentTool::isNewDocumentOfInputs).
     const std::map<QString, Permissions> expected =
     {
+        { QStringLiteral("pages.manage"), Permissions({ Permission::Assemble }) },
         { QStringLiteral("pages.rotate"), Permissions({ Permission::Assemble }) },
         { QStringLiteral("pages.remove"), Permissions({ Permission::Assemble }) },
         { QStringLiteral("pages.merge"), Permissions({ Permission::Assemble }) },
@@ -573,6 +576,31 @@ void DocumentToolTest::catalogResultKindsAndInputs()
     const pdftest::TestDocumentTool unknown(QStringLiteral("unknown.tool"));
     QCOMPARE(unknown.getResultKind(QVariantMap()), Kind::ChangeDocument);
     QCOMPARE(unknown.getInputCountRange(), (Range{ 0, 0 }));
+
+    // The values of the output of a run (plan of step 3b, RB3 a): a tool without its own rule gives
+    // the row of its catalog entry for any parameters - the preselected choice, the signature impact
+    // and the rule of new documents (Compress a copy and a whole rewrite, Merge a new document)
+    const pdftest::TestDocumentTool compress(QStringLiteral("optimize.compress"));
+    const pdf::PDFDocumentToolOutputTraits compressTraits = compress.getOutputTraits(QVariantMap({ { QStringLiteral("mode"), QStringLiteral("title") } }));
+    QCOMPARE(compressTraits.entry, tool("optimize.compress"));
+    QCOMPARE(compressTraits.resultKind, Kind::ChangeDocument);
+    QCOMPARE(compressTraits.preselectedResult, pdf::PDFDocumentToolPreselectedResult::Copy);
+    QCOMPARE(compressTraits.signatureImpact, pdf::PDFDocumentToolSignatureImpact::LostCopyOnly);
+    QVERIFY(!compressTraits.isNewDocumentOfInputs);
+    const pdftest::TestDocumentTool merge(QStringLiteral("pages.merge"));
+    QVERIFY(merge.isNewDocumentOfInputs(QVariantMap()));
+    QCOMPARE(merge.getPreselectedResult(QVariantMap()), pdf::PDFDocumentToolPreselectedResult::NewTab);
+    QCOMPARE(merge.getSignatureImpact(QVariantMap()), pdf::PDFDocumentToolSignatureImpact::None);
+
+    // The traits of an entry are the same row (the implicit conversion of the callers without a run)
+    const pdf::PDFDocumentToolOutputTraits rotateRow(tool("pages.rotate"));
+    QCOMPARE(rotateRow.preselectedResult, pdf::PDFDocumentToolPreselectedResult::Keep);
+    QCOMPARE(rotateRow.signatureImpact, pdf::PDFDocumentToolSignatureImpact::IncrementalSave);
+    const pdf::PDFDocumentToolOutputTraits none(nullptr);
+    QCOMPARE(none.resultKind, Kind::ChangeDocument);
+    QCOMPARE(none.preselectedResult, pdf::PDFDocumentToolPreselectedResult::None);
+    QCOMPARE(none.signatureImpact, pdf::PDFDocumentToolSignatureImpact::None);
+    QVERIFY(!unknown.getOutputTraits(QVariantMap()).entry);
 }
 
 void DocumentToolTest::catalogPermissionsOwnerPassword()
@@ -1098,9 +1126,15 @@ void DocumentToolTest::catalogExtendedData()
                 QCOMPARE(tool.getInputKind(), Input::None);
                 break;
             case pdf::PDFDocumentToolLockedAccess::Available:
-                // A tool, which never changes the open document
-                QVERIFY2(tool.getResultKind() != Result::ChangeDocument, qPrintable(toolId));
+            {
+                // A tool, which never changes the open document, or whose change of the document
+                // is one of its outputs besides new documents (Manage Pages: This document is
+                // Disabled for a locked document, plan of step 3b of phase 2, 4.5)
+                const std::vector<Result> kinds = tool.getPossibleResultKinds();
+                const bool hasOtherOutput = std::find_if(kinds.cbegin(), kinds.cend(), [](Result kind) { return kind != Result::ChangeDocument; }) != kinds.cend();
+                QVERIFY2(tool.getResultKind() != Result::ChangeDocument || hasOtherOutput, qPrintable(toolId));
                 break;
+            }
             case pdf::PDFDocumentToolLockedAccess::Unavailable:
                 QVERIFY2(tool.getResultKind() == Result::ChangeDocument || tool.getResultKind() == Result::NewDocument, qPrintable(toolId));
                 QVERIFY2(tool.getInputKind() != Input::None, qPrintable(toolId));

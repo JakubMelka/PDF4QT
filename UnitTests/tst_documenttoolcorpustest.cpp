@@ -28,6 +28,7 @@
 #include "pdfdocumenttextflow.h"
 #include "pdfdocumenttool_extracttext.h"
 #include "pdfdocumenttool_compress.h"
+#include "pdfdocumenttool_manage.h"
 #include "pdfdocumenttool_merge.h"
 #include "pdfdocumenttool_protect.h"
 #include "pdfdocumenttool_pages.h"
@@ -54,6 +55,7 @@
 #include <QDirIterator>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFileInfo>
 #include <QImage>
 #include <QJsonObject>
 #include <QLockFile>
@@ -156,6 +158,7 @@ struct CorpusToolRow
     CorpusRefusal refusal = nullptr;
     int inputCount = 1;     ///< The file is given this many times (Merge of a file with itself, every collision of names)
     bool isFilePerPage = false; ///< The tool writes a file per page of the page map by the file sink of the context (Split, Extract), each one is checked as a new document of that page
+    std::function<QVariantMap(const pdf::PDFDocument*, const QString&)> createParameters = nullptr;    ///< Parameters made of the read file and its path in place of parameters (the assembly of Manage Pages)
 
     QString getName() const { return QString::fromLatin1(toolId) + QLatin1Char('/') + QString::fromLatin1(variant); }
 };
@@ -456,14 +459,23 @@ public:
     /// signatures are removed, a new file).
     static const CorpusExclusion* findContentExclusion(const pdf::PDFDocument* input, const QString& tool)
     {
-        static const CorpusExclusion signedMerge = { "", "^pages\\.(merge|split|extract)/", "Owner answer Q4 of step 2 of phase 2",
-                                                     "Merge, Split and Extract remove a signature with its appearance (the field stays empty): the pages of a signed file look different by design" };
+        static const CorpusExclusion signedMerge = { "", "^pages\\.(merge|split|extract)/|^pages\\.manage/(one-pdf|per-group|per-page)-", "Owner answer Q4 of step 2 of phase 2",
+                                                     "Merge, Split, Extract and the new documents of Manage Pages remove a signature with its appearance (the field stays empty): the pages of a signed file look different by design" };
         if (qEnvironmentVariableIntValue("PDF4QT_TOOL_CORPUS_NO_EXCLUSIONS") != 0)
         {
             return nullptr;
         }
 
+        // Manage Pages: a clone in the document itself gets no widget of a signature field (RB1 of
+        // step 3b), so the clone of a signed page looks different by design
+        static const CorpusExclusion signedClone = { "", "^pages\\.manage/odd-even-clone-first$", "RB1 of step 3b of phase 2",
+                                                     "A clone in the document itself has no widget of a signature field: the clone of a signed page looks different by design" };
+
         const bool isSigned = pdf::PDFForm::getSignatureCount(input) > 0;
+        if (isSigned && QRegularExpression(QString::fromLatin1(signedClone.variantPattern)).match(tool).hasMatch())
+        {
+            return &signedClone;
+        }
         return isSigned && QRegularExpression(QString::fromLatin1(signedMerge.variantPattern)).match(tool).hasMatch() ? &signedMerge : nullptr;
     }
 
@@ -1085,6 +1097,38 @@ private:
         return input->getCatalog()->getPageCount() < 2;
     }
 
+    /// The pages of Manage Pages "odd, even" in the document itself: the odd pages, then the even ones
+    static std::vector<CorpusPageOrigin> mapOddThenEven(const pdf::PDFDocument* input)
+    {
+        std::vector<CorpusPageOrigin> origins;
+        for (size_t first : { size_t(0), size_t(1) })
+        {
+            for (size_t i = first; i < input->getCatalog()->getPageCount(); i += 2)
+            {
+                origins.push_back({ i, pdf::PageRotation::None });
+            }
+        }
+        return origins;
+    }
+
+    /// The pages of Manage Pages "odd, even, 1": as mapOddThenEven, a clone of the first page at the end
+    static std::vector<CorpusPageOrigin> mapOddThenEvenAndFirst(const pdf::PDFDocument* input)
+    {
+        std::vector<CorpusPageOrigin> origins = mapOddThenEven(input);
+        if (input->getCatalog()->getPageCount() > 0)
+        {
+            origins.push_back({ 0, pdf::PageRotation::None });
+        }
+        return origins;
+    }
+
+    /// Manage Pages refuses to change a document without pages and a dynamic XFA form (plan of step
+    /// 3b of phase 2, 4.5: its pages are made by the XFA form)
+    static bool isArrangeRefused(const pdf::PDFDocument* input)
+    {
+        return input->getCatalog()->getPageCount() == 0 || input->getCatalog()->isXFANeedsRendering();
+    }
+
     /// The pages of Merge of a file with itself: every page twice, in the order of the file
     static std::vector<CorpusPageOrigin> mapPagesTwice(const pdf::PDFDocument* input)
     {
@@ -1276,6 +1320,61 @@ private:
                                           PromiseText | PromiseTransparency, &ToolCorpusHelper::mapOddPagesStay, nullptr, &ToolCorpusHelper::isMergeRefused };
         extractFilePerPage.isFilePerPage = true;
         rows.push_back(extractFilePerPage);
+
+        // Manage Pages over the document itself (plan of step 3b of phase 2, 4.5, 8, RB1, RB4): the
+        // pages in another order keep their look, text, contents, annotations and the signatures,
+        // the encryption and the version of the file (an incremental update); a clone of the first
+        // page at the end looks as the page, it has no widget of a signature field (RB1)
+        const auto createManage = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<pdf::PDFDocumentToolManage>();
+        };
+        const auto arrangedPages = [](const char* pageList)
+        {
+            QVariantMap parameters;
+            parameters.insert(QString::fromLatin1(pdf::PDFDocumentToolManage::PARAMETER_PAGES), QString::fromLatin1(pageList));
+            return parameters;
+        };
+        rows.push_back({ pdf::PDFDocumentToolManage::TOOL_ID, "odd-even", createManage, arrangedPages("odd, even"), CorpusLook::Exact,
+                         PAGES_PROMISES | PromiseSignatures | PromiseContent, &ToolCorpusHelper::mapOddThenEven, nullptr, &ToolCorpusHelper::isArrangeRefused });
+        rows.push_back({ pdf::PDFDocumentToolManage::TOOL_ID, "odd-even-clone-first", createManage, arrangedPages("odd, even, 1"), CorpusLook::Exact,
+                         PAGES_PROMISES | PromiseSignatures, &ToolCorpusHelper::mapOddThenEvenAndFirst, nullptr, &ToolCorpusHelper::isArrangeRefused });
+
+        // Manage Pages, the new documents of an assembly (plan of step 3b of phase 2, 4.4, 8): the
+        // assembly of the file is its pages "odd, even" (createAssemblyOfPages, an item per page);
+        // One PDF, a file per item (per group: an ungrouped page is its own file, 396:26763) and a
+        // file per page are new unencrypted documents, whose pages look as in the file and keep
+        // their text. They refuse what Merge refuses (Assemble and the owner password, a file
+        // without pages, a dynamic XFA form).
+        const auto assemblyOfFile = [](const char* output)
+        {
+            return [output](const pdf::PDFDocument* input, const QString& path)
+            {
+                QVariantMap parameters;
+                QString error;
+                const std::optional<pdf::PDFDocumentAssembly> assembly = pdf::PDFDocumentToolManage::createAssemblyOfPages(input, QFileInfo(path).fileName(), QStringLiteral("odd, even"), &error);
+                if (assembly)
+                {
+                    parameters.insert(QString::fromLatin1(pdf::PDFDocumentToolManage::PARAMETER_ASSEMBLY), QVariant::fromValue(*assembly));
+                }
+                parameters.insert(QString::fromLatin1(pdf::PDFDocumentToolManage::PARAMETER_OUTPUT), QString::fromLatin1(output));
+                return parameters;
+            };
+        };
+        CorpusToolRow manageOnePdf{ pdf::PDFDocumentToolManage::TOOL_ID, "one-pdf-odd-even", createManage, QVariantMap(), CorpusLook::Exact,
+                                    PromiseText | PromiseTransparency, &ToolCorpusHelper::mapOddThenEven, nullptr, &ToolCorpusHelper::isMergeRefused };
+        manageOnePdf.createParameters = assemblyOfFile(pdf::PDFDocumentToolManage::OUTPUT_ONE_PDF);
+        rows.push_back(manageOnePdf);
+        CorpusToolRow managePerGroup{ pdf::PDFDocumentToolManage::TOOL_ID, "per-group-odd-even", createManage, QVariantMap(), CorpusLook::Exact,
+                                      PromiseText | PromiseTransparency, &ToolCorpusHelper::mapOddThenEven, nullptr, &ToolCorpusHelper::isMergeRefused };
+        managePerGroup.isFilePerPage = true;
+        managePerGroup.createParameters = assemblyOfFile(pdf::PDFDocumentToolManage::OUTPUT_PER_GROUP);
+        rows.push_back(managePerGroup);
+        CorpusToolRow managePerPage{ pdf::PDFDocumentToolManage::TOOL_ID, "per-page-odd-even", createManage, QVariantMap(), CorpusLook::Exact,
+                                     PromiseText | PromiseTransparency, &ToolCorpusHelper::mapOddThenEven, nullptr, &ToolCorpusHelper::isMergeRefused };
+        managePerPage.isFilePerPage = true;
+        managePerPage.createParameters = assemblyOfFile(pdf::PDFDocumentToolManage::OUTPUT_PER_PAGE);
+        rows.push_back(managePerPage);
         return rows;
     }
 
@@ -1512,7 +1611,8 @@ void DocumentToolCorpusTest::toolOnFile()
         {
             context.fileSink = &sink;
         }
-        const pdf::PDFDocumentToolResult result = tool->run(context, row.parameters, nullptr, nullptr);
+        const QVariantMap parameters = row.createParameters ? row.createParameters(&input, path) : row.parameters;
+        const pdf::PDFDocumentToolResult result = tool->run(context, parameters, nullptr, nullptr);
 
         summary.status = ToolCorpusHelper::getStatusName(result.status);
         summary.note = result.message;
@@ -1525,7 +1625,7 @@ void DocumentToolCorpusTest::toolOnFile()
             case pdf::PDFDocumentToolResultStatus::NothingToDo:
                 if (row.resultCheck)
                 {
-                    row.resultCheck(&input, result, row.parameters, &failures);
+                    row.resultCheck(&input, result, parameters, &failures);
                 }
                 if (!result.documents.empty())
                 {
@@ -1574,7 +1674,7 @@ void DocumentToolCorpusTest::toolOnFile()
         {
             if (row.resultCheck)
             {
-                row.resultCheck(&input, result, row.parameters, &failures);
+                row.resultCheck(&input, result, parameters, &failures);
             }
             else if (row.isFilePerPage)
             {

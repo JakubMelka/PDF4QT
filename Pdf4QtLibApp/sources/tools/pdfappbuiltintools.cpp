@@ -28,6 +28,7 @@
 #include "pdfapptoolgui_geometry.h"
 #include "pdfapptoolgui_images.h"
 #include "pdfapptoolgui_insert.h"
+#include "pdfapptoolgui_manage.h"
 #include "pdfapptoolgui_merge.h"
 #include "pdfapptoolgui_pages.h"
 #include "pdfapptoolgui_protect.h"
@@ -55,6 +56,9 @@ void PDFAppBuiltinTools::registerAll()
     PDFAppToolGUIGeometry::registerGeometryTools();
     PDFAppToolGUIInsert::registerInsertTools();
     PDFAppToolGUIImages::registerImageTools();
+
+    // Step 3b of phase 2 (plan 9.1): Manage Pages, package M3 registers it in its own file
+    PDFAppToolGUIManage::registerManageTools();
 }
 
 }   // namespace pdf

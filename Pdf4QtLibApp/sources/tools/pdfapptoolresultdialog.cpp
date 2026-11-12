@@ -475,7 +475,7 @@ PDFAppToolResultDialog::ResultKind PDFAppToolResultDialog::getResultKind(const P
     return result.writtenFiles.isEmpty() && result.notWrittenFiles.isEmpty() ? ResultKind::Analysis : ResultKind::WrittenFiles;
 }
 
-std::vector<PDFAppToolResultDialog::Choice> PDFAppToolResultDialog::getChoices(const PDFDocumentToolCatalogEntry* tool, ResultKind kind, const DocumentState& state)
+std::vector<PDFAppToolResultDialog::Choice> PDFAppToolResultDialog::getChoices(const PDFDocumentToolOutputTraits& tool, ResultKind kind, const DocumentState& state)
 {
     switch (kind)
     {
@@ -511,28 +511,25 @@ std::vector<PDFAppToolResultDialog::Choice> PDFAppToolResultDialog::getChoices(c
     return { };
 }
 
-PDFAppToolResultDialog::Choice PDFAppToolResultDialog::getPreselectedChoice(const PDFDocumentToolCatalogEntry* tool, const std::vector<Choice>& choices)
+PDFAppToolResultDialog::Choice PDFAppToolResultDialog::getPreselectedChoice(const PDFDocumentToolOutputTraits& tool, const std::vector<Choice>& choices)
 {
     Choice preselected = choices.empty() ? Choice::Keep : choices.front();
-    if (tool)
+    switch (tool.preselectedResult)
     {
-        switch (tool->getPreselectedResult())
-        {
-            case PDFDocumentToolPreselectedResult::Keep:
-                preselected = Choice::Keep;
-                break;
-            case PDFDocumentToolPreselectedResult::Copy:
-                preselected = Choice::Copy;
-                break;
-            case PDFDocumentToolPreselectedResult::NewTab:
-                preselected = Choice::NewTab;
-                break;
-            case PDFDocumentToolPreselectedResult::File:
-                preselected = Choice::File;
-                break;
-            case PDFDocumentToolPreselectedResult::None:
-                break;
-        }
+        case PDFDocumentToolPreselectedResult::Keep:
+            preselected = Choice::Keep;
+            break;
+        case PDFDocumentToolPreselectedResult::Copy:
+            preselected = Choice::Copy;
+            break;
+        case PDFDocumentToolPreselectedResult::NewTab:
+            preselected = Choice::NewTab;
+            break;
+        case PDFDocumentToolPreselectedResult::File:
+            preselected = Choice::File;
+            break;
+        case PDFDocumentToolPreselectedResult::None:
+            break;
     }
 
     return std::find(choices.cbegin(), choices.cend(), preselected) != choices.cend() ? preselected : (choices.empty() ? Choice::Keep : choices.front());
@@ -548,6 +545,14 @@ PDFAppToolResultDialog::PDFAppToolResultDialog(PDFAppContext* context, PDFAppDoc
     m_input(std::move(input))
 {
     setObjectName(QStringLiteral("toolResultDialog"));
+
+    // The values of the output of the run decide the choices (RB3 a of step 3b); a dialog without
+    // the runner of its tool takes the row of the catalog
+    m_outputTraits = PDFDocumentToolOutputTraits(m_input.tool);
+    if (m_runner && m_runner->getTool() && m_runner->getTool()->getInfo() == m_input.tool)
+    {
+        m_outputTraits = m_runner->getOutputTraits();
+    }
     setCardWidth(CARD_WIDTH);
 
     m_kind = getResultKind(m_input.result);
@@ -573,7 +578,7 @@ PDFAppToolResultDialog::PDFAppToolResultDialog(PDFAppContext* context, PDFAppDoc
     m_state.isSigned = m_snapshot.isValid() && PDFForm::getSignatureCount(m_snapshot.document.data()) > 0;
     m_state.isLocked = document && document->isLocked();
     m_state.isOnlyCopyWritable = m_snapshot.isValid() && PDFAppDocumentFileWriter::isOnlyCopyWritable(m_snapshot);
-    m_state.isCertificationRemoved = PDFAppToolResultWriter::isCertificationRemoved(m_input.tool, &m_input.result);
+    m_state.isCertificationRemoved = PDFAppToolResultWriter::isCertificationRemoved(m_outputTraits, &m_input.result);
 
     m_writer = new PDFAppToolResultWriter(this);
     connect(m_writer, &PDFAppToolResultWriter::finished, this, &PDFAppToolResultDialog::onWriterFinished);
@@ -761,8 +766,8 @@ void PDFAppToolResultDialog::createFacts(QVBoxLayout* layout, QWidget* parent)
 
     // The warning of chapter 4 below the facts (O31): no frame of the design, the
     // parts of 295:2621
-    if (m_kind == ResultKind::ChangeDocument && (PDFAppToolResultWriter::isSignatureLost(m_input.tool, m_state.isSigned, m_state.isOnlyCopyWritable, &m_input.result) ||
-                                                 PDFAppToolResultWriter::isCopyOnly(m_input.tool, m_state.isSigned, m_state.hasFile, m_state.isOnlyCopyWritable, &m_input.result)))
+    if (m_kind == ResultKind::ChangeDocument && (PDFAppToolResultWriter::isSignatureLost(m_outputTraits, m_state.isSigned, m_state.isOnlyCopyWritable, &m_input.result) ||
+                                                 PDFAppToolResultWriter::isCopyOnly(m_outputTraits, m_state.isSigned, m_state.hasFile, m_state.isOnlyCopyWritable, &m_input.result)))
     {
         PDFLabel* title = nullptr;
         PDFAppParagraph* text = nullptr;
@@ -857,7 +862,7 @@ void PDFAppToolResultDialog::createOptions(QVBoxLayout* layout, QWidget* parent)
 {
     using Helper = PDFAppToolResultDialogHelper;
 
-    const std::vector<Choice> choices = getChoices(m_input.tool, m_kind, m_state);
+    const std::vector<Choice> choices = getChoices(m_outputTraits, m_kind, m_state);
     if (choices.empty())
     {
         return;
@@ -907,7 +912,7 @@ void PDFAppToolResultDialog::createOptions(QVBoxLayout* layout, QWidget* parent)
     }
     layout->addLayout(optionsLayout);
 
-    m_selectedChoice = getPreselectedChoice(m_input.tool, choices);
+    m_selectedChoice = getPreselectedChoice(m_outputTraits, choices);
     if (PDFAppToolResultOption* option = getOption(m_selectedChoice))
     {
         option->getRadioButton()->setChecked(true);
@@ -1125,8 +1130,8 @@ void PDFAppToolResultDialog::updateTexts()
         }
     }
 
-    const bool isCopyOnly = PDFAppToolResultWriter::isCopyOnly(m_input.tool, m_state.isSigned, m_state.hasFile, m_state.isOnlyCopyWritable, &m_input.result);
-    const Choice preselected = getPreselectedChoice(m_input.tool, getChoices(m_input.tool, m_kind, m_state));
+    const bool isCopyOnly = PDFAppToolResultWriter::isCopyOnly(m_outputTraits, m_state.isSigned, m_state.hasFile, m_state.isOnlyCopyWritable, &m_input.result);
+    const Choice preselected = getPreselectedChoice(m_outputTraits, getChoices(m_outputTraits, m_kind, m_state));
     const QString documentFileName = QFileInfo(m_snapshot.filePath).fileName();
     for (const auto& item : m_options)
     {
@@ -1837,7 +1842,7 @@ void PDFAppToolResultDialog::confirm()
         case Choice::Copy:
         {
             const PDFDocumentToolOutputDocument* output = findOutput(PDFDocumentToolOutputDocument::Kind::Changed);
-            if (checkTarget() && output && m_writer->writeCopy(m_input.tool, m_snapshot, output->document, getTargetFilePath(), getOriginFilePath(), m_isReplaceConfirmed, &m_input.result))
+            if (checkTarget() && output && m_writer->writeCopy(m_outputTraits, m_snapshot, output->document, getTargetFilePath(), getOriginFilePath(), m_isReplaceConfirmed, &m_input.result))
             {
                 setBusy(true);
             }

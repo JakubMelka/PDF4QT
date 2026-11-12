@@ -128,6 +128,13 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfdocumentpageplan.h
     sources/pdfdocumenttool_images.cpp
     sources/pdfdocumenttool_images.h
+    # Step 3b, package M1 (Manage Pages: the assembly, its file, the tool)
+    sources/pdfdocumentassembly.cpp
+    sources/pdfdocumentassembly.h
+    sources/pdfdocumentassemblyfile.cpp
+    sources/pdfdocumentassemblyfile.h
+    sources/pdfdocumenttool_manage.cpp
+    sources/pdfdocumenttool_manage.h
     sources/pdfexecutionpolicy.cpp
     sources/pdfexecutionpolicy.h
     sources/pdfthreadannotations.cpp

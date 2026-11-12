@@ -128,6 +128,11 @@ QString PDFAppToolParameterModel::setValue(const QString& name, const QVariant& 
 
 QString PDFAppToolParameterModel::setValues(const QVariantMap& values)
 {
+    return setValues(values, QString());
+}
+
+QString PDFAppToolParameterModel::setValues(const QVariantMap& values, const QString& stepText)
+{
     QVariantMap newValues = m_values;
     for (auto it = values.cbegin(); it != values.cend(); ++it)
     {
@@ -151,7 +156,7 @@ QString PDFAppToolParameterModel::setValues(const QVariantMap& values)
         return QString();
     }
 
-    m_undoStack.push_back(m_values);
+    m_undoStack.push_back(Step{ m_values, stepText });
     if (m_undoStack.size() > size_t(MAXIMUM_HISTORY))
     {
         m_undoStack.erase(m_undoStack.begin());
@@ -159,6 +164,16 @@ QString PDFAppToolParameterModel::setValues(const QVariantMap& values)
     m_redoStack.clear();
     applyValues(newValues);
     return QString();
+}
+
+QString PDFAppToolParameterModel::getUndoText() const
+{
+    return m_undoStack.empty() ? QString() : m_undoStack.back().text;
+}
+
+QString PDFAppToolParameterModel::getRedoText() const
+{
+    return m_redoStack.empty() ? QString() : m_redoStack.back().text;
 }
 
 QString PDFAppToolParameterModel::setFollowingValue(const QString& name, const QVariant& value)
@@ -197,11 +212,11 @@ QVariantMap PDFAppToolParameterModel::mergeMappedValues(const QVariantMap& value
 
 void PDFAppToolParameterModel::mapValues(const PDFAppToolValueMapper& mapper)
 {
-    for (std::vector<QVariantMap>* stack : { &m_undoStack, &m_redoStack })
+    for (std::vector<Step>* stack : { &m_undoStack, &m_redoStack })
     {
-        for (QVariantMap& step : *stack)
+        for (Step& step : *stack)
         {
-            step = mergeMappedValues(step, mapper.mapValues(step, false));
+            step.values = mergeMappedValues(step.values, mapper.mapValues(step.values, false));
         }
     }
 
@@ -226,13 +241,13 @@ std::vector<QVariant> PDFAppToolParameterModel::getHistoryValues(const QString& 
     {
         values.push_back(m_values.value(name));
     }
-    for (const std::vector<QVariantMap>* stack : { &m_undoStack, &m_redoStack })
+    for (const std::vector<Step>* stack : { &m_undoStack, &m_redoStack })
     {
-        for (const QVariantMap& step : *stack)
+        for (const Step& step : *stack)
         {
-            if (step.contains(name))
+            if (step.values.contains(name))
             {
-                values.push_back(step.value(name));
+                values.push_back(step.values.value(name));
             }
         }
     }
@@ -246,10 +261,11 @@ void PDFAppToolParameterModel::undo()
         return;
     }
 
-    QVariantMap values = std::move(m_undoStack.back());
+    // The text of the step goes with it: Undo Group, then Redo Group (RB3 d)
+    Step step = std::move(m_undoStack.back());
     m_undoStack.pop_back();
-    m_redoStack.push_back(m_values);
-    applyValues(values);
+    m_redoStack.push_back(Step{ m_values, step.text });
+    applyValues(step.values);
 }
 
 void PDFAppToolParameterModel::redo()
@@ -259,10 +275,10 @@ void PDFAppToolParameterModel::redo()
         return;
     }
 
-    QVariantMap values = std::move(m_redoStack.back());
+    Step step = std::move(m_redoStack.back());
     m_redoStack.pop_back();
-    m_undoStack.push_back(m_values);
-    applyValues(values);
+    m_undoStack.push_back(Step{ m_values, step.text });
+    applyValues(step.values);
 }
 
 void PDFAppToolParameterModel::applyValues(const QVariantMap& values)
@@ -359,6 +375,7 @@ std::optional<PDFSettingDefinition> PDFAppToolParameterModel::toSettingDefinitio
 
         case PDFDocumentToolParameterType::PageSelection:
         case PDFDocumentToolParameterType::Secret:
+        case PDFDocumentToolParameterType::Value:
             break;
     }
     return std::nullopt;

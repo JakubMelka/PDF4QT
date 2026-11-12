@@ -60,6 +60,7 @@ struct ToolPagesLifetimeRun
     std::shared_ptr<pdftest::ShellTestTool> tool;
     QPointer<pdf::PDFAppMainWindow> window;
     QPointer<pdf::PDFAppDocumentTab> tab;
+    QString scenario;       ///< The name of the scenario (its prepareRun: more scenarios share a tool id)
     QString toolId;
     QPointer<pdf::PDFAppToolTab> toolTab;               ///< The own tab of a tool (the scenarios "owntab*", step 2 of phase 2)
     std::shared_ptr<pdftest::OwnTabTestTool> ownTabTool;
@@ -115,6 +116,12 @@ public:
 
     /// Package D (Images to PDF, Interleave Pages): apptoolpageslifetime_images.cpp
     static void registerImageScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
+
+    /// Step 3b, package M3 (Manage Pages in its own tab and in the tab of a document; plan of
+    /// step 3b, 8: managegui, managedocgui, managedialogs, managemissing, manageclose,
+    /// manageconflict, manageclipboard, managecheckpoint, managedocchange, manageopenpopups):
+    /// apptoolpageslifetime_manage.cpp
+    static void registerManageScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
 };
 
 /// The steps and the inputs of the test for the scenarios of the packages: every input is sent

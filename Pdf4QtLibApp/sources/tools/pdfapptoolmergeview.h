@@ -130,6 +130,12 @@ public:
     static constexpr int DOT_GAP = 6;
     static constexpr int TILE_GAP = 8;
 
+    /// The loose pages of Manage (387:12937, 1479:34787): a plain group, whose rows have
+    /// PDFAppToolPageTileDelegate::SquareSlotRole - the page fitted into a square box (100 x 100
+    /// in the size Small, the tile 112 x 128), the tiles 6 apart in both directions. Merge has
+    /// only cards (378:1242: the box 73 x 100, 8 apart) and keeps its slot.
+    static constexpr int LOOSE_TILE_GAP = 6;
+
     /// The icon of a header (388:17789: 14 x 14, the title 20 from its leading edge)
     static constexpr int HEADER_ICON = 14;
 
@@ -248,6 +254,7 @@ private:
         int inset = 0;          ///< Distance of the tiles from the edges (the padding of the card, 0 for a plain group)
         QSize tileSize;         ///< Size of the tiles of the group
         int columns = 1;        ///< Tiles in a line
+        int gap = TILE_GAP;     ///< Distance of the tiles (LOOSE_TILE_GAP of the loose pages)
     };
 
     /// A button of a group (388:17789)
@@ -272,6 +279,12 @@ private:
     void positionActionButtons();
     QSize getTileSize() const;
     int getColumns(int group) const;
+
+    /// The tiles of the group are loose pages (a plain group of SquareSlotRole, 387:12937)
+    bool isLooseGroup(int group) const;
+
+    /// Distance of the tiles of the group of the row (TILE_GAP for an invalid row)
+    int getTileGapOfRow(int row) const;
     int getInnerWidth() const;
 
     /// Rectangle of the tile of the row in the content (left to right; empty for an invalid row)
@@ -342,6 +355,10 @@ public:
 
     /// The widths of the columns of 408:32003
     void setDefaultColumnWidths();
+
+    /// The widths of the first columns (another table in this view: Manage 387:15072); the
+    /// last column takes the rest
+    void setColumnWidths(const std::vector<int>& widths);
 
     /// Row in front of which a drop at the position of the viewport places the rows
     int getDropRow(const QPoint& position) const;

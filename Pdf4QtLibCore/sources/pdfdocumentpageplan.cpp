@@ -421,6 +421,8 @@ std::vector<PDFDocumentMerger::Item> PDFDocumentPagePlan::createMergerItems(cons
         item.turn = planItem.turn;
         item.pageSize = planItem.pageSize;
         item.imageLayout = planItem.imageLayout;
+        item.cropMargins = planItem.cropMargins;
+        item.isClone = planItem.isClone;
         mergerItems.push_back(std::move(item));
     }
     return mergerItems;

@@ -370,6 +370,7 @@ PDFDocumentToolResult PDFDocumentToolFileOutput::writeFiles(const PDFDocumentToo
     qint64 imagesRecompressed = 0;
     bool isStructureRemoved = false;
     bool isAttachmentsRemoved = false;
+    bool isDocumentPartsRemoved = false;
     qint64 signaturesRemoved = 0;
     qint64 linksRemoved = 0;
     QStringList conformanceRemoved;
@@ -377,6 +378,7 @@ PDFDocumentToolResult PDFDocumentToolFileOutput::writeFiles(const PDFDocumentToo
     {
         isStructureRemoved = isStructureRemoved || part.statistics.structureTreeRemoved;
         isAttachmentsRemoved = isAttachmentsRemoved || part.attachmentsRemoved;
+        isDocumentPartsRemoved = isDocumentPartsRemoved || part.statistics.documentPartsRemoved;
         signaturesRemoved += part.statistics.signaturesRemoved;
         linksRemoved += part.statistics.linksRemoved;
         imagesRecompressed += part.imagesRecompressed;
@@ -458,6 +460,11 @@ PDFDocumentToolResult PDFDocumentToolFileOutput::writeFiles(const PDFDocumentToo
     {
         result.facts.push_back({ QStringLiteral("links"), tr("Links"), tr("%Ln links to other files removed", nullptr, int(linksRemoved)) });
     }
+    if (isDocumentPartsRemoved)
+    {
+        // 14.12: a file keeps the parts of its pages; a damaged hierarchy is removed (as Remove Pages)
+        result.facts.push_back({ QStringLiteral("documentParts"), tr("Document parts"), tr("Document parts removed") });
+    }
     if (imageSettings)
     {
         result.facts.push_back({ QStringLiteral("images"), tr("Images"), tr("%Ln recompressed", nullptr, int(imagesRecompressed)) });
@@ -474,6 +481,7 @@ PDFDocumentToolResult PDFDocumentToolFileOutput::writeFiles(const PDFDocumentToo
     result.data.insert(QStringLiteral("linksRemoved"), linksRemoved);
     result.data.insert(QStringLiteral("structureTreeRemoved"), isStructureRemoved);
     result.data.insert(QStringLiteral("attachmentsRemoved"), isAttachmentsRemoved);
+    result.data.insert(QStringLiteral("documentPartsRemoved"), isDocumentPartsRemoved);
     result.data.insert(QStringLiteral("signatureCount"), 0);
     result.data.insert(QStringLiteral("signatureImpact"), QStringLiteral("none"));
     return result;
@@ -1001,6 +1009,11 @@ PDFDocumentToolResult PDFDocumentToolExtract::execute(const PDFDocumentToolConte
     {
         result.facts.push_back({ QStringLiteral("signatures"), tr("Signatures"), tr("%Ln signatures removed", nullptr, int(merged.statistics.signaturesRemoved)) });
     }
+    if (merged.statistics.documentPartsRemoved)
+    {
+        // 14.12: the file keeps the parts of its pages; a damaged hierarchy is removed (as Split)
+        result.facts.push_back({ QStringLiteral("documentParts"), tr("Document parts"), tr("Document parts removed") });
+    }
     addConformanceFact(&result, merged.statistics.conformanceRemoved);
 
     result.data.insert(QStringLiteral("output"), QString::fromLatin1(OUTPUT_ONE_FILE));
@@ -1009,6 +1022,7 @@ PDFDocumentToolResult PDFDocumentToolExtract::execute(const PDFDocumentToolConte
     result.data.insert(QStringLiteral("sizeAfter"), qint64(writtenData.size()));
     result.data.insert(QStringLiteral("signaturesRemoved"), merged.statistics.signaturesRemoved);
     result.data.insert(QStringLiteral("structureTreeRemoved"), merged.statistics.structureTreeRemoved);
+    result.data.insert(QStringLiteral("documentPartsRemoved"), merged.statistics.documentPartsRemoved);
     result.data.insert(QStringLiteral("signatureCount"), 0);
     result.data.insert(QStringLiteral("signatureImpact"), QStringLiteral("none"));
 

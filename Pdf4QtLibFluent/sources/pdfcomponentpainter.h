@@ -196,14 +196,58 @@ public:
     {
         Interface,  ///< Text of the user interface: the base direction of the component
         Data,       ///< Text, which is data: its own direction, elided at its end
-        FileName    ///< Name of a file: data elided in the middle, the extension stays
+        FileName,   ///< Name of a file: data elided in the middle, the extension stays
+        Path        ///< Path of a folder: data elided in the middle by its folders, the root and the last folder stay
     };
 
     /// Returns the text elided to the width by its kind: a text of the user
-    /// interface and data at its end (\p elidedText), a name of a file or a
-    /// path in the middle, so its extension stays visible (\p elidedFileName) -
-    /// the elision of \p drawElidedText
+    /// interface and data at its end (\p elidedText), a name of a file in the
+    /// middle, so its extension stays visible (\p elidedFileName), a path of a
+    /// folder in the middle by its folders (\p elidedPath) - the elision of
+    /// \p drawElidedText
     static QString elidedTextOfKind(const QString& text, const QFont& font, qreal width, TextKind kind);
+
+    /// Returns the path of a folder elided in the middle, so it fits the width,
+    /// as a file manager shortens it: the root (a drive "C:\", a share
+    /// "\\server\share\", a leading "/") and the last folder stay, the folders
+    /// between them are replaced by an ellipsis from the end, so as many leading
+    /// folders as possible stay ("C:\Users\Jakub\…\Specifications"). The
+    /// separators are those of the path ('\\' or '/'), trailing separators are
+    /// left out of an elided path. A path, whose root with an ellipsis and its
+    /// last folder does not fit (or with less than two folders after the root),
+    /// is elided in the middle by its characters. An empty text is returned for
+    /// a width, which is not positive.
+    static QString elidedPath(const QString& path, const QFont& font, qreal width);
+
+    /// Single line of a text with a detail of the user interface after it
+    /// (a folder and its count of pages: "C:\Tender · 17 pages")
+    struct TextWithDetail
+    {
+        QString text;           ///< Elided text (empty, when it was dropped)
+        QString detail;         ///< Detail with the separator before it (without it, when the text is empty)
+        qreal textWidth = 0.0;  ///< Advance of the elided text
+    };
+
+    /// Returns the separator of a text and its detail (" · ")
+    static QString getDetailSeparator();
+
+    /// Lays a text and its detail out into one line of the width: the detail
+    /// (with the separator) stays whole and the text of the kind is elided into
+    /// the rest (\p elidedTextOfKind). When not even an ellipsis of the text fits
+    /// before the detail, the text is dropped and the detail alone is elided at
+    /// its end. Without a detail, the text is elided alone; without a text, the
+    /// detail is elided alone (no separator).
+    static TextWithDetail elidedTextWithDetail(const QString& text, const QString& detail, const QFont& font, qreal width, TextKind kind);
+
+    /// Draws a text of a single line and its detail (\p elidedTextWithDetail)
+    /// into the visual rectangle, centered vertically: the text at the leading
+    /// edge of the state, the detail right after it in the reading order of the
+    /// component (at the trailing side of the text, also in right-to-left). The
+    /// text keeps the direction of its kind as in \p drawElidedText (data the
+    /// direction of the whole text, review C18), the detail is a text of the user
+    /// interface in the direction of the state.
+    static void drawElidedTextWithDetail(QPainter* painter, const State& state, const QRectF& visualRect, const QString& text, const QString& detail,
+                                         const QFont& font, PDFThemeColors::Color color, TextKind kind);
 
     /// Draws a text of a single line, elided to the width of the rectangle, into
     /// the visual (already mirrored) rectangle, centered vertically, aligned to
@@ -669,10 +713,14 @@ public:
     /// Content of a row of the recent files (component Recent file row 49:280).
     /// The nested star (24) and the menu button lie at the trailing side; a widget
     /// with real nested widgets sets \p paintNested to false (their place is kept).
+    /// The path (a folder) is elided in the middle by its folders; an optional
+    /// detail ("17 pages") follows it after the separator and always stays whole
+    /// (\p drawElidedTextWithDetail).
     struct RecentFileRow
     {
         QString fileName;
         QString path;
+        QString detail;
         QString time;
         FileStatus status = FileStatus::Available;
         bool starVisible = true;

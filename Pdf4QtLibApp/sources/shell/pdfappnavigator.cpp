@@ -30,6 +30,8 @@
 #include "pdfapptab.h"
 #include "pdfapptooltab.h"
 
+#include "pdfdocumenttoolcatalog.h"
+
 #include <QAccessible>
 #include <QDesktopServices>
 #include <QDir>
@@ -264,12 +266,16 @@ void PDFAppNavigator::navigateImpl(const PDFAppRoute& route, PDFAppNavigationMod
 
     // A tool with its own tab asked for over a document (the panel Tools, Then continue with,
     // a link): a new tab of the tool with the document as its first input; the route leaves
-    // no entry in the history of the document tab (plan of step 2 of phase 2, 4.1)
+    // no entry in the history of the document tab (plan of step 2 of phase 2, 4.1). A tool with
+    // a document host (Manage Pages, plan of step 3b, QB1 B) stays in the tab of the document:
+    // started over a document, it changes that document.
     if (match.isFound() && match.entry && match.entry->tabKind == PDFAppTabKind::Document && match.entry->subject == PDFAppRouteSubject::Tool)
     {
         const QString toolId = match.getParameter(QStringLiteral("toolId"));
+        const PDFDocumentToolCatalogEntry* toolEntry = PDFDocumentToolCatalog::findTool(toolId);
+        const bool hasDocumentHost = toolEntry && toolEntry->hasDocumentHost();
         PDFAppDocumentTab* documentTab = qobject_cast<PDFAppDocumentTab*>(m_window->findDocumentTab(match.getParameter(QStringLiteral("documentId"))));
-        if (documentTab && PDFAppToolTabPageFactory::hasOwnTabPage(toolId))
+        if (documentTab && !hasDocumentHost && PDFAppToolTabPageFactory::hasOwnTabPage(toolId))
         {
             m_window->createToolTabForDocument(toolId, documentTab);
             return;

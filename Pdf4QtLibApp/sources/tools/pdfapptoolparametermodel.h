@@ -108,6 +108,12 @@ public:
     /// \returns the translated reason of a refusal, empty on success
     QString setValues(const QVariantMap& values);
 
+    /// Sets more values as one undo step with the text of the step (Manage Pages "Group" -
+    /// the tooltip "Undo Group" of 387:12569; plan of step 3b of phase 2, RB3 d): the text goes
+    /// with the step to Redo and back. An empty text = a step without a text (the tooltip is the
+    /// title of the command). \returns the translated reason of a refusal, empty on success
+    QString setValues(const QVariantMap& values, const QString& stepText);
+
     /// Sets a value, which follows the view, not the user (the pages of the modes Current
     /// and Selected of a page selection): no undo step (K6: Undo waits for the first change
     /// of the user), the steps keep it. \returns the translated reason of a refusal.
@@ -132,6 +138,11 @@ public:
     virtual bool canRedo() const override { return !m_redoStack.empty(); }
     virtual void undo() override;
     virtual void redo() override;
+
+    /// The text of the step, which Undo / Redo takes back / does again (setValues with a text);
+    /// empty = none or a step without a text
+    virtual QString getUndoText() const override;
+    virtual QString getRedoText() const override;
 
     /// Stores the current values as the last values of the tool (the result has been
     /// accepted). A Secret and a parameter with setStored(false) are left out.
@@ -162,6 +173,13 @@ Q_SIGNALS:
     void changed(const QString& name);
 
 private:
+    /// One step of Undo or Redo: the values to go back to and the text of the change
+    struct Step
+    {
+        QVariantMap values;
+        QString text;
+    };
+
     /// Replaces the values, emits \p changed for what differs and \p undoStateChanged
     void applyValues(const QVariantMap& values);
 
@@ -174,8 +192,8 @@ private:
     QString m_toolId;
     PDFDocumentToolParameterDefinitions m_definitions;
     QVariantMap m_values;
-    std::vector<QVariantMap> m_undoStack;
-    std::vector<QVariantMap> m_redoStack;
+    std::vector<Step> m_undoStack;
+    std::vector<Step> m_redoStack;
 };
 
 }   // namespace pdf

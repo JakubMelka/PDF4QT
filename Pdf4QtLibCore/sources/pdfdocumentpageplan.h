@@ -28,6 +28,7 @@
 #include "pdfimagepagefactory.h"
 
 #include <QCoreApplication>
+#include <QMarginsF>
 #include <QSizeF>
 #include <QString>
 
@@ -70,10 +71,11 @@ public:
         int input = 0;                          ///< Index of the input (A = 0)
         PDFInteger pageIndex = 0;               ///< Page of the input, frame of an image (from 0); not used for a blank page
         PageRotation turn = PageRotation::None; ///< Turn clockwise relative to the rotation of the page (an image page: the merger sets /Rotate)
-        bool isClone = false;                   ///< A further occurrence of the page (a copy of the page object and of its annotations)
+        bool isClone = false;                   ///< A further occurrence of the page (a copy of the page object and of its annotations); Manage Pages sets it by Clone, never by the position - the merger item gets it (PDFDocumentMerger::Item::isClone, arrange keeps the original by it, RB4 of step 3b)
         QSizeF pageSize;                        ///< A blank page: its size in points; an image page: the size of the stretched page (empty = by the resolution)
         std::optional<PDFImagePageLayout> imageLayout;  ///< An image page: the layout of the image (std::nullopt = stretched, Merge)
         int group = -1;                         ///< Group of the page (Manage Pages), -1 = none
+        QMarginsF cropMargins;                  ///< A PDF page: margins in points cut from its visible area (Manage Pages Crop…, Q17 of step 3, RB10 b of step 3b; PDFDocumentMerger::Item::cropMargins); empty = none. Not in the text of a plan.
 
         bool operator==(const Item&) const = default;
     };

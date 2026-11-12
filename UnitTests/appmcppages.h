@@ -66,6 +66,10 @@ public:
 
     /// Package D (convert.images-to-pdf, pages.interleave): appmcppages_images.cpp
     static void registerImageCases(std::vector<AppMcpPagesCase>* cases);
+
+    /// Step 3b, package M4 (pages.manage: assemblyPath, documentId with pages; plan of step 3b,
+    /// 7, 8): appmcppages_manage.cpp
+    static void registerManageCases(std::vector<AppMcpPagesCase>* cases);
 };
 
 #endif // APPMCPPAGES_H

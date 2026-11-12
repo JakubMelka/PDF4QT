@@ -945,53 +945,16 @@ PDFAppInsertEmptyState::PDFAppInsertEmptyState(const Content& content, QWidget* 
 
         for (const Document& document : content.documents)
         {
-            QWidget* row = new QWidget(card);
+            // tab-1 398:29243: the shared row of an open document
+            PDFAppToolOpenDocumentRow* row = new PDFAppToolOpenDocumentRow(document, card);
             row->setObjectName(QStringLiteral("insertEmptyDocument-") + document.documentId);
-            row->setFixedHeight(ROW_HEIGHT);
-            QHBoxLayout* rowLayout = new QHBoxLayout(row);
-            rowLayout->setContentsMargins(8, 8, 8, 8);
-            rowLayout->setSpacing(10);
-
-            PDFIconBadge* tile = new PDFIconBadge(QStringLiteral("tab"), 30, 16, row);
-            tile->setRadius(8);
-            tile->setColors(PDFThemeColors::BgAccentSubtle, PDFThemeColors::IconAccent);
-            rowLayout->addWidget(tile);
-
-            QVBoxLayout* textLayout = new QVBoxLayout();
-            textLayout->setContentsMargins(0, 0, 0, 0);
-            textLayout->setSpacing(1);
-            QHBoxLayout* top = new QHBoxLayout();
-            top->setContentsMargins(0, 0, 0, 0);
-            top->setSpacing(6);
-            PDFLabel* name = PDFAppPageWidgets::createLabel(document.name, QFont::DemiBold, 12, PDFThemeColors::TextPrimary, row);
-            name->setMinimumWidth(1);
-            name->setLineHeight(PDFAppToolInputRow::NAME_HEIGHT);
-            top->addWidget(name);
-            if (document.isModified)
+            row->getAddButton()->setObjectName(QStringLiteral("insertEmptyAdd"));
+            if (PDFTag* tag = row->getTag())
             {
-                // K24: the snapshot of an unsaved tab is said by the Tag
-                PDFTag* tag = new PDFTag(tr("unsaved changes"), row);
                 tag->setObjectName(QStringLiteral("insertEmptyUnsavedTag"));
-                tag->setFocusPolicy(Qt::NoFocus);
-                tag->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-                top->addWidget(tag);
             }
-            top->addStretch(1);
-            textLayout->addLayout(top);
-            PDFLabel* details = PDFAppPageWidgets::createLabel(document.details, QFont::Normal, 11, PDFThemeColors::TextTertiary, row);
-            details->setLineHeight(PDFAppToolInputRow::LINE_HEIGHT);
-            textLayout->addWidget(details);
-            textLayout->insertStretch(0, 1);
-            textLayout->addStretch(1);
-            rowLayout->addLayout(textLayout, 1);
-
-            QPushButton* add = PDFAppPageWidgets::createButton(tr("Add"), QStringLiteral("plus"), false, row);
-            add->setObjectName(QStringLiteral("insertEmptyAdd"));
-            add->setProperty(PDFAppInsertToolGUIHelper::ROW_KEY, document.documentId);
-            add->setAccessibleDescription(document.name);
-            connect(add, &QPushButton::clicked, this, &PDFAppInsertEmptyState::onAddClicked);
-            rowLayout->addWidget(add);
-            m_addButtons.push_back(add);
+            connect(row, &PDFAppToolOpenDocumentRow::addRequested, this, &PDFAppInsertEmptyState::addDocumentRequested);
+            m_addButtons.push_back(row->getAddButton());
             layout->addWidget(row);
         }
     }
@@ -1010,15 +973,6 @@ std::vector<QPushButton*> PDFAppInsertEmptyState::getAddButtons() const
         }
     }
     return buttons;
-}
-
-void PDFAppInsertEmptyState::onAddClicked()
-{
-    const QObject* button = sender();
-    if (button)
-    {
-        Q_EMIT addDocumentRequested(button->property(PDFAppInsertToolGUIHelper::ROW_KEY).toString());
-    }
 }
 
 // ------------------------------------------------------------- PDFAppInsertCanvas

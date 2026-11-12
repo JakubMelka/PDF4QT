@@ -807,6 +807,15 @@ PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createSec
     return definition;
 }
 
+PDFDocumentToolParameterDefinition PDFDocumentToolParameterDefinition::createValue(PDFDocumentToolTranslator translator, const QString& name, PDFDocumentToolText title, PDFDocumentToolText description, const QVariant& defaultValue)
+{
+    PDFDocumentToolParameterDefinition definition(translator, name, PDFDocumentToolParameterType::Value, title, description);
+    definition.m_defaultValue = defaultValue;
+    definition.m_panelOnly = true;
+    definition.m_stored = false;
+    return definition;
+}
+
 PDFDocumentToolParameterDefinition& PDFDocumentToolParameterDefinition::setMaximumLength(int maximumLength)
 {
     if (PDFDocumentToolParameterHelper::isTextType(m_type))
@@ -981,6 +990,15 @@ bool PDFDocumentToolParameterDefinition::isValid(QString* errorMessage) const
             }
             break;
         }
+
+        case PDFDocumentToolParameterType::Value:
+            // The type of the default is the type of the parameter; only the panels give it
+            if (!m_defaultValue.metaType().isValid() || PDFDocumentToolParameterHelper::isMissing(m_defaultValue) || !m_panelOnly)
+            {
+                error = QStringLiteral("Parameter '%1': a value parameter needs a default of its registered type and is given only by the panels.").arg(m_name);
+                return false;
+            }
+            break;
 
         default:
             // A Secret has no default (createSecret), the maximum length of a text
@@ -1165,6 +1183,16 @@ QString PDFDocumentToolParameterDefinition::normalize(const QVariant& value, QVa
             return PDFDocumentToolParameterHelper::tr("%1: the color must be written as #rrggbb.").arg(getLabel());
         }
 
+        case PDFDocumentToolParameterType::Value:
+            // Only a value of the type of the parameter (the panels); its content is checked by
+            // the validation of the tool
+            if (value.metaType() != m_defaultValue.metaType())
+            {
+                return PDFDocumentToolParameterHelper::tr("%1: the value has a wrong type.").arg(getLabel());
+            }
+            result = value;
+            return QString();
+
         default:
             // String, FilePath, FolderPath, FileNameTemplate, Secret
             return normalizeText(value, &result);
@@ -1258,6 +1286,8 @@ QJsonObject PDFDocumentToolParameterDefinition::toJsonSchema() const
         }
 
         case PDFDocumentToolParameterType::Bool:
+        case PDFDocumentToolParameterType::Value:
+            // A Value is never in the schema of the parameters (panel-only)
             break;
     }
 
@@ -1288,6 +1318,7 @@ QJsonValue PDFDocumentToolParameterDefinition::toJsonValue(const QVariant& value
         case PDFDocumentToolParameterType::PageSelection:
             return QJsonObject::fromVariantMap(value.toMap());
         case PDFDocumentToolParameterType::Secret:
+        case PDFDocumentToolParameterType::Value:
             return QJsonValue();
         default:
             return value.toString();
@@ -1309,6 +1340,7 @@ QVariant PDFDocumentToolParameterDefinition::toStorageValue(const QVariant& valu
         case PDFDocumentToolParameterType::PageSelection:
             return QString::fromUtf8(QJsonDocument(QJsonObject::fromVariantMap(value.toMap())).toJson(QJsonDocument::Compact));
         case PDFDocumentToolParameterType::Secret:
+        case PDFDocumentToolParameterType::Value:
             return QVariant();
         default:
             return value.toString();
@@ -1321,6 +1353,7 @@ std::optional<QVariant> PDFDocumentToolParameterDefinition::fromStorageValue(con
     switch (m_type)
     {
         case PDFDocumentToolParameterType::Secret:
+        case PDFDocumentToolParameterType::Value:
             return std::nullopt;
 
         case PDFDocumentToolParameterType::Bool:

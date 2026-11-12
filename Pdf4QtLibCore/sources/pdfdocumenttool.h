@@ -404,6 +404,33 @@ public:
     static int getSavedPercent(qint64 before, qint64 after);
 };
 
+/// What the output of a run of a tool with its parameters is (plan of step 3b of phase 2, RB3 a):
+/// the values of the catalog, which a tool with more outputs decides by its parameters - Manage
+/// Pages This document changes the open document (Keep, an incremental update of a signed file),
+/// One PDF is a new document of its inputs, One PDF per group or per page are files. The rules of
+/// the result dialog, of the writer of a copy, of the permissions and of MCP read this one value
+/// instead of the catalog entry (PDFDocumentTool::getOutputTraits). A plain value: copied freely,
+/// also into a thread; \p entry points into the static catalog (never deleted).
+///
+/// The constructor of a catalog entry is implicit on purpose: a caller without parameters (the
+/// start page, a test, PdfTool) passes the entry and gets the values of its row - the same values
+/// a tool without its own rule gives for every parameter.
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolOutputTraits
+{
+public:
+    PDFDocumentToolOutputTraits() = default;
+
+    /// The values of the row of the catalog (nullptr = no entry: ChangeDocument, no preselected
+    /// choice, no signature impact, no new document - as the tool of an unknown id)
+    PDFDocumentToolOutputTraits(const PDFDocumentToolCatalogEntry* catalogEntry);
+
+    const PDFDocumentToolCatalogEntry* entry = nullptr;                             ///< The entry of the catalog (titles, locked access), may be null
+    PDFDocumentToolResultKind resultKind = PDFDocumentToolResultKind::ChangeDocument;
+    PDFDocumentToolPreselectedResult preselectedResult = PDFDocumentToolPreselectedResult::None;
+    PDFDocumentToolSignatureImpact signatureImpact = PDFDocumentToolSignatureImpact::None;
+    bool isNewDocumentOfInputs = false;     ///< PDFDocumentToolCatalogEntry::isNewDocumentOfInputs of the output
+};
+
 /// A tool of the catalog (newapp_tools.md 2, Běh). One instance serves all runs:
 /// every function is const and reentrant - it works only with its arguments, never
 /// with the user interface or a mutable global state, checks the cancellation at
@@ -444,6 +471,27 @@ public:
     /// documentIds and imagePaths of MCP (K41); the default is
     /// PDFDocumentToolCatalogEntry::getInputCountRange (0 to 0 without an entry)
     virtual PDFDocumentToolInputCountRange getInputCountRange() const;
+
+    /// The choice of the result dialog preselected for a run with the normalized parameters, and
+    /// the default of the parameter result of MCP (plan of step 3b of phase 2, RB3 a: Manage Pages
+    /// This document Keep, One PDF Open in a new tab). The default is the value of the catalog entry
+    /// (None without an entry).
+    virtual PDFDocumentToolPreselectedResult getPreselectedResult(const QVariantMap& parameters) const;
+
+    /// What the result of a run with the normalized parameters does with the signatures of a
+    /// signed document (RB3 a: an incremental update of the copy is written only for
+    /// IncrementalSave). The default is the value of the catalog entry (None without an entry).
+    virtual PDFDocumentToolSignatureImpact getSignatureImpact(const QVariantMap& parameters) const;
+
+    /// The result of a run with the normalized parameters is one or more new documents of the pages
+    /// of the inputs, not encrypted: every restriction of an input would be lost, the run needs the
+    /// permissions of PDFDocumentMerger::getRequiredPermissions (owner answer Q2 of step 2, RB3 a).
+    /// The default is PDFDocumentToolCatalogEntry::isNewDocumentOfInputs (false without an entry).
+    virtual bool isNewDocumentOfInputs(const QVariantMap& parameters) const;
+
+    /// The four values above and the entry together (the one value of the rules of the
+    /// application, PDFDocumentToolOutputTraits); not virtual
+    PDFDocumentToolOutputTraits getOutputTraits(const QVariantMap& parameters) const;
 
     /// Checks the context and the normalized parameters before a run. The default
     /// checks the input documents by the input kind of the catalog (None: any,
@@ -557,6 +605,13 @@ public:
     /// The result said in plain words, the fact of the result dialog and of What changes
     /// \param removed The standards, which are no longer declared (ConformanceRemoval::removed)
     static PDFDocumentToolFact createConformanceFact(const QStringList& removed);
+
+    /// The standards, which the document declares ("PDF/A", "PDF/UA", "PDF/X"): PDF/A and PDF/UA
+    /// by the XMP metadata (PDFOCRPagePreparer::hasConformanceDeclaration), PDF/X by an output
+    /// intent of the subtype GTS_PDFX (ISO 32000-2, 14.11.5). A tool, which adds pages without
+    /// checking them, keeps the declarations and says so (Q18: Insert Pages, Manage Pages).
+    /// \param document The document (nullptr = none)
+    static QStringList getConformanceDeclarations(const PDFDocument* document);
 
     /// Document of a tool, which rewrites the whole file, without the declaration of PDF/A and
     /// PDF/UA (the last step of Compress and Optimize Structure): createWholeFileDocument and

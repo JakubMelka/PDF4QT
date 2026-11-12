@@ -957,7 +957,12 @@ void PDFAppDocumentView::updatePageItem()
     }
 
     const PDFInteger pageIndex = getDisplayedPageIndex();
-    if (pageIndex >= 0 && hasPageLabels())
+    if (m_isToolModeActive && !m_toolPageText.isEmpty())
+    {
+        // The tool tells its own page item (Manage Pages "12 pages", 1479:34632)
+        m_statusBar->setPageText(m_toolPageText);
+    }
+    else if (pageIndex >= 0 && hasPageLabels())
     {
         m_statusBar->setPageText(tr("Page %1 (%2) of %3").arg(PDFAppLocale::formatNumber(pageIndex + 1), getPageLabel(pageIndex), PDFAppLocale::formatNumber(getPageCount())));
     }
@@ -1452,10 +1457,39 @@ void PDFAppDocumentView::updateCanvasShortcuts()
 
 QString PDFAppDocumentView::getCommandToolTip(const QString& commandId, bool isEmptyWithoutShortcut) const
 {
-    return formatCommandToolTip(m_context ? m_context->getCommandRegistry() : nullptr, commandId, m_userShortcuts, isEmptyWithoutShortcut);
+    // Undo and Redo of an open tool name its step (RB3 d); without a tool the target is null
+    return formatCommandToolTip(m_context ? m_context->getCommandRegistry() : nullptr, commandId, m_userShortcuts, isEmptyWithoutShortcut,
+                                getToolUndoTitle(m_toolUndoTarget.data(), commandId));
 }
 
 QString PDFAppDocumentView::formatCommandToolTip(const PDFAppCommandRegistry* registry, const QString& commandId, const std::map<QString, QString>& userShortcuts, bool isEmptyWithoutShortcut)
+{
+    return formatCommandToolTip(registry, commandId, userShortcuts, isEmptyWithoutShortcut, QString());
+}
+
+QString PDFAppDocumentView::getToolUndoTitle(const PDFAppToolUndoTarget* target, const QString& commandId)
+{
+    if (!target)
+    {
+        return QString();
+    }
+
+    if (commandId == PDFAppCommands::undo())
+    {
+        const QString text = target->getUndoText();
+        //: Tooltip of Undo of a tool, %1 is the step ("Undo Group")
+        return text.isEmpty() ? QString() : tr("Undo %1").arg(text);
+    }
+    if (commandId == PDFAppCommands::redo())
+    {
+        const QString text = target->getRedoText();
+        //: Tooltip of Redo of a tool, %1 is the step ("Redo Group")
+        return text.isEmpty() ? QString() : tr("Redo %1").arg(text);
+    }
+    return QString();
+}
+
+QString PDFAppDocumentView::formatCommandToolTip(const PDFAppCommandRegistry* registry, const QString& commandId, const std::map<QString, QString>& userShortcuts, bool isEmptyWithoutShortcut, const QString& titleOverride)
 {
     const PDFAppCommand* command = registry ? registry->findCommand(commandId) : nullptr;
     if (!command)
@@ -1463,7 +1497,7 @@ QString PDFAppDocumentView::formatCommandToolTip(const PDFAppCommandRegistry* re
         return QString();
     }
 
-    const QString title = command->getTitle();
+    const QString title = titleOverride.isEmpty() ? command->getTitle() : titleOverride;
     const QKeySequence shortcut = registry->getShortcut(commandId, userShortcuts);
     if (shortcut.isEmpty())
     {
@@ -1726,6 +1760,7 @@ bool PDFAppDocumentView::enterToolMode(const PDFAppToolModeParts& parts)
 
     m_isToolModeActive = true;
     m_toolMessage.clear();
+    m_toolPageText.clear();
     installToolParts(livingParts);
 
     // The keys of the mode are bound to the view: a focus outside of it or in a hidden part
@@ -1769,6 +1804,7 @@ void PDFAppDocumentView::leaveToolMode()
     QPointer<PDFAppDocumentView> guard(this);
     m_isToolModeActive = false;
     m_toolMessage.clear();
+    m_toolPageText.clear();
 
     if (m_toolUndoTarget)
     {
@@ -1822,6 +1858,15 @@ void PDFAppDocumentView::setToolMessage(const QString& text)
     {
         m_toolMessage = text.left(512);
         updateStatusMessage();
+    }
+}
+
+void PDFAppDocumentView::setToolPageText(const QString& text)
+{
+    if (m_isToolModeActive)
+    {
+        m_toolPageText = text.left(128);
+        updatePageItem();
     }
 }
 

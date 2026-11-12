@@ -25,7 +25,9 @@
 #include "pdfapppassworddialog.h"
 
 #include "pdfdocumentmerger.h"
+#include "pdfdocumenttool.h"
 #include "pdfdocumenttoolcatalog.h"
+#include "pdfdocumenttoolregistry.h"
 #include "pdfexception.h"
 #include "pdfmessagebox.h"
 
@@ -118,20 +120,33 @@ public:
         }
     }
 
+    /// The output of the tool of the request: by the parameters of the run, when the request has
+    /// them and the tool is implemented (Manage Pages This document / One PDF, RB3 a of step 3b),
+    /// else the row of the catalog (an entry of nullptr: no tool)
+    static PDFDocumentToolOutputTraits getOutputTraits(const PDFAppPermissionRequest& request)
+    {
+        if (request.action != PDFAppPermissionAction::Tool)
+        {
+            return PDFDocumentToolOutputTraits();
+        }
+
+        const std::shared_ptr<const PDFDocumentTool> tool = request.parameters ? PDFDocumentToolRegistry::getTool(request.toolId) : nullptr;
+        return tool ? tool->getOutputTraits(*request.parameters) : PDFDocumentToolOutputTraits(PDFDocumentToolCatalog::findTool(request.toolId));
+    }
+
     /// The tool of the request makes new documents of its input documents (Merge, Extract Pages,
-    /// Interleave Pages, Split - plan of step 3 of phase 2, Q4, R1 e): the results are not
-    /// encrypted, so they keep no restriction of an input
+    /// Interleave Pages, Split - plan of step 3 of phase 2, Q4, R1 e; Manage Pages by its output):
+    /// the results are not encrypted, so they keep no restriction of an input
     static bool isNewDocumentOfInputs(const PDFAppPermissionRequest& request)
     {
-        const PDFDocumentToolCatalogEntry* entry = request.action == PDFAppPermissionAction::Tool ? PDFDocumentToolCatalog::findTool(request.toolId) : nullptr;
-        return entry && entry->isNewDocumentOfInputs();
+        return getOutputTraits(request).isNewDocumentOfInputs;
     }
 
     /// The new documents of the tool are more files (Split): the texts name them in plural
     static bool isFilesOfInputs(const PDFAppPermissionRequest& request)
     {
-        const PDFDocumentToolCatalogEntry* entry = request.action == PDFAppPermissionAction::Tool ? PDFDocumentToolCatalog::findTool(request.toolId) : nullptr;
-        return entry && entry->getResultKind() == PDFDocumentToolResultKind::Files && isNewDocumentOfInputs(request);
+        const PDFDocumentToolOutputTraits output = getOutputTraits(request);
+        return output.resultKind == PDFDocumentToolResultKind::Files && output.isNewDocumentOfInputs;
     }
 
     /// English list of names ("printing and copying text and images")
@@ -193,6 +208,13 @@ PDFAppPermissionRequest PDFAppPermissionRequest::createTool(const QString& toolI
 {
     PDFAppPermissionRequest request = createTool(toolId);
     request.permissions = std::move(permissions);
+    return request;
+}
+
+PDFAppPermissionRequest PDFAppPermissionRequest::createTool(const QString& toolId, std::vector<PDFSecurityHandler::Permission> permissions, QVariantMap parameters)
+{
+    PDFAppPermissionRequest request = createTool(toolId, std::move(permissions));
+    request.parameters = std::move(parameters);
     return request;
 }
 

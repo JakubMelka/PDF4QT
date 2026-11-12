@@ -67,6 +67,19 @@ public:
         return result;
     }
 
+    /// The index of each page object of the document (the ranges of the document parts, 14.12);
+    /// false, when the page tree lists a page object more than once (its index is not defined)
+    static bool getPageIndices(const PDFDocument* document, std::map<PDFObjectReference, PDFInteger>* indices)
+    {
+        bool isUnique = true;
+        const PDFCatalog* catalog = document->getCatalog();
+        for (size_t i = 0; i < catalog->getPageCount(); ++i)
+        {
+            isUnique = indices->emplace(catalog->getPage(i)->getPageReference(), PDFInteger(i)).second && isUnique;
+        }
+        return isUnique;
+    }
+
     /// The result keeps the version and the hash of the source data of the input
     static PDFDocument createDocument(PDFDocumentBuilder& builder, const PDFDocument* input)
     {
@@ -184,6 +197,25 @@ private:
     PDFObject filterActions(const PDFObject& actions) const;
     void rewritePageLabels();
     void filterLayers();
+
+    /// What filterDocumentPart has done with a node of the document parts
+    enum class PartState
+    {
+        Kept,       ///< The node keeps a page (its range or its children may be smaller)
+        Removed,    ///< No page of the node stays: it is a removed object
+        Damaged     ///< The hierarchy is not a tree of ranges of pages (14.12.2, Table 409)
+    };
+
+    /// The document parts (14.12) of the pages, which stay: see removePages
+    void filterDocumentParts();
+
+    /// Filters a node of the document parts and its descendants; \p levelCount gets the levels
+    /// of the kept nodes (the root is the level 1), \p originalLevelCount of all nodes
+    PartState filterDocumentPart(const PDFObject& node, int depth, PDFObjectWalk* walk, const std::map<PDFObjectReference, PDFInteger>& pageIndices,
+                                 int* levelCount, int* originalLevelCount);
+
+    /// Removes /DPartRoot and /DPart of the pages, which stay
+    void removeDocumentParts();
 
     /// Collects the objects reachable from the trailer; the catalog entry \p skippedCatalogKey
     /// is not followed, the removed objects are not entered when \p excludeRemoved. Throws
@@ -1176,6 +1208,216 @@ void PDFDocumentPageRemoval::filterLayers()
     }
 }
 
+PDFDocumentPageRemoval::PartState PDFDocumentPageRemoval::filterDocumentPart(const PDFObject& node, int depth, PDFObjectWalk* walk, const std::map<PDFObjectReference, PDFInteger>& pageIndices,
+                                                                             int* levelCount, int* originalLevelCount)
+{
+    // 14.12.2: a node is an indirect DPart dictionary of one parent - a node reached again (a cycle,
+    // a node of two parents) or deeper than the limit is no tree
+    if (!node.isReference() || !walk->enter(node, depth))
+    {
+        return PartState::Damaged;
+    }
+    const PDFDictionary* dictionary = getDictionary(node);
+    if (!dictionary)
+    {
+        return PartState::Damaged;
+    }
+    *originalLevelCount = qMax(*originalLevelCount, depth + 1);
+
+    // Table 409: a node has either /DParts (an inner node) or /Start (a leaf)
+    const bool hasParts = dictionary->hasKey("DParts");
+    if (hasParts == dictionary->hasKey("Start"))
+    {
+        return PartState::Damaged;
+    }
+
+    if (!hasParts)
+    {
+        // A leaf: the range of pages from /Start to /End (/End only for more pages, both indirect
+        // references to page objects, 14.12.3: the order of the page tree)
+        const PDFObject& start = dictionary->get("Start");
+        const PDFObject& end = dictionary->hasKey("End") ? dictionary->get("End") : start;
+        if (!start.isReference() || !end.isReference())
+        {
+            return PartState::Damaged;
+        }
+        const auto startIt = pageIndices.find(start.getReference());
+        const auto endIt = pageIndices.find(end.getReference());
+        if (startIt == pageIndices.cend() || endIt == pageIndices.cend() || endIt->second < startIt->second)
+        {
+            return PartState::Damaged;
+        }
+
+        // The pages of the range, which stay: the order is kept, so they are a range again
+        const auto first = std::lower_bound(m_keptIndices.cbegin(), m_keptIndices.cend(), startIt->second);
+        const auto last = std::upper_bound(m_keptIndices.cbegin(), m_keptIndices.cend(), endIt->second);
+        if (first == last)
+        {
+            m_removedObjects.insert(node.getReference());
+            return PartState::Removed;
+        }
+        *levelCount = qMax(*levelCount, depth + 1);
+        if (*first == startIt->second && *std::prev(last) == endIt->second)
+        {
+            return PartState::Kept;
+        }
+
+        const PDFCatalog* catalog = m_document->getCatalog();
+        const PDFObjectReference newStart = catalog->getPage(size_t(*first))->getPageReference();
+        const PDFObjectReference newEnd = catalog->getPage(size_t(*std::prev(last)))->getPageReference();
+        PDFDictionaryBuilder leaf(*dictionary);
+        leaf.setEntry(PDFInplaceOrMemoryString("Start"), PDFObject::createReference(newStart));
+        if (newStart == newEnd)
+        {
+            // Table 409: /End only for a range of more pages
+            leaf.removeEntry("End");
+        }
+        else
+        {
+            leaf.setEntry(PDFInplaceOrMemoryString("End"), PDFObject::createReference(newEnd));
+        }
+        m_builder.setObject(node.getReference(), PDFObject::createDictionary(std::move(leaf)));
+        return PartState::Kept;
+    }
+
+    // An inner node: /DParts is an array of arrays of the children, no array is empty (Table 409)
+    const PDFObject& parts = getObject(dictionary->get("DParts"));
+    if (!parts.isArray() || parts.getArray()->getCount() == 0)
+    {
+        return PartState::Damaged;
+    }
+    PDFArrayBuilder newParts;
+    bool isChanged = false;
+    for (const PDFObject& partsItem : *parts.getArray())
+    {
+        const PDFObject& children = getObject(partsItem);
+        if (!children.isArray() || children.getArray()->getCount() == 0)
+        {
+            return PartState::Damaged;
+        }
+        PDFArrayBuilder keptChildren;
+        for (const PDFObject& child : *children.getArray())
+        {
+            switch (filterDocumentPart(child, depth + 1, walk, pageIndices, levelCount, originalLevelCount))
+            {
+                case PartState::Kept:
+                    keptChildren.appendItem(child);
+                    break;
+                case PartState::Removed:
+                    break;
+                case PartState::Damaged:
+                    return PartState::Damaged;
+            }
+        }
+        if (keptChildren.getCount() == children.getArray()->getCount())
+        {
+            newParts.appendItem(partsItem);
+        }
+        else
+        {
+            isChanged = true;
+            if (!keptChildren.isEmpty())
+            {
+                newParts.appendItem(PDFObject::createArray(std::move(keptChildren)));
+            }
+        }
+    }
+
+    if (newParts.isEmpty())
+    {
+        m_removedObjects.insert(node.getReference());
+        return PartState::Removed;
+    }
+    *levelCount = qMax(*levelCount, depth + 1);
+    if (isChanged)
+    {
+        PDFDictionaryBuilder newNode(*dictionary);
+        newNode.setEntry(PDFInplaceOrMemoryString("DParts"), PDFObject::createArray(std::move(newParts)));
+        m_builder.setObject(node.getReference(), PDFObject::createDictionary(std::move(newNode)));
+    }
+    return PartState::Kept;
+}
+
+void PDFDocumentPageRemoval::removeDocumentParts()
+{
+    m_statistics.documentPartsRemoved = true;
+    setCatalogEntry("DPartRoot", PDFObject());
+    for (const PDFObjectReference& pageReference : m_keptPages)
+    {
+        const PDFDictionary* page = getDictionary(m_builder.getObjectByReference(pageReference));
+        if (page && page->hasKey("DPart"))
+        {
+            PDFDictionaryBuilder newPage(*page);
+            newPage.removeEntry("DPart");
+            m_builder.setObject(pageReference, PDFObject::createDictionary(std::move(newPage)));
+        }
+    }
+}
+
+void PDFDocumentPageRemoval::filterDocumentParts()
+{
+    // 14.12: the leaves of the document parts are ranges of pages in the order of the page tree,
+    // which cover every page once. The pages, which stay, keep their order, so the pages of a
+    // range, which stay, are a range again: /Start and /End move to the first and the last of
+    // them, a leaf without a page and an inner node without a child go, /DPM and the other
+    // entries of a node, which stays, are kept. /DPart of a page, which stays, names its leaf,
+    // which stays (its range keeps the page). A hierarchy, which is no tree of ranges, is
+    // removed whole with /DPart of the pages (nothing is guessed).
+    const PDFDictionaryBuilder catalog = getCatalog();
+    if (!catalog.hasKey("DPartRoot"))
+    {
+        return;
+    }
+
+    std::map<PDFObjectReference, PDFInteger> localPageIndices;
+    const bool isPageTreeValid = m_index ? !m_index->m_hasRepeatedPage : PDFDocumentPageOperationsHelper::getPageIndices(m_document, &localPageIndices);
+    const std::map<PDFObjectReference, PDFInteger>& pageIndices = m_index ? m_index->m_pageIndices : localPageIndices;
+    const PDFDictionary* root = getDictionary(catalog.get("DPartRoot"));
+    if (!isPageTreeValid || !root)
+    {
+        removeDocumentParts();
+        return;
+    }
+
+    // Table 408: /DPartRootNode is an indirect reference to the root node; one walk over the
+    // whole hierarchy with the depth limit of the other trees
+    PDFObjectWalk walk(MAXIMUM_DEPTH);
+    int levelCount = 0;
+    int originalLevelCount = 0;
+    const PartState state = filterDocumentPart(root->get("DPartRootNode"), 0, &walk, pageIndices, &levelCount, &originalLevelCount);
+    if (state != PartState::Kept)
+    {
+        removeDocumentParts();
+        return;
+    }
+
+    // Table 408: /NodeNameList has a name per level, /RecordLevel is a level (from 0) - a level,
+    // which is gone, goes from them
+    if (levelCount < originalLevelCount)
+    {
+        PDFDictionaryBuilder newRoot(*root);
+        const PDFObject& names = getObject(root->get("NodeNameList"));
+        if (names.isArray() && names.getArray()->getCount() > size_t(levelCount))
+        {
+            PDFArrayBuilder keptNames;
+            for (size_t i = 0; i < size_t(levelCount); ++i)
+            {
+                keptNames.appendItem(names.getArray()->getItem(i));
+            }
+            newRoot.setEntry(PDFInplaceOrMemoryString("NodeNameList"), PDFObject::createArray(std::move(keptNames)));
+        }
+        const PDFObject& recordLevel = getObject(root->get("RecordLevel"));
+        if (recordLevel.isInt() && recordLevel.getInteger() >= levelCount)
+        {
+            newRoot.removeEntry("RecordLevel");
+        }
+        if (!(newRoot == PDFDictionaryBuilder(*root)))
+        {
+            setCatalogDictionary("DPartRoot", std::move(newRoot));
+        }
+    }
+}
+
 PDFObject PDFDocumentPageRemoval::stripReferences(const PDFObject& object, int depth, bool* isChanged) const
 {
     if (depth > MAXIMUM_OBJECT_DEPTH)
@@ -1323,6 +1565,7 @@ PDFDocument PDFDocumentPageRemoval::run(PDFDocumentPageOperations::RemovalStatis
     }
 
     rewritePageLabels();
+    filterDocumentParts();
     filterLayers();
 
     // /Perms of a removed signature (PDF 2.0, 12.8.4)
@@ -1483,6 +1726,7 @@ std::shared_ptr<const PDFDocumentPageOperations::PageIndex> PDFDocumentPageOpera
     }
     index->m_pages.erase(PDFObjectReference());
     index->m_annotations.erase(PDFObjectReference());
+    index->m_hasRepeatedPage = !PDFDocumentPageOperationsHelper::getPageIndices(document, &index->m_pageIndices);
     if (PDFOperationControl::isOperationCancelled(control))
     {
         return nullptr;

@@ -84,7 +84,7 @@ PDFAppToolResultWriter::~PDFAppToolResultWriter()
     }
 }
 
-PDFAppDocumentFileWriter::Request PDFAppToolResultWriter::createCopyRequest(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const QString& filePath, const PDFDocumentToolResult* result)
+PDFAppDocumentFileWriter::Request PDFAppToolResultWriter::createCopyRequest(const PDFDocumentToolOutputTraits& tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const QString& filePath, const PDFDocumentToolResult* result)
 {
     PDFAppDocumentFileWriter::Request request;
     request.document = output;
@@ -97,7 +97,8 @@ PDFAppDocumentFileWriter::Request PDFAppToolResultWriter::createCopyRequest(cons
     // result without any signed field (the signed page was removed) has nothing to keep,
     // a version an earlier tool has rewritten and a damaged file are no update of the original bytes.
     // A certified document changed by a page tool is written whole (Q12, R10 of step 3).
-    if (tool && tool->getSignatureImpact() == PDFDocumentToolSignatureImpact::IncrementalSave && !isRewrittenWhole(tool, result) &&
+    // The impact of the output of the run (RB3 a of step 3b: Manage Pages This document)
+    if (tool.signatureImpact == PDFDocumentToolSignatureImpact::IncrementalSave && !isRewrittenWhole(tool, result) &&
         !snapshot.originalData.isEmpty() && !snapshot.isWholeFileRewritten && !snapshot.isSignedRevisionGone &&
         snapshot.restoration == PDFAppDocumentRestoration::None && PDFForm::getSignatureCount(output.data()) > 0)
     {
@@ -107,51 +108,55 @@ PDFAppDocumentFileWriter::Request PDFAppToolResultWriter::createCopyRequest(cons
     return request;
 }
 
-PDFAppDocumentFileWriter::Request PDFAppToolResultWriter::createOverwriteRequest(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const PDFAppDocument* document, const PDFDocumentToolResult* result)
+PDFAppDocumentFileWriter::Request PDFAppToolResultWriter::createOverwriteRequest(const PDFDocumentToolOutputTraits& tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const PDFAppDocument* document, const PDFDocumentToolResult* result)
 {
     PDFAppDocumentFileWriter::Request request = createCopyRequest(tool, snapshot, output, document ? document->getFilePath() : QString(), result);
     request.markSourceFilePath = document ? document->getOriginFilePath() : QString();
     return request;
 }
 
-PDFAppToolResultWriter::DocumentRefusal PDFAppToolResultWriter::getDocumentRefusal(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocument* document)
+PDFAppToolResultWriter::DocumentRefusal PDFAppToolResultWriter::getDocumentRefusal(const PDFDocumentToolOutputTraits& tool, const PDFAppDocument* document)
 {
-    if (!tool || !document)
+    if (!tool.entry || !document)
     {
         return DocumentRefusal::None;
     }
 
-    // The lock of a file comes only when the document is shown (T3)
-    if (document->isLocked() && tool->getLockedAccess() == PDFDocumentToolLockedAccess::Unavailable)
+    // The lock of a file comes only when the document is shown (T3). A tool available for a
+    // locked document opens over it; a change of the locked document by the output of a run
+    // (Manage Pages This document, plan of step 3b, 4.5) is refused where it is decided - the
+    // result dialog (no Keep, no Overwrite), the commit of the runner and MCP (keep, overwrite).
+    if (document->isLocked() && tool.entry->getLockedAccess() == PDFDocumentToolLockedAccess::Unavailable)
     {
         return DocumentRefusal::Locked;
     }
 
-    // A display version of an XFA form cannot be changed, an export of its text can run (F5)
-    if (document->isPagedXFA() && tool->getResultKind() == PDFDocumentToolResultKind::ChangeDocument)
+    // A display version of an XFA form cannot be changed, an export of its text can run (F5);
+    // the kind of the output of the run (RB3 a of step 3b)
+    if (document->isPagedXFA() && tool.resultKind == PDFDocumentToolResultKind::ChangeDocument)
     {
         return DocumentRefusal::DisplayVersion;
     }
     return DocumentRefusal::None;
 }
 
-bool PDFAppToolResultWriter::isCopyOnly(const PDFDocumentToolCatalogEntry* tool, bool isSigned, bool hasFile, bool isOnlyCopyWritable, const PDFDocumentToolResult* result)
+bool PDFAppToolResultWriter::isCopyOnly(const PDFDocumentToolOutputTraits& tool, bool isSigned, bool hasFile, bool isOnlyCopyWritable, const PDFDocumentToolResult* result)
 {
     // Q12: a certified document changed by a page tool is only a copy, also without a file
     return isCertificationRemoved(tool, result) || (hasFile && (isOnlyCopyWritable || isSignatureLost(tool, isSigned, isOnlyCopyWritable, result)));
 }
 
-bool PDFAppToolResultWriter::isSignatureLost(const PDFDocumentToolCatalogEntry* tool, bool isSigned, bool isOnlyCopyWritable, const PDFDocumentToolResult* result)
+bool PDFAppToolResultWriter::isSignatureLost(const PDFDocumentToolOutputTraits& tool, bool isSigned, bool isOnlyCopyWritable, const PDFDocumentToolResult* result)
 {
     return isSigned && (isOnlyCopyWritable || isRewrittenWhole(tool, result));
 }
 
-bool PDFAppToolResultWriter::isRewrittenWhole(const PDFDocumentToolCatalogEntry* tool, const PDFDocumentToolResult* result)
+bool PDFAppToolResultWriter::isRewrittenWhole(const PDFDocumentToolOutputTraits& tool, const PDFDocumentToolResult* result)
 {
-    return (tool && tool->getSignatureImpact() == PDFDocumentToolSignatureImpact::LostCopyOnly) || isCertificationRemoved(tool, result);
+    return tool.signatureImpact == PDFDocumentToolSignatureImpact::LostCopyOnly || isCertificationRemoved(tool, result);
 }
 
-bool PDFAppToolResultWriter::isCertificationRemoved(const PDFDocumentToolCatalogEntry* tool, const PDFDocumentToolResult* result)
+bool PDFAppToolResultWriter::isCertificationRemoved(const PDFDocumentToolOutputTraits& tool, const PDFDocumentToolResult* result)
 {
     if (!result)
     {
@@ -161,7 +166,7 @@ bool PDFAppToolResultWriter::isCertificationRemoved(const PDFDocumentToolCatalog
     // "lost-copy-only" in the data of a tool of the impact LostCopyOnly (Compress) is its
     // catalog impact (finishWholeFileResult), not a certification
     const QString impact = result->data.value(QStringLiteral("signatureImpact")).toString();
-    const bool isRewritingTool = tool && tool->getSignatureImpact() == PDFDocumentToolSignatureImpact::LostCopyOnly;
+    const bool isRewritingTool = tool.signatureImpact == PDFDocumentToolSignatureImpact::LostCopyOnly;
     return result->data.value(QStringLiteral("certificationRemoved")).toBool() || impact == QLatin1String("certified-copy-only") ||
            (impact == QLatin1String("lost-copy-only") && !isRewritingTool);
 }
@@ -237,7 +242,7 @@ void PDFAppToolResultWriter::start(QFuture<Result> future)
     watcher->setFuture(future);
 }
 
-bool PDFAppToolResultWriter::writeCopy(const PDFDocumentToolCatalogEntry* tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const QString& filePath, const QString& markSourceFilePath, bool isReplacing, const PDFDocumentToolResult* result)
+bool PDFAppToolResultWriter::writeCopy(const PDFDocumentToolOutputTraits& tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const QString& filePath, const QString& markSourceFilePath, bool isReplacing, const PDFDocumentToolResult* result)
 {
     // A display version of an XFA form is never written as a changed copy (F5)
     if (isWriting() || snapshot.isPagedXFA || output.isNull())
@@ -321,7 +326,7 @@ bool PDFAppToolResultWriter::overwrite(PDFDocumentToolRunner* runner, PDFAppDocu
     }
 
     const PDFAppDocumentSnapshot& snapshot = runner->getResultSnapshot();
-    PDFAppDocumentFileWriter::Request request = createOverwriteRequest(runner->getTool()->getInfo(), snapshot, output->document, document, &result);
+    PDFAppDocumentFileWriter::Request request = createOverwriteRequest(runner->getOutputTraits(), snapshot, output->document, document, &result);
 
     m_runner = runner;
     m_saver = saver;

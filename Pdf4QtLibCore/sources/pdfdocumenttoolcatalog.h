@@ -301,6 +301,14 @@ public:
     /// in the tab of the document
     bool hasOwnTab() const { return m_hasOwnTab; }
 
+    /// The tool with its own tab runs in the tab of a document too, when it is started over an
+    /// open document (Manage Pages, plan of step 3b of phase 2, owner answer QB1 B): the panel
+    /// Tools, Then continue with and the route /document/{id}/tool/{toolId} keep it in the tab of
+    /// the document, where its output "This document" changes that document; only a start without
+    /// a document (Home, Tools, an assembly file) opens its own tab. False for every other tool:
+    /// a tool with its own tab always gets it (Merge), a tool without one always runs in the tab.
+    bool hasDocumentHost() const;
+
     /// The card has the tag "Advanced" (Figma 272:12821: Set Page Boxes, the Print
     /// production and the Developer subgroups of Review & Inspect)
     bool isAdvanced() const { return m_isAdvanced; }
@@ -333,7 +341,10 @@ public:
     /// (Merge, Extract Pages, Interleave Pages, Split): they are not encrypted, so they would
     /// lose every restriction of an input - the tool needs every permission of
     /// PDFDocumentMerger::getRequiredPermissions (owner answer Q2 of step 2 of phase 2, Q4 of
-    /// step 3); a tool without an input document never
+    /// step 3); a tool without an input document never. The value of the kind of the result of
+    /// the catalog (getResultKind): a tool, whose output decides it, answers by its parameters
+    /// (PDFDocumentTool::isNewDocumentOfInputs; Manage Pages: This document changes the open
+    /// document - false here -, One PDF is a new document of the inputs; RB3 a of step 3b).
     bool isNewDocumentOfInputs() const;
 
     /// External dependency (default None)
@@ -347,10 +358,13 @@ public:
     /// (invalid and duplicate identifiers of the table are left out; default empty)
     QStringList getDefaultSuccessors() const;
 
-    /// Choice of the result dialog, which is preselected (default None)
+    /// Choice of the result dialog, which is preselected (default None). The value of the row of
+    /// the catalog; a tool, whose output decides it, answers by its parameters
+    /// (PDFDocumentTool::getPreselectedResult, RB3 a of step 3b).
     PDFDocumentToolPreselectedResult getPreselectedResult() const;
 
-    /// What the result does with the signatures of a signed document (default None)
+    /// What the result does with the signatures of a signed document (default None). The value
+    /// of the row of the catalog; by the parameters PDFDocumentTool::getSignatureImpact.
     PDFDocumentToolSignatureImpact getSignatureImpact() const;
 
     /// Permissions of an encrypted document, which the tool needs: every one of them

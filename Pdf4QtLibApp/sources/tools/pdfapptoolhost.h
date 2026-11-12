@@ -106,9 +106,10 @@ public:
     /// Message of the tool in the status bar during the mode ("Compress · Report.pdf · 24.8 MB")
     virtual void setMessage(const QString& text) = 0;
 
-    /// Texts of the page and zoom items of the status bar of a host without a view (the own
-    /// tab of a tool: PDFDocumentToolGUI::getOwnTabPageText / getOwnTabZoomText); the document
-    /// view has its own items. Default: nothing.
+    /// Texts of the page and zoom items of the status bar (PDFDocumentToolGUI::getOwnTabPageText
+    /// / getOwnTabZoomText): the own tab of a tool shows both; the document view has its own
+    /// items, a page text replaces its page item during the mode (Manage Pages "12 pages",
+    /// 1479:34632), an empty one keeps it. Default: nothing.
     virtual void setStatusItems(const QString& pageText, const QString& zoomText);
 
     /// A message for a moment (a refusal), also after the mode has ended
@@ -205,6 +206,7 @@ public:
     virtual void leaveMode() override;
     virtual bool isModeActive() const override;
     virtual void setMessage(const QString& text) override;
+    virtual void setStatusItems(const QString& pageText, const QString& zoomText) override;
     virtual void showTransientMessage(const QString& text) override;
     virtual void showPanel(const QString& panelId) override;
     virtual void showInfoBar(const PDFAppInfoBarRequest& request) override;

@@ -27,6 +27,7 @@
 #include "pdfappmcpconfirmationui.h"
 #include "pdfappmcphost.h"
 #include "pdfappmcpjob.h"
+#include "pdfappmcpmanageaction.h"
 #include "pdfappmcpreadsupport.h"
 #include "pdfappmcptoolset.h"
 #include "pdfappdocument.h"
@@ -44,6 +45,7 @@
 #include "pdfdocumenttoolrunner.h"
 
 #include "pdfdocumenttool.h"
+#include "pdfdocumenttool_manage.h"
 #include "pdfdocumenttool_split.h"
 #include "pdfdocumenttoolparameter.h"
 #include "pdfdocumenttoolregistry.h"
@@ -63,6 +65,7 @@
 #include <QTimer>
 
 #include <algorithm>
+#include <initializer_list>
 #include <limits>
 
 namespace pdf
@@ -84,10 +87,6 @@ public:
         return kind != PDFDocumentToolInputKind::None;
     }
 
-    /// Fewest input documents of a tool of more documents (Merge: "two or more PDFs"); the
-    /// schema of documentIds has 1 to 100 for every such tool (R20), the bridge checks this
-    static constexpr int MINIMUM_INPUT_DOCUMENTS = 2;
-
     /// The documents of documentIds of a tool of more documents (K34) in their order, each
     /// open and read; a locked one only for a tool, which works on a locked document. The
     /// same id twice is the same document twice (the core maps its objects by the input).
@@ -102,9 +101,10 @@ public:
             return false;
         }
 
-        // K41: the bounds of the tool (Interleave exactly 2, Merge 2 to 1000); a tool without
-        // its own range takes at least two
-        const int minimum = qMax(inputCountRange.minimum, MINIMUM_INPUT_DOCUMENTS);
+        // K41: the bounds of the tool (Interleave exactly 2, Merge 2 to 1000, Manage Pages 1 to
+        // 1000 - plan of step 3b, 7); the schema of documentIds has 1 to 100 for every such tool
+        // (R20), the bridge checks the range of the tool, at least one document
+        const int minimum = qMax(inputCountRange.minimum, 1);
         const int maximum = inputCountRange.maximum >= minimum ? inputCountRange.maximum : std::numeric_limits<int>::max();
         const QJsonArray ids = value.toArray();
         if (!value.isArray() || ids.size() < minimum || ids.size() > maximum)
@@ -572,6 +572,50 @@ public:
         return QStringLiteral("Read documents");
     }
 
+    /// The permission of a tool, which writes files itself (save_files) and may have results of
+    /// other kinds (Extract, Manage Pages: plan of step 3b of phase 2, RB3 a): every value of
+    /// "result" is named with its permission (getResultPermissions) - Edit documents for keep and
+    /// open_new_tab, Open and save files for save_copy, save_file and save_files, both for overwrite
+    static QString getFilesPermissionText(const QStringList& resultValues)
+    {
+        QStringList parts;
+        const QString edit = getQuotedResultValues(resultValues, { "keep", "open_new_tab" });
+        const QString files = getQuotedResultValues(resultValues, { "save_copy", "save_file", "save_files" });
+        const QString both = getQuotedResultValues(resultValues, { "overwrite" });
+        if (!edit.isEmpty())
+        {
+            parts << QStringLiteral("Edit documents (%1)").arg(edit);
+        }
+        if (!files.isEmpty())
+        {
+            parts << QStringLiteral("Open and save files (%1)").arg(files);
+        }
+        if (!both.isEmpty())
+        {
+            parts << QStringLiteral("both (%1)").arg(both);
+        }
+        if (parts.size() == 1)
+        {
+            return QStringLiteral("Read documents, then %1").arg(parts.front());
+        }
+        const QString last = parts.takeLast();
+        return QStringLiteral("Read documents, then by `result`: %1 or %2").arg(parts.join(QStringLiteral(", ")), last);
+    }
+
+    /// The values of \p names (in their order), which \p resultValues contains: "`a`, `b`"
+    static QString getQuotedResultValues(const QStringList& resultValues, std::initializer_list<const char*> names)
+    {
+        QStringList values;
+        for (const char* name : names)
+        {
+            if (resultValues.contains(QLatin1String(name)))
+            {
+                values << QStringLiteral("`%1`").arg(QLatin1String(name));
+            }
+        }
+        return values.join(QStringLiteral(", "));
+    }
+
     /// The contract of a category with the tools offered with the permissions
     static std::optional<PDFAppMcpToolSpec> createSpec(PDFDocumentToolCategory category, const PDFAppMcpPermissions& permissions)
     {
@@ -633,8 +677,7 @@ public:
             action.permissionText = getPermissionText(entry->getResultKind(), entry->getInputKind());
             if (toolResultValues.contains(QStringLiteral("save_files")))
             {
-                action.permissionText = toolResultValues.size() == 1 ? QStringLiteral("Read documents, then Open and save files (`save_files`)")
-                                                                     : QStringLiteral("Read documents, then by `result`: Edit documents (`open_new_tab`) or Open and save files (`save_file`, `save_files`)");
+                action.permissionText = getFilesPermissionText(toolResultValues);
             }
             action.usesDocument = entry->getInputKind() != PDFDocumentToolInputKind::None;
             action.input = std::move(*schema);
@@ -763,6 +806,7 @@ public:
     QString path;
     QString folder;     ///< The folder of save_files (the parameter folder, checked)
     QStringList imagePaths; ///< imagePaths, checked (Q10 of step 3): read in the worker of the run
+    QString assemblyPath;   ///< The assembly file of Manage Pages, which was read (plan of step 3b, 7: with Open and save files)
     QPointer<PDFAppDocument> document;
 };
 
@@ -1187,6 +1231,13 @@ private:
         {
             kinds |= PDFAppMcpPermissionKind::Files;
         }
+
+        // Plan of step 3b, 7: the assembly file of assemblyPath (with its images) is read with Open
+        // and save files as well - an Ask asks with the result, also of open_new_tab
+        if (!m_request.assemblyPath.isEmpty())
+        {
+            kinds |= PDFAppMcpPermissionKind::Files;
+        }
         return kinds;
     }
 
@@ -1358,6 +1409,14 @@ private:
             fact.insert(QStringLiteral("key"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "Images read"));
             fact.insert(QStringLiteral("value"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "%n files: %1", nullptr, int(m_request.imagePaths.size()))
                                                      .arg(QDir::toNativeSeparators(m_request.imagePaths.front())));
+            facts.append(fact);
+        }
+        if (!m_request.assemblyPath.isEmpty())
+        {
+            // Plan of step 3b, 7: the assembly file, which was read
+            QJsonObject fact;
+            fact.insert(QStringLiteral("key"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "Assembly read"));
+            fact.insert(QStringLiteral("value"), QDir::toNativeSeparators(m_request.assemblyPath));
             facts.append(fact);
         }
         const bool isWritingDocument = m_request.mode == PDFAppMcpToolResultMode::SaveCopy || m_request.mode == PDFAppMcpToolResultMode::Overwrite;
@@ -1904,9 +1963,22 @@ public:
         }
 
         // The inputs of a tool of more documents (K34): documentIds in the order of the
-        // result, at least two (R20: the schema allows 1 to 100 for every such tool)
+        // result, in the range of the tool (R20: the schema allows 1 to 100 for every such tool).
+        // Manage Pages has its own arguments (plan of step 3b, 7: assemblyPath, or documentId with
+        // pages, Q9 b, QB4 with RB9): its action makes the parameters and the inputs of the tool,
+        // the flow below is common (a document of documentId is resolved by it as for any tool)
         std::vector<QPointer<PDFAppDocument>> inputDocuments;
-        if (entry->getInputKind() == PDFDocumentToolInputKind::Multiple)
+        if (PDFAppMcpManageAction::isManageTool(toolId))
+        {
+            QString manageError;
+            PDFMcpActivityStatus manageStatus = PDFMcpActivityStatus::Failed;
+            if (!PDFAppMcpManageAction::prepare(host, invocation, &actionParameters, &inputDocuments, &manageError, &manageStatus))
+            {
+                host->finishWithError(call, toolId, nullptr, manageError, manageStatus);
+                return;
+            }
+        }
+        else if (entry->getInputKind() == PDFDocumentToolInputKind::Multiple)
         {
             QString inputError;
             if (!Helper::resolveInputDocuments(host, invocation, entry, tool->getInputCountRange(), &inputDocuments, &inputError))
@@ -2180,6 +2252,10 @@ public:
         request.path = path;
         request.folder = folder;
         request.imagePaths = imagePaths;
+        if (PDFAppMcpManageAction::isManageTool(toolId))
+        {
+            request.assemblyPath = actionParameters.value(QString::fromLatin1(PDFDocumentToolManage::PARAMETER_ASSEMBLY_PATH)).toString();
+        }
         request.environment.protectedFilePaths = PDFAppMcpCatalogToolsHelper::getOpenDocumentPaths(host);
         request.environment.isNetworkFolderRefused = true;
         request.document = document;

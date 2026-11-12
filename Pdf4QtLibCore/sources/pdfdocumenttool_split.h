@@ -88,8 +88,10 @@ public:
     /// (PDFDocumentSplitter), each given to the file sink of the context in their order. A sink,
     /// which is stopped, or a cancellation ends the run as Stopped with the files written
     /// before. Facts "files" ("4 · Handbook_1.pdf … Handbook_4.pdf"), "size", "notWritten",
-    /// "attachments" (Q6), "tags" (Q5 a), "signatures", "links"; data "fileCount",
-    /// "writtenCount", "notWrittenCount", "sizeTotal", "fileNames".
+    /// "attachments" (Q6), "tags" (Q5 a), "signatures", "links", "documentParts" ("Document
+    /// parts removed": a file whose document parts of 14.12 were removed as damaged or without
+    /// a page, as by Remove Pages); data "fileCount", "writtenCount", "notWrittenCount",
+    /// "sizeTotal", "fileNames", "documentPartsRemoved".
     /// \param context The context (its fileSink is required)
     /// \param files The files with their names
     /// \param imageSettings Optimization of the images of each file, std::nullopt = off
@@ -183,7 +185,8 @@ public:
 /// sink). The source is never changed; a locked document may be extracted (4.7).
 ///
 /// Result: one-file - a New document with its written bytes, facts "pages" ("7 · 1–3, 8,
-/// 10–12"), "source" ("Handbook.pdf · not changed"), "tags", "signatures", "conformance";
+/// 10–12"), "source" ("Handbook.pdf · not changed"), "tags", "signatures", "documentParts"
+/// ("Document parts removed", as writeFiles), "conformance";
 /// one-file-per-page - Files (R3) as Split. Failed - no page, an invalid selection, no
 /// permission (Q4).
 class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolExtract : public PDFDocumentTool

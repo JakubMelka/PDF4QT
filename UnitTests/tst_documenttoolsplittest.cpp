@@ -34,6 +34,8 @@
 #include "pdfprogress.h"
 
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QProcess>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -204,6 +206,8 @@ private Q_SLOTS:
     void extractOneFile();
     void extractFilePerPage();
     void extractSameKeys();
+    void documentPartsFact_data();
+    void documentPartsFact();
     void pdfToolSeparate();
 };
 
@@ -549,6 +553,82 @@ void DocumentToolSplitTest::extractFilePerPage()
     QCOMPARE(sink.begunNames, QStringList({ "Handbook_p1.pdf", "Handbook_p2.pdf", "Handbook_p3.pdf", "Handbook_p8.pdf" }));
     const PDFDocument fourth = MergeTestPdf::readBytes(sink.files[3].second);
     QCOMPARE(SplitToolTestHelper::getPageMarkers(fourth), QStringList({ "PAGE8" }));
+}
+
+void DocumentToolSplitTest::documentPartsFact_data()
+{
+    QTest::addColumn<bool>("isDamaged");
+    QTest::newRow("intact") << false;
+    QTest::newRow("cycle") << true;
+}
+
+void DocumentToolSplitTest::documentPartsFact()
+{
+    // ISO 32000-2, 14.12, Table 408 / 409: the parts of 6 pages, 1-3 and 4-6 below one node. A
+    // file keeps the parts of its pages; a hierarchy, which is no tree (here a cycle: the
+    // node 63 has its own parent as a child), is removed whole and the result says it with the
+    // fact of Remove Pages, "Document parts removed" (fix wave 3b, F4 item 3)
+    QFETCH(bool, isDamaged);
+    MergeTestPdf pdf = MergeTestPdf::createPages("", 6, "/DPartRoot 60 0 R",
+                                                 { { 1, "/DPart 62 0 R" }, { 2, "/DPart 62 0 R" }, { 3, "/DPart 62 0 R" },
+                                                   { 4, "/DPart 63 0 R" }, { 5, "/DPart 63 0 R" }, { 6, "/DPart 63 0 R" } });
+    pdf.set(60, "<< /Type /DPartRoot /DPartRootNode 61 0 R >>");
+    pdf.set(61, "<< /Type /DPart /Parent 60 0 R /DParts [[62 0 R 63 0 R]] >>");
+    pdf.set(62, "<< /Type /DPart /Parent 61 0 R /Start 3 0 R /End 5 0 R >>");
+    pdf.set(63, isDamaged ? QByteArray("<< /Type /DPart /Parent 61 0 R /DParts [[61 0 R]] >>") : QByteArray("<< /Type /DPart /Parent 61 0 R /Start 6 0 R /End 8 0 R >>"));
+    const PDFDocument document = pdf.read();
+    QVERIFY(Read::catalog(document)->hasKey("DPartRoot"));
+
+    struct Check
+    {
+        static QString findFact(const PDFDocumentToolResult& result)
+        {
+            QString value;
+            for (const PDFDocumentToolFact& fact : result.facts)
+            {
+                value = fact.id == QLatin1String("documentParts") ? fact.value : value;
+            }
+            return value;
+        }
+    };
+    const QString expectedFact = isDamaged ? QStringLiteral("Document parts removed") : QString();
+
+    // Split: every file of 3 pages
+    PDFDocumentToolSplit split;
+    SplitToolTestSink sink;
+    const PDFDocumentToolResult splitResult = split.run(SplitToolTestHelper::context(document, &sink), { { "rule", "every-n-pages" }, { "pagesPerFile", 3 } }, nullptr, nullptr);
+    QVERIFY2(splitResult.isSuccess(), qPrintable(splitResult.message));
+    QCOMPARE(sink.files.size(), size_t(2));
+    QCOMPARE(Check::findFact(splitResult), expectedFact);
+    QCOMPARE(splitResult.data.value("documentPartsRemoved").toBool(), isDamaged);
+    for (const auto& [fileName, data] : sink.files)
+    {
+        // An intact tree keeps the part of the pages of the file, a damaged one is gone
+        const PDFDocument written = MergeTestPdf::readBytes(data);
+        QVERIFY2(Read::catalog(written)->hasKey("DPartRoot") != isDamaged, qPrintable(fileName));
+    }
+
+    // The result of MCP has the same facts (the rows of a result are its facts)
+    bool hasJsonFact = false;
+    for (const QJsonValue& fact : splitResult.toJson().value("facts").toArray())
+    {
+        hasJsonFact = hasJsonFact || fact.toObject().value("id").toString() == QLatin1String("documentParts");
+    }
+    QCOMPARE(hasJsonFact, isDamaged);
+
+    // Extract one file (the merger of one source) and one file per page (the splitter)
+    PDFDocumentToolExtract extract;
+    const PDFDocumentToolResult one = extract.run(SplitToolTestHelper::context(document), { { "pages", SplitToolTestHelper::pages(QStringLiteral("1-2")) } }, nullptr, nullptr);
+    QVERIFY2(one.isSuccess(), qPrintable(one.message));
+    QCOMPARE(Check::findFact(one), expectedFact);
+    QCOMPARE(one.data.value("documentPartsRemoved").toBool(), isDamaged);
+    const PDFDocument oneWritten = MergeTestPdf::readBytes(one.documents.front().writtenData);
+    QVERIFY(Read::catalog(oneWritten)->hasKey("DPartRoot") != isDamaged);
+
+    SplitToolTestSink pageSink;
+    const PDFDocumentToolResult perPage = extract.run(SplitToolTestHelper::context(document, &pageSink), { { "pages", SplitToolTestHelper::pages(QStringLiteral("2, 5")) }, { "output", "one-file-per-page" } }, nullptr, nullptr);
+    QVERIFY2(perPage.isSuccess(), qPrintable(perPage.message));
+    QCOMPARE(Check::findFact(perPage), expectedFact);
 }
 
 void DocumentToolSplitTest::extractSameKeys()

@@ -89,6 +89,16 @@ enum class PDFAppToolStartPageText
     Note        ///< The note below the card
 };
 
+/// The answer of a tool to the close of its own tab (PDFDocumentToolGUI::askOwnTabClose; plan of
+/// step 3b of phase 2, RB3 c, Manage Pages 405:30894 "Save the assembly …?")
+enum class PDFAppToolCloseAnswer
+{
+    Generic,    ///< The tool does not ask: the generic question of the loss text follows (K16)
+    Close,      ///< The tool has asked (Don't Save) or has nothing to lose: the tab closes without another question
+    Cancel,     ///< The tab stays (Cancel of the question, or the question could not be asked)
+    Saving      ///< The tool saves asynchronously (Save Assembly): the tab stays now and the tool closes it, when its save has succeeded (PDFDocumentToolGUI::closeOwnTab)
+};
+
 /// What differs between the tools in the shell (plan of the first batch, chapter 2.1):
 /// the shell has the flow, the toolbar, the frame of the panels, the progress, the keys.
 /// A thin tool derives from PDFAppDeclarativeToolGUI and describes its panels; a tool
@@ -205,6 +215,15 @@ public:
     /// the user confirms again after the unlock (owner 2026-11-08). Default: none.
     virtual std::vector<PDFSecurityHandler::Permission> getRunPermissions() const;
 
+    /// The GUI shows the refusal of the permissions of its catalog entry itself (fix wave of step
+    /// 3b, owner answer 1 of 12. 11.: Manage Pages in the tab of a document without Assemble,
+    /// 1479:35631 - the tool opens, its Primary button is Disabled with the callout and the owner
+    /// password). The shell then skips its refusal at the entry (isPermissionRefused stays false);
+    /// the GUI keeps isConfirmEnabled false while the permission is missing, and the validation of
+    /// the tool refuses the run anyway (no "ignore DRM" path). Default: false - the shell refuses
+    /// the tool at the entry (339:10328).
+    virtual bool handlesPermissionRefusal() const;
+
     /// Texts of the result dialog ("Pages rotated", the file of an export)
     virtual void fillResultInput(PDFAppToolResultInput* input) const;
 
@@ -239,7 +258,9 @@ public:
 
     /// Texts of the page item and of the zoom item of the status bar of the own tab (Merge
     /// "16 pages" and no zoom, K12; Blank "Page 1 / 3" and the zoom of its preview "151 %");
-    /// empty = the item is hidden. Read with getStatusText (updateStatusText).
+    /// empty = the item is hidden. Read with getStatusText (updateStatusText). In the document
+    /// host the page text replaces the page item of the view (Manage "12 pages", 1479:34632),
+    /// empty = the page item of the view; the zoom item stays the zoom of the view.
     virtual QString getOwnTabPageText() const;
     virtual QString getOwnTabZoomText() const;
 
@@ -259,6 +280,34 @@ public:
     /// of Open in a new tab (the branch is package A's, the replacement package D's). Default:
     /// false.
     virtual bool isResultInThisTab() const;
+
+    /// The own tab of the tool stays open after an accepted result (plan of step 3b of phase 2,
+    /// RB3 b: Manage Pages K31, 396:27563 "The assembly stays open"): PDFAppToolTabPage returns the
+    /// tool to editing with its inputs after the result is opened, saved or its folder shown,
+    /// instead of closing the tab; Then continue with still opens its tool. Default: false (the
+    /// own tab closes after an accepted result, Q9 of step 2). Read only in an own tab.
+    virtual bool isTabKeptAfterResult() const;
+
+    /// The question of the tool before its own tab closes (RB3 c, Manage Pages 405:30894 "Save
+    /// the assembly Tender_2026?" Don't Save / Cancel / Save Assembly). PDFAppToolTabPage::confirmClose
+    /// calls it in the state Editing, before the generic question of the loss text. A tool, which
+    /// asks, runs its dialog by new + QPointer (CLAUDE.md); the dialog runs foreign code: the GUI,
+    /// the shell and the tab may be deleted meanwhile - the caller guards them, the tool returns
+    /// Cancel when it is gone. Saving: the tool has started its asynchronous save and calls
+    /// closeOwnTab, when it has succeeded (the close asks again then, the tool answers Close).
+    /// Default: Generic.
+    virtual PDFAppToolCloseAnswer askOwnTabClose();
+
+    /// Text of the button Cancel of the toolbar (RB3 f, K2 of step 3: Manage Pages "Close" in its
+    /// own tab - the assembly is no run to cancel; "Cancel" in the tab of a document, where it
+    /// closes the tool, not the tab). Default: empty = "Cancel" of the toolbar.
+    virtual QString getCancelText() const;
+
+    /// Closes the own tab of the tool as Cancel does (the close of the tab asks askOwnTabClose
+    /// again): the end of a save started by askOwnTabClose (Saving). Nothing outside of an own tab
+    /// and outside of the state Editing. The shell, the GUI and the tab may be deleted by it (the
+    /// last call of the caller).
+    void closeOwnTab();
 
     // ------------------------------------------------------------- flow
 

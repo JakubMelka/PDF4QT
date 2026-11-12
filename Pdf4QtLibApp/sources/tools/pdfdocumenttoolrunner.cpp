@@ -546,6 +546,11 @@ void PDFDocumentToolRunner::finishRun(const PDFDocumentToolResult& result)
     }
 }
 
+PDFDocumentToolOutputTraits PDFDocumentToolRunner::getOutputTraits() const
+{
+    return m_tool ? m_tool->getOutputTraits(m_runParameters) : PDFDocumentToolOutputTraits();
+}
+
 QString PDFDocumentToolRunner::getCommitRefusal() const
 {
     const PDFAppDocument* document = m_document.data();
@@ -634,8 +639,7 @@ PDFDocumentToolRunner::CommitStatus PDFDocumentToolRunner::commitResult(const PD
     }
 
     const PDFModifiedDocument modified(outputDocument, document->getOptionalContentActivity(), flags);
-    const PDFDocumentToolCatalogEntry* entry = m_tool->getInfo();
-    const bool isWholeFileRewrite = PDFAppToolResultWriter::isRewrittenWhole(entry, &result);
+    const bool isWholeFileRewrite = PDFAppToolResultWriter::isRewrittenWhole(getOutputTraits(), &result);
     if (!document->commitToolResult(modified, description, version, PDFAppChangeSource::Tool, isWholeFileRewrite))
     {
         return guard ? Helper::refuse(errorMessage, tr("The document is busy with another operation. Run the tool again when it ends.")) : CommitStatus::Refused;

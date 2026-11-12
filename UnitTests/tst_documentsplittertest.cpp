@@ -284,6 +284,7 @@ private Q_SLOTS:
     void splitLeavesNoMarker();
     void splitFieldsInEveryPart();
     void splitOutlineAndLabels();
+    void splitDocumentParts();
     void splitAttachmentsFirstOnly();
     void splitNewDocumentKeys();
     void splitPartDates();
@@ -674,6 +675,74 @@ void DocumentSplitterTest::splitOutlineAndLabels()
     QCOMPARE(first.getCatalog()->getOutlineRootPtr()->getChild(0)->getTitle(), QStringLiteral("Front"));
     QCOMPARE(second.getCatalog()->getOutlineRootPtr()->getChildCount(), size_t(1));
     QCOMPARE(second.getCatalog()->getOutlineRootPtr()->getChild(0)->getTitle(), QStringLiteral("Body"));
+}
+
+void DocumentSplitterTest::splitDocumentParts()
+{
+    // 14.12: the parts 20 (pages 1-3) and 21 (pages 4-6); each file keeps the parts of its pages
+    // (keepPages, the rules of removePages): a range of the pages of the file, which it has, /End
+    // only for more pages (Table 409), /DPart of each page names its leaf (14.12.3), a part
+    // without a page of the file is not in it
+    SplitterTestPdf pdf = SplitterTestPdf::createPages(6, "/DPartRoot 22 0 R", { { 1, "/DPart 20 0 R" }, { 2, "/DPart 20 0 R" }, { 3, "/DPart 20 0 R" },
+                                                                                 { 4, "/DPart 21 0 R" }, { 5, "/DPart 21 0 R" }, { 6, "/DPart 21 0 R" } });
+    pdf.set(22, "<< /Type /DPartRoot /DPartRootNode 23 0 R >>");
+    pdf.set(23, "<< /Type /DPart /Parent 22 0 R /DParts [[20 0 R 21 0 R]] >>");
+    pdf.set(20, "<< /Type /DPart /Parent 23 0 R /Start " + QByteArray::number(SplitterTestPdf::page(1)) + " 0 R /End " + QByteArray::number(SplitterTestPdf::page(3)) + " 0 R /DPM << /Name (Front) >> >>");
+    pdf.set(21, "<< /Type /DPart /Parent 23 0 R /Start " + QByteArray::number(SplitterTestPdf::page(4)) + " 0 R /End " + QByteArray::number(SplitterTestPdf::page(6)) + " 0 R /DPM << /Name (Back) >> >>");
+    const PDFDocument document = pdf.read();
+
+    // The leaves of a file: the names of their /DPM, the page numbers of /Start and /End
+    auto getParts = [](const PDFDocument& file)
+    {
+        QStringList parts;
+        const PDFDictionary* root = file.getDictionaryFromObject(SplitterTestHelper::getCatalog(file)->get("DPartRoot"));
+        const PDFDictionary* rootNode = root ? file.getDictionaryFromObject(root->get("DPartRootNode")) : nullptr;
+        if (!rootNode)
+        {
+            return parts;
+        }
+        std::map<PDFObjectReference, size_t> pageIndices;
+        for (size_t i = 0; i < file.getCatalog()->getPageCount(); ++i)
+        {
+            pageIndices[file.getCatalog()->getPage(i)->getPageReference()] = i;
+        }
+        for (const PDFObject& children : *file.getObject(rootNode->get("DParts")).getArray())
+        {
+            for (const PDFObject& child : *file.getObject(children).getArray())
+            {
+                const PDFDictionary* leaf = file.getDictionaryFromObject(child);
+                const PDFObject& start = leaf->get("Start");
+                const PDFObject& end = leaf->hasKey("End") ? leaf->get("End") : start;
+                if (!start.isReference() || !end.isReference() || !pageIndices.count(start.getReference()) || !pageIndices.count(end.getReference()))
+                {
+                    parts << QStringLiteral("invalid range");
+                    continue;
+                }
+                const size_t first = pageIndices.at(start.getReference());
+                const size_t last = pageIndices.at(end.getReference());
+                QString text = QString::fromLatin1(file.getDictionaryFromObject(leaf->get("DPM"))->get("Name").getString()) + QLatin1Char(' ') + QString::number(qint64(first + 1));
+                text += leaf->hasKey("End") ? QStringLiteral("-%1").arg(qint64(last + 1)) : QString();
+                for (size_t i = first; i <= last; ++i)
+                {
+                    const PDFObject& part = file.getDictionaryFromObject(PDFObject::createReference(file.getCatalog()->getPage(i)->getPageReference()))->get("DPart");
+                    text += part.isReference() && part.getReference() == child.getReference() ? QString() : QStringLiteral(" (page %1 not in it)").arg(qint64(i + 1));
+                }
+                parts << text;
+            }
+        }
+        return parts;
+    };
+
+    const std::vector<PDFDocumentSplitter::PartResult> parts = SplitterTestHelper::split(document, { { 1, 2 }, { 3, 4 }, { 5, 6 }, { 4 } });
+    QCOMPARE(parts.size(), size_t(4));
+    QCOMPARE(getParts(SplitterTestHelper::readBack(parts[0].data)), QStringList({ QStringLiteral("Front 1-2") }));
+    QCOMPARE(getParts(SplitterTestHelper::readBack(parts[1].data)), QStringList({ QStringLiteral("Front 1"), QStringLiteral("Back 2") }));
+    QCOMPARE(getParts(SplitterTestHelper::readBack(parts[2].data)), QStringList({ QStringLiteral("Back 1-2") }));
+    QCOMPARE(getParts(SplitterTestHelper::readBack(parts[3].data)), QStringList({ QStringLiteral("Back 1") }));
+    for (const PDFDocumentSplitter::PartResult& part : parts)
+    {
+        QVERIFY(SplitterTestHelper::getDanglingReferences(SplitterTestHelper::readBack(part.data)).isEmpty());
+    }
 }
 
 void DocumentSplitterTest::splitAttachmentsFirstOnly()

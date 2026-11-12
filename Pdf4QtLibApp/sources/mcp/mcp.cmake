@@ -46,6 +46,8 @@ set(PDF4QT_LIBAPP_MCP_SOURCES
     sources/mcp/pdfappmcphost.h
     sources/mcp/pdfappmcpjob.cpp
     sources/mcp/pdfappmcpjob.h
+    sources/mcp/pdfappmcpmanageaction.cpp
+    sources/mcp/pdfappmcpmanageaction.h
     sources/mcp/pdfappmcppermissions.cpp
     sources/mcp/pdfappmcppermissions.h
     sources/mcp/pdfappmcptoolhandler.cpp

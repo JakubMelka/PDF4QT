@@ -105,6 +105,7 @@ const std::vector<AppMcpPagesCase>& AppMcpPagesPackages::getCases()
         registerGeometryCases(&result);
         registerInsertCases(&result);
         registerImageCases(&result);
+        registerManageCases(&result);
         return result;
     }();
     return cases;

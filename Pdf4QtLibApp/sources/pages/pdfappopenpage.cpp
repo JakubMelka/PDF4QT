@@ -21,8 +21,11 @@
 // SOFTWARE.
 
 #include "pdfappopenpage.h"
+#include "pdfappcontext.h"
 #include "pdfappfiledrop.h"
 #include "pdfapproute.h"
+#include "pdfdatabasenotifier.h"
+#include "pdfrecentassemblyrepository.h"
 #include "pdfrepositoryhelper.h"
 #include "pdfworkspacerepository.h"
 
@@ -31,11 +34,159 @@
 #include "pdfthemefonts.h"
 
 #include <QBoxLayout>
+#include <QCoreApplication>
+#include <QDateTime>
 #include <QMenu>
 #include <QVBoxLayout>
 
 namespace pdf
 {
+
+/// The recent assemblies of Manage Pages on the page Open (plan of step 3b of phase 2, 4.6; 409:32023
+/// lists the same files in the menu of the assembly). The page Open has no frame of them: the
+/// section is built as Recent Files (the header, the list card of the rows: the name, the folder
+/// with the pages, the time, the star of the pin) and is hidden without an assembly. A click opens
+/// the file as a double click does (PDFAppMainWindow::openAssembly). The section reads the
+/// repository itself and follows its topic of the change log (no cache); the minute ticker of the
+/// page formats its times with the times of the page.
+///
+/// Ownership: a child of the column of the page; its rows are its children (deleteLater on a
+/// refresh), held by QPointer. A slot of a row runs code of the application last (the opening may
+/// delete the page).
+class PDFAppOpenPageAssemblies : public QWidget
+{
+public:
+    /// Rows shown (as the recent files of the page)
+    static constexpr int MAXIMUM_ROWS = PDFAppOpenPage::MAXIMUM_RECENT_FILES;
+
+    explicit PDFAppOpenPageAssemblies(PDFAppContext* context, QWidget* parent) :
+        QWidget(parent),
+        m_context(context)
+    {
+        setObjectName(QStringLiteral("recentAssemblies"));
+        QVBoxLayout* sectionLayout = PDFAppPageWidgets::createColumn(this, 12);
+        sectionLayout->addWidget(PDFAppPageWidgets::createSectionHeader(QCoreApplication::translate("pdf::PDFAppOpenPage", "Recent Assemblies"), nullptr, this));
+
+        m_card = PDFAppPageWidgets::createCard(8, 0, this);
+        m_card->setObjectName(QStringLiteral("assemblyList"));
+        m_layout = qobject_cast<QVBoxLayout*>(m_card->layout());
+        sectionLayout->addWidget(m_card);
+
+        if (PDFDatabaseNotifier* notifier = context ? context->getNotifier() : nullptr)
+        {
+            connect(notifier, &PDFDatabaseNotifier::changed, this, &PDFAppOpenPageAssemblies::onDatabaseChanged);
+            connect(notifier, &PDFDatabaseNotifier::everythingChanged, this, &PDFAppOpenPageAssemblies::refresh);
+        }
+        refresh();
+    }
+
+    QList<PDFRecentFileRow*> getRows() const
+    {
+        QList<PDFRecentFileRow*> rows;
+        for (const QPointer<PDFRecentFileRow>& row : m_rows)
+        {
+            if (row)
+            {
+                rows << row.data();
+            }
+        }
+        return rows;
+    }
+
+    void refresh()
+    {
+        std::vector<PDFRecentAssembly> assemblies;
+        if (m_context && m_context->getDatabase())
+        {
+            assemblies = PDFRecentAssemblyRepository(m_context->getDatabase()).getAssemblies(MAXIMUM_ROWS);
+        }
+
+        QStringList signature;
+        for (const PDFRecentAssembly& assembly : assemblies)
+        {
+            signature << QStringLiteral("%1|%2|%3|%4|%5").arg(assembly.path, assembly.name).arg(assembly.lastOpened).arg(assembly.pageCount).arg(assembly.pinned);
+        }
+        const QString text = signature.join(QChar(0x1F));
+        setVisible(!assemblies.empty());
+        if (text == m_signature && m_rows.size() == qsizetype(assemblies.size()))
+        {
+            return;
+        }
+        m_signature = text;
+
+        for (const QPointer<PDFRecentFileRow>& row : std::as_const(m_rows))
+        {
+            if (row)
+            {
+                row->hide();
+                row->deleteLater();
+            }
+        }
+        m_rows.clear();
+
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        for (const PDFRecentAssembly& assembly : assemblies)
+        {
+            // The folder is elided in the middle, the count of pages after it stays whole
+            PDFRecentFileRow* row = new PDFRecentFileRow(PDFAppHomeFormat::toDisplayText(assembly.name), PDFAppHomeFormat::toDisplayPath(assembly.folder), QString(), m_card);
+            if (assembly.pageCount >= 0)
+            {
+                row->setDetail(QCoreApplication::translate("pdf::PDFAppOpenPage", "%Ln pages", nullptr, assembly.pageCount));
+            }
+            PDFAppHomeFormat::setTimeText(row, PDFAppHomeFormat::TimeText::Time, assembly.lastOpened, now);
+            row->setObjectName(QStringLiteral("assemblyRow"));
+            row->setPinned(assembly.pinned);
+            row->setProperty(PATH_PROPERTY, assembly.path);
+            connect(row, &PDFRecentFileRow::clicked, this, &PDFAppOpenPageAssemblies::onRowClicked);
+            connect(row, &PDFRecentFileRow::pinnedChanged, this, &PDFAppOpenPageAssemblies::onRowPinnedChanged);
+            m_layout->addWidget(row);
+            m_rows << row;
+        }
+    }
+
+private:
+    static constexpr const char* PATH_PROPERTY = "pdf4qtPath";
+
+    void onDatabaseChanged(const QString& topic, const QString& key)
+    {
+        Q_UNUSED(key);
+        if (topic == PDFRecentAssemblyRepository::getTopic())
+        {
+            refresh();
+        }
+    }
+
+    void onRowClicked()
+    {
+        // The rows do not identify themselves in the signal: the path is their property. The
+        // opening runs code of the application (the window may replace this page): it is last.
+        const QObject* row = sender();
+        const QString path = row ? row->property(PATH_PROPERTY).toString() : QString();
+        if (PDFRepositoryHelper::isValidStoredPath(path))
+        {
+            PDFAppDocumentActions::openFiles(this, { path });
+        }
+    }
+
+    void onRowPinnedChanged(bool isPinned)
+    {
+        const QObject* row = sender();
+        if (row && m_context && m_context->getDatabase())
+        {
+            const PDFDatabaseError error = PDFRecentAssemblyRepository(m_context->getDatabase()).setPinned(row->property(PATH_PROPERTY).toString(), isPinned);
+            if (error.isError())
+            {
+                qWarning("The recent assembly cannot be pinned: %s", qPrintable(error.toString()));
+            }
+        }
+    }
+
+    QPointer<PDFAppContext> m_context;
+    QPointer<QWidget> m_card;
+    QPointer<QVBoxLayout> m_layout;
+    QList<QPointer<PDFRecentFileRow>> m_rows;
+    QString m_signature;
+};
 
 /// Helpers of the page Open
 class PDFAppOpenPageHelper
@@ -125,6 +276,9 @@ PDFAppOpenPage::PDFAppOpenPage(PDFAppContext* context, QWidget* parent) :
     m_recentSection->setObjectName(QStringLiteral("recentFiles"));
     m_recentEmpty = recentEmpty;
     main->addWidget(m_recentSection);
+
+    // The assembly files of Manage Pages (plan of step 3b of phase 2, 4.6), shown when there are some
+    main->addWidget(new PDFAppOpenPageAssemblies(context, m_columns->getColumn(0)));
     main->addStretch(1);
 
     side->addWidget(createWorkspaces(m_columns->getColumn(1)));

@@ -195,9 +195,10 @@ void PDFAppToolDocumentPage::applyRoute()
 
     // A tool with its own tab (Merge, plan of step 2 of phase 2, 4.1): the panel Tools, Then
     // continue with and this route open a new tab of the tool with this document as its
-    // first input; the route of the tool leaves the history of the document tab
+    // first input; the route of the tool leaves the history of the document tab. A tool with a
+    // document host (Manage Pages, plan of step 3b, QB1 B) runs here, over this document.
     const PDFDocumentToolCatalogEntry* entry = PDFDocumentToolCatalog::findTool(m_toolId);
-    if (entry && entry->hasOwnTab())
+    if (entry && entry->hasOwnTab() && !entry->hasDocumentHost())
     {
         openOwnTab();
         return;

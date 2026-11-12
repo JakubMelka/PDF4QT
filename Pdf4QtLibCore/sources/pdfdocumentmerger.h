@@ -132,6 +132,22 @@ public:
         /// images of Insert Pages; plan of step 3 of phase 2, R1 a); std::nullopt = \p imageClip
         /// fills the page of \p pageSize (Merge, PageMaster - PDFImagePageLayout::createStretched)
         std::optional<PDFImagePageLayout> imageLayout;
+
+        /// Document page: a further occurrence of the page, made by Clone (PDFDocumentPagePlan::Item::isClone;
+        /// plan of step 3b of phase 2, RB4). arrange keeps the identity of the page (its object
+        /// number, outline, links, structure, field values) with the item, which is not a clone,
+        /// wherever it stands. merge and insert keep their rule unchanged: the first occurrence of
+        /// a page is the page, every further one a clone (B4), the flag is not read there.
+        bool isClone = false;
+    };
+
+    /// A document part of the result (plan of step 3b of phase 2, 4.4, QB3): the part begins at the
+    /// item \p firstItem and lasts until the next part; its bookmark has \p title. Manage Pages makes
+    /// a part of a group and of a run of the pages of one source outside of groups.
+    struct Part
+    {
+        size_t firstItem = 0;   ///< Index of the first item of the part (the parts ascending, the first one at 0)
+        QString title;          ///< Title of the bookmark of the part ("Introduction", "Contract.pdf, p. 6")
     };
 
     /// What a merge does
@@ -140,6 +156,18 @@ public:
         OutlineMode outline = OutlineMode::DocumentParts;
         bool checkPermissions = true;   ///< The inputs must permit the merge (R2); false only for Diff, whose result is no document of the user
         bool isNewFile = false;         ///< One PDF input keeps its catalog (R3 of step 2), but the result is a new file of its pages (Extract, plan 5.6 of step 3): new dates of the creation in /Info and XMP, as a part of Split (PDFNewDocumentFinisher::Settings::isNewFile)
+
+        /// The parts of the result (plan of step 3b, 4.4, QB3): the outline modes DocumentParts and
+        /// Join make a bookmark per part (Join puts the outlines of the sources of its pages below
+        /// it), /DPartRoot gets a part per entry. Empty = the runs of the pages of one input, as
+        /// today (Merge unchanged).
+        std::vector<Part> parts;
+
+        /// arrange: the page objects of the target in its order, for which the plan was made (RB2
+        /// of step 3b). A target with other pages - a page inserted, removed or moved meanwhile by
+        /// another change of the document - is refused with "The document has changed"; a page,
+        /// which the plan does not know, is never removed. Not read by merge and insert.
+        std::vector<PDFObjectReference> targetPages;
     };
 
     /// What a merge has changed besides the pages
@@ -161,6 +189,7 @@ public:
         bool structureTreeRemoved = false;      ///< Tags removed: not every PDF input is tagged and taken whole (Q1)
         bool structureTreeMerged = false;       ///< The structure trees are joined
         bool isSingleDocument = false;          ///< One PDF input with all its pages: its catalog is kept (R3)
+        bool documentPartsRemoved = false;      ///< One PDF input (R3): its document parts (14.12) are removed - damaged or without a page by the removal of the pages not taken (RemovalStatistics), or broken by another order of the pages
         QStringList conformanceRemoved;         ///< Standards no longer declared ("PDF/A", "PDF/UA")
 
         // The insertion mode (insert)
@@ -169,6 +198,10 @@ public:
         bool insertedPagesUntagged = false;     ///< The target is tagged, the inserted pages are outside of its structure (a source is not tagged or not taken whole)
         bool isPageTreeFlattened = false;       ///< The page tree of the target was flattened (a replacement, a damaged tree): its inherited values went into its pages
         PDFDocumentPageOperations::RemovalStatistics replacement;  ///< What the removal of the replaced pages has changed (Replace selected pages)
+
+        // The arrangement (arrange)
+        qint64 signatureWidgetsNotCloned = 0;   ///< Widgets of signature fields left out of the clones (RB1)
+        qint64 lockedWidgetsNotCloned = 0;      ///< Widgets of the fields locked by a signed signature field left out of the clones (12.7.5.5, 12.8.2.4)
     };
 
     /// An input, which is not in the result (its copy failed, owner answer Q5)
@@ -246,6 +279,53 @@ public:
     /// target (14.12) take the inserted pages into the part, inside of which they are inserted.
     static Result insert(const PDFDocument& target, PDFInteger position, std::vector<PDFInteger> replacedPages, const std::vector<Source>& sources,
                          const std::vector<Item>& items, const Settings& settings, const PDFOperationControl* control, PDFProgressSink* progress);
+
+    /// Arranges the pages of a document, which stays itself (Manage Pages, output This document;
+    /// plan of step 3b of phase 2, 4.5, RB1, RB2, RB4, RB5, RB13, table 5; package M2): the
+    /// generalization of the insertion mode - the target is the input 0 in any order, with clones,
+    /// turns, crops, removed pages, blank pages, images and the pages of other PDFs.
+    ///
+    /// Contract (the skeleton of step 3b declares it, package M2 defines it; the stub returns the
+    /// error "not implemented"):
+    ///  - \p sources[0] is the target (Source::createDocument of \p target); an item of the source
+    ///    0 is a page of the target. Settings::targetPages lists the page objects of the target,
+    ///    for which the plan was made: another target is refused ("The document has changed",
+    ///    RB2), a page the plan does not know is never removed.
+    ///  - The result is a new version of \p target for an incremental update (as insert): the
+    ///    object numbers of the kept objects, the /ID, the encryption (new and changed objects by
+    ///    the handler of the target), the signatures, /Perms, /DSS, /OutputIntents and the
+    ///    declarations of PDF/A, UA, X stay; no finisher. The pages of the target, which no item
+    ///    uses, go by PDFDocumentPageOperations::removePages. All pages removed = the error "The
+    ///    document needs at least one page".
+    ///  - The original of a page is the item without Item::isClone (RB4): it keeps the object
+    ///    number, the outline, the links, the structure and the field values. A clone gets a new
+    ///    page object and new annotations, the content is shared, no /StructParents, no /B, no
+    ///    /DPart (RB13: "Cloned pages are not tagged" of a tagged target); the widgets of signature
+    ///    fields (/FT /Sig, also inherited) are not cloned (RB1: "Signature fields are not cloned").
+    ///  - The page tree: an insertion only (the relative order of the pages of the target kept, no
+    ///    clone of the target) inserts into the existing tree (R8); otherwise the tree is flattened
+    ///    with the inherited values (/Resources, /MediaBox, /CropBox, /Rotate, Table 31) written into
+    ///    the pages. A turn is composed with /Rotate (0 to 270), a crop from the visible area inside
+    ///    of the media box (B28). The page labels (12.4.2) stay with their pages, a clone gets the
+    ///    label of its original; /DPartRoot (14.12) is removed on a change of the order (a fact);
+    ///    with the order kept the removed pages leave their parts (removePages) and the new pages
+    ///    join the part of their place.
+    ///  - The fields locked by a signed signature field (its /Lock, 12.7.5.5, or the FieldMDP
+    ///    transform parameters of its signature, 12.8.2.4) get no widget on a clone either
+    ///    (Statistics::signatureWidgetsNotCloned, Statistics::lockedWidgetsNotCloned).
+    ///  - The other sources are joined by the rules of insert (the name trees, the fields renamed
+    ///    on a collision, the signatures of a source removed); every source permits it
+    ///    (getPermission, Q2 of step 2). A certified target is refused by the tool before
+    ///    (PDFDocMDPPermissions, Q12, RB5).
+    ///  - Reentrant as merge; \p control after each page, \p progress a step per page of the result.
+    /// \param target The document, whose pages are arranged
+    /// \param sources The inputs, the target first
+    /// \param items The pages of the result in their order
+    /// \param settings What the arrangement does (Settings::targetPages, the outline of the added pages)
+    /// \param control Cancellation (optional)
+    /// \param progress Progress (optional)
+    static Result arrange(const PDFDocument& target, const std::vector<Source>& sources, const std::vector<Item>& items,
+                          const Settings& settings, const PDFOperationControl* control, PDFProgressSink* progress);
 
     /// The values of all signatures of a document removed (owner answer Q4 of step 2, the rule
     /// of the merge): the value /V of a signature field, the appearance of its widgets (the field

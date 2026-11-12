@@ -61,7 +61,9 @@
 #include "pdfapptoolgui_blank.h"
 #include "pdfapptoolgui_compress.h"
 #include "pdfapptoolgui_extracttext.h"
+#include "pdfapptoolgui_manage.h"
 #include "pdfapptoolgui_merge.h"
+#include "pdfappmanagedialogs.h"
 #include "pdfapptoolinputrow.h"
 #include "pdfapptoolmergeview.h"
 #include "pdfapptoolgui_pages.h"
@@ -98,6 +100,7 @@
 #include <QRandomGenerator>
 #include <QtTest>
 
+#include <algorithm>
 #include <functional>
 #include <memory>
 #include <vector>
@@ -269,9 +272,13 @@ public:
     /// each with the reason why no code can survive it:
     ///  - a signal of a destructor (PDFAppPage::aboutToBeDestroyed): the dying object is
     ///    still a child of its parents, a deletion of an ancestor deletes it twice (Qt);
+    ///  - PDFAppToolModeLayout::partDestroyed: the relay of QObject::destroyed of a part of a
+    ///    tool, emitted from the destructor of the part - an own tab closed in Editing (Don't
+    ///    Save of manageclose) deletes the parts of its tool in its own destructor, the dying tab
+    ///    is still a child of the window (the same reason; as tst_apppageslifetimetest.cpp)
     static bool isDeferredSite(const Site& site)
     {
-        return site.key.endsWith(QStringLiteral("::aboutToBeDestroyed()"));
+        return site.key.endsWith(QStringLiteral("::aboutToBeDestroyed()")) || site.key.endsWith(QStringLiteral("PDFAppToolModeLayout::partDestroyed()"));
     }
 
     /// The state of the emission defers the deletion of the victim (counted with the site):
@@ -1199,12 +1206,12 @@ public:
     /// openPopupsSurviveChanges)
     static bool prepareRun(ToolPagesLifetimeRun& run)
     {
-        for (const ToolPagesLifetimeScenario& registered : ToolPagesLifetimePackages::getScenarios())
+        // The prepareRun of the scenario of the run, never of another scenario of the same tool
+        // (managegui / managedocgui: the own tab and the tab of a document)
+        const ToolPagesLifetimeScenario* registered = ToolPagesLifetimePackages::findScenario(run.scenario);
+        if (registered && registered->prepareRun)
         {
-            if (registered.toolId == run.toolId && registered.prepareRun)
-            {
-                return registered.prepareRun(run);
-            }
+            return registered->prepareRun(run);
         }
         if (pdf::PDFAppToolGUIRotatePages* rotate = realGui<pdf::PDFAppToolGUIRotatePages>(run))
         {
@@ -2213,6 +2220,7 @@ void AppToolPagesLifetimeTest::runScenario(const QString& name, ToolPagesLifetim
 
     ToolPagesLifetimeRun run;
     run.fixture = &fixture;
+    run.scenario = name;
     const bool isOwnTab = ToolPagesLifetimeHelper::isOwnTabScenario(name);
     const ToolPagesLifetimeScenario* registeredScenario = ToolPagesLifetimePackages::findScenario(name);
     if (isOwnTab && name != QLatin1String("owntabmergegui") && !registeredScenario)
@@ -2531,6 +2539,16 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges_data()
             }
         }
     }
+
+    // Manage Pages (plan of step 3b, 8 manageopenpopups; RS3BAPP): a dialog of its own in its own
+    // tab and in the tab of a document
+    for (const char* popup : { "managedialog-managegui", "managedialog-managedocgui" })
+    {
+        for (const char* change : { "language", "document", "theme" })
+        {
+            QTest::addRow("%s-%s", popup, change) << QString::fromLatin1(popup) << QString::fromLatin1(change);
+        }
+    }
 }
 
 void AppToolPagesLifetimeTest::openPopupsSurviveChanges()
@@ -2547,6 +2565,7 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges()
     const bool isCustomPanel = popup == QLatin1String("custom");
     const QString realScenario = popup.section(QLatin1Char('-'), 1);
     const bool isRealTool = !realScenario.isEmpty();
+    run.scenario = realScenario;
     run.toolId = popup == QLatin1String("permission") ? QStringLiteral("protect.remove-links") : (isCustomPanel ? QStringLiteral("optimize.compress") : QStringLiteral("pages.rotate"));
     if (isRealTool)
     {
@@ -2606,7 +2625,49 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges()
         }
     };
 
-    if (isRealTool && popup.startsWith(QLatin1String("dialog-")))
+    if (popup.startsWith(QLatin1String("managedialog-")))
+    {
+        // A dialog of Manage Pages (Save checkpoint 387:12748; the dialogs of 387:15926 are of the
+        // same class) open over the change - in the tab of a document a new version maps the
+        // assembly again (RB2). The dialog stays the open dialog of the GUI, or it is gone; then a
+        // new one opens and its Save adds the checkpoint of its prefilled name ("Checkpoint N")
+        QVERIFY(H::prepareRun(run));
+        pdf::PDFAppManageToolGUI* manage = H::shell(run) ? qobject_cast<pdf::PDFAppManageToolGUI*>(H::shell(run)->getGUI()) : nullptr;
+        QVERIFY(manage);
+        const size_t checkpointCount = manage->getCheckpoints().size();
+        manage->openCheckpointDialog();
+        H::settle();
+        QPointer<pdf::PDFAppManageDialog> manageDialog = manage->getDialog();
+        QVERIFY(manageDialog && manageDialog->isVisible());
+        applyChange();
+        QVERIFY(H::shell(run));
+        manage = qobject_cast<pdf::PDFAppManageToolGUI*>(H::shell(run)->getGUI());
+        QVERIFY(manage);
+        if (manageDialog)
+        {
+            QCOMPARE(manage->getDialog(), manageDialog.data());
+            QVERIFY(manageDialog->isVisible());
+            manageDialog->reject();
+            H::settle();
+        }
+        QVERIFY(!manageDialog);
+        QVERIFY(!manage->getDialog());
+        QCOMPARE(manage->getCheckpoints().size(), checkpointCount);
+
+        manage->openCheckpointDialog();
+        H::settle();
+        manageDialog = manage->getDialog();
+        QVERIFY(manageDialog && manageDialog->getAcceptButton());
+        QVERIFY(ToolPagesLifetimeSteps::click(manageDialog->getAcceptButton()));
+        H::settle();
+        QVERIFY(H::shell(run));
+        manage = qobject_cast<pdf::PDFAppManageToolGUI*>(H::shell(run)->getGUI());
+        QVERIFY(manage);
+        QCOMPARE(manage->getCheckpoints().size(), checkpointCount + 1);
+        const QString name = QStringLiteral("Checkpoint %1").arg(checkpointCount + 1);
+        QVERIFY(std::any_of(manage->getCheckpoints().cbegin(), manage->getCheckpoints().cend(), [&name](const pdf::PDFDocumentAssembly::Checkpoint& checkpoint) { return checkpoint.name == name; }));
+    }
+    else if (isRealTool && popup.startsWith(QLatin1String("dialog-")))
     {
         // The result dialog of a real tool: it stays open over the change, Cancel keeps the document
         QVERIFY(H::prepareRun(run));
@@ -2756,6 +2817,7 @@ const std::vector<ToolPagesLifetimeScenario>& ToolPagesLifetimePackages::getScen
         registerGeometryScenarios(&result);
         registerInsertScenarios(&result);
         registerImageScenarios(&result);
+        registerManageScenarios(&result);
         return result;
     }();
     return scenarios;

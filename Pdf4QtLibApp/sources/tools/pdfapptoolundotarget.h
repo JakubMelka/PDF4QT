@@ -26,6 +26,7 @@
 #include "pdfappglobal.h"
 
 #include <QObject>
+#include <QString>
 
 namespace pdf
 {
@@ -33,7 +34,8 @@ namespace pdf
 /// What Undo and Redo act on while a tool is open in a document tab: the commands
 /// and their keys go to this target, never to the document (owner decision of
 /// 2026-11-01). The view holds it for the time of the tool mode and does not own it;
-/// PDFAppToolParameterModel is the implementation of the application.
+/// PDFAppToolParameterModel is the implementation of the application. The texts of the
+/// steps change with undoStateChanged (a reader updates its tooltips then).
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolUndoTarget : public QObject
 {
     Q_OBJECT
@@ -45,6 +47,14 @@ public:
     virtual bool canRedo() const = 0;
     virtual void undo() = 0;
     virtual void redo() = 0;
+
+    /// Text of the step, which undo takes back ("Group": the tooltip "Undo Group (Ctrl+Z)",
+    /// 387:12569, plan of step 3b of phase 2, RB3 d); empty = the title of the command alone.
+    /// The default has none.
+    virtual QString getUndoText() const { return QString(); }
+
+    /// Text of the step, which redo does again ("Redo Group"); empty = none
+    virtual QString getRedoText() const { return QString(); }
 
 Q_SIGNALS:
     /// The result of canUndo or canRedo may have changed
