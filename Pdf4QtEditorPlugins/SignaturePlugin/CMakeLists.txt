@@ -28,7 +28,7 @@ add_library(SignaturePlugin SHARED
 )
 
 target_link_libraries(SignaturePlugin PRIVATE Pdf4QtLibCore  Pdf4QtLibWidgets Qt6::Core Qt6::Gui Qt6::Widgets)
-target_link_libraries(SignaturePlugin PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+target_link_libraries(SignaturePlugin PRIVATE ${PDF4QT_SSL_DEPS})
 
 set_target_properties(SignaturePlugin PROPERTIES
                       VERSION ${PDF4QT_VERSION}
