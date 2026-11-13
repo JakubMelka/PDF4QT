@@ -33,7 +33,7 @@ A new box larger than the media box is written, but viewers and printers cut it 
 
 - Only the boxes of the selected pages change, each written into the page itself. The content is not changed.
 - A document, which declares PDF/X, keeps its declaration: PDF/X needs a trim box or an art box on each page.
-- A signed document stays signed: the change is saved after the signed part of the file. A certified document can be changed only as a copy.
+- A signed document stays signed: the change is saved after the signed part of the file. A certified document can be changed only as a copy, without the certification and the signatures; the right panel says so in a callout while you work in the tool.
 
 ### Assistants
 

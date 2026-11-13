@@ -65,6 +65,21 @@ public:
     int calloutIndex = 0;                   ///< Index of the callout in the layout
 };
 
+/// Where the callout of a certified document lies (PDFDocumentToolShell::getCertificationCallout,
+/// owner decision of 13. 11. 2026), the place of the callouts of the frames of the tool: the top of
+/// the right panel by default (the red and amber callouts of Remove 388:22298, Crop 398:28158,
+/// Resize 391:25272, Set Page Boxes, Insert 388:17789)
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolCalloutPlace
+{
+public:
+    /// Layout of the callout, nullptr = the body of the right panel around its content
+    QBoxLayout* layout = nullptr;
+
+    /// Index in the layout. In the body of the right panel 0 = above the content, -1 = below it;
+    /// in a layout of the GUI its index, -1 = at its end.
+    int index = 0;
+};
+
 /// What the list of the inputs of a tool accepts (plan of step 3 of phase 2, 9.3, K41): Merge 2
 /// to 1000 PDF files and images, Interleave exactly 2 PDF files in the slots Front sides and Back
 /// sides, Images to PDF 1 to 1000 images, Insert Pages its sources in the tab of the document.
@@ -158,6 +173,11 @@ public:
 
     /// Where the progress lies; the layouts belong to the content of the right panel
     virtual PDFAppToolProgressPlace getProgressPlace() const;
+
+    /// Where the callout of a certified document, whose certification the run removes, lies (the
+    /// shell shows it, PDFDocumentToolShell::getCertificationCallout); a layout belongs to the
+    /// content of the right panel. Default: the top of the right panel.
+    virtual PDFAppToolCalloutPlace getCertificationCalloutPlace() const;
 
     /// A tool, which has its own card, keeps it enabled: the default disables the
     /// actions and the content of both panels while the tool runs (295:1711, 438:14093)

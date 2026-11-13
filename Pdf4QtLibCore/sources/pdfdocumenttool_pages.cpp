@@ -458,9 +458,10 @@ PDFDocumentToolResult PDFDocumentToolRotatePages::execute(const PDFDocumentToolC
 
     PDFDocument output = PDFDocumentPageOperations::rotatePages(document, effective);
 
-    // Q12, R10: no level of a certification allows to rotate pages - the result is a copy
+    // Q12, R10: no level of a certification allows to rotate pages - the result is a copy (the
+    // rule of the callout of the panel, owner 13. 11.)
     PDFInteger certificationSignaturesRemoved = 0;
-    const bool isCertified = !PDFDocMDPPermissions::isPageChangeAllowed(document);
+    const bool isCertified = PDFDocMDPPermissions::isCertificationRemovedBy(document, getOutputTraits(parameters));
     if (isCertified)
     {
         output = PDFDocMDPPermissions::removeCertification(output, &certificationSignaturesRemoved);
@@ -619,9 +620,10 @@ PDFDocumentToolResult PDFDocumentToolRemovePages::execute(const PDFDocumentToolC
         }
     }
 
-    // Q12, R10: no level of a certification allows to remove pages - the result is a copy
+    // Q12, R10: no level of a certification allows to remove pages - the result is a copy (the
+    // rule of the callout of the panel, owner 13. 11.)
     PDFInteger certificationSignaturesRemoved = 0;
-    const bool isCertified = !PDFDocMDPPermissions::isPageChangeAllowed(document);
+    const bool isCertified = PDFDocMDPPermissions::isCertificationRemovedBy(document, getOutputTraits(parameters));
     if (isCertified)
     {
         output = PDFDocMDPPermissions::removeCertification(output, &certificationSignaturesRemoved);

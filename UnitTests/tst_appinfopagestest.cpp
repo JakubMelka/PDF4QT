@@ -968,9 +968,12 @@ void AppInfoPagesTest::buildInfoLogFolder()
     QVERIFY(context.getLogDirectory().isEmpty());
     const QList<pdf::PDFAppBuildInfoRow> rowsAfterUninstall = pdf::PDFAppAboutInfo::getBuildRows(&context);
     QCOMPARE(rowsAfterUninstall.back().value, QStringLiteral("None"));
+    QVERIFY(!rowsAfterUninstall.back().isFolder);
 
+    // The folder is elided by its folders (the root and the last folder stay), "None" is no folder
     QCOMPARE(rows.back().key, QStringLiteral("Log folder"));
     QCOMPARE(rows.back().value, QDir::toNativeSeparators(logDirectory));
+    QVERIFY(rows.back().isFolder);
 }
 
 void AppInfoPagesTest::buildInfoWithoutStorage()

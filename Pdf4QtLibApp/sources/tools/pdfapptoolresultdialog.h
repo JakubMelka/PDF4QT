@@ -59,7 +59,8 @@ class PDFDocumentToolCatalogEntry;
 class PDFDocumentToolRunner;
 
 /// The folder of a written file (809:140625): one line, a long path elided in the
-/// middle, the whole path in its tooltip
+/// middle by its folders (TextKind::Path: the root and the last folder stay), the
+/// whole path in its tooltip
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolPathLabel : public PDFLabel
 {
     Q_OBJECT

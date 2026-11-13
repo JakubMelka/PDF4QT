@@ -3144,6 +3144,20 @@ QWidget* PDFAppManageToolGUI::createRightPanel(QWidget* parent)
     return m_resultPanel.data();
 }
 
+PDFAppToolCalloutPlace PDFAppManageToolGUI::getCertificationCalloutPlace() const
+{
+    PDFAppToolCalloutPlace place;
+    QBoxLayout* layout = m_resultPanel ? qobject_cast<QBoxLayout*>(m_resultPanel->layout()) : nullptr;
+    PDFAppToolCallout* lockCallout = m_resultPanel ? m_resultPanel->getLockCallout() : nullptr;
+    const int lockIndex = layout && lockCallout ? layout->indexOf(lockCallout) : -1;
+    if (lockIndex >= 0)
+    {
+        place.layout = layout;
+        place.index = lockIndex + 1;
+    }
+    return place;
+}
+
 QWidget* PDFAppManageToolGUI::createCanvasPage(QWidget* parent)
 {
     connectParts();

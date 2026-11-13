@@ -295,7 +295,7 @@ QList<PDFAppBuildInfoRow> PDFAppAboutInfo::getBuildRows(const PDFAppContext* con
     }
 
     rows.append({ tr("Settings"), getSettingsText(state) });
-    rows.append({ tr("Log folder"), getLogText(logDirectory, isPortable) });
+    rows.append({ tr("Log folder"), getLogText(logDirectory, isPortable), !isPortable && !logDirectory.isEmpty() });
     return rows;
 }
 

@@ -617,6 +617,7 @@ private slots:
     void textDirection();
     void keyValueListDirection();
     void keyValueListElision();
+    void keyValueListFolder();
     void keyValueListValueWidth();
     void keyValueListRowGap();
     void pageRangeReview();
@@ -10989,6 +10990,27 @@ void FluentComponentsTest::keyValueListElision()
         const QImage dataRow = image.copy(QRect(0, 28, 400, 28));
         QVERIFY(fileRow != dataRow);
         QVERIFY(dataRow == image.copy(QRect(0, 56, 400, 28)));
+    }
+}
+
+void FluentComponentsTest::keyValueListFolder()
+{
+    // A folder (TextKind::Path) is elided in the middle by its folders - the root and the last
+    // folder stay (fluent-style.md) - not at its end as data; both directions, no leak color
+    pdf::PDFKeyValueList list;
+    const QString folder = QStringLiteral("C:\\Users\\Jane\\Documents\\Projects\\2026\\Quarterly reports of the company\\Specifications");
+    QCOMPARE(list.addRow(QStringLiteral("Folder"), folder, pdf::PDFComponentPainter::TextKind::Path), 0);
+    QCOMPARE(list.addRow(QStringLiteral("Folder"), folder), 1);
+    QCOMPARE(list.getValueKind(0), pdf::PDFComponentPainter::TextKind::Path);
+    QCOMPARE(list.getValueKind(1), pdf::PDFComponentPainter::TextKind::Data);
+
+    list.resize(400, 2 * 28);
+    for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
+    {
+        list.setLayoutDirection(direction);
+        const QImage image = renderWidget(&list, 1.0);
+        QCOMPARE(countLeakPixels(image), 0);
+        QVERIFY(image.copy(QRect(0, 0, 400, 28)) != image.copy(QRect(0, 28, 400, 28)));
     }
 }
 

@@ -1133,7 +1133,8 @@ void AppToolManageTest::sourcesDialog()
     pdf::PDFAppAssemblySourceStatus missing;
     missing.sourceId = QStringLiteral("s1");
     missing.state = pdf::PDFAppAssemblySourceState::Missing;
-    missing.filePath = QStringLiteral("C:/Tender/Tender_2026.pdf4qtassembly");
+    const QString missingFolder = QDir::rootPath() + QStringLiteral("Tender");     // absolute on every system
+    missing.filePath = missingFolder + QStringLiteral("/Tender_2026.pdf4qtassembly");
     pdf::PDFAppAssemblySourceStatus changed;
     changed.sourceId = QStringLiteral("s2");
     changed.state = pdf::PDFAppAssemblySourceState::Changed;
@@ -1142,7 +1143,7 @@ void AppToolManageTest::sourcesDialog()
     result.sources = { missing, changed };
 
     const pdf::PDFDocumentAssembly& assembly = result.content->assembly;
-    QCOMPARE(pdf::PDFAppManageSourcesDialog::getStateText(missing, assembly), QStringLiteral("Not found in %1").arg(QDir::toNativeSeparators(QStringLiteral("C:/Tender"))));
+    QCOMPARE(pdf::PDFAppManageSourcesDialog::getStateText(missing, assembly), QStringLiteral("Not found in %1").arg(QDir::toNativeSeparators(missingFolder)));
     QCOMPARE(pdf::PDFAppManageSourcesDialog::getMeaningText(missing, assembly), QStringLiteral("9 pages of the assembly use it"));
     QCOMPARE(pdf::PDFAppManageSourcesDialog::getStateText(changed, assembly), QStringLiteral("Changed on %1 – now 5 pages instead of 6").arg(pdf::PDFAppLocale::formatDate(changed.modified.toLocalTime().date())));
     QCOMPARE(pdf::PDFAppManageSourcesDialog::getMeaningText(changed, assembly), QStringLiteral("Page 6 is no longer available"));

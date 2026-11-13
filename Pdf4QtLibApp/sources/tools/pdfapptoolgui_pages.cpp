@@ -929,6 +929,13 @@ void PDFAppToolGUIRotatePages::describeRightPanel(PDFAppToolPanelBuilder& builde
     updateAll();
 }
 
+PDFAppToolCalloutPlace PDFAppToolGUIRotatePages::getCertificationCalloutPlace() const
+{
+    PDFAppToolCalloutPlace place;
+    place.index = -1;
+    return place;
+}
+
 void PDFAppToolGUIRotatePages::updatePanels()
 {
     const bool hasTargets = !getTargetPages().empty();

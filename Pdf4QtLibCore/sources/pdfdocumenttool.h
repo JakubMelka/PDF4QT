@@ -429,6 +429,7 @@ public:
     PDFDocumentToolPreselectedResult preselectedResult = PDFDocumentToolPreselectedResult::None;
     PDFDocumentToolSignatureImpact signatureImpact = PDFDocumentToolSignatureImpact::None;
     bool isNewDocumentOfInputs = false;     ///< PDFDocumentToolCatalogEntry::isNewDocumentOfInputs of the output
+    bool isPageChange = false;              ///< PDFDocumentToolCatalogEntry::isPageChange of the output (PDFDocMDPPermissions::isCertificationRemovedBy)
 };
 
 /// A tool of the catalog (newapp_tools.md 2, Běh). One instance serves all runs:
@@ -489,7 +490,15 @@ public:
     /// The default is PDFDocumentToolCatalogEntry::isNewDocumentOfInputs (false without an entry).
     virtual bool isNewDocumentOfInputs(const QVariantMap& parameters) const;
 
-    /// The four values above and the entry together (the one value of the rules of the
+    /// A run with the normalized parameters changes the pages of the open document, which no level
+    /// of a certification allows (ISO 32000-2, 12.8.2.2, Table 257): on a certified document the
+    /// run removes the certification and its result is only a copy (PDFDocMDPPermissions::
+    /// isCertificationRemovedBy - the one rule of the run, of the callout of the panel and of the
+    /// result; owner 13. 11. 2026). The default is PDFDocumentToolCatalogEntry::isPageChange
+    /// (false without an entry).
+    virtual bool isPageChange(const QVariantMap& parameters) const;
+
+    /// The values above and the entry together (the one value of the rules of the
     /// application, PDFDocumentToolOutputTraits); not virtual
     PDFDocumentToolOutputTraits getOutputTraits(const QVariantMap& parameters) const;
 

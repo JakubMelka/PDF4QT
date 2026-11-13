@@ -2783,9 +2783,10 @@ void AppDocumentPropertiesTest::launchPathElided()
     pdf::PDFMessageBox* dialog = pdf::PDFAppDocumentActionDialogs::createProgramDialog(&host, QStringLiteral("Report.pdf"), program, QString(), QStringLiteral("C:/Users/Jane/Downloads/") + QString(60, QLatin1Char('y')));
     pdf::PDFKeyValueList* facts = dialog->findChild<pdf::PDFKeyValueList*>(QStringLiteral("factList"));
     QVERIFY(facts);
+    // Start in is a folder: elided by its folders, the root and the last folder stay
     QCOMPARE(facts->getValueKind(0), pdf::PDFComponentPainter::TextKind::FileName);
     QCOMPARE(facts->getValueKind(1), pdf::PDFComponentPainter::TextKind::Data);
-    QCOMPARE(facts->getValueKind(2), pdf::PDFComponentPainter::TextKind::FileName);
+    QCOMPARE(facts->getValueKind(2), pdf::PDFComponentPainter::TextKind::Path);
     QVERIFY(facts->getValue(0).endsWith(QStringLiteral("invoice.pdf.exe")));
 
     // The value as the list draws it: elided, the extension stays
@@ -2804,8 +2805,14 @@ void AppDocumentPropertiesTest::launchPathElided()
     pdf::PDFMessageBox* file = pdf::PDFAppDocumentActionDialogs::createFileDialog(&host, QStringLiteral("Report.pdf"), program);
     pdf::PDFKeyValueList* fileFacts = file->findChild<pdf::PDFKeyValueList*>(QStringLiteral("factList"));
     QCOMPARE(fileFacts->getValueKind(0), pdf::PDFComponentPainter::TextKind::FileName);
-    QCOMPARE(fileFacts->getValueKind(1), pdf::PDFComponentPainter::TextKind::FileName);
+    QCOMPARE(fileFacts->getValueKind(1), pdf::PDFComponentPainter::TextKind::Path);
     QCOMPARE(fileFacts->getValueKind(2), pdf::PDFComponentPainter::TextKind::Data);
+
+    // The folder of the file as the list draws it: the root and the last folder stay
+    const qreal folderWidth = 220.0;
+    QVERIFY(pdf::PDFStylePainter::textWidth(fileFacts->getValue(1), font) > folderWidth);
+    const QString folder = pdf::PDFComponentPainter::elidedTextOfKind(fileFacts->getValue(1), font, folderWidth, fileFacts->getValueKind(1));
+    QVERIFY2(folder.endsWith(QString(QChar(0x2026)) + QDir::separator() + QStringLiteral("Quarterly reports 2026")), qPrintable(folder));
     delete file;
 }
 

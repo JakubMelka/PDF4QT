@@ -206,6 +206,14 @@ bool PDFDocMDPPermissions::isPageChangeAllowed(const PDFDocument* document)
     return isPageChangeAllowed(getLevel(document));
 }
 
+bool PDFDocMDPPermissions::isCertificationRemovedBy(const PDFDocument* document, const PDFDocumentToolOutputTraits& tool)
+{
+    // Table 257: no level allows a change of the pages; a tool, which leaves the pages of the
+    // open document as they are (a new document, files, an analysis, a rewrite of the file),
+    // keeps the document certified
+    return document && tool.isPageChange && !isPageChangeAllowed(document);
+}
+
 PDFDocument PDFDocMDPPermissions::removeCertification(const PDFDocument& document, PDFInteger* signaturesRemoved)
 {
     return PDFDocumentMerger::removeSignatures(document, signaturesRemoved);

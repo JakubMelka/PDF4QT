@@ -515,6 +515,8 @@ private slots:
     void reviewOpenFileLockedDocument();
     void reviewOpenFileWithPassword();
     void reviewChooserLongPath();
+    void reviewChooserDetailsDirection();
+    void resultFolderElidedByFolders();
     void dropGoesToTool();
     void noGuiStaysNotFound();
     void startPageLanguageChange();
@@ -3332,25 +3334,157 @@ void AppToolCompressTest::reviewOpenFileWithPassword()
 
 void AppToolCompressTest::reviewChooserLongPath()
 {
-    // 277:13694: "<folder> · 1,592 pages · 24.8 MB": the folder gives way, the pages and the
-    // size stay whole in a row of a long path
-    pdf::PDFAppToolDocumentRow row(QStringLiteral("id"), QStringLiteral("Report.pdf"),
-                                   QStringLiteral("C:\\Users\\Jakub\\Documents\\Projects\\2026\\A very long name of a folder of the documents\\Another very long name of a folder\\And one more folder of the documents"),
-                                   QStringLiteral("1,592 pages · 24.8 MB"), QString(), nullptr);
-    row.resize(784, 49);
-    const QString shown = row.getShownDetails();
-    QVERIFY2(shown.endsWith(QStringLiteral(" · 1,592 pages · 24.8 MB")), qPrintable(shown));
-    QVERIFY2(shown.contains(QChar(0x2026)), qPrintable(shown));
+    // 277:13694: "<folder> · 1,592 pages · 24.8 MB": the folder gives way by its folders - the
+    // root, as many leading folders as fit, "…" and the last folder (fluent-style.md,
+    // TextKind::Path) - the pages and the size stay whole; in both directions
+    const QString folder = QStringLiteral("C:\\Users\\Jakub\\Documents\\Projects\\2026\\Quarterly reports of the company\\Specifications");
+    const QString numbers = QStringLiteral("1,592 pages · 24.8 MB");
+    const QStringList parts = folder.split(QLatin1Char('\\'));
+    const QFont font = pdf::PDFThemeFonts::getFont(QFont::Normal, 11);
+    const QFontMetricsF metrics(font);
+    for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
+    {
+        pdf::PDFAppToolDocumentRow row(QStringLiteral("id"), QStringLiteral("Report.pdf"), folder, numbers, QString(), nullptr);
+        row.setLayoutDirection(direction);
+        row.setActionText(QString());
+        row.setTrailing(pdf::PDFAppToolDocumentRow::Trailing::None);
+        row.resize(420, 49);
+
+        // The text area: paddings 10, the icon 20 and the gap 12 (277:13689)
+        const int textLeft = pdf::PDFAppToolDocumentRow::PADDING + pdf::PDFAppToolDocumentRow::ICON + pdf::PDFAppToolDocumentRow::GAP;
+        const int textWidth = 420 - pdf::PDFAppToolDocumentRow::PADDING - textLeft;
+        const pdf::PDFComponentPainter::TextWithDetail line = row.getShownDetailsLine();
+        QCOMPARE(line.detail, QStringLiteral(" · ") + numbers);
+
+        // The largest count of the leading folders, which fits before the whole detail
+        const qreal folderSpace = textWidth - metrics.horizontalAdvance(line.detail);
+        QString expected;
+        for (qsizetype kept = parts.size() - 3; kept >= 0 && expected.isEmpty(); --kept)
+        {
+            const QString candidate = parts.mid(0, kept + 1).join(QLatin1Char('\\')) + QStringLiteral("\\") + QChar(0x2026) + QStringLiteral("\\") + parts.back();
+            if (metrics.horizontalAdvance(candidate) <= folderSpace)
+            {
+                expected = candidate;
+            }
+        }
+        QVERIFY(!expected.isEmpty());
+        QVERIFY2(expected.size() < folder.size(), qPrintable(expected));
+        QCOMPARE(line.text, expected);
+        QVERIFY(line.text.startsWith(QStringLiteral("C:\\Users\\")));
+        QVERIFY(line.text.endsWith(QString(QChar(0x2026)) + QStringLiteral("\\Specifications")));
+        QCOMPARE(row.getShownDetails(), expected + QStringLiteral(" · ") + numbers);
+
+        // The drawing: the line starts at the leading edge of the text area and is as wide as the
+        // elided folder and the whole detail; no leak color
+        const QImage image = AppToolShellFixture::render(&row, 1.0).convertToFormat(QImage::Format_RGB32);
+        QCOMPARE(AppToolShellFixture::countLeakPixels(image), 0);
+        const QRgb background = pdf::PDFStylePainter::color(pdf::PDFThemeColors::BgCanvas).rgb();
+        const int areaLeft = direction == Qt::LeftToRight ? textLeft : 420 - textLeft - textWidth;
+        int inkLeft = image.width();
+        int inkRight = -1;
+        for (int y = 28; y < 41; ++y)
+        {
+            for (int x = areaLeft; x < areaLeft + textWidth; ++x)
+            {
+                if (image.pixel(x, y) != background)
+                {
+                    inkLeft = qMin(inkLeft, x);
+                    inkRight = qMax(inkRight, x);
+                }
+            }
+        }
+        const qreal lineWidth = line.textWidth + metrics.horizontalAdvance(line.detail);
+        const int leadingInk = direction == Qt::LeftToRight ? inkLeft - areaLeft : areaLeft + textWidth - 1 - inkRight;
+        const int trailingInk = direction == Qt::LeftToRight ? areaLeft + qRound(lineWidth) - inkRight : inkLeft - (areaLeft + textWidth - qRound(lineWidth));
+        QVERIFY2(leadingInk >= 0 && leadingInk <= 3, qPrintable(QString::number(leadingInk)));
+        QVERIFY2(trailingInk >= -1 && trailingInk <= 4, qPrintable(QString::number(trailingInk)));
+    }
 
     // A short folder stays whole, as in the frame
-    pdf::PDFAppToolDocumentRow shortRow(QStringLiteral("id2"), QStringLiteral("Report.pdf"), QStringLiteral("C:\\Users\\Jakub\\Documents"), QStringLiteral("1,592 pages · 24.8 MB"), QString(), nullptr);
+    pdf::PDFAppToolDocumentRow shortRow(QStringLiteral("id2"), QStringLiteral("Report.pdf"), QStringLiteral("C:\\Users\\Jakub\\Documents"), numbers, QString(), nullptr);
     shortRow.resize(784, 49);
+    QCOMPARE(shortRow.getShownDetailsLine().text, QStringLiteral("C:\\Users\\Jakub\\Documents"));
     QCOMPARE(shortRow.getShownDetails(), QStringLiteral("C:\\Users\\Jakub\\Documents · 1,592 pages · 24.8 MB"));
 
     // A row without a file (Edit a Copy): only the numbers
     pdf::PDFAppToolDocumentRow noFile(QStringLiteral("id3"), QStringLiteral("Report.pdf"), QString(), QStringLiteral("3 pages"), QString(), nullptr);
     noFile.resize(784, 49);
     QCOMPARE(noFile.getShownDetails(), QStringLiteral("3 pages"));
+}
+
+void AppToolCompressTest::reviewChooserDetailsDirection()
+{
+    // Review C18: the folder is data in its own direction at the leading edge, the numbers are
+    // a detail of the interface after it in the direction of the row - in a right-to-left row
+    // at the left of the folder. The folder is drawn as without the numbers (the same pixels).
+    const QString folder = QStringLiteral("C:\\Tender");
+    const QFont font = pdf::PDFThemeFonts::getFont(QFont::Normal, 11);
+    const int folderWidth = qFloor(QFontMetricsF(font).horizontalAdvance(folder));
+    const int textLeft = pdf::PDFAppToolDocumentRow::PADDING + pdf::PDFAppToolDocumentRow::ICON + pdf::PDFAppToolDocumentRow::GAP;
+    const int textWidth = 420 - pdf::PDFAppToolDocumentRow::PADDING - textLeft;
+    for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
+    {
+        QImage images[2];
+        for (int i = 0; i < 2; ++i)
+        {
+            pdf::PDFAppToolDocumentRow row(QStringLiteral("id"), QStringLiteral("Tender.pdf"), folder, i == 0 ? QStringLiteral("17 pages") : QString(), QString(), nullptr);
+            row.setLayoutDirection(direction);
+            row.setActionText(QString());
+            row.setTrailing(pdf::PDFAppToolDocumentRow::Trailing::None);
+            row.resize(420, 49);
+            QCOMPARE(row.getShownDetailsLine().text, folder);
+            images[i] = AppToolShellFixture::render(&row, 1.0).convertToFormat(QImage::Format_RGB32);
+            QCOMPARE(AppToolShellFixture::countLeakPixels(images[i]), 0);
+        }
+
+        // The columns of the folder (without a pixel at its edges) are the same with the numbers
+        const int areaLeft = direction == Qt::LeftToRight ? textLeft : 420 - textLeft - textWidth;
+        const int folderLeft = direction == Qt::LeftToRight ? areaLeft + 1 : areaLeft + textWidth - folderWidth + 1;
+        const int folderRight = folderLeft + folderWidth - 3;
+        const QRect folderArea(folderLeft, 26, folderRight - folderLeft + 1, 15);
+        QCOMPARE(images[0].copy(folderArea), images[1].copy(folderArea));
+
+        // The numbers have their ink at the trailing side of the folder only
+        const QRgb background = pdf::PDFStylePainter::color(pdf::PDFThemeColors::BgCanvas).rgb();
+        int leadingSide = 0;
+        int trailingSide = 0;
+        for (int y = 26; y < 41; ++y)
+        {
+            for (int x = areaLeft; x < areaLeft + textWidth; ++x)
+            {
+                if (images[0].pixel(x, y) != images[1].pixel(x, y) && images[0].pixel(x, y) != background)
+                {
+                    const bool isAfter = direction == Qt::LeftToRight ? x > folderRight : x < folderLeft;
+                    (isAfter ? trailingSide : leadingSide) += 1;
+                }
+            }
+        }
+        QVERIFY(trailingSide > 0);
+        QCOMPARE(leadingSide, 0);
+    }
+}
+
+void AppToolCompressTest::resultFolderElidedByFolders()
+{
+    // 809:140625: the folder of a copy keeps the root and the last folder, the folders between
+    // give way; a short folder is whole, its whole path is the tooltip
+    // (a hidden label gets no resize event: the path is set after each resize)
+    pdf::PDFAppToolPathLabel label(nullptr);
+    const QString folder = QStringLiteral("C:\\Users\\Jakub\\Documents\\Projects\\2026\\Quarterly reports of the company\\Specifications");
+    for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
+    {
+        label.setLayoutDirection(direction);
+        label.resize(200, 20);
+        label.setPath(folder);
+        QVERIFY2(label.text().startsWith(QStringLiteral("C:\\Users\\")), qPrintable(label.text()));
+        QVERIFY2(label.text().endsWith(QString(QChar(0x2026)) + QStringLiteral("\\Specifications")), qPrintable(label.text()));
+        QVERIFY(QFontMetricsF(label.font()).horizontalAdvance(label.text()) <= 200.0);
+        QCOMPARE(label.toolTip(), folder);
+        QCOMPARE(AppToolShellFixture::countLeakPixels(AppToolShellFixture::render(&label, 1.0)), 0);
+    }
+    label.resize(600, 20);
+    label.setPath(folder);
+    QCOMPARE(label.text(), folder);
 }
 
 void AppToolCompressTest::dropGoesToTool()

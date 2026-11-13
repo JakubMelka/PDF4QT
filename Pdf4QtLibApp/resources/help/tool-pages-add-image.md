@@ -28,5 +28,5 @@ Add Image as Page inserts pictures as new pages of the open document, each place
 
 - The image file is not changed: the page shows a copy of it. A JPEG photo is kept as it is, without a new compression.
 - The open document keeps everything else, as with Insert Pages: a signed document is saved after its signed part, a password stays, a declaration of PDF/A stays and the result says that the new pages were not checked.
-- A document certified by its author (a certification signature) allows no change of its pages: the result can only be saved as a copy, written whole and without the signatures, and the tool says why. The certified original stays as it is.
+- A document certified by its author (a certification signature) allows no change of its pages: the result can only be saved as a copy, written whole and without the signatures. The right panel says so in a callout while you work in the tool, and the result says why again. The certified original stays as it is.
 - To make a new document of images, use **Images to PDF**; to change the content of a page, use **Edit Content**.

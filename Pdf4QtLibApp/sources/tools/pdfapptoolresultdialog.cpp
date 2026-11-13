@@ -333,7 +333,7 @@ void PDFAppToolPathLabel::resizeEvent(QResizeEvent* event)
 
 void PDFAppToolPathLabel::updateText()
 {
-    setText(PDFComponentPainter::elidedTextOfKind(m_path, font(), width(), PDFComponentPainter::TextKind::FileName));
+    setText(PDFComponentPainter::elidedTextOfKind(m_path, font(), width(), PDFComponentPainter::TextKind::Path));
 }
 
 // ---------------------------------------------------------------- option
@@ -1220,12 +1220,12 @@ void PDFAppToolResultDialog::updateTexts()
         {
             m_facts->addRow(tr("Written"), tr("%1 of %Ln · %2", nullptr, fileCount).arg(PDFAppLocale::formatNumber(qint64(writtenNames.size())), PDFDocumentToolFileOutput::formatFileNames(writtenNames)));
             m_facts->addRow(tr("Not written"), PDFDocumentToolFileOutput::formatFileNames(result.notWrittenFiles));
-            m_facts->addRow(tr("Folder"), QDir::toNativeSeparators(getWrittenFolder()), PDFComponentPainter::TextKind::FileName);
+            m_facts->addRow(tr("Folder"), QDir::toNativeSeparators(getWrittenFolder()), PDFComponentPainter::TextKind::Path);
         }
         else
         {
             m_facts->addRow(tr("Files"), tr("%Ln · %1", nullptr, int(writtenNames.size())).arg(PDFDocumentToolFileOutput::formatFileNames(writtenNames)));
-            m_facts->addRow(tr("Folder"), QDir::toNativeSeparators(getWrittenFolder()), PDFComponentPainter::TextKind::FileName);
+            m_facts->addRow(tr("Folder"), QDir::toNativeSeparators(getWrittenFolder()), PDFComponentPainter::TextKind::Path);
             qint64 size = 0;
             for (const QString& path : result.writtenFiles)
             {

@@ -87,7 +87,7 @@ public:
     ///        open document or of an input of a file)
     /// \param name Name of the file (data)
     /// \param folder Folder of the file, empty = none (data)
-    /// \param numbers "1,592 pages · 24.8 MB" (data), empty = none
+    /// \param numbers "1,592 pages · 24.8 MB" (a detail of the interface), empty = none
     /// \param tagText Text of the Tag, empty = none
     explicit PDFAppToolDocumentRow(const QString& documentId, const QString& name, const QString& folder, const QString& numbers, const QString& tagText, QWidget* parent);
     virtual ~PDFAppToolDocumentRow() override;
@@ -97,8 +97,13 @@ public:
     /// The whole line of the details 277:13694: "C:\Documents · 1,592 pages · 24.8 MB"
     QString getDetails() const;
 
-    /// The line as it is drawn: a long folder gives way (elided in the middle), the
-    /// numbers stay whole
+    /// The line as it is drawn (PDFComponentPainter::drawElidedTextWithDetail): a long
+    /// folder gives way by its folders (TextKind::Path: the root and the last folder stay),
+    /// the numbers stay whole after it. The folder is data in its own direction, the numbers
+    /// a detail of the interface in the direction of the row (review C18).
+    PDFComponentPainter::TextWithDetail getShownDetailsLine() const;
+
+    /// The text of \p getShownDetailsLine in the logical order (the folder, then the detail)
     QString getShownDetails() const;
 
     PDFTag* getTag() const { return m_tag.data(); }

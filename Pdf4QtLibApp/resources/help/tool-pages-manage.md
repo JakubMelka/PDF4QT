@@ -67,7 +67,7 @@ Started over an open document (Tools, Thumbnails › **Move pages**, or **Then c
 | --- | --- |
 | The open document | Its objects keep their numbers, so its bookmarks, links, labels and form fields stay with their pages. Every page keeps its label. |
 | Signatures | A signed document is saved after its signed part: the signatures stay valid and viewers list the page changes made after signing. A cloned page gets no signature field. |
-| Certified document | A certification allows no change of the pages: the result can only be saved as a copy, without the signatures. |
+| Certified document | A certification allows no change of the pages: the result can only be saved as a copy, without the signatures. The right panel says so in a callout while you arrange the pages. |
 | Password protection | The document stays protected; the change needs the permission to assemble the document. Without it the tool still opens and the pages can be arranged, but **Rearrange Pages** stays unavailable until you choose **Enter owner password…** in the right panel and unlock the document with its owner password. |
 | Tags | The reading order of the tags is not changed. Cloned pages are not tagged. |
 | Document parts | Removed, when the order of the pages changes. |

@@ -82,9 +82,12 @@ public:
     /// Table 257) allows to change the boxes of pages (Q12, R10): the certification is removed
     /// from the changed document (the values of the signatures, /Perms, /DSS - as Rotate,
     /// Remove and Insert), it is saved only as a copy written whole ("lost-copy-only")
-    static void addDocument(PDFDocumentToolResult* result, const PDFDocumentToolInputDocument& input, PDFDocument document, const QString& suffix, PDFModifiedDocument::ModificationFlags flags)
+    /// \param tool The output of the run (PDFDocMDPPermissions::isCertificationRemovedBy, the rule
+    ///        of the callout of the panel, owner 13. 11.)
+    static void addDocument(PDFDocumentToolResult* result, const PDFDocumentToolInputDocument& input, PDFDocument document, const QString& suffix, PDFModifiedDocument::ModificationFlags flags,
+                            const PDFDocumentToolOutputTraits& tool)
     {
-        const bool isCertified = PDFDocumentToolGeometry::isCertified(input.document.data());
+        const bool isCertified = PDFDocMDPPermissions::isCertificationRemovedBy(input.document.data(), tool);
         PDFInteger certificationSignaturesRemoved = 0;
         if (isCertified)
         {
@@ -521,7 +524,7 @@ PDFDocumentToolResult PDFDocumentToolCropPages::execute(const PDFDocumentToolCon
     result.data.insert(QStringLiteral("pageSizeBefore"), QJsonArray({ before.width(), before.height() }));
     result.data.insert(QStringLiteral("pageSizeAfter"), QJsonArray({ after.width(), after.height() }));
     result.data.insert(QStringLiteral("thumbnailsRemoved"), statistics.thumbnailsRemoved);
-    Helper::addDocument(&result, input, std::move(output), isRemove ? QStringLiteral("_uncropped") : QStringLiteral("_cropped"), PDFModifiedDocument::Reset);
+    Helper::addDocument(&result, input, std::move(output), isRemove ? QStringLiteral("_uncropped") : QStringLiteral("_cropped"), PDFModifiedDocument::Reset, getOutputTraits(parameters));
     return result;
 }
 
@@ -890,7 +893,7 @@ PDFDocumentToolResult PDFDocumentToolResizePages::execute(const PDFDocumentToolC
     {
         flags |= PDFModifiedDocument::Annotation;
     }
-    Helper::addDocument(&result, input, std::move(output), QStringLiteral("_resized"), flags);
+    Helper::addDocument(&result, input, std::move(output), QStringLiteral("_resized"), flags, getOutputTraits(parameters));
     return result;
 }
 
@@ -1231,7 +1234,7 @@ PDFDocumentToolResult PDFDocumentToolSetPageBoxes::execute(const PDFDocumentTool
     result.data.insert(QStringLiteral("basedOn"), PDFPageGeometry::getBoxName(basedOn.value_or(PDFPageGeometry::Box::TrimBox)));
     result.data.insert(QStringLiteral("writeTo"), writtenBoxes);
     result.data.insert(QStringLiteral("outsideMediaPages"), Helper::getPageNumbers(outsideMediaPages));
-    Helper::addDocument(&result, input, std::move(output), QStringLiteral("_boxes"), PDFModifiedDocument::Reset);
+    Helper::addDocument(&result, input, std::move(output), QStringLiteral("_boxes"), PDFModifiedDocument::Reset, getOutputTraits(parameters));
     return result;
 }
 

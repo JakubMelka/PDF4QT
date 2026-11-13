@@ -400,6 +400,9 @@ void AppToolImagesTest::imagesFrameOfTwoImages()
     // Selected image and Summary
     QCOMPARE(gui->getSelectedCard()->getTag()->text(), QStringLiteral("1 of 2"));
     QCOMPARE(gui->getSelectedCard()->getValues()->getValue(0), QStringLiteral("IMG_2041.png"));
+    // The folder is elided by its folders: the root and the last folder stay (fluent-style.md)
+    QCOMPARE(gui->getSelectedCard()->getValues()->getValue(1), QDir::toNativeSeparators(QFileInfo(landscape).absolutePath()));
+    QCOMPARE(gui->getSelectedCard()->getValues()->getValueKind(1), pdf::PDFComponentPainter::TextKind::Path);
     QCOMPARE(gui->getSelectedCard()->getValues()->getValue(2), QStringLiteral("400 × 300 px"));
     QCOMPARE(gui->getSelectedCard()->getValues()->getValue(3), QStringLiteral("None"));
     QCOMPARE(gui->getSelectedCard()->getValues()->getValue(5), QStringLiteral("A4 landscape"));

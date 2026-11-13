@@ -37,6 +37,7 @@
 #include "mergetestpdf.h"
 
 #include <QBuffer>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QImage>
 #include <QJsonArray>
@@ -998,12 +999,14 @@ void DocumentAssemblyTest::limitsOfOperations()
 void DocumentAssemblyTest::fileRoundTrip()
 {
     // Plan 4.3: write → read = the same sources, items and checkpoints (the sizes of the pages are
-    // not in the file, the application fills them by updateSource)
+    // not in the file, the application fills them by updateSource); the folder is absolute on
+    // every system ("C:/Tender" on Windows, "/Tender" elsewhere)
     const QByteArray png = createPng(30, 40);
+    const QString folder = QDir::rootPath() + QStringLiteral("Tender");
     std::vector<Source> sources;
     Source a = createSource(QStringLiteral("s1"), QStringLiteral("Contract.pdf"), 6, QSizeF(), 600000);
     a.pageSizes.clear();
-    a.path = QStringLiteral("E:/Tender/Contract.pdf");
+    a.path = folder + QStringLiteral("/Contract.pdf");
     a.modified = QDateTime(QDate(2026, 9, 28), QTime(10, 42, 0), QTimeZone::UTC);
     a.sha256 = QByteArray(32, '\x5A');
     Source b = createSource(QStringLiteral("s2"), QStringLiteral("Annex_A.pdf"), 24, QSizeF(), -1);
@@ -1037,7 +1040,7 @@ void DocumentAssemblyTest::fileRoundTrip()
     content.outputParameters.insert(QStringLiteral("fileName"), QStringLiteral("##_{group_name}"));
     content.outputParameters.insert(QStringLiteral("password"), QStringLiteral("secret"));
 
-    const QByteArray bytes = pdf::PDFDocumentAssemblyFile::write(content, QStringLiteral("E:/Tender"));
+    const QByteArray bytes = pdf::PDFDocumentAssemblyFile::write(content, folder);
     const QJsonObject json = QJsonDocument::fromJson(bytes).object();
     QCOMPARE(json.value(QStringLiteral("format")).toString(), QStringLiteral("PDF4QT Assembly"));
     QCOMPARE(json.value(QStringLiteral("version")).toInt(), 1);

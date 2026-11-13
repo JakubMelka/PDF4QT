@@ -186,6 +186,18 @@ public:
     PDFAppToolProgressCard* getProgressCard() const { return m_progressCard.data(); }
     PDFAppToolCallout* getBusyCallout() const { return m_busyCallout.data(); }
 
+    /// The callout of a certified document (owner decision of 13. 11. 2026): the run of the values
+    /// of now would remove the certification (isCertificationRemoved), the user learns it while
+    /// working in the tool, not only in the result dialog; nullptr = none. Amber with the icon of a
+    /// certificate in the compact style of the callouts of Manage Pages (1479:35631), at the place
+    /// of PDFDocumentToolGUI::getCertificationCalloutPlace; it follows the document and the
+    /// parameters. Running stays allowed.
+    PDFAppToolCallout* getCertificationCallout() const { return m_certificationCallout.data(); }
+
+    /// A run of the tool with the values of now would remove the certification of the document of
+    /// the tool: PDFDocMDPPermissions::isCertificationRemovedBy - the rule of the run itself
+    bool isCertificationRemoved() const;
+
     /// The result dialog and the refusal of a missing permission (nullptr = none is open)
     PDFAppToolResultDialog* getResultDialog() const { return m_resultDialog.data(); }
     PDFMessageBox* getPermissionDialog() const { return m_permissionDialog.data(); }
@@ -227,6 +239,10 @@ private:
     void applyEnvironment();
     void showProgress(bool isShown);
     void updateProgress(int percentage, const QString& stepText);
+
+    /// Shows or removes the callout of a certified document by isCertificationRemoved; \p isPlacedAgain
+    /// creates it again at its place (a new content of the right panel). No signal, no foreign code.
+    void updateCertificationCallout(bool isPlacedAgain);
     /// \param isStoppedFilesResult The written files of a stopped run (403:29978): the tool returns
     ///        to its settings after the dialog; the flag is set only, when the dialog is opened
     void openResultDialog(const PDFDocumentToolResult& result, bool isStoppedFilesResult);
@@ -300,6 +316,7 @@ private:
     QPointer<QWidget> m_partsParent;    ///< Holds the parts, while they are not shown
     QPointer<PDFAppToolProgressCard> m_progressCard;
     QPointer<PDFAppToolCallout> m_busyCallout;
+    QPointer<PDFAppToolCallout> m_certificationCallout;    ///< Owned by the right panel or by the content of the GUI (its layout); dies with them
     QPointer<PDFAppToolResultDialog> m_resultDialog;
     QPointer<PDFAppToolFileConflictDialog> m_fileConflictDialog;   ///< The question of an existing file during a run (new, deletes itself)
     bool m_isStoppedFilesResult = false;    ///< The result dialog shows the written files of a stopped run: the tool returns to its settings (403:29978)

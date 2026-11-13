@@ -380,9 +380,10 @@ PDFDocumentToolResult PDFDocumentToolInsertBase::execute(const PDFDocumentToolCo
     PDFDocument output = std::move(inserted.document);
     const PDFDocumentMerger::Statistics& statistics = inserted.statistics;
 
-    // Q12, R10: a certified document allows no change of its pages - the result is a copy
+    // Q12, R10: a certified document allows no change of its pages - the result is a copy (the
+    // rule of the callout of the panel, owner 13. 11.)
     PDFInteger certificationSignaturesRemoved = 0;
-    const bool isCertified = !PDFDocMDPPermissions::isPageChangeAllowed(target);
+    const bool isCertified = PDFDocMDPPermissions::isCertificationRemovedBy(target, getOutputTraits(parameters));
     if (isCertified)
     {
         output = PDFDocMDPPermissions::removeCertification(output, &certificationSignaturesRemoved);

@@ -389,9 +389,15 @@ void AppMcpPagesPackages::registerManageCases(std::vector<AppMcpPagesCase>* case
         QVERIFY(result->isError);
         QVERIFY2(result->getFirstText().startsWith(QStringLiteral("result: ")), qPrintable(result->getFirstText()));
 
-        // A source of another computer: refused, never contacted
+        // A source of another computer: refused, never contacted. The network path of the system
+        // (PDFAppNetworkPaths): a UNC path of Windows; elsewhere a backslash is a character of a
+        // relative file name, a share of another computer is a mount of GVFS
         pdf::PDFDocumentAssembly::Source remote = H::createSource(QStringLiteral("s1"), contract, 2);
+#ifdef Q_OS_WIN
         remote.path = QStringLiteral("\\\\server\\share\\Contract.pdf");
+#else
+        remote.path = QStringLiteral("/run/user/1000/gvfs/smb-share:server=server,share=share/Contract.pdf");
+#endif
         const QString remotePath = H::writeAssembly(fixture.path(QStringLiteral("Remote.pdf4qtassembly")), { remote }, { H::createItem(QStringLiteral("a"), 0, { 0 }) });
         QVERIFY(!remotePath.isEmpty());
         result = H::call(fixture, QJsonObject({ { QStringLiteral("assemblyPath"), remotePath }, { QStringLiteral("output"), QStringLiteral("one-pdf") } }),

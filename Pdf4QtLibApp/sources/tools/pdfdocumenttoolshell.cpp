@@ -40,6 +40,7 @@
 #include "pdfapptooltoolbar.h"
 #include "pdfdocumenttoolgui.h"
 
+#include "pdfdocmdppermissions.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttoolusage.h"
 #include "pdfmessagebox.h"
@@ -177,6 +178,7 @@ bool PDFDocumentToolShell::enter()
     m_toolbar->installEventFilter(this);
 
     createContent();
+    updateCertificationCallout(false);
 
     PDFAppToolModeParts parts;
     parts.toolbar = m_toolbar;
@@ -909,6 +911,61 @@ void PDFDocumentToolShell::showProgress(bool isShown)
     }
 }
 
+bool PDFDocumentToolShell::isCertificationRemoved() const
+{
+    const PDFAppDocument* document = m_host ? m_host->getDocument() : nullptr;
+    const PDFDocumentPointer pdfDocument = document ? document->getDocument() : PDFDocumentPointer();
+    if (!m_tool || !m_gui || !pdfDocument)
+    {
+        return false;
+    }
+
+    // The values a run would get now; the run decides by the same function (Table 257: no level of
+    // a certification allows a change of the pages)
+    return PDFDocMDPPermissions::isCertificationRemovedBy(pdfDocument.data(), m_tool->getOutputTraits(m_gui->getRunParameters()));
+}
+
+void PDFDocumentToolShell::updateCertificationCallout(bool isPlacedAgain)
+{
+    const bool isShown = m_rightPanel && m_gui && m_state != State::Closed && isCertificationRemoved();
+    if (m_certificationCallout && (!isShown || isPlacedAgain))
+    {
+        delete m_certificationCallout.data();
+    }
+    if (!isShown || m_certificationCallout)
+    {
+        return;
+    }
+
+    // Owner decision of 13. 11.: the user learns it while working in the tool, running stays
+    // allowed. The callout of Manage Pages 1479:35631 (compact) in the hue of a warning: the run
+    // is possible, its result is only a copy (the result dialog says it again, Q12, R10).
+    PDFAppToolCallout* callout = new PDFAppToolCallout(PDFAccentHue::Amber, QStringLiteral("certificate"), tr("This document is certified"),
+                                                       tr("Its pages cannot change, so the result will be a copy without the certification and the signatures."),
+                                                       m_rightPanel->getContentParent());
+    callout->setObjectName(QStringLiteral("toolCertificationCallout"));
+    callout->setCompactStyle();
+
+    const PDFAppToolCalloutPlace place = m_gui->getCertificationCalloutPlace();
+    if (place.layout)
+    {
+        place.layout->insertWidget(place.index, callout);
+    }
+    else
+    {
+        // Around the content of the right panel: above it, or below it before the stretch
+        QVBoxLayout* body = m_rightPanel->getBodyLayout();
+        const int contentIndex = m_rightContent ? body->indexOf(m_rightContent.data()) : -1;
+        int index = contentIndex >= 0 ? contentIndex : 0;
+        if (place.index < 0)
+        {
+            index = contentIndex >= 0 ? contentIndex + 1 : body->count() - 1;
+        }
+        body->insertWidget(index, callout);
+    }
+    m_certificationCallout = callout;
+}
+
 int PDFDocumentToolShell::getRemainingSeconds(int percentage) const
 {
     // The first percents say nothing about the rest of the run
@@ -1084,6 +1141,8 @@ void PDFDocumentToolShell::onParameterChanged(const QString& name)
     }
     if (guard)
     {
+        // Manage Pages: only the output This document changes the pages
+        updateCertificationCallout(false);
         updateToolbar();
         updateStatus();
         updatePreview();
@@ -1340,6 +1399,8 @@ void PDFDocumentToolShell::onDocumentChanged()
         return;
     }
 
+    // Another document, the certification removed by another tool, Undo (owner 13. 11.)
+    updateCertificationCallout(false);
     updateStatus();
     if (wasRefused != m_isPermissionRefused)
     {
@@ -1611,6 +1672,7 @@ void PDFDocumentToolShell::onLanguageChanged()
     const bool isRunning = m_state == State::Running;
     showProgress(false);
     createContent();
+    updateCertificationCallout(true);
     if (isRunning)
     {
         m_gui->setContentEnabled(false);

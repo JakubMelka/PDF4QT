@@ -25,7 +25,7 @@ Resize Pages changes the paper size of pages: the content is scaled to fit or ke
 - Margins, which leave no room for the content, are refused with the size, which fits.
 - A page turned by 90° is measured as it is shown: its new sheet lies as it is seen.
 - Moving or scaling comments and form fields needs the permission to change them, when the document is protected by permissions.
-- A signed document stays signed: the change is saved after the signed part of the file. A certified document can be changed only as a copy.
+- A signed document stays signed: the change is saved after the signed part of the file. A certified document can be changed only as a copy, without the certification and the signatures; the right panel says so in a callout while you work in the tool.
 
 ### Assistants
 

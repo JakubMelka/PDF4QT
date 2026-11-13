@@ -177,6 +177,8 @@ public:
 /// the label by PDFComponentPainter::drawElidedText: a text of data keeps its own
 /// direction, a name of a file is elided in the middle. The whole text is the
 /// tooltip, when it is elided. The label is never wider than its layout gives it.
+/// A detail after the text ("C:\Tender · page 7") stays whole, the text gives way
+/// (PDFComponentPainter::drawElidedTextWithDetail).
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppElidedLabel : public PDFLabel
 {
     Q_OBJECT
@@ -190,7 +192,13 @@ public:
 
     PDFComponentPainter::TextKind getTextKind() const { return m_kind; }
 
-    /// The text is elided at the current width
+    /// A text of the interface after the text, separated by " · ", always whole and
+    /// in the direction of the label (empty = none); it is also the accessible
+    /// description of the label
+    const QString& getDetail() const { return m_detail; }
+    void setDetail(const QString& detail);
+
+    /// The text (or its detail) is elided at the current width
     bool isElided() const;
 
     virtual QSize sizeHint() const override;
@@ -201,7 +209,11 @@ protected:
     virtual bool event(QEvent* event) override;
 
 private:
+    /// Width of the text and of the detail with its separator
+    qreal getWholeWidth() const;
+
     PDFComponentPainter::TextKind m_kind;
+    QString m_detail;
 };
 
 /// Area for a drop of PDF files (drop-zone of Open 61:1201 and of Home 28:4; a

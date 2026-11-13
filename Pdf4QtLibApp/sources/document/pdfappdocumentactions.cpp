@@ -265,7 +265,7 @@ PDFMessageBox* PDFAppDocumentActionDialogs::createProgramDialog(QWidget* parent,
     QList<Fact> facts;
     facts << Fact{ tr("Program"), Helper::value(QDir::toNativeSeparators(program)), Kind::FileName };
     facts << Fact{ tr("Parameters"), parameters.isEmpty() ? tr("None") : Helper::value(parameters), Kind::Data };
-    facts << Fact{ tr("Start in"), Helper::value(QDir::toNativeSeparators(directory)), Kind::FileName };
+    facts << Fact{ tr("Start in"), Helper::value(QDir::toNativeSeparators(directory)), Kind::Path };
     box->addContent(Helper::createFacts(facts, box));
 
     PDFAppDocumentActionDialogCloser* closer = new PDFAppDocumentActionDialogCloser(box);
@@ -292,7 +292,7 @@ PDFMessageBox* PDFAppDocumentActionDialogs::createFileDialog(QWidget* parent, co
     using Kind = PDFComponentPainter::TextKind;
     QList<Fact> facts;
     facts << Fact{ tr("File"), Helper::value(fileInfo.fileName()), Kind::FileName };
-    facts << Fact{ tr("Folder"), Helper::value(QDir::toNativeSeparators(fileInfo.absolutePath())), Kind::FileName };
+    facts << Fact{ tr("Folder"), Helper::value(QDir::toNativeSeparators(fileInfo.absolutePath())), Kind::Path };
     facts << Fact{ tr("Opens in"), suffix.isEmpty() ? tr("The program set for the file") : tr("The program set for .%1 files").arg(Helper::value(suffix)), Kind::Data };
     box->addContent(Helper::createFacts(facts, box));
 

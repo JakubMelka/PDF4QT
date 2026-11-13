@@ -25,7 +25,10 @@
 // page of the preview, the stage of a page, the result dialog (plan 6, 8)
 
 #include "apptoolpageslifetime.h"
+#include "mergetestpdf.h"
 
+#include "pdfappdocument.h"
+#include "pdfappundostack.h"
 #include "pdfapptoolcropoverlay.h"
 #include "pdfapptoolgui_geometry.h"
 #include "pdfapptoolpagestage.h"
@@ -34,8 +37,11 @@
 #include "pdfdocumenttoolshell.h"
 
 #include "pdfanchorgrid.h"
+#include "pdfdocmdppermissions.h"
 #include "pdfdocumenttool_geometry.h"
 
+#include <QCheckBox>
+#include <QFile>
 #include <QtTest>
 
 /// Helpers of the scenarios of package B
@@ -118,6 +124,23 @@ public:
         }
         Steps::settle();
         return true;
+    }
+
+    /// A certified document of three pages (DocMDP /P 2, ISO 32000-2 12.8.2.2) in its tab
+    static pdf::PDFAppDocumentTab* openCertified(pdftest::AppToolShellFixture& fixture)
+    {
+        mergetest::MergeTestPdf pdf = mergetest::MergeTestPdf::createPages("C", 3, "/AcroForm << /Fields [60 0 R] /SigFlags 3 >> /Perms << /DocMDP 61 0 R >>", { { 1, "/Annots [60 0 R]" } });
+        pdf.set(60, "<< /Type /Annot /Subtype /Widget /FT /Sig /T (cert) /V 61 0 R /Rect [0 0 0 0] /P 3 0 R >>");
+        pdf.set(61, "<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /ByteRange [0 0 0 0] /Contents <00> /Reference [<< /TransformMethod /DocMDP /TransformParams << /P 2 >> >>] >>");
+        const QByteArray bytes = pdf.write();
+        const QString path = fixture.folder() + QStringLiteral("/certified-crop.pdf");
+        QFile file(path);
+        if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size())
+        {
+            return nullptr;
+        }
+        file.close();
+        return fixture.open(path);
     }
 
     /// A drag of the right handle of the box of the crop by the mouse
@@ -293,4 +316,74 @@ void ToolPagesLifetimePackages::registerGeometryScenarios(std::vector<ToolPagesL
         steps->push_back([](ToolPagesLifetimeRun& run) { return Steps::confirmDialog(run, Steps::confirmToDialog(run)); });
     };
     scenarios->push_back(boxes);
+
+    // certifiedcrop (owner decision of 13. 11. 2026): Crop Pages on a certified document - the
+    // callout of the shell (PDFDocumentToolShell::getCertificationCallout) is made at the entry,
+    // removed by a change of the document, which removes the certification, made again by Undo
+    // and by a change of the language; the run ends in the result dialog of the copy, which
+    // opens the copy in a new tab (its view is built inside of the emissions of the dialog)
+    ToolPagesLifetimeScenario certified;
+    certified.name = QStringLiteral("certifiedcrop");
+    certified.toolId = QStringLiteral("pages.crop");
+    certified.hasResultDialog = true;
+    certified.openDocument = &H::openCertified;
+    certified.addSteps = [](std::vector<ToolPagesLifetimeStep>* steps)
+    {
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            pdf::PDFDocumentToolShell* shell = Steps::openTool(run) ? Steps::shell(run) : nullptr;
+            return shell && shell->getCertificationCallout();
+        });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            // Remove Crop and back: two changes of the parameters (the callout is updated by each)
+            pdf::PDFAppCropToolGUI* current = H::gui<pdf::PDFAppCropToolGUI>(run);
+            if (!current || !Steps::click(current->getRemoveButton()))
+            {
+                return false;
+            }
+            current = H::gui<pdf::PDFAppCropToolGUI>(run);
+            return current && Steps::click(current->getRemoveButton());
+        });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            // Another tool removes the certification below the open tool, then the certified
+            // version comes back (the Undo of the document is refused while a tool is open)
+            pdf::PDFAppDocument* document = run.tab ? run.tab->getDocument() : nullptr;
+            if (!document || !document->getDocument())
+            {
+                return false;
+            }
+            const pdf::PDFDocumentPointer certified = document->getDocument();
+            const pdf::PDFDocumentPointer changed(new pdf::PDFDocument(pdf::PDFDocMDPPermissions::removeCertification(*certified, nullptr)));
+            QPointer<pdf::PDFAppDocument> guard(document);
+            document->commit(pdf::PDFModifiedDocument(changed, nullptr, pdf::PDFModifiedDocument::Reset), QStringLiteral("Assistant"), document->getVersion(), pdf::PDFAppChangeSource::Mcp);
+            Steps::settle();
+            if (guard)
+            {
+                guard->getUndoStack()->undo();
+                guard->commit(pdf::PDFModifiedDocument(certified, nullptr, pdf::PDFModifiedDocument::Reset), QStringLiteral("Assistant"), guard->getVersion(), pdf::PDFAppChangeSource::Mcp);
+                Steps::settle();
+            }
+            return true;
+        });
+        steps->push_back([](ToolPagesLifetimeRun& run)
+        {
+            // Save as a copy, the only choice of a certified document (Q12); "Open the copy"
+            // stays checked: the copy opens in a new tab of the window
+            QPointer<pdf::PDFAppToolResultDialog> dialog = Steps::confirmToDialog(run);
+            if (!dialog || !dialog->getOpenCheckBox() || !dialog->getOpenCheckBox()->isChecked())
+            {
+                return false;
+            }
+            if (!Steps::confirmDialog(run, dialog.data()))
+            {
+                return false;
+            }
+            // The copy has its tab next to the tab of the certified document
+            const QList<pdf::PDFAppDocumentTab*> tabs = run.window ? run.window->getDocumentTabs() : QList<pdf::PDFAppDocumentTab*>();
+            return tabs.size() == 2 && tabs.contains(run.tab.data());
+        });
+    };
+    scenarios->push_back(certified);
 }

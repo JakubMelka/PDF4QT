@@ -596,6 +596,13 @@ bool PDFDocumentTool::isNewDocumentOfInputs(const QVariantMap& parameters) const
     return entry && entry->isNewDocumentOfInputs();
 }
 
+bool PDFDocumentTool::isPageChange(const QVariantMap& parameters) const
+{
+    Q_UNUSED(parameters);
+    const PDFDocumentToolCatalogEntry* entry = getInfo();
+    return entry && entry->isPageChange();
+}
+
 PDFDocumentToolOutputTraits PDFDocumentTool::getOutputTraits(const QVariantMap& parameters) const
 {
     PDFDocumentToolOutputTraits traits;
@@ -604,6 +611,7 @@ PDFDocumentToolOutputTraits PDFDocumentTool::getOutputTraits(const QVariantMap& 
     traits.preselectedResult = getPreselectedResult(parameters);
     traits.signatureImpact = getSignatureImpact(parameters);
     traits.isNewDocumentOfInputs = isNewDocumentOfInputs(parameters);
+    traits.isPageChange = isPageChange(parameters);
     return traits;
 }
 
@@ -616,6 +624,7 @@ PDFDocumentToolOutputTraits::PDFDocumentToolOutputTraits(const PDFDocumentToolCa
         preselectedResult = entry->getPreselectedResult();
         signatureImpact = entry->getSignatureImpact();
         isNewDocumentOfInputs = entry->isNewDocumentOfInputs();
+        isPageChange = entry->isPageChange();
     }
 }
 

@@ -39,6 +39,6 @@ Blank pages have the size and the rotation of the page next to the place (**As p
 | PDF/A, PDF/UA, PDF/X | The declaration of the document stays; the result says that the inserted pages were not checked. |
 | Replaced pages | Removed with everything that leads to them, as by Remove Pages, in one step with the insertion. |
 
-- A document certified by its author (a certification signature) allows no change of its pages: the result can only be saved as a copy, written whole and without the signatures, and the tool says why. The certified original stays as it is.
+- A document certified by its author (a certification signature) allows no change of its pages: the result can only be saved as a copy, written whole and without the signatures. The right panel says so in a callout while you work in the tool, and the result says why again. The certified original stays as it is.
 - A source, which restricts printing, copying or changes, needs its owner password: its pages would lose the restriction in the document.
 - The pages come back with Undo until the document is closed.

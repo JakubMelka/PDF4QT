@@ -347,6 +347,16 @@ public:
     /// document - false here -, One PDF is a new document of the inputs; RB3 a of step 3b).
     bool isNewDocumentOfInputs() const;
 
+    /// The run changes the pages of the open document - inserts, removes, rotates, crops, resizes
+    /// them, writes their boxes or arranges them (Insert Pages, Add Image as Page, Remove Pages,
+    /// Rotate Pages, Crop Pages, Resize Pages, Set Page Boxes, Manage Pages This document). No
+    /// level of a certification allows it (ISO 32000-2, 12.8.2.2, Table 257): the run of such a
+    /// tool removes the certification of a certified document (PDFDocMDPPermissions::
+    /// isCertificationRemovedBy). The value of the row of the catalog; a tool, whose output
+    /// decides it, answers by its parameters (PDFDocumentTool::isPageChange; Manage Pages: only
+    /// This document changes the open document).
+    bool isPageChange() const;
+
     /// External dependency (default None)
     PDFDocumentToolExternalDependency getExternalDependency() const;
 

@@ -31,6 +31,7 @@
 namespace pdf
 {
 
+class PDFDocumentToolOutputTraits;
 class PDFDocumentToolResult;
 class PDFObjectWalk;
 
@@ -51,7 +52,9 @@ class PDFObjectWalk;
 ///    with the values of DocMDP since PDF 2.0; they apply, when the field is signed (a field
 ///    without its value has not applied its lock yet; without /P the lock changes no permission
 ///    of the document). getLevel is the strictest of DocMDP and of the locks of the signed fields.
-///  - The tools call it in their validation, the shell and MCP in the choices of the result.
+///  - The tools call it in their validation, the shell and MCP in the choices of the result. The
+///    run of a page tool and the callout of its panel (owner 13. 11. 2026) decide by one function,
+///    isCertificationRemovedBy.
 ///  - Every function is reentrant, it reads only the document (a hostile /Perms, /Reference,
 ///    /TransformParams or /Lock of a wrong type is not certified or the default level 2; the
 ///    field tree is walked once with one visited set and a depth limit).
@@ -91,6 +94,15 @@ public:
 
     /// A change of the pages keeps the certification of the document valid (getLevel)
     static bool isPageChangeAllowed(const PDFDocument* document);
+
+    /// A run of the tool with the output \p tool on \p document removes its certification
+    /// (removeCertification): the run changes the pages (PDFDocumentToolOutputTraits::isPageChange)
+    /// and the document allows no change of its pages (isPageChangeAllowed). The one decision of
+    /// the run of a page tool, of the callout of its panel while the user works in it (owner
+    /// 13. 11. 2026) and so of its result - they never disagree. False for nullptr.
+    /// \param document The open document of the tool
+    /// \param tool The output of the run with its parameters (PDFDocumentTool::getOutputTraits)
+    static bool isCertificationRemovedBy(const PDFDocument* document, const PDFDocumentToolOutputTraits& tool);
 
     /// The document of a certified document, whose pages a tool has changed (Q12, R10): it can
     /// only be saved as a copy written whole, so it carries no broken certification - the values

@@ -300,6 +300,9 @@ public:
     virtual void onParametersChanged(const QString& name) override;
     virtual void onDocumentChanged() override;
 
+    /// Below the content of the right panel: the place of the only callout of the frames (389:20904)
+    virtual PDFAppToolCalloutPlace getCertificationCalloutPlace() const override;
+
 protected:
     virtual void describeToolbar(PDFAppToolPanelBuilder& builder) override;
     virtual void describeRightPanel(PDFAppToolPanelBuilder& builder) override;

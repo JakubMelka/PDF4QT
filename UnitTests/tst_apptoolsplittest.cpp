@@ -842,6 +842,9 @@ void AppToolSplitTest::splitWrittenFilesDialog()
     QVERIFY(!dialog->isStoppedRun());
     QCOMPARE(H::factKeys(dialog->getFacts()), QStringList({ "Files", "Folder", "Size" }));
     QCOMPARE(dialog->getFacts()->getValue(0), QStringLiteral("4 · Handbook_1.pdf … Handbook_4.pdf"));
+    // The folder is elided by its folders: the root and the last folder stay (fluent-style.md)
+    QCOMPARE(dialog->getFacts()->getValue(1), QDir::toNativeSeparators(folder));
+    QCOMPARE(dialog->getFacts()->getValueKind(1), pdf::PDFComponentPainter::TextKind::Path);
     QVERIFY(dialog->getOpenFilesCheckBox());
     QCOMPARE(dialog->getOpenFilesCheckBox()->text(), QStringLiteral("Open the files in new tabs"));
     QCOMPARE(dialog->getConfirmButton()->text(), QStringLiteral("Open Folder"));
@@ -975,6 +978,7 @@ void AppToolSplitTest::splitStoppedDialog()
     QVERIFY(dialog);
     QVERIFY(dialog->isStoppedRun());
     QCOMPARE(H::factKeys(dialog->getFacts()), QStringList({ "Written", "Not written", "Folder" }));
+    QCOMPARE(dialog->getFacts()->getValueKind(2), pdf::PDFComponentPainter::TextKind::Path);
     QCOMPARE(dialog->getFacts()->getValue(0), QStringLiteral("1 of 3 · Handbook_1.pdf"));
     QCOMPARE(dialog->getFacts()->getValue(1), QStringLiteral("Handbook_2.pdf, Handbook_3.pdf"));
     QVERIFY(dialog->getDiscardButton()->isVisible());

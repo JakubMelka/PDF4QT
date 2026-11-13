@@ -72,6 +72,7 @@ class PDF4QTLIBAPPSHARED_EXPORT PDFAppBuildInfoRow
 public:
     QString key;
     QString value;
+    bool isFolder = false;  ///< The value is a folder (elided in the middle by its folders)
 };
 
 /// Information about the running build for the page About (Build information

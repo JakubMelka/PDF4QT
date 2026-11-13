@@ -125,6 +125,10 @@ public:
     virtual PDFDocumentToolSignatureImpact getSignatureImpact(const QVariantMap& parameters) const override;
     virtual bool isNewDocumentOfInputs(const QVariantMap& parameters) const override;
 
+    /// This document changes the pages of the open document (a certified one loses its
+    /// certification); the new documents of the other outputs leave it as it is
+    virtual bool isPageChange(const QVariantMap& parameters) const override;
+
     /// No preview (RB3 g)
     virtual bool hasPreview() const override { return false; }
 

@@ -314,7 +314,8 @@ int PDFKeyValueList::addRow(const QString& key, const QString& value)
 int PDFKeyValueList::addRow(const QString& key, const QString& value, PDFComponentPainter::TextKind valueKind)
 {
     // A value is data: a text of the user interface is elided as data
-    const PDFComponentPainter::TextKind kind = valueKind == PDFComponentPainter::TextKind::FileName ? valueKind : PDFComponentPainter::TextKind::Data;
+    const bool isPathKind = valueKind == PDFComponentPainter::TextKind::FileName || valueKind == PDFComponentPainter::TextKind::Path;
+    const PDFComponentPainter::TextKind kind = isPathKind ? valueKind : PDFComponentPainter::TextKind::Data;
     m_rows.push_back(Row{ key, value, kind });
     updateDescription();
     updateGeometry();
@@ -485,7 +486,8 @@ void PDFKeyValueList::paintEvent(QPaintEvent* event)
 
         // The value is data: its base direction is the one of the whole value
         // (components.md 6.6), elided as the other components (no space before the
-        // ellipsis; a path in the middle, so its extension stays visible)
+        // ellipsis; a path of a file in the middle, so its extension stays visible, a
+        // folder by its folders)
         const QString value = PDFComponentPainter::elidedTextOfKind(m_rows[i].value, valueFont, valueRect.width(), m_rows[i].valueKind);
         PDFComponentPainter::drawDataText(&painter, QRectF(QStyle::visualRect(layoutDirection(), inner, valueRect)), Qt::AlignVCenter | trailing | Qt::TextSingleLine,
                                           value, valueFont, PDFStylePainter::color(valueColor), PDFComponentPainter::getDataTextDirection(m_rows[i].value));

@@ -427,26 +427,48 @@ public:
         {
             m_paintedWidget = static_cast<QWidget*>(watched);
         }
-        if (!m_isStopped && watched && !m_hooked.contains(watched))
+        if (m_isStopped || !watched || m_hooked.contains(watched))
         {
-            if (isConstructionEvent(event->type()))
+            return false;
+        }
+
+        if (isConstructionEvent(event->type()))
+        {
+            // The object may be in its constructor: it is hooked from the event loop (its class
+            // is known there, a constructor of a base class sends events too). A signal of a
+            // constructor reaches no receiver of the application, the recorder would delete
+            // the parent of a half-built object (the pattern of UnitTestsAppPagesLifetime).
+            // One queued hook per object.
+            if (!m_pendingHooks.contains(watched))
             {
-                // The object may be in its constructor: it is hooked from the event loop. A
-                // signal of a constructor reaches no receiver of the application, the
-                // recorder would delete the parent of a half-built object (the pattern
-                // of UnitTestsAppPagesLifetime).
+                m_pendingHooks.insert(watched);
                 QPointer<QObject> guard(watched);
-                QMetaObject::invokeMethod(this, [this, guard]() { if (guard && !m_hooked.contains(guard.data())) { hookObject(guard.data()); } }, Qt::QueuedConnection);
+                const QObject* pending = watched;
+                QMetaObject::invokeMethod(this, [this, guard, pending]()
+                {
+                    m_pendingHooks.remove(pending);
+                    if (guard && !m_hooked.contains(guard.data()))
+                    {
+                        hookObject(guard.data());
+                    }
+                }, Qt::QueuedConnection);
             }
-            else
-            {
-                hookObject(watched);
-            }
+        }
+        else
+        {
+            // An event, which comes from the event loop or from a use of a finished object
+            // (a worker reports, a dialog is shown): the signals of this event are sites
+            hookObject(watched);
         }
         return false;
     }
 
-    /// Events, which Qt sends to an object from inside of its constructor
+    /// Events, which Qt sends to an object from inside of its constructor (or of the constructor
+    /// of its parent): from QObject / QWidget construction and from the setters, which a
+    /// constructor calls. QWidget::addAction sends ActionAdded: the document view of a copy
+    /// opened by the result dialog was hooked inside of its constructor, the replay deleted
+    /// the window with the half-built view from the viewStateChanged of its applySettings
+    /// (P2S3BOPENCOPY, the rows certifiedcrop-window-*).
     static bool isConstructionEvent(QEvent::Type type)
     {
         switch (type)
@@ -472,6 +494,21 @@ public:
             case QEvent::Polish:
             case QEvent::PolishRequest:
             case QEvent::LayoutRequest:
+            // QWidget::addAction / removeAction / QAction setters
+            case QEvent::ActionAdded:
+            case QEvent::ActionChanged:
+            case QEvent::ActionRemoved:
+            // setAcceptDrops, setCursor, setReadOnly, setWindowState, raise / lower
+            case QEvent::AcceptDropsChange:
+            case QEvent::CursorChange:
+            case QEvent::ReadOnlyChange:
+            case QEvent::WindowStateChange:
+            case QEvent::ZOrderChange:
+            // setVisible of a widget, whose parent is not shown yet; winId / create
+            case QEvent::ShowToParent:
+            case QEvent::HideToParent:
+            case QEvent::WinIdChange:
+            case QEvent::PlatformSurface:
                 return true;
             default:
                 return false;
@@ -513,6 +550,7 @@ private:
     std::vector<Site> m_sites;
     QSet<QString> m_seen;
     QHash<QObject*, QPointer<QObject>> m_hooked;
+    QSet<const QObject*> m_pendingHooks;     ///< Objects, whose queued hook waits for the event loop
     QPointer<QWidget> m_paintedWidget;
 };
 
@@ -2144,6 +2182,7 @@ class AppToolPagesLifetimeTest : public QObject
 private Q_SLOTS:
     void initTestCase();
     void cleanup();
+    void recorderHooksAfterConstruction();
     void deleteFromEverySignal_data();
     void deleteFromEverySignal();
     void openPopupsSurviveChanges_data();
@@ -2188,6 +2227,44 @@ void AppToolPagesLifetimeTest::initTestCase()
 void AppToolPagesLifetimeTest::cleanup()
 {
     pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
+}
+
+void AppToolPagesLifetimeTest::recorderHooksAfterConstruction()
+{
+    // The recorder hooks an object first seen by an event of its constructor from the event
+    // loop only: nobody holds an object in its constructor, so no signal of a constructor
+    // reaches a receiver of the application, and a deletion of the victim there would leave
+    // the constructor to go on in freed memory. The document view is the case of P2S3BOPENCOPY:
+    // its constructor calls QWidget::addAction (event ActionAdded), then applySettings emits
+    // viewStateChanged; the replay deleted the window with the half-built view of a copy
+    // opened by the result dialog.
+    pdftest::AppDocumentFixture fixture;
+    QVERIFY(fixture.window);
+    ToolPagesLifetimeRecorder recorder(ToolPagesLifetimeRecorder::Mode::Discover);
+    QWidget parent;
+    QPointer<pdf::PDFAppDocumentView> view = new pdf::PDFAppDocumentView(fixture.context.get(), &parent);
+    QVERIFY(view);
+
+    // Nothing has been hooked before the constructor returned: no site of it
+    QStringList constructorSites;
+    for (const ToolPagesLifetimeRecorder::Site& site : recorder.getSites())
+    {
+        constructorSites << site.key;
+    }
+    QVERIFY2(constructorSites.isEmpty(), qPrintable(constructorSites.join(QLatin1Char('\n'))));
+
+    // From the event loop the view is hooked: its signal is a site now
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(view);
+    Q_EMIT view->viewStateChanged();
+    const QString expectedKey = QStringLiteral("QWidget/pdf::PDFAppDocumentView::viewStateChanged()");
+    bool isRecorded = false;
+    for (const ToolPagesLifetimeRecorder::Site& site : recorder.getSites())
+    {
+        isRecorded = isRecorded || site.key == expectedKey;
+    }
+    QVERIFY(isRecorded);
+    recorder.stop();
 }
 
 void AppToolPagesLifetimeTest::deleteFromEverySignal_data()

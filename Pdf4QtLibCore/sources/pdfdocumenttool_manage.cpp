@@ -726,6 +726,11 @@ bool PDFDocumentToolManage::isNewDocumentOfInputs(const QVariantMap& parameters)
     return getResultKind(parameters) != PDFDocumentToolResultKind::ChangeDocument;
 }
 
+bool PDFDocumentToolManage::isPageChange(const QVariantMap& parameters) const
+{
+    return getResultKind(parameters) == PDFDocumentToolResultKind::ChangeDocument;
+}
+
 std::vector<PDFDocumentToolParameterError> PDFDocumentToolManage::checkGivenParameters(const QVariantMap& given) const
 {
     using Helper = PDFDocumentToolManageHelper;
@@ -952,9 +957,10 @@ PDFDocumentToolResult PDFDocumentToolManage::execute(const PDFDocumentToolContex
         PDFDocument document = std::move(arranged.document);
 
         // Q12, R10, RB5 3: no level of a certification or of a signed field lock allows a change of
-        // the pages - the result is a copy (the fact is the shared one of addCertificationRemoved)
+        // the pages - the result is a copy (the fact is the shared one of addCertificationRemoved;
+        // the rule of the callout of the panel, owner 13. 11.)
         PDFInteger certificationSignaturesRemoved = 0;
-        const bool isCertified = !PDFDocMDPPermissions::isPageChangeAllowed(target);
+        const bool isCertified = PDFDocMDPPermissions::isCertificationRemovedBy(target, getOutputTraits(parameters));
         if (isCertified)
         {
             document = PDFDocMDPPermissions::removeCertification(document, &certificationSignaturesRemoved);

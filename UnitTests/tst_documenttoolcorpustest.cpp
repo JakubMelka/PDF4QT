@@ -23,6 +23,7 @@
 #include "pdfannotation.h"
 #include "pdfcms.h"
 #include "pdfconstants.h"
+#include "pdfdocmdppermissions.h"
 #include "pdfdocumentreader.h"
 #include "pdfdocumenttextexporter.h"
 #include "pdfdocumenttextflow.h"
@@ -110,7 +111,8 @@ enum CorpusPromise
     PromiseText         = 0x10,     ///< The text of the pages is the same
     PromiseTransparency = 0x20,     ///< The images keep their soft masks and masks
     PromiseContent      = 0x40,     ///< Every page keeps its decoded content, the names of its resources and its annotations, the catalog its entries
-    PromiseAll          = 0x7F
+    PromiseAll          = 0x7F,     ///< All the above (the tools, which keep the pages)
+    PromiseCertification = 0x80     ///< A change of the pages: a certified input loses its certification and the signatures (Q12, R10), see checkResultDocument
 };
 
 /// How the pages of the result look against the pages of the input
@@ -452,6 +454,40 @@ public:
         return exclusions;
     }
 
+    /// The page has a widget of a signature field, signed or not (12.7.5.5; /FT inherited, Table 226)
+    static bool hasSignatureWidget(const pdf::PDFDocument* document, size_t pageIndex)
+    {
+        const pdf::PDFPage* page = pageIndex < document->getCatalog()->getPageCount() ? document->getCatalog()->getPage(pageIndex) : nullptr;
+        if (!page)
+        {
+            return false;
+        }
+
+        const std::vector<pdf::PDFObjectReference>& annotations = page->getAnnotations();
+        bool hasWidget = false;
+        try
+        {
+            const pdf::PDFForm form = pdf::PDFForm::parse(document, document->getCatalog()->getFormObject());
+            form.apply([&annotations, &hasWidget](const pdf::PDFFormField* field)
+            {
+                if (!field || field->getFieldType() != pdf::PDFFormField::FieldType::Signature)
+                {
+                    return;
+                }
+                for (const pdf::PDFFormWidget& widget : field->getWidgets())
+                {
+                    hasWidget = hasWidget || std::find(annotations.cbegin(), annotations.cend(), widget.getWidget()) != annotations.cend();
+                }
+            });
+        }
+        catch (const pdf::PDFException&)
+        {
+            // A damaged form has no field, whose widget a clone could leave out
+            return false;
+        }
+        return hasWidget;
+    }
+
     /// Exclusions by the content of a read file (any folder): a signed input of Merge - a signature
     /// with a value (PDFForm::getSignatureCount) - is removed with its appearance, so the pages of a
     /// signed file look different by design (owner answer Q4 of step 2 of phase 2). Split and Extract
@@ -467,12 +503,14 @@ public:
         }
 
         // Manage Pages: a clone in the document itself gets no widget of a signature field (RB1 of
-        // step 3b), so the clone of a signed page looks different by design
+        // step 3b: /FT /Sig, signed or not), so the clone of a signed page, or of the first page
+        // with a widget of an unsigned signature field (its value null or unreadable, 7.3.7,
+        // Signature/invalid/usf-2.pdf), looks different by design
         static const CorpusExclusion signedClone = { "", "^pages\\.manage/odd-even-clone-first$", "RB1 of step 3b of phase 2",
                                                      "A clone in the document itself has no widget of a signature field: the clone of a signed page looks different by design" };
 
         const bool isSigned = pdf::PDFForm::getSignatureCount(input) > 0;
-        if (isSigned && QRegularExpression(QString::fromLatin1(signedClone.variantPattern)).match(tool).hasMatch())
+        if ((isSigned || hasSignatureWidget(input, 0)) && QRegularExpression(QString::fromLatin1(signedClone.variantPattern)).match(tool).hasMatch())
         {
             return &signedClone;
         }
@@ -1209,7 +1247,9 @@ private:
             }
             return parameters;
         };
-        constexpr int PAGES_PROMISES = PromiseVersion | PromiseEncryption | PromiseText | PromiseTransparency;
+        // Rotate, Remove and Manage Pages in the document itself change its pages: a certified
+        // input loses the certification (Q12 of step 3, RB5 2 of step 3b)
+        constexpr int PAGES_PROMISES = PromiseVersion | PromiseEncryption | PromiseText | PromiseTransparency | PromiseCertification;
         rows.push_back({ pdf::PDFDocumentToolRotatePages::TOOL_ID, "odd-right", createRotate, pages("", { QStringLiteral("odd") }, "right"), CorpusLook::Exact,
                          PAGES_PROMISES | PromiseSignatures | PromiseContent, &ToolCorpusHelper::mapOddPagesTurnedRight });
         rows.push_back({ pdf::PDFDocumentToolRotatePages::TOOL_ID, "all-half", createRotate, pages("", {}, "half"), CorpusLook::Exact,
@@ -1789,6 +1829,35 @@ void DocumentToolCorpusTest::checkResultDocument(const CorpusToolRow& row,
     if ((row.promises & PromiseEncryption) != 0 && ToolCorpusHelper::getEncryptionMode(&output) != ToolCorpusHelper::getEncryptionMode(input))
     {
         failures->append(QStringLiteral("The encryption mode %1 of the input became %2").arg(int(ToolCorpusHelper::getEncryptionMode(input))).arg(int(ToolCorpusHelper::getEncryptionMode(&output))));
+    }
+
+    // No level of a certification (12.8.2.2.1, Table 257: /P 1-3) allows a change of the pages: the
+    // tool, which changes them, removes the certification with the values and the appearances of
+    // all signatures, /Perms and /DSS - a copy only (Q12 and R10 of step 3, RB5 2 of step 3b, owner
+    // answer Q4). Such a result keeps the pages of the input without its signatures, so it is
+    // compared with that document; any other result keeps the certification.
+    std::optional<pdf::PDFDocument> uncertifiedInput;
+    const bool isCertified = !pdf::PDFDocMDPPermissions::isPageChangeAllowed(input);
+    const bool isCertificationRemoved = result.data.value(QStringLiteral("certificationRemoved")).toBool();
+    if (isCertificationRemoved != isCertified && (isCertificationRemoved || (row.promises & PromiseCertification) != 0))
+    {
+        failures->append(QStringLiteral("The input is %1, the tool reports the certification %2").arg(isCertified ? QStringLiteral("certified") : QStringLiteral("not certified"), isCertificationRemoved ? QStringLiteral("removed") : QStringLiteral("kept")));
+    }
+    else if (isCertificationRemoved)
+    {
+        const qint64 signatures = pdf::PDFForm::getSignatureCount(input);
+        const qint64 reported = result.data.value(QStringLiteral("certificationSignaturesRemoved")).toInteger(-1);
+        if (reported != signatures)
+        {
+            failures->append(QStringLiteral("The reported signatures removed with the certification %1 are not the signatures %2").arg(reported).arg(signatures));
+        }
+        if (result.data.value(QStringLiteral("signatureImpact")).toString() != QStringLiteral("lost-copy-only"))
+        {
+            failures->append(QStringLiteral("A certified input without the signature impact lost-copy-only"));
+        }
+        pdf::PDFInteger removed = 0;
+        uncertifiedInput = pdf::PDFDocMDPPermissions::removeCertification(*input, &removed);
+        input = &*uncertifiedInput;
     }
 
     if ((row.promises & PromiseSignatures) != 0)

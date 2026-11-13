@@ -2411,7 +2411,7 @@ void PDFAppImagesToPdfToolGUI::describeRightPanel(PDFAppToolPanelBuilder& builde
     // section-Selected image 336:1976: the link Rename
     m_selectedCard = layoutBuilder.addSelectedItemCard(tr("Selected image"));
     m_selectedCard->getValues()->addRow(tr("Name"), QString(), PDFComponentPainter::TextKind::Data);
-    m_selectedCard->getValues()->addRow(tr("Folder"), QString(), PDFComponentPainter::TextKind::Data);
+    m_selectedCard->getValues()->addRow(tr("Folder"), QString(), PDFComponentPainter::TextKind::Path);
     m_selectedCard->getValues()->addRow(tr("Pixels"), QString());
     m_selectedCard->getValues()->addRow(tr("Rotation"), QString());
     m_selectedCard->getValues()->addRow(tr("Crop"), QString());

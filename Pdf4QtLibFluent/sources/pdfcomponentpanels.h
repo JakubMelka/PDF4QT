@@ -112,7 +112,9 @@ public:
 
     /// Adds a row, whose value is elided by \p valueKind (TextKind::FileName: a
     /// path or a name of a file elided in the middle, its extension stays visible;
-    /// TextKind::Data is the default - elided at its end; a value is always data)
+    /// TextKind::Path: a folder elided in the middle by its folders, the root and
+    /// the last folder stay; TextKind::Data is the default - elided at its end; a
+    /// value is always data)
     /// \returns Index of the row
     int addRow(const QString& key, const QString& value, PDFComponentPainter::TextKind valueKind);
 

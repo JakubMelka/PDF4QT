@@ -158,6 +158,10 @@ public:
     virtual QWidget* createCanvasPage(QWidget* parent) override;
     virtual void setContentEnabled(bool isEnabled) override;
 
+    /// Below the callouts of the tab of a document in the result panel (the info callout 1479:34632
+    /// and the lock 1479:35631, after Result)
+    virtual PDFAppToolCalloutPlace getCertificationCalloutPlace() const override;
+
     // ------------------------------------------------------------ texts
 
     virtual QString getConfirmText() const override;

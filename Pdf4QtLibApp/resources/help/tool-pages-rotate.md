@@ -29,7 +29,7 @@ When an AI assistant removes or moves pages while the tool is open, the pending 
 - Only the rotation of each turned page changes. The content, the annotations and the form fields of the page turn with it.
 - A page with a text layer of Recognize Text (OCR) keeps its layer: search and copy keep working after the rotation.
 - A signed document stays signed: the rotation is saved after the signed part of the file. The signature then shows that the document was changed after signing.
-- A document certified by its author (a certification signature) allows no change of its pages: the result can only be saved as a copy, written whole and without the signatures, and the tool says why. The certified original stays as it is.
+- A document certified by its author (a certification signature) allows no change of its pages: the result can only be saved as a copy, written whole and without the signatures. The right panel says so in a callout while you work in the tool, and the result says why again. The certified original stays as it is.
 
 > [!TIP] Scans on their side
 > Choose **All** and **Landscape**: the selection is every page that lies on its side, and one click on Rotate Left or Rotate Right fixes the whole scan.

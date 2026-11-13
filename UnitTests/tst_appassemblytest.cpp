@@ -417,12 +417,20 @@ void AppAssemblyTest::recentAssembliesHostileRows()
     repository.setCurrentTime(5000);
     QVERIFY(!repository.recordOpened(valid, 4).isError());
 
-    QVERIFY(!connection->execute("INSERT INTO recent_assembly(path, name, folder, last_opened, page_count, pinned) VALUES "
-                                 "('relative/x.pdf4qtassembly', 'x', 'relative', 9000, 3, 1), "
-                                 "('//./PhysicalDrive0', 'disk', '//.', 9000, 3, 0), "
-                                 "('C:/hostile/huge.pdf4qtassembly', '', 'C:/hostile', 'yesterday', 99999999999, 'yes'), "
-                                 "('C:/hostile/negative.pdf4qtassembly', 'Negative', 'C:/hostile', -5, -3, 0)").isError());
-    QVERIFY(!connection->execute("INSERT INTO recent_assembly(path, name, folder, last_opened, page_count, pinned) VALUES (x'433A2F00', 'nul', 'C:/', 1, 1, 0)").isError());
+    // The hostile rows are absolute on every system ("C:/hostile" on Windows, "/hostile" elsewhere):
+    // their values decide, not a drive letter, which is a relative path on another system
+    const QString hostile = QDir::rootPath() + QStringLiteral("hostile");
+    const QString huge = hostile + QStringLiteral("/huge.pdf4qtassembly");
+    const QString negative = hostile + QStringLiteral("/negative.pdf4qtassembly");
+    const QByteArray rows = QStringLiteral("INSERT INTO recent_assembly(path, name, folder, last_opened, page_count, pinned) VALUES "
+                                           "('relative/x.pdf4qtassembly', 'x', 'relative', 9000, 3, 1), "
+                                           "('//./PhysicalDrive0', 'disk', '//.', 9000, 3, 0), "
+                                           "('%1', '', '%2', 'yesterday', 99999999999, 'yes'), "
+                                           "('%3', 'Negative', '%2', -5, -3, 0)").arg(huge, hostile, negative).toUtf8();
+    QVERIFY(!connection->execute(rows.constData()).isError());
+    const QByteArray root = QDir::rootPath().toUtf8();
+    const QByteArray nulRow = "INSERT INTO recent_assembly(path, name, folder, last_opened, page_count, pinned) VALUES (x'" + (root + QByteArray(1, '\0')).toHex() + "', 'nul', '" + root + "', 1, 1, 0)";
+    QVERIFY(!connection->execute(nulRow.constData()).isError());
 
     const std::vector<pdf::PDFRecentAssembly> assemblies = repository.getAssemblies();
     QStringList paths;
@@ -432,18 +440,18 @@ void AppAssemblyTest::recentAssembliesHostileRows()
     }
     QCOMPARE(assemblies.size(), size_t(3));
     QVERIFY(paths.contains(H::stored(valid)));
-    QVERIFY(paths.contains(QStringLiteral("C:/hostile/huge.pdf4qtassembly")));
-    QVERIFY(paths.contains(QStringLiteral("C:/hostile/negative.pdf4qtassembly")));
+    QVERIFY(paths.contains(huge));
+    QVERIFY(paths.contains(negative));
     for (const pdf::PDFRecentAssembly& assembly : assemblies)
     {
-        if (assembly.path == QStringLiteral("C:/hostile/huge.pdf4qtassembly"))
+        if (assembly.path == huge)
         {
             QCOMPARE(assembly.name, QStringLiteral("huge"));
             QCOMPARE(assembly.lastOpened, qint64(0));
             QCOMPARE(assembly.pageCount, -1);
             QVERIFY(!assembly.pinned);
         }
-        else if (assembly.path == QStringLiteral("C:/hostile/negative.pdf4qtassembly"))
+        else if (assembly.path == negative)
         {
             QCOMPARE(assembly.lastOpened, qint64(0));
             QCOMPARE(assembly.pageCount, -1);

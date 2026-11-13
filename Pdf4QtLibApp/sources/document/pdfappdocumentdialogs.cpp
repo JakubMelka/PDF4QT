@@ -628,7 +628,7 @@ void PDFAppDocumentItemList::addDivider()
     m_layout->addWidget(divider);
 }
 
-void PDFAppDocumentItemList::addItem(const QString& iconName, const QString& name, const QString& detail, const QString& status, bool isError)
+void PDFAppDocumentItemList::addItem(const QString& iconName, const QString& name, const QString& detail, PDFComponentPainter::TextKind detailKind, const QString& status, bool isError)
 {
     if (!m_layout)
     {
@@ -660,7 +660,7 @@ void PDFAppDocumentItemList::addItem(const QString& iconName, const QString& nam
     textsLayout->addWidget(nameLabel);
     if (!detail.isEmpty())
     {
-        PDFAppElidedLabel* detailLabel = new PDFAppElidedLabel(PDFThemeFonts::getFont(PDFThemeFonts::Role::CaptionRegular), PDFThemeColors::TextMuted, PDFComponentPainter::TextKind::Data, texts);
+        PDFAppElidedLabel* detailLabel = new PDFAppElidedLabel(PDFThemeFonts::getFont(PDFThemeFonts::Role::CaptionRegular), PDFThemeColors::TextMuted, detailKind, texts);
         detailLabel->setObjectName(QStringLiteral("itemDetail"));
         detailLabel->setText(detail.left(1024));
         detailLabel->setFixedHeight(15);
@@ -831,8 +831,11 @@ PDFAppQuitUnsavedDialog::PDFAppQuitUnsavedDialog(const std::vector<const PDFAppD
             break;
         }
 
-        const QString folder = document->getFilePath().isEmpty() ? tr("Not saved to a file yet") : PDFAppDocumentDialogsHelper::getFolderText(document->getFilePath());
-        m_list->addItem(QStringLiteral("file"), document->getTitle(), folder, PDFAppCloseUnsavedDialog::getChangesText(document), false);
+        // A folder is elided by its folders, the text of a document without a file is a text of the interface
+        const bool hasFile = !document->getFilePath().isEmpty();
+        const QString folder = hasFile ? PDFAppDocumentDialogsHelper::getFolderText(document->getFilePath()) : tr("Not saved to a file yet");
+        m_list->addItem(QStringLiteral("file"), document->getTitle(), folder, hasFile ? PDFComponentPainter::TextKind::Path : PDFComponentPainter::TextKind::Interface,
+                        PDFAppCloseUnsavedDialog::getChangesText(document), false);
     }
     addContent(m_list);
 
@@ -865,13 +868,13 @@ PDFAppOpenFailedDialog::PDFAppOpenFailedDialog(const std::vector<PDFAppOpenFailu
 
         if (failure.isOption)
         {
-            m_list->addItem(QStringLiteral("terminal"), failure.name, tr("Option of the command line"), failure.reason, true);
+            m_list->addItem(QStringLiteral("terminal"), failure.name, tr("Option of the command line"), PDFComponentPainter::TextKind::Interface, failure.reason, true);
         }
         else
         {
             const QFileInfo fileInfo(failure.name);
             m_list->addItem(QStringLiteral("file"), fileInfo.fileName().isEmpty() ? failure.name : fileInfo.fileName(),
-                            PDFAppDocumentDialogsHelper::getFolderText(failure.name), failure.reason, true);
+                            PDFAppDocumentDialogsHelper::getFolderText(failure.name), PDFComponentPainter::TextKind::Path, failure.reason, true);
         }
     }
     addContent(m_list);

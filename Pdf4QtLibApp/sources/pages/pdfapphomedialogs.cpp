@@ -378,15 +378,18 @@ PDFAppSaveWorkspaceDialog::PDFAppSaveWorkspaceDialog(PDFAppContext* context, con
         titleLayout->addStretch(1);
         textsLayout->addWidget(titleRow);
 
+        // The folder is elided by its folders, the page and the note after it stay whole
+        // (a detail of the interface in the direction of the row)
         QString details;
+        QString detail;
         if (!hasFile)
         {
             details = tr("Not saved to a file yet – save it first");
         }
         else
         {
+            details = PDFAppHomeFormat::toDisplayPath(QFileInfo(document.path).absolutePath());
             QStringList parts;
-            parts << PDFAppHomeFormat::toDisplayPath(QFileInfo(document.path).absolutePath());
             if (document.page > 0)
             {
                 parts << (document.pageCount > 0 ? tr("page %1 of %2").arg(document.page).arg(document.pageCount) : tr("page %1").arg(document.page));
@@ -395,11 +398,12 @@ PDFAppSaveWorkspaceDialog::PDFAppSaveWorkspaceDialog(PDFAppContext* context, con
             {
                 parts << tr("the saved file is used");
             }
-            details = parts.join(QStringLiteral(" · "));
+            detail = parts.join(PDFComponentPainter::getDetailSeparator());
         }
         PDFAppElidedLabel* detailsLabel = new PDFAppElidedLabel(PDFThemeFonts::getFont(PDFThemeFonts::Role::CaptionRegular), hasFile ? PDFThemeColors::TextMuted : PDFThemeColors::TextDisabled,
-                                                                PDFComponentPainter::TextKind::Data, texts);
+                                                                hasFile ? PDFComponentPainter::TextKind::Path : PDFComponentPainter::TextKind::Interface, texts);
         detailsLabel->setText(details);
+        detailsLabel->setDetail(detail);
         textsLayout->addWidget(detailsLabel);
         rowLayout->addWidget(texts, 1);
         listLayout->addWidget(row);

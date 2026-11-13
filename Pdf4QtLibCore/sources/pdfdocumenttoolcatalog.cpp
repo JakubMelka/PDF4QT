@@ -240,6 +240,21 @@ static constexpr const char* TOOL_PDF_FILES_OF_INPUTS[] =
     "pages.split",
 };
 
+/// Tools, whose run changes the pages of the open document (PDFDocumentToolCatalogEntry::isPageChange;
+/// no level of a certification allows it, ISO 32000-2, 12.8.2.2, Table 257). Manage Pages by its
+/// row: the output This document (PDFDocumentTool::isPageChange decides by the parameters).
+static constexpr const char* TOOL_PAGE_CHANGES[] =
+{
+    "pages.manage",
+    "pages.insert",
+    "pages.add-image",
+    "pages.remove",
+    "pages.rotate",
+    "pages.crop",
+    "pages.resize",
+    "pages.boxes",
+};
+
 std::vector<PDFDocumentToolResultKind> PDFDocumentToolCatalogEntry::getPossibleResultKinds() const
 {
     std::vector<PDFDocumentToolResultKind> kinds = { getResultKind() };
@@ -306,6 +321,23 @@ bool PDFDocumentToolCatalogEntry::isNewDocumentOfInputs() const
         return true;
     }
     for (const char* toolId : TOOL_PDF_FILES_OF_INPUTS)
+    {
+        if (getId() == QLatin1String(toolId))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool PDFDocumentToolCatalogEntry::isPageChange() const
+{
+    if (getResultKind() != PDFDocumentToolResultKind::ChangeDocument)
+    {
+        return false;
+    }
+
+    for (const char* toolId : TOOL_PAGE_CHANGES)
     {
         if (getId() == QLatin1String(toolId))
         {

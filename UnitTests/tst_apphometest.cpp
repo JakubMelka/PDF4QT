@@ -644,6 +644,7 @@ private slots:
     void recentListKeys();
     void withoutDatabase();
     void dialogEdgeCases();
+    void elidedLabelDetail();
     void databaseFaults();
     void manyThumbnails();
     void networkRows();
@@ -1559,6 +1560,11 @@ void AppHomeTest::recentContent()
     QCOMPARE(page->getContinueCard()->getProgressText(), QStringLiteral("Page 12 of 24"));
     QCOMPARE(page->getContinueCard()->getProgress(), 0.5);
     QCOMPARE(page->getContinueCard()->getPath(), sample.projectReport);
+
+    // Its folder is elided by its folders: the root and the last folder stay (fluent-style.md)
+    const pdf::PDFAppElidedLabel* continueFolder = page->getContinueCard()->findChild<pdf::PDFAppElidedLabel*>(QStringLiteral("continueFolder"));
+    QVERIFY(continueFolder);
+    QCOMPARE(continueFolder->getTextKind(), pdf::PDFComponentPainter::TextKind::Path);
 
     // Workspaces with Restore last session (bg/subtle on Recent)
     QVERIFY(page->getSessionRow()->isVisible());
@@ -5640,6 +5646,83 @@ void AppHomeTest::withoutDatabase()
     pdf::PDFAppFileDialogs::setOpenFilesHandler(pdf::PDFAppFileDialogs::OpenFilesHandler());
 }
 
+void AppHomeTest::elidedLabelDetail()
+{
+    // A folder with a detail ("C:\Tender · page 7", fluent-style.md): the folder is data at the
+    // leading edge, elided by its folders (the root and the last folder stay); the detail is a
+    // text of the interface right after it in the direction of the label, always whole
+    const QFont font = pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::CaptionRegular);
+    const QFontMetricsF metrics(font);
+    const QString detail = QStringLiteral("page 7");
+    const QString separatedDetail = QStringLiteral(" · ") + detail;
+    const QRgb background = pdf::PDFStylePainter::color(pdf::PDFThemeColors::BgCanvas).rgb();
+    const auto render = [background](QWidget* widget)
+    {
+        QImage image(widget->size(), QImage::Format_RGB32);
+        image.fill(background);
+        widget->render(&image);
+        return image;
+    };
+
+    // A long folder in a narrow label: elided, the detail fits whole after it
+    pdf::PDFAppElidedLabel label(font, pdf::PDFThemeColors::TextMuted, pdf::PDFComponentPainter::TextKind::Path);
+    const QString folder = QStringLiteral("C:\\Users\\Jakub\\Documents\\Projects\\2026\\Quarterly reports of the company\\Specifications");
+    label.setText(folder);
+    label.setDetail(detail);
+    QCOMPARE(label.getDetail(), detail);
+    QCOMPARE(label.accessibleDescription(), detail);
+    QCOMPARE(label.sizeHint().width(), qCeil(pdf::PDFStylePainter::textWidth(folder, font) + pdf::PDFStylePainter::textWidth(separatedDetail, font)));
+    label.resize(240, 15);
+    QVERIFY(label.isElided());
+    const pdf::PDFComponentPainter::TextWithDetail line = pdf::PDFComponentPainter::elidedTextWithDetail(folder, detail, font, 240, pdf::PDFComponentPainter::TextKind::Path);
+    QCOMPARE(line.detail, separatedDetail);
+    QVERIFY2(line.text.startsWith(QStringLiteral("C:\\Users\\")) && line.text.endsWith(QString(QChar(0x2026)) + QStringLiteral("\\Specifications")), qPrintable(line.text));
+
+    // A short folder is whole; the folder has the same pixels as without the detail, the
+    // detail has its ink only at the trailing side of the folder (left in right-to-left)
+    const QString shortFolder = QStringLiteral("C:\\Tender");
+    const int folderWidth = qFloor(metrics.horizontalAdvance(shortFolder));
+    for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
+    {
+        label.setLayoutDirection(direction);
+        QCOMPARE(HomeTestHelper::countLeakPixels(render(&label)), 0);
+
+        pdf::PDFAppElidedLabel withDetail(font, pdf::PDFThemeColors::TextMuted, pdf::PDFComponentPainter::TextKind::Path);
+        pdf::PDFAppElidedLabel withoutDetail(font, pdf::PDFThemeColors::TextMuted, pdf::PDFComponentPainter::TextKind::Path);
+        for (pdf::PDFAppElidedLabel* shortLabel : { &withDetail, &withoutDetail })
+        {
+            shortLabel->setLayoutDirection(direction);
+            shortLabel->setText(shortFolder);
+            shortLabel->resize(240, 15);
+        }
+        withDetail.setDetail(detail);
+        QVERIFY(!withDetail.isElided());
+        const QImage imageWith = render(&withDetail);
+        const QImage imageWithout = render(&withoutDetail);
+        QCOMPARE(HomeTestHelper::countLeakPixels(imageWith), 0);
+
+        const int folderLeft = direction == Qt::LeftToRight ? 1 : 240 - folderWidth + 1;
+        const int folderRight = folderLeft + folderWidth - 3;
+        const QRect folderArea(folderLeft, 0, folderRight - folderLeft + 1, 15);
+        QCOMPARE(imageWith.copy(folderArea), imageWithout.copy(folderArea));
+        int leadingSide = 0;
+        int trailingSide = 0;
+        for (int y = 0; y < 15; ++y)
+        {
+            for (int x = 0; x < 240; ++x)
+            {
+                if (imageWith.pixel(x, y) != imageWithout.pixel(x, y))
+                {
+                    const bool isAfter = direction == Qt::LeftToRight ? x > folderRight : x < folderLeft;
+                    (isAfter ? trailingSide : leadingSide) += 1;
+                }
+            }
+        }
+        QVERIFY(trailingSide > 0);
+        QCOMPARE(leadingSide, 0);
+    }
+}
+
 void AppHomeTest::dialogEdgeCases()
 {
     HomeFixture fixture;
@@ -5703,14 +5786,18 @@ void AppHomeTest::dialogEdgeCases()
         QCOMPARE(save.getDocumentCheckBoxes().size(), pdf::PDFWorkspaceRepository::MAXIMUM_DOCUMENTS);
         QCOMPARE(save.getSelectionText(), QStringLiteral("1000 of 1000 selected"));
         QCOMPARE(save.getSelectedDocuments().size(), size_t(pdf::PDFWorkspaceRepository::MAXIMUM_DOCUMENTS));
+        // The folder (TextKind::Path, elided by its folders) and the page after it as a detail,
+        // which stays whole
+        QStringList folders;
         QStringList details;
         for (QWidget* row : save.findChildren<QWidget*>(QStringLiteral("documentRow")))
         {
             for (pdf::PDFAppElidedLabel* label : row->findChildren<pdf::PDFAppElidedLabel*>())
             {
-                if (label->getTextKind() == pdf::PDFComponentPainter::TextKind::Data)
+                if (label->getTextKind() == pdf::PDFComponentPainter::TextKind::Path)
                 {
-                    details << label->text();
+                    folders << label->text();
+                    details << label->getDetail();
                 }
                 if (details.size() >= 2)
                 {
@@ -5723,8 +5810,9 @@ void AppHomeTest::dialogEdgeCases()
             }
         }
         QCOMPARE(details.size(), 2);
-        QVERIFY2(details[0].endsWith(QStringLiteral(" · page 7")), qPrintable(details[0]));
-        QVERIFY2(details[1].endsWith(QStringLiteral(" · page 3 of 9")), qPrintable(details[1]));
+        QCOMPARE(details[0], QStringLiteral("page 7"));
+        QCOMPARE(details[1], QStringLiteral("page 3 of 9"));
+        QCOMPARE(folders[0], QDir::toNativeSeparators(QDir(fixture.directory.path()).filePath(QStringLiteral("Many"))));
     }
 
     // Clear history of one pinned file without other entries: the singular texts,

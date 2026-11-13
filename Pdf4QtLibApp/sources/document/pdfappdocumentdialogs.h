@@ -205,8 +205,10 @@ public:
     explicit PDFAppDocumentItemList(QWidget* parent = nullptr);
     virtual ~PDFAppDocumentItemList() override;
 
-    /// Adds a row. \p isError colors the status as an error (text/danger).
-    void addItem(const QString& iconName, const QString& name, const QString& detail, const QString& status, bool isError);
+    /// Adds a row. \p isError colors the status as an error (text/danger). The detail
+    /// below the name is elided by \p detailKind (TextKind::Path: a folder by its folders,
+    /// TextKind::Interface: a text of the interface in the direction of the list).
+    void addItem(const QString& iconName, const QString& name, const QString& detail, PDFComponentPainter::TextKind detailKind, const QString& status, bool isError);
 
     /// Adds the last row "… and N more" (called by the dialog over MAXIMUM_ROWS)
     void addMoreRow(int count);

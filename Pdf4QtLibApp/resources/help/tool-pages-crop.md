@@ -25,7 +25,7 @@ Crop Pages sets the visible area of pages: equal margins or a custom box. Croppi
 - A page without its own bleed, trim or art box uses the crop box for them: they follow the new crop box. A page, which has them, keeps them.
 - The thumbnail stored in the file for a cropped page is removed, it would not match the page.
 - A crop, which would leave less than 3 points of a page, or a custom box outside of the page is refused: the right panel says the largest value, which fits.
-- A signed document stays signed: the change is saved after the signed part of the file. A certified document can be changed only as a copy.
+- A signed document stays signed: the change is saved after the signed part of the file. A certified document can be changed only as a copy, without the certification and the signatures; the right panel says so in a callout while you work in the tool.
 
 > [!NOTE] Cropping hides, it does not delete
 > The content outside of the crop box stays in the file. To remove content for good, use Redact Content.

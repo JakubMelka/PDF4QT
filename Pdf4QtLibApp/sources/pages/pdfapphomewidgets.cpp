@@ -565,15 +565,32 @@ PDFAppElidedLabel::PDFAppElidedLabel(const QFont& font, PDFThemeColors::Color co
 
 PDFAppElidedLabel::~PDFAppElidedLabel() = default;
 
+void PDFAppElidedLabel::setDetail(const QString& detail)
+{
+    if (m_detail != detail)
+    {
+        m_detail = detail;
+        setAccessibleDescription(detail);
+        updateGeometry();
+        update();
+    }
+}
+
+qreal PDFAppElidedLabel::getWholeWidth() const
+{
+    const QString detail = m_detail.isEmpty() ? QString() : (text().isEmpty() ? m_detail : PDFComponentPainter::getDetailSeparator() + m_detail);
+    return PDFStylePainter::textWidth(text(), font()) + PDFStylePainter::textWidth(detail, font());
+}
+
 bool PDFAppElidedLabel::isElided() const
 {
-    return PDFStylePainter::textWidth(text(), font()) > contentsRect().width();
+    return getWholeWidth() > contentsRect().width();
 }
 
 QSize PDFAppElidedLabel::sizeHint() const
 {
     const QFontMetrics metrics(font());
-    return QSize(qCeil(PDFStylePainter::textWidth(text(), font())), metrics.height());
+    return QSize(qCeil(getWholeWidth()), metrics.height());
 }
 
 QSize PDFAppElidedLabel::minimumSizeHint() const
@@ -585,7 +602,7 @@ void PDFAppElidedLabel::paintEvent(QPaintEvent* event)
 {
     Q_UNUSED(event);
 
-    if (text().isEmpty())
+    if (text().isEmpty() && m_detail.isEmpty())
     {
         return;
     }
@@ -594,7 +611,15 @@ void PDFAppElidedLabel::paintEvent(QPaintEvent* event)
     PDFStylePainterGuard guard(&painter);
     PDFComponentPainter::State state(isEnabled() ? QStyle::State_Enabled : QStyle::State_None, layoutDirection());
     const QRectF box(contentsRect());
-    PDFComponentPainter::drawElidedText(&painter, state, box, text(), font(), isEnabled() ? getTextColor() : PDFThemeColors::TextDisabled, m_kind);
+    const PDFThemeColors::Color color = isEnabled() ? getTextColor() : PDFThemeColors::TextDisabled;
+    if (m_detail.isEmpty())
+    {
+        PDFComponentPainter::drawElidedText(&painter, state, box, text(), font(), color, m_kind);
+    }
+    else
+    {
+        PDFComponentPainter::drawElidedTextWithDetail(&painter, state, box, text(), m_detail, font(), color, m_kind);
+    }
 }
 
 bool PDFAppElidedLabel::event(QEvent* event)
@@ -801,10 +826,10 @@ PDFAppContinueCard::PDFAppContinueCard(QWidget* parent) :
 
     QWidget* texts = new QWidget(this);
     QVBoxLayout* textsLayout = PDFAppHomeWidgetsHelper::createColumn(texts, QMargins(), 3);
-    // Long names and paths are elided to the width of the card
+    // Long names and paths are elided to the width of the card (a folder by its folders)
     m_name = new PDFAppElidedLabel(PDFThemeFonts::getFont(PDFThemeFonts::Role::BodySemiBold), PDFThemeColors::TextPrimary, PDFComponentPainter::TextKind::FileName, texts);
     m_name->setObjectName(QStringLiteral("continueName"));
-    m_folder = new PDFAppElidedLabel(PDFThemeFonts::getFont(PDFThemeFonts::Role::CaptionRegular), PDFThemeColors::TextMuted, PDFComponentPainter::TextKind::Data, texts);
+    m_folder = new PDFAppElidedLabel(PDFThemeFonts::getFont(PDFThemeFonts::Role::CaptionRegular), PDFThemeColors::TextMuted, PDFComponentPainter::TextKind::Path, texts);
     m_folder->setObjectName(QStringLiteral("continueFolder"));
     m_opened = new PDFAppElidedLabel(PDFThemeFonts::getFont(PDFThemeFonts::Role::CaptionRegular), PDFThemeColors::TextTertiary, PDFComponentPainter::TextKind::Interface, texts);
     m_opened->setObjectName(QStringLiteral("continueOpened"));

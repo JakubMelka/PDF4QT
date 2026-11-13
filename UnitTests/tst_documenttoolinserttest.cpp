@@ -33,8 +33,17 @@
 #include "pdfdocmdppermissions.h"
 #include "pdfdocumentmerger.h"
 #include "pdfdocumentsigner.h"
+#include "pdfdocumenttool_compress.h"
+#include "pdfdocumenttool_extracttext.h"
+#include "pdfdocumenttool_geometry.h"
+#include "pdfdocumenttool_images.h"
 #include "pdfdocumenttool_insert.h"
+#include "pdfdocumenttool_manage.h"
+#include "pdfdocumenttool_merge.h"
 #include "pdfdocumenttool_pages.h"
+#include "pdfdocumenttool_protect.h"
+#include "pdfdocumenttool_split.h"
+#include "pdfdocumenttool_structure.h"
 #include "pdfform.h"
 #include "pdfobjectutils.h"
 #include "pdfocrapplyprocessor.h"
@@ -227,6 +236,7 @@ private Q_SLOTS:
     void certificationLevels();
     void certifiedTargetOnlyCopy();
     void rotateAndRemoveOfCertifiedDocument();
+    void certificationRemovedByTools();
     void replaceSelectedPages();
     void replaceFailureChangesNothing();
     void pageLabelsOfTarget();
@@ -631,6 +641,98 @@ void DocumentToolInsertTest::rotateAndRemoveOfCertifiedDocument()
     QVERIFY(signedResult.isSuccess());
     QCOMPARE(signedResult.data.value(QStringLiteral("signatureImpact")).toString(), QStringLiteral("incremental-save"));
     QCOMPARE(PDFForm::getSignatureCount(signedResult.documents.front().document.data()), 1);
+}
+
+void DocumentToolInsertTest::certificationRemovedByTools()
+{
+    // Owner decision of 13. 11. 2026: the callout of a page tool and its run decide by one rule -
+    // ISO 32000-2, 12.8.2.2, Table 257: no level of /P allows to insert, remove, rotate, crop or
+    // resize pages, or to write their boxes; so exactly the tools, whose run changes the pages of
+    // the open document, remove the certification. A tool, which leaves the pages of the open
+    // document (a new document, files, a rewrite of the file), keeps it.
+    const PDFDocument certified = InsertTestHelper::createCertified("<< /TransformMethod /DocMDP /TransformParams << /P 3 >> >>").read();
+    const PDFDocument plain = MergeTestPdf::createPages("T", 3).read();
+
+    // RB5 point 3: a signed field locked with /P restricts as DocMDP (no /Perms at all)
+    MergeTestPdf lockedPdf = MergeTestPdf::createPages("T", 2, "/AcroForm << /Fields [60 0 R] /SigFlags 3 >>", { { 1, "/Annots [60 0 R]" } });
+    lockedPdf.set(60, "<< /Type /Annot /Subtype /Widget /FT /Sig /T (lock) /V 61 0 R /Lock << /Type /SigFieldLock /Action /All /P 2 >> /Rect [0 0 0 0] /P 3 0 R >>");
+    lockedPdf.set(61, "<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /ByteRange [0 0 0 0] /Contents <00> >>");
+    const PDFDocument locked = lockedPdf.read();
+    QCOMPARE(PDFDocMDPPermissions::getLevel(&locked), PDFDocMDPPermissions::Level::FormFilling);
+
+    struct Case
+    {
+        std::shared_ptr<const PDFDocumentTool> tool;
+        bool isPageChange;
+    };
+    const Case cases[] = {
+        { std::make_shared<PDFDocumentToolInsertPages>(), true },
+        { std::make_shared<PDFDocumentToolAddImage>(), true },
+        { std::make_shared<PDFDocumentToolRemovePages>(), true },
+        { std::make_shared<PDFDocumentToolRotatePages>(), true },
+        { std::make_shared<PDFDocumentToolCropPages>(), true },
+        { std::make_shared<PDFDocumentToolResizePages>(), true },
+        { std::make_shared<PDFDocumentToolSetPageBoxes>(), true },
+        { std::make_shared<PDFDocumentToolManage>(), true },          // This document (the output of the catalog row)
+        { std::make_shared<PDFDocumentToolExtractText>(), false },
+        { std::make_shared<PDFDocumentToolCompress>(), false },
+        { std::make_shared<PDFDocumentToolStructure>(), false },
+        { std::make_shared<PDFDocumentToolSanitize>(), false },
+        { std::make_shared<PDFDocumentToolRemoveLinks>(), false },
+        { std::make_shared<PDFDocumentToolSplit>(), false },
+        { std::make_shared<PDFDocumentToolExtract>(), false },
+        { std::make_shared<PDFDocumentToolMerge>(), false },
+        { std::make_shared<PDFDocumentToolInterleave>(), false },
+        { std::make_shared<PDFDocumentToolImagesToPdf>(), false },
+        { std::make_shared<PDFDocumentToolBlank>(), false },
+    };
+    for (const Case& testCase : cases)
+    {
+        const QString id = testCase.tool->getId();
+        const PDFDocumentToolOutputTraits traits = testCase.tool->getOutputTraits(QVariantMap());
+        QVERIFY2(traits.isPageChange == testCase.isPageChange, qPrintable(id));
+        QVERIFY2(PDFDocMDPPermissions::isCertificationRemovedBy(&certified, traits) == testCase.isPageChange, qPrintable(id));
+        QVERIFY2(PDFDocMDPPermissions::isCertificationRemovedBy(&locked, traits) == testCase.isPageChange, qPrintable(id));
+        QVERIFY2(!PDFDocMDPPermissions::isCertificationRemovedBy(&plain, traits), qPrintable(id));
+        QVERIFY2(!PDFDocMDPPermissions::isCertificationRemovedBy(nullptr, traits), qPrintable(id));
+
+        // A caller without parameters (the start page, MCP) reads the same value of the catalog row
+        QVERIFY2(PDFDocumentToolOutputTraits(testCase.tool->getInfo()).isPageChange == testCase.isPageChange, qPrintable(id));
+    }
+
+    // Manage Pages: only This document changes the open document; One PDF and the files are new
+    // documents of its pages, the certified input stays as it is
+    PDFDocumentToolManage manage;
+    for (const char* output : { PDFDocumentToolManage::OUTPUT_ONE_PDF, PDFDocumentToolManage::OUTPUT_PER_GROUP, PDFDocumentToolManage::OUTPUT_PER_PAGE })
+    {
+        QVariantMap parameters;
+        parameters.insert(QString::fromLatin1(PDFDocumentToolManage::PARAMETER_OUTPUT), QString::fromLatin1(output));
+        QVERIFY2(!PDFDocMDPPermissions::isCertificationRemovedBy(&certified, manage.getOutputTraits(parameters)), output);
+    }
+    QVariantMap documentOutput;
+    documentOutput.insert(QString::fromLatin1(PDFDocumentToolManage::PARAMETER_OUTPUT), QString::fromLatin1(PDFDocumentToolManage::OUTPUT_DOCUMENT));
+    QVERIFY(PDFDocMDPPermissions::isCertificationRemovedBy(&certified, manage.getOutputTraits(documentOutput)));
+
+    // The run decides by the same rule: the result of Rotate and Remove says it exactly then
+    PDFDocumentToolRotatePages rotate;
+    QVariantMap rotation;
+    rotation.insert(QStringLiteral("pages"), PDFDocumentToolPageSelection().toVariant());
+    rotation.insert(QStringLiteral("rotation"), QStringLiteral("right"));
+    PDFDocumentToolRemovePages remove;
+    PDFDocumentToolPageSelection page2;
+    page2.pages = QStringLiteral("2");
+    QVariantMap removal;
+    removal.insert(QStringLiteral("pages"), page2.toVariant());
+    for (const PDFDocument* document : { &certified, &locked, &plain })
+    {
+        const PDFDocumentToolResult rotated = rotate.run(InsertTestHelper::context(*document), rotation, nullptr, nullptr);
+        QVERIFY2(rotated.isSuccess(), qPrintable(rotated.message));
+        QCOMPARE(rotated.data.value(QStringLiteral("certificationRemoved")).toBool(), PDFDocMDPPermissions::isCertificationRemovedBy(document, rotate.getOutputTraits(rotation)));
+        const PDFDocumentToolResult removed = remove.run(InsertTestHelper::context(*document), removal, nullptr, nullptr);
+        QVERIFY2(removed.isSuccess(), qPrintable(removed.message));
+        QCOMPARE(removed.data.value(QStringLiteral("certificationRemoved")).toBool(), PDFDocMDPPermissions::isCertificationRemovedBy(document, remove.getOutputTraits(removal)));
+        QCOMPARE(removed.data.value(QStringLiteral("certificationRemoved")).toBool(), document != &plain);
+    }
 }
 
 void DocumentToolInsertTest::replaceSelectedPages()

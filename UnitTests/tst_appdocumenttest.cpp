@@ -654,6 +654,15 @@ void AppDocumentTest::openFailedDialog()
     QCOMPARE(dialog->getFailures().size(), size_t(13));
     QCOMPARE(dialog->getList()->getItemCount(), pdf::PDFAppDocumentItemList::MAXIMUM_ROWS);
     QVERIFY(dialog->getList()->findChild<QWidget*>(QStringLiteral("moreRow")));
+
+    // The folder of a file is elided by its folders (the root and the last folder stay)
+    const QList<pdf::PDFAppElidedLabel*> fileDetails = dialog->getList()->findChildren<pdf::PDFAppElidedLabel*>(QStringLiteral("itemDetail"));
+    QCOMPARE(fileDetails.size(), pdf::PDFAppDocumentItemList::MAXIMUM_ROWS);
+    for (const pdf::PDFAppElidedLabel* detail : fileDetails)
+    {
+        QCOMPARE(detail->getTextKind(), pdf::PDFComponentPainter::TextKind::Path);
+        QCOMPARE(detail->text(), QDir::toNativeSeparators(QFileInfo(file.name).absolutePath()));
+    }
     for (QLabel* status : dialog->getList()->findChildren<QLabel*>(QStringLiteral("itemStatus")))
     {
         // The status lies inside of its row at the trailing side
@@ -676,6 +685,12 @@ void AppDocumentTest::openFailedDialog()
     QTRY_VERIFY(!guard);
     QTRY_VERIFY(fixture.window->getOpenFailedDialog());
     QCOMPARE(fixture.window->getOpenFailedDialog()->getFailures().size(), size_t(1));
+
+    // The detail of an option is a text of the interface
+    const QList<pdf::PDFAppElidedLabel*> optionDetails = fixture.window->getOpenFailedDialog()->getList()->findChildren<pdf::PDFAppElidedLabel*>(QStringLiteral("itemDetail"));
+    QCOMPARE(optionDetails.size(), 1);
+    QCOMPARE(optionDetails.front()->getTextKind(), pdf::PDFComponentPainter::TextKind::Interface);
+    QCOMPARE(optionDetails.front()->text(), QStringLiteral("Option of the command line"));
     QCOMPARE(fixture.closeMessageBoxes(), 1);
 
     // Hostile names: bounded texts

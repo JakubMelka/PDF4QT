@@ -35,7 +35,11 @@
 #include "pdfappdocumentview.h"
 #include "pdfappmcphost.h"
 #include "pdfappmainwindow.h"
+#include "pdfappmanagepanels.h"
+#include "pdfappundostack.h"
+#include "pdfapptoolgui_manage.h"
 #include "pdfapptoolgui_pages.h"
+#include "pdfapptoolpanelparts.h"
 #include "pdfapptoolpanelbuilder.h"
 #include "pdfapptoolpanelpopup.h"
 #include "pdfapptoolpageregistry.h"
@@ -49,6 +53,7 @@
 #include "pdfsettingsrepository.h"
 
 #include "pdfcatalog.h"
+#include "pdfdocmdppermissions.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumentpageoperations.h"
 #include "pdfdocumenttool_pages.h"
@@ -89,7 +94,7 @@ public:
         Q_UNUSED(disambiguation);
         Q_UNUSED(n);
         const QByteArray name(context);
-        if (name.contains("PageMarkingToolGUI") || name.contains("ToolGUIRotatePages") || name.contains("ToolGUIRemovePages"))
+        if (name.contains("PageMarkingToolGUI") || name.contains("ToolGUIRotatePages") || name.contains("ToolGUIRemovePages") || name.contains("PDFDocumentToolShell"))
         {
             return QStringLiteral("[T] ") + QString::fromUtf8(sourceText);
         }
@@ -98,6 +103,15 @@ public:
 };
 
 }   // namespace pdftest
+
+/// Where the callout of a certified document lies (PDFDocumentToolGUI::getCertificationCalloutPlace)
+enum class CertificationPlace
+{
+    None,               ///< No callout: the run keeps the certification
+    AboveContent,       ///< At the top of the right panel
+    BelowContent,       ///< Below the content of the right panel
+    ManageResultPanel   ///< In the result panel of Manage Pages after its lock callout
+};
 
 /// Helpers of the test
 class PagesGuiHelper
@@ -126,6 +140,33 @@ public:
     static void useFrameTileSize(AppToolShellFixture& fixture)
     {
         QVERIFY(!fixture.context->getSettings().setValue(pdf::PDFSettingKeys::toolsPageGridSize(), QStringLiteral("small")).isError());
+    }
+
+    /// A certified document of three pages (a fake certification signature of DocMDP /P 2 in the
+    /// field "cert" of page 3, ISO 32000-2 12.8.2.2), written to \p filePath; its bytes by \p data
+    static QString writeCertified(const QString& filePath, QByteArray* data = nullptr)
+    {
+        mergetest::MergeTestPdf pdf = mergetest::MergeTestPdf::createPages("C", 3, "/AcroForm << /Fields [60 0 R] /SigFlags 3 >> /Perms << /DocMDP 61 0 R >>", { { 1, "/Annots [60 0 R]" } });
+        pdf.set(60, "<< /Type /Annot /Subtype /Widget /FT /Sig /T (cert) /V 61 0 R /Rect [0 0 0 0] /P 3 0 R >>");
+        pdf.set(61, "<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /ByteRange [0 0 0 0] /Contents <00> /Reference [<< /TransformMethod /DocMDP /TransformParams << /P 2 >> >>] >>");
+        const QByteArray bytes = pdf.write();
+        QFile file(filePath);
+        if (!file.open(QFile::WriteOnly) || file.write(bytes) != bytes.size())
+        {
+            return QString();
+        }
+        if (data)
+        {
+            *data = bytes;
+        }
+        return filePath;
+    }
+
+    /// The callout of a certified document of the shell, when it is shown
+    static pdf::PDFAppToolCallout* certificationCallout(const PDFDocumentToolShell* shell)
+    {
+        pdf::PDFAppToolCallout* callout = shell ? shell->getCertificationCallout() : nullptr;
+        return callout && callout->isVisible() ? callout : nullptr;
     }
 
     static pdf::PDFAppDocumentTab* openReady(AppToolShellFixture& fixture, const QString& filePath)
@@ -363,6 +404,10 @@ private slots:
     void rotateRunKeepsInTab();
     void certifiedDocumentOnlyCopy_data();
     void certifiedDocumentOnlyCopy();
+    void certificationCallout_data();
+    void certificationCallout();
+    void certificationCalloutFollowsDocument();
+    void certificationCalloutThemesAndDirection();
     void rotateEntryCurrentPage();
     void thumbnailsCommandStillRotates();
 
@@ -765,15 +810,9 @@ void AppToolPagesTest::certifiedDocumentOnlyCopy()
     QFETCH(QString, toolId);
     using H = PagesGuiHelper;
     AppToolShellFixture fixture(QSize(1440, 960));
-    mergetest::MergeTestPdf pdf = mergetest::MergeTestPdf::createPages("C", 3, "/AcroForm << /Fields [60 0 R] /SigFlags 3 >> /Perms << /DocMDP 61 0 R >>", { { 1, "/Annots [60 0 R]" } });
-    pdf.set(60, "<< /Type /Annot /Subtype /Widget /FT /Sig /T (cert) /V 61 0 R /Rect [0 0 0 0] /P 3 0 R >>");
-    pdf.set(61, "<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /ByteRange [0 0 0 0] /Contents <00> /Reference [<< /TransformMethod /DocMDP /TransformParams << /P 2 >> >>] >>");
-    const QString filePath = fixture.path(QStringLiteral("Contract.pdf"));
-    const QByteArray original = pdf.write();
-    {
-        QFile file(filePath);
-        QVERIFY(file.open(QFile::WriteOnly) && file.write(original) == original.size());
-    }
+    QByteArray original;
+    const QString filePath = H::writeCertified(fixture.path(QStringLiteral("Contract.pdf")), &original);
+    QVERIFY(!filePath.isEmpty());
     pdf::PDFAppDocumentTab* tab = H::openReady(fixture, filePath);
     QVERIFY(tab);
     PDFDocumentToolShell* shell = fixture.openTool(tab, toolId);
@@ -815,6 +854,182 @@ void AppToolPagesTest::certifiedDocumentOnlyCopy()
     QVERIFY(source.open(QFile::ReadOnly));
     QCOMPARE(source.readAll(), original);
     QCOMPARE(tab->getDocument()->getPageCount(), pdf::PDFInteger(3));
+}
+
+void AppToolPagesTest::certificationCallout_data()
+{
+    // Owner decision of 13. 11. 2026: a tool, whose run removes the certification (it changes the
+    // pages, ISO 32000-2 12.8.2.2 Table 257), says it in its panel while the user works in it. The
+    // place is the one of the callouts of the frames of the tool: the top of the right panel (Remove
+    // 388:22298, Crop 398:28158, Resize 391:25272, Set Page Boxes, Insert 388:17789), below it
+    // (Rotate 389:20904), after the lock callout of Manage Pages (1479:35631)
+    QTest::addColumn<QString>("toolId");
+    QTest::addColumn<int>("place");
+    QTest::newRow("rotate") << PagesGuiHelper::ROTATE_ID << int(CertificationPlace::BelowContent);
+    QTest::newRow("remove") << PagesGuiHelper::REMOVE_ID << int(CertificationPlace::AboveContent);
+    QTest::newRow("crop") << QStringLiteral("pages.crop") << int(CertificationPlace::AboveContent);
+    QTest::newRow("resize") << QStringLiteral("pages.resize") << int(CertificationPlace::AboveContent);
+    QTest::newRow("boxes") << QStringLiteral("pages.boxes") << int(CertificationPlace::AboveContent);
+    QTest::newRow("insert") << QStringLiteral("pages.insert") << int(CertificationPlace::AboveContent);
+    QTest::newRow("add-image") << QStringLiteral("pages.add-image") << int(CertificationPlace::AboveContent);
+    QTest::newRow("manage") << QStringLiteral("pages.manage") << int(CertificationPlace::ManageResultPanel);
+
+    // No change of the pages of the open document: the certification stays, no callout
+    QTest::newRow("extract-text") << QStringLiteral("convert.extract-text") << int(CertificationPlace::None);
+    QTest::newRow("compress") << QStringLiteral("optimize.compress") << int(CertificationPlace::None);
+    QTest::newRow("remove-links") << QStringLiteral("protect.remove-links") << int(CertificationPlace::None);
+}
+
+void AppToolPagesTest::certificationCallout()
+{
+    QFETCH(QString, toolId);
+    QFETCH(int, place);
+    using H = PagesGuiHelper;
+    AppToolShellFixture fixture(QSize(1440, 960));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writeCertified(fixture.path(QStringLiteral("Contract.pdf"))));
+    QVERIFY(tab);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, toolId);
+    QVERIFY(shell);
+    AppToolShellFixture::settle();
+
+    const bool isShown = place != int(CertificationPlace::None);
+    QCOMPARE(shell->isCertificationRemoved(), isShown);
+    pdf::PDFAppToolCallout* callout = H::certificationCallout(shell);
+    QCOMPARE(callout != nullptr, isShown);
+    if (callout)
+    {
+        // A warning (amber), the run stays possible; the texts of the owner's decision
+        QCOMPARE(callout->getHue(), std::optional<pdf::PDFAccentHue>(pdf::PDFAccentHue::Amber));
+        QCOMPARE(callout->getTitleLabel()->text(), QStringLiteral("This document is certified"));
+        QCOMPARE(callout->getTextLabel()->text(), QStringLiteral("Its pages cannot change, so the result will be a copy without the certification and the signatures."));
+
+        QWidget* content = shell->getRightContent();
+        QVERIFY(content);
+        switch (CertificationPlace(place))
+        {
+            case CertificationPlace::AboveContent:
+                QCOMPARE(callout->parentWidget(), shell->getRightPanel()->getContentParent());
+                QVERIFY(callout->geometry().bottom() < content->geometry().top());
+                break;
+            case CertificationPlace::BelowContent:
+                QCOMPARE(callout->parentWidget(), shell->getRightPanel()->getContentParent());
+                QVERIFY(callout->geometry().top() > content->geometry().bottom());
+                break;
+            case CertificationPlace::ManageResultPanel:
+            {
+                pdf::PDFAppManageToolGUI* gui = H::gui<pdf::PDFAppManageToolGUI>(shell);
+                QVERIFY(gui && gui->isDocumentHost());
+                pdf::PDFAppManageResultPanel* panel = gui->getResultPanel();
+                QVERIFY(panel);
+                QCOMPARE(callout->parentWidget(), panel);
+                QCOMPARE(panel->layout()->indexOf(callout), panel->layout()->indexOf(panel->getLockCallout()) + 1);
+                break;
+            }
+            case CertificationPlace::None:
+                QFAIL("No place");
+        }
+    }
+    shell->cancel();
+    AppToolShellFixture::settle();
+
+    // The same tool on a document, which is not certified: no callout
+    pdf::PDFAppDocumentTab* plainTab = H::openReady(fixture, H::writePages(fixture.path(QStringLiteral("Plain.pdf")), 3));
+    QVERIFY(plainTab);
+    shell = fixture.openTool(plainTab, toolId);
+    QVERIFY(shell);
+    AppToolShellFixture::settle();
+    QVERIFY(!shell->isCertificationRemoved());
+    QVERIFY(!shell->getCertificationCallout());
+}
+
+void AppToolPagesTest::certificationCalloutFollowsDocument()
+{
+    // The callout follows the document under the open tool: the certification removed by another
+    // change, Undo of that change, a change of the language; running stays allowed
+    using H = PagesGuiHelper;
+    AppToolShellFixture fixture(QSize(1440, 960));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writeCertified(fixture.path(QStringLiteral("Contract.pdf"))));
+    QVERIFY(tab);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, H::ROTATE_ID);
+    PDFAppToolGUIRotatePages* gui = H::gui<PDFAppToolGUIRotatePages>(shell);
+    QVERIFY(gui);
+    gui->rotateRight();
+    AppToolShellFixture::settle();
+    QVERIFY(H::certificationCallout(shell));
+    QVERIFY(shell->getToolbar()->getConfirmButton()->isEnabled());
+
+    // Another tool (here an assistant) has removed the certification: no callout
+    pdf::PDFAppDocument* document = tab->getDocument();
+    const pdf::PDFDocument certifiedVersion = *document->getDocument();
+    QVERIFY(H::commitAssistantChange(document, pdf::PDFDocMDPPermissions::removeCertification(certifiedVersion, nullptr)));
+    AppToolShellFixture::settle();
+    QCOMPARE(shell->getState(), PDFDocumentToolShell::State::Editing);
+    QVERIFY(!shell->isCertificationRemoved());
+    QVERIFY(!shell->getCertificationCallout());
+
+    // The Undo of the document is refused while a tool is open (owner 2026-11-01: Undo acts on the
+    // tool); a version, which is certified again (the assistant gives it back), shows the callout
+    QVERIFY(!document->getUndoStack()->undo());
+    QVERIFY(H::commitAssistantChange(document, certifiedVersion));
+    AppToolShellFixture::settle();
+    QVERIFY(pdf::PDFDocMDPPermissions::getLevel(document->getDocument().data()) != pdf::PDFDocMDPPermissions::Level::NotCertified);
+    pdf::PDFAppToolCallout* callout = H::certificationCallout(shell);
+    QVERIFY(callout);
+
+    // A new language: the callout is made again with the new texts below the new content
+    pdftest::PagesTestTranslator translator;
+    QCoreApplication::installTranslator(&translator);
+    AppToolShellFixture::settle();
+    callout = H::certificationCallout(shell);
+    QVERIFY(callout);
+    QCOMPARE(callout->getTitleLabel()->text(), QStringLiteral("[T] This document is certified"));
+    QVERIFY(callout->geometry().top() > shell->getRightContent()->geometry().bottom());
+    QCoreApplication::removeTranslator(&translator);
+    AppToolShellFixture::settle();
+    callout = H::certificationCallout(shell);
+    QVERIFY(callout);
+    QCOMPARE(callout->getTitleLabel()->text(), QStringLiteral("This document is certified"));
+
+    // The run goes on: the result dialog offers the copy
+    shell->confirm();
+    QVERIFY(AppToolShellFixture::waitForState(shell, PDFDocumentToolShell::State::Deciding));
+    QVERIFY(H::certificationCallout(shell));
+    QCOMPARE(shell->getResultDialog()->getSelectedChoice(), pdf::PDFAppToolResultDialog::Choice::Copy);
+    shell->cancel();
+    AppToolShellFixture::settle();
+}
+
+void AppToolPagesTest::certificationCalloutThemesAndDirection()
+{
+    // No color of the system in the callout, both themes, right-to-left: the icon at the leading side
+    using H = PagesGuiHelper;
+    for (const QString& theme : { QStringLiteral("light"), QStringLiteral("dark") })
+    {
+        for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
+        {
+            QApplication::setLayoutDirection(direction);
+            AppToolShellFixture fixture(QSize(1440, 960));
+            pdf::PDFThemeManager::getInstance()->setTheme(theme);
+            AppToolShellFixture::settle();
+            pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writeCertified(fixture.path(QStringLiteral("Contract.pdf"))));
+            QVERIFY(tab);
+            PDFDocumentToolShell* shell = fixture.openTool(tab, H::REMOVE_ID);
+            QVERIFY(shell);
+            AppToolShellFixture::settle();
+            pdf::PDFAppToolCallout* callout = H::certificationCallout(shell);
+            QVERIFY(callout);
+            QCOMPARE(H::countLeak(callout), 0);
+            QCOMPARE(H::countLeak(fixture.window), 0);
+
+            const QWidget* icon = callout->findChild<QWidget*>(QStringLiteral("toolCalloutIcon"));
+            QVERIFY(icon);
+            const int iconCenter = H::inWindow(icon).center().x();
+            const int titleCenter = H::inWindow(callout->getTitleLabel()).center().x();
+            QVERIFY2(direction == Qt::RightToLeft ? iconCenter > titleCenter : iconCenter < titleCenter, qPrintable(theme));
+        }
+    }
+    QApplication::setLayoutDirection(Qt::LeftToRight);
+    pdf::PDFThemeManager::getInstance()->setTheme(QStringLiteral("light"));
 }
 
 void AppToolPagesTest::rotateEntryCurrentPage()
@@ -1186,6 +1401,22 @@ void AppToolPagesTest::screenshots()
     AppToolShellFixture::screenshotDialog(fixture.window, QStringLiteral("388-20614-pages-remove"));
     H::setPages(shell, QString());
     AppToolShellFixture::screenshotDialog(fixture.window, QStringLiteral("388-21466-pages-remove-all"));
+    shell->cancel();
+    AppToolShellFixture::settle();
+
+    // The callout of a certified document (owner decision of 13. 11. 2026; no frame - the look of
+    // the callouts of 1479:35631 at the place of the callouts of each tool)
+    pdf::PDFAppDocumentTab* certifiedTab = H::openReady(fixture, H::writeCertified(fixture.path(QStringLiteral("Contract.pdf"))));
+    QVERIFY(certifiedTab);
+    for (const QString& toolId : { H::REMOVE_ID, H::ROTATE_ID, QStringLiteral("pages.crop"), QStringLiteral("pages.manage") })
+    {
+        shell = fixture.openTool(certifiedTab, toolId);
+        QVERIFY(shell);
+        AppToolShellFixture::settle();
+        AppToolShellFixture::screenshotDialog(fixture.window, QStringLiteral("certified-") + QString(toolId).replace(QLatin1Char('.'), QLatin1Char('-')));
+        shell->cancel();
+        AppToolShellFixture::settle();
+    }
 }
 
 void AppToolPagesTest::removeMarksFollowPages()

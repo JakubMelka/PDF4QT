@@ -149,7 +149,8 @@ public:
         return gui(run) != nullptr;
     }
 
-    /// The items at the indices are selected
+    /// The items at the indices are selected and the GUI lives (a deletion site in the settle of the
+    /// selection ends the step)
     static bool select(const ToolPagesLifetimeRun& run, std::vector<int> indices)
     {
         pdf::PDFAppManageToolGUI* current = gui(run);
@@ -168,7 +169,7 @@ public:
         }
         current->setSelection(selection);
         ToolPagesLifetimeSteps::settle();
-        return true;
+        return gui(run) != nullptr;
     }
 
     /// A key on the canvas (the actions of the key widget reach it)
@@ -548,7 +549,7 @@ void ToolPagesLifetimePackages::registerManageScenarios(std::vector<ToolPagesLif
     {
         steps->push_back([](ToolPagesLifetimeRun& run)
         {
-            if (!M::openDocumentTool(run) || !M::select(run, { 2 }))
+            if (!M::openDocumentTool(run) || !M::select(run, { 2 }) || !M::gui(run))
             {
                 return false;
             }
@@ -774,7 +775,7 @@ void ToolPagesLifetimePackages::registerManageScenarios(std::vector<ToolPagesLif
     {
         steps->push_back([](ToolPagesLifetimeRun& run)
         {
-            return M::openDocumentTool(run) && !M::gui(run)->isConfirmEnabled();
+            return M::openDocumentTool(run) && M::gui(run) && !M::gui(run)->isConfirmEnabled();
         });
         steps->push_back([](ToolPagesLifetimeRun& run)
         {

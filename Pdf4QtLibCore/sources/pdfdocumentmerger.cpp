@@ -1861,8 +1861,11 @@ void PDFDocumentMergerRun::removeSignatures(const std::vector<PDFObject>& fields
             continue;
         }
 
+        // A field without a value is no signature: /V null or a reference to an undefined or
+        // unreadable object is an absent entry (7.3.7, 7.3.10) - the field and its appearance
+        // stay, as PDFForm::getSignatureCount counts it
         const PDFDictionary* dictionary = getDictionary(terminal);
-        if (!dictionary->hasKey("V"))
+        if (getObject(dictionary->get("V")).isNull())
         {
             continue;
         }

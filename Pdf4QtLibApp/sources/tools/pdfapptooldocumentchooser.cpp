@@ -80,11 +80,6 @@ public:
     {
         return PDFThemeFonts::getFont(QFont::Normal, 11);
     }
-
-    static QString getDetailsSeparator()
-    {
-        return QStringLiteral(" · ");
-    }
 };
 
 // ---------------------------------------------------------- PDFAppToolDocumentRow
@@ -125,20 +120,20 @@ QString PDFAppToolDocumentRow::getDetails() const
     {
         parts << m_numbers;
     }
-    return parts.join(PDFAppToolDocumentChooserHelper::getDetailsSeparator());
+    return parts.join(PDFComponentPainter::getDetailSeparator());
+}
+
+PDFComponentPainter::TextWithDetail PDFAppToolDocumentRow::getShownDetailsLine() const
+{
+    // The folder is elided by its folders, the numbers stay whole - the layout of the
+    // drawing (PDFComponentPainter::drawElidedTextWithDetail)
+    return PDFComponentPainter::elidedTextWithDetail(m_folder, m_numbers, PDFAppToolDocumentChooserHelper::getDetailsFont(), getTextWidth(), PDFComponentPainter::TextKind::Path);
 }
 
 QString PDFAppToolDocumentRow::getShownDetails() const
 {
-    if (m_folder.isEmpty() || m_numbers.isEmpty())
-    {
-        return getDetails();
-    }
-
-    const QFont font = PDFAppToolDocumentChooserHelper::getDetailsFont();
-    const QString numbers = PDFAppToolDocumentChooserHelper::getDetailsSeparator() + m_numbers;
-    const int folderWidth = qMax(0, getTextWidth() - QFontMetrics(font).horizontalAdvance(numbers));
-    return PDFComponentPainter::elidedTextOfKind(m_folder, font, folderWidth, PDFComponentPainter::TextKind::FileName) + numbers;
+    const PDFComponentPainter::TextWithDetail line = getShownDetailsLine();
+    return line.text + line.detail;
 }
 
 void PDFAppToolDocumentRow::setCheckBoxVisible(bool isVisible)
@@ -413,8 +408,10 @@ void PDFAppToolDocumentRow::paintContent(QPainter* painter, const QRect& rect, c
     const QRect detailsRect(rect.left() + textLeft, rect.top() + 27, textWidth, 13);
     PDFComponentPainter::drawElidedText(painter, state, QRectF(QStyle::visualRect(direction, rect, nameRect)), m_name, PDFThemeFonts::getFont(QFont::DemiBold, 13),
                                         state.isEnabled() ? Color::TextPrimary : Color::TextDisabled, PDFComponentPainter::TextKind::FileName);
-    PDFComponentPainter::drawElidedText(painter, state, QRectF(QStyle::visualRect(direction, rect, detailsRect)), getShownDetails(), PDFAppToolDocumentChooserHelper::getDetailsFont(),
-                                        state.isEnabled() ? Color::TextMuted : Color::TextDisabled, PDFComponentPainter::TextKind::Data);
+    // The folder is data in its own direction, the numbers are a detail of the interface
+    // in the direction of the row (review C18)
+    PDFComponentPainter::drawElidedTextWithDetail(painter, state, QRectF(QStyle::visualRect(direction, rect, detailsRect)), m_folder, m_numbers, PDFAppToolDocumentChooserHelper::getDetailsFont(),
+                                                  state.isEnabled() ? Color::TextMuted : Color::TextDisabled, PDFComponentPainter::TextKind::Path);
 }
 
 // ------------------------------------------------------ PDFAppToolDocumentChooser
@@ -502,7 +499,7 @@ QString PDFAppToolDocumentChooser::createNumbers(const PDFAppDocument* document)
     {
         parts << PDFDocumentToolFormat::formatSize(size);
     }
-    return parts.join(PDFAppToolDocumentChooserHelper::getDetailsSeparator());
+    return parts.join(PDFComponentPainter::getDetailSeparator());
 }
 
 QString PDFAppToolDocumentChooser::getFolder(const QString& filePath)
@@ -992,7 +989,7 @@ void PDFAppToolInputChooser::refresh()
         {
             numbers << PDFDocumentToolFormat::formatSize(input->fileSize);
         }
-        rowData.numbers = numbers.join(QStringLiteral(" · "));
+        rowData.numbers = numbers.join(PDFComponentPainter::getDetailSeparator());
         rowData.tagText = input->state != PDFAppToolInputState::Loading ? PDFAppToolInputList::getStateText(input->state) : QString();
         fileRows.push_back(std::move(rowData));
     }

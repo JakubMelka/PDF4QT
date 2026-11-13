@@ -179,7 +179,9 @@ public:
 
             const QByteArray ownType = getName(dictionary->get("FT"));
             const QByteArray type = ownType.isEmpty() ? node.inheritedType : ownType;
-            const bool isSigned = type == "Sig" && dictionary->hasKey("V");
+            // A field without a value is not signed: /V null or a reference to an undefined or
+            // unreadable object is an absent entry (7.3.7, 7.3.10), as PDFForm::getSignatureCount
+            const bool isSigned = type == "Sig" && !storage->getObject(dictionary->get("V")).isNull();
             const bool isWidget = getName(dictionary->get("Subtype")) == "Widget";
             const std::vector<PDFObject> kids = getItems(storage, dictionary->get("Kids"));
             if ((isSigned || (node.isParentSigned && isWidget)) && node.field.isReference())

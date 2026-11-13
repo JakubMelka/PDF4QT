@@ -607,7 +607,7 @@ void PDFAppAboutPage::updateBuildInfo()
     m_buildInfo->clear();
     for (const PDFAppBuildInfoRow& row : std::as_const(m_buildRows))
     {
-        m_buildInfo->addRow(row.key, row.value);
+        m_buildInfo->addRow(row.key, row.value, row.isFolder ? PDFComponentPainter::TextKind::Path : PDFComponentPainter::TextKind::Data);
     }
 }
 

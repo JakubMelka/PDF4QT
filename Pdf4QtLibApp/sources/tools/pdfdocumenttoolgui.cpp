@@ -135,6 +135,11 @@ PDFAppToolProgressPlace PDFDocumentToolGUI::getProgressPlace() const
     return PDFAppToolProgressPlace();
 }
 
+PDFAppToolCalloutPlace PDFDocumentToolGUI::getCertificationCalloutPlace() const
+{
+    return PDFAppToolCalloutPlace();
+}
+
 void PDFDocumentToolGUI::setContentEnabled(bool isEnabled)
 {
     if (!m_shell)

@@ -30,6 +30,7 @@
 
 #include "pdfdocumentmerger.h"
 #include "pdfexception.h"
+#include "pdfform.h"
 #include "pdfimagepagefactory.h"
 #include "pdfnametreeloader.h"
 #include "pdfobjectutils.h"
@@ -93,6 +94,8 @@ private slots:
     void formResourcesAndAppearances();
     void clonedWidgetOfFieldKid();
     void signaturesRemoved();
+    void signatureFieldWithoutValueKept_data();
+    void signatureFieldWithoutValueKept();
     void layersKeepTheirStates_data();
     void layersKeepTheirStates();
     void structureTreeJoined();
@@ -736,6 +739,46 @@ void DocumentMergerTest::signaturesRemoved()
     QCOMPARE(Read::name(result, field->get("FT")), QByteArray("Sig"));
     QVERIFY(!field->hasKey("V"));
     QVERIFY(!field->hasKey("AP"));
+}
+
+void DocumentMergerTest::signatureFieldWithoutValueKept_data()
+{
+    QTest::addColumn<QByteArray>("value");
+    QTest::addColumn<QByteArray>("valueObject");
+    QTest::newRow("null") << QByteArray("null") << QByteArray();
+    QTest::newRow("reference to null") << QByteArray("31 0 R") << QByteArray("null");
+    QTest::newRow("reference to nothing") << QByteArray("99 0 R") << QByteArray();
+}
+
+void DocumentMergerTest::signatureFieldWithoutValueKept()
+{
+    // 7.3.7, 7.3.10: /V null, or a reference to a null or an undefined object, is an absent entry -
+    // the signature field (12.7.5.5, Table 236) is not signed; Merge removes only a signature with
+    // its value (owner answer Q4), so this field keeps its appearance as any unsigned field does
+    // (Signature/invalid/usf-2.pdf: /V of an unreadable signature dictionary)
+    QFETCH(QByteArray, value);
+    QFETCH(QByteArray, valueObject);
+
+    MergeTestPdf a = MergeTestPdf::createPages("A", 1, "/AcroForm << /Fields [30 0 R] /SigFlags 3 >>", { { 1, "/Annots [30 0 R]" } });
+    a.set(30, "<< /Type /Annot /Subtype /Widget /FT /Sig /T (Signature) /V " + value + " /Rect [0 0 10 10] /P 3 0 R /AP << /N 32 0 R >> >>");
+    if (!valueObject.isEmpty())
+    {
+        a.set(31, valueObject);
+    }
+    a.set(32, MergeTestPdf::stream("% SIGAPPEARANCE", "/Type /XObject /Subtype /Form /BBox [0 0 10 10]"));
+    const PDFDocumentPointer input = a.readPointer();
+    QCOMPARE(PDFForm::getSignatureCount(input.data()), 0);
+
+    const Merger::Result merged = mergeAll({ input, MergeTestPdf::createPages("B", 1).readPointer() });
+    QCOMPARE(merged.statistics.signaturesRemoved, 0);
+    const PDFDocument result = check(merged);
+    QVERIFY(MergeTestPdf::writeDocument(result).contains("SIGAPPEARANCE"));
+
+    const std::vector<PDFObject> fields = Read::items(result, Read::path(result, { "AcroForm" })->get("Fields"));
+    QCOMPARE(fields.size(), size_t(1));
+    const PDFDictionary* field = Read::dictionary(result, fields.front());
+    QCOMPARE(Read::name(result, field->get("FT")), QByteArray("Sig"));
+    QVERIFY(field->hasKey("AP"));
 }
 
 void DocumentMergerTest::layersKeepTheirStates_data()
