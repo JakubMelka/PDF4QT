@@ -164,6 +164,9 @@ target_link_libraries(Pdf4QtLibApp PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::
 # The document tab (step 3): printing, speech and the workers of the search,
 # thumbnails and fonts
 target_link_libraries(Pdf4QtLibApp PRIVATE Qt6::PrintSupport Qt6::TextToSpeech Qt6::Concurrent)
+
+# Create Audio Book (step 4 of phase 2, Q4.3): the speech synthesis (WAV only, owner 14. 11.)
+target_link_libraries(Pdf4QtLibApp PRIVATE Pdf4QtSpeech)
 target_link_libraries(Pdf4QtLibApp PRIVATE unofficial::sqlite3::sqlite3)
 
 if(WIN32)

@@ -293,6 +293,9 @@ QVariant PDFAppToolPageGridModel::data(const QModelIndex& index, int role) const
         case PDFAppToolPageTileDelegate::CutBeforeRole:
             return tile.markerBefore;
 
+        case PDFAppToolPageTileDelegate::TagRole:
+            return tile.tag;
+
         case PDFAppToolPageTileDelegate::PaperBorderRole:
             // The pages on the white cards of the groups have the border of their paper (383:3315
             // paper: border/strong), a blank page stays visible
@@ -923,9 +926,22 @@ void PDFAppToolPageGrid::paintEvent(QPaintEvent* event)
 {
     Q_UNUSED(event);
 
-    // The canvas of the tool (document-canvas 389:20210: bg/track)
-    QPainter painter(this);
-    painter.fillRect(rect(), PDFThemeManager::getInstance()->getColor(PDFThemeColors::BgTrack));
+    // The canvas of the tool (document-canvas 389:20210: bg/track); a grid in a side panel shows
+    // the panel
+    if (m_isCanvasPainted)
+    {
+        QPainter painter(this);
+        painter.fillRect(rect(), PDFThemeManager::getInstance()->getColor(PDFThemeColors::BgTrack));
+    }
+}
+
+void PDFAppToolPageGrid::setCanvasPainted(bool isCanvasPainted)
+{
+    if (m_isCanvasPainted != isCanvasPainted)
+    {
+        m_isCanvasPainted = isCanvasPainted;
+        update();
+    }
 }
 
 void PDFAppToolPageGrid::changeEvent(QEvent* event)
@@ -1050,6 +1066,17 @@ PDFAppToolPageTileDelegate::MarkRects PDFAppToolPageTileDelegate::getMarkRects(c
         const qreal dotRight = tileRect.left() + tileRect.right() - (dotLeft + DOT_SIZE);
         rects.dot = QRectF(isRightToLeft ? dotRight : dotLeft, labelTop + (LABEL_HEIGHT - DOT_SIZE) / 2.0, DOT_SIZE, DOT_SIZE);
     }
+
+    const QString tag = index.data(TagRole).toString();
+    if (!tag.isEmpty())
+    {
+        // 304:5102: the Tag over the top trailing corner of the page, TAG_INSET from both edges;
+        // a narrow page elides its text
+        const QSize tagSize = PDFComponentPainter::getTagSize(PDFComponentPainter::Tag{ tag });
+        const qreal width = qMin<qreal>(tagSize.width(), qMax<qreal>(0.0, rects.page.width() - 2 * TAG_INSET));
+        const QRectF leftToRight(rects.page.right() - TAG_INSET - width, rects.page.top() + TAG_INSET, width, tagSize.height());
+        rects.tag = isRightToLeft ? QRectF(rects.page.left() + TAG_INSET, leftToRight.top(), width, tagSize.height()) : leftToRight;
+    }
     return rects;
 }
 
@@ -1073,7 +1100,8 @@ void PDFAppToolPageTileDelegate::paintItem(QPainter* painter, const QStyleOption
     const bool isDimmed = index.data(DimmedRole).toBool();
     const bool hasPaperBorder = index.data(PaperBorderRole).toBool();
     const std::optional<PDFAccentHue> dotHue = getDotHue(index);
-    if (!isDimmed && !hasPaperBorder && !dotHue.has_value() && !hasCut)
+    const bool hasTag = !index.data(TagRole).toString().isEmpty();
+    if (!isDimmed && !hasPaperBorder && !dotHue.has_value() && !hasCut && !hasTag)
     {
         return;
     }
@@ -1112,6 +1140,12 @@ void PDFAppToolPageTileDelegate::paintItem(QPainter* painter, const QStyleOption
     {
         painter->setBrush(theme->getColor(PDFAccentHueColors::getColor(*dotHue, PDFAccentHueColors::Role::Icon)));
         painter->drawEllipse(rects.dot);
+    }
+    if (!rects.tag.isEmpty())
+    {
+        // The Tag component (116:2353) in its rest state: the tile is the control, not the tag
+        const PDFComponentPainter::State tagState(state.flags & QStyle::State_Enabled, state.direction);
+        PDFComponentPainter::paintTag(painter, rects.tag, PDFComponentPainter::Tag{ index.data(TagRole).toString() }, tagState);
     }
 }
 

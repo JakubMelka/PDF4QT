@@ -286,9 +286,11 @@ PDFDocumentToolContext PDFDocumentToolRunner::createContext(const PDFAppDocument
     context.selectedPages = environment.selectedPages;
     context.currentPage = environment.currentPage;
     context.cms = environment.cms;
+    context.rendering = environment.rendering;
     context.authorName = environment.authorName;
     context.certificateStore = environment.certificateStore;
     context.temporaryFolder = environment.temporaryFolder;
+    context.speechSynthesizerFactory = environment.speechSynthesizerFactory;
     return context;
 }
 

@@ -341,6 +341,10 @@ QList<PDFRenderError> PDFPageContentProcessor::processContents()
     // Initialize stream processor
     initializeProcessor();
 
+    // The inline images of the page are counted over all streams of /Contents (R4-8)
+    m_contentStreamOwner = m_page->getPageReference();
+    m_inlineImageCounter = 0;
+
     if (contents.isArray())
     {
         const PDFArray* array = contents.getArray();
@@ -615,6 +619,10 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
 
                     if (command == "BI")
                     {
+                        // Every BI counts, also one, which cannot be read: the positions of the
+                        // other inline images of the content do not depend on it (R4-8)
+                        const PDFInteger inlineImageIndex = m_inlineImageCounter++;
+
                         // Strategy: We will try to find position of BI/ID/EI in the stream. If we can determine
                         // length of the stream explicitly, then we use explicit length. We also create a PDFObject
                         // from the inline image dictionary/image content stream and then process it like XObject.
@@ -757,6 +765,7 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
 
                         QByteArray buffer = content.mid(startDataPosition, dataLength);
                         PDFStream imageStream(std::move(*dictionary), std::move(buffer));
+                        PDFTemporaryValueChange positionGuard(&m_inlineImagePosition, InlineImagePosition{ m_contentStreamOwner, inlineImageIndex });
                         paintXObjectImage(&imageStream, PDFObjectReference());
                     }
                     else
@@ -1221,6 +1230,10 @@ void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPatte
             updateGraphicState();
 
             performClipping(boundingPath, boundingPath.fillRule());
+
+            // The pattern has no reference here: an inline image of a tile has no stable position (R4-8)
+            PDFTemporaryValueChange ownerGuard(&m_contentStreamOwner, PDFObjectReference());
+            PDFTemporaryValueChange counterGuard(&m_inlineImageCounter, PDFInteger(0));
             processContent(content);
 
             if (isProcessingCancelled())
@@ -3283,6 +3296,9 @@ void PDFPageContentProcessor::operatorPaintXObject(PDFOperandName name)
                 };
                 FormStackGuard formStackGuard(&m_formStack, reference);
 
+                // The inline images of the form are counted in the content of the form (R4-8)
+                PDFTemporaryValueChange ownerGuard(&m_contentStreamOwner, reference);
+                PDFTemporaryValueChange counterGuard(&m_inlineImageCounter, PDFInteger(0));
                 processForm(stream);
             }
             else
@@ -3539,6 +3555,9 @@ void PDFPageContentProcessor::drawText(const PDFRealizedFontPointer& font, const
                     m_graphicState.setCurrentTransformationMatrix(worldMatrix);
                     updateGraphicState();
 
+                    // An inline image of a glyph has no stable position (R4-8)
+                    PDFTemporaryValueChange ownerGuard(&m_contentStreamOwner, PDFObjectReference());
+                    PDFTemporaryValueChange counterGuard(&m_inlineImageCounter, PDFInteger(0));
                     processContent(*item.characterContentStream);
 
                     if (!item.character.isNull())

@@ -28,6 +28,8 @@
 #include "pdfutils.h"
 #include "pdfprogress.h"
 
+#include <memory>
+
 namespace pdf
 {
 class PDFDocument;
@@ -54,6 +56,8 @@ public:
         StructurePhoneme                    = 0x0100,   ///< Structure tree item  phoneme
         StructureItemStart                  = 0x0200,   ///< Start of structure tree item
         StructureItemEnd                    = 0x0400,   ///< End of structure tree item
+        ReplacedText                        = 0x0800,   ///< Reading stream: the text of a structure element, which its /ActualText (with StructureActualText) or /E (with StructureExpandedForm) replaces (ISO 32000-2 14.9.4, 14.9.5)
+        Artifact                            = 0x1000,   ///< Reading stream: text of a marked content /Artifact (ISO 32000-2 14.8.2.2), a special item
     };
     Q_DECLARE_FLAGS(Flags, Flag)
 
@@ -64,6 +68,7 @@ public:
         QString text;
         Flags flags = None;
         std::vector<QRectF> characterBoundingRects;
+        QString language;   ///< Reading stream: BCP 47 language of the text (/Lang of its structure element, inherited, or of the catalog, ISO 32000-2 14.9.2); empty = not known
 
         bool isText() const { return flags.testFlag(Text); }
         bool isSpecial() const { return !isText(); }
@@ -178,6 +183,24 @@ public:
     /// nothing). setStructureExport sets it too.
     void setUnmarkedText(bool isUnmarkedText) { m_isUnmarkedText = isUnmarkedText; }
 
+    /// The stream is read aloud (Create Audio Book, step 4 of phase 2, R4-13). The structure
+    /// algorithm: an element with /ActualText (ISO 32000-2 14.9.4) or /E (14.9.5) gives one special
+    /// item of the replacement (StructureActualText / StructureExpandedForm, the rectangle of its
+    /// text), followed by the text of the element and of its descendants marked ReplacedText with
+    /// the same flag (read only when the replacement is not); /Alt (14.9.3) of an element without
+    /// any text is a Text item (a figure is read by its description), else a special item; every
+    /// item has its language (/Lang of the element or of a parent, else /Lang of the catalog,
+    /// 14.9.2; /Lang of the property list of a marked content is more specific and wins, in all
+    /// three algorithms); no items of the languages and phonemes; the order of the structure has
+    /// the marks of the pages (PageStart "Page N" before the items of each page, B76) as Layout and
+    /// Content have them. The algorithms Layout and Content give the
+    /// text of a marked content /Artifact (14.8.2.2) as special items marked Artifact, by the
+    /// marked content, not by a guess. The structure items are limited to the pages as by
+    /// setStructureExport. Off by default: the old callers (the plugin, PdfTool --say-*) get the
+    /// stream as before. The setting implies setStructureTitleText and setUnmarkedText (an untagged
+    /// page is read by Content).
+    void setReadingStream(bool isReadingStream) { m_isReadingStream = isReadingStream; if (isReadingStream) { m_isStructureTitleText = true; m_isUnmarkedText = true; } }
+
     /// The algorithm create really uses for the document: Auto is Structure for a marked
     /// document with a valid structure tree, otherwise Layout.
     /// \param document Document
@@ -194,6 +217,7 @@ private:
     bool m_isStructureExport = false;
     bool m_isStructureTitleText = false;
     bool m_isUnmarkedText = false;
+    bool m_isReadingStream = false;
     const PDFOperationControl* m_operationControl = nullptr;
     PDFProgressSink* m_progress = nullptr;
 };
@@ -272,7 +296,11 @@ public:
     void setText(const QString& text, size_t index);
 
     /// Returns true, if text flow is empty
-    bool isEmpty() const { return m_originalTextFlow.isEmpty(); }
+    bool isEmpty() const { return !m_originalTextFlow || m_originalTextFlow->isEmpty(); }
+
+    /// The original text flow (nullptr = none). It is immutable and shared by the copies of the
+    /// editor: a copy (a step of Undo of Audio Book) holds its own edited items only.
+    const PDFDocumentTextFlow* getOriginalTextFlow() const { return m_originalTextFlow.get(); }
 
     /// Returns true, if text selection is empty
     bool isSelectionEmpty() const;
@@ -338,10 +366,10 @@ private:
     void createEditedFromOriginalTextFlow();
     void updateModifiedFlag(size_t index);
 
-    const PDFDocumentTextFlow::Item* getOriginalItem(size_t index) const { return m_originalTextFlow.getItem(index); }
+    const PDFDocumentTextFlow::Item* getOriginalItem(size_t index) const { return m_originalTextFlow->getItem(index); }
     EditedItem* getEditedItem(size_t index) { return &m_editedTextFlow.at(index); }
 
-    PDFDocumentTextFlow m_originalTextFlow;
+    std::shared_ptr<const PDFDocumentTextFlow> m_originalTextFlow;
     EditedItems m_editedTextFlow;
     PageIndicesMapping m_pageIndicesMapping;
 };

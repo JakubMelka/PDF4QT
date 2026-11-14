@@ -23,6 +23,8 @@
 #include "pdfrendertoimagesdialog.h"
 #include "ui_pdfrendertoimagesdialog.h"
 
+#include "pdfdocumenttool_pdftoimages.h"
+#include "pdfdocumenttool_split.h"
 #include "pdfutils.h"
 #include "pdfwidgetutils.h"
 #include "pdfoptionalcontent.h"
@@ -33,6 +35,8 @@
 #include <QPushButton>
 #include <QtConcurrent/QtConcurrent>
 #include <QImageWriter>
+
+#include <algorithm>
 
 #include "pdfdbgheap.h"
 
@@ -49,11 +53,13 @@ PDFRenderToImagesDialog::PDFRenderToImagesDialog(const pdf::PDFDocument* documen
     m_proxy(proxy),
     m_progress(progress),
     m_imageExportSettings(document),
-    m_isLoadingData(false),
-    m_optionalContentActivity(nullptr),
-    m_rasterizerPool(nullptr)
+    m_isLoadingData(false)
 {
     ui->setupUi(this);
+
+    // B54, K4.10: the gamma was stored, but no image writer of Qt 6 uses it - the option is gone
+    ui->gammaLabel->hide();
+    ui->gammaEdit->hide();
 
     qRegisterMetaType<pdf::PDFRenderError>("PDFRenderError");
     qRegisterMetaType<pdf::PDFInteger>("PDFInteger");
@@ -77,10 +83,9 @@ PDFRenderToImagesDialog::PDFRenderToImagesDialog(const pdf::PDFDocument* documen
     connect(ui->subtypeComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &PDFRenderToImagesDialog::onSubtypeChanged);
     connect(ui->compressionEdit, QOverload<int>::of(&QSpinBox::valueChanged), this, &PDFRenderToImagesDialog::onCompressionChanged);
     connect(ui->qualityEdit, QOverload<int>::of(&QSpinBox::valueChanged), this, &PDFRenderToImagesDialog::onQualityChanged);
-    connect(ui->gammaEdit, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &PDFRenderToImagesDialog::onGammaChanged);
     connect(ui->optimizedWriteCheckBox, &QCheckBox::clicked, this, &PDFRenderToImagesDialog::onOptimizedWriteChanged);
     connect(ui->progressiveScanWriteCheckBox, &QCheckBox::clicked, this, &PDFRenderToImagesDialog::onProgressiveScanWriteChanged);
-    connect(&m_watcher, &QFutureWatcher<void>::finished, this, &PDFRenderToImagesDialog::onRenderingFinished);
+    connect(&m_watcher, &QFutureWatcher<pdf::PDFDocumentToolResult>::finished, this, &PDFRenderToImagesDialog::onRenderingFinished);
 
     ui->resolutionDPIEdit->setRange(pdf::PDFPageImageExportSettings::getMinDPIResolution(), pdf::PDFPageImageExportSettings::getMaxDPIResolution());
     ui->resolutionPixelsEdit->setRange(pdf::PDFPageImageExportSettings::getMinPixelResolution(), pdf::PDFPageImageExportSettings::getMaxPixelResolution());
@@ -94,10 +99,9 @@ PDFRenderToImagesDialog::PDFRenderToImagesDialog(const pdf::PDFDocument* documen
 
 PDFRenderToImagesDialog::~PDFRenderToImagesDialog()
 {
+    // The run writes into the sink: it ends before the sink goes
+    m_watcher.waitForFinished();
     delete ui;
-
-    Q_ASSERT(!m_optionalContentActivity);
-    Q_ASSERT(!m_rasterizerPool);
 }
 
 void PDFRenderToImagesDialog::loadImageWriterSettings()
@@ -121,14 +125,12 @@ void PDFRenderToImagesDialog::loadImageWriterSettings()
 
     ui->compressionEdit->setValue(m_imageWriterSettings.getCompression());
     ui->qualityEdit->setValue(m_imageWriterSettings.getQuality());
-    ui->gammaEdit->setValue(m_imageWriterSettings.getGamma());
     ui->optimizedWriteCheckBox->setChecked(m_imageWriterSettings.hasOptimizedWrite());
     ui->progressiveScanWriteCheckBox->setChecked(m_imageWriterSettings.hasProgressiveScanWrite());
 
     ui->subtypeComboBox->setEnabled(m_imageWriterSettings.isOptionSupported(QImageIOHandler::SupportedSubTypes));
     ui->compressionEdit->setEnabled(m_imageWriterSettings.isOptionSupported(QImageIOHandler::CompressionRatio));
     ui->qualityEdit->setEnabled(m_imageWriterSettings.isOptionSupported(QImageIOHandler::Quality));
-    ui->gammaEdit->setEnabled(m_imageWriterSettings.isOptionSupported(QImageIOHandler::Gamma));
     ui->optimizedWriteCheckBox->setEnabled(m_imageWriterSettings.isOptionSupported(QImageIOHandler::OptimizedWrite));
     ui->progressiveScanWriteCheckBox->setEnabled(m_imageWriterSettings.isOptionSupported(QImageIOHandler::ProgressiveScanWrite));
 }
@@ -237,11 +239,6 @@ void PDFRenderToImagesDialog::onQualityChanged(int value)
     m_imageWriterSettings.setQuality(value);
 }
 
-void PDFRenderToImagesDialog::onGammaChanged(double value)
-{
-    m_imageWriterSettings.setGamma(value);
-}
-
 void PDFRenderToImagesDialog::onOptimizedWriteChanged(bool value)
 {
     m_imageWriterSettings.setOptimizedWrite(value);
@@ -252,32 +249,31 @@ void PDFRenderToImagesDialog::onProgressiveScanWriteChanged(bool value)
     m_imageWriterSettings.setProgressiveScanWrite(value);
 }
 
-void PDFRenderToImagesDialog::onRenderError(pdf::PDFInteger pageIndex, pdf::PDFRenderError error)
-{
-    QString text;
-
-    if (pageIndex != pdf::PDFCatalog::INVALID_PAGE_INDEX)
-    {
-        text = tr("%1\nPage %2: %3").arg(ui->progressMessagesEdit->toPlainText(), QString::number(pageIndex + 1), error.message);
-    }
-    else
-    {
-        text = QString("%1\n%2").arg(ui->progressMessagesEdit->toPlainText(), error.message);
-    }
-    ui->progressMessagesEdit->setPlainText(text);
-}
-
 void PDFRenderToImagesDialog::onRenderingFinished()
 {
     setEnabled(true);
+    m_sink.reset();
 
-    delete m_rasterizerPool;
-    m_rasterizerPool = nullptr;
-
-    delete m_optionalContentActivity;
-    m_optionalContentActivity = nullptr;
-
-    m_cms.reset();
+    // The problems of the pages and the files, which could not be written
+    const pdf::PDFDocumentToolResult result = m_watcher.result();
+    QStringList lines;
+    if (!ui->progressMessagesEdit->toPlainText().isEmpty())
+    {
+        lines << ui->progressMessagesEdit->toPlainText();
+    }
+    if (result.status == pdf::PDFDocumentToolResultStatus::Failed)
+    {
+        lines << result.message;
+    }
+    for (const pdf::PDFDocumentToolPageProblem& problem : result.renderingIssues)
+    {
+        lines << tr("Page %1: %2").arg(QString::number(problem.pageIndex + 1), problem.message);
+    }
+    for (const pdf::PDFDocumentToolFileProblem& problem : result.failedFiles)
+    {
+        lines << tr("Cannot write page image to file '%1', because: %2.").arg(problem.fileName, problem.reason);
+    }
+    ui->progressMessagesEdit->setPlainText(lines.join(QLatin1Char('\n')));
 }
 
 void PDFRenderToImagesDialog::on_selectDirectoryButton_clicked()
@@ -296,66 +292,54 @@ void PDFRenderToImagesDialog::on_buttonBox_clicked(QAbstractButton* button)
         QString message;
         if (m_imageExportSettings.validate(&message))
         {
-            setEnabled(false);
+            // B67: the tool PDF to Images renders and writes the pages (the image of the crop box with
+            // /Rotate and /UserUnit, B57; the names checked before the first file, B55). The dialog
+            // keeps its options: "%" of its template is the page ("@"), existing files are overwritten.
+            std::vector<pdf::PDFInteger> pageIndices = m_imageExportSettings.getPages();
+            std::sort(pageIndices.begin(), pageIndices.end());
+            pageIndices.erase(std::unique(pageIndices.begin(), pageIndices.end()), pageIndices.end());
 
-            // We are ready to render the document
-            m_pageIndices = m_imageExportSettings.getPages();
-            m_optionalContentActivity = new pdf::PDFOptionalContentActivity(m_document, pdf::OCUsage::Export, this);
-            m_cms = m_proxy->getCMSManager()->getCurrentCMS();
-            m_rasterizerPool = new pdf::PDFRasterizerPool(m_document, m_proxy->getFontCache(), m_proxy->getIccProfileCache(), m_proxy->getCMSManager(),
-                                                          m_optionalContentActivity, m_proxy->getFeatures(), m_proxy->getMeshQualitySettings(),
-                                                          pdf::PDFRasterizerPool::getDefaultRasterizerCount(), m_proxy->getRendererEngine(), this);
-            connect(m_rasterizerPool, &pdf::PDFRasterizerPool::renderError, this, &PDFRenderToImagesDialog::onRenderError);
+            QVariantMap parameters = pdf::PDFDocumentToolImageFormat::fromWriterSettings(m_imageWriterSettings).toParameters();
+            parameters.insert(QString::fromLatin1(pdf::PDFDocumentToolPdfToImages::PARAMETER_PAGES), pdf::PDFDocumentToolPageSelection::createRangeText(pageIndices));
+            const bool isPixels = m_imageExportSettings.getResolutionMode() == pdf::PDFPageImageExportSettings::ResolutionMode::Pixels;
+            parameters.insert(QString::fromLatin1(pdf::PDFDocumentToolPdfToImages::PARAMETER_SIZE_BY), QString::fromLatin1(isPixels ? pdf::PDFDocumentToolPdfToImages::SIZE_BY_PIXELS : pdf::PDFDocumentToolPdfToImages::SIZE_BY_DPI));
+            parameters.insert(QString::fromLatin1(pdf::PDFDocumentToolPdfToImages::PARAMETER_DPI), m_imageExportSettings.getDpiResolution());
+            parameters.insert(QString::fromLatin1(pdf::PDFDocumentToolPdfToImages::PARAMETER_PIXELS), m_imageExportSettings.getPixelResolution());
+            parameters.insert(QString::fromLatin1(pdf::PDFDocumentToolFileOutput::PARAMETER_FOLDER), m_imageExportSettings.getDirectory());
+            parameters.insert(QString::fromLatin1(pdf::PDFDocumentToolFileOutput::PARAMETER_FILE_NAME), m_imageExportSettings.getFileTemplate().replace(QLatin1Char('%'), QLatin1Char('@')));
+            parameters.insert(QString::fromLatin1(pdf::PDFDocumentToolFileOutput::PARAMETER_EXISTING_FILES), QString::fromLatin1(pdf::PDFDocumentToolFileOutput::EXISTING_OVERWRITE));
 
-            auto process = [this]()
+            pdf::PDFDocumentToolPdfToImages tool;
+            QVariantMap normalizedParameters;
+            std::vector<pdf::PDFDocumentToolParameterError> errors = pdf::PDFDocumentToolParameters::normalize(tool.getParameters(), parameters, &normalizedParameters);
+
+            // The worker gets values only: its own copy of the document and the settings of the view
+            pdf::PDFDocumentToolContext context = pdf::PDFDocumentToolContext::create(pdf::PDFDocumentToolInputDocument::create(pdf::PDFDocumentPointer(new pdf::PDFDocument(*m_document)), QByteArray(), QString(), true));
+            m_sink = std::make_unique<pdf::PDFDocumentToolFolderSink>(m_imageExportSettings.getDirectory(), pdf::PDFDocumentToolFileSink::ExistingFiles::Overwrite);
+            context.fileSink = m_sink.get();
+            if (errors.empty())
             {
-                auto imageSizeGetter = [this](const pdf::PDFPage* page) -> QSize
-                {
-                    Q_ASSERT(page);
+                errors = tool.validate(context, normalizedParameters);
+            }
+            if (!errors.empty())
+            {
+                m_sink.reset();
+                QMessageBox::critical(this, tr("Error"), errors.front().message);
+                return;
+            }
 
-                    switch (m_imageExportSettings.getResolutionMode())
-                    {
-                        case pdf::PDFPageImageExportSettings::ResolutionMode::DPI:
-                        {
-                            QSizeF size = page->getRotatedMediaBox().size() * pdf::PDF_POINT_TO_INCH * m_imageExportSettings.getDpiResolution();
-                            return size.toSize();
-                        }
+            pdf::PDFDocumentToolPageRenderSettings renderSettings;
+            renderSettings.cmsSettings = m_proxy->getCMSManager()->getSettings();
+            // The features of the view without its color modes (R4-10 b, as the tool of the application)
+            renderSettings.features = pdf::PDFDocumentToolPageRenderSettings::getExportFeatures(m_proxy->getFeatures());
+            renderSettings.engine = m_proxy->getRendererEngine();
 
-                        case pdf::PDFPageImageExportSettings::ResolutionMode::Pixels:
-                        {
-                            int pixelResolution = m_imageExportSettings.getPixelResolution();
-                            QSizeF size = page->getRotatedMediaBox().size().scaled(pixelResolution, pixelResolution, Qt::KeepAspectRatio);
-                            return size.toSize();
-                        }
-
-                        default:
-                        {
-                            Q_ASSERT(false);
-                            break;
-                        }
-                    }
-
-                    return QSize();
-                };
-
-                auto processImage = [this](pdf::PDFRenderedPageImage& renderedPageImage)
-                {
-                    QString fileName = m_imageExportSettings.getOutputFileName(renderedPageImage.pageIndex, m_imageWriterSettings.getCurrentFormat());
-
-                    QImageWriter imageWriter(fileName, m_imageWriterSettings.getCurrentFormat());
-                    imageWriter.setSubType(m_imageWriterSettings.getCurrentSubtype());
-                    imageWriter.setCompression(m_imageWriterSettings.getCompression());
-                    imageWriter.setQuality(m_imageWriterSettings.getQuality());
-                    imageWriter.setOptimizedWrite(m_imageWriterSettings.hasOptimizedWrite());
-                    imageWriter.setProgressiveScanWrite(m_imageWriterSettings.hasProgressiveScanWrite());
-
-                    if (!imageWriter.write(renderedPageImage.pageImage))
-                    {
-                        Q_EMIT m_rasterizerPool->renderError(renderedPageImage.pageIndex, pdf::PDFRenderError(pdf::RenderErrorType::Error, tr("Cannot write page image to file '%1', because: %2.").arg(fileName).arg(imageWriter.errorString())));
-                    }
-                };
-
-                m_rasterizerPool->render(m_pageIndices, imageSizeGetter, processImage, m_progress);
+            setEnabled(false);
+            ui->progressMessagesEdit->clear();
+            pdf::PDFProgress* progress = m_progress;
+            auto process = [context, normalizedParameters, renderSettings, progress]()
+            {
+                return pdf::PDFDocumentToolPdfToImages().exportPages(context, normalizedParameters, renderSettings, nullptr, progress);
             };
             m_watcher.setFuture(QtConcurrent::run(process));
         }

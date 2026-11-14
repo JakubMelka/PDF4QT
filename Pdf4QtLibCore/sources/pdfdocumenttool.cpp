@@ -37,10 +37,13 @@
 #include <QBuffer>
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QLocale>
+#include <QMutexLocker>
 #include <QSaveFile>
+#include <QTemporaryFile>
 
 #include <exception>
 
@@ -208,6 +211,202 @@ void PDFDocumentToolFileSink::addNotWrittenFile(const QString& fileName)
     m_notWrittenFiles << fileName;
 }
 
+void PDFDocumentToolFileSink::addFailedFile(const QString& fileName, const QString& reason)
+{
+    addNotWrittenFile(fileName);
+    m_failedFiles.emplace_back(fileName, reason);
+}
+
+PDFDocumentToolTemporaryFile::PDFDocumentToolTemporaryFile(QString filePath) :
+    m_filePath(std::move(filePath))
+{
+
+}
+
+PDFDocumentToolTemporaryFile::~PDFDocumentToolTemporaryFile()
+{
+    QMutexLocker locker(&m_mutex);
+    if (!m_isMoved && !m_filePath.isEmpty())
+    {
+        // Best effort: a file, which cannot be deleted now, is a leftover, which the application
+        // cleans at its next start (PDFAppToolTemporaryFolder)
+        QFile::remove(m_filePath);
+    }
+}
+
+std::shared_ptr<PDFDocumentToolTemporaryFile> PDFDocumentToolTemporaryFile::create(const QString& folder, const QString& suffix, QString* errorMessage)
+{
+    const QString directory = folder.isEmpty() ? QDir::tempPath() : folder;
+    QTemporaryFile file(QDir(directory).filePath(QStringLiteral("pdf4qt-XXXXXX") + suffix));
+
+    // The object deletes the file, not QTemporaryFile: the file outlives this function
+    file.setAutoRemove(false);
+    if (!file.open())
+    {
+        if (errorMessage)
+        {
+            *errorMessage = tr("A temporary file cannot be created in %1: %2").arg(QDir::toNativeSeparators(directory), file.errorString());
+        }
+        return nullptr;
+    }
+
+    const QString filePath = QFileInfo(file.fileName()).absoluteFilePath();
+    file.close();
+    return std::shared_ptr<PDFDocumentToolTemporaryFile>(new PDFDocumentToolTemporaryFile(filePath));
+}
+
+qint64 PDFDocumentToolTemporaryFile::getSize() const
+{
+    QMutexLocker locker(&m_mutex);
+    if (m_isMoved)
+    {
+        return -1;
+    }
+
+    const QFileInfo info(m_filePath);
+    return info.exists() ? info.size() : -1;
+}
+
+bool PDFDocumentToolTemporaryFile::moveTo(const QString& targetPath, QString* errorMessage)
+{
+    QMutexLocker locker(&m_mutex);
+    if (m_isMoved)
+    {
+        if (errorMessage)
+        {
+            *errorMessage = tr("The file has already been saved.");
+        }
+        return false;
+    }
+
+    QFile file(m_filePath);
+    if (QFileInfo::exists(targetPath) || !file.rename(targetPath))
+    {
+        if (errorMessage)
+        {
+            *errorMessage = QFileInfo::exists(targetPath) ? tr("%1 exists.").arg(QDir::toNativeSeparators(targetPath)) : file.errorString();
+        }
+        return false;
+    }
+
+    m_isMoved = true;
+    return true;
+}
+
+bool PDFDocumentToolTemporaryFile::isMoved() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_isMoved;
+}
+
+bool PDFDocumentToolTemporaryFile::copyTo(const QString& targetPath, QString* errorMessage) const
+{
+    QMutexLocker locker(&m_mutex);
+    auto fail = [errorMessage](const QString& message)
+    {
+        if (errorMessage)
+        {
+            *errorMessage = message;
+        }
+        return false;
+    };
+
+    QFile source(m_filePath);
+    if (m_isMoved || !source.open(QIODevice::ReadOnly))
+    {
+        return fail(m_isMoved ? tr("The file has already been saved.") : source.errorString());
+    }
+
+    // The target is replaced by commit only (a rename of the complete new file); until then the
+    // old file stays as it was
+    QSaveFile target(targetPath);
+    if (!target.open(QIODevice::WriteOnly))
+    {
+        return fail(target.errorString());
+    }
+
+    constexpr qint64 BLOCK_SIZE = 4 * 1024 * 1024;
+    while (!source.atEnd())
+    {
+        const QByteArray block = source.read(BLOCK_SIZE);
+        if (block.isEmpty() && source.error() != QFileDevice::NoError)
+        {
+            target.cancelWriting();
+            return fail(source.errorString());
+        }
+        if (target.write(block) != block.size())
+        {
+            target.cancelWriting();
+            return fail(target.errorString());
+        }
+    }
+
+    if (!target.commit())
+    {
+        return fail(target.errorString());
+    }
+    return true;
+}
+
+PDFDocumentToolOutputFile PDFDocumentToolOutputFile::createTemporary(QString suggestedFileName, QString mimeType, std::shared_ptr<PDFDocumentToolTemporaryFile> file)
+{
+    PDFDocumentToolOutputFile output;
+    output.suggestedFileName = std::move(suggestedFileName);
+    output.mimeType = std::move(mimeType);
+    output.temporaryFile = std::move(file);
+    return output;
+}
+
+QString PDFDocumentToolOutputFile::getFilePath() const
+{
+    return temporaryFile ? temporaryFile->getFilePath() : QString();
+}
+
+qint64 PDFDocumentToolOutputFile::getSize() const
+{
+    return temporaryFile ? temporaryFile->getSize() : qint64(data.size());
+}
+
+QByteArray PDFDocumentToolOutputFile::readContent(qint64 maximumSize, bool* isTruncated, QString* errorMessage) const
+{
+    const qint64 limit = qMax<qint64>(0, maximumSize);
+    if (isTruncated)
+    {
+        *isTruncated = false;
+    }
+
+    if (!temporaryFile)
+    {
+        if (isTruncated)
+        {
+            *isTruncated = data.size() > limit;
+        }
+        return data.size() > limit ? data.first(qsizetype(limit)) : data;
+    }
+
+    QFile file(temporaryFile->getFilePath());
+    if (temporaryFile->isMoved() || !file.open(QIODevice::ReadOnly))
+    {
+        if (errorMessage)
+        {
+            *errorMessage = temporaryFile->isMoved() ? PDFDocumentToolTemporaryFile::tr("The file has already been saved.") : file.errorString();
+        }
+        return QByteArray();
+    }
+
+    // One byte more tells, whether the content is longer
+    QByteArray content = file.read(limit + 1);
+    if (content.size() > limit)
+    {
+        content.truncate(qsizetype(limit));
+        if (isTruncated)
+        {
+            *isTruncated = true;
+        }
+    }
+    return content;
+}
+
 PDFDocumentToolFolderSink::PDFDocumentToolFolderSink(QString folder, ExistingFiles policy) :
     PDFDocumentToolFileSink(policy),
     m_folder(folder.isEmpty() ? QString() : QDir::cleanPath(QDir(folder).absolutePath()))
@@ -322,7 +521,7 @@ bool PDFDocumentToolFolderSink::write(const QString& fileName, const QByteArray&
     if (!checkFileName(fileName, &error))
     {
         m_lastProblem = error;
-        addNotWrittenFile(fileName);
+        addFailedFile(fileName, error);
         return false;
     }
 
@@ -349,7 +548,7 @@ bool PDFDocumentToolFolderSink::write(const QString& fileName, const QByteArray&
                     // R14: a source or a file open in PDF4QT is never replaced
                     error = tr("%1 is open in PDF4QT or is the source of the files - it is not overwritten.").arg(fileName);
                     m_lastProblem = error;
-                    addNotWrittenFile(fileName);
+                    addFailedFile(fileName, error);
                     return false;
                 }
                 break;
@@ -360,7 +559,7 @@ bool PDFDocumentToolFolderSink::write(const QString& fileName, const QByteArray&
                 {
                     error = tr("%1 exists and no free name was found.").arg(fileName);
                     m_lastProblem = error;
-                    addNotWrittenFile(fileName);
+                    addFailedFile(fileName, error);
                     return false;
                 }
                 targetPath = folder.filePath(targetName);
@@ -382,7 +581,7 @@ bool PDFDocumentToolFolderSink::write(const QString& fileName, const QByteArray&
     {
         error = tr("%1 cannot be written: %2").arg(targetName, file.errorString());
         m_lastProblem = error;
-        addNotWrittenFile(fileName);
+        addFailedFile(fileName, error);
         return false;
     }
 
@@ -490,10 +689,36 @@ QJsonObject PDFDocumentToolResult::toJson() const
             QJsonObject item;
             item.insert(QStringLiteral("suggestedFileName"), output.suggestedFileName);
             item.insert(QStringLiteral("mimeType"), output.mimeType);
-            item.insert(QStringLiteral("size"), qint64(output.data.size()));
+            item.insert(QStringLiteral("size"), output.getSize());
             outputArray.append(item);
         }
         object.insert(QStringLiteral("outputs"), outputArray);
+    }
+
+    if (!renderingIssues.empty())
+    {
+        QJsonArray issueArray;
+        for (const PDFDocumentToolPageProblem& issue : renderingIssues)
+        {
+            QJsonObject item;
+            item.insert(QStringLiteral("page"), qint64(issue.pageIndex + 1));
+            item.insert(QStringLiteral("message"), issue.message);
+            issueArray.append(item);
+        }
+        object.insert(QStringLiteral("renderingIssues"), issueArray);
+    }
+
+    if (!failedFiles.empty())
+    {
+        QJsonArray failedArray;
+        for (const PDFDocumentToolFileProblem& failed : failedFiles)
+        {
+            QJsonObject item;
+            item.insert(QStringLiteral("fileName"), failed.fileName);
+            item.insert(QStringLiteral("reason"), failed.reason);
+            failedArray.append(item);
+        }
+        object.insert(QStringLiteral("failedFiles"), failedArray);
     }
 
     QJsonArray factArray;

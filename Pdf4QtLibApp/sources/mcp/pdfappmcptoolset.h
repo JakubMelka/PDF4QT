@@ -153,6 +153,21 @@ public:
 
     /// Icons of a note
     static QStringList getNoteIcons();
+
+    /// Name of the action document.list_images (step 4 of phase 2, plan 7, R4-8)
+    static constexpr const char* ACTION_LIST_IMAGES = "list_images";
+
+    /// Most images of one call of document.list_images (the rest by nextCursor)
+    static constexpr int MAXIMUM_IMAGE_RESULTS = 1000;
+
+    /// The action document.list_images (step 4 of phase 2, plan 7, R4-8): the images of
+    /// PDFDocumentImageList with the options of an export (every layer, a flag of the layers hidden by
+    /// /D and /Export) of the given pages - id (PDFDocumentImageList::Key::toString: "148 0",
+    /// "inline:12 0:3"; the ids of the parameters images / exclude / items of the tools of step 4),
+    /// kind, pages, pixels, DPI, color space, color, filter, bytes, mask flags. The last action of
+    /// the tool document (getTools); handled by PDFAppMcpDocumentTool in a worker
+    /// (PDFAppMcpDocumentReader::getImages).
+    static PDFAppMcpActionSpec createListImagesAction();
 };
 
 }   // namespace pdf

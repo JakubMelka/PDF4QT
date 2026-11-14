@@ -115,9 +115,70 @@ struct PDFStructureTreeTextItem
     PDFInteger pageIndex = -1;
     QRectF boundingRect;
     std::vector<QRectF> characterBoundingRects;
+    bool isArtifact = false;    ///< The text of a marked content /Artifact (PDFStructureTreeTextExtractor::MarkArtifacts)
+    QString language;           ///< /Lang of the innermost marked content of the text (PDFStructureTreeTextExtractor::MarkLanguages)
 };
 
 using PDFStructureTreeTextSequence = std::vector<PDFStructureTreeTextItem>;
+
+/// Helpers of the text flow
+class PDFDocumentTextFlowHelper
+{
+public:
+    PDFDocumentTextFlowHelper() = delete;
+
+    /// /Lang of the property list of a marked content (ISO 32000-2 14.9.2, 14.6.2: the property
+    /// list is inline or a name of the resource /Properties); empty = none
+    static QString getMarkedContentLanguage(const PDFDocument* document, const PDFObject& properties, const PDFDictionary* propertiesDictionary)
+    {
+        PDFObject object = properties;
+        if (object.isName())
+        {
+            object = propertiesDictionary ? propertiesDictionary->get(object.getString()) : PDFObject();
+        }
+        object = document ? document->getObject(object) : PDFObject();
+        if (!object.isDictionary())
+        {
+            return QString();
+        }
+
+        PDFDocumentDataLoaderDecorator loader(document);
+        return loader.readTextStringFromDictionary(object.getDictionary(), "Lang", QString()).trimmed();
+    }
+
+    /// The page marks of the order of the structure (B76): a mark "Page N" before the first item of
+    /// each run of the items of one page; the structure may go back to a page, which gets its mark
+    /// again (the listener hears, where the reading continues)
+    static PDFDocumentTextFlow::Items insertPageMarks(PDFDocumentTextFlow::Items items)
+    {
+        PDFDocumentTextFlow::Items result;
+        result.reserve(items.size() + 16);
+        PDFInteger lastPageIndex = -1;
+        for (PDFDocumentTextFlow::Item& item : items)
+        {
+            if (item.pageIndex >= 0 && item.pageIndex != lastPageIndex && !item.text.trimmed().isEmpty())
+            {
+                lastPageIndex = item.pageIndex;
+                result.push_back(PDFDocumentTextFlow::Item{ QRectF(), item.pageIndex, PDFTranslationContext::tr("Page %1").arg(item.pageIndex + 1), PDFDocumentTextFlow::PageStart, {} });
+            }
+            result.push_back(std::move(item));
+        }
+        return result;
+    }
+
+    /// The innermost language of the stack of the marked contents (empty = none)
+    static QString getInnermostLanguage(const std::vector<QString>& languages)
+    {
+        for (auto it = languages.crbegin(); it != languages.crend(); ++it)
+        {
+            if (!it->isEmpty())
+            {
+                return *it;
+            }
+        }
+        return QString();
+    }
+};
 
 /// Text extractor for structure tree. Extracts sequences of structure items,
 /// page sequences are stored in \p textSequences. They can be accessed using
@@ -133,6 +194,8 @@ public:
         CreateTreeMapping   = 0x0004,   ///< Create text mapping to structure tree item
         BoundingBoxes       = 0x0008,   ///< Compute bounding boxes of the texts
         KeepUnmarkedText    = 0x0010,   ///< Text outside of a marked content with MCID is a text of the sequence (not an unmatched text)
+        MarkArtifacts       = 0x0020,   ///< The text of a marked content /Artifact (with or without MCID, ISO 32000-2 14.8.2.2) is a text of its own, marked as an artifact
+        MarkLanguages       = 0x0040,   ///< The text of a marked content with /Lang in its property list (ISO 32000-2 14.9.2) is a text of its own with that language
     };
     Q_DECLARE_FLAGS(Options, Option)
 
@@ -166,6 +229,7 @@ public:
         PDFInteger pageIndex = -1;
         QString text;
         std::vector<QRectF> characterBoundingRects;
+        QString language;   ///< /Lang of its marked content (MarkLanguages), empty = the language of the element
     };
 
     using TextItems = std::vector<TextItem>;
@@ -251,7 +315,11 @@ private:
         const PDFStructureItem* structureTreeItem = nullptr;
         bool isArtifact = false;
         bool isReversedText = false;
+        QString language;   ///< /Lang of its property list (MarkLanguages)
     };
+
+    /// The language of the current text: the innermost /Lang of the marked contents
+    QString getCurrentLanguage() const;
 
     PDFRenderer::Features m_features;
     const PDFStructureTree* m_tree;
@@ -282,7 +350,8 @@ void PDFStructureTreeTextContentProcessor::finishText()
         m_currentText = std::move(trimmedText);
     }
 
-    if (!m_currentText.isEmpty() && (!m_extractorOptions.testFlag(PDFStructureTreeTextExtractor::SkipArtifact) || !isArtifact()))
+    const bool isArtifactText = isArtifact();
+    if (!m_currentText.isEmpty() && (!m_extractorOptions.testFlag(PDFStructureTreeTextExtractor::SkipArtifact) || !isArtifactText))
     {
         if (m_extractorOptions.testFlag(PDFStructureTreeTextExtractor::AdjustReversedText) && isReversedText())
         {
@@ -297,6 +366,11 @@ void PDFStructureTreeTextContentProcessor::finishText()
         }
         Q_ASSERT(static_cast<size_t>(m_currentText.size()) == m_characterBoundingRects.size() || m_characterBoundingRects.empty());
         m_textSequence.emplace_back(PDFStructureTreeTextItem::createText(std::move(m_currentText), m_pageIndex, m_currentBoundingBox, std::move(m_characterBoundingRects)));
+        m_textSequence.back().isArtifact = isArtifactText && m_extractorOptions.testFlag(PDFStructureTreeTextExtractor::MarkArtifacts);
+        if (m_extractorOptions.testFlag(PDFStructureTreeTextExtractor::MarkLanguages))
+        {
+            m_textSequence.back().language = getCurrentLanguage();
+        }
     }
     m_currentText = QString();
     m_currentBoundingBox = QRectF();
@@ -313,10 +387,41 @@ bool PDFStructureTreeTextContentProcessor::isReversedText() const
     return std::any_of(m_markedContentInfoStack.cbegin(), m_markedContentInfoStack.cend(), [](const auto& item) { return item.isReversedText; });
 }
 
+QString PDFStructureTreeTextContentProcessor::getCurrentLanguage() const
+{
+    for (auto it = m_markedContentInfoStack.crbegin(); it != m_markedContentInfoStack.crend(); ++it)
+    {
+        if (!it->language.isEmpty())
+        {
+            return it->language;
+        }
+    }
+    return QString();
+}
+
 void PDFStructureTreeTextContentProcessor::performMarkedContentBegin(const QByteArray& tag, const PDFObject& properties)
 {
     MarkedContentInfo info;
     info.tag = tag;
+
+    // A reading stream: the text of a marked content with /Lang (ISO 32000-2 14.9.2, the most
+    // specific language of its text) is a text of its own with that language
+    if (m_extractorOptions.testFlag(PDFStructureTreeTextExtractor::MarkLanguages))
+    {
+        info.language = PDFDocumentTextFlowHelper::getMarkedContentLanguage(getDocument(), properties, getPropertiesDictionary());
+        if (!info.language.isEmpty())
+        {
+            finishText();
+        }
+    }
+
+    // A reading stream: an artifact (ISO 32000-2 14.8.2.2) is a marked content /Artifact, mostly
+    // without MCID (BMC or BDC with the type of the artifact): its text is a text of its own
+    if (m_extractorOptions.testFlag(PDFStructureTreeTextExtractor::MarkArtifacts) && tag == "Artifact")
+    {
+        finishText();
+        info.isArtifact = true;
+    }
 
     if (properties.isDictionary())
     {
@@ -351,6 +456,24 @@ void PDFStructureTreeTextContentProcessor::performMarkedContentBegin(const QByte
 
 void PDFStructureTreeTextContentProcessor::performMarkedContentEnd()
 {
+    if (m_markedContentInfoStack.empty())
+    {
+        // EMC without BMC / BDC (a hostile content stream; the processor reports it)
+        return;
+    }
+
+    // The text of an artifact ends with it (MarkArtifacts), while it is still an artifact
+    if (m_extractorOptions.testFlag(PDFStructureTreeTextExtractor::MarkArtifacts) && m_markedContentInfoStack.back().isArtifact)
+    {
+        finishText();
+    }
+
+    // The text of a marked content with /Lang ends with it, while it still has its language
+    if (!m_markedContentInfoStack.back().language.isEmpty())
+    {
+        finishText();
+    }
+
     MarkedContentInfo info = qMove(m_markedContentInfoStack.back());
     m_markedContentInfoStack.pop_back();
 
@@ -528,7 +651,7 @@ void PDFStructureTreeTextExtractor::perform(const std::vector<PDFInteger>& pageI
                     {
                         if (!stack.empty())
                         {
-                            m_textForItems[stack.top()].emplace_back(TextItem{ sequenceItem.boundingRect, sequenceItem.pageIndex, sequenceItem.text, sequenceItem.characterBoundingRects });
+                            m_textForItems[stack.top()].emplace_back(TextItem{ sequenceItem.boundingRect, sequenceItem.pageIndex, sequenceItem.text, sequenceItem.characterBoundingRects, sequenceItem.language });
                         }
                         break;
                     }
@@ -566,6 +689,123 @@ const PDFStructureTreeTextExtractor::TextItems& PDFStructureTreeTextExtractor::g
 }
 
 
+/// The layout generator of a reading stream (PDFDocumentTextFlowFactory::setReadingStream, R4-13):
+/// the characters of a marked content /Artifact (ISO 32000-2 14.8.2.2) go to a layout of their own,
+/// so the artifacts (running heads, page numbers of the page) are special items by the marked
+/// content of the page, never by a guess of their position
+class PDFDocumentTextFlowLayoutGenerator : public PDFTextLayoutGenerator
+{
+    using BaseClass = PDFTextLayoutGenerator;
+
+public:
+    using BaseClass::BaseClass;
+
+    /// Separates the artifacts and reads /Lang of the marked contents (a reading stream; off = the
+    /// text layout generator as it is)
+    void setSeparateArtifacts(bool isSeparate) { m_isSeparateArtifacts = isSeparate; }
+
+    /// The layout of the text of the artifacts (call once, after the contents are processed)
+    PDFTextLayout createArtifactLayout()
+    {
+        m_artifactLayout.perform();
+        m_artifactLayout.optimize();
+        return std::move(m_artifactLayout);
+    }
+
+    /// The language of a block of the text (ISO 32000-2 14.9.2): the /Lang of the marked content
+    /// of the most of its characters, when more than half of its characters have one; empty = none
+    QString getLanguage(const QRectF& boundingRect, const QString& text)
+    {
+        if (m_languagePoints.empty())
+        {
+            return QString();
+        }
+
+        // The points sorted by y once: a block looks only at the points of its band of y (the
+        // blocks of a page lie mostly one below another), not at all points of the page
+        if (!m_isLanguagePointsSorted)
+        {
+            std::stable_sort(m_languagePoints.begin(), m_languagePoints.end(), [](const auto& left, const auto& right) { return left.first.y() < right.first.y(); });
+            m_isLanguagePointsSorted = true;
+        }
+
+        const QRectF rect = boundingRect.normalized();
+        std::map<QString, qsizetype> counts;
+        auto it = std::lower_bound(m_languagePoints.cbegin(), m_languagePoints.cend(), rect.top(), [](const auto& item, qreal y) { return item.first.y() < y; });
+        for (; it != m_languagePoints.cend() && it->first.y() <= rect.bottom(); ++it)
+        {
+            if (rect.contains(it->first))
+            {
+                ++counts[it->second];
+            }
+        }
+
+        const qsizetype characterCount = std::count_if(text.cbegin(), text.cend(), [](QChar character) { return !character.isSpace(); });
+        QString result;
+        qsizetype resultCount = 0;
+        for (const auto& [language, count] : counts)
+        {
+            if (count > resultCount)
+            {
+                result = language;
+                resultCount = count;
+            }
+        }
+        return resultCount * 2 > characterCount ? result : QString();
+    }
+
+protected:
+    virtual void performMarkedContentBegin(const QByteArray& tag, const PDFObject& properties) override
+    {
+        BaseClass::performMarkedContentBegin(tag, properties);
+        m_artifactStack.push_back(tag == "Artifact");
+        m_languageStack.push_back(m_isSeparateArtifacts ? PDFDocumentTextFlowHelper::getMarkedContentLanguage(getDocument(), properties, getPropertiesDictionary()) : QString());
+    }
+
+    virtual void performMarkedContentEnd() override
+    {
+        BaseClass::performMarkedContentEnd();
+        if (!m_artifactStack.empty())
+        {
+            m_artifactStack.pop_back();
+        }
+        if (!m_languageStack.empty())
+        {
+            m_languageStack.pop_back();
+        }
+    }
+
+    virtual void performOutputCharacter(const PDFTextCharacterInfo& info) override
+    {
+        const bool isArtifact = m_isSeparateArtifacts && std::find(m_artifactStack.cbegin(), m_artifactStack.cend(), true) != m_artifactStack.cend();
+        if (!isArtifact)
+        {
+            BaseClass::performOutputCharacter(info);
+
+            // The middle of the glyph (its advance, a third of the size of the font above the
+            // base line) lies inside of the rectangle of the block of the character
+            const QString language = PDFDocumentTextFlowHelper::getInnermostLanguage(m_languageStack);
+            if (!language.isEmpty() && !isContentSuppressed() && !info.character.isSpace())
+            {
+                m_languagePoints.emplace_back(info.matrix.map(QPointF(info.advance * 0.5, info.fontSize * 0.3)), language);
+                m_isLanguagePointsSorted = false;
+            }
+        }
+        else if (!isContentSuppressed() && !info.character.isSpace())
+        {
+            m_artifactLayout.addCharacter(info);
+        }
+    }
+
+private:
+    bool m_isSeparateArtifacts = false;
+    std::vector<bool> m_artifactStack;
+    std::vector<QString> m_languageStack;
+    std::vector<std::pair<QPointF, QString>> m_languagePoints;  ///< The characters of a marked content with /Lang and the language
+    bool m_isLanguagePointsSorted = false;
+    PDFTextLayout m_artifactLayout;
+};
+
 class PDFStructureTreeTextFlowCollector : public PDFStructureTreeAbstractVisitor
 {
 public:
@@ -593,6 +833,15 @@ public:
         m_pageIndices = std::set<PDFInteger>(pageIndices.cbegin(), pageIndices.cend());
     }
 
+    /// The reading stream of PDFDocumentTextFlowFactory::setReadingStream (R4-13)
+    /// \param catalog Catalog of the document (the pages of /Pg, /Lang of the document)
+    void setReadingStream(const PDFCatalog* catalog)
+    {
+        m_isReadingStream = true;
+        m_readingCatalog = catalog;
+        m_languageStack.assign(1, catalog ? catalog->getLanguage() : QString());
+    }
+
     virtual void visitStructureTree(const PDFStructureTree* structureTree) override;
     virtual void visitStructureElement(const PDFStructureElement* structureElement) override;
     virtual void visitStructureMarkedContentReference(const PDFStructureMarkedContentReference* structureMarkedContentReference) override;
@@ -604,6 +853,21 @@ private:
     /// The item belongs to a processed page (its /Pg or the /Pg of a parent)
     bool isOnProcessedPage(const PDFStructureElement* structureElement) const;
 
+    /// The texts of the element and of all of its descendants in the order of the tree. The tree
+    /// is a tree (PDFStructureTree::parse reads every element once, with a limit of the depth),
+    /// the depth is bounded here once more for a hostile tree.
+    void collectTexts(const PDFStructureItem* item, int depth, PDFStructureTreeTextExtractor::TextItems* texts) const;
+
+    /// The page of the element by its /Pg or of a parent (-1 = none)
+    PDFInteger getElementPageIndex(const PDFStructureElement* structureElement) const;
+
+    /// Adds an item of the reading stream with the language of the element, or with
+    /// \p markedLanguage, the /Lang of the marked content of its text (14.9.2: the more specific)
+    void addReadingItem(QRectF rect, PDFInteger pageIndex, QString text, PDFDocumentTextFlow::Flags flags, std::vector<QRectF> characterBoundingRects, const QString& markedLanguage = QString());
+
+    /// The element of the reading stream (setReadingStream)
+    void visitReadingElement(const PDFStructureElement* structureElement, bool isItemTextUsed);
+
     PDFDocumentTextFlow::Items* m_items;
     const PDFStructureTreeTextExtractor* m_extractor;
     std::vector<bool> m_hasContentStack;
@@ -611,7 +875,130 @@ private:
     bool m_isExport = false;
     bool m_isTitleText = false;
     std::set<PDFInteger> m_pageIndices;
+    bool m_isReadingStream = false;
+    const PDFCatalog* m_readingCatalog = nullptr;
+    QStringList m_languageStack;
 };
+
+void PDFStructureTreeTextFlowCollector::collectTexts(const PDFStructureItem* item, int depth, PDFStructureTreeTextExtractor::TextItems* texts) const
+{
+    constexpr int MAXIMUM_DEPTH = 1024;
+    if (!item || depth > MAXIMUM_DEPTH)
+    {
+        return;
+    }
+
+    if (const PDFStructureElement* element = item->asStructureElement())
+    {
+        const PDFStructureTreeTextExtractor::TextItems& elementTexts = m_extractor->getText(element);
+        texts->insert(texts->end(), elementTexts.cbegin(), elementTexts.cend());
+    }
+
+    for (size_t i = 0, count = item->getChildCount(); i < count; ++i)
+    {
+        collectTexts(item->getChild(i), depth + 1, texts);
+    }
+}
+
+PDFInteger PDFStructureTreeTextFlowCollector::getElementPageIndex(const PDFStructureElement* structureElement) const
+{
+    constexpr int MAXIMUM_DEPTH = 1024;
+    int depth = 0;
+    for (const PDFStructureItem* item = structureElement; item && depth++ < MAXIMUM_DEPTH; item = item->getParent())
+    {
+        if (const PDFStructureElement* element = item->asStructureElement())
+        {
+            if (element->getPageReference().isValid() && m_readingCatalog)
+            {
+                const size_t pageIndex = m_readingCatalog->getPageIndexFromPageReference(element->getPageReference());
+                return pageIndex != PDFCatalog::INVALID_PAGE_INDEX ? PDFInteger(pageIndex) : -1;
+            }
+        }
+    }
+    return -1;
+}
+
+void PDFStructureTreeTextFlowCollector::addReadingItem(QRectF rect, PDFInteger pageIndex, QString text, PDFDocumentTextFlow::Flags flags, std::vector<QRectF> characterBoundingRects, const QString& markedLanguage)
+{
+    markHasContent();
+    PDFDocumentTextFlow::Item item{ rect, pageIndex, std::move(text), flags, std::move(characterBoundingRects) };
+    item.language = !markedLanguage.isEmpty() ? markedLanguage : (m_languageStack.isEmpty() ? QString() : m_languageStack.back());
+    m_items->push_back(std::move(item));
+}
+
+void PDFStructureTreeTextFlowCollector::visitReadingElement(const PDFStructureElement* structureElement, bool isItemTextUsed)
+{
+    using Flag = PDFDocumentTextFlow::Flag;
+
+    // /Lang of the element, else of its parent (ISO 32000-2 14.9.2)
+    const QString language = structureElement->getText(PDFStructureElement::Language);
+    m_languageStack.push_back(language.isEmpty() && !m_languageStack.isEmpty() ? m_languageStack.back() : language);
+
+    const QString title = isItemTextUsed ? structureElement->getText(PDFStructureElement::Title) : QString();
+    const QString alternativeDescription = isItemTextUsed ? structureElement->getText(PDFStructureElement::AlternativeDescription) : QString();
+    const QString expandedForm = isItemTextUsed ? structureElement->getText(PDFStructureElement::ExpandedForm) : QString();
+    const QString actualText = isItemTextUsed ? structureElement->getText(PDFStructureElement::ActualText) : QString();
+
+    if (!title.isEmpty())
+    {
+        addReadingItem(QRectF(), getElementPageIndex(structureElement), title, Flag::StructureTitle, { });
+    }
+
+    // The texts of the whole element only, when a replacement or a description needs them (the
+    // walk over the descendants is not repeated for every element)
+    PDFStructureTreeTextExtractor::TextItems texts;
+    if (!actualText.isEmpty() || !expandedForm.isEmpty() || !alternativeDescription.isEmpty())
+    {
+        collectTexts(structureElement, 0, &texts);
+    }
+
+    // The rectangle and the page of the replacement: the text of the element on its first page
+    PDFInteger pageIndex = getElementPageIndex(structureElement);
+    QRectF rect;
+    if (!texts.empty())
+    {
+        pageIndex = texts.front().pageIndex;
+        for (const PDFStructureTreeTextExtractor::TextItem& text : texts)
+        {
+            if (text.pageIndex == pageIndex)
+            {
+                rect = rect.united(text.boundingRect);
+            }
+        }
+    }
+
+    // /ActualText replaces the content of the element and of its descendants (14.9.4), /E an
+    // abbreviation (14.9.5); /ActualText wins, when both are given
+    const bool hasActualText = !actualText.isEmpty();
+    const bool hasExpandedForm = !hasActualText && !expandedForm.isEmpty();
+    if (hasActualText || hasExpandedForm)
+    {
+        const PDFDocumentTextFlow::Flag kind = hasActualText ? Flag::StructureActualText : Flag::StructureExpandedForm;
+        addReadingItem(rect, pageIndex, hasActualText ? actualText : expandedForm, kind, { });
+        for (PDFStructureTreeTextExtractor::TextItem& text : texts)
+        {
+            addReadingItem(text.boundingRect, text.pageIndex, std::move(text.text), PDFDocumentTextFlow::Flags(Flag::Text) | Flag::ReplacedText | kind, std::move(text.characterBoundingRects), text.language);
+        }
+
+        // The descendants are replaced as a whole: their own titles and descriptions are not read
+        m_languageStack.pop_back();
+        return;
+    }
+
+    // /Alt is read for an element without any text (a figure, 14.9.3), else it is a special item
+    if (!alternativeDescription.isEmpty())
+    {
+        addReadingItem(rect, pageIndex, alternativeDescription, texts.empty() ? PDFDocumentTextFlow::Flags(Flag::Text) | Flag::StructureAlternativeDescription : PDFDocumentTextFlow::Flags(Flag::StructureAlternativeDescription), { });
+    }
+
+    for (const PDFStructureTreeTextExtractor::TextItem& textItem : m_extractor->getText(structureElement))
+    {
+        addReadingItem(textItem.boundingRect, textItem.pageIndex, textItem.text, Flag::Text, textItem.characterBoundingRects, textItem.language);
+    }
+
+    acceptChildren(structureElement);
+    m_languageStack.pop_back();
+}
 
 void PDFStructureTreeTextFlowCollector::visitStructureTree(const PDFStructureTree* structureTree)
 {
@@ -691,6 +1078,21 @@ void PDFStructureTreeTextFlowCollector::visitStructureElement(const PDFStructure
     // An export takes the texts of the item only for its pages (an item of another page would
     // bring its description into the text of the selected pages)
     const bool isItemTextUsed = !m_isExport || isOnProcessedPage(structureElement);
+
+    if (m_isReadingStream)
+    {
+        visitReadingElement(structureElement, isItemTextUsed);
+
+        const bool hasReadingContent = m_hasContentStack.back();
+        m_hasContentStack.pop_back();
+        m_items->push_back(PDFDocumentTextFlow::Item{ QRectF(), -1, QString(), PDFDocumentTextFlow::StructureItemEnd, {} });
+        if (!hasReadingContent)
+        {
+            m_items->erase(std::next(m_items->begin(), index), m_items->end());
+        }
+        return;
+    }
+
     QString title = isItemTextUsed ? structureElement->getText(PDFStructureElement::Title) : QString();
     QString language = isItemTextUsed ? structureElement->getText(PDFStructureElement::Language) : QString();
     QString alternativeDescription = isItemTextUsed ? structureElement->getText(PDFStructureElement::AlternativeDescription) : QString();
@@ -827,17 +1229,38 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
                 const PDFPage* page = catalog->getPage(pageIndex);
                 Q_ASSERT(page);
 
-                PDFTextLayoutGenerator generator(PDFRenderer::IgnoreOptionalContent, page, document, &fontCache, &iccProfileCache, &cms, &oca, QTransform(), mqs);
+                PDFDocumentTextFlowLayoutGenerator generator(PDFRenderer::IgnoreOptionalContent, page, document, &fontCache, &iccProfileCache, &cms, &oca, QTransform(), mqs);
                 generator.setOperationControl(m_operationControl);
+                generator.setSeparateArtifacts(m_isReadingStream);
                 QList<PDFRenderError> errors = generator.processContents();
                 PDFTextLayout textLayout = generator.createTextLayout();
-                PDFTextFlows textFlows = PDFTextFlow::createTextFlows(textLayout, PDFTextFlow::FlowFlags(PDFTextFlow::SeparateBlocks) | PDFTextFlow::RemoveSoftHyphen, pageIndex);
+                const PDFTextFlow::FlowFlags flowFlags = PDFTextFlow::FlowFlags(PDFTextFlow::SeparateBlocks) | PDFTextFlow::RemoveSoftHyphen;
+                PDFTextFlows textFlows = PDFTextFlow::createTextFlows(textLayout, flowFlags, pageIndex);
 
                 PDFDocumentTextFlow::Items flowItems;
                 flowItems.emplace_back(PDFDocumentTextFlow::Item{ QRectF(), pageIndex, PDFTranslationContext::tr("Page %1").arg(pageIndex + 1), PDFDocumentTextFlow::PageStart, {} });
                 for (const PDFTextFlow& textFlow : textFlows)
                 {
                     flowItems.emplace_back(PDFDocumentTextFlow::Item{ textFlow.getBoundingBox(), pageIndex, textFlow.getText(), PDFDocumentTextFlow::Text, textFlow.getBoundingBoxes() });
+                    if (m_isReadingStream)
+                    {
+                        // 14.9.2: /Lang of the marked content of the text
+                        flowItems.back().language = generator.getLanguage(flowItems.back().boundingRect, flowItems.back().text);
+                    }
+                }
+
+                if (m_isReadingStream)
+                {
+                    // The artifacts in the place of the page, where they are drawn: before the
+                    // first text, whose top lies below their top (the page has y upwards)
+                    PDFTextLayout artifactLayout = generator.createArtifactLayout();
+                    for (const PDFTextFlow& artifactFlow : PDFTextFlow::createTextFlows(artifactLayout, flowFlags, pageIndex))
+                    {
+                        const QRectF artifactRect = artifactFlow.getBoundingBox();
+                        const qreal artifactTop = artifactRect.normalized().bottom();
+                        auto it = std::find_if(std::next(flowItems.begin()), flowItems.end(), [artifactTop](const PDFDocumentTextFlow::Item& item) { return item.boundingRect.normalized().bottom() < artifactTop; });
+                        flowItems.insert(it, PDFDocumentTextFlow::Item{ artifactRect, pageIndex, artifactFlow.getText(), PDFDocumentTextFlow::Artifact, artifactFlow.getBoundingBoxes() });
+                    }
                 }
                 flowItems.emplace_back(PDFDocumentTextFlow::Item{ QRectF(), pageIndex, QString(), PDFDocumentTextFlow::PageEnd, {} });
 
@@ -876,6 +1299,7 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
 
             PDFStructureTreeTextExtractor::Options options = PDFStructureTreeTextExtractor::SkipArtifact | PDFStructureTreeTextExtractor::AdjustReversedText | PDFStructureTreeTextExtractor::CreateTreeMapping;
             options.setFlag(PDFStructureTreeTextExtractor::BoundingBoxes, m_calculateBoundingBoxes);
+            options.setFlag(PDFStructureTreeTextExtractor::MarkLanguages, m_isReadingStream);
             PDFStructureTreeTextExtractor extractor(document, &structureTree, options);
             extractor.setOperationControl(m_operationControl);
             extractor.setProgress(m_progress);
@@ -884,11 +1308,24 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
             PDFDocumentTextFlow::Items flowItems;
             PDFStructureTreeTextFlowCollector collector(&flowItems, &extractor);
             collector.setTitleText(m_isStructureTitleText);
-            if (m_isStructureExport)
+            if (m_isStructureExport || m_isReadingStream)
             {
+                // A reading stream of some pages never reads a title, a description or a
+                // replacement of an element of another page (the audio book of the pages)
                 collector.setExport(catalog, pageIndices);
             }
+            if (m_isReadingStream)
+            {
+                collector.setReadingStream(catalog);
+            }
             structureTree.accept(&collector);
+
+            if (m_isReadingStream)
+            {
+                // B76: the marks of the pages as in Layout and Content (PdfTool --say-page-numbers,
+                // readSpecial page-numbers)
+                flowItems = PDFDocumentTextFlowHelper::insertPageMarks(std::move(flowItems));
+            }
 
             result = PDFDocumentTextFlow(qMove(flowItems));
             m_errors.append(extractor.getErrors());
@@ -903,6 +1340,8 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
             // The order of the content stream is all of its text: also the text, which is not in
             // a marked content of the structure (an untagged page has only such text)
             options.setFlag(PDFStructureTreeTextExtractor::KeepUnmarkedText, m_isUnmarkedText);
+            options.setFlag(PDFStructureTreeTextExtractor::MarkArtifacts, m_isReadingStream);
+            options.setFlag(PDFStructureTreeTextExtractor::MarkLanguages, m_isReadingStream);
             PDFStructureTreeTextExtractor extractor(document, &structureTree, options);
             extractor.setOperationControl(m_operationControl);
             extractor.setProgress(m_progress);
@@ -916,7 +1355,9 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
                 {
                     if (sequenceItem.type == PDFStructureTreeTextItem::Type::Text)
                     {
-                        flowItems.emplace_back(PDFDocumentTextFlow::Item{ sequenceItem.boundingRect, pageIndex, sequenceItem.text, PDFDocumentTextFlow::Text, sequenceItem.characterBoundingRects });
+                        const PDFDocumentTextFlow::Flag flag = sequenceItem.isArtifact ? PDFDocumentTextFlow::Artifact : PDFDocumentTextFlow::Text;
+                        flowItems.emplace_back(PDFDocumentTextFlow::Item{ sequenceItem.boundingRect, pageIndex, sequenceItem.text, flag, sequenceItem.characterBoundingRects });
+                        flowItems.back().language = sequenceItem.language;
                     }
                 }
                 flowItems.emplace_back(PDFDocumentTextFlow::Item{ QRectF(), pageIndex, QString(), PDFDocumentTextFlow::PageEnd, {} });
@@ -935,6 +1376,21 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
     if (m_progress && !pageIndices.empty())
     {
         m_progress->finish();
+    }
+
+    if (m_isReadingStream && !catalog->getLanguage().isEmpty())
+    {
+        // Layout and Content know only the language of the document (14.9.2); the structure has
+        // set the language of its elements already
+        PDFDocumentTextFlow::Items items = result.getItems();
+        for (PDFDocumentTextFlow::Item& item : items)
+        {
+            if (item.language.isEmpty())
+            {
+                item.language = catalog->getLanguage();
+            }
+        }
+        result = PDFDocumentTextFlow(std::move(items));
     }
 
     return result;
@@ -972,7 +1428,7 @@ void PDFDocumentTextFlowFactory::setCalculateBoundingBoxes(bool calculateBoundin
 
 void PDFDocumentTextFlowEditor::setTextFlow(PDFDocumentTextFlow textFlow)
 {
-    m_originalTextFlow = std::move(textFlow);
+    m_originalTextFlow = std::make_shared<const PDFDocumentTextFlow>(std::move(textFlow));
     createEditedFromOriginalTextFlow();
 }
 
@@ -1012,7 +1468,7 @@ void PDFDocumentTextFlowEditor::addItem(size_t index)
 
 void PDFDocumentTextFlowEditor::clear()
 {
-    m_originalTextFlow = PDFDocumentTextFlow();
+    m_originalTextFlow.reset();
     m_editedTextFlow.clear();
     m_pageIndicesMapping.clear();
 }
@@ -1088,7 +1544,7 @@ void PDFDocumentTextFlowEditor::restoreOriginalTexts()
     {
         if (item.editedItemFlags.testFlag(Selected))
         {
-            item.text = m_originalTextFlow.getItem(item.originalIndex)->text;
+            item.text = getOriginalItem(item.originalIndex)->text;
             item.editedItemFlags.setFlag(Modified, false);
         }
     }
@@ -1118,12 +1574,16 @@ void PDFDocumentTextFlowEditor::moveSelectionUp()
         }
     }
 
-    if (firstSelectedIndex > 0)
+    if (firstSelectedIndex > 0 && firstSelectedIndex != originalSize)
     {
         --firstSelectedIndex;
     }
+    firstSelectedIndex = qMin(firstSelectedIndex, m_editedTextFlow.size());
 
     m_editedTextFlow.insert(std::next(m_editedTextFlow.begin(), firstSelectedIndex), std::make_move_iterator(selectedItems.begin()), std::make_move_iterator(selectedItems.end()));
+
+    // B74: the items of the pages have new indices
+    createPageMapping();
 }
 
 void PDFDocumentTextFlowEditor::moveSelectionDown()
@@ -1150,8 +1610,12 @@ void PDFDocumentTextFlowEditor::moveSelectionDown()
     {
         ++lastSelectedIndex;
     }
+    lastSelectedIndex = qMin(lastSelectedIndex, m_editedTextFlow.size());
 
     m_editedTextFlow.insert(std::next(m_editedTextFlow.begin(), lastSelectedIndex), std::make_move_iterator(selectedItems.begin()), std::make_move_iterator(selectedItems.end()));
+
+    // B74: the items of the pages have new indices
+    createPageMapping();
 }
 
 PDFDocumentTextFlowEditor::PageIndicesMappingRange PDFDocumentTextFlowEditor::getItemsForPageIndex(PDFInteger pageIndex) const
@@ -1176,7 +1640,9 @@ PDFDocumentTextFlow PDFDocumentTextFlowEditor::createEditedTextFlow() const
             continue;
         }
 
-        PDFDocumentTextFlow::Item item = *getOriginalItem(i);
+        // B73: the original item of an edited item is the item of its originalIndex (the empty
+        // items are left out of the edited flow and the items can be moved)
+        PDFDocumentTextFlow::Item item = *getOriginalItem(getEditedItem(i)->originalIndex);
         item.text = getText(i);
         items.emplace_back(std::move(item));
     }
@@ -1199,7 +1665,9 @@ void PDFDocumentTextFlowEditor::createPageMapping()
 
 void PDFDocumentTextFlowEditor::createEditedFromOriginalTextFlow()
 {
-    const size_t count = m_originalTextFlow.getSize();
+    // A new flow replaces the items of the last one (setTextFlow called again)
+    const size_t count = m_originalTextFlow ? m_originalTextFlow->getSize() : 0;
+    m_editedTextFlow.clear();
     m_editedTextFlow.reserve(count);
 
     for (size_t i = 0; i < count; ++i)
@@ -1223,7 +1691,8 @@ void PDFDocumentTextFlowEditor::createEditedFromOriginalTextFlow()
 
 void PDFDocumentTextFlowEditor::updateModifiedFlag(size_t index)
 {
-    const bool isModified = getText(index) != getOriginalItem(index)->text;
+    // B73: compared with the original item of the edited item, not with the item of its index
+    const bool isModified = getText(index) != getOriginalItem(getEditedItem(index)->originalIndex)->text;
 
     EditedItem* item = getEditedItem(index);
     item->editedItemFlags.setFlag(Modified, isModified);

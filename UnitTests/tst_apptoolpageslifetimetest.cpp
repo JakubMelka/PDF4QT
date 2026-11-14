@@ -2895,6 +2895,10 @@ const std::vector<ToolPagesLifetimeScenario>& ToolPagesLifetimePackages::getScen
         registerInsertScenarios(&result);
         registerImageScenarios(&result);
         registerManageScenarios(&result);
+        registerExportScenarios(&result);
+        registerOptimizeImagesScenarios(&result);
+        registerBitonalScenarios(&result);
+        registerAudioBookScenarios(&result);
         return result;
     }();
     return scenarios;

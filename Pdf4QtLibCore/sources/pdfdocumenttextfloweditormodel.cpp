@@ -180,9 +180,11 @@ QVariant PDFDocumentTextFlowEditorModel::data(const QModelIndex& index, int role
 
 bool PDFDocumentTextFlowEditorModel::setData(const QModelIndex& index, const QVariant& value, int role)
 {
-    if (role == Qt::EditRole && index.column() == ColumnText)
+    if (m_editor && index.isValid() && role == Qt::EditRole && index.column() == ColumnText)
     {
+        // B75: the views learn the new text and the state Modified of the row
         m_editor->setText(value.toString(), index.row());
+        Q_EMIT dataChanged(this->index(index.row(), 0), this->index(index.row(), ColumnLast - 1));
         return true;
     }
 
@@ -257,7 +259,7 @@ void PDFDocumentTextFlowEditorModel::setSelectionActivated(bool activate)
 
     m_editor->setSelectionActive(activate);
     m_editor->deselect();
-    Q_EMIT dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
+    notifyDataChanged();
 }
 
 void PDFDocumentTextFlowEditorModel::selectByRectangle(QRectF rectangle)
@@ -268,7 +270,7 @@ void PDFDocumentTextFlowEditorModel::selectByRectangle(QRectF rectangle)
     }
 
     m_editor->selectByRectangle(rectangle);
-    Q_EMIT dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
+    notifyDataChanged();
 }
 
 void PDFDocumentTextFlowEditorModel::selectByContainedText(QString text)
@@ -279,7 +281,7 @@ void PDFDocumentTextFlowEditorModel::selectByContainedText(QString text)
     }
 
     m_editor->selectByContainedText(text);
-    Q_EMIT dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
+    notifyDataChanged();
 }
 
 void PDFDocumentTextFlowEditorModel::selectByRegularExpression(const QRegularExpression& expression)
@@ -290,7 +292,7 @@ void PDFDocumentTextFlowEditorModel::selectByRegularExpression(const QRegularExp
     }
 
     m_editor->selectByRegularExpression(expression);
-    Q_EMIT dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
+    notifyDataChanged();
 }
 
 void PDFDocumentTextFlowEditorModel::selectByPageIndices(const PDFClosedIntervalSet& indices)
@@ -301,7 +303,7 @@ void PDFDocumentTextFlowEditorModel::selectByPageIndices(const PDFClosedInterval
     }
 
     m_editor->selectByPageIndices(indices);
-    Q_EMIT dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
+    notifyDataChanged();
 }
 
 void PDFDocumentTextFlowEditorModel::restoreOriginalTexts()
@@ -313,7 +315,7 @@ void PDFDocumentTextFlowEditorModel::restoreOriginalTexts()
 
     m_editor->restoreOriginalTexts();
     m_editor->deselect();
-    Q_EMIT dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
+    notifyDataChanged();
 }
 
 void PDFDocumentTextFlowEditorModel::moveSelectionUp()
@@ -340,12 +342,15 @@ void PDFDocumentTextFlowEditorModel::moveSelectionDown()
 
 void PDFDocumentTextFlowEditorModel::notifyDataChanged()
 {
-    if (!m_editor || m_editor->isEmpty())
+    // B75: the last column is ColumnLast - 1 (ColumnLast is the count); a flow, whose items are
+    // all empty, has no row
+    const int rows = rowCount(QModelIndex());
+    if (!m_editor || rows == 0)
     {
         return;
     }
 
-    Q_EMIT dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
+    Q_EMIT dataChanged(index(0, 0), index(rows - 1, ColumnLast - 1));
 }
 
 }   // namespace pdf

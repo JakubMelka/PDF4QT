@@ -24,10 +24,13 @@
 #define PDFRENDERTOIMAGESDIALOG_H
 
 #include "pdfcms.h"
+#include "pdfdocumenttool.h"
 #include "pdfrenderer.h"
 
 #include <QDialog>
 #include <QFutureWatcher>
+
+#include <memory>
 
 class QAbstractButton;
 
@@ -78,10 +81,8 @@ private:
     void onResolutionPixelsChanged(int value);
     void onCompressionChanged(int value);
     void onQualityChanged(int value);
-    void onGammaChanged(double value);
     void onOptimizedWriteChanged(bool value);
     void onProgressiveScanWriteChanged(bool value);
-    void onRenderError(pdf::PDFInteger pageIndex, pdf::PDFRenderError error);
     void onRenderingFinished();
 
     Ui::PDFRenderToImagesDialog* ui;
@@ -91,12 +92,11 @@ private:
     pdf::PDFImageWriterSettings m_imageWriterSettings;
     pdf::PDFPageImageExportSettings m_imageExportSettings;
     bool m_isLoadingData;
-    QFutureWatcher<void> m_watcher;
 
-    std::vector<pdf::PDFInteger> m_pageIndices;
-    pdf::PDFOptionalContentActivity* m_optionalContentActivity;
-    pdf::PDFCMSPointer m_cms;
-    pdf::PDFRasterizerPool* m_rasterizerPool;
+    /// The run of the tool PDF to Images (B67: the one implementation, step 4 of phase 2): its
+    /// result is read in the GUI thread after the future has finished
+    QFutureWatcher<pdf::PDFDocumentToolResult> m_watcher;
+    std::unique_ptr<pdf::PDFDocumentToolFolderSink> m_sink;   ///< The writer of the files of the run (its thread only), deleted after it
 };
 
 }   // namespace pdfviewer

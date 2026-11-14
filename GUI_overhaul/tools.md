@@ -169,7 +169,7 @@ Celkem **46 toolů**, které pokrývají dnešní funkce (včetně OCR z větve 
 | `convert.pdf-to-images` | **PDF to Images** | Save pages as PNG, JPEG or TIFF | Export | GUI |
 | `convert.extract-text` | **Extract Text** | Save the document text as a text file | Export | CLI |
 | `convert.extract-images` | **Extract Images** | Save embedded pictures to a folder | Export | CLI |
-| `convert.audiobook` | **Create Audio Book** | Turn the document text into MP3 | Export | GUI |
+| `convert.audiobook` | **Create Audio Book** | Turn the document text into an audio file | Export | GUI |
 
 ### 4.3 Edit · Green · 2 tooly
 
@@ -408,9 +408,10 @@ Název *Assembly* odlišuje pracovní plochu PageMasteru od *Workspaces* na str�
 #### `convert.pdf-to-images` – PDF to Images
 
 - **Co dělá:** Vykreslí stránky do obrázkových souborů.
-- **Funkce:** všechny stránky nebo rozsah, šablona názvu a cílová složka, rozlišení v DPI nebo v pixelech, formát obrázku podle toho, co umí Qt, podtyp, gamma, kvalita, komprese, *Optimized write*, *Progressive scan write*.
+- **Funkce:** všechny stránky nebo rozsah, šablona názvu a cílová složka, rozlišení v DPI nebo v pixelech, formát obrázku podle toho, co umí Qt, podtyp, kvalita, komprese, *Optimized write*, *Progressive scan write*. Gamma vypuštěna (K4.10, B54 kroku 4: zapisovač ji ignoroval).
 - **Vstup → výstup:** otevřený dokument → obrázky ve složce.
 - **Dnes:** Editor, *File → Render to Images…* CLI `render`.
+- **Nová aplikace (krok 4 fáze 2, hotovo):** jádro `PDFDocumentToolPdfToImages` (velikost z ořezového rámce s `/Rotate` a `/UserUnit`, B57; šablona s povinným `@`; meze formátů WebP 16 383, JPEG 65 535, ostatní 32 767 px a 2 GiB; souběh vykreslování omezen rozpočtem obrazových dat, Q4.7), GUI 339:3546 až 339:7293 s dialogem výsledku *Rendering issues*, *Failed*, *Retry N Files* a *Choose Folder…* (K4.11). GUI vykresluje podle stavu vrstev tabu a nastavení vykreslování a správy barev, bez barevných režimů pohledu (Q4.6, R4-10 b); MCP a PdfTool vrstvy podle `OCUsage::Export`. PdfTool `render` a starý dialog volají jádro (B67). MCP `convert.pdf-to-images` (`save_files`), nápověda `tool-convert-pdf-to-images.md`.
 - **Klíčová slova:** `pdf to images, pdf to jpg, pdf to jpeg, pdf to png, pdf to tiff, render, render to images, rasterize, export images, convert to image, picture, page as image, thumbnails, bitmap`
 
 #### `convert.extract-text` – Extract Text
@@ -427,15 +428,17 @@ Název *Assembly* odlišuje pracovní plochu PageMasteru od *Workspaces* na str�
 - **Funkce:** výběr stránek, cílová složka, šablona názvu. V GUI dnes existuje jen režim myši *Extract Image*, který zkopíruje jeden kliknutý obrázek do schránky.
 - **Vstup → výstup:** otevřený dokument → obrázky ve složce.
 - **Dnes:** CLI `fetch-images`. Editor *Tools → Extract Image* pro jeden obrázek.
+- **Nová aplikace (krok 4 fáze 2, hotovo):** jádro `PDFDocumentToolExtractImages` nad `PDFDocumentImageList`: obrázky obsahu stránek a formulářů všech vrstev včetně inline, bez glyfů Type 3, vzhledů anotací a masek jiných obrázků (Q4.8, R4-11); stejný obrázek jednou podle reference a surového proudu (B60); `#` šablony je číslo obrázku v seznamu, vyloučené číslo se přeskočí (K4.12). GUI 341:7516 až 360:12757: seznam se štítky *inline* a *hidden layer*, *Include all* / *Exclude all*, *Copy Image*, overlay vybraného obrázku. Režim myši *Extract image* zůstává (R4-12), nejvyšší obrázek v pořadí kreslení (B64). PdfTool `fetch-images` volá jádro. MCP `convert.extract-images` s id z `document.list_images`, nápověda `tool-convert-extract-images.md`.
 - **Klíčová slova:** `extract images, extract image, fetch images, save pictures, export embedded images, photos, get images, pull images, image extraction, original images, figures`
 
 #### `convert.audiobook` – Create Audio Book
 
 - **Co dělá:** Převede text dokumentu na zvukový soubor.
-- **Funkce:** vytvoření textového proudu z dokumentu, výběr položek obdélníkem, podle obsaženého textu, regulárním výrazem a seznamem stránek, aktivace a deaktivace položek (záhlaví, čísla stránek), úprava textu a obnovení původního, změna pořadí, synchronizace výběru mezi tabulkou a stránkou. Výstup do MP3 zvoleným hlasem.
-- **Vstup → výstup:** otevřený dokument → soubor MP3.
+- **Funkce:** vytvoření textového proudu z dokumentu, výběr položek obdélníkem, podle obsaženého textu, regulárním výrazem a seznamem stránek, aktivace a deaktivace položek (záhlaví, čísla stránek), úprava textu a obnovení původního, změna pořadí, synchronizace výběru mezi tabulkou a stránkou. Výstup do WAV zvoleným hlasem (vlastník 14. 11. 2026: zatím jen WAV, MP3 a volba *File format* Figmy jsou odchylka do budoucna).
+- **Vstup → výstup:** otevřený dokument → soubor WAV.
 - **Dnes:** plugin AudioBook. CLI `audio-book` a `audio-book-voices`.
-- **Klíčová slova:** `audiobook, audio book, create audio book, create text stream, mp3, text to speech, tts, narrate, listen, voice, export audio, speech, read to me`
+- **Nová aplikace (krok 4 fáze 2, hotovo):** jádro `PDFDocumentToolAudioBook` nad čtecím proudem `PDFDocumentTextFlowFactory` (podle struktury: `/ActualText` a `/E` nahradí text, `/Alt`, artefakty, jazyk `/Lang`, R4-13), syntéza knihovnou `Pdf4QtSpeech` (Qt TextToSpeech `synthesize`, Windows a macOS; Linux bez enginu, 341:11665, Q4.1, R4-14), WAV 16 bit do dočasného souboru výsledku (R4-1). GUI 341:9229 až 341:11665 (*Text stream*, chipy, *Voice and format*, *Play Sample*). PdfTool `audio-book` přes jádro bez SAPI (B77). MCP `convert.audiobook` (`save_file`), nápověda `tool-convert-audiobook.md`.
+- **Klíčová slova:** `audiobook, audio book, create audio book, create text stream, mp3, wav, text to speech, tts, narrate, listen, voice, export audio, speech, read to me`
 
 ### 5.3 Edit (Green)
 
@@ -571,6 +574,7 @@ Dnešní dialog *Encryption Settings* řeší čtyři různé úkoly. V katalogu
 - **Vstup → výstup:** otevřený dokument → dokument s menšími obrázky.
 - **Dnes:** Editor, *Edit → Optimize Images…* PageMaster, volba *Optimize images in output PDFs* a *Image Optimization Settings…*
 - **Klíčová slova:** `optimize images, image optimization settings, downsample, resample, recompress, jpeg quality, dpi, image compression, jpeg2000, reduce image size, resolution, 150 dpi`
+- **Nová aplikace (krok 4 fáze 2, hotovo):** jádro `PDFDocumentToolOptimizeImages` nad `PDFImageOptimizer`: obrázky všech vrstev (R4-4), inline obrázky a vzhledy anotací se nemění (R4-8, „inline · kept“), sdílená měkká maska se zapíše jako nový objekt (B62), výjimky po obrázku (`<id>:off`, vlastní profil). Měření jako Compress (Q4.9): řádky seznamu a Summary ukazují skutečné velikosti, AFTER porovnání je skutečné kódování (popisek jen „AFTER“, vlastník 14. 11. 2026, odchylka od Figmy 297:3135). GUI 297:3135 až 301:4019. Podepsaný dokument jen *Save as a copy* zapsaná celá (Q4.14). MCP `optimize.images` s id z `document.list_images`, nápověda `tool-optimize-images.md`.
 
 #### `optimize.structure` – Optimize Structure
 
@@ -588,12 +592,14 @@ Dnešní dialog *Encryption Settings* řeší čtyři různé úkoly. V katalogu
 - **Vstup → výstup:** otevřený dokument → černobílý dokument.
 - **Dnes:** Editor, *Edit → Create Bitonal Document…* CLI `bitonal`.
 - **Klíčová slova:** `black and white, bitonal, create bitonal document, bitonal images, monochrome, 1-bit, b&w, bw, fax, jbig2, ccitt, threshold, scan cleanup, two colors, lineart`
+- **Nová aplikace (krok 4 fáze 2, hotovo):** jádro `PDFDocumentToolBitonal` nad `PDFBitonalDocumentCreator`: zdroj *Images* (obrázky obsahu, ne nepoužité z `/Resources`, B61; inline obrázky beze změny, R4-8; vrstvy OCR PDF4QT znovu svázané, R4-9) nebo *Pages* (vrstvy slité podle `OCUsage::Export`, R4-10 a; rozpočet vykreslování Q4.7; limit 32 767 px, B65), zrušení v obou režimech (B58), detekce prázdných stránek a náhled v jádře (B67), bit 4 vynucen (B78) i v PdfTool `bitonal`, deklarace PDF/A / UA odstraněna s faktem. GUI 304:5102 až 307:6564, potvrzovací tlačítko *Convert*. Podepsaný dokument jen *Save as a copy* (Q4.14). MCP `optimize.bitonal`, nápověda `tool-optimize-bitonal.md`.
 
 #### `optimize.grayscale` – Convert Images to Grayscale
 
 - **Co dělá:** Převede barevné obrázky v dokumentu do odstínů šedi.
-- **Funkce:** předvolba `optimize.images` s barevným režimem *Grayscale*.
+- **Funkce:** předvolba `optimize.images` s barevným režimem *Grayscale* (Q4.4: předvolba v jádře, vlastní id, stránka, MCP akce a nápověda; bez *All settings*).
 - **Vstup → výstup:** otevřený dokument → dokument s šedými obrázky.
+- **Nová aplikace (krok 4 fáze 2, hotovo):** jádro `PDFDocumentToolGrayscale`: barevnost podle deklarovaného prostoru, ne podle pixelů (R4-5), šedé a bitonální obrázky přeskočeny s důvodem; *Keep original if larger* vybírá jen nejmenší šedé kódování, barevný obrázek se převede vždy, kromě vyloučeného (Q4.15 a); `/Alternates` a `/OPI` převedeného obrázku pryč. GUI stejná třída jako Optimize Images (308:6911, 320:7812, 308:7341). MCP `optimize.grayscale` (`exclude`), nápověda `tool-optimize-grayscale.md`.
 - **Dnes:** Editor, *Edit → Optimize Images…*, *Color mode → Grayscale*.
 - **Klíčová slova:** `grayscale, greyscale, convert to grayscale, gray, grey, remove color, desaturate, black and white photo, colorless, save ink`
 - **Poznámka:** Převádějí se jen obrázky. Barevný text a vektorová grafika zůstávají barevné, proto má tool v názvu slovo *Images*. Až vznikne Convert Colors (kapitola 8), který převede celý obsah, název se znovu posoudí. Odlišení od barevného režimu *Grayscale* v panelu View, který dokument nemění, viz 9.4.

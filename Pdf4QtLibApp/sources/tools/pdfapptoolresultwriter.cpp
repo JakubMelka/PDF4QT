@@ -30,9 +30,15 @@
 #include "pdfexception.h"
 #include "pdfform.h"
 
+#include "pdfappdocumentpanels_attachments.h"
+
 #include <QBuffer>
 #include <QCoreApplication>
+#include <QDir>
+#include <QFile>
 #include <QFileInfo>
+#include <QLockFile>
+#include <QRandomGenerator>
 #include <QtConcurrent/QtConcurrentRun>
 
 namespace pdf
@@ -67,7 +73,93 @@ public:
         const QFileInfo info(filePath);
         return info.exists() || info.isSymLink();
     }
+
+    /// Name of the folder of a process in the base folder ("run-" and 12 random hexadecimal digits)
+    static QString createRunFolderName()
+    {
+        return QStringLiteral("run-%1").arg(QRandomGenerator::global()->generate64() & Q_UINT64_C(0xFFFFFFFFFFFF), 12, 16, QLatin1Char('0'));
+    }
 };
+
+PDFAppToolTemporaryFolder::PDFAppToolTemporaryFolder(const QString& baseFolder)
+{
+    const QString base = baseFolder.isEmpty() ? getDefaultBaseFolder() : baseFolder;
+    if (!QDir().mkpath(base))
+    {
+        qWarning("The folder of the temporary files of the tools cannot be created: %s", qPrintable(QDir::toNativeSeparators(base)));
+        return;
+    }
+
+    removeLeftovers(base);
+
+    // The lock first, then the folder: a folder without a lock is a leftover for every process
+    const QDir baseDirectory(base);
+    for (int attempt = 0; attempt < 16; ++attempt)
+    {
+        const QString name = PDFAppToolResultWriterHelper::createRunFolderName();
+        auto lock = std::make_unique<QLockFile>(baseDirectory.filePath(name + QStringLiteral(".lock")));
+
+        // The folder lives as long as the process: a lock is never stale by its age, only by
+        // the end of its process
+        lock->setStaleLockTime(0);
+        if (!lock->tryLock(0))
+        {
+            continue;
+        }
+        if (baseDirectory.exists(name) || !baseDirectory.mkdir(name))
+        {
+            continue;
+        }
+
+        m_folder = QDir::cleanPath(baseDirectory.absoluteFilePath(name));
+        m_lock = std::move(lock);
+        return;
+    }
+    qWarning("The folder of the temporary files of the tools cannot be created in %s", qPrintable(QDir::toNativeSeparators(base)));
+}
+
+PDFAppToolTemporaryFolder::~PDFAppToolTemporaryFolder()
+{
+    if (!m_folder.isEmpty())
+    {
+        QDir(m_folder).removeRecursively();
+    }
+    if (m_lock)
+    {
+        // The lock file goes with the folder
+        m_lock->unlock();
+    }
+}
+
+QString PDFAppToolTemporaryFolder::getDefaultBaseFolder()
+{
+    return QDir(QDir::tempPath()).filePath(QStringLiteral("pdf4qt-tools"));
+}
+
+int PDFAppToolTemporaryFolder::removeLeftovers(const QString& baseFolder)
+{
+    int removedCount = 0;
+    const QDir baseDirectory(baseFolder);
+    const QStringList folders = baseDirectory.entryList({ QStringLiteral("run-*") }, QDir::Dirs | QDir::NoDotAndDotDot | QDir::NoSymLinks);
+    for (const QString& folder : folders)
+    {
+        // A free lock (or none): the process of the folder has ended. A lock of a process, which
+        // has ended, is stale - tryLock takes it over.
+        QLockFile lock(baseDirectory.filePath(folder + QStringLiteral(".lock")));
+        lock.setStaleLockTime(0);
+        if (!lock.tryLock(0))
+        {
+            continue;
+        }
+
+        if (QDir(baseDirectory.filePath(folder)).removeRecursively())
+        {
+            ++removedCount;
+        }
+        lock.unlock();
+    }
+    return removedCount;
+}
 
 PDFAppToolResultWriter::PDFAppToolResultWriter(QObject* parent) :
     BaseClass(parent)
@@ -195,6 +287,69 @@ PDFAppToolResultWriter::Result PDFAppToolResultWriter::writeFileData(QString fil
     }
 
     return PDFAppToolResultWriterHelper::convert(PDFAppDocumentFileWriter::writeData(std::move(filePath), std::move(data), std::move(markSourceFilePath)));
+}
+
+PDFAppToolResultWriter::Result PDFAppToolResultWriter::writeOutputFile(PDFDocumentToolOutputFile output, QString filePath, QString markSourceFilePath, bool isReplacing)
+{
+    if (!output.isTemporaryFile())
+    {
+        return writeFileData(std::move(filePath), std::move(output.data), std::move(markSourceFilePath), isReplacing);
+    }
+
+    Result result;
+    result.filePath = filePath;
+    if (!isReplacing && PDFAppToolResultWriterHelper::isTargetExisting(filePath))
+    {
+        result.isTargetExisting = true;
+        return result;
+    }
+
+    const QString sourcePath = output.getFilePath();
+    if (output.temporaryFile->isMoved() || !QFileInfo::exists(sourcePath))
+    {
+        result.errorMessage = PDFAppToolResultWriterHelper::tr("The file of the result is no longer there.");
+        return result;
+    }
+
+    // The Mark of the Web of a document from the internet is read before the target is written
+    const QByteArray markOfTheWeb = PDFAppAttachments::readMarkOfTheWeb(markSourceFilePath);
+
+    // Owner 14. 11.: always a copy through QSaveFile (PDFDocumentToolTemporaryFile::copyTo, the
+    // copy of PdfTool too), never a rename - a renamed file of the
+    // temporary folder would keep its permissions (on Windows the ACL of %TEMP%, readable by its
+    // owner only), a file created in the target folder gets the permissions of that folder; a
+    // target, which exists (replaced with the consent of the user), stays, when the copy fails
+    QString errorMessage;
+    if (!output.temporaryFile->copyTo(filePath, &errorMessage))
+    {
+        result.errorMessage = errorMessage;
+        return result;
+    }
+
+    if (!markOfTheWeb.isEmpty())
+    {
+        // Best effort: the file is saved also without its mark
+        PDFAppAttachments::writeMarkOfTheWeb(filePath, markOfTheWeb);
+    }
+
+    result.isWritten = true;
+    result.filePath = QFileInfo(filePath).canonicalFilePath();
+    if (result.filePath.isEmpty())
+    {
+        result.filePath = QFileInfo(filePath).absoluteFilePath();
+    }
+    return result;
+}
+
+bool PDFAppToolResultWriter::writeOutput(const PDFDocumentToolOutputFile& output, const QString& filePath, const QString& markSourceFilePath, bool isReplacing)
+{
+    if (isWriting())
+    {
+        return false;
+    }
+
+    start(QtConcurrent::run(&PDFAppToolResultWriter::writeOutputFile, output, filePath, markSourceFilePath, isReplacing));
+    return true;
 }
 
 PDFAppToolResultWriter::Result PDFAppToolResultWriter::writeToMemory(PDFDocumentPointer document)

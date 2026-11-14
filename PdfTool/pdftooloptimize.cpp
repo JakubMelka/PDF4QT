@@ -87,6 +87,13 @@ QString PDFToolOptimize::getStandardString(PDFToolAbstractApplication::StandardS
 
 int PDFToolOptimize::execute(const PDFToolOptions& options)
 {
+    // B66: a value, which is not recognized, is an error, never its default
+    if (!options.optimizeInvalidArgument.isEmpty())
+    {
+        PDFConsole::writeError(options.optimizeInvalidArgument, options.outputCodec);
+        return ErrorInvalidArguments;
+    }
+
     if (!options.optimizeFlags && !options.imageOptimizationSettings.enabled)
     {
         PDFConsole::writeError(PDFToolTranslationContext::tr("No optimization option has been set."), options.outputCodec);

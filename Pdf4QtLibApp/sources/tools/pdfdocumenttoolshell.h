@@ -158,6 +158,16 @@ public:
     /// returns the tool to Editing with its inputs.
     void resumeEditing();
 
+    /// The answer of the question of PDFDocumentToolGUI::confirmResult (307:6388): true = the result
+    /// dialog opens with the result, false = the result is discarded as by Discard of the dialog
+    /// (the decision of the runner ends; a document tab leaves the tool, the own tab returns to
+    /// editing). Nothing, when no result waits for an answer (a stopped run). The shell, the GUI
+    /// and the tab may be deleted meanwhile: the last call of the caller.
+    void answerResult(bool isAccepted);
+
+    /// A result waits for the answer of the question of the GUI (confirmResult)
+    bool isConfirmingResult() const { return m_confirmingResult.has_value(); }
+
     /// Computes the preview again (the inputs of a tool of more inputs have changed under
     /// the same parameters: a password accepted, a reading finished). Nothing outside of
     /// the state Editing.
@@ -274,6 +284,10 @@ private:
     void finishRun(const PDFDocumentToolResult& result);
     void recordUse();
     void commitPendingValues();
+
+    /// Retry N Files / Choose Folder… of the result dialog (K4.11, R4-20): runs the tool again with
+    /// the parameters of its panel, only for the names (onlyOutputs), into \p folder when it is set
+    void retryFiles(const QStringList& fileNames, const QString& folder);
     void onDocumentLost();
     void onDocumentLostQueued();
     void onDocumentChanged();
@@ -331,6 +345,7 @@ private:
 
     QElapsedTimer m_runTimer;
     std::optional<PDFDocumentToolResult> m_pendingResult;   ///< A result, which came while the user is asked (F14) or while a modal dialog is open
+    std::optional<PDFDocumentToolResult> m_confirmingResult;    ///< A result, about which the GUI asks before the dialog (confirmResult, 307:6388)
     QString m_stepText;
     int m_percentage = 0;
     State m_state = State::Created;

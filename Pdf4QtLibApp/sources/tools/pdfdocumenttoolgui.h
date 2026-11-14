@@ -201,6 +201,11 @@ public:
     /// Optimize Structure "48,210 objects" (302:4072); empty = none
     virtual QString getStatusDetailText() const;
 
+    /// The status message ends with the size of the file ("· 24.8 MB" of 291:994); the image
+    /// tools of step 4 have their own sizes in the detail or none (297:3135, 304:5102, 308:6911,
+    /// 341:7516)
+    virtual bool isFileSizeInStatusText() const { return true; }
+
     /// Message of the status bar during a run: "Compress: Recompressing images · 152 of
     /// 412 · press Stop or Esc to stop" (295:1711)
     virtual QString getRunningStatusText(const QString& stepText) const;
@@ -246,6 +251,15 @@ public:
 
     /// Texts of the result dialog ("Pages rotated", the file of an export)
     virtual void fillResultInput(PDFAppToolResultInput* input) const;
+
+    /// A successful result, before the result dialog opens (step 4 of phase 2: the partial result
+    /// of Black & White, 307:6388 "Use partial document"). \returns true = the dialog opens now (the
+    /// default); false = the tool asks the user first and answers later by
+    /// PDFDocumentToolShell::answerResult - never from inside of this function. Until the answer the
+    /// shell keeps the result and the operation of the runner (the document stays busy, as in the
+    /// dialog). The question is the tool's own (new + QPointer, deleted with the GUI); when the GUI
+    /// or the tab goes, the shell goes with it and the result is dropped by the runner.
+    virtual bool confirmResult(const PDFDocumentToolResult& result);
 
     // ------------------------------------------------------------- own tab (plan of step 2 of phase 2, 4.1, 4.6)
 

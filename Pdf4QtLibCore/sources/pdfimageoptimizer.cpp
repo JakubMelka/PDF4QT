@@ -24,6 +24,7 @@
 #include "pdfocrtextlayerwriter.h"
 
 #include "pdfdocument.h"
+#include "pdfdocumentimagelist.h"
 #include "pdfexception.h"
 #include "pdfimageconversion.h"
 #include "pdfoperationcontrol.h"
@@ -36,6 +37,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <set>
 #include <unordered_set>
 
@@ -621,7 +623,39 @@ public:
         std::optional<PDFObjectReference> existingMaskReference;
         int originalBytes = 0;
         int newBytes = 0;
+        PDFImageOptimizer::SkipReason skipReason = PDFImageOptimizer::SkipReason::None;
+        bool isConvertedToGrayOrBitonal = false;    ///< The written image has gray tones or one bit: /Alternates and /OPI of the original are dropped
     };
+
+    /// Encodes the image by the plan: the image and its soft mask; false, when it cannot be encoded
+    /// (the encoded image is then empty - the image keeps its stream)
+    static bool encodeWithPlan(const PDFImageOptimizer::ImageInfo& info, const PDFImageOptimizer::ResolvedPlan& plan, PDFRenderErrorReporter* reporter, EncodedImage* encoded);
+
+    /// Numbers of the image streams, which name each soft mask (B62: a mask of more images, or a
+    /// mask drawn as an image itself, is never replaced in place)
+    static std::map<PDFObjectReference, int> getSoftMaskUseCounts(const PDFDocument* document, const PDFImageCompressor::ImagePlacements& placements);
+
+    /// The declared image would need more decoded data than the optimizer handles (Width x Height
+    /// of 32 bit pixels over PDFImageOptimizer::MAXIMUM_DECODED_IMAGE_BYTES), counted in 64 bits
+    static bool isTooLarge(const PDFDocument* document, const PDFDictionary* dictionary);
+
+    /// Bytes of an image stream and of its soft mask (ImageInfo::originalBytes of an image, which is not decoded)
+    static int getOriginalBytes(const PDFDocument* document, PDFObjectReference reference)
+    {
+        qint64 bytes = 0;
+        const PDFObject& object = document->getObjectByReference(reference);
+        if (object.isStream())
+        {
+            const PDFStream* stream = object.getStream();
+            bytes += stream->getContent() ? stream->getContent()->size() : 0;
+            const PDFObject& mask = document->getObject(stream->getDictionary()->get("SMask"));
+            if (mask.isStream() && mask.getStream()->getContent())
+            {
+                bytes += mask.getStream()->getContent()->size();
+            }
+        }
+        return int(qMin<qint64>(std::numeric_limits<int>::max(), bytes));
+    }
 
     /// Encodes one image. A kept image holds no stream: nothing but the image, which is
     /// written to the document, stays in the memory after this function
@@ -731,11 +765,19 @@ PDFImageOptimizerHelper::EncodedImage PDFImageOptimizerHelper::encodeImage(const
     auto overrideIt = overrides.find(info.reference);
     if (overrideIt != overrides.end() && !overrideIt->second.enabled)
     {
+        encoded.skipReason = PDFImageOptimizer::SkipReason::Excluded;
         return encoded;
     }
 
     if (info.isImageMask)
     {
+        return encoded;
+    }
+
+    // An image, which gave no pixels, keeps its stream (the row "cannot be read", Problems)
+    if (info.image.isNull())
+    {
+        encoded.skipReason = PDFImageOptimizer::SkipReason::CannotBeRead;
         return encoded;
     }
 
@@ -750,62 +792,34 @@ PDFImageOptimizerHelper::EncodedImage PDFImageOptimizerHelper::encodeImage(const
         return encoded;
     }
 
-    try
-    {
-        PDFStream stream = PDFImage::createStreamFromImage(info.image, plan.encodeOptions, reporter);
-        encoded.stream = std::move(stream);
-    }
-    catch (const PDFException&)
+    if (!encodeWithPlan(info, plan, reporter, &encoded))
     {
         return encoded;
     }
 
-    encoded.newBytes = encoded.stream.getContent() ? encoded.stream.getContent()->size() : 0;
-
-    if (plan.useSoftMask)
+    // Convert Images to Grayscale (Settings::onlyColorImages, owner answer Q4.15 a): a color image is
+    // always converted; Keep original if larger chooses only the smallest gray encoding - an automatic
+    // lossy encoding is compared with the lossless one
+    const bool isConversion = effectiveSettings.onlyColorImages;
+    if (isConversion && effectiveSettings.keepOriginalIfLarger && plan.algorithm != PDFImageOptimizer::CompressionAlgorithm::Flate &&
+        selectProfile(plan.resolvedColorMode, effectiveSettings).algorithm == PDFImageOptimizer::CompressionAlgorithm::Auto)
     {
-        QImage mask = extractAlphaMask(info.image);
+        PDFImageOptimizer::ResolvedPlan losslessPlan = plan;
+        losslessPlan.algorithm = PDFImageOptimizer::CompressionAlgorithm::Flate;
+        losslessPlan.encodeOptions.compression = PDFImage::ImageCompression::Flate;
 
-        // No memory for the mask: an image without it would lose its transparency, its stream stays
-        if (mask.isNull())
+        EncodedImage lossless;
+        if (encodeWithPlan(info, losslessPlan, reporter, &lossless) && lossless.newBytes < encoded.newBytes)
         {
-            encoded.stream = PDFStream();
-            encoded.newBytes = 0;
-            return encoded;
-        }
-
-        {
-            PDFImage::ImageEncodeOptions maskOptions = plan.encodeOptions;
-            maskOptions.compression = PDFImage::ImageCompression::Flate;
-            maskOptions.colorMode = PDFImage::ImageColorMode::Grayscale;
-            maskOptions.alphaHandling = PDFImage::AlphaHandling::FlattenToWhite;
-
-            // The values of a soft mask are the alpha itself, no color management shows them
-            maskOptions.grayTable = nullptr;
-
-            try
-            {
-                if (const std::function<void()>& hook = getTestMaskEncodeHook())
-                {
-                    hook();
-                }
-
-                PDFStream maskStream = PDFImage::createStreamFromImage(mask, maskOptions, reporter);
-                encoded.maskStream = std::move(maskStream);
-                encoded.newBytes += encoded.maskStream->getContent() ? encoded.maskStream->getContent()->size() : 0;
-            }
-            catch (const PDFException&)
-            {
-                // An image without its mask would lose its transparency: its stream stays
-                encoded.stream = PDFStream();
-                encoded.maskStream.reset();
-                encoded.newBytes = 0;
-                return encoded;
-            }
+            encoded.stream = std::move(lossless.stream);
+            encoded.maskStream = std::move(lossless.maskStream);
+            encoded.newBytes = lossless.newBytes;
         }
     }
 
-    if (effectiveSettings.keepOriginalIfLarger && encoded.originalBytes > 0 && encoded.newBytes >= encoded.originalBytes)
+    encoded.isConvertedToGrayOrBitonal = plan.resolvedColorMode == PDFImageOptimizer::ColorMode::Grayscale || plan.resolvedColorMode == PDFImageOptimizer::ColorMode::Bitonal;
+
+    if (!isConversion && effectiveSettings.keepOriginalIfLarger && encoded.originalBytes > 0 && encoded.newBytes >= encoded.originalBytes)
     {
         // The encoded image is not needed, only its size is reported
         encoded.keepOriginal = true;
@@ -824,6 +838,15 @@ PDFImageOptimizerHelper::EncodedImage PDFImageOptimizerHelper::encodeImage(const
             if (originalDict)
             {
                 PDFDictionaryBuilder merged = PDFImageOptimizer::mergeImageDictionary(*encoded.stream.getDictionary(), *originalDict);
+
+                // ISO 32000-2, 8.9.5.4 and 14.11.7: an alternate image and an OPI proxy are other versions
+                // of the original picture - a printer would take the colors back from them
+                if (encoded.isConvertedToGrayOrBitonal)
+                {
+                    merged.removeEntry("Alternates");
+                    merged.removeEntry("OPI");
+                }
+
                 if (originalDict->hasKey("SMask"))
                 {
                     const PDFObject& maskObject = originalDict->get("SMask");
@@ -841,6 +864,118 @@ PDFImageOptimizerHelper::EncodedImage PDFImageOptimizerHelper::encodeImage(const
     }
 
     return encoded;
+}
+
+bool PDFImageOptimizerHelper::encodeWithPlan(const PDFImageOptimizer::ImageInfo& info, const PDFImageOptimizer::ResolvedPlan& plan, PDFRenderErrorReporter* reporter, EncodedImage* encoded)
+{
+    encoded->stream = PDFStream();
+    encoded->maskStream.reset();
+    encoded->newBytes = 0;
+
+    try
+    {
+        encoded->stream = PDFImage::createStreamFromImage(info.image, plan.encodeOptions, reporter);
+    }
+    catch (const PDFException&)
+    {
+        encoded->stream = PDFStream();
+        return false;
+    }
+
+    encoded->newBytes = encoded->stream.getContent() ? encoded->stream.getContent()->size() : 0;
+
+    if (plan.useSoftMask)
+    {
+        QImage mask = extractAlphaMask(info.image);
+
+        // No memory for the mask: an image without it would lose its transparency, its stream stays
+        if (mask.isNull())
+        {
+            encoded->stream = PDFStream();
+            encoded->newBytes = 0;
+            return false;
+        }
+
+        PDFImage::ImageEncodeOptions maskOptions = plan.encodeOptions;
+        maskOptions.compression = PDFImage::ImageCompression::Flate;
+        maskOptions.colorMode = PDFImage::ImageColorMode::Grayscale;
+        maskOptions.alphaHandling = PDFImage::AlphaHandling::FlattenToWhite;
+
+        // The values of a soft mask are the alpha itself, no color management shows them
+        maskOptions.grayTable = nullptr;
+
+        try
+        {
+            if (const std::function<void()>& hook = getTestMaskEncodeHook())
+            {
+                hook();
+            }
+
+            encoded->maskStream = PDFImage::createStreamFromImage(mask, maskOptions, reporter);
+            encoded->newBytes += encoded->maskStream->getContent() ? encoded->maskStream->getContent()->size() : 0;
+        }
+        catch (const PDFException&)
+        {
+            // An image without its mask would lose its transparency: its stream stays
+            encoded->stream = PDFStream();
+            encoded->maskStream.reset();
+            encoded->newBytes = 0;
+            return false;
+        }
+    }
+
+    return true;
+}
+
+std::map<PDFObjectReference, int> PDFImageOptimizerHelper::getSoftMaskUseCounts(const PDFDocument* document, const PDFImageCompressor::ImagePlacements& placements)
+{
+    // Every image stream of the file counts (also an image only in /Resources or in an appearance,
+    // which the walk of the pages does not see), and a mask drawn as an image itself
+    std::map<PDFObjectReference, int> counts;
+    const PDFObjectStorage::PDFObjects& objects = document->getStorage().getObjects();
+    for (size_t objectNumber = 0; objectNumber < objects.size(); ++objectNumber)
+    {
+        const PDFObject& object = objects[objectNumber].object;
+        if (!object.isStream())
+        {
+            continue;
+        }
+
+        const PDFObject& softMask = object.getStream()->getDictionary()->get("SMask");
+        if (softMask.isReference())
+        {
+            ++counts[softMask.getReference()];
+        }
+    }
+
+    for (const PDFImageCompressor::ImagePlacement& placement : placements)
+    {
+        auto it = counts.find(placement.reference);
+        if (it != counts.end())
+        {
+            ++it->second;
+        }
+    }
+    return counts;
+}
+
+bool PDFImageOptimizerHelper::isTooLarge(const PDFDocument* document, const PDFDictionary* dictionary)
+{
+    PDFDocumentDataLoaderDecorator loader(document);
+    const PDFInteger width = loader.readIntegerFromDictionary(dictionary, "Width", 0);
+    const PDFInteger height = loader.readIntegerFromDictionary(dictionary, "Height", 0);
+    if (width <= 0 || height <= 0)
+    {
+        return false;
+    }
+
+    // Both sides are at most 2^31 here only after the check: a side over it is too large by itself
+    constexpr PDFInteger maximumSide = std::numeric_limits<int>::max();
+    if (width > maximumSide || height > maximumSide)
+    {
+        return true;
+    }
+    return qint64(width) * qint64(height) > PDFImageOptimizer::MAXIMUM_DECODED_IMAGE_BYTES / 4;
 }
 
 void PDFImageOptimizer::setTestMaskEncodeHook(std::function<void()> hook)
@@ -1179,9 +1314,71 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
     // a task holds its decoded image only while it works on it.
     PDFImageCompressor compressor;
     PDFImageCompressor::Environment environment(document);
-    const PDFImageCompressor::ImagePlacements placements = compressor.collectImagePlacements(environment, operationControl, analysisProgress);
+    PDFImageCompressor::ImagePlacements placements = compressor.collectImagePlacements(environment, operationControl, analysisProgress);
+
+    // Grayscale (R4-5): an image, which is not a color image by its declaration, is skipped
+    // before it is decoded - the same rule as the list of the images
+    // An image, whose decoded pixels would be too large (plan 6), is skipped before it is decoded too
+    const std::map<PDFObjectReference, int> softMaskUseCounts = PDFImageOptimizerHelper::getSoftMaskUseCounts(document, placements);
+    const std::set<PDFObjectReference> appearanceImages = PDFDocumentImageList::collectAppearanceImages(document);
+    std::vector<ImageResult> skippedResults;
+    {
+        PDFImageCompressor::ImagePlacements decodedPlacements;
+        decodedPlacements.reserve(placements.size());
+        for (PDFImageCompressor::ImagePlacement& placement : placements)
+        {
+            const PDFObject& object = document->getObjectByReference(placement.reference);
+            const PDFDictionary* dictionary = object.isStream() ? object.getStream()->getDictionary() : nullptr;
+            SkipReason skipReason = SkipReason::None;
+            const auto overrideIt = overrides.find(placement.reference);
+            if (overrideIt != overrides.end() && !overrideIt->second.enabled)
+            {
+                // An excluded image is not decoded at all, its stream stays byte by byte
+                skipReason = SkipReason::Excluded;
+            }
+            else if (dictionary && settings.onlyColorImages && !PDFDocumentImageList::isColorImage(document, dictionary, placement.colorSpace))
+            {
+                skipReason = SkipReason::NotColorImage;
+            }
+            else if (appearanceImages.count(placement.reference) > 0)
+            {
+                // R4-4: the appearances of the annotations are never changed; a new encoding in
+                // place would change the appearance, which draws the image too
+                skipReason = SkipReason::InAppearance;
+            }
+            else if (softMaskUseCounts.count(placement.reference) > 0)
+            {
+                // B62: the image is also the soft mask of another image; written anew in place, it would
+                // change the transparency of an image, which keeps its stream (excluded, not smaller,
+                // not a color image); the image, which names it, gets a mask of its own, when it changes
+                skipReason = SkipReason::MaskOfAnotherImage;
+            }
+            else if (dictionary && PDFImageOptimizerHelper::isTooLarge(document, dictionary))
+            {
+                skipReason = SkipReason::TooLarge;
+            }
+
+            if (skipReason != SkipReason::None)
+            {
+                ImageResult skipped;
+                skipped.reference = placement.reference;
+                skipped.keptOriginal = true;
+                skipped.originalBytes = PDFImageOptimizerHelper::getOriginalBytes(document, placement.reference);
+                skipped.skipReason = skipReason;
+                skippedResults.push_back(std::move(skipped));
+                continue;
+            }
+            decodedPlacements.push_back(std::move(placement));
+        }
+        placements = std::move(decodedPlacements);
+    }
+
     if (placements.empty() || PDFOperationControl::isOperationCancelled(operationControl))
     {
+        if (results && !PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            *results = std::move(skippedResults);
+        }
         return createCopy();
     }
 
@@ -1253,13 +1450,35 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
         results->reserve(encodedResults.size());
     }
 
+    // An image, which the walk did not hand over (its data cannot be read), keeps its stream
+    {
+        std::set<PDFObjectReference> handedOver;
+        for (const PDFImageOptimizerHelper::EncodedImage& encoded : encodedResults)
+        {
+            handedOver.insert(encoded.reference);
+        }
+        for (const PDFImageCompressor::ImagePlacement& placement : placements)
+        {
+            if (!handedOver.count(placement.reference))
+            {
+                ImageResult unreadable;
+                unreadable.reference = placement.reference;
+                unreadable.originalBytes = PDFImageOptimizerHelper::getOriginalBytes(document, placement.reference);
+                unreadable.skipReason = SkipReason::CannotBeRead;
+                skippedResults.push_back(std::move(unreadable));
+            }
+        }
+    }
+
     for (const PDFImageOptimizerHelper::EncodedImage& encoded : encodedResults)
     {
         if (encoded.keepOriginal)
         {
             if (results)
             {
-                results->push_back(ImageResult{ encoded.reference, true, encoded.originalBytes, encoded.newBytes, QString() });
+                ImageResult kept{ encoded.reference, true, encoded.originalBytes, encoded.newBytes, QString() };
+                kept.skipReason = encoded.skipReason;
+                results->push_back(std::move(kept));
             }
             continue;
         }
@@ -1268,8 +1487,12 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
 
         if (encoded.maskStream)
         {
+            // B62: a mask named by another image too (or drawn as an image) is never replaced in place,
+            // the other image would get the mask of this one
             PDFObjectReference maskReference;
-            if (encoded.existingMaskReference)
+            const auto useCount = encoded.existingMaskReference ? softMaskUseCounts.find(*encoded.existingMaskReference) : softMaskUseCounts.cend();
+            const bool isOwnMask = useCount != softMaskUseCounts.cend() && useCount->second == 1;
+            if (encoded.existingMaskReference && isOwnMask)
             {
                 maskReference = *encoded.existingMaskReference;
                 storage.setObject(maskReference, PDFObject::createStream(PDFStream(*encoded.maskStream)));
@@ -1291,6 +1514,13 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
         {
             results->push_back(ImageResult{ encoded.reference, false, encoded.originalBytes, encoded.newBytes, QString() });
         }
+    }
+
+    if (results && !skippedResults.empty())
+    {
+        // The skipped images among the others in the order of the references
+        results->insert(results->end(), skippedResults.begin(), skippedResults.end());
+        std::sort(results->begin(), results->end(), [](const ImageResult& left, const ImageResult& right) { return left.reference < right.reference; });
     }
 
     PDFDocument optimizedDocument(std::move(storage), document->getInfo()->version, document->getSourceDataHash());

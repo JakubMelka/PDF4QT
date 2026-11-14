@@ -144,7 +144,7 @@ private slots:
     void test_page_conversion_is_cancellable();
     void test_page_conversion_is_cancellable_while_compiling();
     void test_page_conversion_is_cancellable_while_waiting_for_rasterizer();
-    void test_page_conversion_fails_on_rendering_error();
+    void test_page_conversion_with_rendering_error();
     void test_page_conversion_keeps_structure_tree_when_partial();
     void test_page_conversion_prunes_structure_tree_when_partial();
     void test_page_conversion_keeps_structure_tree_when_page_fails();
@@ -160,6 +160,16 @@ private slots:
     void test_page_image_size_rejects_overflow();
     void test_page_rasterization_limits_resolution();
     void test_page_rasterization_paper_is_white();
+
+    // Step 4 of phase 2, package P3 (R4-21)
+    void test_failed_items_have_reasons();
+    void test_automatic_threshold_is_reported();
+    void test_preview_of_core();
+    void test_detect_blank_pages_of_core();
+    void test_rasterization_environment();
+    void test_progress_steps_are_serialized();
+    void test_source_hash_kept();
+    void test_page_image_size_of_user_unit();
 
 private:
     /// Resolution used by the tests. It is deliberately low - the tests verify, which
@@ -777,7 +787,7 @@ void BitonalDocumentTest::test_page_conversion_is_cancellable_while_waiting_for_
     QVERIFY(!creator.renderPage(0, QSize(64, 32), nullptr).isNull());
 }
 
-void BitonalDocumentTest::test_page_conversion_fails_on_rendering_error()
+void BitonalDocumentTest::test_page_conversion_with_rendering_error()
 {
     // The second page paints a valid black rectangle and an image, whose data are
     // damaged. The renderer skips the image and renders the rest of the page, so
@@ -787,47 +797,50 @@ void BitonalDocumentTest::test_page_conversion_fails_on_rendering_error()
 
     pdf::PDFBitonalDocumentCreator creator(&document, context.getRasterizerPool(), nullptr);
 
-    // The rendering of the damaged page reports the failure by a null image, the
-    // valid page is rendered
+    // Owner 14. 11. 2026: a rendering error never blocks the conversion. The damaged page is
+    // rendered without its image - the black rectangle of the left half is there
     QVERIFY(!creator.renderPage(0, QSize(64, 32), nullptr).isNull());
-    QVERIFY(creator.renderPage(1, QSize(64, 32), nullptr).isNull());
+    const QImage damagedPage = creator.renderPage(1, QSize(64, 32), nullptr);
+    QVERIFY(!damagedPage.isNull());
+    QCOMPARE(qGray(damagedPage.pixel(8, 16)), 0);
 
-    const pdf::PDFPage* originalPage = document.getCatalog()->getPage(1);
-    QVERIFY(originalPage);
     const pdf::PDFDictionary* originalPageDictionary = getPageDictionary(document, 1);
     QVERIFY(originalPageDictionary);
     const pdf::PDFObject originalContents = originalPageDictionary->get("Contents");
     QVERIFY(originalContents.isReference());
 
-    // Such an image must not replace the content of the page - the page is left as it
-    // is and it is counted as failed, so the caller can warn the user
+    // Both pages are converted, none has failed; the damaged page is reported as a rendering
+    // issue with the error of the renderer, so the caller asks the user to check it
     QVERIFY(creator.createBitonalDocument(createPageSettings(2)));
-    QCOMPARE(creator.getConvertedItemCount(), size_t(1));
-    QCOMPARE(creator.getFailedItemCount(), size_t(1));
+    QCOMPARE(creator.getConvertedItemCount(), size_t(2));
+    QCOMPARE(creator.getFailedItemCount(), size_t(0));
+    QCOMPARE(creator.getRenderingIssues().size(), size_t(1));
+    QCOMPARE(creator.getRenderingIssues().front().pageIndex, pdf::PDFInteger(1));
+    QVERIFY(!creator.getRenderingIssues().front().messages.isEmpty());
 
     const pdf::PDFDocument bitonalDocument = creator.takeBitonalDocument();
     QVERIFY(getPageBitonalImage(bitonalDocument, 0));
-    QVERIFY(!getPageBitonalImage(bitonalDocument, 1));
+    QVERIFY(getPageBitonalImage(bitonalDocument, 1));
+    const pdf::PDFDictionary* convertedPageDictionary = getPageDictionary(bitonalDocument, 1);
+    QVERIFY(convertedPageDictionary);
+    QVERIFY(convertedPageDictionary->get("Contents") != originalContents);
 
-    const pdf::PDFDictionary* failedPageDictionary = getPageDictionary(bitonalDocument, 1);
-    QVERIFY(failedPageDictionary);
-    QVERIFY(failedPageDictionary->get("Contents") == originalContents);
-    QVERIFY(bitonalDocument.getObjectByReference(originalContents.getReference()).isStream());
-
-    // A document, whose only page is damaged, is not converted at all
+    // A document, whose only page is damaged, is converted too
     pdf::PDFDocument damagedDocument = createDocument({ QSizeF(200, 100) }, false, { 0 });
     RenderingContext damagedContext(&damagedDocument);
     pdf::PDFBitonalDocumentCreator damagedCreator(&damagedDocument, damagedContext.getRasterizerPool(), nullptr);
-    QVERIFY(!damagedCreator.createBitonalDocument(createPageSettings(1)));
-    QCOMPARE(damagedCreator.getConvertedItemCount(), size_t(0));
-    QCOMPARE(damagedCreator.getFailedItemCount(), size_t(1));
+    QVERIFY(damagedCreator.createBitonalDocument(createPageSettings(1)));
+    QCOMPARE(damagedCreator.getConvertedItemCount(), size_t(1));
+    QCOMPARE(damagedCreator.getFailedItemCount(), size_t(0));
+    QCOMPARE(damagedCreator.getRenderingIssues().size(), size_t(1));
 
-    // Filling the page needs no rendering, so it works even for the damaged page
+    // Filling the page needs no rendering: no rendering issue
     pdf::PDFBitonalDocumentCreator::Settings fillSettings = createPageSettings(1);
     fillSettings.items.front().mode = pdf::PDFBitonalDocumentCreator::ItemMode::FillWhite;
     QVERIFY(damagedCreator.createBitonalDocument(fillSettings));
     QCOMPARE(damagedCreator.getConvertedItemCount(), size_t(1));
     QCOMPARE(damagedCreator.getFailedItemCount(), size_t(0));
+    QVERIFY(damagedCreator.getRenderingIssues().empty());
 }
 
 void BitonalDocumentTest::test_page_conversion_keeps_structure_tree_when_partial()
@@ -1569,6 +1582,294 @@ void BitonalDocumentTest::test_page_rasterization_paper_is_white()
         QCOMPARE(image.pixel(63, 0), qRgba(255, 255, 255, 255));
         QCOMPARE(image.pixel(63, 31), qRgba(255, 255, 255, 255));
     }
+}
+
+void BitonalDocumentTest::test_failed_items_have_reasons()
+{
+    // 307:6388 "Not converted: pages 17, 43, 44 (...)": the creator tells which items have failed
+    // and why; a page larger than the limits of the pixels is never rendered. A page with a
+    // rendering error is converted and is a rendering issue, not a failure (owner 14. 11. 2026).
+    pdf::PDFDocument document = createDocument({ QSizeF(200, 100), QSizeF(200, 100), QSizeF(5000, 5000) }, false, { 1 });
+    RenderingContext context(&document);
+    pdf::PDFBitonalDocumentCreator creator(&document, context.getRasterizerPool(), nullptr);
+
+    pdf::PDFBitonalDocumentCreator::Settings settings = createPageSettings(3);
+    settings.dpiResolution = 600;
+    QVERIFY(creator.createBitonalDocument(settings));
+    QCOMPARE(creator.getConvertedItemCount(), size_t(2));
+
+    const std::vector<pdf::PDFBitonalDocumentCreator::FailedItem>& failed = creator.getFailedItems();
+    QCOMPARE(failed.size(), size_t(1));
+    QCOMPARE(failed[0].item.pageIndex, pdf::PDFInteger(2));
+    QVERIFY(failed[0].reason == pdf::PDFBitonalDocumentCreator::FailureReason::TooLarge);
+    QCOMPARE(creator.getFailedItemCount(), failed.size());
+    QCOMPARE(creator.getRenderingIssues().size(), size_t(1));
+    QCOMPARE(creator.getRenderingIssues().front().pageIndex, pdf::PDFInteger(1));
+
+    // The automatic compression has chosen one coding for each converted page
+    size_t encodedCount = 0;
+    for (const auto& [compression, count] : creator.getUsedCompressions())
+    {
+        QVERIFY(compression != pdf::PDFBitonalDocumentCreator::Compression::Auto);
+        encodedCount += count;
+    }
+    QCOMPARE(encodedCount, size_t(2));
+}
+
+void BitonalDocumentTest::test_automatic_threshold_is_reported()
+{
+    // Otsu's method on an image of two tones puts the threshold between them: the darker tone
+    // becomes black, the lighter one white, and the threshold is reported (304:5102 "Automatic
+    // threshold (Otsu): 141")
+    QImage image(64, 64, QImage::Format_RGB32);
+    image.fill(QColor(200, 200, 200));
+    for (int y = 0; y < 64; ++y)
+    {
+        for (int x = 0; x < 24; ++x)
+        {
+            image.setPixel(x, y, qRgb(60, 60, 60));
+        }
+    }
+
+    int threshold = -1;
+    const QImage bitonal = pdf::PDFBitonalDocumentCreator::convertImageToBitonal(image, pdf::PDFImageConversion::ConversionMethod::Automatic, 0, nullptr, nullptr, &threshold);
+    QVERIFY(!bitonal.isNull());
+    QVERIFY2(threshold >= 60 && threshold < 200, qPrintable(QString::number(threshold)));
+    QCOMPARE(qGray(bitonal.pixel(10, 10)), 0);
+    QCOMPARE(qGray(bitonal.pixel(50, 10)), 255);
+
+    // The user-defined threshold is the threshold used
+    pdf::PDFBitonalDocumentCreator::convertImageToBitonal(image, pdf::PDFImageConversion::ConversionMethod::Manual, 77, nullptr, nullptr, &threshold);
+    QCOMPARE(threshold, 77);
+}
+
+void BitonalDocumentTest::test_preview_of_core()
+{
+    // R4-22: the preview of an item is a function of the core (the tool and the old dialog): the
+    // rendered page, its bitonal image, the threshold and the encoded size of the coding
+    pdf::PDFDocument document = createDocument({ QSizeF(200, 100) }, false);
+    RenderingContext context(&document);
+    pdf::PDFBitonalDocumentCreator creator(&document, context.getRasterizerPool(), nullptr);
+
+    pdf::PDFBitonalDocumentCreator::PreviewRequest request;
+    request.conversionSource = pdf::PDFBitonalDocumentCreator::ConversionSource::Pages;
+    request.item.pageIndex = 0;
+    request.dpiResolution = 72;
+    request.compression = pdf::PDFBitonalDocumentCreator::Compression::Flate;
+
+    pdf::PDFBitonalDocumentCreator::Preview preview = creator.createPreview(request, nullptr);
+    QVERIFY(!preview.failure);
+    QCOMPARE(preview.originalImage.size(), QSize(200, 100));
+    QCOMPARE(preview.resultImage.format(), QImage::Format_Mono);
+    QCOMPARE(qGray(preview.resultImage.pixel(50, 50)), 0);
+    QCOMPARE(qGray(preview.resultImage.pixel(150, 50)), 255);
+    QVERIFY(preview.threshold >= 0);
+    QVERIFY(preview.compression == pdf::PDFBitonalDocumentCreator::Compression::Flate);
+
+    // The encoded size is the size of the stream, which the conversion writes for the page
+    pdf::PDFBitonalDocumentCreator::Settings settings = createPageSettings(1);
+    settings.dpiResolution = 72;
+    settings.compression = pdf::PDFBitonalDocumentCreator::Compression::Flate;
+    QVERIFY(creator.createBitonalDocument(settings));
+    const pdf::PDFDocument converted = creator.takeBitonalDocument();
+    QCOMPARE(preview.encodedSize, qint64(getPageBitonalImageStream(converted, 0)->getContent()->size()));
+
+    // The rendered page of a preview is reused: the next preview renders nothing
+    request.originalImage = preview.originalImage;
+    request.item.mode = pdf::PDFBitonalDocumentCreator::ItemMode::FillWhite;
+    preview = creator.createPreview(request, nullptr);
+    QCOMPARE(preview.resultImage.size(), QSize(200, 100));
+    QCOMPARE(getBlackPixelCount(preview.resultImage), 0);
+    QCOMPARE(preview.threshold, -1);
+
+    // A page over the limits of the pixels fails as too large, a cancelled preview has nothing
+    request.originalImage = QImage();
+    request.item.mode = pdf::PDFBitonalDocumentCreator::ItemMode::Algorithm;
+    CancelledOperationControl cancelled;
+    QVERIFY(creator.createPreview(request, &cancelled).resultImage.isNull());
+
+    pdf::PDFDocument largeDocument = createDocument({ QSizeF(5000, 5000) }, false);
+    RenderingContext largeContext(&largeDocument);
+    pdf::PDFBitonalDocumentCreator largeCreator(&largeDocument, largeContext.getRasterizerPool(), nullptr);
+    request.dpiResolution = 600;
+    preview = largeCreator.createPreview(request, nullptr);
+    QVERIFY(preview.failure == pdf::PDFBitonalDocumentCreator::FailureReason::TooLarge);
+
+    // The preview resolution follows the pane: 200 x 100 pt at 600 dpi = 1667 x 833 px into a
+    // pane of 500 x 500 px = 180 dpi; a pane larger than the page keeps the resolution
+    const pdf::PDFPage* page = document.getCatalog()->getPage(0);
+    QCOMPARE(pdf::PDFBitonalDocumentCreator::getPreviewDpiResolution(page, 600, QSize(500, 500)), 180);
+    QCOMPARE(pdf::PDFBitonalDocumentCreator::getPreviewDpiResolution(page, 300, QSize(2000, 2000)), 300);
+}
+
+void BitonalDocumentTest::test_detect_blank_pages_of_core()
+{
+    // B67: the one detection of the core - a result per given page in their order; a page given
+    // twice has one result, a page, which does not exist, is never examined (and never blank)
+    pdf::PDFDocument document = createDocument({ QSizeF(200, 100), QSizeF(200, 100) }, false);
+    pdf::PDFDocumentBuilder blankBuilder(&document);
+    pdf::PDFDocument blankDocument;
+    {
+        // The second page gets an empty content: an empty page
+        const pdf::PDFDictionary* pageDictionary = getPageDictionary(document, 1);
+        pdf::PDFDictionaryBuilder emptyContentDictionary;
+        emptyContentDictionary.addEntry(pdf::PDFInplaceOrMemoryString(pdf::PDF_STREAM_DICT_LENGTH), pdf::PDFObject::createInteger(0));
+        const pdf::PDFObjectReference emptyContent = blankBuilder.addObject(pdf::PDFObject::createStream(pdf::PDFStream(std::move(emptyContentDictionary), QByteArray())));
+        pdf::PDFDictionaryBuilder page(*pageDictionary);
+        page.setEntry(pdf::PDFInplaceOrMemoryString("Contents"), pdf::PDFObject::createReference(emptyContent));
+        blankBuilder.setObject(document.getCatalog()->getPage(1)->getPageReference(), pdf::PDFObject::createDictionary(std::move(page)));
+        blankDocument = blankBuilder.build();
+    }
+
+    RenderingContext context(&blankDocument);
+    pdf::PDFBitonalDocumentCreator creator(&blankDocument, context.getRasterizerPool(), nullptr);
+
+    const std::vector<pdf::PDFBitonalDocumentCreator::BlankPageResult> results = creator.detectBlankPages({ 1, 0, 1, 7 }, nullptr, nullptr);
+    QCOMPARE(results.size(), size_t(4));
+    QCOMPARE(results[0].pageIndex, pdf::PDFInteger(1));
+    QVERIFY(results[0].isExamined && results[0].isBlank);
+    QVERIFY(results[1].isExamined && !results[1].isBlank);
+    QVERIFY(results[2].isExamined && results[2].isBlank);
+    QVERIFY(!results[3].isExamined && !results[3].isBlank);
+
+    // Cancelled: nothing is examined, nothing is blank
+    CancelledOperationControl cancelled;
+    for (const pdf::PDFBitonalDocumentCreator::BlankPageResult& result : creator.detectBlankPages({ 0, 1 }, &cancelled, nullptr))
+    {
+        QVERIFY(!result.isExamined && !result.isBlank);
+    }
+
+    // A page, which is white only because the renderer skipped its content (an error: the named
+    // XObject does not exist), is never blank - the white fill would wipe the content out. The
+    // conversion itself goes on with such a page (owner 14. 11. 2026), the fill does not.
+    pdf::PDFDocumentBuilder skippedBuilder(&document);
+    {
+        pdf::PDFDictionaryBuilder contentDictionary;
+        const QByteArray content = "/Missing Do";
+        contentDictionary.addEntry(pdf::PDFInplaceOrMemoryString(pdf::PDF_STREAM_DICT_LENGTH), pdf::PDFObject::createInteger(content.size()));
+        const pdf::PDFObjectReference skippedContent = skippedBuilder.addObject(pdf::PDFObject::createStream(pdf::PDFStream(std::move(contentDictionary), QByteArray(content))));
+        pdf::PDFDictionaryBuilder page(*getPageDictionary(document, 1));
+        page.setEntry(pdf::PDFInplaceOrMemoryString("Contents"), pdf::PDFObject::createReference(skippedContent));
+        skippedBuilder.setObject(document.getCatalog()->getPage(1)->getPageReference(), pdf::PDFObject::createDictionary(std::move(page)));
+    }
+    pdf::PDFDocument skippedDocument = skippedBuilder.build();
+    RenderingContext skippedContext(&skippedDocument);
+    pdf::PDFBitonalDocumentCreator skippedCreator(&skippedDocument, skippedContext.getRasterizerPool(), nullptr);
+
+    // The picture of the page alone looks like a blank sheet
+    const int blankDpi = pdf::PDFBitonalDocumentCreator::BLANK_PAGE_DPI_RESOLUTION;
+    const QImage skippedImage = skippedCreator.renderPage(1, pdf::PDFBitonalDocumentCreator::getPageImageSize(skippedDocument.getCatalog()->getPage(1), blankDpi), nullptr);
+    QVERIFY(!skippedImage.isNull());
+    QVERIFY(pdf::PDFBitonalDocumentCreator::detectBlankPage(skippedImage, blankDpi, nullptr).isBlank);
+
+    const std::vector<pdf::PDFBitonalDocumentCreator::BlankPageResult> skippedResults = skippedCreator.detectBlankPages({ 1 }, nullptr, nullptr);
+    QCOMPARE(skippedResults.size(), size_t(1));
+    QVERIFY(skippedResults[0].isExamined && !skippedResults[0].isBlank);
+}
+
+void BitonalDocumentTest::test_rasterization_environment()
+{
+    // The environment of a run owns everything its pool needs (the tool, PdfTool): the pool has
+    // the rasterizers asked for and renders the page - the black left half, the white paper
+    pdf::PDFDocument document = createDocument({ QSizeF(200, 100) }, false);
+    pdf::PDFBitonalRasterizationEnvironment environment(&document, pdf::PDFCMSSettings(), 2);
+    QVERIFY(environment.getRasterizerPool());
+    QCOMPARE(environment.getRasterizerPool()->getRasterizerCount(), 2);
+
+    pdf::PDFBitonalDocumentCreator creator(&document, environment.getRasterizerPool(), nullptr);
+    const QImage image = creator.renderPage(0, QSize(200, 100), nullptr);
+    QVERIFY(!image.isNull());
+    QCOMPARE(qGray(image.pixel(50, 50)), 0);
+    QCOMPARE(qGray(image.pixel(150, 50)), 255);
+}
+
+void BitonalDocumentTest::test_progress_steps_are_serialized()
+{
+    // The pages are converted by more threads; the steps of the progress are serialized: a
+    // progress, which is not thread-safe, counts every page exactly once
+    class CountingProgress : public pdf::PDFProgressSink
+    {
+    public:
+        virtual void start(size_t, pdf::ProgressStartupInfo) override { }
+        virtual void step() override
+        {
+            // Not atomic on purpose: two threads at once would lose a step
+            const int value = m_steps;
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            m_steps = value + 1;
+        }
+        virtual void finish() override { }
+
+        int m_steps = 0;
+    };
+
+    std::vector<QSizeF> sizes(16, QSizeF(200, 100));
+    pdf::PDFDocument document = createDocument(sizes, false);
+    RenderingContext context(&document, 8);
+    CountingProgress progress;
+    pdf::PDFBitonalDocumentCreator creator(&document, context.getRasterizerPool(), &progress);
+    pdf::PDFBitonalDocumentCreator::Settings settings = createPageSettings(sizes.size());
+    settings.dpiResolution = 72;
+    QVERIFY(creator.createBitonalDocument(settings));
+    QCOMPARE(progress.m_steps, int(sizes.size()));
+}
+
+void BitonalDocumentTest::test_page_image_size_of_user_unit()
+{
+    // RS4CORE: /UserUnit is the size of a unit of the default user space in 1/72 inch (ISO 32000-2,
+    // 14.11.2, Table 31). Page 1: 100 x 100 units of 10/72 inch (13.9 inch, 353 mm) with a black
+    // square of 1 x 1 unit (3.5 mm) in its middle; page 2: 3600 x 72 units (500 x 10 inch).
+    pdf::PDFDocumentBuilder builder;
+    const std::array<std::pair<QSizeF, QByteArray>, 2> pages{ std::pair<QSizeF, QByteArray>(QSizeF(100, 100), "0 0 0 rg 49.5 49.5 1 1 re f"),
+                                                              std::pair<QSizeF, QByteArray>(QSizeF(3600, 72), QByteArray()) };
+    for (const auto& [size, content] : pages)
+    {
+        const pdf::PDFObjectReference pageReference = builder.appendPage(QRectF(QPointF(0, 0), size));
+        pdf::PDFDictionaryBuilder contentDictionary;
+        contentDictionary.addEntry(pdf::PDFInplaceOrMemoryString(pdf::PDF_STREAM_DICT_LENGTH), pdf::PDFObject::createInteger(content.size()));
+        const pdf::PDFObjectReference contentReference = builder.addObject(pdf::PDFObject::createStream(pdf::PDFStream(std::move(contentDictionary), QByteArray(content))));
+        pdf::PDFDictionaryBuilder pageUpdate;
+        pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Contents"), pdf::PDFObject::createReference(contentReference));
+        pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("UserUnit"), pdf::PDFObject::createReal(10.0));
+        builder.mergeTo(pageReference, pdf::PDFObject::createDictionary(std::move(pageUpdate)));
+    }
+    pdf::PDFDocument document = builder.build();
+    const pdf::PDFCatalog* catalog = document.getCatalog();
+
+    // 13.9 inch at 100 dpi are 1389 pixels; 500 inch at 100 dpi 50 000 pixels - over the limit of
+    // 32 767 (B65), refused with the size of the paper (the number formatted in English)
+    const QLocale defaultLocale;
+    QLocale::setDefault(QLocale(QLocale::English, QLocale::UnitedStates));
+    const auto restoreLocale = qScopeGuard([&defaultLocale]() { QLocale::setDefault(defaultLocale); });
+    QCOMPARE(pdf::PDFBitonalDocumentCreator::getPageImageSize(catalog->getPage(0), 100), QSize(1389, 1389));
+    QVERIFY(!pdf::PDFBitonalDocumentCreator::getPageImageSize(catalog->getPage(1), 100).isValid());
+    QCOMPARE(pdf::PDFBitonalDocumentCreator::getPageImageSizeError(catalog->getPage(1), 2, 100), QStringLiteral("Page 2 would be 50,000 px wide – lower the resolution."));
+    QVERIFY(pdf::PDFBitonalDocumentCreator::getPageImageSizeError(catalog->getPage(0), 1, 100).isEmpty());
+
+    // The blank page detection measures in millimeters of the paper: the square of 3.5 mm is a
+    // content (more than BLANK_PAGE_CONTENT_SIZE_MM), the page is not blank
+    RenderingContext context(&document);
+    pdf::PDFBitonalDocumentCreator creator(&document, context.getRasterizerPool(), nullptr);
+    const std::vector<pdf::PDFBitonalDocumentCreator::BlankPageResult> results = creator.detectBlankPages({ 0 }, nullptr, nullptr);
+    QCOMPARE(results.size(), size_t(1));
+    QVERIFY(results[0].isExamined);
+    QVERIFY(!results[0].isBlank);
+}
+
+void BitonalDocumentTest::test_source_hash_kept()
+{
+    // R4-9: the converted document is another revision of the same document - the version and the
+    // hash of the source data stay (the OCR layers of PDF4QT recognize their document by it)
+    pdf::PDFDocument plain = createDocument({ QSizeF(200, 100) }, false);
+    pdf::PDFDocument document(pdf::PDFObjectStorage(plain.getStorage()), plain.getInfo()->version, QByteArray("0123456789abcdef"));
+    RenderingContext context(&document);
+    pdf::PDFBitonalDocumentCreator creator(&document, context.getRasterizerPool(), nullptr);
+    pdf::PDFBitonalDocumentCreator::Settings settings = createPageSettings(1);
+    settings.dpiResolution = 72;
+    QVERIFY(creator.createBitonalDocument(settings));
+    const pdf::PDFDocument converted = creator.takeBitonalDocument();
+    QCOMPARE(converted.getSourceDataHash(), QByteArray("0123456789abcdef"));
+    QCOMPARE(converted.getInfo()->version, document.getInfo()->version);
 }
 
 QTEST_MAIN(BitonalDocumentTest)

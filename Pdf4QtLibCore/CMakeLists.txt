@@ -135,6 +135,26 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfdocumentassemblyfile.h
     sources/pdfdocumenttool_manage.cpp
     sources/pdfdocumenttool_manage.h
+    # Step 4 of phase 2 (plan 9.1, 9.2): the list of the images (skeleton), P1 Optimize Images,
+    # Grayscale, PDF to Images, Extract Images, P3 Black & White, P4 Audio Book and its audio
+    sources/pdfdocumentimagelist.cpp
+    sources/pdfdocumentimagelist.h
+    sources/pdfdocumenttool_optimizeimages.cpp
+    sources/pdfdocumenttool_optimizeimages.h
+    sources/pdfdocumenttool_grayscale.cpp
+    sources/pdfdocumenttool_grayscale.h
+    sources/pdfdocumenttool_pdftoimages.cpp
+    sources/pdfdocumenttool_pdftoimages.h
+    sources/pdfdocumenttool_extractimages.cpp
+    sources/pdfdocumenttool_extractimages.h
+    sources/pdfdocumenttool_bitonal.cpp
+    sources/pdfdocumenttool_bitonal.h
+    sources/pdfdocumenttool_audiobook.cpp
+    sources/pdfdocumenttool_audiobook.h
+    sources/pdfspeechsynthesizer.cpp
+    sources/pdfspeechsynthesizer.h
+    sources/pdfaudiofilewriter.cpp
+    sources/pdfaudiofilewriter.h
     sources/pdfexecutionpolicy.cpp
     sources/pdfexecutionpolicy.h
     sources/pdfthreadannotations.cpp

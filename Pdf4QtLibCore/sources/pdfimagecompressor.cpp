@@ -23,8 +23,10 @@
 #include "pdfimagecompressor.h"
 
 #include "pdfcatalog.h"
+#include "pdfcolorspaces.h"
 #include "pdfconstants.h"
 #include "pdfdocument.h"
+#include "pdfexception.h"
 #include "pdfexecutionpolicy.h"
 #include "pdfimage.h"
 #include "pdfmeshqualitysettings.h"
@@ -44,6 +46,7 @@
 #include <limits>
 #include <map>
 #include <set>
+#include <tuple>
 
 namespace pdf
 {
@@ -111,6 +114,47 @@ public:
         static PDFImageCompressor::TestDecodeHook hook;
         return hook;
     }
+
+    /// The image of an image XObject drawn on a page (the walk of all layers, step 4 of phase 2,
+    /// R4-4: the changing tools and Compress see the images of every layer). Created from its own
+    /// dictionary, not from the resources of the page: an image XObject declares its color space by
+    /// a family name or an array (ISO 32000-2, 8.9.5, Table 87), and a re-encoded image is written
+    /// as a device space, which a /DefaultRGB of the page would show again - decoding it without the
+    /// default space gives the colors, which the written image shows the same way. The intent is the
+    /// default intent of a graphics state (Perceptual), /Intent of the image overrides it.
+    /// \returns std::nullopt for an inline image, a stream without a reference and an image, which
+    ///          cannot be created (an error of its dictionary or of its color space)
+    static std::optional<PDFImage> createImage(const PDFDocument* document, const PDFImageCompressor::DrawnImage& drawnImage)
+    {
+        if (!drawnImage.reference.isValid() || !drawnImage.stream)
+        {
+            return std::nullopt;
+        }
+
+        try
+        {
+            PDFRenderErrorReporterDummy reporter;
+            PDFColorSpacePointer colorSpace;
+            if (drawnImage.colorSpace.isName() || drawnImage.colorSpace.isArray())
+            {
+                colorSpace = PDFAbstractColorSpace::createColorSpace(nullptr, document, nullptr, drawnImage.colorSpace);
+            }
+            else if (!drawnImage.colorSpace.isNull())
+            {
+                return std::nullopt;
+            }
+            return PDFImage::createImage(document, drawnImage.stream, std::move(colorSpace), false, RenderingIntent::Perceptual, &reporter);
+        }
+        catch (const PDFException&)
+        {
+            return std::nullopt;
+        }
+        catch (const PDFRendererException&)
+        {
+            // A damaged image (an explicit /Mask, which is no stencil mask, 8.9.6.3) is not decoded
+            return std::nullopt;
+        }
+    }
 };
 
 
@@ -129,11 +173,13 @@ public:
                             const PDFMeshQualitySettings& meshQualitySettings,
                             const ImageCallback* callback,
                             const PlacementCallback* placementCallback,
-                            const ImageFilter* filter) :
+                            const ImageFilter* filter,
+                            const DrawnImageCallback* drawnImageCallback = nullptr) :
         PDFPageContentProcessor(page, document, fontCache, iccProfileCache, cms, optionalContentActivity, QTransform(), meshQualitySettings),
         m_callback(callback),
         m_placementCallback(placementCallback),
-        m_filter(filter)
+        m_filter(filter),
+        m_drawnImageCallback(drawnImageCallback)
     {
     }
 
@@ -163,6 +209,13 @@ protected:
 
         if (isContentSuppressed() || isProcessingCancelled())
         {
+            return false;
+        }
+
+        if (m_drawnImageCallback)
+        {
+            // The collection of step 4: every drawn image, inline images too, nothing is decoded
+            reportDrawnImage(stream, reference);
             return false;
         }
 
@@ -209,9 +262,55 @@ private:
                        PDFImageCompressorHelper::getAxisInches(ctm.m21(), ctm.m22()));
     }
 
+    /// Reports an image of the collection of step 4 (DrawnImageCallback)
+    void reportDrawnImage(const PDFStream* stream, PDFObjectReference reference)
+    {
+        if (!stream)
+        {
+            return;
+        }
+
+        DrawnImage image;
+        image.reference = reference;
+        image.stream = stream;
+        image.inches = calculatePlacedSize();
+
+        const PDFDictionary* dictionary = stream->getDictionary();
+        image.colorSpace = getDocument()->getObject(dictionary->get("ColorSpace"));
+        if (!reference.isValid())
+        {
+            const InlineImagePosition& position = getInlineImagePosition();
+            if (position.index < 0)
+            {
+                // A direct stream, which is no inline image (streams are indirect objects, 7.3.8)
+                return;
+            }
+            image.inlineContentStream = position.contentStream;
+            image.inlineIndex = position.index;
+        }
+
+        // An inline image may name a color space of the resources (8.9.7, Table 91): its value is
+        // reported; the abbreviations of the device spaces are not resources. An image XObject names
+        // a family (Table 87), but files name a resource too - the content processor finds it in the
+        // resources of the content, so the walk reports its value as well (the decoding of all layers
+        // and the color of PDFDocumentImageList read it)
+        if (image.colorSpace.isName())
+        {
+            const PDFDictionary* colorSpaces = getColorSpaceDictionary();
+            const QByteArray name = image.colorSpace.getString();
+            if (colorSpaces && colorSpaces->hasKey(name))
+            {
+                image.colorSpace = getDocument()->getObject(colorSpaces->get(name));
+            }
+        }
+
+        (*m_drawnImageCallback)(image);
+    }
+
     const ImageCallback* m_callback;
     const PlacementCallback* m_placementCallback;
     const ImageFilter* m_filter;
+    const DrawnImageCallback* m_drawnImageCallback;
 };
 
 PDFImageCompressor::Environment::Environment(const PDFDocument* document, PDFCMSPointer cms) :
@@ -266,6 +365,23 @@ void PDFImageCompressor::Environment::processPagePlacements(PDFInteger pageIndex
     PDFMeshQualitySettings meshQualitySettings;
     PDFFontCacheShrinkGuard shrinkGuard(m_fontCache.get(), &meshQualitySettings);
     ImageCollectorProcessor processor(page, m_document, m_fontCache.get(), m_iccProfileCache.get(), m_cms.data(), m_optionalContentActivity.get(), meshQualitySettings, nullptr, &callback, nullptr);
+    processor.setOperationControl(operationControl);
+    processor.processContents();
+}
+
+void PDFImageCompressor::Environment::processPageImages(PDFInteger pageIndex, const DrawnImageCallback& callback, const PDFOptionalContentActivity* optionalContentActivity, const PDFOperationControl* operationControl) const
+{
+    const PDFCatalog* catalog = m_document ? m_document->getCatalog() : nullptr;
+    const PDFPage* page = catalog && pageIndex >= 0 && size_t(pageIndex) < catalog->getPageCount() ? catalog->getPage(pageIndex) : nullptr;
+    if (!page || !callback || PDFOperationControl::isOperationCancelled(operationControl))
+    {
+        return;
+    }
+
+    // Without an activity the processor suppresses no optional content (every layer, R4-4)
+    PDFMeshQualitySettings meshQualitySettings;
+    PDFFontCacheShrinkGuard shrinkGuard(m_fontCache.get(), &meshQualitySettings);
+    ImageCollectorProcessor processor(page, m_document, m_fontCache.get(), m_iccProfileCache.get(), m_cms.data(), optionalContentActivity, meshQualitySettings, nullptr, nullptr, nullptr, &callback);
     processor.setOperationControl(operationControl);
     processor.processContents();
 }
@@ -346,16 +462,23 @@ PDFImageCompressor::ImagePlacements PDFImageCompressor::collectImagePlacements(c
 
     // What each page draws; put together in the order of the pages, so the result does not
     // depend on the threads. A progress serves one thread at a time.
-    std::vector<std::vector<std::pair<PDFObjectReference, QPointF>>> pagePlacements(pageCount);
+    std::vector<std::vector<std::tuple<PDFObjectReference, QPointF, PDFObject>>> pagePlacements(pageCount);
     QMutex progressMutex;
     const auto processPage = [&](size_t pageIndex)
     {
-        std::vector<std::pair<PDFObjectReference, QPointF>>& drawn = pagePlacements[pageIndex];
-        const PlacementCallback addPlacement = [&drawn](PDFObjectReference reference, QPointF inches)
+        std::vector<std::tuple<PDFObjectReference, QPointF, PDFObject>>& drawn = pagePlacements[pageIndex];
+        const DrawnImageCallback addPlacement = [&drawn](const DrawnImage& image)
         {
-            drawn.emplace_back(reference, inches);
+            // An inline image is a part of the content, it is never replaced (R4-8)
+            if (image.reference.isValid())
+            {
+                drawn.emplace_back(image.reference, image.inches, image.colorSpace);
+            }
         };
-        environment.processPagePlacements(PDFInteger(pageIndex), addPlacement, operationControl);
+
+        // The images of all layers (step 4 of phase 2, R4-4): an image of a layer hidden for the
+        // export is changed too, the document must not stay in color when the layer is shown
+        environment.processPageImages(PDFInteger(pageIndex), addPlacement, nullptr, operationControl);
 
         // A canceled walk reports nothing more, also from the other threads
         if (progress && !PDFOperationControl::isOperationCancelled(operationControl))
@@ -377,7 +500,7 @@ PDFImageCompressor::ImagePlacements PDFImageCompressor::collectImagePlacements(c
     std::map<PDFObjectReference, ImagePlacement> placements;
     for (size_t pageIndex = 0; pageIndex < pageCount; ++pageIndex)
     {
-        for (const auto& [reference, inches] : pagePlacements[pageIndex])
+        for (const auto& [reference, inches, colorSpace] : pagePlacements[pageIndex])
         {
             auto [iterator, inserted] = placements.try_emplace(reference);
             ImagePlacement& placement = iterator->second;
@@ -385,6 +508,7 @@ PDFImageCompressor::ImagePlacements PDFImageCompressor::collectImagePlacements(c
             {
                 placement.reference = reference;
                 placement.firstPageIndex = PDFInteger(pageIndex);
+                placement.colorSpace = colorSpace;
             }
             placement.maximumInches.setX(qMax(placement.maximumInches.x(), inches.x()));
             placement.maximumInches.setY(qMax(placement.maximumInches.y(), inches.y()));
@@ -481,15 +605,9 @@ void PDFImageCompressor::visitImagesInParallel(const Environment& environment, c
             return state.placement->firstPageIndex == pageIndex && state.part % pagePart.partCount == pagePart.part && !state.isDone.load(std::memory_order_relaxed);
         };
 
-        const ImageFilter filter = [&states, &isOfThisPart](PDFObjectReference reference)
+        const DrawnImageCallback decode = [&](const DrawnImage& drawnImage)
         {
-            const auto it = states.find(reference);
-            return it != states.cend() && isOfThisPart(it->second);
-        };
-
-        const ImageCallback decode = [&](const PDFImage& image, const PDFStream*, PDFObjectReference reference, QPointF)
-        {
-            const auto it = states.find(reference);
+            const auto it = states.find(drawnImage.reference);
             if (it == states.end() || !isOfThisPart(it->second))
             {
                 return;
@@ -500,9 +618,23 @@ void PDFImageCompressor::visitImagesInParallel(const Environment& environment, c
                 return;
             }
 
-            // An exception of the decoding goes to the content processor as by any image, the image
-            // is tried on its other pages
-            std::optional<ImageStatistics> statistics = decodeImage(environment, image, reference, *it->second.placement, operationControl);
+            // An image, which cannot be created or decoded, is tried on its other pages
+            std::optional<PDFImage> image = PDFImageCompressorHelper::createImage(document, drawnImage);
+            if (!image)
+            {
+                return;
+            }
+
+            std::optional<ImageStatistics> statistics;
+            try
+            {
+                statistics = decodeImage(environment, *image, drawnImage.reference, *it->second.placement, operationControl);
+            }
+            catch (const PDFException&)
+            {
+                return;
+            }
+
             if (statistics)
             {
                 it->second.isDone.store(true, std::memory_order_relaxed);
@@ -510,7 +642,8 @@ void PDFImageCompressor::visitImagesInParallel(const Environment& environment, c
             }
         };
 
-        environment.processPage(pageIndex, decode, operationControl, filter);
+        // The images of all layers (R4-4), as collectImagePlacements found them
+        environment.processPageImages(pageIndex, decode, nullptr, operationControl);
     };
     PDFImageCompressorHelper::executeForEachIndex(parts.size(), operationControl, processPage);
 
@@ -560,23 +693,34 @@ void PDFImageCompressor::visitImages(const Environment& environment, const Image
         firstPages.insert(placement.firstPageIndex);
     }
 
-    const ImageFilter filter = [&pending](PDFObjectReference reference)
+    const DrawnImageCallback decodeNext = [&](const DrawnImage& drawnImage)
     {
-        return pending.count(reference) > 0;
-    };
-
-    const ImageCallback decodeNext = [&](const PDFImage& image, const PDFStream*, PDFObjectReference reference, QPointF)
-    {
+        const PDFObjectReference reference = drawnImage.reference;
         auto pendingIterator = pending.find(reference);
         if (pendingIterator == pending.end())
         {
             return;
         }
 
-        // An exception of the decoding goes to the content processor as by any image
+        // An image, whose data cannot be read, stays Waiting: it is not reported
+        std::optional<PDFImage> image = PDFImageCompressorHelper::createImage(document, drawnImage);
+        if (!image)
+        {
+            return;
+        }
+
         pendingIterator->second = PendingState::NoPixels;
 
-        std::optional<ImageStatistics> statistics = decodeImage(environment, image, reference, *placementOfImage.at(reference), operationControl);
+        std::optional<ImageStatistics> statistics;
+        try
+        {
+            statistics = decodeImage(environment, *image, reference, *placementOfImage.at(reference), operationControl);
+        }
+        catch (const PDFException&)
+        {
+            return;
+        }
+
         if (!statistics)
         {
             return;
@@ -597,7 +741,8 @@ void PDFImageCompressor::visitImages(const Environment& environment, const Image
             continue;
         }
 
-        environment.processPage(pageIndex, decodeNext, operationControl, filter);
+        // The images of all layers (R4-4), as collectImagePlacements found them
+        environment.processPageImages(pageIndex, decodeNext, nullptr, operationControl);
 
         if (!processAllPages)
         {

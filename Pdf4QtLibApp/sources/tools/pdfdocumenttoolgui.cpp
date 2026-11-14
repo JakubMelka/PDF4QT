@@ -200,7 +200,7 @@ QString PDFDocumentToolGUI::getStatusText() const
     {
         text += QStringLiteral(" · ") + detail;
     }
-    if (!snapshot.originalData.isEmpty())
+    if (!snapshot.originalData.isEmpty() && isFileSizeInStatusText())
     {
         text += QStringLiteral(" · ") + PDFDocumentToolFormat::formatSize(snapshot.originalData.size());
     }
@@ -283,6 +283,12 @@ std::vector<PDFSecurityHandler::Permission> PDFDocumentToolGUI::getRunPermission
 void PDFDocumentToolGUI::fillResultInput(PDFAppToolResultInput* input) const
 {
     Q_UNUSED(input);
+}
+
+bool PDFDocumentToolGUI::confirmResult(const PDFDocumentToolResult& result)
+{
+    Q_UNUSED(result);
+    return true;
 }
 
 bool PDFDocumentToolGUI::isResultDialogSkipped() const

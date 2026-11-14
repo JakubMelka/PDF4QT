@@ -31,6 +31,7 @@
 #include "pdfoperationcontrol.h"
 #include "pdfprogress.h"
 
+#include <QFile>
 #include <QJsonArray>
 #include <QThread>
 
@@ -170,6 +171,10 @@ public:
     /// The files of the mode "files" (empty = one text file of the parameter "title")
     void setOutputFiles(std::vector<pdf::PDFDocumentToolOutputFile> files) { m_outputFiles = std::move(files); }
 
+    /// The mode "files" writes its one output (the parameter "title") into a new temporary file of
+    /// the context ("audio.wav", R4-1 of step 4); set before the first run
+    void setTemporaryOutput(bool isTemporaryOutput) { m_isTemporaryOutput = isTemporaryOutput; }
+
     /// Called at the start of execute in the thread of the run (a change of the document
     /// under the run); set before the first run
     void setExecuteCallback(std::function<void()> callback) { m_executeCallback = std::move(callback); }
@@ -225,6 +230,29 @@ private:
             pdf::PDFDocumentToolResult result;
             result.documents.push_back(output);
             result.facts.push_back({ QStringLiteral("title"), QStringLiteral("Title"), parameters.value(QStringLiteral("title")).toString() });
+            return result;
+        }
+
+        if (mode == QLatin1String("files") && m_isTemporaryOutput)
+        {
+            // R4-1 of step 4 of phase 2: one output in a temporary file of each run (the audio
+            // book); the tool keeps no copy of it, the result is its only owner
+            QString errorMessage;
+            std::shared_ptr<pdf::PDFDocumentToolTemporaryFile> file = pdf::PDFDocumentToolTemporaryFile::create(context.temporaryFolder, QStringLiteral(".wav"), &errorMessage);
+            if (!file)
+            {
+                return pdf::PDFDocumentToolResult::createFailed(errorMessage);
+            }
+
+            QFile content(file->getFilePath());
+            if (!content.open(QIODevice::WriteOnly) || content.write(parameters.value(QStringLiteral("title")).toString().toUtf8()) < 0)
+            {
+                return pdf::PDFDocumentToolResult::createFailed(content.errorString());
+            }
+            content.close();
+
+            pdf::PDFDocumentToolResult result;
+            result.outputs.push_back(pdf::PDFDocumentToolOutputFile::createTemporary(QStringLiteral("audio.wav"), QStringLiteral("audio/wav"), std::move(file)));
             return result;
         }
 
@@ -326,6 +354,7 @@ private:
     bool m_isPreviewFinal = false;
     bool m_hasResultKindModes = false;
     std::vector<pdf::PDFDocumentToolOutputFile> m_outputFiles;
+    bool m_isTemporaryOutput = false;
     std::function<void()> m_executeCallback;
     std::atomic<bool> m_hold = false;
     mutable std::atomic<int> m_heldCount = 0;

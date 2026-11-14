@@ -31,6 +31,8 @@
 
 #include "pdfutils.h"
 #include "pdfcms.h"
+#include "pdfdocumenttool.h"
+#include "pdfoptionalcontent.h"
 
 namespace pdf
 {
@@ -277,6 +279,21 @@ PDFAppToolRunEnvironment PDFAppDocumentToolHost::createEnvironment() const
         }
     }
     environment.authorName = PDFAuthorSettings::getAuthorName();
+
+    // R4-1, R4-15: the temporary files of the results and the speech synthesis of the application
+    if (const PDFAppContext* context = getContext())
+    {
+        environment.temporaryFolder = context->getToolTemporaryFolder();
+        environment.speechSynthesizerFactory = context->getSpeechSynthesizerFactory();
+    }
+
+    // R4-10 b: the rendering of the settings and the layers, as this tab shows them (a copy of
+    // the states, never a pointer to the activity of the document)
+    environment.rendering = PDFAppDocumentView::createToolRenderContext(getContext());
+    if (const PDFOptionalContentActivity* activity = m_document ? m_document->getOptionalContentActivity() : nullptr)
+    {
+        environment.rendering.layerStates = activity->getStates();
+    }
     return environment;
 }
 

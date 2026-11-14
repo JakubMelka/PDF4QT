@@ -197,6 +197,29 @@ void PDFDocumentToolFileOutput::addDefinitions(PDFDocumentToolParameterDefinitio
                                                   QString::fromLatin1(EXISTING_ASK)));
 }
 
+void PDFDocumentToolFileOutput::addOnlyOutputsDefinition(PDFDocumentToolParameterDefinitions* definitions, PDFDocumentToolTranslator translator)
+{
+    using Definition = PDFDocumentToolParameterDefinition;
+
+    // Only the result dialog gives it (Retry N Files, K4.11): the names of one run
+    Definition definition = Definition::createString(translator, PDFDocumentToolSplitHelper::name(PARAMETER_ONLY_OUTPUTS), QT_TR_NOOP("Only these files"),
+                                                     QT_TR_NOOP("Names of the files of the run, which are written again, one per line; empty = every file"), QString());
+    definition.setPanelOnly(true);
+    definition.setMaximumLength(Definition::MAXIMUM_PANEL_TEXT_LENGTH);
+    definition.setStored(false);
+    definitions->push_back(std::move(definition));
+}
+
+QStringList PDFDocumentToolFileOutput::getOnlyOutputs(const QVariantMap& parameters)
+{
+    return parameters.value(PDFDocumentToolSplitHelper::name(PARAMETER_ONLY_OUTPUTS)).toString().split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+}
+
+QString PDFDocumentToolFileOutput::createOnlyOutputs(const QStringList& fileNames)
+{
+    return fileNames.join(QLatin1Char('\n'));
+}
+
 PDFDocumentToolFileSink::ExistingFiles PDFDocumentToolFileOutput::getPolicy(const QVariantMap& parameters)
 {
     const QString value = parameters.value(PDFDocumentToolSplitHelper::name(PARAMETER_EXISTING_FILES)).toString();

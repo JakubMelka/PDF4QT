@@ -31,6 +31,7 @@
 #include "pdfapptoolhost.h"
 #include "pdfapptoolparametermodel.h"
 #include "pdfapptooltoolbar.h"
+#include "pdfappvaluestore.h"
 #include "pdfdocumenttoolgui.h"
 
 #include "pdfcatalog.h"
@@ -60,6 +61,36 @@ public:
 
     /// Property of a row of an Enum menu: its parameter
     static constexpr const char* ROW_PARAMETER_PROPERTY = "pdf4qtToolRowParameter";
+
+    /// The key of a parameter in a value store (as the binder of the model, "tool.<name>")
+    static QString getStoreKey(const QString& parameter)
+    {
+        return QStringLiteral("tool.") + parameter;
+    }
+
+    /// The value of a parameter of a menu: of its store, the model without one
+    static QVariant getValue(const PDFAppToolParameterModel* model, const PDFAppValueStore* store, const QString& parameter)
+    {
+        if (store && store->isAvailable())
+        {
+            return store->readValue(getStoreKey(parameter));
+        }
+        return model ? model->getValue(parameter) : QVariant();
+    }
+
+    /// Writes a parameter of a menu (its store, the model without one); \p store is held by the
+    /// caller, a slot of the model may delete the menu, which owns it
+    static void setValue(PDFAppToolParameterModel* model, const std::shared_ptr<PDFAppValueStore>& store, const QString& parameter, const QVariant& value)
+    {
+        if (store && store->isAvailable())
+        {
+            store->writeValue(getStoreKey(parameter), value);
+        }
+        else if (model)
+        {
+            model->setValue(parameter, value);
+        }
+    }
 
     /// The filters of the core from the filters of the component
     static PDFDocumentToolPageSelection::Filters toToolFilters(PDFPageSelection::Filters filters)
@@ -147,6 +178,18 @@ PDFTileRow* PDFAppToolEnumMenu::getRow(const QString& optionId) const
     return it != m_rows.end() ? it->second.data() : nullptr;
 }
 
+void PDFAppToolEnumMenu::setValueStore(std::shared_ptr<PDFAppValueStore> store)
+{
+    m_store = std::move(store);
+    refresh();
+}
+
+void PDFAppToolEnumMenu::setButtonTitle(const QString& optionId, const QString& title)
+{
+    m_buttonTitles[optionId] = title;
+    refresh();
+}
+
 void PDFAppToolEnumMenu::refresh()
 {
     if (!m_model)
@@ -157,7 +200,7 @@ void PDFAppToolEnumMenu::refresh()
     QString title;
     for (const QString& parameter : m_parameters)
     {
-        const QString value = m_model->getValue(parameter).toString();
+        const QString value = PDFAppToolPanelBuilderHelper::getValue(m_model.data(), m_store.get(), parameter).toString();
         if (const PDFDocumentToolParameterDefinition* definition = PDFDocumentToolParameters::find(m_model->getDefinitions(), parameter))
         {
             for (const PDFDocumentToolParameterOption& option : definition->getOptions())
@@ -165,7 +208,8 @@ void PDFAppToolEnumMenu::refresh()
                 const bool isChosen = option.id == value;
                 if (isChosen && parameter == m_parameters.front())
                 {
-                    title = option.getTitle();
+                    auto buttonTitle = m_buttonTitles.find(option.id);
+                    title = buttonTitle != m_buttonTitles.cend() ? buttonTitle->second : option.getTitle();
                 }
                 if (PDFTileRow* row = getRow(option.id))
                 {
@@ -193,15 +237,17 @@ void PDFAppToolEnumMenu::onRowClicked()
     const QString parameter = row->property(PDFAppToolPanelBuilderHelper::ROW_PARAMETER_PROPERTY).toString();
     const QVariant value = row->property(PDFAppToolPanelBuilderHelper::ROW_KEY_PROPERTY);
 
-    // The panel closes first: a change of a parameter may start anything
+    // The panel closes first: a change of a parameter may start anything; the store is held here,
+    // the write may delete this menu with its member
     QPointer<PDFAppToolEnumMenu> guard(this);
+    const std::shared_ptr<PDFAppValueStore> store = m_store;
     if (m_panel && m_parameters.size() == 1)
     {
         m_panel->close();
     }
     if (guard && m_model)
     {
-        m_model->setValue(parameter, value);
+        PDFAppToolPanelBuilderHelper::setValue(m_model.data(), store, parameter, value);
     }
     if (guard)
     {
@@ -212,7 +258,7 @@ void PDFAppToolEnumMenu::onRowClicked()
 
 void PDFAppToolEnumMenu::onParameterChanged(const QString& name)
 {
-    if (m_parameters.contains(name))
+    if (m_store || m_parameters.contains(name))
     {
         refresh();
     }
@@ -260,12 +306,23 @@ int PDFAppToolFlagsMenu::getCheckedCount() const
     int count = 0;
     for (const PDFAppToolFlagItem& item : m_items)
     {
-        if (m_model && m_model->getValue(item.parameter).toBool())
+        if (getValue(item.parameter))
         {
             ++count;
         }
     }
     return count;
+}
+
+bool PDFAppToolFlagsMenu::getValue(const QString& parameter) const
+{
+    return m_model && PDFAppToolPanelBuilderHelper::getValue(m_model.data(), m_store.get(), parameter).toBool();
+}
+
+void PDFAppToolFlagsMenu::setValueStore(std::shared_ptr<PDFAppValueStore> store)
+{
+    m_store = std::move(store);
+    refresh();
 }
 
 void PDFAppToolFlagsMenu::setAll(bool isChecked)
@@ -313,7 +370,7 @@ void PDFAppToolFlagsMenu::refresh()
         if (item.second)
         {
             const QSignalBlocker blocker(item.second);
-            item.second->setChecked(m_model->getValue(item.first).toBool());
+            item.second->setChecked(getValue(item.first));
         }
     }
 
@@ -330,8 +387,10 @@ void PDFAppToolFlagsMenu::onRowClicked()
     PDFTileRow* row = qobject_cast<PDFTileRow*>(sender());
     if (row && m_model)
     {
+        // The store is held here: the write may delete this menu with its member
         QPointer<PDFAppToolFlagsMenu> guard(this);
-        m_model->setValue(row->property(PDFAppToolPanelBuilderHelper::ROW_KEY_PROPERTY).toString(), row->isChecked());
+        const std::shared_ptr<PDFAppValueStore> store = m_store;
+        PDFAppToolPanelBuilderHelper::setValue(m_model.data(), store, row->property(PDFAppToolPanelBuilderHelper::ROW_KEY_PROPERTY).toString(), row->isChecked());
         if (guard)
         {
             // The row has toggled itself: the value of the model decides (also for a refusal)
@@ -342,7 +401,7 @@ void PDFAppToolFlagsMenu::onRowClicked()
 
 void PDFAppToolFlagsMenu::onParameterChanged(const QString& name)
 {
-    if (m_rows.count(name))
+    if (m_store || m_rows.count(name))
     {
         refresh();
     }
@@ -1073,6 +1132,16 @@ PDFAppSettingControl* PDFAppToolPanelBuilder::addSegments(const QString& paramet
 
 PDFAppSettingControl* PDFAppToolPanelBuilder::addValueControl(const QString& parameter)
 {
+    PDFAppSettingControl* control = createValueControl(parameter, m_widget);
+    if (control)
+    {
+        addWidget(control->getWidget());
+    }
+    return control;
+}
+
+PDFAppSettingControl* PDFAppToolPanelBuilder::createValueControl(const QString& parameter, QWidget* parent) const
+{
     PDFAppToolParameterModel* model = m_gui ? m_gui->getModel() : nullptr;
     const std::optional<PDFSettingDefinition> definition = model ? model->toSettingDefinition(parameter) : std::nullopt;
     if (!definition)
@@ -1080,9 +1149,8 @@ PDFAppSettingControl* PDFAppToolPanelBuilder::addValueControl(const QString& par
         return nullptr;
     }
 
-    PDFAppSettingControl* control = new PDFAppSettingControl(m_gui->getContext(), *definition, m_widget, model->createValueStore());
+    PDFAppSettingControl* control = new PDFAppSettingControl(m_gui->getContext(), *definition, parent, model->createValueStore());
     QObject::connect(model, &PDFAppToolParameterModel::changed, control, &PDFAppSettingControl::refresh);
-    addWidget(control->getWidget());
     return control;
 }
 

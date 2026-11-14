@@ -117,6 +117,7 @@ public:
         bool keepOriginalIfLarger = true; ///< Keep original image if re-encode is not smaller.
         bool preserveTransparency = true; ///< Preserve transparency via soft mask when possible.
         bool exactJpegQuality = false; ///< The JPEG quality of the profiles is used as it is; otherwise the goal shifts it (-10 for minimum size, +5 for quality).
+        bool onlyColorImages = false; ///< Only the color images are changed (Convert Images to Grayscale, step 4 of phase 2, R4-5): an image, which is gray or bitonal by its declaration (PDFDocumentImageList::isColorImage), is skipped without decoding it, its result has SkipReason::NotColorImage. A color image is always converted (owner answer Q4.15 a): keepOriginalIfLarger then only chooses the smaller of the automatic encoding and Flate.
         CompressionProfile colorProfile; ///< Settings used for color images.
         CompressionProfile grayProfile; ///< Settings used for grayscale images.
         CompressionProfile bitonalProfile; ///< Settings used for bi-tonal images.
@@ -191,6 +192,22 @@ public:
         int originalBytes = 0; ///< Original size of the image streams in bytes.
     };
 
+    /// Why an image was skipped without being encoded (ImageResult::skipReason)
+    enum class SkipReason
+    {
+        None,           ///< Not skipped (encoded, or kept, because the encoding was not smaller)
+        NotColorImage,  ///< Settings::onlyColorImages: the image is gray or bitonal by its declaration
+        Excluded,       ///< An override with enabled = false: the stream stays byte by byte, the image is not decoded
+        TooLarge,       ///< The declared pixels would need more than MAXIMUM_DECODED_IMAGE_BYTES (plan of step 4, 6): not decoded
+        CannotBeRead,   ///< The image gave no pixels (a damaged stream, an unknown color space)
+        MaskOfAnotherImage, ///< The image is drawn and is also the /SMask of another image (B62): a new encoding in place would change the transparency of that image, the stream stays
+        InAppearance        ///< The image is drawn by the page and by an appearance of an annotation too (PDFDocumentImageList::collectAppearanceImages, R4-4): a new encoding in place would change the appearance, the stream stays
+    };
+
+    /// Most bytes of the decoded pixels of one image (32 bit per pixel, plan of step 4 of phase 2,
+    /// chapter 6: a declaration of billions of pixels is not decoded, the image is "too large")
+    static constexpr qint64 MAXIMUM_DECODED_IMAGE_BYTES = qint64(2) * 1024 * 1024 * 1024;
+
     /// Final result for one optimized image.
     struct ImageResult
     {
@@ -199,6 +216,7 @@ public:
         int originalBytes = 0; ///< Original total byte size.
         int newBytes = 0; ///< New total byte size (0 if not re-encoded).
         QString message; ///< Optional diagnostic message.
+        SkipReason skipReason = SkipReason::None; ///< Why the image was skipped (step 4 of phase 2: "skipped 126" of 308:7341)
     };
 
     PDFImageOptimizer() = default;
@@ -268,7 +286,10 @@ public:
     /// only while it works on it, so the peak is about the threads x the largest image, never the sum
     /// of all images, and the strategy Single thread handles strictly one image at a time. The
     /// returned document does not depend on the threads: its objects are written in the order of
-    /// the references. An image, whose pixels could not be allocated, stays unchanged.
+    /// the references. An image, whose pixels could not be allocated, stays unchanged. The images of
+    /// all layers are optimized (step 4 of phase 2, R4-4), never an inline image or an image only in
+    /// the appearance of an annotation; a soft mask named by more images is written as a new object
+    /// (B62). \p results has a result for every image drawn by the pages (with its SkipReason).
     /// \param document Source document.
     /// \param settings Global settings for optimization.
     /// \param overrides Optional per-image overrides.

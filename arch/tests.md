@@ -117,6 +117,20 @@ Facts needed to run them:
 | `UnitTestsAppToolManage` | [tst_apptoolmanagetest.cpp](../UnitTests/tst_apptoolmanagetest.cpp) | Manage Pages in the application, both hosts (step 3b, M3). |
 | `UnitTestsAppAssembly` | [tst_appassemblytest.cpp](../UnitTests/tst_appassemblytest.cpp) | Assembly files, the dialog of the sources, recent assemblies (step 3b, M4). |
 | `UnitTestsAppMcpPages` | [tst_appmcppagestest.cpp](../UnitTests/tst_appmcppagestest.cpp) | MCP actions of the tools of steps 3a and 3b over HTTP; a case per row, one file per package. |
+| `UnitTestsRasterizerPool` | [tst_rasterizerpooltest.cpp](../UnitTests/tst_rasterizerpooltest.cpp) | Rasterizer pool: the budget of the page images, the ordered rendering and its window, the cancellation (step 4). |
+| `UnitTestsDocumentImageList` | [tst_documentimagelisttest.cpp](../UnitTests/tst_documentimagelisttest.cpp) | The list of the images of a document: keys, inline images, layers, masks, the color by the declaration (step 4). |
+| `UnitTestsDocumentToolOptimizeImages` | [tst_documenttooloptimizeimagestest.cpp](../UnitTests/tst_documenttooloptimizeimagestest.cpp) | Optimize Images and Convert Images to Grayscale (step 4, P1). |
+| `UnitTestsDocumentToolExport` | [tst_documenttoolexporttest.cpp](../UnitTests/tst_documenttoolexporttest.cpp) | PDF to Images and Extract Images (step 4, P1). |
+| `UnitTestsDocumentToolBitonal` | [tst_documenttoolbitonaltest.cpp](../UnitTests/tst_documenttoolbitonaltest.cpp) | The tool Convert to Black & White (step 4, P3). |
+| `UnitTestsDocumentTextFlow` | [tst_documenttextflowtest.cpp](../UnitTests/tst_documenttextflowtest.cpp) | The text stream of a document and its editor (step 4, P4). |
+| `UnitTestsDocumentToolAudioBook` | [tst_documenttoolaudiobooktest.cpp](../UnitTests/tst_documenttoolaudiobooktest.cpp) | Create Audio Book with a fake synthesizer, the audio files (step 4, P4). |
+| `UnitTestsSpeech` | [tst_speechtest.cpp](../UnitTests/tst_speechtest.cpp) | Pdf4QtSpeech: the synthesis of Qt TextToSpeech in a thread of the run, the choice of a voice (step 4, P4). |
+| `UnitTestsAppToolExport` | [tst_apptoolexporttest.cpp](../UnitTests/tst_apptoolexporttest.cpp) | GUI of PDF to Images and the written files of the result dialog (step 4, P1). |
+| `UnitTestsAppToolOptimizeImages` | [tst_apptooloptimizeimagestest.cpp](../UnitTests/tst_apptooloptimizeimagestest.cpp) | GUI of Optimize Images, Grayscale and Extract Images (step 4, P2). |
+| `UnitTestsAppToolBitonal` | [tst_apptoolbitonaltest.cpp](../UnitTests/tst_apptoolbitonaltest.cpp) | GUI of Convert to Black & White (step 4, P3). |
+| `UnitTestsAppToolAudioBook` | [tst_apptoolaudiobooktest.cpp](../UnitTests/tst_apptoolaudiobooktest.cpp) | GUI of Create Audio Book (step 4, P4). |
+| `UnitTestsAppMcpOptimize` | [tst_appmcpoptimizetest.cpp](../UnitTests/tst_appmcpoptimizetest.cpp) | MCP actions optimize.images, grayscale, bitonal over HTTP (step 4). |
+| `UnitTestsAppMcpConvert` | [tst_appmcpconverttest.cpp](../UnitTests/tst_appmcpconverttest.cpp) | MCP actions of the exports of step 4 and document.list_images over HTTP. |
 | `UnitTestsAppMcp` | [tst_appmcptest.cpp](../UnitTests/tst_appmcptest.cpp) | MCP in the application: contract, permissions, read tools, catalog bridge. |
 | `UnitTestsAppMcpEdit` | [tst_appmcpedittest.cpp](../UnitTests/tst_appmcpedittest.cpp) | MCP edit tools and their confirmations. |
 | `UnitTestsAppAi` | [tst_appaitest.cpp](../UnitTests/tst_appaitest.cpp) | The page AI. |

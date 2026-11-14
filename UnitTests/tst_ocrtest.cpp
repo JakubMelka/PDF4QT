@@ -29,6 +29,7 @@
 #include "pdfocrdocumentrunner.h"
 #include "pdfocrcompression.h"
 #include "pdfimageoptimizer.h"
+#include "pdfbitonaldocumentcreator.h"
 #include "pdfscanpreparation.h"
 #include "pdfocrconfiguration.h"
 #include "pdfocrpagepreparer.h"
@@ -395,6 +396,7 @@ private slots:
     void compressionSharedImageResolution();
     void compressionWithTextLayer();
     void optimizeImagesKeepsLayer();
+    void bitonalImagesKeepsLayer();
     void layerOfOlderFingerprintMarker();
     void fingerprintStability();
     void documentRunnerOlderLayer();
@@ -8415,6 +8417,44 @@ void OCRTest::optimizeImagesKeepsLayer()
     std::vector<PDFInteger> reboundAgain;
     PDFOCRTextLayerWriter::rebindOptimizedDocument(&changed, optimized, { imageReference }, &reboundAgain);
     QVERIFY(reboundAgain.empty());
+}
+
+void OCRTest::bitonalImagesKeepsLayer()
+{
+    // R4-9 (step 4 of phase 2): Black & White of the images replaces the image of a scan with an own
+    // OCR layer of PDF4QT; only the image changes, so the layer is bound to the page again (its
+    // fingerprint matches) and the search of the text still finds the word. Black & White of the
+    // pages replaces the content - the layer of a converted page is not bound.
+    std::vector<TestImage> images(1);
+    images[0].image = OCRTestHelper::createPhotoImage(QSize(300, 200), true);
+    const PDFDocument document = OCRTestHelper::createImagePagesDocument(images, { 0 }, QSizeF(300, 200));
+
+    PDFOCRPageResult result = createSampleResult(0, { { QStringLiteral("Bitonal"), QRectF(20, 100, 80, 20) } });
+    PDFOCRTextLayerWriter::Report report;
+    PDFDocumentPointer withLayer = applyResults(document, { result }, PDFOCRTextLayerWriter::Options(), &report);
+    QVERIFY2(withLayer, qPrintable(report.error.message));
+    QVERIFY(PDFOCRTextLayerWriter::readLayerInfo(withLayer.data(), 0).fingerprintMatches);
+
+    PDFBitonalDocumentCreator creator(withLayer.data(), nullptr, nullptr);
+    const std::vector<PDFObjectReference> convertible = creator.getConvertibleImages();
+    QCOMPARE(convertible.size(), size_t(1));
+
+    PDFBitonalDocumentCreator::Settings settings;
+    settings.conversionSource = PDFBitonalDocumentCreator::ConversionSource::Images;
+    settings.items.push_back({ convertible.front(), -1, PDFBitonalDocumentCreator::ItemMode::Algorithm });
+    QVERIFY(creator.createBitonalDocument(settings, nullptr));
+    QCOMPARE(creator.getConvertedItemCount(), size_t(1));
+    const PDFDocument bitonal = creator.takeBitonalDocument();
+
+    // The image is a new 1 bit image, the page is another one - and the layer is bound to it
+    const PDFDictionary* imageDictionary = bitonal.getDictionaryFromObject(bitonal.getObjectByReference(convertible.front()));
+    QVERIFY(imageDictionary);
+    QCOMPARE(bitonal.getObject(imageDictionary->get("BitsPerComponent")).getInteger(), PDFInteger(1));
+    QVERIFY(PDFOCRPagePreparer::computePageFingerprint(&bitonal, 0) != PDFOCRPagePreparer::computePageFingerprint(withLayer.data(), 0));
+    const PDFOCRTextLayerWriter::LayerInfo info = PDFOCRTextLayerWriter::readLayerInfo(&bitonal, 0);
+    QVERIFY(info.isPresent);
+    QVERIFY(info.fingerprintMatches);
+    QVERIFY2(extractText(bitonal, 0).contains(QStringLiteral("Bitonal")), qPrintable(extractText(bitonal, 0)));
 }
 
 void OCRTest::tesseractAfterDeskew()

@@ -28,7 +28,9 @@
 #include "pdfapplocale.h"
 #include "pdfapplog.h"
 #include "pdfapppaths.h"
+#include "pdfapptoolresultwriter.h"
 #include "pdfapptranslator.h"
+#include "pdfqtspeechsynthesizer.h"
 #include "pdfdatabasenotifier.h"
 #include "pdfrepositoryhelper.h"
 #include "pdfsettingdefinitions.h"
@@ -71,6 +73,10 @@ PDFAppContext::PDFAppContext(const PDFAppCommandLine& commandLine, QObject* pare
     PDFSettingDefinitions::registerBuiltinDefinitions(&m_settingRegistry);
     PDFAppCommands::registerBuiltinCommands(&m_commandRegistry);
     PDFAppBuiltinTools::registerAll();
+
+    // R4-1: the temporary files of the results of the tools; the leftovers of a process, which
+    // ended without deleting its folder, are deleted now
+    m_toolTemporaryFolder = std::make_unique<PDFAppToolTemporaryFolder>();
 
     if (QGuiApplication* application = qobject_cast<QGuiApplication*>(QCoreApplication::instance()))
     {
@@ -164,6 +170,26 @@ void PDFAppContext::deliverPendingRequests()
 PDFAppMcpController* PDFAppContext::getMcpController() const
 {
     return m_mcpController;
+}
+
+QString PDFAppContext::getToolTemporaryFolder() const
+{
+    return m_toolTemporaryFolder ? m_toolTemporaryFolder->getFolder() : QString();
+}
+
+std::shared_ptr<PDFSpeechSynthesizerFactory> PDFAppContext::getSpeechSynthesizerFactory() const
+{
+    // Created at the first use: the engines of Qt TextToSpeech are looked for only, when a tool needs them
+    if (!m_speechSynthesizerFactory)
+    {
+        m_speechSynthesizerFactory = PDFQtSpeechSynthesizerFactory::create();
+    }
+    return m_speechSynthesizerFactory;
+}
+
+void PDFAppContext::setSpeechSynthesizerFactory(std::shared_ptr<PDFSpeechSynthesizerFactory> factory)
+{
+    m_speechSynthesizerFactory = std::move(factory);
 }
 
 PDFAppContext::~PDFAppContext()

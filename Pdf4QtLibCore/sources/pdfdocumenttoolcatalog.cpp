@@ -564,6 +564,14 @@ const std::vector<PDFDocumentToolExtendedData>& PDFDocumentToolCatalog::getExten
     // bit 11); the other outputs make new documents of its inputs, their values come from the
     // tool by its parameters (PDFDocumentTool::getResultKind, getPreselectedResult,
     // getSignatureImpact, isNewDocumentOfInputs).
+    // The tools of step 4 of phase 2 (plan, B79, owner answers Q4.5, Q4.12, Q4.14): Optimize Images,
+    // Convert Images to Grayscale and Convert to Black & White rewrite the images or the pages of the
+    // document - bit 4; their purpose is a smaller file (and one without color), which an incremental
+    // update of a signed file would defeat (the old images stay in its earlier revision), so a signed
+    // document gets only a copy written whole (LostCopyOnly, as Compress, O31). Extract Images, PDF to
+    // Images and Create Audio Book take the graphics or the text out of the document - bit 5 (bit 10,
+    // the extraction for accessibility, is deprecated in PDF 2.0; the panel Read aloud saves nothing
+    // and stays without a check). The exports have no successors (K20 of step 1).
     using Input = PDFDocumentToolInputKind;
     using Result = PDFDocumentToolResultKind;
     using Dependency = PDFDocumentToolExternalDependency;
@@ -588,10 +596,10 @@ const std::vector<PDFDocumentToolExtendedData>& PDFDocumentToolCatalog::getExten
         PDFDocumentToolExtendedData("convert.blank", Input::None, Result::NewDocument, Dependency::None, "", ""),
         PDFDocumentToolExtendedData("convert.scan", Input::None, Result::NewDocument, Dependency::Scanner, "", "optimize.compress"),
         PDFDocumentToolExtendedData("convert.ocr", Input::One, Result::ChangeDocument, Dependency::Tesseract, "ocr", "optimize.compress,convert.extract-text"),
-        PDFDocumentToolExtendedData("convert.pdf-to-images", Input::One, Result::Files, Dependency::None, "render", ""),
+        PDFDocumentToolExtendedData("convert.pdf-to-images", Input::One, Result::Files, Dependency::None, "render", "", Preselected::File, Signature::None, uint32_t(Permission::CopyContent)),
         PDFDocumentToolExtendedData("convert.extract-text", Input::One, Result::Files, Dependency::None, "fetch-text", "", Preselected::File, Signature::None, uint32_t(Permission::CopyContent)),
-        PDFDocumentToolExtendedData("convert.extract-images", Input::One, Result::Files, Dependency::None, "fetch-images", ""),
-        PDFDocumentToolExtendedData("convert.audiobook", Input::One, Result::Files, Dependency::None, "audio-book", ""),
+        PDFDocumentToolExtendedData("convert.extract-images", Input::One, Result::Files, Dependency::None, "fetch-images", "", Preselected::File, Signature::None, uint32_t(Permission::CopyContent)),
+        PDFDocumentToolExtendedData("convert.audiobook", Input::One, Result::Files, Dependency::None, "audio-book", "", Preselected::File, Signature::None, uint32_t(Permission::CopyContent)),
         PDFDocumentToolExtendedData("edit.content", Input::One, Result::ChangeDocument, Dependency::None, "", "edit.page-numbers,optimize.compress"),
         PDFDocumentToolExtendedData("edit.page-numbers", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.compress,protect.password"),
         PDFDocumentToolExtendedData("protect.password", Input::One, Result::ChangeDocument, Dependency::None, "encrypt", "", Preselected::Copy, Signature::IncrementalSave, 0),
@@ -606,10 +614,10 @@ const std::vector<PDFDocumentToolExtendedData>& PDFDocumentToolCatalog::getExten
         PDFDocumentToolExtendedData("protect.sanitize", Input::One, Result::ChangeDocument, Dependency::None, "", "protect.password,optimize.compress,protect.sign", Preselected::Copy, Signature::LostCopyOnly, uint32_t(Permission::Modify)),
         PDFDocumentToolExtendedData("protect.remove-links", Input::One, Result::ChangeDocument, Dependency::None, "remove-external-links", "protect.sanitize,protect.password,optimize.compress", Preselected::Keep, Signature::IncrementalSave, uint32_t(Permission::ModifyInteractiveItems)),
         PDFDocumentToolExtendedData("optimize.compress", Input::One, Result::ChangeDocument, Dependency::None, "optimize", "protect.password,protect.sign,pages.merge", Preselected::Copy, Signature::LostCopyOnly, uint32_t(Permission::Modify)),
-        PDFDocumentToolExtendedData("optimize.images", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.structure"),
+        PDFDocumentToolExtendedData("optimize.images", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.structure,protect.password,protect.sign", Preselected::Keep, Signature::LostCopyOnly, uint32_t(Permission::Modify)),
         PDFDocumentToolExtendedData("optimize.structure", Input::One, Result::ChangeDocument, Dependency::None, "optimize", "optimize.images,optimize.compress,protect.password", Preselected::Keep, Signature::LostCopyOnly, uint32_t(Permission::Modify)),
-        PDFDocumentToolExtendedData("optimize.bitonal", Input::One, Result::ChangeDocument, Dependency::None, "bitonal", "convert.ocr", Preselected::Copy, Signature::IncrementalSave, 0),
-        PDFDocumentToolExtendedData("optimize.grayscale", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.compress"),
+        PDFDocumentToolExtendedData("optimize.bitonal", Input::One, Result::ChangeDocument, Dependency::None, "bitonal", "convert.ocr,optimize.compress,protect.password", Preselected::Copy, Signature::LostCopyOnly, uint32_t(Permission::Modify)),
+        PDFDocumentToolExtendedData("optimize.grayscale", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.compress,protect.password,pages.merge", Preselected::Keep, Signature::LostCopyOnly, uint32_t(Permission::Modify)),
         PDFDocumentToolExtendedData("review.compare", Input::Multiple, Result::Analysis, Dependency::None, "diff", ""),
         PDFDocumentToolExtendedData("review.measure", Input::One, Result::Analysis, Dependency::None, "", ""),
         PDFDocumentToolExtendedData("review.output-preview", Input::One, Result::Analysis, Dependency::None, "", ""),
@@ -784,10 +792,10 @@ const std::vector<PDFDocumentToolCatalogEntry>& PDFDocumentToolCatalog::getTools
         false, false, PDFDocumentToolLockedAccess::Available),
     PDFDocumentToolCatalogEntry("convert.audiobook", PDFDocumentToolCategory::Convert, "export",
         QT_TRANSLATE_NOOP("pdf::PDFDocumentToolCatalog", "Create Audio Book"),
-        QT_TRANSLATE_NOOP("pdf::PDFDocumentToolCatalog", "Turn the document text into MP3"),
+        QT_TRANSLATE_NOOP("pdf::PDFDocumentToolCatalog", "Turn the document text into an audio file"),
         "headphones",
         //: Comma separated search keywords of the tool, lower case. They are never shown, English keywords are searched too.
-        QT_TRANSLATE_NOOP("pdf::PDFDocumentToolCatalog", "audiobook, audio book, create audio book, create text stream, mp3, text to speech, tts, narrate, listen, voice, export audio, speech, read to me"),
+        QT_TRANSLATE_NOOP("pdf::PDFDocumentToolCatalog", "audiobook, audio book, create audio book, create text stream, wav, text to speech, tts, narrate, listen, voice, export audio, speech, read to me"),
         false, false, PDFDocumentToolLockedAccess::Available),
     PDFDocumentToolCatalogEntry("edit.content", PDFDocumentToolCategory::Edit, "",
         QT_TRANSLATE_NOOP("pdf::PDFDocumentToolCatalog", "Edit Content"),

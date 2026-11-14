@@ -155,6 +155,8 @@
         <file>icons/hourglass.svg</file>
         <file>icons/html.svg</file>
         <file>icons/icc-profile.svg</file>
+        <file>icons/image-color-mode.svg</file>
+        <file>icons/image-exclude.svg</file>
         <file>icons/image-mode.svg</file>
         <file>icons/image-replace.svg</file>
         <file>icons/image.svg</file>

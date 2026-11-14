@@ -49,6 +49,7 @@
 #include "pdfcms.h"
 #include "pdfcompiler.h"
 #include "pdfdocument.h"
+#include "pdfdocumenttool.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfdrawwidget.h"
 #include "pdfexecutionpolicy.h"
@@ -89,6 +90,24 @@ public:
     static constexpr PDFRenderer::Features getDeveloperFeatures()
     {
         return PDFRenderer::Features(PDFRenderer::DisplayTimes | PDFRenderer::DebugTextBlocks | PDFRenderer::DebugTextLines);
+    }
+
+    /// Features of the renderer of the settings (Rendering, Show annotations): no color mode and no
+    /// developer overlay (the view adds them, a tool never uses them)
+    static PDFRenderer::Features readRendererFeatures(const PDFSettingsRepository& settings)
+    {
+        using K = PDFSettingKeys;
+
+        PDFRenderer::Features features;
+        features.setFlag(PDFRenderer::Antialiasing, settings.getBool(K::renderingAntialiasing()));
+        features.setFlag(PDFRenderer::TextAntialiasing, settings.getBool(K::renderingTextAntialiasing()));
+        features.setFlag(PDFRenderer::SmoothImages, settings.getBool(K::renderingSmoothImages()));
+        features.setFlag(PDFRenderer::DisplayAnnotations, settings.getBool(K::viewingShowAnnotations()));
+        features.setFlag(PDFRenderer::ColorAdjust_Annotations, settings.getBool(K::renderingColorAdjustAnnotations()));
+        features.setFlag(PDFRenderer::ClipToCropBox, settings.getBool(K::renderingClipToCropBox()));
+        features.setFlag(PDFRenderer::IgnoreOptionalContent, settings.getBool(K::renderingIgnoreOptionalContent()));
+        features.setFlag(PDFRenderer::LogicalSizeZooming, settings.getBool(K::renderingLogicalPixelZoom()));
+        return features;
     }
 
     /// Feature of the color mode of the setting viewing.colorMode
@@ -2492,6 +2511,29 @@ PDFCMSPointer PDFAppDocumentView::createCMS(const PDFAppContext* context)
     return manager.getCurrentCMS();
 }
 
+PDFDocumentToolRenderContext PDFAppDocumentView::createToolRenderContext(const PDFAppContext* context)
+{
+    using H = PDFAppDocumentViewHelper;
+    using K = PDFSettingKeys;
+
+    PDFDocumentToolRenderContext rendering;
+    if (!context)
+    {
+        return rendering;
+    }
+
+    // The same readers as applySettings: what a view of the settings shows is what a tool renders
+    // (the color mode of the view and the developer overlays are no content, R4-10 b)
+    const PDFSettingsRepository settings = context->getSettings();
+    PDFCMSManager manager(nullptr);
+    PDFCMSSettings cmsSettings = manager.getDefaultSettings();
+    readCMSSettings(settings, &cmsSettings);
+    rendering.cmsSettings = cmsSettings;
+    rendering.features = H::readRendererFeatures(settings);
+    rendering.engine = H::getRendererEngine(settings.getString(K::renderingEngine()));
+    return rendering;
+}
+
 void PDFAppDocumentView::applySettings()
 {
     if (m_isApplyingSettings || !m_pdfWidget || !m_context)
@@ -2509,14 +2551,7 @@ void PDFAppDocumentView::applySettings()
     // them are set at once, so a change of the settings compiles the pages once
     // (PDFAppDeveloperOverlay finds them set already)
     PDFRenderer::Features features = PDFAppDeveloperOverlay::readRequestedFeatures(settings) & H::getDeveloperFeatures();
-    features.setFlag(PDFRenderer::Antialiasing, settings.getBool(K::renderingAntialiasing()));
-    features.setFlag(PDFRenderer::TextAntialiasing, settings.getBool(K::renderingTextAntialiasing()));
-    features.setFlag(PDFRenderer::SmoothImages, settings.getBool(K::renderingSmoothImages()));
-    features.setFlag(PDFRenderer::DisplayAnnotations, settings.getBool(K::viewingShowAnnotations()));
-    features.setFlag(PDFRenderer::ColorAdjust_Annotations, settings.getBool(K::renderingColorAdjustAnnotations()));
-    features.setFlag(PDFRenderer::ClipToCropBox, settings.getBool(K::renderingClipToCropBox()));
-    features.setFlag(PDFRenderer::IgnoreOptionalContent, settings.getBool(K::renderingIgnoreOptionalContent()));
-    features.setFlag(PDFRenderer::LogicalSizeZooming, settings.getBool(K::renderingLogicalPixelZoom()));
+    features |= H::readRendererFeatures(settings);
     m_colorMode = settings.getString(K::viewingColorMode());
     m_isShowingAnnotations = settings.getBool(K::viewingShowAnnotations());
     features |= H::getColorModeFeature(m_colorMode);

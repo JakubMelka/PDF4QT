@@ -297,6 +297,18 @@ void PDFAppQtSpeechEngine::setVoice(const QString& name)
         if (voice.name() == name)
         {
             m_textToSpeech->setVoice(voice);
+            return;
+        }
+    }
+
+    // A voice of another language (Play Sample of Create Audio Book offers the voices of all
+    // languages of the engine): looked for in all locales only then, the search changes the
+    // locale of the engine for a moment (QTextToSpeech::findVoices)
+    if (m_textToSpeech->state() == QTextToSpeech::Ready)
+    {
+        for (const QVoice& voice : m_textToSpeech->findVoices(name))
+        {
+            m_textToSpeech->setVoice(voice);
             break;
         }
     }

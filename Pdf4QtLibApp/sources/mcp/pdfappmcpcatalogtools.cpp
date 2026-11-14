@@ -34,6 +34,7 @@
 #include "pdfappundostack.h"
 #include "pdfappdocumentsave.h"
 #include "pdfappdocumenttab.h"
+#include "pdfappdocumentview.h"
 #include "pdfappmainwindow.h"
 #include "pdfappcontext.h"
 #include "pdfappdocumentregistry.h"
@@ -278,6 +279,18 @@ public:
             }
             existing.insert(QStringLiteral("enum"), values);
             existing.insert(QStringLiteral("default"), QString::fromLatin1(PDFDocumentToolFileOutput::EXISTING_RENAME));
+
+            // The line of Ask in the list of the values of the description goes too
+            // (PDFDocumentToolParameterDefinition::toJsonSchema: "\n- <id>: <title> (<description>)")
+            QString description = existing.value(QStringLiteral("description")).toString();
+            const QString askLine = QStringLiteral("\n- %1: ").arg(QString::fromLatin1(PDFDocumentToolFileOutput::EXISTING_ASK));
+            const qsizetype askStart = description.indexOf(askLine);
+            if (askStart >= 0)
+            {
+                const qsizetype askEnd = description.indexOf(QLatin1Char('\n'), askStart + 1);
+                description.remove(askStart, askEnd < 0 ? description.size() - askStart : askEnd - askStart);
+                existing.insert(QStringLiteral("description"), description);
+            }
             properties.insert(existingKey, existing);
             schema.insert(QStringLiteral("properties"), properties);
         }
@@ -439,12 +452,13 @@ public:
         }
 
         // A character cut at the end of a truncated text is kept by the decoder as its
-        // incomplete state: the text ends by the last whole character, no error
-        QByteArrayView data(output.data);
-        *isTruncated = data.size() > maximumSize;
-        if (*isTruncated)
+        // incomplete state: the text ends by the last whole character, no error. The content
+        // comes from the memory or from the temporary file of the output (R4-1).
+        QString readError;
+        const QByteArray data = output.readContent(maximumSize, isTruncated, &readError);
+        if (!readError.isEmpty())
         {
-            data = data.first(qsizetype(maximumSize));
+            return false;
         }
 
         *text = decoder.decode(data);
@@ -931,7 +945,8 @@ public:
             }
             else if (m_request.mode == PDFAppMcpToolResultMode::SaveFile)
             {
-                m_writeResult = PDFAppToolResultWriter::writeFileData(m_request.path, m_result.outputs.front().data, m_markSourceFilePath, false);
+                // R4-1: the one write of an output - the bytes, or the temporary file moved or copied
+                m_writeResult = PDFAppToolResultWriter::writeOutputFile(m_result.outputs.front(), m_request.path, m_markSourceFilePath, false);
             }
             else
             {
@@ -1720,7 +1735,7 @@ private:
 
         QJsonObject extra;
         extra.insert(QStringLiteral("mimeType"), output.mimeType);
-        extra.insert(QStringLiteral("size"), qint64(output.data.size()));
+        extra.insert(QStringLiteral("size"), output.getSize());
         extra.insert(QStringLiteral("truncated"), isTruncated);
         extra.insert(QStringLiteral("origin"), QStringLiteral("document"));
 
@@ -2258,6 +2273,18 @@ public:
         }
         request.environment.protectedFilePaths = PDFAppMcpCatalogToolsHelper::getOpenDocumentPaths(host);
         request.environment.isNetworkFolderRefused = true;
+
+        // R4-1, R4-15: the temporary files of the results and the speech synthesis of the application
+        if (const PDFAppContext* context = host->getContext())
+        {
+            request.environment.temporaryFolder = context->getToolTemporaryFolder();
+            request.environment.speechSynthesizerFactory = context->getSpeechSynthesizerFactory();
+        }
+
+        // R4-10 b: the color management and the renderer of the settings; MCP has no tab, the
+        // layers are those of OCUsage::Export (no layer states)
+        request.environment.cms = PDFAppDocumentView::createCMS(host->getContext());
+        request.environment.rendering = PDFAppDocumentView::createToolRenderContext(host->getContext());
         request.document = document;
         PDFAppMcpCatalogToolJob::start(host, std::make_shared<PDFAppMcpCatalogToolJob>(call, snapshot, std::move(request), 0));
     }
@@ -2337,7 +2364,14 @@ QStringList PDFAppMcpCatalogTools::getToolResultValues(const PDFDocumentToolCata
 {
     if (!tool || !isWritingFiles(tool))
     {
-        return getResultValues(entry.getResultKind());
+        // An output, which is no text (the WAV of Create Audio Book), is only written - return_text
+        // would fail after the whole run
+        QStringList values = getResultValues(entry.getResultKind());
+        if (tool && entry.getResultKind() == PDFDocumentToolResultKind::Files && !tool->isTextOutput())
+        {
+            values.removeAll(QStringLiteral("return_text"));
+        }
+        return values;
     }
 
     QStringList values;
@@ -2357,10 +2391,16 @@ QStringList PDFAppMcpCatalogTools::getToolResultValues(const PDFDocumentToolCata
 
 QString PDFAppMcpCatalogTools::getDefaultResult(const PDFDocumentToolCatalogEntry& entry)
 {
-    // A tool, whose files are its result, writes them (Split)
-    if (entry.getResultKind() == PDFDocumentToolResultKind::Files && isWritingFiles(PDFDocumentToolRegistry::getTool(entry.getId()).get()))
+    // A tool, whose files are its result, writes them (Split); an output, which is no text, is
+    // written to a file (Create Audio Book)
+    const std::shared_ptr<const PDFDocumentTool> tool = PDFDocumentToolRegistry::getTool(entry.getId());
+    if (entry.getResultKind() == PDFDocumentToolResultKind::Files && isWritingFiles(tool.get()))
     {
         return QStringLiteral("save_files");
+    }
+    if (entry.getResultKind() == PDFDocumentToolResultKind::Files && tool && !tool->isTextOutput())
+    {
+        return QStringLiteral("save_file");
     }
 
     switch (entry.getPreselectedResult())

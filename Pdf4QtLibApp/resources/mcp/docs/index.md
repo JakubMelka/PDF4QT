@@ -25,7 +25,7 @@ The result has the readable JSON in a text block and the same data in `structure
 | Tool | What it does | Reference |
 | --- | --- | --- |
 | `application` | The state of PDF4QT: open documents, active document, permissions, limits | pdf4qt://docs/tools/application.md |
-| `document` | Information, pages, outline, annotations, form fields, attachments, signatures, selection, layers, bookmarks | pdf4qt://docs/tools/document.md |
+| `document` | Information, pages, outline, annotations, form fields, attachments, signatures, selection, layers, bookmarks, images | pdf4qt://docs/tools/document.md |
 | `text` | Text of pages (optionally with geometry), search, text in an area | pdf4qt://docs/tools/text.md |
 | `render` | Page images and overview sheets for vision | pdf4qt://docs/tools/render.md |
 | `view` | Show things in the PDF4QT window: switch tabs, go to a page, point at an area, open the search, close a tab | pdf4qt://docs/tools/view.md |
@@ -35,7 +35,7 @@ The result has the readable JSON in a text block and the same data in `structure
 | `files` | Open a PDF file, save a document, save a copy | pdf4qt://docs/tools/files.md |
 <!-- catalog tools -->
 
-The tools named after the categories of the tool catalog of PDF4QT run its tools on a document, one action per tool; `tools/list` shows the categories with an implemented tool. Their common parameter `result` says what happens with what the tool made: it stays in the tab as one undo step, a new document (Merge, Extract Pages, Interleave Pages, Manage Pages of an assembly file, Images to PDF, Blank PDF) opens in a new tab, it is written to a file, or – Split, Extract Pages with a file per page, Manage Pages per group or per page – to more files of one folder (`save_files`).
+The tools named after the categories of the tool catalog of PDF4QT run its tools on a document, one action per tool; `tools/list` shows the categories with an implemented tool. Their common parameter `result` says what happens with what the tool made: it stays in the tab as one undo step, a new document (Merge, Extract Pages, Interleave Pages, Manage Pages of an assembly file, Images to PDF, Blank PDF) opens in a new tab, it is written to a file (Extract Text, Create Audio Book), or – Split, Extract Pages with a file per page, Manage Pages per group or per page, PDF to Images, Extract Images – to more files of one folder (`save_files`). The tools, which change images (Optimize Images, Convert Images to Grayscale, Convert to Black & White) and Extract Images take the ids of `document.list_images`.
 
 ## Permissions in one paragraph
 

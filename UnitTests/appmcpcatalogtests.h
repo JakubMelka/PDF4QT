@@ -1058,9 +1058,11 @@ public:
         const pdf::PDFMcpToolDefinition* definition = fixture.host()->getCatalog()->findTool(u"convert");
         QVERIFY(definition);
         const QJsonObject properties = QJsonDocument::fromJson(definition->inputSchema).object().value(QStringLiteral("properties")).toObject();
-        // The values of the category: convert.blank (a new document: open_new_tab, save_file)
-        // comes first in the catalog, then the export (return_text, save_file)
-        QCOMPARE(properties.value(QStringLiteral("result")).toObject().value(QStringLiteral("enum")).toArray(), QJsonArray({ QStringLiteral("open_new_tab"), QStringLiteral("save_file"), QStringLiteral("return_text") }));
+        // The values of the category in the order of the catalog: the new documents (open_new_tab,
+        // save_file), PDF to Images (its files, save_files, step 4), then the export (return_text,
+        // save_file)
+        QCOMPARE(properties.value(QStringLiteral("result")).toObject().value(QStringLiteral("enum")).toArray(),
+                 QJsonArray({ QStringLiteral("open_new_tab"), QStringLiteral("save_file"), QStringLiteral("save_files"), QStringLiteral("return_text") }));
 
         // Files = Deny and Edit = Deny do not touch it
         QVERIFY(fixture.setPermission(pdf::PDFAppMcpPermissionKind::Files, pdf::PDFAppMcpPermission::Deny));
@@ -1154,6 +1156,40 @@ public:
         QVERIFY(result && result->isError);
         QVERIFY2(result->getFirstText().contains(QStringLiteral("return_text")), qPrintable(result->getFirstText()));
         QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 0);
+    }
+
+    /// save_file of an output in a temporary file (R4-1 of step 4 of phase 2, the audio book): the
+    /// same bytes in the file of the path, the temporary file of the run is gone afterwards
+    static void saveTemporaryFile()
+    {
+        pdftest::AppMcpFixture fixture;
+        QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+        pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("file.pdf"), 2));
+        QVERIFY(tab);
+        QTRY_VERIFY(tab->getDocument()->isReady());
+        const QString id = QStringLiteral("convert.extract-text");
+        ToolReplacement replacement(fixture.host(), id);
+        replacement.tool->setTemporaryOutput(true);
+
+        // The run writes its file into the folder of the application
+        const QString temporaryFolder = fixture.context->getToolTemporaryFolder();
+        QVERIFY(!temporaryFolder.isEmpty());
+
+        const QString target = fixture.path(QStringLiteral("book.wav"));
+        std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("convert"), arguments(id, QStringLiteral("files"), QStringLiteral("save_file"), target, QStringLiteral("Spoken words")));
+        QVERIFY(result);
+        QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+        QCOMPARE(readFile(target), QByteArray("Spoken words"));
+        QTRY_VERIFY(QDir(temporaryFolder).entryList(QDir::Files | QDir::NoDotAndDotDot).isEmpty());
+
+        // A result, which is not saved (return_text reads the temporary file, R4-1), is dropped
+        // after the call: its temporary file goes with it
+        result = fixture.callTool(QStringLiteral("convert"), arguments(id, QStringLiteral("files"), QStringLiteral("return_text"), QString(), QStringLiteral("Other words")));
+        QVERIFY(result);
+        QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+        QVERIFY2(result->getFirstText().contains(QStringLiteral("Other words")), qPrintable(result->getFirstText()));
+        QTRY_VERIFY(QDir(temporaryFolder).entryList(QDir::Files | QDir::NoDotAndDotDot).isEmpty());
+        QCOMPARE(readFile(target), QByteArray("Spoken words"));
     }
 
     /// save_file: the bytes of the output, T1, T2 and the extensions of F9

@@ -256,6 +256,7 @@ private slots:
     void catalogPermissionsOfTheOffer() { AppMcpCatalogTests::permissionsOfTheOffer(); }
     void catalogReturnText() { AppMcpCatalogTests::returnText(); }
     void catalogSaveFile() { AppMcpCatalogTests::saveFile(); }
+    void catalogSaveTemporaryFile() { AppMcpCatalogTests::saveTemporaryFile(); }
     void catalogCancelAndProgress() { AppMcpCatalogTests::cancelAndProgress(); }
     void catalogRerunsOnNewVersions() { AppMcpCatalogTests::rerunsOnNewVersions(); }
     void catalogActivityOfLongCall() { AppMcpCatalogTests::activityOfLongCall(); }
@@ -311,7 +312,8 @@ void AppMcpTest::toolSetContract()
         { QStringLiteral("application"), { QStringLiteral("get_state") } },
         { QStringLiteral("document"), { QStringLiteral("get_info"), QStringLiteral("get_pages"), QStringLiteral("get_outline"), QStringLiteral("get_annotations"),
                                         QStringLiteral("get_form_fields"), QStringLiteral("get_attachments"), QStringLiteral("read_attachment"),
-                                        QStringLiteral("get_signatures"), QStringLiteral("get_selection"), QStringLiteral("get_layers"), QStringLiteral("get_bookmarks") } },
+                                        QStringLiteral("get_signatures"), QStringLiteral("get_selection"), QStringLiteral("get_layers"), QStringLiteral("get_bookmarks"),
+                                        QStringLiteral("list_images") } },
         { QStringLiteral("text"), { QStringLiteral("get_text"), QStringLiteral("search"), QStringLiteral("get_text_in_area") } },
         { QStringLiteral("render"), { QStringLiteral("page"), QStringLiteral("overview") } },
         { QStringLiteral("view"), { QStringLiteral("activate"), QStringLiteral("go_to"), QStringLiteral("show_area"), QStringLiteral("show_search"), QStringLiteral("navigate"), QStringLiteral("close") } },

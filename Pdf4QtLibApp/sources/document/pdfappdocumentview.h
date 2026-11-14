@@ -65,6 +65,7 @@ class PDFAppToolUndoTarget;
 class PDFCMS;
 class PDFCMSManager;
 struct PDFCMSSettings;
+class PDFDocumentToolRenderContext;
 class PDFDrawWidgetProxy;
 class PDFSettingsRepository;
 class PDFModifiedDocument;
@@ -383,6 +384,13 @@ public:
     /// a run, F12; null without a context). GUI thread only: it reads the settings and the
     /// profiles of the folder of the settings.
     static QSharedPointer<PDFCMS> createCMS(const PDFAppContext* context);
+
+    /// How a tool renders pages with the settings of \p context (step 4 of phase 2, R4-10 b, owner
+    /// answer Q4.6): the color management of readCMSSettings, the features of the renderer as a
+    /// view sets them (without its color mode and the developer overlays) and the engine; no
+    /// layers (a document tab adds its own states). Empty without a context. GUI thread only (it
+    /// reads the settings); the value is then copied to the worker of a run.
+    static PDFDocumentToolRenderContext createToolRenderContext(const PDFAppContext* context);
 
     // ------------------------------------------------------------- view
 

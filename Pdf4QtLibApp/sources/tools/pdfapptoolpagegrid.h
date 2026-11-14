@@ -90,6 +90,10 @@ public:
         bool isDimmed = false;                          ///< The page is drawn muted (not taken, Insert 388:15487; replaced, 388:17167)
         bool markerBefore = false;                      ///< The mark of a cut before the tile: a new file starts at this page (Split 383:5715)
 
+        // Step 4 of phase 2 (RS4FIGMA): a Tag over the top trailing corner of the page (the mode
+        // of a page of Black & White 304:5102 "unchanged", "white", "inverted")
+        QString tag;                                    ///< Text of the tag, empty = none
+
         bool operator==(const Tile&) const = default;
     };
 
@@ -235,8 +239,12 @@ public:
         CutBeforeRole,                                      ///< bool: a new file starts at this page
         SlotScaleRole,                                      ///< double: the slot of the tile is the slot of the delegate scaled (1 = none)
         PaperBorderRole,                                    ///< bool: a page without a picture shows the border of its paper (the blank pages 388:17078)
-        SquareSlotRole                                      ///< bool: the slot is a square of the longer side of the (scaled) slot - the loose pages of Manage (387:12938: the box 100 x 100 in the tile 112 x 128, a landscape page 100 wide)
+        SquareSlotRole,                                     ///< bool: the slot is a square of the longer side of the (scaled) slot - the loose pages of Manage (387:12938: the box 100 x 100 in the tile 112 x 128, a landscape page 100 wide)
+        TagRole                                             ///< QString: the Tag over the top trailing corner of the page (304:5102), empty = none
     };
+
+    /// The inset of the tag from the top and the trailing edge of the page (304:5102)
+    static constexpr int TAG_INSET = 4;
 
     /// Diameter of the dot, its gap to the label, the width of the cut, the gap of the label
     /// to the slot (PAGE_TILE_GAP of the page tile)
@@ -276,6 +284,7 @@ public:
         QRectF page;
         QRectF dot;
         QRectF cut;
+        QRectF tag;     ///< The Tag over the top trailing corner of the page (TagRole)
     };
     MarkRects getMarkRects(const QStyleOptionViewItem& option, const QModelIndex& index) const;
 
@@ -382,6 +391,11 @@ public:
     /// A click between two tiles of the grid (PDFAppToolPageGridView::setGapClicks)
     void setGapClicks(bool isGapClicks);
 
+    /// The grid paints the canvas of the tool below it (bg/track, the default); a grid in a side
+    /// panel (Black & White 304:5102) shows the panel instead (RS4FIGMA)
+    void setCanvasPainted(bool isCanvasPainted);
+    bool isCanvasPainted() const { return m_isCanvasPainted; }
+
     /// The size of the tiles: the slot of the delegate is the slot of Medium scaled, the
     /// tiles are laid out again and their pictures are rendered for the new size
     void setTileSize(TileSize size);
@@ -436,6 +450,7 @@ private:
     int m_hintGap = HINT_GAP;
     bool m_isHintAbove = false;
     bool m_isGrouped = false;
+    bool m_isCanvasPainted = true;
 };
 
 /// The menu of the size of the tiles of a page grid, one implementation for every tool with a

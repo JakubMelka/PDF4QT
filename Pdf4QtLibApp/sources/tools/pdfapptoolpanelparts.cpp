@@ -275,6 +275,31 @@ PDFAppToolCard::PDFAppToolCard(QWidget* parent) :
 
 PDFAppToolCard::~PDFAppToolCard() = default;
 
+QWidget* PDFAppToolCard::createFieldRow(const QString& label, QWidget* control, QWidget* parent)
+{
+    QWidget* row = new QWidget(parent);
+    QHBoxLayout* layout = new QHBoxLayout(row);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(FIELD_GAP);
+    PDFAppParagraph* text = PDFAppPageWidgets::createText(label, PDFThemeFonts::getFont(QFont::Normal, 12), 15, PDFThemeColors::TextSecondary, row);
+    text->setMinimumWidth(1);
+    layout->addWidget(text, 1, Qt::AlignVCenter);
+    if (control)
+    {
+        control->setParent(row);
+        control->setFixedWidth(FIELD_WIDTH);
+        control->setAccessibleName(label);
+        layout->addWidget(control, 0, Qt::AlignVCenter);
+    }
+    return row;
+}
+
+void PDFAppToolCard::setFieldSpacing()
+{
+    m_layout->setContentsMargins(PADDING_H, PADDING_H, PADDING_H, PADDING_H);
+    m_layout->setSpacing(FIELD_ROW_GAP);
+}
+
 PDFAppToolMeasuredCard::PDFAppToolMeasuredCard(QWidget* parent) :
     BaseClass(parent)
 {

@@ -28,10 +28,17 @@
 #include "pdfannotation.h"
 #include "pdfblpainter.h"
 
+#include "pdfthreadannotations.h"
+
+#include <QDeadlineTimer>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QMutexLocker>
 #include <QScopeGuard>
 #include <QtMath>
+
+#include <map>
+#include <numeric>
 
 #include <algorithm>
 #include <cmath>
@@ -348,6 +355,19 @@ bool PDFRenderedPageImage::hasSevereError() const
     });
 }
 
+QList<PDFRenderError> PDFRenderedPageImage::getReportedErrors() const
+{
+    QList<PDFRenderError> result;
+    for (const PDFRenderError& error : errors)
+    {
+        if (error.type != RenderErrorType::Information)
+        {
+            result.push_back(error);
+        }
+    }
+    return result;
+}
+
 PDFRasterizer* PDFRasterizerPool::acquire(const PDFOperationControl* operationControl)
 {
     if (operationControl)
@@ -426,92 +446,7 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
             }
         });
 
-        if (PDFOperationControl::isOperationCancelled(operationControl))
-        {
-            // Operation has been cancelled, remaining pages are not rendered at all
-            return;
-        }
-
-        const PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
-
-        if (!page)
-        {
-            Q_EMIT renderError(pageIndex, PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Page %1 not found.").arg(pageIndex)));
-            return;
-        }
-
-        QElapsedTimer totalPageTimer;
-        totalPageTimer.start();
-
-        QElapsedTimer pageTimer;
-        pageTimer.start();
-
-        // Precompile the page
-        PDFPrecompiledPage precompiledPage;
-        PDFCMSPointer cms = m_cmsManager->getCurrentCMS();
-        PDFRenderer renderer(m_document, m_fontCache, m_iccProfileCache, cms.data(), m_optionalContentActivity, m_features, m_meshQualitySettings);
-        renderer.setOperationControl(operationControl);
-        renderer.compile(&precompiledPage, pageIndex);
-
-        qint64 pageCompileTime = pageTimer.restart();
-
-        if (PDFOperationControl::isOperationCancelled(operationControl))
-        {
-            // The compilation has been interrupted, so the page is incomplete and there
-            // is no point in rasterizing it - that is the most expensive part.
-            return;
-        }
-
-        for (const PDFRenderError& error : precompiledPage.getErrors())
-        {
-            Q_EMIT renderError(pageIndex, error);
-        }
-
-        // We can const-cast here, because we do not modify the document in annotation manager.
-        // Annotations are just rendered to the target picture.
-        PDFModifiedDocument modifiedDocument(const_cast<PDFDocument*>(m_document), const_cast<PDFOptionalContentActivity*>(m_optionalContentActivity));
-
-        // Annotation manager
-        PDFAnnotationManager annotationManager(m_fontCache, m_iccProfileCache, m_cmsManager, m_optionalContentActivity, m_meshQualitySettings, m_features, PDFAnnotationManager::Target::Print, nullptr);
-        annotationManager.setDocument(modifiedDocument);
-
-        // Render page to image
-        pageTimer.restart();
-        PDFRasterizer* rasterizer = acquire(operationControl);
-        qint64 pageWaitTime = pageTimer.restart();
-
-        if (!rasterizer)
-        {
-            // The operation has been cancelled while a free rasterizer was being waited for
-            return;
-        }
-
-        QImage image;
-        qint64 pageRenderTime = 0;
-        {
-            // Return the rasterizer even if the size getter or rendering throws.
-            // Otherwise a subsequent job can wait on the semaphore forever.
-            auto rasterizerGuard = qScopeGuard([this, rasterizer]() { release(rasterizer); });
-            image = rasterizer->render(pageIndex, page, &precompiledPage, imageSizeGetter(page), m_features, &annotationManager, cms.data(), PageRotation::None);
-            pageRenderTime = pageTimer.elapsed();
-        }
-
-        if (PDFOperationControl::isOperationCancelled(operationControl))
-        {
-            // Nobody is interested in the image anymore - it must not be processed.
-            return;
-        }
-
-        // Now, process the image
-        PDFRenderedPageImage renderedPageImage;
-        renderedPageImage.pageIndex = pageIndex;
-        renderedPageImage.pageImage = qMove(image);
-        renderedPageImage.errors = precompiledPage.getErrors();
-        renderedPageImage.pageCompileTime = pageCompileTime;
-        renderedPageImage.pageWaitTime = pageWaitTime;
-        renderedPageImage.pageRenderTime = pageRenderTime;
-        renderedPageImage.pageTotalTime = totalPageTimer.elapsed();
-        processImage(renderedPageImage);
+        renderPage(pageIndex, imageSizeGetter, processImage, operationControl, true);
     };
     PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, pageIndices.cbegin(), pageIndices.cend(), processPage);
 
@@ -522,6 +457,356 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
 
     Q_EMIT renderError(PDFCatalog::INVALID_PAGE_INDEX, PDFRenderError(RenderErrorType::Information, PDFTranslationContext::tr("Finished at %1...").arg(QTime::currentTime().toString(Qt::TextDate))));
     Q_EMIT renderError(PDFCatalog::INVALID_PAGE_INDEX, PDFRenderError(RenderErrorType::Information, PDFTranslationContext::tr("%1 miliseconds elapsed to render %2 pages...").arg(timer.nsecsElapsed() / 1000000).arg(pageIndices.size())));
+}
+
+PDFRasterizerPool::PageStatus PDFRasterizerPool::renderPage(PDFInteger pageIndex,
+                                                            const PageImageSizeGetter& imageSizeGetter,
+                                                            const ProcessImageMethod& processImage,
+                                                            const PDFOperationControl* operationControl,
+                                                            bool isEmittingErrors)
+{
+    if (PDFOperationControl::isOperationCancelled(operationControl))
+    {
+        // Operation has been cancelled, remaining pages are not rendered at all
+        return PageStatus::Canceled;
+    }
+
+    // A page index outside of the document is a missing page (PDFCatalog::getPage would throw)
+    const PDFCatalog* catalog = m_document->getCatalog();
+    const PDFPage* page = pageIndex >= 0 && size_t(pageIndex) < catalog->getPageCount() ? catalog->getPage(size_t(pageIndex)) : nullptr;
+
+    if (!page)
+    {
+        if (isEmittingErrors)
+        {
+            Q_EMIT renderError(pageIndex, PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Page %1 not found.").arg(pageIndex)));
+        }
+        return PageStatus::Missing;
+    }
+
+    QElapsedTimer totalPageTimer;
+    totalPageTimer.start();
+
+    QElapsedTimer pageTimer;
+    pageTimer.start();
+
+    // Precompile the page
+    PDFPrecompiledPage precompiledPage;
+    PDFCMSPointer cms = m_cmsManager->getCurrentCMS();
+    PDFRenderer renderer(m_document, m_fontCache, m_iccProfileCache, cms.data(), m_optionalContentActivity, m_features, m_meshQualitySettings);
+    renderer.setOperationControl(operationControl);
+    renderer.compile(&precompiledPage, pageIndex);
+
+    qint64 pageCompileTime = pageTimer.restart();
+
+    if (PDFOperationControl::isOperationCancelled(operationControl))
+    {
+        // The compilation has been interrupted, so the page is incomplete and there
+        // is no point in rasterizing it - that is the most expensive part.
+        return PageStatus::Canceled;
+    }
+
+    if (isEmittingErrors)
+    {
+        for (const PDFRenderError& error : precompiledPage.getErrors())
+        {
+            Q_EMIT renderError(pageIndex, error);
+        }
+    }
+
+    // We can const-cast here, because we do not modify the document in annotation manager.
+    // Annotations are just rendered to the target picture.
+    PDFModifiedDocument modifiedDocument(const_cast<PDFDocument*>(m_document), const_cast<PDFOptionalContentActivity*>(m_optionalContentActivity));
+
+    // Annotation manager
+    PDFAnnotationManager annotationManager(m_fontCache, m_iccProfileCache, m_cmsManager, m_optionalContentActivity, m_meshQualitySettings, m_features, PDFAnnotationManager::Target::Print, nullptr);
+    annotationManager.setDocument(modifiedDocument);
+
+    // The bytes of the image are taken from the budget before the image exists (Q4.7, R4-16)
+    // and returned, when the image has been processed - also by an exception
+    const QSize imageSize = imageSizeGetter(page);
+    const qint64 imageBytes = getImageDataSize(imageSize);
+    if (!acquireImageData(imageBytes, operationControl))
+    {
+        return PageStatus::Canceled;
+    }
+    auto imageDataGuard = qScopeGuard([this, imageBytes]() { releaseImageData(imageBytes); });
+
+    // Render page to image
+    pageTimer.restart();
+    PDFRasterizer* rasterizer = acquire(operationControl);
+    qint64 pageWaitTime = pageTimer.restart();
+
+    if (!rasterizer)
+    {
+        // The operation has been cancelled while a free rasterizer was being waited for
+        return PageStatus::Canceled;
+    }
+
+    QImage image;
+    qint64 pageRenderTime = 0;
+    {
+        // Return the rasterizer even if the rendering throws.
+        // Otherwise a subsequent job can wait on the semaphore forever.
+        auto rasterizerGuard = qScopeGuard([this, rasterizer]() { release(rasterizer); });
+        image = rasterizer->render(pageIndex, page, &precompiledPage, imageSize, m_features, &annotationManager, cms.data(), PageRotation::None);
+        pageRenderTime = pageTimer.elapsed();
+    }
+
+    if (PDFOperationControl::isOperationCancelled(operationControl))
+    {
+        // Nobody is interested in the image anymore - it must not be processed.
+        return PageStatus::Canceled;
+    }
+
+    // Now, process the image
+    PDFRenderedPageImage renderedPageImage;
+    renderedPageImage.pageIndex = pageIndex;
+    renderedPageImage.pageImage = qMove(image);
+    renderedPageImage.errors = precompiledPage.getErrors();
+    renderedPageImage.pageCompileTime = pageCompileTime;
+    renderedPageImage.pageWaitTime = pageWaitTime;
+    renderedPageImage.pageRenderTime = pageRenderTime;
+    renderedPageImage.pageTotalTime = totalPageTimer.elapsed();
+    processImage(renderedPageImage);
+    return PageStatus::Processed;
+}
+
+/// State of one renderOrdered: the pages encoded ahead of the next written one (guarded by
+/// the mutex), the writer of the moment
+class PDFRasterizerPool::OrderedState
+{
+public:
+    QMutex mutex;
+    QWaitCondition condition;
+    size_t nextPosition = 0;                                ///< Position (in the page indices) of the next written page
+    bool isWriting = false;                                 ///< A thread hands the ready pages to the writer
+    bool isAborted = false;                                 ///< An exception has ended the rendering: nobody waits any more
+    std::map<size_t, PDFRenderedPageOutput> readyPages;     ///< Encoded pages by their positions, not written yet
+};
+
+void PDFRasterizerPool::renderOrdered(const std::vector<PDFInteger>& pageIndices,
+                                      const PageImageSizeGetter& imageSizeGetter,
+                                      const EncodeImageMethod& encode,
+                                      const WriteOutputMethod& write,
+                                      PDFProgressSink* progress,
+                                      const PDFOperationControl* operationControl)
+{
+    if (pageIndices.empty())
+    {
+        return;
+    }
+
+    Q_ASSERT(imageSizeGetter);
+    Q_ASSERT(encode);
+    Q_ASSERT(write);
+
+    if (progress)
+    {
+        ProgressStartupInfo info;
+        info.showDialog = true;
+        info.text = PDFTranslationContext::tr("Rendering document into images.");
+        progress->start(pageIndices.size(), qMove(info));
+    }
+
+    OrderedState state;
+    const size_t windowSize = size_t(getReorderWindowSize());
+
+    std::vector<size_t> positions(pageIndices.size());
+    std::iota(positions.begin(), positions.end(), size_t(0));
+
+    auto processPosition = [&](size_t position)
+    {
+        auto progressGuard = qScopeGuard([progress]()
+        {
+            if (progress)
+            {
+                progress->step();
+            }
+        });
+
+        try
+        {
+            // The window: a page does not start, while it is too far after the next written page
+            // (its encoded bytes would wait in the memory); the cancellation is polled
+            {
+                QMutexLocker locker(&state.mutex);
+                while (!state.isAborted && position >= state.nextPosition + windowSize)
+                {
+                    if (PDFOperationControl::isOperationCancelled(operationControl))
+                    {
+                        return;
+                    }
+                    PDFThreadAnnotations::wait(state.condition, &state.mutex, QDeadlineTimer(WAIT_POLL_INTERVAL));
+                }
+                if (state.isAborted)
+                {
+                    return;
+                }
+            }
+
+            PDFRenderedPageOutput output;
+            output.pageIndex = pageIndices[position];
+
+            const ProcessImageMethod encodeImage = [&output, &encode](PDFRenderedPageImage& image)
+            {
+                output.errors = image.errors;
+                if (image.pageImage.isNull())
+                {
+                    output.errorMessage = PDFTranslationContext::tr("The image of the page cannot be created.");
+                    return;
+                }
+
+                QString errorMessage;
+                output.data = encode(image, &errorMessage);
+                output.isRendered = errorMessage.isEmpty() && !output.data.isEmpty();
+                if (!output.isRendered)
+                {
+                    output.data.clear();
+                    output.errorMessage = !errorMessage.isEmpty() ? errorMessage : PDFTranslationContext::tr("The image of the page cannot be encoded.");
+                }
+            };
+
+            switch (renderPage(output.pageIndex, imageSizeGetter, encodeImage, operationControl, false))
+            {
+                case PageStatus::Canceled:
+                    // Nothing more is written, the threads waiting for the window see the cancellation
+                    return;
+
+                case PageStatus::Missing:
+                    output.errorMessage = PDFTranslationContext::tr("Page %1 does not exist.").arg(output.pageIndex + 1);
+                    break;
+
+                case PageStatus::Processed:
+                    break;
+            }
+
+            // The page is ready: the first thread, which finds the next page ready, hands the
+            // ready pages to the writer one by one in their order, the others only leave theirs
+            QMutexLocker locker(&state.mutex);
+            state.readyPages.emplace(position, std::move(output));
+            if (state.isWriting)
+            {
+                return;
+            }
+
+            state.isWriting = true;
+            auto writingGuard = qScopeGuard([&state]() { state.isWriting = false; });
+            while (!state.isAborted)
+            {
+                auto it = state.readyPages.find(state.nextPosition);
+                if (it == state.readyPages.end())
+                {
+                    break;
+                }
+
+                PDFRenderedPageOutput current = std::move(it->second);
+                state.readyPages.erase(it);
+
+                // The writer runs without the lock; it is never called twice at once (isWriting)
+                locker.unlock();
+                {
+                    auto relockGuard = qScopeGuard([&locker]() { locker.relock(); });
+                    if (!PDFOperationControl::isOperationCancelled(operationControl))
+                    {
+                        write(current);
+                    }
+                }
+
+                ++state.nextPosition;
+                state.condition.wakeAll();
+            }
+        }
+        catch (...)
+        {
+            // Nobody may wait for a page, which will never come: the waiting threads leave
+            QMutexLocker locker(&state.mutex);
+            state.isAborted = true;
+            state.condition.wakeAll();
+            throw;
+        }
+    };
+    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, positions.cbegin(), positions.cend(), processPosition);
+
+    if (progress)
+    {
+        progress->finish();
+    }
+}
+
+qint64 PDFRasterizerPool::getDefaultImageDataBudget(qint64 physicalMemory)
+{
+    if (physicalMemory <= 0)
+    {
+        return UNKNOWN_MEMORY_IMAGE_DATA_BUDGET;
+    }
+    return qMax(MINIMUM_DEFAULT_IMAGE_DATA_BUDGET, physicalMemory / 4);
+}
+
+qint64 PDFRasterizerPool::getDefaultImageDataBudget()
+{
+    // The physical memory does not change while the application runs
+    static const qint64 budget = getDefaultImageDataBudget(PDFSysUtils::getPhysicalMemorySize());
+    return budget;
+}
+
+void PDFRasterizerPool::setImageDataBudget(qint64 budget)
+{
+    QMutexLocker locker(&m_imageDataMutex);
+    m_imageDataBudget = qMax<qint64>(1, budget);
+}
+
+qint64 PDFRasterizerPool::getImageDataSize(QSize size)
+{
+    if (size.isEmpty())
+    {
+        return 0;
+    }
+    return qint64(size.width()) * qint64(size.height()) * BYTES_PER_PIXEL;
+}
+
+bool PDFRasterizerPool::acquireImageData(qint64 bytes, const PDFOperationControl* operationControl)
+{
+    QMutexLocker locker(&m_imageDataMutex);
+
+    // A page larger than the whole budget runs alone: it waits, until no other image exists, and
+    // the pages after it do not start meanwhile (they would keep the budget busy forever)
+    const bool isLarge = bytes > m_imageDataBudget;
+    if (isLarge)
+    {
+        ++m_largePagesWaiting;
+    }
+    auto largeGuard = qScopeGuard([this, isLarge]()
+    {
+        if (isLarge)
+        {
+            --m_largePagesWaiting;
+        }
+    });
+
+    while (true)
+    {
+        const bool fits = isLarge ? m_imageDataUsed == 0 : (m_largePagesWaiting == 0 && (m_imageDataUsed == 0 || m_imageDataUsed + bytes <= m_imageDataBudget));
+        if (fits)
+        {
+            m_imageDataUsed += bytes;
+            return true;
+        }
+
+        if (PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            return false;
+        }
+        PDFThreadAnnotations::wait(m_imageDataCondition, &m_imageDataMutex, QDeadlineTimer(WAIT_POLL_INTERVAL));
+    }
+}
+
+void PDFRasterizerPool::releaseImageData(qint64 bytes)
+{
+    QMutexLocker locker(&m_imageDataMutex);
+    m_imageDataUsed -= bytes;
+    Q_ASSERT(m_imageDataUsed >= 0);
+    m_imageDataCondition.wakeAll();
 }
 
 int PDFRasterizerPool::getDefaultRasterizerCount()
@@ -932,6 +1217,7 @@ PDFRasterizerPool::PDFRasterizerPool(const PDFDocument* document,
     m_meshQualitySettings(meshQualitySettings),
     m_semaphore(rasterizerCount)
 {
+    m_rasterizerCount = qMax(1, rasterizerCount);
     m_rasterizers.reserve(rasterizerCount);
     for (int i = 0; i < rasterizerCount; ++i)
     {

@@ -1013,6 +1013,10 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         apptoolpageslifetime_insert.cpp
         apptoolpageslifetime_images.cpp
         apptoolpageslifetime_manage.cpp
+        apptoolpageslifetime_export.cpp
+        apptoolpageslifetime_optimizeimages.cpp
+        apptoolpageslifetime_bitonal.cpp
+        apptoolpageslifetime_audiobook.cpp
     )
     target_link_libraries(UnitTestsAppToolPagesLifetime PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture UnitTestsAppToolOwnTabFixture Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
     pdf4qt_target_precompile_headers(UnitTestsAppToolPagesLifetime REUSE_FROM UnitTestsAppDocumentFixture)
@@ -1509,3 +1513,65 @@ set_target_properties(UnitTestsDocumentTextIndex PROPERTIES
 )
 add_test(UnitTestsDocumentTextIndex "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDocumentTextIndex")
 set_tests_properties(UnitTestsDocumentTextIndex PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# Step 4 of phase 2 (plan 8, R4-21), the core: the skeleton the rasterizer pool (R4-16) and the
+# list of the images (R4-3); package P1 Optimize Images with Grayscale and the exports, P3 the tool
+# Black & White (its creator stays in UnitTestsBitonalDocument), P4 the text stream and Audio Book
+foreach(PDF4QT_STEP4_CORE_TEST RasterizerPool DocumentImageList DocumentToolOptimizeImages DocumentToolExport DocumentToolBitonal DocumentTextFlow DocumentToolAudioBook)
+    string(TOLOWER "${PDF4QT_STEP4_CORE_TEST}" PDF4QT_STEP4_CORE_TEST_FILE)
+    add_executable(UnitTests${PDF4QT_STEP4_CORE_TEST}
+        tst_${PDF4QT_STEP4_CORE_TEST_FILE}test.cpp
+    )
+    target_link_libraries(UnitTests${PDF4QT_STEP4_CORE_TEST} PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTests${PDF4QT_STEP4_CORE_TEST} REUSE_FROM UnitTestsPchCore)
+    set_target_properties(UnitTests${PDF4QT_STEP4_CORE_TEST} PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTests${PDF4QT_STEP4_CORE_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_STEP4_CORE_TEST}")
+    set_tests_properties(UnitTests${PDF4QT_STEP4_CORE_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endforeach()
+
+# P4: the text of the test documents is drawn by the bundled Inter font (the offscreen platform has none)
+foreach(PDF4QT_STEP4_FONT_TEST DocumentTextFlow DocumentToolAudioBook)
+    target_compile_definitions(UnitTests${PDF4QT_STEP4_FONT_TEST} PRIVATE PDF4QT_TEST_FONT_DIRECTORY="${CMAKE_SOURCE_DIR}/Pdf4QtLibFluent/resources/fonts")
+endforeach()
+
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    # Step 4 of phase 2, package P4: the speech synthesis of Pdf4QtSpeech (the engine mock of Qt)
+    add_executable(UnitTestsSpeech
+        tst_speechtest.cpp
+    )
+    target_link_libraries(UnitTestsSpeech PRIVATE Pdf4QtSpeech Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsSpeech REUSE_FROM UnitTestsPchCore)
+    set_target_properties(UnitTestsSpeech PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsSpeech "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsSpeech")
+    set_tests_properties(UnitTestsSpeech PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # Step 4 of phase 2 (plan 8, R4-21), the application: the GUI of package P1 (PDF to Images and the
+    # written files of the result dialog), P2 (Optimize Images, Grayscale, Extract Images), P3 (Black &
+    # White), P4 (Audio Book); the MCP actions of the integration (optimize, convert)
+    foreach(PDF4QT_STEP4_APP_TEST AppToolExport AppToolOptimizeImages AppToolBitonal AppToolAudioBook AppMcpOptimize AppMcpConvert)
+        string(TOLOWER "${PDF4QT_STEP4_APP_TEST}" PDF4QT_STEP4_APP_TEST_FILE)
+        add_executable(UnitTests${PDF4QT_STEP4_APP_TEST}
+            tst_${PDF4QT_STEP4_APP_TEST_FILE}test.cpp
+        )
+        target_link_libraries(UnitTests${PDF4QT_STEP4_APP_TEST} PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture UnitTestsAppToolOwnTabFixture UnitTestsAppMcpFixture UnitTestsMcpTestClient Pdf4QtLibApp Pdf4QtLibMcp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+        pdf4qt_target_precompile_headers(UnitTests${PDF4QT_STEP4_APP_TEST} REUSE_FROM UnitTestsAppDocumentFixture)
+        set_target_properties(UnitTests${PDF4QT_STEP4_APP_TEST} PROPERTIES
+            WIN32_EXECUTABLE OFF
+            MACOSX_BUNDLE OFF
+            QT_EXCLUDE_FROM_TRANSLATION ON
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+        )
+        add_test(UnitTests${PDF4QT_STEP4_APP_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_STEP4_APP_TEST}")
+        set_tests_properties(UnitTests${PDF4QT_STEP4_APP_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endforeach()
+endif()

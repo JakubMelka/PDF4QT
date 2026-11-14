@@ -180,10 +180,13 @@ public:
         FileSaved,      ///< Save as a file: the file is written (with isResultInThisTab it then replaces the own tab of the tool)
         CopiedToClipboard, ///< Copy to clipboard
         Closed,         ///< An analysis: nothing to decide
-        Rerun           ///< The document has changed: the tool runs again, the runner reports its new result (the shell opens the dialog again)
+        Rerun,          ///< The document has changed: the tool runs again, the runner reports its new result (the shell opens the dialog again)
+        Retry           ///< Retry N Files / Choose Folder… of the written files (339:7293, K4.11, R4-20): the shell runs the tool again only for retryFileNames (PDFDocumentToolFileOutput::PARAMETER_ONLY_OUTPUTS), into retryFolder when it is set
     };
 
     Action action = Action::Discarded;
+    QStringList retryFileNames;     ///< Retry: the names of the files, which are written again (the failed files of the run)
+    QString retryFolder;            ///< Retry: the other folder of Choose Folder…, empty = the folder of the run
     QString filePath;               ///< Written file
     QString continueToolId;         ///< The tool chosen by Then continue with (empty = none)
     QString continueDocumentId;     ///< The document it runs on: the document of the tab, the opened copy or the new tab (F11); empty = none
@@ -349,6 +352,24 @@ public:
     /// The written files, which Delete Written Files deletes: the files this run has created,
     /// never one it has overwritten (K46)
     QStringList getDeletableFiles() const;
+
+    /// The new states of the written files of step 4 of phase 2 (K4.11, R4-20; package P1 builds
+    /// their rows and buttons in createWrittenFilesFacts, the interface is fixed here):
+    ///  - Rendering issues (339:6505): a fact with the pages of PDFDocumentToolResult::renderingIssues;
+    ///  - finished with errors (339:7293): "3 of 1,592 files could not be written", a fact Failed
+    ///    with the reason of each file of PDFDocumentToolResult::failedFiles, the buttons
+    ///    Choose Folder… and Retry N Files - offered only by isRetryOffered (PDF to Images and
+    ///    Extract Images; Split and Extract Pages stay as they are); they end the dialog with the
+    ///    outcome Retry (retryFileNames = the failed files, retryFolder = the chosen folder);
+    ///  - Left out (341:8462): a fact of the facts of the tool.
+    static bool isRetryOffered(const PDFDocumentToolOutputTraits& tool, const PDFDocumentToolResult& result);
+
+    /// The written files of a run with failed files (339:7293)
+    bool isFinishedWithErrors() const;
+
+    /// Retry N Files and Choose Folder… of 339:7293 (nullptr = not offered; package P1)
+    QPushButton* getRetryButton() const { return m_retryButton; }
+    QPushButton* getChooseFolderButton() const { return m_chooseFolderButton; }
     QScrollArea* getScrollArea() const { return m_scrollArea; }
 
     /// The link Copy report of the head (PDFAppToolResultInput::reportText), nullptr = none
@@ -435,6 +456,8 @@ private:
 
     void onChoiceToggled();
     void onConfirmClicked();
+    void onRetryClicked();
+    void onChooseFolderClicked();
     void onDiscardClicked();
     void onBrowseClicked();
     void onChooseLocationClicked();
@@ -465,6 +488,10 @@ private:
 
     /// Ends the dialog by the decision
     void finishWith(PDFAppToolResultOutcome outcome);
+
+    /// Ends the dialog by Retry of the failed files (339:7293, K4.11) into \p folder (empty = the
+    /// folder of the run)
+    void finishWithRetry(const QString& folder);
 
     /// Id of the document of the next tool, and opens what is to be opened
     void openResult(PDFAppToolResultOutcome* outcome);
@@ -507,6 +534,8 @@ private:
     QPointer<QPushButton> m_confirmButton;
     QPointer<QPushButton> m_closeButton;            ///< Close of the written files (R3)
     QPointer<QCheckBox> m_openFilesCheckBox;        ///< Open the files in new tabs (R3)
+    QPointer<QPushButton> m_retryButton;            ///< Retry N Files (339:7293, K4.11; package P1)
+    QPointer<QPushButton> m_chooseFolderButton;     ///< Choose Folder… (339:7293, K4.11; package P1)
     bool m_isStoppedRun = false;                    ///< The written files of a stopped run (403:29978)
     QPointer<PDFAppToolResultWriter> m_writer;
     QPointer<QWidget> m_host;

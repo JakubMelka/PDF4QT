@@ -171,6 +171,10 @@ public:
     /// \param ocg Optional content group
     OCState getState(PDFObjectReference ocg) const;
 
+    /// The state of every optional content group of the document (a copy: a value, which a
+    /// worker may read, while this object changes in its own thread)
+    std::map<PDFObjectReference, OCState> getStates() const { return m_states; }
+
     /// Sets document to this object. Optional content settings
     /// must be compatible and applicable to new document.
     /// \param document Document

@@ -56,13 +56,20 @@ public:
 
     /// The longest wait for a running verification of the signatures
     static constexpr int SIGNATURE_WAIT_TIME = 10000;
+
+    /// The lists of the images of list_images (shared with its jobs, RS4APP)
+    const std::shared_ptr<PDFAppMcpImageListCache>& getImageListCache() const { return m_imageListCache; }
+
+private:
+    std::shared_ptr<PDFAppMcpImageListCache> m_imageListCache = std::make_shared<PDFAppMcpImageListCache>();
 };
 
 /// What a document job reads in a worker
 enum class PDFAppMcpDocumentJobKind
 {
     Annotations,    ///< document.get_annotations / …/annotations
-    Attachment      ///< document.read_attachment / …/attachments/{index}
+    Attachment,     ///< document.read_attachment / …/attachments/{index}
+    Images          ///< document.list_images (every page is walked: always a worker)
 };
 
 /// A document job: the annotations of many pages or the decoded content of an
@@ -74,6 +81,14 @@ public:
 
     /// Annotations
     void setAnnotationQuery(PDFAppMcpAnnotationQuery query) { m_query = std::move(query); }
+
+    /// Images; the list of the version of the document is taken from \p cache, or collected and
+    /// put there (the cursors of one listing walk the pages once)
+    void setImageQuery(PDFAppMcpImageQuery query, std::shared_ptr<PDFAppMcpImageListCache> cache)
+    {
+        m_imageQuery = std::move(query);
+        m_imageListCache = std::move(cache);
+    }
 
     /// Attachment: its index, name and file specification, the most bytes returned
     void setAttachment(qint64 index, QString name, PDFFileSpecification specification, qint64 maximumBytes);
@@ -90,10 +105,16 @@ public:
 private:
     void executeAnnotations();
     void executeAttachment();
+    void executeImages();
+
+    /// The action of the job ("document.get_annotations")
+    QString getActionId() const;
 
     PDFAppMcpDocumentJobKind m_kind;
     PDFAppMcpDocumentHeader m_header;
     PDFAppMcpAnnotationQuery m_query;
+    PDFAppMcpImageQuery m_imageQuery;
+    std::shared_ptr<PDFAppMcpImageListCache> m_imageListCache;
     qint64 m_attachmentIndex = 0;
     QString m_attachmentName;
     PDFFileSpecification m_specification;

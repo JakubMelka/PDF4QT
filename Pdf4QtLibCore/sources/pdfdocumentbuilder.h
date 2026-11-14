@@ -310,6 +310,10 @@ public:
 private:
     PDFObject removeDictionaryReferencesFromResources(PDFObject resources);
 
+    /// The resources of the old content of the page: its own /Resources, else the inherited ones
+    /// of its parents (Table 31, 7.7.3.4); null, when the page has none
+    PDFObject getPageResources(const PDFDictionary* pageDictionary) const;
+
     void replaceResources(PDFObjectReference contentStreamReference,
                           PDFObjectReference resourcesReference,
                           PDFObject oldResources);

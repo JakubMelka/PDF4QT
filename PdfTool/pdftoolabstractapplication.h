@@ -179,13 +179,22 @@ struct PDFToolOptions
     QString textVoiceLangCode;
 
     // For option 'TextSpeech'
-    bool textSpeechMarkPageNumbers = false;
+    bool textSpeechMarkPageNumbers = false;     ///< --mark-page-numbers: no longer supported (the bookmarks of SAPI; step 4 of phase 2, owner answer Q4.1), reported by audio-book
     bool textSpeechSayPageNumbers = false;
     bool textSpeechSayStructTitles = false;
     bool textSpeechSayStructAlternativeDescription = false;
     bool textSpeechSayStructExpandedForm = false;
     bool textSpeechSayStructActualText = false;
-    QString textSpeechAudioFormat = "mp3";
+    QString textSpeechAudioFormat = "wav";
+    double textSpeechRate = 0.0;                ///< --voice-rate: -1 (slowest) to 1 (fastest) (R4-15)
+    double textSpeechVolume = 1.0;              ///< --voice-volume: 0 to 1 (R4-15)
+    QString textSpeechOutputFile;               ///< --output: the audio file; empty = next to the document (B77)
+    bool textSpeechOverwrite = false;           ///< --overwrite: an existing file is replaced (B77: never without it)
+
+    /// Description of the first invalid value of the options of 'TextSpeech' (an unknown audio
+    /// format, a rate or a volume out of its range); empty, when all are valid. The tool refuses to
+    /// run with it (as bitonalInvalidArgument).
+    QString textSpeechInvalidArgument;
 
     // For option 'CharacterMaps'
     bool showCharacterMapsForEmbeddedFonts = false;
@@ -247,6 +256,10 @@ struct PDFToolOptions
     /// a default one - the tool overwrites the target file, so the user would get a
     /// document created by a different algorithm than the one they asked for.
     QString bitonalInvalidArgument;
+
+    /// Description of the first invalid value of the options '--opt-images-*' (B66 of step 4 of
+    /// phase 2: an unknown value was silently replaced by its default). The tool refuses to run with it.
+    QString optimizeInvalidArgument;
 
     /// Returns true, if the user has restricted the conversion to a page range
     bool isPageRangeSet() const { return !pageSelectorFirstPage.isEmpty() || !pageSelectorLastPage.isEmpty() || !pageSelectorSelection.isEmpty(); }

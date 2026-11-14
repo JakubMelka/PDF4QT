@@ -124,7 +124,7 @@ Separate a document into several files.
 | --- | --- | --- | --- |
 | `bookmarks` | string, at most 65536 characters, default `top-level` | no | At bookmarks: "top-level", or the numbers of the bookmarks from 1 in the order of the outline, such as "1, 3-5" |
 | `cuts` | string, at most 65536 characters, default `` | no | At selected pages: the page numbers, where a new file starts, such as "10, 20, 35" |
-| `existingFiles` | string, one of `overwrite`, `skip`, `rename`, default `rename` | no | What happens with a file, which exists already - ask: Ask (Decide when the first conflict is found) - overwrite: Overwrite (Replace the existing files) - skip: Skip (Keep the existing files, write the rest) - rename: Rename (Add (2), (3) … to the new files) |
+| `existingFiles` | string, one of `overwrite`, `skip`, `rename`, default `rename` | no | What happens with a file, which exists already - overwrite: Overwrite (Replace the existing files) - skip: Skip (Keep the existing files, write the rest) - rename: Rename (Add (2), (3) … to the new files) |
 | `fileName` | string, at most 65536 characters, default `{source_base}_#` | no | Name of the files: # is replaced by the file number (## pads with zeros), @ by the number of its first page, {source_base} by the name of the document, {group_name} by the bookmark, {date} by the date |
 | `folder` | string, at most 4096 characters, default `` | no | Folder, into which the files are written; empty = the folder of the document |
 | `optimizeImages` | string, one of `off`, `prefer-quality`, `minimum-size`, default `off` | no | Images of the files - off: Off (Images are stored exactly as they are) - prefer-quality: Prefer quality (Downsamples large images, keeps detail) - minimum-size: Minimum size (Smallest file, stronger compression) |
@@ -181,7 +181,7 @@ Save selected pages as a new PDF.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
-| `existingFiles` | string, one of `overwrite`, `skip`, `rename`, default `rename` | no | What happens with a file, which exists already - ask: Ask (Decide when the first conflict is found) - overwrite: Overwrite (Replace the existing files) - skip: Skip (Keep the existing files, write the rest) - rename: Rename (Add (2), (3) … to the new files) |
+| `existingFiles` | string, one of `overwrite`, `skip`, `rename`, default `rename` | no | What happens with a file, which exists already - overwrite: Overwrite (Replace the existing files) - skip: Skip (Keep the existing files, write the rest) - rename: Rename (Add (2), (3) … to the new files) |
 | `fileName` | string, at most 65536 characters, default `{source_base}_p@` | no | Name of the files: # is replaced by the file number (## pads with zeros), @ by the number of its first page, {source_base} by the name of the document, {group_name} by the bookmark, {date} by the date |
 | `folder` | string, at most 4096 characters, default `` | no | Folder, into which the files are written; empty = the folder of the document |
 | `output` | string, one of `one-file`, `one-file-per-page`, default `one-file` | no | What is made of the pages - one-file: One file (All selected pages in one new document) - one-file-per-page: One file per page (Every selected page becomes its own file) |
@@ -277,7 +277,7 @@ Reorder, group and arrange pages.
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `assemblyPath` | string, at most 4096 characters, default `` | no | An assembly file (.pdf4qtassembly) saved by PDF4QT, whose PDF files are open documents; with output one-pdf, per-group or per-page |
-| `existingFiles` | string, one of `overwrite`, `skip`, `rename`, default `rename` | no | What happens with a file, which exists already - ask: Ask (Decide when the first conflict is found) - overwrite: Overwrite (Replace the existing files) - skip: Skip (Keep the existing files, write the rest) - rename: Rename (Add (2), (3) … to the new files) |
+| `existingFiles` | string, one of `overwrite`, `skip`, `rename`, default `rename` | no | What happens with a file, which exists already - overwrite: Overwrite (Replace the existing files) - skip: Skip (Keep the existing files, write the rest) - rename: Rename (Add (2), (3) … to the new files) |
 | `fileName` | string, at most 65536 characters, default `##_{group_name}` | no | Name of the files: # is replaced by the file number (## pads with zeros), @ by the number of its first page, {source_base} by the name of the document, {group_name} by the bookmark, {date} by the date |
 | `folder` | string, at most 4096 characters, default `` | no | Folder, into which the files are written; empty = the folder of the document |
 | `optimizeImages` | string, one of `off`, `quality`, `size`, default `off` | no | Images of the result - off: Off (Images are stored exactly as they are) - quality: Prefer quality (Downsamples large images, keeps detail) - size: Minimum size (Smallest files, stronger compression) |

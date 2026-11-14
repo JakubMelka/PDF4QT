@@ -496,6 +496,16 @@ PDFAppToolRunEnvironment PDFAppOwnTabToolHost::createEnvironment() const
     // document views (PDFAppDocumentView::createCMS) - also without any document tab; a shared
     // immutable object, never a pointer to the manager of a view (F12)
     environment.cms = PDFAppDocumentView::createCMS(getContext());
+
+    // R4-10 b: the rendering of the settings; no tab of a document = the layers by OCUsage::Export
+    environment.rendering = PDFAppDocumentView::createToolRenderContext(getContext());
+
+    // R4-1, R4-15: the temporary files of the results and the speech synthesis of the application
+    if (const PDFAppContext* context = getContext())
+    {
+        environment.temporaryFolder = context->getToolTemporaryFolder();
+        environment.speechSynthesizerFactory = context->getSpeechSynthesizerFactory();
+    }
     return environment;
 }
 

@@ -55,9 +55,11 @@ public:
     std::vector<PDFInteger> selectedPages;                          ///< Pages selected in the thumbnails of the document
     PDFInteger currentPage = -1;                                    ///< Current page of the view
     PDFCMSPointer cms;                                              ///< Color management of the application, null = the default settings
+    PDFDocumentToolRenderContext rendering;                         ///< How the pages are rendered: the settings and the layers of the tab (PDFAppDocumentView::createToolRenderContext, R4-10 b)
     QString authorName;                                             ///< Author of the new content
     std::shared_ptr<const PDFCertificateStore> certificateStore;    ///< Trusted certificates, may be null
-    QString temporaryFolder;                                        ///< Folder of the temporary files of the run
+    QString temporaryFolder;                                        ///< Folder of the temporary files of the run (PDFAppContext::getToolTemporaryFolder, R4-1)
+    std::shared_ptr<PDFSpeechSynthesizerFactory> speechSynthesizerFactory;  ///< The speech synthesis of Create Audio Book (PDFAppContext::getSpeechSynthesizerFactory, R4-15)
     QStringList protectedFilePaths;                                 ///< Files, which a tool of more files never overwrites (the open documents, R14; PDFAppToolFileSink)
     bool isNetworkFolderRefused = false;                            ///< The files of a tool of more files never go to another computer (MCP)
 };

@@ -287,8 +287,16 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
 
     if (optionFlags.testFlag(TextSpeech))
     {
-        parser->addOption(QCommandLineOption("audio-format", "Audio fromat, valid values are wav/mp3.", "audio format", "mp3"));
-        parser->addOption(QCommandLineOption("mark-page-numbers", "Mark page numbers in audio stream."));
+        parser->addOption(QCommandLineOption("audio-format", "Audio format, the valid value is wav.", "audio format", "wav"));
+        parser->addOption(QCommandLineOption("voice-rate", "Speed of the speech, from -1 (slowest) to 1 (fastest); 0 is normal.", "rate", "0"));
+        parser->addOption(QCommandLineOption("voice-volume", "Volume of the speech, from 0 to 1.", "volume", "1"));
+        parser->addOption(QCommandLineOption("output", "The audio file, which is written. By default it is the document with the extension of the audio format.", "file"));
+        parser->addOption(QCommandLineOption("overwrite", "Replace the audio file, if it exists. Without it, an existing file is never replaced."));
+
+        // The bookmarks of SAPI are not a part of the speech of Qt (step 4 of phase 2, owner answer Q4.1)
+        QCommandLineOption markPageNumbersOption("mark-page-numbers", "No longer supported: the page numbers cannot be marked in the audio stream.");
+        markPageNumbersOption.setFlags(QCommandLineOption::HiddenFromHelp);
+        parser->addOption(markPageNumbersOption);
         parser->addOption(QCommandLineOption("say-page-numbers", "Say page numbers."));
         parser->addOption(QCommandLineOption("say-struct-titles", "Say titles extracted from structure tree (only for tagged pdf)."));
         parser->addOption(QCommandLineOption("say-struct-alt-desc", "Say alternative descriptions extracted from structure tree (only for tagged pdf)."));
@@ -745,13 +753,43 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
 
     if (optionFlags.testFlag(TextSpeech))
     {
-        options.textSpeechAudioFormat = parser->value("audio-format");
-        if (options.textSpeechAudioFormat != "wav" && options.textSpeechAudioFormat != "mp3")
+        // An unrecognized value is reported, never replaced by a default (as '--bitonal-*')
+        auto reportInvalidValue = [&options](const QString& option, const QString& value, const QString& validValues)
         {
-            PDFConsole::writeError(PDFToolTranslationContext::tr("Unknown audio format '%1'. Defaulting to mp3 audio format.").arg(options.textSpeechAudioFormat), options.outputCodec);
-            options.textSpeechAudioFormat = "mp3";
+            if (options.textSpeechInvalidArgument.isEmpty())
+            {
+                options.textSpeechInvalidArgument = PDFToolTranslationContext::tr("Invalid value '%1' of the option '--%2'. Valid values are %3.").arg(value, option, validValues);
+            }
+        };
+
+        options.textSpeechAudioFormat = parser->value("audio-format");
+        if (options.textSpeechAudioFormat != "wav")
+        {
+            // WAV only (owner 14. 11.: no MP3 encoder for now; the old "mp3" was a WAV file, B69)
+            reportInvalidValue("audio-format", options.textSpeechAudioFormat, "wav");
+            options.textSpeechAudioFormat = "wav";
         }
 
+        bool isRateValid = false;
+        const QString rate = parser->value("voice-rate");
+        options.textSpeechRate = rate.toDouble(&isRateValid);
+        if (!isRateValid || !(options.textSpeechRate >= -1.0 && options.textSpeechRate <= 1.0))
+        {
+            reportInvalidValue("voice-rate", rate, "numbers from -1 to 1");
+            options.textSpeechRate = 0.0;
+        }
+
+        bool isVolumeValid = false;
+        const QString volume = parser->value("voice-volume");
+        options.textSpeechVolume = volume.toDouble(&isVolumeValid);
+        if (!isVolumeValid || !(options.textSpeechVolume >= 0.0 && options.textSpeechVolume <= 1.0))
+        {
+            reportInvalidValue("voice-volume", volume, "numbers from 0 to 1");
+            options.textSpeechVolume = 1.0;
+        }
+
+        options.textSpeechOutputFile = parser->isSet("output") ? parser->value("output") : QString();
+        options.textSpeechOverwrite = parser->isSet("overwrite");
         options.textSpeechMarkPageNumbers = parser->isSet("mark-page-numbers");
         options.textSpeechSayPageNumbers = parser->isSet("say-page-numbers");
         options.textSpeechSayStructTitles = parser->isSet("say-struct-titles");
@@ -1165,16 +1203,37 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
             options.imageOptimizationSettings = pdf::PDFImageOptimizer::Settings::createDefault();
             options.imageOptimizationSettings.enabled = true;
 
-            auto parseBool = [&parser](const char* option, bool defaultValue)
+            // B66 (step 4 of phase 2): an unrecognized value is reported, never replaced by its
+            // default; the first problem is remembered and the tool refuses to run
+            auto reportInvalidValue = [&options](const char* option, const QString& value, const char* validValues)
+            {
+                if (options.optimizeInvalidArgument.isEmpty())
+                {
+                    options.optimizeInvalidArgument = PDFToolTranslationContext::tr("Invalid value '%1' of the option '--%2'. Valid values are %3.").arg(value, QString::fromLatin1(option), QString::fromLatin1(validValues));
+                }
+            };
+
+            auto parseBool = [&parser, &reportInvalidValue](const char* option, bool defaultValue)
             {
                 if (!parser->isSet(option))
                 {
                     return defaultValue;
                 }
-                return parser->value(option).toInt() != 0;
+
+                const QString value = parser->value(option);
+                if (value == "1" || value == "true")
+                {
+                    return true;
+                }
+                if (value == "0" || value == "false")
+                {
+                    return false;
+                }
+                reportInvalidValue(option, value, "0|1");
+                return defaultValue;
             };
 
-            auto parseMode = [&parser](const QString& value) -> pdf::PDFImageOptimizer::ColorMode
+            auto parseMode = [&reportInvalidValue](const QString& value) -> pdf::PDFImageOptimizer::ColorMode
             {
                 if (value == "auto")
                 {
@@ -1196,10 +1255,11 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
                 {
                     return pdf::PDFImageOptimizer::ColorMode::Bitonal;
                 }
+                reportInvalidValue("opt-images-color-mode", value, "auto|preserve|color|gray|bitonal");
                 return pdf::PDFImageOptimizer::ColorMode::Auto;
             };
 
-            auto parseAlgorithm = [](const QString& value) -> pdf::PDFImageOptimizer::CompressionAlgorithm
+            auto parseAlgorithm = [&reportInvalidValue](const char* option, const QString& value) -> pdf::PDFImageOptimizer::CompressionAlgorithm
             {
                 if (value == "auto")
                 {
@@ -1229,10 +1289,11 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
                 {
                     return pdf::PDFImageOptimizer::CompressionAlgorithm::JBIG2;
                 }
+                reportInvalidValue(option, value, "auto|flate|jpeg|jpx|runlength|ccittg4|jbig2");
                 return pdf::PDFImageOptimizer::CompressionAlgorithm::Auto;
             };
 
-            auto parseResample = [](const QString& value) -> pdf::PDFImage::ResampleFilter
+            auto parseResample = [&reportInvalidValue](const char* option, const QString& value) -> pdf::PDFImage::ResampleFilter
             {
                 if (value == "nearest")
                 {
@@ -1246,66 +1307,93 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
                 {
                     return pdf::PDFImage::ResampleFilter::Lanczos;
                 }
+                if (value != "bicubic")
+                {
+                    reportInvalidValue(option, value, "nearest|bilinear|bicubic|lanczos");
+                }
                 return pdf::PDFImage::ResampleFilter::Bicubic;
             };
 
             QString mode = parser->value("opt-images-mode");
+            if (mode != "auto" && mode != "custom")
+            {
+                reportInvalidValue("opt-images-mode", mode, "auto|custom");
+            }
             options.imageOptimizationSettings.autoMode = (mode != "custom");
             options.imageOptimizationSettings.colorMode = parseMode(parser->value("opt-images-color-mode"));
 
             QString goal = parser->value("opt-images-goal");
+            if (goal != "quality" && goal != "size")
+            {
+                reportInvalidValue("opt-images-goal", goal, "quality|size");
+            }
             options.imageOptimizationSettings.goal = (goal == "size") ? pdf::PDFImageOptimizer::OptimizationGoal::MinimumSize
                                                                       : pdf::PDFImageOptimizer::OptimizationGoal::PreferQuality;
 
             options.imageOptimizationSettings.keepOriginalIfLarger = parseBool("opt-images-keep-original", true);
             options.imageOptimizationSettings.preserveTransparency = parseBool("opt-images-preserve-alpha", true);
 
-            auto applyProfile = [&parser, &parseAlgorithm, &parseResample](pdf::PDFImageOptimizer::CompressionProfile& profile,
-                                                                           const char* algOption,
-                                                                           const char* dpiOption,
-                                                                           const char* qualityOption,
-                                                                           const char* rateOption,
-                                                                           const char* resampleOption,
-                                                                           const char* predictorOption)
+            auto applyProfile = [&parser, &parseAlgorithm, &parseResample, &parseBool, &reportInvalidValue](pdf::PDFImageOptimizer::CompressionProfile& profile,
+                                                                                                           const char* algOption,
+                                                                                                           const char* dpiOption,
+                                                                                                           const char* qualityOption,
+                                                                                                           const char* rateOption,
+                                                                                                           const char* resampleOption,
+                                                                                                           const char* predictorOption)
             {
                 if (parser->isSet(algOption))
                 {
-                    profile.algorithm = parseAlgorithm(parser->value(algOption));
+                    profile.algorithm = parseAlgorithm(algOption, parser->value(algOption));
                 }
                 if (parser->isSet(dpiOption))
                 {
                     bool ok = false;
-                    int dpi = parser->value(dpiOption).toInt(&ok);
-                    if (ok)
+                    const QString value = parser->value(dpiOption);
+                    const int dpi = value.toInt(&ok);
+                    if (ok && dpi >= 0)
                     {
                         profile.targetDpi = dpi;
+                    }
+                    else
+                    {
+                        reportInvalidValue(dpiOption, value, "whole numbers from 0");
                     }
                 }
                 if (qualityOption && parser->isSet(qualityOption))
                 {
                     bool ok = false;
-                    int quality = parser->value(qualityOption).toInt(&ok);
-                    if (ok)
+                    const QString value = parser->value(qualityOption);
+                    const int quality = value.toInt(&ok);
+                    if (ok && quality >= 0 && quality <= 100)
                     {
-                        profile.jpegQuality = qBound(0, quality, 100);
+                        profile.jpegQuality = quality;
+                    }
+                    else
+                    {
+                        reportInvalidValue(qualityOption, value, "whole numbers from 0 to 100");
                     }
                 }
                 if (rateOption && parser->isSet(rateOption))
                 {
                     bool ok = false;
-                    float rate = parser->value(rateOption).toFloat(&ok);
-                    if (ok)
+                    const QString value = parser->value(rateOption);
+                    const float rate = value.toFloat(&ok);
+                    if (ok && rate >= 0.0f)
                     {
                         profile.jpeg2000Rate = rate;
+                    }
+                    else
+                    {
+                        reportInvalidValue(rateOption, value, "numbers from 0 (0 = lossless)");
                     }
                 }
                 if (resampleOption && parser->isSet(resampleOption))
                 {
-                    profile.resampleFilter = parseResample(parser->value(resampleOption));
+                    profile.resampleFilter = parseResample(resampleOption, parser->value(resampleOption));
                 }
-                if (predictorOption && parser->isSet(predictorOption))
+                if (predictorOption)
                 {
-                    profile.enablePngPredictor = parser->value(predictorOption).toInt() != 0;
+                    profile.enablePngPredictor = parseBool(predictorOption, profile.enablePngPredictor);
                 }
             };
 
@@ -1336,10 +1424,15 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
             if (parser->isSet("opt-images-bitonal-threshold"))
             {
                 bool ok = false;
-                int threshold = parser->value("opt-images-bitonal-threshold").toInt(&ok);
-                if (ok)
+                const QString value = parser->value("opt-images-bitonal-threshold");
+                const int threshold = value.toInt(&ok);
+                if (ok && threshold >= -1 && threshold <= 255)
                 {
                     options.imageOptimizationSettings.bitonalProfile.monochromeThreshold = threshold;
+                }
+                else
+                {
+                    reportInvalidValue("opt-images-bitonal-threshold", value, "whole numbers from 0 to 255, -1 = automatic");
                 }
             }
         }

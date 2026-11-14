@@ -34,11 +34,47 @@
 
 #include <memory>
 
+class QLockFile;
+
 namespace pdf
 {
 
 class PDFDocumentToolResult;
 class PDFDocumentToolRunner;
+
+/// The folder of the temporary files of the runs of the tools (step 4 of phase 2, R4-1:
+/// PDFDocumentToolContext::temporaryFolder, PDFDocumentToolTemporaryFile). Every process has its
+/// own folder "<base>/run-<random>" with the lock file "<base>/run-<random>.lock" (QLockFile, held
+/// while the folder lives): at the creation the folders of earlier processes, whose locks are free
+/// (the process ended without deleting its folder - a crash, a kill), are deleted; the folders of
+/// running processes stay. The destructor deletes the folder of this process. A temporary file of a
+/// result, which outlives it, only fails to be deleted later (harmless). A plain object of
+/// PDFAppContext; GUI thread.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolTemporaryFolder
+{
+public:
+    /// \param baseFolder Folder of the folders of the processes; empty = getDefaultBaseFolder()
+    explicit PDFAppToolTemporaryFolder(const QString& baseFolder = QString());
+    ~PDFAppToolTemporaryFolder();
+
+    PDFAppToolTemporaryFolder(const PDFAppToolTemporaryFolder&) = delete;
+    PDFAppToolTemporaryFolder& operator=(const PDFAppToolTemporaryFolder&) = delete;
+
+    /// The folder of this process (absolute); empty, when it could not be created (the runs then
+    /// use the temporary folder of the system)
+    const QString& getFolder() const { return m_folder; }
+
+    /// "<temporary folder of the system>/pdf4qt-tools"
+    static QString getDefaultBaseFolder();
+
+    /// Deletes the folders "run-*" of \p baseFolder, whose processes have ended (their locks are
+    /// free or missing); \returns the number of the deleted folders
+    static int removeLeftovers(const QString& baseFolder);
+
+private:
+    QString m_folder;
+    std::unique_ptr<QLockFile> m_lock;
+};
 
 /// What a tool writes (plan of the first batch, chapter 2.1, F6, F7): a copy of the
 /// result, a new document or a file in a worker through PDFAppDocumentFileWriter, or the
@@ -138,6 +174,19 @@ public:
     /// The write of the bytes of a file in the worker, as \p writeRequest
     static Result writeFileData(QString filePath, QByteArray data, QString markSourceFilePath, bool isReplacing);
 
+    /// The one write of an output of a result (step 4 of phase 2, R4-1; the result dialog and the
+    /// result save_file of MCP), in the worker: the bytes of the memory as writeFileData; a
+    /// temporary file (PDFDocumentToolOutputFile::isTemporaryFile) is copied in blocks through
+    /// QSaveFile, never renamed (owner 14. 11.: the file gets the permissions of the target folder,
+    /// not of the temporary one; the target appears whole or not at all, a replaced file stays on
+    /// a failure; the temporary file stays for a retry). Never replaces a file without
+    /// \p isReplacing; the Mark of the Web of the origin goes with it. Result::data stays empty.
+    /// \param output The output (its temporary file is kept alive by this copy during the write)
+    /// \param filePath Target file
+    /// \param markSourceFilePath The file, whose Mark of the Web the target gets (may be empty)
+    /// \param isReplacing An existing target may be replaced
+    static Result writeOutputFile(PDFDocumentToolOutputFile output, QString filePath, QString markSourceFilePath, bool isReplacing);
+
     /// The bytes of a new document in the worker (a new tab reads them)
     static Result writeToMemory(PDFDocumentPointer document);
 
@@ -153,6 +202,9 @@ public:
 
     /// Writes one file of the result (Save as a file of an export)
     bool writeFile(const QByteArray& data, const QString& filePath, const QString& markSourceFilePath, bool isReplacing);
+
+    /// Writes one output of the result (Save as a file of an export; writeOutputFile in a worker)
+    bool writeOutput(const PDFDocumentToolOutputFile& output, const QString& filePath, const QString& markSourceFilePath, bool isReplacing);
 
     /// Writes a new document into the memory (Open in a new tab)
     bool writeDocumentToMemory(const PDFDocumentPointer& document);

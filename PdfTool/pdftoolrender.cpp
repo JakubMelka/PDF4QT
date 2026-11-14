@@ -23,6 +23,12 @@
 #include "pdftoolrender.h"
 #include "pdffont.h"
 #include "pdfconstants.h"
+#include "pdfdocumenttool_pdftoimages.h"
+#include "pdfdocumenttool_split.h"
+
+#include <QJsonArray>
+
+#include <algorithm>
 
 #include <QColorSpace>
 #include <QElapsedTimer>
@@ -80,25 +86,9 @@ void PDFToolRender::finish(const PDFToolOptions& options)
 
 void PDFToolRender::onPageRendered(const PDFToolOptions& options, pdf::PDFRenderedPageImage& renderedPageImage)
 {
+    // The files are written by the tool PDF to Images (execute); a page has only its statistics
+    Q_UNUSED(options);
     writePageInfoStatistics(renderedPageImage);
-    QString fileName = options.imageExportSettings.getOutputFileName(renderedPageImage.pageIndex, options.imageWriterSettings.getCurrentFormat());
-
-    QElapsedTimer imageWriterTimer;
-    imageWriterTimer.start();
-
-    QImageWriter imageWriter(fileName, options.imageWriterSettings.getCurrentFormat());
-    imageWriter.setSubType(options.imageWriterSettings.getCurrentSubtype());
-    imageWriter.setCompression(options.imageWriterSettings.getCompression());
-    imageWriter.setQuality(options.imageWriterSettings.getQuality());
-    imageWriter.setOptimizedWrite(options.imageWriterSettings.hasOptimizedWrite());
-    imageWriter.setProgressiveScanWrite(options.imageWriterSettings.hasProgressiveScanWrite());
-
-    if (!imageWriter.write(renderedPageImage.pageImage))
-    {
-        m_pageInfo[renderedPageImage.pageIndex].errors.emplace_back(pdf::PDFRenderError(pdf::RenderErrorType::Error, PDFToolTranslationContext::tr("Cannot write page image to file '%1', because: %2.").arg(fileName).arg(imageWriter.errorString())));
-    }
-
-    m_pageInfo[renderedPageImage.pageIndex].pageWriteTime = imageWriterTimer.elapsed();
 }
 
 QString PDFToolBenchmark::getStandardString(PDFToolAbstractApplication::StandardString standardString) const
@@ -176,7 +166,94 @@ int PDFToolRenderBase::execute(const PDFToolOptions& options)
         return ErrorInvalidArguments;
     }
 
-    // We are ready to render the document
+    m_pageInfo.resize(document.getCatalog()->getPageCount());
+
+    if (optionFlags.testFlag(ImageExportSettingsFiles))
+    {
+        // The command render writes the files by the tool PDF to Images (step 4 of phase 2, B55 - B57,
+        // B67): the image of the crop box with /Rotate and /UserUnit, the names checked before the
+        // first file; the statistics stay here. The command line stays: "%" of the template is the
+        // page ("@"), the files of the folder are overwritten, as before.
+        std::sort(pageIndices.begin(), pageIndices.end());
+        pageIndices.erase(std::unique(pageIndices.begin(), pageIndices.end()), pageIndices.end());
+
+        QVariantMap parameters = pdf::PDFDocumentToolImageFormat::fromWriterSettings(options.imageWriterSettings).toParameters();
+        parameters.insert(QString::fromLatin1(pdf::PDFDocumentToolPdfToImages::PARAMETER_PAGES), pdf::PDFDocumentToolPageSelection::createRangeText(pageIndices));
+        const bool isPixels = options.imageExportSettings.getResolutionMode() == pdf::PDFPageImageExportSettings::ResolutionMode::Pixels;
+        parameters.insert(QString::fromLatin1(pdf::PDFDocumentToolPdfToImages::PARAMETER_SIZE_BY), QString::fromLatin1(isPixels ? pdf::PDFDocumentToolPdfToImages::SIZE_BY_PIXELS : pdf::PDFDocumentToolPdfToImages::SIZE_BY_DPI));
+        parameters.insert(QString::fromLatin1(pdf::PDFDocumentToolPdfToImages::PARAMETER_DPI), options.imageExportSettings.getDpiResolution());
+        parameters.insert(QString::fromLatin1(pdf::PDFDocumentToolPdfToImages::PARAMETER_PIXELS), options.imageExportSettings.getPixelResolution());
+        parameters.insert(QString::fromLatin1(pdf::PDFDocumentToolFileOutput::PARAMETER_FOLDER), options.imageExportSettings.getDirectory());
+        parameters.insert(QString::fromLatin1(pdf::PDFDocumentToolFileOutput::PARAMETER_FILE_NAME), QString(options.imageExportSettings.getFileTemplate()).replace(QLatin1Char('%'), QLatin1Char('@')));
+        parameters.insert(QString::fromLatin1(pdf::PDFDocumentToolFileOutput::PARAMETER_EXISTING_FILES), QString::fromLatin1(pdf::PDFDocumentToolFileOutput::EXISTING_OVERWRITE));
+
+        pdf::PDFDocumentToolPdfToImages tool;
+        QVariantMap normalizedParameters;
+        std::vector<pdf::PDFDocumentToolParameterError> errors = pdf::PDFDocumentToolParameters::normalize(tool.getParameters(), parameters, &normalizedParameters);
+
+        pdf::PDFDocumentToolFolderSink sink(options.imageExportSettings.getDirectory(), pdf::PDFDocumentToolFileSink::ExistingFiles::Overwrite);
+        pdf::PDFDocumentToolContext context = pdf::PDFDocumentToolContext::create(pdf::PDFDocumentToolInputDocument::create(pdf::PDFDocumentPointer(new pdf::PDFDocument(document)), sourceData, options.document, false));
+        context.fileSink = &sink;
+        if (errors.empty())
+        {
+            errors = tool.validate(context, normalizedParameters);
+        }
+        if (!errors.empty())
+        {
+            PDFConsole::writeError(errors.front().message, options.outputCodec);
+            return ErrorInvalidArguments;
+        }
+
+        // The statistics of the pages come from the threads of the pool
+        QMutex statisticsMutex;
+        pdf::PDFDocumentToolPageRenderSettings renderSettings;
+        renderSettings.cmsSettings = options.cmsSettings;
+        renderSettings.features = options.renderFeatures;
+        renderSettings.engine = options.renderEngine;
+        renderSettings.rasterizerCount = options.renderRasterizerCount;
+        renderSettings.pageObserver = [this, &statisticsMutex](const pdf::PDFRenderedPageImage& image)
+        {
+            QMutexLocker locker(&statisticsMutex);
+            writePageInfoStatistics(image);
+            std::vector<pdf::PDFRenderError>& pageErrors = m_pageInfo[image.pageIndex].errors;
+            pageErrors.insert(pageErrors.end(), image.errors.cbegin(), image.errors.cend());
+        };
+
+        QElapsedTimer timer;
+        timer.start();
+        const pdf::PDFDocumentToolResult result = tool.exportPages(context, normalizedParameters, renderSettings, nullptr, nullptr);
+        m_wallTime = timer.elapsed();
+
+        if (result.status == pdf::PDFDocumentToolResultStatus::Failed)
+        {
+            PDFConsole::writeError(result.message, options.outputCodec);
+            return ErrorFailedWriteToFile;
+        }
+
+        // A file, which could not be written, is an error of its page
+        const QStringList fileNames = [&result]()
+        {
+            QStringList names;
+            for (const QJsonValue& value : result.data.value(QStringLiteral("fileNames")).toArray())
+            {
+                names << value.toString();
+            }
+            return names;
+        }();
+        for (const pdf::PDFDocumentToolFileProblem& problem : result.failedFiles)
+        {
+            const qsizetype index = fileNames.indexOf(problem.fileName);
+            if (index >= 0 && size_t(index) < pageIndices.size())
+            {
+                m_pageInfo[pageIndices[size_t(index)]].errors.emplace_back(pdf::RenderErrorType::Error, PDFToolTranslationContext::tr("Cannot write page image to file '%1', because: %2.").arg(problem.fileName, problem.reason));
+            }
+        }
+
+        finish(options);
+        return result.failedFiles.empty() ? ExitSuccess : ErrorFailedWriteToFile;
+    }
+
+    // The benchmark renders and writes nothing
     pdf::PDFOptionalContentActivity optionalContentActivity(&document, pdf::OCUsage::Export, nullptr);
     pdf::PDFCMSManager cmsManager(nullptr);
     cmsManager.setDocument(&document);
@@ -189,7 +266,6 @@ int PDFToolRenderBase::execute(const PDFToolOptions& options)
     iccProfileCache.setDocument(md);
     fontCache.setCacheShrinkEnabled(nullptr, false);
 
-    m_pageInfo.resize(document.getCatalog()->getPageCount());
     pdf::PDFRasterizerPool rasterizerPool(&document, &fontCache, &iccProfileCache, &cmsManager,
                                           &optionalContentActivity, options.renderFeatures, meshQualitySettings,
                                           pdf::PDFRasterizerPool::getCorrectedRasterizerCount(options.renderRasterizerCount),

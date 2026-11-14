@@ -186,7 +186,9 @@ void AppToolsTest::routesAndNavHighlight_data()
     QTest::newRow("custom-99999999999 page") << "/tools/collections/custom-99999999999" << QString() << QString();
     QTest::newRow("custom-01 page") << "/tools/collections/custom-01" << QString() << QString();
     QTest::newRow("unknown collection page") << "/tools/collections/unknown" << QString() << QString();
-    QTest::newRow("tool without page") << "/tools/pages.split" << QString() << QString();
+    // A tool of the catalog without a GUI: edit.content stays closed (owner O32), every tool of
+    // steps 1 to 4 of phase 2 has its page
+    QTest::newRow("tool without page") << "/tools/edit.content" << QString() << QString();
     QTest::newRow("unknown tool") << "/tools/convert.epub" << QString() << QString();
     QTest::newRow("null in tool") << "/tools/pages.split%00" << QString() << QString();
 }
@@ -231,13 +233,14 @@ void AppToolsTest::notFoundToolTitle()
     pdftest::AppToolsFixture fixture;
 
     // A tool of the catalog without a page: its title (940:134845) and the search for it
-    fixture.navigate(QStringLiteral("/tools/pages.split"));
+    // (edit.content stays closed, owner O32: the title of its row of 272:12821)
+    fixture.navigate(QStringLiteral("/tools/edit.content"));
     pdf::PDFPageNotFoundPage* page = fixture.notFoundPage();
     QVERIFY(page);
-    QCOMPARE(page->getDescriptionText(), QString::fromUtf8("Tool “Split”"));
-    QCOMPARE(page->getRequest().searchText, QStringLiteral("Split"));
-    QCOMPARE(page->getSearchButton()->text(), QString::fromUtf8("Search for “Split”"));
-    QCOMPARE(page->getPathText(), QStringLiteral("/tools/pages.split"));
+    QCOMPARE(page->getDescriptionText(), QString::fromUtf8("Tool “Edit Content”"));
+    QCOMPARE(page->getRequest().searchText, QStringLiteral("Edit Content"));
+    QCOMPARE(page->getSearchButton()->text(), QString::fromUtf8("Search for “Edit Content”"));
+    QCOMPARE(page->getPathText(), QStringLiteral("/tools/edit.content"));
 
     // An unknown tool keeps its id, bounded
     fixture.navigate(QStringLiteral("/tools/convert.epub"));
@@ -259,66 +262,68 @@ void AppToolsTest::notFoundToolTitle()
     pdf::PDFAppDocumentTab* tab = fixture.openDocument();
     QVERIFY(tab);
     const QString documentId = tab->getDocumentId();
-    fixture.navigate(QStringLiteral("/document/%1/tool/pages.split").arg(documentId));
+    fixture.navigate(QStringLiteral("/document/%1/tool/edit.content").arg(documentId));
     QCOMPARE(fixture.currentTab(), static_cast<pdf::PDFAppTab*>(tab));
     page = fixture.notFoundPage();
     QVERIFY(page);
-    QCOMPARE(page->getDescriptionText(), QString::fromUtf8("Tool “Split”"));
-    QCOMPARE(page->getRequest().searchText, QStringLiteral("Split"));
+    QCOMPARE(page->getDescriptionText(), QString::fromUtf8("Tool “Edit Content”"));
+    QCOMPARE(page->getRequest().searchText, QStringLiteral("Edit Content"));
 }
 
 void AppToolsTest::toolPageRegistryPath()
 {
     // The registry rules: catalog ids only, no null factory, no route factory
     QVERIFY(!pdf::PDFAppToolPageRegistry::registerFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("convert.epub"), std::make_shared<pdftest::AppToolsTestPageFactory>()));
-    QVERIFY(!pdf::PDFAppToolPageRegistry::registerFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.split"), nullptr));
-    QVERIFY(!pdf::PDFAppToolPageRegistry::registerFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.split"),
+    // edit.content: a tool of the catalog, which has no GUI (closed, owner O32)
+    QVERIFY(!pdf::PDFAppToolPageRegistry::registerFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("edit.content"), nullptr));
+    QVERIFY(!pdf::PDFAppToolPageRegistry::registerFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("edit.content"),
                                                           std::make_shared<pdf::PDFAppToolRoutePageFactory>(pdf::PDFAppToolPageKind::Start)));
-    QVERIFY(!pdf::PDFAppToolPageRegistry::hasPage(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.split")));
+    QVERIFY(!pdf::PDFAppToolPageRegistry::hasPage(pdf::PDFAppToolPageKind::Start, QStringLiteral("edit.content")));
     QVERIFY(!pdf::PDFAppToolPageRegistry::hasPage(pdf::PDFAppToolPageKind::Start, QStringLiteral("convert.epub")));
     QVERIFY(!pdf::PDFAppToolPageRegistry::getFactory(pdf::PDFAppToolPageKind::Start, QString(1000, QLatin1Char('x'))));
 
     {
         pdftest::AppToolsFixture fixture;
-        QVERIFY(fixture.registerTestToolPage(QStringLiteral("pages.split")));
+        QVERIFY(fixture.registerTestToolPage(QStringLiteral("edit.content")));
         QVERIFY(fixture.registerTestToolPage(QStringLiteral("review.statistics"), pdf::PDFAppToolPageKind::Document));
 
         // The page of the test and the start pages of the tools with a GUI (phase 2), nothing else
         QStringList toolsWithPage = pdf::PDFAppToolPageRegistry::getToolsWithPage(pdf::PDFAppToolPageKind::Start);
-        QVERIFY(toolsWithPage.removeOne(QStringLiteral("pages.split")));
+        QVERIFY(toolsWithPage.removeOne(QStringLiteral("edit.content")));
         QCOMPARE(toolsWithPage, pdf::PDFDocumentToolGUIRegistry::getTools());
-        QVERIFY(!pdf::PDFAppToolPageRegistry::hasPage(pdf::PDFAppToolPageKind::Document, QStringLiteral("pages.split")));
+        QVERIFY(!pdf::PDFAppToolPageRegistry::hasPage(pdf::PDFAppToolPageKind::Document, QStringLiteral("edit.content")));
 
         // The route
-        fixture.navigate(QStringLiteral("/tools/pages.split"));
+        fixture.navigate(QStringLiteral("/tools/edit.content"));
         pdftest::AppToolsTestPage* testPage = fixture.page<pdftest::AppToolsTestPage>();
         QVERIFY(testPage);
-        QCOMPARE(testPage->getToolId(), QStringLiteral("pages.split"));
+        QCOMPARE(testPage->getToolId(), QStringLiteral("edit.content"));
         QCOMPARE(fixture.currentTab()->getNavItem(), pdf::PDFAppNavItem::Tools);
 
         // A row of the Tools page: a registered tool opens its page, another one Page Not Found
+        // (edit.page-numbers is closed too, owner O32)
         fixture.openTools(QStringLiteral("/tools"));
-        pdf::PDFToolRow* row = fixture.findToolRow(QStringLiteral("pages.split"));
+        pdf::PDFToolRow* row = fixture.findToolRow(QStringLiteral("edit.content"));
         QVERIFY(row);
         row->click();
 
         pdftest::AppDocumentFixture::settle();
         QVERIFY(fixture.page<pdftest::AppToolsTestPage>());
-        QCOMPARE(fixture.currentRoute(), QStringLiteral("/tools/pages.split"));
+        QCOMPARE(fixture.currentRoute(), QStringLiteral("/tools/edit.content"));
 
         fixture.openTools(QStringLiteral("/tools"));
-        row = fixture.findToolRow(QStringLiteral("pages.crop"));
+        row = fixture.findToolRow(QStringLiteral("edit.page-numbers"));
         QVERIFY(row);
         row->click();
         pdftest::AppDocumentFixture::settle();
         QVERIFY(fixture.notFoundPage());
-        QCOMPARE(fixture.notFoundPage()->getDescriptionText(), QString::fromUtf8("Tool “Crop Pages”"));
+        QCOMPARE(fixture.notFoundPage()->getDescriptionText(), QString::fromUtf8("Tool “Add Page Numbers”"));
 
         // The global search: the tool result navigates to the page of the tool
-        fixture.navigate(QStringLiteral("/search?q=split"));
+        fixture.navigate(QStringLiteral("/search?q=edit%20content"));
         pdf::PDFAppSearchPage* searchPage = fixture.page<pdf::PDFAppSearchPage>();
         QVERIFY(searchPage);
-        const pdf::PDFAppSearchResult* result = searchPage->getResults().findResult(pdf::PDFAppSearchGroup::Tools, QStringLiteral("pages.split"));
+        const pdf::PDFAppSearchResult* result = searchPage->getResults().findResult(pdf::PDFAppSearchGroup::Tools, QStringLiteral("edit.content"));
         QVERIFY(result);
         const pdf::PDFAppSearchResult resultCopy = *result;
         searchPage->activateResult(resultCopy);
@@ -333,13 +338,13 @@ void AppToolsTest::toolPageRegistryPath()
         testPage = fixture.page<pdftest::AppToolsTestPage>();
         QVERIFY(testPage);
         QCOMPARE(testPage->getToolId(), QStringLiteral("review.statistics"));
-        fixture.navigate(QStringLiteral("/document/%1/tool/pages.split").arg(tab->getDocumentId()));
+        fixture.navigate(QStringLiteral("/document/%1/tool/edit.content").arg(tab->getDocumentId()));
         QVERIFY(fixture.notFoundPage());
 
         // Unregistered: Page Not Found again
-        pdf::PDFAppToolPageRegistry::unregisterFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.split"));
-        pdf::PDFAppToolPageRegistry::unregisterFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("pages.split"));
-        fixture.navigate(QStringLiteral("/tools/pages.split"));
+        pdf::PDFAppToolPageRegistry::unregisterFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("edit.content"));
+        pdf::PDFAppToolPageRegistry::unregisterFactory(pdf::PDFAppToolPageKind::Start, QStringLiteral("edit.content"));
+        fixture.navigate(QStringLiteral("/tools/edit.content"));
         QVERIFY(fixture.notFoundPage());
     }
 
@@ -837,7 +842,7 @@ void AppToolsTest::catalogMatchesFigma()
         { "convert.pdf-to-images", "EXPORT", "PDF to Images", "Save pages as PNG, JPEG or TIFF", "download", false },
         { "convert.extract-text", "EXPORT", "Extract Text", "Save the document text as a text file", "file-text", false },
         { "convert.extract-images", "EXPORT", "Extract Images", "Save embedded pictures to a folder", "images", false },
-        { "convert.audiobook", "EXPORT", "Create Audio Book", "Turn the document text into MP3", "headphones", false },
+        { "convert.audiobook", "EXPORT", "Create Audio Book", "Turn the document text into an audio file", "headphones", false },
         { "edit.content", "", "Edit Content", "Edit or add text, images and graphics", "edit", false },
         { "edit.page-numbers", "", "Add Page Numbers", "Number pages in a chosen style", "hash", false },
         { "protect.password", "ENCRYPTION", "Protect with Password", "Require a password to open the PDF", "lock", false },
@@ -1889,11 +1894,12 @@ void AppToolsTest::toolActivationRoutes()
     pdf::PDFAppToolsPage* page = AppToolsPageTestHelper::open(fixture);
     QVERIFY(page);
 
-    // A row, a tile, a recent tool: Page Not Found of the tool (phase 2 has no pages yet)
-    page->findToolRow(QStringLiteral("pages.split"))->click();
+    // A row, a tile, a recent tool: Page Not Found of a tool without a page (edit.content stays
+    // closed, owner O32), the page of a tool with one
+    page->findToolRow(QStringLiteral("edit.content"))->click();
     pdftest::AppDocumentFixture::settle();
     QVERIFY(fixture.notFoundPage());
-    QCOMPARE(fixture.notFoundPage()->getDescriptionText(), QString::fromUtf8("Tool “Split”"));
+    QCOMPARE(fixture.notFoundPage()->getDescriptionText(), QString::fromUtf8("Tool “Edit Content”"));
 
     page = AppToolsPageTestHelper::open(fixture);
     page->findTile(QStringLiteral("optimize.compress"))->click();
@@ -1908,16 +1914,16 @@ void AppToolsTest::toolActivationRoutes()
 
     // Enter on a row focused by the keyboard
     page = AppToolsPageTestHelper::open(fixture);
-    pdf::PDFToolRow* row = page->findToolRow(QStringLiteral("pages.split"));
+    pdf::PDFToolRow* row = page->findToolRow(QStringLiteral("edit.content"));
     row->setFocus(Qt::TabFocusReason);
     QTest::keyClick(row, Qt::Key_Return);
     pdftest::AppDocumentFixture::settle();
-    QCOMPARE(fixture.currentRoute(), QStringLiteral("/tools/pages.split"));
+    QCOMPARE(fixture.currentRoute(), QStringLiteral("/tools/edit.content"));
 
     // A registered page of the tool is shown
-    QVERIFY(fixture.registerTestToolPage(QStringLiteral("pages.split")));
+    QVERIFY(fixture.registerTestToolPage(QStringLiteral("edit.content")));
     page = AppToolsPageTestHelper::open(fixture);
-    page->findToolRow(QStringLiteral("pages.split"))->click();
+    page->findToolRow(QStringLiteral("edit.content"))->click();
     pdftest::AppDocumentFixture::settle();
     QVERIFY(fixture.page<pdftest::AppToolsTestPage>());
 }

@@ -22,9 +22,14 @@
 
 #include "pdfappbuiltintools.h"
 
+#include "pdfapptoolgui_audiobook.h"
+#include "pdfapptoolgui_bitonal.h"
 #include "pdfapptoolgui_blank.h"
 #include "pdfapptoolgui_compress.h"
+#include "pdfapptoolgui_extractimages.h"
 #include "pdfapptoolgui_extracttext.h"
+#include "pdfapptoolgui_optimizeimages.h"
+#include "pdfapptoolgui_pdftoimages.h"
 #include "pdfapptoolgui_geometry.h"
 #include "pdfapptoolgui_images.h"
 #include "pdfapptoolgui_insert.h"
@@ -59,6 +64,13 @@ void PDFAppBuiltinTools::registerAll()
 
     // Step 3b of phase 2 (plan 9.1): Manage Pages, package M3 registers it in its own file
     PDFAppToolGUIManage::registerManageTools();
+
+    // Step 4 of phase 2 (plan 9.1, 9.2): each package registers its tools in its own file
+    PDFAppToolGUIPdfToImages::registerPdfToImagesTools();           // P1: convert.pdf-to-images
+    PDFAppToolGUIOptimizeImages::registerOptimizeImagesTools();     // P2: optimize.images, optimize.grayscale
+    PDFAppToolGUIExtractImages::registerExtractImagesTools();       // P2: convert.extract-images
+    PDFAppToolGUIBitonal::registerBitonalTools();                   // P3: optimize.bitonal
+    PDFAppToolGUIAudioBook::registerAudioBookTools();               // P4: convert.audiobook
 }
 
 }   // namespace pdf

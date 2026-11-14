@@ -197,4 +197,29 @@ list(APPEND PDF4QT_LIBAPP_TOOLS_SOURCES
     # Step 3b, package M4 (Manage Pages: the opening of an assembly file)
     sources/tools/pdfappassemblyloader.cpp
     sources/tools/pdfappassemblyloader.h
+    # Step 4, package P1 (PDF to Images)
+    sources/tools/pdfapptoolgui_pdftoimages.cpp
+    sources/tools/pdfapptoolgui_pdftoimages.h
+    sources/tools/pdfapptoolimageformatmenu.cpp
+    sources/tools/pdfapptoolimageformatmenu.h
+    # Step 4, package P2 (the list of the images, the comparison, the profile editor, Optimize
+    # Images with Grayscale, Extract Images)
+    sources/tools/pdfapptoolimagelist.cpp
+    sources/tools/pdfapptoolimagelist.h
+    sources/tools/pdfapptoolimagecomparison.cpp
+    sources/tools/pdfapptoolimagecomparison.h
+    sources/tools/pdfapptoolimageprofileeditor.cpp
+    sources/tools/pdfapptoolimageprofileeditor.h
+    sources/tools/pdfapptoolgui_optimizeimages.cpp
+    sources/tools/pdfapptoolgui_optimizeimages.h
+    sources/tools/pdfapptoolgui_extractimages.cpp
+    sources/tools/pdfapptoolgui_extractimages.h
+    # Step 4, package P3 (Convert to Black & White)
+    sources/tools/pdfapptoolgui_bitonal.cpp
+    sources/tools/pdfapptoolgui_bitonal.h
+    # Step 4, package P4 (Create Audio Book and its overlay of the page)
+    sources/tools/pdfapptoolgui_audiobook.cpp
+    sources/tools/pdfapptoolgui_audiobook.h
+    sources/tools/pdfappaudiobookoverlay.cpp
+    sources/tools/pdfappaudiobookoverlay.h
 )

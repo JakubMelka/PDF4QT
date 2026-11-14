@@ -54,6 +54,8 @@ namespace pdf
 
 class PDFAppAnnotationStyleStorage;
 class PDFAppMcpController;
+class PDFAppToolTemporaryFolder;
+class PDFSpeechSynthesizerFactory;
 
 /// Context of the running application: the storage, its notifier, the registries
 /// of the settings and of the commands, the command line and the server of the
@@ -118,6 +120,23 @@ public:
     /// destroyed by close before the services and the database (the quit order
     /// of plan 2.6); nullptr when the storage is not open
     PDFAppMcpController* getMcpController() const;
+
+    /// The folder of the temporary files of the runs of the tools (step 4 of phase 2, R4-1:
+    /// PDFAppToolTemporaryFolder, created with the context, which also deletes the leftovers of
+    /// earlier processes); empty, when it could not be created (the runs use the system folder)
+    QString getToolTemporaryFolder() const;
+
+    /// The factory of the speech synthesizers of the runs (step 4 of phase 2, R4-15: Create Audio
+    /// Book, Pdf4QtSpeech), created at the first call; GUI thread. The one place of the factory:
+    /// the runner of a tab, the own tab of a tool, MCP and the GUI of Create Audio Book (its
+    /// voices) take it from here. A shared plain object (no QObject): a run keeps it by its
+    /// context, so it lives as long as the last run, which uses it.
+    std::shared_ptr<PDFSpeechSynthesizerFactory> getSpeechSynthesizerFactory() const;
+
+    /// Replaces the factory of the speech synthesizers (a test: a fake engine, never the voices
+    /// of the system); null = the factory of Pdf4QtSpeech again, created at the next call. GUI
+    /// thread; a running run keeps the factory of its context.
+    void setSpeechSynthesizerFactory(std::shared_ptr<PDFSpeechSynthesizerFactory> factory);
 
     /// Applies the author of new annotations (annotations.authorMode and
     /// annotations.customAuthorName) to PDFAuthorSettings of the engine; called at
@@ -215,6 +234,8 @@ private:
     QPointer<PDFAppMinuteTicker> m_minuteTicker;
     QPointer<PDFAppMcpController> m_mcpController;
     std::unique_ptr<PDFAppAnnotationStyleStorage> m_annotationStyleStorage;
+    std::unique_ptr<PDFAppToolTemporaryFolder> m_toolTemporaryFolder;
+    mutable std::shared_ptr<PDFSpeechSynthesizerFactory> m_speechSynthesizerFactory;
     bool m_isPagesEnabled = true;
     std::vector<PDFAppInstanceRequest> m_pendingRequests;   ///< QFileOpenEvent before a window exists
 };

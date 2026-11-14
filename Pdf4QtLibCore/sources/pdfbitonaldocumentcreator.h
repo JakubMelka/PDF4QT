@@ -24,6 +24,7 @@
 #define PDFBITONALDOCUMENTCREATOR_H
 
 #include "pdfdocument.h"
+#include "pdfdocumentimagelist.h"
 #include "pdfimage.h"
 #include "pdfimageconversion.h"
 #include "pdfoperationcontrol.h"
@@ -33,6 +34,8 @@
 #include <QImage>
 
 #include <functional>
+#include <map>
+#include <memory>
 #include <optional>
 #include <set>
 #include <vector>
@@ -42,6 +45,46 @@ namespace pdf
 class PDFPage;
 class PDFDocumentBuilder;
 class PDFRasterizerPool;
+class PDFCMSManager;
+class PDFFontCache;
+class PDFOptionalContentActivity;
+struct PDFCMSSettings;
+
+/// Everything a rasterizer pool of a conversion to black and white needs, owned together (step 4
+/// of phase 2, package P3: the tool Convert to Black & White, PdfTool bitonal and the tests): the
+/// layers by OCUsage::Export (ISO 32000-2, 8.11.4.4 - the layers of the converted pages are merged
+/// as for an export, R4-10 a), its own CMS manager of \p cmsSettings (a value - a tool has no
+/// manager of a view), the font and ICC caches, the mesh settings and the pool with the features
+/// of PDFBitonalDocumentCreator::getPageRasterizationFeatures (the raster engine of QPainter, which
+/// works in every thread and on every platform).
+///
+/// Ownership and threads: a value of the thread, which creates it (the run of a tool, a worker of
+/// the GUI, PdfTool): it is created, used and destroyed there; the threads of the pool work with
+/// it only inside of the calls of the pool. The document must outlive it and is only read.
+class PDF4QTLIBCORESHARED_EXPORT PDFBitonalRasterizationEnvironment
+{
+public:
+    /// \param document The document (read only, it outlives the environment)
+    /// \param cmsSettings Color management of the rendering
+    /// \param rasterizerCount Number of the rasterizers of the pool
+    explicit PDFBitonalRasterizationEnvironment(const PDFDocument* document,
+                                                const PDFCMSSettings& cmsSettings,
+                                                int rasterizerCount);
+    ~PDFBitonalRasterizationEnvironment();
+
+    PDFBitonalRasterizationEnvironment(const PDFBitonalRasterizationEnvironment&) = delete;
+    PDFBitonalRasterizationEnvironment& operator=(const PDFBitonalRasterizationEnvironment&) = delete;
+
+    PDFRasterizerPool* getRasterizerPool() const { return m_rasterizerPool.get(); }
+
+private:
+    std::unique_ptr<PDFOptionalContentActivity> m_optionalContentActivity;
+    std::unique_ptr<PDFCMSManager> m_cmsManager;
+    std::unique_ptr<PDFFontCache> m_fontCache;
+    std::unique_ptr<PDFICCProfileCache> m_iccProfileCache;
+    PDFMeshQualitySettings m_meshQualitySettings;
+    std::unique_ptr<PDFRasterizerPool> m_rasterizerPool;
+};
 
 /// Creates a bitonal (monochromatic) version of a document. Documents produced by
 /// scanners often store a single scanned page as several images - for example a
@@ -144,19 +187,30 @@ public:
     /// only once (the mode of its last occurrence is used, even when that mode leaves
     /// the item untouched).
     ///
-    /// The result can be partial - an image, which cannot be decoded, or a page, which
-    /// cannot be rendered completely, is left in its original form and the conversion
+    /// The result can be partial - an image, which cannot be decoded, or a page, whose
+    /// image cannot be created, is left in its original form and the conversion
     /// continues. Use \p getFailedItemCount to find out, whether that has happened.
-    /// A page is converted only when its rendering has reported no error, because an
-    /// image of a page, whose content has been partially skipped, would replace the
-    /// original content irreversibly.
+    /// A page, whose rendering has reported errors, is converted as well (owner
+    /// 14. 11. 2026: a rendering error never blocks the conversion); such pages are
+    /// listed by \p getRenderingIssues, so the caller asks the user to check them.
     ///
     /// When only some pages of a tagged document are converted, the structure tree
     /// is pruned - the references to the marked content of the converted pages are
     /// removed from it, the elements, which have lost all their content, are removed
     /// as well, and the parent tree and the ID tree are updated accordingly.
+    ///
+    /// The created document keeps the version and the hash of the source data of the
+    /// input (R4-9 of step 4 of phase 2); the conversion of images binds the OCR text
+    /// layers of PDF4QT again (PDFOCRTextLayerWriter::rebindOptimizedDocument - only the
+    /// samples of the images have changed, their placement not). A page converted as a
+    /// whole loses its text layer with its content.
+    ///
+    /// The operation control cancels both sources (B58): between the images, inside of
+    /// the decoding and the thresholding of an image, and in every wait and step of the
+    /// rasterization. A cancelled conversion returns false and creates no document.
     /// \param settings Inputs of the conversion
-    bool createBitonalDocument(const Settings& settings);
+    /// \param operationControl Operation control (can be nullptr)
+    bool createBitonalDocument(const Settings& settings, const PDFOperationControl* operationControl = nullptr);
 
     /// Returns the number of the items, which have been successfully converted by the
     /// last call of \p createBitonalDocument
@@ -167,13 +221,125 @@ public:
     /// original form in the created document
     size_t getFailedItemCount() const { return m_failedItemCount; }
 
+    /// Why an item has not been converted (the facts of the result, Figma 307:6388 "Not
+    /// converted: pages 17, 43, 44 (rendering errors)")
+    enum class FailureReason
+    {
+        CannotBeRead,       ///< The image cannot be decoded (a damaged stream, an unknown filter)
+        RenderingErrors,    ///< The image of the page could not be created (allocated); errors of the renderer alone never fail a page (getRenderingIssues)
+        TooLarge,           ///< The image of the page would exceed the limits of the pixels (getPageImageSize), or the declared image would (isImageTooLarge)
+        CannotBeEncoded,    ///< No encoder has accepted the black and white image
+        InvalidPage         ///< The page has no usable media box or dictionary
+    };
+
+    /// An item, which has failed, and the reason
+    struct FailedItem
+    {
+        ItemInfo item;
+        FailureReason reason = FailureReason::CannotBeRead;
+    };
+
+    /// Returns the items, which have failed by the last call of \p createBitonalDocument, in
+    /// the order of the pages (Pages) or of the items (Images)
+    const std::vector<FailedItem>& getFailedItems() const { return m_failedItems; }
+
+    /// Translated text of a reason ("rendering errors")
+    static QString getFailureReasonText(FailureReason reason);
+
+    /// A converted page, whose rendering has reported problems (owner 14. 11. 2026: the page is
+    /// converted, the user is asked to check it - Rendering issues, as PDF to Images)
+    struct RenderingIssue
+    {
+        PDFInteger pageIndex = -1;
+        QStringList messages;       ///< Translated texts of the problems, each once (no level Information)
+    };
+
+    /// Returns the converted pages with rendering issues of the last call of \p createBitonalDocument
+    /// (source Pages), in the order of the pages
+    const std::vector<RenderingIssue>& getRenderingIssues() const { return m_renderingIssues; }
+
+    /// How many converted items (and their soft masks are not counted) are encoded by each
+    /// compression by the last call of \p createBitonalDocument (the automatic compression
+    /// chooses per item; the fact "1.9 MB · JBIG2" of 307:6564)
+    const std::map<Compression, size_t>& getUsedCompressions() const { return m_usedCompressions; }
+
+    /// Name of a compression of a created image ("JBIG2", "CCITT G4", "Flate", "RunLength"; Auto
+    /// has none). Not translated - the names of the filters.
+    static QString getCompressionName(Compression compression);
+
+    /// Compression of an image object created by \p createBitonalImageObject (by its filter),
+    /// std::nullopt = none of the four
+    static std::optional<Compression> getImageObjectCompression(const PDFObject& imageObject);
+
     /// Returns the created document and clears it. \sa createBitonalDocument
     PDFDocument takeBitonalDocument() { return qMove(m_bitonalDocument); }
 
-    /// Returns the images of the document, which can be converted. Stencil masks are
-    /// left out - they are already bitonal and they are painted using the current fill
-    /// color, so converting them makes no sense.
+    /// Returns the images of the document, which can be converted: the image XObjects drawn by
+    /// the content of the pages, their forms and patterns (PDFDocumentImageList with the
+    /// options of a change, B61 - an image only listed in /Resources is never drawn and never
+    /// converted; the images of all layers, R4-4), in the order of their first drawing. Left
+    /// out: inline images (they are kept, R4-8 - a change would rewrite the content), stencil
+    /// masks (already bitonal and painted by the fill color) and images, which are also the
+    /// mask of another image (the conversion would change the transparency of that image).
     std::vector<PDFObjectReference> getConvertibleImages() const;
+
+    /// The item of the list of the images can be converted (the rule of getConvertibleImages)
+    static bool isConvertibleImage(const PDFDocumentImageList::Item& item);
+
+    /// What a preview of one item is made of (the panes ORIGINAL / BITONAL of the tool, 304:5102,
+    /// and of the old dialog; R4-22: one implementation in the core). A value - copied into the
+    /// worker.
+    struct PreviewRequest
+    {
+        ConversionSource conversionSource = ConversionSource::Pages;
+        ItemInfo item;
+        PDFImageConversion::ConversionMethod conversionMethod = PDFImageConversion::ConversionMethod::Automatic;
+        int manualThreshold = 128;
+        int dpiResolution = DEFAULT_DPI_RESOLUTION;     ///< Pages: the resolution of the rendering (getPreviewDpiResolution)
+        Compression compression = Compression::Auto;
+        bool isEncoded = true;                          ///< The result is also encoded (its size and compression), as the conversion encodes it
+        QImage originalImage;                           ///< A decoded image or a rendered page of an earlier preview of the same item and resolution (null = decoded or rendered now)
+    };
+
+    /// A preview of one item
+    struct Preview
+    {
+        QImage originalImage;           ///< The decoded image or the rendered page (null = it failed)
+        QImage resultImage;             ///< What the mode makes of it (null = it failed)
+        int threshold = -1;             ///< The threshold used by the method (the automatic one computed), -1 = none (a fill, unchanged)
+        qint64 encodedSize = -1;        ///< Bytes of the encoded result with its soft mask (-1 = not encoded, unchanged or failed)
+        std::optional<Compression> compression;     ///< The compression of the encoded result
+        std::optional<FailureReason> failure;       ///< Why the preview failed
+    };
+
+    /// Creates the preview of the item (a worker thread: it only reads the document and uses the
+    /// pool). A cancelled preview is a failed one.
+    Preview createPreview(const PreviewRequest& request, const PDFOperationControl* operationControl) const;
+
+    /// The resolution of a preview of a page in a pane of \p paneSize pixels: the resolution of
+    /// the conversion, lowered so the page is no larger than the pane (a pane cannot show more,
+    /// a page at 600 dpi needs 140 MB); never above \p dpiResolution, never below the minimum
+    static int getPreviewDpiResolution(const PDFPage* page, int dpiResolution, QSize paneSize);
+
+    /// The result of the detection of one page
+    struct BlankPageResult
+    {
+        PDFInteger pageIndex = -1;
+        bool isExamined = false;    ///< The page has been rendered and analyzed (false: cancelled, a rendering error, a page, which does not exist)
+        bool isBlank = false;       ///< The page is a scan of a blank sheet (detectBlankPage)
+    };
+
+    /// Examines the pages at BLANK_PAGE_DPI_RESOLUTION, whether they are scans of a blank sheet
+    /// (B67: one implementation of the old dialog, PdfTool and the tool). The pages are rendered
+    /// in parallel by the pool. A page, which cannot be rendered completely, is never blank (an
+    /// unknown page must never be wiped out).
+    /// \param pageIndices Pages to examine
+    /// \param operationControl Cancellation (optional): the pages not examined have isExamined false
+    /// \param progress A step per page (optional; the steps are serialized)
+    /// \returns A result per page in the order of \p pageIndices
+    std::vector<BlankPageResult> detectBlankPages(const std::vector<PDFInteger>& pageIndices,
+                                                  const PDFOperationControl* operationControl,
+                                                  PDFProgressSink* progress) const;
 
     /// Estimates the resolution of the document, so the rasterized pages do not lose
     /// the details of the scanned images. Resolution is estimated from the size of the
@@ -188,11 +354,21 @@ public:
 
     /// Decodes an image of the document into a QImage, including its transparency,
     /// which is decoded into the alpha channel. Returns a null image, when the image
-    /// cannot be decoded. This function reads the document only, so it can be called
-    /// from a worker thread.
+    /// cannot be decoded or when it is too large (isImageTooLarge: nothing is allocated).
+    /// This function reads the document only, so it can be called from a worker thread.
     /// \param reference Reference to the image object
     /// \param operationControl Operation control (can be nullptr)
     QImage getDecodedImage(PDFObjectReference reference, const PDFOperationControl* operationControl) const;
+
+    /// The declared image would need more than MAXIMUM_DECODED_IMAGE_BYTES of decoded pixels
+    /// (/Width x /Height of 32 bit pixels counted in 64 bits, plan of step 4 of phase 2, chapter 6:
+    /// a declaration of billions of pixels with a short stream is never decoded)
+    /// \param reference Reference to the image object
+    bool isImageTooLarge(PDFObjectReference reference) const;
+
+    /// Most bytes of the decoded pixels of one image of the conversion of the images (32 bit
+    /// pixels, plan of step 4 of phase 2, chapter 6: 2 GiB, as PDFImageOptimizer)
+    static constexpr qint64 MAXIMUM_DECODED_IMAGE_BYTES = qint64(2) * 1024 * 1024 * 1024;
 
     /// Rasterizes the given pages and calls the processor for each rendered page
     /// image. Images are composited onto the white background and they are returned
@@ -200,8 +376,9 @@ public:
     /// to them. The processor can be called from multiple threads simultaneously and
     /// it is not called at all for the pages, which have been skipped because the
     /// operation has been cancelled. A page, whose rendering has reported an error,
-    /// is passed to the processor as a null image - the renderer skips the content
-    /// it cannot process, so the image would not show the whole page.
+    /// is passed with its image (owner 14. 11. 2026: a rendering error never blocks the
+    /// conversion; renderPageImages gives the errors too); a null image is a page, whose
+    /// image could not be created.
     /// \param pageIndices Indices of the rendered pages
     /// \param pageSizeGetter Functor returning the size of the rendered page image
     /// \param pageImageProcessor Functor processing the rendered page image
@@ -210,6 +387,13 @@ public:
                      const std::function<QSize(const PDFPage*)>& pageSizeGetter,
                      const std::function<void(PDFInteger, QImage)>& pageImageProcessor,
                      const PDFOperationControl* operationControl) const;
+
+    /// As renderPages, the processor gets also the errors of the rendering of the page
+    /// (PDFRenderedPageImage::getReportedErrors: every level except Information)
+    void renderPageImages(const std::vector<PDFInteger>& pageIndices,
+                          const std::function<QSize(const PDFPage*)>& pageSizeGetter,
+                          const std::function<void(PDFInteger, QImage, const QList<PDFRenderError>&)>& pageImageProcessor,
+                          const PDFOperationControl* operationControl) const;
 
     /// Rasterizes a single page into an image of a given size. \sa renderPages
     /// \param pageIndex Index of the rendered page
@@ -235,10 +419,30 @@ public:
     /// Returns size of the rasterized page image for a given resolution. The resolution
     /// is clamped into the range supported by this class - a page rasterized at an
     /// extreme resolution would need gigabytes of memory. Returns an invalid size
-    /// when the page dimensions cannot be represented safely.
+    /// when the page dimensions cannot be represented safely or when the image would
+    /// exceed the limits of the pixels (B65, plan 4.4: MAXIMUM_PAGE_IMAGE_DIMENSION per side,
+    /// MAXIMUM_PAGE_IMAGE_BYTES of 32 bit pixels).
     /// \param page Page
     /// \param dpiResolution Resolution in dots per inch
     static QSize getPageImageSize(const PDFPage* page, int dpiResolution);
+
+    /// The size of the media box of the page in inches of the paper (/UserUnit, Table 31): the
+    /// page image covers it, its pixels are the inches times the resolution
+    static QSizeF getPageSizeInInches(const PDFPage* page);
+
+    /// The error of a page, whose image at the resolution exceeds the limits of the pixels
+    /// ("Page 12 would be 70,157 px high – lower the resolution"), empty = the page fits (a page
+    /// with a degenerate media box has no error here: the conversion reports it as failed)
+    /// \param page Page
+    /// \param pageNumber Number of the page from 1 (the text)
+    /// \param dpiResolution Resolution in dots per inch (clamped as in getPageImageSize)
+    static QString getPageImageSizeError(const PDFPage* page, PDFInteger pageNumber, int dpiResolution);
+
+    /// Longest side of the image of a page (the limit of QImage and of the image writers, plan 4.4)
+    static constexpr int MAXIMUM_PAGE_IMAGE_DIMENSION = 32767;
+
+    /// Most bytes of the image of a page (32 bit pixels; plan 4.4: 2 GiB)
+    static constexpr qint64 MAXIMUM_PAGE_IMAGE_BYTES = qint64(2) * 1024 * 1024 * 1024;
 
     /// Converts the image to the bitonal one. Returns a null image, if the conversion
     /// fails.
@@ -248,11 +452,14 @@ public:
     /// \param alphaMask Transparency of the converted image (can be a null image)
     /// \param operationControl Operation control (can be nullptr). A cancelled
     ///        conversion returns a null image.
+    /// \param usedThreshold The threshold, which the method has used (the automatic one
+    ///        computed; the adaptive method gives its global part), can be nullptr
     static QImage convertImageToBitonal(const QImage& image,
                                         PDFImageConversion::ConversionMethod conversionMethod,
                                         int threshold,
                                         QImage* alphaMask,
-                                        const PDFOperationControl* operationControl);
+                                        const PDFOperationControl* operationControl,
+                                        int* usedThreshold = nullptr);
 
     /// Creates an image object (1 bit per component, DeviceGray) from a bitonal image.
     /// Returns a null object, when the image cannot be encoded.
@@ -372,8 +579,28 @@ private:
     /// thousands of spots, which are of no interest.
     static constexpr double BLANK_PAGE_MAXIMUM_INK_RATIO = 0.005;
 
-    bool createBitonalDocumentFromImages(PDFDocumentBuilder& builder, const Settings& settings);
-    bool createBitonalDocumentFromPages(PDFDocumentBuilder& builder, const Settings& settings);
+    bool createBitonalDocumentFromImages(PDFDocumentBuilder& builder, const Settings& settings, const PDFOperationControl* operationControl, std::set<PDFObjectReference>* replacedImages);
+    bool createBitonalDocumentFromPages(PDFDocumentBuilder& builder, const Settings& settings, const PDFOperationControl* operationControl);
+
+    /// Records an item, which has failed
+    void addFailedItem(const ItemInfo& item, FailureReason reason);
+
+    /// Records the compression of a converted item
+    void addUsedCompression(const PDFObject& imageObject);
+
+    /// The image object of a converted image: the bitonal samples, the entries of the
+    /// original image, which stay valid, and a soft mask of \p alphaMask (added to \p builder,
+    /// when it is not null; otherwise only its size is counted into \p maskSize)
+    /// \returns A null object, when it cannot be encoded
+    PDFObject createConvertedImageObject(PDFObjectReference originalImage, const QImage& bitonalImage, const QImage& alphaMask,
+                                         Compression compression, PDFDocumentBuilder* builder, qint64* maskSize) const;
+
+    /// What the mode of the item makes of the decoded image or the rendered page \p image: the
+    /// bitonal image (a converted one, inverted, a fill) and the alpha mask of an image
+    /// \returns A null image, when it fails (or is cancelled)
+    static QImage createItemImage(const QImage& image, ConversionSource source, ItemMode mode,
+                                  PDFImageConversion::ConversionMethod conversionMethod, int threshold,
+                                  QImage* alphaMask, int* usedThreshold, const PDFOperationControl* operationControl);
 
     /// Removes the structure tree of the document altogether
     void removeStructureTree(PDFDocumentBuilder& builder) const;
@@ -407,6 +634,10 @@ private:
     PDFDocument m_bitonalDocument;
     size_t m_convertedItemCount = 0;
     size_t m_failedItemCount = 0;
+    std::vector<FailedItem> m_failedItems;
+    std::vector<RenderingIssue> m_renderingIssues;
+    std::map<Compression, size_t> m_usedCompressions;
+    QMutex m_progressMutex;     ///< Serializes the steps of the progress of the threads of the pool
 };
 
 }   // namespace pdf

@@ -363,8 +363,11 @@ void DocumentToolTest::catalogResultColumns()
         { QStringLiteral("protect.timestamp"), Preselected::File },
     };
 
-    // O31: these tools rewrite the whole file, only a copy is offered for a signed document
-    const QStringList lostCopyOnly = { QStringLiteral("optimize.compress"), QStringLiteral("optimize.structure"), QStringLiteral("protect.sanitize") };
+    // O31: these tools rewrite the whole file, only a copy is offered for a signed document;
+    // owner answer Q4.14 of step 4: the images and the pages of Optimize Images, Grayscale and
+    // Black & White would stay in the earlier revision of an incremental update
+    const QStringList lostCopyOnly = { QStringLiteral("optimize.compress"), QStringLiteral("optimize.structure"), QStringLiteral("protect.sanitize"),
+                                       QStringLiteral("optimize.images"), QStringLiteral("optimize.grayscale"), QStringLiteral("optimize.bitonal") };
 
     for (const pdf::PDFDocumentToolCatalogEntry& tool : pdf::PDFDocumentToolCatalog::getTools())
     {
@@ -434,8 +437,17 @@ void DocumentToolTest::catalogPermissions()
     // of the pages, which bit 11 does not name (bit 4); Images to PDF has no input document.
     // Step 3b (plan RB3 a): the row of Manage Pages is its output This document - bit 11; its new
     // documents follow the rule of Merge by its parameters (PDFDocumentTool::isNewDocumentOfInputs).
+    // Step 4 (plan B79, owner answer Q4.5): Optimize Images, Grayscale and Black & White rewrite the
+    // images or the pages (bit 4); Extract Images, PDF to Images and Create Audio Book take the
+    // graphics or the text out of the document into files (bit 5).
     const std::map<QString, Permissions> expected =
     {
+        { QStringLiteral("optimize.images"), Permissions({ Permission::Modify }) },
+        { QStringLiteral("optimize.grayscale"), Permissions({ Permission::Modify }) },
+        { QStringLiteral("optimize.bitonal"), Permissions({ Permission::Modify }) },
+        { QStringLiteral("convert.extract-images"), Permissions({ Permission::CopyContent }) },
+        { QStringLiteral("convert.pdf-to-images"), Permissions({ Permission::CopyContent }) },
+        { QStringLiteral("convert.audiobook"), Permissions({ Permission::CopyContent }) },
         { QStringLiteral("pages.manage"), Permissions({ Permission::Assemble }) },
         { QStringLiteral("pages.rotate"), Permissions({ Permission::Assemble }) },
         { QStringLiteral("pages.remove"), Permissions({ Permission::Assemble }) },
@@ -684,6 +696,14 @@ void DocumentToolTest::catalogHelpTopics()
     QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"protect.remove-links")->getHelpTopic(), QStringLiteral("tool-protect-remove-links"));
     QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"protect.sanitize")->getHelpTopic(), QStringLiteral("tool-protect-sanitize"));
     QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"convert.extract-text")->getHelpTopic(), QStringLiteral("tool-convert-extract-text"));
+
+    // The files of the topics of step 4 of phase 2 (plan chapter 7, help.qrc)
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"optimize.images")->getHelpTopic(), QStringLiteral("tool-optimize-images"));
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"optimize.grayscale")->getHelpTopic(), QStringLiteral("tool-optimize-grayscale"));
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"optimize.bitonal")->getHelpTopic(), QStringLiteral("tool-optimize-bitonal"));
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"convert.pdf-to-images")->getHelpTopic(), QStringLiteral("tool-convert-pdf-to-images"));
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"convert.extract-images")->getHelpTopic(), QStringLiteral("tool-convert-extract-images"));
+    QCOMPARE(pdf::PDFDocumentToolCatalog::findTool(u"convert.audiobook")->getHelpTopic(), QStringLiteral("tool-convert-audiobook"));
 }
 
 void DocumentToolTest::contextFromSnapshot()
@@ -1100,10 +1120,11 @@ void DocumentToolTest::catalogExtendedData()
         { Helper::id("protect.remove-links"), Helper::ids({ "protect.sanitize", "protect.password", "optimize.compress" }) },
         // Often used next of 276:1737 by the word of the owner (2026-11-03), the frame 296:2761 draws one of them
         { Helper::id("optimize.compress"), Helper::ids({ "protect.password", "protect.sign", "pages.merge" }) },
-        { Helper::id("optimize.images"), Helper::ids({ "optimize.structure" }) },
         { Helper::id("optimize.structure"), Helper::ids({ "optimize.images", "optimize.compress", "protect.password" }) },
-        { Helper::id("optimize.bitonal"), Helper::ids({ "convert.ocr" }) },
-        { Helper::id("optimize.grayscale"), Helper::ids({ "optimize.compress" }) },
+        // Owner answer Q4.12 of step 4: the first one is the one of the frame (301:4019, 308:7341, 307:6564)
+        { Helper::id("optimize.images"), Helper::ids({ "optimize.structure", "protect.password", "protect.sign" }) },
+        { Helper::id("optimize.grayscale"), Helper::ids({ "optimize.compress", "protect.password", "pages.merge" }) },
+        { Helper::id("optimize.bitonal"), Helper::ids({ "convert.ocr", "optimize.compress", "protect.password" }) },
     };
 
     // Commands of PdfTool (PdfTool/pdftool*.cpp), which a tool may name

@@ -135,6 +135,45 @@ public:
         finishRead(invocation, document, object, true, PDFAppMcpReadSupport::getActivityPages(query.pageIndices));
     }
 
+    static void listImages(const PDFAppMcpToolInvocation& invocation, PDFAppDocument* document, const std::shared_ptr<PDFAppMcpImageListCache>& cache)
+    {
+        PDFMcpJsonReader reader(invocation.actionArguments, invocation.actionName);
+        const QString pagesText = reader.getString(QLatin1StringView("pages"), 4096, false).value_or(QString());
+        const PDFDocumentPointer pdfDocument = document->getDocument();
+        const PDFInteger pageCount = PDFInteger(pdfDocument->getCatalog()->getPageCount());
+
+        QString error;
+        std::optional<std::vector<PDFInteger>> pages = PDFAppMcpReadSupport::parsePages(pagesText, pageCount, 0, &error);
+        if (!pages)
+        {
+            invocation.host->finishWithError(invocation.call, invocation.getActionId(), document, error);
+            return;
+        }
+
+        PDFAppMcpImageQuery query;
+        query.pageIndices = std::move(*pages);
+        query.maximumResults = int(reader.getInteger(QLatin1StringView("maxResults"), 1, PDFAppMcpToolSet::MAXIMUM_IMAGE_RESULTS, false).value_or(200));
+        const QString cursor = reader.getString(QLatin1StringView("cursor"), 64, false).value_or(QString());
+        if (!cursor.isEmpty())
+        {
+            const std::optional<qint64> offset = PDFAppMcpDocumentReader::parseCursor(cursor);
+            if (!offset)
+            {
+                invocation.host->finishWithError(invocation.call, invocation.getActionId(), document,
+                                                 QStringLiteral("cursor: the cursor is not valid. Pass nextCursor of the previous result unchanged, or omit it."));
+                return;
+            }
+            query.offset = *offset;
+        }
+
+        // The collection walks the content of every page (forms, inline images): always a worker
+        // on the snapshot, canceled by the call
+        std::shared_ptr<PDFAppMcpDocumentJob> job = std::make_shared<PDFAppMcpDocumentJob>(invocation.call, document->getSnapshot(), PDFAppMcpDocumentJobKind::Images,
+                                                                                            PDFAppMcpDocumentHeader::create(document));
+        job->setImageQuery(std::move(query), cache);
+        invocation.host->startJob(std::move(job));
+    }
+
     static void readAttachment(const PDFAppMcpToolInvocation& invocation, PDFAppDocument* document)
     {
         PDFMcpJsonReader reader(invocation.actionArguments, invocation.actionName);
@@ -263,6 +302,10 @@ void PDFAppMcpDocumentTool::handle(const PDFAppMcpToolInvocation& invocation)
     {
         Helper::finishRead(invocation, document, PDFAppMcpDocumentReader::getBookmarks(host->getContext(), document), false);
     }
+    else if (action == QLatin1String(PDFAppMcpToolSet::ACTION_LIST_IMAGES))
+    {
+        Helper::listImages(invocation, document, m_imageListCache);
+    }
     else
     {
         host->finishWithError(invocation.call, invocation.getActionId(), document, QStringLiteral("Unknown action %1.").arg(invocation.getActionId()));
@@ -323,7 +366,51 @@ void PDFAppMcpDocumentJob::execute()
         case PDFAppMcpDocumentJobKind::Attachment:
             executeAttachment();
             break;
+        case PDFAppMcpDocumentJobKind::Images:
+            executeImages();
+            break;
     }
+}
+
+void PDFAppMcpDocumentJob::executeImages()
+{
+    // The call is the cancellation of the collection; a canceled one is not answered here
+    // (finish answers it)
+    const std::shared_ptr<PDFMcpCall>& call = getCall();
+    const PDFAppDocumentSnapshot& snapshot = getSnapshot();
+    std::shared_ptr<const PDFDocumentImageList> list = m_imageListCache ? m_imageListCache->find(m_header.documentId, snapshot.version) : nullptr;
+    if (!list)
+    {
+        list = PDFAppMcpDocumentReader::collectImages(snapshot.document.data(), call.get());
+        if (call->isCanceled())
+        {
+            return;
+        }
+        if (m_imageListCache)
+        {
+            m_imageListCache->insert(m_header.documentId, snapshot.version, list);
+        }
+    }
+    const QByteArray object = PDFAppMcpDocumentReader::getImages(m_header, *list, m_imageQuery);
+    if (call->isCanceled())
+    {
+        return;
+    }
+    call->finish(PDFAppMcpReadSupport::createResult(QString::fromLatin1(PDFAppMcpToolSet::ACTION_LIST_IMAGES), object, true));
+}
+
+QString PDFAppMcpDocumentJob::getActionId() const
+{
+    switch (m_kind)
+    {
+        case PDFAppMcpDocumentJobKind::Annotations:
+            return QStringLiteral("document.get_annotations");
+        case PDFAppMcpDocumentJobKind::Attachment:
+            return QStringLiteral("document.read_attachment");
+        case PDFAppMcpDocumentJobKind::Images:
+            return QStringLiteral("document.") + QString::fromLatin1(PDFAppMcpToolSet::ACTION_LIST_IMAGES);
+    }
+    return QString();
 }
 
 void PDFAppMcpDocumentJob::executeAnnotations()
@@ -451,9 +538,17 @@ void PDFAppMcpDocumentJob::finish(PDFAppMcpHost* host)
 
     const std::optional<PDFMcpCallResult> result = call->getResult();
     const bool isError = m_isFailed || !result || result->kind == PDFMcpCallResult::Kind::Error || result->isError;
-    const QString action = m_kind == PDFAppMcpDocumentJobKind::Annotations ? QStringLiteral("document.get_annotations") : QStringLiteral("document.read_attachment");
+    const QString action = getActionId();
     PDFAppDocument* document = host->getResolver().resolve(m_header.documentId, false).document;
-    const std::set<int> pages = m_kind == PDFAppMcpDocumentJobKind::Annotations ? PDFAppMcpReadSupport::getActivityPages(m_query.pageIndices) : std::set<int>();
+    std::set<int> pages;
+    if (m_kind == PDFAppMcpDocumentJobKind::Annotations)
+    {
+        pages = PDFAppMcpReadSupport::getActivityPages(m_query.pageIndices);
+    }
+    else if (m_kind == PDFAppMcpDocumentJobKind::Images)
+    {
+        pages = PDFAppMcpReadSupport::getActivityPages(m_imageQuery.pageIndices);
+    }
     host->recordActivity(call, action, document, QJsonObject(), PDFAppMcpReadSupport::getActivityStatus(*call, isError), pages);
 }
 

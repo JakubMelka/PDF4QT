@@ -29,11 +29,16 @@
 #include "pdfglobal.h"
 #include "pdfannotation.h"
 
+#include "pdfdocumentimagelist.h"
+
 #include <QByteArray>
+#include <QMutex>
 #include <QSet>
 #include <QString>
 #include <QStringList>
 
+#include <deque>
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -43,6 +48,7 @@ namespace pdf
 class PDFAppContext;
 class PDFAppDocument;
 class PDFAppDocumentView;
+class PDFOperationControl;
 class PDFDocument;
 class PDFMcpJsonWriter;
 class PDFOutlineItem;
@@ -69,6 +75,43 @@ public:
     bool includeReplies = true;
     int maximumResults = 200;
     qint64 offset = 0;                      ///< Index of the first annotation of the filtered sequence (the cursor)
+};
+
+/// Parameters of document.list_images (step 4 of phase 2, plan 7, R4-8)
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppMcpImageQuery
+{
+public:
+    std::vector<PDFInteger> pageIndices;    ///< Pages of the selection (an image drawn on one of them is listed)
+    int maximumResults = 200;
+    qint64 offset = 0;                      ///< Index of the first image of the listed sequence (the cursor)
+};
+
+/// The complete lists of the images of the last versions of the documents (document.list_images,
+/// RS4APP): the pages of a document are walked once for all the cursors of one listing, not again
+/// for every page of the results. Thread-safe (the jobs of the workers read and fill it); the
+/// lists are immutable values shared with the jobs. At most MAXIMUM_LISTS lists, the oldest go.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppMcpImageListCache
+{
+public:
+    static constexpr size_t MAXIMUM_LISTS = 4;
+
+    /// The list of the version of the document, nullptr = none
+    std::shared_ptr<const PDFDocumentImageList> find(const QString& documentId, quint64 version) const;
+
+    /// Remembers the complete list of the version of the document (an incomplete one is ignored)
+    void insert(const QString& documentId, quint64 version, std::shared_ptr<const PDFDocumentImageList> list);
+
+private:
+    class Entry
+    {
+    public:
+        QString documentId;
+        quint64 version = 0;
+        std::shared_ptr<const PDFDocumentImageList> list;
+    };
+
+    mutable QMutex m_mutex;
+    std::deque<Entry> m_entries;    ///< The newest last
 };
 
 /// Readers of the actions of the tool "document" (plan of step 7, 3.2) and of
@@ -122,6 +165,22 @@ public:
 
     /// Contract name of the type of an annotation ("highlight", "note", "widget", "other")
     static QString getAnnotationTypeName(const PDFAnnotation* annotation);
+
+    /// Most pages of one image in a result of list_images (pageCount has all of them)
+    static constexpr int MAXIMUM_IMAGE_PAGES = 100;
+
+    /// list_images (a worker on a snapshot): the images of PDFDocumentImageList with the options of an
+    /// export without a tab (every layer; hiddenLayer by /D with the automatic states of /Export,
+    /// OCUsage::Export - MCP has no tab), drawn on a page of the query, in the order of the list; the
+    /// number is the index of the whole list + 1 (N of "Image N" and of the token #). The collection
+    /// stops, when \p control is canceled (the result is then not used).
+    static QByteArray getImages(const PDFAppMcpDocumentHeader& header, const PDFDocument* document, const PDFAppMcpImageQuery& query, const PDFOperationControl* control);
+
+    /// getImages of a list collected before (collectImages, PDFAppMcpImageListCache)
+    static QByteArray getImages(const PDFAppMcpDocumentHeader& header, const PDFDocumentImageList& list, const PDFAppMcpImageQuery& query);
+
+    /// The list of the images of list_images (the options of an export without a tab)
+    static std::shared_ptr<const PDFDocumentImageList> collectImages(const PDFDocument* document, const PDFOperationControl* control);
 
     /// Cursor of the offset of get_annotations / the offset of a cursor (std::nullopt = invalid)
     static QString createCursor(qint64 offset);

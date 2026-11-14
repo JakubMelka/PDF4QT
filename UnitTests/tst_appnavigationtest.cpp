@@ -422,6 +422,14 @@ public:
         // The own tab of a tool, which has its topic (Merge, plan of step 2 of phase 2, 7): the
         // route without its tab opens the empty tool (R13), F1 its topic
         cases.push_back({ QStringLiteral("/tool/pages.merge/%1").arg(pdf::PDFAppDocument::createId()), QStringLiteral("tool-pages-merge") });
+        // The start pages of the tools of step 4 of phase 2: F1 opens their own topics (plan of
+        // step 4, chapter 7: tool-<category>-<name>.md of help.qrc)
+        cases.push_back({ QStringLiteral("/tools/optimize.images"), QStringLiteral("tool-optimize-images") });
+        cases.push_back({ QStringLiteral("/tools/optimize.grayscale"), QStringLiteral("tool-optimize-grayscale") });
+        cases.push_back({ QStringLiteral("/tools/optimize.bitonal"), QStringLiteral("tool-optimize-bitonal") });
+        cases.push_back({ QStringLiteral("/tools/convert.pdf-to-images"), QStringLiteral("tool-convert-pdf-to-images") });
+        cases.push_back({ QStringLiteral("/tools/convert.extract-images"), QStringLiteral("tool-convert-extract-images") });
+        cases.push_back({ QStringLiteral("/tools/convert.audiobook"), QStringLiteral("tool-convert-audiobook") });
         cases.push_back({ QStringLiteral("/settings/no-such-section"), QStringLiteral("getting-started"), true });
         cases.push_back({ QStringLiteral("/no/such/route"), QStringLiteral("getting-started"), true });
         return cases;

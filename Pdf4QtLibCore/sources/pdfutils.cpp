@@ -53,6 +53,15 @@
 #endif
 #endif
 
+#if defined(Q_OS_MACOS)
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#elif defined(Q_OS_UNIX)
+#include <unistd.h>
+#endif
+
+#include <limits>
+
 #ifdef PDF4QT_COMPILER_CLANG
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wregister"
@@ -616,6 +625,33 @@ QString PDFSysUtils::getUserName()
         userName = qgetenv("USERNAME");
     }
     return userName;
+}
+
+qint64 PDFSysUtils::getPhysicalMemorySize()
+{
+#if defined(Q_OS_WIN)
+    MEMORYSTATUSEX status = { };
+    status.dwLength = sizeof(status);
+    if (GlobalMemoryStatusEx(&status))
+    {
+        return qint64(qMin<DWORDLONG>(status.ullTotalPhys, DWORDLONG((std::numeric_limits<qint64>::max)())));
+    }
+#elif defined(Q_OS_MACOS)
+    uint64_t size = 0;
+    size_t length = sizeof(size);
+    if (sysctlbyname("hw.memsize", &size, &length, nullptr, 0) == 0)
+    {
+        return qint64(qMin<uint64_t>(size, uint64_t((std::numeric_limits<qint64>::max)())));
+    }
+#elif defined(Q_OS_UNIX)
+    const long pages = sysconf(_SC_PHYS_PAGES);
+    const long pageSize = sysconf(_SC_PAGE_SIZE);
+    if (pages > 0 && pageSize > 0 && qint64(pages) <= (std::numeric_limits<qint64>::max)() / qint64(pageSize))
+    {
+        return qint64(pages) * qint64(pageSize);
+    }
+#endif
+    return 0;
 }
 
 struct PDFAuthorSettingsHolder

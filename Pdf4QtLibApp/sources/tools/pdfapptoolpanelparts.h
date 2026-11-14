@@ -212,10 +212,24 @@ public:
     static constexpr int PADDING_H = 13;    ///< Padding 12 + the border
     static constexpr int PADDING_V = 7;     ///< Padding 6 + the border
 
+    /// A field of a card: the label and the control 10 apart, the control 140 wide (339:3546
+    /// Subtype, Compression; 341:7516 Compression, Quality; as Existing files of Output files)
+    static constexpr int FIELD_GAP = 10;
+    static constexpr int FIELD_WIDTH = 140;
+    static constexpr int FIELD_ROW_GAP = 8;     ///< The rows of a card of fields (setFieldSpacing)
+
     explicit PDFAppToolCard(QWidget* parent);
     virtual ~PDFAppToolCard() override;
 
     QVBoxLayout* getBodyLayout() const { return m_layout; }
+
+    /// A row of a field of a card: the label Regular 12 text/secondary (the accessible name of the
+    /// control) and the control at the trailing edge; the row is the new parent of the control
+    static QWidget* createFieldRow(const QString& label, QWidget* control, QWidget* parent);
+
+    /// The spacing of a card of fields (339:3546 Image, Resolution; 341:7516 Image): padding 12 +
+    /// the border, the rows 8 apart
+    void setFieldSpacing();
 
 private:
     QPointer<QVBoxLayout> m_layout;

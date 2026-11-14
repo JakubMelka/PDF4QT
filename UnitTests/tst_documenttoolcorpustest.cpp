@@ -27,8 +27,15 @@
 #include "pdfdocumentreader.h"
 #include "pdfdocumenttextexporter.h"
 #include "pdfdocumenttextflow.h"
+#include "pdfdocumentimagelist.h"
+#include "pdfdocumenttool_audiobook.h"
+#include "pdfdocumenttool_bitonal.h"
+#include "pdfdocumenttool_extractimages.h"
 #include "pdfdocumenttool_extracttext.h"
 #include "pdfdocumenttool_compress.h"
+#include "pdfdocumenttool_grayscale.h"
+#include "pdfdocumenttool_optimizeimages.h"
+#include "pdfdocumenttool_pdftoimages.h"
 #include "pdfdocumenttool_manage.h"
 #include "pdfdocumenttool_merge.h"
 #include "pdfdocumenttool_protect.h"
@@ -49,6 +56,7 @@
 #include "pdfpainter.h"
 #include "pdfrenderer.h"
 #include "pdfsecurityhandler.h"
+#include "pdfspeechsynthesizer.h"
 #include "pdftextlayout.h"
 
 #include <QBuffer>
@@ -58,6 +66,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QLockFile>
 #include <QPainter>
@@ -141,6 +150,17 @@ using CorpusPageMap = std::vector<CorpusPageOrigin>(*)(const pdf::PDFDocument* i
 /// \param failures The failures of the row
 using CorpusResultCheck = void(*)(const pdf::PDFDocument* input, const pdf::PDFDocumentToolResult& result, const QVariantMap& parameters, QStringList* failures);
 
+class CorpusMemorySink;
+
+/// A tool of image files (PDF to Images, Extract Images; step 4 of phase 2) checks the files of the
+/// file sink of its context instead of the checks of a document (Success and NothingToDo)
+/// \param input The input document
+/// \param result The result of the tool
+/// \param parameters The parameters of the row
+/// \param sink The files written by the tool, in their order
+/// \param failures The failures of the row
+using CorpusFilesCheck = void(*)(const pdf::PDFDocument* input, const pdf::PDFDocumentToolResult& result, const QVariantMap& parameters, const CorpusMemorySink& sink, QStringList* failures);
+
 /// The tool refuses the input by its contract with the parameters of the row (Remove Pages of
 /// the even pages of a document of one page: a document keeps at least one page)
 using CorpusRefusal = bool(*)(const pdf::PDFDocument* input);
@@ -161,6 +181,8 @@ struct CorpusToolRow
     int inputCount = 1;     ///< The file is given this many times (Merge of a file with itself, every collision of names)
     bool isFilePerPage = false; ///< The tool writes a file per page of the page map by the file sink of the context (Split, Extract), each one is checked as a new document of that page
     std::function<QVariantMap(const pdf::PDFDocument*, const QString&)> createParameters = nullptr;    ///< Parameters made of the read file and its path in place of parameters (the assembly of Manage Pages)
+    CorpusFilesCheck filesCheck = nullptr;  ///< The tool writes image files by the file sink of the context, this checks them (no document)
+    std::function<void(pdf::PDFDocumentToolContext*)> prepareContext = nullptr;   ///< Completes the context (the fake speech synthesizer of Create Audio Book)
 
     QString getName() const { return QString::fromLatin1(toolId) + QLatin1Char('/') + QString::fromLatin1(variant); }
 };
@@ -243,6 +265,30 @@ public:
     }
 
     std::vector<std::pair<QString, QByteArray>> files;
+};
+
+/// The speech of the rows of Create Audio Book: never a voice of the system (the run must not
+/// depend on the installed voices) - 16 bit mono at 16 kHz, 20 bytes per character of the text
+class CorpusFakeSynthesizer : public pdf::PDFSpeechSynthesizer
+{
+public:
+    virtual bool setVoice(const QString&, QString*) override { return true; }
+    virtual void setRate(double) override { }
+    virtual void setVolume(double) override { }
+    virtual bool synthesize(const QString& text, pdf::PDFAudioSink* sink, const pdf::PDFOperationControl*, QString*) override
+    {
+        const pdf::PDFAudioFormat format{ 16000, 1, pdf::PDFAudioFormat::SampleFormat::Int16 };
+        return sink->writeAudio(format, QByteArray(int(qMin<qsizetype>(text.size(), 100000)) * 20, '\x10'));
+    }
+};
+
+/// The factory of the fake speech: one voice
+class CorpusFakeSynthesizerFactory : public pdf::PDFSpeechSynthesizerFactory
+{
+public:
+    virtual bool isAvailable() const override { return true; }
+    virtual std::vector<pdf::PDFSpeechVoice> getVoices() const override { return { { QStringLiteral("Corpus"), QStringLiteral("en-US") } }; }
+    virtual std::unique_ptr<pdf::PDFSpeechSynthesizer> createSynthesizer(QString*) const override { return std::make_unique<CorpusFakeSynthesizer>(); }
 };
 
 /// Ends a process, whose row runs over the limit of the time: a hang of one file is named
@@ -1190,6 +1236,360 @@ private:
                input->getCatalog()->isXFANeedsRendering();
     }
 
+    // ---------------------------------------------------------------- step 4 of phase 2
+
+    /// Black & White of the pages and PDF to Images refuse a document without pages
+    static bool hasNoPages(const pdf::PDFDocument* input)
+    {
+        return input->getCatalog()->getPageCount() == 0;
+    }
+
+    /// A page, whose image at \p dpi would exceed the limits of the pixels of a page image (B65,
+    /// R4-19, plan 4.4: 32 767 pixels per side, 2 GiB of 32 bit pixels), measured by its media box
+    /// in inches of the paper (/UserUnit, ISO 32000-2, 14.11.2). The exports refuse such a page by
+    /// their validation ("Page 1 would be 124,731 px wide – lower the resolution"), never shrink it.
+    static bool hasPageTooLarge(const pdf::PDFDocument* input, double dpi)
+    {
+        constexpr double maximumSide = 32767.0;
+        constexpr double maximumBytes = 2.0 * 1024.0 * 1024.0 * 1024.0;
+        const pdf::PDFCatalog* catalog = input->getCatalog();
+        for (size_t i = 0; i < catalog->getPageCount(); ++i)
+        {
+            const pdf::PDFPage* page = catalog->getPage(i);
+            const QSizeF pixels = page->getMediaBox().normalized().size() * (page->getEffectiveUserUnit() * dpi / 72.0);
+            if (pixels.width() > maximumSide || pixels.height() > maximumSide || std::ceil(pixels.width()) * std::ceil(pixels.height()) * 4.0 > maximumBytes)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// PDF to Images at 72 dpi refuses a document without pages and a page too large
+    static bool isPageImagesRefused(const pdf::PDFDocument* input)
+    {
+        return hasNoPages(input) || hasPageTooLarge(input, 72.0);
+    }
+
+    /// Black & White of the pages at 100 dpi refuses a document without pages and a page too large
+    static bool isBitonalPagesRefused(const pdf::PDFDocument* input)
+    {
+        return hasNoPages(input) || hasPageTooLarge(input, 100.0);
+    }
+
+    /// Create Audio Book refuses a document, whose pages have no text ("This document has no text
+    /// to read"); the reference text of Extract Text is the independent reading
+    static bool hasNoText(const pdf::PDFDocument* input)
+    {
+        for (size_t i = 0; i < input->getCatalog()->getPageCount(); ++i)
+        {
+            const CorpusPageBudget budget(getPageTimeLimit());
+            if (!getExtractReferenceText(input, i, &budget).trimmed().isEmpty())
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /// The one document of a result written and read back with the empty password (what the
+    /// user gets is the file; the input was opened with it): std::nullopt and a failure otherwise
+    static std::optional<pdf::PDFDocument> writeAndRead(const pdf::PDFDocumentToolResult& result, QStringList* failures)
+    {
+        if (result.documents.size() != 1 || !result.documents.front().document)
+        {
+            *failures << QStringLiteral("%1 documents instead of one").arg(result.documents.size());
+            return std::nullopt;
+        }
+
+        QByteArray written;
+        QBuffer buffer(&written);
+        buffer.open(QIODevice::WriteOnly);
+        const pdf::PDFOperationResult writeResult = pdf::PDFDocumentWriter(nullptr).write(&buffer, result.documents.front().document.data());
+        if (!writeResult)
+        {
+            *failures << QStringLiteral("The result cannot be written: %1").arg(writeResult.getErrorMessage());
+            return std::nullopt;
+        }
+
+        const auto emptyPassword = [](bool* ok)
+        {
+            *ok = true;
+            return QString();
+        };
+        pdf::PDFDocumentReader reader(nullptr, emptyPassword, true, false);
+        pdf::PDFDocument document = reader.readFromBuffer(written);
+        if (reader.getReadingResult() != pdf::PDFDocumentReader::Result::OK)
+        {
+            *failures << QStringLiteral("The written result cannot be read: %1").arg(reader.getErrorMessage());
+            return std::nullopt;
+        }
+        return document;
+    }
+
+    /// The statuses of the images of the result of Optimize Images / Grayscale by their ids
+    static std::map<QString, QString> getImageStatuses(const pdf::PDFDocumentToolResult& result)
+    {
+        std::map<QString, QString> statuses;
+        for (const QJsonValue& value : result.data.value(QStringLiteral("images")).toArray())
+        {
+            const QJsonObject image = value.toObject();
+            statuses[image.value(QStringLiteral("id")).toString()] = image.value(QStringLiteral("status")).toString();
+        }
+        return statuses;
+    }
+
+    /// Convert Images to Grayscale (plan of step 4, 4.3, R4-4, R4-5, R4-8, Q4.15 a): every image of
+    /// every layer has its status; an inline image is kept, a gray or bitonal one by its declared
+    /// color space is skipped, a color one is converted unless it cannot be read or is too large;
+    /// the written result has the pages of the input, and every converted image is gray by its
+    /// declaration. NothingToDo converts nothing.
+    static void checkGrayscale(const pdf::PDFDocument* input, const pdf::PDFDocumentToolResult& result, const QVariantMap& parameters, QStringList* failures)
+    {
+        Q_UNUSED(parameters);
+        using Tool = pdf::PDFDocumentToolOptimizeImages;
+        using List = pdf::PDFDocumentImageList;
+
+        const std::map<QString, QString> statuses = getImageStatuses(result);
+        const List before = List::create(input, List::Options::createForChange(), nullptr, nullptr);
+        int converted = 0;
+        for (const List::Item& item : before.getItems())
+        {
+            const QString id = item.key.toString();
+            const auto it = statuses.find(id);
+            if (it == statuses.cend())
+            {
+                *failures << QStringLiteral("The image %1 has no status").arg(id);
+                continue;
+            }
+
+            const QString& status = it->second;
+            QString expected;
+            if (item.kind == List::Kind::Inline)
+            {
+                expected = QString::fromLatin1(Tool::IMAGE_STATUS_INLINE);
+            }
+            else if (!item.isColorImage())
+            {
+                expected = QString::fromLatin1(Tool::IMAGE_STATUS_SKIPPED);
+            }
+            else if (item.isInAppearance)
+            {
+                // R4-4: an appearance of an annotation draws it too - never changed (checked
+                // byte by byte in the written result below)
+                expected = QString::fromLatin1(Tool::IMAGE_STATUS_KEPT);
+            }
+            if (!expected.isEmpty() ? status != expected
+                                    : status != QLatin1String(Tool::IMAGE_STATUS_RECOMPRESSED) && status != QLatin1String(Tool::IMAGE_STATUS_TOO_LARGE) &&
+                                      status != QLatin1String(Tool::IMAGE_STATUS_CANNOT_BE_READ))
+            {
+                *failures << QStringLiteral("The image %1 (%2) is %3").arg(id, item.colorSpaceName, status);
+            }
+            converted += status == QLatin1String(Tool::IMAGE_STATUS_RECOMPRESSED) ? 1 : 0;
+        }
+
+        if (result.status == pdf::PDFDocumentToolResultStatus::NothingToDo)
+        {
+            if (converted > 0)
+            {
+                *failures << QStringLiteral("NothingToDo, but %1 images are converted").arg(converted);
+            }
+            return;
+        }
+
+        const std::optional<pdf::PDFDocument> output = writeAndRead(result, failures);
+        if (!output)
+        {
+            return;
+        }
+        if (output->getCatalog()->getPageCount() != input->getCatalog()->getPageCount())
+        {
+            *failures << QStringLiteral("%1 pages instead of %2").arg(output->getCatalog()->getPageCount()).arg(input->getCatalog()->getPageCount());
+        }
+        const List after = List::create(&*output, List::Options::createForChange(), nullptr, nullptr);
+        for (const List::Item& item : after.getItems())
+        {
+            const auto it = statuses.find(item.key.toString());
+            if (it != statuses.cend() && it->second == QLatin1String(Tool::IMAGE_STATUS_RECOMPRESSED) && item.isColorImage())
+            {
+                *failures << QStringLiteral("The converted image %1 is declared %2").arg(item.key.toString(), item.colorSpaceName);
+            }
+        }
+
+        // R4-4: an image of an appearance keeps its samples and its color space
+        for (const List::Item& item : before.getItems())
+        {
+            if (!item.isInAppearance)
+            {
+                continue;
+            }
+            const pdf::PDFObject& original = input->getObjectByReference(item.key.reference);
+            const pdf::PDFObject& written = output->getObjectByReference(item.key.reference);
+            if (!written.isStream() || input->getDecodedStream(original.getStream()) != output->getDecodedStream(written.getStream()) ||
+                !(input->getObject(original.getStream()->getDictionary()->get("ColorSpace")) == output->getObject(written.getStream()->getDictionary()->get("ColorSpace"))))
+            {
+                *failures << QStringLiteral("The image %1 of an appearance has changed").arg(item.key.toString());
+            }
+        }
+    }
+
+    /// Convert to Black & White of the pages (plan of step 4, 4.6): a new version of the document
+    /// with all its pages, which is written and read back
+    static void checkBitonal(const pdf::PDFDocument* input, const pdf::PDFDocumentToolResult& result, const QVariantMap& parameters, QStringList* failures)
+    {
+        Q_UNUSED(parameters);
+        if (result.status == pdf::PDFDocumentToolResultStatus::NothingToDo)
+        {
+            if (input->getCatalog()->getPageCount() > 0)
+            {
+                *failures << QStringLiteral("NothingToDo of %1 pages to convert").arg(input->getCatalog()->getPageCount());
+            }
+            return;
+        }
+
+        const std::optional<pdf::PDFDocument> output = writeAndRead(result, failures);
+        if (output && output->getCatalog()->getPageCount() != input->getCatalog()->getPageCount())
+        {
+            *failures << QStringLiteral("%1 pages instead of %2").arg(output->getCatalog()->getPageCount()).arg(input->getCatalog()->getPageCount());
+        }
+    }
+
+    /// PDF to Images (plan of step 4, 4.4, B57): a PNG file per page in the order of the pages,
+    /// each one of the size of the rotated crop box at the resolution (getPageGeometry, ISO 32000-2
+    /// 14.11.2, 8.3.2.3 UserUnit)
+    static void checkPageImages(const pdf::PDFDocument* input, const pdf::PDFDocumentToolResult& result, const QVariantMap& parameters, const CorpusMemorySink& sink, QStringList* failures)
+    {
+        const size_t pageCount = input->getCatalog()->getPageCount();
+        if (result.status == pdf::PDFDocumentToolResultStatus::NothingToDo)
+        {
+            *failures << QStringLiteral("NothingToDo of %1 pages").arg(pageCount);
+            return;
+        }
+        if (sink.files.size() != pageCount || size_t(result.writtenFiles.size()) != pageCount)
+        {
+            *failures << QStringLiteral("%1 files (%2 written) of %3 pages").arg(sink.files.size()).arg(result.writtenFiles.size()).arg(pageCount);
+            return;
+        }
+
+        for (size_t i = 0; i < pageCount; ++i)
+        {
+            const QByteArray& data = sink.files[i].second;
+            const pdf::PDFDocumentToolPdfToImages::PageGeometry geometry = pdf::PDFDocumentToolPdfToImages::getPageGeometry(input->getCatalog()->getPage(i), parameters);
+            const QImage image = QImage::fromData(data, "PNG");
+            if (!data.startsWith(QByteArray("\x89PNG\r\n\x1a\n", 8)) || image.isNull())
+            {
+                *failures << QStringLiteral("The file %1 is no PNG image").arg(sink.files[i].first);
+            }
+            else if (image.size() != geometry.imageSize)
+            {
+                *failures << QStringLiteral("The file %1 is %2 x %3, the page %4 x %5").arg(sink.files[i].first).arg(image.width()).arg(image.height()).arg(geometry.imageSize.width()).arg(geometry.imageSize.height());
+            }
+        }
+    }
+
+    /// Extract Images (plan of step 4, 4.5, R4-11, B60): NothingToDo only without an image of the
+    /// export list; else at most one file per item of the list (the same images are one file), each
+    /// a PNG image, which decodes
+    static void checkExtractedImages(const pdf::PDFDocument* input, const pdf::PDFDocumentToolResult& result, const QVariantMap& parameters, const CorpusMemorySink& sink, QStringList* failures)
+    {
+        Q_UNUSED(parameters);
+        using List = pdf::PDFDocumentImageList;
+        const List list = List::create(input, List::Options::createForExport(), nullptr, nullptr);
+        if (result.status == pdf::PDFDocumentToolResultStatus::NothingToDo)
+        {
+            if (!sink.files.empty())
+            {
+                *failures << QStringLiteral("NothingToDo with %1 files").arg(sink.files.size());
+            }
+            return;
+        }
+        // An image, which cannot be written (larger than the format holds, R4-19; damaged, or a
+        // feature the decoder does not have), is a failed file with its reason (339:7293, K4.11) -
+        // the export goes on with the others
+        if (sink.files.size() + result.failedFiles.size() == 0 || sink.files.size() + result.failedFiles.size() > list.getItems().size() ||
+            size_t(result.writtenFiles.size()) != sink.files.size())
+        {
+            *failures << QStringLiteral("%1 files (%2 written, %3 failed) of %4 images").arg(sink.files.size()).arg(result.writtenFiles.size()).arg(result.failedFiles.size()).arg(list.getItems().size());
+        }
+        for (const pdf::PDFDocumentToolFileProblem& failed : result.failedFiles)
+        {
+            if (failed.fileName.isEmpty() || failed.reason.isEmpty())
+            {
+                *failures << QStringLiteral("A failed file without its name or reason: %1 %2").arg(failed.fileName, failed.reason);
+            }
+        }
+        for (const auto& [name, data] : sink.files)
+        {
+            if (!data.startsWith(QByteArray("\x89PNG\r\n\x1a\n", 8)) || QImage::fromData(data, "PNG").isNull())
+            {
+                *failures << QStringLiteral("The file %1 is no PNG image").arg(name);
+            }
+        }
+    }
+
+    /// Reads a little-endian number of the WAV header
+    static quint32 readLittleEndian(const QByteArray& data, int offset, int bytes)
+    {
+        quint32 value = 0;
+        for (int i = bytes - 1; i >= 0; --i)
+        {
+            value = (value << 8) | quint8(data.at(offset + i));
+        }
+        return value;
+    }
+
+    /// Create Audio Book with the fake speech (plan of step 4, 4.7, Q4.2: WAV only, R4-1): one
+    /// output in a temporary file - a RIFF / WAVE file of the canonical 44 bytes of the header, PCM
+    /// (format 1) mono 16 bit at 16 kHz of the fake, the sizes of RIFF and of data agree with the
+    /// file, at least one sample of the text
+    static void checkAudioBook(const pdf::PDFDocument* input, const pdf::PDFDocumentToolResult& result, const QVariantMap& parameters, QStringList* failures)
+    {
+        Q_UNUSED(input);
+        Q_UNUSED(parameters);
+        if (result.status != pdf::PDFDocumentToolResultStatus::Success)
+        {
+            *failures << QStringLiteral("NothingToDo of Create Audio Book");
+            return;
+        }
+        if (result.outputs.size() != 1 || !result.outputs.front().isTemporaryFile())
+        {
+            *failures << QStringLiteral("%1 outputs, the first one not in a temporary file").arg(result.outputs.size());
+            return;
+        }
+
+        // Only the header is read: the file of a long document is large (5 648 pages of the OMAP
+        // manual give more than 512 MiB, mostly the silence of 300 ms between the items), its size
+        // comes from the file system
+        const pdf::PDFDocumentToolOutputFile& output = result.outputs.front();
+        QString errorMessage;
+        const QByteArray data = output.readContent(44, nullptr, &errorMessage);
+        const qint64 fileSize = output.getSize();
+        if (data.size() < 44 || fileSize < 46)
+        {
+            *failures << QStringLiteral("The audio file has %1 bytes: %2").arg(fileSize).arg(errorMessage);
+            return;
+        }
+        if (!data.startsWith("RIFF") || data.mid(8, 8) != QByteArray("WAVEfmt ") || data.mid(36, 4) != QByteArray("data"))
+        {
+            *failures << QStringLiteral("No canonical WAV header");
+            return;
+        }
+        const quint32 riffSize = readLittleEndian(data, 4, 4);
+        const quint32 formatTag = readLittleEndian(data, 20, 2);
+        const quint32 channels = readLittleEndian(data, 22, 2);
+        const quint32 sampleRate = readLittleEndian(data, 24, 4);
+        const quint32 bitsPerSample = readLittleEndian(data, 34, 2);
+        const quint32 dataSize = readLittleEndian(data, 40, 4);
+        if (qint64(riffSize) != fileSize - 8 || qint64(dataSize) != fileSize - 44 || formatTag != 1 || channels != 1 || sampleRate != 16000 || bitsPerSample != 16)
+        {
+            *failures << QStringLiteral("WAV header: RIFF %1 of %2 bytes, data %3, format %4, %5 channels, %6 Hz, %7 bits").arg(riffSize).arg(fileSize).arg(dataSize).arg(formatTag).arg(channels).arg(sampleRate).arg(bitsPerSample);
+        }
+        if (output.suggestedFileName.isEmpty() || !output.suggestedFileName.endsWith(QStringLiteral(".wav")))
+        {
+            *failures << QStringLiteral("The suggested name '%1' is no WAV file").arg(output.suggestedFileName);
+        }
+    }
+
     static std::vector<CorpusToolRow> createToolRows()
     {
         using Compress = pdf::PDFDocumentToolCompress;
@@ -1415,6 +1815,77 @@ private:
         managePerPage.isFilePerPage = true;
         managePerPage.createParameters = assemblyOfFile(pdf::PDFDocumentToolManage::OUTPUT_PER_PAGE);
         rows.push_back(managePerPage);
+
+        // Step 4 of phase 2 (plan of step 4, chapter 8, row Corpus). Optimize Images of the defaults:
+        // a new encoding of the images (lossy), the pages keep their text, the images their masks,
+        // the version, the encryption and the signatures are kept (as Compress of the images only)
+        const auto createOptimizeImages = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<pdf::PDFDocumentToolOptimizeImages>();
+        };
+        rows.push_back({ pdf::PDFDocumentToolOptimizeImages::TOOL_ID, "auto", createOptimizeImages, QVariantMap(), CorpusLook::Close,
+                         PromiseVersion | PromiseEncryption | PromiseSignatures | PromiseText | PromiseTransparency });
+
+        // Convert Images to Grayscale and Convert to Black & White change the colors by their
+        // purpose: their own checks (checkGrayscale, checkBitonal), no look of the pages
+        const auto createGrayscale = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<pdf::PDFDocumentToolGrayscale>();
+        };
+        rows.push_back({ pdf::PDFDocumentToolGrayscale::TOOL_ID, "defaults", createGrayscale, QVariantMap(), CorpusLook::Exact, PromiseNone, nullptr, &ToolCorpusHelper::checkGrayscale });
+
+        using Bitonal = pdf::PDFDocumentToolBitonal;
+        const auto createBitonal = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<Bitonal>();
+        };
+        QVariantMap bitonalPages;
+        bitonalPages.insert(QString::fromLatin1(Bitonal::PARAMETER_SOURCE), QString::fromLatin1(Bitonal::SOURCE_PAGES));
+        bitonalPages.insert(QString::fromLatin1(Bitonal::PARAMETER_DPI), 100);
+        bitonalPages.insert(QString::fromLatin1(Bitonal::PARAMETER_REPLACE_BLANK_PAGES), false);
+        rows.push_back({ Bitonal::TOOL_ID, "pages-100-dpi", createBitonal, bitonalPages, CorpusLook::Exact, PromiseNone, nullptr, &ToolCorpusHelper::checkBitonal, &ToolCorpusHelper::isBitonalPagesRefused });
+
+        // PDF to Images and Extract Images: PNG files by the file sink of the context (in the memory)
+        const auto createPdfToImages = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<pdf::PDFDocumentToolPdfToImages>();
+        };
+        QVariantMap pageImages;
+        pageImages.insert(QStringLiteral("folder"), QDir::tempPath());
+        pageImages.insert(QStringLiteral("existingFiles"), QStringLiteral("overwrite"));
+        pageImages.insert(QString::fromLatin1(pdf::PDFDocumentToolPdfToImages::PARAMETER_FORMAT), QStringLiteral("png"));
+        pageImages.insert(QString::fromLatin1(pdf::PDFDocumentToolPdfToImages::PARAMETER_DPI), 72);
+        CorpusToolRow pdfToImages{ pdf::PDFDocumentToolPdfToImages::TOOL_ID, "png-72-dpi", createPdfToImages, pageImages, CorpusLook::Exact, PromiseNone, nullptr, nullptr, &ToolCorpusHelper::isPageImagesRefused };
+        pdfToImages.filesCheck = &ToolCorpusHelper::checkPageImages;
+        rows.push_back(pdfToImages);
+
+        const auto createExtractImages = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<pdf::PDFDocumentToolExtractImages>();
+        };
+        QVariantMap extractedImages;
+        extractedImages.insert(QStringLiteral("folder"), QDir::tempPath());
+        extractedImages.insert(QStringLiteral("existingFiles"), QStringLiteral("overwrite"));
+        extractedImages.insert(QString::fromLatin1(pdf::PDFDocumentToolExtractImages::PARAMETER_FORMAT), QStringLiteral("png"));
+        CorpusToolRow extractImages{ pdf::PDFDocumentToolExtractImages::TOOL_ID, "png", createExtractImages, extractedImages, CorpusLook::Exact, PromiseNone };
+        extractImages.filesCheck = &ToolCorpusHelper::checkExtractedImages;
+        rows.push_back(extractImages);
+
+        // Create Audio Book with the fake speech (never the voices of the system): a WAV file
+        const auto createAudioBook = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<pdf::PDFDocumentToolAudioBook>();
+        };
+        QVariantMap audioBook;
+        audioBook.insert(QString::fromLatin1(pdf::PDFDocumentToolAudioBook::PARAMETER_ORDER), QString::fromLatin1(pdf::PDFDocumentToolAudioBook::ORDER_LAYOUT));
+        CorpusToolRow audio{ pdf::PDFDocumentToolAudioBook::TOOL_ID, "layout-fake-speech", createAudioBook, audioBook, CorpusLook::Exact, PromiseNone, nullptr,
+                             &ToolCorpusHelper::checkAudioBook, &ToolCorpusHelper::hasNoText };
+        audio.prepareContext = [](pdf::PDFDocumentToolContext* context)
+        {
+            context->speechSynthesizerFactory = std::make_shared<CorpusFakeSynthesizerFactory>();
+            context->temporaryFolder = QDir::tempPath();
+        };
+        rows.push_back(audio);
         return rows;
     }
 
@@ -1647,9 +2118,13 @@ void DocumentToolCorpusTest::toolOnFile()
             context.documents.push_back(context.documents.front());
         }
         CorpusMemorySink sink;
-        if (row.isFilePerPage)
+        if (row.isFilePerPage || row.filesCheck)
         {
             context.fileSink = &sink;
+        }
+        if (row.prepareContext)
+        {
+            row.prepareContext(&context);
         }
         const QVariantMap parameters = row.createParameters ? row.createParameters(&input, path) : row.parameters;
         const pdf::PDFDocumentToolResult result = tool->run(context, parameters, nullptr, nullptr);
@@ -1663,7 +2138,11 @@ void DocumentToolCorpusTest::toolOnFile()
                 break;
 
             case pdf::PDFDocumentToolResultStatus::NothingToDo:
-                if (row.resultCheck)
+                if (row.filesCheck)
+                {
+                    row.filesCheck(&input, result, parameters, sink, &failures);
+                }
+                else if (row.resultCheck)
                 {
                     row.resultCheck(&input, result, parameters, &failures);
                 }
@@ -1712,7 +2191,11 @@ void DocumentToolCorpusTest::toolOnFile()
 
         if (result.status == pdf::PDFDocumentToolResultStatus::Success)
         {
-            if (row.resultCheck)
+            if (row.filesCheck)
+            {
+                row.filesCheck(&input, result, parameters, sink, &failures);
+            }
+            else if (row.resultCheck)
             {
                 row.resultCheck(&input, result, parameters, &failures);
             }

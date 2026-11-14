@@ -22,8 +22,13 @@
 
 #include "pdfbitonaldocumentcreator.h"
 #include "pdfcms.h"
+#include "pdfconstants.h"
 #include "pdfdocumentbuilder.h"
+#include "pdfdocumentimagelist.h"
 #include "pdfexception.h"
+#include "pdffont.h"
+#include "pdfocrtextlayerwriter.h"
+#include "pdfoptionalcontent.h"
 #include "pdfnametreeloader.h"
 #include "pdfnumbertreeloader.h"
 #include "pdfoptimizer.h"
@@ -35,6 +40,7 @@
 #include <QPainter>
 #include <QScopeGuard>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <limits>
@@ -108,25 +114,70 @@ PDFRenderer::Features PDFBitonalDocumentCreator::getPageRasterizationFeatures()
                                  PDFRenderer::ClipToCropBox);
 }
 
-bool PDFBitonalDocumentCreator::createBitonalDocument(const Settings& settings)
+PDFBitonalRasterizationEnvironment::PDFBitonalRasterizationEnvironment(const PDFDocument* document,
+                                                                       const PDFCMSSettings& cmsSettings,
+                                                                       int rasterizerCount)
+{
+    Q_ASSERT(document);
+
+    m_optionalContentActivity = std::make_unique<PDFOptionalContentActivity>(document, OCUsage::Export, nullptr);
+    m_cmsManager = std::make_unique<PDFCMSManager>(nullptr);
+    m_cmsManager->setDocument(document);
+    m_cmsManager->setSettings(cmsSettings);
+    m_fontCache = std::make_unique<PDFFontCache>(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT);
+    m_iccProfileCache = std::make_unique<PDFICCProfileCache>();
+
+    // The caches only read the document; their interface takes a modifiable one
+    PDFModifiedDocument modifiedDocument(const_cast<PDFDocument*>(document), m_optionalContentActivity.get());
+    m_fontCache->setDocument(modifiedDocument);
+    m_iccProfileCache->setDocument(document);
+
+    // The pool renders in more threads at once: the cache must not drop a font, which another
+    // thread is using
+    m_fontCache->setCacheShrinkEnabled(nullptr, false);
+
+    m_rasterizerPool = std::make_unique<PDFRasterizerPool>(document,
+                                                           m_fontCache.get(),
+                                                           m_iccProfileCache.get(),
+                                                           m_cmsManager.get(),
+                                                           m_optionalContentActivity.get(),
+                                                           PDFBitonalDocumentCreator::getPageRasterizationFeatures(),
+                                                           m_meshQualitySettings,
+                                                           PDFRasterizerPool::getCorrectedRasterizerCount(rasterizerCount),
+                                                           RendererEngine::QPainter,
+                                                           nullptr);
+}
+
+PDFBitonalRasterizationEnvironment::~PDFBitonalRasterizationEnvironment()
+{
+    // The pool refers to everything else, so it goes first
+    m_rasterizerPool.reset();
+    m_fontCache->setCacheShrinkEnabled(nullptr, true);
+}
+
+bool PDFBitonalDocumentCreator::createBitonalDocument(const Settings& settings, const PDFOperationControl* operationControl)
 {
     m_bitonalDocument = PDFDocument();
     m_convertedItemCount = 0;
     m_failedItemCount = 0;
+    m_failedItems.clear();
+    m_usedCompressions.clear();
+    m_renderingIssues.clear();
 
     try
     {
         PDFDocumentBuilder builder(m_document);
         bool isConverted = false;
+        std::set<PDFObjectReference> replacedImages;
 
         switch (settings.conversionSource)
         {
             case ConversionSource::Images:
-                isConverted = createBitonalDocumentFromImages(builder, settings);
+                isConverted = createBitonalDocumentFromImages(builder, settings, operationControl, &replacedImages);
                 break;
 
             case ConversionSource::Pages:
-                isConverted = createBitonalDocumentFromPages(builder, settings);
+                isConverted = createBitonalDocumentFromPages(builder, settings, operationControl);
                 break;
 
             default:
@@ -134,9 +185,9 @@ bool PDFBitonalDocumentCreator::createBitonalDocument(const Settings& settings)
                 break;
         }
 
-        if (!isConverted)
+        if (!isConverted || PDFOperationControl::isOperationCancelled(operationControl))
         {
-            // Nothing has been converted
+            // Nothing has been converted, or the conversion has been cancelled
             return false;
         }
 
@@ -144,12 +195,22 @@ bool PDFBitonalDocumentCreator::createBitonalDocument(const Settings& settings)
 
         // Images and content streams, which have been replaced, are not referenced
         // by the document anymore. They must be removed, otherwise the converted
-        // document would be even larger than the original one.
+        // document would be even larger than the original one. The objects keep their
+        // numbers (the OCR layers are bound to them below).
         PDFOptimizer optimizer(PDFOptimizer::RemoveUnusedObjects, nullptr);
         optimizer.setDocument(&builtDocument);
         optimizer.optimize();
 
-        m_bitonalDocument = PDFDocument(optimizer.takeStorage(), builtDocument.getInfo()->version, QByteArray());
+        // The version and the hash of the source stay (R4-9): the result is another revision
+        // of the same document, its own OCR layers recognize it by the hash
+        m_bitonalDocument = PDFDocument(optimizer.takeStorage(), m_document->getInfo()->version, m_document->getSourceDataHash());
+
+        if (!replacedImages.empty())
+        {
+            // Only the samples of the images have changed, not their placement: the text
+            // layers of PDF4QT over them stay valid and are bound to the new revision
+            m_bitonalDocument = PDFOCRTextLayerWriter::rebindOptimizedDocument(m_document, std::move(m_bitonalDocument), replacedImages, nullptr);
+        }
         return true;
     }
     catch (const PDFException&)
@@ -159,7 +220,220 @@ bool PDFBitonalDocumentCreator::createBitonalDocument(const Settings& settings)
     }
 }
 
-bool PDFBitonalDocumentCreator::createBitonalDocumentFromImages(PDFDocumentBuilder& builder, const Settings& settings)
+void PDFBitonalDocumentCreator::addFailedItem(const ItemInfo& item, FailureReason reason)
+{
+    ++m_failedItemCount;
+    m_failedItems.push_back({ item, reason });
+}
+
+void PDFBitonalDocumentCreator::addUsedCompression(const PDFObject& imageObject)
+{
+    if (std::optional<Compression> compression = getImageObjectCompression(imageObject))
+    {
+        ++m_usedCompressions[*compression];
+    }
+}
+
+QString PDFBitonalDocumentCreator::getFailureReasonText(FailureReason reason)
+{
+    switch (reason)
+    {
+        case FailureReason::CannotBeRead:
+            return PDFTranslationContext::tr("cannot be read");
+        case FailureReason::RenderingErrors:
+            return PDFTranslationContext::tr("rendering errors");
+        case FailureReason::TooLarge:
+            return PDFTranslationContext::tr("too large");
+        case FailureReason::CannotBeEncoded:
+            return PDFTranslationContext::tr("cannot be encoded");
+        case FailureReason::InvalidPage:
+            return PDFTranslationContext::tr("invalid page");
+    }
+
+    Q_ASSERT(false);
+    return QString();
+}
+
+QString PDFBitonalDocumentCreator::getCompressionName(Compression compression)
+{
+    switch (compression)
+    {
+        case Compression::Flate:
+            return QStringLiteral("Flate");
+        case Compression::RunLength:
+            return QStringLiteral("RunLength");
+        case Compression::CCITTGroup4:
+            return QStringLiteral("CCITT G4");
+        case Compression::JBIG2:
+            return QStringLiteral("JBIG2");
+        case Compression::Auto:
+            break;
+    }
+
+    return QString();
+}
+
+std::optional<PDFBitonalDocumentCreator::Compression> PDFBitonalDocumentCreator::getImageObjectCompression(const PDFObject& imageObject)
+{
+    if (!imageObject.isStream())
+    {
+        return std::nullopt;
+    }
+
+    // The encoder writes one filter (a name); an array is read by its last filter
+    PDFObject filter = imageObject.getStream()->getDictionary()->get("Filter");
+    if (filter.isArray() && filter.getArray()->getCount() > 0)
+    {
+        filter = filter.getArray()->getItem(filter.getArray()->getCount() - 1);
+    }
+
+    if (!filter.isName())
+    {
+        return std::nullopt;
+    }
+
+    const QByteArray name = filter.getString();
+    if (name == "FlateDecode")
+    {
+        return Compression::Flate;
+    }
+    if (name == "RunLengthDecode")
+    {
+        return Compression::RunLength;
+    }
+    if (name == "CCITTFaxDecode")
+    {
+        return Compression::CCITTGroup4;
+    }
+    if (name == "JBIG2Decode")
+    {
+        return Compression::JBIG2;
+    }
+    return std::nullopt;
+}
+
+QImage PDFBitonalDocumentCreator::createItemImage(const QImage& image,
+                                                  ConversionSource source,
+                                                  ItemMode mode,
+                                                  PDFImageConversion::ConversionMethod conversionMethod,
+                                                  int threshold,
+                                                  QImage* alphaMask,
+                                                  int* usedThreshold,
+                                                  const PDFOperationControl* operationControl)
+{
+    if (image.isNull())
+    {
+        return QImage();
+    }
+
+    switch (mode)
+    {
+        case ItemMode::Algorithm:
+        case ItemMode::AlgorithmInverted:
+        {
+            // A rendered page is composited onto the white paper already: it has no
+            // transparency of its own
+            QImage bitonalImage = convertImageToBitonal(image, conversionMethod, threshold, source == ConversionSource::Images ? alphaMask : nullptr, operationControl, usedThreshold);
+
+            if (mode == ItemMode::AlgorithmInverted)
+            {
+                // Only the color samples are swapped - the alpha mask carries the
+                // transparency of the image, which the inversion must not touch.
+                bitonalImage = invertBitonalImage(std::move(bitonalImage));
+            }
+            return bitonalImage;
+        }
+
+        case ItemMode::FillBlack:
+        case ItemMode::FillWhite:
+        {
+            if (source == ConversionSource::Pages)
+            {
+                // The page is covered by a solid area, which needs no rasterization
+                return createFillImage(QSize(1, 1), mode == ItemMode::FillBlack);
+            }
+
+            // Only the color samples are replaced by the solid fill - the transparency
+            // of the original image is preserved. Filling a masked text layer of a
+            // two-layer scan without its mask would cover the whole page.
+            std::optional<QImage> mask = PDFImageConversion::createAlphaMask(image);
+            if (!mask)
+            {
+                // The mask cannot be created, so the transparency would be lost
+                return QImage();
+            }
+
+            if (alphaMask)
+            {
+                *alphaMask = *mask;
+            }
+            return createFillImage(mask->isNull() ? QSize(1, 1) : mask->size(), mode == ItemMode::FillBlack);
+        }
+
+        case ItemMode::Original:
+            return image;
+    }
+
+    Q_ASSERT(false);
+    return QImage();
+}
+
+PDFObject PDFBitonalDocumentCreator::createConvertedImageObject(PDFObjectReference originalImage,
+                                                                const QImage& bitonalImage,
+                                                                const QImage& alphaMask,
+                                                                Compression compression,
+                                                                PDFDocumentBuilder* builder,
+                                                                qint64* maskSize) const
+{
+    PDFObject imageObject = createBitonalImageObject(bitonalImage, compression);
+    if (imageObject.isNull())
+    {
+        return PDFObject();
+    }
+
+    PDFDictionaryBuilder dictionary(*imageObject.getStream()->getDictionary());
+    QByteArray content = *imageObject.getStream()->getContent();
+
+    // Transfer the entries of the original image, which are not related
+    // to the image samples, into the converted image.
+    if (const PDFDictionary* originalDictionary = m_document->getDictionaryFromObject(m_document->getObjectByReference(originalImage)))
+    {
+        for (const char* key : PRESERVED_IMAGE_DICTIONARY_KEYS)
+        {
+            if (originalDictionary->hasKey(key))
+            {
+                dictionary.setEntry(PDFInplaceOrMemoryString(key), PDFObject(originalDictionary->get(key)));
+            }
+        }
+    }
+
+    // The original image can be transparent - it can have a soft mask, a stencil
+    // mask, a color key mask, or an alpha channel stored directly in the image
+    // data. All these variants are decoded into the alpha channel of the decoded
+    // image, so a single soft mask created from that alpha channel replaces them.
+    if (!alphaMask.isNull())
+    {
+        PDFObject softMaskObject = createBitonalImageObject(alphaMask, compression);
+
+        if (!softMaskObject.isNull())
+        {
+            if (maskSize)
+            {
+                *maskSize = softMaskObject.getStream()->getContent()->size();
+            }
+
+            if (builder)
+            {
+                PDFObjectReference softMaskReference = builder->addObject(std::move(softMaskObject));
+                dictionary.setEntry(PDFInplaceOrMemoryString("SMask"), PDFObject::createReference(softMaskReference));
+            }
+        }
+    }
+
+    return PDFObject::createStream(PDFStream(std::move(dictionary), std::move(content)));
+}
+
+bool PDFBitonalDocumentCreator::createBitonalDocumentFromImages(PDFDocumentBuilder& builder, const Settings& settings, const PDFOperationControl* operationControl, std::set<PDFObjectReference>* replacedImages)
 {
     // The settings are a public API, so they can contain the same image more than
     // once. The mode of the last occurrence wins - including the mode, which leaves
@@ -210,93 +484,58 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromImages(PDFDocumentBuild
 
     for (const ItemInfo& item : itemsToBeConverted)
     {
+        // B58: the conversion of the images stops between the images and inside of the
+        // decoding and the thresholding of one
+        if (PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            return false;
+        }
+
         const PDFObjectReference reference = item.imageReference;
-        QImage image = getDecodedImage(reference, nullptr);
+        if (isImageTooLarge(reference))
+        {
+            // Plan 6 of step 4: never decoded, the image stays as it is and the result says why
+            addFailedItem(item, FailureReason::TooLarge);
+            stepProgress();
+            continue;
+        }
+
+        QImage image = getDecodedImage(reference, operationControl);
 
         if (image.isNull())
         {
             // Image cannot be decoded, so it is left in the document as it is
-            ++m_failedItemCount;
+            if (!PDFOperationControl::isOperationCancelled(operationControl))
+            {
+                addFailedItem(item, FailureReason::CannotBeRead);
+            }
             stepProgress();
             continue;
         }
 
         QImage alphaMask;
-        QImage bitonalImage;
+        const QImage bitonalImage = createItemImage(image, ConversionSource::Images, item.mode, settings.conversionMethod, settings.manualThreshold, &alphaMask, nullptr, operationControl);
 
-        if (item.isFilled())
+        if (PDFOperationControl::isOperationCancelled(operationControl))
         {
-            // Only the color samples are replaced by the solid fill - the transparency
-            // of the original image is preserved. Filling a masked text layer of a
-            // two-layer scan without its mask would cover the whole page.
-            std::optional<QImage> mask = PDFImageConversion::createAlphaMask(image);
-
-            if (!mask)
-            {
-                // The mask cannot be created, so the transparency would be lost - the
-                // image is left as it is
-                ++m_failedItemCount;
-                stepProgress();
-                continue;
-            }
-
-            alphaMask = std::move(*mask);
-            bitonalImage = createFillImage(alphaMask.isNull() ? QSize(1, 1) : alphaMask.size(), item.isFilledByBlack());
-        }
-        else
-        {
-            bitonalImage = convertImageToBitonal(image, settings.conversionMethod, settings.manualThreshold, &alphaMask, nullptr);
-
-            if (item.isInverted())
-            {
-                // Only the color samples are swapped - the alpha mask carries the
-                // transparency of the image, which the inversion must not touch.
-                bitonalImage = invertBitonalImage(std::move(bitonalImage));
-            }
+            return false;
         }
 
-        PDFObject imageObject = createBitonalImageObject(bitonalImage, settings.compression);
+        // A null image here is an image, whose transparency cannot be kept by a fill, or
+        // a conversion, which has failed: the image stays as it is
+        PDFObject imageObject = bitonalImage.isNull() ? PDFObject() : createConvertedImageObject(reference, bitonalImage, alphaMask, settings.compression, &builder, nullptr);
 
         if (!imageObject.isNull())
         {
-            PDFDictionaryBuilder dictionary(*imageObject.getStream()->getDictionary());
-            QByteArray content = *imageObject.getStream()->getContent();
-
-            // Transfer the entries of the original image, which are not related
-            // to the image samples, into the converted image.
-            if (const PDFDictionary* originalDictionary = m_document->getDictionaryFromObject(m_document->getObjectByReference(reference)))
-            {
-                for (const char* key : PRESERVED_IMAGE_DICTIONARY_KEYS)
-                {
-                    if (originalDictionary->hasKey(key))
-                    {
-                        dictionary.setEntry(PDFInplaceOrMemoryString(key), PDFObject(originalDictionary->get(key)));
-                    }
-                }
-            }
-
-            // The original image can be transparent - it can have a soft mask, a stencil
-            // mask, a color key mask, or an alpha channel stored directly in the image
-            // data. All these variants are decoded into the alpha channel of the decoded
-            // image, so a single soft mask created from that alpha channel replaces them.
-            if (!alphaMask.isNull())
-            {
-                PDFObject softMaskObject = createBitonalImageObject(alphaMask, settings.compression);
-
-                if (!softMaskObject.isNull())
-                {
-                    PDFObjectReference softMaskReference = builder.addObject(std::move(softMaskObject));
-                    dictionary.setEntry(PDFInplaceOrMemoryString("SMask"), PDFObject::createReference(softMaskReference));
-                }
-            }
-
-            builder.setObject(reference, PDFObject::createStream(PDFStream(std::move(dictionary), std::move(content))));
+            addUsedCompression(imageObject);
+            builder.setObject(reference, std::move(imageObject));
+            replacedImages->insert(reference);
             isConverted = true;
             ++m_convertedItemCount;
         }
         else
         {
-            ++m_failedItemCount;
+            addFailedItem(item, bitonalImage.isNull() ? FailureReason::CannotBeRead : FailureReason::CannotBeEncoded);
         }
 
         stepProgress();
@@ -305,7 +544,7 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromImages(PDFDocumentBuild
     return isConverted;
 }
 
-bool PDFBitonalDocumentCreator::createBitonalDocumentFromPages(PDFDocumentBuilder& builder, const Settings& settings)
+bool PDFBitonalDocumentCreator::createBitonalDocumentFromPages(PDFDocumentBuilder& builder, const Settings& settings, const PDFOperationControl* operationControl)
 {
     const PDFCatalog* catalog = m_document->getCatalog();
     const size_t pageCount = catalog->getPageCount();
@@ -341,6 +580,7 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromPages(PDFDocumentBuilde
     // is built from a single sample, so it costs nothing.
     std::vector<PDFInteger> pageIndices;
     std::vector<PDFInteger> rasterizedPageIndices;
+    std::set<PDFInteger> tooLargePages;
     pageIndices.reserve(pageModes.size());
 
     for (const auto& [pageIndex, mode] : pageModes)
@@ -349,6 +589,15 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromPages(PDFDocumentBuilde
 
         if (isConversionMode(mode))
         {
+            // B65: a page, whose image would exceed the limits of the pixels, is never
+            // rasterized - it stays as it is and the result says why
+            const PDFPage* page = catalog->getPage(size_t(pageIndex));
+            if (page && !page->getMediaBox().isEmpty() && !getPageImageSize(page, settings.dpiResolution).isValid())
+            {
+                tooLargePages.insert(pageIndex);
+                continue;
+            }
+
             rasterizedPageIndices.push_back(pageIndex);
         }
     }
@@ -375,26 +624,48 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromPages(PDFDocumentBuilde
     // do not want to keep all of them in the memory at once.
     std::vector<PDFObject> imageObjects(pageCount);
 
+    // Why a rasterized page has no image: its image could not be created (a null image), or
+    // its bitonal image was refused by every encoder. Each page has its own element.
+    std::vector<char> encodingFailures(pageCount, 0);
+
+    // The problems of the rendering of each page (owner 14. 11. 2026: a rendering error never
+    // blocks the conversion, the result only asks the user to check the page). Each page has
+    // its own element.
+    std::vector<QStringList> pageIssues(pageCount);
+
     auto pageSizeGetter = [dpiResolution](const PDFPage* page) { return getPageImageSize(page, dpiResolution); };
-    auto pageImageProcessor = [this, &imageObjects, &pageModes, &settings](PDFInteger pageIndex, QImage image)
+    auto pageImageProcessor = [this, &imageObjects, &encodingFailures, &pageIssues, &pageModes, &settings, operationControl](PDFInteger pageIndex, QImage image, const QList<PDFRenderError>& errors)
     {
-        QImage bitonalImage = convertImageToBitonal(image, settings.conversionMethod, settings.manualThreshold, nullptr, nullptr);
+        QStringList& issues = pageIssues[size_t(pageIndex)];
+        for (const PDFRenderError& error : errors)
+        {
+            if (!issues.contains(error.message))
+            {
+                issues << error.message;
+            }
+        }
 
         // Only the rasterized pages reach this point, so the mode is one of the two
         // conversion ones. The map is read by several threads at once, which is safe.
-        if (pageModes.at(pageIndex) == ItemMode::AlgorithmInverted)
-        {
-            bitonalImage = invertBitonalImage(std::move(bitonalImage));
-        }
+        const QImage bitonalImage = createItemImage(image, ConversionSource::Pages, pageModes.at(pageIndex), settings.conversionMethod, settings.manualThreshold, nullptr, nullptr, operationControl);
 
-        imageObjects[size_t(pageIndex)] = createBitonalImageObject(bitonalImage, settings.compression);
+        if (!bitonalImage.isNull())
+        {
+            imageObjects[size_t(pageIndex)] = createBitonalImageObject(bitonalImage, settings.compression);
+            encodingFailures[size_t(pageIndex)] = imageObjects[size_t(pageIndex)].isNull() ? char(1) : char(0);
+        }
         stepProgress();
     };
 
-    renderPages(rasterizedPageIndices, pageSizeGetter, pageImageProcessor, nullptr);
+    renderPageImages(rasterizedPageIndices, pageSizeGetter, pageImageProcessor, operationControl);
 
-    // Pages, whose content has really been replaced. A page, which could not be
-    // rendered, keeps its original content, so it also keeps its marked content and
+    if (PDFOperationControl::isOperationCancelled(operationControl))
+    {
+        return false;
+    }
+
+    // Pages, whose content has really been replaced. A page, whose image could not be
+    // created, keeps its original content, so it also keeps its marked content and
     // it must be counted as not converted.
     std::set<PDFObjectReference> convertedPages;
 
@@ -403,6 +674,16 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromPages(PDFDocumentBuilde
         const ItemMode mode = pageModes.at(pageIndex);
         PDFObject imageObject;
 
+        ItemInfo item;
+        item.pageIndex = pageIndex;
+        item.mode = mode;
+
+        if (tooLargePages.count(pageIndex))
+        {
+            addFailedItem(item, FailureReason::TooLarge);
+            continue;
+        }
+
         if (isConversionMode(mode))
         {
             imageObject = std::move(imageObjects[size_t(pageIndex)]);
@@ -410,24 +691,26 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromPages(PDFDocumentBuilde
         else
         {
             // Page is covered by a solid area, which does not need any rasterization
-            imageObject = createBitonalImageObject(createFillImage(QSize(1, 1), mode == ItemMode::FillBlack), settings.compression);
+            imageObject = createBitonalImageObject(createItemImage(QImage(1, 1, QImage::Format_RGB32), ConversionSource::Pages, mode, settings.conversionMethod, settings.manualThreshold, nullptr, nullptr, nullptr), settings.compression);
         }
 
         const PDFPage* page = catalog->getPage(size_t(pageIndex));
 
-        if (imageObject.isNull() || !page)
+        if (!page || page->getMediaBox().isEmpty())
         {
-            // The page could not be rendered or encoded, so it stays as it is
-            ++m_failedItemCount;
+            addFailedItem(item, FailureReason::InvalidPage);
+            continue;
+        }
+
+        if (imageObject.isNull())
+        {
+            // The image of the page could not be created or encoded, so it stays as it is
+            addFailedItem(item, encodingFailures[size_t(pageIndex)] ? FailureReason::CannotBeEncoded : FailureReason::RenderingErrors);
             continue;
         }
 
         const QRectF mediaBox = page->getMediaBox();
-        if (mediaBox.isEmpty())
-        {
-            ++m_failedItemCount;
-            continue;
-        }
+        const std::optional<Compression> pageCompression = getImageObjectCompression(imageObject);
 
         const PDFObjectReference imageReference = builder.addObject(std::move(imageObject));
 
@@ -463,7 +746,7 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromPages(PDFDocumentBuilde
 
         if (!originalPageDictionary)
         {
-            ++m_failedItemCount;
+            addFailedItem(item, FailureReason::InvalidPage);
             continue;
         }
 
@@ -485,7 +768,17 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromPages(PDFDocumentBuilde
         builder.setObject(pageReference, PDFObject::createDictionary(std::move(pageDictionary)));
         isConverted = true;
         convertedPages.insert(pageReference);
+        if (pageCompression)
+        {
+            ++m_usedCompressions[*pageCompression];
+        }
         ++m_convertedItemCount;
+
+        // Converted, but the renderer has reported problems: the user is asked to check it
+        if (isConversionMode(mode) && !pageIssues[size_t(pageIndex)].isEmpty())
+        {
+            m_renderingIssues.push_back({ pageIndex, std::move(pageIssues[size_t(pageIndex)]) });
+        }
     }
 
     if (convertedPages.size() == pageCount)
@@ -1223,39 +1516,68 @@ void PDFBitonalDocumentCreator::traversePageImages(const PDFPage* page,
 std::vector<PDFObjectReference> PDFBitonalDocumentCreator::getConvertibleImages() const
 {
     std::vector<PDFObjectReference> references;
-    std::set<PDFObjectReference> foundImages;
-    PDFDocumentDataLoaderDecorator loader(m_document);
 
-    // Images are collected in the page order, so the list, which a user interface
-    // builds from them, follows the document. The same image can be used on several
-    // pages, so it is reported only once.
-    const PDFCatalog* catalog = m_document->getCatalog();
-    for (size_t pageIndex = 0, pageCount = catalog->getPageCount(); pageIndex < pageCount; ++pageIndex)
+    // The images drawn by the content in the order of their first drawing (the list, which a
+    // user interface builds from them, follows the document); the same image on several pages
+    // is one item. The images of every layer are converted (R4-4).
+    const PDFDocumentImageList imageList = PDFDocumentImageList::create(m_document, PDFDocumentImageList::Options::createForChange(), nullptr, nullptr);
+    for (const PDFDocumentImageList::Item& item : imageList.getItems())
     {
-        traversePageImages(catalog->getPage(pageIndex), [&](PDFObjectReference reference, const PDFDictionary* imageDictionary)
+        if (isConvertibleImage(item))
         {
-            if (loader.readBooleanFromDictionary(imageDictionary, "ImageMask", false))
-            {
-                // Stencil masks are already bitonal and they are painted using the
-                // current fill color, so converting them makes no sense.
-                return;
-            }
-
-            if (foundImages.insert(reference).second)
-            {
-                references.push_back(reference);
-            }
-        });
+            references.push_back(item.key.reference);
+        }
     }
 
     return references;
+}
+
+bool PDFBitonalDocumentCreator::isConvertibleImage(const PDFDocumentImageList::Item& item)
+{
+    // Inline images are kept (R4-8); stencil masks are already bitonal and they are
+    // painted using the current fill color; a mask of another image would change the
+    // transparency of that image; an image of an appearance of an annotation too would
+    // change the appearance (R4-4)
+    return item.kind == PDFDocumentImageList::Kind::XObject && !item.isImageMask && !item.isUsedAsMask && !item.isInAppearance && item.key.reference.isValid();
+}
+
+QString PDFBitonalDocumentCreator::getPageImageSizeError(const PDFPage* page, PDFInteger pageNumber, int dpiResolution)
+{
+    if (!page)
+    {
+        return QString();
+    }
+
+    const int resolution = qBound(MINIMUM_DPI_RESOLUTION, dpiResolution, MAXIMUM_DPI_RESOLUTION);
+    const QSizeF size = getPageSizeInInches(page) * resolution;
+    if (!std::isfinite(size.width()) || !std::isfinite(size.height()) || size.width() <= 0.0 || size.height() <= 0.0)
+    {
+        // A degenerate page is reported by the conversion itself (it stays as it is)
+        return QString();
+    }
+
+    const QLocale locale;
+    if (size.height() > MAXIMUM_PAGE_IMAGE_DIMENSION)
+    {
+        return PDFTranslationContext::tr("Page %1 would be %2 px high – lower the resolution.").arg(pageNumber).arg(locale.toString(qint64(std::ceil(size.height()))));
+    }
+    if (size.width() > MAXIMUM_PAGE_IMAGE_DIMENSION)
+    {
+        return PDFTranslationContext::tr("Page %1 would be %2 px wide – lower the resolution.").arg(pageNumber).arg(locale.toString(qint64(std::ceil(size.width()))));
+    }
+    if (std::ceil(size.width()) * std::ceil(size.height()) * double(PDFRasterizerPool::BYTES_PER_PIXEL) > double(MAXIMUM_PAGE_IMAGE_BYTES))
+    {
+        return PDFTranslationContext::tr("Page %1 would need more than 2 GB of image data – lower the resolution.").arg(pageNumber);
+    }
+    return QString();
 }
 
 QImage PDFBitonalDocumentCreator::convertImageToBitonal(const QImage& image,
                                                         PDFImageConversion::ConversionMethod conversionMethod,
                                                         int threshold,
                                                         QImage* alphaMask,
-                                                        const PDFOperationControl* operationControl)
+                                                        const PDFOperationControl* operationControl,
+                                                        int* usedThreshold)
 {
     if (image.isNull())
     {
@@ -1277,6 +1599,11 @@ QImage PDFBitonalDocumentCreator::convertImageToBitonal(const QImage& image,
     if (alphaMask)
     {
         *alphaMask = imageConversion.getConvertedAlphaMask();
+    }
+
+    if (usedThreshold)
+    {
+        *usedThreshold = imageConversion.getThreshold();
     }
 
     return imageConversion.getConvertedImage();
@@ -1658,6 +1985,19 @@ void PDFBitonalDocumentCreator::renderPages(const std::vector<PDFInteger>& pageI
                                             const std::function<void(PDFInteger, QImage)>& pageImageProcessor,
                                             const PDFOperationControl* operationControl) const
 {
+    // The image of a page with rendering errors is the image of the page (owner 14. 11. 2026)
+    const std::function<void(PDFInteger, QImage, const QList<PDFRenderError>&)> processor = [&pageImageProcessor](PDFInteger pageIndex, QImage image, const QList<PDFRenderError>&)
+    {
+        pageImageProcessor(pageIndex, std::move(image));
+    };
+    renderPageImages(pageIndices, pageSizeGetter, processor, operationControl);
+}
+
+void PDFBitonalDocumentCreator::renderPageImages(const std::vector<PDFInteger>& pageIndices,
+                                                 const std::function<QSize(const PDFPage*)>& pageSizeGetter,
+                                                 const std::function<void(PDFInteger, QImage, const QList<PDFRenderError>&)>& pageImageProcessor,
+                                                 const PDFOperationControl* operationControl) const
+{
     if (pageIndices.empty())
     {
         return;
@@ -1686,20 +2026,11 @@ void PDFBitonalDocumentCreator::renderPages(const std::vector<PDFInteger>& pageI
 
     auto processImage = [catalog, &pageImageProcessor](PDFRenderedPageImage& renderedPageImage)
     {
-        QImage image;
-
-        if (!renderedPageImage.hasSevereError())
-        {
-            image = compositePageImageOntoWhite(renderedPageImage.pageImage);
-        }
-        else
-        {
-            // The renderer has skipped a part of the content of the page - for example
-            // an image, whose stream is damaged - and it has rendered the rest. Such an
-            // image must not replace the page, so the page is reported as failed by
-            // a null image.
-            image = QImage();
-        }
+        // Owner 14. 11. 2026: a rendering error never blocks the conversion - the renderer has
+        // skipped what it cannot process (a damaged image, a font, which cannot be loaded) and
+        // rendered the rest; the errors go with the image, the caller tells the user to check it.
+        // A null image is only an image, which could not be created.
+        QImage image = compositePageImageOntoWhite(renderedPageImage.pageImage);
 
         const PDFPage* page = catalog->getPage(size_t(renderedPageImage.pageIndex));
 
@@ -1731,7 +2062,7 @@ void PDFBitonalDocumentCreator::renderPages(const std::vector<PDFInteger>& pageI
             }
         }
 
-        pageImageProcessor(renderedPageImage.pageIndex, std::move(image));
+        pageImageProcessor(renderedPageImage.pageIndex, std::move(image), renderedPageImage.getReportedErrors());
     };
 
     m_rasterizerPool->render(pageIndices, imageSizeGetter, processImage, nullptr, operationControl);
@@ -1749,6 +2080,15 @@ QImage PDFBitonalDocumentCreator::renderPage(PDFInteger pageIndex, QSize size, c
     return result;
 }
 
+QSizeF PDFBitonalDocumentCreator::getPageSizeInInches(const PDFPage* page)
+{
+    // The image covers the media box (the content is placed onto it); /UserUnit is the size of a
+    // unit of the default user space in 1/72 inch (ISO 32000-2, 14.11.2, Table 31): a page of
+    // 100 units with /UserUnit 10 is 1000/72 inch long, its image at 100 dpi has 1389 pixels and
+    // the blank page detection measures its spots in millimeters of the paper
+    return page->getMediaBox().normalized().size() * (PDF_POINT_TO_INCH * page->getEffectiveUserUnit());
+}
+
 QSize PDFBitonalDocumentCreator::getPageImageSize(const PDFPage* page, int dpiResolution)
 {
     if (!page)
@@ -1760,7 +2100,7 @@ QSize PDFBitonalDocumentCreator::getPageImageSize(const PDFPage* page, int dpiRe
     // at an extreme resolution would need gigabytes of memory for a single image.
     const int resolution = qBound(MINIMUM_DPI_RESOLUTION, dpiResolution, MAXIMUM_DPI_RESOLUTION);
 
-    const QSizeF size = page->getMediaBox().size() * PDF_POINT_TO_INCH * resolution;
+    const QSizeF size = getPageSizeInInches(page) * resolution;
     const double maximumDimension = std::numeric_limits<int>::max() - 1.0;
     if (!std::isfinite(size.width()) || !std::isfinite(size.height()) ||
         size.width() <= 0.0 || size.height() <= 0.0 ||
@@ -1770,7 +2110,216 @@ QSize PDFBitonalDocumentCreator::getPageImageSize(const PDFPage* page, int dpiRe
         // overflow must not turn an oversized page into a tiny blank image.
         return QSize();
     }
-    return size.toSize().expandedTo(QSize(1, 1));
+
+    // B65: a page larger than the limits of the pixels is refused (a 5 x 5 m page at 600 dpi
+    // would need 22 GB), never rendered into a smaller image
+    const QSize imageSize = size.toSize().expandedTo(QSize(1, 1));
+    if (imageSize.width() > MAXIMUM_PAGE_IMAGE_DIMENSION || imageSize.height() > MAXIMUM_PAGE_IMAGE_DIMENSION ||
+        PDFRasterizerPool::getImageDataSize(imageSize) > MAXIMUM_PAGE_IMAGE_BYTES)
+    {
+        return QSize();
+    }
+    return imageSize;
+}
+
+int PDFBitonalDocumentCreator::getPreviewDpiResolution(const PDFPage* page, int dpiResolution, QSize paneSize)
+{
+    const int resolution = qBound(MINIMUM_DPI_RESOLUTION, dpiResolution, MAXIMUM_DPI_RESOLUTION);
+    const QSize outputSize = getPageImageSize(page, resolution);
+
+    if (outputSize.isEmpty() || paneSize.isEmpty())
+    {
+        // No size to derive the resolution from
+        return resolution;
+    }
+
+    if (outputSize.width() <= paneSize.width() && outputSize.height() <= paneSize.height())
+    {
+        // The page at the output resolution is small enough to be displayed as it is,
+        // so the preview shows exactly, what the conversion is going to produce
+        return resolution;
+    }
+
+    const double scale = qMin(double(paneSize.width()) / double(outputSize.width()),
+                              double(paneSize.height()) / double(outputSize.height()));
+
+    return qBound(MINIMUM_DPI_RESOLUTION, qRound(resolution * scale), resolution);
+}
+
+PDFBitonalDocumentCreator::Preview PDFBitonalDocumentCreator::createPreview(const PreviewRequest& request, const PDFOperationControl* operationControl) const
+{
+    Preview preview;
+    QImage image = request.originalImage;
+
+    if (image.isNull())
+    {
+        switch (request.conversionSource)
+        {
+            case ConversionSource::Images:
+                image = getDecodedImage(request.item.imageReference, operationControl);
+                preview.failure = isImageTooLarge(request.item.imageReference) ? FailureReason::TooLarge : FailureReason::CannotBeRead;
+                break;
+
+            case ConversionSource::Pages:
+            {
+                const PDFCatalog* catalog = m_document->getCatalog();
+                const PDFPage* page = request.item.pageIndex >= 0 && size_t(request.item.pageIndex) < catalog->getPageCount() ? catalog->getPage(size_t(request.item.pageIndex)) : nullptr;
+                const QSize size = getPageImageSize(page, request.dpiResolution);
+
+                if (!page || page->getMediaBox().isEmpty())
+                {
+                    preview.failure = FailureReason::InvalidPage;
+                }
+                else if (!size.isValid())
+                {
+                    preview.failure = FailureReason::TooLarge;
+                }
+                else if (m_rasterizerPool)
+                {
+                    image = renderPage(request.item.pageIndex, size, operationControl);
+                    preview.failure = FailureReason::RenderingErrors;
+                }
+                break;
+            }
+        }
+    }
+
+    if (image.isNull() || PDFOperationControl::isOperationCancelled(operationControl))
+    {
+        return preview;
+    }
+
+    preview.failure = std::nullopt;
+    preview.originalImage = image;
+
+    QImage alphaMask;
+    int threshold = -1;
+    preview.resultImage = createItemImage(image, request.conversionSource, request.item.mode, request.conversionMethod, request.manualThreshold, &alphaMask, &threshold, operationControl);
+    preview.threshold = isConversionMode(request.item.mode) ? threshold : -1;
+
+    if (request.item.isFilled() && request.conversionSource == ConversionSource::Images)
+    {
+        // The pane shows how the filled image looks in the document: its transparent part
+        // stays a blank paper (the fill itself keeps the mask)
+        const QImage fill = preview.resultImage;
+        preview.resultImage = createFillPreviewImage(image, request.item.isFilledByBlack());
+        if (fill.isNull())
+        {
+            preview.resultImage = QImage();
+        }
+    }
+    else if (request.item.isFilled())
+    {
+        // A filled page is the fill over the whole page
+        preview.resultImage = createFillImage(image.size(), request.item.isFilledByBlack());
+    }
+
+    if (PDFOperationControl::isOperationCancelled(operationControl))
+    {
+        return Preview();
+    }
+
+    if (preview.resultImage.isNull())
+    {
+        preview.failure = FailureReason::CannotBeRead;
+        return preview;
+    }
+
+    if (request.isEncoded && request.item.isContentReplaced())
+    {
+        // Encoded as the conversion encodes it: a filled page is one sample
+        const QImage encodedImage = request.item.isFilled() ? createItemImage(image, request.conversionSource, request.item.mode, request.conversionMethod, request.manualThreshold, nullptr, nullptr, nullptr)
+                                                            : preview.resultImage;
+        qint64 maskSize = 0;
+        const PDFObject imageObject = request.conversionSource == ConversionSource::Images ? createConvertedImageObject(request.item.imageReference, encodedImage, alphaMask, request.compression, nullptr, &maskSize)
+                                                                                           : createBitonalImageObject(encodedImage, request.compression);
+        if (imageObject.isNull())
+        {
+            preview.failure = FailureReason::CannotBeEncoded;
+            return preview;
+        }
+
+        preview.encodedSize = imageObject.getStream()->getContent()->size() + maskSize;
+        preview.compression = getImageObjectCompression(imageObject);
+    }
+
+    return preview;
+}
+
+std::vector<PDFBitonalDocumentCreator::BlankPageResult> PDFBitonalDocumentCreator::detectBlankPages(const std::vector<PDFInteger>& pageIndices,
+                                                                                                   const PDFOperationControl* operationControl,
+                                                                                                   PDFProgressSink* progress) const
+{
+    std::vector<BlankPageResult> results(pageIndices.size());
+    std::map<PDFInteger, size_t> resultIndices;
+    std::vector<PDFInteger> renderedPages;
+    const size_t pageCount = m_document->getCatalog()->getPageCount();
+
+    for (size_t index = 0; index < pageIndices.size(); ++index)
+    {
+        results[index].pageIndex = pageIndices[index];
+
+        // A page given twice is examined once, a page, which does not exist, never
+        if (pageIndices[index] >= 0 && size_t(pageIndices[index]) < pageCount && resultIndices.emplace(pageIndices[index], index).second)
+        {
+            renderedPages.push_back(pageIndices[index]);
+        }
+    }
+
+    if (progress)
+    {
+        ProgressStartupInfo info;
+        info.text = PDFTranslationContext::tr("Detecting blank pages");
+        progress->start(qMax<size_t>(renderedPages.size(), 1), std::move(info));
+    }
+
+    if (m_rasterizerPool && !renderedPages.empty())
+    {
+        // The detection has a resolution of its own - not the resolution of the conversion:
+        // the analysis measures the spots of the ink in millimeters and needs no more detail
+        constexpr int dpiResolution = BLANK_PAGE_DPI_RESOLUTION;
+        QMutex progressMutex;
+
+        auto pageSizeGetter = [](const PDFPage* page) { return getPageImageSize(page, dpiResolution); };
+        auto pageImageProcessor = [&results, &resultIndices, &progressMutex, progress, operationControl](PDFInteger pageIndex, QImage image, const QList<PDFRenderError>& errors)
+        {
+            // A page, which could not be rendered, arrives as a null image: it is examined
+            // and it is not blank. A page, whose rendering skipped a part of its content (an
+            // error: a damaged image, a font, which cannot be loaded), is never blank either -
+            // the missing part may be its only content, and a white fill would wipe it out.
+            // Each page has its own element of the results, the map is only read.
+            const bool isIncomplete = std::any_of(errors.cbegin(), errors.cend(), [](const PDFRenderError& error) { return error.type == RenderErrorType::Error || error.type == RenderErrorType::NotImplemented; });
+            const BlankPageInfo info = detectBlankPage(isIncomplete ? QImage() : image, dpiResolution, operationControl);
+            BlankPageResult& result = results[resultIndices.at(pageIndex)];
+            result.isExamined = !PDFOperationControl::isOperationCancelled(operationControl);
+            result.isBlank = result.isExamined && info.isBlank;
+
+            if (progress)
+            {
+                QMutexLocker lock(&progressMutex);
+                progress->step();
+            }
+        };
+
+        renderPageImages(renderedPages, pageSizeGetter, pageImageProcessor, operationControl);
+    }
+
+    if (progress)
+    {
+        progress->finish();
+    }
+
+    // A page given twice has the result of its first place
+    for (BlankPageResult& result : results)
+    {
+        auto it = resultIndices.find(result.pageIndex);
+        if (it != resultIndices.cend())
+        {
+            result = results[it->second];
+        }
+    }
+
+    return results;
 }
 
 int PDFBitonalDocumentCreator::getEstimatedDpiResolution() const
@@ -1801,6 +2350,7 @@ int PDFBitonalDocumentCreator::getEstimatedDpiResolution() const
             continue;
         }
 
+        const QSizeF pageInches = getPageSizeInInches(page);
         traversePageImages(page, [&](PDFObjectReference, const PDFDictionary* imageDictionary)
         {
             const PDFInteger width = loader.readIntegerFromDictionary(imageDictionary, "Width", 0);
@@ -1811,12 +2361,12 @@ int PDFBitonalDocumentCreator::getEstimatedDpiResolution() const
             // raise the resolution, so an inaccurate estimate cannot lose any detail.
             if (width > 0)
             {
-                dpiResolution = qMax(dpiResolution, qRound(qBound(0.0, width / (mediaBox.width() * PDF_POINT_TO_INCH), double(MAXIMUM_DPI_RESOLUTION))));
+                dpiResolution = qMax(dpiResolution, qRound(qBound(0.0, width / pageInches.width(), double(MAXIMUM_DPI_RESOLUTION))));
             }
 
             if (height > 0)
             {
-                dpiResolution = qMax(dpiResolution, qRound(qBound(0.0, height / (mediaBox.height() * PDF_POINT_TO_INCH), double(MAXIMUM_DPI_RESOLUTION))));
+                dpiResolution = qMax(dpiResolution, qRound(qBound(0.0, height / pageInches.height(), double(MAXIMUM_DPI_RESOLUTION))));
             }
         });
     }
@@ -1872,12 +2422,48 @@ std::optional<PDFImage> PDFBitonalDocumentCreator::getImageFromReference(PDFObje
     {
         // Do nothing
     }
+    catch (const PDFRendererException&)
+    {
+        // A damaged image (an explicit /Mask, which is no stencil mask, 8.9.6.3) is not decoded
+    }
 
     return pdfImage;
 }
 
+bool PDFBitonalDocumentCreator::isImageTooLarge(PDFObjectReference reference) const
+{
+    const PDFDictionary* dictionary = m_document->getDictionaryFromObject(m_document->getObjectByReference(reference));
+    if (!dictionary)
+    {
+        return false;
+    }
+
+    PDFDocumentDataLoaderDecorator loader(m_document);
+    const PDFInteger width = loader.readIntegerFromDictionary(dictionary, "Width", 0);
+    const PDFInteger height = loader.readIntegerFromDictionary(dictionary, "Height", 0);
+    if (width <= 0 || height <= 0)
+    {
+        // Nothing to allocate: the decoding refuses the image itself
+        return false;
+    }
+
+    // A side over 2^31 is too large by itself; below it the product fits into 64 bits
+    constexpr PDFInteger maximumSide = std::numeric_limits<int>::max();
+    if (width > maximumSide || height > maximumSide)
+    {
+        return true;
+    }
+    return qint64(width) * qint64(height) > MAXIMUM_DECODED_IMAGE_BYTES / 4;
+}
+
 QImage PDFBitonalDocumentCreator::getDecodedImage(PDFObjectReference reference, const PDFOperationControl* operationControl) const
 {
+    // Plan 6 of step 4: a declaration of billions of pixels is never allocated
+    if (isImageTooLarge(reference))
+    {
+        return QImage();
+    }
+
     std::optional<PDFImage> pdfImage = getImageFromReference(reference);
 
     if (!pdfImage)
@@ -1915,6 +2501,9 @@ void PDFBitonalDocumentCreator::stepProgress()
 {
     if (m_progress)
     {
+        // The pages are converted by more threads at once; a progress is called by one
+        // thread at a time
+        QMutexLocker lock(&m_progressMutex);
         m_progress->step();
     }
 }

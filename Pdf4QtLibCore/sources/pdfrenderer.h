@@ -31,10 +31,13 @@
 #include "pdfcolorconvertor.h"
 #include "pdfprogress.h"
 
+#include <QByteArray>
 #include <QMutex>
 #include <QSemaphore>
 #include <QImageWriter>
 #include <QImage>
+#include <QString>
+#include <QWaitCondition>
 
 class QPainter;
 
@@ -158,8 +161,12 @@ private:
     PDFMeshQualitySettings m_meshQualitySettings;
 };
 
-/// Renders PDF pages to bitmap images (QImage).
-/// \note Construct this object only in main GUI thread
+/// Renders PDF pages to bitmap images (QImage). It holds only the kind of its engine: it draws
+/// into a QImage (Blend2D or the raster engine of QPainter), which works in any thread.
+/// \note A rasterizer belongs to its PDFRasterizerPool (a child object of it, in the thread of the
+///       pool) and is used by one thread at a time - the one, which has acquired it. (The note
+///       "construct this object only in main GUI thread" of older versions did not hold: nothing of
+///       it needs the GUI thread; step 4 of phase 2, R4-16.)
 class PDF4QTLIBCORESHARED_EXPORT PDFRasterizer : public QObject
 {
     Q_OBJECT
@@ -201,7 +208,7 @@ private:
 };
 
 /// Simple structure for storing rendered page images
-struct PDFRenderedPageImage
+struct PDF4QTLIBCORESHARED_EXPORT PDFRenderedPageImage
 {
     qint64 pageCompileTime = 0;
     qint64 pageWaitTime = 0;
@@ -221,12 +228,41 @@ struct PDFRenderedPageImage
     /// Warnings and unsupported features, which are rendered approximately, do not
     /// count.
     bool hasSevereError() const;
+
+    /// The errors a tool reports as the problems of the page (Rendering issues of the result
+    /// dialog, step 4 of phase 2, R4-16): every error except the level Information
+    QList<PDFRenderError> getReportedErrors() const;
+};
+
+/// What the encoder of an ordered rendering made of one page (PDFRasterizerPool::renderOrdered):
+/// the bytes of the page (an encoded image file) and the errors of the page. A value.
+struct PDFRenderedPageOutput
+{
+    PDFInteger pageIndex = -1;      ///< Page (index from 0)
+    bool isRendered = false;        ///< The page was rendered and encoded (false: the page does not exist, its image could not be allocated or the encoder failed)
+    QByteArray data;                ///< The bytes of the encoder (empty, when the page was not rendered)
+    QString errorMessage;           ///< Translated reason of a page, which was not rendered (empty otherwise)
+    QList<PDFRenderError> errors;   ///< Errors of the compilation of the page (PDFRenderedPageImage::errors)
 };
 
 /// Pool of page image renderers. It can use predefined number of renderers to
 /// render page images asynchronously. You can use this object in two ways -
 /// first one is as standard object pool, second one is to directly render
 /// page images asynchronously.
+///
+/// Threads: the pool may be created in any thread (the GUI, the run of a tool, PdfTool); it and
+/// its rasterizers belong to that thread and are deleted there. render and renderOrdered run in
+/// the calling thread and in the threads of PDFExecutionPolicy (Scope::Page). The signal
+/// renderError is emitted from those threads: a tool never connects to it, it reads the errors
+/// of each page (PDFRenderedPageImage::errors, PDFRenderedPageOutput::errors; R4-16).
+///
+/// Memory (owner answer Q4.7 of step 4 of phase 2, R4-16): besides the semaphore of the
+/// rasterizers, the pool has a budget of the bytes of the page images, which exist at once
+/// (getImageDataBudget, getDefaultImageDataBudget = a quarter of the physical memory, at least
+/// 2 GiB, owner 14. 11.): a page waits, until
+/// its image fits into the budget; a page larger than the whole budget runs alone (it waits,
+/// until no other image exists). The bytes of a page are taken before its rasterization and
+/// returned after its processImage (render) or its encoder (renderOrdered).
 class PDF4QTLIBCORESHARED_EXPORT PDFRasterizerPool : public QObject
 {
     Q_OBJECT
@@ -235,10 +271,39 @@ private:
     using BaseClass = QObject;
 
 public:
+    /// Smallest default budget of the page images existing at once (owner 14. 11.: a quarter of
+    /// the physical memory, at least 2 GiB; 8 GB → 2 GiB, 16 GB → 4 GiB, 64 GB → 16 GiB)
+    static constexpr qint64 MINIMUM_DEFAULT_IMAGE_DATA_BUDGET = qint64(2) * 1024 * 1024 * 1024;
 
+    /// Default budget, when the size of the physical memory is not known (Q4.7 of step 4)
+    static constexpr qint64 UNKNOWN_MEMORY_IMAGE_DATA_BUDGET = qint64(4) * 1024 * 1024 * 1024;
+
+    /// Default budget of the page images existing at once: a quarter of the physical memory,
+    /// at least MINIMUM_DEFAULT_IMAGE_DATA_BUDGET; UNKNOWN_MEMORY_IMAGE_DATA_BUDGET when the
+    /// physical memory is not known (\p physicalMemory 0)
+    static qint64 getDefaultImageDataBudget(qint64 physicalMemory);
+
+    /// Default budget of the page images of this computer (PDFSysUtils::getPhysicalMemorySize)
+    static qint64 getDefaultImageDataBudget();
+
+    /// Bytes of a pixel of a rendered page (QImage::Format_ARGB32_Premultiplied)
+    static constexpr qint64 BYTES_PER_PIXEL = 4;
+
+    /// Interval of the checks of the cancellation of a waiting thread (ms)
+    static constexpr int WAIT_POLL_INTERVAL = 20;
 
     using PageImageSizeGetter = std::function<QSize(const PDFPage*)>;
     using ProcessImageMethod = std::function<void(PDFRenderedPageImage&)>;
+
+    /// Encoder of an ordered rendering: called in the threads of the pool, more pages at once; it
+    /// returns the bytes of the page (an image file) and may set \p errorMessage (a page, which
+    /// cannot be encoded: empty bytes). It must be thread-safe and must not keep the image.
+    using EncodeImageMethod = std::function<QByteArray(const PDFRenderedPageImage& image, QString* errorMessage)>;
+
+    /// Writer of an ordered rendering: called for every page, which was not skipped by the
+    /// cancellation, in the order of the page indices of the call, one call at a time (each call
+    /// happens after the previous one under the mutex of the pool, in any thread of the pool).
+    using WriteOutputMethod = std::function<void(PDFRenderedPageOutput& output)>;
 
     /// Creates new rasterizer pool
     /// \param document Document
@@ -293,6 +358,44 @@ public:
                 PDFProgressSink* progress,
                 const PDFOperationControl* operationControl = nullptr);
 
+    /// Renders the pages in the threads of the pool and hands their encoded bytes to the writer in
+    /// the order of \p pageIndices (step 4 of phase 2, R4-16: PDF to Images writes its files in the
+    /// order of the pages, Black & White Pages its images). The encoded pages, which wait for an
+    /// earlier page, are bounded by the reorder window (getReorderWindowSize, 2 x the rasterizers):
+    /// a page does not start, while it is that far after the next page to be written - its thread
+    /// waits (PDFThreadAnnotations::wait) and checks the cancellation. A page, which does not
+    /// exist, whose image cannot be allocated or which the encoder refuses, comes to the writer
+    /// with isRendered false and its reason, so the order goes on. The cancellation skips the
+    /// remaining pages: the writer is not called for them. renderError is not emitted. The
+    /// progress gets a step per page.
+    /// \param pageIndices Pages in the order of the writing (each page once)
+    /// \param imageSizeGetter Size of the image of a page (called before its rasterization)
+    /// \param encode Encoder (see EncodeImageMethod)
+    /// \param write Writer (see WriteOutputMethod)
+    /// \param progress Progress (optional)
+    /// \param operationControl Cancellation (optional)
+    void renderOrdered(const std::vector<PDFInteger>& pageIndices,
+                       const PageImageSizeGetter& imageSizeGetter,
+                       const EncodeImageMethod& encode,
+                       const WriteOutputMethod& write,
+                       PDFProgressSink* progress,
+                       const PDFOperationControl* operationControl = nullptr);
+
+    /// The budget of the bytes of the page images existing at once (see the class); a value
+    /// smaller than 1 is 1. Set it before a rendering.
+    void setImageDataBudget(qint64 budget);
+    qint64 getImageDataBudget() const { return m_imageDataBudget; }
+
+    /// The number of rasterizers of the pool
+    int getRasterizerCount() const { return m_rasterizerCount; }
+
+    /// Most encoded pages of renderOrdered, which exist at once ahead of the next written page:
+    /// 2 x the rasterizers
+    int getReorderWindowSize() const { return 2 * m_rasterizerCount; }
+
+    /// Bytes of the image of a page of the size (BYTES_PER_PIXEL), 0 for an empty size
+    static qint64 getImageDataSize(QSize size);
+
     /// Returns default rasterizer count
     static int getDefaultRasterizerCount();
 
@@ -307,17 +410,48 @@ signals:
     void renderError(PDFInteger pageIndex, PDFRenderError error);
 
 private:
+    class OrderedState;
+
+    /// Takes \p bytes of the budget: waits, until they fit (or until no image exists, when they
+    /// are more than the whole budget). \returns false (nothing taken), when the operation has
+    /// been canceled meanwhile.
+    bool acquireImageData(qint64 bytes, const PDFOperationControl* operationControl);
+
+    /// Returns bytes taken by acquireImageData
+    void releaseImageData(qint64 bytes);
+
+    /// What has happened with a page of renderPage
+    enum class PageStatus
+    {
+        Processed,  ///< processImage got the image (a null image, when it could not be allocated)
+        Missing,    ///< The page does not exist
+        Canceled    ///< The cancellation skipped the page
+    };
+
+    /// Compiles and rasterizes one page with its share of the budget held: \p processImage gets
+    /// the image in the thread of the call, the bytes of the budget are returned after it.
+    /// \param isEmittingErrors The signal renderError tells the errors (render only)
+    PageStatus renderPage(PDFInteger pageIndex, const PageImageSizeGetter& imageSizeGetter, const ProcessImageMethod& processImage,
+                          const PDFOperationControl* operationControl, bool isEmittingErrors);
+
     const PDFDocument* m_document;
     PDFFontCache* m_fontCache;
     const PDFICCProfileCache* m_iccProfileCache;
     const PDFCMSManager* m_cmsManager;
     const PDFOptionalContentActivity* m_optionalContentActivity;
     PDFRenderer::Features m_features;
-    const PDFMeshQualitySettings& m_meshQualitySettings;
+    PDFMeshQualitySettings m_meshQualitySettings;   ///< A copy: the pool never refers to the settings of its creator
 
     QSemaphore m_semaphore;
     QMutex m_mutex;
     std::vector<PDFRasterizer*> m_rasterizers;
+    int m_rasterizerCount = 1;
+
+    QMutex m_imageDataMutex;
+    QWaitCondition m_imageDataCondition;
+    qint64 m_imageDataBudget = getDefaultImageDataBudget();
+    qint64 m_imageDataUsed = 0;     ///< Bytes of the page images, which exist now (guarded by m_imageDataMutex)
+    int m_largePagesWaiting = 0;    ///< Pages larger than the budget, which wait to run alone (guarded by m_imageDataMutex)
 };
 
 /// Settings object for image writer

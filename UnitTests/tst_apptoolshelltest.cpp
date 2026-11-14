@@ -53,6 +53,8 @@
 #include "pdfapptoolpathrules.h"
 #include "pdfapptoolresultdialog.h"
 #include "pdfapptoolresultwriter.h"
+
+#include <QLockFile>
 #include "pdfappundostack.h"
 #include "pdfappcommand.h"
 #include "pdfwidgetstyleproperties.h"
@@ -219,6 +221,12 @@ public:
         return qAbs(first.red() - second.red()) <= tolerance && qAbs(first.green() - second.green()) <= tolerance && qAbs(first.blue() - second.blue()) <= tolerance;
     }
 
+    static bool writeFile(const QString& filePath, const QByteArray& data)
+    {
+        QFile file(filePath);
+        return file.open(QIODevice::WriteOnly) && file.write(data) == data.size();
+    }
+
     static QByteArray readFile(const QString& filePath)
     {
         QFile file(filePath);
@@ -357,6 +365,8 @@ private slots:
     void dialogNewDocumentInThisTab();
     void writerCertifiedResult();
     void dialogFiles();
+    void dialogTemporaryOutput();
+    void temporaryFolderLeftovers();
     void dialogAnalysis();
     void dialogRecordsUse();
     void dialogAnotherTool();
@@ -3614,6 +3624,117 @@ void AppToolShellTest::dialogFiles()
         QCOMPARE(decidedSpy.size(), 0);
         dialog->reject();
     }
+}
+
+void AppToolShellTest::dialogTemporaryOutput()
+{
+    // R4-1 of step 4 of phase 2: an output in a temporary file of the run (the audio book) is moved
+    // to the target of Save as a file (the same bytes, the temporary file is gone); Discard deletes
+    // it, and so does the close of the tab with the dialog open
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Report.pdf"), 2));
+    QVERIFY(tab && AppToolShellFixture::waitFor([tab]() { return tab->getDocument()->isReady(); }));
+
+    // The application gives every run its folder of the temporary files
+    const QString temporaryFolder = fixture.context->getToolTemporaryFolder();
+    QVERIFY(!temporaryFolder.isEmpty());
+    QVERIFY(QFileInfo(temporaryFolder).isDir());
+
+    const auto openTemporaryDialog = [&](QString* temporaryPath) -> PDFAppToolResultDialog*
+    {
+        std::shared_ptr<pdftest::TestDocumentTool> tool;
+        PDFDocumentToolRunner* runner = fixture.createRunner(tab, TOOL_EXTRACT, &tool);
+        tool->setTemporaryOutput(true);
+        pdf::PDFAppToolRunEnvironment environment;
+        environment.temporaryFolder = temporaryFolder;
+        runner->setEnvironment(environment);
+
+        pdf::PDFAppToolResultInput input;
+        input.tool = pdf::PDFDocumentToolCatalog::findTool(TOOL_EXTRACT);
+        if (!fixture.runTool(runner, AppToolShellFixture::parameters(QStringLiteral("files"), QStringLiteral("Audio data")), &input.result) || input.result.outputs.size() != 1)
+        {
+            return nullptr;
+        }
+        *temporaryPath = input.result.outputs.front().getFilePath();
+        input.scrimTarget = tab->getView() ? tab->getView()->getCanvasArea() : nullptr;
+        PDFAppToolResultDialog* dialog = PDFAppToolResultDialog::open(tab, runner, std::move(input));
+        AppToolShellFixture::settle();
+        return dialog;
+    };
+
+    // Save as a file: the bytes of the temporary file in the target, the temporary file is gone
+    {
+        QString temporaryPath;
+        PDFAppToolResultDialog* dialog = openTemporaryDialog(&temporaryPath);
+        QVERIFY(dialog);
+        QCOMPARE(QFileInfo(temporaryPath).absolutePath(), temporaryFolder);
+        QVERIFY(QFile::exists(temporaryPath));
+        QSignalSpy decidedSpy(dialog, &PDFAppToolResultDialog::decided);
+        QCOMPARE(QDir::fromNativeSeparators(dialog->getFilePathField()->text()), fixture.path(QStringLiteral("audio.wav")));
+        dialog->confirm();
+        QVERIFY(ToolShellTestHelper::waitForDecision(decidedSpy));
+        QCOMPARE(ToolShellTestHelper::firstOutcome(decidedSpy).action, Action::FileSaved);
+        QCOMPARE(ToolShellTestHelper::readFile(fixture.path(QStringLiteral("audio.wav"))), QByteArray("Audio data"));
+        QVERIFY(AppToolShellFixture::waitFor([&]() { return !QFile::exists(temporaryPath); }));
+    }
+
+    // Discard result deletes the temporary file
+    {
+        QString temporaryPath;
+        PDFAppToolResultDialog* dialog = openTemporaryDialog(&temporaryPath);
+        QVERIFY(dialog);
+        QVERIFY(QFile::exists(temporaryPath));
+        dialog->reject();
+        QVERIFY(AppToolShellFixture::waitFor([&]() { return !QFile::exists(temporaryPath); }));
+    }
+
+    // The close of the tab with the dialog open deletes it too
+    {
+        QString temporaryPath;
+        PDFAppToolResultDialog* dialog = openTemporaryDialog(&temporaryPath);
+        QVERIFY(dialog);
+        QVERIFY(QFile::exists(temporaryPath));
+        delete tab;
+        QVERIFY(AppToolShellFixture::waitFor([&]() { return !QFile::exists(temporaryPath); }));
+    }
+}
+
+void AppToolShellTest::temporaryFolderLeftovers()
+{
+    // R4-1: the folder of the temporary files of a process, which has ended without deleting it
+    // (no lock or a free lock), is deleted by the next start; the folder of a running process
+    // (its lock is held) stays; the folder of this process goes with it
+    pdftest::AppDocumentFixture fixture;
+    const QString base = fixture.path(QStringLiteral("tools-temporary"));
+    QVERIFY(QDir().mkpath(base + QStringLiteral("/run-dead/inner")));
+    QVERIFY(ToolShellTestHelper::writeFile(base + QStringLiteral("/run-dead/inner/audio.wav"), QByteArray("left over")));
+    QVERIFY(QDir().mkpath(base + QStringLiteral("/run-alive")));
+    QLockFile aliveLock(base + QStringLiteral("/run-alive.lock"));
+    aliveLock.setStaleLockTime(0);
+    QVERIFY(aliveLock.tryLock(0));
+    QVERIFY(QDir().mkpath(base + QStringLiteral("/other")));
+
+    QString ownFolder;
+    {
+        pdf::PDFAppToolTemporaryFolder folder(base);
+        ownFolder = folder.getFolder();
+        QVERIFY(!ownFolder.isEmpty());
+        QCOMPARE(QFileInfo(ownFolder).absolutePath(), QDir::cleanPath(QDir(base).absolutePath()));
+        QVERIFY(QFileInfo(ownFolder).fileName().startsWith(QStringLiteral("run-")));
+        QVERIFY(QFileInfo(ownFolder).isDir());
+
+        QVERIFY(!QFileInfo::exists(base + QStringLiteral("/run-dead")));
+        QVERIFY(QFileInfo(base + QStringLiteral("/run-alive")).isDir());
+        QVERIFY(QFileInfo(base + QStringLiteral("/other")).isDir());
+
+        // A second process at the same time keeps the folder of the first one
+        pdf::PDFAppToolTemporaryFolder second(base);
+        QVERIFY(!second.getFolder().isEmpty());
+        QVERIFY(second.getFolder() != ownFolder);
+        QVERIFY(QFileInfo(ownFolder).isDir());
+    }
+    QVERIFY(!QFileInfo::exists(ownFolder));
+    QVERIFY(QFileInfo(base + QStringLiteral("/run-alive")).isDir());
 }
 
 void AppToolShellTest::dialogAnalysis()

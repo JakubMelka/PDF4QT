@@ -61,14 +61,14 @@ add_executable(PdfTool
 
 target_link_libraries(PdfTool PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Xml)
 
+# The commands audio-book and audio-book-voices on every platform (step 4 of phase 2, Q4.3, R4-2 b):
+# the speech of Qt TextToSpeech of Pdf4QtSpeech, written as WAV
+target_link_libraries(PdfTool PRIVATE Pdf4QtSpeech)
+
 # The command 'ocr' recognizes the text by the Tesseract engine, when it is built
 if(PDF4QT_ENABLE_OCR)
     target_link_libraries(PdfTool PRIVATE Pdf4QtOcrTesseract)
     target_compile_definitions(PdfTool PRIVATE PDF4QT_OCR_TESSERACT)
-endif()
-
-if(MINGW)
-    target_link_libraries(PdfTool PRIVATE ole32 sapi)
 endif()
 
 pdf4qt_target_precompile_headers(PdfTool MODULES CORE GUI)

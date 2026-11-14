@@ -681,6 +681,9 @@ class PDF4QTLIBCORESHARED_EXPORT PDFSysUtils
 public:
 
     static QString getUserName();
+
+    /// Returns the size of the physical memory of the computer in bytes, 0 when it is not known
+    static qint64 getPhysicalMemorySize();
 };
 
 /// Settings of the author name, which is used, when new user generated content

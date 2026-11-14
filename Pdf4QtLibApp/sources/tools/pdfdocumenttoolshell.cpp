@@ -35,6 +35,7 @@
 #include "pdfapptoolhost.h"
 #include "pdfapptoolinputlist.h"
 #include "pdfapptooloutputfiles.h"
+#include "pdfdocumenttool_split.h"
 #include "pdfapptoolpanelparts.h"
 #include "pdfapptoolparametermodel.h"
 #include "pdfapptooltoolbar.h"
@@ -667,6 +668,33 @@ void PDFDocumentToolShell::confirm()
     }
 }
 
+void PDFDocumentToolShell::retryFiles(const QStringList& fileNames, const QString& folder)
+{
+    if (m_state != State::Editing || !m_gui || !m_runner || !m_host || fileNames.isEmpty())
+    {
+        return;
+    }
+
+    // The parameters of the panel with only the failed files (and the other folder)
+    QVariantMap parameters = m_gui->getRunParameters();
+    parameters.insert(QString::fromLatin1(PDFDocumentToolFileOutput::PARAMETER_ONLY_OUTPUTS), PDFDocumentToolFileOutput::createOnlyOutputs(fileNames));
+    if (!folder.isEmpty())
+    {
+        parameters.insert(QString::fromLatin1(PDFDocumentToolFileOutput::PARAMETER_FOLDER), folder);
+    }
+
+    QPointer<PDFDocumentToolShell> guard(this);
+    applyEnvironment();
+    if (!guard || !m_runner || !m_host)
+    {
+        return;
+    }
+    if (!m_runner->run(parameters) && guard && m_host)
+    {
+        m_host->showTransientMessage(tr("The document is busy with another operation. Try it again when it ends."));
+    }
+}
+
 void PDFDocumentToolShell::commitPendingValues()
 {
     QPointer<PDFDocumentToolShell> guard(this);
@@ -708,6 +736,20 @@ void PDFDocumentToolShell::stop()
         m_skippedWriter = nullptr;
         writer->disconnect(this);
         writer->deleteLater();
+        m_runner->endDecision();
+        if (guard)
+        {
+            finishRun(PDFDocumentToolResult::createStopped());
+        }
+        return;
+    }
+
+    // The result waits for the answer of the question of the tool (confirmResult): Stop drops it;
+    // a late answer finds no result and does nothing
+    if (m_confirmingResult)
+    {
+        QPointer<PDFDocumentToolShell> guard(this);
+        m_confirmingResult.reset();
         m_runner->endDecision();
         if (guard)
         {
@@ -1318,6 +1360,20 @@ void PDFDocumentToolShell::finishRun(const PDFDocumentToolResult& result)
             return;
         }
 
+        // The tool may ask first (307:6388, the partial result of Black & White): the result and
+        // the operation of the runner wait for its answer (answerResult). The result is kept
+        // before the foreign code, which may delete this shell.
+        if (m_gui)
+        {
+            m_confirmingResult = result;
+            const bool isAccepted = m_gui->confirmResult(result);
+            if (!guard || !isAccepted)
+            {
+                return;
+            }
+            m_confirmingResult.reset();
+        }
+
         openResultDialog(result, false);
         return;
     }
@@ -1350,6 +1406,44 @@ void PDFDocumentToolShell::finishRun(const PDFDocumentToolResult& result)
     {
         m_gui->onRunNotAccepted(result);
     }
+}
+
+void PDFDocumentToolShell::answerResult(bool isAccepted)
+{
+    if (!m_confirmingResult || m_state != State::Running)
+    {
+        return;
+    }
+
+    const PDFDocumentToolResult result = std::move(*m_confirmingResult);
+    m_confirmingResult.reset();
+
+    // The operation may have ended meanwhile (the runner has gone): the result has no document to go to
+    const bool isHeld = m_runner && m_runner->getState() == PDFDocumentToolRunner::State::Waiting;
+    if (!isHeld)
+    {
+        finishRun(PDFDocumentToolResult::createStopped());
+        return;
+    }
+
+    if (isAccepted)
+    {
+        openResultDialog(result, false);
+        return;
+    }
+
+    // No, discard (307:6388): as Discard of the result dialog - the decision ends, the document
+    // stays as it is
+    QPointer<PDFDocumentToolShell> guard(this);
+    m_runner->endDecision();
+    if (!guard)
+    {
+        return;
+    }
+
+    PDFAppToolResultOutcome outcome;
+    outcome.action = PDFAppToolResultOutcome::Action::Discarded;
+    onDialogDecided(outcome);
 }
 
 void PDFDocumentToolShell::recordUse()
@@ -1416,6 +1510,19 @@ void PDFDocumentToolShell::onDialogDecided(const PDFAppToolResultOutcome& outcom
 {
     const PDFAppToolResultOutcome decided = outcome;
     QPointer<PDFDocumentToolShell> guard(this);
+
+    // Retry N Files / Choose Folder… (339:7293, K4.11, R4-20): the tool stays with its settings and
+    // runs again only for the files, which failed
+    if (decided.action == PDFAppToolResultOutcome::Action::Retry)
+    {
+        m_isStoppedFilesResult = false;
+        returnToEditing();
+        if (guard)
+        {
+            retryFiles(decided.retryFileNames, decided.retryFolder);
+        }
+        return;
+    }
 
     // The written files of a stopped run: the tool stays with its settings (403:29978)
     if (m_isStoppedFilesResult)

@@ -269,6 +269,7 @@ private:
         bool isConverted = false;       ///< True, if at least one item has been converted
         size_t convertedItemCount = 0;  ///< Number of the converted items
         size_t failedItemCount = 0;     ///< Number of the items, which are left unchanged, because their conversion has failed
+        QString renderingIssuePages;    ///< Converted pages with rendering errors ("3, 17"), empty = none (owner 14. 11. 2026: converted, the user checks them)
     };
 
     /// Creates the bitonal document. This function is executed in the worker thread,

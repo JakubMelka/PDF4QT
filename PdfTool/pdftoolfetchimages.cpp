@@ -21,85 +21,20 @@
 // SOFTWARE.
 
 #include "pdftoolfetchimages.h"
-#include "pdfpagecontentprocessor.h"
-#include "pdfconstants.h"
-#include "pdfexecutionpolicy.h"
+#include "pdfdocumenttool_extractimages.h"
+#include "pdfdocumenttool_pdftoimages.h"
+#include "pdfdocumenttool_split.h"
 
-#include <QCryptographicHash>
+#include <QDir>
+#include <QJsonArray>
+#include <QJsonObject>
+
+#include <algorithm>
 
 namespace pdftool
 {
 
 static PDFToolFetchImages s_fetchImagesApplication;
-
-class PDFImageContentExtractorProcessor : public pdf::PDFPageContentProcessor
-{
-    using BaseClass = PDFPageContentProcessor;
-
-public:
-    explicit PDFImageContentExtractorProcessor(const pdf::PDFPage* page,
-                                               const pdf::PDFDocument* document,
-                                               const pdf::PDFFontCache* fontCache,
-                                               const pdf::PDFICCProfileCache* iccProfileCache,
-                                               const pdf::PDFCMS* cms,
-                                               const pdf::PDFOptionalContentActivity* optionalContentActivity,
-                                               QTransform pagePointToDevicePointMatrix,
-                                               const pdf::PDFMeshQualitySettings& meshQualitySettings,
-                                               pdf::PDFInteger pageIndex,
-                                               PDFToolFetchImages* tool) :
-        BaseClass(page, document, fontCache, iccProfileCache, cms, optionalContentActivity, pagePointToDevicePointMatrix, meshQualitySettings),
-        m_pageIndex(pageIndex),
-        m_order(0),
-        m_tool(tool)
-    {
-
-    }
-
-protected:
-    virtual bool isContentSuppressedByOC(pdf::PDFObjectReference ocgOrOcmd) override;
-    virtual bool isContentKindSuppressed(ContentKind kind) const override;
-    virtual void performImagePainting(const QImage& image) override;
-
-private:
-    pdf::PDFInteger m_pageIndex;
-    pdf::PDFInteger m_order;
-    PDFToolFetchImages* m_tool;
-};
-
-bool PDFImageContentExtractorProcessor::isContentSuppressedByOC(pdf::PDFObjectReference ocgOrOcmd)
-{
-    Q_UNUSED(ocgOrOcmd);
-    return false;
-}
-
-bool PDFImageContentExtractorProcessor::isContentKindSuppressed(ContentKind kind) const
-{
-    switch (kind)
-    {
-        case ContentKind::Shapes:
-        case ContentKind::Text:
-        case ContentKind::Shading:
-            return true;
-
-        case ContentKind::Tiling:
-        case ContentKind::Images:
-            return false; // Tiling can have images
-
-        default:
-        {
-            Q_ASSERT(false);
-            break;
-        }
-    }
-
-    return false;
-}
-
-
-void PDFImageContentExtractorProcessor::performImagePainting(const QImage& image)
-{
-    m_tool->onImageExtracted(m_pageIndex, m_order++, image);
-}
 
 QString PDFToolFetchImages::getStandardString(PDFToolAbstractApplication::StandardString standardString) const
 {
@@ -154,45 +89,38 @@ int PDFToolFetchImages::execute(const PDFToolOptions& options)
         return ErrorInvalidArguments;
     }
 
-    // We are ready to render the document
-    pdf::PDFOptionalContentActivity optionalContentActivity(&document, pdf::OCUsage::Export, nullptr);
+    // The tool Extract Images does the work (step 4 of phase 2, B60, B67): the images of the content
+    // of all layers, inline images too, each picture once (by its reference, then by its raw stream),
+    // never a glyph of a Type 3 font. The command line stays: "%" of the template is the number of
+    // the image ("#"); the files of the folder are overwritten, as before.
+    std::sort(pageIndices.begin(), pageIndices.end());
+    pageIndices.erase(std::unique(pageIndices.begin(), pageIndices.end()), pageIndices.end());
+
+    QVariantMap parameters = pdf::PDFDocumentToolImageFormat::fromWriterSettings(options.imageWriterSettings).toParameters();
+    parameters.remove(QString::fromLatin1(pdf::PDFDocumentToolImageFormat::PARAMETER_SUBTYPE));     // Extract Images has no subtype (plan 7)
+    parameters.insert(QString::fromLatin1(pdf::PDFDocumentToolExtractImages::PARAMETER_PAGES), pdf::PDFDocumentToolPageSelection::createRangeText(pageIndices));
+    parameters.insert(QString::fromLatin1(pdf::PDFDocumentToolFileOutput::PARAMETER_FOLDER), options.imageExportSettings.getDirectory());
+    parameters.insert(QString::fromLatin1(pdf::PDFDocumentToolFileOutput::PARAMETER_FILE_NAME), QString(options.imageExportSettings.getFileTemplate()).replace(QLatin1Char('%'), QLatin1Char('#')));
+    parameters.insert(QString::fromLatin1(pdf::PDFDocumentToolFileOutput::PARAMETER_EXISTING_FILES), QString::fromLatin1(pdf::PDFDocumentToolFileOutput::EXISTING_OVERWRITE));
+
     pdf::PDFCMSManager cmsManager(nullptr);
     cmsManager.setDocument(&document);
     cmsManager.setSettings(options.cmsSettings);
-    pdf::PDFCMSPointer cms = cmsManager.getCurrentCMS();
-    pdf::PDFMeshQualitySettings meshQualitySettings;
-    pdf::PDFFontCache fontCache(pdf::DEFAULT_FONT_CACHE_LIMIT, pdf::DEFAULT_REALIZED_FONT_CACHE_LIMIT);
-    pdf::PDFICCProfileCache iccProfileCache;
-    pdf::PDFModifiedDocument md(&document, &optionalContentActivity);
-    fontCache.setDocument(md);
-    iccProfileCache.setDocument(md);
-    fontCache.setCacheShrinkEnabled(nullptr, false);
 
-    auto processPageContents = [&, this](pdf::PDFInteger pageIndex)
+    pdf::PDFDocumentToolFolderSink sink(options.imageExportSettings.getDirectory(), pdf::PDFDocumentToolFileSink::ExistingFiles::Overwrite);
+    pdf::PDFDocumentToolContext context = pdf::PDFDocumentToolContext::create(pdf::PDFDocumentToolInputDocument::create(pdf::PDFDocumentPointer(new pdf::PDFDocument(document)), sourceData, options.document, false));
+    context.cms = cmsManager.getCurrentCMS();
+    context.fileSink = &sink;
+
+    pdf::PDFDocumentToolExtractImages tool;
+    const pdf::PDFDocumentToolResult result = tool.run(context, parameters, nullptr, nullptr);
+    if (result.status == pdf::PDFDocumentToolResultStatus::Failed)
     {
-        const pdf::PDFCatalog* catalog = document.getCatalog();
-        if (!catalog->getPage(pageIndex))
-        {
-            // Invalid page index
-            return;
-        }
+        PDFConsole::writeError(result.message, options.outputCodec);
+        return ErrorInvalidArguments;
+    }
 
-        const pdf::PDFPage* page = catalog->getPage(pageIndex);
-        Q_ASSERT(page);
-
-        PDFImageContentExtractorProcessor processor(page, &document, &fontCache, &iccProfileCache, cms.data(), &optionalContentActivity,
-                                                    QTransform(), meshQualitySettings, pageIndex, this);
-        processor.processContents();
-    };
-
-    pdf::PDFExecutionPolicy::execute(pdf::PDFExecutionPolicy::Scope::Page, pageIndices.begin(), pageIndices.end(), processPageContents);
-    fontCache.setCacheShrinkEnabled(nullptr, true);
-
-    auto comparator = [](const Image& left, const Image& right) -> bool
-    {
-        return std::make_pair(left.pageIndex, left.order) < std::make_pair(right.pageIndex, right.order);
-    };
-    std::sort(m_images.begin(), m_images.end(), comparator);
+    // A document without images gives an empty overview, as before (NothingToDo)
 
     // Write information about images
     PDFOutputFormatter formatter(options.outputStyle);
@@ -211,21 +139,20 @@ int PDFToolFetchImages::execute(const PDFToolOptions& options)
     formatter.endTableHeaderRow();
 
     QLocale locale;
-
-    for (size_t i = 0; i < m_images.size(); ++i)
+    const QDir folder(options.imageExportSettings.getDirectory());
+    for (const QJsonValue& value : result.data.value(QStringLiteral("images")).toArray())
     {
-        Image& image = m_images[i];
-        image.fileName = options.imageExportSettings.getOutputFileName(pdf::PDFInteger(i), options.imageWriterSettings.getCurrentFormat());
+        const QJsonObject image = value.toObject();
+        const QJsonArray pages = image.value(QStringLiteral("pages")).toArray();
+        const qint64 number = image.value(QStringLiteral("number")).toInteger();
 
-        formatter.beginTableRow("image", int(i));
-
-        formatter.writeTableColumn("item-no", locale.toString(i + 1), Qt::AlignRight);
-        formatter.writeTableColumn("page-no", locale.toString(image.pageIndex + 1), Qt::AlignRight);
-        formatter.writeTableColumn("width", locale.toString(image.image.width()), Qt::AlignRight);
-        formatter.writeTableColumn("height", locale.toString(image.image.height()), Qt::AlignRight);
-        formatter.writeTableColumn("size", locale.toString(image.image.sizeInBytes()), Qt::AlignRight);
-        formatter.writeTableColumn("stored-to", image.fileName);
-
+        formatter.beginTableRow("image", int(number - 1));
+        formatter.writeTableColumn("item-no", locale.toString(number), Qt::AlignRight);
+        formatter.writeTableColumn("page-no", pages.isEmpty() ? QString() : locale.toString(pages.first().toInteger()), Qt::AlignRight);
+        formatter.writeTableColumn("width", locale.toString(image.value(QStringLiteral("width")).toInteger()), Qt::AlignRight);
+        formatter.writeTableColumn("height", locale.toString(image.value(QStringLiteral("height")).toInteger()), Qt::AlignRight);
+        formatter.writeTableColumn("size", locale.toString(image.value(QStringLiteral("streamBytes")).toInteger()), Qt::AlignRight);
+        formatter.writeTableColumn("stored-to", QDir::toNativeSeparators(folder.filePath(image.value(QStringLiteral("fileName")).toString())));
         formatter.endTableRow();
     }
 
@@ -234,62 +161,18 @@ int PDFToolFetchImages::execute(const PDFToolOptions& options)
     formatter.endDocument();
     PDFConsole::writeText(formatter.getString(), options.outputCodec);
 
-    // Store images to the disk file
-    auto saveImage = [this, &options](size_t index)
+    // A file, which could not be written, is an error of the command
+    for (const pdf::PDFDocumentToolFileProblem& problem : result.failedFiles)
     {
-        Image& image = m_images[index];
+        PDFConsole::writeError(PDFToolTranslationContext::tr("Cannot write image to file '%1', because: %2.").arg(QDir::toNativeSeparators(folder.filePath(problem.fileName)), problem.reason), options.outputCodec);
+    }
 
-        QImageWriter imageWriter(image.fileName, options.imageWriterSettings.getCurrentFormat());
-        imageWriter.setSubType(options.imageWriterSettings.getCurrentSubtype());
-        imageWriter.setCompression(options.imageWriterSettings.getCompression());
-        imageWriter.setQuality(options.imageWriterSettings.getQuality());
-        imageWriter.setOptimizedWrite(options.imageWriterSettings.hasOptimizedWrite());
-        imageWriter.setProgressiveScanWrite(options.imageWriterSettings.hasProgressiveScanWrite());
-
-        if (!imageWriter.write(image.image))
-        {
-            PDFConsole::writeError(PDFToolTranslationContext::tr("Cannot write page image to file '%1', because: %2.").arg(image.fileName).arg(imageWriter.errorString()), options.outputCodec);
-        }
-    };
-
-    auto imageRange = pdf::PDFIntegerRange<size_t>(0, m_images.size());
-    pdf::PDFExecutionPolicy::execute(pdf::PDFExecutionPolicy::Scope::Page, imageRange.begin(), imageRange.end(), saveImage);
-
-    return ExitSuccess;
+    return result.failedFiles.empty() ? ExitSuccess : ErrorFailedWriteToFile;
 }
 
 PDFToolAbstractApplication::Options PDFToolFetchImages::getOptionsFlags() const
 {
     return ConsoleFormat | OpenDocument | PageSelector | ImageWriterSettings | ImageExportSettingsFiles | ColorManagementSystem;
-}
-
-void PDFToolFetchImages::onImageExtracted(pdf::PDFInteger pageIndex, pdf::PDFInteger order, const QImage& image)
-{
-    QCryptographicHash hasher(QCryptographicHash::Sha512);
-    QByteArrayView imageData(image.bits(), image.sizeInBytes());
-    hasher.addData(imageData);
-    QByteArray hash = hasher.result();
-
-    QMutexLocker lock(&m_mutex);
-    auto it = std::find_if(m_images.begin(), m_images.end(), [&hash](const Image& image) { return image.hash == hash; });
-    if (it == m_images.cend())
-    {
-        Image imageStructure;
-        imageStructure.hash = hash;
-        imageStructure.pageIndex = pageIndex;
-        imageStructure.order = order;
-        imageStructure.image = image;
-        m_images.emplace_back(qMove(imageStructure));
-    }
-    else
-    {
-        Image& imageStructure = *it;
-        if (imageStructure.pageIndex > pageIndex)
-        {
-            imageStructure.pageIndex = pageIndex;
-            imageStructure.order = order;
-        }
-    }
 }
 
 }   // namespace pdftool

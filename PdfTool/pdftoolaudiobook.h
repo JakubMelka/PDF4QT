@@ -24,58 +24,29 @@
 #define PDFTOOLAUDIOBOOK_H
 
 #include "pdftoolabstractapplication.h"
-
-#ifdef Q_OS_WIN
-
-struct ISpObjectToken;
-
-namespace pdf
-{
-class PDFDocumentTextFlow;
-}
+#include "pdfspeechsynthesizer.h"
 
 namespace pdftool
 {
 
-class PDFVoiceInfo
-{
-public:
-    PDFVoiceInfo() = default;
-    PDFVoiceInfo(std::map<QString, QString> properties, ISpObjectToken* voiceToken);
-
-    PDFVoiceInfo(const PDFVoiceInfo&) = delete;
-    PDFVoiceInfo(PDFVoiceInfo&& other);
-    PDFVoiceInfo& operator=(const PDFVoiceInfo&) = delete;
-    PDFVoiceInfo& operator=(PDFVoiceInfo&&other);
-
-    ~PDFVoiceInfo();
-
-    QString getName() const { return getStringValue("Name"); }
-    QString getGender() const { return getStringValue("Gender"); }
-    QString getAge() const { return getStringValue("Age"); }
-    QString getVendor() const { return getStringValue("Vendor"); }
-    QString getLanguage() const { return getStringValue("Language"); }
-    QString getVersion() const { return getStringValue("Version"); }
-    QLocale getLocale() const;
-
-    QString getStringValue(QString key) const;
-    ISpObjectToken* getVoiceToken() const { return m_voiceToken; }
-
-private:
-    std::map<QString, QString> m_properties;
-    ISpObjectToken* m_voiceToken = nullptr;
-};
-
-using PDFVoiceInfoList = std::vector<PDFVoiceInfo>;
-
+/// The commands audio-book and audio-book-voices on every platform (step 4 of phase 2, plan 4.8,
+/// owner answers Q4.1 - Q4.3, R4-15, B68 - B72, B77): the voices and the synthesis of Pdf4QtSpeech
+/// (Qt TextToSpeech), the audio book of the core tool PDFDocumentToolAudioBook - no code of SAPI,
+/// no second copy of the synthesis.
 class PDFToolAudioBookBase : public PDFToolAbstractApplication
 {
 public:
     PDFToolAudioBookBase() = default;
 
 protected:
-    int fillVoices(const PDFToolOptions& options, PDFVoiceInfoList& list, bool fillVoiceTokenPointers);
-    int showVoiceList(const PDFToolOptions& options);
+    /// The voices of the engine, which match the options --voice-name, --voice-gender,
+    /// --voice-age, --voice-lang-code (PDFSpeechVoiceSelector, the one selection)
+    /// \param voices The voices of the engine
+    /// \param errorMessage An unknown value of an option
+    static std::vector<pdf::PDFSpeechVoice> filterVoices(const PDFToolOptions& options, const std::vector<pdf::PDFSpeechVoice>& voices, QString* errorMessage);
+
+    /// A criterion of a voice is given
+    static bool hasVoiceCriteria(const PDFToolOptions& options);
 };
 
 class PDFToolAudioBookVoices : public PDFToolAudioBookBase
@@ -92,14 +63,8 @@ public:
     virtual QString getStandardString(StandardString standardString) const override;
     virtual int execute(const PDFToolOptions& options) override;
     virtual Options getOptionsFlags() const override;
-
-private:
-    int getDocumentTextFlow(const PDFToolOptions& options, pdf::PDFDocumentTextFlow& flow);
-    int createAudioBook(const PDFToolOptions& options, pdf::PDFDocumentTextFlow& flow);
 };
 
 }   // namespace pdftool
-
-#endif
 
 #endif // PDFTOOLAUDIOBOOK_H

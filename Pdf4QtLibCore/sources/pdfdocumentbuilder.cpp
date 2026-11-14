@@ -1335,10 +1335,17 @@ void PDFPageContentStreamBuilder::end(QPainter* painter)
                 }
             }
 
-            PDFObject oldResourcesObject = m_documentBuilder->getObject(pageDictionary->get("Resources"));
+            PDFObject oldResourcesObject = getPageResources(pageDictionary);
             oldResourcesObject = removeDictionaryReferencesFromResources(oldResourcesObject);
             replaceResources(contentsReference, resourcesReference, oldResourcesObject);
-            m_documentBuilder->mergeTo(resourcesReference, oldResourcesObject);
+
+            // A page without resources (a new empty page) keeps the resources of the new content
+            // as they are: a merge with a null object would replace them by null (the fonts of a
+            // text placed after an empty content were lost, P4 of step 4 of phase 2)
+            if (oldResourcesObject.isDictionary())
+            {
+                m_documentBuilder->mergeTo(resourcesReference, oldResourcesObject);
+            }
         }
 
         switch (m_mode)
@@ -1372,6 +1379,30 @@ void PDFPageContentStreamBuilder::end(QPainter* painter)
 
         m_documentBuilder->mergeTo(m_pageReference, pageUpdateFactory.takeObject());
     }
+}
+
+PDFObject PDFPageContentStreamBuilder::getPageResources(const PDFDictionary* pageDictionary) const
+{
+    // /Resources is inheritable (Table 31): the nearest node of the page tree, which has it. One
+    // walk with a visited set and a depth limit: a cycle of /Parent ends at the second visit.
+    PDFObjectWalk walk(PDFObjectWalk::DEFAULT_MAXIMUM_DEPTH);
+    const PDFDictionary* node = pageDictionary;
+    for (int depth = 0; node; ++depth)
+    {
+        const PDFObject resources = m_documentBuilder->getObject(node->get("Resources"));
+        if (resources.isDictionary())
+        {
+            return resources;
+        }
+
+        const PDFObject& parent = node->get("Parent");
+        if (!parent.isReference() || !walk.enter(parent, depth + 1))
+        {
+            break;
+        }
+        node = m_documentBuilder->getDictionaryFromObject(m_documentBuilder->getObject(parent));
+    }
+    return PDFObject();
 }
 
 PDFObject PDFPageContentStreamBuilder::removeDictionaryReferencesFromResources(PDFObject resources)

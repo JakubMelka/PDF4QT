@@ -56,6 +56,8 @@
 
 #include <algorithm>
 #include <limits>
+#include <map>
+#include <set>
 
 #include <QButtonGroup>
 #include <QCheckBox>
@@ -282,6 +284,97 @@ public:
         (*textLabel)->setMinimumWidth(1);
         layout->addWidget(*textLabel);
         return card;
+    }
+
+    /// Most rows of the lists Rendering issues and Failed (a run of 10 000 pages, which all fail,
+    /// never makes 10 000 widgets; the count is in the tag and in the facts)
+    static constexpr int MAXIMUM_PROBLEM_ROWS = 50;
+
+    /// An export of images of step 4 of phase 2 (PDF to Images, Extract Images): its facts are its
+    /// own (339:6505, 341:8462), the problems of its pages and files are lists (K4.11)
+    static bool isImageExport(const PDFDocumentToolOutputTraits& tool)
+    {
+        const QString toolId = tool.entry ? tool.entry->getId() : QString();
+        return toolId == QLatin1String("convert.pdf-to-images") || toolId == QLatin1String("convert.extract-images");
+    }
+
+    /// The name of a folder of the texts ("Exports" of "C:\…\Exports")
+    static QString getFolderName(const QString& folder)
+    {
+        const QString name = QFileInfo(QDir::cleanPath(folder)).fileName();
+        return name.isEmpty() ? QDir::toNativeSeparators(folder) : name;
+    }
+
+    /// The rows of a list of the written files: the pages with problems (339:6505 Rendering issues,
+    /// a row per page with its messages) or the files, which failed (339:7293, a row per file with
+    /// its reason). Made again in the language of now; the old rows go (no signal of them runs).
+    static void fillProblemRows(QWidget* container, const PDFDocumentToolResult& result, bool isFailedList)
+    {
+        QVBoxLayout* layout = container ? qobject_cast<QVBoxLayout*>(container->layout()) : nullptr;
+        if (!layout)
+        {
+            return;
+        }
+        qDeleteAll(container->findChildren<PDFTileRow*>(QString(), Qt::FindDirectChildrenOnly));
+
+        int rowCount = 0;
+        if (isFailedList)
+        {
+            // 339:7293: the name of the file, its reason, the error icon
+            for (const PDFDocumentToolFileProblem& problem : result.failedFiles)
+            {
+                if (rowCount++ == MAXIMUM_PROBLEM_ROWS)
+                {
+                    addProblemRow(layout, PDFAppToolResultDialog::tr("%Ln more files", nullptr, int(result.failedFiles.size()) - MAXIMUM_PROBLEM_ROWS), QString(), QStringLiteral("image"), QString(), PDFThemeColors::AccentRedIcon);
+                    break;
+                }
+                addProblemRow(layout, problem.fileName, problem.reason, QStringLiteral("image"), QStringLiteral("alert-circle"), PDFThemeColors::AccentRedIcon);
+            }
+            return;
+        }
+
+        // 339:6505: "Page 17", the messages of the page, the warning icon
+        std::map<PDFInteger, QStringList> messagesOfPage;
+        for (const PDFDocumentToolPageProblem& problem : result.renderingIssues)
+        {
+            QStringList& messages = messagesOfPage[problem.pageIndex];
+            if (!messages.contains(problem.message))
+            {
+                messages << problem.message;
+            }
+        }
+        for (const auto& [pageIndex, messages] : messagesOfPage)
+        {
+            if (rowCount++ == MAXIMUM_PROBLEM_ROWS)
+            {
+                addProblemRow(layout, PDFAppToolResultDialog::tr("%Ln more pages", nullptr, int(messagesOfPage.size()) - MAXIMUM_PROBLEM_ROWS), QString(), QStringLiteral("file"), QString(), PDFThemeColors::AccentAmberIcon);
+                break;
+            }
+            addProblemRow(layout, PDFAppToolResultDialog::tr("Page %1").arg(PDFAppLocale::formatNumber(qint64(pageIndex + 1))), messages.join(QStringLiteral(" · ")), QStringLiteral("file"), QStringLiteral("alert-triangle"), PDFThemeColors::AccentAmberIcon);
+        }
+    }
+
+    /// A row of a list of fillProblemRows: not clickable, the icon of its state at its end
+    static void addProblemRow(QVBoxLayout* layout, const QString& title, const QString& description, const QString& iconName, const QString& endIcon, PDFThemeColors::Color endColor)
+    {
+        PDFTileRow* row = new PDFTileRow(title, description, iconName, PDFTileRow::Kind::Result, layout->parentWidget());
+        row->setClickable(false);
+        if (!endIcon.isEmpty())
+        {
+            row->setEndIcon(endIcon, endColor);
+        }
+        layout->addWidget(row);
+    }
+
+    /// The pages with problems of the result (339:6505 "2 pages")
+    static int getIssuePageCount(const PDFDocumentToolResult& result)
+    {
+        std::set<PDFInteger> pages;
+        for (const PDFDocumentToolPageProblem& problem : result.renderingIssues)
+        {
+            pages.insert(problem.pageIndex);
+        }
+        return int(pages.size());
     }
 
     /// A button of the dialog
@@ -591,17 +684,35 @@ PDFAppToolResultDialog::PDFAppToolResultDialog(PDFAppContext* context, PDFAppDoc
     m_discardButton->setIcon(PDFThemeIcons::getIcon(QStringLiteral("trash")));
     connect(m_discardButton, &QPushButton::clicked, this, &PDFAppToolResultDialog::onDiscardClicked);
 
-    // 383:11374, 403:29978: Close next to Open Folder (the Primary button)
+    // 383:11374, 403:29978: Close next to Open Folder (the Primary button); the exports of images
+    // have Close at the leading edge (339:6505, 356:12504, 339:7293, 341:8462)
+    const bool isImageExport = m_kind == ResultKind::WrittenFiles && PDFAppToolResultDialogHelper::isImageExport(m_outputTraits);
     if (m_kind == ResultKind::WrittenFiles)
     {
-        m_closeButton = addActionButton(QString(), ActionPosition::Trailing, false);
+        m_closeButton = addActionButton(QString(), isImageExport ? ActionPosition::Leading : ActionPosition::Trailing, false);
         m_closeButton->setObjectName(QStringLiteral("closeResultButton"));
         connect(m_closeButton, &QPushButton::clicked, this, &PDFAppToolResultDialog::onCloseClicked);
     }
 
-    m_confirmButton = addActionButton(QString(), ActionPosition::Trailing, true);
+    // 339:7293 (K4.11): Choose Folder… and Retry N Files (the Primary button) in the place of Open
+    // Folder; both end the dialog by the outcome Retry (their own slots)
+    const bool isRetry = m_kind == ResultKind::WrittenFiles && !m_isStoppedRun && isRetryOffered(m_outputTraits, m_input.result);
+    if (isRetry)
+    {
+        m_chooseFolderButton = addActionButton(QString(), ActionPosition::Trailing, false);
+        m_chooseFolderButton->setObjectName(QStringLiteral("chooseFolderResultButton"));
+        m_chooseFolderButton->setIcon(PDFThemeIcons::getIcon(QStringLiteral("folder-open")));
+        connect(m_chooseFolderButton, &QPushButton::clicked, this, &PDFAppToolResultDialog::onChooseFolderClicked);
+        m_retryButton = addActionButton(QString(), ActionPosition::Trailing, true);
+        m_retryButton->setObjectName(QStringLiteral("retryResultButton"));
+        m_retryButton->setIcon(PDFThemeIcons::getIcon(QStringLiteral("refresh-cw")));
+        connect(m_retryButton, &QPushButton::clicked, this, &PDFAppToolResultDialog::onRetryClicked);
+    }
+
+    m_confirmButton = addActionButton(QString(), ActionPosition::Trailing, !isRetry);
     m_confirmButton->setObjectName(QStringLiteral("confirmResultButton"));
     connect(m_confirmButton, &QPushButton::clicked, this, &PDFAppToolResultDialog::onConfirmClicked);
+    m_confirmButton->setVisible(!isRetry);
 
     // An analysis has nothing to discard; the written files of a finished run neither, those
     // of a stopped run can be deleted (Delete Written Files, K46)
@@ -645,7 +756,7 @@ void PDFAppToolResultDialog::createHead()
 
     // A partial result has the warning of 378:4376 (alert-triangle in amber), a stopped run of
     // more files too (403:29978)
-    const bool isWarning = m_isPartial || m_isStoppedRun;
+    const bool isWarning = m_isPartial || m_isStoppedRun || isFinishedWithErrors();
     PDFIconBadge* badge = new PDFIconBadge(isWarning ? QStringLiteral("alert-triangle") : QStringLiteral("check"), Helper::HEAD_BADGE, Helper::HEAD_ICON, head);
     badge->setObjectName(QStringLiteral("toolResultBadge"));
     badge->setHue(isWarning ? PDFAccentHue::Amber : PDFAccentHue::Green);
@@ -999,6 +1110,11 @@ QString PDFAppToolResultDialog::getDefaultTitle() const
         // 403:29978 "Split stopped"
         return tr("%1 stopped").arg(toolTitle);
     }
+    if (isFinishedWithErrors())
+    {
+        // 339:7293 "PDF to Images finished with errors"
+        return tr("%1 finished with errors").arg(toolTitle);
+    }
     return tr("%1 finished").arg(toolTitle);
 }
 
@@ -1024,6 +1140,27 @@ QString PDFAppToolResultDialog::getDefaultSubtitle() const
             return tr("Nothing has been written yet – choose what to do with the result.");
         case ResultKind::WrittenFiles:
         {
+            if (PDFAppToolResultDialogHelper::isImageExport(m_outputTraits))
+            {
+                // 339:6505 "1,592 images were written to the folder Exports.", 339:7293 "1,589 of 1,592
+                // images were written to the folder Exports; 3 files failed.", 356:12504 "411 of 1,592
+                // images were written to the folder Exports before you stopped the export."
+                const PDFDocumentToolResult& result = m_input.result;
+                const QString folder = PDFAppToolResultDialogHelper::getFolderName(getWrittenFolder());
+                const int written = int(result.writtenFiles.size());
+                const int total = written + int(result.notWrittenFiles.size());
+                if (m_isStoppedRun)
+                {
+                    return tr("%1 of %Ln images were written to the folder %2 before you stopped the export.", nullptr, total).arg(PDFAppLocale::formatNumber(qint64(written)), folder);
+                }
+                if (isFinishedWithErrors())
+                {
+                    return tr("%1 of %2 images were written to the folder %3; %Ln files failed.", nullptr, int(result.failedFiles.size()))
+                            .arg(PDFAppLocale::formatNumber(qint64(written)), PDFAppLocale::formatNumber(qint64(total)), folder);
+                }
+                return tr("%Ln images were written to the folder %1.", nullptr, written).arg(folder);
+            }
+
             // 383:11374 "Handbook.pdf was not changed.", 403:29978 with the settings, which stay
             const QString documentName = QFileInfo(m_snapshot.filePath).fileName();
             const QString unchanged = documentName.isEmpty() ? tr("The document was not changed.") : tr("%1 was not changed.").arg(documentName);
@@ -1216,7 +1353,20 @@ void PDFAppToolResultDialog::updateTexts()
         }
         const int fileCount = int(result.writtenFiles.size() + result.notWrittenFiles.size());
         m_facts->clear();
-        if (m_isStoppedRun)
+        if (PDFAppToolResultDialogHelper::isImageExport(m_outputTraits))
+        {
+            // 339:6505 Files, Total size, Time; 339:7293 Written, Failed, Time; 356:12504 Written, Not
+            // exported, Time; 341:8462 Files, Left out, Total size, Time: the facts of the tool in
+            // their order. The rendering issues and the failed files are lists below them.
+            for (const PDFDocumentToolFact& fact : result.facts)
+            {
+                if (fact.id != QLatin1String("renderingIssues"))
+                {
+                    m_facts->addRow(fact.title, fact.value);
+                }
+            }
+        }
+        else if (m_isStoppedRun)
         {
             m_facts->addRow(tr("Written"), tr("%1 of %Ln · %2", nullptr, fileCount).arg(PDFAppLocale::formatNumber(qint64(writtenNames.size())), PDFDocumentToolFileOutput::formatFileNames(writtenNames)));
             m_facts->addRow(tr("Not written"), PDFDocumentToolFileOutput::formatFileNames(result.notWrittenFiles));
@@ -1239,11 +1389,36 @@ void PDFAppToolResultDialog::updateTexts()
         }
         for (const PDFDocumentToolFact& fact : result.facts)
         {
-            if (fact.id != QLatin1String("files") && fact.id != QLatin1String("size") && fact.id != QLatin1String("notWritten"))
+            if (!PDFAppToolResultDialogHelper::isImageExport(m_outputTraits) && fact.id != QLatin1String("files") && fact.id != QLatin1String("size") && fact.id != QLatin1String("notWritten"))
             {
                 m_facts->addRow(fact.title, fact.value);
             }
         }
+
+        // K4.11: the lists of the problems of the pages (339:6505) and of the failed files (339:7293)
+        PDFAppToolResultDialogHelper::fillProblemRows(findChild<QWidget*>(QStringLiteral("toolResultIssueList")), result, false);
+        PDFAppToolResultDialogHelper::fillProblemRows(findChild<QWidget*>(QStringLiteral("toolResultFailedList")), result, true);
+        if (PDFLabel* issuesTitle = findChild<PDFLabel*>(QStringLiteral("toolResultIssuesTitle")))
+        {
+            issuesTitle->setText(tr("Rendering issues"));
+        }
+        if (PDFTag* tag = findChild<PDFTag*>(QStringLiteral("toolResultIssuesTag")))
+        {
+            tag->setText(tr("%Ln pages", nullptr, PDFAppToolResultDialogHelper::getIssuePageCount(result)));
+        }
+        if (PDFAppParagraph* note = findChild<PDFAppParagraph*>(QStringLiteral("toolResultRetryNote")))
+        {
+            note->setText(tr("The export settings are kept. Retry writes only the %Ln missing files; Choose Folder writes them somewhere else.", nullptr, int(result.failedFiles.size())));
+        }
+    }
+    if (m_retryButton)
+    {
+        // 339:7293 "Retry 3 Files"
+        m_retryButton->setText(tr("Retry %Ln Files", nullptr, int(m_input.result.failedFiles.size())));
+    }
+    if (m_chooseFolderButton)
+    {
+        m_chooseFolderButton->setText(tr("Choose Folder…"));
     }
     if (m_openFilesCheckBox)
     {
@@ -1725,6 +1900,21 @@ QString PDFAppToolResultDialog::getStatusText() const
         // 383:11374 "Split finished · 4 files written to C:\…", 403:29978 "Split stopped · 2 of 4 files were written to …"
         const QString folder = QDir::toNativeSeparators(getWrittenFolder());
         const int written = int(m_input.result.writtenFiles.size());
+        if (PDFAppToolResultDialogHelper::isImageExport(m_outputTraits))
+        {
+            // 339:6505 "PDF to Images finished · 1,592 files written", 339:7293 "… · 3 of 1,592 files
+            // could not be written", 356:12504 "PDF to Images stopped · 411 of 1,592 files written"
+            const int total = written + int(m_input.result.notWrittenFiles.size());
+            if (m_isStoppedRun)
+            {
+                return tr("%1 stopped · %2 of %Ln files written", nullptr, total).arg(toolTitle, PDFAppLocale::formatNumber(qint64(written)));
+            }
+            if (isFinishedWithErrors())
+            {
+                return tr("%1 finished · %2 of %Ln files could not be written", nullptr, total).arg(toolTitle, PDFAppLocale::formatNumber(qint64(m_input.result.failedFiles.size())));
+            }
+            return tr("%1 finished · %Ln files written", nullptr, written).arg(toolTitle);
+        }
         if (m_isStoppedRun)
         {
             const int total = written + int(m_input.result.notWrittenFiles.size());
@@ -1803,6 +1993,47 @@ void PDFAppToolResultDialog::onConfirmClicked()
     confirm();
 }
 
+void PDFAppToolResultDialog::onRetryClicked()
+{
+    // 339:7293 (K4.11): Retry N Files writes the failed files again into the folder of the run
+    if (!isWriting() && !m_isDecided)
+    {
+        finishWithRetry(QString());
+    }
+}
+
+void PDFAppToolResultDialog::onChooseFolderClicked()
+{
+    // 339:7293 (K4.11): Choose Folder… writes the failed files again into another folder
+    if (isWriting() || m_isDecided)
+    {
+        return;
+    }
+
+    // The modal dialog of the system runs the event loop: the tab may go meanwhile
+    QPointer<PDFAppToolResultDialog> guard(this);
+    const QString folder = PDFAppFileDialogs::getExistingDirectory(this, getWrittenFolder());
+    if (!guard || folder.isEmpty() || m_isDecided || isWriting())
+    {
+        return;
+    }
+    finishWithRetry(folder);
+}
+
+void PDFAppToolResultDialog::finishWithRetry(const QString& folder)
+{
+    // The shell runs the tool with the same settings only for the failed files
+    // (PDFDocumentToolShell::retryFiles); an empty folder is the folder of the run
+    PDFAppToolResultOutcome outcome;
+    outcome.action = PDFAppToolResultOutcome::Action::Retry;
+    for (const PDFDocumentToolFileProblem& problem : m_input.result.failedFiles)
+    {
+        outcome.retryFileNames << problem.fileName;
+    }
+    outcome.retryFolder = folder;
+    finishWith(outcome);
+}
+
 void PDFAppToolResultDialog::confirm()
 {
     if (isWriting() || m_isDecided)
@@ -1878,7 +2109,8 @@ void PDFAppToolResultDialog::confirm()
             bool isStarted = false;
             if (m_kind == ResultKind::Files)
             {
-                isStarted = !m_input.result.outputs.empty() && m_writer->writeFile(m_input.result.outputs.front().data, getTargetFilePath(), getOriginFilePath(), m_isReplaceConfirmed);
+                // R4-1: the one write of an output - the bytes, or the temporary file moved or copied
+                isStarted = !m_input.result.outputs.empty() && m_writer->writeOutput(m_input.result.outputs.front(), getTargetFilePath(), getOriginFilePath(), m_isReplaceConfirmed);
             }
             else if (const PDFDocumentToolOutputDocument* output = findOutput(PDFDocumentToolOutputDocument::Kind::New))
             {
@@ -2049,6 +2281,17 @@ QString PDFAppToolResultDialog::getWrittenFolder() const
     return m_snapshot.filePath.isEmpty() ? QString() : QFileInfo(m_snapshot.filePath).absolutePath();
 }
 
+bool PDFAppToolResultDialog::isRetryOffered(const PDFDocumentToolOutputTraits& tool, const PDFDocumentToolResult& result)
+{
+    // R4-20: only the two exports of step 4 write the files again; Split and Extract Pages stay
+    return !result.failedFiles.empty() && PDFAppToolResultDialogHelper::isImageExport(tool);
+}
+
+bool PDFAppToolResultDialog::isFinishedWithErrors() const
+{
+    return m_kind == ResultKind::WrittenFiles && !m_input.result.failedFiles.empty();
+}
+
 QStringList PDFAppToolResultDialog::getDeletableFiles() const
 {
     // K46: only the files this run created; an overwritten file cannot be restored
@@ -2098,6 +2341,52 @@ void PDFAppToolResultDialog::createWrittenFilesFacts(QVBoxLayout* layout, QWidge
     m_facts = new PDFKeyValueList(panel);
     panelLayout->addWidget(m_facts);
     layout->addWidget(panel);
+
+    // K4.11: the pages of an export with problems (339:6505: the title "Rendering issues" with the
+    // tag of the count and a card of a row per page) and the failed files (339:7293: a red card of a
+    // row per file and the note of Retry). The rows and the texts are made by updateTexts.
+    const PDFDocumentToolResult& result = m_input.result;
+    if (!result.renderingIssues.empty())
+    {
+        QWidget* header = new QWidget(parent);
+        header->setObjectName(QStringLiteral("toolResultIssuesHeader"));
+        QHBoxLayout* headerLayout = new QHBoxLayout(header);
+        headerLayout->setContentsMargins(0, 0, 0, 0);
+        headerLayout->setSpacing(PDFAppToolResultDialogHelper::CALLOUT_GAP);
+        PDFLabel* title = PDFAppPageWidgets::createLabel(QString(), PDFThemeFonts::Role::BodySemiBold, PDFThemeColors::TextPrimary, header);
+        title->setObjectName(QStringLiteral("toolResultIssuesTitle"));
+        headerLayout->addWidget(title);
+        PDFTag* tag = new PDFTag(header);
+        tag->setObjectName(QStringLiteral("toolResultIssuesTag"));
+        headerLayout->addWidget(tag);
+        headerLayout->addStretch(1);
+        layout->addWidget(header);
+
+        PDFTintedCard* list = new PDFTintedCard(std::nullopt, parent);
+        list->setObjectName(QStringLiteral("toolResultIssueList"));
+        list->setRadius(PDFAppToolResultDialogHelper::CALLOUT_RADIUS);
+        QVBoxLayout* listLayout = new QVBoxLayout(list);
+        listLayout->setContentsMargins(4, 4, 4, 4);
+        listLayout->setSpacing(0);
+        layout->addWidget(list);
+    }
+    if (!result.failedFiles.empty())
+    {
+        PDFTintedCard* list = new PDFTintedCard(PDFAccentHue::Red, parent);
+        list->setObjectName(QStringLiteral("toolResultFailedList"));
+        list->setRadius(PDFAppToolResultDialogHelper::CALLOUT_RADIUS);
+        QVBoxLayout* listLayout = new QVBoxLayout(list);
+        listLayout->setContentsMargins(4, 4, 4, 4);
+        listLayout->setSpacing(0);
+        layout->addWidget(list);
+
+        if (!m_isStoppedRun && isRetryOffered(m_outputTraits, result))
+        {
+            PDFAppParagraph* note = PDFAppPageWidgets::createText(QString(), PDFThemeFonts::getFont(QFont::Normal, 12), 16, PDFThemeColors::TextSecondary, parent);
+            note->setObjectName(QStringLiteral("toolResultRetryNote"));
+            layout->addWidget(note);
+        }
+    }
 
     // "Open the files in new tabs" (383:11374): PDF files of a finished run only (R14)
     bool isPdf = !m_input.result.writtenFiles.isEmpty();

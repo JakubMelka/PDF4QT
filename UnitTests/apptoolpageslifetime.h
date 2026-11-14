@@ -122,6 +122,21 @@ public:
     /// manageconflict, manageclipboard, managecheckpoint, managedocchange, manageopenpopups):
     /// apptoolpageslifetime_manage.cpp
     static void registerManageScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
+
+    /// Step 4 (plan 8), package P1: PDF to Images and the written files of the result dialog
+    /// (Rendering issues, Retry N Files): apptoolpageslifetime_export.cpp
+    static void registerExportScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
+
+    /// Step 4, package P2: Optimize Images, Grayscale, Extract Images, the list of the images and
+    /// the comparison: apptoolpageslifetime_optimizeimages.cpp (apptoolpageslifetime_images.cpp is
+    /// Images to PDF of step 3a)
+    static void registerOptimizeImagesScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
+
+    /// Step 4, package P3: Convert to Black & White: apptoolpageslifetime_bitonal.cpp
+    static void registerBitonalScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
+
+    /// Step 4, package P4: Create Audio Book and its overlay: apptoolpageslifetime_audiobook.cpp
+    static void registerAudioBookScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
 };
 
 /// The steps and the inputs of the test for the scenarios of the packages: every input is sent

@@ -36,6 +36,7 @@
 #include "pdfcatalog.h"
 #include "pdfcompiler.h"
 #include "pdfdocument.h"
+#include "pdfdocumentimagelist.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfform.h"
 #include "pdfmcpjson.h"
@@ -50,6 +51,7 @@
 #include <QFileInfo>
 #include <QHash>
 
+#include <cmath>
 #include <map>
 #include <set>
 
@@ -899,6 +901,153 @@ QByteArray PDFAppMcpDocumentReader::getAnnotations(const PDFAppMcpDocumentHeader
 
     writer.endArray();
     if (hasMore)
+    {
+        writer.writeMember(QLatin1StringView("nextCursor"), createCursor(query.offset + written));
+    }
+    writer.writeMember(QLatin1StringView("origin"), QLatin1StringView("document"));
+    writer.endObject();
+    return writer.take();
+}
+
+std::shared_ptr<const PDFDocumentImageList> PDFAppMcpImageListCache::find(const QString& documentId, quint64 version) const
+{
+    QMutexLocker locker(&m_mutex);
+    for (const Entry& entry : m_entries)
+    {
+        if (entry.version == version && entry.documentId == documentId)
+        {
+            return entry.list;
+        }
+    }
+    return nullptr;
+}
+
+void PDFAppMcpImageListCache::insert(const QString& documentId, quint64 version, std::shared_ptr<const PDFDocumentImageList> list)
+{
+    if (!list || !list->isComplete())
+    {
+        return;
+    }
+
+    QMutexLocker locker(&m_mutex);
+    for (const Entry& entry : m_entries)
+    {
+        if (entry.version == version && entry.documentId == documentId)
+        {
+            return;
+        }
+    }
+    m_entries.push_back(Entry{ documentId, version, std::move(list) });
+    while (m_entries.size() > MAXIMUM_LISTS)
+    {
+        m_entries.pop_front();
+    }
+}
+
+std::shared_ptr<const PDFDocumentImageList> PDFAppMcpDocumentReader::collectImages(const PDFDocument* document, const PDFOperationControl* control)
+{
+    // MCP has no tab: the layers of an export without a tab (OCUsage::Export, R4-10 b, R4-11)
+    return std::make_shared<const PDFDocumentImageList>(PDFDocumentImageList::create(document, PDFDocumentImageList::Options::createForExport(), control, nullptr));
+}
+
+QByteArray PDFAppMcpDocumentReader::getImages(const PDFAppMcpDocumentHeader& header, const PDFDocument* document, const PDFAppMcpImageQuery& query, const PDFOperationControl* control)
+{
+    const std::shared_ptr<const PDFDocumentImageList> list = collectImages(document, control);
+    return getImages(header, *list, query);
+}
+
+QByteArray PDFAppMcpDocumentReader::getImages(const PDFAppMcpDocumentHeader& header, const PDFDocumentImageList& list, const PDFAppMcpImageQuery& query)
+{
+    using Support = PDFAppMcpReadSupport;
+
+    const std::set<PDFInteger> selectedPages(query.pageIndices.cbegin(), query.pageIndices.cend());
+
+    PDFMcpJsonWriter writer;
+    writer.beginObject();
+    header.write(writer);
+    writer.key(QLatin1StringView("images"));
+    writer.beginArray();
+
+    qint64 total = 0;
+    qint64 written = 0;
+    const std::vector<PDFDocumentImageList::Item>& items = list.getItems();
+    for (size_t i = 0; i < items.size(); ++i)
+    {
+        const PDFDocumentImageList::Item& item = items[i];
+        bool isSelected = false;
+        for (const PDFInteger pageIndex : item.pageIndices)
+        {
+            if (selectedPages.count(pageIndex))
+            {
+                isSelected = true;
+                break;
+            }
+        }
+        if (!isSelected)
+        {
+            continue;
+        }
+
+        // The images before the cursor and after the most results are only counted
+        const qint64 index = total++;
+        if (index < query.offset || written >= query.maximumResults)
+        {
+            continue;
+        }
+        ++written;
+
+        writer.beginObject();
+        writer.writeMember(QLatin1StringView("id"), item.key.toString());
+        writer.writeMember(QLatin1StringView("number"), qint64(i + 1));
+        writer.writeMember(QLatin1StringView("kind"), item.kind == PDFDocumentImageList::Kind::Inline ? QLatin1StringView("inline") : QLatin1StringView("xobject"));
+        writer.key(QLatin1StringView("pages"));
+        writer.beginArray();
+        for (size_t p = 0; p < item.pageIndices.size() && p < size_t(MAXIMUM_IMAGE_PAGES); ++p)
+        {
+            writer.writeInteger(qint64(item.pageIndices[p] + 1));
+        }
+        writer.endArray();
+        writer.writeMember(QLatin1StringView("pageCount"), qint64(item.pageIndices.size()));
+        writer.writeMember(QLatin1StringView("width"), qint64(item.pixelSize.width()));
+        writer.writeMember(QLatin1StringView("height"), qint64(item.pixelSize.height()));
+
+        // The smaller resolution of the two axes; unknown (every drawing degenerated) = left out
+        const qreal dpiX = item.minimalDpi.x();
+        const qreal dpiY = item.minimalDpi.y();
+        const qreal dpi = dpiX > 0.0 && dpiY > 0.0 ? qMin(dpiX, dpiY) : qMax(dpiX, dpiY);
+        if (dpi > 0.0 && std::isfinite(dpi))
+        {
+            writer.writeMember(QLatin1StringView("dpi"), double(qRound(dpi * 10.0)) / 10.0);
+        }
+        if (!item.colorSpaceName.isEmpty())
+        {
+            writer.writeMember(QLatin1StringView("colorSpace"), Support::sanitizeName(item.colorSpaceName, 64));
+        }
+        switch (item.color)
+        {
+            case PDFDocumentImageList::ImageColor::Color:
+                writer.writeMember(QLatin1StringView("color"), QLatin1StringView("color"));
+                break;
+            case PDFDocumentImageList::ImageColor::Gray:
+                writer.writeMember(QLatin1StringView("color"), QLatin1StringView("gray"));
+                break;
+            case PDFDocumentImageList::ImageColor::Bitonal:
+                writer.writeMember(QLatin1StringView("color"), QLatin1StringView("bitonal"));
+                break;
+        }
+        if (!item.filterName.isEmpty())
+        {
+            writer.writeMember(QLatin1StringView("filter"), Support::sanitizeName(item.filterName, 64));
+        }
+        writer.writeMember(QLatin1StringView("bytes"), qint64(item.streamBytes + item.maskBytes));
+        writer.writeMember(QLatin1StringView("hiddenLayer"), item.isInHiddenLayer);
+        writer.writeMember(QLatin1StringView("usedAsMask"), item.isUsedAsMask);
+        writer.endObject();
+    }
+
+    writer.endArray();
+    writer.writeMember(QLatin1StringView("totalImages"), total);
+    if (query.offset + written < total)
     {
         writer.writeMember(QLatin1StringView("nextCursor"), createCursor(query.offset + written));
     }

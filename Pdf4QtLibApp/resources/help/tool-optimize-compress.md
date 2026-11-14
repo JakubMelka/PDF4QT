@@ -29,6 +29,7 @@ Every preset decides how far images are reduced and how thoroughly the file stru
 ### What happens to the file
 
 - Images are downsampled to the preset resolution and recompressed; images that would get larger are kept.
+- The images of every layer are recompressed, also of a layer, which is hidden now - the file is smaller whichever layers are shown later. Inline images (small images written into the content of a page) and the images of the appearances of annotations, such as stamps, stay as they are.
 - Unused objects are removed, identical objects are merged and all streams are recompressed.
 - The file is written whole, with every setting: its old object streams, cross-reference streams and linearization data (Fast Web View) are not carried over.
 - Text, forms, annotations, outline and metadata stay exactly as they are, except for a declaration of PDF/A or PDF/UA: the result is not checked against the standard, so the declaration is removed from its metadata and the result says so.

@@ -34,9 +34,14 @@
         <file>help/tool-pages-merge.md</file>
         <file>help/tool-optimize-compress.md</file>
         <file>help/tool-optimize-structure.md</file>
+        <file>help/tool-optimize-images.md</file>
+        <file>help/tool-optimize-grayscale.md</file>
+        <file>help/tool-optimize-bitonal.md</file>
         <file>help/tool-protect-remove-links.md</file>
         <file>help/tool-protect-sanitize.md</file>
         <file>help/tool-convert-extract-text.md</file>
+        <file>help/tool-convert-pdf-to-images.md</file>
+        <file>help/tool-convert-extract-images.md</file>
         <file>help/tool-convert-blank.md</file>
         <file>help/tool-pages-split.md</file>
         <file>help/tool-pages-extract.md</file>
@@ -48,6 +53,7 @@
         <file>help/tool-pages-resize.md</file>
         <file>help/tool-pages-boxes.md</file>
         <file>help/tool-convert-images-to-pdf.md</file>
+        <file>help/tool-convert-audiobook.md</file>
         <file>help/tools.md</file>
         <file>help/whats-new-and-updates.md</file>
         <file>help/window-and-tabs.md</file>

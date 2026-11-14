@@ -41,6 +41,7 @@
 #include <QWidget>
 
 #include <map>
+#include <memory>
 #include <vector>
 
 class QAbstractItemModel;
@@ -52,6 +53,7 @@ namespace pdf
 
 class PDFAnchorGrid;
 class PDFAppSettingControl;
+class PDFAppValueStore;
 class PDFAppToolAnchorField;
 class PDFAppToolChoiceSwitch;
 class PDFAppToolMarginFields;
@@ -99,6 +101,16 @@ public:
     /// Row of the option, nullptr = none
     PDFTileRow* getRow(const QString& optionId) const;
 
+    /// The menu reads and writes its parameters through \p store (keys "tool.<parameter>", as the
+    /// binder) instead of the model - the override of the selected images of Optimize Images
+    /// (301:3594 "Toolbar menus change the override too"); nullptr = the model. The menu refreshes
+    /// by every change of the model then (the store may keep its values in another parameter).
+    void setValueStore(std::shared_ptr<PDFAppValueStore> store);
+
+    /// The button says \p title for the option instead of the title of its row (a short title of
+    /// the toolbar, "Goal: Quality" of 299:3362 for the row "Prefer quality")
+    void setButtonTitle(const QString& optionId, const QString& title);
+
 private:
     void addRows(const QString& parameter);
     void refresh();
@@ -106,6 +118,8 @@ private:
     void onParameterChanged(const QString& name);
 
     QPointer<PDFAppToolParameterModel> m_model;
+    std::shared_ptr<PDFAppValueStore> m_store;
+    std::map<QString, QString> m_buttonTitles;  ///< Short titles of the button by the ids of the options
     QStringList m_parameters;   ///< The first one gives the title of the button
     QString m_titleFormat;
     QPointer<QToolButton> m_button;
@@ -139,12 +153,18 @@ public:
     void setAll(bool isChecked);
     void restoreDefaults();
 
+    /// The rows read and write their parameters through \p store (as PDFAppToolEnumMenu::setValueStore);
+    /// nullptr = the model
+    void setValueStore(std::shared_ptr<PDFAppValueStore> store);
+
 private:
     void refresh();
     void onRowClicked();
     void onParameterChanged(const QString& name);
+    bool getValue(const QString& parameter) const;
 
     QPointer<PDFAppToolParameterModel> m_model;
+    std::shared_ptr<PDFAppValueStore> m_store;
     std::vector<PDFAppToolFlagItem> m_items;
     QString m_titleFormat;
     QPointer<QToolButton> m_button;
@@ -426,6 +446,10 @@ public:
     /// A control of a parameter through the binder (Custom…, 294:1340) with its value
     /// store; nullptr for a type without a control
     PDFAppSettingControl* addValueControl(const QString& parameter);
+
+    /// The control of addValueControl without adding it to the layout of the builder: the
+    /// widget of the control gets \p parent (a field row of a card takes it later)
+    PDFAppSettingControl* createValueControl(const QString& parameter, QWidget* parent) const;
 
     // ------------------------------------------------------------- elements of step 3
     //

@@ -773,6 +773,21 @@ protected:
     /// Returns true, if graphic content is suppressed
     bool isContentSuppressed() const;
 
+    /// Position of an inline image in the content (step 4 of phase 2, R4-8: the key of an inline
+    /// image of PDFDocumentImageList): the content stream it is in - the page (its reference; the
+    /// streams of /Contents count together) or the form XObject - and the index of its operator BI
+    /// in that content from 0. A form drawn twice gives its inline images the same positions.
+    class InlineImagePosition
+    {
+    public:
+        PDFObjectReference contentStream;   ///< The page or the form XObject; invalid in a tiling pattern, a glyph of a Type 3 font or a content without a reference
+        PDFInteger index = -1;              ///< Index of BI in the content, -1 = no inline image is being processed
+    };
+
+    /// The inline image being processed: valid only inside of isOriginalImageRequired and
+    /// performOriginalImagePainting of an image without a reference (index -1 otherwise)
+    const InlineImagePosition& getInlineImagePosition() const { return m_inlineImagePosition; }
+
     /// Returns page point to device point matrix
     const QTransform& getPagePointToDevicePointMatrix() const { return m_pagePointToDevicePointMatrix; }
 
@@ -1235,6 +1250,12 @@ private:
     /// Form XObjects being drawn (operator Do): a form drawing itself, also through
     /// other forms, would overflow the stack
     std::vector<PDFObjectReference> m_formStack;
+
+    /// The content, whose inline images are counted (the page, a form XObject), and the count of
+    /// its operators BI so far (InlineImagePosition)
+    PDFObjectReference m_contentStreamOwner;
+    PDFInteger m_inlineImageCounter = 0;
+    InlineImagePosition m_inlineImagePosition;
 
     /// Most form XObjects drawn inside of each other
     static constexpr size_t MAXIMUM_FORM_NESTING = 32;

@@ -507,6 +507,13 @@ void PDFCreateBitonalDocumentDialog::onPerformFinished()
         }
     }
 
+    if (!result.renderingIssuePages.isEmpty())
+    {
+        // Owner 14. 11. 2026: a rendering error does not block the conversion, the user only
+        // checks the pages, whose content the renderer could not draw completely
+        QMessageBox::information(this, tr("Create Bitonal Document"), tr("The renderer has reported problems on the converted pages %1. Please check these pages.").arg(result.renderingIssuePages));
+    }
+
     // The converted document is the result of the dialog, so there is nothing else
     // to be confirmed here - the caller takes the document and the dialog is closed.
     accept();
@@ -518,6 +525,13 @@ PDFCreateBitonalDocumentDialog::ConversionResult PDFCreateBitonalDocumentDialog:
     result.isConverted = m_creator->createBitonalDocument(settings);
     result.convertedItemCount = m_creator->getConvertedItemCount();
     result.failedItemCount = m_creator->getFailedItemCount();
+
+    QStringList issuePages;
+    for (const pdf::PDFBitonalDocumentCreator::RenderingIssue& issue : m_creator->getRenderingIssues())
+    {
+        issuePages << QString::number(issue.pageIndex + 1);
+    }
+    result.renderingIssuePages = issuePages.join(QStringLiteral(", "));
 
     if (!result.isConverted)
     {
@@ -896,80 +910,29 @@ void PDFCreateBitonalDocumentDialog::generatePreview(int generation,
                                                      const PreviewRequest& request,
                                                      const pdf::PDFOperationControl* operationControl)
 {
-    QImage image;
+    // The preview is the one of the core (R4-22, B67: the tool Convert to Black & White uses the
+    // same function); the dialog shows no encoded size, so nothing is encoded
+    pdf::PDFBitonalDocumentCreator::PreviewRequest coreRequest;
+    coreRequest.conversionSource = request.conversionSource;
+    coreRequest.item = request.item;
+    coreRequest.conversionMethod = request.conversionMethod;
+    coreRequest.manualThreshold = request.manualThreshold;
+    coreRequest.dpiResolution = request.dpiResolution;
+    coreRequest.isEncoded = false;
 
-    switch (request.conversionSource)
-    {
-        case ConversionSource::Images:
-            image = m_creator->getDecodedImage(request.item.imageReference, operationControl);
-            break;
+    // Page has already been rasterized for the previous preview and only the conversion
+    // settings have changed since then
+    coreRequest.originalImage = request.conversionSource == ConversionSource::Pages ? request.cachedPageImage : QImage();
 
-        case ConversionSource::Pages:
-        {
-            if (!request.cachedPageImage.isNull())
-            {
-                // Page has already been rasterized for the previous preview and only
-                // the conversion settings have changed since then.
-                image = request.cachedPageImage;
-            }
-            else if (request.item.pageIndex >= 0)
-            {
-                const pdf::PDFCatalog* catalog = m_document->getCatalog();
-                const pdf::PDFPage* page = size_t(request.item.pageIndex) < catalog->getPageCount() ? catalog->getPage(size_t(request.item.pageIndex)) : nullptr;
-
-                if (page)
-                {
-                    const QSize size = pdf::PDFBitonalDocumentCreator::getPageImageSize(page, request.dpiResolution);
-                    image = m_creator->renderPage(request.item.pageIndex, size, operationControl);
-                }
-            }
-            break;
-        }
-
-        default:
-            Q_ASSERT(false);
-            break;
-    }
-
-    QImage bitonalImage;
-
-    switch (request.item.mode)
-    {
-        case ConversionItemInfo::Mode::Algorithm:
-            bitonalImage = pdf::PDFBitonalDocumentCreator::convertImageToBitonal(image, request.conversionMethod, request.manualThreshold, nullptr, operationControl);
-            break;
-
-        case ConversionItemInfo::Mode::AlgorithmInverted:
-            bitonalImage = pdf::PDFBitonalDocumentCreator::invertBitonalImage(pdf::PDFBitonalDocumentCreator::convertImageToBitonal(image, request.conversionMethod, request.manualThreshold, nullptr, operationControl));
-            break;
-
-        case ConversionItemInfo::Mode::Original:
-            // Nothing is going to change, so both panes show the same image
-            bitonalImage = image;
-            break;
-
-        case ConversionItemInfo::Mode::FillBlack:
-        case ConversionItemInfo::Mode::FillWhite:
-            bitonalImage = pdf::PDFBitonalDocumentCreator::createFillPreviewImage(image, request.item.isFilledByBlack());
-            break;
-
-        default:
-            Q_ASSERT(false);
-            break;
-    }
+    const pdf::PDFBitonalDocumentCreator::Preview preview = m_creator->createPreview(coreRequest, operationControl);
 
     if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
     {
         return;
     }
 
-    if (bitonalImage.isNull())
-    {
-        // Conversion has failed, so the original image is not displayed either
-        image = QImage();
-    }
-
-    Q_EMIT previewReady(generation, image, bitonalImage);
+    // Conversion has failed, so the original image is not displayed either
+    Q_EMIT previewReady(generation, preview.resultImage.isNull() ? QImage() : preview.originalImage, preview.resultImage);
 }
 
 void PDFCreateBitonalDocumentDialog::onThumbnailReady(int generation, int itemIndex, QImage thumbnail)
@@ -1024,38 +987,9 @@ void PDFCreateBitonalDocumentDialog::detectBlankPages(int generation,
         itemIndices[request.pageIndices[index]] = int(index);
     }
 
-    // The detection has a resolution of its own - it is not the resolution of the
-    // conversion, because the analysis measures the spots of the ink in millimeters
-    // and it needs no more detail than that
-    constexpr int dpiResolution = pdf::PDFBitonalDocumentCreator::BLANK_PAGE_DPI_RESOLUTION;
-
-    auto pageSizeGetter = [dpiResolution](const pdf::PDFPage* page) -> QSize
-    {
-        return pdf::PDFBitonalDocumentCreator::getPageImageSize(page, dpiResolution);
-    };
-
-    auto pageImageProcessor = [this, generation, dpiResolution, operationControl, &itemIndices](pdf::PDFInteger pageIndex, QImage image)
-    {
-        if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
-        {
-            return;
-        }
-
-        auto it = itemIndices.find(pageIndex);
-        if (it == itemIndices.cend())
-        {
-            return;
-        }
-
-        // A page, which could not be rendered, arrives as a null image and it is
-        // reported as a non-blank one - an unknown page must never be wiped out
-        const pdf::PDFBitonalDocumentCreator::BlankPageInfo info =
-            pdf::PDFBitonalDocumentCreator::detectBlankPage(image, dpiResolution, operationControl);
-
-        Q_EMIT blankPageDetected(generation, it->second, info.isBlank);
-    };
-
-    // Pages are rendered in small batches for the same reason as the thumbnails
+    // The detection itself is the one of the core (B67, step 4 of phase 2): the resolution
+    // of its own, a page, which could not be rendered, is never blank. Pages are examined in
+    // small batches for the same reason as the thumbnails, and the button counts them.
     const size_t batchSize = getThumbnailBatchSize();
 
     for (size_t first = 0; first < request.pageIndices.size(); first += batchSize)
@@ -1067,7 +1001,16 @@ void PDFCreateBitonalDocumentDialog::detectBlankPages(int generation,
 
         const size_t last = qMin(first + batchSize, request.pageIndices.size());
         const std::vector<pdf::PDFInteger> batch(request.pageIndices.cbegin() + first, request.pageIndices.cbegin() + last);
-        m_creator->renderPages(batch, pageSizeGetter, pageImageProcessor, operationControl);
+        const std::vector<pdf::PDFBitonalDocumentCreator::BlankPageResult> results = m_creator->detectBlankPages(batch, operationControl, nullptr);
+
+        for (const pdf::PDFBitonalDocumentCreator::BlankPageResult& result : results)
+        {
+            auto it = itemIndices.find(result.pageIndex);
+            if (result.isExamined && it != itemIndices.cend() && !pdf::PDFOperationControl::isOperationCancelled(operationControl))
+            {
+                Q_EMIT blankPageDetected(generation, it->second, result.isBlank);
+            }
+        }
     }
 }
 
@@ -1305,26 +1248,9 @@ int PDFCreateBitonalDocumentDialog::getPreviewDpiResolution(pdf::PDFInteger page
         return dpiResolution;
     }
 
-    const QSize outputSize = pdf::PDFBitonalDocumentCreator::getPageImageSize(page, dpiResolution);
+    // The rule of the core (B67): the tool Convert to Black & White lowers it the same way
     const QSize paneSize = m_rightPreviewWidget->size() * m_rightPreviewWidget->devicePixelRatioF() * PREVIEW_QUALITY_FACTOR;
-
-    if (outputSize.isEmpty() || paneSize.isEmpty())
-    {
-        // The panes have no size yet, so there is nothing to derive the resolution from
-        return dpiResolution;
-    }
-
-    if (outputSize.width() <= paneSize.width() && outputSize.height() <= paneSize.height())
-    {
-        // The page at the output resolution is small enough to be displayed as it is,
-        // so the preview shows exactly, what the conversion is going to produce
-        return dpiResolution;
-    }
-
-    const double scale = qMin(double(paneSize.width()) / double(outputSize.width()),
-                              double(paneSize.height()) / double(outputSize.height()));
-
-    return qBound(pdf::PDFBitonalDocumentCreator::MINIMUM_DPI_RESOLUTION, qRound(dpiResolution * scale), dpiResolution);
+    return pdf::PDFBitonalDocumentCreator::getPreviewDpiResolution(page, dpiResolution, paneSize);
 }
 
 void PDFCreateBitonalDocumentDialog::updateUi()

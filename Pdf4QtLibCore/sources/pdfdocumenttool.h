@@ -28,17 +28,22 @@
 #include "pdfdocument.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttoolparameter.h"
+#include "pdfoptionalcontent.h"
 #include "pdfprogress.h"
+#include "pdfrenderer.h"
 
 #include <QByteArray>
 #include <QCoreApplication>
 #include <QJsonObject>
+#include <QMutex>
 #include <QSet>
 #include <QString>
 #include <QStringList>
 #include <QVariantMap>
 
+#include <map>
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace pdf
@@ -47,6 +52,7 @@ namespace pdf
 class PDFCertificateStore;
 class PDFDocumentToolCatalogEntry;
 class PDFOperationControl;
+class PDFSpeechSynthesizerFactory;
 
 // Tools of the catalog without a user interface (newapp_tools.md 2, plan of
 // step 6, chapter 3, plan of the first batch of phase 2, chapter 2.2). The GUI
@@ -153,15 +159,25 @@ public:
     /// Names of the files, which were not written, in their order
     const QStringList& getNotWrittenFiles() const { return m_notWrittenFiles; }
 
+    /// The files of getNotWrittenFiles, which failed (an error, a name, which cannot be used, a
+    /// protected file - not a skipped or a stopped one), each with its translated reason (Figma
+    /// 339:7293 "3 of 1,592 files could not be written", step 4 of phase 2, K4.11): a pair of the
+    /// name and the reason, in their order
+    const std::vector<std::pair<QString, QString>>& getFailedFiles() const { return m_failedFiles; }
+
 protected:
     /// An implementation records what has happened with a file
     void addWrittenFile(const QString& filePath);
     void addNotWrittenFile(const QString& fileName);
 
+    /// A file, which failed: it is also a file, which was not written (addNotWrittenFile)
+    void addFailedFile(const QString& fileName, const QString& reason);
+
 private:
     ExistingFiles m_policy;
     QStringList m_writtenFiles;
     QStringList m_notWrittenFiles;
+    std::vector<std::pair<QString, QString>> m_failedFiles;
 };
 
 /// A file sink, which writes the files into one folder (package A of step 3a of phase 2: the
@@ -230,6 +246,28 @@ private:
     QString m_lastProblem;
 };
 
+/// How a run renders pages (PDF to Images, Black & White, the size estimate of PDF to Images; step
+/// 4 of phase 2, R4-10 b, owner answer Q4.6): the color management and the renderer of the
+/// settings of the application and the states of the layers of the tab. A value: the caller fills
+/// it in the GUI thread from the settings and the tab and copies it into the context; the worker
+/// only reads its copy (no pointer to a manager, a view or a document). An empty value is the
+/// rendering without the application (PdfTool, a test): the default color management with the
+/// output intents of the document, PDFRenderer::getDefaultFeatures and the engine of the tool, the
+/// layers by OCUsage::Export (ISO 32000-2, 8.11.4.4; also MCP and the own tab of a tool, which
+/// have no tab of the document).
+///
+/// A tool takes from \p features only what is content: the color modes of a view (ColorAdjust_*),
+/// the debugging flags, DisplayTimes and IgnoreOptionalContent are never used for an output
+/// (PDFDocumentToolPageRenderSettings::getExportFeatures).
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolRenderContext
+{
+public:
+    std::optional<PDFCMSSettings> cmsSettings;                          ///< Color management of the settings (empty = the default settings)
+    std::optional<PDFRenderer::Features> features;                      ///< Features of the renderer of the settings (empty = PDFRenderer::getDefaultFeatures)
+    std::optional<RendererEngine> engine;                               ///< Engine of the settings (empty = the default of the tool)
+    std::optional<std::map<PDFObjectReference, OCState>> layerStates;   ///< States of the layers of the tab (empty = OCUsage::Export); a layer, which is missing, keeps its state of /D
+};
+
 /// Context of one run of a tool: the inputs and the environment. A value - the
 /// caller fills it in the GUI thread and passes it to the worker. It never holds a
 /// pointer to an object of a view or of a window (they may be gone before the
@@ -256,9 +294,20 @@ public:
     PDFInteger currentPage = -1;
 
     PDFCMSPointer cms;                                              ///< Color management of the application, null = the default settings
+    PDFDocumentToolRenderContext rendering;                         ///< How the pages are rendered (R4-10 b); empty = without the application
     QString authorName;                                             ///< Author of the new content (annotations, signatures)
     std::shared_ptr<const PDFCertificateStore> certificateStore;    ///< Trusted certificates, may be null
-    QString temporaryFolder;                                        ///< Folder of the temporary files of the run
+
+    /// Folder of the temporary files of the run (PDFDocumentToolTemporaryFile, step 4 of phase 2,
+    /// R4-1): the application gives its own folder, which it cleans of the leftovers of an earlier
+    /// process at its start (PDFAppToolTemporaryFolder); empty = the temporary folder of the system
+    QString temporaryFolder;
+
+    /// Who creates the speech synthesizers of a run (Create Audio Book, step 4 of phase 2, R4-15):
+    /// a plain value shared by the context, no QObject; the runner of the application, the bridge
+    /// of MCP and PdfTool fill it from the library Pdf4QtSpeech, a test gives a fake one. Null =
+    /// no engine: the tool fails with "No text-to-speech engine".
+    std::shared_ptr<PDFSpeechSynthesizerFactory> speechSynthesizerFactory;
 
     /// Writer of the files of a tool, whose result is more files (PDFDocumentToolFileSink: owned
     /// by the caller of the run for its whole time, used only by the thread of the run);
@@ -314,15 +363,115 @@ public:
     QString reason;             ///< Translated reason ("The file cannot be read: ...")
 };
 
+/// A temporary file of a result (step 4 of phase 2, R4-1: an audio book of hundreds of MB is never
+/// held in the memory). The result owns it by a std::shared_ptr: the file is deleted, when the
+/// last copy of the result goes - Discard, the close of the tab, a result of MCP, which is dropped,
+/// an error of the run. Saving it moves it (moveTo), then nothing is deleted.
+///
+/// Threads: created by the thread of the run, then read by one thread at a time (the worker of the
+/// writer, PDFAppToolResultWriter::writeOutputFile); the destructor runs in the thread of the last
+/// owner. moveTo and the destructor are serialized by a mutex.
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolTemporaryFile
+{
+    Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocumentToolTemporaryFile)
+
+public:
+    /// Deletes the file, unless it has been moved
+    ~PDFDocumentToolTemporaryFile();
+
+    PDFDocumentToolTemporaryFile(const PDFDocumentToolTemporaryFile&) = delete;
+    PDFDocumentToolTemporaryFile& operator=(const PDFDocumentToolTemporaryFile&) = delete;
+
+    /// Creates a new empty file with a unique name ("pdf4qt-XXXXXX<suffix>") in \p folder
+    /// \param folder Folder of the file (PDFDocumentToolContext::temporaryFolder); empty = the temporary folder of the system
+    /// \param suffix Suffix of the name with its dot (".wav"), may be empty
+    /// \param errorMessage Translated reason of a failure
+    /// \returns The file, nullptr on a failure
+    static std::shared_ptr<PDFDocumentToolTemporaryFile> create(const QString& folder, const QString& suffix, QString* errorMessage);
+
+    /// Absolute path of the file (the tool writes into it; a moved file is no longer there)
+    const QString& getFilePath() const { return m_filePath; }
+
+    /// Size of the file in bytes, -1 when it does not exist (moved, deleted)
+    qint64 getSize() const;
+
+    /// Renames the file to \p targetPath, which must not exist (QFile::rename on one volume;
+    /// the caller copies the file otherwise). On a success the object forgets the file: the
+    /// destructor does not delete the target.
+    /// \returns false and the reason, when it was not moved (the file stays a temporary file)
+    bool moveTo(const QString& targetPath, QString* errorMessage);
+
+    /// The file has been moved by moveTo
+    bool isMoved() const;
+
+    /// Copies the file to \p targetPath by QSaveFile (in blocks): an existing target is replaced
+    /// only when the copy is complete, a failed copy leaves it as it was (PdfTool --overwrite).
+    /// The temporary file stays (its owner deletes it).
+    /// \returns false and the reason, when the target was not written
+    bool copyTo(const QString& targetPath, QString* errorMessage) const;
+
+private:
+    explicit PDFDocumentToolTemporaryFile(QString filePath);
+
+    QString m_filePath;
+    mutable QMutex m_mutex;
+    bool m_isMoved = false;
+};
+
 /// File of the result, which the tool does not write itself: the result dialog or MCP
 /// asks where it goes (one file of an export, tools.md 9.3 point 19, Extract Text).
 /// Files written by the tool itself are in PDFDocumentToolResult::writtenFiles.
+///
+/// The content is either \p data in the memory or a temporary file (\p temporaryFile, step 4
+/// of phase 2, R4-1: the audio book; \p data is then empty). Every place, which writes or reads
+/// an output, goes through PDFAppToolResultWriter::writeOutputFile (the application) or readContent
+/// (a text of MCP), never through \p data alone.
 class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolOutputFile
 {
 public:
     QString suggestedFileName;  ///< Suggested name of the file (without a folder)
-    QByteArray data;            ///< Content of the file
+    QByteArray data;            ///< Content of the file (empty, when it is in \p temporaryFile)
     QString mimeType;           ///< Type of the content ("text/plain")
+
+    /// The temporary file of the content (R4-1), nullptr = the content is \p data. Copies of the
+    /// output share it; the last one deletes it.
+    std::shared_ptr<PDFDocumentToolTemporaryFile> temporaryFile;
+
+    /// An output, whose content is a temporary file
+    static PDFDocumentToolOutputFile createTemporary(QString suggestedFileName, QString mimeType, std::shared_ptr<PDFDocumentToolTemporaryFile> file);
+
+    /// The content is in a temporary file
+    bool isTemporaryFile() const { return temporaryFile != nullptr; }
+
+    /// Path of the temporary file of the content (R4-1: PDFDocumentToolOutputFile::filePath), empty = \p data
+    QString getFilePath() const;
+
+    /// Size of the content in bytes (of the temporary file or of \p data), -1 when the temporary file is gone
+    qint64 getSize() const;
+
+    /// Reads at most \p maximumSize bytes of the content (a text of MCP, return_text)
+    /// \param maximumSize Most bytes read
+    /// \param isTruncated The content is longer than \p maximumSize (optional)
+    /// \param errorMessage Translated reason, when the temporary file cannot be read (optional)
+    QByteArray readContent(qint64 maximumSize, bool* isTruncated, QString* errorMessage) const;
+};
+
+/// A page of an export, whose picture may be incomplete (Rendering issues of 339:6505, step 4 of
+/// phase 2, K4.11, R4-16): the errors of the page of PDFRenderedPageImage::errors, without the
+/// level Information
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolPageProblem
+{
+public:
+    PDFInteger pageIndex = -1;  ///< Page (index from 0)
+    QString message;            ///< Translated text of the problem
+};
+
+/// A file of an export, which could not be written (Failed of 339:7293, K4.11)
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolFileProblem
+{
+public:
+    QString fileName;   ///< Name of the file (without a folder)
+    QString reason;     ///< Translated reason ("Access denied")
 };
 
 /// Fact of the result dialog and of the preview ("24.8 MB → 6.1 MB")
@@ -364,6 +513,8 @@ public:
     std::vector<PDFDocumentToolFact> facts;             ///< Facts of the result dialog
     std::vector<PDFDocumentToolStep> steps;             ///< Rows of the steps
     std::vector<PDFDocumentToolLeftOutInput> leftOutInputs;    ///< Inputs, which are not in the result (Success = a partial result; empty = complete)
+    std::vector<PDFDocumentToolPageProblem> renderingIssues;    ///< Pages of an export, whose pictures may be incomplete (339:6505 Rendering issues; step 4, K4.11)
+    std::vector<PDFDocumentToolFileProblem> failedFiles;        ///< Files of \p notWrittenFiles, which failed, with their reasons (339:7293 Failed; PDFDocumentToolFileSink::getFailedFiles)
     QJsonObject data;                                   ///< Structured data of the tool for MCP
 
     static PDFDocumentToolResult createFailed(const QString& message);
@@ -377,7 +528,9 @@ public:
 
     /// Structured content of MCP: "status", "message", "documents" (kind, input
     /// index, page count, flags, suggested name), "files", "facts", "steps", "data";
-    /// "outputs" (suggested name, type, size - never the content) when there are any
+    /// "outputs" (suggested name, type, size - never the content) when there are any;
+    /// "renderingIssues" (page from 1, message) and "failedFiles" (fileName, reason) when
+    /// there are any
     QJsonObject toJson() const;
 
     /// Name of the status in JSON ("success", "stopped", "failed", "nothing-to-do")
@@ -497,6 +650,12 @@ public:
     /// result; owner 13. 11. 2026). The default is PDFDocumentToolCatalogEntry::isPageChange
     /// (false without an entry).
     virtual bool isPageChange(const QVariantMap& parameters) const;
+
+    /// The output file of a tool of the result kind Files, which the caller writes
+    /// (PDFDocumentToolResult::outputs), is a text: MCP may return it as the text of its result
+    /// (return_text). The default is true; a binary output (the WAV file of Create Audio Book) is
+    /// only written to a file (save_file).
+    virtual bool isTextOutput() const { return true; }
 
     /// The values above and the entry together (the one value of the rules of the
     /// application, PDFDocumentToolOutputTraits); not virtual

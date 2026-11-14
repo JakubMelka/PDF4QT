@@ -48,6 +48,24 @@ class PDFOperationControl;
 class PDFOptionalContentActivity;
 
 /// Helper responsible for gathering image statistics needed for compression.
+///
+/// The walks over the content of the pages (step 4 of phase 2, R4-4):
+///  - collectImagePlacements, visitImages, visitImagesInParallel and collectImages (Compress,
+///    Optimize Images, Grayscale, Black & White) and PDFDocumentImageList walk by
+///    Environment::processPageImages without an activity of the layers: the images of every layer
+///    are found, also of a layer hidden by /D or by the automatic states of /Export (ISO 32000-2,
+///    8.11.4.4) - a changed document must not keep a color image, which a shown layer brings back.
+///    Their optional content (/OC) is never changed. Inline images are reported by the walk, but the
+///    changing walks skip them (they are a part of the content, R4-8). The walks follow the content
+///    of the page, its forms and its tiling patterns, never the appearance streams of the
+///    annotations (a signature field is a part of its signature, a stamp has its own /AP) and never
+///    the glyphs of Type 3 fonts (the text is ignored).
+///  - A color space named by a resource (an inline image by Table 91, an image XObject of a file,
+///    which names a resource instead of a family) is resolved by the resources of the content, which
+///    draws it (DrawnImage::colorSpace), so the decoding and the color of PDFDocumentImageList read
+///    the same space as the page.
+///  - Environment::processPage and processPagePlacements are the older walks of the OCR compression:
+///    they skip the content hidden by the layers of an export (OCUsage::Export) and inline images.
 class PDF4QTLIBCORESHARED_EXPORT PDFImageCompressor
 {
 public:
@@ -68,6 +86,7 @@ public:
         PDFObjectReference reference;   ///< Reference of the image stream
         QPointF maximumInches;          ///< Largest length of the axes of the image on the pages, in inches (0 = degenerated on all pages)
         PDFInteger firstPageIndex = 0;  ///< First page, which draws the image
+        PDFObject colorSpace;           ///< The declared color space of the first drawing, resolved (DrawnImage::colorSpace: a name of a resource of the content is replaced by its value) - the color of PDFDocumentImageList
     };
 
     /// Placements of the images, sorted by the reference
@@ -88,6 +107,22 @@ public:
     /// when the callback does not keep it, it is released before the next image is decoded.
     using DecodedImageCallback = std::function<void(ImageStatistics statistics)>;
 
+    /// An image drawn by the content of a page, an image XObject or an inline image, nothing
+    /// decoded (step 4 of phase 2, PDFDocumentImageList). Valid only during the callback.
+    class DrawnImage
+    {
+    public:
+        PDFObjectReference reference;           ///< Reference of the image XObject; invalid for an inline image
+        PDFObjectReference inlineContentStream; ///< An inline image: the page or the form XObject of its content (PDFPageContentProcessor::InlineImagePosition), invalid otherwise
+        PDFInteger inlineIndex = -1;            ///< An inline image: the index of its BI in that content, -1 for an image XObject
+        const PDFStream* stream = nullptr;      ///< The image stream (an inline image: a stream made of its dictionary and data)
+        PDFObject colorSpace;                   ///< The declared color space resolved: a name of a resource of the content, which draws the image (an inline image, Table 91, or an image XObject naming a resource instead of a family), is replaced by its value; a family name and an array as they are (null = none). The walk reports the images of all layers (processPageImages without an activity)
+        QPointF inches;                         ///< Length of the axes of the image on the page in inches (0 = degenerated)
+    };
+
+    /// Called for every image drawn by the content of a page (DrawnImage)
+    using DrawnImageCallback = std::function<void(const DrawnImage& image)>;
+
     /// Resources of the content processor for the collection of the images drawn
     /// on the pages of a document (optional content, font cache, color management).
     /// The environment can be used by more threads processing different pages at once.
@@ -105,7 +140,9 @@ public:
 
         /// Calls the callback for every image XObject drawn on the page by its content,
         /// by forms and by tiling patterns. Inline images and direct streams are skipped,
-        /// they are part of the content and cannot be shared or replaced.
+        /// they are part of the content and cannot be shared or replaced. The content hidden
+        /// by the layers of an export (OCUsage::Export) is skipped too (the OCR compression);
+        /// the walks of the changing tools use processPageImages (all layers, R4-4).
         /// \param pageIndex Index of the page
         /// \param callback Callback called for every drawn image
         /// \param operationControl Cancellation (optional)
@@ -113,11 +150,27 @@ public:
         ///        the others are skipped without decoding them
         void processPage(PDFInteger pageIndex, const ImageCallback& callback, const PDFOperationControl* operationControl, const ImageFilter& filter = ImageFilter()) const;
 
-        /// Calls the callback for every image XObject drawn on the page, without decoding any image
+        /// Calls the callback for every image XObject drawn on the page, without decoding any image;
+        /// as processPage, the content hidden by the layers of an export is skipped
         /// \param pageIndex Index of the page
         /// \param callback Callback called for every drawn image
         /// \param operationControl Cancellation (optional)
         void processPagePlacements(PDFInteger pageIndex, const PlacementCallback& callback, const PDFOperationControl* operationControl) const;
+
+        /// The collection options of step 4 of phase 2 (PDFDocumentImageList): calls the callback
+        /// for every image drawn by the content of the page, by its forms and its tiling patterns,
+        /// image XObjects and inline images alike, without decoding any of them. Glyphs of Type 3
+        /// fonts are never visited (the text is ignored) and the appearances of the annotations
+        /// are not a part of the content of the page (R4-4). A direct image stream without a
+        /// reference, which is not an inline image, is skipped (ISO 32000-2, 7.3.8: streams are
+        /// indirect objects).
+        /// \param pageIndex Index of the page
+        /// \param callback Callback called for every drawn image
+        /// \param optionalContentActivity The layers: nullptr = every layer is visible (the images
+        ///        of all layers, R4-4, R4-11); otherwise the content suppressed by its states is
+        ///        skipped (the states of the tab, the hidden layers of R4-11)
+        /// \param operationControl Cancellation (optional)
+        void processPageImages(PDFInteger pageIndex, const DrawnImageCallback& callback, const PDFOptionalContentActivity* optionalContentActivity, const PDFOperationControl* operationControl) const;
 
         /// Returns the color management system decoding the images
         const PDFCMS* getCMS() const { return m_cms.data(); }
@@ -127,6 +180,9 @@ public:
 
         /// Returns the cache of the fonts of the walk
         const PDFFontCache* getFontCache() const { return m_fontCache.get(); }
+
+        /// Returns the layers of the walk of processPage and processPagePlacements (OCUsage::Export)
+        const PDFOptionalContentActivity* getOptionalContentActivity() const { return m_optionalContentActivity.get(); }
 
     private:
         const PDFDocument* m_document;

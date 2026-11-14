@@ -21,17 +21,12 @@
 // SOFTWARE.
 
 #include "pdftoolaudiobook.h"
+#include "pdfdocumenttool_audiobook.h"
+#include "pdfqtspeechsynthesizer.h"
 
-#ifdef Q_OS_WIN
-
+#include <QDir>
+#include <QFile>
 #include <QFileInfo>
-
-#include <windows.h>
-#include <sapi.h>
-
-#if defined(PDF4QT_USE_PRAGMA_LIB)
-#pragma comment(lib, "ole32")
-#endif
 
 namespace pdftool
 {
@@ -39,239 +34,34 @@ namespace pdftool
 static PDFToolAudioBook s_audioBookApplication;
 static PDFToolAudioBookVoices s_audioBookVoicesApplication;
 
-PDFVoiceInfo::PDFVoiceInfo(std::map<QString, QString> properties, ISpObjectToken* voiceToken) :
-    m_properties(qMove(properties)),
-    m_voiceToken(voiceToken)
+bool PDFToolAudioBookBase::hasVoiceCriteria(const PDFToolOptions& options)
 {
-    if (m_voiceToken)
-    {
-        m_voiceToken->AddRef();
-    }
+    return !options.textVoiceName.isEmpty() || !options.textVoiceGender.isEmpty() || !options.textVoiceAge.isEmpty() || !options.textVoiceLangCode.isEmpty();
 }
 
-PDFVoiceInfo::PDFVoiceInfo(PDFVoiceInfo&& other)
+std::vector<pdf::PDFSpeechVoice> PDFToolAudioBookBase::filterVoices(const PDFToolOptions& options, const std::vector<pdf::PDFSpeechVoice>& voices, QString* errorMessage)
 {
-    std::swap(m_properties, other.m_properties);
-    std::swap(m_voiceToken, other.m_voiceToken);
-}
+    pdf::PDFSpeechVoiceSelector::Criteria criteria;
+    criteria.name = options.textVoiceName;
+    criteria.gender = options.textVoiceGender;
+    criteria.age = options.textVoiceAge;
+    criteria.languageCode = options.textVoiceLangCode;
 
-PDFVoiceInfo& PDFVoiceInfo::operator=(PDFVoiceInfo&& other)
-{
-    std::swap(m_properties, other.m_properties);
-    std::swap(m_voiceToken, other.m_voiceToken);
-    return *this;
-}
-
-PDFVoiceInfo::~PDFVoiceInfo()
-{
-    if (m_voiceToken)
+    // The one selection of Pdf4QtSpeech, voice after voice (an unknown gender or age is an error
+    // for every voice: it is reported once)
+    std::vector<pdf::PDFSpeechVoice> result;
+    for (const pdf::PDFSpeechVoice& voice : voices)
     {
-        m_voiceToken->Release();
-    }
-}
-
-QLocale PDFVoiceInfo::getLocale() const
-{
-    bool ok = false;
-    LCID locale = getLanguage().toInt(&ok, 16);
-
-    if (ok)
-    {
-        // Language name
-        int count = GetLocaleInfoW(locale, LOCALE_SISO639LANGNAME, NULL, 0);
-        std::vector<wchar_t> buffer(count, wchar_t());
-        GetLocaleInfoW(locale, LOCALE_SISO639LANGNAME, buffer.data(), int(buffer.size()));
-        QString languageCode = QString::fromWCharArray(buffer.data());
-
-        // Country name
-        count = GetLocaleInfoW(locale, LOCALE_SISO3166CTRYNAME, NULL, 0);
-        buffer.resize(count, wchar_t());
-        GetLocaleInfoW(locale, LOCALE_SISO3166CTRYNAME, buffer.data(), int(buffer.size()));
-        QString countryCode = QString::fromWCharArray(buffer.data());
-
-        return QLocale(QString("%1_%2").arg(languageCode, countryCode));
-    }
-
-    return QLocale();
-}
-
-QString PDFVoiceInfo::getStringValue(QString key) const
-{
-    auto it = m_properties.find(key);
-    if (it != m_properties.cend())
-    {
-        return it->second;
-    }
-
-    return QString();
-}
-
-int PDFToolAudioBookBase::fillVoices(const PDFToolOptions& options, PDFVoiceInfoList& list, bool fillVoiceTokenPointers)
-{
-    int result = ExitSuccess;
-
-    QStringList voiceSelector;
-    if (!options.textVoiceName.isEmpty())
-    {
-        voiceSelector << QString("Name=%1").arg(options.textVoiceName);
-    }
-    if (!options.textVoiceGender.isEmpty())
-    {
-        voiceSelector << QString("Gender=%1").arg(options.textVoiceGender);
-    }
-    if (!options.textVoiceAge.isEmpty())
-    {
-        voiceSelector << QString("Age=%1").arg(options.textVoiceAge);
-    }
-    if (!options.textVoiceLangCode.isEmpty())
-    {
-        voiceSelector << QString("Language=%1").arg(options.textVoiceLangCode);
-    }
-    QString voiceSelectorString = voiceSelector.join(";");
-    LPCWSTR requiredAttributes = !voiceSelectorString.isEmpty() ? (LPCWSTR)voiceSelectorString.utf16() : nullptr;
-
-    ISpObjectTokenCategory* category = nullptr;
-    if (!SUCCEEDED(::CoCreateInstance(CLSID_SpObjectTokenCategory, NULL, CLSCTX_ALL, __uuidof(ISpObjectTokenCategory), (LPVOID*)&category)))
-    {
-        PDFConsole::writeError(PDFToolTranslationContext::tr("SAPI Error: Cannot enumerate SAPI voices."), options.outputCodec);
-        return ErrorSAPI;
-    }
-
-    if (!SUCCEEDED(category->SetId(SPCAT_VOICES, FALSE)))
-    {
-        PDFConsole::writeError(PDFToolTranslationContext::tr("SAPI Error: Cannot enumerate SAPI voices."), options.outputCodec);
-        category->Release();
-        return ErrorSAPI;
-    }
-
-    IEnumSpObjectTokens* enumTokensObject = nullptr;
-    if (SUCCEEDED(category->EnumTokens(requiredAttributes, NULL, &enumTokensObject)))
-    {
-        ISpObjectToken* token = nullptr;
-        while (SUCCEEDED(enumTokensObject->Next(1, &token, NULL)))
+        QString error;
+        if (pdf::PDFSpeechVoiceSelector::selectVoice({ voice }, criteria, &error))
         {
-            if (token)
-            {
-                /* Attributes can be for example:
-                 *    Version,
-                 *    Language,
-                 *    Gender,
-                 *    Age,
-                 *    Name
-                 *    Vendor */
-
-                std::map<QString, QString> properties;
-
-                ISpDataKey* attributes = nullptr;
-                if (SUCCEEDED(token->OpenKey(L"Attributes", &attributes)))
-                {
-                    for (ULONG i = 0; ; ++i)
-                    {
-                        LPWSTR valueName = NULL;
-                        if (SUCCEEDED(attributes->EnumValues(i, &valueName)))
-                        {
-                            LPWSTR data = NULL;
-                            if (SUCCEEDED(attributes->GetStringValue(valueName, &data)))
-                            {
-                                QString propertyName = QString::fromWCharArray(valueName);
-                                QString propertyValue = QString::fromWCharArray(data);
-                                if (!propertyValue.isEmpty())
-                                {
-                                    properties[propertyName] = propertyValue;
-                                }
-                                ::CoTaskMemFree(data);
-                            }
-
-                            ::CoTaskMemFree(valueName);
-                        }
-                        else
-                        {
-                            break;
-                        }
-                    }
-                    attributes->Release();
-                }
-
-                if (fillVoiceTokenPointers)
-                {
-                    list.emplace_back(qMove(properties), token);
-                }
-                else
-                {
-                    list.emplace_back(qMove(properties), nullptr);
-                }
-
-                token->Release();
-            }
-            else
-            {
-                break;
-            }
+            result.push_back(voice);
+        }
+        else if (errorMessage && errorMessage->isEmpty() && (error.startsWith(QStringLiteral("Unknown"))))
+        {
+            *errorMessage = error;
         }
     }
-    else
-    {
-        PDFConsole::writeError(PDFToolTranslationContext::tr("SAPI Error: Cannot enumerate SAPI voices."), options.outputCodec);
-        result = ErrorSAPI;
-    }
-
-    if (enumTokensObject)
-    {
-        enumTokensObject->Release();
-    }
-
-    if (category)
-    {
-        category->Release();
-    }
-
-    return result;
-}
-
-int PDFToolAudioBookBase::showVoiceList(const PDFToolOptions& options)
-{
-    PDFVoiceInfoList voices;
-    int result = fillVoices(options, voices, false);
-
-    PDFOutputFormatter formatter(options.outputStyle);
-    formatter.beginDocument("voices", PDFToolTranslationContext::tr("Available voices for given settings:"));
-    formatter.endl();
-
-    formatter.beginTable("voices", PDFToolTranslationContext::tr("Voice list"));
-
-    formatter.beginTableHeaderRow("header");
-    formatter.writeTableHeaderColumn("name", PDFToolTranslationContext::tr("Name"), Qt::AlignLeft);
-    formatter.writeTableHeaderColumn("gender", PDFToolTranslationContext::tr("Gender"), Qt::AlignLeft);
-    formatter.writeTableHeaderColumn("age", PDFToolTranslationContext::tr("Age"), Qt::AlignLeft);
-    formatter.writeTableHeaderColumn("language-code", PDFToolTranslationContext::tr("Lang. Code"), Qt::AlignLeft);
-    formatter.writeTableHeaderColumn("locale", PDFToolTranslationContext::tr("Locale"), Qt::AlignLeft);
-    formatter.writeTableHeaderColumn("language", PDFToolTranslationContext::tr("Language"), Qt::AlignLeft);
-    formatter.writeTableHeaderColumn("country", PDFToolTranslationContext::tr("Country"), Qt::AlignLeft);
-    formatter.writeTableHeaderColumn("vendor", PDFToolTranslationContext::tr("Vendor"), Qt::AlignLeft);
-    formatter.writeTableHeaderColumn("version", PDFToolTranslationContext::tr("Version"), Qt::AlignLeft);
-    formatter.endTableHeaderRow();
-
-    for (const PDFVoiceInfo& voice : voices)
-    {
-        QLocale locale = voice.getLocale();
-        formatter.beginTableRow("voice");
-        formatter.writeTableColumn("name", voice.getName(), Qt::AlignLeft);
-        formatter.writeTableColumn("gender", voice.getGender(), Qt::AlignLeft);
-        formatter.writeTableColumn("age", voice.getAge(), Qt::AlignLeft);
-        formatter.writeTableColumn("language", voice.getLanguage(), Qt::AlignLeft);
-        formatter.writeTableColumn("locale", locale.name(), Qt::AlignLeft);
-        formatter.writeTableColumn("language", locale.nativeLanguageName(), Qt::AlignLeft);
-        formatter.writeTableColumn("country", locale.nativeTerritoryName(), Qt::AlignLeft);
-        formatter.writeTableColumn("vendor", voice.getVendor(), Qt::AlignLeft);
-        formatter.writeTableColumn("version", voice.getVersion(), Qt::AlignLeft);
-        formatter.endTableRow();
-    }
-
-    formatter.endTable();
-
-    formatter.endDocument();
-    PDFConsole::writeText(formatter.getString(), options.outputCodec);
-
     return result;
 }
 
@@ -298,16 +88,89 @@ QString PDFToolAudioBookVoices::getStandardString(PDFToolAbstractApplication::St
 
 int PDFToolAudioBookVoices::execute(const PDFToolOptions& options)
 {
-    if (!SUCCEEDED(::CoInitialize(nullptr)))
+    std::shared_ptr<pdf::PDFQtSpeechSynthesizerFactory> factory = pdf::PDFQtSpeechSynthesizerFactory::create();
+    if (!factory->isAvailable())
     {
-        return ErrorCOM;
+        PDFConsole::writeError(PDFToolTranslationContext::tr("No text-to-speech engine, which can create audio files, is available."), options.outputCodec);
+        return ErrorNoText;
     }
 
-    int returnCode = showVoiceList(options);
+    QString errorMessage;
+    const std::vector<pdf::PDFSpeechVoice> voices = filterVoices(options, factory->getVoices(), &errorMessage);
+    if (!errorMessage.isEmpty())
+    {
+        PDFConsole::writeError(errorMessage, options.outputCodec);
+        return ErrorInvalidArguments;
+    }
 
-    ::CoUninitialize();
+    PDFOutputFormatter formatter(options.outputStyle);
+    formatter.beginDocument("voices", PDFToolTranslationContext::tr("Available voices for given settings:"));
+    formatter.endl();
 
-    return returnCode;
+    formatter.beginTable("voices", PDFToolTranslationContext::tr("Voice list"));
+
+    formatter.beginTableHeaderRow("header");
+    formatter.writeTableHeaderColumn("name", PDFToolTranslationContext::tr("Name"), Qt::AlignLeft);
+    formatter.writeTableHeaderColumn("gender", PDFToolTranslationContext::tr("Gender"), Qt::AlignLeft);
+    formatter.writeTableHeaderColumn("age", PDFToolTranslationContext::tr("Age"), Qt::AlignLeft);
+    formatter.writeTableHeaderColumn("language-code", PDFToolTranslationContext::tr("Lang. Code"), Qt::AlignLeft);
+    formatter.writeTableHeaderColumn("language", PDFToolTranslationContext::tr("Language"), Qt::AlignLeft);
+    formatter.writeTableHeaderColumn("country", PDFToolTranslationContext::tr("Country"), Qt::AlignLeft);
+    formatter.writeTableHeaderColumn("engine", PDFToolTranslationContext::tr("Engine"), Qt::AlignLeft);
+    formatter.endTableHeaderRow();
+
+    const QString engine = factory->getEngine();
+    for (const pdf::PDFSpeechVoice& voice : voices)
+    {
+        const QLocale locale(voice.languageCode);
+        QString gender;
+        switch (voice.gender)
+        {
+            case pdf::PDFSpeechVoice::Gender::Male:
+                gender = QStringLiteral("male");
+                break;
+            case pdf::PDFSpeechVoice::Gender::Female:
+                gender = QStringLiteral("female");
+                break;
+            case pdf::PDFSpeechVoice::Gender::Unknown:
+                break;
+        }
+        QString age;
+        switch (voice.age)
+        {
+            case pdf::PDFSpeechVoice::Age::Child:
+                age = QStringLiteral("child");
+                break;
+            case pdf::PDFSpeechVoice::Age::Teenager:
+                age = QStringLiteral("teenager");
+                break;
+            case pdf::PDFSpeechVoice::Age::Adult:
+                age = QStringLiteral("adult");
+                break;
+            case pdf::PDFSpeechVoice::Age::Senior:
+                age = QStringLiteral("senior");
+                break;
+            case pdf::PDFSpeechVoice::Age::Unknown:
+                break;
+        }
+
+        formatter.beginTableRow("voice");
+        formatter.writeTableColumn("name", voice.name, Qt::AlignLeft);
+        formatter.writeTableColumn("gender", gender, Qt::AlignLeft);
+        formatter.writeTableColumn("age", age, Qt::AlignLeft);
+        formatter.writeTableColumn("language-code", voice.languageCode, Qt::AlignLeft);
+        formatter.writeTableColumn("language", locale.nativeLanguageName(), Qt::AlignLeft);
+        formatter.writeTableColumn("country", locale.nativeTerritoryName(), Qt::AlignLeft);
+        formatter.writeTableColumn("engine", engine, Qt::AlignLeft);
+        formatter.endTableRow();
+    }
+
+    formatter.endTable();
+
+    formatter.endDocument();
+    PDFConsole::writeText(formatter.getString(), options.outputCodec);
+
+    return ExitSuccess;
 }
 
 PDFToolAbstractApplication::Options PDFToolAudioBookVoices::getOptionsFlags() const
@@ -336,9 +199,32 @@ QString PDFToolAudioBook::getStandardString(StandardString standardString) const
     return QString();
 }
 
-
-int PDFToolAudioBook::getDocumentTextFlow(const PDFToolOptions& options, pdf::PDFDocumentTextFlow& flow)
+int PDFToolAudioBook::execute(const PDFToolOptions& options)
 {
+    using Tool = pdf::PDFDocumentToolAudioBook;
+
+    if (!options.textSpeechInvalidArgument.isEmpty())
+    {
+        PDFConsole::writeError(options.textSpeechInvalidArgument, options.outputCodec);
+        return ErrorInvalidArguments;
+    }
+
+    if (options.textSpeechMarkPageNumbers)
+    {
+        // The bookmarks of SAPI are not a part of the speech of Qt (owner answer Q4.1)
+        PDFConsole::writeError(PDFToolTranslationContext::tr("The option --mark-page-numbers is no longer supported; the page numbers are not marked."), options.outputCodec);
+    }
+
+    // B77: the audio file is --output, else next to the document; never replaced without --overwrite
+    const QFileInfo documentInfo(options.document);
+    const QString outputFile = !options.textSpeechOutputFile.isEmpty() ? QFileInfo(options.textSpeechOutputFile).absoluteFilePath()
+                                                                       : QDir(documentInfo.absolutePath()).filePath(documentInfo.completeBaseName() + QStringLiteral(".wav"));
+    if (QFileInfo::exists(outputFile) && !options.textSpeechOverwrite)
+    {
+        PDFConsole::writeError(PDFToolTranslationContext::tr("The file '%1' already exists. Use --overwrite to replace it.").arg(outputFile), options.outputCodec);
+        return ErrorFailedWriteToFile;
+    }
+
     pdf::PDFDocument document;
     QByteArray sourceData;
     if (!readDocument(options, document, &sourceData, false))
@@ -348,135 +234,97 @@ int PDFToolAudioBook::getDocumentTextFlow(const PDFToolOptions& options, pdf::PD
 
     QString parseError;
     std::vector<pdf::PDFInteger> pages = options.getPageRange(document.getCatalog()->getPageCount(), parseError, true);
-
     if (!parseError.isEmpty())
     {
         PDFConsole::writeError(parseError, options.outputCodec);
         return ErrorInvalidArguments;
     }
+    std::sort(pages.begin(), pages.end());
+    pages.erase(std::unique(pages.begin(), pages.end()), pages.end());
 
-    pdf::PDFDocumentTextFlowFactory factory;
-    flow = factory.create(&document, pages, options.textAnalysisAlgorithm);
-
-    return ExitSuccess;
-}
-
-int PDFToolAudioBook::createAudioBook(const PDFToolOptions& options, pdf::PDFDocumentTextFlow& flow)
-{
-    QString audioString;
-    QTextStream textStream(&audioString);
-
-    for (const pdf::PDFDocumentTextFlow::Item& item : flow.getItems())
+    std::shared_ptr<pdf::PDFQtSpeechSynthesizerFactory> factory = pdf::PDFQtSpeechSynthesizerFactory::create();
+    if (!factory->isAvailable())
     {
-        if (item.flags.testFlag(pdf::PDFDocumentTextFlow::PageStart) && options.textSpeechMarkPageNumbers)
-        {
-            textStream << QString("<bookmark mark=\"%1\"/>").arg(item.text) << Qt::endl;
-        }
-
-        if (!item.text.isEmpty())
-        {
-            bool showText = (item.flags.testFlag(pdf::PDFDocumentTextFlow::Text)) ||
-                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::PageStart) && options.textSpeechSayPageNumbers) ||
-                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::PageEnd) && options.textSpeechSayPageNumbers) ||
-                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructureTitle) && options.textSpeechSayStructTitles) ||
-                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructureAlternativeDescription) && options.textSpeechSayStructAlternativeDescription) ||
-                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructureExpandedForm) && options.textSpeechSayStructExpandedForm) ||
-                            (item.flags.testFlag(pdf::PDFDocumentTextFlow::StructureActualText) && options.textSpeechSayStructActualText);
-
-            if (showText)
-            {
-                textStream << item.text << Qt::endl;
-            }
-        }
-    }
-
-    PDFVoiceInfoList voices;
-    fillVoices(options, voices, true);
-
-    // Do we have any voice?
-    if (voices.empty())
-    {
-        PDFConsole::writeError(PDFToolTranslationContext::tr("No suitable voice found."), options.outputCodec);
-        return ErrorSAPI;
-    }
-
-    if (!voices.front().getVoiceToken())
-    {
-        PDFConsole::writeError(PDFToolTranslationContext::tr("Invalid voice."), options.outputCodec);
-        return ErrorSAPI;
-    }
-
-    QFileInfo info(options.document);
-    QString outputFile = QString("%1/%2.%3").arg(info.path(), info.completeBaseName(), options.textSpeechAudioFormat);
-    BSTR outputFileName = (BSTR)outputFile.utf16();
-
-    ISpeechFileStream* stream = nullptr;
-    if (!SUCCEEDED(::CoCreateInstance(CLSID_SpFileStream, NULL, CLSCTX_ALL, __uuidof(ISpeechFileStream), (LPVOID*)&stream)))
-    {
-        PDFConsole::writeError(PDFToolTranslationContext::tr("Cannot create output stream '%1'.").arg(outputFile), options.outputCodec);
-        return ErrorSAPI;
-    }
-
-    ISpVoice* voice = nullptr;
-    if (!SUCCEEDED(::CoCreateInstance(CLSID_SpVoice, NULL, CLSCTX_ALL, __uuidof(ISpVoice), (LPVOID*)&voice)))
-    {
-        PDFConsole::writeError(PDFToolTranslationContext::tr("Cannot create voice."), options.outputCodec);
-        stream->Release();
-        return ErrorSAPI;
-    }
-
-    if (!SUCCEEDED(stream->Open(outputFileName, SSFMCreateForWrite)))
-    {
-        PDFConsole::writeError(PDFToolTranslationContext::tr("Cannot create output stream '%1'.").arg(outputFile), options.outputCodec);
-        voice->Release();
-        stream->Release();
-        return ErrorSAPI;
-    }
-
-    ISpObjectToken* voiceToken = voices.front().getVoiceToken();
-    if (!SUCCEEDED(voice->SetVoice(voiceToken)))
-    {
-        PDFConsole::writeError(PDFToolTranslationContext::tr("Failed to set requested voice. Default voice will be used."), options.outputCodec);
-    }
-    voices.clear();
-
-    LPCWSTR stringToSpeak = (LPCWSTR)audioString.utf16();
-
-    voice->SetOutput(stream, FALSE);
-    voice->Speak(stringToSpeak, SPF_PURGEBEFORESPEAK | SPF_PARSE_SAPI, NULL);
-
-    voice->Release();
-    stream->Release();
-
-    return ExitSuccess;
-}
-
-int PDFToolAudioBook::execute(const PDFToolOptions& options)
-{
-    pdf::PDFDocumentTextFlow textFlow;
-    int result = getDocumentTextFlow(options, textFlow);
-    if (result != ExitSuccess)
-    {
-        return result;
-    }
-
-    if (textFlow.isEmpty())
-    {
-        PDFConsole::writeError(PDFToolTranslationContext::tr("No text extracted to be converted to audio book."), options.outputCodec);
+        PDFConsole::writeError(PDFToolTranslationContext::tr("No text-to-speech engine, which can create audio files, is available."), options.outputCodec);
         return ErrorNoText;
     }
 
-    auto comResult = ::CoInitialize(nullptr);
-    if (!SUCCEEDED(comResult))
+    // The voice by its attributes (R4-15), the first matching voice
+    QString voiceName;
+    if (hasVoiceCriteria(options))
     {
-        return ErrorCOM;
+        QString errorMessage;
+        const std::vector<pdf::PDFSpeechVoice> voices = filterVoices(options, factory->getVoices(), &errorMessage);
+        if (!errorMessage.isEmpty() || voices.empty())
+        {
+            PDFConsole::writeError(errorMessage.isEmpty() ? PDFToolTranslationContext::tr("No suitable voice found.") : errorMessage, options.outputCodec);
+            return ErrorInvalidArguments;
+        }
+        voiceName = voices.front().name;
     }
 
-    result = createAudioBook(options, textFlow);
+    // --say-* are the special items, which are read (R4-15); without --say-struct-act-text and
+    // --say-struct-exp-form the text of the page is read, as before
+    QStringList readSpecial;
+    if (options.textSpeechSayPageNumbers)
+    {
+        readSpecial << QString::fromLatin1(Tool::SPECIAL_PAGE_NUMBERS);
+    }
+    if (options.textSpeechSayStructTitles)
+    {
+        readSpecial << QString::fromLatin1(Tool::SPECIAL_TITLES);
+    }
+    if (options.textSpeechSayStructAlternativeDescription)
+    {
+        readSpecial << QString::fromLatin1(Tool::SPECIAL_ALT);
+    }
+    if (options.textSpeechSayStructExpandedForm)
+    {
+        readSpecial << QString::fromLatin1(Tool::SPECIAL_EXPANDED);
+    }
+    if (options.textSpeechSayStructActualText)
+    {
+        readSpecial << QString::fromLatin1(Tool::SPECIAL_ACTUAL_TEXT);
+    }
 
-    ::CoUninitialize();
+    pdf::PDFDocumentToolPageSelection selection;
+    selection.pages = pdf::PDFDocumentToolPageSelection::createRangeText(pages);
 
-    return result;
+    QVariantMap parameters;
+    parameters.insert(QString::fromLatin1(Tool::PARAMETER_PAGES), selection.toVariant());
+    parameters.insert(QString::fromLatin1(Tool::PARAMETER_ORDER), Tool::getOrderId(options.textAnalysisAlgorithm));
+    parameters.insert(QString::fromLatin1(Tool::PARAMETER_VOICE), voiceName);
+    parameters.insert(QString::fromLatin1(Tool::PARAMETER_RATE), options.textSpeechRate);
+    parameters.insert(QString::fromLatin1(Tool::PARAMETER_VOLUME), options.textSpeechVolume);
+    parameters.insert(QString::fromLatin1(Tool::PARAMETER_FORMAT), QString::fromLatin1(Tool::FORMAT_WAV));
+    parameters.insert(QString::fromLatin1(Tool::PARAMETER_READ_SPECIAL), readSpecial.join(QLatin1Char(',')));
+
+    // The temporary file is in the folder of the target: the result is renamed into it
+    pdf::PDFDocumentPointer documentPointer(new pdf::PDFDocument(std::move(document)));
+    pdf::PDFDocumentToolContext context = pdf::PDFDocumentToolContext::create(pdf::PDFDocumentToolInputDocument::create(documentPointer, sourceData, options.document, false));
+    context.speechSynthesizerFactory = factory;
+    context.temporaryFolder = QFileInfo(outputFile).absolutePath();
+
+    const Tool tool;
+    const pdf::PDFDocumentToolResult result = tool.run(context, parameters, nullptr, nullptr);
+    if (!result.isSuccess() || result.outputs.empty() || !result.outputs.front().isTemporaryFile())
+    {
+        PDFConsole::writeError(result.message.isEmpty() ? PDFToolTranslationContext::tr("The audio book cannot be created.") : result.message, options.outputCodec);
+        return result.message == Tool::tr("This document has no text to read.") ? ErrorNoText : ErrorFailedWriteToFile;
+    }
+
+    // A new file is renamed (the temporary file is in its folder); --overwrite replaces the existing
+    // file by a complete copy (QSaveFile) - the old file stays, when the writing fails
+    const pdf::PDFDocumentToolOutputFile& output = result.outputs.front();
+    QString errorMessage;
+    const bool isWritten = !QFileInfo::exists(outputFile) && output.temporaryFile->moveTo(outputFile, &errorMessage);
+    if (!isWritten && !output.temporaryFile->copyTo(outputFile, &errorMessage))
+    {
+        PDFConsole::writeError(PDFToolTranslationContext::tr("Cannot write the audio file '%1'. %2").arg(outputFile, errorMessage), options.outputCodec);
+        return ErrorFailedWriteToFile;
+    }
+
+    return ExitSuccess;
 }
 
 PDFToolAbstractApplication::Options PDFToolAudioBook::getOptionsFlags() const
@@ -485,5 +333,3 @@ PDFToolAbstractApplication::Options PDFToolAudioBook::getOptionsFlags() const
 }
 
 }   // namespace pdftool
-
-#endif

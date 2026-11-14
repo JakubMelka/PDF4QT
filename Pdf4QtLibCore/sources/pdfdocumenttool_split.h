@@ -47,6 +47,11 @@ public:
     static constexpr const char* PARAMETER_FILE_NAME = "fileName";
     static constexpr const char* PARAMETER_EXISTING_FILES = "existingFiles";
 
+    /// Retry N Files of the result dialog (step 4 of phase 2, K4.11, R4-20: PDF to Images and
+    /// Extract Images only): the names of the files of the run, which are written again, separated
+    /// by '\n'; empty = every file. Panel-only (never in the schema of MCP), never stored.
+    static constexpr const char* PARAMETER_ONLY_OUTPUTS = "onlyOutputs";
+
     /// Identifiers of Existing files (383:4447)
     static constexpr const char* EXISTING_ASK = "ask";
     static constexpr const char* EXISTING_OVERWRITE = "overwrite";
@@ -64,6 +69,15 @@ public:
 
     /// The definitions of Folder, File name (its default \p defaultFileName) and Existing files
     static void addDefinitions(PDFDocumentToolParameterDefinitions* definitions, PDFDocumentToolTranslator translator, const QString& defaultFileName);
+
+    /// The definition of onlyOutputs (PARAMETER_ONLY_OUTPUTS; an export of step 4)
+    static void addOnlyOutputsDefinition(PDFDocumentToolParameterDefinitions* definitions, PDFDocumentToolTranslator translator);
+
+    /// The names of onlyOutputs of the normalized parameters (empty = every file)
+    static QStringList getOnlyOutputs(const QVariantMap& parameters);
+
+    /// The value of onlyOutputs of the names (the result dialog: the files, which failed)
+    static QString createOnlyOutputs(const QStringList& fileNames);
 
     /// The policy of the parameter existingFiles (Ask for an unknown value)
     static PDFDocumentToolFileSink::ExistingFiles getPolicy(const QVariantMap& parameters);

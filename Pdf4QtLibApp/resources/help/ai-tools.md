@@ -13,7 +13,7 @@ An assistant connected to the MCP server of PDF4QT (see [Connect an AI assistant
 | Tool | What the assistant can do | Permission |
 | --- | --- | --- |
 | PDF4QT application | See which documents are open, which one is active, and your permissions | – |
-| Document information | Read the properties, pages, outline, annotations, form fields, attachments, signatures, layers, your text selection and your bookmarks | Read documents |
+| Document information | Read the properties, pages, outline, annotations, form fields, attachments, signatures, layers, images, your text selection and your bookmarks | Read documents |
 | Document text | Read the text of pages and search it | Read documents |
 | Render pages | Look at pages as images – figures, tables, scans | Read documents |
 | Show in PDF4QT | Switch tabs, go to a page, point at a place on a page, open the search, open a page of PDF4QT, close a tab | Read documents |
@@ -21,7 +21,7 @@ An assistant connected to the MCP server of PDF4QT (see [Connect an AI assistant
 | Fill forms | Fill and reset form fields | Edit documents |
 | Edit the outline | Add, rename, move and delete outline items, or build a new outline | Edit documents |
 | Open and save files | Open a PDF file whose path it knows, save a document, save a copy | Open and save files |
-| Tools of PDF4QT | Run the tools of PDF4QT on a document, one tool per request. Available now: Merge, Split, Extract Pages, Interleave Pages, Manage Pages, Insert Pages, Add Image as Page, Remove Pages, Rotate Pages, Crop Pages, Resize Pages, Set Page Boxes, Images to PDF, Blank PDF, Extract Text, Remove Hidden Data, Remove External Links, Compress, Optimize Structure | Read documents, then by what happens with the result: Edit documents for a result that stays in the tab or opens as a new document in a new tab, Open and save files for new files, both for replacing the original file. Blank PDF and Images to PDF read no document, so they need no Read documents; Images to PDF, Insert Pages and Add Image as Page read image files by Open and save files |
+| Tools of PDF4QT | Run the tools of PDF4QT on a document, one tool per request. Available now: Merge, Split, Extract Pages, Interleave Pages, Manage Pages, Insert Pages, Add Image as Page, Remove Pages, Rotate Pages, Crop Pages, Resize Pages, Set Page Boxes, Images to PDF, Blank PDF, PDF to Images, Extract Text, Extract Images, Create Audio Book, Remove Hidden Data, Remove External Links, Compress, Optimize Images, Optimize Structure, Convert to Black & White, Convert Images to Grayscale | Read documents, then by what happens with the result: Edit documents for a result that stays in the tab or opens as a new document in a new tab, Open and save files for new files, both for replacing the original file. Blank PDF and Images to PDF read no document, so they need no Read documents; Images to PDF, Insert Pages and Add Image as Page read image files by Open and save files |
 
 The permissions are explained in [Permissions of assistants](/help/ai-permissions). An action set to Deny is not offered to assistants at all.
 
@@ -31,9 +31,9 @@ The permissions are explained in [Permissions of assistants](/help/ai-permission
 - After a change, a bar over the page says what the assistant did, with **Show Changes** and **Undo**.
 - The annotations of an assistant have the name of the assistant as their author, for example *Claude Code*.
 - Nothing is saved to the file until you or the assistant save it; saving over the file is always confirmed by you, also when a tool writes its result over the file.
-- A tool, which rewrites the whole file (Compress, Optimize Structure, Remove Hidden Data), never replaces a signed document: an assistant can only save a copy, whose signatures are no longer valid.
+- A tool, which rewrites the whole file (Compress, Optimize Images, Optimize Structure, Convert to Black & White, Convert Images to Grayscale, Remove Hidden Data), never replaces a signed document: an assistant can only save a copy, whose signatures are no longer valid.
 - A tool, which changes the pages of a certified document (Insert Pages, Add Image as Page, Remove Pages, Rotate Pages, Crop Pages, Resize Pages, Set Page Boxes), never changes it in place either: only a copy without the signatures is saved.
-- A tool, which writes more files (Split, Extract Pages with a file per page), never overwrites the open document or a file open in a tab; overwriting other files is always confirmed by you.
+- A tool, which writes more files (Split, Extract Pages with a file per page, PDF to Images, Extract Images), never overwrites the open document or a file open in a tab; overwriting other files is always confirmed by you.
 - While a tool of PDF4QT runs on a document or you decide about its result, the requests of assistants to change this document are refused. A tool, which only waits for your settings, computes its result again after a change of an assistant.
 - A locked document is never changed. To let an assistant work freely, give it a copy (Edit a Copy).
 

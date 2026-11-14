@@ -25,8 +25,6 @@
 
 #include "pdftoolabstractapplication.h"
 
-#include <QMutex>
-
 namespace pdftool
 {
 
@@ -36,22 +34,6 @@ public:
     virtual QString getStandardString(StandardString standardString) const override;
     virtual int execute(const PDFToolOptions& options) override;
     virtual Options getOptionsFlags() const override;
-
-    void onImageExtracted(pdf::PDFInteger pageIndex, pdf::PDFInteger order, const QImage& image);
-
-private:
-    struct Image
-    {
-        QByteArray hash;
-        pdf::PDFInteger pageIndex = 0;
-        pdf::PDFInteger order = 0;
-        QImage image;
-        QString fileName;
-    };
-    using Images = std::vector<Image>;
-
-    QMutex m_mutex;
-    Images m_images;
 };
 
 }   // namespace pdftool

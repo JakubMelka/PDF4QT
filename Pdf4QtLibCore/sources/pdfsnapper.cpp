@@ -224,12 +224,15 @@ void PDFSnapper::updateSnappedPoint(const QPointF& mousePoint)
         }
     }
 
-    // Iterate trough all images, check, if some is under mouse cursor
-    for (const ViewportSnapImage& snapImage : m_snapImages)
+    // The image under the mouse cursor, which is seen there: the topmost one in the drawing order
+    // (step 4 of phase 2, B64 / R4-12). The images of a page are in the order, in which its content
+    // draws them (PDFPrecompiledPageGenerator::performImagePainting), a later one covers an earlier
+    // one; the pages do not overlap in the viewport.
+    for (auto it = m_snapImages.crbegin(); it != m_snapImages.crend(); ++it)
     {
-        if (snapImage.viewportPath.contains(mousePoint))
+        if (it->viewportPath.contains(mousePoint))
         {
-            m_snappedImage = snapImage;
+            m_snappedImage = *it;
             break;
         }
     }
