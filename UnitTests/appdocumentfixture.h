@@ -58,6 +58,7 @@ public:
     /// Password of the user password sample and of the owner password sample
     static QString getUserPassword() { return QStringLiteral("user-secret"); }
     static QString getOwnerPassword() { return QStringLiteral("owner-secret"); }
+    static QString getAttachmentsPassword() { return QStringLiteral("attachments-secret"); }
 
     /// Password of the PKCS#12 file of the signed sample
     static QString getCertificatePassword() { return QStringLiteral("test-password"); }
@@ -86,6 +87,10 @@ public:
     /// 2 pages with two embedded files ("notes.txt", "data.csv") in the
     /// /EmbeddedFiles name tree and a file attachment annotation on page 1
     static QString attachments(const QString& folder);
+
+    /// attachments() encrypted in its embedded files only (step 5 of phase 2, Q5.9 c): the password
+    /// getAttachmentsPassword() opens the attachments, the document opens without it
+    static QString attachmentsOnly(const QString& folder);
 
     /// 1 page with two optional content groups "Layer A" (on) and "Layer B" (off)
     static QString layers(const QString& folder);

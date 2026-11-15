@@ -246,6 +246,10 @@ public:
     /// Text of a display version of an XFA form (step 8), which cannot be changed
     static QString getPagedXFAText();
 
+    /// Text of a document opened without the password of its attachments (Q5.9 c), of which no
+    /// PDF is made (PDFAppToolResultWriter::DocumentRefusal::AttachmentsLocked)
+    static QString getAttachmentsLockedText();
+
     /// Text of a change refused while a modal dialog of the application is open (plan 2.5)
     static QString getModalDialogText();
 

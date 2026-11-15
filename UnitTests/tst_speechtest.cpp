@@ -125,7 +125,7 @@ public:
     class Control : public pdf::PDFOperationControl
     {
     public:
-        virtual bool isOperationCancelled() const override { return m_isCanceled.load(); }
+        virtual bool isOperationCanceled() const override { return m_isCanceled.load(); }
         void cancel() { m_isCanceled.store(true); }
 
     private:

@@ -32,14 +32,111 @@
 #include <QLocale>
 #include <QSaveFile>
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <map>
+#include <optional>
 
 #include "pdfdbgheap.h"
 
 namespace pdf
 {
+
+/// The version and the extension of a file, which the encryption needs (B98)
+class PDFDocumentWriterEncryptionHelper
+{
+public:
+    PDFDocumentWriterEncryptionHelper() = delete;
+
+    /// The handler of one write: a copy of the handler of the document, which knows the
+    /// document-level metadata stream of the written file (/EncryptMetadata false leaves only it
+    /// unencrypted, ISO 32000-2 Table 20) - the reader of the file decides by the same rule
+    /// (PDFSecurityHandler::setDocumentMetadataReference). The handler of the document is shared
+    /// and never changed.
+    static PDFSecurityHandlerPointer createWriteHandler(const PDFSecurityHandler* handler, std::optional<PDFObjectReference> documentMetadata)
+    {
+        PDFSecurityHandlerPointer writeHandler(handler->clone());
+        writeHandler->setDocumentMetadataReference(documentMetadata);
+        return writeHandler;
+    }
+
+    /// The document-level metadata stream of a document, whose catalog is written as an object of
+    /// its own (not in an object stream): the reader reads it before the decryption
+    static std::optional<PDFObjectReference> getWrittenDocumentMetadata(const PDFDocument* document)
+    {
+        return PDFSecurityHandler::findDocumentMetadataReference(document->getStorage().getObject(document->getTrailerDictionary()->get("Root")));
+    }
+
+    /// True, if the developer extension /ADBE (ISO 32000-2, 7.12.3: a dictionary, or in PDF 2.0
+    /// an array of them) is of /BaseVersion /1.7 and of the level at least \p level
+    static bool hasAdbeExtension(const PDFObjectStorage& storage, const PDFObject& adbe, int level)
+    {
+        const PDFObject& value = storage.getObject(adbe);
+        if (value.isArray())
+        {
+            for (size_t i = 0; i < value.getArray()->getCount(); ++i)
+            {
+                if (hasAdbeExtensionDictionary(storage, value.getArray()->getItem(i), level))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return hasAdbeExtensionDictionary(storage, value, level);
+    }
+
+    /// The catalog with the extension /ADBE of the level (7.12.3), a null object, when the catalog
+    /// has it already or the document has no catalog object
+    /// \param document Document
+    /// \param level Level of the extension
+    /// \param catalogReference The object of the catalog
+    static PDFObject getCatalogWithExtension(const PDFDocument* document, int level, PDFObjectReference* catalogReference)
+    {
+        const PDFObjectStorage& storage = document->getStorage();
+        const PDFDictionary* trailer = document->getTrailerDictionary();
+        const PDFObject root = trailer ? trailer->get("Root") : PDFObject();
+        const PDFDictionary* catalog = root.isReference() ? storage.getDictionaryFromObject(root) : nullptr;
+        if (!catalog)
+        {
+            return PDFObject();
+        }
+
+        const PDFDictionary* extensions = storage.getDictionaryFromObject(catalog->get("Extensions"));
+        if (extensions && hasAdbeExtension(storage, extensions->get("ADBE"), level))
+        {
+            return PDFObject();
+        }
+
+        // The other extensions stay; an extension /ADBE of a lower level is replaced (the levels
+        // are cumulative)
+        PDFDictionaryBuilder adbe;
+        adbe.addEntry(PDFInplaceOrMemoryString("BaseVersion"), PDFObject::createName(QByteArray("1.7")));
+        adbe.addEntry(PDFInplaceOrMemoryString("ExtensionLevel"), PDFObject::createInteger(level));
+
+        PDFDictionaryBuilder newExtensions = PDFObjectUtils::copyDictionary(&storage, catalog->get("Extensions"));
+        newExtensions.setEntry(PDFInplaceOrMemoryString("ADBE"), PDFObject::createDictionary(std::move(adbe)));
+
+        PDFDictionaryBuilder newCatalog(*catalog);
+        newCatalog.setEntry(PDFInplaceOrMemoryString("Extensions"), PDFObject::createDictionary(std::move(newExtensions)));
+        *catalogReference = root.getReference();
+        return PDFObject::createDictionary(std::move(newCatalog));
+    }
+
+private:
+    static bool hasAdbeExtensionDictionary(const PDFObjectStorage& storage, const PDFObject& object, int level)
+    {
+        const PDFDictionary* dictionary = storage.getDictionaryFromObject(object);
+        if (!dictionary)
+        {
+            return false;
+        }
+        const PDFObject& baseVersion = storage.getObject(dictionary->get("BaseVersion"));
+        const PDFObject& extensionLevel = storage.getObject(dictionary->get("ExtensionLevel"));
+        return baseVersion.isName() && baseVersion.getString() == "1.7" && extensionLevel.isInt() && extensionLevel.getInteger() >= level;
+    }
+};
 
 class PDFWriteObjectVisitor : public PDFAbstractVisitor
 {
@@ -267,8 +364,22 @@ PDFOperationResult PDFDocumentWriter::write(QIODevice* device, const PDFDocument
         return tr("Writing of encrypted documents is not supported.");
     }
 
-    // Write header
-    const PDFVersion version = document->getInfo()->version.isValid() ? document->getInfo()->version : PDFVersion::getFallback();
+    // Write header: the version the encryption needs (B98, R5-16 - never lowered, never raised to
+    // 2.0; below 2.0 an encryption of V 5 declares the extension /ADBE in the catalog)
+    PDFVersion version = document->getInfo()->version.isValid() ? document->getInfo()->version : PDFVersion::getFallback();
+    const EncryptionVersion encryptionVersion = getEncryptionVersion(document);
+    if (encryptionVersion.minimumVersion.isValid() && version < encryptionVersion.minimumVersion)
+    {
+        version = encryptionVersion.minimumVersion;
+    }
+
+    PDFObjectReference catalogReference;
+    PDFObject catalogWithExtension;
+    if (encryptionVersion.adbeExtensionLevel > 0 && version < PDFVersion(2, 0))
+    {
+        catalogWithExtension = PDFDocumentWriterEncryptionHelper::getCatalogWithExtension(document, encryptionVersion.adbeExtensionLevel, &catalogReference);
+    }
+
     device->write(QString("%PDF-%1.%2").arg(version.major).arg(version.minor).toLatin1());
     writeCRLF(device);
     device->write("% PDF producer: ");
@@ -282,6 +393,14 @@ PDFOperationResult PDFDocumentWriter::write(QIODevice* device, const PDFDocument
     if (encryptObject.isReference())
     {
         encryptObjectReference = encryptObject.getReference();
+    }
+
+    // Every object is written as an object of its own, the catalog too: the reader knows the
+    // document-level metadata stream before the decryption
+    PDFSecurityHandlerPointer writeHandler;
+    if (isEncrypted)
+    {
+        writeHandler = PDFDocumentWriterEncryptionHelper::createWriteHandler(storage.getSecurityHandler(), PDFDocumentWriterEncryptionHelper::getWrittenDocumentMetadata(document));
     }
 
     // Write objects
@@ -300,11 +419,12 @@ PDFOperationResult PDFDocumentWriter::write(QIODevice* device, const PDFDocument
         if (isEncrypted)
         {
             PDFObjectReference reference(i, entry.generation);
-            PDFObject objectToWrite = entry.object;
+            const bool isCatalogWithExtension = !catalogWithExtension.isNull() && reference == catalogReference;
+            PDFObject objectToWrite = isCatalogWithExtension ? catalogWithExtension : entry.object;
 
             if (reference != encryptObjectReference)
             {
-                objectToWrite = storage.getSecurityHandler()->encryptObject(objectToWrite, reference);
+                objectToWrite = writeHandler->encryptObject(objectToWrite, reference);
             }
 
             PDFWriteObjectVisitor visitor(device);
@@ -389,6 +509,77 @@ PDFOperationResult PDFDocumentWriter::write(QIODevice* device, const PDFDocument
     device->write("%%EOF");
 
     return true;
+}
+
+PDFDocumentWriter::EncryptionVersion PDFDocumentWriter::getEncryptionVersion(const PDFDocument* document)
+{
+    EncryptionVersion result;
+    const PDFSecurityHandler* handler = document ? document->getStorage().getSecurityHandler() : nullptr;
+    if (!handler || handler->getMode() == EncryptionMode::None)
+    {
+        return result;
+    }
+
+    const PDFObjectStorage& storage = document->getStorage();
+    const PDFDictionary* trailer = document->getTrailerDictionary();
+    const PDFDictionary* encrypt = trailer ? storage.getDictionaryFromObject(trailer->get("Encrypt")) : nullptr;
+
+    switch (handler->getVersion())
+    {
+        case 1:
+            result.minimumVersion = PDFVersion(1, 1);
+            break;
+
+        case 2:
+        case 3:
+            // RC4 longer than 40 bits (ISO 32000-2, Table 20: V 2 is PDF 1.4)
+            result.minimumVersion = PDFVersion(1, 4);
+            break;
+
+        case 4:
+        {
+            // Crypt filters (PDF 1.5), AESV2 (PDF 1.6, Table 25)
+            result.minimumVersion = PDFVersion(1, 5);
+            const PDFDictionary* cryptFilters = encrypt ? storage.getDictionaryFromObject(encrypt->get("CF")) : nullptr;
+            for (size_t i = 0; cryptFilters && i < cryptFilters->getCount(); ++i)
+            {
+                const PDFDictionary* cryptFilter = storage.getDictionaryFromObject(cryptFilters->getValue(i));
+                const PDFObject& method = cryptFilter ? storage.getObject(cryptFilter->get("CFM")) : PDFObject();
+                if (method.isName() && method.getString() == "AESV2")
+                {
+                    result.minimumVersion = PDFVersion(1, 6);
+                }
+            }
+            break;
+        }
+
+        default:
+        {
+            // AESV3 (V 5): PDF 2.0, or PDF 1.7 with the extension of Adobe - level 8 for revision 6
+            // and the public-key handler, level 3 for the deprecated revision 5
+            const PDFStandardSecurityHandler* standardHandler = dynamic_cast<const PDFStandardSecurityHandler*>(handler);
+            result.minimumVersion = PDFVersion(1, 7);
+            result.adbeExtensionLevel = (standardHandler && standardHandler->getRevision() == 5) ? 3 : 8;
+            break;
+        }
+    }
+
+    return result;
+}
+
+bool PDFDocumentWriter::hasSameEncryption(const PDFDocument* document, const PDFDocument* original)
+{
+    auto getEncryptDictionary = [](const PDFDocument* item) -> PDFObject
+    {
+        const PDFDictionary* trailer = item->getTrailerDictionary();
+        return trailer ? item->getStorage().getObject(trailer->get("Encrypt")) : PDFObject();
+    };
+
+    const PDFSecurityHandler* handler = document->getStorage().getSecurityHandler();
+    const PDFSecurityHandler* originalHandler = original->getStorage().getSecurityHandler();
+    const EncryptionMode mode = handler ? handler->getMode() : EncryptionMode::None;
+    const EncryptionMode originalMode = originalHandler ? originalHandler->getMode() : EncryptionMode::None;
+    return mode == originalMode && getEncryptDictionary(document) == getEncryptDictionary(original);
 }
 
 bool PDFDocumentWriter::findLastCrossReferenceSection(const QByteArray& data, PDFInteger& offset, bool& isCrossReferenceStream)
@@ -482,6 +673,13 @@ PDFOperationResult PDFDocumentWriter::writeIncrementalUpdate(QIODevice* device, 
         return tr("Writing of encrypted documents is not supported.");
     }
 
+    // B80: an update cannot change the encryption - the objects of the old revisions stay
+    // encrypted by the old key (or in the clear) under the new /Encrypt, the file could not be read
+    if (!hasSameEncryption(document, &originalDocument))
+    {
+        return tr("The encryption of the document has changed, so it cannot be updated incrementally. The whole file has to be written.");
+    }
+
     // Only the objects, which differ from the original document, are written.
     // A removed object is written as null, because a free entry in the update
     // would be overridden by the older occupied entry of the original document.
@@ -516,6 +714,61 @@ PDFOperationResult PDFDocumentWriter::writeIncrementalUpdate(QIODevice* device, 
         encryptObjectReference = encryptObject.getReference();
     }
 
+    // The document-level metadata stream, as the reader of the updated file sees it (/EncryptMetadata
+    // false, Table 20): the catalog of the original, which the update does not write, stays where it
+    // is (perhaps in an object stream) - the reader decides as it did for the original. Another
+    // catalog is written in the update as an object of its own, so the reader knows it.
+    PDFSecurityHandlerPointer writeHandler;
+    if (isEncrypted)
+    {
+        const PDFObject& root = document->getTrailerDictionary()->get("Root");
+        const PDFObject& originalRoot = originalDocument.getTrailerDictionary()->get("Root");
+        const bool isCatalogObject = root.isReference() && root.getReference().objectNumber > 0 && static_cast<size_t>(root.getReference().objectNumber) < objects.size() &&
+                                     !objects[root.getReference().objectNumber].object.isNull();
+        const size_t catalogNumber = isCatalogObject ? static_cast<size_t>(root.getReference().objectNumber) : 0;
+        const bool isCatalogWritten = isCatalogObject && std::binary_search(changedObjects.cbegin(), changedObjects.cend(), catalogNumber);
+        const bool isOriginalCatalog = isCatalogObject && !isCatalogWritten && originalRoot.isReference() && originalRoot.getReference() == root.getReference();
+
+        std::optional<PDFObjectReference> documentMetadata;
+        if (isOriginalCatalog)
+        {
+            documentMetadata = originalDocument.getStorage().getSecurityHandler()->getDocumentMetadataReference();
+        }
+        else
+        {
+            if (isCatalogObject && !isCatalogWritten)
+            {
+                changedObjects.insert(std::lower_bound(changedObjects.begin(), changedObjects.end(), catalogNumber), catalogNumber);
+            }
+            documentMetadata = PDFDocumentWriterEncryptionHelper::getWrittenDocumentMetadata(document);
+        }
+        writeHandler = PDFDocumentWriterEncryptionHelper::createWriteHandler(storage.getSecurityHandler(), documentMetadata);
+
+        // The decision changed (the catalog left its object stream, or its /Metadata is another
+        // stream): a metadata stream of the original, which the reader of the updated file treats
+        // otherwise than the reader of the original did, is written again in the update by the new
+        // rule - an unencrypted page XMP of the rule of /Type would be decrypted to garbage
+        const PDFSecurityHandler* originalHandler = originalDocument.getStorage().getSecurityHandler();
+        if (originalHandler->getDocumentMetadataReference() != documentMetadata)
+        {
+            for (size_t i = 1; i < originalObjects.size() && i < objects.size(); ++i)
+            {
+                const PDFObject& originalObject = originalObjects[i].object;
+                if (!originalObject.isStream() || objects[i].object.isNull() || std::binary_search(changedObjects.cbegin(), changedObjects.cend(), i))
+                {
+                    continue;
+                }
+
+                const PDFObjectReference reference(PDFInteger(i), originalObjects[i].generation);
+                const PDFDictionary* streamDictionary = originalObject.getStream()->getDictionary();
+                if (originalHandler->isUnencryptedMetadataStream(reference, streamDictionary) != writeHandler->isUnencryptedMetadataStream(reference, streamDictionary))
+                {
+                    changedObjects.insert(std::lower_bound(changedObjects.begin(), changedObjects.end(), i), i);
+                }
+            }
+        }
+    }
+
     // The update is appended after the original data, so the offsets written
     // into the cross-reference section are the positions in the device.
     device->write(originalData);
@@ -534,7 +787,7 @@ PDFOperationResult PDFDocumentWriter::writeIncrementalUpdate(QIODevice* device, 
         PDFObject objectToWrite = entry.object;
         if (isEncrypted && reference != encryptObjectReference)
         {
-            objectToWrite = storage.getSecurityHandler()->encryptObject(objectToWrite, reference);
+            objectToWrite = writeHandler->encryptObject(objectToWrite, reference);
         }
 
         PDFWriteObjectVisitor visitor(device);

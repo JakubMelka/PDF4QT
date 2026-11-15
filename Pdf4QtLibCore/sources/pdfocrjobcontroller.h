@@ -59,11 +59,11 @@ struct PDFMeshQualitySettings;
 class PDF4QTLIBCORESHARED_EXPORT PDFOCRCancelToken : public PDFOperationControl
 {
 public:
-    virtual bool isOperationCancelled() const override { return m_cancelled.load(std::memory_order_acquire); }
-    void cancel() { m_cancelled.store(true, std::memory_order_release); }
+    virtual bool isOperationCanceled() const override { return m_canceled.load(std::memory_order_acquire); }
+    void cancel() { m_canceled.store(true, std::memory_order_release); }
 
 private:
-    std::atomic<bool> m_cancelled = { false };
+    std::atomic<bool> m_canceled = { false };
 };
 
 /// Task of one page
@@ -115,10 +115,10 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRJobSummary
     int donePages = 0;
     int noTextPages = 0;
     int errorPages = 0;
-    int cancelledPages = 0;
+    int canceledPages = 0;
     int skippedPages = 0;
     qint64 elapsedMilliseconds = 0;
-    bool cancelled = false;
+    bool canceled = false;
 
     /// Critical error, which stopped the job (initialization, models, ...)
     PDFOCRError criticalError;
@@ -133,7 +133,7 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRJobSummary
     /// Estimated memory of the model set of one worker in bytes
     qint64 modelMemoryBytes = 0;
 
-    bool isPartial() const { return errorPages > 0 || cancelledPages > 0; }
+    bool isPartial() const { return errorPages > 0 || canceledPages > 0; }
 };
 
 /// Controller of the OCR jobs (chapter 11 of the OCR specification). Runs the
@@ -254,7 +254,7 @@ private:
     /// Acquires the memory for the page rasters. A request larger than the budget
     /// available for the rasters is refused with an OutOfMemory error (never waited
     /// for, never let through, R13), otherwise the function waits until the memory
-    /// is released by other workers, the operation is cancelled, or the deadline
+    /// is released by other workers, the operation is canceled, or the deadline
     /// of the page expires (Timeout error).
     bool acquireMemory(Job& job, qint64 bytes, const PDFOperationControl* operationControl, QDeadlineTimer deadline, PDFOCRError* error);
     void releaseMemory(qint64 bytes);

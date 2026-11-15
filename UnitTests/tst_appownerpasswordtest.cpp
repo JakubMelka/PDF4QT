@@ -40,6 +40,7 @@
 #include "pdfappannotationcreator.h"
 #include "pdfappcommand.h"
 #include "pdfappdocument.h"
+#include "pdfappdocumentloader.h"
 #include "pdfappdocumentsave.h"
 #include "pdfappdocumentpanelcommands.h"
 #include "pdfappdocumentpermissions.h"
@@ -76,6 +77,7 @@
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QLabel>
 #include <QPointer>
 #include <QPushButton>
 #include <QSignalSpy>
@@ -395,6 +397,15 @@ private Q_SLOTS:
     void sanitizeOwnerDialogLifetime();
     void dialogLifetime();
     void themesAndRightToLeft();
+
+    // Step 5 of phase 2 (package P2): ChangeSecurity (R5-4, K5.13), Open Restrict Permissions (Q5.12)
+    void changeSecurityRule();
+    void changeSecurityCertificate();
+    void changeSecurityDialog_data();
+    void changeSecurityDialog();
+    void changeSecurityToolEntry();
+    void restrictPermissionsButton();
+    void noDrmMode();
 };
 
 void AppOwnerPasswordTest::initTestCase()
@@ -508,8 +519,10 @@ void AppOwnerPasswordTest::ownerPasswordPerRevision()
     QCOMPARE(handler->getAuthorizationResult(), pdf::PDFSecurityHandler::AuthorizationResult::UserAuthorized);
     QVERIFY(PDFAppDocumentPermissions::canUnlock(document.data()));
     QVERIFY(PDFAppDocumentPermissions::isRestricted(document.data()));
+    // ISO 32000-2 Table 22 (R5-14 of step 5): the extraction for accessibility is always allowed
+    // (bit 10 is ignored by a reader), also by revision 2, whose bit 5 forbids copying here
     const std::vector<Permission> forbidden = isRevision2 ? std::vector<Permission>({ Permission::PrintLowResolution, Permission::CopyContent, Permission::ModifyInteractiveItems, Permission::ModifyFormFields,
-                                                                                       Permission::Accessibility, Permission::PrintHighResolution })
+                                                                                       Permission::PrintHighResolution })
                                                           : std::vector<Permission>({ Permission::PrintLowResolution, Permission::CopyContent, Permission::ModifyInteractiveItems, Permission::ModifyFormFields,
                                                                                        Permission::Assemble });
     QCOMPARE(PDFAppDocumentPermissions::getForbiddenPermissions(document.data()), forbidden);
@@ -1081,7 +1094,7 @@ void AppOwnerPasswordTest::sanitizeAsksOwnerPassword()
     QVERIFY(shell->getModel()->getValue(QStringLiteral("comments")).toBool());
     QCOMPARE(gui->getRunPermissions(), std::vector<Permission>({ Permission::ModifyInteractiveItems }));
     QVERIFY(shell->getToolbar()->getConfirmButton()->isEnabled());
-    QVERIFY2(shell->getStatusMessage().contains(QStringLiteral("which removing Comments and markup needs: Remove Hidden Data asks for its owner password, or untick Comments and markup")),
+    QVERIFY2(shell->getStatusMessage().contains(QStringLiteral("which removing Comments and markup needs: Remove Hidden Data asks for its owner password, or uncheck Comments and markup")),
              qPrintable(shell->getStatusMessage()));
 
     // The question; Cancel: nothing runs, the tool and the document stay as they are
@@ -1236,6 +1249,318 @@ void AppOwnerPasswordTest::themesAndRightToLeft()
     }
     pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
     QApplication::setLayoutDirection(Qt::LeftToRight);
+}
+
+/// Samples of the tests of ChangeSecurity (step 5 of phase 2, package P2)
+class AppChangeSecurityHelper
+{
+public:
+    AppChangeSecurityHelper() = delete;
+
+    /// Opens the sample of the user password (AES-256, every permission allowed, the owner
+    /// password AppDocumentSamples::getOwnerPassword) by its user password
+    static pdf::PDFAppDocumentTab* openUserPassword(AppDocumentFixture& fixture)
+    {
+        pdf::PDFAppDocumentTab* tab = fixture.open(AppDocumentSamples::userPassword(fixture.folder()));
+        if (!tab || !QTest::qWaitFor([tab]() { return tab->getDocument()->getState() == pdf::PDFAppDocumentState::PasswordRequired; }, 20000 * AppDocumentFixture::getTimeoutFactor()))
+        {
+            return nullptr;
+        }
+        if (!tab->getLoader()->setPassword(AppDocumentSamples::getUserPassword()) ||
+            !QTest::qWaitFor([tab]() { return tab->getDocument()->isReady() && tab->getView()->getPageCount() > 0; }, 20000 * AppDocumentFixture::getTimeoutFactor()))
+        {
+            return nullptr;
+        }
+        fixture.window->activateTab(tab);
+        AppDocumentFixture::settle();
+        return tab;
+    }
+
+    /// The document of a certificate (adbe.pkcs7.s3 reads /P as the bits of its recipient)
+    static pdf::PDFDocumentPointer certificateDocument(const QString& folder, uint32_t bits)
+    {
+        const pdf::PDFObject encryption = H::dictionary({ { "Filter", pdf::PDFObject::createName(QByteArray("Adobe.PubSec")) }, { "SubFilter", pdf::PDFObject::createName(QByteArray("adbe.pkcs7.s3")) },
+                                                          { "V", pdf::PDFObject::createInteger(1) }, { "P", pdf::PDFObject::createInteger(pdf::PDFInteger(int32_t(bits))) } });
+        pdf::PDFSecurityHandlerPointer handler = pdf::PDFSecurityHandler::createSecurityHandler(encryption, QByteArray());
+        const pdf::PDFDocumentPointer plain = H::read(AppDocumentSamples::simple(folder, QStringLiteral("certificate-%1.pdf").arg(bits, 0, 16), 1));
+        return plain ? PDFAppDocumentPermissions::createWithSecurityHandler(plain.data(), handler) : pdf::PDFDocumentPointer();
+    }
+};
+
+void AppOwnerPasswordTest::changeSecurityRule()
+{
+    // R5-4 (ISO 32000-2, 7.6.4.1: only the owner changes the security): the tools of Encryption ask
+    // for ChangeSecurity; allowed without encryption and by the owner authorization only - also when
+    // the user password restricts nothing; the owner password can authorize it then (canUnlock)
+    AppDocumentFixture fixture;
+    const PDFAppPermissionRequest change = PDFAppPermissionRequest::create(PDFAppPermissionAction::ChangeSecurity);
+    QCOMPARE(PDFAppPermissionRequest::createTool(QStringLiteral("protect.password")).action, PDFAppPermissionAction::ChangeSecurity);
+    QCOMPARE(PDFAppPermissionRequest::createTool(QStringLiteral("protect.permissions")).action, PDFAppPermissionAction::ChangeSecurity);
+    QCOMPARE(PDFAppPermissionRequest::createTool(QStringLiteral("protect.certificate-encrypt")).action, PDFAppPermissionAction::ChangeSecurity);
+    QCOMPARE(PDFAppPermissionRequest::createTool(QStringLiteral("protect.unlock")).action, PDFAppPermissionAction::ChangeSecurity);
+    QCOMPARE(PDFAppPermissionRequest::createTool(QStringLiteral("protect.unlock")).toolId, QStringLiteral("protect.unlock"));
+    QCOMPARE(PDFAppPermissionRequest::createTool(QStringLiteral("pages.rotate")).action, PDFAppPermissionAction::Tool);
+    QCOMPARE(PDFAppPermissionRequest::createTool(QStringLiteral("protect.sanitize")).action, PDFAppPermissionAction::Tool);
+
+    // Not encrypted: allowed
+    const pdf::PDFDocumentPointer plain = H::read(AppDocumentSamples::simple(fixture.folder(), QStringLiteral("plain.pdf"), 1));
+    QVERIFY(plain);
+    QVERIFY(PDFAppDocumentPermissions::isAllowed(plain.data(), change));
+    QVERIFY(PDFAppDocumentPermissions::isAllowed(plain.data(), PDFAppPermissionRequest::createTool(QStringLiteral("protect.password"))));
+
+    // Opened by the user password, nothing restricted: every action of Table 22 is allowed, a
+    // change of the security is not, the owner password can allow it
+    const pdf::PDFDocumentPointer user = H::read(AppDocumentSamples::userPassword(fixture.folder()), AppDocumentSamples::getUserPassword());
+    QVERIFY(user);
+    QCOMPARE(user->getStorage().getSecurityHandler()->getAuthorizationResult(), pdf::PDFSecurityHandler::AuthorizationResult::UserAuthorized);
+    QVERIFY(!PDFAppDocumentPermissions::isRestricted(user.data()));
+    QVERIFY(PDFAppDocumentPermissions::isAllowed(user.data(), PDFAppPermissionRequest::create(PDFAppPermissionAction::Print)));
+    QVERIFY(!PDFAppDocumentPermissions::isAllowed(user.data(), change));
+    QVERIFY(PDFAppDocumentPermissions::canUnlock(user.data()));
+    QVERIFY(PDFAppDocumentPermissions::isAvailable(user.data(), change));
+    QVERIFY(PDFAppDocumentPermissions::getMissingPermissions(user.data(), change).empty());
+    QCOMPARE(PDFAppDocumentPermissions::getRefusalText(user.data(), change), QStringLiteral("Only the owner can change the security of the document. If you own it, unlock it with its owner password."));
+    const QString mcpText = PDFAppDocumentPermissions::getMcpRefusalText(user.data(), change);
+    QVERIFY2(mcpText.contains(QStringLiteral("needs owner access (ISO 32000-2 7.6.4.1)")), qPrintable(mcpText));
+    QVERIFY(mcpText.contains(QStringLiteral("Never ask the user for the password")));
+
+    // The owner authorization (Algorithm 2.A of revision 6) allows it
+    pdf::PDFSecurityHandlerPointer owner = PDFAppDocumentPermissions::authenticateOwner(user->getStorage().getSecurityHandler(), AppDocumentSamples::getOwnerPassword());
+    QVERIFY(owner);
+    const pdf::PDFDocumentPointer unlocked = PDFAppDocumentPermissions::createWithSecurityHandler(user.data(), owner);
+    QVERIFY(PDFAppDocumentPermissions::isAllowed(unlocked.data(), change));
+    QVERIFY(!PDFAppDocumentPermissions::canUnlock(unlocked.data()));
+
+    // A restricted document opened by its empty user password: not allowed, the forbidden bits are
+    // the missing permissions of the texts; its file keeps them after the owner authorization
+    const pdf::PDFDocumentPointer restricted = H::read(H::sample(fixture.folder(), QStringLiteral("6")));
+    QVERIFY(restricted);
+    QVERIFY(!PDFAppDocumentPermissions::isAllowed(restricted.data(), change));
+    QCOMPARE(PDFAppDocumentPermissions::getMissingPermissions(restricted.data(), change).size(), size_t(5));
+    const pdf::PDFDocumentPointer restrictedOwner = PDFAppDocumentPermissions::createWithSecurityHandler(restricted.data(),
+        PDFAppDocumentPermissions::authenticateOwner(restricted->getStorage().getSecurityHandler(), H::owner()));
+    QVERIFY(PDFAppDocumentPermissions::isAllowed(restrictedOwner.data(), change));
+    QVERIFY(PDFAppDocumentPermissions::getForbiddenPermissions(restrictedOwner.data()).empty());
+    QCOMPARE(PDFAppDocumentPermissions::getFileForbiddenPermissions(restrictedOwner.data()),
+             std::vector<Permission>({ Permission::PrintLowResolution, Permission::CopyContent, Permission::ModifyInteractiveItems, Permission::ModifyFormFields, Permission::Assemble }));
+
+    // Revision 2 reads bits 9 - 12 by bits 6, 5, 4, 3 (Table 22, SECURITY_TODO 31): bits 3, 4, 6
+    // cleared forbid printing (both), changes, annotations, forms and assembling
+    const QString source = AppDocumentSamples::simple(fixture.folder(), QStringLiteral("r2-change.pdf"), 1);
+    const pdf::PDFDocumentPointer revision2 = H::read(H::encryptFile(source, fixture.folder(), QStringLiteral("r2-change-encrypted.pdf"), H::createRevision2(0xFFFFFFFCu & ~uint32_t(0x0004u | 0x0008u | 0x0020u))));
+    QVERIFY(revision2);
+    QCOMPARE(PDFAppDocumentPermissions::getFileForbiddenPermissions(revision2.data()),
+             std::vector<Permission>({ Permission::PrintLowResolution, Permission::Modify, Permission::ModifyInteractiveItems, Permission::ModifyFormFields,
+                                       Permission::Assemble, Permission::PrintHighResolution }));
+}
+
+void AppOwnerPasswordTest::changeSecurityCertificate()
+{
+    // ISO 32000-2 Table 24 (K5.12, owner answer Q5.3 b): a certificate changes the encryption by
+    // bit 2 of its recipient only; there is no owner password to ask for
+    using CH = AppChangeSecurityHelper;
+    AppDocumentFixture fixture;
+    const PDFAppPermissionRequest change = PDFAppPermissionRequest::createTool(QStringLiteral("protect.unlock"));
+
+    const pdf::PDFDocumentPointer withoutBit2 = CH::certificateDocument(fixture.folder(), 0xFFFFFFFCu);
+    QVERIFY(withoutBit2);
+    QVERIFY(PDFAppDocumentPermissions::isCertificateSecurity(withoutBit2.data()));
+    QVERIFY(!PDFAppDocumentPermissions::isRestricted(withoutBit2.data()));
+    QVERIFY(!PDFAppDocumentPermissions::isAllowed(withoutBit2.data(), change));
+    QVERIFY(!PDFAppDocumentPermissions::canUnlock(withoutBit2.data()));
+    QVERIFY(!PDFAppDocumentPermissions::isAvailable(withoutBit2.data(), change));
+    QCOMPARE(PDFAppDocumentPermissions::getRefusalText(withoutBit2.data(), change),
+             QStringLiteral("The certificate, with which the document was opened, does not allow changing or removing its encryption. Only someone, whose certificate allows it, can change its security."));
+    QVERIFY(PDFAppDocumentPermissions::getMcpRefusalText(withoutBit2.data(), change).contains(QStringLiteral("Table 24, bit 2")));
+
+    // Bit 2 only in the unprotected /P of the dictionary, no envelope of a recipient: still refused
+    // (R5-24 - the bits of a recipient come from its envelope; the core rule of
+    // PDFDocumentToolEncryption::isSecurityChangeAllowed, the case of a real envelope is the test
+    // of the core)
+    const pdf::PDFDocumentPointer withBit2 = CH::certificateDocument(fixture.folder(), 0xFFFFFFFEu);
+    QVERIFY(withBit2);
+    QVERIFY(!PDFAppDocumentPermissions::isAllowed(withBit2.data(), change));
+
+    // The shared question refuses with the text, never the owner password dialog
+    pdf::PDFAppDocument appDocument(fixture.window->getContext(), nullptr);
+    appDocument.setLoaded(withoutBit2, QByteArray(), QString(), true);
+    QDialog* dialog = nullptr;
+    QVERIFY(!PDFAppDocumentPermissions::request(&appDocument, change, fixture.window, &dialog));
+    QVERIFY(dialog);
+    QVERIFY(!qobject_cast<pdf::PDFAppPasswordDialog*>(dialog));
+    dialog->reject();
+    AppDocumentFixture::settle();
+}
+
+void AppOwnerPasswordTest::changeSecurityDialog_data()
+{
+    QTest::addColumn<QString>("toolId");
+    QTest::addColumn<QString>("text");
+    QTest::newRow("password") << QStringLiteral("protect.password") << QStringLiteral("user-password.pdf was opened with the open password. Enter the owner password to change its security.");
+    QTest::newRow("unlock") << QStringLiteral("protect.unlock") << QStringLiteral("user-password.pdf was opened with the open password. Enter the owner password to remove its protection.");
+}
+
+void AppOwnerPasswordTest::changeSecurityDialog()
+{
+    // 430:2709 / 433:5210 and 430:2969 / 433:5442 (K5.13): the owner password dialog of a document
+    // opened by its user password, which restricts nothing - its own title and text, no list of the
+    // forbidden permissions, no note, no Open Restrict Permissions
+    QFETCH(QString, toolId);
+    QFETCH(QString, text);
+    using CH = AppChangeSecurityHelper;
+    AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = CH::openUserPassword(fixture);
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+
+    QDialog* opened = nullptr;
+    QVERIFY(!PDFAppDocumentPermissions::request(document, PDFAppPermissionRequest::createTool(toolId), tab, &opened));
+    QPointer<pdf::PDFAppPasswordDialog> dialog = qobject_cast<pdf::PDFAppPasswordDialog*>(opened);
+    QVERIFY(dialog);
+    AppDocumentFixture::settle();
+    QVERIFY(dialog->isChangeSecurity());
+    QCOMPARE(dialog->accessibleName(), QStringLiteral("Owner password needed"));
+    QCOMPARE(dialog->getText(), text);
+    QVERIFY(dialog->getForbiddenText().isEmpty());
+    QVERIFY(!dialog->getRestrictPermissionsButton());
+    QCOMPARE(dialog->getCancelButton()->text(), QStringLiteral("Cancel"));
+    QCOMPARE(dialog->getUnlockButton()->text(), QStringLiteral("Unlock"));
+    QVERIFY(!dialog->getUnlockButton()->isEnabled());
+    QCOMPARE(dialog->getBadge(), pdf::PDFThemeIcons::Badge::Warning);
+
+    // 430:2709 field-Owner password (review RS5FIGMA): the label Medium 12, the Password field 40
+    // high 4 below it, the placeholder Password
+    const QLabel* fieldLabel = dialog->findChild<QLabel*>(QStringLiteral("passwordLabel"));
+    QVERIFY(fieldLabel);
+    QCOMPARE(fieldLabel->text(), QStringLiteral("Owner password"));
+    QCOMPARE(fieldLabel->font().weight(), QFont::Medium);
+    QCOMPARE(dialog->getPasswordField()->height(), 40);
+    QCOMPARE(dialog->getPasswordField()->y() - (fieldLabel->y() + fieldLabel->height()), 4);
+    QCOMPARE(dialog->getPasswordField()->placeholderText(), QStringLiteral("Password"));
+
+    // 430:2969: the wrong password changes the title and the text, the field is in its Error state,
+    // the badge turns red (the Critical kind of the theme) with the alert icon
+    H::unlock(dialog, QStringLiteral("not-the-owner"));
+    QVERIFY(dialog && dialog->isVisible());
+    QCOMPARE(dialog->accessibleName(), QStringLiteral("That is not the owner password"));
+    QCOMPARE(dialog->getText(), QStringLiteral("Permission to change document security is denied. Check the password and try again."));
+    QVERIFY(dialog->getPasswordField()->isInvalid());
+    QVERIFY(dialog->getErrorText().isEmpty());
+    QVERIFY(!document->isOwnerUnlocked());
+    QCOMPARE(dialog->getBadge(), pdf::PDFThemeIcons::Badge::Critical);
+    QCOMPARE(dialog->getBadgeIconName(), QStringLiteral("alert-circle"));
+
+    // A new password returns the title of 430:2709 and the amber badge; the right one authorizes the owner
+    QTest::keyClick(dialog->getPasswordField(), Qt::Key_Backspace);
+    QCOMPARE(dialog->accessibleName(), QStringLiteral("Owner password needed"));
+    QCOMPARE(dialog->getBadge(), pdf::PDFThemeIcons::Badge::Warning);
+    dialog->getPasswordField()->clear();
+    H::unlock(dialog, AppDocumentSamples::getOwnerPassword());
+    AppDocumentFixture::settle();
+    QVERIFY(!dialog);
+    QVERIFY(document->isOwnerUnlocked());
+    QVERIFY(PDFAppDocumentPermissions::isAllowed(document->getDocument().data(), PDFAppPermissionRequest::createTool(toolId)));
+}
+
+void AppOwnerPasswordTest::changeSecurityToolEntry()
+{
+    // R5-4: Protect with Password on a document opened by its user password, which restricts
+    // nothing, asks for the owner password at its entry (430:2709, the status 430:2709); Cancel
+    // closes the tool, the owner password lets it go on
+    using CH = AppChangeSecurityHelper;
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = CH::openUserPassword(fixture);
+    QVERIFY(tab);
+
+    pdf::PDFDocumentToolShell* shell = fixture.openTool(tab, QStringLiteral("protect.password"));
+    QVERIFY(shell);
+    AppToolShellFixture::settle();
+    QVERIFY(shell->isPermissionRefused());
+    QCOMPARE(shell->getStatusMessage(), QStringLiteral("Owner access is needed to change the security of this document"));
+    QPointer<pdf::PDFAppPasswordDialog> dialog = qobject_cast<pdf::PDFAppPasswordDialog*>(shell->getPermissionDialog());
+    QVERIFY(dialog && dialog->isVisible());
+    QVERIFY(dialog->isChangeSecurity());
+    QTest::mouseClick(dialog->getCancelButton(), Qt::LeftButton);
+    AppToolShellFixture::settle();
+    QVERIFY(!AppToolShellFixture::getShell(tab));
+
+    QPointer<pdf::PDFDocumentToolShell> secondShell = fixture.openTool(tab, QStringLiteral("protect.unlock"));
+    QVERIFY(secondShell);
+    AppToolShellFixture::settle();
+    QCOMPARE(secondShell->getStatusMessage(), QStringLiteral("Owner access is needed to remove the protection"));
+    dialog = qobject_cast<pdf::PDFAppPasswordDialog*>(secondShell->getPermissionDialog());
+    QVERIFY(dialog);
+    H::unlock(dialog, AppDocumentSamples::getOwnerPassword());
+    AppToolShellFixture::settle();
+    QVERIFY(!dialog);
+    QVERIFY(secondShell);
+    QVERIFY(!secondShell->isPermissionRefused());
+    QCOMPARE(secondShell->getState(), pdf::PDFDocumentToolShell::State::Editing);
+    QVERIFY(secondShell->getToolbar()->getConfirmButton()->isEnabled());
+
+    // A document without encryption: no question at all
+    pdf::PDFAppDocumentTab* plainTab = H::openReady(fixture, AppDocumentSamples::simple(fixture.folder(), QStringLiteral("plain-entry.pdf"), 1));
+    QVERIFY(plainTab);
+    pdf::PDFDocumentToolShell* plainShell = fixture.openTool(plainTab, QStringLiteral("protect.password"));
+    QVERIFY(plainShell);
+    AppToolShellFixture::settle();
+    QVERIFY(!plainShell->isPermissionRefused());
+    QVERIFY(!plainShell->getPermissionDialog());
+}
+
+void AppOwnerPasswordTest::restrictPermissionsButton()
+{
+    // Owner answer Q5.12 (R5-11): the owner password dialog of an action, which the permissions
+    // forbid, has the Secondary button Open Restrict Permissions with icon/shield-lock; it closes
+    // the dialog and opens Restrict Permissions, which asks for the owner password itself
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::sample(fixture.folder(), QStringLiteral("6")));
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+
+    QPointer<pdf::PDFAppPasswordDialog> dialog = pdf::PDFAppPasswordDialog::openOwnerDialog(document, PDFAppPermissionRequest::create(PDFAppPermissionAction::Print), tab);
+    QVERIFY(dialog);
+    AppToolShellFixture::settle();
+    QPushButton* button = dialog->getRestrictPermissionsButton();
+    QVERIFY(button);
+    QCOMPARE(button->text(), QStringLiteral("Open Restrict Permissions"));
+    QVERIFY(button != dialog->getUnlockButton());
+    QVERIFY(!button->isDefault());
+
+    // The unlock of the properties is no forbidden action: no button
+    QPointer<pdf::PDFAppPasswordDialog> unlockDialog = new pdf::PDFAppPasswordDialog(document, PDFAppPermissionRequest::create(PDFAppPermissionAction::Unlock), tab);
+    QVERIFY(!unlockDialog->getRestrictPermissionsButton());
+    delete unlockDialog.data();
+
+    QTest::mouseClick(button, Qt::LeftButton);
+    AppToolShellFixture::settle();
+    QVERIFY(!dialog);
+    QVERIFY(AppToolShellFixture::waitFor([tab]() { return AppToolShellFixture::getShell(tab) != nullptr; }));
+    pdf::PDFDocumentToolShell* shell = AppToolShellFixture::getShell(tab);
+    QCOMPARE(shell->getCatalogEntry()->getId(), QStringLiteral("protect.permissions"));
+    AppToolShellFixture::settle();
+    QVERIFY(shell->isPermissionRefused());
+    QPointer<pdf::PDFAppPasswordDialog> ownerDialog = qobject_cast<pdf::PDFAppPasswordDialog*>(shell->getPermissionDialog());
+    QVERIFY(ownerDialog);
+    QVERIFY(ownerDialog->isChangeSecurity());
+    QVERIFY(!ownerDialog->getRestrictPermissionsButton());
+    ownerDialog->reject();
+    AppToolShellFixture::settle();
+}
+
+void AppOwnerPasswordTest::noDrmMode()
+{
+    // Plan 4.6, 6.8 (Q21 of step 2): the new application never ignores the permissions - the core
+    // switch of the old applications stays off after the start, the opening of documents and an
+    // unlock by the owner password
+    using CH = AppChangeSecurityHelper;
+    AppToolShellFixture fixture;
+    QVERIFY(!pdf::PDFSecurityHandler::isNoDRM());
+    pdf::PDFAppDocumentTab* tab = CH::openUserPassword(fixture);
+    QVERIFY(tab);
+    QVERIFY(tab->getDocument()->unlockWithOwnerPassword(AppDocumentSamples::getOwnerPassword()));
+    QVERIFY(H::openReady(fixture, H::sample(fixture.folder(), QStringLiteral("4-aes"))));
+    QVERIFY(!pdf::PDFSecurityHandler::isNoDRM());
 }
 
 QTEST_MAIN(AppOwnerPasswordTest)

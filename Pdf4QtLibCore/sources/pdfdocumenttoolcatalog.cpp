@@ -255,6 +255,17 @@ static constexpr const char* TOOL_PAGE_CHANGES[] =
     "pages.boxes",
 };
 
+/// Tools, whose run changes the security of the document (PDFDocumentToolCatalogEntry::isSecurityChange;
+/// ISO 32000-2, 7.6.4.1: only the owner changes the encryption, the passwords and the permissions;
+/// plan of step 5 of phase 2, 4.6, R5-4)
+static constexpr const char* TOOL_SECURITY_CHANGES[] =
+{
+    "protect.password",
+    "protect.permissions",
+    "protect.certificate-encrypt",
+    "protect.unlock",
+};
+
 std::vector<PDFDocumentToolResultKind> PDFDocumentToolCatalogEntry::getPossibleResultKinds() const
 {
     std::vector<PDFDocumentToolResultKind> kinds = { getResultKind() };
@@ -338,6 +349,18 @@ bool PDFDocumentToolCatalogEntry::isPageChange() const
     }
 
     for (const char* toolId : TOOL_PAGE_CHANGES)
+    {
+        if (getId() == QLatin1String(toolId))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool PDFDocumentToolCatalogEntry::isSecurityChange() const
+{
+    for (const char* toolId : TOOL_SECURITY_CHANGES)
     {
         if (getId() == QLatin1String(toolId))
         {
@@ -572,12 +595,22 @@ const std::vector<PDFDocumentToolExtendedData>& PDFDocumentToolCatalog::getExten
     // Images and Create Audio Book take the graphics or the text out of the document - bit 5 (bit 10,
     // the extraction for accessibility, is deprecated in PDF 2.0; the panel Read aloud saves nothing
     // and stays without a check). The exports have no successors (K20 of step 1).
+    // The tools of step 5 of phase 2 (plan B80, 4.6, R5-4): Protect with Password, Restrict Permissions,
+    // Encrypt with Certificate and Remove Password rewrite the whole file - an incremental update cannot
+    // change the encryption (the earlier revisions keep the old key and the file cannot be read), so a
+    // signed document gets only a copy written whole (LostCopyOnly, B80); only the owner changes the
+    // security (ISO 32000-2, 7.6.4.1): every permission of Table 22 and, in the application, the owner
+    // authorization (PDFDocumentToolCatalogEntry::isSecurityChange, PDFAppPermissionAction::ChangeSecurity);
+    // no successors (tools.md 10.3: no Continue with after the encryption).
     using Input = PDFDocumentToolInputKind;
     using Result = PDFDocumentToolResultKind;
     using Dependency = PDFDocumentToolExternalDependency;
     using Preselected = PDFDocumentToolPreselectedResult;
     using Signature = PDFDocumentToolSignatureImpact;
     using Permission = PDFSecurityHandler::Permission;
+    constexpr uint32_t everyPermission = uint32_t(Permission::PrintLowResolution) | uint32_t(Permission::Modify) | uint32_t(Permission::CopyContent) |
+                                         uint32_t(Permission::ModifyInteractiveItems) | uint32_t(Permission::ModifyFormFields) | uint32_t(Permission::Accessibility) |
+                                         uint32_t(Permission::Assemble) | uint32_t(Permission::PrintHighResolution);
     static const std::vector<PDFDocumentToolExtendedData> data =
     {
         PDFDocumentToolExtendedData("pages.merge", Input::Multiple, Result::NewDocument, Dependency::None, "unite", "edit.page-numbers,optimize.compress,protect.password", Preselected::NewTab, Signature::None, uint32_t(Permission::Assemble)),
@@ -602,10 +635,10 @@ const std::vector<PDFDocumentToolExtendedData>& PDFDocumentToolCatalog::getExten
         PDFDocumentToolExtendedData("convert.audiobook", Input::One, Result::Files, Dependency::None, "audio-book", "", Preselected::File, Signature::None, uint32_t(Permission::CopyContent)),
         PDFDocumentToolExtendedData("edit.content", Input::One, Result::ChangeDocument, Dependency::None, "", "edit.page-numbers,optimize.compress"),
         PDFDocumentToolExtendedData("edit.page-numbers", Input::One, Result::ChangeDocument, Dependency::None, "", "optimize.compress,protect.password"),
-        PDFDocumentToolExtendedData("protect.password", Input::One, Result::ChangeDocument, Dependency::None, "encrypt", "", Preselected::Copy, Signature::IncrementalSave, 0),
-        PDFDocumentToolExtendedData("protect.permissions", Input::One, Result::ChangeDocument, Dependency::None, "encrypt", "", Preselected::Copy, Signature::IncrementalSave, 0),
-        PDFDocumentToolExtendedData("protect.certificate-encrypt", Input::One, Result::ChangeDocument, Dependency::None, "", "", Preselected::Copy, Signature::IncrementalSave, 0),
-        PDFDocumentToolExtendedData("protect.unlock", Input::One, Result::ChangeDocument, Dependency::None, "decrypt", "", Preselected::Copy, Signature::IncrementalSave, 0),
+        PDFDocumentToolExtendedData("protect.password", Input::One, Result::ChangeDocument, Dependency::None, "encrypt", "", Preselected::Copy, Signature::LostCopyOnly, everyPermission),
+        PDFDocumentToolExtendedData("protect.permissions", Input::One, Result::ChangeDocument, Dependency::None, "encrypt", "", Preselected::Copy, Signature::LostCopyOnly, everyPermission),
+        PDFDocumentToolExtendedData("protect.certificate-encrypt", Input::One, Result::ChangeDocument, Dependency::None, "", "", Preselected::Copy, Signature::LostCopyOnly, everyPermission),
+        PDFDocumentToolExtendedData("protect.unlock", Input::One, Result::ChangeDocument, Dependency::None, "decrypt", "", Preselected::Copy, Signature::LostCopyOnly, everyPermission),
         PDFDocumentToolExtendedData("protect.sign", Input::One, Result::NewDocument, Dependency::None, "", "", Preselected::File, Signature::None, 0),
         PDFDocumentToolExtendedData("protect.timestamp", Input::One, Result::NewDocument, Dependency::None, "", "", Preselected::File, Signature::None, 0),
         PDFDocumentToolExtendedData("protect.sign-by-hand", Input::One, Result::ChangeDocument, Dependency::None, "", "protect.password,optimize.compress"),

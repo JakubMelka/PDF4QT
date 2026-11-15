@@ -28,7 +28,6 @@
 #include "pdfdocumentbuilder.h"
 #include "pdfcertificatemanager.h"
 
-#include <QRandomGenerator>
 #include <QtMath>
 #include <QtEndian>
 
@@ -51,6 +50,10 @@
 #include <openssl/pkcs7.h>
 #include <openssl/pkcs12.h>
 #include <openssl/evp.h>
+#include <openssl/crypto.h>
+#include <openssl/rand.h>
+#include <openssl/err.h>
+#include <openssl/x509.h>
 
 #include <array>
 
@@ -107,6 +110,17 @@ public:
     PDFObject getProcessedObject();
 
 private:
+    /// The name of the crypt filter of the first decode parameters of a stream (7.4.10: /Name,
+    /// default Identity); \p isKnown is false for parameters, which are not direct
+    static QByteArray getCryptFilterName(const PDFDictionary* streamDictionary, bool* isKnown);
+
+    /// Removes the first filter (/Crypt) and its decode parameters from the stream dictionary
+    static void removeCryptFilterStep(PDFDictionaryBuilder& dictionary);
+
+    /// Stores the reference of the object into the decode parameters of the /Crypt step, where
+    /// PDFCryptFilter reads it (B106); \p remove removes it again
+    static void setCryptFilterReference(PDFDictionaryBuilder& dictionary, PDFObjectReference reference, bool remove);
+
     const PDFSecurityHandler* m_securityHandler = nullptr;
     std::vector<PDFObject> m_objectStack;
     PDFObjectReference m_reference;
@@ -174,13 +188,10 @@ void PDFDecryptOrEncryptObjectVisitor::visitDictionary(const PDFDictionary* dict
     Q_ASSERT(dictionary);
 
     // We must check, if it is or isn't a signature dictionary. If it is,
-    // then don't decrypt/encrypt the Content value. Document timestamps are
-    // signature dictionaries, too - they only use a different type. We also
-    // don't check, if signature isn't indirectly referenced by reference.
-    // Hope it isn't...
-    const PDFObject& typeObject = dictionary->get("Type");
-    const bool isSignatureObject = typeObject.isName() &&
-                                   (typeObject.getString() == "Sig" || typeObject.getString() == "DocTimeStamp");
+    // then don't decrypt/encrypt the Content value (7.6.2). Document timestamps
+    // are signature dictionaries, too - they only use a different type, and
+    // the type is optional (Table 255, B88).
+    const bool isSignatureObject = PDFSecurityHandler::isSignatureDictionary(dictionary);
 
     std::vector<PDFDictionary::DictionaryEntry> entries;
     entries.reserve(dictionary->getCount());
@@ -204,13 +215,14 @@ void PDFDecryptOrEncryptObjectVisitor::visitDictionary(const PDFDictionary* dict
 
 void PDFDecryptOrEncryptObjectVisitor::visitStream(const PDFStream* stream)
 {
-    // Don't decrypt/encrypt, if it is a Metadata stream and Metadata encryption is turned off
     const PDFDictionary* dictionary = stream->getDictionary();
 
     const PDFObject& typeObject = dictionary->get("Type");
-    bool isMetadata = (typeObject.isName() && typeObject.getString() == "Metadata");
+    const bool isCrossReferenceStream = (typeObject.isName() && typeObject.getString() == "XRef");
 
-    if (isMetadata && !m_securityHandler->isMetadataEncrypted())
+    // Don't decrypt/encrypt the document-level metadata stream, if the metadata encryption is
+    // turned off (Table 20); a cross-reference stream is never encrypted (7.6.2, 7.5.8.2)
+    if (m_securityHandler->isUnencryptedMetadataStream(m_reference, dictionary) || isCrossReferenceStream)
     {
         m_objectStack.push_back(PDFObject::createStream(PDFStream(PDFDictionaryBuilder(*dictionary), QByteArray(*stream->getContent()))));
         return;
@@ -221,59 +233,216 @@ void PDFDecryptOrEncryptObjectVisitor::visitStream(const PDFStream* stream)
     PDFObject dictionaryObject = m_objectStack.back();
     m_objectStack.pop_back();
 
-    // We must also handle situation, that stream has specified Crypt filter.
-    // In this case, we must delegate decryption/encryption to the stream filters.
     PDFDictionaryBuilder processedDictionary(*dictionaryObject.getDictionary());
-    QByteArray processedData;
-    if (!processedDictionary.hasKey("Crypt"))
+    QByteArray processedData = *stream->getContent();
+    const bool isDecrypting = m_mode == Mode::Decrypt;
+
+    if (dictionary->hasKey("F"))
     {
-        // Is it an embedded file?
-        const PDFObject& object = processedDictionary.get("Type");
-        const bool isEmbeddedFile = object.isName() && object.getString() == "EmbeddedFile";
-        const PDFSecurityHandler::EncryptionScope scope = !isEmbeddedFile ? PDFSecurityHandler::EncryptionScope::Stream : PDFSecurityHandler::EncryptionScope::EmbeddedFile;
+        // 7.6.2, 7.3.8.2: the data of a stream in an external file are not a part of the PDF file
+        // and are not encrypted; the bytes between stream and endstream are ignored (B108)
+    }
+    else if (PDFSecurityHandler::isCryptFilterStream(dictionary))
+    {
+        // The stream is encrypted by its own crypt filter (7.4.10, 7.6.6), not by /StmF (B87).
+        // The reader decrypts this step now and removes it - the whole document is decrypted at
+        // the opening and every writer and tool sees plain data, the new /Encrypt of a writer
+        // never meets a crypt filter name it does not know (R5-10, B106). A stream, which cannot
+        // be decrypted now (an unknown name, a locked embedded file), keeps the step and the
+        // reference of its object in the decode parameters, where PDFCryptFilter reads it.
+        bool isKnown = false;
+        const QByteArray filterName = getCryptFilterName(dictionary, &isKnown);
+        const bool hasReference = processedDictionary.hasKey(PDFSecurityHandler::OBJECT_REFERENCE_DICTIONARY_NAME);
+        processedDictionary.removeEntry(PDFSecurityHandler::OBJECT_REFERENCE_DICTIONARY_NAME);
 
-        switch (m_mode)
+        if (isDecrypting)
         {
-            case pdf::PDFDecryptOrEncryptObjectVisitor::Mode::Decrypt:
-                processedData = m_securityHandler->decrypt(*stream->getContent(), m_reference, scope);
-                break;
-            case pdf::PDFDecryptOrEncryptObjectVisitor::Mode::Encrypt:
-                processedData = m_securityHandler->encrypt(*stream->getContent(), m_reference, scope);
-                break;
-
-            default:
-                Q_ASSERT(false);
-                break;
+            if (isKnown && m_securityHandler->canDecryptByFilter(filterName))
+            {
+                processedData = m_securityHandler->decryptByFilter(processedData, filterName, m_reference);
+                removeCryptFilterStep(processedDictionary);
+            }
+            else
+            {
+                setCryptFilterReference(processedDictionary, m_reference, false);
+            }
         }
+        else
+        {
+            // A step kept by the reader (the reference is in its decode parameters) holds the data
+            // encrypted by this handler already; a new stream with the step holds plain data
+            bool isKeptByReader = hasReference;
+            if (const PDFDictionary* parameters = processedDictionary.get("DecodeParms").isDictionary() ? processedDictionary.get("DecodeParms").getDictionary() : nullptr)
+            {
+                isKeptByReader = isKeptByReader || parameters->hasKey(PDFSecurityHandler::OBJECT_REFERENCE_DICTIONARY_NAME);
+            }
+            else if (processedDictionary.get("DecodeParms").isArray() && processedDictionary.get("DecodeParms").getArray()->getCount() > 0)
+            {
+                const PDFObject& firstParameters = processedDictionary.get("DecodeParms").getArray()->getItem(0);
+                isKeptByReader = isKeptByReader || (firstParameters.isDictionary() && firstParameters.getDictionary()->hasKey(PDFSecurityHandler::OBJECT_REFERENCE_DICTIONARY_NAME));
+            }
 
-        processedDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(processedData.size()));
+            setCryptFilterReference(processedDictionary, m_reference, true);
+            if (!isKeptByReader)
+            {
+                processedData = m_securityHandler->encryptByFilter(processedData, filterName, m_reference);
+            }
+        }
     }
     else
     {
-        switch (m_mode)
+        // Is it an embedded file?
+        const bool isEmbeddedFile = PDFSecurityHandler::isEmbeddedFileStream(dictionary);
+        const PDFSecurityHandler::EncryptionScope scope = !isEmbeddedFile ? PDFSecurityHandler::EncryptionScope::Stream : PDFSecurityHandler::EncryptionScope::EmbeddedFile;
+
+        if (isDecrypting)
         {
-            case pdf::PDFDecryptOrEncryptObjectVisitor::Mode::Decrypt:
+            // An embedded file of a document opened without its password stays encrypted (Q5.9 c)
+            if (!isEmbeddedFile || !m_securityHandler->isEmbeddedFilesLocked())
             {
-                processedData = *stream->getContent();
-                processedDictionary.setEntry(PDFInplaceOrMemoryString(PDFSecurityHandler::OBJECT_REFERENCE_DICTIONARY_NAME), PDFObject::createReference(m_reference));
-                break;
+                processedData = m_securityHandler->decrypt(processedData, m_reference, scope);
             }
-
-            case pdf::PDFDecryptOrEncryptObjectVisitor::Mode::Encrypt:
-            {
-                processedData = *stream->getContent();
-                processedDictionary.removeEntry(PDFSecurityHandler::OBJECT_REFERENCE_DICTIONARY_NAME);
-                break;
-            }
-
-            default:
-                Q_ASSERT(false);
-                break;
         }
-
+        else
+        {
+            processedData = m_securityHandler->encrypt(processedData, m_reference, scope);
+        }
     }
 
+    processedDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(processedData.size()));
     m_objectStack.push_back(PDFObject::createStream(PDFStream(qMove(processedDictionary), qMove(processedData))));
+}
+
+QByteArray PDFDecryptOrEncryptObjectVisitor::getCryptFilterName(const PDFDictionary* streamDictionary, bool* isKnown)
+{
+    *isKnown = true;
+
+    PDFObject parameters = streamDictionary->get("DecodeParms");
+    if (parameters.isArray())
+    {
+        const PDFArray* parametersArray = parameters.getArray();
+        parameters = parametersArray->getCount() > 0 ? parametersArray->getItem(0) : PDFObject();
+    }
+
+    if (parameters.isDictionary())
+    {
+        const PDFObject& nameObject = parameters.getDictionary()->get("Name");
+        if (nameObject.isName())
+        {
+            return nameObject.getString();
+        }
+
+        // A reference of the name cannot be resolved here
+        *isKnown = nameObject.isNull();
+    }
+    else if (!parameters.isNull())
+    {
+        // Indirect parameters cannot be resolved here
+        *isKnown = false;
+    }
+
+    // 7.4.10, Table 14: the default crypt filter is Identity
+    return PDFSecurityHandler::IDENTITY_FILTER_NAME;
+}
+
+void PDFDecryptOrEncryptObjectVisitor::removeCryptFilterStep(PDFDictionaryBuilder& dictionary)
+{
+    const PDFObject filters = dictionary.get("Filter");
+    const PDFObject parameters = dictionary.get("DecodeParms");
+
+    if (filters.isArray() && filters.getArray()->getCount() > 1)
+    {
+        const PDFArray* filterArray = filters.getArray();
+        std::vector<PDFObject> remainingFilters;
+        for (size_t i = 1; i < filterArray->getCount(); ++i)
+        {
+            remainingFilters.push_back(filterArray->getItem(i));
+        }
+        dictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(PDFArrayBuilder(qMove(remainingFilters))));
+
+        if (parameters.isArray())
+        {
+            const PDFArray* parameterArray = parameters.getArray();
+            std::vector<PDFObject> remainingParameters;
+            for (size_t i = 1; i < parameterArray->getCount(); ++i)
+            {
+                remainingParameters.push_back(parameterArray->getItem(i));
+            }
+            dictionary.setEntry(PDFInplaceOrMemoryString("DecodeParms"), PDFObject::createArray(PDFArrayBuilder(qMove(remainingParameters))));
+        }
+        else
+        {
+            // Single parameters belong to the first filter (PDFStreamFilterStorage::getStreamFilters)
+            dictionary.removeEntry("DecodeParms");
+        }
+    }
+    else
+    {
+        dictionary.removeEntry("Filter");
+        dictionary.removeEntry("DecodeParms");
+    }
+}
+
+void PDFDecryptOrEncryptObjectVisitor::setCryptFilterReference(PDFDictionaryBuilder& dictionary, PDFObjectReference reference, bool remove)
+{
+    auto updateParameters = [reference, remove](const PDFObject& parameters) -> PDFObject
+    {
+        if (!parameters.isDictionary() && !parameters.isNull())
+        {
+            // Indirect parameters are not changed
+            return parameters;
+        }
+
+        PDFDictionaryBuilder builder = parameters.isDictionary() ? PDFDictionaryBuilder(*parameters.getDictionary()) : PDFDictionaryBuilder();
+        if (remove)
+        {
+            builder.removeEntry(PDFSecurityHandler::OBJECT_REFERENCE_DICTIONARY_NAME);
+            if (parameters.isNull() || builder.getCount() == 0)
+            {
+                return parameters.isNull() ? PDFObject() : PDFObject::createDictionary(qMove(builder));
+            }
+        }
+        else
+        {
+            builder.setEntry(PDFInplaceOrMemoryString(PDFSecurityHandler::OBJECT_REFERENCE_DICTIONARY_NAME), PDFObject::createReference(reference));
+        }
+        return PDFObject::createDictionary(qMove(builder));
+    };
+
+    const PDFObject parameters = dictionary.get("DecodeParms");
+    if (parameters.isArray())
+    {
+        const PDFArray* parameterArray = parameters.getArray();
+        std::vector<PDFObject> items;
+        for (size_t i = 0; i < parameterArray->getCount(); ++i)
+        {
+            items.push_back(i == 0 ? updateParameters(parameterArray->getItem(i)) : parameterArray->getItem(i));
+        }
+        dictionary.setEntry(PDFInplaceOrMemoryString("DecodeParms"), PDFObject::createArray(PDFArrayBuilder(qMove(items))));
+    }
+    else if (!parameters.isNull() || !remove)
+    {
+        const PDFObject filters = dictionary.get("Filter");
+        if (filters.isArray() && filters.getArray()->getCount() > 1 && parameters.isNull())
+        {
+            // The parameters of the first of more filters (the others have none)
+            std::vector<PDFObject> items(filters.getArray()->getCount());
+            items[0] = updateParameters(PDFObject());
+            dictionary.setEntry(PDFInplaceOrMemoryString("DecodeParms"), PDFObject::createArray(PDFArrayBuilder(qMove(items))));
+        }
+        else
+        {
+            const PDFObject updatedParameters = updateParameters(parameters);
+            if (updatedParameters.isNull())
+            {
+                dictionary.removeEntry("DecodeParms");
+            }
+            else
+            {
+                dictionary.setEntry(PDFInplaceOrMemoryString("DecodeParms"), updatedParameters);
+            }
+        }
+    }
 }
 
 void PDFDecryptOrEncryptObjectVisitor::visitReference(const PDFObjectReference reference)
@@ -441,8 +610,17 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
 
         case 2:
         case 3:
-            Length = parseInt(dictionary, "Length", false, 40);
+        {
+            // Table 20: a multiple of 8 from 40 to 128 - a negative or a huge value would read
+            // out of the key buffers (B83)
+            const PDFInteger lengthValue = parseInt(dictionary, "Length", false, 40);
+            if (lengthValue < 40 || lengthValue > 128 || lengthValue % 8 != 0)
+            {
+                throw PDFException(PDFTranslationContext::tr("Invalid length of the encryption key (%1 bits).").arg(lengthValue));
+            }
+            Length = int(lengthValue);
             break;
+        }
 
         case 4:
             Length = 128;
@@ -469,6 +647,15 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
     if (V == 4 || V == 5)
     {
         parseCryptFilters(dictionary, *handler, Length, handler->getMode() == EncryptionMode::PublicKey);
+
+        // AESV3 uses the file encryption key of 256 bits (7.6.3.3), which only V 5 has
+        for (const CryptFilter* filter : { &handler->m_filterStreams, &handler->m_filterStrings, &handler->m_filterEmbeddedFiles })
+        {
+            if (filter->type == CryptFilterType::AESV3 && Length != 256)
+            {
+                throw PDFException(PDFTranslationContext::tr("Crypt filter AESV3 requires a 256-bit key (V = %1).").arg(V));
+            }
+        }
     }
 
     switch (handler->getMode())
@@ -483,14 +670,40 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
         case EncryptionMode::PublicKey:
         {
             auto typedHandler = qSharedPointerDynamicCast<PDFPublicKeySecurityHandler>(handler);
-            typedHandler->m_filterDefault.recipients = parseRecipients(dictionary);
+            const QByteArrayList dictionaryRecipients = parseRecipients(dictionary);
 
-            if (typedHandler->m_filterDefault.recipients.isEmpty())
+            if (V < 4)
             {
-                auto it = typedHandler->m_cryptFilters.find("DefaultCryptFilter");
-                if (it != typedHandler->m_cryptFilters.end())
+                // adbe.pkcs7.s3 / s4 (7.6.5.2): RC4 by the key of /Length, the recipients in the
+                // encryption dictionary
+                typedHandler->m_filterDefault.type = CryptFilterType::V2;
+                typedHandler->m_filterDefault.keyLength = Length / 8;
+                typedHandler->m_filterDefault.recipients = dictionaryRecipients;
+            }
+            else
+            {
+                // adbe.pkcs7.s5 (7.6.5.2, 7.6.6): the recipients are in the crypt filter, which
+                // encrypts - the one of /StmF, of /EFF when the streams are Identity (File
+                // attachments only), of /StrF at last; never a fixed name (B105)
+                const CryptFilter* source = &typedHandler->m_filterStrings;
+                if (typedHandler->m_filterStreams.type != CryptFilterType::Identity && typedHandler->m_filterStreams.type != CryptFilterType::None)
                 {
-                    typedHandler->m_filterDefault = it->second;
+                    source = &typedHandler->m_filterStreams;
+                }
+                else if (typedHandler->m_filterEmbeddedFiles.type != CryptFilterType::Identity && typedHandler->m_filterEmbeddedFiles.type != CryptFilterType::None)
+                {
+                    source = &typedHandler->m_filterEmbeddedFiles;
+                }
+
+                if (source->type != CryptFilterType::Identity && source->type != CryptFilterType::None)
+                {
+                    typedHandler->m_filterDefault = *source;
+                }
+
+                if (typedHandler->m_filterDefault.recipients.isEmpty())
+                {
+                    typedHandler->m_filterDefault.recipients = dictionaryRecipients;
+                    typedHandler->m_filterDefault.encryptMetadata = parseBool(dictionary, "EncryptMetadata", false, true);
                 }
             }
 
@@ -534,6 +747,192 @@ bool PDFSecurityHandler::isNoDRM()
     return s_noDrmMode;
 }
 
+bool PDFSecurityHandler::isEmbeddedFilesOnlyEncryption() const
+{
+    if (getMode() != EncryptionMode::Standard && getMode() != EncryptionMode::PublicKey)
+    {
+        return false;
+    }
+
+    // 7.6.6: /StmF and /StrF Identity, the embedded files by their own crypt filter with the
+    // authorization at their opening (Table 27 /AuthEvent /EFOpen)
+    const bool isEmbeddedFileFilterEncrypting = m_filterEmbeddedFiles.type != CryptFilterType::Identity && m_filterEmbeddedFiles.type != CryptFilterType::None;
+    return m_filterStrings.type == CryptFilterType::Identity &&
+           m_filterStreams.type == CryptFilterType::Identity &&
+           isEmbeddedFileFilterEncrypting &&
+           m_filterEmbeddedFiles.authEvent == AuthEvent::EFOpen;
+}
+
+bool PDFSecurityHandler::isEmbeddedFileStream(const PDFDictionary* streamDictionary)
+{
+    if (!streamDictionary)
+    {
+        return false;
+    }
+
+    const PDFObject& typeObject = streamDictionary->get("Type");
+    return typeObject.isName() && typeObject.getString() == "EmbeddedFile";
+}
+
+std::optional<PDFObjectReference> PDFSecurityHandler::findDocumentMetadataReference(const PDFObject& catalog)
+{
+    if (!catalog.isDictionary())
+    {
+        return std::nullopt;
+    }
+
+    // 14.3.2: the metadata stream of the catalog is an indirect object (a stream always is)
+    const PDFObject& metadata = catalog.getDictionary()->get("Metadata");
+    return metadata.isReference() ? metadata.getReference() : PDFObjectReference();
+}
+
+bool PDFSecurityHandler::isUnencryptedMetadataStream(PDFObjectReference reference, const PDFDictionary* streamDictionary) const
+{
+    if (isMetadataEncrypted() || !streamDictionary)
+    {
+        return false;
+    }
+
+    // Table 315: a metadata stream has /Type /Metadata; another stream of the catalog's /Metadata
+    // (a hostile file: the content of a page) is encrypted as any stream
+    const PDFObject& typeObject = streamDictionary->get("Type");
+    if (!typeObject.isName() || typeObject.getString() != "Metadata")
+    {
+        return false;
+    }
+
+    // Table 20: only the document-level metadata stream; any metadata stream, when it is not known
+    // (the catalog in an object stream - owner 2026-11-15)
+    return !m_documentMetadataReference.has_value() || *m_documentMetadataReference == reference;
+}
+
+bool PDFSecurityHandler::isSignatureDictionary(const PDFDictionary* dictionary)
+{
+    if (!dictionary)
+    {
+        return false;
+    }
+
+    const PDFObject& typeObject = dictionary->get("Type");
+    if (typeObject.isName())
+    {
+        return typeObject.getString() == "Sig" || typeObject.getString() == "DocTimeStamp";
+    }
+
+    // Table 255: /Type is optional; /Filter and /Contents are required, /ByteRange is required
+    // for a signature of the document (Table 255, 12.8.1)
+    return typeObject.isNull() &&
+           dictionary->get("Filter").isName() &&
+           dictionary->get("ByteRange").isArray() &&
+           dictionary->get("Contents").isString();
+}
+
+bool PDFSecurityHandler::isCryptFilterStream(const PDFDictionary* streamDictionary)
+{
+    if (!streamDictionary)
+    {
+        return false;
+    }
+
+    const PDFObject& filterObject = streamDictionary->get("Filter");
+    if (filterObject.isName())
+    {
+        return filterObject.getString() == "Crypt";
+    }
+
+    if (filterObject.isArray() && filterObject.getArray()->getCount() > 0)
+    {
+        const PDFObject& firstFilter = filterObject.getArray()->getItem(0);
+        return firstFilter.isName() && firstFilter.getString() == "Crypt";
+    }
+
+    return false;
+}
+
+bool PDFSecurityHandler::canDecryptByFilter(const QByteArray& filterName) const
+{
+    if (filterName == IDENTITY_FILTER_NAME)
+    {
+        return true;
+    }
+
+    auto it = m_cryptFilters.find(filterName);
+    return it != m_cryptFilters.cend() && !isLockedFilter(it->second);
+}
+
+bool PDFSecurityHandler::isLockedFilter(const CryptFilter& filter) const
+{
+    // A document opened without the password of its embedded files has no file encryption key at
+    // all: every crypt filter but Identity is locked - the one of the embedded files (/AuthEvent
+    // /EFOpen) and every other one a stream may name by its /Crypt step, which would decrypt
+    // garbage by an empty key (review RS5SEC)
+    return m_isEmbeddedFilesLocked && filter.type != CryptFilterType::Identity;
+}
+
+PDFSecurityHandler::AuthorizationResult PDFSecurityHandler::authenticateByCertificates(const PDFCertificateEntries& certificates,
+                                                                                      const std::function<QString(bool*)>& getPasswordCallback,
+                                                                                      bool authorizeOwnerOnly)
+{
+    if (getMode() == EncryptionMode::PublicKey)
+    {
+        PDFPublicKeySecurityHandler* publicKeyHandler = static_cast<PDFPublicKeySecurityHandler*>(this);
+        publicKeyHandler->m_authorizationData = PDFStandardOrPublicSecurityHandler::AuthorizationData();
+        publicKeyHandler->m_isEmbeddedFilesLocked = false;
+
+        // 7.6.5: the public-key handler has no owner
+        if (authorizeOwnerOnly)
+        {
+            return AuthorizationResult::Failed;
+        }
+
+        return publicKeyHandler->authenticateByCertificateEntries(certificates, getPasswordCallback);
+    }
+
+    return authenticate(getPasswordCallback, authorizeOwnerOnly);
+}
+
+PDFSecurityHandler::AuthorizationResult PDFSecurityHandler::authenticateWithoutEmbeddedFiles()
+{
+    if (!isEmbeddedFilesOnlyEncryption())
+    {
+        return AuthorizationResult::Failed;
+    }
+
+    // The strings and the streams are decrypted by Identity, which needs no key; the embedded
+    // files stay encrypted (the visitor keeps them, their crypt filter refuses to decrypt)
+    PDFStandardOrPublicSecurityHandler* handler = static_cast<PDFStandardOrPublicSecurityHandler*>(this);
+    handler->m_authorizationData = PDFStandardOrPublicSecurityHandler::AuthorizationData();
+    handler->m_authorizationData.authorizationResult = AuthorizationResult::UserAuthorized;
+    m_isEmbeddedFilesLocked = true;
+    return AuthorizationResult::UserAuthorized;
+}
+
+void PDFSecureMemory::clear(void* data, size_t size)
+{
+    if (data && size > 0)
+    {
+        OPENSSL_cleanse(data, size);
+    }
+}
+
+void PDFSecureMemory::clear(QByteArray& data)
+{
+    // A shared buffer (another QByteArray holds it) or raw data of another owner is never written:
+    // data() would detach it and clear only a new copy, the other owner clears its own buffer
+    if (!data.isEmpty() && data.isDetached())
+    {
+        clear(data.data(), size_t(data.size()));
+    }
+}
+
+void PDFSecureMemory::clear(QString& text)
+{
+    if (!text.isEmpty() && text.isDetached())
+    {
+        clear(text.data(), size_t(text.size()) * sizeof(QChar));
+    }
+}
+
 bool PDFSecurityHandler::isAllowedByRevision(const PDFSecurityHandler* securityHandler, Permission permission)
 {
     if (!securityHandler)
@@ -542,12 +941,38 @@ bool PDFSecurityHandler::isAllowedByRevision(const PDFSecurityHandler* securityH
     }
 
     // Table 22: bits 9 to 12 exist from revision 3 (an owner authorized handler allows
-    // everything by isAllowed)
-    if (securityHandler->getMode() == EncryptionMode::Standard && static_cast<const PDFStandardSecurityHandler*>(securityHandler)->getRevision() == 2)
+    // everything by isAllowed); the extraction for the accessibility is always allowed (bit 10,
+    // R5-14), also by revision 2
+    if (securityHandler->getMode() == EncryptionMode::Standard && static_cast<const PDFStandardSecurityHandler*>(securityHandler)->getRevision() == 2 &&
+        permission != Permission::Accessibility)
     {
         permission = getRevision2Permission(permission);
     }
     return securityHandler->isAllowed(permission);
+}
+
+bool PDFSecurityHandler::isEncryptionChangeAllowed() const
+{
+    switch (getMode())
+    {
+        case EncryptionMode::None:
+            return true;
+
+        case EncryptionMode::Standard:
+            return !m_isEmbeddedFilesLocked && getAuthorizationResult() == AuthorizationResult::OwnerAuthorized;
+
+        case EncryptionMode::PublicKey:
+        {
+            // m_permissions of an authorized handler are the bytes of the envelope (or nothing)
+            const PDFPublicKeySecurityHandler* handler = static_cast<const PDFPublicKeySecurityHandler*>(this);
+            return !m_isEmbeddedFilesLocked && handler->m_authorizationData.isAuthorized() && (handler->m_permissions & PDFPublicKeySecurityHandler::PKSH_Owner);
+        }
+
+        default:
+            break;
+    }
+
+    return false;
 }
 
 PDFSecurityHandler::Permission PDFSecurityHandler::getRevision2Permission(Permission permission)
@@ -590,6 +1015,13 @@ void PDFSecurityHandler::fillEncryptionDictionary(PDFObjectFactory& factory, boo
 
         for (const auto& cryptFilter : m_cryptFilters)
         {
+            // Identity is predefined (7.6.6, Table 25): it is never an entry of /CF, and /CFM has
+            // no value for it (a reader refuses it)
+            if (cryptFilter.second.type == CryptFilterType::Identity || cryptFilter.first == IDENTITY_FILTER_NAME)
+            {
+                continue;
+            }
+
             factory.beginDictionaryItem(cryptFilter.first);
 
             factory.beginDictionary();
@@ -817,7 +1249,39 @@ CryptFilter PDFSecurityHandler::parseCryptFilter(PDFInteger length, const PDFObj
         throw PDFException(PDFTranslationContext::tr("Unsupported authorization event '%1'.").arg(QString::fromLatin1(authEventName)));
     }
 
-    filter.keyLength = parseInt(cryptFilterDictionary, "Length", false, publicKey ? length : length / 8);
+    // Table 25 /Length: the standard handler gives the key length in bytes, a public-key handler in
+    // bits (some writers give bits to the standard handler too). The key of an object is computed
+    // of the length of the file encryption key (Algorithm 1), so a hostile value only falls back
+    // to the length of the handler (B83); the length is kept in bytes.
+    filter.keyLength = int(length / 8);
+    const PDFInteger lengthValue = parseInt(cryptFilterDictionary, "Length", false, -1);
+    if (lengthValue > 0)
+    {
+        PDFInteger bytes = lengthValue;
+        if (publicKey || (lengthValue >= 40 && lengthValue % 8 == 0))
+        {
+            bytes = lengthValue / 8;
+        }
+
+        if (bytes >= 5 && bytes <= 32)
+        {
+            filter.keyLength = int(bytes);
+        }
+    }
+
+    switch (filter.type)
+    {
+        case CryptFilterType::AESV2:
+            filter.keyLength = 16;
+            break;
+
+        case CryptFilterType::AESV3:
+            filter.keyLength = 32;
+            break;
+
+        default:
+            break;
+    }
 
     // Recipients
     filter.recipients = parseRecipients(cryptFilterDictionary);
@@ -856,11 +1320,24 @@ QByteArrayList PDFSecurityHandler::parseRecipients(const PDFDictionary* dictiona
     const PDFObject& recipients = dictionary->get("Recipients");
     if (recipients.isArray())
     {
-        for (const PDFObject& object : *recipients.getArray())
+        // B95: each recipient costs a PKCS#7 decryption per certificate of the user at the
+        // opening, and every recipient goes into the key - a hostile file is refused, not cut
+        const PDFArray* recipientArray = recipients.getArray();
+        if (recipientArray->getCount() > size_t(PDFSecurityHandlerFactory::MAXIMUM_RECIPIENT_COUNT))
+        {
+            throw PDFException(PDFTranslationContext::tr("Too many recipients of the encryption (%1, at most %2).").arg(qulonglong(recipientArray->getCount())).arg(PDFSecurityHandlerFactory::MAXIMUM_RECIPIENT_COUNT));
+        }
+
+        for (const PDFObject& object : *recipientArray)
         {
             if (object.isString())
             {
-                result << object.getString();
+                const QByteArray recipient = object.getString();
+                if (recipient.size() > PDFSecurityHandlerFactory::MAXIMUM_RECIPIENT_SIZE)
+                {
+                    throw PDFException(PDFTranslationContext::tr("A recipient of the encryption is too large (%1 bytes, at most %2).").arg(recipient.size()).arg(PDFSecurityHandlerFactory::MAXIMUM_RECIPIENT_SIZE));
+                }
+                result << recipient;
             }
         }
     }
@@ -877,8 +1354,10 @@ std::vector<uint8_t> PDFStandardOrPublicSecurityHandler::createV2_ObjectEncrypti
     std::vector<uint8_t> objectEncryptionKey(MD5_DIGEST_LENGTH, uint8_t(0));
     MD5(inputKeyData.data(), inputKeyData.size(), objectEncryptionKey.data());
 
-    // Use up to (n + 5) bytes, maximally 16, from the digest as object encryption key
-    size_t objectEncryptionKeySize = qMin(filter.keyLength + 5, MD5_DIGEST_LENGTH);
+    // Use up to (n + 5) bytes, maximally 16, from the digest as object encryption key; n is the
+    // length of the file encryption key (Algorithm 1, step d), never a value of the file (B83)
+    Q_UNUSED(filter);
+    const size_t objectEncryptionKeySize = qMin(size_t(m_authorizationData.fileEncryptionKey.size()) + 5, size_t(MD5_DIGEST_LENGTH));
     objectEncryptionKey.resize(objectEncryptionKeySize);
 
     return objectEncryptionKey;
@@ -896,11 +1375,43 @@ std::vector<uint8_t> PDFStandardOrPublicSecurityHandler::createAESV2_ObjectEncry
     return objectEncryptionKey;
 }
 
+CryptFilter PDFStandardOrPublicSecurityHandler::resolveMethodNone(const CryptFilter& filter) const
+{
+    if (filter.type != CryptFilterType::None)
+    {
+        return filter;
+    }
+
+    // Table 25, /CFM /None (also a crypt filter without /CFM): the security handler decrypts the
+    // data by its own method - the method of its default filter (V2 of revisions 2 - 4, AESV3 of
+    // revisions 5 and 6, the crypt filter of the recipients of the public-key handler)
+    if (m_filterDefault.type == CryptFilterType::None)
+    {
+        throw PDFException(PDFTranslationContext::tr("The crypt filter of the method None has no method of the security handler to decrypt the data."));
+    }
+
+    CryptFilter resolved = m_filterDefault;
+    resolved.authEvent = filter.authEvent;
+    return resolved;
+}
+
 QByteArray PDFStandardOrPublicSecurityHandler::decryptUsingFilter(const QByteArray& data, CryptFilter filter, PDFObjectReference reference) const
 {
     QByteArray decryptedData;
 
     Q_ASSERT(m_authorizationData.isAuthorized());
+
+    filter = resolveMethodNone(filter);
+    if (isLockedFilter(filter))
+    {
+        // Open without attachments (Q5.9 c): the key of the embedded files is not known
+        throw PDFException(PDFTranslationContext::tr("The embedded files are locked. Enter the password of the document to open them."));
+    }
+
+    if (filter.type == CryptFilterType::AESV3 && m_authorizationData.fileEncryptionKey.size() != 32)
+    {
+        throw PDFException(PDFTranslationContext::tr("Crypt filter AESV3 requires a 256-bit key."));
+    }
 
     struct AES_data
     {
@@ -952,9 +1463,7 @@ QByteArray PDFStandardOrPublicSecurityHandler::decryptUsingFilter(const QByteArr
     {
         case CryptFilterType::None:       // The application shall decrypt the data using the security handler
         {
-            // This shouldn't occur, because in case the used filter has None value, then default filter
-            // is used and default filter can't have this value.
-            Q_ASSERT(false);
+            // Resolved to the method of the handler by resolveMethodNone (which throws without one)
             break;
         }
 
@@ -992,7 +1501,6 @@ QByteArray PDFStandardOrPublicSecurityHandler::decryptUsingFilter(const QByteArr
 
         case CryptFilterType::AESV3:      // Use file encryption key for AES 256 bit algorithm
         {
-            Q_ASSERT(m_authorizationData.fileEncryptionKey.size() == 32);
             AES_KEY key = { };
             AES_set_decrypt_key(convertByteArrayToUcharPtr(m_authorizationData.fileEncryptionKey), static_cast<int>(m_authorizationData.fileEncryptionKey.size()) * 8, &key);
 
@@ -1023,6 +1531,17 @@ QByteArray PDFStandardOrPublicSecurityHandler::encryptUsingFilter(const QByteArr
 
     Q_ASSERT(m_authorizationData.isAuthorized());
 
+    filter = resolveMethodNone(filter);
+    if (isLockedFilter(filter))
+    {
+        throw PDFException(PDFTranslationContext::tr("The embedded files are locked. Enter the password of the document to open them."));
+    }
+
+    if (filter.type == CryptFilterType::AESV3 && m_authorizationData.fileEncryptionKey.size() != 32)
+    {
+        throw PDFException(PDFTranslationContext::tr("Crypt filter AESV3 requires a 256-bit key."));
+    }
+
     struct AES_data
     {
         QByteArray initializationVector;
@@ -1033,25 +1552,17 @@ QByteArray PDFStandardOrPublicSecurityHandler::encryptUsingFilter(const QByteArr
     {
         AES_data result;
 
-        QRandomGenerator randomNumberGenerator = QRandomGenerator::securelySeeded();
+        // The IV of every string and stream comes from the cryptographic generator (B82, S5.4)
+        result.initializationVector = PDFSecurityHandlerFactory::generateRandomBytes(AES_BLOCK_SIZE);
 
-        result.initializationVector.resize(AES_BLOCK_SIZE);
-        for (int i = 0; i < AES_BLOCK_SIZE; ++i)
-        {
-            result.initializationVector[i] = uint8_t(randomNumberGenerator.generate());
-        }
-
-        result.paddedData = data;
-
-        // Add padding remainder according to the specification
-        int size = data.size();
+        // Add padding remainder according to the specification (7.6.3.2: 1 to 16 bytes, each of
+        // the value of their count)
+        const int size = int(data.size());
         const int paddingRemainder = AES_BLOCK_SIZE - (size % AES_BLOCK_SIZE);
 
-        result.initializationVector.reserve(result.initializationVector.size() + paddingRemainder);
-        for (int i = 0; i < paddingRemainder; ++i)
-        {
-            result.paddedData.push_back(paddingRemainder);
-        }
+        result.paddedData.reserve(size + paddingRemainder);
+        result.paddedData = data;
+        result.paddedData.append(QByteArray(paddingRemainder, char(paddingRemainder)));
 
         return result;
     };
@@ -1060,9 +1571,7 @@ QByteArray PDFStandardOrPublicSecurityHandler::encryptUsingFilter(const QByteArr
     {
         case CryptFilterType::None:       // The application shall encrypt the data using the security handler
         {
-            // This shouldn't occur, because in case the used filter has None value, then default filter
-            // is used and default filter can't have this value.
-            Q_ASSERT(false);
+            // Resolved to the method of the handler by resolveMethodNone (which throws without one)
             break;
         }
 
@@ -1102,7 +1611,6 @@ QByteArray PDFStandardOrPublicSecurityHandler::encryptUsingFilter(const QByteArr
 
         case CryptFilterType::AESV3:      // Use file encryption key for AES 256 bit algorithm
         {
-            Q_ASSERT(m_authorizationData.fileEncryptionKey.size() == 32);
             AES_KEY key = { };
             AES_set_encrypt_key(convertByteArrayToUcharPtr(m_authorizationData.fileEncryptionKey), static_cast<int>(m_authorizationData.fileEncryptionKey.size()) * 8, &key);
 
@@ -1136,6 +1644,12 @@ QByteArray PDFStandardOrPublicSecurityHandler::decrypt(const QByteArray& data, P
 
 QByteArray PDFStandardOrPublicSecurityHandler::decryptByFilter(const QByteArray& data, const QByteArray& filterName, PDFObjectReference reference) const
 {
+    // Identity is predefined (7.6.6), also for a handler of the factory, which has no entry of it
+    if (filterName == IDENTITY_FILTER_NAME)
+    {
+        return data;
+    }
+
     auto it = m_cryptFilters.find(filterName);
     if (it == m_cryptFilters.cend())
     {
@@ -1193,6 +1707,11 @@ QByteArray PDFStandardOrPublicSecurityHandler::encrypt(const QByteArray& data, P
 
 QByteArray PDFStandardOrPublicSecurityHandler::encryptByFilter(const QByteArray& data, const QByteArray& filterName, PDFObjectReference reference) const
 {
+    if (filterName == IDENTITY_FILTER_NAME)
+    {
+        return data;
+    }
+
     auto it = m_cryptFilters.find(filterName);
     if (it == m_cryptFilters.cend())
     {
@@ -1202,7 +1721,7 @@ QByteArray PDFStandardOrPublicSecurityHandler::encryptByFilter(const QByteArray&
     return encryptUsingFilter(data, it->second, reference);
 }
 
-bool PDFStandardOrPublicSecurityHandler::isUnicodeNonAsciiSpaceCharacter(ushort unicode)
+bool PDFStandardOrPublicSecurityHandler::isUnicodeNonAsciiSpaceCharacter(char32_t unicode)
 {
     switch (unicode)
     {
@@ -1230,8 +1749,9 @@ bool PDFStandardOrPublicSecurityHandler::isUnicodeNonAsciiSpaceCharacter(ushort 
     }
 }
 
-bool PDFStandardOrPublicSecurityHandler::isUnicodeMappedToNothing(ushort unicode)
+bool PDFStandardOrPublicSecurityHandler::isUnicodeMappedToNothing(char32_t unicode)
 {
+    // RFC 3454, table B.1 (R5-17: U+2060, U+FE00 - U+FE0F and U+FEFF too)
     switch (unicode)
     {
         case 0x00AD:
@@ -1243,11 +1763,88 @@ bool PDFStandardOrPublicSecurityHandler::isUnicodeMappedToNothing(ushort unicode
         case 0x200B:
         case 0x200C:
         case 0x200D:
+        case 0x2060:
+        case 0xFEFF:
             return true;
 
         default:
-            return false;
+            return unicode >= 0xFE00 && unicode <= 0xFE0F;
     }
+}
+
+bool PDFStandardOrPublicSecurityHandler::isUnicodeProhibited(char32_t unicode)
+{
+    // RFC 4013 2.3: the prohibited output of RFC 3454, tables C.1.2 - C.9
+    if (isUnicodeNonAsciiSpaceCharacter(unicode))
+    {
+        return true;                                                    // C.1.2
+    }
+
+    if (unicode < 0x20 || unicode == 0x7F)
+    {
+        return true;                                                    // C.2.1
+    }
+
+    if ((unicode >= 0x80 && unicode <= 0x9F) ||                         // C.2.2
+        unicode == 0x06DD || unicode == 0x070F || unicode == 0x180E || unicode == 0x200C || unicode == 0x200D ||
+        unicode == 0x2028 || unicode == 0x2029 || (unicode >= 0x2060 && unicode <= 0x2063) || (unicode >= 0x206A && unicode <= 0x206F) ||
+        unicode == 0xFEFF || (unicode >= 0xFFF9 && unicode <= 0xFFFC) || (unicode >= 0x1D173 && unicode <= 0x1D17A))
+    {
+        return true;
+    }
+
+    if ((unicode >= 0xE000 && unicode <= 0xF8FF) || (unicode >= 0xF0000 && unicode <= 0xFFFFD) || (unicode >= 0x100000 && unicode <= 0x10FFFD))
+    {
+        return true;                                                    // C.3
+    }
+
+    if ((unicode >= 0xFDD0 && unicode <= 0xFDEF) || (unicode & 0xFFFE) == 0xFFFE)
+    {
+        return true;                                                    // C.4 (U+nFFFE, U+nFFFF of every plane)
+    }
+
+    if (unicode >= 0xD800 && unicode <= 0xDFFF)
+    {
+        return true;                                                    // C.5 (a lone surrogate)
+    }
+
+    if ((unicode >= 0xFFF9 && unicode <= 0xFFFD) ||                     // C.6
+        (unicode >= 0x2FF0 && unicode <= 0x2FFB) ||                     // C.7
+        unicode == 0x0340 || unicode == 0x0341 || unicode == 0x200E || unicode == 0x200F ||
+        (unicode >= 0x202A && unicode <= 0x202E) || (unicode >= 0x206A && unicode <= 0x206F))   // C.8
+    {
+        return true;
+    }
+
+    return unicode == 0xE0001 || (unicode >= 0xE0020 && unicode <= 0xE007F);  // C.9
+}
+
+QString PDFStandardOrPublicSecurityHandler::prepareSASLprep(const QString& password)
+{
+    // RFC 4013 Section 2.1, the mapping: table C.1.2 to a space, table B.1 to nothing; by the code
+    // points (a character outside of the BMP is a surrogate pair)
+    QString preparedPassword;
+    preparedPassword.reserve(password.size());
+
+    for (const char32_t codePoint : password.toUcs4())
+    {
+        if (isUnicodeMappedToNothing(codePoint))
+        {
+            continue;
+        }
+
+        if (isUnicodeNonAsciiSpaceCharacter(codePoint))
+        {
+            preparedPassword += QChar(QChar::Space);
+        }
+        else
+        {
+            preparedPassword += QString::fromUcs4(&codePoint, 1);
+        }
+    }
+
+    // RFC 4013, Section 2.2, normalization to KC
+    return preparedPassword.normalized(QString::NormalizationForm_KC);
 }
 
 QByteArray PDFStandardOrPublicSecurityHandler::adjustPassword(const QString& password, int revision)
@@ -1272,52 +1869,108 @@ QByteArray PDFStandardOrPublicSecurityHandler::adjustPassword(const QString& pas
             //      - RFC 4013: https://tools.ietf.org/html/rfc4013 (SASLprep profile for stringprep algorithm)
             //      - RFC 3454: https://tools.ietf.org/html/rfc3454 (stringprep algorithm - preparation of internationalized strings)
             //
-            // Note: we don't do checks according the RFC 4013, just use the mapping and normalize string in KC
+            // A reader maps and normalizes and accepts the rest (a file of another writer opens);
+            // the prohibited output and the bidirectional rule are checked before an encryption
+            // (isPasswordValidForRevision6, B93)
+            QString preparedPassword = prepareSASLprep(password);
 
-            QString preparedPassword;
-            preparedPassword.reserve(password.size());
-
-            // RFC 4013 Section 2.1, use mapping
-
-            for (const QChar character : password)
-            {
-                if (isUnicodeMappedToNothing(character.unicode()))
-                {
-                    // Mapped to nothing
-                    continue;
-                }
-
-                if (isUnicodeNonAsciiSpaceCharacter(character.unicode()))
-                {
-                    // Map to space character
-                    preparedPassword += QChar(QChar::Space);
-                }
-                else
-                {
-                    preparedPassword += character;
-                }
-            }
-
-            // RFC 4013, Section 2.2, normalization to KC
-            preparedPassword = preparedPassword.normalized(QString::NormalizationForm_KC);
-
-            // We don't do other checks. We will transform password to the UTF-8 encoding
-            // and according the PDF specification, we take only first 127 characters.
-            result = preparedPassword.toUtf8().left(127);
+            // UTF-8, the first 127 bytes (7.6.4.3.3, Algorithm 2.A step a)
+            QByteArray utf8 = preparedPassword.toUtf8();
+            result = utf8.left(127);
+            PDFSecureMemory::clear(utf8);
+            PDFSecureMemory::clear(preparedPassword);
             break;
         }
 
         default:
-            result = password.toLatin1();
+        {
+            // The password of a PKCS#12 is UTF-8 everywhere (B84; PDFCertificateManager)
+            result = password.toUtf8();
             break;
+        }
     }
 
     return result;
 }
 
+bool PDFStandardOrPublicSecurityHandler::isPasswordValidForRevision6(const QString& password, QString* invalidCharacters)
+{
+    QString preparedPassword = prepareSASLprep(password);
+    const QList<uint> codePoints = preparedPassword.toUcs4();
+    PDFSecureMemory::clear(preparedPassword);
+
+    bool isValid = true;
+    bool hasRightToLeft = false;
+    bool hasLeftToRight = false;
+
+    for (const uint codePoint : codePoints)
+    {
+        if (isUnicodeProhibited(codePoint))
+        {
+            isValid = false;
+            const char32_t character = char32_t(codePoint);
+            if (invalidCharacters && QChar::isPrint(character))
+            {
+                invalidCharacters->append(QString::fromUcs4(&character, 1));
+            }
+            else if (invalidCharacters)
+            {
+                invalidCharacters->append(QStringLiteral("U+%1").arg(codePoint, 4, 16, QChar('0')).toUpper());
+            }
+        }
+
+        // RFC 3454 6: tables D.1 (RandALCat) and D.2 (LCat) by the bidirectional category
+        const QChar::Direction direction = QChar::direction(char32_t(codePoint));
+        hasRightToLeft = hasRightToLeft || direction == QChar::DirR || direction == QChar::DirAL;
+        hasLeftToRight = hasLeftToRight || direction == QChar::DirL;
+    }
+
+    if (hasRightToLeft && !codePoints.isEmpty())
+    {
+        auto isRightToLeft = [](uint codePoint)
+        {
+            const QChar::Direction direction = QChar::direction(char32_t(codePoint));
+            return direction == QChar::DirR || direction == QChar::DirAL;
+        };
+
+        // A right-to-left string has no left-to-right character and starts and ends by a
+        // right-to-left one (RFC 3454 6, items 2 and 3)
+        if (hasLeftToRight || !isRightToLeft(codePoints.front()) || !isRightToLeft(codePoints.back()))
+        {
+            isValid = false;
+        }
+    }
+
+    return isValid;
+}
+
 PDFSecurityHandler* PDFStandardSecurityHandler::clone() const
 {
     return new PDFStandardSecurityHandler(*this);
+}
+
+bool PDFStandardSecurityHandler::isAllowed(Permission permission) const
+{
+    // Table 22, bit 10: deprecated in PDF 2.0 - a reader acts as if the extraction for the
+    // accessibility were always allowed (R5-14)
+    if (permission == Permission::Accessibility)
+    {
+        return true;
+    }
+
+    return m_authorizationData.authorizationResult == AuthorizationResult::OwnerAuthorized || (m_permissions & static_cast<uint32_t>(permission));
+}
+
+int PDFStandardSecurityHandler::getKeyByteLength_r234() const
+{
+    // Algorithm 2, step f: n is always 5 for revision 2, /Length / 8 for revisions 3 and 4 (the
+    // length was checked at the parsing: 40 - 128 bits)
+    const int keyByteLength = (m_R == 2) ? 5 : m_keyLength / 8;
+    if (keyByteLength < 5 || keyByteLength > MD5_DIGEST_LENGTH)
+    {
+        throw PDFException(PDFTranslationContext::tr("Encryption key length (%1) exceeded maximal value of %2.").arg(keyByteLength).arg(MD5_DIGEST_LENGTH));
+    }
+    return keyByteLength;
 }
 
 PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate(const std::function<QString(bool*)>& getPasswordCallback, bool authorizeOwnerOnly)
@@ -1327,6 +1980,14 @@ PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate
 
     // Clear the authorization data
     m_authorizationData = AuthorizationData();
+    m_isEmbeddedFilesLocked = false;
+
+    // The tried password is overwritten whenever the function ends (S5.1)
+    struct PasswordGuard
+    {
+        QByteArray& password;
+        ~PasswordGuard() { PDFSecureMemory::clear(password); }
+    } passwordGuard{ password };
 
     while (passwordObtained)
     {
@@ -1478,10 +2139,13 @@ PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate
                 return AuthorizationResult::Failed;
         }
 
-        password = adjustPassword(getPasswordCallback(&passwordObtained), m_R);
+        QString enteredPassword = getPasswordCallback(&passwordObtained);
+        PDFSecureMemory::clear(password);
+        password = adjustPassword(enteredPassword, m_R);
+        PDFSecureMemory::clear(enteredPassword);
     }
 
-    return AuthorizationResult::Cancelled;
+    return AuthorizationResult::Canceled;
 }
 
 PDFObject PDFStandardSecurityHandler::createEncryptionDictionaryObject() const
@@ -1571,11 +2235,7 @@ QByteArray PDFStandardSecurityHandler::createFileEncryptionKey(const QByteArray&
             std::array<uint8_t, MD5_DIGEST_LENGTH> fileEncryptionKey = { };
             MD5_Final(fileEncryptionKey.data(), &context);
 
-            const int keyByteLength = m_keyLength / 8;
-            if (keyByteLength > MD5_DIGEST_LENGTH)
-            {
-                throw PDFException(PDFTranslationContext::tr("Encryption key length (%1) exceeded maximal value of %2.").arg(keyByteLength).arg(MD5_DIGEST_LENGTH));
-            }
+            const int keyByteLength = getKeyByteLength_r234();
 
             if (m_R >= 3)
             {
@@ -1590,6 +2250,8 @@ QByteArray PDFStandardSecurityHandler::createFileEncryptionKey(const QByteArray&
 
             result.resize(keyByteLength);
             std::copy_n(fileEncryptionKey.cbegin(), keyByteLength, result.begin());
+            PDFSecureMemory::clear(fileEncryptionKey.data(), fileEncryptionKey.size());
+            PDFSecureMemory::clear(paddedPassword.data(), paddedPassword.size());
             break;
         }
 
@@ -1694,12 +2356,10 @@ QByteArray PDFStandardSecurityHandler::createUserPasswordFromOwnerPassword(const
     MD5_Init(&context);
     MD5_Update(&context, paddedPassword.data(), paddedPassword.size());
     MD5_Final(hash.data(), &context);
+    PDFSecureMemory::clear(paddedPassword.data(), paddedPassword.size());
 
-    const int keyByteLength = m_keyLength / 8;
-    if (keyByteLength > MD5_DIGEST_LENGTH)
-    {
-        throw PDFException(PDFTranslationContext::tr("Encryption key length (%1) exceeded maximal value of %2.").arg(keyByteLength).arg(MD5_DIGEST_LENGTH));
-    }
+    // Algorithm 3, step d: n is 5 for revision 2, /Length / 8 for revisions 3 and 4
+    const int keyByteLength = getKeyByteLength_r234();
 
     if (m_R >= 3)
     {
@@ -1925,15 +2585,61 @@ PDFStandardSecurityHandler::UserOwnerData_r6 PDFStandardSecurityHandler::parsePa
 
 PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const SecuritySettings& settings)
 {
+    return createSecurityHandlerImpl(settings, nullptr);
+}
+
+PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandlerImpl(const SecuritySettings& settings, QString* errorMessage)
+{
+    try
+    {
+        return createSecurityHandlerUnchecked(settings, errorMessage);
+    }
+    catch (const PDFException& exception)
+    {
+        // The cryptographic generator failed (S5.4: never a fallback) or a key cannot be computed
+        if (errorMessage)
+        {
+            *errorMessage = exception.getMessage();
+        }
+        return nullptr;
+    }
+}
+
+PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandlerUnchecked(const SecuritySettings& settings, QString* errorMessage)
+{
+    auto setError = [errorMessage](const QString& text)
+    {
+        if (errorMessage)
+        {
+            *errorMessage = text;
+        }
+    };
+
     if (settings.algorithm == Algorithm::None)
     {
         return PDFSecurityHandlerPointer(new PDFNoneSecurityHandler);
     }
 
-    // Jakub Melka: create standard security or public key handler, with given settings
+    switch (settings.algorithm)
+    {
+        case RC4:
+        case AES_128:
+        case AES_256:
+        case Certificate:
+            break;
+
+        default:
+            setError(tr("Unknown encryption algorithm."));
+            return nullptr;
+    }
+
+    // Jakub Melka: create standard security or public key handler, with given settings. The
+    // handler is owned by the shared pointer from the start (a failure or an exception of the
+    // random generator never leaks it).
     PDFStandardSecurityHandler* standardHandler = nullptr;
     PDFPublicKeySecurityHandler* publicKeyHandler = nullptr;
     PDFStandardOrPublicSecurityHandler* handler = nullptr;
+    PDFSecurityHandlerPointer handlerPointer;
 
     if (settings.algorithm != Algorithm::Certificate)
     {
@@ -1945,6 +2651,7 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
         publicKeyHandler = new PDFPublicKeySecurityHandler();
         handler = publicKeyHandler;
     }
+    handlerPointer.reset(handler);
 
     if (standardHandler)
     {
@@ -2012,92 +2719,20 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
     {
         publicKeyHandler->m_filterDefault.encryptMetadata = settings.encryptContents == All;
         publicKeyHandler->m_pkcs7Type = PDFPublicKeySecurityHandler::PKCS7_Type::PKCS7_S5;
-        publicKeyHandler->m_permissions = 0;
 
-        if (settings.permissions & uint32_t(PDFSecurityHandler::Permission::PrintLowResolution))
+        // Table 24 (B90, Q5.3 b): bit 10 always, bit 2 with every permission
+        publicKeyHandler->m_permissions = getPublicKeyPermissions(settings.permissions);
+
+        // 7.6.5.3: the 20 bytes of the seed of the file encryption key (B82) and the permissions,
+        // enveloped for the only recipient - the certificate of the user (R5-1: its PKCS#12)
+        QByteArray seed = generateRandomBytes(20);
+        const QByteArray recipient = createRecipient(settings.certificate, settings.userPassword, seed, publicKeyHandler->m_permissions, errorMessage);
+        PDFSecureMemory::clear(seed);
+        if (recipient.isEmpty())
         {
-            publicKeyHandler->m_permissions = publicKeyHandler->m_permissions | PDFPublicKeySecurityHandler::PKSH_PrintLowResolution;
+            return nullptr;
         }
-        if (settings.permissions & uint32_t(PDFSecurityHandler::Permission::Modify))
-        {
-            publicKeyHandler->m_permissions = publicKeyHandler->m_permissions | PDFPublicKeySecurityHandler::PKSH_Modify;
-        }
-        if (settings.permissions & uint32_t(PDFSecurityHandler::Permission::CopyContent))
-        {
-            publicKeyHandler->m_permissions = publicKeyHandler->m_permissions | PDFPublicKeySecurityHandler::PKSH_CopyContent;
-        }
-        if (settings.permissions & uint32_t(PDFSecurityHandler::Permission::ModifyInteractiveItems))
-        {
-            publicKeyHandler->m_permissions = publicKeyHandler->m_permissions | PDFPublicKeySecurityHandler::PKSH_ModifyAnnotationsFillFormFields;
-        }
-        if (settings.permissions & uint32_t(PDFSecurityHandler::Permission::ModifyFormFields))
-        {
-            publicKeyHandler->m_permissions = publicKeyHandler->m_permissions | PDFPublicKeySecurityHandler::PKSH_FillFormFields;
-        }
-        if (settings.permissions & uint32_t(PDFSecurityHandler::Permission::Assemble))
-        {
-            publicKeyHandler->m_permissions = publicKeyHandler->m_permissions | PDFPublicKeySecurityHandler::PKSH_Assemble;
-        }
-        if (settings.permissions & uint32_t(PDFSecurityHandler::Permission::PrintHighResolution))
-        {
-            publicKeyHandler->m_permissions = publicKeyHandler->m_permissions | PDFPublicKeySecurityHandler::PKSH_PrintHighResolution;
-        }
-
-        QByteArray data = settings.certificate.pkcs12;
-
-        openssl_ptr<BIO> pksBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
-        BIO_write(pksBuffer.get(), data.constData(), data.length());
-
-        openssl_ptr<PKCS12> pkcs12(d2i_PKCS12_bio(pksBuffer.get(), nullptr), &PKCS12_free);
-        if (pkcs12)
-        {
-            QByteArray password = PDFStandardOrPublicSecurityHandler::adjustPassword(settings.userPassword, 0);
-            const char* passwordPointer = nullptr;
-            if (!password.isEmpty())
-            {
-                passwordPointer = password.constData();
-            }
-
-            EVP_PKEY* keyPtr = nullptr;
-            X509* certificatePtr = nullptr;
-            STACK_OF(X509)* certificatesPtr = nullptr;
-
-            // Parse PKCS12 with password
-            bool isParsed = PKCS12_parse(pkcs12.get(), passwordPointer, &keyPtr, &certificatePtr, &certificatesPtr) == 1;
-
-            if (isParsed)
-            {
-                openssl_ptr<EVP_PKEY> key(keyPtr, EVP_PKEY_free);
-                openssl_ptr<X509> certificate(certificatePtr, X509_free);
-                openssl_ptr<STACK_OF(X509)> certificates(certificatesPtr, sk_x509_free_impl);
-                openssl_ptr<BIO> dataToBeSigned(BIO_new(BIO_s_mem()), BIO_free_all);
-
-                uint32_t permissions = qToLittleEndian(publicKeyHandler->m_permissions);
-                QRandomGenerator generator = QRandomGenerator::securelySeeded();
-                QByteArray randomKey = generateRandomByteArray(generator, 20);
-                BIO_write(dataToBeSigned.get(), randomKey.data(), randomKey.length());
-                BIO_write(dataToBeSigned.get(), &permissions, sizeof(permissions));
-
-                openssl_ptr<STACK_OF(X509)> recipientCertificates(sk_X509_new_null(), sk_x509_free_impl);
-                sk_X509_push(recipientCertificates.get(), certificate.get());
-
-                openssl_ptr<PKCS7> pkcs7(PKCS7_encrypt(recipientCertificates.get(), dataToBeSigned.get(), EVP_aes_256_cbc(), PKCS7_BINARY), PKCS7_free);
-
-                if (pkcs7)
-                {
-                    openssl_ptr<BIO> storedData(BIO_new(BIO_s_mem()), BIO_free_all);
-
-                    if (i2d_PKCS7_bio(storedData.get(), pkcs7.get()))
-                    {
-                        BUF_MEM* memoryBuffer = nullptr;
-                        BIO_get_mem_ptr(storedData.get(), &memoryBuffer);
-
-                        QByteArray recipient(memoryBuffer->data, int(memoryBuffer->length));
-                        publicKeyHandler->m_filterDefault.recipients << recipient;
-                    }
-                }
-            }
-        }
+        publicKeyHandler->m_filterDefault.recipients << recipient;
     }
 
     handler->m_filterDefault.encryptMetadata = settings.encryptContents == All;
@@ -2143,13 +2778,26 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
         }
     }
 
+    // The owner password of the handler: an empty owner password is the user password, for every
+    // revision (ISO 32000-2, 7.6.4.4, Algorithm 3 step a for revisions 2 - 4; the same for revision
+    // 6 as qpdf and Acrobat do, R5-2). Else an empty password would open the document as its owner,
+    // the reader tries it first (B81).
+    const QString& ownerPassword = settings.ownerPassword.isEmpty() ? settings.userPassword : settings.ownerPassword;
+
     if (standardHandler)
     {
         standardHandler->m_R = getRevisionFromAlgorithm(settings.algorithm);
-        standardHandler->m_permissions = settings.permissions | 0xFFFFF000;
+        standardHandler->m_permissions = getStandardPermissions(settings.permissions);
 
-        QByteArray adjustedOwnerPassword = handler->adjustPassword(settings.ownerPassword, standardHandler->m_R);
+        QByteArray adjustedOwnerPassword = handler->adjustPassword(ownerPassword, standardHandler->m_R);
         QByteArray adjustedUserPassword = handler->adjustPassword(settings.userPassword, standardHandler->m_R);
+
+        struct PasswordsGuard
+        {
+            QByteArray& owner;
+            QByteArray& user;
+            ~PasswordsGuard() { PDFSecureMemory::clear(owner); PDFSecureMemory::clear(user); }
+        } passwordsGuard{ adjustedOwnerPassword, adjustedUserPassword };
 
         // Generate encryption entries
         switch (standardHandler->m_R)
@@ -2172,16 +2820,15 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
                 standardHandler->m_O = entryO;
                 Q_ASSERT(standardHandler->createUserPasswordFromOwnerPassword(adjustedOwnerPassword) == paddedUserPassword);
 
-                standardHandler->m_U.resize(32);
-                QRandomGenerator randomNumberGenerator = QRandomGenerator::securelySeeded();
-                for (int i = 0; i < standardHandler->m_U.size(); ++i)
-                {
-                    standardHandler->m_U[i] = char(randomNumberGenerator.generate());
-                }
+                // Algorithm 5, step e: 16 bytes of arbitrary padding follow the 16 bytes of /U
+                standardHandler->m_U = generateRandomBytes(32);
 
                 QByteArray fileEncryptionKey = standardHandler->createFileEncryptionKey(paddedUserPassword);
                 QByteArray U = standardHandler->createEntryValueU_r234(fileEncryptionKey);
                 standardHandler->m_U = U;
+                PDFSecureMemory::clear(fileEncryptionKey);
+                PDFSecureMemory::clear(paddedUserPassword);
+                PDFSecureMemory::clear(paddedUserPasswordArray.data(), paddedUserPasswordArray.size());
 
                 break;
             }
@@ -2191,15 +2838,13 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
                 PDFStandardSecurityHandler::UserOwnerData_r6 userData;
                 PDFStandardSecurityHandler::UserOwnerData_r6 ownerData;
 
-                QRandomGenerator randomNumberGenerator = QRandomGenerator::securelySeeded();
-
-                // Generate file encryption key
-                handler->m_authorizationData.fileEncryptionKey = generateRandomByteArray(randomNumberGenerator, 32);
+                // Generate file encryption key (Algorithm 8 a, B82: the cryptographic generator)
+                handler->m_authorizationData.fileEncryptionKey = generateRandomBytes(32);
                 handler->m_authorizationData.authorizationResult = PDFSecurityHandler::AuthorizationResult::OwnerAuthorized;
 
                 // Compute m_U entry
-                userData.keySalt = generateRandomByteArray(randomNumberGenerator, 8);
-                userData.validationSalt = generateRandomByteArray(randomNumberGenerator, 8);
+                userData.keySalt = generateRandomBytes(8);
+                userData.validationSalt = generateRandomBytes(8);
                 userData.hash = standardHandler->createHash_r6(adjustedUserPassword + userData.validationSalt, adjustedUserPassword, false);
                 standardHandler->m_U = userData.hash + userData.validationSalt + userData.keySalt;
 
@@ -2216,9 +2861,12 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
                 unsigned char* userTargetBuffer = convertByteArrayToUcharPtr(standardHandler->m_UE);
                 AES_cbc_encrypt(userInputBuffer, userTargetBuffer, standardHandler->m_UE.size(), &userKey, aesUserInitializationVector, AES_ENCRYPT);
 
+                PDFSecureMemory::clear(userFileEncryptionKeyInputData);
+                PDFSecureMemory::clear(userFileEncryptionKey);
+
                 // Compute m_O entry
-                ownerData.keySalt = generateRandomByteArray(randomNumberGenerator, 8);
-                ownerData.validationSalt = generateRandomByteArray(randomNumberGenerator, 8);
+                ownerData.keySalt = generateRandomBytes(8);
+                ownerData.validationSalt = generateRandomBytes(8);
                 ownerData.hash = standardHandler->createHash_r6(adjustedOwnerPassword + ownerData.validationSalt + standardHandler->m_U, adjustedOwnerPassword, true);
                 standardHandler->m_O = ownerData.hash + ownerData.validationSalt + ownerData.keySalt;
 
@@ -2233,8 +2881,13 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
                 unsigned char* ownerInputBuffer = convertByteArrayToUcharPtr(handler->m_authorizationData.fileEncryptionKey);
                 unsigned char* ownerTargetBuffer = convertByteArrayToUcharPtr(standardHandler->m_OE);
                 AES_cbc_encrypt(ownerInputBuffer, ownerTargetBuffer, standardHandler->m_OE.size(), &ownerKey, aesOwnerInitializationVector, AES_ENCRYPT);
+                PDFSecureMemory::clear(ownerFileEncryptionKeyInputData);
+                PDFSecureMemory::clear(ownerFileEncryptionKey);
+                PDFSecureMemory::clear(&userKey, sizeof(userKey));
+                PDFSecureMemory::clear(&ownerKey, sizeof(ownerKey));
 
-                // Perms entry
+                // Perms entry (Algorithm 10)
+                const QByteArray permsRandomBytes = generateRandomBytes(4);
                 standardHandler->m_Perms = QByteArray(AES_BLOCK_SIZE, char(0));
                 unsigned char* permsData = convertByteArrayToUcharPtr(standardHandler->m_Perms);
                 permsData[0] = standardHandler->m_permissions & 0xFF;
@@ -2249,15 +2902,16 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
                 permsData[9] = 'a';
                 permsData[10] = 'd';
                 permsData[11] = 'b';
-                permsData[12] = randomNumberGenerator.generate() & 0xFF;
-                permsData[13] = randomNumberGenerator.generate() & 0xFF;
-                permsData[14] = randomNumberGenerator.generate() & 0xFF;
-                permsData[15] = randomNumberGenerator.generate() & 0xFF;
+                permsData[12] = uint8_t(permsRandomBytes[0]);
+                permsData[13] = uint8_t(permsRandomBytes[1]);
+                permsData[14] = uint8_t(permsRandomBytes[2]);
+                permsData[15] = uint8_t(permsRandomBytes[3]);
 
                 Q_ASSERT(standardHandler->m_Perms.size() == AES_BLOCK_SIZE);
                 AES_KEY key = { };
                 AES_set_encrypt_key(convertByteArrayToUcharPtr(handler->m_authorizationData.fileEncryptionKey), handler->m_authorizationData.fileEncryptionKey.size() * 8, &key);
                 AES_ecb_encrypt(convertByteArrayToUcharPtr(standardHandler->m_Perms), convertByteArrayToUcharPtr(standardHandler->m_Perms), &key, AES_ENCRYPT);
+                PDFSecureMemory::clear(&key, sizeof(key));
 
                 break;
             }
@@ -2270,17 +2924,21 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
         }
     }
 
-    PDFSecurityHandlerPointer handlerPointer(handler);
-
+    // The check: the handler is authorized as written - the owner password opens the standard
+    // handler, the private key of the chosen certificate and its password open the public-key
+    // handler (R5-1: by the PKCS#12 of the settings, never by the certificates of the directory)
     bool firstTry = true;
     const bool isPublicKeySecurity = settings.algorithm == Algorithm::Certificate;
-    auto passwordCallback = [isPublicKeySecurity, &settings, &firstTry](bool* b) { *b = firstTry; firstTry = false; return !isPublicKeySecurity ? settings.ownerPassword : settings.userPassword; };
-    handler->authenticate(passwordCallback, !isPublicKeySecurity);
+    auto passwordCallback = [isPublicKeySecurity, &settings, &ownerPassword, &firstTry](bool* b) { *b = firstTry; firstTry = false; return !isPublicKeySecurity ? ownerPassword : settings.userPassword; };
+    handler->authenticateByCertificates({ settings.certificate }, passwordCallback, !isPublicKeySecurity);
     if (handler->getAuthorizationResult() == PDFSecurityHandler::AuthorizationResult::OwnerAuthorized ||
         (isPublicKeySecurity && handler->getAuthorizationResult() == PDFSecurityHandler::AuthorizationResult::UserAuthorized))
     {
        return handlerPointer;
     }
+
+    setError(isPublicKeySecurity ? tr("The encrypted document cannot be opened by the private key of the certificate.")
+                                 : tr("The encrypted document cannot be opened by the owner password."));
     return nullptr;
 }
 
@@ -2362,60 +3020,264 @@ int PDFSecurityHandlerFactory::getRevisionFromAlgorithm(Algorithm algorithm)
     return 0;
 }
 
-QByteArray PDFSecurityHandlerFactory::generateRandomByteArray(QRandomGenerator& generator, int size)
+QByteArray PDFSecurityHandlerFactory::generateRandomBytes(int size)
 {
-    QByteArray ba;
-    ba.reserve(size);
-
-    for (int i = 0; i < size; ++i)
+    if (size < 0 || size > MAXIMUM_RANDOM_BYTES)
     {
-        ba.push_back(static_cast<char>(generator.generate()));
+        throw PDFException(tr("Invalid number of random bytes requested: %1.").arg(size));
     }
 
-    return ba;
+    QByteArray bytes(size, Qt::Uninitialized);
+    if (size > 0 && RAND_bytes(reinterpret_cast<unsigned char*>(bytes.data()), size) != 1)
+    {
+        // Never a fallback to a generator, which is not cryptographic (S5.4)
+        PDFSecureMemory::clear(bytes);
+        throw PDFException(tr("The cryptographic random number generator failed."));
+    }
+    return bytes;
+}
+
+PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const SecuritySettings& settings, QString* errorMessage)
+{
+    // B101: every failure has its reason; the rules of validate first
+    QString validationError;
+    if (!validate(settings, &validationError))
+    {
+        if (errorMessage)
+        {
+            *errorMessage = validationError;
+        }
+        return nullptr;
+    }
+
+    QString creationError;
+    PDFSecurityHandlerPointer handler = createSecurityHandlerImpl(settings, &creationError);
+    if (!handler && errorMessage)
+    {
+        *errorMessage = !creationError.isEmpty() ? creationError : tr("Failed to create security handler.");
+    }
+    return handler;
+}
+
+uint32_t PDFSecurityHandlerFactory::getStandardPermissions(uint32_t permissions)
+{
+    // The bits of Table 22, which a user sets (3, 4, 5, 6, 9, 10, 11, 12)
+    constexpr uint32_t TABLE_22_BITS = 0x00000F3C;
+
+    // Bit 10 always (ISO 32000-2, Table 22: deprecated in PDF 2.0, a writer sets it; K5.7);
+    // bits 7, 8 and 13 - 32 set, bits 1, 2 cleared (PDF 1.7 Table 3.20, 7.6.4.2 NOTE; B89)
+    constexpr uint32_t ACCESSIBILITY_BIT = uint32_t(PDFSecurityHandler::Permission::Accessibility);
+    constexpr uint32_t RESERVED_SET_BITS = 0xFFFFF0C0;
+
+    return (permissions & TABLE_22_BITS) | ACCESSIBILITY_BIT | RESERVED_SET_BITS;
+}
+
+uint32_t PDFSecurityHandlerFactory::getPublicKeyPermissions(uint32_t permissions)
+{
+    using Flag = PDFPublicKeySecurityHandler::PermissionFlag;
+
+    // Table 24: bits 3, 4, 5, 6, 9, 11, 12 as in Table 22, bit 10 always (R5-15)
+    constexpr uint32_t USER_BITS = Flag::PKSH_PrintLowResolution | Flag::PKSH_Modify | Flag::PKSH_CopyContent | Flag::PKSH_ModifyAnnotationsFillFormFields |
+                                   Flag::PKSH_FillFormFields | Flag::PKSH_Assemble | Flag::PKSH_PrintHighResolution;
+
+    uint32_t result = (permissions & USER_BITS) | Flag::PKSH_Accessibility;
+
+    // Bit 2 (change of the encryption, every operation) only, when nothing is restricted (owner
+    // answer Q5.3 b): the user, who encrypts for oneself, can remove the encryption later
+    if ((permissions & USER_BITS) == USER_BITS)
+    {
+        result |= Flag::PKSH_Owner;
+    }
+
+    return result;
+}
+
+bool PDFSecurityHandlerFactory::isPasswordValid(const QString& password, Algorithm algorithm, QString* invalidCharacters)
+{
+    switch (algorithm)
+    {
+        case RC4:
+        case AES_128:
+        {
+            QString characters;
+            const bool isValid = PDFEncoding::canConvertToEncoding(password, PDFEncoding::Encoding::PDFDoc, &characters);
+            if (!isValid && invalidCharacters)
+            {
+                invalidCharacters->append(characters);
+            }
+            return isValid;
+        }
+
+        case AES_256:
+            return PDFStandardOrPublicSecurityHandler::isPasswordValidForRevision6(password, invalidCharacters);
+
+        default:
+            break;
+    }
+
+    return true;
+}
+
+QByteArray PDFSecurityHandlerFactory::createRecipient(const PDFCertificateEntry& certificate, const QString& password, const QByteArray& seed, uint32_t permissions, QString* errorMessage)
+{
+    auto setError = [errorMessage](const QString& text)
+    {
+        if (errorMessage)
+        {
+            *errorMessage = text;
+        }
+    };
+
+    if (certificate.pkcs12.isEmpty())
+    {
+        // A certificate of the system store has no PKCS#12 (B96, Q5.4)
+        setError(tr("The certificate has no private key file (.pfx) and cannot be used for the encryption."));
+        return QByteArray();
+    }
+
+    const unsigned char* pkcs12Data = convertByteArrayToUcharPtr(certificate.pkcs12);
+    openssl_ptr<PKCS12> pkcs12(d2i_PKCS12(nullptr, &pkcs12Data, long(certificate.pkcs12.size())), &PKCS12_free);
+    if (!pkcs12)
+    {
+        ERR_clear_error();
+        setError(tr("The certificate file is not a valid PKCS#12 file."));
+        return QByteArray();
+    }
+
+    // The password of a PKCS#12 is UTF-8 (B84)
+    QByteArray passwordUtf8 = password.toUtf8();
+    EVP_PKEY* keyPtr = nullptr;
+    X509* certificatePtr = nullptr;
+    STACK_OF(X509)* certificatesPtr = nullptr;
+    const bool isParsed = PKCS12_parse(pkcs12.get(), passwordUtf8.isEmpty() ? nullptr : passwordUtf8.constData(), &keyPtr, &certificatePtr, &certificatesPtr) == 1;
+    PDFSecureMemory::clear(passwordUtf8);
+
+    openssl_ptr<EVP_PKEY> key(keyPtr, EVP_PKEY_free);
+    openssl_ptr<X509> x509(certificatePtr, X509_free);
+    if (certificatesPtr)
+    {
+        // The chain of the issuers is not needed (the recipient is the certificate itself)
+        sk_X509_pop_free(certificatesPtr, X509_free);
+    }
+
+    if (!isParsed || !x509)
+    {
+        ERR_clear_error();
+        setError(tr("The certificate cannot be opened with this password."));
+        return QByteArray();
+    }
+
+    // 7.6.5.3: the enveloped data are the 20 bytes of the seed and the 4 bytes of the permissions
+    // (little endian)
+    QByteArray envelopedData = seed;
+    for (int i = 0; i < 4; ++i)
+    {
+        envelopedData.append(char((permissions >> (8 * i)) & 0xFF));
+    }
+
+    openssl_ptr<BIO> dataBuffer(BIO_new_mem_buf(envelopedData.constData(), int(envelopedData.size())), BIO_free_all);
+    openssl_ptr<STACK_OF(X509)> recipientCertificates(sk_X509_new_null(), sk_x509_free_impl);
+    sk_X509_push(recipientCertificates.get(), x509.get());
+
+    openssl_ptr<PKCS7> pkcs7(dataBuffer ? PKCS7_encrypt(recipientCertificates.get(), dataBuffer.get(), EVP_aes_256_cbc(), PKCS7_BINARY) : nullptr, PKCS7_free);
+    PDFSecureMemory::clear(envelopedData);
+
+    QByteArray recipient;
+    if (pkcs7)
+    {
+        openssl_ptr<BIO> storedData(BIO_new(BIO_s_mem()), BIO_free_all);
+        if (storedData && i2d_PKCS7_bio(storedData.get(), pkcs7.get()) == 1)
+        {
+            BUF_MEM* memoryBuffer = nullptr;
+            BIO_get_mem_ptr(storedData.get(), &memoryBuffer);
+            recipient = QByteArray(memoryBuffer->data, int(memoryBuffer->length));
+        }
+    }
+
+    if (recipient.isEmpty())
+    {
+        ERR_clear_error();
+        setError(tr("The document cannot be encrypted for the certificate (its key cannot encrypt)."));
+    }
+
+    return recipient;
 }
 
 bool PDFSecurityHandlerFactory::validate(const SecuritySettings& settings, QString* errorMessage)
 {
+    auto setError = [errorMessage](const QString& text)
+    {
+        // B94: the caller may not want the reason
+        if (errorMessage)
+        {
+            *errorMessage = text;
+        }
+    };
+
     switch (settings.algorithm)
     {
         case pdf::PDFSecurityHandlerFactory::RC4:
         case pdf::PDFSecurityHandlerFactory::AES_128:
+        case pdf::PDFSecurityHandlerFactory::AES_256:
         {
+            // Revision 4: PDFDocEncoding; revision 6: SASLprep (RFC 4013 2.3, 2.4; B93, R5-17)
             QString invalidCharacters;
-
-            if (!PDFEncoding::canConvertToEncoding(settings.userPassword, PDFEncoding::Encoding::PDFDoc, &invalidCharacters))
+            if (!isPasswordValid(settings.userPassword, settings.algorithm, &invalidCharacters))
             {
-                if (errorMessage)
-                {
-                    Q_ASSERT(!invalidCharacters.isEmpty());
-                    *errorMessage = tr("User password contains invalid characters: %1.").arg(invalidCharacters);
-                }
+                setError(invalidCharacters.isEmpty() ? tr("User password mixes left-to-right and right-to-left text in a way, which cannot be used.")
+                                                     : tr("User password contains invalid characters: %1.").arg(invalidCharacters));
                 return false;
             }
 
-            if (!PDFEncoding::canConvertToEncoding(settings.ownerPassword, PDFEncoding::Encoding::PDFDoc, &invalidCharacters))
+            invalidCharacters.clear();
+            if (!isPasswordValid(settings.ownerPassword, settings.algorithm, &invalidCharacters))
             {
-                if (errorMessage)
-                {
-                    Q_ASSERT(!invalidCharacters.isEmpty());
-                    *errorMessage = tr("Owner password contains invalid characters: %1.").arg(invalidCharacters);
-                }
+                setError(invalidCharacters.isEmpty() ? tr("Owner password mixes left-to-right and right-to-left text in a way, which cannot be used.")
+                                                     : tr("Owner password contains invalid characters: %1.").arg(invalidCharacters));
                 return false;
+            }
+
+            // Restrictions are kept only by an owner password of its own: an empty owner password
+            // is the user password (B81, Algorithm 3 a), and with the owner password equal to the
+            // user password every reader is the owner (7.6.4.4, Algorithm 7; Q5.1, K5.2, R5-23)
+            // (compared as the algorithm uses them: the first 32 bytes of revision 4 are the password)
+            const uint32_t allowed = getStandardPermissions(settings.permissions);
+            const bool isRestricted = (allowed & 0x00000F3C) != 0x00000F3C;
+            if (isRestricted)
+            {
+                const int revision = getRevisionFromAlgorithm(settings.algorithm);
+                QByteArray owner = PDFStandardOrPublicSecurityHandler::adjustPassword(settings.ownerPassword, revision);
+                QByteArray user = PDFStandardOrPublicSecurityHandler::adjustPassword(settings.userPassword, revision);
+                const int effectiveBytes = revision == 6 ? 127 : 32;
+                const bool isSamePassword = owner.left(effectiveBytes) == user.left(effectiveBytes);
+                PDFSecureMemory::clear(owner);
+                PDFSecureMemory::clear(user);
+
+                if (settings.ownerPassword.isEmpty() || isSamePassword)
+                {
+                    setError(tr("Restrictions need an owner password, which differs from the open password."));
+                    return false;
+                }
             }
 
             break;
         }
 
         case pdf::PDFSecurityHandlerFactory::None:
-        case pdf::PDFSecurityHandlerFactory::AES_256:
             break;
 
         case pdf::PDFSecurityHandlerFactory::Certificate:
         {
+            if (settings.certificate.pkcs12.isEmpty())
+            {
+                // B96, Q5.4: a certificate of the system store cannot be used yet
+                setError(tr("The certificate has no private key file (.pfx) and cannot be used for the encryption."));
+                return false;
+            }
+
             if (!pdf::PDFCertificateManager::isCertificateValid(settings.certificate, settings.userPassword))
             {
-                *errorMessage = tr("Invalid certificate or password.");
+                setError(tr("Invalid certificate or password."));
                 return false;
             }
 
@@ -2423,8 +3285,8 @@ bool PDFSecurityHandlerFactory::validate(const SecuritySettings& settings, QStri
         }
 
         default:
-            Q_ASSERT(false);
-            break;
+            setError(tr("Unknown encryption algorithm."));
+            return false;
     }
 
     return true;
@@ -2440,159 +3302,184 @@ PDFSecurityHandler::AuthorizationResult PDFPublicKeySecurityHandler::authenticat
 {
     // Clear the authorization data
     m_authorizationData = AuthorizationData();
+    m_authorizedCertificate.reset();
+    m_isEmbeddedFilesLocked = false;
 
     if (authorizeOwnerOnly)
     {
         return AuthorizationResult::Failed;
     }
 
-    switch (m_keyLength)
-    {
-        case 128:
-        case 256:
-            break;
+    // The certificates of the user (the .pfx files, PDFCertificateManager; plan 4.5)
+    return authenticateByCertificateEntries(PDFCertificateManager::getCertificates(), getPasswordCallback);
+}
 
-        default:
-            return AuthorizationResult::Failed;
-    }
+PDFSecurityHandler::AuthorizationResult PDFPublicKeySecurityHandler::authenticateByCertificateEntries(const PDFCertificateEntries& certificates,
+                                                                                                    const std::function<QString(bool*)>& getPasswordCallback)
+{
+    m_authorizationData = AuthorizationData();
+    m_authorizedCertificate.reset();
+    m_isEmbeddedFilesLocked = false;
 
-    bool passwordObtained = true;
-    constexpr int revision = 0;
-    QByteArray password = adjustPassword(getPasswordCallback(&passwordObtained), revision);
-
-    PDFCertificateEntries certificates = PDFCertificateManager::getCertificates();
-    if (certificates.empty())
+    // 7.6.5.3: SHA-1 for a key up to 160 bits (V 1 - 4), SHA-256 for 256 bits (V 5)
+    if (!(m_keyLength == 256 || (m_keyLength >= 40 && m_keyLength <= 128 && m_keyLength % 8 == 0)))
     {
         return AuthorizationResult::Failed;
     }
 
-    std::vector<openssl_ptr<PKCS7>> recipients;
+    // Only a certificate with its PKCS#12 has a private key (a certificate of the system store
+    // has none yet: B96, owner answer Q5.4)
+    bool hasPrivateKey = false;
+    for (const PDFCertificateEntry& certificateEntry : certificates)
+    {
+        hasPrivateKey = hasPrivateKey || !certificateEntry.pkcs12.isEmpty();
+    }
+
+    if (!hasPrivateKey || m_filterDefault.recipients.isEmpty())
+    {
+        return AuthorizationResult::Failed;
+    }
+
+    // The empty password first (a .pfx without a password), then the passwords of the callback
+    bool passwordObtained = true;
+    QString password;
+    while (true)
+    {
+        QByteArray passwordUtf8 = adjustPassword(password, 0);
+        PDFSecureMemory::clear(password);
+
+        bool isAuthorized = false;
+        for (const PDFCertificateEntry& certificateEntry : certificates)
+        {
+            if (!certificateEntry.pkcs12.isEmpty() && authenticateByPkcs12(certificateEntry.pkcs12, passwordUtf8))
+            {
+                isAuthorized = true;
+                break;
+            }
+        }
+        PDFSecureMemory::clear(passwordUtf8);
+
+        if (isAuthorized)
+        {
+            return m_authorizationData.authorizationResult;
+        }
+
+        password = getPasswordCallback(&passwordObtained);
+        if (!passwordObtained)
+        {
+            PDFSecureMemory::clear(password);
+            return AuthorizationResult::Canceled;
+        }
+    }
+}
+
+bool PDFPublicKeySecurityHandler::authenticateByPkcs12(const QByteArray& pkcs12Data, const QByteArray& passwordUtf8)
+{
+    // B102: the private key is in the PKCS#12 of the entry (entry.pkcs12), never in the DER of
+    // its certificate
+    const unsigned char* data = convertByteArrayToUcharPtr(pkcs12Data);
+    openssl_ptr<PKCS12> pkcs12(d2i_PKCS12(nullptr, &data, long(pkcs12Data.size())), &PKCS12_free);
+    if (!pkcs12)
+    {
+        ERR_clear_error();
+        return false;
+    }
+
+    EVP_PKEY* keyPtr = nullptr;
+    X509* certificatePtr = nullptr;
+    STACK_OF(X509)* certificatesPtr = nullptr;
+    const bool isParsed = PKCS12_parse(pkcs12.get(), passwordUtf8.isEmpty() ? nullptr : passwordUtf8.constData(), &keyPtr, &certificatePtr, &certificatesPtr) == 1;
+
+    openssl_ptr<EVP_PKEY> key(keyPtr, EVP_PKEY_free);
+    openssl_ptr<X509> certificate(certificatePtr, X509_free);
+    if (certificatesPtr)
+    {
+        sk_X509_pop_free(certificatesPtr, X509_free);
+    }
+
+    if (!isParsed || !key || !certificate)
+    {
+        ERR_clear_error();
+        return false;
+    }
 
     for (const QByteArray& recipient : m_filterDefault.recipients)
     {
-        const unsigned char* data = convertByteArrayToUcharPtr(recipient);
-        if (PKCS7* pkcs7 = d2i_PKCS7(nullptr, &data, recipient.size()))
+        const unsigned char* recipientData = convertByteArrayToUcharPtr(recipient);
+        openssl_ptr<PKCS7> pkcs7(d2i_PKCS7(nullptr, &recipientData, long(recipient.size())), PKCS7_free);
+        if (!pkcs7)
         {
-            recipients.emplace_back(pkcs7, PKCS7_free);
-        }
-    }
-
-    while (passwordObtained)
-    {
-        // We will iterate trough all certificates
-        for (const PDFCertificateEntry& certificateEntry : certificates)
-        {
-            if (!PDFCertificateManager::isCertificateValid(certificateEntry, password))
-            {
-                continue;
-            }
-
-            QByteArray data = certificateEntry.info.getCertificateData();
-
-            openssl_ptr<BIO> pksBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
-            BIO_write(pksBuffer.get(), data.constData(), data.length());
-
-            openssl_ptr<PKCS12> pkcs12(d2i_PKCS12_bio(pksBuffer.get(), nullptr), &PKCS12_free);
-            if (pkcs12)
-            {
-                const char* passwordPointer = nullptr;
-                if (!password.isEmpty())
-                {
-                    passwordPointer = password.constData();
-                }
-
-                EVP_PKEY* keyPtr = nullptr;
-                X509* certificatePtr = nullptr;
-                STACK_OF(X509)* certificatesPtr = nullptr;
-
-                // Parse PKCS12 with password
-                bool isParsed = PKCS12_parse(pkcs12.get(), passwordPointer, &keyPtr, &certificatePtr, &certificatesPtr) == 1;
-
-                if (!isParsed)
-                {
-                    continue;
-                }
-
-                openssl_ptr<EVP_PKEY> key(keyPtr, EVP_PKEY_free);
-                openssl_ptr<X509> certificate(certificatePtr, X509_free);
-                openssl_ptr<STACK_OF(X509)> certificates2(certificatesPtr, sk_x509_free_impl);
-
-                for (const auto& recipientItem : recipients)
-                {
-                    PKCS7* pkcs7 = recipientItem.get();
-
-                    openssl_ptr<BIO> dataBuffer(BIO_new(BIO_s_mem()), BIO_free_all);
-                    if (PKCS7_decrypt(pkcs7, keyPtr, certificatePtr, dataBuffer.get(), PKCS7_BINARY) == 1)
-                    {
-                        BUF_MEM* memoryBuffer = nullptr;
-                        BIO_get_mem_ptr(dataBuffer.get(), &memoryBuffer);
-
-                        // Acc. to chapter 7.6.5.3 - decrypted data
-                        QByteArray decryptedData(memoryBuffer->data, int(memoryBuffer->length));
-
-                        // Calculate file encryption key
-                        EVP_MD_CTX* context = EVP_MD_CTX_new();
-                        Q_ASSERT(context);
-
-                        switch (m_keyLength)
-                        {
-                        case 128:
-                            EVP_DigestInit(context, EVP_sha1());
-                            break;
-
-                        case 256:
-                            EVP_DigestInit(context, EVP_sha256());
-                            break;
-
-                        default:
-                            Q_ASSERT(false);
-                            EVP_DigestInit(context, EVP_sha256());
-                            break;
-                        }
-
-                        QByteArray seed = decryptedData.left(20);
-
-                        // 7.6.5.3 a)
-                        EVP_DigestUpdate(context, seed.constData(), seed.size());
-
-                        // 7.6.5.3 b)
-                        for (const QByteArray& recipient : m_filterDefault.recipients)
-                        {
-                            EVP_DigestUpdate(context, recipient.constData(), recipient.size());
-                        }
-
-                        // 7.6.5.3 c)
-                        if (!isMetadataEncrypted())
-                        {
-                            constexpr uint32_t value = 0xFFFFFFFF;
-                            EVP_DigestUpdate(context, &value, sizeof(value));
-                        }
-
-                        unsigned int size = EVP_MD_size(EVP_MD_CTX_md(context));
-                        QByteArray digestBuffer(size, char());
-
-                        EVP_DigestFinal_ex(context, convertByteArrayToUcharPtr(digestBuffer), &size);
-                        EVP_MD_CTX_free(context);
-
-                        if (decryptedData.size() == 20 + sizeof(uint32_t))
-                        {
-                            // We shall set permissions
-                            m_permissions = qFromLittleEndian<uint32_t>(decryptedData.data() + 20);
-                        }
-
-                        const AuthorizationResult authorizationResult = isNoDRM() ? AuthorizationResult::OwnerAuthorized : AuthorizationResult::UserAuthorized;
-                        m_authorizationData.fileEncryptionKey = digestBuffer.left(m_keyLength / 8);
-                        m_authorizationData.authorizationResult = authorizationResult;
-                        return authorizationResult;
-                    }
-                }
-            }
+            ERR_clear_error();
+            continue;
         }
 
-        password = adjustPassword(getPasswordCallback(&passwordObtained), revision);
+        // With the certificate given, only the recipient info of its issuer and serial number is
+        // decrypted (no RSA operation for the recipients of other users)
+        openssl_ptr<BIO> dataBuffer(BIO_new(BIO_s_mem()), BIO_free_all);
+        if (!dataBuffer || PKCS7_decrypt(pkcs7.get(), key.get(), certificate.get(), dataBuffer.get(), PKCS7_BINARY) != 1)
+        {
+            ERR_clear_error();
+            continue;
+        }
+
+        BUF_MEM* memoryBuffer = nullptr;
+        BIO_get_mem_ptr(dataBuffer.get(), &memoryBuffer);
+
+        // Acc. to chapter 7.6.5.3 - the decrypted data are the 20 bytes of the seed and 4 bytes
+        // of the permissions
+        QByteArray decryptedData(memoryBuffer->data, int(memoryBuffer->length));
+        PDFSecureMemory::clear(memoryBuffer->data, memoryBuffer->length);
+        if (decryptedData.size() < 20)
+        {
+            PDFSecureMemory::clear(decryptedData);
+            continue;
+        }
+
+        // Calculate file encryption key
+        openssl_ptr<EVP_MD_CTX> context(EVP_MD_CTX_new(), EVP_MD_CTX_free);
+        if (!context || EVP_DigestInit_ex(context.get(), (m_keyLength == 256) ? EVP_sha256() : EVP_sha1(), nullptr) != 1)
+        {
+            PDFSecureMemory::clear(decryptedData);
+            return false;
+        }
+
+        // 7.6.5.3 a)
+        EVP_DigestUpdate(context.get(), decryptedData.constData(), 20);
+
+        // 7.6.5.3 b)
+        for (const QByteArray& recipientItem : m_filterDefault.recipients)
+        {
+            EVP_DigestUpdate(context.get(), recipientItem.constData(), size_t(recipientItem.size()));
+        }
+
+        // 7.6.5.3 c)
+        if (!isMetadataEncrypted())
+        {
+            constexpr uint32_t value = 0xFFFFFFFF;
+            EVP_DigestUpdate(context.get(), &value, sizeof(value));
+        }
+
+        std::array<unsigned char, EVP_MAX_MD_SIZE> digest = { };
+        unsigned int digestSize = 0;
+        EVP_DigestFinal_ex(context.get(), digest.data(), &digestSize);
+
+        // The permissions of the envelope (Table 24). An envelope without them allows nothing:
+        // /P of the encryption dictionary is not protected (R5-24, SECURITY_TODO 47)
+        m_permissions = (decryptedData.size() >= 24) ? qFromLittleEndian<uint32_t>(decryptedData.constData() + 20) : 0;
+        PDFSecureMemory::clear(decryptedData);
+
+        const AuthorizationResult authorizationResult = isNoDRM() ? AuthorizationResult::OwnerAuthorized : AuthorizationResult::UserAuthorized;
+        const int keyBytes = qMin(int(digestSize), m_keyLength / 8);
+        m_authorizationData.fileEncryptionKey = QByteArray(reinterpret_cast<const char*>(digest.data()), keyBytes);
+        m_authorizationData.authorizationResult = authorizationResult;
+        PDFSecureMemory::clear(digest.data(), digest.size());
+
+        // The public certificate of the recipient (its holder is "Opens for"); the key is freed
+        m_authorizedCertificate = PDFCertificateInfo::getCertificateInfo(certificate.get());
+        return true;
     }
 
-    return AuthorizationResult::Cancelled;
+    return false;
 }
 
 bool PDFPublicKeySecurityHandler::isMetadataEncrypted() const
@@ -2602,6 +3489,13 @@ bool PDFPublicKeySecurityHandler::isMetadataEncrypted() const
 
 bool PDFPublicKeySecurityHandler::isAllowed(Permission permission) const
 {
+    // Table 24, bit 10: a reader acts as if the extraction for the accessibility were allowed
+    // (R5-14, B90 - formerly bit 5 was read for it)
+    if (permission == Permission::Accessibility)
+    {
+        return true;
+    }
+
     if (m_pkcs7Type == PKCS7_Type::PKCS7_S3)
     {
         // Jakub Melka: for S3, default standard permissions applies
@@ -2629,9 +3523,6 @@ bool PDFPublicKeySecurityHandler::isAllowed(Permission permission) const
 
         case Permission::ModifyFormFields:
             return m_permissions & PKSH_FillFormFields;
-
-        case Permission::Accessibility:
-            return m_permissions & PKSH_CopyContent;
 
         case Permission::Assemble:
             return m_permissions & PKSH_Assemble;

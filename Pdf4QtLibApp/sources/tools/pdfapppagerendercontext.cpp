@@ -79,7 +79,7 @@ void PDFAppPageRenderContext::draw(QPainter* painter, PDFInteger pageIndex, cons
     PDFFontCacheShrinkGuard shrinkGuard(&m_fontCache);
     PDFPrecompiledPage compiledPage;
     renderer.compile(&compiledPage, size_t(pageIndex));
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return;
     }

@@ -857,7 +857,7 @@ PDFDocumentToolResult PDFDocumentToolOptimizeImages::runOptimization(const PDFDo
 
     // The one list of the images (R4-4: all layers), the same as the list of the panel
     const PDFDocumentImageList list = PDFDocumentImageList::create(document, PDFDocumentImageList::Options::createForChange(), control, phases.getPhase(listPhase));
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }
@@ -869,7 +869,7 @@ PDFDocumentToolResult PDFDocumentToolOptimizeImages::runOptimization(const PDFDo
     std::vector<PDFImageOptimizer::ImageResult> imageResults;
     PDFImageOptimizer optimizer;
     PDFDocument optimized = optimizer.optimize(document, runSettings, overrides, phases.getPhase(imagesPhase), nullptr, &imageResults, control, phases.getPhase(analysisPhase));
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }
@@ -961,7 +961,7 @@ PDFDocumentToolResult PDFDocumentToolOptimizeImages::runOptimization(const PDFDo
         result = PDFDocumentToolResult::createNothingToDo(Helper::getNothingToDoText(purpose, counts));
     }
 
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }

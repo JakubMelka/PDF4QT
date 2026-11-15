@@ -86,7 +86,7 @@ PDFDiff::PDFDiff(QObject* parent) :
     m_rightDocument(nullptr),
     m_options(Asynchronous | PC_Text | PC_VectorGraphics | PC_Images | CompareWords),
     m_epsilon(0.001),
-    m_cancelled(false),
+    m_canceled(false),
     m_textAnalysisAlgorithm(PDFDocumentTextFlowFactory::Algorithm::Layout)
 {
 
@@ -134,7 +134,7 @@ void PDFDiff::start()
     // Then, create a new future watcher.
     stop();
 
-    m_cancelled = false;
+    m_canceled = false;
 
     if (m_options.testFlag(Asynchronous))
     {
@@ -158,8 +158,8 @@ void PDFDiff::stop()
     if (m_futureWatcher && !m_futureWatcher->isFinished())
     {
         // Do stop only if process doesn't finished already.
-        // If we are finished, we do not want to set cancelled state.
-        m_cancelled = true;
+        // If we are finished, we do not want to set canceled state.
+        m_canceled = true;
         m_futureWatcher->waitForFinished();
     }
 }
@@ -354,7 +354,7 @@ void PDFDiff::performSteps(const std::vector<PDFInteger>& leftPages,
     std::transform(rightPages.cbegin(), rightPages.cend(), std::back_inserter(rightPreparedPages), createDiffPageContext);
 
     // StepExtractContentLeftDocument
-    if (!m_cancelled)
+    if (!m_canceled)
     {
         PDFFontCache fontCache(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT);
         PDFICCProfileCache iccProfileCache;
@@ -384,7 +384,7 @@ void PDFDiff::performSteps(const std::vector<PDFInteger>& leftPages,
     }
 
     // StepExtractContentRightDocument
-    if (!m_cancelled)
+    if (!m_canceled)
     {
         PDFFontCache fontCache(DEFAULT_FONT_CACHE_LIMIT, DEFAULT_REALIZED_FONT_CACHE_LIMIT);
         PDFICCProfileCache iccProfileCache;
@@ -415,14 +415,14 @@ void PDFDiff::performSteps(const std::vector<PDFInteger>& leftPages,
     }
 
     // StepMatchPages
-    if (!m_cancelled)
+    if (!m_canceled)
     {
         performPageMatching(leftPreparedPages, rightPreparedPages, pageSequence, pageMatches);
         stepProgress();
     }
 
     // StepExtractTextLeftDocument
-    if (!m_cancelled)
+    if (!m_canceled)
     {
         pdf::PDFDocumentTextFlowFactory factoryLeftDocumentTextFlow;
         factoryLeftDocumentTextFlow.setCalculateBoundingBoxes(true);
@@ -441,7 +441,7 @@ void PDFDiff::performSteps(const std::vector<PDFInteger>& leftPages,
     }
 
     // StepExtractTextRightDocument
-    if (!m_cancelled)
+    if (!m_canceled)
     {
         pdf::PDFDocumentTextFlowFactory factoryRightDocumentTextFlow;
         factoryRightDocumentTextFlow.setCalculateBoundingBoxes(true);
@@ -460,7 +460,7 @@ void PDFDiff::performSteps(const std::vector<PDFInteger>& leftPages,
     }
 
     // StepCompare
-    if (!m_cancelled)
+    if (!m_canceled)
     {
         performCompare(leftPreparedPages, rightPreparedPages, pageSequence, pageMatches, result);
         stepProgress();
@@ -906,7 +906,7 @@ void PDFDiff::finalizeGraphicsPieces(PDFDiffPageContext& context)
 
 void PDFDiff::onComparationPerformed()
 {
-    m_cancelled = false;
+    m_canceled = false;
     m_result = m_future.result();
     Q_EMIT comparationFinished();
 }

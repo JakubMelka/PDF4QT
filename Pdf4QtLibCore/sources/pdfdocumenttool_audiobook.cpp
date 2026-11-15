@@ -346,7 +346,7 @@ PDFDocumentTextFlow PDFDocumentToolAudioBook::createStream(const PDFDocument* do
     factory.setOperationControl(control);
     factory.setProgress(progress);
     PDFDocumentTextFlow flow = factory.create(document, pages, getAlgorithm(parameters));
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentTextFlow();
     }
@@ -480,7 +480,7 @@ PDFDocumentToolResult PDFDocumentToolAudioBook::execute(const PDFDocumentToolCon
     else
     {
         const PDFDocumentTextFlow flow = createStream(document, parameters, control, phases.getPhase(readPhase), &errorMessage);
-        if (PDFOperationControl::isOperationCancelled(control))
+        if (PDFOperationControl::isOperationCanceled(control))
         {
             return PDFDocumentToolResult::createStopped();
         }
@@ -552,7 +552,7 @@ PDFDocumentToolResult PDFDocumentToolAudioBook::execute(const PDFDocumentToolCon
     QString currentVoice = voice;
     for (size_t i = 0; i < items.size(); ++i)
     {
-        if (PDFOperationControl::isOperationCancelled(control))
+        if (PDFOperationControl::isOperationCanceled(control))
         {
             return PDFDocumentToolResult::createStopped();
         }
@@ -576,7 +576,7 @@ PDFDocumentToolResult PDFDocumentToolAudioBook::execute(const PDFDocumentToolCon
 
         if (!synthesizer->synthesize(item.text, &writer, control, &errorMessage))
         {
-            if (PDFOperationControl::isOperationCancelled(control))
+            if (PDFOperationControl::isOperationCanceled(control))
             {
                 return PDFDocumentToolResult::createStopped();
             }

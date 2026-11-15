@@ -425,13 +425,32 @@ PDFDocumentReader::Result PDFDocumentReader::processSecurityHandler(const PDFObj
     }
 
     // Read the security handler
+    m_isEmbeddedFilesOnlyEncryption = false;
     m_securityHandler = PDFSecurityHandler::createSecurityHandler(encryptObject, id);
-    PDFSecurityHandler::AuthorizationResult authorizationResult = m_securityHandler->authenticate(m_getPasswordCallback, m_authorizeOwnerOnly);
 
-    if (authorizationResult == PDFSecurityHandler::AuthorizationResult::Cancelled)
+    // File attachments only (Q5.9 c, R5-8): known before the password is asked, so the password
+    // screen offers Open without attachments also after a failed or canceled reading
+    m_isEmbeddedFilesOnlyEncryption = m_securityHandler->isEmbeddedFilesOnlyEncryption();
+
+    PDFSecurityHandler::AuthorizationResult authorizationResult = PDFSecurityHandler::AuthorizationResult::Failed;
+    if (m_isOpenWithoutAttachments && m_isEmbeddedFilesOnlyEncryption)
     {
-        // User cancelled the document reading
-        m_result = Result::Cancelled;
+        // The document is readable without the password, its embedded files stay encrypted
+        authorizationResult = m_securityHandler->authenticateWithoutEmbeddedFiles();
+    }
+    else if (m_isCertificatesSet)
+    {
+        authorizationResult = m_securityHandler->authenticateByCertificates(m_certificates, m_getPasswordCallback, m_authorizeOwnerOnly);
+    }
+    else
+    {
+        authorizationResult = m_securityHandler->authenticate(m_getPasswordCallback, m_authorizeOwnerOnly);
+    }
+
+    if (authorizationResult == PDFSecurityHandler::AuthorizationResult::Canceled)
+    {
+        // User canceled the document reading
+        m_result = Result::Canceled;
         return m_result;
     }
 
@@ -453,6 +472,20 @@ PDFDocumentReader::Result PDFDocumentReader::processSecurityHandler(const PDFObj
     // decipher object streams here. 4) must be handled in the security handler.
     if (m_securityHandler->getMode() != EncryptionMode::None)
     {
+        // /EncryptMetadata false leaves only the document-level metadata stream unencrypted (Table
+        // 20); the catalog is read here before the decryption (its /Metadata is a reference, never
+        // encrypted). A catalog in an object stream is not read yet: every metadata stream stays
+        // as it is then (owner 2026-11-15) - the writer decides by the same rule
+        PDFObject catalog = trailerDictionary->get("Root");
+        if (catalog.isReference())
+        {
+            const PDFObjectReference catalogReference = catalog.getReference();
+            const bool isStored = catalogReference.objectNumber > 0 && static_cast<size_t>(catalogReference.objectNumber) < objects.size() &&
+                                  objects[catalogReference.objectNumber].generation == catalogReference.generation;
+            catalog = isStored ? objects[catalogReference.objectNumber].object : PDFObject();
+        }
+        m_securityHandler->setDocumentMetadataReference(PDFSecurityHandler::findDocumentMetadataReference(catalog));
+
         auto decryptEntry = [this, encryptObjectReference, &objects](const PDFXRefTable::Entry& entry)
         {
             progressStep();
@@ -617,6 +650,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
     bool shouldTryPermissiveReading = true;
     m_isDocumentRestored = false;
     m_isOldestContentShown = false;
+    m_isEmbeddedFilesOnlyEncryption = false;
 
     try
     {
@@ -654,7 +688,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
             return PDFDocument();
         }
 
-        if (processSecurityHandler(xrefTable.getTrailerDictionary(), occupiedEntries, objects) == Result::Cancelled)
+        if (processSecurityHandler(xrefTable.getTrailerDictionary(), occupiedEntries, objects) == Result::Canceled)
         {
             return PDFDocument();
         }
@@ -1309,7 +1343,7 @@ PDFDocument PDFDocumentReader::readDamagedDocumentFromBuffer(const QByteArray& b
             m_version = findDamagedFileVersion(buffer);
         }
 
-        if (processSecurityHandler(trailerDictionaryObject, occupiedEntries, objects) == Result::Cancelled)
+        if (processSecurityHandler(trailerDictionaryObject, occupiedEntries, objects) == Result::Canceled)
         {
             return PDFDocument();
         }

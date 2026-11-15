@@ -1234,7 +1234,7 @@ PDFDocument PDFPageGeometryEngine::run(PDFPageGeometryStatistics* statistics)
     const PDFObjectStorage::PDFObjects& objects = m_storage->getObjects();
     for (size_t i = 0; i < objects.size(); ++i)
     {
-        if (i % 1024 == 0 && PDFOperationControl::isOperationCancelled(m_control))
+        if (i % 1024 == 0 && PDFOperationControl::isOperationCanceled(m_control))
         {
             if (statistics)
             {

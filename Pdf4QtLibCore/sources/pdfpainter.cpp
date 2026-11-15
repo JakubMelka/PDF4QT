@@ -351,7 +351,7 @@ void PDFPainter::performImagePainting(const QImage& image)
     QImage adjustedImage = image;
 
     // Jakub Melka: if the image is being shrunk, then we must downscale it explicitly.
-    // The raster paint engines resample from a 2x2 neighbourhood only, so most of the
+    // The raster paint engines resample from a 2x2 neighborhood only, so most of the
     // source pixels would never be sampled at all. Bitonal images are downscaled by
     // the ink coverage downscaler, so thin strokes of a scan do not wash out, and they
     // are downscaled even without the feature SmoothImages. The size is computed from
@@ -596,7 +596,7 @@ void PDFPrecompiledPage::draw(QPainter* painter,
 
                 // Jakub Melka: a precompiled page is independent on the zoom, so the images
                 // are stored in it at their full resolution. The raster paint engines resample
-                // from a 2x2 neighbourhood only, so we must downscale the image to the target
+                // from a 2x2 neighborhood only, so we must downscale the image to the target
                 // resolution ourselves - otherwise most of the source pixels would never be
                 // sampled at all and thin strokes of a bitonal scan would wash out. The
                 // downscaled images are memoized in the cache of the caller, because they

@@ -108,7 +108,7 @@ private:
 class SplitToolTestCanceledControl : public PDFOperationControl
 {
 public:
-    virtual bool isOperationCancelled() const override { return true; }
+    virtual bool isOperationCanceled() const override { return true; }
 };
 
 /// Helpers of the test

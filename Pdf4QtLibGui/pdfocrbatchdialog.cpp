@@ -647,7 +647,7 @@ void PDFOCRBatchDialog::updateUi()
     m_exportTsvCheckBox->setEnabled(!running);
     m_skipExistingCheckBox->setEnabled(!running);
     m_startButton->setEnabled(!running && m_filesTable->rowCount() > 0);
-    m_stopButton->setEnabled(running && !m_cancelToken->isOperationCancelled());
+    m_stopButton->setEnabled(running && !m_cancelToken->isOperationCanceled());
 
     bool canOpen = false;
     if (!running && hasSelection)
@@ -800,7 +800,7 @@ void PDFOCRBatchDialog::onStart()
         for (const auto& item : tasks)
         {
             const int row = item.first;
-            if (cancelToken->isOperationCancelled())
+            if (cancelToken->isOperationCanceled())
             {
                 break;
             }
@@ -832,7 +832,7 @@ void PDFOCRBatchDialog::onStart()
                 summary.wordCount = statistics.wordCount;
                 summary.reviewWords = statistics.reviewRequiredCount;
                 summary.elapsedMilliseconds = fileResult.elapsedMilliseconds;
-                summary.cancelled = fileResult.result.cancelled;
+                summary.canceled = fileResult.result.canceled;
             }
             catch (...)
             {
@@ -908,8 +908,8 @@ void PDFOCRBatchDialog::onFileFinished(int row, FileSummary summary)
             ++m_skippedFiles;
             break;
         case pdf::PDFOCRDocumentRunner::FileResult::Status::Failed:
-            status = summary.cancelled ? tr("Stopped") : tr("Failed");
-            if (!summary.cancelled)
+            status = summary.canceled ? tr("Stopped") : tr("Failed");
+            if (!summary.canceled)
             {
                 ++m_failedFiles;
             }
@@ -936,7 +936,7 @@ void PDFOCRBatchDialog::onFileFinished(int row, FileSummary summary)
 
 void PDFOCRBatchDialog::onBatchFinished()
 {
-    const bool cancelled = m_cancelToken && m_cancelToken->isOperationCancelled();
+    const bool canceled = m_cancelToken && m_cancelToken->isOperationCanceled();
     if (m_thread)
     {
         m_thread->wait();
@@ -954,7 +954,7 @@ void PDFOCRBatchDialog::onBatchFinished()
     }
 
     QString text = tr("Finished: %1 succeeded, %2 skipped, %3 failed.").arg(m_succeededFiles).arg(m_skippedFiles).arg(m_failedFiles);
-    if (cancelled)
+    if (canceled)
     {
         text = tr("Stopped. ") + text;
     }

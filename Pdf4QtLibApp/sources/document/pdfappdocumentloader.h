@@ -72,6 +72,7 @@ public:
         bool isFromMemory = false;  ///< \p data is the document (an attachment), no file is read
         bool hasPassword = false;   ///< \p password is tried (an empty password, too)
         bool isOwnerOnly = false;   ///< Only the owner password authorizes (ISO 32000-2, 7.6.4.3.3): a password of the user is wrong (an input of a tool, whose result loses the restrictions)
+        bool isOpenWithoutAttachments = false;  ///< A file encrypted in its embedded files only opens without the password, its attachments stay encrypted (Q5.9 c, PDFDocumentReader::setOpenWithoutAttachments)
         QString password;           ///< Password of the user (never logged, never stored)
 
         /// Progress of the reading (stepped by the reader in the worker, read by the GUI;
@@ -96,6 +97,8 @@ public:
         QByteArray data;                ///< Bytes of the file (kept for a second reading)
         bool isEncrypted = false;       ///< The file is encrypted (the tab shows the password icon)
         bool isPagedXFA = false;        ///< \p document is the paged layout of the XFA form of the file (PDFXFAPaging, step 8)
+        bool isEmbeddedFilesOnlyEncryption = false;    ///< The encryption covers only the embedded files (also of a reading, which asks for the password): Open without attachments is offered (Q5.9 c)
+        bool isAttachmentsLocked = false;               ///< \p document was opened without the password of its attachments (PDFSecurityHandler::isEmbeddedFilesLocked)
         PDFAppDocumentRestoration restoration = PDFAppDocumentRestoration::None;    ///< The file is damaged (Loaded)
         QString errorMessage;           ///< Translated error (Failed)
     };
@@ -157,11 +160,40 @@ public:
     /// The reading runs
     bool isRunning() const { return m_watcher != nullptr; }
 
+    // File attachments only (owner answer Q5.9 c, R5-8): the password screen offers Open without
+    // attachments, the document is then locked (nothing is saved, its attachments stay encrypted)
+    // and the Attachments panel asks for the password, which reads the file again with them.
+
+    /// The file of the document is encrypted in its embedded files only (known after a reading,
+    /// also one, which asks for the password)
+    bool isEmbeddedFilesOnlyEncryption() const { return m_isEmbeddedFilesOnlyEncryption; }
+
+    /// The shown document was opened without the password of its attachments
+    bool isAttachmentsLocked() const { return m_isAttachmentsLocked; }
+
+    /// The last password of unlockAttachments was wrong
+    bool isAttachmentsPasswordWrong() const { return m_isAttachmentsPasswordWrong; }
+
+    /// Reads the file without the password of its attachments (state PasswordRequired, a file of
+    /// isEmbeddedFilesOnlyEncryption); the document is locked after it. \returns false otherwise
+    bool openWithoutAttachments();
+
+    /// Reads the file of a document opened without attachments again with the password: the result
+    /// replaces the document (its attachments readable) and the lock of the attachments is lifted -
+    /// a lock, which the user set on the file (recent_file.locked), stays (owner 2026-11-15); a wrong
+    /// password keeps the document as it is (isAttachmentsPasswordWrong). \returns false, when the
+    /// document is not locked so or a reading runs.
+    bool unlockAttachments(const QString& password);
+
 Q_SIGNALS:
     /// The reading has ended (the state of the document says the result)
     void finished();
 
 private:
+    /// The user locked the file of \p document (recent_file.locked, as PDFAppDocumentTab applies it
+    /// when the document is shown); false without a file or a database
+    static bool isLockedByUser(const PDFAppDocument* document);
+
     void startReading(PDFAppDocumentReading::Request request, bool isReload);
     void onReadingFinished();
     void onProgressTimeout();
@@ -172,6 +204,11 @@ private:
     QString m_password;
     bool m_hasPassword = false;
     bool m_isReload = false;
+    bool m_isAttachmentsUnlock = false;     ///< The running reading is the one of unlockAttachments
+    QString m_pendingPassword;              ///< The password of unlockAttachments until its reading ends (kept as m_password, when it opens the file)
+    bool m_isEmbeddedFilesOnlyEncryption = false;
+    bool m_isAttachmentsLocked = false;
+    bool m_isAttachmentsPasswordWrong = false;
     std::shared_ptr<PDFProgressCounter> m_progress;
     QPointer<QFutureWatcher<PDFAppDocumentReading::Result>> m_watcher;
     QPointer<QTimer> m_progressTimer;

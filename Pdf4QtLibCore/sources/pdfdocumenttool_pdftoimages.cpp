@@ -71,9 +71,9 @@ public:
     public:
         explicit StoppableControl(const PDFOperationControl* control) : m_control(control) { }
 
-        virtual bool isOperationCancelled() const override
+        virtual bool isOperationCanceled() const override
         {
-            return m_isStopped.load(std::memory_order_acquire) || PDFOperationControl::isOperationCancelled(m_control);
+            return m_isStopped.load(std::memory_order_acquire) || PDFOperationControl::isOperationCanceled(m_control);
         }
 
         void stop() { m_isStopped.store(true, std::memory_order_release); }
@@ -741,7 +741,7 @@ PDFDocumentToolResult PDFDocumentToolPdfToImages::exportPages(const PDFDocumentT
     pool.renderOrdered(pages, getImageSize, encode, write, progress, &stoppableControl);
     fontCache.setCacheShrinkEnabled(nullptr, true);
 
-    const bool isStopped = stoppableControl.isOperationCancelled();
+    const bool isStopped = stoppableControl.isOperationCanceled();
 
     PDFDocumentToolResult result;
     result.status = isStopped ? PDFDocumentToolResultStatus::Stopped : PDFDocumentToolResultStatus::Success;

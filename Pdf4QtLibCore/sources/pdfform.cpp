@@ -516,7 +516,7 @@ bool PDFFormField::setValue(const SetValueParameters& parameters)
 {
     Q_UNUSED(parameters);
 
-    // Default behaviour: return false, value cannot be set
+    // Default behavior: return false, value cannot be set
     return false;
 }
 
@@ -524,7 +524,7 @@ void PDFFormField::resetValue(const ResetValueParameters& parameters)
 {
     Q_UNUSED(parameters);
 
-    // Default behaviour: do nothing
+    // Default behavior: do nothing
 }
 
 PDFFormWidget::PDFFormWidget(PDFObjectReference page, PDFObjectReference widget, PDFFormField* parentField, PDFAnnotationAdditionalActions actions) :

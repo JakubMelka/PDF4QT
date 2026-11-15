@@ -126,7 +126,7 @@ QImage PDFAppMcpRenderer::render(const PDFDocument* document, PDFInteger pageInd
         context.draw(&painter, pageIndex, geometry.pageToImage, showAnnotations, control);
     }
 
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return QImage();
     }

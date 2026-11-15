@@ -33,7 +33,7 @@
 
 /// Tests of the JBIG2 decoder for the segments, which the encoder of the library does
 /// not produce - symbol dictionaries, text regions, pattern dictionaries and halftone
-/// regions in both the arithmetic and the huffman variant, and the file organisations.
+/// regions in both the arithmetic and the huffman variant, and the file organizations.
 /// The data of the segments are built by small encoders of this file - the integer
 /// arithmetic encoding procedure of the annex A, the standard huffman tables of the
 /// annex B transcribed from the specification, the prefix assignment of B.3 and the
@@ -60,7 +60,7 @@ private slots:
     void test_text_region_errors();
     void test_pattern_dictionary_and_halftone_region();
     void test_halftone_region_errors();
-    void test_file_organisations();
+    void test_file_organizations();
     void test_segment_header_and_data_length_errors();
     void test_segment_header_field_sizes();
     void test_arithmetic_decoder_termination();
@@ -199,7 +199,7 @@ private:
     /// Encodes the target image by the generic refinement region decoding procedure
     /// (6.3). The context is formed in the order the decoder forms it, see figures 12
     /// and 13. With the typical prediction a row is typical, when every pixel, whose
-    /// neighbourhood in the reference is uniform, has the value of the reference - such
+    /// neighborhood in the reference is uniform, has the value of the reference - such
     /// pixels of a typical row are not coded (6.3.5.6).
     /// \param encoder Arithmetic encoder
     /// \param state State of the refinement contexts
@@ -1051,7 +1051,7 @@ void JBIG2SegmentsTest::encodeRefinement(pdf::PDFJBIG2ArithmeticEncoder& encoder
     auto t = [&target](int x, int y) -> uint32_t { return isBlack(target, x, y) ? 1 : 0; };
     auto r = [&reference](int64_t x, int64_t y) -> uint32_t { return isBlack(reference, x, y) ? 1 : 0; };
 
-    // A pixel, whose neighbourhood of 3 x 3 pixels in the reference has a single value
+    // A pixel, whose neighborhood of 3 x 3 pixels in the reference has a single value
     auto isUniform = [&](int x, int y)
     {
         const int64_t rx = int64_t(x) - referenceX;
@@ -3562,10 +3562,10 @@ void JBIG2SegmentsTest::test_halftone_region_errors()
     }
 }
 
-void JBIG2SegmentsTest::test_file_organisations()
+void JBIG2SegmentsTest::test_file_organizations()
 {
-    // A JBIG2 file (annex D) has the sequential organisation, where the data of a segment
-    // follow its header, or the random-access organisation, where all headers precede all
+    // A JBIG2 file (annex D) has the sequential organization, where the data of a segment
+    // follow its header, or the random-access organization, where all headers precede all
     // data. The embedded stream of PDF has no file header at all, and its end of page and
     // end of file segments are ignored with a warning.
     const Image image = { "#..#..", ".##...", "...##.", "#....#" };
@@ -3621,7 +3621,7 @@ void JBIG2SegmentsTest::test_file_organisations()
     twoPages[12] = char(0x02);
     QVERIFY(decodeFileExpectingError(twoPages).contains("expected one page (2)"));
 
-    // The random-access organisation needs the lengths of all segments
+    // The random-access organization needs the lengths of all segments
     QByteArray unknownLength = randomAccess;
     for (int i = 0; i < 4; ++i)
     {
@@ -3766,11 +3766,11 @@ void JBIG2SegmentsTest::test_arithmetic_decoder_termination()
 void JBIG2SegmentsTest::test_refinement_region_typical_prediction()
 {
     // With the typical prediction (6.3.5.6) the pixels of a typical row, whose
-    // neighbourhood in the reference is uniform, are copied from the reference, and only
+    // neighborhood in the reference is uniform, are copied from the reference, and only
     // the other pixels are decoded. The reference has two isolated black pixels, so the
     // eight pixels around each of them see the black pixel at every position of the
-    // neighbourhood. The target changes the pixels around the first one, which is
-    // allowed in a typical row, and a pixel with a uniform neighbourhood in the first
+    // neighborhood. The target changes the pixels around the first one, which is
+    // allowed in a typical row, and a pixel with a uniform neighborhood in the first
     // row, which makes the row non-typical.
     const Image reference =
     {

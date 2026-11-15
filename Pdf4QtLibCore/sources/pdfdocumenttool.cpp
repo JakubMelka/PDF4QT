@@ -989,15 +989,25 @@ void PDFDocumentTool::finishWholeFileResult(PDFDocumentToolResult* result, const
 
 PDFDocumentTool::ConformanceRemoval PDFDocumentTool::removeConformanceDeclaration(PDFObjectStorage* storage, const PDFDocument* document)
 {
+    return removeConformanceDeclaration(storage, document, PDFOCRTextLayerWriter::getConformanceStandards());
+}
+
+PDFDocumentTool::ConformanceRemoval PDFDocumentTool::removeConformanceDeclaration(PDFObjectStorage* storage, const PDFDocument* document, const QStringList& standards)
+{
     ConformanceRemoval removal;
     QStringList declarations;
-    if (!PDFOCRPagePreparer::hasConformanceDeclaration(document, &declarations))
+    PDFOCRPagePreparer::hasConformanceDeclaration(document, &declarations);
+    for (auto it = declarations.begin(); it != declarations.end();)
+    {
+        it = standards.contains(*it) ? std::next(it) : declarations.erase(it);
+    }
+    if (declarations.isEmpty())
     {
         return removal;
     }
 
     PDFDocumentBuilder builder(document);
-    if (!PDFOCRTextLayerWriter::removeConformanceDeclaration(&builder, document))
+    if (!PDFOCRTextLayerWriter::removeConformanceDeclaration(&builder, document, standards))
     {
         removal.kept = declarations;
         return removal;
@@ -1105,6 +1115,23 @@ PDFDocumentToolResult PDFDocumentTool::prepare(const PDFDocumentToolContext& con
     {
         errors = validate(context, *normalizedParameters);
     }
+    if (errors.empty())
+    {
+        // Owner answer Q5.9 c, R5-8: a document opened without the password of its attachments
+        // keeps them encrypted (PDFSecurityHandler::isEmbeddedFilesLocked) - no PDF is made of it,
+        // its attachments would be written as plain data; an export of its text or images runs
+        const PDFDocumentToolOutputTraits output = getOutputTraits(*normalizedParameters);
+        const bool isPdfOutput = output.resultKind == PDFDocumentToolResultKind::ChangeDocument || output.resultKind == PDFDocumentToolResultKind::NewDocument || output.isNewDocumentOfInputs;
+        for (const PDFDocumentToolInputDocument& input : context.documents)
+        {
+            const PDFSecurityHandler* securityHandler = input.document ? input.document->getStorage().getSecurityHandler() : nullptr;
+            if (isPdfOutput && securityHandler && securityHandler->isEmbeddedFilesLocked())
+            {
+                errors.push_back({ QString(), PDFDocumentToolHelper::tr("The attachments of the document are still encrypted (it was opened without their password), so no PDF can be made of it. Enter the password of the attachments first.") });
+                break;
+            }
+        }
+    }
     if (!errors.empty())
     {
         return PDFDocumentToolHelper::createInvalid(errors);
@@ -1124,7 +1151,7 @@ PDFDocumentToolResult PDFDocumentTool::run(const PDFDocumentToolContext& context
             return result;
         }
 
-        if (PDFOperationControl::isOperationCancelled(control))
+        if (PDFOperationControl::isOperationCanceled(control))
         {
             return PDFDocumentToolResult::createStopped();
         }
@@ -1143,7 +1170,7 @@ PDFDocumentToolResult PDFDocumentTool::run(const PDFDocumentToolContext& context
     // A canceled run is never used, also when the tool finished meanwhile; the files, which a
     // tool of more files has written before the stop, are on the disk - the stopped result names
     // them (R3 of step 3, Split stopped: Written, Not written)
-    if (result.status != PDFDocumentToolResultStatus::Failed && PDFOperationControl::isOperationCancelled(control))
+    if (result.status != PDFDocumentToolResultStatus::Failed && PDFOperationControl::isOperationCanceled(control))
     {
         PDFDocumentToolResult stopped = PDFDocumentToolResult::createStopped();
         stopped.writtenFiles = result.writtenFiles;
@@ -1170,7 +1197,7 @@ PDFDocumentToolResult PDFDocumentTool::runPreview(const PDFDocumentToolContext& 
             return result;
         }
 
-        if (PDFOperationControl::isOperationCancelled(control))
+        if (PDFOperationControl::isOperationCanceled(control))
         {
             return PDFDocumentToolResult::createStopped();
         }
@@ -1186,7 +1213,7 @@ PDFDocumentToolResult PDFDocumentTool::runPreview(const PDFDocumentToolContext& 
         return PDFDocumentToolResult::createFailed(PDFDocumentToolHelper::tr("The tool failed with an unexpected error."));
     }
 
-    if (result.status != PDFDocumentToolResultStatus::Failed && PDFOperationControl::isOperationCancelled(control))
+    if (result.status != PDFDocumentToolResultStatus::Failed && PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }

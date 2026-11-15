@@ -61,6 +61,7 @@ private slots:
     void incrementalUpdateOfClassicTable();
     void incrementalUpdateOfCrossReferenceStream();
     void incrementalUpdateRejectsUnreadableOriginal();
+    void incrementalUpdateRefusesChangedEncryption();
     void namesWithNumberSignRoundTrip();
     void stringsWithCarriageReturn();
     void endOfLinesOfStringsRoundTrip();
@@ -358,6 +359,60 @@ void DocumentWriterTest::incrementalUpdateRejectsUnreadableOriginal()
     QVERIFY(writeIncrementalUpdate(QByteArray(), document).isEmpty());
 }
 
+void DocumentWriterTest::incrementalUpdateRefusesChangedEncryption()
+{
+    // Plan of step 5 of phase 2, B80: an incremental update cannot change the encryption - the
+    // objects of the old revisions stay encrypted by the old key (or in the clear) under the new
+    // /Encrypt and the file cannot be read. The same encryption may be updated.
+    auto createHandler = [](PDFDocumentBuilder& builder, const QString& ownerPassword)
+    {
+        PDFSecurityHandlerFactory::SecuritySettings settings;
+        settings.algorithm = PDFSecurityHandlerFactory::AES_256;
+        settings.ownerPassword = ownerPassword;
+        settings.permissions = 0xFFFFFFFF;
+        settings.id = builder.ensureDocumentId();
+        return PDFSecurityHandlerFactory::createSecurityHandler(settings);
+    };
+
+    PDFDocumentBuilder plainBuilder;
+    plainBuilder.appendPage(QRectF(0, 0, 300, 400));
+    const QByteArray plain = write(plainBuilder.build());
+    const PDFDocument plainDocument = read(plain);
+
+    // An unencrypted file is not encrypted by an update
+    PDFDocumentBuilder encryptPlain(&plainDocument);
+    encryptPlain.setSecurityHandler(createHandler(encryptPlain, QStringLiteral("owner")));
+    QCOMPARE(encryptPlain.build().getStorage().getSecurityHandler()->getMode(), EncryptionMode::Standard);
+    QVERIFY(writeIncrementalUpdate(plain, encryptPlain.build()).isEmpty());
+
+    // An encrypted file (no open password): the same encryption is updated
+    PDFDocumentBuilder encryptedBuilder;
+    encryptedBuilder.appendPage(QRectF(0, 0, 300, 400));
+    encryptedBuilder.setSecurityHandler(createHandler(encryptedBuilder, QStringLiteral("owner")));
+    const QByteArray encrypted = write(encryptedBuilder.build());
+    const PDFDocument encryptedDocument = read(encrypted);
+    QCOMPARE(encryptedDocument.getStorage().getSecurityHandler()->getMode(), EncryptionMode::Standard);
+
+    PDFDocumentBuilder samePages(&encryptedDocument);
+    samePages.appendPage(QRectF(0, 0, 300, 400));
+    const QByteArray updated = writeIncrementalUpdate(encrypted, samePages.build());
+    QVERIFY(!updated.isEmpty());
+    QCOMPARE(read(updated).getCatalog()->getPageCount(), size_t(2));
+
+    // Neither removed nor replaced by an update
+    PDFDocumentBuilder removed(&encryptedDocument);
+    removed.removeEncryption();
+    QVERIFY(writeIncrementalUpdate(encrypted, removed.build()).isEmpty());
+
+    PDFDocumentBuilder replaced(&encryptedDocument);
+    replaced.setSecurityHandler(createHandler(replaced, QStringLiteral("another")));
+    QVERIFY(writeIncrementalUpdate(encrypted, replaced.build()).isEmpty());
+
+    QVERIFY(PDFDocumentWriter::hasSameEncryption(&encryptedDocument, &encryptedDocument));
+    QVERIFY(PDFDocumentWriter::hasSameEncryption(&plainDocument, &plainDocument));
+    QVERIFY(!PDFDocumentWriter::hasSameEncryption(&plainDocument, &encryptedDocument));
+}
+
 QTEST_MAIN(DocumentWriterTest)
 
 void DocumentWriterTest::stringsWithCarriageReturn()
@@ -519,9 +574,9 @@ void DocumentWriterTest::oldFileWithRawCarriageReturn_data()
     QTest::addColumn<int>("userResult");
     QTest::addColumn<int>("ownerResult");
 
-    // A file of the old writer read by the rules of 3.2.3: the raw CR is a line feed, as in a conforming reader. Cancelled
+    // A file of the old writer read by the rules of 3.2.3: the raw CR is a line feed, as in a conforming reader. Canceled
     // means a refused password. Algorithm 2 of 3.5.2: the key of RC4 / AES-128 depends on /O and /ID, and /U is compared.
-    const int canceled = int(Result::Cancelled);
+    const int canceled = int(Result::Canceled);
     const int failed = int(Result::Failed);
     const int ok = int(Result::OK);
     const int rc4 = int(PDFSecurityHandlerFactory::RC4);
@@ -1220,9 +1275,9 @@ void DocumentWriterTest::oldFileWithRawCarriageReturnInIdentifier()
     // The old writer: both passwords are refused
     const QByteArray oldFile = createFile("(" + id + ")");
     readWithPassword(oldFile, QStringLiteral("user"), &result);
-    QCOMPARE(result, PDFDocumentReader::Result::Cancelled);
+    QCOMPARE(result, PDFDocumentReader::Result::Canceled);
     readWithPassword(oldFile, QStringLiteral("owner"), &result);
-    QCOMPARE(result, PDFDocumentReader::Result::Cancelled);
+    QCOMPARE(result, PDFDocumentReader::Result::Canceled);
 }
 
 void DocumentWriterTest::oldEncryptedStringWithRawCarriageReturn_data()
@@ -1383,7 +1438,7 @@ void DocumentWriterTest::damagedEncryptedFileIsDecrypted()
 
     // A wrong password is no document: the bytes are never handed out undecrypted
     const PDFDocument wrongPassword = readWithPassword(data, QStringLiteral("wrong"), &result, true);
-    QCOMPARE(result, PDFDocumentReader::Result::Cancelled);
+    QCOMPARE(result, PDFDocumentReader::Result::Canceled);
     QCOMPARE(wrongPassword.getCatalog()->getPageCount(), size_t(0));
 
     const PDFDocument restored = readWithPassword(data, QStringLiteral("user"), &result, true);
@@ -1449,7 +1504,7 @@ void DocumentWriterTest::damagedEncryptedRevisions()
 
     // A wrong password is no document, whichever revision would win
     const PDFDocument wrongPassword = readWithPassword(data + secondRevision + end, QStringLiteral("wrong"), &result, true);
-    QCOMPARE(result, PDFDocumentReader::Result::Cancelled);
+    QCOMPARE(result, PDFDocumentReader::Result::Canceled);
     QCOMPARE(wrongPassword.getCatalog()->getPageCount(), size_t(0));
 
     // The last revision is not a document: the oldest content is decrypted the same way

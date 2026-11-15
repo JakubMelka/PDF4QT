@@ -87,6 +87,11 @@ public:
     PDFLabel* getTitleLabel() const { return m_titleLabel; }
     PDFLabel* getSubtitleLabel() const { return m_subtitle; }
 
+    /// Open without attachments (owner answer Q5.9 c, R5-8; no frame): shown for a file, whose
+    /// encryption covers only its embedded files (PDFAppDocumentLoader::isEmbeddedFilesOnlyEncryption)
+    QPushButton* getWithoutAttachmentsButton() const { return m_withoutAttachmentsButton; }
+    PDFLabel* getWithoutAttachmentsHint() const { return m_withoutAttachmentsHint; }
+
 Q_SIGNALS:
     /// The user has entered the password (Open document, Enter)
     void passwordEntered(const QString& password);
@@ -108,6 +113,7 @@ private:
     void updateOpenButton();
     void onOpenClicked();
     void onCloseClicked();
+    void onWithoutAttachmentsClicked();
     void onPasswordEdited();
     void onLoadingDelayElapsed();
     void onLoadingProgressChanged();
@@ -123,6 +129,8 @@ private:
     QPointer<PDFLabel> m_errorText;
     QPointer<QPushButton> m_closeButton;
     QPointer<QPushButton> m_openButton;
+    QPointer<QPushButton> m_withoutAttachmentsButton;
+    QPointer<PDFLabel> m_withoutAttachmentsHint;
     QPointer<QWidget> m_loadingPanel;
     QPointer<PDFLabel> m_loadingTitle;
     QPointer<QWidget> m_loadingBar;
@@ -354,6 +362,11 @@ public:
     /// PDFAppDocument::isPagedXFA): neither the document nor a copy of it can be
     /// edited, so the popover offers Unlock only and says why (call before showBelow)
     void setPagedXFA(bool isPagedXFA);
+
+    /// The locked document has encrypted attachments (PDFAppDocument::isAttachmentsLocked,
+    /// Q5.9 c): Unlock and Edit a Copy are disabled, the text says that the password of the
+    /// attachments is needed (call before showBelow)
+    void setAttachmentsLocked(bool isAttachmentsLocked);
 
     /// Shows the popover below the rectangle of the lock (global coordinates)
     void showBelow(const QRect& anchor);

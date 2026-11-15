@@ -660,11 +660,28 @@ void PDFDocumentToolShell::confirm()
         return;
     }
 
+    // The environment may refuse the run (Encrypt with Certificate: the password does not open the
+    // chosen .pfx file, 433:3972 - the GUI shows it at its field and the Primary button is Disabled)
     applyEnvironment();
-    if (!m_runner->run(m_gui->getRunParameters()) && guard && m_host)
+    if (!guard || !m_runner || !m_host || !m_gui)
     {
-        // A foreign blocking operation, a lost document: the commit would be refused
-        m_host->showTransientMessage(tr("The document is busy with another operation. Try it again when it ends."));
+        return;
+    }
+    if (!m_gui->isConfirmEnabled())
+    {
+        // The values prepared for the run are dropped (S5.1: the password of a .pfx file)
+        m_gui->onRunRefused();
+        return;
+    }
+    if (!m_runner->run(m_gui->getRunParameters()) && guard && m_host && m_gui)
+    {
+        // A foreign blocking operation, a lost document: the commit would be refused; the values
+        // prepared for the run are dropped first (S5.1)
+        m_gui->onRunRefused();
+        if (guard && m_host)
+        {
+            m_host->showTransientMessage(tr("The document is busy with another operation. Try it again when it ends."));
+        }
     }
 }
 
@@ -691,7 +708,14 @@ void PDFDocumentToolShell::retryFiles(const QStringList& fileNames, const QStrin
     }
     if (!m_runner->run(parameters) && guard && m_host)
     {
-        m_host->showTransientMessage(tr("The document is busy with another operation. Try it again when it ends."));
+        if (m_gui)
+        {
+            m_gui->onRunRefused();
+        }
+        if (guard && m_host)
+        {
+            m_host->showTransientMessage(tr("The document is busy with another operation. Try it again when it ends."));
+        }
     }
 }
 

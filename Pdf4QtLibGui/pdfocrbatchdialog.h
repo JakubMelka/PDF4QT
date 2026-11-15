@@ -105,7 +105,7 @@ private:
         int wordCount = 0;
         int reviewWords = 0;
         qint64 elapsedMilliseconds = 0;
-        bool cancelled = false;
+        bool canceled = false;
     };
 
     enum Column

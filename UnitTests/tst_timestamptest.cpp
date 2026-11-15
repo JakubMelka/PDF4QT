@@ -77,7 +77,7 @@ QByteArray encodeCertificate(X509* certificate)
 class TestTimestampAuthority
 {
 public:
-    enum Behaviour
+    enum Behavior
     {
         /// Correct timestamp response of the request
         Granted,
@@ -122,7 +122,7 @@ public:
     /// \param isCertificateExpired Certificate of the authority is expired
     bool start(bool isCertificateExpired = false);
 
-    void setBehaviour(Behaviour behaviour);
+    void setBehavior(Behavior behavior);
 
     QString getUrl() const;
 
@@ -133,7 +133,7 @@ public:
     /// but without the time stamping extended key usage, DER encoded
     QByteArray getCertificateWithoutTimeStamping() const;
 
-    /// Count of the requests answered since the last change of the behaviour
+    /// Count of the requests answered since the last change of the behavior
     int getRequestCount() const { return m_requestCount; }
 
 private:
@@ -149,7 +149,7 @@ private:
     QByteArray modifyRequest(const QByteArray& request) const;
 
     QTcpServer m_server;
-    Behaviour m_behaviour = Granted;
+    Behavior m_behavior = Granted;
     EVP_PKEY* m_key = nullptr;
     X509* m_certificate = nullptr;
     X509* m_certificateWithoutTimeStamping = nullptr;
@@ -302,9 +302,9 @@ bool TestTimestampAuthority::start(bool isCertificateExpired)
     return m_server.listen(QHostAddress::LocalHost);
 }
 
-void TestTimestampAuthority::setBehaviour(Behaviour behaviour)
+void TestTimestampAuthority::setBehavior(Behavior behavior)
 {
-    m_behaviour = behaviour;
+    m_behavior = behavior;
     m_firstResponse.clear();
     m_requestCount = 0;
 
@@ -371,7 +371,7 @@ void TestTimestampAuthority::onRequest(QTcpSocket* socket, const QByteArray& req
 {
     ++m_requestCount;
 
-    if (m_behaviour == NoAnswer)
+    if (m_behavior == NoAnswer)
     {
         return;
     }
@@ -380,7 +380,7 @@ void TestTimestampAuthority::onRequest(QTcpSocket* socket, const QByteArray& req
     QByteArray status = "200 OK";
     QByteArray contentType = "application/timestamp-reply";
 
-    switch (m_behaviour)
+    switch (m_behavior)
     {
         case Replay:
             if (m_firstResponse.isEmpty())
@@ -440,7 +440,7 @@ QByteArray TestTimestampAuthority::modifyRequest(const QByteArray& request) cons
         TS_REQ_set_version(modifiedRequest, 1);
         TS_REQ_set_cert_req(modifiedRequest, TS_REQ_get_cert_req(originalRequest));
 
-        if (m_behaviour == DifferentAlgorithm)
+        if (m_behavior == DifferentAlgorithm)
         {
             // The authority answers with a different hash algorithm than the one
             // of the request. The imprint of the request cannot be kept, because
@@ -466,7 +466,7 @@ QByteArray TestTimestampAuthority::modifyRequest(const QByteArray& request) cons
             TS_REQ_set_msg_imprint(modifiedRequest, TS_REQ_get_msg_imprint(originalRequest));
         }
 
-        if (m_behaviour == DifferentNonce)
+        if (m_behavior == DifferentNonce)
         {
             ASN1_INTEGER* nonce = ASN1_INTEGER_new();
             if (nonce)
@@ -497,7 +497,7 @@ QByteArray TestTimestampAuthority::createResponse(const QByteArray& request)
 {
     QByteArray requestData = request;
 
-    if (m_behaviour == NoNonce || m_behaviour == DifferentNonce || m_behaviour == DifferentAlgorithm)
+    if (m_behavior == NoNonce || m_behavior == DifferentNonce || m_behavior == DifferentAlgorithm)
     {
         requestData = modifyRequest(request);
         if (requestData.isEmpty())
@@ -992,7 +992,7 @@ void TimestampTest::unreachableAuthorityIsReported()
 
 void TimestampTest::authorityFailureIsReported_data()
 {
-    QTest::addColumn<int>("behaviour");
+    QTest::addColumn<int>("behavior");
 
     QTest::newRow("rejected") << int(TestTimestampAuthority::Rejected);
     QTest::newRow("http error") << int(TestTimestampAuthority::HttpError);
@@ -1002,14 +1002,14 @@ void TimestampTest::authorityFailureIsReported_data()
 
 void TimestampTest::authorityFailureIsReported()
 {
-    QFETCH(int, behaviour);
+    QFETCH(int, behavior);
 
-    m_authority.setBehaviour(static_cast<TestTimestampAuthority::Behaviour>(behaviour));
+    m_authority.setBehavior(static_cast<TestTimestampAuthority::Behavior>(behavior));
 
     QByteArray token;
     QString errorMessage;
     const bool isCreated = PDFSignatureFactory::createTimestampToken("data", getTimestampSettings(2000), token, errorMessage);
-    m_authority.setBehaviour(TestTimestampAuthority::Granted);
+    m_authority.setBehavior(TestTimestampAuthority::Granted);
 
     QVERIFY(!isCreated);
     QVERIFY(token.isEmpty());
@@ -1018,7 +1018,7 @@ void TimestampTest::authorityFailureIsReported()
 
 void TimestampTest::replayedTokenIsRejected()
 {
-    m_authority.setBehaviour(TestTimestampAuthority::Replay);
+    m_authority.setBehavior(TestTimestampAuthority::Replay);
 
     QByteArray token;
     QString errorMessage;
@@ -1030,7 +1030,7 @@ void TimestampTest::replayedTokenIsRejected()
     QByteArray replayedToken;
     QString replayErrorMessage;
     const bool isSecondCreated = PDFSignatureFactory::createTimestampToken("second data", getTimestampSettings(), replayedToken, replayErrorMessage);
-    m_authority.setBehaviour(TestTimestampAuthority::Granted);
+    m_authority.setBehavior(TestTimestampAuthority::Granted);
 
     QVERIFY2(isFirstCreated, qPrintable(errorMessage));
     QVERIFY(!isSecondCreated);
@@ -1344,7 +1344,7 @@ void TimestampTest::timestampOfOtherDataIsNotUsed()
 
 void TimestampTest::answerOfOtherRequestIsRejected_data()
 {
-    QTest::addColumn<int>("behaviour");
+    QTest::addColumn<int>("behavior");
 
     QTest::newRow("no nonce") << int(TestTimestampAuthority::NoNonce);
     QTest::newRow("different nonce") << int(TestTimestampAuthority::DifferentNonce);
@@ -1352,17 +1352,17 @@ void TimestampTest::answerOfOtherRequestIsRejected_data()
 
 void TimestampTest::answerOfOtherRequestIsRejected()
 {
-    QFETCH(int, behaviour);
+    QFETCH(int, behavior);
 
     // The authority answers with a correctly signed token of the requested data,
     // but the nonce of the request is not repeated in it, so the answer cannot be
     // recognized as the answer of our request (RFC 3161, chapter 2.4.2).
-    m_authority.setBehaviour(static_cast<TestTimestampAuthority::Behaviour>(behaviour));
+    m_authority.setBehavior(static_cast<TestTimestampAuthority::Behavior>(behavior));
 
     QByteArray token;
     QString errorMessage;
     const bool isCreated = PDFSignatureFactory::createTimestampToken("data", getTimestampSettings(), token, errorMessage);
-    m_authority.setBehaviour(TestTimestampAuthority::Granted);
+    m_authority.setBehavior(TestTimestampAuthority::Granted);
 
     QVERIFY(!isCreated);
     QVERIFY(token.isEmpty());
@@ -1374,12 +1374,12 @@ void TimestampTest::answerWithDifferentHashAlgorithmIsRejected()
     // The authority must use the hash algorithm of the request. The imprint of a
     // different algorithm cannot match the requested one, so both checks refuse
     // such an answer.
-    m_authority.setBehaviour(TestTimestampAuthority::DifferentAlgorithm);
+    m_authority.setBehavior(TestTimestampAuthority::DifferentAlgorithm);
 
     QByteArray token;
     QString errorMessage;
     const bool isCreated = PDFSignatureFactory::createTimestampToken("data", getTimestampSettings(), token, errorMessage);
-    m_authority.setBehaviour(TestTimestampAuthority::Granted);
+    m_authority.setBehavior(TestTimestampAuthority::Granted);
 
     QVERIFY(!isCreated);
     QVERIFY(token.isEmpty());
@@ -1510,12 +1510,12 @@ void TimestampTest::enlargedReservedSpace()
     // The tokens created after the trial one are larger than it, so the space
     // reserved for the timestamp in the document does not suffice and the whole
     // document must be built and signed again.
-    m_authority.setBehaviour(TestTimestampAuthority::GrowingToken);
+    m_authority.setBehavior(TestTimestampAuthority::GrowingToken);
 
     QByteArray signedDocument;
     const PDFDocumentSigner::Result result = signDocument(document, page, signFunction, isDocumentTimestamp, signedDocument);
     const int requestCount = m_authority.getRequestCount();
-    m_authority.setBehaviour(TestTimestampAuthority::Granted);
+    m_authority.setBehavior(TestTimestampAuthority::Granted);
 
     QVERIFY2(result == PDFDocumentSigner::Result::OK, qPrintable(errorMessage));
     QVERIFY(!signedDocument.isEmpty());

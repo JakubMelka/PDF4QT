@@ -622,7 +622,7 @@ PDFDocumentImageList PDFDocumentImageList::create(const PDFDocument* document, c
 
     const auto processPage = [&](size_t pageIndex)
     {
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
             return;
         }
@@ -655,7 +655,7 @@ PDFDocumentImageList PDFDocumentImageList::create(const PDFDocument* document, c
             environment.processPageImages(PDFInteger(pageIndex), addVisible, visibleLayers.get(), operationControl);
         }
 
-        pageImages.isWalked = !PDFOperationControl::isOperationCancelled(operationControl);
+        pageImages.isWalked = !PDFOperationControl::isOperationCanceled(operationControl);
 
         if (progress)
         {

@@ -84,7 +84,7 @@ class CompressTestControl : public pdf::PDFOperationControl
 public:
     void cancel() { m_isCanceled.store(true); }
 
-    virtual bool isOperationCancelled() const override
+    virtual bool isOperationCanceled() const override
     {
         m_checkCount.fetch_add(1);
         return m_isCanceled.load();

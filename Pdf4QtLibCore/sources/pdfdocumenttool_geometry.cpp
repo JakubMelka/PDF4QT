@@ -480,7 +480,7 @@ PDFDocumentToolResult PDFDocumentToolCropPages::execute(const PDFDocumentToolCon
         effective.push_back(std::move(change));
     }
 
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }
@@ -494,7 +494,7 @@ PDFDocumentToolResult PDFDocumentToolCropPages::execute(const PDFDocumentToolCon
 
     PDFPageGeometryStatistics statistics;
     PDFDocument output = PDFPageGeometry::applyChanges(document, effective, control, &statistics);
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }
@@ -835,7 +835,7 @@ PDFDocumentToolResult PDFDocumentToolResizePages::execute(const PDFDocumentToolC
 
     PDFPageGeometryStatistics statistics;
     PDFDocument output = PDFPageGeometry::applyChanges(document, *changes, control, &statistics);
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }
@@ -1183,7 +1183,7 @@ PDFDocumentToolResult PDFDocumentToolSetPageBoxes::execute(const PDFDocumentTool
 
     PDFPageGeometryStatistics statistics;
     PDFDocument output = PDFPageGeometry::applyChanges(document, *changes, control, &statistics);
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }

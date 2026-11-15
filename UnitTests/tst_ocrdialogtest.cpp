@@ -1353,7 +1353,7 @@ void OCRDialogTest::limitedResolution()
     selectComboData(dialog, "existingTextPolicyComboBox", int(PDFOCRExistingTextPolicy::OnlyPagesWithoutText));
     selectComboData(dialog, "dpiComboBox", 300);
 
-    // Cancelled: nothing is recognized
+    // Canceled: nothing is recognized
     recognizeButton->click();
     QTRY_VERIFY_WITH_TIMEOUT(responder.messages.join(QChar('|')).contains(QStringLiteral("too large for the requested resolution")), 10000);
     QTRY_VERIFY_WITH_TIMEOUT(!stopButton->isEnabled() && recognizeButton->isEnabled(), 60000);

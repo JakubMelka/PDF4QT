@@ -56,7 +56,8 @@ enum class PDFAppPermissionAction
     EditOutline,    ///< Bit 11, or bit 4 (the outline belongs to the assembly and to the modification)
     AssemblePages,  ///< Bit 11 (insert, rotate, remove pages - the commands of the Thumbnails)
     Tool,           ///< Every permission of the catalog entry of a tool (getRequiredPermissions); a tool, which makes a new document of its input documents (Merge), every permission the not encrypted result would lose (PDFDocumentMerger::getRequiredPermissions)
-    Unlock          ///< No action: every permission (Unlock with Owner Password of the document properties)
+    Unlock,         ///< No action: every permission (Unlock with Owner Password of the document properties)
+    ChangeSecurity  ///< A change of the encryption, the passwords or the permissions (the tools of PDFDocumentToolCatalogEntry::isSecurityChange; plan of step 5 of phase 2, K5.13, R5-4): only the owner (ISO 32000-2, 7.6.4.1) - allowed by the owner authorization or without encryption, a certificate only by bit 2 of its recipient (Table 24); the owner password dialog also for a document opened by a user password, which restricts nothing (430:2709). PDFAppPermissionRequest::createTool gives it for such a tool (its id stays in toolId).
 };
 
 /// What an action needs: the action and, for a tool, the id of its catalog entry
@@ -125,10 +126,16 @@ public:
     /// The document restricts something (an encrypted document, which does not allow everything)
     static bool isRestricted(const PDFDocument* document);
 
-    /// The owner password can lift the restrictions: the standard security handler, the
-    /// document opened by the user password and restricting something. False for the
-    /// public-key handler (no owner password, 7.6.5) and for a document opened by its
-    /// owner password or unlocked already.
+    /// The permissions of Table 22, which the file forbids by /P of its encryption dictionary,
+    /// whatever the authorization (a document unlocked by its owner password keeps them in its
+    /// file - the restrictions kept by Protect with Password, 430:2481); a certificate: the
+    /// forbidden permissions of its recipient; not encrypted: none
+    static std::vector<Permission> getFileForbiddenPermissions(const PDFDocument* document);
+
+    /// The owner password can authorize the owner: the standard security handler, the document
+    /// opened by the user password - also when it restricts nothing (a change of its security,
+    /// ChangeSecurity, needs the owner anyway; R5-4). False for the public-key handler (no owner
+    /// password, 7.6.5) and for a document opened by its owner password or unlocked already.
     static bool canUnlock(const PDFDocument* document);
 
     /// The permissions come from a certificate (public-key security handler, 7.6.5)
@@ -158,6 +165,15 @@ public:
     /// Text of the owner password dialog: the action, the missing permission in plain words
     /// and what the password does ("The author of this document does not allow printing. ...")
     static QString getDialogText(const PDFDocument* document, const PDFAppPermissionRequest& request);
+
+    /// Title of the owner password dialog of ChangeSecurity (430:2709 "Owner password needed",
+    /// 430:2969 "That is not the owner password")
+    static QString getChangeSecurityTitle(bool isWrongPassword);
+
+    /// Text of the owner password dialog of ChangeSecurity (430:2709 "<document> was opened with
+    /// the open password. Enter the owner password to change its security.", 433:5210 "… to remove
+    /// its protection." for Remove Password; 430:2969 after a wrong password)
+    static QString getChangeSecurityText(const QString& documentTitle, const PDFAppPermissionRequest& request, bool isWrongPassword);
 
     /// The list of what the document forbids ("Not allowed: printing, copying text and images.")
     static QString getForbiddenListText(const PDFDocument* document);

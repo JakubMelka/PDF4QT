@@ -58,7 +58,7 @@ void PDFAsynchronousPageCompilerWorkerThread::run()
 
         if (tasks.empty())
         {
-            // Jakub Melka: new tasks and the interruption request are both signalled
+            // Jakub Melka: new tasks and the interruption request are both signaled
             // with the mutex locked, so the check above and the wait form one atomic
             // step - no wake up can be lost (otherwise stop() could wait forever).
             // The timeout is just a safety net, the loop checks everything again.
@@ -78,9 +78,9 @@ void PDFAsynchronousPageCompilerWorkerThread::run()
         {
             PDFPrecompiledPage compiledPage;
 
-            // Jakub Melka: task can be cancelled while it is waiting in the thread
+            // Jakub Melka: task can be canceled while it is waiting in the thread
             // pool queue - in that case we do not start the compilation at all.
-            if (task.isCancelled())
+            if (task.isCanceled())
             {
                 return compiledPage;
             }
@@ -90,7 +90,7 @@ void PDFAsynchronousPageCompilerWorkerThread::run()
             PDFRenderer renderer(proxy->getDocument(), proxy->getFontCache(), proxy->getIccProfileCache(), cms.data(), proxy->getOptionalContentActivity(), proxy->getFeatures(), proxy->getMeshQualitySettings());
             renderer.setOperationControl(&operationControl);
             renderer.compile(&task.precompiledPage, task.pageIndex);
-            task.finished = !operationControl.isOperationCancelled();
+            task.finished = !operationControl.isOperationCanceled();
             return compiledPage;
         };
         PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, tasks.begin(), tasks.end(), compilePage);
@@ -101,12 +101,12 @@ void PDFAsynchronousPageCompilerWorkerThread::run()
         locker.relock();
 
         // Now, write compiled pages. We must check, that the task is still
-        // present in the task map - it can be cancelled and erased while we
+        // present in the task map - it can be canceled and erased while we
         // were compiling it (for example, page scrolled out of the viewport).
         bool isSomethingWritten = false;
         for (auto& task : tasks)
         {
-            if (!task.finished || task.isCancelled())
+            if (!task.finished || task.isCanceled())
             {
                 continue;
             }
@@ -147,7 +147,7 @@ PDFAsynchronousPageCompiler::~PDFAsynchronousPageCompiler()
     m_cache = nullptr;
 }
 
-bool PDFAsynchronousPageCompiler::isOperationCancelled() const
+bool PDFAsynchronousPageCompiler::isOperationCanceled() const
 {
     return m_state == State::Stopping;
 }
@@ -264,7 +264,7 @@ const PDFPrecompiledPage* PDFAsynchronousPageCompiler::getCompiledPage(PDFIntege
         {
             // Jakub Melka: page is already being compiled for the viewport, but now
             // it is requested also by a consumer, which is independent on the viewport.
-            // Such task must not be cancelled by scrolling anymore.
+            // Such task must not be canceled by scrolling anymore.
             it->second.isCancellable = false;
         }
     }
@@ -284,7 +284,7 @@ std::vector<PDFAsynchronousPageCompiler::CompileTask> PDFAsynchronousPageCompile
 
     for (const auto& item : m_tasks)
     {
-        if (!item.second.finished && !item.second.isCancelled())
+        if (!item.second.finished && !item.second.isCanceled())
         {
             tasks.push_back(item.second);
         }

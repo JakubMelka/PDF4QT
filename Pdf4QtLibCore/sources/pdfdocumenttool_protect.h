@@ -72,7 +72,7 @@ public:
     static QVariantMap getPresetValues(Preset preset);
 
     /// The preset of the values; only the kinds of \p comparedKinds are compared (a kind,
-    /// which the document does not have, is shown unticked by every preset), the first match wins
+    /// which the document does not have, is shown unchecked by every preset), the first match wins
     static Preset findPreset(const QVariantMap& values, const std::vector<Kind>& comparedKinds);
 
     /// Title and description of a kind (the rows of 438:12588), translated

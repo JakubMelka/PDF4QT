@@ -155,7 +155,7 @@ void PDFAppToolGUIPdfToImages::registerPdfToImagesTools()
 qint64 PDFAppToolGUIPdfToImages::estimatePageBytes(PDFDocumentPointer document, PDFInteger pageIndex, QVariantMap parameters, PDFDocumentToolRenderContext rendering,
                                                    std::shared_ptr<PDFAppCancelFlag> control)
 {
-    if (control && control->isOperationCancelled())
+    if (control && control->isOperationCanceled())
     {
         return -1;
     }
@@ -190,7 +190,7 @@ qint64 PDFAppToolGUIPdfToImages::estimatePageBytes(PDFDocumentPointer document, 
         const QTransform matrix = PDFRenderer::createPagePointToDevicePointMatrix(page, QRectF(QPointF(0, 0), QSizeF(sampleSize)), PageRotation::None);
         renderContext.draw(&painter, pageIndex, matrix, true, control.get());
     }
-    if (control && control->isOperationCancelled())
+    if (control && control->isOperationCanceled())
     {
         return -1;
     }
@@ -607,7 +607,7 @@ void PDFAppToolGUIPdfToImages::onEstimateFinished()
     }
 
     // A canceled job says nothing about its values: the values of now are estimated again
-    const bool isCanceled = !m_estimateCancel || m_estimateCancel->isOperationCancelled();
+    const bool isCanceled = !m_estimateCancel || m_estimateCancel->isOperationCanceled();
     if (!isCanceled)
     {
         m_estimateKey = m_runningEstimateKey;

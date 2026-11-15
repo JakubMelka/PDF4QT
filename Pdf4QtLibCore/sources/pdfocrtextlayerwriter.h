@@ -219,6 +219,13 @@ public:
     /// declaration could not be removed and the copy must not be written.
     static bool removeConformanceDeclaration(PDFDocumentBuilder* builder, const PDFDocument* document);
 
+    /// Removes the declaration of the given standards only ("PDF/A", "PDF/UA"; the encryption of
+    /// step 5 of phase 2 removes PDF/A and keeps PDF/UA, R5-6); as removeConformanceDeclaration
+    static bool removeConformanceDeclaration(PDFDocumentBuilder* builder, const PDFDocument* document, const QStringList& standards);
+
+    /// The standards, whose declarations are found and removed: "PDF/A", "PDF/UA"
+    static QStringList getConformanceStandards();
+
     /// Balance of the operators of a content stream (PDF-05)
     struct ContentBalance
     {
@@ -245,6 +252,9 @@ public:
     /// \param declarations Human readable names of the found declarations
     /// \param withoutDeclarations The packet with the declarations removed (optional)
     static bool findConformanceDeclarations(const QByteArray& metadata, QStringList* declarations, QByteArray* withoutDeclarations);
+
+    /// As findConformanceDeclarations, only the declarations of \p standards ("PDF/A", "PDF/UA")
+    static bool findConformanceDeclarations(const QByteArray& metadata, QStringList* declarations, QByteArray* withoutDeclarations, const QStringList& standards);
 
     /// Validates the nesting of the whole content of the page by the parser (PDF-05):
     /// q / Q, BT / ET and marked content must be balanced over all content streams.

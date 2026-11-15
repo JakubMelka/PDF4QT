@@ -182,10 +182,10 @@ Celkem **46 toolů**, které pokrývají dnešní funkce (včetně OCR z větve 
 
 | ID | Název | Popis na kartě | Podskupina | Stav |
 | --- | --- | --- | --- | --- |
-| `protect.password` | **Protect with Password** | Require a password to open the PDF | Encryption | GUI·split |
-| `protect.permissions` | **Restrict Permissions** | Limit printing, copying and editing | Encryption | GUI·split |
-| `protect.certificate-encrypt` | **Encrypt with Certificate** | Only the certificate holder can open it | Encryption | GUI·split |
-| `protect.unlock` | **Remove Password** | Remove encryption you have access to | Encryption | GUI·split |
+| `protect.password` | **Protect with Password** | Require a password to open the PDF | Encryption | GUI·split, hotovo (krok 5) |
+| `protect.permissions` | **Restrict Permissions** | Limit printing, copying and editing | Encryption | GUI·split, hotovo (krok 5) |
+| `protect.certificate-encrypt` | **Encrypt with Certificate** | Only the certificate holder can open it | Encryption | GUI·split, hotovo (krok 5) |
+| `protect.unlock` | **Remove Password** | Remove encryption you have access to | Encryption | GUI·split, hotovo (krok 5) |
 | `protect.sign` | **Sign with Certificate** | Add a digital signature | Signatures | GUI |
 | `protect.timestamp` | **Add Timestamp** | Prove the document existed at a time | Signatures | GUI·split |
 | `protect.sign-by-hand` | **Sign by Hand** | Draw, type or insert a signature | Signatures | GUI |
@@ -470,6 +470,7 @@ Dnešní dialog *Encryption Settings* řeší čtyři různé úkoly. V katalogu
 - **Funkce:** algoritmus *AES 256-bit* (doporučený), *AES 128-bit*, *RC4 128-bit* pro zpětnou kompatibilitu. Heslo pro otevření, ukazatel síly hesla. Rozsah šifrování: celý dokument včetně metadat, vše kromě metadat, jen přílohy.
 - **Vstup → výstup:** otevřený dokument → zašifrovaný dokument.
 - **Dnes:** Editor, *Edit → Encryption…* CLI `encrypt`.
+- **Nová aplikace (krok 5 fáze 2, hotovo):** jádro `PDFDocumentToolEncryption` (jeden tool, čtyři režimy; ISO 32000-2 7.6, revize 4 a 6, handler standardní i veřejného klíče z továrny `PDFSecurityHandlerFactory`), GUI `PDFAppToolGUIEncryption` (jedna třída, čtyři předvolby podle rámců 430:1068 až 433:5999, K5.1), karta hesla a měřič síly (`PDFPasswordStrength`, Q5.8). Prázdné heslo vlastníka = heslo pro otevření pro všechny revize (B81, R5-2); s omezením vlastní heslo vlastníka (Q5.1). `/ID` před handlerem (R5-5), PDF/A deklarace odstraněna, PDF/UA zůstává (Q5.7, R5-6). Podepsaný dokument jen *Save as a copy* zapsaná celá (`LostCopyOnly`). Měnit zabezpečení smí jen vlastník (`ChangeSecurity`, R5-4). Heslo žije jen v polích (S5.1, S5.2, kanárek i nad souborovou databází). MCP `protect.password` s potvrzením PDF4QT, ve kterém heslo píše uživatel (Q5.6, R5-12). Nápověda `tool-protect-password.md`. PdfTool `encrypt` volá stejnou továrnu (R5-23).
 - **Klíčová slova:** `password, protect, lock, secure, encrypt, encryption, encryption settings, encrypt pdf, aes, aes-256, open password, user password, password protect`
 
 #### `protect.permissions` – Restrict Permissions
@@ -478,6 +479,7 @@ Dnešní dialog *Encryption Settings* řeší čtyři různé úkoly. V katalogu
 - **Funkce:** heslo vlastníka a oprávnění: tisk v nízkém a vysokém rozlišení, vyplňování formulářů, přístupnost, změna obsahu, skládání dokumentu (vkládání, otáčení, mazání stránek), úprava interaktivních prvků, kopírování obsahu.
 - **Vstup → výstup:** otevřený dokument → zašifrovaný dokument s omezeními.
 - **Dnes:** Editor, *Edit → Encryption…*, část *Permissions*.
+- **Nová aplikace (krok 5 fáze 2, hotovo):** stejný tool a GUI jako `protect.password`, předvolba Permissions (432:2105 až 432:4388): seznam oprávnění `PDFAppToolPermissionList` se závislostmi Table 22 (K5.8), *Access for screen readers* zaškrtnuté a Disabled (Q5.2), předvolby (výchozí *View and print*), heslo vlastníka povinné, volitelné heslo pro otevření. Bity normalizované továrnou (B89, bit 10 vždy). Tlačítko *Open Restrict Permissions* v dialogu hesla vlastníka (Q5.12). MCP `protect.permissions`, nápověda `tool-protect-permissions.md`.
 - **Klíčová slova:** `permissions, restrict, encryption, encrypt pdf, prevent printing, prevent copying, disable copy, no editing, owner password, read only, lock editing, rights`
 
 #### `protect.certificate-encrypt` – Encrypt with Certificate
@@ -486,6 +488,7 @@ Dnešní dialog *Encryption Settings* řeší čtyři různé úkoly. V katalogu
 - **Funkce:** výběr certifikátu se soukromým klíčem ze správce certifikátů.
 - **Vstup → výstup:** otevřený dokument → zašifrovaný dokument.
 - **Dnes:** Editor, *Edit → Encryption…*, algoritmus *Certificate Encryption*.
+- **Nová aplikace (krok 5 fáze 2, hotovo):** předvolba Certificate (433:3049 až 433:4721): seznam `.pfx` (`PDFAppToolCertificateList`, stavy Locked / Expired / bez `keyEncipherment` / systémové úložiště Disabled, Q5.4, Q5.11 s veřejným certifikátem v SQLite), dialogy *Create Certificate…* a *Import…* (436:10081 až 436:11538, Q5.3 a), `.pfx` starého Editoru a Vieweru jen ke čtení s nabídkou kopie (Q5.5). Šifrování opravené (R5-1, B102: dříve nešlo ani zapsat, ani přečíst), bit 2 příjemce při „vše povoleno“ (Q5.3 b), callout R5-21. Remove Password ukáže v *Opens for* držitele certifikátu, kterým se dokument otevřel (433:5811). Složka certifikátů druhého profilu (`PDF4QT_APP_DATA_DIRECTORY`) je `<data>/certificates`. MCP `protect.certificate-encrypt` (certifikát vybírá uživatel v potvrzení), nápověda `tool-protect-certificate-encrypt.md`.
 - **Klíčová slova:** `certificate encryption, encryption, encrypt pdf, public key, pki, recipient, private key, digital id, encrypt for, certificate security`
 
 #### `protect.unlock` – Remove Password
@@ -494,6 +497,7 @@ Dnešní dialog *Encryption Settings* řeší čtyři různé úkoly. V katalogu
 - **Funkce:** vyžaduje oprávnění vlastníka, jinak si vyžádá znovu heslo. Neprolamuje neznámá hesla.
 - **Vstup → výstup:** zašifrovaný dokument a heslo → nezašifrovaný dokument.
 - **Dnes:** Editor, *Edit → Encryption…*, algoritmus *None*. CLI `decrypt`.
+- **Nová aplikace (krok 5 fáze 2, hotovo):** předvolba Unlock (433:5022 až 433:5999): seznam změn `PDFAppToolChangeList`, *Nothing to remove* u nešifrovaného dokumentu, vlastník podle `ChangeSecurity` (u certifikátu jen s bitem 2), výsledek bez `/Encrypt` a bez kroků `/Crypt` v proudech (R5-10). MCP `protect.unlock`, nápověda `tool-protect-unlock.md`. PdfTool `decrypt` nenechá staré `/Encrypt` a výsledek přečte zpět.
 - **Klíčová slova:** `remove password, unlock, decrypt, encryption, remove security, remove restrictions, remove encryption, unprotect, open locked`
 
 #### `protect.sign` – Sign with Certificate
@@ -697,7 +701,7 @@ Viewer je podmnožina Editoru. Akce, které má i Viewer, jsou označené **V**.
 | Edit | Pokročilé hledání (panel *Advanced Find*: celá slova, velikost písmen, regulární výrazy, zástupné znaky, měkké dělení, tabulka výsledků) | Příkaz: hledání v dokumentu. Zdroj výběru pro `protect.redact` |
 | Edit | Select text, Select All, Deselect, Copy text **V** | Režim a Příkaz. Hromadně Tool `convert.extract-text` |
 | Edit | Select table **V** | Režim: Select |
-| Edit | Encryption | Tooly `protect.password`, `protect.permissions`, `protect.certificate-encrypt`, `protect.unlock` |
+| Edit | Encryption | Tooly `protect.password`, `protect.permissions`, `protect.certificate-encrypt`, `protect.unlock` (hotovo v kroku 5 fáze 2; certifikáty starého Editoru se čtou, Q5.5) |
 | Edit | Optimize | Tool `optimize.structure`, součást `optimize.compress` |
 | Edit | Optimize Images | Tool `optimize.images`, předvolby `optimize.compress` a `optimize.grayscale` |
 | Edit | Sanitize | Tool `protect.sanitize` |
@@ -832,8 +836,8 @@ PdfTool do zadání nepatří, ale ukazuje funkce, které knihovna umí a GUI je
 | `fetch-images` | `convert.extract-images` | jen jeden obrázek |
 | `audio-book`, `audio-book-voices` | `convert.audiobook` | ano |
 | `attachments` | Panel Attachments | ano |
-| `encrypt` | `protect.password`, `protect.permissions` | ano |
-| `decrypt` | `protect.unlock` | ano |
+| `encrypt` | `protect.password`, `protect.permissions` (krok 5: stejná továrna a pravidla jako tool, R5-23) | ano |
+| `decrypt` | `protect.unlock` (krok 5: bez starého `/Encrypt`, výsledek přečten zpět) | ano |
 | `verify-signatures` | Panel Signatures | ano |
 | `cert-store`, `cert-store-install` | `protect.certificates` | ano |
 | `redact` | `protect.redact` | ano |
@@ -1420,7 +1424,7 @@ Rozhodnutí z návrhu stránek toolů Organize Pages (4. 10. 2026):
 27. **Split více souborů najednou** se odkládá do dávkového zpracování (8.3). Dělení sestavy podle pravidla nahrazují skupiny a výstup *One PDF per group or item* v Manage Pages, dělení sestavy podle velikosti souboru se nenabízí.
 28. **Tokeny názvů souborů** jsou ve všech toolech stejné: `#` číslo výstupu, `@` číslo stránky, `%` index vstupu.
 29. **Každá ikona má jediný význam.** Pro nový význam se kreslí nová ikona.
-30. **Šifrovací tooly.** Čtyři tooly sdílejí jednu obrazovku s jinou předvolbou. Protect with Password ponechá existující omezení dokumentu, pokud je uživatel nezmění v Restrict Permissions. Heslo se zadává dvakrát a slabé heslo jen varuje, potvrzení neblokuje. Sílu hesla ukazuje komponenta *Strength meter*: souvislý pruh, slovní úroveň (*Very weak* až *Very strong*), naměřená entropie („92 of 128 bits“) a štítky kritérií, která heslo splňuje (*12+ characters*, *Aa*, *123*, *#$&*). Stejná komponenta bez entropie a štítků ukazuje sílu algoritmu. Nahrazuje dnešních pět barevných značek. Když je dokument otevřený jen heslem pro otevření, tool si nejdřív vyžádá heslo vlastníka. Encrypt with Certificate šifruje pro vlastní certifikát uživatele se soukromým klíčem.
+30. **Šifrovací tooly.** Čtyři tooly sdílejí jednu obrazovku s jinou předvolbou. Protect with Password ponechá existující omezení dokumentu, pokud je uživatel nezmění v Restrict Permissions. Heslo se zadává dvakrát a slabé heslo jen varuje, potvrzení neblokuje. Sílu hesla ukazuje komponenta *Strength meter*: souvislý pruh, slovní úroveň (*Very weak* až *Very strong*), naměřená entropie („92 of 128 bits“) a štítky kritérií, která heslo splňuje (*12+ characters*, *Aa*, *123*, *#$&*). Stejná komponenta bez entropie a štítků ukazuje sílu algoritmu. Nahrazuje dnešních pět barevných značek. Když je dokument otevřený jen heslem pro otevření, tool si nejdřív vyžádá heslo vlastníka. Encrypt with Certificate šifruje pro vlastní certifikát uživatele se soukromým klíčem. **K5.1 (krok 5 fáze 2):** Figma sdílí jen kostru, plátno a panely kreslí každý tool jinak; kód má jednu třídu `PDFAppToolGUIEncryption` ze společných částí a předvolba určí, které části se postaví a kam (každá přesně podle svých rámců), nic se nekopíruje.
 31. **Podpis.** Sign with Certificate a Add Timestamp zapisují nový soubor a otevřený dokument nemění. Když uživatel nemá certifikát, stránka toolu nabídne *Create Certificate…* a *Import .pfx…* přímo, správce certifikátů se neotevírá. Potvrzovací tlačítko Sign by Hand je *Apply to Pages*, dotaz „Document will be signed electronically“ nahrazuje dialog výsledku.
 32. **Redact Content.** Vlastní barva výplně se vybírá z palety barev anotací, výchozí je černá. Při zavření toolu se značkami se aplikace zeptá, zda značky v dokumentu ponechat. Hledání pro redakci je součástí toolu (levý panel), ne samostatný panel pokročilého hledání.
 33. **Remove Hidden Data** má předvolby *Standard* (vše kromě neviditelného textu, odpovídá dnešnímu výchozímu stavu), *Before sending*, *Before publishing* a *Everything*.

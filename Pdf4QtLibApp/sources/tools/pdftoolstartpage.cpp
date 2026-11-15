@@ -37,6 +37,7 @@
 #include "pdfapptoolpresentation.h"
 #include "pdfapptoolstate.h"
 #include "pdfsettingsrepository.h"
+#include "pdfdocumenttoolusage.h"
 #include "pdfappmainwindow.h"
 #include "pdfdocumenttoolgui.h"
 #include "pdfdocumenttoolguiregistry.h"
@@ -580,6 +581,12 @@ QWidget* PDFToolStartPage::createTutorial(QWidget* parent)
 QString PDFToolStartPage::createOftenNextText() const
 {
     using Helper = PDFToolStartPageHelper;
+
+    // Nothing is offered after a change of the security (the tools of Encryption, tools.md 10.3)
+    if (!PDFDocumentToolUsage::isOfferingSuccessors(m_toolId))
+    {
+        return QString();
+    }
 
     PDFDocumentToolSuggestionInput input;
     input.fromTools = QStringList{ m_toolId };

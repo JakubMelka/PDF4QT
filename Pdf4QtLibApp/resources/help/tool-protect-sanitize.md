@@ -10,7 +10,7 @@ Remove Hidden Data removes what a reader does not see on the pages: the author a
 
 ### What can be removed
 
-The tool looks at the document first. A kind, which is not in the document, has the tag Not found and cannot be ticked.
+The tool looks at the document first. A kind, which is not in the document, has the tag Not found and cannot be checked.
 
 | Kind | What goes |
 | --- | --- |
@@ -27,9 +27,9 @@ The tool looks at the document first. A kind, which is not in the document, has 
 
 ### Presets
 
-A preset only ticks the list, nothing runs. You can change any row afterwards; the label then says Custom.
+A preset only checks the list, nothing runs. You can change any row afterwards; the label then says Custom.
 
-| Preset | Ticks |
+| Preset | Checks |
 | --- | --- |
 | Standard | Everything except the invisible text |
 | Before sending | Info, metadata, comments, index and thumbnails |
@@ -40,16 +40,16 @@ A preset only ticks the list, nothing runs. You can change any row afterwards; t
 ### Step by step
 
 1. Choose the document. The tool scans it and shows what it has found.
-2. Tick the kinds you want to remove, or pick a preset.
+2. Check the kinds you want to remove, or pick a preset.
 3. Press Remove Hidden Data. The summary shows each removed kind and the size before and after.
 4. Save the result as a copy (recommended), keep it in this tab or overwrite the original file.
 
 ### What happens to the file
 
 - The file is written whole: old revisions of the file, which an incremental save would keep, are not carried over, so what was removed is really gone from the file.
-- A signed document can be saved only as a copy. Its signatures are no longer valid in the copy; tick Signature fields to remove them altogether.
+- A signed document can be saved only as a copy. Its signatures are no longer valid in the copy; check Signature fields to remove them altogether.
 - A declaration of PDF/A or PDF/UA is removed: the result is not checked against the standard.
-- A document protected by permissions must allow changes. Comments, the attachments of comments and the signature fields also need the permission to change annotations and form fields; without it Remove Hidden Data stays disabled while they are ticked, and the status bar says which kinds to untick.
+- A document protected by permissions must allow changes. Comments, the attachments of comments and the signature fields also need the permission to change annotations and form fields; without it Remove Hidden Data stays disabled while they are checked, and the status bar says which kinds to uncheck.
 - Visible content of the pages is not removed. Use Redact Content for it.
 
 > [!WARNING] The invisible text of scanned pages

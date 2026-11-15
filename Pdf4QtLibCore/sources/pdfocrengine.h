@@ -120,7 +120,7 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCREngineCapabilities
     /// Engine can be used only for export (text without exact geometry, ENGINE-01)
     bool isExportOnly = false;
 
-    /// Orientation detection honours the cancellation and the deadline while it runs.
+    /// Orientation detection honors the cancellation and the deadline while it runs.
     /// If false, the call cannot be interrupted, the engine only bounds its cost
     /// (for example by downscaling the image) and checks the cancellation before it.
     bool orientationDetectionCancellable = false;
@@ -271,13 +271,13 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFOCRRecognitionOutput
     /// Error (if any)
     PDFOCRError error;
 
-    /// Recognition was cancelled
-    bool cancelled = false;
+    /// Recognition was canceled
+    bool canceled = false;
 
     /// Orientation detected by the engine during the recognition (if any)
     std::optional<PDFOCROrientation> orientation;
 
-    bool isSuccess() const { return !error.isError() && !cancelled; }
+    bool isSuccess() const { return !error.isError() && !canceled; }
 };
 
 /// Progress callback (percent 0-100, -1 = indeterminate)
@@ -327,7 +327,7 @@ public:
                                                                qint64 remainingMilliseconds = -1);
 
     /// Recognizes the image. Function must return promptly after the operation
-    /// is cancelled (with cancelled flag set in the output).
+    /// is canceled (with canceled flag set in the output).
     virtual PDFOCRRecognitionOutput recognize(const PDFOCRRecognitionInput& input,
                                               const PDFOperationControl* operationControl,
                                               const PDFOCRProgressCallback& progressCallback) = 0;

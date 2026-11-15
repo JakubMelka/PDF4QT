@@ -945,7 +945,7 @@ PDFDocumentToolResult PDFDocumentToolManage::execute(const PDFDocumentToolContex
         settings.outline = PDFDocumentMerger::OutlineMode::NoOutline;
         settings.targetPages = PDFDocumentAssembly::getTargetPages(assembly);
         PDFDocumentMerger::Result arranged = PDFDocumentMerger::arrange(*target, run->sources, run->items, settings, control, progress);
-        if (arranged.isCanceled || PDFOperationControl::isOperationCancelled(control))
+        if (arranged.isCanceled || PDFOperationControl::isOperationCanceled(control))
         {
             return PDFDocumentToolResult::createStopped();
         }
@@ -1023,7 +1023,7 @@ PDFDocumentToolResult PDFDocumentToolManage::execute(const PDFDocumentToolContex
 
     phases.beginPhase(mergePhase);
     PDFDocumentMerger::Result merged = PDFDocumentMerger::merge(run->sources, run->items, settings, control, phases.getPhase(mergePhase));
-    if (merged.isCanceled || PDFOperationControl::isOperationCancelled(control))
+    if (merged.isCanceled || PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }
@@ -1060,7 +1060,7 @@ PDFDocumentToolResult PDFDocumentToolManage::execute(const PDFDocumentToolContex
             std::vector<PDFImageOptimizer::ImageResult> imageResults;
             PDFImageOptimizer imageOptimizer;
             document = imageOptimizer.optimize(&document, *imageSettings, PDFImageOptimizer::ImageOverrides(), phases.getPhase(imagesPhase), nullptr, &imageResults, control, nullptr);
-            if (PDFOperationControl::isOperationCancelled(control))
+            if (PDFOperationControl::isOperationCanceled(control))
             {
                 return PDFDocumentToolResult::createStopped();
             }

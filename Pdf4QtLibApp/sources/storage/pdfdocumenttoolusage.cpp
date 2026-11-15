@@ -161,7 +161,8 @@ PDFDatabaseError PDFDocumentToolUsage::recordRun(const QString& toolId, const QS
         return usage.getError();
     }
 
-    const bool isPair = previousToolId != toolId && PDFDocumentToolCatalog::isValidToolId(previousToolId);
+    // No pair from a tool, after which nothing is offered (the tools of Encryption)
+    const bool isPair = previousToolId != toolId && isOfferingSuccessors(previousToolId);
     if (isPair && PDFDocumentToolUsageHelper::readSuggestNext(connection))
     {
         PDFDatabaseError error;
@@ -199,7 +200,7 @@ PDFDatabaseError PDFDocumentToolUsage::recordRun(const QString& toolId, const QS
 
 QStringList PDFDocumentToolUsage::getSuggestions(const QString& finishedToolId, const PDFDocumentToolAvailability& availability) const
 {
-    if (!PDFDocumentToolCatalog::isValidToolId(finishedToolId))
+    if (!isOfferingSuccessors(finishedToolId))
     {
         return QStringList();
     }
@@ -219,6 +220,12 @@ QStringList PDFDocumentToolUsage::getSuggestions(const QString& finishedToolId, 
         }
     }
     return PDFDocumentToolSuggestions::suggest(input);
+}
+
+bool PDFDocumentToolUsage::isOfferingSuccessors(const QString& toolId)
+{
+    const PDFDocumentToolCatalogEntry* tool = PDFDocumentToolCatalog::isValidToolId(toolId) ? PDFDocumentToolCatalog::findTool(toolId) : nullptr;
+    return tool && !tool->isSecurityChange();
 }
 
 bool PDFDocumentToolUsage::isSuggestNextEnabled() const

@@ -207,7 +207,7 @@ public:
     ///
     /// The operation control cancels both sources (B58): between the images, inside of
     /// the decoding and the thresholding of an image, and in every wait and step of the
-    /// rasterization. A cancelled conversion returns false and creates no document.
+    /// rasterization. A canceled conversion returns false and creates no document.
     /// \param settings Inputs of the conversion
     /// \param operationControl Operation control (can be nullptr)
     bool createBitonalDocument(const Settings& settings, const PDFOperationControl* operationControl = nullptr);
@@ -313,7 +313,7 @@ public:
     };
 
     /// Creates the preview of the item (a worker thread: it only reads the document and uses the
-    /// pool). A cancelled preview is a failed one.
+    /// pool). A canceled preview is a failed one.
     Preview createPreview(const PreviewRequest& request, const PDFOperationControl* operationControl) const;
 
     /// The resolution of a preview of a page in a pane of \p paneSize pixels: the resolution of
@@ -325,7 +325,7 @@ public:
     struct BlankPageResult
     {
         PDFInteger pageIndex = -1;
-        bool isExamined = false;    ///< The page has been rendered and analyzed (false: cancelled, a rendering error, a page, which does not exist)
+        bool isExamined = false;    ///< The page has been rendered and analyzed (false: canceled, a rendering error, a page, which does not exist)
         bool isBlank = false;       ///< The page is a scan of a blank sheet (detectBlankPage)
     };
 
@@ -375,7 +375,7 @@ public:
     /// in the coordinate system of the page, i.e. the page rotation is not applied
     /// to them. The processor can be called from multiple threads simultaneously and
     /// it is not called at all for the pages, which have been skipped because the
-    /// operation has been cancelled. A page, whose rendering has reported an error,
+    /// operation has been canceled. A page, whose rendering has reported an error,
     /// is passed with its image (owner 14. 11. 2026: a rendering error never blocks the
     /// conversion; renderPageImages gives the errors too); a null image is a page, whose
     /// image could not be created.
@@ -450,7 +450,7 @@ public:
     /// \param conversionMethod Conversion method
     /// \param threshold Manual threshold
     /// \param alphaMask Transparency of the converted image (can be a null image)
-    /// \param operationControl Operation control (can be nullptr). A cancelled
+    /// \param operationControl Operation control (can be nullptr). A canceled
     ///        conversion returns a null image.
     /// \param usedThreshold The threshold, which the method has used (the automatic one
     ///        computed; the adaptive method gives its global part), can be nullptr
@@ -507,7 +507,7 @@ public:
     /// \param pageImage Rasterized page
     /// \param dpiResolution Resolution, at which the page has been rasterized. The
     ///        analysis measures the spots in millimeters, so it needs to know it.
-    /// \param operationControl Operation control (can be nullptr). A cancelled
+    /// \param operationControl Operation control (can be nullptr). A canceled
     ///        analysis reports the page as a non-blank one.
     static BlankPageInfo detectBlankPage(const QImage& pageImage,
                                          int dpiResolution,
@@ -597,7 +597,7 @@ private:
 
     /// What the mode of the item makes of the decoded image or the rendered page \p image: the
     /// bitonal image (a converted one, inverted, a fill) and the alpha mask of an image
-    /// \returns A null image, when it fails (or is cancelled)
+    /// \returns A null image, when it fails (or is canceled)
     static QImage createItemImage(const QImage& image, ConversionSource source, ItemMode mode,
                                   PDFImageConversion::ConversionMethod conversionMethod, int threshold,
                                   QImage* alphaMask, int* usedThreshold, const PDFOperationControl* operationControl);

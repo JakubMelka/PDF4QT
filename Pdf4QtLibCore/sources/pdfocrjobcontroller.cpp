@@ -277,11 +277,11 @@ bool PDFOCRJobController::acquireMemory(Job& job, qint64 bytes, const PDFOperati
 
     while (m_memoryUsed + bytes > m_memoryBudget)
     {
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
             if (error)
             {
-                *error = PDFOCRError::create(PDFOCRErrorCode::Cancelled, PDFTranslationContext::tr("Recognition was stopped."), PDFTranslationContext::tr("Rendering"));
+                *error = PDFOCRError::create(PDFOCRErrorCode::Canceled, PDFTranslationContext::tr("Recognition was stopped."), PDFTranslationContext::tr("Rendering"));
             }
             return false;
         }
@@ -324,13 +324,13 @@ void PDFOCRJobController::workerMain(std::shared_ptr<Job> job)
     std::unique_ptr<PDFOCREngine> engine;
 
     // A stopped job does not initialize the engine (loading of the models is slow and
-    // it can't be interrupted); without an engine, the pages are finished as cancelled
+    // it can't be interrupted); without an engine, the pages are finished as canceled
     // by the scheduling loop, because the cancellation of the job is permanent.
     auto createEngine = [&]() -> PDFOCRError
     {
         try
         {
-            if (PDFOperationControl::isOperationCancelled(operationControl))
+            if (PDFOperationControl::isOperationCanceled(operationControl))
             {
                 return PDFOCRError::none();
             }
@@ -344,7 +344,7 @@ void PDFOCRJobController::workerMain(std::shared_ptr<Job> job)
                                            PDFTranslationContext::tr("Initialization"));
             }
 
-            if (PDFOperationControl::isOperationCancelled(operationControl))
+            if (PDFOperationControl::isOperationCanceled(operationControl))
             {
                 return PDFOCRError::none();
             }
@@ -418,9 +418,9 @@ void PDFOCRJobController::workerMain(std::shared_ptr<Job> job)
                 break;
             }
 
-            if (PDFOperationControl::isOperationCancelled(operationControl))
+            if (PDFOperationControl::isOperationCanceled(operationControl))
             {
-                // Remaining pages are finished as cancelled / error
+                // Remaining pages are finished as canceled / error
                 while (!job->queue.empty())
                 {
                     const PDFOCRPageTask& task = job->description.pages[job->queue.front()];
@@ -440,8 +440,8 @@ void PDFOCRJobController::workerMain(std::shared_ptr<Job> job)
                     }
                     else
                     {
-                        result.state = PDFOCRPageState::Cancelled;
-                        result.error = PDFOCRError::create(PDFOCRErrorCode::Cancelled, PDFTranslationContext::tr("Recognition was stopped."), PDFTranslationContext::tr("Scheduling"));
+                        result.state = PDFOCRPageState::Canceled;
+                        result.error = PDFOCRError::create(PDFOCRErrorCode::Canceled, PDFTranslationContext::tr("Recognition was stopped."), PDFTranslationContext::tr("Scheduling"));
                     }
 
                     lock.unlock();
@@ -543,8 +543,8 @@ void PDFOCRJobController::finishPage(Job& job, PDFOCRPageResult result)
             case PDFOCRPageState::Error:
                 ++job.summary.errorPages;
                 break;
-            case PDFOCRPageState::Cancelled:
-                ++job.summary.cancelledPages;
+            case PDFOCRPageState::Canceled:
+                ++job.summary.canceledPages;
                 break;
             case PDFOCRPageState::Skipped:
                 ++job.summary.skippedPages;
@@ -569,7 +569,7 @@ void PDFOCRJobController::finishJob(Job& job)
     {
         QMutexLocker lock(&m_mutex);
         job.summary.elapsedMilliseconds = job.timer.elapsed();
-        job.summary.cancelled = job.cancelToken->isOperationCancelled() && !job.summary.criticalError;
+        job.summary.canceled = job.cancelToken->isOperationCanceled() && !job.summary.criticalError;
         summary = job.summary;
         m_memoryUsed = 0;
         m_memoryReserved = 0;
@@ -609,15 +609,15 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
 
     auto finishWithError = [&](PDFOCRError error)
     {
-        result.state = error.code == PDFOCRErrorCode::Cancelled ? PDFOCRPageState::Cancelled : PDFOCRPageState::Error;
+        result.state = error.code == PDFOCRErrorCode::Canceled ? PDFOCRPageState::Canceled : PDFOCRPageState::Error;
         result.error = std::move(error);
         result.elapsedMilliseconds = timer.elapsed();
         return result;
     };
 
-    auto cancelledError = [](const QString& step)
+    auto canceledError = [](const QString& step)
     {
-        return PDFOCRError::create(PDFOCRErrorCode::Cancelled, PDFTranslationContext::tr("Recognition was stopped."), step);
+        return PDFOCRError::create(PDFOCRErrorCode::Canceled, PDFTranslationContext::tr("Recognition was stopped."), step);
     };
 
     // One shared deadline of the page for all phases (JOB-06, R12): orientation
@@ -649,9 +649,9 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
         return finishWithError(PDFOCRError::create(PDFOCRErrorCode::InitializationFailed, PDFTranslationContext::tr("OCR engine is not available."), PDFTranslationContext::tr("Initialization")));
     }
 
-    if (PDFOperationControl::isOperationCancelled(operationControl))
+    if (PDFOperationControl::isOperationCanceled(operationControl))
     {
-        return finishWithError(cancelledError(PDFTranslationContext::tr("Scheduling")));
+        return finishWithError(canceledError(PDFTranslationContext::tr("Scheduling")));
     }
 
     const PDFOCREngineCapabilities capabilities = engine->getCapabilities();
@@ -682,7 +682,7 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
     const QDeadlineTimer memoryDeadline = pageTimeoutMilliseconds < 0 ? QDeadlineTimer(QDeadlineTimer::Forever) : QDeadlineTimer(getRemainingMilliseconds());
     if (!acquireMemory(job, rasterBytes, operationControl, memoryDeadline, &memoryError))
     {
-        return finishWithError(memoryError ? memoryError : cancelledError(PDFTranslationContext::tr("Rendering")));
+        return finishWithError(memoryError ? memoryError : canceledError(PDFTranslationContext::tr("Rendering")));
     }
 
     auto memoryGuard = qScopeGuard([this, rasterBytes]() { releaseMemory(rasterBytes); });
@@ -721,9 +721,9 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
         double inkRatio = 0.0;
         if (PDFOCRPagePreparer::isBlankImage(raster.image, &inkRatio, operationControl))
         {
-            if (PDFOperationControl::isOperationCancelled(operationControl))
+            if (PDFOperationControl::isOperationCanceled(operationControl))
             {
-                return finishWithError(cancelledError(PDFTranslationContext::tr("Blank page detection")));
+                return finishWithError(canceledError(PDFTranslationContext::tr("Blank page detection")));
             }
 
             result.geometry = raster.geometry;
@@ -735,9 +735,9 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
         }
     }
 
-    if (PDFOperationControl::isOperationCancelled(operationControl))
+    if (PDFOperationControl::isOperationCanceled(operationControl))
     {
-        return finishWithError(cancelledError(PDFTranslationContext::tr("Rendering")));
+        return finishWithError(canceledError(PDFTranslationContext::tr("Rendering")));
     }
 
     if (isDeadlineExceeded())
@@ -778,9 +778,9 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
         }
     }
 
-    if (PDFOperationControl::isOperationCancelled(operationControl))
+    if (PDFOperationControl::isOperationCanceled(operationControl))
     {
-        return finishWithError(cancelledError(PDFTranslationContext::tr("Orientation detection")));
+        return finishWithError(canceledError(PDFTranslationContext::tr("Orientation detection")));
     }
 
     if (isDeadlineExceeded())
@@ -857,7 +857,7 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
     auto restoreGuard = qScopeGuard([&]()
     {
         // A stopped job processes no further page, the slow loading of the models is skipped
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
             return;
         }
@@ -881,9 +881,9 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
         const int regionId = item.first;
         const QRect& rect = item.second;
 
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
-            return finishWithError(cancelledError(PDFTranslationContext::tr("Recognition")));
+            return finishWithError(canceledError(PDFTranslationContext::tr("Recognition")));
         }
 
         if (isDeadlineExceeded())
@@ -960,9 +960,9 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
             effectiveConfiguration.layout != preparedConfiguration.layout)
         {
             // Loading of the models can't be interrupted, it is not started for a stopped job
-            if (PDFOperationControl::isOperationCancelled(operationControl))
+            if (PDFOperationControl::isOperationCanceled(operationControl))
             {
-                return finishWithError(cancelledError(PDFTranslationContext::tr("Recognition")));
+                return finishWithError(canceledError(PDFTranslationContext::tr("Recognition")));
             }
             if (isDeadlineExceeded())
             {
@@ -1002,9 +1002,9 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
 
         PDFOCRRecognitionOutput output = engine->recognize(input, operationControl, progressCallback);
 
-        if (output.cancelled)
+        if (output.canceled)
         {
-            return finishWithError(cancelledError(PDFTranslationContext::tr("Recognition")));
+            return finishWithError(canceledError(PDFTranslationContext::tr("Recognition")));
         }
 
         if (output.error)
@@ -1013,7 +1013,7 @@ PDFOCRPageResult PDFOCRJobController::processPage(Job& job, const PDFOCRPageTask
         }
 
         // The deadline of the page is a hard limit also for an engine, which does not
-        // honour it itself (JOB-06)
+        // honor it itself (JOB-06)
         if (isDeadlineExceeded())
         {
             return finishWithError(timeoutError(PDFTranslationContext::tr("Recognition")));

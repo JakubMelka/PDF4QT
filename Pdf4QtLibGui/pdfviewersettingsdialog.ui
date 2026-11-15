@@ -1266,7 +1266,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <item row="0" column="0">
                <widget class="QLabel" name="speechSynthethiserLabel">
                 <property name="text">
-                 <string>Voice synthetiser</string>
+                 <string>Voice synthesizer</string>
                 </property>
                </widget>
               </item>

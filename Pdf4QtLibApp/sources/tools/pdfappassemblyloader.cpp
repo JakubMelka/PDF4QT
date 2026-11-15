@@ -47,7 +47,7 @@ namespace pdf
 class PDFAppAssemblyLoadControl : public PDFOperationControl
 {
 public:
-    virtual bool isOperationCancelled() const override { return m_isCanceled.load(); }
+    virtual bool isOperationCanceled() const override { return m_isCanceled.load(); }
     void cancel() { m_isCanceled.store(true); }
 
 private:
@@ -145,7 +145,7 @@ public:
         QCryptographicHash hash(QCryptographicHash::Sha256);
         while (!file.atEnd())
         {
-            if (PDFOperationControl::isOperationCancelled(control))
+            if (PDFOperationControl::isOperationCanceled(control))
             {
                 *isCanceled = true;
                 return QByteArray();
@@ -251,7 +251,7 @@ public:
                 return status;
             }
         }
-        if (PDFOperationControl::isOperationCancelled(control))
+        if (PDFOperationControl::isOperationCanceled(control))
         {
             *isCanceled = true;
             return status;
@@ -420,7 +420,7 @@ void PDFAppAssemblyLoader::onFinished()
     }
 
     PDFAppAssemblyLoadResult result = watcher->result();
-    const bool isCanceled = m_control && m_control->isOperationCancelled();
+    const bool isCanceled = m_control && m_control->isOperationCanceled();
 
     // The state is cleared before the signal: a slot may start the next load or delete the loader
     m_watcher = nullptr;
@@ -468,7 +468,7 @@ PDFAppAssemblyLoadResult PDFAppAssemblyLoader::read(const QString& filePath, con
         result.errorMessage = tr("The assembly file is larger than %1 MB.").arg(limits.maximumFileSize / (1024 * 1024));
         return result;
     }
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return PDFAppAssemblyLoaderHelper::cancelResult(std::move(result));
     }
@@ -486,7 +486,7 @@ PDFAppAssemblyLoadResult PDFAppAssemblyLoader::read(const QString& filePath, con
     const QString folder = info.absolutePath();
     for (const PDFDocumentAssembly::Source& source : result.content->assembly.getSources())
     {
-        if (PDFOperationControl::isOperationCancelled(control))
+        if (PDFOperationControl::isOperationCanceled(control))
         {
             return PDFAppAssemblyLoaderHelper::cancelResult(std::move(result));
         }
@@ -532,7 +532,7 @@ PDFAppAssemblyLoadResult PDFAppAssemblyLoader::readLocated(PDFAppAssemblyLoadRes
         status.filePath = candidate;
         status.pageCount = source.pageCount;
     }
-    if (isCanceled || PDFOperationControl::isOperationCancelled(control))
+    if (isCanceled || PDFOperationControl::isOperationCanceled(control))
     {
         return PDFAppAssemblyLoaderHelper::cancelResult(std::move(result));
     }

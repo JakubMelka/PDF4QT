@@ -230,7 +230,7 @@ public:
 class SplitterTestCanceledControl : public PDFOperationControl
 {
 public:
-    virtual bool isOperationCancelled() const override { return true; }
+    virtual bool isOperationCanceled() const override { return true; }
 };
 
 /// A folder sink with protected paths and a stop after some files

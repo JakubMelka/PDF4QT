@@ -66,7 +66,7 @@ private:
     void updateColorButtons();
 
     /// Lets the user pick a color. Returns an invalid color, if the selection
-    /// was cancelled.
+    /// was canceled.
     /// \param color Currently selected color
     /// \param title Title of the dialog
     QColor selectColor(const QColor& color, const QString& title);

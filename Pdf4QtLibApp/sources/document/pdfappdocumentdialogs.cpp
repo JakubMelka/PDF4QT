@@ -22,6 +22,7 @@
 
 #include "pdfappdocumentdialogs.h"
 #include "pdfappdocument.h"
+#include "pdfappdocumentloader.h"
 #include "pdfappdocumentstatusbar.h"
 #include "pdfapphomewidgets.h"
 #include "pdfapppagelayout.h"
@@ -235,6 +236,25 @@ void PDFAppDocumentStateScreen::createPasswordCard(QWidget* parent)
     connect(m_closeButton.data(), &QPushButton::clicked, this, &PDFAppDocumentStateScreen::onCloseClicked);
     connect(m_openButton.data(), &QPushButton::clicked, this, &PDFAppDocumentStateScreen::onOpenClicked);
     cardLayout->addWidget(actions);
+
+    // Open without attachments (owner answer Q5.9 c, R5-8; no frame - Q17: a Secondary button of
+    // the full width below the actions and its note Regular 12 text/secondary): a file encrypted
+    // in its embedded files only opens locked, its attachments stay encrypted
+    QWidget* withoutAttachments = new QWidget(m_passwordCard);
+    withoutAttachments->setObjectName(QStringLiteral("withoutAttachments"));
+    QVBoxLayout* withoutLayout = PDFAppDocumentDialogsHelper::createLayout<QVBoxLayout>(withoutAttachments, QMargins(), 8);
+    m_withoutAttachmentsButton = PDFAppPageWidgets::createButton(QString(), QStringLiteral("paperclip"), false, withoutAttachments);
+    m_withoutAttachmentsButton->setObjectName(QStringLiteral("openWithoutAttachmentsButton"));
+    m_withoutAttachmentsButton->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    connect(m_withoutAttachmentsButton.data(), &QPushButton::clicked, this, &PDFAppDocumentStateScreen::onWithoutAttachmentsClicked);
+    withoutLayout->addWidget(m_withoutAttachmentsButton);
+    m_withoutAttachmentsHint = PDFAppPageWidgets::createLabel(QString(), QFont::Normal, 12, PDFThemeColors::TextSecondary, withoutAttachments);
+    m_withoutAttachmentsHint->setObjectName(QStringLiteral("openWithoutAttachmentsHint"));
+    m_withoutAttachmentsHint->setWordWrap(true);
+    m_withoutAttachmentsHint->setAlignment(Qt::AlignHCenter);
+    withoutLayout->addWidget(m_withoutAttachmentsHint);
+    withoutAttachments->hide();
+    cardLayout->addWidget(withoutAttachments);
 }
 
 void PDFAppDocumentStateScreen::createLoadingPanel(QWidget* parent)
@@ -341,6 +361,16 @@ void PDFAppDocumentStateScreen::updateState()
         m_errorRow->setVisible(isWrong);
     }
 
+    // Q5.9 c: the loader of the document (its child) knows the encryption of the file, also after
+    // a reading, which asked for the password
+    const PDFAppDocumentLoader* loader = m_document ? m_document->findChild<PDFAppDocumentLoader*>(QString(), Qt::FindDirectChildrenOnly) : nullptr;
+    const bool isWithoutAttachmentsOffered = isPassword && loader && loader->isEmbeddedFilesOnlyEncryption();
+    if (m_withoutAttachmentsButton && m_withoutAttachmentsButton->parentWidget())
+    {
+        m_withoutAttachmentsButton->parentWidget()->setVisible(isWithoutAttachmentsOffered);
+        m_withoutAttachmentsButton->setEnabled(isWithoutAttachmentsOffered);
+    }
+
     updateTexts();
     updateOpenButton();
 
@@ -387,6 +417,14 @@ void PDFAppDocumentStateScreen::updateTexts()
     if (m_openButton)
     {
         m_openButton->setText(tr("Open document"));
+    }
+    if (m_withoutAttachmentsButton)
+    {
+        m_withoutAttachmentsButton->setText(tr("Open without attachments"));
+    }
+    if (m_withoutAttachmentsHint)
+    {
+        m_withoutAttachmentsHint->setText(tr("Only the attachments of this document are encrypted. Without the password it opens locked: the attachments stay encrypted and nothing can be changed or saved."));
     }
     if (m_loadingTitle)
     {
@@ -448,6 +486,21 @@ void PDFAppDocumentStateScreen::onOpenClicked()
     m_passwordField->clear();
     updateOpenButton();
     Q_EMIT passwordEntered(password);
+}
+
+void PDFAppDocumentStateScreen::onWithoutAttachmentsClicked()
+{
+    // The loader reads the bytes again without the password (the document gets the state Loading,
+    // the screen follows it); a typed password leaves the field
+    if (m_passwordField)
+    {
+        m_passwordField->setText(QString());
+    }
+    PDFAppDocumentLoader* loader = m_document ? m_document->findChild<PDFAppDocumentLoader*>(QString(), Qt::FindDirectChildrenOnly) : nullptr;
+    if (loader)
+    {
+        loader->openWithoutAttachments();
+    }
 }
 
 void PDFAppDocumentStateScreen::onCloseClicked()
@@ -1001,6 +1054,27 @@ void PDFAppLockPopover::setPagedXFA(bool isPagedXFA)
     if (m_text && isPagedXFA)
     {
         m_text->setText(tr("Editing is turned off so the file is not changed by accident. The pages of this XFA form are shown as laid out, so the document cannot be edited, also when it is unlocked."));
+        const int textWidth = m_text->width();
+        m_text->setFixedSize(textWidth, m_text->heightForWidth(textWidth));
+    }
+}
+
+void PDFAppLockPopover::setAttachmentsLocked(bool isAttachmentsLocked)
+{
+    // The document stays locked until the password of its attachments (one text with the
+    // refusal of PDFAppDocument::setLocked)
+    if (m_unlockButton)
+    {
+        m_unlockButton->setEnabled(!isAttachmentsLocked);
+    }
+    if (m_editCopyButton)
+    {
+        m_editCopyButton->setEnabled(!isAttachmentsLocked);
+    }
+
+    if (m_text && isAttachmentsLocked)
+    {
+        m_text->setText(PDFAppDocument::getAttachmentsLockedText());
         const int textWidth = m_text->width();
         m_text->setFixedSize(textWidth, m_text->heightForWidth(textWidth));
     }

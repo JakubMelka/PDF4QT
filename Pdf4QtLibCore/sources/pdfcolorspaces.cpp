@@ -381,8 +381,8 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
 
                 auto transformPixelLine = [&](unsigned int i)
                 {
-                    // Is operation being cancelled?
-                    if (PDFOperationControl::isOperationCancelled(operationControl))
+                    // Is operation being canceled?
+                    if (PDFOperationControl::isOperationCanceled(operationControl))
                     {
                         return;
                     }
@@ -476,8 +476,8 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
 
                 auto transformPixelLine = [&](unsigned int i)
                 {
-                    // Is operation being cancelled?
-                    if (PDFOperationControl::isOperationCancelled(operationControl))
+                    // Is operation being canceled?
+                    if (PDFOperationControl::isOperationCanceled(operationControl))
                     {
                         return;
                     }
@@ -593,7 +593,7 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
 
                 auto transformPixelLine = [&](unsigned int i)
                 {
-                    if (PDFOperationControl::isOperationCancelled(operationControl))
+                    if (PDFOperationControl::isOperationCanceled(operationControl))
                     {
                         return;
                     }
@@ -2366,10 +2366,10 @@ QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData,
 
                 for (unsigned int i = 0, rowCount = imageData.getHeight(); i < rowCount; ++i)
                 {
-                    // Is operation being cancelled?
-                    if (PDFOperationControl::isOperationCancelled(operationControl))
+                    // Is operation being canceled?
+                    if (PDFOperationControl::isOperationCanceled(operationControl))
                     {
-                        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Operation cancelled!"));
+                        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Operation canceled!"));
                     }
 
                     reader.seek(i * imageData.getStride());
@@ -2413,10 +2413,10 @@ QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData,
 
                 for (unsigned int i = 0, rowCount = imageData.getHeight(); i < rowCount; ++i)
                 {
-                    // Is operation being cancelled?
-                    if (PDFOperationControl::isOperationCancelled(operationControl))
+                    // Is operation being canceled?
+                    if (PDFOperationControl::isOperationCanceled(operationControl))
                     {
-                        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Operation cancelled!"));
+                        throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Operation canceled!"));
                     }
 
                     reader.seek(i * imageData.getStride());

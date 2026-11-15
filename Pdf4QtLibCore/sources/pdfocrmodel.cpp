@@ -375,7 +375,7 @@ QString PDFOCRError::getCodeIdentifier(PDFOCRErrorCode code)
             return QStringLiteral("out-of-disk-space");
         case PDFOCRErrorCode::Timeout:
             return QStringLiteral("timeout");
-        case PDFOCRErrorCode::Cancelled:
+        case PDFOCRErrorCode::Canceled:
             return QStringLiteral("cancelled");
         case PDFOCRErrorCode::WorkerCrashed:
             return QStringLiteral("worker-crashed");
@@ -415,7 +415,7 @@ PDFOCRErrorCode PDFOCRError::parseCodeIdentifier(const QString& identifier)
         PDFOCRErrorCode::OutOfMemory,
         PDFOCRErrorCode::OutOfDiskSpace,
         PDFOCRErrorCode::Timeout,
-        PDFOCRErrorCode::Cancelled,
+        PDFOCRErrorCode::Canceled,
         PDFOCRErrorCode::WorkerCrashed,
         PDFOCRErrorCode::InvalidEngineOutput,
         PDFOCRErrorCode::IrreversibleTransformation,
@@ -1142,7 +1142,7 @@ static const PDFEnumerationNames::Entry<PDFOCRPageState> s_pageStates[] =
     { PDFOCRPageState::NoText, "no-text" },
     { PDFOCRPageState::Skipped, "skipped" },
     { PDFOCRPageState::Error, "error" },
-    { PDFOCRPageState::Cancelled, "cancelled" },
+    { PDFOCRPageState::Canceled, "cancelled" },
     { PDFOCRPageState::Stale, "stale" }
 };
 

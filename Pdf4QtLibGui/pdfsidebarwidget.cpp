@@ -1411,7 +1411,7 @@ void PDFSidebarWidget::insertOutlineItem()
         ui->outlineTreeView->setFocus();
         ui->outlineTreeView->edit(proxyInsertIndex);
 
-        // Item is removed again, when its naming is cancelled - track it only,
+        // Item is removed again, when its naming is canceled - track it only,
         // when the editor has really been opened
         if (ui->outlineTreeView->isPersistentEditorOpen(proxyInsertIndex))
         {
@@ -1446,13 +1446,13 @@ void PDFSidebarWidget::finishOutlineItemCreation(QAbstractItemDelegate::EndEditH
         return;
     }
 
-    // Item has just been created by the user - if the naming has been cancelled,
+    // Item has just been created by the user - if the naming has been canceled,
     // or no title has been given, then remove the item again, so an accidentally
     // triggered action leaves no trace in the document
-    const bool isCancelled = hint == QAbstractItemDelegate::RevertModelCache;
+    const bool isCanceled = hint == QAbstractItemDelegate::RevertModelCache;
     const bool isTitleEmpty = newItemIndex.data(Qt::DisplayRole).toString().trimmed().isEmpty();
 
-    if (isCancelled || isTitleEmpty)
+    if (isCanceled || isTitleEmpty)
     {
         // Creation of the item has not been propagated to the document at all,
         // so removing the item restores the original state and nothing needs to

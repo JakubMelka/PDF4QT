@@ -1286,7 +1286,7 @@ QImage PDFDrawWidgetProxy::drawThumbnailImage(PDFInteger pageIndex, int pixelSiz
         if (imageSize.isValid())
         {
             // Jakub Melka: thumbnails are independent on the displayed area, so their
-            // compilation must not be cancelled by scrolling of the main draw widget.
+            // compilation must not be canceled by scrolling of the main draw widget.
             const PDFPrecompiledPage* compiledPage = m_compiler->getCompiledPage(pageIndex, PDFAsynchronousPageCompiler::CompileMode::Persistent);
             if (compiledPage && compiledPage->isValid())
             {

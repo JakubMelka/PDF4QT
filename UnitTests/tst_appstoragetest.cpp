@@ -30,6 +30,7 @@
 #include "pdfsettingdefinitions.h"
 #include "pdfsettingsrepository.h"
 #include "pdfshortcutrepository.h"
+#include "apptestcertificates.h"
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -902,6 +903,7 @@ void AppStorageTest::triggersOfAllTables()
         { "mcp_activity", nullptr, "INSERT INTO mcp_activity(id, time, status) VALUES (8, 0, 'ok')", "UPDATE mcp_activity SET status = 'failed'", "DELETE FROM mcp_activity", "8" },
         { "mcp_request", nullptr, "INSERT INTO mcp_request(id, kind, created) VALUES (9, 'disconnect', 0)", "UPDATE mcp_request SET session = 'x'", "DELETE FROM mcp_request", "9" },
         { "recent_assembly", nullptr, "INSERT INTO recent_assembly(path, name, folder, last_opened) VALUES ('/t.pdf4qtassembly', 't', '/', 0)", "UPDATE recent_assembly SET pinned = 1", "DELETE FROM recent_assembly", "/t.pdf4qtassembly" },
+        { "certificate_cache", nullptr, "INSERT INTO certificate_cache(path, fingerprint, data, added, last_used) VALUES ('/c.pfx', 'f', x'00', 0, 0)", "UPDATE certificate_cache SET last_used = 1", "DELETE FROM certificate_cache", "/c.pfx" },
     };
 
     // The test covers every table of the schema (a new table needs its case here)
@@ -2965,7 +2967,8 @@ void AppStorageTest::schemaFileFresh()
     const QByteArray legacyHash = AppStorageTestHelper::fileAndLogHash(legacyPath);
 
     const QString filePath = pdf::PDFDatabaseFiles::getFilePath(directory, pdf::PDFDatabaseSchema::getCurrentVersion());
-    QCOMPARE(QFileInfo(filePath).fileName(), QStringLiteral("pdf4qt-2.db"));
+    // Migration 3 (certificate_cache of Encrypt with Certificate, step 5 of phase 2) is the newest
+    QCOMPARE(QFileInfo(filePath).fileName(), QStringLiteral("pdf4qt-3.db"));
     {
         pdf::PDFDatabase database;
         database.open(AppStorageTestHelper::createFolderOptions(directory));
@@ -3558,8 +3561,10 @@ public:
             "INSERT INTO mcp_client(session, name) VALUES ('s%1', 'n');"
             "INSERT INTO mcp_request(kind, created) VALUES ('k%1', 1);"
             "INSERT INTO recent_assembly(path, name, folder, last_opened, page_count) VALUES ('/r%1.pdf4qtassembly', 'r', '/', 1, 17);"
+            "INSERT INTO certificate_cache(path, fingerprint, data, file_size, file_mtime, added, last_used) VALUES ('/c%1.pfx', '%2', x'%3', 2500, 7000, 1, 1);"
             "INSERT INTO thumbnail_rendering(path, file_mtime, instance, pid, started) VALUES ('/t%1', 1, 'i', 1, 1);"
-            "INSERT INTO storage_maintenance(key, value) VALUES ('test.%1', 1);").arg(tag);
+            "INSERT INTO storage_maintenance(key, value) VALUES ('test.%1', 1);")
+            .arg(tag, pdftest::AppTestCertificates::firstFingerprint(), QString::fromLatin1(pdftest::AppTestCertificates::first().toHex()));
         return AppStorageTestHelper::execute(database, sql.toUtf8().constData());
     }
 

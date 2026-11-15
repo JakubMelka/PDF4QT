@@ -185,7 +185,7 @@ private:
         ++m_heldCount;
         while (m_hold.load())
         {
-            if (pdf::PDFOperationControl::isOperationCancelled(control))
+            if (pdf::PDFOperationControl::isOperationCanceled(control))
             {
                 --m_heldCount;
                 return false;
@@ -295,7 +295,7 @@ private:
         {
             for (size_t i = 0; i < pages.size(); ++i)
             {
-                if (pdf::PDFOperationControl::isOperationCancelled(control))
+                if (pdf::PDFOperationControl::isOperationCanceled(control))
                 {
                     return pdf::PDFDocumentToolResult::createStopped();
                 }
@@ -369,7 +369,7 @@ class TestOperationControl : public pdf::PDFOperationControl
 public:
     explicit TestOperationControl(int cancelAt) : m_cancelAt(cancelAt) { }
 
-    bool isOperationCancelled() const override
+    bool isOperationCanceled() const override
     {
         return m_cancelAt >= 0 && ++m_questions > m_cancelAt;
     }

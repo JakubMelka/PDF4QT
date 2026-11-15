@@ -490,11 +490,13 @@ void PDFAppDocumentTab::showLockPopover(const QRect& anchor)
     connect(m_lockPopover.data(), &PDFAppLockPopover::unlockRequested, this, &PDFAppDocumentTab::onUnlockRequested);
     connect(m_lockPopover.data(), &PDFAppLockPopover::editCopyRequested, this, &PDFAppDocumentTab::onEditCopyRequested);
     m_lockPopover->setPagedXFA(m_document->isPagedXFA());
+    m_lockPopover->setAttachmentsLocked(m_document->isAttachmentsLocked());
     m_lockPopover->showBelow(anchor);
 }
 
 void PDFAppDocumentTab::onUnlockRequested()
 {
+    // Refused by the document while its attachments are encrypted (isAttachmentsLocked)
     if (m_document)
     {
         m_document->setLocked(false);
@@ -503,8 +505,9 @@ void PDFAppDocumentTab::onUnlockRequested()
 
 void PDFAppDocumentTab::onEditCopyRequested()
 {
-    // A display version of an XFA form (step 8) has no editable copy
-    if (m_document && m_document->isPagedXFA())
+    // A display version of an XFA form (step 8) has no editable copy, a document with
+    // encrypted attachments no copy at all (PDFAppDocument::setCopyOf)
+    if (m_document && (m_document->isPagedXFA() || m_document->isAttachmentsLocked()))
     {
         return;
     }
@@ -631,9 +634,10 @@ void PDFAppDocumentTab::onDocumentProgressChanged()
 
 void PDFAppDocumentTab::onLockChanged()
 {
-    // The lock applies also at the next opening of the file (recent_file.locked)
+    // The lock applies also at the next opening of the file (recent_file.locked); the lock of
+    // encrypted attachments (Q5.9 c) is not the user's and is not stored
     PDFAppContext* context = getContext();
-    if (context && context->getDatabase() && m_document && !m_document->getFilePath().isEmpty())
+    if (context && context->getDatabase() && m_document && !m_document->getFilePath().isEmpty() && !m_document->isAttachmentsLocked())
     {
         const PDFDatabaseError error = context->getRecent().setLocked(m_document->getFilePath(), m_document->isLocked());
         if (error.isError())

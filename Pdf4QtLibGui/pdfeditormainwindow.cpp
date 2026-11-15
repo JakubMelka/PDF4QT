@@ -579,7 +579,7 @@ void PDFEditorMainWindow::closeEvent(QCloseEvent* event)
     {
         if (!m_programController->askForSaveDocumentBeforeClose())
         {
-            // User cancelled close operation
+            // User canceled close operation
             event->ignore();
             return;
         }

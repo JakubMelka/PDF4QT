@@ -36,6 +36,7 @@
 // the next batches add their scenarios (step 3a of phase 2: each package in its own file,
 // apptoolpageslifetime_<package>.cpp, ToolPagesLifetimePackages).
 
+#include "apptestcertificatefolders.h"
 #include "apptoolowntabfixture.h"
 #include "apptoolpageslifetime.h"
 #include "apptoolshellfixture.h"
@@ -47,6 +48,8 @@
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
 #include "pdfappmainwindow.h"
+#include "pdfappmcpdocumentresources.h"
+#include "pdfappmcphost.h"
 #include "pdfappnavigator.h"
 #include "pdfapproute.h"
 #include "pdfappsettingcontrol.h"
@@ -612,6 +615,46 @@ public:
     ToolPagesLifetimeHelper() = delete;
 
     static void settle() { pdftest::AppDocumentFixture::settle(); }
+
+    /// The 1 s registry timer of the MCP host (PDFAppMcpHost::checkToolRegistry) is no part of a
+    /// scenario: a registration of the fixture (a test tool, the tools of a previous fixture going)
+    /// is seen by it at a moment of its own, so its catalogChanged lands in a step of the discovery,
+    /// which the replay under load does not reproduce (P3 finding, P2S5INT item 6; the threshold of
+    /// 80 % stays). The host checks the registry once before the recording, then the timer calls it
+    /// no more; a tools/call still checks the registry itself (PDFAppMcpHost::handleToolCall).
+    static void stopRegistryTimers(QObject* context)
+    {
+        if (!context)
+        {
+            return;
+        }
+        for (pdf::PDFAppMcpHost* host : context->findChildren<pdf::PDFAppMcpHost*>())
+        {
+            host->checkToolRegistry();
+            for (QTimer* timer : host->findChildren<QTimer*>(Qt::FindDirectChildrenOnly))
+            {
+                QObject::disconnect(timer, &QTimer::timeout, host, &pdf::PDFAppMcpHost::checkToolRegistry);
+            }
+        }
+        settleCatalog(context);
+    }
+
+    /// The listed resources of MCP are rebuilt 50 ms after a document changes (the debounce of
+    /// PDFAppMcpDocumentWatcher): its catalogChanged came in the step of the change or in the next
+    /// one, as the load decided (P2S5INT item 6, certificatecreate). The harness waits for the pending
+    /// rebuild after each step, so the site belongs to the step, which caused it.
+    static void settleCatalog(QObject* context)
+    {
+        if (!context)
+        {
+            return;
+        }
+        for (pdf::PDFAppMcpDocumentWatcher* watcher : context->findChildren<pdf::PDFAppMcpDocumentWatcher*>())
+        {
+            QPointer<pdf::PDFAppMcpDocumentWatcher> guard(watcher);
+            pdftest::AppToolShellFixture::waitFor([&guard]() { return !guard || !guard->isRebuildPending(); }, 2000);
+        }
+    }
 
     static pdf::PDFAppPage* page(const ToolPagesLifetimeRun& run)
     {
@@ -2218,6 +2261,9 @@ private:
 
 void AppToolPagesLifetimeTest::initTestCase()
 {
+    // No scenario reads or writes the certificates of the user (the tools of step 5 list them):
+    // temporary folders for the whole process, the certificate scenarios nest their own
+    pdftest::AppTestCertificateFolders::installForProcess();
     QApplication::setStyle(new pdf::PDFWidgetStyle());
     QLocale::setDefault(QLocale(QLocale::English, QLocale::UnitedStates));
     pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
@@ -2325,6 +2371,7 @@ void AppToolPagesLifetimeTest::runScenario(const QString& name, ToolPagesLifetim
     const std::vector<ToolPagesLifetimeStep> steps = ToolPagesLifetimeHelper::scenario(name);
     QVERIFY(!steps.empty());
     pdftest::AppDocumentFixture::settle();
+    ToolPagesLifetimeHelper::stopRegistryTimers(fixture.context.get());
 
     ToolPagesLifetimeRecorder recorder(mode);
     if (mode == ToolPagesLifetimeRecorder::Mode::Replay)
@@ -2393,6 +2440,10 @@ void AppToolPagesLifetimeTest::runScenario(const QString& name, ToolPagesLifetim
         recorder.hookTree(fixture.context.get());
 
         const bool isOk = steps[i](run);
+        if (!recorder.isFired())
+        {
+            ToolPagesLifetimeHelper::settleCatalog(fixture.context.get());
+        }
         if (qEnvironmentVariableIsSet("PDF4QT_LIFETIME_TRACE"))
         {
             qInfo().noquote() << QStringLiteral("step %1: %2").arg(i).arg(isOk ? QStringLiteral("ok") : QStringLiteral("failed"));
@@ -2899,6 +2950,8 @@ const std::vector<ToolPagesLifetimeScenario>& ToolPagesLifetimePackages::getScen
         registerOptimizeImagesScenarios(&result);
         registerBitonalScenarios(&result);
         registerAudioBookScenarios(&result);
+        registerEncryptionScenarios(&result);
+        registerCertificateScenarios(&result);
         return result;
     }();
     return scenarios;

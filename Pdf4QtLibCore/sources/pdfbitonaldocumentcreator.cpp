@@ -185,9 +185,9 @@ bool PDFBitonalDocumentCreator::createBitonalDocument(const Settings& settings, 
                 break;
         }
 
-        if (!isConverted || PDFOperationControl::isOperationCancelled(operationControl))
+        if (!isConverted || PDFOperationControl::isOperationCanceled(operationControl))
         {
-            // Nothing has been converted, or the conversion has been cancelled
+            // Nothing has been converted, or the conversion has been canceled
             return false;
         }
 
@@ -486,7 +486,7 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromImages(PDFDocumentBuild
     {
         // B58: the conversion of the images stops between the images and inside of the
         // decoding and the thresholding of one
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
             return false;
         }
@@ -505,7 +505,7 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromImages(PDFDocumentBuild
         if (image.isNull())
         {
             // Image cannot be decoded, so it is left in the document as it is
-            if (!PDFOperationControl::isOperationCancelled(operationControl))
+            if (!PDFOperationControl::isOperationCanceled(operationControl))
             {
                 addFailedItem(item, FailureReason::CannotBeRead);
             }
@@ -516,7 +516,7 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromImages(PDFDocumentBuild
         QImage alphaMask;
         const QImage bitonalImage = createItemImage(image, ConversionSource::Images, item.mode, settings.conversionMethod, settings.manualThreshold, &alphaMask, nullptr, operationControl);
 
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
             return false;
         }
@@ -659,7 +659,7 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromPages(PDFDocumentBuilde
 
     renderPageImages(rasterizedPageIndices, pageSizeGetter, pageImageProcessor, operationControl);
 
-    if (PDFOperationControl::isOperationCancelled(operationControl))
+    if (PDFOperationControl::isOperationCanceled(operationControl))
     {
         return false;
     }
@@ -1640,7 +1640,7 @@ PDFObject PDFBitonalDocumentCreator::createBitonalImageObject(const QImage& imag
     };
 
     // The candidates are ordered from the most widely supported coding to the least
-    // one, so a tie is decided in favour of the coding, which every reader can read.
+    // one, so a tie is decided in favor of the coding, which every reader can read.
     // The Flate coding leads the list also because it accepts every image, so the
     // automatic mode always produces a result.
     constexpr std::array<std::pair<Compression, PDFImage::ImageCompression>, 4> codings = {
@@ -1701,7 +1701,7 @@ PDFBitonalDocumentCreator::BlankPageInfo PDFBitonalDocumentCreator::detectBlankP
                                                                                    int dpiResolution,
                                                                                    const PDFOperationControl* operationControl)
 {
-    if (pageImage.isNull() || dpiResolution <= 0 || PDFOperationControl::isOperationCancelled(operationControl))
+    if (pageImage.isNull() || dpiResolution <= 0 || PDFOperationControl::isOperationCanceled(operationControl))
     {
         return BlankPageInfo();
     }
@@ -1756,7 +1756,7 @@ PDFBitonalDocumentCreator::BlankPageInfo PDFBitonalDocumentCreator::analyzeBiton
 
     for (int y = area.top(); y <= area.bottom() && !isInkPixelLimitExceeded; ++y)
     {
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
             return result;
         }
@@ -1776,7 +1776,7 @@ PDFBitonalDocumentCreator::BlankPageInfo PDFBitonalDocumentCreator::analyzeBiton
     result.inkPixelCount = inkPixelCount;
     result.inkRatio = areaPixelCount > 0 ? double(inkPixelCount) / double(areaPixelCount) : 0.0;
 
-    if (isInkPixelLimitExceeded || PDFOperationControl::isOperationCancelled(operationControl))
+    if (isInkPixelLimitExceeded || PDFOperationControl::isOperationCanceled(operationControl))
     {
         return result;
     }
@@ -1821,7 +1821,7 @@ PDFBitonalDocumentCreator::BlankPageInfo PDFBitonalDocumentCreator::analyzeBiton
 
     for (int y = area.top(); y <= area.bottom(); ++y)
     {
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
             return result;
         }
@@ -1874,7 +1874,7 @@ PDFBitonalDocumentCreator::BlankPageInfo PDFBitonalDocumentCreator::analyzeBiton
 
     for (size_t index = 0; index < runs.size(); ++index)
     {
-        if ((index & 0xFFFF) == 0 && PDFOperationControl::isOperationCancelled(operationControl))
+        if ((index & 0xFFFF) == 0 && PDFOperationControl::isOperationCanceled(operationControl))
         {
             return BlankPageInfo();
         }
@@ -1894,7 +1894,7 @@ PDFBitonalDocumentCreator::BlankPageInfo PDFBitonalDocumentCreator::analyzeBiton
 
     for (const QRect& bounds : spots)
     {
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
             return BlankPageInfo();
         }
@@ -1933,7 +1933,7 @@ PDFBitonalDocumentCreator::BlankPageInfo PDFBitonalDocumentCreator::analyzeBiton
         // Anything else is a speck of the dust, of the toner or of the paper itself
     }
 
-    result.isBlank = result.contentComponentCount == 0 && !PDFOperationControl::isOperationCancelled(operationControl);
+    result.isBlank = result.contentComponentCount == 0 && !PDFOperationControl::isOperationCanceled(operationControl);
     return result;
 }
 
@@ -2184,7 +2184,7 @@ PDFBitonalDocumentCreator::Preview PDFBitonalDocumentCreator::createPreview(cons
         }
     }
 
-    if (image.isNull() || PDFOperationControl::isOperationCancelled(operationControl))
+    if (image.isNull() || PDFOperationControl::isOperationCanceled(operationControl))
     {
         return preview;
     }
@@ -2214,7 +2214,7 @@ PDFBitonalDocumentCreator::Preview PDFBitonalDocumentCreator::createPreview(cons
         preview.resultImage = createFillImage(image.size(), request.item.isFilledByBlack());
     }
 
-    if (PDFOperationControl::isOperationCancelled(operationControl))
+    if (PDFOperationControl::isOperationCanceled(operationControl))
     {
         return Preview();
     }
@@ -2291,7 +2291,7 @@ std::vector<PDFBitonalDocumentCreator::BlankPageResult> PDFBitonalDocumentCreato
             const bool isIncomplete = std::any_of(errors.cbegin(), errors.cend(), [](const PDFRenderError& error) { return error.type == RenderErrorType::Error || error.type == RenderErrorType::NotImplemented; });
             const BlankPageInfo info = detectBlankPage(isIncomplete ? QImage() : image, dpiResolution, operationControl);
             BlankPageResult& result = results[resultIndices.at(pageIndex)];
-            result.isExamined = !PDFOperationControl::isOperationCancelled(operationControl);
+            result.isExamined = !PDFOperationControl::isOperationCanceled(operationControl);
             result.isBlank = result.isExamined && info.isBlank;
 
             if (progress)

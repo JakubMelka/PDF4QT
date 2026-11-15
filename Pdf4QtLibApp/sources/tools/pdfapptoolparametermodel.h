@@ -62,7 +62,8 @@ public:
 ///    widget is refused with its translated reason and nothing changes.
 ///  - The start values are the last values of the tool (PDFToolParameterRepository):
 ///    a hostile stored value gives the default. A Secret and a parameter with
-///    setStored(false) are never read nor written.
+///    setStored(false) are never read nor written. A Secret is never set at all (S5.2 of
+///    step 5: it keeps its empty default, so no step of Undo / Redo holds a password).
 ///  - Undo and Redo are snapshots of all values; each accepted change is one step and
 ///    Undo is disabled until the first change (K6). They are what Undo and Redo of the
 ///    tool act on while the tool is open, never the document (owner, 2026-11-01).
@@ -100,9 +101,16 @@ public:
     /// Canonical value of the parameter, invalid for an unknown name or a missing value
     QVariant getValue(const QString& name) const { return m_values.value(name); }
 
-    /// Sets a value of the user. A value equal to the current one does nothing.
+    /// Sets a value of the user. A value equal to the current one does nothing. A Secret is
+    /// always refused (plan of step 5 of phase 2, S5.2): the values and every step of Undo and
+    /// Redo would keep the password; the GUI of the tool keeps it in its field and gives it only
+    /// to the run (PDFDocumentToolGUI::getRunParameters). The model keeps the default (empty)
+    /// value of a Secret. The same refusal for setValues, setFollowingValue and mapValues.
     /// \returns the translated reason of a refusal, empty on success
     QString setValue(const QString& name, const QVariant& value);
+
+    /// The reason of the refusal of a Secret (setValue)
+    static QString getSecretRefusalText();
 
     /// Sets more values as one undo step; one invalid value refuses all of them.
     /// \returns the translated reason of a refusal, empty on success

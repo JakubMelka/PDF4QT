@@ -33,6 +33,7 @@
 #include "pdfdocumenttool_extractimages.h"
 #include "pdfdocumenttool_extracttext.h"
 #include "pdfdocumenttool_compress.h"
+#include "pdfdocumenttool_encryption.h"
 #include "pdfdocumenttool_grayscale.h"
 #include "pdfdocumenttool_optimizeimages.h"
 #include "pdfdocumenttool_pdftoimages.h"
@@ -183,6 +184,7 @@ struct CorpusToolRow
     std::function<QVariantMap(const pdf::PDFDocument*, const QString&)> createParameters = nullptr;    ///< Parameters made of the read file and its path in place of parameters (the assembly of Manage Pages)
     CorpusFilesCheck filesCheck = nullptr;  ///< The tool writes image files by the file sink of the context, this checks them (no document)
     std::function<void(pdf::PDFDocumentToolContext*)> prepareContext = nullptr;   ///< Completes the context (the fake speech synthesizer of Create Audio Book)
+    QString password;   ///< The open password of the result, which is read back by it (the tools of the encryption, step 5 of phase 2)
 
     QString getName() const { return QString::fromLatin1(toolId) + QLatin1Char('/') + QString::fromLatin1(variant); }
 };
@@ -350,7 +352,7 @@ public:
         m_timer.start();
     }
 
-    virtual bool isOperationCancelled() const override { return m_timer.hasExpired(m_milliseconds); }
+    virtual bool isOperationCanceled() const override { return m_timer.hasExpired(m_milliseconds); }
 
 private:
     qint64 m_milliseconds;
@@ -390,7 +392,7 @@ public:
         renderer.setOperationControl(control);
         renderer.compile(&compiledPage, pageIndex);
 
-        if (pdf::PDFOperationControl::isOperationCancelled(control))
+        if (pdf::PDFOperationControl::isOperationCanceled(control))
         {
             return QImage();
         }
@@ -1236,6 +1238,54 @@ private:
                input->getCatalog()->isXFANeedsRendering();
     }
 
+    // ---------------------------------------------------------------- step 5 of phase 2
+
+    /// The tools of the encryption refuse a document, whose security only its owner may change
+    /// (R5-4) and whose owner password the folder does not give, and a document with locked
+    /// attachments (Q5.9 c)
+    static bool isSecurityChangeRefused(const pdf::PDFDocument* input)
+    {
+        const pdf::PDFSecurityHandler* handler = input->getStorage().getSecurityHandler();
+        return !pdf::PDFDocumentToolEncryption::isSecurityChangeAllowed(input) || (handler && handler->isEmbeddedFilesLocked());
+    }
+
+    /// The input of Remove Password: the file encrypted by the core first (AES 256-bit) and opened
+    /// by its owner password; the bytes of the original file stay the original data, so the
+    /// reported size before is the size of the file of the row. A file, which cannot be encrypted,
+    /// stays as it was (the row then refuses it or has nothing to remove).
+    static void encryptInput(pdf::PDFDocumentToolContext* context)
+    {
+        pdf::PDFDocumentToolInputDocument& input = context->documents.front();
+        if (!pdf::PDFDocumentToolEncryption::isSecurityChangeAllowed(input.document.data()))
+        {
+            return;
+        }
+
+        pdf::PDFSecurityHandlerFactory::SecuritySettings settings;
+        settings.algorithm = pdf::PDFSecurityHandlerFactory::AES_256;
+        settings.userPassword = QStringLiteral("corpus-open");
+        settings.ownerPassword = QStringLiteral("corpus-owner");
+        settings.permissions = pdf::PDFDocumentToolEncryption::getAllPermissions();
+        const pdf::PDFDocumentToolEncryption::Change change = pdf::PDFDocumentToolEncryption::changeEncryption(input.document.data(), std::move(settings), nullptr, nullptr);
+        if (!change.error.isEmpty())
+        {
+            // The run fails: "An input document is missing" names the row as failed
+            input.document.reset();
+            return;
+        }
+
+        bool isFirstAttempt = true;
+        auto getPassword = [&isFirstAttempt](bool* ok)
+        {
+            *ok = isFirstAttempt;
+            isFirstAttempt = false;
+            return QStringLiteral("corpus-owner");
+        };
+        pdf::PDFDocumentReader reader(nullptr, getPassword, false, true);
+        pdf::PDFDocument encrypted = reader.readFromBuffer(change.writtenData);
+        input.document = reader.getReadingResult() == pdf::PDFDocumentReader::Result::OK ? pdf::PDFDocumentPointer(new pdf::PDFDocument(std::move(encrypted))) : pdf::PDFDocumentPointer();
+    }
+
     // ---------------------------------------------------------------- step 4 of phase 2
 
     /// Black & White of the pages and PDF to Images refuse a document without pages
@@ -1730,6 +1780,49 @@ private:
         rows.push_back({ pdf::PDFDocumentToolRemoveLinks::TOOL_ID, "all", createRemoveLinks, QVariantMap(), CorpusLook::Exact,
                          PromiseVersion | PromiseEncryption | PromiseSignatures | PromiseText | PromiseTransparency });
 
+        // The encryption (step 5 of phase 2, plan 9): the result is written whole and read back by
+        // its open password, its pages look as in the file and keep their text; the version may
+        // rise (B98), the signatures are lost (LostCopyOnly). Only the owner changes the security
+        // (R5-4): an encrypted file opened without its owner password is refused.
+        using Encryption = pdf::PDFDocumentToolEncryption;
+        const auto createEncryption = [](Encryption::Mode mode)
+        {
+            return [mode]() -> std::shared_ptr<const pdf::PDFDocumentTool> { return std::make_shared<Encryption>(mode); };
+        };
+        const auto protectPassword = [](const char* algorithm, const char* scope)
+        {
+            QVariantMap parameters;
+            parameters.insert(QString::fromLatin1(Encryption::PARAMETER_ALGORITHM), QString::fromLatin1(algorithm));
+            parameters.insert(QString::fromLatin1(Encryption::PARAMETER_SCOPE), QString::fromLatin1(scope));
+            parameters.insert(QString::fromLatin1(Encryption::PARAMETER_OPEN_PASSWORD), QStringLiteral("corpus-open"));
+            parameters.insert(QString::fromLatin1(Encryption::PARAMETER_OWNER_SAME_AS_OPEN), false);
+            parameters.insert(QString::fromLatin1(Encryption::PARAMETER_OWNER_PASSWORD), QStringLiteral("corpus-owner"));
+            parameters.insert(QString::fromLatin1(Encryption::PARAMETER_KEEP_RESTRICTIONS), false);
+            return parameters;
+        };
+        constexpr int ENCRYPTION_PROMISES = PromiseText | PromiseTransparency;
+        CorpusToolRow passwordAes256{ Encryption::TOOL_ID_PASSWORD, "aes-256", createEncryption(Encryption::Mode::Password), protectPassword(Encryption::ALGORITHM_AES_256, Encryption::SCOPE_EVERYTHING),
+                                      CorpusLook::Exact, ENCRYPTION_PROMISES, nullptr, nullptr, &ToolCorpusHelper::isSecurityChangeRefused };
+        passwordAes256.password = QStringLiteral("corpus-open");
+        rows.push_back(passwordAes256);
+        CorpusToolRow passwordAes128{ Encryption::TOOL_ID_PASSWORD, "aes-128-except-metadata", createEncryption(Encryption::Mode::Password), protectPassword(Encryption::ALGORITHM_AES_128, Encryption::SCOPE_EXCEPT_METADATA),
+                                      CorpusLook::Exact, ENCRYPTION_PROMISES, nullptr, nullptr, &ToolCorpusHelper::isSecurityChangeRefused };
+        passwordAes128.password = QStringLiteral("corpus-open");
+        rows.push_back(passwordAes128);
+
+        // Restrict Permissions without an open password: the file opens without a password
+        QVariantMap viewAndPrint = Encryption::getPresetValues(Encryption::Preset::ViewAndPrint);
+        viewAndPrint.insert(QString::fromLatin1(Encryption::PARAMETER_OWNER_PASSWORD), QStringLiteral("corpus-owner"));
+        rows.push_back({ Encryption::TOOL_ID_PERMISSIONS, "view-and-print", createEncryption(Encryption::Mode::Permissions), viewAndPrint,
+                         CorpusLook::Exact, ENCRYPTION_PROMISES, nullptr, nullptr, &ToolCorpusHelper::isSecurityChangeRefused });
+
+        // Remove Password of the file encrypted first by the core (AES 256-bit, opened by its owner
+        // password): the result is the file again, in the clear
+        CorpusToolRow unlock{ Encryption::TOOL_ID_UNLOCK, "after-aes-256", createEncryption(Encryption::Mode::Unlock), QVariantMap(),
+                              CorpusLook::Exact, ENCRYPTION_PROMISES, nullptr, nullptr, &ToolCorpusHelper::isSecurityChangeRefused };
+        unlock.prepareContext = &ToolCorpusHelper::encryptInput;
+        rows.push_back(unlock);
+
         // Split and Extract (plan of step 3 of phase 2, chapter 8): new unencrypted documents of
         // the pages, which look as in the file and keep their text; the forms, destinations,
         // structure, annotations and attachments of the file are what the rows are run for. They
@@ -2079,7 +2172,7 @@ void DocumentToolCorpusTest::toolOnFile()
         // It has to be named: another refused file is a failure of the reader or a new file.
         if (reader.getReadingResult() != pdf::PDFDocumentReader::Result::OK)
         {
-            const bool isCanceled = reader.getReadingResult() == pdf::PDFDocumentReader::Result::Cancelled;
+            const bool isCanceled = reader.getReadingResult() == pdf::PDFDocumentReader::Result::Canceled;
             summary.status = isCanceled ? QStringLiteral("password-protected") : QStringLiteral("damaged");
             summary.note = reader.getErrorMessage();
             summary.milliseconds = timer.elapsed();
@@ -2205,7 +2298,7 @@ void DocumentToolCorpusTest::toolOnFile()
             }
             else
             {
-                checkResultDocument(row, file, QString(), &input, inputData, result, &summary, &failures);
+                checkResultDocument(row, file, row.password, &input, inputData, result, &summary, &failures);
             }
         }
     }
@@ -2255,8 +2348,10 @@ void DocumentToolCorpusTest::checkResultDocument(const CorpusToolRow& row,
         return;
     }
 
-    // Written and read back: what the user gets is the file
-    QByteArray written;
+    // Written and read back: what the user gets is the file - the bytes the tool has written and
+    // verified, when it gives them (the encryption, PDFAppToolResultWriter::createCopyRequest saves them)
+    QByteArray written = outputDocument.writtenData;
+    if (written.isEmpty())
     {
         QBuffer buffer(&written);
         buffer.open(QIODevice::WriteOnly);
@@ -2582,7 +2677,7 @@ void DocumentToolCorpusTest::checkContent(const pdf::PDFDocument* input,
     const CorpusPageBudget budget(ToolCorpusHelper::getPageTimeLimit());
     for (size_t i = 0; i < origins.size(); ++i)
     {
-        if (budget.isOperationCancelled())
+        if (budget.isOperationCanceled())
         {
             notes->append(QStringLiteral("the content of the pages from %1 not compared: over the limit of the time").arg(i + 1));
             return;
@@ -2629,7 +2724,7 @@ void DocumentToolCorpusTest::checkPage(const CorpusToolRow& row,
         QStringList errorsAfter;
         const CorpusPageBudget budgetBefore(ToolCorpusHelper::getPageTimeLimit());
         const QImage before = inputRenderer->render(origin.inputPage, origin.extraRotation, size, &budgetBefore, &errorsBefore);
-        if (budgetBefore.isOperationCancelled())
+        if (budgetBefore.isOperationCanceled())
         {
             notes->append(notCompared);
             return;
@@ -2637,7 +2732,7 @@ void DocumentToolCorpusTest::checkPage(const CorpusToolRow& row,
 
         const CorpusPageBudget budgetAfter(ToolCorpusHelper::getPageTimeLimit() * 2);
         const QImage after = outputRenderer->render(outputPage, pdf::PageRotation::None, size, &budgetAfter, &errorsAfter);
-        if (budgetAfter.isOperationCancelled())
+        if (budgetAfter.isOperationCanceled())
         {
             failures->append(QStringLiteral("The page %1 is drawn within the limit of %2 s before the tool and not within twice the limit after it").arg(outputPage + 1).arg(ToolCorpusHelper::getPageTimeLimit()));
             return;
@@ -2671,7 +2766,7 @@ void DocumentToolCorpusTest::checkPage(const CorpusToolRow& row,
     {
         const QString textBefore = ToolCorpusHelper::getPageText(input, origin.inputPage, &budget);
         const QString textAfter = ToolCorpusHelper::getPageText(output, outputPage, &budget);
-        if (budget.isOperationCancelled())
+        if (budget.isOperationCanceled())
         {
             notes->append(notCompared);
             return;
@@ -2687,7 +2782,7 @@ void DocumentToolCorpusTest::checkPage(const CorpusToolRow& row,
         // In both directions: transparent images stay transparent, opaque ones get no holes
         const std::vector<double> sharesBefore = ToolCorpusHelper::getTransparentShares(input, origin.inputPage, &budget);
         const std::vector<double> sharesAfter = ToolCorpusHelper::getTransparentShares(output, outputPage, &budget);
-        if (budget.isOperationCancelled())
+        if (budget.isOperationCanceled())
         {
             notes->append(notCompared);
             return;

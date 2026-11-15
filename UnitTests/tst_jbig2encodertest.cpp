@@ -826,7 +826,7 @@ void JBIG2EncoderTest::test_file_stream_roundtrip()
         const QByteArray file = encoder.encodeFile();
         const QByteArray embedded = encoder.encodeEmbeddedStream();
 
-        // The file header of the annex D.4 - the identifier, the sequential organisation
+        // The file header of the annex D.4 - the identifier, the sequential organization
         // with a known number of the pages, and a single page. The segments of the
         // embedded stream follow, terminated by the end of page and the end of file.
         // The end of page is associated with the page 1 and it is the last segment

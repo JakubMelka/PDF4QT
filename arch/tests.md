@@ -131,6 +131,12 @@ Facts needed to run them:
 | `UnitTestsAppToolAudioBook` | [tst_apptoolaudiobooktest.cpp](../UnitTests/tst_apptoolaudiobooktest.cpp) | GUI of Create Audio Book (step 4, P4). |
 | `UnitTestsAppMcpOptimize` | [tst_appmcpoptimizetest.cpp](../UnitTests/tst_appmcpoptimizetest.cpp) | MCP actions optimize.images, grayscale, bitonal over HTTP (step 4). |
 | `UnitTestsAppMcpConvert` | [tst_appmcpconverttest.cpp](../UnitTests/tst_appmcpconverttest.cpp) | MCP actions of the exports of step 4 and document.list_images over HTTP. |
+| `UnitTestsSecurityHandler` | [tst_securityhandlertest.cpp](../UnitTests/tst_securityhandlertest.cpp) | Security handlers against ISO 32000-2 7.6, the random bytes and the overwriting of secrets (step 5, P1a). |
+| `UnitTestsPasswordStrength` | [tst_passwordstrengthtest.cpp](../UnitTests/tst_passwordstrengthtest.cpp) | The strength of a password, its levels and the effective length (step 5, P1a). |
+| `UnitTestsDocumentToolEncryption` | [tst_documenttoolencryptiontest.cpp](../UnitTests/tst_documenttoolencryptiontest.cpp) | The four tools of the encryption of the core (step 5, P1b). |
+| `UnitTestsAppToolEncryption` | [tst_apptoolencryptiontest.cpp](../UnitTests/tst_apptoolencryptiontest.cpp) | GUI of the encryption; a case per row, P2 and P3 (`_certificate.cpp`) register their cases (step 5). |
+| `UnitTestsAppCertificateDialogs` | [tst_appcertificatedialogstest.cpp](../UnitTests/tst_appcertificatedialogstest.cpp) | Create a self-signed certificate, Import of a .pfx file, the certificate list and its provider (step 5, P3). |
+| `UnitTestsAppMcpProtect` | [tst_appmcpprotecttest.cpp](../UnitTests/tst_appmcpprotecttest.cpp) | MCP actions protect.* over HTTP with the confirmation of the passwords (step 5, P4). |
 | `UnitTestsAppMcp` | [tst_appmcptest.cpp](../UnitTests/tst_appmcptest.cpp) | MCP in the application: contract, permissions, read tools, catalog bridge. |
 | `UnitTestsAppMcpEdit` | [tst_appmcpedittest.cpp](../UnitTests/tst_appmcpedittest.cpp) | MCP edit tools and their confirmations. |
 | `UnitTestsAppAi` | [tst_appaitest.cpp](../UnitTests/tst_appaitest.cpp) | The page AI. |

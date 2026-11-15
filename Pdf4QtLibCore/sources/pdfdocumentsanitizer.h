@@ -131,7 +131,7 @@ public:
     void setOperationControl(const PDFOperationControl* operationControl) { m_operationControl = operationControl; }
 
     /// The operation control has canceled the sanitization
-    bool isCanceled() const { return PDFOperationControl::isOperationCancelled(m_operationControl); }
+    bool isCanceled() const { return PDFOperationControl::isOperationCanceled(m_operationControl); }
 
     /// Sets the progress of sanitize: a step begins the phase, which \p phaseOfStep gives to
     /// its flag (PDFProgressSink::beginPhase, in the thread of sanitize); a step without a

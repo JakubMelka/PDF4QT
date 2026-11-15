@@ -76,7 +76,7 @@ int PDFToolVerifySignaturesApplication::execute(const PDFToolOptions& options)
         case pdf::PDFDocumentReader::Result::OK:
             break;
 
-        case pdf::PDFDocumentReader::Result::Cancelled:
+        case pdf::PDFDocumentReader::Result::Canceled:
             return ExitSuccess;
 
         case pdf::PDFDocumentReader::Result::Failed:

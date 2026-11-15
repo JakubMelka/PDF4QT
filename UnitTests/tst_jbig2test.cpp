@@ -1190,7 +1190,7 @@ void JBIG2Test::test_refinement_region_segments()
 {
     // A generic refinement region (7.4.7) refines either the bitmap of an intermediate
     // region it refers to, or the page area it covers. With the typical prediction every
-    // pixel, whose neighbourhood in the reference is uniform, is copied without decoding.
+    // pixel, whose neighborhood in the reference is uniform, is copied without decoding.
     // The pixels outside of the reference are zero, so a white reference is uniform
     // everywhere and the region is the white reference itself - the coded data are just
     // the SLTP bits of the rows. The region is combined with the page by XNOR, so the

@@ -68,7 +68,7 @@ public:
     };
 
     /// Returns true, if text to speech engine is valid and can be used
-    /// to synthetise text.
+    /// to synthesize text.
     bool isValid() const;
 
     /// Returns error message of the speech engine, if the engine failed to

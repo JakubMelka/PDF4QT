@@ -901,7 +901,7 @@ void PDFOCRImageCompressor::processPages(const PDFDocument* document, const std:
 
     for (size_t start = 0; start < pages.size(); start += size_t(concurrency))
     {
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
             return;
         }
@@ -1014,7 +1014,7 @@ PDFDocument PDFOCRImageCompressor::compress(const PDFDocument* document,
         ImageCompressionJob job(document, settings, processedPages, false);
         processPages(document, std::vector<PDFInteger>(processedPages.begin(), processedPages.end()), job, memoryBudget, operationControl);
 
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
             return PDFDocument(std::move(storage), version, document->getSourceDataHash());
         }

@@ -58,7 +58,7 @@ using Read = MergeTestRead;
 class DocumentToolImagesCanceled : public PDFOperationControl
 {
 public:
-    virtual bool isOperationCancelled() const override { return true; }
+    virtual bool isOperationCanceled() const override { return true; }
 };
 
 class DocumentToolImagesTest : public QObject

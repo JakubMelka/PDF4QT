@@ -201,7 +201,7 @@ private:
 
     /// Finishes the creation of an outline item, which is being named by the
     /// user. Item is either committed to the document, or, when the naming has
-    /// been cancelled or no title has been given, removed again. Does nothing,
+    /// been canceled or no title has been given, removed again. Does nothing,
     /// when no item is being created.
     /// \param hint Hint, with which the item's editor has been closed
     void finishOutlineItemCreation(QAbstractItemDelegate::EndEditHint hint);

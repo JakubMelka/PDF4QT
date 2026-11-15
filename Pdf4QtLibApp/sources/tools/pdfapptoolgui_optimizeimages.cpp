@@ -65,7 +65,7 @@ namespace pdf
 class PDFAppToolImageCollectionControl : public PDFOperationControl
 {
 public:
-    virtual bool isOperationCancelled() const override { return m_isCanceled.load(std::memory_order_relaxed); }
+    virtual bool isOperationCanceled() const override { return m_isCanceled.load(std::memory_order_relaxed); }
     void cancel() { m_isCanceled.store(true, std::memory_order_relaxed); }
 
 private:
@@ -664,7 +664,7 @@ void PDFAppToolGUIOptimizeImages::onCollectionFinished()
     watcher->deleteLater();
 
     const PDFAppDocument* document = getDocument();
-    if (!document || collection.version != document->getVersion() || (m_collectionControl && m_collectionControl->isOperationCancelled()))
+    if (!document || collection.version != document->getVersion() || (m_collectionControl && m_collectionControl->isOperationCanceled()))
     {
         // A newer version is collected (onDocumentChanged starts it)
         m_isCollecting = false;

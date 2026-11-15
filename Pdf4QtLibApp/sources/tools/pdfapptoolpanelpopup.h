@@ -66,7 +66,7 @@ public:
     /// Medium 11): the first one lies at the top
     PDFLabel* addCaption(const QString& text);
 
-    /// Adds the caption of a group of rows ("FORMAT", "Presets tick the list…", caption
+    /// Adds the caption of a group of rows ("FORMAT", "Presets check the list…", caption
     /// 339:9500, Semi Bold 11 in a row of 21)
     PDFLabel* addGroupCaption(const QString& text);
 

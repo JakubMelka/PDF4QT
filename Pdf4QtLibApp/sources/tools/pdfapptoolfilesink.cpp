@@ -109,7 +109,7 @@ bool PDFAppToolFileSink::begin(const QStringList& fileNames, QString* errorText)
 
 bool PDFAppToolFileSink::isStopped() const
 {
-    return m_isStopped.load(std::memory_order_acquire) || PDFOperationControl::isOperationCancelled(m_control);
+    return m_isStopped.load(std::memory_order_acquire) || PDFOperationControl::isOperationCanceled(m_control);
 }
 
 std::optional<PDFAppToolFileSink::Question> PDFAppToolFileSink::getQuestion() const

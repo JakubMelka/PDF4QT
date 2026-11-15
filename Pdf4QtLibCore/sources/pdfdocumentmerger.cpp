@@ -566,7 +566,7 @@ private:
         size_t count = 0;
     };
 
-    bool isCanceled() const { return PDFOperationControl::isOperationCancelled(m_control); }
+    bool isCanceled() const { return PDFOperationControl::isOperationCanceled(m_control); }
     const PDFObjectStorage* getStorage() const { return m_builder.getStorage(); }
     const PDFObject& getObject(const PDFObject& object) const { return m_builder.getObject(object); }
     const PDFDictionary* getDictionary(const PDFObject& object) const { return m_builder.getDictionaryFromObject(object); }
@@ -3601,7 +3601,7 @@ PDFDocumentMerger::Result PDFDocumentMerger::insert(const PDFDocument& target, P
         try
         {
             PDFDocument cleaned = PDFDocumentPageOperations::removePages(&target, replacedPages, control, &removal);
-            if (removal.isCanceled || PDFOperationControl::isOperationCancelled(control))
+            if (removal.isCanceled || PDFOperationControl::isOperationCanceled(control))
             {
                 result.isCanceled = true;
                 return result;
@@ -3738,7 +3738,7 @@ PDFDocumentMerger::Result PDFDocumentMerger::arrange(const PDFDocument& target, 
         try
         {
             PDFDocument cleaned = PDFDocumentPageOperations::removePages(&target, removedPages, control, &removal);
-            if (removal.isCanceled || PDFOperationControl::isOperationCancelled(control))
+            if (removal.isCanceled || PDFOperationControl::isOperationCanceled(control))
             {
                 result.isCanceled = true;
                 return result;

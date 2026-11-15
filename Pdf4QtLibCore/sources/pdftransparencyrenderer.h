@@ -261,7 +261,7 @@ public:
     void copyChannel(const PDFFloatBitmap& sourceBitmap, uint8_t channelFrom, uint8_t channelTo);
 
     /// Resize the bitmap using given transformation mode. Fast transformation mode
-    /// uses nearest neighbour mapping, smooth transformation mode uses weighted
+    /// uses nearest neighbor mapping, smooth transformation mode uses weighted
     /// averaging algorithm.
     /// \param mode Transformation mode
     PDFFloatBitmap resize(size_t width, size_t height, Qt::TransformationMode mode) const;

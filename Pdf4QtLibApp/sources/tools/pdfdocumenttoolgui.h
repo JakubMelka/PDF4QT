@@ -368,6 +368,11 @@ public:
     /// A run has started or it has ended without a result to decide about
     virtual void onRunStateChanged(bool isRunning);
 
+    /// prepareEnvironment was called for a run, which did not start (the runner was busy, the GUI
+    /// disabled its confirmation meanwhile): what the GUI keeps for that run is dropped (S5.1 of
+    /// step 5 of phase 2: a password lives only until its run starts). The default does nothing.
+    virtual void onRunRefused();
+
     /// The run has ended with NothingToDo or Failed; the default shows an info bar over
     /// the canvas (295:2182 is a state of the panel: Compress overrides it), a lack of memory
     /// says the shell by its dialog after this function, for every tool. \returns nothing, the

@@ -80,7 +80,7 @@ protected:
 
 /// Remove Hidden Data in the shell (protect.sanitize, Figma 438:12588, 438:12831, 438:13119,
 /// 438:13356, 438:13607, 438:13839, 438:14093, 438:14342, 448:15959). The scan of the document
-/// is the preview of the runner (it does not depend on the ticks: one preview per version); the
+/// is the preview of the runner (it does not depend on the check marks: one preview per version); the
 /// form of the canvas is the check list of the kinds bound to the Bool parameters. The menu
 /// Preset writes the values of a preset as one undo step; its label says the preset of the values
 /// or Custom (K18).
@@ -199,7 +199,7 @@ private:
 };
 
 /// Rows of the external links of Remove External Links (438:14751: the captions of the pages
-/// and the links with their check boxes), drawn by PDFTileRowDelegate. A link is ticked, when it
+/// and the links with their check boxes), drawn by PDFTileRowDelegate. A link is checked, when it
 /// is removed; the filter Show leaves the other links out of the rows only.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolLinkListModel : public QAbstractListModel
 {
@@ -249,7 +249,7 @@ public:
     virtual Qt::ItemFlags flags(const QModelIndex& index) const override;
 
 Q_SIGNALS:
-    /// The user has ticked or unticked a link (the check box of a row)
+    /// The user has checked or unchecked a link (the check box of a row)
     void linkChecked(const QString& id, bool isChecked);
 
 private:
@@ -333,7 +333,7 @@ private:
 /// Remove External Links in the shell (protect.remove-links, Figma 438:14751, 438:15032,
 /// 438:15346, 438:15578, 438:15852, 438:16073). The links are the preview of the runner (one
 /// per version); the parameter "exclude" holds the kept links, so Undo and Redo of the tool
-/// tick them again. The filter Show is a state of the panel, no parameter: it changes the list
+/// check them again. The filter Show is a state of the panel, no parameter: it changes the list
 /// only, not what is removed; Select All and Select None act on the shown links.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolGUIRemoveLinks : public PDFAppDeclarativeToolGUI
 {

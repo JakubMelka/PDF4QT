@@ -989,7 +989,7 @@ void PDFOCRDocumentDialog::startPageDataTask()
 
         for (pdf::PDFInteger pageIndex : order)
         {
-            if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+            if (pdf::PDFOperationControl::isOperationCanceled(operationControl))
             {
                 return;
             }
@@ -1017,7 +1017,7 @@ void PDFOCRDocumentDialog::startPageDataTask()
                 thumbnail = raster.image;
             }
 
-            if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+            if (pdf::PDFOperationControl::isOperationCanceled(operationControl))
             {
                 return;
             }
@@ -1046,7 +1046,7 @@ void PDFOCRDocumentDialog::startPageDataTask()
         }
 
         // The fingerprint of the document is not computed in the constructor (R12)
-        if (computeDocumentFingerprint && !pdf::PDFOperationControl::isOperationCancelled(operationControl))
+        if (computeDocumentFingerprint && !pdf::PDFOperationControl::isOperationCanceled(operationControl))
         {
             try
             {
@@ -1241,7 +1241,7 @@ void PDFOCRDocumentDialog::startPreviewTask()
     }
 
     // At most one preview is computed at a time (the rasters of a preview are large):
-    // the cancelled previous preview finishes first, then the newest request is started.
+    // the canceled previous preview finishes first, then the newest request is started.
     // The GUI thread never waits for it.
     if (!m_previewTask.future.isFinished())
     {
@@ -1304,7 +1304,7 @@ void PDFOCRDocumentDialog::startPreviewTask()
         if (viewMode != ViewMode::Working)
         {
             pdf::PDFOCRPagePreparer::RasterResult raster = preparer.rasterize(pageIndex, PREVIEW_DPI, { }, PREVIEW_MAXIMUM_PIXELS, operationControl);
-            if (raster.error && raster.error.code != pdf::PDFOCRErrorCode::Cancelled)
+            if (raster.error && raster.error.code != pdf::PDFOCRErrorCode::Canceled)
             {
                 message = raster.error.message;
             }
@@ -1312,12 +1312,12 @@ void PDFOCRDocumentDialog::startPreviewTask()
             pageToOriginal = raster.geometry.pageToRaster;
         }
 
-        if (viewMode != ViewMode::Original && !pdf::PDFOperationControl::isOperationCancelled(operationControl))
+        if (viewMode != ViewMode::Original && !pdf::PDFOperationControl::isOperationCanceled(operationControl))
         {
             pdf::PDFOCRPagePreparer::RasterResult raster = preparer.rasterize(pageIndex, configuration.dpi, maskedRectangles, pdf::PDFOCRPagePreparer::DefaultMaximumPixels, operationControl);
             if (raster.error)
             {
-                if (raster.error.code != pdf::PDFOCRErrorCode::Cancelled)
+                if (raster.error.code != pdf::PDFOCRErrorCode::Canceled)
                 {
                     message = raster.error.message;
                 }
@@ -1330,14 +1330,14 @@ void PDFOCRDocumentDialog::startPreviewTask()
                     pageToWorking = preprocessed.geometry.getPageToEngine();
                     working = pdf::PDFOCRPagePreparer::maskRegions(preprocessed.image, pageToWorking, regions);
                 }
-                else if (preprocessed.error.code != pdf::PDFOCRErrorCode::Cancelled)
+                else if (preprocessed.error.code != pdf::PDFOCRErrorCode::Canceled)
                 {
                     message = preprocessed.error.message;
                 }
             }
         }
 
-        if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+        if (pdf::PDFOperationControl::isOperationCanceled(operationControl))
         {
             return;
         }
@@ -2134,7 +2134,7 @@ void PDFOCRDocumentDialog::onApplyHelperSelection()
             }
 
             case HelperErrors:
-                if (result && (result->state == pdf::PDFOCRPageState::Error || result->state == pdf::PDFOCRPageState::Cancelled))
+                if (result && (result->state == pdf::PDFOCRPageState::Error || result->state == pdf::PDFOCRPageState::Canceled))
                 {
                     pages.push_back(page);
                 }
@@ -2181,8 +2181,8 @@ QString PDFOCRDocumentDialog::getPageStateName(pdf::PDFOCRPageState state)
             return tr("Skipped");
         case pdf::PDFOCRPageState::Error:
             return tr("Error");
-        case pdf::PDFOCRPageState::Cancelled:
-            return tr("Cancelled");
+        case pdf::PDFOCRPageState::Canceled:
+            return tr("Canceled");
         case pdf::PDFOCRPageState::Stale:
             return tr("Outdated");
     }
@@ -2441,7 +2441,7 @@ void PDFOCRDocumentDialog::onStopClicked()
 {
     if (m_pendingRecognition)
     {
-        // The job was not started yet, only its preparation is cancelled
+        // The job was not started yet, only its preparation is canceled
         cancelRecognitionPreparation();
         return;
     }
@@ -2852,7 +2852,7 @@ bool PDFOCRDocumentDialog::startRecognition(const std::vector<pdf::PDFInteger>& 
 
             for (pdf::PDFInteger page : missingFingerprints)
             {
-                if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+                if (pdf::PDFOperationControl::isOperationCanceled(operationControl))
                 {
                     return;
                 }
@@ -2869,13 +2869,13 @@ bool PDFOCRDocumentDialog::startRecognition(const std::vector<pdf::PDFInteger>& 
             prepared.error = pdf::PDFOCRError::create(pdf::PDFOCRErrorCode::Unknown, tr("Unexpected error."));
         }
 
-        if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+        if (pdf::PDFOperationControl::isOperationCanceled(operationControl))
         {
             return;
         }
 
         // The result is passed by value together with its generation - a late result
-        // of a cancelled preparation can't be confused with the result of a newer one.
+        // of a canceled preparation can't be confused with the result of a newer one.
         QMetaObject::invokeMethod(this, [this, generation, prepared = std::move(prepared)]() mutable { onRecognitionPrepared(generation, std::move(prepared)); }, Qt::QueuedConnection);
     });
 
@@ -2922,7 +2922,7 @@ void PDFOCRDocumentDialog::onRecognitionPrepared(int generation, PreparedRecogni
 {
     if (generation != m_prepareTask.generation || !m_pendingRecognition)
     {
-        // Late result of a cancelled preparation
+        // Late result of a canceled preparation
         return;
     }
 
@@ -3232,7 +3232,7 @@ void PDFOCRDocumentDialog::onJobPageFinished(int generation, pdf::PDFOCRPageResu
     }
 
     // A stopped or failed repeated recognition keeps the previous result of the page (JOB-05)
-    if (result.state == pdf::PDFOCRPageState::Cancelled || result.state == pdf::PDFOCRPageState::Error)
+    if (result.state == pdf::PDFOCRPageState::Canceled || result.state == pdf::PDFOCRPageState::Error)
     {
         auto it = m_previousPageStates.find(pageIndex);
         const bool hadResult = it != m_previousPageStates.end() &&
@@ -3278,9 +3278,9 @@ void PDFOCRDocumentDialog::onJobFinished(int generation, pdf::PDFOCRJobSummary s
     ui->progressBar->setValue(summary.totalPages);
 
     // A partial result is never reported as a total success (JOB-07)
-    QString text = tr("Finished in %1 s: %2 recognized, %3 without text, %4 errors, %5 cancelled.")
-                   .arg(double(summary.elapsedMilliseconds) / 1000.0, 0, 'f', 1).arg(summary.donePages).arg(summary.noTextPages).arg(summary.errorPages).arg(summary.cancelledPages);
-    if (summary.cancelled)
+    QString text = tr("Finished in %1 s: %2 recognized, %3 without text, %4 errors, %5 canceled.")
+                   .arg(double(summary.elapsedMilliseconds) / 1000.0, 0, 'f', 1).arg(summary.donePages).arg(summary.noTextPages).arg(summary.errorPages).arg(summary.canceledPages);
+    if (summary.canceled)
     {
         text = tr("Stopped. ") + text;
     }
@@ -4824,7 +4824,7 @@ void PDFOCRDocumentDialog::startCompressionEstimate()
         std::set<pdf::PDFObjectReference> counted;
         for (pdf::PDFInteger page : sample)
         {
-            if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+            if (pdf::PDFOperationControl::isOperationCanceled(operationControl))
             {
                 return;
             }
@@ -4839,7 +4839,7 @@ void PDFOCRDocumentDialog::startCompressionEstimate()
             }
         }
 
-        if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+        if (pdf::PDFOperationControl::isOperationCanceled(operationControl))
         {
             return;
         }
@@ -5132,7 +5132,7 @@ void PDFOCRDocumentDialog::onApplyClicked()
     startTask(m_applyTask, [this, applyContext, plan](int generation, const pdf::PDFOperationControl* operationControl)
     {
         pdf::PDFOCRApplyProcessor::Result processorResult = pdf::PDFOCRApplyProcessor::execute(applyContext, plan, operationControl);
-        if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+        if (pdf::PDFOperationControl::isOperationCanceled(operationControl))
         {
             return;
         }
@@ -5208,7 +5208,7 @@ void PDFOCRDocumentDialog::onRemoveLayerClicked()
     startTask(m_applyTask, [this, applyContext, pages](int generation, const pdf::PDFOperationControl* operationControl)
     {
         pdf::PDFOCRApplyProcessor::Result processorResult = pdf::PDFOCRApplyProcessor::removeLayers(applyContext, pages, operationControl);
-        if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+        if (pdf::PDFOperationControl::isOperationCanceled(operationControl))
         {
             return;
         }
@@ -5883,7 +5883,7 @@ void PDFOCRDocumentDialog::done(int result)
 
     if (isJobActive())
     {
-        // The running job is cancelled first; the GUI stays responsive and the dialog is closed after the workers finish (UI-07, JOB-06)
+        // The running job is canceled first; the GUI stays responsive and the dialog is closed after the workers finish (UI-07, JOB-06)
         m_closeRequested = true;
         ui->progressLabel->setText(tr("Stopping the recognition before closing..."));
         m_jobController->stop();

@@ -222,4 +222,19 @@ list(APPEND PDF4QT_LIBAPP_TOOLS_SOURCES
     sources/tools/pdfapptoolgui_audiobook.h
     sources/tools/pdfappaudiobookoverlay.cpp
     sources/tools/pdfappaudiobookoverlay.h
+    # Step 5, package P2 (the GUI of the four tools of the encryption, the cards of the passwords,
+    # the list of the permissions, What changes)
+    sources/tools/pdfapptoolgui_encryption.cpp
+    sources/tools/pdfapptoolgui_encryption.h
+    sources/tools/pdfapptoolpasswordcard.cpp
+    sources/tools/pdfapptoolpasswordcard.h
+    sources/tools/pdfapptoolpermissionlist.cpp
+    sources/tools/pdfapptoolpermissionlist.h
+    sources/tools/pdfapptoolchangelist.cpp
+    sources/tools/pdfapptoolchangelist.h
+    # Step 5, package P3 (the list of the certificates and the dialogs Create Certificate, Import)
+    sources/tools/pdfapptoolcertificatelist.cpp
+    sources/tools/pdfapptoolcertificatelist.h
+    sources/tools/pdfappcertificatedialogs.cpp
+    sources/tools/pdfappcertificatedialogs.h
 )

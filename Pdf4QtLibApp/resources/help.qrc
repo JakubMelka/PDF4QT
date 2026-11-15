@@ -39,6 +39,10 @@
         <file>help/tool-optimize-bitonal.md</file>
         <file>help/tool-protect-remove-links.md</file>
         <file>help/tool-protect-sanitize.md</file>
+        <file>help/tool-protect-password.md</file>
+        <file>help/tool-protect-permissions.md</file>
+        <file>help/tool-protect-certificate-encrypt.md</file>
+        <file>help/tool-protect-unlock.md</file>
         <file>help/tool-convert-extract-text.md</file>
         <file>help/tool-convert-pdf-to-images.md</file>
         <file>help/tool-convert-extract-images.md</file>

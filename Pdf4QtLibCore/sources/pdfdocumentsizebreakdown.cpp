@@ -175,7 +175,7 @@ PDFDocumentSizeBreakdown PDFDocumentSizeBreakdown::create(const PDFDocument* doc
     PDFIntegerRange<size_t> range(0, objects.size());
     auto addSize = [&](size_t index)
     {
-        if (objects[index].object.isNull() || PDFOperationControl::isOperationCancelled(control))
+        if (objects[index].object.isNull() || PDFOperationControl::isOperationCanceled(control))
         {
             return;
         }

@@ -279,6 +279,32 @@ QString AppDocumentSamples::attachments(const QString& folder)
     return H::write(builder, folder, QStringLiteral("attachments.pdf"));
 }
 
+QString AppDocumentSamples::attachmentsOnly(const QString& folder)
+{
+    // The attachments of attachments() encrypted by AES-256 with the user password
+    // getAttachmentsPassword(), the rest of the document plain (ISO 32000-2, 7.6.6: /StmF and /StrF
+    // Identity, /EFF with /EFOpen); the owner password getOwnerPassword()
+    const QString source = attachments(folder);
+    pdf::PDFDocumentReader reader(nullptr, [](bool* ok) { *ok = false; return QString(); }, false, false);
+    const pdf::PDFDocument document = reader.readFromFile(source);
+    pdf::PDFSecurityHandlerFactory::SecuritySettings settings;
+    settings.algorithm = pdf::PDFSecurityHandlerFactory::AES_256;
+    settings.encryptContents = pdf::PDFSecurityHandlerFactory::EmbeddedFiles;
+    settings.userPassword = getAttachmentsPassword();
+    settings.ownerPassword = getOwnerPassword();
+    settings.permissions = 0xFFFFFFFCu;
+    pdf::PDFSecurityHandlerPointer handler = pdf::PDFSecurityHandlerFactory::createSecurityHandler(settings);
+    if (reader.getReadingResult() != pdf::PDFDocumentReader::Result::OK || !handler)
+    {
+        return QString();
+    }
+    pdf::PDFDocumentBuilder builder(&document);
+    builder.setSecurityHandler(handler);
+    pdf::PDFDocument encrypted = builder.build();
+    const QString filePath = QDir(folder).absoluteFilePath(QStringLiteral("Attachments_only.pdf"));
+    return write(encrypted, filePath) ? filePath : QString();
+}
+
 QString AppDocumentSamples::layers(const QString& folder)
 {
     using H = AppDocumentSamplesHelper;

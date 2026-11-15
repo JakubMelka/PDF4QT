@@ -69,7 +69,7 @@ namespace pdf
 class PDFAppToolExtractCollectionControl : public PDFOperationControl
 {
 public:
-    virtual bool isOperationCancelled() const override { return m_isCanceled.load(std::memory_order_relaxed); }
+    virtual bool isOperationCanceled() const override { return m_isCanceled.load(std::memory_order_relaxed); }
     void cancel() { m_isCanceled.store(true, std::memory_order_relaxed); }
 
 private:
@@ -109,7 +109,7 @@ public:
         {
             result.planCache = std::make_shared<PDFDocumentToolExtractImages::ExportPlanCache>();
         }
-        if (!PDFOperationControl::isOperationCancelled(control.get()))
+        if (!PDFOperationControl::isOperationCanceled(control.get()))
         {
             result.plan = PDFDocumentToolExtractImages::createExportPlan(document.data(), *result.list, sourceFileName, parameters, date, control.get(), result.planCache.get(), &result.planError);
         }

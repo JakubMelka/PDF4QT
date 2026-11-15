@@ -76,7 +76,7 @@ public:
     void setOperationControl(const PDFOperationControl* operationControl) { m_operationControl = operationControl; }
 
     /// The operation control has canceled the optimization
-    bool isCanceled() const { return PDFOperationControl::isOperationCancelled(m_operationControl); }
+    bool isCanceled() const { return PDFOperationControl::isOperationCanceled(m_operationControl); }
 
     /// Sets the progress of optimize: one step per stage, which has a step to run, and the
     /// texts of the work (PDFProgressSink::addMessage; optional, it must outlive optimize)

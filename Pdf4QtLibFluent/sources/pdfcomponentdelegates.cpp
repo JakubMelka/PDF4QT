@@ -1960,7 +1960,7 @@ QList<PDFRowDelegate::Action> PDFTileRowDelegate::getActions(const QStyleOptionV
         Action checkBox;
         checkBox.id = CheckBoxAction;
         checkBox.rect = PDFComponentPainter::getTileRowCheckBoxRect(QRectF(option.rect), row, state);
-        checkBox.text = row.checkBoxChecked ? tr("Untick") : tr("Tick");
+        checkBox.text = row.checkBoxChecked ? tr("Uncheck") : tr("Check");
         checkBox.shortcut = QKeySequence(Qt::Key_Space);
         checkBox.enabled = row.checkBoxEnabled;
         actions.append(checkBox);

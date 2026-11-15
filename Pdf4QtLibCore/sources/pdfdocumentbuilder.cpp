@@ -33,7 +33,10 @@
 #include "pdfannotationproperties.h"
 
 #include <QBuffer>
+#include <QCryptographicHash>
+#include <QDateTime>
 #include <QFontMetricsF>
+#include <QUuid>
 #include <QPainter>
 #include <QPdfWriter>
 
@@ -2121,11 +2124,99 @@ void PDFDocumentBuilder::copyAnnotation(PDFObjectReference pageReference, PDFObj
     appendTo(pageReference, pageAnnots);
 }
 
+PDFObject PDFDocumentBuilder::createDocumentId(const QDateTime& now, size_t objectCount)
+{
+    // ISO 32000-2, 14.4: a new file gets a new identifier, both strings are the same
+    QCryptographicHash hash(QCryptographicHash::Md5);
+    hash.addData(QUuid::createUuid().toRfc4122());
+    hash.addData(now.toString(Qt::ISODateWithMs).toUtf8());
+    hash.addData(QByteArray::number(qint64(objectCount)));
+    const QByteArray identifier = hash.result();
+
+    PDFArrayBuilder array;
+    array.appendItem(PDFObject::createString(identifier));
+    array.appendItem(PDFObject::createString(identifier));
+    return PDFObject::createArray(std::move(array));
+}
+
+QByteArray PDFDocumentBuilder::ensureDocumentId()
+{
+    // The reader reads /ID only as a direct array of the trailer (Table 15: "an array of two byte
+    // strings"); the first string is what the key of revisions 2 - 4 is computed of
+    QByteArray first;
+    QByteArray second;
+    const PDFDictionary* trailer = getDictionaryFromObject(m_storage.getTrailerDictionary());
+    const PDFObject idObject = trailer ? trailer->get("ID") : PDFObject();
+    if (idObject.isArray() && idObject.getArray()->getCount() >= 1)
+    {
+        const PDFArray* idArray = idObject.getArray();
+        if (idArray->getItem(0).isString())
+        {
+            first = idArray->getItem(0).getString();
+        }
+        if (idArray->getCount() >= 2 && idArray->getItem(1).isString())
+        {
+            second = idArray->getItem(1).getString();
+        }
+    }
+
+    const bool isValid = !first.isEmpty() && !second.isEmpty() && idObject.getArray()->getCount() == 2;
+    if (isValid)
+    {
+        return first;
+    }
+
+    PDFObject newId;
+    if (first.isEmpty())
+    {
+        // No identifier: a new one (14.4)
+        newId = createDocumentId(QDateTime::currentDateTimeUtc(), m_storage.getObjects().size());
+        first = newId.getArray()->getItem(0).getString();
+    }
+    else
+    {
+        // /ID[0] is permanent (14.4), only the damaged rest is repaired: the second string is the
+        // first one again, as in a file, which has never been changed
+        PDFArrayBuilder array;
+        array.appendItem(PDFObject::createString(first));
+        array.appendItem(PDFObject::createString(second.isEmpty() ? first : second));
+        newId = PDFObject::createArray(std::move(array));
+    }
+
+    PDFDictionaryBuilder updatedTrailer;
+    updatedTrailer.addEntry(PDFInplaceOrMemoryString("ID"), std::move(newId));
+    m_storage.updateTrailerDictionary(PDFObject::createDictionary(std::move(updatedTrailer)));
+    return first;
+}
+
 void PDFDocumentBuilder::setSecurityHandler(PDFSecurityHandlerPointer handler)
 {
     if (!handler)
     {
         handler.reset(new PDFNoneSecurityHandler());
+    }
+
+    // B85: /ID is required with /Encrypt (Table 15). Only for a handler, whose key does not depend
+    // on it: the key of revisions 2 - 4 was computed of /ID[0] already (R5-5, ensureDocumentId)
+    if (handler->getMode() != EncryptionMode::None)
+    {
+        const PDFStandardSecurityHandler* standardHandler = dynamic_cast<const PDFStandardSecurityHandler*>(handler.data());
+        const bool isKeyOfId = standardHandler && standardHandler->getRevision() <= 4;
+        if (!isKeyOfId)
+        {
+            ensureDocumentId();
+        }
+    }
+
+    // B86: the old encryption dictionary, which nothing else refers to afterwards, goes
+    PDFObjectReference oldEncryptReference;
+    if (const PDFDictionary* trailer = getDictionaryFromObject(m_storage.getTrailerDictionary()))
+    {
+        const PDFObject& oldEncrypt = trailer->get("Encrypt");
+        if (oldEncrypt.isReference())
+        {
+            oldEncryptReference = oldEncrypt.getReference();
+        }
     }
 
     PDFObjectFactory objectBuilder;
@@ -2149,6 +2240,49 @@ void PDFDocumentBuilder::setSecurityHandler(PDFSecurityHandlerPointer handler)
     m_storage.updateTrailerDictionary(qMove(updatedTrailerDictionary));
 
     m_storage.setSecurityHandler(qMove(handler));
+
+    if (oldEncryptReference.isValid())
+    {
+        removeObjectIfUnreferenced(oldEncryptReference);
+    }
+}
+
+void PDFDocumentBuilder::removeObjectIfUnreferenced(PDFObjectReference reference)
+{
+    // A reference counts by its object number: an object of the same number in another
+    // generation is the same entry of the cross-reference table
+    const PDFObjectStorage::PDFObjects& objects = m_storage.getObjects();
+    if (reference.objectNumber <= 0 || size_t(reference.objectNumber) >= objects.size() || objects[reference.objectNumber].object.isNull())
+    {
+        return;
+    }
+
+    auto isReferenced = [&reference](const PDFObject& object)
+    {
+        for (const PDFObjectReference& item : PDFObjectUtils::getDirectReferences(object))
+        {
+            if (item.objectNumber == reference.objectNumber)
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    if (isReferenced(m_storage.getTrailerDictionary()))
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < objects.size(); ++i)
+    {
+        if (PDFInteger(i) != reference.objectNumber && isReferenced(objects[i].object))
+        {
+            return;
+        }
+    }
+
+    m_storage.setObject(PDFObjectReference(reference.objectNumber, objects[reference.objectNumber].generation), PDFObject());
 }
 
 PDFObjectReference PDFDocumentBuilder::getCatalogReference() const

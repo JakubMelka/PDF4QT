@@ -66,7 +66,10 @@
 #include "pdftoolrepository.h"
 
 #include "pdfdrawwidget.h"
+#include "pdfcertificatemanager.h"
 #include "pdfdocumentbuilder.h"
+#include "pdfdocumentreader.h"
+#include "pdfdocumenttool_encryption.h"
 #include "pdfcomponentbadges.h"
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpanels.h"
@@ -312,6 +315,7 @@ private slots:
     void modelUndoRedo();
     void modelRefusesInvalidValues();
     void modelLastValues();
+    void modelRefusesSecret();
     void modelHostileStoredValues();
     void modelBinderStore();
     void modelBinderOutlivesModel();
@@ -324,6 +328,7 @@ private slots:
 
     // The writer
     void copyRuleByImpact();
+    void copySavesVerifiedBytes();
     void writerRefusesDisplayVersion();
     void signedCopyWholeWithoutOldRevision();
     void signedCopyKeptWithoutFile_data();
@@ -1403,7 +1408,8 @@ void AppToolShellTest::modelLastValues()
         QVERIFY(model.setValue(QStringLiteral("preset"), QStringLiteral("large")).isEmpty());
         QVERIFY(model.setValue(QStringLiteral("quality"), 42).isEmpty());
         QVERIFY(model.setValue(QStringLiteral("color"), QColor(255, 0, 0)).isEmpty());
-        QVERIFY(model.setValue(QStringLiteral("password"), QStringLiteral("secret")).isEmpty());
+        // S5.2 of step 5: a password is refused (modelRefusesSecret)
+        QCOMPARE(model.setValue(QStringLiteral("password"), QStringLiteral("secret")), pdf::PDFAppToolParameterModel::getSecretRefusalText());
         pdf::PDFDocumentToolPageSelection selection;
         selection.pages = QStringLiteral("1-3");
         QVERIFY(model.setValue(QStringLiteral("pages"), selection.toVariant()).isEmpty());
@@ -1436,6 +1442,71 @@ void AppToolShellTest::modelLastValues()
     QVERIFY(!names.contains(QStringLiteral("password")));
     QVERIFY(!names.contains(QStringLiteral("pages")));
     QVERIFY(names.contains(QStringLiteral("quality")));
+}
+
+/// A mapper, which tries to put a password into the values and every step (modelRefusesSecret)
+class ShellTestSecretMapper : public pdf::PDFAppToolValueMapper
+{
+public:
+    virtual QVariantMap mapValues(const QVariantMap& values, bool isCurrent) const override
+    {
+        Q_UNUSED(isCurrent);
+        QVariantMap mapped = values;
+        mapped.insert(QStringLiteral("password"), QStringLiteral("Canary-mapped"));
+        mapped.insert(QStringLiteral("quality"), qint64(50));
+        return mapped;
+    }
+};
+
+void AppToolShellTest::modelRefusesSecret()
+{
+    // Plan of step 5 of phase 2, S5.2: the model keeps every value in its steps of Undo and
+    // Redo, so a password never enters it - setValue, setValues, setFollowingValue and
+    // mapValues refuse it, the default (empty) value stays and no step is made
+    AppToolShellFixture fixture;
+    pdf::PDFAppToolParameterModel model(fixture.context.get(), TOOL_COMPRESS, ToolShellTestHelper::createModelDefinitions(), nullptr);
+    QSignalSpy changedSpy(&model, &pdf::PDFAppToolParameterModel::changed);
+    const QString canary = QStringLiteral("Canary-7f3a");
+
+    QCOMPARE(model.setValue(QStringLiteral("password"), canary), pdf::PDFAppToolParameterModel::getSecretRefusalText());
+    QVERIFY(!pdf::PDFAppToolParameterModel::getSecretRefusalText().isEmpty());
+    QVERIFY(model.getValue(QStringLiteral("password")).toString().isEmpty());
+    QVERIFY(!model.canUndo());
+    QVERIFY(changedSpy.isEmpty());
+
+    // One refused value refuses the whole step (the quality is not changed either)
+    QVariantMap values;
+    values.insert(QStringLiteral("quality"), 42);
+    values.insert(QStringLiteral("password"), canary);
+    QCOMPARE(model.setValues(values), pdf::PDFAppToolParameterModel::getSecretRefusalText());
+    QCOMPARE(model.getValue(QStringLiteral("quality")).toLongLong(), qint64(75));
+    QVERIFY(!model.canUndo());
+
+    QCOMPARE(model.setFollowingValue(QStringLiteral("password"), canary), pdf::PDFAppToolParameterModel::getSecretRefusalText());
+    QVERIFY(model.getValue(QStringLiteral("password")).toString().isEmpty());
+
+    // Steps of Undo and Redo, then a mapper, which puts a password into each of them: the other
+    // value follows, the password is left out of the values and of every step
+    QVERIFY(model.setValue(QStringLiteral("quality"), 60).isEmpty());
+    QVERIFY(model.setValue(QStringLiteral("quality"), 70).isEmpty());
+    model.undo();
+    QVERIFY(model.canUndo() && model.canRedo());
+    model.mapValues(ShellTestSecretMapper());
+    QCOMPARE(model.getValue(QStringLiteral("quality")).toLongLong(), qint64(50));
+    for (const QVariant& value : model.getHistoryValues(QStringLiteral("password")))
+    {
+        QVERIFY(value.toString().isEmpty());
+    }
+    QCOMPARE(model.getHistoryValues(QStringLiteral("quality")).size(), size_t(3));
+    for (const QVariant& value : model.getHistoryValues(QStringLiteral("quality")))
+    {
+        QCOMPARE(value.toLongLong(), qint64(50));
+    }
+    model.undo();
+    QVERIFY(model.getValue(QStringLiteral("password")).toString().isEmpty());
+    model.redo();
+    model.redo();
+    QVERIFY(model.getValue(QStringLiteral("password")).toString().isEmpty());
 }
 
 void AppToolShellTest::modelHostileStoredValues()
@@ -2031,6 +2102,82 @@ void AppToolShellTest::copyRuleByImpact()
     pdf::PDFAppDocumentTab* plainTab = fixture.openDocument(2);
     const pdf::PDFAppDocumentSnapshot plain = plainTab->getDocument()->getSnapshot();
     QVERIFY(!Writer::createCopyRequest(pdf::PDFDocumentToolCatalog::findTool(TOOL_ROTATE), snapshot, plain.document, QStringLiteral("a.pdf")).isIncremental);
+}
+
+void AppToolShellTest::copySavesVerifiedBytes()
+{
+    // Step 5 of phase 2 (integration finding): the encryption reads its written file back by the
+    // new password; the copy and the overwrite save exactly those bytes (another write of an
+    // encrypted document has other random vectors and was never verified) - Protect with
+    // Password, Encrypt with Certificate and Remove Password
+    using Tool = pdf::PDFDocumentToolEncryption;
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.openDocument(2);
+    QVERIFY(tab && AppToolShellFixture::waitFor([tab]() { return tab->getDocument()->isReady(); }));
+    const pdf::PDFAppDocumentSnapshot snapshot = tab->getDocument()->getSnapshot();
+
+    // The certificate of the run in a folder of the test (never the folders of the user)
+    const QDir folder(fixture.folder());
+    pdf::PDFCertificateManager::setCertificateDirectories(folder.absoluteFilePath(QStringLiteral("certificates")), QStringList());
+    QVERIFY(QDir().mkpath(pdf::PDFCertificateManager::getCertificateDirectory()));
+    pdf::PDFCertificateManager::NewCertificateInfo info;
+    info.fileName = QDir(pdf::PDFCertificateManager::getCertificateDirectory()).absoluteFilePath(QStringLiteral("copy.pfx"));
+    info.privateKeyPasword = QStringLiteral("certificate-password");
+    info.certCommonName = QStringLiteral("Copy Test");
+    info.rsaKeyLength = 2048;
+    QVERIFY(pdf::PDFCertificateManager().createCertificate(info));
+    QFile certificateFile(info.fileName);
+    QVERIFY(certificateFile.open(QIODevice::ReadOnly));
+    pdf::PDFCertificateEntry certificate;
+    certificate.pkcs12 = certificateFile.readAll();
+    certificateFile.close();
+    pdf::PDFCertificateManager::setCertificateDirectories(QString(), QStringList());
+    const std::optional<pdf::PDFCertificateInfo> certificateInfo = pdf::PDFCertificateManager::readCertificate(certificate.pkcs12, info.privateKeyPasword);
+    QVERIFY(certificateInfo);
+    certificate.info = *certificateInfo;
+
+    auto saveCopy = [&](const pdf::PDFDocumentToolContext& context, Tool::Mode mode, const QVariantMap& parameters, const QString& fileName) -> QByteArray
+    {
+        const Tool tool(mode);
+        const pdf::PDFDocumentToolResult result = tool.run(context, parameters, nullptr, nullptr);
+        const pdf::PDFDocumentToolOutputDocument* output = pdf::PDFDocumentToolRunner::findChangedDocument(result);
+        if (!result.isSuccess() || !output || output->writtenData.isEmpty())
+        {
+            qWarning("%s", qPrintable(result.message));
+            return QByteArray();
+        }
+
+        const pdf::PDFAppDocumentFileWriter::Request request = pdf::PDFAppToolResultWriter::createCopyRequest(tool.getOutputTraits(parameters), snapshot, output->document, fixture.path(fileName), &result);
+        const pdf::PDFAppDocumentFileWriter::Result written = pdf::PDFAppDocumentFileWriter::write(request);
+        QFile file(fixture.path(fileName));
+        const QByteArray saved = file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+        const bool isSame = request.isOriginalData && !request.isIncremental && written.isSaved && written.data == output->writtenData && saved == output->writtenData;
+        return isSame ? saved : QByteArray();
+    };
+
+    const pdf::PDFDocumentToolContext context = pdf::PDFDocumentToolContext::create(pdf::PDFDocumentToolInputDocument::create(snapshot.document, snapshot.originalData, snapshot.filePath, false));
+
+    QVariantMap password;
+    password.insert(QStringLiteral("openPassword"), QStringLiteral("open-password"));
+    password.insert(QStringLiteral("ownerSameAsOpen"), false);
+    password.insert(QStringLiteral("ownerPassword"), QStringLiteral("owner-password"));
+    const QByteArray protectedData = saveCopy(context, Tool::Mode::Password, password, QStringLiteral("protected.pdf"));
+    QVERIFY(!protectedData.isEmpty());
+
+    pdf::PDFDocumentToolContext certificateContext = context;
+    certificateContext.userCertificates = { certificate };
+    QVariantMap certificateParameters = Tool::getPresetValues(Tool::Preset::AllowEverything);
+    certificateParameters.insert(QStringLiteral("certificate"), Tool::getCertificateFingerprint(certificate.info.getCertificateData()));
+    certificateParameters.insert(QStringLiteral("certificatePassword"), info.privateKeyPasword);
+    QVERIFY(!saveCopy(certificateContext, Tool::Mode::Certificate, certificateParameters, QStringLiteral("encrypted.pdf")).isEmpty());
+
+    // Remove Password of the saved protected file, opened by its owner password
+    bool isFirstAttempt = true;
+    pdf::PDFDocumentReader reader(nullptr, [&isFirstAttempt](bool* ok) { *ok = isFirstAttempt; isFirstAttempt = false; return QStringLiteral("owner-password"); }, false, true);
+    const pdf::PDFDocument owner = reader.readFromBuffer(protectedData);
+    QCOMPARE(reader.getReadingResult(), pdf::PDFDocumentReader::Result::OK);
+    const pdf::PDFDocumentToolContext unlockContext = pdf::PDFDocumentToolContext::create(pdf::PDFDocumentToolInputDocument::create(pdf::PDFDocumentPointer(new pdf::PDFDocument(owner)), protectedData, snapshot.filePath, false));
+    QVERIFY(!saveCopy(unlockContext, Tool::Mode::Unlock, QVariantMap(), QStringLiteral("unprotected.pdf")).isEmpty());
 }
 
 void AppToolShellTest::writerRefusesDisplayVersion()
@@ -7614,13 +7761,13 @@ protected:
         formatMenu->addGroup(QStringLiteral("encoding"), QStringLiteral("ENCODING"));
 
         presetPanel = builder.addMenu(QStringLiteral("preset"), QStringLiteral("sliders"), QStringLiteral("Preset: Standard"), 350);
-        presetPanel->addGroupCaption(QStringLiteral("Presets tick the list – adjust it freely afterwards"));
+        presetPanel->addGroupCaption(QStringLiteral("Presets check the list – adjust it freely afterwards"));
         presetPanel->addRow(QStringLiteral("Standard"), QStringLiteral("Everything except the invisible text"), QStringLiteral("hash"), pdf::PDFTileRow::Kind::MenuItem);
         presetPanel->addRow(QStringLiteral("Before sending"), QStringLiteral("Info, metadata, comments, index and thumbnails"), QStringLiteral("hash"), pdf::PDFTileRow::Kind::MenuItem);
         presetPanel->addRow(QStringLiteral("Before publishing"), QStringLiteral("Also attachments – outline and page labels stay"), QStringLiteral("hash"), pdf::PDFTileRow::Kind::MenuItem);
         presetPanel->addRow(QStringLiteral("Everything"), QStringLiteral("All nine kinds including the OCR text layer"), QStringLiteral("hash"), pdf::PDFTileRow::Kind::MenuItem);
         presetPanel->addGroupDivider();
-        pdf::PDFTileRow* clearRow = presetPanel->addRow(QStringLiteral("Clear all"), QStringLiteral("Untick everything and choose by hand"), QStringLiteral("hash"), pdf::PDFTileRow::Kind::MenuItem);
+        pdf::PDFTileRow* clearRow = presetPanel->addRow(QStringLiteral("Clear all"), QStringLiteral("Uncheck everything and choose by hand"), QStringLiteral("hash"), pdf::PDFTileRow::Kind::MenuItem);
         connect(clearRow, &pdf::PDFTileRow::clicked, this, &ThinMenusGUI::onPresetChosen);
     }
 };
@@ -8375,7 +8522,7 @@ public:
 protected:
     void describeLeftPanel(pdf::PDFAppToolPanelBuilder& builder) override
     {
-        hint = builder.addHint(QStringLiteral("Ticked links are removed – untick a link to keep it."));
+        hint = builder.addHint(QStringLiteral("Checked links are removed – uncheck a link to keep it."));
     }
 
     void describeRightPanel(pdf::PDFAppToolPanelBuilder& builder) override

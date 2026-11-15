@@ -206,6 +206,11 @@ public:
     /// high, the lock of 16 px at the left, the button of 28 px, which shows the
     /// password, at the right (an Icon button with its own states), the bullets
     /// of the hidden password 2 px apart. The lock is red, when the field is invalid.
+    /// The value never leaves the field (plan of step 5 of phase 2, S5.2), also when the
+    /// button shows it: Copy and Cut by the keys and by the context menu do nothing (Cut
+    /// does not remove the selection either), the selection is never dragged, and the
+    /// selection clipboard of X11 / Wayland, which QLineEdit fills after a key or a release
+    /// of the mouse, is taken back at once.
     void setPasswordField();
 
     /// Returns true, if the field is a password field
@@ -230,11 +235,19 @@ protected:
     virtual void changeEvent(QEvent* event) override;
     virtual void paintEvent(QPaintEvent* event) override;
     virtual void resizeEvent(QResizeEvent* event) override;
+    virtual void keyPressEvent(QKeyEvent* event) override;
+    virtual void mousePressEvent(QMouseEvent* event) override;
+    virtual void mouseReleaseEvent(QMouseEvent* event) override;
+    virtual void contextMenuEvent(QContextMenuEvent* event) override;
 
 private:
     void init();
     void updateColors();
     void updatePasswordFont();
+
+    /// A password field takes back the selection clipboard (X11 / Wayland), which QLineEdit
+    /// has filled by the shown selection of the password
+    void releaseSelectionClipboard();
     void updatePasswordButton();
     void placePasswordButton();
     void onPasswordButtonToggled(bool isShown);

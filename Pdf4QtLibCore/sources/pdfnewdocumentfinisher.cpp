@@ -97,17 +97,6 @@ public:
         return PDFObject::createArray(std::move(array));
     }
 
-    /// 14.4: a new file gets a new identifier, both strings are the same
-    static PDFObject createId(const QDateTime& now, size_t objectCount)
-    {
-        QCryptographicHash hash(QCryptographicHash::Md5);
-        hash.addData(QUuid::createUuid().toRfc4122());
-        hash.addData(now.toString(Qt::ISODateWithMs).toUtf8());
-        hash.addData(QByteArray::number(qint64(objectCount)));
-        const QByteArray identifier = hash.result();
-        return createArray({ PDFObject::createString(identifier), PDFObject::createString(identifier) });
-    }
-
     /// The metadata of PDF 2.0 with the dates of the creation (14.3.3, the XMP counterparts of
     /// /CreationDate, /ModDate and /Producer of /Info)
     static QByteArray createMetadata(const QDateTime& now, const QString& producer)
@@ -299,7 +288,7 @@ PDFNewDocumentFinisher::Result PDFNewDocumentFinisher::finish(PDFDocument docume
     using Helper = PDFNewDocumentFinisherHelper;
 
     Result result;
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         result.isCanceled = true;
         return result;
@@ -312,7 +301,7 @@ PDFNewDocumentFinisher::Result PDFNewDocumentFinisher::finish(PDFDocument docume
 
     // A new document: a new identifier, not encrypted (owner answer Q2 of step 2)
     PDFDictionaryBuilder trailer;
-    trailer.addEntry(Helper::key("ID"), Helper::createId(now, storage.getObjects().size()));
+    trailer.addEntry(Helper::key("ID"), PDFDocumentBuilder::createDocumentId(now, storage.getObjects().size()));
     trailer.addEntry(Helper::key("Encrypt"), PDFObject());
     storage.updateTrailerDictionary(PDFObject::createDictionary(std::move(trailer)));
     storage.setSecurityHandler(PDFSecurityHandlerPointer(new PDFNoneSecurityHandler()));
@@ -377,7 +366,7 @@ PDFNewDocumentFinisher::Result PDFNewDocumentFinisher::finish(PDFDocument docume
     optimizer.setStorage(storage);
     optimizer.optimize();
     storage = optimizer.takeStorage();
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         result.isCanceled = true;
         return result;

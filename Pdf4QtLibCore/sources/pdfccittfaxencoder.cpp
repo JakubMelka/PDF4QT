@@ -58,9 +58,9 @@ void PDFBitonalBitmapView::getChangingElements(int y, std::vector<int>& changing
     {
         if ((x & 0x07) == 0 && x <= width - 8)
         {
-            // A whole byte of the pixels of the current colour is skipped at once
-            const uint8_t byteOfCurrentColour = (isBlack == isOneBlack) ? 0xFF : 0x00;
-            if (row[x >> 3] == byteOfCurrentColour)
+            // A whole byte of the pixels of the current color is skipped at once
+            const uint8_t byteOfCurrentColor = (isBlack == isOneBlack) ? 0xFF : 0x00;
+            if (row[x >> 3] == byteOfCurrentColor)
             {
                 x += 8;
                 continue;
@@ -268,9 +268,9 @@ void PDFCCITTFaxEncoder::encodeRow2D(const std::vector<int>& codingLine, const s
     // Coding modes of 4.2.1.3 of ITU-T T.4. The changing element a0 starts at an
     // imaginary white pixel before the row, a1 is the next changing element of the
     // coding line, b1 is the first changing element of the reference line to the
-    // right of a0 with the colour opposite to the colour of a0, and b2 is the changing
+    // right of a0 with the color opposite to the color of a0, and b2 is the changing
     // element following b1. The index of a changing element in the list gives its
-    // colour - the elements at the even indices change the colour to black.
+    // color - the elements at the even indices change the color to black.
     const int width = m_bitmap.width;
     int a0 = -1;
     size_t a1Index = 0;
@@ -281,9 +281,9 @@ void PDFCCITTFaxEncoder::encodeRow2D(const std::vector<int>& codingLine, const s
         const int a1 = codingLine[a1Index];
 
         // The first changing element of the reference line to the right of a0. It
-        // never moves back, because a0 only grows. The element of the required colour
+        // never moves back, because a0 only grows. The element of the required color
         // is either this element or the next one, but the parity is not stored in the
-        // index - a vertical mode changes the colour, and the element skipped now can
+        // index - a vertical mode changes the color, and the element skipped now can
         // be the b1 of the next mode.
         while (referenceLine[referenceIndex] <= a0)
         {
@@ -296,13 +296,13 @@ void PDFCCITTFaxEncoder::encodeRow2D(const std::vector<int>& codingLine, const s
 
         if (b2 < a1)
         {
-            // Pass mode - a0 is moved under b2 and the colour is not changed
+            // Pass mode - a0 is moved under b2 and the color is not changed
             writeMode(Pass);
             a0 = b2;
         }
         else if (std::abs(a1 - b1) <= 3)
         {
-            // Vertical mode - a1 is coded relatively to b1 and the colour changes
+            // Vertical mode - a1 is coded relatively to b1 and the color changes
             writeMode(Vertical_0 + (a1 - b1));
             a0 = a1;
             ++a1Index;

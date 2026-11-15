@@ -40,6 +40,7 @@
 #include <openssl/ts.h>
 #include <openssl/tserr.h>
 #include <openssl/pem.h>
+#include <openssl/x509v3.h>
 
 #include <QDir>
 #include <QFileInfo>
@@ -311,8 +312,25 @@ PDFCertificateInfo PDFCertificateInfo::getCertificateInfo(x509_st* certificate)
         QString pseudonym = getStringFromX509Name(subjectName, NID_pseudonym);
         QString generationQualifier = getStringFromX509Name(subjectName, NID_generationQualifier);
 
-        // This entry is not defined in section 4.1.2.4, but is commonly used
+        // This entry is not defined in section 4.1.2.4, but is commonly used; RFC 5280, 4.2.1.6
+        // puts the e-mail into the rfc822Name of the subject alternative name (certificates of
+        // the certification authorities carry it there) - the first one, when the subject has none
         QString email = getStringFromX509Name(subjectName, NID_pkcs9_emailAddress);
+        if (email.isEmpty())
+        {
+            if (GENERAL_NAMES* alternativeNames = static_cast<GENERAL_NAMES*>(X509_get_ext_d2i(certificate, NID_subject_alt_name, nullptr, nullptr)))
+            {
+                for (int i = 0; i < sk_GENERAL_NAME_num(alternativeNames) && email.isEmpty(); ++i)
+                {
+                    const GENERAL_NAME* alternativeName = sk_GENERAL_NAME_value(alternativeNames, i);
+                    if (alternativeName && alternativeName->type == GEN_EMAIL)
+                    {
+                        email = getStringFromASN1_STRING(alternativeName->d.rfc822Name);
+                    }
+                }
+                GENERAL_NAMES_free(alternativeNames);
+            }
+        }
 
         info.setName(PDFCertificateInfo::CountryName, qMove(countryName));
         info.setName(PDFCertificateInfo::OrganizationName, qMove(organizationName));

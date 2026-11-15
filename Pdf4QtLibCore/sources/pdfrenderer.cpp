@@ -372,14 +372,14 @@ PDFRasterizer* PDFRasterizerPool::acquire(const PDFOperationControl* operationCo
 {
     if (operationControl)
     {
-        // The waiting is interruptible - a cancelled task must not occupy a rasterizer,
+        // The waiting is interruptible - a canceled task must not occupy a rasterizer,
         // which a newer task is waiting for, so the cancellation is polled while the
         // semaphore is being waited for.
         constexpr int POLL_INTERVAL_MS = 20;
 
         while (!m_semaphore.tryAcquire(1, POLL_INTERVAL_MS))
         {
-            if (operationControl->isOperationCancelled())
+            if (operationControl->isOperationCanceled())
             {
                 return nullptr;
             }
@@ -465,9 +465,9 @@ PDFRasterizerPool::PageStatus PDFRasterizerPool::renderPage(PDFInteger pageIndex
                                                             const PDFOperationControl* operationControl,
                                                             bool isEmittingErrors)
 {
-    if (PDFOperationControl::isOperationCancelled(operationControl))
+    if (PDFOperationControl::isOperationCanceled(operationControl))
     {
-        // Operation has been cancelled, remaining pages are not rendered at all
+        // Operation has been canceled, remaining pages are not rendered at all
         return PageStatus::Canceled;
     }
 
@@ -499,7 +499,7 @@ PDFRasterizerPool::PageStatus PDFRasterizerPool::renderPage(PDFInteger pageIndex
 
     qint64 pageCompileTime = pageTimer.restart();
 
-    if (PDFOperationControl::isOperationCancelled(operationControl))
+    if (PDFOperationControl::isOperationCanceled(operationControl))
     {
         // The compilation has been interrupted, so the page is incomplete and there
         // is no point in rasterizing it - that is the most expensive part.
@@ -539,7 +539,7 @@ PDFRasterizerPool::PageStatus PDFRasterizerPool::renderPage(PDFInteger pageIndex
 
     if (!rasterizer)
     {
-        // The operation has been cancelled while a free rasterizer was being waited for
+        // The operation has been canceled while a free rasterizer was being waited for
         return PageStatus::Canceled;
     }
 
@@ -553,7 +553,7 @@ PDFRasterizerPool::PageStatus PDFRasterizerPool::renderPage(PDFInteger pageIndex
         pageRenderTime = pageTimer.elapsed();
     }
 
-    if (PDFOperationControl::isOperationCancelled(operationControl))
+    if (PDFOperationControl::isOperationCanceled(operationControl))
     {
         // Nobody is interested in the image anymore - it must not be processed.
         return PageStatus::Canceled;
@@ -633,7 +633,7 @@ void PDFRasterizerPool::renderOrdered(const std::vector<PDFInteger>& pageIndices
                 QMutexLocker locker(&state.mutex);
                 while (!state.isAborted && position >= state.nextPosition + windowSize)
                 {
-                    if (PDFOperationControl::isOperationCancelled(operationControl))
+                    if (PDFOperationControl::isOperationCanceled(operationControl))
                     {
                         return;
                     }
@@ -707,7 +707,7 @@ void PDFRasterizerPool::renderOrdered(const std::vector<PDFInteger>& pageIndices
                 locker.unlock();
                 {
                     auto relockGuard = qScopeGuard([&locker]() { locker.relock(); });
-                    if (!PDFOperationControl::isOperationCancelled(operationControl))
+                    if (!PDFOperationControl::isOperationCanceled(operationControl))
                     {
                         write(current);
                     }
@@ -793,7 +793,7 @@ bool PDFRasterizerPool::acquireImageData(qint64 bytes, const PDFOperationControl
             return true;
         }
 
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
             return false;
         }

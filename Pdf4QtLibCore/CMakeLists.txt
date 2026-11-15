@@ -155,6 +155,11 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfspeechsynthesizer.h
     sources/pdfaudiofilewriter.cpp
     sources/pdfaudiofilewriter.h
+    # Step 5 of phase 2 (plan 10.1, R5-13): P1b the tools of the encryption, P1a the password strength
+    sources/pdfdocumenttool_encryption.cpp
+    sources/pdfdocumenttool_encryption.h
+    sources/pdfpasswordstrength.cpp
+    sources/pdfpasswordstrength.h
     sources/pdfexecutionpolicy.cpp
     sources/pdfexecutionpolicy.h
     sources/pdfthreadannotations.cpp

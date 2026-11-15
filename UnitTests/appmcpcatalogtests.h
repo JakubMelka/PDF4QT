@@ -248,7 +248,9 @@ public:
         const std::vector<std::pair<const char*, const char*>> expected = {
             { "optimize.compress", "save_copy" }, { "optimize.structure", "keep" }, { "pages.rotate", "keep" }, { "pages.remove", "keep" },
             { "protect.remove-links", "keep" }, { "protect.sanitize", "save_copy" }, { "convert.extract-text", "return_text" },
-            { "review.statistics", "keep" }
+            { "review.statistics", "keep" },
+            // Step 5 (plan 8): the four tools of the encryption save a copy by default (Preselected::Copy)
+            { "protect.password", "save_copy" }, { "protect.permissions", "save_copy" }, { "protect.certificate-encrypt", "save_copy" }, { "protect.unlock", "save_copy" }
         };
         for (const auto& item : expected)
         {

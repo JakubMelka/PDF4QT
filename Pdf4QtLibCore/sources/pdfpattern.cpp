@@ -3342,8 +3342,8 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
 
     while (!unfinishedTriangles.empty())
     {
-        // Mesh generation is cancelled
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        // Mesh generation is canceled
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
             mesh = PDFMesh();
             return;

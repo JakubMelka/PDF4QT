@@ -37,6 +37,7 @@
 #include "pdfdatabaseschema.h"
 #include "pdfdatabasestatement.h"
 #include "pdfbookmarkrepository.h"
+#include "pdfcertificatecacherepository.h"
 #include "pdfrecentrepository.h"
 #include "pdfrepositoryhelper.h"
 #include "pdfsettingdefinition.h"
@@ -54,6 +55,7 @@
 #include "pdfdocumenttoolusage.h"
 #include "pdftoolparameterrepository.h"
 #include "testdocumenttool.h"
+#include "apptestcertificates.h"
 
 #include "pdfthemeiconengine.h"
 
@@ -662,6 +664,9 @@ private slots:
     void mcpHostileRows();
     void mcpTwoProcesses();
     void mcpStaleWaitingRows();
+    void certificateCache();
+    void certificateCacheLimit();
+    void certificateCacheMigration();
     void schemaMigration();
     void notificationsOfAnotherConnection();
     void notificationsOfAnotherProcess();
@@ -2666,6 +2671,163 @@ void AppDataTest::schemaMigration()
     pdf::PDFDatabase::closeHandle(handle);
 }
 
+/// Two self-signed public certificates and their SHA-256 (shared with UnitTestsAppStorage)
+using AppDataTestCertificates = pdftest::AppTestCertificates;
+
+void AppDataTest::certificateCache()
+{
+    // Owner answer Q5.11 of step 5 of phase 2: the public certificate of a .pfx file is stored, so the
+    // list of Encrypt with Certificate (433:3049) shows its details before the password; the key is
+    // the path, the fingerprint is the SHA-256 of the certificate, never anything but a certificate
+    using Certificates = AppDataTestCertificates;
+    DataFixture fixture;
+    pdf::PDFCertificateCacheRepository repository(fixture.database.get());
+    repository.setCurrentTime(1000);
+    const QString firstPath = QStringLiteral("/certificates/first.pfx");
+    const QString secondPath = QStringLiteral("/certificates/second.pfx");
+    QVERIFY(repository.getCertificates().empty());
+    QVERIFY(!repository.find(firstPath));
+
+    QVERIFY(!repository.insert(firstPath, Certificates::first(), 2500, 7000).isError());
+    std::optional<pdf::PDFCachedCertificate> row = repository.find(firstPath);
+    QVERIFY(row);
+    QCOMPARE(row->path, firstPath);
+    QCOMPARE(row->data, Certificates::first());
+    QCOMPARE(row->fingerprint, Certificates::firstFingerprint());
+    QCOMPARE(row->fileSize, qint64(2500));
+    QCOMPARE(row->fileModified, qint64(7000));
+    QCOMPARE(row->added, qint64(1000));
+    QCOMPARE(row->lastUsed, qint64(1000));
+    row = repository.findByFingerprint(Certificates::firstFingerprint());
+    QVERIFY(row);
+    QCOMPARE(row->path, firstPath);
+    QVERIFY(!repository.findByFingerprint(Certificates::secondFingerprint()));
+
+    // A file of an unknown size and time; the list has the most recently used first
+    repository.setCurrentTime(2000);
+    QVERIFY(!repository.insert(secondPath, Certificates::second(), -1, -1).isError());
+    row = repository.find(secondPath);
+    QVERIFY(row);
+    QCOMPARE(row->fileSize, qint64(-1));
+    QCOMPARE(row->fileModified, qint64(-1));
+    std::vector<pdf::PDFCachedCertificate> rows = repository.getCertificates();
+    QCOMPARE(rows.size(), size_t(2));
+    QCOMPARE(rows[0].path, secondPath);
+    QCOMPARE(rows[1].path, firstPath);
+
+    // Unlocked again: the same certificate keeps its first time, the use moves it up
+    repository.setCurrentTime(3000);
+    QVERIFY(!repository.insert(firstPath, Certificates::first(), 2500, 7000).isError());
+    row = repository.find(firstPath);
+    QCOMPARE(row->added, qint64(1000));
+    QCOMPARE(row->lastUsed, qint64(3000));
+    QCOMPARE(repository.getCertificates().front().path, firstPath);
+
+    // The file was replaced by another certificate: the row describes the new one
+    repository.setCurrentTime(4000);
+    QVERIFY(!repository.insert(firstPath, Certificates::second(), 2600, 8000).isError());
+    row = repository.find(firstPath);
+    QCOMPARE(row->fingerprint, Certificates::secondFingerprint());
+    QCOMPARE(row->added, qint64(4000));
+    QCOMPARE(row->fileSize, qint64(2600));
+    QVERIFY(!repository.findByFingerprint(Certificates::firstFingerprint()));
+    QCOMPARE(repository.findByFingerprint(Certificates::secondFingerprint())->path, firstPath);
+
+    // Never anything else than one public certificate (a private key, a PKCS#12, a password, a text),
+    // never an invalid path
+    const QByteArray privateKey = "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg\n-----END PRIVATE KEY-----\n";
+    QVERIFY(repository.insert(secondPath, privateKey, -1, -1).isError());
+    QVERIFY(repository.insert(secondPath, QByteArray("Canary-7f3a"), -1, -1).isError());
+    QVERIFY(repository.insert(secondPath, QByteArray(), -1, -1).isError());
+    QVERIFY(repository.insert(secondPath, Certificates::first() + QByteArray(70000, 'x'), -1, -1).isError());
+    QVERIFY(repository.insert(QStringLiteral("relative.pfx"), Certificates::first(), -1, -1).isError());
+    QVERIFY(repository.insert(QString(), Certificates::first(), -1, -1).isError());
+    QCOMPARE(repository.find(secondPath)->data, Certificates::second());
+    QCOMPARE(AppDataTestHelper::queryInteger(fixture.database.get(), "SELECT COUNT(*) FROM certificate_cache"), qint64(2));
+
+    // Hostile rows of another version or writer: a fingerprint of another certificate, data, which
+    // are no certificate, a text, a relative path - none is read, also when it is the newest one
+    const QByteArray hostile = "INSERT INTO certificate_cache(path, fingerprint, data, added, last_used) VALUES "
+                               "('/hostile/other.pfx', '" + Certificates::firstFingerprint().toLatin1() + "', x'" + Certificates::second().toHex() + "', 0, 99999), "
+                               "('/hostile/garbage.pfx', 'x', x'3082', 0, 99999), "
+                               "('/hostile/text.pfx', 'x', 'text', 0, 99999), "
+                               "('relative.pfx', '" + Certificates::firstFingerprint().toLatin1() + "', x'" + Certificates::first().toHex() + "', 0, 99999)";
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(), hostile.constData()));
+    QCOMPARE(repository.getCertificates().size(), size_t(2));
+    QVERIFY(!repository.find(QStringLiteral("/hostile/other.pfx")));
+    QVERIFY(!repository.find(QStringLiteral("/hostile/garbage.pfx")));
+    QVERIFY(!repository.findByFingerprint(Certificates::firstFingerprint()));
+
+    QVERIFY(!repository.remove(firstPath).isError());
+    QVERIFY(!repository.find(firstPath));
+    QCOMPARE(repository.getCertificates().size(), size_t(1));
+}
+
+void AppDataTest::certificateCacheLimit()
+{
+    // At most MAXIMUM_ROWS rows: a write removes the least recently used rows over the limit
+    using Certificates = AppDataTestCertificates;
+    DataFixture fixture;
+    const QByteArray bulk = "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < " +
+                            QByteArray::number(pdf::PDFCertificateCacheRepository::MAXIMUM_ROWS) + ") "
+                            "INSERT INTO certificate_cache(path, fingerprint, data, added, last_used) "
+                            "SELECT '/bulk/' || i || '.pfx', '" + Certificates::firstFingerprint().toLatin1() + "', x'" + Certificates::first().toHex() + "', 0, i FROM n";
+    QVERIFY(AppDataTestHelper::execute(fixture.database.get(), bulk.constData()));
+    pdf::PDFCertificateCacheRepository repository(fixture.database.get());
+    QCOMPARE(repository.getCertificates().size(), size_t(pdf::PDFCertificateCacheRepository::MAXIMUM_ROWS));
+
+    repository.setCurrentTime(1000000);
+    QVERIFY(!repository.insert(QStringLiteral("/certificates/new.pfx"), Certificates::second(), -1, -1).isError());
+    QCOMPARE(AppDataTestHelper::queryInteger(fixture.database.get(), "SELECT COUNT(*) FROM certificate_cache"), qint64(pdf::PDFCertificateCacheRepository::MAXIMUM_ROWS));
+    QVERIFY(repository.find(QStringLiteral("/certificates/new.pfx")));
+    QVERIFY(!repository.find(QStringLiteral("/bulk/1.pfx")));
+    QVERIFY(repository.find(QStringLiteral("/bulk/2.pfx")));
+}
+
+void AppDataTest::certificateCacheMigration()
+{
+    // Migration 3 adds certificate_cache (step 5 of phase 2, Q5.11); the released migrations 1 and 2
+    // are the same as before - none of their statements names the new table
+    const std::vector<pdf::PDFDatabaseMigration> migrations = pdf::PDFDatabaseSchema::getMigrations();
+    QVERIFY(pdf::PDFDatabaseSchema::isValid(migrations));
+    QVERIFY(migrations.size() >= 3);
+    QVERIFY(!migrations[0].sql.contains("certificate_cache"));
+    QVERIFY(!migrations[1].sql.contains("certificate_cache"));
+    QVERIFY(migrations[2].sql.contains("CREATE TABLE certificate_cache("));
+    QVERIFY(migrations[2].sql.contains("CREATE TRIGGER certificate_cache_log_insert"));
+    const std::vector<pdf::PDFDatabaseTableInfo> tables = pdf::PDFDatabaseSchema::getTables(3);
+    QCOMPARE(tables.size(), size_t(1));
+    QCOMPARE(tables.front().name, pdf::PDFCertificateCacheRepository::getTopic());
+    QCOMPARE(tables.front().keyExpression, QStringLiteral("%1.path"));
+
+    // A database of version 2 is migrated; its rows stay
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString filePath = directory.filePath(QStringLiteral("version2.db"));
+    {
+        pdf::PDFDatabaseError error;
+        sqlite3* handle = pdf::PDFDatabase::openFileConnection(filePath, false, 5000, &error);
+        QVERIFY(handle);
+        QVERIFY(!pdf::PDFDatabaseSchema::migrate(handle, migrations, 2).isError());
+        QCOMPARE(pdf::PDFDatabaseSchema::readVersion(handle), 2);
+        QCOMPARE(pdf::PDFDatabase::queryIntegerOnHandle(handle, "SELECT COUNT(*) FROM sqlite_schema WHERE name = 'certificate_cache'", -1), qint64(0));
+        QVERIFY(!pdf::PDFDatabase::executeOnHandle(handle, "INSERT INTO recent_assembly(path, name, folder, last_opened) VALUES ('/a.pdf4qtassembly', 'a', '/', 5)").isError());
+        pdf::PDFDatabase::closeHandle(handle);
+    }
+
+    pdf::PDFDatabase database;
+    database.open(AppDataTestHelper::createFileOptions(filePath));
+    QCOMPARE(database.getState().mode, pdf::PDFDatabaseStorageMode::Disk);
+    QCOMPARE(database.getState().fileSchemaVersion, 2);
+    QCOMPARE(database.getState().schemaVersion, pdf::PDFDatabaseSchema::getCurrentVersion());
+    QCOMPARE(AppDataTestHelper::queryInteger(&database, "PRAGMA user_version"), qint64(pdf::PDFDatabaseSchema::getCurrentVersion()));
+    QCOMPARE(AppDataTestHelper::queryInteger(&database, "SELECT COUNT(*) FROM recent_assembly"), qint64(1));
+    pdf::PDFCertificateCacheRepository repository(&database);
+    QVERIFY(!repository.insert(QStringLiteral("/certificates/first.pfx"), AppDataTestCertificates::first(), -1, -1).isError());
+    QVERIFY(repository.find(QStringLiteral("/certificates/first.pfx")));
+    database.close();
+}
+
 void AppDataTest::notificationsOfAnotherConnection()
 {
     // Two databases on one file = two instances: the writes of one are notified to the other
@@ -2806,7 +2968,7 @@ void AppDataTest::thumbnailCreate_data()
 class AppDataCanceledControl : public pdf::PDFOperationControl
 {
 public:
-    virtual bool isOperationCancelled() const override { return true; }
+    virtual bool isOperationCanceled() const override { return true; }
 };
 
 /// Cancellation, which is set from the n-th question on (createThumbnail asks twice
@@ -2820,7 +2982,7 @@ public:
 
     }
 
-    virtual bool isOperationCancelled() const override { return m_count.fetch_add(1) + 1 >= m_firstCanceled; }
+    virtual bool isOperationCanceled() const override { return m_count.fetch_add(1) + 1 >= m_firstCanceled; }
     int getCount() const { return m_count.load(); }
 
 private:
@@ -3609,7 +3771,7 @@ class AppDataThrowingControl : public pdf::PDFOperationControl
 public:
     explicit AppDataThrowingControl(bool isStandardException) : m_isStandardException(isStandardException) { }
 
-    virtual bool isOperationCancelled() const override
+    virtual bool isOperationCanceled() const override
     {
         if (m_isStandardException)
         {

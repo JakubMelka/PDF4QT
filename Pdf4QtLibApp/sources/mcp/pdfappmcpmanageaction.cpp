@@ -293,6 +293,8 @@ public:
                     return refuse(PDFAppMcpChangeJob::getLockedText(), PDFMcpActivityStatus::DeniedLocked, errorText, status);
                 case PDFAppToolResultWriter::DocumentRefusal::DisplayVersion:
                     return refuse(PDFAppMcpChangeJob::getPagedXFAText(), PDFMcpActivityStatus::Failed, errorText, status);
+                case PDFAppToolResultWriter::DocumentRefusal::AttachmentsLocked:
+                    return refuse(PDFAppMcpChangeJob::getAttachmentsLockedText(), PDFMcpActivityStatus::Failed, errorText, status);
                 case PDFAppToolResultWriter::DocumentRefusal::None:
                     break;
             }

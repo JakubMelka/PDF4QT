@@ -11,7 +11,7 @@ Remove External Links removes the links, which lead out of the document: links t
 ### Step by step
 
 1. Choose the document. The left panel lists every external link, grouped by its page.
-2. Every link is ticked. Untick a link to keep it. Click a row to show the link on the page.
+2. Every link is checked. Uncheck a link to keep it. Click a row to show the link on the page.
 3. Show filters the list: all links, web addresses (http and https) or e-mail addresses. The filter changes the list only, not what is removed. Select All and Select None act on the links shown.
 4. Press Remove Links. Keep the result in this tab, save it as a copy or overwrite the original file.
 

@@ -53,7 +53,7 @@ using Merger = PDFDocumentMerger;
 class ArrangeTestCanceledControl : public PDFOperationControl
 {
 public:
-    virtual bool isOperationCancelled() const override { return true; }
+    virtual bool isOperationCanceled() const override { return true; }
 };
 
 /// Helpers of the tests of the arrangement

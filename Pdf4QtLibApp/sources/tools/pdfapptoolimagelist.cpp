@@ -72,7 +72,7 @@ public:
     std::vector<PDFAppToolImageDecoder::Request> requests;
     QList<QImage> pictures;     ///< The results in the order of the requests (null = no pixels)
 
-    virtual bool isOperationCancelled() const override { return m_isCanceled.load(std::memory_order_relaxed); }
+    virtual bool isOperationCanceled() const override { return m_isCanceled.load(std::memory_order_relaxed); }
     void cancel() { m_isCanceled.store(true, std::memory_order_relaxed); }
 
     void run();
@@ -197,7 +197,7 @@ void PDFAppToolImageDecodeJob::run()
 {
     for (const PDFAppToolImageDecoder::Request& request : requests)
     {
-        pictures.append(isOperationCancelled() ? QImage() : PDFAppToolImageDecoder::decodeImage(document.data(), cms, request.item, maximumSide, this));
+        pictures.append(isOperationCanceled() ? QImage() : PDFAppToolImageDecoder::decodeImage(document.data(), cms, request.item, maximumSide, this));
     }
 }
 

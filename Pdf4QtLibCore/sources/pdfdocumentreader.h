@@ -55,7 +55,7 @@ public:
     {
         OK,         ///< Document was successfully loaded
         Failed,     ///< Error occured during document reading
-        Cancelled   ///< User cancelled document reading
+        Canceled   ///< User canceled document reading
     };
 
     /// Reads a PDF document from the specified file. If file doesn't exist,
@@ -93,6 +93,32 @@ public:
     /// Returns true, if the last objects of a damaged file are not a document, so its oldest ones are
     /// shown (isDocumentRestored is true then): the last changes of the file are not in the document.
     bool isOldestContentShown() const { return m_isOldestContentShown; }
+
+    // File attachments only (owner answer Q5.9 c, R5-8 of the plan of step 5 of phase 2; package
+    // P1a implements it, the password screen and the Attachments panel of P2 read it): a file,
+    // whose encryption covers only its embedded files (ISO 32000-2, 7.6.6: /StmF and /StrF Identity,
+    // /EFF with /AuthEvent /EFOpen; PDFSecurityHandler::isEmbeddedFilesOnlyEncryption), opens
+    // without the password, when the user chooses Open without attachments. The document is read
+    // whole (no lazy loading): its embedded files stay encrypted and are never decrypted, the
+    // handler says so (PDFSecurityHandler::isEmbeddedFilesLocked), the application locks the
+    // document (nothing is saved) and the Attachments panel shows "Locked – enter the password";
+    // the password reads the file again with its attachments. Without the choice the reader asks
+    // the password callback as for every encrypted file.
+
+    /// Opens a file of the encryption of the embedded files only without its password (the
+    /// callback is not called for it); a file of another encryption is read as before
+    void setOpenWithoutAttachments(bool openWithoutAttachments) { m_isOpenWithoutAttachments = openWithoutAttachments; }
+    bool isOpenWithoutAttachments() const { return m_isOpenWithoutAttachments; }
+
+    /// After a reading (also a failed or canceled one): the encryption of the file covers only its
+    /// embedded files - the password screen offers Open without attachments
+    bool isEmbeddedFilesOnlyEncryption() const { return m_isEmbeddedFilesOnlyEncryption; }
+
+    /// The certificates, by which a file of the public-key handler is opened, instead of the
+    /// certificates of the user (PDFCertificateManager::getCertificates): the read back of a file
+    /// encrypted for a chosen certificate (R5-1), the tests. The password callback gives the
+    /// password of their PKCS#12. The reader keeps a copy until it is destroyed or set again.
+    void setCertificates(PDFCertificateEntries certificates) { m_certificates = std::move(certificates); m_isCertificatesSet = true; }
 
     static QByteArray hash(const QByteArray& sourceData);
 
@@ -220,6 +246,16 @@ private:
 
     /// The objects of the first revision of the file were restored
     bool m_isOldestContentShown = false;
+
+    /// Open without attachments was chosen (setOpenWithoutAttachments)
+    bool m_isOpenWithoutAttachments = false;
+
+    /// The encryption of the read file covers only its embedded files
+    bool m_isEmbeddedFilesOnlyEncryption = false;
+
+    /// The certificates of setCertificates (m_isCertificatesSet), else the certificates of the user
+    PDFCertificateEntries m_certificates;
+    bool m_isCertificatesSet = false;
 };
 
 }   // namespace pdf

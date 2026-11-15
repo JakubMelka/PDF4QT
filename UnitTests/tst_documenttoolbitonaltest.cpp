@@ -47,7 +47,7 @@ private slots:
     void pageModes();
     void losslessCodings();
     void imagesDrawnByContent();
-    void imagesCancelled();
+    void imagesCanceled();
     void blankPages();
     void annotationsStay();
     void pixelLimit();
@@ -90,11 +90,11 @@ private:
     static int countBlack(const QImage& image);
 };
 
-/// Operation control, which reports the operation as cancelled from the beginning
-class DocumentToolBitonalCancelled : public pdf::PDFOperationControl
+/// Operation control, which reports the operation as canceled from the beginning
+class DocumentToolBitonalCanceled : public pdf::PDFOperationControl
 {
 public:
-    virtual bool isOperationCancelled() const override { return true; }
+    virtual bool isOperationCanceled() const override { return true; }
 };
 
 pdf::PDFObjectReference DocumentToolBitonalTest::addImage(pdf::PDFDocumentBuilder& builder, QColor left, QColor right, bool isBroken)
@@ -438,7 +438,7 @@ void DocumentToolBitonalTest::imagesDrawnByContent()
     QCOMPARE(getFact(result, QStringLiteral("items")), QStringLiteral("1 converted"));
 }
 
-void DocumentToolBitonalTest::imagesCancelled()
+void DocumentToolBitonalTest::imagesCanceled()
 {
     // B58: the conversion of the images stops at the cancellation (the old one never asked)
     pdf::PDFDocumentBuilder builder;
@@ -449,12 +449,12 @@ void DocumentToolBitonalTest::imagesCancelled()
 
     QVariantMap parameters;
     parameters.insert(QStringLiteral("source"), QStringLiteral("images"));
-    DocumentToolBitonalCancelled control;
+    DocumentToolBitonalCanceled control;
     const pdf::PDFDocumentToolResult result = run(document, parameters, &control);
     QCOMPARE(result.status, pdf::PDFDocumentToolResultStatus::Stopped);
     QVERIFY(result.documents.empty());
 
-    // The creator alone: a cancelled conversion creates no document
+    // The creator alone: a canceled conversion creates no document
     pdf::PDFBitonalDocumentCreator creator(document.data(), nullptr, nullptr);
     pdf::PDFBitonalDocumentCreator::Settings settings;
     settings.conversionSource = pdf::PDFBitonalDocumentCreator::ConversionSource::Images;

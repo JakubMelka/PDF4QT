@@ -94,35 +94,35 @@ private:
     std::unique_ptr<pdf::PDFRasterizerPool> m_rasterizerPool;
 };
 
-/// Operation control, which reports the operation as cancelled from the beginning
-class CancelledOperationControl : public pdf::PDFOperationControl
+/// Operation control, which reports the operation as canceled from the beginning
+class CanceledOperationControl : public pdf::PDFOperationControl
 {
 public:
-    virtual bool isOperationCancelled() const override { return true; }
+    virtual bool isOperationCanceled() const override { return true; }
 };
 
-/// Operation control, which reports the operation as cancelled from the given query
-/// on - the first queries pass, so the rendering starts and it is cancelled while
+/// Operation control, which reports the operation as canceled from the given query
+/// on - the first queries pass, so the rendering starts and it is canceled while
 /// the page is being compiled
 class CountingOperationControl : public pdf::PDFOperationControl
 {
 public:
     explicit CountingOperationControl(int passedQueryCount) : m_passedQueryCount(passedQueryCount) { }
 
-    virtual bool isOperationCancelled() const override { return m_queryCount.fetch_add(1, std::memory_order_relaxed) >= m_passedQueryCount; }
+    virtual bool isOperationCanceled() const override { return m_queryCount.fetch_add(1, std::memory_order_relaxed) >= m_passedQueryCount; }
 
 private:
     int m_passedQueryCount;
     mutable std::atomic<int> m_queryCount = { 0 };
 };
 
-/// Operation control, which reports the operation as cancelled after the given time
+/// Operation control, which reports the operation as canceled after the given time
 class TimedOperationControl : public pdf::PDFOperationControl
 {
 public:
     explicit TimedOperationControl(qint64 milliseconds) : m_milliseconds(milliseconds) { m_timer.start(); }
 
-    virtual bool isOperationCancelled() const override { return m_timer.elapsed() >= m_milliseconds; }
+    virtual bool isOperationCanceled() const override { return m_timer.elapsed() >= m_milliseconds; }
 
 private:
     qint64 m_milliseconds;
@@ -671,7 +671,7 @@ void BitonalDocumentTest::test_page_conversion_is_cancellable()
 
     pdf::PDFBitonalDocumentCreator creator(&document, context.getRasterizerPool(), nullptr);
 
-    CancelledOperationControl operationControl;
+    CanceledOperationControl operationControl;
 
     auto pageSizeGetter = [](const pdf::PDFPage*) { return QSize(64, 32); };
 
@@ -679,7 +679,7 @@ void BitonalDocumentTest::test_page_conversion_is_cancellable()
     std::atomic<int> renderedPageCount = { 0 };
     auto pageImageProcessor = [&renderedPageCount](pdf::PDFInteger, QImage) { renderedPageCount.fetch_add(1, std::memory_order_relaxed); };
 
-    // A cancelled rendering must not produce anything - the preview, which has asked
+    // A canceled rendering must not produce anything - the preview, which has asked
     // for it, has already thrown its result away and it is waiting for the worker
     creator.renderPages({ 0, 1, 2 }, pageSizeGetter, pageImageProcessor, &operationControl);
     QCOMPARE(renderedPageCount.load(), 0);
@@ -734,7 +734,7 @@ void BitonalDocumentTest::test_page_conversion_is_cancellable_while_compiling()
     pool->release(heldRasterizer);
     thread.join();
 
-    QVERIFY2(hasFinished, "The cancelled rendering has waited for the rasterizer.");
+    QVERIFY2(hasFinished, "The canceled rendering has waited for the rasterizer.");
     QCOMPARE(renderedPageCount.load(), 0);
 }
 
@@ -743,8 +743,8 @@ void BitonalDocumentTest::test_page_conversion_is_cancellable_while_waiting_for_
     pdf::PDFDocument document = createDocument({ QSizeF(200, 100) }, false);
 
     // The pool has a single rasterizer and the test holds it, so the rendering has to
-    // wait for it. The operation is cancelled while it is waiting, so it must give up
-    // the waiting - a cancelled task must not occupy the rasterizer, which a newer
+    // wait for it. The operation is canceled while it is waiting, so it must give up
+    // the waiting - a canceled task must not occupy the rasterizer, which a newer
     // task is waiting for.
     RenderingContext context(&document, 1);
     pdf::PDFRasterizerPool* pool = context.getRasterizerPool();
@@ -779,7 +779,7 @@ void BitonalDocumentTest::test_page_conversion_is_cancellable_while_waiting_for_
     pool->release(heldRasterizer);
     thread.join();
 
-    QVERIFY2(hasFinished, "The cancelled rendering has waited for the rasterizer.");
+    QVERIFY2(hasFinished, "The canceled rendering has waited for the rasterizer.");
     QVERIFY(elapsed >= CANCEL_AFTER_MS);
     QCOMPARE(renderedPageCount.load(), 0);
 
@@ -1447,9 +1447,9 @@ void BitonalDocumentTest::test_blank_page_detection()
         QCOMPARE(info.contentComponentCount, 1);
     }
 
-    // A cancelled analysis must never report a page as a blank one
+    // A canceled analysis must never report a page as a blank one
     {
-        CancelledOperationControl operationControl;
+        CanceledOperationControl operationControl;
         const auto info = pdf::PDFBitonalDocumentCreator::detectBlankPage(createScannedPaper(size), dpiResolution, &operationControl);
         QVERIFY(!info.isBlank);
     }
@@ -1682,11 +1682,11 @@ void BitonalDocumentTest::test_preview_of_core()
     QCOMPARE(getBlackPixelCount(preview.resultImage), 0);
     QCOMPARE(preview.threshold, -1);
 
-    // A page over the limits of the pixels fails as too large, a cancelled preview has nothing
+    // A page over the limits of the pixels fails as too large, a canceled preview has nothing
     request.originalImage = QImage();
     request.item.mode = pdf::PDFBitonalDocumentCreator::ItemMode::Algorithm;
-    CancelledOperationControl cancelled;
-    QVERIFY(creator.createPreview(request, &cancelled).resultImage.isNull());
+    CanceledOperationControl canceled;
+    QVERIFY(creator.createPreview(request, &canceled).resultImage.isNull());
 
     pdf::PDFDocument largeDocument = createDocument({ QSizeF(5000, 5000) }, false);
     RenderingContext largeContext(&largeDocument);
@@ -1732,9 +1732,9 @@ void BitonalDocumentTest::test_detect_blank_pages_of_core()
     QVERIFY(results[2].isExamined && results[2].isBlank);
     QVERIFY(!results[3].isExamined && !results[3].isBlank);
 
-    // Cancelled: nothing is examined, nothing is blank
-    CancelledOperationControl cancelled;
-    for (const pdf::PDFBitonalDocumentCreator::BlankPageResult& result : creator.detectBlankPages({ 0, 1 }, &cancelled, nullptr))
+    // Canceled: nothing is examined, nothing is blank
+    CanceledOperationControl canceled;
+    for (const pdf::PDFBitonalDocumentCreator::BlankPageResult& result : creator.detectBlankPages({ 0, 1 }, &canceled, nullptr))
     {
         QVERIFY(!result.isExamined && !result.isBlank);
     }

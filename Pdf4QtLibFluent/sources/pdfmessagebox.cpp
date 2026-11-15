@@ -57,6 +57,17 @@ public:
 
     const QString& getIconName() const { return m_iconName; }
 
+    PDFThemeIcons::Badge getBadge() const { return m_badge; }
+
+    void setBadge(PDFThemeIcons::Badge badge)
+    {
+        if (m_badge != badge)
+        {
+            m_badge = badge;
+            update();
+        }
+    }
+
     void setIconName(const QString& iconName)
     {
         if (m_iconName != iconName)
@@ -368,6 +379,23 @@ void PDFMessageBox::setBadgeIconName(const QString& iconName)
     if (PDFMessageBoxBadge* badge = dynamic_cast<PDFMessageBoxBadge*>(m_badgeWidget.data()))
     {
         badge->setIconName(iconName);
+    }
+}
+
+PDFThemeIcons::Badge PDFMessageBox::getBadge() const
+{
+    const PDFMessageBoxBadge* badge = dynamic_cast<const PDFMessageBoxBadge*>(m_badgeWidget.data());
+    return badge ? badge->getBadge() : PDFThemeIcons::Badge::Information;
+}
+
+void PDFMessageBox::setBadge(PDFThemeIcons::Badge badge)
+{
+    // The colors of the kind come from the theme (PDFThemeIcons::paintBadge), its name is the
+    // accessible name of the badge
+    if (PDFMessageBoxBadge* badgeWidget = dynamic_cast<PDFMessageBoxBadge*>(m_badgeWidget.data()))
+    {
+        badgeWidget->setBadge(badge);
+        badgeWidget->setAccessibleName(getBadgeName(badge));
     }
 }
 

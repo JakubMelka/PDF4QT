@@ -71,7 +71,7 @@ public:
 
     void operator()(PDFInteger pageIndex) const
     {
-        if (!PDFOperationControl::isOperationCancelled(m_operationControl))
+        if (!PDFOperationControl::isOperationCanceled(m_operationControl))
         {
             const PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
             if (page)
@@ -158,7 +158,7 @@ public:
 
     void operator()(PDFInteger pageIndex) const
     {
-        if (PDFOperationControl::isOperationCancelled(m_operationControl))
+        if (PDFOperationControl::isOperationCanceled(m_operationControl))
         {
             return;
         }
@@ -182,7 +182,7 @@ public:
         PDFFindResults findResults;
         for (const PDFTextFlow& flow : flows)
         {
-            if (PDFOperationControl::isOperationCancelled(m_operationControl))
+            if (PDFOperationControl::isOperationCanceled(m_operationControl))
             {
                 return;
             }
@@ -289,7 +289,7 @@ std::shared_ptr<const PDFDocumentTextIndex> PDFDocumentTextIndex::build(const PD
         progress->finish();
     }
 
-    if (PDFOperationControl::isOperationCancelled(operationControl))
+    if (PDFOperationControl::isOperationCanceled(operationControl))
     {
         return nullptr;
     }
@@ -422,7 +422,7 @@ PDFDocumentTextSearchResult PDFDocumentTextSearch::find(const PDFDocumentTextInd
     const PDFInteger chunkSize = qMax(PDFInteger(16), PDFInteger(QThread::idealThreadCount()) * 4);
     for (PDFInteger firstPage = 0; firstPage < pageCount && !result.isTruncated; firstPage += chunkSize)
     {
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
             break;
         }
@@ -455,7 +455,7 @@ PDFDocumentTextSearchResult PDFDocumentTextSearch::find(const PDFDocumentTextInd
         }
     }
 
-    if (PDFOperationControl::isOperationCancelled(operationControl))
+    if (PDFOperationControl::isOperationCanceled(operationControl))
     {
         result.isCanceled = true;
         result.isTruncated = false;

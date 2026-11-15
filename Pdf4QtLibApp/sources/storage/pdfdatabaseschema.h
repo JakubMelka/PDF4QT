@@ -86,7 +86,8 @@ public:
     static std::vector<PDFDatabaseTableInfo> getTables();
 
     /// Tables with the triggers created by the migration of \p version (1: phase 1, 2:
-    /// recent_assembly of Manage Pages, plan of step 3b of phase 2, 4.6); empty for another one
+    /// recent_assembly of Manage Pages, plan of step 3b of phase 2, 4.6; 3: certificate_cache of
+    /// Encrypt with Certificate, plan of step 5 of phase 2, Q5.11); empty for another one
     static std::vector<PDFDatabaseTableInfo> getTables(int version);
 
     /// Migrates the database of the connection to \p targetVersion inside of one
@@ -121,6 +122,7 @@ public:
 private:
     static QByteArray createVersion1();
     static QByteArray createVersion2();
+    static QByteArray createVersion3();
     static QByteArray createTriggers(const PDFDatabaseTableInfo& table, const char* updateColumns);
 };
 

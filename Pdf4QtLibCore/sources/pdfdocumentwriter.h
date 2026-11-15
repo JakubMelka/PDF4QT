@@ -99,6 +99,30 @@ public:
     /// \param object Object to be written
     static QByteArray getSerializedObject(const PDFObject& object);
 
+    /// What the encryption of a document needs of the file written whole (plan of step 5 of phase
+    /// 2, B98, R5-16): the crypt filter V2 of V 4 (RC4 128-bit, revision 4) needs PDF 1.5, AESV2
+    /// (AES 128-bit) PDF 1.6, AESV3 (V 5: revision 6, the public-key handler) PDF 2.0 or PDF 1.7
+    /// with the developer extension /ADBE of /BaseVersion /1.7 and /ExtensionLevel 8 (3 for the
+    /// deprecated revision 5). The header of the file is never lowered and never raised to 2.0
+    /// (2.0 changes other rules of a document too): the extension goes into the catalog instead.
+    struct EncryptionVersion
+    {
+        PDFVersion minimumVersion;      ///< The lowest version of the header (invalid = no requirement)
+        int adbeExtensionLevel = 0;     ///< The level of the extension /ADBE needed below PDF 2.0 (0 = none)
+    };
+
+    /// The requirements of the encryption of the document (its security handler and its /Encrypt)
+    /// \param document Document
+    static EncryptionVersion getEncryptionVersion(const PDFDocument* document);
+
+    /// True, if the document is encrypted as the original file: both without /Encrypt and with a
+    /// handler of no encryption, or the same /Encrypt dictionary (object for object) and a handler
+    /// of the same mode. An incremental update cannot change the encryption (plan of step 5 of
+    /// phase 2, B80): the old revisions stay encrypted by the old key under the new /Encrypt.
+    /// \param document The document to be written
+    /// \param original The document read of the original data
+    static bool hasSameEncryption(const PDFDocument* document, const PDFDocument* original);
+
 private:
     /// Finds the last cross-reference section of the document data, to which
     /// the incremental update must be linked

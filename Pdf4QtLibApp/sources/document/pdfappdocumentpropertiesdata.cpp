@@ -650,7 +650,7 @@ PDFAppPropertyGroup PDFAppDocumentPropertiesData::createEncryptionGroup(const PD
         case PDFSecurityHandler::AuthorizationResult::Failed:
             authorization = tr("Not authorized");
             break;
-        case PDFSecurityHandler::AuthorizationResult::Cancelled:
+        case PDFSecurityHandler::AuthorizationResult::Canceled:
             authorization = tr("Canceled");
             break;
     }

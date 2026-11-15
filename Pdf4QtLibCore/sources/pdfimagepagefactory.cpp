@@ -542,7 +542,7 @@ bool PDFImagePageFactory::readFrames(const QByteArray& data, const QByteArray& f
     int previousIndex = -1;
     for (const int frameIndex : frameIndices)
     {
-        if (PDFOperationControl::isOperationCancelled(control))
+        if (PDFOperationControl::isOperationCanceled(control))
         {
             frames->clear();
             return false;

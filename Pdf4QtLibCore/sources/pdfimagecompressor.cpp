@@ -96,7 +96,7 @@ public:
         PDFIntegerRange<int> tasks(0, taskCount);
         PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, tasks.begin(), tasks.end(), [&](int)
         {
-            while (!PDFOperationControl::isOperationCancelled(operationControl))
+            while (!PDFOperationControl::isOperationCanceled(operationControl))
             {
                 const size_t index = nextIndex.fetch_add(1, std::memory_order_relaxed);
                 if (index >= count)
@@ -207,7 +207,7 @@ protected:
     {
         Q_UNUSED(stream);
 
-        if (isContentSuppressed() || isProcessingCancelled())
+        if (isContentSuppressed() || isProcessingCanceled())
         {
             return false;
         }
@@ -236,7 +236,7 @@ protected:
 
     virtual bool performOriginalImagePainting(const PDFImage& image, const PDFStream* stream, PDFObjectReference reference) override
     {
-        if (isContentSuppressed() || isProcessingCancelled())
+        if (isContentSuppressed() || isProcessingCanceled())
         {
             return true;
         }
@@ -339,7 +339,7 @@ void PDFImageCompressor::Environment::processPage(PDFInteger pageIndex, const Im
 {
     const PDFCatalog* catalog = m_document ? m_document->getCatalog() : nullptr;
     const PDFPage* page = catalog && pageIndex >= 0 && size_t(pageIndex) < catalog->getPageCount() ? catalog->getPage(pageIndex) : nullptr;
-    if (!page || PDFOperationControl::isOperationCancelled(operationControl))
+    if (!page || PDFOperationControl::isOperationCanceled(operationControl))
     {
         return;
     }
@@ -357,7 +357,7 @@ void PDFImageCompressor::Environment::processPagePlacements(PDFInteger pageIndex
 {
     const PDFCatalog* catalog = m_document ? m_document->getCatalog() : nullptr;
     const PDFPage* page = catalog && pageIndex >= 0 && size_t(pageIndex) < catalog->getPageCount() ? catalog->getPage(pageIndex) : nullptr;
-    if (!page || PDFOperationControl::isOperationCancelled(operationControl))
+    if (!page || PDFOperationControl::isOperationCanceled(operationControl))
     {
         return;
     }
@@ -373,7 +373,7 @@ void PDFImageCompressor::Environment::processPageImages(PDFInteger pageIndex, co
 {
     const PDFCatalog* catalog = m_document ? m_document->getCatalog() : nullptr;
     const PDFPage* page = catalog && pageIndex >= 0 && size_t(pageIndex) < catalog->getPageCount() ? catalog->getPage(pageIndex) : nullptr;
-    if (!page || !callback || PDFOperationControl::isOperationCancelled(operationControl))
+    if (!page || !callback || PDFOperationControl::isOperationCanceled(operationControl))
     {
         return;
     }
@@ -419,7 +419,7 @@ PDFImageCompressor::ImageStatisticsList PDFImageCompressor::collectImages(const 
     const ImagePlacements placements = collectImagePlacements(environment, operationControl, progress);
     result.reserve(placements.size());
 
-    const bool hasProgress = progress && !placements.empty() && !PDFOperationControl::isOperationCancelled(operationControl);
+    const bool hasProgress = progress && !placements.empty() && !PDFOperationControl::isOperationCanceled(operationControl);
     if (hasProgress)
     {
         progress->start(placements.size(), ProgressStartupInfo());
@@ -481,10 +481,10 @@ PDFImageCompressor::ImagePlacements PDFImageCompressor::collectImagePlacements(c
         environment.processPageImages(PDFInteger(pageIndex), addPlacement, nullptr, operationControl);
 
         // A canceled walk reports nothing more, also from the other threads
-        if (progress && !PDFOperationControl::isOperationCancelled(operationControl))
+        if (progress && !PDFOperationControl::isOperationCanceled(operationControl))
         {
             QMutexLocker locker(&progressMutex);
-            if (!PDFOperationControl::isOperationCancelled(operationControl))
+            if (!PDFOperationControl::isOperationCanceled(operationControl))
             {
                 progress->step();
             }
@@ -613,7 +613,7 @@ void PDFImageCompressor::visitImagesInParallel(const Environment& environment, c
                 return;
             }
 
-            if (PDFOperationControl::isOperationCancelled(operationControl))
+            if (PDFOperationControl::isOperationCanceled(operationControl))
             {
                 return;
             }
@@ -647,7 +647,7 @@ void PDFImageCompressor::visitImagesInParallel(const Environment& environment, c
     };
     PDFImageCompressorHelper::executeForEachIndex(parts.size(), operationControl, processPage);
 
-    if (PDFOperationControl::isOperationCancelled(operationControl))
+    if (PDFOperationControl::isOperationCanceled(operationControl))
     {
         return;
     }
@@ -734,7 +734,7 @@ void PDFImageCompressor::visitImages(const Environment& environment, const Image
     // image of them gives no pixels - then its other pages are tried
     bool processAllPages = false;
     const PDFInteger pageCount = PDFInteger(document->getCatalog()->getPageCount());
-    for (PDFInteger pageIndex = 0; pageIndex < pageCount && !pending.empty() && !PDFOperationControl::isOperationCancelled(operationControl); ++pageIndex)
+    for (PDFInteger pageIndex = 0; pageIndex < pageCount && !pending.empty() && !PDFOperationControl::isOperationCanceled(operationControl); ++pageIndex)
     {
         if (!processAllPages && !firstPages.count(pageIndex))
         {
@@ -757,7 +757,7 @@ void PDFImageCompressor::visitImages(const Environment& environment, const Image
         }
     }
 
-    if (PDFOperationControl::isOperationCancelled(operationControl))
+    if (PDFOperationControl::isOperationCanceled(operationControl))
     {
         return;
     }

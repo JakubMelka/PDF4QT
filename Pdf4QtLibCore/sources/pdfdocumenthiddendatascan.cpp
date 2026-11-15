@@ -70,7 +70,7 @@ public:
         int steps = 0;
         while (!stack.empty())
         {
-            if (++steps % CANCEL_CHECK_STEP == 0 && PDFOperationControl::isOperationCancelled(control))
+            if (++steps % CANCEL_CHECK_STEP == 0 && PDFOperationControl::isOperationCanceled(control))
             {
                 result->isCanceled = true;
                 return;
@@ -470,7 +470,7 @@ public:
 
         for (size_t pageIndex = 0; pageIndex < pageCount; ++pageIndex)
         {
-            if (PDFOperationControl::isOperationCancelled(control))
+            if (PDFOperationControl::isOperationCanceled(control))
             {
                 result->isCanceled = true;
                 break;

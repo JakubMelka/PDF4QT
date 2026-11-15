@@ -421,8 +421,8 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addOption(QCommandLineOption("enc-algorithm", "Encryption algorithm (valid values: rc4|aes-128|aes-256).", "encryption algorithm", "aes-256"));
         parser->addOption(QCommandLineOption("enc-contents", "Encryption scope (valid values: all|all-except-metadata|only-embedded-files).", "encryption contents", "all"));
         parser->addOption(QCommandLineOption("enc-user-password", "User password (for document reading).", "user password"));
-        parser->addOption(QCommandLineOption("enc-owner-password", "Owner password.", "owner password"));
-        parser->addOption(QCommandLineOption("enc-permissions", "Document permissions (flags represented as a number).", "permissions"));
+        parser->addOption(QCommandLineOption("enc-owner-password", "Owner password (to change the security; restrictions need one different from the user password; without it the user password is the owner password).", "owner password"));
+        parser->addOption(QCommandLineOption("enc-permissions", "Document permissions (flags represented as a number; without it and without an owner password everything is allowed).", "permissions"));
     }
 }
 
@@ -1499,7 +1499,11 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
 
         options.encryptionUserPassword = parser->value("enc-user-password");
         options.encryptionOwnerPassword = parser->value("enc-owner-password");
-        options.encryptionPermissions = parser->value("enc-permissions").toUInt();
+        // Owner decision of 14. 11. 2026: without the permissions and without the owner password the
+        // file is protected by the open password only (every permission, as Protect with Password);
+        // a given value always wins (restrictions need an owner password of their own, R5-23)
+        const bool isPermissionsGiven = parser->isSet("enc-permissions") || parser->isSet("enc-owner-password");
+        options.encryptionPermissions = isPermissionsGiven ? parser->value("enc-permissions").toUInt() : 0xFFFFFFFFu;
     }
 
     return options;
@@ -1548,7 +1552,7 @@ bool PDFToolAbstractApplication::readDocument(const PDFToolOptions& options, pdf
             break;
         }
 
-        case pdf::PDFDocumentReader::Result::Cancelled:
+        case pdf::PDFDocumentReader::Result::Canceled:
         {
             PDFConsole::writeError(PDFToolTranslationContext::tr("Invalid password provided."), options.outputCodec);
             return false;

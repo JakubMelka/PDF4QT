@@ -297,6 +297,18 @@ public:
     /// The parameter is given only by the panels (setPanelOnly)
     bool isPanelOnly() const { return m_panelOnly; }
 
+    /// The value never goes through MCP (plan of step 5 of phase 2, 6.3, S5.2, owner answer Q5.6):
+    /// the parameter is left out of the JSON Schema of an action (toJsonSchema - the strict schema
+    /// of MCP refuses it as an additional property, so an assistant can neither send nor receive
+    /// it) and out of every JSON of the values (toJson - the results and the activity of MCP). The
+    /// user gives it only in a window of PDF4QT (the confirmation of MCP of PDFAppMcpSecretConfirmation).
+    /// Every Secret is excluded (a password or a key; the flag cannot be cleared for it); another
+    /// type is excluded by setMcpExcluded (the certificate of Encrypt with Certificate).
+    PDFDocumentToolParameterDefinition& setMcpExcluded(bool mcpExcluded) { m_mcpExcluded = mcpExcluded; return *this; }
+
+    /// The parameter never goes through MCP (setMcpExcluded; always for a Secret)
+    bool isMcpExcluded() const { return m_mcpExcluded || m_type == PDFDocumentToolParameterType::Secret; }
+
     const QString& getName() const { return m_name; }
     PDFDocumentToolParameterType getType() const { return m_type; }
 
@@ -379,6 +391,7 @@ private:
     bool m_required = false;
     bool m_stored = true;
     bool m_panelOnly = false;
+    bool m_mcpExcluded = false;
     qint64 m_integerMinimum = 0;
     qint64 m_integerMaximum = 0;
     double m_realMinimum = 0.0;
@@ -419,10 +432,11 @@ public:
     /// JSON Schema of the object of the parameters: "type": "object", the
     /// properties in the order of the definitions, "required" and
     /// "additionalProperties": false - never "oneOf" / "anyOf" / "allOf" at the top level;
-    /// a parameter, which only the panels give (setPanelOnly), is left out
+    /// a parameter, which only the panels give (setPanelOnly), and a parameter, which never goes
+    /// through MCP (isMcpExcluded: every Secret), are left out
     static QJsonObject toJsonSchema(const PDFDocumentToolParameterDefinitions& definitions);
 
-    /// JSON object of canonical values (Secrets left out)
+    /// JSON object of canonical values (the parameters of isMcpExcluded - every Secret - left out)
     static QJsonObject toJson(const PDFDocumentToolParameterDefinitions& definitions, const QVariantMap& values);
 
     /// Definition of the name, nullptr = none

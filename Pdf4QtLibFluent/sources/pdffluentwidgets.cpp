@@ -817,6 +817,9 @@ void PDFLineEdit::setPasswordField()
         setProperty(PDFWidgetStyleProperties::FIELD_HEIGHT, PDFFluentWidgetsHelper::PASSWORD_HEIGHT);
         setProperty(PDFWidgetStyleProperties::FIELD_TEXT_INSETS, QVariant::fromValue(PDFFluentWidgetsHelper::getPasswordInsets(layoutDirection())));
 
+        // S5.2: the selection of a password is never dragged out (mousePressEvent keeps it off)
+        setDragEnabled(false);
+
         PDFIconButton* passwordButton = new PDFIconButton(QStringLiteral("eye"), PDFIconButton::Size::Medium, this);
         passwordButton->setCheckable(true);
         passwordButton->setCursor(Qt::ArrowCursor);
@@ -880,6 +883,91 @@ void PDFLineEdit::resizeEvent(QResizeEvent* event)
 {
     QLineEdit::resizeEvent(event);
     placePasswordButton();
+}
+
+void PDFLineEdit::keyPressEvent(QKeyEvent* event)
+{
+    // S5.2: a password goes to no clipboard, also when the button shows it (QLineEdit copies
+    // a shown value); Cut does not remove the selection, so nothing seems to have been taken
+    if (m_isPasswordField && (event->matches(QKeySequence::Copy) || event->matches(QKeySequence::Cut)))
+    {
+        event->accept();
+        return;
+    }
+
+    // A key may emit returnPressed / textEdited, whose slot deletes the field
+    QPointer<PDFLineEdit> guard(this);
+    QLineEdit::keyPressEvent(event);
+    if (guard)
+    {
+        releaseSelectionClipboard();
+    }
+}
+
+void PDFLineEdit::mousePressEvent(QMouseEvent* event)
+{
+    // The drag of a selection stays off for a password, also when someone has enabled it
+    if (m_isPasswordField && dragEnabled())
+    {
+        setDragEnabled(false);
+    }
+    QLineEdit::mousePressEvent(event);
+}
+
+void PDFLineEdit::mouseReleaseEvent(QMouseEvent* event)
+{
+    // The release may emit a signal of the selection, whose slot deletes the field
+    QPointer<PDFLineEdit> guard(this);
+    QLineEdit::mouseReleaseEvent(event);
+    if (guard)
+    {
+        releaseSelectionClipboard();
+    }
+}
+
+void PDFLineEdit::contextMenuEvent(QContextMenuEvent* event)
+{
+    if (!m_isPasswordField)
+    {
+        QLineEdit::contextMenuEvent(event);
+        return;
+    }
+
+    // The standard menu of QLineEdit without Cut and Copy (disabled as for a hidden password; an
+    // explicitly disabled action ignores also a trigger by the code); deleted when it is closed
+    QMenu* menu = createStandardContextMenu();
+    if (!menu)
+    {
+        return;
+    }
+    for (QAction* action : menu->actions())
+    {
+        if (action->objectName() == QLatin1String("edit-cut") || action->objectName() == QLatin1String("edit-copy"))
+        {
+            action->setEnabled(false);
+        }
+    }
+    menu->setAttribute(Qt::WA_DeleteOnClose);
+    menu->popup(event->globalPos());
+}
+
+void PDFLineEdit::releaseSelectionClipboard()
+{
+    if (!m_isPasswordField)
+    {
+        return;
+    }
+
+    // QLineEdit puts the selection of a shown value into the selection clipboard (X11, Wayland)
+    // after a key and a release of the mouse; it is taken back before any other application can
+    // read it (the request of another client waits for the event loop)
+    QClipboard* clipboard = QGuiApplication::clipboard();
+    const QString selection = selectedText();
+    if (clipboard && clipboard->supportsSelection() && !selection.isEmpty() && clipboard->ownsSelection() &&
+        clipboard->text(QClipboard::Selection) == selection)
+    {
+        clipboard->clear(QClipboard::Selection);
+    }
 }
 
 void PDFLineEdit::setElidedWhenInactive(bool elided)

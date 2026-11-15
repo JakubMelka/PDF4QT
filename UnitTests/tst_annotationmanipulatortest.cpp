@@ -2840,7 +2840,7 @@ void AnnotationManipulatorTest::reviewMeasurementAmbiguousArea()
     const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 400, 400));
     const QPolygonF square = { QPointF(100, 100), QPointF(200, 100), QPointF(200, 200), QPointF(100, 200) };
     const PDFObjectReference polygon = builder.createAnnotationPolygon(page, square, 1.0, Qt::yellow, Qt::black, "Title", "Area", "");
-    // Four metres on each side: perimeter and area both have the numeric value 16.
+    // Four meters on each side: perimeter and area both have the numeric value 16.
     setMeasurement(builder, polygon, "PolygonDimension", "A = 16.00 sq m", measure(0.04, 0.0, 1.0, 1.0, 0.0));
     const PDFDocument document = builder.build();
     PDFDocumentBuilder modifiedBuilder(&document);
@@ -2918,10 +2918,10 @@ void AnnotationManipulatorTest::measurementField()
     QCOMPARE(transformedLineContents("a = 100.0 mm", plainMeasure, scaling), QString("a = 200.0 mm"));
 
     // Two equal numbers - the one with the unit of the measure is the measured value
-    const PDFObject metreMeasure = measureOf({ { "X", numberFormats({ { "m", 1.0 } }) } });
-    QCOMPARE(transformedLineContents("100.0 m (100.0 mm)", metreMeasure, scaling), QString("200.0 m (100.0 mm)"));
-    QCOMPARE(transformedLineContents("100.0 mm (100.0 m)", metreMeasure, scaling), QString("100.0 mm (200.0 m)"));
-    QCOMPARE(transformedLineContents("100.0 m^2 (100.0 m)", metreMeasure, scaling), QString("100.0 m^2 (200.0 m)"));
+    const PDFObject meterMeasure = measureOf({ { "X", numberFormats({ { "m", 1.0 } }) } });
+    QCOMPARE(transformedLineContents("100.0 m (100.0 mm)", meterMeasure, scaling), QString("200.0 m (100.0 mm)"));
+    QCOMPARE(transformedLineContents("100.0 mm (100.0 m)", meterMeasure, scaling), QString("100.0 mm (200.0 m)"));
+    QCOMPARE(transformedLineContents("100.0 m^2 (100.0 m)", meterMeasure, scaling), QString("100.0 m^2 (200.0 m)"));
 
     // ...and if nothing distinguishes them, then the text is left alone
     QCOMPARE(transformedLineContents("100.0 mm, 100.0 mm", plainMeasure, scaling), QString("100.0 mm, 100.0 mm"));

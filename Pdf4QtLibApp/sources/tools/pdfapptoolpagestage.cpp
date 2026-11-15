@@ -104,7 +104,7 @@ public:
     QRectF pageRect;            ///< The rectangle of the page in the stage, for which the picture is
     QImage image;               ///< The result
 
-    virtual bool isOperationCancelled() const override
+    virtual bool isOperationCanceled() const override
     {
         return m_isCanceled.load(std::memory_order_relaxed);
     }
@@ -722,7 +722,7 @@ void PDFAppToolPageStage::onRenderFinished(const std::shared_ptr<PDFAppToolPageS
     PDFThreadAnnotations::forget(job.get());
 
     // A job of another page or size
-    if (job != m_job || job->isOperationCancelled())
+    if (job != m_job || job->isOperationCanceled())
     {
         return;
     }

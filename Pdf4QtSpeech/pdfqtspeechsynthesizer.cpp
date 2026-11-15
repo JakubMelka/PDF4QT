@@ -647,7 +647,7 @@ bool PDFQtSpeechSynthesizer::synthesize(const QString& text, PDFAudioSink* sink,
             while (m_session->blocks.empty() && m_session->finishedGeneration < generation)
             {
                 // The cancellation every 100 ms (R4-14 c)
-                if (PDFOperationControl::isOperationCancelled(operationControl))
+                if (PDFOperationControl::isOperationCanceled(operationControl))
                 {
                     isCanceled = true;
                     break;
@@ -673,7 +673,7 @@ bool PDFQtSpeechSynthesizer::synthesize(const QString& text, PDFAudioSink* sink,
             failure = m_session->failure;
         }
 
-        if (isCanceled || PDFOperationControl::isOperationCancelled(operationControl))
+        if (isCanceled || PDFOperationControl::isOperationCanceled(operationControl))
         {
             if (!isFinished)
             {

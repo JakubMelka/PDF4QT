@@ -93,7 +93,7 @@ private:
 class CanceledOperation : public pdf::PDFOperationControl
 {
 public:
-    virtual bool isOperationCancelled() const override { return true; }
+    virtual bool isOperationCanceled() const override { return true; }
 };
 
 /// Cancellation after a number of questions (the search asks before each page)
@@ -102,7 +102,7 @@ class CountdownOperation : public pdf::PDFOperationControl
 public:
     explicit CountdownOperation(int count) : m_count(count) { }
 
-    virtual bool isOperationCancelled() const override { return m_count.fetch_sub(1) <= 0; }
+    virtual bool isOperationCanceled() const override { return m_count.fetch_sub(1) <= 0; }
 
 private:
     mutable std::atomic<int> m_count;

@@ -572,7 +572,7 @@ private slots:
     void cardPixels_data();
     void cardPixels();
     void cardWidgetsMatchPainter();
-    void cardBehaviour();
+    void cardBehavior();
     void cardChoices();
     void cardAccessibility();
     void cardThemeAndDirection();
@@ -677,7 +677,7 @@ private slots:
     void windowSizes();
     void windowPixels_data();
     void windowPixels();
-    void windowControlsBehaviour();
+    void windowControlsBehavior();
     void windowActivity();
     void windowDefensive();
     void windowControlsApplication();
@@ -5896,7 +5896,7 @@ void FluentComponentsTest::cardWidgetsMatchPainter()
     }
 }
 
-void FluentComponentsTest::cardBehaviour()
+void FluentComponentsTest::cardBehavior()
 {
     QWidget window;
     QVBoxLayout* layout = new QVBoxLayout(&window);
@@ -15657,7 +15657,7 @@ void FluentComponentsTest::windowPixels()
     QCOMPARE(countLeakPixels(renderWidget(group, scale)), 0);
 }
 
-void FluentComponentsTest::windowControlsBehaviour()
+void FluentComponentsTest::windowControlsBehavior()
 {
     using Kind = Painter::WindowButtonKind;
     using Platform = Painter::WindowPlatform;
@@ -19033,7 +19033,7 @@ void FluentComponentsTest::tileRowPixels()
     QVERIFY(isNear(pixel(image, 25, 10), blend(token(Color::BgMuted), surface)));
 
     // A row of a list without a check box 434:4466 / 434:4476: the selected one bg/accent-subtle with
-    // the accent tile, the other one the muted tile - both with the primary title, unlike an unticked row
+    // the accent tile, the other one the muted tile - both with the primary title, unlike an unchecked row
     Painter::TileRow certificate = ToolSamples::row(ToolSamples::Kind::ListItem, QStringLiteral("Company ID"), QStringLiteral("System store"), QStringLiteral("key"));
     image = renderRow(certificate, 276, QStyle::State_Selected);
     QVERIFY(isNear(pixel(image, 200, 2), accentTile));
@@ -19056,7 +19056,7 @@ void FluentComponentsTest::tileRowPixels()
     QVERIFY(isNear(pixel(renderRow(ToolSamples::listItem(true), 261, QStyle::State_Selected | over), 200, 2), blend(token(Color::BgAccentSubtleHover), surface)));
     QVERIFY(isNear(pixel(renderRow(ToolSamples::listItem(true), 261, QStyle::State_Selected | down), 200, 2), blend(token(Color::BgAccentSubtlePressed), surface)));
 
-    // Not ticked 438:14900: the box bg/surface with border/strong, the muted tile, the secondary title
+    // Not checked 438:14900: the box bg/surface with border/strong, the muted tile, the secondary title
     image = renderRow(ToolSamples::listItem(false), 261, none);
     QVERIFY(isNear(pixel(image, 10, 22), token(Color::BorderStrong), 40));
     QVERIFY(isNear(pixel(image, 15, 22), surface));
@@ -19769,7 +19769,7 @@ void FluentComponentsTest::tileRowDelegate()
     QMenu* menu = delegate.createContextMenu(view, first, view);
     QVERIFY(menu);
     QCOMPARE(menu->actions().size(), 1);
-    QCOMPARE(menu->actions().at(0)->text(), QStringLiteral("Tick\tSpace"));
+    QCOMPARE(menu->actions().at(0)->text(), QStringLiteral("Check\tSpace"));
     menu->actions().at(0)->trigger();
     QCOMPARE(model.item(0)->checkState(), Qt::Checked);
     delete menu;

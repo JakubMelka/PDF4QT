@@ -352,9 +352,9 @@ QList<PDFRenderError> PDFPageContentProcessor::processContents()
 
         for (size_t i = 0; i < count; ++i)
         {
-            if (isProcessingCancelled())
+            if (isProcessingCanceled())
             {
-                // Break, if processing is being cancelled
+                // Break, if processing is being canceled
                 break;
             }
 
@@ -601,7 +601,7 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
 {
     PDFLexicalAnalyzer parser(content.constBegin(), content.constEnd());
 
-    while (!parser.isAtEnd() && !isProcessingCancelled())
+    while (!parser.isAtEnd() && !isProcessingCanceled())
     {
         bool tokenFetched = false;
         PDFInteger oldParserPosition = parser.pos();
@@ -1236,13 +1236,13 @@ void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPatte
             PDFTemporaryValueChange counterGuard(&m_inlineImageCounter, PDFInteger(0));
             processContent(content);
 
-            if (isProcessingCancelled())
+            if (isProcessingCanceled())
             {
                 break;
             }
         }
 
-        if (isProcessingCancelled())
+        if (isProcessingCanceled())
         {
             break;
         }
@@ -1987,9 +1987,9 @@ void PDFPageContentProcessor::setOperationControl(const PDFOperationControl* new
     m_operationControl = newOperationControl;
 }
 
-bool PDFPageContentProcessor::isProcessingCancelled() const
+bool PDFPageContentProcessor::isProcessingCanceled() const
 {
-    return m_operationControl && m_operationControl->isOperationCancelled();
+    return m_operationControl && m_operationControl->isOperationCanceled();
 }
 
 bool PDFPageContentProcessor::isTextProcessing() const
@@ -3155,7 +3155,7 @@ void PDFPageContentProcessor::paintXObjectImage(const PDFStream* stream, PDFObje
     {
         QImage image = pdfImage.getImage(m_CMS, this, m_operationControl);
 
-        if (!isProcessingCancelled())
+        if (!isProcessingCanceled())
         {
             if (image.format() == QImage::Format_Alpha8)
             {

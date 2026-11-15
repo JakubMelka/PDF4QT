@@ -27,6 +27,7 @@
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfexecutionpolicy.h"
 #include "pdfoperationcontrol.h"
+#include "pdfsecurityhandler.h"
 #include "pdfthreadannotations.h"
 
 #include <QJsonArray>
@@ -99,7 +100,7 @@ public:
 
     }
 
-    virtual bool isOperationCancelled() const override
+    virtual bool isOperationCanceled() const override
     {
         return m_isCanceled.load(std::memory_order_relaxed);
     }
@@ -289,6 +290,7 @@ PDFDocumentToolContext PDFDocumentToolRunner::createContext(const PDFAppDocument
     context.rendering = environment.rendering;
     context.authorName = environment.authorName;
     context.certificateStore = environment.certificateStore;
+    context.userCertificates = environment.userCertificates;
     context.temporaryFolder = environment.temporaryFolder;
     context.speechSynthesizerFactory = environment.speechSynthesizerFactory;
     return context;
@@ -535,6 +537,7 @@ void PDFDocumentToolRunner::finishRun(const PDFDocumentToolResult& result)
     else
     {
         m_state = State::Idle;
+        forgetRunSecrets();
         if (!endOperation())
         {
             return;
@@ -606,6 +609,7 @@ PDFDocumentToolRunner::CommitStatus PDFDocumentToolRunner::commitResult(const PD
         if (m_attempt >= MAXIMUM_ATTEMPTS)
         {
             m_state = State::Idle;
+            forgetRunSecrets();
             if (!endOperation() || !guard)
             {
                 return CommitStatus::Refused;
@@ -627,8 +631,10 @@ PDFDocumentToolRunner::CommitStatus PDFDocumentToolRunner::commitResult(const PD
     const quint64 version = m_resultSnapshot.version;
 
     // The operation ends just before the commit (F2): a slot of the announcement may
-    // delete the runner, the document is checked again
+    // delete the runner, the document is checked again. The decision is made: nothing runs
+    // again with the passwords of the run (S5.1)
     m_state = State::Idle;
+    forgetRunSecrets();
     if (!endOperation())
     {
         return CommitStatus::Refused;
@@ -657,6 +663,7 @@ void PDFDocumentToolRunner::endDecision()
     }
 
     m_state = State::Idle;
+    forgetRunSecrets();
     if (endOperation())
     {
         resumeDeferredPreview();
@@ -983,12 +990,40 @@ void PDFDocumentToolRunner::loseDocument()
     }
 
     m_state = State::Idle;
+    forgetRunSecrets();
     QPointer<PDFDocumentToolRunner> guard(this);
     if (!endOperation() || !guard)
     {
         return;
     }
     Q_EMIT documentLost();
+}
+
+void PDFDocumentToolRunner::forgetRunSecrets()
+{
+    // S5.1 (plan of step 5 of phase 2, 6.1): the values of the run live only as long as the run
+    // and its decision - a refused commit runs again with them (Rerun of commitResult); then a
+    // password is dropped and its string overwritten, when nobody else holds it (best effort)
+    if (!m_tool)
+    {
+        return;
+    }
+
+    for (const PDFDocumentToolParameterDefinition& definition : m_tool->getParameters())
+    {
+        if (definition.getType() != PDFDocumentToolParameterType::Secret)
+        {
+            continue;
+        }
+
+        const auto it = m_runParameters.find(definition.getName());
+        if (it != m_runParameters.end())
+        {
+            QString text = it.value().toString();
+            m_runParameters.erase(it);
+            PDFSecureMemory::clear(text);
+        }
+    }
 }
 
 }   // namespace pdf

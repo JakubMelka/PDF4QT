@@ -128,3 +128,9 @@ list(APPEND PDF4QT_LIBAPP_MCP_SOURCES
     sources/mcp/pdfappaipage.cpp
     sources/mcp/pdfappaipage.h
 )
+
+# Step 5 of phase 2, package P4: the confirmation of an encryption with the password or the certificate
+list(APPEND PDF4QT_LIBAPP_MCP_SOURCES
+    sources/mcp/pdfappmcpsecretconfirmation.cpp
+    sources/mcp/pdfappmcpsecretconfirmation.h
+)

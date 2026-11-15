@@ -63,9 +63,10 @@ public:
     bool operator ==(const PDFCertificateInfo&) const = default;
     bool operator !=(const PDFCertificateInfo&) const = default;
 
-    /// These entries are taken from RFC 5280, section 4.1.2.4,
-    /// they are supported and loaded from the certificate, with
-    /// exception of Email entry.
+    /// These entries are taken from RFC 5280, section 4.1.2.4, and are
+    /// loaded from the subject of the certificate; Email is the attribute
+    /// emailAddress of PKCS #9 of the subject, or else the first rfc822Name
+    /// of the subject alternative name (RFC 5280, section 4.2.1.6).
     enum NameEntry
     {
         CountryName,
@@ -214,6 +215,16 @@ struct PDFCertificateEntry
     /// Display name of the certificate taken from the system certificate
     /// storage. It is only a display hint, so it is not serialized.
     QString friendlyName;
+
+    /// Absolute path of the .pfx file of the entry (PDFCertificateManager::getCertificates),
+    /// empty for a certificate of the system store; not serialized
+    QString pkcs12FilePath;
+
+    /// The .pfx file is in a folder of an old application (PDF4QT Editor, PDF4QT Viewer; plan of
+    /// step 5 of phase 2, B97, owner answer Q5.5): it is only read, never changed, and its copy
+    /// into the folder of the application is offered (PDFCertificateManager::
+    /// copyCertificateToUserDirectory); not serialized
+    bool isReadOnlyLocation = false;
 };
 
 using PDFCertificateEntries = std::vector<PDFCertificateEntry>;

@@ -120,7 +120,7 @@ private:
 class ProtectCanceledControl : public pdf::PDFOperationControl
 {
 public:
-    virtual bool isOperationCancelled() const override { return true; }
+    virtual bool isOperationCanceled() const override { return true; }
 };
 
 /// The glyphs of a page with their origins in the space of the page (also the invisible ones)
@@ -1388,7 +1388,7 @@ void DocumentToolProtectTest::sanitizePermissions()
         QVERIFY2(run(both, kind).isSuccess(), qPrintable(kind));
     }
     QCOMPARE(run(modifyOnly, QStringLiteral("comments")).message,
-             QStringLiteral("The permissions of the document do not allow changing its annotations and form fields: untick Comments and markup to remove the other kinds."));
+             QStringLiteral("The permissions of the document do not allow changing its annotations and form fields: uncheck Comments and markup to remove the other kinds."));
 
     // Bit 4 alone is enough for the kinds, which change no annotation or field
     for (const QString& kind : { QStringLiteral("documentInfo"), QStringLiteral("metadata"), QStringLiteral("outline"), QStringLiteral("pageLabels"), QStringLiteral("thumbnails") })

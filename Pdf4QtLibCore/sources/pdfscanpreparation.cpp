@@ -671,9 +671,9 @@ PDFScanPreparation::Result PDFScanPreparation::apply(const PDFDocument* document
 
         for (const auto& [source, pages] : outputs)
         {
-            if (PDFOperationControl::isOperationCancelled(operationControl))
+            if (PDFOperationControl::isOperationCanceled(operationControl))
             {
-                result.errorMessage = PDFTranslationContext::tr("Operation was cancelled.");
+                result.errorMessage = PDFTranslationContext::tr("Operation was canceled.");
                 return result;
             }
 

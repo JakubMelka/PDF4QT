@@ -1017,6 +1017,8 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         apptoolpageslifetime_optimizeimages.cpp
         apptoolpageslifetime_bitonal.cpp
         apptoolpageslifetime_audiobook.cpp
+        apptoolpageslifetime_encryption.cpp
+        apptoolpageslifetime_certificate.cpp
     )
     target_link_libraries(UnitTestsAppToolPagesLifetime PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture UnitTestsAppToolOwnTabFixture Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
     pdf4qt_target_precompile_headers(UnitTestsAppToolPagesLifetime REUSE_FROM UnitTestsAppDocumentFixture)
@@ -1534,6 +1536,29 @@ foreach(PDF4QT_STEP4_CORE_TEST RasterizerPool DocumentImageList DocumentToolOpti
     set_tests_properties(UnitTests${PDF4QT_STEP4_CORE_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endforeach()
 
+# Step 5 of phase 2 (plan 9 with R5-13), the core: package P1a the security handlers with the shared
+# cryptographic helpers (skeleton) and the strength of a password, P1b the tools of the encryption
+foreach(PDF4QT_STEP5_CORE_TEST SecurityHandler PasswordStrength DocumentToolEncryption)
+    string(TOLOWER "${PDF4QT_STEP5_CORE_TEST}" PDF4QT_STEP5_CORE_TEST_FILE)
+    add_executable(UnitTests${PDF4QT_STEP5_CORE_TEST}
+        tst_${PDF4QT_STEP5_CORE_TEST_FILE}test.cpp
+    )
+    target_link_libraries(UnitTests${PDF4QT_STEP5_CORE_TEST} PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTests${PDF4QT_STEP5_CORE_TEST} REUSE_FROM UnitTestsPchCore)
+    set_target_properties(UnitTests${PDF4QT_STEP5_CORE_TEST} PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTests${PDF4QT_STEP5_CORE_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_STEP5_CORE_TEST}")
+    set_tests_properties(UnitTests${PDF4QT_STEP5_CORE_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endforeach()
+
+# P1a: the algorithms of ISO 32000-2 7.6 written in the test over the ciphers of OpenSSL, the PKCS#12
+# of the test made at run time (OpenSSL adds no definition, the precompiled header stays reused)
+target_link_libraries(UnitTestsSecurityHandler PRIVATE OpenSSL::Crypto)
+
 # P4: the text of the test documents is drawn by the bundled Inter font (the offscreen platform has none)
 foreach(PDF4QT_STEP4_FONT_TEST DocumentTextFlow DocumentToolAudioBook)
     target_compile_definitions(UnitTests${PDF4QT_STEP4_FONT_TEST} PRIVATE PDF4QT_TEST_FONT_DIRECTORY="${CMAKE_SOURCE_DIR}/Pdf4QtLibFluent/resources/fonts")
@@ -1573,5 +1598,32 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         )
         add_test(UnitTests${PDF4QT_STEP4_APP_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_STEP4_APP_TEST}")
         set_tests_properties(UnitTests${PDF4QT_STEP4_APP_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endforeach()
+
+    # Step 5 of phase 2 (plan 9 with R5-13), the application: the GUI of the encryption (P2, the second
+    # source of P3), the dialogs of the certificates (P3), the MCP actions protect.* (P4)
+    add_executable(UnitTestsAppToolEncryption
+        tst_apptoolencryptiontest.cpp
+        tst_apptoolencryptiontest_certificate.cpp
+        apptoolencryption.h
+    )
+    add_executable(UnitTestsAppCertificateDialogs
+        tst_appcertificatedialogstest.cpp
+    )
+    add_executable(UnitTestsAppMcpProtect
+        tst_appmcpprotecttest.cpp
+        appmcpstep5.h
+    )
+    foreach(PDF4QT_STEP5_APP_TEST AppToolEncryption AppCertificateDialogs AppMcpProtect)
+        target_link_libraries(UnitTests${PDF4QT_STEP5_APP_TEST} PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture UnitTestsAppToolOwnTabFixture UnitTestsAppMcpFixture UnitTestsMcpTestClient Pdf4QtLibApp Pdf4QtLibMcp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+        pdf4qt_target_precompile_headers(UnitTests${PDF4QT_STEP5_APP_TEST} REUSE_FROM UnitTestsAppDocumentFixture)
+        set_target_properties(UnitTests${PDF4QT_STEP5_APP_TEST} PROPERTIES
+            WIN32_EXECUTABLE OFF
+            MACOSX_BUNDLE OFF
+            QT_EXCLUDE_FROM_TRANSLATION ON
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+        )
+        add_test(UnitTests${PDF4QT_STEP5_APP_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_STEP5_APP_TEST}")
+        set_tests_properties(UnitTests${PDF4QT_STEP5_APP_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     endforeach()
 endif()

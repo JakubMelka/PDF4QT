@@ -471,7 +471,7 @@ PDFDocumentToolResult PDFDocumentToolBitonal::convert(const PDFDocumentToolConte
     {
         phases.beginPhase(findPhase);
         const PDFDocumentImageList imageList = PDFDocumentImageList::create(document, PDFDocumentImageList::Options::createForChange(), control, nullptr);
-        if (PDFOperationControl::isOperationCancelled(control))
+        if (PDFOperationControl::isOperationCanceled(control))
         {
             return PDFDocumentToolResult::createStopped();
         }
@@ -530,7 +530,7 @@ PDFDocumentToolResult PDFDocumentToolBitonal::convert(const PDFDocumentToolConte
         }
 
         const std::vector<Creator::BlankPageResult> results = creator.detectBlankPages(examinedPages, control, phases.getPhase(blankPhase));
-        if (PDFOperationControl::isOperationCancelled(control))
+        if (PDFOperationControl::isOperationCanceled(control))
         {
             return PDFDocumentToolResult::createStopped();
         }
@@ -562,7 +562,7 @@ PDFDocumentToolResult PDFDocumentToolBitonal::convert(const PDFDocumentToolConte
 
     phases.beginPhase(convertPhase);
     const bool isConverted = creator.createBitonalDocument(settings, control);
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }

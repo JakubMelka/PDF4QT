@@ -446,7 +446,7 @@ PDFDocumentToolResult PDFDocumentToolRotatePages::execute(const PDFDocumentToolC
         turns.insert(getPageRotationCombined(getPageRotationInversed(current), change.rotation));
     }
 
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }
@@ -599,7 +599,7 @@ PDFDocumentToolResult PDFDocumentToolRemovePages::execute(const PDFDocumentToolC
 
     PDFDocumentPageOperations::RemovalStatistics statistics;
     PDFDocument output = PDFDocumentPageOperations::removePages(document, pages, control, &statistics);
-    if (statistics.isCanceled || PDFOperationControl::isOperationCancelled(control))
+    if (statistics.isCanceled || PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }

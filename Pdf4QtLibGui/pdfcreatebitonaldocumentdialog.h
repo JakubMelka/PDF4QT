@@ -59,20 +59,20 @@ namespace pdfviewer
 {
 
 /// Cancellation token of a background job. It is shared between the GUI thread,
-/// which cancels the job, and the worker thread, which polls it. A cancelled job
+/// which cancels the job, and the worker thread, which polls it. A canceled job
 /// is not joined immediately (rasterizing of a page cannot be interrupted in the
 /// middle), so the token must outlive the job it has been created for - that is
 /// why it is always held by a shared pointer.
 class PDFOperationCancelToken : public pdf::PDFOperationControl
 {
 public:
-    virtual bool isOperationCancelled() const override { return m_cancelled.load(std::memory_order_acquire); }
+    virtual bool isOperationCanceled() const override { return m_canceled.load(std::memory_order_acquire); }
 
     /// Cancels the operation. It can be called from any thread.
-    void cancel() { m_cancelled.store(true, std::memory_order_release); }
+    void cancel() { m_canceled.store(true, std::memory_order_release); }
 
 private:
-    std::atomic<bool> m_cancelled = { false };
+    std::atomic<bool> m_canceled = { false };
 };
 
 class PDFCreateBitonalDocumentPreviewWidget : public QWidget
@@ -183,8 +183,8 @@ signals:
 
 private:
     /// Background job of the dialog. Only the result of the newest run of the job is
-    /// interesting - when a new run is started, the previous one is cancelled and its
-    /// results are dropped. A cancelled worker is not joined at that moment, because
+    /// interesting - when a new run is started, the previous one is canceled and its
+    /// results are dropped. A canceled worker is not joined at that moment, because
     /// it can be in the middle of an operation, which cannot be interrupted, so the
     /// futures of all unfinished runs are kept and joined before the dialog dies.
     struct AsyncJob
@@ -239,7 +239,7 @@ private:
         std::vector<pdf::PDFInteger> pageIndices;
     };
 
-    /// Starts a new run of the job in a worker thread. The previous run is cancelled
+    /// Starts a new run of the job in a worker thread. The previous run is canceled
     /// first. The worker function is called with the generation of its run and with
     /// the cancellation token of the run, which it must poll.
     /// \param job Job to be started
@@ -248,9 +248,9 @@ private:
 
     /// Cancels the currently running instance of the job. The worker is not joined,
     /// it can still be finishing an operation, which cannot be interrupted. Results
-    /// of the cancelled run are dropped, because the generation of the job is
+    /// of the canceled run are dropped, because the generation of the job is
     /// increased and they do not match it anymore.
-    /// \param job Job to be cancelled
+    /// \param job Job to be canceled
     void cancelJob(AsyncJob& job);
 
     /// Cancels the job and waits until all its workers have finished. It must be

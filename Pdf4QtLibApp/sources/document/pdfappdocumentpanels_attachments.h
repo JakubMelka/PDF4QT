@@ -26,6 +26,13 @@
 #include "pdfappglobal.h"
 #include "pdfappdocumentpanel.h"
 #include "pdfappdocumentpanels_common.h"
+#include "pdfapphomedialogs.h"
+#include "pdfappworkspace.h"
+
+#include "pdffluentwidgets.h"
+
+#include <QDialog>
+#include <QPushButton>
 
 #include "pdfcomponentdelegates.h"
 #include "pdfdocument.h"
@@ -43,6 +50,8 @@
 
 namespace pdf
 {
+
+class PDFAppDocumentLoader;
 
 /// File embedded in a document: an item of the /EmbeddedFiles name tree or of a
 /// file attachment annotation
@@ -240,11 +249,26 @@ public:
     QListView* getListView() const { return m_view; }
     PDFAppAttachmentsModel* getModel() const { return m_model; }
 
+    /// The document was opened without the password of its attachments (owner answer Q5.9 c,
+    /// R5-8, PDFSecurityHandler::isEmbeddedFilesLocked): the panel shows "Locked – enter the
+    /// password" and Enter Password… instead of the rows (an encrypted attachment is never saved
+    /// or opened as if it were plain)
+    bool isAttachmentsLocked() const;
+
+    /// The card of the locked attachments and its button (nullptr = none)
+    QWidget* getLockedCard() const { return m_lockedCard; }
+    QPushButton* getUnlockButton() const { return m_unlockButton; }
+
+    /// Opens the password dialog of the attachments (new + QPointer, deleted on close); the right
+    /// password reads the file again with them (PDFAppDocumentLoader::unlockAttachments)
+    void openUnlockDialog();
+
 protected:
     virtual void changeEvent(QEvent* event) override;
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
+    void updateLockedState();
     void onDocumentChanged(const PDFModifiedDocument& modified);
     void onDocumentDestroyed();
     void onActivated(const QModelIndex& index);
@@ -258,9 +282,56 @@ private:
     QPointer<PDFAppPanelListView> m_view;
     QPointer<PDFAppAttachmentsModel> m_model;
     QPointer<PDFAppAttachmentDelegate> m_delegate;
+    QPointer<QWidget> m_lockedCard;
+    QPointer<PDFLabel> m_lockedTitle;
+    QPointer<PDFLabel> m_lockedText;
+    QPointer<QPushButton> m_unlockButton;
+    QPointer<QDialog> m_unlockDialog;
     QPointer<PDFAppDocument> m_connectedDocument;
     PDFDocumentPointer m_document;
     std::vector<QPointer<QFutureWatcher<PDFAppAttachments::WriteResult>>> m_watchers;
+};
+
+/// The password of the attachments of a document opened without them (owner answer Q5.9 c, R5-8;
+/// no frame - Q17: the parts of the password dialog 398:27726): the title, the text, the field, the
+/// error "Wrong password – check Caps Lock and try again", Cancel and Unlock. Unlock gives the
+/// password to the loader of the document (PDFAppDocumentLoader::unlockAttachments) and waits for
+/// its reading; the document reloaded with its attachments closes the dialog (accepted), a wrong
+/// password shows the error. The document deleted closes it (rejected). A popup: new + QPointer,
+/// Qt::WA_DeleteOnClose; the document and the loader are held by QPointer.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppAttachmentsPasswordDialog : public PDFAppCardDialog
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFAppCardDialog;
+
+public:
+    explicit PDFAppAttachmentsPasswordDialog(PDFAppDocument* document, QWidget* parent);
+    virtual ~PDFAppAttachmentsPasswordDialog() override;
+
+    PDFLineEdit* getPasswordField() const { return m_passwordField; }
+    QPushButton* getUnlockButton() const { return m_unlockButton; }
+    QPushButton* getCancelButton() const { return m_cancelButton; }
+
+    /// Text of the shown error (empty = none)
+    QString getErrorText() const;
+
+private:
+    void updateButtons();
+    void onUnlockClicked();
+    void onLoaderFinished();
+    void onPasswordEdited();
+    void onDocumentDestroyed();
+
+    QPointer<PDFAppDocument> m_document;
+    QPointer<PDFAppDocumentLoader> m_loader;
+    QPointer<PDFLineEdit> m_passwordField;
+    QPointer<QWidget> m_errorRow;
+    QPointer<PDFAppParagraph> m_errorText;
+    QPointer<QPushButton> m_cancelButton;
+    QPointer<QPushButton> m_unlockButton;
+    bool m_isBusy = false;
 };
 
 /// Factory of the attachments panel

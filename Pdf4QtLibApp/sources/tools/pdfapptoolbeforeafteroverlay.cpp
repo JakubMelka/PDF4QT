@@ -113,7 +113,7 @@ public:
     QColor paperColor;
     std::vector<PDFAppToolBeforeAfterJobPage> pages;
 
-    virtual bool isOperationCancelled() const override
+    virtual bool isOperationCanceled() const override
     {
         return m_isCanceled.load(std::memory_order_relaxed);
     }
@@ -131,7 +131,7 @@ public:
             PDFAppPageRenderContext context(document.data(), cmsSettings, features);
             for (PDFAppToolBeforeAfterJobPage& page : pages)
             {
-                if (isOperationCancelled())
+                if (isOperationCanceled())
                 {
                     return;
                 }
@@ -458,7 +458,7 @@ void PDFAppToolBeforeAfterOverlay::onRenderFinished(const std::shared_ptr<PDFApp
     PDFThreadAnnotations::forget(job.get());
 
     // A job of an older result or of an older view
-    if (job != m_job || job->isOperationCancelled())
+    if (job != m_job || job->isOperationCanceled())
     {
         return;
     }

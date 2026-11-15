@@ -1373,9 +1373,9 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
         placements = std::move(decodedPlacements);
     }
 
-    if (placements.empty() || PDFOperationControl::isOperationCancelled(operationControl))
+    if (placements.empty() || PDFOperationControl::isOperationCanceled(operationControl))
     {
-        if (results && !PDFOperationControl::isOperationCancelled(operationControl))
+        if (results && !PDFOperationControl::isOperationCanceled(operationControl))
         {
             *results = std::move(skippedResults);
         }
@@ -1400,13 +1400,13 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
 
     const PDFImageCompressor::DecodedImageCallback encodeImage = [&](PDFImageCompressor::ImageStatistics statistics)
     {
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
             return;
         }
 
         const ImageInfo info = PDFImageOptimizerHelper::createImageInfo(document, std::move(statistics), deviceColors);
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
             return;
         }
@@ -1415,7 +1415,7 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
 
         // A canceled run has no results: images still in the hands of other threads say nothing
         QMutexLocker locker(&resultMutex);
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
             return;
         }
@@ -1433,7 +1433,7 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
         progress->finish();
     }
 
-    if (PDFOperationControl::isOperationCancelled(operationControl))
+    if (PDFOperationControl::isOperationCanceled(operationControl))
     {
         return createCopy();
     }

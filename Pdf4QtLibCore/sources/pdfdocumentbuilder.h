@@ -246,7 +246,7 @@ public:
     /// Starts painting on a new content stream. This function returns painter,
     /// onto which can be graphics drawn. Painter respects selected coordinate system.
     /// Calling begin multiple times, without subsequent calls to end function,
-    /// is invalid and can result in undefined behaviour.
+    /// is invalid and can result in undefined behavior.
     /// \return Painter, onto which can be graphic content drawn
     QPainter* begin();
 
@@ -291,7 +291,7 @@ public:
     /// function returns painter, onto which can be graphics drawn. Painter
     /// uses Qt's coordinate system. Calling begin multiple times, without
     /// subsequent calls to end function, is invalid and can result
-    /// in undefined behaviour. This function can return nullptr,
+    /// in undefined behavior. This function can return nullptr,
     /// if error occurs.
     /// \param page Page, onto which we want to draw
     QPainter* begin(PDFObjectReference page);
@@ -490,8 +490,30 @@ public:
     /// Sets security handler to the object storage. Trailer dictionary is also
     /// updated, so it is not needed to update it. Pass nullptr as handler to remove
     /// security.
+    ///
+    /// The old encryption dictionary object is removed, when nothing else refers to it (plan of
+    /// step 5 of phase 2, B86: it would stay in the file as an orphan, written in the clear after
+    /// Remove Password, with the verification values of the old passwords). An encrypting handler,
+    /// whose key does not depend on the identifier of the file (revision 5 and 6, the public-key
+    /// handler), gets a new /ID, when the trailer has none (ISO 32000-2, Table 15: required with
+    /// /Encrypt; B85). The key of revisions 2 - 4 is computed of /ID[0] (Algorithm 2, step e): the
+    /// caller creates /ID before that handler (ensureDocumentId, R5-5) - it is never changed here.
     /// \param handler New security handler, or nullptr
     void setSecurityHandler(PDFSecurityHandlerPointer handler);
+
+    /// A new identifier of a file (ISO 32000-2, 14.4): an array of two equal byte strings of 16
+    /// bytes, the MD5 of a random UUID, of the time and of the number of the objects
+    /// \param now The time of the creation
+    /// \param objectCount Number of the objects of the document
+    static PDFObject createDocumentId(const QDateTime& now, size_t objectCount);
+
+    /// The first part of the identifier of the file: an existing /ID[0] stays (it is permanent,
+    /// 14.4), a missing or damaged /ID (not an array of byte strings, an empty first string) is
+    /// replaced by a new one (createDocumentId). The trailer gets /ID as a direct array of two
+    /// strings - what the reader reads and what the key of revisions 2 - 4 is computed of
+    /// (plan of step 5 of phase 2, R5-5: before the security handler is created).
+    /// \returns /ID[0] of the trailer afterwards (never empty)
+    QByteArray ensureDocumentId();
 
     /// Creates a printable signature widget and appends its field to AcroForm,
     /// preserving existing fields and settings and adding both signature flags.
@@ -1673,6 +1695,10 @@ public:
     static QByteArray formatPDFReal(PDFReal value);
 
 private:
+    /// Removes the object (sets it to null), when neither the trailer nor another object refers
+    /// to its object number (B86, setSecurityHandler)
+    void removeObjectIfUnreferenced(PDFObjectReference reference);
+
     static void appendPDFPoint(QByteArray& data, const QPointF& point);
     static QColor getAnnotationDrawColor(const std::vector<PDFReal>& color, PDFReal opacity);
     static QByteArray getBlendModeNameForAppearance(BlendMode blendMode);

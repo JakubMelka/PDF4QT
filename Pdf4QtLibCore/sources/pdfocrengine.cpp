@@ -212,14 +212,14 @@ public:
             timer.start();
             while (timer.elapsed() < delay)
             {
-                if (PDFOperationControl::isOperationCancelled(operationControl))
+                if (PDFOperationControl::isOperationCanceled(operationControl))
                 {
-                    output.cancelled = true;
-                    output.error = PDFOCRError::create(PDFOCRErrorCode::Cancelled, PDFTranslationContext::tr("Recognition was cancelled."));
+                    output.canceled = true;
+                    output.error = PDFOCRError::create(PDFOCRErrorCode::Canceled, PDFTranslationContext::tr("Recognition was canceled."));
                     return output;
                 }
 
-                // The deadline of the page is honoured by the simulated recognition (JOB-06)
+                // The deadline of the page is honored by the simulated recognition (JOB-06)
                 if (input.remainingMilliseconds > 0 && timer.elapsed() >= input.remainingMilliseconds)
                 {
                     output.error = PDFOCRError::create(PDFOCRErrorCode::Timeout, PDFTranslationContext::tr("Recognition exceeded the time limit of the page."), PDFTranslationContext::tr("Recognition"));
@@ -235,10 +235,10 @@ public:
             }
         }
 
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
-            output.cancelled = true;
-            output.error = PDFOCRError::create(PDFOCRErrorCode::Cancelled, PDFTranslationContext::tr("Recognition was cancelled."));
+            output.canceled = true;
+            output.error = PDFOCRError::create(PDFOCRErrorCode::Canceled, PDFTranslationContext::tr("Recognition was canceled."));
             return output;
         }
 

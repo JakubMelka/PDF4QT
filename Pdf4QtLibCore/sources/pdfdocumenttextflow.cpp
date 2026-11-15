@@ -598,7 +598,7 @@ void PDFStructureTreeTextExtractor::perform(const std::vector<PDFInteger>& pageI
     auto generateTextLayout = [&, this](PDFInteger pageIndex)
     {
         const PDFCatalog* catalog = m_document->getCatalog();
-        if (!catalog->getPage(pageIndex) || PDFOperationControl::isOperationCancelled(m_operationControl))
+        if (!catalog->getPage(pageIndex) || PDFOperationControl::isOperationCanceled(m_operationControl))
         {
             // Invalid page index
             return;
@@ -1220,7 +1220,7 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
 
             auto generateTextLayout = [this, &items, &mutex, &fontCache, &iccProfileCache, &cms, &mqs, &oca, document, catalog](PDFInteger pageIndex)
             {
-                if (!catalog->getPage(pageIndex) || PDFOperationControl::isOperationCancelled(m_operationControl))
+                if (!catalog->getPage(pageIndex) || PDFOperationControl::isOperationCanceled(m_operationControl))
                 {
                     // Invalid page index
                     return;

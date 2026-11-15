@@ -328,7 +328,7 @@ public:
                                QObject* parent);
 
     /// Acquire rasterizer. This function is thread safe. The function blocks
-    /// until a rasterizer is free, unless the operation is cancelled meanwhile -
+    /// until a rasterizer is free, unless the operation is canceled meanwhile -
     /// then nullptr is returned and nothing has to be released.
     /// \param operationControl Operation control (can be nullptr)
     PDFRasterizer* acquire(const PDFOperationControl* operationControl = nullptr);

@@ -2137,7 +2137,7 @@ void AnnotationSelectionTest::geometryDialogFromMenu()
     // Counterclockwise rotation around the point (50, 50)
     QVERIFY(SelectionFixture::fuzzyCompare(fixture.rectangle(square), QRectF(10, 50, 40, 60), 0.01));
 
-    // The dialog is cancelled
+    // The dialog is canceled
     QVERIFY(SelectionFixture::triggerMenuAction([&]() { fixture.press(fixture.device(QPointF(30, 80)), Qt::NoModifier, Qt::RightButton); }, "Geometry...", nullptr));
     QVERIFY(!SelectionFixture::triggerMenuAction([&]() { fixture.press(fixture.device(QPointF(30, 80)), Qt::NoModifier, Qt::RightButton); }, "No Such Action", nullptr));
     QCOMPARE(fixture.modificationCount, 2);
@@ -2217,7 +2217,7 @@ void AnnotationSelectionTest::propertiesDialogRectangle()
     QVERIFY(std::abs(vertices[0] - (expectedRectangle.left() + margin)) < 0.01 && std::abs(vertices[1] - (expectedRectangle.top() + margin)) < 0.01);
     QVERIFY(std::abs(vertices[4] - (expectedRectangle.right() - margin)) < 0.01 && std::abs(vertices[5] - (expectedRectangle.bottom() - margin)) < 0.01);
 
-    // The dialog is cancelled
+    // The dialog is canceled
     QVERIFY(SelectionFixture::triggerMenuAction([&]() { fixture.press(fixture.device(QPointF(vertices[0] + 20, vertices[1] + 20)), Qt::NoModifier, Qt::RightButton); }, "Edit...", nullptr));
     QCOMPARE(fixture.modificationCount, 1);
 }

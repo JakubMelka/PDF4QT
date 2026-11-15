@@ -229,7 +229,7 @@ public:
     PDFTileRow* getRow(const QString& parameter) const;
 
     /// A row of a kind, which the document does not have, has its check box disabled and
-    /// unticked; the value of the parameter stays (a preset may set it)
+    /// unchecked; the value of the parameter stays (a preset may set it)
     void setRowAvailable(const QString& parameter, bool isAvailable);
 
 private:

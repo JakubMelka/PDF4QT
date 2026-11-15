@@ -88,6 +88,11 @@ public:
     /// Lines of the note (1390:34806, Regular 11)
     static constexpr int NOTE_LINE = 13;
 
+    /// The field of the mode ChangeSecurity (field-Owner password of 430:2709 / 433:5210): the label
+    /// Medium 12 and the Password field of 40, 4 apart
+    static constexpr int CHANGE_SECURITY_FIELD_HEIGHT = 40;
+    static constexpr int CHANGE_SECURITY_LABEL_GAP = 4;
+
     /// \param list The inputs (the dialog does not own it)
     /// \param inputId The input, which waits for its password
     /// \param parent Parent widget (the scrim covers its window)
@@ -134,6 +139,20 @@ public:
     QPushButton* getCancelButton() const { return m_cancelButton; }
     QPushButton* getRemoveButton() const { return m_removeButton; }
 
+    /// Open Restrict Permissions (owner answer Q5.12, R5-11: no frame): the Secondary button at the
+    /// leading edge of the document mode of an action, which the permissions forbid, when Restrict
+    /// Permissions is implemented; it closes the dialog (rejected) and opens the tool, which asks
+    /// for the owner password itself (ChangeSecurity). nullptr = none.
+    QPushButton* getRestrictPermissionsButton() const { return m_restrictButton; }
+
+    /// The document mode asks for the owner to change the security (ChangeSecurity, 430:2709 /
+    /// 433:5210: the title "Owner password needed", the text of the tool, no list, no note;
+    /// 430:2969: a wrong password changes the title and the text)
+    bool isChangeSecurity() const;
+
+    /// The last password was wrong (the title of 430:2969 in the mode ChangeSecurity)
+    bool isWrongPassword() const { return m_isWrongPassword; }
+
     /// Text of the error below the field (empty = no error shown)
     QString getErrorText() const;
 
@@ -153,7 +172,11 @@ private:
     void selectWrongPassword();
     void onUnlockClicked();
     void onRemoveClicked();
+    void onRestrictPermissionsClicked();
     void onPasswordEdited();
+
+    /// The button Open Restrict Permissions is offered (Q5.12)
+    bool isRestrictPermissionsOffered() const;
     void onInputChanged(const QString& inputId);
     void onInputsChanged();
     void onListDestroyed();
@@ -173,11 +196,13 @@ private:
     QString m_name;
     bool m_isOwnerPassword = false;
     bool m_isBusy = false;
+    bool m_isWrongPassword = false;
     QPointer<PDFLabel> m_fieldLabel;
     QPointer<PDFLineEdit> m_passwordField;
     QPointer<QWidget> m_errorRow;
     QPointer<PDFAppParagraph> m_errorText;
     QPointer<QPushButton> m_removeButton;
+    QPointer<QPushButton> m_restrictButton;
     QPointer<QPushButton> m_cancelButton;
     QPointer<QPushButton> m_unlockButton;
 };

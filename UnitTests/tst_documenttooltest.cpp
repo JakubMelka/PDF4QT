@@ -279,6 +279,7 @@ private Q_SLOTS:
     void progressCounter();
     void progressFromThreads();
     void parameterStored();
+    void parameterMcpExcluded();
     void resultOutputFiles();
     void finalPreview();
     void suggestionsInterface();
@@ -365,9 +366,12 @@ void DocumentToolTest::catalogResultColumns()
 
     // O31: these tools rewrite the whole file, only a copy is offered for a signed document;
     // owner answer Q4.14 of step 4: the images and the pages of Optimize Images, Grayscale and
-    // Black & White would stay in the earlier revision of an incremental update
+    // Black & White would stay in the earlier revision of an incremental update; B80 of step 5:
+    // an incremental update cannot change the encryption (the earlier revisions keep the old key)
     const QStringList lostCopyOnly = { QStringLiteral("optimize.compress"), QStringLiteral("optimize.structure"), QStringLiteral("protect.sanitize"),
-                                       QStringLiteral("optimize.images"), QStringLiteral("optimize.grayscale"), QStringLiteral("optimize.bitonal") };
+                                       QStringLiteral("optimize.images"), QStringLiteral("optimize.grayscale"), QStringLiteral("optimize.bitonal"),
+                                       QStringLiteral("protect.password"), QStringLiteral("protect.permissions"), QStringLiteral("protect.certificate-encrypt"),
+                                       QStringLiteral("protect.unlock") };
 
     for (const pdf::PDFDocumentToolCatalogEntry& tool : pdf::PDFDocumentToolCatalog::getTools())
     {
@@ -440,8 +444,16 @@ void DocumentToolTest::catalogPermissions()
     // Step 4 (plan B79, owner answer Q4.5): Optimize Images, Grayscale and Black & White rewrite the
     // images or the pages (bit 4); Extract Images, PDF to Images and Create Audio Book take the
     // graphics or the text out of the document into files (bit 5).
+    // Step 5 (plan 4.6, R5-4): only the owner changes the security of a document (7.6.4.1) - every
+    // bit of Table 22, and the owner authorization in the application (isSecurityChange).
+    const Permissions everyPermission({ Permission::PrintLowResolution, Permission::Modify, Permission::CopyContent, Permission::ModifyInteractiveItems,
+                                        Permission::ModifyFormFields, Permission::Accessibility, Permission::Assemble, Permission::PrintHighResolution });
     const std::map<QString, Permissions> expected =
     {
+        { QStringLiteral("protect.password"), everyPermission },
+        { QStringLiteral("protect.permissions"), everyPermission },
+        { QStringLiteral("protect.certificate-encrypt"), everyPermission },
+        { QStringLiteral("protect.unlock"), everyPermission },
         { QStringLiteral("optimize.images"), Permissions({ Permission::Modify }) },
         { QStringLiteral("optimize.grayscale"), Permissions({ Permission::Modify }) },
         { QStringLiteral("optimize.bitonal"), Permissions({ Permission::Modify }) },
@@ -467,10 +479,15 @@ void DocumentToolTest::catalogPermissions()
         { QStringLiteral("convert.extract-text"), Permissions({ Permission::CopyContent }) },
     };
 
+    // The tools, which change the security: the four tools of the subgroup Encryption, no other one
+    const QStringList securityChanges = { QStringLiteral("protect.password"), QStringLiteral("protect.permissions"),
+                                          QStringLiteral("protect.certificate-encrypt"), QStringLiteral("protect.unlock") };
     for (const pdf::PDFDocumentToolCatalogEntry& tool : pdf::PDFDocumentToolCatalog::getTools())
     {
         const auto iterator = expected.find(tool.getId());
         QVERIFY2(tool.getRequiredPermissions() == (iterator != expected.end() ? iterator->second : Permissions()), qPrintable(tool.getId()));
+        QVERIFY2(tool.isSecurityChange() == securityChanges.contains(tool.getId()), qPrintable(tool.getId()));
+        QVERIFY2(tool.isSecurityChange() == (tool.getSubgroupId() == QLatin1String("encryption")), qPrintable(tool.getId()));
     }
 
     // Documents: no handler grants everything, nullptr nothing
@@ -985,6 +1002,53 @@ void DocumentToolTest::parameterStored()
     pdf::PDFDocumentToolParameterDefinition secret = pdf::PDFDocumentToolParameterDefinition::createSecret(pdftest::TestDocumentTool::tr, QStringLiteral("password"), QT_TR_NOOP("Password"), nullptr);
     secret.setStored(true);
     QVERIFY(!secret.isStored());
+}
+
+void DocumentToolTest::parameterMcpExcluded()
+{
+    using Definition = pdf::PDFDocumentToolParameterDefinition;
+
+    // Plan of step 5 of phase 2, 6.3, S5.2 (owner answer Q5.6): a password never goes through MCP -
+    // neither in the schema of an action (the strict schema refuses it as an additional property)
+    // nor in a JSON of the values; a Secret is always excluded, another value by setMcpExcluded
+    Definition secret = Definition::createSecret(pdftest::TestDocumentTool::tr, QStringLiteral("openPassword"), QT_TR_NOOP("Open password"), nullptr);
+    QVERIFY(secret.isMcpExcluded());
+    secret.setMcpExcluded(false);
+    QVERIFY(secret.isMcpExcluded());
+
+    Definition certificate = Definition::createString(pdftest::TestDocumentTool::tr, QStringLiteral("certificate"), QT_TR_NOOP("Certificate"), nullptr, QString(), 64);
+    QVERIFY(!certificate.isMcpExcluded());
+    certificate.setMcpExcluded(true);
+    QVERIFY(certificate.isMcpExcluded());
+
+    const Definition algorithm = Definition::createEnum(pdftest::TestDocumentTool::tr, QStringLiteral("algorithm"), QT_TR_NOOP("Algorithm"), nullptr,
+                                                        { { QStringLiteral("aes-256"), QT_TR_NOOP("AES 256-bit") } }, QStringLiteral("aes-256"));
+    QVERIFY(!algorithm.isMcpExcluded());
+
+    const pdf::PDFDocumentToolParameterDefinitions definitions = { algorithm, secret, certificate };
+    QVERIFY(pdf::PDFDocumentToolParameters::isValid(definitions));
+
+    // The schema has only the algorithm; "required" never names an excluded parameter
+    const QJsonObject schema = pdf::PDFDocumentToolParameters::toJsonSchema(definitions);
+    const QJsonObject properties = schema.value(QStringLiteral("properties")).toObject();
+    QCOMPARE(properties.keys(), QStringList({ QStringLiteral("algorithm") }));
+    QVERIFY(!schema.contains(QStringLiteral("required")));
+    QCOMPARE(schema.value(QStringLiteral("additionalProperties")).toBool(true), false);
+
+    // The JSON of the values (results, activity) has neither the password nor the certificate
+    QVariantMap values;
+    values.insert(QStringLiteral("algorithm"), QStringLiteral("aes-256"));
+    values.insert(QStringLiteral("openPassword"), QStringLiteral("Canary-7f3a"));
+    values.insert(QStringLiteral("certificate"), QStringLiteral("ab12"));
+    const QJsonObject json = pdf::PDFDocumentToolParameters::toJson(definitions, values);
+    QCOMPARE(json.keys(), QStringList({ QStringLiteral("algorithm") }));
+    QVERIFY(!QJsonDocument(json).toJson().contains("Canary-7f3a"));
+
+    // The values still go to the run (a panel or the confirmation of PDF4QT gives them)
+    QVariantMap normalizedValues;
+    QVERIFY(pdf::PDFDocumentToolParameters::normalize(definitions, values, &normalizedValues).empty());
+    QCOMPARE(normalizedValues.value(QStringLiteral("openPassword")).toString(), QStringLiteral("Canary-7f3a"));
+    QCOMPARE(normalizedValues.value(QStringLiteral("certificate")).toString(), QStringLiteral("ab12"));
 }
 
 void DocumentToolTest::resultOutputFiles()
@@ -1828,10 +1892,12 @@ void DocumentToolTest::jsonSchemaExact()
             "color": { "type": "string", "title": "Color", "pattern": "^#[0-9a-fA-F]{6}$", "default": "#2563eb" },
             "reportFile": { "type": "string", "title": "Report file", "maxLength": 4096, "default": "" },
             "outputFolder": { "type": "string", "title": "Output folder", "maxLength": 4096, "default": "" },
-            "fileName": { "type": "string", "title": "File name", "maxLength": 65536, "default": "{name}-statistics.txt" },
-            "password": { "type": "string", "title": "Password", "maxLength": 1024, "writeOnly": true }
+            "fileName": { "type": "string", "title": "File name", "maxLength": 65536, "default": "{name}-statistics.txt" }
         }
     })";
+
+    // The Secret "password" of the test tool is not in the schema (plan of step 5 of phase 2, 6.3:
+    // a password never goes through MCP; the schema above has no "password")
 
     QJsonParseError parseError;
     const QJsonDocument expected = QJsonDocument::fromJson(QByteArray(expectedText), &parseError);

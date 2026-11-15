@@ -26,6 +26,7 @@
 #include "pdfapptoolgui_bitonal.h"
 #include "pdfapptoolgui_blank.h"
 #include "pdfapptoolgui_compress.h"
+#include "pdfapptoolgui_encryption.h"
 #include "pdfapptoolgui_extractimages.h"
 #include "pdfapptoolgui_extracttext.h"
 #include "pdfapptoolgui_optimizeimages.h"
@@ -71,6 +72,11 @@ void PDFAppBuiltinTools::registerAll()
     PDFAppToolGUIExtractImages::registerExtractImagesTools();       // P2: convert.extract-images
     PDFAppToolGUIBitonal::registerBitonalTools();                   // P3: optimize.bitonal
     PDFAppToolGUIAudioBook::registerAudioBookTools();               // P4: convert.audiobook
+
+    // Step 5 of phase 2 (plan 10.1, 10.2): package P2 registers the four tools of the encryption
+    // (protect.password, protect.permissions, protect.certificate-encrypt, protect.unlock) with the
+    // one GUI of their presets
+    PDFAppToolGUIEncryption::registerEncryptionTools();
 }
 
 }   // namespace pdf

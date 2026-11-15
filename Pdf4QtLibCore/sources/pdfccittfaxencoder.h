@@ -63,9 +63,9 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFBitonalBitmapView
     }
 
     /// Fills the positions of the changing elements of a row, see 4.1.1 of ITU-T T.4.
-    /// A changing element is a pixel, whose colour differs from the previous pixel of
+    /// A changing element is a pixel, whose color differs from the previous pixel of
     /// the same row, and the imaginary pixel before the row is white, so the element
-    /// at an even index changes the colour to black and the element at an odd index
+    /// at an even index changes the color to black and the element at an odd index
     /// changes it to white. The list is terminated by the width of the image repeated
     /// three times, so the coder can look two elements ahead without a range check.
     /// \param y Row
@@ -132,17 +132,17 @@ private:
     /// \param isTwoDimensional Next row is coded two dimensionally
     void writeRowTag(bool isTwoDimensional);
 
-    /// Writes a run of the pixels of a single colour, as a sequence of the make-up code
+    /// Writes a run of the pixels of a single color, as a sequence of the make-up code
     /// words and a terminating code word, see 4.1.1 of ITU-T T.4.
     /// \param length Length of the run
-    /// \param isWhite Colour of the run
+    /// \param isWhite Color of the run
     void writeRun(int length, bool isWhite);
 
     /// Writes the code word of a run length of at most 2560 pixels. A length of at
     /// least 64 pixels must be a multiple of 64, because such lengths are only
     /// available as the make-up code words.
     /// \param length Length of the run
-    /// \param isWhite Colour of the run
+    /// \param isWhite Color of the run
     void writeRunCode(int length, bool isWhite);
 
     /// Writes the code word of a mode of the two dimensional coding, see 4.2.1.3.1 of ITU-T T.4

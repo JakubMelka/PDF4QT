@@ -33,6 +33,7 @@
 #include "pdfappminuteticker.h"
 #include "pdfapppaths.h"
 #include "pdfappmainwindow.h"
+#include "pdfcertificatemanager.h"
 #include "pdfsettingdefinition.h"
 #include "pdfsettingdefinitions.h"
 
@@ -306,6 +307,7 @@ private Q_SLOTS:
     void logRotationAndRetention();
     void logSizeLimit();
     void logPortable();
+    void certificateDirectories();
     void contextColorScheme();
     void authorSettingApplied();
     void reviewAuthorNameSanitizing();
@@ -2097,6 +2099,47 @@ void AppCoreTest::logPortable()
     QVERIFY(pdf::PDFAppLog::getLogDirectory().isEmpty());
     pdf::PDFAppLog::uninstall();
     QVERIFY(!QDir(directory).exists());
+}
+
+void AppCoreTest::certificateDirectories()
+{
+    // Step 5 (P2S5INT): the digital IDs of a second profile (PDF4QT_APP_DATA_DIRECTORY) are kept in
+    // <data>/certificates, the folders of the old Editor and Viewer of the user stay read-only
+    // sources (Q5.5); without the variable the folder of the user account stays (also --portable)
+    const QByteArray dataDirectory = qgetenv("PDF4QT_APP_DATA_DIRECTORY");
+    const auto restore = qScopeGuard([&dataDirectory]()
+    {
+        pdf::PDFCertificateManager::setCertificateDirectories(QString(), QStringList());
+        if (dataDirectory.isNull())
+        {
+            qunsetenv("PDF4QT_APP_DATA_DIRECTORY");
+        }
+        else
+        {
+            qputenv("PDF4QT_APP_DATA_DIRECTORY", dataDirectory);
+        }
+    });
+
+    qunsetenv("PDF4QT_APP_DATA_DIRECTORY");
+    pdf::PDFCertificateManager::setCertificateDirectories(QString(), QStringList());
+    const QString userDirectory = pdf::PDFCertificateManager::getCertificateDirectory();
+    const QStringList oldDirectories = pdf::PDFCertificateManager::getOldCertificateDirectories();
+    QVERIFY(pdf::PDFAppPaths::getCertificateDirectory().isEmpty());
+    pdf::PDFAppPaths::installCertificateDirectories();
+    QCOMPARE(pdf::PDFCertificateManager::getCertificateDirectory(), userDirectory);
+
+    const QString profile = m_directory.filePath(QStringLiteral("profile"));
+    qputenv("PDF4QT_APP_DATA_DIRECTORY", profile.toUtf8());
+    const QString expected = QDir(profile).filePath(QStringLiteral("certificates"));
+    QCOMPARE(pdf::PDFAppPaths::getCertificateDirectory(), expected);
+    QVERIFY(QDir::cleanPath(expected).compare(QDir::cleanPath(userDirectory), Qt::CaseInsensitive) != 0);
+    pdf::PDFAppPaths::installCertificateDirectories();
+    QCOMPARE(pdf::PDFCertificateManager::getCertificateDirectory(), QDir(expected).absolutePath());
+    QCOMPARE(pdf::PDFCertificateManager::getOldCertificateDirectories(), oldDirectories);
+    QVERIFY(!oldDirectories.isEmpty());
+
+    // Nothing is created by the installation (the folder is made, when a certificate is saved)
+    QVERIFY(!QDir(expected).exists());
 }
 
 void AppCoreTest::uiLocale()

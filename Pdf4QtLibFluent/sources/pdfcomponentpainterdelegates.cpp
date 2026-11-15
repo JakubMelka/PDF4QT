@@ -460,7 +460,7 @@ public:
     }
 
     /// Returns the color of the title of a row: text/primary, a row with a check box,
-    /// which is not ticked, text/secondary (438:14900; a muted row without a check box
+    /// which is not checked, text/secondary (438:14900; a muted row without a check box
     /// stays text/primary, 434:4476), a skipped step text/tertiary (319:7385)
     static Color getTileRowTitleColor(const PDFComponentPainter::TileRow& row)
     {

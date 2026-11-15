@@ -53,7 +53,7 @@ int PDFOCRDocumentRunner::Result::getFailedPageCount() const
 {
     return int(std::count_if(records.cbegin(), records.cend(), [](const PageRecord& record)
     {
-        return record.state == PDFOCRPageState::Error || record.state == PDFOCRPageState::Cancelled;
+        return record.state == PDFOCRPageState::Error || record.state == PDFOCRPageState::Canceled;
     }));
 }
 
@@ -208,10 +208,10 @@ PDFOCRDocumentRunner::Result PDFOCRDocumentRunner::runImpl(const PDFDocument* do
     session->setDocument(document, identity);
     session->setConfiguration(configuration);
 
-    auto isCancelled = [operationControl]() { return PDFOperationControl::isOperationCancelled(operationControl); };
+    auto isCanceled = [operationControl]() { return PDFOperationControl::isOperationCanceled(operationControl); };
     auto cancel = [&result]()
     {
-        result.cancelled = true;
+        result.canceled = true;
         return result;
     };
 
@@ -224,7 +224,7 @@ PDFOCRDocumentRunner::Result PDFOCRDocumentRunner::runImpl(const PDFDocument* do
 
         auto compute = [&](PDFInteger page)
         {
-            if (PDFOperationControl::isOperationCancelled(operationControl))
+            if (PDFOperationControl::isOperationCanceled(operationControl))
             {
                 return;
             }
@@ -261,7 +261,7 @@ PDFOCRDocumentRunner::Result PDFOCRDocumentRunner::runImpl(const PDFDocument* do
             }
         }
         ensureFingerprints(pagesOfProject);
-        if (isCancelled())
+        if (isCanceled())
         {
             return cancel();
         }
@@ -319,7 +319,7 @@ PDFOCRDocumentRunner::Result PDFOCRDocumentRunner::runImpl(const PDFDocument* do
     {
         auto analyze = [&](PDFInteger page)
         {
-            if (PDFOperationControl::isOperationCancelled(operationControl))
+            if (PDFOperationControl::isOperationCanceled(operationControl))
             {
                 return;
             }
@@ -338,7 +338,7 @@ PDFOCRDocumentRunner::Result PDFOCRDocumentRunner::runImpl(const PDFDocument* do
         }
     }
 
-    if (isCancelled())
+    if (isCanceled())
     {
         return cancel();
     }
@@ -572,7 +572,7 @@ PDFOCRDocumentRunner::Result PDFOCRDocumentRunner::runImpl(const PDFDocument* do
         }
 
         ensureFingerprints(pagesToRecognize);
-        if (isCancelled())
+        if (isCanceled())
         {
             return cancel();
         }
@@ -676,7 +676,7 @@ PDFOCRDocumentRunner::Result PDFOCRDocumentRunner::runImpl(const PDFDocument* do
         QTimer cancellationTimer;
         QObject::connect(&cancellationTimer, &QTimer::timeout, &receiver, [&]()
         {
-            if (PDFOperationControl::isOperationCancelled(operationControl) && controller.isRunning() && !controller.isStopping())
+            if (PDFOperationControl::isOperationCanceled(operationControl) && controller.isRunning() && !controller.isStopping())
             {
                 controller.stop();
             }
@@ -706,7 +706,7 @@ PDFOCRDocumentRunner::Result PDFOCRDocumentRunner::runImpl(const PDFDocument* do
             result.errorMessage = result.summary.criticalError.step.isEmpty() ? result.summary.criticalError.message
                                                                                : PDFTranslationContext::tr("Recognition failed in step '%1': %2").arg(result.summary.criticalError.step, result.summary.criticalError.message);
         }
-        result.cancelled = result.summary.cancelled || isCancelled();
+        result.canceled = result.summary.canceled || isCanceled();
     }
 
     // Records of the selected pages
@@ -920,7 +920,7 @@ PDFOCRDocumentRunner::FileResult PDFOCRDocumentRunner::processFileImpl(const Fil
     const PDFDocument document = reader.readFromFile(task.inputFile);
     if (reader.getReadingResult() != PDFDocumentReader::Result::OK)
     {
-        const QString reason = reader.getReadingResult() == PDFDocumentReader::Result::Cancelled ? PDFTranslationContext::tr("The document is protected by a password.") : reader.getErrorMessage();
+        const QString reason = reader.getReadingResult() == PDFDocumentReader::Result::Canceled ? PDFTranslationContext::tr("The document is protected by a password.") : reader.getErrorMessage();
         return finish(FileResult::Status::Failed, FileResult::Stage::Reading, PDFTranslationContext::tr("The document '%1' cannot be read. %2").arg(QDir::toNativeSeparators(task.inputFile), reason));
     }
     fileResult.pageCount = int(document.getCatalog()->getPageCount());
@@ -1000,9 +1000,9 @@ PDFOCRDocumentRunner::FileResult PDFOCRDocumentRunner::processFileImpl(const Fil
     {
         return finish(FileResult::Status::Failed, FileResult::Stage::Recognition, result.errorMessage);
     }
-    if (result.cancelled)
+    if (result.canceled)
     {
-        return finish(FileResult::Status::Failed, FileResult::Stage::Recognition, PDFTranslationContext::tr("The recognition was cancelled, nothing was written."));
+        return finish(FileResult::Status::Failed, FileResult::Stage::Recognition, PDFTranslationContext::tr("The recognition was canceled, nothing was written."));
     }
 
     // A failed page means an incomplete result, which is written only on request
@@ -1181,8 +1181,8 @@ QString PDFOCRDocumentRunner::getPageStateName(PDFOCRPageState state)
             return PDFTranslationContext::tr("Skipped");
         case PDFOCRPageState::Error:
             return PDFTranslationContext::tr("Error");
-        case PDFOCRPageState::Cancelled:
-            return PDFTranslationContext::tr("Cancelled");
+        case PDFOCRPageState::Canceled:
+            return PDFTranslationContext::tr("Canceled");
         case PDFOCRPageState::Stale:
             return PDFTranslationContext::tr("Outdated");
     }

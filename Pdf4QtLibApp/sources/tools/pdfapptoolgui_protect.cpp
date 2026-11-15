@@ -335,7 +335,7 @@ QString PDFAppToolGUISanitize::getKindDescription(Kind kind) const
 
 void PDFAppToolGUISanitize::describeToolbar(PDFAppToolPanelBuilder& builder)
 {
-    // 438:12831: the presets tick the list, nothing runs
+    // 438:12831: the presets check the list, nothing runs
     m_presetPanel = builder.addMenu(QStringLiteral("preset"), QStringLiteral("sliders"), QString(), PRESET_PANEL_WIDTH);
     m_presetRows.clear();
     if (!m_presetPanel)
@@ -343,7 +343,7 @@ void PDFAppToolGUISanitize::describeToolbar(PDFAppToolPanelBuilder& builder)
         return;
     }
 
-    m_presetPanel->addGroupCaption(tr("Presets tick the list – adjust it freely afterwards"));
+    m_presetPanel->addGroupCaption(tr("Presets check the list – adjust it freely afterwards"));
     const std::vector<std::pair<Preset, QString>> presets = {
         { Preset::Standard, QStringLiteral("hidden-data") },
         { Preset::BeforeSending, QStringLiteral("mail") },
@@ -362,7 +362,7 @@ void PDFAppToolGUISanitize::describeToolbar(PDFAppToolPanelBuilder& builder)
 
     // Clear all is no preset: its values are Custom (K18)
     m_presetPanel->addGroupDivider();
-    PDFTileRow* clearRow = m_presetPanel->addRow(tr("Clear all"), tr("Untick everything and choose by hand"), QStringLiteral("select-none"), PDFTileRow::Kind::MenuItem);
+    PDFTileRow* clearRow = m_presetPanel->addRow(tr("Clear all"), tr("Uncheck everything and choose by hand"), QStringLiteral("select-none"), PDFTileRow::Kind::MenuItem);
     clearRow->setObjectName(QStringLiteral("toolPreset-clear"));
     clearRow->setProperty(PDFAppToolGUIProtectHelper::PRESET_PROPERTY, int(Preset::Custom));
     connect(clearRow, &PDFTileRow::clicked, this, &PDFAppToolGUISanitize::onPresetRowClicked);
@@ -384,7 +384,7 @@ void PDFAppToolGUISanitize::describeLeftPanel(PDFAppToolPanelBuilder& builder)
     builder.endSection();
 
     PDFAppToolCallout* callout = builder.addCallout(PDFAccentHue::Blue, QStringLiteral("info"), tr("Page content is not changed"),
-                                                    tr("Text and images on the pages stay. Comments and markup disappear from the pages when their row is ticked. Visible content is removed with Redact Content."));
+                                                    tr("Text and images on the pages stay. Comments and markup disappear from the pages when their row is checked. Visible content is removed with Redact Content."));
     callout->setCompactStyle();
     updateParts();
 }
@@ -483,7 +483,7 @@ void PDFAppToolGUISanitize::buildForm()
     PDFLabel* title = PDFAppPageWidgets::createLabel(tr("Choose what to remove"), QFont::DemiBold, 18, PDFThemeColors::TextPrimary, heading);
     title->setLineHeight(22);
     headingLayout->addWidget(title);
-    headingLayout->addWidget(PDFAppPageWidgets::createText(tr("Ticked kinds of hidden data are removed from the document."), PDFThemeFonts::getFont(QFont::Normal, 12), 15, PDFThemeColors::TextSecondary, heading));
+    headingLayout->addWidget(PDFAppPageWidgets::createText(tr("Checked kinds of hidden data are removed from the document."), PDFThemeFonts::getFont(QFont::Normal, 12), 15, PDFThemeColors::TextSecondary, heading));
     layout->addWidget(heading);
 
     // 438:13839: nothing found
@@ -524,7 +524,7 @@ void PDFAppToolGUISanitize::buildForm()
         m_checklists.emplace_back(checklist);
     }
 
-    // 438:13356: the OCR layer of scanned pages is ticked
+    // 438:13356: the OCR layer of scanned pages is checked
     m_invisibleTextCallout = new PDFAppToolCallout(PDFAccentHue::Amber, QStringLiteral("alert-triangle"), QString(),
                                                    tr("The invisible text is the OCR layer of the scanned pages. Without it the pages are images only."), form);
     m_invisibleTextCallout->setObjectName(QStringLiteral("sanitizeInvisibleTextCallout"));
@@ -716,13 +716,13 @@ void PDFAppToolGUISanitize::updateResultContent()
 
 QVariantMap PDFAppToolGUISanitize::getPreviewParameters() const
 {
-    // The scan does not depend on the ticks: one preview per version of the document
+    // The scan does not depend on the check marks: one preview per version of the document
     return QVariantMap();
 }
 
 QString PDFAppToolGUISanitize::getPermissionRefusal() const
 {
-    // The check of the core before the run, with the ticks of now (ISO 32000-2, Table 22)
+    // The check of the core before the run, with the check marks of now (ISO 32000-2, Table 22)
     const PDFAppDocument* document = getDocument();
     if (!m_scan || !document)
     {
@@ -779,7 +779,7 @@ QString PDFAppToolGUISanitize::getStatusText() const
     if (!refusal.isEmpty() && isUnlockOffered() && m_scan)
     {
         const QString kinds = PDFDocumentToolSanitize::joinKindTitles(PDFDocumentToolSanitize::getInteractiveKinds(*m_scan, getRemovedKinds()));
-        return tr("The document does not allow changing its annotations and form fields, which removing %1 needs: %2 asks for its owner password, or untick %1 to remove the other kinds.").arg(kinds, getConfirmText());
+        return tr("The document does not allow changing its annotations and form fields, which removing %1 needs: %2 asks for its owner password, or uncheck %1 to remove the other kinds.").arg(kinds, getConfirmText());
     }
     if (!refusal.isEmpty())
     {
@@ -1404,7 +1404,7 @@ void PDFAppToolGUIRemoveLinks::describeLeftPanel(PDFAppToolPanelBuilder& builder
     // 438:14938: the links below the shown rows (K16)
     m_moreHint = builder.addHint(QString());
     m_moreHint->setObjectName(QStringLiteral("linksMoreHint"));
-    builder.addHint(tr("Ticked links are removed – untick a link to keep it. Click a row to show the link on the page."));
+    builder.addHint(tr("Checked links are removed – uncheck a link to keep it. Click a row to show the link on the page."));
 
     updateParts();
 }

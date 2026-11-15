@@ -378,7 +378,7 @@ private slots:
     void pageTimeout();
     void jobProgressIsMonotonic();
     void stoppedJobDoesNotPrepareEngine();
-    void memoryWaitHonoursPageDeadline();
+    void memoryWaitHonorsPageDeadline();
     void downloadVerificationThread();
     void memoryBudgetAndEngineLimits();
     void regionRotationOverride();
@@ -2319,11 +2319,11 @@ void OCRTest::jobCancellation()
 
     QTRY_VERIFY_WITH_TIMEOUT(summary.has_value(), 10000);
     QVERIFY(timer.elapsed() < 5000);
-    QVERIFY(summary->cancelled);
+    QVERIFY(summary->canceled);
     QCOMPARE(int(results.size()), 4);
     for (const PDFOCRPageResult& result : results)
     {
-        QCOMPARE(result.state, PDFOCRPageState::Cancelled);
+        QCOMPARE(result.state, PDFOCRPageState::Canceled);
         QVERIFY(!result.hasResult());
     }
     QVERIFY(!controller.isRunning());
@@ -3709,7 +3709,7 @@ void OCRTest::qualityAndPerformanceBenchmark()
         timer.start();
         controller.stop();
         QTRY_VERIFY_WITH_TIMEOUT(summary.has_value(), 60000);
-        report << QStringLiteral("Cancellation latency during the recognition: %1 ms (cancelled: %2)").arg(timer.elapsed()).arg(summary->cancelled ? QStringLiteral("yes") : QStringLiteral("finished before the stop"));
+        report << QStringLiteral("Cancellation latency during the recognition: %1 ms (canceled: %2)").arg(timer.elapsed()).arg(summary->canceled ? QStringLiteral("yes") : QStringLiteral("finished before the stop"));
         controller.waitForFinished();
     }
 
@@ -4955,7 +4955,7 @@ void OCRTest::phraseFindAndReplace()
     QCOMPARE(words[1]->reviewState, PDFOCRReviewState::Unreviewed);
     QCOMPARE(session.getPage(1)->blocks[0].lines[0].getText(), QStringLiteral("quick brown"));
 
-    // Single word hits keep the current behaviour (text of the word is changed in place)
+    // Single word hits keep the current behavior (text of the word is changed in place)
     QCOMPARE(session.replaceAll({ 0 }, QStringLiteral("own"), QStringLiteral("ight"), options), 1);
     QCOMPARE(session.getPage(0)->findWord(brownId)->text, QStringLiteral("bright"));
     session.undo();
@@ -4988,10 +4988,10 @@ void OCRTest::projectKeepsPageOutcomes()
     skipped.skipReason = QStringLiteral("page has text");
     session.setPageResult(skipped);
 
-    PDFOCRPageResult cancelled;
-    cancelled.pageIndex = 2;
-    cancelled.state = PDFOCRPageState::Cancelled;
-    session.setPageResult(cancelled);
+    PDFOCRPageResult canceled;
+    canceled.pageIndex = 2;
+    canceled.state = PDFOCRPageState::Canceled;
+    session.setPageResult(canceled);
 
     PDFOCRPageResult failed;
     failed.pageIndex = 3;
@@ -5013,7 +5013,7 @@ void OCRTest::projectKeepsPageOutcomes()
     QCOMPARE(project.pages.size(), size_t(5));
     QCOMPARE(project.pages.at(1).state, PDFOCRPageState::Skipped);
     QCOMPARE(project.pages.at(1).skipReason, QStringLiteral("page has text"));
-    QCOMPARE(project.pages.at(2).state, PDFOCRPageState::Cancelled);
+    QCOMPARE(project.pages.at(2).state, PDFOCRPageState::Canceled);
     QCOMPARE(project.pages.at(3).state, PDFOCRPageState::Error);
     QCOMPARE(project.pages.at(3).error.message, QStringLiteral("took too long"));
     QCOMPARE(project.pages.at(4).state, PDFOCRPageState::NoText);
@@ -5029,7 +5029,7 @@ void OCRTest::projectKeepsPageOutcomes()
     QCOMPARE(loaded.getPages(), (std::vector<PDFInteger>{ 0, 1, 2, 3, 4 }));
     QCOMPARE(loaded.getPage(1)->state, PDFOCRPageState::Skipped);
     QCOMPARE(loaded.getPage(1)->skipReason, QStringLiteral("page has text"));
-    QCOMPARE(loaded.getPage(2)->state, PDFOCRPageState::Cancelled);
+    QCOMPARE(loaded.getPage(2)->state, PDFOCRPageState::Canceled);
     QCOMPARE(loaded.getPage(3)->state, PDFOCRPageState::Error);
     QCOMPARE(loaded.getPage(3)->error.code, PDFOCRErrorCode::Timeout);
     QCOMPARE(loaded.getPage(3)->error.message, QStringLiteral("took too long"));
@@ -5051,7 +5051,7 @@ void OCRTest::projectKeepsPageOutcomes()
     QCOMPARE(report.noTextDescriptions.size(), qsizetype(1));
     QVERIFY(report.noTextDescriptions[0].startsWith(PDFTranslationContext::tr("Page %1").arg(5)));
     QVERIFY(report.noTextDescriptions[0].contains(QStringLiteral("blank page")));
-    QCOMPARE(PDFOCRTextExporter::getPageStateDescription(*loaded.getPage(2)), PDFTranslationContext::tr("recognition was cancelled"));
+    QCOMPARE(PDFOCRTextExporter::getPageStateDescription(*loaded.getPage(2)), PDFTranslationContext::tr("recognition was canceled"));
 }
 
 // -------------------------------------------------------------------------
@@ -5713,16 +5713,16 @@ void OCRTest::stoppedJobDoesNotPrepareEngine()
     QTRY_VERIFY_WITH_TIMEOUT(summary.has_value(), 10000);
     controller.waitForFinished();
     QCOMPARE(factory->m_prepareCount->load(), 0);
-    QVERIFY(summary->cancelled);
+    QVERIFY(summary->canceled);
     QVERIFY(!summary->criticalError);
     QCOMPARE(results.size(), size_t(2));
     for (const PDFOCRPageResult& result : results)
     {
-        QCOMPARE(result.state, PDFOCRPageState::Cancelled);
+        QCOMPARE(result.state, PDFOCRPageState::Canceled);
     }
 }
 
-void OCRTest::memoryWaitHonoursPageDeadline()
+void OCRTest::memoryWaitHonorsPageDeadline()
 {
     // One A4 page at 200 DPI needs about 46 MB (three copies of the raster), so only one
     // page fits into the budget of 64 MB. The first page holds the memory in an engine,
@@ -5808,7 +5808,7 @@ void OCRTest::pageTimeout()
         output.imageSize = input.image.size();
         if (input.configuration.engineParameters.value(QStringLiteral("page")).toInt() == 0)
         {
-            // Engine, which does not honour the deadline itself
+            // Engine, which does not honor the deadline itself
             QThread::msleep(3000);
         }
         else
@@ -5865,10 +5865,10 @@ void OCRTest::pageTimeout()
     QCOMPARE(results[1].state, PDFOCRPageState::Done);
     QCOMPARE(summary->errorPages, 1);
     QCOMPARE(summary->donePages, 1);
-    QVERIFY(!summary->cancelled);
+    QVERIFY(!summary->canceled);
     QVERIFY(remainingOfSecondPage > 0 && remainingOfSecondPage <= 1000);
 
-    // An engine honouring the deadline (simulated recognition) reports the timeout itself
+    // An engine honoring the deadline (simulated recognition) reports the timeout itself
     m_testEngine->setRecognitionDelay(3000);
     results.clear();
     summary.reset();
@@ -7647,12 +7647,12 @@ void OCRTest::applyProcessorExecute()
     QVERIFY(!changedResult.isSuccess());
     QVERIFY(!changedResult.document);
 
-    // Cancelled operation does not produce a document
+    // Canceled operation does not produce a document
     PDFOCRCancelToken token;
     token.cancel();
-    PDFOCRApplyProcessor::Result cancelled = PDFOCRApplyProcessor::execute(context, plan, &token);
-    QVERIFY(!cancelled.isSuccess());
-    QVERIFY(!cancelled.document);
+    PDFOCRApplyProcessor::Result canceled = PDFOCRApplyProcessor::execute(context, plan, &token);
+    QVERIFY(!canceled.isSuccess());
+    QVERIFY(!canceled.document);
 
     // Permissions are enforced also by the execution
     PDFOCRApplyProcessor::Context locked = context;
@@ -7777,14 +7777,14 @@ void OCRTest::compressionLossless()
     QVERIFY(offReport.images.empty());
     QCOMPARE(OCRTestHelper::getImageFilter(unchanged, 0), QByteArray());
 
-    // Cancelled: nothing is changed
+    // Canceled: nothing is changed
     settings.mode = PDFOCRCompressionMode::Lossless;
     PDFOCRCancelToken token;
     token.cancel();
-    PDFOCRCompressionReport cancelledReport;
-    const PDFDocument cancelled = PDFOCRImageCompressor::compress(&document, { 0 }, settings, qint64(1) << 30, &token, &cancelledReport);
-    QVERIFY(!cancelledReport.isChanged());
-    QCOMPARE(OCRTestHelper::getImageFilter(cancelled, 0), QByteArray());
+    PDFOCRCompressionReport canceledReport;
+    const PDFDocument canceled = PDFOCRImageCompressor::compress(&document, { 0 }, settings, qint64(1) << 30, &token, &canceledReport);
+    QVERIFY(!canceledReport.isChanged());
+    QCOMPARE(OCRTestHelper::getImageFilter(canceled, 0), QByteArray());
 }
 
 void OCRTest::compressionBitonalAndShared()
@@ -8771,7 +8771,7 @@ void OCRTest::documentRunner()
         }
     }, nullptr);
     QVERIFY2(result.errorMessage.isEmpty(), qPrintable(result.errorMessage));
-    QVERIFY(!result.cancelled);
+    QVERIFY(!result.canceled);
     QCOMPARE(result.records.size(), size_t(5));
     QCOMPARE(progressCalls, std::vector<int>({ 1, 2 }));
     QCOMPARE(findRecord(result, 0).state, PDFOCRPageState::Done);
@@ -9030,9 +9030,9 @@ void OCRTest::documentRunner()
     PDFOCRCancelToken cancelToken;
     cancelToken.cancel();
     const int callsBeforeCancel = callCount;
-    PDFOCRDocumentRunner::Result cancelledResult = PDFOCRDocumentRunner::run(&document, settings, nullptr, &cancelToken);
-    QVERIFY(cancelledResult.cancelled);
-    QVERIFY(!cancelledResult.isSuccess());
+    PDFOCRDocumentRunner::Result canceledResult = PDFOCRDocumentRunner::run(&document, settings, nullptr, &cancelToken);
+    QVERIFY(canceledResult.canceled);
+    QVERIFY(!canceledResult.isSuccess());
     QCOMPARE(callCount - callsBeforeCancel, 0);
 
     m_testEngine->setHandler(PDFOCRTestEngineFactory::Handler());

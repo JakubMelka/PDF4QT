@@ -79,7 +79,7 @@ private slots:
 class AudioBookTestControl : public pdf::PDFOperationControl
 {
 public:
-    virtual bool isOperationCancelled() const override { return m_isCanceled.load(); }
+    virtual bool isOperationCanceled() const override { return m_isCanceled.load(); }
     void cancel() { m_isCanceled.store(true); }
 
 private:
@@ -144,7 +144,7 @@ public:
         qint64 frames = m_state->fixedFrames >= 0 ? m_state->fixedFrames : qint64(text.size()) * m_state->framesPerCharacter;
         while (frames > 0)
         {
-            if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+            if (pdf::PDFOperationControl::isOperationCanceled(operationControl))
             {
                 return false;
             }

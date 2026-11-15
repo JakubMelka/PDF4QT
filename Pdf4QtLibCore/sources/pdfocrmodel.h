@@ -369,7 +369,7 @@ enum class PDFOCRErrorCode
     OutOfMemory,
     OutOfDiskSpace,
     Timeout,
-    Cancelled,
+    Canceled,
     WorkerCrashed,
     InvalidEngineOutput,
     IrreversibleTransformation,
@@ -415,7 +415,7 @@ enum class PDFOCRPageState
     NoText,
     Skipped,
     Error,
-    Cancelled,
+    Canceled,
     Stale
 };
 

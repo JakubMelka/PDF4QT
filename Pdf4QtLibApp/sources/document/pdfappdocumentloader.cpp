@@ -22,6 +22,8 @@
 
 #include "pdfappdocumentloader.h"
 #include "pdfappdocument.h"
+#include "pdfappcontext.h"
+#include "pdfrecentrepository.h"
 
 #include "pdfdocumentreader.h"
 #include "pdfexception.h"
@@ -139,8 +141,10 @@ PDFAppDocumentReading::Result PDFAppDocumentReading::read(Request request)
 
         // The reader steps the counter, the GUI reads it by its timer
         PDFDocumentReader reader(request.progress.get(), PDFAppDocumentPasswordCallback(&passwordState), true, request.isOwnerOnly);
+        reader.setOpenWithoutAttachments(request.isOpenWithoutAttachments);
         PDFDocument document = reader.readFromBuffer(request.data);
         passwordState.password.clear();
+        result.isEmbeddedFilesOnlyEncryption = reader.isEmbeddedFilesOnlyEncryption();
 
         switch (reader.getReadingResult())
         {
@@ -148,6 +152,7 @@ PDFAppDocumentReading::Result PDFAppDocumentReading::read(Request request)
             {
                 const PDFSecurityHandler* securityHandler = document.getStorage().getSecurityHandler();
                 result.isEncrypted = securityHandler && securityHandler->getMode() != EncryptionMode::None;
+                result.isAttachmentsLocked = securityHandler && securityHandler->isEmbeddedFilesLocked();
                 result.document = PDFDocumentPointer(new PDFDocument(std::move(document)));
                 result.status = Status::Loaded;
                 result.restoration = PDFAppDocument::getRestoration(reader);
@@ -163,7 +168,7 @@ PDFAppDocumentReading::Result PDFAppDocumentReading::read(Request request)
                 break;
             }
 
-            case PDFDocumentReader::Result::Cancelled:
+            case PDFDocumentReader::Result::Canceled:
                 // The reader has asked for a password, which was not given or was wrong
                 result.isEncrypted = true;
                 result.status = passwordState.isWrong ? Status::PasswordWrong : Status::PasswordRequired;
@@ -199,7 +204,10 @@ PDFAppDocumentLoader::~PDFAppDocumentLoader()
 {
     // A running reading is dropped (the worker finishes alone, nothing waits)
     cancel();
+    PDFSecureMemory::clear(m_password);
+    PDFSecureMemory::clear(m_pendingPassword);
     m_password.clear();
+    m_pendingPassword.clear();
 }
 
 void PDFAppDocumentLoader::start(const QString& filePath)
@@ -297,8 +305,65 @@ bool PDFAppDocumentLoader::reload()
     request.filePath = m_filePath;
     request.hasPassword = m_hasPassword;
     request.password = m_password;
+    request.isOpenWithoutAttachments = m_isAttachmentsLocked;
     startReading(std::move(request), true);
     return true;
+}
+
+bool PDFAppDocumentLoader::openWithoutAttachments()
+{
+    if (!m_document || isRunning() || m_document->getState() != PDFAppDocumentState::PasswordRequired || m_data.isEmpty() || !m_isEmbeddedFilesOnlyEncryption)
+    {
+        return false;
+    }
+
+    // No password: the attachments stay encrypted (Q5.9 c); nothing is kept for a reload
+    PDFAppDocumentReading::Request request;
+    request.filePath = m_filePath;
+    request.data = m_data;
+    request.isOpenWithoutAttachments = true;
+    m_password.clear();
+    m_hasPassword = false;
+
+    QPointer<PDFAppDocumentLoader> guard(this);
+    m_document->setLoading(m_filePath);
+    if (guard)
+    {
+        startReading(std::move(request), false);
+    }
+    return true;
+}
+
+bool PDFAppDocumentLoader::unlockAttachments(const QString& password)
+{
+    if (!m_document || isRunning() || !m_document->isReady() || !m_isAttachmentsLocked || m_data.isEmpty())
+    {
+        return false;
+    }
+
+    // The same bytes with the password (the file is not read again); the result replaces the
+    // document as the automatic refresh does (it was locked: there is nothing unsaved)
+    PDFAppDocumentReading::Request request;
+    request.filePath = m_filePath;
+    request.data = m_data;
+    request.hasPassword = true;
+    request.password = password;
+    m_pendingPassword = password;
+    m_isAttachmentsPasswordWrong = false;
+    m_isAttachmentsUnlock = true;
+    startReading(std::move(request), true);
+    return true;
+}
+
+bool PDFAppDocumentLoader::isLockedByUser(const PDFAppDocument* document)
+{
+    PDFAppContext* context = document ? document->getContext() : nullptr;
+    if (!context || !context->getDatabase() || document->getFilePath().isEmpty())
+    {
+        return false;
+    }
+    const std::optional<PDFRecentFile> file = context->getRecent().getFile(document->getFilePath());
+    return file && file->locked;
 }
 
 void PDFAppDocumentLoader::cancel()
@@ -368,9 +433,44 @@ void PDFAppDocumentLoader::onReadingFinished()
     }
 
     m_data = result.data;
+    if (m_isAttachmentsUnlock)
+    {
+        // unlockAttachments (Q5.9 c): the document is replaced only by the right password; the
+        // lock is lifted after the replacement (both emit - the state is set first)
+        m_isAttachmentsUnlock = false;
+        QString password = m_pendingPassword;
+        PDFSecureMemory::clear(m_pendingPassword);
+        m_pendingPassword.clear();
+        if (result.status == PDFAppDocumentReading::Status::Loaded && !result.isAttachmentsLocked)
+        {
+            // Only the lock of the attachments goes: a lock of the user stays (owner 2026-11-15)
+            const bool isUserLocked = isLockedByUser(m_document);
+            m_password = password;
+            m_hasPassword = true;
+            m_isAttachmentsLocked = false;
+            m_document->reload(result.document, std::move(result.data), result.isEncrypted, result.isPagedXFA, result.restoration);
+            if (guard && m_document && !isUserLocked)
+            {
+                m_document->setLocked(false);
+            }
+        }
+        else
+        {
+            m_isAttachmentsPasswordWrong = result.status != PDFAppDocumentReading::Status::Failed;
+        }
+        PDFSecureMemory::clear(password);
+        if (guard)
+        {
+            Q_EMIT finished();
+        }
+        return;
+    }
+
+    m_isEmbeddedFilesOnlyEncryption = result.isEmbeddedFilesOnlyEncryption;
     switch (result.status)
     {
         case PDFAppDocumentReading::Status::Loaded:
+            m_isAttachmentsLocked = result.isAttachmentsLocked;
             if (m_isReload)
             {
                 m_document->reload(result.document, std::move(result.data), result.isEncrypted, result.isPagedXFA, result.restoration);
@@ -378,6 +478,13 @@ void PDFAppDocumentLoader::onReadingFinished()
             else
             {
                 m_document->setLoaded(result.document, std::move(result.data), m_filePath, result.isEncrypted, result.isPagedXFA, result.restoration);
+            }
+
+            // Opened without its attachments: nothing is saved (tools.md 4.7), the encrypted
+            // attachments are never written as if they were plain
+            if (guard && m_document && m_isAttachmentsLocked)
+            {
+                m_document->setLocked(true);
             }
             break;
 

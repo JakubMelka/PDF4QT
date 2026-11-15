@@ -301,7 +301,7 @@ CCITTFaxTest::Bitmap CCITTFaxTest::createTestBitmap(const QString& kind, int wid
     }
     else if (kind == "longruns")
     {
-        // Runs of both colours longer than 2560 pixels, which is the longest run
+        // Runs of both colors longer than 2560 pixels, which is the longest run
         // with its own make-up code word
         for (int y = 0; y < height; ++y)
         {
@@ -622,7 +622,7 @@ void CCITTFaxTest::test_hand_coded_group3_rows()
 
 void CCITTFaxTest::test_run_length_code_words()
 {
-    // Every run length up to 2600 of both colours is coded one dimensionally and
+    // Every run length up to 2600 of both colors is coded one dimensionally and
     // decoded back, so every terminating and make-up code word of the tables is used
     // by the encoder and it is decoded by the decoder to the same length. A white run
     // is followed by a single black pixel, a black run by a single white pixel.
@@ -996,7 +996,7 @@ void CCITTFaxTest::test_decoder_rejects_malformed_streams()
     // The reference row #. of two columns has a changing element at every column, so
     // the changing elements fill the reference line up to its two terminating entries.
     // VR1 against the first changing element moves b1 behind the last changing element,
-    // and its colour lands it on the last entry of the line - the pass mode then needs
+    // and its color lands it on the last entry of the line - the pass mode then needs
     // b2 behind the line.
     pdf::PDFCCITTFaxDecoderParameters narrow = group4;
     narrow.columns = 2;

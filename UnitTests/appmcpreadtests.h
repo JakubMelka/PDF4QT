@@ -2406,17 +2406,31 @@ public:
         return false;
     }
 
-    /// The listed resources of the document are in resources/list
+    /// The listed resources of the document are in resources/list - on any of its pages: the list
+    /// is paginated (MCP, Pagination: nextCursor; PDFMcpLimits::RESOURCE_PAGE_SIZE) and
+    /// the documents come after the static files, so with more than a page of these files (the help
+    /// topics of the protect tools in step 5 of phase 2) they are on the second page
     static bool isListed(pdftest::McpTestClient& client, const QString& documentId)
     {
-        const QJsonObject listed = client.request(QStringLiteral("resources/list"));
-        const QJsonArray resources = listed.value(QStringLiteral("result")).toObject().value(QStringLiteral("resources")).toArray();
-        for (const QJsonValue& resource : resources)
+        QJsonObject params;
+        for (int page = 0; page < 64; ++page)
         {
-            if (resource.toObject().value(QStringLiteral("uri")).toString().startsWith(QStringLiteral("pdf4qt://documents/%1/").arg(documentId)))
+            const QJsonObject result = client.request(QStringLiteral("resources/list"), params).value(QStringLiteral("result")).toObject();
+            const QJsonArray resources = result.value(QStringLiteral("resources")).toArray();
+            for (const QJsonValue& resource : resources)
             {
-                return true;
+                if (resource.toObject().value(QStringLiteral("uri")).toString().startsWith(QStringLiteral("pdf4qt://documents/%1/").arg(documentId)))
+                {
+                    return true;
+                }
             }
+
+            const QString cursor = result.value(QStringLiteral("nextCursor")).toString();
+            if (cursor.isEmpty() || resources.isEmpty())
+            {
+                break;
+            }
+            params.insert(QStringLiteral("cursor"), cursor);
         }
         return false;
     }

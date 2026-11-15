@@ -24,6 +24,7 @@ PDF4QT --portable
 - The window does not receive files of other starts of PDF4QT, and it does not pass its own files to another window.
 - The access token of the AI server is new at every start.
 - No log files are written; the messages go only to the standard error output.
+- Your digital IDs (certificate files .pfx) stay in the certificate folder of your user account: Encrypt with Certificate lists them and uses them as usual. **Create Certificate…** and **Import…** are not available: a new private key would stay on a computer, which you may only borrow and which need not be safe. Create or import your certificate in PDF4QT started without `--portable`. The details of a certificate, which PDF4QT remembers after its first use, last only until PDF4QT is closed.
 
 ## Take your settings with you
 

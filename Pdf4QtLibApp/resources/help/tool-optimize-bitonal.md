@@ -1,7 +1,7 @@
 ---
 title: Convert to Black & White
 category: tools
-order: 40
+order: 33
 summary: whole pages or images to 1 bit, modes, blank pages
 keywords: black and white, bitonal, monochrome, 1-bit, b&w, scan cleanup, threshold, otsu, dithering, jbig2, ccitt, fax, blank pages, create bitonal document
 related: /tools/optimize.bitonal, /help/tools

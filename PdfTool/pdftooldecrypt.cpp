@@ -21,8 +21,8 @@
 // SOFTWARE.
 
 #include "pdftooldecrypt.h"
-#include "pdfdocumentbuilder.h"
-#include "pdfdocumentwriter.h"
+#include "pdfdocumenttool_encryption.h"
+#include "pdfocrexport.h"
 
 namespace pdftool
 {
@@ -69,17 +69,23 @@ int PDFToolDecryptApplication::execute(const PDFToolOptions& options)
         return ExitSuccess;
     }
 
-    pdf::PDFDocumentBuilder builder(&document);
-    builder.removeEncryption();
-    builder.setSecurityHandler(pdf::PDFSecurityHandlerPointer(new pdf::PDFNoneSecurityHandler()));
-    document = builder.build();
-
-    pdf::PDFDocumentWriter writer(nullptr);
-    pdf::PDFOperationResult result = writer.write(options.document, &document, true);
-
-    if (!result)
+    // One implementation with Remove Password of the new application (plan of step 5 of phase 2,
+    // 4.7): no orphan /Encrypt (B86), no crypt filter of the old encryption (R5-10), the result is
+    // read back without a password before it is written
+    pdf::PDFSecurityHandlerFactory::SecuritySettings settings;
+    settings.algorithm = pdf::PDFSecurityHandlerFactory::None;
+    pdf::PDFDocumentToolEncryption::Change change = pdf::PDFDocumentToolEncryption::changeEncryption(&document, std::move(settings), nullptr, nullptr);
+    if (!change.error.isEmpty())
     {
-        PDFConsole::writeError(result.getErrorMessage(), options.outputCodec);
+        PDFConsole::writeError(change.error, options.outputCodec);
+        return ErrorDocumentWriting;
+    }
+
+    // The bytes, which were read back without a password, are the file (written whole or not at all)
+    QString writeError;
+    if (!pdf::PDFOCRStructuredExporter::writeFile(options.document, change.writtenData, &writeError))
+    {
+        PDFConsole::writeError(writeError, options.outputCodec);
         return ErrorDocumentWriting;
     }
 

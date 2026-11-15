@@ -45,6 +45,7 @@
 #endif
 
 #include <QCheckBox>
+#include <QClipboard>
 #include <QContextMenuEvent>
 #include <QFocusFrame>
 #include <QMenu>
@@ -144,6 +145,7 @@ private slots:
     void themeSwitch();
     void widgets();
     void lineEditElidedWhenInactive();
+    void passwordFieldNotCopied();
     void toolTip();
     void toolTipCompact();
     void galleryHasNoLeak();
@@ -1933,6 +1935,103 @@ void WidgetStyleTest::widgets()
     statusBar.resize(400, statusBar.sizeHint().height());
     QCOMPARE(countLeakPixels(statusBar.grab().toImage()), 0);
     QVERIFY(statusBar.minimumHeight() <= 28);
+}
+
+void WidgetStyleTest::passwordFieldNotCopied()
+{
+    // Plan of step 5 of phase 2, S5.2: a password never goes to the clipboard, also when the button
+    // of the field shows it (QLineEdit copies a shown value); a plain field copies as before
+    QClipboard* clipboard = QGuiApplication::clipboard();
+    QVERIFY(clipboard);
+    const QString canary = QStringLiteral("Canary-7f3a");
+    const QString before = QStringLiteral("text of another application");
+
+    QWidget window;
+    window.resize(400, 120);
+    pdf::PDFLineEdit* plain = new pdf::PDFLineEdit(QStringLiteral("plain text"), &window);
+    plain->setGeometry(10, 10, 300, 40);
+    pdf::PDFLineEdit* password = new pdf::PDFLineEdit(&window);
+    password->setGeometry(10, 60, 300, 40);
+    password->setPasswordField();
+    password->setText(canary);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    // The control: a plain field copies its selection
+    clipboard->setText(before);
+    plain->setFocus();
+    plain->selectAll();
+    QTest::keySequence(plain, QKeySequence::Copy);
+    QCOMPARE(clipboard->text(), QStringLiteral("plain text"));
+
+    // Hidden and shown password: Copy and Cut leave the clipboard and the value as they are
+    QPointer<pdf::PDFIconButton> button = password->getPasswordButton();
+    QVERIFY(button);
+    for (const bool isShown : { false, true })
+    {
+        if (isShown)
+        {
+            button->click();
+        }
+        QCOMPARE(password->echoMode(), isShown ? QLineEdit::Normal : QLineEdit::Password);
+
+        clipboard->setText(before);
+        password->setFocus();
+        password->selectAll();
+        QTest::keySequence(password, QKeySequence::Copy);
+        QCOMPARE(clipboard->text(), before);
+        QTest::keySequence(password, QKeySequence::Cut);
+        QCOMPARE(clipboard->text(), before);
+        QCOMPARE(password->text(), canary);
+        QCOMPARE(password->selectedText(), canary);
+
+        // Ctrl+Insert and Shift+Delete are Copy and Cut too (QKeySequence::Copy / Cut on Windows)
+        QTest::keyClick(password, Qt::Key_Insert, Qt::ControlModifier);
+        QCOMPARE(clipboard->text(), before);
+
+        // The context menu: Cut and Copy disabled, also when triggered by the code
+        QContextMenuEvent event(QContextMenuEvent::Mouse, QPoint(10, 10), password->mapToGlobal(QPoint(10, 10)));
+        QCoreApplication::sendEvent(password, &event);
+        QPointer<QMenu> menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+        QVERIFY(menu);
+        int found = 0;
+        for (QAction* action : menu->actions())
+        {
+            if (action->objectName() == QLatin1String("edit-copy") || action->objectName() == QLatin1String("edit-cut"))
+            {
+                ++found;
+                QVERIFY2(!action->isEnabled(), qPrintable(action->objectName()));
+                action->trigger();
+            }
+        }
+        QCOMPARE(found, 2);
+        QCOMPARE(clipboard->text(), before);
+        QCOMPARE(password->text(), canary);
+        menu->close();
+        QTRY_VERIFY(!menu);
+    }
+
+    // The control of the menu: a plain field with a selection offers Copy
+    plain->selectAll();
+    QContextMenuEvent plainEvent(QContextMenuEvent::Mouse, QPoint(10, 10), plain->mapToGlobal(QPoint(10, 10)));
+    QCoreApplication::sendEvent(plain, &plainEvent);
+    QPointer<QMenu> plainMenu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+    QVERIFY(plainMenu);
+    bool isCopyEnabled = false;
+    for (const QAction* action : plainMenu->actions())
+    {
+        isCopyEnabled = isCopyEnabled || (action->objectName() == QLatin1String("edit-copy") && action->isEnabled());
+    }
+    QVERIFY(isCopyEnabled);
+    plainMenu->close();
+    QTRY_VERIFY(!plainMenu);
+
+    // The selection is never dragged out, also after the drag was enabled
+    QVERIFY(!password->dragEnabled());
+    password->setDragEnabled(true);
+    QTest::mousePress(password, Qt::LeftButton, Qt::NoModifier, QPoint(20, 20));
+    QVERIFY(!password->dragEnabled());
+    QTest::mouseRelease(password, Qt::LeftButton, Qt::NoModifier, QPoint(20, 20));
 }
 
 void WidgetStyleTest::toolTip()

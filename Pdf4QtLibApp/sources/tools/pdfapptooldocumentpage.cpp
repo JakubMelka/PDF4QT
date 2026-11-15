@@ -163,6 +163,8 @@ QString PDFAppToolDocumentPage::getRefusalText() const
             return getLockRefusalText(m_toolId);
         case PDFAppToolResultWriter::DocumentRefusal::DisplayVersion:
             return PDFAppDocument::getPagedXFARefusalText();
+        case PDFAppToolResultWriter::DocumentRefusal::AttachmentsLocked:
+            return tr("The attachments of this document are still encrypted, so %1 cannot make a PDF of it. Enter their password by Enter Password… in the Attachments panel first.").arg(tool->getTitle());
         case PDFAppToolResultWriter::DocumentRefusal::None:
             break;
     }

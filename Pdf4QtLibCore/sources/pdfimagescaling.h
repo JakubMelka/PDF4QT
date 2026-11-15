@@ -36,7 +36,7 @@ namespace pdf
 {
 
 /// Downscaling of the images for the display. Raster paint engines resample an image
-/// from a 2x2 neighbourhood only, so when an image is shrunk more than twice, most of
+/// from a 2x2 neighborhood only, so when an image is shrunk more than twice, most of
 /// the source pixels are never sampled at all. Thin strokes of a bitonal scan then
 /// either land on a sampling point and stay dark, or fall between the sampling points
 /// and wash out. Images must therefore be downscaled to the target resolution before

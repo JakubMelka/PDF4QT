@@ -62,6 +62,9 @@ int main(int argc, char* argv[])
         qWarning("%s", qPrintable(message));
     }
 
+    // The digital IDs of a second profile (PDF4QT_APP_DATA_DIRECTORY) stay in its folder
+    pdf::PDFAppPaths::installCertificateDirectories();
+
     // Decision 11: files of a second start are opened by the instance, which holds the
     // name of the forwarding; a start without files and --new-window forward nothing
     // and take the name only, when it is free; the portable mode does not take part

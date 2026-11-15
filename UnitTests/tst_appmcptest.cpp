@@ -602,7 +602,10 @@ void AppMcpTest::catalogToolBridge()
         actual.remove(QStringLiteral("description"));
         expected.remove(QStringLiteral("description"));
         QCOMPARE(actual, expected);
-        QVERIFY(actual.value(QStringLiteral("properties")).toObject().value(QStringLiteral("password")).toObject().value(QStringLiteral("writeOnly")).toBool());
+        // A password never goes through MCP (plan of step 5 of phase 2, 6.3, R5-12): the Secret of
+        // the test tool is not in the schema of its action, which refuses additional properties
+        QVERIFY(!actual.value(QStringLiteral("properties")).toObject().contains(QStringLiteral("password")));
+        QCOMPARE(actual.value(QStringLiteral("additionalProperties")).toBool(true), false);
 
         // mode=count: an analysis under Read, structuredContent = PDFDocumentToolResult::toJson
         result = fixture.callTool(QStringLiteral("review"), AppMcpTestHelper::arguments(R"({"action":"statistics","statistics":{"mode":"count","detailed":true}})"));

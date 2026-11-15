@@ -1039,6 +1039,12 @@ void PDFAppToolResultDialog::createContinueWith(QVBoxLayout* layout, QWidget* pa
         return;
     }
 
+    // Nor after a change of the security (the tools of Encryption: tools.md 10.3, 430:3226)
+    if (m_input.tool && !PDFDocumentToolUsage::isOfferingSuccessors(m_input.tool->getId()))
+    {
+        return;
+    }
+
     m_continueWith = new PDFContinueWith(parent);
     m_continueWith->setObjectName(QStringLiteral("toolResultContinueWith"));
 

@@ -4401,20 +4401,20 @@ void PDFWidgetAnnotationManager::updatePointInteraction(const QPoint& devicePosi
 
     if (modifiers.testFlag(Qt::ShiftModifier) && points.size() >= 2 && !m_interaction.isPreviewQuadEnds)
     {
-        // Constrain the direction from the neighbouring point to the multiples of 45 degrees.
+        // Constrain the direction from the neighboring point to the multiples of 45 degrees.
         // The page is displayed rotated by a multiple of 90 degrees, so the angles are the
         // same on the screen.
         const size_t pointIndex = size_t(m_interaction.pointIndex);
-        const size_t neighbourIndex = pointIndex > 0 ? pointIndex - 1 : (m_interaction.isPreviewClosed ? points.size() - 1 : 1);
-        const QPointF neighbour = points[neighbourIndex];
-        const QPointF vector = position - neighbour;
+        const size_t neighborIndex = pointIndex > 0 ? pointIndex - 1 : (m_interaction.isPreviewClosed ? points.size() - 1 : 1);
+        const QPointF neighbor = points[neighborIndex];
+        const QPointF vector = position - neighbor;
 
         if (!qFuzzyIsNull(vector.x()) || !qFuzzyIsNull(vector.y()))
         {
             const qreal step = M_PI / 4.0;
             const qreal angle = std::round(std::atan2(vector.y(), vector.x()) / step) * step;
             const QPointF direction(std::cos(angle), std::sin(angle));
-            position = neighbour + direction * QPointF::dotProduct(vector, direction);
+            position = neighbor + direction * QPointF::dotProduct(vector, direction);
         }
     }
 
@@ -5140,7 +5140,7 @@ void PDFWidgetAnnotationManager::startAnnotationDrag(QMouseEvent* event)
         drag->setHotSpot(m_dragState.dragHotSpot);
     }
 
-    // The annotation is dragged, so the click, which would remove it from the selection, is cancelled
+    // The annotation is dragged, so the click, which would remove it from the selection, is canceled
     m_pendingDeselection = PDFObjectReference();
 
     const Qt::DropAction defaultAction = m_dragState.isCopy ? Qt::CopyAction : Qt::MoveAction;
@@ -6072,8 +6072,8 @@ void PDFWidgetAnnotationManager::drawSelection(QPainter* painter,
             QString text = QString("%1; %2 pt").arg(QLocale::system().toString(point.x(), 'f', 1), QLocale::system().toString(point.y(), 'f', 1));
             if (!m_interaction.isPreviewQuadEnds && points.size() >= 2)
             {
-                const QPointF neighbour = points[pointIndex > 0 ? pointIndex - 1 : (m_interaction.isPreviewClosed ? points.size() - 1 : 1)];
-                const QLineF segment(neighbour, point);
+                const QPointF neighbor = points[pointIndex > 0 ? pointIndex - 1 : (m_interaction.isPreviewClosed ? points.size() - 1 : 1)];
+                const QLineF segment(neighbor, point);
                 text = tr("%1 | length %2 pt, angle %3°").arg(text, QLocale::system().toString(segment.length(), 'f', 1), QLocale::system().toString(std::fmod(360.0 - segment.angle(), 360.0), 'f', 1));
 
                 if (isDesign)

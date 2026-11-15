@@ -13,7 +13,7 @@ Split separates a document into several PDF files: every page, every few pages, 
 1. Choose the rule in **Split** of the toolbar. **Files to create** lists the files with their pages and names, the preview shows a card of each file with its pages. Click a file in the list to show its card.
 2. With **Every N pages**, type the number into the field **pages per file** of the toolbar; with **By file size**, the size into the field **MB**.
 3. With **At selected pages**, click between two pages in the preview: a new file starts there, the dot below each page shows its file. Click the cut line to remove it, or edit the numbers in **Cuts**. **Clear Cuts** removes every cut.
-4. With **At bookmarks**, tick the bookmarks in **Start a new file at**; **Top level** chooses the bookmarks of the top level.
+4. With **At bookmarks**, check the bookmarks in **Start a new file at**; **Top level** chooses the bookmarks of the top level.
 5. Choose the folder, the file name and what happens with existing files in **Output files**. The line under the name shows the first and the last name.
 6. Press **Split into Files**. The files are written one after another, the card **Writing the files** shows which one; the files already written are marked **Written**. **Stop** ends the export after the file, which is being written.
 
@@ -24,7 +24,7 @@ Split separates a document into several PDF files: every page, every few pages, 
 | Every page | at every page |
 | Every N pages | after the number of pages of **Pages per file** (10 by default); the last file can be shorter |
 | At selected pages | at the pages of **New file starts at pages**, such as `10, 20, 35` |
-| At bookmarks | at the page of each top-level bookmark, or of the bookmarks you tick; the pages before the first bookmark join the first file |
+| At bookmarks | at the page of each top-level bookmark, or of the bookmarks you check; the pages before the first bookmark join the first file |
 | By file size | when the file would be larger than **File size** (10 MB by default); a single page larger than that is a file of its own |
 | Odd and even pages | two files: the odd pages and the even pages |
 

@@ -436,7 +436,7 @@ void PDFOCRCompressionPreviewDialog::startPreview()
     }
     ++m_generation;
 
-    // At most one preview is computed at a time: the cancelled previous computation
+    // At most one preview is computed at a time: the canceled previous computation
     // finishes first, then the newest request is started. The GUI thread never waits.
     if (!m_future.isFinished())
     {
@@ -476,7 +476,7 @@ void PDFOCRCompressionPreviewDialog::startPreview()
             // The preview stays empty
         }
 
-        if (!token->isOperationCancelled())
+        if (!token->isOperationCanceled())
         {
             QMetaObject::invokeMethod(this, [this, generation, previews = std::move(previews)]() mutable { onPreviewReady(generation, std::move(previews)); }, Qt::QueuedConnection);
         }

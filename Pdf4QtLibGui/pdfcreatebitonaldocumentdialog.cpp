@@ -298,7 +298,7 @@ PDFCreateBitonalDocumentDialog::~PDFCreateBitonalDocumentDialog()
     Q_ASSERT(!m_future.isRunning());
 
     // Workers use the document creator and the rasterizer pool, so none of them can be
-    // running when the dialog is being destroyed. Both jobs are cancelled first and
+    // running when the dialog is being destroyed. Both jobs are canceled first and
     // joined afterwards, so they can be finishing their last uninterruptible step in
     // parallel.
     cancelJob(m_thumbnailJob);
@@ -321,7 +321,7 @@ void PDFCreateBitonalDocumentDialog::done(int r)
         return;
     }
 
-    // Background jobs are cancelled as soon as the dialog is being closed, so the user
+    // Background jobs are canceled as soon as the dialog is being closed, so the user
     // does not wait for a thumbnail or a preview, which nobody is going to see. The
     // workers are joined in the destructor.
     cancelJob(m_thumbnailJob);
@@ -348,8 +348,8 @@ void PDFCreateBitonalDocumentDialog::startJob(AsyncJob& job, std::function<void(
     {
         try
         {
-            // The run can be cancelled before the thread pool gets to it at all
-            if (!cancelToken->isOperationCancelled())
+            // The run can be canceled before the thread pool gets to it at all
+            if (!cancelToken->isOperationCanceled())
             {
                 worker(generation, cancelToken.get());
             }
@@ -374,7 +374,7 @@ void PDFCreateBitonalDocumentDialog::startJob(AsyncJob& job, std::function<void(
 
 void PDFCreateBitonalDocumentDialog::cancelJob(AsyncJob& job)
 {
-    // Generation of the job is increased, so the results, which the cancelled worker
+    // Generation of the job is increased, so the results, which the canceled worker
     // still manages to emit, are recognized as obsolete and dropped by the slots.
     ++job.generation;
 
@@ -384,7 +384,7 @@ void PDFCreateBitonalDocumentDialog::cancelJob(AsyncJob& job)
         job.cancelToken.reset();
     }
 
-    // The watcher of a cancelled run is not interesting anymore. Destroying it does
+    // The watcher of a canceled run is not interesting anymore. Destroying it does
     // not touch the worker at all, it is just not watched anymore - the worker is
     // kept alive by its future stored in the job.
     job.futureWatcher.reset();
@@ -812,7 +812,7 @@ void PDFCreateBitonalDocumentDialog::generateThumbnails(int generation,
 
             auto processImage = [this, generation, operationControl, &request](size_t index)
             {
-                if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+                if (pdf::PDFOperationControl::isOperationCanceled(operationControl))
                 {
                     return;
                 }
@@ -824,7 +824,7 @@ void PDFCreateBitonalDocumentDialog::generateThumbnails(int generation,
                     image = image.scaled(request.thumbnailSize.width(), request.thumbnailSize.height(), Qt::KeepAspectRatio, Qt::FastTransformation);
                 }
 
-                if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+                if (pdf::PDFOperationControl::isOperationCanceled(operationControl))
                 {
                     // Image can be incomplete, because its decoding has been interrupted
                     return;
@@ -840,7 +840,7 @@ void PDFCreateBitonalDocumentDialog::generateThumbnails(int generation,
 
             for (size_t first = 0; first < indices.size(); first += batchSize)
             {
-                if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+                if (pdf::PDFOperationControl::isOperationCanceled(operationControl))
                 {
                     return;
                 }
@@ -871,7 +871,7 @@ void PDFCreateBitonalDocumentDialog::generateThumbnails(int generation,
 
             auto pageImageProcessor = [this, generation, operationControl, &itemIndices](pdf::PDFInteger pageIndex, QImage image)
             {
-                if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+                if (pdf::PDFOperationControl::isOperationCanceled(operationControl))
                 {
                     return;
                 }
@@ -888,7 +888,7 @@ void PDFCreateBitonalDocumentDialog::generateThumbnails(int generation,
 
             for (size_t first = 0; first < request.pageIndices.size(); first += batchSize)
             {
-                if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+                if (pdf::PDFOperationControl::isOperationCanceled(operationControl))
                 {
                     return;
                 }
@@ -926,7 +926,7 @@ void PDFCreateBitonalDocumentDialog::generatePreview(int generation,
 
     const pdf::PDFBitonalDocumentCreator::Preview preview = m_creator->createPreview(coreRequest, operationControl);
 
-    if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+    if (pdf::PDFOperationControl::isOperationCanceled(operationControl))
     {
         return;
     }
@@ -994,7 +994,7 @@ void PDFCreateBitonalDocumentDialog::detectBlankPages(int generation,
 
     for (size_t first = 0; first < request.pageIndices.size(); first += batchSize)
     {
-        if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+        if (pdf::PDFOperationControl::isOperationCanceled(operationControl))
         {
             return;
         }
@@ -1006,7 +1006,7 @@ void PDFCreateBitonalDocumentDialog::detectBlankPages(int generation,
         for (const pdf::PDFBitonalDocumentCreator::BlankPageResult& result : results)
         {
             auto it = itemIndices.find(result.pageIndex);
-            if (result.isExamined && it != itemIndices.cend() && !pdf::PDFOperationControl::isOperationCancelled(operationControl))
+            if (result.isExamined && it != itemIndices.cend() && !pdf::PDFOperationControl::isOperationCanceled(operationControl))
             {
                 Q_EMIT blankPageDetected(generation, it->second, result.isBlank);
             }
@@ -1301,7 +1301,7 @@ void PDFCreateBitonalDocumentDialog::updateUi()
 
 void PDFCreateBitonalDocumentDialog::updatePreview()
 {
-    // Preview of the previous settings is not interesting anymore. The job is cancelled
+    // Preview of the previous settings is not interesting anymore. The job is canceled
     // immediately, so it stops as soon as it can, but the new one is started by the
     // timer - a user dragging a spin box would otherwise start a job per each step.
     cancelJob(m_previewJob);

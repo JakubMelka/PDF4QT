@@ -246,7 +246,7 @@ public:
 /// progress and log messages are dropped ("MUST stop after completion").
 /// Progress values must grow strictly, a smaller or equal value is dropped.
 /// A canceled call is reported to its host by PDFMcpHost::callCanceled (queued
-/// to the thread of the host) - jobs poll isCanceled / isOperationCancelled.
+/// to the thread of the host) - jobs poll isCanceled / isOperationCanceled.
 class PDF4QTLIBMCPSHARED_EXPORT PDFMcpCall : public PDFOperationControl, public std::enable_shared_from_this<PDFMcpCall>
 {
 public:
@@ -290,7 +290,7 @@ public:
     PDFMcpCancelReason getCancelReason() const;
 
     /// PDFOperationControl
-    virtual bool isOperationCancelled() const override { return isCanceled(); }
+    virtual bool isOperationCanceled() const override { return isCanceled(); }
 
     /// The host, which is told about the cancellation (set by the dispatcher)
     void setHost(PDFMcpHost* host);

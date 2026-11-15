@@ -26,7 +26,11 @@
 #include "pdfapptoolmergemodel.h"
 #include "pdfappdocumentloader.h"
 #include "pdfappdocument.h"
+#include "pdfappdocumentpanels_common.h"
+#include "pdfapproute.h"
 
+#include "pdfdocumenttool_encryption.h"
+#include "pdfdocumenttoolregistry.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemefonts.h"
 #include "pdfthemeiconengine.h"
@@ -97,7 +101,11 @@ void PDFAppPasswordDialog::createParts()
     form->setObjectName(QStringLiteral("passwordForm"));
     QVBoxLayout* formLayout = new QVBoxLayout(form);
     formLayout->setContentsMargins(0, 0, 0, 0);
-    formLayout->setSpacing(GAP);
+
+    // ChangeSecurity (430:2709 / 433:5210) has the group field-Owner password of its own: the label
+    // Medium 12, the Password field 40, 4 apart (the list, the error row and the note are hidden)
+    const bool isChangeSecurityMode = isChangeSecurity();
+    formLayout->setSpacing(isChangeSecurityMode ? CHANGE_SECURITY_LABEL_GAP : GAP);
     if (m_isDocumentMode)
     {
         m_forbiddenText = PDFAppPageWidgets::createText(QString(), PDFThemeFonts::getFont(PDFThemeFonts::Role::Small), 15, PDFThemeColors::TextSecondary, form);
@@ -107,14 +115,14 @@ void PDFAppPasswordDialog::createParts()
     // The label Regular 12 text/secondary (398:28124), the field 34 (398:28125), the error
     // Medium 11 text/danger (398:28131), the note of the owner password Regular 11 text/muted
     // (1390:34806)
-    m_fieldLabel = PDFAppPageWidgets::createLabel(QString(), QFont::Normal, 12, PDFThemeColors::TextSecondary, form);
+    m_fieldLabel = PDFAppPageWidgets::createLabel(QString(), isChangeSecurityMode ? QFont::Medium : QFont::Normal, 12, PDFThemeColors::TextSecondary, form);
     m_fieldLabel->setObjectName(QStringLiteral("passwordLabel"));
     formLayout->addWidget(m_fieldLabel);
     m_passwordField = new PDFLineEdit(form);
     m_passwordField->setObjectName(QStringLiteral("passwordField"));
     m_passwordField->setPasswordField();
     m_passwordField->setMaxLength(PDFAppDocumentReading::MAXIMUM_PASSWORD_LENGTH);
-    m_passwordField->setFixedHeight(FIELD_HEIGHT);
+    m_passwordField->setFixedHeight(isChangeSecurityMode ? CHANGE_SECURITY_FIELD_HEIGHT : FIELD_HEIGHT);
     formLayout->addWidget(m_passwordField);
     PDFAppParagraph* errorText = nullptr;
     m_errorRow = createErrorRow(form, &errorText);
@@ -129,7 +137,10 @@ void PDFAppPasswordDialog::createParts()
     }
     addContent(form);
 
-    // actions 398:28133: Remove File (leading, only for an input), Cancel, Unlock (Primary)
+    // actions 398:28133: Remove File (leading, only for an input), Cancel, Unlock (Primary); the
+    // document mode of an action forbidden by the permissions has Open Restrict Permissions at
+    // the leading edge instead (owner answer Q5.12, R5-11: no frame - a Secondary button as the
+    // others of the dialog, icon/shield-lock of Q5.10)
     if (!m_isDocumentMode)
     {
         m_removeButton = addActionButton(QString(), false, true);
@@ -137,11 +148,20 @@ void PDFAppPasswordDialog::createParts()
         m_removeButton->setIcon(PDFThemeIcons::getIcon(QStringLiteral("trash")));
         connect(m_removeButton.data(), &QPushButton::clicked, this, &PDFAppPasswordDialog::onRemoveClicked);
     }
+    else if (isRestrictPermissionsOffered())
+    {
+        m_restrictButton = addActionButton(QString(), false, true);
+        m_restrictButton->setObjectName(QStringLiteral("openRestrictPermissionsButton"));
+        m_restrictButton->setIcon(PDFThemeIcons::getIcon(QStringLiteral("shield-lock")));
+        connect(m_restrictButton.data(), &QPushButton::clicked, this, &PDFAppPasswordDialog::onRestrictPermissionsClicked);
+    }
     m_cancelButton = addActionButton(QString(), false, false);
     m_cancelButton->setObjectName(QStringLiteral("cancelButton"));
     m_unlockButton = addActionButton(QString(), true, false);
     m_unlockButton->setObjectName(QStringLiteral("unlockButton"));
-    m_unlockButton->setIcon(PDFThemeIcons::getIcon(QStringLiteral("key")));
+
+    // 430:2709: the open lock of the tools of Encryption; the key of the other actions (1390:34569)
+    m_unlockButton->setIcon(PDFThemeIcons::getIcon(isChangeSecurity() ? QStringLiteral("unlock") : QStringLiteral("key")));
 
     connect(m_cancelButton.data(), &QPushButton::clicked, this, &PDFAppPasswordDialog::reject);
     connect(m_unlockButton.data(), &QPushButton::clicked, this, &PDFAppPasswordDialog::onUnlockClicked);
@@ -240,9 +260,66 @@ QString PDFAppPasswordDialog::getErrorText() const
     return m_errorRow && !m_errorRow->isHidden() && m_errorText ? m_errorText->text() : QString();
 }
 
+bool PDFAppPasswordDialog::isChangeSecurity() const
+{
+    return m_isDocumentMode && m_request.action == PDFAppPermissionAction::ChangeSecurity;
+}
+
+bool PDFAppPasswordDialog::isRestrictPermissionsOffered() const
+{
+    // Q5.12: an action, which the permissions forbid (not the unlock of the properties, not a
+    // change of the security itself), of a document, which can be unlocked, and the tool is there
+    if (!m_isDocumentMode || m_request.action == PDFAppPermissionAction::Unlock || m_request.action == PDFAppPermissionAction::ChangeSecurity)
+    {
+        return false;
+    }
+    const PDFDocument* pdfDocument = m_document && m_document->isReady() ? m_document->getDocument().data() : nullptr;
+    return pdfDocument && PDFAppDocumentPermissions::canUnlock(pdfDocument) && !PDFAppDocumentPermissions::isAllowed(pdfDocument, m_request) &&
+           PDFDocumentToolRegistry::isImplemented(QString::fromLatin1(PDFDocumentToolEncryption::TOOL_ID_PERMISSIONS));
+}
+
+void PDFAppPasswordDialog::onRestrictPermissionsClicked()
+{
+    // The dialog closes first (its slots may delete anything); the tool opens in the tab of the
+    // document by its route and asks for the owner password itself (ChangeSecurity)
+    PDFAppDocument* document = m_document.data();
+    if (!document)
+    {
+        reject();
+        return;
+    }
+    const PDFAppRoute route = PDFAppRoutes::documentTool(document->getId(), QString::fromLatin1(PDFDocumentToolEncryption::TOOL_ID_PERMISSIONS));
+    QPointer<QWidget> parent = parentWidget();
+    done(QDialog::Rejected);
+    if (parent)
+    {
+        PDFAppPanelWidgets::navigate(parent, route);
+    }
+}
+
 void PDFAppPasswordDialog::updateTexts()
 {
-    if (m_isDocumentMode)
+    if (isChangeSecurity())
+    {
+        // 430:2709 / 433:5210 and 430:2969 / 433:5442 (K5.13): no list of what is forbidden, no note
+        setTitle(PDFAppDocumentPermissions::getChangeSecurityTitle(m_isWrongPassword));
+        m_messageText = PDFAppDocumentPermissions::getChangeSecurityText(m_name, m_request, m_isWrongPassword);
+        setText(m_messageText);
+        setBadgeIconName(m_isWrongPassword ? QStringLiteral("alert-circle") : QString());
+        setBadge(m_isWrongPassword ? PDFThemeIcons::Badge::Critical : PDFThemeIcons::Badge::Warning);
+        m_passwordField->setPlaceholderText(tr("Password"));
+        if (m_forbiddenText)
+        {
+            m_forbiddenText->setText(QString());
+            m_forbiddenText->hide();
+        }
+        if (m_noteText)
+        {
+            m_noteText->setText(QString());
+            m_noteText->hide();
+        }
+    }
+    else if (m_isDocumentMode)
     {
         // The parts of 1390:34569: the title, the action and the missing permission in
         // plain words, what the document forbids, the note of the password
@@ -297,6 +374,10 @@ void PDFAppPasswordDialog::updateTexts()
     {
         m_removeButton->setText(tr("Remove File"));
     }
+    if (m_restrictButton)
+    {
+        m_restrictButton->setText(tr("Open Restrict Permissions"));
+    }
     if (m_cancelButton)
     {
         m_cancelButton->setText(tr("Cancel"));
@@ -325,9 +406,15 @@ void PDFAppPasswordDialog::updateButtons()
 
 void PDFAppPasswordDialog::setError(bool isShown)
 {
+    // 430:2969: the title and the text say the error of ChangeSecurity, no row below the field
+    if (isChangeSecurity() && m_isWrongPassword != isShown)
+    {
+        m_isWrongPassword = isShown;
+        updateTexts();
+    }
     if (m_errorRow)
     {
-        m_errorRow->setVisible(isShown);
+        m_errorRow->setVisible(isShown && !isChangeSecurity());
     }
     if (m_passwordField)
     {
@@ -338,8 +425,8 @@ void PDFAppPasswordDialog::setError(bool isShown)
 
 void PDFAppPasswordDialog::onPasswordEdited()
 {
-    // A new password hides the error of the last one
-    if (!getErrorText().isEmpty())
+    // A new password hides the error of the last one (430:2969: the title of ChangeSecurity too)
+    if (!getErrorText().isEmpty() || m_isWrongPassword)
     {
         setError(false);
     }

@@ -61,7 +61,7 @@ class StructureTestControl : public pdf::PDFOperationControl
 {
 public:
     void cancel() { m_isCanceled.store(true); }
-    virtual bool isOperationCancelled() const override { return m_isCanceled.load(); }
+    virtual bool isOperationCanceled() const override { return m_isCanceled.load(); }
 
 private:
     std::atomic<bool> m_isCanceled = false;

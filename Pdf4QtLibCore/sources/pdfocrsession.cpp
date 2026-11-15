@@ -974,7 +974,7 @@ bool PDFOCRSession::insertWord(PDFInteger pageIndex, int lineId, int afterWordId
 
         if (!word.quad.isValid())
         {
-            // Estimate the geometry from the neighbours (EDIT-04): the word gets its own area
+            // Estimate the geometry from the neighbors (EDIT-04): the word gets its own area
             const PDFOCRWord* previous = position != line->words.begin() ? &*std::prev(position) : nullptr;
             const PDFOCRWord* next = position != line->words.end() ? &*position : nullptr;
             const PDFOCRWord* reference = previous ? previous : next;
@@ -1249,7 +1249,7 @@ bool PDFOCRSession::applyLineText(PDFOCRPageResult* page, PDFOCRLine* line, cons
         }
         else
         {
-            // Insertion: place between the neighbours
+            // Insertion: place between the neighbors
             const bool hasPrevious = oldBegin > 0;
             const bool hasNext = oldBegin < n;
             const PDFOCRWord* reference = hasPrevious ? &oldWords[size_t(oldBegin - 1)] : (hasNext ? &oldWords[size_t(oldBegin)] : nullptr);
@@ -1272,7 +1272,7 @@ bool PDFOCRSession::applyLineText(PDFOCRPageResult* page, PDFOCRLine* line, cons
                 spanEnd = flowStart(oldWords[size_t(oldBegin)].quad) - flow * (height * 0.2);
                 if (QPointF::dotProduct(spanEnd - spanStart, flow) < width * 0.5 && !result.empty() && result.back().id == oldWords[size_t(oldBegin - 1)].id)
                 {
-                    // No room between the neighbours: the previous word is laid out again
+                    // No room between the neighbors: the previous word is laid out again
                     // together with the inserted tokens over the available span (EDIT-03)
                     PDFOCRWord& previous = result.back();
                     spanStart = flowStart(previous.quad);
@@ -2219,10 +2219,10 @@ PDFOCRProject PDFOCRSession::createProject(const std::vector<PDFInteger>& select
     for (const auto& item : m_pages)
     {
         // Pages with a result, and also the pages with a recorded outcome (skipped,
-        // cancelled, failed) with their reasons are part of the project (EXPORT-02, EXPORT-03)
+        // canceled, failed) with their reasons are part of the project (EXPORT-02, EXPORT-03)
         const PDFOCRPageState state = item.second.state;
         const bool hasOutcome = state == PDFOCRPageState::Stale || state == PDFOCRPageState::Error ||
-                                state == PDFOCRPageState::Skipped || state == PDFOCRPageState::Cancelled;
+                                state == PDFOCRPageState::Skipped || state == PDFOCRPageState::Canceled;
         if (item.second.hasResult() || hasOutcome || !item.second.regions.empty())
         {
             PDFOCRPageResult result = item.second;

@@ -29,7 +29,7 @@ namespace pdf
 {
 
 /// Operation controller. This interface can be used for
-/// long operation interruption - so operation is cancelled
+/// long operation interruption - so operation is canceled
 /// immediately.
 class PDFOperationControl
 {
@@ -37,17 +37,17 @@ public:
     constexpr PDFOperationControl() = default;
     virtual ~PDFOperationControl() = default;
 
-    /// Returns true, if operation is cancelled and
+    /// Returns true, if operation is canceled and
     /// processed data should be abandoned. It is safe
     /// to call this function in another thread, implementators
     /// of this interface must ensure thread safety.
     /// If this function returns true, it must return true until
     /// all operations are stopped and correctly handled.
-    virtual bool isOperationCancelled() const = 0;
+    virtual bool isOperationCanceled() const = 0;
 
-    static inline bool isOperationCancelled(const PDFOperationControl* operationControl)
+    static inline bool isOperationCanceled(const PDFOperationControl* operationControl)
     {
-        return operationControl && operationControl->isOperationCancelled();
+        return operationControl && operationControl->isOperationCanceled();
     }
 };
 

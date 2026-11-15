@@ -44,7 +44,16 @@
 #include "pdfappdocumenttoolbar.h"
 #include "pdfappdocumentview.h"
 #include "pdfappnavigator.h"
+#include "pdfapproute.h"
 #include "pdfapptooldocumentpage.h"
+#include "pdfapptoolgui_insert.h"
+#include "pdfapptoolgui_manage.h"
+#include "pdfapptoolgui_pages.h"
+#include "pdfapptoolgui_split.h"
+#include "pdfapptoolhost.h"
+#include "pdfapptoolparametermodel.h"
+#include "pdfdocumenttool_manage.h"
+#include "pdfdocumenttoolshell.h"
 #include "pdfappundostack.h"
 #include "pdfbookmarkrepository.h"
 #include "pdfdatabasestatement.h"
@@ -1134,42 +1143,67 @@ void AppDocumentPanelsTest::thumbnailsContextMenu()
         QVERIFY(action->isSeparator() || action->isEnabled());
     }
 
-    // A page tool opens its route: Page Not Found in phase 1, Back returns
-    PanelsTestHelper::findAction(menu, QStringLiteral("extractPages"))->trigger();
-    fixture.settle();
-    QVERIFY(!tab->isViewShown());
-    QVERIFY(fixture.window->getNavigator()->goBack(tab));
-    fixture.settle();
-    QTRY_VERIFY(tab->isViewShown());
     delete menu;
 
-    for (const QString& name : { QStringLiteral("insertPages"), QStringLiteral("movePages") })
+    // A page tool of the menu opens its route /document/{id}/tool/{toolId} (newapp_navigation.md,
+    // plan of phase 1 step 3; phase 1 showed Page Not Found): the page of the tool in the tab of the
+    // document, the view in the tool mode of its shell, Back returns to the view. Every tool is
+    // given the pages of the menu (tools.md 5.1 E2, 9.6): Extract to New Document and Remove Pages
+    // work on exactly them, Insert Pages reads them for Replace (K36), Manage Pages runs over this
+    // document (plan 3b, QB1 B, QB7 b)
+    const std::vector<pdf::PDFInteger> menuPages({ 1, 2 });
+    const std::pair<const char*, const char*> actionTools[] = { { "extractPages", "pages.extract" }, { "insertPages", "pages.insert" },
+                                                                { "movePages", "pages.manage" }, { "removePages", "pages.remove" } };
+    for (const auto& [actionName, toolIdText] : actionTools)
     {
+        const QString toolId = QString::fromLatin1(toolIdText);
+        thumbnails->selectPages(menuPages);
+        fixture.settle();
         QPointer<QMenu> toolMenu = thumbnails->createContextMenu();
-        PanelsTestHelper::findAction(toolMenu, name)->trigger();
+        PanelsTestHelper::findAction(toolMenu, QString::fromLatin1(actionName))->trigger();
         fixture.settle();
-        QVERIFY(!tab->isViewShown());
-        fixture.window->getNavigator()->goBack(tab);
-        fixture.settle();
-        QTRY_VERIFY(tab->isViewShown());
-        delete toolMenu;
-    }
 
-    // Remove Pages has its tool (package 2A): the view in the tool mode of pages.remove, Back leaves it
-    {
-        QPointer<QMenu> toolMenu = thumbnails->createContextMenu();
-        PanelsTestHelper::findAction(toolMenu, QStringLiteral("removePages"))->trigger();
-        fixture.settle();
-        pdf::PDFAppToolDocumentPage* toolPage = qobject_cast<pdf::PDFAppToolDocumentPage*>(tab->getPage());
-        QVERIFY(toolPage);
-        QCOMPARE(toolPage->getToolId(), QStringLiteral("pages.remove"));
-        QVERIFY(toolPage->getShell());
+        // The view stays shown: the tool runs in it (its tool mode), not in a page instead of it
+        QVERIFY(tab->isViewShown());
+        QPointer<pdf::PDFAppToolDocumentPage> toolPage = qobject_cast<pdf::PDFAppToolDocumentPage*>(tab->getPage());
+        QVERIFY2(toolPage, actionName);
+        QCOMPARE(toolPage->getToolId(), toolId);
+        QVERIFY(tab->getHistory().getCurrentEntry());
+        QCOMPARE(tab->getHistory().getCurrentEntry()->route, pdf::PDFAppRoutes::documentTool(tab->getDocumentId(), toolId));
+        pdf::PDFDocumentToolShell* shell = toolPage->getShell();
+        QVERIFY2(shell, actionName);
+        QCOMPARE(shell->getState(), pdf::PDFDocumentToolShell::State::Editing);
         QVERIFY(tab->getView()->isToolModeActive());
-        fixture.window->getNavigator()->goBack(tab);
+        QVERIFY(shell->getHost());
+        QCOMPARE(shell->getHost()->getSelectedPages(), menuPages);
+        QCOMPARE(shell->getHost()->getExplicitlySelectedPages(), menuPages);
+
+        pdf::PDFDocumentToolGUI* gui = shell->getGUI();
+        if (toolId == QLatin1String("pages.extract") || toolId == QLatin1String("pages.remove"))
+        {
+            pdf::PDFAppPageMarkingToolGUI* markingGui = qobject_cast<pdf::PDFAppPageMarkingToolGUI*>(gui);
+            QVERIFY2(markingGui, actionName);
+            QCOMPARE(markingGui->getTargetPages(), menuPages);
+            QCOMPARE(bool(qobject_cast<pdf::PDFAppExtractToolGUI*>(gui)), toolId == QLatin1String("pages.extract"));
+        }
+        else if (toolId == QLatin1String("pages.manage"))
+        {
+            QVERIFY(qobject_cast<pdf::PDFAppManageToolGUI*>(gui));
+            QCOMPARE(shell->getModel()->getValue(QString::fromLatin1(pdf::PDFDocumentToolManage::PARAMETER_OUTPUT)).toString(),
+                     QString::fromLatin1(pdf::PDFDocumentToolManage::OUTPUT_DOCUMENT));
+        }
+        else
+        {
+            QVERIFY(qobject_cast<pdf::PDFAppInsertToolGUIBase*>(gui));
+        }
+
+        QVERIFY(fixture.window->getNavigator()->goBack(tab));
         fixture.settle();
         QTRY_VERIFY(tab->isViewShown());
+        QTRY_VERIFY(!toolPage);
         QVERIFY(!qobject_cast<pdf::PDFAppToolDocumentPage*>(tab->getPage()));
         QVERIFY(!tab->getView()->isToolModeActive());
+        QCOMPARE(tab->getHistory().getCurrentEntry()->route.getSegments(), QStringList({ QStringLiteral("document"), tab->getDocumentId() }));
         delete toolMenu;
     }
 

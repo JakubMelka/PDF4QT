@@ -209,7 +209,7 @@ int PDFAppDocumentFileWriter::getSignatureCount(const PDFDocument* document)
 
 int PDFAppDocumentFileWriter::getIncrementalSignatureCount(const PDFAppDocumentSnapshot& snapshot)
 {
-    if (snapshot.originalData.isEmpty() || snapshot.isPagedXFA || snapshot.isWholeFileRewritten || snapshot.isSignedRevisionGone ||
+    if (snapshot.originalData.isEmpty() || snapshot.isOriginalDataWritten() || snapshot.isWholeFileRewritten || snapshot.isSignedRevisionGone ||
         snapshot.restoration != PDFAppDocumentRestoration::None)
     {
         return 0;
@@ -219,7 +219,8 @@ int PDFAppDocumentFileWriter::getIncrementalSignatureCount(const PDFAppDocumentS
 
 bool PDFAppDocumentFileWriter::isOnlyCopyWritable(const PDFAppDocumentSnapshot& snapshot)
 {
-    if (snapshot.isPagedXFA)
+    // The original bytes of the file are written: nothing of the signed bytes changes
+    if (snapshot.isOriginalDataWritten())
     {
         return false;
     }
@@ -509,8 +510,10 @@ void PDFAppDocumentSaver::writeFile(const QString& filePath, bool isIncremental)
     request.document = snapshot.document;
     request.originalData = snapshot.originalData;
     request.filePath = filePath;
-    request.isIncremental = isIncremental && !snapshot.isPagedXFA;
-    request.isOriginalData = snapshot.isPagedXFA;
+    // A display version of an XFA form and a document with encrypted attachments (Q5.9 c, owner
+    // 2026-11-15) are written as the original file, byte for byte
+    request.isIncremental = isIncremental && !snapshot.isOriginalDataWritten();
+    request.isOriginalData = snapshot.isOriginalDataWritten();
     request.version = snapshot.version;
     request.markSourceFilePath = document->getOriginFilePath();
     startWriter(std::move(request), filePath);

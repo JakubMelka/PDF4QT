@@ -150,7 +150,7 @@ public:
     /// Set custom layout. Custom layout provides a way how to define
     /// custom page layout, including blocks. Block indices must be properly defined,
     /// that means block index must start by zero and must be continuous. If this
-    /// criteria are not fulfilled, behaviour is undefined.
+    /// criteria are not fulfilled, behavior is undefined.
     void setCustomLayout(LayoutItems customLayoutItems);
 
     /// Returns custom layout

@@ -323,7 +323,7 @@ private:
         std::unique_ptr<QFile> file;
         QString temporaryPath;
         qint64 received = 0;
-        bool cancelled = false;
+        bool canceled = false;
         bool writeFailed = false;   ///< Data cannot be written (full disk), reported as such and not as a wrong checksum
         bool verifying = false;     ///< Hash, verification and installation run in the worker thread
     };

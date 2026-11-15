@@ -140,7 +140,7 @@ PDFAppAutoRefreshReader::Result PDFAppAutoRefreshReader::read(QString filePath, 
                 break;
             }
 
-            case PDFDocumentReader::Result::Cancelled:
+            case PDFDocumentReader::Result::Canceled:
                 // The reader has asked for a password
                 result.data = std::move(data);
                 result.outcome = Outcome::PasswordRequired;

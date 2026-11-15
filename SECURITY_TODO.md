@@ -265,3 +265,52 @@ Each entry: where, the attack, the proposed fix. An entry is never removed, also
 - **Where:** `PDFAppMcpManageAction::prepare` (`Pdf4QtLibApp/sources/mcp/pdfappmcpmanageaction.cpp`: `QFile::read` of `assemblyPath` and `PDFDocumentAssemblyFile::read`), called by the bridge of the catalog tools before the job; found by package M4 of step 3b of phase 2, read from the code, not measured.
 - **Attack:** an assistant (or a prompt injected into a document it reads) calls `pages.manage` with `assemblyPath` of a large file - up to the limit of 256 MB, or a slow local disk, a removable drive or a path that blocks - repeatedly: the window of PDF4QT does not respond while the file is read and parsed (JSON of up to 256 MB, depth 16), the user cannot cancel it, and other assistants and the GUI wait. With the permission Open and save files set to Allow there is no question to the user first.
 - **Fix:** read and parse the assembly file in the worker of the job (as `PDFAppAssemblyLoader` does with one `QtConcurrent::run`, cancelable by the call), or a much lower limit of the file for MCP; the rest of `prepare` (the documents of the window) stays in the thread of the user interface.
+
+### 41. A partly encrypted document is accepted without a warning (PDFex, direct exfiltration)
+
+- **Where:** the reading of an encrypted document (`PDFSecurityHandler::createSecurityHandler`, the crypt filters of `pdfsecurityhandler.cpp`) and the actions of the document (submit form, URI, launch, JavaScript); 6.9 of the plan of step 5 of phase 2 (`GUI_overhaul/newapp_tools_step5.md`), confirmed by its review RS5PLAN (R5-24), read from the code.
+- **Attack:** the encryption of PDF has no integrity. An attacker, who has the encrypted file but not the password, sets `/CF`, `/StmF` or `/StrF` to `/Identity` (revision 6 does not protect them by `/Perms`) or adds an unencrypted object with an action (a form submitted to his server, a URI with the content). The owner opens the document with the password, PDF4QT decrypts it and the action sends the decrypted content out - without any warning that a part of the document was not encrypted.
+- **Fix:** an indicator "partly encrypted" in the document properties and the information bar, when an object or a crypt filter of an encrypted document is not encrypted (except what ISO 32000-2, 7.6.2 never encrypts and the attachments-only encryption); no automatic action and a confirmation of a submit or a URI for such a document.
+
+### 42. The content of an encrypted document can be changed without the key (malleability of AES-CBC)
+
+- **Where:** the decryption of strings and streams (`PDFStandardOrPublicSecurityHandler::decryptData`, AES-CBC of AESV2 / AESV3, RC4 of V2); 6.9 of the plan of step 5 of phase 2, confirmed by R5-24, read from the code.
+- **Attack:** the format has no message authentication. An attacker, who knows a part of the plaintext (a typical page content, a known form), changes the ciphertext so the decrypted blocks become his chosen text (CBC gadgets): a link or a form target to his server is inserted into the encrypted content, and the owner, who opens it by the password, sees and uses it.
+- **Fix:** a limit of the format, not of PDF4QT. The application should confirm a submit of a form and the opening of a URI of an encrypted document (the same rule as item 41); verify today's behavior of the actions of an encrypted document.
+
+### 43. The passwords of PdfTool are visible on the command line
+
+- **Where:** PdfTool `--pswd` (every command reading an encrypted document), `encrypt --enc-user-password` and `--enc-owner-password` (`PdfTool/pdftoolabstractapplication.cpp`, `pdftoolencrypt.cpp`); 6.9 of the plan of step 5 of phase 2, read from the code.
+- **Attack:** a password given as an argument is in the list of the processes of the computer (readable by other users on many systems) and in the history of the shell; a script stores it in a file. It is the old state of the tool, similar to item 17.
+- **Fix:** an option `--pswd-stdin` (and the same for the passwords of `encrypt`) reading the password from the standard input without an echo; the documentation recommends it.
+
+### 44. The old dialog of a new certificate offers RSA 1024
+
+- **Where:** `Pdf4QtLibGui/pdfcreatecertificatedialog.cpp` (the length of the key of the old Editor, from 1024 bits); the dialog Create a self-signed certificate of the new application offers it too (Figma 436:10427, "Weak · only for old systems"); 6.9 of the plan of step 5 of phase 2, read from the code.
+- **Attack:** a key of 1024 bits is below the recommended minimum (NIST SP 800-131A: 2048 bits since 2014); a document encrypted for such a certificate, or signed by it, is protected only by a key, which a well-funded attacker can factor.
+- **Fix:** 2048 bits as the default of the new dialog (step 5, package P3); in step 6 (Manage Certificates) 1024 bits only with the warning or removed; the old dialog goes with the old applications.
+
+### 45. An assistant can re-encrypt a document by a weaker algorithm (downgrade)
+
+- **Where:** the MCP actions `protect.password` and `protect.permissions` with the result `keep` / `overwrite` (`Pdf4QtLibApp/sources/mcp/pdfappmcpcatalogtools.cpp`, the confirmation `PDFAppMcpSecretConfirmation`); 6.9 of the plan of step 5 of phase 2.
+- **Attack:** an assistant (or a prompt injected into a document it reads) asks to protect a document encrypted by AES-256 again with RC4 128-bit and to keep the result in the tab or overwrite the file: the document is then protected by a deprecated algorithm.
+- **Measure of step 5:** the user types the password in the confirmation of PDF4QT, which shows the algorithm with the warning of a weaker one than the current; AES-256 is the default also for MCP. The item stays for the security check of documents (a document encrypted by RC4 or by AES-128 is reported as weakly protected).
+
+### 46. The database keeps old values in its free pages (no `secure_delete`)
+
+- **Where:** the SQLite database of the new application (`Pdf4QtLibApp/sources/storage/pdfdatabase.cpp`, the pragmas of a connection); R5-22 of the plan of step 5 of phase 2, read from the code.
+- **Attack:** a deleted or replaced row stays in the free pages of the file and in the `-wal` file until they are reused: the thumbnail of the first page of a file, which was then replaced by its encrypted version, the paths of the recent files after Clear history, the text of a removed note. Somebody, who reads the database file (a backup, a stolen disk), recovers them.
+- **Fix:** `PRAGMA secure_delete = ON` (or `FAST`) for every connection, and a checkpoint with truncation of the WAL after a clearing of the history; measure the cost of the writes.
+
+### 47. The permissions of a document encrypted for a certificate are taken from its unprotected `/P`
+
+- **Where:** `PDFPublicKeySecurityHandler::authenticate` (`pdfsecurityhandler.cpp`): when the PKCS#7 envelope of the recipient has no 4 bytes of the permissions, the permissions are read from `/P` of the encryption dictionary; R5-24 of the plan of step 5 of phase 2, read from the code.
+- **Attack:** `/P` of the encryption dictionary is not protected by the key of the file. An attacker changes it in a document encrypted for a certificate (or writes an envelope without the permissions) and the holder of the certificate gets other permissions than the author gave - more, when the author restricted the document.
+- **Fix:** an envelope without the 4 bytes of the permissions (ISO 32000-2, 7.6.5.3: the 20 bytes of the seed and the 4 bytes of the permissions) gives no permission ("nothing allowed"), never the permissions of `/P`.
+- **Status:** fixed in phase 2, step 5 by P2S5P1A (2026-11-14): an envelope without the permission bytes allows nothing, and bit 2 (change of the encryption) comes only from the envelope of the authorized recipient (`PDFSecurityHandler::isEncryptionChangeAllowed`); tests `UnitTestsSecurityHandler` (`certificateEnvelope:seed-only`, `certificatePermissions`, a hostile `/P -1` grants nothing). The item stays for the security check of documents.
+
+### 48. The open password of a document stays in the memory while its tab is open
+
+- **Where:** `PDFAppDocumentLoader::m_password` (`Pdf4QtLibApp/sources/document/pdfappdocumentloader.cpp`, `submitPassword`, `unlockAttachments`, `reload`): the password, which opened the document, is kept as a `QString` for the automatic reload of a file changed on the disk, until the tab is closed (phase 1); found by the review RS5SEC of step 5 of phase 2 (2026-11-14), read from the code. Plan of step 5, 6.1 (S5.1) keeps a password only for a run.
+- **Attack:** a memory dump of the process (a crash dump sent to the system, a hibernation file, a debugger or another program of the same user) recovers the password of every encrypted document open in PDF4QT - the password itself, which the user may reuse elsewhere, not only the key of the one file.
+- **Fix:** keep no password for the reload: ask for it again (the password screen of the reload), or keep only what reopens the same file - the file encryption key of the handler is enough for a file of the same `/Encrypt` and `/ID`, and it is already in the memory for the reading; overwrite the string (`PDFSecureMemory::clear`) on every path, which drops it.

@@ -32,6 +32,8 @@ find_package(unofficial-sqlite3 CONFIG REQUIRED)
 set(PDF4QT_LIBAPP_STORAGE_SOURCES
     sources/storage/pdfannotationstylerepository.cpp
     sources/storage/pdfannotationstylerepository.h
+    sources/storage/pdfcertificatecacherepository.cpp
+    sources/storage/pdfcertificatecacherepository.h
     sources/storage/pdfdatabase.cpp
     sources/storage/pdfdatabase.h
     sources/storage/pdfdatabasenotifier.cpp

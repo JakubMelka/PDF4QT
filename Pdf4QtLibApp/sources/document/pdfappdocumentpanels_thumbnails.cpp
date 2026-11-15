@@ -352,9 +352,9 @@ public:
 
     }
 
-    virtual bool isOperationCancelled() const override
+    virtual bool isOperationCanceled() const override
     {
-        return m_job->isOperationCancelled() || (m_isPageCanceled && m_isPageCanceled->load(std::memory_order_relaxed));
+        return m_job->isOperationCanceled() || (m_isPageCanceled && m_isPageCanceled->load(std::memory_order_relaxed));
     }
 
 private:
@@ -380,7 +380,7 @@ public:
     /// documents and runs the tools (a waiting worker gives its thread back to it)
     QThreadPool* pool = QThreadPool::globalInstance();
 
-    virtual bool isOperationCancelled() const override
+    virtual bool isOperationCanceled() const override
     {
         return m_isCanceled.load(std::memory_order_relaxed);
     }
@@ -418,7 +418,7 @@ public:
             m_queue.push_back(std::move(page));
         }
 
-        if (m_queue.empty() || isOperationCancelled())
+        if (m_queue.empty() || isOperationCanceled())
         {
             return 0;
         }
@@ -455,7 +455,7 @@ public:
             PDFAppThumbnailRenderPage page;
             {
                 QMutexLocker locker(&m_mutex);
-                if (m_queue.empty() && !isOperationCancelled())
+                if (m_queue.empty() && !isOperationCanceled())
                 {
                     // A waiting worker is no task of the pool: the other tasks (the reading,
                     // the saving, a run of a tool) get its thread meanwhile, it is taken
@@ -468,7 +468,7 @@ public:
                     --m_idleCount;
                 }
 
-                if (m_queue.empty() || isOperationCancelled())
+                if (m_queue.empty() || isOperationCanceled())
                 {
                     --m_workerCount;
                     break;
@@ -481,7 +481,7 @@ public:
             }
 
             const PDFAppThumbnailPageControl control(this, page.isCanceled.get());
-            if (!control.isOperationCancelled())
+            if (!control.isOperationCanceled())
             {
                 if (page.source.document)
                 {
@@ -499,7 +499,7 @@ public:
                 --m_runningCount;
 
                 // A page, whose row has scrolled away, gives no picture (its request is forgotten)
-                if (!control.isOperationCancelled())
+                if (!control.isOperationCanceled())
                 {
                     m_results.push_back(std::move(page));
                     isNotifyNeeded = !m_isNotifyQueued;

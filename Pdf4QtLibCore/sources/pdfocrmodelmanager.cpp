@@ -1763,7 +1763,7 @@ void PDFOCRModelManager::onDownloadReadyRead(Download* download)
     // Refuse files larger than declared (LANG-11)
     if (download->entry.size > 0 && download->received > download->entry.size)
     {
-        download->cancelled = true;
+        download->canceled = true;
         download->reply->abort();
         return;
     }
@@ -1771,7 +1771,7 @@ void PDFOCRModelManager::onDownloadReadyRead(Download* download)
     if (download->file->write(data) != data.size())
     {
         download->writeFailed = true;
-        download->cancelled = true;
+        download->canceled = true;
         download->reply->abort();
     }
 }
@@ -1792,7 +1792,7 @@ void PDFOCRModelManager::onDownloadFinished(Download* downloadPointer)
     reply->deleteLater();
 
     // Remaining data
-    if (!download->cancelled && download->file)
+    if (!download->canceled && download->file)
     {
         const QByteArray data = reply->readAll();
         download->received += data.size();
@@ -1819,10 +1819,10 @@ void PDFOCRModelManager::onDownloadFinished(Download* downloadPointer)
         return;
     }
 
-    if (download->cancelled)
+    if (download->canceled)
     {
-        const bool userCancelled = reply->error() == QNetworkReply::OperationCanceledError && download->received <= download->entry.size;
-        finishDownload(std::move(download), false, userCancelled ? PDFTranslationContext::tr("Download was cancelled.") : PDFTranslationContext::tr("Downloaded file is larger than declared in the catalog."));
+        const bool userCanceled = reply->error() == QNetworkReply::OperationCanceledError && download->received <= download->entry.size;
+        finishDownload(std::move(download), false, userCanceled ? PDFTranslationContext::tr("Download was canceled.") : PDFTranslationContext::tr("Downloaded file is larger than declared in the catalog."));
         return;
     }
 
@@ -2148,7 +2148,7 @@ void PDFOCRModelManager::cancelDownload(const QString& modelId)
     {
         m_downloadQueue.erase(queueIt);
         refresh();
-        Q_EMIT downloadFinished(modelId, false, PDFTranslationContext::tr("Download was cancelled."));
+        Q_EMIT downloadFinished(modelId, false, PDFTranslationContext::tr("Download was canceled."));
         Q_EMIT downloadQueueChanged();
         return;
     }
@@ -2157,7 +2157,7 @@ void PDFOCRModelManager::cancelDownload(const QString& modelId)
     {
         if (download->modelId == modelId && download->reply)
         {
-            download->cancelled = true;
+            download->canceled = true;
             download->reply->abort();
             return;
         }

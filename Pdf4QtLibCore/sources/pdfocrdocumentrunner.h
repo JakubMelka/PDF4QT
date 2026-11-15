@@ -150,11 +150,11 @@ public:
         QString errorMessage;
         PDFOCRErrorCode errorCode = PDFOCRErrorCode::None;
 
-        bool cancelled = false;
+        bool canceled = false;
 
-        bool isSuccess() const { return errorMessage.isEmpty() && !cancelled; }
+        bool isSuccess() const { return errorMessage.isEmpty() && !canceled; }
 
-        /// Returns the number of the pages in the state Error or Cancelled
+        /// Returns the number of the pages in the state Error or Canceled
         int getFailedPageCount() const;
 
         /// Returns the number of the pages with a result (recognized or taken from the project)
@@ -265,7 +265,7 @@ public:
             Permissions,    ///< The document cannot be written (permissions, certification)
             Project,        ///< The project cannot be read
             Configuration,  ///< The configuration or the page selection is invalid
-            Recognition,    ///< Critical error of the recognition, or it was cancelled
+            Recognition,    ///< Critical error of the recognition, or it was canceled
             PageErrors,     ///< Some pages failed and allowPageErrors is not set
             NothingToWrite, ///< No page has a text, which can be written
             Writing,        ///< The document, an export or the project was not written

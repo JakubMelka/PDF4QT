@@ -522,13 +522,13 @@ public:
     virtual bool isContentSuppressedByOC(PDFObjectReference ocgOrOcmd);
 
     /// Sets operation control object which can decide, if operation should
-    /// be cancelled. If this is the case, page content processor stops
+    /// be canceled. If this is the case, page content processor stops
     /// processing page contents.
     /// \param newOperationControl Operation control object
     void setOperationControl(const PDFOperationControl* newOperationControl);
 
-    /// Returns true, if page content processing is being cancelled
-    bool isProcessingCancelled() const;
+    /// Returns true, if page content processing is being canceled
+    bool isProcessingCanceled() const;
 
     /// Returns true, if we are in a text processing
     bool isTextProcessing() const;

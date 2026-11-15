@@ -53,6 +53,11 @@ std::vector<PDFDatabaseMigration> PDFDatabaseSchema::getMigrations()
     version2.sql = createVersion2();
     migrations.push_back(std::move(version2));
 
+    PDFDatabaseMigration version3;
+    version3.version = 3;
+    version3.sql = createVersion3();
+    migrations.push_back(std::move(version3));
+
     return migrations;
 }
 
@@ -87,7 +92,7 @@ std::vector<PDFDatabaseTableInfo> PDFDatabaseSchema::getTables()
 {
     // Every version with new tables (a migration, which adds a table, adds its version here)
     std::vector<PDFDatabaseTableInfo> result;
-    for (const int version : { 1, 2 })
+    for (const int version : { 1, 2, 3 })
     {
         std::vector<PDFDatabaseTableInfo> tables = getTables(version);
         result.insert(result.end(), std::make_move_iterator(tables.begin()), std::make_move_iterator(tables.end()));
@@ -116,6 +121,14 @@ std::vector<PDFDatabaseTableInfo> PDFDatabaseSchema::getTables(int version)
             result.push_back(std::move(info));
         }
         return result;
+    }
+
+    if (version == 3)
+    {
+        PDFDatabaseTableInfo info;
+        info.name = QStringLiteral("certificate_cache");
+        info.keyExpression = QStringLiteral("%1.path");
+        return { info };
     }
 
     if (version != 1)
@@ -397,6 +410,37 @@ CREATE INDEX recent_assembly_last_opened ON recent_assembly(last_opened);
 )SQL";
 
     for (const PDFDatabaseTableInfo& table : getTables(2))
+    {
+        sql += createTriggers(table, nullptr);
+    }
+
+    return sql;
+}
+
+QByteArray PDFDatabaseSchema::createVersion3()
+{
+    // Encrypt with Certificate (plan of step 5 of phase 2, owner answer Q5.11): the public
+    // certificate (DER, not secret) of a .pfx file of the user, stored when the file is created,
+    // imported or unlocked the first time, so the list of 433:3049 shows its name, organization,
+    // e-mail and validity before the password is typed (a PKCS#12 encrypts its certificate by the
+    // password). Never a private key, never a password (PDFCertificateCacheRepository refuses
+    // anything, which is not one X.509 certificate). fingerprint = SHA-256 of data, lower case
+    // hexadecimal; file_size and file_mtime (ms since the epoch, UTC) of the .pfx file, when the
+    // row was written (NULL = unknown) - a changed file is not described by an old row. Times are
+    // milliseconds since the epoch (UTC).
+    QByteArray sql = R"SQL(
+CREATE TABLE certificate_cache(
+    path TEXT PRIMARY KEY NOT NULL,
+    fingerprint TEXT NOT NULL,
+    data BLOB NOT NULL,
+    file_size INTEGER,
+    file_mtime INTEGER,
+    added INTEGER NOT NULL,
+    last_used INTEGER NOT NULL);
+CREATE INDEX certificate_cache_fingerprint ON certificate_cache(fingerprint);
+)SQL";
+
+    for (const PDFDatabaseTableInfo& table : getTables(3))
     {
         sql += createTriggers(table, nullptr);
     }

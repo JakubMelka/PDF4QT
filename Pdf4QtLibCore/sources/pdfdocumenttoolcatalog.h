@@ -357,6 +357,16 @@ public:
     /// This document changes the open document).
     bool isPageChange() const;
 
+    /// The run changes the security of the document - its encryption, passwords and permissions
+    /// (Protect with Password, Restrict Permissions, Encrypt with Certificate, Remove Password; plan
+    /// of step 5 of phase 2, 4.6, R5-4). ISO 32000-2, 7.6.4.1: only the owner changes them, so the
+    /// bits of getRequiredPermissions are not enough - a document opened by a user password, which
+    /// restricts nothing, needs the owner password too. The application asks it by
+    /// PDFAppPermissionAction::ChangeSecurity (Pdf4QtLibApp); the core tool checks the authorization
+    /// of the handler in its validation. Its mask (getRequiredPermissions) is every permission of
+    /// Table 22, so a check by the bits alone never allows less.
+    bool isSecurityChange() const;
+
     /// External dependency (default None)
     PDFDocumentToolExternalDependency getExternalDependency() const;
 

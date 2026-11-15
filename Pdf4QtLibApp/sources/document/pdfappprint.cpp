@@ -490,7 +490,7 @@ void PDFAppPrintRenderer::renderPage(QPainter* painter, PDFInteger pageIndex, co
 
     PDFPrecompiledPage compiledPage;
     renderer.compile(&compiledPage, pageIndex);
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return;
     }

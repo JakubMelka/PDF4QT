@@ -157,7 +157,7 @@ private:
     class CanceledControl : public pdf::PDFOperationControl
     {
     public:
-        virtual bool isOperationCancelled() const override { return true; }
+        virtual bool isOperationCanceled() const override { return true; }
     };
 
     /// onlyOutputs is panel-only (K4.11, R4-20: MCP has no Retry): it is not in the schema of MCP

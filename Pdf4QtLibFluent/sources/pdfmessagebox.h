@@ -128,6 +128,12 @@ public:
     QString getBadgeIconName() const;
     void setBadgeIconName(const QString& iconName);
 
+    /// Kind of the badge (its colors and its accessible name): the kind given to the constructor,
+    /// changed while the message box is shown (the badge of a dialog of a password turns Critical
+    /// after a wrong password, 430:2969); the icon of setBadgeIconName stays
+    PDFThemeIcons::Badge getBadge() const;
+    void setBadge(PDFThemeIcons::Badge badge);
+
     /// Adds a part of the content below the head and the details, above the
     /// buttons; the widget becomes a child of the message box. Null is ignored.
     void addContent(QWidget* widget);

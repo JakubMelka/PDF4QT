@@ -113,7 +113,7 @@ public:
         m_timer.start();
     }
 
-    virtual bool isOperationCancelled() const override
+    virtual bool isOperationCanceled() const override
     {
         return isStopped() || isOverBudget();
     }
@@ -180,7 +180,7 @@ public:
     static bool isStopped(const PDFOperationControl* control)
     {
         const PDFAppThumbnailerControl* thumbnailControl = dynamic_cast<const PDFAppThumbnailerControl*>(control);
-        return thumbnailControl ? thumbnailControl->isStopped() : PDFOperationControl::isOperationCancelled(control);
+        return thumbnailControl ? thumbnailControl->isStopped() : PDFOperationControl::isOperationCanceled(control);
     }
 
     /// Size of the parts, in which a file is read (the cancellation is checked between them)
@@ -213,7 +213,7 @@ public:
         data->reserve(qsizetype(size));
         while (true)
         {
-            if (PDFOperationControl::isOperationCancelled(control))
+            if (PDFOperationControl::isOperationCanceled(control))
             {
                 data->clear();
                 return ReadResult::Canceled;
@@ -754,7 +754,7 @@ PDFAppThumbnailResult PDFAppThumbnailerHelper::createThumbnail(const QString& pa
         return PDFAppThumbnailerHelper::failed(fileModified);
     }
 
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return PDFAppThumbnailerHelper::canceled();
     }
@@ -789,7 +789,7 @@ PDFAppThumbnailResult PDFAppThumbnailerHelper::createThumbnail(const QString& pa
         case PDFDocumentReader::Result::OK:
             break;
 
-        case PDFDocumentReader::Result::Cancelled:
+        case PDFDocumentReader::Result::Canceled:
         {
             // The only cancellation of the reader is the refused password
             result.outcome = PDFAppThumbnailResult::Outcome::Done;
@@ -812,7 +812,7 @@ PDFAppThumbnailResult PDFAppThumbnailerHelper::createThumbnail(const QString& pa
 
     // The time budget covers the parsing too: a document, which needs it whole for
     // the parsing, is not rendered
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return PDFAppThumbnailerHelper::failed(fileModified, storedPageCount);
     }
@@ -898,7 +898,7 @@ QImage PDFAppThumbnailer::renderFirstPage(const PDFDocument* document, int maxim
 
     PDFPrecompiledPage compiledPage;
     renderer.compile(&compiledPage, 0);
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return QImage();
     }
@@ -917,7 +917,7 @@ QImage PDFAppThumbnailer::renderFirstPage(const PDFDocument* document, int maxim
     compiledPage.draw(&painter, page->getCropBox(), pageToImage, features, 1.0);
     painter.end();
 
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return QImage();
     }

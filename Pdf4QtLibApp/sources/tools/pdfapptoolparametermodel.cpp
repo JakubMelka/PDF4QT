@@ -119,6 +119,11 @@ void PDFAppToolParameterModel::loadLastValues()
     }
 }
 
+QString PDFAppToolParameterModel::getSecretRefusalText()
+{
+    return tr("A password is never kept by the tool; it is given only to the run.");
+}
+
 QString PDFAppToolParameterModel::setValue(const QString& name, const QVariant& value)
 {
     QVariantMap values;
@@ -140,6 +145,12 @@ QString PDFAppToolParameterModel::setValues(const QVariantMap& values, const QSt
         if (!definition)
         {
             return tr("Unknown parameter.");
+        }
+
+        // S5.2: a password never enters the values, so never a step of Undo / Redo either
+        if (definition->getType() == PDFDocumentToolParameterType::Secret)
+        {
+            return getSecretRefusalText();
         }
 
         QVariant normalizedValue;
@@ -184,6 +195,12 @@ QString PDFAppToolParameterModel::setFollowingValue(const QString& name, const Q
         return tr("Unknown parameter.");
     }
 
+    // S5.2: the steps keep a following value, so a password never follows
+    if (definition->getType() == PDFDocumentToolParameterType::Secret)
+    {
+        return getSecretRefusalText();
+    }
+
     QVariant normalizedValue;
     const QString error = definition->normalize(value, &normalizedValue);
     if (error.isEmpty() && normalizedValue != m_values.value(name))
@@ -200,9 +217,10 @@ QVariantMap PDFAppToolParameterModel::mergeMappedValues(const QVariantMap& value
     QVariantMap result = values;
     for (auto it = mapped.cbegin(); it != mapped.cend(); ++it)
     {
+        // A mapped password is left out as an invalid value (S5.2: never in the values or the steps)
         const PDFDocumentToolParameterDefinition* definition = PDFDocumentToolParameters::find(m_definitions, it.key());
         QVariant normalizedValue;
-        if (definition && definition->normalize(it.value(), &normalizedValue).isEmpty())
+        if (definition && definition->getType() != PDFDocumentToolParameterType::Secret && definition->normalize(it.value(), &normalizedValue).isEmpty())
         {
             result.insert(it.key(), normalizedValue);
         }

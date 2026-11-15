@@ -1199,7 +1199,7 @@ void PDFScanPreparationDialog::startAnalysis()
         pdf::PDFOCRPagePreparer preparer(document, fontCache, iccProfileCache, cms, activity, meshQualitySettings, rendererEngine);
         for (pdf::PDFInteger page : order)
         {
-            if (token->isOperationCancelled())
+            if (token->isOperationCanceled())
             {
                 break;
             }
@@ -1214,7 +1214,7 @@ void PDFScanPreparationDialog::startAnalysis()
                 analysis.pageIndex = page;
             }
 
-            if (token->isOperationCancelled())
+            if (token->isOperationCanceled())
             {
                 break;
             }
@@ -1424,7 +1424,7 @@ void PDFScanPreparationDialog::startResult()
             Q_UNUSED(fontCache);
 
             pdf::PDFOCRPagePreparer preparer(resultDocument, &resultFontCache, &resultIccProfileCache, cms, &resultActivity, meshQualitySettings, rendererEngine);
-            for (size_t i = 0; i < outputCount && !token->isOperationCancelled(); ++i)
+            for (size_t i = 0; i < outputCount && !token->isOperationCanceled(); ++i)
             {
                 images.push_back(preparer.rasterize(currentPage + pdf::PDFInteger(i), 72.0, { }, pdf::PDFOCRPagePreparer::DefaultMaximumPixels, token.get()).image);
             }
@@ -1435,7 +1435,7 @@ void PDFScanPreparationDialog::startResult()
             message = tr("The result cannot be rendered.");
         }
 
-        if (!token->isOperationCancelled())
+        if (!token->isOperationCanceled())
         {
             QMetaObject::invokeMethod(this, [this, generation, images, message]()
             {

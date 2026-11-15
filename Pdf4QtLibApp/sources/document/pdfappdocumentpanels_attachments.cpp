@@ -23,7 +23,9 @@
 #include "pdfappdocumentpanels_attachments.h"
 #include "pdfapplocale.h"
 #include "pdfappdocument.h"
+#include "pdfappdocumentloader.h"
 #include "pdfappdocumentpanels_common.h"
+#include "pdfapppagelayout.h"
 #include "pdfappdocumentstatusbar.h"
 #include "pdfappdocumentview.h"
 #include "pdfappmainwindow.h"
@@ -615,6 +617,30 @@ PDFAppAttachmentsPanel::PDFAppAttachmentsPanel(QWidget* parent) :
     m_delegate = new PDFAppAttachmentDelegate(m_view);
     m_view->setModel(m_model);
     m_view->setItemDelegate(m_delegate);
+
+    // Q5.9 c, R5-8: the attachments of a document opened without their password (no frame -
+    // Q17: a card of the panel with the lock, the title, the text and Enter Password…)
+    QFrame* lockedCard = new QFrame(this);
+    lockedCard->setObjectName(QStringLiteral("attachmentsLocked"));
+    QVBoxLayout* lockedLayout = new QVBoxLayout(lockedCard);
+    lockedLayout->setContentsMargins(16, 16, 16, 16);
+    lockedLayout->setSpacing(8);
+    m_lockedTitle = PDFAppPageWidgets::createLabel(QString(), QFont::DemiBold, 13, PDFThemeColors::TextPrimary, lockedCard);
+    m_lockedTitle->setObjectName(QStringLiteral("attachmentsLockedTitle"));
+    m_lockedTitle->setWordWrap(true);
+    lockedLayout->addWidget(m_lockedTitle);
+    m_lockedText = PDFAppPageWidgets::createLabel(QString(), QFont::Normal, 12, PDFThemeColors::TextSecondary, lockedCard);
+    m_lockedText->setObjectName(QStringLiteral("attachmentsLockedText"));
+    m_lockedText->setWordWrap(true);
+    lockedLayout->addWidget(m_lockedText);
+    m_unlockButton = PDFAppPageWidgets::createButton(QString(), QStringLiteral("lock"), false, lockedCard);
+    m_unlockButton->setObjectName(QStringLiteral("attachmentsUnlockButton"));
+    connect(m_unlockButton.data(), &QPushButton::clicked, this, &PDFAppAttachmentsPanel::openUnlockDialog);
+    lockedLayout->addWidget(m_unlockButton, 0, Qt::AlignLeading);
+    lockedLayout->addStretch(1);
+    lockedCard->hide();
+    m_lockedCard = lockedCard;
+    layout->addWidget(lockedCard, 1);
     layout->addWidget(m_view, 1);
 
     // A click (Enter) opens a PDF attachment, another one is saved (O18)
@@ -697,10 +723,66 @@ void PDFAppAttachmentsPanel::onDocumentDestroyed()
     }
 }
 
+bool PDFAppAttachmentsPanel::isAttachmentsLocked() const
+{
+    const PDFAppDocument* document = getDocument();
+    const PDFDocumentPointer pointer = document && document->isReady() ? document->getDocument() : PDFDocumentPointer();
+    const PDFSecurityHandler* securityHandler = pointer ? pointer->getStorage().getSecurityHandler() : nullptr;
+    return securityHandler && securityHandler->isEmbeddedFilesLocked();
+}
+
+void PDFAppAttachmentsPanel::updateLockedState()
+{
+    const bool isLocked = isAttachmentsLocked();
+    if (m_lockedTitle)
+    {
+        m_lockedTitle->setText(tr("Locked – enter the password"));
+    }
+    if (m_lockedText)
+    {
+        m_lockedText->setText(tr("The attachments of this document are encrypted. Enter the password to read them; the document opens again with its attachments and can be changed then."));
+    }
+    if (m_unlockButton)
+    {
+        m_unlockButton->setText(tr("Enter Password…"));
+    }
+    if (m_lockedCard)
+    {
+        m_lockedCard->setVisible(isLocked);
+    }
+    if (m_view)
+    {
+        m_view->setVisible(!isLocked);
+    }
+}
+
+void PDFAppAttachmentsPanel::openUnlockDialog()
+{
+    PDFAppDocument* document = getDocument();
+    if (!document || !isAttachmentsLocked())
+    {
+        return;
+    }
+    if (m_unlockDialog)
+    {
+        m_unlockDialog->raise();
+        m_unlockDialog->activateWindow();
+        return;
+    }
+
+    // A popup: new + QPointer, deleted on close (CLAUDE.md); it waits for the reading itself
+    PDFAppAttachmentsPasswordDialog* dialog = new PDFAppAttachmentsPasswordDialog(document, window());
+    dialog->setAttribute(Qt::WA_DeleteOnClose, true);
+    dialog->setWindowModality(Qt::WindowModal);
+    m_unlockDialog = dialog;
+    dialog->open();
+}
+
 void PDFAppAttachmentsPanel::rebuild()
 {
     PDFAppDocument* document = getDocument();
     PDFDocumentPointer pointer = document && document->isReady() ? document->getDocument() : PDFDocumentPointer();
+    updateLockedState();
     if (pointer == m_document && m_model && m_model->rowCount() > 0)
     {
         return;
@@ -709,10 +791,157 @@ void PDFAppAttachmentsPanel::rebuild()
     m_document = pointer;
     if (m_model)
     {
-        // The list of the version is shared with the tab of the sidebar
-        m_model->setAttachments(pointer ? *PDFAppAttachments::getAttachments(document) : std::vector<PDFAppAttachment>());
+        // The list of the version is shared with the tab of the sidebar; the attachments locked by
+        // their password (Q5.9 c) are no rows - their bytes are encrypted
+        m_model->setAttachments(pointer && !isAttachmentsLocked() ? *PDFAppAttachments::getAttachments(document) : std::vector<PDFAppAttachment>());
     }
     Q_EMIT titleChanged();
+}
+
+// ------------------------------------------------------ PDFAppAttachmentsPasswordDialog
+
+PDFAppAttachmentsPasswordDialog::PDFAppAttachmentsPasswordDialog(PDFAppDocument* document, QWidget* parent) :
+    BaseClass(PDFThemeIcons::Badge::Warning, true, QString(), QString(), 460, parent),
+    m_document(document)
+{
+    setObjectName(QStringLiteral("attachmentsPasswordDialog"));
+    m_loader = document ? document->findChild<PDFAppDocumentLoader*>(QString(), Qt::FindDirectChildrenOnly) : nullptr;
+    const QString title = document ? document->getTitle() : QString();
+    setTitle(tr("Password for the attachments of %1").arg(title));
+    setText(tr("The attachments are encrypted. The password is used only to read the document again with its attachments and is not stored."));
+
+    // 398:28116: the label, the field 34, the error - gaps 14
+    QWidget* form = new QWidget(this);
+    QVBoxLayout* formLayout = new QVBoxLayout(form);
+    formLayout->setContentsMargins(0, 0, 0, 0);
+    formLayout->setSpacing(14);
+    formLayout->addWidget(PDFAppPageWidgets::createLabel(tr("Password"), QFont::Normal, 12, PDFThemeColors::TextSecondary, form));
+    m_passwordField = new PDFLineEdit(form);
+    m_passwordField->setObjectName(QStringLiteral("passwordField"));
+    m_passwordField->setPasswordField();
+    m_passwordField->setMaxLength(PDFAppDocumentReading::MAXIMUM_PASSWORD_LENGTH);
+    m_passwordField->setFixedHeight(34);
+    m_passwordField->setAccessibleName(tr("Password of the attachments of %1").arg(title));
+    formLayout->addWidget(m_passwordField);
+    PDFAppParagraph* errorText = nullptr;
+    m_errorRow = createErrorRow(form, &errorText);
+    m_errorText = errorText;
+    m_errorText->setText(tr("Wrong password – check Caps Lock and try again"));
+    formLayout->addWidget(m_errorRow);
+    addContent(form);
+
+    m_cancelButton = addActionButton(tr("Cancel"), false, false);
+    m_cancelButton->setObjectName(QStringLiteral("cancelButton"));
+    m_unlockButton = addActionButton(tr("Unlock"), true, false);
+    m_unlockButton->setObjectName(QStringLiteral("unlockButton"));
+    m_unlockButton->setIcon(PDFThemeIcons::getIcon(QStringLiteral("key")));
+    connect(m_cancelButton.data(), &QPushButton::clicked, this, &PDFAppAttachmentsPasswordDialog::reject);
+    connect(m_unlockButton.data(), &QPushButton::clicked, this, &PDFAppAttachmentsPasswordDialog::onUnlockClicked);
+    connect(m_passwordField.data(), &QLineEdit::textEdited, this, &PDFAppAttachmentsPasswordDialog::onPasswordEdited);
+    if (m_loader)
+    {
+        connect(m_loader.data(), &PDFAppDocumentLoader::finished, this, &PDFAppAttachmentsPasswordDialog::onLoaderFinished);
+    }
+    if (document)
+    {
+        connect(document, &QObject::destroyed, this, &PDFAppAttachmentsPasswordDialog::onDocumentDestroyed);
+    }
+    updateButtons();
+    m_passwordField->setFocus();
+}
+
+PDFAppAttachmentsPasswordDialog::~PDFAppAttachmentsPasswordDialog()
+{
+    // S5.1: the field is emptied with its undo history
+    if (m_passwordField)
+    {
+        m_passwordField->setText(QString());
+    }
+}
+
+QString PDFAppAttachmentsPasswordDialog::getErrorText() const
+{
+    return m_errorRow && !m_errorRow->isHidden() && m_errorText ? m_errorText->text() : QString();
+}
+
+void PDFAppAttachmentsPasswordDialog::updateButtons()
+{
+    if (m_passwordField)
+    {
+        m_passwordField->setEnabled(!m_isBusy);
+    }
+    if (m_unlockButton)
+    {
+        m_unlockButton->setEnabled(!m_isBusy && m_loader && m_passwordField && !m_passwordField->text().isEmpty());
+    }
+}
+
+void PDFAppAttachmentsPasswordDialog::onUnlockClicked()
+{
+    if (!m_loader || !m_passwordField || m_isBusy || m_passwordField->text().isEmpty())
+    {
+        return;
+    }
+
+    // The field keeps the password while it is verified (a wrong one stays selected)
+    QString password = m_passwordField->text();
+    const bool isStarted = m_loader->unlockAttachments(password);
+    PDFSecureMemory::clear(password);
+    m_isBusy = isStarted;
+    m_errorRow->hide();
+    m_passwordField->setInvalid(false);
+    updateButtons();
+}
+
+void PDFAppAttachmentsPasswordDialog::onLoaderFinished()
+{
+    if (!m_isBusy)
+    {
+        return;
+    }
+    m_isBusy = false;
+
+    // The right password has replaced the document (its attachments readable)
+    if (m_loader && !m_loader->isAttachmentsLocked())
+    {
+        accept();
+        return;
+    }
+
+    // 398:27726: the error, the wrong password stays selected in the field
+    const bool isWrong = m_loader && m_loader->isAttachmentsPasswordWrong();
+    if (m_errorRow)
+    {
+        m_errorRow->setVisible(isWrong);
+    }
+    if (m_passwordField)
+    {
+        m_passwordField->setInvalid(isWrong, isWrong && m_errorText ? m_errorText->text() : QString());
+        m_passwordField->setFocus();
+        m_passwordField->selectAll();
+    }
+    updateButtons();
+    adjustSize();
+}
+
+void PDFAppAttachmentsPasswordDialog::onPasswordEdited()
+{
+    if (m_errorRow)
+    {
+        m_errorRow->hide();
+    }
+    if (m_passwordField)
+    {
+        m_passwordField->setInvalid(false);
+    }
+    updateButtons();
+}
+
+void PDFAppAttachmentsPasswordDialog::onDocumentDestroyed()
+{
+    // Only the pointer is forgotten here; the dialog closes from the event loop
+    m_document = nullptr;
+    QMetaObject::invokeMethod(this, &PDFAppAttachmentsPasswordDialog::reject, Qt::QueuedConnection);
 }
 
 void PDFAppAttachmentsPanel::onActivated(const QModelIndex& index)

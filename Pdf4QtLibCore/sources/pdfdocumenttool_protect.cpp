@@ -289,7 +289,7 @@ QString PDFDocumentToolSanitize::getPermissionRefusal(const PDFDocument* documen
     {
         return QString();
     }
-    return tr("The permissions of the document do not allow changing its annotations and form fields: untick %1 to remove the other kinds.").arg(joinKindTitles(kinds));
+    return tr("The permissions of the document do not allow changing its annotations and form fields: uncheck %1 to remove the other kinds.").arg(joinKindTitles(kinds));
 }
 
 QString PDFDocumentToolSanitize::joinKindTitles(const std::vector<Kind>& kinds)
@@ -335,7 +335,7 @@ PDFDocumentToolResult PDFDocumentToolSanitize::computePreview(const PDFDocumentT
 
     const PDFDocument* document = context.getDocument();
     const PDFDocumentHiddenDataScan::Result scan = PDFDocumentHiddenDataScan::scan(document, true, control, progress);
-    if (scan.isCanceled || PDFOperationControl::isOperationCancelled(control))
+    if (scan.isCanceled || PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }
@@ -357,7 +357,7 @@ PDFDocumentToolResult PDFDocumentToolSanitize::execute(const PDFDocumentToolCont
     // The kinds, which the document has: the steps of the result and what is kept (438:14342 says
     // a kept invisible text, so the content is looked at also when it is not chosen)
     const PDFDocumentHiddenDataScan::Result scan = PDFDocumentHiddenDataScan::scan(document, true, control, nullptr);
-    if (scan.isCanceled || PDFOperationControl::isOperationCancelled(control))
+    if (scan.isCanceled || PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }
@@ -395,7 +395,7 @@ PDFDocumentToolResult PDFDocumentToolSanitize::execute(const PDFDocumentToolCont
     const bool isDocumentInfoRemoved = std::find(removedKinds.cbegin(), removedKinds.cend(), Kind::DocumentInfo) != removedKinds.cend();
     if (isDocumentInfoRemoved && !flags.testFlag(PDFDocumentSanitizer::Metadata) && !scan.isDocumentInfoXmpReadable)
     {
-        return PDFDocumentToolResult::createFailed(tr("The XMP metadata of the document cannot be read, so the document info in them cannot be removed. Tick All metadata too: it removes the metadata whole."));
+        return PDFDocumentToolResult::createFailed(tr("The XMP metadata of the document cannot be read, so the document info in them cannot be removed. Check All metadata too: it removes the metadata whole."));
     }
 
     const qint64 sizeBefore = getWholeFileInputSize(input);
@@ -545,7 +545,7 @@ PDFDocumentToolResult PDFDocumentToolRemoveLinks::computePreview(const PDFDocume
     Q_UNUSED(progress);
 
     const PDFDocumentLinkOperations::LinkList list = PDFDocumentLinkOperations::listExternalLinks(context.getDocument(), control);
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }
@@ -571,7 +571,7 @@ PDFDocumentToolResult PDFDocumentToolRemoveLinks::execute(const PDFDocumentToolC
     // Every link of the document, also behind the bound of the listing of the preview: none of
     // them stays, unless the caller keeps it
     const PDFDocumentLinkOperations::LinkList list = PDFDocumentLinkOperations::listExternalLinks(document, control, std::numeric_limits<size_t>::max());
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }

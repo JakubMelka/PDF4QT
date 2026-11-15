@@ -29,6 +29,7 @@
 #include "pdfappmcpjob.h"
 #include "pdfappmcpmanageaction.h"
 #include "pdfappmcpreadsupport.h"
+#include "pdfappmcpsecretconfirmation.h"
 #include "pdfappmcptoolset.h"
 #include "pdfappdocument.h"
 #include "pdfappundostack.h"
@@ -150,6 +151,9 @@ public:
                 case PDFAppToolResultWriter::DocumentRefusal::DisplayVersion:
                     *errorText = QStringLiteral("%1[%2]: %3").arg(argument).arg(i).arg(PDFAppMcpChangeJob::getPagedXFAText());
                     return false;
+                case PDFAppToolResultWriter::DocumentRefusal::AttachmentsLocked:
+                    *errorText = QStringLiteral("%1[%2]: %3").arg(argument).arg(i).arg(PDFAppMcpChangeJob::getAttachmentsLockedText());
+                    return false;
                 case PDFAppToolResultWriter::DocumentRefusal::None:
                     break;
             }
@@ -223,7 +227,7 @@ public:
     {
         for (qsizetype i = 0; i < paths.size(); ++i)
         {
-            if (PDFOperationControl::isOperationCancelled(control))
+            if (PDFOperationControl::isOperationCanceled(control))
             {
                 return false;
             }
@@ -807,10 +811,46 @@ private:
     QString m_message;
 };
 
+/// The passwords and the certificate of a run of a protect action, which the user has typed in the
+/// confirmation of PDF4QT (plan of step 5 of phase 2, 6.3, owner answer Q5.6; PDFAppMcpSecretConfirmation):
+/// held only by the runs of the call (its reruns too, never by its write), merged into the parameters
+/// of the tool only for the call of the run; never in the response, the activity, a log or the
+/// database. Cleared by the last owner (S5.1).
+class PDFAppMcpCatalogToolSecrets
+{
+public:
+    PDFAppMcpCatalogToolSecrets(QVariantMap values, std::vector<PDFCertificateEntry> certificates) :
+        m_values(std::move(values)),
+        m_certificates(std::move(certificates))
+    {
+
+    }
+
+    ~PDFAppMcpCatalogToolSecrets()
+    {
+        PDFAppMcpSecretConfirmation::clearSecretValues(m_values);
+        for (PDFCertificateEntry& entry : m_certificates)
+        {
+            PDFSecureMemory::clear(entry.pkcs12);
+        }
+    }
+
+    PDFAppMcpCatalogToolSecrets(const PDFAppMcpCatalogToolSecrets&) = delete;
+    PDFAppMcpCatalogToolSecrets& operator=(const PDFAppMcpCatalogToolSecrets&) = delete;
+
+    const QVariantMap& getValues() const { return m_values; }
+    const std::vector<PDFCertificateEntry>& getCertificates() const { return m_certificates; }
+
+private:
+    QVariantMap m_values;
+    std::vector<PDFCertificateEntry> m_certificates;
+};
+
 /// What one call of a tool of the catalog asks for (the same for its reruns)
 class PDFAppMcpCatalogToolRequest
 {
 public:
+    std::shared_ptr<const PDFAppMcpCatalogToolSecrets> secrets;    ///< The values typed in the confirmation of a protect action (only the runs; never written anywhere)
     std::shared_ptr<const PDFDocumentTool> tool;
     QString toolName;
     QString actionName;
@@ -857,6 +897,16 @@ public:
     }
 
     QString getActionId() const { return m_request.toolName + QLatin1Char('.') + m_request.actionName; }
+
+    /// The user has confirmed the call already, before the run (the confirmation with the passwords
+    /// of a protect action, PDFAppMcpSecretConfirmation): its result is not asked again, the
+    /// activity row \p activityId of the question gets the end of the call
+    void setConfirmedBefore(qint64 activityId)
+    {
+        m_isConfirmed = true;
+        m_status = PDFMcpActivityStatus::Allowed;
+        m_activityId = activityId;
+    }
 
     /// save_files with existingFiles overwrite: the files of the folder with the names of the
     /// run are replaced - always confirmed as an overwrite of save_file (R17)
@@ -976,7 +1026,16 @@ public:
         {
             context.fileSink = &memorySink;
         }
-        m_result = m_request.tool->run(context, m_request.parameters, getCall().get(), m_progress.get());
+
+        // A protect action: the values typed by the user go only to this call of the run
+        // (plan of step 5 of phase 2, 6.3); the request keeps the parameters of the assistant
+        QVariantMap parameters = m_request.parameters;
+        if (m_request.secrets)
+        {
+            parameters.insert(m_request.secrets->getValues());
+            context.userCertificates = m_request.secrets->getCertificates();
+        }
+        m_result = m_request.tool->run(context, parameters, getCall().get(), m_progress.get());
         m_files = memorySink.getFiles();
     }
 
@@ -1100,8 +1159,12 @@ public:
         }
 
         // Overwriting the original file is always confirmed (958:28030), as the files of
-        // save_files with existingFiles overwrite (R17)
-        const bool isAlwaysConfirmed = m_request.mode == PDFAppMcpToolResultMode::Overwrite || isOverwritingFiles();
+        // save_files with existingFiles overwrite (R17); a change of the security too - Remove
+        // Password has no password to type, its question is this one (owner 2026-11-15; the other
+        // tools of Encryption ask by PDFAppMcpCatalogToolSecretRequest)
+        const PDFDocumentToolCatalogEntry* entry = m_request.tool ? m_request.tool->getInfo() : nullptr;
+        const bool isSecurityChange = entry && entry->isSecurityChange();
+        const bool isAlwaysConfirmed = m_request.mode == PDFAppMcpToolResultMode::Overwrite || isOverwritingFiles() || isSecurityChange;
         if (!m_isConfirmed && (policyResult == PDFAppMcpPolicyResult::Ask || isAlwaysConfirmed))
         {
             requestConfirmation(policy.getKindsToConfirm(kinds, assistantKey, true), isAlwaysConfirmed);
@@ -1623,6 +1686,7 @@ private:
         }
 
         std::shared_ptr<PDFAppMcpCatalogToolJob> writeJob = std::make_shared<PDFAppMcpCatalogToolJob>(getCall(), getSnapshot(), m_request, m_attempt);
+        writeJob->m_request.secrets.reset();    // The write needs no password (S5.1)
         writeJob->m_phase = Phase::Write;
         writeJob->m_result = m_result;
         writeJob->m_outputDocument = m_outputDocument;
@@ -1870,7 +1934,7 @@ void PDFAppMcpCatalogToolJob::startOverwrite()
         return;
     }
 
-    PDFAppDocumentFileWriter::Request request = PDFAppToolResultWriter::createOverwriteRequest(m_request.tool->getInfo(), getSnapshot(), m_outputDocument, document);
+    PDFAppDocumentFileWriter::Request request = PDFAppToolResultWriter::createOverwriteRequest(m_request.tool->getInfo(), getSnapshot(), m_outputDocument, document, &m_result);
 
     // The operation keeps the version of the result during the write, it ends just
     // before the commit (as F2 of the runner). A slot of its announcement may close the tab.
@@ -1899,6 +1963,391 @@ void PDFAppMcpCatalogToolJob::startOverwrite()
         fail(QStringLiteral("The file of the document cannot be written: %1 Use result save_copy.").arg(error), PDFMcpActivityStatus::Failed);
     }
 }
+
+/// The confirmation with the passwords of a protect action before its run (plan of step 5 of phase 2,
+/// 6.3, owner answer Q5.6, R5-12): an assistant never sends nor receives a password, the user types it
+/// in PDF4QT - also with every permission Allow. The dialog (PDFAppMcpSecretConfirmation) waits over
+/// the tab of the document; Confirmed starts the run with the typed values (the dialog was the
+/// question of the call: its result is not asked again), Cancel is denied_user, no answer in 2 minutes
+/// password_required. A canceled call, a closed tab or a stopped server withdraws the dialog.
+///
+/// Who holds whom: a child of the host (it goes with the host); it holds the call, the request with
+/// the document (QPointer) and the dialog by QPointer - the dialog belongs to its scrim, the scrim to
+/// the tab. It ends once (m_isEnded) and deletes itself later.
+class PDFAppMcpCatalogToolSecretRequest : public QObject
+{
+public:
+    /// How often a canceled call is looked for (as files.open)
+    static constexpr int CANCEL_CHECK_INTERVAL = 250;
+
+    /// The name of the request among the children of the host (one confirmation with a password at
+    /// a time: it is a form the user fills in, never a queue of them)
+    static QString getObjectName() { return QStringLiteral("mcpSecretRequest"); }
+
+    /// The action needs the values, which only the user types (a Secret of a tool changing the security)
+    static bool isNeeded(const PDFDocumentToolCatalogEntry* entry, const PDFDocumentTool* tool)
+    {
+        if (!entry || !tool || !entry->isSecurityChange())
+        {
+            return false;
+        }
+        for (const PDFDocumentToolParameterDefinition& definition : tool->getParameters())
+        {
+            if (definition.getType() == PDFDocumentToolParameterType::Secret)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// The text of a confirmation, which the user did not answer in time (docs/errors.md)
+    static QString getPasswordTimeoutText()
+    {
+        return QStringLiteral("The user did not type the password in PDF4QT within 2 minutes (state password_required). The password is typed only in PDF4QT; "
+                              "never ask the user for it. Ask the user before trying again.");
+    }
+
+    static QString getBusyText()
+    {
+        return QStringLiteral("PDF4QT already asks the user for a password of another request. Try again after the user has answered it.");
+    }
+
+    /// Opens the confirmation of the call (the checks of the handler have passed) or finishes the call
+    static void start(PDFAppMcpHost* host, const std::shared_ptr<PDFMcpCall>& call, PDFAppMcpCatalogToolRequest request, const PDFAppDocumentSnapshot& snapshot)
+    {
+        const QString actionId = request.toolName + QLatin1Char('.') + request.actionName;
+        PDFAppDocument* document = request.document;
+        if (!document)
+        {
+            host->finishWithError(call, actionId, nullptr, PDFAppMcpCatalogToolsHelper::getClosedText(), PDFMcpActivityStatus::DeniedClosed);
+            return;
+        }
+
+        // The values of the assistant first (no question for a call, which cannot run): the errors
+        // of the passwords and of the certificate are the user's, in the dialog
+        const QString invalidText = getInvalidText(request, snapshot);
+        if (!invalidText.isEmpty())
+        {
+            host->finishWithError(call, actionId, document, QStringLiteral("Invalid arguments: %1").arg(invalidText), PDFMcpActivityStatus::Failed);
+            return;
+        }
+
+        // The user answers a modal dialog first (plan 2.5, denied_dialog); one form at a time
+        if (QApplication::activeModalWidget())
+        {
+            host->finishWithError(call, actionId, document, PDFAppMcpChangeJob::getModalDialogText(), PDFMcpActivityStatus::DeniedDialog);
+            return;
+        }
+        if (host->findChild<QObject*>(getObjectName(), Qt::FindDirectChildrenOnly))
+        {
+            host->finishWithError(call, actionId, document, getBusyText(), PDFMcpActivityStatus::DeniedBusy);
+            return;
+        }
+
+        // A headless instance has no confirmations (wave 0), a document without a tab no place for one
+        QWidget* tab = host->getConfirmationProvider() ? host->getResolver().findTab(document) : nullptr;
+        if (!tab)
+        {
+            host->finishWithError(call, actionId, document, PDFAppMcpChangeJob::getDecisionText(PDFAppMcpDecision::Unavailable), PDFMcpActivityStatus::Failed);
+            return;
+        }
+
+        std::shared_ptr<PDFAppMcpConfirmation> confirmation = createConfirmation(host, call, request, snapshot);
+        const qint64 activityId = host->recordActivity(call, actionId, document, QJsonObject(), PDFMcpActivityStatus::Waiting);
+        PDFAppMcpCatalogToolSecretRequest* secretRequest = new PDFAppMcpCatalogToolSecretRequest(host, call, std::move(request), activityId);
+
+        // The dialog runs no code of the application until the user acts (or a timer)
+        PDFAppMcpSecretConfirmation* dialog = PDFAppMcpSecretConfirmation::showInTab(host->getContext(), std::move(confirmation), actionId, secretRequest->m_request.parameters, tab);
+        secretRequest->attach(dialog);
+    }
+
+    virtual ~PDFAppMcpCatalogToolSecretRequest() override
+    {
+        // The host goes (the server stopped): the dialog goes too, the call ends
+        if (!m_isEnded)
+        {
+            m_isEnded = true;
+            withdrawDialog();
+            if (m_call && !m_call->isFinished())
+            {
+                m_call->finish(PDFMcpCallResult::createToolError(PDFAppMcpChangeJob::getDecisionText(PDFAppMcpDecision::DeniedStopped)));
+            }
+        }
+    }
+
+private:
+    PDFAppMcpCatalogToolSecretRequest(PDFAppMcpHost* host, std::shared_ptr<PDFMcpCall> call, PDFAppMcpCatalogToolRequest request, qint64 activityId) :
+        QObject(host),
+        m_host(host),
+        m_call(std::move(call)),
+        m_request(std::move(request)),
+        m_activityId(activityId)
+    {
+        setObjectName(getObjectName());
+        m_cancelTimer.setInterval(CANCEL_CHECK_INTERVAL);
+        connect(&m_cancelTimer, &QTimer::timeout, this, &PDFAppMcpCatalogToolSecretRequest::onCancelCheck);
+        m_cancelTimer.start();
+        if (PDFAppDocument* document = m_request.document)
+        {
+            connect(document, &QObject::destroyed, this, &PDFAppMcpCatalogToolSecretRequest::onDocumentDestroyed);
+        }
+    }
+
+    QString getActionId() const { return m_request.toolName + QLatin1Char('.') + m_request.actionName; }
+
+    /// The errors of the parameters of the assistant (the validation of the tool on the snapshot
+    /// without the values of the user); empty = none
+    static QString getInvalidText(const PDFAppMcpCatalogToolRequest& request, const PDFAppDocumentSnapshot& snapshot)
+    {
+        const PDFDocumentToolParameterDefinitions definitions = request.tool->getParameters();
+        QVariantMap normalized;
+        std::vector<PDFDocumentToolParameterError> errors = PDFDocumentToolParameters::normalize(definitions, request.parameters, &normalized);
+        if (errors.empty())
+        {
+            errors = request.tool->validate(PDFDocumentToolRunner::createContext(snapshot, request.environment), normalized);
+        }
+
+        QStringList messages;
+        for (const PDFDocumentToolParameterError& error : errors)
+        {
+            const PDFDocumentToolParameterDefinition* definition = PDFDocumentToolParameters::find(definitions, error.parameter);
+            if (!definition || !definition->isMcpExcluded())
+            {
+                messages << (error.parameter.isEmpty() ? error.message : QStringLiteral("%1.%2: %3").arg(request.actionName, error.parameter, error.message));
+            }
+        }
+        return messages.join(QLatin1Char(' '));
+    }
+
+    /// The question of the call: the variant of its result (958:27539 save_copy, 940:133693 keep,
+    /// 940:134248 overwrite), the assistant, the document and the path
+    static std::shared_ptr<PDFAppMcpConfirmation> createConfirmation(const PDFAppMcpHost* host, const std::shared_ptr<PDFMcpCall>& call, const PDFAppMcpCatalogToolRequest& request,
+                                                                     const PDFAppDocumentSnapshot& snapshot)
+    {
+        const PDFDocumentToolCatalogEntry* entry = request.tool->getInfo();
+        const QString title = entry ? entry->getTitle() : request.toolName + QLatin1Char('.') + request.actionName;
+        std::shared_ptr<PDFAppMcpConfirmation> confirmation = std::make_shared<PDFAppMcpConfirmation>();
+        switch (request.mode)
+        {
+            case PDFAppMcpToolResultMode::Overwrite:
+                confirmation->kind = PDFAppMcpConfirmationKind::Save;
+                confirmation->isAlwaysConfirmed = true;
+                confirmation->details.insert(QStringLiteral("path"), request.document ? request.document->getFilePath() : snapshot.filePath);
+                confirmation->details.insert(QStringLiteral("unsaved"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "The result of %1").arg(title));
+                break;
+            case PDFAppMcpToolResultMode::SaveCopy:
+            {
+                confirmation->kind = PDFAppMcpConfirmationKind::SaveCopy;
+                confirmation->details.insert(QStringLiteral("path"), request.path);
+                confirmation->details.insert(QStringLiteral("content"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "The result of %1").arg(title));
+
+                // The copy of a signed document is written whole (LostCopyOnly, B80)
+                const int signatureCount = PDFForm::getSignatureCount(snapshot.document.data());
+                if (signatureCount > 0)
+                {
+                    QJsonObject fact;
+                    fact.insert(QStringLiteral("key"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "Signatures"));
+                    fact.insert(QStringLiteral("value"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "%n no longer valid in the written file", nullptr, signatureCount));
+                    confirmation->details.insert(QStringLiteral("facts"), QJsonArray({ fact }));
+                }
+                break;
+            }
+            case PDFAppMcpToolResultMode::Keep:
+            case PDFAppMcpToolResultMode::OpenNewTab:
+            case PDFAppMcpToolResultMode::SaveFile:
+            case PDFAppMcpToolResultMode::ReturnText:
+            case PDFAppMcpToolResultMode::SaveFiles:
+                confirmation->kind = PDFAppMcpConfirmationKind::Change;
+                break;
+        }
+
+        // The permissions set to Ask, which the result needs (the reason row; none with Allow)
+        const PDFMcpClientContext& client = call->getRequest().client;
+        const PDFAppMcpPermissionKinds kinds = PDFAppMcpCatalogTools::getResultPermissions(request.mode, entry ? entry->getInputKind() : PDFDocumentToolInputKind::One);
+        confirmation->permissions = host->getPolicy().getKindsToConfirm(kinds, client.assistantKey, true);
+        confirmation->call = call;
+        confirmation->document = request.document;
+        confirmation->actionId = request.toolName + QLatin1Char('.') + request.actionName;
+        confirmation->askedAt = QDateTime::currentMSecsSinceEpoch();
+        confirmation->assistantKey = client.assistantKey;
+        confirmation->clientName = PDFAppMcpHost::getClientInfo(client).displayName;
+        confirmation->clientNameRaw = client.clientName;
+        confirmation->remoteAddress = client.remoteAddress;
+        confirmation->isRemote = client.isRemote;
+        confirmation->details.insert(QStringLiteral("tool"), title);
+        return confirmation;
+    }
+
+    void attach(PDFAppMcpSecretConfirmation* dialog)
+    {
+        m_dialog = dialog;
+        if (dialog)
+        {
+            connect(dialog, &PDFAppMcpSecretConfirmation::confirmationEnded, this, &PDFAppMcpCatalogToolSecretRequest::onConfirmationEnded);
+            connect(dialog, &QObject::destroyed, this, &PDFAppMcpCatalogToolSecretRequest::onDialogDestroyed);
+        }
+        else
+        {
+            end(PDFAppMcpChangeJob::getDecisionText(PDFAppMcpDecision::Unavailable), PDFMcpActivityStatus::Failed);
+        }
+    }
+
+    void withdrawDialog()
+    {
+        if (PDFAppMcpSecretConfirmation* dialog = m_dialog.data())
+        {
+            m_dialog = nullptr;
+            dialog->disconnect(this);
+            dialog->withdraw();
+        }
+    }
+
+    /// Ends the call by an error (the dialog is withdrawn); the request goes later
+    void end(const QString& text, PDFMcpActivityStatus status)
+    {
+        if (m_isEnded)
+        {
+            return;
+        }
+        m_isEnded = true;
+        m_cancelTimer.stop();
+        setObjectName(QString());   // A next request may ask now
+        withdrawDialog();
+        deleteLater();
+
+        if (m_call && !m_call->isFinished())
+        {
+            if (PDFAppMcpHost* host = m_host.data())
+            {
+                host->finishWithError(m_call, m_activityId, getActionId(), m_request.document, text, status);
+            }
+            else
+            {
+                m_call->finish(PDFMcpCallResult::createToolError(text));
+            }
+        }
+    }
+
+    void onConfirmationEnded(PDFAppMcpSecretConfirmation::Outcome outcome)
+    {
+        if (m_isEnded)
+        {
+            return;
+        }
+
+        switch (outcome)
+        {
+            case PDFAppMcpSecretConfirmation::Outcome::Confirmed:
+                startRun();
+                return;
+            case PDFAppMcpSecretConfirmation::Outcome::Canceled:
+                m_dialog = nullptr;
+                end(PDFAppMcpChangeJob::getDecisionText(PDFAppMcpDecision::DeniedUser), PDFMcpActivityStatus::DeniedUser);
+                return;
+            case PDFAppMcpSecretConfirmation::Outcome::TimedOut:
+                m_dialog = nullptr;
+                end(getPasswordTimeoutText(), PDFMcpActivityStatus::DeniedTimeout);
+                return;
+            case PDFAppMcpSecretConfirmation::Outcome::Pending:
+            case PDFAppMcpSecretConfirmation::Outcome::Withdrawn:
+                // Withdrawn by this request (it has ended the call already) or by nobody
+                m_dialog = nullptr;
+                end(PDFAppMcpChangeJob::getDecisionText(PDFAppMcpDecision::Canceled), PDFMcpActivityStatus::Canceled);
+                return;
+        }
+    }
+
+    /// The user has typed the values: the run of the call (the checks of the result after it)
+    void startRun()
+    {
+        // The values of the user (the dialog ends now and is deleted later)
+        PDFAppMcpSecretConfirmation* dialog = m_dialog.data();
+        m_dialog = nullptr;
+        QVariantMap values = dialog ? dialog->takeRunValues() : QVariantMap();
+        std::vector<PDFCertificateEntry> certificates = dialog ? dialog->takeUserCertificates() : std::vector<PDFCertificateEntry>();
+        std::shared_ptr<const PDFAppMcpCatalogToolSecrets> secrets = std::make_shared<PDFAppMcpCatalogToolSecrets>(std::move(values), std::move(certificates));
+
+        // The document may have changed while the user typed: the run takes its version now; a
+        // locked or busy document is refused as before the question
+        PDFAppDocument* document = m_request.document;
+        const PDFAppMcpHost* host = m_host;
+        if (!document || !host)
+        {
+            end(PDFAppMcpCatalogToolsHelper::getClosedText(), PDFMcpActivityStatus::DeniedClosed);
+            return;
+        }
+        if (document->isBlockedByOperation())
+        {
+            end(PDFAppMcpCatalogToolsHelper::getBusyText(), PDFMcpActivityStatus::DeniedBusy);
+            return;
+        }
+        if (document->isLocked())
+        {
+            end(PDFAppMcpChangeJob::getLockedText(), PDFMcpActivityStatus::DeniedLocked);
+            return;
+        }
+        if (!m_call || m_call->isFinished() || m_call->isCanceled())
+        {
+            end(QStringLiteral("The request was canceled."), PDFMcpActivityStatus::Canceled);
+            return;
+        }
+
+        m_isEnded = true;
+        m_cancelTimer.stop();
+        setObjectName(QString());
+        deleteLater();
+
+        PDFAppMcpCatalogToolRequest request = std::move(m_request);
+        request.secrets = std::move(secrets);
+        std::shared_ptr<PDFAppMcpCatalogToolJob> job = std::make_shared<PDFAppMcpCatalogToolJob>(m_call, document->getSnapshot(), std::move(request), 0);
+        job->setConfirmedBefore(m_activityId);
+        PDFAppMcpCatalogToolJob::start(m_host.data(), job);
+    }
+
+    void onCancelCheck()
+    {
+        if (!m_call || m_call->isFinished())
+        {
+            // Answered elsewhere: nothing waits any more
+            m_call = nullptr;
+            end(QString(), PDFMcpActivityStatus::Canceled);
+            return;
+        }
+
+        if (m_call->isCanceled())
+        {
+            end(QStringLiteral("The request was canceled."), PDFMcpActivityStatus::Canceled);
+            return;
+        }
+
+        if (!m_host || m_host->isShutDown())
+        {
+            end(PDFAppMcpChangeJob::getDecisionText(PDFAppMcpDecision::DeniedStopped), PDFMcpActivityStatus::DeniedStopped);
+        }
+    }
+
+    void onDocumentDestroyed()
+    {
+        // The slot of destroyed only ends the call (the tab deletes the scrim with the dialog)
+        end(PDFAppMcpChangeJob::getDecisionText(PDFAppMcpDecision::DeniedClosed), PDFMcpActivityStatus::DeniedClosed);
+    }
+
+    void onDialogDestroyed()
+    {
+        // The tab has deleted the scrim before the end of the dialog (the tab closes)
+        m_dialog = nullptr;
+        end(PDFAppMcpChangeJob::getDecisionText(PDFAppMcpDecision::DeniedClosed), PDFMcpActivityStatus::DeniedClosed);
+    }
+
+    QPointer<PDFAppMcpHost> m_host;
+    std::shared_ptr<PDFMcpCall> m_call;
+    PDFAppMcpCatalogToolRequest m_request;
+    qint64 m_activityId = 0;
+    QPointer<PDFAppMcpSecretConfirmation> m_dialog;
+    QTimer m_cancelTimer;
+    bool m_isEnded = false;
+};
 
 /// The handler of every category tool
 class PDFAppMcpCatalogToolHandler : public PDFAppMcpToolHandler
@@ -2166,6 +2615,9 @@ public:
                 case PDFAppToolResultWriter::DocumentRefusal::DisplayVersion:
                     host->finishWithError(call, toolId, document, PDFAppMcpChangeJob::getPagedXFAText(), PDFMcpActivityStatus::Failed);
                     return;
+                case PDFAppToolResultWriter::DocumentRefusal::AttachmentsLocked:
+                    host->finishWithError(call, toolId, document, PDFAppMcpChangeJob::getAttachmentsLockedText(), PDFMcpActivityStatus::Failed);
+                    return;
                 case PDFAppToolResultWriter::DocumentRefusal::None:
                     break;
             }
@@ -2286,6 +2738,14 @@ public:
         request.environment.cms = PDFAppDocumentView::createCMS(host->getContext());
         request.environment.rendering = PDFAppDocumentView::createToolRenderContext(host->getContext());
         request.document = document;
+
+        // A protect action, whose passwords only the user types (plan of step 5 of phase 2, 6.3, Q5.6):
+        // the confirmation of PDF4QT first, also with every permission Allow
+        if (PDFAppMcpCatalogToolSecretRequest::isNeeded(entry, tool.get()))
+        {
+            PDFAppMcpCatalogToolSecretRequest::start(host, call, std::move(request), snapshot);
+            return;
+        }
         PDFAppMcpCatalogToolJob::start(host, std::make_shared<PDFAppMcpCatalogToolJob>(call, snapshot, std::move(request), 0));
     }
 };

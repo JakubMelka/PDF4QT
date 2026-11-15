@@ -46,7 +46,7 @@ namespace pdf
 ///
 /// \note Because Clipper2 is a polygon clipper, Bézier curves are flattened.
 ///       QPathClipper flattens them as well (see the note in the documentation
-///       of QPainterPath::united), so this is not a change in behaviour, but the
+///       of QPainterPath::united), so this is not a change in behavior, but the
 ///       operations should not be used where the curves must be preserved.
 ///       Operations, whose result is one of the operands unchanged (an operation
 ///       with an empty path, or with paths, which cannot overlap at all), return

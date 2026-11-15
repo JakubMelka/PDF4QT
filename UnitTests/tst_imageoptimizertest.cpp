@@ -641,21 +641,21 @@ void ImageOptimizerTest::test_bitonal_conversion_constant_images()
 
 void ImageOptimizerTest::test_bitonal_conversion_is_cancellable()
 {
-    /// Operation control, which reports the operation as cancelled from the beginning
-    class CancelledOperationControl : public pdf::PDFOperationControl
+    /// Operation control, which reports the operation as canceled from the beginning
+    class CanceledOperationControl : public pdf::PDFOperationControl
     {
     public:
-        virtual bool isOperationCancelled() const override { return true; }
+        virtual bool isOperationCanceled() const override { return true; }
     };
 
-    CancelledOperationControl operationControl;
+    CanceledOperationControl operationControl;
 
     pdf::PDFImageConversion conversion;
     conversion.setConversionMethod(pdf::PDFImageConversion::ConversionMethod::Automatic);
     conversion.setOperationControl(&operationControl);
     conversion.setImage(createLineArtImage(16));
 
-    // A cancelled conversion produces nothing, so its caller cannot use a partial result
+    // A canceled conversion produces nothing, so its caller cannot use a partial result
     QVERIFY(!conversion.convert());
     QVERIFY(conversion.getConvertedImage().isNull());
     QVERIFY(conversion.getConvertedAlphaMask().isNull());
@@ -1483,7 +1483,7 @@ void ImageOptimizerTest::test_optimizer_bitonal_algorithms()
         QCOMPARE(optimized.getObject(dictionary->get("BitsPerComponent")).getInteger(), pdf::PDFInteger(1));
 
         // The optimized image decodes to the bitonal version of the source - the
-        // pure white and pure black pixels of the source keep their colours
+        // pure white and pure black pixels of the source keep their colors
         std::vector<pdf::PDFImageOptimizer::ImageInfo> optimizedInfos = pdf::PDFImageOptimizer::collectImageInfos(&optimized);
         QCOMPARE(optimizedInfos.size(), 1u);
         QCOMPARE(optimizedInfos[0].image.size(), textScan.size());

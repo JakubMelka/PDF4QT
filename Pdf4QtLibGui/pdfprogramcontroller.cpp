@@ -2312,8 +2312,8 @@ void PDFProgramController::onDocumentReadingFinished()
             break;
         }
 
-        case pdf::PDFDocumentReader::Result::Cancelled:
-            break; // Do nothing, user cancelled the document reading
+        case pdf::PDFDocumentReader::Result::Canceled:
+            break; // Do nothing, user canceled the document reading
     }
     updateActionsAvailability();
 }

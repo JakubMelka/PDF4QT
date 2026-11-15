@@ -849,8 +849,9 @@ std::vector<const char*> PDFDatabaseHelper::getRuntimeTables()
 
 std::vector<std::pair<int, const char*>> PDFDatabaseHelper::getVersionLabels()
 {
-    // Schema 2 (recent_assembly of Manage Pages, step 3b of phase 2) comes with 2.0 as well
-    return { { 1, "2.0" }, { 2, "2.0" } };
+    // Schema 2 (recent_assembly of Manage Pages, step 3b of phase 2) and schema 3 (certificate_cache
+    // of Encrypt with Certificate, step 5 of phase 2) come with 2.0 as well
+    return { { 1, "2.0" }, { 2, "2.0" }, { 3, "2.0" } };
 }
 
 int PDFDatabaseHelper::execute(sqlite3* handle, const char* sql)

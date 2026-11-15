@@ -1340,7 +1340,7 @@ void McpTest::callLifecycle()
     std::shared_ptr<pdf::PDFMcpCall> call = pdf::PDFMcpCall::create(request);
     call->setHost(&host);
     QVERIFY(call->getCallId().startsWith(QLatin1Char('c')));
-    QVERIFY(!call->isOperationCancelled());
+    QVERIFY(!call->isOperationCanceled());
 
     // Progress grows strictly; logs below the requested level are dropped
     call->reportProgress(1, 10, QStringLiteral("one"));
@@ -1396,7 +1396,7 @@ void McpTest::callLifecycle()
     canceled->cancel(pdf::PDFMcpCancelReason::StreamClosed);
     canceled->cancel(pdf::PDFMcpCancelReason::ServerStopped);
     QVERIFY(canceled->isCanceled());
-    QVERIFY(pdf::PDFOperationControl::isOperationCancelled(canceled.get()));
+    QVERIFY(pdf::PDFOperationControl::isOperationCanceled(canceled.get()));
     QCOMPARE(canceled->getCancelReason(), pdf::PDFMcpCancelReason::StreamClosed);
     QVERIFY(host.canceledCalls.empty());
     QTRY_COMPARE(host.canceledCalls.size(), size_t(1));
@@ -3183,7 +3183,7 @@ void McpTest::cancellation()
         QVERIFY(fixture.waitCanceled(canceled + 1));
         const std::shared_ptr<pdf::PDFMcpCall> call = fixture.host.canceledCalls.back();
         QCOMPARE(call->getCancelReason(), pdf::PDFMcpCancelReason::StreamClosed);
-        QVERIFY(call->isOperationCancelled());
+        QVERIFY(call->isOperationCanceled());
 
         // A late result is dropped
         call->finish(McpServerHelper::createText(QStringLiteral("late")));

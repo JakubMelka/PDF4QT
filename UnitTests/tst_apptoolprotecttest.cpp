@@ -235,7 +235,7 @@ private slots:
     void sanitizeRunAndKeep();
     void sanitizeDeletedWithPresetPanel();
     void linksFrame();
-    void linksUntickAndUndo();
+    void linksUncheckAndUndo();
     void linksFilterAndSelect();
     void linksNoneFound();
     void linksRowShowsPage();
@@ -295,7 +295,7 @@ void AppToolProtectTest::sanitizeFrame()
     // Scan: 6 of the 9 kinds are in the document (no attachments, page labels, index)
     QCOMPARE(H::rows(gui->getScanRows()), QStringList({ QStringLiteral("Kinds found: 6 of 9"), QStringLiteral("File size: %1").arg(pdf::PDFDocumentToolFormat::formatSize(QFileInfo(fixture.path(QStringLiteral("Project_Report.pdf"))).size())), QStringLiteral("Pages: 2") }));
 
-    // The rows: a kind, which is not there, has the tag Not found and cannot be ticked
+    // The rows: a kind, which is not there, has the tag Not found and cannot be checked
     pdf::PDFTileRow* attachments = gui->getKindRow(pdf::PDFDocumentHiddenDataScan::Kind::Attachments);
     QVERIFY(attachments);
     QCOMPARE(attachments->getTag(), QStringLiteral("Not found"));
@@ -361,7 +361,7 @@ void AppToolProtectTest::sanitizePresets()
     QCOMPARE(gui->getPresetButton()->text(), QStringLiteral("Preset: Everything"));
     QVERIFY(shell->getToolbar()->getConfirmButton()->isEnabled());
 
-    // A tick by hand: Custom (K18)
+    // A check by hand: Custom (K18)
     gui->getKindRow(pdf::PDFDocumentHiddenDataScan::Kind::Thumbnails)->getCheckBox()->click();
     AppToolShellFixture::settle();
     QCOMPARE(gui->getPresetButton()->text(), QStringLiteral("Preset: Custom"));
@@ -405,7 +405,7 @@ void AppToolProtectTest::sanitizeInvisibleTextCallout()
     QVERIFY(gui->getInvisibleTextCallout()->isVisible());
     QCOMPARE(gui->getInvisibleTextCallout()->getTitleLabel()->text(), QStringLiteral("Search and copy will stop working on 1 page"));
 
-    // A document without invisible text has no such kind: the row cannot be ticked
+    // A document without invisible text has no such kind: the row cannot be checked
     pdf::PDFAppDocumentTab* other = H::openReady(fixture, H::write(fixture.path(QStringLiteral("plain.pdf")), H::hiddenData(false, false)));
     PDFAppToolGUISanitize* otherGui = H::sanitize(fixture.openTool(other, H::SANITIZE_ID));
     QVERIFY(otherGui && AppToolShellFixture::waitFor([otherGui]() { return otherGui->isScanned(); }));
@@ -414,7 +414,7 @@ void AppToolProtectTest::sanitizeInvisibleTextCallout()
 
 void AppToolProtectTest::sanitizeSignatureFieldsRow()
 {
-    // Owner answer Q10: the tenth kind is a row of a signed document, never ticked by Standard
+    // Owner answer Q10: the tenth kind is a row of a signed document, never checked by Standard
     using H = ProtectAppHelper;
     AppToolShellFixture fixture(QSize(1440, 960));
     pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::write(fixture.path(QStringLiteral("signed.pdf")), H::hiddenData(false, true)));
@@ -511,7 +511,7 @@ void AppToolProtectTest::linksFrame()
     QVERIFY(gui && AppToolShellFixture::waitFor([gui]() { return gui->isListed(); }));
     AppToolShellFixture::settle();
 
-    // The captions of the pages and the links, every link ticked
+    // The captions of the pages and the links, every link checked
     pdf::PDFAppToolLinkListModel* model = gui->getListModel();
     QCOMPARE(model->rowCount(), 6);
     QCOMPARE(model->data(model->index(0), Qt::DisplayRole).toString(), QStringLiteral("Page 1"));
@@ -541,7 +541,7 @@ void AppToolProtectTest::linksFrame()
     QVERIFY(!gui->getMoreHint()->isVisible());
 }
 
-void AppToolProtectTest::linksUntickAndUndo()
+void AppToolProtectTest::linksUncheckAndUndo()
 {
     using H = ProtectAppHelper;
     AppToolShellFixture fixture(QSize(1440, 960));
@@ -561,7 +561,7 @@ void AppToolProtectTest::linksUntickAndUndo()
     QCOMPARE(H::statusMessage(tab), QStringLiteral("4 external links found · 3 will be removed, 1 is kept"));
     QCOMPARE(gui->getOverlay()->getLinkState(model->getLinks()[2]), pdf::PDFAppToolLinkOverlay::LinkState::Kept);
 
-    // Undo of the tool ticks it again
+    // Undo of the tool checks it again
     QVERIFY(shell->getModel()->canUndo());
     shell->getModel()->undo();
     AppToolShellFixture::settle();
@@ -824,7 +824,7 @@ void AppToolProtectTest::sanitizePermissionRefusal()
     AppToolShellFixture::settle();
     QVERIFY(!shell->isPermissionRefused());
 
-    const QString refusal = QStringLiteral("The document does not allow changing its annotations and form fields, which removing Comments and markup needs: Remove Hidden Data asks for its owner password, or untick Comments and markup to remove the other kinds.");
+    const QString refusal = QStringLiteral("The document does not allow changing its annotations and form fields, which removing Comments and markup needs: Remove Hidden Data asks for its owner password, or uncheck Comments and markup to remove the other kinds.");
     QVERIFY(shell->getModel()->getValue(QStringLiteral("comments")).toBool());
     QVERIFY(shell->getToolbar()->getConfirmButton()->isEnabled());
     QCOMPARE(gui->getRunPermissions(), std::vector<pdf::PDFSecurityHandler::Permission>({ pdf::PDFSecurityHandler::Permission::ModifyInteractiveItems }));
@@ -838,7 +838,7 @@ void AppToolProtectTest::sanitizePermissionRefusal()
     QVERIFY(gui->getRunPermissions().empty());
     QVERIFY(shell->getStatusMessage() != refusal);
 
-    // Ticked again: asked again
+    // Checked again: asked again
     QCOMPARE(shell->getModel()->setValue(QStringLiteral("comments"), true), QString());
     AppToolShellFixture::settle();
     QVERIFY(shell->getToolbar()->getConfirmButton()->isEnabled());
@@ -861,7 +861,7 @@ void AppToolProtectTest::mcpSanitizePermissions()
     sanitize.insert(QStringLiteral("path"), copy);
     std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("protect"), sanitize);
     QVERIFY(result && result->isError);
-    QVERIFY2(result->getFirstText().contains(QStringLiteral("The permissions of the document do not allow changing its annotations and form fields: untick Comments and markup to remove the other kinds.")),
+    QVERIFY2(result->getFirstText().contains(QStringLiteral("The permissions of the document do not allow changing its annotations and form fields: uncheck Comments and markup to remove the other kinds.")),
              qPrintable(result->getFirstText()));
     QVERIFY(!QFile::exists(copy));
 

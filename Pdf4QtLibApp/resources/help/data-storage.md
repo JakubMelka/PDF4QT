@@ -49,6 +49,10 @@ Before the import, the confirmation *Import settings from the backup?* shows the
 
 Each version of the database has its own file. A new version of PDF4QT starts from a copy of the file of the older version, which stays untouched, so you can go back to the older version. *Other database files* in [Settings › Storage](/settings/storage) lists these files with the version of PDF4QT, which uses them, their size and date, for example *PDF4QT 2.0 · 2.4 MB · Oct 12, 2026*. **Delete…** asks *Delete the older database file?* and **Delete File** removes it; that version then starts with the default settings. A file, which a running PDF4QT uses, cannot be deleted. The file of a newer version has the tag *Newer version* and it cannot be deleted here: the newer PDF4QT keeps it up to date.
 
+## Digital IDs
+
+Your certificate files (.pfx), which [Encrypt with Certificate](/help/tool-protect-certificate-encrypt) lists, creates and imports, are files of your user account, not a part of the database: the folder *certificates* of the roaming data of PDF4QT. They are not a part of a backup, so keep your own copy of them – a document encrypted with a certificate cannot be opened without it. The certificate folders of the older PDF4QT Editor and Viewer are read too, never changed; PDF4QT offers to copy such a file into its own folder. The database keeps only the public part of a certificate after its first use (the name, the organization and the date of validity), never its private key or password. A second profile of PDF4QT with its own data folder (the environment variable `PDF4QT_APP_DATA_DIRECTORY`) keeps its certificates in the folder *certificates* there.
+
 ## Logs
 
 PDF4QT writes a log file for every day into the folder of its data. Logs are kept for 7 days and they take at most 10 MB. The page [About](/about) shows the folders of the settings and of the logs. Access tokens, passwords and the content of documents are never written to the logs.

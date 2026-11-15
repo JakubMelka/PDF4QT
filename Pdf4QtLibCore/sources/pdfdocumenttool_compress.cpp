@@ -124,7 +124,7 @@ PDFDocument PDFDocumentToolCompress::compress(const PDFDocument* document, const
     const PDFDocument* source = settings.images.enabled ? &output : document;
     PDFObjectStorage storage = source->getStorage();
 
-    if (settings.structure && !PDFOperationControl::isOperationCancelled(control))
+    if (settings.structure && !PDFOperationControl::isOperationCanceled(control))
     {
         // A local optimizer without a parent: the optimizer has a state, one instance
         // of the tool serves more threads
@@ -140,7 +140,7 @@ PDFDocument PDFDocumentToolCompress::compress(const PDFDocument* document, const
     // After the optimizer: its counters of the unused objects stay the same with the clean-up on
     // The content has been rewritten and it is not checked against a standard the document
     // declares (a recoded image can be against it, the rule of the copies of OCR)
-    PDFDocument result = createWholeFileDocument(std::move(storage), document, PDFOperationControl::isOperationCancelled(control) ? nullptr : &localStatistics.conformance);
+    PDFDocument result = createWholeFileDocument(std::move(storage), document, PDFOperationControl::isOperationCanceled(control) ? nullptr : &localStatistics.conformance);
 
     if (statistics)
     {
@@ -298,7 +298,7 @@ PDFDocumentToolResult PDFDocumentToolCompress::execute(const PDFDocumentToolCont
     Statistics statistics;
     PDFDocument output = compress(document, settings, control, compressProgress, &statistics);
 
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }
@@ -320,7 +320,7 @@ PDFDocumentToolResult PDFDocumentToolCompress::execute(const PDFDocumentToolCont
 
     const PDFDocumentSizeBreakdown breakdownBefore = PDFDocumentSizeBreakdown::create(document, sizeBefore, control);
     const PDFDocumentSizeBreakdown breakdownAfter = PDFDocumentSizeBreakdown::create(&output, sizeAfter, control);
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }

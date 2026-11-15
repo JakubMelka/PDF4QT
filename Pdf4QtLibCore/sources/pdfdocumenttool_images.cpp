@@ -651,7 +651,7 @@ PDFDocumentToolResult PDFDocumentToolImagesToPdf::execute(const PDFDocumentToolC
     PDFDocumentMerger::Settings settings;
     settings.outline = PDFDocumentMerger::OutlineMode::NoOutline;
     PDFDocumentMerger::Result merged = PDFDocumentMerger::merge(sources, PDFDocumentPagePlan::createMergerItems(plan), settings, control, phases.getPhase(pagesPhase));
-    if (merged.isCanceled || PDFOperationControl::isOperationCancelled(control))
+    if (merged.isCanceled || PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }
@@ -668,7 +668,7 @@ PDFDocumentToolResult PDFDocumentToolImagesToPdf::execute(const PDFDocumentToolC
         std::vector<PDFImageOptimizer::ImageResult> imageResults;
         PDFImageOptimizer imageOptimizer;
         output = imageOptimizer.optimize(&output, *imageSettings, PDFImageOptimizer::ImageOverrides(), phases.getPhase(imagesPhase), nullptr, &imageResults, control, nullptr);
-        if (PDFOperationControl::isOperationCancelled(control))
+        if (PDFOperationControl::isOperationCanceled(control))
         {
             return PDFDocumentToolResult::createStopped();
         }

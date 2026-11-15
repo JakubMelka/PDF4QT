@@ -368,7 +368,7 @@ PDFDocumentToolResult PDFDocumentToolInsertBase::execute(const PDFDocumentToolCo
     PDFDocumentMerger::Settings settings;
     settings.outline = PDFDocumentMerger::OutlineMode::NoOutline;
     PDFDocumentMerger::Result inserted = PDFDocumentMerger::insert(*target, placement->position, placement->replacedPages, plan->sources, plan->items, settings, control, progress);
-    if (inserted.isCanceled || PDFOperationControl::isOperationCancelled(control))
+    if (inserted.isCanceled || PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }

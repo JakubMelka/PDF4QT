@@ -304,7 +304,7 @@ PDFDocumentToolResult PDFDocumentToolExtractText::computePreview(const PDFDocume
     const std::vector<PDFInteger> pagesWithText = PDFDocumentTextExporter::findPagesWithText(document, pages, control, phases.getPhase(scanPhase));
     const std::vector<PDFInteger> sample = Helper::createSample(pagesWithText, PREVIEW_SAMPLE_PAGES);
     const PDFDocumentTextFlow flow = createFlow(document, sample, parameters, control, phases.getPhase(samplePhase));
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }
@@ -347,7 +347,7 @@ PDFDocumentToolResult PDFDocumentToolExtractText::execute(const PDFDocumentToolC
     phases.start();
 
     const PDFDocumentTextFlow flow = createFlow(document, pages, parameters, control, phases.getPhase(readPhase));
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }
@@ -429,7 +429,7 @@ PDFDocumentToolResult PDFDocumentToolExtractTextPage::computePreview(const PDFDo
     }
 
     const PDFDocumentTextFlow flow = createFlow(document, { pageIndex }, parameters, control, nullptr);
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }

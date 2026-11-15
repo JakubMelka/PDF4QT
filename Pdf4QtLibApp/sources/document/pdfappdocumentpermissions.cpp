@@ -26,6 +26,7 @@
 
 #include "pdfdocumentmerger.h"
 #include "pdfdocumenttool.h"
+#include "pdfdocumenttool_encryption.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttoolregistry.h"
 #include "pdfexception.h"
@@ -98,6 +99,10 @@ public:
             case PDFAppPermissionAction::Unlock:
                 *required = PDFAppDocumentPermissions::getAllPermissions();
                 break;
+            case PDFAppPermissionAction::ChangeSecurity:
+                // No bit of Table 22 governs it: the owner authorization does (isChangeSecurityAllowed,
+                // R5-4); the missing permissions of its texts are the forbidden ones of the document
+                break;
             case PDFAppPermissionAction::Tool:
             {
                 // An unknown tool needs nothing here (the catalog refuses it elsewhere); a new
@@ -164,6 +169,15 @@ public:
         const QString last = names.takeLast();
         return QStringLiteral("%1 and %2").arg(names.join(QStringLiteral(", ")), last);
     }
+
+    /// A change of the security is allowed (R5-4): no encryption; the standard handler only by the
+    /// owner authorization (ISO 32000-2, 7.6.4.1 - also when the user password restricts nothing);
+    /// the public-key handler only by bit 2 of the recipient (Table 24, owner answer Q5.3 b). The
+    /// one rule of the core, which the validation of the tools checks too.
+    static bool isChangeSecurityAllowed(const PDFDocument* document)
+    {
+        return document && PDFDocumentToolEncryption::isSecurityChangeAllowed(document);
+    }
 };
 
 /// The callback of the security handler, which gives the owner password once (a class,
@@ -198,8 +212,11 @@ PDFAppPermissionRequest PDFAppPermissionRequest::create(PDFAppPermissionAction a
 
 PDFAppPermissionRequest PDFAppPermissionRequest::createTool(const QString& toolId)
 {
+    // A tool, which changes the security (the tools of Encryption), asks for the owner, not for
+    // bits of Table 22 (R5-4, K5.13); the id stays for its texts
+    const PDFDocumentToolCatalogEntry* entry = PDFDocumentToolCatalog::findTool(toolId);
     PDFAppPermissionRequest request;
-    request.action = PDFAppPermissionAction::Tool;
+    request.action = entry && entry->isSecurityChange() ? PDFAppPermissionAction::ChangeSecurity : PDFAppPermissionAction::Tool;
     request.toolId = toolId;
     return request;
 }
@@ -263,11 +280,22 @@ bool PDFAppDocumentPermissions::isAllowed(const PDFDocument* document, Permissio
 
 bool PDFAppDocumentPermissions::isAllowed(const PDFDocument* document, const PDFAppPermissionRequest& request)
 {
+    if (request.action == PDFAppPermissionAction::ChangeSecurity)
+    {
+        return PDFAppDocumentPermissionsHelper::isChangeSecurityAllowed(document);
+    }
     return document && getMissingPermissions(document, request).empty();
 }
 
 std::vector<PDFSecurityHandler::Permission> PDFAppDocumentPermissions::getMissingPermissions(const PDFDocument* document, const PDFAppPermissionRequest& request)
 {
+    if (request.action == PDFAppPermissionAction::ChangeSecurity)
+    {
+        // What the document forbids now (the owner lifts it); empty for a document, which
+        // restricts nothing and still needs the owner (isAllowed decides, not this list)
+        return PDFAppDocumentPermissionsHelper::isChangeSecurityAllowed(document) ? std::vector<Permission>() : getForbiddenPermissions(document);
+    }
+
     std::vector<Permission> required;
     std::vector<Permission> alternatives;
     PDFAppDocumentPermissionsHelper::getNeeds(request, &required, &alternatives);
@@ -314,6 +342,30 @@ std::vector<PDFSecurityHandler::Permission> PDFAppDocumentPermissions::getForbid
     return forbidden;
 }
 
+std::vector<PDFSecurityHandler::Permission> PDFAppDocumentPermissions::getFileForbiddenPermissions(const PDFDocument* document)
+{
+    const PDFSecurityHandler* securityHandler = document ? document->getStorage().getSecurityHandler() : nullptr;
+    if (!securityHandler || securityHandler->getMode() != EncryptionMode::Standard)
+    {
+        // Not encrypted: nothing; a certificate: the permissions of its recipient (no owner)
+        return getForbiddenPermissions(document);
+    }
+
+    // /P of the encryption dictionary (Table 22, revision 2 by its bits), not the authorization: a
+    // document unlocked by its owner password keeps these restrictions in its file (430:2481
+    // "Printing only · kept") - the one reading of the core (PDFDocumentToolEncryption)
+    std::vector<Permission> forbidden;
+    const uint32_t bits = PDFDocumentToolEncryption::getDocumentPermissions(document);
+    for (const Permission permission : getAllPermissions())
+    {
+        if (!(bits & static_cast<uint32_t>(permission)))
+        {
+            forbidden.push_back(permission);
+        }
+    }
+    return forbidden;
+}
+
 bool PDFAppDocumentPermissions::isRestricted(const PDFDocument* document)
 {
     return !getForbiddenPermissions(document).empty();
@@ -321,10 +373,12 @@ bool PDFAppDocumentPermissions::isRestricted(const PDFDocument* document)
 
 bool PDFAppDocumentPermissions::canUnlock(const PDFDocument* document)
 {
+    // Also a document, which restricts nothing (R5-4): a change of its security still needs the
+    // owner (ChangeSecurity); every other action of such a document is allowed, so its question
+    // never comes to the owner password
     const PDFSecurityHandler* securityHandler = document ? document->getStorage().getSecurityHandler() : nullptr;
     return securityHandler && securityHandler->getMode() == EncryptionMode::Standard &&
-           securityHandler->getAuthorizationResult() == PDFSecurityHandler::AuthorizationResult::UserAuthorized &&
-           isRestricted(document);
+           securityHandler->getAuthorizationResult() == PDFSecurityHandler::AuthorizationResult::UserAuthorized;
 }
 
 bool PDFAppDocumentPermissions::isCertificateSecurity(const PDFDocument* document)
@@ -370,8 +424,35 @@ QString PDFAppDocumentPermissions::getDialogTitle(const QString& documentTitle)
     return tr("Owner password for %1").arg(documentTitle);
 }
 
+QString PDFAppDocumentPermissions::getChangeSecurityTitle(bool isWrongPassword)
+{
+    // 430:2709, 430:2969
+    return isWrongPassword ? tr("That is not the owner password") : tr("Owner password needed");
+}
+
+QString PDFAppDocumentPermissions::getChangeSecurityText(const QString& documentTitle, const PDFAppPermissionRequest& request, bool isWrongPassword)
+{
+    // 430:2709 / 433:5210 (Remove Password), 430:2969 / 433:5442
+    if (isWrongPassword)
+    {
+        return tr("Permission to change document security is denied. Check the password and try again.");
+    }
+    if (request.toolId == QLatin1String(PDFDocumentToolEncryption::TOOL_ID_UNLOCK))
+    {
+        return tr("%1 was opened with the open password. Enter the owner password to remove its protection.").arg(documentTitle);
+    }
+    return tr("%1 was opened with the open password. Enter the owner password to change its security.").arg(documentTitle);
+}
+
 QString PDFAppDocumentPermissions::getDialogText(const PDFDocument* document, const PDFAppPermissionRequest& request)
 {
+    if (request.action == PDFAppPermissionAction::ChangeSecurity)
+    {
+        // Without the title of the document (the dialog has it: getChangeSecurityText)
+        return request.toolId == QLatin1String(PDFDocumentToolEncryption::TOOL_ID_UNLOCK) ? tr("The document was opened with the open password. Enter the owner password to remove its protection.")
+                                                                 : tr("The document was opened with the open password. Enter the owner password to change its security.");
+    }
+
     const std::vector<Permission> missing = getMissingPermissions(document, request);
     if (missing.empty() || request.action == PDFAppPermissionAction::Unlock)
     {
@@ -413,6 +494,20 @@ QString PDFAppDocumentPermissions::getForbiddenListText(const PDFDocument* docum
 
 QString PDFAppDocumentPermissions::getRefusalText(const PDFDocument* document, const PDFAppPermissionRequest& request)
 {
+    if (request.action == PDFAppPermissionAction::ChangeSecurity)
+    {
+        // R5-4, K5.12: the owner only (7.6.4.1), a certificate by bit 2 of its recipient (Table 24)
+        if (isCertificateSecurity(document))
+        {
+            return tr("The certificate, with which the document was opened, does not allow changing or removing its encryption. Only someone, whose certificate allows it, can change its security.");
+        }
+        if (canUnlock(document))
+        {
+            return tr("Only the owner can change the security of the document. If you own it, unlock it with its owner password.");
+        }
+        return tr("Only the owner can change the security of the document.");
+    }
+
     const std::vector<Permission> missing = getMissingPermissions(document, request);
     const QString names = missing.empty() ? tr("this action") : joinNames(missing);
     if (isCertificateSecurity(document))
@@ -440,6 +535,16 @@ QString PDFAppDocumentPermissions::getRefusalText(const PDFDocument* document, c
 
 QString PDFAppDocumentPermissions::getMcpRefusalText(const PDFDocument* document, const PDFAppPermissionRequest& request)
 {
+    if (request.action == PDFAppPermissionAction::ChangeSecurity)
+    {
+        // R5-4: the owner only (ISO 32000-2, 7.6.4.1); a certificate by bit 2 of its recipient (Table 24)
+        if (isCertificateSecurity(document))
+        {
+            return QStringLiteral("Changing the security of the document is not allowed: it is encrypted with a certificate (public-key security), whose recipient permissions do not allow changing the encryption (ISO 32000-2 Table 24, bit 2). No password can lift it.");
+        }
+        return QStringLiteral("Changing the security of the document needs owner access (ISO 32000-2 7.6.4.1): the document was opened with its open (user) password. The user can unlock it in PDF4QT with the owner password of the document; it stays unlocked until its tab is closed. Never ask the user for the password - it is typed only in PDF4QT. Tell the user and try again after the user has unlocked the document.");
+    }
+
     const std::vector<Permission> missing = getMissingPermissions(document, request);
     const QString names = missing.empty() ? QStringLiteral("this action") : PDFAppDocumentPermissionsHelper::joinEnglish(missing);
     if (isCertificateSecurity(document))

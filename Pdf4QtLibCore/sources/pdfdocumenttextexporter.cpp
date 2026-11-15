@@ -58,9 +58,9 @@ public:
 
     }
 
-    virtual bool isOperationCancelled() const override
+    virtual bool isOperationCanceled() const override
     {
-        return m_isTextFound.load(std::memory_order_relaxed) || PDFOperationControl::isOperationCancelled(m_parent);
+        return m_isTextFound.load(std::memory_order_relaxed) || PDFOperationControl::isOperationCanceled(m_parent);
     }
 
     void setTextFound() { m_isTextFound.store(true, std::memory_order_relaxed); }
@@ -416,7 +416,7 @@ std::vector<PDFInteger> PDFDocumentTextExporter::findPagesWithText(const PDFDocu
     auto scanPage = [&](PDFInteger pageIndex)
     {
         const PDFPage* page = catalog->getPage(pageIndex);
-        if (page && !PDFOperationControl::isOperationCancelled(control))
+        if (page && !PDFOperationControl::isOperationCanceled(control))
         {
             PDFDocumentTextExporterPageControl pageControl(control);
             PDFDocumentTextExporterPageScanner scanner(PDFRenderer::IgnoreOptionalContent, page, document, &fontCache, &iccProfileCache, &cms, &optionalContentActivity, QTransform(), meshQualitySettings);

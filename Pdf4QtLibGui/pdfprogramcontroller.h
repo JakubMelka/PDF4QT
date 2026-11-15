@@ -356,7 +356,7 @@ private:
     {
         pdf::PDFDocumentPointer document;
         QString errorMessage;
-        pdf::PDFDocumentReader::Result result = pdf::PDFDocumentReader::Result::Cancelled;
+        pdf::PDFDocumentReader::Result result = pdf::PDFDocumentReader::Result::Canceled;
         std::vector<pdf::PDFSignatureVerificationResult> signatures;
     };
 
@@ -463,7 +463,7 @@ private:
     /// written into the document yet (for example the edited page content), should
     /// be written into the document before it is saved. Confirmed changes are
     /// written into the document.
-    /// \returns False, if the saving of the document should be cancelled
+    /// \returns False, if the saving of the document should be canceled
     bool askForWriteUnwrittenChanges();
 
     PDFActionManager* m_actionManager;

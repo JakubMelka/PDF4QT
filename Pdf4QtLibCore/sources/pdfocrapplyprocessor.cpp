@@ -384,9 +384,9 @@ PDFOCRApplyProcessor::Result PDFOCRApplyProcessor::execute(const Context& contex
         if (plan.compression.isEnabled())
         {
             PDFDocument compressed = PDFOCRImageCompressor::compress(document, pages, plan.compression, plan.memoryBudget, operationControl, &result.compressionReport);
-            if (PDFOperationControl::isOperationCancelled(operationControl))
+            if (PDFOperationControl::isOperationCanceled(operationControl))
             {
-                result.errorMessage = PDFTranslationContext::tr("Operation was cancelled.");
+                result.errorMessage = PDFTranslationContext::tr("Operation was canceled.");
                 return result;
             }
 
@@ -424,9 +424,9 @@ PDFOCRApplyProcessor::Result PDFOCRApplyProcessor::execute(const Context& contex
             return result;
         }
 
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
-            result.errorMessage = PDFTranslationContext::tr("Operation was cancelled.");
+            result.errorMessage = PDFTranslationContext::tr("Operation was canceled.");
             return result;
         }
 
@@ -480,7 +480,7 @@ PDFOCRApplyProcessor::Result PDFOCRApplyProcessor::execute(const Context& contex
             }
         }
 
-        if (result.document && !plan.copyFileName.isEmpty() && !PDFOperationControl::isOperationCancelled(operationControl))
+        if (result.document && !plan.copyFileName.isEmpty() && !PDFOperationControl::isOperationCanceled(operationControl))
         {
             PDFDocumentWriter writer(nullptr);
             const PDFOperationResult writeResult = writer.write(plan.copyFileName, result.document.data(), true);
@@ -537,9 +537,9 @@ PDFOCRApplyProcessor::Result PDFOCRApplyProcessor::removeLayers(const Context& c
         PDFDocumentModifier modifier(context.document);
         for (PDFInteger page : pages)
         {
-            if (PDFOperationControl::isOperationCancelled(operationControl))
+            if (PDFOperationControl::isOperationCanceled(operationControl))
             {
-                result.errorMessage = PDFTranslationContext::tr("Operation was cancelled.");
+                result.errorMessage = PDFTranslationContext::tr("Operation was canceled.");
                 return result;
             }
 

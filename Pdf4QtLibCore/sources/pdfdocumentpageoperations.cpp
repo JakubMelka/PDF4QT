@@ -146,7 +146,7 @@ private:
     /// Depth of the direct objects of one object, which are rewritten
     static constexpr int MAXIMUM_OBJECT_DEPTH = 64;
 
-    bool isCanceled() const { return PDFOperationControl::isOperationCancelled(m_control); }
+    bool isCanceled() const { return PDFOperationControl::isOperationCanceled(m_control); }
 
     const PDFObject& getObject(const PDFObject& object) const { return m_builder.getObject(object); }
     const PDFDictionary* getDictionary(const PDFObject& object) const { return m_builder.getDictionaryFromObject(object); }
@@ -1727,7 +1727,7 @@ std::shared_ptr<const PDFDocumentPageOperations::PageIndex> PDFDocumentPageOpera
     index->m_pages.erase(PDFObjectReference());
     index->m_annotations.erase(PDFObjectReference());
     index->m_hasRepeatedPage = !PDFDocumentPageOperationsHelper::getPageIndices(document, &index->m_pageIndices);
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return nullptr;
     }
@@ -1749,7 +1749,7 @@ std::shared_ptr<const PDFDocumentPageOperations::PageIndex> PDFDocumentPageOpera
             }
         }
     }
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return nullptr;
     }

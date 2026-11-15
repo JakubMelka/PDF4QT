@@ -653,7 +653,7 @@ PDFAppAnnotationResult PDFAppAnnotationOperations::markSearchResults(const PDFDo
         {
             if (i % Helper::CANCEL_CHECK_INTERVAL == 0)
             {
-                if (PDFOperationControl::isOperationCancelled(control))
+                if (PDFOperationControl::isOperationCanceled(control))
                 {
                     return std::nullopt;
                 }
@@ -677,7 +677,7 @@ PDFAppAnnotationResult PDFAppAnnotationOperations::markSearchResults(const PDFDo
             }
         }
 
-        if (count == 0 || PDFOperationControl::isOperationCancelled(control))
+        if (count == 0 || PDFOperationControl::isOperationCanceled(control))
         {
             return std::nullopt;
         }
@@ -1040,7 +1040,7 @@ PDFAppAnnotationResult PDFAppAnnotationOperations::createAnnotations(const PDFDo
         references.reserve(items.size());
         for (size_t i = 0; i < items.size(); ++i)
         {
-            if (i % McpHelper::CANCEL_CHECK_INTERVAL == 0 && PDFOperationControl::isOperationCancelled(control))
+            if (i % McpHelper::CANCEL_CHECK_INTERVAL == 0 && PDFOperationControl::isOperationCanceled(control))
             {
                 return std::nullopt;
             }

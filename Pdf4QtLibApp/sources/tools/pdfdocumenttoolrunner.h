@@ -58,6 +58,7 @@ public:
     PDFDocumentToolRenderContext rendering;                         ///< How the pages are rendered: the settings and the layers of the tab (PDFAppDocumentView::createToolRenderContext, R4-10 b)
     QString authorName;                                             ///< Author of the new content
     std::shared_ptr<const PDFCertificateStore> certificateStore;    ///< Trusted certificates, may be null
+    std::vector<PDFCertificateEntry> userCertificates;              ///< The certificate of the user chosen for Encrypt with Certificate with its PKCS#12 (PDFDocumentToolContext::userCertificates; the GUI by prepareEnvironment, the confirmation of MCP); dropped with the run
     QString temporaryFolder;                                        ///< Folder of the temporary files of the run (PDFAppContext::getToolTemporaryFolder, R4-1)
     std::shared_ptr<PDFSpeechSynthesizerFactory> speechSynthesizerFactory;  ///< The speech synthesis of Create Audio Book (PDFAppContext::getSpeechSynthesizerFactory, R4-15)
     QStringList protectedFilePaths;                                 ///< Files, which a tool of more files never overwrites (the open documents, R14; PDFAppToolFileSink)
@@ -144,7 +145,9 @@ public:
     PDFAppDocument* getDocument() const { return m_document.data(); }
     const std::shared_ptr<const PDFDocumentTool>& getTool() const { return m_tool; }
 
-    /// The parameters of the last run (\p run), empty before the first one
+    /// The parameters of the last run (\p run), empty before the first one. A value of a Secret
+    /// parameter (a password) is in them only while the run and its decision last - a refused
+    /// commit runs again with it; then it is dropped (plan of step 5 of phase 2, 6.1, S5.1)
     const QVariantMap& getRunParameters() const { return m_runParameters; }
 
     /// What the output of the last run is (PDFDocumentTool::getOutputTraits with its parameters;
@@ -311,6 +314,10 @@ private:
     bool readProgress(const std::shared_ptr<PDFDocumentToolRunnerJob>& job);
     void loseDocument();
     PDFAppDocumentSnapshot createSnapshot() const;
+
+    /// Drops the values of the Secret parameters of the last run and overwrites them (S5.1): the
+    /// run and its decision have ended, nothing runs again with them
+    void forgetRunSecrets();
 
     /// Serves a preview requested during a run or a decision. \returns false, when the
     /// runner has been deleted by a slot

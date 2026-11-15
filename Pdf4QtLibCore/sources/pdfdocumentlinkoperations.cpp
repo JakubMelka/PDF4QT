@@ -202,7 +202,7 @@ PDFDocumentLinkOperations::LinkList PDFDocumentLinkOperations::listExternalLinks
     const PDFCatalog* catalog = document->getCatalog();
     for (size_t pageIndex = 0, pageCount = catalog->getPageCount(); pageIndex < pageCount; ++pageIndex)
     {
-        if (PDFOperationControl::isOperationCancelled(control))
+        if (PDFOperationControl::isOperationCanceled(control))
         {
             break;
         }

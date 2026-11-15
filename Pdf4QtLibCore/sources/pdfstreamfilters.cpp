@@ -428,7 +428,7 @@ QByteArray PDFFlateDecodeFilter::compress(const QByteArray& decompressedData)
     switch (error)
     {
         case Z_STREAM_END:
-            break; // No error, normal behaviour
+            break; // No error, normal behavior
 
         default:
         {
@@ -527,7 +527,7 @@ QByteArray PDFFlateDecodeFilter::uncompress(const QByteArray& data)
     switch (error)
     {
         case Z_STREAM_END:
-            break; // No error, normal behaviour
+            break; // No error, normal behavior
 
         default:
         {
@@ -959,6 +959,10 @@ QByteArray PDFCryptFilter::apply(const QByteArray& data,
         throw PDFException(PDFTranslationContext::tr("Security handler required, but not provided."));
     }
 
+    // 7.4.10, Table 14: /Name of the decode parameters, default Identity. The key of the object
+    // (Algorithm 1) needs the reference of the stream object, which the reader stores into these
+    // decode parameters, when it keeps the step (PDFSecurityHandler::isCryptFilterStream, B106)
+    bool hasObjectReference = false;
     PDFObjectReference objectReference;
     QByteArray cryptFilterName = PDFSecurityHandler::IDENTITY_FILTER_NAME;
     const PDFObject& dereferencedParameters = objectFetcher(parameters);
@@ -975,7 +979,14 @@ QByteArray PDFCryptFilter::apply(const QByteArray& data,
         if (objectReferenceObject.isReference())
         {
             objectReference = objectReferenceObject.getReference();
+            hasObjectReference = true;
         }
+    }
+
+    if (!hasObjectReference && cryptFilterName != PDFSecurityHandler::IDENTITY_FILTER_NAME)
+    {
+        // A key of another object would decrypt garbage silently
+        throw PDFException(PDFTranslationContext::tr("Crypt filter '%1' cannot decrypt a stream of an unknown object.").arg(QString::fromLatin1(cryptFilterName)));
     }
 
     return securityHandler->decryptByFilter(data, cryptFilterName, objectReference);

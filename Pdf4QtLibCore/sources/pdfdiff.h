@@ -400,7 +400,7 @@ private:
     PDFClosedIntervalSet m_pagesForRightDocument;
     Options m_options;
     PDFReal m_epsilon;
-    std::atomic_bool m_cancelled;
+    std::atomic_bool m_canceled;
     PDFDiffResult m_result;
     PDFDocumentTextFlowFactory::Algorithm m_textAnalysisAlgorithm;
 

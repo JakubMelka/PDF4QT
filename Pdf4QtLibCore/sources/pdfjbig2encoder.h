@@ -125,7 +125,7 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFJBIG2EncoderParameters
 /// Encoder of bitonal images into the JBIG2 format, described in ISO/IEC 14492:2001
 /// (ITU-T T.88). The whole image is coded as a single generic region - no symbols
 /// are detected, so the coding is always lossless. The encoder produces either the
-/// embedded stream organisation used by the JBIG2Decode filter of PDF, or a stand
+/// embedded stream organization used by the JBIG2Decode filter of PDF, or a stand
 /// alone JBIG2 file with a single page.
 class PDF4QTLIBCORESHARED_EXPORT PDFJBIG2Encoder
 {
@@ -134,14 +134,14 @@ public:
     /// \param parameters Parameters of the encoding
     explicit PDFJBIG2Encoder(const PDFBitonalBitmapView& bitmap, const PDFJBIG2EncoderParameters& parameters);
 
-    /// Encodes the image into the embedded stream organisation of the PDF filter
+    /// Encodes the image into the embedded stream organization of the PDF filter
     /// JBIG2Decode (see 7.4.7 of the PDF specification) - a page information segment
     /// followed by an immediate generic region segment covering the whole page. Both
     /// segments are associated with the page 1 and no global segments are needed.
     /// Throws \p PDFException, if the image or the parameters are invalid.
     QByteArray encodeEmbeddedStream();
 
-    /// Encodes the image into a JBIG2 file with the sequential organisation and a single
+    /// Encodes the image into a JBIG2 file with the sequential organization and a single
     /// page, see the annex D of the specification. The file contains the file header,
     /// the segments of \p encodeEmbeddedStream, an end of page segment and an end of
     /// file segment. Throws \p PDFException, if the image or the parameters are invalid.

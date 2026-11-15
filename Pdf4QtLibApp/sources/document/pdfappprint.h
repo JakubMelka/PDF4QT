@@ -224,7 +224,7 @@ private:
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppPrintJobState : public PDFOperationControl
 {
 public:
-    virtual bool isOperationCancelled() const override { return isCancelRequested.load(); }
+    virtual bool isOperationCanceled() const override { return isCancelRequested.load(); }
 
     std::atomic<bool> isCancelRequested = false;
     std::atomic<int> printedCount = 0;      ///< Printed pages (page x copy)

@@ -24,6 +24,8 @@
 #include "pdfdatabase.h"
 #include "pdfdatabaseschema.h"
 
+#include "pdfcertificatemanager.h"
+
 #include <QDir>
 #include <QStandardPaths>
 
@@ -58,6 +60,25 @@ QString PDFAppPaths::getLogDirectory()
 
     const QString directory = getDataDirectory();
     return directory.isEmpty() ? QString() : QDir(directory).filePath(QStringLiteral("logs"));
+}
+
+QString PDFAppPaths::getCertificateDirectory()
+{
+    if (qEnvironmentVariableIsEmpty("PDF4QT_APP_DATA_DIRECTORY"))
+    {
+        return QString();
+    }
+    return QDir(getDataDirectory()).filePath(QStringLiteral("certificates"));
+}
+
+void PDFAppPaths::installCertificateDirectories()
+{
+    const QString directory = getCertificateDirectory();
+    if (!directory.isEmpty())
+    {
+        // The old folders of the user account are read before the folder is replaced
+        PDFCertificateManager::setCertificateDirectories(directory, PDFCertificateManager::getOldCertificateDirectories());
+    }
 }
 
 }   // namespace pdf

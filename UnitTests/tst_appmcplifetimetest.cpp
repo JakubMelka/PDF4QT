@@ -55,6 +55,10 @@
 #include "pdfappmcpdocumentresources.h"
 #include "pdfappmcphost.h"
 #include "pdfappmcppreview.h"
+#include "pdfappmcpsecretconfirmation.h"
+#include "pdfapptoolgui_encryption.h"
+#include "pdfapptoolpasswordcard.h"
+#include "pdffluentwidgets.h"
 #include "pdfappnavigator.h"
 #include "pdfapproute.h"
 #include "pdfapptab.h"
@@ -899,6 +903,83 @@ std::vector<McpLifetimeStep> McpLifetimeHelper::scenario(const QString& name, Mc
     }
     run.documentId = H::documentTab(run)->getDocument()->getId();
 
+    if (name == QStringLiteral("protect"))
+    {
+        // The confirmation with the passwords of Protect with Password (step 5 of phase 2, R5-12,
+        // Q5.6; fix wave P2S5FIXAPP item 10): also with every permission Allow, the password typed
+        // into it, then Save Copy (the tools are registered by initTestCase: a registration here
+        // would notify the catalog of the host during the first step). The permissions written above
+        // reach the host by its notifier: they are awaited here, so the rebuild of the catalog is no
+        // site of the first step in one run and none in another
+        H::waitFor([&fixture]() { return fixture.host() && fixture.host()->getPolicy().getPermissions() == pdf::PDFAppMcpPermissions::createAll(Permission::Allow); }, 5000);
+
+        // The tools registered by the context after the host was made reach its catalog by the timer
+        // of the registry (1 s): taken now, as the lifetime test of the tool pages does
+        if (fixture.host())
+        {
+            fixture.host()->checkToolRegistry();
+            H::settle();
+        }
+
+        // The rebuilds of the catalog after the opening of the document (its resources) end before
+        // the first step: the sites of the steps are the same in every run
+        H::waitFor([]() { return false; }, 1500);
+        const auto protect = [](const McpLifetimeRun& run)
+        {
+            QJsonObject arguments = H::json(R"({"action":"password","result":"save_copy"})");
+            arguments.insert(QStringLiteral("documentId"), run.documentId);
+            arguments.insert(QStringLiteral("path"), run.fixture->path(QStringLiteral("protected.pdf")));
+            return arguments;
+        };
+        const auto waitConfirmation = [](McpLifetimeRun& run) -> pdf::PDFAppMcpSecretConfirmation*
+        {
+            H::waitFor([&run]() { return !run.window || pdftest::AppDocumentFixture::findDialog<pdf::PDFAppMcpSecretConfirmation>() || (run.call && run.call->isFinished()); }, 10000);
+            pdf::PDFAppMcpSecretConfirmation* confirmation = pdftest::AppDocumentFixture::findDialog<pdf::PDFAppMcpSecretConfirmation>();
+            if (confirmation)
+            {
+                confirmation->setInputDelay(0);
+            }
+            return confirmation;
+        };
+        const auto typePassword = [](pdf::PDFAppMcpSecretConfirmation* confirmation)
+        {
+            QPointer<pdf::PDFAppToolPasswordCard> card = confirmation ? confirmation->getOpenPasswordCard() : nullptr;
+            for (int i = 0; i < 2 && card; ++i)
+            {
+                QPointer<pdf::PDFLineEdit> field = i == 0 ? card->getPasswordField() : card->getRepeatField();
+                if (field)
+                {
+                    field->setFocus();
+                    QTest::keyClicks(field.data(), QStringLiteral("Lifetime-7q"));
+                }
+            }
+            H::settle();
+            return card != nullptr;
+        };
+
+        // One call in three steps (the call, the password, Save Copy): a second call would depend on
+        // the deferred deletion of the first request (one confirmation with a password at a time)
+        steps.push_back([protect, waitConfirmation](McpLifetimeRun& run)
+        {
+            return H::startCall(run, QStringLiteral("protect"), protect(run)) && waitConfirmation(run) != nullptr;
+        });
+        steps.push_back([typePassword](McpLifetimeRun& run)
+        {
+            Q_UNUSED(run);
+            return typePassword(pdftest::AppDocumentFixture::findDialog<pdf::PDFAppMcpSecretConfirmation>());
+        });
+        steps.push_back([](McpLifetimeRun& run)
+        {
+            pdf::PDFAppMcpSecretConfirmation* confirmation = pdftest::AppDocumentFixture::findDialog<pdf::PDFAppMcpSecretConfirmation>();
+            const bool isOk = confirmation && H::click(confirmation->getAllowButton()) && H::finishCall(run);
+
+            // The notification of the written activity row comes within this step in every run
+            H::waitFor([]() { return false; }, 500);
+            return isOk;
+        });
+        return steps;
+    }
+
     if (name == QStringLiteral("read"))
     {
         if (!fixture.setPermission(Kind::Read, Permission::Ask))
@@ -1300,7 +1381,7 @@ private Q_SLOTS:
 private:
     static constexpr int PART_COUNT = 4;
 
-    static QStringList getScenarios() { return { QStringLiteral("read"), QStringLiteral("edit"), QStringLiteral("files"), QStringLiteral("catalog"), QStringLiteral("stream"), QStringLiteral("ai") }; }
+    static QStringList getScenarios() { return { QStringLiteral("read"), QStringLiteral("edit"), QStringLiteral("files"), QStringLiteral("catalog"), QStringLiteral("stream"), QStringLiteral("ai"), QStringLiteral("protect") }; }
 
     /// Runs the scenario. In the replay mode the victim is deleted at the target
     /// site. \returns the sites seen (discovery) and whether the victim was deleted.
@@ -1313,6 +1394,9 @@ void AppMcpLifetimeTest::initTestCase()
     QApplication::setStyle(new pdf::PDFWidgetStyle());
     QLocale::setDefault(QLocale(QLocale::English, QLocale::UnitedStates));
     pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
+
+    // The four tools of the encryption with their GUI (the scenario "protect")
+    pdf::PDFAppToolGUIEncryption::registerEncryptionTools();
 }
 
 void AppMcpLifetimeTest::cleanup()

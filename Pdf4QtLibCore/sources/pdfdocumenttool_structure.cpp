@@ -319,7 +319,7 @@ PDFDocumentToolResult PDFDocumentToolStructure::execute(const PDFDocumentToolCon
     optimizer.optimize();
     const PDFOptimizer::Statistics statistics = optimizer.getStatistics();
 
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }
@@ -340,7 +340,7 @@ PDFDocumentToolResult PDFDocumentToolStructure::execute(const PDFDocumentToolCon
         return PDFDocumentToolResult::createFailed(outputSize.error);
     }
     const qint64 sizeAfter = outputSize.size;
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }

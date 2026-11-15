@@ -911,8 +911,8 @@ QString PDFOCRTextExporter::getPageStateDescription(const PDFOCRPageResult& resu
         case PDFOCRPageState::Error:
             return result.error.message.isEmpty() ? PDFTranslationContext::tr("recognition failed") : PDFTranslationContext::tr("recognition failed, %1").arg(result.error.message);
 
-        case PDFOCRPageState::Cancelled:
-            return PDFTranslationContext::tr("recognition was cancelled");
+        case PDFOCRPageState::Canceled:
+            return PDFTranslationContext::tr("recognition was canceled");
 
         case PDFOCRPageState::Stale:
             return PDFTranslationContext::tr("result is stale (settings changed)");

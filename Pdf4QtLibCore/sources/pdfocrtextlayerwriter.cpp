@@ -721,7 +721,8 @@ public:
 
     /// Removes the elements and attributes of the conformance namespaces from the subtree.
     /// Returns true, if something was found.
-    static bool removeConformanceNodes(QDomNode node, QStringList* declarations, bool remove);
+    /// Only the namespaces of \p standards ("PDF/A", "PDF/UA") count.
+    static bool removeConformanceNodes(QDomNode node, QStringList* declarations, bool remove, const QStringList& standards);
 };
 
 const PDFDictionary* PDFOCRTextLayerWriterHelper::getOwnLayerPrivateDictionary(const PDFDocument* document, PDFInteger pageIndex)
@@ -1953,7 +1954,7 @@ PDFDocument PDFOCRTextLayerWriter::rebindOptimizedDocument(const PDFDocument* or
 static const char* PDFA_NAMESPACE = "http://www.aiim.org/pdfa/ns/id/";
 static const char* PDFUA_NAMESPACE = "http://www.aiim.org/pdfua/ns/id/";
 
-bool PDFOCRTextLayerWriterHelper::removeConformanceNodes(QDomNode node, QStringList* declarations, bool remove)
+bool PDFOCRTextLayerWriterHelper::removeConformanceNodes(QDomNode node, QStringList* declarations, bool remove, const QStringList& standards)
 {
     bool found = false;
 
@@ -1970,9 +1971,11 @@ bool PDFOCRTextLayerWriterHelper::removeConformanceNodes(QDomNode node, QStringL
         }
     };
 
-    auto isConformanceNamespace = [](const QString& namespaceUri)
+    // Only the namespaces of the standards asked for (the encryption keeps PDF/UA, R5-6)
+    auto isConformanceNamespace = [&standards](const QString& namespaceUri)
     {
-        return namespaceUri == QLatin1String(PDFA_NAMESPACE) || namespaceUri == QLatin1String(PDFUA_NAMESPACE);
+        return (namespaceUri == QLatin1String(PDFA_NAMESPACE) && standards.contains(QStringLiteral("PDF/A"))) ||
+               (namespaceUri == QLatin1String(PDFUA_NAMESPACE) && standards.contains(QStringLiteral("PDF/UA")));
     };
 
     QDomNode child = node.firstChild();
@@ -1995,27 +1998,57 @@ bool PDFOCRTextLayerWriterHelper::removeConformanceNodes(QDomNode node, QStringL
             }
 
             // Attribute form of the properties
+            struct Attribute
+            {
+                QString namespaceUri;
+                QString qualifiedName;
+                QString localName;
+                QString value;
+            };
+
             QDomNamedNodeMap attributes = element.attributes();
-            QStringList attributesToRemove;
+            std::vector<Attribute> attributesToRemove;
+            std::vector<Attribute> attributesKept;
             for (int i = 0; i < attributes.count(); ++i)
             {
                 QDomAttr attribute = attributes.item(i).toAttr();
+                const QString qualifiedName = attribute.prefix().isEmpty() ? attribute.localName() : attribute.prefix() + QLatin1Char(':') + attribute.localName();
+                Attribute item{ attribute.namespaceURI(), qualifiedName, attribute.localName(), attribute.value() };
                 if (isConformanceNamespace(attribute.namespaceURI()))
                 {
                     found = true;
                     registerDeclaration(attribute.namespaceURI());
-                    attributesToRemove << attribute.name();
+                    attributesToRemove.push_back(std::move(item));
+                }
+                else
+                {
+                    attributesKept.push_back(std::move(item));
                 }
             }
-            if (remove)
+            if (remove && !attributesToRemove.empty())
             {
-                for (const QString& name : attributesToRemove)
+                // No attribute is removed from a live element: QDom keys the attributes by their
+                // local name, so removing pdfaid:part takes pdfuaid:part out of the map as well and
+                // releases only one of them (a leak), the other one had to be set again. A new
+                // element of the same namespace and name gets only the kept attributes (with their
+                // namespaces, as the parser sets them) and the children; it replaces the old
+                // element, which releases all of its attributes (the encryption keeps PDF/UA).
+                const QString elementName = element.prefix().isEmpty() ? (element.localName().isEmpty() ? element.tagName() : element.localName())
+                                                                       : element.prefix() + QLatin1Char(':') + element.localName();
+                QDomElement replacement = element.ownerDocument().createElementNS(element.namespaceURI(), elementName);
+                for (const Attribute& attribute : attributesKept)
                 {
-                    element.removeAttribute(name);
+                    replacement.setAttributeNS(attribute.namespaceUri, attribute.qualifiedName, attribute.value);
                 }
+                while (!element.firstChild().isNull())
+                {
+                    replacement.appendChild(element.firstChild());
+                }
+                node.replaceChild(replacement, element);
+                element = replacement;
             }
 
-            found = removeConformanceNodes(element, declarations, remove) || found;
+            found = removeConformanceNodes(element, declarations, remove, standards) || found;
         }
         child = next;
     }
@@ -2023,7 +2056,17 @@ bool PDFOCRTextLayerWriterHelper::removeConformanceNodes(QDomNode node, QStringL
     return found;
 }
 
+QStringList PDFOCRTextLayerWriter::getConformanceStandards()
+{
+    return { QStringLiteral("PDF/A"), QStringLiteral("PDF/UA") };
+}
+
 bool PDFOCRTextLayerWriter::findConformanceDeclarations(const QByteArray& metadata, QStringList* declarations, QByteArray* withoutDeclarations)
+{
+    return findConformanceDeclarations(metadata, declarations, withoutDeclarations, getConformanceStandards());
+}
+
+bool PDFOCRTextLayerWriter::findConformanceDeclarations(const QByteArray& metadata, QStringList* declarations, QByteArray* withoutDeclarations, const QStringList& standards)
 {
     if (withoutDeclarations)
     {
@@ -2036,8 +2079,8 @@ bool PDFOCRTextLayerWriter::findConformanceDeclarations(const QByteArray& metada
     if (!dom.setContent(metadata, QDomDocument::ParseOption::UseNamespaceProcessing))
     {
         // Unparseable metadata: the declaration is searched textually and cannot be removed
-        const bool hasPdfA = metadata.contains(PDFA_NAMESPACE);
-        const bool hasPdfUA = metadata.contains(PDFUA_NAMESPACE);
+        const bool hasPdfA = standards.contains(QStringLiteral("PDF/A")) && metadata.contains(PDFA_NAMESPACE);
+        const bool hasPdfUA = standards.contains(QStringLiteral("PDF/UA")) && metadata.contains(PDFUA_NAMESPACE);
         if (declarations)
         {
             if (hasPdfA)
@@ -2052,14 +2095,14 @@ bool PDFOCRTextLayerWriter::findConformanceDeclarations(const QByteArray& metada
         return hasPdfA || hasPdfUA;
     }
 
-    const bool found = PDFOCRTextLayerWriterHelper::removeConformanceNodes(dom, declarations, withoutDeclarations != nullptr);
+    const bool found = PDFOCRTextLayerWriterHelper::removeConformanceNodes(dom, declarations, withoutDeclarations != nullptr, standards);
     if (withoutDeclarations && found)
     {
         *withoutDeclarations = dom.toByteArray(1);
 
         // The removal is verified: the result must not declare the conformance anymore
         QDomDocument verification;
-        if (!verification.setContent(*withoutDeclarations, QDomDocument::ParseOption::UseNamespaceProcessing) || PDFOCRTextLayerWriterHelper::removeConformanceNodes(verification, nullptr, false))
+        if (!verification.setContent(*withoutDeclarations, QDomDocument::ParseOption::UseNamespaceProcessing) || PDFOCRTextLayerWriterHelper::removeConformanceNodes(verification, nullptr, false, standards))
         {
             withoutDeclarations->clear();
         }
@@ -2070,6 +2113,11 @@ bool PDFOCRTextLayerWriter::findConformanceDeclarations(const QByteArray& metada
 
 bool PDFOCRTextLayerWriter::removeConformanceDeclaration(PDFDocumentBuilder* builder, const PDFDocument* document)
 {
+    return removeConformanceDeclaration(builder, document, getConformanceStandards());
+}
+
+bool PDFOCRTextLayerWriter::removeConformanceDeclaration(PDFDocumentBuilder* builder, const PDFDocument* document, const QStringList& standards)
+{
     const PDFCatalog* catalog = document->getCatalog();
     const PDFObject& metadataObject = document->getObject(catalog->getMetadata());
     if (!metadataObject.isStream())
@@ -2079,7 +2127,7 @@ bool PDFOCRTextLayerWriter::removeConformanceDeclaration(PDFDocumentBuilder* bui
 
     const QByteArray metadata = document->getDecodedStream(metadataObject.getStream());
     QByteArray withoutDeclarations;
-    if (!findConformanceDeclarations(metadata, nullptr, &withoutDeclarations))
+    if (!findConformanceDeclarations(metadata, nullptr, &withoutDeclarations, standards))
     {
         // Nothing to remove
         return true;

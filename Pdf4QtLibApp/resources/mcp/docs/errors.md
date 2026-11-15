@@ -18,11 +18,16 @@ PDF4QT reports two kinds of errors:
 | "The document needs a password …" | The user must type it in PDF4QT | Ask the user to type it in PDF4QT; never ask for the password itself |
 | "The user denied …" | The user said no in PDF4QT | Tell the user; do not repeat the call |
 | "The user did not answer … within 2 minutes" | The confirmation expired | Ask the user whether to try again |
+| "The user did not type the password in PDF4QT within 2 minutes (state password_required) …" | A protect action waited for the password (or the certificate) in the confirmation of PDF4QT, and the user did not type it | Ask the user whether to try again; never ask for the password itself |
+| "PDF4QT already asks the user for a password of another request …" | One confirmation with a password is open; PDF4QT asks for one at a time | Wait for the answer to the first request, then call again |
+| "Invalid arguments: …" naming a password or a certificate | A password, a certificate or its password were sent in the arguments; they are typed only by the user in PDF4QT | Leave them out: the action opens the confirmation, where the user types them |
 | "The confirmation waited in PDF4QT for 10 minutes without being shown …" | The question never appeared (other questions, a hidden tab or another dialog of PDF4QT) | Ask the user whether to try again |
 | "The user does not allow …" | The permission is Deny | Tell the user; the permission can be changed on the AI page |
 | "PDF4QT cannot ask the user …" | No confirmation can be shown right now | Ask the user to allow the action on the AI page, or try later |
 | "The document is locked in PDF4QT …" | The user locked the document | Ask the user to unlock it or to use Edit a Copy |
 | "The document does not allow … (its security settings, ISO 32000-2 Table 22) …" | The author of the encrypted document restricts the action (printing, copying, annotations, forms, pages, changes) | Tell the user which permission is missing; the user can unlock the document in PDF4QT with its owner password (until the tab is closed). Never ask for the password; call again after the user has unlocked it. "… come from the certificate …": no password can lift it |
+| "Changing the security of the document needs owner access (ISO 32000-2 7.6.4.1) …" | A protect action (`password`, `permissions`, `certificate-encrypt`, `unlock`) on a document opened with its open (user) password - only the owner changes or removes the encryption, also when the document restricts nothing | Tell the user; the user can unlock the document in PDF4QT with its owner password (until the tab is closed). Never ask for the password; call again after the user has unlocked it |
+| "Changing the security of the document is not allowed: it is encrypted with a certificate …" | The recipient permissions of the certificate do not allow changing the encryption (ISO 32000-2 Table 24, bit 2) | Tell the user; no password can lift it |
 | "PDF4QT is busy with another operation …" | A save, a print or a tool runs on the document | Try again when it has finished |
 | "PDF4QT shows a dialog …" | A dialog of PDF4QT is open; changes are refused meanwhile | Try again after the user closes it |
 | "Too many requests are waiting for the user …" | 16 requests wait in the tab | Wait for the answers; send fewer calls with more items each |
@@ -68,6 +73,7 @@ PDF4QT reports two kinds of errors:
 | Text resource of a document | 4194304 characters |
 | Waiting confirmations per tab | 16 |
 | Confirmation timeout | 2 minutes from the moment the question appears; at most 10 minutes waiting before it appears |
+| Confirmation with a password (protect) | One at a time; 2 minutes from the moment it appears, at most 10 minutes waiting before it appears |
 | Wait of `files.open` | 2 minutes for the reading of the file, then 2 minutes from the password screen for the password |
 | Calls running at once | 16 per assistant |
 | Rate | 20 calls per second (short bursts up to 50) per assistant |

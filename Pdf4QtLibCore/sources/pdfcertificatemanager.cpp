@@ -21,9 +21,12 @@
 // SOFTWARE.
 
 #include "pdfcertificatemanager.h"
+#include "pdfsecurityhandler.h"
 
 #include <QDir>
 #include <QFile>
+#include <QMutex>
+#include <QMutexLocker>
 #include <QEventLoop>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -71,9 +74,46 @@ PDFCertificateManager::PDFCertificateManager()
 template<typename T>
 using openssl_ptr = std::unique_ptr<T, void(*)(T*)>;
 
-void PDFCertificateManager::createCertificate(const NewCertificateInfo& info)
+/// Helpers of PDFCertificateManager
+class PDFCertificateManagerHelper
 {
+public:
+    /// Frees a stack of certificates with the certificates (PKCS12_parse gives them owned)
+    static void freeCertificateStack(STACK_OF(X509)* certificates)
+    {
+        sk_X509_pop_free(certificates, X509_free);
+    }
+
+    /// The folders of setCertificateDirectories (empty = the folders of the user)
+    static QMutex s_directoriesMutex;
+    static QString s_directory;
+    static QStringList s_oldDirectories;
+};
+
+QMutex PDFCertificateManagerHelper::s_directoriesMutex;
+QString PDFCertificateManagerHelper::s_directory;
+QStringList PDFCertificateManagerHelper::s_oldDirectories;
+
+bool PDFCertificateManager::createCertificate(const NewCertificateInfo& info, QString* errorMessage)
+{
+    QString dummy;
+    QString& error = errorMessage ? *errorMessage : dummy;
+    error.clear();
+
+    if (info.rsaKeyLength < MINIMUM_RSA_KEY_LENGTH || info.rsaKeyLength > MAXIMUM_RSA_KEY_LENGTH)
+    {
+        error = tr("Invalid length of the key: %1 bits.").arg(info.rsaKeyLength);
+        return false;
+    }
+
+    if (info.fileName.isEmpty())
+    {
+        error = tr("The certificate file has no name.");
+        return false;
+    }
+
     openssl_ptr<BIO> pksBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
+    bool isWritten = false;
 
     if (pksBuffer)
     {
@@ -98,27 +138,45 @@ void PDFCertificateManager::createCertificate(const NewCertificateInfo& info)
             // Set name
             X509_NAME* name = X509_get_subject_name(certificate.get());
 
-            auto addString = [name](const char* identifier, QString string)
+            // By the identifiers of the attributes (RFC 5280, 4.1.2.4; the e-mail is emailAddress of
+            // PKCS #9 - OpenSSL has no short name "E"); an attribute, which cannot be added (a
+            // country, which is no code of two letters, ISO 3166), fails the creation
+            auto addString = [name](int nid, const QString& string)
             {
                 if (string.isEmpty())
                 {
-                    return;
+                    return true;
                 }
 
-                QByteArray stringUtf8 = string.toUtf8();
-                X509_NAME_add_entry_by_txt(name, identifier, MBSTRING_UTF8, reinterpret_cast<const unsigned char*>(stringUtf8.constData()), stringUtf8.length(), -1, 0);
+                const QByteArray stringUtf8 = string.toUtf8();
+                return X509_NAME_add_entry_by_NID(name, nid, MBSTRING_UTF8, reinterpret_cast<const unsigned char*>(stringUtf8.constData()), int(stringUtf8.length()), -1, 0) == 1;
             };
-            addString("C", info.certCountryCode);
-            addString("O", info.certOrganization);
-            addString("OU", info.certOrganizationUnit);
-            addString("CN", info.certCommonName);
-            addString("E", info.certEmail);
+
+            if (!addString(NID_countryName, info.certCountryCode))
+            {
+                error = tr("The country '%1' cannot be used in a certificate, it must be a code of two letters.").arg(info.certCountryCode);
+                return false;
+            }
+            if (!addString(NID_organizationName, info.certOrganization) ||
+                !addString(NID_organizationalUnitName, info.certOrganizationUnit) ||
+                !addString(NID_commonName, info.certCommonName))
+            {
+                error = tr("The name of the certificate cannot be written.");
+                return false;
+            }
+            if (!addString(NID_pkcs9_emailAddress, info.certEmail))
+            {
+                error = tr("The e-mail '%1' cannot be used in a certificate.").arg(info.certEmail);
+                return false;
+            }
 
             X509_EXTENSION* extension = nullptr;
             X509V3_CTX context = { };
             X509V3_set_ctx_nodb(&context);
             X509V3_set_ctx(&context, certificate.get(), certificate.get(), nullptr, nullptr, 0);
-            extension = X509V3_EXT_conf_nid (NULL, &context, NID_key_usage, "digitalSignature, keyAgreement");
+            // B99: keyEncipherment - the certificate is a recipient of the encryption by a
+            // certificate (ISO 32000-2, 7.6.5, the RSA key transport of PKCS#7 enveloped data)
+            extension = X509V3_EXT_conf_nid (NULL, &context, NID_key_usage, "digitalSignature, keyEncipherment, keyAgreement");
             X509_add_ext(certificate.get(), extension, -1);
             X509_EXTENSION_free(extension);
 
@@ -142,82 +200,298 @@ void PDFCertificateManager::createCertificate(const NewCertificateInfo& info)
                                                      PKCS12_DEFAULT_ITER,
                                                      PKCS12_DEFAULT_ITER,
                                                      0), &PKCS12_free);
-            i2d_PKCS12_bio(pksBuffer.get(), pkcs12.get());
+            PDFSecureMemory::clear(privateKeyPaswordUtf8);
 
             BUF_MEM* pksMemoryBuffer = nullptr;
-            BIO_get_mem_ptr(pksBuffer.get(), &pksMemoryBuffer);
+            if (pkcs12 && i2d_PKCS12_bio(pksBuffer.get(), pkcs12.get()) == 1)
+            {
+                BIO_get_mem_ptr(pksBuffer.get(), &pksMemoryBuffer);
+            }
 
-            if (!info.fileName.isEmpty())
+            if (pksMemoryBuffer && pksMemoryBuffer->length > 0)
             {
                 QFile file(info.fileName);
                 if (file.open(QFile::WriteOnly | QFile::Truncate))
                 {
-                    file.write(pksMemoryBuffer->data, pksMemoryBuffer->length);
+                    isWritten = file.write(pksMemoryBuffer->data, qint64(pksMemoryBuffer->length)) == qint64(pksMemoryBuffer->length);
                     file.close();
+                    if (!isWritten)
+                    {
+                        file.remove();
+                    }
+                }
+
+                if (!isWritten)
+                {
+                    error = tr("The certificate file '%1' cannot be written. %2").arg(QDir::toNativeSeparators(info.fileName), file.errorString());
                 }
             }
         }
     }
+
+    if (!isWritten && error.isEmpty())
+    {
+        error = tr("The certificate cannot be created.");
+    }
+    return isWritten;
 }
 
 PDFCertificateEntries PDFCertificateManager::getCertificates(PDFCertificateUsageFilter filter)
 {
     PDFCertificateEntries entries = PDFCertificateStore::getPersonalCertificates(filter);
 
-    QDir directory(getCertificateDirectory());
-    QFileInfoList pfxFiles = directory.entryInfoList(QStringList() << "*.pfx", QDir::Files | QDir::NoDotAndDotDot | QDir::Readable, QDir::Name);
-
-    for (const QFileInfo& fileInfo : pfxFiles)
+    // The folder of the application first, then the folders of the old applications, read
+    // only (owner answer Q5.5: a document encrypted by a certificate of the old Editor opens)
+    addCertificateFiles(getCertificateDirectory(), false, entries);
+    for (const QString& directory : getOldCertificateDirectories())
     {
-        QFile file(fileInfo.absoluteFilePath());
-        if (file.open(QFile::ReadOnly))
-        {
-            QByteArray data = file.readAll();
-
-            openssl_ptr<BIO> pksBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
-            BIO_write(pksBuffer.get(), data.constData(), data.length());
-
-            openssl_ptr<PKCS12> pkcs12(d2i_PKCS12_bio(pksBuffer.get(), nullptr), &PKCS12_free);
-            if (pkcs12)
-            {
-                X509* certificatePtr = nullptr;
-
-                PDFCertificateEntry entry;
-
-                // Parse PKCS12 with password
-                bool isParsed = PKCS12_parse(pkcs12.get(), nullptr, nullptr, &certificatePtr, nullptr) == 1;
-                if (isParsed)
-                {
-                    std::optional<PDFCertificateInfo> info = PDFCertificateInfo::getCertificateInfo(certificatePtr);
-                    if (info)
-                    {
-                        entry.type = PDFCertificateEntry::EntryType::System;
-                        entry.info = qMove(*info);
-                    }
-                }
-
-                if (certificatePtr)
-                {
-                    X509_free(certificatePtr);
-                }
-
-                entry.pkcs12 = data;
-                entry.pkcs12fileName = fileInfo.fileName();
-                entries.emplace_back(qMove(entry));
-            }
-
-            file.close();
-        }
+        addCertificateFiles(directory, true, entries);
     }
 
     return entries;
 }
 
+void PDFCertificateManager::addCertificateFiles(const QString& directoryPath, bool isReadOnlyLocation, PDFCertificateEntries& entries)
+{
+    QDir directory(directoryPath);
+    if (!directory.exists())
+    {
+        return;
+    }
+
+    const QFileInfoList pfxFiles = directory.entryInfoList(QStringList() << "*.pfx", QDir::Files | QDir::NoDotAndDotDot | QDir::Readable, QDir::Name);
+    for (const QFileInfo& fileInfo : pfxFiles)
+    {
+        if (fileInfo.size() > MAXIMUM_CERTIFICATE_FILE_SIZE)
+        {
+            continue;
+        }
+
+        QFile file(fileInfo.absoluteFilePath());
+        if (!file.open(QFile::ReadOnly))
+        {
+            continue;
+        }
+
+        const QByteArray data = file.read(MAXIMUM_CERTIFICATE_FILE_SIZE + 1);
+        file.close();
+        if (!isPkcs12(data))
+        {
+            continue;
+        }
+
+        // R5-18, B107: a file of the user, never an entry of the system store. B103: a file
+        // protected by its password is listed too - its certificate is read without a password
+        // only, when the file allows it (else the info stays empty until the password is typed)
+        PDFCertificateEntry entry;
+        entry.type = PDFCertificateEntry::EntryType::User;
+        if (std::optional<PDFCertificateInfo> info = readCertificate(data, QString()))
+        {
+            entry.info = std::move(*info);
+        }
+
+        entry.pkcs12 = data;
+        entry.pkcs12fileName = fileInfo.fileName();
+        entry.pkcs12FilePath = fileInfo.absoluteFilePath();
+        entry.isReadOnlyLocation = isReadOnlyLocation;
+        entries.emplace_back(std::move(entry));
+    }
+}
+
 QString PDFCertificateManager::getCertificateDirectory()
 {
+    {
+        QMutexLocker locker(&PDFCertificateManagerHelper::s_directoriesMutex);
+        if (!PDFCertificateManagerHelper::s_directory.isEmpty())
+        {
+            return PDFCertificateManagerHelper::s_directory;
+        }
+    }
+
     QString standardDataLocation = QStandardPaths::standardLocations(QStandardPaths::AppDataLocation).front();
     QDir directory(standardDataLocation + "/certificates/");
     return directory.absolutePath();
+}
+
+void PDFCertificateManager::setCertificateDirectories(const QString& directory, const QStringList& oldDirectories)
+{
+    QMutexLocker locker(&PDFCertificateManagerHelper::s_directoriesMutex);
+    PDFCertificateManagerHelper::s_directory = directory.isEmpty() ? QString() : QDir(directory).absolutePath();
+    PDFCertificateManagerHelper::s_oldDirectories.clear();
+    if (!directory.isEmpty())
+    {
+        for (const QString& oldDirectory : oldDirectories)
+        {
+            PDFCertificateManagerHelper::s_oldDirectories << QDir(oldDirectory).absolutePath();
+        }
+    }
+}
+
+QStringList PDFCertificateManager::getOldCertificateDirectories()
+{
+    {
+        QMutexLocker locker(&PDFCertificateManagerHelper::s_directoriesMutex);
+        if (!PDFCertificateManagerHelper::s_directory.isEmpty())
+        {
+            return PDFCertificateManagerHelper::s_oldDirectories;
+        }
+    }
+
+    // The data folder of an application is <data>/<organization>/<application> (QStandardPaths,
+    // AppDataLocation): the old applications of the same organization are its siblings
+    // (QDir::cdUp would not move to a folder, which does not exist yet)
+    const QString ownDirectory = getCertificateDirectory();
+    const QDir organizationDirectory(QFileInfo(QStandardPaths::standardLocations(QStandardPaths::AppDataLocation).front()).absolutePath());
+
+    QStringList directories;
+    for (const char* applicationName : { "PDF4QT Editor", "PDF4QT Viewer" })
+    {
+        const QString directory = QDir(organizationDirectory.absoluteFilePath(QString::fromLatin1(applicationName)) + "/certificates/").absolutePath();
+        if (QDir::cleanPath(directory).compare(QDir::cleanPath(ownDirectory), Qt::CaseInsensitive) != 0 && !directories.contains(directory))
+        {
+            directories << directory;
+        }
+    }
+    return directories;
+}
+
+bool PDFCertificateManager::isPkcs12(const QByteArray& data)
+{
+    if (data.isEmpty() || data.size() > MAXIMUM_CERTIFICATE_FILE_SIZE)
+    {
+        return false;
+    }
+
+    const unsigned char* pointer = reinterpret_cast<const unsigned char*>(data.constData());
+    openssl_ptr<PKCS12> pkcs12(d2i_PKCS12(nullptr, &pointer, long(data.size())), &PKCS12_free);
+    return pkcs12 != nullptr;
+}
+
+std::optional<PDFCertificateInfo> PDFCertificateManager::readCertificate(const QByteArray& pkcs12Data, const QString& password)
+{
+    if (!isPkcs12(pkcs12Data))
+    {
+        return std::nullopt;
+    }
+
+    openssl_ptr<BIO> pksBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
+    BIO_write(pksBuffer.get(), pkcs12Data.constData(), pkcs12Data.length());
+
+    openssl_ptr<PKCS12> pkcs12(d2i_PKCS12_bio(pksBuffer.get(), nullptr), &PKCS12_free);
+    if (!pkcs12)
+    {
+        return std::nullopt;
+    }
+
+    // B84: the password of a PKCS#12 is UTF-8 everywhere
+    QByteArray passwordUtf8 = password.toUtf8();
+    const char* passwordPointer = passwordUtf8.isEmpty() ? nullptr : passwordUtf8.constData();
+
+    EVP_PKEY* keyPtr = nullptr;
+    X509* certificatePtr = nullptr;
+    STACK_OF(X509)* certificatesPtr = nullptr;
+    const bool isParsed = PKCS12_parse(pkcs12.get(), passwordPointer, &keyPtr, &certificatePtr, &certificatesPtr) == 1;
+    PDFSecureMemory::clear(passwordUtf8);
+
+    openssl_ptr<EVP_PKEY> key(keyPtr, &EVP_PKEY_free);
+    openssl_ptr<X509> certificate(certificatePtr, &X509_free);
+    openssl_ptr<STACK_OF(X509)> certificates(certificatesPtr, &PDFCertificateManagerHelper::freeCertificateStack);
+
+    if (!isParsed || !key || !certificate)
+    {
+        return std::nullopt;
+    }
+
+    // The private key must belong to the certificate (a damaged file could pair them wrongly)
+    if (X509_check_private_key(certificate.get(), key.get()) != 1)
+    {
+        return std::nullopt;
+    }
+
+    PDFCertificateInfo info = PDFCertificateInfo::getCertificateInfo(certificate.get());
+    if (info.getCertificateData().isEmpty())
+    {
+        return std::nullopt;
+    }
+    return info;
+}
+
+bool PDFCertificateManager::isUsableForEncryption(const QByteArray& certificateData)
+{
+    const unsigned char* data = reinterpret_cast<const unsigned char*>(certificateData.constData());
+    openssl_ptr<X509> certificate(d2i_X509(nullptr, &data, certificateData.size()), &X509_free);
+    if (!certificate)
+    {
+        return false;
+    }
+
+    // RFC 5280, 4.2.1.3: without the extension the key may be used for any purpose
+    const uint32_t keyUsage = X509_get_key_usage(certificate.get());
+    if (keyUsage != UINT32_MAX && !(keyUsage & KU_KEY_ENCIPHERMENT))
+    {
+        return false;
+    }
+
+    // PKCS#7 enveloped data of the encryption by a certificate transport the key by RSA
+    EVP_PKEY* publicKey = X509_get0_pubkey(certificate.get());
+    return publicKey && EVP_PKEY_base_id(publicKey) == EVP_PKEY_RSA;
+}
+
+bool PDFCertificateManager::copyCertificateToUserDirectory(const PDFCertificateEntry& entry, QString* errorMessage)
+{
+    QString dummy;
+    QString& error = errorMessage ? *errorMessage : dummy;
+    error.clear();
+
+    const QString fileName = QFileInfo(entry.pkcs12fileName).fileName();
+    if (entry.pkcs12.isEmpty() || fileName.isEmpty())
+    {
+        error = tr("The certificate has no file to copy.");
+        return false;
+    }
+
+    const QString directoryPath = getCertificateDirectory();
+    if (!QDir().mkpath(directoryPath))
+    {
+        error = tr("The certificate folder '%1' cannot be created.").arg(QDir::toNativeSeparators(directoryPath));
+        return false;
+    }
+
+    const QString targetPath = QDir(directoryPath).absoluteFilePath(fileName);
+    QFile target(targetPath);
+    if (target.exists())
+    {
+        // The same file was copied before; another file of the same name is never replaced
+        if (target.size() == entry.pkcs12.size() && target.open(QFile::ReadOnly))
+        {
+            const bool isSame = target.readAll() == entry.pkcs12;
+            target.close();
+            if (isSame)
+            {
+                return true;
+            }
+        }
+
+        error = tr("A different certificate file '%1' already exists in the certificate folder.").arg(fileName);
+        return false;
+    }
+
+    // NewOnly: a file created by another process in the meantime is not replaced either
+    if (!target.open(QFile::WriteOnly | QFile::NewOnly))
+    {
+        error = tr("The certificate file '%1' cannot be written. %2").arg(QDir::toNativeSeparators(targetPath), target.errorString());
+        return false;
+    }
+
+    const bool isWritten = target.write(entry.pkcs12) == entry.pkcs12.size();
+    target.close();
+    if (!isWritten)
+    {
+        target.remove();
+        error = tr("The certificate file '%1' cannot be written. %2").arg(QDir::toNativeSeparators(targetPath), target.errorString());
+        return false;
+    }
+    return true;
 }
 
 QString PDFCertificateManager::generateCertificateFileName()
@@ -255,7 +529,12 @@ bool PDFCertificateManager::isCertificateValid(const PDFCertificateEntry& certif
             passwordPointer = passwordByteArray.constData();
         }
 
-        return PKCS12_parse(pkcs12.get(), passwordPointer, nullptr, nullptr, nullptr) == 1;
+        const bool isValid = PKCS12_parse(pkcs12.get(), passwordPointer, nullptr, nullptr, nullptr) == 1;
+
+        // The UTF-8 copy of the password is no longer needed (plan of step 5 of phase 2, 6.1, S5.1;
+        // review RS5SEC L8)
+        PDFSecureMemory::clear(passwordByteArray);
+        return isValid;
     }
 
     return pkcs12data.isEmpty();

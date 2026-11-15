@@ -1520,8 +1520,9 @@ QJsonObject PDFDocumentToolParameters::toJsonSchema(const PDFDocumentToolParamet
     QJsonArray required;
     for (const PDFDocumentToolParameterDefinition& definition : definitions)
     {
-        // A value only the panels give is no part of the schema of a client
-        if (definition.isPanelOnly())
+        // A value only the panels give is no part of the schema of a client; a password, a key
+        // or another value, which never goes through MCP, neither (step 5 of phase 2, 6.3, S5.2)
+        if (definition.isPanelOnly() || definition.isMcpExcluded())
         {
             continue;
         }
@@ -1549,7 +1550,7 @@ QJsonObject PDFDocumentToolParameters::toJson(const PDFDocumentToolParameterDefi
     QJsonObject object;
     for (const PDFDocumentToolParameterDefinition& definition : definitions)
     {
-        if (definition.getType() != PDFDocumentToolParameterType::Secret && values.contains(definition.getName()))
+        if (!definition.isMcpExcluded() && values.contains(definition.getName()))
         {
             object.insert(definition.getName(), definition.toJsonValue(values.value(definition.getName())));
         }

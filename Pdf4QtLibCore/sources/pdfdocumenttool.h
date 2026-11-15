@@ -24,6 +24,7 @@
 #define PDFDOCUMENTTOOL_H
 
 #include "pdfglobal.h"
+#include "pdfcertificatestore.h"
 #include "pdfcms.h"
 #include "pdfdocument.h"
 #include "pdfdocumenttoolcatalog.h"
@@ -298,6 +299,16 @@ public:
     QString authorName;                                             ///< Author of the new content (annotations, signatures)
     std::shared_ptr<const PDFCertificateStore> certificateStore;    ///< Trusted certificates, may be null
 
+    /// Certificates of the user with their private keys for a run, which encrypts for a recipient
+    /// (Encrypt with Certificate, plan of step 5 of phase 2, 4.5, 7.2): copies of the entries with
+    /// their PKCS#12 (PDFCertificateEntry::pkcs12) and the certificate read from it (info) - the GUI
+    /// or the confirmation of MCP gives the chosen one, the run never reads the disk for it. The tool
+    /// finds the recipient by the SHA-256 fingerprint of its parameter "certificate"
+    /// (PDFDocumentToolEncryption::getCertificateFingerprint of info.getCertificateData()). The PKCS#12 is
+    /// encrypted by its password (the Secret certificatePassword of the run); the context is dropped
+    /// with the run.
+    std::vector<PDFCertificateEntry> userCertificates;
+
     /// Folder of the temporary files of the run (PDFDocumentToolTemporaryFile, step 4 of phase 2,
     /// R4-1): the application gives its own folder, which it cleans of the leftovers of an earlier
     /// process at its start (PDFAppToolTemporaryFolder); empty = the temporary folder of the system
@@ -347,7 +358,9 @@ public:
     /// whose size it measured by writing it, plan of step 2 of phase 2, 4.5): exactly the
     /// bytes PDFDocumentWriter writes for \p document, so the caller opens or saves these
     /// bytes and never writes the document a second time. Empty = not written (the caller
-    /// writes \p document itself).
+    /// writes \p document itself). A Changed document has them, when the tool has verified
+    /// its written file (the encryption of step 5 of phase 2 reads it back by the new
+    /// password): a copy and an overwrite save them (PDFAppToolResultWriter::createCopyRequest).
     QByteArray writtenData;
 };
 
@@ -769,6 +782,15 @@ public:
     /// \param storage Objects of the result, the metadata are replaced in place
     /// \param document The document of \p storage
     static ConformanceRemoval removeConformanceDeclaration(PDFObjectStorage* storage, const PDFDocument* document);
+
+    /// Removes the declaration of the given standards only (plan of step 5 of phase 2, R5-6: the
+    /// encryption removes PDF/A, which forbids it, and keeps PDF/UA, which it does not break -
+    /// bit 10 is always set, ISO 14289-1, 7.16); the other declarations are neither removed nor
+    /// listed in the result. One implementation with removeConformanceDeclaration above.
+    /// \param storage Objects of the result, the metadata are replaced in place
+    /// \param document The document of \p storage
+    /// \param standards The standards to remove ("PDF/A", "PDF/UA")
+    static ConformanceRemoval removeConformanceDeclaration(PDFObjectStorage* storage, const PDFDocument* document, const QStringList& standards);
 
     /// The result said in plain words, the fact of the result dialog and of What changes
     /// \param removed The standards, which are no longer declared (ConformanceRemoval::removed)

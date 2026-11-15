@@ -316,7 +316,7 @@ PDFAppSignatureVerificationPointer PDFAppDocumentSignatureVerifier::runVerificat
     std::shared_ptr<PDFAppSignatureVerification> verification = std::make_shared<PDFAppSignatureVerification>();
     verification->isVerified = settings.verify;
     verification->isStrict = settings.strict;
-    if (!document || PDFOperationControl::isOperationCancelled(cancelFlag.get()))
+    if (!document || PDFOperationControl::isOperationCanceled(cancelFlag.get()))
     {
         return verification;
     }
@@ -329,7 +329,7 @@ PDFAppSignatureVerificationPointer PDFAppDocumentSignatureVerifier::runVerificat
         int signatureFieldCount = 0;
         form.apply(PDFAppDocumentSignaturesHelper::SignatureFieldCounter(&signatureFieldCount));
         verification->signatureFieldCount = signatureFieldCount;
-        if (!settings.verify || signatureFieldCount == 0 || PDFOperationControl::isOperationCancelled(cancelFlag.get()))
+        if (!settings.verify || signatureFieldCount == 0 || PDFOperationControl::isOperationCanceled(cancelFlag.get()))
         {
             return verification;
         }

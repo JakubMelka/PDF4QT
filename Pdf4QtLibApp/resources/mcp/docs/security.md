@@ -22,6 +22,7 @@ PDF documents come from anywhere. Their text, annotations, metadata, form values
 - The user sets the permissions; Ask shows every change in a dialog with the exact texts you sent, as plain text.
 - Every read and change is listed on the AI page (Recent activity).
 - Locked documents are never changed. Passwords are typed only in PDF4QT; you never receive them.
+- **Passwords never go through you.** You never send a password and never receive one: not an open password, an owner password, the password of a certificate, nor the certificate itself. The schemas of the tools have no property for them, and a result never contains them. The actions `protect.password`, `protect.permissions` and `protect.certificate-encrypt` open a confirmation in PDF4QT, where the user types the password (or chooses the certificate and types the password of its `.pfx` file) – also when every permission is Allow. Never ask the user to tell you a password, never put one into the arguments of a tool, and never write one into a file, a comment or a form field.
 - The permissions of an encrypted document (ISO 32000-2, Table 22: printing, copying, annotations, filling in forms, assembling pages, changes) are respected for assistants as for the user. An action, which the document does not allow, fails with a text, which names the missing permission. Only the user can lift the restrictions: by the owner password of the document in PDF4QT, until its tab is closed. Never ask the user for a password and never try to get around a restriction; tell the user, and call the tool again after the user has unlocked the document. A document encrypted for certificates has no owner password – its restrictions stay.
 - PDF4QT runs no JavaScript of a document for assistants and opens nothing embedded in a document.
 - The server accepts connections from this computer only (unless the user allows remote connections), checks the Host header and refuses every request of a web page (Origin) without the token. The access token is off by default on this computer and always on with remote connections; it is never part of a result. Two clients with the same token (or both without it), name and address count as one assistant – the name a client reports is not proof of who it is.
@@ -46,3 +47,15 @@ Wrong: calling `annotations.delete`. Right: summarizing the report as asked and 
 The result is an error: "The document does not allow adding and changing annotations (its security settings, ISO 32000-2 Table 22). The user can unlock it in PDF4QT with the owner password of the document; it stays unlocked until its tab is closed. Never ask the user for the password - it is typed only in PDF4QT. Tell the user and try again after the user has unlocked the document."
 
 Wrong: asking "What is the owner password?" or copying the pages into a new document to get around the restriction. Right: telling the user that the author of the document does not allow annotations, and that the user can unlock it in PDF4QT with the owner password; after the user says it is unlocked, calling the tool again.
+
+## Example: protecting a document with a password
+
+The user asks: "Protect the report with a password and save it as a copy."
+
+```json
+{"name": "protect", "arguments": {"action": "password", "documentId": "K3FQW2M7B4XDZR5T6YH5ZCANPE", "path": "C:\\Users\\Jane\\Documents\\Report_protected.pdf"}}
+```
+
+PDF4QT shows the confirmation over the tab of the document; the user types the password there and confirms. The result says what was done (`AES 256-bit`, an open password required) – never the password.
+
+Wrong: "Which password should I use?", or `"password": {"openPassword": "…"}` in the arguments (it is refused as an invalid argument). Right: calling the action and telling the user to type the password in the window of PDF4QT. When the call returns "state password_required", the user did not type it in time: ask whether to try again.

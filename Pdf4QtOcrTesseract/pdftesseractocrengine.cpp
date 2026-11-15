@@ -108,7 +108,7 @@ bool PDFTesseractOCREngineHelper::cancelFunction(void* data, int words)
 {
     Q_UNUSED(words);
     MonitorContext* context = reinterpret_cast<MonitorContext*>(data);
-    return PDFOperationControl::isOperationCancelled(context->operationControl);
+    return PDFOperationControl::isOperationCanceled(context->operationControl);
 }
 
 bool PDFTesseractOCREngineHelper::progressFunction(tesseract::ETEXT_DESC* monitor, int left, int right, int top, int bottom)
@@ -125,7 +125,7 @@ bool PDFTesseractOCREngineHelper::progressFunction(tesseract::ETEXT_DESC* monito
         (*context->progressCallback)(monitor->progress);
     }
 
-    return !PDFOperationControl::isOperationCancelled(context ? context->operationControl : nullptr);
+    return !PDFOperationControl::isOperationCanceled(context ? context->operationControl : nullptr);
 }
 
 tesseract::PageSegMode PDFTesseractOCREngineHelper::toPageSegMode(PDFOCRLayout layout)
@@ -561,7 +561,7 @@ public:
     }
 
     /// Orientation detection. Tesseract's DetectOrientationScript has no monitor, so
-    /// it can be neither cancelled nor bounded by a deadline while it runs (the
+    /// it can be neither canceled nor bounded by a deadline while it runs (the
     /// capability orientationDetectionCancellable is false). Its cost is bounded
     /// instead: the cancellation and the deadline are checked before the call and
     /// the image is downscaled, so that its longer side has at most
@@ -582,11 +582,11 @@ public:
             return std::nullopt;
         }
 
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
             if (error)
             {
-                *error = PDFOCRError::create(PDFOCRErrorCode::Cancelled, PDFTranslationContext::tr("Recognition was cancelled."), PDFTranslationContext::tr("Orientation detection"));
+                *error = PDFOCRError::create(PDFOCRErrorCode::Canceled, PDFTranslationContext::tr("Recognition was canceled."), PDFTranslationContext::tr("Orientation detection"));
             }
             return std::nullopt;
         }
@@ -653,7 +653,7 @@ public:
         m_orientationApi->SetSourceResolution(qRound(dpi));
         pixDestroy(&pix);
 
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
             m_orientationApi->Clear();
             return std::nullopt;
@@ -786,11 +786,11 @@ public:
 
         const int recognitionResult = m_api->Recognize(&monitor);
 
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
             m_api->Clear();
-            output.cancelled = true;
-            output.error = PDFOCRError::create(PDFOCRErrorCode::Cancelled, PDFTranslationContext::tr("Recognition was cancelled."), PDFTranslationContext::tr("Recognition"));
+            output.canceled = true;
+            output.error = PDFOCRError::create(PDFOCRErrorCode::Canceled, PDFTranslationContext::tr("Recognition was canceled."), PDFTranslationContext::tr("Recognition"));
             return output;
         }
 

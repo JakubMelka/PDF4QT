@@ -125,10 +125,16 @@ bool PDFAppDocumentModelCommandHandler::isEnabled(const QString& commandId) cons
     }
     if (commandId == PDFAppCommands::editCopy())
     {
-        // A copy of a display version of an XFA form (step 8) could not be edited either
-        return !document->isPagedXFA();
+        // A copy of a display version of an XFA form (step 8) could not be edited either;
+        // a document with encrypted attachments has no copy (isAttachmentsLocked)
+        return !document->isPagedXFA() && !document->isAttachmentsLocked();
     }
-    return commandId == PDFAppCommands::lockDocument();
+    if (commandId == PDFAppCommands::lockDocument())
+    {
+        // Encrypted attachments keep the document locked until their password (Q5.9 c)
+        return !document->isLocked() || !document->isAttachmentsLocked();
+    }
+    return false;
 }
 
 bool PDFAppDocumentModelCommandHandler::isChecked(const QString& commandId) const

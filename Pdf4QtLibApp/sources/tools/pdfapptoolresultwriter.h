@@ -114,7 +114,8 @@ public:
     {
         None,
         Locked,         ///< The document is locked, the tool is not available for a locked document
-        DisplayVersion  ///< A display version of an XFA form, the tool changes the document
+        DisplayVersion, ///< A display version of an XFA form, the tool changes the document
+        AttachmentsLocked ///< Opened without the password of its attachments (Q5.9 c): they are still encrypted, the output of the tool is a PDF (review RS5APP)
     };
 
     explicit PDFAppToolResultWriter(QObject* parent);
@@ -166,6 +167,11 @@ public:
     /// Request of a result over the file of its document (F6): the rule of a copy, the
     /// Mark of the Web of the origin of the document
     static PDFAppDocumentFileWriter::Request createOverwriteRequest(const PDFDocumentToolOutputTraits& tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const PDFAppDocument* document, const PDFDocumentToolResult* result = nullptr);
+
+    /// The output of \p result of the document \p output, whose file the tool has written and
+    /// verified (PDFDocumentToolOutputDocument::writtenData; the encryption of step 5 of phase 2):
+    /// a copy and an overwrite save these bytes (createCopyRequest), nullptr = none
+    static const PDFDocumentToolOutputDocument* findWrittenOutput(const PDFDocumentPointer& output, const PDFDocumentToolResult* result);
 
     /// The write of a request in the worker, which never replaces a file without
     /// \p isReplacing (the check is in the worker: a folder may lie on another computer)

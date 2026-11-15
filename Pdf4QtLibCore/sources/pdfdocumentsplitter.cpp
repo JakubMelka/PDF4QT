@@ -107,7 +107,7 @@ public:
             result.partIndex = partIndex;
 
             PDFDocument partDocument = PDFDocumentPageOperations::keepPages(document, index, part.pages, control, &result.statistics);
-            if (result.statistics.isCanceled || PDFOperationControl::isOperationCancelled(control))
+            if (result.statistics.isCanceled || PDFOperationControl::isOperationCanceled(control))
             {
                 slot->isCanceled = true;
                 return;
@@ -144,7 +144,7 @@ public:
                 std::vector<PDFImageOptimizer::ImageResult> imageResults;
                 PDFImageOptimizer imageOptimizer;
                 output = imageOptimizer.optimize(&output, *settings.imageSettings, PDFImageOptimizer::ImageOverrides(), nullptr, nullptr, &imageResults, control, nullptr);
-                if (PDFOperationControl::isOperationCancelled(control))
+                if (PDFOperationControl::isOperationCanceled(control))
                 {
                     slot->isCanceled = true;
                     return;
@@ -220,7 +220,7 @@ PDFDocumentSplitter::Result PDFDocumentSplitter::split(const PDFDocument* docume
         result.errorMessage = exception.getMessage();
         return result;
     }
-    if (!index || PDFOperationControl::isOperationCancelled(control))
+    if (!index || PDFOperationControl::isOperationCanceled(control))
     {
         result.isCanceled = true;
         return result;
@@ -243,7 +243,7 @@ PDFDocumentSplitter::Result PDFDocumentSplitter::split(const PDFDocument* docume
 
     for (size_t start = 0; start < parts.size(); start += windowSize)
     {
-        if (PDFOperationControl::isOperationCancelled(control))
+        if (PDFOperationControl::isOperationCanceled(control))
         {
             result.isCanceled = true;
             break;
@@ -271,7 +271,7 @@ PDFDocumentSplitter::Result PDFDocumentSplitter::split(const PDFDocument* docume
         // The parts of the window go to the receiver in their order, then they are released
         for (Helper::Slot& slot : windowSlots)
         {
-            if (slot.isCanceled || PDFOperationControl::isOperationCancelled(control))
+            if (slot.isCanceled || PDFOperationControl::isOperationCanceled(control))
             {
                 result.isCanceled = true;
                 break;

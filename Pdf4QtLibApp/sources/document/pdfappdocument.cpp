@@ -318,6 +318,13 @@ PDFAppDocumentRestoration PDFAppDocument::getRestoration(const PDFDocumentReader
 
 void PDFAppDocument::setLocked(bool locked)
 {
+    // Opened without the password of its attachments: they are still encrypted and a written
+    // file would be broken, so the document is unlocked only by that password (Q5.9 c)
+    if (!locked && isAttachmentsLocked())
+    {
+        return;
+    }
+
     // An open editor of a form field is committed before the document is locked
     if (locked && !m_isLocked && m_hasPendingEdits)
     {
@@ -380,12 +387,24 @@ PDFAppDocumentSnapshot PDFAppDocument::getSnapshot() const
     snapshot.isWholeFileRewritten = m_isWholeFileRewritten;
     snapshot.isSignedRevisionGone = m_isSignedRevisionGone;
     snapshot.restoration = m_restoration;
+    snapshot.isAttachmentsLocked = isAttachmentsLocked();
     return snapshot;
 }
 
 QString PDFAppDocument::getPagedXFARefusalText()
 {
     return tr("The pages of this XFA form are shown as laid out. The document cannot be changed.");
+}
+
+bool PDFAppDocument::isAttachmentsLocked() const
+{
+    const PDFSecurityHandler* securityHandler = isReady() && m_document ? m_document->getStorage().getSecurityHandler() : nullptr;
+    return securityHandler && securityHandler->isEmbeddedFilesLocked();
+}
+
+QString PDFAppDocument::getAttachmentsLockedText()
+{
+    return tr("The attachments of this document are still encrypted, so it cannot be unlocked or copied. Enter their password by Enter Password… in the Attachments panel: the document opens again with its attachments and is unlocked.");
 }
 
 bool PDFAppDocument::commit(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion, PDFAppChangeSource source)
@@ -844,7 +863,9 @@ void PDFAppDocument::setFailed(const QString& filePath, const QString& errorMess
 
 bool PDFAppDocument::setCopyOf(const PDFAppDocument* source)
 {
-    if (!source || source == this || !source->isReady() || source->getDocument().isNull() || m_state == PDFAppDocumentState::Ready)
+    // A document with encrypted attachments (isAttachmentsLocked) has no copy: the copy
+    // would not be locked and its file would be broken
+    if (!source || source == this || !source->isReady() || source->getDocument().isNull() || m_state == PDFAppDocumentState::Ready || source->isAttachmentsLocked())
     {
         return false;
     }

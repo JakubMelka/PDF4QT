@@ -452,7 +452,7 @@ PDFOCRPageAnalysis PDFOCRPagePreparer::analyze(PDFInteger pageIndex, const PDFOp
     // Annotations
     for (const PDFObjectReference& annotationReference : page->getAnnotations())
     {
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
             break;
         }
@@ -1045,9 +1045,9 @@ PDFOCRPagePreparer::RasterResult PDFOCRPagePreparer::rasterize(PDFInteger pageIn
     geometry.engineImageSize = size;
     geometry.pipeline << QStringLiteral("render(dpi=%1,size=%2x%3,rotation=%4)").arg(geometry.dpi).arg(size.width()).arg(size.height()).arg(geometry.rotation);
 
-    if (PDFOperationControl::isOperationCancelled(operationControl))
+    if (PDFOperationControl::isOperationCanceled(operationControl))
     {
-        result.error = PDFOCRError::create(PDFOCRErrorCode::Cancelled, PDFTranslationContext::tr("Operation was cancelled."), PDFTranslationContext::tr("Rasterization"));
+        result.error = PDFOCRError::create(PDFOCRErrorCode::Canceled, PDFTranslationContext::tr("Operation was canceled."), PDFTranslationContext::tr("Rasterization"));
         return result;
     }
 
@@ -1058,9 +1058,9 @@ PDFOCRPagePreparer::RasterResult PDFOCRPagePreparer::rasterize(PDFInteger pageIn
     renderer.setOperationControl(operationControl);
     renderer.compile(&compiledPage, size_t(pageIndex));
 
-    if (PDFOperationControl::isOperationCancelled(operationControl))
+    if (PDFOperationControl::isOperationCanceled(operationControl))
     {
-        result.error = PDFOCRError::create(PDFOCRErrorCode::Cancelled, PDFTranslationContext::tr("Operation was cancelled."), PDFTranslationContext::tr("Rasterization"));
+        result.error = PDFOCRError::create(PDFOCRErrorCode::Canceled, PDFTranslationContext::tr("Operation was canceled."), PDFTranslationContext::tr("Rasterization"));
         return result;
     }
 
@@ -1138,11 +1138,11 @@ PDFOCRPagePreparer::PreprocessResult PDFOCRPagePreparer::preprocess(const QImage
     QImage image = raster;
     QTransform rasterToEngine;
 
-    auto checkCancelled = [&]()
+    auto checkCanceled = [&]()
     {
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
-            result.error = PDFOCRError::create(PDFOCRErrorCode::Cancelled, PDFTranslationContext::tr("Operation was cancelled."), PDFTranslationContext::tr("Preprocessing"));
+            result.error = PDFOCRError::create(PDFOCRErrorCode::Canceled, PDFTranslationContext::tr("Operation was canceled."), PDFTranslationContext::tr("Preprocessing"));
             return true;
         }
         return false;
@@ -1177,7 +1177,7 @@ PDFOCRPagePreparer::PreprocessResult PDFOCRPagePreparer::preprocess(const QImage
         geometry.pipeline << QStringLiteral("rotate(%1)").arg(rotation);
     }
 
-    if (checkCancelled())
+    if (checkCanceled())
     {
         return result;
     }
@@ -1256,7 +1256,7 @@ PDFOCRPagePreparer::PreprocessResult PDFOCRPagePreparer::preprocess(const QImage
         geometry.pipeline << QStringLiteral("perspective(size=%1x%2)").arg(size.width()).arg(size.height());
     }
 
-    if (checkCancelled())
+    if (checkCanceled())
     {
         return result;
     }
@@ -1281,7 +1281,7 @@ PDFOCRPagePreparer::PreprocessResult PDFOCRPagePreparer::preprocess(const QImage
             angle = estimateSkewAngle(image, &confidence, operationControl);
         }
 
-        if (checkCancelled())
+        if (checkCanceled())
         {
             return result;
         }
@@ -1319,7 +1319,7 @@ PDFOCRPagePreparer::PreprocessResult PDFOCRPagePreparer::preprocess(const QImage
         geometry.pipeline << QStringLiteral("grayscale");
     }
 
-    if (checkCancelled())
+    if (checkCanceled())
     {
         return result;
     }
@@ -1336,7 +1336,7 @@ PDFOCRPagePreparer::PreprocessResult PDFOCRPagePreparer::preprocess(const QImage
         geometry.pipeline << QStringLiteral("median(3x3)");
     }
 
-    if (checkCancelled())
+    if (checkCanceled())
     {
         return result;
     }
@@ -1347,7 +1347,7 @@ PDFOCRPagePreparer::PreprocessResult PDFOCRPagePreparer::preprocess(const QImage
         geometry.pipeline << QStringLiteral("otsu");
     }
 
-    if (checkCancelled())
+    if (checkCanceled())
     {
         return result;
     }
@@ -1492,7 +1492,7 @@ bool PDFOCRPagePreparer::isBlankImage(const QImage& image, double* inkRatio, con
 
     for (int y = 0; y < grayscale.height(); ++y)
     {
-        if ((y & 63) == 0 && PDFOperationControl::isOperationCancelled(operationControl))
+        if ((y & 63) == 0 && PDFOperationControl::isOperationCanceled(operationControl))
         {
             return false;
         }
@@ -1619,7 +1619,7 @@ double PDFOCRPagePreparer::estimateSkewAngle(const QImage& image, double* confid
     const int steps = qMax(1, qRound(maximumAngle / 0.25));
     for (int step = -steps; step <= steps; ++step)
     {
-        if (PDFOperationControl::isOperationCancelled(operationControl))
+        if (PDFOperationControl::isOperationCanceled(operationControl))
         {
             return 0.0;
         }
@@ -1633,7 +1633,7 @@ double PDFOCRPagePreparer::estimateSkewAngle(const QImage& image, double* confid
         const double coarseAngle = bestAngle;
         for (int step = -4; step <= 4; ++step)
         {
-            if (PDFOperationControl::isOperationCancelled(operationControl))
+            if (PDFOperationControl::isOperationCanceled(operationControl))
             {
                 return 0.0;
             }
@@ -1958,7 +1958,7 @@ QImage PDFOCRPagePreparer::medianFilter(const QImage& grayscale, const PDFOperat
 
     for (int y = 0; y < height; ++y)
     {
-        if ((y & 63) == 0 && PDFOperationControl::isOperationCancelled(operationControl))
+        if ((y & 63) == 0 && PDFOperationControl::isOperationCanceled(operationControl))
         {
             return source;
         }
@@ -1997,7 +1997,7 @@ QImage PDFOCRPagePreparer::otsuBinarization(const QImage& grayscale, const PDFOp
     std::array<qint64, 256> histogram = { };
     for (int y = 0; y < height; ++y)
     {
-        if ((y & 63) == 0 && PDFOperationControl::isOperationCancelled(operationControl))
+        if ((y & 63) == 0 && PDFOperationControl::isOperationCanceled(operationControl))
         {
             return source;
         }

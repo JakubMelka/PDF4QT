@@ -52,7 +52,7 @@ class PDF4QTLIBAPPSHARED_EXPORT PDFAppCancelFlag : public PDFOperationControl
 public:
     PDFAppCancelFlag() = default;
 
-    virtual bool isOperationCancelled() const override { return m_isCanceled.load(std::memory_order_acquire); }
+    virtual bool isOperationCanceled() const override { return m_isCanceled.load(std::memory_order_acquire); }
 
     void cancel() { m_isCanceled.store(true, std::memory_order_release); }
 

@@ -137,6 +137,14 @@ public:
 
     /// Step 4, package P4: Create Audio Book and its overlay: apptoolpageslifetime_audiobook.cpp
     static void registerAudioBookScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
+
+    /// Step 5 (plan 9), package P2: Protect with Password, Restrict Permissions, Remove Password
+    /// (protectpassword, protectpermissions, protectunlock): apptoolpageslifetime_encryption.cpp
+    static void registerEncryptionScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
+
+    /// Step 5, package P3: Encrypt with Certificate and the dialogs of the certificates
+    /// (protectcertificate, certificatecreate, certificateimport): apptoolpageslifetime_certificate.cpp
+    static void registerCertificateScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
 };
 
 /// The steps and the inputs of the test for the scenarios of the packages: every input is sent

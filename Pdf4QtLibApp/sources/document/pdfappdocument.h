@@ -118,7 +118,16 @@ public:
     /// PDFAppDocument::getRestoration: \p originalData are a damaged file
     PDFAppDocumentRestoration restoration = PDFAppDocumentRestoration::None;
 
+    /// The document was opened without the password of its attachments (PDFAppDocument::isAttachmentsLocked,
+    /// plan of step 5 of phase 2, Q5.9 c): they are still encrypted and the document is never changed - a
+    /// file is written from \p originalData (owner 2026-11-15)
+    bool isAttachmentsLocked = false;
+
     bool isValid() const { return !document.isNull(); }
+
+    /// A file of the document is \p originalData, byte for byte (isPagedXFA, isAttachmentsLocked):
+    /// never an incremental update, never written by PDFDocumentWriter
+    bool isOriginalDataWritten() const { return isPagedXFA || isAttachmentsLocked; }
 };
 
 /// Data derived from one version of a document (the attachments, the notes):
@@ -282,6 +291,16 @@ public:
     /// The document is locked (editing commands are off, recent_file.locked)
     bool isLocked() const { return m_isLocked; }
 
+    /// The document was opened without the password of its attachments (Q5.9 c, R5-8:
+    /// PDFSecurityHandler::isEmbeddedFilesLocked of the current document). Its attachments are
+    /// still encrypted, so nothing may be written from it: it stays locked (setLocked(false)
+    /// is refused) and no copy is made of it, until the password of the attachments opens it
+    /// again (PDFAppDocumentLoader::unlockAttachments).
+    bool isAttachmentsLocked() const;
+
+    /// Text of an unlock refused by isAttachmentsLocked
+    static QString getAttachmentsLockedText();
+
     /// The shown document is the paged layout of a dynamic XFA form (step 8, owner
     /// decision of 28. 10. 2026): the layout of the form has more pages or pages of
     /// other sizes than the PDF document, so the document shows the pages of the
@@ -341,6 +360,8 @@ public:
 
     /// Text of a change refused for a display version of an XFA form (isPagedXFA)
     static QString getPagedXFARefusalText();
+
+    /// Locks or unlocks the document; an unlock is refused while isAttachmentsLocked
     void setLocked(bool locked);
 
     /// The user interface has edits, which are not committed yet (step 4, package

@@ -529,7 +529,7 @@ std::optional<PDFDocumentToolExtractImages::ExportPlan> PDFDocumentToolExtractIm
         }
     }
     const std::map<PDFDocumentImageList::Key, Helper::Source> inlineSources = inlineItems.empty() ? std::map<PDFDocumentImageList::Key, Helper::Source>() : Helper::findSources(document, list, inlineItems, control);
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return std::nullopt;
     }
@@ -540,7 +540,7 @@ std::optional<PDFDocumentToolExtractImages::ExportPlan> PDFDocumentToolExtractIm
     entries.reserve(candidates.size());
     for (const size_t itemIndex : candidates)
     {
-        if (PDFOperationControl::isOperationCancelled(control))
+        if (PDFOperationControl::isOperationCanceled(control))
         {
             return std::nullopt;
         }
@@ -733,7 +733,7 @@ PDFDocumentToolResult PDFDocumentToolExtractImages::execute(const PDFDocumentToo
     phases.start();
 
     const PDFDocumentImageList list = createImageList(document, context.rendering.layerStates, control, phases.getPhase(listPhase));
-    if (PDFOperationControl::isOperationCancelled(control))
+    if (PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }
@@ -758,7 +758,7 @@ PDFDocumentToolResult PDFDocumentToolExtractImages::execute(const PDFDocumentToo
     const std::optional<ExportPlan> plan = createExportPlan(document, list, input.fileName, parameters, runDate, control, &planCache, &errorMessage);
     if (!plan)
     {
-        return PDFOperationControl::isOperationCancelled(control) ? PDFDocumentToolResult::createStopped() : PDFDocumentToolResult::createFailed(errorMessage);
+        return PDFOperationControl::isOperationCanceled(control) ? PDFDocumentToolResult::createStopped() : PDFDocumentToolResult::createFailed(errorMessage);
     }
     if (plan->images.empty())
     {
@@ -823,7 +823,7 @@ PDFDocumentToolResult PDFDocumentToolExtractImages::execute(const PDFDocumentToo
         PDFIntegerRange<size_t> range(chunkStart, chunkEnd);
         const auto encodeImage = [&](size_t index)
         {
-            if (PDFOperationControl::isOperationCancelled(control))
+            if (PDFOperationControl::isOperationCanceled(control))
             {
                 return;
             }
@@ -849,7 +849,7 @@ PDFDocumentToolResult PDFDocumentToolExtractImages::execute(const PDFDocumentToo
 
         for (size_t index = chunkStart; index < chunkEnd; ++index)
         {
-            if (PDFOperationControl::isOperationCancelled(control) || sink->isStopped())
+            if (PDFOperationControl::isOperationCanceled(control) || sink->isStopped())
             {
                 isStopped = true;
                 break;
@@ -878,7 +878,7 @@ PDFDocumentToolResult PDFDocumentToolExtractImages::execute(const PDFDocumentToo
             }
         }
     }
-    isStopped = isStopped || PDFOperationControl::isOperationCancelled(control) || sink->isStopped();
+    isStopped = isStopped || PDFOperationControl::isOperationCanceled(control) || sink->isStopped();
 
     PDFDocumentToolResult result;
     result.status = isStopped ? PDFDocumentToolResultStatus::Stopped : PDFDocumentToolResultStatus::Success;

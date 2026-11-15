@@ -89,11 +89,11 @@ private:
 class TestOperationControl : public pdf::PDFOperationControl
 {
 public:
-    virtual bool isOperationCancelled() const override { return m_isCancelled.load(); }
-    void cancel() { m_isCancelled.store(true); }
+    virtual bool isOperationCanceled() const override { return m_isCanceled.load(); }
+    void cancel() { m_isCanceled.store(true); }
 
 private:
-    std::atomic<bool> m_isCancelled = false;
+    std::atomic<bool> m_isCanceled = false;
 };
 
 class RasterizerPoolTest : public QObject
@@ -315,7 +315,7 @@ void RasterizerPoolTest::cancellationEndsTheWriting()
     };
     const auto write = [&](pdf::PDFRenderedPageOutput& output)
     {
-        if (control.isOperationCancelled())
+        if (control.isOperationCanceled())
         {
             isWrittenAfterCancel = true;
         }

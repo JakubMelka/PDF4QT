@@ -184,6 +184,17 @@ PDFAppDocumentFileWriter::Request PDFAppToolResultWriter::createCopyRequest(cons
     request.version = snapshot.version;
     request.markSourceFilePath = snapshot.filePath;
 
+    // A tool, which has written its document whole and verified those bytes (the encryption of
+    // step 5 of phase 2 reads its result back by the new password), gives them as writtenData:
+    // they are saved byte for byte, never written again (another write of an encrypted document
+    // has other random vectors - it would not be the verified file)
+    if (const PDFDocumentToolOutputDocument* writtenOutput = findWrittenOutput(output, result))
+    {
+        request.originalData = writtenOutput->writtenData;
+        request.isOriginalData = true;
+        return request;
+    }
+
     // The signed revision stays in the file only by an incremental update; a tool, which
     // rewrites the file, writes it whole: no old revision is left in the file (O31). A
     // result without any signed field (the signed page was removed) has nothing to keep,
@@ -198,6 +209,23 @@ PDFAppDocumentFileWriter::Request PDFAppToolResultWriter::createCopyRequest(cons
         request.isIncremental = true;
     }
     return request;
+}
+
+const PDFDocumentToolOutputDocument* PDFAppToolResultWriter::findWrittenOutput(const PDFDocumentPointer& output, const PDFDocumentToolResult* result)
+{
+    if (!result || output.isNull())
+    {
+        return nullptr;
+    }
+
+    for (const PDFDocumentToolOutputDocument& item : result->documents)
+    {
+        if (item.document == output && !item.writtenData.isEmpty())
+        {
+            return &item;
+        }
+    }
+    return nullptr;
 }
 
 PDFAppDocumentFileWriter::Request PDFAppToolResultWriter::createOverwriteRequest(const PDFDocumentToolOutputTraits& tool, const PDFAppDocumentSnapshot& snapshot, const PDFDocumentPointer& output, const PDFAppDocument* document, const PDFDocumentToolResult* result)
@@ -228,6 +256,15 @@ PDFAppToolResultWriter::DocumentRefusal PDFAppToolResultWriter::getDocumentRefus
     if (document->isPagedXFA() && tool.resultKind == PDFDocumentToolResultKind::ChangeDocument)
     {
         return DocumentRefusal::DisplayVersion;
+    }
+
+    // Opened without the password of its attachments (Q5.9 c): a PDF made of it would carry the
+    // cipher text of its attachments as plain streams - refused already at the entry of the tool
+    // (review RS5APP; PDFDocumentTool::prepare refuses its run as well). An export (the text, the
+    // images) can run.
+    if (document->isAttachmentsLocked() && (tool.resultKind == PDFDocumentToolResultKind::ChangeDocument || tool.resultKind == PDFDocumentToolResultKind::NewDocument))
+    {
+        return DocumentRefusal::AttachmentsLocked;
     }
     return DocumentRefusal::None;
 }

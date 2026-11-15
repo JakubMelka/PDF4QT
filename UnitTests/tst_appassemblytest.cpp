@@ -206,7 +206,7 @@ class AppAssemblyCountingControl : public pdf::PDFOperationControl
 public:
     explicit AppAssemblyCountingControl(int cancelAt) : m_cancelAt(cancelAt) { }
 
-    virtual bool isOperationCancelled() const override { return ++m_calls >= m_cancelAt; }
+    virtual bool isOperationCanceled() const override { return ++m_calls >= m_cancelAt; }
 
     int getCalls() const { return m_calls.load(); }
 
@@ -255,8 +255,8 @@ void AppAssemblyTest::recentAssemblyMigration()
     // as before - none of its statements names the new table
     const std::vector<pdf::PDFDatabaseMigration> migrations = pdf::PDFDatabaseSchema::getMigrations();
     QVERIFY(pdf::PDFDatabaseSchema::isValid(migrations));
-    QCOMPARE(migrations.size(), size_t(2));
-    QCOMPARE(pdf::PDFDatabaseSchema::getCurrentVersion(), 2);
+    QVERIFY(migrations.size() >= 2);
+    QVERIFY(pdf::PDFDatabaseSchema::getCurrentVersion() >= 2);
     QVERIFY(!migrations[0].sql.contains("recent_assembly"));
     QVERIFY(migrations[1].sql.contains("CREATE TABLE recent_assembly("));
     QVERIFY(migrations[1].sql.contains("CREATE TRIGGER recent_assembly_log_insert"));
@@ -279,8 +279,17 @@ void AppAssemblyTest::recentAssemblyMigration()
     QCOMPARE(version2Tables.front().keyExpression, QStringLiteral("%1.path"));
     QVERIFY(allTables.contains(QStringLiteral("recent_assembly")));
     QVERIFY(!version1Tables.contains(QStringLiteral("recent_assembly")));
-    QCOMPARE(allTables.size(), version1Tables.size() + 1);
-    QVERIFY(pdf::PDFDatabaseSchema::getTables(3).empty());
+    QCOMPARE(allTables.count(QStringLiteral("recent_assembly")), qsizetype(1));
+
+    // A later migration never creates the table again (step 5 of phase 2: migration 3)
+    for (size_t i = 2; i < migrations.size(); ++i)
+    {
+        QVERIFY(!migrations[i].sql.contains("recent_assembly"));
+        for (const pdf::PDFDatabaseTableInfo& table : pdf::PDFDatabaseSchema::getTables(int(i + 1)))
+        {
+            QVERIFY(table.name != QStringLiteral("recent_assembly"));
+        }
+    }
 }
 
 void AppAssemblyTest::recentAssemblies()

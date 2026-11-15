@@ -119,11 +119,11 @@ public:
         /// Do not compile the page, just look into the cache
         None,
 
-        /// Compile the page. Compilation is cancelled, when the page is not
+        /// Compile the page. Compilation is canceled, when the page is not
         /// displayed in the draw widget anymore (see \p setActivePages).
         Viewport,
 
-        /// Compile the page. Compilation is never cancelled by the changes
+        /// Compile the page. Compilation is never canceled by the changes
         /// of the displayed area. Use this for consumers, which are independent
         /// on the main draw widget viewport (for example page thumbnails).
         Persistent
@@ -145,7 +145,7 @@ public:
     void smartClearCache(const int milisecondsLimit, const std::vector<PDFInteger>& activePages);
 
     /// Sets pages, which are currently interesting for the user (visible pages
-    /// and prefetched pages). Compilation tasks of all other pages are cancelled,
+    /// and prefetched pages). Compilation tasks of all other pages are canceled,
     /// because their result would be thrown away anyway. Without this, a long
     /// distance jump / fast scrolling in a large document enqueues compilation
     /// of every page which was briefly touched by the viewport, and all of them
@@ -153,10 +153,10 @@ public:
     /// \param activePages Sorted vector of active pages
     void setActivePages(const std::vector<PDFInteger>& activePages);
 
-    /// Is operation being cancelled? This is the "global" cancellation, i.e.
+    /// Is operation being canceled? This is the "global" cancellation, i.e.
     /// the whole engine is being stopped. Cancellation of a single page
     /// is handled by \p PDFPageCompilerOperationControl.
-    virtual bool isOperationCancelled() const override;
+    virtual bool isOperationCanceled() const override;
 
 signals:
     void pageImageChanged(bool all, const std::vector<pdf::PDFInteger>& pages);
@@ -179,8 +179,8 @@ private:
 
         }
 
-        /// Returns true, if this particular task has been cancelled
-        bool isCancelled() const { return cancelFlag && cancelFlag->load(std::memory_order_relaxed); }
+        /// Returns true, if this particular task has been canceled
+        bool isCanceled() const { return cancelFlag && cancelFlag->load(std::memory_order_relaxed); }
 
         /// Cancels this task
         void cancel() const { if (cancelFlag) { cancelFlag->store(true, std::memory_order_relaxed); } }
@@ -188,7 +188,7 @@ private:
         PDFInteger pageIndex = 0;
         bool finished = false;
 
-        /// Can this task be cancelled, when the page leaves the viewport? Tasks
+        /// Can this task be canceled, when the page leaves the viewport? Tasks
         /// created for consumers independent on the viewport (thumbnails) can't.
         bool isCancellable = true;
 
@@ -208,7 +208,7 @@ private:
     static constexpr size_t MAXIMAL_TASK_BATCH_SIZE = 8;
 
     /// Changed only by the thread of the compiler; read also by the compiling threads
-    /// (isOperationCancelled - stop() announces the stopping while they compile)
+    /// (isOperationCanceled - stop() announces the stopping while they compile)
     std::atomic<State> m_state = State::Inactive;
     QMutex m_mutex;
     QWaitCondition m_waitCondition;
@@ -226,7 +226,7 @@ private:
 };
 
 /// Operation control of a single page compilation. Compilation of a page is
-/// cancelled either when the whole engine is being stopped, or when this
+/// canceled either when the whole engine is being stopped, or when this
 /// particular page is not needed anymore.
 class PDFPageCompilerOperationControl : public PDFOperationControl
 {
@@ -238,10 +238,10 @@ public:
 
     }
 
-    virtual bool isOperationCancelled() const override
+    virtual bool isOperationCanceled() const override
     {
         return (m_cancelFlag && m_cancelFlag->load(std::memory_order_relaxed)) ||
-               (m_compiler && m_compiler->isOperationCancelled());
+               (m_compiler && m_compiler->isOperationCanceled());
     }
 
 private:

@@ -62,7 +62,7 @@ bool OwnTabTestTool::waitWhileHeld(const pdf::PDFOperationControl* control) cons
     ++m_heldCount;
     while (m_hold.load())
     {
-        if (pdf::PDFOperationControl::isOperationCancelled(control))
+        if (pdf::PDFOperationControl::isOperationCanceled(control))
         {
             --m_heldCount;
             return false;

@@ -128,7 +128,7 @@ void PDFAppToolBitonalMenuPanel::addContentWidget(QWidget* widget)
 
 PDFBitonalDocumentCreator::Preview PDFAppToolBitonalJobs::createPreview(PDFDocumentPointer document, PDFCMSSettings cmsSettings, PDFBitonalDocumentCreator::PreviewRequest request, std::shared_ptr<PDFAppCancelFlag> cancel)
 {
-    if (!document || cancel->isOperationCancelled())
+    if (!document || cancel->isOperationCanceled())
     {
         return PDFBitonalDocumentCreator::Preview();
     }
@@ -156,7 +156,7 @@ std::vector<qint64> PDFAppToolBitonalJobs::estimateSizes(PDFDocumentPointer docu
     std::unique_ptr<PDFBitonalRasterizationEnvironment> environment;
     for (size_t index = 0; index < requests.size(); ++index)
     {
-        if (cancel->isOperationCancelled())
+        if (cancel->isOperationCanceled())
         {
             break;
         }
@@ -168,7 +168,7 @@ std::vector<qint64> PDFAppToolBitonalJobs::estimateSizes(PDFDocumentPointer docu
 
         const PDFBitonalDocumentCreator creator(document.data(), environment ? environment->getRasterizerPool() : nullptr, nullptr);
         const PDFBitonalDocumentCreator::Preview preview = creator.createPreview(requests[index], cancel.get());
-        if (!cancel->isOperationCancelled())
+        if (!cancel->isOperationCanceled())
         {
             sizes[index] = preview.encodedSize;
         }
@@ -184,7 +184,7 @@ std::shared_ptr<const PDFDocumentImageList> PDFAppToolBitonalJobs::collectImages
     }
 
     PDFDocumentImageList list = PDFDocumentImageList::create(document.data(), PDFDocumentImageList::Options::createForChange(), cancel.get(), nullptr);
-    if (cancel->isOperationCancelled() || !list.isComplete())
+    if (cancel->isOperationCanceled() || !list.isComplete())
     {
         return nullptr;
     }
@@ -1636,7 +1636,7 @@ void PDFAppToolGUIBitonal::startPreview()
 
 void PDFAppToolGUIBitonal::onPreviewFinished()
 {
-    if (!m_previewCancel || m_previewCancel->isOperationCancelled() || !m_previewWatcher.future().isValid() || m_previewWatcher.future().resultCount() == 0)
+    if (!m_previewCancel || m_previewCancel->isOperationCanceled() || !m_previewWatcher.future().isValid() || m_previewWatcher.future().resultCount() == 0)
     {
         return;
     }
@@ -1708,7 +1708,7 @@ void PDFAppToolGUIBitonal::cancelEstimate()
 
 void PDFAppToolGUIBitonal::onEstimateFinished()
 {
-    if (!m_estimateCancel || m_estimateCancel->isOperationCancelled() || m_estimateWatcher.future().resultCount() == 0)
+    if (!m_estimateCancel || m_estimateCancel->isOperationCanceled() || m_estimateWatcher.future().resultCount() == 0)
     {
         return;
     }
@@ -1731,7 +1731,7 @@ void PDFAppToolGUIBitonal::onEstimateFinished()
 
 void PDFAppToolGUIBitonal::onImagesCollected()
 {
-    if (!m_imagesCancel || m_imagesCancel->isOperationCancelled() || m_imagesWatcher.future().resultCount() == 0)
+    if (!m_imagesCancel || m_imagesCancel->isOperationCanceled() || m_imagesWatcher.future().resultCount() == 0)
     {
         return;
     }
@@ -1857,7 +1857,7 @@ void PDFAppToolGUIBitonal::onDetectionPoll()
 
 void PDFAppToolGUIBitonal::onDetectionFinished()
 {
-    if (!m_isDetecting || !m_detectionCancel || m_detectionCancel->isOperationCancelled() || m_detectionWatcher.future().resultCount() == 0)
+    if (!m_isDetecting || !m_detectionCancel || m_detectionCancel->isOperationCanceled() || m_detectionWatcher.future().resultCount() == 0)
     {
         return;
     }

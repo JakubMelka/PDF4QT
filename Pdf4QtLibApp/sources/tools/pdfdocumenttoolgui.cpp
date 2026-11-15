@@ -429,6 +429,11 @@ void PDFDocumentToolGUI::onRunStateChanged(bool isRunning)
     Q_UNUSED(isRunning);
 }
 
+void PDFDocumentToolGUI::onRunRefused()
+{
+
+}
+
 void PDFDocumentToolGUI::onRunNotAccepted(const PDFDocumentToolResult& result)
 {
     PDFAppToolHost* host = getHost();

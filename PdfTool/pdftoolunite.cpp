@@ -89,7 +89,7 @@ int PDFToolUnite::execute(const PDFToolOptions& options)
 
         pdf::PDFDocumentReader reader(nullptr, passwordCallback, options.permissiveReading, false);
         pdf::PDFDocument document = reader.readFromFile(fileName);
-        if (reader.getReadingResult() == pdf::PDFDocumentReader::Result::Cancelled)
+        if (reader.getReadingResult() == pdf::PDFDocumentReader::Result::Canceled)
         {
             PDFConsole::writeError(PDFToolTranslationContext::tr("Document '%1' is encrypted: give its password by --pswd.").arg(fileName), options.outputCodec);
             return ErrorDocumentReading;

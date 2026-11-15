@@ -2107,7 +2107,7 @@ bool MainWindow::insertDocument(const QString& fileName, int insertRow, const st
         isDocumentInserted = false;
         QMessageBox::critical(this, tr("Error"), errorMessage);
     }
-    else if (result == pdf::PDFDocumentReader::Result::Cancelled)
+    else if (result == pdf::PDFDocumentReader::Result::Canceled)
     {
         isDocumentInserted = false;
     }

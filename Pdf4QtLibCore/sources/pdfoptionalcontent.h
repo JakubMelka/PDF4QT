@@ -184,7 +184,7 @@ public:
     /// then nothing happens. If optional content group is contained in radio button group, then
     /// all other optional content groups in the group are switched off, if we are
     /// switching this one to ON state. If we are switching it off, then nothing happens (as all
-    /// optional content groups in radio button group can be switched off). This behaviour can be
+    /// optional content groups in radio button group can be switched off). This behavior can be
     /// controlled via parameter \p preserveRadioButtons.
     /// \param ocg Optional content group
     /// \param state New state of the optional content group

@@ -332,7 +332,7 @@ QByteArray PDFJBIG2Encoder::encodeFile()
     validate();
 
     // File header, see D.4 of the specification - the identifier, the flags (the
-    // sequential organisation, the number of the pages is known) and the number
+    // sequential organization, the number of the pages is known) and the number
     // of the pages
     QByteArray stream("\x97\x4A\x42\x32\x0D\x0A\x1A\x0A", 8);
     stream.append(char(0x01));
@@ -459,7 +459,7 @@ void PDFJBIG2Encoder::encodeGenericBitmap(const PDFBitonalBitmapView& bitmap,
     // The bitmap is unpacked into a byte per pixel, where 1 is a black pixel, as
     // the decoder does. The typical prediction then compares the rows directly.
     // A skipped pixel is zero, because the decoder does not decode it and sets it
-    // to zero - the contexts of its neighbours must see the same value.
+    // to zero - the contexts of its neighbors must see the same value.
     std::vector<uint8_t> pixels(size_t(width) * size_t(height), 0);
     for (int y = 0; y < height; ++y)
     {

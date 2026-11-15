@@ -76,7 +76,7 @@ PDFImageData PDFCCITTFaxDecoder::decode()
     // changing elements of a line are strictly increasing positions less than the number
     // of the columns, so at most the first columns entries are changing elements and the
     // entries after them hold the number of the columns. The index b1 is moved by two
-    // entries (the colour of b1 must not change), so it stops at the first or at the
+    // entries (the color of b1 must not change), so it stops at the first or at the
     // second of these entries - it never leaves the line, and only the index b2, which
     // is the entry after b1, can.
     while (!m_reader.isAtEnd())

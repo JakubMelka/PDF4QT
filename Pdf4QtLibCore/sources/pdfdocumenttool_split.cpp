@@ -1002,7 +1002,7 @@ PDFDocumentToolResult PDFDocumentToolExtract::execute(const PDFDocumentToolConte
     PDFDocumentMerger::Settings mergerSettings;
     mergerSettings.isNewFile = true;
     PDFDocumentMerger::Result merged = PDFDocumentMerger::merge({ source }, items, mergerSettings, control, phases.getPhase(extractPhase));
-    if (merged.isCanceled || PDFOperationControl::isOperationCancelled(control))
+    if (merged.isCanceled || PDFOperationControl::isOperationCanceled(control))
     {
         return PDFDocumentToolResult::createStopped();
     }

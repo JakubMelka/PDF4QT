@@ -986,7 +986,7 @@ GalleryPages::Page GalleryPages::createToolsPage(QWidget* parent)
     liveChosen->setChecked(true);
     liveChosen->setFixedWidth(332);
     builder.live(QStringLiteral("Live, a choice of more"), liveChosen, QStringLiteral("438:13080"));
-    pdf::PDFTileRow* liveFree = new pdf::PDFTileRow(QStringLiteral("Clear all"), QStringLiteral("Untick everything and choose by hand"), QStringLiteral("select-none"), Kind::MenuItem, builder.page());
+    pdf::PDFTileRow* liveFree = new pdf::PDFTileRow(QStringLiteral("Clear all"), QStringLiteral("Uncheck everything and choose by hand"), QStringLiteral("select-none"), Kind::MenuItem, builder.page());
     liveFree->setFixedWidth(332);
     builder.live(QStringLiteral("Live, an action"), liveFree, QStringLiteral("438:13112"));
     builder.row();
@@ -1052,13 +1052,13 @@ GalleryPages::Page GalleryPages::createToolsPage(QWidget* parent)
     link.descriptionKind = Painter::TextKind::Data;
     link.checkBoxVisible = true;
     link.checkBoxChecked = true;
-    addRow(QStringLiteral("Ticked"), link, 261, GalleryPages::Default);
+    addRow(QStringLiteral("Checked"), link, 261, GalleryPages::Default);
     addRow(QStringLiteral("Shown on the page"), link, 261, GalleryPages::Selected, Qt::LeftToRight, QStringLiteral("438:14890"));
     Painter::TileRow kept = link;
     kept.title = QStringLiteral("statistics.example.gov");
     kept.description = QStringLiteral("https://statistics.example.go\u2026");
     kept.checkBoxChecked = false;
-    addRow(QStringLiteral("Not ticked"), kept, 261, GalleryPages::Default, Qt::LeftToRight, QStringLiteral("438:14900"));
+    addRow(QStringLiteral("Not checked"), kept, 261, GalleryPages::Default, Qt::LeftToRight, QStringLiteral("438:14900"));
     builder.row();
     Painter::TileRow twoLines = link;
     twoLines.title = QStringLiteral("jane.novak@example.com");

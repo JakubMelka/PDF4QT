@@ -720,7 +720,7 @@ void PDFAppMarkResults::onWorkerFinished()
 
     // The operation ends first (it blocks the commit); its end is announced
     // synchronously - a slot may delete the tab with this object (review RPKT 95a)
-    const bool isCanceled = m_control && m_control->isOperationCancelled();
+    const bool isCanceled = m_control && m_control->isOperationCanceled();
     m_control.reset();
     const AnnotationType type = m_runningType;
     const quint64 version = m_runningVersion;

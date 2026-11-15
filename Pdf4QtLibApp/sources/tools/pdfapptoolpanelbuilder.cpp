@@ -580,7 +580,7 @@ void PDFAppToolChecklist::refresh()
         if (item.second)
         {
             const QSignalBlocker blocker(item.second);
-            // A kind, which is not there, is shown unticked (438:12588 "Not found"); its value stays
+            // A kind, which is not there, is shown unchecked (438:12588 "Not found"); its value stays
             item.second->setCheckBoxChecked(m_model->getValue(item.first).toBool() && item.second->isCheckBoxEnabled());
             item.second->update();
         }

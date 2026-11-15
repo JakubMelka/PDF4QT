@@ -277,7 +277,7 @@ void DrawSpaceTest::compilerServesRequestsOfIdleWorker()
     // it has no task; the wait unlocks the mutex of the tasks (inside of Qt) and the
     // GUI thread locks it meanwhile to add a task and to set the active pages. A
     // page requested while the worker waits wakes the worker up, is compiled and
-    // announced by pageImageChanged; a persistent request is not cancelled by the
+    // announced by pageImageChanged; a persistent request is not canceled by the
     // active pages (pdfcompiler.h). Under ThreadSanitizer the test also checks, that
     // the wait is announced to the detector (PDFThreadAnnotations::wait): without
     // it, the next lock of the GUI thread is reported as a double lock of the mutex
@@ -321,7 +321,7 @@ void DrawSpaceTest::compilerStoppedDuringCompilation()
 {
     // stop() stops the compilation of a page, which is running in other threads
     // (pdfcompiler.h): it announces the stopping by the state of the compiler, which
-    // the compiling threads poll (isOperationCancelled) while stop() changes it, and
+    // the compiling threads poll (isOperationCanceled) while stop() changes it, and
     // waits for the worker. A stopped compilation is thrown away, it never puts a
     // part of the page into the cache: after a restart the page is compiled whole,
     // equal to an uninterrupted compilation. Under ThreadSanitizer the test also

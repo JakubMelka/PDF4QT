@@ -119,7 +119,7 @@ PDFLexicalAnalyzer::Token PDFLexicalAnalyzer::fetch()
         case '.':
         {
             // Scan integer or real number. If integer overflows, then it is converted to the real number. If
-            // real number overflow, then error is reported. This behaviour is according to the PDF 1.7 specification,
+            // real number overflow, then error is reported. This behavior is according to the PDF 1.7 specification,
             // chapter 3.2.2.
 
             // First, treat special characters

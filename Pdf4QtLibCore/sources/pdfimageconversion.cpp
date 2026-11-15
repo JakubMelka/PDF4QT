@@ -89,7 +89,7 @@ void PDFImageConversion::prepareSourceImage()
 
     for (int y = 0; y < m_height; ++y)
     {
-        if (isCancelled())
+        if (isCanceled())
         {
             // Buffers are incomplete, so no conversion can be performed with them
             m_lightness.clear();
@@ -197,7 +197,7 @@ bool PDFImageConversion::convert()
 
     prepareSourceImage();
 
-    if (m_lightness.empty() || isCancelled())
+    if (m_lightness.empty() || isCanceled())
     {
         return false;
     }
@@ -379,7 +379,7 @@ int PDFImageConversion::calculateOtsu1DThreshold() const
 
     for (size_t i = 0; i < m_lightness.size(); ++i)
     {
-        if ((i & 0xFFFF) == 0 && isCancelled())
+        if ((i & 0xFFFF) == 0 && isCanceled())
         {
             return DEFAULT_THRESHOLD;
         }
@@ -558,7 +558,7 @@ QImage PDFImageConversion::convertThresholded(int threshold) const
 
     for (int y = 0; y < m_height; ++y)
     {
-        if (isCancelled())
+        if (isCanceled())
         {
             return QImage();
         }
@@ -635,7 +635,7 @@ QImage PDFImageConversion::convertAdaptive() const
     // the page is bright and another is darker because of shadows or uneven scanning.
     for (int y = 0; y < height; ++y)
     {
-        if (isCancelled())
+        if (isCanceled())
         {
             return QImage();
         }
@@ -727,7 +727,7 @@ QImage PDFImageConversion::convertDithered(int threshold) const
 
     for (int y = 0; y < height; ++y)
     {
-        if (isCancelled())
+        if (isCanceled())
         {
             return QImage();
         }

@@ -52,6 +52,18 @@ public:
     /// directory of XDG (StateLocation/logs, ~/.local/state/...), elsewhere
     /// <data>/logs. With PDF4QT_APP_DATA_DIRECTORY it is <data>/logs.
     static QString getLogDirectory();
+
+    /// Folder of the digital IDs (.pfx) of the application: empty = the folder of the
+    /// user account, PDFCertificateManager::getCertificateDirectory (the roaming data of
+    /// PDF4QT, also in the portable mode, which has no data folder). With
+    /// PDF4QT_APP_DATA_DIRECTORY (a second profile, tests) it is <data>/certificates,
+    /// so such a profile never writes into the certificates of the user.
+    static QString getCertificateDirectory();
+
+    /// Sets the certificate folders of the application (main, once at the start, before
+    /// any window): getCertificateDirectory, when it is not empty, with the folders of the
+    /// old Editor and Viewer as read-only sources (Q5.5); otherwise nothing is changed
+    static void installCertificateDirectories();
 };
 
 }   // namespace pdf

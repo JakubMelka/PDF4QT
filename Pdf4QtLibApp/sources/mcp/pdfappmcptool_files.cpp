@@ -300,8 +300,8 @@ public:
         request.document = getSnapshot().document;
         request.originalData = getSnapshot().originalData;
         request.filePath = m_filePath;
-        request.isIncremental = m_isIncremental && !request.originalData.isEmpty() && !getSnapshot().isPagedXFA;
-        request.isOriginalData = getSnapshot().isPagedXFA;
+        request.isIncremental = m_isIncremental && !request.originalData.isEmpty() && !getSnapshot().isOriginalDataWritten();
+        request.isOriginalData = getSnapshot().isOriginalDataWritten();
         request.version = getSnapshot().version;
         request.markSourceFilePath = m_markSourceFilePath;
         m_result = PDFAppDocumentFileWriter::write(request);

@@ -21,8 +21,8 @@
 // SOFTWARE.
 
 #include "pdftoolencrypt.h"
-#include "pdfdocumentbuilder.h"
-#include "pdfdocumentwriter.h"
+#include "pdfdocumenttool_encryption.h"
+#include "pdfocrexport.h"
 
 namespace pdftool
 {
@@ -59,14 +59,14 @@ int PDFToolEncryptApplication::execute(const PDFToolOptions& options)
     settings.ownerPassword = options.encryptionOwnerPassword;
     settings.permissions = options.encryptionPermissions;
 
+    // R5-23: the rules of the factory (an empty owner password is the open password, restrictions
+    // need an owner password of their own, the characters of revision 4)
     QString errorMessage;
     if (!pdf::PDFSecurityHandlerFactory::validate(settings, &errorMessage))
     {
         PDFConsole::writeError(errorMessage, options.outputCodec);
         return ErrorEncryptionSettings;
     }
-
-    pdf::PDFSecurityHandlerPointer securityHandler = pdf::PDFSecurityHandlerFactory::createSecurityHandler(settings);
 
     pdf::PDFDocument document;
     QByteArray sourceData;
@@ -79,16 +79,27 @@ int PDFToolEncryptApplication::execute(const PDFToolOptions& options)
         return ErrorDocumentReading;
     }
 
-    pdf::PDFDocumentBuilder builder(&document);
-    builder.setSecurityHandler(qMove(securityHandler));
-    document = builder.build();
-
-    pdf::PDFDocumentWriter writer(nullptr);
-    pdf::PDFOperationResult result = writer.write(options.document, &document, true);
-
-    if (!result)
+    // One implementation with the tools of the new application (plan of step 5 of phase 2, 4.7):
+    // /ID, no old crypt filters, the attachments, the declaration of PDF/A, the check by reading
+    // the result back; B101 - a failure is an error, never a file without the encryption
+    pdf::PDFDocumentToolEncryption::Change change = pdf::PDFDocumentToolEncryption::changeEncryption(&document, std::move(settings), nullptr, nullptr);
+    if (!change.error.isEmpty())
     {
-        PDFConsole::writeError(result.getErrorMessage(), options.outputCodec);
+        PDFConsole::writeError(change.error, options.outputCodec);
+        return ErrorEncryptionSettings;
+    }
+
+    if (!change.conformanceRemoved.isEmpty())
+    {
+        PDFConsole::writeError(PDFToolTranslationContext::tr("The declaration of %1 was removed: the standard does not allow the encryption.").arg(change.conformanceRemoved.join(QStringLiteral(", "))), options.outputCodec);
+    }
+
+    // The bytes, which were read back by the new password, are the file (another write would have
+    // other random vectors of AES and would not be the verified file); written whole or not at all
+    QString writeError;
+    if (!pdf::PDFOCRStructuredExporter::writeFile(options.document, change.writtenData, &writeError))
+    {
+        PDFConsole::writeError(writeError, options.outputCodec);
         return ErrorDocumentWriting;
     }
 

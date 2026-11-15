@@ -383,6 +383,12 @@ QString PDFAppMcpChangeJob::getPagedXFAText()
     return QStringLiteral("The document is an XFA form, which PDF4QT shows with the pages of its layout; it cannot be changed. files.save_copy writes the original PDF.");
 }
 
+QString PDFAppMcpChangeJob::getAttachmentsLockedText()
+{
+    return QStringLiteral("The document was opened without the password of its attachments: they are still encrypted, so no PDF can be made of it. "
+                          "The user can enter that password in PDF4QT (the Attachments panel, Enter Password...); never ask the user for the password. Try again after that.");
+}
+
 QString PDFAppMcpChangeJob::joinParts(const QStringList& parts)
 {
     if (parts.size() <= 1)
