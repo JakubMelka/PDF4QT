@@ -596,6 +596,7 @@ private slots:
     void colorPaletteDetails();
     void colorSwatchRow();
     void colorSwatchRowPalette();
+    void colorSwatchRowInline();
     void referencePointPicker();
     void colorPickerPainter();
     void colorPickerLayout();
@@ -8750,6 +8751,72 @@ void FluentComponentsTest::colorSwatchRow()
     hostile.setColor(QColor::fromRgba(0));
     QVERIFY(hostile.getSwatch(7)->isSelected());
     QCOMPARE(hostile.getColor(), QColor(Qt::black));
+}
+
+void FluentComponentsTest::colorSwatchRowInline()
+{
+    // field-Text color 1567:19179 / swatches 1567:19183 (review RS6FIGMA): the row inline in a panel of
+    // a tool - black, white, red, orange, yellow, green, blue, swatches of 28 four apart, the "+"
+    // (swatch-custom 1567:19191) of 28 at 224, the whole row 252 wide, so it fits the card of 261;
+    // the "+" asks for a custom color without the palette
+    using Row = pdf::PDFColorSwatchRow;
+    using Option = Row::Option;
+    using Color = pdf::PDFThemeColors::Color;
+
+    QWidget host;
+    host.resize(400, 100);
+    Row* row = new Row(&host);
+    row->setOptions(Option::Inline | Option::More);
+    row->move(0, 0);
+    row->resize(row->sizeHint());
+    host.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&host));
+
+    const std::vector<Color> expected = { Color::AnnotationBlack, Color::AnnotationWhite, Color::AnnotationRed, Color::AnnotationOrange,
+                                          Color::AnnotationYellow, Color::AnnotationGreen, Color::AnnotationBlue };
+    QCOMPARE(row->getSwatchCount(), int(expected.size()));
+    const pdf::PDFThemeColors light;
+    for (int i = 0; i < row->getSwatchCount(); ++i)
+    {
+        QCOMPARE(row->getEntry(i).token, expected[i]);
+        QCOMPARE(row->getEntry(i).canonicalColor, light.getColor(expected[i]));
+        QCOMPARE(row->getSwatch(i)->geometry(), QRect(32 * i, 0, 28, 28));
+    }
+    QCOMPARE(row->getEntry(0).name, QStringLiteral("Black"));
+    QCOMPARE(row->sizeHint(), QSize(252, 28));
+    QCOMPARE(Row::getRowSize(7, true, Option::Inline), QSize(252, 28));
+
+    QAbstractButton* plus = row->getMoreButton();
+    QVERIFY(plus);
+    QCOMPARE(plus->geometry(), QRect(224, 0, 28, 28));
+    QCOMPARE(plus->accessibleName(), QStringLiteral("Custom color…"));
+
+    // The "+" is framed by a 1 px circle of border/default (RS6FIGMA Low, 1567:19191): the pixel at the
+    // middle of its left edge has the border color, the pixel 4 px inside and the corner of its box not
+    {
+        const QImage image = row->grab().toImage().convertToFormat(QImage::Format_ARGB32);
+        const qreal ratio = image.devicePixelRatio();
+        const QColor border = light.getColor(Color::BorderDefault);
+        const auto pixel = [&image, ratio](int x, int y) { return image.pixelColor(QPoint(qFloor(x * ratio), qFloor(y * ratio))); };
+        const auto isNear = [](const QColor& a, const QColor& b) { return qAbs(a.red() - b.red()) + qAbs(a.green() - b.green()) + qAbs(a.blue() - b.blue()) <= 30; };
+        const QColor edge = pixel(224, 14);
+        const QColor inside = pixel(228, 14);
+        const QColor corner = pixel(224, 0);
+        QVERIFY2(isNear(edge, border), qPrintable(edge.name()));
+        QVERIFY2(!isNear(inside, border) || inside == corner, qPrintable(inside.name()));
+        QVERIFY2(!isNear(corner, border), qPrintable(corner.name()));
+    }
+
+    QSignalSpy moreSpy(row, &Row::moreColorsRequested);
+    QTest::mouseClick(plus, Qt::LeftButton);
+    QCOMPARE(moreSpy.size(), 1);
+    QVERIFY(!row->isPaletteVisible());
+
+    // The other rows stay as they were: the annotation colors 2 apart and the More button of 32
+    Row annotation;
+    QCOMPARE(annotation.getSwatchCount(), 8);
+    QCOMPARE(annotation.sizeHint(), Row::getRowSize(8, true));
+    QCOMPARE(annotation.getMoreButton()->accessibleName(), QStringLiteral("More colors"));
 }
 
 void FluentComponentsTest::colorSwatchRowPalette()

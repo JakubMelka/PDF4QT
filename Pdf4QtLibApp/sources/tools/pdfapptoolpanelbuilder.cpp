@@ -39,6 +39,7 @@
 #include "pdfdocumenttoolparameter.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemefonts.h"
+#include "pdfthemeiconengine.h"
 
 #include <QAbstractItemModel>
 #include <QCheckBox>
@@ -190,6 +191,16 @@ void PDFAppToolEnumMenu::setButtonTitle(const QString& optionId, const QString& 
     refresh();
 }
 
+void PDFAppToolEnumMenu::setButtonIconFollowsOption(bool isFollowing)
+{
+    if (m_menuIconName.isEmpty() && m_button)
+    {
+        m_menuIconName = m_button->property(ICON_PROPERTY).toString();
+    }
+    m_isButtonIconFollowingOption = isFollowing;
+    refresh();
+}
+
 void PDFAppToolEnumMenu::refresh()
 {
     if (!m_model)
@@ -198,6 +209,7 @@ void PDFAppToolEnumMenu::refresh()
     }
 
     QString title;
+    QString iconName = m_menuIconName;
     for (const QString& parameter : m_parameters)
     {
         const QString value = PDFAppToolPanelBuilderHelper::getValue(m_model.data(), m_store.get(), parameter).toString();
@@ -210,6 +222,10 @@ void PDFAppToolEnumMenu::refresh()
                 {
                     auto buttonTitle = m_buttonTitles.find(option.id);
                     title = buttonTitle != m_buttonTitles.cend() ? buttonTitle->second : option.getTitle();
+                    if (!option.iconName.isEmpty())
+                    {
+                        iconName = option.iconName;
+                    }
                 }
                 if (PDFTileRow* row = getRow(option.id))
                 {
@@ -223,6 +239,11 @@ void PDFAppToolEnumMenu::refresh()
     if (m_button && !m_titleFormat.isEmpty())
     {
         m_button->setText(m_titleFormat.arg(title));
+    }
+    if (m_button && m_isButtonIconFollowingOption && !iconName.isEmpty() && m_button->property(ICON_PROPERTY).toString() != iconName)
+    {
+        m_button->setIcon(PDFThemeIcons::getIcon(iconName));
+        m_button->setProperty(ICON_PROPERTY, iconName);
     }
 }
 
@@ -1185,6 +1206,7 @@ PDFAppToolEnumMenu* PDFAppToolPanelBuilder::addEnumMenu(const QString& parameter
     {
         panel->addGroupCaption(caption);
     }
+    panel->getButton()->setProperty(PDFAppToolEnumMenu::ICON_PROPERTY, iconName);
     return new PDFAppToolEnumMenu(m_gui->getModel(), parameter, titleFormat, panel->getButton(), panel, m_widget);
 }
 

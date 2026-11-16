@@ -52,6 +52,7 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QScreen>
+#include <QScrollArea>
 #include <QShowEvent>
 #include <QStyleOptionMenuItem>
 #include <QToolButton>
@@ -337,17 +338,15 @@ void PDFAppDocumentPanelPopup::popup(QWidget* anchor, int globalTop)
     // The content lies inside of the border and of the padding; the window has
     // the margins of the shadow around the panel
     const QMargins margins = PDFWidgetStyle::getPopoverMargins(this);
-    m_contentLayout->setContentsMargins(margins + getContentPadding());
-    m_contentLayout->activate();
-
-    const int windowWidth = m_panelWidth + margins.left() + margins.right();
-    const int windowHeight = m_contentLayout->hasHeightForWidth() ? m_contentLayout->totalHeightForWidth(windowWidth) : m_contentLayout->totalSizeHint().height();
+    const int windowHeight = updateContentMargins(margins);
     const QSize panelSize(m_panelWidth, qMax(0, windowHeight - margins.top() - margins.bottom()));
 
     const QRect anchorRect(anchor->mapToGlobal(QPoint(0, 0)), anchor->size());
     QRect panel(QPoint(getPanelLeft(anchorRect, panelSize.width()), globalTop), panelSize);
 
-    // The screen, on which the anchor lies; the panel stays inside of it
+    // The screen, on which the anchor lies; the panel stays inside of it. A panel taller than the
+    // screen scrolls in one column (Arrange of 18 rows, 434:5421 / 435:9472; coordinator's decision):
+    // its content moves into a scroll area once and stays there
     const QScreen* screen = QGuiApplication::screenAt(anchorRect.center());
     if (!screen)
     {
@@ -355,13 +354,22 @@ void PDFAppDocumentPanelPopup::popup(QWidget* anchor, int globalTop)
     }
     if (screen)
     {
-        const QRect available = screen->availableGeometry();
-        panel.moveLeft(qBound(available.left(), panel.left(), qMax(available.left(), available.right() + 1 - panel.width())));
-        panel.moveTop(qBound(available.top(), panel.top(), qMax(available.top(), available.bottom() + 1 - panel.height())));
+        QRect available = screen->availableGeometry();
+        if (s_maximumPanelHeight > 0 && available.height() > s_maximumPanelHeight)
+        {
+            available.setHeight(s_maximumPanelHeight);
+        }
         if (panel.height() > available.height())
         {
+            if (!m_scrollArea)
+            {
+                wrapContentInScrollArea();
+                updateContentMargins(margins);
+            }
             panel.setHeight(available.height());
         }
+        panel.moveLeft(qBound(available.left(), panel.left(), qMax(available.left(), available.right() + 1 - panel.width())));
+        panel.moveTop(qBound(available.top(), panel.top(), qMax(available.top(), available.bottom() + 1 - panel.height())));
     }
 
     setFixedSize(panel.size().grownBy(margins));
@@ -398,6 +406,93 @@ void PDFAppDocumentPanelPopup::popup(QWidget* anchor, int globalTop)
         }
     }
     focusNextPrevChild(true);
+}
+
+int PDFAppDocumentPanelPopup::s_maximumPanelHeight = 0;
+
+void PDFAppDocumentPanelPopup::setMaximumPanelHeight(int height)
+{
+    s_maximumPanelHeight = qMax(0, height);
+}
+
+int PDFAppDocumentPanelPopup::updateContentMargins(const QMargins& margins)
+{
+    const int windowWidth = m_panelWidth + margins.left() + margins.right();
+    if (!m_scrollArea)
+    {
+        m_contentLayout->setContentsMargins(margins + getContentPadding());
+        m_contentLayout->activate();
+        return m_contentLayout->hasHeightForWidth() ? m_contentLayout->totalHeightForWidth(windowWidth) : m_contentLayout->totalSizeHint().height();
+    }
+
+    // The scroll area lies inside of the border (the panel paints it), the padding scrolls with the
+    // content
+    const QMargins border(1, 1, 1, 1);
+    const QMargins padding = getContentPadding();
+    if (QLayout* windowLayout = layout())
+    {
+        windowLayout->setContentsMargins(margins + border);
+    }
+    m_contentLayout->setContentsMargins(qMax(0, padding.left() - 1), qMax(0, padding.top() - 1), qMax(0, padding.right() - 1), qMax(0, padding.bottom() - 1));
+    m_contentLayout->activate();
+    const int contentWidth = m_panelWidth - border.left() - border.right();
+    const int contentHeight = m_contentLayout->hasHeightForWidth() ? m_contentLayout->totalHeightForWidth(contentWidth) : m_contentLayout->totalSizeHint().height();
+    return contentHeight + margins.top() + margins.bottom() + border.top() + border.bottom();
+}
+
+void PDFAppDocumentPanelPopup::wrapContentInScrollArea()
+{
+    QVBoxLayout* windowLayout = m_contentLayout.data();
+    if (m_scrollArea || !windowLayout || windowLayout != layout())
+    {
+        return;
+    }
+    for (int i = 0; i < windowLayout->count(); ++i)
+    {
+        if (windowLayout->itemAt(i)->layout())
+        {
+            // A nested layout cannot move with its widgets: the panel keeps its natural layout
+            return;
+        }
+    }
+
+    // Ownership: the scroll area is a child of the panel, the content a child of the scroll area;
+    // the widgets of the content keep their objects, only their parent changes. No signal is emitted.
+    QScrollArea* scrollArea = new QScrollArea(this);
+    scrollArea->setObjectName(QStringLiteral("panelScrollArea"));
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    scrollArea->setAutoFillBackground(false);
+    scrollArea->viewport()->setAutoFillBackground(false);
+    scrollArea->setFocusPolicy(Qt::NoFocus);
+
+    QWidget* content = new QWidget();
+    content->setObjectName(QStringLiteral("panelScrollContent"));
+    content->setAutoFillBackground(false);
+    QVBoxLayout* contentLayout = new QVBoxLayout(content);
+    contentLayout->setSpacing(windowLayout->spacing());
+    while (windowLayout->count() > 0)
+    {
+        const int stretch = windowLayout->stretch(0);
+        QLayoutItem* item = windowLayout->takeAt(0);
+        if (QWidget* widget = item->widget())
+        {
+            const bool isHidden = widget->isHidden();
+            widget->setParent(content);
+            widget->setHidden(isHidden);
+        }
+        contentLayout->addItem(item);
+        contentLayout->setStretch(contentLayout->count() - 1, stretch);
+    }
+    scrollArea->setWidget(content);
+    windowLayout->addWidget(scrollArea);
+    windowLayout->setSpacing(0);
+    m_contentLayout = contentLayout;
+    m_scrollArea = scrollArea;
+
+    // The controls of the content get the filter of the arrows again at the opening (popup)
 }
 
 void PDFAppDocumentPanelPopup::onViewStateChanged()
@@ -752,6 +847,15 @@ bool PDFAppDocumentPanelPopup::eventFilter(QObject* watched, QEvent* event)
             // The panel may be deleted by a slot of neighborRequested
             keyEvent->accept();
             return true;
+        }
+    }
+    else if (event->type() == QEvent::FocusIn && m_scrollArea && watched->isWidgetType())
+    {
+        // The keyboard reaches every row of a scrolled panel: the focused control is scrolled into view
+        QWidget* widget = static_cast<QWidget*>(watched);
+        if (m_scrollArea->widget() && m_scrollArea->widget()->isAncestorOf(widget))
+        {
+            m_scrollArea->ensureWidgetVisible(widget);
         }
     }
 

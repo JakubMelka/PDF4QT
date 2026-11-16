@@ -1220,7 +1220,11 @@ public:
     {
         NoColor = 0x01,     ///< The swatch "No color" (SwatchKind::None) before the colors
         White = 0x02,       ///< The swatch annotation/white after black
-        More = 0x04         ///< The button opening the palette of the colors
+        More = 0x04,        ///< The button opening the palette of the colors
+        Inline = 0x08       ///< The row inline in a panel (1567:19183): black, white, red, orange, yellow,
+                            ///< green, blue 4 apart; with More its button is the round "+" of the size of a
+                            ///< swatch (swatch-custom 1567:19191), which asks for a custom color
+                            ///< (moreColorsRequested) instead of opening the palette
     };
     Q_DECLARE_FLAGS(Options, Option)
     Q_FLAG(Options)
@@ -1241,6 +1245,9 @@ public:
 
     /// Size of the More button
     static constexpr int MORE_EXTENT = 32;
+
+    /// Gap between two swatches of the row Option::Inline (1567:19183)
+    static constexpr int INLINE_SWATCH_GAP = 4;
 
     /// Creates the row with the option More and the 8 annotation colors
     explicit PDFColorSwatchRow(QWidget* parent = nullptr);
@@ -1307,6 +1314,9 @@ public:
     /// Returns the size of a row of the visible swatches and of the More button
     static QSize getRowSize(int visibleSwatches, bool hasMore);
 
+    /// Returns the size of a row of the options (Option::Inline: its gap and its "+")
+    static QSize getRowSize(int visibleSwatches, bool hasMore, Options options);
+
     virtual QSize sizeHint() const override;
     virtual QSize minimumSizeHint() const override;
 
@@ -1324,6 +1334,9 @@ protected:
     virtual void changeEvent(QEvent* event) override;
     virtual void resizeEvent(QResizeEvent* event) override;
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
+
+    /// Option::Inline: the 1 px circle of border/default around the "+" (swatch-custom 1567:19191)
+    virtual void paintEvent(QPaintEvent* event) override;
 
 private:
     enum class Selection

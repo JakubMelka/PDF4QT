@@ -96,6 +96,7 @@ private Q_SLOTS:
     void certificateRoundTrip_data();
     void certificateRoundTrip();
     void certificateValidation();
+    void certificateOfSystemStore();
 
 private:
     std::unique_ptr<QTemporaryDir> m_folder;    ///< The certificate folders of the test
@@ -1839,6 +1840,101 @@ void DocumentToolEncryptionTest::certificateValidation()
     QVERIFY(tool.validate(context, parameters).empty());
 
     Helper::removeCertificateFolders();
+}
+
+void DocumentToolEncryptionTest::certificateOfSystemStore()
+{
+#ifdef Q_OS_WIN
+    // The addendum of the owner of 15. 11. (step 6 of phase 2, Q6.2): a certificate of the store of Windows
+    // is a recipient by its public certificate only - no password, its key is never used by the run (the
+    // store of the run has not even its key); the result opens by its key in the store. The tests use a
+    // store in the memory of the process, never the store of the machine.
+    using Helper = EncryptionTestHelper;
+    using Tool = pdf::PDFDocumentToolEncryption;
+    Helper::removeCertificateFolders();
+    struct StoreGuard
+    {
+        ~StoreGuard() { pdf::PDFPersonalCertificateStore::setStore(nullptr); }
+    } storeGuard;
+
+    const QString directory = pdf::PDFCertificateManager::getCertificateDirectory();
+    QVERIFY(QDir().mkpath(directory));
+    const auto createPkcs12 = [&directory](const QString& name, int validity) -> QByteArray
+    {
+        const QString fileName = QDir(directory).absoluteFilePath(name + QStringLiteral(".pfx"));
+        if (!Helper::createCertificate(fileName, Helper::getCertificatePassword(), name, validity))
+        {
+            return QByteArray();
+        }
+        QFile file(fileName);
+        const QByteArray data = file.open(QFile::ReadOnly) ? file.readAll() : QByteArray();
+        file.close();
+        QFile::remove(fileName);
+        return data;
+    };
+    const QByteArray holderPkcs12 = createPkcs12(QStringLiteral("Jane Novak"), 365 * 24 * 3600);
+    const QByteArray unrelatedPkcs12 = createPkcs12(QStringLiteral("Somebody Else"), 365 * 24 * 3600);
+    const QByteArray expiredPkcs12 = createPkcs12(QStringLiteral("Expired Holder"), -3600);
+    QVERIFY(!holderPkcs12.isEmpty() && !unrelatedPkcs12.isEmpty() && !expiredPkcs12.isEmpty());
+
+    const auto createSystemEntry = [](const QByteArray& pkcs12)
+    {
+        pdf::PDFCertificateEntry entry;
+        entry.type = pdf::PDFCertificateEntry::EntryType::System;
+        entry.info = pdf::PDFCertificateManager::readCertificate(pkcs12, Helper::getCertificatePassword()).value_or(pdf::PDFCertificateInfo());
+        return entry;
+    };
+    const pdf::PDFCertificateEntry holder = createSystemEntry(holderPkcs12);
+    const pdf::PDFCertificateEntry expired = createSystemEntry(expiredPkcs12);
+    QVERIFY(!holder.info.getCertificateData().isEmpty());
+    QVERIFY(pdf::PDFSecurityHandlerFactory::isSystemStoreCertificate(holder));
+
+    // The store of the run has the key of another certificate only
+    const QByteArray passwordUtf8 = Helper::getCertificatePassword().toUtf8();
+    pdf::PDFPersonalCertificateStore::setStore(pdf::PDFPersonalCertificateStore::createMemoryStore(unrelatedPkcs12, passwordUtf8));
+
+    const QByteArray input = Helper::createSample();
+    const pdf::PDFDocument document = Helper::read(input, QString(), false);
+    pdf::PDFDocumentToolContext context = Helper::createContext(document, input);
+    context.userCertificates = { holder, expired };
+
+    const Tool tool(Tool::Mode::Certificate);
+    QVariantMap parameters = Tool::getPresetValues(Tool::Preset::AllowEverything);
+    parameters.insert(QStringLiteral("certificate"), Tool::getCertificateFingerprint(holder.info.getCertificateData()));
+    QVERIFY(tool.validate(context, parameters).empty());
+
+    // 433:3049: an expired certificate of the store cannot be used either
+    QVariantMap expiredParameters = parameters;
+    expiredParameters.insert(QStringLiteral("certificate"), Tool::getCertificateFingerprint(expired.info.getCertificateData()));
+    QVERIFY(Helper::hasError(tool.validate(context, expiredParameters), QStringLiteral("certificate")));
+
+    const pdf::PDFDocumentToolResult result = Helper::run(Tool::Mode::Certificate, context, parameters);
+    QVERIFY2(result.isSuccess(), qPrintable(result.message));
+    QCOMPARE(Helper::getFact(result, Tool::FACT_OPENS_FOR), QStringLiteral("Jane Novak (private key needed)"));
+    const QByteArray data = Helper::getResultData(result);
+    QVERIFY(data.contains("/Adobe.PubSec"));
+    QVERIFY(!data.contains("MarkerPage"));
+
+    // The holder opens it by the key in the store (7.6.5.3), no password is asked
+    pdf::PDFPersonalCertificateStore::setStore(pdf::PDFPersonalCertificateStore::createMemoryStore(holderPkcs12, passwordUtf8));
+    const pdf::PDFCertificateEntries recipients = { holder };
+    bool isRead = false;
+    Helper::Authorization authorization = Helper::Authorization::Failed;
+    const pdf::PDFDocument opened = Helper::read(data, QString(), false, &isRead, &authorization, &recipients);
+    QVERIFY(isRead);
+    QCOMPARE(authorization, Helper::Authorization::UserAuthorized);
+    QCOMPARE(Helper::getDecodedObject(opened, 5), QByteArray(Helper::PAGE_CONTENT));
+
+    // Another key does not open it
+    pdf::PDFPersonalCertificateStore::setStore(pdf::PDFPersonalCertificateStore::createMemoryStore(unrelatedPkcs12, passwordUtf8));
+    bool isReadByOther = true;
+    Helper::read(data, QString(), false, &isReadByOther, nullptr, &recipients);
+    QVERIFY(!isReadByOther);
+
+    Helper::removeCertificateFolders();
+#else
+    QSKIP("The certificate store of the system exists only on Windows (Q6.2).");
+#endif
 }
 
 QTEST_GUILESS_MAIN(DocumentToolEncryptionTest)

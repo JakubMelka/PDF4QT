@@ -88,6 +88,11 @@ public:
     /// empty = nothing to prepare
     std::function<bool(ToolPagesLifetimeRun&)> prepareRun;
 
+    /// Answers the question of the tool at its Cancel, which prepareRun made necessary (Sign by Hand:
+    /// "Discard the drawing?", 435:10500) so that the tool ends (openPopupsSurviveChanges). \returns
+    /// false, when the question the tool must ask is not there. Empty = the tool asks nothing.
+    std::function<bool(ToolPagesLifetimeRun&)> answerCloseQuestion;
+
     bool hasResultDialog = false;   ///< Rows "dialog-<name>" of openPopupsSurviveChanges
     bool hasPanel = false;          ///< Rows "panel-<name>" (the first panel button of the toolbar)
 };
@@ -145,6 +150,14 @@ public:
     /// Step 5, package P3: Encrypt with Certificate and the dialogs of the certificates
     /// (protectcertificate, certificatecreate, certificateimport): apptoolpageslifetime_certificate.cpp
     static void registerCertificateScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
+
+    /// Step 6 (plan 9 with R6-23), package P4: Sign with Certificate, Add Timestamp, Sign by Hand and
+    /// the drawing (protectsign, protecttimestamp, protectsignbyhand): apptoolpageslifetime_signature.cpp
+    static void registerSignatureScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
+
+    /// Step 6, package P5: Redact Content, Manage Certificates and the job of the creation of a key
+    /// (protectredact, protectcertificates, certificatecreatejob): apptoolpageslifetime_redact.cpp
+    static void registerRedactScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
 };
 
 /// The steps and the inputs of the test for the scenarios of the packages: every input is sent

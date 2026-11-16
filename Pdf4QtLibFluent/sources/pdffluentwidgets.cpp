@@ -42,6 +42,8 @@
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLayout>
+#include <QLineEdit>
+#include <QLocale>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QMovie>
@@ -1441,6 +1443,49 @@ void PDFDoubleSpinBox::paintEvent(QPaintEvent* event)
 {
     QDoubleSpinBox::paintEvent(event);
     PDFFluentWidgetsHelper::paintAffixes(this, m_displayPrefix, m_displaySuffix);
+}
+
+void PDFDoubleSpinBox::setTrailingZerosHidden(bool isHidden)
+{
+    if (m_isTrailingZerosHidden != isHidden)
+    {
+        m_isTrailingZerosHidden = isHidden;
+
+        // The text of the value is made again (setValue would not change an equal value)
+        if (QLineEdit* edit = lineEdit())
+        {
+            const QSignalBlocker blocker(edit);
+            edit->setText(textFromValue(value()));
+        }
+    }
+}
+
+QString PDFDoubleSpinBox::textFromValue(double value) const
+{
+    QString text = QDoubleSpinBox::textFromValue(value);
+    if (!m_isTrailingZerosHidden || decimals() <= 0)
+    {
+        return text;
+    }
+
+    // The fraction of the locale ("13.0" -> "13", "2.50" -> "2.5", "1 234,0" -> "1 234")
+    const QString decimalPoint = locale().decimalPoint();
+    const qsizetype pointIndex = text.lastIndexOf(decimalPoint);
+    if (pointIndex < 0)
+    {
+        return text;
+    }
+    qsizetype end = text.size();
+    while (end > pointIndex + decimalPoint.size() && text.at(end - 1) == locale().zeroDigit().front())
+    {
+        --end;
+    }
+    if (end == pointIndex + decimalPoint.size())
+    {
+        end = pointIndex;
+    }
+    text.truncate(end);
+    return text;
 }
 
 PDFCalendarWidget::PDFCalendarWidget(QWidget* parent) :

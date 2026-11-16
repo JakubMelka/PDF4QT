@@ -47,6 +47,8 @@
 #include "pdfsettingdefinitions.h"
 #include "pdfshortcutrepository.h"
 #include "pdfworkspacerepository.h"
+#include "pdfdocumenttoolgui.h"
+#include "pdfdocumenttoolguiregistry.h"
 
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentwindow.h"
@@ -80,6 +82,7 @@
 #include <QWindow>
 
 #include <limits>
+#include <memory>
 
 namespace pdf
 {
@@ -499,6 +502,17 @@ PDFAppToolTab* PDFAppMainWindow::addToolTab(const QString& toolId, const QString
 
 PDFAppToolTab* PDFAppMainWindow::createToolTab(const QString& toolId, PDFAppToolInputList* inputList)
 {
+    // One instance of the own tab of a tool, which says so (Manage Certificates, plan of step 6 of
+    // phase 2, 4.5): a second start activates the tab; the list stays with the caller
+    if (PDFAppToolTab* singleTab = findSingleToolTab(toolId))
+    {
+        // The activation runs code of the pages (they may delete the tab or the window)
+        QPointer<PDFAppToolTab> tab(singleTab);
+        QPointer<PDFAppMainWindow> guard(this);
+        activateTab(singleTab);
+        return guard ? tab.data() : nullptr;
+    }
+
     PDFAppToolTab* createdTab = addToolTab(toolId, PDFAppDocument::createId(), inputList);
     if (!createdTab)
     {
@@ -537,6 +551,27 @@ PDFAppToolTab* PDFAppMainWindow::createToolTabForDocument(const QString& toolId,
         delete listGuard.data();
     }
     return tab;
+}
+
+PDFAppToolTab* PDFAppMainWindow::findSingleToolTab(const QString& toolId) const
+{
+    // The GUI of the tool is made only for the answer and deleted at once (no parent, no shell)
+    const std::shared_ptr<const PDFDocumentToolGUIFactory> factory = PDFDocumentToolGUIRegistry::getFactory(toolId);
+    const std::unique_ptr<PDFDocumentToolGUI> gui(factory ? factory->createGUI() : nullptr);
+    if (!gui || !gui->isSingleOwnTab())
+    {
+        return nullptr;
+    }
+
+    // An instance is a tab with its tool: a tab, whose page has lost its shell, is no instance
+    for (PDFAppToolTab* tab : getToolTabs())
+    {
+        if (tab && tab->getToolId() == toolId && tab->getShell())
+        {
+            return tab;
+        }
+    }
+    return nullptr;
 }
 
 PDFAppToolTab* PDFAppMainWindow::findToolTab(const QString& instanceId) const

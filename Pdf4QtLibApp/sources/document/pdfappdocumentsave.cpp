@@ -38,6 +38,7 @@
 
 #include "pdfdocumentwriter.h"
 #include "pdfexception.h"
+#include "pdfexecutionpolicy.h"
 #include "pdfform.h"
 #include "pdfmessagebox.h"
 
@@ -46,6 +47,7 @@
 #include <QFileInfo>
 #include <QPushButton>
 #include <QSaveFile>
+#include <QScopeGuard>
 #include <QStandardPaths>
 #include <QThread>
 #include <QtConcurrent/QtConcurrentRun>
@@ -65,6 +67,10 @@ public:
 
 PDFAppDocumentFileWriter::Result PDFAppDocumentFileWriter::write(Request request)
 {
+    // A worker thread: the encryption of the written file may use OpenSSL - its state of the thread
+    // goes with the job (PDFExecutionPolicy::releaseThreadResources, ASan C), whichever way it ends
+    const auto threadResourcesGuard = qScopeGuard(&PDFExecutionPolicy::releaseThreadResources);
+
     Result result;
     result.version = request.version;
     result.isIncremental = request.isIncremental;

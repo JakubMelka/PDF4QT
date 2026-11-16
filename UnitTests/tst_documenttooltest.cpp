@@ -24,6 +24,9 @@
 #include "pdfdocumentreader.h"
 #include "pdfdocumenttool.h"
 #include "pdfdocumenttool_compress.h"
+#include "pdfdocumenttool_redact.h"
+#include "pdfdocumenttool_signature.h"
+#include "pdfdocumenttool_signbyhand.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttoolparameter.h"
 #include "pdfdocumenttoolregistry.h"
@@ -274,6 +277,8 @@ private Q_SLOTS:
     void catalogPermissionsOwnerPassword();
     void catalogStartTexts();
     void catalogHelpTopics();
+    void catalogSignaturesAndRedaction();
+    void parameterSensitiveValue();
     void contextFromSnapshot();
     void progressPhases();
     void progressCounter();
@@ -446,10 +451,17 @@ void DocumentToolTest::catalogPermissions()
     // graphics or the text out of the document into files (bit 5).
     // Step 5 (plan 4.6, R5-4): only the owner changes the security of a document (7.6.4.1) - every
     // bit of Table 22, and the owner authorization in the application (isSecurityChange).
+    // Step 6 (plan 5.1, R6-8): a new signature field needs bit 6 and bit 4 ("create or modify
+    // interactive form fields (including signature fields)" - Sign, the field of Add Timestamp); Sign
+    // by Hand writes into the content of the pages (bit 4); Redact Content follows the rule of Merge
+    // (no bit of its row, isNewDocumentOfInputs); Manage Certificates has no input document.
     const Permissions everyPermission({ Permission::PrintLowResolution, Permission::Modify, Permission::CopyContent, Permission::ModifyInteractiveItems,
                                         Permission::ModifyFormFields, Permission::Accessibility, Permission::Assemble, Permission::PrintHighResolution });
     const std::map<QString, Permissions> expected =
     {
+        { QStringLiteral("protect.sign"), Permissions({ Permission::Modify, Permission::ModifyInteractiveItems }) },
+        { QStringLiteral("protect.timestamp"), Permissions({ Permission::Modify, Permission::ModifyInteractiveItems }) },
+        { QStringLiteral("protect.sign-by-hand"), Permissions({ Permission::Modify }) },
         { QStringLiteral("protect.password"), everyPermission },
         { QStringLiteral("protect.permissions"), everyPermission },
         { QStringLiteral("protect.certificate-encrypt"), everyPermission },
@@ -685,6 +697,88 @@ void DocumentToolTest::catalogPermissionsOwnerPassword()
         QVERIFY2(tool->isPermitted(&asUser), qPrintable(tool->getId()));
         QVERIFY2(tool->isPermitted(&asOwner), qPrintable(tool->getId()));
     }
+}
+
+void DocumentToolTest::catalogSignaturesAndRedaction()
+{
+    using Kind = pdf::PDFDocumentToolResultKind;
+    const auto tool = [](const char* id) { return pdf::PDFDocumentToolCatalog::findTool(QString::fromLatin1(id)); };
+
+    // Plan of step 6 of phase 2, R6-8: Sign with Certificate and Add Timestamp write an incremental
+    // update of the exact bytes of their input - the encryption and the restrictions of the input stay,
+    // so they are no new documents of their inputs (not the rule of Merge); Redact Content writes a new
+    // document of the pages of its input, not encrypted (B139, the rule of Merge); Sign by Hand changes
+    // the content of the pages (no level of a certification allows it, Table 257); Manage Certificates
+    // writes nothing during a run (K6.11)
+    for (const char* id : { "protect.sign", "protect.timestamp" })
+    {
+        QVERIFY2(tool(id)->isIncrementalUpdateOfInput(), id);
+        QVERIFY2(!tool(id)->isNewDocumentOfInputs(), id);
+        QVERIFY2(!pdf::PDFDocumentToolOutputTraits(tool(id)).isNewDocumentOfInputs, id);
+    }
+    QVERIFY(tool("protect.redact")->isNewDocumentOfInputs());
+    QVERIFY(!tool("protect.redact")->isIncrementalUpdateOfInput());
+    QVERIFY(tool("protect.sign-by-hand")->isPageChange());
+    QCOMPARE(tool("protect.sign-by-hand")->getResultKind(), Kind::ChangeDocument);
+    QCOMPARE(tool("protect.certificates")->getResultKind(), Kind::Analysis);
+
+    // Tools.md 9.3 point 11: the tools, which do not change the open document and write only a new file
+    const QStringList fileOnly = { QStringLiteral("protect.sign"), QStringLiteral("protect.timestamp"), QStringLiteral("protect.redact") };
+
+    // R6-10: the gates of MCP and of the successors are properties of their own, not derived from the
+    // change of the security - Sign is no change of the security, but it is always confirmed (a legal
+    // act of the user) with the password typed in PDF4QT; Add Timestamp is always confirmed (a hash goes
+    // to a third party), Sign by Hand too (R6-20: a drawn signature could be a forgery); no successor
+    // after Sign and Timestamp (434:9276, 435:8356), Redact keeps them (437:13887, Q6.16)
+    const QStringList security = { QStringLiteral("protect.password"), QStringLiteral("protect.permissions"), QStringLiteral("protect.certificate-encrypt"), QStringLiteral("protect.unlock") };
+    const QStringList alwaysConfirmed = security + QStringList({ QStringLiteral("protect.sign"), QStringLiteral("protect.timestamp"), QStringLiteral("protect.sign-by-hand") });
+    const QStringList secretsInApplication = security + QStringList({ QStringLiteral("protect.sign") });
+    const QStringList withoutSuccessors = security + QStringList({ QStringLiteral("protect.sign"), QStringLiteral("protect.timestamp") });
+    for (const pdf::PDFDocumentToolCatalogEntry& entry : pdf::PDFDocumentToolCatalog::getTools())
+    {
+        const QString id = entry.getId();
+        QVERIFY2(entry.isFileOnlyResult() == fileOnly.contains(id), qPrintable(id));
+        QVERIFY2(entry.isAlwaysConfirmedByMcp() == alwaysConfirmed.contains(id), qPrintable(id));
+        QVERIFY2(entry.isSecretTypedInApplication() == secretsInApplication.contains(id), qPrintable(id));
+        QVERIFY2(entry.isOfferingSuccessors() == !withoutSuccessors.contains(id), qPrintable(id));
+    }
+    QVERIFY(!tool("protect.sign")->isSecurityChange());
+    QVERIFY(tool("protect.redact")->getDefaultSuccessors().contains(QStringLiteral("protect.sanitize")));
+}
+
+void DocumentToolTest::parameterSensitiveValue()
+{
+    // R6-19 of step 6 of phase 2: a sensitive value (the search term of Redact - exactly what is removed)
+    // is never remembered, whatever its stored flag; unlike a Secret it goes through MCP and its results
+    using Definition = pdf::PDFDocumentToolParameterDefinition;
+    Definition search = Definition::createString(pdftest::TestDocumentTool::tr, QStringLiteral("search"), QT_TR_NOOP("Search"), nullptr, QString());
+    QVERIFY(search.isStored());
+    QVERIFY(!search.isSensitive());
+    search.setSensitive(true);
+    QVERIFY(search.isSensitive());
+    QVERIFY(!search.isStored());
+    search.setStored(true);
+    QVERIFY(!search.isStored());
+    QVERIFY(!search.isMcpExcluded());
+
+    const pdf::PDFDocumentToolParameterDefinitions definitions = { search };
+    const QJsonObject schema = pdf::PDFDocumentToolParameters::toJsonSchema(definitions);
+    QVERIFY(schema.value(QStringLiteral("properties")).toObject().contains(QStringLiteral("search")));
+    const QJsonObject json = pdf::PDFDocumentToolParameters::toJson(definitions, { { QStringLiteral("search"), QStringLiteral("Confidential") } });
+    QCOMPARE(json.value(QStringLiteral("search")).toString(), QStringLiteral("Confidential"));
+
+    // The fixed parameters of step 6 (plan 10.3, R6-19): the search, the areas, the elements and the drawings
+    const pdf::PDFDocumentToolRedact redact;
+    const pdf::PDFDocumentToolSignByHand signByHand;
+    const pdf::PDFDocumentToolSignature sign(pdf::PDFDocumentToolSignature::Mode::Sign);
+    for (const auto& [definitionsOfTool, name] : { std::pair(redact.getParameters(), QStringLiteral("search")), std::pair(redact.getParameters(), QStringLiteral("areas")),
+                                                   std::pair(signByHand.getParameters(), QStringLiteral("elements")), std::pair(signByHand.getParameters(), QStringLiteral("drawing")),
+                                                   std::pair(sign.getParameters(), QStringLiteral("drawing")) })
+    {
+        const Definition* definition = pdf::PDFDocumentToolParameters::find(definitionsOfTool, name);
+        QVERIFY2(definition && definition->isSensitive() && !definition->isStored(), qPrintable(name));
+    }
+    QVERIFY(!pdf::PDFDocumentToolParameters::find(redact.getParameters(), QStringLiteral("fillColor"))->isSensitive());
 }
 
 void DocumentToolTest::catalogStartTexts()
@@ -1226,8 +1320,10 @@ void DocumentToolTest::catalogExtendedData()
                 break;
         }
 
-        // Review & Inspect only analyzes
-        QCOMPARE(tool.getResultKind() == Result::Analysis, tool.getCategory() == pdf::PDFDocumentToolCategory::Review);
+        // Review & Inspect only analyzes; Manage Certificates writes no file during a run either (K6.11
+        // of step 6 of phase 2: its own tab manages the certificates, nothing is the result of a run)
+        const bool isAnalysis = tool.getCategory() == pdf::PDFDocumentToolCategory::Review || toolId == QLatin1String("protect.certificates");
+        QCOMPARE(tool.getResultKind() == Result::Analysis, isAnalysis);
 
         // The external dependencies
         const Dependency expectedDependency = toolId == QLatin1String("convert.ocr") ? Dependency::Tesseract
@@ -1270,7 +1366,9 @@ void DocumentToolTest::catalogExtendedData()
         { Helper::id("convert.extract-text"), Result::Files },
         { Helper::id("convert.extract-images"), Result::Files },
         { Helper::id("convert.audiobook"), Result::Files },
-        { Helper::id("protect.certificates"), Result::Files },
+        // K6.11 of step 6 of phase 2: Manage Certificates writes nothing during a run (its own tab only
+        // shows and manages the certificates), an analysis
+        { Helper::id("protect.certificates"), Result::Analysis },
         { Helper::id("protect.redact"), Result::NewDocument },
         // The signing tools write a new signed file, the open document stays (tools.md 4.7, 9.3 point 11, 10.3 point 31)
         { Helper::id("protect.sign"), Result::NewDocument },

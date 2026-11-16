@@ -152,6 +152,11 @@ public:
     virtual QString getUndoText() const override;
     virtual QString getRedoText() const override;
 
+    /// Number of the steps of Undo recorded by the changes of the user since the model was made
+    /// (also those dropped by MAXIMUM_HISTORY; Undo and Redo record none): a reader of undoStateChanged
+    /// tells a new step from Undo, Redo and a following value (PDFAppToolCompositeUndoTarget)
+    quint64 getRecordedStepCount() const { return m_recordedStepCount; }
+
     /// Stores the current values as the last values of the tool (the result has been
     /// accepted). A Secret and a parameter with setStored(false) are left out.
     PDFDatabaseError storeLastValues();
@@ -202,6 +207,7 @@ private:
     QVariantMap m_values;
     std::vector<Step> m_undoStack;
     std::vector<Step> m_redoStack;
+    quint64 m_recordedStepCount = 0;
 };
 
 }   // namespace pdf

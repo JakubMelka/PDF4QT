@@ -98,7 +98,9 @@ public:
     /// Most annotations of the resource …/annotations
     static constexpr int MAXIMUM_RESOURCE_ANNOTATIONS = 1000;
 
-    /// The listed resources: the state and info / outline / annotations of every open document
+    /// The listed resources: info / outline / annotations of every open document
+    /// in the order of opening, then the state (the host lists them before the
+    /// static files - owner decision 2026-11-15)
     static std::vector<PDFMcpResourceDefinition> createListed(const PDFAppMcpHost* host);
 
     /// The templates of the document resources

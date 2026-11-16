@@ -35,6 +35,7 @@
 #include <memory>
 #include <vector>
 
+class QBoxLayout;
 class QPushButton;
 
 namespace pdf
@@ -199,6 +200,11 @@ private:
     QWidget* createHead();
     QWidget* createInfoRow(const QString& iconName, PDFLabel** label);
     void addChangeBody();
+
+    /// Show on Page of the ghosts of the confirmation (955:143756), when it has them, at the end of
+    /// \p layout of the body box \p box
+    void addShowOnPageLink(QWidget* box, QBoxLayout* layout);
+
     void addReadBody();
     void addSaveBody();
     void addOpenBody();

@@ -104,8 +104,9 @@ int PDFToolCertStore::execute(const PDFToolOptions& options)
                 type = PDFToolTranslationContext::tr("System");
                 break;
 
-            default:
-                Q_ASSERT(false);
+            case pdf::PDFCertificateEntry::EntryType::AATL:
+                // B128: the Adobe Approved Trust List (listed with --cert-store-enum-system)
+                type = PDFToolTranslationContext::tr("AATL");
                 break;
         }
 
@@ -173,12 +174,21 @@ QString PDFToolCertStoreInstallCertificate::getStandardString(PDFToolAbstractApp
 
 int PDFToolCertStoreInstallCertificate::execute(const PDFToolOptions& options)
 {
+    // B131: a certificate file is never read without a limit (a DER certificate has a few KiB)
+    constexpr qint64 MAXIMUM_CERTIFICATE_SIZE = 1024 * 1024;
+
     QByteArray certificateData;
     QFile file(options.certificateStoreInstallCertificateFile);
     if (file.open(QFile::ReadOnly))
     {
-        certificateData = file.readAll();
+        certificateData = file.read(MAXIMUM_CERTIFICATE_SIZE + 1);
         file.close();
+
+        if (certificateData.size() > MAXIMUM_CERTIFICATE_SIZE)
+        {
+            PDFConsole::writeError(PDFToolTranslationContext::tr("Certificate file '%1' is too large.").arg(options.certificateStoreInstallCertificateFile), options.outputCodec);
+            return ErrorCertificateReading;
+        }
     }
     else
     {

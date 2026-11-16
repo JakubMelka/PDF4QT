@@ -59,8 +59,7 @@ PDFWidgetTool::PDFWidgetTool(PDFDrawWidgetProxy* proxy, QObject* parent) :
     m_active(false),
     m_document(nullptr),
     m_action(nullptr),
-    m_proxy(proxy),
-    m_proxyGuard(proxy)
+    m_proxy(proxy)
 {
 
 }
@@ -70,8 +69,7 @@ PDFWidgetTool::PDFWidgetTool(PDFDrawWidgetProxy* proxy, QAction* action, QObject
     m_active(false),
     m_document(nullptr),
     m_action(action),
-    m_proxy(proxy),
-    m_proxyGuard(proxy)
+    m_proxy(proxy)
 {
     updateActions();
 }
@@ -82,9 +80,9 @@ PDFWidgetTool::~PDFWidgetTool()
     // registered as a draw interface of the proxy. Only the registration is removed -
     // no virtual function is called and no signal is emitted from the destructor (the
     // tool manager forgets the tool at its signal destroyed).
-    if (m_active && m_proxyGuard)
+    if (m_active && m_proxy)
     {
-        m_proxyGuard->unregisterDrawInterface(this);
+        m_proxy->unregisterDrawInterface(this);
     }
 }
 
@@ -112,24 +110,58 @@ void PDFWidgetTool::setDocument(const PDFModifiedDocument& document)
 
 void PDFWidgetTool::setActive(bool active)
 {
+    // A tool of a view, which is gone, has nothing to work on: it is not activated (every
+    // activation of a tool uses its proxy); a deactivation goes on without the proxy
+    if (active && !m_proxy)
+    {
+        return;
+    }
+
     if (m_active != active)
     {
         m_active = active;
 
-        if (active)
+        // The proxy may be gone (the view dies before its tools)
+        if (PDFDrawWidgetProxy* proxy = m_proxy.data())
         {
-            m_proxy->registerDrawInterface(this);
-        }
-        else
-        {
-            m_proxy->unregisterDrawInterface(this);
+            if (active)
+            {
+                proxy->registerDrawInterface(this);
+            }
+            else
+            {
+                proxy->unregisterDrawInterface(this);
+            }
         }
 
+        // The tools of the stack, the action (toggled) and the signals run foreign code, which
+        // may delete this tool: each step is checked
+        QPointer<PDFWidgetTool> guard(this);
         setActiveImpl(active);
+        if (!guard)
+        {
+            return;
+        }
         updateActions();
+        if (!guard)
+        {
+            return;
+        }
 
-        Q_EMIT m_proxy->repaintNeeded();
+        requestRepaint();
+        if (!guard)
+        {
+            return;
+        }
         Q_EMIT toolActivityChanged(active);
+    }
+}
+
+void PDFWidgetTool::requestRepaint() const
+{
+    if (PDFDrawWidgetProxy* proxy = m_proxy.data())
+    {
+        Q_EMIT proxy->repaintNeeded();
     }
 }
 
@@ -210,9 +242,17 @@ const std::optional<QCursor>& PDFWidgetTool::getCursor() const
 
 void PDFWidgetTool::setActiveImpl(bool active)
 {
-    for (PDFWidgetTool* tool : m_toolStack)
+    // A tool of the stack runs foreign code (its signals), which may delete this tool
+    // and with it the stack: a copy is walked, each step is checked
+    QPointer<PDFWidgetTool> guard(this);
+    const std::vector<PDFWidgetTool*> toolStack = m_toolStack;
+    for (PDFWidgetTool* tool : toolStack)
     {
         tool->setActive(active);
+        if (!guard)
+        {
+            return;
+        }
     }
 }
 
@@ -433,7 +473,7 @@ void PDFFindTextTool::clearResults()
     m_findResults.clear();
     m_selectedResultIndex = 0;
     m_textSelection.dirty();
-    getProxy()->repaintNeeded();
+    requestRepaint();
 }
 
 void PDFFindTextTool::goToCurrentResult()
@@ -623,7 +663,7 @@ void PDFFindTextTool::setCurrentResultIndex(size_t index)
     {
         m_selectedResultIndex = index;
         m_textSelection.dirty();
-        getProxy()->repaintNeeded();
+        requestRepaint();
         goToCurrentResult();
         updateTitle();
     }
@@ -691,7 +731,7 @@ void PDFFindTextTool::performSearch()
     std::sort(m_findResults.begin(), m_findResults.end());
     m_selectedResultIndex = 0;
     m_textSelection.dirty();
-    getProxy()->repaintNeeded();
+    requestRepaint();
 
     updateResultsUI();
 }
@@ -1160,7 +1200,7 @@ void PDFSelectTextTool::setSelection(PDFTextSelection&& textSelection)
     if (m_textSelection != textSelection)
     {
         m_textSelection = qMove(textSelection);
-        getProxy()->repaintNeeded();
+        requestRepaint();
         updateActions();
         Q_EMIT selectionChanged();
     }
@@ -1597,7 +1637,7 @@ void PDFMagnifierTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
     if (m_mousePos != mousePos)
     {
         m_mousePos = mousePos;
-        Q_EMIT getProxy()->repaintNeeded();
+        requestRepaint();
     }
 }
 
@@ -1934,7 +1974,7 @@ void PDFPickTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
                     }
 
                     buildSnapData();
-                    Q_EMIT getProxy()->repaintNeeded();
+                    requestRepaint();
                 }
                 break;
             }
@@ -1987,7 +2027,7 @@ void PDFPickTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
             m_pageIndex = getProxy()->getPageUnderPoint(m_snapper.getSnappedPoint(), &pagePoint);
         }
 
-        Q_EMIT getProxy()->repaintNeeded();
+        requestRepaint();
     }
 }
 
@@ -1996,7 +2036,7 @@ void PDFPickTool::keyPressEvent(QWidget* widget, QKeyEvent* event)
     if (event->key() == Qt::Key_C)
     {
         m_hideLargeCross = !m_hideLargeCross;
-        Q_EMIT getProxy()->repaintNeeded();
+        requestRepaint();
         event->accept();
         return;
     }
@@ -2084,7 +2124,7 @@ void PDFPickTool::resetTool()
     m_snapper.clearReferencePoint();
 
     buildSnapData();
-    Q_EMIT getProxy()->repaintNeeded();
+    requestRepaint();
 }
 
 void PDFPickTool::buildSnapData()
@@ -2341,7 +2381,7 @@ void PDFSelectTableTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
                 }
             }
 
-            Q_EMIT getProxy()->repaintNeeded();
+            requestRepaint();
             event->accept();
         }
     }

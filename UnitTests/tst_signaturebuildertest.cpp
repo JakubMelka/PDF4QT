@@ -30,6 +30,10 @@
 #include "pdfobjectutils.h"
 #include "restoredsignedfile.h"
 #include "pdfcatalog.h"
+#include "pdfdocmdppermissions.h"
+#include "pdfsecurityhandler.h"
+
+#include "mergetestpdf.h"
 
 #include <QtTest>
 #include <QBuffer>
@@ -94,7 +98,30 @@ private slots:
     void widgetStructure_data();
     void widgetStructure();
 
+    // Step 6 of phase 2, package P2 (plan 4.4, 9 with R6-1, R6-4, R6-12, B121, B122, B134, B135)
+    void signEncryptedDocument_data();
+    void signEncryptedDocument();
+    void contentsAlwaysHexadecimal();
+    void byteRangeOfWrittenSignature();
+    void estimatedSizeWithoutTrialSignature();
+    void certifiedWithoutChanges();
+    void permissionsOfEncryptedDocument();
+    void signaturesCountedOfFile();
+    void unsavedChangesOfSignedFile();
+    void documentInformationUnchanged();
+
+    // Step 6 of phase 2, fix wave P2S6FIXCORE
+    void signatureWidgetWithoutAcroForm();
+    void signatureWidgetsWalkWithoutAcroForm();
+    void unreadableFileNeverRewritten();
+
 private:
+    /// The bytes of a whole write of the document
+    static QByteArray writeDocument(const PDFDocument& document);
+
+    /// The signature of a document of one page by a function of the test
+    static PDFDocumentSigner::Parameters createParameters(const PDFDocument& document, const QByteArray& originalData, const PDFDocumentSigner::SignFunction& signFunction);
+
     static bool createTestCertificate(const QTemporaryDir& directory, PDFCertificateEntry& certificate, QString& password);
     static std::vector<PDFSignatureVerificationResult> verifySignedDocument(const QByteArray& signedDocument);
     static PDFDocument readDocument(const QByteArray& data);
@@ -136,6 +163,30 @@ PDFDocumentSigner::Result SignatureBuilderTest::signDocument(const PDFDocument& 
         return builder.createSignatureField(fieldName, signatureDictionary, document.getCatalog()->getPage(0)->getPageReference());
     };
     return PDFDocumentSigner::sign(parameters, signedDocument);
+}
+
+QByteArray SignatureBuilderTest::writeDocument(const PDFDocument& document)
+{
+    QByteArray data;
+    QBuffer buffer(&data);
+    if (!buffer.open(QIODevice::WriteOnly) || !PDFDocumentWriter(nullptr).write(&buffer, &document))
+    {
+        return QByteArray();
+    }
+    return data;
+}
+
+PDFDocumentSigner::Parameters SignatureBuilderTest::createParameters(const PDFDocument& document, const QByteArray& originalData, const PDFDocumentSigner::SignFunction& signFunction)
+{
+    PDFDocumentSigner::Parameters parameters;
+    parameters.document = &document;
+    parameters.originalDocumentData = originalData;
+    parameters.signFunction = signFunction;
+    parameters.createSignatureFieldFunction = [&document](PDFDocumentBuilder& builder, PDFObjectReference signatureDictionary)
+    {
+        return builder.createSignatureField("Signature", signatureDictionary, document.getCatalog()->getPage(0)->getPageReference());
+    };
+    return parameters;
 }
 
 bool SignatureBuilderTest::createTestCertificate(const QTemporaryDir& directory, PDFCertificateEntry& certificate, QString& password)
@@ -410,8 +461,12 @@ void SignatureBuilderTest::multipleSignatures()
         QVERIFY2(result.isSignatureValid(), qPrintable(result.getSignatureFieldQualifiedName() + ": " + result.getErrors().join('\n')));
     }
 
-    // The last signature covers the whole document, the earlier ones only their part of it
-    QVERIFY(results.front().hasSignatureWarning());
+    // The last signature covers the whole document, the earlier ones only their part of it: the later
+    // revisions carry only signatures, which is no change of the signed document (R6-3 of the plan of
+    // step 6 of phase 2, ISO 32000-2 12.8.1) - an information, not a warning
+    QCOMPARE(results.front().getLaterRevisions(), PDFSignatureVerificationResult::LaterRevisions::Allowed);
+    QVERIFY(!results.front().hasSignatureWarning());
+    QCOMPARE(results.back().getLaterRevisions(), PDFSignatureVerificationResult::LaterRevisions::None);
     QVERIFY(!results.back().hasSignatureWarning());
     QCOMPARE(results.back().getSignatureFieldQualifiedName(), QString("Third"));
 }
@@ -917,6 +972,598 @@ void SignatureBuilderTest::widgetStructure()
     {
         QVERIFY(widget->get("AP").isNull());
     }
+}
+
+void SignatureBuilderTest::signEncryptedDocument_data()
+{
+    QTest::addColumn<int>("algorithm");
+    QTest::addColumn<QString>("userPassword");
+
+    QTest::newRow("rc4-open-password") << int(PDFSecurityHandlerFactory::RC4) << QStringLiteral("user");
+    QTest::newRow("aes256-open-password") << int(PDFSecurityHandlerFactory::AES_256) << QStringLiteral("user");
+    QTest::newRow("aes256-owner-only") << int(PDFSecurityHandlerFactory::AES_256) << QString();
+}
+
+void SignatureBuilderTest::signEncryptedDocument()
+{
+    // R6-1 (plan of step 6 of phase 2): the read back of the original and of the signed file used
+    // an empty password callback - the security handler of a file with an open password calls it
+    // after the empty password fails (std::bad_function_call). The writer and the signer know no
+    // password: they read the file by a clone of the authenticated handler of the document
+    // (PDFDocumentReader::setAuthenticatedSecurityHandler); a document of another encryption than the
+    // file is refused with the reason and nothing is written.
+    QFETCH(int, algorithm);
+    QFETCH(QString, userPassword);
+
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    PDFCertificateEntry certificate;
+    QString password;
+    QVERIFY(createTestCertificate(directory, certificate, password));
+
+    PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 300, 400));
+    PDFSecurityHandlerFactory::SecuritySettings settings;
+    settings.algorithm = PDFSecurityHandlerFactory::Algorithm(algorithm);
+    settings.userPassword = userPassword;
+    settings.ownerPassword = QStringLiteral("owner");
+    settings.permissions = 0xFFFFFFFF;
+    settings.id = builder.ensureDocumentId();
+    builder.setSecurityHandler(PDFSecurityHandlerFactory::createSecurityHandler(settings));
+    const QByteArray original = writeDocument(builder.build());
+    QVERIFY(!original.isEmpty());
+
+    // The tab has opened the file by its open password
+    const std::function<QString(bool*)> giveUserPassword = [userPassword](bool* ok)
+    {
+        *ok = true;
+        return userPassword;
+    };
+    PDFDocumentReader reader(nullptr, giveUserPassword, false, false);
+    const PDFDocument document = reader.readFromBuffer(original);
+    QCOMPARE(reader.getReadingResult(), PDFDocumentReader::Result::OK);
+    QVERIFY(document.getStorage().getSecurityHandler()->getMode() != EncryptionMode::None);
+
+    // An edit of the user saved incrementally (the Keep of Sign by Hand of a signed file)
+    PDFDocumentBuilder edit(&document);
+    edit.addObject(PDFObject::createInteger(7654321));
+    const PDFDocument edited = edit.build();
+    QByteArray update;
+    PDFOperationResult updateResult(true);
+    {
+        QBuffer buffer(&update);
+        QVERIFY(buffer.open(QIODevice::WriteOnly));
+        updateResult = PDFDocumentWriter(nullptr).writeIncrementalUpdate(&buffer, original, &edited);
+    }
+
+    QByteArray signedData;
+    PDFDocumentSigner::Details details;
+    const PDFDocumentSigner::Result result = PDFDocumentSigner::sign(createParameters(document, original, [&](const QByteArray& data, QByteArray& signature)
+    {
+        return PDFSignatureFactory::sign(certificate, password, data, signature);
+    }), signedData, &details);
+
+    // The update and the signature are made over the exact bytes of the file - with an open password too
+    QVERIFY2(updateResult, qPrintable(updateResult.getErrorMessage()));
+    QVERIFY(update.startsWith(original));
+    QCOMPARE(result, PDFDocumentSigner::Result::OK);
+    QVERIFY(details.isIncrementalUpdate);
+    QVERIFY(signedData.startsWith(original));
+    const PDFSecurityHandler* handler = document.getStorage().getSecurityHandler();
+    QVERIFY(!PDFDocumentSigner::hasExistingSignatures(original, handler));
+    QVERIFY(PDFDocumentSigner::hasExistingSignatures(signedData, handler));
+
+    // ISO 32000-2, 7.6.2, 7.5.6: the update keeps the encryption of the file - the update and the signed
+    // file open only by the password; the edit is in the update
+    for (const QByteArray* bytes : { &update, &signedData })
+    {
+        PDFDocumentReader refusing(nullptr, [](bool* ok) { *ok = false; return QString(); }, false, false);
+        refusing.readFromBuffer(*bytes);
+        QCOMPARE(refusing.getReadingResult(), userPassword.isEmpty() ? PDFDocumentReader::Result::OK : PDFDocumentReader::Result::Canceled);
+    }
+    PDFDocumentReader updateReader(nullptr, giveUserPassword, false, false);
+    const PDFDocument updated = updateReader.readFromBuffer(update);
+    QCOMPARE(updateReader.getReadingResult(), PDFDocumentReader::Result::OK);
+    bool hasEditedObject = false;
+    for (const PDFObjectStorage::Entry& entry : updated.getStorage().getObjects())
+    {
+        hasEditedObject = hasEditedObject || (entry.object.isInt() && entry.object.getInteger() == 7654321);
+    }
+    QVERIFY(hasEditedObject);
+
+    // The strings of the new objects are encrypted (the name of the field is not in the update in the
+    // clear), /Contents of the signature is not - the signature verifies
+    const QByteArray updatePart = signedData.mid(original.size());
+    QVERIFY(!updatePart.contains("(Signature)"));
+    QVERIFY(updatePart.contains("/Contents <30"));
+    PDFDocumentReader signedReader(nullptr, giveUserPassword, false, false);
+    const PDFDocument signedDocument = signedReader.readFromBuffer(signedData);
+    QCOMPARE(signedReader.getReadingResult(), PDFDocumentReader::Result::OK);
+    const PDFForm form = PDFForm::parse(&signedDocument, signedDocument.getCatalog()->getFormObject());
+    PDFSignatureHandler::Parameters parameters;
+    parameters.useSystemCertificateStore = false;
+    parameters.securityHandler = signedDocument.getStorage().getSecurityHandler();
+    const std::vector<PDFSignatureVerificationResult> results = PDFSignatureHandler::verifySignatures(form, signedData, parameters);
+    QCOMPARE(results.size(), size_t(1));
+    QVERIFY2(results.front().isSignatureValid(), qPrintable(results.front().getErrors().join('\n')));
+    QCOMPARE(results.front().getSignatureFieldQualifiedName(), QStringLiteral("Signature"));
+
+    // A document of another encryption than its file (the tab encrypted it again, not saved yet): its
+    // handler does not open the file - the signer refuses it with the reason, nothing is written
+    if (!userPassword.isEmpty())
+    {
+        PDFDocumentBuilder reencrypt(&document);
+        PDFSecurityHandlerFactory::SecuritySettings otherSettings = settings;
+        otherSettings.userPassword = QStringLiteral("another");
+        reencrypt.setSecurityHandler(PDFSecurityHandlerFactory::createSecurityHandler(otherSettings));
+        const PDFDocument reencrypted = reencrypt.build();
+        QByteArray refused;
+        QCOMPARE(PDFDocumentSigner::sign(createParameters(reencrypted, original, [&](const QByteArray& data, QByteArray& signature)
+        {
+            return PDFSignatureFactory::sign(certificate, password, data, signature);
+        }), refused), PDFDocumentSigner::Result::PasswordProtected);
+        QVERIFY(refused.isEmpty());
+    }
+}
+
+void SignatureBuilderTest::contentsAlwaysHexadecimal()
+{
+    // B121, ISO 32000-2 Table 255: /Contents of a signature dictionary is a hexadecimal string; a
+    // value without a special byte was written as a literal string, which the signer did not find.
+    // Another /Contents (the text of an annotation) stays a literal string.
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 400));
+    const PDFObjectReference signature = builder.createSignatureDictionary("Adobe.PPKLite", "adbe.pkcs7.detached", "short", QDateTime::currentDateTimeUtc(), 0);
+    builder.createSignatureField("Signature", signature, page);
+    builder.addObject(dictionary({ { "Type", PDFObject::createName("Annot") }, { "Subtype", PDFObject::createName("Text") },
+                                   { "Contents", PDFObject::createString("note") } }));
+    const QByteArray data = writeDocument(builder.build());
+    QVERIFY(!data.isEmpty());
+
+    QVERIFY(data.contains("/Contents <73686f7274>"));
+    QVERIFY(!data.contains("(short)"));
+    QVERIFY(data.contains("/Contents (note)"));
+
+    // The value read back is the same
+    const PDFDocument document = readDocument(data);
+    QCOMPARE(document.getObjectByReference(signature).getDictionary()->get("Contents").getString(), QByteArray("short"));
+}
+
+void SignatureBuilderTest::byteRangeOfWrittenSignature()
+{
+    // ISO 32000-2, 12.8.1: /ByteRange covers the whole file except the hexadecimal string of
+    // /Contents with its angle brackets - [0 a b c], a = the position of '<', b = after '>',
+    // b + c = the end of the file. B122: the signer writes the marks of this very dictionary - a
+    // reason with the text of the marks and a field name of the same digits change nothing.
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    PDFCertificateEntry certificate;
+    QString password;
+    QVERIFY(createTestCertificate(directory, certificate, password));
+
+    PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 300, 400));
+    const QByteArray original = writeDocument(builder.build());
+    const PDFDocument document = readDocument(original);
+
+    PDFDocumentSigner::Parameters parameters = createParameters(document, original, [&](const QByteArray& data, QByteArray& signature)
+    {
+        return PDFSignatureFactory::sign(certificate, password, data, signature);
+    });
+    parameters.createSignatureFieldFunction = [&document](PDFDocumentBuilder& signedBuilder, PDFObjectReference signatureDictionary)
+    {
+        signedBuilder.setSignatureReason(signatureDictionary, QStringLiteral("123456789123 123456789123"));
+        return signedBuilder.createSignatureField("123456789123", signatureDictionary, document.getCatalog()->getPage(0)->getPageReference());
+    };
+
+    QByteArray signedData;
+    QCOMPARE(PDFDocumentSigner::sign(parameters, signedData), PDFDocumentSigner::Result::OK);
+
+    // The values of the file computed by the test of its text
+    const qsizetype byteRangeKey = signedData.lastIndexOf("/ByteRange [");
+    QVERIFY(byteRangeKey > original.size());
+    const qsizetype byteRangeEnd = signedData.indexOf(']', byteRangeKey);
+    const QList<QByteArray> numbers = signedData.mid(byteRangeKey + 12, byteRangeEnd - byteRangeKey - 12).simplified().split(' ');
+    QCOMPARE(numbers.size(), 4);
+
+    const qsizetype contentsKey = signedData.indexOf("/Contents <", byteRangeKey);
+    QVERIFY(contentsKey > byteRangeKey);
+    const qsizetype lessThan = contentsKey + 10;
+    const qsizetype greaterThan = signedData.indexOf('>', lessThan);
+    QCOMPARE(signedData.at(lessThan), '<');
+    QCOMPARE(numbers[0].toLongLong(), 0);
+    QCOMPARE(numbers[1].toLongLong(), qint64(lessThan));
+    QCOMPARE(numbers[2].toLongLong(), qint64(greaterThan + 1));
+    QCOMPARE(numbers[2].toLongLong() + numbers[3].toLongLong(), qint64(signedData.size()));
+
+    // The hexadecimal string holds only hexadecimal digits
+    const QByteArray hex = signedData.mid(lessThan + 1, greaterThan - lessThan - 1);
+    QVERIFY(!hex.isEmpty());
+    QCOMPARE(QByteArray::fromHex(hex).toHex(), hex.toLower());
+
+    // The marks of the text are untouched
+    QVERIFY(signedData.mid(original.size()).contains("123456789123 123456789123"));
+
+    const std::vector<PDFSignatureVerificationResult> results = verifySignedDocument(signedData);
+    QCOMPARE(results.size(), size_t(1));
+    QVERIFY2(results.front().isSignatureValid(), qPrintable(results.front().getErrors().join('\n')));
+    QVERIFY(!results.front().hasSignatureWarning());
+}
+
+void SignatureBuilderTest::estimatedSizeWithoutTrialSignature()
+{
+    // B134: with a size computed by the caller no trial signature is made (it would contact the
+    // timestamp authority or the smart card); a signature, which does not fit, gets one more
+    // attempt at most (R6-28: at most one more contact of the authority)
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    PDFCertificateEntry certificate;
+    QString password;
+    QVERIFY(createTestCertificate(directory, certificate, password));
+
+    PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 300, 400));
+    const QByteArray original = writeDocument(builder.build());
+    const PDFDocument document = readDocument(original);
+
+    for (const qint64 estimate : { qint64(16384), qint64(64) })
+    {
+        std::vector<QByteArray> signedInputs;
+        PDFDocumentSigner::Parameters parameters = createParameters(document, original, [&](const QByteArray& data, QByteArray& signature)
+        {
+            signedInputs.push_back(data);
+            return PDFSignatureFactory::sign(certificate, password, data, signature);
+        });
+        parameters.estimatedSignatureSize = estimate;
+
+        QByteArray signedData;
+        QCOMPARE(PDFDocumentSigner::sign(parameters, signedData), PDFDocumentSigner::Result::OK);
+
+        // Only the bytes of the file are signed: one signature, or two, when the estimate is small
+        QCOMPARE(signedInputs.size(), size_t(estimate > 1024 ? 1 : 2));
+        for (const QByteArray& input : signedInputs)
+        {
+            QVERIFY(input.startsWith(original));
+            QVERIFY(input != QByteArrayLiteral("PDF4QT trial data to be signed"));
+        }
+
+        // The reserved space of the estimate: 2 hexadecimal digits a byte
+        if (estimate > 1024)
+        {
+            const qsizetype contents = signedData.lastIndexOf("/Contents <") + 11;
+            QCOMPARE(signedData.indexOf('>', contents) - contents, qsizetype(2 * estimate));
+        }
+        QVERIFY(verifySignedDocument(signedData).front().isSignatureValid());
+    }
+
+    // A signature, which never fits: two attempts, then the failure
+    int calls = 0;
+    PDFDocumentSigner::Parameters parameters = createParameters(document, original, [&](const QByteArray& data, QByteArray& signature)
+    {
+        ++calls;
+        PDFSignatureFactory::sign(certificate, password, data, signature);
+        signature.append(QByteArray(100000 * calls, char(0)));
+        return true;
+    });
+    parameters.estimatedSignatureSize = 4096;
+    QByteArray signedData;
+    QCOMPARE(PDFDocumentSigner::sign(parameters, signedData), PDFDocumentSigner::Result::SignatureTooLarge);
+    QCOMPARE(calls, 2);
+    QVERIFY(signedData.isEmpty());
+}
+
+void SignatureBuilderTest::certifiedWithoutChanges()
+{
+    // B135, R6-4 (ISO 32000-2, 12.8.2.2.1 and Table 257 /P 1: "any changes shall invalidate the
+    // signature with the exception of subsequent DSS ... and/or document timestamp ... incremental
+    // updates"): no signature of a certified document with no changes allowed; a document
+    // timestamp only in a revision of nothing else
+    PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 300, 400));
+    const PDFObject transformParameters = dictionary({ { "Type", PDFObject::createName("TransformParams") }, { "P", PDFObject::createInteger(1) }, { "V", PDFObject::createName("1.2") } });
+    const PDFObject reference = dictionary({ { "Type", PDFObject::createName("SigRef") }, { "TransformMethod", PDFObject::createName("DocMDP") }, { "TransformParams", transformParameters } });
+    const PDFObjectReference certification = builder.addObject(dictionary({ { "Type", PDFObject::createName("Sig") }, { "Filter", PDFObject::createName("Adobe.PPKLite") },
+                                                                            { "Reference", PDFObject::createArray(PDFArrayBuilder(std::vector<PDFObject>{ reference })) } }));
+    builder.mergeTo(builder.getCatalogReference(), dictionary({ { "Perms", dictionary({ { "DocMDP", PDFObject::createReference(certification) } }) } }));
+    const QByteArray original = writeDocument(builder.build());
+    const PDFDocument document = readDocument(original);
+    QCOMPARE(PDFDocMDPPermissions::getLevel(&document), PDFDocMDPPermissions::Level::NoChanges);
+
+    // The signer stops before anything is signed; a timestamp of the unchanged file goes on (the
+    // function of the test refuses to sign, so it ends there)
+    int calls = 0;
+    const PDFDocumentSigner::SignFunction refuse = [&calls](const QByteArray&, QByteArray&) { ++calls; return false; };
+    QByteArray signedData;
+    QCOMPARE(PDFDocumentSigner::sign(createParameters(document, original, refuse), signedData), PDFDocumentSigner::Result::CertifiedNoChanges);
+    QCOMPARE(calls, 0);
+
+    PDFDocumentSigner::Parameters timestamp = createParameters(document, original, refuse);
+    timestamp.signatureDictionaryType = "DocTimeStamp";
+    timestamp.subfilter = "ETSI.RFC3161";
+    timestamp.estimatedSignatureSize = 4096;
+    QCOMPARE(PDFDocumentSigner::sign(timestamp, signedData), PDFDocumentSigner::Result::SigningFailed);
+    QCOMPARE(calls, 1);
+
+    // An unsaved change of the tab: the timestamp is refused too
+    PDFDocumentBuilder edit(&document);
+    edit.addObject(PDFObject::createInteger(7654321));
+    const PDFDocument edited = edit.build();
+    PDFDocumentSigner::Parameters editedTimestamp = createParameters(edited, original, refuse);
+    editedTimestamp.signatureDictionaryType = "DocTimeStamp";
+    editedTimestamp.estimatedSignatureSize = 4096;
+    QCOMPARE(PDFDocumentSigner::sign(editedTimestamp, signedData), PDFDocumentSigner::Result::CertifiedNoChanges);
+    QCOMPARE(calls, 1);
+    QVERIFY(signedData.isEmpty());
+}
+
+void SignatureBuilderTest::permissionsOfEncryptedDocument()
+{
+    // B135, ISO 32000-2 Table 22: a new signature field needs bit 4 (Modify) and bit 6 (annotations
+    // and form fields); a document of an owner password without bit 6 is refused
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    PDFCertificateEntry certificate;
+    QString password;
+    QVERIFY(createTestCertificate(directory, certificate, password));
+
+    for (const bool isAllowed : { false, true })
+    {
+        PDFDocumentBuilder builder;
+        builder.appendPage(QRectF(0, 0, 300, 400));
+        PDFSecurityHandlerFactory::SecuritySettings settings;
+        settings.algorithm = PDFSecurityHandlerFactory::AES_256;
+        settings.ownerPassword = QStringLiteral("owner");
+        settings.permissions = isAllowed ? 0xFFFFFFFF : uint32_t(PDFSecurityHandler::Permission::Modify) | uint32_t(PDFSecurityHandler::Permission::PrintHighResolution);
+        settings.id = builder.ensureDocumentId();
+        builder.setSecurityHandler(PDFSecurityHandlerFactory::createSecurityHandler(settings));
+        const QByteArray original = writeDocument(builder.build());
+        const PDFDocument document = readDocument(original);
+        QCOMPARE(document.getStorage().getSecurityHandler()->getAuthorizationResult(), PDFSecurityHandler::AuthorizationResult::UserAuthorized);
+
+        PDFDocumentSigner::Parameters parameters = createParameters(document, original, [&](const QByteArray& data, QByteArray& signature)
+        {
+            return PDFSignatureFactory::sign(certificate, password, data, signature);
+        });
+        parameters.requiredPermissions = { PDFSecurityHandler::Permission::Modify, PDFSecurityHandler::Permission::ModifyInteractiveItems };
+
+        QByteArray signedData;
+        QCOMPARE(PDFDocumentSigner::sign(parameters, signedData), isAllowed ? PDFDocumentSigner::Result::OK : PDFDocumentSigner::Result::NotPermitted);
+        QCOMPARE(signedData.isEmpty(), !isAllowed);
+    }
+}
+
+void SignatureBuilderTest::signaturesCountedOfFile()
+{
+    // R6-12: the signatures are counted of the file, not of the document of the tab. An unsaved
+    // change, which removed the field, and an update, which cannot be made (another object under
+    // the number of an object stream), never lead to a whole write, which destroys the signature.
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    PDFCertificateEntry certificate;
+    QString password;
+    QVERIFY(createTestCertificate(directory, certificate, password));
+
+    const QByteArray original = createObjectStreamDocument();
+    QByteArray signedData;
+    QCOMPARE(signDocument(readDocument(original), original, certificate, password, "First", signedData), PDFDocumentSigner::Result::OK);
+    const PDFDocument signedDocument = readDocument(signedData);
+    QVERIFY(PDFDocumentSigner::hasExistingSignatures(&signedDocument));
+
+    PDFObjectStorage storage = signedDocument.getStorage();
+    const PDFObjectReference catalogReference = signedDocument.getTrailerDictionary()->get("Root").getReference();
+    PDFDictionaryBuilder catalog(*storage.getObject(catalogReference).getDictionary());
+    catalog.removeEntry("AcroForm");
+    storage.setObject(catalogReference, PDFObject::createDictionary(std::move(catalog)));
+    storage.setObject(PDFObjectReference(4, 0), PDFObject::createInteger(1));
+
+    // The widget of the field goes too: a signature widget in /Annots of a page is a signature also
+    // without /AcroForm (PDFForm::parse, ASan E2 of step 6)
+    const PDFObjectReference pageReference = signedDocument.getCatalog()->getPage(0)->getPageReference();
+    PDFDictionaryBuilder page(*storage.getObject(pageReference).getDictionary());
+    page.removeEntry("Annots");
+    storage.setObject(pageReference, PDFObject::createDictionary(std::move(page)));
+    const PDFDocument withoutField(std::move(storage), signedDocument.getInfo()->version, QByteArray());
+    QVERIFY(!PDFDocumentSigner::hasExistingSignatures(&withoutField));
+    QVERIFY(PDFDocumentSigner::hasExistingSignatures(signedData));
+
+    QByteArray resigned;
+    QCOMPARE(signDocument(withoutField, signedData, certificate, password, "Second", resigned), PDFDocumentSigner::Result::ExistingSignaturesNotPreserved);
+    QVERIFY(resigned.isEmpty());
+
+    // A file, which cannot be read, may be signed: nothing is written over it whole
+    QVERIFY(PDFDocumentSigner::hasExistingSignatures(QByteArray("not a document")));
+    QVERIFY(!PDFDocumentSigner::hasExistingSignatures(original));
+    QVERIFY(!PDFDocumentSigner::hasExistingSignatures(QByteArray()));
+}
+
+void SignatureBuilderTest::unsavedChangesOfSignedFile()
+{
+    // R6-4: the unsaved changes of a signed file go into their own revision before the revision of
+    // the new signature (a verifier assigns every change to its revision, 12.8.2.2.1); an unsigned
+    // file gets the changes and the signature in one revision (Q6.17 a)
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    PDFCertificateEntry certificate;
+    QString password;
+    QVERIFY(createTestCertificate(directory, certificate, password));
+
+    PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 300, 400));
+    const QByteArray unsignedData = writeDocument(builder.build());
+    QByteArray signedData;
+    QCOMPARE(signDocument(readDocument(unsignedData), unsignedData, certificate, password, "First", signedData), PDFDocumentSigner::Result::OK);
+
+    for (const bool isSigned : { false, true })
+    {
+        const QByteArray& file = isSigned ? signedData : unsignedData;
+        const PDFDocument document = readDocument(file);
+        PDFDocumentBuilder edit(&document);
+        edit.addObject(PDFObject::createInteger(7654321));
+        const PDFDocument edited = edit.build();
+
+        QByteArray result;
+        PDFDocumentSigner::Details details;
+        PDFDocumentSigner::Parameters parameters = createParameters(edited, file, [&](const QByteArray& data, QByteArray& signature)
+        {
+            return PDFSignatureFactory::sign(certificate, password, data, signature);
+        });
+        QCOMPARE(PDFDocumentSigner::sign(parameters, result, &details), PDFDocumentSigner::Result::OK);
+        QVERIFY(details.isIncrementalUpdate);
+        QCOMPARE(details.isChangesRevisionWritten, isSigned);
+        QVERIFY(result.startsWith(file));
+
+        // The revisions after the file: each ends by %%EOF
+        const QByteArray update = result.mid(file.size());
+        QCOMPARE(update.count("%%EOF"), isSigned ? 2 : 1);
+        const qsizetype firstEnd = update.indexOf("%%EOF");
+        QVERIFY(update.indexOf("7654321") < firstEnd);
+        QCOMPARE(update.indexOf("/ByteRange") > firstEnd, isSigned);
+
+        const std::vector<PDFSignatureVerificationResult> results = verifySignedDocument(result);
+        QCOMPARE(results.size(), size_t(isSigned ? 2 : 1));
+        for (const PDFSignatureVerificationResult& verification : results)
+        {
+            QVERIFY2(verification.isSignatureValid(), qPrintable(verification.getErrors().join('\n')));
+        }
+    }
+}
+
+void SignatureBuilderTest::documentInformationUnchanged()
+{
+    // R6-3, R6-4: the revision of a signature carries the signature, its field and widget, /AcroForm
+    // and /Annots - no change of the document information (/ModDate, /Producer), which a verifier of a
+    // certification with /P 2 counts as a change of the signed document (12.8.2.2.1, Table 257)
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    PDFCertificateEntry certificate;
+    QString password;
+    QVERIFY(createTestCertificate(directory, certificate, password));
+
+    PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 300, 400));
+    const PDFObjectReference information = builder.addObject(dictionary({ { "Title", PDFObject::createString("Contract") }, { "Producer", PDFObject::createString("Original producer") } }));
+    builder.setDocumentInfo(information);
+    PDFDocument document = builder.build();
+    PDFObjectStorage storage = document.getStorage();
+    storage.setObject(information, dictionary({ { "Title", PDFObject::createString("Contract") }, { "Producer", PDFObject::createString("Original producer") } }));
+    const QByteArray original = writeDocument(PDFDocument(std::move(storage), document.getInfo()->version, QByteArray()));
+    const PDFDocument originalDocument = readDocument(original);
+    const PDFObject originalInformation = originalDocument.getTrailerDictionary()->get("Info");
+
+    QByteArray signedData;
+    QCOMPARE(signDocument(originalDocument, original, certificate, password, "Signature", signedData), PDFDocumentSigner::Result::OK);
+
+    const PDFDocument signedDocument = readDocument(signedData);
+    QVERIFY(signedDocument.getTrailerDictionary()->get("Info") == originalInformation);
+    const PDFDictionary* signedInformation = signedDocument.getDictionaryFromObject(signedDocument.getTrailerDictionary()->get("Info"));
+    QVERIFY(signedInformation);
+    QCOMPARE(signedInformation->get("Producer").getString(), QByteArray("Original producer"));
+    QVERIFY(!signedInformation->hasKey("ModDate"));
+
+    // The update writes no object of the information
+    const QByteArray header = QByteArray::number(originalInformation.getReference().objectNumber) + " 0 obj";
+    QVERIFY(!signedData.mid(original.size()).contains("\n" + header));
+}
+
+void SignatureBuilderTest::signatureWidgetWithoutAcroForm()
+{
+    // ASan E2 of step 6 (Signature/multiplesignatures.pdf: three signatures of widgets in /Annots, no
+    // /AcroForm): a document without /AcroForm has no fields (ISO 32000-2, 12.7.3), but a signature
+    // widget of a page still signs the bytes of the file - it is counted, verified and kept by the
+    // signer (an incremental update), never overlooked
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    PDFCertificateEntry certificate;
+    QString password;
+    QVERIFY(createTestCertificate(directory, certificate, password));
+
+    PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 300, 400));
+    QByteArray firstSigned;
+    QCOMPARE(signDocument(builder.build(), QByteArray(), certificate, password, "First", firstSigned), PDFDocumentSigner::Result::OK);
+
+    // A revision, which removes /AcroForm of the catalog
+    const PDFDocument signedDocument = readDocument(firstSigned);
+    PDFObjectStorage storage = signedDocument.getStorage();
+    const PDFObjectReference catalogReference = signedDocument.getTrailerDictionary()->get("Root").getReference();
+    PDFDictionaryBuilder catalog(*storage.getObject(catalogReference).getDictionary());
+    catalog.removeEntry("AcroForm");
+    storage.setObject(catalogReference, PDFObject::createDictionary(std::move(catalog)));
+    const PDFDocument withoutAcroForm(std::move(storage), signedDocument.getInfo()->version, QByteArray());
+    QByteArray fileData;
+    {
+        QBuffer buffer(&fileData);
+        QVERIFY(buffer.open(QBuffer::WriteOnly));
+        PDFDocumentWriter writer(nullptr);
+        QVERIFY(bool(writer.writeIncrementalUpdate(&buffer, firstSigned, &withoutAcroForm)));
+    }
+
+    const PDFDocument document = readDocument(fileData);
+    QVERIFY(document.getCatalog()->getFormObject().isNull());
+    const PDFForm form = PDFForm::parse(&document, document.getCatalog()->getFormObject());
+    QCOMPARE(form.getFormType(), PDFForm::FormType::None);
+    QCOMPARE(PDFForm::getSignatureCount(&document), 1);
+    QVERIFY(PDFDocumentSigner::hasExistingSignatures(&document));
+
+    const std::vector<PDFSignatureVerificationResult> results = verifySignedDocument(fileData);
+    QCOMPARE(results.size(), size_t(1));
+    QCOMPARE(results.front().getSignatureFieldQualifiedName(), QStringLiteral("First"));
+    QVERIFY2(results.front().isSignatureValid(), qPrintable(results.front().getErrors().join('\n')));
+
+    // A second signature is an update of the file, the first one is kept
+    QByteArray secondSigned;
+    QCOMPARE(signDocument(document, fileData, certificate, password, "Second", secondSigned), PDFDocumentSigner::Result::OK);
+    QVERIFY(secondSigned.startsWith(fileData));
+    QCOMPARE(verifySignedDocument(secondSigned).size(), size_t(2));
+}
+
+void SignatureBuilderTest::signatureWidgetsWalkWithoutAcroForm()
+{
+    // The walk from a widget to its root field (ISO 32000-2, 12.7.4.1 /Parent; /FT inheritable, Table 226)
+    // of a document without /AcroForm: a root shared by two widgets is one field, a cycle of /Parent and
+    // a field of another type are no signature field
+    mergetest::MergeTestPdf pdf;
+    pdf.set(1, "<< /Type /Catalog /Pages 2 0 R >>");
+    pdf.set(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 200 200] >>");
+    pdf.set(3, "<< /Type /Page /Parent 2 0 R /Resources << >> /Annots [10 0 R 11 0 R 12 0 R 13 0 R] >>");
+    pdf.set(10, "<< /Type /Annot /Subtype /Widget /Rect [0 0 10 10] /P 3 0 R /Parent 20 0 R >>");
+    pdf.set(11, "<< /Type /Annot /Subtype /Widget /Rect [20 0 30 10] /P 3 0 R /Parent 20 0 R >>");
+    pdf.set(12, "<< /Type /Annot /Subtype /Widget /Rect [40 0 50 10] /P 3 0 R /Parent 21 0 R >>");
+    pdf.set(13, "<< /Type /Annot /Subtype /Widget /Rect [60 0 70 10] /P 3 0 R /FT /Tx /T (Text) /V (x) >>");
+    pdf.set(20, "<< /FT /Sig /T (Shared) /V 30 0 R /Kids [10 0 R 11 0 R] >>");
+    pdf.set(21, "<< /FT /Sig /T (Cycle) /V 30 0 R /Parent 22 0 R /Kids [12 0 R] >>");
+    pdf.set(22, "<< /T (Loop) /Parent 21 0 R /Kids [21 0 R] >>");
+    pdf.set(30, "<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /ByteRange [0 0 0 0] /Contents <00> >>");
+    const PDFDocument document = pdf.read();
+
+    const PDFForm form = PDFForm::parse(&document, document.getCatalog()->getFormObject());
+    QCOMPARE(form.getFormType(), PDFForm::FormType::None);
+    QCOMPARE(form.getFormFields().size(), size_t(1));
+    QCOMPARE(form.getFormFields().front()->getName(PDFFormField::NameType::FullyQualified), QStringLiteral("Shared"));
+    QVERIFY(PDFDocumentSigner::hasExistingSignatures(&document));
+}
+
+void SignatureBuilderTest::unreadableFileNeverRewritten()
+{
+    // RS6SEC Low of step 6: a file, which cannot be read, counts as signed (hasExistingSignatures) -
+    // the document in the memory (here without any signature) never decides about a whole write over
+    // it; without the file data the document is written whole
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    PDFCertificateEntry certificate;
+    QString password;
+    QVERIFY(createTestCertificate(directory, certificate, password));
+
+    PDFDocumentBuilder builder;
+    builder.appendPage(QRectF(0, 0, 300, 400));
+    const PDFDocument document = builder.build();
+    QVERIFY(!PDFDocumentSigner::hasExistingSignatures(&document));
+
+    QByteArray signedData;
+    QCOMPARE(signDocument(document, QByteArray("not a document"), certificate, password, "First", signedData), PDFDocumentSigner::Result::ExistingSignaturesNotPreserved);
+    QVERIFY(signedData.isEmpty());
+    QCOMPARE(signDocument(document, QByteArray(), certificate, password, "First", signedData), PDFDocumentSigner::Result::OK);
+    QCOMPARE(verifySignedDocument(signedData).size(), size_t(1));
 }
 
 QTEST_MAIN(SignatureBuilderTest)

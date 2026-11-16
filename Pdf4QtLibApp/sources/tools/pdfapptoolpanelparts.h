@@ -329,6 +329,10 @@ public:
     /// Copy report 303:5371: the title and the link 8 apart, centered); the header owns it
     void addTrailingWidget(QWidget* widget);
 
+    /// Puts a widget right after the title, GAP apart (the tag Optional of Details 434:4850: the title
+    /// at 0, the tag at 52); the header grows to the height of the widget; the header owns it
+    void addTitleWidget(QWidget* widget);
+
 private:
     QPointer<PDFLabel> m_title;
     QPointer<PDFLabel> m_hint;

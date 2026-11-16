@@ -176,6 +176,17 @@ public:
     /// Another encryption returns Failed and stays unauthorized.
     AuthorizationResult authenticateWithoutEmbeddedFiles();
 
+    /// The handler and \p other are of one encryption (plan of step 6 of phase 2, R6-1): equal
+    /// encryption dictionaries and the same first part of /ID of the trailer (the file encryption key
+    /// of the standard handler depends on it, ISO 32000-2, 7.6.4.3, Algorithm 2), so the authorization
+    /// of one opens the other - a reader of the bytes of a document, which has been opened already,
+    /// takes a clone of its authenticated handler instead of its password (PDFDocumentReader::
+    /// setAuthenticatedSecurityHandler). A handler read from a file knows the dictionary of the file
+    /// (createSecurityHandler), a handler of the factory the dictionary it writes and the /ID of its
+    /// settings (a file written by it is read back by its clone - the check of a recipient of the
+    /// system store, whose key is not used). False for a document without encryption and for a null \p other.
+    bool isSameEncryption(const PDFSecurityHandler* other) const;
+
     /// Decrypts the PDF object. This function works properly only (and only if)
     /// \p authenticate function returns user/owner authorization code.
     /// \param object Object to be decrypted
@@ -375,6 +386,12 @@ protected:
 
     /// The document-level metadata stream (setDocumentMetadataReference), std::nullopt = not known
     std::optional<PDFObjectReference> m_documentMetadataReference;
+
+    /// The encryption dictionary of the file, of which createSecurityHandler has created the handler,
+    /// and the first part of /ID of its trailer (isSameEncryption); of a handler of the factory the
+    /// dictionary it writes and the /ID of its settings
+    PDFObject m_encryptionDictionary;
+    QByteArray m_encryptionDocumentId;
 };
 
 /// Specifies the security of unencrypted document
@@ -614,12 +631,29 @@ private:
         PKSH_PrintHighResolution = 1 << 11
     };
 
-    /// Authenticates by the PKCS#12 of \p certificates (entry.pkcs12, R5-1, B102); the empty
-    /// password first, then the passwords of the callback (UTF-8, B84)
+    /// Authenticates by the PKCS#12 of \p certificates (entry.pkcs12, R5-1, B102) and by the
+    /// certificates of the system store among them (an entry of the type System without a PKCS#12,
+    /// plan of step 6 of phase 2, Q6.2: PDFPersonalCertificateStore::decryptEnvelope - the key stays
+    /// in the system, which may ask for its PIN in its own dialog). The empty password of the
+    /// PKCS#12 first, then the system store, then the passwords of the callback (UTF-8, B84) - the
+    /// callback only, when there is a PKCS#12.
     AuthorizationResult authenticateByCertificateEntries(const PDFCertificateEntries& certificates, const std::function<QString(bool*)>& getPasswordCallback);
 
-    /// Opens the file encryption key by one PKCS#12 and its password (7.6.5.3); true on success
+    /// Opens the file encryption key by one PKCS#12 and its password (7.6.5.3); true on success. A
+    /// PKCS#12 of more iterations than PDFCertificateManager::MAXIMUM_PKCS12_ITERATIONS is refused
+    /// before its password is tried (plan of step 6 of phase 2, 6.3, R6-28).
     bool authenticateByPkcs12(const QByteArray& pkcs12Data, const QByteArray& passwordUtf8);
+
+    /// Opens the file encryption key by the private key of a certificate of the system store (Q6.2),
+    /// which decrypts the envelope of its recipient; true on success
+    /// \param certificateData DER of the certificate (PDFCertificateInfo::getCertificateData)
+    bool authenticateBySystemStore(const QByteArray& certificateData);
+
+    /// Authorizes the handler by the decrypted envelope of its recipient (7.6.5.3: the 20 bytes of
+    /// the seed and the 4 bytes of the permissions of Table 24): the file encryption key, the
+    /// permissions of the envelope, the certificate of the recipient. \p decryptedData are cleared.
+    /// \returns false for data shorter than the seed
+    bool authorizeByEnvelope(QByteArray& decryptedData, std::optional<PDFCertificateInfo> certificate);
 
     /// What operations shall be permitted, when document is opened with user access.
     uint32_t m_permissions = 0;
@@ -744,10 +778,17 @@ public:
     /// restrictions (any permission of Table 22 not allowed) need an owner password, which is not
     /// empty and differs from the user password (ISO 32000-2, 7.6.4.1: else every reader opens the
     /// document as its owner; B81, R5-23, Q5.1); a certificate has its PKCS#12 and opens by its
-    /// password.
+    /// password, or is a certificate of the system store, which can be a recipient
+    /// (isSystemStoreCertificate, PDFCertificateManager::isUsableForEncryption).
     /// \param settings Settings
     /// \param[out] errorMessage Error message (may be null)
     static bool validate(const SecuritySettings& settings, QString* errorMessage);
+
+    /// A certificate of the system store (plan of step 6 of phase 2, Q6.2 and the addendum of the owner
+    /// of 15. 11.): the type System, no PKCS#12, its certificate known. As a recipient of the encryption
+    /// by a certificate only its public certificate is used (no password, its key is never touched);
+    /// a document encrypted for it is opened by its key in the store (PDFPersonalCertificateStore)
+    static bool isSystemStoreCertificate(const PDFCertificateEntry& entry);
 
 private:
     /// The creation of both overloads of createSecurityHandler (\p errorMessage may be null)

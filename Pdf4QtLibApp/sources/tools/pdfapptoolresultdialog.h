@@ -157,7 +157,9 @@ public:
     QString subtitle;           ///< Subtitle of the head; empty = by the kind of the result
     QString statusText;         ///< Message of the status bar; empty = by the kind of the result. A tool may say more ("Hidden data removed – choose what to do with the result", 438:14342)
     QString fileDescription;    ///< Description of Save as a file of an export ("The text is written to a new .txt file. …", 339:10300)
-    QString fileConfirmText;    ///< Button of Save as a file of an export ("Save Text", 339:10323)
+    QString fileConfirmText;    ///< Button of Save as a file of an export ("Save Text", 339:10323) and of the file only (FileOnly, "Save Signed Copy")
+    QString fileOpenText;       ///< The check box of the file only (FileOnly: "Open the signed copy in a new tab", 434:9276; "Open the redacted copy in a new tab", 437:13887); empty = "Open the file in a new tab"
+    bool isFileOpenChecked = true;  ///< The check box of the file only is checked at the start (FileOnly)
     QString previousToolId;     ///< Tool, after whose result this one ran (the pair of the suggestions)
     QString reportText;         ///< Report of the run for the clipboard: the link Copy report in the head, empty = no link (Optimize Structure 303:5373, see the tool)
     QPointer<QWidget> scrimTarget;  ///< The covered widget: the canvas of the tool (312:7373); null = the body of the window
@@ -269,7 +271,8 @@ public:
         NewDocument,
         Files,
         Analysis,
-        WrittenFiles    ///< Files written by the tool itself (R3 of the plan of step 3 of phase 2, 383:11374: Files, Folder, Size, Open the files in new tabs, Close, Open Folder; stopped 403:29978: Written, Not written, Folder, Delete Written Files, Close, Open Folder); no Then continue with (9.3 point 12)
+        WrittenFiles,   ///< Files written by the tool itself (R3 of the plan of step 3 of phase 2, 383:11374: Files, Folder, Size, Open the files in new tabs, Close, Open Folder; stopped 403:29978: Written, Not written, Folder, Delete Written Files, Close, Open Folder); no Then continue with (9.3 point 12)
+        FileOnly        ///< Only a new file, the open document stays as it is (PDFDocumentToolCatalogEntry::isFileOnlyResult - Sign with Certificate, Add Timestamp, Redact Content; tools.md 9.3 point 11, plan of step 6 of phase 2, 1 point 6): no choices, the name of the file, its folder with Browse…, the check box Open the … copy in a new tab (PDFAppToolResultInput::fileOpenText), the states Replace File and of a write error, the refusal of a file open in a tab. The verified bytes of the run are saved (PDFDocumentToolOutputDocument::writtenData, PDFAppToolResultWriter::writeFileOnly), never a written document. Then continue with only after a tool, which offers successors (Redact; Q6.16: a chosen tool checks and locks the check box, the tool runs on the opened copy)
     };
 
     /// Most files opened by "Open the files in new tabs" (plan 4.2: more = "Opens the first 20 files")
@@ -288,6 +291,10 @@ public:
 
     /// Kind of the dialog of a result
     static ResultKind getResultKind(const PDFDocumentToolResult& result);
+
+    /// Kind of the dialog of a result of the output of a run: a new document of a tool, whose result is
+    /// only a file (PDFDocumentToolCatalogEntry::isFileOnlyResult), is FileOnly; else getResultKind
+    static ResultKind getResultKind(const PDFDocumentToolOutputTraits& tool, const PDFDocumentToolResult& result);
 
     /// The offered choices in the order of the dialog (the rules of O31, F5); \p tool are the
     /// values of the output of the run (RB3 a of step 3b), a catalog entry gives its row
@@ -334,11 +341,17 @@ public:
     PDFTintedCard* getPartialWarning() const { return m_partialWarning; }
     PDFTintedCard* getWriteError() const { return m_writeError; }
     PDFLabel* getNameError() const { return m_nameError; }
+
+    /// The label "File name" above the field of the file only (434:9276), nullptr = another kind
+    PDFLabel* getFileNameLabel() const { return m_fileNameLabel; }
     PDFLineEdit* getFileNameField() const { return m_fileNameField; }
     PDFLineEdit* getFilePathField() const { return m_filePathField; }
     PDFAppToolPathLabel* getFolderLabel() const { return m_folderLabel; }
     QPushButton* getBrowseButton() const { return m_browseButton; }
     QCheckBox* getOpenCheckBox() const { return m_openCheckBox; }
+
+    /// The controls of the file only (FileOnly: the name, the folder, the check box), nullptr = another kind
+    QWidget* getFileOnlyControls() const { return m_fileOnlyControls; }
     QPushButton* getChooseLocationButton() const { return m_chooseLocationButton; }
     QPushButton* getDiscardButton() const { return m_discardButton; }
     QPushButton* getConfirmButton() const { return m_confirmButton; }
@@ -414,7 +427,13 @@ private:
     void createFacts(QVBoxLayout* layout, QWidget* parent);
     void createOptions(QVBoxLayout* layout, QWidget* parent);
     void createContinueWith(QVBoxLayout* layout, QWidget* parent);
-    void createFileControls(PDFAppToolResultOption* option, bool isFullPath, bool isChecked);
+    void createFileControls(QVBoxLayout* layout, bool isFullPath, bool isChecked);
+    void createFileOnlyControls(QVBoxLayout* layout, QWidget* parent);
+
+    /// Q6.16: a tool chosen by Then continue with of the file only checks and locks the check box
+    /// Open the … copy in a new tab (the tool runs on the opened copy); without a choice the check box
+    /// gets back the state of the user
+    void updateOpenCheckLock();
     PDFAppToolResultOption* addOption(Choice choice, QVBoxLayout* layout, QWidget* parent);
 
     /// Texts, which depend on the language
@@ -525,11 +544,14 @@ private:
     QPointer<PDFTextLink> m_reportLink;
     bool m_isReportCopied = false;  ///< The link says, that the report is on the clipboard
     QPointer<PDFLabel> m_nameError;
+    QPointer<PDFLabel> m_fileNameLabel;             ///< "File name" of the file only (FileOnly)
     QPointer<PDFLineEdit> m_fileNameField;
     QPointer<PDFLineEdit> m_filePathField;
     QPointer<PDFAppToolPathLabel> m_folderLabel;
     QPointer<QPushButton> m_browseButton;
     QPointer<QCheckBox> m_openCheckBox;
+    QPointer<QWidget> m_fileOnlyControls;           ///< The controls of the file only (FileOnly)
+    bool m_isOpenCheckedByUser = true;              ///< The state of the check box of the file only, which the user chose (Q6.16 locks it while a tool is chosen)
     QPointer<QPushButton> m_discardButton;
     QPointer<QPushButton> m_confirmButton;
     QPointer<QPushButton> m_closeButton;            ///< Close of the written files (R3)

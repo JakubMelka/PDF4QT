@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfexecutionpolicy.h"
+#include "pdfsignaturehandler.h"
 
 #include <QThread>
 #include <QCoreApplication>
@@ -120,6 +121,11 @@ void PDFExecutionPolicy::startProcessingContentStream()
 void PDFExecutionPolicy::endProcessingContentStream()
 {
     --s_execution_policy.policy.m_contentStreamsCount;
+}
+
+void PDFExecutionPolicy::releaseThreadResources()
+{
+    PDFSignatureHandler::releaseThreadResources();
 }
 
 void PDFExecutionPolicy::finalize()

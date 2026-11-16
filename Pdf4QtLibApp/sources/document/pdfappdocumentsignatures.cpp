@@ -349,6 +349,7 @@ PDFAppSignatureVerificationPointer PDFAppDocumentSignatureVerifier::runVerificat
         parameters.ignoreExpirationDate = settings.ignoreExpiration;
         parameters.useSystemCertificateStore = settings.useSystemStore;
         parameters.aatlCertificates = PDFSignatureHandler::AATLCertificates::Always;
+        parameters.securityHandler = document->getStorage().getSecurityHandler(); // R6-1: revisions of an encrypted file
         verification->results = PDFSignatureHandler::verifySignatures(form, sourceData, parameters);
 
         // Empty signature fields are not signatures: no result, so the page shows the
@@ -630,14 +631,21 @@ int PDFAppDocumentSignatureVerifier::getTrustableCertificateIndex(const PDFSigna
     const bool isUntrusted = result.hasFlag(Flag::Error_Certificate_TrustedNotFound) ||
                              result.hasFlag(Flag::Error_Certificate_SelfSigned) ||
                              result.hasFlag(Flag::Error_Certificate_SelfSignedChain);
-    if (!isUntrusted || certificates.empty())
+    if (!isUntrusted || certificates.empty() || !result.getSignerCertificate())
     {
+        // R6-2: without the signer of the SignerInfo nothing is offered
         return -1;
     }
 
-    // The root of the chain (the last certificate) is offered, unless it is trusted already
-    const int index = int(certificates.size()) - 1;
-    const QByteArray data = certificates.back().getCertificateData();
+    // B118, R6-2 (plan of step 6 of phase 2, 6.7): only a certificate of the chain built from the
+    // signer is offered - the certificates are the chain from the certificate of the SignerInfo
+    // (the first one, P1a), never another certificate of the bag of the CMS. The root of the chain
+    // is offered, when the chain ends by a self-signed root (the signer itself or its root, which is
+    // not trusted); a chain without a root (no issuer found) offers the certificate of the signer
+    // (X509_V_FLAG_PARTIAL_CHAIN), never the last certificate of the bag, which may be unrelated.
+    const bool isRooted = result.hasFlag(Flag::Error_Certificate_SelfSigned) || result.hasFlag(Flag::Error_Certificate_SelfSignedChain);
+    const int index = (isRooted && !result.hasFlag(Flag::Error_Certificate_SelfSigned)) ? int(certificates.size()) - 1 : 0;
+    const QByteArray data = certificates[size_t(index)].getCertificateData();
     if (!PDFTrustedCertificateRepository::isValidCertificate(data) || PDFAppDocumentSignaturesHelper::contains(trustedCertificates, data))
     {
         return -1;
@@ -656,7 +664,10 @@ PDFComponentPainter::SignatureCard PDFAppDocumentSignatureVerifier::getCard(cons
 
     const PDFCertificateInfos& certificates = result.getCertificateInfos();
     const bool isTimestamp = result.getType() == PDFSignature::Type::DocTimeStamp;
-    const QString issuerName = certificates.empty() ? tr("Unknown") : Helper::getCertificateName(certificates.front());
+    // R6-2: the name is the name of the certificate of the SignerInfo (verified against the value of the
+    // signature), never the first certificate of the bag
+    const PDFCertificateInfo* signerCertificate = result.getSignerCertificate();
+    const QString issuerName = signerCertificate ? Helper::getCertificateName(*signerCertificate) : tr("Unknown signer");
     const QDateTime signatureDate = result.getSignatureDate().isValid() ? result.getSignatureDate() : result.getTimestampDate();
 
     if (isTimestamp)
@@ -676,7 +687,17 @@ PDFComponentPainter::SignatureCard PDFAppDocumentSignatureVerifier::getCard(cons
     switch (card.status)
     {
         case Status::Valid:
-            card.summary = isTimestamp ? tr("The document existed in this form at the stated time.") : tr("The document has not been changed since it was signed.");
+            if (result.getLaterRevisions() == PDFSignatureVerificationResult::LaterRevisions::Allowed)
+            {
+                // R6-3, plan 6.7: later signatures, timestamps or validation data are no change of the
+                // signed content (the allowed list of P1a; its infos are the details below)
+                card.summary = isTimestamp ? tr("The document existed in this form at the stated time. Later signatures or timestamps were added.")
+                                           : tr("The signed version is intact. Later signatures or timestamps were added.");
+            }
+            else
+            {
+                card.summary = isTimestamp ? tr("The document existed in this form at the stated time.") : tr("The document has not been changed since it was signed.");
+            }
             break;
 
         case Status::Warning:
@@ -731,11 +752,14 @@ PDFComponentPainter::SignatureCard PDFAppDocumentSignatureVerifier::getCard(cons
             break;
     }
 
-    // Details
+    // Details; a date of /M of the signature dictionary (no signing-time of the CMS, ISO 32000-2 Table 255)
+    // is only claimed by the signer, it is not a trusted time (RS6FIGMA L-M1)
     const QString signedOn = Helper::formatDateTime(signatureDate);
     if (!signedOn.isEmpty())
     {
-        card.details.append({ isTimestamp ? tr("Time") : tr("Signed on"), signedOn });
+        const bool isClaimed = result.isSignatureDateClaimed() && signatureDate == result.getSignatureDate() &&
+                               !(isTimestamp && result.getTimestampDate().isValid());
+        card.details.append({ isTimestamp ? tr("Time") : tr("Signed on"), isClaimed ? tr("%1 · claimed by the signer").arg(signedOn) : signedOn });
     }
     if (!result.getHashAlgorithms().isEmpty())
     {
@@ -765,6 +789,12 @@ PDFComponentPainter::SignatureCard PDFAppDocumentSignatureVerifier::getCard(cons
             timestamp = tr("None");
         }
         card.details.append({ tr("Timestamp"), timestamp });
+    }
+
+    // R6-3: what was added after the signature ("A visible signature was added on page 2")
+    for (const QString& info : result.getInfos())
+    {
+        card.details.append({ tr("Added later"), info.simplified().left(256) });
     }
 
     // The chain from the signer to the root

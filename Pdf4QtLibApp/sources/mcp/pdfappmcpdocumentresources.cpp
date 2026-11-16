@@ -186,26 +186,16 @@ std::vector<PDFMcpResourceDefinition> PDFAppMcpDocumentResources::createListed(c
         PDFAppMcpDocumentWatcher::ensure(const_cast<PDFAppMcpHost*>(host));
     }
 
-    PDFMcpResourceDefinition state;
-    state.uri = getStateUri();
-    state.name = QStringLiteral("application-state");
-    state.title = QStringLiteral("PDF4QT state");
-    state.description = QStringLiteral("State of PDF4QT and the open documents (as application.get_state); subscribe to follow it");
-    state.mimeType = QStringLiteral("application/json");
-    resources.push_back(std::move(state));
-
-    // The titles of the documents are listed only when Read documents is not denied
-    if (!host || !host->getPermissions().isAvailable(PDFAppMcpPermissionKind::Read))
-    {
-        return resources;
-    }
-
-    // The catalog is shared by every assistant: with Read documents = Ask the
-    // documents are listed without their titles (a file name is document data,
-    // which an assistant gets only after its read approval - owner decision
+    // The open documents first, in the order of their opening (the order of the
+    // registry - stable, a moved tab does not change it), then the state (owner
+    // decision 2026-11-15). The documents are listed only when Read documents is
+    // not denied. The catalog is shared by every assistant: with Read documents =
+    // Ask the documents are listed without their titles (a file name is document
+    // data, which an assistant gets only after its read approval - owner decision
     // 2026-10-27, item 27; the completion withholds them too)
-    const bool isTitleListed = host->getPermissions().get(PDFAppMcpPermissionKind::Read) == PDFAppMcpPermission::Allow;
-    for (const PDFAppDocument* document : host->getResolver().getDocuments())
+    const bool isListed = host && host->getPermissions().isAvailable(PDFAppMcpPermissionKind::Read);
+    const bool isTitleListed = isListed && host->getPermissions().get(PDFAppMcpPermissionKind::Read) == PDFAppMcpPermission::Allow;
+    for (const PDFAppDocument* document : isListed ? host->getResolver().getDocuments() : std::vector<PDFAppDocument*>())
     {
         if (!document || !document->isReady())
         {
@@ -225,6 +215,14 @@ std::vector<PDFMcpResourceDefinition> PDFAppMcpDocumentResources::createListed(c
             resources.push_back(std::move(resource));
         }
     }
+
+    PDFMcpResourceDefinition state;
+    state.uri = getStateUri();
+    state.name = QStringLiteral("application-state");
+    state.title = QStringLiteral("PDF4QT state");
+    state.description = QStringLiteral("State of PDF4QT and the open documents (as application.get_state); subscribe to follow it");
+    state.mimeType = QStringLiteral("application/json");
+    resources.push_back(std::move(state));
     return resources;
 }
 

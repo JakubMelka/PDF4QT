@@ -107,6 +107,16 @@ public:
     void setConfirmText(const QString& text, const QString& iconName);
     void setConfirmEnabled(bool isEnabled);
 
+    /// The Primary button is shown in the modes Editing and Finished (PDFDocumentToolGUI::isConfirmShown;
+    /// K6.11 of step 6: Manage Certificates has none)
+    void setConfirmShown(bool isShown);
+    bool isConfirmShown() const { return m_isConfirmShown; }
+
+    /// Undo and Redo are shown (PDFDocumentToolGUI::isUndoShown; Manage Certificates has no history,
+    /// 436:9398, 436:12086); hidden, one divider stays between the title and the actions
+    void setUndoShown(bool isShown);
+    bool isUndoShown() const { return m_isUndoShown; }
+
     /// Text of the Primary button; the button itself has none in a very narrow window
     const QString& getConfirmText() const { return m_confirmText; }
 
@@ -205,6 +215,8 @@ private:
     QString m_confirmText;
     QString m_cancelText;               ///< setCancelText; empty = "Cancel"
     bool m_isConfirmEnabled = true;     ///< Asked by setConfirmEnabled; Finished shows the button Disabled anyway
+    bool m_isUndoShown = true;          ///< setUndoShown
+    bool m_isConfirmShown = true;       ///< setConfirmShown: false = the Primary button is hidden in every mode
     Mode m_mode = Mode::Editing;
     int m_collapseLevel = 0;
     bool m_isUpdatingCollapse = false;

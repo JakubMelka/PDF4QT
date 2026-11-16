@@ -136,7 +136,17 @@ Facts needed to run them:
 | `UnitTestsDocumentToolEncryption` | [tst_documenttoolencryptiontest.cpp](../UnitTests/tst_documenttoolencryptiontest.cpp) | The four tools of the encryption of the core (step 5, P1b). |
 | `UnitTestsAppToolEncryption` | [tst_apptoolencryptiontest.cpp](../UnitTests/tst_apptoolencryptiontest.cpp) | GUI of the encryption; a case per row, P2 and P3 (`_certificate.cpp`) register their cases (step 5). |
 | `UnitTestsAppCertificateDialogs` | [tst_appcertificatedialogstest.cpp](../UnitTests/tst_appcertificatedialogstest.cpp) | Create a self-signed certificate, Import of a .pfx file, the certificate list and its provider (step 5, P3). |
-| `UnitTestsAppMcpProtect` | [tst_appmcpprotecttest.cpp](../UnitTests/tst_appmcpprotecttest.cpp) | MCP actions protect.* over HTTP with the confirmation of the passwords (step 5, P4). |
+| `UnitTestsAppMcpProtect` | [tst_appmcpprotecttest.cpp](../UnitTests/tst_appmcpprotecttest.cpp) | MCP actions protect.* over HTTP with the confirmation of the passwords (step 5, P4) and the gates of signing, timestamps, drawings and redaction (step 6, P6). |
+| `UnitTestsSignatureVerification` | [tst_signatureverificationtest.cpp](../UnitTests/tst_signatureverificationtest.cpp) | Verification of signatures: `/ByteRange`, the signer, the later revisions, the limits (step 6, P1a). |
+| `UnitTestsTimestampClient` | [tst_timestampclienttest.cpp](../UnitTests/tst_timestampclienttest.cpp) | The client of a timestamp authority against a local test authority, the signing key (PAdES / PKCS#7, store of the system in memory), new certificates, PKCS#12 and trusted store limits (step 6, P1b). |
+| `UnitTestsDocumentToolSignature` | [tst_documenttoolsignaturetest.cpp](../UnitTests/tst_documenttoolsignaturetest.cpp) | Sign with Certificate and Add Timestamp of the core (step 6, P2). |
+| `UnitTestsDocumentToolSignByHand` | [tst_documenttoolsignbyhandtest.cpp](../UnitTests/tst_documenttoolsignbyhandtest.cpp) | Sign by Hand of the core and the drawing of the pages (step 6, P2). |
+| `UnitTestsRedact` | [tst_redacttest.cpp](../UnitTests/tst_redacttest.cpp) | The rebuild of the pages of a redaction, every kind of content under an area (step 6, P3). |
+| `UnitTestsDocumentToolRedact` | [tst_documenttoolredacttest.cpp](../UnitTests/tst_documenttoolredacttest.cpp) | Redact Content of the core and the check of the redacted copy (step 6, P3). |
+| `UnitTestsAppToolSignature` | [tst_apptoolsignaturetest.cpp](../UnitTests/tst_apptoolsignaturetest.cpp) | GUI of Sign with Certificate and Add Timestamp (step 6, P4). |
+| `UnitTestsAppToolSignByHand` | [tst_apptoolsignbyhandtest.cpp](../UnitTests/tst_apptoolsignbyhandtest.cpp) | GUI of Sign by Hand and the drawing part (step 6, P4). |
+| `UnitTestsAppToolRedact` | [tst_apptoolredacttest.cpp](../UnitTests/tst_apptoolredacttest.cpp) | GUI of Redact Content and its search (step 6, P5). |
+| `UnitTestsAppToolCertificates` | [tst_apptoolcertificatestest.cpp](../UnitTests/tst_apptoolcertificatestest.cpp) | Manage Certificates, the detail of a certificate, the list for signing (step 6, P5). |
 | `UnitTestsAppMcp` | [tst_appmcptest.cpp](../UnitTests/tst_appmcptest.cpp) | MCP in the application: contract, permissions, read tools, catalog bridge. |
 | `UnitTestsAppMcpEdit` | [tst_appmcpedittest.cpp](../UnitTests/tst_appmcpedittest.cpp) | MCP edit tools and their confirmations. |
 | `UnitTestsAppAi` | [tst_appaitest.cpp](../UnitTests/tst_appaitest.cpp) | The page AI. |

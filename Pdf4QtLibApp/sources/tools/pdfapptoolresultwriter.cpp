@@ -252,8 +252,10 @@ PDFAppToolResultWriter::DocumentRefusal PDFAppToolResultWriter::getDocumentRefus
     }
 
     // A display version of an XFA form cannot be changed, an export of its text can run (F5);
-    // the kind of the output of the run (RB3 a of step 3b)
-    if (document->isPagedXFA() && tool.resultKind == PDFDocumentToolResultKind::ChangeDocument)
+    // the kind of the output of the run (RB3 a of step 3b). An incremental update of its file
+    // (Sign, Timestamp; plan of step 6 of phase 2, 4.4, R6-27) is refused too: the pages of the
+    // display version are not the pages of the file, which would be signed
+    if (document->isPagedXFA() && (tool.resultKind == PDFDocumentToolResultKind::ChangeDocument || tool.entry->isIncrementalUpdateOfInput()))
     {
         return DocumentRefusal::DisplayVersion;
     }
@@ -472,6 +474,16 @@ bool PDFAppToolResultWriter::writeFile(const QByteArray& data, const QString& fi
 
     start(QtConcurrent::run(&PDFAppToolResultWriter::writeFileData, filePath, data, markSourceFilePath, isReplacing));
     return true;
+}
+
+bool PDFAppToolResultWriter::writeFileOnly(const PDFDocumentToolOutputDocument& output, const QString& filePath, const QString& markSourceFilePath, bool isReplacing)
+{
+    // R6-27: the verified bytes or nothing - a document of the result is never written again here
+    if (output.writtenData.isEmpty())
+    {
+        return false;
+    }
+    return writeFile(output.writtenData, filePath, markSourceFilePath, isReplacing);
 }
 
 bool PDFAppToolResultWriter::writeDocumentToMemory(const PDFDocumentPointer& document)

@@ -25,6 +25,7 @@
 #include "pdfthreadannotations.h"
 
 #include "pdfexception.h"
+#include "pdfexecutionpolicy.h"
 #include "pdfmcperrorcodes.h"
 #include "pdfmcpjson.h"
 
@@ -115,6 +116,10 @@ void PDFAppMcpJobRunnable::run()
     // The host bounds the heavy jobs before they reach the pool: a worker never
     // waits here for another job
     execute(m_job.get());
+
+    // A job may have used OpenSSL (a document read with a password, a signature, a
+    // certificate): its state of this thread of the pool goes with the job (ASan C)
+    PDFExecutionPolicy::releaseThreadResources();
 
     // The host waits for the pool before it is destroyed, so the pointer is
     // valid here; the result is delivered in the GUI thread

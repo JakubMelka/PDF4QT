@@ -30,6 +30,7 @@
 #include "pdfsettingsrepository.h"
 #include "pdftrustedcertificaterepository.h"
 
+#include "pdfexecutionpolicy.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemefonts.h"
 #include "pdfthememanager.h"
@@ -43,6 +44,7 @@
 #include <QItemSelectionModel>
 #include <QKeyEvent>
 #include <QPushButton>
+#include <QScopeGuard>
 #include <QVBoxLayout>
 #include <QtConcurrent/QtConcurrentRun>
 
@@ -401,7 +403,9 @@ PDFAppSystemCertificatesTask::PDFAppSystemCertificatesTask(bool isSystemStoreUse
 
 PDFAppSystemCertificates PDFAppSystemCertificatesTask::operator()() const
 {
-    // Worker thread: nothing of the user interface is used, the entries are parsed here
+    // Worker thread: nothing of the user interface is used, the entries are parsed here (by OpenSSL:
+    // its state of the thread goes with the job, PDFExecutionPolicy::releaseThreadResources, ASan C)
+    const auto threadResourcesGuard = qScopeGuard(&PDFExecutionPolicy::releaseThreadResources);
     PDFAppSystemCertificates result;
     result.isSystemStoreUsed = m_isSystemStoreUsed;
     result.trustListCount = int(std::min<size_t>(PDFCertificateStore::getAATLCertificates().size(), size_t(std::numeric_limits<int>::max())));

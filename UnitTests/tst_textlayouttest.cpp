@@ -504,6 +504,29 @@ void TextLayoutTest::boundingBox()
     QCOMPARE(character.boundingBox.boundingRect(), QRectF(100, 200, 0, 0));
     QVERIFY(layout.getTextBlocks().front().getBoundingBox().boundingRect().isNull());
     QVERIFY(!layout.isHoveringOverTextBlock(QPointF(100, 200)));
+
+    // B147 (ISO 32000-2, 9.6.4, 9.6.5): a glyph of a Type 3 font has no outline, its box is given in its
+    // glyph space (d1 or /FontBBox), which the matrix maps: the font matrix [0.001 0 0 0.001 0 0] times
+    // the font size 12 at (100, 200) maps the glyph box [0 -200 800 700] to x 100 ... 109.6, y 197.6 ...
+    // 208.4; the font size 1000 of the glyph space is 12 of the page
+    pdf::PDFTextLayout type3Layout;
+    pdf::PDFTextCharacterInfo glyph;
+    glyph.character = 'B';
+    glyph.advance = 1000.0;
+    glyph.fontSize = 1000.0;
+    glyph.glyphBox = QRectF(QPointF(0, -200), QPointF(800, 700));
+    glyph.matrix = QTransform(0.012, 0.0, 0.0, 0.012, 100.0, 200.0);
+    type3Layout.addCharacter(glyph);
+    type3Layout.perform();
+
+    QCOMPARE(type3Layout.getTextBlocks().size(), size_t(1));
+    const pdf::TextCharacter& type3Character = type3Layout.getTextBlocks().front().getLines().front().getCharacters().front();
+    const QRectF type3Box = type3Character.boundingBox.boundingRect();
+    QVERIFY2(qAbs(type3Box.left() - 100.0) < 1e-9 && qAbs(type3Box.top() - 197.6) < 1e-9 && qAbs(type3Box.width() - 9.6) < 1e-9 && qAbs(type3Box.height() - 10.8) < 1e-9,
+             qPrintable(QStringLiteral("%1 %2 %3 %4").arg(type3Box.left()).arg(type3Box.top()).arg(type3Box.width()).arg(type3Box.height())));
+    QVERIFY(qAbs(type3Character.fontSize - 12.0) < 1e-9);
+    QVERIFY(qAbs(type3Character.advance - 12.0) < 1e-9);
+    QVERIFY(type3Layout.isHoveringOverTextBlock(QPointF(104, 203)));
 }
 
 void TextLayoutTest::layoutDoesNotHoldCharactersTwice()

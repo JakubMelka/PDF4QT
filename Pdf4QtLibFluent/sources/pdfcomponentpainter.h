@@ -1914,6 +1914,8 @@ public:
         QString tag;                ///< Tag after the title (shown, when its text is not empty)
         QString iconName;           ///< Icon of the tile
         QString tileText;           ///< Text of the tile instead of the icon (a number of a page, 388:20614); it is data
+        bool isSwatchTile = false;  ///< The tile is a color swatch (437:12794): border/default inside, filled by swatchColor, the icon over it
+        std::optional<PDFThemeColors::Color> swatchColor;   ///< Fill of a swatch tile; none = no fill (Custom color…, 1567:19612)
         TileRowKind kind = TileRowKind::MenuItem;
         TileRowTone tone = TileRowTone::Accent;
         TextKind titleKind = TextKind::Interface;

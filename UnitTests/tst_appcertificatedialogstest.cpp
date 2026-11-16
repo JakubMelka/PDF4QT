@@ -27,8 +27,10 @@
 // (PDFCertificateManager::setCertificateDirectories; never the folders of the user, never a
 // committed key, nothing on the system disk); the folders are removed at the end.
 
+#include "appdocumentfixture.h"
 #include "apptestcertificatefolders.h"
 
+#include "pdfappcertificatedetails.h"
 #include "pdfappcertificatedialogs.h"
 #include "pdfappcommandline.h"
 #include "pdfappcontext.h"
@@ -37,6 +39,7 @@
 #include "pdfapptoolcertificatelist.h"
 #include "pdfcertificatecacherepository.h"
 #include "pdfdatabase.h"
+#include "pdfdatabasestatement.h"
 #include "pdfrepositoryhelper.h"
 
 #include "pdfcertificatemanager.h"
@@ -50,13 +53,18 @@
 #include <QApplication>
 #include <QCryptographicHash>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QLabel>
+#include <QMutex>
+#include <QMutexLocker>
+#include <QThread>
 #include <QPointer>
 #include <QPushButton>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QtTest>
+#include <QtTest/qtestspontaneevent.h>
 
 #include <memory>
 
@@ -153,6 +161,84 @@ private:
 
 int CertificateTestEnvironment::s_counter = 0;
 
+/// The generator of the job of the creation (PDFAppCertificateCreateJob::setGenerator) of the tests of
+/// plan 6.4: it counts its calls, records the password given to the job and waits, until the test
+/// releases it or the job is canceled; then it creates the certificate by the core (which gives nothing
+/// for a canceled job). Given back by the destructor.
+class CreateJobTestGenerator
+{
+public:
+    CreateJobTestGenerator()
+    {
+        s_calls = 0;
+        s_isRunning = false;
+        s_isReleased = false;
+        s_password.clear();
+        pdf::PDFAppCertificateCreateJob::setGenerator(&CreateJobTestGenerator::generate);
+    }
+
+    ~CreateJobTestGenerator()
+    {
+        release();
+        pdf::PDFAppCertificateCreateJob::setGenerator(nullptr);
+    }
+
+    static void release() { s_isReleased = true; }
+    static int getCalls() { return s_calls.load(); }
+    static bool isRunning() { return s_isRunning.load(); }
+    static QString getPassword() { QMutexLocker lock(&s_mutex); return s_password; }
+
+private:
+    static QByteArray generate(const pdf::PDFCertificateManager::NewCertificateInfo& info, const std::atomic<bool>* cancelFlag, QString* errorMessage)
+    {
+        ++s_calls;
+        {
+            // A deep copy: a shared copy would keep the buffer of the job shared (PDFSecureMemory::
+            // clear clears only a buffer, which nobody else holds)
+            QMutexLocker lock(&s_mutex);
+            s_password = QString(info.privateKeyPasword.constData(), info.privateKeyPasword.size());
+        }
+        s_isRunning = true;
+        QElapsedTimer timer;
+        timer.start();
+        while (!s_isReleased && !(cancelFlag && cancelFlag->load()) && timer.elapsed() < 60000)
+        {
+            QThread::msleep(5);
+        }
+        QByteArray result = pdf::PDFSignatureFactory::createCertificate(info, cancelFlag, errorMessage);
+        s_isRunning = false;
+        return result;
+    }
+
+    static inline std::atomic<int> s_calls = 0;
+    static inline std::atomic<bool> s_isRunning = false;
+    static inline std::atomic<bool> s_isReleased = false;
+    static inline QMutex s_mutex;
+    static inline QString s_password;
+};
+
+/// Fills the form of Create a self-signed certificate (valid, the password twice)
+class CreateDialogFiller
+{
+public:
+    static void fill(pdf::PDFAppCertificateCreateDialog* dialog, const QString& password)
+    {
+        QTest::keyClicks(dialog->getNameField(), QStringLiteral("Jane Novak"));
+        QTest::keyClicks(dialog->getEmailField(), QStringLiteral("jane.novak@example.com"));
+        QTest::keyClicks(dialog->getOrganizationField(), QStringLiteral("Acme Corp"));
+        dialog->getPasswordField()->setFocus();
+        dialog->getPasswordField()->insert(password);
+        dialog->getRepeatField()->setFocus();
+        dialog->getRepeatField()->insert(password);
+    }
+
+    /// The .pfx files of a folder
+    static QStringList files(const QString& folder)
+    {
+        return QDir(folder).entryList(QDir::Files);
+    }
+};
+
 class AppCertificateDialogsTest : public QObject
 {
     Q_OBJECT
@@ -164,7 +250,13 @@ private Q_SLOTS:
     void createDialogValidation();
     void createDialogCreatesCertificate();
     void createDialogClearsPasswords();
+    void createJobCancel();
+    void createJobCloseDuringGeneration();
+    void createJobTwoStarts();
+    void createJobSurvivesSystemHide();
+    void createJobPasswordCanary();
     void importCopiesFile();
+    void importRefusesNetworkPath();
     void importCollision();
     void importRefusesHostileFiles();
     void providerStatesOfFiles();
@@ -219,18 +311,23 @@ void AppCertificateDialogsTest::createDialogDefaults()
     QVERIFY(CertificateTestEnvironment::hasLabel(dialog, QStringLiteral("A digital ID for signing and encryption. Others have to add it to their trusted certificates to see your signatures as valid.")));
     QCOMPARE(dialog->getCardWidth(), 640);
 
-    // 436:10427: the key lengths with their descriptions, 2048 by default
+    // 436:10427 as changed by owner answer Q6.14: 2048 (default) / 3072 / 4096 bits with their
+    // descriptions, no RSA 1024
     pdf::PDFComboBox* keyLength = dialog->getKeyLengthCombo();
     QCOMPARE(keyLength->count(), 3);
-    QCOMPARE(keyLength->itemText(0), QStringLiteral("1024 bits"));
-    QCOMPARE(keyLength->itemData(0, pdf::PDFComponentRoles::SubtitleRole).toString(), QStringLiteral("Weak · only for old systems"));
-    QCOMPARE(keyLength->itemText(1), QStringLiteral("2048 bits"));
-    QCOMPARE(keyLength->itemData(1, pdf::PDFComponentRoles::SubtitleRole).toString(), QStringLiteral("Recommended"));
+    QCOMPARE(keyLength->itemText(0), QStringLiteral("2048 bits"));
+    QCOMPARE(keyLength->itemData(0).toInt(), 2048);
+    QCOMPARE(keyLength->itemData(0, pdf::PDFComponentRoles::SubtitleRole).toString(), QStringLiteral("Recommended"));
+    QCOMPARE(keyLength->itemText(1), QStringLiteral("3072 bits"));
+    QCOMPARE(keyLength->itemData(1).toInt(), 3072);
+    QCOMPARE(keyLength->itemData(1, pdf::PDFComponentRoles::SubtitleRole).toString(), QStringLiteral("Stronger · a little slower"));
     QCOMPARE(keyLength->itemText(2), QStringLiteral("4096 bits"));
+    QCOMPARE(keyLength->itemData(2).toInt(), 4096);
     QCOMPARE(keyLength->itemData(2, pdf::PDFComponentRoles::SubtitleRole).toString(), QStringLiteral("Strongest · slower signing"));
+    QCOMPARE(keyLength->findData(1024), -1);
     QCOMPARE(keyLength->currentData().toInt(), 2048);
-    QCOMPARE(keyLength->itemData(1, Qt::CheckStateRole).toInt(), int(Qt::Checked));
-    QCOMPARE(keyLength->itemData(0, Qt::CheckStateRole).toInt(), int(Qt::Unchecked));
+    QCOMPARE(keyLength->itemData(0, Qt::CheckStateRole).toInt(), int(Qt::Checked));
+    QCOMPARE(keyLength->itemData(1, Qt::CheckStateRole).toInt(), int(Qt::Unchecked));
 
     // 436:10427: the countries "CZ | Česko", sorted by the code
     pdf::PDFComboBox* country = dialog->getCountryCombo();
@@ -322,7 +419,7 @@ void AppCertificateDialogsTest::createDialogCreatesCertificate()
     QTest::keyClicks(dialog->getOrganizationField(), QStringLiteral("Acme Corp"));
     QTest::keyClicks(dialog->getUnitField(), QStringLiteral("Finance"));
     dialog->getCountryCombo()->setCurrentIndex(dialog->getCountryCombo()->findData(QStringLiteral("DE")));
-    dialog->getKeyLengthCombo()->setCurrentIndex(dialog->getKeyLengthCombo()->findData(1024));
+    dialog->getKeyLengthCombo()->setCurrentIndex(dialog->getKeyLengthCombo()->findData(3072));
     const QDate validUntil = QDate::currentDate().addYears(2).addDays(3);
     dialog->getValidUntilEdit()->setDate(validUntil);
     // QTest types only Latin-1 keys: the non-ASCII password is inserted as an input method does
@@ -332,8 +429,10 @@ void AppCertificateDialogsTest::createDialogCreatesCertificate()
     dialog->getRepeatField()->insert(password);
     const QString filePath = dialog->getFilePath();
 
+    // Plan 6.4: one job generates the key, the GUI thread writes the file after its result
     QTest::mouseClick(dialog->getCreateButton(), Qt::LeftButton);
-    QCOMPARE(created.count(), 1);
+    QVERIFY(dialog->isCreating());
+    QTRY_COMPARE_WITH_TIMEOUT(created.count(), 1, 60000 * pdftest::AppDocumentFixture::getTimeoutFactor());
     QCOMPARE(created.front().front().toString(), filePath);
     QTRY_VERIFY(!dialog);
 
@@ -351,11 +450,22 @@ void AppCertificateDialogsTest::createDialogCreatesCertificate()
     QCOMPARE(info->getName(pdf::PDFCertificateInfo::OrganizationalUnitName), QStringLiteral("Finance"));
     QCOMPARE(info->getName(pdf::PDFCertificateInfo::CountryName), QStringLiteral("DE"));
     QCOMPARE(info->getName(pdf::PDFCertificateInfo::Email), QStringLiteral("jane.novak@example.com"));
-    QCOMPARE(info->getKeySize(), 1024);
+    QCOMPARE(info->getKeySize(), 3072);
     QCOMPARE(info->getPublicKey(), pdf::PDFCertificateInfo::KeyRSA);
     QVERIFY(info->getKeyUsage().testFlag(pdf::PDFCertificateInfo::KeyUsageKeyEncipherment));
     QVERIFY(pdf::PDFCertificateManager::isUsableForEncryption(info->getCertificateData()));
     QCOMPARE(info->getNotValidAfter().toLocalTime().date(), validUntil);
+
+    // Plan 5.3, B130 (RFC 5280): X.509 v3 (version 2, 4.1.2.1), keyUsage exactly digitalSignature,
+    // nonRepudiation, keyEncipherment (4.2.1.3), basicConstraints CA:FALSE (4.2.1.9: the extension
+    // 2.5.29.19 with an empty SEQUENCE - DER omits the default cA FALSE, X.690 11.5), self-issued
+    QCOMPARE(info->getVersion(), 2);
+    const quint32 keyUsage = quint32(info->getKeyUsage().toInt()) & 0xFFFFu;
+    QCOMPARE(keyUsage, quint32(pdf::PDFCertificateInfo::KeyUsageDigitalSignature | pdf::PDFCertificateInfo::KeyUsageNonRepudiation | pdf::PDFCertificateInfo::KeyUsageKeyEncipherment));
+    const QByteArray der = info->getCertificateData();
+    QVERIFY(der.contains(QByteArray::fromHex("0603551d1304023000")) || der.contains(QByteArray::fromHex("0603551d130101ff04023000")));
+    QVERIFY(pdf::PDFAppCertificateDetails::isSelfIssued(der));
+    QVERIFY(pdf::PDFAppToolCertificateProvider::isUsableForSigning(*info));
 
     // Q5.11: the cache has the public certificate of the file (the DER, never the key or password)
     pdf::PDFCertificateCacheRepository repository(environment.context->getDatabase());
@@ -390,6 +500,189 @@ void AppCertificateDialogsTest::createDialogClearsPasswords()
     QVERIFY(dialog->getRepeatField()->text().isEmpty());
     QVERIFY(!dialog->getRepeatField()->isUndoAvailable());
     QTRY_VERIFY(!dialog);
+}
+
+void AppCertificateDialogsTest::createJobCancel()
+{
+    // Plan 6.4: the job runs, the form is Disabled with the card "Creating the certificate…"; Cancel
+    // cancels the job - the dialog closes, no file is written, nothing is emitted, the copy of the
+    // password of the job is cleared
+    CertificateTestEnvironment environment;
+    CreateJobTestGenerator generator;
+    QWidget parent;
+    QPointer<pdf::PDFAppCertificateCreateDialog> dialog = new pdf::PDFAppCertificateCreateDialog(environment.context.get(), &parent);
+    dialog->show();
+    QSignalSpy created(dialog.data(), &pdf::PDFAppCertificateCreateDialog::certificateCreated);
+    const int cleared = pdf::PDFAppCertificateCreateJob::getClearedPasswordCount();
+    CreateDialogFiller::fill(dialog, QStringLiteral("Cancel-Canary-1"));
+    const QString filePath = dialog->getFilePath();
+
+    QTest::mouseClick(dialog->getCreateButton(), Qt::LeftButton);
+    QVERIFY(dialog->isCreating());
+    QTRY_VERIFY(CreateJobTestGenerator::isRunning());
+    QCOMPARE(CreateJobTestGenerator::getPassword(), QStringLiteral("Cancel-Canary-1"));
+    for (QWidget* field : std::initializer_list<QWidget*>{ dialog->getNameField(), dialog->getEmailField(), dialog->getOrganizationField(), dialog->getUnitField(),
+                                                           dialog->getCountryCombo(), dialog->getKeyLengthCombo(), dialog->getValidUntilEdit(), dialog->getPasswordField(), dialog->getRepeatField() })
+    {
+        QVERIFY2(!field->isEnabled(), qPrintable(field->objectName()));
+    }
+    QVERIFY(dialog->getProgressCard() && dialog->getProgressCard()->isVisible());
+    QCOMPARE(dialog->getProgressCard()->getTitleLabel()->text(), QStringLiteral("Creating the certificate…"));
+    QVERIFY(!dialog->getCreateButton()->isEnabled());
+    QVERIFY(dialog->getCancelButton()->isEnabled());
+
+    QTest::mouseClick(dialog->getCancelButton(), Qt::LeftButton);
+    QTRY_VERIFY(!dialog);
+    QTRY_COMPARE_WITH_TIMEOUT(pdf::PDFAppCertificateCreateJob::getClearedPasswordCount(), cleared + 1, 30000 * pdftest::AppDocumentFixture::getTimeoutFactor());
+    QTRY_VERIFY(!CreateJobTestGenerator::isRunning());
+    QTest::qWait(50);
+    QCOMPARE(created.count(), 0);
+    QVERIFY(!QFile::exists(filePath));
+    QVERIFY(CreateDialogFiller::files(CertificateTestEnvironment::applicationFolder()).isEmpty());
+}
+
+void AppCertificateDialogsTest::createJobCloseDuringGeneration()
+{
+    // Plan 6.4: the close of the tab deletes the dialog while its job runs - the job is canceled, its
+    // result dropped with the watcher (a child of the dialog): no file, no signal, no crash
+    CertificateTestEnvironment environment;
+    CreateJobTestGenerator generator;
+    QWidget* parent = new QWidget();
+    QPointer<pdf::PDFAppCertificateCreateDialog> dialog = new pdf::PDFAppCertificateCreateDialog(environment.context.get(), parent);
+    dialog->show();
+    QSignalSpy created(dialog.data(), &pdf::PDFAppCertificateCreateDialog::certificateCreated);
+    const int cleared = pdf::PDFAppCertificateCreateJob::getClearedPasswordCount();
+    CreateDialogFiller::fill(dialog, QStringLiteral("Close-Canary-2"));
+    const QString filePath = dialog->getFilePath();
+    QVERIFY(dialog->create());
+    QTRY_VERIFY(CreateJobTestGenerator::isRunning());
+
+    delete parent;
+    QVERIFY(!dialog);
+    QTRY_COMPARE_WITH_TIMEOUT(pdf::PDFAppCertificateCreateJob::getClearedPasswordCount(), cleared + 1, 30000 * pdftest::AppDocumentFixture::getTimeoutFactor());
+    QTRY_VERIFY(!CreateJobTestGenerator::isRunning());
+    QTest::qWait(50);
+    QCOMPARE(created.count(), 0);
+    QVERIFY(!QFile::exists(filePath));
+    QVERIFY(CreateDialogFiller::files(CertificateTestEnvironment::applicationFolder()).isEmpty());
+}
+
+void AppCertificateDialogsTest::createJobTwoStarts()
+{
+    // Plan 6.4: two quick starts run one job and write one file
+    CertificateTestEnvironment environment;
+    CreateJobTestGenerator generator;
+    QWidget parent;
+    QPointer<pdf::PDFAppCertificateCreateDialog> dialog = new pdf::PDFAppCertificateCreateDialog(environment.context.get(), &parent);
+    dialog->show();
+    QSignalSpy created(dialog.data(), &pdf::PDFAppCertificateCreateDialog::certificateCreated);
+    CreateDialogFiller::fill(dialog, QStringLiteral("Two-Starts-3"));
+
+    QVERIFY(dialog->create());
+    QVERIFY(!dialog->create());
+    QTest::mouseClick(dialog->getCreateButton(), Qt::LeftButton);
+    QTest::keyClick(dialog->getCreateButton(), Qt::Key_Return);
+    QTRY_VERIFY(CreateJobTestGenerator::isRunning());
+    CreateJobTestGenerator::release();
+    QTRY_COMPARE_WITH_TIMEOUT(created.count(), 1, 60000 * pdftest::AppDocumentFixture::getTimeoutFactor());
+    QTRY_VERIFY(!dialog);
+    QCOMPARE(CreateJobTestGenerator::getCalls(), 1);
+    QCOMPARE(CreateDialogFiller::files(CertificateTestEnvironment::applicationFolder()), QStringList({ QFileInfo(created.front().front().toString()).fileName() }));
+}
+
+void AppCertificateDialogsTest::createJobSurvivesSystemHide()
+{
+    // Review RS6APP, plan 6.4: only a close of the dialog cancels the job. A hide by the window system
+    // (the main window minimized: a spontaneous hide event) is no close - the job goes on and creates
+    // the certificate
+    CertificateTestEnvironment environment;
+    CreateJobTestGenerator generator;
+    QWidget parent;
+    QPointer<pdf::PDFAppCertificateCreateDialog> dialog = new pdf::PDFAppCertificateCreateDialog(environment.context.get(), &parent);
+    dialog->show();
+    QSignalSpy created(dialog.data(), &pdf::PDFAppCertificateCreateDialog::certificateCreated);
+    CreateDialogFiller::fill(dialog, QStringLiteral("System-Hide-4"));
+    QVERIFY(dialog->create());
+    QTRY_VERIFY(CreateJobTestGenerator::isRunning());
+
+    QHideEvent hide;
+    QSpontaneKeyEvent::setSpontaneous(&hide);
+    QCoreApplication::instance()->notify(dialog.data(), &hide);   // sendEvent would make it not spontaneous
+    QVERIFY(dialog->isCreating());
+
+    CreateJobTestGenerator::release();
+    QTRY_COMPARE_WITH_TIMEOUT(created.count(), 1, 60000 * pdftest::AppDocumentFixture::getTimeoutFactor());
+    QVERIFY(QFile::exists(created.front().front().toString()));
+}
+
+void AppCertificateDialogsTest::createJobPasswordCanary()
+{
+    // Plan 6.1, 6.2: the password of a new certificate is only in the encrypted .pfx - not in a row
+    // of the database (also not in the certificate cache), not in another file; the copy of the job
+    // is cleared at its end
+    CertificateTestEnvironment environment;
+    const QString canary = QStringLiteral("Canary-9Zp-PDF4QT-Key");
+    QWidget parent;
+    QPointer<pdf::PDFAppCertificateCreateDialog> dialog = new pdf::PDFAppCertificateCreateDialog(environment.context.get(), &parent);
+    dialog->show();
+    QSignalSpy created(dialog.data(), &pdf::PDFAppCertificateCreateDialog::certificateCreated);
+    const int cleared = pdf::PDFAppCertificateCreateJob::getClearedPasswordCount();
+    CreateDialogFiller::fill(dialog, canary);
+    QVERIFY(dialog->create());
+    QTRY_COMPARE_WITH_TIMEOUT(created.count(), 1, 60000 * pdftest::AppDocumentFixture::getTimeoutFactor());
+    QTRY_COMPARE(pdf::PDFAppCertificateCreateJob::getClearedPasswordCount(), cleared + 1);
+    const QString filePath = created.front().front().toString();
+
+    // The .pfx opens by the password; its bytes do not have the password as a text
+    const QByteArray pkcs12 = CertificateTestEnvironment::read(filePath);
+    QVERIFY(pdf::PDFCertificateManager::readCertificate(pkcs12, canary));
+    const QList<QByteArray> forms = { canary.toUtf8(), QByteArray(reinterpret_cast<const char*>(canary.utf16()), canary.size() * 2), canary.toUtf8().toHex() };
+    for (const QByteArray& form : forms)
+    {
+        QVERIFY(!pkcs12.contains(form));
+    }
+    QCOMPARE(CreateDialogFiller::files(CertificateTestEnvironment::applicationFolder()), QStringList({ QFileInfo(filePath).fileName() }));
+
+    // No row of any table of the database has it
+    pdf::PDFDatabaseConnection* connection = environment.context->getDatabase()->getConnection();
+    pdf::PDFDatabaseStatement tables(connection, "SELECT name FROM sqlite_master WHERE type = 'table'");
+    QStringList names;
+    while (tables.next())
+    {
+        names << tables.getText(0);
+    }
+    QVERIFY(names.contains(QStringLiteral("certificate_cache")));
+    int rows = 0;
+    for (const QString& name : names)
+    {
+        const QByteArray sql = QStringLiteral("SELECT * FROM \"%1\"").arg(name).toUtf8();
+        pdf::PDFDatabaseStatement statement(connection, sql.constData());
+        while (statement.next())
+        {
+            ++rows;
+            for (int column = 0; column < statement.getColumnCount(); ++column)
+            {
+                const QByteArray value = statement.getBlob(column) + statement.getText(column).toUtf8();
+                for (const QByteArray& form : forms)
+                {
+                    QVERIFY2(!value.contains(form), qPrintable(name));
+                }
+            }
+        }
+    }
+    QVERIFY(rows > 0);
+}
+
+void AppCertificateDialogsTest::importRefusesNetworkPath()
+{
+    // Plan of step 6, 7 (PDFAppToolPathRules): a file of a network place is refused, never read
+    CertificateTestEnvironment environment;
+    QString target;
+    QString error;
+    QCOMPARE(pdf::PDFAppCertificateImportDialog::importFile(environment.context.get(), QStringLiteral("//server/share/company.pfx"), CertificateTestEnvironment::applicationFolder(), &target, &error),
+             pdf::PDFAppCertificateImportDialog::Outcome::Refused);
+    QCOMPARE(error, QStringLiteral("The file company.pfx is not on this computer. Copy it to this computer first."));
+    QVERIFY(CreateDialogFiller::files(CertificateTestEnvironment::applicationFolder()).isEmpty());
 }
 
 void AppCertificateDialogsTest::importCopiesFile()
@@ -597,14 +890,15 @@ void AppCertificateDialogsTest::providerStatesOfCertificates()
     QVERIFY(pdf::PDFAppToolCertificateProvider::getDescription(early).startsWith(QStringLiteral("Valid from ")));
     pdf::PDFAppLocale::setCurrentTimeOverride(0);
 
-    // Q5.4: a certificate of the system store (no PKCS#12) is Disabled with its reason
+    // A certificate of the system store (no PKCS#12) is a recipient of the encryption by its public
+    // certificate (the addendum of the owner of 15. 11.): choosable, no password
     pdf::PDFCertificateEntry system;
     system.info = *info;
     pdf::PDFAppToolCertificateItem systemItem = pdf::PDFAppToolCertificateProvider::createItem(system, info, QDateTime::currentDateTimeUtc());
     QCOMPARE(systemItem.source, pdf::PDFAppToolCertificateItem::Source::SystemStore);
-    QCOMPARE(systemItem.state, State::SystemStore);
-    QVERIFY(!systemItem.isChoosable());
-    QCOMPARE(pdf::PDFAppToolCertificateProvider::getDescription(systemItem), QStringLiteral("System certificates will be supported with Manage Certificates"));
+    QCOMPARE(systemItem.state, State::Valid);
+    QVERIFY(systemItem.isChoosable());
+    QVERIFY(!systemItem.isPasswordProtected);
 
     // NoEncryptionUsage has its reason (B99: an old certificate without keyEncipherment)
     pdf::PDFAppToolCertificateItem unusable = expired;
@@ -659,7 +953,7 @@ void AppCertificateDialogsTest::listChoosesRows()
     expired.validUntil = QDateTime(QDate(2025, 1, 15), QTime(12, 0), QTimeZone::UTC);
     Item system;
     system.source = Item::Source::SystemStore;
-    system.state = Item::State::SystemStore;
+    system.state = Item::State::NoEncryptionUsage;
     system.name = QStringLiteral("Jane Novak – Company ID");
 
     QWidget window;

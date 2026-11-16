@@ -61,6 +61,7 @@
 #include "pdfmcpschema.h"
 
 #include <QApplication>
+#include <QElapsedTimer>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QProcess>
@@ -70,6 +71,10 @@
 #include <QtTest>
 
 #include <atomic>
+
+#ifdef Q_OS_WIN
+#include <qt_windows.h>
+#endif
 
 // Wave 0 of step 7 (plan 8 item 7) in the application: the frozen contract of
 // the tools (toolSetContract), the bridge of the tools of the catalog with the
@@ -205,6 +210,7 @@ private slots:
     void reviewCatalogSaveCopyRecheckedAfterConfirmation();
     void reviewIndexWaiterCanceled();
     void reviewHeavyJobsNeverBlockWorkers();
+    void shutdownAnswersWindowMessages();
     void reviewUntrustedPlaceholders();
     void reviewSubscribeWithoutListing();
     void reviewStateWithoutReadHidesDocuments();
@@ -237,6 +243,7 @@ private slots:
     void hostileInput() { AppMcpReadTests::hostileInput(); }
     void deletionMatrix() { AppMcpReadTests::deletionMatrix(); }
     void resourceSubscriptionsHttp() { AppMcpReadTests::resourceSubscriptionsHttp(); }
+    void resourceListOrder() { AppMcpReadTests::resourceListOrder(); }
     void httpEndToEnd() { AppMcpReadTests::httpEndToEnd(); }
     void catalogToolBridgeHttp() { AppMcpReadTests::catalogToolBridgeHttp(); }
 
@@ -1989,6 +1996,74 @@ public:
 private:
     std::shared_ptr<std::atomic<bool>> m_flag;
 };
+
+#ifdef Q_OS_WIN
+/// A job, which sends a message to a window of the GUI thread and waits for its answer (as the PIN
+/// dialog of a key of the store of Windows does with its owner window)
+class AppMcpWindowMessageJob : public pdf::PDFAppMcpJob
+{
+public:
+    AppMcpWindowMessageJob(std::shared_ptr<pdf::PDFMcpCall> call, HWND window, std::shared_ptr<std::atomic<int>> state) :
+        pdf::PDFAppMcpJob(std::move(call), pdf::PDFAppDocumentSnapshot()),
+        m_window(window),
+        m_state(std::move(state))
+    {
+
+    }
+
+    virtual void execute() override
+    {
+        // 1 = running, 2 = the window answered, 3 = it did not answer within 10 s
+        m_state->store(1);
+        DWORD_PTR result = 0;
+        const LRESULT isAnswered = SendMessageTimeoutW(m_window, WM_NULL, 0, 0, SMTO_BLOCK, 10000, &result);
+        m_state->store(isAnswered != 0 ? 2 : 3);
+        getCall()->finish(pdf::PDFMcpCallResult::createToolError(QStringLiteral("done")));
+    }
+
+private:
+    HWND m_window = nullptr;
+    std::shared_ptr<std::atomic<int>> m_state;
+};
+#endif
+
+void AppMcpTest::shutdownAnswersWindowMessages()
+{
+    // RS6APP: the PIN dialog of a key of the store of Windows runs in a job and is owned by the main
+    // window (Q6.2): its modality sends messages to that window and waits for the answers. The stop of
+    // the server waits for the jobs in the GUI thread - it answers the sent messages meanwhile, so the
+    // stop never waits for a dialog, which waits for the stop
+#ifndef Q_OS_WIN
+    QSKIP("The owner window of a system dialog of another thread is a matter of Windows");
+#else
+    pdftest::AppMcpFixture fixture;
+    pdf::PDFAppMcpHost* host = fixture.host();
+    QVERIFY(host);
+
+    // A window of the GUI thread (a message-only window: the offscreen platform has no native windows)
+    HWND window = CreateWindowExW(0, L"STATIC", L"", 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, GetModuleHandleW(nullptr), nullptr);
+    QVERIFY(window);
+    const auto destroyWindow = qScopeGuard([window]() { DestroyWindow(window); });
+
+    std::shared_ptr<std::atomic<int>> state = std::make_shared<std::atomic<int>>(0);
+    std::shared_ptr<pdf::PDFMcpCall> call = pdf::PDFMcpCall::create(fixture.createRequest(QStringLiteral("document"), AppMcpTestHelper::arguments(R"({"action":"get_info"})")));
+    host->startJob(std::make_shared<AppMcpWindowMessageJob>(call, window, state));
+
+    // The job waits for the window, the GUI thread does not pump its events now
+    QElapsedTimer timer;
+    timer.start();
+    while (state->load() < 1 && timer.elapsed() < 10000)
+    {
+        QThread::msleep(5);
+    }
+    QCOMPARE(state->load(), 1);
+    QThread::msleep(50);
+
+    host->shutdown();
+    QCOMPARE(state->load(), 2);
+    QVERIFY(timer.elapsed() < 10000);
+#endif
+}
 
 void AppMcpTest::reviewHeavyJobsNeverBlockWorkers()
 {

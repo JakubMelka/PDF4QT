@@ -26,9 +26,15 @@
 #include "pdfappglobal.h"
 #include "pdfmessagebox.h"
 
+#include "pdfcertificatemanager.h"
+
 #include <QDate>
+#include <QFutureWatcher>
 #include <QPointer>
 #include <QString>
+
+#include <atomic>
+#include <memory>
 
 class QPushButton;
 
@@ -37,16 +43,63 @@ namespace pdf
 
 class PDFAppContext;
 class PDFAppParagraph;
+class PDFAppToolProgressCard;
 class PDFComboBox;
 class PDFDateTimeEdit;
 class PDFLineEdit;
 
+/// The result of the job of the creation of a certificate (plain values)
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppCertificateCreateResult
+{
+public:
+    QByteArray pkcs12;              ///< The .pfx (PKCS#12 encrypted by the password), empty on a failure or a cancellation
+    QByteArray certificateData;     ///< DER of the public certificate of the PKCS#12 (the certificate cache, Q5.11)
+    QString errorMessage;           ///< Translated reason of a failure (never the password)
+    bool isCanceled = false;        ///< The job was canceled (no error is shown)
+};
+
+/// The one job of the creation of a certificate of PDFAppCertificateCreateDialog (plan of step 6 of
+/// phase 2, 6.4, B120, B137; QtConcurrent::run): it gets only values - the subject, the length of the
+/// key, the validity and a copy of the password (NewCertificateInfo, a serial number of 127 random
+/// bits of generateRandomBytes made by the core) - and the flag of the cancellation, which the callback
+/// of the generation of the key reads (PDFSignatureFactory::createCertificate). It knows no QObject and
+/// writes no file: it returns the bytes of the PKCS#12 and the public certificate; the GUI thread writes
+/// the file. At its end (also after a cancellation) its copy of the password is cleared
+/// (PDFSecureMemory::clear) and the thread resources of OpenSSL are released.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppCertificateCreateJob
+{
+public:
+    /// The generation of the key and the certificate (the tests give a generator, which waits)
+    using Generator = QByteArray (*)(const PDFCertificateManager::NewCertificateInfo& info, const std::atomic<bool>* cancelFlag, QString* errorMessage);
+
+    /// \param info The certificate; its password must be a copy of its own (detached), the job clears it
+    /// \param cancelFlag The cancellation set by the dialog
+    explicit PDFAppCertificateCreateJob(PDFCertificateManager::NewCertificateInfo info, std::shared_ptr<const std::atomic<bool>> cancelFlag);
+
+    PDFAppCertificateCreateResult operator()();
+
+    /// The generator of the jobs (tests); nullptr = PDFSignatureFactory::createCertificate
+    static void setGenerator(Generator generator);
+
+    /// The number of the jobs, whose copy of the password was non-empty and is cleared (only zero
+    /// characters left) at their end - the check of the tests of S6.1 (the copy never stays)
+    static int getClearedPasswordCount();
+
+private:
+    static std::atomic<Generator>& getGenerator();
+    static std::atomic<int>& getClearedPasswordCounter();
+
+    PDFCertificateManager::NewCertificateInfo m_info;
+    std::shared_ptr<const std::atomic<bool>> m_cancelFlag;
+};
+
 /// Create a self-signed certificate (Figma 436:10081, 436:10427 lists, 436:10928 errors, 436:11280
 /// created; plan of step 5 of phase 2, 2.3, owner answer Q5.3 a, R5-21; package P3; shared with
 /// Manage Certificates of step 6): the name, the e-mail, the organization, the unit, the country, the
-/// length of the key (1024 / 2048 / 4096, 2048 by default), the validity, the file name and the
-/// password twice. The core creates the .pfx (PDFCertificateManager::createCertificate, with
-/// keyEncipherment, B99 - package P1b) and its public certificate goes to the certificate cache.
+/// length of the key (2048 / 3072 / 4096, 2048 by default - owner answer Q6.14), the validity, the file
+/// name and the password twice. The core creates the .pfx (PDFSignatureFactory::createCertificate:
+/// X.509 v3, keyUsage digitalSignature, nonRepudiation, keyEncipherment, basicConstraints CA:FALSE,
+/// B99, B130 - package P1b) and its public certificate goes to the certificate cache.
 ///
 /// Opened by new + QPointer (never on the stack, never exec): it deletes itself when closed
 /// (Qt::WA_DeleteOnClose); the opener keeps a QPointer. The password fields follow S5.1 / S5.2
@@ -54,13 +107,21 @@ class PDFLineEdit;
 ///
 /// The form (436:10081): Name, E-mail, Organization (needed - the old dialog needed them too),
 /// Organization unit (optional), Country ("CZ | Česko", sorted by the code, the region of the
-/// system first chosen), Key length (436:10427: 1024 "Weak · only for old systems", 2048
-/// "Recommended", 4096 "Strongest · slower signing"), Valid until (the calendar, earliest today,
-/// five years ahead by default), Saved as (the next free cert_N.pfx of the certificate folder, not
-/// editable), the password twice (it may be empty). A field shows its error after the user has
-/// edited it (436:10928: "Enter a name.", "The passwords do not match."); Create Certificate is
-/// Disabled until the form is valid. The key is generated in the GUI thread (a 4096-bit key takes
-/// a moment, as in the old dialog).
+/// system first chosen), Key length (436:10427: 2048 "Recommended", 3072 "Stronger · a little
+/// slower", 4096 "Strongest · slower signing"), Valid until (the calendar, earliest today, five years
+/// ahead by default), Saved as (the next free cert_N.pfx of the certificate folder, not editable), the
+/// password twice (it may be empty). A field shows its error after the user has edited it (436:10928:
+/// "Enter a name.", "The passwords do not match."); Create Certificate is Disabled until the form is
+/// valid.
+///
+/// The generation (plan of step 6 of phase 2, 6.4; no frame - 436:10081 with the card of the
+/// progress): Create Certificate starts one job PDFAppCertificateCreateJob by QtConcurrent::run; the
+/// form is Disabled, the card "Creating the certificate…" is shown, Cancel stays. Cancel or the close
+/// of the dialog (also with its tab) cancels the job: the dialog closes, no file is written, nothing is
+/// emitted. The QFutureWatcher is a child of the dialog: the result of a dialog, which is gone, is
+/// dropped. After the result the GUI thread writes the file by QSaveFile (a failure shows its error
+/// and the form again), stores the public certificate into the cache, closes the dialog and emits
+/// certificateCreated as its last call. A second start while the job runs does nothing.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppCertificateCreateDialog : public PDFMessageBox
 {
     Q_OBJECT
@@ -72,8 +133,8 @@ public:
     /// create-dialog 436:10330: 640 wide
     static constexpr int CARD_WIDTH = 640;
 
-    /// Key length chosen by default and the validity (436:10427)
-    static constexpr int DEFAULT_KEY_LENGTH = 2048;
+    /// Key length chosen by default and the validity (436:10427, Q6.14)
+    static constexpr int DEFAULT_KEY_LENGTH = PDFCertificateManager::DEFAULT_RSA_KEY_LENGTH;
     static constexpr int DEFAULT_VALIDITY_YEARS = 5;
 
     /// Latest date of Valid until: the validity in seconds of the core is an int
@@ -101,6 +162,10 @@ public:
     PDFLineEdit* getRepeatField() const;
     QPushButton* getCreateButton() const;
     QPushButton* getCancelButton() const;
+    PDFAppToolProgressCard* getProgressCard() const;
+
+    /// The job of the generation runs (the card of the progress is shown)
+    bool isCreating() const;
 
     /// The errors shown under the fields (empty = none shown)
     QString getNameError() const;
@@ -123,8 +188,10 @@ public:
     /// The two-letter code of the country of an item of Country ("CZ")
     QString getCountryCode() const;
 
-    /// Creates the certificate (the button Create Certificate): false and the error shown on a
-    /// failure; on a success the dialog closes and emits certificateCreated as its last call
+    /// Starts the creation of the certificate (the button Create Certificate): the job of the
+    /// generation. \returns false, when it does not start (an invalid form, a job running already).
+    /// The result comes later: on a success the dialog closes and emits certificateCreated as its
+    /// last call; a failure shows its error.
     bool create();
 
 Q_SIGNALS:
@@ -134,6 +201,7 @@ Q_SIGNALS:
 
 protected:
     virtual void hideEvent(QHideEvent* event) override;
+    virtual void showEvent(QShowEvent* event) override;
 
 private:
     QWidget* createField(const QString& label, QWidget* control, PDFAppParagraph** errorText, QWidget* parent);
@@ -143,8 +211,11 @@ private:
     void updateState();
     void updateKeyLengthChecks();
     void clearPasswords();
+    void cancelJob();
+    void showCreateError(const QString& error);
     void onFieldEdited();
     void onCreateClicked();
+    void onJobFinished();
 
     QPointer<PDFAppContext> m_context;
     QString m_filePath;
@@ -165,10 +236,12 @@ private:
     QPointer<PDFAppParagraph> m_createError;
     QPointer<QPushButton> m_createButton;
     QPointer<QPushButton> m_cancelButton;
+    QPointer<PDFAppToolProgressCard> m_progressCard;
+    QPointer<QFutureWatcher<PDFAppCertificateCreateResult>> m_watcher;  ///< A child of the dialog: the result of a dialog, which is gone, is dropped
+    std::shared_ptr<std::atomic<bool>> m_cancelFlag;                    ///< Shared with the job (a plain value, no QObject)
     bool m_isNameEdited = false;
     bool m_isEmailEdited = false;
     bool m_isOrganizationEdited = false;
-    bool m_isCreating = false;
 };
 
 /// Import of a .pfx file into the certificate folder of the application (Figma 436:11538 - the

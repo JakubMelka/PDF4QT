@@ -71,6 +71,15 @@ class PDFLabel;
 /// card of the owner password appears, when the validation asks for it, and the run gets
 /// ownerSameAsOpen false.
 ///
+/// Sign with Certificate (protect.sign; plan of step 6 of phase 2, 6.5, 8, Q6.7, R6-10): the list of the
+/// certificates in the signing mode (PDFAppToolCertificateUsage::Signing - the .pfx files and, on
+/// Windows, the personal certificates of the system store, Q6.2), the certificate of the assistant
+/// (the parameter certificate, a SHA-256 fingerprint) only preselected, the card of the password of the
+/// chosen .pfx file (none for a certificate of the system store, whose PIN the system asks for, nor for
+/// a file without a password), the facts of the signature with the reason and the contact of the
+/// assistant and the authority of a timestamp. The run gets the fingerprint of the certificate the user
+/// has chosen, its password and the entry (takeUserCertificates).
+///
 /// Lifetime: new + QPointer (the call may end while the dialog is open); shown by showInTab as a child
 /// of a PDFAppMcpConfirmScrim over the tab of the document (modal for that tab only, as every
 /// confirmation of an assistant), else Qt::WA_DeleteOnClose. The opener keeps a QPointer and calls
@@ -110,7 +119,7 @@ public:
 
     /// A confirmation without the details of a call (no document, the variant of a change)
     /// \param context Context of the application (the certificates of the user)
-    /// \param toolId The tool of the action (protect.password, protect.permissions, protect.certificate-encrypt)
+    /// \param toolId The tool of the action (protect.password, protect.permissions, protect.certificate-encrypt, protect.sign)
     /// \param parameters The normalized parameters of the assistant (no Secret, no certificate)
     /// \param parent Parent widget
     explicit PDFAppMcpSecretConfirmation(PDFAppContext* context, const QString& toolId, const QVariantMap& parameters, QWidget* parent);
@@ -134,9 +143,17 @@ public:
     /// false, when the document needs its own owner password (Q5.1)
     QVariantMap takeRunValues();
 
-    /// The chosen certificate with its PKCS#12 for PDFAppToolRunEnvironment::userCertificates
-    /// (Encrypt with Certificate, Confirmed only; once)
+    /// The chosen certificate with its PKCS#12 (a certificate of the system store without it) for
+    /// PDFAppToolRunEnvironment::userCertificates (Encrypt with Certificate, Sign with Certificate;
+    /// Confirmed only; once)
     std::vector<PDFCertificateEntry> takeUserCertificates();
+
+    /// The confirmation of Sign with Certificate (the list of the certificates in the signing mode)
+    bool isSigning() const { return m_isSigning; }
+
+    /// The tools, whose confirmation this dialog is (the four tools of the encryption without Remove
+    /// Password, Sign with Certificate)
+    static bool isSupported(const QString& toolId);
 
     /// The call has ended without the user: the dialog ends Withdrawn and closes (deleteLater)
     void withdraw();
@@ -183,6 +200,8 @@ private:
     static std::shared_ptr<PDFAppMcpConfirmation> prepareConfirmation(std::shared_ptr<PDFAppMcpConfirmation> confirmation, const QString& toolId, const QVariantMap& parameters);
 
     void build();
+    void buildSigning();
+    void buildEnd();
     void updateTexts();
     void updateCardLabels(PDFAppToolPasswordCard* card);
     void updateConfirmState();
@@ -195,6 +214,21 @@ private:
 
     /// The values of the run of the typed passwords; false and the errors shown at the cards
     bool prepareRunValues();
+
+    /// Sign with Certificate: the fingerprint and the password of the chosen certificate and its entry
+    /// (a .pfx file opened by its password, a certificate of the system store by its identifier); false
+    /// and the error at the card of the certificate
+    bool prepareSigningValues(QVariantMap* values, std::vector<PDFCertificateEntry>* certificates);
+
+    /// Sign with Certificate: the chosen certificate needs the password of its file (a .pfx file with a
+    /// password; the system store asks for its PIN itself)
+    bool isCertificatePasswordNeeded() const;
+
+    /// Sign with Certificate: the card of the password follows the chosen certificate
+    void updateCertificateCard();
+
+    /// The validation of the tool of the dialog on the document of the confirmation with \p values
+    std::vector<PDFDocumentToolParameterError> validate(const QVariantMap& values, const std::vector<PDFCertificateEntry>& certificates) const;
 
     /// Shows the errors of the validation at their cards (an error of another parameter in the
     /// callout of the errors)
@@ -209,6 +243,7 @@ private:
     QString m_toolId;
     QVariantMap m_parameters;
     std::optional<PDFDocumentToolEncryption::Mode> m_mode;
+    bool m_isSigning = false;               ///< Sign with Certificate (the list in the signing mode)
     Outcome m_outcome = Outcome::Pending;
     QString m_currentMethod;                ///< The encryption of the document now (document.get_info), empty = none
     bool m_isOwnerForced = false;           ///< The document needs its own owner password (Q5.1)
@@ -221,6 +256,7 @@ private:
     QPointer<PDFAppToolCallout> m_downgradeCallout;
     QPointer<PDFAppToolCallout> m_lockoutCallout;
     QPointer<PDFAppToolCallout> m_errorCallout;
+    QPointer<PDFAppToolCallout> m_noCertificateCallout;
     QPointer<PDFLabel> m_secretNote;
     std::unique_ptr<PDFAppToolCertificateProvider> m_provider;
 

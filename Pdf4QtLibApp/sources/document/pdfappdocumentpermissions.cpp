@@ -111,7 +111,12 @@ public:
                 const PDFDocumentToolCatalogEntry* entry = PDFDocumentToolCatalog::findTool(request.toolId);
                 if (entry)
                 {
-                    *required = isNewDocumentOfInputs(request) ? PDFDocumentMerger::getRequiredPermissions() : entry->getRequiredPermissions();
+                    const bool isNewDocument = isNewDocumentOfInputs(request);
+                    *required = isNewDocument ? PDFDocumentMerger::getRequiredPermissions() : getToolPermissions(request, entry);
+                    if (!isNewDocument)
+                    {
+                        *alternatives = getToolAnyOfPermissions(request);
+                    }
                 }
                 for (const Permission permission : request.permissions)
                 {
@@ -137,6 +142,25 @@ public:
 
         const std::shared_ptr<const PDFDocumentTool> tool = request.parameters ? PDFDocumentToolRegistry::getTool(request.toolId) : nullptr;
         return tool ? tool->getOutputTraits(*request.parameters) : PDFDocumentToolOutputTraits(PDFDocumentToolCatalog::findTool(request.toolId));
+    }
+
+    /// The permissions of the run of the tool of the request (plan of step 6 of phase 2, R6-8): the tool
+    /// answers by the parameters of the run, when the request has them and the tool is implemented
+    /// (PDFDocumentTool::getRequiredPermissions - Sign with Certificate into a new or an existing field),
+    /// else the row of the catalog
+    static std::vector<Permission> getToolPermissions(const PDFAppPermissionRequest& request, const PDFDocumentToolCatalogEntry* entry)
+    {
+        const std::shared_ptr<const PDFDocumentTool> tool = request.parameters ? PDFDocumentToolRegistry::getTool(request.toolId) : nullptr;
+        return tool ? tool->getRequiredPermissions(*request.parameters) : entry->getRequiredPermissions();
+    }
+
+    /// The permissions of the run of the tool of the request, of which any one is enough (RS6APP M10:
+    /// Sign with Certificate into an existing empty field - bit 9 or bit 6 of Table 22,
+    /// PDFDocumentTool::getAnyOfPermissions); empty without the parameters of the run
+    static std::vector<Permission> getToolAnyOfPermissions(const PDFAppPermissionRequest& request)
+    {
+        const std::shared_ptr<const PDFDocumentTool> tool = request.parameters ? PDFDocumentToolRegistry::getTool(request.toolId) : nullptr;
+        return tool ? tool->getAnyOfPermissions(*request.parameters) : std::vector<Permission>();
     }
 
     /// The tool of the request makes new documents of its input documents (Merge, Extract Pages,

@@ -54,6 +54,7 @@ class PDFCertificateStore;
 class PDFDocumentToolCatalogEntry;
 class PDFOperationControl;
 class PDFSpeechSynthesizerFactory;
+class PDFTimestampClient;
 
 // Tools of the catalog without a user interface (newapp_tools.md 2, plan of
 // step 6, chapter 3, plan of the first batch of phase 2, chapter 2.2). The GUI
@@ -73,6 +74,8 @@ public:
     bool isModified = true;         ///< The document may differ from \p originalData (unsaved changes). The safe default: only a caller, which knows that the bytes are of this very document, says false (PDFAppDocumentSnapshot::isModified); a size is then measured by writing it.
     QString inputId;                ///< Id of the input of a tool of more inputs (PDFAppToolInputList, the parameter "inputs" of Merge); empty = the inputs are taken in the order of the context
     bool isOwnerPasswordVerified = false;   ///< The owner password of the original file was verified (PDFDocumentMerger::verifyOwnerPassword; a snapshot of an open tab with unsaved changes, owner answer Q15): the permission check of Merge (Q2) accepts the input as opened by its owner
+    bool isWholeFileRewritten = false;      ///< The document of the tab was rewritten whole after \p originalData were read (Compress Keep, the encryption Keep; PDFAppDocument::isWholeFileRewritten): no incremental update of \p originalData is its file (plan of step 6 of phase 2, 4.4, R6-12). The application fills it, a caller without a tab leaves false.
+    bool isRestored = false;                ///< \p originalData are a damaged file, which the reader restored (PDFAppDocument::getRestoration is not None): an incremental update of them would not be read by other readers (plan of step 6 of phase 2, 4.4, R6-12)
 
     /// Input document of a snapshot of an open document: the file name is taken from
     /// its path
@@ -325,6 +328,21 @@ public:
     /// nullptr = none (a tool, which needs it, fails without it)
     PDFDocumentToolFileSink* fileSink = nullptr;
 
+    /// The client of the RFC 3161 timestamp authority of a run, which asks one (Sign with Certificate
+    /// with a timestamp, Add Timestamp; plan of step 6 of phase 2, 6.6, 10.3): a plain value shared by
+    /// the context, no QObject, used only by the thread of the run (PDFTimestampClient). The runner of
+    /// the application, the bridge of MCP and PdfTool give the network client, a test a client over a
+    /// local test authority (PDFTimestampTransport) - never the internet in a test. Null = no
+    /// authority: a run, which needs one, fails with the reason, nothing goes to the network.
+    std::shared_ptr<const PDFTimestampClient> timestampClient;
+
+    /// The native handle of the window, to which a dialog of the system shown by the run belongs - the
+    /// PIN dialog of a key of the certificate store of Windows (PDFSignatureFactory::unlock, plan of step
+    /// 6 of phase 2, Q6.2): an opaque number (an HWND on Windows, QWidget::winId of the main window of the
+    /// tool), never a pointer the run dereferences; the runner of the application fills it, 0 = none (MCP
+    /// without a window, PdfTool, tests).
+    quintptr parentWindow = 0;
+
     /// The first input document, nullptr = none
     const PDFDocument* getDocument() const;
 };
@@ -361,6 +379,12 @@ public:
     /// writes \p document itself). A Changed document has them, when the tool has verified
     /// its written file (the encryption of step 5 of phase 2 reads it back by the new
     /// password): a copy and an overwrite save them (PDFAppToolResultWriter::createCopyRequest).
+    /// A tool, whose result is an incremental update of the input (Sign with Certificate, Add
+    /// Timestamp; plan of step 6 of phase 2, 4.4, R6-27), gives the whole file it has verified -
+    /// the exact bytes of PDFDocumentToolInputDocument::originalData followed by its update: they are
+    /// the only valid form of its result, \p document is only their parsed copy (a new write of it
+    /// would destroy every signature). Its result is only this file (PDFDocumentToolCatalogEntry::
+    /// isFileOnlyResult): the result dialog and MCP save or open these bytes, never \p document.
     QByteArray writtenData;
 };
 
@@ -663,6 +687,28 @@ public:
     /// result; owner 13. 11. 2026). The default is PDFDocumentToolCatalogEntry::isPageChange
     /// (false without an entry).
     virtual bool isPageChange(const QVariantMap& parameters) const;
+
+    /// Permissions of an encrypted document (ISO 32000-2, 7.6.4.2, Table 22), which a run with the
+    /// normalized parameters needs: every one of them must be granted (plan of step 6 of phase 2, R6-8 -
+    /// Sign with Certificate needs bits 4 and 6 for a new signature field, bit 9 or 6 for an existing
+    /// empty field). The default is the mask of the catalog entry
+    /// (PDFDocumentToolCatalogEntry::getRequiredPermissions; none without an entry). The validation of
+    /// the core (validate) and the application (PDFAppDocumentPermissions, a request with the parameters
+    /// of the run) ask it; a tool, whose output makes new documents of its inputs, needs the permissions
+    /// of PDFDocumentMerger::getRequiredPermissions besides (isNewDocumentOfInputs). Reentrant.
+    virtual std::vector<PDFSecurityHandler::Permission> getRequiredPermissions(const QVariantMap& parameters) const;
+
+    /// Permissions of an encrypted document (Table 22), of which any one is enough for a run with the
+    /// normalized parameters, besides every one of getRequiredPermissions; empty = no such choice (the
+    /// default). Sign with Certificate into an existing empty field: bit 9 or bit 6 ("fill in existing
+    /// interactive form fields (including signature fields)" / "fill in interactive form fields", plan of
+    /// step 6 of phase 2, R6-8, RS6APP M10). The validation of the core (validate, isPermittedRun), the
+    /// signer and the application (PDFAppDocumentPermissions) ask it with getRequiredPermissions. Reentrant.
+    virtual std::vector<PDFSecurityHandler::Permission> getAnyOfPermissions(const QVariantMap& parameters) const;
+
+    /// The security handler of the document grants a run with the normalized parameters: every one of
+    /// getRequiredPermissions and, when there are any, at least one of getAnyOfPermissions
+    bool isPermittedRun(const PDFDocument* document, const QVariantMap& parameters) const;
 
     /// The output file of a tool of the result kind Files, which the caller writes
     /// (PDFDocumentToolResult::outputs), is a text: MCP may return it as the text of its result

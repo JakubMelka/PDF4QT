@@ -760,7 +760,8 @@ PDFDocumentSecurityStore PDFDocumentSecurityStore::parse(const PDFObject& object
                         item.Cert = getDecodedStreams(vriItemDictionary->get("Cert"));
                         item.CRL = getDecodedStreams(vriItemDictionary->get("CRL"));
                         item.OCSP = getDecodedStreams(vriItemDictionary->get("OCSP"));
-                        item.created = PDFEncoding::convertToDateTime(loader.readStringFromDictionary(vriDictionary, "TU"));
+                        // B127: /TU is a key of the entry of the signature (ISO 32000-2, Table 262)
+                        item.created = PDFEncoding::convertToDateTime(loader.readStringFromDictionary(vriItemDictionary, "TU"));
 
                         PDFObject timestampObject = document->getObject(vriItemDictionary->get("TS"));
                         if (timestampObject.isStream())

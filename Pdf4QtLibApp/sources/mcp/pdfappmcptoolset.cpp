@@ -516,11 +516,17 @@ public:
             item.addProperty(QStringLiteral("field"), outputString(QString()));
             item.addProperty(QStringLiteral("signer"), outputString(QString()));
             item.addProperty(QStringLiteral("signedAt"), outputString(QStringLiteral("ISO 8601")));
+            item.addProperty(QStringLiteral("signedAtClaimed"), B::boolean(QStringLiteral("signedAt is only claimed by the signer (/M of the signature dictionary, no signing-time attribute in the signature): not a trusted time")));
             item.addProperty(QStringLiteral("status"), B::enumeration(QString(), { QStringLiteral("valid"), QStringLiteral("invalid"), QStringLiteral("unknown"), QStringLiteral("pending") }));
             item.addProperty(QStringLiteral("trusted"), B::boolean(QString()));
-            item.addProperty(QStringLiteral("coversWholeDocument"), B::boolean(QString()));
-            item.addProperty(QStringLiteral("modifiedAfter"), B::boolean(QStringLiteral("The document was changed after the signature")));
+            item.addProperty(QStringLiteral("coversWholeDocument"), B::boolean(QStringLiteral("The signature covers the whole file: no revision was added after it")));
+            item.addProperty(QStringLiteral("laterRevisions"), B::enumeration(QStringLiteral("Revisions added after the signature: none; allowed - only later signatures, document timestamps or validation data (infos says what); "
+                                                                                             "changed - the document was changed after it was signed"),
+                                                                             { QStringLiteral("none"), QStringLiteral("allowed"), QStringLiteral("changed") }));
+            item.addProperty(QStringLiteral("modifiedAfter"), B::boolean(QStringLiteral("The document was changed after the signature (laterRevisions is changed)")));
             item.addProperty(QStringLiteral("fileRestored"), B::boolean(QStringLiteral("The file is damaged and its content was restored from its bytes: what is shown may not be what was signed")));
+            item.addProperty(QStringLiteral("infos"), outputArray(QStringLiteral("Notes of the verification, which are no problem of the signature (a later signature or timestamp, a visible signature added on a page)"),
+                                                                  outputString(QString())));
             item.addProperty(QStringLiteral("reason"), outputString(QString()));
             item.addProperty(QStringLiteral("location"), outputString(QString()));
 

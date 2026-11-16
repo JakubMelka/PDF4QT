@@ -151,7 +151,9 @@ public:
     /// takes \p inputList over (setParent in this one synchronous call; nullptr = an empty
     /// list, the empty state 378:1657). The navigation may run code of the application.
     /// \returns the tab; nullptr for a tool without its own tab or its GUI, or too many tabs:
-    /// \p inputList then stays with the caller.
+    /// \p inputList then stays with the caller. A tool with one instance (findSingleToolTab,
+    /// Manage Certificates), whose tab exists, gets that tab made current and returned;
+    /// \p inputList stays with the caller then too.
     PDFAppToolTab* createToolTab(const QString& toolId, PDFAppToolInputList* inputList);
 
     /// Adds an own tab of a tool of the instance (the route /tool/{toolId}/{instanceId} of
@@ -166,6 +168,10 @@ public:
 
     /// Own tab of the instance of a tool, nullptr if there is none
     PDFAppToolTab* findToolTab(const QString& instanceId) const;
+
+    /// The own tab of a tool with one instance in a window (PDFDocumentToolGUI::isSingleOwnTab,
+    /// Manage Certificates), nullptr = none or the tool may have more tabs
+    PDFAppToolTab* findSingleToolTab(const QString& toolId) const;
 
     /// Own tabs of tools of the window in the order of the tab bar
     QList<PDFAppToolTab*> getToolTabs() const;

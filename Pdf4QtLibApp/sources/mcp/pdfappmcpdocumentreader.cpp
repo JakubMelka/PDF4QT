@@ -1370,15 +1370,21 @@ QByteArray PDFAppMcpDocumentReader::getSignatures(const PDFAppDocument* document
         {
             writer.beginObject();
             writer.writeMember(QLatin1StringView("field"), Support::sanitizeName(result.getSignatureFieldQualifiedName()));
-            const PDFCertificateInfos& certificates = result.getCertificateInfos();
-            if (!certificates.empty())
+
+            // R6-2 (plan of step 6 of phase 2): the signer is the certificate of the SignerInfo verified
+            // against the value of the signature, never the first certificate of the bag of the signature
+            // (a forged name of another person); a signer, which was not identified, has no name
+            if (const PDFCertificateInfo* signer = result.getSignerCertificate())
             {
-                writer.writeMember(QLatin1StringView("signer"), Support::sanitizeName(certificates.front().getName(PDFCertificateInfo::CommonName), 256));
+                writer.writeMember(QLatin1StringView("signer"), Support::sanitizeName(signer->getName(PDFCertificateInfo::CommonName), 256));
             }
+            // The date of /M of the signature dictionary, when the CMS has no signing-time attribute
+            // (ISO 32000-2, Table 255; PAdES), is only claimed by the signer - not a trusted time (owner 16. 11.)
             const QDateTime signedAt = result.getSignatureDate();
             if (signedAt.isValid())
             {
                 writer.writeMember(QLatin1StringView("signedAt"), Support::formatDateTime(signedAt));
+                writer.writeMember(QLatin1StringView("signedAtClaimed"), result.isSignatureDateClaimed());
             }
 
             QString status = QStringLiteral("unknown");
@@ -1396,10 +1402,41 @@ QByteArray PDFAppMcpDocumentReader::getSignatures(const PDFAppDocument* document
             }
             writer.writeMember(QLatin1StringView("status"), status);
             writer.writeMember(QLatin1StringView("trusted"), result.isCertificateValid());
-            const bool hasUncoveredBytes = result.hasFlag(PDFSignatureVerificationResult::Warning_Signature_NotCoveredBytes);
-            writer.writeMember(QLatin1StringView("coversWholeDocument"), !hasUncoveredBytes);
-            writer.writeMember(QLatin1StringView("modifiedAfter"), hasUncoveredBytes);
+
+            // The revisions after the signed one (ISO 32000-2, 12.8.1; plan R6-3): none (the signature
+            // covers the whole file), allowed (only later signatures, document timestamps or validation
+            // data - infos says what) or changed (the document was changed after it was signed, or the
+            // later bytes are no revision; the verifier sets Warning_Signature_NotCoveredBytes with it)
+            QString laterRevisions = QStringLiteral("none");
+            switch (result.getLaterRevisions())
+            {
+                case PDFSignatureVerificationResult::LaterRevisions::None:
+                    break;
+                case PDFSignatureVerificationResult::LaterRevisions::Allowed:
+                    laterRevisions = QStringLiteral("allowed");
+                    break;
+                case PDFSignatureVerificationResult::LaterRevisions::Changed:
+                    laterRevisions = QStringLiteral("changed");
+                    break;
+            }
+            writer.writeMember(QLatin1StringView("coversWholeDocument"), laterRevisions == QLatin1String("none"));
+            writer.writeMember(QLatin1StringView("laterRevisions"), laterRevisions);
+            writer.writeMember(QLatin1StringView("modifiedAfter"), laterRevisions == QLatin1String("changed"));
             writer.writeMember(QLatin1StringView("fileRestored"), result.hasFlag(PDFSignatureVerificationResult::Warning_Signature_FileRestored));
+
+            // The notes of the verification (later signatures, timestamps, a visible signature added on a
+            // page - R6-3), texts of PDF4QT
+            if (!result.getInfos().isEmpty())
+            {
+                writer.key(QLatin1StringView("infos"));
+                writer.beginArray();
+                for (const QString& info : result.getInfos())
+                {
+                    const QString text = Support::sanitizeName(info, 512);
+                    writer.writeString(QStringView(text));
+                }
+                writer.endArray();
+            }
 
             auto fieldIt = signatureFields.find(result.getSignatureFieldReference());
             if (fieldIt != signatureFields.end())

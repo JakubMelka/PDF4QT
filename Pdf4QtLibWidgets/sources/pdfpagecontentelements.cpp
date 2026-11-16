@@ -452,15 +452,21 @@ void PDFPageContentScene::shortcutOverrideEvent(QWidget* widget, QKeyEvent* even
 {
     Q_UNUSED(widget);
 
-    constexpr QKeySequence::StandardKey acceptedKeys[] = { QKeySequence::Delete,
-                                                           QKeySequence::SelectAll,
-                                                           QKeySequence::Deselect,
-                                                           QKeySequence::Cancel };
+    // The scene takes the key from a shortcut of the window only when its key press does something
+    // (the conditions of keyPressEvent): Esc without a manipulation is the Esc of the window (a tool
+    // closes by it), Delete without a selection the Delete of the window
+    if (!isActive())
+    {
+        return;
+    }
 
-    if (std::any_of(std::begin(acceptedKeys), std::end(acceptedKeys), [event](QKeySequence::StandardKey standardKey) { return event == standardKey; }))
+    const bool isUsed = (event == QKeySequence::Delete && !m_manipulator.isSelectionEmpty()) ||
+                        (event == QKeySequence::SelectAll && !isEmpty()) ||
+                        (event == QKeySequence::Deselect && !m_manipulator.isSelectionEmpty()) ||
+                        (event == QKeySequence::Cancel && m_manipulator.isManipulationInProgress());
+    if (isUsed)
     {
         event->accept();
-        return;
     }
 }
 

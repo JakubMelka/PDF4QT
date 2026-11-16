@@ -532,18 +532,7 @@ void PDFAppMcpConfirmDialog::addChangeBody()
     }
 
     // Show on Page of the proposed annotations (955:143756, aligned to the text)
-    const bool hasGhosts = !m_confirmation->details.value(QStringLiteral("ghosts")).toArray().isEmpty();
-    if (hasGhosts && m_confirmation->document)
-    {
-        QHBoxLayout* linkLayout = new QHBoxLayout();
-        linkLayout->setContentsMargins(26, 0, 0, 0);
-        m_showOnPageLink = new PDFTextLink(QString(), box);
-        m_showOnPageLink->setObjectName(QStringLiteral("showOnPage"));
-        connect(m_showOnPageLink, &PDFTextLink::clicked, this, &PDFAppMcpConfirmDialog::onShowOnPageClicked);
-        linkLayout->addWidget(m_showOnPageLink);
-        linkLayout->addStretch(1);
-        layout->addLayout(linkLayout);
-    }
+    addShowOnPageLink(box, layout);
     addContent(box);
 
     // The signature warning of a signed or certified document (958:27533), above the undo note as in 958:27126
@@ -580,6 +569,24 @@ void PDFAppMcpConfirmDialog::addChangeBody()
     undoLabel->setProperty("noteKind", QStringLiteral("undo"));
     m_noteLabels.emplace_back(undoLabel);
     addContent(undoRow);
+}
+
+void PDFAppMcpConfirmDialog::addShowOnPageLink(QWidget* box, QBoxLayout* layout)
+{
+    const bool hasGhosts = !m_confirmation->details.value(QStringLiteral("ghosts")).toArray().isEmpty();
+    if (!hasGhosts || !m_confirmation->document)
+    {
+        return;
+    }
+
+    QHBoxLayout* linkLayout = new QHBoxLayout();
+    linkLayout->setContentsMargins(26, 0, 0, 0);
+    m_showOnPageLink = new PDFTextLink(QString(), box);
+    m_showOnPageLink->setObjectName(QStringLiteral("showOnPage"));
+    connect(m_showOnPageLink, &PDFTextLink::clicked, this, &PDFAppMcpConfirmDialog::onShowOnPageClicked);
+    linkLayout->addWidget(m_showOnPageLink);
+    linkLayout->addStretch(1);
+    layout->addLayout(linkLayout);
 }
 
 void PDFAppMcpConfirmDialog::addReadBody()
@@ -699,6 +706,16 @@ void PDFAppMcpConfirmDialog::addSaveBody()
         }
     }
     layout->addWidget(facts);
+
+    // Show on Page of what a tool draws (Sign by Hand, plan of step 6 of phase 2, R6-20: a drawing is
+    // seen on its page before it is saved; no frame in Figma: the link below the facts, as in 955:143756)
+    if (!m_confirmation->details.value(QStringLiteral("ghosts")).toArray().isEmpty() && m_confirmation->document)
+    {
+        QVBoxLayout* linkBox = new QVBoxLayout();
+        linkBox->setContentsMargins(0, 2, 0, 4);
+        addShowOnPageLink(box, linkBox);
+        layout->addLayout(linkBox);
+    }
     addContent(box);
 
     // The overwrite note (940:134698): the previous content of the file is lost

@@ -70,6 +70,13 @@ public:
         };
         return subgroups;
     }
+
+    /// The id is one of the ids of a list of tools of this file (TOOL_*)
+    template<size_t N>
+    static bool contains(const char* const (&toolIds)[N], const QString& id)
+    {
+        return std::any_of(std::cbegin(toolIds), std::cend(toolIds), [&id](const char* toolId) { return id == QLatin1String(toolId); });
+    }
 };
 
 QString PDFDocumentToolCategoryInfo::getId() const
@@ -253,6 +260,67 @@ static constexpr const char* TOOL_PAGE_CHANGES[] =
     "pages.crop",
     "pages.resize",
     "pages.boxes",
+    "protect.sign-by-hand",     // The drawing goes into the content of the pages (plan of step 6 of phase 2, 4.2, 10.1)
+};
+
+/// Tools, whose result is the input document with an incremental update of its exact bytes
+/// (PDFDocumentToolCatalogEntry::isIncrementalUpdateOfInput; plan of step 6 of phase 2, 4.4, R6-8):
+/// Sign with Certificate and Add Timestamp - the encryption and the restrictions of the input stay,
+/// so the result is no new document of the inputs
+static constexpr const char* TOOL_INCREMENTAL_UPDATES_OF_INPUT[] =
+{
+    "protect.sign",
+    "protect.timestamp",
+};
+
+/// Tools, whose result is only a new file, the open document stays as it is (PDFDocumentToolCatalogEntry::
+/// isFileOnlyResult; tools.md 9.3 point 11, plan of step 6 of phase 2, 1 point 6, 2.1, 2.2, 2.5)
+static constexpr const char* TOOL_FILE_ONLY_RESULTS[] =
+{
+    "protect.sign",
+    "protect.timestamp",
+    "protect.redact",
+};
+
+/// Tools, whose action of MCP the user always confirms in PDF4QT, also by Allow (PDFDocumentToolCatalogEntry::
+/// isAlwaysConfirmedByMcp; plan of step 5 of phase 2, owner 2026-11-15: the changes of the security; plan of
+/// step 6, 6.5, R6-10, R6-20: a signature is a legal act of the user, a timestamp sends a hash of the document
+/// to a third party, a drawing of a signature by hand could be a forgery)
+static constexpr const char* TOOL_ALWAYS_CONFIRMED_BY_MCP[] =
+{
+    "protect.password",
+    "protect.permissions",
+    "protect.certificate-encrypt",
+    "protect.unlock",
+    "protect.sign",
+    "protect.timestamp",
+    "protect.sign-by-hand",
+};
+
+/// Tools, whose secret values (a password, the choice of a certificate with its private key) only the user
+/// gives in a window of PDF4QT (PDFDocumentToolCatalogEntry::isSecretTypedInApplication; plan of step 5 of
+/// phase 2, Q5.6; plan of step 6, 6.5, Q6.7, R6-10)
+static constexpr const char* TOOL_SECRETS_TYPED_IN_APPLICATION[] =
+{
+    "protect.password",
+    "protect.permissions",
+    "protect.certificate-encrypt",
+    "protect.unlock",
+    "protect.sign",
+};
+
+/// Tools, after which no tool is offered (PDFDocumentToolCatalogEntry::isOfferingSuccessors): the changes of
+/// the security (tools.md 10.3, plan of step 5 of phase 2, 2.4) and the tools, whose result is only a file and
+/// whose frames have no Then continue with (Sign with Certificate 434:9276, Add Timestamp 435:8356; plan of
+/// step 6, R6-10). Redact Content keeps it (437:13887, owner answer Q6.16).
+static constexpr const char* TOOL_WITHOUT_SUCCESSORS[] =
+{
+    "protect.password",
+    "protect.permissions",
+    "protect.certificate-encrypt",
+    "protect.unlock",
+    "protect.sign",
+    "protect.timestamp",
 };
 
 /// Tools, whose run changes the security of the document (PDFDocumentToolCatalogEntry::isSecurityChange;
@@ -320,7 +388,10 @@ bool PDFDocumentToolCatalogEntry::hasDocumentHost() const
 
 bool PDFDocumentToolCatalogEntry::isNewDocumentOfInputs() const
 {
-    if (getInputKind() == PDFDocumentToolInputKind::None)
+    // An incremental update of the input keeps its encryption and its restrictions (Sign with
+    // Certificate, Add Timestamp; plan of step 6 of phase 2, R6-8): it is no new document, also
+    // when its kind of the result is a new document (a new file, the open document stays)
+    if (getInputKind() == PDFDocumentToolInputKind::None || isIncrementalUpdateOfInput())
     {
         return false;
     }
@@ -370,6 +441,31 @@ bool PDFDocumentToolCatalogEntry::isSecurityChange() const
     return false;
 }
 
+bool PDFDocumentToolCatalogEntry::isIncrementalUpdateOfInput() const
+{
+    return PDFDocumentToolCatalogHelper::contains(TOOL_INCREMENTAL_UPDATES_OF_INPUT, getId());
+}
+
+bool PDFDocumentToolCatalogEntry::isFileOnlyResult() const
+{
+    return getResultKind() == PDFDocumentToolResultKind::NewDocument && PDFDocumentToolCatalogHelper::contains(TOOL_FILE_ONLY_RESULTS, getId());
+}
+
+bool PDFDocumentToolCatalogEntry::isAlwaysConfirmedByMcp() const
+{
+    return PDFDocumentToolCatalogHelper::contains(TOOL_ALWAYS_CONFIRMED_BY_MCP, getId());
+}
+
+bool PDFDocumentToolCatalogEntry::isSecretTypedInApplication() const
+{
+    return PDFDocumentToolCatalogHelper::contains(TOOL_SECRETS_TYPED_IN_APPLICATION, getId());
+}
+
+bool PDFDocumentToolCatalogEntry::isOfferingSuccessors() const
+{
+    return !PDFDocumentToolCatalogHelper::contains(TOOL_WITHOUT_SUCCESSORS, getId());
+}
+
 PDFDocumentToolExternalDependency PDFDocumentToolCatalogEntry::getExternalDependency() const
 {
     const PDFDocumentToolExtendedData* data = PDFDocumentToolCatalog::findExtendedData(getId());
@@ -417,12 +513,16 @@ std::vector<PDFSecurityHandler::Permission> PDFDocumentToolCatalogEntry::getRequ
 
 bool PDFDocumentToolCatalogEntry::isPermitted(const PDFDocument* document) const
 {
+    return isPermitted(document, getRequiredPermissions());
+}
+
+bool PDFDocumentToolCatalogEntry::isPermitted(const PDFDocument* document, const std::vector<PDFSecurityHandler::Permission>& permissions)
+{
     if (!document)
     {
         return false;
     }
 
-    const std::vector<PDFSecurityHandler::Permission> permissions = getRequiredPermissions();
     const PDFSecurityHandler* securityHandler = document->getStorage().getSecurityHandler();
     if (permissions.empty() || !securityHandler)
     {
@@ -602,6 +702,17 @@ const std::vector<PDFDocumentToolExtendedData>& PDFDocumentToolCatalog::getExten
     // security (ISO 32000-2, 7.6.4.1): every permission of Table 22 and, in the application, the owner
     // authorization (PDFDocumentToolCatalogEntry::isSecurityChange, PDFAppPermissionAction::ChangeSecurity);
     // no successors (tools.md 10.3: no Continue with after the encryption).
+    // The tools of step 6 of phase 2 (plan 10.1 with R6-8, K6.11, K6.12): Sign with Certificate and Add
+    // Timestamp write the input as an incremental update of its exact bytes into a new file, the open
+    // document stays (a new document of the kind, Save as a file preselected, no impact on the open
+    // document); the encryption and the restrictions of the input stay, so they are no new documents of
+    // their inputs (isIncrementalUpdateOfInput) - a new signature field needs bit 6 and bit 4 ("create
+    // or modify interactive form fields (including signature fields)", Table 22); a run, whose bits
+    // depend on its parameters (the signature of an existing empty field: bit 9 or 6, Q6.3), answers by
+    // PDFDocumentTool::getRequiredPermissions. Sign by Hand writes into the content of the pages - bit 4,
+    // a change of the pages (isPageChange: a certified document gets only a copy). Manage Certificates
+    // writes nothing during its run - an analysis (K6.11). Redact Content writes a new document of the
+    // pages of its input, not encrypted (isNewDocumentOfInputs: the rule of Merge, B139).
     using Input = PDFDocumentToolInputKind;
     using Result = PDFDocumentToolResultKind;
     using Dependency = PDFDocumentToolExternalDependency;
@@ -611,6 +722,7 @@ const std::vector<PDFDocumentToolExtendedData>& PDFDocumentToolCatalog::getExten
     constexpr uint32_t everyPermission = uint32_t(Permission::PrintLowResolution) | uint32_t(Permission::Modify) | uint32_t(Permission::CopyContent) |
                                          uint32_t(Permission::ModifyInteractiveItems) | uint32_t(Permission::ModifyFormFields) | uint32_t(Permission::Accessibility) |
                                          uint32_t(Permission::Assemble) | uint32_t(Permission::PrintHighResolution);
+    constexpr uint32_t signaturePermissions = uint32_t(Permission::Modify) | uint32_t(Permission::ModifyInteractiveItems);
     static const std::vector<PDFDocumentToolExtendedData> data =
     {
         PDFDocumentToolExtendedData("pages.merge", Input::Multiple, Result::NewDocument, Dependency::None, "unite", "edit.page-numbers,optimize.compress,protect.password", Preselected::NewTab, Signature::None, uint32_t(Permission::Assemble)),
@@ -639,10 +751,10 @@ const std::vector<PDFDocumentToolExtendedData>& PDFDocumentToolCatalog::getExten
         PDFDocumentToolExtendedData("protect.permissions", Input::One, Result::ChangeDocument, Dependency::None, "encrypt", "", Preselected::Copy, Signature::LostCopyOnly, everyPermission),
         PDFDocumentToolExtendedData("protect.certificate-encrypt", Input::One, Result::ChangeDocument, Dependency::None, "", "", Preselected::Copy, Signature::LostCopyOnly, everyPermission),
         PDFDocumentToolExtendedData("protect.unlock", Input::One, Result::ChangeDocument, Dependency::None, "decrypt", "", Preselected::Copy, Signature::LostCopyOnly, everyPermission),
-        PDFDocumentToolExtendedData("protect.sign", Input::One, Result::NewDocument, Dependency::None, "", "", Preselected::File, Signature::None, 0),
-        PDFDocumentToolExtendedData("protect.timestamp", Input::One, Result::NewDocument, Dependency::None, "", "", Preselected::File, Signature::None, 0),
-        PDFDocumentToolExtendedData("protect.sign-by-hand", Input::One, Result::ChangeDocument, Dependency::None, "", "protect.password,optimize.compress"),
-        PDFDocumentToolExtendedData("protect.certificates", Input::None, Result::Files, Dependency::None, "cert-store", ""),
+        PDFDocumentToolExtendedData("protect.sign", Input::One, Result::NewDocument, Dependency::None, "", "", Preselected::File, Signature::None, signaturePermissions),
+        PDFDocumentToolExtendedData("protect.timestamp", Input::One, Result::NewDocument, Dependency::None, "", "", Preselected::File, Signature::None, signaturePermissions),
+        PDFDocumentToolExtendedData("protect.sign-by-hand", Input::One, Result::ChangeDocument, Dependency::None, "", "protect.password,optimize.compress", Preselected::Keep, Signature::IncrementalSave, uint32_t(Permission::Modify)),
+        PDFDocumentToolExtendedData("protect.certificates", Input::None, Result::Analysis, Dependency::None, "cert-store", ""),
         PDFDocumentToolExtendedData("protect.redact", Input::One, Result::NewDocument, Dependency::None, "redact", "protect.sanitize,protect.password,optimize.compress", Preselected::File, Signature::None, 0),
         PDFDocumentToolExtendedData("protect.sanitize", Input::One, Result::ChangeDocument, Dependency::None, "", "protect.password,optimize.compress,protect.sign", Preselected::Copy, Signature::LostCopyOnly, uint32_t(Permission::Modify)),
         PDFDocumentToolExtendedData("protect.remove-links", Input::One, Result::ChangeDocument, Dependency::None, "remove-external-links", "protect.sanitize,protect.password,optimize.compress", Preselected::Keep, Signature::IncrementalSave, uint32_t(Permission::ModifyInteractiveItems)),

@@ -63,7 +63,9 @@
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumentmerger.h"
 #include "pdfdocumentreader.h"
+#include "pdfdocumenttool.h"
 #include "pdfdocumenttoolcatalog.h"
+#include "pdfdocumenttoolregistry.h"
 #include "pdfdocumentwriter.h"
 #include "pdffluentwidgets.h"
 #include "pdfmessagebox.h"
@@ -367,6 +369,37 @@ public:
 
 using H = AppOwnerPasswordHelper;
 
+/// A tool of the id of Sign with Certificate, whose permissions depend on its parameter "field"
+/// (plan of step 6 of phase 2, R6-8): with a field only bit 4, without one the row of the catalog
+/// (bits 4 and 6). The bits are of the test, which needs one allowed and one forbidden choice on
+/// the sample (restrictedBits forbids bit 6, allows bit 4); the real rule of Sign is package P2's.
+class AppParameterPermissionTool : public pdf::PDFDocumentTool
+{
+    Q_DECLARE_TR_FUNCTIONS(AppParameterPermissionTool)
+
+public:
+    virtual QString getId() const override { return QStringLiteral("protect.sign"); }
+
+    virtual pdf::PDFDocumentToolParameterDefinitions getParameters() const override
+    {
+        return { pdf::PDFDocumentToolParameterDefinition::createString(tr, QStringLiteral("field"), QT_TR_NOOP("Field"), nullptr, QString()) };
+    }
+
+    virtual std::vector<Permission> getRequiredPermissions(const QVariantMap& parameters) const override
+    {
+        if (!parameters.value(QStringLiteral("field")).toString().isEmpty())
+        {
+            return { Permission::Modify };
+        }
+        return pdf::PDFDocumentTool::getRequiredPermissions(parameters);
+    }
+
+    virtual pdf::PDFDocumentToolResult execute(const pdf::PDFDocumentToolContext&, const QVariantMap&, const pdf::PDFOperationControl*, pdf::PDFProgressSink*) const override
+    {
+        return pdf::PDFDocumentToolResult::createFailed(QStringLiteral("Not run by the test"));
+    }
+};
+
 class AppOwnerPasswordTest : public QObject
 {
     Q_OBJECT
@@ -406,6 +439,9 @@ private Q_SLOTS:
     void changeSecurityToolEntry();
     void restrictPermissionsButton();
     void noDrmMode();
+
+    // Step 6 of phase 2, the skeleton (R6-8): the permissions of a run by its parameters
+    void toolPermissionsOfParameters();
 };
 
 void AppOwnerPasswordTest::initTestCase()
@@ -1561,6 +1597,50 @@ void AppOwnerPasswordTest::noDrmMode()
     QVERIFY(tab->getDocument()->unlockWithOwnerPassword(AppDocumentSamples::getOwnerPassword()));
     QVERIFY(H::openReady(fixture, H::sample(fixture.folder(), QStringLiteral("4-aes"))));
     QVERIFY(!pdf::PDFSecurityHandler::isNoDRM());
+}
+
+void AppOwnerPasswordTest::toolPermissionsOfParameters()
+{
+    // R6-8: the bits a run needs may depend on its parameters (Sign with Certificate: a new field bits 4
+    // and 6, an existing field bit 9 or 6 - Table 22), so the application asks the tool
+    // (PDFDocumentTool::getRequiredPermissions) for a request with the parameters of the run, and the
+    // validation of the core asks the same function; without parameters the row of the catalog stays
+    AppDocumentFixture fixture;
+    const pdf::PDFDocumentPointer document = H::read(H::sample(fixture.folder(), QStringLiteral("6")));
+    QVERIFY(document);
+    QVERIFY(PDFAppDocumentPermissions::isAllowed(document.data(), Permission::Modify));
+    QVERIFY(!PDFAppDocumentPermissions::isAllowed(document.data(), Permission::ModifyInteractiveItems));
+
+    const QString toolId = QStringLiteral("protect.sign");
+    const std::shared_ptr<const pdf::PDFDocumentTool> previous = pdf::PDFDocumentToolRegistry::getTool(toolId);
+    pdf::PDFDocumentToolRegistry::unregisterTool(toolId);
+    const std::shared_ptr<AppParameterPermissionTool> tool = std::make_shared<AppParameterPermissionTool>();
+    QCOMPARE(pdf::PDFDocumentToolRegistry::registerTool(tool), pdf::PDFDocumentToolRegistration::Registered);
+
+    const QVariantMap newField;
+    const QVariantMap existingField = { { QStringLiteral("field"), QStringLiteral("Signature1") } };
+    const std::vector<Permission> annotationsMissing = { Permission::ModifyInteractiveItems };
+
+    // The row of the catalog of Sign (bits 4 and 6, never a new document of its input: R6-8)
+    const pdf::PDFDocumentToolCatalogEntry* entry = pdf::PDFDocumentToolCatalog::findTool(toolId);
+    QVERIFY(entry && !entry->isNewDocumentOfInputs());
+    QVERIFY(PDFAppDocumentPermissions::getMissingPermissions(document.data(), PDFAppPermissionRequest::createTool(toolId)) == annotationsMissing);
+
+    // The parameters of the run: the tool decides
+    QVERIFY(PDFAppDocumentPermissions::getMissingPermissions(document.data(), PDFAppPermissionRequest::createTool(toolId, { }, existingField)).empty());
+    QVERIFY(PDFAppDocumentPermissions::isAllowed(document.data(), PDFAppPermissionRequest::createTool(toolId, { }, existingField)));
+    QVERIFY(PDFAppDocumentPermissions::getMissingPermissions(document.data(), PDFAppPermissionRequest::createTool(toolId, { }, newField)) == annotationsMissing);
+
+    // The core asks the same function in its validation (PdfTool, MCP)
+    const pdf::PDFDocumentToolContext context = pdf::PDFDocumentToolContext::create(pdf::PDFDocumentToolInputDocument::create(document, QByteArray(), QString(), false));
+    QVERIFY(tool->validate(context, existingField).empty());
+    QCOMPARE(tool->validate(context, newField).size(), size_t(1));
+
+    pdf::PDFDocumentToolRegistry::unregisterTool(toolId);
+    if (previous)
+    {
+        pdf::PDFDocumentToolRegistry::registerTool(previous);
+    }
 }
 
 QTEST_MAIN(AppOwnerPasswordTest)

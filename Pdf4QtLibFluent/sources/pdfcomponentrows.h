@@ -654,6 +654,12 @@ public:
     const QString& getTileText() const { return m_row.tileText; }
     void setTileText(const QString& tileText);
 
+    /// The tile as a color swatch of a choice of a color (437:12794: Black, White, Custom color…):
+    /// border/default inside, filled by \p color (none = no fill), the icon over it
+    bool isSwatchTile() const { return m_row.isSwatchTile; }
+    std::optional<PDFThemeColors::Color> getSwatchColor() const { return m_row.swatchColor; }
+    void setSwatchTile(bool isSwatchTile, std::optional<PDFThemeColors::Color> color);
+
     /// Tag after the title, an empty text hides it
     const QString& getTag() const { return m_row.tag; }
     void setTag(const QString& tag);

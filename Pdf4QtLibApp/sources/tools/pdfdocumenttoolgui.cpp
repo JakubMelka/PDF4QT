@@ -392,6 +392,39 @@ void PDFDocumentToolGUI::closeOwnTab()
     }
 }
 
+bool PDFDocumentToolGUI::isSingleOwnTab() const
+{
+    return false;
+}
+
+bool PDFDocumentToolGUI::askClose()
+{
+    return false;
+}
+
+bool PDFDocumentToolGUI::isConfirmShown() const
+{
+    return true;
+}
+
+bool PDFDocumentToolGUI::isUndoShown() const
+{
+    return true;
+}
+
+bool PDFDocumentToolGUI::hasDocumentUndoSteps() const
+{
+    return false;
+}
+
+bool PDFDocumentToolGUI::commitDocumentChange(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion)
+{
+    // The shell records the step for Undo of the tool after the commit (the slots of the document
+    // may delete the shell and this GUI: the shell checks itself)
+    PDFDocumentToolShell* shell = getShell();
+    return shell && shell->commitDocumentChange(modified, description, expectedVersion);
+}
+
 QVariantMap PDFDocumentToolGUI::getRunParameters() const
 {
     const PDFAppToolParameterModel* model = getModel();

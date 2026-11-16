@@ -40,6 +40,12 @@
 #include "pdfdocumenttool_manage.h"
 #include "pdfdocumenttool_merge.h"
 #include "pdfdocumenttool_protect.h"
+#include "pdfdocumenttool_signature.h"
+#include "pdfdocumenttool_redact.h"
+#include "pdfredact.h"
+#include "pdfdocumentsigner.h"
+#include "pdfcertificatemanager.h"
+#include "pdfsignaturehandler.h"
 #include "pdfdocumenttool_pages.h"
 #include "pdfdocumenttool_split.h"
 #include "pdfdocumenttool_structure.h"
@@ -68,6 +74,7 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QLockFile>
 #include <QPainter>
@@ -85,6 +92,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <set>
 #include <thread>
 #include <vector>
 
@@ -166,6 +174,10 @@ using CorpusFilesCheck = void(*)(const pdf::PDFDocument* input, const pdf::PDFDo
 /// the even pages of a document of one page: a document keeps at least one page)
 using CorpusRefusal = bool(*)(const pdf::PDFDocument* input);
 
+/// The tool refuses the input by the way the reader has read its file (\p isRestored: the reader
+/// has restored the objects of the file of its bytes, its cross-reference sections are not valid)
+using CorpusReadRefusal = bool(*)(const pdf::PDFDocument* input, bool isRestored);
+
 /// A tool with its parameters. A new tool of the core is one row (or a few) of
 /// ToolCorpusHelper::getToolRows: nothing else in this file knows the tools.
 struct CorpusToolRow
@@ -185,6 +197,7 @@ struct CorpusToolRow
     CorpusFilesCheck filesCheck = nullptr;  ///< The tool writes image files by the file sink of the context, this checks them (no document)
     std::function<void(pdf::PDFDocumentToolContext*)> prepareContext = nullptr;   ///< Completes the context (the fake speech synthesizer of Create Audio Book)
     QString password;   ///< The open password of the result, which is read back by it (the tools of the encryption, step 5 of phase 2)
+    CorpusReadRefusal readRefusal = nullptr;    ///< The tool refuses the file by the way it was read (Sign of a restored signed file)
 
     QString getName() const { return QString::fromLatin1(toolId) + QLatin1Char('/') + QString::fromLatin1(variant); }
 };
@@ -1238,6 +1251,186 @@ private:
                input->getCatalog()->isXFANeedsRendering();
     }
 
+    // ---------------------------------------------------------------- step 6 of phase 2
+
+    /// The certificate of the rows of Sign with Certificate: one key of the test for the whole run,
+    /// made at run time (never a file, never a certificate of the machine)
+    static const pdf::PDFCertificateEntry& getSigningCertificate()
+    {
+        static const pdf::PDFCertificateEntry entry = []()
+        {
+            pdf::PDFCertificateManager::NewCertificateInfo info;
+            info.privateKeyPasword = getSigningPassword();
+            info.certCommonName = QStringLiteral("PDF4QT corpus signer");
+            info.rsaKeyLength = 2048;
+            pdf::PDFCertificateEntry result;
+            QString error;
+            result.pkcs12 = pdf::PDFSignatureFactory::createCertificate(info, nullptr, &error);
+            if (const std::optional<pdf::PDFCertificateInfo> certificate = pdf::PDFCertificateManager::readCertificate(result.pkcs12, info.privateKeyPasword))
+            {
+                result.info = *certificate;
+            }
+            return result;
+        }();
+        return entry;
+    }
+
+    static QString getSigningPassword()
+    {
+        return QStringLiteral("corpus-signer");
+    }
+
+    static void addSigningCertificate(pdf::PDFDocumentToolContext* context)
+    {
+        context->userCertificates = { getSigningCertificate() };
+    }
+
+    static QVariantMap createSignParameters(const pdf::PDFDocument* input, const QString& path)
+    {
+        Q_UNUSED(input);
+        Q_UNUSED(path);
+        using Signature = pdf::PDFDocumentToolSignature;
+        return { { QString::fromLatin1(Signature::PARAMETER_CERTIFICATE), pdf::PDFDocumentToolEncryption::getCertificateFingerprint(getSigningCertificate().info.getCertificateData()) },
+                 { QString::fromLatin1(Signature::PARAMETER_CERTIFICATE_PASSWORD), getSigningPassword() },
+                 { QString::fromLatin1(Signature::PARAMETER_APPEARANCE), QString::fromLatin1(Signature::APPEARANCE_INVISIBLE) } };
+    }
+
+    /// The format Compatible (PKCS#7) of owner answer Q6.1 (adbe.pkcs7.detached)
+    static QVariantMap createCompatibleSignParameters(const pdf::PDFDocument* input, const QString& path)
+    {
+        using Signature = pdf::PDFDocumentToolSignature;
+        QVariantMap parameters = createSignParameters(input, path);
+        parameters.insert(QString::fromLatin1(Signature::PARAMETER_FORMAT), QString::fromLatin1(Signature::FORMAT_PKCS7));
+        return parameters;
+    }
+
+    /// B135, R6-4 (ISO 32000-2 12.8.2.2.1, Table 257 /P 1): no signature of a document certified with
+    /// no changes allowed
+    static bool isSignatureRefused(const pdf::PDFDocument* input)
+    {
+        return pdf::PDFDocMDPPermissions::getLevel(input) == pdf::PDFDocMDPPermissions::Level::NoChanges;
+    }
+
+    /// Plan 4.4 (434:8913), R6-12, ASan E1 of step 6: a signed file, whose objects the reader has
+    /// restored of its bytes (attack files of signature wrapping, exchanged content: the cross-reference
+    /// sections do not lead to the objects), has no correct incremental update - another reader would
+    /// read the update over the broken sections - and a whole write destroys its signatures: Sign refuses it
+    static bool isRestoredSignedFile(const pdf::PDFDocument* input, bool isRestored)
+    {
+        return isRestored && pdf::PDFDocumentSigner::hasExistingSignatures(input);
+    }
+
+    /// The signed file (plan 4.4, R6-27): the written bytes are the result, they have one signature
+    /// more than the input and the new one verifies over them
+    static void checkSignedResult(const pdf::PDFDocument* input, const pdf::PDFDocumentToolResult& result, const QVariantMap& parameters, QStringList* failures)
+    {
+        Q_UNUSED(parameters);
+        const QByteArray& written = result.documents.front().writtenData;
+        if (written.isEmpty())
+        {
+            failures->append(QStringLiteral("The signed result has no written file"));
+            return;
+        }
+
+        const std::optional<pdf::PDFDocument> output = pdf::PDFDocumentSigner::readDocument(written, nullptr, nullptr);
+        if (!output)
+        {
+            failures->append(QStringLiteral("The signed file cannot be read"));
+            return;
+        }
+
+        if (pdf::PDFForm::getSignatureCount(&*output) != pdf::PDFForm::getSignatureCount(input) + 1)
+        {
+            failures->append(QStringLiteral("The signed file has %1 signatures, the input %2").arg(pdf::PDFForm::getSignatureCount(&*output)).arg(pdf::PDFForm::getSignatureCount(input)));
+        }
+
+        std::set<QString> inputNames;
+        const pdf::PDFForm inputForm = pdf::PDFForm::parse(input, input->getCatalog()->getFormObject());
+        inputForm.apply([&inputNames](const pdf::PDFFormField* field) { inputNames.insert(field->getName(pdf::PDFFormField::NameType::FullyQualified)); });
+
+        const pdf::PDFForm form = pdf::PDFForm::parse(&*output, output->getCatalog()->getFormObject());
+        pdf::PDFSignatureHandler::Parameters verification;
+        verification.useSystemCertificateStore = false;
+        verification.verifyCertificates = false;
+        int newSignatures = 0;
+        for (const pdf::PDFSignatureVerificationResult& signature : pdf::PDFSignatureHandler::verifySignatures(form, written, verification))
+        {
+            if (!inputNames.count(signature.getSignatureFieldQualifiedName()))
+            {
+                ++newSignatures;
+                if (!signature.isSignatureValid() || signature.getLaterRevisions() != pdf::PDFSignatureVerificationResult::LaterRevisions::None)
+                {
+                    failures->append(QStringLiteral("The new signature does not verify: %1").arg(signature.getErrors().join(QLatin1Char(' '))));
+                }
+            }
+        }
+        if (newSignatures != 1)
+        {
+            failures->append(QStringLiteral("The signed file has %1 new signatures").arg(newSignatures));
+        }
+    }
+
+    /// Redact Content (P3 of step 6): the area of the middle ninth of the visible box of every page
+    /// (the marks of the file are not used: their count is the file's), so every kind of content of
+    /// the corpus is redacted somewhere
+    static QVariantMap createRedactParameters(const pdf::PDFDocument* input, const QString& path)
+    {
+        Q_UNUSED(path);
+        using Redact = pdf::PDFDocumentToolRedact;
+        QJsonArray areas;
+        for (size_t pageIndex = 0; pageIndex < input->getCatalog()->getPageCount() && areas.size() < Redact::MAXIMUM_AREA_COUNT; ++pageIndex)
+        {
+            const QRectF box = pdf::PDFRedact::getVisibleBox(input->getCatalog()->getPage(pageIndex));
+            if (box.isValid())
+            {
+                QJsonObject area;
+                area.insert(QStringLiteral("page"), qint64(pageIndex + 1));
+                area.insert(QStringLiteral("rect"), QJsonArray({ box.left() + box.width() / 3.0, box.top() + box.height() / 3.0, box.width() / 3.0, box.height() / 3.0 }));
+                areas.append(area);
+            }
+        }
+        return { { QString::fromLatin1(Redact::PARAMETER_USE_MARKS), false },
+                 { QString::fromLatin1(Redact::PARAMETER_AREAS), QString::fromUtf8(QJsonDocument(areas).toJson(QJsonDocument::Compact)) } };
+    }
+
+    /// The rule of Merge (R6-9, B139: the copy is not encrypted) and a document without a page
+    static bool isRedactionRefused(const pdf::PDFDocument* input)
+    {
+        return pdf::PDFDocumentMerger::getPermission(input) != pdf::PDFDocumentMerger::Permission::Permitted || input->getCatalog()->getPageCount() == 0;
+    }
+
+    /// The redacted copy (6.8): verified, the written bytes are a document of the pages of the input
+    /// with no annotation; a finding of the check is a Failed result, which fails the row
+    static void checkRedactedResult(const pdf::PDFDocument* input, const pdf::PDFDocumentToolResult& result, const QVariantMap& parameters, QStringList* failures)
+    {
+        Q_UNUSED(parameters);
+        if (!result.data.value(QStringLiteral("verified")).toBool())
+        {
+            failures->append(QStringLiteral("The redacted copy is not verified"));
+        }
+
+        const QByteArray& written = result.documents.empty() ? QByteArray() : result.documents.front().writtenData;
+        pdf::PDFDocumentReader reader(nullptr, nullptr, false, false);
+        const pdf::PDFDocument output = reader.readFromBuffer(written);
+        if (reader.getReadingResult() != pdf::PDFDocumentReader::Result::OK)
+        {
+            failures->append(QStringLiteral("The redacted copy cannot be read"));
+            return;
+        }
+        if (output.getCatalog()->getPageCount() != input->getCatalog()->getPageCount())
+        {
+            failures->append(QStringLiteral("The redacted copy has %1 pages, the input %2").arg(output.getCatalog()->getPageCount()).arg(input->getCatalog()->getPageCount()));
+        }
+        for (size_t pageIndex = 0; pageIndex < output.getCatalog()->getPageCount(); ++pageIndex)
+        {
+            if (!output.getCatalog()->getPage(pageIndex)->getAnnotations().empty())
+            {
+                failures->append(QStringLiteral("Page %1 of the redacted copy has annotations").arg(pageIndex + 1));
+                break;
+            }
+        }
+    }
+
     // ---------------------------------------------------------------- step 5 of phase 2
 
     /// The tools of the encryption refuse a document, whose security only its owner may change
@@ -1823,6 +2016,26 @@ private:
         unlock.prepareContext = &ToolCorpusHelper::encryptInput;
         rows.push_back(unlock);
 
+        // Sign with Certificate (step 6 of phase 2, plan 4.4, 9): an invisible signature is an
+        // incremental update of the exact bytes of the file - the pages look as in the file, keep
+        // their text, the version and the encryption; the new signature verifies, the earlier ones
+        // are never worse (the tool fails otherwise). A certification with no changes allowed refuses.
+        using Signature = pdf::PDFDocumentToolSignature;
+        const auto createSign = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<Signature>(Signature::Mode::Sign);
+        };
+        CorpusToolRow signInvisible{ Signature::TOOL_ID_SIGN, "invisible", createSign, QVariantMap(), CorpusLook::Exact,
+                                     PromiseVersion | PromiseEncryption | PromiseText | PromiseTransparency, nullptr, &ToolCorpusHelper::checkSignedResult, &ToolCorpusHelper::isSignatureRefused };
+        signInvisible.prepareContext = &ToolCorpusHelper::addSigningCertificate;
+        signInvisible.createParameters = &ToolCorpusHelper::createSignParameters;
+        signInvisible.readRefusal = &ToolCorpusHelper::isRestoredSignedFile;
+        rows.push_back(signInvisible);
+        CorpusToolRow signCompatible = signInvisible;
+        signCompatible.variant = "invisible-pkcs7";
+        signCompatible.createParameters = &ToolCorpusHelper::createCompatibleSignParameters;
+        rows.push_back(signCompatible);
+
         // Split and Extract (plan of step 3 of phase 2, chapter 8): new unencrypted documents of
         // the pages, which look as in the file and keep their text; the forms, destinations,
         // structure, annotations and attachments of the file are what the rows are run for. They
@@ -1979,6 +2192,16 @@ private:
             context->temporaryFolder = QDir::tempPath();
         };
         rows.push_back(audio);
+
+        // Redact Content (P3 of step 6): a new verified document of the pages, its own result check
+        const auto createRedact = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<pdf::PDFDocumentToolRedact>();
+        };
+        CorpusToolRow redact{ pdf::PDFDocumentToolRedact::TOOL_ID, "middle-areas", createRedact, QVariantMap(), CorpusLook::Close, PromiseNone, nullptr,
+                              &ToolCorpusHelper::checkRedactedResult, &ToolCorpusHelper::isRedactionRefused };
+        redact.createParameters = &ToolCorpusHelper::createRedactParameters;
+        rows.push_back(redact);
         return rows;
     }
 
@@ -2167,6 +2390,7 @@ void DocumentToolCorpusTest::toolOnFile()
         };
         pdf::PDFDocumentReader reader(nullptr, refusePassword, true, false);
         pdf::PDFDocument input = reader.readFromBuffer(inputData);
+        const bool isInputRestored = reader.isDocumentRestored();
 
         // A file the reader does not take is no failure of the tool: the row says what happened.
         // It has to be named: another refused file is a failure of the reader or a new file.
@@ -2263,7 +2487,8 @@ void DocumentToolCorpusTest::toolOnFile()
                 {
                     failures << QStringLiteral("Failed without a message");
                 }
-                if ((tool->getInfo() && !tool->getInfo()->isPermitted(&input)) || (row.refusal && row.refusal(&input)))
+                if ((tool->getInfo() && !tool->getInfo()->isPermitted(&input)) || (row.refusal && row.refusal(&input)) ||
+                    (row.readRefusal && row.readRefusal(&input, isInputRestored)))
                 {
                     // The tool refused the file by its contract: permissions of the document. An
                     // invalid parameter of a row comes with the same errors, it is a failure.

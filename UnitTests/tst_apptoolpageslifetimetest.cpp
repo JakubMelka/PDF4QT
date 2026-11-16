@@ -430,7 +430,7 @@ public:
         {
             m_paintedWidget = static_cast<QWidget*>(watched);
         }
-        if (m_isStopped || !watched || m_hooked.contains(watched))
+        if (m_isStopped || !watched || isHooked(watched))
         {
             return false;
         }
@@ -441,16 +441,23 @@ public:
             // is known there, a constructor of a base class sends events too). A signal of a
             // constructor reaches no receiver of the application, the recorder would delete
             // the parent of a half-built object (the pattern of UnitTestsAppPagesLifetime).
-            // One queued hook per object.
-            if (!m_pendingHooks.contains(watched))
+            // One queued hook per object; an entry of a dead object at the same address (the
+            // allocator reuses it) belongs to that object, not to this one.
+            const auto pendingIt = m_pendingHooks.constFind(watched);
+            if (pendingIt == m_pendingHooks.cend() || !pendingIt.value())
             {
-                m_pendingHooks.insert(watched);
                 QPointer<QObject> guard(watched);
+                m_pendingHooks.insert(watched, guard);
                 const QObject* pending = watched;
                 QMetaObject::invokeMethod(this, [this, guard, pending]()
                 {
-                    m_pendingHooks.remove(pending);
-                    if (guard && !m_hooked.contains(guard.data()))
+                    // Only the own entry: a newer object at the address has its own hook queued
+                    const auto it = m_pendingHooks.constFind(pending);
+                    if (it != m_pendingHooks.cend() && it.value() == guard)
+                    {
+                        m_pendingHooks.remove(pending);
+                    }
+                    if (guard && !isHooked(guard.data()))
                     {
                         hookObject(guard.data());
                     }
@@ -552,8 +559,15 @@ private:
     std::function<Action(const Site&)> m_action;
     std::vector<Site> m_sites;
     QSet<QString> m_seen;
+    /// The object is hooked: a dead object at the same address (the allocator has reused it) is not
+    bool isHooked(QObject* object) const
+    {
+        const auto it = m_hooked.constFind(object);
+        return it != m_hooked.cend() && it.value();
+    }
+
     QHash<QObject*, QPointer<QObject>> m_hooked;
-    QSet<const QObject*> m_pendingHooks;     ///< Objects, whose queued hook waits for the event loop
+    QHash<const QObject*, QPointer<QObject>> m_pendingHooks;     ///< Objects, whose queued hook waits for the event loop (a dead one = a reused address)
     QPointer<QWidget> m_paintedWidget;
 };
 
@@ -2928,6 +2942,16 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges()
         }
         H::shell(run)->cancel();
         H::settle();
+
+        // A tool, whose prepared state would be lost, asks at Cancel and stays until the answer
+        const ToolPagesLifetimeScenario* registered = isRealTool ? ToolPagesLifetimePackages::findScenario(realScenario) : nullptr;
+        if (registered && registered->answerCloseQuestion)
+        {
+            QVERIFY(H::shell(run));
+            QVERIFY(run.tab->getView()->isToolModeActive());
+            QVERIFY(registered->answerCloseQuestion(run));
+            H::settle();
+        }
     }
     QVERIFY(!isOwnTabTool || !run.toolTab);
     QVERIFY(!run.tab->getView()->isToolModeActive());
@@ -2952,6 +2976,8 @@ const std::vector<ToolPagesLifetimeScenario>& ToolPagesLifetimePackages::getScen
         registerAudioBookScenarios(&result);
         registerEncryptionScenarios(&result);
         registerCertificateScenarios(&result);
+        registerSignatureScenarios(&result);
+        registerRedactScenarios(&result);
         return result;
     }();
     return scenarios;

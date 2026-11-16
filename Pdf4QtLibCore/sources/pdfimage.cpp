@@ -1431,8 +1431,10 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
     else if (colorSpace || isSoftMask)
     {
         // We treat data as binary maybe compressed stream (for example by Flate/LZW method), but data can also be not compressed.
+        // An image mask (an explicit /Mask, which is read here with the gray color space): ISO 32000-2,
+        // Table 87 - /BitsPerComponent is optional for it and is 1
         const unsigned int components = static_cast<unsigned int>(colorSpace->getColorComponentCount());
-        const unsigned int bitsPerComponent = static_cast<unsigned int>(loader.readIntegerFromDictionary(dictionary, "BitsPerComponent", 8));
+        const unsigned int bitsPerComponent = static_cast<unsigned int>(loader.readIntegerFromDictionary(dictionary, "BitsPerComponent", imageMask ? 1 : 8));
         const unsigned int width = static_cast<unsigned int>(loader.readIntegerFromDictionary(dictionary, "Width", 0));
         const unsigned int height = static_cast<unsigned int>(loader.readIntegerFromDictionary(dictionary, "Height", 0));
 

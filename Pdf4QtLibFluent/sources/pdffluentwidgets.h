@@ -347,12 +347,20 @@ public:
     const QString& getDisplaySuffix() const { return m_displaySuffix; }
     void setDisplaySuffix(const QString& suffix);
 
+    /// The text has no trailing zeros of the fraction ("13", "2.5"; the size 1567:19204 shows "13"),
+    /// the precision of decimals() stays for the values with a fraction
+    bool isTrailingZerosHidden() const { return m_isTrailingZerosHidden; }
+    void setTrailingZerosHidden(bool isHidden);
+
+    virtual QString textFromValue(double value) const override;
+
 protected:
     virtual void paintEvent(QPaintEvent* event) override;
 
 private:
     QString m_displayPrefix;
     QString m_displaySuffix;
+    bool m_isTrailingZerosHidden = false;
 };
 
 /// Calendar of the design: cells of days with rounded shapes, no grid

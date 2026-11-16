@@ -48,6 +48,7 @@ public:
     PDFAppMcpPermissionKind permission = PDFAppMcpPermissionKind::Read;
     QString permissionText;                 ///< The documentation of a permission, which depends on an argument (a tool of the catalog by "result"); empty = of \p permission
     bool usesDocument = true;               ///< The common property documentId applies (the output has documentId and title)
+    bool usesResult = true;                 ///< The common properties result and path apply (a tool of the catalog, whose data are its result, takes none: Manage Certificates)
     PDFMcpSchema input;                     ///< Object of the parameters (the property <action> of the input)
     PDFMcpSchema output;                    ///< Object of the result (the property <action> of structuredContent)
 

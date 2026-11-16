@@ -1469,9 +1469,10 @@ void AppDocumentSearchTest::signatureCards()
     valid.addHashAlgorithm(QStringLiteral("sha512"));
     valid.setSignatureDate(QDateTime(QDate(2026, 9, 28), QTime(14, 2), QTimeZone::UTC));
     valid.setTimestampDate(QDateTime(QDate(2026, 9, 28), QTime(14, 3), QTimeZone::UTC));
-    valid.addCertificateInfo(certificate(QStringLiteral("Jane Novak"), pdf::PDFCertificateInfo::KeyRSA, 500));
-    valid.addCertificateInfo(certificate(QStringLiteral("Example Issuing CA 2"), pdf::PDFCertificateInfo::KeyEC, 1500));
-    valid.addCertificateInfo(certificate(QStringLiteral("Example Root CA"), pdf::PDFCertificateInfo::KeyDSA, 3000));
+    // R6-2: the signer identified by the SignerInfo first, then the chain built from it
+    valid.setCertificateInfos({ certificate(QStringLiteral("Jane Novak"), pdf::PDFCertificateInfo::KeyRSA, 500),
+                                certificate(QStringLiteral("Example Issuing CA 2"), pdf::PDFCertificateInfo::KeyEC, 1500),
+                                certificate(QStringLiteral("Example Root CA"), pdf::PDFCertificateInfo::KeyDSA, 3000) }, true);
     QCOMPARE(Verifier::getStatus(valid, true), Status::Valid);
     pdf::PDFComponentPainter::SignatureCard card = Verifier::getCard(valid, false, {});
     QCOMPARE(card.signer, QStringLiteral("Jane Novak"));
@@ -1496,7 +1497,7 @@ void AppDocumentSearchTest::signatureCards()
     Result expired(pdf::PDFSignature::Type::Sig, pdf::PDFObjectReference(), QStringLiteral("Signature2"));
     expired.setFlag(Result::Signature_OK, true);
     expired.addCertificateExpiredError();
-    expired.addCertificateInfo(certificate(QString(), pdf::PDFCertificateInfo::KeyDH, -10));
+    expired.setCertificateInfos({ certificate(QString(), pdf::PDFCertificateInfo::KeyDH, -10) }, true);
     QCOMPARE(Verifier::getStatus(expired, false), Status::Warning);
     card = Verifier::getCard(expired, false, {});
     QCOMPARE(card.summary, QStringLiteral("The signature is intact, but the certificate of the signer has expired."));
@@ -1567,7 +1568,7 @@ void AppDocumentSearchTest::signatureCards()
     timestamp.setFlag(Result::Signature_OK, true);
     timestamp.validate();
     timestamp.setTimestampDate(QDateTime(QDate(2026, 9, 28), QTime(14, 3), QTimeZone::UTC));
-    timestamp.addCertificateInfo(certificate(QStringLiteral("Example TSA"), pdf::PDFCertificateInfo::KeyRSA, 100));
+    timestamp.setCertificateInfos({ certificate(QStringLiteral("Example TSA"), pdf::PDFCertificateInfo::KeyRSA, 100) }, true);
     card = Verifier::getCard(timestamp, false, {});
     QCOMPARE(card.signer, QStringLiteral("Document timestamp"));
     QVERIFY2(card.meta.startsWith(QStringLiteral("Example TSA · Sep 28, 2026")), qPrintable(card.meta));

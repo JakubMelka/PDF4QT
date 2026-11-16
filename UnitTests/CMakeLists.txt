@@ -1019,6 +1019,8 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         apptoolpageslifetime_audiobook.cpp
         apptoolpageslifetime_encryption.cpp
         apptoolpageslifetime_certificate.cpp
+        apptoolpageslifetime_signature.cpp
+        apptoolpageslifetime_redact.cpp
     )
     target_link_libraries(UnitTestsAppToolPagesLifetime PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture UnitTestsAppToolOwnTabFixture Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
     pdf4qt_target_precompile_headers(UnitTestsAppToolPagesLifetime REUSE_FROM UnitTestsAppDocumentFixture)
@@ -1559,6 +1561,44 @@ endforeach()
 # of the test made at run time (OpenSSL adds no definition, the precompiled header stays reused)
 target_link_libraries(UnitTestsSecurityHandler PRIVATE OpenSSL::Crypto)
 
+# Step 6 of phase 2 (plan 9 with R6-23), the core: package P1a the verification of signatures, P2 the
+# tools of the signatures and the drawing, P3 the redaction of the pages and its tool (UnitTestsSignatureBuilder
+# of P2 exists already)
+foreach(PDF4QT_STEP6_CORE_TEST SignatureVerification DocumentToolSignature DocumentToolSignByHand Redact DocumentToolRedact)
+    string(TOLOWER "${PDF4QT_STEP6_CORE_TEST}" PDF4QT_STEP6_CORE_TEST_FILE)
+    add_executable(UnitTests${PDF4QT_STEP6_CORE_TEST}
+        tst_${PDF4QT_STEP6_CORE_TEST_FILE}test.cpp
+    )
+    target_link_libraries(UnitTests${PDF4QT_STEP6_CORE_TEST} PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTests${PDF4QT_STEP6_CORE_TEST} REUSE_FROM UnitTestsPchCore)
+    set_target_properties(UnitTests${PDF4QT_STEP6_CORE_TEST} PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTests${PDF4QT_STEP6_CORE_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_STEP6_CORE_TEST}")
+    set_tests_properties(UnitTests${PDF4QT_STEP6_CORE_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endforeach()
+
+# P1a: the signatures of the test are made by CMS of OpenSSL at run time (no definition, the precompiled
+# header stays reused)
+target_link_libraries(UnitTestsSignatureVerification PRIVATE OpenSSL::Crypto)
+
+# P1b: the client of the timestamp authority against a local test authority (TS_RESP_CTX of OpenSSL, a
+# QTcpServer on the loopback; never the internet). Network: no donor of a precompiled header (as
+# UnitTestsTimestamp)
+add_executable(UnitTestsTimestampClient tst_timestampclienttest.cpp)
+target_link_libraries(UnitTestsTimestampClient PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Network Qt6::Test OpenSSL::Crypto)
+set_target_properties(UnitTestsTimestampClient PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    QT_EXCLUDE_FROM_TRANSLATION ON
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsTimestampClient "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsTimestampClient")
+set_tests_properties(UnitTestsTimestampClient PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 # P4: the text of the test documents is drawn by the bundled Inter font (the offscreen platform has none)
 foreach(PDF4QT_STEP4_FONT_TEST DocumentTextFlow DocumentToolAudioBook)
     target_compile_definitions(UnitTests${PDF4QT_STEP4_FONT_TEST} PRIVATE PDF4QT_TEST_FONT_DIRECTORY="${CMAKE_SOURCE_DIR}/Pdf4QtLibFluent/resources/fonts")
@@ -1613,6 +1653,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_executable(UnitTestsAppMcpProtect
         tst_appmcpprotecttest.cpp
         appmcpstep5.h
+        appmcpstep6.h
     )
     foreach(PDF4QT_STEP5_APP_TEST AppToolEncryption AppCertificateDialogs AppMcpProtect)
         target_link_libraries(UnitTests${PDF4QT_STEP5_APP_TEST} PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture UnitTestsAppToolOwnTabFixture UnitTestsAppMcpFixture UnitTestsMcpTestClient Pdf4QtLibApp Pdf4QtLibMcp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
@@ -1626,4 +1667,29 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         add_test(UnitTests${PDF4QT_STEP5_APP_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_STEP5_APP_TEST}")
         set_tests_properties(UnitTests${PDF4QT_STEP5_APP_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     endforeach()
+
+    # Step 6 of phase 2 (plan 9 with R6-23, R6-27), the application: the GUI of the signatures (P4), of
+    # the redaction and of Manage Certificates (P5); the precompiled header of the root fixture
+    foreach(PDF4QT_STEP6_APP_TEST AppToolSignature AppToolSignByHand AppToolRedact AppToolCertificates)
+        string(TOLOWER "${PDF4QT_STEP6_APP_TEST}" PDF4QT_STEP6_APP_TEST_FILE)
+        add_executable(UnitTests${PDF4QT_STEP6_APP_TEST}
+            tst_${PDF4QT_STEP6_APP_TEST_FILE}test.cpp
+        )
+        target_link_libraries(UnitTests${PDF4QT_STEP6_APP_TEST} PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture UnitTestsAppToolOwnTabFixture UnitTestsAppMcpFixture UnitTestsMcpTestClient Pdf4QtLibApp Pdf4QtLibMcp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+        pdf4qt_target_precompile_headers(UnitTests${PDF4QT_STEP6_APP_TEST} REUSE_FROM UnitTestsAppDocumentFixture)
+        set_target_properties(UnitTests${PDF4QT_STEP6_APP_TEST} PROPERTIES
+            WIN32_EXECUTABLE OFF
+            MACOSX_BUNDLE OFF
+            QT_EXCLUDE_FROM_TRANSLATION ON
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+        )
+        add_test(UnitTests${PDF4QT_STEP6_APP_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_STEP6_APP_TEST}")
+        set_tests_properties(UnitTests${PDF4QT_STEP6_APP_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endforeach()
+
+    # The rules of the usages are checked on real X.509 certificates made by OpenSSL at run time
+    # (signingUsageRules; no definition, the precompiled header stays reused); Sign with Certificate runs
+    # against a local timestamp authority made by TS_RESP_CTX of OpenSSL (never the internet)
+    target_link_libraries(UnitTestsAppToolCertificates PRIVATE OpenSSL::Crypto)
+    target_link_libraries(UnitTestsAppToolSignature PRIVATE OpenSSL::Crypto)
 endif()

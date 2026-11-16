@@ -27,8 +27,12 @@
 #include "pdfpathboolean.h"
 
 #include <QPainter>
+#include <QPaintEngine>
 #include <QCryptographicHash>
 #include <QtMath>
+
+#include <cmath>
+#include <limits>
 
 #include "pdfdbgheap.h"
 
@@ -688,33 +692,640 @@ void PDFPrecompiledPage::draw(QPainter* painter,
     painter->restore();
 }
 
-void PDFPrecompiledPage::redact(QPainterPath redactPath, const QTransform& matrix, QColor color)
+/// The redaction of a precompiled page (plan of step 6 of phase 2, 5.4): the region of the redacted
+/// areas and of the content outside of the kept rectangle, and the operations on the kinds of the
+/// content (PDFPrecompiledPage::redact)
+class PDFPrecompiledPageRedactHelper
 {
-    if (redactPath.isEmpty())
+public:
+    /// Width of the outline of a hairline (a cosmetic pen, line width 0: the thinnest line of the
+    /// device, ISO 32000-2, 8.4.3.2), which reaches an area, in points of the page
+    static constexpr PDFReal HAIRLINE_WIDTH = 0.5;
+
+    /// Margin of the quick test of an object against the region, in points of the page
+    static constexpr PDFReal QUICK_TEST_MARGIN = 1.0;
+
+    /// The region of a redaction in the page space, split into its parts for a quick test of an
+    /// object (B142): only the parts near an object take part in its boolean operation, so the
+    /// operation is fast and its working space (the flattening of the curves of the object, the
+    /// grid of the clipper) is the size of the object, not of the page
+    class Region
+    {
+    public:
+        explicit Region(const QPainterPath& redactPath, const QRectF& keptRect)
+        {
+            // The region by its fill rule, normalized: its outer boundaries and its holes are
+            // oriented oppositely and do not overlap, so any subset of them, which keeps each hole
+            // with its outer boundary, is a part of the region under the non-zero rule (the caller
+            // has united its areas, R6-7)
+            const QPainterPath united = redactPath.isEmpty() ? QPainterPath() : PDFPathBoolean::unite(redactPath, redactPath);
+            for (const QPolygonF& polygon : united.toSubpathPolygons())
+            {
+                QPainterPath part;
+                part.setFillRule(Qt::WindingFill);
+                part.addPolygon(polygon);
+                part.closeSubpath();
+                m_parts.push_back({ part, polygon.boundingRect() });
+            }
+
+            if (keptRect.isValid())
+            {
+                m_keptRect = keptRect.normalized();
+            }
+        }
+
+        bool isEmpty() const { return m_parts.empty() && !m_keptRect.isValid(); }
+
+        /// The removed region near the box (page space): the parts of the areas and the outside of
+        /// the kept rectangle within the box grown by QUICK_TEST_MARGIN; empty = the box is far from
+        /// the region
+        QPainterPath getLocalRegion(const QRectF& box) const
+        {
+            const QRectF localBox = getLocalBox(box);
+            if (!localBox.isValid())
+            {
+                return QPainterPath();
+            }
+
+            QPainterPath region = getParts(localBox);
+            if (m_keptRect.isValid() && !m_keptRect.contains(localBox))
+            {
+                // The outside of the kept rectangle within the box: the box minus the rectangle
+                QPainterPath boxPath;
+                boxPath.setFillRule(Qt::WindingFill);
+                boxPath.addRect(localBox);
+                QPainterPath keptPath;
+                keptPath.setFillRule(Qt::WindingFill);
+                keptPath.addRect(m_keptRect);
+                region.addPath(PDFPathBoolean::subtract(boxPath, keptPath));
+            }
+
+            return clipToBox(region, localBox);
+        }
+
+        /// The redacted areas inside of the kept rectangle near the box (page space): the pixels,
+        /// which get the fill color
+        QPainterPath getLocalAreas(const QRectF& box) const
+        {
+            QRectF localBox = getLocalBox(box);
+            if (localBox.isValid() && m_keptRect.isValid())
+            {
+                localBox = localBox.intersected(m_keptRect);
+            }
+            if (!localBox.isValid() || localBox.isEmpty())
+            {
+                return QPainterPath();
+            }
+            return clipToBox(getParts(localBox), localBox);
+        }
+
+    private:
+        struct Part
+        {
+            QPainterPath path;
+            QRectF boundingBox;
+        };
+
+        static QRectF getLocalBox(const QRectF& box)
+        {
+            const QRectF normalized = box.normalized();
+            if (!std::isfinite(normalized.left()) || !std::isfinite(normalized.top()) || !std::isfinite(normalized.right()) || !std::isfinite(normalized.bottom()))
+            {
+                return QRectF();
+            }
+            return normalized.adjusted(-QUICK_TEST_MARGIN, -QUICK_TEST_MARGIN, QUICK_TEST_MARGIN, QUICK_TEST_MARGIN);
+        }
+
+        /// The parts, whose boxes meet the box: the outer boundaries and the holes of a normalized
+        /// region keep their orientation, so their concatenation under the non-zero rule is the
+        /// region (a hole lies in the box of its outer boundary, so it is never taken alone)
+        QPainterPath getParts(const QRectF& box) const
+        {
+            QPainterPath parts;
+            parts.setFillRule(Qt::WindingFill);
+            for (const Part& part : m_parts)
+            {
+                if (part.boundingBox.intersects(box))
+                {
+                    parts.addPath(part.path);
+                }
+            }
+            return parts;
+        }
+
+        static QPainterPath clipToBox(const QPainterPath& region, const QRectF& box)
+        {
+            if (region.isEmpty())
+            {
+                return QPainterPath();
+            }
+
+            QPainterPath boxPath;
+            boxPath.setFillRule(Qt::WindingFill);
+            boxPath.addRect(box);
+            return PDFPathBoolean::intersect(region, boxPath);
+        }
+
+        std::vector<Part> m_parts;
+        QRectF m_keptRect;
+    };
+
+    /// The triangles and the background of a mesh as PDFMesh::paint draws them (the mesh gives no
+    /// access to its triangles): a paint device, whose engine records the filled polygons with
+    /// their colors and the filled paths (the background); the bounding path is the mesh's own
+    class MeshRecorder : public QPaintDevice
+    {
+    public:
+        struct Polygon
+        {
+            QPolygonF polygon;
+            QRgb color = 0;
+        };
+
+        struct FilledPath
+        {
+            QPainterPath path;
+            QColor color;
+        };
+
+        MeshRecorder() = default;
+
+        virtual QPaintEngine* paintEngine() const override { return const_cast<Engine*>(&m_engine); }
+
+        const std::vector<Polygon>& getPolygons() const { return m_engine.polygons; }
+        const std::vector<FilledPath>& getFilledPaths() const { return m_engine.filledPaths; }
+
+    protected:
+        virtual int metric(PaintDeviceMetric metric) const override
+        {
+            switch (metric)
+            {
+                case PdmWidth:
+                case PdmHeight:
+                    return 1 << 24;
+                case PdmWidthMM:
+                case PdmHeightMM:
+                    return 1 << 22;
+                case PdmNumColors:
+                    return std::numeric_limits<int>::max();
+                case PdmDepth:
+                    return 32;
+                case PdmDpiX:
+                case PdmDpiY:
+                case PdmPhysicalDpiX:
+                case PdmPhysicalDpiY:
+                    return 72;
+                default:
+                    return QPaintDevice::metric(metric);
+            }
+        }
+
+    private:
+        class Engine : public QPaintEngine
+        {
+        public:
+            Engine() : QPaintEngine(QPaintEngine::AllFeatures) { }
+
+            using QPaintEngine::drawPolygon;
+
+            virtual bool begin(QPaintDevice* device) override { Q_UNUSED(device); return true; }
+            virtual bool end() override { return true; }
+            virtual Type type() const override { return QPaintEngine::User; }
+
+            virtual void updateState(const QPaintEngineState& engineState) override
+            {
+                if (engineState.state() & QPaintEngine::DirtyBrush)
+                {
+                    brush = engineState.brush();
+                }
+            }
+
+            virtual void drawPolygon(const QPointF* points, int pointCount, PolygonDrawMode mode) override
+            {
+                Q_UNUSED(mode);
+                if (brush.style() == Qt::NoBrush || pointCount < 3)
+                {
+                    return;
+                }
+                polygons.push_back({ QPolygonF(QList<QPointF>(points, points + pointCount)), brush.color().rgba() });
+            }
+
+            virtual void drawPath(const QPainterPath& path) override
+            {
+                if (brush.style() != Qt::NoBrush)
+                {
+                    filledPaths.push_back({ path, brush.color() });
+                }
+            }
+
+            virtual void drawPixmap(const QRectF& rectangle, const QPixmap& pixmap, const QRectF& sourceRectangle) override
+            {
+                Q_UNUSED(rectangle);
+                Q_UNUSED(pixmap);
+                Q_UNUSED(sourceRectangle);
+            }
+
+            std::vector<Polygon> polygons;
+            std::vector<FilledPath> filledPaths;
+            QBrush brush;
+        };
+
+        Engine m_engine;
+    };
+
+    /// The scale of the matrix (the length of a unit of the source space in the target space)
+    static PDFReal getScale(const QTransform& matrix)
+    {
+        return std::sqrt(std::abs(matrix.determinant()));
+    }
+
+    /// The path of a polygon, filled by the non-zero rule
+    static QPainterPath createPolygonPath(const QPolygonF& polygon)
+    {
+        QPainterPath path;
+        path.setFillRule(Qt::WindingFill);
+        path.addPolygon(polygon);
+        path.closeSubpath();
+        return path;
+    }
+
+    /// The pixels of the mask (its pixels in \p bounds of the image) of an image of a color table (1 bit,
+    /// 8 bits) get the opaque color by its entry of the table: an existing entry keeps the image as it
+    /// is, a missing one is added (an image of 1 bit becomes Format_Indexed8 - 8 times its memory, never
+    /// 32). \returns false for an image of another format, of no table of two colors at least, or of a
+    /// full table (the caller converts it then)
+    static bool fillIndexedPixels(QImage* image, const QImage& mask, const QRect& bounds, QColor color)
+    {
+        const QImage::Format format = image->format();
+        const bool isMono = format == QImage::Format_Mono || format == QImage::Format_MonoLSB;
+        if (!isMono && format != QImage::Format_Indexed8)
+        {
+            return false;
+        }
+
+        QList<QRgb> table = image->colorTable();
+        if (table.size() < 2)
+        {
+            return false;
+        }
+
+        const QRgb value = qRgba(qRed(color.rgb()), qGreen(color.rgb()), qBlue(color.rgb()), 255);
+        qsizetype index = table.indexOf(value);
+        if (index < 0)
+        {
+            if (table.size() >= 256)
+            {
+                return false;
+            }
+            if (isMono)
+            {
+                *image = image->convertToFormat(QImage::Format_Indexed8);
+                table = image->colorTable();
+            }
+            index = table.size();
+            table.push_back(value);
+            image->setColorTable(table);
+        }
+
+        const bool isIndexed8 = image->format() == QImage::Format_Indexed8;
+        for (int y = 0; y < bounds.height(); ++y)
+        {
+            const uchar* maskLine = mask.constScanLine(y);
+            uchar* imageLine = isIndexed8 ? image->scanLine(bounds.top() + y) : nullptr;
+            for (int x = 0; x < bounds.width(); ++x)
+            {
+                if (!maskLine[x])
+                {
+                    continue;
+                }
+
+                if (imageLine)
+                {
+                    imageLine[bounds.left() + x] = uchar(index);
+                }
+                else
+                {
+                    image->setPixel(bounds.left() + x, bounds.top() + y, uint(index));
+                }
+            }
+        }
+        return true;
+    }
+
+    /// The pixels of the image in the region (pixel space, a region of the non-zero rule) get the
+    /// opaque color (B138). A grown region is grown by one pixel, so every pixel it touches is
+    /// changed; otherwise the pixels, whose centers lie in it, are changed (the outside of the crop
+    /// box: a pixel, which is mostly visible, stays). The region is filled without antialiasing. The
+    /// image keeps its format when it can hold the result (gray of 8 and 16 bits, a color table -
+    /// fillIndexedPixels), otherwise it becomes 32 bits per pixel
+    /// (an alpha channel only when it had one); an image without a changed pixel is not touched.
+    static void fillPixels(QImage* image, const QPainterPath& region, QColor color, bool isGrown)
+    {
+        if (region.isEmpty() || image->isNull())
+        {
+            return;
+        }
+
+        QPainterPath grown = region;
+        grown.setFillRule(Qt::WindingFill);
+        if (isGrown)
+        {
+            QPainterPathStroker stroker;
+            stroker.setWidth(2.0);
+            stroker.setJoinStyle(Qt::MiterJoin);
+            stroker.setCapStyle(Qt::SquareCap);
+            grown = PDFPathBoolean::unite(grown, stroker.createStroke(region));
+            grown.setFillRule(Qt::WindingFill);
+        }
+
+        const QRectF boundingRect = grown.boundingRect();
+        if (!std::isfinite(boundingRect.left()) || !std::isfinite(boundingRect.top()) || !std::isfinite(boundingRect.right()) || !std::isfinite(boundingRect.bottom()))
+        {
+            return;
+        }
+        const QRect bounds = boundingRect.adjusted(-1.0, -1.0, 1.0, 1.0).toAlignedRect().intersected(image->rect());
+        if (bounds.isEmpty())
+        {
+            return;
+        }
+
+        QImage mask(bounds.size(), QImage::Format_Alpha8);
+        mask.fill(0);
+        {
+            QPainter painter(&mask);
+            painter.setRenderHint(QPainter::Antialiasing, false);
+            painter.translate(-bounds.topLeft());
+            painter.fillPath(grown, QColor(0, 0, 0, 255));
+        }
+
+        bool hasPixel = false;
+        for (int y = 0; y < bounds.height() && !hasPixel; ++y)
+        {
+            const uchar* maskLine = mask.constScanLine(y);
+            hasPixel = std::any_of(maskLine, maskLine + bounds.width(), [](uchar value) { return value != 0; });
+        }
+        if (!hasPixel)
+        {
+            return;
+        }
+
+        const bool isGray = qRed(color.rgb()) == qGreen(color.rgb()) && qGreen(color.rgb()) == qBlue(color.rgb());
+        if (image->format() == QImage::Format_Grayscale8 && isGray)
+        {
+            const uchar gray = uchar(qRed(color.rgb()));
+            for (int y = 0; y < bounds.height(); ++y)
+            {
+                const uchar* maskLine = mask.constScanLine(y);
+                uchar* imageLine = image->scanLine(bounds.top() + y);
+                for (int x = 0; x < bounds.width(); ++x)
+                {
+                    if (maskLine[x])
+                    {
+                        imageLine[bounds.left() + x] = gray;
+                    }
+                }
+            }
+            return;
+        }
+
+        if (image->format() == QImage::Format_Grayscale16 && isGray)
+        {
+            const quint16 gray = quint16(qRed(color.rgb()) * 257);
+            for (int y = 0; y < bounds.height(); ++y)
+            {
+                const uchar* maskLine = mask.constScanLine(y);
+                quint16* imageLine = reinterpret_cast<quint16*>(image->scanLine(bounds.top() + y));
+                for (int x = 0; x < bounds.width(); ++x)
+                {
+                    if (maskLine[x])
+                    {
+                        imageLine[bounds.left() + x] = gray;
+                    }
+                }
+            }
+            return;
+        }
+
+        // RS6SEC Low of step 6: an image of a color table (a bitonal scan of 1 bit, an indexed image)
+        // keeps it - the color of the fill is an entry of its table (black or white of a scan), else it
+        // is added to the table of an image of 8 bits (a scan of 1 bit becomes 8 bits, never 32)
+        if (fillIndexedPixels(image, mask, bounds, color))
+        {
+            return;
+        }
+
+        // No transparency is added: QPdfWriter writes an alpha of only 0 and 255 as a mask of 1 bit
+        // (/Mask), the paper (white) is the look of an area without a fill
+        const QImage::Format format = image->hasAlphaChannel() ? QImage::Format_ARGB32_Premultiplied : QImage::Format_RGB32;
+        if (image->format() != format)
+        {
+            *image = image->convertToFormat(format);
+        }
+
+        const QRgb value = qPremultiply(color.rgba() | 0xFF000000u);
+        for (int y = 0; y < bounds.height(); ++y)
+        {
+            const uchar* maskLine = mask.constScanLine(y);
+            QRgb* imageLine = reinterpret_cast<QRgb*>(image->scanLine(bounds.top() + y));
+            for (int x = 0; x < bounds.width(); ++x)
+            {
+                if (maskLine[x])
+                {
+                    imageLine[bounds.left() + x] = value;
+                }
+            }
+        }
+    }
+
+    /// The mesh without the region (page space, B140, R6-18): a triangle inside of the region is
+    /// dropped (its color is never written), the others are clipped by the bounding path without the
+    /// region, the background loses the region. \returns false, when nothing of the mesh is left.
+    static bool redactMesh(PDFMesh* mesh, const Region& region)
+    {
+        MeshRecorder recorder;
+        {
+            QPainter painter(&recorder);
+            mesh->paint(&painter, 1.0);
+        }
+
+        QRectF meshBox;
+        for (const MeshRecorder::Polygon& polygon : recorder.getPolygons())
+        {
+            meshBox = meshBox.united(polygon.polygon.boundingRect());
+        }
+        for (const MeshRecorder::FilledPath& filledPath : recorder.getFilledPaths())
+        {
+            meshBox = meshBox.united(filledPath.path.boundingRect());
+        }
+
+        // The bounding path of the mesh itself: PDFMesh::paint clips by it between save and restore, so
+        // the clip of the recorder is cleared again by the restore at its end - a mesh of a shading
+        // pattern over the page (8.7.3.3) would lose the path, which it fills, and cover the page
+        const QPainterPath clipPath = mesh->getBoundingPath();
+        if (!clipPath.isEmpty())
+        {
+            meshBox = meshBox.intersected(clipPath.boundingRect());
+        }
+
+        const QPainterPath localRegion = region.getLocalRegion(meshBox);
+        if (localRegion.isEmpty())
+        {
+            // The mesh does not reach the region
+            return true;
+        }
+
+        PDFMesh redactedMesh;
+        const QRectF localRegionBox = localRegion.boundingRect();
+        for (const MeshRecorder::Polygon& polygon : recorder.getPolygons())
+        {
+            const QRectF polygonBox = polygon.polygon.boundingRect();
+            if (polygonBox.intersects(localRegionBox) && PDFPathBoolean::subtract(createPolygonPath(polygon.polygon), localRegion).isEmpty())
+            {
+                // The triangle is inside of the region
+                continue;
+            }
+
+            for (int i = 1; i + 1 < polygon.polygon.size(); ++i)
+            {
+                PDFMesh::Triangle triangle;
+                triangle.v1 = redactedMesh.addVertex(polygon.polygon[0]);
+                triangle.v2 = redactedMesh.addVertex(polygon.polygon[i]);
+                triangle.v3 = redactedMesh.addVertex(polygon.polygon[i + 1]);
+                triangle.color = polygon.color;
+                redactedMesh.addTriangle(triangle);
+            }
+        }
+
+        QPainterPath boundingPath = clipPath;
+        if (boundingPath.isEmpty())
+        {
+            boundingPath.addRect(meshBox);
+        }
+        boundingPath = PDFPathBoolean::subtract(boundingPath, localRegion);
+        if (boundingPath.isEmpty())
+        {
+            return false;
+        }
+        redactedMesh.setBoundingPath(boundingPath);
+
+        bool hasBackground = false;
+        for (const MeshRecorder::FilledPath& filledPath : recorder.getFilledPaths())
+        {
+            const QPainterPath background = PDFPathBoolean::subtract(filledPath.path, localRegion);
+            if (!background.isEmpty())
+            {
+                redactedMesh.setBackgroundPath(background);
+                redactedMesh.setBackgroundColor(filledPath.color);
+                hasBackground = true;
+            }
+        }
+
+        if (redactedMesh.isEmpty() && !hasBackground)
+        {
+            return false;
+        }
+
+        *mesh = std::move(redactedMesh);
+        return true;
+    }
+};
+
+void PDFPrecompiledPage::redact(const QPainterPath& redactPath, const QRectF& keptRect, const QTransform& matrix, QColor imageFillColor)
+{
+    using Helper = PDFPrecompiledPageRedactHelper;
+
+    const Helper::Region region(redactPath, keptRect);
+    if (region.isEmpty())
     {
         // Nothing to be redacted
         return;
     }
 
-    std::stack<QTransform> worldMatrixStack;
-    worldMatrixStack.push(matrix);
+    // The matrices map the coordinates of the instructions to the page: SetWorldMatrix sets the
+    // matrix of the user space, an instruction before any of them is in the device space of draw
+    std::vector<QTransform> matrixStack;
+    matrixStack.push_back(matrix.isInvertible() ? matrix.inverted() : QTransform());
 
-    if (color.isValid())
+    std::vector<Instruction> instructions;
+    std::vector<PathPaintData> paths;
+    instructions.reserve(m_instructions.size());
+    paths.reserve(m_paths.size());
+
+    auto addPathInstruction = [&instructions, &paths](PathPaintData data)
     {
-        m_instructions.insert(m_instructions.begin(), Instruction(InstructionType::SaveGraphicState, 0));
-    }
+        instructions.emplace_back(InstructionType::DrawPath, paths.size());
+        paths.push_back(std::move(data));
+    };
 
-    // Process all instructions
     for (const Instruction& instruction : m_instructions)
     {
+        const QTransform& userToPage = matrixStack.back();
+
         switch (instruction.type)
         {
             case InstructionType::DrawPath:
             {
-                QTransform currentMatrix = worldMatrixStack.top().inverted();
-                QPainterPath mappedRedactPath = currentMatrix.map(redactPath);
-                PathPaintData& path = m_paths[instruction.dataIndex];
-                path.path = PDFPathBoolean::subtract(path.path, mappedRedactPath);
+                PathPaintData& data = m_paths[instruction.dataIndex];
+                const bool isStroked = data.pen.style() != Qt::NoPen;
+                const bool isFilled = data.brush.style() != Qt::NoBrush;
+                if (data.path.isEmpty() || (!isStroked && !isFilled))
+                {
+                    addPathInstruction(std::move(data));
+                    break;
+                }
+
+                const PDFReal scale = Helper::getScale(userToPage);
+                PDFReal strokeMargin = 0.0;
+                if (isStroked)
+                {
+                    const PDFReal width = data.pen.widthF() > 0.0 ? data.pen.widthF() : (scale > 0.0 ? Helper::HAIRLINE_WIDTH / scale : 0.0);
+                    strokeMargin = width * qMax(PDFReal(1.0), PDFReal(data.pen.miterLimit())) + width;
+                }
+
+                const QRectF userBox = data.path.controlPointRect().adjusted(-strokeMargin, -strokeMargin, strokeMargin, strokeMargin);
+                const QPainterPath localRegion = region.getLocalRegion(userToPage.mapRect(userBox));
+                if (localRegion.isEmpty())
+                {
+                    // The path is far from the region (B142)
+                    addPathInstruction(std::move(data));
+                    break;
+                }
+
+                if (!(scale > 0.0) || !userToPage.isInvertible())
+                {
+                    // A singular matrix paints no area; the path near the region is dropped
+                    break;
+                }
+
+                const QPainterPath userRegion = userToPage.inverted().map(localRegion);
+
+                // ISO 32000-2, 8.5.3: a path is filled first, then stroked
+                if (isFilled)
+                {
+                    QPainterPath filledPath = PDFPathBoolean::subtract(data.path, userRegion);
+                    if (!filledPath.isEmpty())
+                    {
+                        addPathInstruction(PathPaintData(Qt::NoPen, data.brush, std::move(filledPath), data.isText));
+                    }
+                }
+
+                if (isStroked)
+                {
+                    // B141: the outline of the stroke loses the region and is filled by the color of
+                    // the pen - an open path stays open, the dashes, the caps and the joins are kept
+                    QPainterPathStroker stroker(data.pen);
+                    if (!(data.pen.widthF() > 0.0) || data.pen.isCosmetic())
+                    {
+                        stroker.setWidth(Helper::HAIRLINE_WIDTH / scale);
+                    }
+                    QPainterPath outline = stroker.createStroke(data.path);
+                    outline.setFillRule(Qt::WindingFill);
+                    QPainterPath strokedPath = PDFPathBoolean::subtract(outline, userRegion);
+                    if (!strokedPath.isEmpty())
+                    {
+                        addPathInstruction(PathPaintData(Qt::NoPen, data.pen.brush(), std::move(strokedPath), data.isText));
+                    }
+                }
                 break;
             }
 
@@ -722,47 +1333,90 @@ void PDFPrecompiledPage::redact(QPainterPath redactPath, const QTransform& matri
             {
                 ImageData& data = m_images[instruction.dataIndex];
                 QImage& image = data.image;
+                if (image.isNull())
+                {
+                    instructions.push_back(instruction);
+                    break;
+                }
 
-                QTransform imageTransform(1.0 / image.width(), 0, 0, 1.0 / image.height(), 0, 0);
-                QTransform worldTransform = imageTransform * QTransform(worldMatrixStack.top());
+                // The pixel space of the image to the page (the image is drawn upside down, see draw)
+                QTransform pixelToPage = QTransform(1.0 / image.width(), 0, 0, 1.0 / image.height(), 0, 0) * userToPage;
+                pixelToPage.translate(0, image.height());
+                pixelToPage.scale(1, -1);
 
-                // Jakub Melka: Because Qt uses opposite axis direction than PDF, then we must transform the y-axis
-                // to the opposite (so the image is then unchanged)
-                worldTransform.translate(0, image.height());
-                worldTransform.scale(1, -1);
+                const QRectF imageRect(0, 0, image.width(), image.height());
+                const QRectF pageBox = pixelToPage.mapRect(imageRect);
+                const QPainterPath localRegion = region.getLocalRegion(pageBox);
+                if (localRegion.isEmpty())
+                {
+                    instructions.push_back(instruction);
+                    break;
+                }
 
-                QPainter painter(&image);
-                painter.setWorldTransform(worldTransform.inverted());
-                painter.drawPath(redactPath);
-                painter.end();
+                if (!pixelToPage.isInvertible() || PDFPathBoolean::subtract(Helper::createPolygonPath(pixelToPage.map(QPolygonF(imageRect))), localRegion).isEmpty())
+                {
+                    // The whole image is in the region: none of its pixels is written
+                    break;
+                }
+
+                // The areas inside of the kept rectangle get the fill (the paper without one),
+                // grown by a pixel; the rest of the region (outside of the crop box, never shown)
+                // gets the paper by the centers of its pixels
+                const QColor paperColor(Qt::white);
+                const QTransform pageToPixel = pixelToPage.inverted();
+                const QPainterPath filledArea = region.getLocalAreas(pageBox);
+                Helper::fillPixels(&image, pageToPixel.map(filledArea), imageFillColor.isValid() ? imageFillColor : paperColor, true);
+                Helper::fillPixels(&image, pageToPixel.map(PDFPathBoolean::subtract(localRegion, filledArea)), paperColor, false);
+
+                data.imageType = PDFImageScaling::getImageType(image);
+                instructions.push_back(instruction);
                 break;
             }
 
             case InstructionType::DrawMesh:
-                // We do not redact mesh
+            {
+                // The vertices of a mesh are in the page space (draw paints it by the page matrix)
+                MeshPaintData& data = m_meshes[instruction.dataIndex];
+                if (Helper::redactMesh(&data.mesh, region))
+                {
+                    instructions.push_back(instruction);
+                }
                 break;
+            }
 
             case InstructionType::Clip:
             {
-                QTransform currentMatrix = worldMatrixStack.top().inverted();
-                QPainterPath mappedRedactPath = currentMatrix.map(redactPath);
-                m_clips[instruction.dataIndex].clipPath = PDFPathBoolean::subtract(m_clips[instruction.dataIndex].clipPath, mappedRedactPath);
+                ClipData& data = m_clips[instruction.dataIndex];
+                const QPainterPath localRegion = region.getLocalRegion(userToPage.mapRect(data.clipPath.controlPointRect()));
+                if (!localRegion.isEmpty() && userToPage.isInvertible())
+                {
+                    data.clipPath = PDFPathBoolean::subtract(data.clipPath, userToPage.inverted().map(localRegion));
+                }
+                instructions.push_back(instruction);
                 break;
             }
 
             case InstructionType::SaveGraphicState:
-                worldMatrixStack.push(worldMatrixStack.top());
+                matrixStack.push_back(userToPage);
+                instructions.push_back(instruction);
                 break;
 
             case InstructionType::RestoreGraphicState:
-                worldMatrixStack.pop();
+                // B152: a restore without its save keeps the matrix of the page
+                if (matrixStack.size() > 1)
+                {
+                    matrixStack.pop_back();
+                }
+                instructions.push_back(instruction);
                 break;
 
             case InstructionType::SetWorldMatrix:
-                worldMatrixStack.top() = m_matrices[instruction.dataIndex];
+                matrixStack.back() = m_matrices[instruction.dataIndex];
+                instructions.push_back(instruction);
                 break;
 
             case InstructionType::SetCompositionMode:
+                instructions.push_back(instruction);
                 break;
 
             default:
@@ -773,11 +1427,8 @@ void PDFPrecompiledPage::redact(QPainterPath redactPath, const QTransform& matri
         }
     }
 
-    if (color.isValid())
-    {
-        addRestoreGraphicState();
-        addPath(Qt::NoPen, QBrush(color), matrix.map(redactPath), false);
-    }
+    m_instructions = std::move(instructions);
+    m_paths = std::move(paths);
 }
 
 void PDFPrecompiledPage::addPath(QPen pen, QBrush brush, QPainterPath path, bool isText)

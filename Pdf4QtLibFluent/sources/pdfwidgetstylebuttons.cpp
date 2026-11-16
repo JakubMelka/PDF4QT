@@ -987,7 +987,7 @@ void PDFWidgetStyleButtons::drawToolButtonLabel(const QStyleOptionToolButton* op
     bool hasIndicator = hasMenuIndicator(option, widget);
 
     Qt::ToolButtonStyle buttonStyle = option->toolButtonStyle;
-    if (option->text.isEmpty() || (buttonStyle == Qt::ToolButtonFollowStyle))
+    if (option->text.isEmpty() || (buttonStyle == Qt::ToolButtonFollowStyle) || (hasIcon && PDFWidgetStyleProperties::isSet(widget, PDFWidgetStyleProperties::ICON_ONLY)))
     {
         buttonStyle = Qt::ToolButtonIconOnly;
     }
@@ -1295,8 +1295,9 @@ QSize PDFWidgetStyleButtons::getToolButtonSize(const QStyleOptionToolButton* opt
     const int splitWidth = option->features.testFlag(QStyleOptionToolButton::MenuButtonPopup) ? TOOL_BUTTON_SPLIT : 0;
 
     Qt::ToolButtonStyle buttonStyle = option->toolButtonStyle;
-    if (option->text.isEmpty() || buttonStyle == Qt::ToolButtonFollowStyle)
+    if (option->text.isEmpty() || buttonStyle == Qt::ToolButtonFollowStyle || PDFWidgetStyleProperties::isSet(widget, PDFWidgetStyleProperties::ICON_ONLY))
     {
+        // ICON_ONLY: the text is the accessible name of the button, not drawn (Toolbar button 190:538)
         buttonStyle = Qt::ToolButtonIconOnly;
     }
     if (!hasIcon)

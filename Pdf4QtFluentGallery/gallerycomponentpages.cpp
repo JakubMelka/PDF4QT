@@ -1158,6 +1158,11 @@ GalleryPages::Page GalleryPages::createPanelsPage(QWidget* parent)
     disabledRow->setColor(pdf::PDFStylePainter::color(Color::AnnotationRed));
     disabledRow->setEnabled(false);
     builder.live(QStringLiteral("Live disabled"), disabledRow);
+    builder.row();
+    pdf::PDFColorSwatchRow* inlineRow = new pdf::PDFColorSwatchRow(builder.page());
+    inlineRow->setOptions(pdf::PDFColorSwatchRow::Option::Inline | pdf::PDFColorSwatchRow::Option::More);
+    inlineRow->setColor(pdf::PDFStylePainter::color(Color::AnnotationBlack));
+    builder.live(QStringLiteral("Live, inline in a panel (1567:19183): 7 colors 4 apart and \"+\" for a custom color"), inlineRow, QStringLiteral("1567:19183"));
     builder.note(QStringLiteral("The swatches show the tokens of the current theme, the row reports the canonical light-theme values (the color written into a document never depends on the theme). More opens the Color palette popover with the same colors and the recently used ones."));
 
     // Reference point of the geometry dialog of an annotation (step 4, package B)

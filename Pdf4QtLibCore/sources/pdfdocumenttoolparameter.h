@@ -237,6 +237,11 @@ public:
     /// the plan of the pages of Merge, never in the schema of MCP)
     static constexpr int MAXIMUM_PANEL_TEXT_LENGTH = 16 * 1024 * 1024;
 
+    /// Upper bound of setMaximumLength of a String of structured data, which its tool bounds by
+    /// counts (setStructuredData: the areas of Redact, the elements of Sign by Hand); the longest
+    /// string of a request of MCP (PDFMcpLimits::MAXIMUM_STRING_SIZE), so MCP stays bounded
+    static constexpr int MAXIMUM_DATA_TEXT_LENGTH = 4 * 1024 * 1024;
+
     /// Longest path of FilePath / FolderPath
     static constexpr int MAXIMUM_PATH_LENGTH = 4096;
 
@@ -287,6 +292,18 @@ public:
     /// exceptions of the links), is not kept. A Secret is never kept.
     PDFDocumentToolParameterDefinition& setStored(bool stored) { m_stored = stored; return *this; }
 
+    /// The value is sensitive: it is never remembered by the application (plan of step 6 of phase 2,
+    /// R6-19, chapter 6 - the search term and the areas of Redact Content are exactly what is removed,
+    /// a drawing of a signature by hand). Such a value is never stored as the last value of the tool
+    /// (PDFToolParameterRepository, also when setStored(true) is called later), nor anywhere else the
+    /// application keeps values beyond the open tool (Recent tools, collections, assemblies); it is
+    /// in the values of the open tool, in their Undo and Redo and in MCP as any other value (unlike a
+    /// Secret, which is always isMcpExcluded and never in the parameter model). Default false.
+    PDFDocumentToolParameterDefinition& setSensitive(bool sensitive) { m_sensitive = sensitive; return *this; }
+
+    /// The value is never remembered (setSensitive)
+    bool isSensitive() const { return m_sensitive; }
+
     /// Only the panels of the tool give the value (the inputs and the plan of the pages of
     /// Merge, owner answer Q11 of step 2 of phase 2): the parameter is left out of the JSON
     /// Schema of MCP (PDFDocumentToolParameters::toJsonSchema), so a client cannot give it,
@@ -296,6 +313,15 @@ public:
 
     /// The parameter is given only by the panels (setPanelOnly)
     bool isPanelOnly() const { return m_panelOnly; }
+
+    /// A String is structured data of the tool (a JSON of the areas of Redact, of the elements of
+    /// Sign by Hand), which the tool bounds by its counts (plan of step 6 of phase 2, 7.2): its length
+    /// only has to fit those counts, so it may be longer than MAXIMUM_TEXT_LENGTH (at most
+    /// MAXIMUM_DATA_TEXT_LENGTH). Call it before setMaximumLength.
+    PDFDocumentToolParameterDefinition& setStructuredData(bool structuredData) { m_structuredData = structuredData; return *this; }
+
+    /// The String is structured data bounded by counts (setStructuredData)
+    bool isStructuredData() const { return m_structuredData; }
 
     /// The value never goes through MCP (plan of step 5 of phase 2, 6.3, S5.2, owner answer Q5.6):
     /// the parameter is left out of the JSON Schema of an action (toJsonSchema - the strict schema
@@ -333,8 +359,9 @@ public:
     int getMaximumLength() const { return m_maximumLength; }
     const std::vector<PDFDocumentToolParameterOption>& getOptions() const { return m_options; }
 
-    /// The value is stored as the last value of the tool (setStored, never a Secret nor a Value)
-    bool isStored() const { return m_stored && m_type != PDFDocumentToolParameterType::Secret && m_type != PDFDocumentToolParameterType::Value; }
+    /// The value is stored as the last value of the tool (setStored, never a Secret, a Value nor a
+    /// sensitive value - setSensitive)
+    bool isStored() const { return m_stored && !m_sensitive && m_type != PDFDocumentToolParameterType::Secret && m_type != PDFDocumentToolParameterType::Value; }
 
     /// The definition itself is valid: the function translating its texts, a valid name,
     /// minimum <= default <= maximum, valid unique option ids with the default among them,
@@ -391,7 +418,9 @@ private:
     bool m_required = false;
     bool m_stored = true;
     bool m_panelOnly = false;
+    bool m_structuredData = false;
     bool m_mcpExcluded = false;
+    bool m_sensitive = false;
     qint64 m_integerMinimum = 0;
     qint64 m_integerMaximum = 0;
     double m_realMinimum = 0.0;

@@ -69,7 +69,25 @@ PDFObjectReference PDFDocumentBuilder::createSignatureField(QString fieldName,
     }
 
     const PDFObjectReference field = createFormFieldSignature(fieldName, {}, signatureValue);
-    if (m_storage.getObjectByReference(appearanceStream).isStream() && !rect.isEmpty())
+    if (!pageDictionary)
+    {
+        // A document without a page (plan of step 6 of phase 2, 7.2: an invisible signature is
+        // allowed): an invisible widget without /P (Table 166: /P is optional) on no page
+        PDFObjectFactory widget;
+        widget.beginDictionary();
+        widget.beginDictionaryItem("Type");
+        widget << WrapName("Annot");
+        widget.endDictionaryItem();
+        widget.beginDictionaryItem("Subtype");
+        widget << WrapName("Widget");
+        widget.endDictionaryItem();
+        widget.beginDictionaryItem("Rect");
+        widget << std::array{ 0.0, 0.0, 0.0, 0.0 };
+        widget.endDictionaryItem();
+        widget.endDictionary();
+        mergeTo(field, widget.takeObject());
+    }
+    else if (m_storage.getObjectByReference(appearanceStream).isStream() && !rect.isEmpty())
     {
         createFormFieldWidget(field, page, appearanceStream, rect);
     }
@@ -2821,10 +2839,27 @@ QPainter* PDFContentStreamBuilder::begin()
 
     m_painter = new QPainter(m_pdfWriter);
 
+    // B154: QPdfEngine writes an image by JPEG (DCTDecode, lossy) whenever it is smaller than the
+    // lossless data; an image drawn into a content stream keeps its pixels exactly (FlateDecode).
+    // The redaction compares the pixels of its images (R6-5), a page rebuilt twice does not lose
+    // quality twice. The hint survives save() / restore() of the painter.
+    m_painter->setRenderHint(QPainter::LosslessImageRendering, true);
+
+    // B149: QPdfEngine flips the y axis by the height of its page in whole points
+    // (QPageLayout::fullRectPoints, the page matrix "1 0 0 -1 0 H"), not by the height of m_size - the
+    // height rounded, or the height of a standard size within 3 points (QPageSize::FuzzyMatch). The
+    // content stream is taken without the page of the writer, so the transformation is made of that
+    // height: a point keeps its exact coordinates of the page of m_size (the shift was up to 0.5 pt of
+    // the rounding, 2 pt of a size near A4)
+    const qreal writerPageHeight = m_pdfWriter->pageLayout().fullRectPoints().height();
     if (m_coordinateSystem == CoordinateSystem::PDF)
     {
-        m_painter->translate(0, m_size.height());
+        m_painter->translate(0, writerPageHeight);
         m_painter->scale(1.0, -1.0);
+    }
+    else
+    {
+        m_painter->translate(0, writerPageHeight - m_size.height());
     }
 
     return m_painter;
@@ -4738,6 +4773,9 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationRedact(PDFObjectReference
     objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("Subtype");
     objectBuilder << WrapName("Redact");
+    objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("Rect");
+    objectBuilder << quadrilaterals.boundingRect();
     objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("P");
     objectBuilder << page;

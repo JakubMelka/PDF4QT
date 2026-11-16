@@ -734,7 +734,22 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
             Q_ASSERT(false);
     }
 
+    // The source of the handler (isSameEncryption, R6-1): the strings of the encryption dictionary
+    // are never encrypted (7.6.2), so the dictionaries of two readings of one file are equal
+    handler->m_encryptionDictionary = encryptionDictionaryObject;
+    handler->m_encryptionDocumentId = id;
     return handler;
+}
+
+bool PDFSecurityHandler::isSameEncryption(const PDFSecurityHandler* other) const
+{
+    if (!other || getMode() == EncryptionMode::None || getMode() != other->getMode())
+    {
+        return false;
+    }
+
+    // A handler of the factory has no dictionary of a file: it is the same as no other handler
+    return !m_encryptionDictionary.isNull() && m_encryptionDictionary == other->m_encryptionDictionary && m_encryptionDocumentId == other->m_encryptionDocumentId;
 }
 
 void PDFSecurityHandler::setNoDRMMode()
@@ -2641,6 +2656,15 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandlerUnchec
     PDFStandardOrPublicSecurityHandler* handler = nullptr;
     PDFSecurityHandlerPointer handlerPointer;
 
+    // The seed and the permissions of the envelope of a certificate of the system store (cleared by
+    // authorizeByEnvelope, or by the guard on every other way out)
+    QByteArray systemStoreEnvelope;
+    struct EnvelopeGuard
+    {
+        QByteArray& data;
+        ~EnvelopeGuard() { PDFSecureMemory::clear(data); }
+    } envelopeGuard{ systemStoreEnvelope };
+
     if (settings.algorithm != Algorithm::Certificate)
     {
         standardHandler = new PDFStandardSecurityHandler();
@@ -2727,6 +2751,18 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandlerUnchec
         // enveloped for the only recipient - the certificate of the user (R5-1: its PKCS#12)
         QByteArray seed = generateRandomBytes(20);
         const QByteArray recipient = createRecipient(settings.certificate, settings.userPassword, seed, publicKeyHandler->m_permissions, errorMessage);
+        if (!recipient.isEmpty() && isSystemStoreCertificate(settings.certificate))
+        {
+            // Owner 2026-11-15 (step 6, addendum): a certificate of the system store is a recipient by
+            // its public certificate only - its key is never used at the encryption (no PIN), the
+            // handler is authorized by the decrypted form of its own envelope (the seed and the
+            // permissions, 7.6.5.3) at the check below
+            systemStoreEnvelope = seed;
+            for (int i = 0; i < 4; ++i)
+            {
+                systemStoreEnvelope.append(char((publicKeyHandler->m_permissions >> (8 * i)) & 0xFF));
+            }
+        }
         PDFSecureMemory::clear(seed);
         if (recipient.isEmpty())
         {
@@ -2924,6 +2960,26 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandlerUnchec
         }
     }
 
+    // The handler knows the encryption dictionary it writes and the /ID of the document
+    // (isSameEncryption: a file written by it is read back by its clone)
+    auto rememberSource = [handler, &settings]()
+    {
+        handler->m_encryptionDictionary = handler->createEncryptionDictionaryObject();
+        handler->m_encryptionDocumentId = settings.id;
+    };
+
+    // A certificate of the system store: authorized by the seed of its envelope (no private key)
+    if (publicKeyHandler && !systemStoreEnvelope.isEmpty())
+    {
+        if (publicKeyHandler->authorizeByEnvelope(systemStoreEnvelope, settings.certificate.info))
+        {
+            rememberSource();
+            return handlerPointer;
+        }
+        setError(tr("The encryption cannot be created."));
+        return nullptr;
+    }
+
     // The check: the handler is authorized as written - the owner password opens the standard
     // handler, the private key of the chosen certificate and its password open the public-key
     // handler (R5-1: by the PKCS#12 of the settings, never by the certificates of the directory)
@@ -2934,6 +2990,7 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandlerUnchec
     if (handler->getAuthorizationResult() == PDFSecurityHandler::AuthorizationResult::OwnerAuthorized ||
         (isPublicKeySecurity && handler->getAuthorizationResult() == PDFSecurityHandler::AuthorizationResult::UserAuthorized))
     {
+       rememberSource();
        return handlerPointer;
     }
 
@@ -3128,43 +3185,63 @@ QByteArray PDFSecurityHandlerFactory::createRecipient(const PDFCertificateEntry&
         }
     };
 
-    if (certificate.pkcs12.isEmpty())
+    openssl_ptr<X509> x509(nullptr, X509_free);
+    if (isSystemStoreCertificate(certificate))
     {
-        // A certificate of the system store has no PKCS#12 (B96, Q5.4)
-        setError(tr("The certificate has no private key file (.pfx) and cannot be used for the encryption."));
-        return QByteArray();
+        // Q6.2 of step 6: a certificate of the system store - the recipient needs only its public
+        // certificate (7.6.5.3), its key stays in the system and opens the document later
+        const QByteArray certificateData = certificate.info.getCertificateData();
+        const unsigned char* derData = convertByteArrayToUcharPtr(certificateData);
+        x509.reset(d2i_X509(nullptr, &derData, long(certificateData.size())));
+        if (!x509)
+        {
+            ERR_clear_error();
+            setError(tr("The certificate is not valid."));
+            return QByteArray();
+        }
     }
-
-    const unsigned char* pkcs12Data = convertByteArrayToUcharPtr(certificate.pkcs12);
-    openssl_ptr<PKCS12> pkcs12(d2i_PKCS12(nullptr, &pkcs12Data, long(certificate.pkcs12.size())), &PKCS12_free);
-    if (!pkcs12)
+    else
     {
-        ERR_clear_error();
-        setError(tr("The certificate file is not a valid PKCS#12 file."));
-        return QByteArray();
-    }
+        if (certificate.pkcs12.isEmpty())
+        {
+            // No PKCS#12 and no certificate of the system store (B96, Q5.4)
+            setError(tr("The certificate has no private key file (.pfx) and cannot be used for the encryption."));
+            return QByteArray();
+        }
 
-    // The password of a PKCS#12 is UTF-8 (B84)
-    QByteArray passwordUtf8 = password.toUtf8();
-    EVP_PKEY* keyPtr = nullptr;
-    X509* certificatePtr = nullptr;
-    STACK_OF(X509)* certificatesPtr = nullptr;
-    const bool isParsed = PKCS12_parse(pkcs12.get(), passwordUtf8.isEmpty() ? nullptr : passwordUtf8.constData(), &keyPtr, &certificatePtr, &certificatesPtr) == 1;
-    PDFSecureMemory::clear(passwordUtf8);
+        // The password of a PKCS#12 is UTF-8 (B84); 6.3 of step 6: a hostile count of iterations is
+        // refused before the password is tried
+        QByteArray passwordUtf8 = password.toUtf8();
+        const unsigned char* pkcs12Data = convertByteArrayToUcharPtr(certificate.pkcs12);
+        openssl_ptr<PKCS12> pkcs12(d2i_PKCS12(nullptr, &pkcs12Data, long(certificate.pkcs12.size())), &PKCS12_free);
+        if (!pkcs12 || !PDFCertificateManager::isPkcs12IterationCountAcceptable(certificate.pkcs12, passwordUtf8))
+        {
+            ERR_clear_error();
+            PDFSecureMemory::clear(passwordUtf8);
+            setError(tr("The certificate file is not a valid PKCS#12 file."));
+            return QByteArray();
+        }
 
-    openssl_ptr<EVP_PKEY> key(keyPtr, EVP_PKEY_free);
-    openssl_ptr<X509> x509(certificatePtr, X509_free);
-    if (certificatesPtr)
-    {
-        // The chain of the issuers is not needed (the recipient is the certificate itself)
-        sk_X509_pop_free(certificatesPtr, X509_free);
-    }
+        EVP_PKEY* keyPtr = nullptr;
+        X509* certificatePtr = nullptr;
+        STACK_OF(X509)* certificatesPtr = nullptr;
+        const bool isParsed = PKCS12_parse(pkcs12.get(), passwordUtf8.isEmpty() ? nullptr : passwordUtf8.constData(), &keyPtr, &certificatePtr, &certificatesPtr) == 1;
+        PDFSecureMemory::clear(passwordUtf8);
 
-    if (!isParsed || !x509)
-    {
-        ERR_clear_error();
-        setError(tr("The certificate cannot be opened with this password."));
-        return QByteArray();
+        openssl_ptr<EVP_PKEY> key(keyPtr, EVP_PKEY_free);
+        x509.reset(certificatePtr);
+        if (certificatesPtr)
+        {
+            // The chain of the issuers is not needed (the recipient is the certificate itself)
+            sk_X509_pop_free(certificatesPtr, X509_free);
+        }
+
+        if (!isParsed || !x509)
+        {
+            ERR_clear_error();
+            setError(tr("The certificate cannot be opened with this password."));
+            return QByteArray();
+        }
     }
 
     // 7.6.5.3: the enveloped data are the 20 bytes of the seed and the 4 bytes of the permissions
@@ -3268,9 +3345,21 @@ bool PDFSecurityHandlerFactory::validate(const SecuritySettings& settings, QStri
 
         case pdf::PDFSecurityHandlerFactory::Certificate:
         {
+            if (isSystemStoreCertificate(settings.certificate))
+            {
+                // Q6.2 of step 6: a certificate of the system store - only its public certificate is
+                // needed (no password); its key must be able to receive the envelope (B99)
+                if (!PDFCertificateManager::isUsableForEncryption(settings.certificate.info.getCertificateData()))
+                {
+                    setError(tr("The certificate cannot be used for encryption (its key usage has no key encipherment)."));
+                    return false;
+                }
+                break;
+            }
+
             if (settings.certificate.pkcs12.isEmpty())
             {
-                // B96, Q5.4: a certificate of the system store cannot be used yet
+                // B96, Q5.4: a certificate without a PKCS#12, which is not of the system store
                 setError(tr("The certificate has no private key file (.pfx) and cannot be used for the encryption."));
                 return false;
             }
@@ -3327,21 +3416,25 @@ PDFSecurityHandler::AuthorizationResult PDFPublicKeySecurityHandler::authenticat
         return AuthorizationResult::Failed;
     }
 
-    // Only a certificate with its PKCS#12 has a private key (a certificate of the system store
-    // has none yet: B96, owner answer Q5.4)
+    // A private key: the PKCS#12 of a .pfx file, or a certificate of the system store, whose key stays
+    // in the system (Q6.2 of step 6 of phase 2; B96, Q5.4 of step 5 had none)
     bool hasPrivateKey = false;
+    bool hasSystemCertificate = false;
     for (const PDFCertificateEntry& certificateEntry : certificates)
     {
         hasPrivateKey = hasPrivateKey || !certificateEntry.pkcs12.isEmpty();
+        hasSystemCertificate = hasSystemCertificate || PDFSecurityHandlerFactory::isSystemStoreCertificate(certificateEntry);
     }
 
-    if (!hasPrivateKey || m_filterDefault.recipients.isEmpty())
+    if ((!hasPrivateKey && !hasSystemCertificate) || m_filterDefault.recipients.isEmpty())
     {
         return AuthorizationResult::Failed;
     }
 
-    // The empty password first (a .pfx without a password), then the passwords of the callback
+    // The empty password first (a .pfx without a password), then the system store (no password; the
+    // system may ask for a PIN), then the passwords of the callback - only for a .pfx
     bool passwordObtained = true;
+    bool isSystemStoreTried = false;
     QString password;
     while (true)
     {
@@ -3359,9 +3452,20 @@ PDFSecurityHandler::AuthorizationResult PDFPublicKeySecurityHandler::authenticat
         }
         PDFSecureMemory::clear(passwordUtf8);
 
+        for (auto it = certificates.cbegin(); !isAuthorized && !isSystemStoreTried && it != certificates.cend(); ++it)
+        {
+            isAuthorized = PDFSecurityHandlerFactory::isSystemStoreCertificate(*it) && authenticateBySystemStore(it->info.getCertificateData());
+        }
+        isSystemStoreTried = true;
+
         if (isAuthorized)
         {
             return m_authorizationData.authorizationResult;
+        }
+
+        if (!hasPrivateKey)
+        {
+            return AuthorizationResult::Failed;
         }
 
         password = getPasswordCallback(&passwordObtained);
@@ -3373,8 +3477,34 @@ PDFSecurityHandler::AuthorizationResult PDFPublicKeySecurityHandler::authenticat
     }
 }
 
+bool PDFSecurityHandlerFactory::isSystemStoreCertificate(const PDFCertificateEntry& entry)
+{
+    return entry.type == PDFCertificateEntry::EntryType::System && entry.pkcs12.isEmpty() && !entry.info.getCertificateData().isEmpty();
+}
+
+bool PDFPublicKeySecurityHandler::authenticateBySystemStore(const QByteArray& certificateData)
+{
+    // Q6.2: the system decrypts the envelope by the key of the certificate (only its recipient info)
+    for (const QByteArray& recipient : m_filterDefault.recipients)
+    {
+        std::optional<QByteArray> decryptedData = PDFPersonalCertificateStore::decryptEnvelope(certificateData, recipient);
+        if (decryptedData && authorizeByEnvelope(*decryptedData, PDFCertificateInfo::getCertificateInfo(certificateData)))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool PDFPublicKeySecurityHandler::authenticateByPkcs12(const QByteArray& pkcs12Data, const QByteArray& passwordUtf8)
 {
+    // 6.3, R6-28 of step 6: a hostile .pfx of millions of iterations would block the thread for
+    // minutes - refused before its password is tried
+    if (!PDFCertificateManager::isPkcs12IterationCountAcceptable(pkcs12Data, passwordUtf8))
+    {
+        return false;
+    }
+
     // B102: the private key is in the PKCS#12 of the entry (entry.pkcs12), never in the DER of
     // its certificate
     const unsigned char* data = convertByteArrayToUcharPtr(pkcs12Data);
@@ -3426,60 +3556,62 @@ bool PDFPublicKeySecurityHandler::authenticateByPkcs12(const QByteArray& pkcs12D
         BIO_get_mem_ptr(dataBuffer.get(), &memoryBuffer);
 
         // Acc. to chapter 7.6.5.3 - the decrypted data are the 20 bytes of the seed and 4 bytes
-        // of the permissions
+        // of the permissions; the public certificate of the recipient (its holder is "Opens for"),
+        // the key is freed
         QByteArray decryptedData(memoryBuffer->data, int(memoryBuffer->length));
         PDFSecureMemory::clear(memoryBuffer->data, memoryBuffer->length);
-        if (decryptedData.size() < 20)
+        if (authorizeByEnvelope(decryptedData, PDFCertificateInfo::getCertificateInfo(certificate.get())))
         {
-            PDFSecureMemory::clear(decryptedData);
-            continue;
+            return true;
         }
-
-        // Calculate file encryption key
-        openssl_ptr<EVP_MD_CTX> context(EVP_MD_CTX_new(), EVP_MD_CTX_free);
-        if (!context || EVP_DigestInit_ex(context.get(), (m_keyLength == 256) ? EVP_sha256() : EVP_sha1(), nullptr) != 1)
-        {
-            PDFSecureMemory::clear(decryptedData);
-            return false;
-        }
-
-        // 7.6.5.3 a)
-        EVP_DigestUpdate(context.get(), decryptedData.constData(), 20);
-
-        // 7.6.5.3 b)
-        for (const QByteArray& recipientItem : m_filterDefault.recipients)
-        {
-            EVP_DigestUpdate(context.get(), recipientItem.constData(), size_t(recipientItem.size()));
-        }
-
-        // 7.6.5.3 c)
-        if (!isMetadataEncrypted())
-        {
-            constexpr uint32_t value = 0xFFFFFFFF;
-            EVP_DigestUpdate(context.get(), &value, sizeof(value));
-        }
-
-        std::array<unsigned char, EVP_MAX_MD_SIZE> digest = { };
-        unsigned int digestSize = 0;
-        EVP_DigestFinal_ex(context.get(), digest.data(), &digestSize);
-
-        // The permissions of the envelope (Table 24). An envelope without them allows nothing:
-        // /P of the encryption dictionary is not protected (R5-24, SECURITY_TODO 47)
-        m_permissions = (decryptedData.size() >= 24) ? qFromLittleEndian<uint32_t>(decryptedData.constData() + 20) : 0;
-        PDFSecureMemory::clear(decryptedData);
-
-        const AuthorizationResult authorizationResult = isNoDRM() ? AuthorizationResult::OwnerAuthorized : AuthorizationResult::UserAuthorized;
-        const int keyBytes = qMin(int(digestSize), m_keyLength / 8);
-        m_authorizationData.fileEncryptionKey = QByteArray(reinterpret_cast<const char*>(digest.data()), keyBytes);
-        m_authorizationData.authorizationResult = authorizationResult;
-        PDFSecureMemory::clear(digest.data(), digest.size());
-
-        // The public certificate of the recipient (its holder is "Opens for"); the key is freed
-        m_authorizedCertificate = PDFCertificateInfo::getCertificateInfo(certificate.get());
-        return true;
     }
 
     return false;
+}
+
+bool PDFPublicKeySecurityHandler::authorizeByEnvelope(QByteArray& decryptedData, std::optional<PDFCertificateInfo> certificate)
+{
+    // 7.6.5.3: the 20 bytes of the seed, then the 4 bytes of the permissions
+    openssl_ptr<EVP_MD_CTX> context(EVP_MD_CTX_new(), EVP_MD_CTX_free);
+    if (decryptedData.size() < 20 || !context || EVP_DigestInit_ex(context.get(), (m_keyLength == 256) ? EVP_sha256() : EVP_sha1(), nullptr) != 1)
+    {
+        PDFSecureMemory::clear(decryptedData);
+        return false;
+    }
+
+    // 7.6.5.3 a)
+    EVP_DigestUpdate(context.get(), decryptedData.constData(), 20);
+
+    // 7.6.5.3 b)
+    for (const QByteArray& recipientItem : m_filterDefault.recipients)
+    {
+        EVP_DigestUpdate(context.get(), recipientItem.constData(), size_t(recipientItem.size()));
+    }
+
+    // 7.6.5.3 c)
+    if (!isMetadataEncrypted())
+    {
+        constexpr uint32_t value = 0xFFFFFFFF;
+        EVP_DigestUpdate(context.get(), &value, sizeof(value));
+    }
+
+    std::array<unsigned char, EVP_MAX_MD_SIZE> digest = { };
+    unsigned int digestSize = 0;
+    EVP_DigestFinal_ex(context.get(), digest.data(), &digestSize);
+
+    // The permissions of the envelope (Table 24). An envelope without them allows nothing:
+    // /P of the encryption dictionary is not protected (R5-24, SECURITY_TODO 47)
+    m_permissions = (decryptedData.size() >= 24) ? qFromLittleEndian<uint32_t>(decryptedData.constData() + 20) : 0;
+    PDFSecureMemory::clear(decryptedData);
+
+    const AuthorizationResult authorizationResult = isNoDRM() ? AuthorizationResult::OwnerAuthorized : AuthorizationResult::UserAuthorized;
+    const int keyBytes = qMin(int(digestSize), m_keyLength / 8);
+    m_authorizationData.fileEncryptionKey = QByteArray(reinterpret_cast<const char*>(digest.data()), keyBytes);
+    m_authorizationData.authorizationResult = authorizationResult;
+    PDFSecureMemory::clear(digest.data(), digest.size());
+
+    m_authorizedCertificate = std::move(certificate);
+    return true;
 }
 
 bool PDFPublicKeySecurityHandler::isMetadataEncrypted() const

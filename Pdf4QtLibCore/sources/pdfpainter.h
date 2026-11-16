@@ -224,11 +224,22 @@ public:
               PDFReal opacity,
               PDFScaledImageCache* scaledImageCache = nullptr) const;
 
-    /// Redact path - remove all content intersecting given path,
-    /// and fill redact path with given color.
-    /// \param redactPath Redaction path in page coordinates
-    /// \param color Redaction color (if invalid, nothing is being drawn)
-    void redact(QPainterPath redactPath, const QTransform& matrix, QColor color);
+    /// Redacts the page (plan of step 6 of phase 2, 5.4 with B138, B140 - B142, B152, R6-7, R6-18,
+    /// Q6.11): every content in the redacted areas and outside of the kept rectangle is removed - the
+    /// area is subtracted from the filled paths, from the outlines of the strokes (an open stroke
+    /// stays open, B141), from the clips and from the meshes of the shadings (a triangle inside is
+    /// dropped, the rest is clipped, B140); the pixels of an image in the area get the color
+    /// \p imageFillColor (B138; the paper - white - without it and outside of the kept rectangle: no
+    /// transparency is added to an image). Every
+    /// object is tested against the parts of the region near it (B142). No fill of the areas is
+    /// painted: the caller paints it in its own content stream (R6-5).
+    /// \param redactPath The redacted region in the page coordinates by its fill rule (PDFRedact gives
+    ///        the union of its areas, R6-7: PDFPathBoolean::uniteSubpaths)
+    /// \param keptRect The content outside of it is removed too (the crop box, Q6.11); an invalid
+    ///        rectangle keeps everything outside of the areas
+    /// \param matrix Page point to device point matrix of the later draw
+    /// \param imageFillColor Color of the redacted pixels of the images; invalid = the paper (white)
+    void redact(const QPainterPath& redactPath, const QRectF& keptRect, const QTransform& matrix, QColor imageFillColor);
 
     void addPath(QPen pen, QBrush brush, QPainterPath path, bool isText);
     void addClip(QPainterPath path);

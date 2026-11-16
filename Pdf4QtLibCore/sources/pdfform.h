@@ -499,8 +499,15 @@ public:
     /// \param functor Functor to apply
     void apply(const std::function<void(const PDFFormField*)>& functor) const;
 
+    /// Longest way of /Parent from a widget to its root field, which parse walks for a document
+    /// without /AcroForm (a longer one or a cycle is no field)
+    static constexpr int MAXIMUM_PARENT_DEPTH = 256;
+
     /// Parses form from the object. If some error occurs
     /// then empty form is returned, no exception is thrown.
+    /// A document without the form dictionary (\p object is no dictionary) has no form (FormType::None),
+    /// but the signature fields of the widgets of its pages are its fields: a signature of the bytes of
+    /// the file is never overlooked (step 6 of phase 2, Signature/multiplesignatures.pdf).
     /// \param document Document
     /// \param reference Field reference
     static PDFForm parse(const PDFDocument* document, PDFObject object);

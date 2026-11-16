@@ -48,7 +48,7 @@ std::vector<PDFMcpResourceDefinition> PDFAppMcpResources::createStaticResources(
 
 std::vector<PDFMcpResourceDefinition> PDFAppMcpResources::createDocumentResources(const PDFAppMcpHost* host)
 {
-    // Package B: the state and the listed resources of the open documents
+    // Package B: the listed resources of the open documents and the state
     return PDFAppMcpDocumentResources::createListed(host);
 }
 

@@ -23,6 +23,7 @@
 #ifndef PDFDOCUMENTTOOLSHELL_H
 #define PDFDOCUMENTTOOLSHELL_H
 
+#include "pdfappdocumentpermissions.h"
 #include "pdfappglobal.h"
 #include "pdfapptoolhost.h"
 #include "pdfapptoolpanelparts.h"
@@ -42,6 +43,7 @@
 
 #include <memory>
 #include <optional>
+#include <vector>
 
 class QAction;
 class QBoxLayout;
@@ -50,8 +52,10 @@ class QEvent;
 namespace pdf
 {
 
+class PDFAppDocument;
 class PDFDocumentToolCatalogEntry;
 class PDFAppToolFileConflictDialog;
+class PDFModifiedDocument;
 
 /// How a shell asks its page to end (the page chooses the route, F15)
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolCloseRequest
@@ -84,6 +88,77 @@ public:
     /// PDFDocumentToolGUI::isResultInThisTab): the written file, which the page opens in place
     /// of the own tab (Accepted); empty = none
     QString newDocumentFilePath;
+};
+
+/// Undo and Redo of a tool, which changes the document of its tab while it is open
+/// (PDFDocumentToolGUI::hasDocumentUndoSteps - Redact Content with its marks; plan of step 6 of
+/// phase 2, P5 open point 3): the steps of the parameter model and the steps of the document committed
+/// by the tool (PDFDocumentToolShell::commitDocumentChange) in one order, so Ctrl+Z takes back the
+/// last thing done in the tool, whichever it was. A step of the document is the real step of the undo
+/// stack of the document (PDFAppUndoStack::undoToolStep): after the tool the Undo of the document
+/// continues where the tool has left it. A change of somebody else (an assistant, a reload) after the
+/// last step of the tool ends the steps of the document of the tool - the tool never takes back a
+/// change of somebody else; the steps stay in the Undo of the document.
+///
+/// Ownership: the shell owns the target (a child, deleted before the model); the model and the
+/// document are held by QPointer. undo and redo run the slots of the document (a slot may close the
+/// tab): the state is changed before, Q_EMIT is the last call.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolCompositeUndoTarget : public PDFAppToolUndoTarget
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFAppToolUndoTarget;
+
+public:
+    explicit PDFAppToolCompositeUndoTarget(PDFAppToolParameterModel* model, PDFAppDocument* document, QObject* parent);
+    virtual ~PDFAppToolCompositeUndoTarget() override;
+
+    /// Records a step of the document committed by the tool: \p versionAfter is the version of the
+    /// document right after the commit (PDFAppDocument::getVersion of the expected version + 1)
+    void recordDocumentStep(quint64 versionAfter);
+
+    virtual bool canUndo() const override;
+    virtual bool canRedo() const override;
+    virtual void undo() override;
+    virtual void redo() override;
+    virtual QString getUndoText() const override;
+    virtual QString getRedoText() const override;
+
+    /// Steps, which Undo / Redo can reach (tests)
+    size_t getUndoStepCount() const { return m_undoSteps.size(); }
+    size_t getRedoStepCount() const { return m_redoSteps.size(); }
+
+private:
+    enum class Source
+    {
+        Parameters, ///< A step of the parameter model
+        Document    ///< A step of the undo stack of the document committed by the tool
+    };
+
+    /// The step can be taken back (\p isUndo) or done again now
+    bool isAvailable(Source source, bool isUndo) const;
+
+    /// The next step of the document of the tool is on the top of its undo stack, but the document takes
+    /// no change now (an operation blocking the changes, its lock): the step waits, it is not skipped
+    bool isWaitingForDocument(bool isUndo) const;
+
+    /// The index of the step, which Undo (\p isUndo) or Redo acts on, -1 = none
+    int findStep(bool isUndo) const;
+
+    /// Undo or Redo of the step found by findStep
+    void apply(bool isUndo);
+
+    /// The model has a new step of the user, or it has done Undo / Redo itself
+    void onModelUndoStateChanged();
+
+    QPointer<PDFAppToolParameterModel> m_model;
+    QPointer<PDFAppDocument> m_document;
+    std::vector<Source> m_undoSteps;
+    std::vector<Source> m_redoSteps;
+    quint64 m_modelStepCount = 0;       ///< PDFAppToolParameterModel::getRecordedStepCount seen last
+    quint64 m_documentVersion = 0;      ///< The version of the document after the last step of the tool
+    bool m_isApplying = false;          ///< undo / redo of this target runs
 };
 
 /// The common part of a tool in a tab (plan of the first batch, chapters 2.1 and 2.4).
@@ -144,8 +219,28 @@ public:
     void stop();
 
     /// Cancel, Esc: the tool ends, the document stays as it is; after the run (Deciding) it is
-    /// Cancel / Close of the result dialog first (cancelResult)
+    /// Cancel / Close of the result dialog first (cancelResult). In the tab of a document the GUI may
+    /// ask first (PDFDocumentToolGUI::askClose: Sign by Hand 435:10500, Redact 448:17473): the tool
+    /// stays until the answer (closeAfterQuestion).
     void cancel();
+
+    /// The question of PDFDocumentToolGUI::askClose has been answered by closing (Discard Drawing, Keep
+    /// Marks and Close, Remove Marks): the tool ends as Cancel ends it, without asking again. Nothing
+    /// outside of the state Editing. The shell, the GUI and the tab may be deleted by it (the last call).
+    void closeAfterQuestion();
+
+    /// The question of PDFDocumentToolGUI::askClose is being asked (the re-entry guard)
+    bool isAskingClose() const { return m_isAskingClose; }
+
+    /// Commits a change of the document of the tab as a change of the tool (PDFDocumentToolGUI::
+    /// commitDocumentChange): PDFAppChangeSource::Tool, a step of Undo of the tool in its order
+    /// (PDFAppToolCompositeUndoTarget) for a GUI with hasDocumentUndoSteps. Only in the state Editing.
+    /// \returns the commit was accepted; the slots of the document may delete the shell meanwhile.
+    bool commitDocumentChange(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion);
+
+    /// What Undo and Redo of the tool act on: the composite target of a GUI with hasDocumentUndoSteps,
+    /// else the model (nullptr before enter)
+    PDFAppToolUndoTarget* getUndoTarget() const;
 
     /// The tab leaves the tool by a navigation (F14). A run asks as close-running:
     /// Stop and Leave stops it, Keep Running refuses. \returns the tool can be left.
@@ -216,6 +311,14 @@ public:
     /// the owner password dialog or the refusal, nullptr = none is open; it deletes itself when closed
     QDialog* getRunPermissionDialog() const { return m_runPermissionDialog.data(); }
 
+    /// The question of the permissions, which the values of the run need, asked when the Primary button is
+    /// pressed: those of PDFDocumentToolGUI::getRunPermissions and, of a tool, whose run needs one of more
+    /// permissions (PDFDocumentTool::getAnyOfPermissions - Sign with Certificate into an existing empty field,
+    /// bit 9 or bit 6 of ISO 32000-2, Table 22), those alternatives, all with the parameters of the run - the
+    /// rule of the validation of the core (PDFDocumentTool::isPermittedRun). std::nullopt = the run needs
+    /// nothing besides the catalog entry, which the entry has checked.
+    std::optional<PDFAppPermissionRequest> getRunPermissionRequest() const;
+
     /// The document does not give the permission of the tool (339:10328)
     bool isPermissionRefused() const { return m_isPermissionRefused; }
 
@@ -268,6 +371,10 @@ private:
 
     /// The permissions of the document do not allow the tool (PDFAppDocumentPermissions)
     bool isRefusedByPermissions() const;
+
+    /// Asks PDFDocumentToolGUI::askClose in the tab of a document (re-entry guarded). \returns true =
+    /// the tool stays (a question is open, or the shell has gone meanwhile)
+    bool askCloseQuestion();
     void requestClose(const PDFAppToolCloseRequest& request);
     void onLanguageChanged();
     void deleteParts();
@@ -318,6 +425,7 @@ private:
     QPointer<PDFDocumentToolGUI> m_gui;
     QPointer<PDFAppToolParameterModel> m_model;
     QPointer<PDFDocumentToolRunner> m_runner;
+    QPointer<PDFAppToolCompositeUndoTarget> m_undoTarget;  ///< A child (PDFDocumentToolGUI::hasDocumentUndoSteps), nullptr = the model is the target
 
     QPointer<PDFAppToolToolbar> m_toolbar;
     QPointer<PDFAppToolSidePanel> m_rightPanel;
@@ -355,6 +463,7 @@ private:
     bool m_isRebuilding = false;
     bool m_isCloseRequested = false;
     bool m_isLeavingMode = false;   ///< The host is moving the parts back (close)
+    bool m_isAskingClose = false;   ///< PDFDocumentToolGUI::askClose runs (re-entry guard)
 };
 
 }   // namespace pdf

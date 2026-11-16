@@ -30,6 +30,9 @@
 #include <QRecursiveMutex>
 #include <QMutexLocker>
 
+#include <memory>
+#include <optional>
+
 class QDataStream;
 struct x509_st;
 
@@ -237,7 +240,17 @@ class PDF4QTLIBCORESHARED_EXPORT PDFCertificateStore
 public:
     explicit inline PDFCertificateStore() = default;
 
+    /// Largest file of the store (TrustedCertStorage.bin of the old applications and PdfTool) and most
+    /// of its entries (plan of step 6 of phase 2, B131, SECURITY_TODO 53): a larger file, more entries,
+    /// another version of the format or damaged data give an empty store
+    static constexpr qint64 MAXIMUM_STORE_FILE_SIZE = 4 * 1024 * 1024;
+    static constexpr quint64 MAXIMUM_STORE_ENTRIES = 10000;
+
     void serialize(QDataStream& stream) const;
+
+    /// Reads the store written by serialize (B131): the version of the format must be the version of
+    /// serialize, at most MAXIMUM_STORE_ENTRIES entries; otherwise the store is empty and the status of
+    /// the stream is QDataStream::ReadCorruptData
     void deserialize(QDataStream& stream);
 
     /// Tries to add new certificate to the certificate store. If certificate
@@ -274,6 +287,12 @@ public:
     /// Load from default user certificate storage
     void loadDefaultUserCertificates();
 
+    /// Reads the store from a file (loadDefaultUserCertificates; B131): a file larger than
+    /// MAXIMUM_STORE_FILE_SIZE is not read, damaged data give an empty store
+    /// \param fileName The file
+    /// \returns true, when the file was read whole and its data are valid
+    bool loadFromFile(const QString& fileName);
+
     /// Save to default user certificate storage
     void saveDefaultUserCertificates();
 
@@ -294,6 +313,55 @@ private:
     static constexpr int persist_version = 1;
 
     PDFCertificateEntries m_certificates;
+};
+
+/// The personal certificates of the system with their private keys (plan of step 6 of phase 2, 4.6,
+/// owner answer Q6.2; package P1b): the store "MY" of the current user of Windows - the certificates of
+/// the signing by the system store (PDFSignatureFactory::unlock) and of the opening of a document
+/// encrypted for a certificate (decryptEnvelope). The key never enters the process: the system signs and
+/// decrypts, and asks for a PIN in its own dialog. Other systems have no such store (PKCS#11 and the
+/// keychain of macOS later, Q6.2).
+///
+/// The tests inject a store in the memory of the process (createMemoryStore, setStore) and never read or
+/// change the store of the machine (the owner rule of the tests).
+///
+/// An implementation is immutable; the functions of this class are thread-safe.
+class PDF4QTLIBCORESHARED_EXPORT PDFPersonalCertificateStore
+{
+public:
+    virtual ~PDFPersonalCertificateStore();
+
+    /// A new handle of the store - HCERTSTORE of Windows, which the caller closes by CertCloseStore;
+    /// null = no store (other systems, a failure)
+    virtual void* openStore() const = 0;
+
+    /// The store of the system: "MY" of the current user of Windows (on other systems a store, whose
+    /// openStore gives null)
+    static std::shared_ptr<const PDFPersonalCertificateStore> createSystemStore();
+
+    /// A store in the memory of the process, made of a PKCS#12 by PFXImportCertStore with
+    /// PKCS12_NO_PERSIST_KEY: nothing is written to the store of the machine or to a key container
+    /// (Windows only; null elsewhere or on a failure)
+    /// \param pkcs12 The PKCS#12 data (at most PDFCertificateManager::MAXIMUM_CERTIFICATE_FILE_SIZE)
+    /// \param password Its password (UTF-8)
+    static std::shared_ptr<const PDFPersonalCertificateStore> createMemoryStore(const QByteArray& pkcs12, const QByteArray& password);
+
+    /// The store used by PDFCertificateStore::getPersonalCertificates, the signing and decryptEnvelope:
+    /// the injected one (setStore), else the store of the system
+    static std::shared_ptr<const PDFPersonalCertificateStore> getStore();
+
+    /// Injects a store (the tests); null = the store of the system again
+    static void setStore(std::shared_ptr<const PDFPersonalCertificateStore> store);
+
+    /// Decrypts PKCS#7 enveloped data (a recipient of a document encrypted for certificates, ISO
+    /// 32000-2, 7.6.5.3) by the private key of a certificate of the store (getStore; Q6.2: the opening of
+    /// a document encrypted for a certificate of the system store). Only the recipient info of this
+    /// certificate is used. The caller clears the result (PDFSecureMemory).
+    /// \param certificateData DER of the certificate (PDFCertificateInfo::getCertificateData)
+    /// \param envelope DER of the PKCS#7 enveloped data
+    /// \returns the decrypted data, std::nullopt when the envelope is not for this certificate, the store
+    ///          has not the certificate with its key, or the key cannot decrypt it
+    static std::optional<QByteArray> decryptEnvelope(const QByteArray& certificateData, const QByteArray& envelope);
 };
 
 }   // namespace pdf

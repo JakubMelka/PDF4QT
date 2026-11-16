@@ -286,8 +286,33 @@ QString PDFAppUndoStack::getRedoDescription() const
 
 bool PDFAppUndoStack::undo()
 {
-    // While a tool is open Undo acts only on the tool (owner decision of 2026-11-01)
-    if (!m_document || !m_document->isReady() || m_document->isLocked() || m_document->isBlockedByOperation() || m_document->areUserChangesSuspended())
+    return undoImpl(false);
+}
+
+bool PDFAppUndoStack::undoToolStep()
+{
+    return undoImpl(true);
+}
+
+bool PDFAppUndoStack::canUndoToolStep() const
+{
+    return !m_undoSteps.empty() && m_undoSteps.back().source == PDFAppChangeSource::Tool;
+}
+
+bool PDFAppUndoStack::canRedoToolStep() const
+{
+    return !m_redoSteps.empty() && m_redoSteps.back().source == PDFAppChangeSource::Tool;
+}
+
+bool PDFAppUndoStack::undoImpl(bool isToolStep)
+{
+    // While a tool is open Undo acts only on the tool (owner decision of 2026-11-01); the tool
+    // itself takes back its own changes (isToolStep), never a change of somebody else
+    if (!m_document || !m_document->isReady() || m_document->isLocked() || m_document->isBlockedByOperation() || (m_document->areUserChangesSuspended() && !isToolStep))
+    {
+        return false;
+    }
+    if (isToolStep && !canUndoToolStep())
     {
         return false;
     }
@@ -338,8 +363,22 @@ bool PDFAppUndoStack::undo()
 
 bool PDFAppUndoStack::redo()
 {
-    // While a tool is open Redo acts only on the tool (owner decision of 2026-11-01)
-    if (!m_document || !m_document->isReady() || m_document->isLocked() || m_document->isBlockedByOperation() || m_document->areUserChangesSuspended())
+    return redoImpl(false);
+}
+
+bool PDFAppUndoStack::redoToolStep()
+{
+    return redoImpl(true);
+}
+
+bool PDFAppUndoStack::redoImpl(bool isToolStep)
+{
+    // While a tool is open Redo acts only on the tool (owner decision of 2026-11-01), see undoImpl
+    if (!m_document || !m_document->isReady() || m_document->isLocked() || m_document->isBlockedByOperation() || (m_document->areUserChangesSuspended() && !isToolStep))
+    {
+        return false;
+    }
+    if (isToolStep && !canRedoToolStep())
     {
         return false;
     }

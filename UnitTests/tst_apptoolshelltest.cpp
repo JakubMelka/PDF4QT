@@ -61,6 +61,7 @@
 #include "pdfdocumenttoolregistry.h"
 #include "pdfappworkspace.h"
 #include "pdfdocumenttoolrunner.h"
+#include "pdfdocumenttoolusage.h"
 #include "pdfdatabasestatement.h"
 #include "pdftoolparameterrepository.h"
 #include "pdftoolrepository.h"
@@ -70,6 +71,7 @@
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumentreader.h"
 #include "pdfdocumenttool_encryption.h"
+#include "pdftimestampclient.h"
 #include "pdfcomponentbadges.h"
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpanels.h"
@@ -296,6 +298,7 @@ private slots:
     void commitOldVersionRerun();
     void commitRefusedForLockedDocument();
     void runnerEnvironment();
+    void runnerContextOfRewrittenAndRestoredFile();
     void autoRefreshWaitsForOperation();
     void runnerDeletedDuringRun_data();
     void runnerDeletedDuringRun();
@@ -316,6 +319,7 @@ private slots:
     void modelRefusesInvalidValues();
     void modelLastValues();
     void modelRefusesSecret();
+    void modelSensitiveNotRemembered();
     void modelHostileStoredValues();
     void modelBinderStore();
     void modelBinderOutlivesModel();
@@ -368,6 +372,13 @@ private slots:
     void dialogLocked();
     void dialogNewDocument();
     void dialogNewDocumentInThisTab();
+
+    // Step 6 of phase 2, the skeleton (plan 10.1, R6-27): the dialog of a result, which is only a file
+    void dialogFileOnly();
+    void dialogFileOnlyReplaceAndWriteError();
+    void dialogFileOnlyContinueWith();
+    void dialogFileOnlyDisplayVersion();
+    void dialogFileOnlyFrame();
     void writerCertifiedResult();
     void dialogFiles();
     void dialogTemporaryOutput();
@@ -1116,6 +1127,40 @@ void AppToolShellTest::runnerEnvironment()
     QVERIFY(PDFDocumentToolRunner::createContext(pdf::PDFAppDocumentSnapshot()).documents.empty());
 }
 
+void AppToolShellTest::runnerContextOfRewrittenAndRestoredFile()
+{
+    // Plan of step 6 of phase 2, 4.4, R6-12: the core cannot see in the bytes, that the tab has rewritten
+    // its document whole after its file was read (Compress Keep), or that the file is damaged and was
+    // restored - an incremental update of such original data would be no valid file; the application
+    // says so in the input of the run. The client of the timestamp authority goes with the run (6.6).
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.openDocument(2);
+    pdf::PDFAppDocumentSnapshot snapshot = tab->getDocument()->getSnapshot();
+
+    pdf::PDFDocumentToolContext context = PDFDocumentToolRunner::createContext(snapshot);
+    QVERIFY(!context.documents.front().isWholeFileRewritten);
+    QVERIFY(!context.documents.front().isRestored);
+    QVERIFY(!context.timestampClient);
+
+    snapshot.isWholeFileRewritten = true;
+    context = PDFDocumentToolRunner::createContext(snapshot);
+    QVERIFY(context.documents.front().isWholeFileRewritten);
+    QVERIFY(!context.documents.front().isRestored);
+
+    for (const pdf::PDFAppDocumentRestoration restoration : { pdf::PDFAppDocumentRestoration::Restored, pdf::PDFAppDocumentRestoration::OldestContent })
+    {
+        snapshot.isWholeFileRewritten = false;
+        snapshot.restoration = restoration;
+        context = PDFDocumentToolRunner::createContext(snapshot);
+        QVERIFY(!context.documents.front().isWholeFileRewritten);
+        QVERIFY(context.documents.front().isRestored);
+    }
+
+    pdf::PDFAppToolRunEnvironment environment;
+    environment.timestampClient = std::make_shared<const pdf::PDFTimestampClient>(nullptr);
+    QCOMPARE(PDFDocumentToolRunner::createContext(snapshot, environment).timestampClient, environment.timestampClient);
+}
+
 void AppToolShellTest::autoRefreshWaitsForOperation()
 {
     // F2: the file changed on the disk does not replace a document under a run or under
@@ -1507,6 +1552,65 @@ void AppToolShellTest::modelRefusesSecret()
     model.redo();
     model.redo();
     QVERIFY(model.getValue(QStringLiteral("password")).toString().isEmpty());
+}
+
+void AppToolShellTest::modelSensitiveNotRemembered()
+{
+    // Plan of step 6 of phase 2, R6-19, chapter 6: the search term of Redact is exactly what is removed -
+    // a sensitive value lives in the open tool (its value, Undo and Redo) and goes to the run, but it is
+    // never remembered: not as a last value of the tool, not even when its stored flag is set, and a row
+    // written into the database by something else is never read back into the tool
+    using Definition = pdf::PDFDocumentToolParameterDefinition;
+    AppToolShellFixture fixture;
+    pdf::PDFDocumentToolParameterDefinitions definitions = ToolShellTestHelper::createModelDefinitions();
+    definitions.push_back(Definition::createString(pdftest::TestDocumentTool::tr, QStringLiteral("search"), QT_TR_NOOP("Search"), nullptr, QString()).setStored(true).setSensitive(true));
+    const QString canary = QStringLiteral("Canary-Redacted-Name");
+
+    {
+        pdf::PDFAppToolParameterModel model(fixture.context.get(), TOOL_COMPRESS, definitions, nullptr);
+        QVERIFY(model.setValue(QStringLiteral("search"), canary).isEmpty());
+        QVERIFY(model.setValue(QStringLiteral("quality"), 42).isEmpty());
+        QCOMPARE(model.getValue(QStringLiteral("search")).toString(), canary);
+        QVERIFY(model.canUndo());
+        model.undo();
+        model.undo();
+        QVERIFY(model.getValue(QStringLiteral("search")).toString().isEmpty());
+        model.redo();
+        model.redo();
+        QCOMPARE(model.getValue(QStringLiteral("search")).toString(), canary);
+        QVERIFY(!model.storeLastValues().isError());
+    }
+
+    // Not in the database, the other values are
+    pdf::PDFDatabaseConnection* connection = fixture.context->getDatabase()->getConnection();
+    QStringList names;
+    {
+        pdf::PDFDatabaseStatement statement(connection, "SELECT name, value FROM tool_parameter WHERE tool_id = ?1");
+        statement.bindText(1, TOOL_COMPRESS);
+        while (statement.next())
+        {
+            names << statement.getText(0);
+            QVERIFY(!statement.getText(1).contains(canary));
+        }
+    }
+    QVERIFY(!names.contains(QStringLiteral("search")));
+    QVERIFY(names.contains(QStringLiteral("quality")));
+
+    // A row of the value written by something else: never read, removed by the next store
+    {
+        pdf::PDFDatabaseStatement insert(connection, "INSERT INTO tool_parameter(tool_id, name, value) VALUES (?1, 'search', ?2)");
+        insert.bindText(1, TOOL_COMPRESS);
+        insert.bindText(2, canary);
+        QVERIFY(insert.execute());
+    }
+    pdf::PDFAppToolParameterModel reopened(fixture.context.get(), TOOL_COMPRESS, definitions, nullptr);
+    QVERIFY(reopened.getValue(QStringLiteral("search")).toString().isEmpty());
+    QCOMPARE(reopened.getValue(QStringLiteral("quality")).toLongLong(), qint64(42));
+    QVERIFY(!reopened.storeLastValues().isError());
+    pdf::PDFDatabaseStatement count(connection, "SELECT COUNT(*) FROM tool_parameter WHERE tool_id = ?1 AND name = 'search'");
+    count.bindText(1, TOOL_COMPRESS);
+    QVERIFY(count.next());
+    QCOMPARE(count.getInt64(0), qint64(0));
 }
 
 void AppToolShellTest::modelHostileStoredValues()
@@ -3671,6 +3775,297 @@ void AppToolShellTest::dialogNewDocumentInThisTab()
         AppToolShellFixture::settle();
         QCOMPARE(fixture.window->getTabs().size(), tabCount);
     }
+}
+
+/// The result dialog of a tool, whose result is only a file (step 6 of phase 2): a run of the test tool
+/// under the id of the tool, a new document whose written bytes are \p writtenData (the verified file of
+/// Sign: the exact bytes of the input with its update)
+class FileOnlyDialogHelper
+{
+public:
+    static PDFAppToolResultDialog* open(AppToolShellFixture& fixture, pdf::PDFAppDocumentTab* tab, const QString& toolId, const QByteArray& writtenData, const QString& suggestedName)
+    {
+        pdf::PDFDocumentToolRunner* runner = fixture.createRunner(tab, toolId);
+        pdf::PDFAppToolResultInput input;
+        input.tool = pdf::PDFDocumentToolCatalog::findTool(toolId);
+        input.fileOpenText = QStringLiteral("Open the signed copy in a new tab");
+        input.fileConfirmText = QStringLiteral("Save Signed Copy");
+        if (!fixture.runTool(runner, AppToolShellFixture::parameters(QStringLiteral("new-document")), &input.result) || input.result.documents.size() != 1)
+        {
+            return nullptr;
+        }
+        input.result.documents.front().writtenData = writtenData;
+        input.result.documents.front().suggestedFileName = suggestedName;
+        PDFAppToolResultDialog* dialog = PDFAppToolResultDialog::open(tab, runner, std::move(input));
+        AppToolShellFixture::settle();
+        return dialog;
+    }
+
+    /// The verified bytes of a run: the bytes of the input followed by an update, which no write of the
+    /// document of the result would make (a comment)
+    static QByteArray verifiedBytes(const QByteArray& original)
+    {
+        return original + QByteArrayLiteral("% The verified update of the run\n");
+    }
+};
+
+void AppToolShellTest::dialogFileOnly()
+{
+    // Tools.md 9.3 point 11 (plan of step 6 of phase 2, 1 point 6, 2.1, R6-27): Sign, Timestamp and Redact
+    // do not change the open document, they write only a new file - the dialog has no choices, only the
+    // name, the folder with Browse… and the opening of the copy; it writes the bytes the tool has verified,
+    // never the document written again, and refuses the file of a document open in a tab
+    using Choice = PDFAppToolResultDialog::Choice;
+    AppToolShellFixture fixture;
+    const QString source = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Contract.pdf"), 2);
+    pdf::PDFAppDocumentTab* tab = fixture.open(source);
+    QVERIFY(tab && AppToolShellFixture::waitFor([tab]() { return tab->getDocument()->isReady(); }));
+    const QByteArray original = ToolShellTestHelper::readFile(source);
+    const quint64 version = tab->getDocument()->getVersion();
+    const QByteArray verified = FileOnlyDialogHelper::verifiedBytes(original);
+
+    PDFAppToolResultDialog* dialog = FileOnlyDialogHelper::open(fixture, tab, QStringLiteral("protect.sign"), verified, QStringLiteral("Contract_SIGNED.pdf"));
+    QVERIFY(dialog);
+    QCOMPARE(dialog->getResultKind(), PDFAppToolResultDialog::ResultKind::FileOnly);
+    for (const Choice choice : { Choice::Keep, Choice::Copy, Choice::Overwrite, Choice::NewTab, Choice::File, Choice::Clipboard })
+    {
+        QVERIFY(!dialog->getOption(choice));
+    }
+    QCOMPARE(dialog->getSelectedChoice(), Choice::File);
+    QVERIFY(dialog->getFileOnlyControls() && dialog->getFileOnlyControls()->isVisible());
+    QCOMPARE(dialog->getFileNameField()->text(), QStringLiteral("Contract_SIGNED.pdf"));
+    QCOMPARE(dialog->getFolderLabel()->getPath(), QDir::toNativeSeparators(QFileInfo(source).absolutePath()));
+    QCOMPARE(dialog->getOpenCheckBox()->text(), QStringLiteral("Open the signed copy in a new tab"));
+    QVERIFY(dialog->getOpenCheckBox()->isChecked());
+    QCOMPARE(dialog->getConfirmButton()->text(), QStringLiteral("Save Signed Copy"));
+    QVERIFY(dialog->getBrowseButton()->isVisible());
+
+    // 434:9276, 435:8356: Sign and Timestamp have no Then continue with (R6-10)
+    QVERIFY(!dialog->getContinueWith());
+
+    // The file of the open document is refused (R6-27: the refusal of the result dialog, no new text)
+    QSignalSpy decidedSpy(dialog, &PDFAppToolResultDialog::decided);
+    dialog->getFileNameField()->setText(QStringLiteral("Contract.pdf"));
+    dialog->confirm();
+    AppToolShellFixture::settle();
+    QVERIFY(dialog->getNameError()->isVisible());
+    QCOMPARE(dialog->getNameError()->text(), QStringLiteral("This file is open in a tab. Choose another name."));
+    QCOMPARE(decidedSpy.size(), 0);
+    QCOMPARE(ToolShellTestHelper::readFile(source), original);
+
+    // The verified bytes are written byte for byte and the copy opens in a new tab
+    dialog->getFileNameField()->setText(QStringLiteral("Contract_SIGNED.pdf"));
+    dialog->confirm();
+    QVERIFY(ToolShellTestHelper::waitForDecision(decidedSpy));
+    const PDFAppToolResultOutcome outcome = ToolShellTestHelper::firstOutcome(decidedSpy);
+    QCOMPARE(outcome.action, Action::FileSaved);
+    const QString target = fixture.path(QStringLiteral("Contract_SIGNED.pdf"));
+    QCOMPARE(ToolShellTestHelper::readFile(target), verified);
+    QVERIFY(!outcome.continueDocumentId.isEmpty());
+    pdf::PDFAppDocument* opened = fixture.context->getDocumentRegistry()->findDocument(outcome.continueDocumentId);
+    QVERIFY(opened);
+    QVERIFY(AppToolShellFixture::waitFor([opened]() { return opened->isReady(); }));
+    QCOMPARE(opened->getSnapshot().originalData, verified);
+
+    // The open document and its file stay as they are
+    QCOMPARE(tab->getDocument()->getVersion(), version);
+    QCOMPARE(ToolShellTestHelper::readFile(source), original);
+}
+
+void AppToolShellTest::dialogFileOnlyFrame()
+{
+    // 434:9276, 435:8356, 437:13887 (result-dialog 434:9625): the field "File name" (the label 4 above the
+    // field 34 high), the folder row with Browse… 14 below it, the check box 14 below the row - the gap
+    // of the dialog - and the Primary button Save Signed Copy with icon/save-as (btn-dlg-save 434:9674)
+    AppToolShellFixture fixture;
+    const QString source = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Contract.pdf"), 2);
+    pdf::PDFAppDocumentTab* tab = fixture.open(source);
+    QVERIFY(tab && AppToolShellFixture::waitFor([tab]() { return tab->getDocument()->isReady(); }));
+    PDFAppToolResultDialog* dialog = FileOnlyDialogHelper::open(fixture, tab, QStringLiteral("protect.sign"), FileOnlyDialogHelper::verifiedBytes(ToolShellTestHelper::readFile(source)), QStringLiteral("Contract_SIGNED.pdf"));
+    QVERIFY(dialog);
+    QVERIFY(AppToolShellFixture::waitFor([dialog]() { return dialog->getFileOnlyControls()->isVisible(); }));
+
+    pdf::PDFLabel* label = dialog->getFileNameLabel();
+    QVERIFY(label && label->isVisible());
+    QCOMPARE(label->text(), QStringLiteral("File name"));
+    QCOMPARE(label->buddy(), dialog->getFileNameField());
+
+    // The geometry in the controls of the file only
+    QWidget* controls = dialog->getFileOnlyControls();
+    const QRect labelRect(label->mapTo(controls, QPoint(0, 0)), label->size());
+    const QRect fieldRect(dialog->getFileNameField()->mapTo(controls, QPoint(0, 0)), dialog->getFileNameField()->size());
+    const QRect browseRect(dialog->getBrowseButton()->mapTo(controls, QPoint(0, 0)), dialog->getBrowseButton()->size());
+    const QRect checkRect(dialog->getOpenCheckBox()->mapTo(controls, QPoint(0, 0)), dialog->getOpenCheckBox()->size());
+    QCOMPARE(labelRect.top(), 0);
+    QCOMPARE(fieldRect.top() - labelRect.bottom() - 1, 4);
+    QCOMPARE(fieldRect.height(), 34);
+    QCOMPARE(browseRect.top() - fieldRect.bottom() - 1, 14);
+    QCOMPARE(checkRect.top() - browseRect.bottom() - 1, 14);
+    QCOMPARE(fieldRect.left(), labelRect.left());
+
+    const auto icon = [](const QIcon& value) { return value.pixmap(QSize(16, 16)).toImage(); };
+    QCOMPARE(icon(dialog->getConfirmButton()->icon()), icon(pdf::PDFThemeIcons::getIcon(QStringLiteral("save-as"))));
+    dialog->reject();
+    AppToolShellFixture::settle();
+}
+
+void AppToolShellTest::dialogFileOnlyReplaceAndWriteError()
+{
+    // Tools.md 9.3 point 11: an existing file is a state of the dialog (Replace File), a write error stays
+    // at the controls of the file (448:16361, 448:16753); a result without verified bytes is never written
+    // by writing its document (R6-27)
+    AppToolShellFixture fixture;
+    const QString source = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Report.pdf"), 1);
+    pdf::PDFAppDocumentTab* tab = fixture.open(source);
+    QVERIFY(tab && AppToolShellFixture::waitFor([tab]() { return tab->getDocument()->isReady(); }));
+    const QByteArray verified = FileOnlyDialogHelper::verifiedBytes(ToolShellTestHelper::readFile(source));
+
+    // Replace File
+    {
+        const QString target = fixture.path(QStringLiteral("Existing.pdf"));
+        QVERIFY(ToolShellTestHelper::writeFile(target, QByteArrayLiteral("older file")));
+        PDFAppToolResultDialog* dialog = FileOnlyDialogHelper::open(fixture, tab, QStringLiteral("protect.timestamp"), verified, QStringLiteral("Existing.pdf"));
+        QVERIFY(dialog);
+        QSignalSpy decidedSpy(dialog, &PDFAppToolResultDialog::decided);
+        dialog->getOpenCheckBox()->setChecked(false);
+        dialog->confirm();
+        QVERIFY(AppToolShellFixture::waitFor([dialog]() { return dialog->isReplaceConfirmed(); }));
+        QCOMPARE(dialog->getConfirmButton()->text(), QStringLiteral("Replace File"));
+        QCOMPARE(dialog->getNameError()->text(), QStringLiteral("A file of this name exists already. Replace it, or enter another name."));
+        QCOMPARE(ToolShellTestHelper::readFile(target), QByteArrayLiteral("older file"));
+        dialog->confirm();
+        QVERIFY(ToolShellTestHelper::waitForDecision(decidedSpy));
+        QCOMPARE(ToolShellTestHelper::firstOutcome(decidedSpy).action, Action::FileSaved);
+        QCOMPARE(ToolShellTestHelper::readFile(target), verified);
+    }
+
+    // A write error: the target is a folder - the error stays at the controls of the file
+    {
+        fixture.window->activateTab(tab);
+        AppToolShellFixture::settle();
+        QVERIFY(QDir(fixture.folder()).mkpath(QStringLiteral("Folder.pdf")));
+        PDFAppToolResultDialog* dialog = FileOnlyDialogHelper::open(fixture, tab, QStringLiteral("protect.timestamp"), verified, QStringLiteral("Folder.pdf"));
+        QVERIFY(dialog);
+        QSignalSpy decidedSpy(dialog, &PDFAppToolResultDialog::decided);
+        dialog->confirm();
+        QVERIFY(AppToolShellFixture::waitFor([dialog]() { return dialog->isReplaceConfirmed(); }));
+        dialog->confirm();
+        QVERIFY(AppToolShellFixture::waitFor([dialog]() { return dialog->getWriteError() && dialog->getWriteError()->isVisible(); }));
+        QCOMPARE(dialog->getWriteError()->parentWidget(), dialog->getFileOnlyControls());
+        QCOMPARE(dialog->findChild<pdf::PDFLabel*>(QStringLiteral("writeErrorTitle"))->text(), QStringLiteral("The file could not be written"));
+        QCOMPARE(decidedSpy.size(), 0);
+        QVERIFY(QFileInfo(fixture.path(QStringLiteral("Folder.pdf"))).isDir());
+        dialog->reject();
+        AppToolShellFixture::settle();
+    }
+
+    // No verified bytes: nothing is written (the document of the result is never written again)
+    {
+        fixture.window->activateTab(tab);
+        AppToolShellFixture::settle();
+        PDFAppToolResultDialog* dialog = FileOnlyDialogHelper::open(fixture, tab, QStringLiteral("protect.sign"), QByteArray(), QStringLiteral("Unverified.pdf"));
+        QVERIFY(dialog);
+        QSignalSpy decidedSpy(dialog, &PDFAppToolResultDialog::decided);
+        dialog->confirm();
+        AppToolShellFixture::settle();
+        QVERIFY(dialog->getWriteError() && dialog->getWriteError()->isVisible());
+        QCOMPARE(decidedSpy.size(), 0);
+        QVERIFY(!QFileInfo::exists(fixture.path(QStringLiteral("Unverified.pdf"))));
+        dialog->reject();
+        AppToolShellFixture::settle();
+
+        pdf::PDFAppToolResultWriter writer(nullptr);
+        pdf::PDFDocumentToolOutputDocument output;
+        QVERIFY(!writer.writeFileOnly(output, fixture.path(QStringLiteral("Unverified.pdf")), QString(), false));
+        QVERIFY(!writer.isWriting());
+    }
+}
+
+void AppToolShellTest::dialogFileOnlyContinueWith()
+{
+    // 437:13887, owner answer Q6.16: Redact Content offers Then continue with in its dialog of a file; the
+    // next tool runs on the opened copy, so a chosen tool checks and locks Open the … copy in a new tab;
+    // without a choice the check box has the state the user chose
+    AppToolShellFixture fixture;
+    const QString source = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Secret.pdf"), 2);
+    pdf::PDFAppDocumentTab* tab = fixture.open(source);
+    QVERIFY(tab && AppToolShellFixture::waitFor([tab]() { return tab->getDocument()->isReady(); }));
+    const QByteArray verified = FileOnlyDialogHelper::verifiedBytes(ToolShellTestHelper::readFile(source));
+
+    // R6-10: the one rule of the successors - after Redact, not after Sign and Timestamp
+    QVERIFY(pdf::PDFDocumentToolUsage::isOfferingSuccessors(QStringLiteral("protect.redact")));
+    QVERIFY(!pdf::PDFDocumentToolUsage::isOfferingSuccessors(QStringLiteral("protect.sign")));
+    QVERIFY(!pdf::PDFDocumentToolUsage::isOfferingSuccessors(QStringLiteral("protect.timestamp")));
+
+    PDFAppToolResultDialog* dialog = FileOnlyDialogHelper::open(fixture, tab, QStringLiteral("protect.redact"), verified, QStringLiteral("Secret_REDACTED.pdf"));
+    QVERIFY(dialog);
+    QCOMPARE(dialog->getResultKind(), PDFAppToolResultDialog::ResultKind::FileOnly);
+    pdf::PDFContinueWith* continueWith = dialog->getContinueWith();
+    QVERIFY(continueWith && continueWith->isVisible());
+    QVERIFY(!dialog->getContinueToolIds().isEmpty());
+    QCheckBox* openCheck = dialog->getOpenCheckBox();
+    QVERIFY(openCheck->isEnabled());
+
+    openCheck->setChecked(false);
+    continueWith->setSelectedChoice(0);
+    QVERIFY(openCheck->isChecked());
+    QVERIFY(!openCheck->isEnabled());
+    continueWith->setSelectedChoice(-1);
+    QVERIFY(!openCheck->isChecked());
+    QVERIFY(openCheck->isEnabled());
+
+    continueWith->setSelectedChoice(0);
+    const QString chosenToolId = dialog->getContinueToolIds().value(0);
+    QSignalSpy decidedSpy(dialog, &PDFAppToolResultDialog::decided);
+    dialog->confirm();
+    QVERIFY(ToolShellTestHelper::waitForDecision(decidedSpy));
+    const PDFAppToolResultOutcome outcome = ToolShellTestHelper::firstOutcome(decidedSpy);
+    QCOMPARE(outcome.action, Action::FileSaved);
+    QVERIFY(!chosenToolId.isEmpty());
+    QCOMPARE(outcome.continueToolId, chosenToolId);
+    QVERIFY(!outcome.continueDocumentId.isEmpty());
+    QVERIFY(outcome.continueDocumentId != tab->getDocumentId());
+    QCOMPARE(ToolShellTestHelper::readFile(fixture.path(QStringLiteral("Secret_REDACTED.pdf"))), verified);
+}
+
+void AppToolShellTest::dialogFileOnlyDisplayVersion()
+{
+    // R6-27, F5: the pages of a display version of an XFA form are not the pages of its file - an
+    // incremental update of the file (Sign, Timestamp) is refused like a change of the document; a new
+    // document of its pages (Redact) is not refused by this rule
+    AppToolShellFixture fixture;
+    const QString file = fixture.path(QStringLiteral("dynamic-xfa.pdf"));
+    {
+        const pdf::PDFDocument xfa = pdftest::XFATestSamples::createDocument({ pdftest::XFATestSamples::letter() }, pdftest::XFATestSamples::pagedTemplate(3));
+        pdf::PDFDocumentWriter writer(nullptr);
+        QVERIFY(writer.write(file, &xfa, false));
+    }
+    pdf::PDFAppDocumentTab* tab = fixture.open(file);
+    QVERIFY(tab && AppToolShellFixture::waitFor([tab]() { return tab->getDocument()->isReady(); }));
+    pdf::PDFAppDocument* document = tab->getDocument();
+    QVERIFY(document->isPagedXFA());
+
+    using Refusal = pdf::PDFAppToolResultWriter::DocumentRefusal;
+    QCOMPARE(pdf::PDFAppToolResultWriter::getDocumentRefusal(pdf::PDFDocumentToolCatalog::findTool(u"protect.sign"), document), Refusal::DisplayVersion);
+    QCOMPARE(pdf::PDFAppToolResultWriter::getDocumentRefusal(pdf::PDFDocumentToolCatalog::findTool(u"protect.timestamp"), document), Refusal::DisplayVersion);
+    QCOMPARE(pdf::PDFAppToolResultWriter::getDocumentRefusal(pdf::PDFDocumentToolCatalog::findTool(u"protect.redact"), document), Refusal::None);
+
+    const QByteArray verified = FileOnlyDialogHelper::verifiedBytes(ToolShellTestHelper::readFile(file));
+    PDFAppToolResultDialog* dialog = FileOnlyDialogHelper::open(fixture, tab, QStringLiteral("protect.sign"), verified, QStringLiteral("xfa_SIGNED.pdf"));
+    QVERIFY(dialog);
+    QCOMPARE(dialog->getResultKind(), PDFAppToolResultDialog::ResultKind::Analysis);
+    QVERIFY(!dialog->getFileOnlyControls());
+    QCOMPARE(dialog->getConfirmButton()->text(), QStringLiteral("Close"));
+    QCOMPARE(dialog->findChild<pdf::PDFAppParagraph*>(QStringLiteral("toolResultSubtitle"))->text(), pdf::PDFAppDocument::getPagedXFARefusalText());
+    dialog->reject();
+    AppToolShellFixture::settle();
+    QVERIFY(!QFileInfo::exists(fixture.path(QStringLiteral("xfa_SIGNED.pdf"))));
+
+    PDFAppToolResultDialog* redactDialog = FileOnlyDialogHelper::open(fixture, tab, QStringLiteral("protect.redact"), verified, QStringLiteral("xfa_REDACTED.pdf"));
+    QVERIFY(redactDialog);
+    QCOMPARE(redactDialog->getResultKind(), PDFAppToolResultDialog::ResultKind::FileOnly);
+    redactDialog->reject();
+    AppToolShellFixture::settle();
 }
 
 void AppToolShellTest::writerCertifiedResult()

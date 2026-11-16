@@ -39,6 +39,7 @@
 #include "pdfapptoolpanelparts.h"
 #include "pdfapptoolparametermodel.h"
 #include "pdfapptooltoolbar.h"
+#include "pdfappundostack.h"
 #include "pdfdocumenttoolgui.h"
 
 #include "pdfdocmdppermissions.h"
@@ -53,6 +54,8 @@
 #include <QEvent>
 #include <QFileInfo>
 #include <QMetaObject>
+
+#include <algorithm>
 
 namespace pdf
 {
@@ -92,6 +95,246 @@ public:
     }
 };
 
+// ---------------------------------------------------------------- PDFAppToolCompositeUndoTarget
+
+/// Limits of the composite target of Undo of a tool
+class PDFAppToolCompositeUndoTargetHelper
+{
+public:
+    PDFAppToolCompositeUndoTargetHelper() = delete;
+
+    /// Most steps of each direction (the model keeps 100, the document its limit; an older step,
+    /// which neither of them keeps, could not be taken back anyway)
+    static constexpr size_t MAXIMUM_STEPS = 1000;
+};
+
+PDFAppToolCompositeUndoTarget::PDFAppToolCompositeUndoTarget(PDFAppToolParameterModel* model, PDFAppDocument* document, QObject* parent) :
+    BaseClass(parent),
+    m_model(model),
+    m_document(document)
+{
+    if (m_model)
+    {
+        m_modelStepCount = m_model->getRecordedStepCount();
+        connect(m_model.data(), &PDFAppToolUndoTarget::undoStateChanged, this, &PDFAppToolCompositeUndoTarget::onModelUndoStateChanged);
+    }
+    if (m_document)
+    {
+        m_documentVersion = m_document->getVersion();
+    }
+}
+
+PDFAppToolCompositeUndoTarget::~PDFAppToolCompositeUndoTarget() = default;
+
+void PDFAppToolCompositeUndoTarget::recordDocumentStep(quint64 versionAfter)
+{
+    // A change of somebody else came after the last step of the tool: its earlier steps of the
+    // document are no longer on the top of the undo stack of the document
+    if (versionAfter != m_documentVersion + 1)
+    {
+        for (std::vector<Source>* steps : { &m_undoSteps, &m_redoSteps })
+        {
+            steps->erase(std::remove(steps->begin(), steps->end(), Source::Document), steps->end());
+        }
+    }
+
+    m_documentVersion = versionAfter;
+    m_undoSteps.push_back(Source::Document);
+    if (m_undoSteps.size() > PDFAppToolCompositeUndoTargetHelper::MAXIMUM_STEPS)
+    {
+        m_undoSteps.erase(m_undoSteps.begin());
+    }
+
+    // A new step: nothing to do again (the commit has cleared the redo steps of the document)
+    m_redoSteps.clear();
+    Q_EMIT undoStateChanged();
+}
+
+bool PDFAppToolCompositeUndoTarget::isAvailable(Source source, bool isUndo) const
+{
+    switch (source)
+    {
+        case Source::Parameters:
+            return m_model && (isUndo ? m_model->canUndo() : m_model->canRedo());
+
+        case Source::Document:
+        {
+            // Only while the top of the undo stack is the last step of the tool (no change of somebody
+            // else since) and the document takes changes of the tool (not locked, no blocking operation)
+            const PDFAppDocument* document = m_document.data();
+            const PDFAppUndoStack* stack = document ? document->getUndoStack() : nullptr;
+            if (!stack || document->getVersion() != m_documentVersion || !document->isReady() || document->isLocked() || document->isBlockedByOperation())
+            {
+                return false;
+            }
+            return isUndo ? stack->canUndoToolStep() : stack->canRedoToolStep();
+        }
+    }
+    return false;
+}
+
+bool PDFAppToolCompositeUndoTarget::isWaitingForDocument(bool isUndo) const
+{
+    // The step of the tool is still the top of the undo stack of the document (no change of somebody
+    // else), the document only does not take changes now (an operation blocking them, its lock)
+    const PDFAppDocument* document = m_document.data();
+    const PDFAppUndoStack* stack = document ? document->getUndoStack() : nullptr;
+    if (!stack || document->getVersion() != m_documentVersion || !(isUndo ? stack->canUndoToolStep() : stack->canRedoToolStep()))
+    {
+        return false;
+    }
+    return !document->isReady() || document->isLocked() || document->isBlockedByOperation();
+}
+
+int PDFAppToolCompositeUndoTarget::findStep(bool isUndo) const
+{
+    const std::vector<Source>& steps = isUndo ? m_undoSteps : m_redoSteps;
+    for (int i = int(steps.size()) - 1; i >= 0; --i)
+    {
+        if (isAvailable(steps[size_t(i)], isUndo))
+        {
+            return i;
+        }
+
+        // A step of the document, which waits only for the document, is still the next step (review
+        // RS6APP): nothing is done now - an older step is never taken back before it (apply would drop it)
+        if (steps[size_t(i)] == Source::Document && isWaitingForDocument(isUndo))
+        {
+            return -1;
+        }
+    }
+    return -1;
+}
+
+bool PDFAppToolCompositeUndoTarget::canUndo() const
+{
+    return findStep(true) >= 0;
+}
+
+bool PDFAppToolCompositeUndoTarget::canRedo() const
+{
+    return findStep(false) >= 0;
+}
+
+void PDFAppToolCompositeUndoTarget::undo()
+{
+    apply(true);
+}
+
+void PDFAppToolCompositeUndoTarget::redo()
+{
+    apply(false);
+}
+
+QString PDFAppToolCompositeUndoTarget::getUndoText() const
+{
+    const int index = findStep(true);
+    if (index < 0)
+    {
+        return QString();
+    }
+    if (m_undoSteps[size_t(index)] == Source::Parameters)
+    {
+        return m_model ? m_model->getUndoText() : QString();
+    }
+    return m_document ? m_document->getUndoStack()->getUndoDescription() : QString();
+}
+
+QString PDFAppToolCompositeUndoTarget::getRedoText() const
+{
+    const int index = findStep(false);
+    if (index < 0)
+    {
+        return QString();
+    }
+    if (m_redoSteps[size_t(index)] == Source::Parameters)
+    {
+        return m_model ? m_model->getRedoText() : QString();
+    }
+    return m_document ? m_document->getUndoStack()->getRedoDescription() : QString();
+}
+
+void PDFAppToolCompositeUndoTarget::apply(bool isUndo)
+{
+    const int index = findStep(isUndo);
+    if (index < 0 || m_isApplying)
+    {
+        return;
+    }
+
+    // The state first: the steps above the found one can never be reached (their model or document
+    // step is gone), the step goes to the other direction
+    std::vector<Source>& from = isUndo ? m_undoSteps : m_redoSteps;
+    std::vector<Source>& to = isUndo ? m_redoSteps : m_undoSteps;
+    const Source source = from[size_t(index)];
+    from.erase(from.begin() + index, from.end());
+    to.push_back(source);
+
+    // The model and the document run their slots (the view, the GUI; a slot may close the tab)
+    QPointer<PDFAppToolCompositeUndoTarget> guard(this);
+    m_isApplying = true;
+    if (source == Source::Parameters)
+    {
+        if (isUndo)
+        {
+            m_model->undo();
+        }
+        else
+        {
+            m_model->redo();
+        }
+    }
+    else
+    {
+        // PDFAppDocument::restore increments the version once: a change of somebody else made by a slot
+        // of the document ends the steps of the tool (isAvailable)
+        PDFAppUndoStack* stack = m_document->getUndoStack();
+        const quint64 version = m_document->getVersion();
+        m_documentVersion = version + 1;
+        const bool isApplied = isUndo ? stack->undoToolStep() : stack->redoToolStep();
+        if (guard && !isApplied)
+        {
+            to.pop_back();
+            m_documentVersion = version;
+        }
+    }
+    if (!guard)
+    {
+        return;
+    }
+    m_isApplying = false;
+    Q_EMIT undoStateChanged();
+}
+
+void PDFAppToolCompositeUndoTarget::onModelUndoStateChanged()
+{
+    // apply says it at its end
+    if (m_isApplying || !m_model)
+    {
+        return;
+    }
+
+    // A new step of the user (a following value and a mapped value are no step)
+    const quint64 count = m_model->getRecordedStepCount();
+    if (count != m_modelStepCount)
+    {
+        const quint64 newSteps = qMin<quint64>(count - m_modelStepCount, PDFAppToolParameterModel::MAXIMUM_HISTORY);
+        m_modelStepCount = count;
+        for (quint64 i = 0; i < newSteps; ++i)
+        {
+            m_undoSteps.push_back(Source::Parameters);
+        }
+        while (m_undoSteps.size() > PDFAppToolCompositeUndoTargetHelper::MAXIMUM_STEPS)
+        {
+            m_undoSteps.erase(m_undoSteps.begin());
+        }
+        m_redoSteps.clear();
+    }
+    Q_EMIT undoStateChanged();
+}
+
+// ---------------------------------------------------------------- PDFDocumentToolShell
+
 PDFDocumentToolShell::PDFDocumentToolShell(PDFAppToolHost* host, std::shared_ptr<const PDFDocumentTool> tool, PDFDocumentToolGUI* gui, QObject* parent) :
     BaseClass(parent),
     m_host(host),
@@ -130,9 +373,21 @@ PDFDocumentToolShell::~PDFDocumentToolShell()
         runner->setParent(nullptr);
     }
     delete runner;
+    PDFAppToolCompositeUndoTarget* undoTarget = m_undoTarget.data();
+    m_undoTarget = nullptr;
+    delete undoTarget;
     PDFAppToolParameterModel* model = m_model.data();
     m_model = nullptr;
     delete model;
+}
+
+PDFAppToolUndoTarget* PDFDocumentToolShell::getUndoTarget() const
+{
+    if (m_undoTarget)
+    {
+        return m_undoTarget.data();
+    }
+    return m_model.data();
 }
 
 const PDFDocumentToolCatalogEntry* PDFDocumentToolShell::getCatalogEntry() const
@@ -165,6 +420,13 @@ bool PDFDocumentToolShell::enter()
 
     m_gui->attach(this);
     connect(m_gui.data(), &PDFDocumentToolGUI::confirmStateChanged, this, &PDFDocumentToolShell::onConfirmStateChanged);
+
+    // A tool, which changes the document of its tab (Redact Content), has its steps of the document
+    // in one Undo order with the parameters; the own tab has no document of its own
+    if (document && !m_host->isOwnTab() && m_gui->hasDocumentUndoSteps())
+    {
+        m_undoTarget = new PDFAppToolCompositeUndoTarget(m_model, document, this);
+    }
     connect(m_gui.data(), &PDFDocumentToolGUI::statusTextChanged, this, &PDFDocumentToolShell::updateStatus);
 
     m_isPermissionRefused = isRefusedByPermissions();
@@ -186,7 +448,7 @@ bool PDFDocumentToolShell::enter()
     parts.leftPanel = m_leftPanel;
     parts.canvasPage = m_canvasPage;
     parts.rightPanel = m_rightPanel;
-    parts.undoTarget = m_model;
+    parts.undoTarget = getUndoTarget();
 
     m_host->saveViewState();
 
@@ -480,6 +742,9 @@ void PDFDocumentToolShell::updateToolbar()
         return;
     }
 
+    // K6.11: a tool without the Primary button (Manage Certificates) has none in any mode
+    m_toolbar->setConfirmShown(m_gui->isConfirmShown());
+    m_toolbar->setUndoShown(m_gui->isUndoShown());
     switch (m_state)
     {
         case State::Running:
@@ -611,7 +876,7 @@ void PDFDocumentToolShell::confirm()
         popup->close();
     }
 
-    if (m_state != State::Editing || !m_gui || !m_runner || !m_host || m_isPermissionRefused || !m_gui->isConfirmEnabled() || m_runPermissionDialog)
+    if (m_state != State::Editing || !m_gui || !m_runner || !m_host || m_isPermissionRefused || !m_gui->isConfirmShown() || !m_gui->isConfirmEnabled() || m_runPermissionDialog)
     {
         return;
     }
@@ -622,13 +887,13 @@ void PDFDocumentToolShell::confirm()
     // loop, the function ends right after it is opened (the shell is checked after the foreign
     // code of the dialog anyway; the dialog is owned by its window and deletes itself on close).
     QPointer<PDFDocumentToolShell> guard(this);
-    const std::vector<PDFSecurityHandler::Permission> runPermissions = m_gui->getRunPermissions();
+    const std::optional<PDFAppPermissionRequest> runRequest = getRunPermissionRequest();
     PDFAppDocument* permissionDocument = m_host->getDocument();
-    if (!runPermissions.empty() && permissionDocument)
+    if (runRequest && permissionDocument)
     {
         QWidget* parent = m_host->getKeyWidget() ? m_host->getKeyWidget()->window() : nullptr;
         QDialog* permissionDialog = nullptr;
-        const bool isAllowed = PDFAppDocumentPermissions::request(permissionDocument, PDFAppPermissionRequest::createTool(getCatalogEntry()->getId(), runPermissions, m_gui->getRunParameters()), parent, &permissionDialog);
+        const bool isAllowed = PDFAppDocumentPermissions::request(permissionDocument, *runRequest, parent, &permissionDialog);
         if (!guard || !m_host || !m_runner || m_state != State::Editing)
         {
             return;
@@ -810,10 +1075,73 @@ void PDFDocumentToolShell::cancel()
 
     if (m_state == State::Editing)
     {
+        // Sign by Hand 435:10500, Redact 448:17473: the tool asks first, its answer closes it
+        if (askCloseQuestion())
+        {
+            return;
+        }
+
         PDFAppToolCloseRequest request;
         request.reason = PDFAppToolCloseRequest::Reason::Canceled;
         requestClose(request);
     }
+}
+
+bool PDFDocumentToolShell::askCloseQuestion()
+{
+    // The own tab has its own question (askOwnTabClose); a question being asked is not asked again
+    // and the tool stays (a second Esc of the same question)
+    if (m_isAskingClose)
+    {
+        return true;
+    }
+    if (!m_gui || !m_host || m_host->isOwnTab() || m_isCloseRequested)
+    {
+        return false;
+    }
+
+    QPointer<PDFDocumentToolShell> guard(this);
+    m_isAskingClose = true;
+    const bool isAsked = m_gui->askClose();
+    if (!guard)
+    {
+        return true;
+    }
+    m_isAskingClose = false;
+    return isAsked;
+}
+
+void PDFDocumentToolShell::closeAfterQuestion()
+{
+    if (m_state != State::Editing)
+    {
+        return;
+    }
+
+    // The answer of the question of the GUI: as Cancel, without the question
+    PDFAppToolCloseRequest request;
+    request.reason = PDFAppToolCloseRequest::Reason::Canceled;
+    requestClose(request);
+}
+
+bool PDFDocumentToolShell::commitDocumentChange(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion)
+{
+    PDFAppDocument* document = m_host ? m_host->getDocument() : nullptr;
+    if (!document || m_state != State::Editing)
+    {
+        return false;
+    }
+
+    // The slots of the document run (the GUI, the view; a slot may close the tab): the step is
+    // recorded after the commit by the version the commit has made (+1), so a change of somebody
+    // else made by a slot meanwhile ends the steps of the tool instead of becoming one
+    QPointer<PDFDocumentToolShell> guard(this);
+    const bool isCommitted = document->commit(modified, description, expectedVersion, PDFAppChangeSource::Tool);
+    if (guard && isCommitted && m_undoTarget)
+    {
+        m_undoTarget->recordDocumentStep(expectedVersion + 1);
+    }
+    return isCommitted;
 }
 
 void PDFDocumentToolShell::cancelResult()
@@ -838,9 +1166,9 @@ void PDFDocumentToolShell::cancelResult()
         return;
     }
 
-    PDFAppToolCloseRequest request;
-    request.reason = PDFAppToolCloseRequest::Reason::Canceled;
-    requestClose(request);
+    // As Cancel in Editing: the question of the tool (open already after Discard result) is not
+    // passed by (435:10500, 448:17473)
+    cancel();
 }
 
 void PDFDocumentToolShell::onEscape()
@@ -1180,6 +1508,27 @@ void PDFDocumentToolShell::onPermissionDialogFinished()
         return;
     }
     cancel();
+}
+
+std::optional<PDFAppPermissionRequest> PDFDocumentToolShell::getRunPermissionRequest() const
+{
+    const PDFDocumentToolCatalogEntry* entry = getCatalogEntry();
+    if (!m_gui || !entry)
+    {
+        return std::nullopt;
+    }
+
+    // ISO 32000-2, Table 22 (owner 2026-11-08): a run, which needs one of more permissions (an existing
+    // empty signature field: bit 9 or bit 6), asks them too - a document, which allows none of them,
+    // offers the owner password, never only the refusal of the validation of the core
+    const std::vector<PDFSecurityHandler::Permission> runPermissions = m_gui->getRunPermissions();
+    const QVariantMap runParameters = m_gui->getRunParameters();
+    const bool hasAlternatives = m_tool && !m_tool->getAnyOfPermissions(runParameters).empty();
+    if (runPermissions.empty() && !hasAlternatives)
+    {
+        return std::nullopt;
+    }
+    return PDFAppPermissionRequest::createTool(entry->getId(), runPermissions, runParameters);
 }
 
 bool PDFDocumentToolShell::isRefusedByPermissions() const
@@ -1568,6 +1917,22 @@ void PDFDocumentToolShell::onDialogDecided(const PDFAppToolResultOutcome& outcom
             if (m_host && m_host->isOwnTab())
             {
                 returnToEditing();
+                return;
+            }
+
+            // Discard result leaves the tool with what it has (the drawing of Sign by Hand, the marks
+            // of Redact): its question comes as at Cancel (435:10500, 448:17473 "No redacted copy was
+            // created yet"); the tool waits in Editing for the answer (closeAfterQuestion)
+            if (askCloseQuestion())
+            {
+                if (guard)
+                {
+                    returnToEditing();
+                }
+                return;
+            }
+            if (!guard)
+            {
                 return;
             }
 

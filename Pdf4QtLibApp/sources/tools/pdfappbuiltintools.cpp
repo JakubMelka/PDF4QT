@@ -25,6 +25,7 @@
 #include "pdfapptoolgui_audiobook.h"
 #include "pdfapptoolgui_bitonal.h"
 #include "pdfapptoolgui_blank.h"
+#include "pdfapptoolgui_certificates.h"
 #include "pdfapptoolgui_compress.h"
 #include "pdfapptoolgui_encryption.h"
 #include "pdfapptoolgui_extractimages.h"
@@ -38,6 +39,9 @@
 #include "pdfapptoolgui_merge.h"
 #include "pdfapptoolgui_pages.h"
 #include "pdfapptoolgui_protect.h"
+#include "pdfapptoolgui_redact.h"
+#include "pdfapptoolgui_signature.h"
+#include "pdfapptoolgui_signbyhand.h"
 #include "pdfapptoolgui_split.h"
 #include "pdfapptoolgui_structure.h"
 
@@ -77,6 +81,13 @@ void PDFAppBuiltinTools::registerAll()
     // (protect.password, protect.permissions, protect.certificate-encrypt, protect.unlock) with the
     // one GUI of their presets
     PDFAppToolGUIEncryption::registerEncryptionTools();
+
+    // Step 6 of phase 2 (plan 10.1, 10.2 with R6-23): each package registers its tools in its own file,
+    // a tool stays unimplemented until then
+    PDFAppToolGUISignature::registerSignatureTools();           // P4: protect.sign, protect.timestamp
+    PDFAppToolGUISignByHand::registerSignByHandTools();         // P4: protect.sign-by-hand
+    PDFAppToolGUIRedact::registerRedactTools();                 // P5: protect.redact
+    PDFAppToolGUICertificates::registerCertificatesTools();     // P5: protect.certificates
 }
 
 }   // namespace pdf

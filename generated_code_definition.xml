@@ -6193,6 +6193,13 @@ return annotationObject;</property>
                 <QObject class="codegen::GeneratedPDFObject">
                   <property name="objectName"></property>
                   <property name="items"/>
+                  <property name="dictionaryItemName">Rect</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">quadrilaterals.boundingRect()</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
                   <property name="dictionaryItemName">P</property>
                   <property name="objectType">DictionaryItemSimple</property>
                   <property name="value">page</property>

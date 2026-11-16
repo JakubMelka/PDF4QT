@@ -34,7 +34,10 @@
 #include <QtMath>
 #include <QIcon>
 
+#include <algorithm>
+#include <array>
 #include <cmath>
+#include <limits>
 
 #include "pdfdbgheap.h"
 
@@ -1018,15 +1021,64 @@ PDFAnnotationPtr PDFAnnotation::parseObject(const PDFObjectStorage* storage, con
     return result;
 }
 
+/// The area of a quadrilateral of /QuadPoints (ISO 32000-2, Table 179, Table 195)
+class PDFAnnotationQuadrilateralHelper
+{
+public:
+    /// The convex hull of the points, counterclockwise (in the default user space, y up). The
+    /// order of the points of /QuadPoints differs among the writers (the specification says
+    /// counterclockwise, Acrobat writes x1 y1 x2 y2 of the upper edge and x3 y3 x4 y4 of the lower
+    /// one): a fixed order made a bow tie of the other one, half of whose area was missing (B146).
+    /// A quadrilateral is convex, so its hull is its area in any order of its corners.
+    static QPolygonF getConvexHull(std::array<QPointF, 4> points)
+    {
+        std::sort(points.begin(), points.end(), [](const QPointF& left, const QPointF& right) { return std::make_pair(left.x(), left.y()) < std::make_pair(right.x(), right.y()); });
+
+        // Andrew's monotone chain: the lower and the upper chain, each turning left
+        auto cross = [](const QPointF& o, const QPointF& a, const QPointF& b) { return (a.x() - o.x()) * (b.y() - o.y()) - (a.y() - o.y()) * (b.x() - o.x()); };
+        std::array<QPointF, 8> hull;
+        int count = 0;
+        for (const QPointF& point : points)
+        {
+            while (count >= 2 && cross(hull[count - 2], hull[count - 1], point) <= 0.0)
+            {
+                --count;
+            }
+            hull[count++] = point;
+        }
+        const int lowerCount = count + 1;
+        for (auto it = std::next(points.rbegin()); it != points.rend(); ++it)
+        {
+            while (count >= lowerCount && cross(hull[count - 2], hull[count - 1], *it) <= 0.0)
+            {
+                --count;
+            }
+            hull[count++] = *it;
+        }
+
+        // The last point is the first one again
+        QPolygonF polygon;
+        for (int i = 0; i + 1 < count; ++i)
+        {
+            polygon << hull[i];
+        }
+        return polygon;
+    }
+};
+
 PDFAnnotationQuadrilaterals PDFAnnotation::parseQuadrilaterals(const PDFObjectStorage* storage, PDFObject quadrilateralsObject, const QRectF annotationRect)
 {
+    // R6-7: the quadrilaterals are united by the non-zero rule (all of them are counterclockwise),
+    // so two quadrilaterals, which overlap (the lines of a selection of text), cover the overlap
+    // too - the even-odd rule made it a hole
     QPainterPath path;
+    path.setFillRule(Qt::WindingFill);
     PDFAnnotationQuadrilaterals::Quadrilaterals quadrilaterals;
 
     PDFDocumentDataLoaderDecorator loader(storage);
     std::vector<PDFReal> points = loader.readNumberArray(quadrilateralsObject);
     const size_t quadrilateralCount = points.size() / 8;
-    path.reserve(int(quadrilateralCount) + 5);
+    path.reserve(int(qMin(quadrilateralCount, size_t(std::numeric_limits<int>::max() / 8))) + 5);
     quadrilaterals.reserve(quadrilateralCount);
     for (size_t i = 0; i < quadrilateralCount; ++i)
     {
@@ -1036,11 +1088,18 @@ PDFAnnotationQuadrilaterals PDFAnnotation::parseQuadrilaterals(const PDFObjectSt
         QPointF p3(points[offset + 4], points[offset + 5]);
         QPointF p4(points[offset + 6], points[offset + 7]);
 
-        path.moveTo(p1);
-        path.lineTo(p2);
-        path.lineTo(p4);
-        path.lineTo(p3);
-        path.closeSubpath();
+        const bool isFinite = std::all_of(std::next(points.cbegin(), offset), std::next(points.cbegin(), offset + 8), [](PDFReal value) { return std::isfinite(value); });
+        if (!isFinite)
+        {
+            continue;
+        }
+
+        const QPolygonF hull = PDFAnnotationQuadrilateralHelper::getConvexHull({ p1, p2, p3, p4 });
+        if (hull.size() >= 3)
+        {
+            path.addPolygon(hull);
+            path.closeSubpath();
+        }
 
         quadrilaterals.emplace_back(PDFAnnotationQuadrilaterals::Quadrilateral{ p1, p2, p3, p4 });
     }
@@ -3786,7 +3845,9 @@ void PDFRedactAnnotation::draw(AnnotationDrawParameters& parameters) const
 
 QColor PDFRedactAnnotation::getFillColor() const
 {
-    return getDrawColorFromAnnotationColor(getInteriorColor(), getFillOpacity());
+    // ISO 32000-2, Table 195 /IC: without it (or with an empty array) the region of a redaction
+    // annotation stays transparent - the marked content is seen until the redaction is applied
+    return getFillColorFromAnnotationColor(getInteriorColor(), getFillOpacity());
 }
 
 }   // namespace pdf

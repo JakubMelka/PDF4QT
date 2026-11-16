@@ -571,19 +571,58 @@ void PDFMcpDispatcher::handleDiscover(const Request& request)
     respondResult(request, writer.take(), QByteArrayLiteral("\"ttlMs\":") + QByteArray::number(PDFMcpLimits::DISCOVER_TTL) + ",\"cacheScope\":\"private\"");
 }
 
+QString PDFMcpDispatcher::getListItemKey(const PDFMcpCatalog& catalog, ListKind kind, qint64 index)
+{
+    switch (kind)
+    {
+        case ListKind::Tools:
+            return catalog.getTools()[size_t(index)].name;
+        case ListKind::Prompts:
+            return catalog.getPrompts()[size_t(index)].name;
+        case ListKind::Resources:
+            return catalog.getResources()[size_t(index)].uri;
+        case ListKind::Templates:
+            return catalog.getTemplates()[size_t(index)].name;
+    }
+    return QString();
+}
+
+qint64 PDFMcpDispatcher::getListOffset(const PDFMcpCatalog& catalog, ListKind kind, qint64 count, const ListCursor& cursor)
+{
+    if (cursor.generation == catalog.getGeneration())
+    {
+        return cursor.offset;
+    }
+
+    // The list changed between the pages: the page continues at the item, which
+    // would have come next, wherever it is now (the nearest one to the offset of
+    // the same anchor); an item, which left the list, leaves only the offset
+    qint64 offset = cursor.offset;
+    qint64 bestDistance = std::numeric_limits<qint64>::max();
+    for (qint64 i = 0; i < count; ++i)
+    {
+        const qint64 distance = std::abs(i - cursor.offset);
+        if (distance < bestDistance && getCursorAnchor(getListItemKey(catalog, kind, i)) == cursor.anchor)
+        {
+            offset = i;
+            bestDistance = distance;
+        }
+    }
+    return offset;
+}
+
 void PDFMcpDispatcher::handleList(const Request& request, ListKind kind)
 {
-    qint64 offset = 0;
+    std::optional<ListCursor> cursor;
     const QJsonValue cursorValue = request.params.value(QStringLiteral("cursor"));
     if (!cursorValue.isUndefined())
     {
-        const std::optional<qint64> parsed = cursorValue.isString() ? parseCursor(cursorValue.toString()) : std::nullopt;
-        if (!parsed)
+        cursor = cursorValue.isString() ? parseCursor(cursorValue.toString()) : std::nullopt;
+        if (!cursor)
         {
             respondRequestError(request, PDFMcpErrorCodes::INVALID_PARAMS, QStringLiteral("Invalid cursor"));
             return;
         }
-        offset = *parsed;
     }
 
     std::shared_ptr<const PDFMcpCatalog> catalog = m_shared->getCatalog();
@@ -627,7 +666,7 @@ void PDFMcpDispatcher::handleList(const Request& request, ListKind kind)
             break;
     }
 
-    offset = qBound<qint64>(0, offset, count);
+    const qint64 offset = qBound<qint64>(0, cursor ? getListOffset(*catalog, kind, count, *cursor) : 0, count);
     const qint64 end = (count - offset > pageSize) ? offset + pageSize : count;
 
     PDFMcpJsonWriter writer;
@@ -663,7 +702,7 @@ void PDFMcpDispatcher::handleList(const Request& request, ListKind kind)
 
     if (end < count)
     {
-        writer.writeMember(QLatin1StringView("nextCursor"), QStringView(createCursor(catalog->getGeneration(), end)));
+        writer.writeMember(QLatin1StringView("nextCursor"), QStringView(createCursor(catalog->getGeneration(), end, getCursorAnchor(getListItemKey(*catalog, kind, end)))));
     }
     writer.endObject();
 

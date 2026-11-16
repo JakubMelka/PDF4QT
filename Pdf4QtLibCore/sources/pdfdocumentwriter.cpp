@@ -49,6 +49,15 @@ class PDFDocumentWriterEncryptionHelper
 public:
     PDFDocumentWriterEncryptionHelper() = delete;
 
+    /// The password callback of a reading of the writer (R6-1 of the plan of step 6 of phase 2):
+    /// the writer knows no password, so it refuses - an empty std::function would be called by
+    /// the security handler of a file with an open password (std::bad_function_call)
+    static QString refusePassword(bool* ok)
+    {
+        *ok = false;
+        return QString();
+    }
+
     /// The handler of one write: a copy of the handler of the document, which knows the
     /// document-level metadata stream of the written file (/EncryptMetadata false leaves only it
     /// unencrypted, ISO 32000-2 Table 20) - the reader of the file decides by the same rule
@@ -260,10 +269,27 @@ void PDFWriteObjectVisitor::visitDictionary(const PDFDictionary* dictionary)
 {
     m_device->write("<< ");
 
+    // B121 (plan of step 6 of phase 2): /Contents of a signature dictionary is always a hexadecimal
+    // string (ISO 32000-2, Table 255: "a hexadecimal string ... the space reserved"): the signer finds
+    // the reserved space and /ByteRange excludes exactly the string with its angle brackets, a short
+    // value without a special byte (a small ECDSA signature, a reservation of zeros) would else be a
+    // literal string the signer cannot find
+    const bool isSignatureDictionary = PDFSecurityHandler::isSignatureDictionary(dictionary);
+
     for (size_t i = 0, count = dictionary->getCount(); i < count; ++i)
     {
         writeName(dictionary->getKey(i).getString());
-        dictionary->getValue(i).accept(this);
+
+        const PDFObject& value = dictionary->getValue(i);
+        if (isSignatureDictionary && value.isString() && dictionary->getKey(i).getString() == "Contents")
+        {
+            m_device->write("<");
+            m_device->write(value.getString().toHex());
+            m_device->write("> ");
+            continue;
+        }
+
+        value.accept(this);
     }
 
     m_device->write(">> ");
@@ -650,8 +676,17 @@ PDFOperationResult PDFDocumentWriter::writeIncrementalUpdate(QIODevice* device, 
     // Its objects must be what the cross-reference table of the file says, an update goes by the
     // table; the end of file mark is no part of that (it can be missing in a signed file, which
     // the application has opened, only the table is needed here).
-    PDFDocumentReader reader(nullptr, nullptr, true, false);
+    // R6-1: the writer has no password - a file with an open password is read back by a clone of the
+    // authenticated handler of the document, when the document has the encryption of the file
+    // (PDFSecurityHandler::isSameEncryption); otherwise it cannot be read back here (an empty callback
+    // would crash in the security handler) and the update is refused with the reason
+    PDFDocumentReader reader(nullptr, &PDFDocumentWriterEncryptionHelper::refusePassword, true, false);
+    reader.setAuthenticatedSecurityHandler(document->getStorage().getSecurityHandler());
     const PDFDocument originalDocument = reader.readFromBuffer(originalData);
+    if (reader.getReadingResult() == PDFDocumentReader::Result::Canceled)
+    {
+        return tr("The original document is protected by an open password, so it cannot be updated incrementally.");
+    }
     if (reader.getReadingResult() != PDFDocumentReader::Result::OK || reader.isDocumentRestored())
     {
         return tr("Original document cannot be read, so it cannot be updated incrementally.");

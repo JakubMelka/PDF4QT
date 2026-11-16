@@ -120,6 +120,17 @@ public:
     /// password of their PKCS#12. The reader keeps a copy until it is destroyed or set again.
     void setCertificates(PDFCertificateEntries certificates) { m_certificates = std::move(certificates); m_isCertificatesSet = true; }
 
+    /// The authenticated security handler of a document, which has been read already from the bytes,
+    /// which this reader reads, or from their older revision (plan of step 6 of phase 2, R6-1): the read
+    /// back of an incremental update (PDFDocumentWriter::writeIncrementalUpdate), the signer
+    /// (PDFDocumentSigner::readDocument) and the revisions of the verifier (PDFSignatureHandler). An
+    /// encrypted file, whose encryption is the encryption of the handler (PDFSecurityHandler::
+    /// isSameEncryption: the same encryption dictionary and first part of /ID), is opened by a clone of
+    /// it - no password is asked, none is kept; the authorization of the handler must suffice
+    /// (OwnerAuthorized with authorizeOwnerOnly). Another file is opened by the password callback as
+    /// without it. The reader keeps the clone until it is destroyed or set again; null = none.
+    void setAuthenticatedSecurityHandler(const PDFSecurityHandler* securityHandler);
+
     static QByteArray hash(const QByteArray& sourceData);
 
 private:
@@ -256,6 +267,9 @@ private:
     /// The certificates of setCertificates (m_isCertificatesSet), else the certificates of the user
     PDFCertificateEntries m_certificates;
     bool m_isCertificatesSet = false;
+
+    /// A clone of the handler of setAuthenticatedSecurityHandler, null = none
+    PDFSecurityHandlerPointer m_authenticatedSecurityHandler;
 };
 
 }   // namespace pdf

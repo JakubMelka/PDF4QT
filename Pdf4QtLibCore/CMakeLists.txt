@@ -160,6 +160,20 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfdocumenttool_encryption.h
     sources/pdfpasswordstrength.cpp
     sources/pdfpasswordstrength.h
+    # Step 6 of phase 2 (plan 10.1, 10.2 with R6-23): P1b the timestamp client, P2 the tools of the
+    # signatures and the drawing, P3 the tool of the redaction and its check
+    sources/pdftimestampclient.cpp
+    sources/pdftimestampclient.h
+    sources/pdfdocumenttool_signature.cpp
+    sources/pdfdocumenttool_signature.h
+    sources/pdfdocumenttool_signbyhand.cpp
+    sources/pdfdocumenttool_signbyhand.h
+    sources/pdfpagedrawing.cpp
+    sources/pdfpagedrawing.h
+    sources/pdfdocumenttool_redact.cpp
+    sources/pdfdocumenttool_redact.h
+    sources/pdfredactionverifier.cpp
+    sources/pdfredactionverifier.h
     sources/pdfexecutionpolicy.cpp
     sources/pdfexecutionpolicy.h
     sources/pdfthreadannotations.cpp
@@ -350,7 +364,7 @@ if(LINUX_GCC)
 endif()
 
 if(MINGW)
-    target_link_libraries(Pdf4QtLibCore PRIVATE Secur32 Mscms Gdi32 User32 crypt32)
+    target_link_libraries(Pdf4QtLibCore PRIVATE Secur32 Mscms Gdi32 User32 crypt32 ncrypt)
 endif()
 
 target_include_directories(Pdf4QtLibCore INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/sources)

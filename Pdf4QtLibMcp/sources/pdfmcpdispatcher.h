@@ -226,9 +226,29 @@ public:
     /// token is answered before its body is read.
     static bool isAuthorizationValid(const PDFMcpHttpRequest& request, const QByteArray& tokenHash);
 
-    /// Cursor of a list (base64url of "<generation>:<offset>") and its parse
-    static QString createCursor(quint64 generation, qint64 offset);
-    static std::optional<qint64> parseCursor(const QString& cursor);
+    /// A parsed cursor of a list
+    class ListCursor
+    {
+    public:
+        quint64 generation = 0;     ///< Generation of the catalog of the previous page
+        qint64 offset = 0;          ///< Index of the first item of the next page
+        quint32 anchor = 0;         ///< getCursorAnchor of the key of that item
+    };
+
+    /// Cursor of a list (base64url of "<generation>:<offset>:<anchor>", the
+    /// anchor in 8 lowercase hexadecimal digits) and its parse. A cursor of the
+    /// current catalog continues at its offset. A cursor of an older catalog (the
+    /// list changed between the pages: a document opened or closed) continues at
+    /// its anchor item - the item that would have come next - when the new
+    /// catalog still lists it (the nearest one to the offset), so a change before
+    /// or after it neither skips nor repeats an item listed before the change;
+    /// else (that item left the list) it continues at its offset as before.
+    static QString createCursor(quint64 generation, qint64 offset, quint32 anchor);
+    static std::optional<ListCursor> parseCursor(const QString& cursor);
+
+    /// Anchor of a cursor: the first 32 bits of SHA-256 of the UTF-8 key of a
+    /// list item (the URI of a resource, the name of the other items)
+    static quint32 getCursorAnchor(QStringView key);
 
     /// The accepted answers of elicitations, whose values are allowed (see the
     /// class description); \p isDeclined = a choice was declined or canceled
@@ -283,6 +303,8 @@ private:
     void handleMethod(Request& request);
     void handleDiscover(const Request& request);
     void handleList(const Request& request, ListKind kind);
+    static QString getListItemKey(const PDFMcpCatalog& catalog, ListKind kind, qint64 index);
+    static qint64 getListOffset(const PDFMcpCatalog& catalog, ListKind kind, qint64 count, const ListCursor& cursor);
     void handleResourceRead(Request& request);
     void handleToolCall(Request& request);
     void handlePromptGet(Request& request);

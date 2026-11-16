@@ -46,6 +46,10 @@
 #include <QBuffer>
 #include <QDateTime>
 #include <QFileInfo>
+
+#ifdef Q_OS_WIN
+#include <qt_windows.h>
+#endif
 #include <QJsonDocument>
 #include <QPixmap>
 #include <QTimer>
@@ -272,9 +276,13 @@ void PDFAppMcpHost::rebuildCatalog()
         }
     }
 
-    std::vector<PDFMcpResourceDefinition> resources = PDFAppMcpResources::createStaticResources();
-    std::vector<PDFMcpResourceDefinition> documentResources = PDFAppMcpResources::createDocumentResources(this);
-    resources.insert(resources.end(), std::make_move_iterator(documentResources.begin()), std::make_move_iterator(documentResources.end()));
+    // The open documents first, then the general documents of the server (owner
+    // decision 2026-11-15): a client, which reads only the first page of
+    // resources/list, sees the documents (with the static files the list is longer
+    // than a page)
+    std::vector<PDFMcpResourceDefinition> resources = PDFAppMcpResources::createDocumentResources(this);
+    std::vector<PDFMcpResourceDefinition> staticResources = PDFAppMcpResources::createStaticResources();
+    resources.insert(resources.end(), std::make_move_iterator(staticResources.begin()), std::make_move_iterator(staticResources.end()));
 
     m_catalog = std::make_shared<const PDFMcpCatalog>(++m_generation, std::move(tools), std::move(resources),
                                                       PDFAppMcpResources::createTemplates(), PDFAppMcpPrompts::createDefinitions(m_icons));
@@ -521,7 +529,21 @@ void PDFAppMcpHost::finishJob(const std::shared_ptr<PDFAppMcpJob>& job)
 
 void PDFAppMcpHost::waitForJobs()
 {
+#ifdef Q_OS_WIN
+    // A job may wait for a window of this thread (RS6APP): the PIN dialog of a key of the store of
+    // Windows (Q6.2) is owned by the main window, its modality sends messages to that window
+    // (WM_ENABLE, the activation) and waits for their answers. While this thread waits for the jobs, it
+    // answers the messages sent by other threads - only those (PM_QS_SENDMESSAGE): no posted event, no
+    // input and no timer of the application runs - so the stop never waits for a dialog, which waits
+    // for the stop
+    while (!m_threadPool.waitForDone(WAIT_STEP))
+    {
+        MSG message;
+        PeekMessageW(&message, nullptr, 0, 0, PM_NOREMOVE | PM_QS_SENDMESSAGE);
+    }
+#else
     m_threadPool.waitForDone();
+#endif
 }
 
 void PDFAppMcpHost::setToolHandler(std::unique_ptr<PDFAppMcpToolHandler> handler)

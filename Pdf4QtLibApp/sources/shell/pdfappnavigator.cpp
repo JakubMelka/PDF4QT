@@ -201,7 +201,16 @@ PDFAppTab* PDFAppNavigator::chooseTab(const PDFAppRouteMatch& match, PDFAppNavig
         {
             return tab;
         }
-        if (PDFAppTab* tab = m_window->addToolTab(match.getParameter(QStringLiteral("toolId")), instanceId, nullptr))
+
+        // A tool with one tab in a window (Manage Certificates, isSingleOwnTab): a route of an older
+        // instance (the history, a link) is shown by the tab, which exists - never a second tab
+        // (navigateImpl shows the route of that tab)
+        const QString toolId = match.getParameter(QStringLiteral("toolId"));
+        if (PDFAppTab* tab = m_window->findSingleToolTab(toolId))
+        {
+            return tab;
+        }
+        if (PDFAppTab* tab = m_window->addToolTab(toolId, instanceId, nullptr))
         {
             return tab;
         }
@@ -286,6 +295,16 @@ void PDFAppNavigator::navigateImpl(const PDFAppRoute& route, PDFAppNavigationMod
     if (!tab)
     {
         return;
+    }
+
+    // The one tab of a tool chosen for a route of another instance (chooseTab): its own route
+    if (match.isFound() && match.entry && match.entry->tabKind == PDFAppTabKind::Tool)
+    {
+        const PDFAppToolTab* toolTab = qobject_cast<const PDFAppToolTab*>(tab.data());
+        if (toolTab && toolTab->getInstanceId() != match.getParameter(QStringLiteral("instanceId")))
+        {
+            target = toolTab->getRoute();
+        }
     }
 
     // The shown page may refuse (a running tool asks, F14) or it ends its work (page

@@ -4065,6 +4065,9 @@ public:
     /// Extent of the icon of the More button (Sidebar tab 190:619)
     static constexpr int MORE_ICON = 18;
 
+    /// Extent of the icon "+" of the row Option::Inline (swatch-custom 1567:19191)
+    static constexpr int INLINE_PLUS_ICON = 14;
+
     /// Returns true, if the colors have the same rgb values (two invalid colors are the same: no color)
     static bool isSameRgb(const QColor& first, const QColor& second)
     {
@@ -4148,6 +4151,18 @@ std::vector<PDFColorSwatchRow::Entry> PDFColorSwatchRow::getAnnotationColors(Opt
         { PDFThemeColors::AnnotationBlack, QT_TR_NOOP("Black") }
     };
 
+    // The order of the row inline in a panel (1567:19183), white included
+    static constexpr NamedToken inlineColors[] =
+    {
+        { PDFThemeColors::AnnotationBlack, QT_TR_NOOP("Black") },
+        { PDFThemeColors::AnnotationWhite, QT_TR_NOOP("White") },
+        { PDFThemeColors::AnnotationRed, QT_TR_NOOP("Red") },
+        { PDFThemeColors::AnnotationOrange, QT_TR_NOOP("Orange") },
+        { PDFThemeColors::AnnotationYellow, QT_TR_NOOP("Yellow") },
+        { PDFThemeColors::AnnotationGreen, QT_TR_NOOP("Green") },
+        { PDFThemeColors::AnnotationBlue, QT_TR_NOOP("Blue") }
+    };
+
     // The canonical values are the tokens of the built-in light theme
     const PDFThemeColors light;
     std::vector<Entry> entries;
@@ -4155,6 +4170,14 @@ std::vector<PDFColorSwatchRow::Entry> PDFColorSwatchRow::getAnnotationColors(Opt
     if (options.testFlag(Option::NoColor))
     {
         entries.push_back(Entry{ PDFThemeColors::ColorCount, QColor(), tr("No color") });
+    }
+    if (options.testFlag(Option::Inline))
+    {
+        for (const NamedToken& color : inlineColors)
+        {
+            entries.push_back(Entry{ color.token, light.getColor(color.token), tr(color.name) });
+        }
+        return entries;
     }
     for (const NamedToken& color : colors)
     {
@@ -4365,15 +4388,23 @@ int PDFColorSwatchRow::getVisibleSwatchCount() const
 
 QSize PDFColorSwatchRow::getRowSize(int visibleSwatches, bool hasMore)
 {
+    return getRowSize(visibleSwatches, hasMore, Options());
+}
+
+QSize PDFColorSwatchRow::getRowSize(int visibleSwatches, bool hasMore, Options options)
+{
     visibleSwatches = qMax(0, visibleSwatches);
     const QSize swatch = PDFComponentPainter::getColorSwatchSize();
+    const bool isInline = options.testFlag(Option::Inline);
+    const int gap = isInline ? INLINE_SWATCH_GAP : SWATCH_GAP;
+    const int moreExtent = isInline ? swatch.width() : MORE_EXTENT;
 
-    int width = visibleSwatches * swatch.width() + qMax(0, visibleSwatches - 1) * SWATCH_GAP;
+    int width = visibleSwatches * swatch.width() + qMax(0, visibleSwatches - 1) * gap;
     int height = visibleSwatches > 0 ? swatch.height() : 0;
     if (hasMore)
     {
-        width += (visibleSwatches > 0 ? SWATCH_GAP : 0) + MORE_EXTENT;
-        height = qMax(height, MORE_EXTENT);
+        width += (visibleSwatches > 0 ? gap : 0) + moreExtent;
+        height = qMax(height, moreExtent);
     }
 
     return QSize(width, height);
@@ -4381,7 +4412,7 @@ QSize PDFColorSwatchRow::getRowSize(int visibleSwatches, bool hasMore)
 
 QSize PDFColorSwatchRow::sizeHint() const
 {
-    return getRowSize(getVisibleSwatchCount(), getMoreButton() != nullptr);
+    return getRowSize(getVisibleSwatchCount(), getMoreButton() != nullptr, m_options);
 }
 
 QSize PDFColorSwatchRow::minimumSizeHint() const
@@ -4498,7 +4529,24 @@ void PDFColorSwatchRow::updateMoreButton()
 
     if (m_moreButton)
     {
-        const QString text = tr("More colors");
+        // Option::Inline: the round "+" of the size of a swatch (swatch-custom 1567:19191), which asks
+        // for a custom color; otherwise the More button of the palette
+        const bool isInline = m_options.testFlag(Option::Inline);
+        const QSize swatch = PDFComponentPainter::getColorSwatchSize();
+        const int iconExtent = isInline ? PDFColorSwatchRowHelper::INLINE_PLUS_ICON : PDFColorSwatchRowHelper::MORE_ICON;
+        m_moreButton->setIcon(PDFThemeIcons::getIcon(isInline ? QStringLiteral("plus") : QStringLiteral("more-horizontal")));
+        m_moreButton->setIconSize(QSize(iconExtent, iconExtent));
+        m_moreButton->setFixedSize(isInline ? swatch : QSize(MORE_EXTENT, MORE_EXTENT));
+        if (isInline)
+        {
+            m_moreButton->setProperty(PDFWidgetStyleProperties::RADIUS, swatch.width() / 2.0);
+        }
+        else
+        {
+            m_moreButton->setProperty(PDFWidgetStyleProperties::RADIUS, QVariant());
+        }
+
+        const QString text = isInline ? tr("Custom color…") : tr("More colors");
         m_moreButton->setToolTip(text);
         m_moreButton->setAccessibleName(text);
         m_moreButton->setVisible(hasMore);
@@ -4651,17 +4699,20 @@ void PDFColorSwatchRow::layoutChildren()
     const QSize swatchSize = PDFComponentPainter::getColorSwatchSize();
 
     // Left-aligned (leading) in the logical layout, centered vertically
+    const bool isInline = m_options.testFlag(Option::Inline);
+    const int gap = isInline ? INLINE_SWATCH_GAP : SWATCH_GAP;
+    const int moreExtent = isInline ? swatchSize.width() : MORE_EXTENT;
     int x = 0;
     for (PDFColorSwatch* swatch : getVisibleSwatches())
     {
         const QRect logical(QPoint(x, (bounds.height() - swatchSize.height()) / 2), swatchSize);
         PDFComponentPanelsHelper::placeWidget(swatch, direction, bounds, logical);
-        x += swatchSize.width() + SWATCH_GAP;
+        x += swatchSize.width() + gap;
     }
 
     if (QAbstractButton* more = getMoreButton())
     {
-        const QRect logical(QPoint(x, (bounds.height() - MORE_EXTENT) / 2), QSize(MORE_EXTENT, MORE_EXTENT));
+        const QRect logical(QPoint(x, (bounds.height() - moreExtent) / 2), QSize(moreExtent, moreExtent));
         PDFComponentPanelsHelper::placeWidget(more, direction, bounds, logical);
     }
 }
@@ -4716,6 +4767,14 @@ void PDFColorSwatchRow::onSwatchClicked()
 
 void PDFColorSwatchRow::onMoreClicked()
 {
+    // Option::Inline: the "+" asks for a custom color without the palette (the panel shows the
+    // colors already, 1567:19183); the signal is the last (its slot may delete the row)
+    if (m_options.testFlag(Option::Inline))
+    {
+        Q_EMIT moreColorsRequested();
+        return;
+    }
+
     // The result is not needed by a click
     showPalette();
 }
@@ -4821,6 +4880,20 @@ void PDFColorSwatchRow::resizeEvent(QResizeEvent* event)
 {
     BaseClass::resizeEvent(event);
     layoutChildren();
+}
+
+void PDFColorSwatchRow::paintEvent(QPaintEvent* event)
+{
+    BaseClass::paintEvent(event);
+
+    // swatch-custom 1567:19191: the "+" of the inline row is a circle of the size of a swatch with a
+    // 1 px border of border/default (the button over it fills it at hover and press)
+    if (m_options.testFlag(Option::Inline) && m_moreButton && m_moreButton->isVisibleTo(this))
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        PDFStylePainter::strokeEllipseInside(&painter, QRectF(m_moreButton->geometry()), PDFStylePainter::color(PDFThemeColors::BorderDefault), 1.0);
+    }
 }
 
 bool PDFColorSwatchRow::eventFilter(QObject* watched, QEvent* event)

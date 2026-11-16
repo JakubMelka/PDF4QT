@@ -151,8 +151,13 @@ public:
 
     QThreadPool* getThreadPool() { return &m_threadPool; }
 
-    /// Waits for every job (step 6 of the quit order); the calls are canceled before
+    /// Waits for every job (step 6 of the quit order); the calls are canceled before. On Windows
+    /// the GUI thread answers the messages sent to its windows meanwhile (the PIN dialog of a job is
+    /// owned by the main window, RS6APP), no other event runs.
     void waitForJobs();
+
+    /// Step of the wait of waitForJobs between the answers of the sent messages (ms)
+    static constexpr int WAIT_STEP = 20;
 
     // Tool handlers ---------------------------------------------------------
 

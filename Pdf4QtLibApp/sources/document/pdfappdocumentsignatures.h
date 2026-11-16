@@ -160,8 +160,12 @@ public:
     /// \param trustedCertificates Certificates trusted by the user (no link for them)
     static PDFComponentPainter::SignatureCard getCard(const PDFSignatureVerificationResult& result, bool isStrict, const std::vector<QByteArray>& trustedCertificates);
 
-    /// Index of the certificate of the chain, which can be trusted by the user
-    /// (the last certificate of a chain without a trusted root), -1 = none
+    /// Index of the certificate, which can be trusted by the user (B118, R6-2): only a certificate
+    /// of the chain built from the signer of the SignerInfo - the root of a chain, which ends by a
+    /// self-signed root not trusted, else the certificate of the signer itself (also a self-signed
+    /// signer, or a chain without a root); never another certificate of the bag of the CMS. -1 = none
+    /// (the chain is trusted, the signer was not identified, the certificate is trusted already or
+    /// it is no valid certificate)
     static int getTrustableCertificateIndex(const PDFSignatureVerificationResult& result, const std::vector<QByteArray>& trustedCertificates);
 
 Q_SIGNALS:

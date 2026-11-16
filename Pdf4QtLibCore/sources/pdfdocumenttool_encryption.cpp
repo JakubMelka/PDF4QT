@@ -1047,8 +1047,20 @@ PDFSecurityHandlerFactory::SecuritySettings PDFDocumentToolEncryption::createSet
             }
             settings.certificate = *entry;
 
-            // 433:3972: the password must open the private key of this very certificate
-            const std::optional<PDFCertificateInfo> unlocked = PDFCertificateManager::readCertificate(entry->pkcs12, settings.userPassword);
+            // Owner 2026-11-15 (addendum of step 6): a certificate of the system store is a recipient by its
+            // public certificate only - no password, its key is never used. 433:3972: the password must
+            // open the private key of the .pfx of this very certificate.
+            std::optional<PDFCertificateInfo> unlocked;
+            if (Factory::isSystemStoreCertificate(*entry))
+            {
+                unlocked = entry->info;
+                PDFSecureMemory::clear(settings.userPassword);
+                settings.userPassword.clear();
+            }
+            else
+            {
+                unlocked = PDFCertificateManager::readCertificate(entry->pkcs12, settings.userPassword);
+            }
             if (!unlocked || getCertificateFingerprint(unlocked->getCertificateData()) != fingerprint)
             {
                 errorList.push_back({ passwordParameter, tr("Invalid certificate or password.") });
@@ -1284,8 +1296,16 @@ PDFDocumentToolEncryption::Change PDFDocumentToolEncryption::changeEncryption(co
             PDFDocumentReader reader(nullptr, passwordCallback, false, check.isOwnerOnly);
             if (settings.algorithm == PDFSecurityHandlerFactory::Certificate)
             {
-                // R5-1: by the chosen certificate, never by the certificate folders of the user
-                reader.setCertificates({ settings.certificate });
+                // R5-1: by the chosen certificate, never by the certificate folders of the user. A
+                // certificate of the system store: its key is never used at the encryption (no PIN of
+                // the system in the run) - the file is read by a clone of the handler, which wrote it
+                // (the dictionary it wrote, the key of its seed; PDFSecurityHandler::isSameEncryption)
+                const bool isSystemStore = PDFSecurityHandlerFactory::isSystemStoreCertificate(settings.certificate);
+                reader.setCertificates(isSystemStore ? PDFCertificateEntries() : PDFCertificateEntries({ settings.certificate }));
+                if (isSystemStore)
+                {
+                    reader.setAuthenticatedSecurityHandler(handler.data());
+                }
             }
             const PDFDocument readBack = reader.readFromBuffer(change.writtenData);
             const PDFSecurityHandler* readHandler = readBack.getStorage().getSecurityHandler();

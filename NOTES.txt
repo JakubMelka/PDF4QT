@@ -79,6 +79,11 @@ Section 12: Issues
  - 12.5.5 Annotation's transparency group is ignored
  - 12.5.6.3 Annotation's states are not implemented in viewer
  - 12.5.6.22 Watermark annotation - matrix and fixed print entry is not used
+ - 12.5.6.23 Redaction annotation - the overlay text (OverlayText, DA, Q,
+   Repeat) and the overlay form XObject (RO) of a redaction annotation of
+   another application are not drawn, when the redaction is applied; the
+   area gets the fill of the tool (or no fill), a no-fill area shows the
+   paper
  - 12.6.3 Some trigger events are not executed or not implemented
  - 12.6.3 JavaScript of form field trigger events is not executed.
    Format (F) and keystroke (K) actions consisting of a single call
@@ -107,6 +112,10 @@ Section 12: Issues
    used, if signature is not valid, then it is not checked for
    modifications
  - 12.8 OCSP (Online Certificate Status Protocol) is not performed
+ - 12.8.1 The Contents of a signature dictionary shall be DER encoded; a
+   signature encoded by BER with an indefinite length (written by some
+   real signers) is accepted - its length is measured exactly by its
+   parsing and only zero bytes may follow it up to the end of Contents
  - 12.8.4 Long term validation of signatures not performed
  - 12.8.4.5 Validation data in custom VRI are not used, instead of them,
    validation data in DSS or embedded in the signature are used

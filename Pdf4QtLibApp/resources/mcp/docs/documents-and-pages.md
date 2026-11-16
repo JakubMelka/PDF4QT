@@ -86,3 +86,5 @@ Next to the tools, the documents are resources (Read documents applies to them a
 | pdf4qt://documents/{documentId}/attachments/{index} | The content of an attachment (at most 8 MiB) |
 
 A subscribed document resource is updated after every change of the document (a commit, undo, reload or close).
+
+`resources/list` lists the open documents first – the info, outline and annotations of each document in the order of opening – then pdf4qt://application/state, then the documentation of the server. The list has pages of 100 items; pass `nextCursor` as `cursor` to continue. When a document opens or closes between two pages (`notifications/resources/list_changed`), the next page continues with the item that would have come next, so no other item is skipped or repeated (except when the closed document had items on both pages: then the next page continues at the old position); list again from the first page to see a newly opened document.

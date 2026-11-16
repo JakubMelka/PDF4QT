@@ -186,11 +186,11 @@ Celkem **46 toolů**, které pokrývají dnešní funkce (včetně OCR z větve 
 | `protect.permissions` | **Restrict Permissions** | Limit printing, copying and editing | Encryption | GUI·split, hotovo (krok 5) |
 | `protect.certificate-encrypt` | **Encrypt with Certificate** | Only the certificate holder can open it | Encryption | GUI·split, hotovo (krok 5) |
 | `protect.unlock` | **Remove Password** | Remove encryption you have access to | Encryption | GUI·split, hotovo (krok 5) |
-| `protect.sign` | **Sign with Certificate** | Add a digital signature | Signatures | GUI |
-| `protect.timestamp` | **Add Timestamp** | Prove the document existed at a time | Signatures | GUI·split |
-| `protect.sign-by-hand` | **Sign by Hand** | Draw, type or insert a signature | Signatures | GUI |
-| `protect.certificates` | **Manage Certificates** | Create and trust digital IDs | Signatures | GUI |
-| `protect.redact` | **Redact Content** | Permanently remove sensitive content | Privacy | GUI |
+| `protect.sign` | **Sign with Certificate** | Add a digital signature | Signatures | GUI, hotovo (krok 6) |
+| `protect.timestamp` | **Add Timestamp** | Prove the document existed at a time | Signatures | GUI·split, hotovo (krok 6) |
+| `protect.sign-by-hand` | **Sign by Hand** | Draw, type or insert a signature | Signatures | GUI, hotovo (krok 6) |
+| `protect.certificates` | **Manage Certificates** | Create and trust digital IDs | Signatures | GUI, hotovo (krok 6) |
+| `protect.redact` | **Redact Content** | Permanently remove sensitive content | Privacy | GUI, hotovo (krok 6) |
 | `protect.sanitize` | **Remove Hidden Data** | Strip metadata, comments and more | Privacy | GUI |
 | `protect.remove-links` | **Remove External Links** | Delete links that leave the document | Privacy | GUI |
 
@@ -504,7 +504,7 @@ Dnešní dialog *Encryption Settings* řeší čtyři různé úkoly. V katalogu
 
 - **Co dělá:** Podepíše dokument digitálním podpisem.
 - **Funkce:** viditelný nebo neviditelný podpis, typ *Signature* nebo *Signature with timestamp*, certifikát a jeho heslo. Odborné parametry (adresa časové autority, důvod podpisu, kontakt) jsou na stránce toolu v části *Details* (H9). Vzhled viditelného podpisu se nakreslí nástroji panelu *Signature Toolbox* (text, křivka od ruky, značky, tvary, obrázek). Podepsaný dokument se uloží jako nový soubor. Potvrzovací tlačítko je *Save Signed Copy*.
-- **Bez certifikátu:** když uživatel žádný certifikát nemá, otevře se nejdřív správce certifikátů (Manage Certificates) a po jeho zavření dialog podpisu. Tak to funguje i dnes.
+- **Bez certifikátu:** když uživatel žádný certifikát nemá, stránka toolu nabídne *Create Certificate…* a *Import .pfx…* přímo (434:6889, 10.3 bod 31, K6.1 kroku 6); správce certifikátů se neotevírá.
 - **Vstup → výstup:** otevřený dokument a certifikát → podepsaný PDF.
 - **Dnes:** plugin Signature, *Sign Digitally With Certificate*.
 - **Klíčová slova:** `sign, sign document, sign digitally with certificate, signature, digital signature, certificate, pkcs12, pfx, p12, pades, digital id, electronic signature, esign, approve, qualified signature`
@@ -520,7 +520,7 @@ Dnešní dialog *Encryption Settings* řeší čtyři různé úkoly. V katalogu
 #### `protect.sign-by-hand` – Sign by Hand
 
 - **Co dělá:** Umístí na stránku vlastnoruční podpis nebo značku. Nejde o kryptografický podpis.
-- **Funkce:** text, křivka od ruky, značka souhlasu a nesouhlasu, tvary, čáry, obrázek. Po potvrzení (*Sign Electronically*) se grafika stane součástí stránky. Stránka toolu má jednu větu: „Not a digital ID signature – use Sign with Certificate.“
+- **Funkce:** text, křivka od ruky, značka souhlasu a nesouhlasu, tvary, čáry, obrázek. Po potvrzení (*Apply to Pages*, 435:8619, K6.2 kroku 6) se grafika stane součástí stránky. Stránka toolu má jednu větu: „Not a digital ID signature – use Sign with Certificate.“
 - **Vstup → výstup:** otevřený dokument → upravený dokument.
 - **Dnes:** plugin Signature, *Activate signature creator* a *Sign Electronically*.
 - **Klíčová slova:** `draw signature, sign electronically, signature creator, sign document, handwritten, sign by hand, fill and sign, fill & sign, initials, e-sign, electronic signature, autograph, signature image, tick, cross`

@@ -830,7 +830,11 @@ int PDFDocumentToolParameterDefinition::getTypeMaximumLength() const
     switch (m_type)
     {
         case PDFDocumentToolParameterType::String:
-            return m_panelOnly ? MAXIMUM_PANEL_TEXT_LENGTH : MAXIMUM_TEXT_LENGTH;
+            if (m_panelOnly)
+            {
+                return MAXIMUM_PANEL_TEXT_LENGTH;
+            }
+            return m_structuredData ? MAXIMUM_DATA_TEXT_LENGTH : MAXIMUM_TEXT_LENGTH;
         case PDFDocumentToolParameterType::FileNameTemplate:
             return MAXIMUM_TEXT_LENGTH;
         case PDFDocumentToolParameterType::FilePath:

@@ -2498,6 +2498,8 @@ void PDFPageContentProcessor::operatorType3FontSetOffset(PDFReal wx, PDFReal wy)
 
 void PDFPageContentProcessor::operatorType3FontSetOffsetAndBB(PDFReal wx, PDFReal wy, PDFReal llx, PDFReal lly, PDFReal urx, PDFReal ury)
 {
+    // B147: the glyph bounding box of the glyph (9.6.5, Table 111: llx lly urx ury in the glyph space)
+    m_type3GlyphBox = QRectF(QPointF(llx, lly), QPointF(urx, ury)).normalized();
     performSetCacheDevice(wx, wy, llx, lly, urx, ury);
 }
 
@@ -2878,6 +2880,10 @@ void PDFPageContentProcessor::operatorTextSetFontAndFontSize(PDFOperandName font
             try
             {
                 PDFFontPointer font = m_fontCache->getFont(m_fontDictionary->get(fontName.name), fontName.name);
+                if (font && font->getFontType() == FontType::Type3)
+                {
+                    rememberType3FontBox(font, m_fontDictionary->get(fontName.name));
+                }
 
                 m_graphicState.setTextFont(qMove(font));
                 m_graphicState.setTextFontSize(fontSize);
@@ -3555,19 +3561,26 @@ void PDFPageContentProcessor::drawText(const PDFRealizedFontPointer& font, const
                     m_graphicState.setCurrentTransformationMatrix(worldMatrix);
                     updateGraphicState();
 
-                    // An inline image of a glyph has no stable position (R4-8)
+                    // An inline image of a glyph has no stable position (R4-8). The box of d1 belongs to
+                    // this glyph only (a glyph of another Type 3 font inside keeps its own)
                     PDFTemporaryValueChange ownerGuard(&m_contentStreamOwner, PDFObjectReference());
                     PDFTemporaryValueChange counterGuard(&m_inlineImageCounter, PDFInteger(0));
+                    PDFTemporaryValueChange glyphBoxGuard(&m_type3GlyphBox, std::optional<QRectF>());
                     processContent(*item.characterContentStream);
 
                     if (!item.character.isNull())
                     {
-                        // Output character
+                        // Output character. The matrix maps the glyph space (9.6.4: the font matrix, the
+                        // font size, the text and the current transformation matrix), so the box and the
+                        // font size are of the glyph space: one unit of the text space is the font
+                        // matrix inverted (B147)
+                        const QLineF unitLine = fontMatrix.map(QLineF(0.0, 0.0, 0.0, 1.0));
                         PDFTextCharacterInfo info;
                         info.character = item.character;
                         info.isVerticalWritingSystem = !isHorizontalWritingSystem;
                         info.advance = item.advance;
-                        info.fontSize = fontSize;
+                        info.fontSize = unitLine.length() > 0.0 ? 1.0 / unitLine.length() : fontSize;
+                        info.glyphBox = getType3GlyphBox(parentFont, m_type3GlyphBox, item.advance);
                         info.matrix = worldMatrix;
                         performOutputCharacter(info);
                     }
@@ -3586,6 +3599,65 @@ void PDFPageContentProcessor::drawText(const PDFRealizedFontPointer& font, const
     }
 
     performProcessTextSequence(textSequence, ProcessOrder::AfterOperation);
+}
+
+QRectF PDFPageContentProcessor::getType3GlyphBox(const PDFFont* font, const std::optional<QRectF>& glyphBox, PDFReal advance) const
+{
+    auto isUsable = [](const QRectF& box)
+    {
+        return std::isfinite(box.left()) && std::isfinite(box.top()) && std::isfinite(box.width()) && std::isfinite(box.height()) && !box.isEmpty();
+    };
+
+    // 9.6.5: the box of d1 is the box of this glyph
+    if (glyphBox && isUsable(*glyphBox))
+    {
+        return *glyphBox;
+    }
+
+    // Table 112: /FontBBox encloses every glyph of the font placed at one origin; all zeros = no assumption
+    for (const auto& [typeFont, fontBox] : m_type3FontBoxes)
+    {
+        if (typeFont.data() == font && isUsable(fontBox))
+        {
+            return fontBox;
+        }
+    }
+
+    // Nothing is known: an estimate of the advance (a glyph of d0 in a font without /FontBBox)
+    if (advance != 0.0 && std::isfinite(advance))
+    {
+        const PDFReal side = std::abs(advance);
+        return QRectF(qMin(0.0, advance), -0.2 * side, side, 1.2 * side);
+    }
+    return QRectF();
+}
+
+void PDFPageContentProcessor::rememberType3FontBox(const PDFFontPointer& font, const PDFObject& fontObject)
+{
+    for (const auto& item : m_type3FontBoxes)
+    {
+        if (item.first == font)
+        {
+            return;
+        }
+    }
+
+    if (m_type3FontBoxes.size() >= MAXIMUM_TYPE3_FONT_BOXES)
+    {
+        m_type3FontBoxes.clear();
+    }
+
+    QRectF fontBox;
+    if (m_document)
+    {
+        const PDFDictionary* fontDictionary = m_document->getDictionaryFromObject(fontObject);
+        if (fontDictionary)
+        {
+            PDFDocumentDataLoaderDecorator loader(m_document);
+            fontBox = loader.readRectangle(fontDictionary->get("FontBBox"), QRectF()).normalized();
+        }
+    }
+    m_type3FontBoxes.emplace_back(font, fontBox);
 }
 
 const QPainterPath& PDFPageContentProcessor::getGlyphPath(const PDFGlyphOutline& outline)

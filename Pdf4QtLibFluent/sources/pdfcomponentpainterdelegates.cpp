@@ -1157,7 +1157,20 @@ void PDFComponentPainter::paintTileRow(QPainter* painter, const QRectF& rect, co
     Color tileContent = Color::IconMuted;
     Helper::getTileRowColors(row, state, tileFill, tileContent);
     const QRectF tileRect = getTileRowTileRect(rect, row, state);
-    PDFStylePainter::fill(painter, tileRect, Helper::Radii(Helper::TILE_RADIUS), tileFill);
+    if (row.isSwatchTile)
+    {
+        // A color swatch of a choice of a color (437:12794): the color itself, framed by border/default
+        // (black and white are visible in both themes), the icon in the tile color of the row
+        if (row.swatchColor)
+        {
+            PDFStylePainter::fill(painter, tileRect, Helper::Radii(Helper::TILE_RADIUS), *row.swatchColor);
+        }
+        PDFStylePainter::strokeInside(painter, tileRect, Helper::Radii(Helper::TILE_RADIUS), Color::BorderDefault);
+    }
+    else
+    {
+        PDFStylePainter::fill(painter, tileRect, Helper::Radii(Helper::TILE_RADIUS), tileFill);
+    }
     if (!row.tileText.isEmpty())
     {
         const QFont tileFont = Helper::font(PDFThemeFonts::Role::CaptionSemiBold);

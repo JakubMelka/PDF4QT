@@ -166,7 +166,12 @@ private:
     std::unique_ptr<PDFAppToolFileSink> m_fileSink;
 };
 
-/// The function of a thread of the pool
+/// The function of a thread of the pool. Every job may use OpenSSL (the decryption of
+/// an encrypted document, its cloned security handler, a signature, a verification):
+/// the task of PDFExecutionPolicy::startTask releases the state of OpenSSL of the
+/// worker after the function - one place for every tool (ASan C of step 6 of phase 2).
+/// The function drops its reference to the job first: when the runner is gone, the job
+/// and its documents die here, before that release.
 class PDFDocumentToolRunnerTask
 {
 public:
@@ -176,9 +181,10 @@ public:
 
     }
 
-    void operator()() const
+    void operator()()
     {
-        m_job->execute();
+        std::shared_ptr<PDFDocumentToolRunnerJob> job = std::move(m_job);
+        job->execute();
     }
 
 private:
@@ -279,7 +285,13 @@ PDFDocumentToolContext PDFDocumentToolRunner::createContext(const PDFAppDocument
     PDFDocumentToolContext context;
     if (snapshot.isValid())
     {
-        context = PDFDocumentToolContext::create(PDFDocumentToolInputDocument::create(snapshot.document, snapshot.originalData, snapshot.filePath, snapshot.isModified));
+        PDFDocumentToolInputDocument input = PDFDocumentToolInputDocument::create(snapshot.document, snapshot.originalData, snapshot.filePath, snapshot.isModified);
+
+        // What the core cannot see in the bytes (plan of step 6 of phase 2, 4.4, R6-12): the tab has
+        // rewritten its document whole after the file was read, or the file is damaged
+        input.isWholeFileRewritten = snapshot.isWholeFileRewritten;
+        input.isRestored = snapshot.restoration != PDFAppDocumentRestoration::None;
+        context = PDFDocumentToolContext::create(std::move(input));
     }
 
     context.documents.insert(context.documents.end(), environment.additionalDocuments.cbegin(), environment.additionalDocuments.cend());
@@ -293,6 +305,8 @@ PDFDocumentToolContext PDFDocumentToolRunner::createContext(const PDFAppDocument
     context.userCertificates = environment.userCertificates;
     context.temporaryFolder = environment.temporaryFolder;
     context.speechSynthesizerFactory = environment.speechSynthesizerFactory;
+    context.timestampClient = environment.timestampClient;
+    context.parentWindow = environment.parentWindow;
     return context;
 }
 

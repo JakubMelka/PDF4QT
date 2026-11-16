@@ -111,8 +111,11 @@ PDFForm PDFForm::parse(const PDFDocument* document, PDFObject object)
                     continue;
                 }
 
-                if (loader.readNameFromDictionary(annotationDictionary, "Subtype") == "Widget" &&
-                    !annotationDictionary->hasKey("Kids"))
+                // A widget has no kids (an empty /Kids of a field merged with its widget is none - the
+                // field of a signature of PDFDocumentBuilder::createSignatureField has one)
+                const PDFObject& kids = annotationDictionary ? document->getObject(annotationDictionary->get("Kids")) : PDFObject();
+                if (annotationDictionary && loader.readNameFromDictionary(annotationDictionary, "Subtype") == "Widget" &&
+                    !(kids.isArray() && kids.getArray()->getCount() > 0))
                 {
                     rogueFieldFound = true;
                     form.m_formFields.emplace_back(PDFFormField::parse(&document->getStorage(), annotationReference, nullptr));
@@ -124,6 +127,76 @@ PDFForm PDFForm::parse(const PDFDocument* document, PDFObject object)
         form.m_formFields.erase(std::remove_if(form.m_formFields.begin(), form.m_formFields.end(), [](const auto& field){ return !field; }), form.m_formFields.end());
 
         if (rogueFieldFound)
+        {
+            form.updateWidgetToFormFieldMapping();
+        }
+    }
+    else if (document->getCatalog())
+    {
+        // A document without /AcroForm has no fields (ISO 32000-2, 12.7.3), but a widget of a signature
+        // field in /Annots of a page (Signature/multiplesignatures.pdf) still carries a signature of the
+        // bytes of the file: it is never overlooked - the verification shows it, a signature is added
+        // by an incremental update only (a whole write would destroy it; ASan E2 of step 6 of phase 2).
+        // The form stays FormType::None, no other kind of a field is taken. A widget is the field itself or
+        // a kid of a field (/Parent, 12.7.4.1): the root field of the widget is parsed once (a root shared
+        // by more widgets); one visited set of the whole walk and a depth limit (a cycle of /Parent)
+        PDFDocumentDataLoaderDecorator loader(document);
+        std::set<PDFObjectReference> visited;
+        const size_t pageCount = document->getCatalog()->getPageCount();
+        for (size_t i = 0; i < pageCount; ++i)
+        {
+            const PDFPage* page = document->getCatalog()->getPage(i);
+            if (!page)
+            {
+                continue;
+            }
+
+            for (PDFObjectReference annotationReference : page->getAnnotations())
+            {
+                // A widget has no kids (an empty /Kids of a field merged with its widget is none)
+                const PDFDictionary* annotationDictionary = document->getDictionaryFromObject(document->getObjectByReference(annotationReference));
+                const PDFObject& kids = annotationDictionary ? document->getObject(annotationDictionary->get("Kids")) : PDFObject();
+                if (!annotationDictionary || (kids.isArray() && kids.getArray()->getCount() > 0) || loader.readNameFromDictionary(annotationDictionary, "Subtype") != "Widget")
+                {
+                    continue;
+                }
+
+                // Up to the root field: the field type is the first /FT on the way (an inheritable key, Table 226)
+                PDFObjectReference rootReference = annotationReference;
+                const PDFDictionary* dictionary = annotationDictionary;
+                QByteArray fieldType;
+                bool isRootReached = false;
+                for (int depth = 0; dictionary && depth < MAXIMUM_PARENT_DEPTH && visited.insert(rootReference).second; ++depth)
+                {
+                    if (fieldType.isEmpty())
+                    {
+                        fieldType = loader.readNameFromDictionary(dictionary, "FT");
+                    }
+
+                    const PDFObject& parent = dictionary->get("Parent");
+                    if (!parent.isReference())
+                    {
+                        isRootReached = true;
+                        break;
+                    }
+                    rootReference = parent.getReference();
+                    dictionary = document->getDictionaryFromObject(document->getObjectByReference(rootReference));
+                }
+
+                if (!isRootReached || fieldType != "Sig")
+                {
+                    continue;
+                }
+
+                PDFFormFieldPointer field = PDFFormField::parse(&document->getStorage(), rootReference, nullptr);
+                if (field && field->getFieldType() == PDFFormField::FieldType::Signature)
+                {
+                    form.m_formFields.emplace_back(std::move(field));
+                }
+            }
+        }
+
+        if (!form.m_formFields.empty())
         {
             form.updateWidgetToFormFieldMapping();
         }

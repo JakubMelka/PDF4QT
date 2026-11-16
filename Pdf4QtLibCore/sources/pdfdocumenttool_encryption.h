@@ -60,7 +60,9 @@ namespace pdf
 ///     11, 6, 9, 5 of Table 22 (bit 10, the accessibility, is always set: K5.7, owner answer Q5.2);
 ///   - certificate (String, the SHA-256 fingerprint of the certificate as 64 lower case hexadecimal
 ///     digits; Certificate; MCP-excluded, the confirmation of PDF4QT gives it, owner answer Q5.6);
-///   - certificatePassword (Secret; Certificate): the password of the PKCS#12 file;
+///   - certificatePassword (Secret; Certificate): the password of the PKCS#12 file; a certificate of the
+///     system store (PDFSecurityHandlerFactory::isSystemStoreCertificate, owner 2026-11-15) needs none:
+///     only its public certificate is the recipient, the run never uses its key;
 ///   - Remove Password has no parameters.
 /// Every Secret is MCP-excluded (PDFDocumentToolParameterDefinition::isMcpExcluded): it is never in
 /// the schema of an action nor in a result, never stored, never in the parameter model (S5.2); the

@@ -28,19 +28,32 @@
 // The runs need the cores and the GUI parts of the other packages (P1b the tool, P2 the password card
 // and ChangeSecurity, P3 the certificates): those functions skip with the name of the missing package
 // until the integration.
+//
+// Step 6 of phase 2 (package P6; plan 6.5, 8, R6-8, R6-10, R6-20, R6-27, Q6.7): one test per gate of
+// MCP - Sign always confirmed with the certificate chosen and its password typed in PDF4QT, Timestamp
+// confirmed before anything is sent and only to an authority of the list of the user (a local authority
+// on the loopback, never the internet), Sign by Hand always confirmed with its drawing on its page,
+// Redact by the permissions only, the certificates read only; the verified file of save_file, the
+// permission check by the parameters, the signer and the later revisions of document.get_signatures.
 
 #include "appmcpstep5.h"
+#include "appmcpstep6.h"
 #include "mergetestpdf.h"
 
 #include "pdfappbuiltintools.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappmainwindow.h"
+#include "pdfappmcpchange.h"
+#include "pdfappmcpconfirmdialog.h"
 #include "pdfappmcpcontent.h"
 #include "pdfappmcpsecretconfirmation.h"
 #include "pdfappcertificatedialogs.h"
 #include "pdfapptoolcertificatelist.h"
+#include "pdfapptoolgui_certificates.h"
 #include "pdfdocumenttoolcatalog.h"
+#include "pdfdocumenttoolusage.h"
+#include "pdfform.h"
 
 #include "pdffluentwidgets.h"
 
@@ -48,12 +61,16 @@
 #include <QFileInfo>
 #include <QLabel>
 #include <QPointer>
+#include <QScopeGuard>
 #include <QTranslator>
 #include <QtTest>
+
+#include <atomic>
 
 using pdftest::AppMcpFixture;
 using pdftest::AppMcpStep4;
 using pdftest::AppMcpStep5;
+using pdftest::AppMcpStep6;
 
 /// "~" before every text of the confirmation with the passwords (a language change in the test)
 class AppMcpProtectTestTranslator : public QTranslator
@@ -72,6 +89,28 @@ public:
     }
 
     virtual bool isEmpty() const override { return false; }
+};
+
+/// Sign with Certificate, which records the context of its run (the parent window of the PIN dialog of
+/// the store of Windows, Q6.2) and fails without signing
+class AppMcpProtectRecordingSignTool : public pdf::PDFDocumentToolSignature
+{
+public:
+    AppMcpProtectRecordingSignTool() : pdf::PDFDocumentToolSignature(Mode::Sign) { }
+
+    virtual pdf::PDFDocumentToolResult execute(const pdf::PDFDocumentToolContext& context, const QVariantMap& parameters, const pdf::PDFOperationControl* control,
+                                               pdf::PDFProgressSink* progress) const override
+    {
+        Q_UNUSED(parameters);
+        Q_UNUSED(control);
+        Q_UNUSED(progress);
+        s_parentWindow = context.parentWindow;
+        s_isRun = true;
+        return pdf::PDFDocumentToolResult::createFailed(QStringLiteral("Recorded."));
+    }
+
+    static inline std::atomic<quintptr> s_parentWindow = 0;
+    static inline std::atomic<bool> s_isRun = false;
 };
 
 class AppMcpProtectTest : public QObject
@@ -103,12 +142,32 @@ private Q_SLOTS:
     void certificateRunWithoutSecretInResults();
     void unlockRunWithoutSecretInResults();
 
+    // Step 6 of phase 2 (package P6)
+    void signConfirmedWithCertificateChoice();
+    void signRunWritesVerifiedFile();
+    void signEntryPermissionsByParameters();
+    void timestampConfirmedBeforeAuthority();
+    void signByHandConfirmedWithDrawing();
+    void redactByPermissionsWithoutSecrets();
+    void certificatesReadOnly();
+    void signaturesSignerAndLaterRevisions();
+    void signaturesClaimedDate_data();
+    void signaturesClaimedDate();
+    void signRunParentWindow();
+    void certificateEncryptSystemStore();
+
+    // Review RS6APP
+    void signInvalidPreselectionKeepsAuthorityGate();
+
 private:
     /// Starts the server with every permission Allow (Http: the calls of the fixture go over HTTP)
     static bool start(AppMcpFixture& fixture, bool isHttp);
 
     /// Opens a document of two pages (encrypted by the owner password with \p permissions, unless 0)
     static pdf::PDFAppDocumentTab* openDocument(AppMcpFixture& fixture, const QString& name, uint32_t permissions = 0);
+
+    /// The system store of the trusted certificates of a run with an authority: empty (never the store of the machine)
+    static pdf::PDFCertificateEntries noSystemCertificates() { return pdf::PDFCertificateEntries(); }
 };
 
 void AppMcpProtectTest::initTestCase()
@@ -116,6 +175,7 @@ void AppMcpProtectTest::initTestCase()
     // No test reads or writes the certificates of the user (the confirmation of
     // certificate_encrypt lists them): temporary folders for the whole process
     pdftest::AppTestCertificateFolders::installForProcess();
+    pdf::PDFAppToolGUICertificates::setSystemCertificatesProvider(&AppMcpProtectTest::noSystemCertificates);
 
     // The tools of the application, as the controller of MCP sees them, and the four tools of the
     // core, while package P2 has not registered them with their GUI
@@ -214,13 +274,25 @@ void AppMcpProtectTest::toolsListWithoutSecrets()
     QVERIFY(!protect.isEmpty());
     const QJsonObject properties = protect.value(QStringLiteral("inputSchema")).toObject().value(QStringLiteral("properties")).toObject();
 
+    // Step 6 (plan 8 with Q6.1, Q6.3, Q6.7, R6-20): sign has the preselection of the certificate, the
+    // format, the type, the field, the reason, the contact and the authority - no password, no appearance
+    // (only invisible) and no drawing; sign-by-hand the JSON of its elements (no drawing of the panels);
+    // certificates nothing (a list); redact its areas, its search and its options
     const QStringList permissions = { QStringLiteral("printLow"), QStringLiteral("printHigh"), QStringLiteral("modify"), QStringLiteral("assemble"),
                                       QStringLiteral("annotate"), QStringLiteral("fillForms"), QStringLiteral("copy") };
     const std::vector<std::pair<QString, QStringList>> expected = {
         { QStringLiteral("password"), { QStringLiteral("algorithm"), QStringLiteral("scope"), QStringLiteral("ownerSameAsOpen"), QStringLiteral("keepRestrictions") } },
         { QStringLiteral("permissions"), QStringList({ QStringLiteral("algorithm"), QStringLiteral("scope"), QStringLiteral("requireOpenPassword") }) + permissions },
         { QStringLiteral("certificate-encrypt"), QStringList({ QStringLiteral("scope") }) + permissions },
-        { QStringLiteral("unlock"), QStringList() }
+        { QStringLiteral("unlock"), QStringList() },
+        { QStringLiteral("sign"), { QStringLiteral("certificate"), QStringLiteral("format"), QStringLiteral("type"), QStringLiteral("field"), QStringLiteral("reason"),
+                                    QStringLiteral("contactInfo"), QStringLiteral("tsaUrl") } },
+        { QStringLiteral("timestamp"), { QStringLiteral("tsaUrl") } },
+        { QStringLiteral("sign-by-hand"), { QStringLiteral("elements") } },
+        { QStringLiteral("certificates"), QStringList() },
+        { QStringLiteral("redact"), { QStringLiteral("useMarks"), QStringLiteral("areas"), QStringLiteral("search"), QStringLiteral("searchRegex"), QStringLiteral("searchCaseSensitive"),
+                                      QStringLiteral("searchWholeWords"), QStringLiteral("searchAcrossLineBreaks"), QStringLiteral("pages"), QStringLiteral("fillColor"),
+                                      QStringLiteral("noFill"), QStringLiteral("keepTitle"), QStringLiteral("keepMetadata"), QStringLiteral("keepOutline") } }
     };
     const QStringList actions = properties.value(QStringLiteral("action")).toObject().value(QStringLiteral("enum")).toVariant().toStringList();
     for (const auto& item : expected)
@@ -249,19 +321,46 @@ void AppMcpProtectTest::toolsListWithoutSecrets()
         }
     }
 
-    // No password nor certificate anywhere in the list, no writeOnly property of a Secret
-    for (const char* name : { "\"openPassword\"", "\"ownerPassword\"", "\"certificatePassword\"", "\"certificate\"", "\"writeOnly\"" })
+    // No password anywhere in the list, no writeOnly property of a Secret, no appearance nor drawing of a
+    // signature; a certificate only as the preselection of sign by its fingerprint (6.5)
+    for (const char* name : { "\"openPassword\"", "\"ownerPassword\"", "\"certificatePassword\"", "\"writeOnly\"", "\"appearance\"", "\"drawing\"" })
     {
         QVERIFY2(!listText.contains(name), name);
     }
+    QVERIFY(properties.value(QStringLiteral("sign")).toObject().value(QStringLiteral("properties")).toObject().value(QStringLiteral("certificate")).toObject()
+                .value(QStringLiteral("description")).toString().contains(QStringLiteral("fingerprint")));
 
-    // The default result is the preselected Copy of the catalog (430:3226: Save as a copy recommended)
-    for (const char* id : { "protect.password", "protect.permissions", "protect.certificate-encrypt", "protect.unlock" })
+    // The JSON of a drawing of an assistant and of the areas of Redact are structured data bounded by their
+    // counts (plan 7.2, ASan D1 of step 6): the elements the longest structured String of MCP (4 Mi characters,
+    // the longest string of a request), the areas 10 000 areas of 200 characters (protect.md, errors.md)
+    QCOMPARE(properties.value(QStringLiteral("sign-by-hand")).toObject().value(QStringLiteral("properties")).toObject().value(QStringLiteral("elements")).toObject()
+                 .value(QStringLiteral("maxLength")).toInt(), 4 * 1024 * 1024);
+    QCOMPARE(properties.value(QStringLiteral("redact")).toObject().value(QStringLiteral("properties")).toObject().value(QStringLiteral("areas")).toObject()
+                 .value(QStringLiteral("maxLength")).toInt(), 10000 * 200);
+
+    // The default result is the preselected Copy of the catalog (430:3226: Save as a copy recommended);
+    // step 6 (plan 8): the signed, timestamped and redacted files save_file, the drawing keep
+    const std::vector<std::pair<const char*, QString>> defaults = { { "protect.password", QStringLiteral("save_copy") }, { "protect.permissions", QStringLiteral("save_copy") },
+                                                                    { "protect.certificate-encrypt", QStringLiteral("save_copy") }, { "protect.unlock", QStringLiteral("save_copy") },
+                                                                    { "protect.sign", QStringLiteral("save_file") }, { "protect.timestamp", QStringLiteral("save_file") },
+                                                                    { "protect.redact", QStringLiteral("save_file") }, { "protect.sign-by-hand", QStringLiteral("keep") } };
+    for (const auto& [id, result] : defaults)
     {
         const pdf::PDFDocumentToolCatalogEntry* entry = pdf::PDFDocumentToolCatalog::findTool(QString::fromLatin1(id));
         QVERIFY(entry);
-        QCOMPARE(pdf::PDFAppMcpCatalogTools::getDefaultResult(*entry), QStringLiteral("save_copy"));
+        QCOMPARE(pdf::PDFAppMcpCatalogTools::getDefaultResult(*entry), result);
     }
+
+    // protect.certificates is a list: no result (protect.md)
+    const pdf::PDFDocumentToolCatalogEntry* certificates = pdf::PDFDocumentToolCatalog::findTool(QStringLiteral("protect.certificates"));
+    QVERIFY(certificates);
+    QVERIFY(pdf::PDFAppMcpCatalogTools::getToolResultValues(*certificates, pdf::PDFDocumentToolRegistry::getTool(certificates->getId()).get()).isEmpty());
+
+    // R6-10: the result of Sign and Timestamp is only a file without Then continue with; Redact offers
+    // the next tools (Q6.16) - MCP offers no next tool, the property belongs to the result dialog
+    QVERIFY(!pdf::PDFDocumentToolUsage::isOfferingSuccessors(QStringLiteral("protect.sign")));
+    QVERIFY(!pdf::PDFDocumentToolUsage::isOfferingSuccessors(QStringLiteral("protect.timestamp")));
+    QVERIFY(pdf::PDFDocumentToolUsage::isOfferingSuccessors(QStringLiteral("protect.redact")));
 }
 
 void AppMcpProtectTest::docsReference()
@@ -288,16 +387,33 @@ void AppMcpProtectTest::docsReference()
     QVERIFY(resource);
     const QString text = QString::fromUtf8(resource->content);
     QVERIFY2(text.contains(pdf::PDFAppMcpContent::createToolSummary(*spec)), "the generated summary differs (PDF4QT_MCP_DOCS_DUMP)");
-    int checked = 0;
+
+    // Every action of the category in the order of its table in protect.md - the four of the encryption
+    // (step 5), the five of step 6 and the two of the first batch - with its generated reference
+    QStringList names;
     for (const pdf::PDFAppMcpActionSpec& action : spec->actions)
     {
-        if (pdf::PDFDocumentToolEncryption::findMode(QStringLiteral("protect.") + action.name))
+        QVERIFY2(text.contains(pdf::PDFAppMcpContent::createActionReference(*spec, action)), qPrintable(action.name));
+        names << action.name;
+    }
+    QCOMPARE(names, QStringList({ QStringLiteral("password"), QStringLiteral("permissions"), QStringLiteral("certificate-encrypt"), QStringLiteral("unlock"),
+                                  QStringLiteral("sign"), QStringLiteral("timestamp"), QStringLiteral("sign-by-hand"), QStringLiteral("certificates"),
+                                  QStringLiteral("redact"), QStringLiteral("sanitize"), QStringLiteral("remove-links") }));
+
+    // protect.certificates refuses result and path (protect.md): its reference does not offer them as
+    // common parameters, the other actions do
+    for (const pdf::PDFAppMcpActionSpec& action : spec->actions)
+    {
+        const QString reference = pdf::PDFAppMcpContent::createActionReference(*spec, action);
+        if (action.name == QLatin1String("certificates"))
         {
-            QVERIFY2(text.contains(pdf::PDFAppMcpContent::createActionReference(*spec, action)), qPrintable(action.name));
-            ++checked;
+            QVERIFY2(reference.contains(QStringLiteral("- Common parameters: none\n")), qPrintable(reference.left(400)));
+        }
+        else
+        {
+            QVERIFY2(reference.contains(QStringLiteral("`result`, `path`")), qPrintable(action.name));
         }
     }
-    QCOMPARE(checked, 4);
 
     // The rules of the passwords for the assistant (6.3): typed only in PDF4QT, password_required
     QVERIFY(text.contains(QStringLiteral("password_required")));
@@ -583,8 +699,16 @@ void AppMcpProtectTest::closedTabEndsCall()
     QPointer<pdf::PDFAppMcpSecretConfirmation> dialog = AppMcpStep5::waitDialog();
     QVERIFY(dialog);
 
+    // RS6APP: the slot of destroyed of the request only forgets the dialog - the call ends from the event
+    // loop, not inside of the destructor of the dialog (a slot connected later sees it open)
+    std::optional<bool> isFinishedAtDestruction;
+    QObject context;
+    QObject::connect(dialog.data(), &QObject::destroyed, &context, [&call, &isFinishedAtDestruction]() { isFinishedAtDestruction = call->isFinished(); });
+
     QVERIFY(fixture.window->closeTab(tab));
     AppMcpFixture::settle();    // The tab is deleted later (the event loop of the application)
+    QVERIFY(isFinishedAtDestruction.has_value());
+    QVERIFY(!*isFinishedAtDestruction);
     const std::optional<pdf::PDFMcpCallResult> result = AppMcpFixture::waitResult(call);
     QVERIFY(result && result->isError);
     QVERIFY2(result->getFirstText().contains(QStringLiteral("closed")), qPrintable(result->getFirstText()));
@@ -891,6 +1015,682 @@ void AppMcpProtectTest::unlockRunWithoutSecretInResults()
     QVERIFY(!AppMcpStep5::resultText(*result).contains(AppMcpStep5::getOwnerPassword().toUtf8()));
     QVERIFY(!AppMcpStep5::activityText(fixture).contains(AppMcpStep5::getOwnerPassword().toUtf8()));
     QVERIFY(AppMcpStep5::opensWithoutPassword(copyPath));
+}
+
+void AppMcpProtectTest::signConfirmedWithCertificateChoice()
+{
+    // R6-10, Q6.7, plan 6.5: protect.sign always opens the confirmation of PDF4QT, also with every
+    // permission Allow - the variant of a copy (958:27539) with the facts of the invisible signature and
+    // the reason and the contact of the assistant, the list of the certificates in the signing mode with
+    // the certificate of the assistant only preselected, the card of the password of its .pfx file.
+    // Cancel ends the call as denied_user and nothing is written
+    pdftest::AppTestCertificateFolders folders;
+    const QString firstPath = AppMcpStep6::createCertificate(folders, QStringLiteral("aaron_first.pfx"), QStringLiteral("Aaron First"));
+    const QString secondPath = AppMcpStep6::createCertificate(folders, QStringLiteral("jane_novak.pfx"), QStringLiteral("Jane Novak"));
+    QVERIFY(!firstPath.isEmpty() && !secondPath.isEmpty());
+
+    AppMcpFixture fixture;
+    QVERIFY(start(fixture, false));
+    QVERIFY(AppMcpStep6::cacheCertificate(fixture, firstPath));
+    QVERIFY(AppMcpStep6::cacheCertificate(fixture, secondPath));
+    pdf::PDFAppDocumentTab* tab = openDocument(fixture, QStringLiteral("Contract.pdf"));
+    QVERIFY(tab);
+
+    // The assistant preselects the certificate, which is not the first one of the list
+    std::vector<pdf::PDFAppToolCertificateItem> choosable;
+    for (const pdf::PDFAppToolCertificateItem& item : pdf::PDFAppToolCertificateProvider(fixture.context.get()).getCertificates(pdf::PDFAppToolCertificateUsage::Signing))
+    {
+        if (item.isChoosable())
+        {
+            choosable.push_back(item);
+        }
+    }
+    QCOMPARE(int(choosable.size()), 2);
+    const pdf::PDFAppToolCertificateItem preselected = choosable.back();
+    QVERIFY(!preselected.fingerprint.isEmpty());
+
+    const QString copyPath = fixture.path(QStringLiteral("Contract_SIGNED.pdf"));
+    const QJsonObject common({ { QStringLiteral("documentId"), tab->getDocument()->getId() }, { QStringLiteral("path"), copyPath } });
+    const QJsonObject parameters({ { QStringLiteral("certificate"), preselected.fingerprint }, { QStringLiteral("reason"), QStringLiteral("I approve this contract") },
+                                   { QStringLiteral("contactInfo"), QStringLiteral("jane@example.com") } });
+    const std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("protect"), AppMcpStep5::arguments(QStringLiteral("sign"), parameters, common));
+    QPointer<pdf::PDFAppMcpSecretConfirmation> dialog = AppMcpStep5::waitDialog();
+    QVERIFY2(dialog, qPrintable(call->isFinished() && call->getResult() ? call->getResult()->getFirstText() : QStringLiteral("no dialog")));
+    QVERIFY(dialog->isSigning());
+    QVERIFY(!call->isFinished());
+    QVERIFY(tab->isAncestorOf(dialog));
+
+    QCOMPARE(dialog->getTitleText(), QStringLiteral("Claude Code wants to save a copy as Contract_SIGNED.pdf"));
+    const QStringList facts = AppMcpStep5::facts(dialog);
+    for (const QString& fact : { QStringLiteral("Signature: Signature · PAdES · invisible"), QStringLiteral("Reason: I approve this contract"), QStringLiteral("Contact: jane@example.com") })
+    {
+        QVERIFY2(facts.contains(fact), qPrintable(facts.join(QLatin1Char('|'))));
+    }
+
+    pdf::PDFAppToolCertificateList* list = dialog->getCertificateList();
+    QVERIFY(list);
+    QCOMPARE(list->getUsage(), pdf::PDFAppToolCertificateUsage::Signing);
+    QCOMPARE(list->getChosenFilePath(), preselected.filePath);
+    QVERIFY(dialog->getCertificatePasswordCard());
+    QVERIFY(dialog->getCertificatePasswordCard()->isVisibleTo(dialog));
+    QVERIFY(!dialog->isConfirmEnabled());
+
+    QTest::mouseClick(dialog->getDenyButton(), Qt::LeftButton);
+    const std::optional<pdf::PDFMcpCallResult> result = AppMcpFixture::waitResult(call);
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText().startsWith(QStringLiteral("The user denied")), qPrintable(result->getFirstText()));
+    QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::DeniedUser));
+    QVERIFY(!QFileInfo::exists(copyPath));
+}
+
+void AppMcpProtectTest::signRunWritesVerifiedFile()
+{
+    // Q6.7, R6-27, plan 4.4: the user types the password of the .pfx file in PDF4QT (a wrong one stays in
+    // the dialog, 433:3972); the run signs invisibly in PAdES (Q6.1) and save_file writes exactly the
+    // verified file - the exact bytes of the file of the document followed by the signature (ISO 32000-2,
+    // 7.5.6) -, the tab and its file stay as they are; the password and the file of the certificate are in
+    // no result and no activity row; the signer of the written file is the certificate of the user
+    pdftest::AppTestCertificateFolders folders;
+    QVERIFY(!AppMcpStep6::createCertificate(folders, QStringLiteral("jane_novak.pfx"), QStringLiteral("Jane Novak")).isEmpty());
+
+    AppMcpFixture fixture;
+    QVERIFY(start(fixture, false));
+    const QString filePath = AppMcpStep5::writeDocument(fixture, QStringLiteral("Contract.pdf"));
+    const QByteArray original = AppMcpStep5::readFile(filePath);
+    QVERIFY(!original.isEmpty());
+    pdf::PDFAppDocumentTab* tab = AppMcpStep4::open(fixture, filePath);
+    QVERIFY(tab);
+
+    const QString copyPath = fixture.path(QStringLiteral("Contract_SIGNED.pdf"));
+    const QJsonObject common({ { QStringLiteral("documentId"), tab->getDocument()->getId() }, { QStringLiteral("path"), copyPath } });
+    const std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("protect"), AppMcpStep5::arguments(QStringLiteral("sign"), QJsonObject(), common));
+    QPointer<pdf::PDFAppMcpSecretConfirmation> dialog = AppMcpStep5::waitDialog();
+    QVERIFY(dialog);
+    QVERIFY(AppMcpStep5::isCardImplemented(dialog->getCertificatePasswordCard()));
+    QCOMPARE(QFileInfo(dialog->getCertificateList()->getChosenFilePath()).fileName(), QStringLiteral("jane_novak.pfx"));
+
+    AppMcpStep5::type(dialog->getCertificatePasswordCard(), QStringLiteral("wrong-password"));
+    AppMcpStep5::confirm(dialog);
+    AppMcpFixture::settle();
+    QVERIFY(dialog);
+    QCOMPARE(dialog->getOutcome(), pdf::PDFAppMcpSecretConfirmation::Outcome::Pending);
+    QVERIFY(!call->isFinished());
+
+    dialog->getCertificatePasswordCard()->clear();
+    AppMcpStep5::type(dialog->getCertificatePasswordCard(), AppMcpStep5::getCanary());
+    AppMcpStep5::confirm(dialog);
+    const std::optional<pdf::PDFMcpCallResult> result = AppMcpFixture::waitResult(call, 60000);
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+
+    const QJsonObject content = AppMcpStep4::content(*result, QStringLiteral("sign"));
+    QCOMPARE(content.value(QStringLiteral("status")).toString(), QStringLiteral("success"));
+    QCOMPARE(QFileInfo(content.value(QStringLiteral("path")).toString()).canonicalFilePath(), QFileInfo(copyPath).canonicalFilePath());
+    QCOMPARE(content.value(QStringLiteral("data")).toObject().value(QStringLiteral("subFilter")).toString(), QStringLiteral("ETSI.CAdES.detached"));
+    for (const QByteArray& text : { AppMcpStep5::resultText(*result), AppMcpStep5::activityText(fixture) })
+    {
+        QVERIFY(!text.contains(AppMcpStep5::getCanary().toUtf8()));
+        QVERIFY(!text.contains("jane_novak.pfx"));
+    }
+
+    // The verified file: the bytes of the file of the document, then the incremental update
+    const QByteArray written = AppMcpStep5::readFile(copyPath);
+    QVERIFY(written.size() > original.size());
+    QVERIFY(written.startsWith(original));
+    QVERIFY(written.contains("/ETSI.CAdES.detached"));
+
+    // The tab and its file are unchanged
+    QCOMPARE(pdf::PDFForm::getSignatureCount(tab->getDocument()->getDocument().data()), 0);
+    QCOMPARE(AppMcpStep5::readFile(filePath), original);
+
+    // R6-2: the signer of the signature is the certificate of the user; nothing was added after it
+    pdf::PDFAppDocumentTab* signedTab = AppMcpStep4::open(fixture, copyPath);
+    QVERIFY(signedTab);
+    const QJsonArray signatures = AppMcpStep6::getSignatures(fixture, signedTab);
+    QCOMPARE(signatures.size(), 1);
+    const QJsonObject signature = signatures.at(0).toObject();
+    QCOMPARE(signature.value(QStringLiteral("signer")).toString(), QStringLiteral("Jane Novak"));
+    QCOMPARE(signature.value(QStringLiteral("laterRevisions")).toString(), QStringLiteral("none"));
+    QCOMPARE(signature.value(QStringLiteral("coversWholeDocument")).toBool(), true);
+    QCOMPARE(signature.value(QStringLiteral("modifiedAfter")).toBool(), false);
+}
+
+void AppMcpProtectTest::signEntryPermissionsByParameters()
+{
+    // R6-8, ISO 32000-2 Table 22: a document, which allows only filling in forms (bit 9). A new signature
+    // field needs bits 4 and 6 - refused before any question with the text of the unlock by the user; the
+    // signature of its empty field needs bit 9 only - the confirmation opens
+    pdftest::AppTestCertificateFolders folders;
+    QVERIFY(!AppMcpStep6::createCertificate(folders, QStringLiteral("jane_novak.pfx"), QStringLiteral("Jane Novak")).isEmpty());
+
+    AppMcpFixture fixture;
+    QVERIFY(start(fixture, false));
+    pdf::PDFAppDocumentTab* tab = AppMcpStep4::open(fixture, AppMcpStep6::writeFieldDocument(fixture, QStringLiteral("Form.pdf"), AppMcpStep6::allowedWithout({ 3, 4, 5, 6, 11, 12 })));
+    QVERIFY(tab);
+    const pdf::PDFDocument* document = tab->getDocument()->getDocument().data();
+    QVERIFY(document->getStorage().getSecurityHandler()->getMode() != pdf::EncryptionMode::None);
+
+    const QJsonObject common({ { QStringLiteral("documentId"), tab->getDocument()->getId() }, { QStringLiteral("path"), fixture.path(QStringLiteral("Form_SIGNED.pdf")) } });
+    const std::optional<pdf::PDFMcpCallResult> refused = fixture.callTool(QStringLiteral("protect"), AppMcpStep5::arguments(QStringLiteral("sign"), QJsonObject(), common));
+    QVERIFY(refused && refused->isError);
+    QCOMPARE(refused->getFirstText(), pdf::PDFAppDocumentPermissions::getMcpRefusalText(document, pdf::PDFAppPermissionRequest::createTool(QStringLiteral("protect.sign"))));
+    QVERIFY(!pdftest::AppDocumentFixture::findDialog<pdf::PDFAppMcpSecretConfirmation>());
+
+    const std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("protect"), AppMcpStep5::arguments(QStringLiteral("sign"), QJsonObject({ { QStringLiteral("field"), QStringLiteral("Approval") } }), common));
+    QPointer<pdf::PDFAppMcpSecretConfirmation> dialog = AppMcpStep5::waitDialog();
+    QVERIFY2(dialog, qPrintable(call->isFinished() && call->getResult() ? call->getResult()->getFirstText() : QStringLiteral("no dialog")));
+    QVERIFY2(AppMcpStep5::facts(dialog).contains(QStringLiteral("Field: Approval")), qPrintable(AppMcpStep5::facts(dialog).join(QLatin1Char('|'))));
+    QTest::mouseClick(dialog->getDenyButton(), Qt::LeftButton);
+    QVERIFY(AppMcpFixture::waitResult(call));
+}
+
+void AppMcpProtectTest::signInvalidPreselectionKeepsAuthorityGate()
+{
+    // Review RS6APP, 6.5, Q6.7: the certificate of protect.sign is only a preselection, but a value the
+    // parameters refuse (a NUL character passes the schema) must not switch off the gate of the authority:
+    // Signature with timestamp to an address, which the user has never used, is an error before any
+    // question - no confirmation, no connection
+    AppMcpFixture fixture;
+    QVERIFY(start(fixture, false));
+    pdftest::AppMcpLocalAuthority authority;
+    QVERIFY(authority.isListening());
+    pdf::PDFAppDocumentTab* tab = openDocument(fixture, QStringLiteral("Contract.pdf"));
+    QVERIFY(tab);
+
+    const QJsonObject common({ { QStringLiteral("documentId"), tab->getDocument()->getId() }, { QStringLiteral("path"), fixture.path(QStringLiteral("Contract_SIGNED.pdf")) } });
+    const QJsonObject parameters({ { QStringLiteral("certificate"), QString(QChar(0)) + QStringLiteral("abc") },
+                                   { QStringLiteral("type"), QStringLiteral("signature-timestamp") },
+                                   { QStringLiteral("tsaUrl"), authority.getUrl() } });
+    const std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("protect"), AppMcpStep5::arguments(QStringLiteral("sign"), parameters, common));
+    QVERIFY(QTest::qWaitFor([&call]() { return call->isFinished() || pdftest::AppDocumentFixture::findDialog<pdf::PDFAppMcpSecretConfirmation>() != nullptr; },
+                            10000 * pdftest::AppDocumentFixture::getTimeoutFactor()));
+    QPointer<pdf::PDFAppMcpSecretConfirmation> dialog = pdftest::AppDocumentFixture::findDialog<pdf::PDFAppMcpSecretConfirmation>();
+    const bool isDialogShown = dialog != nullptr;
+    if (dialog)
+    {
+        QTest::mouseClick(dialog->getDenyButton(), Qt::LeftButton);
+    }
+    const std::optional<pdf::PDFMcpCallResult> result = AppMcpFixture::waitResult(call);
+    QVERIFY(!isDialogShown);
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText().startsWith(QStringLiteral("tsaUrl: PDF4QT sends a request only to a timestamp authority of the list of the user")), qPrintable(result->getFirstText()));
+    QCOMPARE(authority.getConnectionCount(), 0);
+}
+
+void AppMcpProtectTest::timestampConfirmedBeforeAuthority()
+{
+    // R6-10, S6.6, 6.5, Q6.7: protect.timestamp sends a hash of the document to a third party - only to an
+    // authority of the list of the user (any other address is an error before any question) and only after
+    // the user has confirmed it in PDF4QT, also with every permission Allow. A local authority on the
+    // loopback counts the connections: none for the error and for the denial; the allowed run reaches it
+    // once (one question for the call), its HTTP 503 (435:8117) fails the run and nothing is written
+    AppMcpFixture fixture;
+    QVERIFY(start(fixture, false));
+    pdftest::AppMcpLocalAuthority authority;
+    QVERIFY(authority.isListening());
+    QVERIFY(AppMcpStep6::storeAuthorityUrl(fixture, authority.getUrl()));
+    pdf::PDFAppDocumentTab* tab = openDocument(fixture, QStringLiteral("Report.pdf"));
+    QVERIFY(tab);
+
+    const QString copyPath = fixture.path(QStringLiteral("Report_TIMESTAMPED.pdf"));
+    const QJsonObject common({ { QStringLiteral("documentId"), tab->getDocument()->getId() }, { QStringLiteral("path"), copyPath } });
+
+    // The same server by another address, which the user has never used
+    const QString otherUrl = QString(authority.getUrl()).replace(QStringLiteral("127.0.0.1"), QStringLiteral("localhost"));
+    const std::optional<pdf::PDFMcpCallResult> unlisted = fixture.callTool(QStringLiteral("protect"), AppMcpStep5::arguments(QStringLiteral("timestamp"), QJsonObject({ { QStringLiteral("tsaUrl"), otherUrl } }), common));
+    QVERIFY(unlisted && unlisted->isError);
+    QVERIFY2(unlisted->getFirstText().startsWith(QStringLiteral("tsaUrl: PDF4QT sends a request only to a timestamp authority of the list of the user")), qPrintable(unlisted->getFirstText()));
+    QVERIFY(unlisted->getFirstText().contains(authority.getUrl()));
+    QVERIFY(unlisted->getFirstText().contains(QStringLiteral("http://timestamp.digicert.com")));
+    QVERIFY(fixture.confirmations()->shown.empty());
+
+    const QJsonObject parameters({ { QStringLiteral("tsaUrl"), authority.getUrl() } });
+    fixture.confirmations()->setAutoAnswer(pdf::PDFAppMcpDecision::DeniedUser);
+    const std::optional<pdf::PDFMcpCallResult> denied = fixture.callTool(QStringLiteral("protect"), AppMcpStep5::arguments(QStringLiteral("timestamp"), parameters, common));
+    QVERIFY(denied && denied->isError);
+    QCOMPARE(int(fixture.confirmations()->shown.size()), 1);
+    const std::shared_ptr<pdf::PDFAppMcpConfirmation> confirmation = fixture.confirmations()->shown.back();
+    QVERIFY(confirmation->isAlwaysConfirmed);
+    QCOMPARE(confirmation->kind, pdf::PDFAppMcpConfirmationKind::SaveCopy);
+    QCOMPARE(confirmation->details.value(QStringLiteral("path")).toString(), copyPath);
+    QStringList facts;
+    for (const QJsonValue& value : confirmation->details.value(QStringLiteral("facts")).toArray())
+    {
+        facts << value.toObject().value(QStringLiteral("key")).toString() + QStringLiteral(": ") + value.toObject().value(QStringLiteral("value")).toString();
+    }
+    QVERIFY2(facts.contains(QStringLiteral("Timestamp authority: ") + authority.getUrl()), qPrintable(facts.join(QLatin1Char('|'))));
+    QTest::qWait(200);
+    QCOMPARE(authority.getConnectionCount(), 0);
+
+    fixture.confirmations()->setAutoAnswer(pdf::PDFAppMcpDecision::Allowed);
+    const std::optional<pdf::PDFMcpCallResult> failed = fixture.callTool(QStringLiteral("protect"), AppMcpStep5::arguments(QStringLiteral("timestamp"), parameters, common));
+    QVERIFY(failed && failed->isError);
+    QVERIFY2(failed->getFirstText().contains(QStringLiteral("timestampError http-error")), qPrintable(failed->getFirstText()));
+    QCOMPARE(int(fixture.confirmations()->shown.size()), 2);
+    QCOMPARE(authority.getConnectionCount(), 1);
+    QVERIFY(authority.getRequests().startsWith("POST /tsr"));
+    QVERIFY(authority.getRequests().contains("application/timestamp-query"));
+    QVERIFY(!QFileInfo::exists(copyPath));
+}
+
+void AppMcpProtectTest::signByHandConfirmedWithDrawing()
+{
+    // R6-20, Q6.7: Sign by Hand is always confirmed, also with every permission Allow, with its drawing on
+    // its page - the ghosts of Show on Page (a text by its box, a line by its points, a curve by its
+    // stroke and its color) and the rows of the pages with the texts as written; Show on Page also in the
+    // variant of a copy; an image is refused before any question; Allowed writes the drawing as one step
+    AppMcpFixture fixture;
+    QVERIFY(start(fixture, false));
+    pdf::PDFAppDocumentTab* tab = openDocument(fixture, QStringLiteral("Report.pdf"));
+    QVERIFY(tab);
+    const quint64 version = tab->getDocument()->getVersion();
+
+    const QJsonObject common({ { QStringLiteral("documentId"), tab->getDocument()->getId() } });
+    const QJsonObject parameters({ { QStringLiteral("elements"), AppMcpStep6::getElements() } });
+    fixture.confirmations()->setAutoAnswer(pdf::PDFAppMcpDecision::DeniedUser);
+    const std::optional<pdf::PDFMcpCallResult> denied = fixture.callTool(QStringLiteral("protect"), AppMcpStep5::arguments(QStringLiteral("sign-by-hand"), parameters, common));
+    QVERIFY(denied && denied->isError);
+    QCOMPARE(int(fixture.confirmations()->shown.size()), 1);
+    const std::shared_ptr<pdf::PDFAppMcpConfirmation> confirmation = fixture.confirmations()->shown.back();
+    QVERIFY(confirmation->isAlwaysConfirmed);
+    QCOMPARE(confirmation->kind, pdf::PDFAppMcpConfirmationKind::Change);
+    QCOMPARE(tab->getDocument()->getVersion(), version);
+
+    const QJsonArray ghosts = confirmation->details.value(QStringLiteral("ghosts")).toArray();
+    QCOMPARE(ghosts.size(), 3);
+    const std::optional<pdf::PDFAppMcpGhost> text = pdf::PDFAppMcpGhost::fromJson(ghosts.at(0).toObject());
+    const std::optional<pdf::PDFAppMcpGhost> line = pdf::PDFAppMcpGhost::fromJson(ghosts.at(1).toObject());
+    const std::optional<pdf::PDFAppMcpGhost> curve = pdf::PDFAppMcpGhost::fromJson(ghosts.at(2).toObject());
+    QVERIFY(text && line && curve);
+    QCOMPARE(text->shape, pdf::PDFAppMcpGhost::Shape::Rectangle);
+    QCOMPARE(text->pageIndex, pdf::PDFInteger(0));
+    QCOMPARE(text->getBoundingRect(), QRectF(40, 300, 120, 20));
+    QCOMPARE(line->shape, pdf::PDFAppMcpGhost::Shape::Polyline);
+    QCOMPARE(line->points, QPolygonF({ QPointF(40, 296), QPointF(160, 296) }));
+    QCOMPARE(curve->shape, pdf::PDFAppMcpGhost::Shape::Ink);
+    QCOMPARE(curve->pageIndex, pdf::PDFInteger(1));
+    QCOMPARE(int(curve->strokes.size()), 1);
+    QCOMPARE(curve->strokes.front(), QPolygonF({ QPointF(50, 50), QPointF(60, 70), QPointF(80, 55) }));
+    QCOMPARE(curve->color, QColor(QStringLiteral("#1f3a93")));
+
+    const QJsonArray rows = confirmation->details.value(QStringLiteral("rows")).toArray();
+    QCOMPARE(rows.size(), 2);
+    const pdf::PDFAppMcpChangeRow firstRow = pdf::PDFAppMcpChangeRow::fromJson(rows.at(0).toObject());
+    const pdf::PDFAppMcpChangeRow secondRow = pdf::PDFAppMcpChangeRow::fromJson(rows.at(1).toObject());
+    QCOMPARE(firstRow.page, QStringLiteral("Page 1"));
+    QCOMPARE(firstRow.detail, QStringLiteral("“Jane Novak”"));
+    QCOMPARE(secondRow.page, QStringLiteral("Page 2"));
+    QVERIFY(secondRow.detail.isEmpty());
+
+    // The variant of a copy shows the drawing too (Show on Page) and the texts as a fact
+    const QJsonObject copyCommon({ { QStringLiteral("documentId"), tab->getDocument()->getId() }, { QStringLiteral("result"), QStringLiteral("save_copy") },
+                                   { QStringLiteral("path"), fixture.path(QStringLiteral("Report_signed.pdf")) } });
+    QVERIFY(fixture.callTool(QStringLiteral("protect"), AppMcpStep5::arguments(QStringLiteral("sign-by-hand"), parameters, copyCommon)));
+    QCOMPARE(int(fixture.confirmations()->shown.size()), 2);
+    const std::shared_ptr<pdf::PDFAppMcpConfirmation> copyConfirmation = fixture.confirmations()->shown.back();
+    QCOMPARE(copyConfirmation->kind, pdf::PDFAppMcpConfirmationKind::SaveCopy);
+    QCOMPARE(copyConfirmation->details.value(QStringLiteral("ghosts")).toArray().size(), 3);
+    QStringList facts;
+    for (const QJsonValue& value : copyConfirmation->details.value(QStringLiteral("facts")).toArray())
+    {
+        facts << value.toObject().value(QStringLiteral("key")).toString() + QStringLiteral(": ") + value.toObject().value(QStringLiteral("value")).toString();
+    }
+    QVERIFY2(facts.contains(QStringLiteral("Texts: “Jane Novak”")), qPrintable(facts.join(QLatin1Char('|'))));
+    {
+        QWidget parent;
+        pdf::PDFAppMcpConfirmDialog copyDialog(copyConfirmation, nullptr, &parent);
+        QVERIFY(copyDialog.getShowOnPageLink());
+    }
+    QVERIFY(!QFileInfo::exists(fixture.path(QStringLiteral("Report_signed.pdf"))));
+
+    // No image (Q6.7): refused by the reading of the elements, no question
+    const QJsonObject image({ { QStringLiteral("elements"), QStringLiteral(R"([{"kind": "svg-image", "page": 1, "rect": [0, 0, 10, 10]}])") } });
+    const std::optional<pdf::PDFMcpCallResult> refused = fixture.callTool(QStringLiteral("protect"), AppMcpStep5::arguments(QStringLiteral("sign-by-hand"), image, common));
+    QVERIFY(refused && refused->isError);
+    QVERIFY2(refused->getFirstText().startsWith(QStringLiteral("Invalid arguments")), qPrintable(refused->getFirstText()));
+    QCOMPARE(int(fixture.confirmations()->shown.size()), 2);
+
+    // Every element is shown (review RS6SEC): Show on Page draws at most MAXIMUM_GHOSTS ghosts, a drawing
+    // of more elements (500 dots and a curve after them) is refused before any question; a drawing of
+    // MAXIMUM_GHOSTS elements is asked with all of them
+    const auto createDots = [](int count)
+    {
+        QStringList elements;
+        for (int i = 0; i < count; ++i)
+        {
+            elements << QStringLiteral(R"({"kind": "dot", "page": 1, "rect": [%1, 10, 2, 2]})").arg(10 + i % 400);
+        }
+        return elements;
+    };
+    QStringList hiddenCurve = createDots(pdf::PDFAppMcpGhost::MAXIMUM_GHOSTS);
+    hiddenCurve << QStringLiteral(R"({"kind": "freehand-curve", "page": 1, "points": [[50, 50], [60, 70], [80, 55]]})");
+    const QJsonObject tooMany({ { QStringLiteral("elements"), QLatin1Char('[') + hiddenCurve.join(QLatin1Char(',')) + QLatin1Char(']') } });
+    const std::optional<pdf::PDFMcpCallResult> tooManyRefused = fixture.callTool(QStringLiteral("protect"), AppMcpStep5::arguments(QStringLiteral("sign-by-hand"), tooMany, common));
+    QVERIFY(tooManyRefused && tooManyRefused->isError);
+    QVERIFY2(tooManyRefused->getFirstText().startsWith(QStringLiteral("elements:")), qPrintable(tooManyRefused->getFirstText()));
+    QCOMPARE(int(fixture.confirmations()->shown.size()), 2);
+
+    const QJsonObject allShown({ { QStringLiteral("elements"), QLatin1Char('[') + createDots(pdf::PDFAppMcpGhost::MAXIMUM_GHOSTS).join(QLatin1Char(',')) + QLatin1Char(']') } });
+    const std::optional<pdf::PDFMcpCallResult> allShownDenied = fixture.callTool(QStringLiteral("protect"), AppMcpStep5::arguments(QStringLiteral("sign-by-hand"), allShown, common));
+    QVERIFY(allShownDenied && allShownDenied->isError);
+    QCOMPARE(int(fixture.confirmations()->shown.size()), 3);
+    QCOMPARE(fixture.confirmations()->shown.back()->details.value(QStringLiteral("ghosts")).toArray().size(), pdf::PDFAppMcpGhost::MAXIMUM_GHOSTS);
+    QCOMPARE(tab->getDocument()->getVersion(), version);
+
+    // Allowed: the drawing is in the pages as one undo step, the result counts it
+    fixture.confirmations()->setAutoAnswer(pdf::PDFAppMcpDecision::Allowed);
+    const std::optional<pdf::PDFMcpCallResult> allowed = fixture.callTool(QStringLiteral("protect"), AppMcpStep5::arguments(QStringLiteral("sign-by-hand"), parameters, common));
+    QVERIFY(allowed);
+    QVERIFY2(!allowed->isError, qPrintable(allowed->getFirstText()));
+    QCOMPARE(int(fixture.confirmations()->shown.size()), 4);
+    const QJsonObject data = AppMcpStep4::content(*allowed, QStringLiteral("sign-by-hand")).value(QStringLiteral("data")).toObject();
+    QCOMPARE(data.value(QStringLiteral("elementCount")).toInt(), 3);
+    QCOMPARE(data.value(QStringLiteral("pages")).toArray(), QJsonArray({ 1, 2 }));
+    QVERIFY(tab->getDocument()->getVersion() != version);
+}
+
+void AppMcpProtectTest::redactByPermissionsWithoutSecrets()
+{
+    // R6-10, Q6.7: Redact is no action, which is always confirmed - with Allow it runs without a question,
+    // with Ask the user answers after the run (the facts of the copy); the result has only counts and the
+    // state of the check (6.5: never a redacted text nor an area), save_file writes the checked copy
+    AppMcpFixture fixture;
+    QVERIFY(start(fixture, false));
+    pdf::PDFAppDocumentTab* tab = openDocument(fixture, QStringLiteral("Report.pdf"));
+    QVERIFY(tab);
+
+    const QString copyPath = fixture.path(QStringLiteral("Report_REDACTED.pdf"));
+    const QJsonObject common({ { QStringLiteral("documentId"), tab->getDocument()->getId() }, { QStringLiteral("path"), copyPath } });
+    const QJsonObject parameters({ { QStringLiteral("useMarks"), false }, { QStringLiteral("areas"), QStringLiteral(R"([{"page": 1, "rect": [20, 20, 100, 100]}])") } });
+    const std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("protect"), AppMcpStep5::arguments(QStringLiteral("redact"), parameters, common));
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    QVERIFY(fixture.confirmations()->shown.empty());
+
+    const QJsonObject data = AppMcpStep4::content(*result, QStringLiteral("redact")).value(QStringLiteral("data")).toObject();
+    QCOMPARE(data.value(QStringLiteral("areaCount")).toInt(), 1);
+    QCOMPARE(data.value(QStringLiteral("pageCount")).toInt(), 1);
+    QCOMPARE(data.value(QStringLiteral("verified")).toBool(), true);
+    QVERIFY(!AppMcpStep5::resultText(*result).contains("\"areas\""));
+    QVERIFY(!AppMcpStep5::activityText(fixture).contains("100, 100"));
+    QVERIFY(AppMcpStep5::readFile(copyPath).startsWith("%PDF-"));
+
+    // Ask: the question after the run; Deny writes nothing
+    QVERIFY(fixture.setPermission(pdf::PDFAppMcpPermissionKind::Files, pdf::PDFAppMcpPermission::Ask));
+    fixture.confirmations()->setAutoAnswer(pdf::PDFAppMcpDecision::DeniedUser);
+    const QString deniedPath = fixture.path(QStringLiteral("Report_REDACTED_2.pdf"));
+    const QJsonObject deniedCommon({ { QStringLiteral("documentId"), tab->getDocument()->getId() }, { QStringLiteral("path"), deniedPath } });
+    const std::optional<pdf::PDFMcpCallResult> denied = fixture.callTool(QStringLiteral("protect"), AppMcpStep5::arguments(QStringLiteral("redact"), parameters, deniedCommon));
+    QVERIFY(denied && denied->isError);
+    QCOMPARE(int(fixture.confirmations()->shown.size()), 1);
+    QVERIFY(!fixture.confirmations()->shown.back()->isAlwaysConfirmed);
+    QVERIFY(!QFileInfo::exists(deniedPath));
+}
+
+void AppMcpProtectTest::certificatesReadOnly()
+{
+    // 6.5, Q6.7: protect.certificates is a list - a .pfx file with a password, which the user has opened
+    // in PDF4QT, by the public certificate of the certificate cache (Q5.11: its name and its fingerprint,
+    // the preselection of sign), a file never opened "locked" without details; never a path, a password
+    // or a key; it takes no result, no path and no parameter (an assistant never creates, deletes or
+    // trusts a certificate)
+    pdftest::AppTestCertificateFolders folders;
+    const QString pfxPath = AppMcpStep6::createCertificate(folders, QStringLiteral("jane_novak.pfx"), QStringLiteral("Jane Novak"));
+    const QString lockedPath = AppMcpStep6::createCertificate(folders, QStringLiteral("peter_locked.pfx"), QStringLiteral("Peter Locked"));
+    QVERIFY(!pfxPath.isEmpty() && !lockedPath.isEmpty());
+
+    AppMcpFixture fixture;
+    QVERIFY(start(fixture, false));
+    QVERIFY(AppMcpStep6::cacheCertificate(fixture, pfxPath));
+
+    const std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("protect"), QJsonObject({ { QStringLiteral("action"), QStringLiteral("certificates") } }));
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    const QJsonObject content = AppMcpStep4::content(*result, QStringLiteral("certificates"));
+    QCOMPARE(content.value(QStringLiteral("status")).toString(), QStringLiteral("success"));
+    const QJsonArray certificates = content.value(QStringLiteral("data")).toObject().value(QStringLiteral("certificates")).toArray();
+    QCOMPARE(certificates.size(), 2);
+    QJsonObject known;
+    QJsonObject locked;
+    for (const QJsonValue& value : certificates)
+    {
+        (value.toObject().contains(QStringLiteral("fingerprint")) ? known : locked) = value.toObject();
+    }
+    QCOMPARE(known.value(QStringLiteral("name")).toString(), QStringLiteral("Jane Novak"));
+    QCOMPARE(known.value(QStringLiteral("fingerprint")).toString(), AppMcpStep6::getFingerprint(pfxPath));
+    QCOMPARE(known.value(QStringLiteral("source")).toString(), QStringLiteral("file"));
+    QCOMPARE(known.value(QStringLiteral("state")).toString(), QStringLiteral("valid"));
+    QCOMPARE(known.value(QStringLiteral("usableFor")).toArray().contains(QStringLiteral("signing")), true);
+    QCOMPARE(locked, QJsonObject({ { QStringLiteral("source"), QStringLiteral("file") }, { QStringLiteral("readOnly"), false },
+                                   { QStringLiteral("state"), QStringLiteral("locked") } }));
+    QVERIFY(content.value(QStringLiteral("data")).toObject().value(QStringLiteral("trusted")).toArray().isEmpty());
+    const QByteArray text = AppMcpStep5::resultText(*result);
+    QVERIFY(!text.contains("jane_novak.pfx"));
+    QVERIFY(!text.contains("peter_locked.pfx"));
+    QVERIFY(!text.contains(AppMcpStep5::getCanary().toUtf8()));
+    QVERIFY(!text.contains(QDir::toNativeSeparators(folders.getApplicationFolder()).toUtf8()));
+    QVERIFY(!text.contains(folders.getApplicationFolder().toUtf8()));
+
+    const std::optional<pdf::PDFMcpCallResult> withResult = fixture.callTool(QStringLiteral("protect"), QJsonObject({ { QStringLiteral("action"), QStringLiteral("certificates") },
+                                                                                                                    { QStringLiteral("result"), QStringLiteral("keep") } }));
+    QVERIFY(withResult && withResult->isError);
+    QVERIFY2(withResult->getFirstText().startsWith(QStringLiteral("result:")), qPrintable(withResult->getFirstText()));
+
+    const std::optional<pdf::PDFMcpCallResult> withParameter = fixture.callTool(QStringLiteral("protect"), QJsonObject({ { QStringLiteral("action"), QStringLiteral("certificates") },
+                                                                                                                       { QStringLiteral("certificates"), QJsonObject({ { QStringLiteral("trusted"), true } }) } }));
+    QVERIFY(withParameter && (withParameter->isError || withParameter->kind == pdf::PDFMcpCallResult::Kind::Error));
+    QCOMPARE(QDir(folders.getApplicationFolder()).entryList(QDir::Files, QDir::Name), QStringList({ QStringLiteral("jane_novak.pfx"), QStringLiteral("peter_locked.pfx") }));
+}
+
+void AppMcpProtectTest::signaturesSignerAndLaterRevisions()
+{
+    // R6-2, R6-3 (ISO 32000-2, 12.8.1): document.get_signatures names the signer by its certificate and
+    // says what was appended after each signature - a later signature is "allowed" (the earlier one does
+    // not cover the whole file, but was not changed; infos say what was added), the last one "none", a
+    // later revision, which rotates a page, "changed"
+    pdf::PDFCertificateEntry jane;
+    pdf::PDFCertificateEntry peter;
+    QVERIFY(AppMcpStep6::createEntry(QStringLiteral("Jane Novak"), &jane));
+    QVERIFY(AppMcpStep6::createEntry(QStringLiteral("Peter Second"), &peter));
+    const QByteArray once = AppMcpStep6::sign(AppMcpStep6::createDocumentBytes(), jane);
+    QVERIFY(!once.isEmpty());
+    const QByteArray twice = AppMcpStep6::sign(once, peter);
+    QVERIFY(twice.size() > once.size() && twice.startsWith(once));
+
+    AppMcpFixture fixture;
+    QVERIFY(start(fixture, false));
+    pdf::PDFAppDocumentTab* twiceTab = AppMcpStep4::open(fixture, AppMcpStep6::writeFile(fixture, QStringLiteral("Twice.pdf"), twice));
+    QVERIFY(twiceTab);
+    const QJsonArray signatures = AppMcpStep6::getSignatures(fixture, twiceTab);
+    QCOMPARE(signatures.size(), 2);
+    QJsonObject first;
+    QJsonObject second;
+    for (const QJsonValue& value : signatures)
+    {
+        (value.toObject().value(QStringLiteral("signer")).toString() == QLatin1String("Jane Novak") ? first : second) = value.toObject();
+    }
+    QCOMPARE(second.value(QStringLiteral("signer")).toString(), QStringLiteral("Peter Second"));
+    QCOMPARE(first.value(QStringLiteral("laterRevisions")).toString(), QStringLiteral("allowed"));
+    QCOMPARE(first.value(QStringLiteral("coversWholeDocument")).toBool(), false);
+    QCOMPARE(first.value(QStringLiteral("modifiedAfter")).toBool(), false);
+    QVERIFY(!first.value(QStringLiteral("infos")).toArray().isEmpty());
+    QCOMPARE(second.value(QStringLiteral("laterRevisions")).toString(), QStringLiteral("none"));
+    QCOMPARE(second.value(QStringLiteral("coversWholeDocument")).toBool(), true);
+
+    // The result keeps the output schema of document.get_signatures
+    const std::optional<pdf::PDFMcpCallResult> result = AppMcpStep4::call(fixture, QStringLiteral("document"), QStringLiteral("get_signatures"), QJsonObject(),
+                                                                         QJsonObject({ { QStringLiteral("documentId"), twiceTab->getDocument()->getId() } }));
+    QVERIFY(result && !result->isError);
+    fixture.verifyOutputSchema(QStringLiteral("document"), *result);
+
+    const QByteArray changed = AppMcpStep6::appendPageChange(once);
+    QVERIFY(changed.size() > once.size() && changed.startsWith(once));
+    pdf::PDFAppDocumentTab* changedTab = AppMcpStep4::open(fixture, AppMcpStep6::writeFile(fixture, QStringLiteral("Changed.pdf"), changed));
+    QVERIFY(changedTab);
+    const QJsonArray changedSignatures = AppMcpStep6::getSignatures(fixture, changedTab);
+    QCOMPARE(changedSignatures.size(), 1);
+    const QJsonObject changedSignature = changedSignatures.at(0).toObject();
+    QCOMPARE(changedSignature.value(QStringLiteral("signer")).toString(), QStringLiteral("Jane Novak"));
+    QCOMPARE(changedSignature.value(QStringLiteral("laterRevisions")).toString(), QStringLiteral("changed"));
+    QCOMPARE(changedSignature.value(QStringLiteral("modifiedAfter")).toBool(), true);
+    QCOMPARE(changedSignature.value(QStringLiteral("coversWholeDocument")).toBool(), false);
+}
+
+void AppMcpProtectTest::signaturesClaimedDate_data()
+{
+    QTest::addColumn<QString>("format");
+    QTest::addColumn<bool>("isClaimed");
+
+    // ETSI EN 319 142-1 (PAdES): no signing-time attribute in the CMS, the time is /M of the signature
+    // dictionary (ISO 32000-2, Table 255) - only claimed by the signer; adbe.pkcs7.detached carries the
+    // signed attribute signing-time (RFC 5652, 11.3), which is covered by the signature
+    QTest::newRow("pades") << QString::fromLatin1(AppMcpStep6::Signature::FORMAT_PADES) << true;
+    QTest::newRow("pkcs7") << QString::fromLatin1(AppMcpStep6::Signature::FORMAT_PKCS7) << false;
+}
+
+void AppMcpProtectTest::signaturesClaimedDate()
+{
+    // Owner 16. 11.: document.get_signatures says, beside signedAt, whether the date is only claimed by
+    // the signer (signedAtClaimed), as the signature panel and PdfTool do
+    QFETCH(QString, format);
+    QFETCH(bool, isClaimed);
+
+    pdf::PDFCertificateEntry jane;
+    QVERIFY(AppMcpStep6::createEntry(QStringLiteral("Jane Novak"), &jane));
+    const QDateTime before = QDateTime::currentDateTimeUtc();
+    const QByteArray formatName = format.toLatin1();
+    const QByteArray signedData = AppMcpStep6::sign(AppMcpStep6::createDocumentBytes(), jane, formatName.constData());
+    QVERIFY(!signedData.isEmpty());
+
+    AppMcpFixture fixture;
+    QVERIFY(start(fixture, false));
+    pdf::PDFAppDocumentTab* tab = AppMcpStep4::open(fixture, AppMcpStep6::writeFile(fixture, QStringLiteral("Signed.pdf"), signedData));
+    QVERIFY(tab);
+    const QJsonArray signatures = AppMcpStep6::getSignatures(fixture, tab);
+    QCOMPARE(signatures.size(), 1);
+    const QJsonObject signature = signatures.at(0).toObject();
+    QCOMPARE(signature.value(QStringLiteral("signer")).toString(), QStringLiteral("Jane Novak"));
+
+    // signedAt is the time of the signing in both formats (/M is written in whole seconds, 7.9.4), only
+    // its source differs
+    const QDateTime signedAt = QDateTime::fromString(signature.value(QStringLiteral("signedAt")).toString(), Qt::ISODate);
+    QVERIFY2(signedAt.isValid(), qPrintable(signature.value(QStringLiteral("signedAt")).toString()));
+    QVERIFY2(qAbs(before.secsTo(signedAt)) <= 60, qPrintable(signedAt.toString(Qt::ISODate)));
+    QVERIFY(signature.value(QStringLiteral("signedAtClaimed")).isBool());
+    QCOMPARE(signature.value(QStringLiteral("signedAtClaimed")).toBool(), isClaimed);
+
+    // The result keeps the output schema of document.get_signatures
+    const std::optional<pdf::PDFMcpCallResult> result = AppMcpStep4::call(fixture, QStringLiteral("document"), QStringLiteral("get_signatures"), QJsonObject(),
+                                                                         QJsonObject({ { QStringLiteral("documentId"), tab->getDocument()->getId() } }));
+    QVERIFY(result && !result->isError);
+    fixture.verifyOutputSchema(QStringLiteral("document"), *result);
+}
+
+void AppMcpProtectTest::signRunParentWindow()
+{
+    // Q6.2: the run of Sign with Certificate of an assistant gives the system its parent window for the
+    // dialog of the PIN of a key of the store of Windows - the main window of the tab of the document
+    // (PDFDocumentToolContext::parentWindow); the recording tool replaces the tool for this test only
+    pdftest::AppTestCertificateFolders folders;
+    QVERIFY(!AppMcpStep6::createCertificate(folders, QStringLiteral("jane_novak.pfx"), QStringLiteral("Jane Novak")).isEmpty());
+
+    const QString toolId = QStringLiteral("protect.sign");
+    const std::shared_ptr<const pdf::PDFDocumentTool> original = pdf::PDFDocumentToolRegistry::getTool(toolId);
+    QVERIFY(original);
+    QVERIFY(pdf::PDFDocumentToolRegistry::unregisterTool(toolId));
+    pdf::PDFDocumentToolRegistry::registerTool(std::make_shared<AppMcpProtectRecordingSignTool>());
+    const auto restore = qScopeGuard([&]()
+    {
+        pdf::PDFDocumentToolRegistry::unregisterTool(toolId);
+        pdf::PDFDocumentToolRegistry::registerTool(original);
+    });
+    AppMcpProtectRecordingSignTool::s_parentWindow = 0;
+    AppMcpProtectRecordingSignTool::s_isRun = false;
+
+    AppMcpFixture fixture;
+    QVERIFY(start(fixture, false));
+    pdf::PDFAppDocumentTab* tab = openDocument(fixture, QStringLiteral("Contract.pdf"));
+    QVERIFY(tab);
+
+    const QJsonObject common({ { QStringLiteral("documentId"), tab->getDocument()->getId() }, { QStringLiteral("path"), fixture.path(QStringLiteral("Contract_SIGNED.pdf")) } });
+    const std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("protect"), AppMcpStep5::arguments(QStringLiteral("sign"), QJsonObject(), common));
+    QPointer<pdf::PDFAppMcpSecretConfirmation> dialog = AppMcpStep5::waitDialog();
+    QVERIFY(dialog);
+    AppMcpStep5::type(dialog->getCertificatePasswordCard(), AppMcpStep5::getCanary());
+    AppMcpStep5::confirm(dialog);
+    const std::optional<pdf::PDFMcpCallResult> result = AppMcpFixture::waitResult(call, 60000);
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText().contains(QStringLiteral("Recorded.")), qPrintable(result->getFirstText()));
+    QVERIFY(AppMcpProtectRecordingSignTool::s_isRun);
+    QVERIFY(AppMcpProtectRecordingSignTool::s_parentWindow != 0);
+    QCOMPARE(quintptr(AppMcpProtectRecordingSignTool::s_parentWindow), quintptr(tab->window()->winId()));
+}
+
+void AppMcpProtectTest::certificateEncryptSystemStore()
+{
+    // The addendum of the owner of 15. 11.: Encrypt with Certificate encrypts for a personal certificate of
+    // the store of Windows by its public certificate only - the confirmation offers the row of the store
+    // ("system-store:<fingerprint>"), asks no password (its card is hidden) and sends none; the copy is
+    // encrypted for certificates (ISO 32000-2, 7.6.5). A store in the memory of the process (never the
+    // store of the machine)
+    pdftest::AppTestCertificateFolders folders;
+    AppMcpFixture fixture;
+    const QString source = pdftest::AppTestCertificateFolders::create(fixture.folder(), QStringLiteral("company.pfx"), QStringLiteral("Jane Novak – Company ID"),
+                                                             QStringLiteral("store-password"), 2048);
+    QVERIFY(!source.isEmpty());
+    std::shared_ptr<const pdf::PDFPersonalCertificateStore> store = pdf::PDFPersonalCertificateStore::createMemoryStore(AppMcpStep5::readFile(source), QByteArrayLiteral("store-password"));
+    if (!store)
+    {
+        QSKIP("No store of the system on this platform (Q6.2: Windows only)");
+    }
+    pdf::PDFPersonalCertificateStore::setStore(store);
+    pdf::PDFAppToolCertificateProvider::setSystemStoreIncluded(true);
+    const auto restore = qScopeGuard([]()
+    {
+        pdf::PDFPersonalCertificateStore::setStore(nullptr);
+        pdf::PDFAppToolCertificateProvider::setSystemStoreIncluded(false);
+    });
+    const std::optional<pdf::PDFCertificateInfo> info = pdf::PDFCertificateManager::readCertificate(AppMcpStep5::readFile(source), QStringLiteral("store-password"));
+    QVERIFY(info);
+    const QString fingerprint = pdf::PDFDocumentToolEncryption::getCertificateFingerprint(info->getCertificateData());
+
+    QVERIFY(start(fixture, false));
+    pdf::PDFAppDocumentTab* tab = openDocument(fixture, QStringLiteral("Contract.pdf"));
+    QVERIFY(tab);
+
+    const QString copyPath = fixture.path(QStringLiteral("Contract_encrypted.pdf"));
+    const QJsonObject common({ { QStringLiteral("documentId"), tab->getDocument()->getId() }, { QStringLiteral("path"), copyPath } });
+    const std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("protect"), AppMcpStep5::arguments(QStringLiteral("certificate-encrypt"), QJsonObject(), common));
+    QPointer<pdf::PDFAppMcpSecretConfirmation> dialog = AppMcpStep5::waitDialog();
+    QVERIFY(dialog);
+    QVERIFY(dialog->getCertificateList());
+    QCOMPARE(dialog->getCertificateList()->getChosenFilePath(), pdf::PDFAppToolCertificateProvider::getSystemStorePath(fingerprint));
+    QVERIFY(dialog->getCertificatePasswordCard());
+    QVERIFY(!dialog->getCertificatePasswordCard()->isVisibleTo(dialog));
+    QVERIFY(dialog->isConfirmEnabled());
+
+    AppMcpStep5::confirm(dialog);
+    const std::optional<pdf::PDFMcpCallResult> result = AppMcpFixture::waitResult(call, 60000);
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    const QJsonObject content = AppMcpStep4::content(*result, QStringLiteral("certificate-encrypt"));
+    QCOMPARE(content.value(QStringLiteral("data")).toObject().value(QStringLiteral("algorithm")).toString(), QStringLiteral("certificate"));
+    for (const QByteArray& text : { AppMcpStep5::resultText(*result), AppMcpStep5::activityText(fixture) })
+    {
+        QVERIFY(!text.contains("store-password"));
+        QVERIFY(!text.contains("system-store:"));
+    }
+    QVERIFY(AppMcpStep5::readFile(copyPath).contains("/Adobe.PubSec"));
+
+    // The recipient is the certificate of the store: the copy opens by the key of the store (no password
+    // asked); a store with another certificate (in the memory too, never the store of the machine) does
+    // not open it
+    QVERIFY(AppMcpStep5::opensWithoutPassword(copyPath));
+    const QString other = pdftest::AppTestCertificateFolders::create(fixture.folder(), QStringLiteral("other.pfx"), QStringLiteral("Somebody Else"), QStringLiteral("store-password"), 2048);
+    std::shared_ptr<const pdf::PDFPersonalCertificateStore> otherStore = pdf::PDFPersonalCertificateStore::createMemoryStore(AppMcpStep5::readFile(other), QByteArrayLiteral("store-password"));
+    QVERIFY(otherStore);
+    pdf::PDFPersonalCertificateStore::setStore(otherStore);
+    QVERIFY(!AppMcpStep5::opensWithoutPassword(copyPath));
 }
 
 QTEST_MAIN(AppMcpProtectTest)

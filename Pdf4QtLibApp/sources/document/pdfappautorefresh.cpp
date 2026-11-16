@@ -30,6 +30,7 @@
 
 #include "pdfdocumentreader.h"
 #include "pdfexception.h"
+#include "pdfexecutionpolicy.h"
 #include "pdfform.h"
 #include "pdfmessagebox.h"
 #include "pdfsecurityhandler.h"
@@ -38,6 +39,7 @@
 #include <QFileInfo>
 #include <QFileSystemWatcher>
 #include <QPushButton>
+#include <QScopeGuard>
 #include <QTimer>
 #include <QtConcurrent/QtConcurrentRun>
 
@@ -81,6 +83,10 @@ public:
 
 PDFAppAutoRefreshReader::Result PDFAppAutoRefreshReader::read(QString filePath, QByteArray knownData)
 {
+    // A worker thread: the decryption may use OpenSSL - its state of the thread goes with the job
+    // (PDFExecutionPolicy::releaseThreadResources, ASan C), whichever way the job ends
+    const auto threadResourcesGuard = qScopeGuard(&PDFExecutionPolicy::releaseThreadResources);
+
     Result result;
     result.filePath = filePath;
     result.knownData = knownData;

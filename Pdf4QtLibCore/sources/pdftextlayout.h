@@ -64,6 +64,11 @@ struct PDFTextCharacterInfo
     /// into device space)
     PDFReal fontSize = 0.0;
 
+    /// The box of a character without an outline in its character space (a glyph of a Type 3 font: the
+    /// box of d1, /FontBBox or an estimate - PDFPageContentProcessor, ISO 32000-2, 9.6.4, 9.6.5; B147).
+    /// Empty: no box is known, the character has a box of zero size at its position.
+    QRectF glyphBox;
+
     /// Transformation matrix from character space to device space
     QTransform matrix;
 };

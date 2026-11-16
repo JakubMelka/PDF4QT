@@ -237,4 +237,24 @@ list(APPEND PDF4QT_LIBAPP_TOOLS_SOURCES
     sources/tools/pdfapptoolcertificatelist.h
     sources/tools/pdfappcertificatedialogs.cpp
     sources/tools/pdfappcertificatedialogs.h
+    # Step 6 (plan 10.1, 10.2 with R6-23), package P4 (Sign with Certificate, Add Timestamp, Sign by
+    # Hand, the drawing, the timestamp authority)
+    sources/tools/pdfapptoolgui_signature.cpp
+    sources/tools/pdfapptoolgui_signature.h
+    sources/tools/pdfapptoolgui_signbyhand.cpp
+    sources/tools/pdfapptoolgui_signbyhand.h
+    sources/tools/pdfapptooldrawingpart.cpp
+    sources/tools/pdfapptooldrawingpart.h
+    sources/tools/pdfapptooltimestampauthoritypart.cpp
+    sources/tools/pdfapptooltimestampauthoritypart.h
+    # Step 6, package P5 (Redact Content and its search, Manage Certificates and the detail of a
+    # certificate)
+    sources/tools/pdfapptoolgui_redact.cpp
+    sources/tools/pdfapptoolgui_redact.h
+    sources/tools/pdfapptoolredactsearchpart.cpp
+    sources/tools/pdfapptoolredactsearchpart.h
+    sources/tools/pdfapptoolgui_certificates.cpp
+    sources/tools/pdfapptoolgui_certificates.h
+    sources/tools/pdfappcertificatedetails.cpp
+    sources/tools/pdfappcertificatedetails.h
 )

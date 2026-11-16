@@ -61,7 +61,9 @@ public:
     std::vector<PDFCertificateEntry> userCertificates;              ///< The certificate of the user chosen for Encrypt with Certificate with its PKCS#12 (PDFDocumentToolContext::userCertificates; the GUI by prepareEnvironment, the confirmation of MCP); dropped with the run
     QString temporaryFolder;                                        ///< Folder of the temporary files of the run (PDFAppContext::getToolTemporaryFolder, R4-1)
     std::shared_ptr<PDFSpeechSynthesizerFactory> speechSynthesizerFactory;  ///< The speech synthesis of Create Audio Book (PDFAppContext::getSpeechSynthesizerFactory, R4-15)
-    QStringList protectedFilePaths;                                 ///< Files, which a tool of more files never overwrites (the open documents, R14; PDFAppToolFileSink)
+    std::shared_ptr<const PDFTimestampClient> timestampClient;      ///< The client of the timestamp authority of a run, which asks one (PDFDocumentToolContext::timestampClient; plan of step 6 of phase 2, 6.6: given only by the GUI of Sign / Timestamp and the confirmed action of MCP, null = no network)
+    quintptr parentWindow = 0;                                      ///< The native handle of the window of the tool, the parent of a dialog of the system of the run (the PIN of a key of the store of Windows; PDFDocumentToolContext::parentWindow, plan of step 6 of phase 2, Q6.2); 0 = none (MCP)
+    QStringList protectedFilePaths;                                ///< Files, which a tool of more files never overwrites (the open documents, R14; PDFAppToolFileSink)
     bool isNetworkFolderRefused = false;                            ///< The files of a tool of more files never go to another computer (MCP)
 };
 

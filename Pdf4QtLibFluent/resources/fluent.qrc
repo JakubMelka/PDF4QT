@@ -172,6 +172,7 @@
         <file>icons/intent.svg</file>
         <file>icons/interleave-reversed.svg</file>
         <file>icons/interleave.svg</file>
+        <file>icons/keep-in-copy.svg</file>
         <file>icons/key.svg</file>
         <file>icons/keyboard.svg</file>
         <file>icons/label.svg</file>
@@ -332,6 +333,8 @@
         <file>icons/shield-plus.svg</file>
         <file>icons/shield.svg</file>
         <file>icons/show-in-folder.svg</file>
+        <file>icons/sig-format-pades.svg</file>
+        <file>icons/sig-format-pkcs7.svg</file>
         <file>icons/sign-certificate.svg</file>
         <file>icons/signature-field.svg</file>
         <file>icons/signature.svg</file>

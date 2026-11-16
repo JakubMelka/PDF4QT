@@ -45,6 +45,7 @@
 #include <QSaveFile>
 #include <QTemporaryFile>
 
+#include <algorithm>
 #include <exception>
 
 namespace pdf
@@ -828,6 +829,30 @@ bool PDFDocumentTool::isPageChange(const QVariantMap& parameters) const
     return entry && entry->isPageChange();
 }
 
+std::vector<PDFSecurityHandler::Permission> PDFDocumentTool::getRequiredPermissions(const QVariantMap& parameters) const
+{
+    Q_UNUSED(parameters);
+    const PDFDocumentToolCatalogEntry* entry = getInfo();
+    return entry ? entry->getRequiredPermissions() : std::vector<PDFSecurityHandler::Permission>();
+}
+
+std::vector<PDFSecurityHandler::Permission> PDFDocumentTool::getAnyOfPermissions(const QVariantMap& parameters) const
+{
+    Q_UNUSED(parameters);
+    return std::vector<PDFSecurityHandler::Permission>();
+}
+
+bool PDFDocumentTool::isPermittedRun(const PDFDocument* document, const QVariantMap& parameters) const
+{
+    if (!PDFDocumentToolCatalogEntry::isPermitted(document, getRequiredPermissions(parameters)))
+    {
+        return false;
+    }
+
+    const std::vector<PDFSecurityHandler::Permission> anyOf = getAnyOfPermissions(parameters);
+    return anyOf.empty() || std::any_of(anyOf.cbegin(), anyOf.cend(), [document](PDFSecurityHandler::Permission permission) { return PDFDocumentToolCatalogEntry::isPermitted(document, { permission }); });
+}
+
 PDFDocumentToolOutputTraits PDFDocumentTool::getOutputTraits(const QVariantMap& parameters) const
 {
     PDFDocumentToolOutputTraits traits;
@@ -855,10 +880,10 @@ PDFDocumentToolOutputTraits::PDFDocumentToolOutputTraits(const PDFDocumentToolCa
 
 std::vector<PDFDocumentToolParameterError> PDFDocumentTool::validate(const PDFDocumentToolContext& context, const QVariantMap& parameters) const
 {
-    Q_UNUSED(parameters);
-
     std::vector<PDFDocumentToolParameterError> errors;
     const PDFDocumentToolCatalogEntry* info = getInfo();
+
+    // The permissions of the run (R6-8: they may depend on the parameters; the default is the row)
     for (const PDFDocumentToolInputDocument& document : context.documents)
     {
         if (!document.document)
@@ -867,7 +892,7 @@ std::vector<PDFDocumentToolParameterError> PDFDocumentTool::validate(const PDFDo
             return errors;
         }
 
-        if (info && !info->isPermitted(document.document.data()))
+        if (info && !isPermittedRun(document.document.data(), parameters))
         {
             errors.push_back({ QString(), PDFDocumentToolHelper::tr("The permissions of the document do not allow this tool.") });
             return errors;

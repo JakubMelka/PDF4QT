@@ -431,6 +431,29 @@ void PDFAppToolSectionHeader::addTrailingWidget(QWidget* widget)
     headerLayout->addWidget(widget, 0, Qt::AlignVCenter);
 }
 
+void PDFAppToolSectionHeader::addTitleWidget(QWidget* widget)
+{
+    QHBoxLayout* headerLayout = qobject_cast<QHBoxLayout*>(layout());
+    if (!widget || !headerLayout)
+    {
+        return;
+    }
+
+    // Before the stretch at the end (or the trailing widget behind it): next to the title and its hint
+    widget->setParent(this);
+    int index = headerLayout->count();
+    for (int i = 0; i < headerLayout->count(); ++i)
+    {
+        if (headerLayout->itemAt(i)->spacerItem())
+        {
+            index = i;
+            break;
+        }
+    }
+    headerLayout->insertWidget(index, widget, 0, Qt::AlignVCenter);
+    setFixedHeight(qMax(height(), widget->sizeHint().height()));
+}
+
 // --------------------------------------------------------- PDFAppToolCanvasChip
 
 PDFAppToolCanvasChip::PDFAppToolCanvasChip(QWidget* canvasArea) :

@@ -52,6 +52,7 @@ class PDFAppToolParameterModel;
 class PDFAppToolToolbar;
 class PDFDocumentToolCatalogEntry;
 class PDFDocumentToolShell;
+class PDFModifiedDocument;
 
 /// Where the card of the progress and the callout The document is busy lie (K7):
 /// the top of the right panel by default; Compress has its card inside of the section
@@ -342,6 +343,45 @@ public:
     /// and outside of the state Editing. The shell, the GUI and the tab may be deleted by it (the
     /// last call of the caller).
     void closeOwnTab();
+
+    /// One instance of the own tab of the tool in a window (Manage Certificates, plan of step 6 of
+    /// phase 2, 4.5): a second start activates the tab (PDFAppMainWindow::createToolTab). Read from a
+    /// GUI made only for it (no shell). Default: false.
+    virtual bool isSingleOwnTab() const;
+
+    // ------------------------------------------------------------- tool in the tab of a document
+
+    /// The question before the tool in the tab of a document closes (plan of step 6 of phase 2: Sign
+    /// by Hand 435:10500 "Discard the drawing?", Redact Content 448:17473 "Keep the 12 marks in the
+    /// document?"). The shell asks it, before Cancel, Esc or Discard result of the result dialog close
+    /// the tool (PDFDocumentToolShell::cancel; never twice at once). A tool, which has something to
+    /// lose, opens its question (new + QPointer, WA_DeleteOnClose, open - never exec) and returns true:
+    /// the tool stays, the answer closes it later by PDFDocumentToolShell::closeAfterQuestion or leaves
+    /// it open. A question already open returns true too. The function never deletes the shell.
+    /// \returns true = the question is open; false = nothing to ask, the tool closes. Default: false.
+    virtual bool askClose();
+
+    /// The Primary button of the toolbar is shown (K6.11 of step 6: Manage Certificates is an
+    /// analysis without a run, 436:9423 has no button). The shell keeps the button hidden in every
+    /// mode of the toolbar and Ctrl+Enter does nothing. Default: true.
+    virtual bool isConfirmShown() const;
+
+    /// Undo and Redo of the toolbar are shown: a tool without a history (Manage Certificates, 436:9398,
+    /// 436:12086: no parameters, nothing to take back) has none. Default: true.
+    virtual bool isUndoShown() const;
+
+    /// The tool changes the document of its tab while it is open (Redact Content: its marks are
+    /// Redact annotations, P5 open point 3): Undo and Redo of the tool take back those changes in one
+    /// order with the steps of the parameters (PDFAppToolCompositeUndoTarget). The changes are made by
+    /// commitDocumentChange. Read once at the entry. Default: false.
+    virtual bool hasDocumentUndoSteps() const;
+
+    /// Commits a change of the document of the tab as a change of the tool (PDFAppDocument::commit,
+    /// PDFAppChangeSource::Tool: one Undo step of the document, the tab becomes unsaved); with
+    /// hasDocumentUndoSteps the step is also a step of Undo of the tool. \returns the commit was
+    /// accepted. The slots of the document run: this GUI and the shell may be deleted meanwhile (the
+    /// caller checks its guard).
+    bool commitDocumentChange(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion);
 
     // ------------------------------------------------------------- flow
 

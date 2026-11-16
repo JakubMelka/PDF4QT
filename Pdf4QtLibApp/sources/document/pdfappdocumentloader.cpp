@@ -27,12 +27,14 @@
 
 #include "pdfdocumentreader.h"
 #include "pdfexception.h"
+#include "pdfexecutionpolicy.h"
 #include "pdfform.h"
 #include "pdfprogress.h"
 #include "pdfsecurityhandler.h"
 
 #include <QFile>
 #include <QFileInfo>
+#include <QScopeGuard>
 #include <QtConcurrent/QtConcurrentRun>
 
 namespace pdf
@@ -84,6 +86,11 @@ private:
 
 PDFAppDocumentReading::Result PDFAppDocumentReading::read(Request request)
 {
+    // A worker thread: the decryption, the authentication by a certificate and the signatures may use
+    // OpenSSL - its state of the thread goes with the job (PDFExecutionPolicy::releaseThreadResources,
+    // ASan C), whichever way it ends
+    const auto threadResourcesGuard = qScopeGuard(&PDFExecutionPolicy::releaseThreadResources);
+
     Result result;
 
     try

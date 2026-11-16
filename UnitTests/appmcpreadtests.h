@@ -43,6 +43,7 @@
 #include "pdfappmcpactivity.h"
 #include "pdfappmcpareahighlight.h"
 #include "pdfappmcpcompletion.h"
+#include "pdfappmcpcontent.h"
 #include "pdfappmcpcontroller.h"
 #include "pdfappmcpdocumentreader.h"
 #include "pdfappmcpdocumentresources.h"
@@ -66,6 +67,7 @@
 #include "pdfmcpcatalog.h"
 #include "pdfmcperrorcodes.h"
 #include "pdfmcpjson.h"
+#include "pdfmcplimits.h"
 #include "pdfmcprepository.h"
 #include "pdfsecurityhandler.h"
 
@@ -2407,9 +2409,9 @@ public:
     }
 
     /// The listed resources of the document are in resources/list - on any of its pages: the list
-    /// is paginated (MCP, Pagination: nextCursor; PDFMcpLimits::RESOURCE_PAGE_SIZE) and
-    /// the documents come after the static files, so with more than a page of these files (the help
-    /// topics of the protect tools in step 5 of phase 2) they are on the second page
+    /// is paginated (MCP, Pagination: nextCursor; PDFMcpLimits::RESOURCE_PAGE_SIZE); the open
+    /// documents come first (owner decision 2026-11-15, test resourceListOrder), the loop over the
+    /// pages does not depend on it
     static bool isListed(pdftest::McpTestClient& client, const QString& documentId)
     {
         QJsonObject params;
@@ -2508,6 +2510,114 @@ public:
         {
             QCOMPARE(item.value(QStringLiteral("params")).toObject().value(QStringLiteral("_meta")).toObject().value(QStringLiteral("io.modelcontextprotocol/subscriptionId")).toString(), QStringLiteral("listen-b"));
         }
+    }
+
+    /// One page of resources/list (\p cursor empty = the first page): its URIs, and its nextCursor in \p nextCursor
+    static QStringList listResourcePage(pdftest::McpTestClient& client, const QString& cursor, QString* nextCursor)
+    {
+        QJsonObject params;
+        if (!cursor.isEmpty())
+        {
+            params.insert(QStringLiteral("cursor"), cursor);
+        }
+        const QJsonObject result = client.request(QStringLiteral("resources/list"), params).value(QStringLiteral("result")).toObject();
+        QStringList uris;
+        for (const QJsonValue& resource : result.value(QStringLiteral("resources")).toArray())
+        {
+            uris << resource.toObject().value(QStringLiteral("uri")).toString();
+        }
+        *nextCursor = result.value(QStringLiteral("nextCursor")).toString();
+        return uris;
+    }
+
+    /// The URIs of every page from \p cursor on (nextCursor followed to the end)
+    static QStringList listResourcesFrom(pdftest::McpTestClient& client, QString cursor)
+    {
+        QStringList uris;
+        for (int page = 0; page < 64 && !cursor.isEmpty(); ++page)
+        {
+            uris << listResourcePage(client, cursor, &cursor);
+        }
+        return uris;
+    }
+
+    /// The listed resources of a document in the order of createListed
+    static QStringList listedDocumentUris(const QString& documentId)
+    {
+        const QString prefix = pdf::PDFAppMcpDocumentResources::getDocumentPrefix(documentId);
+        return { prefix + QStringLiteral("info"), prefix + QStringLiteral("outline"), prefix + QStringLiteral("annotations") };
+    }
+
+    /// Owner decision 2026-11-15: resources/list lists the open documents first (info, outline,
+    /// annotations of each, in the order of opening), then pdf4qt://application/state, then the
+    /// static files in their order - so the first page (PDFMcpLimits::RESOURCE_PAGE_SIZE) holds
+    /// the documents although the list is longer than a page even with one document. A document closed
+    /// or opened between two pages neither skips nor repeats an item of the next pages: the
+    /// next page continues with the item that would have come next (PDFMcpDispatcher::parseCursor).
+    static void resourceListOrder()
+    {
+        pdftest::AppMcpFixture fixture;
+        QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+        QVERIFY(fixture.startServer());
+
+        pdf::PDFAppDocumentTab* first = openReady(fixture, pdftest::AppDocumentSamples::outline(fixture.folder()));
+        pdf::PDFAppDocumentTab* second = openReady(fixture, pdftest::AppDocumentSamples::attachments(fixture.folder()));
+        QVERIFY(first && second);
+        const QString firstId = first->getDocument()->getId();
+        const QString secondId = second->getDocument()->getId();
+        const QString stateUri = pdf::PDFAppMcpDocumentResources::getStateUri();
+        QStringList staticUris;
+        for (const pdf::PDFMcpResourceDefinition& resource : pdf::PDFAppMcpContent::getStaticResources())
+        {
+            staticUris << resource.uri;
+        }
+
+        // The situation of the decision (step 5 of phase 2): one open document (three
+        // items), the state and the static files are more than a page
+        const qsizetype pageSize = pdf::PDFMcpLimits::RESOURCE_PAGE_SIZE;
+        QVERIFY2(3 + 1 + staticUris.size() > pageSize, qPrintable(QString::number(staticUris.size())));
+
+        // Both documents are in the catalog (the watcher coalesces the openings)
+        const qint64 timeout = 10000 * pdftest::AppDocumentFixture::getTimeoutFactor();
+        QTRY_VERIFY_WITH_TIMEOUT(fixture.host()->getCatalog()->findResource(listedDocumentUris(firstId).front()) &&
+                                 fixture.host()->getCatalog()->findResource(listedDocumentUris(secondId).front()), timeout);
+
+        // The whole list: the documents in the order of opening, the state, the static files
+        const QStringList expected = listedDocumentUris(firstId) + listedDocumentUris(secondId) + QStringList({ stateUri }) + staticUris;
+        std::unique_ptr<pdftest::McpTestClient> client = fixture.client(pdftest::McpTestEra::Modern);
+        QString cursor;
+        const QStringList page1 = listResourcePage(*client, QString(), &cursor);
+        QCOMPARE(page1, expected.mid(0, pageSize));
+        QVERIFY(!cursor.isEmpty());
+
+        // Pagination across the boundary of an unchanged list: every item once, in order
+        QCOMPARE(page1 + listResourcesFrom(*client, cursor), expected);
+
+        // The first document closed between the pages: three items fewer before the
+        // boundary, the next page still starts with the item after page 1
+        const quint64 closeGeneration = fixture.host()->getCatalogGeneration();
+        QVERIFY(fixture.window->closeTab(first));
+        pdftest::AppDocumentFixture::settle();
+        QTRY_VERIFY_WITH_TIMEOUT(fixture.host()->getCatalogGeneration() > closeGeneration && !fixture.host()->getCatalog()->findResource(listedDocumentUris(firstId).front()), timeout);
+        QCOMPARE(listResourcesFrom(*client, cursor), expected.mid(pageSize));
+
+        // A third document opened between the pages: three items more before the
+        // boundary, the next page repeats no item of page 1
+        const QStringList afterClose = listedDocumentUris(secondId) + QStringList({ stateUri }) + staticUris;
+        const QStringList closedPage1 = listResourcePage(*client, QString(), &cursor);
+        QCOMPARE(closedPage1, afterClose.mid(0, pageSize));
+        QVERIFY(!cursor.isEmpty());
+        const quint64 openGeneration = fixture.host()->getCatalogGeneration();
+        pdf::PDFAppDocumentTab* third = openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Third.pdf"), 1));
+        QVERIFY(third);
+        const QString thirdId = third->getDocument()->getId();
+        QTRY_VERIFY_WITH_TIMEOUT(fixture.host()->getCatalogGeneration() > openGeneration && fixture.host()->getCatalog()->findResource(listedDocumentUris(thirdId).front()), timeout);
+        QCOMPARE(listResourcesFrom(*client, cursor), afterClose.mid(pageSize));
+
+        // The new list itself: the documents in the order of opening first
+        QString newCursor;
+        const QStringList openedPage1 = listResourcePage(*client, QString(), &newCursor);
+        QCOMPARE(openedPage1, (listedDocumentUris(secondId) + listedDocumentUris(thirdId) + QStringList({ stateUri }) + staticUris).mid(0, pageSize));
     }
 
     static void httpEndToEnd()

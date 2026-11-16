@@ -225,7 +225,7 @@ QStringList PDFDocumentToolUsage::getSuggestions(const QString& finishedToolId, 
 bool PDFDocumentToolUsage::isOfferingSuccessors(const QString& toolId)
 {
     const PDFDocumentToolCatalogEntry* tool = PDFDocumentToolCatalog::isValidToolId(toolId) ? PDFDocumentToolCatalog::findTool(toolId) : nullptr;
-    return tool && !tool->isSecurityChange();
+    return tool && tool->isOfferingSuccessors();
 }
 
 bool PDFDocumentToolUsage::isSuggestNextEnabled() const

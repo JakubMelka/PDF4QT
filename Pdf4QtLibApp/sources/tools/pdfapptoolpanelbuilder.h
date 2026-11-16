@@ -111,6 +111,13 @@ public:
     /// the toolbar, "Goal: Quality" of 299:3362 for the row "Prefer quality")
     void setButtonTitle(const QString& optionId, const QString& title);
 
+    /// The button shows the icon of the chosen option of the first parameter (its row icon,
+    /// "Signature with timestamp" 434:5884), the icon of the menu for an option without one; the
+    /// name of the shown icon is the property ICON_PROPERTY of the button
+    void setButtonIconFollowsOption(bool isFollowing);
+
+    static constexpr const char* ICON_PROPERTY = "pdf4qtIconName";
+
 private:
     void addRows(const QString& parameter);
     void refresh();
@@ -120,6 +127,8 @@ private:
     QPointer<PDFAppToolParameterModel> m_model;
     std::shared_ptr<PDFAppValueStore> m_store;
     std::map<QString, QString> m_buttonTitles;  ///< Short titles of the button by the ids of the options
+    QString m_menuIconName;                     ///< The icon of the menu (addEnumMenu)
+    bool m_isButtonIconFollowingOption = false;
     QStringList m_parameters;   ///< The first one gives the title of the button
     QString m_titleFormat;
     QPointer<QToolButton> m_button;

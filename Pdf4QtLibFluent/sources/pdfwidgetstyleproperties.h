@@ -186,6 +186,12 @@ public:
     /// no menu (it opens a popup of its own)
     static constexpr const char* MENU_INDICATOR = "menuIndicator";
 
+    /// QToolButton: an icon-only toolbar button (Toolbar button 190:538, the drawing
+    /// tools of Sign by Hand 435:8712) whatever its text and its tool button style:
+    /// the style draws and measures only the icon, the text stays the accessible
+    /// name and the source of the tooltip of the button
+    static constexpr const char* ICON_ONLY = "iconOnly";
+
     /// QAbstractScrollArea: the scroll bars lie over the edge of the viewport,
     /// the layout reserves no width for them (the viewport takes the whole area;
     /// PM_ScrollView_ScrollBarOverlap). The bar draws only its groove and its

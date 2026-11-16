@@ -834,7 +834,7 @@ void PDFCreateLineTypeTool::setActiveImpl(bool active)
 void PDFCreateLineTypeTool::onStyleChanged(const PDFAnnotationStyle& style)
 {
     Q_UNUSED(style);
-    Q_EMIT getProxy()->repaintNeeded();
+    requestRepaint();
 }
 
 void PDFCreateLineTypeTool::onPointPicked(PDFInteger pageIndex, QPointF pagePoint)
@@ -1106,7 +1106,7 @@ void PDFCreateLineTypeTool::keyPressEvent(QWidget* widget, QKeyEvent* event)
     if (event->key() == Qt::Key_O && canHaveOrthogonalMode())
     {
         m_orthogonalMode = !m_orthogonalMode;
-        Q_EMIT getProxy()->repaintNeeded();
+        requestRepaint();
 
         if (m_orthogonalMode)
         {
@@ -1313,7 +1313,7 @@ void PDFCreateEllipseTool::setActiveImpl(bool active)
 void PDFCreateEllipseTool::onStyleChanged(const PDFAnnotationStyle& style)
 {
     Q_UNUSED(style);
-    Q_EMIT getProxy()->repaintNeeded();
+    requestRepaint();
 }
 
 PDFReal PDFCreateEllipseTool::getPenWidth() const
@@ -1457,7 +1457,7 @@ PDFCreateFreehandCurveTool::PDFCreateFreehandCurveTool(PDFDrawWidgetProxy* proxy
 
 void PDFCreateFreehandCurveTool::onStyleChanged()
 {
-    Q_EMIT getProxy()->repaintNeeded();
+    requestRepaint();
 }
 
 void PDFCreateFreehandCurveTool::setActiveImpl(bool active)
@@ -1553,7 +1553,7 @@ void PDFCreateFreehandCurveTool::mousePressEvent(QWidget* widget, QMouseEvent* e
         resetTool();
     }
 
-    Q_EMIT getProxy()->repaintNeeded();
+    requestRepaint();
 }
 
 void PDFCreateFreehandCurveTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
@@ -1625,7 +1625,7 @@ void PDFCreateFreehandCurveTool::mouseReleaseEvent(QWidget* widget, QMouseEvent*
         resetTool();
     }
 
-    Q_EMIT getProxy()->repaintNeeded();
+    requestRepaint();
 }
 
 void PDFCreateFreehandCurveTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
@@ -1643,7 +1643,7 @@ void PDFCreateFreehandCurveTool::mouseMoveEvent(QWidget* widget, QMouseEvent* ev
             m_pickedPoints.push_back(pagePoint);
         }
 
-        getProxy()->repaintNeeded();
+        requestRepaint();
     }
 }
 
@@ -1840,7 +1840,7 @@ void PDFCreateStampTool::setStamp(Stamp stamp)
     if (value >= static_cast<int>(Stamp::Approved) && value <= static_cast<int>(Stamp::TopSecret))
     {
         m_stampAnnotation.setStamp(stamp);
-        Q_EMIT getProxy()->repaintNeeded();
+        requestRepaint();
     }
 }
 
@@ -2127,7 +2127,7 @@ void PDFCreateHighlightTextTool::onStyleChanged(const PDFAnnotationStyle& style)
         setSelection(PDFTextSelection());
     }
 
-    Q_EMIT getProxy()->repaintNeeded();
+    requestRepaint();
 }
 
 QString PDFCreateHighlightTextTool::getStyleId() const
@@ -2196,7 +2196,7 @@ void PDFCreateHighlightTextTool::setSelection(PDFTextSelection&& textSelection)
     if (m_textSelection != textSelection)
     {
         m_textSelection = qMove(textSelection);
-        Q_EMIT getProxy()->repaintNeeded();
+        requestRepaint();
     }
 }
 
@@ -2275,7 +2275,7 @@ void PDFCreateRedactRectangleTool::onStyleChanged(const PDFAnnotationStyle& styl
 {
     m_color = style.strokeColor;
     m_pickTool->setSelectionRectangleColor(m_color, true);
-    Q_EMIT getProxy()->repaintNeeded();
+    requestRepaint();
 }
 
 void PDFCreateRedactRectangleTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
@@ -2497,7 +2497,7 @@ void PDFDeleteAnnotationTool::mousePressEvent(QWidget* widget, QMouseEvent* even
             resetTool();
         }
 
-        Q_EMIT getProxy()->repaintNeeded();
+        requestRepaint();
     }
 }
 
@@ -2519,7 +2519,7 @@ void PDFDeleteAnnotationTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* ev
         resetTool();
         event->accept();
         updateCursor();
-        Q_EMIT getProxy()->repaintNeeded();
+        requestRepaint();
     }
 }
 
@@ -2542,7 +2542,7 @@ void PDFDeleteAnnotationTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event
     }
 
     updateCursor();
-    Q_EMIT getProxy()->repaintNeeded();
+    requestRepaint();
 }
 
 void PDFDeleteAnnotationTool::updateActions()
@@ -2892,7 +2892,7 @@ void PDFCreateRedactTextTool::onStyleChanged(const PDFAnnotationStyle& style)
         setSelection(PDFTextSelection());
     }
 
-    Q_EMIT getProxy()->repaintNeeded();
+    requestRepaint();
 }
 
 void PDFCreateRedactTextTool::updateCursor()
@@ -2915,7 +2915,7 @@ void PDFCreateRedactTextTool::setSelection(PDFTextSelection&& textSelection)
     if (m_textSelection != textSelection)
     {
         m_textSelection = qMove(textSelection);
-        getProxy()->repaintNeeded();
+        requestRepaint();
     }
 }
 

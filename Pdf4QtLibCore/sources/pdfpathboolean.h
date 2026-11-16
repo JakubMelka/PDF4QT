@@ -74,6 +74,14 @@ public:
     /// \param unitedPath Second path
     static QPainterPath unite(const QPainterPath& path, const QPainterPath& unitedPath);
 
+    /// Returns the union of the areas of all subpaths of the path, each subpath taken
+    /// alone: its orientation and the fill rule of the path do not matter, an area
+    /// covered by two subpaths is covered once (the redacted areas of a redaction -
+    /// quadrilaterals of a selection of text, which overlap, and rectangles; plan of
+    /// step 6 of phase 2, R6-7). The result has Qt::WindingFill and no curves.
+    /// \param path Path, whose subpaths are united
+    static QPainterPath uniteSubpaths(const QPainterPath& path);
+
 private:
     enum class Operation
     {

@@ -289,10 +289,33 @@ void PDFAppToolToolbar::setMode(Mode mode)
     // After the run (owner 2026-11-09, the after-run frames of Figma, e.g. 296:2761): the
     // buttons keep their places - Cancel Enabled, the Primary button shown and Disabled
     m_mode = mode;
-    m_confirmButton->setVisible(mode != Mode::Running);
+    m_confirmButton->setVisible(m_isConfirmShown && mode != Mode::Running);
     m_confirmButton->setEnabled(m_isConfirmEnabled && mode != Mode::Finished);
     m_cancelButton->setEnabled(true);
     m_stopButton->setVisible(mode == Mode::Running);
+    updateCollapse();
+}
+
+void PDFAppToolToolbar::setConfirmShown(bool isShown)
+{
+    if (m_isConfirmShown == isShown)
+    {
+        return;
+    }
+
+    m_isConfirmShown = isShown;
+    m_confirmButton->setVisible(m_isConfirmShown && m_mode != Mode::Running);
+    updateCollapse();
+}
+
+void PDFAppToolToolbar::setUndoShown(bool isShown)
+{
+    if (m_isUndoShown == isShown)
+    {
+        return;
+    }
+
+    m_isUndoShown = isShown;
     updateCollapse();
 }
 
@@ -605,11 +628,12 @@ void PDFAppToolToolbar::applyCollapse(int level)
     {
         m_advancedTag->setVisible(level < H::TitleHidden);
     }
-    m_undoButton->setVisible(level < H::UndoRedoHidden);
-    m_redoButton->setVisible(level < H::UndoRedoHidden);
+    const bool isUndoVisible = m_isUndoShown && level < H::UndoRedoHidden;
+    m_undoButton->setVisible(isUndoVisible);
+    m_redoButton->setVisible(isUndoVisible);
 
     // Two dividers next to each other without Undo and Redo
-    m_undoDivider->setVisible(level < H::UndoRedoHidden || !m_actions);
+    m_undoDivider->setVisible(isUndoVisible || !m_actions);
 
     // The last steps keep the whole actions (segments of a fixed width): the Primary button
     // says its text by its tooltip and accessible name, Cancel stays as Esc
@@ -622,8 +646,11 @@ void PDFAppToolToolbar::applyCollapse(int level)
         const QList<QToolButton*> buttons = m_actions->findChildren<QToolButton*>();
         for (QToolButton* button : buttons)
         {
-            button->setToolButtonStyle(level >= H::ActionsIconsOnly ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextBesideIcon);
-            button->setIconSize(level >= H::ActionsIconsOnly ? QSize(20, 20) : QSize(18, 18));
+            // An icon-only button of the design (Toolbar button 190:538, Sign by Hand 435:8712) has the
+            // icon 20 at every level, the others lose their texts in a narrow toolbar
+            const bool isIconOnly = level >= H::ActionsIconsOnly || PDFWidgetStyleProperties::isSet(button, PDFWidgetStyleProperties::ICON_ONLY);
+            button->setToolButtonStyle(isIconOnly ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextBesideIcon);
+            button->setIconSize(isIconOnly ? QSize(20, 20) : QSize(18, 18));
         }
 
         const QList<QWidget*> widgets = m_actions->findChildren<QWidget*>();

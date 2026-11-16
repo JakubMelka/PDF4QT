@@ -26,6 +26,7 @@
 
 #include "clipper2/clipper.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace pdf
@@ -195,6 +196,63 @@ QPainterPath PDFPathBoolean::subtract(const QPainterPath& path, const QPainterPa
 QPainterPath PDFPathBoolean::unite(const QPainterPath& path, const QPainterPath& unitedPath)
 {
     return perform(Operation::Union, path, unitedPath);
+}
+
+QPainterPath PDFPathBoolean::uniteSubpaths(const QPainterPath& path)
+{
+    QPainterPath emptyResult;
+    emptyResult.setFillRule(Qt::WindingFill);
+
+    if (path.isEmpty())
+    {
+        return emptyResult;
+    }
+
+    const QRectF boundingBox = path.controlPointRect();
+    const PDFReal extent = qMax(boundingBox.width(), boundingBox.height());
+    if (!isFinite(boundingBox) || !(extent > 0.0))
+    {
+        // A path with non-finite coordinates cannot be painted, a point or a line
+        // has no area: nothing is covered
+        return emptyResult;
+    }
+
+    PDFWorkSpace workSpace;
+    workSpace.origin = boundingBox.topLeft();
+    workSpace.scale = NORMALIZED_EXTENT / extent;
+
+    try
+    {
+        // Every subpath is oriented positively, so under the non-zero rule a point
+        // covered by more subpaths has a positive winding number - the union, never
+        // the even-odd hole of two overlapping quadrilaterals (R6-7)
+        PathsD paths = getPaths(path, workSpace);
+        for (PathD& polygon : paths)
+        {
+            if (!IsPositive(polygon))
+            {
+                std::reverse(polygon.begin(), polygon.end());
+            }
+        }
+
+        return getPainterPath(Union(paths, FillRule::NonZero, CLIPPER_PRECISION), workSpace);
+    }
+    catch (const Clipper2Lib::Clipper2Exception&)
+    {
+        // The working space is normalized, so this should not happen; the subpaths are
+        // united one by one by Qt then
+        QPainterPath result = emptyResult;
+        for (const QPolygonF& polygon : path.toSubpathPolygons())
+        {
+            QPainterPath subpath;
+            subpath.setFillRule(Qt::WindingFill);
+            subpath.addPolygon(polygon);
+            subpath.closeSubpath();
+            result = result.united(subpath);
+        }
+        result.setFillRule(Qt::WindingFill);
+        return result;
+    }
 }
 
 QPainterPath PDFPathBoolean::perform(Operation operation, const QPainterPath& path, const QPainterPath& otherPath)

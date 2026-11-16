@@ -515,12 +515,19 @@ std::optional<QString> PDFMcpDispatcher::decodeHeaderValue(QByteArrayView value)
     return QString::fromLatin1(value);
 }
 
-QString PDFMcpDispatcher::createCursor(quint64 generation, qint64 offset)
+QString PDFMcpDispatcher::createCursor(quint64 generation, qint64 offset, quint32 anchor)
 {
-    return QString::fromLatin1(PDFMcpJson::toBase64Url(QByteArray::number(generation) + ':' + QByteArray::number(offset)));
+    return QString::fromLatin1(PDFMcpJson::toBase64Url(QByteArray::number(generation) + ':' + QByteArray::number(offset) + ':' +
+                                                       QByteArray::number(anchor, 16).rightJustified(8, '0')));
 }
 
-std::optional<qint64> PDFMcpDispatcher::parseCursor(const QString& cursor)
+quint32 PDFMcpDispatcher::getCursorAnchor(QStringView key)
+{
+    const QByteArray hash = QCryptographicHash::hash(key.toUtf8(), QCryptographicHash::Sha256);
+    return (quint32(uchar(hash[0])) << 24) | (quint32(uchar(hash[1])) << 16) | (quint32(uchar(hash[2])) << 8) | quint32(uchar(hash[3]));
+}
+
+std::optional<PDFMcpDispatcher::ListCursor> PDFMcpDispatcher::parseCursor(const QString& cursor)
 {
     if (cursor.isEmpty() || cursor.size() > PDFMcpLimits::MAXIMUM_CURSOR_LENGTH)
     {
@@ -534,14 +541,14 @@ std::optional<qint64> PDFMcpDispatcher::parseCursor(const QString& cursor)
     }
 
     const QList<QByteArray> parts = decoded->split(':');
-    if (parts.size() != 2 || parts[0].isEmpty() || parts[1].isEmpty() || parts[0].size() > 19 || parts[1].size() > 9)
+    if (parts.size() != 3 || parts[0].isEmpty() || parts[1].isEmpty() || parts[0].size() > 19 || parts[1].size() > 9 || parts[2].size() != 8)
     {
         return std::nullopt;
     }
 
-    for (const QByteArray& part : parts)
+    for (qsizetype i = 0; i < 2; ++i)
     {
-        for (char c : part)
+        for (char c : parts[i])
         {
             if (c < '0' || c > '9')
             {
@@ -549,9 +556,20 @@ std::optional<qint64> PDFMcpDispatcher::parseCursor(const QString& cursor)
             }
         }
     }
+    for (char c : parts[2])
+    {
+        if ((c < '0' || c > '9') && (c < 'a' || c > 'f'))
+        {
+            return std::nullopt;
+        }
+    }
 
-    // A stale generation restarts from the offset (the lists are small)
-    return parts[1].toLongLong();
+    // The anchor of a stale generation is resolved by handleList (the lists are small)
+    ListCursor result;
+    result.generation = parts[0].toULongLong();
+    result.offset = parts[1].toLongLong();
+    result.anchor = parts[2].toUInt(nullptr, 16);
+    return result;
 }
 
 QJsonObject PDFMcpDispatcher::filterInputResponses(const QJsonObject& responses, const QJsonObject& allowedValues, bool* isDeclined)

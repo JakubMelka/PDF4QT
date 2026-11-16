@@ -33,6 +33,7 @@
 #include <QtTest>
 #include <QAction>
 #include <QPainter>
+#include <QPointer>
 #include <QToolButton>
 
 class PageContentEditorToolsTest : public QObject
@@ -50,6 +51,19 @@ private slots:
     void previewIsDrawnWhilePageIsNotCompiled();
     void pageContentIsDrawnWhenPageIsCompiled();
     void toolButtonHasNoShortcutOfItsAction();
+    void toolStateIsFinishedBeforeSceneChanges();
+    void toolDeletedBySceneChangeIsNotUsed();
+    void toolSurvivesItsProxy();
+    void toolForgetsItsProxy();
+};
+
+/// A rectangle tool (a pick tool in its stack), which shows its proxy
+class ProxyProbeRectangleTool : public pdf::PDFCreatePCElementRectangleTool
+{
+public:
+    using pdf::PDFCreatePCElementRectangleTool::PDFCreatePCElementRectangleTool;
+
+    pdf::PDFDrawWidgetProxy* proxy() const { return getProxy(); }
 };
 
 /// Widget with a single page document, on which the page content editing tools
@@ -398,6 +412,133 @@ void PageContentEditorToolsTest::toolButtonHasNoShortcutOfItsAction()
     QVERIFY(it != buttons.cend());
     QVERIFY((*it)->shortcut().isEmpty());
     QVERIFY((*it)->toolTip().contains(QString("R")));
+}
+
+void PageContentEditorToolsTest::toolStateIsFinishedBeforeSceneChanges()
+{
+    // Emit last (CLAUDE.md, lifetime): the scene emits sceneChanged from addElement, its slot may run
+    // anything - the tool has finished its own element before (the dot and the line forget their page,
+    // so the next pick starts a new element; P2S6INTAPP item 5, PDFCreatePCElementDotTool::onPointPicked)
+    EditorToolsFixture fixture(createSinglePageDocument());
+    QAction dotAction;
+    pdf::PDFCreatePCElementDotTool dotTool(fixture.widget.getDrawWidgetProxy(), &fixture.scene, &dotAction, nullptr);
+    dotTool.setMultipleElementCreationEnabled(true);
+    dotTool.setActive(true);
+
+    std::vector<pdf::PDFInteger> pagesAtChange;
+    QMetaObject::Connection connection = QObject::connect(&fixture.scene, &pdf::PDFPageContentScene::sceneChanged, &fixture.scene, [&dotTool, &pagesAtChange](bool)
+    {
+        pagesAtChange.push_back(dotTool.getElement()->getPageIndex());
+    });
+    fixture.click(&dotTool, QPointF(50, 50));
+    QObject::disconnect(connection);
+    QCOMPARE(fixture.scene.getElementIds().size(), size_t(1));
+    QVERIFY(!pagesAtChange.empty());
+    QCOMPARE(pagesAtChange.front(), pdf::PDFInteger(-1));
+    dotTool.setActive(false);
+
+    // The line: the start point and the page of the finished line are forgotten before the change
+    QAction lineAction;
+    pdf::PDFCreatePCElementLineTool lineTool(fixture.widget.getDrawWidgetProxy(), &fixture.scene, &lineAction, true, false, nullptr);
+    lineTool.setActive(true);
+    pagesAtChange.clear();
+    connection = QObject::connect(&fixture.scene, &pdf::PDFPageContentScene::sceneChanged, &fixture.scene, [&lineTool, &pagesAtChange](bool)
+    {
+        pagesAtChange.push_back(lineTool.getElement()->getPageIndex());
+    });
+    fixture.click(&lineTool, QPointF(100, 300));
+    fixture.click(&lineTool, QPointF(300, 300));
+    QObject::disconnect(connection);
+    QCOMPARE(fixture.scene.getElementIds().size(), size_t(2));
+    QVERIFY(!pagesAtChange.empty());
+    QCOMPARE(pagesAtChange.front(), pdf::PDFInteger(-1));
+}
+
+void PageContentEditorToolsTest::toolDeletedBySceneChangeIsNotUsed()
+{
+    // A slot of sceneChanged deletes the tool (the application closes the tool when the drawing
+    // changes): the tool does not deactivate itself afterwards (no use of freed memory - ASan sees it)
+    EditorToolsFixture fixture(createSinglePageDocument());
+    QAction action;
+    action.setCheckable(true);
+    QPointer<pdf::PDFCreatePCElementRectangleTool> tool = new pdf::PDFCreatePCElementRectangleTool(fixture.widget.getDrawWidgetProxy(), &fixture.scene, &action, false, nullptr);
+    tool->setActive(true);
+    QVERIFY(action.isChecked());
+    QObject* context = new QObject();
+    QObject::connect(&fixture.scene, &pdf::PDFPageContentScene::sceneChanged, context, [&tool](bool)
+    {
+        delete tool.data();
+    });
+
+    fixture.click(tool, QPointF(50, 50));
+
+    // The second press makes the rectangle (the slot deletes the tool there): no release then
+    const QPoint position = fixture.getDevicePoint(QPointF(150, 100));
+    QMouseEvent move(QEvent::MouseMove, position, position, Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+    QMouseEvent press(QEvent::MouseButtonPress, position, position, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    tool->mouseMoveEvent(&fixture.widget, &move);
+    tool->mousePressEvent(&fixture.widget, &press);
+    delete context;
+    QVERIFY(!tool);
+    QCOMPARE(fixture.scene.getElementIds().size(), size_t(1));
+
+    // The action of the deleted tool keeps the state, which the tool had when it was deleted (the
+    // deactivation of finishElementCreation never ran)
+    QVERIFY(action.isChecked());
+}
+
+void PageContentEditorToolsTest::toolSurvivesItsProxy()
+{
+    // PDFWidgetTool::setActive with its proxy gone (the view dies before the tool, the tool is
+    // deactivated by its owner afterwards): no use of the dead proxy
+    pdf::PDFDocument document = createSinglePageDocument();
+    pdf::PDFCMSManager cms(nullptr);
+    pdf::PDFWidget* widget = new pdf::PDFWidget(&cms, pdf::RendererEngine::QPainter, nullptr);
+    pdf::PDFPageContentScene scene(nullptr);
+    QAction action;
+    action.setCheckable(true);
+    pdf::PDFCreatePCElementDotTool tool(widget->getDrawWidgetProxy(), &scene, &action, nullptr);
+    tool.setActive(true);
+    QVERIFY(tool.isActive());
+    QVERIFY(action.isChecked());
+    delete widget;
+
+    tool.setActive(false);
+    QVERIFY(!tool.isActive());
+    QVERIFY(!action.isChecked());
+}
+
+void PageContentEditorToolsTest::toolForgetsItsProxy()
+{
+    // ASan B (PDFPickTool::resetTool used the dead proxy): a tool of a view, which is gone, forgets the
+    // proxy, its deactivation (with the pick tool of its stack) uses none, and it is never activated
+    // again - it has no view to work on
+    pdf::PDFDocument document = createSinglePageDocument();
+    pdf::PDFCMSManager cms(nullptr);
+    pdf::PDFWidget* widget = new pdf::PDFWidget(&cms, pdf::RendererEngine::QPainter, nullptr);
+    pdf::PDFPageContentScene scene(nullptr);
+    QAction action;
+    action.setCheckable(true);
+    ProxyProbeRectangleTool tool(widget->getDrawWidgetProxy(), &scene, &action, false, nullptr);
+    QCOMPARE(tool.proxy(), widget->getDrawWidgetProxy());
+    tool.setActive(true);
+    QVERIFY(tool.isActive());
+    QVERIFY(action.isChecked());
+
+    delete widget;
+    QVERIFY(!tool.proxy());
+
+    tool.setActive(false);
+    QVERIFY(!tool.isActive());
+    QVERIFY(!action.isChecked());
+
+    tool.setActive(true);
+    QVERIFY(!tool.isActive());
+    QVERIFY(!action.isChecked());
+
+    // A change of the style asks for a repaint: there is no proxy to ask
+    tool.setPen(QPen(Qt::red));
+    QVERIFY(!tool.isActive());
 }
 
 QTEST_MAIN(PageContentEditorToolsTest)

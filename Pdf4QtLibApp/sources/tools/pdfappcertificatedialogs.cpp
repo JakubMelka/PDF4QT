@@ -27,6 +27,8 @@
 #include "pdfappmainwindow.h"
 #include "pdfapppagelayout.h"
 #include "pdfapptoolcertificatelist.h"
+#include "pdfapptoolpanelparts.h"
+#include "pdfapptoolpathrules.h"
 #include "pdfappworkspace.h"
 
 #include "pdfcertificatemanager.h"
@@ -34,6 +36,7 @@
 #include "pdfexception.h"
 #include "pdffluentwidgets.h"
 #include "pdfsecurityhandler.h"
+#include "pdfsignaturehandler.h"
 #include "pdfthemefonts.h"
 #include "pdfthemeiconengine.h"
 
@@ -43,10 +46,14 @@
 #include <QHBoxLayout>
 #include <QHideEvent>
 #include <QLocale>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QSaveFile>
 #include <QVBoxLayout>
+#include <QtConcurrent/QtConcurrentRun>
 
+#include <initializer_list>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <optional>
@@ -136,6 +143,96 @@ public:
         combo->setItemDelegate(delegate);
     }
 };
+
+// ------------------------------------------------------------ PDFAppCertificateCreateJob
+
+PDFAppCertificateCreateJob::PDFAppCertificateCreateJob(PDFCertificateManager::NewCertificateInfo info, std::shared_ptr<const std::atomic<bool>> cancelFlag) :
+    m_info(std::move(info)),
+    m_cancelFlag(std::move(cancelFlag))
+{
+
+}
+
+PDFAppCertificateCreateResult PDFAppCertificateCreateJob::operator()()
+{
+    // A worker thread: only the values of the job, no QObject (plan 6.4)
+    PDFAppCertificateCreateResult result;
+    const std::atomic<bool>* cancelFlag = m_cancelFlag.get();
+    const Generator generator = getGenerator().load();
+
+    QString error;
+    try
+    {
+        result.pkcs12 = generator ? generator(m_info, cancelFlag, &error) : PDFSignatureFactory::createCertificate(m_info, cancelFlag, &error);
+
+        // Q5.11: the public certificate of the new file goes to the cache (read here, while the
+        // copy of the password lives)
+        if (!result.pkcs12.isEmpty())
+        {
+            if (std::optional<PDFCertificateInfo> certificate = PDFCertificateManager::readCertificate(result.pkcs12, m_info.privateKeyPasword))
+            {
+                result.certificateData = certificate->getCertificateData();
+            }
+        }
+    }
+    catch (const PDFException& exception)
+    {
+        error = exception.getMessage();
+        PDFSecureMemory::clear(result.pkcs12);
+        result.pkcs12.clear();
+    }
+
+    result.isCanceled = cancelFlag && cancelFlag->load();
+    if (result.isCanceled || result.certificateData.isEmpty())
+    {
+        // A canceled job gives nothing; a PKCS#12, which does not open by its password, is no result
+        // (S6.1: the bytes with the private key are overwritten before they are freed)
+        PDFSecureMemory::clear(result.pkcs12);
+        result.pkcs12.clear();
+        result.certificateData.clear();
+    }
+    result.errorMessage = result.isCanceled ? QString() : error;
+
+    // S6.1: the copy of the password of the job is cleared at its end (also after a cancellation)
+    const bool hasPassword = !m_info.privateKeyPasword.isEmpty();
+    PDFSecureMemory::clear(m_info.privateKeyPasword);
+    bool isCleared = hasPassword;
+    for (const QChar character : std::as_const(m_info.privateKeyPasword))
+    {
+        isCleared = isCleared && character.isNull();
+    }
+    if (isCleared)
+    {
+        ++getClearedPasswordCounter();
+    }
+    m_info.privateKeyPasword.clear();
+
+    // B137: the state of OpenSSL of this thread of the pool goes with the job
+    PDFSignatureHandler::releaseThreadResources();
+    return result;
+}
+
+void PDFAppCertificateCreateJob::setGenerator(Generator generator)
+{
+    getGenerator().store(generator);
+}
+
+int PDFAppCertificateCreateJob::getClearedPasswordCount()
+{
+    return getClearedPasswordCounter().load();
+}
+
+std::atomic<PDFAppCertificateCreateJob::Generator>& PDFAppCertificateCreateJob::getGenerator()
+{
+    static std::atomic<Generator> generator = nullptr;
+    return generator;
+}
+
+std::atomic<int>& PDFAppCertificateCreateJob::getClearedPasswordCounter()
+{
+    static std::atomic<int> counter = 0;
+    return counter;
+}
 
 // ------------------------------------------------------------ PDFAppCertificateCreateDialog
 
@@ -228,6 +325,14 @@ PDFAppCertificateCreateDialog::PDFAppCertificateCreateDialog(PDFAppContext* cont
     m_createError->hide();
     addContent(m_createError);
 
+    // 6.4 (no frame, 436:10081 with the card of the progress of a tool): the generation of the key
+    // has no known progress - a busy bar
+    m_progressCard = new PDFAppToolProgressCard(this);
+    m_progressCard->setObjectName(QStringLiteral("certificateProgress"));
+    m_progressCard->getBar()->setRange(0, 0);
+    m_progressCard->hide();
+    addContent(m_progressCard);
+
     // 436:10413: Cancel, Create Certificate (Primary with certificate-add)
     m_cancelButton = addActionButton(tr("Cancel"), ActionPosition::Trailing, false);
     m_cancelButton->setObjectName(QStringLiteral("certificateCancel"));
@@ -251,6 +356,8 @@ PDFAppCertificateCreateDialog::PDFAppCertificateCreateDialog(PDFAppContext* cont
 
 PDFAppCertificateCreateDialog::~PDFAppCertificateCreateDialog()
 {
+    // The job of a dialog, which goes, is canceled; its result is dropped with the watcher
+    cancelJob();
     clearPasswords();
 }
 
@@ -314,6 +421,16 @@ QPushButton* PDFAppCertificateCreateDialog::getCancelButton() const
     return m_cancelButton.data();
 }
 
+PDFAppToolProgressCard* PDFAppCertificateCreateDialog::getProgressCard() const
+{
+    return m_progressCard.data();
+}
+
+bool PDFAppCertificateCreateDialog::isCreating() const
+{
+    return m_watcher != nullptr;
+}
+
 QString PDFAppCertificateCreateDialog::getNameError() const
 {
     return m_nameError && !m_nameError->isHidden() ? m_nameError->text() : QString();
@@ -370,12 +487,80 @@ bool PDFAppCertificateCreateDialog::create()
 {
     using Helper = PDFAppCertificateDialogsHelper;
 
-    if (m_isCreating || !isFormValid())
+    // One job at a time: a second start (a double click, Enter) does nothing
+    if (isCreating() || !isFormValid())
     {
         return false;
     }
 
-    // The file name proposed, when the dialog opened, may be taken meanwhile
+    // The values of the job (6.4): the subject, the key, the validity and a copy of the password,
+    // which has a buffer of its own (the text of the field shares its buffer - the job clears its
+    // copy at its end). The serial number is 127 random bits of generateRandomBytes (the core,
+    // serialNumber 1; RFC 5280, 4.1.2.2): two certificates of the same name are told apart by the
+    // issuer and serial number of a recipient of PKCS#7 (ISO 32000-2, 7.6.5).
+    PDFCertificateManager::NewCertificateInfo info;
+    const QString password = m_passwordField->text();
+    info.privateKeyPasword = QString(password.constData(), password.size());
+    info.certCountryCode = getCountryCode();
+    info.certOrganization = m_organizationField->text().trimmed();
+    info.certOrganizationUnit = m_unitField ? m_unitField->text().trimmed() : QString();
+    info.certCommonName = m_nameField->text().trimmed();
+    info.certEmail = m_emailField->text().trimmed();
+    info.rsaKeyLength = m_keyLengthCombo->currentData().toInt();
+    info.validityInSeconds = getValiditySeconds(Helper::getNow(), m_validUntilEdit->date());
+    info.serialNumber = 1;
+
+    if (m_createError)
+    {
+        m_createError->hide();
+    }
+    if (m_progressCard)
+    {
+        m_progressCard->setProgress(0, tr("Creating the certificate…"), tr("Generating an RSA key of %1 bits. A longer key takes longer.").arg(info.rsaKeyLength), QString());
+    }
+
+    // The watcher is a child of the dialog: the result of a dialog, which is gone, is dropped
+    m_cancelFlag = std::make_shared<std::atomic<bool>>(false);
+    QFutureWatcher<PDFAppCertificateCreateResult>* watcher = new QFutureWatcher<PDFAppCertificateCreateResult>(this);
+    m_watcher = watcher;
+    connect(watcher, &QFutureWatcherBase::finished, this, &PDFAppCertificateCreateDialog::onJobFinished);
+    watcher->setFuture(QtConcurrent::run(PDFAppCertificateCreateJob(std::move(info), m_cancelFlag)));
+    updateState();
+    return true;
+}
+
+void PDFAppCertificateCreateDialog::onJobFinished()
+{
+    QFutureWatcher<PDFAppCertificateCreateResult>* watcher = m_watcher;
+    if (!watcher || sender() != watcher)
+    {
+        return;
+    }
+
+    // The result is taken out of the future (not copied): its PKCS#12 is the only holder of the bytes,
+    // so PDFSecureMemory::clear below overwrites them (a copy would share them with the store of the
+    // future, which frees them unwiped - review RS6APP, S6.1)
+    QFuture<PDFAppCertificateCreateResult> future = watcher->future();
+    PDFAppCertificateCreateResult result = future.isValid() && future.isResultReadyAt(0) ? future.takeResult() : PDFAppCertificateCreateResult();
+    m_watcher = nullptr;
+    m_cancelFlag.reset();
+    watcher->deleteLater();
+
+    if (result.isCanceled)
+    {
+        // Nothing is written (a canceled job of a dialog, which is still open)
+        updateState();
+        return;
+    }
+
+    if (result.pkcs12.isEmpty())
+    {
+        showCreateError(result.errorMessage.isEmpty() ? tr("The certificate cannot be created.") : result.errorMessage);
+        return;
+    }
+
+    // The GUI thread writes the file (6.4): the name proposed, when the dialog opened, may be taken
+    // meanwhile; an existing file is never replaced
     if (QFileInfo::exists(m_filePath))
     {
         m_filePath = PDFCertificateManager::generateCertificateFileName();
@@ -385,63 +570,22 @@ bool PDFAppCertificateCreateDialog::create()
         }
     }
     QDir().mkpath(QFileInfo(m_filePath).absolutePath());
-
-    PDFCertificateManager::NewCertificateInfo info;
-    info.fileName = m_filePath;
-    info.privateKeyPasword = m_passwordField->text();
-    info.certCountryCode = getCountryCode();
-    info.certOrganization = m_organizationField->text().trimmed();
-    info.certOrganizationUnit = m_unitField ? m_unitField->text().trimmed() : QString();
-    info.certCommonName = m_nameField->text().trimmed();
-    info.certEmail = m_emailField->text().trimmed();
-    info.rsaKeyLength = m_keyLengthCombo->currentData().toInt();
-    info.validityInSeconds = getValiditySeconds(Helper::getNow(), m_validUntilEdit->date());
-
-    QString error;
-    bool isCreated = false;
-    m_isCreating = true;
-    try
+    QSaveFile file(m_filePath);
+    const bool isWritten = !QFileInfo::exists(m_filePath) && file.open(QIODevice::WriteOnly) && file.write(result.pkcs12) == result.pkcs12.size() && file.commit();
+    PDFSecureMemory::clear(result.pkcs12);
+    if (!isWritten)
     {
-        // A random serial number: two certificates of the same name are told apart by the
-        // issuer and serial number of a recipient of PKCS#7 (ISO 32000-2, 7.6.5)
-        const QByteArray random = PDFSecurityHandlerFactory::generateRandomBytes(4);
-        quint32 serial = 0;
-        for (const char byte : random)
-        {
-            serial = (serial << 8) | quint32(quint8(byte));
-        }
-        info.serialNumber = long(qMax(quint32(1), serial & 0x7FFFFFFFu));
-        isCreated = PDFCertificateManager().createCertificate(info, &error);
+        showCreateError(tr("The certificate file %1 cannot be written into your certificate folder.").arg(QFileInfo(m_filePath).fileName()));
+        return;
     }
-    catch (const PDFException& exception)
-    {
-        error = exception.getMessage();
-    }
-    m_isCreating = false;
 
-    if (isCreated)
+    // Q5.11: the public certificate goes to the cache (only the certificate, never the key). The
+    // commit notifies the database at once (PDFDatabaseNotifier): code of the application runs.
+    QPointer<PDFAppCertificateCreateDialog> guard(this);
+    PDFAppToolCertificateProvider(m_context).storeCertificate(m_filePath, result.certificateData);
+    if (!guard)
     {
-        // Q5.11: the public certificate goes to the cache (only the certificate, never the key)
-        std::optional<QByteArray> pkcs12 = Helper::readBounded(m_filePath, PDFCertificateManager::MAXIMUM_CERTIFICATE_FILE_SIZE);
-        if (pkcs12)
-        {
-            if (std::optional<PDFCertificateInfo> certificate = PDFCertificateManager::readCertificate(*pkcs12, info.privateKeyPasword))
-            {
-                PDFAppToolCertificateProvider(m_context).storeCertificate(m_filePath, certificate->getCertificateData());
-            }
-        }
-    }
-    PDFSecureMemory::clear(info.privateKeyPasword);
-
-    if (!isCreated)
-    {
-        if (m_createError)
-        {
-            m_createError->setText(error.isEmpty() ? tr("The certificate cannot be created.") : error);
-            m_createError->show();
-        }
-        updateState();
-        return false;
+        return;
     }
 
     // Emit last: the dialog is closed (deleted later) before the signal
@@ -449,13 +593,55 @@ bool PDFAppCertificateCreateDialog::create()
     clearPasswords();
     close();
     Q_EMIT certificateCreated(filePath);
-    return true;
+}
+
+void PDFAppCertificateCreateDialog::cancelJob()
+{
+    // The callback of the generation reads the flag; the result of the job is dropped (no file)
+    if (m_cancelFlag)
+    {
+        m_cancelFlag->store(true);
+        m_cancelFlag.reset();
+    }
+    if (m_watcher)
+    {
+        m_watcher->disconnect(this);
+        m_watcher->deleteLater();
+        m_watcher = nullptr;
+    }
+}
+
+void PDFAppCertificateCreateDialog::showCreateError(const QString& error)
+{
+    if (m_createError)
+    {
+        m_createError->setText(error);
+        m_createError->show();
+    }
+    updateState();
+}
+
+void PDFAppCertificateCreateDialog::showEvent(QShowEvent* event)
+{
+    BaseClass::showEvent(event);
+
+    // 436:10081 (review RS6FIGMA): the message box takes its height before the fields are polished, so
+    // the fields came out 4 px shorter than their 34 / 40 and were cut. Once the dialog is shown and laid
+    // out, updateState gives it the height of its content (queued: the layouts settle in the event loop;
+    // the call is dropped with the dialog)
+    QMetaObject::invokeMethod(this, &PDFAppCertificateCreateDialog::updateState, Qt::QueuedConnection);
 }
 
 void PDFAppCertificateCreateDialog::hideEvent(QHideEvent* event)
 {
-    // S5.1: the passwords do not stay in a hidden dialog
-    clearPasswords();
+    // 6.4: the close of the dialog (Cancel, Esc, the close of its tool or tab) cancels the job;
+    // S5.1: the passwords do not stay in a hidden dialog. A hide by the window system (the main window
+    // minimized) is no close: the job goes on (review RS6APP - it was canceled with a stuck dialog)
+    if (!event->spontaneous())
+    {
+        cancelJob();
+        clearPasswords();
+    }
     BaseClass::hideEvent(event);
 }
 
@@ -544,12 +730,14 @@ void PDFAppCertificateCreateDialog::fillCountries()
 
 void PDFAppCertificateCreateDialog::fillKeyLengths()
 {
-    // 436:10427: the three lengths of RSA with their descriptions, 2048 by default
-    m_keyLengthCombo->addItem(tr("1024 bits"), 1024);
-    PDFAppCertificateDialogsHelper::setChoiceItem(m_keyLengthCombo, 0, QStringLiteral("key"), tr("Weak · only for old systems"));
-    m_keyLengthCombo->addItem(tr("2048 bits"), 2048);
-    PDFAppCertificateDialogsHelper::setChoiceItem(m_keyLengthCombo, 1, QStringLiteral("key"), tr("Recommended"));
-    m_keyLengthCombo->addItem(tr("4096 bits"), 4096);
+    // 436:10427 (owner answer Q6.14: no RSA 1024): the three lengths of RSA with their
+    // descriptions, 2048 by default - the lengths of PDFSignatureFactory::createCertificate
+    static_assert(std::size(PDFCertificateManager::RSA_KEY_LENGTHS) == 3, "Each length of the core has its row of 436:10427");
+    m_keyLengthCombo->addItem(tr("2048 bits"), PDFCertificateManager::RSA_KEY_LENGTHS[0]);
+    PDFAppCertificateDialogsHelper::setChoiceItem(m_keyLengthCombo, 0, QStringLiteral("key"), tr("Recommended"));
+    m_keyLengthCombo->addItem(tr("3072 bits"), PDFCertificateManager::RSA_KEY_LENGTHS[1]);
+    PDFAppCertificateDialogsHelper::setChoiceItem(m_keyLengthCombo, 1, QStringLiteral("key"), tr("Stronger · a little slower"));
+    m_keyLengthCombo->addItem(tr("4096 bits"), PDFCertificateManager::RSA_KEY_LENGTHS[2]);
     PDFAppCertificateDialogsHelper::setChoiceItem(m_keyLengthCombo, 2, QStringLiteral("key"), tr("Strongest · slower signing"));
     PDFAppCertificateDialogsHelper::setTileDelegate(m_keyLengthCombo);
     m_keyLengthCombo->setCurrentIndex(m_keyLengthCombo->findData(DEFAULT_KEY_LENGTH));
@@ -591,9 +779,22 @@ void PDFAppCertificateCreateDialog::updateState()
         m_repeatError->setVisible(isMismatch);
         m_repeatField->setInvalid(isMismatch, isMismatch ? m_repeatError->text() : QString());
     }
+    // 6.4: the form is Disabled while the job runs, the card of the progress is shown; Cancel stays
+    const bool isRunning = isCreating();
+    for (QWidget* field : std::initializer_list<QWidget*>{ m_nameField, m_emailField, m_organizationField, m_unitField, m_countryCombo, m_keyLengthCombo, m_validUntilEdit, m_passwordField, m_repeatField })
+    {
+        if (field)
+        {
+            field->setEnabled(!isRunning);
+        }
+    }
+    if (m_progressCard)
+    {
+        m_progressCard->setVisible(isRunning);
+    }
     if (m_createButton)
     {
-        m_createButton->setEnabled(isFormValid() && !m_isCreating);
+        m_createButton->setEnabled(isFormValid() && !isRunning);
     }
 
     // The card follows the height of its content at its width: a shown or hidden error changes it.
@@ -695,7 +896,16 @@ void PDFAppCertificateImportDialog::start()
 {
     QString targetPath;
     QString error;
-    m_outcome = importFile(m_context, m_sourceFilePath, PDFCertificateManager::getCertificateDirectory(), &targetPath, &error);
+
+    // The import writes the certificate cache: its commit notifies the database at once - code of
+    // the application runs, the dialog may be gone after it
+    QPointer<PDFAppCertificateImportDialog> guard(this);
+    const Outcome outcome = importFile(m_context, m_sourceFilePath, PDFCertificateManager::getCertificateDirectory(), &targetPath, &error);
+    if (!guard)
+    {
+        return;
+    }
+    m_outcome = outcome;
 
     switch (m_outcome)
     {
@@ -743,11 +953,17 @@ PDFAppCertificateImportDialog::Outcome PDFAppCertificateImportDialog::importFile
     Outcome outcome = Outcome::Refused;
     const QFileInfo sourceInfo(sourceFilePath);
 
-    // Plan 7.2: at most 1 MiB, a PKCS#12; a larger file is never read whole
-    const bool isFile = !sourceFilePath.isEmpty() && sourceInfo.isFile();
+    // Plan 7.2: at most 1 MiB, a PKCS#12; a larger file is never read whole. Plan of step 6, 7: a
+    // network place or a device is never contacted (PDFAppToolPathRules)
+    const bool isRemote = !sourceFilePath.isEmpty() && PDFAppToolPathRules::isDeviceOrNetworkPath(sourceFilePath);
+    const bool isFile = !sourceFilePath.isEmpty() && !isRemote && sourceInfo.isFile();
     const bool isTooLarge = isFile && sourceInfo.size() > MAXIMUM_FILE_SIZE;
     const std::optional<QByteArray> data = (isFile && !isTooLarge) ? Helper::readBounded(sourceFilePath, MAXIMUM_FILE_SIZE) : std::nullopt;
-    if (!isFile)
+    if (isRemote)
+    {
+        error = tr("The file %1 is not on this computer. Copy it to this computer first.").arg(sourceInfo.fileName());
+    }
+    else if (!isFile)
     {
         error = tr("The file %1 does not exist.").arg(sourceInfo.fileName());
     }

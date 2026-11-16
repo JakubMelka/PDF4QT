@@ -255,6 +255,7 @@ public:
     static constexpr int FIELD_HEIGHT = 34;     ///< File name of a copy (312:7410)
     static constexpr int PATH_HEIGHT = 36;      ///< Path of an export (339:10301)
     static constexpr int PATH_GAP = 6;          ///< Gap of the path and Browse… (355:9882)
+    static constexpr int FIELD_LABEL_GAP = 4;   ///< The label "File name" and its field of the file only (434:9645)
 
     /// A callout of the dialog: an icon 16, a title Semi Bold 12 and a text
     static PDFTintedCard* createCallout(PDFAccentHue hue, const QString& iconName, PDFLabel** titleLabel, PDFAppParagraph** textLabel, int textPixelSize, QWidget* parent)
@@ -568,6 +569,14 @@ PDFAppToolResultDialog::ResultKind PDFAppToolResultDialog::getResultKind(const P
     return result.writtenFiles.isEmpty() && result.notWrittenFiles.isEmpty() ? ResultKind::Analysis : ResultKind::WrittenFiles;
 }
 
+PDFAppToolResultDialog::ResultKind PDFAppToolResultDialog::getResultKind(const PDFDocumentToolOutputTraits& tool, const PDFDocumentToolResult& result)
+{
+    // Tools.md 9.3 point 11: a tool, which writes only a new file (Sign, Timestamp, Redact), has the
+    // name, the folder and the opening of the copy instead of the choices of a new document
+    const ResultKind kind = getResultKind(result);
+    return kind == ResultKind::NewDocument && tool.entry && tool.entry->isFileOnlyResult() ? ResultKind::FileOnly : kind;
+}
+
 std::vector<PDFAppToolResultDialog::Choice> PDFAppToolResultDialog::getChoices(const PDFDocumentToolOutputTraits& tool, ResultKind kind, const DocumentState& state)
 {
     switch (kind)
@@ -593,6 +602,10 @@ std::vector<PDFAppToolResultDialog::Choice> PDFAppToolResultDialog::getChoices(c
 
         case ResultKind::NewDocument:
             return { Choice::NewTab, Choice::File };
+
+        case ResultKind::FileOnly:
+            // One choice without an option card: the controls of the file (createFileOnlyControls)
+            return { Choice::File };
 
         case ResultKind::Files:
             return { Choice::File, Choice::Clipboard };
@@ -648,16 +661,20 @@ PDFAppToolResultDialog::PDFAppToolResultDialog(PDFAppContext* context, PDFAppDoc
     }
     setCardWidth(CARD_WIDTH);
 
-    m_kind = getResultKind(m_input.result);
+    m_kind = getResultKind(m_outputTraits, m_input.result);
     m_isPartial = !m_input.result.leftOutInputs.empty() && m_kind != ResultKind::Analysis && m_kind != ResultKind::WrittenFiles;
     m_isStoppedRun = m_kind == ResultKind::WrittenFiles && m_input.result.status == PDFDocumentToolResultStatus::Stopped;
+    m_isOpenCheckedByUser = m_input.isFileOpenChecked;
     if (m_runner)
     {
         m_snapshot = m_runner->getResultSnapshot();
 
-        // F5: a changed document of a display version cannot be kept nor written. The shell
-        // does not run such a tool; a dialog opened anyway says so, it never does nothing
-        if (m_snapshot.isPagedXFA && m_kind == ResultKind::ChangeDocument)
+        // F5: a changed document of a display version cannot be kept nor written, nor can an
+        // incremental update of its file be (Sign, Timestamp - R6-27: its pages are not the pages
+        // of the file). The shell does not run such a tool; a dialog opened anyway says so, it
+        // never does nothing
+        const bool isUpdateOfInput = m_kind == ResultKind::FileOnly && m_outputTraits.entry && m_outputTraits.entry->isIncrementalUpdateOfInput();
+        if (m_snapshot.isPagedXFA && (m_kind == ResultKind::ChangeDocument || isUpdateOfInput))
         {
             m_isDisplayVersion = true;
             m_kind = ResultKind::Analysis;
@@ -900,11 +917,10 @@ PDFAppToolResultOption* PDFAppToolResultDialog::addOption(Choice choice, QVBoxLa
     return option;
 }
 
-void PDFAppToolResultDialog::createFileControls(PDFAppToolResultOption* option, bool isFullPath, bool isChecked)
+void PDFAppToolResultDialog::createFileControls(QVBoxLayout* layout, bool isFullPath, bool isChecked)
 {
     using Helper = PDFAppToolResultDialogHelper;
 
-    QVBoxLayout* layout = option->getControlsLayout();
     QWidget* parent = layout->parentWidget();
 
     m_folder = getInitialFolder();
@@ -979,6 +995,14 @@ void PDFAppToolResultDialog::createOptions(QVBoxLayout* layout, QWidget* parent)
         return;
     }
 
+    if (m_kind == ResultKind::FileOnly)
+    {
+        // Tools.md 9.3 point 11: no option cards, the controls of the file
+        createFileOnlyControls(layout, parent);
+        m_selectedChoice = Choice::File;
+        return;
+    }
+
     m_choiceGroup = new QButtonGroup(this);
     m_choiceGroup->setExclusive(true);
 
@@ -996,7 +1020,7 @@ void PDFAppToolResultDialog::createOptions(QVBoxLayout* layout, QWidget* parent)
                 break;
             case Choice::Copy:
                 option->setObjectName(QStringLiteral("optionCopy"));
-                createFileControls(option, false, true);
+                createFileControls(option->getControlsLayout(), false, true);
                 break;
             case Choice::Overwrite:
                 option->setObjectName(QStringLiteral("optionOverwrite"));
@@ -1008,7 +1032,7 @@ void PDFAppToolResultDialog::createOptions(QVBoxLayout* layout, QWidget* parent)
                 option->setObjectName(QStringLiteral("optionFile"));
                 // A file of an export has the whole path (339:10301), the frame of a
                 // new document does not draw it: the controls of a copy
-                createFileControls(option, m_kind == ResultKind::Files, m_kind != ResultKind::Files);
+                createFileControls(option->getControlsLayout(), m_kind == ResultKind::Files, m_kind != ResultKind::Files);
                 if (m_input.isResultInThisTab && m_kind == ResultKind::NewDocument && m_openCheckBox)
                 {
                     // 336:3572: the written file always opens in this tab, nothing to choose
@@ -1030,11 +1054,60 @@ void PDFAppToolResultDialog::createOptions(QVBoxLayout* layout, QWidget* parent)
     }
 }
 
+void PDFAppToolResultDialog::createFileOnlyControls(QVBoxLayout* layout, QWidget* parent)
+{
+    // The controls of a copy (the name in its field, the folder and Browse…, the reason of a refused
+    // name, the check box of the opening) in a plain column - one choice has no card and no radio
+    // button (tools.md 9.3 point 11; plan of step 6 of phase 2, 2.1, 2.2, 2.5)
+    using Helper = PDFAppToolResultDialogHelper;
+
+    QWidget* controls = new QWidget(parent);
+    controls->setObjectName(QStringLiteral("resultFileOnly"));
+    QVBoxLayout* controlsLayout = new QVBoxLayout(controls);
+    controlsLayout->setContentsMargins(0, 0, 0, 0);
+    m_fileOnlyControls = controls;
+    createFileControls(controlsLayout, false, m_input.isFileOpenChecked);
+
+    // 434:9276, 435:8356, 437:13887: the field "File name" (the label Medium 12 in text/secondary, 4
+    // above the field, the reason of a refused name below it), the folder row and the check box are
+    // the parts of the dialog, 14 apart (its gap)
+    QVBoxLayout* fieldLayout = new QVBoxLayout();
+    fieldLayout->setContentsMargins(0, 0, 0, 0);
+    fieldLayout->setSpacing(Helper::FIELD_LABEL_GAP);
+    m_fileNameLabel = PDFAppPageWidgets::createLabel(QString(), QFont::Medium, 12, PDFThemeColors::TextSecondary, controls);
+    m_fileNameLabel->setObjectName(QStringLiteral("resultFileNameLabel"));
+    m_fileNameLabel->setBuddy(m_fileNameField);
+    controlsLayout->removeWidget(m_fileNameField);
+    controlsLayout->removeWidget(m_nameError);
+    fieldLayout->addWidget(m_fileNameLabel);
+    fieldLayout->addWidget(m_fileNameField);
+    fieldLayout->addWidget(m_nameError);
+    controlsLayout->insertLayout(0, fieldLayout);
+    controlsLayout->setSpacing(Helper::SECTION_GAP);
+    layout->addWidget(controls);
+}
+
+void PDFAppToolResultDialog::updateOpenCheckLock()
+{
+    if (m_kind != ResultKind::FileOnly || !m_openCheckBox)
+    {
+        return;
+    }
+
+    // Q6.16: the next tool runs on the opened copy, so a chosen tool opens it; the check box is
+    // locked while a tool is chosen and gets back the choice of the user afterwards
+    const bool isContinuing = m_continueWith && m_continueWith->getSelectedChoice() >= 0;
+    const QSignalBlocker blocker(m_openCheckBox);
+    m_openCheckBox->setChecked(isContinuing || m_isOpenCheckedByUser);
+    m_openCheckBox->setEnabled(!isContinuing);
+}
+
 void PDFAppToolResultDialog::createContinueWith(QVBoxLayout* layout, QWidget* parent)
 {
     // Not for an export (K20), not for an analysis, which has no result to go on with, and
-    // not for a partial result (tools.md 9.3 point 12, 378:4376)
-    if ((m_kind != ResultKind::ChangeDocument && m_kind != ResultKind::NewDocument) || m_isPartial)
+    // not for a partial result (tools.md 9.3 point 12, 378:4376); a file only offers it, when its
+    // tool does (Redact, Q6.16 - not Sign and Timestamp, the rule of isOfferingSuccessors below)
+    if ((m_kind != ResultKind::ChangeDocument && m_kind != ResultKind::NewDocument && m_kind != ResultKind::FileOnly) || m_isPartial)
     {
         return;
     }
@@ -1142,6 +1215,10 @@ QString PDFAppToolResultDialog::getDefaultSubtitle() const
             return tr("Nothing has been written yet – choose what to do with the result.");
         case ResultKind::NewDocument:
             return tr("The new document is ready – choose what to do with it.");
+        case ResultKind::FileOnly:
+            // No frame of the design names it (the tools give their own subtitles of 434:9276,
+            // 435:8356, 437:13887 by PDFAppToolResultInput::subtitle)
+            return tr("Nothing has been written yet – choose where the new file goes. The open document stays as it is.");
         case ResultKind::Files:
             return tr("Nothing has been written yet – choose what to do with the result.");
         case ResultKind::WrittenFiles:
@@ -1335,9 +1412,22 @@ void PDFAppToolResultDialog::updateTexts()
     {
         m_browseButton->setText(tr("Browse…"));
     }
+    if (m_fileNameLabel)
+    {
+        // 434:9646
+        m_fileNameLabel->setText(tr("File name"));
+    }
     if (m_openCheckBox)
     {
-        m_openCheckBox->setText(m_kind == ResultKind::Files ? tr("Open the folder afterwards") : (m_kind == ResultKind::NewDocument ? tr("Open the file in a new tab") : tr("Open the copy in a new tab")));
+        if (m_kind == ResultKind::FileOnly)
+        {
+            // The text of the tool ("Open the signed copy in a new tab", 434:9276)
+            m_openCheckBox->setText(m_input.fileOpenText.isEmpty() ? tr("Open the file in a new tab") : m_input.fileOpenText);
+        }
+        else
+        {
+            m_openCheckBox->setText(m_kind == ResultKind::Files ? tr("Open the folder afterwards") : (m_kind == ResultKind::NewDocument ? tr("Open the file in a new tab") : tr("Open the copy in a new tab")));
+        }
     }
     if (m_discardButton)
     {
@@ -1526,7 +1616,12 @@ QString PDFAppToolResultDialog::getConfirmIconName() const
         case Choice::NewTab:
             return QStringLiteral("external-link");
         case Choice::File:
-            // 339:10323 confirms an export by the check mark
+            // 339:10323 confirms an export by the check mark; the file only saves a copy (icon/save-as of
+            // btn-dlg-save 434:9674, 435:8356, 437:13887)
+            if (m_kind == ResultKind::FileOnly)
+            {
+                return QStringLiteral("save-as");
+            }
             return m_kind == ResultKind::Files ? QStringLiteral("check") : QStringLiteral("save");
         case Choice::Clipboard:
             return QStringLiteral("copy");
@@ -1547,6 +1642,14 @@ void PDFAppToolResultDialog::updateContinueVisibility()
 {
     if (!m_continueWith)
     {
+        return;
+    }
+
+    if (m_kind == ResultKind::FileOnly)
+    {
+        // Q6.16: always offered, a chosen tool opens the copy (updateOpenCheckLock)
+        m_continueWith->setVisible(true);
+        updateOpenCheckLock();
         return;
     }
 
@@ -1587,6 +1690,11 @@ void PDFAppToolResultDialog::onChoiceToggled()
 
 void PDFAppToolResultDialog::onOpenCheckToggled()
 {
+    // The choice of the user (the lock of Q6.16 changes the check box without the signal)
+    if (m_openCheckBox && m_openCheckBox->isEnabled())
+    {
+        m_isOpenCheckedByUser = m_openCheckBox->isChecked();
+    }
     updateContinueVisibility();
     updateConfirmButton();
     adaptToHost();
@@ -1594,6 +1702,7 @@ void PDFAppToolResultDialog::onOpenCheckToggled()
 
 void PDFAppToolResultDialog::onContinueChanged()
 {
+    updateOpenCheckLock();
     updateConfirmButton();
 }
 
@@ -1823,9 +1932,11 @@ void PDFAppToolResultDialog::placeWriteError()
         connect(m_chooseLocationButton, &QPushButton::clicked, this, &PDFAppToolResultDialog::onChooseLocationClicked);
     }
 
-    if (option)
+    // The file only has its controls without an option (FileOnly)
+    QVBoxLayout* fileOnlyLayout = m_fileOnlyControls ? qobject_cast<QVBoxLayout*>(m_fileOnlyControls->layout()) : nullptr;
+    if (option || fileOnlyLayout)
     {
-        QVBoxLayout* layout = option->getControlsLayout();
+        QVBoxLayout* layout = option ? option->getControlsLayout() : fileOnlyLayout;
         layout->removeWidget(m_writeError);
         m_writeError->setParent(layout->parentWidget());
         const int checkIndex = m_openCheckBox ? layout->indexOf(m_openCheckBox) : -1;
@@ -1927,6 +2038,10 @@ QString PDFAppToolResultDialog::getStatusText() const
             return tr("%1 stopped · %2 of %Ln files were written to %3", nullptr, total).arg(toolTitle, PDFAppLocale::formatNumber(written), folder);
         }
         return tr("%1 finished · %Ln files written to %2", nullptr, written).arg(toolTitle, folder);
+    }
+    if (m_kind == ResultKind::FileOnly)
+    {
+        return tr("%1 finished · the new file is waiting for your decision").arg(toolTitle);
     }
     return m_kind == ResultKind::NewDocument ? tr("%1 finished · the new document is waiting for your decision").arg(toolTitle)
                                              : tr("%1 finished · the result is waiting for your decision").arg(toolTitle);
@@ -2113,7 +2228,19 @@ void PDFAppToolResultDialog::confirm()
             }
 
             bool isStarted = false;
-            if (m_kind == ResultKind::Files)
+            if (m_kind == ResultKind::FileOnly)
+            {
+                // The verified bytes of the run, never a document written again (an incremental update
+                // of a signature written again would destroy it; R6-27)
+                const PDFDocumentToolOutputDocument* output = findOutput(PDFDocumentToolOutputDocument::Kind::New);
+                if (!output || !m_writer->writeFileOnly(*output, getTargetFilePath(), getOriginFilePath(), m_isReplaceConfirmed))
+                {
+                    showWriteError(tr("The result has no verified file."));
+                    return;
+                }
+                isStarted = true;
+            }
+            else if (m_kind == ResultKind::Files)
             {
                 // R4-1: the one write of an output - the bytes, or the temporary file moved or copied
                 isStarted = !m_input.result.outputs.empty() && m_writer->writeOutput(m_input.result.outputs.front(), getTargetFilePath(), getOriginFilePath(), m_isReplaceConfirmed);

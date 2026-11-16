@@ -1123,12 +1123,12 @@ void AppHomeTest::homeLinks()
     const Link links[] = {
         { [](pdf::PDFAppHomePage* page) { return page->getQuickActionTiles().front(); }, QStringLiteral("/open"), QStringLiteral("pdf::PDFAppOpenPage") },
         // Merge has its start page since step 2 of phase 2 (plan 4.1: catalog and search open
-        // /tools/pages.merge, the start page); Sign with Certificate below has no page yet
+        // /tools/pages.merge, the start page); Sign with Certificate below has it since step 6
         { [](pdf::PDFAppHomePage* page) { return page->getQuickActionTiles()[5]; }, QStringLiteral("/tools/pages.merge"), QStringLiteral("pdf::PDFToolStartPage") },
         { [](pdf::PDFAppHomePage* page) { return page->getQuickActionTiles().back(); }, QStringLiteral("/tools"), QString() },
         { [](pdf::PDFAppHomePage* page) { return page->getResourceCards()[0]; }, QStringLiteral("/support"), QStringLiteral("pdf::PDFAppSupportPage") },
         { [](pdf::PDFAppHomePage* page) { return page->getSupportRows()[2]; }, QStringLiteral("/sponsor"), QStringLiteral("pdf::PDFAppSponsorPage") },
-        { [](pdf::PDFAppHomePage* page) { return page->getRecentToolRows()[1]; }, QStringLiteral("/tools/protect.sign"), QStringLiteral("pdf::PDFPageNotFoundPage") },
+        { [](pdf::PDFAppHomePage* page) { return page->getRecentToolRows()[1]; }, QStringLiteral("/tools/protect.sign"), QStringLiteral("pdf::PDFToolStartPage") },
         { [](pdf::PDFAppHomePage* page) { return page->findChild<pdf::PDFTextLink*>(); }, QStringLiteral("/recent"), QStringLiteral("pdf::PDFAppRecentPage") }
     };
 

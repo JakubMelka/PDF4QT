@@ -1311,6 +1311,16 @@ void PDFTileRow::setTileText(const QString& tileText)
     }
 }
 
+void PDFTileRow::setSwatchTile(bool isSwatchTile, std::optional<PDFThemeColors::Color> color)
+{
+    if (m_row.isSwatchTile != isSwatchTile || m_row.swatchColor != color)
+    {
+        m_row.isSwatchTile = isSwatchTile;
+        m_row.swatchColor = color;
+        update();
+    }
+}
+
 void PDFTileRow::setTag(const QString& tag)
 {
     if (m_row.tag != tag)

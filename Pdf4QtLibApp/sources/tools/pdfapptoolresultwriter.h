@@ -114,7 +114,7 @@ public:
     {
         None,
         Locked,         ///< The document is locked, the tool is not available for a locked document
-        DisplayVersion, ///< A display version of an XFA form, the tool changes the document
+        DisplayVersion, ///< A display version of an XFA form, the tool changes the document or writes an incremental update of its file (Sign, Timestamp; R6-27)
         AttachmentsLocked ///< Opened without the password of its attachments (Q5.9 c): they are still encrypted, the output of the tool is a PDF (review RS5APP)
     };
 
@@ -211,6 +211,14 @@ public:
 
     /// Writes one output of the result (Save as a file of an export; writeOutputFile in a worker)
     bool writeOutput(const PDFDocumentToolOutputFile& output, const QString& filePath, const QString& markSourceFilePath, bool isReplacing);
+
+    /// Writes the file of a tool, whose result is only a file (PDFDocumentToolCatalogEntry::isFileOnlyResult:
+    /// Sign with Certificate, Add Timestamp, Redact Content; plan of step 6 of phase 2, 4.4, R6-27): exactly
+    /// the bytes the tool has written and verified (PDFDocumentToolOutputDocument::writtenData - an
+    /// incremental update of the exact bytes of the input, a checked redacted copy), never \p output's
+    /// document written again. The one rule of the result dialog and of the result save_file of MCP.
+    /// \returns false (no signal), when a write runs or the output has no written bytes
+    bool writeFileOnly(const PDFDocumentToolOutputDocument& output, const QString& filePath, const QString& markSourceFilePath, bool isReplacing);
 
     /// Writes a new document into the memory (Open in a new tab)
     bool writeDocumentToMemory(const PDFDocumentPointer& document);

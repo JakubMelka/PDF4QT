@@ -40,20 +40,26 @@
 #include "pdfappcontext.h"
 #include "pdfappdocumentregistry.h"
 #include "pdfapptoolfilesink.h"
+#include "pdfapptoolgui_certificates.h"
 #include "pdfapptoolinputloader.h"
 #include "pdfapptoolpathrules.h"
 #include "pdfapptoolresultwriter.h"
+#include "pdfapptooltimestampauthoritypart.h"
 #include "pdfdocumenttextexporter.h"
 #include "pdfdocumenttoolrunner.h"
 
 #include "pdfdocumenttool.h"
 #include "pdfdocumenttool_manage.h"
+#include "pdfdocumenttool_signature.h"
+#include "pdfdocumenttool_signbyhand.h"
 #include "pdfdocumenttool_split.h"
 #include "pdfdocumenttoolparameter.h"
 #include "pdfdocumenttoolregistry.h"
 #include "pdfform.h"
 #include "pdfoperationcontrol.h"
+#include "pdfpagedrawing.h"
 #include "pdfprogress.h"
+#include "pdftimestampclient.h"
 
 #include "pdfmcpjson.h"
 
@@ -65,10 +71,12 @@
 #include <QJsonDocument>
 #include <QStringDecoder>
 #include <QTimer>
+#include <QUrl>
 
 #include <algorithm>
 #include <initializer_list>
 #include <limits>
+#include <map>
 
 namespace pdf
 {
@@ -190,6 +198,178 @@ public:
         return toolId == QLatin1String("pages.insert");
     }
 
+    /// Sign with Certificate signs only invisibly through MCP (plan of step 6 of phase 2, 6.5, Q6.7, R6-20:
+    /// a visible signature is a drawing, which an assistant could make look like the signature of another
+    /// person): its appearance is no parameter of an assistant, the action always gives "invisible"
+    static bool isSignTool(const QString& toolId)
+    {
+        return PDFDocumentToolSignature::findMode(toolId) == PDFDocumentToolSignature::Mode::Sign;
+    }
+
+    /// The error of a parameter is the error of the certificate of Sign with Certificate
+    static bool isCertificateError(const PDFDocumentToolParameterError& error)
+    {
+        return error.parameter == QLatin1String(PDFDocumentToolSignature::PARAMETER_CERTIFICATE);
+    }
+
+    /// The run of the tool with its normalized \p parameters asks a timestamp authority (Add Timestamp,
+    /// Sign with Certificate of the type Signature with timestamp): a hash of the document goes to a third
+    /// party - only after the confirmation of the user (S6.6) and only to an address of the list of the
+    /// user (6.5, Q6.7)
+    static bool isContactingAuthority(const QString& toolId, const QVariantMap& parameters)
+    {
+        const std::optional<PDFDocumentToolSignature::Mode> mode = PDFDocumentToolSignature::findMode(toolId);
+        if (!mode)
+        {
+            return false;
+        }
+        return *mode == PDFDocumentToolSignature::Mode::Timestamp ||
+               parameters.value(QString::fromLatin1(PDFDocumentToolSignature::PARAMETER_TYPE)).toString() == QLatin1String(PDFDocumentToolSignature::TYPE_SIGNATURE_TIMESTAMP);
+    }
+
+    /// The address of the authority of the normalized parameters
+    static QString getAuthorityUrl(const QVariantMap& parameters)
+    {
+        return parameters.value(QString::fromLatin1(PDFDocumentToolSignature::PARAMETER_TSA_URL)).toString().trimmed();
+    }
+
+    /// The address of the authority is one of the list of the user (PDFAppToolTimestampAuthorityPart::
+    /// getUserUrls: the presets of PDF4QT and the valid addresses the user has used in PDF4QT): an
+    /// assistant never makes PDF4QT send a request to any other computer (6.5). Empty = it is.
+    static QString checkAuthorityUrl(PDFAppContext* context, const QString& url)
+    {
+        const QStringList urls = PDFAppToolTimestampAuthorityPart::getUserUrls(context);
+        if (urls.contains(url))
+        {
+            return QString();
+        }
+
+        QStringList displayUrls;
+        for (const QString& userUrl : urls)
+        {
+            displayUrls << PDFTimestampClient::getDisplayUrl(QUrl(userUrl));
+        }
+        return QStringLiteral("tsaUrl: PDF4QT sends a request only to a timestamp authority of the list of the user: %1. Use one of them; another authority "
+                              "must first be used by the user in PDF4QT (Add Timestamp or Sign with Certificate).").arg(displayUrls.join(QStringLiteral(", ")));
+    }
+
+    /// The drawing of Sign by Hand of the parameter elements (the JSON of the assistant), std::nullopt
+    /// for none or an invalid one (the run reports the reason)
+    static std::optional<PDFPageDrawing> readDrawing(const QVariantMap& parameters)
+    {
+        const QString elements = parameters.value(QString::fromLatin1(PDFDocumentToolSignByHand::PARAMETER_ELEMENTS)).toString();
+        const QJsonDocument json = QJsonDocument::fromJson(elements.toUtf8());
+        if (elements.isEmpty() || !json.isArray())
+        {
+            return std::nullopt;
+        }
+        QString errorMessage;
+        return PDFPageDrawing::fromJson(json.array(), &errorMessage);
+    }
+
+    /// The ghosts of the drawing of Sign by Hand (R6-20): every element on its page as Show on Page of the
+    /// confirmation draws it - a curve by its strokes, a line by its points, a dot as an ellipse, a text,
+    /// a shape and a mark by its box; at most PDFAppMcpGhost::MAXIMUM_GHOSTS, a curve thinned to
+    /// PDFAppMcpGhost::MAXIMUM_POINTS points
+    static QJsonArray createDrawingGhosts(const PDFPageDrawing& drawing)
+    {
+        QJsonArray ghosts;
+        for (const PDFPageDrawing::Element& element : drawing.getElements())
+        {
+            if (ghosts.size() >= PDFAppMcpGhost::MAXIMUM_GHOSTS)
+            {
+                break;
+            }
+
+            PDFAppMcpGhost ghost;
+            ghost.pageIndex = element.pageIndex;
+            ghost.color = element.style.penColor;
+            switch (element.kind)
+            {
+                case PDFPageDrawing::Kind::FreehandCurve:
+                {
+                    ghost.shape = PDFAppMcpGhost::Shape::Ink;
+                    const size_t count = element.points.size();
+                    const size_t step = (count + PDFAppMcpGhost::MAXIMUM_POINTS - 1) / PDFAppMcpGhost::MAXIMUM_POINTS;
+                    QPolygonF stroke;
+                    for (size_t i = 0; i < count; i += qMax<size_t>(step, 1))
+                    {
+                        stroke << element.points[i];
+                    }
+                    if (count > 1 && stroke.size() < PDFAppMcpGhost::MAXIMUM_POINTS && stroke.back() != element.points.back())
+                    {
+                        stroke << element.points.back();
+                    }
+                    ghost.strokes.push_back(stroke);
+                    break;
+                }
+
+                case PDFPageDrawing::Kind::Line:
+                    ghost.shape = PDFAppMcpGhost::Shape::Polyline;
+                    for (size_t i = 0; i < element.points.size() && i < 2; ++i)
+                    {
+                        ghost.points << element.points[i];
+                    }
+                    break;
+
+                case PDFPageDrawing::Kind::Dot:
+                    ghost.shape = PDFAppMcpGhost::Shape::Ellipse;
+                    ghost.points << element.rectangle.topLeft() << element.rectangle.bottomRight();
+                    break;
+
+                case PDFPageDrawing::Kind::Text:
+                case PDFPageDrawing::Kind::Rectangle:
+                case PDFPageDrawing::Kind::RoundedRectangle:
+                case PDFPageDrawing::Kind::AcceptMark:
+                case PDFPageDrawing::Kind::RejectMark:
+                case PDFPageDrawing::Kind::SvgImage:
+                    ghost.shape = PDFAppMcpGhost::Shape::Rectangle;
+                    ghost.points << element.rectangle.topLeft() << element.rectangle.bottomRight();
+                    break;
+            }
+            ghosts.append(ghost.toJson());
+        }
+        return ghosts;
+    }
+
+    /// The texts of the drawing of a page (all pages for -1), quoted: what the drawing writes in the name
+    /// of the user is shown to the user as written
+    static QString getDrawingTexts(const PDFPageDrawing& drawing, PDFInteger pageIndex)
+    {
+        QStringList texts;
+        for (const PDFPageDrawing::Element& element : drawing.getElements())
+        {
+            if (element.kind == PDFPageDrawing::Kind::Text && (pageIndex < 0 || element.pageIndex == pageIndex) && !element.text.isEmpty())
+            {
+                texts << QStringLiteral("“%1”").arg(element.text);
+            }
+        }
+        return texts.join(QStringLiteral(", "));
+    }
+
+    /// The rows of a change confirmation of Sign by Hand (940:133693): one row per page with a drawing -
+    /// the number of its elements and its texts
+    static QJsonArray createDrawingRows(const PDFPageDrawing& drawing, const QString& iconName)
+    {
+        std::map<PDFInteger, int> counts;
+        for (const PDFPageDrawing::Element& element : drawing.getElements())
+        {
+            ++counts[element.pageIndex];
+        }
+
+        QJsonArray rows;
+        for (const auto& [pageIndex, count] : counts)
+        {
+            PDFAppMcpChangeRow row;
+            row.iconName = iconName;
+            row.text = QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "Draw %n elements", nullptr, count);
+            row.page = QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "Page %1").arg(pageIndex + 1);
+            row.detail = getDrawingTexts(drawing, pageIndex);
+            rows.append(row.toJson());
+        }
+        return rows;
+    }
+
     /// The checked paths of imagePaths (the rules of the paths of an assistant, an existing
     /// file); whether a file is an image is known when it is read (PDFAppToolInputLoader)
     static bool checkImagePaths(const QJsonValue& value, const PDFAppContext* context, QStringList* paths, QString* errorText)
@@ -296,6 +476,14 @@ public:
                 existing.insert(QStringLiteral("description"), description);
             }
             properties.insert(existingKey, existing);
+            schema.insert(QStringLiteral("properties"), properties);
+        }
+
+        // Sign with Certificate signs only invisibly through MCP (Q6.7, R6-20): the appearance is not a
+        // parameter of an assistant (the handler gives "invisible")
+        if (isSignTool(tool->getId()))
+        {
+            properties.remove(QString::fromLatin1(PDFDocumentToolSignature::PARAMETER_APPEARANCE));
             schema.insert(QStringLiteral("properties"), properties);
         }
         return schema;
@@ -685,8 +873,16 @@ public:
 
             const QStringList toolResultValues = PDFAppMcpCatalogTools::getToolResultValues(*entry, tool.get());
             const QString defaultResult = PDFAppMcpCatalogTools::getDefaultResult(*entry);
-            schema->setDescription(QStringLiteral("Parameters of %1: %2 Results: %3; the default is %4.")
-                                       .arg(entry->getSourceTitle(), entry->getSourceDescription(), toolResultValues.join(QStringLiteral(", ")), defaultResult));
+            if (toolResultValues.isEmpty())
+            {
+                // An analysis without a document (Manage Certificates, a list): its data are the result
+                schema->setDescription(QStringLiteral("Parameters of %1: %2 The result is its data; it takes no result.").arg(entry->getSourceTitle(), entry->getSourceDescription()));
+            }
+            else
+            {
+                schema->setDescription(QStringLiteral("Parameters of %1: %2 Results: %3; the default is %4.")
+                                           .arg(entry->getSourceTitle(), entry->getSourceDescription(), toolResultValues.join(QStringLiteral(", ")), defaultResult));
+            }
 
             PDFAppMcpActionSpec action;
             action.name = entry->getId().section(QLatin1Char('.'), 1);
@@ -698,6 +894,7 @@ public:
                 action.permissionText = getFilesPermissionText(toolResultValues);
             }
             action.usesDocument = entry->getInputKind() != PDFDocumentToolInputKind::None;
+            action.usesResult = !toolResultValues.isEmpty();
             action.input = std::move(*schema);
             action.output = createResultSchema();
             spec.actions.push_back(std::move(action));
@@ -1074,8 +1271,18 @@ public:
                 return;
 
             case PDFDocumentToolResultStatus::Failed:
-                fail(m_result.message.isEmpty() ? QStringLiteral("The tool failed.") : m_result.message, PDFMcpActivityStatus::Failed);
+            {
+                // A timestamp authority, which failed (Sign with Certificate, Add Timestamp; 434:8518,
+                // 435:8117), is named by its error id: nothing was written, the user decides what next
+                QString text = m_result.message.isEmpty() ? QStringLiteral("The tool failed.") : m_result.message;
+                const QString timestampError = m_result.data.value(QString::fromLatin1(PDFDocumentToolSignature::DATA_TIMESTAMP_ERROR)).toString();
+                if (!timestampError.isEmpty())
+                {
+                    text += QStringLiteral(" The timestamp authority failed (timestampError %1); nothing was written. Ask the user before trying again or using another authority.").arg(timestampError);
+                }
+                fail(text, PDFMcpActivityStatus::Failed);
                 return;
+            }
 
             case PDFDocumentToolResultStatus::Success:
             case PDFDocumentToolResultStatus::NothingToDo:
@@ -1088,11 +1295,22 @@ public:
         {
             if (output.kind == PDFDocumentToolOutputDocument::Kind::New && output.document)
             {
+                m_newOutput = output;
                 m_newDocument = output.document;
                 m_newDocumentData = output.writtenData;
                 m_newDocumentName = output.suggestedFileName;
                 break;
             }
+        }
+
+        // R6-27 (plan of step 6 of phase 2, 4.4): the result of Sign with Certificate, Add Timestamp and
+        // Redact Content is only the file the tool has written and verified - an incremental update of the
+        // exact bytes of the input, a checked redacted copy. Without it nothing is offered: the document
+        // of the result is never written again (another write would not be the verified file)
+        if (m_newDocument && isFileOnly() && m_newDocumentData.isEmpty())
+        {
+            fail(getNoVerifiedFileText(), PDFMcpActivityStatus::Failed);
+            return;
         }
         if (m_newDocument && m_request.mode != PDFAppMcpToolResultMode::OpenNewTab && m_request.mode != PDFAppMcpToolResultMode::SaveFile)
         {
@@ -1159,12 +1377,14 @@ public:
         }
 
         // Overwriting the original file is always confirmed (958:28030), as the files of
-        // save_files with existingFiles overwrite (R17); a change of the security too - Remove
-        // Password has no password to type, its question is this one (owner 2026-11-15; the other
-        // tools of Encryption ask by PDFAppMcpCatalogToolSecretRequest)
+        // save_files with existingFiles overwrite (R17); a tool of the catalog property
+        // isAlwaysConfirmedByMcp too - a change of the security (Remove Password has no password to
+        // type, its question is this one, owner 2026-11-15; the other tools of Encryption ask by
+        // PDFAppMcpCatalogToolSecretRequest), Sign, Timestamp and Sign by Hand (plan of step 6 of
+        // phase 2, 6.5, R6-10, R6-20)
         const PDFDocumentToolCatalogEntry* entry = m_request.tool ? m_request.tool->getInfo() : nullptr;
-        const bool isSecurityChange = entry && entry->isSecurityChange();
-        const bool isAlwaysConfirmed = m_request.mode == PDFAppMcpToolResultMode::Overwrite || isOverwritingFiles() || isSecurityChange;
+        const bool isAlwaysConfirmedTool = entry && entry->isAlwaysConfirmedByMcp();
+        const bool isAlwaysConfirmed = m_request.mode == PDFAppMcpToolResultMode::Overwrite || isOverwritingFiles() || isAlwaysConfirmedTool;
         if (!m_isConfirmed && (policyResult == PDFAppMcpPolicyResult::Ask || isAlwaysConfirmed))
         {
             requestConfirmation(policy.getKindsToConfirm(kinds, assistantKey, true), isAlwaysConfirmed);
@@ -1247,7 +1467,49 @@ public:
         fail(QStringLiteral("The tab of the document was closed while its file was written; the file may have the result."), PDFMcpActivityStatus::DeniedClosed);
     }
 
+    /// The verified file of a tool, whose result is only a file, has been written (or not) by
+    /// PDFAppToolResultWriter::writeFileOnly (R6-27)
+    void onFileOnlyWritten(const PDFAppToolResultWriter::Result& writeResult)
+    {
+        const std::shared_ptr<PDFAppMcpJob> keepAlive = shared_from_this();
+        const std::shared_ptr<PDFMcpCall>& call = getCall();
+        if (!call || call->isFinished())
+        {
+            return;
+        }
+        m_writeResult = writeResult;
+        finishWrite();
+    }
+
+    /// The host goes during the write of the verified file (the server stopped): the started worker
+    /// ends its write by itself, the call ends
+    void onFileOnlyWriterDestroyed()
+    {
+        const std::shared_ptr<PDFAppMcpJob> keepAlive = shared_from_this();
+        fail(PDFAppMcpChangeJob::getDecisionText(PDFAppMcpDecision::DeniedStopped), PDFMcpActivityStatus::DeniedStopped);
+    }
+
+    /// The text of a tool, whose result is only a file, without the verified file (R6-27)
+    static QString getNoVerifiedFileText()
+    {
+        return QStringLiteral("The tool gave no verified file, so nothing was written. Tell the user.");
+    }
+
 private:
+    /// The result of the tool is only a file (Sign with Certificate, Add Timestamp, Redact Content;
+    /// PDFDocumentToolCatalogEntry::isFileOnlyResult)
+    bool isFileOnly() const
+    {
+        const PDFDocumentToolCatalogEntry* entry = m_request.tool ? m_request.tool->getInfo() : nullptr;
+        return entry && entry->isFileOnlyResult();
+    }
+
+    /// The tool is Sign by Hand: its confirmation shows the drawing on its page (R6-20)
+    bool isSignByHand() const
+    {
+        return m_request.tool && m_request.tool->getId() == QLatin1String(PDFDocumentToolSignByHand::TOOL_ID);
+    }
+
     void fail(const QString& text, PDFMcpActivityStatus status)
     {
         const std::shared_ptr<PDFMcpCall>& call = getCall();
@@ -1453,6 +1715,24 @@ private:
         confirmation->actionId = getActionId();
         confirmation->details.insert(QStringLiteral("tool"), title);
         confirmation->details.insert(QStringLiteral("facts"), createFacts());
+
+        // Sign by Hand (plan of step 6 of phase 2, R6-20): a drawing can imitate the signature of a person,
+        // so the user sees it on its page before it is written - Show on Page draws its ghosts, the rows of
+        // a change name the texts it writes
+        if (isSignByHand())
+        {
+            if (const std::optional<PDFPageDrawing> drawing = PDFAppMcpCatalogToolsHelper::readDrawing(m_request.parameters))
+            {
+                const int elementCount = int(drawing->getElements().size());
+                confirmation->details.insert(QStringLiteral("ghosts"), PDFAppMcpCatalogToolsHelper::createDrawingGhosts(*drawing));
+                confirmation->details.insert(QStringLiteral("summary"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "%n elements", nullptr, elementCount));
+                if (confirmation->kind == PDFAppMcpConfirmationKind::Change)
+                {
+                    confirmation->details.insert(QStringLiteral("rows"), PDFAppMcpCatalogToolsHelper::createDrawingRows(*drawing, entry ? entry->getIconName() : QStringLiteral("signature")));
+                }
+            }
+        }
+
         const QString path = m_request.mode == PDFAppMcpToolResultMode::Overwrite && m_request.document ? m_request.document->getFilePath()
                                                                                                         : (m_request.mode == PDFAppMcpToolResultMode::SaveFiles ? m_request.folder : m_request.path);
         m_confirmedFilePath = m_request.mode == PDFAppMcpToolResultMode::Overwrite ? path : QString();
@@ -1496,6 +1776,19 @@ private:
             fact.insert(QStringLiteral("key"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "Assembly read"));
             fact.insert(QStringLiteral("value"), QDir::toNativeSeparators(m_request.assemblyPath));
             facts.append(fact);
+        }
+        if (isSignByHand())
+        {
+            // R6-20: the texts, which the drawing writes, as written (the body of a save has no rows)
+            const std::optional<PDFPageDrawing> drawing = PDFAppMcpCatalogToolsHelper::readDrawing(m_request.parameters);
+            const QString texts = drawing ? PDFAppMcpCatalogToolsHelper::getDrawingTexts(*drawing, -1) : QString();
+            if (!texts.isEmpty())
+            {
+                QJsonObject fact;
+                fact.insert(QStringLiteral("key"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "Texts"));
+                fact.insert(QStringLiteral("value"), texts);
+                facts.append(fact);
+            }
         }
         const bool isWritingDocument = m_request.mode == PDFAppMcpToolResultMode::SaveCopy || m_request.mode == PDFAppMcpToolResultMode::Overwrite;
         const int signatureCount = PDFForm::getSignatureCount(getSnapshot().document.data());
@@ -1580,8 +1873,18 @@ private:
                 finishReturnText();
                 return;
 
-            case PDFAppMcpToolResultMode::SaveCopy:
             case PDFAppMcpToolResultMode::SaveFile:
+                // R6-27: the verified file of a tool, whose result is only a file, by the one rule of
+                // the result dialog (PDFAppToolResultWriter::writeFileOnly)
+                if (m_newDocument && isFileOnly())
+                {
+                    startFileOnlyWrite();
+                    return;
+                }
+                startWrite();
+                return;
+
+            case PDFAppMcpToolResultMode::SaveCopy:
             case PDFAppMcpToolResultMode::SaveFiles:
                 startWrite();
                 return;
@@ -1703,6 +2006,10 @@ private:
     /// The file of the document first, then the commit (F6): the writing of the result
     /// dialog through the saver of the tab, no widget
     void startOverwrite();
+
+    /// save_file of a tool, whose result is only a file (R6-27): its verified bytes by
+    /// PDFAppToolResultWriter::writeFileOnly in a worker (PDFAppMcpCatalogToolFileOnlyLink)
+    void startFileOnlyWrite();
 
     void finishWrite()
     {
@@ -1851,6 +2158,7 @@ private:
     PDFDocumentToolResult m_result;
     PDFDocumentPointer m_outputDocument;
     PDFModifiedDocument::ModificationFlags m_outputFlags = PDFModifiedDocument::Reset;
+    PDFDocumentToolOutputDocument m_newOutput;  ///< The output of the new document (its verified bytes of a tool, whose result is only a file)
     PDFDocumentPointer m_newDocument;           ///< The new document of the result (open_new_tab, save_file)
     QByteArray m_newDocumentData;               ///< Its bytes written by the run (empty = written by the write phase)
     QString m_newDocumentName;                  ///< Its suggested file name
@@ -1964,6 +2272,232 @@ void PDFAppMcpCatalogToolJob::startOverwrite()
     }
 }
 
+/// The write of the verified file of a tool, whose result is only a file (Sign with Certificate, Add
+/// Timestamp, Redact Content; plan of step 6 of phase 2, 4.4, R6-27), for save_file: the one rule of the
+/// result dialog - PDFAppToolResultWriter::writeFileOnly, the bytes the tool has written and verified or
+/// nothing, never its document written again.
+///
+/// Who holds whom: a child of the host; it owns the writer (its child) and holds the job until the
+/// writer reports. The host deleted meanwhile (the server stopped) deletes the link: the writer
+/// delivers nothing (the started worker ends its write, as PDFAppToolResultWriter says) and the call
+/// ends. The finished signal of the writer is the last call of its slot: the link goes later.
+class PDFAppMcpCatalogToolFileOnlyLink : public QObject
+{
+public:
+    PDFAppMcpCatalogToolFileOnlyLink(PDFAppMcpHost* host, std::shared_ptr<PDFAppMcpCatalogToolJob> job) :
+        QObject(host),
+        m_job(std::move(job))
+    {
+        m_writer = new PDFAppToolResultWriter(this);
+        connect(m_writer, &PDFAppToolResultWriter::finished, this, &PDFAppMcpCatalogToolFileOnlyLink::onWritten);
+    }
+
+    virtual ~PDFAppMcpCatalogToolFileOnlyLink() override
+    {
+        if (std::shared_ptr<PDFAppMcpCatalogToolJob> job = std::move(m_job))
+        {
+            job->onFileOnlyWriterDestroyed();
+        }
+    }
+
+    /// Starts the write (a worker; never replaces a file). \returns false, when the output has no
+    /// verified bytes (nothing is started, no signal)
+    bool write(const PDFDocumentToolOutputDocument& output, const QString& filePath, const QString& markSourceFilePath)
+    {
+        return m_writer && m_writer->writeFileOnly(output, filePath, markSourceFilePath, false);
+    }
+
+    /// Nothing will be written: the job goes on without the link
+    std::shared_ptr<PDFAppMcpCatalogToolJob> takeJob() { return std::move(m_job); }
+
+private:
+    void onWritten(const PDFAppToolResultWriter::Result& result)
+    {
+        // The job may finish the call and run the code of the application: nothing of the link is
+        // used after it (the link goes later with its writer)
+        std::shared_ptr<PDFAppMcpCatalogToolJob> job = std::move(m_job);
+        deleteLater();
+        if (job)
+        {
+            job->onFileOnlyWritten(result);
+        }
+    }
+
+    std::shared_ptr<PDFAppMcpCatalogToolJob> m_job;
+    QPointer<PDFAppToolResultWriter> m_writer;
+};
+
+void PDFAppMcpCatalogToolJob::startFileOnlyWrite()
+{
+    // The write needs no password (S5.1, as startWrite): the password and the PKCS#12 of the run go now,
+    // not when the written file reports back (review RS6APP)
+    m_request.secrets.reset();
+
+    // The rules of the path checked again after the confirmation (up to 2 minutes), as startWrite
+    QString pathError;
+    const QString path = PDFAppMcpArguments::checkPath(m_request.path, false, m_host->getContext(), &pathError);
+    if (path.isEmpty() || path != m_request.path)
+    {
+        fail(QStringLiteral("path: %1").arg(path.isEmpty() ? pathError : QStringLiteral("the path has changed since the confirmation; try again")), PDFMcpActivityStatus::Failed);
+        return;
+    }
+
+    const QString markSourceFilePath = m_request.document ? m_request.document->getOriginFilePath() : getSnapshot().filePath;
+    const std::shared_ptr<PDFAppMcpJob> keepAlive = shared_from_this();
+    QPointer<PDFAppMcpCatalogToolFileOnlyLink> link = new PDFAppMcpCatalogToolFileOnlyLink(m_host, std::static_pointer_cast<PDFAppMcpCatalogToolJob>(keepAlive));
+    if (!link->write(m_newOutput, path, markSourceFilePath))
+    {
+        // The link must not report the destruction of a write, which never started
+        const std::shared_ptr<PDFAppMcpCatalogToolJob> job = link->takeJob();
+        delete link.data();
+        fail(getNoVerifiedFileText(), PDFMcpActivityStatus::Failed);
+    }
+}
+
+/// The confirmation before the run of Add Timestamp (plan of step 6 of phase 2, 6.5, 6.6, R6-10, S6.6): the
+/// run sends a hash of the document to a timestamp authority, a third party - nothing is sent without
+/// the action of the user, so the user confirms the call in PDF4QT before the run, also with every
+/// permission Allow. Allowed starts the run with the network client of the application (the question
+/// was the question of the call: its result is not asked again); any other decision ends the call and
+/// nothing is sent.
+///
+/// Who holds whom: the confirmation holds this receiver (receiverHolder) while it waits, the host only a
+/// weak pointer; the receiver holds the call, the request (the document by QPointer) and the host by
+/// QPointer. The decision comes from the event loop of the host, never inside of start.
+class PDFAppMcpCatalogToolAuthorityConfirmation : public PDFAppMcpConfirmationReceiver
+{
+public:
+    PDFAppMcpCatalogToolAuthorityConfirmation(PDFAppMcpHost* host, std::shared_ptr<PDFMcpCall> call, PDFAppMcpCatalogToolRequest request) :
+        m_host(host),
+        m_call(std::move(call)),
+        m_request(std::move(request))
+    {
+
+    }
+
+    /// Asks the user (the checks of the handler have passed) or finishes the call
+    static void start(PDFAppMcpHost* host, const std::shared_ptr<PDFMcpCall>& call, PDFAppMcpCatalogToolRequest request)
+    {
+        const QString actionId = request.toolName + QLatin1Char('.') + request.actionName;
+        if (host->isConfirmationQueueFull(request.document))
+        {
+            host->finishWithError(call, actionId, request.document, PDFAppMcpHost::getConfirmationQueueFullText(), PDFMcpActivityStatus::Failed);
+            return;
+        }
+
+        const PDFDocumentToolCatalogEntry* entry = request.tool->getInfo();
+        const QString title = entry ? entry->getTitle() : actionId;
+        QVariantMap normalized;
+        PDFDocumentToolParameters::normalize(request.tool->getParameters(), request.parameters, &normalized);
+
+        std::shared_ptr<PDFAppMcpConfirmation> confirmation = std::make_shared<PDFAppMcpConfirmation>();
+        if (request.mode == PDFAppMcpToolResultMode::OpenNewTab)
+        {
+            confirmation->kind = PDFAppMcpConfirmationKind::NewTab;
+        }
+        else
+        {
+            confirmation->kind = PDFAppMcpConfirmationKind::SaveCopy;
+            confirmation->details.insert(QStringLiteral("path"), request.path);
+        }
+        confirmation->details.insert(QStringLiteral("content"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "The result of %1").arg(title));
+        confirmation->details.insert(QStringLiteral("tool"), title);
+
+        // What leaves the computer (S6.6): only a hash of the document - the authority also sees the
+        // address of the computer and the time
+        QJsonArray facts;
+        facts.append(QJsonObject({ { QStringLiteral("key"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "Timestamp authority") },
+                                   { QStringLiteral("value"), PDFTimestampClient::getDisplayUrl(QUrl(PDFAppMcpCatalogToolsHelper::getAuthorityUrl(normalized))) } }));
+        facts.append(QJsonObject({ { QStringLiteral("key"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "Sent") },
+                                   { QStringLiteral("value"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "Only a hash of the document; the authority also sees the address of this computer and the time") } }));
+        confirmation->details.insert(QStringLiteral("facts"), facts);
+
+        const PDFMcpClientContext& client = call->getRequest().client;
+        const PDFAppMcpPermissionKinds kinds = PDFAppMcpCatalogTools::getResultPermissions(request.mode, entry ? entry->getInputKind() : PDFDocumentToolInputKind::One);
+        confirmation->permissions = host->getPolicy().getKindsToConfirm(kinds, client.assistantKey, true);
+        confirmation->isAlwaysConfirmed = true;
+        confirmation->call = call;
+        confirmation->document = request.document;
+        confirmation->actionId = actionId;
+
+        std::shared_ptr<PDFAppMcpCatalogToolAuthorityConfirmation> receiver = std::make_shared<PDFAppMcpCatalogToolAuthorityConfirmation>(host, call, std::move(request));
+        confirmation->receiver = receiver;
+        confirmation->receiverHolder = receiver;
+
+        // A slot of the host may delete it: the request is denied at once then
+        host->requestConfirmation(confirmation);
+        receiver->m_activityId = confirmation->activityId;
+    }
+
+    virtual void confirmationFinished(quint64 confirmationId, PDFAppMcpDecision decision) override
+    {
+        Q_UNUSED(confirmationId);
+
+        PDFAppMcpHost* host = m_host;
+        if (!host || !m_call || m_call->isFinished())
+        {
+            return;
+        }
+
+        if (decision != PDFAppMcpDecision::Allowed)
+        {
+            // The waiting row shows the decision already; nothing was sent
+            m_call->finish(PDFMcpCallResult::createToolError(PDFAppMcpChangeJob::getDecisionText(decision)));
+            return;
+        }
+
+        // The document may have changed while the user decided: the run takes its version now; what
+        // the handler refused is refused again (nothing is sent for a run, which cannot be kept)
+        const QString actionId = m_request.toolName + QLatin1Char('.') + m_request.actionName;
+        PDFAppDocument* document = m_request.document;
+        if (!document)
+        {
+            host->finishWithError(m_call, m_activityId, actionId, nullptr, PDFAppMcpCatalogToolsHelper::getClosedText(), PDFMcpActivityStatus::DeniedClosed);
+            return;
+        }
+        if (m_call->isCanceled())
+        {
+            host->finishWithError(m_call, m_activityId, actionId, document, QStringLiteral("The request was canceled."), PDFMcpActivityStatus::Canceled);
+            return;
+        }
+        if (document->isBlockedByOperation())
+        {
+            host->finishWithError(m_call, m_activityId, actionId, document, PDFAppMcpCatalogToolsHelper::getBusyText(), PDFMcpActivityStatus::DeniedBusy);
+            return;
+        }
+        switch (PDFAppToolResultWriter::getDocumentRefusal(m_request.tool->getInfo(), document))
+        {
+            case PDFAppToolResultWriter::DocumentRefusal::Locked:
+                host->finishWithError(m_call, m_activityId, actionId, document, PDFAppMcpChangeJob::getLockedText(), PDFMcpActivityStatus::DeniedLocked);
+                return;
+            case PDFAppToolResultWriter::DocumentRefusal::DisplayVersion:
+                host->finishWithError(m_call, m_activityId, actionId, document, PDFAppMcpChangeJob::getPagedXFAText(), PDFMcpActivityStatus::Failed);
+                return;
+            case PDFAppToolResultWriter::DocumentRefusal::AttachmentsLocked:
+                host->finishWithError(m_call, m_activityId, actionId, document, PDFAppMcpChangeJob::getAttachmentsLockedText(), PDFMcpActivityStatus::Failed);
+                return;
+            case PDFAppToolResultWriter::DocumentRefusal::None:
+                break;
+        }
+
+        // S6.6: the network only now, after the action of the user
+        PDFAppMcpCatalogToolRequest request = m_request;
+        request.environment.timestampClient = PDFTimestampClient::createNetworkClient();
+
+        // The authority is trusted as in the Signatures panel and the GUI of the tool (DATA_TSA_TRUSTED)
+        request.environment.certificateStore = PDFAppDocumentToolCertificates::createVerificationStore(host->getContext());
+        std::shared_ptr<PDFAppMcpCatalogToolJob> job = std::make_shared<PDFAppMcpCatalogToolJob>(m_call, document->getSnapshot(), std::move(request), 0);
+        job->setConfirmedBefore(m_activityId);
+        PDFAppMcpCatalogToolJob::start(host, job);
+    }
+
+private:
+    QPointer<PDFAppMcpHost> m_host;
+    std::shared_ptr<PDFMcpCall> m_call;
+    PDFAppMcpCatalogToolRequest m_request;
+    qint64 m_activityId = 0;
+};
+
 /// The confirmation with the passwords of a protect action before its run (plan of step 5 of phase 2,
 /// 6.3, owner answer Q5.6, R5-12): an assistant never sends nor receives a password, the user types it
 /// in PDF4QT - also with every permission Allow. The dialog (PDFAppMcpSecretConfirmation) waits over
@@ -1984,10 +2518,11 @@ public:
     /// a time: it is a form the user fills in, never a queue of them)
     static QString getObjectName() { return QStringLiteral("mcpSecretRequest"); }
 
-    /// The action needs the values, which only the user types (a Secret of a tool changing the security)
+    /// The action needs the values, which only the user types (a Secret of a tool of the catalog property
+    /// isSecretTypedInApplication: the tools of Encryption, Sign with Certificate - plan of step 6, R6-10)
     static bool isNeeded(const PDFDocumentToolCatalogEntry* entry, const PDFDocumentTool* tool)
     {
-        if (!entry || !tool || !entry->isSecurityChange())
+        if (!entry || !tool || !entry->isSecretTypedInApplication())
         {
             return false;
         }
@@ -2108,11 +2643,15 @@ private:
             errors = request.tool->validate(PDFDocumentToolRunner::createContext(snapshot, request.environment), normalized);
         }
 
+        // The certificate of Sign with Certificate is chosen by the user in the confirmation (the one of the
+        // assistant is only a preselection, Q6.7): its errors are the user's, in the dialog
+        const bool isSigning = PDFAppMcpCatalogToolsHelper::isSignTool(request.tool->getId());
         QStringList messages;
         for (const PDFDocumentToolParameterError& error : errors)
         {
             const PDFDocumentToolParameterDefinition* definition = PDFDocumentToolParameters::find(definitions, error.parameter);
-            if (!definition || !definition->isMcpExcluded())
+            const bool isChosenByUser = isSigning && error.parameter == QLatin1String(PDFDocumentToolSignature::PARAMETER_CERTIFICATE);
+            if ((!definition || !definition->isMcpExcluded()) && !isChosenByUser)
             {
                 messages << (error.parameter.isEmpty() ? error.message : QStringLiteral("%1.%2: %3").arg(request.actionName, error.parameter, error.message));
             }
@@ -2153,9 +2692,18 @@ private:
                 }
                 break;
             }
-            case PDFAppMcpToolResultMode::Keep:
-            case PDFAppMcpToolResultMode::OpenNewTab:
             case PDFAppMcpToolResultMode::SaveFile:
+                // Sign with Certificate (plan of step 6 of phase 2, 8): its signed copy is a new file - the
+                // variant of a copy (958:27539) with its path
+                confirmation->kind = PDFAppMcpConfirmationKind::SaveCopy;
+                confirmation->details.insert(QStringLiteral("path"), request.path);
+                confirmation->details.insert(QStringLiteral("content"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "The result of %1").arg(title));
+                break;
+            case PDFAppMcpToolResultMode::OpenNewTab:
+                confirmation->kind = PDFAppMcpConfirmationKind::NewTab;
+                confirmation->details.insert(QStringLiteral("content"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "The result of %1").arg(title));
+                break;
+            case PDFAppMcpToolResultMode::Keep:
             case PDFAppMcpToolResultMode::ReturnText:
             case PDFAppMcpToolResultMode::SaveFiles:
                 confirmation->kind = PDFAppMcpConfirmationKind::Change;
@@ -2300,6 +2848,27 @@ private:
 
         PDFAppMcpCatalogToolRequest request = std::move(m_request);
         request.secrets = std::move(secrets);
+
+        // S6.6: Sign with a timestamp contacts the authority only now, after the user has confirmed
+        QVariantMap normalized;
+        PDFDocumentToolParameters::normalize(request.tool->getParameters(), request.parameters, &normalized);
+        if (PDFAppMcpCatalogToolsHelper::isContactingAuthority(request.tool->getId(), normalized))
+        {
+            request.environment.timestampClient = PDFTimestampClient::createNetworkClient();
+
+            // The authority is trusted as in the Signatures panel and the GUI of the tool (DATA_TSA_TRUSTED)
+            request.environment.certificateStore = PDFAppDocumentToolCertificates::createVerificationStore(host->getContext());
+        }
+
+        // Q6.2: a key of the store of Windows asks for its PIN in a dialog of the system, whose parent is
+        // the main window of the tab of the document (PDFDocumentToolContext::parentWindow)
+        if (PDFAppMcpCatalogToolsHelper::isSignTool(request.tool->getId()))
+        {
+            const QWidget* tab = m_host->getResolver().findTab(document);
+            const QWidget* window = tab ? tab->window() : nullptr;
+            request.environment.parentWindow = window ? quintptr(window->winId()) : 0;
+        }
+
         std::shared_ptr<PDFAppMcpCatalogToolJob> job = std::make_shared<PDFAppMcpCatalogToolJob>(m_call, document->getSnapshot(), std::move(request), 0);
         job->setConfirmedBefore(m_activityId);
         PDFAppMcpCatalogToolJob::start(m_host.data(), job);
@@ -2329,14 +2898,31 @@ private:
 
     void onDocumentDestroyed()
     {
-        // The slot of destroyed only ends the call (the tab deletes the scrim with the dialog)
-        end(PDFAppMcpChangeJob::getDecisionText(PDFAppMcpDecision::DeniedClosed), PDFMcpActivityStatus::DeniedClosed);
+        // A slot of destroyed only forgets (CLAUDE.md lifetime: the sender is inside of its destructor);
+        // the call ends from the event loop (the tab deletes the scrim with the dialog)
+        queueClosedEnd();
     }
 
     void onDialogDestroyed()
     {
-        // The tab has deleted the scrim before the end of the dialog (the tab closes)
+        // The tab has deleted the scrim before the end of the dialog (the tab closes): the dialog is
+        // forgotten, the call ends from the event loop
         m_dialog = nullptr;
+        queueClosedEnd();
+    }
+
+    void queueClosedEnd()
+    {
+        if (!m_isEnded && !m_isClosedEndQueued)
+        {
+            m_isClosedEndQueued = true;
+            QMetaObject::invokeMethod(this, &PDFAppMcpCatalogToolSecretRequest::onClosedEndQueued, Qt::QueuedConnection);
+        }
+    }
+
+    void onClosedEndQueued()
+    {
+        m_isClosedEndQueued = false;
         end(PDFAppMcpChangeJob::getDecisionText(PDFAppMcpDecision::DeniedClosed), PDFMcpActivityStatus::DeniedClosed);
     }
 
@@ -2347,6 +2933,7 @@ private:
     QPointer<PDFAppMcpSecretConfirmation> m_dialog;
     QTimer m_cancelTimer;
     bool m_isEnded = false;
+    bool m_isClosedEndQueued = false;   ///< queueClosedEnd: the end of a closed document or dialog waits for the event loop
 };
 
 /// The handler of every category tool
@@ -2385,9 +2972,67 @@ public:
 
         const PDFAppMcpToolResultMode mode = PDFAppMcpCatalogTools::getResultMode(resultValue.value_or(PDFAppMcpCatalogTools::getDefaultResult(*entry))).value_or(PDFAppMcpToolResultMode::Keep);
 
+        // An analysis without a document (Manage Certificates: a list, plan of step 6 of phase 2, 6.5) has
+        // no result to keep or to write: a value, which would be ignored, is an error (owner decision 5)
+        if (resultValues.isEmpty() && (invocation.arguments.contains(QLatin1StringView("result")) || pathValue))
+        {
+            host->finishWithError(call, toolId, nullptr, QStringLiteral("result: %1 returns its data; it takes neither result nor path.").arg(entry->getSourceTitle()), PDFMcpActivityStatus::Failed);
+            return;
+        }
+
         // The kind of the result of these parameters (Extract Pages: one file = a new document,
         // one file per page = files, plan 4.2): save_files is the result of the files only
         QVariantMap actionParameters = invocation.actionArguments.toVariantMap();
+
+        // Sign with Certificate signs only invisibly through MCP (plan of step 6 of phase 2, 6.5, Q6.7,
+        // R6-20): its schema has no appearance, the action gives it
+        if (Helper::isSignTool(toolId))
+        {
+            actionParameters.insert(QString::fromLatin1(PDFDocumentToolSignature::PARAMETER_APPEARANCE), QString::fromLatin1(PDFDocumentToolSignature::APPEARANCE_INVISIBLE));
+        }
+
+        // The parameters with their defaults: what the checks before the run decide by (the run normalizes
+        // and validates again; an error of a value is reported by it)
+        QVariantMap normalizedParameters;
+        const std::vector<PDFDocumentToolParameterError> normalizeErrors = PDFDocumentToolParameters::normalize(tool->getParameters(), actionParameters, &normalizedParameters);
+
+        // The certificate of Sign with Certificate is only a preselection of the assistant (Q6.7): a value,
+        // which is no valid text, is dropped - else the parameters would normalize to none and the checks
+        // below (the authority, the facts of the confirmation, the client of the run) would not see the
+        // type with a timestamp (review RS6APP)
+        if (Helper::isSignTool(toolId) && std::any_of(normalizeErrors.cbegin(), normalizeErrors.cend(), &Helper::isCertificateError))
+        {
+            actionParameters.remove(QString::fromLatin1(PDFDocumentToolSignature::PARAMETER_CERTIFICATE));
+            normalizedParameters.clear();
+            PDFDocumentToolParameters::normalize(tool->getParameters(), actionParameters, &normalizedParameters);
+        }
+
+        // A timestamp authority only of the list of the user (6.5, Q6.7): an assistant never makes PDF4QT
+        // send a request to another computer
+        if (Helper::isContactingAuthority(toolId, normalizedParameters))
+        {
+            const QString authorityError = Helper::checkAuthorityUrl(host->getContext(), Helper::getAuthorityUrl(normalizedParameters));
+            if (!authorityError.isEmpty())
+            {
+                host->finishWithError(call, toolId, nullptr, authorityError, PDFMcpActivityStatus::Failed);
+                return;
+            }
+        }
+
+        // R6-20: the confirmation of Sign by Hand shows every element of the drawing on its page; Show on
+        // Page draws at most PDFAppMcpGhost::MAXIMUM_GHOSTS ghosts, so a larger drawing (the core allows
+        // PDFPageDrawing::MAXIMUM_ELEMENT_COUNT) would write elements, which the user has never seen
+        if (toolId == QLatin1String(PDFDocumentToolSignByHand::TOOL_ID))
+        {
+            const std::optional<PDFPageDrawing> drawing = Helper::readDrawing(normalizedParameters);
+            if (drawing && drawing->getElements().size() > size_t(PDFAppMcpGhost::MAXIMUM_GHOSTS))
+            {
+                host->finishWithError(call, toolId, nullptr, QStringLiteral("elements: at most %1 elements can be drawn through the assistant (the user sees each one before it is written).")
+                                                                 .arg(PDFAppMcpGhost::MAXIMUM_GHOSTS), PDFMcpActivityStatus::Failed);
+                return;
+            }
+        }
+
         const PDFDocumentToolResultKind resultKind = tool->getResultKind(actionParameters);
         const bool isWritingFiles = PDFAppMcpCatalogTools::isWritingFiles(tool.get()) && resultKind == PDFDocumentToolResultKind::Files;
         if (isWritingFiles != (mode == PDFAppMcpToolResultMode::SaveFiles))
@@ -2629,11 +3274,15 @@ public:
 
             // The permissions of the document (the shared check, Table 22): which permission
             // is missing and that the user can unlock the document in PDF4QT - the assistant
-            // never asks for the owner password and never receives it (owner 2026-11-08)
+            // never asks for the owner password and never receives it (owner 2026-11-08). The
+            // tool answers by the parameters of the call (PDFDocumentTool::getRequiredPermissions,
+            // plan of step 6 of phase 2, R6-8: Sign with Certificate into an existing field needs
+            // bit 9 only, a new field bits 4 and 6)
             const PDFDocument* pdfDocument = document->isReady() ? document->getDocument().data() : nullptr;
-            if (pdfDocument && !PDFAppDocumentPermissions::isAllowed(pdfDocument, PDFAppPermissionRequest::createTool(toolId)))
+            const PDFAppPermissionRequest permissionRequest = PDFAppPermissionRequest::createTool(toolId, { }, normalizedParameters);
+            if (pdfDocument && !PDFAppDocumentPermissions::isAllowed(pdfDocument, permissionRequest))
             {
-                host->finishWithError(call, toolId, document, PDFAppDocumentPermissions::getMcpRefusalText(pdfDocument, PDFAppPermissionRequest::createTool(toolId)), PDFMcpActivityStatus::Failed);
+                host->finishWithError(call, toolId, document, PDFAppDocumentPermissions::getMcpRefusalText(pdfDocument, permissionRequest), PDFMcpActivityStatus::Failed);
                 return;
             }
 
@@ -2739,11 +3388,31 @@ public:
         request.environment.rendering = PDFAppDocumentView::createToolRenderContext(host->getContext());
         request.document = document;
 
-        // A protect action, whose passwords only the user types (plan of step 5 of phase 2, 6.3, Q5.6):
-        // the confirmation of PDF4QT first, also with every permission Allow
+        // Manage Certificates lists the trusted certificates of the user too (read only, plan of step 6 of
+        // phase 2, 6.5: an assistant never changes the trust)
+        if (toolId == QLatin1String(PDFAppDocumentToolCertificates::TOOL_ID))
+        {
+            request.environment.certificateStore = PDFAppDocumentToolCertificates::createTrustedStore(host->getContext() ? host->getContext()->getDatabase() : nullptr);
+
+            // The public certificates of the cache (the run has no database): a .pfx file the user has
+            // opened in PDF4QT has its details and fingerprint - never its PKCS#12 nor a password
+            request.environment.userCertificates = PDFAppDocumentToolCertificates::createCachedCertificates(host->getContext());
+        }
+
+        // A protect action, whose passwords only the user types (plan of step 5 of phase 2, 6.3, Q5.6; Sign
+        // with Certificate, plan of step 6, 6.5, Q6.7): the confirmation of PDF4QT first, also with every
+        // permission Allow
         if (PDFAppMcpCatalogToolSecretRequest::isNeeded(entry, tool.get()))
         {
             PDFAppMcpCatalogToolSecretRequest::start(host, call, std::move(request), snapshot);
+            return;
+        }
+
+        // Add Timestamp: a hash of the document goes to the authority only after the user has confirmed
+        // it (S6.6), also with every permission Allow
+        if (Helper::isContactingAuthority(toolId, normalizedParameters))
+        {
+            PDFAppMcpCatalogToolAuthorityConfirmation::start(host, call, std::move(request));
             return;
         }
         PDFAppMcpCatalogToolJob::start(host, std::make_shared<PDFAppMcpCatalogToolJob>(call, snapshot, std::move(request), 0));
@@ -2822,6 +3491,13 @@ bool PDFAppMcpCatalogTools::isWritingFiles(const PDFDocumentTool* tool)
 
 QStringList PDFAppMcpCatalogTools::getToolResultValues(const PDFDocumentToolCatalogEntry& entry, const PDFDocumentTool* tool)
 {
+    // An analysis, which reads no document (Manage Certificates of step 6 of phase 2: a list of the
+    // certificates, 6.5), has nothing to keep or to save: its data are the result
+    if (entry.getResultKind() == PDFDocumentToolResultKind::Analysis && !PDFAppMcpCatalogToolsHelper::usesDocument(entry.getInputKind()))
+    {
+        return QStringList();
+    }
+
     if (!tool || !isWritingFiles(tool))
     {
         // An output, which is no text (the WAV of Create Audio Book), is only written - return_text

@@ -173,6 +173,7 @@ QString PDFAppToolParameterModel::setValues(const QVariantMap& values, const QSt
         m_undoStack.erase(m_undoStack.begin());
     }
     m_redoStack.clear();
+    ++m_recordedStepCount;
     applyValues(newValues);
     return QString();
 }

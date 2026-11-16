@@ -38,6 +38,7 @@
 // and of the controller, and the pending calls of the assistants are finished.
 
 #include "appmcpfixture.h"
+#include "apptestcertificatefolders.h"
 
 #include "testdocumenttool.h"
 
@@ -57,7 +58,11 @@
 #include "pdfappmcppreview.h"
 #include "pdfappmcpsecretconfirmation.h"
 #include "pdfapptoolgui_encryption.h"
+#include "pdfapptoolgui_signature.h"
+#include "pdfapptoolgui_signbyhand.h"
 #include "pdfapptoolpasswordcard.h"
+#include "pdfdocumenttool_signature.h"
+#include "pdftoolparameterrepository.h"
 #include "pdffluentwidgets.h"
 #include "pdfappnavigator.h"
 #include "pdfapproute.h"
@@ -980,6 +985,113 @@ std::vector<McpLifetimeStep> McpLifetimeHelper::scenario(const QString& name, Mc
         return steps;
     }
 
+    if (name == QStringLiteral("sign") || name == QStringLiteral("signbyhand") || name == QStringLiteral("timestamp"))
+    {
+        // The confirmations of step 6 of phase 2 (package P6; plan 6.5, R6-10, R6-20): Sign with
+        // Certificate - the confirmation with the list of the certificates in the signing mode, the
+        // password of the .pfx file, Save Copy and the run, which writes the verified file; Sign by Hand -
+        // the confirmation of a change with the ghosts of the drawing, Show on Page and Allow of the
+        // preview bar; Add Timestamp - the confirmation before the run (nothing is sent), Deny. The waits
+        // of "protect" make the sites of the steps the same in every run
+        H::waitFor([&fixture]() { return fixture.host() && fixture.host()->getPolicy().getPermissions() == pdf::PDFAppMcpPermissions::createAll(Permission::Allow); }, 5000);
+        if (fixture.host())
+        {
+            fixture.host()->checkToolRegistry();
+            H::settle();
+        }
+        H::waitFor([]() { return false; }, 1500);
+
+        if (name == QStringLiteral("sign"))
+        {
+            steps.push_back([](McpLifetimeRun& run)
+            {
+                QJsonObject arguments = H::json(R"({"action":"sign"})");
+                arguments.insert(QStringLiteral("documentId"), run.documentId);
+                arguments.insert(QStringLiteral("path"), run.fixture->path(QStringLiteral("signed.pdf")));
+                const bool isStarted = H::startCall(run, QStringLiteral("protect"), arguments);
+                H::waitFor([&run]() { return !run.window || pdftest::AppDocumentFixture::findDialog<pdf::PDFAppMcpSecretConfirmation>() || (run.call && run.call->isFinished()); }, 10000);
+                pdf::PDFAppMcpSecretConfirmation* confirmation = pdftest::AppDocumentFixture::findDialog<pdf::PDFAppMcpSecretConfirmation>();
+                if (confirmation)
+                {
+                    confirmation->setInputDelay(0);
+                }
+                return isStarted && confirmation && confirmation->isSigning();
+            });
+            steps.push_back([](McpLifetimeRun& run)
+            {
+                Q_UNUSED(run);
+                pdf::PDFAppMcpSecretConfirmation* confirmation = pdftest::AppDocumentFixture::findDialog<pdf::PDFAppMcpSecretConfirmation>();
+                QPointer<pdf::PDFLineEdit> field = confirmation && confirmation->getCertificatePasswordCard() ? confirmation->getCertificatePasswordCard()->getPasswordField() : nullptr;
+                if (!field)
+                {
+                    return false;
+                }
+                field->setFocus();
+                QTest::keyClicks(field.data(), QStringLiteral("Lifetime-7q"));
+                H::settle();
+                return true;
+            });
+            steps.push_back([](McpLifetimeRun& run)
+            {
+                pdf::PDFAppMcpSecretConfirmation* confirmation = pdftest::AppDocumentFixture::findDialog<pdf::PDFAppMcpSecretConfirmation>();
+                const bool isOk = confirmation && H::click(confirmation->getAllowButton()) && H::finishCall(run);
+                H::waitFor([]() { return false; }, 500);
+                return isOk;
+            });
+        }
+        else if (name == QStringLiteral("signbyhand"))
+        {
+            steps.push_back([](McpLifetimeRun& run)
+            {
+                QJsonObject arguments = H::json(R"({"action":"sign-by-hand","sign-by-hand":{"elements":"[{\"kind\": \"text\", \"page\": 1, \"rect\": [40, 300, 120, 20], \"text\": \"Jane Novak\"}, {\"kind\": \"freehand-curve\", \"page\": 1, \"points\": [[50, 50], [60, 70], [80, 55]]}]"}})");
+                arguments.insert(QStringLiteral("documentId"), run.documentId);
+                return H::startCall(run, QStringLiteral("protect"), arguments) && H::waitDialog(run);
+            });
+            steps.push_back([](McpLifetimeRun& run)
+            {
+                // Show on Page: the ghosts of the drawing and the preview bar
+                pdf::PDFAppMcpConfirmDialog* confirmDialog = H::dialog(run);
+                return confirmDialog && H::click(confirmDialog->getShowOnPageLink()) &&
+                       H::waitFor([&run]() { return H::ui(run) && H::ui(run)->getPreviewBar() && H::ui(run)->getPreviewBar()->isVisible(); });
+            });
+            steps.push_back([](McpLifetimeRun& run)
+            {
+                pdf::PDFAppMcpPreviewBar* bar = H::ui(run) ? H::ui(run)->getPreviewBar() : nullptr;
+                const bool isOk = bar && H::click(bar->getAllowButton()) && H::finishCall(run);
+                H::waitFor([]() { return false; }, 500);
+                return isOk;
+            });
+        }
+        else
+        {
+            // An authority of the list of the user (the last value of tsaUrl of Add Timestamp)
+            const pdf::PDFDocumentToolSignature tool(pdf::PDFDocumentToolSignature::Mode::Timestamp);
+            const pdf::PDFDocumentToolParameterDefinitions definitions = tool.getParameters();
+            const pdf::PDFDocumentToolParameterDefinition* definition = pdf::PDFDocumentToolParameters::find(definitions, QString::fromLatin1(pdf::PDFDocumentToolSignature::PARAMETER_TSA_URL));
+            if (!definition || !fixture.context || pdf::PDFToolParameterRepository(fixture.context->getDatabase()).setValue(tool.getId(), *definition, QStringLiteral("http://127.0.0.1:9/tsr")).isError())
+            {
+                return std::vector<McpLifetimeStep>();
+            }
+            H::waitFor([]() { return false; }, 500);
+
+            steps.push_back([](McpLifetimeRun& run)
+            {
+                QJsonObject arguments = H::json(R"({"action":"timestamp","timestamp":{"tsaUrl":"http://127.0.0.1:9/tsr"}})");
+                arguments.insert(QStringLiteral("documentId"), run.documentId);
+                arguments.insert(QStringLiteral("path"), run.fixture->path(QStringLiteral("timestamped.pdf")));
+                return H::startCall(run, QStringLiteral("protect"), arguments) && H::waitDialog(run);
+            });
+            steps.push_back([](McpLifetimeRun& run)
+            {
+                pdf::PDFAppMcpConfirmDialog* confirmDialog = H::dialog(run);
+                const bool isOk = confirmDialog && H::click(confirmDialog->getDenyButton()) && H::finishCall(run, true);
+                H::waitFor([]() { return false; }, 500);
+                return isOk;
+            });
+        }
+        return steps;
+    }
+
     if (name == QStringLiteral("read"))
     {
         if (!fixture.setPermission(Kind::Read, Permission::Ask))
@@ -1381,7 +1493,11 @@ private Q_SLOTS:
 private:
     static constexpr int PART_COUNT = 4;
 
-    static QStringList getScenarios() { return { QStringLiteral("read"), QStringLiteral("edit"), QStringLiteral("files"), QStringLiteral("catalog"), QStringLiteral("stream"), QStringLiteral("ai"), QStringLiteral("protect") }; }
+    static QStringList getScenarios()
+    {
+        return { QStringLiteral("read"), QStringLiteral("edit"), QStringLiteral("files"), QStringLiteral("catalog"), QStringLiteral("stream"), QStringLiteral("ai"), QStringLiteral("protect"),
+                 QStringLiteral("sign"), QStringLiteral("signbyhand"), QStringLiteral("timestamp") };
+    }
 
     /// Runs the scenario. In the replay mode the victim is deleted at the target
     /// site. \returns the sites seen (discovery) and whether the victim was deleted.
@@ -1397,6 +1513,15 @@ void AppMcpLifetimeTest::initTestCase()
 
     // The four tools of the encryption with their GUI (the scenario "protect")
     pdf::PDFAppToolGUIEncryption::registerEncryptionTools();
+
+    // Step 6 of phase 2 (the scenarios "sign", "signbyhand", "timestamp"): the tools with their GUI and a
+    // certificate of the test (made at run time in the temporary certificate folders of the process; the
+    // password of the scenario "sign")
+    pdf::PDFAppToolGUISignature::registerSignatureTools();
+    pdf::PDFAppToolGUISignByHand::registerSignByHandTools();
+    pdftest::AppTestCertificateFolders::installForProcess();
+    QVERIFY(!pdftest::AppTestCertificateFolders::create(pdf::PDFCertificateManager::getCertificateDirectory(), QStringLiteral("jane_novak.pfx"), QStringLiteral("Jane Novak"),
+                                                       QStringLiteral("Lifetime-7q"), 2048).isEmpty());
 }
 
 void AppMcpLifetimeTest::cleanup()

@@ -98,6 +98,9 @@ public:
             {
                 (*m_function)(*it);
             }
+
+            // Before the caller goes on: the state the items left in the thread is released
+            releaseThreadResources();
             PDFThreadAnnotations::happensBefore(m_semaphore.get());
         }
 
@@ -218,15 +221,28 @@ public:
             PDFThreadAnnotations::happensAfter(this);
             PDFThreadAnnotations::forget(this);
             m_function();
+            releaseThreadResources();
         }
 
     private:
         Function m_function;
     };
 
+    /// Releases the state, which libraries keep for the calling thread (the error queue and
+    /// the generators of random numbers of OpenSSL: PDFSignatureHandler::releaseThreadResources).
+    /// Every task of a thread pool started by startTask or execute calls it at its end, so a
+    /// task never leaves such a state in a thread of a pool: a thread of a pool can be alive
+    /// at the exit of the application, and the cleanup of OpenSSL at the exit does not release
+    /// the state of a thread, which still runs (a decryption, a signature, a certificate). The
+    /// next task of the thread creates it again, when it needs it.
+    static void releaseThreadResources();
+
     /// Starts a function in a thread pool (instead of QThreadPool::start with a
     /// callable): everything the calling thread did before the call happens before
-    /// the function also for the race detectors (see PDFThreadAnnotations).
+    /// the function also for the race detectors (see PDFThreadAnnotations). The thread
+    /// releases its resources after the function (releaseThreadResources); a function,
+    /// which holds the last reference to its data, drops it before it returns, so the
+    /// data die before that.
     /// \param pool Thread pool
     /// \param function Function, which is called in a thread of the pool
     template<typename Function>

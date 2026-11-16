@@ -47,6 +47,7 @@
 
 #include "pdfapptoolgui_encryption.h"
 #include "pdfcertificatemanager.h"
+#include "pdfcertificatestore.h"
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
 #include "pdfdocumentbuilder.h"
@@ -66,6 +67,7 @@
 #include <QPushButton>
 #include <QScopeGuard>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QToolButton>
 #include <QTranslator>
 #include <QtTest>
@@ -333,6 +335,54 @@ public:
         QVERIFY(part->prepareRun(&parameters, &certificates, &error));
         QCOMPARE(certificates.size(), size_t(1));
         QVERIFY(parameters.value(QString::fromLatin1(pdf::PDFDocumentToolEncryption::PARAMETER_CERTIFICATE_PASSWORD)).toString().isEmpty());
+    }
+
+    /// A certificate of the system store (the addendum of the owner of 15. 11.) - a store in the memory
+    /// of the process, never the store of the machine: the row is choosable, no password is asked (the
+    /// field hidden, "Not needed" shown), the run gets the fingerprint, no password and the entry of
+    /// the store - its public certificate without PKCS#12 (the recipient, 7.6.5.3)
+    static void systemStoreRecipient()
+    {
+        CertificatePresetFixture fixture;
+        QTemporaryDir storeFolder;
+        QVERIFY(storeFolder.isValid());
+        const QString source = pdftest::AppTestCertificateFolders::create(storeFolder.path(), QStringLiteral("company.pfx"), QStringLiteral("Jane Novak"), QStringLiteral("store-password"));
+        QVERIFY(!source.isEmpty());
+        const QByteArray pkcs12 = CertificatePresetFixture::read(source);
+        std::shared_ptr<const pdf::PDFPersonalCertificateStore> store = pdf::PDFPersonalCertificateStore::createMemoryStore(pkcs12, QByteArrayLiteral("store-password"));
+        if (!store)
+        {
+            QSKIP("No store of the system on this platform (Q6.2: Windows only)");
+        }
+        pdf::PDFPersonalCertificateStore::setStore(store);
+        pdf::PDFAppToolCertificateProvider::setSystemStoreIncluded(true);
+        auto storeGuard = qScopeGuard([]() { pdf::PDFPersonalCertificateStore::setStore(nullptr); pdf::PDFAppToolCertificateProvider::setSystemStoreIncluded(false); });
+
+        fixture.createPart();
+        pdf::PDFAppToolCertificatePresetPart* part = fixture.part;
+        QVERIFY(part->hasCertificates());
+        const std::optional<pdf::PDFAppToolCertificateItem> chosen = part->getChosenCertificate();
+        QVERIFY(chosen);
+        QCOMPARE(chosen->source, pdf::PDFAppToolCertificateItem::Source::SystemStore);
+        QCOMPARE(chosen->state, pdf::PDFAppToolCertificateItem::State::Valid);
+        QVERIFY(part->isConfirmEnabled());
+        QVERIFY(part->getPasswordFrame()->findChild<QWidget*>(QStringLiteral("certificateNoPassword"))->isVisible());
+        QVERIFY(!part->getPasswordCard()->isVisible());
+        QCOMPARE(part->getStatusText(), QStringLiteral("Only the holder of the private key of “Jane Novak” will be able to open the document"));
+
+        QVariantMap parameters;
+        std::vector<pdf::PDFCertificateEntry> certificates;
+        QString error;
+        QVERIFY2(part->prepareRun(&parameters, &certificates, &error), qPrintable(error));
+        const QByteArray der = pdf::PDFCertificateManager::readCertificate(pkcs12, QStringLiteral("store-password"))->getCertificateData();
+        const QString fingerprint = QString::fromLatin1(QCryptographicHash::hash(der, QCryptographicHash::Sha256).toHex());
+        QCOMPARE(parameters.value(QString::fromLatin1(pdf::PDFDocumentToolEncryption::PARAMETER_CERTIFICATE)).toString(), fingerprint);
+        QVERIFY(!parameters.contains(QString::fromLatin1(pdf::PDFDocumentToolEncryption::PARAMETER_CERTIFICATE_PASSWORD)));
+        QCOMPARE(certificates.size(), size_t(1));
+        QCOMPARE(certificates.front().type, pdf::PDFCertificateEntry::EntryType::System);
+        QVERIFY(certificates.front().pkcs12.isEmpty());
+        QCOMPARE(certificates.front().info.getCertificateData(), der);
+        QVERIFY(pdf::PDFSecurityHandlerFactory::isSystemStoreCertificate(certificates.front()));
     }
 
     /// The choice: the last used certificate (the cache, plan 4.1), a click on another row, the
@@ -771,6 +821,7 @@ void AppToolEncryptionPackages::registerCertificateCases(std::vector<AppToolEncr
     cases->push_back({ QStringLiteral("certificate-wrong-password"), &CertificatePresetCases::wrongPassword });
     cases->push_back({ QStringLiteral("certificate-run-values"), &CertificatePresetCases::runValues });
     cases->push_back({ QStringLiteral("certificate-no-password"), &CertificatePresetCases::fileWithoutPassword });
+    cases->push_back({ QStringLiteral("certificate-system-store"), &CertificatePresetCases::systemStoreRecipient });
     cases->push_back({ QStringLiteral("certificate-choice"), &CertificatePresetCases::choice });
     cases->push_back({ QStringLiteral("certificate-restricted"), &CertificatePresetCases::restrictedCallout });
     cases->push_back({ QStringLiteral("certificate-portable"), &CertificatePresetCases::portableMode });

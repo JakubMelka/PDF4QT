@@ -472,7 +472,10 @@ void PDFTextLayout::addCharacter(const PDFTextCharacterInfo& info)
     QLineF fontMappedLine = info.matrix.map(fontTestLine);
     character.fontSize = fontMappedLine.length();
 
-    const QRectF boundingBox = info.outline ? info.outline->getBoundingRect() : QRectF();
+    // B147: a glyph of a Type 3 font has no outline (it is a content stream); its box is given in its
+    // own space (the box of d1, /FontBBox, an estimate - PDFPageContentProcessor), which the matrix maps
+    // (ISO 32000-2, 9.6.4). Without an outline and a box the character has a box of zero size.
+    const QRectF boundingBox = info.outline ? info.outline->getBoundingRect() : info.glyphBox;
     character.boundingBox = PDFTextBoundingBox(PDFTextBoundingBox::Points{ info.matrix.map(boundingBox.topLeft()),
                                                                            info.matrix.map(boundingBox.topRight()),
                                                                            info.matrix.map(boundingBox.bottomRight()),
@@ -2215,9 +2218,13 @@ QPainterPath PDFTextSelectionPainter::prepareGeometry(PDFInteger pageIndex, PDFT
 
             if (boundingBox.isValid())
             {
-                // Enlarge height by some percent
+                // Enlarge height by some percent; B151: the width by a margin of 0.5 pt on both sides
+                // (the box of an outline is tight, an antialiased edge of a glyph reaches beyond it,
+                // and a redaction of the selection must cover the whole glyph). The boxes are in the
+                // points of the page rotated to the line, so the margin is in points.
+                constexpr PDFReal SELECTION_WIDTH_MARGIN = 0.5;
                 PDFReal heightAdvance = boundingBox.height() * HEIGHT_INCREASE_FACTOR * 0.5;
-                boundingBox.adjust(0, -heightAdvance, 0, heightAdvance);
+                boundingBox.adjust(-SELECTION_WIDTH_MARGIN, -heightAdvance, SELECTION_WIDTH_MARGIN, heightAdvance);
                 currentPath.addRect(boundingBox);
 
                 if (quadrilaterals)

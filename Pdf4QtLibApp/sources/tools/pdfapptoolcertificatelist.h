@@ -33,6 +33,7 @@
 #include <QVariantMap>
 #include <QWidget>
 
+#include <atomic>
 #include <optional>
 #include <vector>
 
@@ -52,6 +53,14 @@ class PDFAppToolPanelBuilder;
 class PDFAppToolPasswordCard;
 class PDFLabel;
 class PDFTileRow;
+
+/// What the certificates of a list are for (plan of step 6 of phase 2, 4.5, 10.3; package P5 implements
+/// the rules of Signing): the states of the rows and which rows of the system store can be chosen
+enum class PDFAppToolCertificateUsage
+{
+    Encryption, ///< Encrypt with Certificate and its confirmation of MCP (step 5): keyEncipherment of an RSA key; the system store Disabled (Q5.4)
+    Signing     ///< Sign with Certificate and its confirmation of MCP (step 6): digitalSignature or nonRepudiation, an extended key usage allowing the signing (5.3, B116); the rows of the system store of Windows can be chosen (Q6.2), not on Linux and macOS (no system rows)
+};
 
 /// One row of the list of the certificates of Encrypt with Certificate (Figma 433:3049, 433:4208;
 /// plan of step 5 of phase 2, 4.2, K5.9, owner answers Q5.4, Q5.5, Q5.11, R5-18). Plain values; a
@@ -75,13 +84,16 @@ public:
         Locked,             ///< A .pfx file never unlocked: the file name and "Details are shown after the password" (Q5.11); can be chosen
         Expired,            ///< Out of its validity (433:3049, red text), Disabled
         NoEncryptionUsage,  ///< Without keyEncipherment (B99, an old certificate of the old Editor), Disabled
-        SystemStore         ///< A certificate of the system store: Disabled "System certificates will be supported with Manage Certificates" (Q5.4)
+        NoSigningUsage     ///< The list for signing (PDFAppToolCertificateUsage::Signing): no digitalSignature nor nonRepudiation, or an extended key usage, which does not allow the signing of documents (plan of step 6 of phase 2, 5.3, B116), Disabled
     };
 
     Source source = Source::PfxFile;
     State state = State::Locked;
-    QString filePath;               ///< The .pfx file (shown only as its name; never given to MCP)
+    QString filePath;               ///< The .pfx file (shown only as its name; never given to MCP); a row of the system store has the identifier "system-store:<fingerprint>" (PDFAppToolCertificateProvider::getSystemStorePath; no file - findEntry resolves it)
     QString fingerprint;            ///< SHA-256 of the certificate (PDFDocumentToolEncryption::getCertificateFingerprint); empty while Locked
+    QByteArray certificateData;     ///< DER of the public X.509 certificate (the details of Manage Certificates); empty while Locked
+    bool isUsableForEncryption = false; ///< The certificate can be a recipient of the encryption (PDFCertificateManager::isUsableForEncryption)
+    bool isUsableForSigning = false;    ///< The certificate may sign documents (PDFAppToolCertificateProvider::isUsableForSigning, 5.3, B116)
     QString name;                   ///< Common name of the subject
     QString organization;           ///< Organization of the subject
     QString email;                  ///< E-mail of the subject
@@ -111,11 +123,42 @@ class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolCertificateProvider
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFAppToolCertificateProvider)
 
 public:
+    using Usage = PDFAppToolCertificateUsage;
+
     explicit PDFAppToolCertificateProvider(PDFAppContext* context);
 
-    /// The rows of the list (433:3049), the valid ones first. A file of an old folder, whose copy
-    /// with the same bytes is in the folder of the application, is listed once (the copy).
-    std::vector<PDFAppToolCertificateItem> getCertificates() const;
+    /// The rows of the list (433:3049) made for the usage, the valid ones first. A file of an old
+    /// folder, whose copy with the same bytes is in the folder of the application, is listed once
+    /// (the copy). The certificates of the system store: for Encryption those, which can be a recipient
+    /// (choosable by their public certificate, the addendum of the owner of 15. 11.), for Signing those,
+    /// which may sign (choosable, Q6.2).
+    std::vector<PDFAppToolCertificateItem> getCertificates(Usage usage = Usage::Encryption) const;
+
+    /// Every certificate of Manage Certificates (436:9398): the .pfx files of the folder of the
+    /// application and of the old folders (a copied file once) in the order of the folders, then
+    /// every personal certificate of the system store (isSystemStoreIncluded); the states of the
+    /// usage Signing (Locked, Expired), the flags isUsableFor… of each certificate
+    std::vector<PDFAppToolCertificateItem> getManagedCertificates() const;
+
+    /// The prefix of the identifier of a row of the system store (PDFAppToolCertificateItem::filePath)
+    static constexpr const char* SYSTEM_STORE_PREFIX = "system-store:";
+
+    /// The identifier of a row of the system store of the fingerprint ("system-store:<fingerprint>")
+    static QString getSystemStorePath(const QString& fingerprint);
+
+    /// The path is the identifier of a row of the system store, not a file
+    static bool isSystemStorePath(const QString& filePath);
+
+    /// The certificate may sign documents (plan of step 6 of phase 2, 5.3, B116): the one rule of
+    /// PDFSignatureFactory::unlock, PDFCertificateManager::isUsableForSigning of the certificate of the
+    /// info. An info without its certificate (no row of a real certificate: a .pfx, whose certificate
+    /// is not known, is Locked) cannot sign. unlock checks the certificate again before a run.
+    static bool isUsableForSigning(const PDFCertificateInfo& info);
+
+    /// Sets the state of the row for the usage (Locked and Expired stay; NoEncryptionUsage /
+    /// NoSigningUsage by the certificate; a row of the system store by the same rules - Q6.2, and for
+    /// Encryption the addendum of the owner of 15. 11.: a recipient by its public certificate only)
+    static void applyUsage(PDFAppToolCertificateItem* item, Usage usage, const QDateTime& now);
 
     /// Opens the .pfx file of the row by its password: the entry with its PKCS#12 and its
     /// certificate (the cache gets the public certificate); std::nullopt and "Invalid certificate or
@@ -125,8 +168,9 @@ public:
     /// \param errorMessage Translated reason of a failure (may be null)
     std::optional<PDFCertificateEntry> unlock(const QString& filePath, const QString& password, QString* errorMessage) const;
 
-    /// The entry of the .pfx file of the path as the core lists it (its PKCS#12, not unlocked);
-    /// std::nullopt = no such file among the certificates
+    /// The entry of the .pfx file of the path as the core lists it (its PKCS#12, not unlocked), or
+    /// of the certificate of the system store of the identifier getSystemStorePath (its info, no
+    /// PKCS#12 - PDFSignatureFactory::unlock signs by the store); std::nullopt = no such certificate
     std::optional<PDFCertificateEntry> findEntry(const QString& filePath) const;
 
     /// Copies the .pfx file of an old folder into the folder of the application (owner answer
@@ -138,9 +182,9 @@ public:
     /// creation, the import, the first unlock); nothing without a database or for other data
     void storeCertificate(const QString& filePath, const QByteArray& certificateData) const;
 
-    /// The row of an entry of the core: \p info is its certificate (the entry, the cache or the
-    /// unlock), std::nullopt = not known (Locked); \p now decides Expired
-    static PDFAppToolCertificateItem createItem(const PDFCertificateEntry& entry, const std::optional<PDFCertificateInfo>& info, const QDateTime& now);
+    /// The row of an entry of the core for the usage: \p info is its certificate (the entry, the
+    /// cache or the unlock), std::nullopt = not known (Locked); \p now decides Expired
+    static PDFAppToolCertificateItem createItem(const PDFCertificateEntry& entry, const std::optional<PDFCertificateInfo>& info, const QDateTime& now, Usage usage = Usage::Encryption);
 
     /// The text of the second line of a row (433:3049: "Acme Corp · jane.novak@example.com · valid
     /// until Sep 12, 2029 · password protected", "Expired on Jan 15, 2025 – cannot be used")
@@ -152,12 +196,17 @@ public:
 
     /// The certificates of the system store are listed (default; Q5.4: only those, which could
     /// encrypt - an RSA key with keyEncipherment -, Disabled with their reason). Tests turn it off,
-    /// so that the rows do not depend on the certificates of the computer. GUI thread.
+    /// so that the rows do not depend on the certificates of the computer. Thread-safe (the run of
+    /// protect.certificates reads it); set only in the GUI thread.
     static bool isSystemStoreIncluded();
     static void setSystemStoreIncluded(bool isIncluded);
 
 private:
-    static bool& getSystemStoreIncluded();
+    static std::atomic<bool>& getSystemStoreIncluded();
+
+    /// The rows of the entries (getCertificates, getManagedCertificates): \p isEverySystemCertificate
+    /// lists every certificate of the system store, else only those of the usage
+    std::vector<PDFAppToolCertificateItem> createItems(Usage usage, bool isEverySystemCertificate) const;
 
     QPointer<PDFAppContext> m_context;
 };
@@ -169,7 +218,7 @@ private:
 /// store", the description and ✓ of the chosen row (bg/accent-subtle, the tile Accent; the other
 /// rows Muted). The rows are widgets, so the card has the height of all of them inside of the
 /// scrolled form (the checklist of Remove Hidden Data does the same). A row, which cannot be
-/// chosen (Expired, NoEncryptionUsage, SystemStore), is not clickable (no focus, no hover) and
+/// chosen (Expired, NoEncryptionUsage, NoSigningUsage), is not clickable (no focus, no hover) and
 /// shows its reason (the expired row in accent/red/icon, 433:3220).
 ///
 /// Ownership: a child of the canvas of the GUI or of the confirmation of MCP, held there by
@@ -208,17 +257,29 @@ public:
     /// The caption of the card ("Certificate"; the confirmation of MCP may name it otherwise)
     void setCaption(const QString& caption);
 
+    using Usage = PDFAppToolCertificateUsage;
+
+    /// What the certificates are for (default Encryption; Sign with Certificate sets Signing - plan of
+    /// step 6 of phase 2, 10.3). The list makes its rows for the usage: setCertificates and a change
+    /// of the usage set the state of every row (PDFAppToolCertificateProvider::applyUsage), the rows,
+    /// which can be chosen, first; a chosen row, which cannot be chosen for the usage, is dropped.
+    /// Emits nothing.
+    void setUsage(Usage usage);
+    Usage getUsage() const { return m_usage; }
+
 Q_SIGNALS:
     /// The user has chosen a row (the last call of the click; plan 10.3)
     void certificateChosen(const QString& fingerprint);
 
 private:
+    void applyUsage();
     void rebuildRows();
     void updateRows();
     void onRowClicked();
 
     std::vector<PDFAppToolCertificateItem> m_certificates;
     QString m_chosenFilePath;
+    Usage m_usage = Usage::Encryption;
     QPointer<PDFAppToolCard> m_card;
     QPointer<PDFTileRow> m_caption;
     std::vector<QPointer<PDFTileRow>> m_rows;
@@ -314,6 +375,12 @@ public:
 
     /// Why Create Certificate… and Import… are disabled in portable mode (their tooltip)
     static QString getPortableText();
+
+    /// The card of an empty state without certificates (433:3422, 436:9646): the tile with the icon
+    /// certificate, the title, the text centered, Create Certificate… (Primary) and Import .pfx…
+    /// Disabled with getPortableText, when \p isCreationAvailable is false. The caller connects the
+    /// buttons (object names certificateEmptyCreate, certificateEmptyImport).
+    static PDFAppToolCard* createEmptyState(const QString& title, const QString& text, bool isCreationAvailable, QWidget* parent, QPushButton** createButton, QPushButton** importButton);
 
     /// Tests only: the fixtures of the application start with --portable (their database lives in
     /// the memory) and their certificate folders are temporary folders of the test

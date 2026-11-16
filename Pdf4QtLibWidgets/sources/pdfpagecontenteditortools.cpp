@@ -27,6 +27,7 @@
 #include "pdfdrawwidget.h"
 
 #include <QPen>
+#include <QPointer>
 #include <QPainter>
 #include <QMouseEvent>
 #include <QFileDialog>
@@ -108,7 +109,7 @@ void PDFCreatePCElementTool::setPen(const QPen& pen)
     if (PDFPageContentStyledElement* styledElement = dynamic_cast<PDFPageContentStyledElement*>(getElement()))
     {
         styledElement->setPen(pen);
-        Q_EMIT getProxy()->repaintNeeded();
+        requestRepaint();
     }
 }
 
@@ -117,7 +118,7 @@ void PDFCreatePCElementTool::setBrush(const QBrush& brush)
     if (PDFPageContentStyledElement* styledElement = dynamic_cast<PDFPageContentStyledElement*>(getElement()))
     {
         styledElement->setBrush(brush);
-        Q_EMIT getProxy()->repaintNeeded();
+        requestRepaint();
     }
 }
 
@@ -126,7 +127,7 @@ void PDFCreatePCElementTool::setFont(const QFont& font)
     if (PDFPageContentElementTextBox* textBoxElement = dynamic_cast<PDFPageContentElementTextBox*>(getElement()))
     {
         textBoxElement->setFont(font);
-        Q_EMIT getProxy()->repaintNeeded();
+        requestRepaint();
     }
 }
 
@@ -135,7 +136,7 @@ void PDFCreatePCElementTool::setAlignment(Qt::Alignment alignment)
     if (PDFPageContentElementTextBox* textBoxElement = dynamic_cast<PDFPageContentElementTextBox*>(getElement()))
     {
         textBoxElement->setAlignment(alignment);
-        Q_EMIT getProxy()->repaintNeeded();
+        requestRepaint();
     }
 }
 
@@ -144,7 +145,7 @@ void PDFCreatePCElementTool::setTextAngle(PDFReal angle)
     if (PDFPageContentElementTextBox* textBoxElement = dynamic_cast<PDFPageContentElementTextBox*>(getElement()))
     {
         textBoxElement->setAngle(angle);
-        Q_EMIT getProxy()->repaintNeeded();
+        requestRepaint();
     }
 }
 
@@ -275,10 +276,15 @@ void PDFCreatePCElementRectangleTool::onRectanglePicked(PDFInteger pageIndex, QR
 
     m_element->setPageIndex(pageIndex);
     m_element->setRectangle(pageRectangle);
-    m_scene->addElement(m_element->clone());
-
     storeLastElementSize(pageRectangle.size());
-    finishElementCreation();
+
+    // The scene emits its change: a slot may delete this tool (the state is set before)
+    QPointer<PDFCreatePCElementRectangleTool> guard(this);
+    m_scene->addElement(m_element->clone());
+    if (guard)
+    {
+        finishElementCreation();
+    }
 }
 
 PDFCreatePCElementLineTool::PDFCreatePCElementLineTool(PDFDrawWidgetProxy* proxy,
@@ -405,10 +411,16 @@ void PDFCreatePCElementLineTool::onPointPicked(PDFInteger pageIndex, QPointF pag
     QLineF line = m_element->getLine();
     line.setP2(pagePoint);
     m_element->setLine(line);
-    m_scene->addElement(m_element->clone());
+    PDFPageContentElement* element = m_element->clone();
     clear();
 
-    finishElementCreation();
+    // The scene emits its change: a slot may delete this tool (the state is set before)
+    QPointer<PDFCreatePCElementLineTool> guard(this);
+    m_scene->addElement(element);
+    if (guard)
+    {
+        finishElementCreation();
+    }
 }
 
 PDFCreatePCElementImageTool::PDFCreatePCElementImageTool(PDFDrawWidgetProxy* proxy,
@@ -497,6 +509,12 @@ void PDFCreatePCElementImageTool::setActiveImpl(bool active)
 
 void PDFCreatePCElementImageTool::selectImage()
 {
+    // Queued after the activation: the view may be gone meanwhile
+    if (!getProxy())
+    {
+        return;
+    }
+
     if (m_imageDirectory.isEmpty())
     {
         QStringList pictureDirectiories = QStandardPaths::standardLocations(QStandardPaths::PicturesLocation);
@@ -584,10 +602,15 @@ void PDFCreatePCElementImageTool::onRectanglePicked(PDFInteger pageIndex, QRectF
 
     m_element->setPageIndex(pageIndex);
     m_element->setRectangle(pageRectangle);
-    m_scene->addElement(m_element->clone());
-
     storeLastElementSize(pageRectangle.size());
-    finishElementCreation();
+
+    // The scene emits its change: a slot may delete this tool (the state is set before)
+    QPointer<PDFCreatePCElementImageTool> guard(this);
+    m_scene->addElement(m_element->clone());
+    if (guard)
+    {
+        finishElementCreation();
+    }
 }
 
 PDFCreatePCElementDotTool::PDFCreatePCElementDotTool(PDFDrawWidgetProxy* proxy,
@@ -653,11 +676,16 @@ void PDFCreatePCElementDotTool::onPointPicked(PDFInteger pageIndex, QPointF page
 {
     m_element->setPageIndex(pageIndex);
     m_element->setPoint(pagePoint);
-
-    m_scene->addElement(m_element->clone());
+    PDFPageContentElement* element = m_element->clone();
     m_element->setPageIndex(-1);
 
-    finishElementCreation();
+    // The scene emits its change: a slot may delete this tool (the state is set before)
+    QPointer<PDFCreatePCElementDotTool> guard(this);
+    m_scene->addElement(element);
+    if (guard)
+    {
+        finishElementCreation();
+    }
 }
 
 PDFCreatePCElementFreehandCurveTool::PDFCreatePCElementFreehandCurveTool(PDFDrawWidgetProxy* proxy,
@@ -735,7 +763,7 @@ void PDFCreatePCElementFreehandCurveTool::mousePressEvent(QWidget* widget, QMous
         resetTool();
     }
 
-    Q_EMIT getProxy()->repaintNeeded();
+    requestRepaint();
 }
 
 void PDFCreatePCElementFreehandCurveTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
@@ -748,6 +776,7 @@ void PDFCreatePCElementFreehandCurveTool::mouseReleaseEvent(QWidget* widget, QMo
         // Try to perform pick point
         QPointF pagePoint;
         PDFInteger pageIndex = getProxy()->getPageUnderPoint(event->position(), &pagePoint);
+        PDFPageContentElement* element = nullptr;
         if (pageIndex != -1 &&    // We have picked some point on page
                 (m_element->getPageIndex() == pageIndex)) // We are under current page
         {
@@ -756,14 +785,25 @@ void PDFCreatePCElementFreehandCurveTool::mouseReleaseEvent(QWidget* widget, QMo
 
             if (!m_element->isEmpty())
             {
-                m_scene->addElement(m_element->clone());
+                element = m_element->clone();
             }
         }
 
         resetTool();
+
+        // The scene emits its change: a slot may delete this tool (the state is reset before)
+        QPointer<PDFCreatePCElementFreehandCurveTool> guard(this);
+        if (element)
+        {
+            m_scene->addElement(element);
+        }
+        if (!guard)
+        {
+            return;
+        }
     }
 
-    Q_EMIT getProxy()->repaintNeeded();
+    requestRepaint();
 }
 
 void PDFCreatePCElementFreehandCurveTool::drawPostRendering(QPainter* painter, QRect rect) const
@@ -801,7 +841,7 @@ void PDFCreatePCElementFreehandCurveTool::mouseMoveEvent(QWidget* widget, QMouse
 
     // The cross marking the position of the mouse must be repainted on every move,
     // not only while the curve is being drawn.
-    Q_EMIT getProxy()->repaintNeeded();
+    requestRepaint();
 }
 
 void PDFCreatePCElementFreehandCurveTool::setActiveImpl(bool active)
@@ -973,8 +1013,15 @@ void PDFCreatePCElementTextTool::finishEditing()
 
     if (!m_element->getText().isEmpty())
     {
-        m_scene->addElement(m_element->clone());
         storeLastElementSize(m_element->getRectangle().size());
+
+        // The scene emits its change: a slot may delete this tool (the state is set before)
+        QPointer<PDFCreatePCElementTextTool> guard(this);
+        m_scene->addElement(m_element->clone());
+        if (!guard)
+        {
+            return;
+        }
     }
 
     resetTool();
@@ -984,7 +1031,7 @@ void PDFCreatePCElementTextTool::finishEditing()
         // Restore the pick tool, so the user can create the next text label
         Q_ASSERT(!getTopToolstackTool());
         addTool(m_pickTool);
-        Q_EMIT getProxy()->repaintNeeded();
+        requestRepaint();
         return;
     }
 
@@ -1147,14 +1194,14 @@ void PDFCreatePCElementTextTool::setFont(const QFont& font)
 {
     BaseClass::setFont(font);
     m_textEditWidget->setAppearance(font, m_element->getAlignment(), m_element->getRectangle(), std::numeric_limits<int>::max(), m_element->getPen().color());
-    Q_EMIT getProxy()->repaintNeeded();
+    requestRepaint();
 }
 
 void PDFCreatePCElementTextTool::setAlignment(Qt::Alignment alignment)
 {
     BaseClass::setAlignment(alignment);
     m_textEditWidget->setAppearance(m_element->getFont(), alignment, m_element->getRectangle(), std::numeric_limits<int>::max(), m_element->getPen().color());
-    Q_EMIT getProxy()->repaintNeeded();
+    requestRepaint();
 }
 
 void PDFCreatePCElementTextTool::setPen(const QPen& pen)
@@ -1169,7 +1216,7 @@ void PDFCreatePCElementTextTool::setPen(const QPen& pen)
     }
 
     m_textEditWidget->setAppearance(font, m_element->getAlignment(), m_element->getRectangle(), std::numeric_limits<int>::max(), pen.color());
-    Q_EMIT getProxy()->repaintNeeded();
+    requestRepaint();
 }
 
 }   // namespace pdf

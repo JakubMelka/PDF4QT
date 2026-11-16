@@ -39,6 +39,7 @@
 #include <QSharedPointer>
 
 #include <map>
+#include <optional>
 #include <stack>
 #include <tuple>
 #include <vector>
@@ -1126,6 +1127,21 @@ private:
     /// \param outline Outline of the glyph
     const QPainterPath& getGlyphPath(const PDFGlyphOutline& outline);
 
+    /// The box of a glyph of a Type 3 font in its glyph space (B147 of the plan of step 6 of phase 2;
+    /// ISO 32000-2, 9.6.4, 9.6.5, Table 112): the glyph is a content stream without an outline, so its
+    /// box is the box of its d1 operator (\p glyphBox), else /FontBBox of the font (all zeros: no
+    /// assumption), else estimated from its advance - the advance wide and 1.2 advance high from 0.2
+    /// advance below the baseline. Empty for a glyph of no advance and no box.
+    /// \param font The Type 3 font
+    /// \param glyphBox The box of d1 of the glyph (std::nullopt: d0 or none)
+    /// \param advance The advance of the glyph in its glyph space
+    QRectF getType3GlyphBox(const PDFFont* font, const std::optional<QRectF>& glyphBox, PDFReal advance) const;
+
+    /// Remembers /FontBBox of a Type 3 font set by Tf (the box in its glyph space, Table 112)
+    /// \param font The font
+    /// \param fontObject The font dictionary (or its reference) of the resources
+    void rememberType3FontBox(const PDFFontPointer& font, const PDFObject& fontObject);
+
     /// Checks, if stroking color is valid
     void checkStrokingColor();
 
@@ -1222,6 +1238,15 @@ private:
     /// (a font removed from the font cache must be released), and the address of an outline
     /// of a released font can be used by another outline, while the identifier cannot.
     std::unordered_map<quint64, QPainterPath> m_glyphPaths;
+
+    /// The box of d1 of the glyph of a Type 3 font being processed (getType3GlyphBox), std::nullopt = none
+    std::optional<QRectF> m_type3GlyphBox;
+
+    /// /FontBBox of the Type 3 fonts set by Tf (rememberType3FontBox): the font is held, so its address
+    /// is never another font's; at most MAXIMUM_TYPE3_FONT_BOXES fonts (a hostile page of many fonts
+    /// starts again)
+    std::vector<std::pair<PDFFontPointer, QRectF>> m_type3FontBoxes;
+    static constexpr size_t MAXIMUM_TYPE3_FONT_BOXES = 64;
 
     /// Actual clipping path obtained from text. Clipping path
     /// is in device space coordinates.

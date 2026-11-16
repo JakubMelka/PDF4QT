@@ -314,3 +314,66 @@ Each entry: where, the attack, the proposed fix. An entry is never removed, also
 - **Where:** `PDFAppDocumentLoader::m_password` (`Pdf4QtLibApp/sources/document/pdfappdocumentloader.cpp`, `submitPassword`, `unlockAttachments`, `reload`): the password, which opened the document, is kept as a `QString` for the automatic reload of a file changed on the disk, until the tab is closed (phase 1); found by the review RS5SEC of step 5 of phase 2 (2026-11-14), read from the code. Plan of step 5, 6.1 (S5.1) keeps a password only for a run.
 - **Attack:** a memory dump of the process (a crash dump sent to the system, a hibernation file, a debugger or another program of the same user) recovers the password of every encrypted document open in PDF4QT - the password itself, which the user may reuse elsewhere, not only the key of the one file.
 - **Fix:** keep no password for the reload: ask for it again (the password screen of the reload), or keep only what reopens the same file - the file encryption key of the handler is enough for a file of the same `/Encrypt` and `/ID`, and it is already in the memory for the reading; overwrite the string (`PDFSecureMemory::clear`) on every path, which drops it.
+
+### 49. The changes after a signature are not evaluated completely (FieldMDP, DocMDP P = 3, the signed version)
+
+- **Where:** the verification of signatures (`Pdf4QtLibCore/sources/pdfsignaturehandler.cpp`, the panel Signatures of the application, PdfTool `verify-signatures`); 6.7 and 6.9 of the plan of step 6 of phase 2 with R6-3 and the owner answer Q6.5. Step 6 checks the shape of `/ByteRange` (B109, R6-22), classifies the later revisions by a strict allowed list and evaluates DocMDP P = 1 and P = 2 over it.
+- **Attack:** a later revision changes what a certification with P = 3 forbids, or a field locked by FieldMDP (`/Lock`, `/Reference` with `/TransformMethod /FieldMDP`, ISO 32000-2, 12.8.2.4): the panel reports the revision only by the generic warning of a change after the signature, not as a broken certification or a broken lock of a field. The user cannot see what was signed.
+- **Fix:** evaluate DocMDP P = 3 (annotations allowed) and FieldMDP over the difference of the revisions (the objects compared by value in every revision, as R6-3 does); offer "View signed version" - the document read only up to `b + c` of the `/ByteRange` of the signature.
+- **Status:** partly fixed in phase 2, step 6 by P2S6P1A (2026-11-15): the layout of `/ByteRange` (B109, R6-22), the strict allowed list of the later revisions (R6-3, each revision compared by value with the previous one) and DocMDP P = 1 and P = 2 (`Error_Signature_ChangesNotAllowed`) are evaluated (test `UnitTestsSignatureVerification` `byteRangeLayout`, `laterRevisions`); DocMDP P = 3, FieldMDP and "View signed version" stay open.
+
+### 50. Revocation and long-term validation are not checked (OCSP, CRL, LTV)
+
+- **Where:** the verification of signatures and timestamps (`pdfsignaturehandler.cpp`, `pdfcertificatestore.cpp`); 5.2 and 6.9 of the plan of step 6 of phase 2. Only `/Certs` and `/CRLs` of `/DSS` are read; nothing is written.
+- **Attack:** a signature made by a revoked certificate (a stolen key) is reported as valid; a valid signature becomes invalid, when its certificate expires, because the validity is computed to today, not to the time of the signature or of its timestamp.
+- **Fix:** fetch OCSP and CRL on the user's action (network, as the timestamp authority), use the OCSP answers of `/DSS` and `/VRI` (ISO 32000-2, 12.8.4.3), compute the validity to the time of a trusted timestamp; write `/DSS` (LTV) with a new signature.
+
+### 51. A signature of a document with dynamic content can show something else than what was signed
+
+- **Where:** Sign with Certificate (`pdfdocumenttool_signature.cpp`), the old Signature plugin; 6.9 of the plan of step 6 of phase 2.
+- **Attack:** a document with JavaScript, actions of a form or optional content shows after the signature another appearance than the user saw when signing ("what you see is not what you sign"); the signature covers the bytes, which produce both appearances.
+- **Fix:** warn at the signing of a document with JavaScript, actions (`/OpenAction`, `/AA`) or optional content, which can change its appearance; the security check of documents reports such signed documents.
+
+### 52. The old applications sign in the thread of the user interface with a nested event loop
+
+- **Where:** `PDFSignatureFactory::signWithTimestamp`, `createTimestampToken` (`pdfcertificatemanager.cpp`, the nested `QEventLoop` of the request of the authority), the RSA generation of `PDFCertificateManager::createCertificate`; B120 of the plan of step 6 of phase 2. The new application signs in the thread of the run (`PDFTimestampClient`, package P1b).
+- **Attack:** while the request of the authority waits, the nested event loop delivers the events of the user interface: a window or a document can be closed under the signing (a use after free), a second signing can start inside the first one.
+- **Fix:** the old applications go with the end of phase 2; until then they use the client of the new application, or the item stays for them.
+- **Status:** partly fixed in phase 2, step 6 by P2S6P1B (2026-11-15), B120: `signWithTimestamp` and `createTimestampToken` of the old applications call `PDFTimestampClient` of the new application (no redirection, the limits of the answer, the verification of the token); its local event loop runs in the calling thread, which for the old applications is still the thread of the user interface - the nested loop of this item stays for them, the new application calls the client only in the thread of a run.
+
+### 53. `TrustedCertStorage.bin` of the old applications and PdfTool has no version and no limits
+
+- **Where:** `PDFCertificateStore::loadDefaultUserCertificates` / its stream (`pdfcertificatestore.cpp`, `:458-463`), PdfTool `cert-store` and `cert-store-install`; B131 and 6.9 of the plan of step 6 of phase 2 (owner answer Q6.12: the new application does not import the file).
+- **Attack:** a damaged or hostile file of the store (a huge count of entries, a huge size of an entry) is read without a limit: memory exhaustion of the old applications and PdfTool at their start.
+- **Fix:** a version of the format and the limits of B131 (4 MiB, 10,000 entries) - planned for package P1b of step 6; the item stays for the security check of documents.
+- **Status:** fixed in phase 2, step 6 by P2S6P1B (2026-11-15), B131: `PDFCertificateStore::loadFromFile` reads at most 4 MiB, `deserialize` checks the version of the store, of each entry and of each certificate, at most 10,000 entries and 64 names of a certificate before anything is allocated by them (damaged data = an empty store); PdfTool `cert-store-install` reads a certificate file of at most 1 MiB (test `UnitTestsTimestampClient` `trustedStoreLimits`). The item stays for the security check of documents.
+
+### 54. The trust in a timestamp authority is not checked for its purpose
+
+- **Where:** `PDFSignatureHandler::runVerification` (`pdfsignaturehandler.cpp`: the AATL is always on), the verification of the timestamps; 6.9 of the plan of step 6 of phase 2.
+- **Attack:** a certificate trusted for another purpose (a certificate of a person added to the trusted certificates, an AATL root of a document signer) is accepted as the anchor of a timestamp authority: a forged time of a signature looks trusted.
+- **Fix:** a trust policy per purpose (signing, timestamping), the extended key usage timeStamping of the chain of an authority checked against the purpose of the anchor; the AATL used only for what it is published for, by a setting.
+
+### 55. The trusted certificates of the user and the AATL are anchors for every purpose
+
+- **Where:** `PDFAppDocumentSignatureVerifier` (`Pdf4QtLibApp/sources/document/pdfappdocumentsignatures.cpp`, `:340-351`), the store of the trusted certificates; R6-31 of the plan of step 6 of phase 2, read from the code.
+- **Attack:** a certificate, which the user trusted for one purpose (to verify the signatures of one colleague), becomes a root of trust for any chain: a certificate issued by it to anyone (it may be a CA certificate, or have no basic constraints) gives a valid and trusted signature.
+- **Fix:** trust a certificate of the user only as the certificate of the signer (no chain built through it, unless it is a CA certificate the user trusted as a CA); a purpose per trusted certificate (signing, timestamping) as in item 54.
+
+### 56. The old Signature plugin reads the original file from the disk at the signing (TOCTOU)
+
+- **Where:** `Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp` (`:398-403`): the bytes of the incremental update are read from the file at the moment of the signing, not from the bytes the document was read from; R6-31 of the plan of step 6 of phase 2.
+- **Attack:** the file is replaced on the disk between the opening and the signing (another program, a synchronized folder): the signature covers bytes the user never saw.
+- **Fix:** sign over the bytes the document was read from (the new application does: `PDFDocumentToolInputDocument::originalData`); the old plugin goes with the end of phase 2.
+
+### 57. The verification takes the form and `/DSS` of the last revision, not of the signed one
+
+- **Where:** the verification of signatures (`pdfsignaturehandler.cpp`): the signature fields, their dictionaries and `/DSS` come from the document of the last revision; R6-31 of the plan of step 6 of phase 2 (what remains after R6-3).
+- **Attack:** a later revision replaces the certificates or the CRLs of `/DSS`, or changes the dictionary of an earlier signature field outside of what the allowed list of R6-3 inspects; the verification of the earlier signature uses the changed data.
+- **Fix:** verify each signature over the objects of its own revision (the document read up to `b + c` of its `/ByteRange`); the later revisions only by the allowed list.
+
+### 58. The walk over the outline copies its visited set for every branch and has no depth limit
+
+- **Where:** `PDFOutlineItem::parseImpl` (`Pdf4QtLibCore/sources/pdfoutline.cpp`): the children of an item (`/First`) are parsed with a copy of the visited set of the parent, so an item reached by two branches is parsed again in each of them; the recursion over `/First` has no depth limit. Found by P3 of step 6 of phase 2 (the redaction keeps the outline, `keepOutline`), written by P2S6INTCORE (2026-11-15), read from the code.
+- **Attack:** a hostile outline of a few hundred objects, whose items share their children (every `/First` of one level points into the same chain of the next level), is parsed an exponential number of times - every opening of the document, the outline panel, the redaction with Keep outline and MCP hang or run out of memory; a chain of `/First` of hundred thousands of levels overflows the stack.
+- **Fix:** one visited set for the whole walk (an item shared by two branches is parsed once, the second place gets nothing or a reference to the first), a depth limit of the recursion and a limit of the items, by the shared helper of the walks over the object graph (CLAUDE.md conventions); a test with a cycle and with an item shared by two branches.

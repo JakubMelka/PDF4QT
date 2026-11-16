@@ -21,7 +21,7 @@ An assistant connected to the MCP server of PDF4QT (see [Connect an AI assistant
 | Fill forms | Fill and reset form fields | Edit documents |
 | Edit the outline | Add, rename, move and delete outline items, or build a new outline | Edit documents |
 | Open and save files | Open a PDF file whose path it knows, save a document, save a copy | Open and save files |
-| Tools of PDF4QT | Run the tools of PDF4QT on a document, one tool per request. Available now: Merge, Split, Extract Pages, Interleave Pages, Manage Pages, Insert Pages, Add Image as Page, Remove Pages, Rotate Pages, Crop Pages, Resize Pages, Set Page Boxes, Images to PDF, Blank PDF, PDF to Images, Extract Text, Extract Images, Create Audio Book, Protect with Password, Restrict Permissions, Encrypt with Certificate, Remove Password, Remove Hidden Data, Remove External Links, Compress, Optimize Images, Optimize Structure, Convert to Black & White, Convert Images to Grayscale | Read documents, then by what happens with the result: Edit documents for a result that stays in the tab or opens as a new document in a new tab, Open and save files for new files, both for replacing the original file. Blank PDF and Images to PDF read no document, so they need no Read documents; Images to PDF, Insert Pages and Add Image as Page read image files by Open and save files |
+| Tools of PDF4QT | Run the tools of PDF4QT on a document, one tool per request. Available now: Merge, Split, Extract Pages, Interleave Pages, Manage Pages, Insert Pages, Add Image as Page, Remove Pages, Rotate Pages, Crop Pages, Resize Pages, Set Page Boxes, Images to PDF, Blank PDF, PDF to Images, Extract Text, Extract Images, Create Audio Book, Protect with Password, Restrict Permissions, Encrypt with Certificate, Remove Password, Sign with Certificate, Add Timestamp, Sign by Hand, Manage Certificates, Redact Content, Remove Hidden Data, Remove External Links, Compress, Optimize Images, Optimize Structure, Convert to Black & White, Convert Images to Grayscale | Read documents, then by what happens with the result: Edit documents for a result that stays in the tab or opens as a new document in a new tab, Open and save files for new files, both for replacing the original file. Blank PDF and Images to PDF read no document, so they need no Read documents; Images to PDF, Insert Pages and Add Image as Page read image files by Open and save files |
 
 The permissions are explained in [Permissions of assistants](/help/ai-permissions). An action set to Deny is not offered to assistants at all.
 
@@ -33,6 +33,8 @@ The permissions are explained in [Permissions of assistants](/help/ai-permission
 - Nothing is saved to the file until you or the assistant save it; saving over the file is always confirmed by you, also when a tool writes its result over the file.
 - A tool, which rewrites the whole file (Compress, Optimize Images, Optimize Structure, Convert to Black & White, Convert Images to Grayscale, Remove Hidden Data, Protect with Password, Restrict Permissions, Encrypt with Certificate, Remove Password), never replaces a signed document: an assistant can only save a copy, whose signatures are no longer valid.
 - The tools of the encryption change the security of a document only with its owner access, and the passwords and the certificate are always entered by you in PDF4QT, see below.
+- Sign with Certificate, Add Timestamp and Sign by Hand are always confirmed by you, also when the action is allowed without asking: you type the password of the certificate in PDF4QT, a timestamp uses only an authority from your own list, and Sign by Hand shows the page with the drawing first (an assistant draws no images). The signed copy is a new file; the open document stays as it is.
+- Redact Content writes only a redacted copy; the open document keeps its content and its marks. Manage Certificates only lists the certificates for an assistant.
 - A tool, which changes the pages of a certified document (Insert Pages, Add Image as Page, Remove Pages, Rotate Pages, Crop Pages, Resize Pages, Set Page Boxes), never changes it in place either: only a copy without the signatures is saved.
 - A tool, which writes more files (Split, Extract Pages with a file per page, PDF to Images, Extract Images), never overwrites the open document or a file open in a tab; overwriting other files is always confirmed by you.
 - While a tool of PDF4QT runs on a document or you decide about its result, the requests of assistants to change this document are refused. A tool, which only waits for your settings, computes its result again after a change of an assistant.
@@ -42,7 +44,8 @@ The permissions are explained in [Permissions of assistants](/help/ai-permission
 
 - Type passwords: when a document needs one, PDF4QT asks you for it. When an assistant asks to protect a document by a password or a certificate, PDF4QT shows its confirmation, where you type the password or choose the certificate – also when the action is allowed without asking. The assistant never gets the password; after 2 minutes without your answer the request ends.
 - Run the scripts of a document or open its attachments – an assistant can only read the content of an attachment.
-- Sign documents or change the settings of PDF4QT.
+- Sign documents without you: every signature, timestamp and drawn signature waits for your confirmation in PDF4QT.
+- Trust a certificate, create, import or delete one, or change the settings of PDF4QT.
 - Open files from network locations or list your folders.
 
 ## Built-in guidance for assistants

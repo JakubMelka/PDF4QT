@@ -85,10 +85,11 @@ public:
 
     /// Is anything offered after \p toolId (Then continue with of the result dialog, Often used
     /// next of the start page of the tool) and is a pair from it recorded? Not after a tool, which
-    /// changes the security of the document (PDFDocumentToolCatalogEntry::isSecurityChange - the
-    /// four tools of Encryption: tools.md 10.3, plan of step 5 of phase 2, 2.4; their frames
-    /// 430:3226, 432:4388, 433:4721, 433:5999 have none); the one rule of every place, which
-    /// offers successors. An unknown tool offers nothing.
+    /// changes the security of the document (the four tools of Encryption: tools.md 10.3, plan of
+    /// step 5 of phase 2, 2.4; their frames 430:3226, 432:4388, 433:4721, 433:5999 have none), nor
+    /// after Sign with Certificate and Add Timestamp (their result is only a file, 434:9276, 435:8356;
+    /// plan of step 6, R6-10) - PDFDocumentToolCatalogEntry::isOfferingSuccessors; the one rule of
+    /// every place, which offers successors. An unknown tool offers nothing.
     static bool isOfferingSuccessors(const QString& toolId);
 
 private:

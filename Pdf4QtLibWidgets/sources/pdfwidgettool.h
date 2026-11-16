@@ -98,7 +98,9 @@ public:
     void setDocument(const PDFModifiedDocument& document);
 
     /// Sets tool as active or inactive. If tool is active, then it is processed
-    /// in draw widget proxy events (such as drawing etc.).
+    /// in draw widget proxy events (such as drawing etc.). A tool, whose proxy is
+    /// gone (the view died before the tool), is not activated any more; it can
+    /// still be deactivated and deleted.
     /// \param active Is tool active?
     void setActive(bool active);
 
@@ -178,7 +180,14 @@ protected:
     PDFWidgetTool* getTopToolstackTool() const;
 
     const PDFDocument* getDocument() const { return m_document; }
-    PDFDrawWidgetProxy* getProxy() const { return m_proxy; }
+
+    /// The proxy of the tool, nullptr when it is gone (the view dies before its tools:
+    /// the owner deactivates or deletes them afterwards)
+    PDFDrawWidgetProxy* getProxy() const { return m_proxy.data(); }
+
+    /// Asks the proxy to repaint the widget; nothing, when the proxy is gone.
+    /// A receiver may delete this tool.
+    void requestRepaint() const;
 
     inline void setCursor(QCursor cursor) { m_cursor = qMove(cursor); }
     inline void unsetCursor() { m_cursor = std::nullopt; }
@@ -204,8 +213,7 @@ private:
     bool m_active;
     const PDFDocument* m_document;
     QAction* m_action;
-    PDFDrawWidgetProxy* m_proxy;
-    QPointer<PDFDrawWidgetProxy> m_proxyGuard;  ///< Proxy of a tool destroyed while active (the proxy can be gone already)
+    QPointer<PDFDrawWidgetProxy> m_proxy;   ///< The view may die before its tools: never a raw pointer
     std::vector<PDFWidgetTool*> m_toolStack;
     std::optional<QCursor> m_cursor;
 };

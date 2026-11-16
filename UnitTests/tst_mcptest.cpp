@@ -744,6 +744,7 @@ private slots:
     void modernHeaders();
     void discover();
     void listsAndPagination();
+    void listCursorAfterChange();
     void resourcesRead();
     void legacyLifecycle();
     void listenStreams();
@@ -2700,7 +2701,7 @@ void McpTest::listsAndPagination()
     fixture.server->publishCatalog(McpServerHelper::createCatalog(6, 150));
     const QJsonObject stale = client.request(QStringLiteral("resources/list"), QJsonObject({ { QStringLiteral("cursor"), cursor } })).value(QStringLiteral("result")).toObject();
     QCOMPARE(stale.value(QStringLiteral("resources")).toArray().size(), 53);
-    const QJsonObject beyond = client.request(QStringLiteral("resources/list"), QJsonObject({ { QStringLiteral("cursor"), pdf::PDFMcpDispatcher::createCursor(6, 100000) } })).value(QStringLiteral("result")).toObject();
+    const QJsonObject beyond = client.request(QStringLiteral("resources/list"), QJsonObject({ { QStringLiteral("cursor"), pdf::PDFMcpDispatcher::createCursor(6, 100000, 0) } })).value(QStringLiteral("result")).toObject();
     QCOMPARE(beyond.value(QStringLiteral("resources")).toArray().size(), 0);
 
     // templates and prompts: one hour, private
@@ -2727,6 +2728,106 @@ void McpTest::listsAndPagination()
         QCOMPARE(legacyPage.value(QStringLiteral("resources")).toArray().size(), 100);
         QVERIFY(legacyPage.contains(QStringLiteral("nextCursor")));
     }
+}
+
+void McpTest::listCursorAfterChange()
+{
+    // A cursor of an older catalog (the list changed between the pages) continues
+    // at its anchor - the item, which would have come next - wherever the new
+    // catalog lists it, so items added or removed before it neither repeat nor
+    // skip an item; an anchor, which left the list, leaves the offset
+    // (PDFMcpDispatcher::parseCursor; owner decision 2026-11-15: the open
+    // documents are listed first, so they change the front of the list)
+    const std::shared_ptr<const pdf::PDFMcpCatalog> base = McpServerHelper::createCatalog(5, 150);
+    McpServerFixture fixture(McpServerHelper::createConfig(), base);
+    QVERIFY(fixture.isRunning);
+    pdftest::McpTestClient client = fixture.client();
+
+    const std::vector<pdf::PDFMcpResourceDefinition>& baseResources = base->getResources();
+    QStringList baseUris;
+    for (const pdf::PDFMcpResourceDefinition& resource : baseResources)
+    {
+        baseUris << resource.uri;
+    }
+    QCOMPARE(baseUris.size(), 153);
+
+    auto publish = [&fixture, &base](quint64 generation, std::vector<pdf::PDFMcpResourceDefinition> resources)
+    {
+        fixture.server->publishCatalog(std::make_shared<const pdf::PDFMcpCatalog>(generation, base->getTools(), std::move(resources), base->getTemplates(), base->getPrompts()));
+    };
+    auto listFrom = [&client](const QString& cursor, QString* nextCursor)
+    {
+        QJsonObject params;
+        if (!cursor.isEmpty())
+        {
+            params.insert(QStringLiteral("cursor"), cursor);
+        }
+        const QJsonObject result = client.request(QStringLiteral("resources/list"), params).value(QStringLiteral("result")).toObject();
+        QStringList uris;
+        for (const QJsonValue& resource : result.value(QStringLiteral("resources")).toArray())
+        {
+            uris << resource.toObject().value(QStringLiteral("uri")).toString();
+        }
+        *nextCursor = result.value(QStringLiteral("nextCursor")).toString();
+        return uris;
+    };
+
+    // The anchor: the first 32 bits of SHA-256 of the UTF-8 key (FIPS 180-2,
+    // SHA-256("abc") = ba7816bf 8f01cfea ...)
+    QCOMPARE(pdf::PDFMcpDispatcher::getCursorAnchor(u"abc"), quint32(0xba7816bfu));
+
+    // The cursor of page 1 names the generation, the offset of page 2 and the
+    // anchor of its first item
+    QString cursor;
+    QCOMPARE(listFrom(QString(), &cursor), baseUris.mid(0, 100));
+    const std::optional<pdf::PDFMcpDispatcher::ListCursor> parsed = pdf::PDFMcpDispatcher::parseCursor(cursor);
+    QVERIFY(parsed);
+    QCOMPARE(parsed->generation, quint64(5));
+    QCOMPARE(parsed->offset, qint64(100));
+    QCOMPARE(parsed->anchor, pdf::PDFMcpDispatcher::getCursorAnchor(baseUris[100]));
+
+    // The form "<generation>:<offset>:<8 lowercase hexadecimal digits>"
+    const std::optional<pdf::PDFMcpDispatcher::ListCursor> roundTrip = pdf::PDFMcpDispatcher::parseCursor(pdf::PDFMcpDispatcher::createCursor(7, 42, 0xabcdu));
+    QVERIFY(roundTrip);
+    QCOMPARE(roundTrip->generation, quint64(7));
+    QCOMPARE(roundTrip->offset, qint64(42));
+    QCOMPARE(roundTrip->anchor, quint32(0xabcdu));
+    QCOMPARE(QString::fromLatin1(*pdf::PDFMcpJson::fromBase64Url(pdf::PDFMcpDispatcher::createCursor(7, 42, 0xabcdu).toLatin1())), QStringLiteral("7:42:0000abcd"));
+    for (const char* invalid : { "5:100", "5:100:0000ABCD", "5:100:abcd", "5:100:0000abcdx", "5:100:0000abcg", "5:-1:0000abcd", "5:100:0000abcd:1" })
+    {
+        QVERIFY2(!pdf::PDFMcpDispatcher::parseCursor(QString::fromLatin1(pdf::PDFMcpJson::toBase64Url(QByteArray(invalid)))), invalid);
+    }
+
+    // Three items added before the boundary (a document opened): page 2 starts
+    // with the item after page 1 - nothing of page 1 again
+    std::vector<pdf::PDFMcpResourceDefinition> added;
+    for (const char* part : { "info", "outline", "annotations" })
+    {
+        pdf::PDFMcpResourceDefinition resource;
+        resource.uri = QStringLiteral("pdf4qt://documents/NEW/%1").arg(QString::fromLatin1(part));
+        resource.name = QString::fromLatin1(part);
+        added.push_back(resource);
+    }
+    added.insert(added.end(), baseResources.begin(), baseResources.end());
+    publish(6, added);
+    QString next;
+    QCOMPARE(listFrom(cursor, &next), baseUris.mid(100));
+    QVERIFY(next.isEmpty());
+
+    // Three items removed before the boundary (a document closed): nothing skipped
+    publish(7, std::vector<pdf::PDFMcpResourceDefinition>(baseResources.begin() + 3, baseResources.end()));
+    QCOMPARE(listFrom(cursor, &next), baseUris.mid(100));
+
+    // The anchor removed together with the item before it: the offset 100 of the
+    // new list (the rule of a cursor without its item)
+    std::vector<pdf::PDFMcpResourceDefinition> withoutAnchor(baseResources.begin(), baseResources.end());
+    withoutAnchor.erase(withoutAnchor.begin() + 99, withoutAnchor.begin() + 101);
+    publish(8, withoutAnchor);
+    QCOMPARE(listFrom(cursor, &next), baseUris.mid(102));
+
+    // A cursor of the current generation takes its offset, whatever its anchor
+    const QStringList current = baseUris.mid(0, 99) + baseUris.mid(101);
+    QCOMPARE(listFrom(pdf::PDFMcpDispatcher::createCursor(8, 10, pdf::PDFMcpDispatcher::getCursorAnchor(baseUris[50])), &next), current.mid(10, 100));
 }
 
 void McpTest::resourcesRead()

@@ -119,6 +119,17 @@ public:
     bool undo();
     bool redo();
 
+    /// The next undo / redo step is a change of the open tool (PDFAppChangeSource::Tool)
+    bool canUndoToolStep() const;
+    bool canRedoToolStep() const;
+
+    /// Undoes / redoes the next step of the open tool while the changes of the user are suspended
+    /// (Undo of the tool in one order with its parameters, PDFAppToolCompositeUndoTarget - Redact
+    /// Content takes back its marks). Only a step of PDFAppChangeSource::Tool; the other refusals as
+    /// undo / redo. \returns false, if the next step is not a step of the tool or it is refused
+    bool undoToolStep();
+    bool redoToolStep();
+
     /// Removes all steps (a reload of the file); the current version is the saved one
     void clear();
 
@@ -163,6 +174,10 @@ public:
 
 private:
     void trim();
+
+    /// \param isToolStep Only a step of the open tool (allowed while the changes of the user are suspended)
+    bool undoImpl(bool isToolStep);
+    bool redoImpl(bool isToolStep);
 
     PDFAppDocument* m_document;
     std::deque<PDFAppUndoStep> m_undoSteps;

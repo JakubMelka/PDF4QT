@@ -43,6 +43,11 @@
         <file>help/tool-protect-permissions.md</file>
         <file>help/tool-protect-certificate-encrypt.md</file>
         <file>help/tool-protect-unlock.md</file>
+        <file>help/tool-protect-sign.md</file>
+        <file>help/tool-protect-timestamp.md</file>
+        <file>help/tool-protect-sign-by-hand.md</file>
+        <file>help/tool-protect-certificates.md</file>
+        <file>help/tool-protect-redact.md</file>
         <file>help/tool-convert-extract-text.md</file>
         <file>help/tool-convert-pdf-to-images.md</file>
         <file>help/tool-convert-extract-images.md</file>

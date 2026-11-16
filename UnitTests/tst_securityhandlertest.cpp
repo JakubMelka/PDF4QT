@@ -29,13 +29,20 @@
 // hostile encryption dictionaries and the old bugs B81 - B108 of the plan.
 
 #include "pdfexception.h"
+#include "pdfexecutionpolicy.h"
 #include "pdfsecurityhandler.h"
+#include "pdfsignaturehandler.h"
+#include "pdfcertificatemanager.h"
+#include "pdfcertificatestore.h"
 
 #include "mergetestpdf.h"
 
 #include <QtTest>
 #include <QCryptographicHash>
+#include <QElapsedTimer>
 
+#include <openssl/asn1.h>
+#include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/pkcs7.h>
 #include <openssl/pkcs12.h>
@@ -681,6 +688,53 @@ public:
         return entry;
     }
 
+    /// Reads the bytes by a reader, which opens them by a clone of \p handler (R6-1 of step 6); the
+    /// password callback refuses (and counts), no certificate of the user is read
+    static ReadResult readByHandler(const QByteArray& bytes, const pdf::PDFSecurityHandler* handler, bool authorizeOwnerOnly)
+    {
+        ReadResult result;
+        auto callback = [&result](bool* ok) -> QString
+        {
+            *ok = false;
+            ++result.callbackCount;
+            return QString();
+        };
+        pdf::PDFDocumentReader reader(nullptr, callback, false, authorizeOwnerOnly);
+        reader.setCertificates(pdf::PDFCertificateEntries());
+        reader.setAuthenticatedSecurityHandler(handler);
+        result.document = reader.readFromBuffer(bytes);
+        result.result = reader.getReadingResult();
+        result.errorMessage = reader.getErrorMessage();
+        return result;
+    }
+
+    /// Replaces the iteration count of the MAC of a PKCS#12; the MAC is not computed again (6.3 of
+    /// step 6: the file must be refused before its MAC is verified)
+    static QByteArray setMacIterations(const QByteArray& pkcs12Data, int64_t iterations)
+    {
+        const unsigned char* pointer = reinterpret_cast<const unsigned char*>(pkcs12Data.constData());
+        std::unique_ptr<PKCS12, void(*)(PKCS12*)> pkcs12(d2i_PKCS12(nullptr, &pointer, long(pkcs12Data.size())), PKCS12_free);
+        const ASN1_OCTET_STRING* mac = nullptr;
+        const X509_ALGOR* algorithm = nullptr;
+        const ASN1_OCTET_STRING* salt = nullptr;
+        const ASN1_INTEGER* iterationCount = nullptr;
+        if (!pkcs12)
+        {
+            return QByteArray();
+        }
+        PKCS12_get0_mac(&mac, &algorithm, &salt, &iterationCount, pkcs12.get());
+        if (!iterationCount)
+        {
+            return QByteArray();
+        }
+        ASN1_INTEGER_set_int64(const_cast<ASN1_INTEGER*>(iterationCount), iterations);
+        unsigned char* buffer = nullptr;
+        const int length = i2d_PKCS12(pkcs12.get(), &buffer);
+        QByteArray result(reinterpret_cast<const char*>(buffer), length);
+        OPENSSL_free(buffer);
+        return result;
+    }
+
     static bool isThrown(const std::function<void()>& function)
     {
         try
@@ -745,6 +799,15 @@ private Q_SLOTS:
     void tooManyRecipients();
     void saslPrep();
     void passwordEncodingRevision4();
+
+    // Step 6 of phase 2, integration P2S6INTCORE (R6-1, Q6.2, 6.3)
+    void authenticatedHandlerReadBack_data();
+    void authenticatedHandlerReadBack();
+    void authenticatedHandlerOfCertificate();
+    void certificateOfSystemStore();
+    void certificateIterationLimit();
+    void poolTasksReleaseOpenSslState_data();
+    void poolTasksReleaseOpenSslState();
 
 private:
     /// The PKCS#12 of the session with a password with diacritics (B84)
@@ -1956,6 +2019,293 @@ void SecurityHandlerTest::passwordEncodingRevision4()
     const pdf::PDFSecurityHandlerPointer handler = Factory::createSecurityHandler(H::settings(Factory::RC4, longPassword, QStringLiteral("owner")));
     QVERIFY(handler);
     QCOMPARE(H::read(H::encryptDocument(H::createPlain(), handler.data()), QString(32, QChar('q'))).result, pdf::PDFDocumentReader::Result::OK);
+}
+
+void SecurityHandlerTest::authenticatedHandlerReadBack_data()
+{
+    QTest::addColumn<int>("algorithm");
+    QTest::newRow("rc4") << int(Factory::RC4);
+    QTest::newRow("aes128") << int(Factory::AES_128);
+    QTest::newRow("aes256") << int(Factory::AES_256);
+}
+
+void SecurityHandlerTest::authenticatedHandlerReadBack()
+{
+    // R6-1 of step 6: the read back of a file with an open password (the incremental update, the signer,
+    // the revisions of the verifier) by a clone of the authenticated handler of its document - never by a
+    // password. Only a file of the same encryption dictionary and the same first part of /ID (Algorithm 2
+    // of 7.6.4.3.2 takes the key from it) is opened so.
+    QFETCH(int, algorithm);
+    using Result = pdf::PDFDocumentReader::Result;
+
+    const pdf::PDFSecurityHandlerPointer handler = Factory::createSecurityHandler(H::settings(Factory::Algorithm(algorithm), QStringLiteral("user"), QStringLiteral("owner"), H::allPermissions()), nullptr);
+    QVERIFY(handler);
+    const QByteArray bytes = H::encryptDocument(H::createPlain(), handler.data());
+    const pdf::PDFDocument plainDocument = H::createPlain().read();
+
+    // A handler of the factory knows the dictionary it writes and the /ID of its settings: the file it
+    // wrote is read back by its clone (the check of a recipient of the system store, whose key is not used)
+    QVERIFY(handler->isSameEncryption(handler.data()));
+    const H::ReadResult writtenBack = H::readByHandler(bytes, handler.data(), false);
+    QVERIFY2(writtenBack.result == Result::OK, qPrintable(writtenBack.errorMessage));
+    QCOMPARE(writtenBack.callbackCount, 0);
+
+    const H::ReadResult opened = H::read(bytes, QStringLiteral("user"));
+    QCOMPARE(opened.result, Result::OK);
+    const pdf::PDFSecurityHandler* authenticated = opened.document.getStorage().getSecurityHandler();
+    QCOMPARE(authenticated->getAuthorizationResult(), AuthorizationResult::UserAuthorized);
+    QVERIFY(authenticated->isSameEncryption(authenticated));
+    QVERIFY(!authenticated->isSameEncryption(nullptr));
+
+    // The clone opens the file: the callback is never asked, the objects are decrypted
+    const H::ReadResult readBack = H::readByHandler(bytes, authenticated, false);
+    QVERIFY2(readBack.result == Result::OK, qPrintable(readBack.errorMessage));
+    QCOMPARE(readBack.callbackCount, 0);
+    for (const int number : { 6, 101 })
+    {
+        QCOMPARE(H::streamData(readBack.document, number), H::streamData(plainDocument, number));
+    }
+    QCOMPARE(H::object(readBack.document, 8).getDictionary()->get("Title").getString(), QByteArray("TITLE-MARKER"));
+    QCOMPARE(readBack.document.getStorage().getSecurityHandler()->getAuthorizationResult(), AuthorizationResult::UserAuthorized);
+
+    // A reader of the owner only: a user authorization does not suffice, an owner one does
+    QCOMPARE(H::readByHandler(bytes, authenticated, true).result, Result::Canceled);
+    const H::ReadResult owner = H::read(bytes, QStringLiteral("owner"), true);
+    QCOMPARE(owner.result, Result::OK);
+    const H::ReadResult ownerReadBack = H::readByHandler(bytes, owner.document.getStorage().getSecurityHandler(), true);
+    QCOMPARE(ownerReadBack.result, Result::OK);
+    QCOMPARE(ownerReadBack.callbackCount, 0);
+
+    // The same encryption dictionary with another first part of /ID: another file, never opened by the clone
+    QByteArray otherId = bytes;
+    QVERIFY(otherId.contains(H::hex(H::id())));
+    otherId.replace(H::hex(H::id()), H::hex(QByteArray("FEDCBA9876543210")));
+    const H::ReadResult other = H::readByHandler(otherId, authenticated, false);
+    QCOMPARE(other.result, Result::Canceled);
+    QCOMPARE(other.callbackCount, 1);
+
+    // Another encryption dictionary (another password): the password is asked as without the handler
+    const pdf::PDFSecurityHandlerPointer otherHandler = Factory::createSecurityHandler(H::settings(Factory::Algorithm(algorithm), QStringLiteral("other"), QStringLiteral("owner"), H::allPermissions()), nullptr);
+    const H::ReadResult otherEncryption = H::readByHandler(H::encryptDocument(H::createPlain(), otherHandler.data()), authenticated, false);
+    QCOMPARE(otherEncryption.result, Result::Canceled);
+    QCOMPARE(otherEncryption.callbackCount, 1);
+    QVERIFY(!otherHandler->isSameEncryption(authenticated));
+    QVERIFY(!otherHandler->isSameEncryption(handler.data()));
+
+    // A document without encryption is read as it is
+    const H::ReadResult plain = H::readByHandler(H::createPlain().write(), authenticated, false);
+    QCOMPARE(plain.result, Result::OK);
+    QCOMPARE(plain.document.getStorage().getSecurityHandler()->getMode(), pdf::EncryptionMode::None);
+}
+
+void SecurityHandlerTest::authenticatedHandlerOfCertificate()
+{
+    // R6-1 of step 6 for the public-key handler (7.6.5): the clone keeps the key, the permissions of the
+    // envelope and the certificate of the recipient; no certificate and no password is needed again
+    Factory::SecuritySettings settings = H::settings(Factory::Certificate, H::pfxPassword(), QString(), uint32_t(Permission::PrintLowResolution));
+    settings.certificate = H::createEntry(m_pkcs12);
+    const pdf::PDFSecurityHandlerPointer handler = Factory::createSecurityHandler(settings, nullptr);
+    QVERIFY(handler);
+    const QByteArray bytes = H::encryptDocument(H::createPlain(), handler.data());
+
+    const pdf::PDFCertificateEntries certificates = { H::createEntry(m_pkcs12) };
+    const H::ReadResult opened = H::read(bytes, H::pfxPassword(), false, &certificates);
+    QCOMPARE(opened.result, pdf::PDFDocumentReader::Result::OK);
+
+    const H::ReadResult readBack = H::readByHandler(bytes, opened.document.getStorage().getSecurityHandler(), false);
+    QVERIFY2(readBack.result == pdf::PDFDocumentReader::Result::OK, qPrintable(readBack.errorMessage));
+    QCOMPARE(readBack.callbackCount, 0);
+    QCOMPARE(H::streamData(readBack.document, 101), H::streamData(H::createPlain().read(), 101));
+    const pdf::PDFSecurityHandler* readHandler = readBack.document.getStorage().getSecurityHandler();
+    QVERIFY(readHandler->isAllowed(Permission::PrintLowResolution));
+    QVERIFY(!readHandler->isAllowed(Permission::Modify));
+    QCOMPARE(readHandler->getMode(), pdf::EncryptionMode::PublicKey);
+    const pdf::PDFPublicKeySecurityHandler* publicKeyHandler = static_cast<const pdf::PDFPublicKeySecurityHandler*>(readHandler);
+    QVERIFY(publicKeyHandler->getAuthorizedCertificate());
+    QCOMPARE(publicKeyHandler->getAuthorizedCertificate()->getName(pdf::PDFCertificateInfo::CommonName), QStringLiteral("PDF4QT Test Recipient"));
+
+    // Without the handler the file is not opened (no certificate of the user is given)
+    QVERIFY(H::readByHandler(bytes, nullptr, false).result != pdf::PDFDocumentReader::Result::OK);
+}
+
+void SecurityHandlerTest::certificateOfSystemStore()
+{
+#ifdef Q_OS_WIN
+    // Q6.2 of step 6: a certificate of the store of Windows encrypts by its public certificate only and
+    // opens the document by its key, which stays in the system (PDFPersonalCertificateStore::
+    // decryptEnvelope). The store of the machine is never used: a store in the memory of the process.
+    const QByteArray pfxPassword = QByteArrayLiteral("system-store-test");
+    const QByteArray pkcs12 = H::createPkcs12(QString::fromLatin1(pfxPassword));
+    std::shared_ptr<const pdf::PDFPersonalCertificateStore> store = pdf::PDFPersonalCertificateStore::createMemoryStore(pkcs12, pfxPassword);
+    QVERIFY(store);
+    struct StoreGuard
+    {
+        ~StoreGuard() { pdf::PDFPersonalCertificateStore::setStore(nullptr); }
+    } storeGuard;
+
+    // The encryption needs the public certificate only (the addendum of the owner of 15. 11.): the store
+    // of the encryption has not its key at all (a store of another certificate)
+    const QByteArray unrelatedPkcs12 = H::createPkcs12(QString::fromLatin1(pfxPassword));
+    pdf::PDFPersonalCertificateStore::setStore(pdf::PDFPersonalCertificateStore::createMemoryStore(unrelatedPkcs12, pfxPassword));
+
+    const std::optional<pdf::PDFCertificateInfo> info = pdf::PDFCertificateManager::readCertificate(pkcs12, QString::fromLatin1(pfxPassword));
+    QVERIFY(info);
+    pdf::PDFCertificateEntry systemEntry;
+    systemEntry.type = pdf::PDFCertificateEntry::EntryType::System;
+    systemEntry.info = *info;
+
+    // The encryption: no PKCS#12, no password
+    Factory::SecuritySettings settings = H::settings(Factory::Certificate, QString(), QString(), H::allPermissions());
+    settings.certificate = systemEntry;
+    QString errorMessage;
+    QVERIFY2(Factory::validate(settings, &errorMessage), qPrintable(errorMessage));
+    const pdf::PDFSecurityHandlerPointer handler = Factory::createSecurityHandler(settings, &errorMessage);
+    QVERIFY2(handler, qPrintable(errorMessage));
+    const QByteArray bytes = H::encryptDocument(H::createPlain(), handler.data());
+    QVERIFY(!bytes.contains("CONTENT-MARKER"));
+
+    // The opening by the key of the store: no password is asked
+    pdf::PDFPersonalCertificateStore::setStore(store);
+    const pdf::PDFCertificateEntries entries = { systemEntry };
+    const H::ReadResult read = H::read(bytes, QStringLiteral("never-asked"), false, &entries);
+    QVERIFY2(read.result == pdf::PDFDocumentReader::Result::OK, qPrintable(read.errorMessage));
+    QCOMPARE(read.callbackCount, 0);
+    QCOMPARE(H::streamData(read.document, 101), H::streamData(H::createPlain().read(), 101));
+    QCOMPARE(read.document.getStorage().getSecurityHandler()->getMode(), pdf::EncryptionMode::PublicKey);
+    const pdf::PDFPublicKeySecurityHandler* readHandler = static_cast<const pdf::PDFPublicKeySecurityHandler*>(read.document.getStorage().getSecurityHandler());
+    QVERIFY(readHandler->getAuthorizedCertificate());
+    QCOMPARE(readHandler->getAuthorizedCertificate()->getCertificateData(), info->getCertificateData());
+
+    // Another certificate of the store is no recipient: not opened, and no password is asked (no .pfx)
+    const QByteArray otherPkcs12 = H::createPkcs12(QString::fromLatin1(pfxPassword));
+    pdf::PDFPersonalCertificateStore::setStore(pdf::PDFPersonalCertificateStore::createMemoryStore(otherPkcs12, pfxPassword));
+    const std::optional<pdf::PDFCertificateInfo> otherInfo = pdf::PDFCertificateManager::readCertificate(otherPkcs12, QString::fromLatin1(pfxPassword));
+    QVERIFY(otherInfo);
+    pdf::PDFCertificateEntry otherEntry = systemEntry;
+    otherEntry.info = *otherInfo;
+    const pdf::PDFCertificateEntries otherEntries = { otherEntry };
+    const H::ReadResult other = H::read(bytes, QStringLiteral("never-asked"), false, &otherEntries);
+    QVERIFY(other.result != pdf::PDFDocumentReader::Result::OK);
+    QCOMPARE(other.callbackCount, 0);
+
+    // The key of the right certificate, which the store has not, opens nothing either
+    const H::ReadResult missing = H::read(bytes, QStringLiteral("never-asked"), false, &entries);
+    QVERIFY(missing.result != pdf::PDFDocumentReader::Result::OK);
+#else
+    QSKIP("The certificate store of the system exists only on Windows (Q6.2).");
+#endif
+}
+
+void SecurityHandlerTest::certificateIterationLimit()
+{
+    // 6.3, R6-28 of step 6: a PKCS#12 of more than MAXIMUM_PKCS12_ITERATIONS iterations of its MAC is
+    // refused before its password is tried - the opening and the encryption never block the thread
+    Factory::SecuritySettings settings = H::settings(Factory::Certificate, H::pfxPassword(), QString(), H::allPermissions());
+    settings.certificate = H::createEntry(m_pkcs12);
+    const pdf::PDFSecurityHandlerPointer handler = Factory::createSecurityHandler(settings, nullptr);
+    QVERIFY(handler);
+    const QByteArray bytes = H::encryptDocument(H::createPlain(), handler.data());
+
+    // The limit itself is checked by PDFCertificateManager (UnitTestsTimestampClient pkcs12IterationLimit);
+    // five times the limit here: tens of millions of iterations would take seconds for each tried password
+    const QByteArray hostile = H::setMacIterations(m_pkcs12, pdf::PDFCertificateManager::MAXIMUM_PKCS12_ITERATIONS * 5);
+    QVERIFY(!hostile.isEmpty() && hostile != m_pkcs12);
+    const int timeoutFactor = qMax(1, qEnvironmentVariableIntValue("PDF4QT_TEST_TIMEOUT_FACTOR"));
+
+    QElapsedTimer timer;
+    timer.start();
+    const pdf::PDFCertificateEntries certificates = { H::createEntry(hostile) };
+    const H::ReadResult read = H::read(bytes, H::pfxPassword(), false, &certificates);
+    QVERIFY(read.result != pdf::PDFDocumentReader::Result::OK);
+    QCOMPARE(read.callbackCount, 2);
+
+    settings.certificate = H::createEntry(hostile);
+    QVERIFY(!Factory::createSecurityHandler(settings, nullptr));
+    QVERIFY2(timer.elapsed() < 1500 * timeoutFactor, qPrintable(QString::number(timer.elapsed())));
+}
+
+void SecurityHandlerTest::poolTasksReleaseOpenSslState_data()
+{
+    QTest::addColumn<bool>("isLoop");
+
+    QTest::newRow("startTask") << false;
+    QTest::newRow("execute") << true;
+}
+
+void SecurityHandlerTest::poolTasksReleaseOpenSslState()
+{
+    // ASan C of step 6: a task of a pool (a run of a tool, a parallel decryption) never leaves the
+    // state of OpenSSL in its thread - the thread can outlive the cleanup of OpenSSL at the exit.
+    // Each task finds the error queue of its thread empty and leaves an error in it; a thread runs
+    // more tasks (more tasks than threads), so a state left by a task would be seen by the next one.
+    QFETCH(bool, isLoop);
+
+    // The test sees the state of the OpenSSL of the core only, when both use one library (the DLL
+    // of Windows); a static OpenSSL linked to the core and to the test again has two states
+    ERR_raise(ERR_LIB_USER, ERR_R_PASSED_INVALID_ARGUMENT);
+    QVERIFY(ERR_peek_error() != 0);
+    pdf::PDFSignatureHandler::releaseThreadResources();
+    if (ERR_peek_error() != 0)
+    {
+        ERR_clear_error();
+        QSKIP("The test and the core use two copies of OpenSSL (static linking): the state of the core is not visible.");
+    }
+
+    struct Observation
+    {
+        Qt::HANDLE thread = nullptr;
+        unsigned long leftError = 0;
+        bool isRaised = false;
+    };
+
+    QMutex mutex;
+    std::vector<Observation> observations;
+    auto task = [&]()
+    {
+        Observation observation;
+        observation.thread = QThread::currentThreadId();
+        observation.leftError = ERR_peek_error();
+        ERR_raise(ERR_LIB_USER, ERR_R_PASSED_INVALID_ARGUMENT);
+        observation.isRaised = ERR_peek_error() != 0;
+
+        QMutexLocker locker(&mutex);
+        observations.push_back(observation);
+    };
+
+    int count = 0;
+    if (isLoop)
+    {
+        // The scope Page: one item in one task of the primary pool, which has at most
+        // QThread::idealThreadCount() threads
+        QVERIFY(pdf::PDFExecutionPolicy::isParallelizing(pdf::PDFExecutionPolicy::Scope::Page));
+        count = 2 * qMax(pdf::PDFExecutionPolicy::getMaxThreadCount(pdf::PDFExecutionPolicy::Scope::Page), QThread::idealThreadCount()) + 1;
+        std::vector<int> items(count, 0);
+        pdf::PDFExecutionPolicy::execute(pdf::PDFExecutionPolicy::Scope::Page, items.cbegin(), items.cend(), [&](int) { task(); });
+    }
+    else
+    {
+        QThreadPool pool;
+        pool.setMaxThreadCount(2);
+        count = 5;
+        for (int i = 0; i < count; ++i)
+        {
+            pdf::PDFExecutionPolicy::startTask(&pool, task);
+        }
+        pool.waitForDone();
+    }
+
+    QMutexLocker locker(&mutex);
+    QCOMPARE(int(observations.size()), count);
+    std::set<Qt::HANDLE> threads;
+    for (const Observation& observation : observations)
+    {
+        QVERIFY(observation.isRaised);
+        QCOMPARE(observation.leftError, 0UL);
+        threads.insert(observation.thread);
+    }
+
+    // The precondition of the check: some thread has run more tasks
+    QVERIFY(int(threads.size()) < count);
 }
 
 QTEST_GUILESS_MAIN(SecurityHandlerTest)

@@ -36,6 +36,7 @@
 class QButtonGroup;
 class QCheckBox;
 class QPushButton;
+class QScrollArea;
 class QToolButton;
 class QVBoxLayout;
 
@@ -131,6 +132,14 @@ public:
     /// Button of the command in the panel (a tile or a row), nullptr if there is none
     QAbstractButton* getCommandButton(const QString& commandId) const;
 
+    /// The scroll area of the content of a panel taller than its screen (it scrolls in one column,
+    /// 434:5421), nullptr = the content has its natural height
+    QScrollArea* getScrollArea() const { return m_scrollArea.data(); }
+
+    /// The greatest height of a panel besides the available height of its screen (0 = the screen only;
+    /// the tests of a small screen - the offscreen platform has a large one)
+    static void setMaximumPanelHeight(int height);
+
     /// Reads the states of the commands again (enabled, checked). A closed panel
     /// does not follow the view (every scroll step changes it): it reads them,
     /// when it opens.
@@ -208,6 +217,14 @@ private:
     void watchAnchor(bool watch);
     void updateTexts();
 
+    /// Sets the margins of the content (the shadow \p margins, the border, the padding) and returns
+    /// the natural height of the window of the content
+    int updateContentMargins(const QMargins& margins);
+
+    /// Moves the items of the content layout into a vertical scroll area (one column, no horizontal
+    /// scrolling); getContentLayout is the layout of the scrolled content afterwards
+    void wrapContentInScrollArea();
+
     /// Left / Right (\p key) with the focus at \p focus: the neighbor in a row of
     /// buttons gets the focus, or the neighboring panel is requested. \returns false,
     /// when the focused control uses the arrows itself. The panel can be deleted by
@@ -219,6 +236,8 @@ private:
 
     QPointer<PDFAppDocumentView> m_view;
     QPointer<QVBoxLayout> m_contentLayout;
+    QPointer<QScrollArea> m_scrollArea;         ///< wrapContentInScrollArea, a child of the panel
+    static int s_maximumPanelHeight;            ///< setMaximumPanelHeight
     QPointer<QWidget> m_anchor;
     QPointer<QWidget> m_anchorWindow;
     QMetaObject::Connection m_anchorDestroyed;

@@ -805,6 +805,11 @@ GalleryPages::Page GalleryPages::createToolButtonsPage(QWidget* parent)
     QToolButton* whiteBarPrototype = new QToolButton(prototypeBar);
     whiteBarPrototype->setProperty(Properties::COLOR_BAR, lightColors.getColor(pdf::PDFThemeColors::AnnotationWhite));
 
+    // An icon-only toolbar button, which keeps its text as its accessible name (the drawing tools of
+    // Sign by Hand 435:8712): the text and the style Text beside icon are not drawn
+    QToolButton* iconOnlyPrototype = new QToolButton(prototypeBar);
+    iconOnlyPrototype->setProperty(Properties::ICON_ONLY, true);
+
     auto toolSpecimen = [&builder, style](const QString& caption, const QString& node, const char* iconName, const QString& text, Qt::ToolButtonStyle buttonStyle, StateFlags flags,
                                            QStyleOptionToolButton::ToolButtonFeatures features, QStyle::SubControls activeSubControls, QToolButton* prototype, int iconExtent, qreal radius)
     {
@@ -854,6 +859,8 @@ GalleryPages::Page GalleryPages::createToolButtonsPage(QWidget* parent)
     toolSpecimen(QStringLiteral("Active / Hover"), QStringLiteral("607:1164"), "highlighter", QString(), Qt::ToolButtonIconOnly, On | Hover, none, QStyle::SC_ToolButton, toolbarPrototype, 20, 10.0);
     toolSpecimen(QStringLiteral("Checked / Disabled"), QStringLiteral("607:1223"), "highlighter", QString(), Qt::ToolButtonIconOnly, On | Disabled, none, {}, toolbarPrototype, 20, 10.0);
     toolSpecimen(QStringLiteral("Menu indicator"), QStringLiteral("607:1173"), "rotate-cw", QString(), Qt::ToolButtonIconOnly, Default, QStyleOptionToolButton::HasMenu, {}, toolbarPrototype, 20, 10.0);
+    toolSpecimen(QStringLiteral("Icon only with a text (iconOnly)"), QStringLiteral("435:8712"), "type", QStringLiteral("Text label"), Qt::ToolButtonTextBesideIcon, Default, none, {}, iconOnlyPrototype, 20, 10.0);
+    toolSpecimen(QStringLiteral("Icon only with a text, Active"), QStringLiteral("435:8712"), "type", QStringLiteral("Text label"), Qt::ToolButtonTextBesideIcon, On, none, {}, iconOnlyPrototype, 20, 10.0);
 
     builder.block(QStringLiteral("Existing - Toolbar menu button, Action tile, Sidebar tab"), QStringLiteral("607:1114"));
     toolSpecimen(QStringLiteral("Menu button / closed"), QStringLiteral("607:1180"), "file", QStringLiteral("File"), Qt::ToolButtonTextBesideIcon, Default, none, {}, toolbarPrototype, 18, 10.0);

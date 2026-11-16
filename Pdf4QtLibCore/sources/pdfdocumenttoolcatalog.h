@@ -367,6 +367,39 @@ public:
     /// Table 22, so a check by the bits alone never allows less.
     bool isSecurityChange() const;
 
+    /// The result is the input document with an incremental update of its exact bytes, written into
+    /// a new file (Sign with Certificate, Add Timestamp; plan of step 6 of phase 2, 4.4, R6-8): the
+    /// encryption and the restrictions of the input stay, so it is no new document of the inputs
+    /// (isNewDocumentOfInputs is false); the open document is not changed. A display version of an
+    /// XFA form is refused (its pages are not the pages of the file, F5; R6-27).
+    bool isIncrementalUpdateOfInput() const;
+
+    /// The result is only a new file, the open document stays as it is (Sign with Certificate, Add
+    /// Timestamp, Redact Content; tools.md 9.3 point 11): the result dialog shows the name of the
+    /// file, its folder and Open the … copy in a new tab instead of its choices
+    /// (PDFAppToolResultDialog::ResultKind::FileOnly). Only a tool of the kind NewDocument.
+    bool isFileOnlyResult() const;
+
+    /// The user always confirms the action of MCP in PDF4QT, also when the assistant is allowed to do
+    /// it (Allow): the changes of the security (step 5), Sign with Certificate (a legal act of the user),
+    /// Add Timestamp (a hash of the document goes to a third party) and Sign by Hand (a drawing of a
+    /// signature; plan of step 6 of phase 2, 6.5, R6-10, R6-20). A property of its own, not derived
+    /// from isSecurityChange.
+    bool isAlwaysConfirmedByMcp() const;
+
+    /// The secret values of a run (a password, the choice of a certificate with its private key) are
+    /// given only by the user in a window of PDF4QT, never by an assistant (the confirmation with the
+    /// password of MCP; plan of step 5 of phase 2, Q5.6; plan of step 6, 6.5, Q6.7, R6-10): the tools of
+    /// the encryption and Sign with Certificate. A property of its own, not derived from isSecurityChange.
+    bool isSecretTypedInApplication() const;
+
+    /// Tools are offered after the tool (Then continue with of the result dialog, Often used next of
+    /// the start page) and a pair from it is recorded: not after a change of the security (tools.md
+    /// 10.3) nor after Sign with Certificate and Add Timestamp, whose result is only a file and whose
+    /// frames have no Then continue with (434:9276, 435:8356; R6-10). Redact Content offers them (the
+    /// tool runs on the opened copy, Q6.16).
+    bool isOfferingSuccessors() const;
+
     /// External dependency (default None)
     PDFDocumentToolExternalDependency getExternalDependency() const;
 
@@ -396,6 +429,10 @@ public:
     /// The security handler of the document grants what the tool needs: a document
     /// without a handler grants everything, an owner too (nullptr grants nothing)
     bool isPermitted(const PDFDocument* document) const;
+
+    /// The security handler of the document grants every one of \p permissions (the rule of
+    /// isPermitted for the permissions of a run, PDFDocumentTool::getRequiredPermissions)
+    static bool isPermitted(const PDFDocument* document, const std::vector<PDFSecurityHandler::Permission>& permissions);
 
     /// Topic of the user manual of the tool: tool-<id with a dash instead of the dot>
     /// ("tool-optimize-compress", plan chapter 5)

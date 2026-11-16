@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfcertificatestore.h"
+#include "pdfsecurityhandler.h"
 #include "pdfutils.h"
 
 #if defined(PDF4QT_COMPILER_MINGW) || defined(PDF4QT_COMPILER_GCC)
@@ -43,8 +44,11 @@
 #include <openssl/x509v3.h>
 
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QLockFile>
+#include <QMutex>
+#include <QMutexLocker>
 #include <QDataStream>
 #include <QStandardPaths>
 #include <QDomDocument>
@@ -78,6 +82,13 @@ void PDFCertificateEntry::deserialize(QDataStream& stream)
 {
     int persistVersionDeserialized = 0;
     stream >> persistVersionDeserialized;
+    if (persistVersionDeserialized != persist_version)
+    {
+        // B131: another version is not read as this one
+        stream.setStatus(QDataStream::ReadCorruptData);
+        return;
+    }
+
     stream >> type;
     stream >> info;
 }
@@ -100,10 +111,44 @@ void PDFCertificateInfo::deserialize(QDataStream& stream)
 {
     int persistVersionDeserialized = 0;
     stream >> persistVersionDeserialized;
+    if (persistVersionDeserialized != persist_version)
+    {
+        // B131: another version is not read as this one
+        stream.setStatus(QDataStream::ReadCorruptData);
+        return;
+    }
+
     stream >> m_version;
     stream >> m_keySize;
     stream >> m_publicKey;
-    stream >> m_nameEntries;
+
+    // B131: the count of the names is read by its own, a hostile count is never iterated (a file of an
+    // older or newer build may have a few names less or more: the missing ones are empty, the extra ones
+    // are skipped - as the generic reader of std::array did)
+    constexpr std::array<QString, NameEnd>::size_type MAXIMUM_NAME_COUNT = 64;
+    std::array<QString, NameEnd>::size_type nameCount = 0;
+    stream >> nameCount;
+    if (stream.status() != QDataStream::Ok || nameCount > MAXIMUM_NAME_COUNT)
+    {
+        stream.setStatus(QDataStream::ReadCorruptData);
+        return;
+    }
+
+    for (std::array<QString, NameEnd>::size_type i = 0; i < nameCount; ++i)
+    {
+        QString name;
+        stream >> name;
+        if (i < m_nameEntries.size())
+        {
+            m_nameEntries[i] = std::move(name);
+        }
+    }
+
+    for (std::array<QString, NameEnd>::size_type i = nameCount; i < m_nameEntries.size(); ++i)
+    {
+        m_nameEntries[i].clear();
+    }
+
     stream >> m_notValidBefore;
     stream >> m_notValidAfter;
     stream >> m_keyUsage;
@@ -457,9 +502,71 @@ void PDFCertificateStore::serialize(QDataStream& stream) const
 
 void PDFCertificateStore::deserialize(QDataStream& stream)
 {
+    m_certificates.clear();
+
+    // B131 (SECURITY_TODO 53): the version of the format and the count of the entries are checked
+    // before anything is allocated by them
     int persistVersionDeserialized = 0;
     stream >> persistVersionDeserialized;
-    stream >> m_certificates;
+    if (stream.status() != QDataStream::Ok || persistVersionDeserialized != persist_version)
+    {
+        stream.setStatus(QDataStream::ReadCorruptData);
+        return;
+    }
+
+    PDFCertificateEntries::size_type count = 0;
+    stream >> count;
+    if (stream.status() != QDataStream::Ok || count > MAXIMUM_STORE_ENTRIES)
+    {
+        stream.setStatus(QDataStream::ReadCorruptData);
+        return;
+    }
+
+    PDFCertificateEntries certificates;
+    certificates.reserve(count);
+    for (PDFCertificateEntries::size_type i = 0; i < count; ++i)
+    {
+        PDFCertificateEntry entry;
+        stream >> entry;
+        if (stream.status() != QDataStream::Ok)
+        {
+            stream.setStatus(QDataStream::ReadCorruptData);
+            return;
+        }
+
+        certificates.emplace_back(std::move(entry));
+    }
+
+    m_certificates = std::move(certificates);
+}
+
+bool PDFCertificateStore::loadFromFile(const QString& fileName)
+{
+    m_certificates.clear();
+
+    QFile file(fileName);
+    if (file.size() > MAXIMUM_STORE_FILE_SIZE || !file.open(QFile::ReadOnly))
+    {
+        return false;
+    }
+
+    // Never more than the limit is read, also when the file grows in the meantime
+    const QByteArray data = file.read(MAXIMUM_STORE_FILE_SIZE + 1);
+    file.close();
+    if (data.size() > MAXIMUM_STORE_FILE_SIZE)
+    {
+        return false;
+    }
+
+    QDataStream stream(data);
+    deserialize(stream);
+    if (stream.status() != QDataStream::Ok)
+    {
+        m_certificates.clear();
+        return false;
+    }
+
+    return true;
 }
 
 bool PDFCertificateStore::add(PDFCertificateEntry::EntryType type, const QByteArray& certificate)
@@ -502,13 +609,7 @@ void PDFCertificateStore::loadDefaultUserCertificates()
     QLockFile lockFile(trustedCertificateStoreLockFileName);
     if (lockFile.lock())
     {
-        QFile trustedCertificateStoreFile(trustedCertificateStoreFileName);
-        if (trustedCertificateStoreFile.open(QFile::ReadOnly))
-        {
-            QDataStream stream(&trustedCertificateStoreFile);
-            deserialize(stream);
-            trustedCertificateStoreFile.close();
-        }
+        loadFromFile(trustedCertificateStoreFileName);
         lockFile.unlock();
     }
 }
@@ -608,6 +709,67 @@ PDFCertificateEntries PDFCertificateStore::getAATLCertificates()
     return result;
 }
 
+/// The store of the system (PDFPersonalCertificateStore::createSystemStore)
+class PDFSystemPersonalCertificateStore : public PDFPersonalCertificateStore
+{
+public:
+    virtual void* openStore() const override;
+};
+
+/// A store in the memory of the process (PDFPersonalCertificateStore::createMemoryStore); it owns the
+/// handle of the store, the copies of openStore are duplicates of it
+class PDFMemoryPersonalCertificateStore : public PDFPersonalCertificateStore
+{
+public:
+    explicit PDFMemoryPersonalCertificateStore(void* store) : m_store(store) { }
+    virtual ~PDFMemoryPersonalCertificateStore() override;
+
+    PDFMemoryPersonalCertificateStore(const PDFMemoryPersonalCertificateStore&) = delete;
+    PDFMemoryPersonalCertificateStore& operator=(const PDFMemoryPersonalCertificateStore&) = delete;
+
+    virtual void* openStore() const override;
+
+private:
+    void* m_store = nullptr;
+};
+
+/// The injected store of PDFPersonalCertificateStore::setStore
+class PDFPersonalCertificateStoreHelper
+{
+public:
+    static QMutex s_mutex;
+    static std::shared_ptr<const PDFPersonalCertificateStore> s_store;
+};
+
+QMutex PDFPersonalCertificateStoreHelper::s_mutex;
+std::shared_ptr<const PDFPersonalCertificateStore> PDFPersonalCertificateStoreHelper::s_store;
+
+PDFPersonalCertificateStore::~PDFPersonalCertificateStore() = default;
+
+std::shared_ptr<const PDFPersonalCertificateStore> PDFPersonalCertificateStore::createSystemStore()
+{
+    return std::make_shared<const PDFSystemPersonalCertificateStore>();
+}
+
+std::shared_ptr<const PDFPersonalCertificateStore> PDFPersonalCertificateStore::getStore()
+{
+    {
+        QMutexLocker locker(&PDFPersonalCertificateStoreHelper::s_mutex);
+        if (PDFPersonalCertificateStoreHelper::s_store)
+        {
+            return PDFPersonalCertificateStoreHelper::s_store;
+        }
+    }
+
+    return createSystemStore();
+}
+
+void PDFPersonalCertificateStore::setStore(std::shared_ptr<const PDFPersonalCertificateStore> store)
+{
+    QMutexLocker locker(&PDFPersonalCertificateStoreHelper::s_mutex);
+    PDFPersonalCertificateStoreHelper::s_store = std::move(store);
+}
+
 }   // namespace pdf
 
 #ifdef Q_OS_WIN
@@ -617,6 +779,136 @@ PDFCertificateEntries PDFCertificateStore::getAATLCertificates()
 #pragma comment(lib, "crypt32.lib")
 #endif
 #endif
+
+void* pdf::PDFSystemPersonalCertificateStore::openStore() const
+{
+#ifdef Q_OS_WIN
+    // Read only: nothing of the store of the user is ever changed
+    return CertOpenStore(CERT_STORE_PROV_SYSTEM, 0, NULL, CERT_SYSTEM_STORE_CURRENT_USER | CERT_STORE_READONLY_FLAG | CERT_STORE_OPEN_EXISTING_FLAG, L"MY");
+#else
+    return nullptr;
+#endif
+}
+
+pdf::PDFMemoryPersonalCertificateStore::~PDFMemoryPersonalCertificateStore()
+{
+#ifdef Q_OS_WIN
+    if (m_store)
+    {
+        CertCloseStore(static_cast<HCERTSTORE>(m_store), 0);
+    }
+#endif
+}
+
+void* pdf::PDFMemoryPersonalCertificateStore::openStore() const
+{
+#ifdef Q_OS_WIN
+    return m_store ? CertDuplicateStore(static_cast<HCERTSTORE>(m_store)) : nullptr;
+#else
+    return nullptr;
+#endif
+}
+
+std::shared_ptr<const pdf::PDFPersonalCertificateStore> pdf::PDFPersonalCertificateStore::createMemoryStore(const QByteArray& pkcs12, const QByteArray& password)
+{
+#ifdef Q_OS_WIN
+    if (pkcs12.isEmpty() || pkcs12.size() > 1024 * 1024)
+    {
+        return nullptr;
+    }
+
+    QString passwordText = QString::fromUtf8(password);
+    std::wstring passwordWide = passwordText.toStdWString();
+    PDFSecureMemory::clear(passwordText);
+
+    CRYPT_DATA_BLOB blob = { };
+    blob.cbData = DWORD(pkcs12.size());
+    blob.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(pkcs12.constData()));
+
+    // PKCS12_NO_PERSIST_KEY: the keys live only in the memory of this process (no key container, the
+    // store of the machine is never touched)
+    HCERTSTORE store = PFXImportCertStore(&blob, passwordWide.c_str(), PKCS12_NO_PERSIST_KEY | PKCS12_ALWAYS_CNG_KSP);
+    PDFSecureMemory::clear(passwordWide.data(), passwordWide.size() * sizeof(wchar_t));
+
+    if (!store)
+    {
+        return nullptr;
+    }
+
+    return std::make_shared<const PDFMemoryPersonalCertificateStore>(store);
+#else
+    Q_UNUSED(pkcs12);
+    Q_UNUSED(password);
+    return nullptr;
+#endif
+}
+
+std::optional<QByteArray> pdf::PDFPersonalCertificateStore::decryptEnvelope(const QByteArray& certificateData, const QByteArray& envelope)
+{
+#ifdef Q_OS_WIN
+    std::shared_ptr<const PDFPersonalCertificateStore> personalStore = getStore();
+    HCERTSTORE store = personalStore ? static_cast<HCERTSTORE>(personalStore->openStore()) : nullptr;
+    if (!store || certificateData.isEmpty() || envelope.isEmpty())
+    {
+        if (store)
+        {
+            CertCloseStore(store, 0);
+        }
+        return std::nullopt;
+    }
+
+    std::optional<QByteArray> result;
+    PCCERT_CONTEXT wantedCertificate = CertCreateCertificateContext(X509_ASN_ENCODING, reinterpret_cast<const BYTE*>(certificateData.constData()), DWORD(certificateData.size()));
+    PCCERT_CONTEXT certificate = wantedCertificate ? CertFindCertificateInStore(store, X509_ASN_ENCODING, 0, CERT_FIND_EXISTING, wantedCertificate, nullptr) : nullptr;
+
+    // Only the recipient info of this certificate is decrypted: a store of one link to it (the link
+    // keeps the properties of the certificate, also its key)
+    HCERTSTORE linkStore = certificate ? CertOpenStore(CERT_STORE_PROV_MEMORY, 0, NULL, 0, nullptr) : nullptr;
+    if (linkStore && CertAddCertificateLinkToStore(linkStore, certificate, CERT_STORE_ADD_ALWAYS, nullptr))
+    {
+        CRYPT_DECRYPT_MESSAGE_PARA parameters = { };
+        parameters.cbSize = sizeof(parameters);
+        parameters.dwMsgAndCertEncodingType = PKCS_7_ASN_ENCODING | X509_ASN_ENCODING;
+        parameters.cCertStore = 1;
+        parameters.rghCertStore = &linkStore;
+
+        const BYTE* envelopeData = reinterpret_cast<const BYTE*>(envelope.constData());
+        DWORD size = 0;
+        if (CryptDecryptMessage(&parameters, envelopeData, DWORD(envelope.size()), nullptr, &size, nullptr) && size > 0)
+        {
+            QByteArray decrypted(qsizetype(size), char(0));
+            if (CryptDecryptMessage(&parameters, envelopeData, DWORD(envelope.size()), reinterpret_cast<BYTE*>(decrypted.data()), &size, nullptr))
+            {
+                decrypted.resize(qsizetype(size));
+                result = std::move(decrypted);
+            }
+            else
+            {
+                PDFSecureMemory::clear(decrypted);
+            }
+        }
+    }
+
+    if (linkStore)
+    {
+        CertCloseStore(linkStore, 0);
+    }
+    if (certificate)
+    {
+        CertFreeCertificateContext(certificate);
+    }
+    if (wantedCertificate)
+    {
+        CertFreeCertificateContext(wantedCertificate);
+    }
+    CertCloseStore(store, 0);
+    return result;
+#else
+    Q_UNUSED(certificateData);
+    Q_UNUSED(envelope);
+    return std::nullopt;
+#endif
+}
 
 pdf::PDFCertificateEntries pdf::PDFCertificateStore::getSystemCertificates()
 {
@@ -674,11 +966,13 @@ pdf::PDFCertificateEntries pdf::PDFCertificateStore::getPersonalCertificates(PDF
         return QString::fromWCharArray(reinterpret_cast<const wchar_t*>(buffer.constData()));
     };
 
-    HCERTSTORE certStore = CertOpenStore(CERT_STORE_PROV_SYSTEM, 0, NULL, CERT_SYSTEM_STORE_CURRENT_USER, L"MY");
+    // The store of the system, or the store of a test (Q6.2: never the store of the machine in a test)
+    std::shared_ptr<const PDFPersonalCertificateStore> personalStore = PDFPersonalCertificateStore::getStore();
+    HCERTSTORE certStore = personalStore ? static_cast<HCERTSTORE>(personalStore->openStore()) : nullptr;
     PCCERT_CONTEXT context = nullptr;
     if (certStore)
     {
-        while (context = CertEnumCertificatesInStore(certStore, context))
+        while ((context = CertEnumCertificatesInStore(certStore, context)) != nullptr)
         {
             const unsigned char* pointer = context->pbCertEncoded;
             QByteArray data(reinterpret_cast<const char*>(pointer), context->cbCertEncoded);
@@ -698,7 +992,8 @@ pdf::PDFCertificateEntries pdf::PDFCertificateStore::getPersonalCertificates(PDF
             }
         }
 
-        CertCloseStore(certStore, CERT_CLOSE_STORE_FORCE_FLAG);
+        // Not forced: the handle may be a duplicate of an injected store, which stays open
+        CertCloseStore(certStore, 0);
     }
 #else
     Q_UNUSED(filter);

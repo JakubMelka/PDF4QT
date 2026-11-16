@@ -432,8 +432,19 @@ PDFDocumentReader::Result PDFDocumentReader::processSecurityHandler(const PDFObj
     // screen offers Open without attachments also after a failed or canceled reading
     m_isEmbeddedFilesOnlyEncryption = m_securityHandler->isEmbeddedFilesOnlyEncryption();
 
+    // R6-1: the authorization of a document read already from these bytes - its clone, never a password
+    const PDFSecurityHandler::AuthorizationResult authenticatedResult = m_authenticatedSecurityHandler ? m_authenticatedSecurityHandler->getAuthorizationResult()
+                                                                                                         : PDFSecurityHandler::AuthorizationResult::Failed;
+    const bool isAuthenticatedResultSufficient = authenticatedResult == PDFSecurityHandler::AuthorizationResult::OwnerAuthorized ||
+                                                 (!m_authorizeOwnerOnly && authenticatedResult == PDFSecurityHandler::AuthorizationResult::UserAuthorized);
+
     PDFSecurityHandler::AuthorizationResult authorizationResult = PDFSecurityHandler::AuthorizationResult::Failed;
-    if (m_isOpenWithoutAttachments && m_isEmbeddedFilesOnlyEncryption)
+    if (isAuthenticatedResultSufficient && m_securityHandler->isSameEncryption(m_authenticatedSecurityHandler.get()))
+    {
+        m_securityHandler = PDFSecurityHandlerPointer(m_authenticatedSecurityHandler->clone());
+        authorizationResult = authenticatedResult;
+    }
+    else if (m_isOpenWithoutAttachments && m_isEmbeddedFilesOnlyEncryption)
     {
         // The document is readable without the password, its embedded files stay encrypted
         authorizationResult = m_securityHandler->authenticateWithoutEmbeddedFiles();
@@ -719,6 +730,13 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
     }
 
     return PDFDocument();
+}
+
+void PDFDocumentReader::setAuthenticatedSecurityHandler(const PDFSecurityHandler* securityHandler)
+{
+    // A clone: the handler of the caller may be gone before the reading (a document of another thread)
+    const bool isEncrypted = securityHandler && securityHandler->getMode() != EncryptionMode::None;
+    m_authenticatedSecurityHandler = isEncrypted ? PDFSecurityHandlerPointer(securityHandler->clone()) : PDFSecurityHandlerPointer();
 }
 
 QByteArray PDFDocumentReader::hash(const QByteArray& sourceData)

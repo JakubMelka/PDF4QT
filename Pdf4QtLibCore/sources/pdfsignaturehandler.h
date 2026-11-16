@@ -42,6 +42,8 @@ class PDFObjectStorage;
 class PDFCertificateStore;
 class PDFFormFieldSignature;
 class PDFDocumentSecurityStore;
+class PDFSecurityHandler;
+struct PDFSignatureLayout;
 
 /// Signature reference dictionary.
 class PDFSignatureReference
@@ -116,6 +118,13 @@ public:
     /// \param object Object containing the signature
     static PDFSignature parse(const PDFObjectStorage* storage, PDFObject object);
 
+    /// Reference of the signature dictionary, an invalid reference for a direct dictionary
+    PDFObjectReference getSelfReference() const { return m_selfReference; }
+
+    /// Permission P of the DocMDP transform of the signature (ISO 32000-2, 12.8.2.2, Table 257):
+    /// 1, 2 or 3 for a certification signature, 0 for a signature without a DocMDP reference
+    PDFInteger getDocMDPPermission() const { return m_docMDPPermission; }
+
     Type getType() const { return m_type; }
     const QByteArray& getFilter() const { return m_filter; }
     const QByteArray& getSubfilter() const { return m_subfilter; }
@@ -137,6 +146,8 @@ public:
     AuthentificationType getAuthentificationType() const { return m_propType; }
 
 private:
+    PDFObjectReference m_selfReference;
+    PDFInteger m_docMDPPermission = 0;
     Type m_type = Type::Invalid;
     QByteArray m_filter;    ///< Preferred signature handler name
     QByteArray m_subfilter; ///< Describes encoding of signature
@@ -204,22 +215,36 @@ public:
         Error_Signature_DataOther                       = 0x00080000,  ///< Signed data were not verified
         Error_Signature_DataCoveredBySignatureMissing   = 0x00100000,  ///< Data covered by signature are not present
 
-        Warning_Signature_NotCoveredBytes               = 0x00200000,  ///< Some bytes in source data are not covered by signature
+        /// The document was changed after it was signed: a later revision holds a change outside of the allowed list
+        /// (ISO 32000-2, 12.8.1; plan R6-3), it cannot be classified, or the bytes after the signature are not a revision
+        Warning_Signature_NotCoveredBytes               = 0x00200000,
         Warning_Certificate_CRLValidityTimeExpired      = 0x00400000,  ///< Certificate revocation list was not checked, because it's validity expired
         Warning_Certificate_QualifiedStatement          = 0x00800000,  ///< Qualified certificate statement not verified
         Warning_Certificate_UnableToGetCRL              = 0x01000000,  ///< Unable to get CRL
         Warning_Signature_TimestampNotVerified          = 0x02000000,  ///< Timestamp of the signature could not be verified
         Warning_Signature_FileRestored                  = 0x04000000,  ///< The document was restored from the bytes of a damaged file, it may not be the signed one
 
+        /// The layout of the signature in the file is invalid (B109, R6-22): /ByteRange is not [0 a b c], its gap is not the
+        /// /Contents of this signature dictionary, it does not end at the end of a revision, /Contents is not one exact encoded
+        /// object followed only by zeros, or a limit of the verification (plan 7.2) is exceeded
+        Error_Signature_ByteRange                       = 0x08000000,
+        /// A certification signature (DocMDP, ISO 32000-2, 12.8.2.2, Table 257): a later revision holds changes, which its
+        /// permission P does not allow
+        Error_Signature_ChangesNotAllowed               = 0x10000000,
+        /// A weak digest algorithm (MD5, SHA-1) protects the signature (B114); the strict mode of a viewer treats it as an error
+        Warning_Signature_WeakAlgorithm                 = 0x20000000,
+
         Error_Certificates_Mask = Error_Certificate_Invalid | Error_Certificate_NoSignatures | Error_Certificate_Missing | Error_Certificate_Generic |
                                   Error_Certificate_Expired | Error_Certificate_SelfSigned | Error_Certificate_SelfSignedChain | Error_Certificate_TrustedNotFound |
                                   Error_Certificate_Revoked | Error_Certificate_Other,
 
         Error_Signatures_Mask = Error_Signature_Invalid | Error_Signature_SourceCertificateMissing | Error_Signature_NoSignaturesFound |
-                                Error_Signature_DigestFailure | Error_Signature_DataOther | Error_Signature_DataCoveredBySignatureMissing,
+                                Error_Signature_DigestFailure | Error_Signature_DataOther | Error_Signature_DataCoveredBySignatureMissing |
+                                Error_Signature_ByteRange | Error_Signature_ChangesNotAllowed,
 
         Warning_Certificates_Mask = Warning_Certificate_CRLValidityTimeExpired | Warning_Certificate_QualifiedStatement | Warning_Certificate_UnableToGetCRL,
-        Warning_Signatures_Mask = Warning_Signature_NotCoveredBytes | Warning_Signature_TimestampNotVerified | Warning_Signature_FileRestored,
+        Warning_Signatures_Mask = Warning_Signature_NotCoveredBytes | Warning_Signature_TimestampNotVerified | Warning_Signature_FileRestored |
+                                  Warning_Signature_WeakAlgorithm,
 
         Warnings_Mask = Warning_Certificates_Mask | Warning_Signatures_Mask
     };
@@ -256,6 +281,46 @@ public:
     void addCertificateQualifiedStatementNotVerifiedWarning();
     void addCertificateUnableToGetCRLWarning();
 
+    /// The layout of the signature in the file is invalid (Error_Signature_ByteRange)
+    /// \param reason Translated reason, a sentence
+    void addByteRangeError(const QString& reason);
+
+    /// A later revision holds changes, which the certification does not allow (Error_Signature_ChangesNotAllowed).
+    /// The signature stops being valid (the classification runs after the signature was verified).
+    /// \param permission Permission P of the DocMDP transform (1, 2)
+    void addChangesNotAllowedError(PDFInteger permission);
+
+    /// The certificate of the signer may not sign documents (B116): its key usage has neither digitalSignature
+    /// nor nonRepudiation, or its extended key usage has no purpose of documents (Error_Certificate_Other)
+    void addCertificatePurposeError();
+
+    /// A weak digest algorithm protects the signature (Warning_Signature_WeakAlgorithm)
+    /// \param algorithm Name of the algorithm (SHA-1, MD5)
+    void addWeakAlgorithmWarning(const QString& algorithm);
+
+    /// The signature was not verified, a limit of the verification was exceeded (Error_Generic, Error_Signature_ByteRange)
+    /// \param reason Translated reason, a sentence
+    void addNotVerifiedError(const QString& reason);
+
+    /// Adds an information, which is neither a warning nor an error (later signatures were added, ...)
+    void addInfo(const QString& info);
+
+    /// The revisions of the file after the revision, which the signature ends (plan R6-3, ISO 32000-2, 12.8.1)
+    enum class LaterRevisions
+    {
+        None,       ///< The signature ends the last revision of the file (or its layout is invalid)
+        Allowed,    ///< Only signatures, document timestamps or validation data (DSS) were added later (getInfos says what);
+                    ///< for a certification with P = 2 also the filling in of form fields
+        Changed     ///< The document was changed after it was signed (Warning_Signature_NotCoveredBytes)
+    };
+
+    LaterRevisions getLaterRevisions() const { return m_laterRevisions; }
+    void setLaterRevisions(LaterRevisions laterRevisions) { m_laterRevisions = laterRevisions; }
+
+    /// Permission P of the certification (DocMDP, Table 257): 1, 2, 3; 0 = an approval signature or a timestamp
+    PDFInteger getCertificationPermission() const { return m_certificationPermission; }
+    void setCertificationPermission(PDFInteger certificationPermission) { m_certificationPermission = certificationPermission; }
+
     bool isValid() const { return hasFlag(OK); }
     bool isCertificateValid() const { return hasFlag(Certificate_OK); }
     bool isSignatureValid() const { return hasFlag(Signature_OK); }
@@ -272,12 +337,25 @@ public:
     const QString& getSignatureFieldQualifiedName() const { return m_signatureFieldQualifiedName; }
     const QStringList& getErrors() const { return m_errors; }
     const QStringList& getWarnings() const { return m_warnings; }
+    const QStringList& getInfos() const { return m_infos; }
     const QStringList& getHashAlgorithms() const { return m_hashAlgorithms; }
+
+    /// Certificates of the signature (R6-2): the first one is the certificate of the signer, identified by
+    /// the SignerInfo of the signature (issuer and serial number or the subject key identifier) and verified
+    /// against the value of the signature (getSignerCertificate), followed by the chain built from it (the
+    /// last one is its root, when the chain reaches one). Never a certificate of the bag of the signature,
+    /// which is not in the chain of the signer. Empty, when the signer was not identified (an error).
     const PDFCertificateInfos& getCertificateInfos() const { return m_certificateInfos; }
+
+    /// Returns the certificate of the signer (R6-2) - the name of the signer, the certificate to trust -
+    /// or nullptr, when the signer was not identified (the signature has an error then)
+    const PDFCertificateInfo* getSignerCertificate() const { return m_isSignerIdentified && !m_certificateInfos.empty() ? &m_certificateInfos.front() : nullptr; }
 
     void setSignatureFieldQualifiedName(const QString& signatureFieldQualifiedName);
     void setSignatureFieldReference(PDFObjectReference signatureFieldReference);
 
+    /// Sets the certificates: the signer and the chain built from it (see getCertificateInfos)
+    void setCertificateInfos(PDFCertificateInfos infos, bool isSignerIdentified) { m_certificateInfos = std::move(infos); m_isSignerIdentified = isSignerIdentified; }
     void addCertificateInfo(PDFCertificateInfo info) { m_certificateInfos.emplace_back(qMove(info)); }
     void addHashAlgorithm(const QString& algorithm);
 
@@ -286,6 +364,21 @@ public:
 
     QDateTime getSignatureDate() const;
     void setSignatureDate(const QDateTime& signatureDate);
+
+    /// Where the date of getSignatureDate comes from
+    enum class SignatureDateSource
+    {
+        None,                   ///< No date
+        SigningTimeAttribute,   ///< The signed attribute signing-time of the CMS (covered by the signature)
+        SignatureDictionary     ///< /M of the signature dictionary (ISO 32000-2, Table 255): the time claimed by the
+                                ///< signer (PAdES has no signing-time attribute), not attested by a timestamp
+    };
+
+    SignatureDateSource getSignatureDateSource() const { return m_signatureDateSource; }
+    void setSignatureDateSource(SignatureDateSource source) { m_signatureDateSource = source; }
+
+    /// The date of getSignatureDate is only claimed by the signer (/M), not attested by a timestamp
+    bool isSignatureDateClaimed() const { return m_signatureDateSource == SignatureDateSource::SignatureDictionary; }
 
     QDateTime getTimestampDate() const;
     void setTimestampDate(const QDateTime& timestampDate);
@@ -310,12 +403,17 @@ private:
     PDFObjectReference m_signatureFieldReference;
     QString m_signatureFieldQualifiedName;
     QDateTime m_signatureDate;
+    SignatureDateSource m_signatureDateSource = SignatureDateSource::None;
     QDateTime m_timestampDate;
     QStringList m_errors;
     QStringList m_warnings;
+    QStringList m_infos;
     QStringList m_hashAlgorithms;
     QByteArray m_signatureHandler;
     PDFCertificateInfos m_certificateInfos;
+    bool m_isSignerIdentified = false;
+    LaterRevisions m_laterRevisions = LaterRevisions::None;
+    PDFInteger m_certificationPermission = 0;
     PDFClosedIntervalSet m_bytesCoveredBySignature;
 };
 
@@ -345,10 +443,39 @@ public:
         bool ignoreExpirationDate = false;
         bool useSystemCertificateStore = true;
         AATLCertificates aatlCertificates = AATLCertificates::WithSystemStore;
+
+        /// False: the certificate of the signer is identified (R6-2), but its chain and its trust are not
+        /// verified (PdfTool --ver-no-cert-check, B132): no certificate error, no Certificate_OK, so no OK
+        bool verifyCertificates = true;
+
+        /// The authenticated security handler of the document of the form (an encrypted file, R6-1): the
+        /// revisions of the file are read by its clone (PDFDocumentReader::setAuthenticatedSecurityHandler),
+        /// when the file has its encryption. Null: an encrypted file with an open password has revisions,
+        /// which cannot be read, so its later revisions count as changes. Only used during the call.
+        const PDFSecurityHandler* securityHandler = nullptr;
     };
 
-    /// Tries to verify all signatures in the form. If form is invalid, then
-    /// empty vector is returned.
+    /// Limits of the verification (plan 7.2, B123)
+    static constexpr PDFInteger MAXIMUM_SIGNATURE_SIZE = 512 * 1024;            ///< Bytes of /Contents (1 MiB of hexadecimal digits)
+    static constexpr int MAXIMUM_CERTIFICATES = 64;                             ///< Certificates of a signature (the bag of CMS, /Cert), and of the DSS used
+    static constexpr PDFInteger MAXIMUM_CERTIFICATES_SIZE = 1024 * 1024;        ///< Bytes of the certificates of /Cert, and of the DSS used
+    static constexpr int MAXIMUM_CHAIN_DEPTH = 16;                              ///< Certificates of a chain between the signer and its root
+    static constexpr int MAXIMUM_VERIFIED_SIGNATURES = 256;                     ///< Signatures verified in one document, the others are "not verified"
+    static constexpr int MAXIMUM_CLASSIFIED_REVISIONS = 256;                    ///< Later revisions classified (each one is read), more = changed
+
+    /// Tries to verify all signatures in the form. If form is invalid, then empty vector is returned.
+    /// A signature field without a signature gives a result of the type PDFSignature::Type::Invalid.
+    ///
+    /// Each signature is checked against the file (step 6 of phase 2, plan 6.7, 7.2, R6-2, R6-3, R6-22):
+    /// /ByteRange is exactly [0 a b c], its gap is the hexadecimal /Contents of this signature dictionary at
+    /// the position of the reader, b + c is the end of a revision, /Contents is one object of its exact
+    /// length (DER; BER of the indefinite length of real signers is measured by its parsing) followed only
+    /// by zeros (otherwise Error_Signature_ByteRange); the signer is the certificate of
+    /// the SignerInfo (R6-2). The revisions after the signed one are compared object by object, each with the
+    /// previous one: only new signature fields signed by a valid signature, their widgets, /AcroForm /Fields
+    /// and /SigFlags, /DSS and document timestamps are allowed (LaterRevisions::Allowed and an information),
+    /// anything else is a change (LaterRevisions::Changed, a warning); a certification (DocMDP) with P = 1
+    /// or P = 2 is evaluated over them (Error_Signature_ChangesNotAllowed).
     /// \param form Form
     /// \param sourceData Source data
     /// \param parameters Verification settings
@@ -368,7 +495,8 @@ private:
     /// \param signatureField Signature field
     /// \param sourceData
     /// \param parameters Verification settings
-    static PDFSignatureHandler* createHandler(const PDFFormFieldSignature* signatureField, const QByteArray& sourceData, const Parameters& parameters);
+    /// \param layout Checked layout of the signature in the file
+    static PDFSignatureHandler* createHandler(const PDFFormFieldSignature* signatureField, const QByteArray& sourceData, const Parameters& parameters, const PDFSignatureLayout& layout);
 };
 
 } // namespace pdf

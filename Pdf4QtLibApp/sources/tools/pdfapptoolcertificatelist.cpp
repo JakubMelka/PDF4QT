@@ -49,7 +49,7 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
-#include <iterator>
+#include <algorithm>
 #include <map>
 
 namespace pdf
@@ -136,6 +136,18 @@ public:
         return nullptr;
     }
 
+    /// The row can be chosen (the predicate of sortChoosableFirst)
+    static bool isChoosable(const PDFAppToolCertificateItem& item)
+    {
+        return item.isChoosable();
+    }
+
+    /// The rows, which can be chosen, first, each group in its order (433:3049: the expired row last)
+    static void sortChoosableFirst(std::vector<PDFAppToolCertificateItem>* items)
+    {
+        std::stable_partition(items->begin(), items->end(), &PDFAppToolCertificateListHelper::isChoosable);
+    }
+
     /// The file of an old folder has its copy (the same bytes) in the folder of the application
     static bool hasCopyInApplicationFolder(const PDFCertificateEntries& entries, const PDFCertificateEntry& entry)
     {
@@ -158,6 +170,11 @@ QString PDFAppToolCertificateItem::getTitle() const
     {
         return name;
     }
+    if (source == Source::SystemStore)
+    {
+        // A certificate of the system store without a name (no file to name it by)
+        return QCoreApplication::translate("pdf::PDFAppToolCertificateItem", "Certificate without a name");
+    }
     return PDFAppToolCertificateListHelper::getFileName(filePath);
 }
 
@@ -169,13 +186,26 @@ PDFAppToolCertificateProvider::PDFAppToolCertificateProvider(PDFAppContext* cont
 
 }
 
-std::vector<PDFAppToolCertificateItem> PDFAppToolCertificateProvider::getCertificates() const
+std::vector<PDFAppToolCertificateItem> PDFAppToolCertificateProvider::getCertificates(Usage usage) const
+{
+    std::vector<PDFAppToolCertificateItem> items = createItems(usage, false);
+
+    // The rows, which can be chosen, first (433:3049: the expired row last)
+    PDFAppToolCertificateListHelper::sortChoosableFirst(&items);
+    return items;
+}
+
+std::vector<PDFAppToolCertificateItem> PDFAppToolCertificateProvider::getManagedCertificates() const
+{
+    return createItems(Usage::Signing, true);
+}
+
+std::vector<PDFAppToolCertificateItem> PDFAppToolCertificateProvider::createItems(Usage usage, bool isEverySystemCertificate) const
 {
     const QDateTime now = PDFAppToolCertificateListHelper::getNow();
     const PDFCertificateEntries entries = PDFCertificateManager::getCertificates(PDFCertificateUsageFilter::Any);
 
-    std::vector<PDFAppToolCertificateItem> choosable;
-    std::vector<PDFAppToolCertificateItem> others;
+    std::vector<PDFAppToolCertificateItem> items;
     for (const PDFCertificateEntry& entry : entries)
     {
         std::optional<PDFCertificateInfo> info;
@@ -201,36 +231,106 @@ std::vector<PDFAppToolCertificateItem> PDFAppToolCertificateProvider::getCertifi
         }
         else
         {
-            // Q5.4: a certificate of the system store, which could encrypt, is listed Disabled
-            // with its reason (the personal store has other certificates too - a server, a
-            // signature only)
-            if (!isSystemStoreIncluded() || !PDFCertificateManager::isUsableForEncryption(entry.info.getCertificateData()))
+            if (!isSystemStoreIncluded() || entry.info.getCertificateData().isEmpty())
+            {
+                continue;
+            }
+
+            // The personal store has other certificates too (a server, an internal one of the
+            // system): a list of a usage shows those of the usage - the recipients of the encryption
+            // (the addendum of 15. 11.), Q6.2 the ones, which may sign; Manage Certificates all of them
+            const bool isOfUsage = usage == Usage::Encryption ? PDFCertificateManager::isUsableForEncryption(entry.info.getCertificateData())
+                                                              : isUsableForSigning(entry.info);
+            if (!isEverySystemCertificate && !isOfUsage)
             {
                 continue;
             }
             info = entry.info;
         }
 
-        PDFAppToolCertificateItem item = createItem(entry, info, now);
-        if (item.isChoosable())
-        {
-            choosable.push_back(std::move(item));
-        }
-        else
-        {
-            others.push_back(std::move(item));
-        }
+        items.push_back(createItem(entry, info, now, usage));
+    }
+    return items;
+}
+
+QString PDFAppToolCertificateProvider::getSystemStorePath(const QString& fingerprint)
+{
+    return QString::fromLatin1(SYSTEM_STORE_PREFIX) + fingerprint;
+}
+
+bool PDFAppToolCertificateProvider::isSystemStorePath(const QString& filePath)
+{
+    return filePath.startsWith(QLatin1String(SYSTEM_STORE_PREFIX));
+}
+
+bool PDFAppToolCertificateProvider::isUsableForSigning(const PDFCertificateInfo& info)
+{
+    // The one rule of PDFSignatureFactory::unlock (step 6 of phase 2, the extended key usages of
+    // documentSigning, Adobe, Microsoft Document Signing and anyExtendedKeyUsage among it), by the
+    // certificate itself. An info without its certificate is no certificate, which could sign (a
+    // .pfx, whose certificate is not known, is Locked before its usage matters)
+    return !info.getCertificateData().isEmpty() && PDFCertificateManager::isUsableForSigning(info.getCertificateData(), nullptr);
+}
+
+void PDFAppToolCertificateProvider::applyUsage(PDFAppToolCertificateItem* item, Usage usage, const QDateTime& now)
+{
+    using State = PDFAppToolCertificateItem::State;
+
+    if (!item)
+    {
+        return;
     }
 
-    // The rows, which can be chosen, first (433:3049: the expired row last)
-    choosable.insert(choosable.end(), std::make_move_iterator(others.begin()), std::make_move_iterator(others.end()));
-    return choosable;
+    // A row of the system store follows the same rules: it signs by the store (Q6.2), it is a
+    // recipient of the encryption by its public certificate only (the addendum of the owner of 15. 11.)
+    const bool isSystem = item->source == PDFAppToolCertificateItem::Source::SystemStore;
+    if (item->certificateData.isEmpty())
+    {
+        item->state = isSystem ? State::NoSigningUsage : State::Locked;
+    }
+    else if ((item->validUntil.isValid() && now > item->validUntil) || (item->validFrom.isValid() && now < item->validFrom))
+    {
+        item->state = State::Expired;
+    }
+    else if (usage == Usage::Encryption && !item->isUsableForEncryption)
+    {
+        // B99: an RSA key with keyEncipherment (an old certificate of the old Editor has not it)
+        item->state = State::NoEncryptionUsage;
+    }
+    else if (usage == Usage::Signing && !item->isUsableForSigning)
+    {
+        // 5.3, B116
+        item->state = State::NoSigningUsage;
+    }
+    else
+    {
+        item->state = State::Valid;
+    }
 }
 
 std::optional<PDFCertificateEntry> PDFAppToolCertificateProvider::findEntry(const QString& filePath) const
 {
     if (filePath.isEmpty())
     {
+        return std::nullopt;
+    }
+
+    // Q6.2: a certificate of the system store by the fingerprint of its identifier
+    if (isSystemStorePath(filePath))
+    {
+        const QString fingerprint = filePath.mid(int(qstrlen(SYSTEM_STORE_PREFIX)));
+        if (fingerprint.isEmpty() || !isSystemStoreIncluded())
+        {
+            return std::nullopt;
+        }
+        for (PDFCertificateEntry& entry : PDFCertificateManager::getCertificates(PDFCertificateUsageFilter::Any))
+        {
+            const QByteArray certificateData = entry.info.getCertificateData();
+            if (entry.pkcs12.isEmpty() && !certificateData.isEmpty() && PDFDocumentToolEncryption::getCertificateFingerprint(certificateData) == fingerprint)
+            {
+                return std::move(entry);
+            }
+        }
         return std::nullopt;
     }
 
@@ -344,21 +444,22 @@ std::optional<PDFCertificateInfo> PDFAppToolCertificateProvider::findCachedCerti
 
 bool PDFAppToolCertificateProvider::isSystemStoreIncluded()
 {
-    return getSystemStoreIncluded();
+    return getSystemStoreIncluded().load();
 }
 
 void PDFAppToolCertificateProvider::setSystemStoreIncluded(bool isIncluded)
 {
-    getSystemStoreIncluded() = isIncluded;
+    getSystemStoreIncluded().store(isIncluded);
 }
 
-bool& PDFAppToolCertificateProvider::getSystemStoreIncluded()
+std::atomic<bool>& PDFAppToolCertificateProvider::getSystemStoreIncluded()
 {
-    static bool isIncluded = true;
+    // Read also by the run of protect.certificates (PDFAppDocumentToolCertificates)
+    static std::atomic<bool> isIncluded = true;
     return isIncluded;
 }
 
-PDFAppToolCertificateItem PDFAppToolCertificateProvider::createItem(const PDFCertificateEntry& entry, const std::optional<PDFCertificateInfo>& info, const QDateTime& now)
+PDFAppToolCertificateItem PDFAppToolCertificateProvider::createItem(const PDFCertificateEntry& entry, const std::optional<PDFCertificateInfo>& info, const QDateTime& now, Usage usage)
 {
     PDFAppToolCertificateItem item;
     item.source = entry.pkcs12.isEmpty() ? PDFAppToolCertificateItem::Source::SystemStore : PDFAppToolCertificateItem::Source::PfxFile;
@@ -369,6 +470,7 @@ PDFAppToolCertificateItem PDFAppToolCertificateProvider::createItem(const PDFCer
     const QByteArray certificateData = info ? info->getCertificateData() : QByteArray();
     if (!certificateData.isEmpty())
     {
+        item.certificateData = certificateData;
         item.fingerprint = PDFDocumentToolEncryption::getCertificateFingerprint(certificateData);
         item.name = info->getName(PDFCertificateInfo::CommonName);
         item.organization = info->getName(PDFCertificateInfo::OrganizationName);
@@ -377,34 +479,21 @@ PDFAppToolCertificateItem PDFAppToolCertificateProvider::createItem(const PDFCer
         item.validFrom = info->getNotValidBefore();
         item.validUntil = info->getNotValidAfter();
         item.keyBits = info->getKeySize();
+        item.isUsableForEncryption = PDFCertificateManager::isUsableForEncryption(certificateData);
+        item.isUsableForSigning = PDFCertificateManager::isUsableForSigning(certificateData, nullptr);
     }
     if (item.name.isEmpty())
     {
         item.name = entry.friendlyName;
     }
 
-    if (item.source == PDFAppToolCertificateItem::Source::SystemStore)
+    // Q6.2: a certificate of the system store has no file - its identifier is its fingerprint
+    if (item.source == PDFAppToolCertificateItem::Source::SystemStore && !item.fingerprint.isEmpty())
     {
-        // Q5.4: the core encrypts and decrypts only by a PKCS#12 (B96)
-        item.state = PDFAppToolCertificateItem::State::SystemStore;
+        item.filePath = getSystemStorePath(item.fingerprint);
     }
-    else if (certificateData.isEmpty())
-    {
-        item.state = PDFAppToolCertificateItem::State::Locked;
-    }
-    else if ((item.validUntil.isValid() && now > item.validUntil) || (item.validFrom.isValid() && now < item.validFrom))
-    {
-        item.state = PDFAppToolCertificateItem::State::Expired;
-    }
-    else if (!PDFCertificateManager::isUsableForEncryption(certificateData))
-    {
-        // B99: an RSA key with keyEncipherment (an old certificate of the old Editor has not it)
-        item.state = PDFAppToolCertificateItem::State::NoEncryptionUsage;
-    }
-    else
-    {
-        item.state = PDFAppToolCertificateItem::State::Valid;
-    }
+
+    applyUsage(&item, usage, now);
     return item;
 }
 
@@ -456,9 +545,9 @@ QString PDFAppToolCertificateProvider::getDescription(const PDFAppToolCertificat
         case State::NoEncryptionUsage:
             return tr("Not meant for encryption – cannot be used");
 
-        case State::SystemStore:
-            // Q5.4
-            return tr("System certificates will be supported with Manage Certificates");
+        case State::NoSigningUsage:
+            // Step 6 of phase 2 (5.3, B116; the text is P5's, the skeleton names the reason)
+            return tr("Not meant for signing – cannot be used");
     }
 
     // Q5.5: a file of the old Editor or Viewer
@@ -496,13 +585,41 @@ PDFAppToolCertificateList::~PDFAppToolCertificateList() = default;
 void PDFAppToolCertificateList::setCertificates(std::vector<PDFAppToolCertificateItem> certificates)
 {
     m_certificates = std::move(certificates);
+    applyUsage();
+    rebuildRows();
+}
+
+void PDFAppToolCertificateList::setUsage(Usage usage)
+{
+    if (m_usage == usage)
+    {
+        return;
+    }
+
+    m_usage = usage;
+    applyUsage();
+    rebuildRows();
+}
+
+void PDFAppToolCertificateList::applyUsage()
+{
+    // The states of the rows of the usage (a row of the provider may be made for another one); a
+    // row without its certificate keeps its state (Locked - nothing is known of it)
+    const QDateTime now = PDFAppToolCertificateListHelper::getNow();
+    for (PDFAppToolCertificateItem& item : m_certificates)
+    {
+        if (!item.certificateData.isEmpty())
+        {
+            PDFAppToolCertificateProvider::applyUsage(&item, m_usage, now);
+        }
+    }
+    PDFAppToolCertificateListHelper::sortChoosableFirst(&m_certificates);
 
     const PDFAppToolCertificateItem* chosen = getChosenItem();
     if (!chosen || !chosen->isChoosable())
     {
         m_chosenFilePath.clear();
     }
-    rebuildRows();
 }
 
 void PDFAppToolCertificateList::choose(const QString& filePath)
@@ -578,7 +695,7 @@ void PDFAppToolCertificateList::rebuildRows()
         row->setProperty(Helper::ROW_INDEX_PROPERTY, qint64(i));
         row->setTitleKind(PDFTileRow::TextKind::Data);
         row->setTag(isPfx ? tr(".pfx file") : tr("System store"));
-        if (item.state == State::Expired || item.state == State::NoEncryptionUsage)
+        if (item.state == State::Expired || item.state == State::NoEncryptionUsage || item.state == State::NoSigningUsage)
         {
             // 433:3220: the reason in accent/red/icon
             row->setDescriptionColor(PDFThemeColors::AccentRedIcon);
@@ -712,41 +829,14 @@ QWidget* PDFAppToolCertificatePresetPart::createCanvasContent(QWidget* parent)
     connect(m_list.data(), &PDFAppToolCertificateList::certificateChosen, this, &PDFAppToolCertificatePresetPart::onCertificateChosen);
     layout->addWidget(m_list);
 
-    // empty-state 433:3422: the tile, the title Semi Bold 15, the text Regular 12 centered, the buttons
-    PDFAppToolCard* empty = new PDFAppToolCard(content);
-    empty->setObjectName(QStringLiteral("certificateEmptyState"));
-    empty->getBodyLayout()->setContentsMargins(Helper::EMPTY_PADDING, Helper::EMPTY_PADDING, Helper::EMPTY_PADDING, Helper::EMPTY_PADDING);
-    empty->getBodyLayout()->setSpacing(Helper::EMPTY_GAP);
-    PDFIconBadge* tile = new PDFIconBadge(QStringLiteral("certificate"), Helper::EMPTY_TILE, Helper::EMPTY_ICON, empty);
-    tile->setColors(PDFThemeColors::BgAccentSubtle, PDFThemeColors::IconAccent);
-    tile->setRadius(Helper::EMPTY_TILE_RADIUS);
-    empty->getBodyLayout()->addWidget(tile, 0, Qt::AlignHCenter);
-    empty->getBodyLayout()->addWidget(Helper::createLabel(tr("No certificate with a private key yet"), QFont::DemiBold, 15, 18, PDFThemeColors::TextPrimary, empty), 0, Qt::AlignHCenter);
-    // Portable mode (owner 2026-11-15): no certificate is created or imported, the text says why
+    // empty-state 433:3422; portable mode (owner 2026-11-15): no certificate is created or
+    // imported, the text says why
     const bool isCreationAvailable = this->isCreationAvailable();
     const QString emptyTextValue = isCreationAvailable ? tr("Create a self-signed certificate or import a .pfx file. Both are kept in your certificate store and can be used for signing as well.")
                                                        : tr("In portable mode no certificate can be created or imported – its private key would stay on this computer. A .pfx file, which is in your certificate folder already, can be used.");
-    PDFAppParagraph* emptyText = PDFAppPageWidgets::createText(emptyTextValue, PDFThemeFonts::getFont(QFont::Normal, 12), 15, PDFThemeColors::TextSecondary, empty);
-    emptyText->setObjectName(QStringLiteral("certificateEmptyText"));
-    emptyText->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
-    emptyText->setMinimumWidth(1);
-    empty->getBodyLayout()->addWidget(emptyText);
-    QWidget* buttons = new QWidget(empty);
-    QHBoxLayout* buttonsLayout = new QHBoxLayout(buttons);
-    buttonsLayout->setContentsMargins(0, 0, 0, 0);
-    buttonsLayout->setSpacing(Helper::EMPTY_BUTTON_GAP);
-    QPushButton* emptyCreate = PDFAppPageWidgets::createButton(tr("Create Certificate…"), QStringLiteral("certificate-add"), true, buttons);
-    emptyCreate->setObjectName(QStringLiteral("certificateEmptyCreate"));
-    QPushButton* emptyImport = PDFAppPageWidgets::createButton(tr("Import .pfx…"), QStringLiteral("import"), false, buttons);
-    emptyImport->setObjectName(QStringLiteral("certificateEmptyImport"));
-    for (QPushButton* button : { emptyCreate, emptyImport })
-    {
-        button->setEnabled(isCreationAvailable);
-        button->setToolTip(isCreationAvailable ? QString() : getPortableText());
-    }
-    buttonsLayout->addWidget(emptyCreate);
-    buttonsLayout->addWidget(emptyImport);
-    empty->getBodyLayout()->addWidget(buttons, 0, Qt::AlignHCenter);
+    QPushButton* emptyCreate = nullptr;
+    QPushButton* emptyImport = nullptr;
+    PDFAppToolCard* empty = createEmptyState(tr("No certificate with a private key yet"), emptyTextValue, isCreationAvailable, content, &emptyCreate, &emptyImport);
     connect(emptyCreate, &QPushButton::clicked, this, &PDFAppToolCertificatePresetPart::openCreateDialog);
     connect(emptyImport, &QPushButton::clicked, this, &PDFAppToolCertificatePresetPart::openImportDialog);
     layout->addWidget(empty);
@@ -840,6 +930,56 @@ QString PDFAppToolCertificatePresetPart::getPortableText()
     return tr("Not available in portable mode – the private key would stay on this computer");
 }
 
+PDFAppToolCard* PDFAppToolCertificatePresetPart::createEmptyState(const QString& title, const QString& text, bool isCreationAvailable, QWidget* parent, QPushButton** createButton, QPushButton** importButton)
+{
+    using Helper = PDFAppToolCertificateListHelper;
+
+    // empty-state 433:3422, 436:9646: the tile, the title Semi Bold 15, the text Regular 12
+    // centered, the buttons
+    PDFAppToolCard* empty = new PDFAppToolCard(parent);
+    empty->setObjectName(QStringLiteral("certificateEmptyState"));
+    empty->getBodyLayout()->setContentsMargins(Helper::EMPTY_PADDING, Helper::EMPTY_PADDING, Helper::EMPTY_PADDING, Helper::EMPTY_PADDING);
+    empty->getBodyLayout()->setSpacing(Helper::EMPTY_GAP);
+    PDFIconBadge* tile = new PDFIconBadge(QStringLiteral("certificate"), Helper::EMPTY_TILE, Helper::EMPTY_ICON, empty);
+    tile->setColors(PDFThemeColors::BgAccentSubtle, PDFThemeColors::IconAccent);
+    tile->setRadius(Helper::EMPTY_TILE_RADIUS);
+    empty->getBodyLayout()->addWidget(tile, 0, Qt::AlignHCenter);
+    PDFLabel* titleLabel = Helper::createLabel(title, QFont::DemiBold, 15, 18, PDFThemeColors::TextPrimary, empty);
+    titleLabel->setObjectName(QStringLiteral("certificateEmptyTitle"));
+    empty->getBodyLayout()->addWidget(titleLabel, 0, Qt::AlignHCenter);
+    PDFAppParagraph* emptyText = PDFAppPageWidgets::createText(text, PDFThemeFonts::getFont(QFont::Normal, 12), 15, PDFThemeColors::TextSecondary, empty);
+    emptyText->setObjectName(QStringLiteral("certificateEmptyText"));
+    emptyText->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
+    emptyText->setMinimumWidth(1);
+    empty->getBodyLayout()->addWidget(emptyText);
+    QWidget* buttons = new QWidget(empty);
+    QHBoxLayout* buttonsLayout = new QHBoxLayout(buttons);
+    buttonsLayout->setContentsMargins(0, 0, 0, 0);
+    buttonsLayout->setSpacing(Helper::EMPTY_BUTTON_GAP);
+    QPushButton* emptyCreate = PDFAppPageWidgets::createButton(tr("Create Certificate…"), QStringLiteral("certificate-add"), true, buttons);
+    emptyCreate->setObjectName(QStringLiteral("certificateEmptyCreate"));
+    QPushButton* emptyImport = PDFAppPageWidgets::createButton(tr("Import .pfx…"), QStringLiteral("import"), false, buttons);
+    emptyImport->setObjectName(QStringLiteral("certificateEmptyImport"));
+    for (QPushButton* button : { emptyCreate, emptyImport })
+    {
+        button->setEnabled(isCreationAvailable);
+        button->setToolTip(isCreationAvailable ? QString() : getPortableText());
+    }
+    buttonsLayout->addWidget(emptyCreate);
+    buttonsLayout->addWidget(emptyImport);
+    empty->getBodyLayout()->addWidget(buttons, 0, Qt::AlignHCenter);
+
+    if (createButton)
+    {
+        *createButton = emptyCreate;
+    }
+    if (importButton)
+    {
+        *importButton = emptyImport;
+    }
+    return empty;
+}
+
 bool PDFAppToolCertificatePresetPart::isConfirmEnabled() const
 {
     const PDFAppToolCertificateItem* item = m_list ? m_list->getChosenItem() : nullptr;
@@ -862,11 +1002,26 @@ bool PDFAppToolCertificatePresetPart::prepareRun(QVariantMap* parameters, std::v
         return false;
     }
 
-    // S5.1: the password is used once here and in the run; the local copy is cleared
+    // S5.1: the password is used once here and in the run; the local copy is cleared. A row of the
+    // system store (the addendum of the owner of 15. 11.): its public certificate is the recipient, no
+    // password, its key is never used
     const QString filePath = chosen->filePath;
-    QString password = (chosen->isPasswordProtected && m_passwordCard) ? m_passwordCard->getPassword() : QString();
+    const bool isSystemStore = chosen->source == PDFAppToolCertificateItem::Source::SystemStore;
+    QString password = (!isSystemStore && chosen->isPasswordProtected && m_passwordCard) ? m_passwordCard->getPassword() : QString();
     QString error;
-    std::optional<PDFCertificateEntry> entry = m_provider.unlock(filePath, password, &error);
+    std::optional<PDFCertificateEntry> entry;
+    if (isSystemStore)
+    {
+        entry = m_provider.findEntry(filePath);
+        if (!entry)
+        {
+            error = tr("The certificate is no longer in the system store.");
+        }
+    }
+    else
+    {
+        entry = m_provider.unlock(filePath, password, &error);
+    }
 
     std::optional<PDFAppToolCertificateItem> unlocked;
     if (entry)
@@ -903,7 +1058,10 @@ bool PDFAppToolCertificatePresetPart::prepareRun(QVariantMap* parameters, std::v
     }
 
     parameters->insert(QString::fromLatin1(PDFDocumentToolEncryption::PARAMETER_CERTIFICATE), unlocked->fingerprint);
-    parameters->insert(QString::fromLatin1(PDFDocumentToolEncryption::PARAMETER_CERTIFICATE_PASSWORD), password);
+    if (!isSystemStore)
+    {
+        parameters->insert(QString::fromLatin1(PDFDocumentToolEncryption::PARAMETER_CERTIFICATE_PASSWORD), password);
+    }
     certificates->push_back(std::move(*entry));
     PDFSecureMemory::clear(password);
 
@@ -1135,7 +1293,9 @@ void PDFAppToolCertificatePresetPart::updateParts()
         m_passwordFrame->setEnabled(item != nullptr);
     }
 
-    const bool isPasswordNeeded = !item || item->isPasswordProtected;
+    // A row of the system store needs no password (its public certificate is the recipient)
+    const bool isSystemStore = item && item->source == PDFAppToolCertificateItem::Source::SystemStore;
+    const bool isPasswordNeeded = !item || (!isSystemStore && item->isPasswordProtected);
     if (m_passwordField)
     {
         m_passwordField->setVisible(isPasswordNeeded);
@@ -1143,6 +1303,8 @@ void PDFAppToolCertificatePresetPart::updateParts()
     if (m_noPasswordText)
     {
         m_noPasswordText->setVisible(!isPasswordNeeded);
+        m_noPasswordText->setText(isSystemStore ? tr("Not needed – the document is encrypted for the public certificate of the system store.")
+                                                : tr("Not needed – the certificate file has no password."));
     }
     if (m_passwordLabel)
     {

@@ -53,7 +53,8 @@ public:
     /// Static resources with their contents (package D)
     static std::vector<PDFMcpResourceDefinition> createStaticResources();
 
-    /// Listed resources of the open documents: info, outline, annotations (package B)
+    /// Listed resources of the open documents: info, outline, annotations, then
+    /// the state (package B); the catalog lists them before the static resources
     static std::vector<PDFMcpResourceDefinition> createDocumentResources(const PDFAppMcpHost* host);
 
     /// Templates of the resources (packages B and D)

@@ -29,6 +29,7 @@
 #include "pdffont.h"
 #include "pdfocrpagepreparer.h"
 #include "pdfoptionalcontent.h"
+#include "pdfpagecontentprocessor.h"
 #include "pdfparser.h"
 #include "pdfrenderer.h"
 #include "pdfsecurityhandler.h"
@@ -113,6 +114,11 @@ private slots:
     void incrementalUpdateKeepsNumbersOfOriginal();
     void ocrFingerprintOfExactNumbers();
     void writtenSizeBenchmark();
+
+    // The skeleton of step 6 of phase 2 (plan 7.1): B149, B153 of PDFDocumentBuilder
+    void contentStreamKeepsExactCoordinates_data();
+    void contentStreamKeepsExactCoordinates();
+    void redactAnnotationOfQuadrilateralsHasRect();
 
 private:
     /// Document with a page of 1000 x 100 points, whose only content is a Type 3 glyph:
@@ -2296,6 +2302,133 @@ void DocumentWriterTest::writtenSizeBenchmark()
         }
 
         qInfo().noquote() << QString("SIZE|%1|%2|%3|%4|%5|%6|%7").arg(QFileInfo(fileName).fileName()).arg(QFileInfo(fileName).size()).arg(oldSize).arg(written.size()).arg(100.0 * statistics.growth / oldSize, 0, 'f', 3).arg(statistics.realCount).arg(topKeys.join(' '));
+    }
+}
+
+/// Collects the bounding boxes of the filled paths of a page in its default user space (the
+/// matrix of the page to the device is the identity)
+class FilledPathCollector : public PDFPageContentProcessor
+{
+public:
+    using PDFPageContentProcessor::PDFPageContentProcessor;
+
+    std::vector<QRectF> filledBoxes;
+
+protected:
+    virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule) override
+    {
+        Q_UNUSED(stroke);
+        Q_UNUSED(text);
+        Q_UNUSED(fillRule);
+        if (fill)
+        {
+            // The path is in the user space of the operator: the world matrix (the CTM of the content
+            // and the identity of the page) maps it to the default user space of the page
+            filledBoxes.push_back(getCurrentWorldMatrix().map(path).boundingRect());
+        }
+    }
+};
+
+void DocumentWriterTest::contentStreamKeepsExactCoordinates_data()
+{
+    QTest::addColumn<QSizeF>("pageSize");
+    QTest::addColumn<bool>("isPdfCoordinateSystem");
+
+    // B149: the height of the page of QPdfWriter is rounded to whole points (200.5 -> 201: the shift
+    // was 0.5 pt); a size within 3 points of a standard size was replaced by it (595 x 840 -> A4 of
+    // 595 x 842: the shift was 2 pt, more than the rounding)
+    QTest::newRow("half-point-pdf") << QSizeF(300.5, 200.5) << true;
+    QTest::newRow("half-point-qt") << QSizeF(300.5, 200.5) << false;
+    QTest::newRow("near-a4-pdf") << QSizeF(595.0, 840.0) << true;
+    QTest::newRow("near-a4-qt") << QSizeF(595.0, 840.0) << false;
+}
+
+void DocumentWriterTest::contentStreamKeepsExactCoordinates()
+{
+    QFETCH(QSizeF, pageSize);
+    QFETCH(bool, isPdfCoordinateSystem);
+
+    // A rectangle of 40 x 20 points at (100, 50) of the coordinate system of the builder
+    const QRectF drawn(100, 50, 40, 20);
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(QPointF(0, 0), pageSize));
+    PDFPageContentStreamBuilder contentBuilder(&builder, isPdfCoordinateSystem ? PDFContentStreamBuilder::CoordinateSystem::PDF : PDFContentStreamBuilder::CoordinateSystem::Qt);
+    QPainter* painter = contentBuilder.begin(page);
+    QVERIFY(painter);
+    painter->fillRect(drawn, Qt::black);
+    contentBuilder.end(painter);
+
+    const PDFDocument document = builder.build();
+    const PDFPage* pdfPage = document.getCatalog()->getPage(0);
+    QVERIFY(pdfPage);
+
+    PDFCMSGeneric cms;
+    PDFFontCache fontCache(32, 32);
+    PDFICCProfileCache iccProfileCache;
+    PDFOptionalContentActivity activity(&document, OCUsage::View, nullptr);
+    fontCache.setDocument(PDFModifiedDocument(const_cast<PDFDocument*>(&document), &activity));
+    iccProfileCache.setDocument(PDFModifiedDocument(const_cast<PDFDocument*>(&document), &activity));
+    FilledPathCollector collector(pdfPage, &document, &fontCache, &iccProfileCache, &cms, &activity, QTransform(), PDFMeshQualitySettings());
+    QVERIFY(collector.processContents().isEmpty());
+    QCOMPARE(collector.filledBoxes.size(), size_t(1));
+
+    // ISO 32000-2, 8.3.2.3: the default user space has its origin at the lower left corner, y up. The
+    // PDF coordinate system of the builder is this space; the Qt one has its origin at the upper left
+    // corner of the page of pageSize, y down.
+    const QRectF expected = isPdfCoordinateSystem ? drawn : QRectF(drawn.left(), pageSize.height() - drawn.bottom(), drawn.width(), drawn.height());
+    const QRectF box = collector.filledBoxes.front();
+    const qreal tolerance = 0.01;
+    QVERIFY2(qAbs(box.left() - expected.left()) < tolerance && qAbs(box.right() - expected.right()) < tolerance &&
+             qAbs(box.top() - expected.top()) < tolerance && qAbs(box.bottom() - expected.bottom()) < tolerance,
+             qPrintable(QString("box %1 %2 %3 %4, expected %5 %6 %7 %8").arg(box.left()).arg(box.top()).arg(box.right()).arg(box.bottom())
+                                                                     .arg(expected.left()).arg(expected.top()).arg(expected.right()).arg(expected.bottom())));
+}
+
+void DocumentWriterTest::redactAnnotationOfQuadrilateralsHasRect()
+{
+    // B153: ISO 32000-2, Table 166 - /Rect is required of every annotation; a Redact annotation made of
+    // quadrilaterals (Table 195 /QuadPoints) gets the box enclosing all of them, also when no appearance
+    // is made for it (the appearance stream sets /Rect to its own box, which encloses its border too)
+    QPolygonF quadrilaterals;
+    // Two lines of a selection of text: (10, 300) - (210, 320) and (40, 270) - (150, 292), each in the
+    // order of /QuadPoints (x1 y1 x2 y2 x3 y3 x4 y4: the upper edge, then the lower one)
+    quadrilaterals << QPointF(10, 320) << QPointF(210, 320) << QPointF(10, 300) << QPointF(210, 300);
+    quadrilaterals << QPointF(40, 292) << QPointF(150, 292) << QPointF(40, 270) << QPointF(150, 270);
+
+    for (const bool hasMediaBox : { false, true })
+    {
+        // A page without a valid media box gets no appearance (updateAnnotationAppearanceStreams)
+        PDFDocumentBuilder builder;
+        const PDFObjectReference page = builder.appendPage(hasMediaBox ? QRectF(0, 0, 400, 400) : QRectF());
+        const PDFObjectReference annotation = builder.createAnnotationRedact(page, quadrilaterals, Qt::black, Qt::red);
+
+        const PDFDocument document = read(write(builder.build()));
+        const PDFDictionary* dictionary = document.getDictionaryFromObject(document.getObjectByReference(annotation));
+        QVERIFY(dictionary);
+        QCOMPARE(dictionary->get("AP").isNull(), !hasMediaBox);
+        const PDFObject& rectObject = document.getObject(dictionary->get("Rect"));
+        QVERIFY2(rectObject.isArray(), hasMediaBox ? "with an appearance" : "without an appearance");
+        const PDFArray* rect = rectObject.getArray();
+        QCOMPARE(rect->getCount(), size_t(4));
+
+        // The rectangle of the corners [llx lly urx ury] (7.9.5) of the union: x 10 ... 210, y 270 ... 320
+        std::vector<PDFReal> values;
+        for (size_t i = 0; i < rect->getCount(); ++i)
+        {
+            const PDFObject& item = document.getObject(rect->getItem(i));
+            QVERIFY(item.isReal() || item.isInt());
+            values.push_back(item.isReal() ? item.getReal() : PDFReal(item.getInteger()));
+        }
+        const QRectF box = QRectF(QPointF(qMin(values[0], values[2]), qMin(values[1], values[3])), QPointF(qMax(values[0], values[2]), qMax(values[1], values[3])));
+        if (hasMediaBox)
+        {
+            // The box of the appearance encloses the quadrilaterals
+            QVERIFY(box.contains(QRectF(QPointF(10, 270), QPointF(210, 320))));
+        }
+        else
+        {
+            QCOMPARE(box, QRectF(QPointF(10, 270), QPointF(210, 320)));
+        }
     }
 }
 
