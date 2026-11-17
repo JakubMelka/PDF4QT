@@ -481,3 +481,20 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_test(UnitTestsDiffOverlay "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDiffOverlay")
     set_tests_properties(UnitTestsDiffOverlay PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()
+
+# The shared libraries must not export the symbols of the statically linked dependencies,
+# which would interpose the system libraries (issue #436)
+if(PDF4QT_LINUX)
+    set(PDF4QT_EXPORT_CHECK_FILES "")
+    foreach(PDF4QT_EXPORT_CHECK_TARGET IN ITEMS Pdf4QtLibCore Pdf4QtLibWidgets Pdf4QtLibGui Pdf4QtOcrTesseract
+                                                AudioBookPlugin DimensionsPlugin EditorPlugin ObjectInspectorPlugin
+                                                OutputPreviewPlugin RedactPlugin ScannerPlugin SignaturePlugin SoftProofingPlugin)
+        if(TARGET ${PDF4QT_EXPORT_CHECK_TARGET})
+            list(APPEND PDF4QT_EXPORT_CHECK_FILES $<TARGET_FILE:${PDF4QT_EXPORT_CHECK_TARGET}>)
+        endif()
+    endforeach()
+    list(JOIN PDF4QT_EXPORT_CHECK_FILES "$<SEMICOLON>" PDF4QT_EXPORT_CHECK_FILES)
+    add_test(NAME ExportedSymbols
+             COMMAND ${CMAKE_COMMAND} -DNM=${CMAKE_NM} -DFILES=${PDF4QT_EXPORT_CHECK_FILES}
+                                      -P ${CMAKE_SOURCE_DIR}/cmake/CheckExportedSymbols.cmake)
+endif()

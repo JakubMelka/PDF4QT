@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #436: Language models of the OCR cannot be downloaded: AppImage crashes, Windows reports TLS initialization failed
 
 V: 1.7.0.0 8.11.2026
  - Issue #431: Blend2D is crashing on some cropped images

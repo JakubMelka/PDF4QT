@@ -211,6 +211,16 @@ jobs:
           cmake --build build --target all release_translations -j6
           cmake --install build
 
+      # The libraries must not export the symbols of the statically linked dependencies, they would interpose
+      # the system libraries - the system libssl loaded by Qt crashed in our OpenSSL (issue #436). Checked
+      # before linuxdeployqt, which adds the third party libraries.
+      - name: Check exported symbols
+        working-directory: pdf4qt/build
+        run: |
+          files="$(find install/usr/lib -maxdepth 2 -type f \( -name 'libPdf4Qt*.so*' -o -path '*/pdf4qt/*.so*' \) | sort | paste -sd ';')"
+          if [ -z "$files" ]; then echo "::error::No library of PDF4QT was found in install/usr/lib"; exit 1; fi
+          cmake -DFILES="$files" -P ../cmake/CheckExportedSymbols.cmake
+
       - name: Read version
         id: version
         run: |

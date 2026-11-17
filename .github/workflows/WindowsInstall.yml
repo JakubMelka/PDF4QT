@@ -221,6 +221,13 @@ jobs:
           if ($failed) { exit 1 }
           Write-Host "Release binaries confirmed"
 
+          # Without a TLS backend of Qt every https request fails with "TLS initialization failed" (issue #436)
+          if (-not (Test-Path "pdf4qt\build\install\usr\bin\tls\qschannelbackend.dll")) {
+            Write-Host "::error::The TLS backend of Qt (tls\qschannelbackend.dll) is missing in the package"
+            exit 1
+          }
+          Write-Host "TLS backend of Qt confirmed"
+
           # The shipped runtime of MSVC must not be older than the compiler (compiler 19.xx belongs to the
           # runtime 14.xx)
           $compilerFile = Get-ChildItem "pdf4qt\build\CMakeFiles\*\CMakeCXXCompiler.cmake" | Select-Object -First 1

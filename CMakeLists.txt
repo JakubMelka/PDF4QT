@@ -157,6 +157,15 @@ if (UNIX AND NOT APPLE)
     set(PDF4QT_LINUX ON)
 endif()
 
+# The symbols of the statically linked dependencies (OpenSSL, freetype, libjpeg, ... of the
+# static vcpkg triplets) must not be exported from the shared libraries. An exported symbol
+# interposes the same symbol of a system library loaded into the process - for example the
+# system libssl loaded by the TLS backend of Qt would call the functions of our OpenSSL of
+# another version and crash in the TLS handshake (issue #436).
+if (PDF4QT_LINUX)
+    add_link_options("LINKER:--exclude-libs,ALL")
+endif()
+
 if (LINUX_GCC)
     find_package(TBB REQUIRED)
 endif()
@@ -526,6 +535,18 @@ if(PDF4QT_INSTALL_DEPENDENCIES AND NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
             PATTERN "*.so"
             PATTERN "*.dylib"
             REGEX "d\\..*" EXCLUDE
+            PATTERN "*.pdb" EXCLUDE
+        )
+
+        # TLS backends of Qt Network: without them, every https request (the download of the
+        # OCR language models, timestamps) fails with "TLS initialization failed". Schannel
+        # is the native backend of Windows (certificate store of the system). The OpenSSL
+        # backend is the backend of Linux, it loads the OpenSSL of the system.
+        install(DIRECTORY ${PDF4QT_QT_ROOT}/plugins/tls/
+            RUNTIME DESTINATION ${PDF4QT_INSTALL_LIB_DIR}/tls/
+            FILES_MATCHING
+            REGEX "(qschannelbackend|qcertonlybackend)\\.dll$"
+            REGEX "lib(qopensslbackend|qcertonlybackend)\\.(so|dylib)$"
             PATTERN "*.pdb" EXCLUDE
         )
 
