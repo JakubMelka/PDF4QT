@@ -23,6 +23,13 @@
   <content_rating type="oars-1.1"/>
   <launchable type="desktop-id">io.github.JakubMelka.Pdf4qt.desktop</launchable>
   <releases>
+    <release version="1.7.1.0" date="2026-11-17">
+      <description>
+        <ul>
+          <li>Issue #436: Language models of the OCR cannot be downloaded: AppImage crashes, Windows reports TLS initialization failed</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.7.0.0" date="2026-11-08">
       <description>
         <ul>
