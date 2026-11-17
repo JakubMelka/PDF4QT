@@ -21,7 +21,7 @@
 // SOFTWARE.
 
 #include "pdftoolinkcoverage.h"
-#include "pdftransparencyrenderer.h"
+#include "pdfdocumenttool_inkcoverage.h"
 
 namespace pdftool
 {
@@ -67,123 +67,62 @@ int PDFToolInkCoverageApplication::execute(const PDFToolOptions& options)
         return ErrorInvalidArguments;
     }
 
-    // We are ready to calculate the document's ink coverage
-    pdf::PDFOptionalContentActivity optionalContentActivity(&document, pdf::OCUsage::Print, nullptr);
-    pdf::PDFCMSManager cmsManager(nullptr);
-    cmsManager.setDocument(&document);
-    cmsManager.setSettings(options.cmsSettings);
+    // One implementation with Ink Coverage of the new application (plan of step 7 of phase 2, 4.5):
+    // the tool measures the pages as printing in the process color space (B196), the spot inks of
+    // every resource (B197), the ratio over the trim box (Q7.6), the total counts each page once
+    // (B163); its table has fixed element names, the name of an ink is in the title (B179); the
+    // numbers in the C locale (Q7.14, R7-14). The color management of the options --cms*.
+    using Tool = pdf::PDFDocumentToolInkCoverage;
 
-    pdf::PDFFontCache fontCache(pdf::DEFAULT_FONT_CACHE_LIMIT, pdf::DEFAULT_REALIZED_FONT_CACHE_LIMIT);
-    pdf::PDFICCProfileCache iccProfileCache;
-    pdf::PDFModifiedDocument md(&document, &optionalContentActivity);
-    fontCache.setDocument(md);
-    iccProfileCache.setDocument(md);
-    fontCache.setCacheShrinkEnabled(nullptr, false);
+    QVariantMap parameters;
+    parameters.insert(QString::fromLatin1(Tool::PARAMETER_PAGES), pdf::PDFDocumentToolPageSelection::createRangeText(pageIndices));
+    parameters.insert(QString::fromLatin1(Tool::PARAMETER_RESOLUTION), Tool::DEFAULT_RESOLUTION);
 
-    pdf::PDFInkMapper inkMapper(&cmsManager, &document);
-    inkMapper.createSpotColors(true);
+    pdf::PDFDocumentToolContext context = pdf::PDFDocumentToolContext::create(pdf::PDFDocumentToolInputDocument::create(pdf::PDFDocumentPointer(new pdf::PDFDocument(std::move(document))), sourceData, options.document, false));
+    context.rendering.cmsSettings = options.cmsSettings;
 
-    pdf::PDFInkCoverageCalculator calculator(&document,
-                                             &fontCache,
-                                             &iccProfileCache,
-                                             &cmsManager,
-                                             &optionalContentActivity,
-                                             &inkMapper,
-                                             nullptr,
-                                             pdf::PDFTransparencyRendererSettings());
-    calculator.perform(QSize(1920, 1920), pageIndices);
-
-    fontCache.setCacheShrinkEnabled(nullptr, true);
-
-    PDFOutputFormatter formatter(options.outputStyle);
-    formatter.beginDocument("ink-coverage", PDFToolTranslationContext::tr("Ink Coverage"));
-    formatter.endl();
-
-    formatter.beginTable("ink-coverage-by-page", PDFToolTranslationContext::tr("Ink Coverage by Page"));
-
-    QLocale locale;
-    std::vector<pdf::PDFInkCoverageCalculator::InkCoverageChannelInfo> headerCoverage;
-
-    for (const pdf::PDFInteger pageIndex : pageIndices)
+    const Tool tool;
+    const pdf::PDFDocumentToolResult result = tool.run(context, parameters, nullptr, nullptr);
+    if (!result.isSuccess())
     {
-        const std::vector<pdf::PDFInkCoverageCalculator::InkCoverageChannelInfo>* coverage = calculator.getInkCoverage(pageIndex);
-
-        if (!coverage)
-        {
-            // Jakub Melka: Something bad happened?
-            continue;
-        }
-
-        for (const auto& info : *coverage)
-        {
-            if (!pdf::PDFInkCoverageCalculator::findCoverageInfoByName(headerCoverage, info.name))
-            {
-                headerCoverage.push_back(info);
-            }
-        }
+        PDFConsole::writeError(PDFToolTranslationContext::tr("The ink coverage cannot be measured. %1").arg(result.message), options.outputCodec);
+        return ErrorUnknown;
     }
 
-    formatter.beginTableHeaderRow("header");
-    formatter.writeTableHeaderColumn("page-no", PDFToolTranslationContext::tr("Page No."), Qt::AlignLeft);
-    for (const pdf::PDFInkCoverageCalculator::InkCoverageChannelInfo& info : headerCoverage)
+    // Q7.9 (b): a page with a problem of the rendering is measured with a warning, a page, which
+    // cannot be rendered, is left out
+    for (const pdf::PDFDocumentToolPageProblem& problem : result.renderingIssues)
     {
-        formatter.writeTableHeaderColumn(QString("%1-ratio").arg(QString::fromLatin1(info.name)), PDFToolTranslationContext::tr("%1 Ratio [%]").arg(info.textName), Qt::AlignLeft);
-        formatter.writeTableHeaderColumn(QString("%1-area").arg(QString::fromLatin1(info.name)), PDFToolTranslationContext::tr("%1 Covered [mm^2]").arg(info.textName), Qt::AlignLeft);
+        PDFConsole::writeError(PDFToolTranslationContext::tr("Warning: page %1: %2").arg(problem.pageIndex + 1).arg(problem.message), options.outputCodec);
     }
-    formatter.endTableHeaderRow();
-
-    for (const pdf::PDFInteger pageIndex : pageIndices)
+    for (const QJsonValue& value : result.data.value(QString::fromLatin1(Tool::DATA_UNMEASURED_PAGES)).toArray())
     {
-        const std::vector<pdf::PDFInkCoverageCalculator::InkCoverageChannelInfo>* coverage = calculator.getInkCoverage(pageIndex);
-
-        if (!coverage)
-        {
-            // Jakub Melka: Something bad happened?
-            continue;
-        }
-
-        formatter.beginTableRow("page-coverage", pageIndex + 1);
-        formatter.writeTableColumn("page-no", locale.toString(pageIndex + 1), Qt::AlignRight);
-
-        for (const auto& info : headerCoverage)
-        {
-            const pdf::PDFInkCoverageCalculator::InkCoverageChannelInfo* channelInfo = pdf::PDFInkCoverageCalculator::findCoverageInfoByName(*coverage, info.name);
-            pdf::PDFInkCoverageCalculator::InkCoverageChannelInfo* sumChannelInfo = pdf::PDFInkCoverageCalculator::findCoverageInfoByName(headerCoverage, info.name);
-
-            if (channelInfo)
-            {
-                formatter.writeTableColumn(QString("%1-ratio").arg(QString::fromLatin1(info.name)), locale.toString(channelInfo->ratio * 100.0, 'f', 2), Qt::AlignRight);
-                formatter.writeTableColumn(QString("%1-area").arg(QString::fromLatin1(info.name)), locale.toString(channelInfo->coveredArea, 'f', 2), Qt::AlignRight);
-                sumChannelInfo->coveredArea += channelInfo->coveredArea;
-            }
-            else
-            {
-                formatter.writeTableColumn(QString("%1-ratio").arg(QString::fromLatin1(info.name)), QString(), Qt::AlignRight);
-                formatter.writeTableColumn(QString("%1-area").arg(QString::fromLatin1(info.name)), QString(), Qt::AlignRight);
-            }
-        }
-
-        formatter.endTableRow();
+        const QJsonObject unmeasured = value.toObject();
+        PDFConsole::writeError(PDFToolTranslationContext::tr("Warning: page %1 is not measured: %2").arg(unmeasured.value(QStringLiteral("page")).toInteger()).arg(unmeasured.value(QStringLiteral("message")).toString()), options.outputCodec);
     }
 
-    // Summary
-    formatter.beginTableRow("sum-coverage");
-    formatter.writeTableColumn("sum", PDFToolTranslationContext::tr("Sum"), Qt::AlignRight);
-
-    for (const auto& info : headerCoverage)
+    pdf::PDFDocumentToolTableFormat format = pdf::PDFDocumentToolTableFormat::Text;
+    switch (options.outputStyle)
     {
-        const pdf::PDFInkCoverageCalculator::InkCoverageChannelInfo* channelInfo = pdf::PDFInkCoverageCalculator::findCoverageInfoByName(headerCoverage, info.name);
-        formatter.writeTableColumn(QString("%1-ratio").arg(QString::fromLatin1(info.name)), QString(), Qt::AlignRight);
-        formatter.writeTableColumn(QString("%1-area").arg(QString::fromLatin1(info.name)), locale.toString(channelInfo->coveredArea, 'f', 2), Qt::AlignRight);
+        case PDFOutputFormatter::Style::Text:
+            format = pdf::PDFDocumentToolTableFormat::Text;
+            break;
+        case PDFOutputFormatter::Style::Xml:
+            format = pdf::PDFDocumentToolTableFormat::Xml;
+            break;
+        case PDFOutputFormatter::Style::Html:
+            format = pdf::PDFDocumentToolTableFormat::Html;
+            break;
     }
 
-    formatter.endTableRow();
+    const pdf::PDFDocumentToolTableWriter::Result output = pdf::PDFDocumentToolTableWriter::write(Tool::createTables(result.data), format, pdf::PDFDocumentToolTableWriter::Options());
+    if (!output.isSuccess())
+    {
+        PDFConsole::writeError(output.errorMessage, options.outputCodec);
+        return ErrorUnknown;
+    }
 
-    formatter.endTable();
-
-    formatter.endDocument();
-    PDFConsole::writeText(formatter.getString(), options.outputCodec);
-
+    PDFConsole::writeText(QString::fromUtf8(output.data), options.outputCodec);
     return ExitSuccess;
 }
 

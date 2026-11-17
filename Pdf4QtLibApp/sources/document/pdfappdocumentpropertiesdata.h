@@ -83,7 +83,9 @@ public:
 };
 
 /// Data of the page Document properties (/document/{id}/properties/{section}):
-/// the groups of the sections read from an immutable document, the changes of
+/// the groups of the sections read from an immutable document by the one
+/// implementation of the core (PDFDocumentReport: Info, Trapped, the encryption,
+/// the permissions, the XMP, the fonts; R7-5 - only the texts are here), the changes of
 /// the Info dictionary and of the XMP metadata (each a new document for
 /// PDFAppDocument::commit) and the text of Copy all. Everything is defensive: the
 /// document is an untrusted input (any value may be missing or damaged, texts are
@@ -169,14 +171,16 @@ public:
     static QString sanitize(const QString& text);
 };
 
-/// Scan of the fonts used by a document (worker thread, QtConcurrent): the
-/// fonts of the resources of the pages and of their form XObjects (nested up to
-/// MAXIMUM_DEPTH), each font once. The task is a functor (no lambda); it checks
-/// the cancellation flag before each page.
+/// Scan of the fonts used by a document (worker thread, QtConcurrent): the fonts
+/// of every resource of the pages - their forms, the appearance streams of their
+/// annotations, the patterns, the Type 3 fonts - by the one walk of the core
+/// (PDFDocumentReport::getFonts over PDFResourceWalk, R7-5, K7.24), each font once.
+/// The task is a functor (no lambda); the walk checks the cancellation flag at
+/// every node.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentFontScanTask
 {
 public:
-    /// Deepest nesting of form XObjects, which is scanned
+    /// Deepest nesting of form XObjects of the old scan (the walk of the core has its own limit, PDFObjectWalk)
     static constexpr int MAXIMUM_DEPTH = 16;
 
     /// Most fonts reported (a damaged document can have millions of entries)

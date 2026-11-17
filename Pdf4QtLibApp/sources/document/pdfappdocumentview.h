@@ -532,6 +532,15 @@ public:
     void setToolPageText(const QString& text);
     QString getToolPageText() const { return m_toolPageText; }
 
+    /// The page item and the zoom item of the status bar of a tool, which has its own (K7.27 of
+    /// the plan of step 7 of phase 2: Statistics, Object Inspector and Report have none, Output
+    /// Preview "Page 3 of 16" and the zoom of its picture, 474:8386): both texts replace the
+    /// items of the view, an empty text hides its item (plain text, bounded). Ignored out of the
+    /// mode; the mode and setToolPageText end it.
+    void setToolStatusItems(const QString& pageText, const QString& zoomText);
+    bool hasToolStatusItems() const { return m_hasToolStatusItems; }
+    QString getToolZoomText() const { return m_toolZoomText; }
+
 Q_SIGNALS:
     /// The tool mode has been entered or left (also by itself: the document is gone, every
     /// part and the target of the mode are gone)
@@ -704,6 +713,8 @@ private:
     QPointer<PDFAppToolUndoTarget> m_toolUndoTarget;
     QString m_toolMessage;
     QString m_toolPageText;                     ///< setToolPageText, empty = the page item of the view
+    QString m_toolZoomText;                     ///< setToolStatusItems, empty = no zoom item
+    bool m_hasToolStatusItems = false;          ///< setToolStatusItems: the page and zoom items are the tool's
     bool m_isToolModeActive = false;
     bool m_hasToolParts = false;                ///< The mode was entered with a part or a target (gone all = the mode ends)
     bool m_isToolPartsUpdateQueued = false;

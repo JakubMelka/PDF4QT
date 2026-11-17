@@ -59,7 +59,8 @@ public:
         TableHeaderRow,     ///< Table header row (consists of columns)
         TableHeaderColumn,  ///< Table header column
         TableRow,           ///< Table row (consists of columns)
-        TableColumn         ///< Table column
+        TableColumn,        ///< Table column
+        Preformatted        ///< A text, whose lines and spaces are kept (a code: HTML <pre>, each line of the text style indented)
     };
 
     /// Starts a new element in structure tree. Each call of this function must be
@@ -89,6 +90,7 @@ public:
     inline void writeTableHeaderColumn(QString name, QString description, Qt::Alignment alignment = Qt::AlignLeft) { beginElement(Element::TableHeaderColumn, name, description, alignment); endElement(); }
     inline void writeTableColumn(QString name, QString description, Qt::Alignment alignment = Qt::AlignLeft) { beginElement(Element::TableColumn, name, description, alignment); endElement(); }
     inline void writeText(QString name, QString description, int reference = 0) { beginElement(Element::Text, name, description, Qt::AlignLeft, reference); endElement(); }
+    inline void writePreformatted(QString name, QString text) { beginElement(Element::Preformatted, name, text); endElement(); }
     inline void beginHeader(QString name, QString description, int reference = 0) { beginElement(Element::Header, name, description, Qt::AlignLeft, reference); }
     inline void endHeader() { endElement(); }
 

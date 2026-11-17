@@ -105,6 +105,17 @@ enum class PDFAppToolStartPageText
     Note        ///< The note below the card
 };
 
+/// The state of the result of an analysis, which the tool keeps and shows itself (PDFDocumentToolGUI::
+/// isResultKeptInTool; plan of step 7 of phase 2, 4.1, R7-2 - the rule of the owner of 9. 11.: after a result
+/// the Primary button is Disabled, Close Enabled; the Primary button is enabled again only when the result is
+/// stale)
+enum class PDFAppToolResultState
+{
+    None,       ///< No result yet: the Primary button by isConfirmEnabled (the ready state)
+    Current,    ///< The result of the inputs and the document of now is shown: the Primary button Disabled
+    Stale       ///< The document or an input has changed since (492:109399): the amber callout, the Primary button again
+};
+
 /// The answer of a tool to the close of its own tab (PDFDocumentToolGUI::askOwnTabClose; plan of
 /// step 3b of phase 2, RB3 c, Manage Pages 405:30894 "Save the assembly …?")
 enum class PDFAppToolCloseAnswer
@@ -299,6 +310,12 @@ public:
     virtual QString getOwnTabPageText() const;
     virtual QString getOwnTabZoomText() const;
 
+    /// In the document host the two texts above replace both items of the view, an empty text
+    /// hides its item (K7.27 of the plan of step 7 of phase 2, FD-31: Statistics, Object Inspector
+    /// and Report show no page, so neither item; Output Preview its page and the zoom of its
+    /// picture, which is not the zoom of the view). Default: false - the items of the view.
+    virtual bool hasOwnStatusItems() const;
+
     /// The list of the inputs of a tool of more inputs in its own tab (owned by the tab,
     /// PDFAppToolInputList of package B2), nullptr = none (a tool in a document tab)
     PDFAppToolInputList* getInputList() const;
@@ -383,6 +400,52 @@ public:
     /// caller checks its guard).
     bool commitDocumentChange(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion);
 
+    // ------------------------------------------------------------- analysis kept in the tool (step 7)
+
+    /// The tool shows the result of its run itself and stays open (plan of step 7 of phase 2, 4.1: Ink
+    /// Coverage, Document Report, Compare; R7-2). The shell then opens no result dialog after a successful
+    /// run: it records the use, stores the last values, gives the result to onResultKept, ends the decision of
+    /// the runner and returns to Editing with the result state Current - the Primary button Disabled until the
+    /// result is stale. A result, which is an export (PDFAppToolResultDialog::isAnalysisExport: Document Report
+    /// writes its file in the run, 484:18811), opens the dialog of the export first; its decision returns to
+    /// Editing too. Default: false (the result dialog decides, the tool closes after an accepted result).
+    virtual bool isResultKeptInTool() const;
+
+    /// A successful result of a run kept in the tool (isResultKeptInTool): the GUI stores it and shows it. Called
+    /// before the dialog of an export opens; it may not delete the shell. Default: nothing.
+    virtual void onResultKept(const PDFDocumentToolResult& result);
+
+    /// A change of the parameter makes the kept result stale (R7-2: "the input changed"). Default: every
+    /// parameter except "format" (the format of a later export, PDFDocumentToolTableWriter::PARAMETER_FORMAT).
+    virtual bool isResultStaleBy(const QString& parameterName) const;
+
+    /// Title and text of the amber callout of a stale result (492:109399 "Options changed"); the GUI says what
+    /// changed. Defaults: "The document changed" and the text with the text of the Primary button.
+    virtual QString getStaleTitle() const;
+    virtual QString getStaleText() const;
+
+    /// Where the callout of a stale result lies (default: the top of the right panel)
+    virtual PDFAppToolCalloutPlace getStaleCalloutPlace() const;
+
+    /// The decision of the dialog of an export (openExport, or the export of a run): FileSaved with the file
+    /// (PDFAppToolResultOutcome::filePath, isFileOpenRequested - the GUI opens it, 484:18811), Discarded. The tool
+    /// stays open in both cases. Called as the last thing of the decision; it may not delete the shell.
+    /// Default: nothing.
+    virtual void onExportDecided(const PDFAppToolResultOutcome& outcome);
+
+    /// The state of the kept result (None without a shell)
+    PDFAppToolResultState getResultState() const;
+
+    /// The inputs of the GUI outside of the model have changed (Compare: Swap, Change…): a Current result
+    /// becomes Stale (the callout, the Primary button). Nothing in another state.
+    void markResultStale();
+
+    /// Opens the dialog of an export of the data of the kept result (Export of the toolbar of Statistics, Ink
+    /// Coverage; 480:15368, 478:15674): \p exportResult has one output file (the static writeOutput of the
+    /// tool), the texts come from fillResultInput. The export never runs the tool again (plan 4.1). Only in
+    /// the state Editing. \returns the dialog was opened.
+    bool openExport(const PDFDocumentToolResult& exportResult);
+
     // ------------------------------------------------------------- flow
 
     /// Parameters of a run or of a preview (default: the values of the model)
@@ -392,6 +455,14 @@ public:
     /// depend on its parameters (the scan of Remove Hidden Data, the links of Remove External
     /// Links), gives the same ones: a change of a parameter takes the cached preview.
     virtual QVariantMap getPreviewParameters() const;
+
+    /// The Primary button of a GUI, which does its own action and never runs the tool (Keep Proofing On of
+    /// Soft Proofing, RS7APP L4): the shell calls it on the confirmation (the button, Ctrl+Enter) after its
+    /// checks of the state and of isConfirmEnabled, before anything of a run (no permission, no environment,
+    /// no runner). \returns true, when the GUI has taken the confirmation - the shell then does nothing more;
+    /// false (the default) = the tool runs. The call is the last thing the shell does (its slots may delete
+    /// the shell with this GUI); an action, which closes the tool, is queued.
+    virtual bool confirmWithoutRun();
 
     /// Inputs of a run besides the snapshot (default: as the host fills them)
     virtual void prepareEnvironment(PDFAppToolRunEnvironment* environment) const;

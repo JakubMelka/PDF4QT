@@ -76,17 +76,21 @@ int PDFToolInfoInksApplication::execute(const PDFToolOptions& options)
     formatter.writeTableHeaderColumn("color", PDFToolTranslationContext::tr("Color"), Qt::AlignLeft);
     formatter.endTableHeaderRow();
 
+    // The inks of the core (plan of step 7 of phase 2, 4.5): the spot colors of every resource of the
+    // pages and of their printed annotations (PDFResourceWalk, B197), a colorant /None is no ink
+    // (B198); every spot ink, also one over the limit of the separations (the list is complete)
     pdf::PDFInkMapper mapper(&cmsManager, &document);
     mapper.createSpotColors(true);
-    std::vector<pdf::PDFInkMapper::ColorInfo> colorInfos = mapper.getSeparations(4, true);
-
-    QLocale locale;
+    std::vector<pdf::PDFInkMapper::ColorInfo> colorInfos = mapper.getSeparations(4, false);
+    const std::vector<pdf::PDFInkMapper::ColorInfo>& spotColors = mapper.getSpotColors();
+    colorInfos.insert(colorInfos.end(), spotColors.cbegin(), spotColors.cend());
 
     int colorIndex = 0;
     for (const pdf::PDFInkMapper::ColorInfo& colorInfo : colorInfos)
     {
+        // Q7.14, R7-14: the numbers of PdfTool in the C locale
         formatter.beginTableRow("ink", ++colorIndex);
-        formatter.writeTableColumn("index", locale.toString(colorIndex), Qt::AlignRight);
+        formatter.writeTableColumn("index", QString::number(colorIndex), Qt::AlignRight);
         formatter.writeTableColumn("id", colorInfo.name.toPercentEncoding(" "));
         formatter.writeTableColumn("name", colorInfo.textName);
         formatter.writeTableColumn("is-spot", colorInfo.isSpot ? PDFToolTranslationContext::tr("Yes") : PDFToolTranslationContext::tr("No"), Qt::AlignCenter);

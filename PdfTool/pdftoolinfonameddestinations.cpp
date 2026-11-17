@@ -21,7 +21,7 @@
 // SOFTWARE.
 
 #include "pdftoolinfonameddestinations.h"
-#include "pdfencoding.h"
+#include "pdfdocumentreport.h"
 
 namespace pdftool
 {
@@ -59,7 +59,7 @@ int PDFToolInfoNamedDestinationsApplication::execute(const PDFToolOptions& optio
     }
 
     QString parseError;
-    std::vector<pdf::PDFInteger> pages = options.getPageRange(document.getCatalog()->getPageCount(), parseError, false);
+    std::vector<pdf::PDFInteger> pages = options.getPageRange(document.getCatalog()->getPageCount(), parseError, true);
 
     if (!parseError.isEmpty())
     {
@@ -85,148 +85,28 @@ int PDFToolInfoNamedDestinationsApplication::execute(const PDFToolOptions& optio
     formatter.writeTableHeaderColumn("name", PDFToolTranslationContext::tr("Name"), Qt::AlignLeft);
     formatter.endTableHeaderRow();
 
-    QLocale locale;
-
-    struct DestinationItem
+    // The one implementation of the report (R7-5); B189: a destination, whose page is not in the
+    // document, is "unresolved" (never page 0 or a value of nothing); the numbers in the C locale (Q7.14)
+    const QLocale locale = QLocale::c();
+    auto toText = [&locale](const std::optional<pdf::PDFReal>& value)
     {
-        pdf::PDFInteger pageIndex = 0;
-        QString name;
-        pdf::PDFDestination destination;
+        return value.has_value() ? locale.toString(value.value()) : QString();
     };
-    std::vector<DestinationItem> destinationItems;
-
-    for (const auto& destinationItem : document.getCatalog()->getNamedDestinations())
-    {
-        const QByteArray& name = destinationItem.first;
-        const pdf::PDFDestination& destination = destinationItem.second;
-
-        if (destination.getDestinationType() == pdf::DestinationType::Invalid)
-        {
-            continue;
-        }
-
-        // Search for page...
-        pdf::PDFInteger pageIndex = destination.getPageIndex();
-        pdf::PDFObjectReference pageReference = destination.getPageReference();
-        if (pageReference.isValid())
-        {
-            pageIndex = document.getCatalog()->getPageIndexFromPageReference(pageReference);
-        }
-
-        ++pageIndex;
-        if (!std::binary_search(pages.cbegin(), pages.cend(), pageIndex))
-        {
-            // This page is skipped
-            continue;
-        }
-
-        DestinationItem item;
-        item.pageIndex = pageIndex;
-        item.name = pdf::PDFEncoding::convertSmartFromByteStringToUnicode(name, nullptr);
-        item.destination = destination;
-        destinationItems.emplace_back(qMove(item));
-    }
-
-    std::stable_sort(destinationItems.begin(), destinationItems.end(), [](const auto& l, const auto& r) { return l.pageIndex < r.pageIndex; });
 
     int ref = 1;
-    for (const auto& destinationItem : destinationItems)
+    for (const pdf::PDFDocumentReportDestination& destination : pdf::PDFDocumentReport::getNamedDestinations(&document, pages))
     {
-        QString type, left, top, right, bottom, zoom;
-
-        const pdf::PDFDestination& destination = destinationItem.destination;
-        switch (destination.getDestinationType())
-        {
-            case pdf::DestinationType::Invalid:
-            {
-                type = PDFToolTranslationContext::tr("Invalid");
-                break;
-            }
-
-            case pdf::DestinationType::Named:
-            {
-                type = PDFToolTranslationContext::tr("Named");
-                break;
-            }
-
-            case pdf::DestinationType::XYZ:
-            {
-                type = PDFToolTranslationContext::tr("XYZ");
-                left = locale.toString(destination.getLeft());
-                top = locale.toString(destination.getTop());
-                if (!qFuzzyIsNull(destination.getZoom()))
-                {
-                    zoom = locale.toString(destination.getZoom());
-                }
-                break;
-            }
-
-            case pdf::DestinationType::Fit:
-            {
-                type = PDFToolTranslationContext::tr("Fit");
-                break;
-            }
-
-            case pdf::DestinationType::FitH:
-            {
-                type = PDFToolTranslationContext::tr("FitH");
-                top = locale.toString(destination.getTop());
-                break;
-            }
-
-            case pdf::DestinationType::FitV:
-            {
-                type = PDFToolTranslationContext::tr("FitV");
-                left = locale.toString(destination.getLeft());
-                break;
-            }
-
-            case pdf::DestinationType::FitR:
-            {
-                type = PDFToolTranslationContext::tr("FitR");
-                left = locale.toString(destination.getLeft());
-                top = locale.toString(destination.getTop());
-                bottom = locale.toString(destination.getBottom());
-                right = locale.toString(destination.getRight());
-                break;
-            }
-
-            case pdf::DestinationType::FitB:
-            {
-                type = PDFToolTranslationContext::tr("FitB");
-                break;
-            }
-
-            case pdf::DestinationType::FitBH:
-            {
-                type = PDFToolTranslationContext::tr("FitBH");
-                top = locale.toString(destination.getTop());
-                break;
-            }
-
-            case pdf::DestinationType::FitBV:
-            {
-                type = PDFToolTranslationContext::tr("FitBV");
-                left = locale.toString(destination.getLeft());
-                break;
-            }
-
-            default:
-                Q_ASSERT(false);
-                break;
-        };
-
         formatter.beginTableRow("destination", ref);
 
         formatter.writeTableColumn("no", locale.toString(ref), Qt::AlignRight);
-        formatter.writeTableColumn("page-number", locale.toString(destinationItem.pageIndex), Qt::AlignRight);
-        formatter.writeTableColumn("type", type, Qt::AlignRight);
-        formatter.writeTableColumn("left", left, Qt::AlignRight);
-        formatter.writeTableColumn("top", top, Qt::AlignRight);
-        formatter.writeTableColumn("right", right, Qt::AlignRight);
-        formatter.writeTableColumn("bottom", bottom, Qt::AlignRight);
-        formatter.writeTableColumn("zoom", zoom, Qt::AlignRight);
-        formatter.writeTableColumn("name", destinationItem.name);
+        formatter.writeTableColumn("page-number", destination.pageIndex >= 0 ? locale.toString(destination.pageIndex + 1) : PDFToolTranslationContext::tr("unresolved"), Qt::AlignRight);
+        formatter.writeTableColumn("type", destination.type, Qt::AlignRight);
+        formatter.writeTableColumn("left", toText(destination.left), Qt::AlignRight);
+        formatter.writeTableColumn("top", toText(destination.top), Qt::AlignRight);
+        formatter.writeTableColumn("right", toText(destination.right), Qt::AlignRight);
+        formatter.writeTableColumn("bottom", toText(destination.bottom), Qt::AlignRight);
+        formatter.writeTableColumn("zoom", toText(destination.zoom), Qt::AlignRight);
+        formatter.writeTableColumn("name", destination.name);
 
         formatter.endTableRow();
         ++ref;

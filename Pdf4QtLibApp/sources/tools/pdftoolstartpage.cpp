@@ -66,6 +66,8 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 namespace pdf
 {
 
@@ -121,6 +123,12 @@ public:
     static constexpr int TUTORIAL_HEIGHT = 369; ///< tutorial-card 279:2028 keeps its place without a video
     static constexpr int THUMBNAIL_HEIGHT = 170;
     static constexpr int OFTEN_NEXT_COUNT = 3;
+
+    /// The kind of a result, which leaves the document as it is (FD-29: the note of an analysis)
+    static bool isAnalysis(PDFDocumentToolResultKind kind)
+    {
+        return kind == PDFDocumentToolResultKind::Analysis;
+    }
 
     /// Header of a section: the title Semi Bold 15 and the hint Regular 12 text/muted, gap 12
     static QWidget* createHeader(const QString& title, const QString& hint, QWidget* parent)
@@ -494,7 +502,13 @@ QWidget* PDFToolStartPage::createChooseDocument(QWidget* parent)
     PDFIconBadge* icon = new PDFIconBadge(QStringLiteral("info"), 14, 14, note);
     icon->setColors(std::nullopt, PDFThemeColors::IconDefault);
     noteLayout->addWidget(icon, 0, Qt::AlignTop);
-    const QString noteText = tr("The tool opens in the document’s tab. Nothing changes until you press %1; %2.").arg(title, tool ? tool->getLockedNote() : QString());
+    // FD-29 of the plan of step 7 of phase 2: a tool, whose every result is an analysis (Statistics, Object Inspector,
+    // Report, ...), changes nothing at all - not even by its Primary button, which some of them do not have
+    const std::vector<PDFDocumentToolResultKind> resultKinds = tool ? tool->getPossibleResultKinds() : std::vector<PDFDocumentToolResultKind>();
+    const bool isAnalysisOnly = !resultKinds.empty() && std::all_of(resultKinds.cbegin(), resultKinds.cend(), &PDFToolStartPageHelper::isAnalysis);
+    const QString lockedNote = tool ? tool->getLockedNote() : QString();
+    const QString noteText = isAnalysisOnly ? tr("The tool opens in the document’s tab. Nothing in the document changes; %1.").arg(lockedNote)
+                                            : tr("The tool opens in the document’s tab. Nothing changes until you press %1; %2.").arg(title, lockedNote);
     PDFAppParagraph* noteParagraph = PDFAppPageWidgets::createText(noteText, PDFThemeFonts::getFont(QFont::Normal, 12), 15, PDFThemeColors::TextSecondary, note);
     noteParagraph->setObjectName(QStringLiteral("toolStartNoteText"));
     noteParagraph->setMinimumWidth(1);

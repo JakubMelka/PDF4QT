@@ -362,8 +362,10 @@ void PDFAppOwnTabToolHost::setMessage(const QString& text)
     }
 }
 
-void PDFAppOwnTabToolHost::setStatusItems(const QString& pageText, const QString& zoomText)
+void PDFAppOwnTabToolHost::setStatusItems(const QString& pageText, const QString& zoomText, bool isOwnItems)
 {
+    // The own tab has no items of a view: both items are always the tool's
+    Q_UNUSED(isOwnItems);
     if (m_view)
     {
         m_view->setStatusItems(pageText, zoomText);

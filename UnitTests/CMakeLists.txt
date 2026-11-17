@@ -1021,6 +1021,9 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         apptoolpageslifetime_certificate.cpp
         apptoolpageslifetime_signature.cpp
         apptoolpageslifetime_redact.cpp
+        apptoolpageslifetime_review_a.cpp
+        apptoolpageslifetime_review_b.cpp
+        apptoolpageslifetime_review_c.cpp
     )
     target_link_libraries(UnitTestsAppToolPagesLifetime PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture UnitTestsAppToolOwnTabFixture Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
     pdf4qt_target_precompile_headers(UnitTestsAppToolPagesLifetime REUSE_FROM UnitTestsAppDocumentFixture)
@@ -1599,6 +1602,44 @@ set_target_properties(UnitTestsTimestampClient PROPERTIES
 add_test(UnitTestsTimestampClient "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsTimestampClient")
 set_tests_properties(UnitTestsTimestampClient PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# Step 7a + 7b of phase 2 (plan 8, 9.2 with R7-17), the core: the skeleton the writer of the exports
+# (TableWriter), package P1a statistics and inspector, P1b the report, P3a ink coverage and output preview,
+# P3b soft proof
+foreach(PDF4QT_STEP7_CORE_TEST TableWriter ObjectStatistics ObjectInspector DocumentReport InkCoverage OutputPreview SoftProof)
+    string(TOLOWER "${PDF4QT_STEP7_CORE_TEST}" PDF4QT_STEP7_CORE_TEST_FILE)
+    add_executable(UnitTests${PDF4QT_STEP7_CORE_TEST}
+        tst_${PDF4QT_STEP7_CORE_TEST_FILE}test.cpp
+    )
+    target_link_libraries(UnitTests${PDF4QT_STEP7_CORE_TEST} PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTests${PDF4QT_STEP7_CORE_TEST} REUSE_FROM UnitTestsPchCore)
+    set_target_properties(UnitTests${PDF4QT_STEP7_CORE_TEST} PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTests${PDF4QT_STEP7_CORE_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_STEP7_CORE_TEST}")
+    set_tests_properties(UnitTests${PDF4QT_STEP7_CORE_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endforeach()
+
+# P1b: the commands PdfTool info*, xml run the core of Document Report (R7-5, B164, B176, B178, B180, B189)
+if(TARGET PdfTool)
+    target_compile_definitions(UnitTestsDocumentReport PRIVATE PDF4QT_TEST_PDFTOOL="$<TARGET_FILE:PdfTool>")
+    add_dependencies(UnitTestsDocumentReport PdfTool)
+endif()
+
+# P3a: the commands PdfTool ink-coverage and info-inks run the core of Ink Coverage (B163, B179, B197)
+if(TARGET PdfTool)
+    target_compile_definitions(UnitTestsInkCoverage PRIVATE PDF4QT_TEST_PDFTOOL="$<TARGET_FILE:PdfTool>")
+    add_dependencies(UnitTestsInkCoverage PdfTool)
+endif()
+
+# Fix wave of step 7: PdfTool statistics runs the core of Document Statistics ("Repaired when opened", plan 4.2)
+if(TARGET PdfTool)
+    target_compile_definitions(UnitTestsObjectStatistics PRIVATE PDF4QT_TEST_PDFTOOL="$<TARGET_FILE:PdfTool>")
+    add_dependencies(UnitTestsObjectStatistics PdfTool)
+endif()
+
 # P4: the text of the test documents is drawn by the bundled Inter font (the offscreen platform has none)
 foreach(PDF4QT_STEP4_FONT_TEST DocumentTextFlow DocumentToolAudioBook)
     target_compile_definitions(UnitTests${PDF4QT_STEP4_FONT_TEST} PRIVATE PDF4QT_TEST_FONT_DIRECTORY="${CMAKE_SOURCE_DIR}/Pdf4QtLibFluent/resources/fonts")
@@ -1692,4 +1733,28 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     # against a local timestamp authority made by TS_RESP_CTX of OpenSSL (never the internet)
     target_link_libraries(UnitTestsAppToolCertificates PRIVATE OpenSSL::Crypto)
     target_link_libraries(UnitTestsAppToolSignature PRIVATE OpenSSL::Crypto)
+
+    # Step 7a + 7b of phase 2 (plan 8, 9.2 with R7-17), the application: the skeleton the shared parts of the
+    # analysis tools (AppToolAnalysis: the kept result and its stale state, the export, the formatter), the GUI
+    # of package P2 (Statistics, Object Inspector, Report) and of package P4 (Ink Coverage, Output Preview, Soft
+    # Proofing), the MCP actions of review (AppMcpReview, the MCP package); the precompiled header of the root fixture
+    foreach(PDF4QT_STEP7_APP_TEST AppToolAnalysis AppToolStatistics AppToolObjectInspector AppToolReport AppToolInkCoverage AppToolOutputPreview AppToolSoftProof AppMcpReview)
+        string(TOLOWER "${PDF4QT_STEP7_APP_TEST}" PDF4QT_STEP7_APP_TEST_FILE)
+        add_executable(UnitTests${PDF4QT_STEP7_APP_TEST}
+            tst_${PDF4QT_STEP7_APP_TEST_FILE}test.cpp
+        )
+        target_link_libraries(UnitTests${PDF4QT_STEP7_APP_TEST} PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture UnitTestsAppToolOwnTabFixture UnitTestsAppMcpFixture UnitTestsMcpTestClient Pdf4QtLibApp Pdf4QtLibMcp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+        pdf4qt_target_precompile_headers(UnitTests${PDF4QT_STEP7_APP_TEST} REUSE_FROM UnitTestsAppDocumentFixture)
+        set_target_properties(UnitTests${PDF4QT_STEP7_APP_TEST} PROPERTIES
+            WIN32_EXECUTABLE OFF
+            MACOSX_BUNDLE OFF
+            QT_EXCLUDE_FROM_TRANSLATION ON
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+        )
+        add_test(UnitTests${PDF4QT_STEP7_APP_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_STEP7_APP_TEST}")
+        set_tests_properties(UnitTests${PDF4QT_STEP7_APP_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endforeach()
+
+    # Soft Proofing checks the printing without the proof of the tab (printers of the test write PDF files)
+    target_link_libraries(UnitTestsAppToolSoftProof PRIVATE Qt6::PrintSupport)
 endif()

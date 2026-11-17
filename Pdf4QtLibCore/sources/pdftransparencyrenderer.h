@@ -30,10 +30,16 @@
 #include "pdfutils.h"
 #include "pdfprogress.h"
 
+#include <QHash>
 #include <QImage>
+
+#include <set>
+#include <tuple>
 
 namespace pdf
 {
+class PDFAnnotation;
+class PDFOperationControl;
 
 /// Pixel format, describes color channels, both process colors (for example,
 /// R, G, B, Gray, C, M, Y, K) or spot colors. Also, describes, if pixel
@@ -400,9 +406,37 @@ public:
     /// \param withSpots Add active spot colors?
     std::vector<ColorInfo> getSeparations(uint32_t processColorCount, bool withSpots = true) const;
 
-    /// Scan document for spot colors and fills color info
+    /// Scan document for spot colors and fills color info (all pages, see the overload)
     /// \param activate Set spot colors active?
     void createSpotColors(bool activate);
+
+    /// Scans the pages for spot colors and fills color info (plan of step 7 of phase 2, B197,
+    /// B198): every resource reached from the pages by PDFResourceWalk - the pages, their forms,
+    /// the tiling patterns, the Type 3 fonts, the groups of the soft masks and the appearance
+    /// streams of the printed annotations (/F Print, not Hidden; ISO 32000-2, 12.5.3) - and in it
+    /// the color spaces of /ColorSpace, of the images of /XObject, of /Shading and of the shading
+    /// patterns of /Pattern, with the base of an Indexed space and the underlying space of an
+    /// uncolored pattern space. A colorant /None of a DeviceN space (8.6.6.5) and /All are no
+    /// inks. The first MAX_SPOT_COLOR_COMPONENTS spot colors in the order of the walk can be
+    /// active (isSpotColorLimitReached).
+    /// \param activate Set spot colors active?
+    /// \param pageIndices The pages (indices from 0)
+    /// \param control Cancellation of the walk (optional; a canceled walk gives the spot colors found so far)
+    void createSpotColors(bool activate, const std::vector<PDFInteger>& pageIndices, const PDFOperationControl* control);
+
+    /// Number of the spot colors found (also those, which cannot be active)
+    size_t getSpotColorCount() const { return m_spotColors.size(); }
+
+    /// Returns true, if more spot colors were found, than can be active (MAX_SPOT_COLOR_COMPONENTS;
+    /// Output Preview 476:11703)
+    bool isSpotColorLimitReached() const { return m_spotColors.size() > MAX_SPOT_COLOR_COMPONENTS; }
+
+    /// All spot colors found, in their order (also the inactive ones)
+    const std::vector<ColorInfo>& getSpotColors() const { return m_spotColors; }
+
+    /// Number of the color space objects, which the last createSpotColors has parsed (a color space
+    /// shared by the resources of many pages is parsed once; for the tests and the diagnostics)
+    size_t getColorSpaceCreationCount() const { return m_colorSpaceCreationCount; }
 
     /// Returns true, if mapper contains given spot color
     /// \param colorName Color name
@@ -450,11 +484,64 @@ public:
                                 PDFPixelFormat targetPixelFormat) const;
 
 private:
+    /// What one createSpotColors has already scanned (RS7CORE M5 of step 7 of phase 2: the resources of
+    /// N pages sharing one /ColorSpace dictionary of M spaces parsed N x M color spaces, each with its tint
+    /// transformation). A key consists of the /ColorSpace dictionary of the resources (it resolves the
+    /// names and the default spaces) and of the identity of the object in the document: a reference, the
+    /// address of a direct array, dictionary or stream (the document is not changed while the mapper
+    /// scans it), a name. Scanning a key again adds no ink (a spot color is added once, by its name, and
+    /// the parsing does not depend on anything else), so a skipped key gives the same spot colors in the
+    /// same order. Each set holds at most MAXIMUM_KEYS keys; over it, the objects are scanned again.
+    class SpotColorScan
+    {
+    public:
+        static constexpr size_t MAXIMUM_KEYS = size_t(1) << 20;
+
+        /// The kinds of the dictionaries of the resources, which are scanned (one dictionary of a hostile
+        /// document can be its /ColorSpace and its /XObject at once)
+        enum class Container
+        {
+            ColorSpace,
+            XObject,
+            Shading,
+            Pattern
+        };
+
+        /// True for the first call with \p kind, \p colorSpaceDictionary and \p container (a dictionary of
+        /// the resources of the kind), which is then remembered
+        bool isNewContainer(Container kind, const PDFDictionary* colorSpaceDictionary, const PDFDictionary* container);
+
+        /// True for the first call with \p colorSpaceDictionary and \p colorSpaceObject, which is then remembered
+        bool isNewColorSpace(const PDFDictionary* colorSpaceDictionary, const PDFObject& colorSpaceObject);
+
+    private:
+        using ColorSpaceKey = std::tuple<quintptr, PDFObjectReference, quintptr, QByteArray>;
+
+        std::set<std::tuple<Container, quintptr, quintptr>> m_containers;
+        std::set<ColorSpaceKey> m_colorSpaces;
+    };
+
+    /// Adds the inks of a color space (Separation, the colorants of DeviceN; the base of Indexed,
+    /// the underlying space of a Pattern space); every other color space has no spot color
+    void addSpotColors(const PDFColorSpacePointer& colorSpace, const PDFCMS* cms);
+
+    /// Adds the inks of a color space object of a resource dictionary (a name or an array);
+    /// an invalid one is skipped, a scanned one too (\p scan)
+    /// \param colorSpaceDictionary The /ColorSpace dictionary of the resources (names of the spaces)
+    /// \param colorSpaceObject The color space object
+    /// \param scan What the run has already scanned
+    void addSpotColors(const PDFDictionary* colorSpaceDictionary, const PDFObject& colorSpaceObject, const PDFCMS* cms, SpotColorScan* scan);
+
+    /// Adds a spot color at the end of m_spotColors and to m_spotColorIndices
+    void addSpotColor(ColorInfo info);
+
     const PDFCMSManager* m_cmsManager;
     const PDFDocument* m_document;
     std::vector<ColorInfo> m_spotColors;
+    QHash<QByteArray, size_t> m_spotColorIndices;  ///< Index of a spot color of m_spotColors by its name (a hostile document has any number of spot colors: no linear search)
     std::vector<ColorInfo> m_deviceColors; ///< Device color space separations
     size_t m_activeSpotColors = 0;
+    size_t m_colorSpaceCreationCount = 0;  ///< Color space objects parsed by the last createSpotColors
 };
 
 /// Represents draw buffer, into which is current graphics drawn
@@ -467,7 +554,13 @@ public:
     void clear();
 
     /// Marks given area as modified
-    void modify(QRect rect, bool containsFilling, bool containsStroking);
+    /// \param rect Modified area
+    /// \param containsFilling The area is filled
+    /// \param containsStroking The area is stroked
+    /// \param isNonZeroOverprintAllowed The painted object may use the nonzero overprint mode
+    ///        (ISO 32000-2, 8.6.7, 11.7.4.3: the current color of a DeviceCMYK color space in a
+    ///        DeviceCMYK group, never an image or a shading; B211 of step 7 of phase 2)
+    void modify(QRect rect, bool containsFilling, bool containsStroking, bool isNonZeroOverprintAllowed);
 
     /// Returns true, if draw buffer is modified and needs to be flushed
     bool isModified() const { return m_modifiedRect.isValid(); }
@@ -478,9 +571,13 @@ public:
     bool isContainsFilling() const { return m_containsFilling; }
     bool isContainsStroking() const { return m_containsStroking; }
 
+    /// Every object in the buffer may use the nonzero overprint mode (overprint mode 1)
+    bool isNonZeroOverprintAllowed() const { return m_isNonZeroOverprintAllowed; }
+
 private:
     bool m_containsFilling = false;
     bool m_containsStroking = false;
+    bool m_isNonZeroOverprintAllowed = false;
     QRect m_modifiedRect;
 };
 
@@ -540,8 +637,19 @@ struct PDFTransparencyRendererSettings
 
         /// Saves process image before it is transformed into device space
         /// and before separation simulation is applied. Active color mask
-        /// is still applied to this image.
+        /// is still applied to this image (unless OriginalProcessImageWithoutMask).
+        /// The image is in the process color space (setProcessColorSpace): a page
+        /// group of another color space (/Group /CS /DeviceRGB) is converted to it
+        /// first, as the output device does (ISO 32000-2, 11.4.7; B196 of step 7 of
+        /// phase 2) - the inks are the inks of the process color space, never the
+        /// components of the group.
         SaveOriginalProcessImage    = 0x0400,
+
+        /// The original process image (SaveOriginalProcessImage) is saved before the
+        /// active color mask clears the inactive inks: the inks keep their values,
+        /// only the device image hides them (Output Preview: the area of an ink does
+        /// not depend on whether it is shown)
+        OriginalProcessImageWithoutMask = 0x0800,
     };
 
     Q_DECLARE_FLAGS(Flags, Flag)
@@ -614,8 +722,25 @@ public:
 
     /// Returns original process bitmap, before it is transformed into device space,
     /// and before separation simulation is being processed. Active color mask is still
-    /// applied to this image.
+    /// applied to this image (unless OriginalProcessImageWithoutMask). It is in the
+    /// process color space (see SaveOriginalProcessImage).
     PDFFloatBitmapWithColorSpace getOriginalProcessBitmap() const { return m_originalProcessBitmap; }
+
+    /// Paints the annotations, which are printed with the page, over the painted contents (the
+    /// output of a printer: ISO 32000-2, 12.5.3 - the flag Print, not Hidden; Table 167; a reply
+    /// /IRT is not painted, as by PDFAnnotationManager; optional content of /OC by the activity of
+    /// the renderer): the normal appearance stream of the current appearance state, placed by the
+    /// algorithm of 12.5.5 (the box of the form mapped onto /Rect; NoRotate keeps the annotation
+    /// upright). Call it after processContents and before endPaint. An annotation without an
+    /// appearance stream is not painted (a warning). Every appearance is painted with the initial
+    /// graphics state of the page (nothing the contents left at their top level - a matrix, a
+    /// clip, an alpha - applies to it).
+    /// \returns The errors of the annotations (the errors, which the processing of their content
+    ///          streams reports through reportRenderError; see processPrintedAnnotations in the .cpp)
+    QList<PDFRenderError> processPrintedAnnotations();
+
+    virtual void reportRenderError(RenderErrorType type, QString message) override;
+    virtual void reportRenderErrorOnce(RenderErrorType type, QString message) override;
 
     virtual bool isContentKindSuppressed(ContentKind kind) const override;
     virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule) override;
@@ -693,6 +818,7 @@ private:
         uint32_t activeColorMask = PDFPixelFormat::getAllColorsMask();
         bool transformSpotsToDevice = false;
         bool saveOriginalImage = false;
+        bool isPageGroup = false;           ///< The page group (11.4.7)
     };
 
     struct PDFTransparencyPainterState
@@ -777,6 +903,18 @@ private:
 
     /// Flushes draw buffer
     void flushDrawBuffer();
+
+    /// The nonzero overprint mode may apply to an object painted by the current color of
+    /// \p sourceColorSpace (ISO 32000-2, 8.6.7, 11.7.4.3, Table 146): the source and the group
+    /// color space are both DeviceCMYK. The caller never asks it for an image or a shading.
+    bool isNonZeroOverprintAllowed(const PDFAbstractColorSpace* sourceColorSpace) const;
+
+    /// The color space is /None (a Separation /None, a DeviceN of /None colorants, an Indexed space
+    /// of such a base): painting in it has no effect on the page (ISO 32000-2, 8.6.6.4, 8.6.6.5)
+    static bool isNoneColorSpace(const PDFAbstractColorSpace* colorSpace);
+
+    /// Paints one annotation of processPrintedAnnotations (its appearance stream)
+    void processPrintedAnnotation(const PDFAnnotation* annotation, const PDFStream* formStream);
 
     /// Returns true, if multithreaded painter path sampling should be used
     /// for a given fill rectangle.
@@ -874,10 +1012,18 @@ private:
     PDFTransparencyRendererSettings m_settings;
     PDFDrawBuffer m_drawBuffer;
     PDFFloatBitmapWithColorSpace m_originalProcessBitmap;
+    PDFPageContentProcessorState m_initialGraphicState;     ///< The graphics state at beginPaint (processPrintedAnnotations)
+    QList<PDFRenderError>* m_annotationErrors = nullptr;    ///< Errors of processPrintedAnnotations, while it runs
 };
 
 /// Ink coverage calculator. Calculates ink coverage for a given
 /// page range. Calculates ink coverage of both cmyk colors and spot colors.
+/// A page is measured by PDFOutputPreviewAnalyzer::renderPage (the one implementation of
+/// Output Preview, Ink Coverage and this calculator; plan of step 7 of phase 2, 4.5): in the
+/// process color space (B196), with the flags of the settings given to the constructor (B199),
+/// the area weighted by the tint for the whole page and the ratio over the box of the page
+/// (TrimBox, else CropBox, clipped by MediaBox - numerator and denominator of the same box,
+/// owner answer Q7.6, R7-8, B169). The old Editor plugin uses it.
 class PDF4QTLIBCORESHARED_EXPORT PDFInkCoverageCalculator
 {
 public:
@@ -906,6 +1052,10 @@ public:
     /// \param size Resolution size (for ink coverage calculation)
     /// \param pages Page indices
     void perform(QSize size, const std::vector<PDFInteger>& pages);
+
+    /// Sets the cancellation of perform (B199): a canceled page has no result. The object must
+    /// outlive perform; nullptr = none.
+    void setOperationControl(const PDFOperationControl* control) { m_control = control; }
 
     /// Clear all calculated ink coverage results
     void clear();
@@ -938,6 +1088,7 @@ private:
     const PDFInkMapper* m_inkMapper;
     PDFProgressSink* m_progress;
     PDFTransparencyRendererSettings m_settings;
+    const PDFOperationControl* m_control = nullptr;
 
     QMutex m_mutex;
     std::map<pdf::PDFInteger, std::vector<InkCoverageChannelInfo>> m_inkCoverageResults;

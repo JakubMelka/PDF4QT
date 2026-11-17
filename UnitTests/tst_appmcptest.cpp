@@ -162,22 +162,9 @@ public:
         return QJsonDocument::fromJson(QByteArray(json)).object();
     }
 
-    /// RAII registration of the test tool
-    class ToolRegistration
-    {
-    public:
-        ToolRegistration() : tool(std::make_shared<pdftest::TestDocumentTool>())
-        {
-            pdf::PDFDocumentToolRegistry::registerTool(tool);
-        }
-
-        ~ToolRegistration()
-        {
-            pdf::PDFDocumentToolRegistry::unregisterTool(QString::fromLatin1(pdftest::TestDocumentTool::TOOL_ID));
-        }
-
-        std::shared_ptr<pdftest::TestDocumentTool> tool;
-    };
+    /// RAII registration of the test tool as the only tool of Review & Inspect: the built-in tools of the
+    /// category (review.statistics is one of them, R7-19 of step 7) are out for its time and come back
+    using ToolRegistration = pdftest::TestDocumentToolRegistration;
 };
 
 class AppMcpTest : public QObject
@@ -578,7 +565,9 @@ void AppMcpTest::catalogToolBridge()
     pdf::PDFAppDocument* document = tab->getDocument();
 
     // Without an implementation the category tool is absent (the built-in tools of the
-    // other categories stay registered, plan chapter 8)
+    // other categories stay registered, plan chapter 8); the built-in tools of Review & Inspect are
+    // out for the time of the test and come back at its end (R7-19 of step 7)
+    const pdftest::TestDocumentToolCategoryRemoval removal(pdf::PDFDocumentToolCategory::Review);
     pdf::PDFDocumentToolRegistry::unregisterTool(QString::fromLatin1(pdftest::TestDocumentTool::TOOL_ID));
     fixture.host()->checkToolRegistry();
     QVERIFY(!fixture.host()->getCatalog()->findTool(u"review"));

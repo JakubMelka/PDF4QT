@@ -34,6 +34,7 @@ namespace pdf
 class PDFObjectStorage;
 class PDFDocument;
 class PDFObjectWalk;
+class PDFOperationControl;
 
 /// Utilities for manipulation with objects
 class PDF4QTLIBCORESHARED_EXPORT PDFObjectUtils
@@ -178,8 +179,33 @@ private:
     std::set<PDFObjectReference> m_visited;
 };
 
-/// Classifies objects according to their type. Some heuristic is used
-/// when object type is missing or document is not well-formed.
+/// Classifies the objects of a document by their function (plan of step 7 of phase 2, 4.2; Document
+/// Statistics, the views of Object Inspector, the old ObjectInspectorPlugin and PdfTool `statistics`).
+///
+/// Two results:
+///  - the roots of a class (getObjectsByType, hasType): the objects, which are used directly as such - the
+///    pages, their content streams (/Contents, a stream or an array of streams, ISO 32000-2 Table 31), the
+///    annotations of the pages, the resources of every owner of resources (PDFResourceWalk: the pages with
+///    their inherited /Resources, the forms, the appearance streams, the tiling patterns, the Type 3 fonts,
+///    the groups of the soft masks; 7.8.3, Table 34) by their category (/ExtGState, /ColorSpace, /Pattern,
+///    /Shading, /Font, /XObject by /Subtype), the forms of these owners, the actions (/OpenAction and /AA of
+///    the catalog, /AA of the pages, /A and /AA of the annotations, /A of the outline items, /AA of the
+///    fields, the JavaScript name tree, the chains of /Next of 12.6.2, a dictionary of /Type /Action - B205:
+///    /Type /Action is optional, it is no condition) and the containers of the file structure (an object
+///    stream /Type /ObjStm, 7.5.7, a cross-reference stream /Type /XRef, 7.5.8 - B206). An object may be a
+///    root of more classes. These are the lists of the views of the inspector (482:15054).
+///  - the class of each object (getClass) for the statistics: every object is assigned to exactly one class
+///    - the class of the root it is used for (480:14219 "Every object is assigned to what it is used for"):
+///    a root takes its class (by the priority of getClasses when it is a root of more of them), the other
+///    objects take the class of the nearest root, from which they are reachable (a font program is a Font,
+///    a soft mask of an image an Image, the resource dictionary of a page a Page). The back links /Parent
+///    and /P are not followed (a widget would take its field, an annotation its page). What no root reaches
+///    is None ("Other").
+///
+/// Every walk has one visited set, a depth limit and a budget of the nodes (PDFObjectWalk) and is iterative:
+/// a cycle, a node shared by more paths, a reference to a missing object or a wrong type (B190: /Contents
+/// 99999 0 R) changes nothing; isComplete() says, whether a limit stopped a walk (the statistics are then a
+/// part of the document). Not thread-safe: one classifier, one thread; the document is only read.
 class PDF4QTLIBCORESHARED_EXPORT PDFObjectClassifier
 {
 public:
@@ -190,6 +216,12 @@ public:
     /// is being cleared.
     /// \param document Document
     void classify(const PDFDocument* document);
+
+    /// Classifies the objects of a document (the old classification is cleared)
+    /// \param document Document (nullptr = nothing)
+    /// \param control Cancellation (optional), checked by every walk
+    /// \returns false, when the classification was canceled (it is incomplete then)
+    bool classify(const PDFDocument* document, const PDFOperationControl* control);
 
     enum Type : uint32_t
     {
@@ -204,7 +236,8 @@ public:
         Form            = 0x00000080,
         Font            = 0x00000100,
         Action          = 0x00000200,
-        Annotation      = 0x00000400
+        Annotation      = 0x00000400,
+        FileStructure   = 0x00000800     ///< Object streams and cross-reference streams (B206)
     };
 
     Q_DECLARE_FLAGS(Types, Type)
@@ -218,9 +251,23 @@ public:
     /// \param type Object type
     bool hasType(Type type) const { return m_allTypesUsed.testFlag(type); }
 
-    /// Returns a list of objects with a given type
+    /// Returns a list of objects with a given type (the roots of the class)
     /// \param type Type
     std::vector<PDFObjectReference> getObjectsByType(Type type) const;
+
+    /// The number of the roots of a class (getObjectsByType without the list)
+    /// \param type Type
+    qint64 getObjectCountByType(Type type) const;
+
+    /// The class of the object for the statistics (exactly one; None = no root uses it, "Other")
+    /// \param reference Reference
+    Type getClass(PDFObjectReference reference) const;
+
+    /// False, when a limit of a walk (depth, budget) or a cancellation stopped the classification
+    bool isComplete() const { return m_isComplete; }
+
+    /// The classes in their priority (a root of more classes is assigned to the first one), None last
+    static std::vector<Type> getClasses();
 
     struct StatisticsItem
     {
@@ -237,8 +284,16 @@ public:
 
     struct Statistics
     {
+        /// The values of the indirect objects by their type: an object, an entry of a dictionary or a stream,
+        /// an item of an array, each counted once (a stream counts as a Stream, its dictionary is not counted
+        /// twice); the free entries of the storage are no values
         std::array<qint64, size_t(PDFObject::Type::LastType)> objectCountByType = { };
+
+        /// The objects of each class (getClass) and their serialized size ("object bytes", B186)
         std::map<Type, StatisticsItem> statistics;
+
+        /// The computation was canceled (the numbers are incomplete)
+        bool isCanceled = false;
     };
 
     /// Calculate document statistics. Document classification must be
@@ -247,21 +302,27 @@ public:
     /// \returns Calculated statistics of each object type
     Statistics calculateStatistics(const PDFDocument* document) const;
 
+    /// Calculates the statistics of the classified document (PDFExecutionPolicy over the objects)
+    /// \param document Document (the one classified)
+    /// \param control Cancellation (optional)
+    Statistics calculateStatistics(const PDFDocument* document, const PDFOperationControl* control) const;
+
 private:
+    friend class PDFObjectClassifierBuilder;
+
     struct Classification
     {
         PDFObjectReference reference;
-        Types types = None;
+        Types types = None;     ///< The classes, of which the object is a root
+        Type assigned = None;   ///< The class of the statistics
     };
 
-    /// Marks object with a given type
+    /// Marks object with a given type (a root of the class)
     void mark(PDFObjectReference reference, Type type);
-
-    /// Marks objects in dictionary with a given type
-    void markDictionary(const PDFDocument* document, PDFObject object, Type type);
 
     std::vector<Classification> m_classification;
     Types m_allTypesUsed;
+    bool m_isComplete = true;
 };
 
 } // namespace pdf

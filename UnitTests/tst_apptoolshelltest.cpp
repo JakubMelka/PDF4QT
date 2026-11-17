@@ -28,6 +28,7 @@
 #include "pdfappdocument.h"
 #include "pdfappdocumentdialogs.h"
 #include "pdfappdocumentregistry.h"
+#include "pdfapphelpcatalog.h"
 #include "pdfappdocumentsearch.h"
 #include "pdfappdocumentsignatures.h"
 #include "pdfappdocumentsave.h"
@@ -6119,14 +6120,33 @@ void AppToolShellTest::shellKeys()
 
 void AppToolShellTest::shellHelpTopic()
 {
-    // F1 of the page of a tool: the topic of the tool, without it the page Tools
+    // F1 of the page of a tool: the topic of the tool, without it the page Tools. The tool without a topic
+    // is the first tool of the tab of a document, which has none yet (step 7 of phase 2 gave review.statistics
+    // its topic)
     using H = ToolShellFlowHelper;
+    const std::shared_ptr<const pdf::PDFAppHelpCatalog> help = pdf::PDFAppHelpCatalog::getBuiltin();
+    QVERIFY(help);
+    QString withoutTopic;
+    for (const bool isAnalysisOnly : { true, false })
+    {
+        for (const pdf::PDFDocumentToolCatalogEntry& entry : pdf::PDFDocumentToolCatalog::getTools())
+        {
+            const bool isKind = !isAnalysisOnly || entry.getResultKind() == pdf::PDFDocumentToolResultKind::Analysis;
+            if (withoutTopic.isEmpty() && isKind && !entry.hasOwnTab() && entry.getInputKind() == pdf::PDFDocumentToolInputKind::One &&
+                entry.getExternalDependency() == pdf::PDFDocumentToolExternalDependency::None && !help->findTopic(entry.getHelpTopic()))
+            {
+                withoutTopic = entry.getId();
+            }
+        }
+    }
+    QVERIFY(!withoutTopic.isEmpty());
+
     AppToolShellFixture fixture;
     QVERIFY(fixture.registerShellTool(TOOL_ROTATE));
-    QVERIFY(fixture.registerShellTool(TOOL_ANALYSIS));
+    QVERIFY(fixture.registerShellTool(withoutTopic));
     pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
     QVERIFY(tab);
-    QVERIFY(fixture.openTool(tab, TOOL_ANALYSIS));
+    QVERIFY(fixture.openTool(tab, withoutTopic));
     QCOMPARE(qobject_cast<pdf::PDFAppToolDocumentPage*>(tab->getPage())->getHelpTopic(), QStringLiteral("tools"));
     AppToolShellFixture::getShell(tab)->cancel();
     AppToolShellFixture::settle();

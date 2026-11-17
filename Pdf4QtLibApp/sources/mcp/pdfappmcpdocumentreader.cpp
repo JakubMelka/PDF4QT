@@ -37,6 +37,7 @@
 #include "pdfcompiler.h"
 #include "pdfdocument.h"
 #include "pdfdocumentimagelist.h"
+#include "pdfdocumentreport.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfform.h"
 #include "pdfmcpjson.h"
@@ -398,32 +399,35 @@ QByteArray PDFAppMcpDocumentReader::getInfo(const PDFAppDocument* document)
         return writer.take();
     }
 
-    const PDFDocumentInfo* info = pdfDocument->getInfo();
+    // R7-5: the data of the one implementation of the core (Document Report, Properties, PdfTool info)
     const PDFCatalog* catalog = pdfDocument->getCatalog();
+    const PDFDocumentReportBasicInformation information = PDFDocumentReport::getBasicInformation(pdfDocument.data(), { });
 
     writer.key(QLatin1StringView("metadata"));
     writer.beginObject();
-    const std::pair<const char*, const QString*> texts[] = { { "title", &info->title }, { "author", &info->author }, { "subject", &info->subject },
-                                                             { "keywords", &info->keywords }, { "creator", &info->creator }, { "producer", &info->producer } };
+    const std::pair<const char*, const char*> texts[] = { { "title", "Title" }, { "author", "Author" }, { "subject", "Subject" },
+                                                          { "keywords", "Keywords" }, { "creator", "Creator" }, { "producer", "Producer" } };
     for (const auto& text : texts)
     {
-        if (!text.second->isEmpty())
+        const PDFDocumentReportBasicInformation::InfoEntry* entry = information.findInfo(QByteArray(text.second));
+        if (entry && !entry->value.isEmpty())
         {
-            writer.writeMember(QLatin1StringView(text.first), Support::sanitizeName(*text.second));
+            writer.writeMember(QLatin1StringView(text.first), Support::sanitizeName(entry->value));
         }
     }
-    if (info->creationDate.isValid())
+    const std::pair<const char*, const char*> dates[] = { { "created", "CreationDate" }, { "modified", "ModDate" } };
+    for (const auto& date : dates)
     {
-        writer.writeMember(QLatin1StringView("created"), Support::formatDateTime(info->creationDate));
-    }
-    if (info->modifiedDate.isValid())
-    {
-        writer.writeMember(QLatin1StringView("modified"), Support::formatDateTime(info->modifiedDate));
+        const PDFDocumentReportBasicInformation::InfoEntry* entry = information.findInfo(QByteArray(date.second));
+        if (entry && entry->dateTime.isValid())
+        {
+            writer.writeMember(QLatin1StringView(date.first), Support::formatDateTime(entry->dateTime));
+        }
     }
     writer.endObject();
 
-    writer.writeMember(QLatin1StringView("pdfVersion"), QString::fromLatin1(pdfDocument->getVersion().left(16)));
-    writer.writeMember(QLatin1StringView("pageCount"), qint64(catalog->getPageCount()));
+    writer.writeMember(QLatin1StringView("pdfVersion"), information.version);
+    writer.writeMember(QLatin1StringView("pageCount"), qint64(information.pageCount));
 
     qint64 fileSize = document->getOriginalData().size();
     if (fileSize <= 0 && !document->getFilePath().isEmpty())
@@ -440,7 +444,9 @@ QByteArray PDFAppMcpDocumentReader::getInfo(const PDFAppDocument* document)
     {
         writer.writeMember(QLatin1StringView("language"), Support::sanitizeName(catalog->getLanguage(), 64));
     }
-    writer.writeMember(QLatin1StringView("tagged"), catalog->isLogicalStructureMarked() || !catalog->getStructureTreeRoot().isNull());
+    // R7-5: one definition of Tagged - /MarkInfo /Marked (ISO 32000-2, 14.7.1, Table 353); a structure tree
+    // alone does not make a tagged document
+    writer.writeMember(QLatin1StringView("tagged"), information.isTagged);
 
     // The form, its signatures
     const PDFForm form = PDFForm::parse(pdfDocument.data(), catalog->getFormObject());

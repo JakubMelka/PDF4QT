@@ -22,7 +22,9 @@
 
 #include "pdftoolabstractapplication.h"
 #include "pdftoolocr.h"
+#include "pdfdocumentmerger.h"
 #include "pdfdocumentreader.h"
+#include "pdfdocumenttoolparameter.h"
 #include "pdfutils.h"
 
 #include <QFileInfo>
@@ -1531,6 +1533,29 @@ QString PDFToolAbstractApplication::convertDateTimeToString(const QDateTime& dat
 
 bool PDFToolAbstractApplication::readDocument(const PDFToolOptions& options, pdf::PDFDocument& document, QByteArray* sourceData, bool authorizeOwnerOnly)
 {
+    return readDocument(options, document, sourceData, authorizeOwnerOnly, nullptr);
+}
+
+bool PDFToolAbstractApplication::isContentCopyAllowed(const PDFToolOptions& options, const pdf::PDFDocument& document)
+{
+    const pdf::PDFSecurityHandler* securityHandler = document.getStorage().getSecurityHandler();
+    if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::CopyContent) ||
+        (!options.password.isEmpty() && pdf::PDFDocumentMerger::verifyOwnerPassword(securityHandler, options.password)))
+    {
+        return true;
+    }
+
+    PDFConsole::writeError(PDFToolTranslationContext::tr("Document doesn't allow to copy content. If you own it, give its owner password by --pswd."), options.outputCodec);
+    return false;
+}
+
+bool PDFToolAbstractApplication::readDocument(const PDFToolOptions& options, pdf::PDFDocument& document, QByteArray* sourceData, bool authorizeOwnerOnly, bool* isRestored)
+{
+    if (isRestored)
+    {
+        *isRestored = false;
+    }
+
     bool isFirstPasswordAttempt = true;
     auto passwordCallback = [&options, &isFirstPasswordAttempt](bool* ok) -> QString
     {
@@ -1548,6 +1573,10 @@ bool PDFToolAbstractApplication::readDocument(const PDFToolOptions& options, pdf
             if (sourceData)
             {
                 *sourceData = reader.getSource();
+            }
+            if (isRestored)
+            {
+                *isRestored = reader.isDocumentRestored();
             }
             break;
         }
@@ -1595,17 +1624,23 @@ QByteArray PDFToolAbstractApplication::getDefaultEncoding()
 
 QStringConverter::Encoding PDFToolAbstractApplication::getEncoding(const QString& encodingName)
 {
-    if (encodingName == "utf8")
+    // B178: the name without its case, hyphens and underscores - the default "UTF-8" of --text-codec
+    // is utf8 (it was not recognized and the system encoding was used)
+    QString name = encodingName.trimmed().toLower();
+    name.remove(QLatin1Char('-'));
+    name.remove(QLatin1Char('_'));
+
+    if (name == "utf8")
     {
         return QStringConverter::Utf8;
     }
 
-    if (encodingName == "latin1")
+    if (name == "latin1" || name == "iso88591")
     {
         return QStringConverter::Latin1;
     }
 
-    if (encodingName == "system")
+    if (name == "system")
     {
         return QStringConverter::System;
     }
@@ -1684,13 +1719,15 @@ std::vector<pdf::PDFInteger> PDFToolOptions::getPageRange(pdf::PDFInteger pageCo
         parts << "-";
     }
 
-    QString partsString = parts.join(",");
-    pdf::PDFClosedIntervalSet result = pdf::PDFClosedIntervalSet::parse(1, pageCount, partsString, &errorMessage);
-    std::vector<pdf::PDFInteger> pageIndices = result.unfold();
+    // B164 (R7-18): the bounded parser of the page selection of the tools - a page outside of the
+    // document or a huge range is an error, never an index behind the pages or billions of items
+    pdf::PDFDocumentToolPageSelection selection;
+    selection.pages = parts.join(",");
+    std::vector<pdf::PDFInteger> pageIndices = selection.getPageIndices(std::vector<QSizeF>(size_t(qMax<pdf::PDFInteger>(0, pageCount))), &errorMessage);
 
-    if (zeroBased)
+    if (!zeroBased)
     {
-        std::for_each(pageIndices.begin(), pageIndices.end(), [](auto& index) { --index; });
+        std::for_each(pageIndices.begin(), pageIndices.end(), [](auto& index) { ++index; });
     }
 
     return pageIndices;

@@ -771,6 +771,11 @@ protected:
     /// \param error Error message
     void addError(const QString& error) { m_errorList.append(PDFRenderError(RenderErrorType::Error, error)); }
 
+    /// Returns the errors since the last initializeProcessor: those of reportRenderError and those,
+    /// which the processing of a content stream adds itself (an unknown operator, a broken stream);
+    /// processContents returns the same list at its end
+    const QList<PDFRenderError>& getRenderErrors() const { return m_errorList; }
+
     /// Returns true, if graphic content is suppressed
     bool isContentSuppressed() const;
 

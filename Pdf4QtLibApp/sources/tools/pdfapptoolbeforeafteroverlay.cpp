@@ -431,7 +431,7 @@ void PDFAppToolBeforeAfterOverlay::startRender()
     std::shared_ptr<PDFAppToolBeforeAfterJob> job = std::make_shared<PDFAppToolBeforeAfterJob>();
     job->link = m_link;
     job->document = m_document;
-    job->cmsSettings = m_proxy->getCMSManager()->getSettings();
+    job->cmsSettings = m_proxy->getCMSManager()->getSettings().withoutProofing();
     job->features = m_proxy->getFeatures();
     job->paperColor = m_proxy->getPaperColor();
     for (const VisiblePage& visiblePage : visiblePages)

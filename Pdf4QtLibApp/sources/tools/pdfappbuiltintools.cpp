@@ -34,15 +34,21 @@
 #include "pdfapptoolgui_pdftoimages.h"
 #include "pdfapptoolgui_geometry.h"
 #include "pdfapptoolgui_images.h"
+#include "pdfapptoolgui_inkcoverage.h"
 #include "pdfapptoolgui_insert.h"
 #include "pdfapptoolgui_manage.h"
 #include "pdfapptoolgui_merge.h"
+#include "pdfapptoolgui_objectinspector.h"
+#include "pdfapptoolgui_outputpreview.h"
 #include "pdfapptoolgui_pages.h"
 #include "pdfapptoolgui_protect.h"
 #include "pdfapptoolgui_redact.h"
+#include "pdfapptoolgui_report.h"
 #include "pdfapptoolgui_signature.h"
 #include "pdfapptoolgui_signbyhand.h"
+#include "pdfapptoolgui_softproof.h"
 #include "pdfapptoolgui_split.h"
+#include "pdfapptoolgui_statistics.h"
 #include "pdfapptoolgui_structure.h"
 
 namespace pdf
@@ -88,6 +94,16 @@ void PDFAppBuiltinTools::registerAll()
     PDFAppToolGUISignByHand::registerSignByHandTools();         // P4: protect.sign-by-hand
     PDFAppToolGUIRedact::registerRedactTools();                 // P5: protect.redact
     PDFAppToolGUICertificates::registerCertificatesTools();     // P5: protect.certificates
+
+    // Step 7a + 7b of phase 2 (plan 9.1, 9.2 with R7-17): each GUI package registers its tools in its own
+    // file, a tool stays unimplemented until then (the review.statistics test tool of the tests replaces the
+    // built-in one by PDFDocumentToolRegistry::unregisterTool and restores it, R7-19)
+    PDFAppToolGUIStatistics::registerStatisticsTools();             // P2: review.statistics
+    PDFAppToolGUIObjectInspector::registerObjectInspectorTools();   // P2: review.object-inspector
+    PDFAppToolGUIReport::registerReportTools();                     // P2: review.report
+    PDFAppToolGUIInkCoverage::registerInkCoverageTools();           // P4: review.ink-coverage
+    PDFAppToolGUIOutputPreview::registerOutputPreviewTools();       // P4: review.output-preview
+    PDFAppToolGUISoftProof::registerSoftProofTools();               // P4: review.soft-proof
 }
 
 }   // namespace pdf

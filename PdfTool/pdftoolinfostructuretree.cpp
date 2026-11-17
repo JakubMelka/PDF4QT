@@ -49,7 +49,7 @@ private:
     const pdf::PDFDocument* m_document;
     const pdf::PDFStructureTree* m_tree;
     PDFOutputFormatter* m_formatter;
-    QLocale m_locale;
+    QLocale m_locale = QLocale::c(); ///< Q7.14: the numbers of PdfTool in the C locale
 };
 
 void PDFStructureTreePrintVisitor::visitStructureTree(const pdf::PDFStructureTree* structureTree)

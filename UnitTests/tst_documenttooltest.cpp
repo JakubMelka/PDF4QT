@@ -24,7 +24,13 @@
 #include "pdfdocumentreader.h"
 #include "pdfdocumenttool.h"
 #include "pdfdocumenttool_compress.h"
+#include "pdfdocumenttool_inkcoverage.h"
+#include "pdfdocumenttool_objectinspector.h"
+#include "pdfdocumenttool_outputpreview.h"
 #include "pdfdocumenttool_redact.h"
+#include "pdfdocumenttool_report.h"
+#include "pdfdocumenttool_softproof.h"
+#include "pdfdocumenttool_statistics.h"
 #include "pdfdocumenttool_signature.h"
 #include "pdfdocumenttool_signbyhand.h"
 #include "pdfdocumenttoolcatalog.h"
@@ -278,6 +284,7 @@ private Q_SLOTS:
     void catalogStartTexts();
     void catalogHelpTopics();
     void catalogSignaturesAndRedaction();
+    void catalogReviewTools();
     void parameterSensitiveValue();
     void contextFromSnapshot();
     void progressPhases();
@@ -744,6 +751,76 @@ void DocumentToolTest::catalogSignaturesAndRedaction()
     }
     QVERIFY(!tool("protect.sign")->isSecurityChange());
     QVERIFY(tool("protect.redact")->getDefaultSuccessors().contains(QStringLiteral("protect.sanitize")));
+}
+
+void DocumentToolTest::catalogReviewTools()
+{
+    using Kind = pdf::PDFDocumentToolResultKind;
+    using Kinds = std::vector<Kind>;
+    using Permission = pdf::PDFSecurityHandler::Permission;
+    using Permissions = std::vector<Permission>;
+    const auto tool = [](const char* id) { return pdf::PDFDocumentToolCatalog::findTool(QString::fromLatin1(id)); };
+
+    // Plan of step 7 of phase 2, 4.1, owner answer Q7.2 with R7-22 (6): the eight tools of Review & Inspect are
+    // analyses - viewing the open document needs no permission of Table 22, nothing is preselected, no
+    // signature is touched; no default successors (Q7.15); Compare keeps its own tab
+    for (const char* id : { "review.compare", "review.measure", "review.output-preview", "review.ink-coverage", "review.soft-proof", "review.statistics",
+                            "review.object-inspector", "review.report" })
+    {
+        QCOMPARE(tool(id)->getResultKind(), Kind::Analysis);
+        QVERIFY2(tool(id)->getRequiredPermissions().empty(), id);
+        QCOMPARE(tool(id)->getPreselectedResult(), pdf::PDFDocumentToolPreselectedResult::None);
+        QCOMPARE(tool(id)->getSignatureImpact(), pdf::PDFDocumentToolSignatureImpact::None);
+        QVERIFY2(tool(id)->getDefaultSuccessors().isEmpty(), id);
+        QVERIFY2(!tool(id)->isNewDocumentOfInputs(), id);
+        QVERIFY2(!tool(id)->isPageChange(), id);
+        QCOMPARE(tool(id)->getLockedAccess(), pdf::PDFDocumentToolLockedAccess::Available);
+    }
+    QVERIFY(tool("review.compare")->hasOwnTab());
+
+    // Measure adds its annotations (mode add, a change of the document, 4.8); Compare writes the report PDF
+    // (output report, a new document of its inputs, 4.9) - the other kinds of their results
+    QCOMPARE(tool("review.measure")->getPossibleResultKinds(), Kinds({ Kind::Analysis, Kind::ChangeDocument }));
+    QCOMPARE(tool("review.compare")->getPossibleResultKinds(), Kinds({ Kind::Analysis, Kind::NewDocument }));
+    QCOMPARE(tool("review.report")->getPossibleResultKinds(), Kinds({ Kind::Analysis }));
+
+    // The core tools of 7a and 7b: ids of the catalog, valid parameters (a registry accepts them)
+    const std::vector<std::shared_ptr<const pdf::PDFDocumentTool>> tools = { std::make_shared<pdf::PDFDocumentToolStatistics>(), std::make_shared<pdf::PDFDocumentToolObjectInspector>(),
+                                                                            std::make_shared<pdf::PDFDocumentToolReport>(), std::make_shared<pdf::PDFDocumentToolInkCoverage>(),
+                                                                            std::make_shared<pdf::PDFDocumentToolOutputPreview>(), std::make_shared<pdf::PDFDocumentToolSoftProof>() };
+    for (const std::shared_ptr<const pdf::PDFDocumentTool>& reviewTool : tools)
+    {
+        QVERIFY2(reviewTool->getInfo(), qPrintable(reviewTool->getId()));
+        QString error;
+        QVERIFY2(pdf::PDFDocumentToolParameters::isValid(reviewTool->getParameters(), &error), qPrintable(reviewTool->getId() + QStringLiteral(": ") + error));
+        QCOMPARE(reviewTool->getInfo()->getCategory(), pdf::PDFDocumentToolCategory::Review);
+    }
+
+    // Counts, coverage and gamut are no content: no permission with any parameters
+    const QVariantMap none;
+    for (const size_t index : { size_t(0), size_t(3), size_t(4), size_t(5) })
+    {
+        QVERIFY2(tools[index]->getRequiredPermissions(none).empty(), qPrintable(tools[index]->getId()));
+    }
+
+    // The content of a stream is an extraction (Q7.2, R7-22 (6)): bit 5; the objects themselves are read
+    const pdf::PDFDocumentToolObjectInspector inspector;
+    QCOMPARE(inspector.getRequiredPermissions(QVariantMap({ { QStringLiteral("decodeStream"), true } })), Permissions({ Permission::CopyContent }));
+    QVERIFY(inspector.getRequiredPermissions(QVariantMap({ { QStringLiteral("decodeStream"), false } })).empty());
+
+    // The report: the JavaScript and the XMP are content, the streams of the XML too; the other sections not
+    const pdf::PDFDocumentToolReport report;
+    QCOMPARE(report.getRequiredPermissions(QVariantMap({ { QStringLiteral("kind"), QStringLiteral("report") }, { QStringLiteral("javascript"), true } })), Permissions({ Permission::CopyContent }));
+    QCOMPARE(report.getRequiredPermissions(QVariantMap({ { QStringLiteral("kind"), QStringLiteral("report") }, { QStringLiteral("metadata"), true } })), Permissions({ Permission::CopyContent }));
+    QVERIFY(report.getRequiredPermissions(QVariantMap({ { QStringLiteral("kind"), QStringLiteral("report") }, { QStringLiteral("basicInformation"), true }, { QStringLiteral("fonts"), true },
+                                                        { QStringLiteral("pageBoxes"), true } })).empty());
+    QCOMPARE(report.getRequiredPermissions(QVariantMap({ { QStringLiteral("kind"), QStringLiteral("structure-xml") }, { QStringLiteral("exportStreams"), true } })), Permissions({ Permission::CopyContent }));
+    QVERIFY(report.getRequiredPermissions(QVariantMap({ { QStringLiteral("kind"), QStringLiteral("structure-xml") }, { QStringLiteral("exportStreams"), false }, { QStringLiteral("javascript"), true } })).empty());
+
+    // The default sections of 484:15472: 6 of 9 (no hashes, inks, fonts)
+    QVariantMap defaults;
+    QVERIFY(pdf::PDFDocumentToolParameters::normalize(report.getParameters(), QVariantMap(), &defaults).empty());
+    QCOMPARE(pdf::PDFDocumentToolReport::getSections(defaults).size(), size_t(6));
 }
 
 void DocumentToolTest::parameterSensitiveValue()

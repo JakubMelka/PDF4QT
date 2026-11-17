@@ -21,7 +21,9 @@
 // SOFTWARE.
 
 #include "pdftoolstatistics.h"
-#include "pdfobjectutils.h"
+#include "pdfdocumenttool_statistics.h"
+
+#include <QJsonObject>
 
 namespace pdftool
 {
@@ -53,120 +55,47 @@ int PDFToolStatisticsApplication::execute(const PDFToolOptions& options)
 {
     pdf::PDFDocument document;
     QByteArray sourceData;
-    if (!readDocument(options, document, &sourceData, false))
+    bool isRestored = false;
+    if (!readDocument(options, document, &sourceData, false, &isRestored))
     {
         return ErrorDocumentReading;
     }
 
-    pdf::PDFObjectClassifier classifier;
-    classifier.classify(&document);
-    pdf::PDFObjectClassifier::Statistics statistics = classifier.calculateStatistics(&document);
+    // One implementation (plan of step 7 of phase 2, 4.2, 4.10): the data and the export of Document
+    // Statistics, both tables, the C locale (Q7.14, R7-14); a damaged file restored by the reader is
+    // "Repaired when opened" (plan 4.2)
+    using Tool = pdf::PDFDocumentToolStatistics;
 
-    QLocale locale;
+    bool isCanceled = false;
+    const QJsonObject data = Tool::createData(&document, sourceData.isEmpty() ? qint64(-1) : qint64(sourceData.size()), isRestored, nullptr, &isCanceled);
 
-    PDFOutputFormatter formatter(options.outputStyle);
-    formatter.beginDocument("info", PDFToolTranslationContext::tr("Information about document %1").arg(options.document));
-    formatter.endl();
-
+    pdf::PDFDocumentToolTableFormat format = pdf::PDFDocumentToolTableFormat::Text;
+    switch (options.outputStyle)
     {
-        formatter.beginTable("statistics-objects-by-class", PDFToolTranslationContext::tr("Statistics by Object Class"));
-
-        formatter.beginTableHeaderRow("header");
-        formatter.writeTableHeaderColumn("class", PDFToolTranslationContext::tr("Class"), Qt::AlignLeft);
-        formatter.writeTableHeaderColumn("percentage", PDFToolTranslationContext::tr("Percentage [%]"), Qt::AlignLeft);
-        formatter.writeTableHeaderColumn("count", PDFToolTranslationContext::tr("Count [#]"), Qt::AlignLeft);
-        formatter.writeTableHeaderColumn("space-usage", PDFToolTranslationContext::tr("Space Usage [bytes]"), Qt::AlignLeft);
-        formatter.endTableHeaderRow();
-
-        qint64 totalBytesCount = 0;
-        for (const auto& item : statistics.statistics)
-        {
-            totalBytesCount += item.second.bytes;
-        }
-
-        auto addRow = [&](pdf::PDFObjectClassifier::Type type, QString classText)
-        {
-            auto it = statistics.statistics.find(type);
-
-            if (it == statistics.statistics.cend())
-            {
-                // Jakub Melka: no type found
-                return;
-            }
-
-            const pdf::PDFObjectClassifier::StatisticsItem& statisticsItem = it->second;
-
-            qreal percentage = qreal(100.0) * qreal(statisticsItem.bytes) / qreal(totalBytesCount);
-
-            formatter.beginTableRow("item", int(type));
-            formatter.writeTableColumn("class", classText);
-            formatter.writeTableColumn("percentage", locale.toString(percentage, 'f', 2), Qt::AlignRight);
-            formatter.writeTableColumn("count", locale.toString(statisticsItem.count), Qt::AlignRight);
-            formatter.writeTableColumn("byte-usage", locale.toString(statisticsItem.bytes), Qt::AlignRight);
-            formatter.endTableRow();
-        };
-
-        addRow(pdf::PDFObjectClassifier::Page, PDFToolTranslationContext::tr("Page"));
-        addRow(pdf::PDFObjectClassifier::ContentStream, PDFToolTranslationContext::tr("Content Stream"));
-        addRow(pdf::PDFObjectClassifier::GraphicState, PDFToolTranslationContext::tr("Graphic State"));
-        addRow(pdf::PDFObjectClassifier::ColorSpace, PDFToolTranslationContext::tr("Color Space"));
-        addRow(pdf::PDFObjectClassifier::Pattern, PDFToolTranslationContext::tr("Pattern"));
-        addRow(pdf::PDFObjectClassifier::Shading, PDFToolTranslationContext::tr("Shading"));
-        addRow(pdf::PDFObjectClassifier::Image, PDFToolTranslationContext::tr("Image"));
-        addRow(pdf::PDFObjectClassifier::Form, PDFToolTranslationContext::tr("Form"));
-        addRow(pdf::PDFObjectClassifier::Font, PDFToolTranslationContext::tr("Font"));
-        addRow(pdf::PDFObjectClassifier::Action, PDFToolTranslationContext::tr("Action"));
-        addRow(pdf::PDFObjectClassifier::Annotation, PDFToolTranslationContext::tr("Annotation"));
-        addRow(pdf::PDFObjectClassifier::None, PDFToolTranslationContext::tr("Other"));
-
-        formatter.endTable();
+        case PDFOutputFormatter::Style::Text:
+            format = pdf::PDFDocumentToolTableFormat::Text;
+            break;
+        case PDFOutputFormatter::Style::Xml:
+            format = pdf::PDFDocumentToolTableFormat::Xml;
+            break;
+        case PDFOutputFormatter::Style::Html:
+            format = pdf::PDFDocumentToolTableFormat::Html;
+            break;
     }
 
-    formatter.endl();
+    QVariantMap parameters;
+    parameters.insert(QString::fromLatin1(Tool::PARAMETER_FORMAT), pdf::PDFDocumentToolTableWriter::getFormatId(format));
+    parameters.insert(QString::fromLatin1(Tool::PARAMETER_VIEW), QString::fromLatin1(Tool::VIEW_FUNCTION));
 
+    QString errorMessage;
+    const pdf::PDFDocumentToolOutputFile output = Tool::writeOutput(data, parameters, pdf::PDFDocumentToolTableWriter::Options(), QStringLiteral("statistics"), &errorMessage);
+    if (!errorMessage.isEmpty())
     {
-        formatter.beginTable("statistics-objects-by-type", PDFToolTranslationContext::tr("Statistics by Object Type"));
-
-        formatter.beginTableHeaderRow("header");
-        formatter.writeTableHeaderColumn("class", PDFToolTranslationContext::tr("Type") , Qt::AlignLeft);
-        formatter.writeTableHeaderColumn("percentage", PDFToolTranslationContext::tr("Percentage [%]"), Qt::AlignLeft);
-        formatter.writeTableHeaderColumn("count", PDFToolTranslationContext::tr("Count [#]"), Qt::AlignLeft);
-        formatter.endTableHeaderRow();
-
-        qint64 totalObjectCount = 0;
-        for (pdf::PDFObject::Type type : pdf::PDFObject::getTypes())
-        {
-            const qint64 currentObjectCount = statistics.objectCountByType[size_t(type)];
-            totalObjectCount += currentObjectCount;
-        }
-
-        if (totalObjectCount > 0)
-        {
-            for (pdf::PDFObject::Type type : pdf::PDFObject::getTypes())
-            {
-                const qint64 currentObjectCount = statistics.objectCountByType[size_t(type)];
-
-                if (currentObjectCount == 0)
-                {
-                    continue;
-                }
-
-                qreal percentage = qreal(100.0) * qreal(currentObjectCount) / qreal(totalObjectCount);
-
-                formatter.beginTableRow("item", int(type));
-                formatter.writeTableColumn("type", pdf::PDFObjectUtils::getObjectTypeName(type));
-                formatter.writeTableColumn("percentage", locale.toString(percentage, 'f', 2), Qt::AlignRight);
-                formatter.writeTableColumn("count", locale.toString(currentObjectCount), Qt::AlignRight);
-                formatter.endTableRow();
-            }
-        }
-
-        formatter.endTable();
+        PDFConsole::writeError(errorMessage, options.outputCodec);
+        return ErrorUnknown;
     }
 
-    formatter.endDocument();
-
-    PDFConsole::writeText(formatter.getString(), options.outputCodec);
+    PDFConsole::writeText(QString::fromUtf8(output.data), options.outputCodec);
 
     return ExitSuccess;
 }

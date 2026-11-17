@@ -33,7 +33,10 @@ PDF4QT reports two kinds of errors:
 | "This document is certified with no changes allowed …" | `protect.sign` of a document certified with no changes allowed (ISO 32000-2 Table 257, P 1), or `protect.timestamp` of such a document with unsaved changes | Tell the user; a timestamp is possible after the unsaved changes are undone |
 | "The redacted copy was not created …" | The check after `protect.redact` found content, which was not removed under an area; no copy was written | Tell the user what the text says; do not try to get around it by other tools |
 | "The tool gave no verified file …" | `sign`, `timestamp` or `redact` gave no checked file; nothing was written | Tell the user |
-| "result: … returns its data; it takes neither result nor path" | `protect.certificates` is a list | Leave `result` and `path` out |
+| "result: … returns its data; it takes neither result nor path" | `protect.certificates` is a list; `review.output-preview`, `review.soft-proof` and `review.object-inspector` return their data | Leave `result` and `path` out |
+| "result: save_file writes the file of a format …" | `review.statistics`, `review.ink-coverage` or `review.report` with `format` `none` has no file to write; nothing ran | Set a `format`, or use `return_text` for the data |
+| "The document does not allow copying text and images … Without this permission, review.report works with …" | `review.report` with the sections `javascript` or `metadata` (both on by default) or with `exportStreams` or `streamsAsText`, or `review.object-inspector` with `decodeStream`, on a document, which does not allow copying its content (ISO 32000-2 Table 22, bit 5); nothing ran | Call again without the content, as the text says, or ask the user to unlock the document in PDF4QT with its owner password; never ask for the password |
+| "Soft proofing needs the color management Little CMS 2 …" / "The document has no output intent. Choose a CMYK profile …" | `review.soft-proof` has no color management or no profile to proof against | Tell the user; a profile of Settings › Color management is passed by `profile` when the user names it |
 | "PDF4QT is busy with another operation …" | A save, a print or a tool runs on the document | Try again when it has finished |
 | "PDF4QT shows a dialog …" | A dialog of PDF4QT is open; changes are refused meanwhile | Try again after the user closes it |
 | "Too many requests are waiting for the user …" | 16 requests wait in the tab | Wait for the answers; send fewer calls with more items each |
@@ -76,6 +79,11 @@ PDF4QT reports two kinds of errors:
 | Pages of `render.overview` | 24 |
 | Resolution of `render.page` | 600 dpi, 50 megapixels |
 | Attachment content | 8 MiB |
+| Text of `return_text` of `review` | 1 MiB (`save_file` writes all of it) |
+| Data of a result of `review` | 4 MiB (`dataOmitted`) |
+| `review.object-inspector` | `depth` 4, `maxBytes` 1048576, `limit` 1000 items of a list, 10 000 values of an object; a stream is decoded up to 256 MiB |
+| Resolution of `review.ink-coverage`, `review.output-preview`, `review.soft-proof` | 4096 pixels of the longer side of a page |
+| Pages of `review.soft-proof` | 50 |
 | Text resource of a document | 4194304 characters |
 | Waiting confirmations per tab | 16 |
 | Confirmation timeout | 2 minutes from the moment the question appears; at most 10 minutes waiting before it appears |

@@ -759,7 +759,9 @@ void PDFDocumentToolShell::updateToolbar()
     }
 
     m_toolbar->setConfirmText(m_gui->getConfirmText(), m_gui->getConfirmIconName());
-    m_toolbar->setConfirmEnabled(!m_isPermissionRefused && m_gui->isConfirmEnabled());
+
+    // R7-2 (owner 9. 11.): a result kept in the tool disables the Primary button until it is stale
+    m_toolbar->setConfirmEnabled(!m_isPermissionRefused && m_gui->isConfirmEnabled() && m_resultState != PDFAppToolResultState::Current);
     m_toolbar->setCancelText(m_gui->getCancelText());
 }
 
@@ -789,10 +791,11 @@ void PDFDocumentToolShell::updateStatus()
 
         // The own tab has no view: its page and zoom items come from the GUI (K12). In the
         // document host a page text of the GUI replaces the page item of the view (Manage
-        // Pages "12 pages", 1479:34632); the other tools have none and keep "Page 1 / 10".
+        // Pages "12 pages", 1479:34632); the other tools have none and keep "Page 1 / 10". A tool
+        // with its own items replaces both (K7.27 of step 7: Statistics none, Output Preview its zoom).
         if (m_gui && m_host)
         {
-            m_host->setStatusItems(m_gui->getOwnTabPageText(), m_gui->getOwnTabZoomText());
+            m_host->setStatusItems(m_gui->getOwnTabPageText(), m_gui->getOwnTabZoomText(), m_gui->hasOwnStatusItems());
         }
     }
 }
@@ -876,7 +879,15 @@ void PDFDocumentToolShell::confirm()
         popup->close();
     }
 
-    if (m_state != State::Editing || !m_gui || !m_runner || !m_host || m_isPermissionRefused || !m_gui->isConfirmShown() || !m_gui->isConfirmEnabled() || m_runPermissionDialog)
+    if (m_state != State::Editing || !m_gui || !m_runner || !m_host || m_isPermissionRefused || !m_gui->isConfirmShown() || !m_gui->isConfirmEnabled() || m_runPermissionDialog ||
+        m_resultState == PDFAppToolResultState::Current)
+    {
+        return;
+    }
+
+    // A Primary button, which never runs the tool (Keep Proofing On, RS7APP L4): the GUI takes it, nothing of a
+    // run follows (the last call - its action may close the tool)
+    if (m_gui->confirmWithoutRun())
     {
         return;
     }
@@ -1427,6 +1438,12 @@ void PDFDocumentToolShell::openResultDialog(const PDFDocumentToolResult& result,
         input.previousToolId = document->getLastFinishedToolId();
     }
     input.isResultInThisTab = m_host->isOwnTab() && m_gui->isResultInThisTab();
+    if (const PDFAppDocument* document = m_isExportDialog ? m_host->getDocument() : nullptr)
+    {
+        // The export of a kept result has no snapshot of a run with the file: the folder of the document
+        const QString filePath = document->getFilePath();
+        input.initialFolder = filePath.isEmpty() ? QString() : QFileInfo(filePath).absolutePath();
+    }
     m_gui->fillResultInput(&input);
 
     m_state = State::Deciding;
@@ -1556,6 +1573,12 @@ void PDFDocumentToolShell::onParameterChanged(const QString& name)
     }
     if (guard)
     {
+        // R7-2: a changed input makes the kept result stale (the format of a later export does not)
+        if (m_resultState == PDFAppToolResultState::Current && m_gui && m_gui->isResultStaleBy(name))
+        {
+            setResultState(PDFAppToolResultState::Stale);
+        }
+
         // Manage Pages: only the output This document changes the pages
         updateCertificationCallout(false);
         updateToolbar();
@@ -1733,6 +1756,13 @@ void PDFDocumentToolShell::finishRun(const PDFDocumentToolResult& result)
             return;
         }
 
+        // Step 7 (plan 4.1, R7-2): an analysis shows its result itself and stays open
+        if (m_gui && m_gui->isResultKeptInTool())
+        {
+            keepResult(result);
+            return;
+        }
+
         // The tool may ask first (307:6388, the partial result of Black & White): the result and
         // the operation of the runner wait for its answer (answerResult). The result is kept
         // before the foreign code, which may delete this shell.
@@ -1856,7 +1886,18 @@ void PDFDocumentToolShell::onDocumentChanged()
     const bool wasRefused = m_isPermissionRefused;
     m_isPermissionRefused = isRefusedByPermissions();
 
+    // R7-2: a result kept in the tool is of the earlier version (the state first, the hooks see it); the
+    // status message goes to the host, whose slots may delete the shell
     QPointer<PDFDocumentToolShell> guard(this);
+    if (m_resultState == PDFAppToolResultState::Current)
+    {
+        setResultState(PDFAppToolResultState::Stale);
+        if (!guard)
+        {
+            return;
+        }
+    }
+
     if (m_gui)
     {
         m_gui->onDocumentChanged();
@@ -1883,6 +1924,21 @@ void PDFDocumentToolShell::onDialogDecided(const PDFAppToolResultOutcome& outcom
 {
     const PDFAppToolResultOutcome decided = outcome;
     QPointer<PDFDocumentToolShell> guard(this);
+
+    // The export of a result kept in the tool (step 7, R7-13): the tool stays, whatever was decided
+    if (m_isExportDialog)
+    {
+        m_isExportDialog = false;
+        if (decided.action != PDFAppToolResultOutcome::Action::Rerun)
+        {
+            finishExport(decided);
+        }
+        else
+        {
+            m_isRunExportDialog = false;
+        }
+        return;
+    }
 
     // Retry N Files / Choose Folder… (339:7293, K4.11, R4-20): the tool stays with its settings and
     // runs again only for the files, which failed
@@ -2016,6 +2072,176 @@ void PDFDocumentToolShell::onDialogDecided(const PDFAppToolResultOutcome& outcom
 void PDFDocumentToolShell::onDialogStatusChanged()
 {
     updateStatus();
+}
+
+void PDFDocumentToolShell::keepResult(const PDFDocumentToolResult& result)
+{
+    // The run is the use of the tool and its values are its last values, as of an accepted result; the
+    // next tool over this document is not the first one after the tool before this one (newapp_tools.md 3)
+    recordUse();
+    if (m_model)
+    {
+        const PDFDatabaseError error = m_model->storeLastValues();
+        if (error.isError())
+        {
+            qWarning("The last values of the tool were not stored: %s", qPrintable(error.toString()));
+        }
+    }
+    if (PDFAppDocument* document = m_host ? m_host->getDocument() : nullptr)
+    {
+        document->setLastFinishedToolId(QString());
+    }
+
+    // The state first: the GUI sees the result as current
+    m_resultState = PDFAppToolResultState::Current;
+    const bool isExport = m_runner && PDFAppToolResultDialog::isAnalysisExport(m_runner->getOutputTraits(), result);
+
+    QPointer<PDFDocumentToolShell> guard(this);
+    if (m_gui)
+    {
+        m_gui->onResultKept(result);
+        if (!guard)
+        {
+            return;
+        }
+    }
+
+    // Document Report writes its file in the run (484:18811): the dialog of the export holds the decision
+    // of the runner until it closes
+    if (isExport && m_runner && m_runner->getState() == PDFDocumentToolRunner::State::Waiting)
+    {
+        m_isExportDialog = true;
+        m_isRunExportDialog = true;
+        openResultDialog(result, false);
+        if (guard && m_state != State::Deciding)
+        {
+            // The dialog was not opened (the host or the GUI is gone): the decision ends here
+            m_isExportDialog = false;
+            m_isRunExportDialog = false;
+            if (m_runner)
+            {
+                m_runner->endDecision();
+            }
+            if (guard)
+            {
+                setState(State::Editing);
+            }
+        }
+        return;
+    }
+
+    if (m_runner)
+    {
+        // The slots of a resumed preview may delete the shell
+        m_runner->endDecision();
+        if (!guard)
+        {
+            return;
+        }
+    }
+    updateStaleCallout(false);
+    setState(State::Editing);
+}
+
+void PDFDocumentToolShell::setResultState(PDFAppToolResultState state)
+{
+    if (m_resultState == state)
+    {
+        return;
+    }
+
+    m_resultState = state;
+    updateStaleCallout(false);
+    updateToolbar();
+    updateStatus();
+}
+
+void PDFDocumentToolShell::markResultStale()
+{
+    if (m_resultState == PDFAppToolResultState::Current)
+    {
+        setResultState(PDFAppToolResultState::Stale);
+    }
+}
+
+void PDFDocumentToolShell::updateStaleCallout(bool isPlacedAgain)
+{
+    const bool isShown = m_rightPanel && m_gui && m_state != State::Closed && m_resultState == PDFAppToolResultState::Stale;
+    if (m_staleCallout && (!isShown || isPlacedAgain))
+    {
+        delete m_staleCallout.data();
+    }
+    if (!isShown || m_staleCallout)
+    {
+        return;
+    }
+
+    // 492:109399: the amber callout of the options, which changed; the GUI says what changed
+    PDFAppToolCallout* callout = new PDFAppToolCallout(PDFAccentHue::Amber, QStringLiteral("alert-triangle"), m_gui->getStaleTitle(), m_gui->getStaleText(), m_rightPanel->getContentParent());
+    callout->setObjectName(QStringLiteral("toolStaleCallout"));
+
+    const PDFAppToolCalloutPlace place = m_gui->getStaleCalloutPlace();
+    if (place.layout)
+    {
+        place.layout->insertWidget(place.index, callout);
+    }
+    else
+    {
+        // Around the content of the right panel: above it, or below it before the stretch
+        QVBoxLayout* body = m_rightPanel->getBodyLayout();
+        const int contentIndex = m_rightContent ? body->indexOf(m_rightContent.data()) : -1;
+        int index = contentIndex >= 0 ? contentIndex : 0;
+        if (place.index < 0)
+        {
+            index = contentIndex >= 0 ? contentIndex + 1 : body->count() - 1;
+        }
+        body->insertWidget(index, callout);
+    }
+    m_staleCallout = callout;
+}
+
+bool PDFDocumentToolShell::openExportDialog(const PDFDocumentToolResult& exportResult)
+{
+    if (m_state != State::Editing || !m_host || !m_gui || !m_runner || exportResult.outputs.size() != 1 || !exportResult.documents.empty())
+    {
+        return false;
+    }
+
+    // The activation of the host runs slots of the application: the shell may be gone after it
+    QPointer<PDFDocumentToolShell> guard(this);
+    m_isExportDialog = true;
+    openResultDialog(exportResult, false);
+    if (!guard)
+    {
+        return false;
+    }
+    if (m_state != State::Deciding)
+    {
+        m_isExportDialog = false;
+        return false;
+    }
+    return true;
+}
+
+void PDFDocumentToolShell::finishExport(const PDFAppToolResultOutcome& outcome)
+{
+    // The file of a run (Document Report, 484:18811), which was not saved, is no result: nothing is kept, the
+    // Primary button is the one of the ready state again (R7-2 disables it only after a result - else the tool
+    // could not make its file again without a change of a setting; RS7APP). An export of a shown result keeps it.
+    const bool isRunExport = m_isRunExportDialog;
+    m_isRunExportDialog = false;
+    if (isRunExport && outcome.action != PDFAppToolResultOutcome::Action::FileSaved && m_resultState == PDFAppToolResultState::Current)
+    {
+        m_resultState = PDFAppToolResultState::None;
+    }
+
+    // The tool stays with its result; the GUI learns the outcome last (it may open the written file)
+    QPointer<PDFDocumentToolShell> guard(this);
+    returnToEditing();
+    if (guard && m_gui)
+    {
+        m_gui->onExportDecided(outcome);
+    }
 }
 
 void PDFDocumentToolShell::returnToEditing()
@@ -2169,6 +2395,7 @@ void PDFDocumentToolShell::onLanguageChanged()
     showProgress(false);
     createContent();
     updateCertificationCallout(true);
+    updateStaleCallout(true);
     if (isRunning)
     {
         m_gui->setContentEnabled(false);

@@ -27,6 +27,14 @@
 #include "pdfdocumentwriter.h"
 #include "pdfexception.h"
 #include "pdfparser.h"
+#include "pdfcatalog.h"
+#include "pdfpage.h"
+#include "pdfoperationcontrol.h"
+#include "pdfresourcewalk.h"
+
+#include <algorithm>
+#include <deque>
+
 #include "pdfdbgheap.h"
 
 namespace pdf
@@ -574,118 +582,595 @@ QString PDFObjectUtils::getObjectTypeName(PDFObject::Type type)
     return QString();
 }
 
-void PDFObjectClassifier::classify(const PDFDocument* document)
+/// One classification of PDFObjectClassifier: the roots of the classes (each kind by its own walk, each walk
+/// with one visited set, a depth limit and a budget, iterative), then the class of every object by one
+/// breadth first walk from all roots in the priority of the classes
+class PDFObjectClassifierBuilder
 {
-    // Clear old classification, if it exist
-    m_classification.clear();
-    m_allTypesUsed = None;
+public:
+    using Type = PDFObjectClassifier::Type;
 
-    if (!document)
+    explicit PDFObjectClassifierBuilder(PDFObjectClassifier* classifier, const PDFDocument* document, const PDFOperationControl* control) :
+        m_classifier(classifier),
+        m_document(document),
+        m_storage(&document->getStorage()),
+        m_control(control),
+        m_classes(PDFObjectClassifier::getClasses()),
+        m_seeds(m_classes.size())
     {
-        return;
+
     }
 
-    PDFDocumentDataLoaderDecorator loader(document);
-    const PDFObjectStorage& storage = document->getStorage();
-    const PDFObjectStorage::PDFObjects& objects = storage.getObjects();
-
-    m_classification.resize(objects.size(), Classification());
-    for (size_t i = 0; i < objects.size(); ++i)
+    /// Classifies the document; false = canceled
+    bool build()
     {
-        PDFObjectReference reference(i, objects[i].generation);
-        m_classification[i].reference = reference;
+        collectObjects();
+        if (!collectPages() || !collectResources())
+        {
+            return false;
+        }
+        collectCatalogActions();
+        if (!collectActions())
+        {
+            return false;
+        }
+        return propagate();
     }
 
-    // First, iterate trough pages of the document
-    const PDFCatalog* catalog = document->getCatalog();
-    const size_t pageCount = catalog->getPageCount();
-    for (size_t i = 0; i < pageCount; ++i)
+private:
+    /// Keys, which lead back to a parent (the field of a widget, the page of an annotation, a node of a
+    /// tree): the class of an object is never given to its parent
+    static bool isBackLink(const PDFInplaceOrMemoryString& key)
     {
-        const PDFPage* page = catalog->getPage(i);
+        return key == "Parent" || key == "P";
+    }
 
-        if (!page)
+    bool isCanceled() const
+    {
+        return PDFOperationControl::isOperationCanceled(m_control);
+    }
+
+    void addLimit(const PDFObjectWalk& walk)
+    {
+        if (walk.isLimitReached())
         {
-            continue;
+            m_classifier->m_isComplete = false;
         }
+    }
 
-        // Handle page itself
-        if (hasObject(page->getPageReference()))
-        {
-            mark(page->getPageReference(), Page);
-        }
+    size_t getClassIndex(Type type) const
+    {
+        return size_t(std::distance(m_classes.cbegin(), std::find(m_classes.cbegin(), m_classes.cend(), type)));
+    }
 
-        // Handle annotations
-        for (const PDFObjectReference& reference : page->getAnnotations())
+    /// The references directly in an object and in its direct values (not followed; the back links left out)
+    template<typename Callback>
+    void forEachReference(const PDFObject& object, Callback callback) const
+    {
+        std::vector<const PDFObject*> stack = { &object };
+        while (!stack.empty())
         {
-            if (hasObject(reference))
+            const PDFObject* current = stack.back();
+            stack.pop_back();
+
+            switch (current->getType())
             {
-                mark(reference, Annotation);
+                case PDFObject::Type::Reference:
+                    callback(current->getReference());
+                    break;
+
+                case PDFObject::Type::Array:
+                {
+                    const PDFArray* array = current->getArray();
+                    for (size_t i = 0; i < array->getCount(); ++i)
+                    {
+                        stack.push_back(&array->getItem(i));
+                    }
+                    break;
+                }
+
+                case PDFObject::Type::Dictionary:
+                case PDFObject::Type::Stream:
+                {
+                    const PDFDictionary* dictionary = current->isStream() ? current->getStream()->getDictionary() : current->getDictionary();
+                    for (size_t i = 0; i < dictionary->getCount(); ++i)
+                    {
+                        if (!isBackLink(dictionary->getKey(i)))
+                        {
+                            stack.push_back(&dictionary->getValue(i));
+                        }
+                    }
+                    break;
+                }
+
+                default:
+                    break;
+            }
+        }
+    }
+
+    /// An object used as \p type: a reference is a root of the class; the references in a direct value get
+    /// the class (they are no roots - a direct color space array is not an indirect object)
+    void addRoot(const PDFObject& object, Type type)
+    {
+        std::vector<PDFObjectReference>& seeds = m_seeds[getClassIndex(type)];
+        if (object.isReference())
+        {
+            const PDFObjectReference reference = object.getReference();
+            if (m_classifier->hasObject(reference))
+            {
+                m_classifier->mark(reference, type);
+                seeds.push_back(reference);
+            }
+        }
+        else
+        {
+            forEachReference(object, [&seeds](PDFObjectReference reference) { seeds.push_back(reference); });
+        }
+    }
+
+    /// The values of a dictionary (/AA) as actions
+    void addActionValues(const PDFObject& object)
+    {
+        if (const PDFDictionary* dictionary = m_storage->getDictionaryFromObject(object))
+        {
+            for (size_t i = 0; i < dictionary->getCount(); ++i)
+            {
+                m_actions.push_back(dictionary->getValue(i));
+            }
+        }
+    }
+
+    bool isName(const PDFObject& object, const char* name) const
+    {
+        const PDFObject& dereferenced = m_storage->getObject(object);
+        return dereferenced.isName() && dereferenced.getString() == name;
+    }
+
+    /// The file structure (B206) and the dictionaries of /Type /Action
+    void collectObjects()
+    {
+        const PDFObjectStorage::PDFObjects& objects = m_storage->getObjects();
+        for (size_t i = 0; i < objects.size(); ++i)
+        {
+            const PDFObject& object = objects[i].object;
+            const PDFDictionary* dictionary = object.isStream() ? object.getStream()->getDictionary() : (object.isDictionary() ? object.getDictionary() : nullptr);
+            if (!dictionary)
+            {
+                continue;
+            }
+
+            const PDFObject reference = PDFObject::createReference(PDFObjectReference(PDFInteger(i), objects[i].generation));
+            const PDFObject& type = dictionary->get("Type");
+            if (object.isStream() && (isName(type, "ObjStm") || isName(type, "XRef")))
+            {
+                addRoot(reference, PDFObjectClassifier::FileStructure);
+            }
+            else if (object.isDictionary() && isName(type, "Action"))
+            {
+                m_actions.push_back(reference);
+            }
+        }
+    }
+
+    /// The pages, their content streams, their annotations, the actions of both
+    bool collectPages()
+    {
+        const PDFCatalog* catalog = m_document->getCatalog();
+        const size_t pageCount = catalog->getPageCount();
+        for (size_t pageIndex = 0; pageIndex < pageCount; ++pageIndex)
+        {
+            if (isCanceled())
+            {
+                return false;
+            }
+
+            const PDFPage* page = catalog->getPage(pageIndex);
+            if (!page)
+            {
+                continue;
+            }
+
+            m_pageIndices.push_back(PDFInteger(pageIndex));
+            const PDFObject pageReference = PDFObject::createReference(page->getPageReference());
+            addRoot(pageReference, PDFObjectClassifier::Page);
+
+            if (const PDFDictionary* pageDictionary = m_storage->getDictionaryFromObject(pageReference))
+            {
+                // ISO 32000-2, Table 31: /Contents is a stream or an array of streams; B190: a reference to a
+                // missing object is skipped (hasObject in addRoot)
+                const PDFObject& contents = pageDictionary->get("Contents");
+                const PDFObject& resolvedContents = m_storage->getObject(contents);
+                if (resolvedContents.isStream())
+                {
+                    addRoot(contents, PDFObjectClassifier::ContentStream);
+                }
+                else if (resolvedContents.isArray())
+                {
+                    const PDFArray* array = resolvedContents.getArray();
+                    for (size_t i = 0; i < array->getCount(); ++i)
+                    {
+                        if (array->getItem(i).isReference() && m_storage->getObject(array->getItem(i)).isStream())
+                        {
+                            addRoot(array->getItem(i), PDFObjectClassifier::ContentStream);
+                        }
+                    }
+                }
+
+                addActionValues(pageDictionary->get("AA"));
+            }
+
+            for (const PDFObjectReference annotationReference : page->getAnnotations())
+            {
+                const PDFObject annotation = PDFObject::createReference(annotationReference);
+                addRoot(annotation, PDFObjectClassifier::Annotation);
+                if (const PDFDictionary* annotationDictionary = m_storage->getDictionaryFromObject(annotation))
+                {
+                    if (annotationDictionary->hasKey("A"))
+                    {
+                        m_actions.push_back(annotationDictionary->get("A"));
+                    }
+                    addActionValues(annotationDictionary->get("AA"));
+                }
             }
         }
 
-        // Handle contents
-        PDFObject pageObject = document->getObjectByReference(page->getPageReference());
-        Q_ASSERT(pageObject.isDictionary());
+        return true;
+    }
 
-        const PDFDictionary* dictionary = pageObject.getDictionary();
-        const PDFObject& contentsObject = dictionary->get("Contents");
-        if (contentsObject.isReference())
+    /// The resources of every owner of resources (PDFResourceWalk) by their category (7.8.3, Table 34)
+    bool collectResources()
+    {
+        const PDFResourceWalkResult walk = PDFResourceWalk::walk(m_document, m_pageIndices, PDFResourceWalk::Options(), m_control);
+        if (walk.isCanceled)
         {
-            mark(contentsObject.getReference(), ContentStream);
+            return false;
+        }
+        if (walk.isLimitReached)
+        {
+            m_classifier->m_isComplete = false;
         }
 
-        // Handle resources
-        if (const PDFDictionary* resourcesDictionary = document->getDictionaryFromObject(dictionary->get("Resources")))
+        for (const PDFResourceWalkNode& node : walk.nodes)
         {
-            markDictionary(document, resourcesDictionary->get("ExtGState"), GraphicState);
-            markDictionary(document, resourcesDictionary->get("ColorSpace"), ColorSpace);
-            markDictionary(document, resourcesDictionary->get("Pattern"), Pattern);
-            markDictionary(document, resourcesDictionary->get("Shading"), Shading);
-            markDictionary(document, resourcesDictionary->get("Font"), Font);
-
-            if (const PDFDictionary* xobjectDictionary = document->getDictionaryFromObject(resourcesDictionary->get("XObject")))
+            const PDFObject owner = node.reference.isValid() ? PDFObject::createReference(node.reference) : PDFObject();
+            switch (node.kind)
             {
-                const size_t count = xobjectDictionary->getCount();
-                for (size_t xObjectIndex = 0; xObjectIndex < count; ++xObjectIndex)
-                {
-                    const PDFObject& item = xobjectDictionary->getValue(xObjectIndex);
-                    if (item.isReference() && hasObject(item.getReference()))
-                    {
-                        if (const PDFDictionary* xobjectItemDictionary = document->getDictionaryFromObject(item))
-                        {
-                            QByteArray subtype = loader.readNameFromDictionary(xobjectItemDictionary, "Subtype");
+                case PDFResourceOwnerKind::Form:
+                case PDFResourceOwnerKind::AppearanceStream:
+                case PDFResourceOwnerKind::SoftMaskGroup:
+                    addRoot(owner, PDFObjectClassifier::Form);
+                    break;
 
-                            if (subtype == "Image")
-                            {
-                                mark(item.getReference(), Image);
-                            }
-                            else if (subtype == "Form")
-                            {
-                                mark(item.getReference(), Form);
-                            }
-                        }
+                case PDFResourceOwnerKind::Pattern:
+                    addRoot(owner, PDFObjectClassifier::Pattern);
+                    break;
+
+                case PDFResourceOwnerKind::Type3Font:
+                    addRoot(owner, PDFObjectClassifier::Font);
+                    break;
+
+                case PDFResourceOwnerKind::Page:
+                    break;
+            }
+
+            // A resource dictionary shared by many owners is read once (review RS7CORE: N owners of one
+            // dictionary of M resources made N * M roots)
+            const PDFDictionary* resources = m_storage->getDictionaryFromObject(node.resources);
+            if (!resources || !m_readDictionaries.insert(std::make_pair(resources, PDFObjectClassifier::None)).second)
+            {
+                continue;
+            }
+
+            addResources(resources->get("ExtGState"), PDFObjectClassifier::GraphicState);
+            addResources(resources->get("ColorSpace"), PDFObjectClassifier::ColorSpace);
+            addResources(resources->get("Pattern"), PDFObjectClassifier::Pattern);
+            addResources(resources->get("Shading"), PDFObjectClassifier::Shading);
+            addResources(resources->get("Font"), PDFObjectClassifier::Font);
+
+            // XObjects by their /Subtype (8.8, Table 87): a PostScript XObject has no class
+            const PDFDictionary* xObjects = m_storage->getDictionaryFromObject(resources->get("XObject"));
+            if (xObjects && m_readDictionaries.insert(std::make_pair(xObjects, PDFObjectClassifier::Image)).second)
+            {
+                for (size_t i = 0; i < xObjects->getCount(); ++i)
+                {
+                    const PDFObject& value = xObjects->getValue(i);
+                    const PDFObject& xObject = m_storage->getObject(value);
+                    if (!xObject.isStream())
+                    {
+                        continue;
+                    }
+
+                    const PDFObject& subtype = xObject.getStream()->getDictionary()->get("Subtype");
+                    if (isName(subtype, "Image"))
+                    {
+                        addRoot(value, PDFObjectClassifier::Image);
+                    }
+                    else if (isName(subtype, "Form"))
+                    {
+                        addRoot(value, PDFObjectClassifier::Form);
                     }
                 }
             }
         }
+
+        return true;
     }
 
-    for (Classification& classification : m_classification)
+    void addResources(const PDFObject& category, Type type)
     {
-        if (const PDFDictionary* dictionary = document->getDictionaryFromObject(document->getObjectByReference(classification.reference)))
+        // A category dictionary shared by more resource dictionaries is read once
+        const PDFDictionary* dictionary = m_storage->getDictionaryFromObject(category);
+        if (dictionary && m_readDictionaries.insert(std::make_pair(dictionary, type)).second)
         {
-            QByteArray typeName = loader.readNameFromDictionary(dictionary, "Type");
-            if (typeName == "Action")
+            for (size_t i = 0; i < dictionary->getCount(); ++i)
             {
-                classification.types.setFlag(Action);
+                addRoot(dictionary->getValue(i), type);
             }
         }
+    }
+
+    /// The actions of the catalog (12.6.2, 12.6.3, Table 197), of the outline (12.3.3, Table 151), of the
+    /// fields (12.7.4, Table 228) and of the JavaScript name tree (7.7.4, Table 32)
+    void collectCatalogActions()
+    {
+        const PDFDictionary* trailer = m_storage->getDictionaryFromObject(m_storage->getTrailerDictionary());
+        const PDFDictionary* catalog = trailer ? m_storage->getDictionaryFromObject(trailer->get("Root")) : nullptr;
+        if (!catalog)
+        {
+            return;
+        }
+
+        // /OpenAction is an array (a destination) or a dictionary (an action)
+        const PDFObject& openAction = catalog->get("OpenAction");
+        if (m_storage->getObject(openAction).isDictionary())
+        {
+            m_actions.push_back(openAction);
+        }
+        addActionValues(catalog->get("AA"));
+
+        // The outline: the siblings at the depth of their parent, so a long list of items is no deep path
+        {
+            PDFObjectWalk walk;
+            std::deque<std::pair<PDFObject, int>> queue;
+            if (const PDFDictionary* outlines = m_storage->getDictionaryFromObject(catalog->get("Outlines")))
+            {
+                queue.emplace_back(outlines->get("First"), 0);
+            }
+            while (!queue.empty() && !isCanceled())
+            {
+                const auto [item, depth] = queue.front();
+                queue.pop_front();
+                if (item.isNull() || !walk.enter(item, depth))
+                {
+                    continue;
+                }
+
+                if (const PDFDictionary* dictionary = m_storage->getDictionaryFromObject(item))
+                {
+                    if (dictionary->hasKey("A"))
+                    {
+                        m_actions.push_back(dictionary->get("A"));
+                    }
+                    queue.emplace_back(dictionary->get("First"), depth + 1);
+                    queue.emplace_back(dictionary->get("Next"), depth);
+                }
+            }
+            addLimit(walk);
+        }
+
+        // The fields and their kids
+        {
+            PDFObjectWalk walk;
+            std::deque<std::pair<PDFObject, int>> queue;
+            if (const PDFDictionary* form = m_storage->getDictionaryFromObject(catalog->get("AcroForm")))
+            {
+                addKids(form->get("Fields"), 0, &queue);
+            }
+            while (!queue.empty() && !isCanceled())
+            {
+                const auto [field, depth] = queue.front();
+                queue.pop_front();
+                if (!walk.enter(field, depth))
+                {
+                    continue;
+                }
+
+                if (const PDFDictionary* dictionary = m_storage->getDictionaryFromObject(field))
+                {
+                    addActionValues(dictionary->get("AA"));
+                    addKids(dictionary->get("Kids"), depth + 1, &queue);
+                }
+            }
+            addLimit(walk);
+        }
+
+        // The JavaScript name tree: the values of /Names, the nodes of /Kids
+        {
+            PDFObjectWalk walk;
+            std::deque<std::pair<PDFObject, int>> queue;
+            if (const PDFDictionary* names = m_storage->getDictionaryFromObject(catalog->get("Names")))
+            {
+                queue.emplace_back(names->get("JavaScript"), 0);
+            }
+            while (!queue.empty() && !isCanceled())
+            {
+                const auto [node, depth] = queue.front();
+                queue.pop_front();
+                if (node.isNull() || !walk.enter(node, depth))
+                {
+                    continue;
+                }
+
+                if (const PDFDictionary* dictionary = m_storage->getDictionaryFromObject(node))
+                {
+                    const PDFObject& namesArray = m_storage->getObject(dictionary->get("Names"));
+                    if (namesArray.isArray())
+                    {
+                        const PDFArray* array = namesArray.getArray();
+                        for (size_t i = 1; i < array->getCount(); i += 2)
+                        {
+                            m_actions.push_back(array->getItem(i));
+                        }
+                    }
+                    addKids(dictionary->get("Kids"), depth + 1, &queue);
+                }
+            }
+            addLimit(walk);
+        }
+    }
+
+    void addKids(const PDFObject& kids, int depth, std::deque<std::pair<PDFObject, int>>* queue) const
+    {
+        const PDFObject& array = m_storage->getObject(kids);
+        if (array.isArray())
+        {
+            for (size_t i = 0; i < array.getArray()->getCount(); ++i)
+            {
+                queue->emplace_back(array.getArray()->getItem(i), depth);
+            }
+        }
+    }
+
+    /// The actions found and their chains of /Next (12.6.2: a dictionary or an array of dictionaries)
+    bool collectActions()
+    {
+        PDFObjectWalk walk;
+        std::deque<std::pair<PDFObject, int>> queue;
+        for (const PDFObject& action : m_actions)
+        {
+            queue.emplace_back(action, 0);
+        }
+        m_actions.clear();
+
+        while (!queue.empty())
+        {
+            if (isCanceled())
+            {
+                return false;
+            }
+
+            const auto [action, depth] = queue.front();
+            queue.pop_front();
+            if (!m_storage->getObject(action).isDictionary() || !walk.enter(action, depth))
+            {
+                continue;
+            }
+
+            // The actions of /Next are the siblings of the action (they follow it), not its children: a long
+            // chain is no deep path (the walk is iterative, its visited set ends a cycle)
+            addRoot(action, PDFObjectClassifier::Action);
+            const PDFDictionary* dictionary = m_storage->getDictionaryFromObject(action);
+            const PDFObject& next = dictionary->get("Next");
+            const PDFObject& resolvedNext = m_storage->getObject(next);
+            if (resolvedNext.isArray())
+            {
+                addKids(next, depth, &queue);
+            }
+            else if (resolvedNext.isDictionary())
+            {
+                queue.emplace_back(next, depth);
+            }
+        }
+
+        addLimit(walk);
+        return true;
+    }
+
+    /// The class of every object: one breadth first walk from all roots (the roots of a class of a higher
+    /// priority first), an object takes the class of the first walk which reaches it
+    bool propagate()
+    {
+        PDFObjectWalk walk;
+        std::deque<std::pair<PDFObjectReference, int>> queue;
+        std::vector<PDFObjectClassifier::Classification>& entries = m_classifier->m_classification;
+
+        for (size_t classIndex = 0; classIndex < m_classes.size(); ++classIndex)
+        {
+            for (const PDFObjectReference reference : m_seeds[classIndex])
+            {
+                if (m_classifier->hasObject(reference) && walk.enterReference(reference, 0))
+                {
+                    entries[size_t(reference.objectNumber)].assigned = m_classes[classIndex];
+                    queue.emplace_back(reference, 0);
+                }
+            }
+        }
+
+        size_t steps = 0;
+        while (!queue.empty())
+        {
+            if (++steps % 4096 == 0 && isCanceled())
+            {
+                return false;
+            }
+
+            const PDFObjectReference reference = queue.front().first;
+            const int depth = queue.front().second;
+            queue.pop_front();
+            const Type type = entries[size_t(reference.objectNumber)].assigned;
+            forEachReference(m_storage->getObject(reference), [&](PDFObjectReference child)
+            {
+                if (m_classifier->hasObject(child) && !walk.isVisited(child) && walk.enterReference(child, depth + 1))
+                {
+                    entries[size_t(child.objectNumber)].assigned = type;
+                    queue.emplace_back(child, depth + 1);
+                }
+            });
+        }
+
+        addLimit(walk);
+        return true;
+    }
+
+    PDFObjectClassifier* m_classifier;
+    const PDFDocument* m_document;
+    const PDFObjectStorage* m_storage;
+    const PDFOperationControl* m_control;
+    std::vector<Type> m_classes;
+    std::vector<std::vector<PDFObjectReference>> m_seeds;   ///< The objects of each class (the index of m_classes), whose class is given
+    std::vector<PDFObject> m_actions;                       ///< The actions found, before their chains are walked
+    std::vector<PDFInteger> m_pageIndices;
+    std::set<std::pair<const PDFDictionary*, Type>> m_readDictionaries;    ///< The resource dictionaries (None) and their categories (by the class) read already
+};
+
+void PDFObjectClassifier::classify(const PDFDocument* document)
+{
+    classify(document, nullptr);
+}
+
+bool PDFObjectClassifier::classify(const PDFDocument* document, const PDFOperationControl* control)
+{
+    // Clear old classification, if it exist
+    m_classification.clear();
+    m_allTypesUsed = None;
+    m_isComplete = true;
+
+    if (!document)
+    {
+        return true;
+    }
+
+    const PDFObjectStorage::PDFObjects& objects = document->getStorage().getObjects();
+    m_classification.resize(objects.size(), Classification());
+    for (size_t i = 0; i < objects.size(); ++i)
+    {
+        m_classification[i].reference = PDFObjectReference(PDFInteger(i), objects[i].generation);
+    }
+
+    PDFObjectClassifierBuilder builder(this, document, control);
+    const bool isFinished = builder.build();
+    if (!isFinished)
+    {
+        m_isComplete = false;
     }
 
     for (const Classification& classification : m_classification)
     {
         m_allTypesUsed |= classification.types;
     }
+
+    return isFinished;
 }
 
 bool PDFObjectClassifier::hasObject(PDFObjectReference reference) const
@@ -710,78 +1195,112 @@ std::vector<PDFObjectReference> PDFObjectClassifier::getObjectsByType(Type type)
     return result;
 }
 
+qint64 PDFObjectClassifier::getObjectCountByType(Type type) const
+{
+    return std::count_if(m_classification.cbegin(), m_classification.cend(), [type](const Classification& classification) { return classification.types.testFlag(type); });
+}
+
+PDFObjectClassifier::Type PDFObjectClassifier::getClass(PDFObjectReference reference) const
+{
+    return hasObject(reference) ? m_classification[size_t(reference.objectNumber)].assigned : None;
+}
+
+std::vector<PDFObjectClassifier::Type> PDFObjectClassifier::getClasses()
+{
+    // The file structure first: an object stream is never content; a page before what it uses
+    return { FileStructure, Page, ContentStream, Annotation, Image, Form, Font, Pattern, Shading, ColorSpace, GraphicState, Action, None };
+}
+
 PDFObjectClassifier::Statistics PDFObjectClassifier::calculateStatistics(const PDFDocument* document) const
+{
+    return calculateStatistics(document, nullptr);
+}
+
+PDFObjectClassifier::Statistics PDFObjectClassifier::calculateStatistics(const PDFDocument* document, const PDFOperationControl* control) const
 {
     Statistics result;
 
-    // Jakub Melka: prepare statistics map
+    // The rows of the classes, which have an object (the map is not changed by the parallel loop)
     result.statistics[None];
-
-    for (uint i = 0; i < 32; ++i)
+    for (const Classification& classification : m_classification)
     {
-        uint32_t mask = 1 << i;
-        if (m_allTypesUsed & mask)
-        {
-            result.statistics[Type(mask)];
-        }
+        result.statistics[classification.assigned];
     }
 
-    auto processEntry = [document, &result](const Classification& entry)
+    if (!document)
+    {
+        return result;
+    }
+
+    std::array<std::atomic<qint64>, size_t(PDFObject::Type::LastType)> valueCounts = { };
+    auto processEntry = [document, control, &result, &valueCounts](const Classification& entry)
     {
         const PDFObject& object = document->getObjectByReference(entry.reference);
 
-        if (object.isNull())
+        // A free entry of the storage is no object
+        if (object.isNull() || PDFOperationControl::isOperationCanceled(control))
         {
             return;
         }
 
-        Type type = Type(uint32_t(entry.types));
-        if (!result.statistics.count(type))
-        {
-            type = None;
-        }
-
-        Q_ASSERT(result.statistics.count(type));
-
         const qint64 objectSize = PDFDocumentWriter::getObjectSize(document, entry.reference);
 
-        StatisticsItem& statisticsItem = result.statistics.at(type);
+        StatisticsItem& statisticsItem = result.statistics.at(entry.assigned);
         statisticsItem.count.fetch_add(1);
         statisticsItem.bytes.fetch_add(objectSize);
+
+        // The values of the object by their type (iterative: the stack never depends on the nesting)
+        std::array<qint64, size_t(PDFObject::Type::LastType)> counts = { };
+        std::vector<const PDFObject*> stack = { &object };
+        while (!stack.empty())
+        {
+            const PDFObject* current = stack.back();
+            stack.pop_back();
+            ++counts[size_t(current->getType())];
+
+            if (current->isArray())
+            {
+                const PDFArray* array = current->getArray();
+                for (size_t i = 0; i < array->getCount(); ++i)
+                {
+                    stack.push_back(&array->getItem(i));
+                }
+            }
+            else if (current->isDictionary() || current->isStream())
+            {
+                const PDFDictionary* dictionary = current->isStream() ? current->getStream()->getDictionary() : current->getDictionary();
+                for (size_t i = 0; i < dictionary->getCount(); ++i)
+                {
+                    stack.push_back(&dictionary->getValue(i));
+                }
+            }
+        }
+
+        for (size_t i = 0; i < counts.size(); ++i)
+        {
+            if (counts[i] > 0)
+            {
+                valueCounts[i].fetch_add(counts[i]);
+            }
+        }
     };
 
     PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, m_classification.cbegin(), m_classification.cend(), processEntry);
 
-    PDFStatisticsCollector collector;
-    PDFApplyVisitor(*document, &collector);
-
-    for (PDFObject::Type objectType : PDFObject::getTypes())
+    for (size_t i = 0; i < valueCounts.size(); ++i)
     {
-        result.objectCountByType[size_t(objectType)] = collector.getObjectCount(objectType);
+        result.objectCountByType[i] = valueCounts[i].load();
     }
-
+    result.isCanceled = PDFOperationControl::isOperationCanceled(control);
     return result;
 }
 
 void PDFObjectClassifier::mark(PDFObjectReference reference, Type type)
 {
-    Q_ASSERT(hasObject(reference));
-    m_classification[reference.objectNumber].types.setFlag(type, true);
-}
-
-void PDFObjectClassifier::markDictionary(const PDFDocument* document, PDFObject object, Type type)
-{
-    if (const PDFDictionary* dictionary = document->getDictionaryFromObject(object))
+    // B190: a reference to a missing object (/Contents 99999 0 R) is never written
+    if (hasObject(reference))
     {
-        const size_t count = dictionary->getCount();
-        for (size_t i = 0; i < count; ++i)
-        {
-            const PDFObject& item = dictionary->getValue(i);
-            if (item.isReference() && hasObject(item.getReference()))
-            {
-                mark(item.getReference(), type);
-            }
-        }
+        m_classification[size_t(reference.objectNumber)].types.setFlag(type, true);
     }
 }
 

@@ -21,161 +21,16 @@
 // SOFTWARE.
 
 #include "pdftoolxml.h"
-#include "pdfvisitor.h"
-#include "pdfencoding.h"
-#include "pdfexception.h"
+#include "pdfdocumentxmlexport.h"
 
-#include <QXmlStreamWriter>
+#include <QFile>
+
+#include <cstdio>
 
 namespace pdftool
 {
 
 static PDFToolXmlApplication s_xmlApplication;
-
-class PDFXmlExportVisitor : public pdf::PDFAbstractVisitor
-{
-public:
-    PDFXmlExportVisitor(QXmlStreamWriter* writer, const pdf::PDFDocument* document, const PDFToolOptions* options) :
-        m_writer(writer),
-        m_options(options),
-        m_document(document)
-    {
-
-    }
-
-    virtual void visitNull() override;
-    virtual void visitBool(bool value) override;
-    virtual void visitInt(pdf::PDFInteger value) override;
-    virtual void visitReal(pdf::PDFReal value) override;
-    virtual void visitString(pdf::PDFStringRef string) override;
-    virtual void visitName(pdf::PDFStringRef name) override;
-    virtual void visitArray(const pdf::PDFArray* array) override;
-    virtual void visitDictionary(const pdf::PDFDictionary* dictionary) override;
-    virtual void visitStream(const pdf::PDFStream* stream) override;
-    virtual void visitReference(const pdf::PDFObjectReference reference) override;
-
-private:
-    void writeTextOrBinary(const QByteArray& stream, QString name);
-
-    QXmlStreamWriter* m_writer;
-    const PDFToolOptions* m_options;
-    const pdf::PDFDocument* m_document;
-};
-
-void PDFXmlExportVisitor::visitNull()
-{
-    m_writer->writeEmptyElement("null");
-}
-
-void PDFXmlExportVisitor::visitBool(bool value)
-{
-    m_writer->writeTextElement("bool", value ? "true" : "false");
-}
-
-void PDFXmlExportVisitor::visitInt(pdf::PDFInteger value)
-{
-    m_writer->writeTextElement("int", QString::number(value));
-}
-
-void PDFXmlExportVisitor::visitReal(pdf::PDFReal value)
-{
-    m_writer->writeTextElement("real", QString::number(value));
-}
-
-void PDFXmlExportVisitor::visitString(pdf::PDFStringRef string)
-{
-    writeTextOrBinary(string.getString(), "string");
-}
-
-void PDFXmlExportVisitor::visitName(pdf::PDFStringRef name)
-{
-    writeTextOrBinary(name.getString(), "name");
-}
-
-void PDFXmlExportVisitor::visitArray(const pdf::PDFArray* array)
-{
-    m_writer->writeStartElement("array");
-    acceptArray(array);
-    m_writer->writeEndElement();
-}
-
-void PDFXmlExportVisitor::visitDictionary(const pdf::PDFDictionary* dictionary)
-{
-    m_writer->writeStartElement("dictionary");
-
-    const size_t count = dictionary->getCount();
-    for (size_t i = 0; i < count; ++i)
-    {
-        m_writer->writeStartElement("entry");
-        m_writer->writeAttribute("key", QString::fromLatin1(dictionary->getKey(i).getString()));
-        dictionary->getValue(i).accept(this);
-        m_writer->writeEndElement();
-    }
-
-    m_writer->writeEndElement();
-}
-
-void PDFXmlExportVisitor::visitStream(const pdf::PDFStream* stream)
-{
-    m_writer->writeStartElement("stream");
-    visitDictionary(stream->getDictionary());
-
-    if (m_options->xmlExportStreams)
-    {
-        m_writer->writeTextElement("data", QString::fromLatin1(stream->getContent()->toHex()).toUpper());
-    }
-
-    if (m_options->xmlExportStreamsAsText)
-    {
-        try
-        {
-            // Attempt to decode the stream. Exception can be thrown.
-            QByteArray decodedData = m_document->getDecodedStream(stream);
-
-            bool isBinary = true;
-            QString text = pdf::PDFEncoding::convertSmartFromByteStringToUnicode(decodedData, &isBinary);
-            if (!isBinary)
-            {
-                m_writer->writeTextElement("text", text);
-            }
-        }
-        catch (const pdf::PDFException &)
-        {
-            // Do nothing
-        }
-    }
-
-    m_writer->writeEndElement();
-}
-
-void PDFXmlExportVisitor::visitReference(const pdf::PDFObjectReference reference)
-{
-    m_writer->writeStartElement("reference");
-    m_writer->writeAttribute("id", QString::number(reference.objectNumber));
-    m_writer->writeAttribute("gen", QString::number(reference.generation));
-    m_writer->writeCharacters(QString("%1 %2 R").arg(reference.objectNumber).arg(reference.generation));
-    m_writer->writeEndElement();
-}
-
-void PDFXmlExportVisitor::writeTextOrBinary(const QByteArray& stream, QString name)
-{
-    bool isBinary = true;
-    m_writer->writeStartElement(name);
-
-    QString text;
-    if (!m_options->xmlAlwaysBinaryStrings)
-    {
-        text = pdf::PDFEncoding::convertSmartFromByteStringToUnicode(stream, &isBinary);
-    }
-    else
-    {
-        text = QString::fromLatin1(stream.toHex()).toUpper();
-    }
-
-    m_writer->writeAttribute("form", isBinary ? "binary" : "text");
-    m_writer->writeCharacters(text);
-    m_writer->writeEndElement();
-}
 
 QString PDFToolXmlApplication::getStandardString(StandardString standardString) const
 {
@@ -206,46 +61,37 @@ int PDFToolXmlApplication::execute(const PDFToolOptions& options)
         return ErrorDocumentReading;
     }
 
-    QString xmlString;
-    QXmlStreamWriter writer(&xmlString);
-
-    if (options.xmlUseIndent)
+    // B166, Q7.2: the data of the streams (raw or as a text) are content extracted from the document
+    // (ISO 32000-2, Table 22, bit 5) - the rule of review.report structure-xml; or --pswd is the owner password
+    if ((options.xmlExportStreams || options.xmlExportStreamsAsText) && !isContentCopyAllowed(options, document))
     {
-        writer.setAutoFormatting(true);
-        writer.setAutoFormattingIndent(2);
+        return ErrorPermissions;
     }
 
-    QString comment = QString("Processed by %1 %2").arg(QCoreApplication::applicationName(), QCoreApplication::applicationVersion());
-    writer.writeStartDocument();
-    writer.writeComment(comment);
-    writer.writeStartElement("document");
+    // The one implementation of the structure as XML (Document Report, R7-5): streamed into the
+    // standard output in UTF-8, each stream decoded with the limit (Q7.18), every text well-formed
+    pdf::PDFDocumentXmlExport::Options exportOptions;
+    exportOptions.isStreamExported = options.xmlExportStreams;
+    exportOptions.isStreamWrittenAsText = options.xmlExportStreamsAsText;
+    exportOptions.isIndented = options.xmlUseIndent;
+    exportOptions.isStringAlwaysBinary = options.xmlAlwaysBinaryStrings;
 
-    PDFXmlExportVisitor visitor(&writer, &document, &options);
-    writer.writeStartElement("trailer");
-    document.getStorage().getTrailerDictionary().accept(&visitor);
-    writer.writeEndElement();
-
-    pdf::PDFObjectStorage::PDFObjects entries = document.getStorage().getObjects();
-    for (pdf::PDFInteger i = 0; i < pdf::PDFInteger(entries.size()); ++i)
+    std::fflush(stdout);
+    QFile output;
+    if (!output.open(stdout, QIODevice::WriteOnly))
     {
-        const pdf::PDFObjectStorage::Entry& entry = entries[i];
-
-        if (entry.object.isNull())
-        {
-            continue;
-        }
-
-        writer.writeStartElement("pdfobject");
-        writer.writeAttribute("id", QString::number(i));
-        writer.writeAttribute("gen", QString::number(entry.generation));
-        entry.object.accept(&visitor);
-        writer.writeEndElement();
+        PDFConsole::writeError(PDFToolTranslationContext::tr("The standard output cannot be written."), options.outputCodec);
+        return ErrorUnknown;
     }
 
-    writer.writeEndElement();
-    writer.writeEndDocument();
-
-    PDFConsole::writeText(xmlString, options.outputCodec);
+    QString errorMessage;
+    const bool isWritten = pdf::PDFDocumentXmlExport::write(&document, exportOptions, &output, nullptr, nullptr, &errorMessage);
+    output.flush();
+    if (!isWritten)
+    {
+        PDFConsole::writeError(errorMessage, options.outputCodec);
+        return ErrorUnknown;
+    }
     return ExitSuccess;
 }
 

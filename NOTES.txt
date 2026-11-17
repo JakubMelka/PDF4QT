@@ -41,6 +41,13 @@ Section 8: Issues
  - 8.6.5.9 Black point compensation is user setting, graphic state setting
    is not respected (it is ignored)
  - 8.6.7 Overprint not implemented
+ - 8.6.7 Output Preview and Ink Coverage apply the nonzero overprint mode (OPM 1)
+   to a stencil mask (an image mask, 8.9.6.2) as to a fill: the mask has no
+   colors of its own, it paints the current color of DeviceCMYK, which is
+   "specified directly, not in a sampled image" (Table 146). The sentence "it
+   shall not apply to the painting of images" is read as images with color
+   samples of their own; the text does not name image masks, so the reading is
+   an interpretation (fix wave of step 7 of phase 2)
  - 8.10.2 Some form dictionary entries, in table 93, are not all being processed
  - 8.10.4 Reference XObject is not supported. Instead, proxy is displayed.
 
@@ -84,6 +91,20 @@ Section 12: Issues
    another application are not drawn, when the redaction is applied; the
    area gets the fill of the tool (or no fill), a no-fill area shows the
    paper
+ - 12.5.2, 12.5.3 Output Preview and Ink Coverage measure the page as it is
+   printed (owner answer Q7.8 of step 7 of phase 2): an annotation with the
+   flag Print, which has no appearance stream, is not printed in them - no
+   appearance is constructed from its other entries (a warning of the page
+   says so, except for a link and a pop-up, which the printing does not draw
+   without an appearance either); the flag NoZoom is ignored, as for printing (the appearance is
+   scaled with the page); NoRotate is honored
+ - 12.6.2 The sequence of actions of /Next is not performed: the parser of the
+   actions does not read /Next, so a link, /OpenAction or an action of a field or
+   an annotation performs only its first action. Deliberate until a separate task
+   with a review of the security (owner answer Q7.19 of step 7 of phase 2): the
+   chains would start running scripts and other actions, the parser is recursive and
+   throws at a cycle. Document Report reads the chains over the raw objects (one
+   visited set, a depth limit), so their JavaScript is reported, never run.
  - 12.6.3 Some trigger events are not executed or not implemented
  - 12.6.3 JavaScript of form field trigger events is not executed.
    Format (F) and keystroke (K) actions consisting of a single call
@@ -150,6 +171,9 @@ Section 14: Issues
  - 14.11 Prepress support not implemented at all, only
    basic functionality works (media box, crop box, or,
    for example, reading output intents)
+ - 14.11.5 Output intents of a page (/OutputIntents in the page dictionary,
+   PDF 2.0) are ignored: Output Preview, Ink Coverage and Soft Proofing use
+   only the output intents of the document catalog
  - 14.12 Document parts not implemented
 
 Annex F: Not implemented

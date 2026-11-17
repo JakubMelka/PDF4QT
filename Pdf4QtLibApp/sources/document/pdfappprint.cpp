@@ -909,7 +909,8 @@ void PDFAppPrintController::openDialog(const std::vector<PDFInteger>& initialPag
     PDFCMSSettings cmsSettings;
     if (const PDFCMSManager* cmsManager = view->getCMSManager())
     {
-        cmsSettings = cmsManager->getSettings();
+        // The printing never takes the soft proof of the tab (Q7.10, plan of step 7 of phase 2, 4.7)
+        cmsSettings = cmsManager->getSettings().withoutProofing();
     }
 
     PDFAppPrintDialog* dialog = new PDFAppPrintDialog(document, qMax<PDFInteger>(0, view->getDisplayedPageIndex()), initialPages, cmsSettings, m_tab->window());
@@ -1012,7 +1013,7 @@ void PDFAppPrintController::startJob(std::shared_ptr<QPrinter> printer, const PD
     data.settings = settings;
     if (view && view->getCMSManager())
     {
-        data.cmsSettings = view->getCMSManager()->getSettings();
+        data.cmsSettings = view->getCMSManager()->getSettings().withoutProofing();
     }
     PDFAppContext* context = m_tab ? m_tab->getContext() : nullptr;
     data.isRealText = context && context->getDatabase() && context->getSettings().getBool(PDFSettingKeys::renderingRealText());

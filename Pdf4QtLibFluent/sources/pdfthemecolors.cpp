@@ -189,7 +189,19 @@ public:
         Token{ "window/macos-close", "#ff5f57", "#ff5f57" },
         Token{ "window/macos-minimize", "#febc2e", "#febc2e" },
         Token{ "window/macos-zoom", "#28c840", "#28c840" },
-        Token{ "window/macos-inactive", "#dddddd", "#4d4d4d" }
+        Token{ "window/macos-inactive", "#dddddd", "#4d4d4d" },
+        Token{ "chart/1", "#1d4ed8", "#8ab4ff" },
+        Token{ "chart/2", "#7e22ce", "#c9a6ff" },
+        Token{ "chart/3", "#c2410c", "#fdba74" },
+        Token{ "chart/4", "#b91c1c", "#fca5a5" },
+        Token{ "chart/5", "#0f766e", "#5eead4" },
+        Token{ "chart/6", "#15803d", "#86efac" },
+        Token{ "chart/7", "#ff2d92", "#ff2d92" },
+        Token{ "chart/8", "#af52de", "#af52de" },
+        Token{ "chart/9", "#ffd60a", "#ffd60a" },
+        Token{ "chart/10", "#475569", "#c3cbd6" },
+        Token{ "chart/11", "#34c759", "#34c759" },
+        Token{ "chart/12", "#0a84ff", "#0a84ff" }
     };
 };
 

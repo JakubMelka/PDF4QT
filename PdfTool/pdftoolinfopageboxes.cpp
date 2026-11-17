@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdftoolinfopageboxes.h"
+#include "pdfdocumentreport.h"
 #include "pdfutils.h"
 
 namespace pdftool
@@ -86,31 +87,25 @@ int PDFToolInfoPageBoxesApplication::execute(const PDFToolOptions& options)
         return ErrorInvalidArguments;
     }
 
+    // The one implementation of the report (R7-5): the boxes in mm with the effective /UserUnit (Table 31)
     std::vector<PDFPageBoxInfo> infos;
-    for (const pdf::PDFInteger pageIndex : pages)
+    for (const pdf::PDFDocumentReportPageBoxes& boxes : pdf::PDFDocumentReport::getPageBoxes(&document, pages))
     {
-        const pdf::PDFPage* page = document.getCatalog()->getPage(pageIndex);
-
         PDFPageBoxInfo info;
-        info.mediaBox = page->getMediaBoxMM();
-        info.cropBox = page->getCropBoxMM();
-        info.bleedBox = page->getBleedBoxMM();
-        info.trimBox = page->getTrimBoxMM();
-        info.artBox = page->getArtBoxMM();
-
-        auto it = std::find(infos.begin(), infos.end(), info);
-        if (it != infos.end())
-        {
-            it->pages.addValue(pageIndex + 1);
-        }
-        else
+        info.mediaBox = boxes.mediaBox;
+        info.cropBox = boxes.cropBox;
+        info.bleedBox = boxes.bleedBox;
+        info.trimBox = boxes.trimBox;
+        info.artBox = boxes.artBox;
+        for (const pdf::PDFInteger pageIndex : boxes.pageIndices)
         {
             info.pages.addValue(pageIndex + 1);
-            infos.emplace_back(qMove(info));
         }
+        infos.emplace_back(qMove(info));
     }
 
-    QLocale locale;
+    // Q7.14: the numbers of PdfTool in the C locale
+    const QLocale locale = QLocale::c();
 
     PDFOutputFormatter formatter(options.outputStyle);
     formatter.beginDocument("info-page-boxes", PDFToolTranslationContext::tr("Page boxes in document %1").arg(options.document));

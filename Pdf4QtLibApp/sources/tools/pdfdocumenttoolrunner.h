@@ -65,6 +65,12 @@ public:
     quintptr parentWindow = 0;                                      ///< The native handle of the window of the tool, the parent of a dialog of the system of the run (the PIN of a key of the store of Windows; PDFDocumentToolContext::parentWindow, plan of step 6 of phase 2, Q6.2); 0 = none (MCP)
     QStringList protectedFilePaths;                                ///< Files, which a tool of more files never overwrites (the open documents, R14; PDFAppToolFileSink)
     bool isNetworkFolderRefused = false;                            ///< The files of a tool of more files never go to another computer (MCP)
+
+    /// The tool of the runs (not of the previews) in place of the tool of the runner: an instance of the same
+    /// tool (the same id) with a sink of its run, which no other run can reach (the live rows of Ink Coverage,
+    /// RS7APP L3; the GUI creates it in prepareEnvironment for each run). The job holds it until it ends. Null
+    /// or another id = the tool of the runner.
+    std::shared_ptr<const PDFDocumentTool> runTool;
 };
 
 /// One tool on one document of a tab (plan of the first batch, chapter 2.1 and 2.4). A

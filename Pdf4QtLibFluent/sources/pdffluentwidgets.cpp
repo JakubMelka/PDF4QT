@@ -1178,10 +1178,15 @@ public:
 
     static constexpr qreal LINE_HEIGHT = 18.0;
 
+    /// The height of a line (the default LINE_HEIGHT, the design of the editor)
+    qreal getLineHeight() const { return m_lineHeight; }
+    void setLineHeight(qreal lineHeight) { m_lineHeight = lineHeight; }
+
     virtual QRectF blockBoundingRect(const QTextBlock& block) const override
     {
         const QRectF rect = QPlainTextDocumentLayout::blockBoundingRect(block);
         QTextLayout* layout = block.isValid() ? block.layout() : nullptr;
+        const qreal lineHeight = m_lineHeight;
 
         if (!layout || !block.isVisible() || layout->lineCount() == 0)
         {
@@ -1191,7 +1196,7 @@ public:
         const int lineCount = layout->lineCount();
         for (int i = 0; i < lineCount; ++i)
         {
-            if (layout->lineAt(i).height() > LINE_HEIGHT)
+            if (layout->lineAt(i).height() > lineHeight)
             {
                 // A larger font of the application keeps its own lines
                 return rect;
@@ -1205,7 +1210,7 @@ public:
         for (int i = 0; i < lineCount; ++i)
         {
             QTextLine line = layout->lineAt(i);
-            const qreal y = i * LINE_HEIGHT + qFloor((LINE_HEIGHT - line.height()) / 2.0);
+            const qreal y = i * lineHeight + qFloor((lineHeight - line.height()) / 2.0);
 
             if (line.position().y() != y)
             {
@@ -1214,8 +1219,11 @@ public:
         }
 
         const qreal margin = block.next().isValid() ? 0.0 : document()->documentMargin();
-        return QRectF(rect.left(), rect.top(), rect.width(), lineCount * LINE_HEIGHT + margin);
+        return QRectF(rect.left(), rect.top(), rect.width(), lineCount * lineHeight + margin);
     }
+
+private:
+    qreal m_lineHeight = LINE_HEIGHT;
 };
 
 PDFPlainTextEdit::PDFPlainTextEdit(QWidget* parent) :
@@ -1229,6 +1237,24 @@ PDFPlainTextEdit::PDFPlainTextEdit(const QString& text, QWidget* parent) :
 {
     init();
     setPlainText(text);
+}
+
+qreal PDFPlainTextEdit::getLineHeight() const
+{
+    const PDFPlainTextLayout* layout = dynamic_cast<const PDFPlainTextLayout*>(document()->documentLayout());
+    return layout ? layout->getLineHeight() : PDFPlainTextLayout::LINE_HEIGHT;
+}
+
+void PDFPlainTextEdit::setLineHeight(qreal lineHeight)
+{
+    PDFPlainTextLayout* layout = dynamic_cast<PDFPlainTextLayout*>(document()->documentLayout());
+    if (layout && layout->getLineHeight() != lineHeight)
+    {
+        // The blocks are laid out again in the new lines
+        layout->setLineHeight(lineHeight);
+        document()->markContentsDirty(0, document()->characterCount());
+        viewport()->update();
+    }
 }
 
 void PDFPlainTextEdit::changeEvent(QEvent* event)
@@ -1247,6 +1273,7 @@ void PDFPlainTextEdit::paintEvent(QPaintEvent* event)
     // The selection of the design fills the whole line, so it is completed here
     // below the text.
     const QTextCursor cursor = textCursor();
+    const qreal lineHeight = getLineHeight();
 
     if (cursor.hasSelection())
     {
@@ -1276,15 +1303,15 @@ void PDFPlainTextEdit::paintEvent(QPaintEvent* event)
                 const int from = qMax(selectionStart, block.position() + line.textStart());
                 const int to = qMin(selectionEnd, block.position() + line.textStart() + line.textLength());
 
-                if (from >= to || line.height() > PDFPlainTextLayout::LINE_HEIGHT)
+                if (from >= to || line.height() > lineHeight)
                 {
                     continue;
                 }
 
                 const qreal x1 = line.cursorToX(from - block.position());
                 const qreal x2 = line.cursorToX(to - block.position());
-                const qreal top = geometry.top() + line.y() - qFloor((PDFPlainTextLayout::LINE_HEIGHT - line.height()) / 2.0);
-                painter.fillRect(QRectF(geometry.left() + qMin(x1, x2), top, qAbs(x2 - x1), PDFPlainTextLayout::LINE_HEIGHT), color);
+                const qreal top = geometry.top() + line.y() - qFloor((lineHeight - line.height()) / 2.0);
+                painter.fillRect(QRectF(geometry.left() + qMin(x1, x2), top, qAbs(x2 - x1), lineHeight), color);
             }
         }
     }

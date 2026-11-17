@@ -95,6 +95,16 @@ public:
 
     bool hasResultDialog = false;   ///< Rows "dialog-<name>" of openPopupsSurviveChanges
     bool hasPanel = false;          ///< Rows "panel-<name>" (the first panel button of the toolbar)
+
+    /// Opens the result dialog of the rows "dialog-<name>" after prepareRun (an analysis: the export of its kept
+    /// result, Statistics and Ink Coverage by their Export menu). \returns the dialog, nullptr = not open. Empty =
+    /// the Primary button (ToolPagesLifetimeSteps::confirmToDialog).
+    std::function<pdf::PDFAppToolResultDialog*(ToolPagesLifetimeRun&)> openResultDialog;
+
+    /// The tool keeps its result (PDFDocumentToolGUI::isResultKeptInTool; plan of step 7 of phase 2, R7-2, R7-13):
+    /// Discard of the dialog of its export returns to the tool, which stays open with its result (the rows
+    /// "dialog-<name>" check it and close the tool afterwards); false = Discard ends the tool
+    bool isResultKept = false;
 };
 
 /// The scenarios of the packages of step 3a: each registration function is defined in the file of
@@ -158,6 +168,18 @@ public:
     /// Step 6, package P5: Redact Content, Manage Certificates and the job of the creation of a key
     /// (protectredact, protectcertificates, certificatecreatejob): apptoolpageslifetime_redact.cpp
     static void registerRedactScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
+
+    /// Step 7a (plan 8, 9.2 with R7-17, R7-21), package P2: Document Statistics, Object Inspector, Document
+    /// Report (reviewstatistics, reviewinspector, reviewreport): apptoolpageslifetime_review_a.cpp
+    static void registerReviewAScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
+
+    /// Step 7b, package P4: Ink Coverage, Output Preview, Soft Proofing (reviewinkcoverage,
+    /// reviewoutputpreview, reviewsoftproof): apptoolpageslifetime_review_b.cpp
+    static void registerReviewBScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
+
+    /// Step 7c (later): Compare, Measure (reviewcompare, reviewmeasure, measurepresetsdialog):
+    /// apptoolpageslifetime_review_c.cpp, empty until 7c
+    static void registerReviewCScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
 };
 
 /// The steps and the inputs of the test for the scenarios of the packages: every input is sent

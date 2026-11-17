@@ -94,7 +94,7 @@ Facts needed to run them:
 | `UnitTestsDocumentAssembly` | [tst_documentassemblytest.cpp](../UnitTests/tst_documentassemblytest.cpp) | The assembly of Manage Pages, its operations and its file (step 3b, M1). |
 | `UnitTestsDocumentToolManage` | [tst_documenttoolmanagetest.cpp](../UnitTests/tst_documenttoolmanagetest.cpp) | Manage Pages in the core: catalog row, outputs, runs (step 3b, M1). |
 | `UnitTestsDocumentMergerArrange` | [tst_documentmergerarrangetest.cpp](../UnitTests/tst_documentmergerarrangetest.cpp) | Arrangement of a document, which keeps its object numbers (step 3b, M2). |
-| `UnitTestsObjectWalk` | [tst_objectwalktest.cpp](../UnitTests/tst_objectwalktest.cpp) | `PDFObjectWalk` and the walks over the object graph: cycles and shared nodes. |
+| `UnitTestsObjectWalk` | [tst_objectwalktest.cpp](../UnitTests/tst_objectwalktest.cpp) | `PDFObjectWalk` and the walks over the object graph (with `PDFResourceWalk`): cycles and shared nodes. |
 | `UnitTestsDocumentToolCorpus` | [tst_documenttoolcorpustest.cpp](../UnitTests/tst_documenttoolcorpustest.cpp) | Every tool over `testpdf` (never in the repository); only with `PDF4QT_TOOL_CORPUS_DIRECTORY` / `_RUN=1`, a filter - the whole corpus on the owner's request. |
 | `UnitTestsAppAnnotationLifetime` | [tst_appannotationlifetimetest.cpp](../UnitTests/tst_appannotationlifetimetest.cpp) | Lifetime sweep of the annotation scenarios. |
 | `UnitTestsMcp` | [tst_mcptest.cpp](../UnitTests/tst_mcptest.cpp) | Pdf4QtLibMcp: JSON, HTTP, both protocol eras, the conformance table. |
@@ -147,6 +147,21 @@ Facts needed to run them:
 | `UnitTestsAppToolSignByHand` | [tst_apptoolsignbyhandtest.cpp](../UnitTests/tst_apptoolsignbyhandtest.cpp) | GUI of Sign by Hand and the drawing part (step 6, P4). |
 | `UnitTestsAppToolRedact` | [tst_apptoolredacttest.cpp](../UnitTests/tst_apptoolredacttest.cpp) | GUI of Redact Content and its search (step 6, P5). |
 | `UnitTestsAppToolCertificates` | [tst_apptoolcertificatestest.cpp](../UnitTests/tst_apptoolcertificatestest.cpp) | Manage Certificates, the detail of a certificate, the list for signing (step 6, P5). |
+| `UnitTestsTableWriter` | [tst_tablewritertest.cpp](../UnitTests/tst_tablewritertest.cpp) | The writer of the exports of the analysis tools: CSV by RFC 4180, formula escape, HTML / XML escaping, C locale of data (step 7, skeleton). |
+| `UnitTestsObjectStatistics` | [tst_objectstatisticstest.cpp](../UnitTests/tst_objectstatisticstest.cpp) | Document Statistics of the core and its classifier (step 7, P1a). |
+| `UnitTestsObjectInspector` | [tst_objectinspectortest.cpp](../UnitTests/tst_objectinspectortest.cpp) | Object Inspector of the core, the limited decoding of streams (step 7, P1a). |
+| `UnitTestsDocumentReport` | [tst_documentreporttest.cpp](../UnitTests/tst_documentreporttest.cpp) | Document Report of the core, the scanner of JavaScript, the XML of the structure, PdfTool info* (step 7, P1b). |
+| `UnitTestsInkCoverage` | [tst_inkcoveragetest.cpp](../UnitTests/tst_inkcoveragetest.cpp) | Ink Coverage of the core and PdfTool ink-coverage (step 7, P3a). |
+| `UnitTestsOutputPreview` | [tst_outputpreviewtest.cpp](../UnitTests/tst_outputpreviewtest.cpp) | Output Preview of the core: separations, overprint, warnings (step 7, P3a). |
+| `UnitTestsSoftProof` | [tst_softprooftest.cpp](../UnitTests/tst_softprooftest.cpp) | Soft proof of the color management, settings without the proof (step 7, P3b). |
+| `UnitTestsAppToolAnalysis` | [tst_apptoolanalysistest.cpp](../UnitTests/tst_apptoolanalysistest.cpp) | A result kept in the tool and its stale state, the export dialog of an analysis, the formatter of the exports (step 7, skeleton); status items, repaired file, start page note and F1 of the review tools (integration). |
+| `UnitTestsAppToolStatistics` | [tst_apptoolstatisticstest.cpp](../UnitTests/tst_apptoolstatisticstest.cpp) | GUI of Document Statistics (step 7, P2). |
+| `UnitTestsAppToolObjectInspector` | [tst_apptoolobjectinspectortest.cpp](../UnitTests/tst_apptoolobjectinspectortest.cpp) | GUI of Object Inspector (step 7, P2). |
+| `UnitTestsAppToolReport` | [tst_apptoolreporttest.cpp](../UnitTests/tst_apptoolreporttest.cpp) | GUI of Document Report (step 7, P2). |
+| `UnitTestsAppToolInkCoverage` | [tst_apptoolinkcoveragetest.cpp](../UnitTests/tst_apptoolinkcoveragetest.cpp) | GUI of Ink Coverage (step 7, P4). |
+| `UnitTestsAppToolOutputPreview` | [tst_apptooloutputpreviewtest.cpp](../UnitTests/tst_apptooloutputpreviewtest.cpp) | GUI of Output Preview (step 7, P4). |
+| `UnitTestsAppToolSoftProof` | [tst_apptoolsoftprooftest.cpp](../UnitTests/tst_apptoolsoftprooftest.cpp) | GUI of Soft Proofing and the proof state of a tab (step 7, P4). |
+| `UnitTestsAppMcpReview` | [tst_appmcpreviewtest.cpp](../UnitTests/tst_appmcpreviewtest.cpp) | MCP actions of the tool review over HTTP: schemas, limits, the permission of content (step 7, MCP). |
 | `UnitTestsAppMcp` | [tst_appmcptest.cpp](../UnitTests/tst_appmcptest.cpp) | MCP in the application: contract, permissions, read tools, catalog bridge. |
 | `UnitTestsAppMcpEdit` | [tst_appmcpedittest.cpp](../UnitTests/tst_appmcpedittest.cpp) | MCP edit tools and their confirmations. |
 | `UnitTestsAppAi` | [tst_appaitest.cpp](../UnitTests/tst_appaitest.cpp) | The page AI. |

@@ -26,6 +26,7 @@
 #include "pdfobject.h"
 
 #include <QByteArray>
+#include <QString>
 
 #include <memory>
 #include <functional>
@@ -34,6 +35,7 @@ namespace pdf
 {
 class PDFStreamFilter;
 class PDFSecurityHandler;
+class PDFOperationControl;
 
 using PDFObjectFetcher = std::function<const PDFObject&(const PDFObject&)>;
 
@@ -90,6 +92,81 @@ private:
     /// Filter stream names can be specified in simplified (shorter) form.
     /// This map maps shorter form to the longer form.
     std::map<QByteArray, QByteArray> m_abbreviations;
+};
+
+/// Decoding of a stream with an upper limit of the decoded size (plan of step 7 of phase 2, R7-3, owner
+/// answer Q7.18 a): the Object Inspector, Structure as XML with the streams and the MCP action
+/// review.object-inspector decode the streams of an untrusted file on request, a decompression bomb must
+/// not end the process (no handling of a lack of memory, owner 2026-11-05). Only these new consumers call
+/// it; the general limit of every decoding (rendering, SECURITY_TODO.md item 1) stays in phase 3.
+///
+/// Contract (package P1a implements it; the skeleton has a stub, which returns Status::Error):
+///  - the filters of PDFStreamFilterStorage run in their order (Crypt, ASCIIHex, ASCII85, LZW, Flate,
+///    RunLength) and each one stops as soon as its output would exceed \p maximumDecodedSize - also an
+///    intermediate output of a chain of filters, never only the final one; the memory used is bounded by
+///    about the limit plus the input, never by the declared or the real decoded size;
+///  - a filter, which is not a decoder of the storage (DCTDecode, JPXDecode, JBIG2Decode, CCITTFaxDecode,
+///    an unknown name), ends the decoding: the data decoded so far are the result with Status::Encoded and
+///    the name in \p filterName (the inspector shows a hex dump, FD-3 / FD-4; an image is shown by PDFImage);
+///  - an error of a filter (a broken Flate stream) gives Status::Error with the name of the filter and its
+///    message (FD-4), never an exception to the caller;
+///  - the cancellation is checked at least after each filter and each MiB of output (Status::Canceled);
+///  - reentrant, the stream and the security handler are read only (a worker thread of the inspector).
+class PDF4QTLIBCORESHARED_EXPORT PDFLimitedStreamDecoder
+{
+public:
+    PDFLimitedStreamDecoder() = delete;
+
+    /// The limit of the Object Inspector (plan 4.3, 6.2): 256 MiB of decoded data
+    static constexpr qint64 INSPECTOR_MAXIMUM_DECODED_SIZE = qint64(256) * 1024 * 1024;
+
+    enum class Status
+    {
+        Decoded,        ///< Every filter was applied, \p data are the decoded data
+        Encoded,        ///< A filter, which is not a decoder of streams (an image filter, an unknown one), stopped the decoding: \p data are encoded by \p filterName
+        LimitExceeded,  ///< The output of a filter would exceed the limit: \p data are empty
+        Error,          ///< A filter has failed (\p filterName, \p errorMessage): \p data are empty
+        Canceled        ///< The operation was canceled: \p data are empty
+    };
+
+    /// Result of a decoding
+    class Result
+    {
+    public:
+        Status status = Status::Error;
+        QByteArray data;            ///< The decoded data (Decoded), the data before the stopping filter (Encoded)
+        QByteArray filterName;      ///< The filter, which stopped or failed (Encoded, Error)
+        QString errorMessage;       ///< Translated message (Error, LimitExceeded)
+    };
+
+    /// Decodes the stream with the limit of its decoded size
+    /// \param stream The stream (nullptr = Error)
+    /// \param objectFetcher Function which dereferences objects (the parameters of the filters)
+    /// \param securityHandler Security handler for the Crypt filters (may be null)
+    /// \param maximumDecodedSize Most bytes of the output of any filter (at least 1)
+    /// \param control Cancellation (optional)
+    static Result decode(const PDFStream* stream, const PDFObjectFetcher& objectFetcher, const PDFSecurityHandler* securityHandler, qint64 maximumDecodedSize, const PDFOperationControl* control);
+
+    /// Decodes only the beginning of the stream (the header of an object stream, RS7CORE of step 7 of phase 2):
+    /// the filters of the stream decode their data in their order (ISO 32000-2, 7.4.1), so the last filter
+    /// stops, when its output has \p prefixSize bytes - the rest is never decoded. The filters before it, a
+    /// last filter with a predictor (its rows) and the filters, whose output is bounded by their input
+    /// (ASCIIHex, Crypt), decode their whole input with the limit \p maximumDecodedSize. The result is Decoded
+    /// with the first min(\p prefixSize, decoded size) bytes of the decoded data; the other statuses as of
+    /// decode (a prefix, which is not below \p maximumDecodedSize, is the decoding of decode cut to it).
+    /// \param stream The stream (nullptr = Error)
+    /// \param objectFetcher Function which dereferences objects (the parameters of the filters)
+    /// \param securityHandler Security handler for the Crypt filters (may be null)
+    /// \param prefixSize Bytes of the beginning of the decoded data (at least 0)
+    /// \param maximumDecodedSize Most bytes of the output of any filter (at least 1)
+    /// \param control Cancellation (optional)
+    static Result decodePrefix(const PDFStream* stream, const PDFObjectFetcher& objectFetcher, const PDFSecurityHandler* securityHandler, qint64 prefixSize,
+                               qint64 maximumDecodedSize, const PDFOperationControl* control);
+
+private:
+    /// decode (\p prefixSize < 0) and decodePrefix
+    static Result decodeImpl(const PDFStream* stream, const PDFObjectFetcher& objectFetcher, const PDFSecurityHandler* securityHandler, qint64 maximumDecodedSize,
+                             qint64 prefixSize, const PDFOperationControl* control);
 };
 
 class PDFStreamPredictor

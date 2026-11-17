@@ -21,11 +21,8 @@
 // SOFTWARE.
 
 #include "pdftoolinfo.h"
-#include "pdfform.h"
+#include "pdfdocumentreport.h"
 #include "pdfjavascriptscanner.h"
-
-#include <QPageSize>
-#include <QCryptographicHash>
 
 namespace pdftool
 {
@@ -62,10 +59,10 @@ int PDFToolInfoApplication::execute(const PDFToolOptions& options)
         return ErrorDocumentReading;
     }
 
-    QLocale locale;
-
-    const pdf::PDFDocumentInfo* info = document.getInfo();
-    const pdf::PDFCatalog* catalog = document.getCatalog();
+    // The data of the one implementation of Document Report, Properties and MCP (R7-5); the numbers
+    // in the C locale (Q7.14, R7-14)
+    const QLocale locale = QLocale::c();
+    const pdf::PDFDocumentReportBasicInformation information = pdf::PDFDocumentReport::getBasicInformation(&document);
 
     PDFOutputFormatter formatter(options.outputStyle);
     formatter.beginDocument("info", PDFToolTranslationContext::tr("Information about document %1").arg(options.document));
@@ -86,82 +83,67 @@ int PDFToolInfoApplication::execute(const PDFToolOptions& options)
         formatter.endTableRow();
     };
 
-    writeProperty("title", PDFToolTranslationContext::tr("Title"), info->title);
-    writeProperty("subject", PDFToolTranslationContext::tr("Subject"), info->subject);
-    writeProperty("keywords", PDFToolTranslationContext::tr("Keywords"), info->keywords);
-    writeProperty("author", PDFToolTranslationContext::tr("Author"), info->author);
-    writeProperty("creator", PDFToolTranslationContext::tr("Creator"), info->creator);
-    writeProperty("producer", PDFToolTranslationContext::tr("Producer"), info->producer);
-    writeProperty("creation-date", PDFToolTranslationContext::tr("Creation date"), convertDateTimeToString(info->creationDate.toLocalTime(), options.outputDateFormat));
-    writeProperty("modified-date", PDFToolTranslationContext::tr("Modified date"), convertDateTimeToString(info->modifiedDate.toLocalTime(), options.outputDateFormat));
-    writeProperty("version", PDFToolTranslationContext::tr("Version"), QString::fromLatin1(document.getVersion()));
-
-    QString trapped;
-    switch (info->trapped)
+    auto getText = [&information](const char* key)
     {
-        case pdf::PDFDocumentInfo::Trapped::True:
-            trapped = PDFToolTranslationContext::tr("Yes");
-            break;
+        const pdf::PDFDocumentReportBasicInformation::InfoEntry* entry = information.findInfo(QByteArray(key));
+        return entry ? entry->value : QString();
+    };
 
-        case pdf::PDFDocumentInfo::Trapped::False:
-            trapped = PDFToolTranslationContext::tr("No");
-            break;
-
-        case pdf::PDFDocumentInfo::Trapped::Unknown:
-            trapped = PDFToolTranslationContext::tr("Unknown");
-            break;
-
-        default:
-            Q_ASSERT(false);
-            break;
-    }
-
-    writeProperty("tagged", PDFToolTranslationContext::tr("Tagged"), trapped);
-
-    QString formType;
-    pdf::PDFForm form = pdf::PDFForm::parse(&document, catalog->getFormObject());
-    switch (form.getFormType())
+    auto getDate = [&information, &options](const char* key)
     {
-        case pdf::PDFForm::FormType::None:
-            formType = PDFToolTranslationContext::tr("None");
-            break;
+        const pdf::PDFDocumentReportBasicInformation::InfoEntry* entry = information.findInfo(QByteArray(key));
+        return entry && entry->dateTime.isValid() ? convertDateTimeToString(entry->dateTime.toLocalTime(), options.outputDateFormat) : QString();
+    };
 
-        case pdf::PDFForm::FormType::AcroForm:
-            formType = PDFToolTranslationContext::tr("AcroForm");
-            break;
+    writeProperty("title", PDFToolTranslationContext::tr("Title"), getText("Title"));
+    writeProperty("subject", PDFToolTranslationContext::tr("Subject"), getText("Subject"));
+    writeProperty("keywords", PDFToolTranslationContext::tr("Keywords"), getText("Keywords"));
+    writeProperty("author", PDFToolTranslationContext::tr("Author"), getText("Author"));
+    writeProperty("creator", PDFToolTranslationContext::tr("Creator"), getText("Creator"));
+    writeProperty("producer", PDFToolTranslationContext::tr("Producer"), getText("Producer"));
+    writeProperty("creation-date", PDFToolTranslationContext::tr("Creation date"), getDate("CreationDate"));
+    writeProperty("modified-date", PDFToolTranslationContext::tr("Modified date"), getDate("ModDate"));
+    writeProperty("version", PDFToolTranslationContext::tr("Version"), information.version);
 
-        case pdf::PDFForm::FormType::XFAForm:
-            formType = PDFToolTranslationContext::tr("XFA");
-            break;
-
-        default:
-            Q_ASSERT(false);
-            break;
+    // B176 / B204: /Trapped is Trapped (14.11.6, Table 349: absent = Unknown), Tagged is /MarkInfo /Marked (14.7.1)
+    QString trapped = PDFToolTranslationContext::tr("Unknown");
+    if (information.trapped == "True")
+    {
+        trapped = PDFToolTranslationContext::tr("Yes");
     }
+    else if (information.trapped == "False")
+    {
+        trapped = PDFToolTranslationContext::tr("No");
+    }
+    writeProperty("trapped", PDFToolTranslationContext::tr("Trapped"), trapped);
+    writeProperty("tagged", PDFToolTranslationContext::tr("Tagged"), information.isTagged ? PDFToolTranslationContext::tr("Yes") : PDFToolTranslationContext::tr("No"));
 
+    QString formType = PDFToolTranslationContext::tr("None");
+    if (information.formType == QLatin1String("AcroForm"))
+    {
+        formType = PDFToolTranslationContext::tr("AcroForm");
+    }
+    else if (information.formType == QLatin1String("XFA"))
+    {
+        formType = PDFToolTranslationContext::tr("XFA");
+    }
     writeProperty("form-type", PDFToolTranslationContext::tr("Form type"), formType);
 
-    const pdf::PDFInteger pageCount = catalog->getPageCount();
-    writeProperty("page-count", PDFToolTranslationContext::tr("Page count"), locale.toString(pageCount));
-    if (pageCount > 0)
+    writeProperty("page-count", PDFToolTranslationContext::tr("Page count"), locale.toString(information.pageCount));
+    if (information.pageCount > 0)
     {
-        const pdf::PDFPage* firstPage = catalog->getPage(0);
-        QSizeF pageSizeMM = firstPage->getRectMM(firstPage->getRotatedMediaBox()).size();
-        QPageSize pageSize(pageSizeMM, QPageSize::Millimeter, QString(), QPageSize::FuzzyOrientationMatch);
-        QString paperSizeString = QString("%1 x %2 mm").arg(locale.toString(pageSizeMM.width()), locale.toString(pageSizeMM.height()));
-
-        writeProperty("paper-format", PDFToolTranslationContext::tr("Paper format"), pageSize.name());
+        const QSizeF pageSizeMM = information.firstPageSizeMM;
+        const QString paperSizeString = QString("%1 x %2 mm").arg(locale.toString(pageSizeMM.width()), locale.toString(pageSizeMM.height()));
+        writeProperty("paper-format", PDFToolTranslationContext::tr("Paper format"), !information.paperFormat.isEmpty() ? information.paperFormat : PDFToolTranslationContext::tr("Custom"));
         writeProperty("paper-size", PDFToolTranslationContext::tr("Paper size"), paperSizeString);
     }
 
-    if (!info->extra.empty())
+    for (const pdf::PDFDocumentReportBasicInformation::InfoEntry& entry : information.info)
     {
-        for (const auto& item : info->extra)
+        if (entry.isCustom)
         {
-            QString key = QString::fromLatin1(item.first);
-            QVariant valueVariant = item.second;
-            QString value = (valueVariant.typeId() == QMetaType::QDateTime) ? convertDateTimeToString(valueVariant.toDateTime().toLocalTime(), options.outputDateFormat) : valueVariant.toString();
-            writeProperty("custom-property", key, value);
+            const QString value = entry.dateTime.isValid() ? convertDateTimeToString(entry.dateTime.toLocalTime(), options.outputDateFormat) : entry.value;
+            writeProperty("custom-property", pdf::PDFDocumentReport::sanitize(QString::fromLatin1(entry.key)), value);
         }
     }
 
@@ -171,10 +153,8 @@ int PDFToolInfoApplication::execute(const PDFToolOptions& options)
     pdf::PDFJavaScriptScanner scanner(&document);
     writeProperty("javascript", PDFToolTranslationContext::tr("JavaScript"), scanner.hasJavaScript() ? PDFToolTranslationContext::tr("Yes") : PDFToolTranslationContext::tr("No"));
 
-    const pdf::PDFSecurityHandler* securityHandler = document.getStorage().getSecurityHandler();
-    const pdf::EncryptionMode mode = securityHandler->getMode();
     QString modeString;
-    switch (mode)
+    switch (information.encryptionMode)
     {
         case pdf::EncryptionMode::None:
             modeString = PDFToolTranslationContext::tr("None");
@@ -198,7 +178,7 @@ int PDFToolInfoApplication::execute(const PDFToolOptions& options)
     }
 
     QString authorizationMode;
-    switch (securityHandler->getAuthorizationResult())
+    switch (information.authorization)
     {
         case pdf::PDFSecurityHandler::AuthorizationResult::NoAuthorizationRequired:
             authorizationMode = PDFToolTranslationContext::tr("No authorization required");
@@ -221,42 +201,47 @@ int PDFToolInfoApplication::execute(const PDFToolOptions& options)
     writeProperty("authorized-as", PDFToolTranslationContext::tr("Authorization"), authorizationMode);
 
     QStringList permissions;
-    if (securityHandler->getAuthorizationResult() != pdf::PDFSecurityHandler::AuthorizationResult::NoAuthorizationRequired)
+    if (information.authorization != pdf::PDFSecurityHandler::AuthorizationResult::NoAuthorizationRequired)
     {
-        writeProperty("metadata-encrypted", PDFToolTranslationContext::tr("Metadata encrypted"), securityHandler->isMetadataEncrypted() ? PDFToolTranslationContext::tr("Yes") : PDFToolTranslationContext::tr("No"));
-        writeProperty("version", PDFToolTranslationContext::tr("Version"), locale.toString(securityHandler->getVersion()));
+        writeProperty("metadata-encrypted", PDFToolTranslationContext::tr("Metadata encrypted"), information.isMetadataEncrypted ? PDFToolTranslationContext::tr("Yes") : PDFToolTranslationContext::tr("No"));
 
-        if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::PrintLowResolution))
+        // B176: the revision of the security handler (/R, Table 21) under its own key, not a second "version"
+        writeProperty("encryption-revision", PDFToolTranslationContext::tr("Encryption revision"), locale.toString(information.encryptionRevision));
+
+        for (const auto& permission : information.permissions)
         {
-            permissions << PDFToolTranslationContext::tr("Print (low resolution)");
-        }
-        if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::PrintHighResolution))
-        {
-            permissions << PDFToolTranslationContext::tr("Print");
-        }
-        if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::CopyContent))
-        {
-            permissions << PDFToolTranslationContext::tr("Copy content");
-        }
-        if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::Accessibility))
-        {
-            permissions << PDFToolTranslationContext::tr("Accessibility");
-        }
-        if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::Assemble))
-        {
-            permissions << PDFToolTranslationContext::tr("Page assembling");
-        }
-        if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::Modify))
-        {
-            permissions << PDFToolTranslationContext::tr("Modify content");
-        }
-        if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::ModifyInteractiveItems))
-        {
-            permissions << PDFToolTranslationContext::tr("Modify interactive items");
-        }
-        if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::ModifyFormFields))
-        {
-            permissions << PDFToolTranslationContext::tr("Form filling");
+            if (!permission.second)
+            {
+                continue;
+            }
+
+            switch (permission.first)
+            {
+                case pdf::PDFSecurityHandler::Permission::PrintLowResolution:
+                    permissions << PDFToolTranslationContext::tr("Print (low resolution)");
+                    break;
+                case pdf::PDFSecurityHandler::Permission::PrintHighResolution:
+                    permissions << PDFToolTranslationContext::tr("Print");
+                    break;
+                case pdf::PDFSecurityHandler::Permission::CopyContent:
+                    permissions << PDFToolTranslationContext::tr("Copy content");
+                    break;
+                case pdf::PDFSecurityHandler::Permission::Accessibility:
+                    permissions << PDFToolTranslationContext::tr("Accessibility");
+                    break;
+                case pdf::PDFSecurityHandler::Permission::Assemble:
+                    permissions << PDFToolTranslationContext::tr("Page assembling");
+                    break;
+                case pdf::PDFSecurityHandler::Permission::Modify:
+                    permissions << PDFToolTranslationContext::tr("Modify content");
+                    break;
+                case pdf::PDFSecurityHandler::Permission::ModifyInteractiveItems:
+                    permissions << PDFToolTranslationContext::tr("Modify interactive items");
+                    break;
+                case pdf::PDFSecurityHandler::Permission::ModifyFormFields:
+                    permissions << PDFToolTranslationContext::tr("Form filling");
+                    break;
+            }
         }
     }
     else
@@ -279,19 +264,13 @@ int PDFToolInfoApplication::execute(const PDFToolOptions& options)
         formatter.writeTableHeaderColumn("hash", PDFToolTranslationContext::tr("Hash"), Qt::AlignLeft);
         formatter.endTableHeaderRow();
 
-        auto writeHash = [&formatter, &sourceData](QCryptographicHash::Algorithm algorithm, const QString& algorithmName, const QString& algorithmDescription)
+        for (const auto& hash : pdf::PDFDocumentReport::getFileHashes(sourceData))
         {
-            formatter.beginTableRow(algorithmName);
-            formatter.writeTableColumn("algorithm", algorithmDescription);
-            formatter.writeTableColumn("hash", QString::fromLatin1(QCryptographicHash::hash(sourceData, algorithm).toHex()).toUpper());
+            formatter.beginTableRow(hash.first);
+            formatter.writeTableColumn("algorithm", hash.first);
+            formatter.writeTableColumn("hash", hash.second);
             formatter.endTableRow();
-        };
-
-        writeHash(QCryptographicHash::Md5, "MD5", PDFToolTranslationContext::tr("MD5"));
-        writeHash(QCryptographicHash::Sha1, "SHA1", PDFToolTranslationContext::tr("SHA1"));
-        writeHash(QCryptographicHash::Sha256, "SHA256", PDFToolTranslationContext::tr("SHA256"));
-        writeHash(QCryptographicHash::Sha384, "SHA384", PDFToolTranslationContext::tr("SHA384"));
-        writeHash(QCryptographicHash::Sha512, "SHA512", PDFToolTranslationContext::tr("SHA512"));
+        }
 
         formatter.endTable();
     }

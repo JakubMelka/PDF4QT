@@ -386,6 +386,17 @@ protected:
     /// \param authorizeOwnerOnly Require to authorize as owner
     bool readDocument(const PDFToolOptions& options, pdf::PDFDocument& document, QByteArray* sourceData, bool authorizeOwnerOnly);
 
+    /// The same, \p isRestored is set to true, when the reader restored the document of a damaged file
+    /// (permissive reading; Document Statistics "Repaired when opened", plan of step 7 of phase 2, 4.2)
+    bool readDocument(const PDFToolOptions& options, pdf::PDFDocument& document, QByteArray* sourceData, bool authorizeOwnerOnly, bool* isRestored);
+
+    /// True, when the content of the document may be extracted (ISO 32000-2, Table 22, bit 5) - by its
+    /// permissions, or because --pswd is its owner password, which grants every permission (7.6.4.2): a file
+    /// with an empty user password is opened without --pswd (7.6.4.4), so --pswd is verified as its owner
+    /// password (the owner unlocks the file; there is no option to ignore the permissions). Otherwise writes
+    /// the error, which asks for the owner password.
+    static bool isContentCopyAllowed(const PDFToolOptions& options, const pdf::PDFDocument& document);
+
     /// Returns a list of available encodings
     static QList<QByteArray> getAvailableEncodings();
 

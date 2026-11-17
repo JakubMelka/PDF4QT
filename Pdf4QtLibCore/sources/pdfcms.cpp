@@ -225,6 +225,16 @@ static PDFColorProfileIdentifiers getInstalledWindowsColorProfiles()
 }
 #endif
 
+/// Color management by Little CMS 2. Each instance has its own context of Little CMS (B200, R7-16 of the plan
+/// of step 7 of phase 2): the alarm codes of the gamut check (PDFCMSSettings::outOfGamutColor) are a value of
+/// a context, which a transform reads from its own context at the moment of the conversion; with the global
+/// context, two color managements of different alarm colors (the view of a tab and the run of Soft Proofing,
+/// two tabs) would overwrite each other from their threads. So every profile and every transform of an
+/// instance is created by the ...THR functions with the context of the instance, the alarm codes are set by
+/// cmsSetAlarmCodesTHR before the first transform, and the context is deleted after the last transform and
+/// the last profile (the destructor). The context has the optimization plugin of PDF4QT (a new context does
+/// not inherit the plugins of the global one). The conversions are thread-safe (cmsFLAGS_NOCACHE, the caches
+/// of the transforms under their locks).
 class PDFLittleCMS : public PDFCMS
 {
 public:
@@ -251,7 +261,9 @@ public:
 private:
     void init();
 
-    static int installCmsPlugins();
+    /// The optimization plugin of PDF4QT for the context of an instance (one static structure; Little CMS
+    /// copies what it needs into the context)
+    static cmsPluginOptimization* getOptimizationPlugin();
 
     static cmsBool optimizePipeline(cmsPipeline** Lut,
                                     cmsUInt32Number  Intent,
@@ -327,6 +339,7 @@ private:
 
     const PDFCMSManager* m_manager;
     PDFCMSSettings m_settings;
+    cmsContext m_context = nullptr;     ///< Own context of Little CMS (B200); created first, deleted last
     QColor m_paperColor;
     std::array<cmsHPROFILE, ProfileCount> m_profiles;
     PDFColorConvertor m_colorConvertor;
@@ -623,18 +636,17 @@ PDFLittleCMS::PDFLittleCMS(const PDFCMSManager* manager,
                            const PDFColorConvertor& colorConvertor) :
     m_manager(manager),
     m_settings(settings),
+    m_context(cmsCreateContext(getOptimizationPlugin(), nullptr)),
     m_paperColor(Qt::white),
     m_profiles(),
     m_colorConvertor(colorConvertor)
 {
-    static const int installed = installCmsPlugins();
-    Q_UNUSED(installed);
-
     init();
 }
 
 PDFLittleCMS::~PDFLittleCMS()
 {
+    // The transforms and the profiles belong to the context: they go first, the context last (R7-16)
     for (const auto& transformItem : m_transformationCache)
     {
         cmsHTRANSFORM transform = transformItem.second;
@@ -668,6 +680,11 @@ PDFLittleCMS::~PDFLittleCMS()
         {
             cmsCloseProfile(profile);
         }
+    }
+
+    if (m_context)
+    {
+        cmsDeleteContext(m_context);
     }
 }
 
@@ -807,7 +824,7 @@ cmsHTRANSFORM PDFLittleCMS::getTransformFromICCProfile(const QByteArray& iccData
         if (it == m_customIccProfileCache.cend())
         {
             cmsHTRANSFORM transform = cmsHTRANSFORM();
-            cmsHPROFILE profile = cmsOpenProfileFromMem(iccData.data(), iccData.size());
+            cmsHPROFILE profile = cmsOpenProfileFromMemTHR(m_context, iccData.data(), cmsUInt32Number(iccData.size()));
             if (profile)
             {
                 if (const cmsUInt32Number inputDataFormat = getProfileDataFormat(profile))
@@ -823,12 +840,12 @@ cmsHTRANSFORM PDFLittleCMS::getTransformFromICCProfile(const QByteArray& iccData
                             proofingIntent = effectiveRenderingIntent;
                         }
 
-                        transform = cmsCreateProofingTransform(profile, inputDataFormat, m_profiles[Output], isRGB888Buffer ? TYPE_RGB_8 : TYPE_RGB_FLT, proofingProfile,
-                                                               lcmsIntent, getLittleCMSRenderingIntent(proofingIntent), getTransformationFlags());
+                        transform = cmsCreateProofingTransformTHR(m_context, profile, inputDataFormat, m_profiles[Output], isRGB888Buffer ? TYPE_RGB_8 : TYPE_RGB_FLT, proofingProfile,
+                                                                  lcmsIntent, getLittleCMSRenderingIntent(proofingIntent), getTransformationFlags());
                     }
                     else
                     {
-                        transform = cmsCreateTransform(profile, inputDataFormat, m_profiles[Output], isRGB888Buffer ? TYPE_RGB_8 : TYPE_RGB_FLT, lcmsIntent, getTransformationFlags());
+                        transform = cmsCreateTransformTHR(m_context, profile, inputDataFormat, m_profiles[Output], isRGB888Buffer ? TYPE_RGB_8 : TYPE_RGB_FLT, lcmsIntent, getTransformationFlags());
                     }
                 }
                 cmsCloseProfile(profile);
@@ -883,24 +900,33 @@ QColor PDFLittleCMS::getColorFromICC(const PDFColor& color, RenderingIntent rend
 
 void PDFLittleCMS::init()
 {
+    // B200: the alarm codes belong to the context of this instance; they are set before the first
+    // transform (the paper color below), the transforms read them at each conversion
+    const QColor outOfGamutColor = m_settings.outOfGamutColor.isValid() ? m_settings.outOfGamutColor.toRgb() : QColor(Qt::red);
+    cmsUInt16Number alarmCodes[cmsMAXCHANNELS] = { };
+    alarmCodes[0] = cmsUInt16Number(qRound(qBound(0.0f, outOfGamutColor.redF(), 1.0f) * 0xFFFF));
+    alarmCodes[1] = cmsUInt16Number(qRound(qBound(0.0f, outOfGamutColor.greenF(), 1.0f) * 0xFFFF));
+    alarmCodes[2] = cmsUInt16Number(qRound(qBound(0.0f, outOfGamutColor.blueF(), 1.0f) * 0xFFFF));
+    cmsSetAlarmCodesTHR(m_context, alarmCodes);
+
     // Jakub Melka: initialize all color profiles
     m_profiles[Output] = createProfile(m_settings.outputCS, m_manager->getOutputProfiles(), false);
     m_profiles[Gray] = createProfile(m_settings.deviceGray, m_manager->getGrayProfiles(), m_settings.isConsiderOutputIntent);
     m_profiles[RGB] = createProfile(m_settings.deviceRGB, m_manager->getRGBProfiles(), m_settings.isConsiderOutputIntent);
     m_profiles[CMYK] = createProfile(m_settings.deviceCMYK, m_manager->getCMYKProfiles(), m_settings.isConsiderOutputIntent);
-    m_profiles[SoftProofing] = createProfile(m_settings.softProofingProfile, m_manager->getCMYKProfiles(), false);
-    m_profiles[XYZ] = cmsCreateXYZProfile();
+    m_profiles[XYZ] = cmsCreateXYZProfileTHR(m_context);
 
-    cmsUInt16Number outOfGamutR = m_settings.outOfGamutColor.redF() * 0xFFFF;
-    cmsUInt16Number outOfGamutG = m_settings.outOfGamutColor.greenF() * 0xFFFF;
-    cmsUInt16Number outOfGamutB = m_settings.outOfGamutColor.blueF() * 0xFFFF;
-
-    cmsUInt16Number alarmCodes[cmsMAXCHANNELS] = { outOfGamutR, outOfGamutG, outOfGamutB };
-    cmsSetAlarmCodes(alarmCodes);
+    // The profile of the proof: an empty identifier is the first CMYK output intent of the document
+    // (PDFCMSSettings::softProofingProfile); only when the proof or the gamut check is on
+    if (m_settings.isSoftProofing || m_settings.isGamutChecking)
+    {
+        m_profiles[SoftProofing] = createProfile(m_manager->getEffectiveSoftProofingProfile(m_settings), m_manager->getCMYKProfiles(), false);
+    }
 
     if (m_settings.isWhitePaperColorTransformed)
     {
-        m_paperColor = getColorFromDeviceRGB(PDFColor(1.0f, 1.0f, 1.0f), RenderingIntent::AbsoluteColorimetric, nullptr);
+        PDFRenderErrorReporterDummy reporter;
+        m_paperColor = getColorFromDeviceRGB(PDFColor(1.0f, 1.0f, 1.0f), RenderingIntent::AbsoluteColorimetric, &reporter);
 
         // We must check color of the paper, it can be invalid, if error occurs...
         if (!m_paperColor.isValid())
@@ -915,18 +941,22 @@ void PDFLittleCMS::init()
     m_transformationCache.reserve(64);
 }
 
-int PDFLittleCMS::installCmsPlugins()
+cmsPluginOptimization* PDFLittleCMS::getOptimizationPlugin()
 {
-    static cmsPluginOptimization optimizationPlugin = { };
-    optimizationPlugin.base.Magic = cmsPluginMagicNumber;
-    optimizationPlugin.base.Type = cmsPluginOptimizationSig;
-    optimizationPlugin.base.Next = nullptr;
-    optimizationPlugin.base.ExpectedVersion = LCMS_VERSION;
-    optimizationPlugin.OptimizePtr = &PDFLittleCMS::optimizePipeline;
+    // Initialized once (a thread-safe static), never changed afterwards: the contexts of the
+    // instances read it at their creation from any thread
+    static cmsPluginOptimization optimizationPlugin = []()
+    {
+        cmsPluginOptimization plugin = { };
+        plugin.base.Magic = cmsPluginMagicNumber;
+        plugin.base.Type = cmsPluginOptimizationSig;
+        plugin.base.Next = nullptr;
+        plugin.base.ExpectedVersion = LCMS_VERSION;
+        plugin.OptimizePtr = &PDFLittleCMS::optimizePipeline;
+        return plugin;
+    }();
 
-    cmsPlugin(&optimizationPlugin);
-
-    return 0;
+    return &optimizationPlugin;
 }
 
 cmsBool PDFLittleCMS::optimizePipeline(cmsPipeline** Lut, cmsUInt32Number Intent, cmsUInt32Number* InputFormat, cmsUInt32Number* OutputFormat, cmsUInt32Number* dwFlags)
@@ -1053,8 +1083,8 @@ cmsHPROFILE PDFLittleCMS::createProfile(const QString& id, const PDFColorProfile
                 cmsCIExyY whitePoint{ };
                 if (cmsWhitePointFromTemp(&whitePoint, identifier.temperature))
                 {
-                    cmsToneCurve* gammaCurve = cmsBuildGamma(cmsContext(), identifier.gamma);
-                    cmsHPROFILE profile = cmsCreateGrayProfile(&whitePoint, gammaCurve);
+                    cmsToneCurve* gammaCurve = cmsBuildGamma(m_context, identifier.gamma);
+                    cmsHPROFILE profile = cmsCreateGrayProfileTHR(m_context, &whitePoint, gammaCurve);
                     cmsFreeToneCurve(gammaCurve);
                     return profile;
                 }
@@ -1062,7 +1092,7 @@ cmsHPROFILE PDFLittleCMS::createProfile(const QString& id, const PDFColorProfile
             }
 
             case PDFColorProfileIdentifier::Type::sRGB:
-                return cmsCreate_sRGBProfile();
+                return cmsCreate_sRGBProfileTHR(m_context);
 
             case PDFColorProfileIdentifier::Type::RGB:
             {
@@ -1073,9 +1103,9 @@ cmsHPROFILE PDFLittleCMS::createProfile(const QString& id, const PDFColorProfile
                     primaries.Red = { identifier.primaryR.x(), identifier.primaryR.y(), 1.0 };
                     primaries.Green = { identifier.primaryG.x(), identifier.primaryG.y(), 1.0 };
                     primaries.Blue = { identifier.primaryB.x(), identifier.primaryB.y(), 1.0 };
-                    cmsToneCurve* gammaCurve = cmsBuildGamma(cmsContext(), identifier.gamma);
+                    cmsToneCurve* gammaCurve = cmsBuildGamma(m_context, identifier.gamma);
                     cmsToneCurve* toneCurves[3] = { gammaCurve, cmsDupToneCurve(gammaCurve), cmsDupToneCurve(gammaCurve) };
-                    cmsHPROFILE profile = cmsCreateRGBProfile(&whitePoint, &primaries, toneCurves);
+                    cmsHPROFILE profile = cmsCreateRGBProfileTHR(m_context, &whitePoint, &primaries, toneCurves);
                     cmsFreeToneCurveTriple(toneCurves);
                     return profile;
                 }
@@ -1085,13 +1115,13 @@ cmsHPROFILE PDFLittleCMS::createProfile(const QString& id, const PDFColorProfile
             case PDFColorProfileIdentifier::Type::FileRGB:
             case PDFColorProfileIdentifier::Type::FileCMYK:
             {
-                QFile file(identifier.id);
+                QFile file(PDFCMSManager::getProfileFilePath(identifier.id));
                 if (file.open(QFile::ReadOnly))
                 {
                     QByteArray fileContent = file.readAll();
                     file.close();
 
-                    return cmsOpenProfileFromMem(fileContent.data(), fileContent.size());
+                    return cmsOpenProfileFromMemTHR(m_context, fileContent.data(), cmsUInt32Number(fileContent.size()));
                 }
 
                 break;
@@ -1105,7 +1135,7 @@ cmsHPROFILE PDFLittleCMS::createProfile(const QString& id, const PDFColorProfile
                 QByteArray fileContent = getWindowsColorProfileData(identifier.id);
                 if (!fileContent.isEmpty())
                 {
-                    return cmsOpenProfileFromMem(fileContent.data(), fileContent.size());
+                    return cmsOpenProfileFromMemTHR(m_context, fileContent.data(), cmsUInt32Number(fileContent.size()));
                 }
 #endif
 
@@ -1115,7 +1145,7 @@ cmsHPROFILE PDFLittleCMS::createProfile(const QString& id, const PDFColorProfile
             case PDFColorProfileIdentifier::Type::MemoryGray:
             case PDFColorProfileIdentifier::Type::MemoryRGB:
             case PDFColorProfileIdentifier::Type::MemoryCMYK:
-                return cmsOpenProfileFromMem(identifier.profileMemoryData.data(), identifier.profileMemoryData.size());
+                return cmsOpenProfileFromMemTHR(m_context, identifier.profileMemoryData.data(), cmsUInt32Number(identifier.profileMemoryData.size()));
 
             default:
                 Q_ASSERT(false);
@@ -1157,12 +1187,12 @@ cmsHTRANSFORM PDFLittleCMS::getTransform(Profile profile, RenderingIntent intent
                         proofingIntent = intent;
                     }
 
-                    transform = cmsCreateProofingTransform(input, getProfileDataFormat(input), output, isRGB888Buffer ? TYPE_RGB_8 : TYPE_RGB_FLT, proofingProfile,
-                                                           getLittleCMSRenderingIntent(intent), getLittleCMSRenderingIntent(proofingIntent), getTransformationFlags());
+                    transform = cmsCreateProofingTransformTHR(m_context, input, getProfileDataFormat(input), output, isRGB888Buffer ? TYPE_RGB_8 : TYPE_RGB_FLT, proofingProfile,
+                                                              getLittleCMSRenderingIntent(intent), getLittleCMSRenderingIntent(proofingIntent), getTransformationFlags());
                 }
                 else
                 {
-                    transform = cmsCreateTransform(input, getProfileDataFormat(input), output, isRGB888Buffer ? TYPE_RGB_8 : TYPE_RGB_FLT, getLittleCMSRenderingIntent(intent), getTransformationFlags());
+                    transform = cmsCreateTransformTHR(m_context, input, getProfileDataFormat(input), output, isRGB888Buffer ? TYPE_RGB_8 : TYPE_RGB_FLT, getLittleCMSRenderingIntent(intent), getTransformationFlags());
                 }
             }
 
@@ -1341,7 +1371,7 @@ cmsHTRANSFORM PDFLittleCMS::getTransformBetweenColorSpaces(const PDFCMS::ColorSp
                     break;
 
                 case ColorSpaceType::ICC:
-                    inputProfile = cmsOpenProfileFromMem(params.sourceIccData.data(), params.sourceIccData.size());
+                    inputProfile = cmsOpenProfileFromMemTHR(m_context, params.sourceIccData.data(), cmsUInt32Number(params.sourceIccData.size()));
                     break;
 
                 default:
@@ -1368,7 +1398,7 @@ cmsHTRANSFORM PDFLittleCMS::getTransformBetweenColorSpaces(const PDFCMS::ColorSp
                     break;
 
                 case ColorSpaceType::ICC:
-                    outputProfile = cmsOpenProfileFromMem(params.targetIccData.data(), params.targetIccData.size());
+                    outputProfile = cmsOpenProfileFromMemTHR(m_context, params.targetIccData.data(), cmsUInt32Number(params.targetIccData.size()));
                     break;
 
                 default:
@@ -1378,15 +1408,15 @@ cmsHTRANSFORM PDFLittleCMS::getTransformBetweenColorSpaces(const PDFCMS::ColorSp
 
             if (inputProfile && outputProfile)
             {
-                transform = cmsCreateTransform(inputProfile, getProfileDataFormat(inputProfile), outputProfile, getProfileDataFormat(outputProfile), getLittleCMSRenderingIntent(params.intent), getTransformationFlags());
+                transform = cmsCreateTransformTHR(m_context, inputProfile, getProfileDataFormat(inputProfile), outputProfile, getProfileDataFormat(outputProfile), getLittleCMSRenderingIntent(params.intent), getTransformationFlags());
             }
 
-            if (params.sourceType == ColorSpaceType::ICC)
+            if (params.sourceType == ColorSpaceType::ICC && inputProfile)
             {
                 cmsCloseProfile(inputProfile);
             }
 
-            if (params.targetType == ColorSpaceType::ICC)
+            if (params.targetType == ColorSpaceType::ICC && outputProfile)
             {
                 cmsCloseProfile(outputProfile);
             }
@@ -1443,6 +1473,59 @@ QString getInfoFromProfile(cmsHPROFILE profile, cmsInfoType infoType)
 
     return QString();
 }
+
+/// Helpers of the lists of the profiles of PDFCMSManager
+class PDFCMSManagerHelper
+{
+    Q_DECLARE_TR_FUNCTIONS(pdf::PDFCMSManager)
+
+public:
+    PDFCMSManagerHelper() = delete;
+
+    /// The printing condition of an output intent (ISO 32000-2, 14.11.5, Table 401): /OutputConditionIdentifier,
+    /// else /OutputCondition, else /Info, else "Output intent N"
+    static QString getOutputCondition(const PDFOutputIntent& outputIntent, size_t index)
+    {
+        for (const QString* text : { &outputIntent.getOutputConditionIdentifier(), &outputIntent.getOutputCondition(), &outputIntent.getInfo() })
+        {
+            if (!text->trimmed().isEmpty())
+            {
+                return text->trimmed();
+            }
+        }
+        return tr("Output intent %1").arg(index + 1);
+    }
+
+    /// Why an output intent without a stream of /DestOutputProfile has no profile of a proof: PDF 2.0 allows
+    /// /DestOutputProfileRef (a profile outside of the document, which PDF4QT never fetches), PDF/X allows only
+    /// the name of a registered printing condition (Table 401)
+    static QString getMissingProfileReason(const PDFOutputIntent& outputIntent)
+    {
+        const PDFOutputIntentICCProfileInfo& reference = outputIntent.getOutputProfileInfo();
+        if (!reference.getProfileName().isEmpty() || !reference.getChecksum().isEmpty() || !reference.getUrls().isNull())
+        {
+            return tr("The output intent refers to a profile outside of the document – no profile is embedded");
+        }
+        return tr("The output intent names the printing condition only – no profile is embedded");
+    }
+
+    /// The file of a profile of the system or of the profile folder is in the folder \p profileDirectory
+    static bool isInDirectory(const QString& filePath, const QString& profileDirectory)
+    {
+        if (profileDirectory.isEmpty())
+        {
+            return false;
+        }
+        const QString fileDirectory = QFileInfo(filePath).absolutePath();
+        const QString directory = QDir(profileDirectory).absolutePath();
+#if defined(Q_OS_WIN)
+        constexpr Qt::CaseSensitivity caseSensitivity = Qt::CaseInsensitive;
+#else
+        constexpr Qt::CaseSensitivity caseSensitivity = Qt::CaseSensitive;
+#endif
+        return QDir::cleanPath(fileDirectory).compare(QDir::cleanPath(directory), caseSensitivity) == 0;
+    }
+};
 
 PDFCMSGeneric::PDFCMSGeneric(const PDFColorConvertor& colorConvertor) :
     m_colorConvertor(colorConvertor)
@@ -1716,12 +1799,26 @@ void PDFCMSManager::setDocument(const PDFDocument* document)
 
     int i = 0;
     PDFColorProfileIdentifiers outputIntentProfiles;
+    PDFSoftProofingProfiles outputIntentProofingProfiles;
 
     if (m_document)
     {
-        for (const PDFOutputIntent& outputIntent : m_document->getCatalog()->getOutputIntents())
+        const std::vector<PDFOutputIntent>& outputIntents = m_document->getCatalog()->getOutputIntents();
+        const size_t outputIntentCount = qMin(outputIntents.size(), MAXIMUM_OUTPUT_INTENTS);
+        for (size_t outputIntentIndex = 0; outputIntentIndex < outputIntentCount; ++outputIntentIndex)
         {
+            const PDFOutputIntent& outputIntent = outputIntents[outputIntentIndex];
+
+            // The output intent as a profile of the soft proof (FP-6): every output intent is in the menu,
+            // the ones, which cannot be the profile of a proof, with their reasons (14.11.5, Table 401)
+            PDFSoftProofingProfile proofingProfile;
+            proofingProfile.source = PDFSoftProofingProfile::Source::OutputIntent;
+            proofingProfile.outputCondition = PDFCMSManagerHelper::getOutputCondition(outputIntent, outputIntentIndex);
+            proofingProfile.name = proofingProfile.outputCondition;
+            proofingProfile.isAvailable = false;
+
             QByteArray content;
+            bool isDamaged = false;
 
             try
             {
@@ -1730,21 +1827,29 @@ void PDFCMSManager::setDocument(const PDFDocument* document)
                 if (outputProfileObject.isStream())
                 {
                     content = m_document->getDecodedStream(outputProfileObject.getStream());
+                    isDamaged = content.isEmpty();
+                }
+                else if (!outputProfileObject.isNull())
+                {
+                    // /DestOutputProfile, which is not a stream
+                    isDamaged = true;
                 }
             }
             catch (const PDFException&)
             {
-                continue;
+                isDamaged = true;
             }
 
             if (content.isEmpty())
             {
-                // Decoding of output profile failed. Continue
+                // Decoding of output profile failed (or there is none). Continue
                 // with next output profile.
+                proofingProfile.reason = isDamaged ? tr("The profile of the output intent is damaged") : PDFCMSManagerHelper::getMissingProfileReason(outputIntent);
+                outputIntentProofingProfiles.push_back(std::move(proofingProfile));
                 continue;
             }
 
-            cmsHPROFILE profile = cmsOpenProfileFromMem(content.data(), content.size());
+            cmsHPROFILE profile = cmsOpenProfileFromMem(content.data(), cmsUInt32Number(content.size()));
             if (profile)
             {
                 PDFColorProfileIdentifier::Type csiType = PDFColorProfileIdentifier::Type::Invalid;
@@ -1753,36 +1858,57 @@ void PDFCMSManager::setDocument(const PDFDocument* document)
                 {
                     case cmsSigGrayData:
                         csiType = PDFColorProfileIdentifier::Type::MemoryGray;
+                        proofingProfile.reason = tr("A gray profile – a soft proof needs a CMYK profile");
                         break;
 
                     case cmsSigRgbData:
                         csiType = PDFColorProfileIdentifier::Type::MemoryRGB;
+                        proofingProfile.reason = tr("An RGB profile – a soft proof needs a CMYK profile");
                         break;
 
                     case cmsSigCmykData:
                         csiType = PDFColorProfileIdentifier::Type::MemoryCMYK;
+                        proofingProfile.isAvailable = true;
                         break;
 
                     default:
+                        proofingProfile.reason = tr("Not a CMYK profile – a soft proof needs a CMYK profile");
                         break;
                 }
 
                 QString description = getInfoFromProfile(profile, cmsInfoDescription);
                 cmsCloseProfile(profile);
 
+                if (!description.trimmed().isEmpty())
+                {
+                    proofingProfile.name = description;
+                }
+
                 // If we have a valid profile, then add it
                 if (csiType != PDFColorProfileIdentifier::Type::Invalid)
                 {
-                    outputIntentProfiles.emplace_back(PDFColorProfileIdentifier::createOutputIntent(csiType, qMove(description), QString("@@OUTPUT_INTENT_PROFILE_%1").arg(++i), qMove(content)));
+                    QString id = QString("@@OUTPUT_INTENT_PROFILE_%1").arg(++i);
+                    if (proofingProfile.isAvailable)
+                    {
+                        proofingProfile.id = id;
+                    }
+                    outputIntentProfiles.emplace_back(PDFColorProfileIdentifier::createOutputIntent(csiType, qMove(description), qMove(id), qMove(content)));
                 }
             }
+            else
+            {
+                proofingProfile.reason = tr("The profile of the output intent is damaged");
+            }
+
+            outputIntentProofingProfiles.push_back(std::move(proofingProfile));
         }
     }
 
     bool outputIntentProfilesChanged = false;
-    if (m_outputIntentProfiles != outputIntentProfiles)
+    if (m_outputIntentProfiles != outputIntentProfiles || m_outputIntentProofingProfiles != outputIntentProofingProfiles)
     {
         m_outputIntentProfiles = qMove(outputIntentProfiles);
+        m_outputIntentProofingProfiles = qMove(outputIntentProofingProfiles);
         clearCache();
         outputIntentProfilesChanged = true;
     }
@@ -1818,6 +1944,93 @@ QString PDFCMSManager::getSystemName(PDFCMSSettings::System system)
     return QString();
 }
 
+PDFSoftProofingProfiles PDFCMSManager::getSoftProofingProfiles() const
+{
+    QMutexLocker lock(&m_mutex);
+    return m_softProofingProfiles.get(this, &PDFCMSManager::getSoftProofingProfilesImpl);
+}
+
+QString PDFCMSManager::getEffectiveSoftProofingProfile(const PDFCMSSettings& settings) const
+{
+    if (!settings.softProofingProfile.isEmpty())
+    {
+        return settings.softProofingProfile;
+    }
+
+    // The first CMYK output intent of the document (the output intents are in the order of the document)
+    QMutexLocker lock(&m_mutex);
+    for (const PDFSoftProofingProfile& profile : m_outputIntentProofingProfiles)
+    {
+        if (profile.isAvailable)
+        {
+            return profile.id;
+        }
+    }
+    return QString();
+}
+
+QString PDFCMSManager::getProfileFilePath(const QString& id)
+{
+    // The identifiers of the files of the profiles are relative to the folder of the application
+    // (getExternalColorProfiles; the stored settings keep them so): the file is found there, not in
+    // the current folder of the process
+    return QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(id);
+}
+
+PDFSoftProofingProfiles PDFCMSManager::getSoftProofingProfilesImpl() const
+{
+    PDFSoftProofingProfiles result = m_outputIntentProofingProfiles;
+
+    // The installed CMYK profiles of the system and the CMYK profiles of the profile folder (Q7.11: no
+    // built-in profiles); getFilteredExternalProfiles keeps them only when they could be read as CMYK
+    for (const PDFColorProfileIdentifier& identifier : getFilteredExternalProfiles(PDFColorProfileIdentifier::Type::FileCMYK))
+    {
+        PDFSoftProofingProfile profile;
+        profile.id = identifier.id;
+        profile.name = identifier.name.trimmed();
+
+        switch (identifier.type)
+        {
+            case PDFColorProfileIdentifier::Type::WindowsSystemCMYK:
+            {
+                profile.source = PDFSoftProofingProfile::Source::System;
+                profile.fileName = QFileInfo(identifier.id).fileName();
+
+#if defined(Q_OS_WIN)
+                // The list of the system has only the file name: the description of the profile is read here
+                const QByteArray data = getWindowsColorProfileData(identifier.id);
+                if (cmsHPROFILE handle = !data.isEmpty() ? cmsOpenProfileFromMem(data.data(), cmsUInt32Number(data.size())) : cmsHPROFILE())
+                {
+                    const QString description = getInfoFromProfile(handle, cmsInfoDescription).trimmed();
+                    cmsCloseProfile(handle);
+                    if (!description.isEmpty())
+                    {
+                        profile.name = description;
+                    }
+                }
+#endif
+                break;
+            }
+
+            default:
+            {
+                const QString filePath = getProfileFilePath(identifier.id);
+                profile.source = PDFCMSManagerHelper::isInDirectory(filePath, m_settings.profileDirectory) ? PDFSoftProofingProfile::Source::ProfileFolder : PDFSoftProofingProfile::Source::System;
+                profile.fileName = QFileInfo(filePath).fileName();
+                break;
+            }
+        }
+
+        if (profile.name.isEmpty())
+        {
+            profile.name = profile.fileName;
+        }
+        result.push_back(std::move(profile));
+    }
+
+    return result;
+}
+
 PDFCMSPointer PDFCMSManager::getCurrentCMSImpl() const
 {
     switch (m_settings.system)
@@ -1845,6 +2058,7 @@ void PDFCMSManager::clearCache()
     m_RGBProfiles.dirty();
     m_CMYKProfiles.dirty();
     m_externalProfiles.dirty();
+    m_softProofingProfiles.dirty();
 }
 
 PDFColorProfileIdentifiers PDFCMSManager::getOutputProfilesImpl() const
@@ -1921,8 +2135,9 @@ PDFColorProfileIdentifiers PDFCMSManager::getExternalColorProfiles(QString profi
         {
             QString filePath = QDir::cleanPath(applicationDirectory.relativeFilePath(directory.absoluteFilePath(fileName)));
 
-            // Try to read the profile from the file. If it fails, then do nothing.
-            QFile file(filePath);
+            // Try to read the profile from the file. If it fails, then do nothing. The identifier is
+            // relative to the folder of the application, not to the current folder of the process.
+            QFile file(directory.absoluteFilePath(fileName));
             if (file.open(QFile::ReadOnly))
             {
                 QByteArray content = file.readAll();

@@ -28,6 +28,8 @@ list(APPEND PDF4QT_LIBAPP_DOCUMENT_SOURCES
     sources/document/pdfappdocumentinfobar.h
     sources/document/pdfappdocumentmenus.cpp
     sources/document/pdfappdocumentmenus.h
+    sources/document/pdfappdocumentsoftproof.cpp
+    sources/document/pdfappdocumentsoftproof.h
     sources/document/pdfappdocumentstatusbar.cpp
     sources/document/pdfappdocumentstatusbar.h
     sources/document/pdfappdocumenttoolbar.cpp

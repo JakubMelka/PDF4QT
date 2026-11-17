@@ -1466,7 +1466,8 @@ PDFPageRange::Result PDFPageRange::parse(const QString& text, int pageCount)
 
         if (lower > upper)
         {
-            result.errorMessage = tr("Closed interval [%1, %2] is invalid.").arg(lower).arg(upper);
+            // Tools.md 10.3 point 38, K7.3 of step 7 of phase 2 (492:105816)
+            result.errorMessage = tr("The first page (%1) is after the last page (%2).").arg(lower).arg(upper);
             break;
         }
 

@@ -837,7 +837,8 @@ void PDFAppThumbnailScheduler::startJob()
         job->features = m_proxy->getFeatures();
         if (const PDFCMSManager* cmsManager = m_proxy->getCMSManager())
         {
-            job->cmsSettings = cmsManager->getSettings();
+            // The thumbnails never show the soft proof of the tab (Q7.10, plan of step 7 of phase 2, 4.7)
+            job->cmsSettings = cmsManager->getSettings().withoutProofing();
         }
 
     }

@@ -517,7 +517,8 @@ PDFClosedIntervalSet PDFClosedIntervalSet::parse(PDFInteger first, PDFInteger la
 
             if (lower > upper)
             {
-                *errorMessage = PDFTranslationContext::tr("Closed interval [%1, %2] is invalid.").arg(lower).arg(upper);
+                // The text of the component Page selection (tools.md 10.3 point 38, K7.3 of step 7 of phase 2)
+                *errorMessage = PDFTranslationContext::tr("The first page (%1) is after the last page (%2).").arg(lower).arg(upper);
                 break;
             }
 

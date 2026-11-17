@@ -32,6 +32,12 @@
 #include "pdfdocumenttool_bitonal.h"
 #include "pdfdocumenttool_extractimages.h"
 #include "pdfdocumenttool_extracttext.h"
+#include "pdfdocumenttool_inkcoverage.h"
+#include "pdfdocumenttool_outputpreview.h"
+#include "pdfdocumenttool_objectinspector.h"
+#include "pdfdocumenttool_report.h"
+#include "pdfdocumenttool_statistics.h"
+#include "pdfobjectinspector.h"
 #include "pdfdocumenttool_compress.h"
 #include "pdfdocumenttool_encryption.h"
 #include "pdfdocumenttool_grayscale.h"
@@ -997,6 +1003,269 @@ public:
         return text;
     }
 
+    /// Document Statistics (plan of step 7 of phase 2, 4.2): every object of the storage in exactly one
+    /// class, the shares of the classes and of the types sum to 100 %, the CSV of the view has a row per class
+    static void checkStatistics(const pdf::PDFDocument* input, const pdf::PDFDocumentToolResult& result, const QVariantMap& parameters, QStringList* failures)
+    {
+        Q_UNUSED(parameters);
+        using Tool = pdf::PDFDocumentToolStatistics;
+
+        qint64 objects = 0;
+        for (const pdf::PDFObjectStorage::Entry& entry : input->getStorage().getObjects())
+        {
+            objects += entry.object.isNull() ? 0 : 1;
+        }
+
+        qint64 classified = 0;
+        double share = 0.0;
+        const QJsonArray classes = result.data.value(QString::fromLatin1(Tool::DATA_CLASSES)).toArray();
+        for (const QJsonValue& value : classes)
+        {
+            classified += value.toObject().value(QString::fromLatin1(Tool::ROW_COUNT)).toInteger();
+            share += value.toObject().value(QString::fromLatin1(Tool::ROW_SHARE)).toDouble();
+        }
+        if (classified != objects || result.data.value(QString::fromLatin1(Tool::DATA_OBJECT_COUNT)).toInteger() != objects)
+        {
+            *failures << QStringLiteral("%1 objects classified of %2").arg(classified).arg(objects);
+        }
+        if (objects > 0 && std::abs(share - 100.0) > 0.001)
+        {
+            *failures << QStringLiteral("The shares of the classes sum to %1 %").arg(share);
+        }
+        if (result.outputs.size() != 1 || QString::fromUtf8(result.outputs.front().data).split(QStringLiteral("\r\n"), Qt::SkipEmptyParts).size() != classes.size() + 1)
+        {
+            *failures << QStringLiteral("The CSV is not a header and a row per class");
+        }
+    }
+
+    /// Object Inspector (plan of step 7 of phase 2, 4.3): the trailer as JSON; every view of the inspector
+    /// is listed, the first objects of the Object List expanded and the content streams decoded within the
+    /// limit of Q7.18 - a hostile file never crashes, hangs or exhausts the memory
+    static void checkObjectInspector(const pdf::PDFDocument* input, const pdf::PDFDocumentToolResult& result, const QVariantMap& parameters, QStringList* failures)
+    {
+        Q_UNUSED(parameters);
+        constexpr qint64 MAXIMUM_ITEMS = 200;
+
+        if (result.data.value(QStringLiteral("object")).toObject().value(QStringLiteral("type")).toString() != QLatin1String("dictionary"))
+        {
+            *failures << QStringLiteral("The trailer is not a dictionary");
+        }
+
+        const pdf::PDFObjectInspector inspector(pdf::PDFDocumentPointer(new pdf::PDFDocument(*input)));
+        for (const pdf::PDFObjectInspectorView view : pdf::PDFObjectInspector::getViews())
+        {
+            pdf::PDFObjectInspector::OpenedReferences opened;
+            const std::vector<pdf::PDFObjectInspectorNode> roots = inspector.getRoots(view, &opened, 0, MAXIMUM_ITEMS);
+            if (qint64(roots.size()) != qMin(MAXIMUM_ITEMS, inspector.getRootCount(view)))
+            {
+                *failures << QStringLiteral("The view %1 lists %2 of %3 roots").arg(pdf::PDFObjectInspector::getViewId(view)).arg(roots.size()).arg(inspector.getRootCount(view));
+            }
+            for (const pdf::PDFObjectInspectorNode& root : roots)
+            {
+                inspector.describe(root);
+                inspector.getSyntax(root, nullptr);
+                for (const pdf::PDFObjectInspectorNode& child : inspector.getChildren(root, &opened))
+                {
+                    inspector.getChildren(child, &opened);
+                }
+                if (view == pdf::PDFObjectInspectorView::ContentStreams)
+                {
+                    const pdf::PDFObjectInspector::DecodedStream decoded = inspector.decodeStream(root.reference, pdf::PDFObjectInspector::INSPECTOR_MAXIMUM_DECODED_SIZE, nullptr);
+                    if (qint64(decoded.data.size()) > pdf::PDFObjectInspector::MAXIMUM_SHOWN_BYTES)
+                    {
+                        *failures << QStringLiteral("The stream %1 shows %2 bytes").arg(pdf::PDFObjectInspector::getReferenceText(root.reference)).arg(decoded.data.size());
+                    }
+                }
+            }
+        }
+    }
+
+    /// Ink Coverage (plan of step 7 of phase 2, 4.5, P3a): every page is a row or an unmeasured page with
+    /// its reason (Q7.9 b); a ratio is 0 to 100 %, the area of an ink is at most the page (a tint and an
+    /// opacity are at most 1); the total is the sum of the rows, each page once (B163); the process inks
+    /// are the CMYK of the output (B196), /None and /All are no inks (B198)
+    static void checkInkCoverage(const pdf::PDFDocument* input, const pdf::PDFDocumentToolResult& result, const QVariantMap& parameters, QStringList* failures)
+    {
+        Q_UNUSED(parameters);
+        using Tool = pdf::PDFDocumentToolInkCoverage;
+        constexpr double EPSILON = 1.0e-6;
+
+        const QJsonArray inks = result.data.value(QString::fromLatin1(Tool::DATA_INKS)).toArray();
+        const QJsonArray rows = result.data.value(QString::fromLatin1(Tool::DATA_PAGES)).toArray();
+        const QJsonArray unmeasured = result.data.value(QString::fromLatin1(Tool::DATA_UNMEASURED_PAGES)).toArray();
+        if (size_t(rows.size() + unmeasured.size()) != input->getCatalog()->getPageCount())
+        {
+            *failures << QStringLiteral("%1 rows and %2 unmeasured pages of %3 pages").arg(rows.size()).arg(unmeasured.size()).arg(input->getCatalog()->getPageCount());
+        }
+
+        const QStringList process = { QStringLiteral("Cyan"), QStringLiteral("Magenta"), QStringLiteral("Yellow"), QStringLiteral("Black") };
+        for (qsizetype i = 0; i < inks.size(); ++i)
+        {
+            const QString name = inks.at(i).toObject().value(QStringLiteral("name")).toString();
+            if ((i < process.size() && name != process.at(i)) || name == QLatin1String("None") || name == QLatin1String("All"))
+            {
+                *failures << QStringLiteral("The ink %1 is '%2'").arg(i + 1).arg(name);
+            }
+        }
+
+        std::vector<double> sums(size_t(inks.size()), 0.0);
+        for (const QJsonValue& rowValue : rows)
+        {
+            const QJsonObject row = rowValue.toObject();
+            const QJsonArray areas = row.value(QStringLiteral("area")).toArray();
+            const QJsonArray ratios = row.value(QStringLiteral("ratio")).toArray();
+            const double pageArea = row.value(QStringLiteral("pageArea")).toDouble();
+            for (qsizetype i = 0; i < inks.size(); ++i)
+            {
+                const double area = areas.at(i).toDouble();
+                const double ratio = ratios.at(i).toDouble();
+                if (!(area >= 0.0 && area <= pageArea * (1.0 + EPSILON)) || !(ratio >= 0.0 && ratio <= 100.0 + EPSILON))
+                {
+                    *failures << QStringLiteral("Page %1, ink %2: area %3 of %4 mm², ratio %5 %").arg(row.value(QStringLiteral("page")).toInteger()).arg(i + 1).arg(area).arg(pageArea).arg(ratio);
+                }
+                sums[size_t(i)] += area;
+            }
+        }
+
+        const QJsonArray totals = result.data.value(QString::fromLatin1(Tool::DATA_TOTAL)).toObject().value(QStringLiteral("area")).toArray();
+        for (qsizetype i = 0; i < inks.size(); ++i)
+        {
+            if (std::abs(totals.at(i).toDouble() - sums[size_t(i)]) > EPSILON * qMax(1.0, sums[size_t(i)]))
+            {
+                *failures << QStringLiteral("The total of the ink %1 is %2, the sum of the pages %3").arg(i + 1).arg(totals.at(i).toDouble()).arg(sums[size_t(i)]);
+            }
+        }
+    }
+
+    /// Output Preview (plan of step 7 of phase 2, 4.6, P3a): the measurements of page 1 - the areas are
+    /// parts of the page, a ratio is 0 to 100 %, the total area coverage of a pixel is at most 100 % per ink
+    static void checkOutputPreview(const pdf::PDFDocument* input, const pdf::PDFDocumentToolResult& result, const QVariantMap& parameters, QStringList* failures)
+    {
+        Q_UNUSED(input);
+        Q_UNUSED(parameters);
+        using Tool = pdf::PDFDocumentToolOutputPreview;
+        constexpr double EPSILON = 1.0e-6;
+
+        const double mediaArea = result.data.value(QStringLiteral("mediaArea")).toDouble();
+        const QJsonArray inks = result.data.value(QString::fromLatin1(Tool::DATA_INKS)).toArray();
+        qsizetype measuredInks = 0;
+        for (const QJsonValue& inkValue : inks)
+        {
+            const QJsonObject ink = inkValue.toObject();
+            measuredInks += ink.value(QStringLiteral("isMeasured")).toBool() ? 1 : 0;
+            const double area = ink.value(QStringLiteral("area")).toDouble();
+            const double ratio = ink.value(QStringLiteral("ratio")).toDouble();
+            if (!(area >= 0.0 && area <= mediaArea * (1.0 + EPSILON)) || !(ratio >= 0.0 && ratio <= 100.0 + EPSILON))
+            {
+                *failures << QStringLiteral("The ink %1: area %2 of %3 mm², ratio %4 %").arg(ink.value(QStringLiteral("name")).toString()).arg(area).arg(mediaArea).arg(ratio);
+            }
+        }
+
+        const double maximumCoverage = result.data.value(QString::fromLatin1(Tool::DATA_MAXIMUM_COVERAGE)).toDouble();
+        const double overLimit = result.data.value(QString::fromLatin1(Tool::DATA_AREA_OVER_COVERAGE_LIMIT)).toDouble();
+        const double richBlack = result.data.value(QString::fromLatin1(Tool::DATA_RICH_BLACK_AREA)).toDouble();
+        if (!(maximumCoverage >= 0.0 && maximumCoverage <= 100.0 * double(measuredInks) + EPSILON) || !(overLimit >= 0.0 && overLimit <= mediaArea * (1.0 + EPSILON)) ||
+            !(richBlack >= 0.0 && richBlack <= mediaArea * (1.0 + EPSILON)))
+        {
+            *failures << QStringLiteral("The coverage %1 % of %2 inks, %3 mm² over the limit, %4 mm² of rich black of %5 mm²").arg(maximumCoverage).arg(measuredInks).arg(overLimit).arg(richBlack).arg(mediaArea);
+        }
+    }
+
+    /// Ink Coverage and Output Preview need a page
+    static bool hasNoPage(const pdf::PDFDocument* input)
+    {
+        return input->getCatalog()->getPageCount() == 0;
+    }
+
+    /// Document Report (plan of step 7 of phase 2, 4.4, P1b): every section of a hostile file is read (one
+    /// visited set and a depth for every walk, the limited decoding), the pages of the page boxes are each
+    /// page once, the fonts are on pages of the document, the HTML is well-formed XHTML
+    static void checkReport(const pdf::PDFDocument* input, const pdf::PDFDocumentToolResult& result, const QVariantMap& parameters, QStringList* failures)
+    {
+        Q_UNUSED(parameters);
+        const qint64 pageCount = qint64(input->getCatalog()->getPageCount());
+        const QJsonObject sections = result.data.value(QString::fromLatin1(pdf::PDFDocumentToolReport::DATA_SECTIONS)).toObject();
+        if (sections.size() != int(pdf::PDFDocumentReport::getSections().size()))
+        {
+            *failures << QStringLiteral("%1 sections of %2").arg(sections.size()).arg(pdf::PDFDocumentReport::getSections().size());
+        }
+        if (sections.value(QStringLiteral("basicInformation")).toObject().value(QStringLiteral("pageCount")).toInteger() != pageCount)
+        {
+            *failures << QStringLiteral("The basic information has another page count than %1").arg(pageCount);
+        }
+
+        qint64 boxedPages = 0;
+        for (const QJsonValue& group : sections.value(QStringLiteral("pageBoxes")).toObject().value(QStringLiteral("groups")).toArray())
+        {
+            const QString pages = group.toObject().value(QStringLiteral("pages")).toString();
+            for (const QString& part : pages.split(QStringLiteral(", "), Qt::SkipEmptyParts))
+            {
+                const QStringList range = part.split(QLatin1Char('-'));
+                boxedPages += range.size() == 2 ? range[1].toLongLong() - range[0].toLongLong() + 1 : 1;
+            }
+        }
+        if (boxedPages != pageCount)
+        {
+            *failures << QStringLiteral("The page boxes have %1 pages of %2").arg(boxedPages).arg(pageCount);
+        }
+
+        if (result.outputs.size() != 1)
+        {
+            *failures << QStringLiteral("%1 files of a report").arg(result.outputs.size());
+            return;
+        }
+        QXmlStreamReader reader(result.outputs.front().data);
+        while (!reader.atEnd())
+        {
+            reader.readNext();
+        }
+        if (reader.hasError())
+        {
+            *failures << QStringLiteral("The HTML is not well-formed: %1").arg(reader.errorString());
+        }
+    }
+
+    /// Structure as XML (plan of step 7 of phase 2, 4.4): streamed into its file, well-formed with every
+    /// object of the storage as one element
+    static void checkStructureXml(const pdf::PDFDocument* input, const pdf::PDFDocumentToolResult& result, const QVariantMap& parameters, QStringList* failures)
+    {
+        Q_UNUSED(parameters);
+        if (result.outputs.size() != 1)
+        {
+            *failures << QStringLiteral("%1 files of the XML").arg(result.outputs.size());
+            return;
+        }
+
+        QFile file(result.outputs.front().getFilePath());
+        if (!file.open(QFile::ReadOnly))
+        {
+            *failures << QStringLiteral("The XML file cannot be read");
+            return;
+        }
+
+        qint64 objects = 0;
+        for (const pdf::PDFObjectStorage::Entry& entry : input->getStorage().getObjects())
+        {
+            objects += entry.object.isNull() ? 0 : 1;
+        }
+
+        qint64 elements = 0;
+        QXmlStreamReader reader(&file);
+        while (!reader.atEnd())
+        {
+            reader.readNext();
+            elements += reader.isStartElement() && reader.name() == QLatin1String("pdfobject") ? 1 : 0;
+        }
+        if (reader.hasError())
+        {
+            *failures << QStringLiteral("The XML is not well-formed: %1").arg(reader.errorString());
+        }
+        if (elements != objects)
+        {
+            *failures << QStringLiteral("%1 objects in the XML of %2").arg(elements).arg(objects);
+        }
+    }
+
     /// Extract Text: the text of the file against the text of the pages, read by the order of
     /// the content stream (an independent reading for the other orders). Every character of the
     /// file is a character of a page (or of a line "Page N" of the row); at most 2 % of the
@@ -1943,6 +2212,55 @@ private:
         rows.push_back({ Extract::TOOL_ID, "xml-content-stream-pages", createExtract, extract(Extract::FORMAT_XML, Extract::ORDER_CONTENT_STREAM, Extract::ENCODING_UTF8, true), CorpusLook::Exact, PromiseNone, nullptr, &ToolCorpusHelper::checkExtractedText });
         rows.push_back({ Extract::TOOL_ID, "text-latin-1", createExtract, extract(Extract::FORMAT_TEXT, Extract::ORDER_LAYOUT, Extract::ENCODING_LATIN1, false), CorpusLook::Exact, PromiseNone, nullptr, &ToolCorpusHelper::checkExtractedText });
 
+        // Document Statistics and Object Inspector (step 7 of phase 2, P1a): analyses, no document
+        const auto createStatistics = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<pdf::PDFDocumentToolStatistics>();
+        };
+        QVariantMap statisticsCsv;
+        statisticsCsv.insert(QString::fromLatin1(pdf::PDFDocumentToolStatistics::PARAMETER_FORMAT), QString::fromLatin1(pdf::PDFDocumentToolTableWriter::FORMAT_CSV));
+        rows.push_back({ pdf::PDFDocumentToolStatistics::TOOL_ID, "csv", createStatistics, statisticsCsv, CorpusLook::Exact, PromiseNone, nullptr, &ToolCorpusHelper::checkStatistics });
+        const auto createInspector = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<pdf::PDFDocumentToolObjectInspector>();
+        };
+        QVariantMap inspectorTrailer;
+        inspectorTrailer.insert(QString::fromLatin1(pdf::PDFDocumentToolObjectInspector::PARAMETER_OBJECT), QStringLiteral("trailer"));
+        inspectorTrailer.insert(QString::fromLatin1(pdf::PDFDocumentToolObjectInspector::PARAMETER_DEPTH), pdf::PDFDocumentToolObjectInspector::MAXIMUM_DEPTH);
+        rows.push_back({ pdf::PDFDocumentToolObjectInspector::TOOL_ID, "trailer-views", createInspector, inspectorTrailer, CorpusLook::Exact, PromiseNone, nullptr, &ToolCorpusHelper::checkObjectInspector });
+
+        // Ink Coverage and Output Preview (step 7 of phase 2, P3a): analyses, no document; a low resolution
+        const auto createInkCoverage = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<pdf::PDFDocumentToolInkCoverage>();
+        };
+        QVariantMap inkCoverage;
+        inkCoverage.insert(QString::fromLatin1(pdf::PDFDocumentToolInkCoverage::PARAMETER_RESOLUTION), 150);
+        rows.push_back({ pdf::PDFDocumentToolInkCoverage::TOOL_ID, "all-pages-150", createInkCoverage, inkCoverage, CorpusLook::Exact, PromiseNone, nullptr, &ToolCorpusHelper::checkInkCoverage, &ToolCorpusHelper::hasNoPage });
+        const auto createOutputPreview = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<pdf::PDFDocumentToolOutputPreview>();
+        };
+        QVariantMap outputPreview;
+        outputPreview.insert(QString::fromLatin1(pdf::PDFDocumentToolOutputPreview::PARAMETER_RESOLUTION), 300);
+        rows.push_back({ pdf::PDFDocumentToolOutputPreview::TOOL_ID, "page-1-300", createOutputPreview, outputPreview, CorpusLook::Exact, PromiseNone, nullptr, &ToolCorpusHelper::checkOutputPreview, &ToolCorpusHelper::hasNoPage });
+
+        // Document Report (step 7 of phase 2, P1b): an analysis, no document; every section, the structure as XML
+        const auto createReport = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<pdf::PDFDocumentToolReport>();
+        };
+        QVariantMap reportAll;
+        for (const pdf::PDFDocumentReportSection section : pdf::PDFDocumentReport::getSections())
+        {
+            reportAll.insert(pdf::PDFDocumentReport::getSectionId(section), true);
+        }
+        reportAll.insert(QString::fromLatin1(pdf::PDFDocumentToolReport::PARAMETER_FORMAT), QString::fromLatin1(pdf::PDFDocumentToolTableWriter::FORMAT_HTML));
+        rows.push_back({ pdf::PDFDocumentToolReport::TOOL_ID, "all-sections-html", createReport, reportAll, CorpusLook::Exact, PromiseNone, nullptr, &ToolCorpusHelper::checkReport, &ToolCorpusHelper::hasNoPage });
+        QVariantMap structureXml;
+        structureXml.insert(QString::fromLatin1(pdf::PDFDocumentToolReport::PARAMETER_KIND), QString::fromLatin1(pdf::PDFDocumentToolReport::KIND_STRUCTURE_XML));
+        rows.push_back({ pdf::PDFDocumentToolReport::TOOL_ID, "structure-xml", createReport, structureXml, CorpusLook::Exact, PromiseNone, nullptr, &ToolCorpusHelper::checkStructureXml });
+
         // Remove Hidden Data: the kinds, which nothing on the pages shows, keep the look exactly;
         // the invisible text keeps it too (callout of 438:12588: page content is not changed),
         // its text is gone by the purpose
@@ -2487,10 +2805,11 @@ void DocumentToolCorpusTest::toolOnFile()
                 {
                     failures << QStringLiteral("Failed without a message");
                 }
-                if ((tool->getInfo() && !tool->getInfo()->isPermitted(&input)) || (row.refusal && row.refusal(&input)) ||
+                if ((tool->getInfo() && !tool->getInfo()->isPermitted(&input)) || !tool->isPermittedRun(&input, parameters) || (row.refusal && row.refusal(&input)) ||
                     (row.readRefusal && row.readRefusal(&input, isInputRestored)))
                 {
-                    // The tool refused the file by its contract: permissions of the document. An
+                    // The tool refused the file by its contract: permissions of the document, also those of
+                    // the parameters of the run (Q7.2: the JavaScript and the XMP of a report need bit 5). An
                     // invalid parameter of a row comes with the same errors, it is a failure.
                     summary.status = QStringLiteral("refused");
                 }

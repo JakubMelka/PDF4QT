@@ -346,7 +346,9 @@ void PDFDocumentToolRunner::setInputGeneration(quint64 generation)
 
 std::shared_ptr<PDFDocumentToolRunnerJob> PDFDocumentToolRunner::startJob(const PDFAppDocumentSnapshot& snapshot, const QVariantMap& parameters, bool isPreview)
 {
-    std::shared_ptr<PDFDocumentToolRunnerJob> job = std::make_shared<PDFDocumentToolRunnerJob>(m_link, m_tool, createContext(snapshot, m_environment), snapshot, parameters, isPreview);
+    // The tool of the run of the environment (its own sink, RS7APP L3), only an instance of the same tool
+    const bool isRunTool = !isPreview && m_environment.runTool && m_environment.runTool->getId() == m_tool->getId();
+    std::shared_ptr<PDFDocumentToolRunnerJob> job = std::make_shared<PDFDocumentToolRunnerJob>(m_link, isRunTool ? m_environment.runTool : m_tool, createContext(snapshot, m_environment), snapshot, parameters, isPreview);
     if (!isPreview)
     {
         // A tool of more files writes them by the sink of its run (a preview writes nothing)

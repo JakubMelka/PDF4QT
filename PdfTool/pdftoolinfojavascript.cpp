@@ -58,6 +58,13 @@ int PDFToolInfoJavaScriptApplication::execute(const PDFToolOptions& options)
         return ErrorDocumentReading;
     }
 
+    // B166, Q7.2: the scripts are content extracted from the document (ISO 32000-2, Table 22, bit 5), or
+    // --pswd is the owner password
+    if (!isContentCopyAllowed(options, document))
+    {
+        return ErrorPermissions;
+    }
+
     QString parseError;
     std::vector<pdf::PDFInteger> pages = options.getPageRange(document.getCatalog()->getPageCount(), parseError, true);
 
@@ -67,10 +74,12 @@ int PDFToolInfoJavaScriptApplication::execute(const PDFToolOptions& options)
         return ErrorInvalidArguments;
     }
 
+    // B201 - B203: /OpenAction, /AA, the outline, the chains /Next and the XFA scripts (R7-4); the
+    // numbers in the C locale (Q7.14)
     pdf::PDFJavaScriptScanner scanner(&document);
     pdf::PDFJavaScriptScanner::Entries javascripts = scanner.scan(pages, pdf::PDFJavaScriptScanner::ScanMask | pdf::PDFJavaScriptScanner::Optimize);
 
-    QLocale locale;
+    const QLocale locale = QLocale::c();
 
     PDFOutputFormatter formatter(options.outputStyle);
     formatter.beginDocument("info-javascripts", PDFToolTranslationContext::tr("JavaScript used in document %1").arg(options.document));
@@ -112,6 +121,14 @@ int PDFToolInfoJavaScriptApplication::execute(const PDFToolOptions& options)
 
             case pdf::PDFJavaScriptEntry::Type::Annotation:
                 contextText = PDFToolTranslationContext::tr("Annotation");
+                break;
+
+            case pdf::PDFJavaScriptEntry::Type::Outline:
+                contextText = PDFToolTranslationContext::tr("Outline");
+                break;
+
+            case pdf::PDFJavaScriptEntry::Type::Xfa:
+                contextText = PDFToolTranslationContext::tr("XFA");
                 break;
 
             default:

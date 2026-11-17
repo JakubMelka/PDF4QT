@@ -427,6 +427,14 @@ public:
     /// and each 1 cm of widget area corresponds to 0.5 cm of the device space area.
     PDFReal getZoom() const { return m_zoom; }
 
+    /// Calculates the count of the pixels per one millimeter on the screen, on which
+    /// the widget is currently displayed. This is the single source of truth for the
+    /// conversion between the device space (millimeters) and the pixels - zoom hints
+    /// must use it too, otherwise the layout and the zoom would disagree on screens
+    /// with a different physical size or a different dpi than the primary one. A
+    /// picture of a page outside of the view (Output Preview) gives its zoom by it.
+    PDFReal getPixelPerMM() const;
+
     /// Sets the page layout. Page layout can be one of the PDF's page layouts.
     /// \param pageLayout Page layout
     void setPageLayout(PageLayout pageLayout);
@@ -654,13 +662,6 @@ private:
     /// Returns the screen on which the widget is currently displayed. Primary screen
     /// is returned as a fallback, when the widget is not assigned to any screen.
     QScreen* getCurrentScreen() const;
-
-    /// Calculates the count of the pixels per one millimeter on the screen, on which
-    /// the widget is currently displayed. This is the single source of truth for the
-    /// conversion between the device space (millimeters) and the pixels - zoom hints
-    /// must use it too, otherwise the layout and the zoom would disagree on screens
-    /// with a different physical size or a different dpi than the primary one.
-    PDFReal getPixelPerMM() const;
 
     /// Returns the size of the area available for the pages, when the given scrollbars
     /// are visible. Zero size is returned, when the widget is not set.

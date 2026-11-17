@@ -29,6 +29,7 @@
 #include "pdfdocumenttoolshell.h"
 
 #include "pdfdocumenttoolcatalog.h"
+#include "pdfdocumenttooltablewriter.h"
 
 #include <limits>
 
@@ -334,6 +335,11 @@ QString PDFDocumentToolGUI::getOwnTabZoomText() const
     return QString();
 }
 
+bool PDFDocumentToolGUI::hasOwnStatusItems() const
+{
+    return false;
+}
+
 PDFAppToolInputList* PDFDocumentToolGUI::getInputList() const
 {
     const PDFAppToolHost* host = getHost();
@@ -425,6 +431,63 @@ bool PDFDocumentToolGUI::commitDocumentChange(const PDFModifiedDocument& modifie
     return shell && shell->commitDocumentChange(modified, description, expectedVersion);
 }
 
+bool PDFDocumentToolGUI::isResultKeptInTool() const
+{
+    return false;
+}
+
+void PDFDocumentToolGUI::onResultKept(const PDFDocumentToolResult& result)
+{
+    Q_UNUSED(result);
+}
+
+bool PDFDocumentToolGUI::isResultStaleBy(const QString& parameterName) const
+{
+    // The format is the one of a later export, the shown result does not depend on it
+    return parameterName != QLatin1String(PDFDocumentToolTableWriter::PARAMETER_FORMAT);
+}
+
+QString PDFDocumentToolGUI::getStaleTitle() const
+{
+    return tr("The document changed");
+}
+
+QString PDFDocumentToolGUI::getStaleText() const
+{
+    // 492:109399 "The shown differences come from the previous settings. Press Compare Again to refresh them."
+    return tr("The shown result comes from an earlier version. Press %1 to refresh it.").arg(getConfirmText());
+}
+
+PDFAppToolCalloutPlace PDFDocumentToolGUI::getStaleCalloutPlace() const
+{
+    return PDFAppToolCalloutPlace();
+}
+
+void PDFDocumentToolGUI::onExportDecided(const PDFAppToolResultOutcome& outcome)
+{
+    Q_UNUSED(outcome);
+}
+
+PDFAppToolResultState PDFDocumentToolGUI::getResultState() const
+{
+    const PDFDocumentToolShell* shell = getShell();
+    return shell ? shell->getResultState() : PDFAppToolResultState::None;
+}
+
+void PDFDocumentToolGUI::markResultStale()
+{
+    if (PDFDocumentToolShell* shell = getShell())
+    {
+        shell->markResultStale();
+    }
+}
+
+bool PDFDocumentToolGUI::openExport(const PDFDocumentToolResult& exportResult)
+{
+    PDFDocumentToolShell* shell = getShell();
+    return shell && shell->openExportDialog(exportResult);
+}
+
 QVariantMap PDFDocumentToolGUI::getRunParameters() const
 {
     const PDFAppToolParameterModel* model = getModel();
@@ -465,6 +528,11 @@ void PDFDocumentToolGUI::onRunStateChanged(bool isRunning)
 void PDFDocumentToolGUI::onRunRefused()
 {
 
+}
+
+bool PDFDocumentToolGUI::confirmWithoutRun()
+{
+    return false;
 }
 
 void PDFDocumentToolGUI::onRunNotAccepted(const PDFDocumentToolResult& result)

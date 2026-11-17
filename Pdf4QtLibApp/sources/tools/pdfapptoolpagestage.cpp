@@ -699,7 +699,7 @@ void PDFAppToolPageStage::startRender()
     if (m_proxy)
     {
         // The settings of the view are taken here, in the thread of the user interface
-        job->cmsSettings = m_proxy->getCMSManager()->getSettings();
+        job->cmsSettings = m_proxy->getCMSManager()->getSettings().withoutProofing();
         job->features = m_proxy->getFeatures();
         job->paperColor = m_proxy->getPaperColor();
     }

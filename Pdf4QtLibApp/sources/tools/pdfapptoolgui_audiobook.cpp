@@ -1484,7 +1484,8 @@ QWidget* PDFAppToolGUIAudioBook::createCanvasPage(QWidget* parent)
     m_canvas = new PDFAppAudioBookCanvas(parent);
     PDFAppToolHost* host = getHost();
     PDFAppDocumentView* view = host ? host->getView() : nullptr;
-    m_canvas->getPicture()->setProxy(view ? view->getProxy() : nullptr);
+    // The page of the view without a soft proof kept on the tab (Q7.10)
+    m_canvas->getPicture()->setView(view);
     if (view && m_connectedView != view)
     {
         connect(view, &PDFAppDocumentView::displayedPageChanged, this, &PDFAppToolGUIAudioBook::onDisplayedPageChanged);

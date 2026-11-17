@@ -36,6 +36,7 @@
 #include <QByteArray>
 #include <QCoreApplication>
 #include <QJsonObject>
+#include <QLocale>
 #include <QMutex>
 #include <QSet>
 #include <QString>
@@ -583,6 +584,9 @@ public:
 
     /// Size of a file ("24.8 MB")
     static QString formatSize(qint64 bytes);
+
+    /// Size of a file in the numbers of \p locale (the machine-readable facts of the review tools: the C locale)
+    static QString formatSize(qint64 bytes, const QLocale& locale);
 
     /// Change of a size ("24.8 MB → 6.1 MB")
     static QString formatSizeChange(qint64 before, qint64 after);

@@ -184,6 +184,22 @@ void PDFTextOutputFormatterImpl::beginElement(PDFOutputFormatter::Element type, 
             break;
         }
 
+        case PDFOutputFormatter::Element::Preformatted:
+        {
+            // Each line indented as the text of its level, the spaces of the line kept
+            const QStringList lines = description.split(QLatin1Char('\n'));
+            for (QString line : lines)
+            {
+                if (line.endsWith(QLatin1Char('\r')))
+                {
+                    line.chop(1);
+                }
+                writeIndent();
+                m_streamWriter << line << Qt::endl;
+            }
+            break;
+        }
+
         case PDFOutputFormatter::Element::TableHeaderColumn:
         case PDFOutputFormatter::Element::TableColumn:
         {
@@ -282,6 +298,7 @@ void PDFTextOutputFormatterImpl::endElement()
         case PDFOutputFormatter::Element::TableHeaderRow:
         case PDFOutputFormatter::Element::TableHeaderColumn:
         case PDFOutputFormatter::Element::TableColumn:
+        case PDFOutputFormatter::Element::Preformatted:
         {
             break;
         }
@@ -398,6 +415,12 @@ void PDFHtmlOutputFormatterImpl::beginElement(PDFOutputFormatter::Element type, 
             break;
         }
 
+        case PDFOutputFormatter::Element::Preformatted:
+        {
+            m_streamWriter.writeTextElement("pre", description);
+            break;
+        }
+
         case PDFOutputFormatter::Element::Table:
         {
             m_streamWriter.writeStartElement("table");
@@ -479,6 +502,7 @@ void PDFHtmlOutputFormatterImpl::endElement()
         case PDFOutputFormatter::Element::TableHeaderColumn:
         case PDFOutputFormatter::Element::TableColumn:
         case PDFOutputFormatter::Element::Text:
+        case PDFOutputFormatter::Element::Preformatted:
         {
             // Do nothing...
             break;
@@ -540,6 +564,7 @@ void PDFXmlOutputFormatterImpl::beginElement(PDFOutputFormatter::Element type, Q
         }
 
         case PDFOutputFormatter::Element::Text:
+        case PDFOutputFormatter::Element::Preformatted:
         case PDFOutputFormatter::Element::TableColumn:
         case PDFOutputFormatter::Element::TableHeaderColumn:
         {
@@ -587,6 +612,7 @@ void PDFXmlOutputFormatterImpl::endElement()
     switch (type)
     {
         case PDFOutputFormatter::Element::Text:
+        case PDFOutputFormatter::Element::Preformatted:
         case PDFOutputFormatter::Element::TableColumn:
         case PDFOutputFormatter::Element::TableHeaderColumn:
             break;

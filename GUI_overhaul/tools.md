@@ -210,12 +210,12 @@ Celkem **46 toolů**, které pokrývají dnešní funkce (včetně OCR z větve 
 | --- | --- | --- | --- | --- |
 | `review.compare` | **Compare** | Find differences between two PDFs | Review | GUI |
 | `review.measure` | **Measure** | Distances, areas, perimeters, angles | Review | GUI |
-| `review.output-preview` | **Output Preview** | Separations, overprint, color warnings | Print production | GUI |
-| `review.ink-coverage` | **Ink Coverage** | Ink usage of every page | Print production | GUI |
-| `review.soft-proof` | **Soft Proofing** | Simulate print colors, check gamut | Print production | GUI |
-| `review.statistics` | **Document Statistics** | What takes up space in the file | Developer | GUI |
-| `review.object-inspector` | **Object Inspector** | Browse the internal PDF objects | Developer | GUI |
-| `review.report` | **Document Report** | Structure, scripts, destinations as a report | Developer | CLI |
+| `review.output-preview` | **Output Preview** | Separations, overprint, color warnings | Print production | GUI, hotovo (krok 7b) |
+| `review.ink-coverage` | **Ink Coverage** | Ink usage of every page | Print production | GUI, hotovo (krok 7b) |
+| `review.soft-proof` | **Soft Proofing** | Simulate print colors, check gamut | Print production | GUI, hotovo (krok 7b) |
+| `review.statistics` | **Document Statistics** | What takes up space in the file | Developer | GUI, hotovo (krok 7a) |
+| `review.object-inspector` | **Object Inspector** | Browse the internal PDF objects | Developer | GUI, hotovo (krok 7a) |
+| `review.report` | **Document Report** | Structure, scripts, destinations as a report | Developer | CLI, hotovo (krok 7a; písma `info-fonts` jsou i jeho sekcí *Fonts*, K7.24) |
 
 ### 4.7 Zamčený dokument (jen pro čtení)
 
@@ -670,9 +670,10 @@ Dnešní dialog *Encryption Settings* řeší čtyři různé úkoly. V katalogu
 #### `review.report` – Document Report
 
 - **Co dělá:** Sestaví zprávu o dokumentu, kterou jde uložit.
-- **Funkce:** základní informace, metadata (XMP), JavaScript v dokumentu, pojmenované cíle, rámce stránek, strom struktury tagovaného dokumentu, použité barvy. Export celé vnitřní struktury do XML. Výstup jako text, XML nebo HTML.
+- **Funkce:** základní informace, otisky souboru (MD5 … SHA-512), metadata (XMP), JavaScript v dokumentu, pojmenované cíle, rámce stránek, strom struktury tagovaného dokumentu, použité barvy, písma (vložení, náhrady, volitelně mapy znaků). Export celé vnitřní struktury do XML. Výstup jako text, XML nebo HTML.
 - **Vstup → výstup:** otevřený dokument → zpráva.
-- **Dnes:** jen CLI: `info`, `info-metadata`, `info-javascript`, `info-dests`, `info-page-boxes`, `info-struct-tree`, `info-inks`, `xml`.
+- **Dnes:** jen CLI: `info`, `info-metadata`, `info-javascript`, `info-dests`, `info-page-boxes`, `info-struct-tree`, `info-inks`, `info-fonts`, `xml`.
+- **Krok 7a (K7.24):** písma ukazuje i obrazovka *Properties* (záložka písem) – obojí volá jednu implementaci jádra (`PDFDocumentReport`, jedno procházení zdrojů), stejně jako PdfTool `info-fonts` a MCP `get_info`.
 - **Klíčová slova:** `report, document info, javascript, scripts, named destinations, structure tree, tags, tagged pdf, xmp, metadata, xml export, analyze, audit`
 
 ---
@@ -845,10 +846,10 @@ PdfTool do zadání nepatří, ale ukazuje funkce, které knihovna umí a GUI je
 | `optimize` | `optimize.structure`, `optimize.compress` | ano |
 | `bitonal` | `optimize.bitonal` | ano |
 | `diff` | `review.compare` | ano |
-| `ink-coverage`, `info-inks` | `review.ink-coverage` | ano |
-| `info-fonts` | Obrazovka Properties, část Fonts | ano |
-| `statistics` | `review.statistics` | ano |
-| `info`, `info-metadata`, `info-javascript`, `info-dests`, `info-page-boxes`, `info-struct-tree`, `xml` | `review.report` | **ne** (jen část v Properties) |
+| `ink-coverage`, `info-inks` | `review.ink-coverage` (`info-inks` i sekce *Inks* `review.report`) | ano (krok 7b) |
+| `info-fonts` | Obrazovka Properties, část Fonts, a sekce *Fonts* `review.report` (K7.24: jedna implementace jádra `PDFDocumentReport`) | ano |
+| `statistics` | `review.statistics` | ano (krok 7a) |
+| `info`, `info-metadata`, `info-javascript`, `info-dests`, `info-page-boxes`, `info-struct-tree`, `xml` | `review.report` (`xml` = druh *Structure as XML*) | ano (krok 7a; data jádra `PDFDocumentReport` sdílí i Properties a MCP `get_info`, R7-5) |
 | `color-profiles` | Nastavení (Color management) | ano |
 | `benchmark` | bez toolu, vývojářská funkce | ne |
 

@@ -25,9 +25,11 @@
 
 #include "pdfappdocument.h"
 #include "pdfappdocumentpanels_thumbnails.h"
+#include "pdfappdocumentsearchindex.h"
 #include "pdfappdocumentview.h"
 #include "pdfapplocale.h"
 #include "pdfapppagelayout.h"
+#include "pdfapppagerendercontext.h"
 #include "pdfapptoolhost.h"
 #include "pdfapptoolpanelparts.h"
 #include "pdfapptoolparametermodel.h"
@@ -50,6 +52,7 @@
 #include <QScrollArea>
 #include <QToolButton>
 #include <QVBoxLayout>
+#include <QtConcurrent/QtConcurrentRun>
 
 #include <limits>
 
@@ -193,7 +196,145 @@ PDFAppToolPagePicture::PDFAppToolPagePicture(QWidget* parent) :
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 }
 
-PDFAppToolPagePicture::~PDFAppToolPagePicture() = default;
+PDFAppToolPagePicture::~PDFAppToolPagePicture()
+{
+    // Nobody waits: the job goes on with its own copies, its late picture is dropped
+    cancelRender();
+}
+
+void PDFAppToolPagePicture::setView(PDFAppDocumentView* view)
+{
+    if (m_view != view)
+    {
+        m_view = view;
+        invalidate();
+    }
+    setProxy(view ? view->getProxy() : nullptr);
+}
+
+void PDFAppToolPagePicture::setProofShown(bool isProofShown)
+{
+    if (m_isProofShown != isProofShown)
+    {
+        m_isProofShown = isProofShown;
+        invalidate();
+    }
+}
+
+QImage PDFAppToolPagePicture::renderPage(PDFDocumentPointer document, PDFInteger pageIndex, QSize imageSize, PDFCMSSettings cmsSettings,
+                                         PDFRenderer::Features features, QColor paperColor, std::shared_ptr<PDFAppCancelFlag> control)
+{
+    // A thread of the pool: the shared immutable document and plain values only
+    const PDFCatalog* catalog = document ? document->getCatalog() : nullptr;
+    const PDFPage* page = catalog && pageIndex >= 0 && size_t(pageIndex) < catalog->getPageCount() ? catalog->getPage(size_t(pageIndex)) : nullptr;
+    if (!page || !imageSize.isValid() || imageSize.isEmpty() || PDFOperationControl::isOperationCanceled(control.get()))
+    {
+        return QImage();
+    }
+
+    try
+    {
+        QImage image(imageSize, QImage::Format_ARGB32_Premultiplied);
+        if (image.isNull())
+        {
+            return QImage();
+        }
+        image.fill(paperColor);
+        {
+            // The rotated media box fitted to the image, as drawThumbnailImage of the proxy
+            QPainter painter(&image);
+            PDFAppPageRenderContext context(document.data(), cmsSettings, features);
+            const QRectF rotatedBox = PDFPage::getRotatedBox(page->getMediaBox(), page->getPageRotation());
+            const QTransform pageToImage = PDFRenderer::createMediaBoxToDevicePointMatrix(rotatedBox, QRectF(QPointF(0.0, 0.0), QSizeF(imageSize)), page->getPageRotation());
+            context.draw(&painter, pageIndex, pageToImage, features.testFlag(PDFRenderer::DisplayAnnotations), control.get());
+        }
+        return PDFOperationControl::isOperationCanceled(control.get()) ? QImage() : image;
+    }
+    catch (const PDFException&)
+    {
+        // A damaged page: the paper stays white
+        return QImage();
+    }
+}
+
+bool PDFAppToolPagePicture::getOwnCMSSettings(PDFCMSSettings* settings) const
+{
+    // Q7.10: the proof of the tab is only the view of the tab - the compiled pages of a proofing view carry it
+    const PDFCMSManager* manager = m_view ? m_view->getCMSManager() : nullptr;
+    if (!manager || m_isProofShown)
+    {
+        return false;
+    }
+    const PDFCMSSettings& viewSettings = manager->getSettings();
+    if (!viewSettings.isSoftProofing && !viewSettings.isGamutChecking)
+    {
+        return false;
+    }
+    *settings = viewSettings.withoutProofing();
+    return true;
+}
+
+void PDFAppToolPagePicture::startRender(const QSize& pixelSize, const PDFCMSSettings& settings)
+{
+    cancelRender();
+    const PDFAppDocument* document = m_view ? m_view->getDocument() : nullptr;
+    if (!document || !document->getDocument() || !m_proxy)
+    {
+        return;
+    }
+
+    // One asynchronous job (CLAUDE.md: QtConcurrent for one job); the settings of the view are taken here, in
+    // the GUI thread, as values
+    m_renderCancel = std::make_shared<PDFAppCancelFlag>();
+    m_renderPixelSize = pixelSize;
+    QFutureWatcher<QImage>* watcher = new QFutureWatcher<QImage>(this);
+    m_renderWatcher = watcher;
+    connect(watcher, &QFutureWatcherBase::finished, this, &PDFAppToolPagePicture::onRenderFinished);
+    watcher->setFuture(QtConcurrent::run(&PDFAppToolPagePicture::renderPage, document->getDocument(), m_pageIndex, pixelSize, settings, m_proxy->getFeatures(),
+                                         m_proxy->getPaperColor(), m_renderCancel));
+}
+
+void PDFAppToolPagePicture::cancelRender()
+{
+    if (m_renderCancel)
+    {
+        m_renderCancel->cancel();
+        m_renderCancel.reset();
+    }
+    if (m_renderWatcher)
+    {
+        // The late result is dropped: the watcher goes, the job ends by itself
+        m_renderWatcher->disconnect(this);
+        m_renderWatcher->deleteLater();
+        m_renderWatcher = nullptr;
+    }
+    m_renderPixelSize = QSize();
+}
+
+void PDFAppToolPagePicture::onRenderFinished()
+{
+    QFutureWatcher<QImage>* watcher = m_renderWatcher.data();
+    if (!watcher || sender() != watcher)
+    {
+        return;
+    }
+
+    const QImage image = watcher->result();
+    const QSize pixelSize = m_renderPixelSize;
+    m_renderWatcher = nullptr;
+    watcher->deleteLater();
+    m_renderCancel.reset();
+    m_renderPixelSize = QSize();
+
+    // A null image (a damaged page) is the white paper of this size: not rendered again until a change
+    m_image = !image.isNull() ? image : QImage(pixelSize, QImage::Format_ARGB32_Premultiplied);
+    if (image.isNull() && !m_image.isNull())
+    {
+        m_image.fill(Qt::white);
+    }
+    m_imagePixelSize = pixelSize;
+    update();
+}
 
 void PDFAppToolPagePicture::setProxy(PDFDrawWidgetProxy* proxy)
 {
@@ -301,8 +442,22 @@ void PDFAppToolPagePicture::paintEvent(QPaintEvent* event)
     const QSize pixelSize = (QSizeF(paperSize) * ratio).toSize().boundedTo(QSize(MAXIMUM_PICTURE_SIZE, MAXIMUM_PICTURE_SIZE));
     if (m_image.isNull() || m_imagePixelSize != pixelSize)
     {
-        m_imagePixelSize = pixelSize;
-        m_image = m_proxy ? m_proxy->drawThumbnailImage(m_pageIndex, qMax(pixelSize.width(), pixelSize.height())) : QImage();
+        PDFCMSSettings settings;
+        if (getOwnCMSSettings(&settings))
+        {
+            // The view proofs: the page is rendered without the proof by the job (the old picture stays scaled
+            // meanwhile, a picture of another page or version is gone - invalidate)
+            if (m_renderPixelSize != pixelSize)
+            {
+                startRender(pixelSize, settings);
+            }
+        }
+        else
+        {
+            cancelRender();
+            m_imagePixelSize = pixelSize;
+            m_image = m_proxy ? m_proxy->drawThumbnailImage(m_pageIndex, qMax(pixelSize.width(), pixelSize.height())) : QImage();
+        }
     }
 
     // The shadow 0 / 1 / 5 of effect/shadow (339:8649) and the paper
@@ -334,6 +489,7 @@ void PDFAppToolPagePicture::onProxyDestroyed()
 
 void PDFAppToolPagePicture::invalidate()
 {
+    cancelRender();
     m_image = QImage();
     m_imagePixelSize = QSize();
     update();
@@ -710,7 +866,8 @@ QWidget* PDFAppToolGUIExtractText::createCanvasPage(QWidget* parent)
     m_previewPage = new PDFAppToolTextPreviewPage(parent);
     PDFAppToolHost* host = getHost();
     PDFAppDocumentView* view = host ? host->getView() : nullptr;
-    m_previewPage->getPicture()->setProxy(view ? view->getProxy() : nullptr);
+    // The page of the view without a soft proof kept on the tab (Q7.10)
+    m_previewPage->getPicture()->setView(view);
     if (view && m_connectedView != view)
     {
         connect(view, &PDFAppDocumentView::displayedPageChanged, this, &PDFAppToolGUIExtractText::onDisplayedPageChanged);

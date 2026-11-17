@@ -26,7 +26,9 @@
 #include "pdfcatalog.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumenttool.h"
+#include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttoolparameter.h"
+#include "pdfdocumenttoolregistry.h"
 #include "pdfexception.h"
 #include "pdfoperationcontrol.h"
 #include "pdfprogress.h"
@@ -379,6 +381,77 @@ public:
 private:
     int m_cancelAt = -1;
     mutable std::atomic<int> m_questions = 0;
+};
+
+/// Every implemented tool of a category taken out of the registry for the time of the object; they come back
+/// at its end (the registry is never left without them). R7-19 of step 7 of phase 2: the test tool takes the
+/// id review.statistics, which is a real tool of Review & Inspect - a test, which needs the category without
+/// a built-in tool (its absence, the actions of its schema), removes them first. No new API of the registry.
+class TestDocumentToolCategoryRemoval
+{
+public:
+    explicit TestDocumentToolCategoryRemoval(pdf::PDFDocumentToolCategory category)
+    {
+        for (const QString& id : pdf::PDFDocumentToolRegistry::getImplementedTools())
+        {
+            const pdf::PDFDocumentToolCatalogEntry* entry = pdf::PDFDocumentToolCatalog::findTool(id);
+            std::shared_ptr<const pdf::PDFDocumentTool> tool = pdf::PDFDocumentToolRegistry::getTool(id);
+            if (entry && tool && entry->getCategory() == category && pdf::PDFDocumentToolRegistry::unregisterTool(id))
+            {
+                m_tools.push_back(std::move(tool));
+            }
+        }
+    }
+
+    ~TestDocumentToolCategoryRemoval()
+    {
+        for (const std::shared_ptr<const pdf::PDFDocumentTool>& tool : m_tools)
+        {
+            // A test, which has registered its own tool under the id, has removed it already
+            pdf::PDFDocumentToolRegistry::unregisterTool(tool->getId());
+            pdf::PDFDocumentToolRegistry::registerTool(tool);
+        }
+    }
+
+    TestDocumentToolCategoryRemoval(const TestDocumentToolCategoryRemoval&) = delete;
+    TestDocumentToolCategoryRemoval& operator=(const TestDocumentToolCategoryRemoval&) = delete;
+
+private:
+    std::vector<std::shared_ptr<const pdf::PDFDocumentTool>> m_tools;
+};
+
+/// The test tool registered as the only implemented tool of the category of its id (R7-19): the built-in tools
+/// of the category are out of the registry for the time of the object (TestDocumentToolCategoryRemoval), the
+/// test tool is removed and they come back at its end
+class TestDocumentToolRegistration
+{
+public:
+    explicit TestDocumentToolRegistration(std::shared_ptr<TestDocumentTool> testTool = std::make_shared<TestDocumentTool>()) :
+        tool(std::move(testTool)),
+        m_removal(pdf::PDFDocumentToolCatalog::findTool(tool->getId()) ? pdf::PDFDocumentToolCatalog::findTool(tool->getId())->getCategory() : pdf::PDFDocumentToolCategory::Review)
+    {
+        m_isRegistered = pdf::PDFDocumentToolRegistry::registerTool(tool) == pdf::PDFDocumentToolRegistration::Registered;
+    }
+
+    ~TestDocumentToolRegistration()
+    {
+        if (m_isRegistered)
+        {
+            pdf::PDFDocumentToolRegistry::unregisterTool(tool->getId());
+        }
+    }
+
+    TestDocumentToolRegistration(const TestDocumentToolRegistration&) = delete;
+    TestDocumentToolRegistration& operator=(const TestDocumentToolRegistration&) = delete;
+
+    /// The test tool was registered
+    bool isRegistered() const { return m_isRegistered; }
+
+    std::shared_ptr<TestDocumentTool> tool;
+
+private:
+    TestDocumentToolCategoryRemoval m_removal;
+    bool m_isRegistered = false;
 };
 
 }   // namespace pdftest

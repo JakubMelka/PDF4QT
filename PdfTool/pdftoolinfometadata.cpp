@@ -21,7 +21,7 @@
 // SOFTWARE.
 
 #include "pdftoolinfometadata.h"
-#include "pdfexception.h"
+#include "pdfdocumentreport.h"
 
 namespace pdftool
 {
@@ -58,22 +58,28 @@ int PDFToolInfoMetadataApplication::execute(const PDFToolOptions& options)
         return ErrorDocumentReading;
     }
 
-    pdf::PDFObject metadata = document.getObject(document.getCatalog()->getMetadata());
-    if (metadata.isStream())
+    // B166, Q7.2: the XMP packet is content extracted from the document (ISO 32000-2, Table 22, bit 5), or
+    // --pswd is the owner password
+    if (!isContentCopyAllowed(options, document))
     {
-        try
-        {
-            QByteArray rawData = document.getDecodedStream(metadata.getStream());
-            PDFConsole::writeData(rawData);
-        }
-        catch (const pdf::PDFException &e)
-        {
-            PDFConsole::writeError(e.getMessage(), options.outputCodec);
-        }
+        return ErrorPermissions;
+    }
+
+    // The one implementation of the report (R7-5): the packet decoded with the limit (Q7.18), UTF-8
+    bool hasMetadata = false;
+    QString errorMessage;
+    const QString metadata = pdf::PDFDocumentReport::getMetadata(&document, &hasMetadata, &errorMessage);
+    if (!hasMetadata)
+    {
+        PDFConsole::writeError(PDFToolTranslationContext::tr("Metadata not found in document."), options.outputCodec);
+    }
+    else if (!errorMessage.isEmpty())
+    {
+        PDFConsole::writeError(errorMessage, options.outputCodec);
     }
     else
     {
-        PDFConsole::writeError(PDFToolTranslationContext::tr("Metadata not found in document."), options.outputCodec);
+        PDFConsole::writeData(metadata.toUtf8());
     }
 
     return ExitSuccess;

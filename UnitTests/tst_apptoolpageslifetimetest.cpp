@@ -2811,9 +2811,11 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges()
     }
     else if (isRealTool && popup.startsWith(QLatin1String("dialog-")))
     {
-        // The result dialog of a real tool: it stays open over the change, Cancel keeps the document
+        // The result dialog of a real tool: it stays open over the change, Cancel keeps the document. An analysis
+        // opens the dialog of the export of its kept result (Statistics, Ink Coverage: their Export menu)
+        const ToolPagesLifetimeScenario* registered = ToolPagesLifetimePackages::findScenario(realScenario);
         QVERIFY(H::prepareRun(run));
-        pdf::PDFAppToolResultDialog* dialog = H::confirmToDialog(run);
+        pdf::PDFAppToolResultDialog* dialog = registered && registered->openResultDialog ? registered->openResultDialog(run) : H::confirmToDialog(run);
         QVERIFY(dialog);
         QVERIFY(dialog->isVisible());
         const QPointer<pdf::PDFAppToolResultDialog> dialogGuard(dialog);
@@ -2822,10 +2824,21 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges()
         QVERIFY(H::shell(run));
         QCOMPARE(H::shell(run)->getResultDialog(), dialog);
         QVERIFY(dialog->isVisible());
-        // Discard ends the tool (in its own tab it returns to the editing of the tab)
+        // Discard ends the tool (in its own tab it returns to the editing of the tab); a tool, which keeps its
+        // result, stays open with it (R7-2, R7-13) - the end below closes it
         dialog->reject();
         QVERIFY(pdftest::AppToolShellFixture::waitFor([&run]() { return !H::shell(run) || H::shell(run)->getState() == pdf::PDFDocumentToolShell::State::Editing; }));
-        QVERIFY(isOwnTabTool || !H::shell(run));
+        if (registered && registered->isResultKept)
+        {
+            QVERIFY(H::shell(run));
+            QCOMPARE(H::shell(run)->getState(), pdf::PDFDocumentToolShell::State::Editing);
+            QVERIFY(!H::shell(run)->getResultDialog());
+            QVERIFY(run.tab->getView()->isToolModeActive());
+        }
+        else
+        {
+            QVERIFY(isOwnTabTool || !H::shell(run));
+        }
         H::settle();
     }
     else if (isRealTool)
@@ -2978,6 +2991,9 @@ const std::vector<ToolPagesLifetimeScenario>& ToolPagesLifetimePackages::getScen
         registerCertificateScenarios(&result);
         registerSignatureScenarios(&result);
         registerRedactScenarios(&result);
+        registerReviewAScenarios(&result);
+        registerReviewBScenarios(&result);
+        registerReviewCScenarios(&result);
         return result;
     }();
     return scenarios;

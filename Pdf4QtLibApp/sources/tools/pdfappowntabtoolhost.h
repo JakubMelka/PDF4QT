@@ -150,7 +150,7 @@ public:
     virtual void leaveMode() override;
     virtual bool isModeActive() const override;
     virtual void setMessage(const QString& text) override;
-    virtual void setStatusItems(const QString& pageText, const QString& zoomText) override;
+    virtual void setStatusItems(const QString& pageText, const QString& zoomText, bool isOwnItems) override;
     virtual void showTransientMessage(const QString& text) override;
     virtual void showPanel(const QString& panelId) override;
     virtual void showInfoBar(const PDFAppInfoBarRequest& request) override;

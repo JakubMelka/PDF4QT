@@ -21,8 +21,8 @@
 // SOFTWARE.
 
 #include "pdftoolinfofonts.h"
-#include "pdfexecutionpolicy.h"
 #include "pdfdocument.h"
+#include "pdfdocumentreport.h"
 #include "pdffont.h"
 #include "pdfutils.h"
 
@@ -52,21 +52,6 @@ QString PDFToolInfoFonts::getStandardString(StandardString standardString) const
     return QString();
 }
 
-struct FontInfo
-{
-    pdf::PDFClosedIntervalSet pages;
-    QString fontFullName;
-    QString fontName;
-    QString fontTypeName;
-    QString encoding;
-    bool isEmbedded = false;
-    bool isSubset = false;
-    bool isToUnicodePresent = false;
-    pdf::PDFObjectReference reference;
-    QString substitutedFont;
-    pdf::CharacterInfos characterInfos;
-};
-
 int PDFToolInfoFonts::execute(const PDFToolOptions& options)
 {
     pdf::PDFDocument document;
@@ -85,201 +70,45 @@ int PDFToolInfoFonts::execute(const PDFToolOptions& options)
         return ErrorInvalidArguments;
     }
 
-    QMutex mutex;
-    std::map<pdf::PDFObjectReference, FontInfo> fontInfoMap;
-    std::vector<FontInfo> directFonts;
-    std::set<pdf::PDFObjectReference> usedFontReferences;
+    // The one walk over the resources of the report (K7.24, R7-5): the fonts of the pages, of their forms,
+    // of the appearance streams of their annotations, of the patterns and of the Type 3 fonts, each once
+    const std::vector<pdf::PDFDocumentReportFont> fonts = pdf::PDFDocumentReport::getFonts(&document, pages, options.showCharacterMapsForEmbeddedFonts, nullptr);
 
-    auto processPage = [&](pdf::PDFInteger pageIndex)
+    auto getTypeText = [](pdf::FontType fontType)
     {
-        try
+        switch (fontType)
         {
-            const pdf::PDFPage* page = document.getCatalog()->getPage(pageIndex);
-            if (const pdf::PDFDictionary* resourcesDictionary = document.getDictionaryFromObject(page->getResources()))
-            {
-                if (const pdf::PDFDictionary* fontsDictionary = document.getDictionaryFromObject(resourcesDictionary->get("Font")))
-                {
-                    // Iterate trough each font
-                    const size_t fontsCount = fontsDictionary->getCount();
-                    for (size_t i = 0; i < fontsCount; ++i)
-                    {
-                        pdf::PDFObjectReference fontReference;
-                        pdf::PDFObject object = fontsDictionary->getValue(i);
-                        if (object.isReference())
-                        {
-                            // Check, if we have not processed the object. If we have it processed,
-                            // then do nothing, otherwise insert it into the processed objects.
-                            // We must also use mutex, because we use multithreading.
-                            QMutexLocker lock(&mutex);
-                            if (usedFontReferences.count(object.getReference()))
-                            {
-                                fontInfoMap[object.getReference()].pages.addValue(pageIndex + 1);
-                                continue;
-                            }
-                            else
-                            {
-                                fontReference = object.getReference();
-                                usedFontReferences.insert(fontReference);
-                            }
-                        }
-
-                        try
-                        {
-                            if (pdf::PDFFontPointer font = pdf::PDFFont::createFont(object, fontsDictionary->getKey(i).getString(), &document))
-                            {
-                                pdf::PDFRenderErrorReporterDummy dummyReporter;
-                                pdf::PDFRealizedFontPointer realizedFont = pdf::PDFRealizedFont::createRealizedFont(font, 8.0, &dummyReporter);
-                                if (realizedFont)
-                                {
-                                    const pdf::FontType fontType = font->getFontType();
-                                    const pdf::FontDescriptor* fontDescriptor = font->getFontDescriptor();
-                                    QString fontName = fontDescriptor->fontName;
-                                    QString fontFullName = fontName;
-                                    int plusPos = fontName.lastIndexOf('+');
-
-                                    // Jakub Melka: Detect, if font is subset. Font subsets have special form,
-                                    // according to chapter 9.9.2 of PDF 2.0 specification. The first 6 letters
-                                    // of font name are uppercase alphabet letters, and 7'th character is '+' sign.
-                                    bool isSubset = false;
-                                    if (plusPos == 6)
-                                    {
-                                        isSubset = true;
-                                        for (int iFontName = 0; iFontName < 6; ++iFontName)
-                                        {
-                                            QChar character = fontName[iFontName];
-                                            if (!character.isLetter() || !character.isUpper())
-                                            {
-                                                isSubset = false;
-                                                break;
-                                            }
-                                        }
-                                    }
-
-                                    // Try to remove characters from +, if we have font name 'SDFDSF+ValidFontName'
-                                    if (plusPos != -1 && plusPos < fontName.size() - 1)
-                                    {
-                                        fontName = fontName.mid(plusPos + 1);
-                                    }
-
-                                    if (fontName.isEmpty())
-                                    {
-                                        fontName = QString::fromLatin1(fontsDictionary->getKey(i).getString());
-                                    }
-
-                                    QString fontTypeName;
-                                    switch (fontType)
-                                    {
-                                        case pdf::FontType::Type0:
-                                            fontTypeName = PDFToolTranslationContext::tr("Type 0 (CID)");
-                                            break;
-
-                                        case pdf::FontType::Type1:
-                                            fontTypeName = PDFToolTranslationContext::tr("Type 1 (8 bit)");
-                                            break;
-
-                                        case pdf::FontType::MMType1:
-                                            fontTypeName = PDFToolTranslationContext::tr("MM Type 1 (8 bit)");
-                                            break;
-
-                                        case pdf::FontType::TrueType:
-                                            fontTypeName = PDFToolTranslationContext::tr("TrueType (8 bit)");
-                                            break;
-
-                                        case pdf::FontType::Type3:
-                                            fontTypeName = PDFToolTranslationContext::tr("Type 3");
-                                            break;
-
-                                        default:
-                                            Q_ASSERT(false);
-                                            break;
-                                    }
-
-                                    const pdf::PDFFontCMap* toUnicode = font->getToUnicode();
-
-                                    FontInfo info;
-                                    info.fontName = fontName;
-                                    info.fontFullName = fontFullName;
-                                    info.pages.addValue(pageIndex + 1);
-                                    info.fontTypeName = fontTypeName;
-                                    info.isEmbedded = fontDescriptor->isEmbedded() || fontType == pdf::FontType::Type3;
-                                    info.isSubset = isSubset;
-                                    info.isToUnicodePresent = toUnicode && toUnicode->isValid();
-                                    info.reference = fontReference;
-                                    info.substitutedFont = realizedFont->getPostScriptName();
-
-                                    if (options.showCharacterMapsForEmbeddedFonts && info.isEmbedded)
-                                    {
-                                        info.characterInfos = realizedFont->getCharacterInfos();
-                                    }
-
-                                    const pdf::PDFSimpleFont* simpleFont = dynamic_cast<const pdf::PDFSimpleFont*>(font.data());
-                                    if (simpleFont)
-                                    {
-                                        const pdf::PDFEncoding::Encoding encoding = simpleFont->getEncodingType();
-                                        switch (encoding)
-                                        {
-                                            case pdf::PDFEncoding::Encoding::Standard:
-                                                info.encoding = PDFToolTranslationContext::tr("Standard");
-                                                break;
-                                            case pdf::PDFEncoding::Encoding::MacRoman:
-                                                info.encoding = PDFToolTranslationContext::tr("MacRoman");
-                                                break;
-                                            case pdf::PDFEncoding::Encoding::WinAnsi:
-                                                info.encoding = PDFToolTranslationContext::tr("WinAnsi");
-                                                break;
-                                            case pdf::PDFEncoding::Encoding::PDFDoc:
-                                                info.encoding = PDFToolTranslationContext::tr("PDFDoc");
-                                                break;
-                                            case pdf::PDFEncoding::Encoding::MacExpert:
-                                                info.encoding = PDFToolTranslationContext::tr("MacExpert");
-                                                break;
-                                            case pdf::PDFEncoding::Encoding::Symbol:
-                                                info.encoding = PDFToolTranslationContext::tr("Symbol");
-                                                break;
-                                            case pdf::PDFEncoding::Encoding::ZapfDingbats:
-                                                info.encoding = PDFToolTranslationContext::tr("ZapfDingbats");
-                                                break;
-
-                                            default:
-                                                info.encoding = PDFToolTranslationContext::tr("Custom");
-                                                break;
-                                        }
-                                    }
-
-                                    QMutexLocker lock(&mutex);
-                                    if (fontReference.isValid())
-                                    {
-                                        info.pages.merge(fontInfoMap[fontReference].pages);
-                                        fontInfoMap[fontReference] = qMove(info);
-                                    }
-                                    else
-                                    {
-                                        directFonts.emplace_back(qMove(info));
-                                    }
-                                }
-                            }
-                        }
-                        catch (const pdf::PDFException &)
-                        {
-                            // Do nothing, some error occured, continue with next font
-                            continue;
-                        }
-                    }
-                }
-            }
+            case pdf::FontType::Type0:
+                return PDFToolTranslationContext::tr("Type 0 (CID)");
+            case pdf::FontType::Type1:
+                return PDFToolTranslationContext::tr("Type 1 (8 bit)");
+            case pdf::FontType::MMType1:
+                return PDFToolTranslationContext::tr("MM Type 1 (8 bit)");
+            case pdf::FontType::TrueType:
+                return PDFToolTranslationContext::tr("TrueType (8 bit)");
+            case pdf::FontType::Type3:
+                return PDFToolTranslationContext::tr("Type 3");
+            default:
+                break;
         }
-        catch (const pdf::PDFException &)
-        {
-            // Do nothing, some error occured
-        }
+        return QString();
     };
 
-    pdf::PDFExecutionPolicy::execute(pdf::PDFExecutionPolicy::Scope::Page, pages.begin(), pages.end(), processPage);
-
-    for (auto& item : fontInfoMap)
+    // The name without the tag of a subset ("ABCDEF+Name", 9.9.2), the full name in the character maps
+    auto getShortName = [](const pdf::PDFDocumentReportFont& font)
     {
-        directFonts.emplace_back(qMove(item.second));
-    }
+        return font.isSubset ? font.name.mid(7) : font.name;
+    };
+
+    auto getPages = [](const pdf::PDFDocumentReportFont& font)
+    {
+        pdf::PDFClosedIntervalSet pageSet;
+        for (const pdf::PDFInteger pageIndex : font.pageIndices)
+        {
+            pageSet.addValue(pageIndex + 1);
+        }
+        return pageSet.toText(true);
+    };
 
     PDFOutputFormatter formatter(options.outputStyle);
     formatter.beginDocument("info-fonts", PDFToolTranslationContext::tr("Fonts used in document %1").arg(options.document));
@@ -300,7 +129,8 @@ int PDFToolInfoFonts::execute(const PDFToolOptions& options)
     formatter.writeTableHeaderColumn("generation-no", PDFToolTranslationContext::tr("Gen."), Qt::AlignLeft);
     formatter.endTableHeaderRow();
 
-    QLocale locale;
+    // Q7.14: the numbers of PdfTool in the C locale
+    const QLocale locale = QLocale::c();
 
     QString yesText = PDFToolTranslationContext::tr("Yes");
     QString noText = PDFToolTranslationContext::tr("No");
@@ -309,18 +139,18 @@ int PDFToolInfoFonts::execute(const PDFToolOptions& options)
     bool hasEmbedded = false;
     bool hasSubstitutions = false;
     int ref = 1;
-    for (const FontInfo& info : directFonts)
+    for (const pdf::PDFDocumentReportFont& info : fonts)
     {
         formatter.beginTableRow("font", ref);
 
         formatter.writeTableColumn("no", locale.toString(ref), Qt::AlignRight);
-        formatter.writeTableColumn("font-name", info.fontName);
-        formatter.writeTableColumn("font-type", info.fontTypeName);
+        formatter.writeTableColumn("font-name", getShortName(info));
+        formatter.writeTableColumn("font-type", getTypeText(info.fontType));
         formatter.writeTableColumn("encoding", info.encoding);
-        formatter.writeTableColumn("pages", info.pages.toText(true));
+        formatter.writeTableColumn("pages", getPages(info));
         formatter.writeTableColumn("is-embedded", info.isEmbedded ? yesText : noText);
         formatter.writeTableColumn("is-subset", info.isSubset ? yesText : noText);
-        formatter.writeTableColumn("is-unicode", info.isToUnicodePresent ? yesText : noText);
+        formatter.writeTableColumn("is-unicode", info.hasToUnicode ? yesText : noText);
 
         if (info.reference.isValid())
         {
@@ -357,19 +187,20 @@ int PDFToolInfoFonts::execute(const PDFToolOptions& options)
         formatter.endTableHeaderRow();
 
         ref = 1;
-        for (const FontInfo& info : directFonts)
+        for (const pdf::PDFDocumentReportFont& info : fonts)
         {
             if (info.isEmbedded)
             {
                 continue;
             }
 
+            const QString fontName = getShortName(info);
             formatter.beginTableRow("substitution", ref);
 
             formatter.writeTableColumn("no", locale.toString(ref), Qt::AlignRight);
-            formatter.writeTableColumn("font-name", info.fontName);
-            formatter.writeTableColumn("font-substitute", !info.substitutedFont.isEmpty() ? info.substitutedFont : PDFToolTranslationContext::tr("??"));
-            formatter.writeTableColumn("match", (info.fontName == info.substitutedFont) ? yesText : noText);
+            formatter.writeTableColumn("font-name", fontName);
+            formatter.writeTableColumn("font-substitute", !info.substitute.isEmpty() ? info.substitute : PDFToolTranslationContext::tr("??"));
+            formatter.writeTableColumn("match", (fontName == info.substitute) ? yesText : noText);
 
             if (info.reference.isValid())
             {
@@ -394,15 +225,14 @@ int PDFToolInfoFonts::execute(const PDFToolOptions& options)
         formatter.endl();
         formatter.beginHeader("font-character-maps", PDFToolTranslationContext::tr("Font Character Maps"));
 
-        int fontRef = 1;
-        for (const FontInfo& info : directFonts)
+        for (const pdf::PDFDocumentReportFont& info : fonts)
         {
             if (!info.isEmbedded)
             {
                 continue;
             }
 
-            formatter.beginTable("font-character-map", PDFToolTranslationContext::tr("Character Map for Font '%1'").arg(info.fontFullName));
+            formatter.beginTable("font-character-map", PDFToolTranslationContext::tr("Character Map for Font '%1'").arg(info.name));
 
             formatter.beginTableHeaderRow("header");
             formatter.writeTableHeaderColumn("no", PDFToolTranslationContext::tr("No."), Qt::AlignLeft);
@@ -428,12 +258,10 @@ int PDFToolInfoFonts::execute(const PDFToolOptions& options)
             }
 
             formatter.endTable();
-            ++fontRef;
-
             formatter.endl();
         }
 
-        formatter.endTable();
+        formatter.endHeader();
     }
 
     formatter.endDocument();

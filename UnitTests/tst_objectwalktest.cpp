@@ -34,12 +34,15 @@
 #include "pdfdocumentsanitizer.h"
 #include "pdfdocumenttextflow.h"
 #include "pdfobjectutils.h"
+#include "pdfoperationcontrol.h"
+#include "pdfresourcewalk.h"
 #include "pdfstructuretree.h"
 
 #include <QElapsedTimer>
 #include <QSignalSpy>
 #include <QtTest>
 
+#include <algorithm>
 #include <map>
 
 using namespace pdf;
@@ -211,6 +214,10 @@ private slots:
     void sanitizerFormsAndFields();
     void sanitizerDeepForms();
     void hiddenDataScan();
+    void resourceWalkGraph();
+    void resourceWalkLimits();
+    void resourceWalkHostile();
+    void resourceWalkSharedContainers();
 };
 
 void ObjectWalkTest::walkEntersReferenceOnce()
@@ -596,6 +603,294 @@ void ObjectWalkTest::hiddenDataScan()
     QCOMPARE(result.get(PDFDocumentHiddenDataScan::Kind::SignatureFields).count, qint64(1));
     QCOMPARE(result.get(PDFDocumentHiddenDataScan::Kind::InvisibleText).count, qint64(2));
     QCOMPARE(result.get(PDFDocumentHiddenDataScan::Kind::Metadata).count, qint64(2));
+}
+
+/// The node of the walk of the resources, whose owner is the object \p number (nullptr = none)
+class ResourceWalkTestHelper
+{
+public:
+    ResourceWalkTestHelper() = delete;
+
+    static const PDFResourceWalkNode* find(const PDFResourceWalkResult& result, int number, size_t* index = nullptr)
+    {
+        for (size_t i = 0; i < result.nodes.size(); ++i)
+        {
+            if (result.nodes[i].reference == PDFObjectReference(number, 0))
+            {
+                if (index)
+                {
+                    *index = i;
+                }
+                return &result.nodes[i];
+            }
+        }
+        return nullptr;
+    }
+
+    static std::vector<PDFInteger> pagesOf(const PDFResourceWalkResult& result, int number)
+    {
+        size_t index = 0;
+        return find(result, number, &index) ? result.getPageIndices(index) : std::vector<PDFInteger>();
+    }
+
+    /// Cancels from the start
+    class Canceled : public PDFOperationControl
+    {
+    public:
+        virtual bool isOperationCanceled() const override { return true; }
+    };
+};
+
+void ObjectWalkTest::resourceWalkGraph()
+{
+    // Plan of step 7 of phase 2, 6.1, R7-17 (B167, B197): every owner of resources of ISO 32000-2 - the pages
+    // (7.7.3.3), the forms (8.10.1), the tiling patterns (8.7.3.1, Table 75), the Type 3 fonts (9.6.4, Table
+    // 110), the groups of the soft masks (11.6.5.2, Table 142) and the appearance streams of the annotations
+    // with their states (12.5.5, Table 170). A cycle (the forms 11 and 12 draw each other) and a form shared
+    // by two paths (12 from the form 11 and from the Type 3 font 14) and by both pages (a resource
+    // dictionary shared by them): each owner once, the edges of every path kept.
+    WalkTestPdf pdf;
+    pdf.set(1, "<< /Type /Catalog /Pages 2 0 R >>");
+    pdf.set(2, "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>");
+    pdf.set(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Resources 10 0 R >>");
+    pdf.set(4, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Resources 10 0 R /Annots [18 0 R] >>");
+    pdf.set(10, "<< /XObject << /F1 11 0 R >> /Font << /T3 14 0 R >> /Pattern << /P1 15 0 R /P2 21 0 R >> /ExtGState << /G1 16 0 R >> >>");
+    pdf.setStream(11, "/Type /XObject /Subtype /Form /BBox [0 0 10 10] /Resources << /XObject << /F2 12 0 R >> >>", "/F2 Do");
+    pdf.setStream(12, "/Type /XObject /Subtype /Form /BBox [0 0 10 10] /Resources << /XObject << /F1 11 0 R /Im 13 0 R >> >>", "/F1 Do /Im Do");
+    pdf.setStream(13, "/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8", QByteArray(1, '\0'));
+    pdf.set(14, "<< /Type /Font /Subtype /Type3 /FontBBox [0 0 1 1] /FontMatrix [1 0 0 1 0 0] /CharProcs << >> /Encoding << /Differences [] >> /FirstChar 0 /LastChar 0 /Widths [0] /Resources << /XObject << /F2 12 0 R >> >> >>");
+    pdf.setStream(15, "/PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 1 1] /XStep 1 /YStep 1 /Resources << >>", "0 0 1 1 re f");
+    pdf.set(21, "<< /PatternType 2 /Shading << /ShadingType 2 /ColorSpace /DeviceGray /Coords [0 0 1 0] /Function << /FunctionType 2 /Domain [0 1] /N 1 >> >> >>");
+    pdf.set(16, "<< /Type /ExtGState /SMask << /S /Luminosity /G 17 0 R >> >>");
+    pdf.setStream(17, "/Type /XObject /Subtype /Form /BBox [0 0 10 10] /Group << /S /Transparency >> /Resources << >>", "0 0 1 1 re f");
+    pdf.set(18, "<< /Type /Annot /Subtype /Square /Rect [0 0 10 10] /AP << /N 19 0 R /D << /On 19 0 R /Off 20 0 R >> >> >>");
+    pdf.setStream(19, "/Type /XObject /Subtype /Form /BBox [0 0 10 10] /Resources << /XObject << /F1 11 0 R >> >>", "/F1 Do");
+    pdf.setStream(20, "/Type /XObject /Subtype /Form /BBox [0 0 10 10]", "0 0 1 1 re f");
+    const PDFDocument document = pdf.read();
+
+    QElapsedTimer timer;
+    timer.start();
+    const PDFResourceWalkResult result = PDFResourceWalk::walk(&document, { 0, 1, 1 }, PDFResourceWalk::Options(), nullptr);
+    QVERIFY(timer.elapsed() < WalkTestHelper::getTimeLimit());
+    QVERIFY(!result.isLimitReached);
+    QVERIFY(!result.isCanceled);
+
+    // The two pages, the forms 11 and 12, the Type 3 font, the tiling pattern (the shading pattern 21 and
+    // the image 13 own no resources), the soft mask group, the two appearance streams: each once
+    using H = ResourceWalkTestHelper;
+    QCOMPARE(result.nodes.size(), size_t(9));
+    QCOMPARE(result.pages.size(), size_t(2));
+    QCOMPARE(H::find(result, 3)->kind, PDFResourceOwnerKind::Page);
+    QCOMPARE(H::find(result, 4)->kind, PDFResourceOwnerKind::Page);
+    QCOMPARE(H::find(result, 11)->kind, PDFResourceOwnerKind::Form);
+    QCOMPARE(H::find(result, 12)->kind, PDFResourceOwnerKind::Form);
+    QCOMPARE(H::find(result, 14)->kind, PDFResourceOwnerKind::Type3Font);
+    QCOMPARE(H::find(result, 15)->kind, PDFResourceOwnerKind::Pattern);
+    QCOMPARE(H::find(result, 17)->kind, PDFResourceOwnerKind::SoftMaskGroup);
+    QCOMPARE(H::find(result, 19)->kind, PDFResourceOwnerKind::AppearanceStream);
+    QCOMPARE(H::find(result, 20)->kind, PDFResourceOwnerKind::AppearanceStream);
+    QVERIFY(!H::find(result, 13));
+    QVERIFY(!H::find(result, 21));
+    QCOMPARE(H::find(result, 19)->annotation, PDFObjectReference(18, 0));
+    QVERIFY(H::find(result, 20)->resources.isNull());
+
+    // The breadth first walk: a form of the page is at depth 1, its form at 2; the first page reached them
+    QCOMPARE(H::find(result, 11)->depth, 1);
+    QCOMPARE(H::find(result, 12)->depth, 2);
+    QCOMPARE(H::find(result, 11)->pageIndex, PDFInteger(0));
+    QCOMPARE(H::find(result, 19)->pageIndex, PDFInteger(1));
+
+    // Every path is an edge: the form 12 has two parents (11 and the font 14), the cycle 12 -> 11 is an edge too
+    size_t index11 = 0;
+    size_t index12 = 0;
+    size_t index14 = 0;
+    H::find(result, 11, &index11);
+    H::find(result, 12, &index12);
+    H::find(result, 14, &index14);
+    const std::vector<size_t>& children12 = result.nodes[index12].children;
+    QVERIFY(std::find(children12.cbegin(), children12.cend(), index11) != children12.cend());
+    const std::vector<size_t>& children14 = result.nodes[index14].children;
+    QVERIFY(std::find(children14.cbegin(), children14.cend(), index12) != children14.cend());
+
+    // The pages, which use a node: both pages share the dictionary of the resources; the appearance stream
+    // only the second one - and through it the form 11 again
+    QCOMPARE(H::pagesOf(result, 12), std::vector<PDFInteger>({ 0, 1 }));
+    QCOMPARE(H::pagesOf(result, 19), std::vector<PDFInteger>({ 1 }));
+    QCOMPARE(H::pagesOf(result, 20), std::vector<PDFInteger>({ 1 }));
+
+    // Only the first page: the appearance streams of the second one are not walked
+    const PDFResourceWalkResult first = PDFResourceWalk::walk(&document, { 0 }, PDFResourceWalk::Options(), nullptr);
+    QCOMPARE(first.nodes.size(), size_t(6));
+    QVERIFY(!H::find(first, 19));
+
+    // Without the annotations
+    PDFResourceWalk::Options options;
+    options.includeAnnotations = false;
+    QCOMPARE(PDFResourceWalk::walk(&document, { 0, 1 }, options, nullptr).nodes.size(), size_t(7));
+}
+
+void ObjectWalkTest::resourceWalkLimits()
+{
+    // A chain of 300 nested forms: the depth limit stops the walk and says so (never a recursion of the
+    // caller - the walk is iterative); 2^40 paths of shared forms (each form lists the next one twice) are
+    // walked in linear time; the cancellation stops the walk
+    WalkTestPdf pdf = WalkTestPdf::createPages(1);
+    pdf.set(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Resources << /XObject << /F 100 0 R >> >> >>");
+    constexpr int chainLength = 300;
+    for (int i = 0; i < chainLength; ++i)
+    {
+        const QByteArray next = i + 1 < chainLength ? "/Resources << /XObject << /F " + QByteArray::number(101 + i) + " 0 R >> >>" : QByteArray();
+        pdf.setStream(100 + i, "/Type /XObject /Subtype /Form /BBox [0 0 1 1] " + next, "0 0 1 1 re f");
+    }
+    const PDFDocument document = pdf.read();
+
+    const PDFResourceWalkResult limited = PDFResourceWalk::walk(&document, { 0 }, PDFResourceWalk::Options(), nullptr);
+    QVERIFY(limited.isLimitReached);
+    QCOMPARE(limited.nodes.size(), size_t(1 + PDFObjectWalk::DEFAULT_MAXIMUM_DEPTH));
+
+    PDFResourceWalk::Options deep;
+    deep.maximumDepth = chainLength + 1;
+    const PDFResourceWalkResult complete = PDFResourceWalk::walk(&document, { 0 }, deep, nullptr);
+    QVERIFY(!complete.isLimitReached);
+    QCOMPARE(complete.nodes.size(), size_t(1 + chainLength));
+
+    // The budget of the nodes
+    PDFResourceWalk::Options budget;
+    budget.maximumNodes = 10;
+    const PDFResourceWalkResult small = PDFResourceWalk::walk(&document, { 0 }, budget, nullptr);
+    QVERIFY(small.isLimitReached);
+    QCOMPARE(small.nodes.size(), size_t(10));
+
+    // Shared forms: 40 levels, each form draws the next one by two names
+    WalkTestPdf shared = WalkTestPdf::createPages(1);
+    shared.set(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Resources << /XObject << /F 200 0 R >> >> >>");
+    constexpr int levels = 40;
+    for (int i = 0; i <= levels; ++i)
+    {
+        const QByteArray next = QByteArray::number(201 + i) + " 0 R";
+        const QByteArray resources = i < levels ? "/Resources << /XObject << /A " + next + " /B " + next + " >> >>" : QByteArray();
+        shared.setStream(200 + i, "/Type /XObject /Subtype /Form /BBox [0 0 1 1] " + resources, "0 0 1 1 re f");
+    }
+    const PDFDocument sharedDocument = shared.read();
+    QElapsedTimer timer;
+    timer.start();
+    const PDFResourceWalkResult sharedResult = PDFResourceWalk::walk(&sharedDocument, { 0 }, PDFResourceWalk::Options(), nullptr);
+    QVERIFY(timer.elapsed() < WalkTestHelper::getTimeLimit());
+    QCOMPARE(sharedResult.nodes.size(), size_t(1 + levels + 1));
+    QCOMPARE(ResourceWalkTestHelper::pagesOf(sharedResult, 200 + levels), std::vector<PDFInteger>({ 0 }));
+
+    // Canceled: the pages are entered, their resources are not read
+    const ResourceWalkTestHelper::Canceled canceled;
+    const PDFResourceWalkResult stopped = PDFResourceWalk::walk(&document, { 0 }, PDFResourceWalk::Options(), &canceled);
+    QVERIFY(stopped.isCanceled);
+    QCOMPARE(stopped.nodes.size(), size_t(1));
+}
+
+void ObjectWalkTest::resourceWalkHostile()
+{
+    // Wrong types are skipped, never an error: /Resources a number, /XObject an array, a form, which is a
+    // dictionary (not a stream), a reference to nothing, /SMask /None, /AP a name; pages out of range and an
+    // empty document give nothing
+    WalkTestPdf pdf;
+    pdf.set(1, "<< /Type /Catalog /Pages 2 0 R >>");
+    pdf.set(2, "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>");
+    pdf.set(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Resources 5 /Annots [7 0 R 99 0 R] >>");
+    pdf.set(4, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Resources << /XObject [1 2] /Font << /F 98 0 R /G 6 0 R >> /ExtGState << /S << /SMask /None >> >> /Pattern << /P 6 0 R >> >> >>");
+    pdf.set(6, "<< /Type /XObject /Subtype /Form /PatternType 1 >>");
+    pdf.set(7, "<< /Type /Annot /Subtype /Square /Rect [0 0 1 1] /AP /N >>");
+    const PDFDocument document = pdf.read();
+
+    const PDFResourceWalkResult result = PDFResourceWalk::walk(&document, { -1, 0, 1, 2, 1000 }, PDFResourceWalk::Options(), nullptr);
+    QVERIFY(!result.isLimitReached);
+    QCOMPARE(result.pages.size(), size_t(2));
+
+    // The pattern 6 is a dictionary with /PatternType 1: an owner of resources (a pattern without a stream
+    // is damaged, its /Resources are read as they are)
+    QCOMPARE(result.nodes.size(), size_t(3));
+    QCOMPARE(ResourceWalkTestHelper::find(result, 6)->kind, PDFResourceOwnerKind::Pattern);
+
+    QCOMPARE(PDFResourceWalk::walk(nullptr, { 0 }, PDFResourceWalk::Options(), nullptr).nodes.size(), size_t(0));
+    const PDFDocument empty = WalkTestPdf::createPages(0).read();
+    QCOMPARE(PDFResourceWalk::walk(&empty, { 0 }, PDFResourceWalk::Options(), nullptr).nodes.size(), size_t(0));
+}
+
+void ObjectWalkTest::resourceWalkSharedContainers()
+{
+    // Review RS7CORE: a resource dictionary shared by its owners. (1) Two Type 3 fonts written directly into
+    // a shared /Font dictionary (9.6.4: a font dictionary may be direct), whose /Resources lead back to that
+    // dictionary: each direct font is one owner (an object of the document, as a referenced one) - a node
+    // for each reading of its container doubled the nodes with each level up to the budget. Both pages share
+    // the resources: 2 pages + 2 fonts, each font reached from both pages, every edge kept.
+    WalkTestPdf pdf;
+    pdf.set(1, "<< /Type /Catalog /Pages 2 0 R >>");
+    pdf.set(2, "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>");
+    pdf.set(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Resources 10 0 R >>");
+    pdf.set(4, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Resources 10 0 R >>");
+    pdf.set(10, "<< /Font 11 0 R >>");
+    const QByteArray type3 = "/Subtype /Type3 /FontBBox [0 0 1 1] /FontMatrix [1 0 0 1 0 0] /CharProcs << >> /Encoding << /Differences [] >> /FirstChar 0 /LastChar 0 /Widths [0] /Resources 10 0 R";
+    pdf.set(11, "<< /A << " + type3 + " >> /B << " + type3 + " >> >>");
+    const PDFDocument document = pdf.read();
+
+    // A small budget: the doubling would spend it (and say so) in moments
+    PDFResourceWalk::Options options;
+    options.maximumNodes = 1 << 16;
+    const PDFResourceWalkResult result = PDFResourceWalk::walk(&document, { 0, 1 }, options, nullptr);
+    QVERIFY(!result.isLimitReached);
+    QCOMPARE(result.nodes.size(), size_t(4));
+    std::vector<size_t> fonts;
+    for (size_t i = 0; i < result.nodes.size(); ++i)
+    {
+        if (result.nodes[i].kind == PDFResourceOwnerKind::Type3Font)
+        {
+            QVERIFY(!result.nodes[i].reference.isValid());
+            fonts.push_back(i);
+        }
+    }
+    QCOMPARE(fonts.size(), size_t(2));
+    for (const size_t font : fonts)
+    {
+        // Each font draws by the shared dictionary: an edge to both fonts (itself included)
+        std::vector<size_t> children = result.nodes[font].children;
+        std::sort(children.begin(), children.end());
+        QCOMPARE(children, fonts);
+        QCOMPARE(result.getPageIndices(font), std::vector<PDFInteger>({ 0, 1 }));
+    }
+
+    // (2) N forms sharing one resource dictionary, which lists all of them: N + 1 owners, (N + 1) * N edges;
+    // the edges have the budget of the nodes (N * M edges of a file of a few megabytes are billions)
+    constexpr int formCount = 200;
+    WalkTestPdf shared = WalkTestPdf::createPages(1);
+    shared.set(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Resources 20 0 R >>");
+    QByteArray xObjects;
+    for (int i = 0; i < formCount; ++i)
+    {
+        xObjects += "/X" + QByteArray::number(i) + " " + QByteArray::number(100 + i) + " 0 R ";
+        shared.setStream(100 + i, "/Type /XObject /Subtype /Form /BBox [0 0 1 1] /Resources 20 0 R", "0 0 1 1 re f");
+    }
+    shared.set(20, "<< /XObject << " + xObjects + " >> >>");
+    const PDFDocument sharedDocument = shared.read();
+
+    auto countEdges = [](const PDFResourceWalkResult& walk)
+    {
+        size_t count = 0;
+        for (const PDFResourceWalkNode& node : walk.nodes)
+        {
+            count += node.children.size();
+        }
+        return count;
+    };
+
+    const PDFResourceWalkResult complete = PDFResourceWalk::walk(&sharedDocument, { 0 }, PDFResourceWalk::Options(), nullptr);
+    QVERIFY(!complete.isLimitReached);
+    QCOMPARE(complete.nodes.size(), size_t(formCount + 1));
+    QCOMPARE(countEdges(complete), size_t(formCount + 1) * size_t(formCount));
+
+    PDFResourceWalk::Options budget;
+    budget.maximumNodes = 1000;
+    const PDFResourceWalkResult limited = PDFResourceWalk::walk(&sharedDocument, { 0 }, budget, nullptr);
+    QVERIFY(limited.isLimitReached);
+    QCOMPARE(limited.nodes.size(), size_t(formCount + 1));
+    QVERIFY(countEdges(limited) <= size_t(budget.maximumNodes));
 }
 
 QTEST_MAIN(ObjectWalkTest)

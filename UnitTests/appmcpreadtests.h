@@ -2724,8 +2724,9 @@ public:
         QVERIFY(fixture.startServer());
         pdf::PDFAppDocumentTab* tab = openReady(fixture, makeSample(fixture.folder(), QStringLiteral("bridge.pdf"), 3));
         QVERIFY(tab);
-        const std::shared_ptr<pdftest::TestDocumentTool> tool = std::make_shared<pdftest::TestDocumentTool>();
-        pdf::PDFDocumentToolRegistry::registerTool(tool);
+        // The test tool alone in Review & Inspect (R7-19 of step 7: review.statistics is a built-in tool)
+        const pdftest::TestDocumentToolRegistration registration;
+        QVERIFY(registration.isRegistered());
         fixture.host()->checkToolRegistry();
 
         for (pdftest::McpTestEra era : { pdftest::McpTestEra::Modern, pdftest::McpTestEra::Legacy20251125 })
@@ -2747,7 +2748,6 @@ public:
                                                                                                     { QStringLiteral("statistics"), json(QStringLiteral(R"({"mode":"count"})")) } }));
             QVERIFY2(isHttpSuccess(response), QJsonDocument(response).toJson(QJsonDocument::Compact).left(500).constData());
         }
-        pdf::PDFDocumentToolRegistry::unregisterTool(QString::fromLatin1(pdftest::TestDocumentTool::TOOL_ID));
     }
 
     static void deletionMatrix()

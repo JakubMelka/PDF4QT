@@ -26,20 +26,21 @@
 
 #include "pdfcatalog.h"
 #include "pdfdocumentbuilder.h"
+#include "pdfdocumentreport.h"
 #include "pdfencoding.h"
 #include "pdfexception.h"
 #include "pdffont.h"
+#include "pdfoperationcontrol.h"
 #include "pdfsecurityhandler.h"
 
 #include <QDir>
 #include <QFileInfo>
 #include <QLocale>
-#include <QPageSize>
-#include <QStringDecoder>
 #include <QXmlStreamReader>
 #include <QXmlStreamWriter>
 
 #include <algorithm>
+#include <numeric>
 #include <set>
 #include <tuple>
 
@@ -64,6 +65,36 @@ public:
         result.infoKey = result.value == value ? infoKey : QByteArray();
         result.objectName = QString::fromLatin1(objectName);
         return result;
+    }
+
+    /// A row of a key of the Info dictionary read by the core (R7-5: one implementation of the data):
+    /// editable, when \p isEditable and the shown value is the whole value of the document
+    static PDFAppPropertyItem infoItem(const PDFDocumentReportBasicInformation& information, const char* key, const QString& title, const char* objectName, bool isEditable)
+    {
+        const PDFDocumentReportBasicInformation::InfoEntry* entry = information.findInfo(QByteArray(key));
+        PDFAppPropertyItem result;
+        result.key = title;
+        result.value = entry ? (entry->dateTime.isValid() ? PDFAppDocumentPropertiesData::formatDateTime(entry->dateTime) : entry->value) : QString();
+        result.infoKey = isEditable && (!entry || !entry->isShortened) ? QByteArray(key) : QByteArray();
+        result.objectName = QString::fromLatin1(objectName);
+        return result;
+    }
+
+    /// The permission is granted by the data of the core (always without a document)
+    static bool isAllowed(const PDFDocument* document, const PDFDocumentReportBasicInformation& information, PDFSecurityHandler::Permission permission)
+    {
+        if (!document)
+        {
+            return true;
+        }
+        for (const auto& item : information.permissions)
+        {
+            if (item.first == permission)
+            {
+                return item.second;
+            }
+        }
+        return false;
     }
 
     static QString yesNo(bool value)
@@ -102,13 +133,6 @@ public:
     static QString formatPaperSize(const QSizeF& size)
     {
         return PDFAppDocumentPropertiesData::tr("%1 × %2 mm").arg(formatMillimeters(size.width()), formatMillimeters(size.height()));
-    }
-
-    /// The permission is granted (always without a document, or for a document, which is
-    /// not encrypted; the shared check of the new application - the table of revision 2 too)
-    static bool isAllowed(const PDFDocument* document, PDFSecurityHandler::Permission permission)
-    {
-        return !document || PDFAppDocumentPermissions::isAllowed(document, permission);
     }
 
     /// Sets the message of a failed validation. \returns false
@@ -218,19 +242,6 @@ public:
         return parts.join(QStringLiteral(", "));
     }
 
-    /// Text of a decoded metadata packet (BOM of UTF-16 / UTF-8, UTF-8 otherwise)
-    static QString decodeMetadata(const QByteArray& data)
-    {
-        const std::optional<QStringConverter::Encoding> encoding = QStringConverter::encodingForData(data);
-        QStringDecoder decoder(encoding.value_or(QStringConverter::Utf8), QStringConverter::Flag::Stateless);
-        QString text = decoder.decode(data);
-        if (text.startsWith(QChar(0xFEFF)))
-        {
-            text.remove(0, 1);
-        }
-        return text;
-    }
-
     static void writeAltText(QXmlStreamWriter& writer, const QString& element, const QString& text)
     {
         writer.writeStartElement(element);
@@ -246,120 +257,6 @@ public:
     static QString isoDate(const QDateTime& dateTime)
     {
         return dateTime.toOffsetFromUtc(dateTime.offsetFromUtc()).toString(Qt::ISODate);
-    }
-
-    /// Name of a font without the tag of a subset ("ABCDEF+Name"); \p isSubset is set
-    static QString fontName(const QByteArray& name, bool* isSubset)
-    {
-        QString text = PDFAppDocumentPropertiesData::sanitize(QString::fromUtf8(name.left(512)));
-        *isSubset = false;
-        if (text.size() > 7 && text.at(6) == QLatin1Char('+'))
-        {
-            bool isTag = true;
-            for (int i = 0; i < 6; ++i)
-            {
-                isTag = isTag && text.at(i) >= QLatin1Char('A') && text.at(i) <= QLatin1Char('Z');
-            }
-            if (isTag)
-            {
-                *isSubset = true;
-                text = text.mid(7);
-            }
-        }
-        return text;
-    }
-
-    /// Scans the fonts of the resources (and of the nested form XObjects)
-    static void scanResources(const PDFDocument* document, const PDFObject& resourcesObject, int depth, std::set<PDFObjectReference>& visitedFonts,
-                              std::set<PDFObjectReference>& visitedForms, std::vector<PDFAppFontInfo>& fonts)
-    {
-        if (depth > PDFAppDocumentFontScanTask::MAXIMUM_DEPTH || int(fonts.size()) >= PDFAppDocumentFontScanTask::MAXIMUM_FONTS)
-        {
-            return;
-        }
-
-        const PDFDictionary* resources = document->getDictionaryFromObject(resourcesObject);
-        if (!resources)
-        {
-            return;
-        }
-
-        if (const PDFDictionary* fontsDictionary = document->getDictionaryFromObject(resources->get("Font")))
-        {
-            for (size_t i = 0; i < fontsDictionary->getCount() && int(fonts.size()) < PDFAppDocumentFontScanTask::MAXIMUM_FONTS; ++i)
-            {
-                const PDFObject& object = fontsDictionary->getValue(i);
-                if (object.isReference())
-                {
-                    if (visitedFonts.count(object.getReference()))
-                    {
-                        continue;
-                    }
-                    visitedFonts.insert(object.getReference());
-                }
-
-                try
-                {
-                    const QByteArray key = fontsDictionary->getKey(i).getString();
-                    PDFFontPointer font = PDFFont::createFont(object, key, document);
-                    if (!font)
-                    {
-                        continue;
-                    }
-
-                    const FontDescriptor* descriptor = font->getFontDescriptor();
-                    const FontType type = font->getFontType();
-
-                    PDFAppFontInfo info;
-                    info.name = fontName(descriptor->fontName, &info.isSubset);
-                    if (info.name.isEmpty())
-                    {
-                        // A font without a descriptor (a standard font, a Type 3 font): its base font, or its key
-                        const PDFDictionary* fontDictionary = document->getDictionaryFromObject(object);
-                        const PDFObject& baseFont = fontDictionary ? document->getObject(fontDictionary->get("BaseFont")) : PDFObject();
-                        info.name = fontName(baseFont.isName() ? baseFont.getString() : key, &info.isSubset);
-                    }
-                    info.family = PDFAppDocumentPropertiesData::sanitize(QString::fromUtf8(descriptor->fontFamily.left(512)));
-                    info.type = PDFAppDocumentPropertiesData::getFontTypeText(int(type));
-                    info.isEmbedded = type == FontType::Type3 || descriptor->isEmbedded();
-                    fonts.push_back(std::move(info));
-                }
-                catch (const PDFException&)
-                {
-                    // A damaged font is left out
-                }
-            }
-        }
-
-        // Fonts of the form XObjects
-        if (const PDFDictionary* xobjects = document->getDictionaryFromObject(resources->get("XObject")))
-        {
-            for (size_t i = 0; i < xobjects->getCount(); ++i)
-            {
-                const PDFObject& object = xobjects->getValue(i);
-                if (object.isReference())
-                {
-                    if (visitedForms.count(object.getReference()))
-                    {
-                        continue;
-                    }
-                    visitedForms.insert(object.getReference());
-                }
-
-                const PDFObject& dereferenced = document->getObject(object);
-                if (!dereferenced.isStream())
-                {
-                    continue;
-                }
-
-                const PDFDictionary* dictionary = dereferenced.getStream()->getDictionary();
-                const PDFObject& subtype = document->getObject(dictionary->get("Subtype"));
-                if (subtype.isName() && subtype.getString() == "Form")
-                {
-                    scanResources(document, dictionary->get("Resources"), depth + 1, visitedFonts, visitedForms, fonts);
-                }
-            }
-        }
     }
 
     static bool isFontBefore(const PDFAppFontInfo& left, const PDFAppFontInfo& right)
@@ -383,6 +280,26 @@ public:
     }
 };
 
+/// The cancellation flag of the scan of the fonts as an operation control of the core (a thread of
+/// QtConcurrent reads it; the flag is shared by the page and the task)
+class PDFAppDocumentFontScanControl : public PDFOperationControl
+{
+public:
+    explicit PDFAppDocumentFontScanControl(const std::atomic_bool* cancel) :
+        m_cancel(cancel)
+    {
+
+    }
+
+    virtual bool isOperationCanceled() const override
+    {
+        return m_cancel && m_cancel->load();
+    }
+
+private:
+    const std::atomic_bool* m_cancel;
+};
+
 QString PDFAppFontInfo::getStatusText() const
 {
     if (!isEmbedded)
@@ -394,17 +311,8 @@ QString PDFAppFontInfo::getStatusText() const
 
 QString PDFAppDocumentPropertiesData::getPaperFormatName(const QSizeF& sizeMM)
 {
-    if (!(sizeMM.width() > 0.0) || !(sizeMM.height() > 0.0) || !qIsFinite(sizeMM.width()) || !qIsFinite(sizeMM.height()))
-    {
-        return QString();
-    }
-
-    const QPageSize::PageSizeId id = QPageSize::id(sizeMM, QPageSize::Millimeter, QPageSize::FuzzyOrientationMatch);
-    if (id == QPageSize::Custom)
-    {
-        return QString();
-    }
-    return QPageSize::name(id);
+    // R7-5: the one implementation of the core (Document Report, PdfTool info)
+    return PDFDocumentReport::getPaperFormatName(sizeMM);
 }
 
 QList<QByteArray> PDFAppDocumentPropertiesData::getEditableInfoKeys()
@@ -419,20 +327,9 @@ QString PDFAppDocumentPropertiesData::getEmptyValueText()
 
 QString PDFAppDocumentPropertiesData::sanitize(const QString& text)
 {
-    QString result = text.left(MAXIMUM_VALUE_LENGTH);
-    for (QChar& character : result)
-    {
-        // Line breaks and other control characters of a value of one line
-        if (character.category() == QChar::Other_Control || character == QChar::LineSeparator || character == QChar::ParagraphSeparator)
-        {
-            character = QLatin1Char(' ');
-        }
-    }
-    if (text.size() > MAXIMUM_VALUE_LENGTH)
-    {
-        result += QStringLiteral("…");
-    }
-    return result;
+    // R7-5: the one rule of the core (the same limit, MAXIMUM_VALUE_LENGTH)
+    static_assert(MAXIMUM_VALUE_LENGTH == PDFDocumentReport::MAXIMUM_VALUE_LENGTH);
+    return PDFDocumentReport::sanitize(text);
 }
 
 QString PDFAppDocumentPropertiesData::formatDateTime(const QDateTime& dateTime)
@@ -476,7 +373,9 @@ std::vector<PDFAppPropertyGroup> PDFAppDocumentPropertiesData::createGeneralGrou
         return groups;
     }
 
-    const PDFDocumentInfo* info = document->getInfo();
+    // R7-5: the data of the core (Document Report, MCP, PdfTool info), the texts of the page here; the
+    // parts, which parse the form and the XMP, are not read in the thread of the user interface
+    const PDFDocumentReportBasicInformation information = PDFDocumentReport::getBasicInformation(document, { });
     const PDFCatalog* catalog = document->getCatalog();
     const QLocale locale = PDFAppLocale::getUiLocale();
 
@@ -484,15 +383,15 @@ std::vector<PDFAppPropertyGroup> PDFAppDocumentPropertiesData::createGeneralGrou
     PDFAppPropertyGroup description;
     description.id = QStringLiteral("description");
     description.title = tr("Description");
-    description.items.push_back(Helper::item(tr("Title"), info->title, "property-title", QByteArrayLiteral("Title")));
-    description.items.push_back(Helper::item(tr("Subject"), info->subject, "property-subject", QByteArrayLiteral("Subject")));
-    description.items.push_back(Helper::item(tr("Author"), info->author, "property-author", QByteArrayLiteral("Author")));
-    description.items.push_back(Helper::item(tr("Keywords"), info->keywords, "property-keywords", QByteArrayLiteral("Keywords")));
-    description.items.push_back(Helper::item(tr("Creator"), info->creator, "property-creator"));
-    description.items.push_back(Helper::item(tr("Producer"), info->producer, "property-producer"));
-    description.items.push_back(Helper::item(tr("PDF version"), QString::fromLatin1(document->getVersion().left(16)), "property-pdf-version"));
-    description.items.push_back(Helper::item(tr("Created"), formatDateTime(info->creationDate), "property-created"));
-    description.items.push_back(Helper::item(tr("Modified"), formatDateTime(info->modifiedDate), "property-modified"));
+    description.items.push_back(Helper::infoItem(information, "Title", tr("Title"), "property-title", true));
+    description.items.push_back(Helper::infoItem(information, "Subject", tr("Subject"), "property-subject", true));
+    description.items.push_back(Helper::infoItem(information, "Author", tr("Author"), "property-author", true));
+    description.items.push_back(Helper::infoItem(information, "Keywords", tr("Keywords"), "property-keywords", true));
+    description.items.push_back(Helper::infoItem(information, "Creator", tr("Creator"), "property-creator", false));
+    description.items.push_back(Helper::infoItem(information, "Producer", tr("Producer"), "property-producer", false));
+    description.items.push_back(Helper::item(tr("PDF version"), information.version, "property-pdf-version"));
+    description.items.push_back(Helper::infoItem(information, "CreationDate", tr("Created"), "property-created", false));
+    description.items.push_back(Helper::infoItem(information, "ModDate", tr("Modified"), "property-modified", false));
     groups.push_back(std::move(description));
 
     // Content: pages, the paper of the first page (various sizes, when the pages differ)
@@ -530,18 +429,15 @@ std::vector<PDFAppPropertyGroup> PDFAppDocumentPropertiesData::createGeneralGrou
     }
     content.items.push_back(Helper::item(tr("Paper size"), paperSize, "property-paper-size"));
 
-    QString trapped;
-    switch (info->trapped)
+    // /Trapped (14.11.6, Table 349): absent is Unknown
+    QString trapped = tr("Unknown");
+    if (information.trapped == "True")
     {
-        case PDFDocumentInfo::Trapped::True:
-            trapped = tr("Yes");
-            break;
-        case PDFDocumentInfo::Trapped::False:
-            trapped = tr("No");
-            break;
-        case PDFDocumentInfo::Trapped::Unknown:
-            trapped = tr("Unknown");
-            break;
+        trapped = tr("Yes");
+    }
+    else if (information.trapped == "False")
+    {
+        trapped = tr("No");
     }
     content.items.push_back(Helper::item(tr("Trapped"), trapped, "property-trapped"));
     groups.push_back(std::move(content));
@@ -572,26 +468,27 @@ std::vector<PDFAppPropertyGroup> PDFAppDocumentPropertiesData::createGeneralGrou
     PDFAppPropertyGroup custom;
     custom.id = QStringLiteral("custom");
     custom.title = tr("Custom properties");
-    for (const auto& entry : info->extra)
+    for (const PDFDocumentReportBasicInformation::InfoEntry& entry : information.info)
     {
-        if (int(custom.items.size()) >= MAXIMUM_CUSTOM_PROPERTIES)
-        {
-            break;
-        }
-        if (entry.first.isEmpty() || entry.first.size() > 127)
+        if (!entry.isCustom || int(custom.items.size()) >= MAXIMUM_CUSTOM_PROPERTIES)
         {
             continue;
         }
 
-        const QVariant& value = entry.second;
-        if (value.typeId() == QMetaType::QDateTime)
+        PDFAppPropertyItem item;
+        item.key = Helper::keyText(entry.key);
+        item.objectName = QStringLiteral("property-custom");
+        if (entry.dateTime.isValid())
         {
-            custom.items.push_back(Helper::item(Helper::keyText(entry.first), formatDateTime(value.toDateTime()), "property-custom"));
+            item.value = formatDateTime(entry.dateTime);
         }
         else
         {
-            custom.items.push_back(Helper::item(Helper::keyText(entry.first), value.toString(), "property-custom", entry.first));
+            // A value, which the row cannot show whole, is read only (its edit would lose the rest)
+            item.value = entry.value;
+            item.infoKey = entry.isShortened ? QByteArray() : entry.key;
         }
+        custom.items.push_back(std::move(item));
     }
     if (!custom.items.empty())
     {
@@ -609,8 +506,9 @@ PDFAppPropertyGroup PDFAppDocumentPropertiesData::createEncryptionGroup(const PD
     group.id = QStringLiteral("encryption");
     group.title = tr("Encryption");
 
-    const PDFSecurityHandler* handler = document ? document->getStorage().getSecurityHandler() : nullptr;
-    const EncryptionMode mode = handler ? handler->getMode() : EncryptionMode::None;
+    // R7-5: the data of the core, the texts of the page
+    const PDFDocumentReportBasicInformation information = PDFDocumentReport::getBasicInformation(document, { });
+    const EncryptionMode mode = information.encryptionMode;
 
     QString encryption;
     switch (mode)
@@ -630,13 +528,13 @@ PDFAppPropertyGroup PDFAppDocumentPropertiesData::createEncryptionGroup(const PD
     }
     group.items.push_back(Helper::item(tr("Document encryption"), encryption, "property-document-encryption"));
 
-    if (mode == EncryptionMode::None || !handler)
+    if (mode == EncryptionMode::None)
     {
         return group;
     }
 
     QString authorization;
-    switch (handler->getAuthorizationResult())
+    switch (information.authorization)
     {
         case PDFSecurityHandler::AuthorizationResult::NoAuthorizationRequired:
             authorization = tr("Not required");
@@ -655,10 +553,10 @@ PDFAppPropertyGroup PDFAppDocumentPropertiesData::createEncryptionGroup(const PD
             break;
     }
     group.items.push_back(Helper::item(tr("Authorized as"), authorization, "property-authorized-as"));
-    group.items.push_back(Helper::item(tr("Metadata encrypted"), Helper::yesNo(handler->isMetadataEncrypted()), "property-metadata-encrypted"));
+    group.items.push_back(Helper::item(tr("Metadata encrypted"), Helper::yesNo(information.isMetadataEncrypted), "property-metadata-encrypted"));
 
     QString version;
-    switch (handler->getVersion())
+    switch (information.encryptionVersion)
     {
         case 1:
             version = tr("1 (RC4, 40 bit)");
@@ -676,7 +574,7 @@ PDFAppPropertyGroup PDFAppDocumentPropertiesData::createEncryptionGroup(const PD
             version = tr("5 (AES, 256 bit)");
             break;
         default:
-            version = QString::number(handler->getVersion());
+            version = QString::number(information.encryptionVersion);
             break;
     }
     group.items.push_back(Helper::item(tr("Version"), version, "property-version"));
@@ -705,17 +603,20 @@ std::vector<PDFAppPermissionItem> PDFAppDocumentPropertiesData::createPermission
 {
     using Permission = PDFSecurityHandler::Permission;
 
+    // R7-5: the permissions of the core (Table 22 with the table of revision 2, the owner has all of
+    // them - the rule of PDFAppDocumentPermissions); without a document everything is allowed
     using Helper = PDFAppDocumentPropertiesDataHelper;
 
+    const PDFDocumentReportBasicInformation information = PDFDocumentReport::getBasicInformation(document, { });
     std::vector<PDFAppPermissionItem> permissions;
-    permissions.push_back({ tr("Print (low resolution)"), Helper::isAllowed(document, Permission::PrintLowResolution) });
-    permissions.push_back({ tr("Print (high resolution)"), Helper::isAllowed(document, Permission::PrintHighResolution) });
-    permissions.push_back({ tr("Content extraction"), Helper::isAllowed(document, Permission::CopyContent) });
-    permissions.push_back({ tr("Content extraction (accessibility)"), Helper::isAllowed(document, Permission::Accessibility) });
-    permissions.push_back({ tr("Page assembling"), Helper::isAllowed(document, Permission::Assemble) });
-    permissions.push_back({ tr("Modify content"), Helper::isAllowed(document, Permission::Modify) });
-    permissions.push_back({ tr("Modify interactive items"), Helper::isAllowed(document, Permission::ModifyInteractiveItems) });
-    permissions.push_back({ tr("Fill form fields"), Helper::isAllowed(document, Permission::ModifyFormFields) });
+    permissions.push_back({ tr("Print (low resolution)"), Helper::isAllowed(document, information, Permission::PrintLowResolution) });
+    permissions.push_back({ tr("Print (high resolution)"), Helper::isAllowed(document, information, Permission::PrintHighResolution) });
+    permissions.push_back({ tr("Content extraction"), Helper::isAllowed(document, information, Permission::CopyContent) });
+    permissions.push_back({ tr("Content extraction (accessibility)"), Helper::isAllowed(document, information, Permission::Accessibility) });
+    permissions.push_back({ tr("Page assembling"), Helper::isAllowed(document, information, Permission::Assemble) });
+    permissions.push_back({ tr("Modify content"), Helper::isAllowed(document, information, Permission::Modify) });
+    permissions.push_back({ tr("Modify interactive items"), Helper::isAllowed(document, information, Permission::ModifyInteractiveItems) });
+    permissions.push_back({ tr("Fill form fields"), Helper::isAllowed(document, information, Permission::ModifyFormFields) });
     return permissions;
 }
 
@@ -758,51 +659,10 @@ std::vector<PDFAppPropertyGroup> PDFAppDocumentPropertiesData::createDisplayGrou
 
 QString PDFAppDocumentPropertiesData::getMetadata(const PDFDocument* document, bool* hasMetadata, QString* errorMessage)
 {
-    if (hasMetadata)
-    {
-        *hasMetadata = false;
-    }
-    if (errorMessage)
-    {
-        errorMessage->clear();
-    }
-    if (!document)
-    {
-        return QString();
-    }
-
-    const PDFObject& metadata = document->getObject(document->getCatalog()->getMetadata());
-    if (!metadata.isStream())
-    {
-        return QString();
-    }
-
-    if (hasMetadata)
-    {
-        *hasMetadata = true;
-    }
-
-    try
-    {
-        const QByteArray data = document->getDecodedStream(metadata.getStream());
-        if (data.size() > MAXIMUM_METADATA_SIZE)
-        {
-            if (errorMessage)
-            {
-                *errorMessage = tr("The metadata packet is too large to be shown (%1).").arg(PDFAppLocale::formatDataSize(data.size(), 1, QLocale::DataSizeTraditionalFormat));
-            }
-            return QString();
-        }
-        return PDFAppDocumentPropertiesDataHelper::decodeMetadata(data);
-    }
-    catch (const PDFException& exception)
-    {
-        if (errorMessage)
-        {
-            *errorMessage = tr("The metadata packet cannot be read: %1").arg(sanitize(exception.getMessage()));
-        }
-    }
-    return QString();
+    // R7-5: the one implementation of the core - decoded with the limit (Q7.18), a bomb is never
+    // decoded whole (it was decoded first and measured after)
+    static_assert(MAXIMUM_METADATA_SIZE == PDFDocumentReport::MAXIMUM_METADATA_SIZE);
+    return PDFDocumentReport::getMetadata(document, hasMetadata, errorMessage);
 }
 
 QByteArray PDFAppDocumentPropertiesData::createDefaultMetadata(const PDFDocument* document, const QDateTime& now)
@@ -1067,34 +927,35 @@ std::vector<PDFAppFontInfo> PDFAppDocumentFontScanTask::scan(const PDFDocument* 
     using Helper = PDFAppDocumentPropertiesDataHelper;
 
     std::vector<PDFAppFontInfo> fonts;
-    if (!document)
+    if (!document || (cancel && cancel->load()))
     {
         return fonts;
     }
 
-    std::set<PDFObjectReference> visitedFonts;
-    std::set<PDFObjectReference> visitedForms;
-    std::set<PDFObjectReference> visitedResources;
-    const PDFCatalog* catalog = document->getCatalog();
-    for (size_t i = 0; i < catalog->getPageCount(); ++i)
+    // K7.24, R7-5: the one walk of the core over the resources of all pages (forms, appearance streams,
+    // patterns, Type 3 fonts, soft masks; one visited set, a depth limit) - Document Report and PdfTool
+    // info-fonts read the same; the page shows the name without the tag of a subset
+    std::vector<PDFInteger> pageIndices(document->getCatalog()->getPageCount(), 0);
+    std::iota(pageIndices.begin(), pageIndices.end(), 0);
+    const PDFAppDocumentFontScanControl control(cancel);
+    for (const PDFDocumentReportFont& font : PDFDocumentReport::getFonts(document, pageIndices, false, &control))
     {
-        if (cancel && cancel->load())
+        if (int(fonts.size()) >= MAXIMUM_FONTS)
         {
-            return std::vector<PDFAppFontInfo>();
+            break;
         }
 
-        // Pages often share their resources: a shared dictionary is scanned once
-        const PDFObject& resources = catalog->getPage(i)->getResources();
-        if (resources.isReference())
-        {
-            if (visitedResources.count(resources.getReference()))
-            {
-                continue;
-            }
-            visitedResources.insert(resources.getReference());
-        }
-
-        Helper::scanResources(document, resources, 0, visitedFonts, visitedForms, fonts);
+        PDFAppFontInfo info;
+        info.name = font.isSubset ? font.name.mid(7) : font.name;
+        info.family = font.family;
+        info.type = PDFAppDocumentPropertiesData::getFontTypeText(int(font.fontType));
+        info.isEmbedded = font.isEmbedded;
+        info.isSubset = font.isSubset;
+        fonts.push_back(std::move(info));
+    }
+    if (control.isOperationCanceled())
+    {
+        return std::vector<PDFAppFontInfo>();
     }
 
     // Each font once (direct font dictionaries of more pages are the same font)

@@ -21,16 +21,24 @@
 // SOFTWARE.
 
 #include "pdftransparencyrenderer.h"
+#include "pdfannotation.h"
 #include "pdfdocument.h"
 #include "pdfcms.h"
 #include "pdfexecutionpolicy.h"
 #include "pdfimage.h"
+#include "pdfoperationcontrol.h"
+#include "pdfoutputpreviewanalyzer.h"
 #include "pdfpattern.h"
+#include "pdfresourcewalk.h"
 #include "pdfdbgheap.h"
 
 #include <QPainter>
+#include <QSet>
 #include <QtMath>
+
+#include <algorithm>
 #include <iterator>
+#include <numeric>
 
 namespace pdf
 {
@@ -58,6 +66,23 @@ void forEachTile(const QRect& rect, const QSize& tileSize, Callback&& callback)
 }   // namespace transparencyrenderer
 
 using namespace transparencyrenderer;
+
+/// Helpers of the transparency renderer (file local)
+class PDFTransparencyRendererHelper
+{
+public:
+    PDFTransparencyRendererHelper() = delete;
+
+    /// A printed annotation of this type without an appearance stream is a missing part of the printed
+    /// page: the printing of PDF4QT (PDFAnnotationManager, Target::Print) would draw it. A link and a
+    /// pop-up are not: without an appearance stream the printing draws nothing for them (a link only
+    /// highlights itself, when it is activated - ISO 32000-2, 12.5.6.5; a pop-up shows the text of its
+    /// parent on the screen - 12.5.6.14). Office programs write /F 4 (Print) on every hyperlink.
+    static bool isAppearanceMissingProblem(AnnotationType type)
+    {
+        return type != AnnotationType::Link && type != AnnotationType::Popup;
+    }
+};
 
 PDFFloatBitmap::PDFFloatBitmap() :
     m_width(0),
@@ -1060,6 +1085,7 @@ void PDFTransparencyRenderer::beginPaint(QSize pixelSize)
     m_originalProcessBitmap = PDFFloatBitmapWithColorSpace();
     m_transparencyGroupDataStack.clear();
     m_painterStateStack.push(PDFTransparencyPainterState());
+    m_initialGraphicState = *getGraphicState();
 
     // Initialize initial opaque soft mask
     PDFFloatBitmap initialSoftMaskBitmap;
@@ -1103,6 +1129,7 @@ void PDFTransparencyRenderer::beginPaint(QSize pixelSize)
     m_transparencyGroupDataStack.back().activeColorMask = m_settings.activeColorMask;
     m_transparencyGroupDataStack.back().transformSpotsToDevice = m_settings.flags.testFlag(PDFTransparencyRendererSettings::SeparationSimulation);
     m_transparencyGroupDataStack.back().saveOriginalImage = m_settings.flags.testFlag(PDFTransparencyRendererSettings::SaveOriginalProcessImage);
+    m_transparencyGroupDataStack.back().isPageGroup = true;
 }
 
 const PDFFloatBitmap& PDFTransparencyRenderer::endPaint()
@@ -2188,6 +2215,15 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
     Q_UNUSED(text);
     Q_ASSERT(path.fillRule() == fillRule);
 
+    // ISO 32000-2, 8.6.6.4: painting in the color space /None has no effect on the page (it is
+    // not converted to its alternate space, nothing is erased)
+    fill = fill && !isNoneColorSpace(getGraphicState()->getFillColorSpace());
+    stroke = stroke && !isNoneColorSpace(getGraphicState()->getStrokeColorSpace());
+    if (!fill && !stroke)
+    {
+        return;
+    }
+
     QTransform worldMatrix = getCurrentWorldMatrix();
 
     const PDFReal shapeStroking = getShapeStroking();
@@ -2215,6 +2251,7 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
         if (fillRect.isValid())
         {
             const PDFMappedColor& fillColor = getMappedFillColor();
+            const bool isNonZeroOverprint = isNonZeroOverprintAllowed(getGraphicState()->getFillColorSpace());
 
             forEachTile(fillRect, tileSize, [&](const QRect& tileRect)
             {
@@ -2244,7 +2281,7 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
                     }
                 }
 
-                m_drawBuffer.modify(tileRect, true, false);
+                m_drawBuffer.modify(tileRect, true, false, isNonZeroOverprint);
                 flushDrawBuffer();
             });
         }
@@ -2275,6 +2312,7 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
         if (strokeRect.isValid())
         {
             const PDFMappedColor& strokeColor = getMappedStrokeColor();
+            const bool isNonZeroOverprint = isNonZeroOverprintAllowed(getGraphicState()->getStrokeColorSpace());
 
             forEachTile(strokeRect, tileSize, [&](const QRect& tileRect)
             {
@@ -2304,7 +2342,7 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
                     }
                 }
 
-                m_drawBuffer.modify(tileRect, false, true);
+                m_drawBuffer.modify(tileRect, false, true, isNonZeroOverprint);
                 flushDrawBuffer();
             });
         }
@@ -2323,6 +2361,12 @@ bool PDFTransparencyRenderer::performPathPaintingUsingShading(const QPainterPath
 
     // Exactly one of stroke/fill must be true and other must be false
     Q_ASSERT(stroke != fill);
+
+    // 8.6.6.4: a shading in the color space /None has no effect
+    if (isNoneColorSpace(shadingPattern->getColorSpace()))
+    {
+        return true;
+    }
 
     QTransform worldMatrix = getCurrentWorldMatrix();
     QPainterPath worldPath = worldMatrix.map(path);
@@ -2438,7 +2482,8 @@ bool PDFTransparencyRenderer::performPathPaintingUsingShading(const QPainterPath
             }
         }
 
-        m_drawBuffer.modify(tileRect, fill, stroke);
+        // ISO 32000-2, 8.6.7: the nonzero overprint mode never applies to a shading
+        m_drawBuffer.modify(tileRect, fill, stroke, false);
         flushDrawBuffer();
     });
 
@@ -2594,6 +2639,22 @@ void PDFTransparencyRenderer::performEndTransparencyGroup(ProcessOrder order, co
         PDFTransparencyGroupPainterData sourceData = qMove(m_transparencyGroupDataStack.back());
         m_transparencyGroupDataStack.pop_back();
 
+        // B196 (plan of step 7 of phase 2): the separations are the inks of the process color
+        // space. A page group of another color space (/Group /CS /DeviceRGB) is converted to it,
+        // before its inks are filtered and measured - as the output device converts the page
+        // group to its native space (ISO 32000-2, 11.4.7: by RelativeColorimetric).
+        const bool isSeparationGroup = sourceData.isPageGroup && (sourceData.saveOriginalImage || sourceData.filterColorsUsingMask);
+        if (isSeparationGroup && m_processColorSpace && !sourceData.immediateBackdrop.getColorSpace()->equals(m_processColorSpace.data()))
+        {
+            sourceData.immediateBackdrop.convertToColorSpace(getCMS(), RenderingIntent::RelativeColorimetric, m_processColorSpace, this);
+        }
+
+        const bool isOriginalImageWithoutMask = m_settings.flags.testFlag(PDFTransparencyRendererSettings::OriginalProcessImageWithoutMask);
+        if (sourceData.saveOriginalImage && isOriginalImageWithoutMask)
+        {
+            m_originalProcessBitmap = sourceData.immediateBackdrop;
+        }
+
         // Filter inactive colors - clear all colors in immediate mask,
         // which are set to inactive.
         if (sourceData.filterColorsUsingMask)
@@ -2616,7 +2677,7 @@ void PDFTransparencyRenderer::performEndTransparencyGroup(ProcessOrder order, co
             }
         }
 
-        if (sourceData.saveOriginalImage)
+        if (sourceData.saveOriginalImage && !isOriginalImageWithoutMask)
         {
             m_originalProcessBitmap = sourceData.immediateBackdrop;
         }
@@ -2630,18 +2691,12 @@ void PDFTransparencyRenderer::performEndTransparencyGroup(ProcessOrder order, co
         PDFTransparencyGroupPainterData& targetData = m_transparencyGroupDataStack.back();
         sourceData.immediateBackdrop.convertToColorSpace(getCMS(), targetData.renderingIntent, targetData.blendColorSpace, this);
 
-        PDFOverprintMode overprintMode = getGraphicState()->getOverprintMode();
-        const bool useOverprint = overprintMode.overprintFilling || overprintMode.overprintStroking;
-
-        PDFFloatBitmap::OverprintMode selectedOverprintMode = PDFFloatBitmap::OverprintMode::NoOveprint;
-        if (useOverprint)
-        {
-            selectedOverprintMode = overprintMode.overprintMode == 0 ? PDFFloatBitmap::OverprintMode::Overprint_Mode_0
-                                                                     : PDFFloatBitmap::OverprintMode::Overprint_Mode_1;
-        }
-
+        // B211, R7-7: a group is no elementary object - the compatible overprinting applies only
+        // to fills, strokes, text, images and shadings (ISO 32000-2, 11.7.4.3); a group paints all
+        // its color components and is composited by its blend mode, never by the overprint and
+        // the overprint mode of the graphics state (Table 146, its last row; 11.7.4.5 NOTE 2)
         PDFFloatBitmap::blend(sourceData.immediateBackdrop, targetData.immediateBackdrop, *getBackdrop(), *getInitialBackdrop(), *sourceData.softMask.getSoftMask(),
-                              sourceData.alphaIsShape, sourceData.alphaFill, sourceData.blendMode, sourceData.group.knockout, selectedOverprintMode, getPaintRect());
+                              sourceData.alphaIsShape, sourceData.alphaFill, sourceData.blendMode, sourceData.group.knockout, PDFFloatBitmap::OverprintMode::NoOveprint, getPaintRect());
 
         // Create draw buffer
         PDFFloatBitmapWithColorSpace* backdrop = getImmediateBackdrop();
@@ -2674,6 +2729,13 @@ bool PDFTransparencyRenderer::performOriginalImagePainting(const PDFImage& image
 {
     Q_UNUSED(stream);
     Q_UNUSED(reference);
+
+    // 8.6.6.4: an image in the color space /None (or a stencil mask painted by it) has no effect
+    const bool isStencilMaskImage = image.getImageData().getMaskingType() == PDFImageData::MaskingType::ImageMask;
+    if (isNoneColorSpace(isStencilMaskImage ? getGraphicState()->getFillColorSpace() : image.getColorSpace().data()))
+    {
+        return true;
+    }
 
     PDFFloatBitmap texture = getImage(image);
 
@@ -2738,6 +2800,11 @@ bool PDFTransparencyRenderer::performOriginalImagePainting(const PDFImage& image
     const uint8_t colorChannelStart = format.getColorChannelIndexStart();
     const uint8_t colorChannelEnd = format.getColorChannelIndexEnd();
 
+    // ISO 32000-2, 8.6.7, Table 146: the nonzero overprint mode never applies to a sampled image;
+    // a stencil mask paints the current color of the graphics state (8.9.6.2), as a fill does
+    const bool isStencilMask = image.getImageData().getMaskingType() == PDFImageData::MaskingType::ImageMask;
+    const bool isNonZeroOverprint = isStencilMask && isNonZeroOverprintAllowed(getGraphicState()->getFillColorSpace());
+
     // Fill rect may be, or may not be valid. It depends on the painter path
     // and world matrix. Path can be translated outside of the paint area.
     if (fillRect.isValid())
@@ -2770,7 +2837,7 @@ bool PDFTransparencyRenderer::performOriginalImagePainting(const PDFImage& image
                 }
             }
 
-            m_drawBuffer.modify(tileRect, true, false);
+            m_drawBuffer.modify(tileRect, true, false, isNonZeroOverprint);
             flushDrawBuffer();
         });
     }
@@ -3111,11 +3178,15 @@ void PDFTransparencyRenderer::flushDrawBuffer()
         const bool useOverprint = (overprintMode.overprintFilling && m_drawBuffer.isContainsFilling()) ||
                                   (overprintMode.overprintStroking && m_drawBuffer.isContainsStroking());
 
+        // B211, R7-7: the overprint mode 1 only for the current color of a DeviceCMYK space in a
+        // DeviceCMYK group, never for an image or a shading (ISO 32000-2, 8.6.7, 11.7.4.3); in
+        // every other case the overprint selects the colorants of the source (the mode 0)
         PDFFloatBitmap::OverprintMode selectedOverprintMode = PDFFloatBitmap::OverprintMode::NoOveprint;
         if (useOverprint)
         {
-            selectedOverprintMode = overprintMode.overprintMode == 0 ? PDFFloatBitmap::OverprintMode::Overprint_Mode_0
-                                                                     : PDFFloatBitmap::OverprintMode::Overprint_Mode_1;
+            const bool isNonZeroOverprint = overprintMode.overprintMode != 0 && m_drawBuffer.isNonZeroOverprintAllowed();
+            selectedOverprintMode = isNonZeroOverprint ? PDFFloatBitmap::OverprintMode::Overprint_Mode_1
+                                                       : PDFFloatBitmap::OverprintMode::Overprint_Mode_0;
         }
 
         PDFFloatBitmap::blend(m_drawBuffer, *getImmediateBackdrop(), *getBackdrop(), *getInitialBackdrop(), *getPainterState()->softMask.getSoftMask(),
@@ -3125,6 +3196,236 @@ void PDFTransparencyRenderer::flushDrawBuffer()
 
         m_drawBuffer.clear();
     }
+}
+
+bool PDFTransparencyRenderer::isNoneColorSpace(const PDFAbstractColorSpace* colorSpace)
+{
+    if (!colorSpace)
+    {
+        return false;
+    }
+
+    switch (colorSpace->getColorSpace())
+    {
+        case PDFAbstractColorSpace::ColorSpace::Separation:
+        {
+            const PDFSeparationColorSpace* separationColorSpace = dynamic_cast<const PDFSeparationColorSpace*>(colorSpace);
+            return separationColorSpace && separationColorSpace->isNone();
+        }
+
+        case PDFAbstractColorSpace::ColorSpace::DeviceN:
+        {
+            const PDFDeviceNColorSpace* deviceNColorSpace = dynamic_cast<const PDFDeviceNColorSpace*>(colorSpace);
+            return deviceNColorSpace && deviceNColorSpace->isNone();
+        }
+
+        case PDFAbstractColorSpace::ColorSpace::Indexed:
+        {
+            const PDFIndexedColorSpace* indexedColorSpace = dynamic_cast<const PDFIndexedColorSpace*>(colorSpace);
+            return indexedColorSpace && isNoneColorSpace(indexedColorSpace->getBaseColorSpace().data());
+        }
+
+        default:
+            break;
+    }
+
+    return false;
+}
+
+bool PDFTransparencyRenderer::isNonZeroOverprintAllowed(const PDFAbstractColorSpace* sourceColorSpace) const
+{
+    const PDFColorSpacePointer& groupColorSpace = getBlendColorSpace();
+    return sourceColorSpace && groupColorSpace &&
+           sourceColorSpace->getColorSpace() == PDFAbstractColorSpace::ColorSpace::DeviceCMYK &&
+           groupColorSpace->getColorSpace() == PDFAbstractColorSpace::ColorSpace::DeviceCMYK;
+}
+
+void PDFTransparencyRenderer::reportRenderError(RenderErrorType type, QString message)
+{
+    if (m_annotationErrors)
+    {
+        m_annotationErrors->append(PDFRenderError(type, message));
+    }
+
+    BaseClass::reportRenderError(type, qMove(message));
+}
+
+void PDFTransparencyRenderer::reportRenderErrorOnce(RenderErrorType type, QString message)
+{
+    if (m_annotationErrors && !std::any_of(m_annotationErrors->cbegin(), m_annotationErrors->cend(), [&message](const PDFRenderError& error) { return error.message == message; }))
+    {
+        m_annotationErrors->append(PDFRenderError(type, message));
+    }
+
+    BaseClass::reportRenderErrorOnce(type, qMove(message));
+}
+
+QList<PDFRenderError> PDFTransparencyRenderer::processPrintedAnnotations()
+{
+    Q_ASSERT(m_active);
+
+    QList<PDFRenderError> errors;
+    const PDFDocument* document = getDocument();
+    const PDFPage* page = getPage();
+    if (!document || !page || page->getAnnotations().empty())
+    {
+        return errors;
+    }
+
+    // The errors, which the content streams of the appearances report through reportRenderError,
+    // go to the list (also an error reported once, which the contents of the page reported before).
+    // The errors, which the base class adds itself (the parser of a content stream: an unknown
+    // operator, a broken stream), are taken from getRenderErrors after the loop.
+    PDFTemporaryValueChange errorsGuard(&m_annotationErrors, &errors);
+
+    // The initial graphics state of the page (8.4.1, Table 51): nothing the contents left at
+    // their top level applies to the appearances. initializeProcessor sets the default colors.
+    PDFPageContentProcessorState initialState = m_initialGraphicState;
+    initialState.setStateFlags(PDFPageContentProcessorState::StateAll);
+    setGraphicsState(initialState);
+    initializeProcessor();
+    getPainterState()->clipPath = QPainterPath();
+    invalidateCachedItems();
+
+    bool isAppearanceMissing = false;
+    for (const PDFObjectReference annotationReference : page->getAnnotations())
+    {
+        if (isProcessingCanceled())
+        {
+            break;
+        }
+
+        try
+        {
+            PDFAnnotationPtr annotation = PDFAnnotation::parse(&document->getStorage(), annotationReference);
+            if (!annotation)
+            {
+                continue;
+            }
+
+            // 12.5.3, Table 167: Print and not Hidden; a reply is shown with its parent only
+            const PDFAnnotation::Flags flags = annotation->getEffectiveFlags();
+            if (flags.testFlag(PDFAnnotation::Hidden) || !flags.testFlag(PDFAnnotation::Print) || annotation->isReplyTo())
+            {
+                continue;
+            }
+
+            const PDFObjectReference optionalContent = annotation->getOptionalContent();
+            if (optionalContent.isValid() && isContentSuppressedByOC(optionalContent))
+            {
+                continue;
+            }
+
+            const PDFObject appearance = document->getObject(annotation->getAppearanceStreams().getAppearance(PDFAppeareanceStreams::Appearance::Normal, annotation->getAppearanceState()));
+            if (!appearance.isStream())
+            {
+                isAppearanceMissing = isAppearanceMissing || PDFTransparencyRendererHelper::isAppearanceMissingProblem(annotation->getType());
+                continue;
+            }
+
+            processPrintedAnnotation(annotation.data(), appearance.getStream());
+        }
+        catch (const PDFException& exception)
+        {
+            errors.append(PDFRenderError(RenderErrorType::Error, exception.getMessage()));
+        }
+        catch (const PDFRendererException& exception)
+        {
+            errors.append(exception.getError());
+        }
+    }
+
+    // initializeProcessor above has cleared the list of the base class: it holds the errors of the
+    // appearances only; those of reportRenderError are in the result already. A set of the reported
+    // errors (a hostile appearance may have millions of unknown operators: no quadratic search).
+    QSet<QString> reported;
+    for (const PDFRenderError& error : errors)
+    {
+        reported.insert(QString::number(int(error.type)) + QLatin1Char(':') + error.message);
+    }
+    for (const PDFRenderError& error : getRenderErrors())
+    {
+        const QString key = QString::number(int(error.type)) + QLatin1Char(':') + error.message;
+        if (!reported.contains(key))
+        {
+            reported.insert(key);
+            errors.append(error);
+        }
+    }
+
+    if (isAppearanceMissing)
+    {
+        errors.append(PDFRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("An annotation printed with the page has no appearance stream; it is not drawn.")));
+    }
+
+    return errors;
+}
+
+void PDFTransparencyRenderer::processPrintedAnnotation(const PDFAnnotation* annotation, const PDFStream* formStream)
+{
+    // ISO 32000-2, 12.5.5, Algorithm "appearance streams": the box of the form transformed by its
+    // matrix is mapped onto the rectangle of the annotation (as PDFAnnotationManager does)
+    const PDFDocument* document = getDocument();
+    PDFDocumentDataLoaderDecorator loader(document);
+    const PDFDictionary* formDictionary = formStream->getDictionary();
+
+    const QRectF annotationRectangle = annotation->getRectangle();
+    const QRectF formBoundingBox = loader.readRectangle(formDictionary->get("BBox"), QRectF());
+    const QTransform formMatrix = loader.readMatrixFromDictionary(formDictionary, "Matrix", QTransform());
+    if (formBoundingBox.isEmpty() || annotationRectangle.isEmpty())
+    {
+        return;
+    }
+
+    const QRectF transformedAppearanceBox = formMatrix.mapRect(formBoundingBox);
+    if (qFuzzyIsNull(transformedAppearanceBox.width()) || qFuzzyIsNull(transformedAppearanceBox.height()))
+    {
+        return;
+    }
+
+    const PDFReal scaleX = annotationRectangle.width() / transformedAppearanceBox.width();
+    const PDFReal scaleY = annotationRectangle.height() / transformedAppearanceBox.height();
+    const PDFReal translateX = annotationRectangle.left() - transformedAppearanceBox.left() * scaleX;
+    const PDFReal translateY = annotationRectangle.bottom() - transformedAppearanceBox.bottom() * scaleY;
+    const QTransform A(scaleX, 0.0, 0.0, scaleY, translateX, translateY);
+    QTransform matrix = formMatrix * A;
+
+    // NoRotate (12.5.3): the annotation stays upright, it is rotated about the upper left corner of
+    // its rectangle against /Rotate of the page (PDFAnnotationManager::prepareTransformations)
+    if (annotation->getEffectiveFlags().testFlag(PDFAnnotation::NoRotate))
+    {
+        PDFReal rotationAngle = 0.0;
+        switch (getPage()->getPageRotation())
+        {
+            case PageRotation::None:
+                break;
+            case PageRotation::Rotate90:
+                rotationAngle = -90.0;
+                break;
+            case PageRotation::Rotate180:
+                rotationAngle = -180.0;
+                break;
+            case PageRotation::Rotate270:
+                rotationAngle = -270.0;
+                break;
+        }
+
+        QTransform rotationMatrix;
+        rotationMatrix.rotate(-rotationAngle);
+        const QPointF topLeft = annotationRectangle.bottomLeft();
+        const QPointF difference = topLeft - rotationMatrix.map(topLeft);
+
+        QTransform rotation;
+        rotation.translate(difference.x(), difference.y());
+        rotation.rotate(-rotationAngle);
+        matrix = matrix * rotation;
+    }
+
+    const QByteArray content = document->getDecodedStream(formStream);
+    const PDFObject resources = document->getObject(formDictionary->get("Resources"));
+    const PDFObject transparencyGroup = document->getObject(formDictionary->get("Group"));
+    const PDFInteger structParent = loader.readIntegerFromDictionary(formDictionary, "StructParent", getPage()->getStructureParentKey());
+    processForm(matrix, formBoundingBox, resources, transparencyGroup, content, structParent);
 }
 
 bool PDFTransparencyRenderer::isMultithreadedPathSamplingUsed(QRect fillRect) const
@@ -3302,102 +3603,330 @@ std::vector<PDFInkMapper::ColorInfo> PDFInkMapper::getSeparations(uint32_t proce
 
 void PDFInkMapper::createSpotColors(bool activate)
 {
-    m_spotColors.clear();
-    m_activeSpotColors = 0;
+    std::vector<PDFInteger> pageIndices(m_document->getCatalog()->getPageCount(), 0);
+    std::iota(pageIndices.begin(), pageIndices.end(), PDFInteger(0));
+    createSpotColors(activate, pageIndices, nullptr);
+}
+
+void PDFInkMapper::addSpotColors(const PDFColorSpacePointer& colorSpace, const PDFCMS* cms)
+{
+    if (!colorSpace)
+    {
+        return;
+    }
 
     PDFRenderErrorReporterDummy renderErrorReporter;
-    PDFCMSPointer cms = m_cmsManager ? m_cmsManager->getCurrentCMS() : nullptr;
 
-    const PDFCatalog* catalog = m_document->getCatalog();
-    const size_t pageCount = catalog->getPageCount();
-    for (size_t i = 0; i < pageCount; ++i)
+    switch (colorSpace->getColorSpace())
     {
-        const PDFPage* page = catalog->getPage(i);
-        PDFObject resources = m_document->getObject(page->getResources());
-
-        if (resources.isDictionary() && resources.getDictionary()->hasKey("ColorSpace"))
+        case PDFAbstractColorSpace::ColorSpace::Separation:
         {
-            const PDFDictionary* colorSpaceDictionary = m_document->getDictionaryFromObject(resources.getDictionary()->get("ColorSpace"));
-            if (colorSpaceDictionary)
+            const PDFSeparationColorSpace* separationColorSpace = dynamic_cast<const PDFSeparationColorSpace*>(colorSpace.data());
+
+            if (separationColorSpace && !separationColorSpace->isNone() && !separationColorSpace->isAll() && !separationColorSpace->getColorName().isEmpty())
             {
-                std::size_t colorSpaces = colorSpaceDictionary->getCount();
-                for (size_t csIndex = 0; csIndex < colorSpaces; ++ csIndex)
+                // Try to add spot color
+                const QByteArray& colorName = separationColorSpace->getColorName();
+                if (!containsSpotColor(colorName) && !containsProcessColor(colorName))
                 {
-                    PDFColorSpacePointer colorSpacePointer;
-                    try
+                    ColorInfo info;
+                    info.name = colorName;
+                    info.textName = PDFEncoding::convertTextString(info.name);
+                    info.colorSpace = colorSpace;
+                    info.spotColorIndex = uint32_t(m_spotColors.size());
+                    info.color = cms ? separationColorSpace->getColor(pdf::PDFColor(1.0f), cms, pdf::RenderingIntent::Perceptual, &renderErrorReporter, true) : QColor();
+                    addSpotColor(qMove(info));
+                }
+            }
+
+            break;
+        }
+
+        case PDFAbstractColorSpace::ColorSpace::DeviceN:
+        {
+            const PDFDeviceNColorSpace* deviceNColorSpace = dynamic_cast<const PDFDeviceNColorSpace*>(colorSpace.data());
+
+            if (deviceNColorSpace && !deviceNColorSpace->isNone())
+            {
+                const PDFDeviceNColorSpace::Colorants& colorants = deviceNColorSpace->getColorants();
+                for (size_t ii = 0; ii < colorants.size(); ++ii)
+                {
+                    const PDFDeviceNColorSpace::ColorantInfo& colorantInfo = colorants[ii];
+
+                    // B198: the colorant /None marks nothing (ISO 32000-2, 8.6.6.5) - no ink;
+                    // /All is not allowed in a DeviceN space, it is no ink either
+                    if (colorantInfo.name.isEmpty() || colorantInfo.name == "None" || colorantInfo.name == "All")
                     {
-                        colorSpacePointer = PDFAbstractColorSpace::createColorSpace(colorSpaceDictionary, m_document, nullptr, m_document->getObject(colorSpaceDictionary->getValue(csIndex)));
-                    }
-                    catch (const PDFException&)
-                    {
-                        // Ignore invalid color spaces
                         continue;
                     }
 
-                    if (!colorSpacePointer)
+                    if (!containsSpotColor(colorantInfo.name) && !containsProcessColor(colorantInfo.name))
                     {
-                        continue;
+                        PDFColor color;
+                        color.resize(deviceNColorSpace->getColorComponentCount());
+                        color[ii] = 1.0f;
+
+                        ColorInfo info;
+                        info.name = colorantInfo.name;
+                        info.textName = PDFEncoding::convertTextString(info.name);
+                        info.colorSpaceIndex = uint32_t(ii);
+                        info.colorSpace = colorSpace;
+                        info.spotColorIndex = uint32_t(m_spotColors.size());
+                        info.color = cms ? deviceNColorSpace->getColor(color, cms, pdf::RenderingIntent::Perceptual, &renderErrorReporter, true) : QColor();
+                        addSpotColor(qMove(info));
                     }
+                }
+            }
 
-                    switch (colorSpacePointer->getColorSpace())
-                    {
-                        case PDFAbstractColorSpace::ColorSpace::Separation:
-                        {
-                            const PDFSeparationColorSpace* separationColorSpace = dynamic_cast<const PDFSeparationColorSpace*>(colorSpacePointer.data());
+            break;
+        }
 
-                            if (!separationColorSpace->isNone() && !separationColorSpace->isAll() && !separationColorSpace->getColorName().isEmpty())
-                            {
-                                // Try to add spot color
-                                const QByteArray& colorName = separationColorSpace->getColorName();
-                                if (!containsSpotColor(colorName) && !containsProcessColor(colorName))
-                                {
-                                    ColorInfo info;
-                                    info.name = colorName;
-                                    info.textName = PDFEncoding::convertTextString(info.name);
-                                    info.colorSpace = colorSpacePointer;
-                                    info.spotColorIndex = uint32_t(m_spotColors.size());
-                                    info.color = cms ? separationColorSpace->getColor(pdf::PDFColor(1.0f), cms.get(), pdf::RenderingIntent::Perceptual, &renderErrorReporter, true) : nullptr;
-                                    m_spotColors.emplace_back(qMove(info));
-                                }
-                            }
+        case PDFAbstractColorSpace::ColorSpace::Indexed:
+        {
+            // The colors of an Indexed space are the colors of its base (8.6.6.3)
+            if (const PDFIndexedColorSpace* indexedColorSpace = dynamic_cast<const PDFIndexedColorSpace*>(colorSpace.data()))
+            {
+                addSpotColors(indexedColorSpace->getBaseColorSpace(), cms);
+            }
+            break;
+        }
 
-                            break;
-                        }
+        case PDFAbstractColorSpace::ColorSpace::Pattern:
+        {
+            // An uncolored tiling pattern is painted by the color of its underlying space (8.7.3.3)
+            if (const PDFPatternColorSpace* patternColorSpace = dynamic_cast<const PDFPatternColorSpace*>(colorSpace.data()))
+            {
+                addSpotColors(patternColorSpace->getUncoloredPatternColorSpace(), cms);
+            }
+            break;
+        }
 
-                        case PDFAbstractColorSpace::ColorSpace::DeviceN:
-                        {
-                            const PDFDeviceNColorSpace* deviceNColorSpace = dynamic_cast<const PDFDeviceNColorSpace*>(colorSpacePointer.data());
+        default:
+            break;
+    }
+}
 
-                            if (!deviceNColorSpace->isNone())
-                            {
-                                const PDFDeviceNColorSpace::Colorants& colorants = deviceNColorSpace->getColorants();
-                                for (size_t ii = 0; ii < colorants.size(); ++ii)
-                                {
-                                    const PDFDeviceNColorSpace::ColorantInfo& colorantInfo = colorants[ii];
-                                    if (!containsSpotColor(colorantInfo.name) && !containsProcessColor(colorantInfo.name))
-                                    {
-                                        PDFColor color;
-                                        color.resize(deviceNColorSpace->getColorComponentCount());
-                                        color[ii] = 1.0f;
+bool PDFInkMapper::SpotColorScan::isNewContainer(Container kind, const PDFDictionary* colorSpaceDictionary, const PDFDictionary* container)
+{
+    const std::tuple<Container, quintptr, quintptr> key(kind, quintptr(colorSpaceDictionary), quintptr(container));
+    if (m_containers.count(key))
+    {
+        return false;
+    }
 
-                                        ColorInfo info;
-                                        info.name = colorantInfo.name;
-                                        info.textName = PDFEncoding::convertTextString(info.name);
-                                        info.colorSpaceIndex = uint32_t(ii);
-                                        info.colorSpace = colorSpacePointer;
-                                        info.spotColorIndex = uint32_t(m_spotColors.size());
-                                        info.color = cms ? deviceNColorSpace->getColor(color, cms.get(), pdf::RenderingIntent::Perceptual, &renderErrorReporter, true) : nullptr;
-                                        m_spotColors.emplace_back(qMove(info));
-                                    }
-                                }
-                            }
+    if (m_containers.size() < MAXIMUM_KEYS)
+    {
+        m_containers.insert(key);
+    }
+    return true;
+}
 
-                            break;
-                        }
+bool PDFInkMapper::SpotColorScan::isNewColorSpace(const PDFDictionary* colorSpaceDictionary, const PDFObject& colorSpaceObject)
+{
+    // The identity of the object in the document; another kind of an object is no color space (its
+    // parsing fails at once), it is not remembered
+    PDFObjectReference reference;
+    quintptr address = 0;
+    QByteArray name;
+    switch (colorSpaceObject.getType())
+    {
+        case PDFObject::Type::Reference:
+            reference = colorSpaceObject.getReference();
+            break;
+        case PDFObject::Type::Array:
+            address = quintptr(colorSpaceObject.getArray());
+            break;
+        case PDFObject::Type::Dictionary:
+            address = quintptr(colorSpaceObject.getDictionary());
+            break;
+        case PDFObject::Type::Stream:
+            address = quintptr(colorSpaceObject.getStream());
+            break;
+        case PDFObject::Type::Name:
+            name = colorSpaceObject.getString();
+            break;
+        default:
+            return true;
+    }
 
-                        default:
-                            break;
-                    }
+    ColorSpaceKey key(quintptr(colorSpaceDictionary), reference, address, std::move(name));
+    if (m_colorSpaces.count(key))
+    {
+        return false;
+    }
+
+    if (m_colorSpaces.size() < MAXIMUM_KEYS)
+    {
+        m_colorSpaces.insert(std::move(key));
+    }
+    return true;
+}
+
+void PDFInkMapper::addSpotColors(const PDFDictionary* colorSpaceDictionary, const PDFObject& colorSpaceObject, const PDFCMS* cms, SpotColorScan* scan)
+{
+    if (colorSpaceObject.isNull() || !scan->isNewColorSpace(colorSpaceDictionary, colorSpaceObject))
+    {
+        return;
+    }
+
+    PDFColorSpacePointer colorSpace;
+    try
+    {
+        ++m_colorSpaceCreationCount;
+        colorSpace = PDFAbstractColorSpace::createColorSpace(colorSpaceDictionary, m_document, nullptr, m_document->getObject(colorSpaceObject));
+    }
+    catch (const PDFException&)
+    {
+        // Ignore invalid color spaces
+        return;
+    }
+
+    addSpotColors(colorSpace, cms);
+}
+
+void PDFInkMapper::addSpotColor(ColorInfo info)
+{
+    m_spotColorIndices.insert(info.name, m_spotColors.size());
+    m_spotColors.emplace_back(qMove(info));
+}
+
+void PDFInkMapper::createSpotColors(bool activate, const std::vector<PDFInteger>& pageIndices, const PDFOperationControl* control)
+{
+    m_spotColors.clear();
+    m_spotColorIndices.clear();
+    m_activeSpotColors = 0;
+    m_colorSpaceCreationCount = 0;
+
+    // RS7CORE M5: a dictionary and a color space shared by the resources of many pages are scanned once
+    SpotColorScan scan;
+
+    PDFCMSPointer cmsPointer = m_cmsManager ? m_cmsManager->getCurrentCMS() : nullptr;
+    const PDFCMS* cms = cmsPointer.data();
+
+    // B197: every resource reached from the pages (one walk with one visited set, a depth limit
+    // and a node budget), not only the resources of the page
+    PDFResourceWalk::Options options;
+    options.includeAnnotations = true;
+    const PDFResourceWalkResult walk = PDFResourceWalk::walk(m_document, pageIndices, options, control);
+
+    // Q7.8 (a): only the annotations, which are printed (12.5.3, Table 167: Print, not Hidden),
+    // bring their inks. The nodes are taken from the pages over the edges of the walk; an
+    // appearance stream of an annotation, which is not printed, is not entered (a form reached
+    // also by another path is taken through that path).
+    std::vector<bool> isUsed(walk.nodes.size(), false);
+    std::vector<size_t> queue;
+    queue.reserve(walk.nodes.size());
+    for (const auto& [pageIndex, nodeIndex] : walk.pages)
+    {
+        Q_UNUSED(pageIndex);
+        if (nodeIndex < isUsed.size() && !isUsed[nodeIndex])
+        {
+            isUsed[nodeIndex] = true;
+            queue.push_back(nodeIndex);
+        }
+    }
+
+    for (size_t queueIndex = 0; queueIndex < queue.size(); ++queueIndex)
+    {
+        for (const size_t childIndex : walk.nodes[queue[queueIndex]].children)
+        {
+            if (childIndex >= walk.nodes.size() || isUsed[childIndex])
+            {
+                continue;
+            }
+
+            const PDFResourceWalkNode& child = walk.nodes[childIndex];
+            if (child.kind == PDFResourceOwnerKind::AppearanceStream)
+            {
+                const PDFDictionary* annotationDictionary = m_document->getDictionaryFromObject(m_document->getObject(PDFObject::createReference(child.annotation)));
+                const PDFInteger flags = annotationDictionary ? PDFDocumentDataLoaderDecorator(m_document).readIntegerFromDictionary(annotationDictionary, "F", 0) : 0;
+                const bool isPrinted = (flags & PDFInteger(PDFAnnotation::Print)) && !(flags & PDFInteger(PDFAnnotation::Hidden));
+                if (!isPrinted)
+                {
+                    continue;
+                }
+            }
+
+            isUsed[childIndex] = true;
+            queue.push_back(childIndex);
+        }
+    }
+
+    for (const size_t nodeIndex : queue)
+    {
+        if (PDFOperationControl::isOperationCanceled(control))
+        {
+            break;
+        }
+
+        const PDFDictionary* resources = m_document->getDictionaryFromObject(walk.nodes[nodeIndex].resources);
+        if (!resources)
+        {
+            continue;
+        }
+
+        const PDFDictionary* colorSpaceDictionary = m_document->getDictionaryFromObject(resources->get("ColorSpace"));
+        if (colorSpaceDictionary && scan.isNewContainer(SpotColorScan::Container::ColorSpace, colorSpaceDictionary, colorSpaceDictionary))
+        {
+            // A resource dictionary of a hostile document can have millions of entries: the
+            // cancellation is checked at each of them, not only at each resource dictionary
+            for (size_t i = 0, count = colorSpaceDictionary->getCount(); i < count && !PDFOperationControl::isOperationCanceled(control); ++i)
+            {
+                addSpotColors(colorSpaceDictionary, colorSpaceDictionary->getValue(i), cms, &scan);
+            }
+        }
+
+        // The images of /XObject (8.9.5, /ColorSpace of an image dictionary)
+        const PDFDictionary* xobjects = m_document->getDictionaryFromObject(resources->get("XObject"));
+        if (xobjects && scan.isNewContainer(SpotColorScan::Container::XObject, colorSpaceDictionary, xobjects))
+        {
+            for (size_t i = 0, count = xobjects->getCount(); i < count && !PDFOperationControl::isOperationCanceled(control); ++i)
+            {
+                const PDFObject xobject = m_document->getObject(xobjects->getValue(i));
+                if (!xobject.isStream())
+                {
+                    continue;
+                }
+
+                const PDFDictionary* xobjectDictionary = xobject.getStream()->getDictionary();
+                const PDFObject subtype = m_document->getObject(xobjectDictionary->get("Subtype"));
+                if (subtype.isName() && subtype.getString() == "Image")
+                {
+                    addSpotColors(colorSpaceDictionary, xobjectDictionary->get("ColorSpace"), cms, &scan);
+                }
+            }
+        }
+
+        // The shadings of /Shading (8.7.4.3, Table 77) and of the shading patterns of /Pattern (8.7.4.2)
+        auto addShadingColors = [this, colorSpaceDictionary, cms, &scan](const PDFObject& shadingObject)
+        {
+            const PDFObject shading = m_document->getObject(shadingObject);
+            const PDFDictionary* shadingDictionary = shading.isStream() ? shading.getStream()->getDictionary() : (shading.isDictionary() ? shading.getDictionary() : nullptr);
+            if (shadingDictionary)
+            {
+                addSpotColors(colorSpaceDictionary, shadingDictionary->get("ColorSpace"), cms, &scan);
+            }
+        };
+
+        const PDFDictionary* shadings = m_document->getDictionaryFromObject(resources->get("Shading"));
+        if (shadings && scan.isNewContainer(SpotColorScan::Container::Shading, colorSpaceDictionary, shadings))
+        {
+            for (size_t i = 0, count = shadings->getCount(); i < count && !PDFOperationControl::isOperationCanceled(control); ++i)
+            {
+                addShadingColors(shadings->getValue(i));
+            }
+        }
+
+        const PDFDictionary* patterns = m_document->getDictionaryFromObject(resources->get("Pattern"));
+        if (patterns && scan.isNewContainer(SpotColorScan::Container::Pattern, colorSpaceDictionary, patterns))
+        {
+            for (size_t i = 0, count = patterns->getCount(); i < count && !PDFOperationControl::isOperationCanceled(control); ++i)
+            {
+                const PDFObject pattern = m_document->getObject(patterns->getValue(i));
+                const PDFDictionary* patternDictionary = pattern.isStream() ? pattern.getStream()->getDictionary() : (pattern.isDictionary() ? pattern.getDictionary() : nullptr);
+                if (patternDictionary)
+                {
+                    addShadingColors(patternDictionary->get("Shading"));
                 }
             }
         }
@@ -3424,10 +3953,12 @@ bool PDFInkMapper::containsProcessColor(const QByteArray& colorName) const
 
 const PDFInkMapper::ColorInfo* PDFInkMapper::getSpotColor(const QByteArray& colorName) const
 {
-    auto it = std::find_if(m_spotColors.cbegin(), m_spotColors.cend(), [&colorName](const auto& info) { return info.name == colorName; });
-    if (it != m_spotColors.cend())
+    // By the index of the names (createSpotColors and every mapping of a color space of a page ask
+    // for a spot color: a linear search was quadratic over the spot colors of a hostile document)
+    auto it = m_spotColorIndices.constFind(colorName);
+    if (it != m_spotColorIndices.cend() && it.value() < m_spotColors.size())
     {
-        return &*it;
+        return &m_spotColors[it.value()];
     }
 
     return nullptr;
@@ -3528,13 +4059,22 @@ PDFInkMapping PDFInkMapper::createMapping(const PDFAbstractColorSpace* sourceCol
 
                 if (separationColorSpace->isAll())
                 {
-                    // Map this color to all device colors
+                    // Map this color to all device colors: the process colorants of the group and the
+                    // spot colorants of the output (ISO 32000-2, 8.6.6.4; 11.7.3 NOTE 2)
                     uint32_t colorCount = static_cast<uint32_t>(targetColorSpace->getColorComponentCount());
-                    mapping.mapping.reserve(colorCount);
+                    mapping.mapping.reserve(colorCount + targetPixelFormat.getSpotColorChannelCount());
 
                     for (size_t i = 0; i < colorCount; ++i)
                     {
                         mapping.map(0, uint8_t(i));
+                    }
+
+                    if (targetPixelFormat.hasSpotColors())
+                    {
+                        for (uint8_t i = targetPixelFormat.getSpotColorChannelIndexStart(); i < targetPixelFormat.getSpotColorChannelIndexEnd(); ++i)
+                        {
+                            mapping.map(0, i);
+                        }
                     }
                 }
                 else if (!separationColorSpace->isNone() && !separationColorSpace->getColorName().isEmpty())
@@ -3625,11 +4165,14 @@ void PDFDrawBuffer::clear()
 
     m_containsFilling = false;
     m_containsStroking = false;
+    m_isNonZeroOverprintAllowed = false;
     m_modifiedRect = QRect();
 }
 
-void PDFDrawBuffer::modify(QRect rect, bool containsFilling, bool containsStroking)
+void PDFDrawBuffer::modify(QRect rect, bool containsFilling, bool containsStroking, bool isNonZeroOverprintAllowed)
 {
+    // The nonzero overprint mode applies to the buffer, only when it applies to every object in it
+    m_isNonZeroOverprintAllowed = m_modifiedRect.isValid() ? (m_isNonZeroOverprintAllowed && isNonZeroOverprintAllowed) : isNonZeroOverprintAllowed;
     m_modifiedRect = m_modifiedRect.united(rect);
     m_containsFilling |= containsFilling;
     m_containsStroking |= containsStroking;
@@ -3699,92 +4242,64 @@ void PDFInkCoverageCalculator::perform(QSize size, const std::vector<PDFInteger>
             return;
         }
 
-        const PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
-        if (!page)
+        // B199: the content flags of the settings of the calculator; the one implementation of the
+        // measurement of a page (B169, B196 - PDFOutputPreviewAnalyzer::renderPage)
+        PDFOutputPreviewSettings settings;
+        settings.resolution = qMax(size.width(), size.height());
+        settings.content = uint32_t(PDFOutputPreviewContent::None);
+        if (m_settings.flags.testFlag(PDFTransparencyRendererSettings::DisplayImages))
+        {
+            settings.content |= uint32_t(PDFOutputPreviewContent::Images);
+        }
+        if (m_settings.flags.testFlag(PDFTransparencyRendererSettings::DisplayText))
+        {
+            settings.content |= uint32_t(PDFOutputPreviewContent::Text);
+        }
+        if (m_settings.flags.testFlag(PDFTransparencyRendererSettings::DisplayVectorGraphics))
+        {
+            settings.content |= uint32_t(PDFOutputPreviewContent::Vectors);
+        }
+        if (m_settings.flags.testFlag(PDFTransparencyRendererSettings::DisplayShadings))
+        {
+            settings.content |= uint32_t(PDFOutputPreviewContent::Shadings);
+        }
+        if (m_settings.flags.testFlag(PDFTransparencyRendererSettings::DisplayTilingPatterns))
+        {
+            settings.content |= uint32_t(PDFOutputPreviewContent::Patterns);
+        }
+
+        PDFOutputPreviewContext context;
+        context.document = m_document;
+        context.fontCache = m_fontCache;
+        context.iccProfileCache = m_iccProfileCache;
+        context.cmsManager = m_cmsManager;
+        context.optionalContentActivity = m_optionalContentActivity;
+        context.inkMapper = m_inkMapper;
+
+        const PDFOutputPreviewResult pageResult = PDFOutputPreviewAnalyzer::renderPage(context, pageIndex, settings, m_control);
+        if (!pageResult.isRendered())
         {
             return;
         }
-
-        QRectF pageRect = page->getRotatedMediaBox();
-        QSizeF pageSize = pageRect.size();
-        pageSize.scale(size.width(), size.height(), Qt::KeepAspectRatio);
-        QSize imageSize = pageSize.toSize();
-
-        if (!imageSize.isValid())
-        {
-            return;
-        }
-
-        pdf::PDFTransparencyRendererSettings settings;
-        settings.flags.setFlag(PDFTransparencyRendererSettings::SaveOriginalProcessImage, true);
-
-        // Jakub Melka: debug is very slow, use multithreading
-#ifdef QT_DEBUG
-        settings.flags.setFlag(PDFTransparencyRendererSettings::MultithreadedPathSampler, true);
-#endif
-
-        settings.flags.setFlag(PDFTransparencyRendererSettings::ActiveColorMask, false);
-        settings.flags.setFlag(PDFTransparencyRendererSettings::SeparationSimulation, true);
-        settings.activeColorMask = PDFPixelFormat::getAllColorsMask();
-
-        QTransform pagePointToDevicePoint = pdf::PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), imageSize));
-        pdf::PDFCMSPointer cms = m_cmsManager->getCurrentCMS();
-        pdf::PDFTransparencyRenderer renderer(page, m_document, m_fontCache, m_iccProfileCache, cms.data(), m_optionalContentActivity,
-                                              m_inkMapper, settings, pagePointToDevicePoint);
-
-        renderer.beginPaint(imageSize);
-        renderer.processContents();
-        renderer.endPaint();
-
-        PDFFloatBitmapWithColorSpace originalProcessImage = renderer.getOriginalProcessBitmap();
-        QSizeF pageSizeMM = page->getRotatedMediaBoxMM().size();
-
-        pdf::PDFPixelFormat pixelFormat = originalProcessImage.getPixelFormat();
-        pdf::PDFColorComponent totalArea = pageSizeMM.width() * pageSizeMM.height();
-        pdf::PDFColorComponent pixelArea = totalArea / pdf::PDFColorComponent(originalProcessImage.getWidth() * originalProcessImage.getHeight());
-
-        std::vector<PDFColorComponent> pageCoverage;
-        const uint8_t colorChannelCount = pixelFormat.getColorChannelCount();
-        pageCoverage.resize(colorChannelCount, 0.0f);
-
-        for (size_t y = 0; y < originalProcessImage.getHeight(); ++y)
-        {
-            for (size_t x = 0; x < originalProcessImage.getWidth(); ++x)
-            {
-                const pdf::PDFColorBuffer buffer = originalProcessImage.getPixel(x, y);
-                const pdf::PDFColorComponent alpha = pixelFormat.hasOpacityChannel() ? buffer[pixelFormat.getOpacityChannelIndex()] : 1.0f;
-
-                for (uint8_t i = 0; i < colorChannelCount; ++i)
-                {
-                    pageCoverage[i] += buffer[i] * alpha;
-                }
-            }
-        }
-
-        std::vector<PDFColorComponent> pageRatioCoverage = pageCoverage;
-        for (uint8_t i = 0; i < colorChannelCount; ++i)
-        {
-            pageCoverage[i] *= pixelArea;
-            pageRatioCoverage[i] *= pixelArea / totalArea;
-        }
-
-        std::vector<PDFInkMapper::ColorInfo> separations = m_inkMapper->getSeparations(pixelFormat.getProcessColorChannelCount());
-        Q_ASSERT(pixelFormat.getColorChannelCount() == separations.size());
 
         std::vector<InkCoverageChannelInfo> results;
-        results.reserve(separations.size());
+        results.reserve(pageResult.inks.size());
 
-        for (size_t i = 0; i < separations.size(); ++i)
+        for (const PDFOutputPreviewInk& ink : pageResult.inks)
         {
-            const PDFInkMapper::ColorInfo& colorInfo = separations[i];
+            if (ink.channel < 0)
+            {
+                // A spot ink over the limit has no separation of its own
+                continue;
+            }
 
             InkCoverageChannelInfo info;
-            info.color = colorInfo.color;
-            info.name = colorInfo.name;
-            info.textName = colorInfo.textName;
-            info.isSpot = colorInfo.isSpot;
-            info.coveredArea = pageCoverage[i];
-            info.ratio = pageRatioCoverage[i];
+            info.color = ink.color;
+            info.name = ink.name;
+            info.textName = ink.displayName;
+            info.isSpot = ink.isSpot;
+            info.coveredArea = PDFColorComponent(ink.area);
+            info.ratio = PDFColorComponent(ink.ratio / 100.0);
             results.emplace_back(qMove(info));
         }
 

@@ -7291,7 +7291,7 @@ void FluentComponentsTest::pageRangeParser()
         { QStringLiteral("2"), 1, QStringLiteral("Page 2 does not exist – the document has 1 page") },
         { QStringLiteral("1"), 0, QStringLiteral("Page 1 does not exist – the document has 0 pages") },
         { QStringLiteral("1-"), 0, QStringLiteral("Page 1 does not exist – the document has 0 pages") },
-        { QStringLiteral("5-3"), 10, QStringLiteral("Closed interval [5, 3] is invalid.") },
+        { QStringLiteral("5-3"), 10, QStringLiteral("The first page (5) is after the last page (3).") },
         { QStringLiteral("a, 99"), 10, QStringLiteral("Can't convert '\u2068a\u2069' to a number.") },
         { QStringLiteral("99, a"), 10, QStringLiteral("Page 99 does not exist – the document has 10 pages") },
         { QStringLiteral("3000000000"), 10, QStringLiteral("Page 3000000000 does not exist – the document has 10 pages") },

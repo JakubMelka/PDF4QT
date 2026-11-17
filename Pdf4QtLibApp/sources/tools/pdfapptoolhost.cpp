@@ -24,6 +24,7 @@
 
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
+#include "pdfappdocumentsoftproof.h"
 #include "pdfappdocumentstatusbar.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
@@ -45,10 +46,11 @@ PDFAppToolHost::PDFAppToolHost(QObject* parent) :
 
 PDFAppToolHost::~PDFAppToolHost() = default;
 
-void PDFAppToolHost::setStatusItems(const QString& pageText, const QString& zoomText)
+void PDFAppToolHost::setStatusItems(const QString& pageText, const QString& zoomText, bool isOwnItems)
 {
     Q_UNUSED(pageText);
     Q_UNUSED(zoomText);
+    Q_UNUSED(isOwnItems);
 }
 
 PDFAppTab* PDFAppToolHost::getTab() const
@@ -170,12 +172,21 @@ void PDFAppDocumentToolHost::setMessage(const QString& text)
     }
 }
 
-void PDFAppDocumentToolHost::setStatusItems(const QString& pageText, const QString& zoomText)
+void PDFAppDocumentToolHost::setStatusItems(const QString& pageText, const QString& zoomText, bool isOwnItems)
 {
-    // The zoom item stays the zoom of the view ("151 %" of 1479:34632)
-    Q_UNUSED(zoomText);
-    if (m_view)
+    if (!m_view)
     {
+        return;
+    }
+
+    if (isOwnItems)
+    {
+        // K7.27: both items are the tool's, an empty text hides its item
+        m_view->setToolStatusItems(pageText, zoomText);
+    }
+    else
+    {
+        // The zoom item stays the zoom of the view ("151 %" of 1479:34632)
         m_view->setToolPageText(pageText);
     }
 }
@@ -272,10 +283,12 @@ PDFAppToolRunEnvironment PDFAppDocumentToolHost::createEnvironment() const
         environment.selectedPages = m_view->getSelectedPages();
         environment.currentPage = m_view->getDisplayedPageIndex();
 
-        // A shared immutable copy, never a pointer to the manager of the view (F12)
+        // A shared immutable copy, never a pointer to the manager of the view (F12); a run never
+        // takes the soft proof of the tab (Q7.10, plan of step 7 of phase 2, 4.7)
         if (const PDFCMSManager* manager = m_view->getCMSManager())
         {
-            environment.cms = manager->getCurrentCMS();
+            const PDFDocumentPointer document = m_document ? m_document->getDocument() : PDFDocumentPointer();
+            environment.cms = PDFAppDocumentSoftProof::createCMSWithoutProofing(manager, document.data());
         }
     }
     environment.authorName = PDFAuthorSettings::getAuthorName();

@@ -160,6 +160,7 @@ public:
     QString fileConfirmText;    ///< Button of Save as a file of an export ("Save Text", 339:10323) and of the file only (FileOnly, "Save Signed Copy")
     QString fileOpenText;       ///< The check box of the file only (FileOnly: "Open the signed copy in a new tab", 434:9276; "Open the redacted copy in a new tab", 437:13887); empty = "Open the file in a new tab"
     bool isFileOpenChecked = true;  ///< The check box of the file only is checked at the start (FileOnly)
+    QString initialFolder;      ///< The folder offered first, when the runner has no snapshot with a file (an export of a result kept in the tool, PDFDocumentToolShell::openExportDialog); empty = the documents of the user
     QString previousToolId;     ///< Tool, after whose result this one ran (the pair of the suggestions)
     QString reportText;         ///< Report of the run for the clipboard: the link Copy report in the head, empty = no link (Optimize Structure 303:5373, see the tool)
     QPointer<QWidget> scrimTarget;  ///< The covered widget: the canvas of the tool (312:7373); null = the body of the window
@@ -193,6 +194,7 @@ public:
     QString continueToolId;         ///< The tool chosen by Then continue with (empty = none)
     QString continueDocumentId;     ///< The document it runs on: the document of the tab, the opened copy or the new tab (F11); empty = none
     bool isOpenFolderRequested = false;  ///< Open the folder afterwards (an export): the page asks the navigator, which checks the address
+    bool isFileOpenRequested = false;   ///< FileSaved of the export of an analysis with its check box checked ("Open the report when it is saved", 484:18811): the GUI of the tool opens filePath (PDFDocumentToolGUI::onExportDecided)
     QByteArray newDocumentData;     ///< OpenedInThisTab: the bytes of the new document, which replaces the own tab
     QString newDocumentTitle;       ///< OpenedInThisTab: its title (the suggested name)
     bool isFileOpenedInThisTab = false; ///< FileSaved with isResultInThisTab: the written file (filePath) replaces the own tab
@@ -293,8 +295,20 @@ public:
     static ResultKind getResultKind(const PDFDocumentToolResult& result);
 
     /// Kind of the dialog of a result of the output of a run: a new document of a tool, whose result is
-    /// only a file (PDFDocumentToolCatalogEntry::isFileOnlyResult), is FileOnly; else getResultKind
+    /// only a file (PDFDocumentToolCatalogEntry::isFileOnlyResult), is FileOnly; the export of an analysis
+    /// (isAnalysisExport) is FileOnly too; else getResultKind
     static ResultKind getResultKind(const PDFDocumentToolOutputTraits& tool, const PDFDocumentToolResult& result);
+
+    /// The result is the export of an analysis (plan of step 7 of phase 2, 4.1, R7-13; 480:15368, 478:15674,
+    /// 484:18811): the output of the run is an analysis and the result is one file of data, no document. The
+    /// dialog is the one of the file only (FileOnly, no third variant): the name with the extension of the file,
+    /// its folder, Browse…, Replace File, the write error, Discard / Save File; the check box only with a text
+    /// of the tool (PDFAppToolResultInput::fileOpenText, "Open the report when it is saved" - the outcome asks
+    /// the GUI to open the file, isFileOpenRequested); no Then continue with (owner answer Q7.15).
+    static bool isAnalysisExport(const PDFDocumentToolOutputTraits& tool, const PDFDocumentToolResult& result);
+
+    /// The dialog is the export of an analysis (isAnalysisExport)
+    bool isExport() const { return m_isExport; }
 
     /// The offered choices in the order of the dialog (the rules of O31, F5); \p tool are the
     /// values of the output of the run (RB3 a of step 3b), a catalog entry gives its row
@@ -473,6 +487,9 @@ private:
     QString getInitialFolder() const;
     QString getSuggestedFileName() const;
 
+    /// The typed name with the extension of the target: .pdf, the extension of the file of an export
+    QString withTargetExtension(const QString& fileName) const;
+
     void onChoiceToggled();
     void onConfirmClicked();
     void onRetryClicked();
@@ -522,6 +539,7 @@ private:
     PDFDocumentToolOutputTraits m_outputTraits;     ///< The output of the run (PDFDocumentToolRunner::getOutputTraits), else the row of m_input.tool (RB3 a of step 3b)
     PDFAppDocumentSnapshot m_snapshot;
     ResultKind m_kind = ResultKind::Analysis;
+    bool m_isExport = false;    ///< The export of an analysis (isAnalysisExport): FileOnly of an output file
     DocumentState m_state;
     Choice m_selectedChoice = Choice::Keep;
     std::map<Choice, QPointer<PDFAppToolResultOption>> m_options;

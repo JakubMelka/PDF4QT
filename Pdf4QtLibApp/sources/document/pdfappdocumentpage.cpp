@@ -23,8 +23,14 @@
 #include "pdfappdocumentpage.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentsearch.h"
+#include "pdfappdocumentsoftproof.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
+#include "pdfapphelpcatalog.h"
+
+#include "pdfdocumenttoolcatalog.h"
+
+#include <QToolButton>
 
 namespace pdf
 {
@@ -226,7 +232,23 @@ QString PDFAppDocumentPage::getHelpTopic() const
     // The state screens (a document being opened, the password) instead of the view:
     // they are described by the topic of the opening
     const PDFAppDocument* document = m_tab ? m_tab->getDocument() : nullptr;
-    return document && !document->isReady() ? QStringLiteral("open-documents") : QStringLiteral("read-documents");
+    if (document && !document->isReady())
+    {
+        return QStringLiteral("open-documents");
+    }
+
+    // F1 on the item of a kept soft proof (485:17529 "Soft proof: <profile>"; plan of step 7 of phase 2, 7.2): the
+    // topic of Soft Proofing, which the item opens
+    const PDFAppDocumentView* view = m_tab ? m_tab->getView() : nullptr;
+    const PDFAppDocumentSoftProof* softProof = PDFAppDocumentSoftProof::findSoftProof(view);
+    const QToolButton* statusItem = softProof ? softProof->getStatusItem() : nullptr;
+    const PDFDocumentToolCatalogEntry* tool = PDFDocumentToolCatalog::findTool(QString::fromLatin1(PDFAppDocumentSoftProof::TOOL_ID));
+    const std::shared_ptr<const PDFAppHelpCatalog> catalog = PDFAppHelpCatalog::getBuiltin();
+    if (statusItem && statusItem->isVisible() && statusItem->hasFocus() && tool && catalog)
+    {
+        return catalog->getToolTopic(*tool);
+    }
+    return QStringLiteral("read-documents");
 }
 
 bool PDFAppDocumentPage::hasSearchHeader() const

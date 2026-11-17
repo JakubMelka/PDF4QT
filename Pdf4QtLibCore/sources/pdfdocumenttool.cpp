@@ -748,7 +748,12 @@ QJsonObject PDFDocumentToolResult::toJson() const
 
 QString PDFDocumentToolFormat::formatSize(qint64 bytes)
 {
-    return QLocale().formattedDataSize(qMax(qint64(0), bytes), 1, QLocale::DataSizeTraditionalFormat);
+    return formatSize(bytes, QLocale());
+}
+
+QString PDFDocumentToolFormat::formatSize(qint64 bytes, const QLocale& locale)
+{
+    return locale.formattedDataSize(qMax(qint64(0), bytes), 1, QLocale::DataSizeTraditionalFormat);
 }
 
 QString PDFDocumentToolFormat::formatSizeChange(qint64 before, qint64 after)

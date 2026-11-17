@@ -72,6 +72,26 @@ struct PDFCMSSettings
 
     bool operator==(const PDFCMSSettings&) const = default;
 
+    /// The settings without the soft proof and the gamut check (plan of step 7 of phase 2, 1 point 6, 4.7,
+    /// Q7.10): the proofing is a state of the view of one tab (PDFAppDocumentSoftProof). Every copy of the
+    /// settings of a tab for something else - the thumbnails, the printing, the tools, the stages and the
+    /// overlays of the tools, the comparison - takes this one, so a proof never leaks into a print, an export
+    /// or a preview. The values, which only a proof uses (the profile, the intent and the alarm color of the
+    /// proof), get their defaults too (package P3b): the copies of two states of the proof are equal, so a
+    /// change of the proof of the tab never makes a new color management of the copies (PDFCMS::isCompatible,
+    /// PDFCMSManager::setSettings compare the whole settings) - the thumbnails are not rendered again.
+    PDFCMSSettings withoutProofing() const
+    {
+        const PDFCMSSettings defaults;
+        PDFCMSSettings settings = *this;
+        settings.isSoftProofing = false;
+        settings.isGamutChecking = false;
+        settings.softProofingProfile = defaults.softProofingProfile;
+        settings.proofingIntent = defaults.proofingIntent;
+        settings.outOfGamutColor = defaults.outOfGamutColor;
+        return settings;
+    }
+
     System system = System::Generic;
     Accuracy accuracy = Accuracy::Medium;
     RenderingIntent intent = RenderingIntent::Auto;
@@ -82,12 +102,12 @@ struct PDFCMSSettings
     bool isGamutChecking = false;
     bool isSoftProofing = false;
     bool isConsiderOutputIntent = true;
-    QColor outOfGamutColor = Qt::red; ///< Color, which marks out-of-gamut when soft-proofing is proceeded
+    QColor outOfGamutColor = Qt::red; ///< Color, which marks out-of-gamut when soft-proofing is proceeded (the alarm codes of the own context of the color management, B200)
     QString outputCS;               ///< Output (rendering) color space
     QString deviceGray;             ///< Identifiers for color space (device gray)
     QString deviceRGB;              ///< Identifiers for color space (device RGB)
     QString deviceCMYK;             ///< Identifiers for color space (device CMYK)
-    QString softProofingProfile;    ///< Identifiers for soft proofing profile
+    QString softProofingProfile;    ///< Identifier of the CMYK profile of the soft proof (PDFSoftProofingProfile::id); empty = the first CMYK output intent of the document
     QString profileDirectory;       ///< Directory containing color profiles
 
     // Postprocessing
@@ -361,6 +381,35 @@ struct PDFColorProfileIdentifier
 
 using PDFColorProfileIdentifiers = std::vector<PDFColorProfileIdentifier>;
 
+/// A profile of the menu of the soft proof (plan of step 7 of phase 2, 4.7, FP-6, 479:12333; owner answer
+/// Q7.11: PDF4QT has no built-in CMYK profiles - the sources are the output intents of the document, the
+/// installed profiles of the system and the profile folder of Settings › Color management). An output
+/// intent, which cannot be the profile of a proof (an RGB or a gray profile, no embedded profile, a damaged
+/// profile), is in the list too, not available, with its reason (the menu shows it Disabled). A value.
+class PDF4QTLIBCORESHARED_EXPORT PDFSoftProofingProfile
+{
+public:
+    /// Where the profile comes from
+    enum class Source
+    {
+        OutputIntent,   ///< An output intent of the document (ISO 32000-2, 14.11.5: /DestOutputProfile)
+        System,         ///< An installed profile of the system
+        ProfileFolder   ///< A profile of the folder of Settings › Color management (PDFCMSSettings::profileDirectory)
+    };
+
+    bool operator==(const PDFSoftProofingProfile&) const = default;
+
+    Source source = Source::System;
+    QString id;                 ///< The value of PDFCMSSettings::softProofingProfile; empty for a profile, which is not available
+    QString name;               ///< The description of the profile (ICC tag desc), else the name of its file, else the printing condition of the output intent
+    QString fileName;           ///< The name of the file of the profile (without a folder); empty for an output intent
+    QString outputCondition;    ///< The printing condition of an output intent (/OutputConditionIdentifier, else /OutputCondition); empty otherwise
+    bool isAvailable = true;    ///< The profile can be the profile of a proof (a CMYK profile, which can be read)
+    QString reason;             ///< Translated reason, why the profile is not available (empty when it is)
+};
+
+using PDFSoftProofingProfiles = std::vector<PDFSoftProofingProfile>;
+
 /// Manager, that manages current color management system and also list
 /// of usable input and output color profiles. It has color profiles
 /// for outout device, and color profiles for input (gray/RGB/CMYK).
@@ -413,6 +462,26 @@ public:
     /// \param system System
     static QString getSystemName(PDFCMSSettings::System system);
 
+    /// Most output intents of a document, which are read (ISO 32000-2, 14.11.5; a document has one per
+    /// standard it conforms to - a hostile array of thousands of intents is not decoded beyond this count)
+    static constexpr size_t MAXIMUM_OUTPUT_INTENTS = 32;
+
+    /// The profiles of the menu of the soft proof (FP-6, 479:12333): first the output intents of the document
+    /// (setDocument) in their order - also those, which cannot be used, with their reasons -, then the CMYK
+    /// profiles of the system and of the profile folder of the settings. The descriptions of the installed
+    /// profiles of the system are read once per list (the list is kept until the settings or the document
+    /// change). Thread-safe, as the other lists.
+    PDFSoftProofingProfiles getSoftProofingProfiles() const;
+
+    /// The identifier of the profile of a proof with \p settings: \p settings.softProofingProfile, or for an
+    /// empty value the first available output intent of the document (PDFCMSSettings::softProofingProfile).
+    /// Empty, when there is none. Thread-safe.
+    QString getEffectiveSoftProofingProfile(const PDFCMSSettings& settings) const;
+
+    /// The absolute path of the file of a profile of a folder (PDFColorProfileIdentifier::Type::FileGray,
+    /// FileRGB, FileCMYK): their identifiers are relative to the folder of the application
+    static QString getProfileFilePath(const QString& id);
+
     /// Enables the cache of the external profiles of the process (opt-in, off by
     /// default). Every change of the settings clears the lists of a manager and the
     /// next list asks the system for its installed profiles and reads the profile
@@ -446,6 +515,7 @@ private:
     PDFColorProfileIdentifiers getRGBProfilesImpl() const;
     PDFColorProfileIdentifiers getCMYKProfilesImpl() const;
     PDFColorProfileIdentifiers getExternalProfilesImpl() const;
+    PDFSoftProofingProfiles getSoftProofingProfilesImpl() const;
 
     /// Lists the installed profiles of the system and the profiles of the profile
     /// directory (without the cache of the process)
@@ -468,6 +538,7 @@ private:
     PDFCMSSettings m_settings;
     const PDFDocument* m_document;
     PDFColorProfileIdentifiers m_outputIntentProfiles;
+    PDFSoftProofingProfiles m_outputIntentProofingProfiles;    ///< Every output intent of the document as a profile of the soft proof (also the unavailable ones)
 
     mutable QRecursiveMutex m_mutex;
     mutable PDFCachedItem<PDFCMSPointer> m_CMS;
@@ -476,6 +547,7 @@ private:
     mutable PDFCachedItem<PDFColorProfileIdentifiers> m_RGBProfiles;
     mutable PDFCachedItem<PDFColorProfileIdentifiers> m_CMYKProfiles;
     mutable PDFCachedItem<PDFColorProfileIdentifiers> m_externalProfiles;
+    mutable PDFCachedItem<PDFSoftProofingProfiles> m_softProofingProfiles;
 };
 
 /// Class providing chromatic adaptation of whitepoints

@@ -257,4 +257,29 @@ list(APPEND PDF4QT_LIBAPP_TOOLS_SOURCES
     sources/tools/pdfapptoolgui_certificates.h
     sources/tools/pdfappcertificatedetails.cpp
     sources/tools/pdfappcertificatedetails.h
+    # Step 7a + 7b (plan 9.1, 9.2 with R7-17): the skeleton (the formatter of the exports), package P2
+    # (Document Statistics, Object Inspector, Document Report), package P4 (Ink Coverage, Output Preview,
+    # Soft Proofing; the state of the proof of a tab is in document/view.cmake)
+    sources/tools/pdfapptoolvalueformatter.cpp
+    sources/tools/pdfapptoolvalueformatter.h
+    sources/tools/pdfapptoolgui_statistics.cpp
+    sources/tools/pdfapptoolgui_statistics.h
+    sources/tools/pdfappstatisticstable.cpp
+    sources/tools/pdfappstatisticstable.h
+    sources/tools/pdfapptoolgui_objectinspector.cpp
+    sources/tools/pdfapptoolgui_objectinspector.h
+    sources/tools/pdfappobjecttreemodel.cpp
+    sources/tools/pdfappobjecttreemodel.h
+    sources/tools/pdfapptoolgui_report.cpp
+    sources/tools/pdfapptoolgui_report.h
+    sources/tools/pdfappreportpreview.cpp
+    sources/tools/pdfappreportpreview.h
+    sources/tools/pdfapptoolgui_inkcoverage.cpp
+    sources/tools/pdfapptoolgui_inkcoverage.h
+    sources/tools/pdfapptoolgui_outputpreview.cpp
+    sources/tools/pdfapptoolgui_outputpreview.h
+    sources/tools/pdfappoutputpreviewcanvas.cpp
+    sources/tools/pdfappoutputpreviewcanvas.h
+    sources/tools/pdfapptoolgui_softproof.cpp
+    sources/tools/pdfapptoolgui_softproof.h
 )

@@ -295,6 +295,11 @@ public:
     explicit PDFPlainTextEdit(QWidget* parent = nullptr);
     explicit PDFPlainTextEdit(const QString& text, QWidget* parent = nullptr);
 
+    /// The height of the lines of the design (18 px by default; a view of a frame with other lines, the contents of
+    /// Object Inspector 19 px, sets its own). A document set by the application has the lines of its own layout.
+    qreal getLineHeight() const;
+    void setLineHeight(qreal lineHeight);
+
 protected:
     virtual void changeEvent(QEvent* event) override;
     virtual void paintEvent(QPaintEvent* event) override;

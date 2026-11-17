@@ -22,9 +22,12 @@
 
 #include "pdfoutputformatter.h"
 
+#include <QFile>
 #include <QMutex>
 #include <QTextStream>
 #include <QStringEncoder>
+
+#include <cstdio>
 
 #ifdef Q_OS_WIN
 #include "Windows.h"
@@ -47,7 +50,14 @@ void PDFConsole::writeText(QString text, QStringConverter::Encoding encoding)
         WriteFile(outputHandle, encodedData.constData(), encodedData.size(), nullptr, nullptr);
     }
 #else
-    QTextStream(stdout) << text;
+    // B178: the encoding of --text-codec also outside of Windows
+    QStringEncoder encoder(encoding);
+    QFile output;
+    if (output.open(stdout, QIODevice::WriteOnly))
+    {
+        output.write(encoder.encode(text));
+        output.flush();
+    }
 #endif
 }
 
@@ -76,9 +86,15 @@ void PDFConsole::writeError(QString text, QStringConverter::Encoding encoding)
         WriteFile(outputHandle, encodedData.constData(), encodedData.size(), nullptr, nullptr);
     }
 #else
-    QTextStream stream(stdout);
-    stream << text;
-    stream << Qt::endl;
+    // B180: the errors go to the standard error output (they were written into the output of the
+    // command, a redirected report or XML got them), one line each
+    QStringEncoder encoder(encoding);
+    QFile output;
+    if (output.open(stderr, QIODevice::WriteOnly))
+    {
+        output.write(encoder.encode(text));
+        output.flush();
+    }
 #endif
 }
 

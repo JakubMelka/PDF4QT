@@ -574,7 +574,19 @@ PDFAppToolResultDialog::ResultKind PDFAppToolResultDialog::getResultKind(const P
     // Tools.md 9.3 point 11: a tool, which writes only a new file (Sign, Timestamp, Redact), has the
     // name, the folder and the opening of the copy instead of the choices of a new document
     const ResultKind kind = getResultKind(result);
-    return kind == ResultKind::NewDocument && tool.entry && tool.entry->isFileOnlyResult() ? ResultKind::FileOnly : kind;
+    if (kind == ResultKind::NewDocument && tool.entry && tool.entry->isFileOnlyResult())
+    {
+        return ResultKind::FileOnly;
+    }
+
+    // The export of an analysis (step 7 of phase 2, R7-13): the controls of the file only, no choices
+    return isAnalysisExport(tool, result) ? ResultKind::FileOnly : kind;
+}
+
+bool PDFAppToolResultDialog::isAnalysisExport(const PDFDocumentToolOutputTraits& tool, const PDFDocumentToolResult& result)
+{
+    return tool.resultKind == PDFDocumentToolResultKind::Analysis && result.documents.empty() && result.outputs.size() == 1 &&
+           result.writtenFiles.isEmpty() && result.notWrittenFiles.isEmpty();
 }
 
 std::vector<PDFAppToolResultDialog::Choice> PDFAppToolResultDialog::getChoices(const PDFDocumentToolOutputTraits& tool, ResultKind kind, const DocumentState& state)
@@ -662,6 +674,7 @@ PDFAppToolResultDialog::PDFAppToolResultDialog(PDFAppContext* context, PDFAppDoc
     setCardWidth(CARD_WIDTH);
 
     m_kind = getResultKind(m_outputTraits, m_input.result);
+    m_isExport = m_kind == ResultKind::FileOnly && isAnalysisExport(m_outputTraits, m_input.result);
     m_isPartial = !m_input.result.leftOutInputs.empty() && m_kind != ResultKind::Analysis && m_kind != ResultKind::WrittenFiles;
     m_isStoppedRun = m_kind == ResultKind::WrittenFiles && m_input.result.status == PDFDocumentToolResultStatus::Stopped;
     m_isOpenCheckedByUser = m_input.isFileOpenChecked;
@@ -1085,6 +1098,15 @@ void PDFAppToolResultDialog::createFileOnlyControls(QVBoxLayout* layout, QWidget
     controlsLayout->insertLayout(0, fieldLayout);
     controlsLayout->setSpacing(Helper::SECTION_GAP);
     layout->addWidget(controls);
+
+    // An export has the check box only with a text of its tool (484:18811 "Open the report when it is
+    // saved"; 480:15368, 478:15674 have none)
+    if (m_isExport && m_input.fileOpenText.isEmpty() && m_openCheckBox)
+    {
+        m_openCheckBox->setChecked(false);
+        m_openCheckBox->setVisible(false);
+        m_isOpenCheckedByUser = false;
+    }
 }
 
 void PDFAppToolResultDialog::updateOpenCheckLock()
@@ -1108,6 +1130,12 @@ void PDFAppToolResultDialog::createContinueWith(QVBoxLayout* layout, QWidget* pa
     // not for a partial result (tools.md 9.3 point 12, 378:4376); a file only offers it, when its
     // tool does (Redact, Q6.16 - not Sign and Timestamp, the rule of isOfferingSuccessors below)
     if ((m_kind != ResultKind::ChangeDocument && m_kind != ResultKind::NewDocument && m_kind != ResultKind::FileOnly) || m_isPartial)
+    {
+        return;
+    }
+
+    // Nor after the export of an analysis: a file of data, nothing to go on with (owner answer Q7.15)
+    if (m_isExport)
     {
         return;
     }
@@ -1216,6 +1244,12 @@ QString PDFAppToolResultDialog::getDefaultSubtitle() const
         case ResultKind::NewDocument:
             return tr("The new document is ready – choose what to do with it.");
         case ResultKind::FileOnly:
+            if (m_isExport)
+            {
+                // 480:15368, 478:15674
+                return tr("Nothing has been written yet – choose where to save the file.");
+            }
+
             // No frame of the design names it (the tools give their own subtitles of 434:9276,
             // 435:8356, 437:13887 by PDFAppToolResultInput::subtitle)
             return tr("Nothing has been written yet – choose where the new file goes. The open document stays as it is.");
@@ -1431,7 +1465,8 @@ void PDFAppToolResultDialog::updateTexts()
     }
     if (m_discardButton)
     {
-        m_discardButton->setText(m_kind == ResultKind::WrittenFiles ? tr("Delete Written Files") : tr("Discard result"));
+        // An export discards only its file, the result stays in the tool (480:15368, 484:18811 "Discard")
+        m_discardButton->setText(m_kind == ResultKind::WrittenFiles ? tr("Delete Written Files") : (m_isExport ? tr("Discard") : tr("Discard result")));
     }
     if (m_closeButton)
     {
@@ -1747,10 +1782,15 @@ void PDFAppToolResultDialog::clearStates()
 
 QString PDFAppToolResultDialog::getInitialFolder() const
 {
-    // The folder of the document (T1); no file: the documents of the user
+    // The folder of the document (T1); no file: the folder given by the shell (an export without a run),
+    // else the documents of the user
     if (!m_snapshot.filePath.isEmpty())
     {
         return QFileInfo(m_snapshot.filePath).absolutePath();
+    }
+    if (!m_input.initialFolder.isEmpty())
+    {
+        return m_input.initialFolder;
     }
 
     const QString documents = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
@@ -1778,7 +1818,7 @@ const PDFDocumentToolOutputDocument* PDFAppToolResultDialog::findOutput(PDFDocum
 QString PDFAppToolResultDialog::getSuggestedFileName() const
 {
     QString name;
-    if (m_kind == ResultKind::Files && !m_input.result.outputs.empty())
+    if ((m_kind == ResultKind::Files || m_isExport) && !m_input.result.outputs.empty())
     {
         name = m_input.result.outputs.front().suggestedFileName;
     }
@@ -1801,7 +1841,27 @@ QString PDFAppToolResultDialog::getSuggestedFileName() const
     {
         return (isSafe ? base : tr("Result")) + QStringLiteral(".txt");
     }
+    if (m_isExport)
+    {
+        return withTargetExtension(isSafe ? base : tr("Result"));
+    }
     return isSafe ? base + QStringLiteral("_copy.pdf") : tr("Result") + QStringLiteral(".pdf");
+}
+
+QString PDFAppToolResultDialog::withTargetExtension(const QString& fileName) const
+{
+    if (!m_isExport || m_input.result.outputs.empty())
+    {
+        return PDFAppToolResultDialogHelper::withPdfExtension(fileName);
+    }
+
+    // The extension of the file of the export (".csv", ".html"): the format was chosen before the dialog
+    const QString extension = QFileInfo(m_input.result.outputs.front().suggestedFileName).suffix();
+    if (extension.isEmpty() || QFileInfo(fileName).suffix().compare(extension, Qt::CaseInsensitive) == 0)
+    {
+        return fileName;
+    }
+    return fileName + QLatin1Char('.') + extension;
 }
 
 QString PDFAppToolResultDialog::getTargetFilePath() const
@@ -1813,7 +1873,7 @@ QString PDFAppToolResultDialog::getTargetFilePath() const
 
     if (m_fileNameField)
     {
-        return QDir(m_folder).absoluteFilePath(PDFAppToolResultDialogHelper::withPdfExtension(m_fileNameField->text()));
+        return QDir(m_folder).absoluteFilePath(withTargetExtension(m_fileNameField->text()));
     }
     return QString();
 }
@@ -1866,7 +1926,7 @@ bool PDFAppToolResultDialog::checkTarget()
             showNameError(PDFAppToolPathRules::getNameProblemText(typedProblem));
             return false;
         }
-        fileName = PDFAppToolResultDialogHelper::withPdfExtension(m_fileNameField->text());
+        fileName = withTargetExtension(m_fileNameField->text());
     }
 
     const PDFAppToolPathRules::NameProblem problem = PDFAppToolPathRules::checkFileName(fileName);
@@ -2228,7 +2288,12 @@ void PDFAppToolResultDialog::confirm()
             }
 
             bool isStarted = false;
-            if (m_kind == ResultKind::FileOnly)
+            if (m_isExport)
+            {
+                // The file of the export of an analysis (R7-13): the one write of an output
+                isStarted = m_writer->writeOutput(m_input.result.outputs.front(), getTargetFilePath(), getOriginFilePath(), m_isReplaceConfirmed);
+            }
+            else if (m_kind == ResultKind::FileOnly)
             {
                 // The verified bytes of the run, never a document written again (an incremental update
                 // of a signature written again would destroy it; R6-27)
@@ -2602,7 +2667,13 @@ void PDFAppToolResultDialog::openResult(PDFAppToolResultOutcome* outcome)
 
         case PDFAppToolResultOutcome::Action::CopySaved:
         case PDFAppToolResultOutcome::Action::FileSaved:
-            if (m_kind == ResultKind::Files)
+            if (m_isExport)
+            {
+                // 484:18811 "Open the report when it is saved": the GUI of the tool opens it (an HTML or XML
+                // file is not a document of PDF4QT); nothing is opened here
+                outcome->isFileOpenRequested = !m_input.fileOpenText.isEmpty() && m_openCheckBox && m_openCheckBox->isChecked();
+            }
+            else if (m_kind == ResultKind::Files)
             {
                 outcome->isOpenFolderRequested = m_openCheckBox && m_openCheckBox->isChecked();
             }
@@ -2701,8 +2772,9 @@ void PDFAppToolResultDialog::finishWith(PDFAppToolResultOutcome outcome)
         }
     }
 
-    // A preview is no use of a tool, an accepted result is
-    if (outcome.isAccepted() && m_context && m_context->getDatabase() && m_input.tool)
+    // A preview is no use of a tool, an accepted result is; an export of an analysis is not, its run was
+    // (PDFDocumentToolShell records the run of a result kept in the tool)
+    if (outcome.isAccepted() && !m_isExport && m_context && m_context->getDatabase() && m_input.tool)
     {
         const PDFDatabaseError error = PDFDocumentToolUsage(m_context->getDatabase()).recordRun(m_input.tool->getId(), m_input.previousToolId);
         if (error.isError())

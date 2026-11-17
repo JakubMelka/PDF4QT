@@ -263,6 +263,25 @@ public:
     /// A result waits for the answer of the question of the GUI (confirmResult)
     bool isConfirmingResult() const { return m_confirmingResult.has_value(); }
 
+    /// The state of the result kept in the tool (PDFDocumentToolGUI::isResultKeptInTool; plan of step 7 of
+    /// phase 2, 4.1, R7-2): Current after a successful run - the Primary button Disabled -, Stale after a change
+    /// of the document (the signal of its tab) or of a parameter, which the GUI names (isResultStaleBy), or by
+    /// markResultStale - the amber callout and the Primary button again; None before the first result
+    PDFAppToolResultState getResultState() const { return m_resultState; }
+
+    /// A Current result becomes Stale (PDFDocumentToolGUI::markResultStale); nothing in another state
+    void markResultStale();
+
+    /// Opens the dialog of an export of the kept result (PDFDocumentToolGUI::openExport; R7-13: the controls of
+    /// the file only, 480:15368, 478:15674): \p exportResult has exactly one output file and no document
+    /// (PDFAppToolResultDialog::isAnalysisExport). Only in the state Editing, never during a run; the state is
+    /// Deciding until the decision, which returns to Editing (the tool stays; the result keeps its state) and
+    /// then tells the GUI (PDFDocumentToolGUI::onExportDecided). \returns the dialog was opened.
+    bool openExportDialog(const PDFDocumentToolResult& exportResult);
+
+    /// The amber callout of a stale result (492:109399), nullptr = none
+    PDFAppToolCallout* getStaleCallout() const { return m_staleCallout.data(); }
+
     /// Computes the preview again (the inputs of a tool of more inputs have changed under
     /// the same parameters: a password accepted, a reading finished). Nothing outside of
     /// the state Editing.
@@ -415,6 +434,20 @@ private:
     /// Discard result of the own tab of a tool (Q9): the tool stays with its inputs
     void returnToEditing();
 
+    /// A successful result of a GUI, which keeps it (PDFDocumentToolGUI::isResultKeptInTool): the use, the last
+    /// values, the result to the GUI, the dialog of its export or the end of the decision (see getResultState)
+    void keepResult(const PDFDocumentToolResult& result);
+
+    /// Sets the state of the kept result: the callout, the toolbar and the status follow (no signal)
+    void setResultState(PDFAppToolResultState state);
+
+    /// Shows or removes the callout of a stale result; \p isPlacedAgain creates it again at its place
+    void updateStaleCallout(bool isPlacedAgain);
+
+    /// The decision of the dialog of an export: the tool returns to Editing, the GUI learns the outcome last. The
+    /// file of a run, which was not saved (Discard), keeps nothing: the result state is None again.
+    void finishExport(const PDFAppToolResultOutcome& outcome);
+
     /// The question of a file of the run (356:11997, R3): the conflict dialog is shown or closed
     void onFileQuestionChanged();
     void onFileConflictAnswered(pdf::PDFAppToolFileSink::Answer answer, bool isForAll);
@@ -464,6 +497,10 @@ private:
     bool m_isCloseRequested = false;
     bool m_isLeavingMode = false;   ///< The host is moving the parts back (close)
     bool m_isAskingClose = false;   ///< PDFDocumentToolGUI::askClose runs (re-entry guard)
+    bool m_isExportDialog = false;  ///< The result dialog is the export of a kept result: its decision returns to Editing
+    bool m_isRunExportDialog = false;   ///< The export is the file of a run (keepResult): not saved, nothing is kept
+    PDFAppToolResultState m_resultState = PDFAppToolResultState::None;
+    QPointer<PDFAppToolCallout> m_staleCallout;     ///< Owned by the right panel or by the content of the GUI (its layout); dies with them
 };
 
 }   // namespace pdf

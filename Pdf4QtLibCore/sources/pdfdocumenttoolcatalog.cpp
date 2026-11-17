@@ -199,7 +199,11 @@ PDFDocumentToolResultKind PDFDocumentToolCatalogEntry::getResultKind() const
 /// kind of the catalog first; plan of step 3 of phase 2, 4.2): Extract Pages one file (NewDocument)
 /// or one file per page (Files). Manage Pages (plan of step 3b, 4.4): This document (the kind of
 /// the catalog, ChangeDocument), One PDF (NewDocument), One PDF per group or item and One PDF per
-/// page (Files).
+/// page (Files). Step 7 (plan 4.1, 4.8, 4.9): Measure lists and exports its measurements (the
+/// analysis of the catalog) or adds them as annotations (mode add, ChangeDocument - bit 6 by
+/// PDFDocumentTool::getRequiredPermissions of the tool); Compare gives a summary or the XML of the
+/// differences (the analysis) or the report PDF (output report, a new document of its inputs - the
+/// rule of Merge by PDFDocumentTool::isNewDocumentOfInputs of the tool).
 class PDFDocumentToolResultKindsRow
 {
 public:
@@ -212,6 +216,8 @@ static constexpr PDFDocumentToolResultKindsRow TOOL_OTHER_RESULT_KINDS[] =
     { "pages.extract", PDFDocumentToolResultKind::Files },
     { "pages.manage", PDFDocumentToolResultKind::NewDocument },
     { "pages.manage", PDFDocumentToolResultKind::Files },
+    { "review.compare", PDFDocumentToolResultKind::NewDocument },
+    { "review.measure", PDFDocumentToolResultKind::ChangeDocument },
 };
 
 /// Inputs of a tool, which differ from the default of its input kind (K41 of the plan of step 3
@@ -312,7 +318,11 @@ static constexpr const char* TOOL_SECRETS_TYPED_IN_APPLICATION[] =
 /// Tools, after which no tool is offered (PDFDocumentToolCatalogEntry::isOfferingSuccessors): the changes of
 /// the security (tools.md 10.3, plan of step 5 of phase 2, 2.4) and the tools, whose result is only a file and
 /// whose frames have no Then continue with (Sign with Certificate 434:9276, Add Timestamp 435:8356; plan of
-/// step 6, R6-10). Redact Content keeps it (437:13887, owner answer Q6.16).
+/// step 6, R6-10). Redact Content keeps it (437:13887, owner answer Q6.16). The tools of Review & Inspect
+/// have no default successors (owner answer Q7.15: their rows have none) and never show Then continue with:
+/// an analysis has no result to go on with, its export is a file of data without it (480:15368, 478:15674,
+/// 484:18811; PDFAppToolResultDialog), Measure adds its annotations without a result dialog. They are not in
+/// this list: the pairs of the suggestions after them (Often used next) stay.
 static constexpr const char* TOOL_WITHOUT_SUCCESSORS[] =
 {
     "protect.password",
@@ -713,6 +723,14 @@ const std::vector<PDFDocumentToolExtendedData>& PDFDocumentToolCatalog::getExten
     // a change of the pages (isPageChange: a certified document gets only a copy). Manage Certificates
     // writes nothing during its run - an analysis (K6.11). Redact Content writes a new document of the
     // pages of its input, not encrypted (isNewDocumentOfInputs: the rule of Merge, B139).
+    // The tools of step 7 of phase 2 (plan 4.1, owner answer Q7.2 with R7-22 (6)): the eight tools of Review
+    // & Inspect are analyses - viewing an open document is reading it, no permission restricts it (mask 0,
+    // nothing preselected, no signature impact). What the run with its parameters needs comes from the tool
+    // (PDFDocumentTool::getRequiredPermissions): an export of the content - the JavaScript, the XMP and the
+    // XML with the streams of Document Report, the content of a stream of the Object Inspector for MCP and
+    // the clipboard, the XML and the text of the differences of Compare - is an extraction, bit 5 with the
+    // owner password offered (Table 22); Measure adding annotations (mode add, ChangeDocument) bit 6; the
+    // report PDF of Compare is a new document of its inputs (the rule of Merge). No successors (Q7.15).
     using Input = PDFDocumentToolInputKind;
     using Result = PDFDocumentToolResultKind;
     using Dependency = PDFDocumentToolExternalDependency;

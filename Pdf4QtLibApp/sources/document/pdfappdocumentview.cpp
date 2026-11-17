@@ -37,6 +37,7 @@
 #include "pdfappdocumentmenus.h"
 #include "pdfappdocumentpanels_outline.h"
 #include "pdfappdocumentsidebar.h"
+#include "pdfappdocumentsoftproof.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumenttoolbar.h"
 #include "pdfappmainwindow.h"
@@ -976,7 +977,12 @@ void PDFAppDocumentView::updatePageItem()
     }
 
     const PDFInteger pageIndex = getDisplayedPageIndex();
-    if (m_isToolModeActive && !m_toolPageText.isEmpty())
+    if (m_isToolModeActive && m_hasToolStatusItems)
+    {
+        // K7.27: the item of a tool, which has its own items (empty = hidden)
+        m_statusBar->setPageText(m_toolPageText);
+    }
+    else if (m_isToolModeActive && !m_toolPageText.isEmpty())
     {
         // The tool tells its own page item (Manage Pages "12 pages", 1479:34632)
         m_statusBar->setPageText(m_toolPageText);
@@ -1003,6 +1009,13 @@ void PDFAppDocumentView::updateZoomItem()
 {
     if (!m_statusBar)
     {
+        return;
+    }
+
+    // K7.27: the item of a tool, which has its own items (empty = hidden)
+    if (m_isToolModeActive && m_hasToolStatusItems)
+    {
+        m_statusBar->setZoomText(m_toolZoomText);
         return;
     }
 
@@ -1780,6 +1793,8 @@ bool PDFAppDocumentView::enterToolMode(const PDFAppToolModeParts& parts)
     m_isToolModeActive = true;
     m_toolMessage.clear();
     m_toolPageText.clear();
+    m_toolZoomText.clear();
+    m_hasToolStatusItems = false;
     installToolParts(livingParts);
 
     // The keys of the mode are bound to the view: a focus outside of it or in a hidden part
@@ -1824,6 +1839,8 @@ void PDFAppDocumentView::leaveToolMode()
     m_isToolModeActive = false;
     m_toolMessage.clear();
     m_toolPageText.clear();
+    m_toolZoomText.clear();
+    m_hasToolStatusItems = false;
 
     if (m_toolUndoTarget)
     {
@@ -1884,8 +1901,27 @@ void PDFAppDocumentView::setToolPageText(const QString& text)
 {
     if (m_isToolModeActive)
     {
+        const bool hadToolStatusItems = m_hasToolStatusItems;
         m_toolPageText = text.left(128);
+        m_toolZoomText.clear();
+        m_hasToolStatusItems = false;
         updatePageItem();
+        if (hadToolStatusItems)
+        {
+            updateZoomItem();
+        }
+    }
+}
+
+void PDFAppDocumentView::setToolStatusItems(const QString& pageText, const QString& zoomText)
+{
+    if (m_isToolModeActive)
+    {
+        m_toolPageText = pageText.left(128);
+        m_toolZoomText = zoomText.left(32);
+        m_hasToolStatusItems = true;
+        updatePageItem();
+        updateZoomItem();
     }
 }
 
@@ -2559,6 +2595,18 @@ void PDFAppDocumentView::applySettings()
     // Color management and the colors of the color modes
     PDFCMSSettings cmsSettings = m_cmsManager->getDefaultSettings();
     readCMSSettings(settings, &cmsSettings);
+
+    // The soft proof of this tab over the settings of the application (plan of step 7 of phase 2, 4.7,
+    // Q7.10): a change of the settings keeps it, without it the view has no proof at all
+    if (const PDFAppDocumentSoftProof* softProof = PDFAppDocumentSoftProof::findSoftProof(this))
+    {
+        cmsSettings = softProof->applyTo(cmsSettings);
+    }
+    else
+    {
+        cmsSettings = cmsSettings.withoutProofing();
+    }
+
     if (!(m_cmsManager->getSettings() == cmsSettings))
     {
         m_cmsManager->setSettings(cmsSettings);

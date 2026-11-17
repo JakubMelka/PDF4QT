@@ -109,8 +109,11 @@ public:
     /// Texts of the page and zoom items of the status bar (PDFDocumentToolGUI::getOwnTabPageText
     /// / getOwnTabZoomText): the own tab of a tool shows both; the document view has its own
     /// items, a page text replaces its page item during the mode (Manage Pages "12 pages",
-    /// 1479:34632), an empty one keeps it. Default: nothing.
-    virtual void setStatusItems(const QString& pageText, const QString& zoomText);
+    /// 1479:34632), an empty one keeps it. With \p isOwnItems (PDFDocumentToolGUI::hasOwnStatusItems,
+    /// K7.27 of the plan of step 7 of phase 2) both texts replace both items of the view and an
+    /// empty text hides its item (Statistics, Object Inspector, Report: none; Output Preview the
+    /// zoom of its picture, not of the view). Default: nothing.
+    virtual void setStatusItems(const QString& pageText, const QString& zoomText, bool isOwnItems);
 
     /// A message for a moment (a refusal), also after the mode has ended
     virtual void showTransientMessage(const QString& text) = 0;
@@ -206,7 +209,7 @@ public:
     virtual void leaveMode() override;
     virtual bool isModeActive() const override;
     virtual void setMessage(const QString& text) override;
-    virtual void setStatusItems(const QString& pageText, const QString& zoomText) override;
+    virtual void setStatusItems(const QString& pageText, const QString& zoomText, bool isOwnItems) override;
     virtual void showTransientMessage(const QString& text) override;
     virtual void showPanel(const QString& panelId) override;
     virtual void showInfoBar(const PDFAppInfoBarRequest& request) override;

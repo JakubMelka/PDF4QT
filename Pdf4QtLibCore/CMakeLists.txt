@@ -174,6 +174,32 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfdocumenttool_redact.h
     sources/pdfredactionverifier.cpp
     sources/pdfredactionverifier.h
+    # Step 7a + 7b of phase 2 (plan 9.1, 9.2 with R7-17): the skeleton (table writer, resource walk), P1a
+    # statistics and inspector, P1b report and XML, P3a ink coverage and output preview, P3b soft proof
+    sources/pdfdocumenttooltablewriter.cpp
+    sources/pdfdocumenttooltablewriter.h
+    sources/pdfresourcewalk.cpp
+    sources/pdfresourcewalk.h
+    sources/pdfdocumenttool_statistics.cpp
+    sources/pdfdocumenttool_statistics.h
+    sources/pdfdocumenttool_objectinspector.cpp
+    sources/pdfdocumenttool_objectinspector.h
+    sources/pdfobjectinspector.cpp
+    sources/pdfobjectinspector.h
+    sources/pdfdocumenttool_report.cpp
+    sources/pdfdocumenttool_report.h
+    sources/pdfdocumentreport.cpp
+    sources/pdfdocumentreport.h
+    sources/pdfdocumentxmlexport.cpp
+    sources/pdfdocumentxmlexport.h
+    sources/pdfdocumenttool_inkcoverage.cpp
+    sources/pdfdocumenttool_inkcoverage.h
+    sources/pdfdocumenttool_outputpreview.cpp
+    sources/pdfdocumenttool_outputpreview.h
+    sources/pdfoutputpreviewanalyzer.cpp
+    sources/pdfoutputpreviewanalyzer.h
+    sources/pdfdocumenttool_softproof.cpp
+    sources/pdfdocumenttool_softproof.h
     sources/pdfexecutionpolicy.cpp
     sources/pdfexecutionpolicy.h
     sources/pdfthreadannotations.cpp

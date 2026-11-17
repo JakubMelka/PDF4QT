@@ -802,8 +802,9 @@ void AppXfaTest::reviewMcpCatalogToolRefused()
     pdf::PDFAppDocument* document = tab->getDocument();
     QVERIFY(document->isPagedXFA());
 
-    std::shared_ptr<pdftest::TestDocumentTool> tool = std::make_shared<pdftest::TestDocumentTool>();
-    pdf::PDFDocumentToolRegistry::registerTool(tool);
+    // The test tool alone in Review & Inspect (R7-19 of step 7: review.statistics is a built-in tool)
+    const pdftest::TestDocumentToolRegistration registration;
+    QVERIFY(registration.isRegistered());
     fixture.host()->checkToolRegistry();
     QTRY_VERIFY_WITH_TIMEOUT(fixture.host()->getCatalog()->findTool(u"review"), 5000);
 
@@ -835,8 +836,6 @@ void AppXfaTest::reviewMcpCatalogToolRefused()
     QVERIFY(!document->isModified());
     QCOMPARE(document->getDocument()->getInfo()->title, QString());
     QCOMPARE(H::readFile(file), original);
-
-    pdf::PDFDocumentToolRegistry::unregisterTool(QString::fromLatin1(pdftest::TestDocumentTool::TOOL_ID));
 }
 
 QTEST_MAIN(AppXfaTest)

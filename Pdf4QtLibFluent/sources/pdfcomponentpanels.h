@@ -347,8 +347,8 @@ public:
     /// a part, which is not a number ("Can't convert '%1' to a number."; the
     /// part is isolated by U+2068 and U+2069, so a text of another direction
     /// does not reorder the message), a page, which the document does not have
-    /// (\p getMissingPageText), a reversed range ("Closed interval [%1, %2] is
-    /// invalid."). The numbers typed by the user are repeated as they are, the
+    /// (\p getMissingPageText), a reversed range ("The first page (%1) is after
+    /// the last page (%2).", tools.md 10.3 point 38). The numbers typed by the user are repeated as they are, the
     /// count of the pages is formatted by the default QLocale. An empty text is
     /// a valid empty range.
     static Result parse(const QString& text, int pageCount);

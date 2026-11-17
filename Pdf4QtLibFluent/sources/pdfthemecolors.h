@@ -198,6 +198,18 @@ public:
         WindowMacosMinimize,
         WindowMacosZoom,
         WindowMacosInactive,
+        Chart1,
+        Chart2,
+        Chart3,
+        Chart4,
+        Chart5,
+        Chart6,
+        Chart7,
+        Chart8,
+        Chart9,
+        Chart10,
+        Chart11,
+        Chart12,
         ColorCount
     };
     Q_ENUM(Color)

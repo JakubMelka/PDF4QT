@@ -27,15 +27,82 @@
 #include "pdfsecurityhandler.h"
 #include "pdfutils.h"
 #include "pdfthreadannotations.h"
+#include "pdfoperationcontrol.h"
 
 #include <zlib.h>
 
 #include <QtEndian>
 
+#include <limits>
+
 #include "pdfdbgheap.h"
 
 namespace pdf
 {
+
+/// The decoding loops of the filters with an upper limit of their output (PDFLimitedStreamDecoder, plan of
+/// step 7 of phase 2, R7-3, Q7.18). The filters of the storage call them without a limit, so there is one
+/// implementation of each decoder; the limited decoder calls them with its limit and its cancellation.
+class PDFStreamFilterDecodingHelper
+{
+public:
+    PDFStreamFilterDecodingHelper() = delete;
+
+    /// No limit of the output (the filters of the storage)
+    static constexpr qint64 UNLIMITED = (std::numeric_limits<qint64>::max)();
+
+    /// How often a loop checks the cancellation: after each MiB of its output
+    static constexpr qint64 CANCELLATION_STEP = qint64(1024) * 1024;
+
+    /// How a decoding loop ended
+    enum class Status
+    {
+        Finished,       ///< The input was decoded
+        LimitExceeded,  ///< The output would exceed the limit (the output is incomplete: its first limit bytes)
+        Canceled,       ///< The operation was canceled (the output is incomplete)
+        Error           ///< The data are damaged (\p errorMessage)
+    };
+
+    /// True, when the output of a loop reached a new MiB and the operation is canceled
+    static bool isCanceled(qint64 outputSize, qint64* nextCheck, const PDFOperationControl* control);
+
+    /// Inflates the data of Flate (RFC 1950 / 1951) up to the limit; a damaged stream gives Error with the
+    /// message of zlib (a truncated stream or a wrong checksum after decoded data is tolerated, as the
+    /// readers of other producers do)
+    static Status inflate(const QByteArray& data, qint64 limit, const PDFOperationControl* control, QByteArray* output, QString* errorMessage);
+
+    /// Decodes ASCII85 (ISO 32000-2, 7.4.3) up to the limit
+    static Status decodeAscii85(const QByteArray& data, qint64 limit, const PDFOperationControl* control, QByteArray* output);
+
+    /// Decodes RunLength (ISO 32000-2, 7.4.5) up to the limit; a run, which reaches past the end of the
+    /// data, takes only the data there are
+    static Status decodeRunLength(const QByteArray& data, qint64 limit, const PDFOperationControl* control, QByteArray* output);
+
+    /// Decodes LZW (ISO 32000-2, 7.4.4) up to the limit; an invalid code throws PDFException
+    static Status decodeLzw(const QByteArray& data, uint32_t early, qint64 limit, const PDFOperationControl* control, QByteArray* output);
+
+    /// The size of the output of the predictor of the parameters (ISO 32000-2, 7.4.4.4, Table 8) for an input
+    /// of \p inputSize bytes, and the size of the buffers of one row; -1 for an invalid parameter (the
+    /// predictor itself throws then). Without a predictor the output is the input.
+    static qint64 getPredictorOutputSize(const PDFObjectFetcher& objectFetcher, const PDFObject& parameters, qint64 inputSize, qint64* rowSize);
+
+    /// The names of the filters of a stream in their order (/Filter, else /FFilter), as they are written;
+    /// false, when an item is not a name
+    static bool getFilterNames(const PDFStream* stream, const PDFObjectFetcher& objectFetcher, std::vector<QByteArray>* names);
+
+    /// The /EarlyChange of LZW (Table 10, default 1)
+    static uint32_t getEarlyChange(const PDFObjectFetcher& objectFetcher, const PDFObject& parameters);
+
+    /// Appends the first bytes of [\p begin, \p begin + \p count) to \p output, up to its \p limit (a loop,
+    /// which exceeds the limit, leaves the output up to it: the decoding of a prefix keeps it)
+    static void appendUpToLimit(QByteArray* output, const char* begin, qint64 count, qint64 limit);
+};
+
+void PDFStreamFilterDecodingHelper::appendUpToLimit(QByteArray* output, const char* begin, qint64 count, qint64 limit)
+{
+    const qint64 appended = qBound(qint64(0), qMin(count, limit - qint64(output->size())), count);
+    output->append(begin, qsizetype(appended));
+}
 
 QByteArray PDFAsciiHexDecodeFilter::apply(const QByteArray& data,
                                           const PDFObjectFetcher& objectFetcher,
@@ -48,6 +115,21 @@ QByteArray PDFAsciiHexDecodeFilter::apply(const QByteArray& data,
 
     const int indexOfEnd = data.indexOf('>');
     const int size = (indexOfEnd == -1) ? data.size() : indexOfEnd;
+
+    // ISO 32000-2, 7.4.2: white-space characters are ignored - also for the odd number of the digits (the
+    // last digit is followed by a zero): QByteArray::fromHex pairs the digits from the end of the data
+    const QByteArray digits = QByteArray::fromRawData(data.constData(), size);
+    if (std::any_of(digits.cbegin(), digits.cend(), [](char character) { return PDFLexicalAnalyzer::isWhitespace(character); }))
+    {
+        QByteArray compact;
+        compact.reserve(size);
+        std::copy_if(digits.cbegin(), digits.cend(), std::back_inserter(compact), [](char character) { return !PDFLexicalAnalyzer::isWhitespace(character); });
+        if (compact.size() % 2 == 1)
+        {
+            compact.push_back('0');
+        }
+        return QByteArray::fromHex(compact);
+    }
 
     if (size % 2 == 1)
     {
@@ -75,6 +157,24 @@ QByteArray PDFAscii85DecodeFilter::apply(const QByteArray& data,
     Q_UNUSED(parameters);
     Q_UNUSED(securityHandler);
 
+    QByteArray result;
+    PDFStreamFilterDecodingHelper::decodeAscii85(data, PDFStreamFilterDecodingHelper::UNLIMITED, nullptr, &result);
+    return result;
+}
+
+bool PDFStreamFilterDecodingHelper::isCanceled(qint64 outputSize, qint64* nextCheck, const PDFOperationControl* control)
+{
+    if (!control || outputSize < *nextCheck)
+    {
+        return false;
+    }
+
+    *nextCheck = outputSize + CANCELLATION_STEP;
+    return PDFOperationControl::isOperationCanceled(control);
+}
+
+PDFStreamFilterDecodingHelper::Status PDFStreamFilterDecodingHelper::decodeAscii85(const QByteArray& data, qint64 limit, const PDFOperationControl* control, QByteArray* output)
+{
     const unsigned char* dataBegin = reinterpret_cast<const unsigned char*>(data.constData());
     const unsigned char* dataEnd = reinterpret_cast<const unsigned char*>(data.constData() + data.size());
 
@@ -97,11 +197,18 @@ QByteArray PDFAscii85DecodeFilter::apply(const QByteArray& data,
         return *it++;
     };
 
-    QByteArray result;
-    result.reserve(data.size() * 4 / 5);
+    QByteArray& result = *output;
+    result.clear();
+    result.reserve(qMin(qint64(data.size()) * 4 / 5, limit));
+    qint64 nextCheck = CANCELLATION_STEP;
 
     while (true)
     {
+        if (isCanceled(result.size(), &nextCheck, control))
+        {
+            return Status::Canceled;
+        }
+
         const uint32_t scannedChar = getChar();
         if (scannedChar == STREAM_END)
         {
@@ -109,6 +216,12 @@ QByteArray PDFAscii85DecodeFilter::apply(const QByteArray& data,
         }
         else if (scannedChar == 'z')
         {
+            if (qint64(result.size()) + 4 > limit)
+            {
+                const std::array<char, 4> zeros = { };
+                appendUpToLimit(&result, zeros.data(), 4, limit);
+                return Status::LimitExceeded;
+            }
             result.append(4, static_cast<char>(0));
         }
         else
@@ -147,6 +260,12 @@ QByteArray PDFAscii85DecodeFilter::apply(const QByteArray& data,
             }
 
             Q_ASSERT(validBytes <= decodedBytesUnpacked.size());
+            if (qint64(result.size()) + qint64(validBytes) > limit)
+            {
+                appendUpToLimit(&result, decodedBytesUnpacked.data(), qint64(validBytes), limit);
+                return Status::LimitExceeded;
+            }
+
             for (std::size_t i = 0; i < validBytes; ++i)
             {
                 result.push_back(decodedBytesUnpacked[i]);
@@ -154,7 +273,7 @@ QByteArray PDFAscii85DecodeFilter::apply(const QByteArray& data,
         }
     }
 
-    return result;
+    return Status::Finished;
 }
 
 class PDFLzwStreamDecoder
@@ -163,6 +282,9 @@ public:
     explicit PDFLzwStreamDecoder(const QByteArray& inputByteArray, uint32_t early);
 
     QByteArray decompress();
+
+    /// Decompresses up to the limit of the output (PDFStreamFilterDecodingHelper)
+    PDFStreamFilterDecodingHelper::Status decompress(qint64 limit, const PDFOperationControl* control, QByteArray* output);
 
 private:
     static constexpr const uint32_t CODE_TABLE_RESET = 256;
@@ -227,13 +349,27 @@ PDFLzwStreamDecoder::PDFLzwStreamDecoder(const QByteArray& inputByteArray, uint3
 QByteArray PDFLzwStreamDecoder::decompress()
 {
     QByteArray result;
+    decompress(PDFStreamFilterDecodingHelper::UNLIMITED, nullptr, &result);
+    return result;
+}
+
+PDFStreamFilterDecodingHelper::Status PDFLzwStreamDecoder::decompress(qint64 limit, const PDFOperationControl* control, QByteArray* output)
+{
+    QByteArray& result = *output;
+    result.clear();
 
     // Guess output byte array size - assume compress ratio is 2:1
-    result.reserve(m_inputByteArray.size() * 2);
+    result.reserve(qMin(qint64(m_inputByteArray.size()) * 2, limit));
+    qint64 nextCheck = PDFStreamFilterDecodingHelper::CANCELLATION_STEP;
 
     uint32_t previousCode = TABLE_SIZE;
     while (true)
     {
+        if (PDFStreamFilterDecodingHelper::isCanceled(result.size(), &nextCheck, control))
+        {
+            return PDFStreamFilterDecodingHelper::Status::Canceled;
+        }
+
         const uint32_t code = getCode();
 
         if (code == CODE_END_OF_STREAM)
@@ -312,11 +448,17 @@ QByteArray PDFLzwStreamDecoder::decompress()
         previousCode = code;
 
         // Copy the input array to the buffer
+        const qint64 sequenceLength = qint64(std::distance(m_sequence.begin(), m_currentSequenceEnd));
+        if (qint64(result.size()) + sequenceLength > limit)
+        {
+            PDFStreamFilterDecodingHelper::appendUpToLimit(&result, m_sequence.data(), sequenceLength, limit);
+            return PDFStreamFilterDecodingHelper::Status::LimitExceeded;
+        }
         std::copy(m_sequence.begin(), m_currentSequenceEnd, std::back_inserter(result));
     }
 
     result.shrink_to_fit();
-    return result;
+    return PDFStreamFilterDecodingHelper::Status::Finished;
 }
 
 void PDFLzwStreamDecoder::clearTable()
@@ -360,6 +502,14 @@ QByteArray PDFLzwDecodeFilter::apply(const QByteArray& data,
 {
     Q_UNUSED(securityHandler);
 
+    const uint32_t early = PDFStreamFilterDecodingHelper::getEarlyChange(objectFetcher, parameters);
+    PDFStreamPredictor predictor = PDFStreamPredictor::createPredictor(objectFetcher, parameters);
+    PDFLzwStreamDecoder decoder(data, early);
+    return predictor.apply(decoder.decompress());
+}
+
+uint32_t PDFStreamFilterDecodingHelper::getEarlyChange(const PDFObjectFetcher& objectFetcher, const PDFObject& parameters)
+{
     uint32_t early = 1;
 
     const PDFObject& dereferencedParameters = objectFetcher(parameters);
@@ -374,9 +524,107 @@ QByteArray PDFLzwDecodeFilter::apply(const QByteArray& data,
         }
     }
 
-    PDFStreamPredictor predictor = PDFStreamPredictor::createPredictor(objectFetcher, parameters);
+    return early;
+}
+
+PDFStreamFilterDecodingHelper::Status PDFStreamFilterDecodingHelper::decodeLzw(const QByteArray& data, uint32_t early, qint64 limit, const PDFOperationControl* control, QByteArray* output)
+{
     PDFLzwStreamDecoder decoder(data, early);
-    return predictor.apply(decoder.decompress());
+    return decoder.decompress(limit, control, output);
+}
+
+qint64 PDFStreamFilterDecodingHelper::getPredictorOutputSize(const PDFObjectFetcher& objectFetcher, const PDFObject& parameters, qint64 inputSize, qint64* rowSize)
+{
+    *rowSize = 0;
+    const PDFObject& dereferencedParameters = objectFetcher(parameters);
+    if (!dereferencedParameters.isDictionary())
+    {
+        return inputSize;
+    }
+
+    // ISO 32000-2, Table 8 (the ranges of PDFStreamPredictor::createPredictor)
+    const PDFDictionary* dictionary = dereferencedParameters.getDictionary();
+    auto getInteger = [dictionary, &objectFetcher](const char* key, qint64 defaultValue) -> qint64
+    {
+        const PDFObject& object = objectFetcher(dictionary->get(key));
+        if (object.isInt())
+        {
+            return object.getInteger();
+        }
+        return object.isNull() ? defaultValue : -1;
+    };
+
+    const qint64 predictor = getInteger("Predictor", 1);
+    const qint64 colors = getInteger("Colors", 1);
+    const qint64 bitsPerComponent = getInteger("BitsPerComponent", 8);
+    const qint64 columns = getInteger("Columns", 1);
+    if (predictor < 1 || predictor > 15 || colors < 1 || colors > PDF_MAX_COLOR_COMPONENTS || bitsPerComponent < 1 || bitsPerComponent > 16 ||
+        columns < 1 || columns > (std::numeric_limits<int>::max)())
+    {
+        return -1;
+    }
+
+    if (predictor == 1)
+    {
+        return inputSize;
+    }
+
+    // At most 2^31 * 32 * 16 bits: no overflow
+    const qint64 rowBytes = (columns * colors * bitsPerComponent + 7) / 8;
+    *rowSize = rowBytes + (colors * bitsPerComponent + 7) / 8;
+    if (predictor == 2)
+    {
+        // TIFF: each row is aligned to bytes, the last one is completed
+        return ((inputSize + rowBytes - 1) / rowBytes) * rowBytes;
+    }
+
+    if (predictor >= 10)
+    {
+        // PNG: a row is the byte of its algorithm and the row, the last one is completed
+        return ((inputSize + rowBytes) / (rowBytes + 1)) * rowBytes;
+    }
+
+    return -1;
+}
+
+bool PDFStreamFilterDecodingHelper::getFilterNames(const PDFStream* stream, const PDFObjectFetcher& objectFetcher, std::vector<QByteArray>* names)
+{
+    names->clear();
+    const PDFDictionary* dictionary = stream->getDictionary();
+
+    PDFObject filters;
+    if (dictionary->hasKey(PDF_STREAM_DICT_FILTER))
+    {
+        filters = objectFetcher(dictionary->get(PDF_STREAM_DICT_FILTER));
+    }
+    else if (dictionary->hasKey(PDF_STREAM_DICT_FILE_FILTER))
+    {
+        filters = objectFetcher(dictionary->get(PDF_STREAM_DICT_FILE_FILTER));
+    }
+
+    if (filters.isName())
+    {
+        names->push_back(filters.getString());
+    }
+    else if (filters.isArray())
+    {
+        const PDFArray* filterArray = filters.getArray();
+        for (size_t i = 0; i < filterArray->getCount(); ++i)
+        {
+            const PDFObject& object = objectFetcher(filterArray->getItem(i));
+            if (!object.isName())
+            {
+                return false;
+            }
+            names->push_back(object.getString());
+        }
+    }
+    else if (!filters.isNull())
+    {
+        return false;
+    }
+
+    return true;
 }
 
 QByteArray PDFFlateDecodeFilter::apply(const QByteArray& data,
@@ -491,6 +739,19 @@ PDFInteger PDFFlateDecodeFilter::getStreamDataLength(const QByteArray& data, PDF
 QByteArray PDFFlateDecodeFilter::uncompress(const QByteArray& data)
 {
     QByteArray result;
+    QString errorMessage;
+    if (PDFStreamFilterDecodingHelper::inflate(data, PDFStreamFilterDecodingHelper::UNLIMITED, nullptr, &result, &errorMessage) == PDFStreamFilterDecodingHelper::Status::Error)
+    {
+        throw PDFException(PDFTranslationContext::tr("Error decompressing by flate method: %1").arg(errorMessage));
+    }
+
+    return result;
+}
+
+PDFStreamFilterDecodingHelper::Status PDFStreamFilterDecodingHelper::inflate(const QByteArray& data, qint64 limit, const PDFOperationControl* control, QByteArray* output, QString* errorMessage)
+{
+    QByteArray& result = *output;
+    result.clear();
 
     z_stream stream = { };
     stream.next_in = const_cast<Bytef*>(convertByteArrayToUcharPtr(data));
@@ -501,28 +762,48 @@ QByteArray PDFFlateDecodeFilter::uncompress(const QByteArray& data)
     int error = inflateInit(&stream);
     if (error != Z_OK)
     {
-        throw PDFException(PDFTranslationContext::tr("Failed to initialize flate decompression stream."));
+        *errorMessage = PDFTranslationContext::tr("Failed to initialize flate decompression stream.");
+        return Status::Error;
     }
 
+    qint64 nextCheck = CANCELLATION_STEP;
+    Status status = Status::Finished;
     do
     {
         stream.next_out = outputBuffer.data();
         stream.avail_out = static_cast<uInt>(outputBuffer.size());
 
-        error = inflate(&stream, Z_NO_FLUSH);
+        error = ::inflate(&stream, Z_NO_FLUSH);
 
         int bytesWritten = int(outputBuffer.size()) - stream.avail_out;
+        if (qint64(result.size()) + bytesWritten > limit)
+        {
+            appendUpToLimit(&result, reinterpret_cast<const char*>(outputBuffer.data()), bytesWritten, limit);
+            status = Status::LimitExceeded;
+            break;
+        }
         result.append(reinterpret_cast<const char*>(outputBuffer.data()), bytesWritten);
+
+        if (isCanceled(result.size(), &nextCheck, control))
+        {
+            status = Status::Canceled;
+            break;
+        }
     } while (error == Z_OK);
 
-    QString errorMessage;
+    QString zlibMessage;
     if (stream.msg)
     {
-        errorMessage = QString::fromLatin1(stream.msg);
+        zlibMessage = QString::fromLatin1(stream.msg);
     }
 
     const bool isInputExhausted = stream.avail_in == 0;
     inflateEnd(&stream);
+
+    if (status != Status::Finished)
+    {
+        return status;
+    }
 
     switch (error)
     {
@@ -535,21 +816,22 @@ QByteArray PDFFlateDecodeFilter::uncompress(const QByteArray& data)
             // or truncate the stream. If we decompressed some data and consumed whole
             // input, then we tolerate this error.
             const bool isTruncatedStream = error == Z_BUF_ERROR && isInputExhausted && !result.isEmpty();
-            const bool ignoreError = isTruncatedStream || (error == Z_DATA_ERROR && errorMessage == "incorrect data check");
+            const bool ignoreError = isTruncatedStream || (error == Z_DATA_ERROR && zlibMessage == "incorrect data check");
 
             if (!ignoreError)
             {
-                if (errorMessage.isEmpty())
+                if (zlibMessage.isEmpty())
                 {
-                    errorMessage = PDFTranslationContext::tr("zlib code: %1").arg(error);
+                    zlibMessage = PDFTranslationContext::tr("zlib code: %1").arg(error);
                 }
 
-                throw PDFException(PDFTranslationContext::tr("Error decompressing by flate method: %1").arg(errorMessage));
+                *errorMessage = zlibMessage;
+                return Status::Error;
             }
         }
     }
 
-    return result;
+    return Status::Finished;
 }
 
 QByteArray PDFRunLengthDecodeFilter::apply(const QByteArray& data,
@@ -562,11 +844,25 @@ QByteArray PDFRunLengthDecodeFilter::apply(const QByteArray& data,
     Q_UNUSED(securityHandler);
 
     QByteArray result;
-    result.reserve(data.size() * 2);
+    PDFStreamFilterDecodingHelper::decodeRunLength(data, PDFStreamFilterDecodingHelper::UNLIMITED, nullptr, &result);
+    return result;
+}
+
+PDFStreamFilterDecodingHelper::Status PDFStreamFilterDecodingHelper::decodeRunLength(const QByteArray& data, qint64 limit, const PDFOperationControl* control, QByteArray* output)
+{
+    QByteArray& result = *output;
+    result.clear();
+    result.reserve(qMin(qint64(data.size()) * 2, limit));
+    qint64 nextCheck = CANCELLATION_STEP;
 
     auto itEnd = data.cend();
     for (auto it = data.cbegin(); it != itEnd;)
     {
+        if (isCanceled(result.size(), &nextCheck, control))
+        {
+            return Status::Canceled;
+        }
+
         const unsigned char current = *it++;
         if (current == 128)
         {
@@ -575,21 +871,38 @@ QByteArray PDFRunLengthDecodeFilter::apply(const QByteArray& data,
         }
         else if (current < 128)
         {
-            // Copy n + 1 characters from the input array literally (and advance iterators)
-            const int count = static_cast<int>(current) + 1;
+            // Copy n + 1 characters from the input array literally (and advance iterators); a run,
+            // which reaches past the end of the data, takes the data there are
+            const int count = static_cast<int>(qMin<qint64>(static_cast<qint64>(current) + 1, std::distance(it, itEnd)));
+            if (qint64(result.size()) + count > limit)
+            {
+                appendUpToLimit(&result, &*it, count, limit);
+                return Status::LimitExceeded;
+            }
             std::copy(it, std::next(it, count), std::back_inserter(result));
             std::advance(it, count);
         }
         else if (current > 128)
         {
-            // Copy 257 - n copies of single character
+            // Copy 257 - n copies of single character (none, when the data end)
+            if (it == itEnd)
+            {
+                break;
+            }
+
             const int count = 257 - current;
+            if (qint64(result.size()) + count > limit)
+            {
+                const QByteArray run(count, *it);
+                appendUpToLimit(&result, run.constData(), count, limit);
+                return Status::LimitExceeded;
+            }
             const char toBeCopied = *it++;
             std::fill_n(std::back_inserter(result), count, toBeCopied);
         }
     }
 
-    return result;
+    return Status::Finished;
 }
 
 const PDFStreamFilter* PDFStreamFilterStorage::getFilter(const QByteArray& filterName)
@@ -707,6 +1020,191 @@ QByteArray PDFStreamFilterStorage::getDecodedStream(const PDFStream* stream, con
     }
 
     return result;
+}
+
+PDFLimitedStreamDecoder::Result PDFLimitedStreamDecoder::decode(const PDFStream* stream, const PDFObjectFetcher& objectFetcher, const PDFSecurityHandler* securityHandler, qint64 maximumDecodedSize, const PDFOperationControl* control)
+{
+    return decodeImpl(stream, objectFetcher, securityHandler, maximumDecodedSize, -1, control);
+}
+
+PDFLimitedStreamDecoder::Result PDFLimitedStreamDecoder::decodePrefix(const PDFStream* stream, const PDFObjectFetcher& objectFetcher, const PDFSecurityHandler* securityHandler, qint64 prefixSize,
+                                                                      qint64 maximumDecodedSize, const PDFOperationControl* control)
+{
+    return decodeImpl(stream, objectFetcher, securityHandler, maximumDecodedSize, qMax(prefixSize, qint64(0)), control);
+}
+
+PDFLimitedStreamDecoder::Result PDFLimitedStreamDecoder::decodeImpl(const PDFStream* stream, const PDFObjectFetcher& objectFetcher, const PDFSecurityHandler* securityHandler,
+                                                                    qint64 maximumDecodedSize, qint64 prefixSize, const PDFOperationControl* control)
+{
+    using Helper = PDFStreamFilterDecodingHelper;
+
+    Result result;
+    const qint64 limit = qMax(maximumDecodedSize, qint64(1));
+    auto fail = [&result](Status status, const QByteArray& filterName, const QString& errorMessage)
+    {
+        result.status = status;
+        result.data.clear();
+        result.filterName = filterName;
+        result.errorMessage = errorMessage;
+        return result;
+    };
+    auto exceeded = [&fail, limit](const QByteArray& filterName)
+    {
+        return fail(Status::LimitExceeded, filterName, PDFTranslationContext::tr("The %1 filter gives more than %2 bytes of data.").arg(QString::fromLatin1(filterName)).arg(limit));
+    };
+
+    if (!stream)
+    {
+        return fail(Status::Error, QByteArray(), PDFTranslationContext::tr("The object is not a stream."));
+    }
+
+    QByteArray currentName;
+    try
+    {
+        std::vector<QByteArray> names;
+        const PDFStreamFilterStorage::StreamFilters filters = PDFStreamFilterStorage::getStreamFilters(stream, objectFetcher);
+        if (!Helper::getFilterNames(stream, objectFetcher, &names) || !filters.valid || names.size() != filters.filterObjects.size())
+        {
+            return fail(Status::Error, QByteArray(), PDFTranslationContext::tr("The filters of the stream are invalid."));
+        }
+
+        QByteArray data = *stream->getContent();
+        for (size_t i = 0; i < names.size(); ++i)
+        {
+            const QByteArray& name = names[i];
+            currentName = name;
+            const PDFStreamFilter* filter = filters.filterObjects[i];
+            const PDFObject& parameters = filters.filterParameterObjects[i];
+
+            if (PDFOperationControl::isOperationCanceled(control))
+            {
+                return fail(Status::Canceled, QByteArray(), QString());
+            }
+
+            if (!filter)
+            {
+                // An image filter or an unknown one: the data before it are the result (FD-3, FD-4)
+                result.status = Status::Encoded;
+                result.data = std::move(data);
+                result.filterName = name;
+                return result;
+            }
+
+            // A prefix: the last filter stops at the prefix (the decoders write their output in the order of
+            // their input, 7.4) - except a filter with a predictor, whose last row would be completed by zeros
+            // (7.4.4.4): it decodes its input up to the limit, the prefix is cut at the end
+            qint64 filterLimit = limit;
+            bool isPrefixLimited = false;
+            if (prefixSize >= 0 && i + 1 == names.size())
+            {
+                qint64 rowSize = 0;
+                Helper::getPredictorOutputSize(objectFetcher, parameters, 0, &rowSize);
+                if (rowSize == 0 && prefixSize < limit)
+                {
+                    filterLimit = prefixSize;
+                    isPrefixLimited = true;
+                }
+            }
+
+            QByteArray output;
+            QString errorMessage;
+            Helper::Status status = Helper::Status::Finished;
+            if (dynamic_cast<const PDFFlateDecodeFilter*>(filter) || dynamic_cast<const PDFLzwDecodeFilter*>(filter))
+            {
+                // The predictor of Flate and LZW (7.4.4.4) gives at most its input: its own buffers of one
+                // row are checked before it runs (a hostile /Columns would allocate gigabytes)
+                if (dynamic_cast<const PDFFlateDecodeFilter*>(filter))
+                {
+                    status = Helper::inflate(data, filterLimit, control, &output, &errorMessage);
+                }
+                else
+                {
+                    status = Helper::decodeLzw(data, Helper::getEarlyChange(objectFetcher, parameters), filterLimit, control, &output);
+                }
+
+                if (isPrefixLimited && status == Helper::Status::LimitExceeded)
+                {
+                    // The output has the prefix (and no predictor)
+                    status = Helper::Status::Finished;
+                }
+
+                if (status == Helper::Status::Finished)
+                {
+                    qint64 rowSize = 0;
+                    const qint64 predictedSize = Helper::getPredictorOutputSize(objectFetcher, parameters, output.size(), &rowSize);
+                    if (rowSize > (std::numeric_limits<int>::max)() / 4)
+                    {
+                        return fail(Status::Error, name, PDFTranslationContext::tr("Error in the %1 filter: the rows of the predictor are too long.").arg(QString::fromLatin1(name)));
+                    }
+                    if (predictedSize > limit || rowSize > limit)
+                    {
+                        return exceeded(name);
+                    }
+
+                    // An invalid parameter throws (the message of the predictor)
+                    output = PDFStreamPredictor::createPredictor(objectFetcher, parameters).apply(output);
+                }
+            }
+            else if (dynamic_cast<const PDFAscii85DecodeFilter*>(filter))
+            {
+                status = Helper::decodeAscii85(data, filterLimit, control, &output);
+            }
+            else if (dynamic_cast<const PDFRunLengthDecodeFilter*>(filter))
+            {
+                status = Helper::decodeRunLength(data, filterLimit, control, &output);
+            }
+            else
+            {
+                // ASCIIHex gives half of its input, Crypt about its input: both are bounded by the input
+                output = filter->apply(data, objectFetcher, parameters, securityHandler);
+            }
+
+            if (isPrefixLimited && status == Helper::Status::LimitExceeded)
+            {
+                // The decoder stopped at the prefix: its output is the prefix
+                status = Helper::Status::Finished;
+            }
+
+            switch (status)
+            {
+                case Helper::Status::Finished:
+                    break;
+
+                case Helper::Status::LimitExceeded:
+                    return exceeded(name);
+
+                case Helper::Status::Canceled:
+                    return fail(Status::Canceled, QByteArray(), QString());
+
+                case Helper::Status::Error:
+                    return fail(Status::Error, name, PDFTranslationContext::tr("Error in the %1 filter: %2").arg(QString::fromLatin1(name), errorMessage));
+            }
+
+            if (qint64(output.size()) > limit)
+            {
+                return exceeded(name);
+            }
+
+            data = std::move(output);
+        }
+
+        if (prefixSize >= 0 && qint64(data.size()) > prefixSize)
+        {
+            data.truncate(qsizetype(prefixSize));
+        }
+
+        result.status = Status::Decoded;
+        result.data = std::move(data);
+        return result;
+    }
+    catch (const PDFException& exception)
+    {
+        if (currentName.isEmpty())
+        {
+            return fail(Status::Error, QByteArray(), exception.getMessage());
+        }
+        return fail(Status::Error, currentName, PDFTranslationContext::tr("Error in the %1 filter: %2").arg(QString::fromLatin1(currentName), exception.getMessage()));
+    }
 }
 
 QByteArray PDFStreamFilterStorage::getDecodedStream(const PDFStream* stream, const PDFSecurityHandler* securityHandler)

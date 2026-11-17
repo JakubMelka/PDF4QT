@@ -286,7 +286,7 @@ void WidgetStyleTest::cleanup()
 
 void WidgetStyleTest::themeTokens()
 {
-    QCOMPARE(static_cast<int>(pdf::PDFThemeColors::ColorCount), 146);
+    QCOMPARE(static_cast<int>(pdf::PDFThemeColors::ColorCount), 158);
 
     // The name of each enumeration value is derived from the name of the variable of the design
     const QMetaEnum metaEnum = QMetaEnum::fromType<pdf::PDFThemeColors::Color>();
@@ -360,8 +360,11 @@ void WidgetStyleTest::themeTokensChecksum()
         hash *= 0x01000193u;
     }
 
-    QCOMPARE(text.size(), qsizetype(4843));
-    QCOMPARE(hash, quint32(0xf09f395du));
+    // Step 7 of phase 2: the categorical colors chart/1 … chart/12 (VariableID:1586:22043 … 22054) at the end of
+    // the collection. The design has diff/moved #a855f7 already (package 7c mirrors it; its sum is 0x30e153a8);
+    // this sum is the one of the design with diff/moved #2391ff, which the code keeps until then.
+    QCOMPARE(text.size(), qsizetype(5134));
+    QCOMPARE(hash, quint32(0xb0b68da4u));
 }
 
 void WidgetStyleTest::themeManager()
