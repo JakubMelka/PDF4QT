@@ -3708,7 +3708,14 @@ void PDFWidgetAnnotationManager::mouseMoveEvent(QWidget* widget, QMouseEvent* ev
 
             case Interaction::Handle:
                 updateHandleInteraction(event->pos(), event->modifiers());
-                m_cursor = m_interaction.handle == Handle::Rotate ? getRotationCursor() : QCursor(getCursorShapeForHandle(m_interaction.handle));
+                if (m_interaction.handle == Handle::Move && m_interaction.isCopy)
+                {
+                    m_cursor = QCursor(Qt::DragCopyCursor);
+                }
+                else
+                {
+                    m_cursor = m_interaction.handle == Handle::Rotate ? getRotationCursor() : QCursor(getCursorShapeForHandle(m_interaction.handle));
+                }
                 break;
 
             default:
@@ -4112,8 +4119,9 @@ QTransform PDFWidgetAnnotationManager::computeMoveTransform(const QPointF& devic
         return QTransform();
     }
 
-    // The corners and the center of the moved frame snap (the nearest snap wins), Ctrl disables it
-    if (!modifiers.testFlag(Qt::ControlModifier))
+    // Ctrl copies the selection (as Ctrl + drag and drop of the annotations, owner 2026-11-18); the
+    // copy snaps as the move: the corners and the center of the moved frame (the nearest snap wins)
+    m_interaction.isCopy = m_editFilter && modifiers.testFlag(Qt::ControlModifier);
     {
         const QRectF frame = m_interaction.layout.frame.translated(deviceOffset);
         qreal distance = std::numeric_limits<qreal>::max();
@@ -4858,6 +4866,13 @@ void PDFWidgetAnnotationManager::finishInteraction()
             }
 
             QTransform transform = interaction.previewTransform;
+            if (interaction.handle == Handle::Move && interaction.isCopy)
+            {
+                // Ctrl + drag of the selection of a filter: the originals stay, their copies are dropped
+                duplicateSelectedAnnotations(interaction.pageIndex, transform);
+                break;
+            }
+
             const std::vector<const PageAnnotation*> annotations = getSelectedAnnotations(interaction.pageIndex, true);
             if (interaction.layout.isTextBox && annotations.size() == 1)
             {
@@ -4895,6 +4910,55 @@ void PDFWidgetAnnotationManager::cancelInteraction()
     m_interaction = InteractionState();
     m_cursor = std::nullopt;
     requestRepaint();
+}
+
+void PDFWidgetAnnotationManager::duplicateSelectedAnnotations(PDFInteger pageIndex, const QTransform& transform)
+{
+    if (!m_document || !isModificationAllowed())
+    {
+        return;
+    }
+
+    const std::vector<const PageAnnotation*> annotations = getSelectedAnnotations(pageIndex, true);
+    const PDFObjectReference pageReference = annotations.empty() ? PDFObjectReference() : getPageReference(pageIndex, *annotations.front());
+    if (!pageReference.isValid())
+    {
+        return;
+    }
+
+    PDFDocumentModifier modifier(m_document);
+    modifier.markAnnotationsChanged();
+    PDFDocumentBuilder* builder = modifier.getBuilder();
+
+    std::vector<PDFObjectReference> copies;
+    for (const PageAnnotation* pageAnnotation : annotations)
+    {
+        const PDFObjectReference copy = PDFAnnotationManipulator::copyAnnotation(builder, pageAnnotation->annotation->getSelfReference(), pageReference);
+        if (!copy.isValid())
+        {
+            continue;
+        }
+
+        PDFAnnotationManipulator::transformAnnotation(builder, copy, transform);
+
+        // The copy of the manipulator shares the appearance streams of its original; the copy of an
+        // annotation of a filter gets its own ones, made as those of the original (nothing is shared)
+        builder->updateAnnotationAppearanceStreams(copy);
+        copies.push_back(copy);
+    }
+
+    if (copies.empty() || !modifier.finalize())
+    {
+        return;
+    }
+
+    // A slot of the application may delete the manager (its tab) synchronously
+    QPointer<PDFWidgetAnnotationManager> guard(this);
+    Q_EMIT documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+    if (guard)
+    {
+        setSelectedAnnotations(copies);
+    }
 }
 
 void PDFWidgetAnnotationManager::transformSelectedAnnotations(PDFInteger pageIndex, const QTransform& transform)

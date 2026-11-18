@@ -205,20 +205,42 @@ public:
         {
             pdf::PDFDocumentToolShell* shell = ToolPagesLifetimeSteps::shell(run);
             pdf::PDFAppToolResultDialog* dialog = shell ? shell->getResultDialog() : nullptr;
-            if (!dialog || !ToolPagesLifetimeSteps::confirmDialog(run, dialog))
-            {
-                return false;
-            }
             if (!isOwnTab)
             {
-                return true;
+                return dialog && ToolPagesLifetimeSteps::confirmDialog(run, dialog);
+            }
+
+            // The own tab stays (K31), its shell never ends (ToolPagesLifetimeSteps::confirmDialog would wait
+            // for it until its time limit): the shell returns to Editing and the result opens in a new tab of
+            // a document, which is read in this step
+            if (!dialog || !ToolPagesLifetimeSteps::click(dialog->getConfirmButton()))
+            {
+                return false;
             }
             return ToolPagesLifetimeSteps::wait(run, [&run]()
             {
                 const pdf::PDFDocumentToolShell* current = ToolPagesLifetimeSteps::shell(run);
-                return current && current->getState() == pdf::PDFDocumentToolShell::State::Editing;
+                return current && current->getState() == pdf::PDFDocumentToolShell::State::Editing && isResultTabReady(run);
             });
         });
+    }
+
+    /// A tab of a document other than the tab of the run shows its read document (the result opened by
+    /// Open in a new tab)
+    static bool isResultTabReady(const ToolPagesLifetimeRun& run)
+    {
+        if (!run.window)
+        {
+            return false;
+        }
+        for (const pdf::PDFAppDocumentTab* tab : run.window->getDocumentTabs())
+        {
+            if (tab != run.tab.data() && tab->getDocument() && tab->getDocument()->isReady())
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     /// One PDF per group into a folder of the fixture of this run (never a folder of the user, never

@@ -119,7 +119,8 @@ struct PDF4QTLIBWIDGETSSHARED_EXPORT PDFAnnotationMenuRequest
 /// an open tool of the application lets the user edit only its own annotations (the marks of Redact
 /// Content). With a filter, only the annotations, which the filter accepts, are selected (one at a time),
 /// deleted and changed; each one gets only the operations, which the filter leaves it. A selection is moved
-/// on its page by the mouse (no drag and drop to another page or document) and no annotation leaves or
+/// on its page by the mouse, Ctrl + drag copies it on its page (no drag and drop to another page or
+/// document; the selection, which cannot be moved, is not copied either) and no annotation leaves or
 /// enters the document through the clipboard or by drag and drop. The changes are emitted by
 /// documentModified as always. The filter is called in the GUI thread only.
 class PDF4QTLIBWIDGETSSHARED_EXPORT IAnnotationEditFilter
@@ -767,6 +768,7 @@ private:
         QPointF snappedDevicePoint;     ///< Place, to which the dragged handle is snapped (device coordinates)
         QRectF textRectangle;           ///< Text box, which is manipulated by the handles (page coordinates)
         std::map<PDFObjectReference, PDFAnnotationPtr> previewAnnotations; ///< Annotations, as they will look like, when the interaction is finished
+        bool isCopy = false;            ///< Ctrl + drag of the selection of a filter copies it (Handle::Move, Ctrl at the last move)
     };
 
     /// Feedback of the drag and drop operation
@@ -1054,6 +1056,11 @@ private:
     /// The translation of the move (page coordinates) to the device position: snapped, and kept
     /// inside of the crop box of the page by the selection, which lies inside of it
     QTransform computeMoveTransform(const QPointF& devicePosition, Qt::KeyboardModifiers modifiers);
+
+    /// Ctrl + drag of the selection of a filter (setEditFilter): copies of the selected annotations of the
+    /// page, transformed by \p transform, in one change of the document; the copies become the selection.
+    /// A copy is a new object with its own appearance streams (nothing is shared with its original).
+    void duplicateSelectedAnnotations(PDFInteger pageIndex, const QTransform& transform);
 
     /// Updates the preview transformation of the handle interaction
     void updateHandleInteraction(const QPoint& devicePosition, Qt::KeyboardModifiers modifiers);

@@ -12,7 +12,7 @@ Redact Content removes the marked areas from a new copy of the document. Every p
 
 1. Mark what should disappear. Area: drag a rectangle over the page. Text: drag over the text. Pages…: mark whole pages. Search…: find a text, choose the matches and press Mark Selected Matches.
 2. The marks are listed by pages in the left panel. Click a mark in the list or on the page to select it, press its × or Delete to remove it. Clear All removes every mark.
-3. Change an area mark on the page as an annotation: drag it to move it on its page, drag its handles to resize it, the arrows nudge it. A text mark and a whole page mark keep their shape; they can only be removed. A locked mark cannot be changed.
+3. Change an area mark on the page as an annotation: drag it to move it on its page, Ctrl + drag copies it, drag its handles to resize it, the arrows nudge it. A text mark and a whole page mark keep their shape; they can only be removed. A locked mark cannot be changed.
 4. Choose the Fill of the removed areas (black, white, any color or no fill) and what else the copy Keeps: the title, the metadata, the outline.
 5. Marks | Preview result at the top of the right panel shows the pages as the copy will look.
 6. Press Create Redacted Copy and save the copy. Its name ends with _REDACTED.

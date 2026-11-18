@@ -513,6 +513,7 @@ private:
     void onListActivated(const QModelIndex& index);
     void onListContextMenuRequested(const QPoint& position);
     void onContextMenuTriggered(QAction* action);
+    void onContextMenuActionQueued(const QString& key);
     void onOverlayItemClicked(qint64 index, bool isAdding);
     void onOverlayRectangleSelected(QRectF pageRectangle);
     void onOverlayRectangleCanceled();

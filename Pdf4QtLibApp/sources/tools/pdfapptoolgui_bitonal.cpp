@@ -2192,10 +2192,26 @@ void PDFAppToolGUIBitonal::onItemContextMenuRequested(const QPoint& position)
 
 void PDFAppToolGUIBitonal::onContextMenuTriggered(QAction* action)
 {
+    // The mode is set from the event loop, not inside the signal of the menu: QMenu reads its own
+    // members after its signal triggered returns (QMenuPrivate::_q_actionTriggered), and the mode is
+    // an undo step, whose slots may delete the view with its menu (the tool, the tab). Only the
+    // mode goes on, the action dies with the menu.
     if (action && action->data().isValid())
     {
-        setModeToItems(ItemMode(action->data().toInt()));
+        QMetaObject::invokeMethod(this, &PDFAppToolGUIBitonal::onContextMenuModeQueued, Qt::QueuedConnection, action->data().toInt());
     }
+}
+
+void PDFAppToolGUIBitonal::onContextMenuModeQueued(int mode)
+{
+    // The state of the request of the menu (a detection may have started meanwhile)
+    if (!m_isContentEnabled || m_isDetecting)
+    {
+        return;
+    }
+
+    // One undo step; the model runs the slots (the last call)
+    setModeToItems(ItemMode(mode));
 }
 
 void PDFAppToolGUIBitonal::onComparisonZoomChanged()

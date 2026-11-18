@@ -178,8 +178,14 @@ public:
         return found;
     }
 
-    /// Waits until the condition holds (the time limit scales by PDF4QT_TEST_TIMEOUT_FACTOR)
+    /// Waits until the condition holds (the time limit scales by PDF4QT_TEST_TIMEOUT_FACTOR); false at
+    /// once, when the interruption (setWaitInterruption) holds
     static bool waitFor(const std::function<bool()>& condition, int milliseconds = 15000);
+
+    /// A condition, which ends every waitFor at once (it returns false); empty = none. The lifetime
+    /// sweeps set it for the steps of a replay: once the victim is deleted, a wait for a state of the
+    /// victim or of its parts would only run out its time limit.
+    static void setWaitInterruption(std::function<bool()> interruption);
 
     /// Waits until a run of the runner has ended (state Idle or Waiting)
     static bool waitForRun(const pdf::PDFDocumentToolRunner* runner);
@@ -221,6 +227,8 @@ private:
     };
 
     std::vector<RegisteredTool> m_registeredTools;
+
+    static std::function<bool()> s_waitInterruption;
 };
 
 }   // namespace pdftest

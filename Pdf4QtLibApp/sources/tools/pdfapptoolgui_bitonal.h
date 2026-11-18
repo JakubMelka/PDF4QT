@@ -338,6 +338,7 @@ private:
     void onImageMarksToggled();
     void onItemContextMenuRequested(const QPoint& position);
     void onContextMenuTriggered(QAction* action);
+    void onContextMenuModeQueued(int mode);
     void onImagesCollected();
     void onPreviewTimeout();
     void onPreviewFinished();

@@ -245,6 +245,25 @@ public:
         return entries;
     }
 
+    /// The entry of the dictionary of an annotation, dereferenced (null, when there is none)
+    static pdf::PDFObject entry(const pdf::PDFAppDocument* appDocument, pdf::PDFObjectReference annotation, const char* key)
+    {
+        const pdf::PDFDocumentPointer document = appDocument ? appDocument->getDocument() : pdf::PDFDocumentPointer();
+        const pdf::PDFDictionary* dictionary = document ? document->getDictionaryFromObject(document->getObjectByReference(annotation)) : nullptr;
+        return dictionary ? document->getObject(dictionary->get(key)) : pdf::PDFObject();
+    }
+
+    /// The normal appearance stream of an annotation (/AP /N, ISO 32000-2 12.5.5), an invalid reference
+    /// without it
+    static pdf::PDFObjectReference normalAppearance(const pdf::PDFAppDocument* appDocument, pdf::PDFObjectReference annotation)
+    {
+        const pdf::PDFDocumentPointer document = appDocument ? appDocument->getDocument() : pdf::PDFDocumentPointer();
+        const pdf::PDFObject appearance = entry(appDocument, annotation, "AP");
+        const pdf::PDFDictionary* dictionary = document ? document->getDictionaryFromObject(appearance) : nullptr;
+        const pdf::PDFObject normal = dictionary ? dictionary->get("N") : pdf::PDFObject();
+        return normal.isReference() ? normal.getReference() : pdf::PDFObjectReference();
+    }
+
     static QStringList rows(const pdf::PDFKeyValueList* list)
     {
         QStringList rows;
@@ -507,6 +526,8 @@ private Q_SLOTS:
     void previewControlInRightPanel();
     void escapeEndsModeThenTool();
     void escapeHintFollowsDragAndMode();
+    void canvasCtrlDragCopiesAreaMark();
+    void canvasCtrlDragCopyRefused();
     void selectedAreaMarkOneOutline();
 
     // Review RSRFUI
@@ -1994,8 +2015,9 @@ void AppToolRedactTest::canvasMoveResizeUndo()
     QVERIFY(!capabilities.testFlag(pdf::PDFAnnotationManipulator::EditPoints));
     const int undoBefore = pdftest::AppDocumentFixture::undoCount(document);
 
-    // Moved by a drag of its middle: 40 right, 30 down on the screen (y of the page is up); Ctrl: no snapping
-    QVERIFY(pdftest::AppDocumentFixture::dragPage(view, 0, QPointF(370, 630), QPointF(410, 600), Qt::ControlModifier, 8));
+    // Moved by a drag of its middle: 40 right, 30 down on the screen (y of the page is up; Ctrl + drag
+    // would copy it, owner 2026-11-18)
+    QVERIFY(pdftest::AppDocumentFixture::dragPage(view, 0, QPointF(370, 630), QPointF(410, 600), Qt::NoModifier, 8));
     AppToolShellFixture::settle();
     std::vector<RedactAnnotationEntry> entries = H::annotations(document);
     QCOMPARE(entries.size(), size_t(1));
@@ -2148,7 +2170,7 @@ void AppToolRedactTest::canvasTextAndPageMarksNoHandles()
     QCOMPARE(H::controller(tab)->getSelectedAnnotations(), std::vector<pdf::PDFObjectReference>({ text.reference }));
     QCOMPARE(manager->getSelectionCapabilities(), pdf::PDFAnnotationManipulator::Capabilities(pdf::PDFAnnotationManipulator::NoCapability));
     const pdf::PDFAnnotationPtr textAnnotation = pdf::PDFAnnotation::parse(&document->getDocument()->getStorage(), text.reference);
-    QCOMPARE(gui->getEditHint(textAnnotation.data()), QStringLiteral("A text mark covers its text: it cannot be moved or resized. Press Delete to remove it."));
+    QCOMPARE(gui->getEditHint(textAnnotation.data()), QStringLiteral("A text mark covers its text: it cannot be moved, resized or copied. Press Delete to remove it."));
     const int undoBefore = pdftest::AppDocumentFixture::undoCount(document);
     QVERIFY(pdftest::AppDocumentFixture::dragPage(tab->getView(), 0, QPointF(106, 565), QPointF(156, 520), Qt::ControlModifier, 8));
     AppToolShellFixture::settle();
@@ -2172,7 +2194,7 @@ void AppToolRedactTest::canvasTextAndPageMarksNoHandles()
     QCOMPARE(H::controller(tab)->getSelectedAnnotations(), std::vector<pdf::PDFObjectReference>({ page.reference }));
     QCOMPARE(manager->getSelectionCapabilities(), pdf::PDFAnnotationManipulator::Capabilities(pdf::PDFAnnotationManipulator::NoCapability));
     const pdf::PDFAnnotationPtr pageAnnotation = pdf::PDFAnnotation::parse(&document->getDocument()->getStorage(), page.reference);
-    QCOMPARE(gui->getEditHint(pageAnnotation.data()), QStringLiteral("A whole page mark covers the page: it cannot be moved or resized. Press Delete to remove it."));
+    QCOMPARE(gui->getEditHint(pageAnnotation.data()), QStringLiteral("A whole page mark covers the page: it cannot be moved, resized or copied. Press Delete to remove it."));
     canvas = H::focusCanvas(tab);
     QVERIFY(canvas);
     QTest::keyClick(canvas, Qt::Key_Delete);
@@ -2225,7 +2247,7 @@ void AppToolRedactTest::canvasLockedAndForeignMarks()
     AppToolShellFixture::settle();
     QCOMPARE(manager->getSelectionCapabilities(), pdf::PDFAnnotationManipulator::Capabilities(pdf::PDFAnnotationManipulator::NoCapability));
     const pdf::PDFAnnotationPtr manyAnnotation = pdf::PDFAnnotation::parse(&document->getDocument()->getStorage(), many);
-    QCOMPARE(gui->getEditHint(manyAnnotation.data()), QStringLiteral("This mark has more areas: it cannot be moved or resized. Press Delete to remove it."));
+    QCOMPARE(gui->getEditHint(manyAnnotation.data()), QStringLiteral("This mark has more areas: it cannot be moved, resized or copied. Press Delete to remove it."));
 }
 
 void AppToolRedactTest::canvasNothingLeavesDocument()
@@ -2621,12 +2643,12 @@ void AppToolRedactTest::escapeHintDuringMarkDrag()
     const QPoint press = AppToolShellFixture::pageToWidget(tab->getView(), 0, QPointF(370, 630), &ok);
     QVERIFY(ok);
     const QPoint moved = press + QPoint(30, 20);
-    QTest::mousePress(canvas, Qt::LeftButton, Qt::ControlModifier, press);
-    QMouseEvent move(QEvent::MouseMove, QPointF(moved), canvas->mapToGlobal(QPointF(moved)), Qt::NoButton, Qt::LeftButton, Qt::ControlModifier);
+    QTest::mousePress(canvas, Qt::LeftButton, Qt::NoModifier, press);
+    QMouseEvent move(QEvent::MouseMove, QPointF(moved), canvas->mapToGlobal(QPointF(moved)), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
     QApplication::sendEvent(canvas, &move);
     AppToolShellFixture::settle();
     QCOMPARE(H::statusMessage(tab), selected.arg(QStringLiteral("Esc cancels the drag")));
-    QTest::mouseRelease(canvas, Qt::LeftButton, Qt::ControlModifier, moved);
+    QTest::mouseRelease(canvas, Qt::LeftButton, Qt::NoModifier, moved);
     AppToolShellFixture::settle();
     QVERIFY(H::annotations(document).front().quadPoints != original.quadPoints);
     QCOMPARE(H::statusMessage(tab), selected.arg(QStringLiteral("Esc clears the selection")));
@@ -2898,6 +2920,191 @@ void AppToolRedactTest::undoTextOfChangedMark()
     QCOMPARE(H::annotations(document).size(), size_t(1));
     QCOMPARE(H::annotations(document).front().reference, first);
     QCOMPARE(target->getUndoText(), QStringLiteral("Remove a redaction mark"));
+}
+
+void AppToolRedactTest::canvasCtrlDragCopiesAreaMark()
+{
+    // Owner 2026-11-18: Ctrl + drag of a selected Area mark copies it, as Ctrl + drag of the annotations
+    // does - the original stays; the copy is a new Redact annotation of the same page at the drop place
+    // (/QuadPoints and /Rect moved together, ISO 32000-2 12.5.6.23), with the same /Subj and /C and its
+    // own appearance stream (nothing shared), inside of the crop box [36 36 576 756] as a move; one Undo
+    // step "Copy a redaction mark"; the copy becomes the selected mark; the list, the counts and the
+    // Result card follow; nothing reaches the clipboard (R6-19); Esc during the Ctrl + drag copies nothing
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
+    QPointer<PDFDocumentToolShell> shell = fixture.openTool(tab, H::TOOL_ID);
+    PDFAppToolGUIRedact* gui = H::gui(shell);
+    QVERIFY(gui);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFAppToolUndoTarget* target = view->getToolUndoTarget();
+    QVERIFY(gui->addAreaMark(0, QRectF(320, 600, 100, 60)));
+    AppToolShellFixture::settle();
+    const RedactAnnotationEntry original = H::annotations(document).front();
+    const pdf::PDFObjectReference originalAppearance = H::normalAppearance(document, original.reference);
+    QVERIFY(originalAppearance.isValid());
+    gui->selectMark(original.reference);
+    AppToolShellFixture::settle();
+    const int undoBefore = pdftest::AppDocumentFixture::undoCount(document);
+    QApplication::clipboard()->setText(QStringLiteral("canary"));
+
+    // Esc during the Ctrl + drag: nothing is copied, the tool stays
+    QWidget* canvas = H::focusCanvas(tab);
+    QVERIFY(canvas);
+    bool ok = false;
+    const QPoint press = AppToolShellFixture::pageToWidget(view, 0, QPointF(370, 630), &ok);
+    QVERIFY(ok);
+    const QPoint drop = AppToolShellFixture::pageToWidget(view, 0, QPointF(410, 500), &ok);
+    QVERIFY(ok);
+    QTest::mousePress(canvas, Qt::LeftButton, Qt::ControlModifier, press);
+    QMouseEvent move(QEvent::MouseMove, QPointF(drop), canvas->mapToGlobal(QPointF(drop)), Qt::NoButton, Qt::LeftButton, Qt::ControlModifier);
+    QApplication::sendEvent(canvas, &move);
+    AppToolShellFixture::settle();
+    QVERIFY(H::statusMessage(tab).endsWith(QStringLiteral(" · Esc cancels the drag")));
+    QTest::keyClick(canvas, Qt::Key_Escape, Qt::ControlModifier);
+    AppToolShellFixture::settle();
+    QTest::mouseRelease(canvas, Qt::LeftButton, Qt::ControlModifier, drop);
+    AppToolShellFixture::settle();
+    QVERIFY(shell && shell->getState() == PDFDocumentToolShell::State::Editing);
+    QCOMPARE(H::annotations(document).size(), size_t(1));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoBefore);
+
+    // Ctrl + drag of its middle: 40 right, 100 up on the page (130 down on the screen)
+    QVERIFY(pdftest::AppDocumentFixture::dragPage(view, 0, QPointF(370, 630), QPointF(410, 500), Qt::ControlModifier, 8));
+    AppToolShellFixture::settle();
+    std::vector<RedactAnnotationEntry> entries = H::annotations(document);
+    QCOMPARE(entries.size(), size_t(2));
+    QCOMPARE(entries[0].reference, original.reference);
+    QCOMPARE(entries[0].quadPoints, original.quadPoints);
+    QCOMPARE(entries[0].rect, original.rect);
+    const RedactAnnotationEntry copy = entries[1];
+    QVERIFY(copy.reference != original.reference);
+    QCOMPARE(copy.pageIndex, 0);
+    QCOMPARE(copy.subject, original.subject);
+    QCOMPARE(copy.quadPoints.size(), size_t(8));
+    const QRectF copied = H::quadBounds(copy);
+    QVERIFY2(H::isNear(copied.left(), 360, 2.0) && H::isNear(copied.top(), 470, 2.0), qPrintable(QStringLiteral("%1 %2").arg(copied.left()).arg(copied.top())));
+    QVERIFY(H::isNear(copied.width(), 100, 0.01) && H::isNear(copied.height(), 60, 0.01));
+    QVERIFY(H::isNear(H::rect(copy).left() - H::rect(original).left(), copied.left() - 320, 0.01));
+    QVERIFY(H::isNear(H::rect(copy).top() - H::rect(original).top(), copied.top() - 600, 0.01));
+    QVERIFY(H::isNear(H::rect(copy).width(), H::rect(original).width(), 0.01) && H::isNear(H::rect(copy).height(), H::rect(original).height(), 0.01));
+    QCOMPARE(H::entry(document, copy.reference, "C"), H::entry(document, original.reference, "C"));
+    QCOMPARE(H::entry(document, copy.reference, "Subtype"), H::entry(document, original.reference, "Subtype"));
+    const pdf::PDFObjectReference copyAppearance = H::normalAppearance(document, copy.reference);
+    QVERIFY(copyAppearance.isValid());
+    QVERIFY(copyAppearance != originalAppearance);
+    QCOMPARE(H::normalAppearance(document, original.reference), originalAppearance);
+
+    // One Undo step; the copy is selected; the list, the counts, the Result card
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoBefore + 1);
+    QCOMPARE(target->getUndoText(), QStringLiteral("Copy a redaction mark"));
+    QCOMPARE(gui->getSelectedMark(), copy.reference);
+    QCOMPARE(H::controller(tab)->getSelectedAnnotations(), std::vector<pdf::PDFObjectReference>({ copy.reference }));
+    QCOMPARE(gui->getMarkModel()->rowCount(), 3);
+    QCOMPARE(gui->getMarkModel()->index(0).data(Qt::DisplayRole).toString(), QStringLiteral("Page 1 · 2 areas"));
+    QCOMPARE(gui->getLeftHeader()->getSubtitleLabel()->text(), QStringLiteral("2 areas on 1 page"));
+    QCOMPARE(H::rows(gui->getSummaryRows()).front(), QStringLiteral("Removed: 2 areas · 1 page"));
+    QCOMPARE(H::statusMessage(tab), QStringLiteral("Area mark selected · drag a handle to change its size · Esc clears the selection"));
+
+    // R6-19: no clipboard, no data of a drag
+    const QMimeData* clipboard = QApplication::clipboard()->mimeData();
+    QVERIFY(!clipboard || !clipboard->hasFormat(pdf::PDFAnnotationManipulator::getMimeType()));
+    QCOMPARE(QApplication::clipboard()->text(), QStringLiteral("canary"));
+
+    // Undo removes the copy, Redo returns it
+    target->undo();
+    AppToolShellFixture::settle();
+    entries = H::annotations(document);
+    QCOMPARE(entries.size(), size_t(1));
+    QCOMPARE(entries[0].quadPoints, original.quadPoints);
+    target->redo();
+    AppToolShellFixture::settle();
+    entries = H::annotations(document);
+    QCOMPARE(entries.size(), size_t(2));
+    QCOMPARE(entries[1].quadPoints, copy.quadPoints);
+
+    // A copy over the edge of the crop box [36 36 576 756] stays inside of it as a move: its /Rect (the
+    // bounds of the annotation, the area with its border) touches the edge
+    gui->selectMark(entries[1].reference);
+    AppToolShellFixture::settle();
+    QVERIFY(pdftest::AppDocumentFixture::dragPage(view, 0, QPointF(410, 500), QPointF(560, 500), Qt::ControlModifier, 8));
+    AppToolShellFixture::settle();
+    entries = H::annotations(document);
+    QCOMPARE(entries.size(), size_t(3));
+    const QRectF clamped = H::quadBounds(entries[2]);
+    QVERIFY2(H::isNear(H::rect(entries[2]).right(), 576, 0.01), qPrintable(QString::number(H::rect(entries[2]).right())));
+    QVERIFY2(clamped.right() <= 576.0 && clamped.right() > 570.0, qPrintable(QString::number(clamped.right())));
+    QVERIFY(H::isNear(clamped.width(), 100, 0.01));
+    QCOMPARE(H::quadBounds(entries[1]), copied);
+}
+
+void AppToolRedactTest::canvasCtrlDragCopyRefused()
+{
+    // Owner 2026-11-18: a Text mark, a Whole page mark, a mark of more areas and a Locked mark (ISO
+    // 32000-2 Table 167) cannot be moved, so Ctrl + drag neither copies nor moves them (no Undo step)
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, H::TOOL_ID);
+    PDFAppToolGUIRedact* gui = H::gui(shell);
+    QVERIFY(gui);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    QPolygonF quadrilateral;
+    quadrilateral << QPointF(72, 572) << QPointF(140, 572) << QPointF(72, 556) << QPointF(140, 556);
+    QVERIFY(gui->addTextMark(0, quadrilateral));
+    AppToolShellFixture::settle();
+    const int undoBefore = pdftest::AppDocumentFixture::undoCount(document);
+
+    // The text mark, then a whole page mark (both of page 1; the page mark is pressed outside of the text mark)
+    for (int i = 0; i < 2; ++i)
+    {
+        if (i == 1)
+        {
+            QVERIFY(gui->markPages({ 0 }));
+            AppToolShellFixture::settle();
+        }
+        const std::vector<RedactAnnotationEntry> entries = H::annotations(document);
+        QCOMPARE(entries.size(), size_t(i + 1));
+        const int undoCount = pdftest::AppDocumentFixture::undoCount(document);
+        QCOMPARE(undoCount, undoBefore + i);
+        const RedactAnnotationEntry& mark = entries.back();
+        gui->selectMark(mark.reference);
+        AppToolShellFixture::settle();
+        QCOMPARE(H::controller(tab)->getSelectedAnnotations(), std::vector<pdf::PDFObjectReference>({ mark.reference }));
+        const QPointF from = i == 0 ? H::rect(mark).center() : QPointF(400, 300);
+        QVERIFY(pdftest::AppDocumentFixture::dragPage(tab->getView(), 0, from, from + QPointF(60, -60), Qt::ControlModifier, 8));
+        AppToolShellFixture::settle();
+        const std::vector<RedactAnnotationEntry> after = H::annotations(document);
+        QCOMPARE(after.size(), entries.size());
+        QCOMPARE(after.back().rect, mark.rect);
+        QCOMPARE(after.back().quadPoints, mark.quadPoints);
+        QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoCount);
+    }
+
+    // Foreign marks: Locked, of more areas
+    pdf::PDFAppDocumentTab* foreignTab = fixture.open(H::write(fixture.path(QStringLiteral("Foreign.pdf")), H::documentWithForeignMarks()));
+    QVERIFY(foreignTab && AppToolShellFixture::waitFor([foreignTab]() { return foreignTab->getDocument() && foreignTab->getDocument()->isReady(); }));
+    PDFAppToolGUIRedact* foreignGui = H::gui(fixture.openTool(foreignTab, H::TOOL_ID));
+    QVERIFY(foreignGui);
+    AppToolShellFixture::settle();
+    pdf::PDFAppDocument* foreignDocument = foreignTab->getDocument();
+    const int foreignUndo = pdftest::AppDocumentFixture::undoCount(foreignDocument);
+    const std::vector<RedactAnnotationEntry> foreignEntries = H::annotations(foreignDocument);
+    for (const pdf::PDFObjectReference& mark : { pdf::PDFObjectReference(10, 0), pdf::PDFObjectReference(12, 0) })
+    {
+        foreignGui->selectMark(mark);
+        AppToolShellFixture::settle();
+        QCOMPARE(H::controller(foreignTab)->getSelectedAnnotations(), std::vector<pdf::PDFObjectReference>({ mark }));
+        const QPointF center = mark.objectNumber == 10 ? QPointF(125, 625) : QPointF(105, 405);
+        QVERIFY(pdftest::AppDocumentFixture::dragPage(foreignTab->getView(), 0, center, center + QPointF(60, -60), Qt::ControlModifier, 8));
+        AppToolShellFixture::settle();
+        const std::vector<RedactAnnotationEntry> after = H::annotations(foreignDocument);
+        QCOMPARE(after.size(), foreignEntries.size());
+        for (size_t i = 0; i < after.size(); ++i)
+        {
+            QCOMPARE(after[i].rect, foreignEntries[i].rect);
+        }
+        QCOMPARE(pdftest::AppDocumentFixture::undoCount(foreignDocument), foreignUndo);
+    }
 }
 
 QTEST_MAIN(AppToolRedactTest)

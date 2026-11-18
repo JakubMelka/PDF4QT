@@ -1381,13 +1381,13 @@ QString PDFAppToolGUIRedact::getEditHint(const PDFAnnotation* annotation) const
     switch (mark->kind)
     {
         case PDFAppToolRedactMark::Kind::Text:
-            return tr("A text mark covers its text: it cannot be moved or resized. Press Delete to remove it.");
+            return tr("A text mark covers its text: it cannot be moved, resized or copied. Press Delete to remove it.");
         case PDFAppToolRedactMark::Kind::Page:
-            return tr("A whole page mark covers the page: it cannot be moved or resized. Press Delete to remove it.");
+            return tr("A whole page mark covers the page: it cannot be moved, resized or copied. Press Delete to remove it.");
         case PDFAppToolRedactMark::Kind::Area:
             break;
     }
-    return mark->isMovable() ? QString() : tr("This mark has more areas: it cannot be moved or resized. Press Delete to remove it.");
+    return mark->isMovable() ? QString() : tr("This mark has more areas: it cannot be moved, resized or copied. Press Delete to remove it.");
 }
 
 IAnnotationEditFilter::SelectionOutline PDFAppToolGUIRedact::getSelectionOutline(const PDFAnnotation* annotation) const
@@ -1424,6 +1424,18 @@ bool PDFAppToolGUIRedact::commitAnnotationEdit(const PDFModifiedDocument& modifi
     // mark is asked first (the usual case), then the others; the engine changes one page.
     QString description = tr("Change a redaction mark");
     const PDFDocumentPointer oldDocument = document->getDocument();
+
+    // Ctrl + drag of an Area mark adds its copy (owner 2026-11-18): the limit of the marks (7.2) holds
+    const size_t maximum = size_t(PDFDocumentToolRedact::MAXIMUM_MARK_COUNT);
+    const std::vector<PDFAppToolRedactMark> newMarks = PDFAppToolRedactMark::readMarks(newDocument, maximum + 1, nullptr);
+    if (newMarks.size() > getMarks().size())
+    {
+        if (!canAddMarks(newMarks.size() - getMarks().size()))
+        {
+            return false;
+        }
+        return commitMarks(modified, document->getVersion(), tr("Copy a redaction mark"));
+    }
     std::map<PDFInteger, std::set<PDFObjectReference>> pageAnnotations;
     std::vector<const PDFAppToolRedactMark*> candidates;
     if (const PDFAppToolRedactMark* selectedMark = findMark(m_selectedMark))

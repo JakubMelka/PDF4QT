@@ -342,6 +342,52 @@ public:
         return true;
     }
 
+    /// Owner 2026-11-18: Ctrl + drag of a selected Area mark copies it - the victim comes during the
+    /// Ctrl + drag (the button held) and while its copy is the selected mark
+    static bool canvasCopy(ToolPagesLifetimeRun& run)
+    {
+        GUI* current = gui(run);
+        if (!current)
+        {
+            return true;
+        }
+        current->addAreaMark(0, QRectF(320, 420, 80, 60));
+        current = gui(run);
+        if (!current || current->getMarks().empty())
+        {
+            return true;
+        }
+        current->selectMark(current->getMarks().back().annotation);
+        Steps::settle();
+
+        QPointer<pdf::PDFAppDocumentTab> tab = run.tab;
+        QPointer<QWidget> canvas = tab && tab->getView() ? pdftest::AppDocumentFixture::canvasWidget(tab->getView()) : nullptr;
+        bool ok = false;
+        const QPoint from = tab && tab->getView() ? pdftest::AppDocumentFixture::pageToWidget(tab->getView(), 0, QPointF(360, 450), &ok) : QPoint();
+        if (canvas && ok)
+        {
+            // The press and a move with Ctrl: the copy is dragged, while the next events run
+            QMouseEvent press(QEvent::MouseButtonPress, from, canvas->mapToGlobal(from), Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier);
+            QCoreApplication::sendEvent(canvas, &press);
+            const QPointF to = QPointF(from) + QPointF(40, 30);
+            if (canvas)
+            {
+                QMouseEvent move(QEvent::MouseMove, to, canvas->mapToGlobal(to), Qt::NoButton, Qt::LeftButton, Qt::ControlModifier);
+                QCoreApplication::sendEvent(canvas, &move);
+            }
+            Steps::settle();
+            if (canvas)
+            {
+                QMouseEvent release(QEvent::MouseButtonRelease, to, canvas->mapToGlobal(to), Qt::LeftButton, Qt::NoButton, Qt::ControlModifier);
+                QCoreApplication::sendEvent(canvas, &release);
+            }
+        }
+
+        // The copy is the selected mark, while the next events run
+        Steps::settle();
+        return true;
+    }
+
     /// Owner 2026-11-17: Esc during a drag of Area, Esc of the mode, Esc of the tool (its question)
     static bool escapes(ToolPagesLifetimeRun& run)
     {
@@ -498,6 +544,7 @@ public:
             steps->push_back(&H::pagesDialog);
             steps->push_back(&H::removeMark);
             steps->push_back(&H::canvasEdit);
+            steps->push_back(&H::canvasCopy);
             steps->push_back(&H::escapes);
             steps->push_back(&H::escapeSelection);
             steps->push_back(&H::runTool);

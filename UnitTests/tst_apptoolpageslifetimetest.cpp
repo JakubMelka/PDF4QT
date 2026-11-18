@@ -85,14 +85,18 @@
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
 
+#include <QAbstractEventDispatcher>
 #include <QAbstractItemModel>
 #include <QAbstractItemView>
 #include <QApplication>
+#include <QDeadlineTimer>
 #include <QHash>
 #include <QLineEdit>
 #include <QMetaMethod>
+#include <QMutex>
 #include <QPushButton>
 #include <QScopedValueRollback>
+#include <QScopeGuard>
 #include <QSet>
 #include <QThread>
 #include <QTimer>
@@ -104,8 +108,12 @@
 #include <QtTest>
 
 #include <algorithm>
+#include <chrono>
 #include <functional>
+#include <map>
 #include <memory>
+#include <set>
+#include <utility>
 #include <vector>
 
 class ToolPagesLifetimeRecorder;
@@ -610,6 +618,247 @@ public:
     }
 
     virtual bool isEmpty() const override { return false; }
+};
+
+// The hooks of Qt for the tools of introspection (GammaRay; QHooks of qhooks_p.h, whose indices have not
+// changed since Qt 5.4): every QObject of the process announces its construction and its destruction
+extern quintptr Q_CORE_EXPORT qtHookData[];
+
+/// The wait after the deletion of the victim, while the deferred work of the deleted objects runs. It is
+/// the fixed wait of a time limit (PDFDocumentToolRunner::PREVIEW_DELAY + 50 ms: a preview of the runner
+/// starts after the deletion) replaced by its condition: every timer of the main thread, which fires
+/// within the limit - pending at the deletion or started during the wait - has fired or has gone with its
+/// object. The limit bounds the wait (a zero timer started again from its own shot is always due). A timer
+/// due after the limit is not awaited, as the fixed wait did not see it fire either. The timers are found by the
+/// objects of the process (the hooks of Qt): a timer is often no child of its object (a QTimer member,
+/// QTimer::singleShot, QBasicTimer, the timers of Qt itself).
+class ToolPagesLifetimeTimers : public QObject
+{
+public:
+    /// Installs the hooks (initTestCase); the previous callbacks are called too
+    static void install();
+
+    /// Removes the hooks (cleanupTestCase)
+    static void uninstall();
+
+    /// Processes the events until every timer of the main thread due within \p milliseconds has fired
+    /// (at most \p milliseconds). \returns false, when the limit has run out with a timer still pending.
+    static bool waitForDueTimers(int milliseconds);
+
+    /// The hooks are installed (else waitForDueTimers is the fixed wait)
+    static bool isInstalled() { return s_isInstalled; }
+
+    virtual bool eventFilter(QObject* watched, QEvent* event) override;
+
+private:
+    /// QHooks::HookIndex
+    enum HookIndex
+    {
+        HookDataSize = 1,
+        AddQObject = 3,
+        RemoveQObject = 4
+    };
+
+    using Callback = void (*)(QObject*);
+    using Key = std::pair<QObject*, int>;   ///< A timer: its object and its id
+
+    static void onAdded(QObject* object);
+    static void onRemoved(QObject* object);
+
+    /// The timers of the living objects of the main thread (\p registered) and those of them, which fire
+    /// within \p remaining (\p due)
+    static void collect(std::chrono::nanoseconds remaining, std::set<Key>* registered, std::set<Key>* due);
+
+    /// The number of the shots of the timer during the wait
+    int getShots(const Key& key) const
+    {
+        const auto it = m_shots.find(key);
+        return it != m_shots.end() ? it->second : 0;
+    }
+
+    std::map<Key, int> m_shots;     ///< The timer events delivered during the wait
+
+    static QMutex s_mutex;
+    static QSet<QObject*> s_objects;
+    static Callback s_previousAdded;
+    static Callback s_previousRemoved;
+    static bool s_isInstalled;
+};
+
+QMutex ToolPagesLifetimeTimers::s_mutex;
+QSet<QObject*> ToolPagesLifetimeTimers::s_objects;
+ToolPagesLifetimeTimers::Callback ToolPagesLifetimeTimers::s_previousAdded = nullptr;
+ToolPagesLifetimeTimers::Callback ToolPagesLifetimeTimers::s_previousRemoved = nullptr;
+bool ToolPagesLifetimeTimers::s_isInstalled = false;
+
+void ToolPagesLifetimeTimers::install()
+{
+    if (s_isInstalled || qtHookData[HookDataSize] <= RemoveQObject)
+    {
+        return;
+    }
+    s_previousAdded = reinterpret_cast<Callback>(qtHookData[AddQObject]);
+    s_previousRemoved = reinterpret_cast<Callback>(qtHookData[RemoveQObject]);
+    qtHookData[AddQObject] = reinterpret_cast<quintptr>(&ToolPagesLifetimeTimers::onAdded);
+    qtHookData[RemoveQObject] = reinterpret_cast<quintptr>(&ToolPagesLifetimeTimers::onRemoved);
+    s_isInstalled = true;
+}
+
+void ToolPagesLifetimeTimers::uninstall()
+{
+    if (!s_isInstalled)
+    {
+        return;
+    }
+    qtHookData[AddQObject] = reinterpret_cast<quintptr>(s_previousAdded);
+    qtHookData[RemoveQObject] = reinterpret_cast<quintptr>(s_previousRemoved);
+    s_isInstalled = false;
+    QMutexLocker locker(&s_mutex);
+    s_objects.clear();
+}
+
+void ToolPagesLifetimeTimers::onAdded(QObject* object)
+{
+    {
+        QMutexLocker locker(&s_mutex);
+        s_objects.insert(object);
+    }
+    if (s_previousAdded)
+    {
+        s_previousAdded(object);
+    }
+}
+
+void ToolPagesLifetimeTimers::onRemoved(QObject* object)
+{
+    {
+        QMutexLocker locker(&s_mutex);
+        s_objects.remove(object);
+    }
+    if (s_previousRemoved)
+    {
+        s_previousRemoved(object);
+    }
+}
+
+void ToolPagesLifetimeTimers::collect(std::chrono::nanoseconds remaining, std::set<Key>* registered, std::set<Key>* due)
+{
+    QThread* mainThread = QCoreApplication::instance()->thread();
+    QAbstractEventDispatcher* dispatcher = QAbstractEventDispatcher::instance(mainThread);
+    if (!dispatcher)
+    {
+        return;
+    }
+
+    // An object of another thread is destroyed only after its hook, which waits for the mutex: its
+    // QObject part is whole, while the mutex is held. Only the dispatcher of the main thread is asked.
+    QMutexLocker locker(&s_mutex);
+    for (QObject* object : std::as_const(s_objects))
+    {
+        if (object->thread() != mainThread)
+        {
+            continue;
+        }
+        for (const QAbstractEventDispatcher::TimerInfoV2& info : dispatcher->timersForObject(object))
+        {
+            const Key key(object, qToUnderlying(info.timerId));
+            registered->insert(key);
+            const std::chrono::nanoseconds left = dispatcher->remainingTime(info.timerId);
+            if (left >= std::chrono::nanoseconds::zero() && left <= remaining)
+            {
+                due->insert(key);
+            }
+        }
+    }
+}
+
+bool ToolPagesLifetimeTimers::waitForDueTimers(int milliseconds)
+{
+    if (!s_isInstalled)
+    {
+        // No hooks: the fixed wait
+        QTest::qWait(milliseconds);
+        return true;
+    }
+
+    ToolPagesLifetimeTimers filter;
+    QCoreApplication::instance()->installEventFilter(&filter);
+    const QDeadlineTimer deadline(milliseconds, Qt::PreciseTimer);
+    std::map<Key, int> pending;     // A timer awaited and the number of its shots, when it began to be awaited
+    std::set<Key> done;
+    bool isAllFired = false;
+    while (true)
+    {
+        // A pending timer is over, when it has fired or is no longer registered (a single shot after its
+        // shot, a stopped timer, a timer of a deleted object). Each timer due within the rest of the limit
+        // is awaited, also one started meanwhile: a repeating timer for one shot, a single shot QTimer
+        // started again (also under the same id, also from its own shot) once more.
+        std::set<Key> registered;
+        std::set<Key> due;
+        collect(deadline.remainingTimeAsDuration(), &registered, &due);
+        for (auto it = pending.begin(); it != pending.end();)
+        {
+            if (filter.getShots(it->first) > it->second || !registered.count(it->first))
+            {
+                done.insert(it->first);
+                it = pending.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+        for (const Key& key : due)
+        {
+            if (pending.count(key))
+            {
+                continue;
+            }
+            if (done.count(key))
+            {
+                // A single shot QTimer is not registered after its shot: registered now, it was started again
+                const QTimer* timer = qobject_cast<const QTimer*>(key.first);
+                if (!timer || !timer->isSingleShot())
+                {
+                    continue;
+                }
+                done.erase(key);
+            }
+            pending.emplace(key, filter.getShots(key));
+        }
+        isAllFired = pending.empty();
+        if (isAllFired || deadline.hasExpired())
+        {
+            break;
+        }
+        QTest::qWait(1);
+    }
+    QCoreApplication::instance()->removeEventFilter(&filter);
+    return isAllFired;
+}
+
+bool ToolPagesLifetimeTimers::eventFilter(QObject* watched, QEvent* event)
+{
+    if (event->type() == QEvent::Timer)
+    {
+        ++m_shots[Key(watched, qToUnderlying(static_cast<QTimerEvent*>(event)->id()))];
+    }
+    return false;
+}
+
+/// An object with a timer of QObject::startTimer (no QTimer): it counts its timer events and stops its
+/// timer at the first one
+class ToolPagesLifetimeTimerTarget : public QObject
+{
+public:
+    int shots = 0;
+
+protected:
+    virtual void timerEvent(QTimerEvent* event) override
+    {
+        ++shots;
+        killTimer(event->id());
+    }
 };
 
 /// Victim of the deletion
@@ -2238,8 +2487,11 @@ class AppToolPagesLifetimeTest : public QObject
 
 private Q_SLOTS:
     void initTestCase();
+    void cleanupTestCase();
     void cleanup();
     void recorderHooksAfterConstruction();
+    void waitAfterDeletionLetsDueTimersFire();
+    void waitsOfStepEndWithDeletion();
     void deleteFromEverySignal_data();
     void deleteFromEverySignal();
     void openPopupsSurviveChanges_data();
@@ -2278,10 +2530,16 @@ void AppToolPagesLifetimeTest::initTestCase()
     // No scenario reads or writes the certificates of the user (the tools of step 5 list them):
     // temporary folders for the whole process, the certificate scenarios nest their own
     pdftest::AppTestCertificateFolders::installForProcess();
+    ToolPagesLifetimeTimers::install();
     QApplication::setStyle(new pdf::PDFWidgetStyle());
     QLocale::setDefault(QLocale(QLocale::English, QLocale::UnitedStates));
     pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
     qRegisterMetaType<pdf::PDFDocumentToolResult>();
+}
+
+void AppToolPagesLifetimeTest::cleanupTestCase()
+{
+    ToolPagesLifetimeTimers::uninstall();
 }
 
 void AppToolPagesLifetimeTest::cleanup()
@@ -2325,6 +2583,135 @@ void AppToolPagesLifetimeTest::recorderHooksAfterConstruction()
     }
     QVERIFY(isRecorded);
     recorder.stop();
+}
+
+void AppToolPagesLifetimeTest::waitAfterDeletionLetsDueTimersFire()
+{
+    // The wait after the deletion of the victim is the fixed wait of its limit replaced by its condition:
+    // every timer of the main thread due within the limit fires in it, whatever kind it is - a child
+    // QTimer, a QTimer without a parent (a member), QTimer::singleShot with a functor, QObject::startTimer,
+    // a repeating timer of an interval longer than the limit due within it, a timer started during the
+    // wait, a single shot started again from its own shot (twice). A timer due after the limit does not
+    // hold the wait, a timer of an object deleted during the wait neither: the wait ends, when the due
+    // timers have fired (true).
+    // (all times scale by PDF4QT_TEST_TIMEOUT_FACTOR)
+    QVERIFY(ToolPagesLifetimeTimers::isInstalled());
+    const int factor = pdftest::AppDocumentFixture::getTimeoutFactor();
+    const auto scale = [factor](int milliseconds) { return milliseconds * factor; };
+    const int limit = scale(1000);
+    QObject owner;
+
+    // Alone: a repeating timer of an interval of 2000 ms, due about 500 ms after the start of the wait (the
+    // margin of 500 ms both ways), is awaited by its remaining time
+    int longShots = 0;
+    QTimer* longTimer = new QTimer(&owner);
+    longTimer->setInterval(scale(2000));
+    QObject::connect(longTimer, &QTimer::timeout, &owner, [&longShots]() { ++longShots; });
+    longTimer->start();
+    QTest::qWait(scale(1500));
+    const int longShotsBefore = longShots;
+    QVERIFY(ToolPagesLifetimeTimers::waitForDueTimers(limit));
+    QCOMPARE(longShots, longShotsBefore + 1);
+    longTimer->stop();
+
+    int childShots = 0;
+    QTimer* child = new QTimer(&owner);
+    child->setSingleShot(true);
+    QObject::connect(child, &QTimer::timeout, &owner, [&childShots]() { ++childShots; });
+    child->start(scale(200));
+
+    int memberShots = 0;
+    QTimer member;
+    member.setSingleShot(true);
+    QObject::connect(&member, &QTimer::timeout, &owner, [&memberShots]() { ++memberShots; });
+    member.start(scale(300));
+
+    // A single shot of a functor starts another one, due at 750 ms (after all of the others)
+    int functorShots = 0;
+    int chainedShots = 0;
+    QTimer::singleShot(scale(150), &owner, [&owner, &functorShots, &chainedShots, &scale]()
+    {
+        ++functorShots;
+        QTimer::singleShot(scale(600), &owner, [&chainedShots]() { ++chainedShots; });
+    });
+
+    // A single shot started again from its own shot, due again at 900 ms (the last one)
+    int againShots = 0;
+    QTimer again;
+    again.setSingleShot(true);
+    QObject::connect(&again, &QTimer::timeout, &owner, [&again, &againShots, &scale]()
+    {
+        if (++againShots == 1)
+        {
+            again.start(scale(300));
+        }
+    });
+    again.start(scale(600));
+
+    ToolPagesLifetimeTimerTarget target;
+    target.startTimer(scale(350));
+
+    // A timer of an object deleted during the wait never fires
+    QPointer<QTimer> doomed = new QTimer(&owner);
+    doomed->setSingleShot(true);
+    int doomedShots = 0;
+    QObject::connect(doomed.data(), &QTimer::timeout, &owner, [&doomedShots]() { ++doomedShots; });
+    doomed->start(scale(400));
+    QTimer::singleShot(scale(100), &owner, [&doomed]() { delete doomed.data(); });
+
+    int lateShots = 0;
+    QTimer late;
+    late.setSingleShot(true);
+    QObject::connect(&late, &QTimer::timeout, &owner, [&lateShots]() { ++lateShots; });
+    late.start(scale(5000));
+
+    QVERIFY(ToolPagesLifetimeTimers::waitForDueTimers(limit));
+    QCOMPARE(childShots, 1);
+    QCOMPARE(memberShots, 1);
+    QCOMPARE(functorShots, 1);
+    QCOMPARE(chainedShots, 1);
+    QCOMPARE(againShots, 2);
+    QCOMPARE(target.shots, 1);
+    QVERIFY(!doomed);
+    QCOMPARE(doomedShots, 0);
+    QCOMPARE(lateShots, 0);
+
+    // A zero timer started again from its own shot is due all the time: the limit ends the wait (false)
+    QTimer restarted;
+    restarted.setSingleShot(true);
+    QObject::connect(&restarted, &QTimer::timeout, &owner, [&restarted]() { restarted.start(0); });
+    restarted.start(0);
+    QElapsedTimer elapsed;
+    elapsed.start();
+    QVERIFY(!ToolPagesLifetimeTimers::waitForDueTimers(scale(300)));
+    QVERIFY(elapsed.elapsed() >= scale(300));
+    restarted.disconnect();
+    restarted.stop();
+}
+
+void AppToolPagesLifetimeTest::waitsOfStepEndWithDeletion()
+{
+    // The interruption of the replay (runScenario: the victim is deleted) ends a wait of a step, whose
+    // condition never comes, at once, not by its time limit; the wait reports false. Without it, the wait
+    // runs until its condition or its limit.
+    bool isDeleted = false;
+    QObject context;
+    QTimer::singleShot(50, &context, [&isDeleted]() { isDeleted = true; });
+    pdftest::AppToolShellFixture::setWaitInterruption([&isDeleted]() { return isDeleted; });
+    const auto interruptionGuard = qScopeGuard([]() { pdftest::AppToolShellFixture::setWaitInterruption(nullptr); });
+    QElapsedTimer elapsed;
+    elapsed.start();
+    QVERIFY(!pdftest::AppToolShellFixture::waitFor([]() { return false; }, 15000));
+    QVERIFY2(elapsed.elapsed() < 5000 * pdftest::AppDocumentFixture::getTimeoutFactor(), qPrintable(QString::number(elapsed.elapsed())));
+    QVERIFY(isDeleted);
+
+    // A condition, which holds, still wins
+    QVERIFY(pdftest::AppToolShellFixture::waitFor([]() { return true; }));
+
+    pdftest::AppToolShellFixture::setWaitInterruption(nullptr);
+    bool isReady = false;
+    QTimer::singleShot(50, &context, [&isReady]() { isReady = true; });
+    QVERIFY(pdftest::AppToolShellFixture::waitFor([&isReady]() { return isReady; }));
 }
 
 void AppToolPagesLifetimeTest::deleteFromEverySignal_data()
@@ -2447,6 +2834,16 @@ void AppToolPagesLifetimeTest::runScenario(const QString& name, ToolPagesLifetim
         });
     }
 
+    // Once the victim is deleted, the waits of the step end at once: they waited for a state of the
+    // victim or of its parts, which never comes, up to their whole time limit (15 s each, most passes of
+    // an own tab and of a page or a shell). The step ends, the deferred work of the deleted objects runs
+    // after the steps as in every pass (the held runs of the test tool end, the wait after the deletion).
+    if (mode == ToolPagesLifetimeRecorder::Mode::Replay)
+    {
+        pdftest::AppToolShellFixture::setWaitInterruption([&recorder]() { return recorder.isFired(); });
+    }
+    const auto interruptionGuard = qScopeGuard([]() { pdftest::AppToolShellFixture::setWaitInterruption(nullptr); });
+
     for (size_t i = 0; i < steps.size(); ++i)
     {
         recorder.setStep(int(i));
@@ -2477,6 +2874,7 @@ void AppToolPagesLifetimeTest::runScenario(const QString& name, ToolPagesLifetim
         }
     }
 
+    pdftest::AppToolShellFixture::setWaitInterruption(nullptr);
     recorder.setStep(int(steps.size()));
     if (run.tool)
     {
@@ -2487,8 +2885,9 @@ void AppToolPagesLifetimeTest::runScenario(const QString& name, ToolPagesLifetim
 
     if (mode == ToolPagesLifetimeRecorder::Mode::Replay && recorder.isFired())
     {
-        // Close a dialog of a question, which nobody answers any more
-        QTest::qWait(pdf::PDFDocumentToolRunner::PREVIEW_DELAY + 50);
+        // Close a dialog of a question, which nobody answers any more; the deferred work of the deleted
+        // objects runs (every timer due within the time of a preview of the runner fires)
+        ToolPagesLifetimeTimers::waitForDueTimers(pdf::PDFDocumentToolRunner::PREVIEW_DELAY + 50);
         pdftest::AppDocumentFixture::settle();
 
         if (isOwnTab && victim != ToolPagesLifetimeVictim::Window)

@@ -2085,7 +2085,20 @@ void PDFAppToolGUIAudioBook::onListContextMenuRequested(const QPoint& position)
 
 void PDFAppToolGUIAudioBook::onContextMenuTriggered(QAction* action)
 {
+    // The action runs from the event loop, not inside the signal of the menu: QMenu reads its own
+    // members after its signal triggered returns (QMenuPrivate::_q_actionTriggered, and the
+    // activation by the mouse writes them), and an action emits signals, whose slots may delete the
+    // list with its menu (the tool, the tab). Only the key goes on, the action dies with the menu.
     const QString key = action ? action->data().toString() : QString();
+    if (!key.isEmpty())
+    {
+        QMetaObject::invokeMethod(this, &PDFAppToolGUIAudioBook::onContextMenuActionQueued, Qt::QueuedConnection, key);
+    }
+}
+
+void PDFAppToolGUIAudioBook::onContextMenuActionQueued(const QString& key)
+{
+    // Each branch is the last call (its signals may delete this GUI)
     if (key == QLatin1String("rectangle"))
     {
         selectByRectangleMode();

@@ -626,11 +626,12 @@ void AnnotationSelectionTest::editFilterKeepsSelectionOnPage()
     QVERIFY(SelectionFixture::fuzzyCompare(fixture.rectangle(squares.second), QRectF(260, 0, 40, 40), 0.05));
     QCOMPARE(fixture.modificationCount, 26);
 
-    // A drag of the annotation far beyond the left edge of the page (Ctrl: no snapping) stops at the edge
-    QVERIFY(fixture.press(fixture.device(QPointF(280, 20)), Qt::ControlModifier));
-    QVERIFY(fixture.move(fixture.device(QPointF(140, 20)), Qt::ControlModifier));
-    QVERIFY(fixture.move(fixture.device(QPointF(-200, 20)), Qt::ControlModifier));
-    QVERIFY(fixture.release(fixture.device(QPointF(-200, 20)), Qt::ControlModifier));
+    // A drag of the annotation far beyond the left edge of the page stops at the edge (without Ctrl,
+    // which copies the selection of a filter, owner 2026-11-18)
+    QVERIFY(fixture.press(fixture.device(QPointF(280, 20)), Qt::NoModifier));
+    QVERIFY(fixture.move(fixture.device(QPointF(140, 20)), Qt::NoModifier));
+    QVERIFY(fixture.move(fixture.device(QPointF(-200, 20)), Qt::NoModifier));
+    QVERIFY(fixture.release(fixture.device(QPointF(-200, 20)), Qt::NoModifier));
     QVERIFY(SelectionFixture::fuzzyCompare(fixture.rectangle(squares.second), QRectF(0, 0, 40, 40), 0.05));
     QCOMPARE(fixture.modificationCount, 27);
 

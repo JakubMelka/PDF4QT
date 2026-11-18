@@ -21,7 +21,8 @@
 // SOFTWARE.
 
 // The lifetime scenarios of Convert to Black & White (step 4 of phase 2, package P3; plan 8): a tile
-// of the left panel, a mode of the selected item (one undo step), the method, the preview job, the
+// of the left panel, a mode of the selected item (one undo step), a mode by the menu of a right click
+// (P2AUDIOCRASH: its action ran inside QMenu::triggered), the method, the preview job, the
 // detection of blank pages with its question (307:6250), the run and its result dialog (307:6564),
 // the question of a partial result before the dialog (307:6388, PDFDocumentToolGUI::confirmResult)
 
@@ -37,7 +38,9 @@
 #include "pdfmessagebox.h"
 
 #include <QApplication>
+#include <QContextMenuEvent>
 #include <QFile>
+#include <QMenu>
 #include <QPushButton>
 #include <QToolButton>
 #include <QtTest>
@@ -87,6 +90,43 @@ public:
             return false;
         }
         current->setModeToItems(mode);
+        Steps::settle();
+        return true;
+    }
+
+    /// The mode menu of a right click on the grid (304:5102 "Right-click for the mode menu") and its
+    /// row of \p mode (the action of the menu sets the mode of the selected items, one undo step)
+    static bool modeByContextMenu(const ToolPagesLifetimeRun& run, pdf::PDFBitonalDocumentCreator::ItemMode mode)
+    {
+        pdf::PDFAppToolGUIBitonal* current = gui(run);
+        QPointer<pdf::PDFAppToolPageGridView> view = current && current->getPageGrid() ? current->getPageGrid()->getView() : nullptr;
+        if (!view)
+        {
+            return false;
+        }
+        const QPoint position = view->viewport()->rect().center();
+        QContextMenuEvent event(QContextMenuEvent::Mouse, position, view->viewport()->mapToGlobal(position));
+        QApplication::sendEvent(view->viewport(), &event);
+        Steps::settle();
+        QPointer<QMenu> menu = view ? view->findChild<QMenu*>(QStringLiteral("bitonalModeMenu")) : nullptr;
+        if (!menu)
+        {
+            // The victim may have died with the view (the replay); the discovery needs the menu
+            return !view;
+        }
+        for (QAction* action : menu->actions())
+        {
+            if (action->data().isValid() && action->data().toInt() == int(mode))
+            {
+                action->trigger();
+                break;
+            }
+        }
+        Steps::settle();
+        if (menu)
+        {
+            menu->close();
+        }
         Steps::settle();
         return true;
     }
@@ -225,6 +265,7 @@ void ToolPagesLifetimePackages::registerBitonalScenarios(std::vector<ToolPagesLi
         steps->push_back(&Steps::openTool);
         steps->push_back([](ToolPagesLifetimeRun& run) { return H::clickTile(run, 1); });
         steps->push_back([](ToolPagesLifetimeRun& run) { return H::setMode(run, Mode::AlgorithmInverted); });
+        steps->push_back([](ToolPagesLifetimeRun& run) { return H::modeByContextMenu(run, Mode::FillWhite); });
         steps->push_back([](ToolPagesLifetimeRun& run) { return H::setValue(run, QStringLiteral("method"), QStringLiteral("threshold")); });
         steps->push_back([](ToolPagesLifetimeRun& run) { return H::waitForPreview(run); });
         steps->push_back([](ToolPagesLifetimeRun& run) { return H::detectAndReplace(run); });

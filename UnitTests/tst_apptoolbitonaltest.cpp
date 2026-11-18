@@ -56,9 +56,11 @@
 #include "pdffluentwidgets.h"
 
 #include <QApplication>
+#include <QContextMenuEvent>
 #include <QFile>
 #include <QJsonArray>
 #include <QLabel>
+#include <QMenu>
 #include <QPushButton>
 #include <QScopeGuard>
 #include <QSpinBox>
@@ -184,6 +186,7 @@ private slots:
     void registered();
     void toolbarTexts();
     void modesAndUndo();
+    void contextMenuModeMayCloseTheTab();
     void previewOfTheCore();
     void canceledPreviewKeepsItsPage();
     void imageListSelectionKeepsCurrentRow();
@@ -316,6 +319,74 @@ void AppToolBitonalTest::modesAndUndo()
 
     // 304:5102: the callout of the pages
     QVERIFY(gui->getCallout()->isVisible());
+}
+
+void AppToolBitonalTest::contextMenuModeMayCloseTheTab()
+{
+    // P2AUDIOCRASH (lifetime convention "emit last"): a row of the mode menu of a right click (304:5102
+    // "Right-click for the mode menu") sets the mode of the selected items - one undo step, whose slots
+    // may close the document tab with the tool, the grid and the menu. QMenu reads its own members after
+    // its signal triggered returns (QMenuPrivate::_q_actionTriggered), so the mode is set only after the
+    // menu has finished its signal: the step of Undo comes after QAction::trigger() has returned, never
+    // inside it, and a slot of it closes the tab safely
+    using H = BitonalGuiHelper;
+    AppToolShellFixture fixture;
+    QPointer<pdf::PDFAppDocumentTab> tab = H::openReady(fixture, H::writeDocument(fixture.path(QStringLiteral("Scanned_Archive.pdf"))));
+    QVERIFY(tab);
+    QPointer<PDFDocumentToolShell> shell = fixture.openTool(tab, H::TOOL_ID);
+    QPointer<PDFAppToolGUIBitonal> gui = H::gui(shell);
+    QVERIFY(gui);
+    AppToolShellFixture::settle();
+    gui->selectItems({ 0 });
+    AppToolShellFixture::settle();
+
+    // The menu of a right click on the grid and its row Fill with white
+    pdf::PDFAppToolPageGridView* view = gui->getPageGrid()->getView();
+    const QPoint position = view->viewport()->rect().center();
+    QContextMenuEvent event(QContextMenuEvent::Mouse, position, view->viewport()->mapToGlobal(position));
+    QApplication::sendEvent(view->viewport(), &event);
+    AppToolShellFixture::settle();
+    QPointer<QMenu> menu = view->findChild<QMenu*>(QStringLiteral("bitonalModeMenu"));
+    QVERIFY(menu);
+    QAction* fillWhite = nullptr;
+    for (QAction* action : menu->actions())
+    {
+        fillWhite = action->data().isValid() && action->data().toInt() == int(pdf::PDFBitonalDocumentCreator::ItemMode::FillWhite) ? action : fillWhite;
+    }
+    QVERIFY(fillWhite);
+
+    // A slot of the step of Undo reads the mode and closes the tab - only outside of the signal of the
+    // menu (inside it the deletion would free the menu under QMenu itself; the test only records it then)
+    bool isTriggerReturned = false;
+    int changesInsideTrigger = 0;
+    int changesAfterTrigger = 0;
+    QString itemsAtChange;
+    QObject context;
+    QObject::connect(shell->getModel(), &pdf::PDFAppToolUndoTarget::undoStateChanged, &context, [&]()
+    {
+        if (!isTriggerReturned)
+        {
+            ++changesInsideTrigger;
+            return;
+        }
+        ++changesAfterTrigger;
+        itemsAtChange = H::items(shell);
+        delete tab.data();
+    });
+    fillWhite->trigger();
+    isTriggerReturned = true;
+    QCOMPARE(changesInsideTrigger, 0);
+
+    // From the event loop: the first page is filled with white (one step of Undo), the slot has closed
+    // the tab with the tool and the menu, the window lives on
+    QVERIFY(AppToolShellFixture::waitFor([&tab]() { return !tab; }));
+    AppToolShellFixture::settle();
+    QCOMPARE(changesAfterTrigger, 1);
+    QCOMPARE(itemsAtChange, QStringLiteral("1=fill-white"));
+    QVERIFY(!shell);
+    QVERIFY(!gui);
+    QVERIFY(!menu);
+    QVERIFY(fixture.window);
 }
 
 void AppToolBitonalTest::previewOfTheCore()

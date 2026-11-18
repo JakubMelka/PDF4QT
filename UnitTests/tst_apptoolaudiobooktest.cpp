@@ -325,6 +325,7 @@ private slots:
     void catastrophicExpressionStaysQuick();
     void listRowsStartAtTheHeader();
     void contextMenuOfTheList();
+    void contextMenuActionMayCloseTheTab();
     void runningCardShowsThePage();
     void newValueAtTheAddressOfAFreedOne();
 
@@ -1109,6 +1110,74 @@ void AppToolAudioBookTest::contextMenuOfTheList()
     QCOMPARE(audio->getSelectPopover()->getKind(), pdf::PDFAppAudioBookSelectPopover::Kind::ContainedText);
     audio->getSelectPopover()->close();
     AppToolShellFixture::settle();
+}
+
+void AppToolAudioBookTest::contextMenuActionMayCloseTheTab()
+{
+    // P2AUDIOCRASH (lifetime convention "emit last"): an action of the context menu of the list emits
+    // signals (Skip: one step of Undo), whose slots may close the document tab with the tool, the list
+    // and the menu. QMenu reads and writes its own members after its signal triggered returns
+    // (QMenuPrivate::_q_actionTriggered, activateCausedStack), so the action runs only after the
+    // menu has finished its signal: the step of Undo comes after QAction::trigger() has returned,
+    // never inside it, and a slot of it closes the tab safely (an access violation of the sweep
+    // audiobookmenus-tab-0, about one run of twenty, before the fix)
+    using H = AudioBookGuiHelper;
+    AppToolShellFixture fixture(QSize(1440, 960));
+    fixture.context->setSpeechSynthesizerFactory(std::make_shared<GuiFakeFactory>(true));
+    QPointer<pdf::PDFAppDocumentTab> tab = H::openReady(fixture, H::writeDocument(fixture.path(QStringLiteral("Project_Report.pdf")), { { QStringLiteral("First paragraph"), QStringLiteral("Second paragraph") }, { QStringLiteral("Third paragraph") } }));
+    QVERIFY(tab);
+    QPointer<PDFDocumentToolShell> shell = fixture.openTool(tab, H::TOOL_ID);
+    QPointer<PDFAppToolGUIAudioBook> audio = H::gui(shell);
+    QVERIFY(H::waitStream(audio));
+    QVERIFY(AppToolShellFixture::waitFor([&audio]() { return audio && !audio->isProbingVoices(); }));
+    AppToolShellFixture::settle();
+
+    // The context menu of "Second paragraph" and its Skip
+    const size_t second = size_t(H::findItem(audio, QStringLiteral("Second paragraph")));
+    pdf::PDFListView* view = audio->getListView();
+    const QPoint position = view->visualRect(audio->getItemModel()->index(audio->getItemModel()->getRow(second), 0)).center();
+    QContextMenuEvent event(QContextMenuEvent::Mouse, position, view->viewport()->mapToGlobal(position));
+    QApplication::sendEvent(view->viewport(), &event);
+    AppToolShellFixture::settle();
+    QPointer<QMenu> menu = audio->getContextMenu();
+    QVERIFY(menu);
+    QAction* skip = nullptr;
+    for (QAction* action : menu->actions())
+    {
+        skip = action->data().toString() == QStringLiteral("skip") ? action : skip;
+    }
+    QVERIFY(skip);
+    QVERIFY(skip->isEnabled());
+
+    // A slot of the step of Undo closes the tab - only outside of the signal of the menu (inside it the
+    // deletion would free the menu under QMenu itself; the test only records the failure then)
+    bool isTriggerReturned = false;
+    int changesInsideTrigger = 0;
+    int changesAfterTrigger = 0;
+    QObject context;
+    QObject::connect(shell->getModel(), &pdf::PDFAppToolUndoTarget::undoStateChanged, &context, [&]()
+    {
+        if (!isTriggerReturned)
+        {
+            ++changesInsideTrigger;
+            return;
+        }
+        ++changesAfterTrigger;
+        delete tab.data();
+    });
+    skip->trigger();
+    isTriggerReturned = true;
+    QCOMPARE(changesInsideTrigger, 0);
+
+    // From the event loop: Skip has made its step of Undo, its slot has closed the tab with the tool and
+    // the menu, the window lives on
+    QVERIFY(AppToolShellFixture::waitFor([&tab]() { return !tab; }));
+    AppToolShellFixture::settle();
+    QCOMPARE(changesAfterTrigger, 1);
+    QVERIFY(!shell);
+    QVERIFY(!audio);
+    QVERIFY(!menu);
+    QVERIFY(fixture.window);
 }
 
 void AppToolAudioBookTest::runningCardShowsThePage()

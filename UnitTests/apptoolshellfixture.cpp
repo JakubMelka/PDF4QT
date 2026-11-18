@@ -168,6 +168,8 @@ void ShellTestGUI::selectAllSteps()
     flagsMenu->setAll(true);
 }
 
+std::function<bool()> AppToolShellFixture::s_waitInterruption;
+
 AppToolShellFixture::AppToolShellFixture(QSize size) :
     AppToolsFixture(size)
 {
@@ -254,6 +256,10 @@ bool AppToolShellFixture::waitFor(const std::function<bool()>& condition, int mi
     const qint64 limit = qint64(milliseconds) * getTimeoutFactor();
     while (!condition())
     {
+        if (s_waitInterruption && s_waitInterruption())
+        {
+            return false;
+        }
         if (timer.elapsed() > limit)
         {
             return false;
@@ -261,6 +267,11 @@ bool AppToolShellFixture::waitFor(const std::function<bool()>& condition, int mi
         QTest::qWait(1);
     }
     return true;
+}
+
+void AppToolShellFixture::setWaitInterruption(std::function<bool()> interruption)
+{
+    s_waitInterruption = std::move(interruption);
 }
 
 bool AppToolShellFixture::waitForRun(const pdf::PDFDocumentToolRunner* runner)
