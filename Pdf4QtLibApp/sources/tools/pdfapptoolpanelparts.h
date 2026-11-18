@@ -393,6 +393,53 @@ private:
     QString m_iconName;
 };
 
+class PDFAppToolModeLayout;
+
+/// The caption of the shown page over the canvas of a tool, which shows the pages of the document
+/// (preview-bar 437:10607 of Redact Content, 438:14940 of Remove External Links): "Page 12" Semi Bold
+/// 13 text/primary in a bar of 36 at 20, 20 of the canvas area, at its leading side. While it lives,
+/// the canvas widget lies below the band of the caption (TOP_INSET, the pages of 1599:48898 start at 64
+/// of the canvas; PDFAppToolModeLayout::setCanvasTopInset): no page is under the caption at any zoom
+/// and scroll position (owner 2026-11-18 - in the dark theme the text was white on the white page).
+/// The one caption of all such tools.
+///
+/// Ownership: a child of the canvas area, deleted by the overlay of its tool (or by the canvas area,
+/// when it dies first); the band goes with the last caption of the area. It takes no mouse and no
+/// focus and emits no signals.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolPageCaption : public QWidget
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QWidget;
+
+public:
+    static constexpr int OFFSET = 20;       ///< preview-bar at 20, 20 of the canvas
+    static constexpr int HEIGHT = 36;
+    static constexpr int TOP_INSET = 64;    ///< The pages start below it (page-view 1599:49014 at y 64)
+
+    /// \param canvasArea The canvas area, the parent
+    explicit PDFAppToolPageCaption(QWidget* canvasArea);
+    virtual ~PDFAppToolPageCaption() override;
+
+    /// The text ("Page 12"), empty hides the caption
+    void setText(const QString& text);
+    QString getText() const;
+
+    PDFLabel* getLabel() const { return m_label.data(); }
+
+protected:
+    virtual bool eventFilter(QObject* watched, QEvent* event) override;
+    virtual void changeEvent(QEvent* event) override;
+
+private:
+    void updatePlacement();
+
+    QPointer<QWidget> m_canvasArea;
+    QPointer<PDFLabel> m_label;
+    QPointer<PDFAppToolModeLayout> m_modeLayout;    ///< The layout of the canvas area (its band)
+};
+
 }   // namespace pdf
 
 #endif // PDFAPPTOOLPANELPARTS_H

@@ -32,6 +32,7 @@
 #include "pdfappmainwindow.h"
 #include "pdfapppagelayout.h"
 #include "pdfappsettingcontrol.h"
+#include "pdfapptooldragsource.h"
 #include "pdfapptoolhost.h"
 #include "pdfapptoolinputlist.h"
 #include "pdfapptooloutputfiles.h"
@@ -1189,6 +1190,27 @@ void PDFDocumentToolShell::onEscape()
     if (QWidget* popup = QApplication::activePopupWidget())
     {
         popup->close();
+        return;
+    }
+
+    // A modal dialog takes the keys itself (Esc belongs to it, never to the tool below it)
+    if (QApplication::activeModalWidget())
+    {
+        return;
+    }
+
+    // Owner 2026-11-17: Esc ends a drag of a widget of the tool first (the shortcut takes the key
+    // before the widget), the tool stays open; its signal is the last call
+    if (IPDFAppToolDragSource* dragSource = IPDFAppToolDragSource::findActive(m_host ? m_host->getKeyWidget() : nullptr))
+    {
+        dragSource->cancelToolDrag();
+        return;
+    }
+
+    // Then a drag of the GUI, which is no widget, or its active widget tool / input mode of the
+    // canvas; only without them Esc leaves the tool (the GUI never deletes the shell)
+    if (m_state == State::Editing && m_gui && m_gui->handleEscape())
+    {
         return;
     }
 

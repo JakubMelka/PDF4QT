@@ -71,6 +71,7 @@
 #include "testprogressrecorder.h"
 
 #include <QAccessible>
+#include <QAction>
 #include <QCheckBox>
 #include <QDrag>
 #include <QFile>
@@ -452,6 +453,7 @@ private slots:
     void oneThreadReachesTheNextRun_data();
     void oneThreadReachesTheNextRun();
     void frameGeometry();
+    void escapeCancelsLineDrag();
     void measuredPanel();
     void changeRowsNotElided();
     void measuringState();
@@ -656,6 +658,48 @@ void AppToolCompressTest::oneThreadReachesTheNextRun()
     QVERIFY(!pdf::PDFExecutionPolicy::isParallelizing(pdf::PDFExecutionPolicy::Scope::Page));
     secondWindow.reset();
     AppToolShellFixture::settle();
+}
+
+void AppToolCompressTest::escapeCancelsLineDrag()
+{
+    // Owner 2026-11-17: Esc of the tool (its shortcut takes the key before the overlay) during a drag of
+    // the line puts the line back to its place at the press; the tool stays open; the next Esc leaves it
+    using H = CompressGuiHelper;
+    AppToolShellFixture fixture(QSize(1440, 960));
+    const QString filePath = H::writePhoto(fixture.path(QStringLiteral("report.pdf")));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, filePath);
+    QVERIFY(tab);
+    QPointer<PDFDocumentToolShell> shell = H::openCompress(fixture, tab);
+    PDFAppToolGUICompress* gui = H::gui(shell);
+    QVERIFY(gui);
+    QAction* escape = shell->findChild<QAction*>(QStringLiteral("toolEscape"));
+    QVERIFY(escape);
+    PDFAppToolBeforeAfterOverlay* overlay = gui->getBeforeAfterOverlay();
+    QVERIFY(overlay);
+
+    // The line is dragged, when the user sees it (the measured result; review RSRFCODE L6: a hidden
+    // widget has no drag of Esc)
+    QVERIFY(H::waitMeasured(gui));
+    QVERIFY(AppToolShellFixture::waitFor([overlay]() { return overlay->isVisible(); }));
+    const int line = overlay->getLinePosition();
+    const QPoint start = overlay->mapFrom(overlay->parentWidget(), overlay->getHandleRect().center());
+    QTest::mousePress(overlay, Qt::LeftButton, Qt::NoModifier, start);
+    QTest::mouseMove(overlay, start - QPoint(120, 0));
+    QVERIFY(overlay->isToolDragActive());
+    QVERIFY(overlay->getLinePosition() < line - 100);
+
+    escape->trigger();
+    AppToolShellFixture::settle();
+    QVERIFY(!overlay->isToolDragActive());
+    QCOMPARE(overlay->getLinePosition(), line);
+    QVERIFY(shell && shell->getState() == PDFDocumentToolShell::State::Editing);
+    QTest::mouseMove(overlay, start - QPoint(160, 0));
+    QTest::mouseRelease(overlay, Qt::LeftButton, Qt::NoModifier, start - QPoint(160, 0));
+    QCOMPARE(overlay->getLinePosition(), line);
+
+    // Without a drag Esc leaves the tool
+    escape->trigger();
+    QVERIFY(AppToolShellFixture::waitFor([&shell]() { return !shell || shell->getState() != PDFDocumentToolShell::State::Editing; }));
 }
 
 void AppToolCompressTest::frameGeometry()

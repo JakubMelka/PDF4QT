@@ -24,6 +24,7 @@
 #define PDFAPPTOOLMERGEVIEW_H
 
 #include "pdfappglobal.h"
+#include "pdfapptooldragsource.h"
 #include "pdfapptoolpagegrid.h"
 
 #include "pdffluentwidgets.h"
@@ -109,7 +110,7 @@ private:
 /// a button is said by actionTriggered from the event loop (the slot may change the groups).
 /// contentHeightChanged says the height of the cards from the event loop after the layout,
 /// so a canvas can hug the cards (the hint 10 below them, 388:15746).
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolMergePageView : public QAbstractItemView
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolMergePageView : public QAbstractItemView, public IPDFAppToolDragSource
 {
     Q_OBJECT
 
@@ -200,6 +201,10 @@ public:
     bool isDragging() const { return m_gesture.isDragging(); }
     int getDropTargetRow() const { return m_gesture.isDragging() ? m_gesture.getTargetRow() : -1; }
 
+    // IPDFAppToolDragSource: Esc during a drag of the pages leaves them in place
+    virtual bool isToolDragActive() const override { return m_gesture.isDragging(); }
+    virtual void cancelToolDrag() override;
+
     virtual QRect visualRect(const QModelIndex& index) const override;
     virtual void scrollTo(const QModelIndex& index, ScrollHint hint = EnsureVisible) override;
     virtual QModelIndex indexAt(const QPoint& point) const override;
@@ -221,6 +226,10 @@ Q_SIGNALS:
 
     /// The height of the cards has changed (from the event loop after the layout)
     void contentHeightChanged(int height);
+
+    /// A drag of the pages has started or ended (the status text says, what Esc does now); emitted
+    /// in the dispatch of the input, the receivers connect it queued
+    void dragStateChanged();
 
 protected:
     virtual QModelIndex moveCursor(CursorAction cursorAction, Qt::KeyboardModifiers modifiers) override;
@@ -337,7 +346,7 @@ private:
 /// page, Size, Orientation, Rotation; the selection model of the thumbnails. Rows are dragged
 /// (the selected rows of a press on a selected row), removed by Delete and moved by Alt + Up /
 /// Down as the tiles (the same signals).
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolMergeDetailsView : public PDFTreeView
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolMergeDetailsView : public PDFTreeView, public IPDFAppToolDragSource
 {
     Q_OBJECT
 
@@ -365,6 +374,10 @@ public:
 
     bool isDragging() const { return m_gesture.isDragging(); }
 
+    // IPDFAppToolDragSource: Esc during a drag of the rows leaves them in place
+    virtual bool isToolDragActive() const override { return m_gesture.isDragging(); }
+    virtual void cancelToolDrag() override;
+
     /// The header and every row (408:32320 hugs its rows; a long list scrolls in the card)
     virtual QSize sizeHint() const override;
 
@@ -372,6 +385,9 @@ Q_SIGNALS:
     void moveRequested(const std::vector<int>& rows, int targetRow);
     void moveByRequested(int delta);
     void removeRequested();
+
+    /// A drag of the rows has started or ended (queued receivers, as PDFAppToolMergePageView)
+    void dragStateChanged();
 
 protected:
     virtual void mousePressEvent(QMouseEvent* event) override;

@@ -73,6 +73,11 @@ public:
     /// PDFDocumentToolGUI: askDiscard
     virtual bool askClose() override;
 
+    /// Esc: the active creation tool of the drawing ends (owner 2026-11-17), then the selected
+    /// elements are deselected (owner 2026-11-18); the tool stays
+    virtual bool handleEscape() override;
+    virtual QString getEscapeModeHint() const override;
+
     /// The question of Clear All (the style of 435:10500): Keep Drawing / Clear All
     void askClearAll();
 

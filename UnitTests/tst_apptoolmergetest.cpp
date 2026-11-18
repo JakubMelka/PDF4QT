@@ -66,6 +66,7 @@
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
 
+#include <QAction>
 #include <QApplication>
 #include <QClipboard>
 #include <QDir>
@@ -108,6 +109,7 @@ private Q_SLOTS:
     void pageActions();
     void keysOfThePages();
     void dragOfPages();
+    void escapeCancelsDrags();
     void sortMenu();
     void moveOfFiles();
     void statesOfFiles();
@@ -789,6 +791,84 @@ void AppToolMergeTest::dragOfPages()
     QCOMPARE(gui->getSelectedRows(), (std::vector<int>{ 1, 3 }));
     QTest::mouseClick(view->viewport(), Qt::LeftButton, Qt::ShiftModifier, view->visualRect(model->index(4, 0)).center());
     QCOMPARE(gui->getSelectedRows(), (std::vector<int>{ 3, 4 }));
+}
+
+void AppToolMergeTest::escapeCancelsDrags()
+{
+    // Owner 2026-11-17: Esc of the tool (its shortcut takes the key before the views) during a drag of
+    // the pages, of the rows of Details or of a file row cancels the drag - nothing moves, the release
+    // drops nothing, the tool stays open
+    AppToolOwnTabFixture fixture;
+    pdf::PDFAppToolTab* tab = H::open(fixture, { AppDocumentSamples::simple(fixture.folder(), QStringLiteral("a.pdf"), 3), AppDocumentSamples::simple(fixture.folder(), QStringLiteral("b.pdf"), 2) });
+    QVERIFY(tab);
+    PDFAppMergeToolGUI* gui = H::gui(tab);
+    QPointer<pdf::PDFDocumentToolShell> shell = AppToolOwnTabFixture::getShell(tab);
+    QVERIFY(shell);
+    QAction* escape = shell->findChild<QAction*>(QStringLiteral("toolEscape"));
+    QVERIFY(escape);
+    gui->setTileSize(pdf::PDFAppToolPageGrid::TileSize::Small);
+    AppToolOwnTabFixture::settle();
+    const QStringList pages = H::pages(gui);
+
+    // The pages
+    pdf::PDFAppToolMergePageView* view = gui->getCanvas()->getPageView();
+    const pdf::PDFAppToolMergePageModel* model = gui->getCanvas()->getModel();
+    const QPoint from = view->visualRect(model->index(0, 0)).center();
+    const QRect target = view->visualRect(model->index(4, 0));
+    const QPoint to(target.left() + 10, target.center().y());
+    QTest::mousePress(view->viewport(), Qt::LeftButton, Qt::NoModifier, from);
+    QTest::mouseMove(view->viewport(), from + QPoint(20, 0));
+    QTest::mouseMove(view->viewport(), to);
+    QVERIFY(view->isDragging());
+    escape->trigger();
+    AppToolOwnTabFixture::settle();
+    QVERIFY(!view->isDragging());
+    QTest::mouseRelease(view->viewport(), Qt::LeftButton, Qt::NoModifier, to);
+    AppToolOwnTabFixture::settle();
+    QCOMPARE(H::pages(gui), pages);
+    QVERIFY(shell && shell->getState() == pdf::PDFDocumentToolShell::State::Editing);
+
+    // The rows of Details
+    gui->setDetailsShown(true);
+    AppToolOwnTabFixture::settle();
+    pdf::PDFAppToolMergeDetailsView* details = gui->getCanvas()->getDetailsView();
+    gui->selectRows({ 0 });
+    const QPoint rowFrom = details->visualRect(details->model()->index(0, 1)).center();
+    const QPoint rowTo = details->visualRect(details->model()->index(3, 1)).center();
+    QTest::mousePress(details->viewport(), Qt::LeftButton, Qt::NoModifier, rowFrom);
+    QTest::mouseMove(details->viewport(), rowFrom + QPoint(0, 12));
+    QTest::mouseMove(details->viewport(), rowTo);
+    QVERIFY(details->isDragging());
+    escape->trigger();
+    AppToolOwnTabFixture::settle();
+    QVERIFY(!details->isDragging());
+    QTest::mouseRelease(details->viewport(), Qt::LeftButton, Qt::NoModifier, rowTo);
+    AppToolOwnTabFixture::settle();
+    QCOMPARE(H::pages(gui), pages);
+    gui->setDetailsShown(false);
+    AppToolOwnTabFixture::settle();
+
+    // A file row
+    const QString idB = tab->getInputList()->getInput(1)->id;
+    pdf::PDFAppToolInputRow* row = gui->getFilesPanel()->findRow(idB);
+    pdf::PDFAppToolInputRow* firstRow = gui->getFilesPanel()->getRows()[0];
+    const QPoint start = row->rect().center();
+    QTest::mousePress(row, Qt::LeftButton, Qt::NoModifier, start);
+    QTest::mouseMove(row, start + QPoint(0, -10));
+    const QPoint targetGlobal = firstRow->mapToGlobal(QPoint(20, 5));
+    QTest::mouseMove(row, row->mapFromGlobal(targetGlobal));
+    QVERIFY(row->isToolDragActive());
+    // The pointer is over the place of the drop (the cancel must not drop the row there)
+    QCursor::setPos(targetGlobal);
+    escape->trigger();
+    AppToolOwnTabFixture::settle();
+    QVERIFY(!row->isToolDragActive());
+    QTest::mouseRelease(row, Qt::LeftButton, Qt::NoModifier, row->mapFromGlobal(targetGlobal));
+    AppToolOwnTabFixture::settle();
+    QCOMPARE(tab->getInputList()->indexOf(idB), 1);
+    QCOMPARE(H::pages(gui), pages);
+    QVERIFY(!H::model(tab)->canUndo());
+    QVERIFY(shell && shell->getState() == pdf::PDFDocumentToolShell::State::Editing);
 }
 
 void AppToolMergeTest::sortMenu()

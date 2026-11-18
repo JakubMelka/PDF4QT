@@ -1647,6 +1647,39 @@ std::optional<PDFAppToolDrawingPart::ElementKind> PDFAppToolDrawingPart::getActi
     return std::nullopt;
 }
 
+bool PDFAppToolDrawingPart::endActiveElement()
+{
+    if (!m_toolManager || !getActiveElementKind())
+    {
+        return false;
+    }
+
+    // The last call: the slots of the tool manager run
+    m_toolManager->setActiveTool(nullptr);
+    return true;
+}
+
+bool PDFAppToolDrawingPart::clearSelection()
+{
+    if (getSelectedElements().empty())
+    {
+        return false;
+    }
+
+    // The last call: the scene emits its selection (the part queues its update)
+    selectElements(std::set<PDFInteger>());
+    return true;
+}
+
+QString PDFAppToolDrawingPart::getEscapeHint() const
+{
+    if (const std::optional<ElementKind> kind = getActiveElementKind())
+    {
+        return tr("Esc ends %1").arg(getKindTitle(*kind));
+    }
+    return getSelectedElements().empty() ? QString() : tr("Esc clears the selection");
+}
+
 bool PDFAppToolDrawingPart::chooseSvgImage(QString* errorMessage)
 {
     QWidget* parent = m_widget ? m_widget->window() : nullptr;

@@ -56,6 +56,22 @@ enum class PDFAppAnnotationChangeKind
     Form        ///< The form manager has changed a form field (flag FormField)
 };
 
+/// An open tool, which lets the user edit its own annotations on the canvas by the engine of the
+/// annotations while the changes of the user are suspended (Redact Content: its marks are moved,
+/// resized, nudged and deleted as annotations). The engine asks the filter (IAnnotationEditFilter),
+/// the controller hands each change of the engine to the tool, which commits it as its own change
+/// (PDFAppChangeSource::Tool, a step of Undo of the tool). The GUI thread only.
+class PDF4QTLIBAPPSHARED_EXPORT IPDFAppAnnotationToolEditing : public IAnnotationEditFilter
+{
+public:
+    virtual ~IPDFAppAnnotationToolEditing() override = default;
+
+    /// Commits a change of the engine (made from the current version of the document) as the change
+    /// of the tool. \returns the change was committed; the slots of the document run meanwhile (the
+    /// tool, the controller or the tab may be deleted - the caller checks its guard)
+    virtual bool commitAnnotationEdit(const PDFModifiedDocument& modified) = 0;
+};
+
 /// Controller of the annotations of one document view (step 4 plan 3.1, wave 0).
 /// It is the only place, where the engine of the page (PDFToolManager,
 /// PDFWidgetAnnotationManager, PDFWidgetFormManager of the view) meets the model
@@ -199,6 +215,18 @@ public:
     /// (also called by the controller itself on every change of the document)
     void updateReadOnlyState();
 
+    /// The open tool, which edits its own annotations on the canvas (IPDFAppAnnotationToolEditing),
+    /// nullptr = none. Not owned: the tool removes itself (nullptr) before it dies, the controller
+    /// removes it from the engine in its destructor. While it is set and the changes of the user are
+    /// suspended, the engine edits only the annotations of the tool (one at a time, nothing through
+    /// the clipboard or drag and drop) and its changes are committed by the tool.
+    void setToolEditing(IPDFAppAnnotationToolEditing* editing);
+    IPDFAppAnnotationToolEditing* getToolEditing() const { return m_toolEditing; }
+
+    /// The tool edits its annotations now: it is set, the user changes are suspended, the document
+    /// is ready, not locked, not a paged XFA and it allows the modification of annotations
+    bool isToolEditingAllowed() const;
+
     // ------------------------------------------------------------------ tools
 
     /// Active tool of the tool manager (nullptr = none)
@@ -322,6 +350,7 @@ private:
     void reloadToolStyles();
     void restoreSelection();
     bool commitEngineChange(const PDFModifiedDocument& modified, PDFAppAnnotationChangeKind kind, const QString& description, bool isFromEngine);
+    bool commitToolEdit(const PDFModifiedDocument& modified);
     bool isEngineDocumentCurrent() const;
     QWidget* getCanvasWidget() const;
     void showStatusMessage(const QString& text);
@@ -346,6 +375,7 @@ private:
     bool m_isAnnotationEditingAllowed = false;
     bool m_isFormFillingAllowed = false;
     bool m_isStateKnown = false;
+    IPDFAppAnnotationToolEditing* m_toolEditing = nullptr;  ///< Not owned (setToolEditing)
 };
 
 }   // namespace pdf

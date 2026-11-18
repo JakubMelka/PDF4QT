@@ -168,6 +168,8 @@ public:
     virtual QString getConfirmIconName() const override;
     virtual bool isConfirmEnabled() const override;
     virtual QString getStatusText() const override;
+    virtual bool handleEscape() override;
+    virtual QString getEscapeModeHint() const override;
     virtual QString getRunningStatusText(const QString& stepText) const override;
     virtual QString getRunningCardTitle(int percentage, const QString& stepText) const override;
     virtual void fillResultInput(PDFAppToolResultInput* input) const override;
@@ -407,6 +409,7 @@ private:
     void onCanvasMoveRequested(const pdf::PDFDocumentAssembly::Selection& selection, const QString& beforeItemId);
     void onCanvasContextMenu(const QPoint& globalPosition);
     void onCanvasSearchChanged(const QString& text);
+    void onCanvasDragStateChanged();
     void onCanvasViewSwitched(bool isDetailsShown);
     void onSourceClicked(const QString& sourceId);
     void onSourceLinkActivated(const QString& sourceId);

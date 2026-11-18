@@ -24,6 +24,7 @@
 #define PDFAPPTOOLGUI_PROTECT_H
 
 #include "pdfappdeclarativetoolgui.h"
+#include "pdfapptoolpanelparts.h"
 #include "pdfdocumentdrawinterface.h"
 #include "pdfdocumenttool_protect.h"
 #include "pdfdocumenttoolshell.h"
@@ -269,11 +270,13 @@ private:
 
 /// The frames of the links over the canvas of Remove External Links (438:14942: link-selected
 /// bg/accent-subtle with border/focus 2, link-remove with bg/accent 1, link-kept text/tertiary)
-/// and the caption of the shown page (preview-bar 438:14940 "Page 12"). The widget itself is the
-/// caption, the frames are drawn into the pages by its draw interface.
+/// and the caption of the shown page (preview-bar 438:14940 "Page 12", PDFAppToolPageCaption: the
+/// pages lie below its band). The widget itself is empty (transparent for the mouse), the frames are
+/// drawn into the pages by its draw interface.
 ///
 /// Ownership: a child of the canvas area, which the shell deletes (the canvas area, when it dies
-/// first); it holds the canvas and its proxy by QPointer and emits no signals.
+/// first); the caption is a second child of the canvas area owned by it (deleted in its destructor).
+/// It holds the canvas and its proxy by QPointer and emits no signals.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolLinkOverlay : public QWidget, public IDocumentDrawInterface
 {
     Q_OBJECT
@@ -282,10 +285,6 @@ private:
     using BaseClass = QWidget;
 
 public:
-    /// The caption at 20, 20 of the canvas (438:14940), 36 high
-    static constexpr int CAPTION_OFFSET = 20;
-    static constexpr int CAPTION_HEIGHT = 36;
-
     explicit PDFAppToolLinkOverlay(PDFWidget* pdfWidget, QWidget* canvasArea);
     virtual ~PDFAppToolLinkOverlay() override;
 
@@ -295,6 +294,7 @@ public:
     /// The caption of the shown page
     void setPageText(const QString& text);
     QString getPageText() const;
+    PDFAppToolPageCaption* getCaption() const { return m_caption.data(); }
 
     /// State of a link in the frames
     enum class LinkState
@@ -313,18 +313,13 @@ public:
                           const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
-protected:
-    virtual bool eventFilter(QObject* watched, QEvent* event) override;
-
 private:
-    void updatePlacement();
     void updateCanvas();
 
     QPointer<PDFWidget> m_pdfWidget;
     QPointer<PDFDrawWidgetProxy> m_proxy;
-    QPointer<QWidget> m_canvasArea;
     QPointer<QWidget> m_drawWidget;
-    QPointer<PDFLabel> m_caption;
+    QPointer<PDFAppToolPageCaption> m_caption;  ///< Child of the canvas area, owned by the overlay
     std::map<PDFInteger, std::vector<PDFDocumentLinkOperations::ExternalLink>> m_pageLinks;
     std::set<QString> m_keptIds;
     QString m_selectedId;

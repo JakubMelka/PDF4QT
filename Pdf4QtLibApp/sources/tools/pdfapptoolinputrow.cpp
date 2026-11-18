@@ -236,14 +236,24 @@ void PDFAppToolInputRow::keyPressEvent(QKeyEvent* event)
     if (event->key() == Qt::Key_Escape && m_isDragging)
     {
         event->accept();
-        m_isDragging = false;
-        m_isPressed = false;
-        setDown(false);
-        unsetCursor();
-        Q_EMIT dragFinished(m_content.inputId, QCursor::pos(), true);
+        cancelToolDrag();
         return;
     }
     BaseClass::keyPressEvent(event);
+}
+
+void PDFAppToolInputRow::cancelToolDrag()
+{
+    // The row stays, where it is (the list removes the place of the drop); the last call
+    if (!m_isDragging)
+    {
+        return;
+    }
+    m_isDragging = false;
+    m_isPressed = false;
+    setDown(false);
+    unsetCursor();
+    Q_EMIT dragFinished(m_content.inputId, QCursor::pos(), true);
 }
 
 bool PDFAppToolInputRow::event(QEvent* event)

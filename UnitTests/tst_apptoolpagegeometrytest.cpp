@@ -52,6 +52,7 @@
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
 
+#include <QAction>
 #include <QSignalSpy>
 #include <QtTest>
 
@@ -186,6 +187,7 @@ private Q_SLOTS:
     void anchorGridComponent();
     void cropFrame();
     void cropDragAndKeys();
+    void cropEscapeEndsDrag();
     void cropThumbnailChangesPreview();
     void cropInvalidCustomBox();
     void cropRemoveCrop();
@@ -319,6 +321,41 @@ void AppToolPageGeometryTest::cropFrame()
 
     QCOMPARE(shell->getStatusMessage(), QStringLiteral("Crop Pages · 10 mm off every side · 210 × 297 mm → 190 × 277 mm · 48 pages"));
     fixture.screenshot(QStringLiteral("pages-crop"));
+}
+
+void AppToolPageGeometryTest::cropEscapeEndsDrag()
+{
+    // Owner 2026-11-17: Esc during a drag of the box returns the box, nothing is chosen (no undo step),
+    // the tool stays; the next Esc leaves the tool
+    using H = GeometryGuiHelper;
+    AppToolShellFixture fixture(QSize(1440, 960));
+    QPointer<PDFDocumentToolShell> shell = H::openHandbook(fixture, H::CROP_ID);
+    pdf::PDFAppCropToolGUI* gui = H::gui<pdf::PDFAppCropToolGUI>(shell);
+    QVERIFY(gui);
+    QAction* escape = shell->findChild<QAction*>(QStringLiteral("toolEscape"));
+    QVERIFY(escape);
+    pdf::PDFAppCropOverlay* overlay = gui->getOverlay();
+    const QRectF before = overlay->getRect();
+    const QPoint start = overlay->getHandleRect(pdf::PDFAppCropOverlay::Part::Right).center().toPoint();
+    QSignalSpy chosen(overlay, &pdf::PDFAppCropOverlay::rectChosen);
+    QTest::mousePress(overlay, Qt::LeftButton, Qt::NoModifier, start);
+    QTest::mouseMove(overlay, start - QPoint(50, 0));
+    QVERIFY(overlay->getRect() != before);
+
+    escape->trigger();
+    AppToolShellFixture::settle();
+    QVERIFY(shell && shell->getState() == PDFDocumentToolShell::State::Editing);
+    QCOMPARE(overlay->getRect(), before);
+    QTest::mouseRelease(overlay, Qt::LeftButton, Qt::NoModifier, start - QPoint(50, 0));
+    AppToolShellFixture::settle();
+    QCOMPARE(chosen.count(), 0);
+    QVERIFY(!shell->getModel()->canUndo());
+    QCOMPARE(shell->getModel()->getValues().value(QStringLiteral("mode")).toString(), QStringLiteral("equal-margins"));
+
+    // Without a drag Esc is the Esc of the tool
+    QVERIFY(!gui->handleEscape());
+    escape->trigger();
+    QVERIFY(AppToolShellFixture::waitFor([&shell]() { return !shell || shell->getState() != PDFDocumentToolShell::State::Editing; }));
 }
 
 void AppToolPageGeometryTest::cropDragAndKeys()

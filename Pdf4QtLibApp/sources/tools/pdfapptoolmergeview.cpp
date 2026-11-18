@@ -44,6 +44,7 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPointer>
 #include <QPushButton>
 #include <QScrollBar>
 #include <QStackedLayout>
@@ -230,10 +231,16 @@ void PDFAppToolMergePageView::setEditable(bool isEditable)
     m_isEditable = isEditable;
     if (!isEditable)
     {
+        const bool wasDragging = m_gesture.isDragging();
         m_gesture.reset();
         m_autoScrollTimer->stop();
         viewport()->unsetCursor();
         viewport()->update();
+        if (wasDragging)
+        {
+            // The last call (the receivers connect it queued)
+            Q_EMIT dragStateChanged();
+        }
     }
 }
 
@@ -321,9 +328,15 @@ void PDFAppToolMergePageView::setModel(QAbstractItemModel* itemModel)
 void PDFAppToolMergePageView::reset()
 {
     BaseClass::reset();
+    const bool wasDragging = m_gesture.isDragging();
     m_gesture.reset();
     m_hoverRow = -1;
     layoutGroups();
+    if (wasDragging)
+    {
+        // The last call (the receivers connect it queued)
+        Q_EMIT dragStateChanged();
+    }
 }
 
 void PDFAppToolMergePageView::onGroupsChanged()
@@ -1020,7 +1033,8 @@ void PDFAppToolMergePageView::mouseMoveEvent(QMouseEvent* event)
     const QPoint position = event->position().toPoint();
     if (m_gesture.isPressed() && (event->buttons() & Qt::LeftButton))
     {
-        if (m_gesture.move(position))
+        const bool isDragStarted = m_gesture.move(position);
+        if (isDragStarted)
         {
             viewport()->setCursor(Qt::ClosedHandCursor);
         }
@@ -1029,6 +1043,11 @@ void PDFAppToolMergePageView::mouseMoveEvent(QMouseEvent* event)
             updateDrag(position);
         }
         event->accept();
+        if (isDragStarted)
+        {
+            // The last call (the receivers connect it queued)
+            Q_EMIT dragStateChanged();
+        }
         return;
     }
 
@@ -1116,11 +1135,17 @@ void PDFAppToolMergePageView::mouseReleaseEvent(QMouseEvent* event)
         return;
     }
 
-    // The drop is the last thing: the slot changes the model of the view
+    // The drop: the slot changes the model of the view (and may delete it)
+    QPointer<PDFAppToolMergePageView> guard(this);
     const std::vector<int> rows = getSelectedRows();
     if (!rows.empty() && targetRow >= 0)
     {
         Q_EMIT moveRequested(rows, targetRow);
+    }
+    if (guard)
+    {
+        // The last call: the drag has ended
+        Q_EMIT dragStateChanged();
     }
 }
 
@@ -1181,6 +1206,22 @@ int PDFAppToolMergePageView::getDropRow(const QPoint& position) const
     return item.firstRow + index;
 }
 
+void PDFAppToolMergePageView::cancelToolDrag()
+{
+    // The pages stay, where they are; the release drops nothing
+    if (!m_gesture.isDragging())
+    {
+        return;
+    }
+    m_gesture.reset();
+    m_autoScrollTimer->stop();
+    viewport()->unsetCursor();
+    viewport()->update();
+
+    // The last call (the receivers connect it queued)
+    Q_EMIT dragStateChanged();
+}
+
 void PDFAppToolMergePageView::keyPressEvent(QKeyEvent* event)
 {
     const Qt::KeyboardModifiers modifiers = event->modifiers();
@@ -1210,10 +1251,7 @@ void PDFAppToolMergePageView::keyPressEvent(QKeyEvent* event)
     if (key == Qt::Key_Escape && m_gesture.isDragging())
     {
         event->accept();
-        m_gesture.reset();
-        m_autoScrollTimer->stop();
-        viewport()->unsetCursor();
-        viewport()->update();
+        cancelToolDrag();
         return;
     }
 
@@ -1578,9 +1616,15 @@ void PDFAppToolMergeDetailsView::setEditable(bool isEditable)
     m_isEditable = isEditable;
     if (!isEditable)
     {
+        const bool wasDragging = m_gesture.isDragging();
         m_gesture.reset();
         viewport()->unsetCursor();
         viewport()->update();
+        if (wasDragging)
+        {
+            // The last call (the receivers connect it queued)
+            Q_EMIT dragStateChanged();
+        }
     }
 }
 
@@ -1648,7 +1692,8 @@ void PDFAppToolMergeDetailsView::mouseMoveEvent(QMouseEvent* event)
 {
     if (m_gesture.isPressed() && (event->buttons() & Qt::LeftButton))
     {
-        if (m_gesture.move(event->position().toPoint()))
+        const bool isDragStarted = m_gesture.move(event->position().toPoint());
+        if (isDragStarted)
         {
             viewport()->setCursor(Qt::ClosedHandCursor);
         }
@@ -1657,6 +1702,11 @@ void PDFAppToolMergeDetailsView::mouseMoveEvent(QMouseEvent* event)
             m_gesture.setTargetRow(getDropRow(event->position().toPoint()));
             viewport()->update();
             event->accept();
+            if (isDragStarted)
+            {
+                // The last call (the receivers connect it queued)
+                Q_EMIT dragStateChanged();
+            }
             return;
         }
     }
@@ -1690,10 +1740,16 @@ void PDFAppToolMergeDetailsView::mouseReleaseEvent(QMouseEvent* event)
     }
 
     event->accept();
+    QPointer<PDFAppToolMergeDetailsView> guard(this);
     const std::vector<int> rows = getSelectedRows();
     if (!rows.empty() && targetRow >= 0)
     {
         Q_EMIT moveRequested(rows, targetRow);
+    }
+    if (guard)
+    {
+        // The last call: the drag has ended
+        Q_EMIT dragStateChanged();
     }
 }
 
@@ -1722,12 +1778,25 @@ void PDFAppToolMergeDetailsView::keyPressEvent(QKeyEvent* event)
     if (key == Qt::Key_Escape && m_gesture.isDragging())
     {
         event->accept();
-        m_gesture.reset();
-        viewport()->unsetCursor();
-        viewport()->update();
+        cancelToolDrag();
         return;
     }
     BaseClass::keyPressEvent(event);
+}
+
+void PDFAppToolMergeDetailsView::cancelToolDrag()
+{
+    // The rows stay, where they are; the release drops nothing
+    if (!m_gesture.isDragging())
+    {
+        return;
+    }
+    m_gesture.reset();
+    viewport()->unsetCursor();
+    viewport()->update();
+
+    // The last call (the receivers connect it queued)
+    Q_EMIT dragStateChanged();
 }
 
 bool PDFAppToolMergeDetailsView::event(QEvent* event)

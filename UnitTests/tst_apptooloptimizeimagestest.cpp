@@ -316,6 +316,7 @@ private slots:
     void initTestCase();
     void comparisonLayout();
     void comparisonZoomAndSync();
+    void comparisonDragCanceled();
     void imageListRows();
     void imageListChipsAndSort();
     void imageListMarks();
@@ -373,6 +374,44 @@ void AppToolOptimizeImagesTest::comparisonLayout()
     QCOMPARE(comparison.getSyncZoomChip()->size(), QSize(114, 32));
     QCOMPARE(comparison.getBeforePane()->getCaptionLabel()->text(), QStringLiteral("BEFORE"));
     QCOMPARE(comparison.getFooterLabel()->text(), QStringLiteral("Estimated size: 1.2 MB → 310 KB"));
+}
+
+void AppToolOptimizeImagesTest::comparisonDragCanceled()
+{
+    // Owner 2026-11-17: Esc of the tool during a drag of the image (IPDFAppToolDragSource, the shell
+    // cancels it) moves the image back to its place at the press; the other card follows (Sync zoom); the
+    // release moves nothing
+    PDFAppToolImageComparison comparison(nullptr);
+    comparison.resize(814, 842);
+    comparison.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&comparison));
+    QImage before(800, 400, QImage::Format_RGB32);
+    before.fill(Qt::red);
+    QImage after(400, 200, QImage::Format_RGB32);
+    after.fill(Qt::blue);
+    comparison.setImages(before, after);
+    QSignalSpy zoomSpy(&comparison, &PDFAppToolImageComparison::zoomChanged);
+    QTest::mouseClick(comparison.getZoomControl()->findChildren<QToolButton*>().at(1), Qt::LeftButton);
+    QTRY_COMPARE(zoomSpy.count(), 1);
+    pdf::PDFAppToolImageComparisonView* beforeView = comparison.getBeforePane()->getView();
+    pdf::PDFAppToolImageComparisonView* afterView = comparison.getAfterPane()->getView();
+    QVERIFY(beforeView->isMovable());
+    const QPointF center = beforeView->getCenter();
+
+    const QPoint start = beforeView->rect().center();
+    QTest::mousePress(beforeView, Qt::LeftButton, Qt::NoModifier, start);
+    QTest::mouseMove(beforeView, start - QPoint(60, 0));
+    QVERIFY(beforeView->isToolDragActive());
+    QVERIFY(beforeView->getCenter() != center);
+    QCOMPARE(afterView->getCenter(), beforeView->getCenter());
+
+    beforeView->cancelToolDrag();
+    QVERIFY(!beforeView->isToolDragActive());
+    QCOMPARE(beforeView->getCenter(), center);
+    QCOMPARE(afterView->getCenter(), center);
+    QTest::mouseMove(beforeView, start - QPoint(100, 0));
+    QTest::mouseRelease(beforeView, Qt::LeftButton, Qt::NoModifier, start - QPoint(100, 0));
+    QCOMPARE(beforeView->getCenter(), center);
 }
 
 void AppToolOptimizeImagesTest::comparisonZoomAndSync()

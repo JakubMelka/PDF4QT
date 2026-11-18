@@ -118,8 +118,24 @@ public:
     /// \returns Index of the row
     int addRow(const QString& key, const QString& value, PDFComponentPainter::TextKind valueKind);
 
-    /// Changes the value of the row
+    /// Changes the value of the row; a new value drops the text for assistive technologies of
+    /// setValueColor (it described the former value)
     void setValue(int index, const QString& value);
+
+    /// A color of the value of the row (a fill, a color of a mark): a round dot of VALUE_COLOR_SIZE (the
+    /// circle of the color of the Color swatch 206:805 with its border of 1 px, as the dots of the color
+    /// pickers; Redact 437:10701 Fill) before the text of the value, at its leading side. An invalid
+    /// color removes it. \p accessibleValue is the value, which assistive technologies read instead of
+    /// the text (the color has a name there, "Custom color #34C759"); empty = the text of the value.
+    void setValueColor(int index, const QColor& color, const QString& accessibleValue = QString());
+    QColor getValueColor(int index) const;
+
+    /// Size of the dot of a value color, its gap to the text of the value
+    static constexpr int VALUE_COLOR_SIZE = 12;
+    static constexpr int VALUE_COLOR_GAP = 6;
+
+    /// The rectangle of the swatch of the value color of the row (empty = none)
+    QRect getValueColorRect(int index) const;
 
     /// Removes all rows
     void clear();
@@ -158,7 +174,12 @@ private:
         QString key;
         QString value;
         PDFComponentPainter::TextKind valueKind = PDFComponentPainter::TextKind::Data;
+        QColor valueColor;              ///< The swatch before the value, invalid = none
+        QString accessibleValue;        ///< The value read by assistive technologies, empty = value
     };
+
+    /// The width of the swatch of the value color and its gap (0 = no color)
+    static int getValueColorWidth(const Row& row);
 
     int getRowHeight(int index) const;
     void updateDescription();

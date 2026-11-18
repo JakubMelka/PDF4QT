@@ -63,6 +63,7 @@
 #include "pdfcms.h"
 #include "pdfdocumenttoolrunner.h"
 
+#include <QAction>
 #include <QApplication>
 #include <QColorSpace>
 #include <QImage>
@@ -96,6 +97,7 @@ private Q_SLOTS:
     void imagePagePreviewFollowsLayout();
     void imagesCropOfAnImage();
     void imagesCropOfATurnedImageAndAll();
+    void imagesCropEscape();
     void imagesSelectionOfMoreImages();
     void imagesRename();
     void imagesAnchorComboBox();
@@ -641,6 +643,49 @@ void AppToolImagesTest::imagesCropOfAnImage()
     AppToolOwnTabFixture::settle();
     QVERIFY(H::model(tab)->getValue(QStringLiteral("adjustments")).toString().isEmpty());
     QVERIFY(!H::model(tab)->canUndo());
+}
+
+void AppToolImagesTest::imagesCropEscape()
+{
+    // Owner 2026-11-17: Esc in the crop mode (336:3159) ends the mode without Apply Crop (nothing is
+    // written, the tool stays); a drag of the box is ended first (the box returns)
+    AppToolOwnTabFixture fixture;
+    const QString path = H::png(fixture.folder(), QStringLiteral("IMG_2041.png"), QSize(400, 300), 300);
+    pdf::PDFAppToolTab* tab = H::open(fixture, pdf::PDFDocumentToolImagesToPdf::TOOL_ID, { path });
+    QVERIFY(tab);
+    pdf::PDFAppImagesToPdfToolGUI* gui = H::gui<pdf::PDFAppImagesToPdfToolGUI>(tab);
+    QVERIFY(gui);
+    QPointer<pdf::PDFDocumentToolShell> shell = AppToolOwnTabFixture::getShell(tab);
+    QVERIFY(shell);
+    QAction* escape = shell->findChild<QAction*>(QStringLiteral("toolEscape"));
+    QVERIFY(escape);
+
+    gui->setCropping(true);
+    AppToolOwnTabFixture::settle();
+    pdf::PDFAppCropOverlay* overlay = gui->getCropOverlay();
+    QVERIFY(overlay && overlay->isVisible());
+    const QRectF before = overlay->getRect();
+    const QPoint start = overlay->getHandleRect(pdf::PDFAppCropOverlay::Part::Right).center().toPoint();
+    QTest::mousePress(overlay, Qt::LeftButton, Qt::NoModifier, start);
+    QTest::mouseMove(overlay, start - QPoint(40, 0));
+    QVERIFY(overlay->isDragging());
+    QVERIFY(overlay->getRect() != before);
+
+    escape->trigger();
+    AppToolOwnTabFixture::settle();
+    QVERIFY(!overlay->isDragging());
+    QCOMPARE(overlay->getRect(), before);
+    QVERIFY(gui->isCropping());
+    QTest::mouseRelease(overlay, Qt::LeftButton, Qt::NoModifier, start - QPoint(40, 0));
+    AppToolOwnTabFixture::settle();
+    QCOMPARE(overlay->getRect(), before);
+
+    escape->trigger();
+    AppToolOwnTabFixture::settle();
+    QVERIFY(!gui->isCropping());
+    QVERIFY(H::model(tab)->getValue(QStringLiteral("adjustments")).toString().isEmpty());
+    QVERIFY(shell && shell->getState() == pdf::PDFDocumentToolShell::State::Editing);
+    QVERIFY(!gui->handleEscape());
 }
 
 void AppToolImagesTest::imagesCropOfATurnedImageAndAll()

@@ -81,6 +81,29 @@ void PDFAppAudioBookOverlay::setRectangleMode(bool isRectangleMode)
     update();
 }
 
+bool PDFAppAudioBookOverlay::cancelRectangleMode()
+{
+    if (!m_isRectangleMode)
+    {
+        return false;
+    }
+
+    setRectangleMode(false);
+    Q_EMIT rectangleCanceled();
+    return true;
+}
+
+void PDFAppAudioBookOverlay::cancelToolDrag()
+{
+    // The rectangle disappears, the mode stays (the next Esc ends it); the release selects nothing
+    if (!isToolDragActive())
+    {
+        return;
+    }
+    m_isDragging = false;
+    update();
+}
+
 QRect PDFAppAudioBookOverlay::getPaperRect() const
 {
     const PDFAppToolPagePicture* picture = qobject_cast<const PDFAppToolPagePicture*>(parentWidget());
@@ -183,13 +206,9 @@ void PDFAppAudioBookOverlay::paintEvent(QPaintEvent* event)
 
 bool PDFAppAudioBookOverlay::event(QEvent* event)
 {
-    // Esc of the mode of the rectangle belongs to the overlay, not to the shortcut of the tool
-    // (Esc of the shell stops or cancels the tool)
-    if (event->type() == QEvent::ShortcutOverride && m_isRectangleMode && static_cast<QKeyEvent*>(event)->key() == Qt::Key_Escape)
-    {
-        event->accept();
-        return true;
-    }
+    // Esc of the mode of the rectangle goes to the shortcut of the tool: the shell cancels a rectangle
+    // being drawn first (cancelToolDrag), then asks the GUI (PDFAppToolGUIAudioBook::handleEscape ends
+    // the mode), the next Esc leaves the tool
     return BaseClass::event(event);
 }
 
@@ -262,13 +281,7 @@ void PDFAppAudioBookOverlay::mouseReleaseEvent(QMouseEvent* event)
 
 void PDFAppAudioBookOverlay::keyPressEvent(QKeyEvent* event)
 {
-    if (event->key() == Qt::Key_Escape && m_isRectangleMode)
-    {
-        event->accept();
-        setRectangleMode(false);
-        Q_EMIT rectangleCanceled();
-        return;
-    }
+    // Esc of the mode: the shortcut of the tool (see event), cancelRectangleMode
     BaseClass::keyPressEvent(event);
 }
 

@@ -23,6 +23,7 @@
 #include "pdfapptoolpanelparts.h"
 
 #include "pdfapppagelayout.h"
+#include "pdfapptoolmodelayout.h"
 
 #include "pdfcomponentpainter.h"
 #include "pdfpainterutils.h"
@@ -576,6 +577,104 @@ void PDFAppToolCanvasChip::changeEvent(QEvent* event)
 void PDFAppToolCanvasChip::onThemeChanged()
 {
     update();
+}
+
+// --------------------------------------------------------- PDFAppToolPageCaption
+
+PDFAppToolPageCaption::PDFAppToolPageCaption(QWidget* canvasArea) :
+    BaseClass(canvasArea),
+    m_canvasArea(canvasArea),
+    m_modeLayout(PDFAppToolModeLayout::findForCanvasArea(canvasArea))
+{
+    setObjectName(QStringLiteral("toolCanvasPageCaption"));
+    setAttribute(Qt::WA_TransparentForMouseEvents);
+    setFocusPolicy(Qt::NoFocus);
+
+    // preview-bar 437:10607 / 438:14940: "Page 12" Semi Bold 13 in a bar of 36
+    QHBoxLayout* layout = new QHBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    m_label = PDFAppPageWidgets::createLabel(QString(), QFont::DemiBold, 13, PDFThemeColors::TextPrimary, this);
+    m_label->setAttribute(Qt::WA_TransparentForMouseEvents);
+    layout->addWidget(m_label, 0, Qt::AlignVCenter);
+
+    // The pages lie below the band of the caption (the canvas area shows bg/track there)
+    if (m_modeLayout)
+    {
+        m_modeLayout->setCanvasTopInset(TOP_INSET);
+    }
+    if (canvasArea)
+    {
+        canvasArea->installEventFilter(this);
+    }
+    updatePlacement();
+}
+
+PDFAppToolPageCaption::~PDFAppToolPageCaption()
+{
+    // The band goes with the last caption of the canvas area (this one is its child still)
+    QWidget* canvasArea = m_canvasArea.data();
+    bool isLast = true;
+    if (canvasArea)
+    {
+        canvasArea->removeEventFilter(this);
+        for (const PDFAppToolPageCaption* caption : canvasArea->findChildren<PDFAppToolPageCaption*>(Qt::FindDirectChildrenOnly))
+        {
+            isLast = isLast && caption == this;
+        }
+    }
+    if (isLast && m_modeLayout)
+    {
+        m_modeLayout->setCanvasTopInset(0);
+    }
+}
+
+void PDFAppToolPageCaption::setText(const QString& text)
+{
+    if (m_label)
+    {
+        m_label->setText(text);
+    }
+    updatePlacement();
+}
+
+QString PDFAppToolPageCaption::getText() const
+{
+    return m_label ? m_label->text() : QString();
+}
+
+bool PDFAppToolPageCaption::eventFilter(QObject* watched, QEvent* event)
+{
+    if (watched == m_canvasArea && (event->type() == QEvent::Resize || event->type() == QEvent::LayoutDirectionChange))
+    {
+        updatePlacement();
+    }
+    return BaseClass::eventFilter(watched, event);
+}
+
+void PDFAppToolPageCaption::changeEvent(QEvent* event)
+{
+    BaseClass::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange || event->type() == QEvent::FontChange)
+    {
+        updatePlacement();
+    }
+}
+
+void PDFAppToolPageCaption::updatePlacement()
+{
+    if (!m_canvasArea)
+    {
+        return;
+    }
+
+    // At 20, 20 of the canvas, at its leading edge, as wide as its text (inside of a narrow canvas)
+    const QString text = getText();
+    const int barWidth = qMax(0, m_canvasArea->width() - 2 * OFFSET);
+    const int width = qMax(0, qMin(barWidth, m_label ? m_label->sizeHint().width() : 0));
+    const int left = m_canvasArea->layoutDirection() == Qt::RightToLeft ? OFFSET + barWidth - width : OFFSET;
+    setGeometry(left, OFFSET, width, HEIGHT);
+    setVisible(!text.isEmpty());
+    raise();
 }
 
 }   // namespace pdf

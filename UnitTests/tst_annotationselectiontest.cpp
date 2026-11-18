@@ -66,6 +66,7 @@ private slots:
     void escapeClearsSelection();
     void selectAllShortcut();
     void arrowKeysNudgeSelection();
+    void editFilterKeepsSelectionOnPage();
     void clipboardRoundTrip();
     void cutRemovesAnnotations();
     void resizeHandleScalesSelection();
@@ -405,6 +406,18 @@ struct SelectionFixture
     }
 };
 
+/// An open tool of the application, which edits the annotations of the page by the manager
+/// (PDFWidgetAnnotationManager::setEditFilter, as Redact Content its marks): every annotation,
+/// moved and resized only, the selection frame of the manager
+class MoveResizeEditFilter : public IAnnotationEditFilter
+{
+public:
+    virtual bool isAnnotationEditable(const PDFAnnotation* annotation) const override { return annotation != nullptr; }
+    virtual PDFAnnotationManipulator::Capabilities getAnnotationCapabilities(const PDFAnnotation*) const override { return PDFAnnotationManipulator::Capabilities(PDFAnnotationManipulator::Move | PDFAnnotationManipulator::Resize); }
+    virtual QString getEditHint(const PDFAnnotation*) const override { return QString(); }
+    virtual SelectionOutline getSelectionOutline(const PDFAnnotation*) const override { return SelectionOutline(); }
+};
+
 /// Document with two squares, the first one at (50, 50, 60, 40), the second one at (150, 150, 40, 40)
 struct TwoSquares
 {
@@ -571,6 +584,57 @@ void AnnotationSelectionTest::arrowKeysNudgeSelection()
 
     // The second square is untouched
     QVERIFY(SelectionFixture::fuzzyCompare(fixture.rectangle(squares.second), QRectF(150, 150, 40, 40)));
+}
+
+void AnnotationSelectionTest::editFilterKeepsSelectionOnPage()
+{
+    // An annotation of an open tool (setEditFilter; a mark of Redact Content, owner 2026-11-17: "a mark
+    // stays on its page") is kept inside of the crop box of its page (here the media box 0 0 300 300) by
+    // the arrows as by a drag of the mouse; at the edge an arrow changes nothing. Without a filter the
+    // arrows move an annotation off the page as before.
+    TwoSquares squares;
+    {
+        SelectionFixture fixture(squares.document);
+        fixture.annotations.setSelectedAnnotations({ squares.second });
+        for (int i = 0; i < 20; ++i)
+        {
+            QVERIFY(fixture.key(Qt::Key_Right, Qt::ShiftModifier));
+        }
+        QVERIFY(SelectionFixture::fuzzyCompare(fixture.rectangle(squares.second), QRectF(350, 150, 40, 40), 0.05));
+        QCOMPARE(fixture.modificationCount, 20);
+    }
+
+    MoveResizeEditFilter filter;
+    SelectionFixture fixture(squares.document);
+    fixture.annotations.setEditFilter(&filter);
+    fixture.annotations.setSelectedAnnotations({ squares.second });
+    QVERIFY(fixture.annotations.getSelectionCapabilities().testFlag(PDFAnnotationManipulator::Move));
+
+    // 10 pt by Shift + arrow: the right edge 190 reaches 300 by 11 steps, the next ones change nothing
+    for (int i = 0; i < 20; ++i)
+    {
+        QVERIFY(fixture.key(Qt::Key_Right, Qt::ShiftModifier));
+    }
+    QVERIFY(SelectionFixture::fuzzyCompare(fixture.rectangle(squares.second), QRectF(260, 150, 40, 40), 0.05));
+    QCOMPARE(fixture.modificationCount, 11);
+
+    // Down on the screen is down on the page: the bottom 150 reaches 0 by 15 steps
+    for (int i = 0; i < 20; ++i)
+    {
+        QVERIFY(fixture.key(Qt::Key_Down, Qt::ShiftModifier));
+    }
+    QVERIFY(SelectionFixture::fuzzyCompare(fixture.rectangle(squares.second), QRectF(260, 0, 40, 40), 0.05));
+    QCOMPARE(fixture.modificationCount, 26);
+
+    // A drag of the annotation far beyond the left edge of the page (Ctrl: no snapping) stops at the edge
+    QVERIFY(fixture.press(fixture.device(QPointF(280, 20)), Qt::ControlModifier));
+    QVERIFY(fixture.move(fixture.device(QPointF(140, 20)), Qt::ControlModifier));
+    QVERIFY(fixture.move(fixture.device(QPointF(-200, 20)), Qt::ControlModifier));
+    QVERIFY(fixture.release(fixture.device(QPointF(-200, 20)), Qt::ControlModifier));
+    QVERIFY(SelectionFixture::fuzzyCompare(fixture.rectangle(squares.second), QRectF(0, 0, 40, 40), 0.05));
+    QCOMPARE(fixture.modificationCount, 27);
+
+    fixture.annotations.setEditFilter(nullptr);
 }
 
 void AnnotationSelectionTest::clipboardRoundTrip()

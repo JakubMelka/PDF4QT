@@ -47,9 +47,11 @@
 #include "pdffluentwidgets.h"
 #include "pdfmessagebox.h"
 
+#include <QAction>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QMouseEvent>
 #include <QPushButton>
 #include <QThread>
 #include <QToolButton>
@@ -146,11 +148,11 @@ public:
         return true;
     }
 
-    /// Marks | Preview result
+    /// Marks | Preview result (the right panel)
     static bool preview(ToolPagesLifetimeRun& run)
     {
         GUI* current = gui(run);
-        pdf::PDFSegmentedControl* control = current && current->getOverlay() ? current->getOverlay()->getModeControl() : nullptr;
+        pdf::PDFSegmentedControl* control = current ? current->getModeControl() : nullptr;
         const QList<QToolButton*> segments = control ? control->findChildren<QToolButton*>(QString(), Qt::FindDirectChildrenOnly) : QList<QToolButton*>();
         if (segments.size() < 2)
         {
@@ -282,6 +284,155 @@ public:
         return true;
     }
 
+    /// Owner 2026-11-17: a mark selected on the canvas, a drag of the mark left in progress (the victim
+    /// comes during it), a drag of its handle, the arrows, Delete on the canvas
+    static bool canvasEdit(ToolPagesLifetimeRun& run)
+    {
+        GUI* current = gui(run);
+        if (!current)
+        {
+            return true;
+        }
+        current->addAreaMark(0, QRectF(320, 500, 80, 60));
+        current = gui(run);
+        if (!current || current->getMarks().empty())
+        {
+            return true;
+        }
+        current->selectMark(current->getMarks().back().annotation);
+        Steps::settle();
+
+        QPointer<pdf::PDFAppDocumentTab> tab = run.tab;
+        QPointer<QWidget> canvas = tab && tab->getView() ? pdftest::AppDocumentFixture::canvasWidget(tab->getView()) : nullptr;
+        bool ok = false;
+        const QPoint from = tab && tab->getView() ? pdftest::AppDocumentFixture::pageToWidget(tab->getView(), 0, QPointF(360, 530), &ok) : QPoint();
+        if (canvas && ok)
+        {
+            // The press and a move: the drag is in progress, while the next events run
+            QMouseEvent press(QEvent::MouseButtonPress, from, canvas->mapToGlobal(from), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+            QCoreApplication::sendEvent(canvas, &press);
+            const QPointF to = QPointF(from) + QPointF(30, 20);
+            if (canvas)
+            {
+                QMouseEvent move(QEvent::MouseMove, to, canvas->mapToGlobal(to), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+                QCoreApplication::sendEvent(canvas, &move);
+            }
+            Steps::settle();
+            if (canvas)
+            {
+                QMouseEvent release(QEvent::MouseButtonRelease, to, canvas->mapToGlobal(to), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+                QCoreApplication::sendEvent(canvas, &release);
+            }
+        }
+        Steps::settle();
+        if (tab && tab->getView())
+        {
+            pdftest::AppDocumentFixture::dragPage(tab->getView(), 0, QPointF(400, 500), QPointF(420, 480));
+        }
+        Steps::settle();
+        if (canvas)
+        {
+            Steps::key(canvas, Qt::Key_Right);
+        }
+        if (canvas)
+        {
+            Steps::key(canvas, Qt::Key_Delete);
+        }
+        Steps::settle();
+        return true;
+    }
+
+    /// Owner 2026-11-17: Esc during a drag of Area, Esc of the mode, Esc of the tool (its question)
+    static bool escapes(ToolPagesLifetimeRun& run)
+    {
+        GUI* current = gui(run);
+        if (!current || !Steps::click(current->getAreaButton()))
+        {
+            return true;
+        }
+        QPointer<pdf::PDFAppDocumentTab> tab = run.tab;
+        QPointer<QWidget> canvas = tab && tab->getView() ? pdftest::AppDocumentFixture::canvasWidget(tab->getView()) : nullptr;
+        bool ok = false;
+        const QPoint from = tab && tab->getView() ? pdftest::AppDocumentFixture::pageToWidget(tab->getView(), 0, QPointF(120, 400), &ok) : QPoint();
+        if (canvas && ok)
+        {
+            QMouseEvent press(QEvent::MouseButtonPress, from, canvas->mapToGlobal(from), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+            QCoreApplication::sendEvent(canvas, &press);
+        }
+        for (int i = 0; i < 3; ++i)
+        {
+            // The shortcut of the shell (its GUI first)
+            GUI* again = gui(run);
+            pdf::PDFDocumentToolShell* shell = Steps::shell(run);
+            if (!again || !shell)
+            {
+                break;
+            }
+            if (QAction* escape = shell->findChild<QAction*>(QStringLiteral("toolEscape")))
+            {
+                escape->trigger();
+            }
+            Steps::settle();
+        }
+        if (canvas && ok)
+        {
+            QMouseEvent release(QEvent::MouseButtonRelease, from, canvas->mapToGlobal(from), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+            QCoreApplication::sendEvent(canvas, &release);
+        }
+        Steps::settle();
+
+        // The question of the close (with marks), Back to Redacting
+        GUI* last = gui(run);
+        QPointer<pdf::PDFMessageBox> prompt = last ? last->getClosePrompt() : nullptr;
+        if (prompt && !prompt->getActionButtons().isEmpty())
+        {
+            Steps::click(prompt->getActionButtons().front());
+        }
+        Steps::settle();
+        return true;
+    }
+
+    /// Owner 2026-11-18: Esc with a selected mark deselects it (canvas and list), the next Esc asks the
+    /// question of the close; Back to Redacting
+    static bool escapeSelection(ToolPagesLifetimeRun& run)
+    {
+        GUI* current = gui(run);
+        if (!current)
+        {
+            return true;
+        }
+        current->addAreaMark(0, QRectF(200, 300, 60, 40));
+        current = gui(run);
+        if (!current || current->getMarks().empty())
+        {
+            return true;
+        }
+        current->selectMark(current->getMarks().front().annotation);
+        Steps::settle();
+        for (int i = 0; i < 2; ++i)
+        {
+            pdf::PDFDocumentToolShell* shell = Steps::shell(run);
+            if (!gui(run) || !shell)
+            {
+                break;
+            }
+            if (QAction* escape = shell->findChild<QAction*>(QStringLiteral("toolEscape")))
+            {
+                escape->trigger();
+            }
+            Steps::settle();
+        }
+
+        GUI* last = gui(run);
+        QPointer<pdf::PDFMessageBox> prompt = last ? last->getClosePrompt() : nullptr;
+        if (prompt && !prompt->getActionButtons().isEmpty())
+        {
+            Steps::click(prompt->getActionButtons().front());
+        }
+        Steps::settle();
+        return true;
+    }
+
     /// The question at the close (448:17473): Back to Redacting, then Keep Marks and Close
     static bool closePrompt(ToolPagesLifetimeRun& run)
     {
@@ -346,6 +497,9 @@ public:
             steps->push_back(&H::keepMenu);
             steps->push_back(&H::pagesDialog);
             steps->push_back(&H::removeMark);
+            steps->push_back(&H::canvasEdit);
+            steps->push_back(&H::escapes);
+            steps->push_back(&H::escapeSelection);
             steps->push_back(&H::runTool);
             steps->push_back(&H::clearAll);
             steps->push_back(&H::closePrompt);

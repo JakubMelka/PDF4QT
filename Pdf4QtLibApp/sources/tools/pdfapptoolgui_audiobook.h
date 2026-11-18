@@ -368,6 +368,9 @@ public:
     virtual void onRunStateChanged(bool isRunning) override;
     virtual void onDocumentChanged() override;
 
+    /// Esc: Select by rectangle (360:13257) ends, also during its drag (owner 2026-11-17)
+    virtual bool handleEscape() override;
+
     /// Parts (tests)
     PDFAppAudioBookItemModel* getItemModel() const { return m_itemModel; }
     PDFListView* getListView() const { return m_listView; }

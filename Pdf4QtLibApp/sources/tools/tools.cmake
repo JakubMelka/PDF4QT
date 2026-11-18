@@ -169,6 +169,7 @@ list(APPEND PDF4QT_LIBAPP_TOOLS_SOURCES
     sources/tools/pdfapptoolboxesoverlay.h
     sources/tools/pdfapptoolcropoverlay.cpp
     sources/tools/pdfapptoolcropoverlay.h
+    sources/tools/pdfapptooldragsource.h
     sources/tools/pdfapptoolgui_geometry.cpp
     sources/tools/pdfapptoolgui_geometry.h
     sources/tools/pdfapptoolpagestage.cpp

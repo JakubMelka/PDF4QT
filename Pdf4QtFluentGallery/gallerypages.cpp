@@ -2952,6 +2952,8 @@ GalleryPages::Page GalleryPages::createComponentsPage(QWidget* parent)
     facts->addRow(QStringLiteral("Command line"), QStringLiteral("pdftool optimize"));
     facts->addRow(QStringLiteral("Build date"), QStringLiteral("Sep 14, 2026 14:32 (a long value, which is elided)"));
     facts->addRow(QStringLiteral("Program"), QStringLiteral("C:\\Users\\Jane\\Downloads\\Quarterly reports 2026\\invoice.pdf.exe"), pdf::PDFComponentPainter::TextKind::FileName);
+    const int fillRow = facts->addRow(QStringLiteral("Fill"), QStringLiteral("Custom"));
+    facts->setValueColor(fillRow, QColor(0x34, 0xC7, 0x59), QStringLiteral("Custom color #34C759"));
     facts->setFixedWidth(360);
     builder.live(QStringLiteral("Facts of a card, 360 px"), facts);
 

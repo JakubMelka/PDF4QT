@@ -1087,29 +1087,22 @@ PDFAppToolLinkOverlay::PDFAppToolLinkOverlay(PDFWidget* pdfWidget, QWidget* canv
     BaseClass(canvasArea),
     m_pdfWidget(pdfWidget),
     m_proxy(pdfWidget ? pdfWidget->getDrawWidgetProxy() : nullptr),
-    m_canvasArea(canvasArea),
     m_drawWidget(pdfWidget && pdfWidget->getDrawWidget() ? pdfWidget->getDrawWidget()->getWidget() : nullptr)
 {
     setObjectName(QStringLiteral("toolLinkOverlay"));
     setAttribute(Qt::WA_TransparentForMouseEvents);
+    setFixedSize(0, 0);
 
-    // preview-bar 438:14940: "Page 12" Semi Bold 13 in a bar of 36
-    QHBoxLayout* layout = new QHBoxLayout(this);
-    layout->setContentsMargins(0, 0, 0, 0);
-    m_caption = PDFAppPageWidgets::createLabel(QString(), QFont::DemiBold, 13, PDFThemeColors::TextPrimary, this);
-    m_caption->setObjectName(QStringLiteral("toolLinkPageCaption"));
-    layout->addWidget(m_caption, 0, Qt::AlignVCenter);
+    // preview-bar 438:14940: "Page 12" Semi Bold 13 in a bar of 36, a second child of the canvas
+    // area; the pages lie below its band (owner 2026-11-18)
+    m_caption = new PDFAppToolPageCaption(canvasArea);
+    m_caption->getLabel()->setObjectName(QStringLiteral("toolLinkPageCaption"));
 
-    if (m_canvasArea)
-    {
-        m_canvasArea->installEventFilter(this);
-    }
     if (m_proxy)
     {
         m_proxy->registerDrawInterface(this);
     }
     connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFAppToolLinkOverlay::updateCanvas);
-    updatePlacement();
 }
 
 PDFAppToolLinkOverlay::~PDFAppToolLinkOverlay()
@@ -1117,6 +1110,12 @@ PDFAppToolLinkOverlay::~PDFAppToolLinkOverlay()
     if (m_proxy)
     {
         m_proxy->unregisterDrawInterface(this);
+    }
+    if (PDFAppToolPageCaption* caption = m_caption.data())
+    {
+        // Its band of the canvas goes with it
+        m_caption = nullptr;
+        delete caption;
     }
     if (m_drawWidget)
     {
@@ -1145,12 +1144,11 @@ void PDFAppToolLinkOverlay::setPageText(const QString& text)
     {
         m_caption->setText(text);
     }
-    updatePlacement();
 }
 
 QString PDFAppToolLinkOverlay::getPageText() const
 {
-    return m_caption ? m_caption->text() : QString();
+    return m_caption ? m_caption->getText() : QString();
 }
 
 PDFAppToolLinkOverlay::LinkState PDFAppToolLinkOverlay::getLinkState(const PDFDocumentLinkOperations::ExternalLink& link) const
@@ -1219,31 +1217,6 @@ void PDFAppToolLinkOverlay::drawPage(QPainter* painter,
         const qreal inset = pen.style() == Qt::NoPen ? 0.0 : pen.widthF() / 2.0;
         painter->drawRoundedRect(rect.adjusted(inset, inset, -inset, -inset), 2.0, 2.0);
     }
-}
-
-bool PDFAppToolLinkOverlay::eventFilter(QObject* watched, QEvent* event)
-{
-    if (watched == m_canvasArea && (event->type() == QEvent::Resize || event->type() == QEvent::LayoutDirectionChange))
-    {
-        updatePlacement();
-    }
-    return BaseClass::eventFilter(watched, event);
-}
-
-void PDFAppToolLinkOverlay::updatePlacement()
-{
-    if (!m_canvasArea)
-    {
-        return;
-    }
-
-    // At 20, 20 of the canvas, at its leading edge
-    const int width = qMax(0, m_canvasArea->width() - 2 * CAPTION_OFFSET);
-    const int captionWidth = qMin(width, m_caption ? m_caption->sizeHint().width() : 0);
-    const int left = m_canvasArea->layoutDirection() == Qt::RightToLeft ? m_canvasArea->width() - CAPTION_OFFSET - captionWidth : CAPTION_OFFSET;
-    setGeometry(left, CAPTION_OFFSET, captionWidth, CAPTION_HEIGHT);
-    setVisible(m_caption && !m_caption->text().isEmpty());
-    raise();
 }
 
 void PDFAppToolLinkOverlay::updateCanvas()

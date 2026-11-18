@@ -343,6 +343,20 @@ public:
     /// The kind, whose creation tool is active, std::nullopt = none
     std::optional<ElementKind> getActiveElementKind() const;
 
+    /// Esc of the tool (PDFDocumentToolGUI::handleEscape): the active creation tool ends (an element
+    /// being drawn is dropped), the drawing stays. \returns false, when no creation tool was active.
+    /// The tool manager tells the view (its slots run): the caller checks its guard.
+    bool endActiveElement();
+
+    /// Esc of the tool after endActiveElement (owner 2026-11-18, as the annotations): the selected
+    /// elements are deselected (in the scene and in the list), the drawing stays. \returns false, when
+    /// nothing was selected. The selection signal of the part is queued.
+    bool clearSelection();
+
+    /// What Esc of the tool does in the part now, by the order of the tool (endActiveElement, then
+    /// clearSelection): "Esc ends Freehand curve", "Esc clears the selection", empty = nothing
+    QString getEscapeHint() const;
+
     /// The file dialog of an SVG image and its check (the size, the external references by
     /// PDFPageDrawing::isValid); a valid image activates the tool placing it. \returns false and the
     /// reason, when the file is not used (the dialog canceled: false and an empty reason)

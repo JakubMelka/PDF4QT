@@ -67,6 +67,7 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QPointer>
+#include <QThread>
 #include <QtMath>
 
 namespace pdf
@@ -145,6 +146,54 @@ public:
                 break;
         }
         return PDFWidgetAnnotationManager::tr("snapped");
+    }
+};
+
+/// The rules of an open tool of the application, which edits its own annotations
+/// (PDFWidgetAnnotationManager::setEditFilter)
+class PDFWidgetAnnotationEditFilterHelper
+{
+public:
+    PDFWidgetAnnotationEditFilterHelper() = delete;
+
+    /// Returns the translation (page space) of the selection of the page with the bounds, corrected
+    /// so that the selection stays on its page: inside of the crop box of the page (its media box,
+    /// when the crop box is not valid), or no further out, than it lies already. A drag and the arrows
+    /// keep an annotation of a tool on its page alike (a mark of Redact Content is never moved off its
+    /// page, where it would redact nothing). Without a valid box of the page the translation stays.
+    static QPointF keepOnPage(const PDFDocument* document, PDFInteger pageIndex, const QRectF& bounds, QPointF pageOffset)
+    {
+        const PDFCatalog* catalog = document ? document->getCatalog() : nullptr;
+        const PDFPage* page = catalog && pageIndex >= 0 && pageIndex < PDFInteger(catalog->getPageCount()) ? catalog->getPage(size_t(pageIndex)) : nullptr;
+        QRectF cropBox = page ? page->getCropBox().normalized() : QRectF();
+        if (page && !cropBox.isValid())
+        {
+            cropBox = page->getMediaBox().normalized();
+        }
+        if (!cropBox.isValid() || !bounds.isValid())
+        {
+            return pageOffset;
+        }
+
+        const QRectF allowed = cropBox.united(bounds);
+        const QRectF moved = bounds.translated(pageOffset);
+        if (moved.left() < allowed.left())
+        {
+            pageOffset.rx() += allowed.left() - moved.left();
+        }
+        else if (moved.right() > allowed.right())
+        {
+            pageOffset.rx() -= moved.right() - allowed.right();
+        }
+        if (moved.top() < allowed.top())
+        {
+            pageOffset.ry() += allowed.top() - moved.top();
+        }
+        else if (moved.bottom() > allowed.bottom())
+        {
+            pageOffset.ry() -= moved.bottom() - allowed.bottom();
+        }
+        return pageOffset;
     }
 };
 
@@ -251,6 +300,12 @@ bool PDFAnnotationDragDataHelper::deserialize(const QMimeData* data, Payload& pa
     return stream.status() == QDataStream::Ok && payload.pageReference.isValid() && !payload.annotations.empty();
 }
 
+bool IAnnotationEditFilter::isAnnotationShown(const PDFAnnotation* annotation) const
+{
+    Q_UNUSED(annotation);
+    return true;
+}
+
 PDFWidgetAnnotationManager::PDFWidgetAnnotationManager(PDFDrawWidgetProxy* proxy, QObject* parent) :
     BaseClass(proxy->getFontCache(), proxy->getIccProfileCache(), proxy->getCMSManager(), proxy->getOptionalContentActivity(), proxy->getMeshQualitySettings(), proxy->getFeatures(), Target::View, parent),
     m_proxy(proxy),
@@ -303,7 +358,17 @@ void PDFWidgetAnnotationManager::shortcutOverrideEvent(QWidget* widget, QKeyEven
 {
     Q_UNUSED(widget);
 
-    if (!m_document || isToolActive())
+    // Esc ends a running interaction of the mouse (a drag of the selection or of its handle),
+    // not a shortcut of the application (an open tool would close)
+    if (m_document && m_editFilter && m_interaction.type != Interaction::None && event->key() == Qt::Key_Escape)
+    {
+        event->accept();
+        return;
+    }
+
+    // An open tool of the application lets no annotation leave or enter the document through the
+    // clipboard and edits one annotation at a time (setEditFilter): no shortcut of them is claimed
+    if (!m_document || isToolActive() || m_editFilter)
     {
         return;
     }
@@ -427,6 +492,12 @@ bool PDFWidgetAnnotationManager::isAnnotationSelectable(const PageAnnotation& an
         return false;
     }
 
+    // An open tool of the application edits only its own annotations (setEditFilter)
+    if (m_editFilter && !m_editFilter->isAnnotationEditable(annotation.annotation.data()))
+    {
+        return false;
+    }
+
     return !annotation.annotation->isReplyTo() && isAnnotationDrawEnabled(annotation);
 }
 
@@ -442,6 +513,12 @@ bool PDFWidgetAnnotationManager::canTransformAnnotation(const PageAnnotation& an
         return false;
     }
 
+    // The filter leaves the annotation no operation: it is selected and deleted only
+    if (m_editFilter && m_editFilter->getAnnotationCapabilities(annotation.annotation.data()) == PDFAnnotationManipulator::NoCapability)
+    {
+        return false;
+    }
+
     const PDFAnnotation::Flags flags = annotation.annotation->getEffectiveFlags();
     return !flags.testFlag(PDFAnnotation::Locked) && !flags.testFlag(PDFAnnotation::ReadOnly);
 }
@@ -449,6 +526,11 @@ bool PDFWidgetAnnotationManager::canTransformAnnotation(const PageAnnotation& an
 bool PDFWidgetAnnotationManager::canModifyAnnotation(const PageAnnotation& annotation) const
 {
     if (!m_document || !annotation.annotation || !isModificationAllowed())
+    {
+        return false;
+    }
+
+    if (m_editFilter && !m_editFilter->isAnnotationEditable(annotation.annotation.data()))
     {
         return false;
     }
@@ -465,7 +547,12 @@ PDFAnnotationManipulator::Capabilities PDFWidgetAnnotationManager::getAnnotation
         return PDFAnnotationManipulator::NoCapability;
     }
 
-    return PDFAnnotationManipulator::getCapabilities(annotation.annotation.data());
+    PDFAnnotationManipulator::Capabilities capabilities = PDFAnnotationManipulator::getCapabilities(annotation.annotation.data());
+    if (m_editFilter)
+    {
+        capabilities &= m_editFilter->getAnnotationCapabilities(annotation.annotation.data());
+    }
+    return capabilities;
 }
 
 PDFAnnotationManipulator::Capabilities PDFWidgetAnnotationManager::getSelectionCapabilities(PDFInteger pageIndex) const
@@ -478,7 +565,7 @@ PDFAnnotationManipulator::Capabilities PDFWidgetAnnotationManager::getSelectionC
         capabilities |= getAnnotationCapabilities(*pageAnnotation);
     }
 
-    if (annotations.size() > 1)
+    if (annotations.size() > 1 && !m_editFilter)
     {
         // Jakub Melka: a group of annotations has a layout, which can always be
         // transformed. Annotations, which do not support the transformation, are
@@ -1211,6 +1298,13 @@ QString PDFWidgetAnnotationManager::getCapabilitiesHint(const PageAnnotation& an
             return tr("The link cannot be moved or resized, change it in its properties.");
         }
 
+        // An annotation of an open tool, which the tool does not let move (its own reason)
+        const QString filterHint = m_editFilter && annotation.annotation ? m_editFilter->getEditHint(annotation.annotation.data()) : QString();
+        if (!filterHint.isEmpty())
+        {
+            return filterHint;
+        }
+
         return tr("This annotation cannot be modified.");
     }
 
@@ -1254,6 +1348,11 @@ bool PDFWidgetAnnotationManager::hasSelectableAnnotation() const
 bool PDFWidgetAnnotationManager::canDeleteAnnotation(const PageAnnotation& annotation) const
 {
     if (!m_document || !annotation.annotation || !isModificationAllowed())
+    {
+        return false;
+    }
+
+    if (m_editFilter && !m_editFilter->isAnnotationEditable(annotation.annotation.data()))
     {
         return false;
     }
@@ -1304,6 +1403,12 @@ void PDFWidgetAnnotationManager::setSelectedAnnotations(const std::vector<PDFObj
             {
                 selection.push_back(SelectedAnnotation{ annotation, pageIndex });
             }
+
+            // An open tool edits one annotation at a time (setEditFilter)
+            if (m_editFilter && !selection.empty())
+            {
+                break;
+            }
         }
     }
 
@@ -1315,7 +1420,7 @@ void PDFWidgetAnnotationManager::setSelectedAnnotations(const std::vector<PDFObj
 
 void PDFWidgetAnnotationManager::selectAnnotation(PDFObjectReference annotation, bool exclusive)
 {
-    if (exclusive)
+    if (exclusive || m_editFilter)
     {
         setSelectedAnnotations({ annotation });
         return;
@@ -1356,7 +1461,8 @@ void PDFWidgetAnnotationManager::clearSelection()
 
 void PDFWidgetAnnotationManager::selectAllAnnotations()
 {
-    if (!m_document)
+    // An open tool edits one annotation at a time (setEditFilter)
+    if (!m_document || m_editFilter)
     {
         return;
     }
@@ -1906,7 +2012,9 @@ PDFWidgetAnnotationManager::HandleLayout PDFWidgetAnnotationManager::computeHand
     QRectF frame;
     for (const PageAnnotation* pageAnnotation : getSelectedAnnotations(pageIndex, true))
     {
-        const QRectF rectangle = pageAnnotation->annotation->getRectangle().normalized();
+        // An annotation of an open tool: its handles lie on its outline (setEditFilter)
+        const IAnnotationEditFilter::SelectionOutline outline = m_editFilter ? m_editFilter->getSelectionOutline(pageAnnotation->annotation.data()) : IAnnotationEditFilter::SelectionOutline();
+        const QRectF rectangle = outline.isValid() ? outline.path.boundingRect().normalized() : pageAnnotation->annotation->getRectangle().normalized();
         if (rectangle.isValid())
         {
             frame = frame.united(getAnnotationToDeviceMatrix(*pageAnnotation, pageIndex, pageToDevice).mapRect(rectangle).normalized());
@@ -1946,8 +2054,9 @@ PDFWidgetAnnotationManager::HandleLayout PDFWidgetAnnotationManager::computeHand
     layout.frame = frame;
 
     // The design (1015:17767, 1018:19099): the frame and its handles lie 4 px outside of
-    // the annotation; the handles still move the edges of the annotation (layout.frame)
-    layout.frameOutset = m_isDesignSelectionLook ? PDFWidgetUtils::scaleDPI_x(widget, 4) : 0.0;
+    // the annotation; the handles still move the edges of the annotation (layout.frame). The
+    // annotations of an open tool have the handles on their outline (setEditFilter)
+    layout.frameOutset = (m_isDesignSelectionLook && !m_editFilter) ? PDFWidgetUtils::scaleDPI_x(widget, 4) : 0.0;
     const QRectF drawnFrame = layout.getDrawnFrame();
     layout.handles[0] = drawnFrame.topLeft();
     layout.handles[1] = QPointF(drawnFrame.center().x(), drawnFrame.top());
@@ -2021,6 +2130,9 @@ Qt::CursorShape PDFWidgetAnnotationManager::getCursorShapeForHandle(Handle handl
 
         case Handle::Rotate:
             return Qt::CrossCursor;
+
+        case Handle::Move:
+            return Qt::SizeAllCursor;
 
         default:
             break;
@@ -2125,7 +2237,7 @@ void PDFWidgetAnnotationManager::keyPressEvent(QWidget* widget, QKeyEvent* event
         return;
     }
 
-    if (!isToolActive())
+    if (!isToolActive() && !m_editFilter)
     {
         if (event->matches(QKeySequence::Copy) && hasSelection())
         {
@@ -2402,7 +2514,8 @@ void PDFWidgetAnnotationManager::mousePressEvent(QWidget* widget, QMouseEvent* e
         return;
     }
 
-    const bool isSelectionModifier = event->modifiers().testFlag(Qt::ControlModifier) || event->modifiers().testFlag(Qt::ShiftModifier);
+    // An open tool edits one annotation at a time (setEditFilter): no selection modifiers
+    const bool isSelectionModifier = !m_editFilter && (event->modifiers().testFlag(Qt::ControlModifier) || event->modifiers().testFlag(Qt::ShiftModifier));
 
     if (event->button() == Qt::LeftButton)
     {
@@ -2478,8 +2591,17 @@ void PDFWidgetAnnotationManager::mousePressEvent(QWidget* widget, QMouseEvent* e
                 m_pendingDeselection = annotation;
             }
 
-            // The pointer is still valid - selection does not change the annotation list
-            if (canTransformAnnotation(*pageAnnotation))
+            // The pointer is still valid - selection does not change the annotation list.
+            // An annotation of an open tool is moved on its page by the mouse, never
+            // dragged out of the document (setEditFilter)
+            if (m_editFilter)
+            {
+                if (getAnnotationCapabilities(*pageAnnotation).testFlag(PDFAnnotationManipulator::Move))
+                {
+                    beginMoveInteraction(event->pos(), pageIndex);
+                }
+            }
+            else if (canTransformAnnotation(*pageAnnotation))
             {
                 beginAnnotationDrag(event, pageIndex);
             }
@@ -3149,7 +3271,8 @@ bool PDFWidgetAnnotationManager::handleAnnotationDrop(const QMimeData* data, con
 {
     clearAnnotationDropFeedback();
 
-    if (!m_document || !isModificationAllowed())
+    // No annotation enters the document while an open tool edits its own (setEditFilter)
+    if (!m_document || !isModificationAllowed() || m_editFilter)
     {
         return false;
     }
@@ -3934,10 +4057,108 @@ bool PDFWidgetAnnotationManager::beginHandleInteraction(const QPoint& devicePosi
     return false;
 }
 
+bool PDFWidgetAnnotationManager::beginMoveInteraction(const QPoint& devicePosition, PDFInteger pageIndex)
+{
+    if (!m_document || !hasSelection() || !isModificationAllowed())
+    {
+        return false;
+    }
+
+    PDFWidgetSnapshot snapshot = m_proxy->getSnapshot();
+    const PDFWidgetSnapshot::SnapshotItem* snapshotItem = snapshot.getPageSnapshot(pageIndex);
+    if (!snapshotItem)
+    {
+        return false;
+    }
+
+    // The frame of the selection is moved as the frame of a handle interaction, so the preview, the
+    // snapping and the finish (one change of the document) are those of the handles
+    const HandleLayout layout = computeHandleLayout(pageIndex, snapshotItem->pageToDeviceMatrix);
+    bool invertible = false;
+    const QTransform pageToDevice = getSelectionToDeviceMatrix(pageIndex, snapshotItem->pageToDeviceMatrix);
+    const QTransform deviceToPage = pageToDevice.inverted(&invertible);
+    if (!layout.isValid || !invertible)
+    {
+        return false;
+    }
+
+    m_interaction = InteractionState();
+    m_interaction.type = Interaction::Handle;
+    m_interaction.pageIndex = pageIndex;
+    m_interaction.pageToDevice = pageToDevice;
+    m_interaction.pageToDeviceBase = snapshotItem->pageToDeviceMatrix;
+    m_interaction.deviceToPage = deviceToPage;
+    m_interaction.startDevicePosition = devicePosition;
+    m_interaction.currentDevicePosition = devicePosition;
+    m_interaction.handle = Handle::Move;
+    m_interaction.layout = layout;
+    m_hoveredAnnotation = HoveredAnnotation();
+
+    // The moved frame snaps to the geometry of the page and of the other annotations
+    prepareSnapper(snapshot, pageIndex, PDFObjectReference(), true);
+
+    requestRepaint();
+    return true;
+}
+
+QTransform PDFWidgetAnnotationManager::computeMoveTransform(const QPointF& devicePosition, Qt::KeyboardModifiers modifiers)
+{
+    m_interaction.isSnapped = false;
+
+    // A press without a drag (a click, which selects) moves nothing
+    QPointF deviceOffset = devicePosition - QPointF(m_interaction.startDevicePosition);
+    if (deviceOffset.manhattanLength() < QApplication::startDragDistance())
+    {
+        return QTransform();
+    }
+
+    // The corners and the center of the moved frame snap (the nearest snap wins), Ctrl disables it
+    if (!modifiers.testFlag(Qt::ControlModifier))
+    {
+        const QRectF frame = m_interaction.layout.frame.translated(deviceOffset);
+        qreal distance = std::numeric_limits<qreal>::max();
+        QPointF correction;
+        for (const QPointF& point : { frame.topLeft(), frame.topRight(), frame.bottomLeft(), frame.bottomRight(), frame.center() })
+        {
+            m_snapper.updateSnappedPoint(point);
+            if (!m_snapper.isSnapped())
+            {
+                continue;
+            }
+
+            const QPointF snappedPoint = m_snapper.getSnappedPoint();
+            const qreal currentDistance = QLineF(point, snappedPoint).length();
+            if (currentDistance < distance)
+            {
+                distance = currentDistance;
+                correction = snappedPoint - point;
+                m_interaction.isSnapped = true;
+                m_interaction.snappedDevicePoint = snappedPoint;
+            }
+        }
+        deviceOffset += correction;
+    }
+
+    // The selection stays on its page: inside of the crop box, or no further out, than it lies already
+    const QPointF deviceToPageOffset = m_interaction.deviceToPage.map(deviceOffset) - m_interaction.deviceToPage.map(QPointF(0.0, 0.0));
+    const QRectF bounds = getSelectionBoundingRectangle(m_interaction.pageIndex, true);
+    const QPointF pageOffset = PDFWidgetAnnotationEditFilterHelper::keepOnPage(m_document, m_interaction.pageIndex, bounds, deviceToPageOffset);
+
+    return QTransform::fromTranslate(pageOffset.x(), pageOffset.y());
+}
+
 void PDFWidgetAnnotationManager::updateHandleInteraction(const QPoint& devicePosition, Qt::KeyboardModifiers modifiers)
 {
     m_interaction.currentDevicePosition = devicePosition;
     m_interaction.isSnapped = false;
+
+    if (m_interaction.handle == Handle::Move)
+    {
+        m_interaction.previewTransform = computeMoveTransform(QPointF(devicePosition), modifiers);
+        m_interaction.previewAngle = 0.0;
+        updateInteractionPreview();
+        return;
+    }
 
     QPointF position(devicePosition);
     if (m_interaction.handle != Handle::Rotate)
@@ -4147,6 +4368,12 @@ PDFWidgetAnnotationManager::PointEditInfo PDFWidgetAnnotationManager::getPointEd
     const SelectedAnnotation& item = m_selection.front();
     const PageAnnotation* pageAnnotation = findPageAnnotation(item.pageIndex, item.annotation);
     if (!pageAnnotation || !canTransformAnnotation(*pageAnnotation))
+    {
+        return info;
+    }
+
+    // A filter of an open tool may leave the annotation without its points (setEditFilter)
+    if (m_editFilter && !getAnnotationCapabilities(*pageAnnotation).testFlag(PDFAnnotationManipulator::EditPoints))
     {
         return info;
     }
@@ -4759,7 +4986,7 @@ void PDFWidgetAnnotationManager::nudgeSelectedAnnotations(const QPointF& deviceD
     // Jakub Melka: the pages can be rotated differently (the rotation is a property of
     // the page), so the direction on the screen is converted for each page separately.
     // All pages are modified in a single step, so a single undo reverts the whole move.
-    transformSelectedAnnotations([this, deviceDirection, distance](const QRectF&, PDFInteger pageIndex)
+    transformSelectedAnnotations([this, deviceDirection, distance](const QRectF& boundingRectangle, PDFInteger pageIndex)
     {
         bool invertible = false;
         const QTransform deviceToPage = getPageToDeviceMatrix(pageIndex).inverted(&invertible);
@@ -4770,7 +4997,13 @@ void PDFWidgetAnnotationManager::nudgeSelectedAnnotations(const QPointF& deviceD
             return QTransform();
         }
 
-        const QPointF offset = pageDirection * (distance / length);
+        // An annotation of an open tool stays on its page as by a drag (setEditFilter); at the edge of
+        // the page the arrow moves nothing (no change of the document)
+        QPointF offset = pageDirection * (distance / length);
+        if (m_editFilter)
+        {
+            offset = PDFWidgetAnnotationEditFilterHelper::keepOnPage(m_document, pageIndex, boundingRectangle, offset);
+        }
         return QTransform::fromTranslate(offset.x(), offset.y());
     });
 }
@@ -4819,7 +5052,8 @@ void PDFWidgetAnnotationManager::copySelectedAnnotations()
 
 bool PDFWidgetAnnotationManager::copyAnnotationsToClipboard(const std::vector<PDFObjectReference>& annotations)
 {
-    if (!m_document || annotations.empty())
+    // The annotations of an open tool never leave the document (setEditFilter)
+    if (!m_document || annotations.empty() || m_editFilter)
     {
         return false;
     }
@@ -4888,7 +5122,8 @@ void PDFWidgetAnnotationManager::cutSelectedAnnotations()
 
 bool PDFWidgetAnnotationManager::canPasteAnnotations() const
 {
-    if (!m_document || !isModificationAllowed())
+    // No annotation enters the document while an open tool edits its own (setEditFilter)
+    if (!m_document || !isModificationAllowed() || m_editFilter)
     {
         return false;
     }
@@ -5018,7 +5253,7 @@ void PDFWidgetAnnotationManager::deleteSelectedAnnotations()
 
 bool PDFWidgetAnnotationManager::beginAnnotationDrag(QMouseEvent* event, PDFInteger pageIndex)
 {
-    if (!m_document || !isModificationAllowed())
+    if (!m_document || !isModificationAllowed() || m_editFilter)
     {
         return false;
     }
@@ -5097,7 +5332,7 @@ PDFAnnotationPtr PDFWidgetAnnotationManager::getInteractionPreview(PDFObjectRefe
 
 QMimeData* PDFWidgetAnnotationManager::createAnnotationDragData() const
 {
-    if (!m_dragState.isActive)
+    if (!m_dragState.isActive || m_editFilter)
     {
         return nullptr;
     }
@@ -5606,6 +5841,16 @@ void PDFWidgetAnnotationManager::drawPage(QPainter* painter,
     BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, convertor, errors);
 }
 
+bool PDFWidgetAnnotationManager::isAnnotationDrawSuppressed(const PageAnnotation& annotation) const
+{
+    // The filter lives in the GUI thread: a page rendered elsewhere keeps all its annotations
+    if (QThread::currentThread() != thread() || !m_editFilter || !annotation.annotation)
+    {
+        return false;
+    }
+    return !m_editFilter->isAnnotationShown(annotation.annotation.data());
+}
+
 void PDFWidgetAnnotationManager::drawPostRendering(QPainter* painter, QRect rect) const
 {
     Q_UNUSED(rect);
@@ -5867,6 +6112,19 @@ void PDFWidgetAnnotationManager::drawSelection(QPainter* painter,
             painter->setBrush(memberBrush);
             painter->drawPolygon(matrix.map(PDFAnnotationManipulator::getTransformedOutline(type, rectangle, m_interaction.previewTransform)));
         }
+        else if (const IAnnotationEditFilter::SelectionOutline outline = m_editFilter ? m_editFilter->getSelectionOutline(pageAnnotation->annotation.data()) : IAnnotationEditFilter::SelectionOutline();
+                 outline.isValid())
+        {
+            // An annotation of an open tool has its own outline instead of the frame (one look of the
+            // selection: the outline with the handles on it; a locked one has its lock badge below)
+            PDFPainterStateGuard guard(painter);
+            QPen outlinePen(getMarkerColor(outline.color, convertor, true), outline.width);
+            outlinePen.setCosmetic(true);
+            outlinePen.setJoinStyle(Qt::MiterJoin);
+            painter->setPen(outlinePen);
+            painter->setBrush(Qt::NoBrush);
+            painter->drawPath(matrix.map(outline.path));
+        }
         else if (isDesign && lockedFrameColor.isValid() &&
                  (pageAnnotation->annotation->getEffectiveFlags().testFlag(PDFAnnotation::Locked) || pageAnnotation->annotation->getEffectiveFlags().testFlag(PDFAnnotation::ReadOnly)))
         {
@@ -5924,12 +6182,17 @@ void PDFWidgetAnnotationManager::drawSelection(QPainter* painter,
             const HandleLayout layout = computeHandleLayout(pageIndex, pagePointToDevicePointMatrix);
             if (layout.isValid)
             {
-                painter->setPen(framePen);
-                painter->setBrush(isMultipleDesign ? QBrush(fillColor) : QBrush(Qt::NoBrush));
-                painter->drawRect(layout.getDrawnFrame());
+                // An annotation of an open tool has its outline (above), the handles lie on it
+                if (!m_editFilter)
+                {
+                    painter->setPen(framePen);
+                    painter->setBrush(isMultipleDesign ? QBrush(fillColor) : QBrush(Qt::NoBrush));
+                    painter->drawRect(layout.getDrawnFrame());
+                }
 
                 if (layout.hasRotationHandle)
                 {
+                    painter->setPen(framePen);
                     painter->drawLine(layout.rotationHandleBase, layout.rotationHandle);
                 }
 
@@ -6279,6 +6542,35 @@ void PDFWidgetAnnotationManager::setReadOnly(bool readOnly)
     }
 
     requestRepaint();
+}
+
+void PDFWidgetAnnotationManager::setEditFilter(const IAnnotationEditFilter* filter)
+{
+    if (m_editFilter == filter)
+    {
+        return;
+    }
+
+    // A running change was started under the other rules
+    m_editFilter = filter;
+    m_interaction = InteractionState();
+    m_partEdit = PartEdit::None;
+    m_dragState = DragState();
+    m_dropFeedback = DropFeedback();
+    m_activePoint = -1;
+    m_hoveredAnnotation = HoveredAnnotation();
+    m_hoveredHandle = Handle::None;
+    m_hoveredPoint = -1;
+    m_cursor = std::nullopt;
+    invalidateMouseMoveCache();
+
+    // The selected annotations, which the filter refuses, leave the selection, a filter keeps one of
+    // them (selectionChanged runs the code of the application: the last call)
+    requestRepaint();
+    if (m_document && hasSelection())
+    {
+        setSelectedAnnotations(getSelectedAnnotations());
+    }
 }
 
 void PDFWidgetAnnotationManager::setSelectedAnnotationsFillColor(const QColor& color)

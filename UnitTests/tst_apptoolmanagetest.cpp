@@ -78,6 +78,7 @@
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
 
+#include <QAction>
 #include <QBuffer>
 #include <QClipboard>
 #include <QDir>
@@ -147,6 +148,7 @@ private slots:
     void documentHostStatusBar();
     void detailsRotationText();
     void emptyStateOpenDocumentRow();
+    void escapeHintOfSearchAndDrag();
 };
 
 /// Helpers of the test
@@ -2619,6 +2621,84 @@ void AppToolManageTest::emptyStateOpenDocumentRow()
     QVERIFY(H::waitPages(gui, 3));
     AppToolOwnTabFixture::settle();
     QVERIFY(!gui->getCanvas()->getEmptyState());
+}
+
+void AppToolManageTest::escapeHintOfSearchAndDrag()
+{
+    // Owner 2026-11-17: the status text says, what Esc does now - with a search (387:15594) "Esc
+    // clears the search", during a drag of the pages "Esc cancels the drag" (the order of the
+    // shell); Esc does it and the tool stays; without a search the status names no Esc and Esc
+    // leaves the tool
+    AppToolOwnTabFixture fixture;
+    const QString contract = AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Contract.pdf"), 3);
+    const QString annex = AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Annex.pdf"), 3);
+    pdf::PDFAppToolTab* tab = H::open(fixture, { contract, annex });
+    QVERIFY(tab);
+    pdf::PDFAppManageToolGUI* gui = H::gui(tab);
+    QVERIFY(gui);
+    QVERIFY(H::waitPages(gui, 6));
+    QPointer<pdf::PDFDocumentToolShell> shell = AppToolOwnTabFixture::getShell(tab);
+    QVERIFY(shell);
+    QAction* escape = shell->findChild<QAction*>(QStringLiteral("toolEscape"));
+    QVERIFY(escape);
+    AppToolOwnTabFixture::settle();
+    const auto status = [tab]() { return tab->getToolPage()->getTabView()->getToolMessage(); };
+    QCOMPARE(status(), QStringLiteral("Manage Pages · 2 sources · 6 items · 6 pages"));
+
+    pdf::PDFAppManageCanvas* canvas = gui->getCanvas();
+    canvas->getSearchField()->setFocus();
+    QTest::keyClicks(canvas->getSearchField(), QStringLiteral("Annex"));
+    QVERIFY(AppToolOwnTabFixture::waitFor([canvas]() { return canvas->isFiltered(); }));
+    AppToolOwnTabFixture::settle();
+    const QString searchStatus = QStringLiteral("Manage Pages · 3 of 6 items match \"Annex\" · %1");
+    QCOMPARE(status(), searchStatus.arg(QStringLiteral("Esc clears the search")));
+
+    // A drag of the shown pages: "Esc cancels the drag", Esc cancels it (the search stays)
+    pdf::PDFAppToolMergePageView* view = canvas->getPageView();
+    std::vector<QRect> tiles;
+    for (int row = 0; row < view->model()->rowCount(); ++row)
+    {
+        const QRect rect = view->visualRect(view->model()->index(row, 0));
+        if (!rect.isEmpty())
+        {
+            tiles.push_back(rect);
+        }
+    }
+    QVERIFY(tiles.size() >= 2);
+    const QPoint from = tiles.front().center();
+    const QPoint to(tiles.back().left() + 10, tiles.back().center().y());
+    QTest::mousePress(view->viewport(), Qt::LeftButton, Qt::NoModifier, from);
+    QTest::mouseMove(view->viewport(), from + QPoint(20, 0));
+    QTest::mouseMove(view->viewport(), to);
+    QVERIFY(view->isToolDragActive());
+    AppToolOwnTabFixture::settle();
+    QCOMPARE(status(), searchStatus.arg(QStringLiteral("Esc cancels the drag")));
+    escape->trigger();
+    AppToolOwnTabFixture::settle();
+    QVERIFY(!view->isToolDragActive());
+    QVERIFY(canvas->isFiltered());
+    QCOMPARE(status(), searchStatus.arg(QStringLiteral("Esc clears the search")));
+    QTest::mouseRelease(view->viewport(), Qt::LeftButton, Qt::NoModifier, to);
+    AppToolOwnTabFixture::settle();
+
+    // A drag released normally: the text comes back too
+    QTest::mousePress(view->viewport(), Qt::LeftButton, Qt::NoModifier, from);
+    QTest::mouseMove(view->viewport(), from + QPoint(20, 0));
+    AppToolOwnTabFixture::settle();
+    QCOMPARE(status(), searchStatus.arg(QStringLiteral("Esc cancels the drag")));
+    QTest::mouseRelease(view->viewport(), Qt::LeftButton, Qt::NoModifier, from + QPoint(20, 0));
+    AppToolOwnTabFixture::settle();
+    QVERIFY(canvas->isFiltered());
+    QCOMPARE(status(), searchStatus.arg(QStringLiteral("Esc clears the search")));
+
+    // Esc clears the search, the tool stays; the status names no Esc
+    escape->trigger();
+    AppToolOwnTabFixture::settle();
+    QVERIFY(shell && shell->getState() == pdf::PDFDocumentToolShell::State::Editing);
+    QVERIFY(!canvas->isFiltered());
+    QVERIFY(canvas->getSearchText().isEmpty());
+    QVERIFY2(status().startsWith(QStringLiteral("Manage Pages · 2 sources · 6 items · 6 pages")) && !status().contains(QStringLiteral("Esc")), qPrintable(status()));
+    QCOMPARE(gui->getAssembly().getItems().size(), size_t(6));
 }
 
 QTEST_MAIN(AppToolManageTest)

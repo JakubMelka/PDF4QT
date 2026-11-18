@@ -24,6 +24,7 @@
 #define PDFAPPTOOLBEFOREAFTEROVERLAY_H
 
 #include "pdfappglobal.h"
+#include "pdfapptooldragsource.h"
 
 #include "pdfcms.h"
 #include "pdfdocument.h"
@@ -66,7 +67,7 @@ class PDFWidget;
 /// holds the overlay: its deletion cancels the job, nobody waits and a late result is
 /// dropped (F12). At most the images of one result exist, bounded by MAXIMUM_PIXELS.
 /// The overlay emits no signals.
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolBeforeAfterOverlay : public QWidget, public IDocumentDrawInterface
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolBeforeAfterOverlay : public QWidget, public IDocumentDrawInterface, public IPDFAppToolDragSource
 {
     Q_OBJECT
 
@@ -141,6 +142,10 @@ public:
                           QList<PDFRenderError>& errors) const override;
     virtual void drawPostRendering(QPainter* painter, QRect rect) const override;
 
+    // IPDFAppToolDragSource: Esc during a drag of the line puts it back
+    virtual bool isToolDragActive() const override { return m_isDragging; }
+    virtual void cancelToolDrag() override;
+
 protected:
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
     virtual void paintEvent(QPaintEvent* event) override;
@@ -194,6 +199,7 @@ private:
     double m_lineFraction = 0.5;
     bool m_isOverlayShown = true;
     bool m_isDragging = false;
+    double m_dragStartFraction = 0.5;    ///< The place of the line at the press (cancelToolDrag)
 
     std::shared_ptr<PDFAppToolBeforeAfterLink> m_link;
     std::shared_ptr<PDFAppToolBeforeAfterJob> m_job;

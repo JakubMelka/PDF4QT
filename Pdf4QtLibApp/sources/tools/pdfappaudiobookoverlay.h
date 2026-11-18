@@ -24,6 +24,7 @@
 #define PDFAPPAUDIOBOOKOVERLAY_H
 
 #include "pdfappglobal.h"
+#include "pdfapptooldragsource.h"
 #include "pdfglobal.h"
 #include "pdfpage.h"
 
@@ -49,7 +50,11 @@ namespace pdf
 ///
 /// Ownership: the picture is its parent (the canvas of the GUI owns both); the GUI keeps it in a
 /// QPointer. Its signals are emitted last, from the events of the mouse and the keys.
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppAudioBookOverlay : public QWidget
+///
+/// Esc (owner 2026-11-17, one step each): a rectangle being drawn is canceled first (the shell,
+/// IPDFAppToolDragSource - the mode stays, a new rectangle can be drawn), then the mode ends
+/// (cancelRectangleMode by PDFAppToolGUIAudioBook::handleEscape), then the tool is left.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppAudioBookOverlay : public QWidget, public IPDFAppToolDragSource
 {
     Q_OBJECT
 
@@ -90,6 +95,16 @@ public:
     /// Esc cancels. Off by a selection or by Esc.
     void setRectangleMode(bool isRectangleMode);
     bool isRectangleMode() const { return m_isRectangleMode; }
+
+    /// Esc of the mode of the rectangle (PDFDocumentToolGUI::handleEscape of the tool): the mode ends
+    /// without a rectangle (a rectangle being drawn has been canceled by the shell before, see
+    /// cancelToolDrag), rectangleCanceled is emitted (the last call). \returns false, when the mode was off
+    bool cancelRectangleMode();
+
+    // IPDFAppToolDragSource: a rectangle being drawn in the mode of the rectangle; Esc drops it, the
+    // mode stays and the release of the button selects nothing
+    virtual bool isToolDragActive() const override { return m_isRectangleMode && m_isDragging; }
+    virtual void cancelToolDrag() override;
 
     /// The paper rectangle of the picture in the overlay (empty = no page shown)
     QRect getPaperRect() const;

@@ -308,6 +308,10 @@ public:
     QString getSearchText() const;
     void setSearchText(const QString& text);
     bool isFiltered() const { return m_isFiltered; }
+
+    /// Esc (the field, the shell by PDFAppManageToolGUI::handleEscape): the search is cleared, the
+    /// signal searchChanged is the last call
+    void clearSearch();
     int getShownItemCount() const;
 
     /// The empty state in the place of the bar and of the pages (nullptr: the pages); the canvas
@@ -364,6 +368,10 @@ Q_SIGNALS:
 
     /// Thumbnails / Details has been switched by the user
     void viewSwitched(bool isDetailsShown);
+
+    /// A drag of the pages or rows has started or ended (forwarded from the views, emitted in the
+    /// dispatch of the input: the receivers connect it queued)
+    void dragStateChanged();
 
 protected:
     virtual void paintEvent(QPaintEvent* event) override;

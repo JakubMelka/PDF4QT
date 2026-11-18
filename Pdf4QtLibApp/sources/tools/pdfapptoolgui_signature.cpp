@@ -1578,6 +1578,16 @@ void PDFAppToolGUISignature::onPendingRunEnded()
     notifyStateChanged();
 }
 
+bool PDFAppToolGUISignature::handleEscape()
+{
+    return m_drawingPart && (m_drawingPart->endActiveElement() || m_drawingPart->clearSelection());
+}
+
+QString PDFAppToolGUISignature::getEscapeModeHint() const
+{
+    return m_drawingPart ? m_drawingPart->getEscapeHint() : QString();
+}
+
 void PDFAppToolGUISignature::onDocumentChanged()
 {
     // Another version (unlocked by the owner password, a change of an assistant): the fields and

@@ -1632,6 +1632,12 @@ protected:
     /// \param annotation Annotation
     bool isAnnotationDrawEnabled(const PageAnnotation& annotation) const;
 
+    /// Returns true, if the page of drawPage leaves the annotation out, although it is drawn
+    /// otherwise (the view of an application shows the result of a tool instead of it, as the
+    /// preview of Redact Content its fill instead of the marks). Default: false.
+    /// \param annotation Annotation
+    virtual bool isAnnotationDrawSuppressed(const PageAnnotation& annotation) const;
+
     /// Returns true, if annotation is drawn by editor (from form widget)
     /// \param annotation Annotation
     bool isAnnotationDrawnByEditor(const PageAnnotation& annotation) const;

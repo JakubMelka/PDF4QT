@@ -190,6 +190,11 @@ public:
     virtual void onRunRefused() override;
     virtual void onRunNotAccepted(const PDFDocumentToolResult& result) override;
     virtual void onDocumentChanged() override;
+
+    /// Esc: the active creation tool of the drawing of Sign ends (owner 2026-11-17), then the selected
+    /// elements are deselected (owner 2026-11-18); the tool stays
+    virtual bool handleEscape() override;
+    virtual QString getEscapeModeHint() const override;
     virtual void retranslate() override;
 
 protected:

@@ -46,6 +46,7 @@
 #include "pdfdocumentreader.h"
 #include "pdfdocumenttool_protect.h"
 #include "pdfdocumenttoolregistry.h"
+#include "pdfdrawwidget.h"
 #include "pdffluentwidgets.h"
 #include "pdfmcpcall.h"
 #include "pdfstreamfilters.h"
@@ -532,10 +533,15 @@ void AppToolProtectTest::linksFrame()
     QCOMPARE(gui->getFilterRow(PDFAppToolGUIRemoveLinks::Filter::EMail)->getDescription(), QStringLiteral("1 mailto link"));
     QCOMPARE(H::statusMessage(tab), QStringLiteral("4 external links found · 4 will be removed, 0 are kept"));
 
-    // The caption of the shown page at 20, 20 of the canvas (438:14940)
+    // The caption of the shown page at 20, 20 of the canvas (438:14940); the pages lie below its band
+    // (owner 2026-11-18: the canvas starts at 64, the caption never covers a page)
     QVERIFY(gui->getOverlay());
     QCOMPARE(gui->getOverlay()->getPageText(), QStringLiteral("Page 1"));
-    QCOMPARE(gui->getOverlay()->pos(), QPoint(20, 20));
+    pdf::PDFAppToolPageCaption* caption = gui->getOverlay()->getCaption();
+    QVERIFY(caption && caption->isVisible());
+    QCOMPARE(caption->pos(), QPoint(20, 20));
+    QCOMPARE(caption->height(), 36);
+    QCOMPARE(tab->getView()->getPdfWidget()->geometry().top(), 64);
     QVERIFY(!gui->getEmptyCard()->isVisible());
     QVERIFY(gui->getListCard()->isVisible());
     QVERIFY(!gui->getMoreHint()->isVisible());

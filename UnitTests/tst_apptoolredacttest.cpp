@@ -30,6 +30,7 @@
 
 #include "apptoolshellfixture.h"
 
+#include "pdfappannotationcontroller.h"
 #include "pdfappannotationoperations.h"
 #include "pdfappcontext.h"
 #include "pdfappdocument.h"
@@ -54,15 +55,22 @@
 #include "pdfdocument.h"
 #include "pdfdocumenttool_redact.h"
 #include "pdfdocumenttoolregistry.h"
+#include "pdfdrawspacecontroller.h"
+#include "pdfdrawwidget.h"
 #include "pdffluentwidgets.h"
 #include "pdfmessagebox.h"
 #include "pdfstreamfilters.h"
 #include "pdfthememanager.h"
+#include "pdfwidgetannotation.h"
+#include "pdfwidgetsnapshot.h"
 #include "pdfwidgetstyle.h"
 
+#include <QClipboard>
 #include <QFile>
+#include <QMimeData>
 #include <QItemSelectionModel>
 #include <QPushButton>
+#include <QScrollBar>
 #include <QToolButton>
 #include <QtTest>
 
@@ -252,10 +260,56 @@ public:
         return tab->getView()->getStatusBar()->getMessage();
     }
 
+    /// A segment of Marks | Preview result (the right panel, owner 2026-11-17)
     static QToolButton* segment(PDFAppToolGUIRedact* gui, int index)
     {
-        const QList<QToolButton*> segments = gui->getOverlay()->getModeControl()->findChildren<QToolButton*>(QString(), Qt::FindDirectChildrenOnly);
+        const QList<QToolButton*> segments = gui->getModeControl()->findChildren<QToolButton*>(QString(), Qt::FindDirectChildrenOnly);
         return index < segments.size() ? segments[index] : nullptr;
+    }
+
+    /// The bounding box of /QuadPoints (llx, lly, urx, ury as a rectangle of the page)
+    static QRectF quadBounds(const RedactAnnotationEntry& entry)
+    {
+        QPolygonF points;
+        for (size_t i = 0; i + 1 < entry.quadPoints.size(); i += 2)
+        {
+            points << QPointF(entry.quadPoints[i], entry.quadPoints[i + 1]);
+        }
+        return points.boundingRect();
+    }
+
+    /// The bounding box of /Rect
+    static QRectF rect(const RedactAnnotationEntry& entry)
+    {
+        return entry.rect.size() == 4 ? QRectF(QPointF(entry.rect[0], entry.rect[1]), QPointF(entry.rect[2], entry.rect[3])).normalized() : QRectF();
+    }
+
+    static bool isNear(qreal value, qreal expected, qreal tolerance)
+    {
+        return qAbs(value - expected) <= tolerance;
+    }
+
+    static pdf::PDFAppAnnotationController* controller(pdf::PDFAppDocumentTab* tab)
+    {
+        return tab->getView()->getAnnotationController();
+    }
+
+    /// The canvas has the focus in the active window (the keys of the engine and the shortcut Esc)
+    static QWidget* focusCanvas(pdf::PDFAppDocumentTab* tab)
+    {
+        QWidget* canvas = AppToolShellFixture::canvasWidget(tab->getView());
+        if (!canvas)
+        {
+            return nullptr;
+        }
+        canvas->window()->activateWindow();
+        if (!QTest::qWaitForWindowActive(canvas->window()))
+        {
+            return nullptr;
+        }
+        canvas->setFocus();
+        AppToolShellFixture::settle();
+        return canvas;
     }
 
     /// /Rect [llx lly urx ury] holds the area and at most its border of 1 pt around it
@@ -330,6 +384,71 @@ public:
     {
         return color.isValid() && qAbs(color.red() - expected.red()) <= tolerance && qAbs(color.green() - expected.green()) <= tolerance && qAbs(color.blue() - expected.blue()) <= tolerance;
     }
+
+    /// document() with one Redact annotation of another program on page 1 over 300..350 x 600..650:
+    /// /C red, a border of 6 pt (/BS /W 6, ISO 32000-2 Table 168), no /IC (its region stays open)
+    static QByteArray documentWithThickMark()
+    {
+        std::map<int, QByteArray> objects;
+        objects[1] = "<< /Type /Catalog /Pages 2 0 R >>";
+        objects[2] = "<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>";
+        objects[3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /CropBox [36 36 576 756] /Contents 6 0 R /Resources << /Font << /F1 9 0 R >> >> /Annots [10 0 R] >>";
+        objects[4] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 7 0 R /Resources << /Font << /F1 9 0 R >> >> >>";
+        objects[5] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 8 0 R >>";
+        objects[6] = stream("BT /F1 12 Tf 72 700 Td (Contact jane.novak@example.com today) Tj ET");
+        objects[7] = stream("BT /F1 12 Tf 72 700 Td (The Secret project) Tj ET");
+        objects[8] = stream("0 0 1 rg 100 100 200 200 re f");
+        objects[9] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+        objects[10] = "<< /Type /Annot /Subtype /Redact /P 3 0 R /Rect [300 600 350 650] /C [1 0 0] /BS << /W 6 >> >>";
+        return build(objects);
+    }
+
+    /// A pixel is reddish (the red /C of a mark), not the paper, black or a gray of antialiasing
+    static bool isReddish(const QColor& color)
+    {
+        return color.isValid() && color.red() - qMax(color.green(), color.blue()) > 40;
+    }
+
+    /// The caption over the canvas and the parts of the pages, which are seen, do not overlap (the
+    /// rectangles in the canvas area); \p failure says where they do
+    static bool isCaptionClear(pdf::PDFAppDocumentView* view, const QWidget* caption, QString* failure)
+    {
+        pdf::PDFWidget* pdfWidget = view->getPdfWidget();
+        QWidget* drawWidget = pdfWidget && pdfWidget->getDrawWidget() ? pdfWidget->getDrawWidget()->getWidget() : nullptr;
+        const QWidget* canvasArea = caption ? caption->parentWidget() : nullptr;
+        if (!drawWidget || !canvasArea || !caption->isVisible())
+        {
+            *failure = QStringLiteral("no caption or canvas");
+            return false;
+        }
+
+        const QRectF captionRect(caption->geometry());
+        const pdf::PDFWidgetSnapshot snapshot = pdfWidget->getDrawWidgetProxy()->getSnapshot();
+        int shownPages = 0;
+        for (const pdf::PDFWidgetSnapshot::SnapshotItem& item : snapshot.items)
+        {
+            const QRectF shown = item.rect.intersected(QRectF(drawWidget->rect()));
+            if (shown.isEmpty())
+            {
+                continue;
+            }
+            ++shownPages;
+            const QRectF inArea(QPointF(drawWidget->mapTo(canvasArea, QPoint(0, 0))) + shown.topLeft(), shown.size());
+            if (inArea.intersects(captionRect))
+            {
+                *failure = QStringLiteral("page %1 at (%2, %3, %4, %5) under the caption (%6, %7, %8, %9)").arg(item.pageIndex + 1)
+                               .arg(inArea.left()).arg(inArea.top()).arg(inArea.width()).arg(inArea.height())
+                               .arg(captionRect.left()).arg(captionRect.top()).arg(captionRect.width()).arg(captionRect.height());
+                return false;
+            }
+        }
+        if (shownPages == 0)
+        {
+            *failure = QStringLiteral("no page shown");
+            return false;
+        }
+        return true;
+    }
 };
 
 using H = RedactAppHelper;
@@ -375,6 +494,32 @@ private Q_SLOTS:
     void searchHitColors();
     void summaryRowGap();
     void screenshots();
+
+    // Owner 2026-11-17 (P2S6REDACTFIX): the marks edited as annotations, Marks | Preview result in the
+    // right panel, Esc ends the mode first
+    void canvasMoveResizeUndo();
+    void canvasNudgeAndDelete();
+    void canvasSelectionSync();
+    void canvasTextAndPageMarksNoHandles();
+    void canvasLockedAndForeignMarks();
+    void canvasNothingLeavesDocument();
+    void canvasNoEditingInPreview();
+    void previewControlInRightPanel();
+    void escapeEndsModeThenTool();
+    void escapeHintFollowsDragAndMode();
+    void selectedAreaMarkOneOutline();
+
+    // Review RSRFUI
+    void escapeHintDuringMarkDrag();
+
+    // Owner 2026-11-18 (P2S6REDACTFIX2): Esc clears the selection before it leaves the tool, the caption
+    // above the pages, the preview without the border of the marks, the texts of a selected mark, the
+    // undo text of the changed mark (review RSRFCODE L2)
+    void escapeClearsSelectionThenTool();
+    void selectedMarkStatusTexts();
+    void canvasCaptionAbovePages();
+    void previewHidesMarkBorder();
+    void undoTextOfChangedMark();
 };
 
 void AppToolRedactTest::initTestCase()
@@ -443,7 +588,7 @@ void AppToolRedactTest::startFrame()
     QCOMPARE(H::segment(gui, 0)->text(), QStringLiteral("Marks"));
     QCOMPARE(H::segment(gui, 1)->text(), QStringLiteral("Preview result"));
     QVERIFY(!H::segment(gui, 1)->isEnabled());
-    QCOMPARE(H::statusMessage(tab), QStringLiteral("Mark the content that should be removed"));
+    QCOMPARE(H::statusMessage(tab), QStringLiteral("Mark the content that should be removed · Esc leaves the tool"));
 }
 
 void AppToolRedactTest::areaMarkFrame()
@@ -488,7 +633,7 @@ void AppToolRedactTest::areaMarkFrame()
     QVERIFY(shell->getToolbar()->getConfirmButton()->isEnabled());
     QVERIFY(gui->getClearButton()->isEnabled());
     QVERIFY(H::segment(gui, 1)->isEnabled());
-    QCOMPARE(H::statusMessage(tab), QStringLiteral("1 area marked on 1 page · not removed yet – the content is removed only in the redacted copy"));
+    QCOMPARE(H::statusMessage(tab), QStringLiteral("1 area marked on 1 page · not removed yet – the content is removed only in the redacted copy · Esc leaves the tool"));
 
     // An area over the edge of the crop box [36 36 576 756] is cut to it; a second area of page 2
     QVERIFY(gui->addAreaMark(0, QRectF(0, 0, 100, 100)));
@@ -521,7 +666,7 @@ void AppToolRedactTest::areaByMouse()
     gui->getAreaButton()->click();
     QCOMPARE(gui->getMode(), PDFAppToolGUIRedact::Mode::Area);
     QVERIFY(gui->getAreaButton()->isChecked());
-    QCOMPARE(H::statusMessage(tab), QStringLiteral("Area · drag a rectangle over the content · Esc leaves the tool"));
+    QCOMPARE(H::statusMessage(tab), QStringLiteral("Area · drag a rectangle over the content · Esc ends Area"));
 
     const int undoBefore = pdftest::AppDocumentFixture::undoCount(tab->getDocument());
     QVERIFY(pdftest::AppDocumentFixture::dragPage(tab->getView(), 0, QPointF(120, 690), QPointF(220, 610)));
@@ -557,7 +702,7 @@ void AppToolRedactTest::textByMouse()
 
     gui->getTextButton()->click();
     QCOMPARE(gui->getMode(), PDFAppToolGUIRedact::Mode::Text);
-    QCOMPARE(H::statusMessage(tab), QStringLiteral("Text · drag over the text to mark it · Esc leaves the tool"));
+    QCOMPARE(H::statusMessage(tab), QStringLiteral("Text · drag over the text to mark it · Esc ends Text"));
     QVERIFY(pdftest::AppDocumentFixture::dragPage(tab->getView(), 0, QPointF(73, 705), QPointF(330, 703)));
     QVERIFY(AppToolShellFixture::waitFor([tab]() { return H::annotations(tab->getDocument()).size() == 1; }));
 
@@ -671,14 +816,14 @@ void AppToolRedactTest::searchMarksSelected()
     QCOMPARE(part->getMatches().size(), size_t(2));
     QCOMPARE(part->getResultsLabel()->text(), QStringLiteral("2 matches on 2 pages"));
     QCOMPARE(part->getMarkButton()->text(), QStringLiteral("Mark 2 Selected Matches"));
-    QCOMPARE(H::statusMessage(tab), QStringLiteral("2 matches of “secret” · 2 selected"));
+    QCOMPARE(H::statusMessage(tab), QStringLiteral("2 matches of “secret” · 2 selected · Esc ends Search"));
 
     // The second result deselected (a click of its row)
     pdf::PDFListView* view = part->getResultsView();
     view->selectionModel()->select(view->model()->index(1, 0), QItemSelectionModel::Deselect);
     QCOMPARE(part->getSelectedCount(), 1);
     QCOMPARE(part->getMarkButton()->text(), QStringLiteral("Mark 1 Selected Match"));
-    QCOMPARE(H::statusMessage(tab), QStringLiteral("2 matches of “secret” · 1 selected"));
+    QCOMPARE(H::statusMessage(tab), QStringLiteral("2 matches of “secret” · 1 selected · Esc ends Search"));
 
     const int undoBefore = pdftest::AppDocumentFixture::undoCount(tab->getDocument());
     QTest::mouseClick(part->getMarkButton(), Qt::LeftButton);
@@ -695,7 +840,7 @@ void AppToolRedactTest::searchMarksSelected()
     // 437:12452: "1 Match Marked" Disabled, the status counts the areas
     QCOMPARE(part->getMarkButton()->text(), QStringLiteral("1 Match Marked"));
     QVERIFY(!part->getMarkButton()->isEnabled());
-    QCOMPARE(H::statusMessage(tab), QStringLiteral("1 match marked · 1 area in total"));
+    QCOMPARE(H::statusMessage(tab), QStringLiteral("1 match marked · 1 area in total · Esc ends Search"));
 
     // Select all, then all of them: two marks more in one step
     part->getSelectAllLink()->click();
@@ -784,7 +929,7 @@ void AppToolRedactTest::searchInvalidExpression()
     QVERIFY(!part->getErrorLabel()->isVisible());
     QVERIFY(!part->getField()->isInvalid());
     QCOMPARE(part->getMatches().size(), size_t(1));
-    QCOMPARE(H::statusMessage(tab), QStringLiteral("1 match of “jane\\.novak@\\S+” · 1 selected"));
+    QCOMPARE(H::statusMessage(tab), QStringLiteral("1 match of “jane\\.novak@\\S+” · 1 selected · Esc ends Search"));
 }
 
 void AppToolRedactTest::searchAcrossLineBreaks()
@@ -1354,12 +1499,31 @@ void AppToolRedactTest::fillMenu()
     QCOMPARE(model->getValue(QString::fromLatin1(Tool::PARAMETER_FILL_COLOR)).value<QColor>().rgb(), red.rgb());
     QCOMPARE(gui->getFill(), Fill::Custom);
     QCOMPARE(gui->getFillButton()->text(), QStringLiteral("Fill: Custom"));
-    QCOMPARE(H::rows(gui->getSummaryRows())[1], QStringLiteral("Fill: Custom · %1").arg(red.name(QColor::HexRgb).toUpper()));
+    // Owner 2026-11-17, 437:10701 corrected: "Custom" with the dot of the color, no hex code; a screen
+    // reader reads the color by its hex code
+    pdf::PDFKeyValueList* summary = gui->getSummaryRows();
+    QCOMPARE(H::rows(summary)[1], QStringLiteral("Fill: Custom"));
+    QVERIFY(!summary->getValue(1).contains(QLatin1Char('#')));
+    QCOMPARE(summary->getValueColor(1).rgb(), red.rgb());
+    QVERIFY2(summary->accessibleDescription().contains(QStringLiteral("Fill: Custom color %1").arg(red.name(QColor::HexRgb).toUpper())), qPrintable(summary->accessibleDescription()));
 
-    // Black again
+    // The dot is painted: the middle of its rectangle has the color
+    summary->resize(287, summary->heightForWidth(287));
+    const QRect dotRect = summary->getValueColorRect(1);
+    QCOMPARE(dotRect.size(), QSize(pdf::PDFKeyValueList::VALUE_COLOR_SIZE, pdf::PDFKeyValueList::VALUE_COLOR_SIZE));
+    const QImage image = summary->grab().toImage();
+    const QPoint dotCenter(qRound(dotRect.center().x() * image.devicePixelRatio()), qRound(dotRect.center().y() * image.devicePixelRatio()));
+    QVERIFY2(H::isNear(image.pixelColor(dotCenter), red), qPrintable(image.pixelColor(dotCenter).name()));
+
+    // Black again: the dot of black before "Black"; No fill has no dot
     gui->getFillRow(Fill::Black)->click();
     QCOMPARE(model->getValue(QString::fromLatin1(Tool::PARAMETER_FILL_COLOR)).value<QColor>(), QColor(Qt::black));
     QCOMPARE(gui->getFillButton()->text(), QStringLiteral("Fill: Black"));
+    QCOMPARE(H::rows(summary)[1], QStringLiteral("Fill: Black"));
+    QCOMPARE(summary->getValueColor(1), QColor(Qt::black));
+    gui->setFill(Fill::None);
+    QCOMPARE(H::rows(summary)[1], QStringLiteral("Fill: No fill"));
+    QVERIFY(!summary->getValueColor(1).isValid());
 }
 
 void AppToolRedactTest::foreignMarksBounded()
@@ -1448,14 +1612,14 @@ void AppToolRedactTest::escapeEndsDrag()
     pdf::PDFAppToolRedactOverlay* overlay = gui->getOverlay();
     QVERIFY(overlay);
 
-    QWidget* canvas = AppToolShellFixture::canvasWidget(tab->getView());
+    // Esc is the shortcut of the shell (owner 2026-11-17): it asks the GUI first (handleEscape)
+    QWidget* canvas = H::focusCanvas(tab);
     QVERIFY(canvas);
     bool ok = false;
     const QPoint start = AppToolShellFixture::pageToWidget(tab->getView(), 0, QPointF(120, 690), &ok);
     QVERIFY(ok);
     const QPoint end = AppToolShellFixture::pageToWidget(tab->getView(), 0, QPointF(220, 610), &ok);
     QVERIFY(ok);
-    canvas->setFocus();
     QTest::mousePress(canvas, Qt::LeftButton, Qt::NoModifier, start);
     QMouseEvent move(QEvent::MouseMove, QPointF(end), canvas->mapToGlobal(QPointF(end)), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
     QApplication::sendEvent(canvas, &move);
@@ -1470,6 +1634,9 @@ void AppToolRedactTest::escapeEndsDrag()
     QTest::mouseRelease(canvas, Qt::LeftButton, Qt::NoModifier, end);
     AppToolShellFixture::settle();
     QVERIFY(H::annotations(tab->getDocument()).empty());
+
+    // The drag ended, the mode Area stays (for the next area)
+    QCOMPARE(gui->getMode(), PDFAppToolGUIRedact::Mode::Area);
 }
 
 void AppToolRedactTest::fillSwatches()
@@ -1548,7 +1715,7 @@ void AppToolRedactTest::previewPaintsFill()
 
     QTest::mouseClick(H::segment(gui, 1), Qt::LeftButton);
     QVERIFY(gui->isPreview());
-    QCOMPARE(H::statusMessage(tab), QStringLiteral("Preview of the redacted copy · the open document is not changed"));
+    QCOMPARE(H::statusMessage(tab), QStringLiteral("Preview of the redacted copy · the open document is not changed · Esc leaves the tool"));
     QVERIFY2(AppToolShellFixture::waitFor([view, center]() { return H::isNear(H::canvasPixel(view, 0, center), QColor(Qt::black)); }), qPrintable(H::canvasPixel(view, 0, center).name()));
 
     // No fill: the white paper
@@ -1558,7 +1725,7 @@ void AppToolRedactTest::previewPaintsFill()
     // A mode of the input returns to the marks
     gui->getAreaButton()->click();
     QVERIFY(!gui->isPreview());
-    QCOMPARE(gui->getOverlay()->getModeControl()->getCurrentIndex(), 0);
+    QCOMPARE(gui->getModeControl()->getCurrentIndex(), 0);
 }
 
 void AppToolRedactTest::marksKeepContentVisible()
@@ -1731,6 +1898,29 @@ void AppToolRedactTest::screenshots()
         QVERIFY(gui->markPages({ 2 }));
         shot(QStringLiteral("437-10393"));
 
+        // 1599:48898 (review RSRFUI): the selected Area mark with its handles, its row selected; then a
+        // Text mark selected (no handles) and the Fill row of a custom color (437:10701: the dot, "Custom")
+        const std::vector<RedactAnnotationEntry> entries = H::annotations(tab->getDocument());
+        QVERIFY(entries.size() == 4);
+        gui->selectMark(entries[0].reference);
+        shot(QStringLiteral("1599-48898"));
+        QVERIFY(gui->addTextMark(0, QPolygonF({ QPointF(72, 572), QPointF(140, 572), QPointF(72, 558), QPointF(140, 558) })));
+        AppToolShellFixture::settle();
+        for (const RedactAnnotationEntry& entry : H::annotations(tab->getDocument()))
+        {
+            if (entry.quadPoints.size() == 8 && H::quadBounds(entry) == QRectF(72, 558, 68, 14))
+            {
+                gui->selectMark(entry.reference);
+            }
+        }
+        shot(QStringLiteral("1599-48898-text"));
+        gui->setFill(PDFAppToolGUIRedact::Fill::Custom, QColor(0x34, 0xC7, 0x59));
+        gui->selectMark(pdf::PDFObjectReference());
+        shot(QStringLiteral("437-10701-custom"));
+        gui->setFill(PDFAppToolGUIRedact::Fill::White);
+        shot(QStringLiteral("437-10701-white"));
+        gui->setFill(PDFAppToolGUIRedact::Fill::Black);
+
         openMenu(gui->getFillButton(), QStringLiteral("437-12794-fill"));
         openMenu(gui->getKeepButton(), QStringLiteral("437-12794-keep"));
 
@@ -1773,6 +1963,941 @@ void AppToolRedactTest::screenshots()
         fixture.closeMessageBoxes();
         QVERIFY2(leaks.isEmpty(), qPrintable(leaks.join(QStringLiteral(", "))));
     }
+}
+
+void AppToolRedactTest::canvasMoveResizeUndo()
+{
+    // Owner 2026-11-17: a selected Area mark is moved by a drag and resized by its handle as an annotation
+    // (1599:48898: 8 handles, no rotation handle), /Rect and /QuadPoints together (ISO 32000-2
+    // 12.5.6.23: QuadPoints are the area, Rect bounds it); one Undo step of the tool each, Undo / Redo
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, H::TOOL_ID);
+    PDFAppToolGUIRedact* gui = H::gui(shell);
+    QVERIFY(gui);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFAppToolUndoTarget* target = view->getToolUndoTarget();
+    QVERIFY(gui->addAreaMark(0, QRectF(320, 600, 100, 60)));
+    AppToolShellFixture::settle();
+    const RedactAnnotationEntry original = H::annotations(document).front();
+    QCOMPARE(H::quadBounds(original), QRectF(320, 600, 100, 60));
+
+    gui->selectMark(original.reference);
+    AppToolShellFixture::settle();
+    QCOMPARE(H::controller(tab)->getSelectedAnnotations(), std::vector<pdf::PDFObjectReference>({ original.reference }));
+    QCOMPARE(H::statusMessage(tab), QStringLiteral("Area mark selected · drag a handle to change its size · Esc clears the selection"));
+    pdf::PDFWidgetAnnotationManager* manager = H::controller(tab)->getAnnotationManager();
+    const pdf::PDFAnnotationManipulator::Capabilities capabilities = manager->getSelectionCapabilities();
+    QVERIFY(capabilities.testFlag(pdf::PDFAnnotationManipulator::Move) && capabilities.testFlag(pdf::PDFAnnotationManipulator::Resize));
+    QVERIFY(!capabilities.testFlag(pdf::PDFAnnotationManipulator::RotateRightAngle) && !capabilities.testFlag(pdf::PDFAnnotationManipulator::RotateArbitrary));
+    QVERIFY(!capabilities.testFlag(pdf::PDFAnnotationManipulator::EditPoints));
+    const int undoBefore = pdftest::AppDocumentFixture::undoCount(document);
+
+    // Moved by a drag of its middle: 40 right, 30 down on the screen (y of the page is up); Ctrl: no snapping
+    QVERIFY(pdftest::AppDocumentFixture::dragPage(view, 0, QPointF(370, 630), QPointF(410, 600), Qt::ControlModifier, 8));
+    AppToolShellFixture::settle();
+    std::vector<RedactAnnotationEntry> entries = H::annotations(document);
+    QCOMPARE(entries.size(), size_t(1));
+    const QRectF moved = H::quadBounds(entries[0]);
+    QVERIFY2(H::isNear(moved.left(), 360, 2.0) && H::isNear(moved.top(), 570, 2.0), qPrintable(QStringLiteral("%1 %2").arg(moved.left()).arg(moved.top())));
+    QVERIFY(H::isNear(moved.width(), 100, 0.01) && H::isNear(moved.height(), 60, 0.01));
+    QCOMPARE(entries[0].quadPoints.size(), size_t(8));
+    // /Rect moved with the area by the same offset (it keeps its size)
+    const QRectF movedRect = H::rect(entries[0]);
+    QVERIFY(H::isNear(movedRect.left() - H::rect(original).left(), moved.left() - 320, 0.01));
+    QVERIFY(H::isNear(movedRect.top() - H::rect(original).top(), moved.top() - 600, 0.01));
+    QVERIFY(H::isNear(movedRect.width(), H::rect(original).width(), 0.01));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoBefore + 1);
+    QCOMPARE(target->getUndoText(), QStringLiteral("Move a redaction mark"));
+    QCOMPARE(gui->getSelectedMark(), original.reference);
+
+    // Resized by the bottom right handle (its corner on the screen: right, the bottom of the page)
+    QVERIFY(pdftest::AppDocumentFixture::dragPage(view, 0, QPointF(movedRect.right(), movedRect.top()), QPointF(movedRect.right() + 30, movedRect.top() - 20), Qt::ControlModifier, 8));
+    AppToolShellFixture::settle();
+    entries = H::annotations(document);
+    const QRectF resized = H::quadBounds(entries[0]);
+    QVERIFY2(resized.width() > 120 && resized.width() < 140 && resized.height() > 70 && resized.height() < 90,
+             qPrintable(QStringLiteral("%1 x %2").arg(resized.width()).arg(resized.height())));
+    // The top left corner of the screen stays; /Rect still bounds the area
+    QVERIFY(H::isNear(resized.left(), moved.left(), 0.5) && H::isNear(resized.bottom(), moved.bottom(), 0.5));
+    QVERIFY(H::rect(entries[0]).adjusted(-0.01, -0.01, 0.01, 0.01).contains(resized));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoBefore + 2);
+    QCOMPARE(target->getUndoText(), QStringLiteral("Resize a redaction mark"));
+    // The row and the counts follow ("130 × 79 pt")
+    QCOMPARE(gui->getMarkModel()->index(1).data(pdf::PDFComponentRoles::SubtitleRole).toString(),
+             QStringLiteral("%1 × %2 pt").arg(qRound64(resized.width())).arg(qRound64(resized.height())));
+
+    // Undo: the size, then the place; Redo the place again
+    target->undo();
+    AppToolShellFixture::settle();
+    QVERIFY(H::isNear(H::quadBounds(H::annotations(document).front()).width(), 100, 0.01));
+    QCOMPARE(H::quadBounds(H::annotations(document).front()), moved);
+    target->undo();
+    AppToolShellFixture::settle();
+    QCOMPARE(H::annotations(document).front().quadPoints, original.quadPoints);
+    QCOMPARE(H::annotations(document).front().rect, original.rect);
+    target->redo();
+    AppToolShellFixture::settle();
+    QCOMPARE(H::quadBounds(H::annotations(document).front()), moved);
+}
+
+void AppToolRedactTest::canvasNudgeAndDelete()
+{
+    // The arrows nudge the selected Area mark (1 pt, Shift 10 pt), Delete on the canvas removes it (one
+    // Undo step, the selection goes - as of the annotations); the Delete of the list stays
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, H::TOOL_ID);
+    PDFAppToolGUIRedact* gui = H::gui(shell);
+    QVERIFY(gui);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppToolUndoTarget* target = tab->getView()->getToolUndoTarget();
+    QVERIFY(gui->addAreaMark(0, QRectF(320, 600, 100, 60)));
+    QVERIFY(gui->addAreaMark(0, QRectF(320, 480, 100, 60)));
+    AppToolShellFixture::settle();
+    const pdf::PDFObjectReference mark = H::annotations(document).front().reference;
+    gui->selectMark(mark);
+    QWidget* canvas = H::focusCanvas(tab);
+    QVERIFY(canvas);
+    const int undoBefore = pdftest::AppDocumentFixture::undoCount(document);
+
+    QTest::keyClick(canvas, Qt::Key_Right);
+    AppToolShellFixture::settle();
+    QVERIFY(H::isNear(H::quadBounds(H::annotations(document).front()).left(), 321, 0.001));
+    QTest::keyClick(canvas, Qt::Key_Up, Qt::ShiftModifier);
+    AppToolShellFixture::settle();
+    QVERIFY(H::isNear(H::quadBounds(H::annotations(document).front()).top(), 610, 0.001));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoBefore + 2);
+
+    QTest::keyClick(canvas, Qt::Key_Delete);
+    AppToolShellFixture::settle();
+    const std::vector<RedactAnnotationEntry> entries = H::annotations(document);
+    QCOMPARE(entries.size(), size_t(1));
+    QVERIFY(entries.front().reference != mark);
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoBefore + 3);
+    QCOMPARE(target->getUndoText(), QStringLiteral("Remove a redaction mark"));
+    QVERIFY(!gui->getSelectedMark().isValid());
+    QVERIFY(H::controller(tab)->getSelectedAnnotations().empty());
+    QCOMPARE(gui->getLeftHeader()->getSubtitleLabel()->text(), QStringLiteral("1 area on 1 page"));
+    QCOMPARE(H::rows(gui->getSummaryRows()).front(), QStringLiteral("Removed: 1 area · 1 page"));
+
+    // Undo brings it back
+    target->undo();
+    AppToolShellFixture::settle();
+    QCOMPARE(H::annotations(document).size(), size_t(2));
+}
+
+void AppToolRedactTest::canvasSelectionSync()
+{
+    // One selection: a click on a mark selects its row, a row selects its mark on the canvas, a click
+    // beside the marks deselects both
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, H::TOOL_ID);
+    PDFAppToolGUIRedact* gui = H::gui(shell);
+    QVERIFY(gui);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    QVERIFY(gui->addAreaMark(0, QRectF(320, 600, 100, 60)));
+    QVERIFY(gui->addAreaMark(0, QRectF(320, 480, 100, 60)));
+    AppToolShellFixture::settle();
+    const pdf::PDFObjectReference first = H::annotations(document)[0].reference;
+    const pdf::PDFObjectReference second = H::annotations(document)[1].reference;
+    pdf::PDFAppToolRedactMarkModel* model = gui->getMarkModel();
+
+    QVERIFY(pdftest::AppDocumentFixture::clickPage(tab->getView(), 0, QPointF(370, 630)));
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getSelectedMark(), first);
+    QCOMPARE(gui->getMarksView()->currentIndex().row(), model->getRow(first));
+    QCOMPARE(model->index(model->getRow(first)).data(pdf::PDFComponentRoles::TileToneRole).toInt(), int(pdf::PDFComponentPainter::TileRowTone::Accent));
+
+    gui->getMarksView()->setCurrentIndex(model->index(model->getRow(second)));
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getSelectedMark(), second);
+    QCOMPARE(H::controller(tab)->getSelectedAnnotations(), std::vector<pdf::PDFObjectReference>({ second }));
+
+    QVERIFY(pdftest::AppDocumentFixture::clickPage(tab->getView(), 0, QPointF(200, 300)));
+    AppToolShellFixture::settle();
+    QVERIFY(!gui->getSelectedMark().isValid());
+    QVERIFY(H::controller(tab)->getSelectedAnnotations().empty());
+    QCOMPARE(model->index(model->getRow(second)).data(pdf::PDFComponentRoles::TileToneRole).toInt(), int(pdf::PDFComponentPainter::TileRowTone::Muted));
+    QCOMPARE(H::statusMessage(tab), QStringLiteral("2 areas marked on 1 page · not removed yet – the content is removed only in the redacted copy · Esc leaves the tool"));
+}
+
+void AppToolRedactTest::canvasTextAndPageMarksNoHandles()
+{
+    // A Text mark (its quadrilaterals follow the text) and a Whole page mark are selected and deleted, but
+    // have no handles and are not moved; the tooltip says why
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, H::TOOL_ID);
+    PDFAppToolGUIRedact* gui = H::gui(shell);
+    QVERIFY(gui);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    QVERIFY(gui->addTextMark(0, QPolygonF({ QPointF(72, 572), QPointF(140, 572), QPointF(72, 558), QPointF(140, 558) })));
+    QVERIFY(gui->markPages({ 1 }));
+    AppToolShellFixture::settle();
+    std::vector<RedactAnnotationEntry> entries = H::annotations(document);
+    QCOMPARE(entries.size(), size_t(2));
+    const RedactAnnotationEntry text = entries[0];
+    const RedactAnnotationEntry page = entries[1];
+    pdf::PDFWidgetAnnotationManager* manager = H::controller(tab)->getAnnotationManager();
+
+    gui->selectMark(text.reference);
+    AppToolShellFixture::settle();
+    QCOMPARE(H::controller(tab)->getSelectedAnnotations(), std::vector<pdf::PDFObjectReference>({ text.reference }));
+    QCOMPARE(manager->getSelectionCapabilities(), pdf::PDFAnnotationManipulator::Capabilities(pdf::PDFAnnotationManipulator::NoCapability));
+    const pdf::PDFAnnotationPtr textAnnotation = pdf::PDFAnnotation::parse(&document->getDocument()->getStorage(), text.reference);
+    QCOMPARE(gui->getEditHint(textAnnotation.data()), QStringLiteral("A text mark covers its text: it cannot be moved or resized. Press Delete to remove it."));
+    const int undoBefore = pdftest::AppDocumentFixture::undoCount(document);
+    QVERIFY(pdftest::AppDocumentFixture::dragPage(tab->getView(), 0, QPointF(106, 565), QPointF(156, 520), Qt::ControlModifier, 8));
+    AppToolShellFixture::settle();
+    QCOMPARE(H::annotations(document)[0].quadPoints, text.quadPoints);
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoBefore);
+
+    // Delete on the canvas removes it
+    QWidget* canvas = H::focusCanvas(tab);
+    QVERIFY(canvas);
+    gui->selectMark(text.reference);
+    AppToolShellFixture::settle();
+    QTest::keyClick(canvas, Qt::Key_Delete);
+    AppToolShellFixture::settle();
+    entries = H::annotations(document);
+    QCOMPARE(entries.size(), size_t(1));
+    QCOMPARE(entries[0].reference, page.reference);
+
+    // A whole page: no handles, its hint, Delete
+    gui->selectMark(page.reference);
+    AppToolShellFixture::settle();
+    QCOMPARE(H::controller(tab)->getSelectedAnnotations(), std::vector<pdf::PDFObjectReference>({ page.reference }));
+    QCOMPARE(manager->getSelectionCapabilities(), pdf::PDFAnnotationManipulator::Capabilities(pdf::PDFAnnotationManipulator::NoCapability));
+    const pdf::PDFAnnotationPtr pageAnnotation = pdf::PDFAnnotation::parse(&document->getDocument()->getStorage(), page.reference);
+    QCOMPARE(gui->getEditHint(pageAnnotation.data()), QStringLiteral("A whole page mark covers the page: it cannot be moved or resized. Press Delete to remove it."));
+    canvas = H::focusCanvas(tab);
+    QVERIFY(canvas);
+    QTest::keyClick(canvas, Qt::Key_Delete);
+    AppToolShellFixture::settle();
+    QVERIFY(H::annotations(document).empty());
+}
+
+void AppToolRedactTest::canvasLockedAndForeignMarks()
+{
+    // A Locked mark (ISO 32000-2 Table 167, /F 128) is selected, not changed (no handles, no nudge, no
+    // Delete); a foreign mark of one rectangle (no /QuadPoints) is moved by its /Rect; a foreign mark of
+    // more quadrilaterals has no handles
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(H::write(fixture.path(QStringLiteral("Foreign.pdf")), H::documentWithForeignMarks()));
+    QVERIFY(tab && AppToolShellFixture::waitFor([tab]() { return tab->getDocument() && tab->getDocument()->isReady(); }));
+    PDFDocumentToolShell* shell = fixture.openTool(tab, H::TOOL_ID);
+    PDFAppToolGUIRedact* gui = H::gui(shell);
+    QVERIFY(gui);
+    AppToolShellFixture::settle();
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFWidgetAnnotationManager* manager = H::controller(tab)->getAnnotationManager();
+    const int undoBefore = pdftest::AppDocumentFixture::undoCount(document);
+
+    const pdf::PDFObjectReference locked(10, 0);
+    gui->selectMark(locked);
+    AppToolShellFixture::settle();
+    QCOMPARE(H::controller(tab)->getSelectedAnnotations(), std::vector<pdf::PDFObjectReference>({ locked }));
+    QCOMPARE(manager->getSelectionCapabilities(), pdf::PDFAnnotationManipulator::Capabilities(pdf::PDFAnnotationManipulator::NoCapability));
+    QWidget* canvas = H::focusCanvas(tab);
+    QVERIFY(canvas);
+    QTest::keyClick(canvas, Qt::Key_Right);
+    QTest::keyClick(canvas, Qt::Key_Delete);
+    AppToolShellFixture::settle();
+    QCOMPARE(H::annotations(document).size(), size_t(4));
+    QCOMPARE(H::annotations(document)[0].rect, std::vector<pdf::PDFReal>({ 100, 600, 150, 650 }));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoBefore);
+
+    const pdf::PDFObjectReference freeMark(11, 0);
+    gui->selectMark(freeMark);
+    canvas = H::focusCanvas(tab);
+    QVERIFY(canvas);
+    QVERIFY(manager->getSelectionCapabilities().testFlag(pdf::PDFAnnotationManipulator::Move));
+    QTest::keyClick(canvas, Qt::Key_Right);
+    AppToolShellFixture::settle();
+    QCOMPARE(H::annotations(document)[1].rect, std::vector<pdf::PDFReal>({ 301, 600, 351, 650 }));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoBefore + 1);
+
+    const pdf::PDFObjectReference many(12, 0);
+    gui->selectMark(many);
+    AppToolShellFixture::settle();
+    QCOMPARE(manager->getSelectionCapabilities(), pdf::PDFAnnotationManipulator::Capabilities(pdf::PDFAnnotationManipulator::NoCapability));
+    const pdf::PDFAnnotationPtr manyAnnotation = pdf::PDFAnnotation::parse(&document->getDocument()->getStorage(), many);
+    QCOMPARE(gui->getEditHint(manyAnnotation.data()), QStringLiteral("This mark has more areas: it cannot be moved or resized. Press Delete to remove it."));
+}
+
+void AppToolRedactTest::canvasNothingLeavesDocument()
+{
+    // R6-19 (an area is sensitive): a mark never reaches the clipboard or a drag and drop, and no
+    // annotation enters the document while the tool is open; one mark at a time
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, H::TOOL_ID);
+    PDFAppToolGUIRedact* gui = H::gui(shell);
+    QVERIFY(gui);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    QVERIFY(gui->addAreaMark(0, QRectF(320, 600, 100, 60)));
+    QVERIFY(gui->addAreaMark(0, QRectF(320, 480, 100, 60)));
+    AppToolShellFixture::settle();
+    const std::vector<RedactAnnotationEntry> entries = H::annotations(document);
+    gui->selectMark(entries[0].reference);
+    QWidget* canvas = H::focusCanvas(tab);
+    QVERIFY(canvas);
+    pdf::PDFWidgetAnnotationManager* manager = H::controller(tab)->getAnnotationManager();
+
+    QApplication::clipboard()->setText(QStringLiteral("canary"));
+    QTest::keyClick(canvas, Qt::Key_C, Qt::ControlModifier);
+    QTest::keyClick(canvas, Qt::Key_X, Qt::ControlModifier);
+    AppToolShellFixture::settle();
+    const QMimeData* clipboard = QApplication::clipboard()->mimeData();
+    QVERIFY(!clipboard || !clipboard->hasFormat(pdf::PDFAnnotationManipulator::getMimeType()));
+    QCOMPARE(QApplication::clipboard()->text(), QStringLiteral("canary"));
+    QCOMPARE(H::annotations(document).size(), size_t(2));
+
+    // No drag data of a press on the mark; annotations of the clipboard are not pasted
+    bool ok = false;
+    const QPoint center = AppToolShellFixture::pageToWidget(tab->getView(), 0, QPointF(370, 630), &ok);
+    QVERIFY(ok);
+    QTest::mousePress(canvas, Qt::LeftButton, Qt::NoModifier, center);
+    std::unique_ptr<QMimeData> dragData(manager->createAnnotationDragData());
+    QVERIFY(!dragData);
+    QTest::mouseRelease(canvas, Qt::LeftButton, Qt::NoModifier, center);
+    QMimeData* annotations = new QMimeData();
+    annotations->setData(pdf::PDFAnnotationManipulator::getMimeType(), QByteArray("data"));
+    QApplication::clipboard()->setMimeData(annotations);
+    QVERIFY(!manager->canPasteAnnotations());
+
+    // Select all and a Ctrl click keep one mark
+    manager->selectAllAnnotations();
+    manager->selectAnnotation(entries[1].reference, false);
+    AppToolShellFixture::settle();
+    QCOMPARE(H::controller(tab)->getSelectedAnnotations().size(), size_t(1));
+    QApplication::clipboard()->clear();
+}
+
+void AppToolRedactTest::canvasNoEditingInPreview()
+{
+    // Preview result (and a run) edits nothing: the engine selects no mark, Delete removes none; the row
+    // stays selected and its mark is selected again with Marks
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, H::TOOL_ID);
+    PDFAppToolGUIRedact* gui = H::gui(shell);
+    QVERIFY(gui);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    QVERIFY(gui->addAreaMark(0, QRectF(320, 600, 100, 60)));
+    AppToolShellFixture::settle();
+    const pdf::PDFObjectReference mark = H::annotations(document).front().reference;
+    gui->selectMark(mark);
+    AppToolShellFixture::settle();
+
+    QTest::mouseClick(H::segment(gui, 1), Qt::LeftButton);
+    AppToolShellFixture::settle();
+    QVERIFY(gui->isPreview());
+    QVERIFY(H::controller(tab)->getSelectedAnnotations().empty());
+    QCOMPARE(gui->getSelectedMark(), mark);
+    QWidget* canvas = H::focusCanvas(tab);
+    QVERIFY(canvas);
+    QVERIFY(pdftest::AppDocumentFixture::clickPage(tab->getView(), 0, QPointF(370, 630)));
+    QTest::keyClick(canvas, Qt::Key_Delete);
+    AppToolShellFixture::settle();
+    QCOMPARE(H::annotations(document).size(), size_t(1));
+
+    QTest::mouseClick(H::segment(gui, 0), Qt::LeftButton);
+    AppToolShellFixture::settle();
+    QVERIFY(!gui->isPreview());
+    QCOMPARE(H::controller(tab)->getSelectedAnnotations(), std::vector<pdf::PDFObjectReference>({ mark }));
+
+    // While running: nothing selected, nothing editable
+    gui->onRunStateChanged(true);
+    AppToolShellFixture::settle();
+    QVERIFY(H::controller(tab)->getSelectedAnnotations().empty());
+    const pdf::PDFAnnotationPtr annotation = pdf::PDFAnnotation::parse(&document->getDocument()->getStorage(), mark);
+    QVERIFY(!gui->isAnnotationEditable(annotation.data()));
+    gui->onRunStateChanged(false);
+    AppToolShellFixture::settle();
+    QVERIFY(gui->isAnnotationEditable(annotation.data()));
+}
+
+void AppToolRedactTest::previewControlInRightPanel()
+{
+    // Owner 2026-11-17: Marks | Preview result is the first control of the right panel (under its head,
+    // the full width, above the callout), not on the canvas nor in the toolbar; Preview result Disabled
+    // without marks and while running
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, H::TOOL_ID);
+    PDFAppToolGUIRedact* gui = H::gui(shell);
+    QVERIFY(gui);
+    AppToolShellFixture::settle();
+
+    pdf::PDFSegmentedControl* control = gui->getModeControl();
+    QVERIFY(control && control->isVisible());
+    QCOMPARE(control->getCount(), 2);
+    QCOMPARE(H::segment(gui, 0)->text(), QStringLiteral("Marks"));
+    QCOMPARE(H::segment(gui, 1)->text(), QStringLiteral("Preview result"));
+    QWidget* header = gui->getRightHeader();
+    QVERIFY(header->parentWidget()->isAncestorOf(control));
+    QVERIFY(control->mapTo(header->window(), QPoint(0, 0)).y() >= header->mapTo(header->window(), QPoint(0, header->height())).y());
+    QCOMPARE(control->width(), header->width());
+    QWidget* canvasArea = gui->getOverlay()->parentWidget();
+    QVERIFY(gui->getOverlay()->findChildren<pdf::PDFSegmentedControl*>().isEmpty());
+    QVERIFY(!canvasArea->isAncestorOf(control));
+    QVERIFY(canvasArea->findChildren<pdf::PDFSegmentedControl*>(QStringLiteral("redactModeControl")).isEmpty());
+    QVERIFY(shell->getToolbar()->findChildren<pdf::PDFSegmentedControl*>().isEmpty());
+    QVERIFY(!H::segment(gui, 1)->isEnabled());
+
+    QVERIFY(gui->addAreaMark(0, QRectF(320, 600, 100, 60)));
+    AppToolShellFixture::settle();
+    QVERIFY(H::segment(gui, 1)->isEnabled());
+    QVERIFY(gui->getMarksCallout()->isVisible());
+    QVERIFY(control->mapTo(header->window(), QPoint(0, control->height())).y() <= gui->getMarksCallout()->mapTo(header->window(), QPoint(0, 0)).y());
+
+    QTest::mouseClick(H::segment(gui, 1), Qt::LeftButton);
+    QVERIFY(gui->isPreview());
+    QCOMPARE(H::statusMessage(tab), QStringLiteral("Preview of the redacted copy · the open document is not changed · Esc leaves the tool"));
+    QTest::mouseClick(H::segment(gui, 0), Qt::LeftButton);
+    QVERIFY(!gui->isPreview());
+
+    gui->setPreview(true);
+    QCOMPARE(control->getCurrentIndex(), 1);
+    gui->onRunStateChanged(true);
+    QVERIFY(!gui->isPreview());
+    QCOMPARE(control->getCurrentIndex(), 0);
+    QVERIFY(!H::segment(gui, 1)->isEnabled());
+    gui->onRunStateChanged(false);
+    QVERIFY(H::segment(gui, 1)->isEnabled());
+}
+
+void AppToolRedactTest::escapeEndsModeThenTool()
+{
+    // Owner 2026-11-17: Esc ends the mode Area / Text / Search… and the tool stays; Esc without a mode
+    // leaves the tool (no marks: without a question)
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
+    QPointer<PDFDocumentToolShell> shell = fixture.openTool(tab, H::TOOL_ID);
+    PDFAppToolGUIRedact* gui = H::gui(shell);
+    QVERIFY(gui);
+    AppToolShellFixture::settle();
+
+    for (QToolButton* button : { gui->getAreaButton(), gui->getTextButton() })
+    {
+        button->click();
+        QVERIFY(gui->getMode() != PDFAppToolGUIRedact::Mode::None);
+        QWidget* canvas = H::focusCanvas(tab);
+        QVERIFY(canvas);
+        QTest::keyClick(canvas, Qt::Key_Escape);
+        AppToolShellFixture::settle();
+        QCOMPARE(gui->getMode(), PDFAppToolGUIRedact::Mode::None);
+        QVERIFY(!button->isChecked());
+        QVERIFY(shell && shell->getState() == PDFDocumentToolShell::State::Editing);
+        QCOMPARE(AppToolShellFixture::getShell(tab), shell.data());
+    }
+
+    // Search…: Esc in its field ends the search
+    gui->getSearchButton()->click();
+    QCOMPARE(gui->getMode(), PDFAppToolGUIRedact::Mode::Search);
+    QVERIFY(QTest::qWaitForWindowActive(gui->getSearchPart()->getField()->window()));
+    gui->getSearchPart()->getField()->setFocus();
+    QTest::keyClick(gui->getSearchPart()->getField(), Qt::Key_Escape);
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getMode(), PDFAppToolGUIRedact::Mode::None);
+    QVERIFY(shell);
+
+    // Without a mode Esc leaves the tool
+    QWidget* canvas = H::focusCanvas(tab);
+    QVERIFY(canvas);
+    QTest::keyClick(canvas, Qt::Key_Escape);
+    QVERIFY(AppToolShellFixture::waitFor([tab]() { return !AppToolShellFixture::getShell(tab); }));
+}
+
+void AppToolRedactTest::escapeHintFollowsDragAndMode()
+{
+    // Owner 2026-11-17: every status text says, what Esc does now - "Esc ends Area" with the mode on,
+    // "Esc cancels the drag" during a drag (a cancel or a release gives "Esc ends Area" back), "Esc
+    // leaves the tool" with the mode off (also after the switch back)
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
+    QPointer<PDFDocumentToolShell> shell = fixture.openTool(tab, H::TOOL_ID);
+    PDFAppToolGUIRedact* gui = H::gui(shell);
+    QVERIFY(gui);
+    AppToolShellFixture::settle();
+    const QString noMode = QStringLiteral("Mark the content that should be removed · Esc leaves the tool");
+    QCOMPARE(H::statusMessage(tab), noMode);
+
+    gui->getAreaButton()->click();
+    AppToolShellFixture::settle();
+    const QString areaText = QStringLiteral("Area · drag a rectangle over the content · %1");
+    QCOMPARE(H::statusMessage(tab), areaText.arg(QStringLiteral("Esc ends Area")));
+
+    QWidget* canvas = H::focusCanvas(tab);
+    QVERIFY(canvas);
+    bool ok = false;
+    const QPoint start = AppToolShellFixture::pageToWidget(tab->getView(), 0, QPointF(120, 690), &ok);
+    QVERIFY(ok);
+    const QPoint end = AppToolShellFixture::pageToWidget(tab->getView(), 0, QPointF(220, 610), &ok);
+    QVERIFY(ok);
+    const auto drag = [canvas, start, end]()
+    {
+        QTest::mousePress(canvas, Qt::LeftButton, Qt::NoModifier, start);
+        QMouseEvent move(QEvent::MouseMove, QPointF(end), canvas->mapToGlobal(QPointF(end)), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(canvas, &move);
+        AppToolShellFixture::settle();
+    };
+
+    // A drag canceled by Esc
+    drag();
+    QVERIFY(gui->getOverlay()->getDraggedArea().has_value());
+    QCOMPARE(H::statusMessage(tab), areaText.arg(QStringLiteral("Esc cancels the drag")));
+    QTest::keyClick(canvas, Qt::Key_Escape);
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getMode(), PDFAppToolGUIRedact::Mode::Area);
+    QCOMPARE(H::statusMessage(tab), areaText.arg(QStringLiteral("Esc ends Area")));
+    QTest::mouseRelease(canvas, Qt::LeftButton, Qt::NoModifier, end);
+    AppToolShellFixture::settle();
+
+    // A drag released: the mark, the text of the mode again
+    drag();
+    QCOMPARE(H::statusMessage(tab), areaText.arg(QStringLiteral("Esc cancels the drag")));
+    QTest::mouseRelease(canvas, Qt::LeftButton, Qt::NoModifier, end);
+    AppToolShellFixture::settle();
+    QCOMPARE(H::annotations(tab->getDocument()).size(), size_t(1));
+    QCOMPARE(H::statusMessage(tab), areaText.arg(QStringLiteral("Esc ends Area")));
+
+    // Esc ends the mode: the next Esc leaves the tool
+    QTest::keyClick(canvas, Qt::Key_Escape);
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getMode(), PDFAppToolGUIRedact::Mode::None);
+    const QString marked = QStringLiteral("1 area marked on 1 page · not removed yet – the content is removed only in the redacted copy · Esc leaves the tool");
+    QCOMPARE(H::statusMessage(tab), marked);
+
+    // Text: on, off by its button
+    gui->getTextButton()->click();
+    AppToolShellFixture::settle();
+    QCOMPARE(H::statusMessage(tab), QStringLiteral("Text · drag over the text to mark it · Esc ends Text"));
+    gui->getTextButton()->click();
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getMode(), PDFAppToolGUIRedact::Mode::None);
+    QCOMPARE(H::statusMessage(tab), marked);
+    QVERIFY(shell && shell->getState() == PDFDocumentToolShell::State::Editing);
+}
+
+void AppToolRedactTest::selectedAreaMarkOneOutline()
+{
+    // 1599:48898: a selected Area mark has one look - its outline with the 8 handles on it; no second
+    // frame outside of the mark (the frame of the annotations lies 4 px outside, 1015:17767). The
+    // pixels changed by the selection lie on the mark (the handles reach 3.5 px out), a handle covers
+    // each corner of the mark (2 px inside of the corner is the handle, not the outline of 2 px)
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, H::TOOL_ID);
+    PDFAppToolGUIRedact* gui = H::gui(shell);
+    QVERIFY(gui);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    QVERIFY(gui->addAreaMark(0, QRectF(320, 600, 100, 60)));
+    AppToolShellFixture::settle();
+    const RedactAnnotationEntry mark = H::annotations(tab->getDocument()).front();
+    gui->selectMark(pdf::PDFObjectReference());
+    AppToolShellFixture::settle();
+    QVERIFY(H::controller(tab)->getSelectedAnnotations().empty());
+    QWidget* canvas = pdftest::AppDocumentFixture::canvasWidget(view);
+    QVERIFY(canvas);
+    const QImage plain = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+
+    gui->selectMark(mark.reference);
+    AppToolShellFixture::settle();
+    QCOMPARE(H::controller(tab)->getSelectedAnnotations(), std::vector<pdf::PDFObjectReference>({ mark.reference }));
+    const QImage selected = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+    QCOMPARE(selected.size(), plain.size());
+    const qreal ratio = selected.devicePixelRatio();
+
+    // The mark on the screen (device pixels)
+    QPolygonF corners;
+    for (const QPointF& point : { QPointF(320, 600), QPointF(420, 600), QPointF(320, 660), QPointF(420, 660) })
+    {
+        bool ok = false;
+        const QPoint widgetPoint = pdftest::AppDocumentFixture::pageToWidget(view, 0, point, &ok);
+        QVERIFY(ok);
+        corners << QPointF(widgetPoint) * ratio;
+    }
+    const QRectF screenMark = corners.boundingRect();
+    QVERIFY(screenMark.width() > 20 && screenMark.height() > 10);
+
+    // No changed pixel farther than 6 px from the mark (a frame 4 px outside with its handles reaches 8.5 px)
+    const QRectF allowed = screenMark.adjusted(-6 * ratio, -6 * ratio, 6 * ratio, 6 * ratio);
+    int changed = 0;
+    for (int y = 0; y < selected.height(); ++y)
+    {
+        for (int x = 0; x < selected.width(); ++x)
+        {
+            if (selected.pixel(x, y) != plain.pixel(x, y))
+            {
+                ++changed;
+                QVERIFY2(allowed.contains(QPointF(x + 0.5, y + 0.5)), qPrintable(QStringLiteral("(%1, %2) outside of %3 %4 %5 %6").arg(x).arg(y).arg(screenMark.left()).arg(screenMark.top()).arg(screenMark.width()).arg(screenMark.height())));
+            }
+        }
+    }
+    QVERIFY(changed > 0);
+
+    // The handles at the corners of the mark: the edge of the handle of 7 px (its stroke 1.5 px lies
+    // 2.75 to 4.25 px from the corner) is inside of the mark, 2 to 5 px from each corner - beyond the
+    // outline (1 px inside); a frame 4 px outside has its handles 0.25 px inside at most
+    for (const QPointF& corner : { screenMark.topLeft(), screenMark.topRight(), screenMark.bottomLeft(), screenMark.bottomRight() })
+    {
+        const qreal dx = corner.x() < screenMark.center().x() ? 1.0 : -1.0;
+        const qreal dy = corner.y() < screenMark.center().y() ? 1.0 : -1.0;
+        bool isHandle = false;
+        for (int i = 2; i <= 4; ++i)
+        {
+            for (int j = 2; j <= 4; ++j)
+            {
+                const QPoint pixel = QPointF(corner.x() + dx * i * ratio, corner.y() + dy * j * ratio).toPoint();
+                isHandle = isHandle || selected.pixel(pixel) != plain.pixel(pixel);
+            }
+        }
+        QVERIFY2(isHandle, qPrintable(QStringLiteral("corner (%1, %2)").arg(corner.x()).arg(corner.y())));
+    }
+
+    // The outline on the edge between the handles (a quarter of the top edge)
+    const QPoint edge = QPointF(screenMark.left() + screenMark.width() * 0.25, screenMark.top()).toPoint();
+    bool isEdgeChanged = false;
+    for (int dy = -1; dy <= 1; ++dy)
+    {
+        isEdgeChanged = isEdgeChanged || selected.pixel(edge + QPoint(0, dy)) != plain.pixel(edge + QPoint(0, dy));
+    }
+    QVERIFY(isEdgeChanged);
+}
+
+void AppToolRedactTest::escapeHintDuringMarkDrag()
+{
+    // Owner 2026-11-17: the Esc hint of the status text is always true. A move or a resize of a
+    // selected Area mark on the canvas (the engine of the annotations) is a drag: Esc cancels it (the
+    // mark stays where it was, the tool stays open), so the status text says "Esc cancels the drag"
+    // while the button is held and "Esc clears the selection" again after the cancel and after the
+    // release (owner 2026-11-18: Esc deselects the mark before it leaves the tool)
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
+    QPointer<PDFDocumentToolShell> shell = fixture.openTool(tab, H::TOOL_ID);
+    PDFAppToolGUIRedact* gui = H::gui(shell);
+    QVERIFY(gui);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    QVERIFY(gui->addAreaMark(0, QRectF(320, 600, 100, 60)));
+    AppToolShellFixture::settle();
+    const RedactAnnotationEntry original = H::annotations(document).front();
+    gui->selectMark(original.reference);
+    QWidget* canvas = H::focusCanvas(tab);
+    QVERIFY(canvas);
+    const QString selected = QStringLiteral("Area mark selected · drag a handle to change its size · %1");
+    QCOMPARE(H::statusMessage(tab), selected.arg(QStringLiteral("Esc clears the selection")));
+
+    for (const QPointF& pressPoint : { QPointF(370, 630), QPointF(420, 600) })
+    {
+        // The middle of the mark (a move), its corner handle (a resize)
+        bool ok = false;
+        const QPoint press = AppToolShellFixture::pageToWidget(tab->getView(), 0, pressPoint, &ok);
+        QVERIFY(ok);
+        const QPoint moved = press + QPoint(30, 20);
+        QTest::mousePress(canvas, Qt::LeftButton, Qt::NoModifier, press);
+        QMouseEvent move(QEvent::MouseMove, QPointF(moved), canvas->mapToGlobal(QPointF(moved)), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(canvas, &move);
+        AppToolShellFixture::settle();
+        QCOMPARE(H::statusMessage(tab), selected.arg(QStringLiteral("Esc cancels the drag")));
+
+        // Esc cancels the drag only: the mark is unchanged, the tool is open, the hint is true again
+        QTest::keyClick(canvas, Qt::Key_Escape);
+        AppToolShellFixture::settle();
+        QVERIFY(shell && shell->getState() == PDFDocumentToolShell::State::Editing);
+        QCOMPARE(AppToolShellFixture::getShell(tab), shell.data());
+        QTest::mouseRelease(canvas, Qt::LeftButton, Qt::NoModifier, moved);
+        AppToolShellFixture::settle();
+        QCOMPARE(H::annotations(document).front().quadPoints, original.quadPoints);
+        QCOMPARE(H::statusMessage(tab), selected.arg(QStringLiteral("Esc clears the selection")));
+    }
+
+    // A released drag: the mark moved, the hint "Esc clears the selection" again
+    bool ok = false;
+    const QPoint press = AppToolShellFixture::pageToWidget(tab->getView(), 0, QPointF(370, 630), &ok);
+    QVERIFY(ok);
+    const QPoint moved = press + QPoint(30, 20);
+    QTest::mousePress(canvas, Qt::LeftButton, Qt::ControlModifier, press);
+    QMouseEvent move(QEvent::MouseMove, QPointF(moved), canvas->mapToGlobal(QPointF(moved)), Qt::NoButton, Qt::LeftButton, Qt::ControlModifier);
+    QApplication::sendEvent(canvas, &move);
+    AppToolShellFixture::settle();
+    QCOMPARE(H::statusMessage(tab), selected.arg(QStringLiteral("Esc cancels the drag")));
+    QTest::mouseRelease(canvas, Qt::LeftButton, Qt::ControlModifier, moved);
+    AppToolShellFixture::settle();
+    QVERIFY(H::annotations(document).front().quadPoints != original.quadPoints);
+    QCOMPARE(H::statusMessage(tab), selected.arg(QStringLiteral("Esc clears the selection")));
+
+    // Esc deselects the mark, the next Esc leaves the tool (with a mark: its question 448:17473 first)
+    QTest::keyClick(canvas, Qt::Key_Escape);
+    AppToolShellFixture::settle();
+    QVERIFY(!gui->getSelectedMark().isValid());
+    QVERIFY(!gui->getClosePrompt());
+    QTest::keyClick(canvas, Qt::Key_Escape);
+    QVERIFY(AppToolShellFixture::waitFor([gui]() { return gui->getClosePrompt() && gui->getClosePrompt()->isVisible(); }));
+    fixture.closeMessageBoxes();
+}
+
+void AppToolRedactTest::escapeClearsSelectionThenTool()
+{
+    // Owner 2026-11-18: one Esc ends only the first of a drag, a mode, a selection and the tool. A mark
+    // selected on the canvas or in the list is deselected by Esc - on the canvas and in the list, as Esc
+    // of the annotations does -, the tool stays; the next Esc leaves it (with marks its question). The
+    // status text says, what Esc does, at every moment.
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
+    QPointer<PDFDocumentToolShell> shell = fixture.openTool(tab, H::TOOL_ID);
+    PDFAppToolGUIRedact* gui = H::gui(shell);
+    QVERIFY(gui);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    QVERIFY(gui->addAreaMark(0, QRectF(320, 600, 100, 60)));
+    QVERIFY(gui->addAreaMark(0, QRectF(320, 480, 100, 60)));
+    AppToolShellFixture::settle();
+    const pdf::PDFObjectReference first = H::annotations(document)[0].reference;
+    const pdf::PDFObjectReference second = H::annotations(document)[1].reference;
+    pdf::PDFAppToolRedactMarkModel* model = gui->getMarkModel();
+    const QString marked = QStringLiteral("2 areas marked on 1 page · not removed yet – the content is removed only in the redacted copy · Esc leaves the tool");
+    const QString selected = QStringLiteral("Area mark selected · drag a handle to change its size · %1");
+    const int muted = int(pdf::PDFComponentPainter::TileRowTone::Muted);
+
+    // A click on the mark on the canvas selects it; Esc deselects it everywhere, the tool stays
+    QVERIFY(pdftest::AppDocumentFixture::clickPage(tab->getView(), 0, QPointF(370, 630)));
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getSelectedMark(), first);
+    QCOMPARE(H::statusMessage(tab), selected.arg(QStringLiteral("Esc clears the selection")));
+    QWidget* canvas = H::focusCanvas(tab);
+    QVERIFY(canvas);
+    QTest::keyClick(canvas, Qt::Key_Escape);
+    AppToolShellFixture::settle();
+    QVERIFY(!gui->getSelectedMark().isValid());
+    QVERIFY(H::controller(tab)->getSelectedAnnotations().empty());
+    QVERIFY(!gui->getMarksView()->currentIndex().isValid());
+    QCOMPARE(model->index(model->getRow(first)).data(pdf::PDFComponentRoles::TileToneRole).toInt(), muted);
+    QVERIFY(shell && shell->getState() == PDFDocumentToolShell::State::Editing);
+    QCOMPARE(AppToolShellFixture::getShell(tab), shell.data());
+    QVERIFY(!gui->getClosePrompt());
+    QCOMPARE(H::statusMessage(tab), marked);
+
+    // A row of the list selects the mark on the canvas too; Esc deselects both
+    gui->getMarksView()->setCurrentIndex(model->index(model->getRow(second)));
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getSelectedMark(), second);
+    QCOMPARE(H::controller(tab)->getSelectedAnnotations(), std::vector<pdf::PDFObjectReference>({ second }));
+    canvas = H::focusCanvas(tab);
+    QVERIFY(canvas);
+    QTest::keyClick(canvas, Qt::Key_Escape);
+    AppToolShellFixture::settle();
+    QVERIFY(!gui->getSelectedMark().isValid());
+    QVERIFY(H::controller(tab)->getSelectedAnnotations().empty());
+    QVERIFY(!gui->getMarksView()->currentIndex().isValid());
+    QCOMPARE(model->index(model->getRow(second)).data(pdf::PDFComponentRoles::TileToneRole).toInt(), muted);
+    QVERIFY(!gui->getClosePrompt());
+
+    // A mode and a selection: Esc ends the mode first (the mark stays selected), then the selection
+    gui->selectMark(first);
+    AppToolShellFixture::settle();
+    gui->getAreaButton()->click();
+    AppToolShellFixture::settle();
+    QCOMPARE(H::statusMessage(tab), QStringLiteral("Area · drag a rectangle over the content · Esc ends Area"));
+    canvas = H::focusCanvas(tab);
+    QVERIFY(canvas);
+    QTest::keyClick(canvas, Qt::Key_Escape);
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getMode(), PDFAppToolGUIRedact::Mode::None);
+    QCOMPARE(gui->getSelectedMark(), first);
+    QCOMPARE(H::statusMessage(tab), selected.arg(QStringLiteral("Esc clears the selection")));
+    QTest::keyClick(canvas, Qt::Key_Escape);
+    AppToolShellFixture::settle();
+    QVERIFY(!gui->getSelectedMark().isValid());
+    QCOMPARE(H::statusMessage(tab), marked);
+    QVERIFY(!gui->getClosePrompt());
+
+    // Nothing is left to end: Esc leaves the tool (its question 448:17473 with marks)
+    QTest::keyClick(canvas, Qt::Key_Escape);
+    QVERIFY(AppToolShellFixture::waitFor([gui]() { return gui->getClosePrompt() && gui->getClosePrompt()->isVisible(); }));
+    fixture.closeMessageBoxes();
+}
+
+void AppToolRedactTest::selectedMarkStatusTexts()
+{
+    // Owner 2026-11-18: the status text names the selected mark and what can be done with it, the Esc
+    // hint at its end - a Text and a Whole page mark are removed by Delete, an area of more
+    // quadrilaterals too, an Area mark of one rectangle has its handles, a locked mark is selected only
+    {
+        AppToolShellFixture fixture;
+        pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
+        PDFDocumentToolShell* shell = fixture.openTool(tab, H::TOOL_ID);
+        PDFAppToolGUIRedact* gui = H::gui(shell);
+        QVERIFY(gui);
+        QVERIFY(gui->addTextMark(0, QPolygonF({ QPointF(72, 572), QPointF(140, 572), QPointF(72, 558), QPointF(140, 558) })));
+        QVERIFY(gui->markPages({ 1 }));
+        AppToolShellFixture::settle();
+        const std::vector<RedactAnnotationEntry> entries = H::annotations(tab->getDocument());
+        QCOMPARE(entries.size(), size_t(2));
+
+        gui->selectMark(entries[0].reference);
+        AppToolShellFixture::settle();
+        QCOMPARE(H::statusMessage(tab), QStringLiteral("Text mark selected · Delete removes it · Esc clears the selection"));
+        gui->selectMark(entries[1].reference);
+        AppToolShellFixture::settle();
+        QCOMPARE(H::statusMessage(tab), QStringLiteral("Whole page mark selected · Delete removes it · Esc clears the selection"));
+    }
+
+    {
+        AppToolShellFixture fixture;
+        pdf::PDFAppDocumentTab* tab = fixture.open(H::write(fixture.path(QStringLiteral("Foreign.pdf")), H::documentWithForeignMarks()));
+        QVERIFY(tab && AppToolShellFixture::waitFor([tab]() { return tab->getDocument() && tab->getDocument()->isReady(); }));
+        PDFDocumentToolShell* shell = fixture.openTool(tab, H::TOOL_ID);
+        PDFAppToolGUIRedact* gui = H::gui(shell);
+        QVERIFY(gui);
+        AppToolShellFixture::settle();
+
+        // /F 128 Locked (ISO 32000-2 Table 167), one rectangle, 1000 quadrilaterals
+        gui->selectMark(pdf::PDFObjectReference(10, 0));
+        AppToolShellFixture::settle();
+        QCOMPARE(H::statusMessage(tab), QStringLiteral("Locked mark selected · Esc clears the selection"));
+        gui->selectMark(pdf::PDFObjectReference(11, 0));
+        AppToolShellFixture::settle();
+        QCOMPARE(H::statusMessage(tab), QStringLiteral("Area mark selected · drag a handle to change its size · Esc clears the selection"));
+        gui->selectMark(pdf::PDFObjectReference(12, 0));
+        AppToolShellFixture::settle();
+        QCOMPARE(H::statusMessage(tab), QStringLiteral("Area mark selected · Delete removes it · Esc clears the selection"));
+    }
+}
+
+void AppToolRedactTest::canvasCaptionAbovePages()
+{
+    // Owner 2026-11-18: the caption "Page 1" over the canvas (437:10607) never lies over a page - in the
+    // dark theme its text/primary was white on the white page. The pages start below its band (page-view
+    // 1599:49014 at 64 of the canvas) at every zoom and scroll position, in both themes; the band goes
+    // with the tool
+    for (const bool isDark : { false, true })
+    {
+        const QScopeGuard guard([]() { pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light); });
+        AppToolShellFixture fixture(QSize(1440, 960));
+        pdf::PDFThemeManager::getInstance()->setScheme(isDark ? pdf::PDFThemeColors::Scheme::Dark : pdf::PDFThemeColors::Scheme::Light);
+        pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
+        QVERIFY(tab);
+        QPointer<PDFDocumentToolShell> shell = fixture.openTool(tab, H::TOOL_ID);
+        PDFAppToolGUIRedact* gui = H::gui(shell);
+        QVERIFY(gui);
+        AppToolShellFixture::settle();
+        pdf::PDFAppDocumentView* view = tab->getView();
+
+        pdf::PDFAppToolPageCaption* caption = gui->getOverlay()->getCaption();
+        QVERIFY(caption && caption->isVisible());
+        QCOMPARE(caption->getText(), QStringLiteral("Page 1"));
+        QCOMPARE(caption->geometry().topLeft(), QPoint(20, 20));
+        QCOMPARE(caption->height(), 36);
+        QCOMPARE(view->getPdfWidget()->geometry().top(), 64);
+        QString failure;
+        QVERIFY2(H::isCaptionClear(view, caption, &failure), qPrintable(failure));
+
+        for (const double zoom : { 1.0, 2.5 })
+        {
+            view->setZoom(zoom);
+            AppToolShellFixture::settle();
+            QScrollBar* scrollBar = view->getPdfWidget()->getVerticalScrollbar();
+            QVERIFY(scrollBar && scrollBar->maximum() > scrollBar->minimum());
+            for (int step = 0; step <= 16; ++step)
+            {
+                scrollBar->setValue(scrollBar->minimum() + (scrollBar->maximum() - scrollBar->minimum()) * step / 16);
+                AppToolShellFixture::settle();
+                QVERIFY2(H::isCaptionClear(view, caption, &failure), qPrintable(QStringLiteral("zoom %1, step %2: %3").arg(zoom).arg(step).arg(failure)));
+            }
+        }
+
+        // Without the tool the canvas has no band
+        QWidget* canvas = H::focusCanvas(tab);
+        QVERIFY(canvas);
+        QTest::keyClick(canvas, Qt::Key_Escape);
+        QVERIFY(AppToolShellFixture::waitFor([tab]() { return !AppToolShellFixture::getShell(tab); }));
+        AppToolShellFixture::settle();
+        QCOMPARE(view->getPdfWidget()->geometry().top(), 0);
+    }
+}
+
+void AppToolRedactTest::previewHidesMarkBorder()
+{
+    // Owner 2026-11-18: Preview result shows the copy - only the boxes in the fill (No fill = the paper),
+    // not the border /C of the marks, which the view draws in Marks. A mark of another program with a
+    // red border of 6 pt (it reaches 3 pt out of the box): 2 pt out of the box is red in Marks and the
+    // paper in the preview
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(H::write(fixture.path(QStringLiteral("Thick.pdf")), H::documentWithThickMark()));
+    QVERIFY(tab && AppToolShellFixture::waitFor([tab]() { return tab->getDocument() && tab->getDocument()->isReady(); }));
+    PDFDocumentToolShell* shell = fixture.openTool(tab, H::TOOL_ID);
+    PDFAppToolGUIRedact* gui = H::gui(shell);
+    QVERIFY(gui);
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getMarks().size(), size_t(1));
+    pdf::PDFAppDocumentView* view = tab->getView();
+    const QPointF outside(352, 625);
+    const QPointF inside(348, 625);
+    const QPointF center(325, 625);
+
+    QVERIFY2(AppToolShellFixture::waitFor([view, outside]() { return H::isReddish(H::canvasPixel(view, 0, outside)); }), qPrintable(H::canvasPixel(view, 0, outside).name()));
+
+    QTest::mouseClick(H::segment(gui, 1), Qt::LeftButton);
+    QVERIFY(gui->isPreview());
+    QVERIFY2(AppToolShellFixture::waitFor([view, center]() { return H::isNear(H::canvasPixel(view, 0, center), QColor(Qt::black)); }), qPrintable(H::canvasPixel(view, 0, center).name()));
+    QVERIFY2(H::isNear(H::canvasPixel(view, 0, outside), QColor(Qt::white)), qPrintable(H::canvasPixel(view, 0, outside).name()));
+    QVERIFY2(H::isNear(H::canvasPixel(view, 0, inside), QColor(Qt::black)), qPrintable(H::canvasPixel(view, 0, inside).name()));
+
+    // No fill: the paper also at the edge of the box
+    gui->setFill(PDFAppToolGUIRedact::Fill::None);
+    QVERIFY2(AppToolShellFixture::waitFor([view, center]() { return H::isNear(H::canvasPixel(view, 0, center), QColor(Qt::white)); }), qPrintable(H::canvasPixel(view, 0, center).name()));
+    QVERIFY2(H::isNear(H::canvasPixel(view, 0, outside), QColor(Qt::white)), qPrintable(H::canvasPixel(view, 0, outside).name()));
+    QVERIFY2(H::isNear(H::canvasPixel(view, 0, inside), QColor(Qt::white)), qPrintable(H::canvasPixel(view, 0, inside).name()));
+
+    // Marks again: the view draws the mark with its border
+    QTest::mouseClick(H::segment(gui, 0), Qt::LeftButton);
+    QVERIFY(!gui->isPreview());
+    QVERIFY2(AppToolShellFixture::waitFor([view, outside]() { return H::isReddish(H::canvasPixel(view, 0, outside)); }), qPrintable(H::canvasPixel(view, 0, outside).name()));
+}
+
+void AppToolRedactTest::undoTextOfChangedMark()
+{
+    // Review RSRFCODE L2: the undo step of a change of the engine names the mark, which changed - not
+    // the selected one. The engine removes a mark, which is not selected (Delete of the mark under the
+    // cursor): "Remove a redaction mark", with no mark selected and with another mark selected
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, H::TOOL_ID);
+    PDFAppToolGUIRedact* gui = H::gui(shell);
+    QVERIFY(gui);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppToolUndoTarget* target = tab->getView()->getToolUndoTarget();
+    QVERIFY(gui->addAreaMark(0, QRectF(320, 600, 100, 60)));
+    QVERIFY(gui->addAreaMark(0, QRectF(320, 480, 100, 60)));
+    AppToolShellFixture::settle();
+    const pdf::PDFObjectReference first = H::annotations(document)[0].reference;
+    const pdf::PDFObjectReference second = H::annotations(document)[1].reference;
+
+    gui->selectMark(pdf::PDFObjectReference());
+    AppToolShellFixture::settle();
+    std::optional<pdf::PDFModifiedDocument> removed = pdf::PDFAppAnnotationOperations::deleteAnnotations(document->getDocument(), { second });
+    QVERIFY(removed);
+    QVERIFY(gui->commitAnnotationEdit(*removed));
+    AppToolShellFixture::settle();
+    QCOMPARE(H::annotations(document).size(), size_t(1));
+    QCOMPARE(target->getUndoText(), QStringLiteral("Remove a redaction mark"));
+
+    target->undo();
+    AppToolShellFixture::settle();
+    QCOMPARE(H::annotations(document).size(), size_t(2));
+    gui->selectMark(first);
+    AppToolShellFixture::settle();
+    removed = pdf::PDFAppAnnotationOperations::deleteAnnotations(document->getDocument(), { second });
+    QVERIFY(removed);
+    QVERIFY(gui->commitAnnotationEdit(*removed));
+    AppToolShellFixture::settle();
+    QCOMPARE(H::annotations(document).size(), size_t(1));
+    QCOMPARE(H::annotations(document).front().reference, first);
+    QCOMPARE(target->getUndoText(), QStringLiteral("Remove a redaction mark"));
 }
 
 QTEST_MAIN(AppToolRedactTest)

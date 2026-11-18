@@ -155,6 +155,17 @@ public:
     /// Places the info bars over the canvas widget (after a change of its geometry)
     void layoutInfoBars();
 
+    /// A band at the top of the canvas area, which the canvas widget leaves free (owner 2026-11-18:
+    /// the caption "Page 12" of a tool lies there, never over a page - PDFAppToolPageCaption); the
+    /// band shows the canvas area (bg/track), the info bars keep their place below the toolbar. 0 =
+    /// none (the default). The function emits nothing.
+    void setCanvasTopInset(int inset);
+    int getCanvasTopInset() const { return m_canvasTopInset; }
+
+    /// The layout, whose canvas area is \p canvasArea (a child of an ancestor widget of the area),
+    /// nullptr = none
+    static PDFAppToolModeLayout* findForCanvasArea(const QWidget* canvasArea);
+
 protected:
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
 
@@ -198,6 +209,7 @@ private:
     Part m_canvasPage;
     Part m_rightPanel;
     int m_leftPanelWidth = DEFAULT_LEFT_WIDTH;
+    int m_canvasTopInset = 0;
 
     std::vector<PDFAppInfoBarRequest> m_infoBars;
     std::vector<QPointer<PDFAppInfoBar>> m_infoBarWidgets;

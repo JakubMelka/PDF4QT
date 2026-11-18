@@ -2867,6 +2867,17 @@ bool PDFAppImagesToPdfToolGUI::isConfirmEnabled() const
     return BaseClass::isConfirmEnabled() && m_list && m_list->isRunnable(1) && !m_isCropping;
 }
 
+bool PDFAppImagesToPdfToolGUI::handleEscape()
+{
+    // A drag of the box is canceled by the shell (PDFAppCropOverlay is an IPDFAppToolDragSource)
+    if (m_isCropping)
+    {
+        setCropping(false);
+        return true;
+    }
+    return false;
+}
+
 QString PDFAppImagesToPdfToolGUI::getStatusText() const
 {
     const QString title = getTool() ? getTool()->getTitle() : tr("Images to PDF");

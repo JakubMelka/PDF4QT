@@ -80,6 +80,27 @@ void PDFAppCropOverlay::setInactive(bool isInactive)
     update();
 }
 
+bool PDFAppCropOverlay::cancelDrag()
+{
+    if (m_dragPart == Part::None)
+    {
+        return false;
+    }
+
+    // The release after it chooses nothing (no drag any more)
+    m_dragPart = Part::None;
+    updateCursor(Part::None);
+    const bool isChanged = m_rect != m_dragStartRect;
+    m_rect = m_dragStartRect;
+    update();
+    if (isChanged)
+    {
+        // The last statement: a slot may delete the overlay
+        Q_EMIT rectChanged(m_rect);
+    }
+    return true;
+}
+
 QRectF PDFAppCropOverlay::bound(const QRectF& rect) const
 {
     if (m_bounds.isEmpty())

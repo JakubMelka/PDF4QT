@@ -621,6 +621,7 @@ private slots:
     void keyValueListFolder();
     void keyValueListValueWidth();
     void keyValueListRowGap();
+    void keyValueListValueColor();
     void pageRangeReview();
     void pageSelectionReview();
     void pageSelectionHugeDocument();
@@ -10906,6 +10907,56 @@ void FluentComponentsTest::keyValueListDirection()
         QVERIFY2(colorDistance(strongestInk(image, valueTrailing, surface), token(Color::TextPrimary)) < 60, rtl ? "rtl value" : "ltr value");
         QVERIFY2(isNear(strongestInk(image, valueLeading, surface), surface), rtl ? "rtl value leading" : "ltr value leading");
     }
+}
+
+void FluentComponentsTest::keyValueListValueColor()
+{
+    // Owner 2026-11-17 (Redact 437:10701 Fill): a value with a color has a round dot of 12 px (the color
+    // inside its border of 1 px) before its text, at the leading side of the value; the text keeps the
+    // trailing edge; assistive technologies read the name of the color; an invalid color removes the dot
+    pdf::PDFKeyValueList list;
+    list.addRow(QStringLiteral("Fill"), QStringLiteral("Custom"));
+    list.resize(300, 28);
+    const QColor green(0x34, 0xC7, 0x59);
+    list.setValueColor(0, green, QStringLiteral("Custom color #34C759"));
+    QCOMPARE(list.getValueColor(0), green);
+    QCOMPARE(list.accessibleDescription(), QStringLiteral("Fill: Custom color #34C759"));
+    QCOMPARE(list.getValue(0), QStringLiteral("Custom"));
+    const QColor surface = token(Color::BgSurface);
+
+    for (const Qt::LayoutDirection direction : { Qt::LeftToRight, Qt::RightToLeft })
+    {
+        list.setLayoutDirection(direction);
+        const bool rtl = direction == Qt::RightToLeft;
+        const QRect dot = list.getValueColorRect(0);
+        QCOMPARE(dot.size(), QSize(12, 12));
+        QCOMPARE(dot.top(), 8);
+
+        // The text of the value at the trailing edge (padding 10), the dot 6 before it
+        const qreal textWidth = pdf::PDFStylePainter::textWidth(QStringLiteral("Custom"), pdf::PDFThemeFonts::getFont(pdf::PDFThemeFonts::Role::SmallMedium));
+        const int expectedEdge = rtl ? 10 + qCeil(textWidth) + 6 : 300 - 10 - qCeil(textWidth) - 6;
+        QCOMPARE(rtl ? dot.left() : dot.right() + 1, expectedEdge);
+
+        const QImage image = renderWidget(&list, 1.0);
+        QVERIFY2(colorDistance(image.pixelColor(dot.center()), green) < 12, qPrintable(image.pixelColor(dot.center()).name()));
+        // The border of 1 px at the edge of the dot (border/strong), not the color
+        const QColor edge = image.pixelColor(QPoint(dot.center().x(), dot.top()));
+        QVERIFY2(colorDistance(edge, green) > 40, qPrintable(edge.name()));
+        // Nothing of the dot outside of it: the key column stays the surface there
+        QVERIFY(isNear(strongestInk(image, rtl ? QRect(dot.right() + 2, 0, 4, 28) : QRect(dot.left() - 6, 0, 4, 28), surface), surface));
+    }
+
+    list.setValueColor(0, QColor());
+    QVERIFY(list.getValueColorRect(0).isEmpty());
+    QCOMPARE(list.accessibleDescription(), QStringLiteral("Fill: Custom"));
+
+    // Review RSRFCODE L5: a new value of the row is read as it is, not by the name of the color of the
+    // former value (the dot stays, until its owner sets another color)
+    list.setValueColor(0, green, QStringLiteral("Custom color #34C759"));
+    list.setValue(0, QStringLiteral("Black"));
+    QCOMPARE(list.accessibleDescription(), QStringLiteral("Fill: Black"));
+    list.setValueColor(0, QColor(Qt::black), QStringLiteral("Black"));
+    QCOMPARE(list.accessibleDescription(), QStringLiteral("Fill: Black"));
 }
 
 void FluentComponentsTest::keyValueListRowGap()

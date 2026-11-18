@@ -24,6 +24,7 @@
 #define PDFAPPTOOLINPUTROW_H
 
 #include "pdfappglobal.h"
+#include "pdfapptooldragsource.h"
 
 #include "pdfaccenthue.h"
 #include "pdfcomponentrows.h"
@@ -58,7 +59,7 @@ class PDFTextLink;
 /// The row is a button: a click makes it current, Delete asks for its removal, Alt + Up / Down
 /// for a move; a press and a move over the distance of a drag drags it (the panel shows the
 /// place, the release moves it). Its signals are emitted last (a slot may delete the row).
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolInputRow : public PDFRowButton
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolInputRow : public PDFRowButton, public IPDFAppToolDragSource
 {
     Q_OBJECT
 
@@ -129,6 +130,10 @@ public:
 
     PDFTag* getTag() const { return m_tag.data(); }
     PDFTextLink* getLink() const { return m_link.data(); }
+
+    // IPDFAppToolDragSource: Esc during a drag of the row drops nothing (dragFinished, canceled)
+    virtual bool isToolDragActive() const override { return m_isDragging; }
+    virtual void cancelToolDrag() override;
 
     /// Height of the content (at least the tile with the paddings: a row of one line is 46)
     static int getHeight(const Content& content);

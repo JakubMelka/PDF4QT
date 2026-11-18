@@ -23,7 +23,10 @@
 #ifndef PDFAPPTOOLGUI_REDACT_H
 #define PDFAPPTOOLGUI_REDACT_H
 
+#include "pdfappannotationcontroller.h"
 #include "pdfappdeclarativetoolgui.h"
+#include "pdfapptooldragsource.h"
+#include "pdfapptoolpanelparts.h"
 #include "pdfapptoolpanelpopup.h"
 #include "pdfapptoolredactsearchpart.h"
 
@@ -93,7 +96,13 @@ public:
     Kind kind = Kind::Area;
     QRectF rectangle;           ///< /Rect in the user space of the page
     QPolygonF quadrilaterals;   ///< /QuadPoints (4 points of each quadrilateral, the order of PDF), empty = the rectangle
+    size_t quadrilateralCount = 0;  ///< The count of the quadrilaterals of /QuadPoints (also of those, which are not copied)
     QString description;        ///< The text under a Text mark (filled by the GUI), empty otherwise
+
+    /// The mark is moved and resized on the page as an annotation: an Area mark of one rectangle (its
+    /// /Rect and /QuadPoints change together, 12.5.6.23). A Text mark follows its text, a Whole page
+    /// mark the page; a mark of another program of more quadrilaterals is no rectangle.
+    bool isMovable() const { return kind == Kind::Area && quadrilateralCount <= 1; }
 
     /// The area of the mark in the user space of the page: the quadrilaterals united with
     /// Qt::WindingFill (overlapping quadrilaterals of a text of more lines, R6-7), else the rectangle
@@ -176,21 +185,22 @@ public:
 };
 
 /// The canvas of Redact Content in the view of the document (437:10393, 437:10982, 437:11317,
-/// 437:13219): the bar over the canvas (the caption "Page 308" and the segmented control Marks |
-/// Preview result, Preview Disabled without marks and while running), the input of the modes Area (a
+/// 437:13219): the caption "Page 308" over the canvas (Marks | Preview result is in the right panel,
+/// owner 2026-11-17), the input of the modes Area (a
 /// rectangle dragged on one page) and Text (a selection of the text of the page as Redact Text of the
 /// Editor, PDFTextLayout::createTextSelection) on the PDFWidget of the view before its tools
 /// (IDrawWidgetInputInterface::ToolPriority - 1), and the drawing over the pages: the rectangle or the
 /// selection being dragged, a light fill of the marks with the selected one framed (border/focus 2), the
 /// matches of the search, and in Preview result the areas filled by the fill (No fill = white paper, plan
-/// 4.5). The marks themselves are the Redact annotations drawn by the view.
+/// 4.5). The marks themselves are the Redact annotations drawn by the view; they are selected, moved,
+/// resized and deleted by the engine of the annotations (PDFAppToolGUIRedact is its filter).
 ///
-/// Ownership: the widget is the segmented control, a child of the canvas area, deleted by the shell when
-/// the tool closes; the caption is a second child of the canvas area owned by it (deleted in its
-/// destructor). It holds the PDFWidget and its proxy by QPointer and unregisters itself from both in its
-/// destructor. A finished pick is emitted from the event loop (never from inside of the dispatch of the
-/// input of the PDFWidget), Q_EMIT is the last call.
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolRedactOverlay : public QWidget, public IDocumentDrawInterface, public IDrawWidgetInputInterface
+/// Ownership: the widget is an empty child of the canvas area (no own area, transparent for the mouse),
+/// deleted by the shell when the tool closes; the caption (PDFAppToolPageCaption, the pages lie below
+/// its band) is a second child of the canvas area owned by it (deleted in its destructor). It holds the PDFWidget and its proxy by QPointer and unregisters itself
+/// from both in its destructor. A finished pick is emitted from the event loop (never from inside of the
+/// dispatch of the input of the PDFWidget), Q_EMIT is the last call.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolRedactOverlay : public QWidget, public IDocumentDrawInterface, public IDrawWidgetInputInterface, public IPDFAppToolDragSource
 {
     Q_OBJECT
 
@@ -205,11 +215,6 @@ public:
         Text
     };
 
-    /// The bar at 20, 20 of the canvas (437:10607), 36 high; the segments 104 wide (870:20145)
-    static constexpr int BAR_OFFSET = 20;
-    static constexpr int BAR_HEIGHT = 36;
-    static constexpr int SEGMENT_WIDTH = 104;
-
     /// The smallest area of a drag (points of the page): a click is no area
     static constexpr qreal MINIMUM_AREA_SIZE = 1.0;
 
@@ -219,7 +224,8 @@ public:
     void setInput(Input input);
     Input getInput() const { return m_input; }
 
-    /// The marks drawn over the pages (their paths), the selected one framed
+    /// The marks drawn over the pages (their paths); \p selectedMark is framed (only, when the engine of
+    /// the annotations shows no selection - it draws the selected mark itself)
     void setMarks(const std::vector<PDFAppToolRedactMark>& marks, PDFObjectReference selectedMark);
 
     /// The matches of the search (the outlines of their quadrilaterals), empty = none
@@ -229,19 +235,25 @@ public:
     void setPreview(bool isPreview, const QColor& fill);
     bool isPreview() const { return m_isPreview; }
 
-    /// The segment Preview result can be chosen
-    void setPreviewEnabled(bool isEnabled);
-    bool isPreviewEnabled() const;
-
-    /// The caption of the shown page
+    /// The caption of the shown page (437:10607, the pages lie below its band)
     void setPageText(const QString& text);
     QString getPageText() const;
 
-    PDFSegmentedControl* getModeControl() const { return m_modeControl.data(); }
-    PDFLabel* getCaption() const { return m_caption.data(); }
+    PDFAppToolPageCaption* getCaption() const { return m_caption.data(); }
 
     /// The rectangle being dragged in the mode Area (page space), nullopt = none
     std::optional<QRectF> getDraggedArea() const;
+
+    /// A drag of the mode Area or Text is in progress
+    bool isDragging() const;
+
+    /// Esc during a drag (the shell, IPDFAppToolDragSource): it ends the drag only, nothing is marked
+    /// (the release of the button marks nothing); the mode stays
+    void cancelDrag();
+
+    // IPDFAppToolDragSource
+    virtual bool isToolDragActive() const override { return isDragging(); }
+    virtual void cancelToolDrag() override { cancelDrag(); }
 
     // IDocumentDrawInterface
     virtual void drawPage(QPainter* painter,
@@ -276,12 +288,11 @@ Q_SIGNALS:
     /// The mode Text has found no text on the page (a scanned page, 2.6)
     void textNotFound(pdf::PDFInteger pageIndex);
 
-    /// The segment of the control has been changed by the user
-    void previewToggled(bool isPreview);
-
-protected:
-    virtual bool eventFilter(QObject* watched, QEvent* event) override;
-    virtual void changeEvent(QEvent* event) override;
+    /// A drag of Area or Text has started or ended, or (without a mode) a press, a release or Esc may
+    /// have started or ended a move / resize of a mark by the engine of the annotations (the status
+    /// text says, what Esc does now); the receiver connects it queued (it is emitted in the dispatch of
+    /// the input, before the engine handles the event)
+    void dragStateChanged();
 
 private:
     struct Pick
@@ -300,18 +311,11 @@ private:
         QPolygonF quadrilaterals;
     };
 
-    void retranslate();
-    void updatePlacement();
     void updateCanvas();
     void updateCursor(const QPointF& position);
     void finishDrag(const QPointF& position);
 
-    /// Esc during a drag (no modifier): it ends the drag only, nothing is marked
-    bool isEscapeOfDrag(const QKeyEvent* event) const;
-    void cancelDrag();
-
     void emitPick();
-    void onModeChanged(int index);
 
     /// The point of the widget in the space of the page (also outside of the page, by its matrix)
     std::optional<QPointF> mapToPage(PDFInteger pageIndex, const QPointF& position) const;
@@ -327,10 +331,8 @@ private:
 
     QPointer<PDFWidget> m_pdfWidget;
     QPointer<PDFDrawWidgetProxy> m_proxy;
-    QPointer<QWidget> m_canvasArea;
     QPointer<QWidget> m_drawWidget;
-    QPointer<PDFLabel> m_caption;               ///< Child of the canvas area, owned by the overlay
-    QPointer<PDFSegmentedControl> m_modeControl;
+    QPointer<PDFAppToolPageCaption> m_caption;  ///< Child of the canvas area, owned by the overlay
     Input m_input = Input::None;
     std::optional<QCursor> m_cursor;
     std::map<PDFInteger, std::vector<QPainterPath>> m_markPaths;
@@ -346,7 +348,6 @@ private:
     PDFTextSelection m_textSelection;
     Pick m_pick;
     bool m_isPickQueued = false;
-    bool m_isUpdatingMode = false;
 };
 
 /// The panel of the toolbar menu Fill (437:12794): the rows Black, White, Custom color…, No fill and
@@ -401,12 +402,23 @@ private:
 /// are sensitive and the GUI never writes them; the search lives in the part only and is cleared at the
 /// close of the tool).
 ///
+/// The marks on the canvas are edited as annotations (owner 2026-11-17): the GUI is the tool editing of
+/// the annotation controller of the view (IPDFAppAnnotationToolEditing). The engine of the annotations
+/// selects one mark (in sync with the row of the list both ways), shows the handles of an Area mark of one
+/// rectangle, moves it on its page by the mouse, resizes it by its handles, nudges it by the arrows (its
+/// /Rect and /QuadPoints together, 12.5.6.23) and deletes the selected mark by Delete; a Text and a Whole
+/// page mark are selected and deleted only, a locked mark is selected only (the lock badge). Each change
+/// is one commit of the tool (commitAnnotationEdit). In Preview result and while running nothing is
+/// edited. Nothing goes through the clipboard or drag and drop (R6-19: an area is sensitive).
+///
 /// Ownership: the shell owns this GUI; the model of the marks and the search part are its children; the
 /// panels and their parts are children of the widgets of the shell (QPointer here, made again after a
 /// change of the language); the overlay is the shell's (QPointer); the dialogs are new + QPointer with
-/// WA_DeleteOnClose, closed by the destructor. Every commit, every dialog and every emission is followed by
-/// a check of this GUI (a slot of the document may close the tab).
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolGUIRedact : public PDFAppDeclarativeToolGUI
+/// WA_DeleteOnClose, closed by the destructor. The annotation controller (of the view) is held by
+/// QPointer: the GUI registers itself there in createOverlay and removes itself in its destructor (the
+/// controller removes the filter from the engine in its own destructor). Every commit, every dialog and
+/// every emission is followed by a check of this GUI (a slot of the document may close the tab).
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolGUIRedact : public PDFAppDeclarativeToolGUI, public IPDFAppAnnotationToolEditing
 {
     Q_OBJECT
 
@@ -459,6 +471,10 @@ public:
     QToolButton* getFillButton() const;
     QToolButton* getKeepButton() const;
     QToolButton* getClearButton() const { return m_clearButton.data(); }
+
+    /// Marks | Preview result (segments 870:20145): the first control of the right panel (owner
+    /// 2026-11-17), Preview result Disabled without marks and while running
+    PDFSegmentedControl* getModeControl() const { return m_modeControl.data(); }
     PDFAppToolRedactFillPanel* getFillPanel() const { return m_fillPanel.data(); }
     PDFTileRow* getFillRow(Fill fill) const;
     PDFAppToolFlagsMenu* getKeepMenu() const { return m_keepMenu.data(); }
@@ -487,6 +503,9 @@ public:
     /// The marks of the document (the Redact annotations, at most PDFDocumentToolRedact::MAXIMUM_MARK_COUNT)
     const std::vector<PDFAppToolRedactMark>& getMarks() const;
     int getMarkPageCount() const;
+
+    /// The status text without its Esc hint (getStatusText adds the hint, which is true now)
+    QString getStatusTextWithoutEscape() const;
 
     /// The selected mark (the row clicked), invalid = none
     PDFObjectReference getSelectedMark() const { return m_selectedMark; }
@@ -570,9 +589,54 @@ public:
     /// openClosePrompt (448:17473)
     virtual bool askClose() override;
 
+    /// Esc: the mode Area / Text / Search… ends (owner 2026-11-17; a drag of Area / Text is canceled by
+    /// the shell before, the overlay is an IPDFAppToolDragSource); without a mode the selected mark is
+    /// deselected, on the canvas and in the list (owner 2026-11-18, as the annotations)
+    virtual bool handleEscape() override;
+
+    /// "Area", "Text", "Search" while the mode is on (the status text "Esc ends Area")
+    virtual QString getEscapeModeName() const override;
+
+    /// "Esc cancels the drag" during a move or a resize of a mark by the engine of the annotations (the
+    /// engine takes Esc itself, the shell does not see it - review RSRFUI), otherwise "Esc ends <mode>",
+    /// otherwise "Esc clears the selection" with a selected mark
+    virtual QString getEscapeModeHint() const override;
+
+    /// Esc deselects the selected mark now (no mode, a mark selected)
+    bool isSelectionClearedByEscape() const;
+
+    /// A move or a resize of a mark on the canvas by the engine of the annotations runs
+    bool isMarkDragActive() const;
+
     /// The marks are changes of the document: Undo of the tool takes them back in its order (P5 open
     /// point 3)
     virtual bool hasDocumentUndoSteps() const override;
+
+    // ------------------------------------------------------------- IPDFAppAnnotationToolEditing
+
+    /// The marks of the list (not in Preview result, not while running)
+    virtual bool isAnnotationEditable(const PDFAnnotation* annotation) const override;
+
+    /// Move and Resize of a movable mark (PDFAppToolRedactMark::isMovable), nothing else
+    virtual PDFAnnotationManipulator::Capabilities getAnnotationCapabilities(const PDFAnnotation* annotation) const override;
+
+    /// Why a Text or Whole page mark has no handles
+    virtual QString getEditHint(const PDFAnnotation* annotation) const override;
+
+    /// protect-redact-area-selected 1599:48898: the outline of the mark border/focus 2 px, the handles on
+    /// it (the one look of the selection, the engine draws it; the overlay draws the outline only when
+    /// the engine shows no selection - while running)
+    virtual SelectionOutline getSelectionOutline(const PDFAnnotation* annotation) const override;
+
+    /// Preview result shows the copy: the view does not draw the marks of the list (their /C border,
+    /// owner 2026-11-18), the overlay fills their boxes
+    virtual bool isAnnotationShown(const PDFAnnotation* annotation) const override;
+
+    /// A move, a resize, a nudge or a removal of a mark on the canvas: one commit of the tool
+    virtual bool commitAnnotationEdit(const PDFModifiedDocument& modified) override;
+
+    /// The marks are edited on the canvas now (not in Preview result, not while running)
+    bool isCanvasEditingActive() const { return !m_isPreview && !m_isRunning; }
 
 protected:
     virtual void describeToolbar(PDFAppToolPanelBuilder& builder) override;
@@ -592,6 +656,12 @@ private:
     void updateOverlay();
     void updateListHeight();
     void updateDisplayedPage();
+
+    /// The selection of the engine follows the selected mark (none in Preview result and while running)
+    void updateCanvasSelection();
+
+    /// The mark of the list by its annotation, nullptr = none
+    const PDFAppToolRedactMark* findMark(PDFObjectReference annotation) const;
 
     /// The text flows of a page (the text index of the document, when it is built, otherwise the layout
     /// of the view)
@@ -619,12 +689,14 @@ private:
     void onPagesClicked();
     void onSearchClicked();
     void onClearClicked();
+    void onModeControlChanged(int index);
+    void onCanvasSelectionChanged();
     void onFillRowClicked();
     void onFillColorSelected(const QColor& color);
     void onAreaPicked(pdf::PDFInteger pageIndex, QRectF rectangle);
     void onTextPicked(pdf::PDFInteger pageIndex, QPolygonF quadrilaterals);
     void onTextNotFound(pdf::PDFInteger pageIndex);
-    void onPreviewToggled(bool isPreview);
+    void onOverlayDragStateChanged();
     void onDisplayedPageChanged();
     void onMarkRowChanged(const QModelIndex& current);
     void onMarkActionTriggered(const QModelIndex& index, int action);
@@ -650,6 +722,8 @@ private:
     QPointer<PDFAppToolRedactMarkModel> m_markModel;    ///< Child of the GUI
     QPointer<PDFAppToolRedactSearchPart> m_searchPart;  ///< Child of the GUI
     QPointer<PDFAppToolRedactOverlay> m_overlay;        ///< The shell's
+    QPointer<PDFAppAnnotationController> m_annotationController;   ///< Of the view; this GUI is its tool editing
+    std::map<PDFObjectReference, size_t> m_markIndices; ///< The index of each mark of getMarks (the filter)
     bool m_isViewConnected = false;
 
     QPointer<QToolButton> m_areaButton;
@@ -673,6 +747,7 @@ private:
     QPointer<PDFAppToolCallout> m_noTextCallout;
 
     QPointer<PDFAppToolPanelHeader> m_rightHeader;
+    QPointer<PDFSegmentedControl> m_modeControl;
     QPointer<PDFAppToolCallout> m_marksCallout;
     QPointer<PDFKeyValueList> m_summaryRows;
     QPointer<PDFAppToolCallout> m_pagesOnlyCallout;

@@ -115,6 +115,49 @@ struct PDF4QTLIBWIDGETSSHARED_EXPORT PDFAnnotationMenuRequest
     bool isModificationAllowed = false;
 };
 
+/// Restriction of the editing of the annotations on the page (PDFWidgetAnnotationManager::setEditFilter):
+/// an open tool of the application lets the user edit only its own annotations (the marks of Redact
+/// Content). With a filter, only the annotations, which the filter accepts, are selected (one at a time),
+/// deleted and changed; each one gets only the operations, which the filter leaves it. A selection is moved
+/// on its page by the mouse (no drag and drop to another page or document) and no annotation leaves or
+/// enters the document through the clipboard or by drag and drop. The changes are emitted by
+/// documentModified as always. The filter is called in the GUI thread only.
+class PDF4QTLIBWIDGETSSHARED_EXPORT IAnnotationEditFilter
+{
+public:
+    virtual ~IAnnotationEditFilter() = default;
+
+    /// The annotation can be selected and deleted by the user (the locks of the annotation and the
+    /// permissions of the document are checked by the manager besides)
+    virtual bool isAnnotationEditable(const PDFAnnotation* annotation) const = 0;
+
+    /// The operations of the annotation, which the filter leaves (a mask of the capabilities of the
+    /// manager); NoCapability = the annotation is selected and deleted only
+    virtual PDFAnnotationManipulator::Capabilities getAnnotationCapabilities(const PDFAnnotation* annotation) const = 0;
+
+    /// The explanation of an annotation, which cannot be moved (its tooltip, when it is selected);
+    /// empty = the explanation of the manager
+    virtual QString getEditHint(const PDFAnnotation* annotation) const = 0;
+
+    /// The look of a selected annotation of the filter: its outline (page coordinates) drawn by the
+    /// color and the width (pixels) instead of the selection frame of the manager; the handles lie on
+    /// the bounding box of the outline (no outset). An empty path = the selection frame of the manager.
+    struct SelectionOutline
+    {
+        QPainterPath path;
+        QColor color;
+        qreal width = 0.0;
+
+        bool isValid() const { return !path.isEmpty() && color.isValid() && width > 0.0; }
+    };
+
+    virtual SelectionOutline getSelectionOutline(const PDFAnnotation* annotation) const = 0;
+
+    /// The view draws the annotation (false: the tool of the filter shows something else in its place,
+    /// as the preview of Redact Content the fill of the copy instead of its marks). Default: true.
+    virtual bool isAnnotationShown(const PDFAnnotation* annotation) const;
+};
+
 /// Annotation manager for GUI rendering, it also manages annotations widgets
 /// for parent widget. The manager also implements the selection of annotations
 /// and the interactive editing of the selected annotations:
@@ -555,6 +598,17 @@ public:
     void setReadOnly(bool readOnly);
     bool isReadOnly() const { return m_isReadOnly; }
 
+    /// Restricts the editing to the annotations of the filter (IAnnotationEditFilter), nullptr = all
+    /// annotations. The filter is not owned: its owner removes it (nullptr) before it dies. A change
+    /// cancels a running interaction and drops the selected annotations, which the filter refuses.
+    void setEditFilter(const IAnnotationEditFilter* filter);
+    const IAnnotationEditFilter* getEditFilter() const { return m_editFilter; }
+
+    /// An interaction of the mouse runs (a move or a resize of the selection, a drag of its handle or
+    /// point, a rubber band): Esc cancels it (shortcutOverrideEvent claims the key with a filter), the
+    /// status text of the tool of the filter says so
+    bool isInteractionActive() const { return m_interaction.type != Interaction::None; }
+
     /// The manager hands its menus and dialogs to the application: instead of the QMenu and the
     /// Qt dialogs it emits menuRequested, popupRequested, propertiesRequested, geometryRequested
     /// and copyToPagesRequested. Off by default.
@@ -595,6 +649,12 @@ public:
     /// (the selection is not changed). Kind None, if no menu would be shown.
     /// \param widgetPosition Position in the widget
     PDFAnnotationMenuRequest getMenuRequest(QPoint widgetPosition) const;
+
+protected:
+    /// The view leaves out an annotation, which the filter hides (IAnnotationEditFilter::isAnnotationShown);
+    /// the filter is asked in the thread of the manager only (the GUI thread, where the view draws),
+    /// a page drawn in another thread draws every annotation
+    virtual bool isAnnotationDrawSuppressed(const PageAnnotation& annotation) const override;
 
 signals:
     void actionTriggered(const PDFAction* action);
@@ -647,7 +707,8 @@ private:
         Bottom,
         BottomLeft,
         Left,
-        Rotate
+        Rotate,
+        Move    ///< The selection is moved on its page by the mouse (setEditFilter: no drag and drop)
     };
 
     /// Layout of the selection frame in the device coordinates
@@ -986,6 +1047,14 @@ private:
     /// Starts an interaction with the handle
     bool beginHandleInteraction(const QPoint& devicePosition);
 
+    /// Starts the move of the selection of the page by the mouse (Handle::Move, setEditFilter: an
+    /// annotation of an open tool stays on its page, no drag and drop)
+    bool beginMoveInteraction(const QPoint& devicePosition, PDFInteger pageIndex);
+
+    /// The translation of the move (page coordinates) to the device position: snapped, and kept
+    /// inside of the crop box of the page by the selection, which lies inside of it
+    QTransform computeMoveTransform(const QPointF& devicePosition, Qt::KeyboardModifiers modifiers);
+
     /// Updates the preview transformation of the handle interaction
     void updateHandleInteraction(const QPoint& devicePosition, Qt::KeyboardModifiers modifiers);
 
@@ -1130,6 +1199,7 @@ private:
     bool m_isUserInterfaceDelegated = false;
     bool m_isDesignSelectionLook = false;
     bool m_isLinksSelectable = false;
+    const IAnnotationEditFilter* m_editFilter = nullptr;   ///< Not owned (setEditFilter)
     PDFObjectReference m_highlightedAnnotation;
     mutable MouseMoveCache m_mouseMoveCache;
 };

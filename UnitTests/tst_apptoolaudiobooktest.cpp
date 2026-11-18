@@ -327,6 +327,9 @@ private slots:
     void contextMenuOfTheList();
     void runningCardShowsThePage();
     void newValueAtTheAddressOfAFreedOne();
+
+    // Review RSRFUI
+    void escapeCancelsRectangleFirst();
 };
 
 void AppToolAudioBookTest::initTestCase()
@@ -684,11 +687,59 @@ void AppToolAudioBookTest::overlayItemsAndClick()
     QVERIFY(!audio->getCanvas()->getRectangleHint()->isVisible());
     QCOMPARE(int(audio->getItemModel()->getSelection().size()), 2);
 
-    // Esc cancels the mode
+    // Esc cancels the mode (owner 2026-11-17: the shortcut of the shell asks the GUI first, the tool
+    // stays open); the next Esc leaves the tool
     audio->selectByRectangleMode();
+    QVERIFY(QTest::qWaitForWindowActive(overlay->window()));
+    overlay->setFocus();
     QTest::keyClick(overlay, Qt::Key_Escape);
+    AppToolShellFixture::settle();
     QVERIFY(!overlay->isRectangleMode());
+    QVERIFY(!audio->getCanvas()->getRectangleHint()->isVisible());
     QCOMPARE(int(audio->getItemModel()->getSelection().size()), 2);
+    QVERIFY(audio->getShell() && audio->getShell()->getState() == PDFDocumentToolShell::State::Editing);
+    QVERIFY(!audio->handleEscape());
+}
+
+void AppToolAudioBookTest::escapeCancelsRectangleFirst()
+{
+    // Owner 2026-11-17: one Esc ends only the first of a drag, an input mode, the tool. A rectangle
+    // being drawn (360:13257) is dropped by the first Esc - the mode stays with its hint, the release
+    // selects nothing; the second Esc ends the mode, the tool stays open
+    using H = AudioBookGuiHelper;
+    AppToolShellFixture fixture(QSize(1440, 960));
+    PDFAppToolGUIAudioBook* audio = H::openTool(fixture);
+    QVERIFY(audio);
+    pdf::PDFAppAudioBookOverlay* overlay = audio->getOverlay();
+    QVERIFY(overlay);
+    QVERIFY(AppToolShellFixture::waitFor([overlay]() { return !overlay->getPaperRect().isEmpty(); }));
+
+    audio->selectByRectangleMode();
+    QVERIFY(QTest::qWaitForWindowActive(overlay->window()));
+    overlay->setFocus();
+    const QRect paper = overlay->getPaperRect();
+    const QPoint end = paper.bottomRight() - QPoint(1, 1);
+    QTest::mousePress(overlay, Qt::LeftButton, Qt::NoModifier, paper.topLeft() + QPoint(1, 1));
+    QMouseEvent move(QEvent::MouseMove, QPointF(end), overlay->mapToGlobal(QPointF(end)), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(overlay, &move);
+    QVERIFY(overlay->isToolDragActive());
+
+    QTest::keyClick(overlay, Qt::Key_Escape);
+    AppToolShellFixture::settle();
+    QVERIFY(!overlay->isToolDragActive());
+    QVERIFY(overlay->isRectangleMode());
+    QVERIFY(audio->getCanvas()->getRectangleHint()->isVisible());
+    QTest::mouseRelease(overlay, Qt::LeftButton, Qt::NoModifier, end);
+    AppToolShellFixture::settle();
+    QVERIFY(overlay->isRectangleMode());
+    QVERIFY(audio->getItemModel()->getSelection().empty());
+
+    QTest::keyClick(overlay, Qt::Key_Escape);
+    AppToolShellFixture::settle();
+    QVERIFY(!overlay->isRectangleMode());
+    QVERIFY(!audio->getCanvas()->getRectangleHint()->isVisible());
+    QVERIFY(audio->getItemModel()->getSelection().empty());
+    QVERIFY(audio->getShell() && audio->getShell()->getState() == PDFDocumentToolShell::State::Editing);
 }
 
 void AppToolAudioBookTest::noVoice()

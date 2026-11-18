@@ -1123,6 +1123,7 @@ PDFAppManageCanvas::PDFAppManageCanvas(QWidget* parent) :
     connect(m_pageView.data(), &PDFAppToolMergePageView::moveByRequested, this, &PDFAppManageCanvas::moveByRequested);
     connect(m_pageView.data(), &PDFAppToolMergePageView::removeRequested, this, &PDFAppManageCanvas::removeRequested);
     connect(m_pageView.data(), &PDFAppToolMergePageView::contentHeightChanged, this, &PDFAppManageCanvas::onContentHeightChanged);
+    connect(m_pageView.data(), &PDFAppToolMergePageView::dragStateChanged, this, &PDFAppManageCanvas::dragStateChanged);
     connect(m_pageView.data(), &QWidget::customContextMenuRequested, this, &PDFAppManageCanvas::onPageContextMenu);
 
     // 387:15072: the table of the items in a card and its note below
@@ -1150,6 +1151,7 @@ PDFAppManageCanvas::PDFAppManageCanvas(QWidget* parent) :
     connect(m_detailsView.data(), &PDFAppToolMergeDetailsView::moveRequested, this, &PDFAppManageCanvas::onDetailsMoveRequested);
     connect(m_detailsView.data(), &PDFAppToolMergeDetailsView::moveByRequested, this, &PDFAppManageCanvas::moveByRequested);
     connect(m_detailsView.data(), &PDFAppToolMergeDetailsView::removeRequested, this, &PDFAppManageCanvas::removeRequested);
+    connect(m_detailsView.data(), &PDFAppToolMergeDetailsView::dragStateChanged, this, &PDFAppManageCanvas::dragStateChanged);
     connect(m_detailsView.data(), &QWidget::customContextMenuRequested, this, &PDFAppManageCanvas::onDetailsContextMenu);
     m_detailsNote = PDFAppPageWidgets::createText(QString(), PDFThemeFonts::getFont(QFont::Normal, 11), 13, PDFThemeColors::TextTertiary, m_detailsPage);
     m_detailsNote->setObjectName(QStringLiteral("manageDetailsNote"));
@@ -1455,6 +1457,14 @@ void PDFAppManageCanvas::setSearchText(const QString& text)
     applyContent();
 }
 
+void PDFAppManageCanvas::clearSearch()
+{
+    setSearchText(QString());
+
+    // Last: the slot says the status
+    Q_EMIT searchChanged(QString());
+}
+
 void PDFAppManageCanvas::onSearchEdited(const QString& text)
 {
     Q_UNUSED(text);
@@ -1632,8 +1642,7 @@ bool PDFAppManageCanvas::eventFilter(QObject* watched, QEvent* event)
         QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
         if (keyEvent->key() == Qt::Key_Escape && !m_searchField->text().isEmpty())
         {
-            setSearchText(QString());
-            Q_EMIT searchChanged(QString());
+            clearSearch();
             return true;
         }
     }

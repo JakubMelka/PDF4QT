@@ -3177,6 +3177,8 @@ QWidget* PDFAppManageToolGUI::createCanvasPage(QWidget* parent)
     connect(m_canvas.data(), &PDFAppManageCanvas::removeRequested, this, &PDFAppManageToolGUI::removeSelection);
     connect(m_canvas.data(), &PDFAppManageCanvas::contextMenuRequested, this, &PDFAppManageToolGUI::onCanvasContextMenu);
     connect(m_canvas.data(), &PDFAppManageCanvas::searchChanged, this, &PDFAppManageToolGUI::onCanvasSearchChanged);
+    // Queued: the views emit it in the dispatch of the mouse input
+    connect(m_canvas.data(), &PDFAppManageCanvas::dragStateChanged, this, &PDFAppManageToolGUI::onCanvasDragStateChanged, Qt::QueuedConnection);
     connect(m_canvas.data(), &PDFAppManageCanvas::viewSwitched, this, &PDFAppManageToolGUI::onCanvasViewSwitched);
 
     // Size: Small in the bar of the preview: its panel opens below the button
@@ -3811,6 +3813,12 @@ void PDFAppManageToolGUI::onCanvasSearchChanged(const QString& text)
     updateAll();
 }
 
+void PDFAppManageToolGUI::onCanvasDragStateChanged()
+{
+    // The status text says, what Esc does now (getEscapeHint)
+    updateStatusText();
+}
+
 void PDFAppManageToolGUI::onCanvasViewSwitched(bool isDetailsShown)
 {
     m_isDetailsShown = isDetailsShown;
@@ -4049,7 +4057,8 @@ QString PDFAppManageToolGUI::getStatusText() const
     if (m_canvas && m_canvas->isFiltered())
     {
         // 387:15594
-        return tr("%1 · %2 of %3 match \"%4\" · Esc clears the search").arg(title, PDFAppLocale::formatNumber(m_canvas->getShownItemCount()), Helper::items(summary.itemCount), m_canvas->getSearchText());
+        // Owner 2026-11-17: what Esc does now ("Esc clears the search", during a drag "Esc cancels the drag")
+        return tr("%1 · %2 of %3 match \"%4\" · %5").arg(title, PDFAppLocale::formatNumber(m_canvas->getShownItemCount()), Helper::items(summary.itemCount), m_canvas->getSearchText(), getEscapeHint());
     }
     const QString output = getOutput();
     if (!isDocumentHost() && output != QLatin1String(PDFDocumentToolManage::OUTPUT_ONE_PDF))
@@ -4072,6 +4081,22 @@ QString PDFAppManageToolGUI::getStatusText() const
         parts << (selected == 1 ? tr("1 page selected") : tr("%Ln pages selected", nullptr, selected));
     }
     return parts.join(QStringLiteral(" · "));
+}
+
+bool PDFAppManageToolGUI::handleEscape()
+{
+    // 387:15594 "Esc clears the search" (getEscapeModeHint, the same condition); the tool stays
+    if (getEscapeModeHint().isEmpty())
+    {
+        return false;
+    }
+    m_canvas->clearSearch();
+    return true;
+}
+
+QString PDFAppManageToolGUI::getEscapeModeHint() const
+{
+    return m_canvas && m_canvas->isFiltered() ? tr("Esc clears the search") : QString();
 }
 
 QString PDFAppManageToolGUI::getRunningStatusText(const QString& stepText) const

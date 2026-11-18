@@ -2194,6 +2194,13 @@ void PDFAppToolGUIAudioBook::onOverlayRectangleCanceled()
     updateStatusText();
 }
 
+bool PDFAppToolGUIAudioBook::handleEscape()
+{
+    // The mode ends (its signal is queued: onOverlayRectangleCanceled hides the hint), the tool stays
+    PDFAppAudioBookOverlay* overlay = getOverlay();
+    return overlay && overlay->cancelRectangleMode();
+}
+
 void PDFAppToolGUIAudioBook::selectByRectangleMode()
 {
     if (!m_canvas || !m_canvas->getOverlay())

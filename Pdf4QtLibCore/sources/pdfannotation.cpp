@@ -1590,7 +1590,7 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
         for (const PageAnnotation& annotation : annotations.annotations)
         {
             // If annotation draw is not enabled, then skip it
-            if (!isAnnotationDrawEnabled(annotation))
+            if (!isAnnotationDrawEnabled(annotation) || isAnnotationDrawSuppressed(annotation))
             {
                 continue;
             }
@@ -1650,6 +1650,12 @@ bool PDFAnnotationManager::isAnnotationDrawEnabled(const PageAnnotation& annotat
        (m_target == Target::Print && !annotationFlags.testFlag(PDFAnnotation::Print)) || // Target is print and annotation is marked as not printed
        (m_target == Target::View && annotationFlags.testFlag(PDFAnnotation::NoView)) ||  // Target is view, and annotation is disabled for screen
         annotation.annotation->isReplyTo()); // Annotation is reply to another annotation, display just the first annotation
+}
+
+bool PDFAnnotationManager::isAnnotationDrawSuppressed(const PageAnnotation& annotation) const
+{
+    Q_UNUSED(annotation);
+    return false;
 }
 
 bool PDFAnnotationManager::isAnnotationDrawnByEditor(const PageAnnotation& annotation) const

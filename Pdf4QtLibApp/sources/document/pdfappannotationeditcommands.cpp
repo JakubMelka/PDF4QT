@@ -277,6 +277,24 @@ bool PDFAppAnnotationEditCommandHandler::isEnabled(const QString& commandId) con
         return false;
     }
 
+    // An open tool, which edits its own annotations on the canvas (Redact Content: its marks,
+    // owner 2026-11-17), deletes its selected one by Delete as the annotations do; the engine
+    // hands the change to the tool (PDFAppAnnotationController::setToolEditing)
+    if (view->isToolModeActive() && commandId == C::deleteSelection() && controller->isToolEditingAllowed())
+    {
+        // A Locked or ReadOnly one is selected only, as an annotation without a tool (the engine
+        // refuses its removal; the command does not offer it)
+        const PDFAppDocument* document = controller->getDocument();
+        for (const PDFObjectReference& reference : controller->getSelectedAnnotations())
+        {
+            if (document && PDFAppAnnotationOperations::canModifyAnnotation(document->getDocument(), reference))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // While a tool is open the actions of the annotations are off (owner decision of
     // 2026-11-01), also their properties and comments; selecting is reading
     if (view->isToolModeActive() && commandId != C::annotationSelectAll())

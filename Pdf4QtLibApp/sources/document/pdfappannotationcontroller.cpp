@@ -113,7 +113,11 @@ PDFAppAnnotationController::~PDFAppAnnotationController()
     }
     if (m_annotationManager)
     {
+        // The filter of a tool is not asked after the controller (its tool may die first); the
+        // slots of the controller go first (review RSRFCODE L7: setEditFilter may emit the selection,
+        // no slot of a controller in its destructor runs)
         m_annotationManager->disconnect(this);
+        m_annotationManager->setEditFilter(nullptr);
     }
     if (m_formManager)
     {
@@ -380,6 +384,13 @@ bool PDFAppAnnotationController::commitEngineChange(const PDFModifiedDocument& m
         return false;
     }
 
+    // An open tool edits its own annotations by the engine: the change of the engine is the
+    // change of the tool (its Undo step), not a change of the user
+    if (isFromEngine && kind == PDFAppAnnotationChangeKind::Annotation && m_toolEditing && document->areUserChangesSuspended())
+    {
+        return commitToolEdit(PDFModifiedDocument(newDocument, modified.getOptionalContentActivity(), modified.getFlags() | PDFModifiedDocument::Annotation));
+    }
+
     // The change must come from the version, which the engine shows; the document
     // refuses a locked document, a blocking operation and a stale version
     QString refusal;
@@ -457,6 +468,78 @@ bool PDFAppAnnotationController::commitEngineChange(const PDFModifiedDocument& m
 
     Q_EMIT changeCommitted(kind);
     return true;
+}
+
+bool PDFAppAnnotationController::commitToolEdit(const PDFModifiedDocument& modified)
+{
+    // The same refusals as of a change of the user, except the suspension of the user changes
+    const PDFAppDocument* document = m_document.data();
+    QString refusal;
+    if (document && document->isPagedXFA())
+    {
+        refusal = PDFAppDocument::getPagedXFARefusalText();
+    }
+    else if (document && document->isLocked())
+    {
+        refusal = tr("The document is locked. Unlock it to make changes.");
+    }
+    else if (document && document->isBlockedByOperation())
+    {
+        refusal = tr("The document cannot be changed while an operation is running.");
+    }
+    else if (!isToolEditingAllowed())
+    {
+        refusal = tr("The document does not allow changes.");
+    }
+    else if (!isEngineDocumentCurrent())
+    {
+        refusal = tr("The change cannot be made.");
+    }
+
+    if (refusal.isEmpty())
+    {
+        // The tool commits it (its slots run: the tool, this controller or the tab may go)
+        QPointer<PDFAppAnnotationController> guard(this);
+        m_isCommitting = true;
+        const bool isCommitted = m_toolEditing->commitAnnotationEdit(modified);
+        if (!guard)
+        {
+            return isCommitted;
+        }
+        m_isCommitting = false;
+        if (isCommitted)
+        {
+            Q_EMIT changeCommitted(PDFAppAnnotationChangeKind::Annotation);
+            return true;
+        }
+        refusal = tr("The change cannot be made.");
+    }
+
+    // The engine keeps the document of the model: the refused change is not shown
+    showStatusMessage(refusal);
+    Q_EMIT changeRefused(refusal);
+    return false;
+}
+
+void PDFAppAnnotationController::setToolEditing(IPDFAppAnnotationToolEditing* editing)
+{
+    if (m_toolEditing == editing)
+    {
+        return;
+    }
+
+    m_toolEditing = editing;
+    updateReadOnlyState();
+}
+
+bool PDFAppAnnotationController::isToolEditingAllowed() const
+{
+    const PDFAppDocument* document = m_document.data();
+    if (!m_toolEditing || !document || !document->isReady() || !document->areUserChangesSuspended() || document->isLocked() || document->isPagedXFA())
+    {
+        return false;
+    }
+    return PDFAppAnnotationControllerHelper::isAllowed(document->getDocument().data(), PDFAppPermissionAction::Annotate);
 }
 
 bool PDFAppAnnotationController::isEngineDocumentCurrent() const
@@ -581,9 +664,18 @@ void PDFAppAnnotationController::updateReadOnlyState()
     const bool isAnnotationEditingAllowed = this->isAnnotationEditingAllowed();
     const bool isFormFillingAllowed = this->isFormFillingAllowed();
 
-    if (m_annotationManager && m_annotationManager->isReadOnly() == isAnnotationEditingAllowed)
+    // An open tool, which edits its own annotations, restricts the engine to them (also when the
+    // document is read only: only they are selected); the filter is set before the engine may edit
+    const bool isToolMode = m_toolEditing && m_document && m_document->areUserChangesSuspended();
+    const bool isEngineEditable = isAnnotationEditingAllowed || isToolEditingAllowed();
+    if (m_annotationManager)
     {
-        m_annotationManager->setReadOnly(!isAnnotationEditingAllowed);
+        // setEditFilter may emit the selection of the engine (the slot of the controller queues it)
+        m_annotationManager->setEditFilter(isToolMode ? m_toolEditing : nullptr);
+    }
+    if (m_annotationManager && m_annotationManager->isReadOnly() == isEngineEditable)
+    {
+        m_annotationManager->setReadOnly(!isEngineEditable);
     }
 
     if (m_formManager)

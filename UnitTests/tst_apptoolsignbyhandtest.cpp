@@ -199,6 +199,9 @@ private Q_SLOTS:
 
     // Review RS6APP
     void escapeKeyFromCanvasAsks();
+    void escapeEndsElementTool();
+    void escapeCancelsElementDrag();
+    void escapeClearsSelection();
     void drawingFrozenWhileRunning();
     void unchangedStyleIsNoStep();
     void svgErrorShown();
@@ -973,6 +976,180 @@ void AppToolSignByHandTest::escapeKeyFromCanvasAsks()
     QVERIFY(dialog && dialog->isVisible());
     QCOMPARE(shell->getState(), PDFDocumentToolShell::State::Editing);
     QCOMPARE(gui->getDrawingPart()->getElementCount(), 3);
+}
+
+void AppToolSignByHandTest::escapeEndsElementTool()
+{
+    // Owner 2026-11-17: Esc with an active creation tool of the drawing ends the tool only (the button
+    // unchecked, no question, the tool stays open); the next Esc is the Esc of the tool (the question
+    // 435:10500 with a drawing)
+    AppToolShellFixture fixture(QSize(1440, 960));
+    PDFDocumentToolShell* shell = H::open(fixture);
+    PDFAppToolGUISignByHand* gui = H::gui(shell);
+    QVERIFY(gui);
+    PDFAppToolDrawingPart* part = gui->getDrawingPart();
+    part->setDrawing(H::drawing());
+    AppToolShellFixture::settle();
+    QTest::mouseClick(part->getElementButton(PDFAppToolDrawingPart::ElementKind::Dot), Qt::LeftButton);
+    AppToolShellFixture::settle();
+    QCOMPARE(part->getActiveElementKind(), PDFAppToolDrawingPart::ElementKind::Dot);
+
+    pdf::PDFWidget* widget = fixture.currentDocumentTab()->getView()->getPdfWidget();
+    widget->setFocus();
+    QVERIFY(QTest::qWaitForWindowActive(fixture.window.data()));
+    QWidget* focus = QApplication::focusWidget();
+    QVERIFY(focus);
+    QTest::keyClick(focus, Qt::Key_Escape);
+    AppToolShellFixture::settle();
+    QVERIFY(!part->getActiveElementKind().has_value());
+    QVERIFY(!part->getElementButton(PDFAppToolDrawingPart::ElementKind::Dot)->isChecked());
+    QVERIFY(!gui->getDiscardDialog());
+    QCOMPARE(shell->getState(), PDFDocumentToolShell::State::Editing);
+    QCOMPARE(part->getElementCount(), 3);
+
+    focus = QApplication::focusWidget();
+    QVERIFY(focus);
+    QTest::keyClick(focus, Qt::Key_Escape);
+    AppToolShellFixture::settle();
+    QPointer<pdf::PDFMessageBox> dialog = gui->getDiscardDialog();
+    QVERIFY(dialog && dialog->isVisible());
+    dialog->reject();
+    AppToolShellFixture::settle();
+}
+
+void AppToolSignByHandTest::escapeCancelsElementDrag()
+{
+    // Owner 2026-11-17: Esc during a drag of an element of the drawing (the scene takes the key from the
+    // shortcut of the tool) puts the element back; the tool stays open, no question
+    AppToolShellFixture fixture(QSize(1440, 960));
+    PDFDocumentToolShell* shell = H::open(fixture);
+    PDFAppToolGUISignByHand* gui = H::gui(shell);
+    QVERIFY(gui);
+    PDFAppToolDrawingPart* part = gui->getDrawingPart();
+    PDFPageDrawing::Element text;
+    text.kind = PDFPageDrawing::Kind::Text;
+    text.pageIndex = 0;
+    text.rectangle = QRectF(150, 280, 120, 30);
+    text.text = QStringLiteral("Signed");
+    text.style.penColor = QColor(Qt::black);
+    text.style.fontSize = 12.0;
+    part->setDrawing(PDFPageDrawing({ text }));
+    AppToolShellFixture::settle();
+
+    pdf::PDFAppDocumentView* view = fixture.currentDocumentTab()->getView();
+    const QPointF center(210, 295);
+    QVERIFY(H::moveAndClick(view, 0, center));
+    AppToolShellFixture::settle();
+
+    pdf::PDFWidget* widget = view->getPdfWidget();
+    widget->setFocus();
+    QVERIFY(QTest::qWaitForWindowActive(fixture.window.data()));
+    QWidget* canvas = AppToolShellFixture::canvasWidget(view);
+    bool ok = false;
+    const QPoint start = AppToolShellFixture::pageToWidget(view, 0, center, &ok);
+    QVERIFY(ok);
+    const QPoint end = start + QPoint(60, 40);
+
+    // A drag with Esc in its middle (\p isEscaped) or without it
+    auto drag = [&](bool isEscaped)
+    {
+        QMouseEvent press(QEvent::MouseButtonPress, QPointF(start), canvas->mapToGlobal(QPointF(start)), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(canvas, &press);
+        for (int i = 1; i <= 4; ++i)
+        {
+            const QPointF position = QPointF(start) + QPointF(end - start) * (i / 4.0);
+            QMouseEvent move(QEvent::MouseMove, position, canvas->mapToGlobal(position), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+            QApplication::sendEvent(canvas, &move);
+        }
+        if (isEscaped)
+        {
+            QWidget* focus = QApplication::focusWidget();
+            QTest::keyClick(focus ? focus : canvas, Qt::Key_Escape);
+            AppToolShellFixture::settle();
+        }
+        QMouseEvent release(QEvent::MouseButtonRelease, QPointF(end), canvas->mapToGlobal(QPointF(end)), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        QApplication::sendEvent(canvas, &release);
+        AppToolShellFixture::settle();
+    };
+
+    drag(true);
+    QCOMPARE(part->toDrawing().getElements().front().rectangle, text.rectangle);
+    QVERIFY(!gui->getDiscardDialog());
+    QCOMPARE(shell->getState(), PDFDocumentToolShell::State::Editing);
+
+    // The same drag without Esc moves the element (the drag above was a drag)
+    QVERIFY(H::moveAndClick(view, 0, center));
+    AppToolShellFixture::settle();
+    drag(false);
+    QVERIFY(part->toDrawing().getElements().front().rectangle != text.rectangle);
+}
+
+void AppToolSignByHandTest::escapeClearsSelection()
+{
+    // Owner 2026-11-18: one Esc ends only the first of a drag, the creation tool, the selection and the
+    // tool. With elements selected (in the scene and in the list) Esc deselects them, the drawing and
+    // the tool stay; the next Esc is the Esc of the tool (the question 435:10500). The hint of the tool
+    // (getEscapeHint) follows the same order.
+    AppToolShellFixture fixture(QSize(1440, 960));
+    PDFDocumentToolShell* shell = H::open(fixture);
+    PDFAppToolGUISignByHand* gui = H::gui(shell);
+    QVERIFY(gui);
+    PDFAppToolDrawingPart* part = gui->getDrawingPart();
+    part->setDrawing(H::drawing());
+    AppToolShellFixture::settle();
+    const std::vector<pdf::PDFInteger> ids = part->getElementIds();
+    QVERIFY(ids.size() >= 2);
+    part->selectElements({ ids[0], ids[1] });
+    AppToolShellFixture::settle();
+    QCOMPARE(part->getSelectedElements().size(), size_t(2));
+    QCOMPARE(gui->getEscapeHint(), QStringLiteral("Esc clears the selection"));
+
+    // A creation tool with a selection: the tool first
+    QTest::mouseClick(part->getElementButton(PDFAppToolDrawingPart::ElementKind::Dot), Qt::LeftButton);
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getEscapeHint(), QStringLiteral("Esc ends Dot"));
+    pdf::PDFWidget* widget = fixture.currentDocumentTab()->getView()->getPdfWidget();
+    widget->setFocus();
+    QVERIFY(QTest::qWaitForWindowActive(fixture.window.data()));
+    QWidget* focus = QApplication::focusWidget();
+    QVERIFY(focus);
+    QTest::keyClick(focus, Qt::Key_Escape);
+    AppToolShellFixture::settle();
+    QVERIFY(!part->getActiveElementKind().has_value());
+
+    // Elements selected (also after the tool ended): Esc deselects them in the scene and in the list
+    part->selectElements({ ids[0], ids[1] });
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getEscapeHint(), QStringLiteral("Esc clears the selection"));
+    int checkedRows = 0;
+    for (const QPointer<pdf::PDFTileRow>& row : part->getElementList()->getRows())
+    {
+        checkedRows += row && row->isChecked() ? 1 : 0;
+    }
+    QCOMPARE(checkedRows, 2);
+    focus = QApplication::focusWidget();
+    QVERIFY(focus);
+    QTest::keyClick(focus, Qt::Key_Escape);
+    AppToolShellFixture::settle();
+    QVERIFY(part->getSelectedElements().empty());
+    for (const QPointer<pdf::PDFTileRow>& row : part->getElementList()->getRows())
+    {
+        QVERIFY(row && !row->isChecked());
+    }
+    QVERIFY(!gui->getDiscardDialog());
+    QCOMPARE(shell->getState(), PDFDocumentToolShell::State::Editing);
+    QCOMPARE(part->getElementCount(), 3);
+    QCOMPARE(gui->getEscapeHint(), QStringLiteral("Esc leaves the tool"));
+
+    // Nothing to end: the Esc of the tool (its question with a drawing)
+    focus = QApplication::focusWidget();
+    QVERIFY(focus);
+    QTest::keyClick(focus, Qt::Key_Escape);
+    AppToolShellFixture::settle();
+    QPointer<pdf::PDFMessageBox> dialog = gui->getDiscardDialog();
+    QVERIFY(dialog && dialog->isVisible());
+    dialog->reject();
+    AppToolShellFixture::settle();
 }
 
 void AppToolSignByHandTest::drawingFrozenWhileRunning()

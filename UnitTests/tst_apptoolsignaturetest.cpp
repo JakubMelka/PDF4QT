@@ -435,6 +435,9 @@ private Q_SLOTS:
     void authorityTrust_data();
     void authorityTrust();
     void cardClaimedDate();
+
+    // Owner 2026-11-18: Esc clears the selection of the drawing before it leaves the tool
+    void escapeClearsDrawingSelection();
 };
 
 void AppToolSignatureTest::initTestCase()
@@ -1693,6 +1696,40 @@ void AppToolSignatureTest::cardClaimedDate()
     Result timestamped = claimed;
     timestamped.setTimestampDate(date.addSecs(60));
     QCOMPARE(signedOn(timestamped), shown + QStringLiteral(" · claimed by the signer"));
+}
+
+void AppToolSignatureTest::escapeClearsDrawingSelection()
+{
+    // Owner 2026-11-18: the Esc of the tool (PDFDocumentToolGUI::handleEscape) ends the creation tool
+    // of the appearance first, then it deselects the selected elements (in the scene and in the list);
+    // only then the shell leaves the tool. The hint follows the same order.
+    AppTestCertificateFolders folders;
+    AppToolShellFixture fixture(QSize(1440, 960));
+    PDFDocumentToolShell* shell = H::open(fixture, Tool::Mode::Sign);
+    PDFAppToolGUISignature* gui = H::gui(shell);
+    QVERIFY(gui);
+    pdf::PDFAppToolDrawingPart* part = gui->getDrawingPart();
+    QVERIFY(part);
+    pdf::PDFPageDrawing::Element text;
+    text.kind = pdf::PDFPageDrawing::Kind::Text;
+    text.rectangle = QRectF(100, 100, 90, 18);
+    text.text = QStringLiteral("Jane Novak");
+    part->setDrawing(pdf::PDFPageDrawing({ text }));
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getEscapeHint(), QStringLiteral("Esc leaves the tool"));
+    QVERIFY(!gui->handleEscape());
+
+    part->selectElements({ part->getElementIds().front() });
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getEscapeHint(), QStringLiteral("Esc clears the selection"));
+    QVERIFY(gui->handleEscape());
+    AppToolShellFixture::settle();
+    QVERIFY(part->getSelectedElements().empty());
+    QVERIFY(!part->getElementList()->getRows().front()->isChecked());
+    QCOMPARE(part->getElementCount(), 1);
+    QCOMPARE(gui->getEscapeHint(), QStringLiteral("Esc leaves the tool"));
+    QVERIFY(!gui->handleEscape());
+    QCOMPARE(shell->getState(), PDFDocumentToolShell::State::Editing);
 }
 
 QTEST_MAIN(AppToolSignatureTest)

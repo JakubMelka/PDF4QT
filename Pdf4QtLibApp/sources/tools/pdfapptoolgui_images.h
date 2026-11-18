@@ -415,6 +415,11 @@ public:
     virtual QString getConfirmIconName() const override;
     virtual bool isConfirmEnabled() const override;
     virtual QString getStatusText() const override;
+
+    /// Esc (owner 2026-11-17): the crop mode ends without Apply Crop (336:3159); the tool stays (a drag
+    /// of the box is canceled by the shell before)
+    virtual bool handleEscape() override;
+
     virtual QString getRunningStatusText(const QString& stepText) const override;
     virtual QString getRunningCardTitle(int percentage, const QString& stepText) const override;
     virtual void fillResultInput(PDFAppToolResultInput* input) const override;

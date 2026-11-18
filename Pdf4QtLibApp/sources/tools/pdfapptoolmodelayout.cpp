@@ -44,6 +44,23 @@ namespace pdf
 // The left panel of a tool starts with the width of the sidebar (sidebar-left 291:1030)
 static_assert(PDFAppToolModeLayout::DEFAULT_LEFT_WIDTH == PDFAppDocumentSidebar::DEFAULT_WIDTH);
 
+/// The stack of the canvas area: QStackedLayout gives its widget the whole rectangle of the area, this
+/// one keeps its contents margins free (the band of a page caption, PDFAppToolModeLayout::setCanvasTopInset)
+class PDFAppToolCanvasStackedLayout : public QStackedLayout
+{
+public:
+    explicit PDFAppToolCanvasStackedLayout(QWidget* parent) :
+        QStackedLayout(parent)
+    {
+
+    }
+
+    virtual void setGeometry(const QRect& rect) override
+    {
+        QStackedLayout::setGeometry(rect.marginsRemoved(contentsMargins()));
+    }
+};
+
 PDFAppToolModeLayout::PDFAppToolModeLayout(QWidget* host, QBoxLayout* hostLayout) :
     BaseClass(host),
     m_host(host)
@@ -74,7 +91,7 @@ PDFAppToolModeLayout::PDFAppToolModeLayout(QWidget* host, QBoxLayout* hostLayout
     m_canvasArea = new QWidget(m_splitter);
     m_canvasArea->setObjectName(QStringLiteral("canvasArea"));
     m_canvasArea->installEventFilter(this);
-    m_canvasLayout = new QStackedLayout(m_canvasArea);
+    m_canvasLayout = new PDFAppToolCanvasStackedLayout(m_canvasArea);
     m_canvasLayout->setContentsMargins(0, 0, 0, 0);
     m_splitter->addWidget(m_canvasArea);
 }
@@ -404,8 +421,9 @@ void PDFAppToolModeLayout::layoutInfoBars()
         return;
     }
 
-    // Top centered over the canvas, 12 px below the toolbar, 8 px apart (1028:24277)
-    const QRect area = canvas->geometry();
+    // Top centered over the canvas, 12 px below the toolbar, 8 px apart (1028:24277); the band of a
+    // page caption above the canvas widget is a part of the canvas (setCanvasTopInset)
+    const QRect area = canvas->geometry().adjusted(0, -m_canvasTopInset, 0, 0);
     const QMargins shadow = PDFAppInfoBar::getShadowMargins();
     const int maximumCardWidth = qMax(0, area.width() - 2 * INFO_BAR_TOP_GAP);
     int cardTop = area.top() + INFO_BAR_TOP_GAP;
@@ -423,6 +441,39 @@ void PDFAppToolModeLayout::layoutInfoBars()
         infoBar->raise();
         cardTop += PDFAppInfoBar::CARD_HEIGHT + INFO_BAR_GAP;
     }
+}
+
+void PDFAppToolModeLayout::setCanvasTopInset(int inset)
+{
+    inset = qMax(0, inset);
+    if (m_canvasTopInset == inset)
+    {
+        return;
+    }
+
+    m_canvasTopInset = inset;
+    if (m_canvasLayout)
+    {
+        // The canvas widget (the PDFWidget of the view, a canvas page) lies below the band
+        m_canvasLayout->setContentsMargins(0, inset, 0, 0);
+    }
+    layoutInfoBars();
+}
+
+PDFAppToolModeLayout* PDFAppToolModeLayout::findForCanvasArea(const QWidget* canvasArea)
+{
+    // The layout is a child of its host, an ancestor of the canvas area
+    for (const QWidget* widget = canvasArea ? canvasArea->parentWidget() : nullptr; widget; widget = widget->parentWidget())
+    {
+        for (PDFAppToolModeLayout* layout : widget->findChildren<PDFAppToolModeLayout*>(Qt::FindDirectChildrenOnly))
+        {
+            if (layout->getCanvasArea() == canvasArea)
+            {
+                return layout;
+            }
+        }
+    }
+    return nullptr;
 }
 
 bool PDFAppToolModeLayout::eventFilter(QObject* watched, QEvent* event)

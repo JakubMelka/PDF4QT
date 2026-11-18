@@ -24,6 +24,7 @@
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentcards.h"
 #include "pdfstylepainter.h"
+#include "pdfstylepainterguard.h"
 #include "pdfthemefonts.h"
 #include "pdfthemeiconengine.h"
 #include "pdfthememanager.h"
@@ -327,7 +328,9 @@ void PDFKeyValueList::setValue(int index, const QString& value)
 {
     if (index >= 0 && index < getRowCount() && m_rows[index].value != value)
     {
+        // The text read by assistive technologies described the former value (setValueColor)
         m_rows[index].value = value;
+        m_rows[index].accessibleValue.clear();
         updateDescription();
         update();
     }
@@ -367,13 +370,65 @@ PDFComponentPainter::TextKind PDFKeyValueList::getValueKind(int index) const
     return index >= 0 && index < getRowCount() ? m_rows[index].valueKind : PDFComponentPainter::TextKind::Data;
 }
 
+void PDFKeyValueList::setValueColor(int index, const QColor& color, const QString& accessibleValue)
+{
+    if (index < 0 || index >= getRowCount())
+    {
+        return;
+    }
+
+    Row& row = m_rows[index];
+    const QColor newColor = color.isValid() ? color : QColor();
+    const QString newAccessibleValue = newColor.isValid() ? accessibleValue : QString();
+    if (row.valueColor != newColor || row.accessibleValue != newAccessibleValue)
+    {
+        const bool isWidthChanged = row.valueColor.isValid() != newColor.isValid();
+        row.valueColor = newColor;
+        row.accessibleValue = newAccessibleValue;
+        updateDescription();
+        if (isWidthChanged)
+        {
+            updateGeometry();
+        }
+        update();
+    }
+}
+
+QColor PDFKeyValueList::getValueColor(int index) const
+{
+    return index >= 0 && index < getRowCount() ? m_rows[index].valueColor : QColor();
+}
+
+int PDFKeyValueList::getValueColorWidth(const Row& row)
+{
+    return row.valueColor.isValid() ? VALUE_COLOR_SIZE + VALUE_COLOR_GAP : 0;
+}
+
+QRect PDFKeyValueList::getValueColorRect(int index) const
+{
+    if (index < 0 || index >= getRowCount() || !m_rows[index].valueColor.isValid())
+    {
+        return QRect();
+    }
+
+    // The swatch lies before the text of the value (the text keeps the trailing edge of the row)
+    const QRect inner = getRowRect(index).adjusted(PDFKeyValueListHelper::PADDING, 0, -PDFKeyValueListHelper::PADDING, 0);
+    const int valueWidth = qMax(0, PDFKeyValueListHelper::getValueWidth(m_rows[index].key, inner.width()) - getValueColorWidth(m_rows[index]));
+    const QString value = PDFComponentPainter::elidedTextOfKind(m_rows[index].value, PDFKeyValueListHelper::getValueFont(), valueWidth, m_rows[index].valueKind);
+    const int textWidth = qMin(valueWidth, qCeil(PDFStylePainter::textWidth(value, PDFKeyValueListHelper::getValueFont())));
+    const int right = inner.right() + 1 - textWidth - VALUE_COLOR_GAP;
+    const QRect rect(right - VALUE_COLOR_SIZE, inner.top() + (inner.height() - VALUE_COLOR_SIZE) / 2, VALUE_COLOR_SIZE, VALUE_COLOR_SIZE);
+    return QStyle::visualRect(layoutDirection(), inner, rect);
+}
+
 void PDFKeyValueList::updateDescription()
 {
-    // The rows are only drawn, assistive technologies read them as the description
+    // The rows are only drawn, assistive technologies read them as the description (a value with a
+    // color reads the name of the color)
     QStringList lines;
     for (const Row& row : m_rows)
     {
-        lines << QStringLiteral("%1: %2").arg(row.key, row.value);
+        lines << QStringLiteral("%1: %2").arg(row.key, row.accessibleValue.isEmpty() ? row.value : row.accessibleValue);
     }
     setAccessibleDescription(lines.join(QLatin1Char('\n')));
 }
@@ -437,7 +492,7 @@ QSize PDFKeyValueList::sizeHint() const
     qreal valueWidth = PDFKeyValueListHelper::MIN_VALUE_WIDTH;
     for (const Row& row : m_rows)
     {
-        valueWidth = qMax(valueWidth, PDFStylePainter::textWidth(row.value, PDFKeyValueListHelper::getValueFont()));
+        valueWidth = qMax(valueWidth, PDFStylePainter::textWidth(row.value, PDFKeyValueListHelper::getValueFont()) + getValueColorWidth(row));
     }
 
     const QMargins margins = contentsMargins();
@@ -477,12 +532,27 @@ void PDFKeyValueList::paintEvent(QPaintEvent* event)
 
         // A short key leaves the rest of its column to a long value ("804.2 kB → 41.5 kB"
         // beside "Images (1)" in a panel of 287 px): the value keeps the trailing edge
-        const int valueWidth = PDFKeyValueListHelper::getValueWidth(m_rows[i].key, inner.width());
+        // A value color takes its swatch and the gap from the width of the text
+        const int valueWidth = qMax(0, PDFKeyValueListHelper::getValueWidth(m_rows[i].key, inner.width()) - getValueColorWidth(m_rows[i]));
         const QRect valueRect(inner.right() + 1 - valueWidth, inner.top(), valueWidth, inner.height());
 
         painter.setFont(keyFont);
         painter.setPen(PDFStylePainter::color(keyColor));
         painter.drawText(QStyle::visualRect(layoutDirection(), inner, keyRect), Qt::AlignVCenter | leading | Qt::TextWordWrap, m_rows[i].key);
+
+        // The dot of the color (the circle of the color of the Color swatch 206:805: the color with its
+        // border of 1 px, as the dots of the color pickers): the color is a value, a disabled list keeps it
+        const QRect colorRect = getValueColorRect(i);
+        if (!colorRect.isEmpty())
+        {
+            const PDFStylePainterGuard guard(&painter);
+            painter.setRenderHint(QPainter::Antialiasing, true);
+            const QColor borderColor = PDFStylePainter::color(isEnabled() ? PDFThemeColors::BorderStrong : PDFThemeColors::BorderDefault);
+            const QRectF dot(colorRect);
+            PDFStylePainter::fillEllipse(&painter, dot, borderColor);
+            PDFStylePainter::fillEllipse(&painter, dot.adjusted(1.0, 1.0, -1.0, -1.0), m_rows[i].valueColor);
+            PDFStylePainter::strokeEllipseInside(&painter, dot, borderColor, 1.0);
+        }
 
         // The value is data: its base direction is the one of the whole value
         // (components.md 6.6), elided as the other components (no space before the
@@ -505,7 +575,7 @@ bool PDFKeyValueList::event(QEvent* event)
         if (index >= 0)
         {
             const QRect inner = getRowRect(index).adjusted(PDFKeyValueListHelper::PADDING, 0, -PDFKeyValueListHelper::PADDING, 0);
-            const qreal valueWidth = PDFKeyValueListHelper::getValueWidth(m_rows[index].key, inner.width());
+            const qreal valueWidth = PDFKeyValueListHelper::getValueWidth(m_rows[index].key, inner.width()) - getValueColorWidth(m_rows[index]);
             if (PDFStylePainter::textWidth(m_rows[index].value, PDFKeyValueListHelper::getValueFont()) > valueWidth)
             {
                 QToolTip::showText(helpEvent->globalPos(), m_rows[index].value, this, getRowRect(index));

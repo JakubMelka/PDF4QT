@@ -380,6 +380,16 @@ void PDFAppToolGUISignByHand::onDiscardClicked()
     }
 }
 
+bool PDFAppToolGUISignByHand::handleEscape()
+{
+    return m_drawingPart && (m_drawingPart->endActiveElement() || m_drawingPart->clearSelection());
+}
+
+QString PDFAppToolGUISignByHand::getEscapeModeHint() const
+{
+    return m_drawingPart ? m_drawingPart->getEscapeHint() : QString();
+}
+
 bool PDFAppToolGUISignByHand::askClose()
 {
     return askDiscard();

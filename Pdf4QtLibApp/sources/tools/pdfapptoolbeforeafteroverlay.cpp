@@ -624,10 +624,24 @@ void PDFAppToolBeforeAfterOverlay::mousePressEvent(QMouseEvent* event)
     if (event->button() == Qt::LeftButton)
     {
         m_isDragging = true;
+        m_dragStartFraction = m_lineFraction;
         event->accept();
         return;
     }
     BaseClass::mousePressEvent(event);
+}
+
+void PDFAppToolBeforeAfterOverlay::cancelToolDrag()
+{
+    // Esc of the tool during a drag: the line returns to its place at the press, the release moves it no more
+    if (!m_isDragging)
+    {
+        return;
+    }
+    m_isDragging = false;
+    m_lineFraction = m_dragStartFraction;
+    updatePlacement();
+    updateCanvas();
 }
 
 void PDFAppToolBeforeAfterOverlay::mouseMoveEvent(QMouseEvent* event)

@@ -47,6 +47,7 @@
 #include "pdfappmarkupbar.h"
 #include "pdfappoutlineeditor.h"
 #include "pdfappsearchwidgets.h"
+#include "pdfapptooldragsource.h"
 #include "pdfapptoolundotarget.h"
 #include "pdfappundostack.h"
 #include "pdfappviewstate.h"
@@ -119,6 +120,41 @@ public:
     int undoCalls = 0;
     int redoCalls = 0;
     std::function<void()> onUndo;
+};
+
+/// A tool of the test, which edits the annotations of the canvas by the engine (as Redact Content its
+/// marks, PDFAppAnnotationController::setToolEditing): every annotation, moved and resized; a change of
+/// the engine is counted and refused (the document stays)
+class ToolEditingOfTest : public pdf::IPDFAppAnnotationToolEditing
+{
+public:
+    virtual bool isAnnotationEditable(const pdf::PDFAnnotation* annotation) const override { return annotation != nullptr; }
+    virtual pdf::PDFAnnotationManipulator::Capabilities getAnnotationCapabilities(const pdf::PDFAnnotation*) const override
+    {
+        return pdf::PDFAnnotationManipulator::Capabilities(pdf::PDFAnnotationManipulator::Move | pdf::PDFAnnotationManipulator::Resize);
+    }
+    virtual QString getEditHint(const pdf::PDFAnnotation*) const override { return QString(); }
+    virtual SelectionOutline getSelectionOutline(const pdf::PDFAnnotation*) const override { return SelectionOutline(); }
+    virtual bool commitAnnotationEdit(const pdf::PDFModifiedDocument&) override
+    {
+        ++commits;
+        return false;
+    }
+
+    int commits = 0;
+};
+
+/// A widget of a tool of the test with a drag of the mouse (IPDFAppToolDragSource), active until it is
+/// canceled
+class DragSourceOfTest : public QWidget, public pdf::IPDFAppToolDragSource
+{
+public:
+    using QWidget::QWidget;
+
+    virtual bool isToolDragActive() const override { return isActive; }
+    virtual void cancelToolDrag() override { isActive = false; }
+
+    bool isActive = true;
 };
 
 /// A part of a tool of the test: a plain area filled by a token of the theme (a widget
@@ -376,6 +412,8 @@ private slots:
     void documentCommandsBlocked_data();
     void documentCommandsBlocked();
     void creationToolEnded();
+    void toolEditingKeepsLockedAnnotation();
+    void dragSourceSkipsHiddenWidgets();
     void formEditorCommitted();
     void formReadOnlyDuringMode();
     void engineChangesNothing();
@@ -1086,6 +1124,74 @@ void AppToolViewTest::engineChangesNothing()
     QVERIFY(document->getVersion() != version);
     QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), 1);
     QVERIFY(H::annotationRectangle(document, square) != rectangle);
+}
+
+void AppToolViewTest::toolEditingKeepsLockedAnnotation()
+{
+    // A tool, which edits its own annotations on the canvas (IPDFAppAnnotationToolEditing; Redact Content its
+    // marks, owner 2026-11-17: "locked: select only"), deletes the selected annotation by the command Delete;
+    // a Locked annotation (ISO 32000-2 Table 167, bit 8) is selected, but Delete is not offered for it, as
+    // for a Locked annotation without a tool (the command of a selection without a changeable annotation)
+    using H = AppToolViewTestHelper;
+    using C = pdf::PDFAppCommands;
+
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::open(fixture, pdftest::AppDocumentSamples::annotations(fixture.folder()));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppAnnotationController* controller = view->getAnnotationController();
+    const pdf::PDFObjectReference square = H::find(document, 0, QStringLiteral("square"));
+    const pdf::PDFObjectReference locked = H::find(document, 0, QStringLiteral("locked"));
+    QVERIFY(square.isValid() && locked.isValid());
+
+    ToolTestParts parts;
+    QVERIFY(view->enterToolMode(parts.get(ToolTestParts::Target)));
+    ToolEditingOfTest editing;
+    controller->setToolEditing(&editing);
+    fixture.settle();
+    QVERIFY(controller->isToolEditingAllowed());
+
+    controller->selectAnnotations({ locked });
+    fixture.settle();
+    QCOMPARE(controller->getSelectedAnnotations(), std::vector<pdf::PDFObjectReference>({ locked }));
+    QVERIFY(!view->isCommandEnabled(C::deleteSelection()));
+
+    // A changeable annotation: Delete is offered, the change of the engine goes to the tool
+    controller->selectAnnotations({ square });
+    fixture.settle();
+    QVERIFY(view->isCommandEnabled(C::deleteSelection()));
+    view->executeCommand(C::deleteSelection());
+    fixture.settle();
+    QCOMPARE(editing.commits, 1);
+
+    controller->setToolEditing(nullptr);
+    view->leaveToolMode();
+    fixture.settle();
+}
+
+void AppToolViewTest::dragSourceSkipsHiddenWidgets()
+{
+    // Review RSRFCODE L6: Esc cancels the drag of a widget of the tool, which the user sees; a drag
+    // source in a hidden widget (a page of the tool, which is not shown) is no drag of Esc, so the
+    // status text never says "Esc cancels the drag" for it and the shell does not swallow the key
+    QWidget root;
+    root.resize(300, 200);
+    DragSourceOfTest* hidden = new DragSourceOfTest(&root);
+    DragSourceOfTest* shown = new DragSourceOfTest(&root);
+    root.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&root));
+    hidden->hide();
+
+    QCOMPARE(pdf::IPDFAppToolDragSource::findActive(&root), static_cast<pdf::IPDFAppToolDragSource*>(shown));
+    shown->isActive = false;
+    QVERIFY(!pdf::IPDFAppToolDragSource::findActive(&root));
+    hidden->show();
+    QCOMPARE(pdf::IPDFAppToolDragSource::findActive(&root), static_cast<pdf::IPDFAppToolDragSource*>(hidden));
+
+    // A hidden root: none of its widgets is seen
+    root.hide();
+    QVERIFY(!pdf::IPDFAppToolDragSource::findActive(&root));
 }
 
 void AppToolViewTest::menusAndDialogsDoNotOpen()

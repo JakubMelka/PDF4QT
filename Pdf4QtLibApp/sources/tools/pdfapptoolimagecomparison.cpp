@@ -260,6 +260,7 @@ void PDFAppToolImageComparisonView::mousePressEvent(QMouseEvent* event)
     {
         m_isDragging = true;
         m_dragPosition = event->position();
+        m_dragStartCenter = m_center;
         updateCursor();
         event->accept();
         return;
@@ -279,6 +280,24 @@ void PDFAppToolImageComparisonView::mouseMoveEvent(QMouseEvent* event)
         return;
     }
     BaseClass::mouseMoveEvent(event);
+}
+
+void PDFAppToolImageComparisonView::cancelToolDrag()
+{
+    // Esc of the tool during a drag: the image returns to its place at the press (the other view of
+    // the comparison follows by centerMoved, the last call)
+    if (!m_isDragging)
+    {
+        return;
+    }
+    m_isDragging = false;
+    updateCursor();
+    if (m_center != m_dragStartCenter)
+    {
+        m_center = m_dragStartCenter;
+        update();
+        Q_EMIT centerMoved(m_center);
+    }
 }
 
 void PDFAppToolImageComparisonView::mouseReleaseEvent(QMouseEvent* event)

@@ -378,6 +378,29 @@ public:
     /// \returns true = the question is open; false = nothing to ask, the tool closes. Default: false.
     virtual bool askClose();
 
+    /// Esc of the tool (owner 2026-11-17): the shell asks the GUI, while the tool is edited, no popup
+    /// and no modal dialog is open and no widget of the tool has a drag (IPDFAppToolDragSource, those
+    /// the shell cancels itself). The GUI ends a drag of its own, which is no widget (Redact Area /
+    /// Text), or its active widget tool / input mode on the canvas (Redact Area / Text / Search, a
+    /// creation tool of a drawing, a crop mode, ...) and returns true: the tool stays open. Without
+    /// any of them it returns false and the shell leaves the tool (with its question, askClose). The
+    /// function never deletes the shell. Default: false.
+    virtual bool handleEscape();
+
+    /// The name of the active widget tool / input mode, which Esc ends (handleEscape), empty = none
+    /// (owner 2026-11-17: the status text says, what Esc does now). Default: empty.
+    virtual QString getEscapeModeName() const;
+
+    /// What Esc does now by handleEscape, empty = it does nothing there (the shell leaves the tool).
+    /// Default: "Esc ends <mode>" by getEscapeModeName; a GUI, whose Esc does another thing (Manage
+    /// Pages: "Esc clears the search"), says it here and handleEscape does it under the same condition.
+    virtual QString getEscapeModeHint() const;
+
+    /// What Esc does now, for a status text which mentions Esc (owner 2026-11-17: always true): a drag
+    /// of a widget of the tool "Esc cancels the drag", then getEscapeModeHint ("Esc ends Area"),
+    /// otherwise "Esc leaves the tool" - the order of PDFDocumentToolShell::onEscape
+    QString getEscapeHint() const;
+
     /// The Primary button of the toolbar is shown (K6.11 of step 6: Manage Certificates is an
     /// analysis without a run, 436:9423 has no button). The shell keeps the button hidden in every
     /// mode of the toolbar and Ctrl+Enter does nothing. Default: true.

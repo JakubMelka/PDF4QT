@@ -24,6 +24,7 @@
 #define PDFAPPTOOLIMAGECOMPARISON_H
 
 #include "pdfappglobal.h"
+#include "pdfapptooldragsource.h"
 
 #include "pdffluentwidgets.h"
 
@@ -48,7 +49,7 @@ namespace pdf
 /// is emitted last, only by a move of the user.
 ///
 /// Ownership: a child of its card (PDFAppToolImageComparison owns both).
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolImageComparisonView : public QWidget
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolImageComparisonView : public QWidget, public IPDFAppToolDragSource
 {
     Q_OBJECT
 
@@ -87,6 +88,10 @@ public:
     /// Moves the image by \p delta logical pixels (a positive x shows more of the right part)
     void moveBy(const QPointF& delta);
 
+    // IPDFAppToolDragSource: Esc during a drag of the image moves it back (centerMoved the last call)
+    virtual bool isToolDragActive() const override { return m_isDragging; }
+    virtual void cancelToolDrag() override;
+
 Q_SIGNALS:
     /// The user has moved the image
     void centerMoved(QPointF center);
@@ -123,6 +128,7 @@ private:
     QPointF m_center = QPointF(0.5, 0.5);
     bool m_isDragging = false;
     QPointF m_dragPosition;
+    QPointF m_dragStartCenter;          ///< The center at the press (cancelToolDrag)
     mutable QPixmap m_scaledPixmap;     ///< Cache of the scaled image
     mutable QSize m_scaledPixmapSize;   ///< Device size of the cache
 };

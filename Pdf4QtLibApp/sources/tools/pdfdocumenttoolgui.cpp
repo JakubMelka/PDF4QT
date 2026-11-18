@@ -23,6 +23,7 @@
 #include "pdfdocumenttoolgui.h"
 
 #include "pdfappdocument.h"
+#include "pdfapptooldragsource.h"
 #include "pdfapptoolhost.h"
 #include "pdfapptoolparametermodel.h"
 #include "pdfapptooltoolbar.h"
@@ -406,6 +407,38 @@ bool PDFDocumentToolGUI::isSingleOwnTab() const
 bool PDFDocumentToolGUI::askClose()
 {
     return false;
+}
+
+bool PDFDocumentToolGUI::handleEscape()
+{
+    return false;
+}
+
+QString PDFDocumentToolGUI::getEscapeModeName() const
+{
+    return QString();
+}
+
+QString PDFDocumentToolGUI::getEscapeModeHint() const
+{
+    const QString modeName = getEscapeModeName();
+    return modeName.isEmpty() ? QString() : tr("Esc ends %1").arg(modeName);
+}
+
+QString PDFDocumentToolGUI::getEscapeHint() const
+{
+    // The order of the shell: a drag of a widget, then the GUI (handleEscape), then the tool
+    const PDFAppToolHost* host = getHost();
+    if (IPDFAppToolDragSource::findActive(host ? host->getKeyWidget() : nullptr))
+    {
+        return tr("Esc cancels the drag");
+    }
+    const QString modeHint = getEscapeModeHint();
+    if (!modeHint.isEmpty())
+    {
+        return modeHint;
+    }
+    return tr("Esc leaves the tool");
 }
 
 bool PDFDocumentToolGUI::isConfirmShown() const

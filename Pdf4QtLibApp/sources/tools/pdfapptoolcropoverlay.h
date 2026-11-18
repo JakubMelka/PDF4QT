@@ -24,6 +24,7 @@
 #define PDFAPPTOOLCROPOVERLAY_H
 
 #include "pdfappglobal.h"
+#include "pdfapptooldragsource.h"
 
 #include <QPointer>
 #include <QRectF>
@@ -51,7 +52,7 @@ class PDFAppToolPageStage;
 ///  - rectChanged during a drag (no undo step), rectChosen at the end of a drag or by a key (one
 ///    undo step of the tool); both emitted last, a slot may delete the overlay. setRect never
 ///    emits. Thread: GUI only.
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppCropOverlay : public QWidget
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppCropOverlay : public QWidget, public IPDFAppToolDragSource
 {
     Q_OBJECT
 
@@ -97,6 +98,18 @@ public:
     /// The box is shown dashed and gray and cannot be changed (Remove Crop, 405:32319)
     void setInactive(bool isInactive);
     bool isInactive() const { return m_isInactive; }
+
+    /// A drag of the box or of its handle is in progress
+    bool isDragging() const { return m_dragPart != Part::None; }
+
+    /// Esc during a drag (the shell, IPDFAppToolDragSource): the box returns to its place before the
+    /// drag, nothing is chosen (rectChanged of the old box is the last call). \returns false, when no
+    /// drag was in progress
+    bool cancelDrag();
+
+    // IPDFAppToolDragSource
+    virtual bool isToolDragActive() const override { return isDragging(); }
+    virtual void cancelToolDrag() override { cancelDrag(); }
 
     /// The box and the handles in the coordinates of the overlay
     QRectF getBoxRect() const;
