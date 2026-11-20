@@ -97,10 +97,18 @@ public:
     /// --new-window: a separate instance, no forwarding, no listening
     bool isNewWindow() const { return m_newWindow; }
 
+    /// --compare <original> <revised> (plan of step 7 of phase 2, owner answer Q7.13; the old Pdf4QtDiff a.pdf
+    /// b.pdf compared at once): the two files of the comparison - absolute cleaned paths as getFiles, in the
+    /// order original, revised; empty without the option. The tab Compare opens with both inputs and starts the
+    /// comparison; the files are not opened as document tabs. Package P6 parses the option (its errors: a
+    /// missing file argument is MissingValue, a missing file FileNotFound), forwards it to the running
+    /// instance and opens the tab; the skeleton of step 7c has only this interface (always empty).
+    const QStringList& getCompareFiles() const { return m_compareFiles; }
+
     /// The files are forwarded to the running instance, which holds the name of the
     /// forwarding (decision 11): not portable, not --new-window and some files. A start
     /// without files is a new window of its own.
-    bool isForwardingAllowed() const { return !m_portable && !m_newWindow && !m_files.isEmpty(); }
+    bool isForwardingAllowed() const { return !m_portable && !m_newWindow && (!m_files.isEmpty() || !m_compareFiles.isEmpty()); }
 
     /// The instance may take the name of the forwarding, when it is free (every
     /// instance except the portable one)
@@ -120,7 +128,12 @@ private:
     void addFile(const QString& argument, const QString& workingDirectory);
     void parsePage(const QString& value, const QString& argument);
 
+    /// The absolute cleaned path of a file argument (empty for an invalid one, its error is added; a missing
+    /// file is kept with FileNotFound)
+    QString resolveFile(const QString& argument, const QString& workingDirectory);
+
     QStringList m_files;
+    QStringList m_compareFiles;
     int m_page = 0;
     bool m_portable = false;
     bool m_newWindow = false;

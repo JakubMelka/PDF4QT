@@ -71,7 +71,7 @@ The intents differ only where a profile describes them separately – typically 
 
 Most colors of ordinary documents have no profile of their own – they are plain gray, RGB or CMYK numbers. The three device profiles say what these numbers mean. Colors with an embedded ICC profile always use their own profile.
 
-The lists offer the built-in profiles of PDF4QT, the profiles installed in your system (on Linux the folders inside `/usr/share/color/icc`) and the profiles of the additional folder:
+The lists offer the built-in profiles of PDF4QT, the profiles installed in your system and the profiles of the additional folder. The installed profiles are those of the color system of Windows; on Linux the files `*.icc` and `*.icm` in `/usr/share/color/icc`, `~/.local/share/icc` (or `$XDG_DATA_HOME/icc`), `color/icc` of the data folders of the system (`/usr/local/share`, `/usr/share` or `$XDG_DATA_DIRS`), `~/.color/icc` and `/var/lib/colord/icc`; on macOS in `~/Library/ColorSync/Profiles`, `/Library/ColorSync/Profiles`, `/System/Library/ColorSync/Profiles` and `/Network/Library/ColorSync/Profiles` – each with its subfolders:
 
 - **Gray** – Gray D65, D50 or D93 (the white of daylight, of a lamp of 5000 K and of a cool blue white), each with the gamma 2.2 or linear.
 - **RGB** – sRGB (the standard of screens and of the web), HDTV (ITU-R BT.709), Adobe RGB 1998, PAL / SECAM, NTSC, Adobe Wide Gamut RGB and ProPhoto RGB.

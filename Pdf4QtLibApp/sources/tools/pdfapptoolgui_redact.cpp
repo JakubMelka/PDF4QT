@@ -3206,7 +3206,23 @@ void PDFAppToolGUIRedact::onDisplayedPageChanged()
 
 void PDFAppToolGUIRedact::onMarkRowChanged(const QModelIndex& current)
 {
-    const PDFAppToolRedactMark* mark = m_markModel ? m_markModel->getMark(current.row()) : nullptr;
+    // Qt reads the selection model after it has emitted currentChanged, and the selection of a mark runs code of the
+    // application (the canvas, the page of the view, the status text - their slots may delete the tab with the list):
+    // the mark is selected from the event loop
+    Q_UNUSED(current);
+    if (!m_isMarkRowChangeQueued)
+    {
+        m_isMarkRowChangeQueued = true;
+        QMetaObject::invokeMethod(this, &PDFAppToolGUIRedact::onQueuedMarkRowChanged, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppToolGUIRedact::onQueuedMarkRowChanged()
+{
+    // The current row of now (the list may have changed since the signal)
+    m_isMarkRowChangeQueued = false;
+    const QModelIndex current = m_marksView && m_marksView->selectionModel() ? m_marksView->selectionModel()->currentIndex() : QModelIndex();
+    const PDFAppToolRedactMark* mark = m_markModel && current.isValid() ? m_markModel->getMark(current.row()) : nullptr;
     if (mark)
     {
         selectMark(mark->annotation);

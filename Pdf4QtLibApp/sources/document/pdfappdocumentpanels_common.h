@@ -28,9 +28,12 @@
 #include "pdfglobal.h"
 #include "pdffluentwidgets.h"
 
+#include <QPersistentModelIndex>
+#include <QPointer>
 #include <QString>
 
 #include <functional>
+#include <vector>
 
 class QAbstractItemView;
 class QListView;
@@ -89,6 +92,59 @@ public:
 
     /// Paddings of the content around the rows
     void setContentPaddings(const QMargins& margins);
+};
+
+/// The signals of an item view from the event loop. Qt reads the view and its selection model after their own signals
+/// (QAbstractItemView::clicked / activated, QItemSelectionModel::currentChanged / selectionChanged); a slot, which runs
+/// code of the application (a page of the view, a navigation, a new tab, a dialog, a signal of the application), may
+/// delete the owner of the view inside of them. The relay takes the signals of the view and emits its own ones from
+/// the event loop in their order: each clicked / activated with its item (a persistent index - the signal is not
+/// emitted, when its item went meanwhile), currentChanged / selectionChanged once for more of them and without
+/// arguments (the slot reads the state of the view of then). Ownership: the relay is a child of the receiver; the view
+/// is held by QPointer (no signal after it went).
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppItemViewSignalRelay : public QObject
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QObject;
+
+public:
+    /// \param view The view (its model and its selection model are set already)
+    /// \param parent The receiver of the signals of the relay
+    explicit PDFAppItemViewSignalRelay(QAbstractItemView* view, QObject* parent);
+    virtual ~PDFAppItemViewSignalRelay() override;
+
+Q_SIGNALS:
+    void clicked(const QModelIndex& index);
+    void activated(const QModelIndex& index);
+    void currentChanged();
+    void selectionChanged();
+
+private:
+    enum class Kind
+    {
+        Clicked,
+        Activated,
+        CurrentChanged,
+        SelectionChanged
+    };
+
+    struct Pending
+    {
+        Kind kind = Kind::Clicked;
+        QPersistentModelIndex index;
+    };
+
+    void onClicked(const QModelIndex& index);
+    void onActivated(const QModelIndex& index);
+    void onCurrentChanged();
+    void onSelectionChanged();
+    void add(Kind kind, const QModelIndex& index);
+    void onQueued();
+
+    QPointer<QAbstractItemView> m_view;
+    std::vector<Pending> m_pending;
 };
 
 /// Common parts of the navigation panels (package C)

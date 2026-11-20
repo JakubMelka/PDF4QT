@@ -26,6 +26,7 @@
 #include "pdfapptoolgui_bitonal.h"
 #include "pdfapptoolgui_blank.h"
 #include "pdfapptoolgui_certificates.h"
+#include "pdfapptoolgui_compare.h"
 #include "pdfapptoolgui_compress.h"
 #include "pdfapptoolgui_encryption.h"
 #include "pdfapptoolgui_extractimages.h"
@@ -37,6 +38,7 @@
 #include "pdfapptoolgui_inkcoverage.h"
 #include "pdfapptoolgui_insert.h"
 #include "pdfapptoolgui_manage.h"
+#include "pdfapptoolgui_measure.h"
 #include "pdfapptoolgui_merge.h"
 #include "pdfapptoolgui_objectinspector.h"
 #include "pdfapptoolgui_outputpreview.h"
@@ -104,6 +106,11 @@ void PDFAppBuiltinTools::registerAll()
     PDFAppToolGUIInkCoverage::registerInkCoverageTools();           // P4: review.ink-coverage
     PDFAppToolGUIOutputPreview::registerOutputPreviewTools();       // P4: review.output-preview
     PDFAppToolGUISoftProof::registerSoftProofTools();               // P4: review.soft-proof
+
+    // Step 7c of phase 2 (plan 9.1, 9.2): each GUI package registers its tool in its own file, a tool stays
+    // unimplemented until then
+    PDFAppToolGUICompare::registerCompareTools();                   // P6: review.compare
+    PDFAppToolGUIMeasure::registerMeasureTools();                   // P7: review.measure
 }
 
 }   // namespace pdf

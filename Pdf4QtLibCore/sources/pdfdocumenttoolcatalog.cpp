@@ -223,7 +223,8 @@ static constexpr PDFDocumentToolResultKindsRow TOOL_OTHER_RESULT_KINDS[] =
 /// Inputs of a tool, which differ from the default of its input kind (K41 of the plan of step 3
 /// of phase 2: the front and the back sides of Interleave; the images of Images to PDF, whose
 /// input kind None says it opens no document; Manage Pages 1 to 1000 sources - one document is
-/// arranged by it too, plan of step 3b, 1 point 7).
+/// arranged by it too, plan of step 3b, 1 point 7; Compare the original and the revised document,
+/// plan of step 7, 4.9).
 class PDFDocumentToolInputCountRow
 {
 public:
@@ -237,6 +238,7 @@ static constexpr PDFDocumentToolInputCountRow TOOL_INPUT_COUNTS[] =
     { "pages.interleave", 2, 2 },
     { "convert.images-to-pdf", 1, PDFDocumentToolCatalog::MAXIMUM_INPUT_COUNT },
     { "pages.manage", 1, PDFDocumentToolCatalog::MAXIMUM_INPUT_COUNT },
+    { "review.compare", 2, 2 },
 };
 
 /// Tools with their own tab, which run in the tab of a document, when they are started over
@@ -280,12 +282,14 @@ static constexpr const char* TOOL_INCREMENTAL_UPDATES_OF_INPUT[] =
 };
 
 /// Tools, whose result is only a new file, the open document stays as it is (PDFDocumentToolCatalogEntry::
-/// isFileOnlyResult; tools.md 9.3 point 11, plan of step 6 of phase 2, 1 point 6, 2.1, 2.2, 2.5)
+/// isFileOnlyResult; tools.md 9.3 point 11, plan of step 6 of phase 2, 1 point 6, 2.1, 2.2, 2.5; the report PDF
+/// of Compare, output report - plan of step 7, 4.9, R7-13, 492:107143)
 static constexpr const char* TOOL_FILE_ONLY_RESULTS[] =
 {
     "protect.sign",
     "protect.timestamp",
     "protect.redact",
+    "review.compare",
 };
 
 /// Tools, whose action of MCP the user always confirms in PDF4QT, also by Allow (PDFDocumentToolCatalogEntry::
@@ -458,7 +462,11 @@ bool PDFDocumentToolCatalogEntry::isIncrementalUpdateOfInput() const
 
 bool PDFDocumentToolCatalogEntry::isFileOnlyResult() const
 {
-    return getResultKind() == PDFDocumentToolResultKind::NewDocument && PDFDocumentToolCatalogHelper::contains(TOOL_FILE_ONLY_RESULTS, getId());
+    // The new document of a tool, which gives it by its parameters (Compare output report: an analysis in the
+    // row of the catalog), is a file as well; the result dialog asks the kind of the run (NewDocument)
+    const std::vector<PDFDocumentToolResultKind> kinds = getPossibleResultKinds();
+    const bool isNewDocument = std::find(kinds.cbegin(), kinds.cend(), PDFDocumentToolResultKind::NewDocument) != kinds.cend();
+    return isNewDocument && PDFDocumentToolCatalogHelper::contains(TOOL_FILE_ONLY_RESULTS, getId());
 }
 
 bool PDFDocumentToolCatalogEntry::isAlwaysConfirmedByMcp() const

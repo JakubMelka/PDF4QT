@@ -90,6 +90,7 @@ private:
     void onNextClicked();
     void onCloseClicked();
     void onCurrentRowChanged(const QModelIndex& current, const QModelIndex& previous);
+    void onQueuedCurrentRowChanged();
     void onCurrentIndexChanged(int index);
 
     QPointer<PDFAppDocumentSearchController> m_controller;
@@ -107,6 +108,7 @@ private:
     QPointer<PDFSearchResultDelegate> m_delegate;
     QPointer<PDFLabel> m_noteLabel;
     bool m_isUpdating = false;
+    bool m_isRowChangeQueued = false;
 };
 
 }   // namespace pdf

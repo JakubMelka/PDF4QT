@@ -398,9 +398,11 @@ void AppDocumentSearchTest::search()
         QCOMPARE(second.top() - first.bottom() - 1, 2);
     }
 
-    // A click on a row makes it current
+    // A click on a row makes it current - from the event loop: the controller shows the match (the page of the view and
+    // its signals, whose slots may delete the tab), while Qt reads the selection model after its currentChanged
     panel->getListView()->setCurrentIndex(panel->getListView()->model()->index(2, 0));
-    QCOMPARE(controller->getCurrentIndex(), 2);
+    QCOMPARE(controller->getCurrentIndex(), 0);
+    QTRY_COMPARE(controller->getCurrentIndex(), 2);
     QCOMPARE(tab->getView()->getStatusBar()->getMessage(), QStringLiteral("Result 3 of 3"));
 
     // One result and no result

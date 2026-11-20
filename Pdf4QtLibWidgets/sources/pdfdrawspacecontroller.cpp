@@ -502,7 +502,11 @@ PDFDrawWidgetProxy::PDFDrawWidgetProxy(QObject* parent) :
 
 PDFDrawWidgetProxy::~PDFDrawWidgetProxy()
 {
-
+    // The compilers are children of the proxy - QObject would delete (and stop) them only after
+    // this destructor, while their threads still read the proxy (its document, font cache, CMS);
+    // they are stopped first (ASan of step 7c of phase 2: a Compare canvas deleted while compiling)
+    m_compiler->stop(true);
+    m_textLayoutCompiler->stop(true);
 }
 
 void PDFDrawWidgetProxy::setDocument(const PDFModifiedDocument& document, std::vector<PDFSignatureVerificationResult> signatureVerificationResult)

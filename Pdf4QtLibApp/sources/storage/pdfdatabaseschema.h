@@ -87,7 +87,9 @@ public:
 
     /// Tables with the triggers created by the migration of \p version (1: phase 1, 2:
     /// recent_assembly of Manage Pages, plan of step 3b of phase 2, 4.6; 3: certificate_cache of
-    /// Encrypt with Certificate, plan of step 5 of phase 2, Q5.11); empty for another one
+    /// Encrypt with Certificate, plan of step 5 of phase 2, Q5.11; 4: measure_scale_preset,
+    /// measure_scale_state and measure_document_scale of Measure, plan of step 7 of phase 2, 4.8,
+    /// Q7.4); empty for another one
     static std::vector<PDFDatabaseTableInfo> getTables(int version);
 
     /// Migrates the database of the connection to \p targetVersion inside of one
@@ -123,6 +125,7 @@ private:
     static QByteArray createVersion1();
     static QByteArray createVersion2();
     static QByteArray createVersion3();
+    static QByteArray createVersion4();
     static QByteArray createTriggers(const PDFDatabaseTableInfo& table, const char* updateColumns);
 };
 

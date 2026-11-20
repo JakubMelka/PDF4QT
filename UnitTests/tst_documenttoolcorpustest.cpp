@@ -30,6 +30,7 @@
 #include "pdfdocumentimagelist.h"
 #include "pdfdocumenttool_audiobook.h"
 #include "pdfdocumenttool_bitonal.h"
+#include "pdfdocumenttool_compare.h"
 #include "pdfdocumenttool_extractimages.h"
 #include "pdfdocumenttool_extracttext.h"
 #include "pdfdocumenttool_inkcoverage.h"
@@ -1177,6 +1178,76 @@ public:
         return input->getCatalog()->getPageCount() == 0;
     }
 
+    /// Compare of a file with itself (step 7c of phase 2, P5): no difference, every page paired with itself
+    static void checkCompareSelf(const pdf::PDFDocument* input, const pdf::PDFDocumentToolResult& result, const QVariantMap& parameters, QStringList* failures)
+    {
+        Q_UNUSED(parameters);
+        using Tool = pdf::PDFDocumentToolCompare;
+
+        const qint64 total = result.data.value(QString::fromLatin1(Tool::DATA_COUNTS)).toObject().value(QStringLiteral("total")).toInteger(-1);
+        if (!result.data.value(QString::fromLatin1(Tool::DATA_IS_SAME)).toBool() || total != 0)
+        {
+            *failures << QStringLiteral("A file compared with itself has %1 differences").arg(total);
+        }
+
+        const QJsonArray pageSequence = result.data.value(QString::fromLatin1(Tool::DATA_PAGE_SEQUENCE)).toArray();
+        if (size_t(pageSequence.size()) != input->getCatalog()->getPageCount())
+        {
+            *failures << QStringLiteral("%1 page pairs of %2 pages").arg(pageSequence.size()).arg(input->getCatalog()->getPageCount());
+        }
+        for (qsizetype i = 0; i < pageSequence.size(); ++i)
+        {
+            const QJsonObject pair = pageSequence.at(i).toObject();
+            if (pair.value(QStringLiteral("originalPage")).toInteger(-1) != i + 1 || pair.value(QStringLiteral("revisedPage")).toInteger(-1) != i + 1)
+            {
+                *failures << QStringLiteral("The page pair %1 is not the page with itself").arg(i + 1);
+                break;
+            }
+        }
+    }
+
+    /// The report of Compare of a file with itself (the view Side by Side): every page twice, no annotation added
+    static void checkCompareReport(const pdf::PDFDocument* input, const pdf::PDFDocumentToolResult& result, const QVariantMap& parameters, QStringList* failures)
+    {
+        Q_UNUSED(parameters);
+        if (result.documents.size() != 1 || result.documents.front().kind != pdf::PDFDocumentToolOutputDocument::Kind::New || result.documents.front().writtenData.isEmpty())
+        {
+            *failures << QStringLiteral("The report is not one new document with its written bytes");
+            return;
+        }
+
+        pdf::PDFDocumentReader reader(nullptr, [](bool* ok) { *ok = false; return QString(); }, false, false);
+        const pdf::PDFDocument report = reader.readFromBuffer(result.documents.front().writtenData);
+        if (reader.getReadingResult() != pdf::PDFDocumentReader::Result::OK)
+        {
+            *failures << QStringLiteral("The written report cannot be read: %1").arg(reader.getErrorMessage());
+            return;
+        }
+
+        const size_t pageCount = input->getCatalog()->getPageCount();
+        if (report.getCatalog()->getPageCount() != 2 * pageCount)
+        {
+            *failures << QStringLiteral("The report has %1 pages of %2 pairs").arg(report.getCatalog()->getPageCount()).arg(pageCount);
+            return;
+        }
+        for (size_t i = 0; i < pageCount; ++i)
+        {
+            // The polygons of Compare are the only annotations it adds: a page of the report has the
+            // annotations of its input page at most (the merger may drop some, e.g. the widgets of signatures)
+            if (report.getCatalog()->getPage(2 * i)->getAnnotations().size() > input->getCatalog()->getPage(i)->getAnnotations().size())
+            {
+                *failures << QStringLiteral("The report of a file with itself marks page %1").arg(i + 1);
+                return;
+            }
+        }
+    }
+
+    /// The report of Compare is a new document of the inputs: a page and the rule of Merge (Q7.2)
+    static bool isNotComparableToReport(const pdf::PDFDocument* input)
+    {
+        return input->getCatalog()->getPageCount() == 0 || pdf::PDFDocumentMerger::getPermission(input) != pdf::PDFDocumentMerger::Permission::Permitted;
+    }
+
     /// Document Report (plan of step 7 of phase 2, 4.4, P1b): every section of a hostile file is read (one
     /// visited set and a depth for every walk, the limited decoding), the pages of the page boxes are each
     /// page once, the fonts are on pages of the document, the HTML is well-formed XHTML
@@ -2260,6 +2331,20 @@ private:
         QVariantMap structureXml;
         structureXml.insert(QString::fromLatin1(pdf::PDFDocumentToolReport::PARAMETER_KIND), QString::fromLatin1(pdf::PDFDocumentToolReport::KIND_STRUCTURE_XML));
         rows.push_back({ pdf::PDFDocumentToolReport::TOOL_ID, "structure-xml", createReport, structureXml, CorpusLook::Exact, PromiseNone, nullptr, &ToolCorpusHelper::checkStructureXml });
+
+        // Compare (step 7c of phase 2, P5): the file with itself - no difference, and the report of the pairs
+        const auto createCompare = []() -> std::shared_ptr<const pdf::PDFDocumentTool>
+        {
+            return std::make_shared<pdf::PDFDocumentToolCompare>();
+        };
+        CorpusToolRow compareSelf{ pdf::PDFDocumentToolCompare::TOOL_ID, "self-summary", createCompare, QVariantMap(), CorpusLook::Exact, PromiseNone, nullptr, &ToolCorpusHelper::checkCompareSelf, &ToolCorpusHelper::hasNoPage };
+        compareSelf.inputCount = 2;
+        rows.push_back(compareSelf);
+        QVariantMap compareReport;
+        compareReport.insert(QString::fromLatin1(pdf::PDFDocumentToolCompare::PARAMETER_OUTPUT), QString::fromLatin1(pdf::PDFDocumentToolCompare::OUTPUT_REPORT));
+        CorpusToolRow compareSelfReport{ pdf::PDFDocumentToolCompare::TOOL_ID, "self-report", createCompare, compareReport, CorpusLook::Exact, PromiseNone, nullptr, &ToolCorpusHelper::checkCompareReport, &ToolCorpusHelper::isNotComparableToReport };
+        compareSelfReport.inputCount = 2;
+        rows.push_back(compareSelfReport);
 
         // Remove Hidden Data: the kinds, which nothing on the pages shows, keep the look exactly;
         // the invisible text keeps it too (callout of 438:12588: page content is not changed),

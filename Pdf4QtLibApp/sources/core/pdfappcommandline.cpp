@@ -63,7 +63,7 @@ QString PDFAppCommandLineError::getMessage() const
 
 QString PDFAppCommandLine::getUsage()
 {
-    return QCoreApplication::translate("pdf::PDFAppCommandLine", "Usage: PDF4QT [file...] [--page <n>] [--portable] [--new-window]");
+    return QCoreApplication::translate("pdf::PDFAppCommandLine", "Usage: PDF4QT [file...] [--page <n>] [--compare <original> <revised>] [--portable] [--new-window]");
 }
 
 void PDFAppCommandLine::addError(PDFAppCommandLineError::Kind kind, const QString& argument)
@@ -94,63 +94,8 @@ void PDFAppCommandLine::parsePage(const QString& value, const QString& argument)
 
 void PDFAppCommandLine::addFile(const QString& argument, const QString& workingDirectory)
 {
-    if (argument.isEmpty() || argument.size() > MAXIMUM_ARGUMENT_LENGTH || argument.contains(QChar(0)))
-    {
-        addError(PDFAppCommandLineError::Kind::InvalidArgument, argument);
-        return;
-    }
-
-    QString path = argument;
-    if (argument.startsWith(QLatin1String("file:"), Qt::CaseInsensitive))
-    {
-        // Desktop environments may pass URIs (Exec=... %U)
-        const QUrl url(argument);
-        if (!url.isValid() || !url.isLocalFile())
-        {
-            addError(PDFAppCommandLineError::Kind::InvalidArgument, argument);
-            return;
-        }
-        path = url.toLocalFile();
-    }
-
-    if (path.isEmpty())
-    {
-        addError(PDFAppCommandLineError::Kind::InvalidArgument, argument);
-        return;
-    }
-
-    const QDir baseDirectory(workingDirectory.isEmpty() ? QDir::currentPath() : workingDirectory);
-    const QString absolutePath = QDir::cleanPath(baseDirectory.absoluteFilePath(path));
-    if (PDFAppInstanceProtocol::isDevicePath(path) || !PDFAppInstanceProtocol::isAcceptedPath(absolutePath))
-    {
-        // Device paths of Windows (\\.\PhysicalDrive0, \\?\GLOBALROOT\...) are not documents
-        addError(PDFAppCommandLineError::Kind::InvalidArgument, argument);
-        return;
-    }
-
-    const QFileInfo fileInfo(absolutePath);
-
-    if (fileInfo.exists() && fileInfo.isDir())
-    {
-        addError(PDFAppCommandLineError::Kind::NotAFile, absolutePath);
-        return;
-    }
-
-    QString filePath = absolutePath;
-    if (fileInfo.exists())
-    {
-        const QString canonicalPath = fileInfo.canonicalFilePath();
-        if (!canonicalPath.isEmpty())
-        {
-            filePath = canonicalPath;
-        }
-    }
-    else
-    {
-        addError(PDFAppCommandLineError::Kind::FileNotFound, absolutePath);
-    }
-
-    if (m_files.contains(filePath))
+    const QString filePath = resolveFile(argument, workingDirectory);
+    if (filePath.isEmpty() || m_files.contains(filePath))
     {
         return;
     }
@@ -173,6 +118,66 @@ void PDFAppCommandLine::addFile(const QString& argument, const QString& workingD
     }
 
     m_files << filePath;
+}
+
+QString PDFAppCommandLine::resolveFile(const QString& argument, const QString& workingDirectory)
+{
+    if (argument.isEmpty() || argument.size() > MAXIMUM_ARGUMENT_LENGTH || argument.contains(QChar(0)))
+    {
+        addError(PDFAppCommandLineError::Kind::InvalidArgument, argument);
+        return QString();
+    }
+
+    QString path = argument;
+    if (argument.startsWith(QLatin1String("file:"), Qt::CaseInsensitive))
+    {
+        // Desktop environments may pass URIs (Exec=... %U)
+        const QUrl url(argument);
+        if (!url.isValid() || !url.isLocalFile())
+        {
+            addError(PDFAppCommandLineError::Kind::InvalidArgument, argument);
+            return QString();
+        }
+        path = url.toLocalFile();
+    }
+
+    if (path.isEmpty())
+    {
+        addError(PDFAppCommandLineError::Kind::InvalidArgument, argument);
+        return QString();
+    }
+
+    const QDir baseDirectory(workingDirectory.isEmpty() ? QDir::currentPath() : workingDirectory);
+    const QString absolutePath = QDir::cleanPath(baseDirectory.absoluteFilePath(path));
+    if (PDFAppInstanceProtocol::isDevicePath(path) || !PDFAppInstanceProtocol::isAcceptedPath(absolutePath))
+    {
+        // Device paths of Windows (\\.\PhysicalDrive0, \\?\GLOBALROOT\...) are not documents
+        addError(PDFAppCommandLineError::Kind::InvalidArgument, argument);
+        return QString();
+    }
+
+    const QFileInfo fileInfo(absolutePath);
+
+    if (fileInfo.exists() && fileInfo.isDir())
+    {
+        addError(PDFAppCommandLineError::Kind::NotAFile, absolutePath);
+        return QString();
+    }
+
+    QString filePath = absolutePath;
+    if (fileInfo.exists())
+    {
+        const QString canonicalPath = fileInfo.canonicalFilePath();
+        if (!canonicalPath.isEmpty())
+        {
+            filePath = canonicalPath;
+        }
+    }
+    else
+    {
+        addError(PDFAppCommandLineError::Kind::FileNotFound, absolutePath);
+    }
+    return filePath;
 }
 
 PDFAppCommandLine PDFAppCommandLine::parse(const QStringList& arguments, const QString& workingDirectory)
@@ -198,6 +203,35 @@ PDFAppCommandLine PDFAppCommandLine::parse(const QStringList& arguments, const Q
         else if (argument == QLatin1String("--portable"))
         {
             commandLine.m_portable = true;
+        }
+        else if (argument == QLatin1String("--compare"))
+        {
+            // Q7.13: --compare <original> <revised> - the two next arguments, never options; the files are not
+            // opened as document tabs (a missing file is kept with FileNotFound, the tab of Compare shows it)
+            if (i + 2 >= arguments.size())
+            {
+                commandLine.addError(PDFAppCommandLineError::Kind::MissingValue, argument);
+                i = arguments.size();
+            }
+            else
+            {
+                QStringList compareFiles;
+                for (int k = 1; k <= 2; ++k)
+                {
+                    const QString filePath = commandLine.resolveFile(arguments[i + k], workingDirectory);
+                    if (!filePath.isEmpty())
+                    {
+                        compareFiles << filePath;
+                    }
+                }
+                i += 2;
+
+                // Only a complete pair is compared; another --compare replaces the pair
+                if (compareFiles.size() == 2)
+                {
+                    commandLine.m_compareFiles = compareFiles;
+                }
+            }
         }
         else if (argument == QLatin1String("--new-window"))
         {

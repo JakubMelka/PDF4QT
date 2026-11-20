@@ -389,6 +389,8 @@ private:
 
     void onPageSelectionChanged();
     void onDetailsSelectionChanged();
+    void queueSelectionChanged();
+    void onQueuedSelectionChanged();
     void onPageMoveRequested(const std::vector<int>& rows, int targetRow);
     void onDetailsMoveRequested(const std::vector<int>& rows, int targetRow);
     void onPageContextMenu(const QPoint& position);
@@ -427,6 +429,7 @@ private:
     bool m_isEditable = true;
     bool m_isDocumentHost = false;
     bool m_isSyncing = false;
+    bool m_isSelectionChangeQueued = false;
 };
 
 }   // namespace pdf

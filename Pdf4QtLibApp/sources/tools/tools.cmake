@@ -283,4 +283,17 @@ list(APPEND PDF4QT_LIBAPP_TOOLS_SOURCES
     sources/tools/pdfappoutputpreviewcanvas.h
     sources/tools/pdfapptoolgui_softproof.cpp
     sources/tools/pdfapptoolgui_softproof.h
+    # Step 7c (plan 9.1, 9.2): package P6 (Compare in its own tab), package P7 (Measure)
+    sources/tools/pdfapptoolgui_compare.cpp
+    sources/tools/pdfapptoolgui_compare.h
+    sources/tools/pdfappcompareview.cpp
+    sources/tools/pdfappcompareview.h
+    sources/tools/pdfappcomparedifferencemodel.cpp
+    sources/tools/pdfappcomparedifferencemodel.h
+    sources/tools/pdfapptoolgui_measure.cpp
+    sources/tools/pdfapptoolgui_measure.h
+    sources/tools/pdfappmeasureoverlay.cpp
+    sources/tools/pdfappmeasureoverlay.h
+    sources/tools/pdfappmeasuredialogs.cpp
+    sources/tools/pdfappmeasuredialogs.h
 )

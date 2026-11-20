@@ -361,10 +361,10 @@ void WidgetStyleTest::themeTokensChecksum()
     }
 
     // Step 7 of phase 2: the categorical colors chart/1 … chart/12 (VariableID:1586:22043 … 22054) at the end of
-    // the collection. The design has diff/moved #a855f7 already (package 7c mirrors it; its sum is 0x30e153a8);
-    // this sum is the one of the design with diff/moved #2391ff, which the code keeps until then.
+    // the collection; step 7c: diff/moved #a855f7 of the design (owner answer Q7.16, K7.25 - the color of Moved
+    // differs from the blue outline of the selected difference), the sum of the design file
     QCOMPARE(text.size(), qsizetype(5134));
-    QCOMPARE(hash, quint32(0xb0b68da4u));
+    QCOMPARE(hash, quint32(0x30e153a8u));
 }
 
 void WidgetStyleTest::themeManager()

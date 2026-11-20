@@ -31,6 +31,9 @@
 #include <QBuffer>
 #include <QCoreApplication>
 #include <QReadWriteLock>
+#include <QSet>
+
+#include <deque>
 
 #include "pdfdbgheap.h"
 
@@ -2122,64 +2125,223 @@ PDFColorProfileIdentifiers PDFCMSManager::getCMYKProfilesImpl() const
     return result;
 }
 
-PDFColorProfileIdentifiers PDFCMSManager::getExternalColorProfiles(QString profileDirectory) const
+PDFColorProfileIdentifiers PDFCMSManager::readExternalColorProfiles(const QStringList& filePaths) const
 {
     PDFColorProfileIdentifiers result;
 
-    QDir directory(profileDirectory);
     QDir applicationDirectory(QCoreApplication::applicationDirPath());
-    if (!profileDirectory.isEmpty() && directory.exists())
+    for (const QString& absoluteFilePath : filePaths)
     {
-        QStringList iccProfiles = directory.entryList({ "*.icc" }, QDir::Files | QDir::Readable | QDir::NoDotAndDotDot, QDir::NoSort);
-        for (const QString& fileName : iccProfiles)
+        QString filePath = QDir::cleanPath(applicationDirectory.relativeFilePath(absoluteFilePath));
+
+        // Try to read the profile from the file. If it fails, then do nothing. The identifier is
+        // relative to the folder of the application, not to the current folder of the process.
+        QFile file(absoluteFilePath);
+        if (file.open(QFile::ReadOnly))
         {
-            QString filePath = QDir::cleanPath(applicationDirectory.relativeFilePath(directory.absoluteFilePath(fileName)));
+            QByteArray content = file.readAll();
+            file.close();
 
-            // Try to read the profile from the file. If it fails, then do nothing. The identifier is
-            // relative to the folder of the application, not to the current folder of the process.
-            QFile file(directory.absoluteFilePath(fileName));
-            if (file.open(QFile::ReadOnly))
+            cmsHPROFILE profile = cmsOpenProfileFromMem(content.data(), content.size());
+            if (profile)
             {
-                QByteArray content = file.readAll();
-                file.close();
-
-                cmsHPROFILE profile = cmsOpenProfileFromMem(content.data(), content.size());
-                if (profile)
+                PDFColorProfileIdentifier::Type csiType = PDFColorProfileIdentifier::Type::Invalid;
+                const cmsColorSpaceSignature colorSpace = cmsGetColorSpace(profile);
+                switch (colorSpace)
                 {
-                    PDFColorProfileIdentifier::Type csiType = PDFColorProfileIdentifier::Type::Invalid;
-                    const cmsColorSpaceSignature colorSpace = cmsGetColorSpace(profile);
-                    switch (colorSpace)
-                    {
-                        case cmsSigGrayData:
-                            csiType = PDFColorProfileIdentifier::Type::FileGray;
-                            break;
+                    case cmsSigGrayData:
+                        csiType = PDFColorProfileIdentifier::Type::FileGray;
+                        break;
 
-                        case cmsSigRgbData:
-                            csiType = PDFColorProfileIdentifier::Type::FileRGB;
-                            break;
+                    case cmsSigRgbData:
+                        csiType = PDFColorProfileIdentifier::Type::FileRGB;
+                        break;
 
-                        case cmsSigCmykData:
-                            csiType = PDFColorProfileIdentifier::Type::FileCMYK;
-                            break;
+                    case cmsSigCmykData:
+                        csiType = PDFColorProfileIdentifier::Type::FileCMYK;
+                        break;
 
-                        default:
-                            break;
-                    }
+                    default:
+                        break;
+                }
 
-                    QString description = getInfoFromProfile(profile, cmsInfoDescription);
-                    cmsCloseProfile(profile);
+                QString description = getInfoFromProfile(profile, cmsInfoDescription);
+                cmsCloseProfile(profile);
 
-                    // If we have a valid profile, then add it
-                    if (csiType != PDFColorProfileIdentifier::Type::Invalid)
-                    {
-                        result.emplace_back(PDFColorProfileIdentifier::createFile(csiType, qMove(description), filePath));
-                    }
+                // If we have a valid profile, then add it
+                if (csiType != PDFColorProfileIdentifier::Type::Invalid)
+                {
+                    result.emplace_back(PDFColorProfileIdentifier::createFile(csiType, qMove(description), filePath));
                 }
             }
         }
     }
 
     return result;
+}
+
+PDFCMSManager::ProfilePlatform PDFCMSManager::getCurrentProfilePlatform()
+{
+#if defined(Q_OS_WIN)
+    return ProfilePlatform::Windows;
+#elif defined(Q_OS_MACOS)
+    return ProfilePlatform::MacOS;
+#elif defined(Q_OS_UNIX)
+    return ProfilePlatform::Linux;
+#else
+    static_assert(false, "Implement this for another OS!");
+#endif
+}
+
+QStringList PDFCMSManager::getSystemProfileDirectories(ProfilePlatform platform, const QString& homeDirectory, const QString& dataHome, const QString& dataDirectories)
+{
+    // A pure function of its arguments: the paths of Linux and macOS are absolute when they start with '/'
+    // (so a test on Windows checks them too); a duplicate keeps its first place
+    QStringList directories;
+    auto addDirectory = [&directories](const QString& path)
+    {
+        const QString cleanPath = QDir::cleanPath(path);
+        if (!directories.contains(cleanPath))
+        {
+            directories << cleanPath;
+        }
+    };
+    auto isAbsolute = [](const QString& path) { return path.startsWith(QLatin1Char('/')); };
+
+    const QString home = isAbsolute(homeDirectory) ? QDir::cleanPath(homeDirectory) : QString();
+    switch (platform)
+    {
+        case ProfilePlatform::Windows:
+            // The color system of Windows lists its profiles (getInstalledWindowsColorProfiles)
+            break;
+
+        case ProfilePlatform::Linux:
+        {
+            // ICC Profiles in X and colord: the folder of the system; XDG Base Directory specification: the
+            // folder of the data of the user ($XDG_DATA_HOME, default ~/.local/share; a relative value is
+            // invalid and ignored) and the folders of the data of the system ($XDG_DATA_DIRS, default
+            // /usr/local/share:/usr/share; a relative entry is ignored); the legacy folder of the user
+            addDirectory(QStringLiteral("/usr/share/color/icc"));
+
+            QString userData = isAbsolute(dataHome) ? dataHome : QString();
+            if (userData.isEmpty() && !home.isEmpty())
+            {
+                userData = home + QStringLiteral("/.local/share");
+            }
+            if (!userData.isEmpty())
+            {
+                addDirectory(userData + QStringLiteral("/icc"));
+            }
+
+            QStringList systemData = dataDirectories.split(QLatin1Char(':'), Qt::SkipEmptyParts);
+            if (systemData.isEmpty())
+            {
+                systemData = QStringList({ QStringLiteral("/usr/local/share"), QStringLiteral("/usr/share") });
+            }
+            for (const QString& data : systemData)
+            {
+                if (isAbsolute(data))
+                {
+                    addDirectory(data + QStringLiteral("/color/icc"));
+                }
+            }
+
+            if (!home.isEmpty())
+            {
+                addDirectory(home + QStringLiteral("/.color/icc"));
+            }
+            addDirectory(QStringLiteral("/var/lib/colord/icc"));
+            break;
+        }
+
+        case ProfilePlatform::MacOS:
+        {
+            // The folders of ColorSync: of the user, of the computer, of the system, of the network
+            if (!home.isEmpty())
+            {
+                addDirectory(home + QStringLiteral("/Library/ColorSync/Profiles"));
+            }
+            addDirectory(QStringLiteral("/Library/ColorSync/Profiles"));
+            addDirectory(QStringLiteral("/System/Library/ColorSync/Profiles"));
+            addDirectory(QStringLiteral("/Network/Library/ColorSync/Profiles"));
+            break;
+        }
+    }
+
+    return directories;
+}
+
+QStringList PDFCMSManager::getSystemProfileDirectories()
+{
+    return getSystemProfileDirectories(getCurrentProfilePlatform(), QDir::homePath(), qEnvironmentVariable("XDG_DATA_HOME"), qEnvironmentVariable("XDG_DATA_DIRS"));
+}
+
+QStringList PDFCMSManager::findProfileFiles(const QStringList& directories, const QStringList& nameFilters, int maximumDepth, int maximumFiles)
+{
+    QStringList files;
+    QSet<QString> visitedDirectories;
+    QSet<QString> visitedFiles;
+
+    // Breadth first and iterative (a deep tree never deepens the stack); the queue holds at most the folders,
+    // which may still be read
+    std::deque<std::pair<QString, int>> queue;
+    for (const QString& directory : directories)
+    {
+        if (!directory.isEmpty() && queue.size() < size_t(MAXIMUM_PROFILE_DIRECTORIES))
+        {
+            queue.emplace_back(QDir(directory).absolutePath(), 0);
+        }
+    }
+
+    int readDirectories = 0;
+    while (!queue.empty() && files.size() < maximumFiles && readDirectories < MAXIMUM_PROFILE_DIRECTORIES)
+    {
+        const auto [path, depth] = queue.front();
+        queue.pop_front();
+
+        // One visited set of the canonical paths for the whole walk: a cycle of symbolic links, a folder
+        // given twice or reached by two paths is read once
+        const QFileInfo info(path);
+        const QString canonicalPath = info.isDir() ? info.canonicalFilePath() : QString();
+        if (canonicalPath.isEmpty() || visitedDirectories.contains(canonicalPath))
+        {
+            continue;
+        }
+        visitedDirectories.insert(canonicalPath);
+        ++readDirectories;
+
+        const QDir directory(path);
+        for (const QString& fileName : directory.entryList(nameFilters, QDir::Files | QDir::Readable | QDir::NoDotAndDotDot, QDir::Name))
+        {
+            const QString filePath = directory.absoluteFilePath(fileName);
+            const QString canonicalFilePath = QFileInfo(filePath).canonicalFilePath();
+            if (canonicalFilePath.isEmpty() || visitedFiles.contains(canonicalFilePath))
+            {
+                continue;
+            }
+            visitedFiles.insert(canonicalFilePath);
+            files << filePath;
+
+            if (files.size() >= maximumFiles)
+            {
+                break;
+            }
+        }
+
+        if (depth < maximumDepth)
+        {
+            for (const QString& subdirectory : directory.entryList(QDir::Dirs | QDir::Readable | QDir::NoDotAndDotDot, QDir::Name))
+            {
+                if (readDirectories + int(queue.size()) >= MAXIMUM_PROFILE_DIRECTORIES)
+                {
+                    break;
+                }
+                queue.emplace_back(directory.absoluteFilePath(subdirectory), depth + 1);
+            }
+        }
+    }
+
+    return files;
 }
 
 /// Cache of the external profiles of the process (PDFCMSManager::setExternalProfilesCacheEnabled)
@@ -2231,9 +2393,12 @@ PDFColorProfileIdentifiers PDFCMSManager::getExternalProfilesImpl() const
     }
 
     // The profiles are listed once (also by the managers of other threads, which
-    // wait for the list); the lock of a manager is never taken under this lock
+    // wait for the list); the lock of a manager is never taken under this lock.
+    // The key is every folder, which the list reads: the folder of the settings and
+    // the folders of the system (they depend on the home folder and the environment)
     QMutexLocker locker(&cache.mutex);
-    auto it = cache.profiles.find(m_settings.profileDirectory);
+    const QString key = QStringList(QStringList({ m_settings.profileDirectory }) + getSystemProfileDirectories()).join(QChar(0));
+    auto it = cache.profiles.find(key);
     if (it != cache.profiles.end())
     {
         return it->second;
@@ -2245,7 +2410,7 @@ PDFColorProfileIdentifiers PDFCMSManager::getExternalProfilesImpl() const
     }
 
     PDFColorProfileIdentifiers result = listExternalProfiles();
-    cache.profiles[m_settings.profileDirectory] = result;
+    cache.profiles[key] = result;
     return result;
 }
 
@@ -2253,31 +2418,33 @@ PDFColorProfileIdentifiers PDFCMSManager::listExternalProfiles() const
 {
     PDFColorProfileIdentifiers result;
 
-    QStringList directories(m_settings.profileDirectory);
-
 #if defined(Q_OS_WIN)
     PDFColorProfileIdentifiers windowsProfiles = getInstalledWindowsColorProfiles();
     result.insert(result.end(), std::make_move_iterator(windowsProfiles.begin()), std::make_move_iterator(windowsProfiles.end()));
-#elif defined(Q_OS_UNIX)
-    QDir directory(QStringLiteral("/usr/share/color/icc"));
-    if (directory.exists())
-    {
-        QStringList colorDirectories = directory.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-        for (const QString& colorDirectory : colorDirectories)
-        {
-            QString colorDirectoryName = directory.absoluteFilePath(colorDirectory);
-            directories << QDir::fromNativeSeparators(colorDirectoryName);
-        }
-    }
-#else
-    static_assert(false, "Implement this for another OS!");
 #endif
-    for (const QString& directory : directories)
+
+    // The folder of the settings: its own files *.icc (Settings › Color management checks its limits), then the
+    // folders of the system with their subfolders (Linux, macOS; owner 18. 11. 2026) - a file reached by both
+    // is read once
+    QStringList files = findProfileFiles(QStringList({ m_settings.profileDirectory }), QStringList({ QStringLiteral("*.icc") }), 0, MAXIMUM_PROFILE_FILES);
+    QSet<QString> canonicalFiles;
+    for (const QString& file : files)
     {
-        PDFColorProfileIdentifiers externalProfiles = getExternalColorProfiles(directory);
-        result.insert(result.end(), externalProfiles.begin(), externalProfiles.end());
+        canonicalFiles.insert(QFileInfo(file).canonicalFilePath());
     }
 
+    const QStringList systemFiles = findProfileFiles(getSystemProfileDirectories(), QStringList({ QStringLiteral("*.icc"), QStringLiteral("*.icm") }),
+                                                     MAXIMUM_PROFILE_DIRECTORY_DEPTH, MAXIMUM_PROFILE_FILES - int(files.size()));
+    for (const QString& file : systemFiles)
+    {
+        if (!canonicalFiles.contains(QFileInfo(file).canonicalFilePath()))
+        {
+            files << file;
+        }
+    }
+
+    PDFColorProfileIdentifiers externalProfiles = readExternalColorProfiles(files);
+    result.insert(result.end(), std::make_move_iterator(externalProfiles.begin()), std::make_move_iterator(externalProfiles.end()));
     return result;
 }
 

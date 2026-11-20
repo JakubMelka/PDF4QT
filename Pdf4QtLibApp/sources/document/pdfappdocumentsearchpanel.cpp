@@ -477,8 +477,24 @@ void PDFAppDocumentSearchPanel::onCloseClicked()
 
 void PDFAppDocumentSearchPanel::onCurrentRowChanged(const QModelIndex& current, const QModelIndex& previous)
 {
+    Q_UNUSED(current);
     Q_UNUSED(previous);
-    if (!m_isUpdating && m_controller && current.isValid() && current.row() != m_controller->getCurrentIndex())
+
+    // A row chosen by the user: the controller shows its match (the page of the view, its signal) - their slots may
+    // delete the tab with the list, while Qt reads the selection model after its signal: from the event loop
+    if (!m_isUpdating && !m_isRowChangeQueued)
+    {
+        m_isRowChangeQueued = true;
+        QMetaObject::invokeMethod(this, &PDFAppDocumentSearchPanel::onQueuedCurrentRowChanged, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppDocumentSearchPanel::onQueuedCurrentRowChanged()
+{
+    // The current row of now (the list may have changed since the signal)
+    m_isRowChangeQueued = false;
+    const QModelIndex current = m_listView && m_listView->selectionModel() ? m_listView->selectionModel()->currentIndex() : QModelIndex();
+    if (m_controller && current.isValid() && current.row() != m_controller->getCurrentIndex())
     {
         m_controller->setCurrentIndex(current.row());
     }

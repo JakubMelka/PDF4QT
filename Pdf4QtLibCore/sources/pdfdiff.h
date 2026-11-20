@@ -28,6 +28,7 @@
 #include "pdfutils.h"
 #include "pdfalgorithmlcs.h"
 #include "pdfdocumenttextflow.h"
+#include "pdfoperationcontrol.h"
 
 #include <QObject>
 #include <QFuture>
@@ -112,6 +113,34 @@ public:
     /// \param index Index
     QString getTypeDescription(size_t index) const;
 
+    /// Returns text description of a type ("Text replaced"; an empty text for Invalid)
+    /// \param type Type
+    static QString getTypeDescription(Type type);
+
+    /// The message of a difference without the text of the documents (getMessage without the
+    /// texts: "Text on page 3 has been replaced by text on page 4."), for an output, which may
+    /// not contain the content of a document without bit 5 (owner answer Q7.2 of step 7 of phase 2)
+    /// \param index Index
+    QString getDescription(size_t index) const;
+
+    /// The text of the pages of the difference (a TextReplaced) was too large to be compared
+    /// word by word (B191, R7-6): the texts are not in the difference, its rectangles cover the
+    /// text of each page; getMessage says it
+    /// \param index Index
+    bool isTextTooLarge(size_t index) const;
+
+    /// Returns the removed text of a text difference (TextRemoved, TextReplaced; empty otherwise)
+    /// \param index Index
+    QString getRemovedText(size_t index) const;
+
+    /// Returns the added text of a text difference (TextAdded, TextReplaced; empty otherwise)
+    /// \param index Index
+    QString getAddedText(size_t index) const;
+
+    /// Pages of the original document (indices from 0, sorted, unique), whose text was too large
+    /// to be compared word by word (isTextTooLarge)
+    std::vector<PDFInteger> getTextTooLargeLeftPageIndices() const;
+
     /// Returns iterator range for rectangles of "left" pages of an item
     std::pair<RectInfosIt, RectInfosIt> getLeftRectangles(size_t index) const;
 
@@ -146,13 +175,18 @@ public:
                          bool filterTextDifferences,
                          bool filterVectorGraphicsDifferences,
                          bool filterImageDifferences,
-                         bool filterShadingDifferences);
+                         bool filterShadingDifferences) const;
 
     const PageSequence& getPageSequence() const;
     void setPageSequence(PageSequence pageSequence);
 
     /// Saves all differences to a XML stream
-    /// represented by device
+    /// represented by device. The element "difference" has the attributes "type", "left",
+    /// "right" (pages from 1) and the elements "text-added", "text-removed" as before step 7c of
+    /// phase 2; since then it has an element "rect" per rectangle (attributes "side" left / right,
+    /// "page" from 1, "x", "y", "width", "height" in points of the page, C locale) and the
+    /// attribute "text-too-large" for a text, which was not compared word by word - a reader of
+    /// the old form, which skips unknown elements and attributes, reads it as before.
     /// \param device Output device
     void saveToXML(QIODevice* device) const;
 
@@ -166,6 +200,7 @@ public:
 
 private:
     friend class PDFDiff;
+    friend class PDFDiffHelper;
 
     static constexpr uint32_t FLAGS_PAGE_MOVE = uint32_t(Type::PageMoved) | uint32_t(Type::PageAdded) | uint32_t(Type::PageRemoved);
     static constexpr uint32_t FLAGS_TEXT = uint32_t(Type::RemovedTextCharContent) | uint32_t(Type::AddedTextCharContent) | uint32_t(Type::TextReplaced) | uint32_t(Type::TextAdded) | uint32_t(Type::TextRemoved);
@@ -202,7 +237,16 @@ private:
                          const RectInfos& rectInfos1,
                          const RectInfos& rectInfos2);
 
+    /// A TextReplaced of a pair of pages, whose text was too large to be compared word by word
+    void addTextTooLarge(PDFInteger pageIndex1,
+                         PDFInteger pageIndex2,
+                         const RectInfos& rectInfos1,
+                         const RectInfos& rectInfos2);
+
     void saveToStream(QXmlStreamWriter* stream) const;
+
+    /// The type flags of the differences (after a change of the list)
+    void updateTypeFlags();
 
     void finalize();
 
@@ -222,6 +266,7 @@ private:
         size_t rightRectCount = 0;
         int textAddedIndex = -1;
         int textRemovedIndex = -1;
+        bool isTextTooLarge = false;
     };
 
     using Differences = std::vector<Difference>;
@@ -341,8 +386,33 @@ public:
     /// is enabled, then separate thread is started, in which two
     /// document is compared, and then signal \p comparationFinished,
     /// otherwise this function is blocking until comparation process
-    /// is finished.
+    /// is finished. The old Diff application uses it (a thin wrapper of
+    /// compare since step 7c of phase 2, R7-15).
     void start();
+
+    /// The synchronous comparison of two documents in the thread of the caller (plan of step 7 of phase 2,
+    /// R7-15: the tool Compare runs it in the job of its runner, never in a nested job; PDFDocumentToolCompare,
+    /// PdfTool diff). The documents are immutable snapshots of the caller, read only. The page sets hold
+    /// indices from 0; an empty set or an index outside of its document is an error of the result (checked
+    /// before PDFClosedIntervalSet::unfold - B174, B192), never an exception; a document without pages is an
+    /// error. The cancellation is checked in every long loop (the compilation of the pages, the text flow, the
+    /// LCS - B193); a canceled comparison returns at once, the caller sees it by
+    /// PDFOperationControl::isOperationCanceled and never reports it as "no differences" (B173). The text is
+    /// compared within the budget of the LCS (B191, R7-6). Option Asynchronous is ignored.
+    /// \param leftDocument The original document
+    /// \param rightDocument The revised document
+    /// \param leftPages Pages of the original document (indices from 0)
+    /// \param rightPages Pages of the revised document (indices from 0)
+    /// \param options Options of the comparison (PC_*, CompareTextsAsVector, CompareWords)
+    /// \param control Cancellation (optional)
+    /// \param progress Progress (optional; PDFProgressSink of the run, called by the threads of the comparison)
+    static PDFDiffResult compare(const PDFDocument* leftDocument,
+                                 const PDFDocument* rightDocument,
+                                 const PDFClosedIntervalSet& leftPages,
+                                 const PDFClosedIntervalSet& rightPages,
+                                 Options options,
+                                 const PDFOperationControl* control,
+                                 PDFProgressSink* progress);
 
     /// Stops comparator engine. Result data are cleared.
     void stop();
@@ -369,8 +439,18 @@ private:
         StepLast
     };
 
+    /// The cancellation of start / stop (the old Diff): a flag read by the threads of the comparison
+    class CancelControl : public PDFOperationControl
+    {
+    public:
+        virtual bool isOperationCanceled() const override { return canceled.load(); }
+
+        std::atomic_bool canceled = false;
+    };
+
     PDFDiffResult perform();
     void stepProgress();
+    bool isCanceled() const { return PDFOperationControl::isOperationCanceled(m_control); }
     void performSteps(const std::vector<PDFInteger>& leftPages,
                       const std::vector<PDFInteger>& rightPages,
                       PDFDiffResult& result);
@@ -378,6 +458,14 @@ private:
                              const std::vector<PDFDiffPageContext>& rightPreparedPages,
                              PDFAlgorithmLongestCommonSubsequenceBase::Sequence& pageSequence,
                              std::map<size_t, size_t>& pageMatches);
+
+    /// The pages of the unmatched positions, whose content is equal (a moved page): for each
+    /// position of \p leftUnmatched the positions of \p rightUnmatched (B194, B195: no map written
+    /// by the threads, a deterministic budget of the work)
+    std::vector<std::vector<size_t>> findEqualPages(const std::vector<PDFDiffPageContext>& leftPreparedPages,
+                                                    const std::vector<PDFDiffPageContext>& rightPreparedPages,
+                                                    const std::vector<size_t>& leftUnmatched,
+                                                    const std::vector<size_t>& rightUnmatched) const;
     void performCompare(const std::vector<PDFDiffPageContext>& leftPreparedPages,
                         const std::vector<PDFDiffPageContext>& rightPreparedPages,
                         PDFAlgorithmLongestCommonSubsequenceBase::Sequence& pageSequence,
@@ -400,7 +488,8 @@ private:
     PDFClosedIntervalSet m_pagesForRightDocument;
     Options m_options;
     PDFReal m_epsilon;
-    std::atomic_bool m_canceled;
+    CancelControl m_cancelControl;                  ///< Cancellation of start / stop
+    const PDFOperationControl* m_control = nullptr; ///< Cancellation of the running comparison (m_cancelControl of start, the control of compare)
     PDFDiffResult m_result;
     PDFDocumentTextFlowFactory::Algorithm m_textAnalysisAlgorithm;
 

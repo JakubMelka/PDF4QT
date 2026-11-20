@@ -83,6 +83,7 @@
 #include <QSlider>
 #include <QStackedWidget>
 #include <QStandardItemModel>
+#include <QStringListModel>
 #include <QThread>
 #include <QToolButton>
 #include <QtTest>
@@ -151,6 +152,7 @@ private slots:
     void bookmarksEncryptedTitle();
     void notes();
     void notesFilterAndHostile();
+    void itemViewSignalsFromEventLoop();
     void deletionMatrix();
     void deletionFromOwnSignals_data();
     void deletionFromOwnSignals();
@@ -3534,6 +3536,114 @@ void AppDocumentPanelsTest::deletionFromOwnSignals()
     {
         QVERIFY(window);
         QVERIFY(fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("After.pdf"), 1)));
+    }
+}
+
+void AppDocumentPanelsTest::itemViewSignalsFromEventLoop()
+{
+    // Qt reads a view and its selection model after their own signals (clicked, activated, currentChanged): a panel,
+    // whose reaction runs code of the application (the page of the view with its signals, a dialog), reacts from the
+    // event loop - a slot of such a signal of the application may delete the tab with the view (CLAUDE.md, lifetime)
+
+    // The relay: from the event loop in the order of Qt, every click with its item, a change of the state once; no click
+    // of an item, which went meanwhile
+    {
+        QStringListModel model({ QStringLiteral("a"), QStringLiteral("b"), QStringLiteral("c") });
+        QListView list;
+        list.setModel(&model);
+        QObject receiver;
+        pdf::PDFAppItemViewSignalRelay* relay = new pdf::PDFAppItemViewSignalRelay(&list, &receiver);
+        QSignalSpy clicked(relay, &pdf::PDFAppItemViewSignalRelay::clicked);
+        QSignalSpy activated(relay, &pdf::PDFAppItemViewSignalRelay::activated);
+        QSignalSpy current(relay, &pdf::PDFAppItemViewSignalRelay::currentChanged);
+        QSignalSpy selection(relay, &pdf::PDFAppItemViewSignalRelay::selectionChanged);
+        Q_EMIT list.clicked(model.index(0));
+        Q_EMIT list.clicked(model.index(1));
+        Q_EMIT list.activated(model.index(2));
+        list.selectionModel()->setCurrentIndex(model.index(2), QItemSelectionModel::ClearAndSelect);
+        list.selectionModel()->setCurrentIndex(model.index(1), QItemSelectionModel::ClearAndSelect);
+        QCOMPARE(clicked.count(), 0);
+        QCOMPARE(activated.count(), 0);
+        QCOMPARE(current.count(), 0);
+        QCOMPARE(selection.count(), 0);
+        pdftest::AppDocumentFixture::settle();
+        QCOMPARE(clicked.count(), 2);
+        QCOMPARE(clicked.at(0).front().value<QModelIndex>().row(), 0);
+        QCOMPARE(clicked.at(1).front().value<QModelIndex>().row(), 1);
+        QCOMPARE(activated.count(), 1);
+        QCOMPARE(activated.front().front().value<QModelIndex>().row(), 2);
+        QCOMPARE(current.count(), 1);
+        QCOMPARE(selection.count(), 1);
+
+        Q_EMIT list.clicked(model.index(2));
+        QVERIFY(model.removeRows(2, 1));
+        pdftest::AppDocumentFixture::settle();
+        QCOMPARE(clicked.count(), 2);
+    }
+
+    pdftest::AppDocumentFixture fixture;
+
+    // Bookmarks: the page of a bookmark (currentPageChanged of the view is no signal inside of clicked)
+    {
+        pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::outline(fixture.folder()));
+        pdf::PDFAppBookmarksPanel* panel = PanelsTestHelper::panel<pdf::PDFAppBookmarksPanel>(tab, QStringLiteral("bookmarks"));
+        QVERIFY(panel);
+        tab->getView()->goToPage(2);
+        fixture.settle();
+        panel->getAddButton()->click();
+        QTRY_COMPARE(panel->getModel()->rowCount(), 1);
+        tab->getView()->goToPage(0);
+        fixture.settle();
+        QSignalSpy pageSpy(tab->getView(), &pdf::PDFAppDocumentView::currentPageChanged);
+        Q_EMIT panel->getListView()->clicked(panel->getModel()->index(0));
+        QCOMPARE(pageSpy.count(), 0);
+        QTRY_COMPARE(tab->getView()->getCurrentPageIndex(), pdf::PDFInteger(2));
+        QVERIFY(pageSpy.count() > 0);
+    }
+
+    // Notes: the page of a note
+    {
+        pdf::PDFAppDocumentTab* tab = fixture.open(PanelsTestHelper::notes(fixture.folder()));
+        pdf::PDFAppNotesPanel* notes = PanelsTestHelper::panel<pdf::PDFAppNotesPanel>(tab, QStringLiteral("notes"));
+        QVERIFY(notes);
+        fixture.settle();
+        QCOMPARE(tab->getView()->getCurrentPageIndex(), pdf::PDFInteger(0));
+        QSignalSpy pageSpy(tab->getView(), &pdf::PDFAppDocumentView::currentPageChanged);
+        Q_EMIT notes->getListView()->clicked(notes->getModel()->index(4));
+        QCOMPARE(pageSpy.count(), 0);
+        QTRY_COMPARE(tab->getView()->getCurrentPageIndex(), pdf::PDFInteger(2));
+    }
+
+    // Outline: a click and an activation (Enter) go to the page of the item
+    {
+        pdf::PDFAppDocumentTab* tab = fixture.open(PanelsTestHelper::sharedPageOutline(fixture.folder(), false));
+        pdf::PDFAppOutlinePanel* outline = PanelsTestHelper::panel<pdf::PDFAppOutlinePanel>(tab, QStringLiteral("outline"));
+        QVERIFY(outline);
+        fixture.settle();
+        QAbstractItemModel* model = outline->getViewModel();
+        QSignalSpy pageSpy(tab->getView(), &pdf::PDFAppDocumentView::currentPageChanged);
+        Q_EMIT outline->getTreeView()->clicked(model->index(5, 0));
+        QCOMPARE(pageSpy.count(), 0);
+        QTRY_COMPARE(tab->getView()->getCurrentPageIndex(), pdf::PDFInteger(2));
+        pageSpy.clear();
+        Q_EMIT outline->getTreeView()->activated(model->index(2, 0));
+        QCOMPARE(pageSpy.count(), 0);
+        QTRY_COMPARE(tab->getView()->getCurrentPageIndex(), pdf::PDFInteger(1));
+    }
+
+    // Attachments: the save dialog of another file than a PDF (it runs its own event loop)
+    {
+        pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::attachments(fixture.folder()));
+        pdf::PDFAppAttachmentsPanel* attachments = PanelsTestHelper::panel<pdf::PDFAppAttachmentsPanel>(tab, QStringLiteral("attachments"));
+        QVERIFY(attachments);
+        fixture.settle();
+        int dialogCount = 0;
+        pdf::PDFAppPanelFileDialogs::setSaveHandler([&dialogCount](QWidget*, const QString&, const QString&, const QString&) { ++dialogCount; return QString(); });
+        Q_EMIT attachments->getListView()->clicked(attachments->getListView()->model()->index(1, 0));
+        QCOMPARE(dialogCount, 0);
+        fixture.settle();
+        QCOMPARE(dialogCount, 1);
+        PanelsTestHelper::restoreHandlers();
     }
 }
 

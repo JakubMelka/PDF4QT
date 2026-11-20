@@ -447,18 +447,42 @@ void PDFDrawWidget::performMouseOperation(QPoint currentMousePosition)
     }
 }
 
+bool PDFDrawWidget::isInputInterfaceRegistered(const IDrawWidgetInputInterface* inputInterface) const
+{
+    const std::vector<IDrawWidgetInputInterface*>& inputInterfaces = m_widget->getInputInterfaces();
+    return std::find(inputInterfaces.cbegin(), inputInterfaces.cend(), inputInterface) != inputInterfaces.cend();
+}
+
 template<typename Event, void (IDrawWidgetInputInterface::* Function)(QWidget*, Event*)>
 bool PDFDrawWidget::processEvent(Event* event)
 {
     QString tooltip;
     QPointer<PDFDrawWidget> self(this);
-    for (IDrawWidgetInputInterface* inputInterface : m_widget->getInputInterfaces())
+
+    // A copy: a receiver of the input may remove (and delete) an interface inside its call,
+    // the list of the widget changes then
+    const std::vector<IDrawWidgetInputInterface*> inputInterfaces = m_widget->getInputInterfaces();
+    for (IDrawWidgetInputInterface* inputInterface : inputInterfaces)
     {
+        if (!isInputInterfaceRegistered(inputInterface))
+        {
+            // Removed by an earlier receiver - it may not exist any more
+            continue;
+        }
+
         (inputInterface->*Function)(this, event);
 
         // A receiver of the input (a commit of the application) may delete the widget
         // with its tab synchronously - the event is consumed then
         if (!self)
+        {
+            return true;
+        }
+
+        // A receiver may close its tool inside its call (a slot of its signal deletes the tool
+        // and its overlay, which removes itself from the widget): the event is consumed by it,
+        // and the interface is never touched again
+        if (!isInputInterfaceRegistered(inputInterface))
         {
             return true;
         }

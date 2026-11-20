@@ -49,8 +49,10 @@
 #include "pdfdocumenttoolrunner.h"
 
 #include "pdfdocumenttool.h"
+#include "pdfdocumenttool_compare.h"
 #include "pdfdocumenttool_inkcoverage.h"
 #include "pdfdocumenttool_manage.h"
+#include "pdfdocumenttool_measure.h"
 #include "pdfdocumenttool_objectinspector.h"
 #include "pdfdocumenttool_outputpreview.h"
 #include "pdfdocumenttool_report.h"
@@ -100,6 +102,18 @@ namespace pdf
 ///
 /// Soft Proofing through MCP measures with its own color management of the run (the settings of the
 /// application): the soft proof of a tab (PDFAppDocumentSoftProof) is neither read nor changed (Q7.10).
+///
+/// Step 7c (plan 7.1 with chapters 11 and 12, Q7.2, Q7.4, Q7.5, Q7.20, FM-9 cancelled) adds Compare and Measure,
+/// whose data are data of the documents as well, but whose other outputs are no analysis:
+///   - Compare (documentIds, exactly 2: the original and the revised document) gives its summary (the data),
+///     the XML of the differences (return_text, save_file; bit 5 of every input) or the report PDF (output
+///     report: a new document of the inputs - open_new_tab, save_file; the rule of Merge). The texts of the
+///     differences are left out of the summary for an input without bit 5 (the core, isTextOmitted).
+///   - Measure lists its measurements (mode list: the data, mode csv: the CSV of Q7.20 by return_text or
+///     save_file) or adds them as measurement annotations (mode add: keep, save_copy, overwrite - bit 6 of
+///     Table 22, no certification of P = 1 or 2, never on a locked document). Each add is confirmed by the user,
+///     also with Edit documents set to Allow: the confirmation shows the ghosts of the annotations on their
+///     pages (PDFAppMcpGhostOverlay) - an assistant writes nothing into the document, which the user has not seen.
 class PDFAppMcpReviewToolsHelper
 {
 public:
@@ -116,14 +130,31 @@ public:
     /// Deepest nesting of the data, which is kept (the tools nest far less; a deeper value is left out)
     static constexpr int MAXIMUM_DATA_DEPTH = 256;
 
-    /// The tool is one of the review tools of 7a + 7b. Decided by the class of the tool, not by its id: a
-    /// tool registered under the id of a review tool (the registry allows a replacement) keeps the rules of
-    /// an analysis of the catalog.
+    /// Most values of the measurements of one page named by a row of the confirmation of Measure (the
+    /// ghosts show every measurement; the row says how many more there are)
+    static constexpr int MAXIMUM_ROW_VALUES = 8;
+
+    /// The tool is one of the review tools of step 7 (7a, 7b, 7c). Decided by the class of the tool, not by its
+    /// id: a tool registered under the id of a review tool (the registry allows a replacement) keeps the rules
+    /// of an analysis of the catalog.
     static bool isReviewTool(const PDFDocumentTool* tool)
     {
         return dynamic_cast<const PDFDocumentToolStatistics*>(tool) || dynamic_cast<const PDFDocumentToolObjectInspector*>(tool) ||
                dynamic_cast<const PDFDocumentToolReport*>(tool) || dynamic_cast<const PDFDocumentToolInkCoverage*>(tool) ||
-               dynamic_cast<const PDFDocumentToolOutputPreview*>(tool) || dynamic_cast<const PDFDocumentToolSoftProof*>(tool);
+               dynamic_cast<const PDFDocumentToolOutputPreview*>(tool) || dynamic_cast<const PDFDocumentToolSoftProof*>(tool) ||
+               isCompareTool(tool) || isMeasureTool(tool);
+    }
+
+    /// The tool is Compare (review.compare, step 7c; the core tool or the run tool of the GUI, its subclass)
+    static bool isCompareTool(const PDFDocumentTool* tool)
+    {
+        return dynamic_cast<const PDFDocumentToolCompare*>(tool) != nullptr;
+    }
+
+    /// The tool is Measure (review.measure, step 7c)
+    static bool isMeasureTool(const PDFDocumentTool* tool)
+    {
+        return dynamic_cast<const PDFDocumentToolMeasure*>(tool) != nullptr;
     }
 
     /// A review tool, which writes the file of a format (the parameter "format" of PDFDocumentToolTableWriter)
@@ -133,10 +164,233 @@ public:
     }
 
     /// The values of "result" of a review tool: return_text and save_file of a tool with a format, none of
-    /// the others (their data are the result, as of Manage Certificates)
+    /// the others (their data are the result, as of Manage Certificates). Compare: its data or its XML
+    /// (return_text, save_file), its report (open_new_tab, save_file); Measure: its data or its CSV
+    /// (return_text, save_file), its annotations (keep, save_copy, overwrite).
     static QStringList getResultValues(const PDFDocumentTool* tool)
     {
+        if (isCompareTool(tool))
+        {
+            return { QStringLiteral("return_text"), QStringLiteral("save_file"), QStringLiteral("open_new_tab") };
+        }
+        if (isMeasureTool(tool))
+        {
+            return { QStringLiteral("return_text"), QStringLiteral("save_file"), QStringLiteral("keep"), QStringLiteral("save_copy"), QStringLiteral("overwrite") };
+        }
         return hasFileOutput(tool) ? QStringList({ QStringLiteral("return_text"), QStringLiteral("save_file") }) : QStringList();
+    }
+
+    /// The default of "result" of a run of Compare or Measure, which is no analysis (the default of the action,
+    /// return_text, is no result of it): the report of Compare opens in a new tab (no path needed), the
+    /// annotations of Measure stay in the tab (one step of Undo). Empty: the default of the action.
+    /// \param parameters The parameters of the call (not normalized: the tool reads its default)
+    static QString getDefaultResult(const PDFDocumentTool* tool, const QVariantMap& parameters)
+    {
+        if (!isCompareTool(tool) && !isMeasureTool(tool))
+        {
+            return QString();
+        }
+
+        switch (tool->getResultKind(parameters))
+        {
+            case PDFDocumentToolResultKind::NewDocument:
+                return QStringLiteral("open_new_tab");
+            case PDFDocumentToolResultKind::ChangeDocument:
+                return QStringLiteral("keep");
+            case PDFDocumentToolResultKind::Analysis:
+            case PDFDocumentToolResultKind::Files:
+                break;
+        }
+        return QString();
+    }
+
+    /// The default of "result" of the action in its schema (getDefaultResult with the default of the action)
+    static QString getDefaultResultText(const PDFDocumentTool* tool, const QString& actionDefault)
+    {
+        if (isCompareTool(tool))
+        {
+            return QStringLiteral("%1 (output report: open_new_tab)").arg(actionDefault);
+        }
+        if (isMeasureTool(tool))
+        {
+            return QStringLiteral("%1 (mode add: keep)").arg(actionDefault);
+        }
+        return actionDefault;
+    }
+
+    /// The result \p mode fits the run of a review tool with the normalized \p parameters; else the error for the
+    /// assistant (nothing runs). The other review tools: save_file needs the file of a format.
+    static QString checkResult(const PDFDocumentTool* tool, const QVariantMap& parameters, PDFAppMcpToolResultMode mode)
+    {
+        if (isCompareTool(tool))
+        {
+            const QString output = parameters.value(QString::fromLatin1(PDFDocumentToolCompare::PARAMETER_OUTPUT)).toString();
+            if (tool->getResultKind(parameters) == PDFDocumentToolResultKind::NewDocument)
+            {
+                if (mode != PDFAppMcpToolResultMode::OpenNewTab && mode != PDFAppMcpToolResultMode::SaveFile)
+                {
+                    return QStringLiteral("result: output report makes a new PDF document (the report of the differences); use result open_new_tab, or save_file with the path of a .pdf file.");
+                }
+            }
+            else if (mode == PDFAppMcpToolResultMode::OpenNewTab)
+            {
+                return QStringLiteral("result: open_new_tab opens the report PDF; set output report, or use return_text for the data.");
+            }
+            else if (mode == PDFAppMcpToolResultMode::SaveFile && output != QLatin1String(PDFDocumentToolCompare::OUTPUT_XML))
+            {
+                return QStringLiteral("result: save_file writes the XML of the differences (output xml) or the report PDF (output report); set output, or use return_text for the data.");
+            }
+            return QString();
+        }
+
+        if (isMeasureTool(tool))
+        {
+            const bool isDocumentResult = mode == PDFAppMcpToolResultMode::Keep || mode == PDFAppMcpToolResultMode::SaveCopy || mode == PDFAppMcpToolResultMode::Overwrite;
+            const QString measureMode = parameters.value(QString::fromLatin1(PDFDocumentToolMeasure::PARAMETER_MODE)).toString();
+            if (tool->getResultKind(parameters) == PDFDocumentToolResultKind::ChangeDocument)
+            {
+                if (!isDocumentResult)
+                {
+                    return QStringLiteral("result: mode add adds the measurements as annotations of the document; use result keep, save_copy or overwrite.");
+                }
+            }
+            else if (isDocumentResult)
+            {
+                return QStringLiteral("result: keep, save_copy and overwrite take the annotations of mode add; set mode add, or use return_text for the data.");
+            }
+            else if (mode == PDFAppMcpToolResultMode::SaveFile && measureMode != QLatin1String(PDFDocumentToolMeasure::MODE_CSV))
+            {
+                return QStringLiteral("result: save_file writes the CSV of the measurements (mode csv); set mode csv, or use return_text for the data.");
+            }
+            return QString();
+        }
+
+        if (mode == PDFAppMcpToolResultMode::SaveFile && !isMakingFile(tool, parameters))
+        {
+            return getNoFileText();
+        }
+        return QString();
+    }
+
+    /// The run of a review tool with the \p parameters only reads its document: it may read the snapshot of a
+    /// document, on which another operation runs (as document.get_info does); the annotations of Measure are a
+    /// change of the document
+    static bool isReadingOnly(const PDFDocumentTool* tool, const QVariantMap& parameters)
+    {
+        return isReviewTool(tool) && tool->getResultKind(parameters) != PDFDocumentToolResultKind::ChangeDocument;
+    }
+
+    /// The run is confirmed by the user, also with every permission Allow (plan 7.1): the annotations of Measure
+    /// (mode add), shown on their pages first
+    static bool isAlwaysConfirmed(const PDFDocumentTool* tool, const QVariantMap& parameters)
+    {
+        return isMeasureTool(tool) && tool->getResultKind(parameters) == PDFDocumentToolResultKind::ChangeDocument;
+    }
+
+    /// The reason the annotations of Measure cannot be added to the \p document (a certification of P = 1 or 2,
+    /// ISO 32000-2, 12.8.2.2, Table 257); empty = they can, or the run adds none
+    static QString checkDocument(const PDFDocumentTool* tool, const QVariantMap& parameters, const PDFDocument* document)
+    {
+        if (isAlwaysConfirmed(tool, parameters) && document && !PDFDocumentToolMeasure::isAnnotationAllowedByCertification(document))
+        {
+            return QStringLiteral("The document is certified and its certification allows no new annotations (ISO 32000-2, 12.8.2.2, Table 257), so the measurements cannot be added; "
+                                  "nothing ran. review.measure lists them with mode list or csv. Tell the user.");
+        }
+        return QString();
+    }
+
+    /// What one confirmation of the annotations of Measure shows: the ghosts of the measurements on their pages,
+    /// one row per page (the count and the measured values) and their count
+    class MeasureConfirmation
+    {
+    public:
+        QJsonArray ghosts;
+        QJsonArray rows;
+        int count = 0;
+    };
+
+    /// The confirmation of the measurements of the given \p parameters of a run of mode add on \p document (in the
+    /// worker of the run: the parameters are parsed and measured on the snapshot of the run). Every measurement
+    /// has its ghost (at most PDFDocumentToolMeasure::MAXIMUM_MEASUREMENT_COUNT measurements, which is at most
+    /// PDFAppMcpGhost::MAXIMUM_GHOSTS; a measurement has at most MAXIMUM_POINT_COUNT points): a distance and an
+    /// angle by their points, a perimeter by its closed polyline, an area by its polygon (Q7.5), in the color of
+    /// their lines.
+    static MeasureConfirmation createMeasureConfirmation(const PDFDocumentTool* tool, const PDFDocument* document, const QVariantMap& parameters, const QString& iconName)
+    {
+        MeasureConfirmation confirmation;
+        QVariantMap normalized;
+        if (!tool || !document || !PDFDocumentToolParameters::normalize(tool->getParameters(), parameters, &normalized).empty())
+        {
+            return confirmation;
+        }
+
+        QString errorMessage;
+        const std::optional<std::vector<PDFMeasureItem>> items = PDFDocumentToolMeasure::parseMeasurements(normalized.value(QString::fromLatin1(PDFDocumentToolMeasure::PARAMETER_MEASUREMENTS)).toString(),
+                                                                                                           document, &errorMessage);
+        if (!items)
+        {
+            return confirmation;
+        }
+
+        static_assert(PDFDocumentToolMeasure::MAXIMUM_MEASUREMENT_COUNT <= PDFAppMcpGhost::MAXIMUM_GHOSTS, "Every measurement of add has its ghost");
+        static_assert(PDFDocumentToolMeasure::MAXIMUM_POINT_COUNT + 1 <= PDFAppMcpGhost::MAXIMUM_POINTS, "Every point of a measurement is in its ghost");
+        const QColor color = PDFDocumentToolMeasure::getStyle(normalized, QString()).lineColor;
+        for (const PDFMeasureItem& item : *items)
+        {
+            PDFAppMcpGhost ghost;
+            ghost.pageIndex = item.pageIndex;
+            ghost.color = color;
+            for (const QPointF& point : item.points)
+            {
+                ghost.points << point;
+            }
+            switch (item.kind)
+            {
+                case PDFMeasureKind::Area:
+                    ghost.shape = PDFAppMcpGhost::Shape::Polygon;
+                    break;
+                case PDFMeasureKind::Perimeter:
+                    // A closed /PolyLine (Q7.5): the line back to the first corner
+                    ghost.shape = PDFAppMcpGhost::Shape::Polyline;
+                    if (!ghost.points.isEmpty() && ghost.points.back() != ghost.points.front())
+                    {
+                        ghost.points << ghost.points.front();
+                    }
+                    break;
+                case PDFMeasureKind::Distance:
+                case PDFMeasureKind::Angle:
+                    ghost.shape = PDFAppMcpGhost::Shape::Polyline;
+                    break;
+            }
+            confirmation.ghosts.append(ghost.toJson());
+        }
+        confirmation.count = int(items->size());
+
+        // The values as the annotations write them (their /Contents): the units and the scales of the run
+        std::map<PDFInteger, QStringList> texts;
+        // No page is listed (no annotation is read): only the measurements of the run, nothing to cancel
+        const QJsonObject data = PDFDocumentToolMeasure::createData(document, std::vector<PDFInteger>(), *items, PDFDocumentToolMeasure::getUnits(normalized), nullptr);
+        for (const QJsonValue& row : data.value(QString::fromLatin1(PDFDocumentToolMeasure::DATA_MEASUREMENTS)).toArray())
+        {
+            const QJsonObject object = row.toObject();
+            texts[PDFInteger(object.value(QStringLiteral("page")).toInteger()) - 1] << object.value(QStringLiteral("text")).toString();
+        }
+        for (const auto& [pageIndex, pageTexts] : texts)
+        {
+            QStringList shown = pageTexts.mid(0, MAXIMUM_ROW_VALUES);
+            if (pageTexts.size() > MAXIMUM_ROW_VALUES)
+            {
+                shown << QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "%n more", nullptr, int(pageTexts.size() - MAXIMUM_ROW_VALUES));
+            }
+
+            PDFAppMcpChangeRow row;
+            row.iconName = iconName;
+            row.text = QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "Add %n measurements", nullptr, int(pageTexts.size()));
+            row.page = QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "Page %1").arg(pageIndex + 1);
+            row.detail = shown.join(QStringLiteral(", "));
+            confirmation.rows.append(row.toJson());
+        }
+        return confirmation;
     }
 
     /// The run with the normalized \p parameters makes a file: Structure as XML always, the other kinds by
@@ -212,6 +466,14 @@ public:
         {
             return QStringLiteral(" Without this permission, review.object-inspector shows the objects with decodeStream false.");
         }
+        if (isCompareTool(tool))
+        {
+            return QStringLiteral(" Without this permission, review.compare works with output summary: its data leave out the texts of the differences of such a document (isTextOmitted).");
+        }
+        if (isMeasureTool(tool))
+        {
+            return QStringLiteral(" Without this permission, review.measure works with mode list or csv.");
+        }
         return QString();
     }
 
@@ -257,24 +519,38 @@ public:
     }
 
     /// The result of a review tool in structuredContent (PDFDocumentToolResult::toJson with the members of
-    /// the bridge, which a review tool can have)
-    static PDFMcpSchema createResultSchema()
+    /// the bridge, which a review tool can have). Compare and Measure have a new or a changed document too.
+    static PDFMcpSchema createResultSchema(const PDFDocumentTool* tool)
     {
         using B = PDFMcpSchemaBuilder;
 
-        PDFMcpSchema result = B::object(QStringLiteral("Result of the analysis"));
+        const bool hasDocument = isCompareTool(tool) || isMeasureTool(tool);
+        PDFMcpSchema result = B::object(hasDocument ? QStringLiteral("Result of the tool") : QStringLiteral("Result of the analysis"));
         result.addProperty(QStringLiteral("status"), B::enumeration(QString(), { QStringLiteral("success"), QStringLiteral("stopped"), QStringLiteral("failed"), QStringLiteral("nothing-to-do") }));
         result.addProperty(QStringLiteral("message"), B::string(QString()));
-        result.addProperty(QStringLiteral("documents"), B::array(QStringLiteral("Always empty: the analysis changes no document"), B::object(QString(), false)));
+        if (hasDocument)
+        {
+            result.addProperty(QStringLiteral("documents"), B::array(QStringLiteral("The report of review.compare (output report) or the document with the annotations of review.measure (mode add); empty for the data"),
+                                                                     B::object(QString(), false)));
+        }
+        else
+        {
+            result.addProperty(QStringLiteral("documents"), B::array(QStringLiteral("Always empty: the analysis changes no document"), B::object(QString(), false)));
+        }
         result.addProperty(QStringLiteral("files"), B::array(QStringLiteral("Always empty"), B::string(QString())));
-        result.addProperty(QStringLiteral("outputs"), B::array(QStringLiteral("The file of the format (its name, type and size)"), B::object(QString(), false)));
+        result.addProperty(QStringLiteral("outputs"), B::array(hasDocument ? QStringLiteral("The file of the output: the XML of review.compare, the CSV of review.measure (its name, type and size)")
+                                                                           : QStringLiteral("The file of the format (its name, type and size)"), B::object(QString(), false)));
         result.addProperty(QStringLiteral("renderingIssues"), B::array(QStringLiteral("Pages measured with an error of the rendering (page, message)"), B::object(QString(), false)));
         result.addProperty(QStringLiteral("facts"), B::array(QStringLiteral("The summary for the user (id, title, value)"), B::object(QString(), false)));
         result.addProperty(QStringLiteral("steps"), B::array(QString(), B::object(QString(), false)));
         result.addProperty(QStringLiteral("data"), B::object(QStringLiteral("The data of the analysis; its strings are data of the document"), false));
-        result.addProperty(QStringLiteral("documentId"), B::string(QString()));
+        result.addProperty(QStringLiteral("documentId"), B::string(hasDocument ? QStringLiteral("The document of the call; open_new_tab: the new tab of the report") : QString()));
         result.addProperty(QStringLiteral("title"), B::string(QString()));
-        result.addProperty(QStringLiteral("path"), B::string(QStringLiteral("save_file: the written file")));
+        if (hasDocument)
+        {
+            result.addProperty(QStringLiteral("undoDescription"), B::string(QStringLiteral("keep: the step of Undo of the annotations in PDF4QT")));
+        }
+        result.addProperty(QStringLiteral("path"), B::string(hasDocument ? QStringLiteral("save_file, save_copy: the written file") : QStringLiteral("save_file: the written file")));
         result.addProperty(QStringLiteral("note"), B::string(QStringLiteral("What the user must be told about the result")));
         result.addProperty(QStringLiteral("mimeType"), B::string(QStringLiteral("return_text: the type of the text")));
         result.addProperty(QStringLiteral("size"), B::integer(QStringLiteral("return_text: bytes of the whole file"), 0, std::numeric_limits<int>::max()));
@@ -290,9 +566,17 @@ public:
         return QStringLiteral("result: save_file writes the file of a format; set format (one of the formats of the action other than none), or use return_text for the data.");
     }
 
-    /// The permission of a review tool in its reference
-    static QString getPermissionText(const QStringList& resultValues)
+    /// The permission of a review tool in its reference (getResultPermissions of the values of its results)
+    static QString getPermissionText(const PDFDocumentTool* tool, const QStringList& resultValues)
     {
+        if (isCompareTool(tool))
+        {
+            return QStringLiteral("Read documents; `save_file` also Open and save files, `open_new_tab` (the report) also Edit documents");
+        }
+        if (isMeasureTool(tool))
+        {
+            return QStringLiteral("Read documents; `save_file` also Open and save files; the annotations of mode `add` also Edit documents (`keep`), Open and save files (`save_copy`) or both (`overwrite`)");
+        }
         return resultValues.contains(QStringLiteral("save_file")) ? QStringLiteral("Read documents; `save_file` also Open and save files") : QStringLiteral("Read documents");
     }
 
@@ -1123,8 +1407,11 @@ public:
         for (const PDFDocumentToolCatalogEntry* entry : PDFAppMcpCatalogTools::getImplementedTools(category))
         {
             // A tool of the catalog is never read-only (also an analysis may change the
-            // document, 3.10); destructive, when a tool changes the document
-            spec.annotations.destructiveHint = spec.annotations.destructiveHint || entry->getResultKind() == PDFDocumentToolResultKind::ChangeDocument;
+            // document, 3.10); destructive, when a tool changes the document - also by its
+            // parameters (the annotations of Measure, mode add)
+            const std::vector<PDFDocumentToolResultKind> possibleKinds = entry->getPossibleResultKinds();
+            spec.annotations.destructiveHint = spec.annotations.destructiveHint || entry->getResultKind() == PDFDocumentToolResultKind::ChangeDocument ||
+                                               std::find(possibleKinds.cbegin(), possibleKinds.cend(), PDFDocumentToolResultKind::ChangeDocument) != possibleKinds.cend();
 
             const PDFAppMcpPermissionKind permission = PDFAppMcpCatalogTools::getBasePermission(*entry, permissions);
             if (!permissions.isAvailable(permission))
@@ -1156,7 +1443,8 @@ public:
             else
             {
                 schema->setDescription(QStringLiteral("Parameters of %1: %2 Results: %3; the default is %4.")
-                                           .arg(entry->getSourceTitle(), entry->getSourceDescription(), toolResultValues.join(QStringLiteral(", ")), defaultResult));
+                                           .arg(entry->getSourceTitle(), entry->getSourceDescription(), toolResultValues.join(QStringLiteral(", ")),
+                                                PDFAppMcpReviewToolsHelper::getDefaultResultText(tool.get(), defaultResult)));
             }
 
             PDFAppMcpActionSpec action;
@@ -1173,12 +1461,12 @@ public:
             const bool isReviewTool = PDFAppMcpReviewToolsHelper::isReviewTool(tool.get());
             if (isReviewTool)
             {
-                action.permissionText = PDFAppMcpReviewToolsHelper::getPermissionText(toolResultValues);
+                action.permissionText = PDFAppMcpReviewToolsHelper::getPermissionText(tool.get(), toolResultValues);
             }
             action.usesDocument = entry->getInputKind() != PDFDocumentToolInputKind::None;
             action.usesResult = !toolResultValues.isEmpty();
             action.input = std::move(*schema);
-            action.output = isReviewTool ? PDFAppMcpReviewToolsHelper::createResultSchema() : createResultSchema();
+            action.output = isReviewTool ? PDFAppMcpReviewToolsHelper::createResultSchema(tool.get()) : createResultSchema();
             spec.actions.push_back(std::move(action));
 
             usesDocument = usesDocument || entry->getInputKind() != PDFDocumentToolInputKind::None;
@@ -1525,6 +1813,15 @@ public:
         {
             m_resultExtra = PDFAppMcpReviewToolsHelper::prepareResult(&m_result);
         }
+
+        // The annotations of Measure are always confirmed with their ghosts (plan 7.1): measured here, on the
+        // snapshot of the run, from the parameters of the call (plain values for the GUI thread)
+        if (PDFAppMcpReviewToolsHelper::isAlwaysConfirmed(m_request.tool.get(), m_request.parameters) && m_result.isSuccess())
+        {
+            const PDFDocumentToolCatalogEntry* entry = m_request.tool->getInfo();
+            m_measureConfirmation = PDFAppMcpReviewToolsHelper::createMeasureConfirmation(m_request.tool.get(), getSnapshot().document.data(), m_request.parameters,
+                                                                                           entry ? entry->getIconName() : QString());
+        }
     }
 
     virtual void finish(PDFAppMcpHost* host) override
@@ -1580,8 +1877,9 @@ public:
                 break;
         }
 
-        // save_file of a review tool needs its file (the format is checked before the run, the run decides)
-        if (isReviewTool() && m_request.mode == PDFAppMcpToolResultMode::SaveFile && m_result.outputs.empty())
+        // save_file of a review tool needs its file (the format is checked before the run, the run decides); the
+        // report of Compare is its new document
+        if (isReviewTool() && m_request.mode == PDFAppMcpToolResultMode::SaveFile && m_result.outputs.empty() && m_result.documents.empty())
         {
             fail(PDFAppMcpReviewToolsHelper::getNoFileText(), PDFMcpActivityStatus::Failed);
             return;
@@ -1679,9 +1977,9 @@ public:
         // isAlwaysConfirmedByMcp too - a change of the security (Remove Password has no password to
         // type, its question is this one, owner 2026-11-15; the other tools of Encryption ask by
         // PDFAppMcpCatalogToolSecretRequest), Sign, Timestamp and Sign by Hand (plan of step 6 of
-        // phase 2, 6.5, R6-10, R6-20)
+        // phase 2, 6.5, R6-10, R6-20) and the annotations of Measure with their ghosts (plan of step 7, 7.1)
         const PDFDocumentToolCatalogEntry* entry = m_request.tool ? m_request.tool->getInfo() : nullptr;
-        const bool isAlwaysConfirmedTool = entry && entry->isAlwaysConfirmedByMcp();
+        const bool isAlwaysConfirmedTool = (entry && entry->isAlwaysConfirmedByMcp()) || PDFAppMcpReviewToolsHelper::isAlwaysConfirmed(m_request.tool.get(), m_request.parameters);
         const bool isAlwaysConfirmed = m_request.mode == PDFAppMcpToolResultMode::Overwrite || isOverwritingFiles() || isAlwaysConfirmedTool;
         if (!m_isConfirmed && (policyResult == PDFAppMcpPolicyResult::Ask || isAlwaysConfirmed))
         {
@@ -1939,9 +2237,11 @@ private:
             return false;
         }
 
-        // A locked document is never changed by an assistant - no question (O20)
+        // A locked document is never changed by an assistant - no question (O20); the annotations of Measure
+        // are not written into a copy of it either (a locked tab has only the temporary measurements, plan 4.8)
         const PDFDocumentToolCatalogEntry* entry = m_request.tool->getInfo();
-        if (document->isLocked() && (isChangingDocument() || PDFAppToolResultWriter::getDocumentRefusal(entry, document) == PDFAppToolResultWriter::DocumentRefusal::Locked))
+        const bool isReviewChange = isReviewTool() && m_outputDocument;
+        if (document->isLocked() && (isChangingDocument() || isReviewChange || PDFAppToolResultWriter::getDocumentRefusal(entry, document) == PDFAppToolResultWriter::DocumentRefusal::Locked))
         {
             *text = PDFAppMcpChangeJob::getLockedText();
             *status = PDFMcpActivityStatus::DeniedLocked;
@@ -2048,6 +2348,18 @@ private:
                 {
                     confirmation->details.insert(QStringLiteral("rows"), PDFAppMcpCatalogToolsHelper::createDrawingRows(*drawing, entry ? entry->getIconName() : QStringLiteral("signature")));
                 }
+            }
+        }
+
+        // Measure (plan of step 7 of phase 2, 7.1): the annotations of the measurements on their pages - Show on
+        // Page draws their ghosts, the rows of a change name the pages and the measured values
+        if (!m_measureConfirmation.ghosts.isEmpty())
+        {
+            confirmation->details.insert(QStringLiteral("ghosts"), m_measureConfirmation.ghosts);
+            confirmation->details.insert(QStringLiteral("summary"), QCoreApplication::translate("pdf::PDFAppMcpCatalogTools", "%n measurements", nullptr, m_measureConfirmation.count));
+            if (confirmation->kind == PDFAppMcpConfirmationKind::Change)
+            {
+                confirmation->details.insert(QStringLiteral("rows"), m_measureConfirmation.rows);
             }
         }
 
@@ -2407,7 +2719,10 @@ private:
             fail(QStringLiteral("The new document could not be opened (too many tabs); use the result save_file with a path."), PDFMcpActivityStatus::Failed);
             return;
         }
-        succeed(PDFAppMcpCatalogToolsHelper::createResult(m_request.actionName, m_result, newDocument, QString(), QString()));
+
+        // The report of Compare has the data of the documents (the descriptions and the texts of the differences):
+        // marked as such, as every result of a review tool
+        succeed(PDFAppMcpCatalogToolsHelper::createResult(m_request.actionName, m_result, newDocument, QString(), QString(), isReviewTool() ? m_resultExtra : QJsonObject(), QString(), isReviewTool()));
     }
 
     /// The text of the output is the result of the call, data of the document with its
@@ -2482,6 +2797,7 @@ private:
     QPointer<PDFAppMcpCatalogToolProgress> m_progressReader;    ///< The reader of the progress of a run, a child of the host
     PDFDocumentToolResult m_result;
     QJsonObject m_resultExtra;                  ///< The members of the answer of a review tool (PDFAppMcpReviewToolsHelper::prepareResult)
+    PDFAppMcpReviewToolsHelper::MeasureConfirmation m_measureConfirmation;  ///< The ghosts and the rows of the annotations of Measure (made by the run, read by the confirmation)
     PDFDocumentPointer m_outputDocument;
     PDFModifiedDocument::ModificationFlags m_outputFlags = PDFModifiedDocument::Reset;
     PDFDocumentToolOutputDocument m_newOutput;  ///< The output of the new document (its verified bytes of a tool, whose result is only a file)
@@ -3296,7 +3612,18 @@ public:
             return;
         }
 
-        const PDFAppMcpToolResultMode mode = PDFAppMcpCatalogTools::getResultMode(resultValue.value_or(PDFAppMcpCatalogTools::getDefaultResult(*entry))).value_or(PDFAppMcpToolResultMode::Keep);
+        // The kind of the result of these parameters (Extract Pages: one file = a new document,
+        // one file per page = files, plan 4.2): save_files is the result of the files only
+        QVariantMap actionParameters = invocation.actionArguments.toVariantMap();
+
+        // The default of the action; the report of Compare and the annotations of Measure have their own (a
+        // result of their kind, plan of step 7 of phase 2, 7.1)
+        QString defaultResult = PDFAppMcpReviewToolsHelper::getDefaultResult(tool.get(), actionParameters);
+        if (defaultResult.isEmpty())
+        {
+            defaultResult = PDFAppMcpCatalogTools::getDefaultResult(*entry);
+        }
+        const PDFAppMcpToolResultMode mode = PDFAppMcpCatalogTools::getResultMode(resultValue.value_or(defaultResult)).value_or(PDFAppMcpToolResultMode::Keep);
 
         // An analysis without a document (Manage Certificates: a list, plan of step 6 of phase 2, 6.5) has
         // no result to keep or to write: a value, which would be ignored, is an error (owner decision 5)
@@ -3305,10 +3632,6 @@ public:
             host->finishWithError(call, toolId, nullptr, QStringLiteral("result: %1 returns its data; it takes neither result nor path.").arg(entry->getSourceTitle()), PDFMcpActivityStatus::Failed);
             return;
         }
-
-        // The kind of the result of these parameters (Extract Pages: one file = a new document,
-        // one file per page = files, plan 4.2): save_files is the result of the files only
-        QVariantMap actionParameters = invocation.actionArguments.toVariantMap();
 
         // Sign with Certificate signs only invisibly through MCP (plan of step 6 of phase 2, 6.5, Q6.7,
         // R6-20): its schema has no appearance, the action gives it
@@ -3360,12 +3683,16 @@ public:
         }
 
         // A review tool writes its file only with a format (plan of step 7 of phase 2, 7.1): save_file of the
-        // data only would write nothing
-        if (PDFAppMcpReviewToolsHelper::isReviewTool(tool.get()) && mode == PDFAppMcpToolResultMode::SaveFile &&
-            !PDFAppMcpReviewToolsHelper::isMakingFile(tool.get(), normalizedParameters))
+        // data only would write nothing; Compare and Measure take the results of the kind of their output (an
+        // invalid parameter gives no normalized parameters: the run reports it)
+        if (PDFAppMcpReviewToolsHelper::isReviewTool(tool.get()) && normalizeErrors.empty())
         {
-            host->finishWithError(call, toolId, nullptr, PDFAppMcpReviewToolsHelper::getNoFileText(), PDFMcpActivityStatus::Failed);
-            return;
+            const QString resultError = PDFAppMcpReviewToolsHelper::checkResult(tool.get(), normalizedParameters, mode);
+            if (!resultError.isEmpty())
+            {
+                host->finishWithError(call, toolId, nullptr, resultError, PDFMcpActivityStatus::Failed);
+                return;
+            }
         }
 
         const PDFDocumentToolResultKind resultKind = tool->getResultKind(actionParameters);
@@ -3555,14 +3882,20 @@ public:
             // inputs keeps none of their restrictions, so Merge needs every permission): a
             // restricted one is refused, named by its index in documentIds (no title of a document
             // in the text), with the text of the unlock by the user - never a password here
+            // Compare (plan of step 7 of phase 2, 7.1, Q7.2) answers by the parameters of the call: its XML needs
+            // bit 5 of every input, its report is a new document of the inputs (the rule of Merge), its summary
+            // needs nothing; the refusal says what works without the permission
+            const bool isReviewTool = PDFAppMcpReviewToolsHelper::isReviewTool(tool.get());
+            const PDFAppPermissionRequest permissionRequest = isReviewTool ? PDFAppPermissionRequest::createTool(toolId, { }, normalizedParameters) : PDFAppPermissionRequest::createTool(toolId);
             for (size_t i = 0; i < inputDocuments.size(); ++i)
             {
                 const QPointer<PDFAppDocument>& inputDocument = inputDocuments[i];
                 const PDFDocument* inputPdfDocument = inputDocument ? inputDocument->getDocument().data() : nullptr;
-                if (inputPdfDocument && !PDFAppDocumentPermissions::isAllowed(inputPdfDocument, PDFAppPermissionRequest::createTool(toolId)))
+                if (inputPdfDocument && !PDFAppDocumentPermissions::isAllowed(inputPdfDocument, permissionRequest))
                 {
-                    const QString refusal = PDFAppDocumentPermissions::getMcpRefusalText(inputPdfDocument, PDFAppPermissionRequest::createTool(toolId));
-                    host->finishWithError(call, toolId, inputDocument.data(), QStringLiteral("documentIds[%1]: %2").arg(i).arg(refusal),
+                    const QString refusal = PDFAppDocumentPermissions::getMcpRefusalText(inputPdfDocument, permissionRequest);
+                    const QString hint = isReviewTool ? PDFAppMcpReviewToolsHelper::getContentPermissionHint(tool.get()) : QString();
+                    host->finishWithError(call, toolId, inputDocument.data(), QStringLiteral("documentIds[%1]: %2%3").arg(i).arg(refusal, hint),
                                           PDFMcpActivityStatus::Failed);
                     return;
                 }
@@ -3601,7 +3934,10 @@ public:
                 case PDFAppToolResultWriter::DocumentRefusal::None:
                     break;
             }
-            if (isChangingDocument && document->isLocked())
+            // The annotations of Measure are never added to a locked document, also not into a copy of it (a locked
+            // tab has only the temporary measurements and the CSV, plan of step 7 of phase 2, 4.8)
+            const bool isReviewChange = !PDFAppMcpReviewToolsHelper::isReadingOnly(tool.get(), actionParameters) && PDFAppMcpReviewToolsHelper::isReviewTool(tool.get());
+            if ((isChangingDocument || isReviewChange) && document->isLocked())
             {
                 host->finishWithError(call, toolId, document, PDFAppMcpChangeJob::getLockedText(), PDFMcpActivityStatus::DeniedLocked);
                 return;
@@ -3620,6 +3956,15 @@ public:
                 // A review tool says, what it can do without the permission of the content (Q7.2)
                 host->finishWithError(call, toolId, document, PDFAppDocumentPermissions::getMcpRefusalText(pdfDocument, permissionRequest) +
                                                               PDFAppMcpReviewToolsHelper::getContentPermissionHint(tool.get()), PDFMcpActivityStatus::Failed);
+                return;
+            }
+
+            // The annotations of Measure on a certified document (12.8.2.2, Table 257): refused before the run and
+            // before any question
+            const QString reviewDocumentError = PDFAppMcpReviewToolsHelper::checkDocument(tool.get(), normalizedParameters, pdfDocument);
+            if (!reviewDocumentError.isEmpty())
+            {
+                host->finishWithError(call, toolId, document, reviewDocumentError, PDFMcpActivityStatus::Failed);
                 return;
             }
 
@@ -3650,8 +3995,8 @@ public:
             }
 
             // A running tool of the shell, its open result dialog, a save: changes are refused (a review tool
-            // only reads the snapshot of the document, as document.get_info does)
-            if (document->isBlockedByOperation() && !PDFAppMcpReviewToolsHelper::isReviewTool(tool.get()))
+            // only reads the snapshot of the document, as document.get_info does - not the annotations of Measure)
+            if (document->isBlockedByOperation() && !PDFAppMcpReviewToolsHelper::isReadingOnly(tool.get(), actionParameters))
             {
                 host->finishWithError(call, toolId, document, Helper::getBusyText(), PDFMcpActivityStatus::DeniedBusy);
                 return;

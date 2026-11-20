@@ -46,6 +46,8 @@ set(PDF4QT_LIBAPP_STORAGE_SOURCES
     sources/storage/pdfdocumenttoolusage.h
     sources/storage/pdfmcprepository.cpp
     sources/storage/pdfmcprepository.h
+    sources/storage/pdfmeasurescalerepository.cpp
+    sources/storage/pdfmeasurescalerepository.h
     sources/storage/pdfrecentassemblyrepository.cpp
     sources/storage/pdfrecentassemblyrepository.h
     sources/storage/pdfrecentrepository.cpp

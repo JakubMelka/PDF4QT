@@ -482,6 +482,51 @@ public:
     /// FileRGB, FileCMYK): their identifiers are relative to the folder of the application
     static QString getProfileFilePath(const QString& id);
 
+    /// The systems, whose places of the installed ICC profiles getSystemProfileDirectories knows
+    enum class ProfilePlatform
+    {
+        Windows,    ///< The profiles are listed by the color system of Windows (no folders)
+        Linux,      ///< The folders of the ICC Profiles in X / colord and of the XDG Base Directory specification
+        MacOS       ///< The folders of ColorSync
+    };
+
+    /// Deepest subfolder of a folder of the system profiles, which is read (a folder itself has the depth 0)
+    static constexpr int MAXIMUM_PROFILE_DIRECTORY_DEPTH = 8;
+
+    /// Most folders of the system profiles read by one list (a huge or a looping tree is cut)
+    static constexpr int MAXIMUM_PROFILE_DIRECTORIES = 1024;
+
+    /// Most profile files read by one list (each one is opened and parsed)
+    static constexpr int MAXIMUM_PROFILE_FILES = 1024;
+
+    /// The system of this build (Q_OS_MACOS is checked before Q_OS_UNIX)
+    static ProfilePlatform getCurrentProfilePlatform();
+
+    /// The folders of the ICC profiles installed in a system (owner 18. 11. 2026), a pure function of its
+    /// arguments - one list without duplicates (cleaned paths, the first occurrence kept):
+    ///  - Linux: /usr/share/color/icc, $XDG_DATA_HOME/icc (\p dataHome; empty or relative = ~/.local/share),
+    ///    <dir>/color/icc for each entry of $XDG_DATA_DIRS (\p dataDirectories separated by ':'; empty =
+    ///    /usr/local/share:/usr/share; a relative entry is ignored, XDG Base Directory specification),
+    ///    ~/.color/icc (the legacy place) and /var/lib/colord/icc (colord);
+    ///  - macOS: ~/Library/ColorSync/Profiles, /Library/ColorSync/Profiles, /System/Library/ColorSync/Profiles,
+    ///    /Network/Library/ColorSync/Profiles;
+    ///  - Windows: none (the color system of Windows lists its profiles).
+    /// The entries of the home folder are left out without \p homeDirectory. The folders need not exist.
+    static QStringList getSystemProfileDirectories(ProfilePlatform platform, const QString& homeDirectory, const QString& dataHome, const QString& dataDirectories);
+
+    /// The folders of the system profiles of this process (getCurrentProfilePlatform, the home folder and the
+    /// environment variables XDG_DATA_HOME and XDG_DATA_DIRS)
+    static QStringList getSystemProfileDirectories();
+
+    /// The profile files of folders and their subfolders: breadth first and iterative, the files of
+    /// \p nameFilters (case insensitive) of a folder sorted by name, subfolders to the depth \p maximumDepth
+    /// (0 = the folders only), at most MAXIMUM_PROFILE_DIRECTORIES folders. One visited set of the canonical
+    /// paths of the folders for the whole walk (a symbolic link cycle and a folder given twice or reached by
+    /// two paths are read once) and of the files (a file reached twice is listed once, by its first path). The
+    /// paths are the paths, by which the files were found (the identifiers of the profiles keep them, not the
+    /// targets of the links). At most \p maximumFiles files. A missing or unreadable folder is skipped.
+    static QStringList findProfileFiles(const QStringList& directories, const QStringList& nameFilters, int maximumDepth, int maximumFiles);
+
     /// Enables the cache of the external profiles of the process (opt-in, off by
     /// default). Every change of the settings clears the lists of a manager and the
     /// next list asks the system for its installed profiles and reads the profile
@@ -531,9 +576,10 @@ private:
     /// \param type Type of profile
     PDFColorProfileIdentifiers getFilteredOutputIntentProfiles(PDFColorProfileIdentifier::Type type) const;
 
-    /// Gets list of color profiles from external directory
-    /// \param profileDirectory Directory with profiles
-    PDFColorProfileIdentifiers getExternalColorProfiles(QString profileDirectory) const;
+    /// Reads the color profiles of files (findProfileFiles): a file, which is no gray, RGB or CMYK
+    /// profile, is skipped. The identifiers are relative to the folder of the application.
+    /// \param filePaths Paths of the files
+    PDFColorProfileIdentifiers readExternalColorProfiles(const QStringList& filePaths) const;
 
     PDFCMSSettings m_settings;
     const PDFDocument* m_document;

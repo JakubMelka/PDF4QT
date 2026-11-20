@@ -24,6 +24,7 @@
 #define DIMENSIONUNITS_H
 
 #include "pdfglobal.h"
+#include "pdfmeasure.h"
 
 #include <QCoreApplication>
 #include <QString>
@@ -63,6 +64,12 @@ struct DimensionUnit
     static DimensionUnits getLengthUnits();
     static DimensionUnits getAreaUnits();
     static DimensionUnits getAngleUnits();
+
+    /// The units of the core (pdf::PDFMeasureUnits) of a quantity
+    static DimensionUnits getUnits(pdf::PDFMeasureQuantity quantity);
+
+    /// The unit of the core of the id, the default one for an unknown id
+    static DimensionUnit getUnit(pdf::PDFMeasureQuantity quantity, const QByteArray& id);
 
     /// Returns the length unit with the given identifier. If no such unit exists,
     /// then the default length unit is returned.
@@ -157,6 +164,12 @@ public:
 
     bool operator==(const DimensionScale& other) const;
     bool operator!=(const DimensionScale& other) const { return !(*this == other); }
+
+    /// The scale of the core (the computations of the scales live there, plan of step 7 of phase 2, 4.8)
+    pdf::PDFMeasureScale toMeasureScale() const;
+
+    /// The scale of the plugin of a scale of the core (an invalid one for an invalid scale)
+    static DimensionScale fromMeasureScale(const pdf::PDFMeasureScale& scale);
 
 private:
     // A default constructed scale must be invalid - it is returned everywhere,

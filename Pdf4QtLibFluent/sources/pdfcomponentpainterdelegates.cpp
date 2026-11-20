@@ -425,7 +425,13 @@ public:
         const Radii radii(TILE_RADIUS);
         if (kind != Kind::MenuItem && kind != Kind::PanelStep)
         {
-            fillRow(painter, rect, radii, state, true);
+            // A row of a list: the selection of its state, or a chosen row shown as a text (492:18158) with the same fill
+            State selection = state;
+            if (row.chosen)
+            {
+                selection.flags |= QStyle::State_Selected;
+            }
+            fillRow(painter, rect, radii, selection, true);
             return;
         }
 

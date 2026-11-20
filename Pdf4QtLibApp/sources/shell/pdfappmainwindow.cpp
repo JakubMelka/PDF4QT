@@ -35,6 +35,7 @@
 #include "pdfapptab.h"
 #include "pdfappassemblyloader.h"
 #include "pdfapptooldocumentpage.h"
+#include "pdfapptoolgui_compare.h"
 #include "pdfapptoolgui_manage.h"
 #include "pdfapptoolhost.h"
 #include "pdfapptoolinputlist.h"
@@ -1147,6 +1148,16 @@ void PDFAppMainWindow::handleOpenRequest(const PDFAppInstanceRequest& request)
     if (!request.files.isEmpty())
     {
         openDocuments(request.files, request.page);
+        if (!guard)
+        {
+            return;
+        }
+    }
+
+    // PDF4QT --compare original revised (Q7.13 of the plan of step 7 of phase 2): a tab of Compare
+    if (request.compareFiles.size() == 2)
+    {
+        PDFAppToolGUICompare::openCompareTab(this, request.compareFiles);
     }
 }
 
@@ -1188,9 +1199,21 @@ void PDFAppMainWindow::processCommandLine()
         reportOpenFailures(failures);
     }
 
+    QPointer<PDFAppMainWindow> guard(this);
     if (!commandLine.getFiles().isEmpty())
     {
         openDocuments(commandLine.getFiles(), commandLine.getPage());
+        if (!guard)
+        {
+            return;
+        }
+    }
+
+    // PDF4QT --compare original revised (Q7.13 of the plan of step 7 of phase 2): a tab of Compare with both inputs,
+    // the comparison starts when both are read
+    if (commandLine.getCompareFiles().size() == 2)
+    {
+        PDFAppToolGUICompare::openCompareTab(this, commandLine.getCompareFiles());
     }
 }
 

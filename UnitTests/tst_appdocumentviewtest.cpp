@@ -82,6 +82,53 @@
 #include <limits>
 
 /// Helpers of the tests of the view
+/// A receiver of the input of the draw widget for the test of a receiver which removes itself
+/// (and another receiver) from the widget inside its call - as a tool that closes itself and
+/// deletes its overlay in a slot of its own signal
+class ViewTestInputReceiver : public pdf::IDrawWidgetInputInterface
+{
+public:
+    explicit ViewTestInputReceiver(int priority) : m_priority(priority) { }
+
+    pdf::PDFWidget* widget = nullptr;
+    ViewTestInputReceiver* other = nullptr;
+    bool isRemovingOnPress = false;
+    bool isRemovingSelf = true;
+    int pressCount = 0;
+    mutable int tooltipCount = 0;
+
+    virtual void shortcutOverrideEvent(QWidget*, QKeyEvent*) override { }
+    virtual void keyPressEvent(QWidget*, QKeyEvent*) override { }
+    virtual void keyReleaseEvent(QWidget*, QKeyEvent*) override { }
+    virtual void mouseDoubleClickEvent(QWidget*, QMouseEvent*) override { }
+    virtual void mouseReleaseEvent(QWidget*, QMouseEvent*) override { }
+    virtual void mouseMoveEvent(QWidget*, QMouseEvent*) override { }
+    virtual void wheelEvent(QWidget*, QWheelEvent*) override { }
+    virtual QString getTooltip() const override { ++tooltipCount; return QString(); }
+    virtual const std::optional<QCursor>& getCursor() const override { return m_cursor; }
+    virtual int getInputPriority() const override { return m_priority; }
+
+    virtual void mousePressEvent(QWidget*, QMouseEvent*) override
+    {
+        ++pressCount;
+        if (isRemovingOnPress && widget)
+        {
+            if (isRemovingSelf)
+            {
+                widget->removeInputInterface(this);
+            }
+            if (other)
+            {
+                widget->removeInputInterface(other);
+            }
+        }
+    }
+
+private:
+    int m_priority = 0;
+    std::optional<QCursor> m_cursor;
+};
+
 class ViewTestHelper
 {
 public:
@@ -338,6 +385,8 @@ private slots:
     void screenshots();
     void viewDestroyedSilently();
     void panelReopenFocus();
+    void inputReceiverRemovedDuringEvent();
+    void compilersStoppedBeforeProxyDies();
 };
 
 void AppDocumentViewTest::initTestCase()
@@ -1021,6 +1070,82 @@ void AppDocumentViewTest::viewDestroyedSilently()
     isDying = true;
     delete tab;
     QCOMPARE(emitted, 0);
+    pdftest::AppDocumentFixture::settle();
+}
+
+void AppDocumentViewTest::inputReceiverRemovedDuringEvent()
+{
+    // A receiver of the input that closes its tool inside its call removes (and deletes) itself
+    // from the draw widget: the widget never touches it again (ASan of step 7c: the Measure
+    // overlay deleted in a slot of its signal, then asked for its tooltip), and a receiver removed
+    // by an earlier one gets no event any more
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Receivers.pdf"), 1));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFWidget* widget = view->getPdfWidget();
+    QVERIFY(widget);
+
+    // The lowest priorities: both come before the managers of the view
+    ViewTestInputReceiver first(-2);
+    ViewTestInputReceiver second(-1);
+    first.widget = widget;
+    first.other = &second;
+    first.isRemovingOnPress = true;
+    widget->addInputInterface(&first);
+    widget->addInputInterface(&second);
+
+    QVERIFY(pdftest::AppDocumentFixture::clickPage(view, 0, QPointF(100, 100)));
+    pdftest::AppDocumentFixture::settle();
+
+    QCOMPARE(first.pressCount, 1);
+    QCOMPARE(first.tooltipCount, 0);
+    QCOMPARE(second.pressCount, 0);
+    QCOMPARE(second.tooltipCount, 0);
+
+    const std::vector<pdf::IDrawWidgetInputInterface*>& receivers = widget->getInputInterfaces();
+    QVERIFY(std::find(receivers.cbegin(), receivers.cend(), &first) == receivers.cend());
+    QVERIFY(std::find(receivers.cbegin(), receivers.cend(), &second) == receivers.cend());
+
+    // The first receiver stays and removes only the second one: the second gets no event
+    first.isRemovingSelf = false;
+    first.pressCount = 0;
+    widget->addInputInterface(&first);
+    widget->addInputInterface(&second);
+    QVERIFY(pdftest::AppDocumentFixture::clickPage(view, 0, QPointF(100, 100)));
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(first.pressCount, 1);
+    QCOMPARE(second.pressCount, 0);
+    QCOMPARE(second.tooltipCount, 0);
+    widget->removeInputInterface(&first);
+}
+
+void AppDocumentViewTest::compilersStoppedBeforeProxyDies()
+{
+    // The page compiler is a child of the proxy and its thread reads the proxy: it must be
+    // stopped by the destructor of the proxy itself, before QObject deletes the children
+    // (ASan of step 7c: a Compare canvas deleted while its pages compiled - the thread called
+    // the font cache of a proxy that was a plain QObject already)
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Compilers.pdf"), 3));
+    QVERIFY(tab);
+    pdf::PDFDrawWidgetProxy* proxy = tab->getView()->getPdfWidget()->getDrawWidgetProxy();
+    QVERIFY(proxy);
+    pdf::PDFAsynchronousPageCompiler* compiler = proxy->getCompiler();
+    QVERIFY(compiler);
+    QTRY_COMPARE(compiler->getState(), pdf::PDFAsynchronousPageCompiler::State::Active);
+
+    // QObject emits destroyed after the destructor of the proxy, before it deletes the children
+    bool isDestroyedSeen = false;
+    pdf::PDFAsynchronousPageCompiler::State stateWhenProxyDied = pdf::PDFAsynchronousPageCompiler::State::Active;
+    QObject::connect(proxy, &QObject::destroyed, compiler, [&isDestroyedSeen, &stateWhenProxyDied, compiler]()
+    {
+        isDestroyedSeen = true;
+        stateWhenProxyDied = compiler->getState();
+    });
+    delete tab;
+    QVERIFY(isDestroyedSeen);
+    QCOMPARE(stateWhenProxyDied, pdf::PDFAsynchronousPageCompiler::State::Inactive);
     pdftest::AppDocumentFixture::settle();
 }
 

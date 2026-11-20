@@ -375,9 +375,10 @@ public:
     bool isIncrementalUpdateOfInput() const;
 
     /// The result is only a new file, the open document stays as it is (Sign with Certificate, Add
-    /// Timestamp, Redact Content; tools.md 9.3 point 11): the result dialog shows the name of the
-    /// file, its folder and Open the … copy in a new tab instead of its choices
-    /// (PDFAppToolResultDialog::ResultKind::FileOnly). Only a tool of the kind NewDocument.
+    /// Timestamp, Redact Content; tools.md 9.3 point 11; the report PDF of Compare, plan of step 7, 4.9):
+    /// the result dialog shows the name of the file, its folder and Open the … copy in a new tab instead
+    /// of its choices (PDFAppToolResultDialog::ResultKind::FileOnly). Only a tool, which can give the kind
+    /// NewDocument (getPossibleResultKinds); the dialog uses it only for a run of that kind.
     bool isFileOnlyResult() const;
 
     /// The user always confirms the action of MCP in PDF4QT, also when the assistant is allowed to do

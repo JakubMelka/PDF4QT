@@ -3932,9 +3932,10 @@ void AppContentTest::helpPage()
     QCOMPARE(contents->viewport()->mapTo(contentsCard, QPoint(0, firstRow.top())), QPoint(9, 9));
     QCOMPARE(contents->viewport()->width(), contentsCard->width() - 18);
 
-    // A click on a category expands it (the tree grows)
+    // A click on a category expands it (the tree grows; the click is handled from the event loop)
     const int height = contents->getContentHeight();
     QTest::mouseClick(contents->viewport(), Qt::LeftButton, Qt::NoModifier, contents->visualRect(model->index(1, 0)).center());
+    QCoreApplication::processEvents();
     QVERIFY(contents->isExpanded(model->index(1, 0)));
     QVERIFY(contents->getContentHeight() > height);
 
@@ -4047,6 +4048,10 @@ void AppContentTest::helpPageNavigation()
     const QModelIndex topic = contents->model()->index(1, 0, category);
     const QString topicId = topic.data(pdf::PDFAppHelpPage::TopicRole).toString();
     QTest::mouseClick(contents->viewport(), Qt::LeftButton, Qt::NoModifier, contents->visualRect(topic).center());
+
+    // From the event loop: the navigation may delete the page with the tree, Qt reads the tree after its clicked
+    QVERIFY(fixture.page<pdf::PDFAppHelpPage>() == page);
+    QVERIFY(page->getTopic().id != topicId);
     QCoreApplication::processEvents();
     QCOMPARE(fixture.page<pdf::PDFAppHelpPage>()->getTopic().id, topicId);
 

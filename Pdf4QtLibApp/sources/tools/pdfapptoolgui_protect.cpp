@@ -1711,7 +1711,22 @@ void PDFAppToolGUIRemoveLinks::onLinkChecked(const QString& id, bool isChecked)
 
 void PDFAppToolGUIRemoveLinks::onCurrentRowChanged(const QModelIndex& current)
 {
-    const PDFDocumentLinkOperations::ExternalLink* link = m_model ? m_model->getLink(current.row()) : nullptr;
+    // Qt reads the selection model after it has emitted currentChanged, and the page of the view runs code of the
+    // application (its signals may delete the tab with the list): the row is shown from the event loop
+    Q_UNUSED(current);
+    if (!m_isRowChangeQueued)
+    {
+        m_isRowChangeQueued = true;
+        QMetaObject::invokeMethod(this, &PDFAppToolGUIRemoveLinks::onQueuedRowChanged, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppToolGUIRemoveLinks::onQueuedRowChanged()
+{
+    // The current row of now (the list may have changed since the signal)
+    m_isRowChangeQueued = false;
+    const QModelIndex current = m_view && m_view->selectionModel() ? m_view->selectionModel()->currentIndex() : QModelIndex();
+    const PDFDocumentLinkOperations::ExternalLink* link = m_model && current.isValid() ? m_model->getLink(current.row()) : nullptr;
     if (!link)
     {
         return;

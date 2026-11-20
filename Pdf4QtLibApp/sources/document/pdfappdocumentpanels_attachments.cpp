@@ -643,8 +643,10 @@ PDFAppAttachmentsPanel::PDFAppAttachmentsPanel(QWidget* parent) :
     layout->addWidget(lockedCard, 1);
     layout->addWidget(m_view, 1);
 
-    // A click (Enter) opens a PDF attachment, another one is saved (O18)
-    connect(m_view, &QAbstractItemView::clicked, this, &PDFAppAttachmentsPanel::onActivated);
+    // A click (Enter) opens a PDF attachment, another one is saved (O18); from the event loop - the save dialog runs
+    // its own event loop, in which the tab may close, and Qt reads the view after its signal
+    PDFAppItemViewSignalRelay* relay = new PDFAppItemViewSignalRelay(m_view, this);
+    connect(relay, &PDFAppItemViewSignalRelay::clicked, this, &PDFAppAttachmentsPanel::onActivated);
     m_view->installEventFilter(this);
     connect(m_delegate, &PDFRowDelegate::actionTriggered, this, &PDFAppAttachmentsPanel::onDelegateAction);
 }

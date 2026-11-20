@@ -591,29 +591,10 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
 endif()
 
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
-    add_executable(UnitTestsDiffOverlay
-        tst_diffoverlaytest.cpp
-        ../Pdf4QtDiff/mainwindow.cpp
-        ../Pdf4QtDiff/mainwindow.ui
-        ../Pdf4QtDiff/aboutdialog.cpp
-        ../Pdf4QtDiff/aboutdialog.ui
-        ../Pdf4QtDiff/differencesdockwidget.cpp
-        ../Pdf4QtDiff/differencesdockwidget.ui
-        ../Pdf4QtDiff/resources.qrc
-        ../Pdf4QtDiff/utils.cpp
-        ../Pdf4QtDiff/settingsdockwidget.cpp
-        ../Pdf4QtDiff/settingsdockwidget.ui
-    )
-    target_include_directories(UnitTestsDiffOverlay PRIVATE ${CMAKE_SOURCE_DIR}/Pdf4QtDiff)
-    target_link_libraries(UnitTestsDiffOverlay PRIVATE Pdf4QtLibWidgets Pdf4QtLibCore Qt6::Widgets Qt6::Test)
-    pdf4qt_target_precompile_headers(UnitTestsDiffOverlay REUSE_FROM UnitTestsPchWidgets)
-    set_target_properties(UnitTestsDiffOverlay PROPERTIES
-        WIN32_EXECUTABLE OFF
-        MACOSX_BUNDLE OFF
-        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
-    )
-    add_test(UnitTestsDiffOverlay "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDiffOverlay")
-    set_tests_properties(UnitTestsDiffOverlay PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # The overlay and the views of Compare (step 7c of phase 2, plan 4.9, package P6): rewritten from the old
+    # Diff application to PDFAppCompareView, it no longer compiles the sources of Pdf4QtDiff (defined after
+    # the fixtures of the application, whose precompiled header it reuses)
+    set(PDF4QT_DIFF_OVERLAY_TEST ON)
 endif()
 
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
@@ -1023,7 +1004,8 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         apptoolpageslifetime_redact.cpp
         apptoolpageslifetime_review_a.cpp
         apptoolpageslifetime_review_b.cpp
-        apptoolpageslifetime_review_c.cpp
+        apptoolpageslifetime_review_c_compare.cpp
+        apptoolpageslifetime_review_c_measure.cpp
     )
     target_link_libraries(UnitTestsAppToolPagesLifetime PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture UnitTestsAppToolOwnTabFixture Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
     pdf4qt_target_precompile_headers(UnitTestsAppToolPagesLifetime REUSE_FROM UnitTestsAppDocumentFixture)
@@ -1622,6 +1604,32 @@ foreach(PDF4QT_STEP7_CORE_TEST TableWriter ObjectStatistics ObjectInspector Docu
     set_tests_properties(UnitTests${PDF4QT_STEP7_CORE_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endforeach()
 
+# Step 7c of phase 2 (plan 8, 9.2), the core: package P5 the comparison (Diff: PDFDiff, the report, the tool
+# Compare; Measure is the existing UnitTestsMeasure of P7, R7-20), the skeleton the search of the installed ICC
+# profiles of Linux and macOS (ColorProfiles, owner 18. 11.)
+foreach(PDF4QT_STEP7C_CORE_TEST Diff ColorProfiles)
+    string(TOLOWER "${PDF4QT_STEP7C_CORE_TEST}" PDF4QT_STEP7C_CORE_TEST_FILE)
+    add_executable(UnitTests${PDF4QT_STEP7C_CORE_TEST}
+        tst_${PDF4QT_STEP7C_CORE_TEST_FILE}test.cpp
+    )
+    target_link_libraries(UnitTests${PDF4QT_STEP7C_CORE_TEST} PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTests${PDF4QT_STEP7C_CORE_TEST} REUSE_FROM UnitTestsPchCore)
+    set_target_properties(UnitTests${PDF4QT_STEP7C_CORE_TEST} PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTests${PDF4QT_STEP7C_CORE_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_STEP7C_CORE_TEST}")
+    set_tests_properties(UnitTests${PDF4QT_STEP7C_CORE_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endforeach()
+
+# P5: PdfTool diff runs the tool Compare of the core
+if(TARGET PdfTool)
+    target_compile_definitions(UnitTestsDiff PRIVATE PDF4QT_TEST_PDFTOOL="$<TARGET_FILE:PdfTool>")
+    add_dependencies(UnitTestsDiff PdfTool)
+endif()
+
 # P1b: the commands PdfTool info*, xml run the core of Document Report (R7-5, B164, B176, B178, B180, B189)
 if(TARGET PdfTool)
     target_compile_definitions(UnitTestsDocumentReport PRIVATE PDF4QT_TEST_PDFTOOL="$<TARGET_FILE:PdfTool>")
@@ -1757,4 +1765,29 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
 
     # Soft Proofing checks the printing without the proof of the tab (printers of the test write PDF files)
     target_link_libraries(UnitTestsAppToolSoftProof PRIVATE Qt6::PrintSupport)
+
+    # Step 7c of phase 2 (plan 8, 9.2), the application: the GUI of package P6 (Compare in its own tab; the overlay
+    # and the views in UnitTestsDiffOverlay below), the GUI of package P7 (Measure) and the scales of Measure
+    # (MeasureScaleRepository: the migration 4 of the skeleton, the repository of P7); the precompiled header of
+    # the root fixture
+    set(PDF4QT_STEP7C_APP_TESTS AppToolCompare AppToolMeasure MeasureScaleRepository)
+    if(PDF4QT_DIFF_OVERLAY_TEST)
+        list(APPEND PDF4QT_STEP7C_APP_TESTS DiffOverlay)
+    endif()
+    foreach(PDF4QT_STEP7C_APP_TEST ${PDF4QT_STEP7C_APP_TESTS})
+        string(TOLOWER "${PDF4QT_STEP7C_APP_TEST}" PDF4QT_STEP7C_APP_TEST_FILE)
+        add_executable(UnitTests${PDF4QT_STEP7C_APP_TEST}
+            tst_${PDF4QT_STEP7C_APP_TEST_FILE}test.cpp
+        )
+        target_link_libraries(UnitTests${PDF4QT_STEP7C_APP_TEST} PRIVATE UnitTestsAppDocumentFixture UnitTestsAppToolsFixture UnitTestsAppToolShellFixture UnitTestsAppToolOwnTabFixture UnitTestsAppMcpFixture UnitTestsMcpTestClient Pdf4QtLibApp Pdf4QtLibMcp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network Qt6::Test)
+        pdf4qt_target_precompile_headers(UnitTests${PDF4QT_STEP7C_APP_TEST} REUSE_FROM UnitTestsAppDocumentFixture)
+        set_target_properties(UnitTests${PDF4QT_STEP7C_APP_TEST} PROPERTIES
+            WIN32_EXECUTABLE OFF
+            MACOSX_BUNDLE OFF
+            QT_EXCLUDE_FROM_TRANSLATION ON
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+        )
+        add_test(UnitTests${PDF4QT_STEP7C_APP_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_STEP7C_APP_TEST}")
+        set_tests_properties(UnitTests${PDF4QT_STEP7C_APP_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endforeach()
 endif()

@@ -3232,7 +3232,17 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges()
             QVERIFY(H::shell(run));
             QCOMPARE(H::shell(run)->getState(), pdf::PDFDocumentToolShell::State::Editing);
             QVERIFY(!H::shell(run)->getResultDialog());
-            QVERIFY(run.tab->getView()->isToolModeActive());
+            if (isOwnTabTool)
+            {
+                // A tool in its own tab (Compare) stays in its tab with the result it exported (R7-13: an export
+                // keeps the shown result; the tab is not a tool mode of the document tab)
+                QVERIFY(run.toolTab);
+                QVERIFY(H::shell(run)->getResultState() != pdf::PDFAppToolResultState::None);
+            }
+            else
+            {
+                QVERIFY(run.tab->getView()->isToolModeActive());
+            }
         }
         else
         {
@@ -3392,7 +3402,8 @@ const std::vector<ToolPagesLifetimeScenario>& ToolPagesLifetimePackages::getScen
         registerRedactScenarios(&result);
         registerReviewAScenarios(&result);
         registerReviewBScenarios(&result);
-        registerReviewCScenarios(&result);
+        registerReviewCompareScenarios(&result);
+        registerReviewMeasureScenarios(&result);
         return result;
     }();
     return scenarios;

@@ -208,8 +208,8 @@ Celkem **46 toolů**, které pokrývají dnešní funkce (včetně OCR z větve 
 
 | ID | Název | Popis na kartě | Podskupina | Stav |
 | --- | --- | --- | --- | --- |
-| `review.compare` | **Compare** | Find differences between two PDFs | Review | GUI |
-| `review.measure` | **Measure** | Distances, areas, perimeters, angles | Review | GUI |
+| `review.compare` | **Compare** | Find differences between two PDFs | Review | GUI, hotovo (krok 7c; vlastní karta, nahrazuje aplikaci Diff, `PDF4QT --compare`) |
+| `review.measure` | **Measure** | Distances, areas, perimeters, angles | Review | GUI, hotovo (krok 7c; nahrazuje plugin Dimensions) |
 | `review.output-preview` | **Output Preview** | Separations, overprint, color warnings | Print production | GUI, hotovo (krok 7b) |
 | `review.ink-coverage` | **Ink Coverage** | Ink usage of every page | Print production | GUI, hotovo (krok 7b) |
 | `review.soft-proof` | **Soft Proofing** | Simulate print colors, check gamut | Print production | GUI, hotovo (krok 7b) |
@@ -617,6 +617,7 @@ Dnešní dialog *Encryption Settings* řeší čtyři různé úkoly. V katalogu
 - **Funkce:** výběr stránek u každého dokumentu. Volby: porovnat text jako vektorovou grafiku, porovnávat znaky místo slov. Filtry rozdílů: text, vektorová grafika, obrázky, stínování, přesun stránek. Pohledy: rozdíly vedle sebe, jen Original, jen Revised, překryv s plynulým prolnutím, s přizpůsobením velikosti stránek, měřítkem každé strany a posunem. Seznam rozdílů, předchozí a další rozdíl, jen stránky s rozdíly, synchronizace pohledu se seznamem, zobrazení značek. Barvy pro odebrané, přidané, nahrazené a přesunuté. Dvě kategorie nemají nikdy stejnou barvu: barva obsazená jinou kategorií se v paletě nabízí, ale její výběr barvy obou kategorií prohodí. Zpráva o porovnání do PDF, export rozdílů do XML.
 - **Vstup → výstup:** dva PDF → přehled rozdílů, zpráva PDF nebo XML.
 - **Dnes:** aplikace Diff. CLI `diff`.
+- **Krok 7c:** jedno jádro pro tool, MCP a PdfTool `diff` (`PDFDocumentToolCompare`, `PDFDiff::compare` synchronně s `PDFOperationControl`, rozpočet textu 64 Mi buněk po dvojicích stránek – nad ním fakt „too large to compare word by word“, B191). Zpráva PDF (`PDFDiffReportBuilder`) je nový dokument ze stránek obou vstupů = pravidlo Merge (omezený vstup žádá heslo vlastníka, výsledek nešifrovaný), XML potřebuje bit 5 obou vstupů. Stránka jen posunutá vloženými stránkami už není „moved“. Spuštění z příkazové řádky `PDF4QT --compare a.pdf b.pdf` (Q7.13, přeposlání běžící instanci). Kam šla každá funkce aplikace Diff: 6.3.
 - **Klíčová slova:** `compare, compare pdfs, compare report, diff, differences, changes, versions, revision, side by side, overlay, what changed, redline, track changes, before after`
 
 #### `review.measure` – Measure
@@ -625,6 +626,7 @@ Dnešní dialog *Encryption Settings* řeší čtyři různé úkoly. V katalogu
 - **Funkce:** vodorovný, svislý a obecný rozměr, obvod, obvod obdélníku, plocha, plocha obdélníku, úhel. Měřítko: kalibrace dvěma body o známé vzdálenosti, předvolby měřítek, vlastní měřítko, měřítko pamatované pro každý dokument. Jednotky délek, ploch a úhlů. Zobrazení a smazání měření, převod na měřicí anotace uložené v dokumentu, export měření do CSV. Vzhled popisků (písmo, barvy).
 - **Vstup → výstup:** otevřený dokument → měření na obrazovce, anotace nebo CSV.
 - **Dnes:** plugin Dimensions.
+- **Krok 7c:** jednotky, měřítka, výpočty a zápis anotací přesunuty z pluginu do jádra (`PDFMeasureUnits`, `PDFMeasureScale`, `PDFMeasureWriter`; plugin volá jádro). Měřítko si pamatuje aplikace (SQLite, migrace 4: předvolby s popisem, výchozí měřítko s popisem, měřítko dokumentu podle cesty a `/ID[0]`, nejvýš 200), do PDF se nezapisuje (Q7.4); měřítko viewportu `/VP` dokumentu má přednost. Anotace podle Q7.5: délka `/Line /LineDimension`, obvod uzavřená `/PolyLine /PolyLineDimension`, plocha `/Polygon /PolygonDimension`, úhel `/PolyLine` bez `/IT` se `/Subj Angle`; `/Measure` RL s `/X` × `/UserUnit` (B209), výchozí hodnoty Table 268 (B208), `/R` v C-locale (B183), `/AP` a `/Contents`. CSV *Page; Type; Value; Unit; Text; Scale* (Q7.20) s ochranou proti vzorcům (B182). Měření mohou ležet na různých stránkách, každé na jedné (FM-9 zrušeno). Kam šla každá funkce pluginu: 6.1 (řádek Dimensions).
 - **Klíčová slova:** `measure, dimensions, distance, length, area, perimeter, angle, scale, ruler, dimension, calibrate, floor plan, drawing, takeoff, blueprint, cad`
 
 #### `review.output-preview` – Output Preview
@@ -758,7 +760,7 @@ Pluginy Editoru:
 | Plugin | Akce | Kam |
 | --- | --- | --- |
 | AudioBook | Create Text Stream, výběry (Rectangle, Contained Text, Regular Expression, Page List), Activate, Deactivate, Restore Original Text, Move Up, Move Down, synchronizace výběru, Create Audio Book, Clear Text Stream | Tool `convert.audiobook` |
-| Dimensions | Horizontal, Vertical, Linear Dimension, Perimeter, Rectangle Perimeter, Area, Rectangle Area, Angle, Calibrate Scale, Scale, Show, Clear, Convert to Annotations, Export Measurements, Settings | Tool `review.measure` |
+| Dimensions | Horizontal, Vertical, Linear Dimension, Perimeter, Rectangle Perimeter, Area, Rectangle Area, Angle, Calibrate Scale, Scale, Show, Clear, Convert to Annotations, Export Measurements, Settings | Tool `review.measure` (krok 7c): osm druhů v liště druhu; *Calibrate Scale*, předvolby, *Custom Scale…*, *Manage Presets…* v nabídce *Scale*; *Show*, *Clear*; *Convert to Annotations* = *Save as Annotations* (jeden krok Undo); *Export Measurements* = *Export CSV*; *Settings* (jednotky, výchozí měřítko, měřítko pro dokument, písmo a barvy popisků) v pravém panelu, uložení v nabídce *Temporary* / *Annotations in the document*; QSettings pluginu nahrazuje `PDFMeasureScaleRepository` |
 | Editor | Edit page content, Create Text Label, Freehand Curve, Accept Mark, Reject Mark, Rectangle, Rounded Rectangle, Horizontal Line, Vertical Line, Line, Dot, SVG Image, Multiple Elements, Undo, Redo, Clear All Graphics, panel Editor Toolbox | Tool `edit.content` |
 | ObjectInspector | Object Inspector | Tool `review.object-inspector` |
 | ObjectInspector | Object Statistics | Tool `review.statistics` |
@@ -812,15 +814,16 @@ Každá funkce PageMasteru má místo v toolu `pages.manage` (krok 3b, inventura
 
 | Nabídka | Akce | Kam |
 | --- | --- | --- |
-| File | Open Left, Open Right, Close | Tool `review.compare` |
-| Compare | Compare | Tool `review.compare` |
-| Compare | Create Compare Report, Save Differences to XML | Tool `review.compare` (výstupy) |
-| View | Previous Difference, Next Difference | Tool `review.compare` |
-| View | View Differences, View Left, View Right, View Overlay | Tool `review.compare` |
-| View | Filter: Text, Vector Graphics, Images, Shading, Page Movement | Tool `review.compare` |
-| View | Show Pages with Differences, Synchronize View with Differences, Display Differences, Display Markers | Tool `review.compare` |
-| Panel Settings | výběr stránek levého a pravého dokumentu, volby porovnání, nastavení překryvu, barvy | Tool `review.compare` |
-| Panel Differences | seznam rozdílů | Tool `review.compare` |
+| File | Open Left, Open Right, Close | Tool `review.compare` (krok 7c): sloty *Original* / *Revised* (přetažení, *Choose File…*, otevřené taby, heslo), *Change…*, *Swap*; zavření karty |
+| Compare | Compare | Tool `review.compare`: potvrzení *Compare* (F5) → *Compare Again* (Disabled po výsledku, Primary jen když je výsledek zastaralý, Q7.17) |
+| Compare | Create Compare Report, Save Differences to XML | Tool `review.compare`: nabídka *Export* (*Report as PDF…* s pravidlem Merge, *Differences as XML…*; Disabled bez rozdílů, R7-9) |
+| View | Previous Difference, Next Difference | Tool `review.compare`: lišta, F6 / Shift+F6 |
+| View | View Differences, View Left, View Right, View Overlay | Tool `review.compare`: nabídka *View* (*Side by Side*, *Original Only*, *Revised Only*, *Overlay*) |
+| View | Filter: Text, Vector Graphics, Images, Shading, Page Movement | Tool `review.compare`: nabídka *Filter* s počty, „N shown · M hidden“ |
+| View | Show Pages with Differences, Synchronize View with Differences, Display Differences, Display Markers | Tool `review.compare`: nabídka *Show* |
+| Panel Settings | výběr stránek levého a pravého dokumentu, volby porovnání, nastavení překryvu, barvy | Tool `review.compare`: pole rozsahů v *Documents* (K7.3), nabídka *Options* (zastarání výsledku), karta *Overlay* (prolnutí, velikosti stránek, měřítka, posun v mm, *Reset*), *Colors* (poslední hodnoty parametrů místo QSettings) |
+| Panel Differences | seznam rozdílů | Tool `review.compare`: levý panel *Differences* (skupiny po stránkách, znaky − + ≠ ↔) |
+| Příkazová řádka | `Pdf4QtDiff file1 file2` | `PDF4QT --compare a.pdf b.pdf` (Q7.13) |
 | View, Toolbars | Zobrazení panelů Settings a Differences, zobrazení lišt | Panely jsou pevnou součástí karty Compare. Lišty v novém UI nejsou, přesouvání lišt a odpojování panelů se vědomě nenahrazuje (stejně jako v 6.2) |
 | Help | Get Source, Become a Sponsor, About | Aplikace |
 
@@ -845,7 +848,7 @@ PdfTool do zadání nepatří, ale ukazuje funkce, které knihovna umí a GUI je
 | `remove-external-links` | `protect.remove-links` | ano |
 | `optimize` | `optimize.structure`, `optimize.compress` | ano |
 | `bitonal` | `optimize.bitonal` | ano |
-| `diff` | `review.compare` | ano |
+| `diff` | `review.compare` (krok 7c: volá tool jádra `PDFDocumentToolCompare`; popis rozdílu bez textu, nové sloupce *Removed Text* / *Added Text* – prázdné u vstupu bez bitu 5, C-locale, nejvýš 1 000 rozdílů, XML potřebuje bit 5 obou vstupů) | ano (krok 7c) |
 | `ink-coverage`, `info-inks` | `review.ink-coverage` (`info-inks` i sekce *Inks* `review.report`) | ano (krok 7b) |
 | `info-fonts` | Obrazovka Properties, část Fonts, a sekce *Fonts* `review.report` (K7.24: jedna implementace jádra `PDFDocumentReport`) | ano |
 | `statistics` | `review.statistics` | ano (krok 7a) |

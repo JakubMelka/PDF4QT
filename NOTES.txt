@@ -156,6 +156,22 @@ Section 12: Issues
    coordinate system is isotropic - an anisotropic measure (different X and Y
    conversion or CYX other than 1) is rejected, because a single scale factor
    cannot represent it
+ - 12.9.2 The tool Measure (step 7c of phase 2) reads the viewports of a page
+   (/VP) only: a /Measure of a form or an image XObject (PDF 2.0) is not read
+   (R7-12 c). A viewport of the subtype GEO is listed and ignored for the
+   measurements, the scale of the application applies there (FM-7). The point
+   data (/PtData, Table 272) are not modeled. The scale of a drawing is never
+   written into the document as /VP (owner answer Q7.4)
+ - 12.9, 12.5.6.9 (Table 181) Measurement annotations of the tool Measure follow
+   the convention of the readers, which ISO 32000-2 does not require (R7-11,
+   owner answer Q7.5): a distance is a /Line with /IT /LineDimension, a
+   perimeter a closed /PolyLine with /IT /PolyLineDimension, an area a /Polygon
+   with /IT /PolygonDimension and an angle a /PolyLine without /IT with a
+   /Measure of the angle (/T) and /Subj "Angle" - Table 181 names no intent of
+   an angle and says of both dimension intents only that the annotation is a
+   dimension. The annotations of the old Dimensions plugin (a perimeter as
+   /Polygon with /PolygonDimension, an angle as /PolyLine with
+   /PolyLineDimension) are still read
  - 12.10 Geospatial features not implemented
 
 Section 13: Not implemented

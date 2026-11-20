@@ -200,6 +200,14 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfoutputpreviewanalyzer.h
     sources/pdfdocumenttool_softproof.cpp
     sources/pdfdocumenttool_softproof.h
+    sources/pdfdocumenttool_compare.cpp
+    sources/pdfdocumenttool_compare.h
+    sources/pdfdiffreport.cpp
+    sources/pdfdiffreport.h
+    sources/pdfdocumenttool_measure.cpp
+    sources/pdfdocumenttool_measure.h
+    sources/pdfmeasurewriter.cpp
+    sources/pdfmeasurewriter.h
     sources/pdfexecutionpolicy.cpp
     sources/pdfexecutionpolicy.h
     sources/pdfthreadannotations.cpp

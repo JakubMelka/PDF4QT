@@ -699,6 +699,7 @@ private:
     void onOverlayDragStateChanged();
     void onDisplayedPageChanged();
     void onMarkRowChanged(const QModelIndex& current);
+    void onQueuedMarkRowChanged();
     void onMarkActionTriggered(const QModelIndex& index, int action);
     void onSearchMarkRequested();
     void onSearchMatchesChanged();
@@ -725,6 +726,7 @@ private:
     QPointer<PDFAppAnnotationController> m_annotationController;   ///< Of the view; this GUI is its tool editing
     std::map<PDFObjectReference, size_t> m_markIndices; ///< The index of each mark of getMarks (the filter)
     bool m_isViewConnected = false;
+    bool m_isMarkRowChangeQueued = false;
 
     QPointer<QToolButton> m_areaButton;
     QPointer<QToolButton> m_textButton;

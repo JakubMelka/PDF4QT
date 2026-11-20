@@ -176,7 +176,7 @@ public:
         Token{ "diff/removed", "#ff3232", "#ff3232" },
         Token{ "diff/added", "#7dfa00", "#7dfa00" },
         Token{ "diff/replaced", "#ff781e", "#ff781e" },
-        Token{ "diff/moved", "#2391ff", "#2391ff" },
+        Token{ "diff/moved", "#a855f7", "#a855f7" },
         Token{ "bg/accent-hover", "#1d4ed8", "#2563eb" },
         Token{ "bg/accent-pressed", "#0f4796", "#1d4ed8" },
         Token{ "text/disabled", "#94a3b8", "#525e72" },

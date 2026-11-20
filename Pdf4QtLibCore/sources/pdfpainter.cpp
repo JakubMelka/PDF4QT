@@ -1565,6 +1565,36 @@ void PDFPrecompiledPage::finalize(qint64 compilingTimeNS, QList<PDFRenderError> 
     }
 }
 
+/// The hash of the pixels of an image for the comparison of pages: only the bytes of the pixels,
+/// never the padding at the end of a scan line (QImage leaves it uninitialized, so the same image
+/// would give a different hash after each compilation)
+class PDFPrecompiledPageImageHashHelper
+{
+public:
+    static void writePixels(QDataStream& stream, const QImage& image)
+    {
+        stream << qint32(image.width()) << qint32(image.height()) << qint32(image.format());
+
+        const qsizetype bitsPerLine = qsizetype(image.width()) * image.depth();
+        const qsizetype fullBytes = bitsPerLine / 8;
+        const int remainingBits = int(bitsPerLine % 8);
+        const bool isLeastSignificantBitFirst = image.format() == QImage::Format_MonoLSB;
+
+        for (int y = 0; y < image.height(); ++y)
+        {
+            const uchar* scanLine = image.constScanLine(y);
+            stream.writeRawData(reinterpret_cast<const char*>(scanLine), int(fullBytes));
+
+            if (remainingBits > 0)
+            {
+                // Only the used bits of the last byte; the order of the bits depends on the format
+                const uchar mask = isLeastSignificantBitFirst ? uchar((1u << remainingBits) - 1u) : uchar(0xFFu << (8 - remainingBits));
+                stream << quint8(scanLine[fullBytes] & mask);
+            }
+        }
+    }
+};
+
 PDFPrecompiledPage::GraphicPieceInfos PDFPrecompiledPage::calculateGraphicPieceInfos(QRectF mediaBox,
                                                                                      PDFReal epsilon) const
 {
@@ -1678,8 +1708,8 @@ PDFPrecompiledPage::GraphicPieceInfos PDFPrecompiledPage::calculateGraphicPieceI
                     }
 
                     // serialize image data
-                    stream.writeBytes(reinterpret_cast<const char*>(image.bits()), image.sizeInBytes());
-                    streamImage.writeBytes(reinterpret_cast<const char*>(image.bits()), image.sizeInBytes());
+                    PDFPrecompiledPageImageHashHelper::writePixels(stream, image);
+                    PDFPrecompiledPageImageHashHelper::writePixels(streamImage, image);
                 }
 
                 QByteArray hash = QCryptographicHash::hash(serializedPath, QCryptographicHash::Sha512);
@@ -1729,7 +1759,7 @@ PDFPrecompiledPage::GraphicPieceInfos PDFPrecompiledPage::calculateGraphicPieceI
                     QDataStream stream(&serializedMesh, QIODevice::WriteOnly);
 
                     // serialize image data
-                    stream.writeBytes(reinterpret_cast<const char*>(shadingTestImage.bits()), shadingTestImage.sizeInBytes());
+                    PDFPrecompiledPageImageHashHelper::writePixels(stream, shadingTestImage);
                 }
 
                 QByteArray hash = QCryptographicHash::hash(serializedMesh, QCryptographicHash::Sha512);

@@ -409,6 +409,7 @@ private:
 
     void onLinkChecked(const QString& id, bool isChecked);
     void onCurrentRowChanged(const QModelIndex& current);
+    void onQueuedRowChanged();
     void onFilterRowClicked();
     void onDisplayedPageChanged();
 
@@ -432,6 +433,7 @@ private:
     QPointer<PDFAppToolPanelPopup> m_showPanel;
     std::map<Filter, QPointer<PDFTileRow>> m_filterRows;
     bool m_isViewConnected = false;
+    bool m_isRowChangeQueued = false;
 };
 
 }   // namespace pdf

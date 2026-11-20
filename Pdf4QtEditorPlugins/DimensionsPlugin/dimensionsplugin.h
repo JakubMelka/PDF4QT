@@ -137,7 +137,6 @@ private:
     /// for the dimension, so external applications can interpret the created
     /// annotation
     /// \param dimension Dimension, for which is the measure created
-    pdf::PDFObject createMeasureDictionary(const Dimension& dimension) const;
 
     /// Returns the text displayed for the dimension, for example "12.50 m"
     /// \param dimension Dimension

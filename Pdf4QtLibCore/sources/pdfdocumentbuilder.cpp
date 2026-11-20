@@ -1664,39 +1664,17 @@ void PDFDocumentBuilder::updateAnnotationAppearanceStreams(PDFObjectReference an
 
         boundingRectangle = boundingRectangle.united(parameters.boundingRectangle);
 
-        std::vector<PDFObject> copiedObjects = copyFrom({ contentStream.resources, contentStream.contents }, contentStream.document.getStorage(), true);
-        Q_ASSERT(copiedObjects.size() == 2);
+        const PDFObjectReference formReference = createAppearanceStream(contentStream, parameters.boundingRectangle);
+        if (!formReference.isValid())
+        {
+            continue;
+        }
 
-        PDFObjectReference resourcesReference = copiedObjects[0].getReference();
-        PDFObjectReference formReference = copiedObjects[1].getReference();
-
-        // Create form object
-        PDFObjectFactory formFactory;
-
-        formFactory.beginDictionary();
-
-        formFactory.beginDictionaryItem("Type");
-        formFactory << WrapName("XObject");
-        formFactory.endDictionaryItem();
-
-        formFactory.beginDictionaryItem("Subtype");
-        formFactory << WrapName("Form");
-        formFactory.endDictionaryItem();
-
-        formFactory.beginDictionaryItem("BBox");
-        formFactory << parameters.boundingRectangle;
-        formFactory.endDictionaryItem();
-
-        formFactory.beginDictionaryItem("Resources");
-        formFactory << resourcesReference;
-        formFactory.endDictionaryItem();
-
-        formFactory.endDictionary();
-
-        mergeTo(formReference, formFactory.takeObject());
         if (!blendModeName.isEmpty())
         {
-            setAppearanceStreamBlendMode(formReference, resourcesReference, blendModeName);
+            const PDFDictionary* formDictionary = getDictionaryFromObject(getObjectByReference(formReference));
+            const PDFObject resources = formDictionary ? formDictionary->get("Resources") : PDFObject();
+            setAppearanceStreamBlendMode(formReference, resources.isReference() ? resources.getReference() : PDFObjectReference(), blendModeName);
         }
         appearanceStreams[key] = formReference;
     }
@@ -1794,6 +1772,179 @@ QByteArray PDFDocumentBuilder::getAppearanceStreamBlendMode(PDFObjectReference a
         return QByteArray();
     }
     return name;
+}
+
+PDFObjectReference PDFDocumentBuilder::createAppearanceStream(const PDFContentStreamBuilder::ContentStream& contentStream, const QRectF& boundingBox)
+{
+    if (!contentStream.pageObject.isValid() || !boundingBox.isValid())
+    {
+        return PDFObjectReference();
+    }
+
+    std::vector<PDFObject> copiedObjects = copyFrom({ contentStream.resources, contentStream.contents }, contentStream.document.getStorage(), true);
+    if (copiedObjects.size() != 2 || !copiedObjects[1].isReference())
+    {
+        return PDFObjectReference();
+    }
+
+    const PDFObjectReference formReference = copiedObjects[1].getReference();
+
+    // The form XObject of the appearance (8.10.2, Table 93)
+    PDFObjectFactory formFactory;
+    formFactory.beginDictionary();
+    formFactory.beginDictionaryItem("Type");
+    formFactory << WrapName("XObject");
+    formFactory.endDictionaryItem();
+    formFactory.beginDictionaryItem("Subtype");
+    formFactory << WrapName("Form");
+    formFactory.endDictionaryItem();
+    formFactory.beginDictionaryItem("BBox");
+    formFactory << boundingBox;
+    formFactory.endDictionaryItem();
+    formFactory.beginDictionaryItem("Resources");
+    formFactory << copiedObjects[0];
+    formFactory.endDictionaryItem();
+    formFactory.endDictionary();
+    mergeTo(formReference, formFactory.takeObject());
+    return formReference;
+}
+
+PDFObjectReference PDFDocumentBuilder::addObjectStructureElement(PDFObjectReference object, PDFObjectReference page, const QByteArray& structureType)
+{
+    const PDFDictionary* catalog = getDictionaryFromObject(getObjectByReference(getCatalogReference()));
+    const PDFObject rootObject = catalog ? catalog->get("StructTreeRoot") : PDFObject();
+    const PDFDictionary* root = getDictionaryFromObject(rootObject);
+    if (!root || !rootObject.isReference() || !object.isValid())
+    {
+        return PDFObjectReference();
+    }
+    const PDFObjectReference rootReference = rootObject.getReference();
+
+    // The new key: after every key of the tree and /ParentTreeNextKey (14.7.5.4)
+    PDFInteger key = 0;
+    const PDFObject nextKey = getObject(root->get("ParentTreeNextKey"));
+    if (nextKey.isInt())
+    {
+        key = qMax<PDFInteger>(0, nextKey.getInteger());
+    }
+    for (const auto& [entryKey, value] : PDFObjectUtils::readNumberTree(&m_storage, root->get("ParentTree")))
+    {
+        Q_UNUSED(value);
+        key = qMax(key, entryKey + 1);
+    }
+
+    // The parent: the only top element of the tree (/Document), else the root itself
+    PDFObjectReference parentReference = rootReference;
+    const PDFObject& kids = root->get("K");
+    if (kids.isReference())
+    {
+        const PDFDictionary* kid = getDictionaryFromObject(getObject(kids));
+        const PDFObject& type = kid ? kid->get("Type") : PDFObject();
+        if (kid && (type.isNull() || (type.isName() && type.getString() == "StructElem")) && kid->get("S").isName())
+        {
+            parentReference = kids.getReference();
+        }
+    }
+
+    PDFObjectFactory objectReference;
+    objectReference.beginDictionary();
+    objectReference.beginDictionaryItem("Type");
+    objectReference << WrapName("OBJR");
+    objectReference.endDictionaryItem();
+    objectReference.beginDictionaryItem("Obj");
+    objectReference << object;
+    objectReference.endDictionaryItem();
+    objectReference.beginDictionaryItem("Pg");
+    objectReference << page;
+    objectReference.endDictionaryItem();
+    objectReference.endDictionary();
+
+    PDFDictionaryBuilder element;
+    element.addEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("StructElem"));
+    element.addEntry(PDFInplaceOrMemoryString("S"), PDFObject::createName(structureType));
+    element.addEntry(PDFInplaceOrMemoryString("P"), PDFObject::createReference(parentReference));
+    element.addEntry(PDFInplaceOrMemoryString("Pg"), PDFObject::createReference(page));
+    element.addEntry(PDFInplaceOrMemoryString("K"), objectReference.takeObject());
+    const PDFObjectReference elementReference = addObject(PDFObject::createDictionary(std::move(element)));
+
+    // The element is the last kid of its parent
+    const PDFDictionary* parent = getDictionaryFromObject(getObjectByReference(parentReference));
+    PDFDictionaryBuilder updatedParent(*parent);
+    const PDFObject parentKids = getObject(parent->get("K"));
+    PDFArrayBuilder newKids;
+    if (parentKids.isArray())
+    {
+        newKids = PDFArrayBuilder(*parentKids.getArray());
+    }
+    else if (!parent->get("K").isNull())
+    {
+        newKids.appendItem(parent->get("K"));
+    }
+    newKids.appendItem(PDFObject::createReference(elementReference));
+    updatedParent.setEntry(PDFInplaceOrMemoryString("K"), PDFObject::createArray(std::move(newKids)));
+    setObject(parentReference, PDFObject::createDictionary(std::move(updatedParent)));
+
+    // /ParentTree: the key goes after every key - into the leaf of the root, or a new last kid
+    const PDFDictionary* updatedRoot = getDictionaryFromObject(getObjectByReference(rootReference));
+    PDFDictionaryBuilder rootBuilder(*updatedRoot);
+    const PDFObject parentTreeObject = updatedRoot->get("ParentTree");
+    const PDFDictionary* parentTree = getDictionaryFromObject(parentTreeObject);
+    const PDFObject newEntry[2] = { PDFObject::createInteger(key), PDFObject::createReference(elementReference) };
+
+    PDFDictionaryBuilder tree = parentTree ? PDFDictionaryBuilder(*parentTree) : PDFDictionaryBuilder();
+    const PDFObject treeKids = parentTree ? getObject(parentTree->get("Kids")) : PDFObject();
+    if (treeKids.isArray())
+    {
+        PDFDictionaryBuilder leaf;
+        leaf.addEntry(PDFInplaceOrMemoryString("Limits"), PDFObject::createArray(PDFArrayBuilder(std::vector<PDFObject>{ PDFObject::createInteger(key), PDFObject::createInteger(key) })));
+        leaf.addEntry(PDFInplaceOrMemoryString("Nums"), PDFObject::createArray(PDFArrayBuilder(std::vector<PDFObject>{ newEntry[0], newEntry[1] })));
+        PDFArrayBuilder kidsBuilder(*treeKids.getArray());
+        kidsBuilder.appendItem(PDFObject::createReference(addObject(PDFObject::createDictionary(std::move(leaf)))));
+        tree.setEntry(PDFInplaceOrMemoryString("Kids"), PDFObject::createArray(std::move(kidsBuilder)));
+    }
+    else
+    {
+        const PDFObject nums = parentTree ? getObject(parentTree->get("Nums")) : PDFObject();
+        PDFArrayBuilder numsBuilder = nums.isArray() ? PDFArrayBuilder(*nums.getArray()) : PDFArrayBuilder();
+        numsBuilder.appendItem(newEntry[0]);
+        numsBuilder.appendItem(newEntry[1]);
+        tree.setEntry(PDFInplaceOrMemoryString("Nums"), PDFObject::createArray(std::move(numsBuilder)));
+    }
+
+    if (parentTreeObject.isReference())
+    {
+        setObject(parentTreeObject.getReference(), PDFObject::createDictionary(std::move(tree)));
+    }
+    else
+    {
+        rootBuilder.setEntry(PDFInplaceOrMemoryString("ParentTree"), PDFObject::createReference(addObject(PDFObject::createDictionary(std::move(tree)))));
+    }
+    rootBuilder.setEntry(PDFInplaceOrMemoryString("ParentTreeNextKey"), PDFObject::createInteger(key + 1));
+    setObject(rootReference, PDFObject::createDictionary(std::move(rootBuilder)));
+
+    PDFObjectFactory objectUpdate;
+    objectUpdate.beginDictionary();
+    objectUpdate.beginDictionaryItem("StructParent");
+    objectUpdate << key;
+    objectUpdate.endDictionaryItem();
+    objectUpdate.endDictionary();
+    mergeTo(object, objectUpdate.takeObject());
+
+    // ISO 14289-1, 7.18.3: a page with annotations has /Tabs /S (the tab order is the order of the structure,
+    // Table 31 of ISO 32000-2); a page, which has it already, is not changed
+    const PDFDictionary* pageDictionary = getDictionaryFromObject(getObjectByReference(page));
+    const PDFObject tabs = pageDictionary ? getObject(pageDictionary->get("Tabs")) : PDFObject();
+    if (pageDictionary && !(tabs.isName() && tabs.getString() == "S"))
+    {
+        PDFObjectFactory pageUpdate;
+        pageUpdate.beginDictionary();
+        pageUpdate.beginDictionaryItem("Tabs");
+        pageUpdate << WrapName("S");
+        pageUpdate.endDictionaryItem();
+        pageUpdate.endDictionary();
+        mergeTo(page, pageUpdate.takeObject());
+    }
+    return elementReference;
 }
 
 void PDFDocumentBuilder::setAppearanceStreamBlendMode(PDFObjectReference formReference, PDFObjectReference resourcesReference, const QByteArray& blendModeName)

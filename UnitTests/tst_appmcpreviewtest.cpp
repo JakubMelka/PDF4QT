@@ -20,21 +20,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-// The MCP actions of the tool review of step 7a + 7b of phase 2 over HTTP (plan of step 7, 7.1 and 8, with
+// The MCP actions of the tool review of step 7 of phase 2 over HTTP (plan of step 7, 7.1 and 8, with
 // chapters 11 and 12): the schemas and their limits at both edges, the results (the data of the document
 // marked and sanitized, return_text at most 1 MiB, the data at most 4 MiB, save_file only of a format),
 // each tool on a small document with the values of ISO 32000-2 and of the plan, the refusal without bit 5
 // of Table 22 (Q7.2), Soft Proofing without the soft proof of a tab (Q7.10), a locked and a busy document,
 // and a hostile document (a cycle, a deep chain of /Next, a decode bomb), which never ends the process.
+//
+// Step 7c: Compare of two documents (documentIds, the summary with the counts of the core, the texts left out
+// without bit 5, the XML only with bit 5, the report as a new document of the rule of Merge by open_new_tab or
+// save_file, at most 1 000 differences) and Measure (the values of 12.9 by a viewport and by a scale, the CSV of
+// Q7.20, the annotations always confirmed with their ghosts - declined nothing changes, allowed one step of Undo
+// with the annotations of Q7.5 on different pages -, 500 measurements and 200 points at both edges, the refusals
+// of a locked, a busy, a restricted (bit 6) and a certified document), two hostile documents compared.
 
+#include "appmcpreviewdocuments.h"
 #include "appmcpstep4.h"
 #include "icctestprofile.h"
 #include "outputpreviewtestpdf.h"
 
 #include "pdfappbuiltintools.h"
+#include "pdfappdocumentregistry.h"
 #include "pdfappdocumentsoftproof.h"
 #include "pdfappdocumentview.h"
+#include "pdfappmcpchange.h"
 #include "pdfappmcppermissions.h"
+#include "pdfdocumenttool_compare.h"
+#include "pdfdocumenttool_measure.h"
 #include "pdfmcpschema.h"
 #include "pdfstreamfilters.h"
 
@@ -45,6 +57,7 @@
 #include <QtTest>
 
 #include <cmath>
+#include <numbers>
 
 using pdftest::AppMcpFixture;
 using pdftest::AppMcpImageDocument;
@@ -67,6 +80,38 @@ private slots:
     void lockedAndBusyDocument();
     void factsInCLocale();
     void hostileDocument();
+    void compareSummary();
+    void compareXmlAndReport();
+    void compareContentPermission();
+    void compareLimits();
+    void compareHostileDocuments();
+    void measureList();
+    void measureAddConfirmed();
+    void measureLimits();
+    void measureRefusals();
+
+private:
+    /// A call of review.compare of the documents of the tabs (documentIds) with the common arguments \p common
+    static std::optional<pdf::PDFMcpCallResult> compare(AppMcpFixture& fixture, pdf::PDFAppDocumentTab* original, pdf::PDFAppDocumentTab* revised, const QJsonObject& parameters,
+                                                        const QJsonObject& common = QJsonObject());
+
+    /// The JSON text of measurements of the parameter "measurements" of review.measure
+    static QString measurements(const QJsonArray& items) { return QString::fromUtf8(QJsonDocument(items).toJson(QJsonDocument::Compact)); }
+
+    /// A measurement of the parameter "measurements"
+    static QJsonObject measurement(int page, const QString& kind, const std::vector<QPointF>& points, const QJsonObject& scale = QJsonObject());
+
+    /// The scale 1 mm = \p real mm of a measurement
+    static QJsonObject scale(double real);
+
+    /// The annotations of the subtype of the page of the document
+    static std::vector<const pdf::PDFDictionary*> annotations(const pdf::PDFDocument* document, size_t pageIndex, const QByteArray& subtype);
+
+    /// The open document of the id (the result of open_new_tab)
+    static pdf::PDFAppDocument* findDocument(AppMcpFixture& fixture, const QString& documentId);
+
+    /// The values of the measurements of the data of review.measure in their order
+    static std::vector<double> values(const QJsonObject& data);
 
 private:
     /// Every permission Allow, the server and the HTTP transport
@@ -173,8 +218,43 @@ void AppMcpReviewTest::schemas()
     {
         actions << action.name;
     }
-    QCOMPARE(actions, QStringList({ QStringLiteral("output-preview"), QStringLiteral("ink-coverage"), QStringLiteral("soft-proof"), QStringLiteral("statistics"),
-                                    QStringLiteral("object-inspector"), QStringLiteral("report") }));
+    QCOMPARE(actions, QStringList({ QStringLiteral("compare"), QStringLiteral("measure"), QStringLiteral("output-preview"), QStringLiteral("ink-coverage"), QStringLiteral("soft-proof"),
+                                    QStringLiteral("statistics"), QStringLiteral("object-inspector"), QStringLiteral("report") }));
+
+    // Step 7c (plan 7.1): Compare gives its data, its XML (return_text, save_file) or its report (open_new_tab,
+    // save_file); Measure its data, its CSV (return_text, save_file) or its annotations (keep, save_copy,
+    // overwrite) - the annotations make the tool review destructive (the annotations of the MCP spec)
+    QVERIFY(spec->annotations.destructiveHint);
+    const std::shared_ptr<const pdf::PDFDocumentTool> compareTool = pdf::PDFDocumentToolRegistry::getTool(QStringLiteral("review.compare"));
+    const std::shared_ptr<const pdf::PDFDocumentTool> measureTool = pdf::PDFDocumentToolRegistry::getTool(QStringLiteral("review.measure"));
+    QVERIFY(compareTool && measureTool);
+    QCOMPARE(pdf::PDFAppMcpCatalogTools::getToolResultValues(*compareTool->getInfo(), compareTool.get()),
+             QStringList({ QStringLiteral("return_text"), QStringLiteral("save_file"), QStringLiteral("open_new_tab") }));
+    QCOMPARE(pdf::PDFAppMcpCatalogTools::getToolResultValues(*measureTool->getInfo(), measureTool.get()),
+             QStringList({ QStringLiteral("return_text"), QStringLiteral("save_file"), QStringLiteral("keep"), QStringLiteral("save_copy"), QStringLiteral("overwrite") }));
+    for (const QString& name : { QStringLiteral("compare"), QStringLiteral("measure") })
+    {
+        const pdf::PDFAppMcpActionSpec* action = spec->findAction(name);
+        QVERIFY(action);
+        QCOMPARE(action->permission, pdf::PDFAppMcpPermissionKind::Read);
+        QVERIFY(action->usesResult);
+        const QJsonObject outputProperties = action->output.toQJson().value(QStringLiteral("properties")).toObject();
+        QVERIFY(outputProperties.contains(QStringLiteral("origin")));
+        QVERIFY(outputProperties.contains(QStringLiteral("undoDescription")));
+    }
+    QVERIFY(spec->findAction(QStringLiteral("compare"))->permissionText.contains(QStringLiteral("`open_new_tab` (the report) also Edit documents")));
+    QVERIFY(spec->findAction(QStringLiteral("measure"))->permissionText.contains(QStringLiteral("Edit documents (`keep`)")));
+
+    // The panel keeps its kind of drawing, its storage and its scale memory: no parameters of an assistant; the
+    // measurements are one JSON text of at most 4 MiB (the limit of the core, 500 measurements of 200 points)
+    QVERIFY(isValid(QStringLiteral("measure"), QJsonObject({ { QStringLiteral("mode"), QStringLiteral("add") } })));
+    QVERIFY(!isValid(QStringLiteral("measure"), QJsonObject({ { QStringLiteral("kind"), QStringLiteral("linear") } })));
+    QVERIFY(!isValid(QStringLiteral("measure"), QJsonObject({ { QStringLiteral("storage"), QStringLiteral("annotations") } })));
+    QVERIFY(!isValid(QStringLiteral("measure"), QJsonObject({ { QStringLiteral("rememberScale"), true } })));
+    QVERIFY(isValid(QStringLiteral("measure"), QJsonObject({ { QStringLiteral("measurements"), QString(pdf::PDFDocumentToolMeasure::MAXIMUM_MEASUREMENTS_LENGTH, QLatin1Char(' ')) } })));
+    QVERIFY(!isValid(QStringLiteral("measure"), QJsonObject({ { QStringLiteral("measurements"), QString(pdf::PDFDocumentToolMeasure::MAXIMUM_MEASUREMENTS_LENGTH + 1, QLatin1Char(' ')) } })));
+    QVERIFY(isValid(QStringLiteral("compare"), QJsonObject({ { QStringLiteral("output"), QStringLiteral("report") }, { QStringLiteral("view"), QStringLiteral("overlay") } })));
+    QVERIFY(!isValid(QStringLiteral("compare"), QJsonObject({ { QStringLiteral("output"), QStringLiteral("pdf") } })));
 
     const QStringList fileResults({ QStringLiteral("return_text"), QStringLiteral("save_file") });
     for (const QString& id : { QStringLiteral("review.statistics"), QStringLiteral("review.ink-coverage"), QStringLiteral("review.report"),
@@ -203,7 +283,9 @@ void AppMcpReviewTest::schemas()
 
     const QJsonObject input = inputSchema().toQJson();
     const QJsonObject resultProperty = input.value(QStringLiteral("properties")).toObject().value(QStringLiteral("result")).toObject();
-    QCOMPARE(resultProperty.value(QStringLiteral("enum")).toArray(), QJsonArray({ QStringLiteral("return_text"), QStringLiteral("save_file") }));
+    QCOMPARE(resultProperty.value(QStringLiteral("enum")).toArray(), QJsonArray({ QStringLiteral("return_text"), QStringLiteral("save_file"), QStringLiteral("open_new_tab"), QStringLiteral("keep"),
+                                                                                  QStringLiteral("save_copy"), QStringLiteral("overwrite") }));
+    QVERIFY(input.value(QStringLiteral("properties")).toObject().contains(QStringLiteral("documentIds")));
     QVERIFY2(resultProperty.value(QStringLiteral("description")).toString().contains(QStringLiteral("at most 1 MiB")), qPrintable(resultProperty.value(QStringLiteral("description")).toString()));
 
     // Object Inspector: depth at most 4, maxBytes at most 1 MiB, limit at most 1000 (plan 7.1)
@@ -838,6 +920,702 @@ void AppMcpReviewTest::hostileDocument()
     QVERIFY(result);
     QVERIFY(result->isError);
     QVERIFY2(result->getFirstText().contains(QStringLiteral("output intent")), qPrintable(result->getFirstText()));
+}
+
+std::optional<pdf::PDFMcpCallResult> AppMcpReviewTest::compare(AppMcpFixture& fixture, pdf::PDFAppDocumentTab* original, pdf::PDFAppDocumentTab* revised, const QJsonObject& parameters,
+                                                               const QJsonObject& common)
+{
+    QJsonObject arguments = common;
+    arguments.insert(QStringLiteral("documentIds"), QJsonArray({ original->getDocument()->getId(), revised->getDocument()->getId() }));
+    return AppMcpStep4::call(fixture, QStringLiteral("review"), QStringLiteral("compare"), parameters, arguments);
+}
+
+QJsonObject AppMcpReviewTest::measurement(int page, const QString& kind, const std::vector<QPointF>& points, const QJsonObject& scale)
+{
+    QJsonArray pointArray;
+    for (const QPointF& point : points)
+    {
+        pointArray.append(QJsonArray({ point.x(), point.y() }));
+    }
+    QJsonObject object({ { QStringLiteral("page"), page }, { QStringLiteral("kind"), kind }, { QStringLiteral("points"), pointArray } });
+    if (!scale.isEmpty())
+    {
+        object.insert(QStringLiteral("scale"), scale);
+    }
+    return object;
+}
+
+QJsonObject AppMcpReviewTest::scale(double real)
+{
+    return QJsonObject({ { QStringLiteral("paperValue"), 1 }, { QStringLiteral("paperUnit"), QStringLiteral("mm") }, { QStringLiteral("realValue"), real },
+                         { QStringLiteral("realUnit"), QStringLiteral("mm") } });
+}
+
+std::vector<const pdf::PDFDictionary*> AppMcpReviewTest::annotations(const pdf::PDFDocument* document, size_t pageIndex, const QByteArray& subtype)
+{
+    std::vector<const pdf::PDFDictionary*> result;
+    const pdf::PDFPage* page = document && pageIndex < document->getCatalog()->getPageCount() ? document->getCatalog()->getPage(pageIndex) : nullptr;
+    for (const pdf::PDFObjectReference reference : page ? page->getAnnotations() : std::vector<pdf::PDFObjectReference>())
+    {
+        const pdf::PDFDictionary* dictionary = document->getDictionaryFromObject(document->getObjectByReference(reference));
+        if (dictionary && document->getObject(dictionary->get("Subtype")).getString() == subtype)
+        {
+            result.push_back(dictionary);
+        }
+    }
+    return result;
+}
+
+pdf::PDFAppDocument* AppMcpReviewTest::findDocument(AppMcpFixture& fixture, const QString& documentId)
+{
+    for (pdf::PDFAppDocument* document : fixture.context->getDocumentRegistry()->getDocuments())
+    {
+        if (document && document->getId() == documentId)
+        {
+            return document;
+        }
+    }
+    return nullptr;
+}
+
+std::vector<double> AppMcpReviewTest::values(const QJsonObject& data)
+{
+    std::vector<double> result;
+    for (const QJsonValue& row : data.value(QStringLiteral("measurements")).toArray())
+    {
+        result.push_back(row.toObject().value(QStringLiteral("value")).toDouble());
+    }
+    return result;
+}
+
+void AppMcpReviewTest::compareSummary()
+{
+    // Plan 4.9, 7.1: two open documents by documentIds - the original first. The pair of the core tests (page 1:
+    // a rectangle removed and one added, page 2: the word "AAAA" replaced by "BBBB" and the shapes of its 4 + 4
+    // Type 3 glyphs, ISO 32000-2 9.6.4): 11 differences, the counts complete also when a filter hides some
+    AppMcpFixture fixture;
+    QVERIFY(start(fixture));
+    pdf::PDFAppDocumentTab* original = open(fixture, QStringLiteral("Report_v1.pdf"), pdftest::AppMcpReviewDocuments::createOriginal().write());
+    pdf::PDFAppDocumentTab* revised = open(fixture, QStringLiteral("Report_v2.pdf"), pdftest::AppMcpReviewDocuments::createRevised().write());
+    QVERIFY(original && revised);
+    const quint64 originalVersion = original->getDocument()->getVersion();
+    const quint64 revisedVersion = revised->getDocument()->getVersion();
+
+    // Exactly two documents (the inputs {2, 2} of the catalog), never documentId
+    std::optional<pdf::PDFMcpCallResult> result = call(fixture, original, QStringLiteral("compare"), QJsonObject());
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText().startsWith(QStringLiteral("documentId: Compare works with more documents")), qPrintable(result->getFirstText()));
+    for (const QJsonArray& ids : { QJsonArray({ original->getDocument()->getId() }),
+                                   QJsonArray({ original->getDocument()->getId(), revised->getDocument()->getId(), original->getDocument()->getId() }) })
+    {
+        result = AppMcpStep4::call(fixture, QStringLiteral("review"), QStringLiteral("compare"), QJsonObject(), QJsonObject({ { QStringLiteral("documentIds"), ids } }));
+        QVERIFY(result && result->isError);
+        QVERIFY2(result->getFirstText().contains(QStringLiteral("exactly 2 open documents")), qPrintable(result->getFirstText()));
+    }
+
+    result = compare(fixture, original, revised, QJsonObject({ { QStringLiteral("includeVectorGraphics"), false } }));
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    const QJsonObject answer = AppMcpReviewTest::content(*result, QStringLiteral("compare"));
+    QCOMPARE(answer.value(QStringLiteral("origin")).toString(), QStringLiteral("document"));
+    QVERIFY(result->getFirstText().startsWith(pdf::PDFAppMcpToolSet::getUntrustedContentLine() + QLatin1Char('\n')));
+    QVERIFY(answer.value(QStringLiteral("documents")).toArray().isEmpty());
+    QVERIFY(!answer.contains(QStringLiteral("outputs")));
+
+    const QJsonObject data = answer.value(QStringLiteral("data")).toObject();
+    QCOMPARE(data.value(QStringLiteral("isSame")).toBool(), false);
+    const QJsonObject counts = data.value(QStringLiteral("counts")).toObject();
+    QCOMPARE(counts.value(QStringLiteral("total")).toInteger(), qint64(11));
+    QCOMPARE(counts.value(QStringLiteral("shown")).toInteger(), qint64(1));
+    QCOMPARE(counts.value(QStringLiteral("hidden")).toInteger(), qint64(10));
+    QCOMPARE(counts.value(QStringLiteral("text")).toInteger(), qint64(1));
+    QCOMPARE(counts.value(QStringLiteral("vectorGraphics")).toInteger(), qint64(10));
+    QCOMPARE(counts.value(QStringLiteral("replaced")).toInteger(), qint64(1));
+    QCOMPARE(counts.value(QStringLiteral("removed")).toInteger(), qint64(5));
+    QCOMPARE(counts.value(QStringLiteral("added")).toInteger(), qint64(5));
+    const QJsonArray differences = data.value(QStringLiteral("differences")).toArray();
+    QCOMPARE(differences.size(), qsizetype(1));
+    const QJsonObject difference = differences.first().toObject();
+    QCOMPARE(difference.value(QStringLiteral("kind")).toString(), QStringLiteral("text-replaced"));
+    QCOMPARE(difference.value(QStringLiteral("originalPage")).toInteger(), qint64(2));
+    QCOMPARE(difference.value(QStringLiteral("revisedPage")).toInteger(), qint64(2));
+    QCOMPARE(difference.value(QStringLiteral("originalText")).toString(), QStringLiteral("AAAA"));
+    QCOMPARE(difference.value(QStringLiteral("revisedText")).toString(), QStringLiteral("BBBB"));
+    QCOMPARE(difference.value(QStringLiteral("originalRectPages")).toArray().first().toInteger(), qint64(2));
+    QCOMPARE(data.value(QStringLiteral("isTextOmitted")).toBool(), false);
+    QCOMPARE(data.value(QStringLiteral("truncated")).toBool(), false);
+    QCOMPARE(data.value(QStringLiteral("pageSequence")).toArray().size(), qsizetype(2));
+
+    // The same document twice: no difference; the documents never change
+    result = compare(fixture, original, original, QJsonObject());
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    QCOMPARE(AppMcpReviewTest::content(*result, QStringLiteral("compare")).value(QStringLiteral("data")).toObject().value(QStringLiteral("isSame")).toBool(), true);
+    QCOMPARE(original->getDocument()->getVersion(), originalVersion);
+    QCOMPARE(revised->getDocument()->getVersion(), revisedVersion);
+
+    // A locked document is compared too (it is only read)
+    revised->getDocument()->setLocked(true);
+    result = compare(fixture, original, revised, QJsonObject());
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    QCOMPARE(AppMcpReviewTest::content(*result, QStringLiteral("compare")).value(QStringLiteral("data")).toObject().value(QStringLiteral("counts")).toObject().value(QStringLiteral("total")).toInteger(), qint64(11));
+    revised->getDocument()->setLocked(false);
+
+    // The summary is data: neither a file nor a new tab
+    result = compare(fixture, original, revised, QJsonObject(), QJsonObject({ { QStringLiteral("result"), QStringLiteral("save_file") }, { QStringLiteral("path"), fixture.path(QStringLiteral("Summary.xml")) } }));
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText().startsWith(QStringLiteral("result: save_file writes the XML of the differences")), qPrintable(result->getFirstText()));
+    QVERIFY(!QFileInfo::exists(fixture.path(QStringLiteral("Summary.xml"))));
+    result = compare(fixture, original, revised, QJsonObject(), QJsonObject({ { QStringLiteral("result"), QStringLiteral("open_new_tab") } }));
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText().startsWith(QStringLiteral("result: open_new_tab opens the report PDF")), qPrintable(result->getFirstText()));
+}
+
+void AppMcpReviewTest::compareXmlAndReport()
+{
+    // Plan 4.9, 7.1, R7-13: the XML of the differences by return_text and save_file; the report PDF is a new document -
+    // open_new_tab (its default) opens it in a new tab, save_file writes it (.pdf), return_text is no result of it.
+    // The report (core: PDFDiffReportBuilder) has a /Polygon in the color of its kind over every shown difference
+    AppMcpFixture fixture;
+    QVERIFY(start(fixture));
+    pdf::PDFAppDocumentTab* original = open(fixture, QStringLiteral("Report_v1.pdf"), pdftest::AppMcpReviewDocuments::createOriginal().write());
+    pdf::PDFAppDocumentTab* revised = open(fixture, QStringLiteral("Report_v2.pdf"), pdftest::AppMcpReviewDocuments::createRevised().write());
+    QVERIFY(original && revised);
+
+    const QJsonObject xml({ { QStringLiteral("output"), QStringLiteral("xml") } });
+    std::optional<pdf::PDFMcpCallResult> result = compare(fixture, original, revised, xml);
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    QJsonObject answer = AppMcpReviewTest::content(*result, QStringLiteral("compare"));
+    QVERIFY2(answer.value(QStringLiteral("mimeType")).toString().contains(QStringLiteral("xml")), qPrintable(answer.value(QStringLiteral("mimeType")).toString()));
+    QCOMPARE(answer.value(QStringLiteral("truncated")).toBool(), false);
+    const QString text = result->getFirstText();
+    QVERIFY(text.startsWith(pdf::PDFAppMcpToolSet::getUntrustedContentLine()));
+    QVERIFY(text.contains(QStringLiteral("<?xml")));
+    QVERIFY(text.contains(QStringLiteral("AAAA")) && text.contains(QStringLiteral("BBBB")));
+
+    // save_file: the file of the XML, its extension only
+    result = compare(fixture, original, revised, xml, QJsonObject({ { QStringLiteral("result"), QStringLiteral("save_file") }, { QStringLiteral("path"), fixture.path(QStringLiteral("Differences.txt")) } }));
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText().contains(QStringLiteral("must have the extension xml")), qPrintable(result->getFirstText()));
+    const QString xmlPath = fixture.path(QStringLiteral("Differences.xml"));
+    result = compare(fixture, original, revised, xml, QJsonObject({ { QStringLiteral("result"), QStringLiteral("save_file") }, { QStringLiteral("path"), xmlPath } }));
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    QVERIFY(AppMcpStep4::readFile(xmlPath).contains("<text-removed>AAAA</text-removed>"));
+
+    // The report: return_text is refused before the run
+    const QJsonObject reportOutput({ { QStringLiteral("output"), QStringLiteral("report") } });
+    result = compare(fixture, original, revised, reportOutput, QJsonObject({ { QStringLiteral("result"), QStringLiteral("return_text") } }));
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText().startsWith(QStringLiteral("result: output report makes a new PDF document")), qPrintable(result->getFirstText()));
+
+    // Without a result it opens in a new tab: side by side, original 1, revised 1, original 2, revised 2; the
+    // removed rectangle of page 1 in the color diff/removed (#FF3232), the added one in diff/added (#7DFA00)
+    const size_t documentCount = fixture.context->getDocumentRegistry()->getDocuments().size();
+    result = compare(fixture, original, revised, reportOutput);
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    answer = AppMcpReviewTest::content(*result, QStringLiteral("compare"));
+    QCOMPARE(answer.value(QStringLiteral("origin")).toString(), QStringLiteral("document"));
+    QVERIFY(result->getFirstText().startsWith(pdf::PDFAppMcpToolSet::getUntrustedContentLine() + QLatin1Char('\n')));
+    QCOMPARE(answer.value(QStringLiteral("data")).toObject().value(QStringLiteral("counts")).toObject().value(QStringLiteral("total")).toInteger(), qint64(11));
+    QCOMPARE(fixture.context->getDocumentRegistry()->getDocuments().size(), documentCount + 1);
+    const QString reportId = answer.value(QStringLiteral("documentId")).toString();
+    QVERIFY(reportId != original->getDocument()->getId() && reportId != revised->getDocument()->getId());
+    pdf::PDFAppDocument* reportDocument = findDocument(fixture, reportId);
+    QVERIFY(reportDocument);
+    QTRY_VERIFY(reportDocument->isReady());
+    const pdf::PDFDocument* reportPdf = reportDocument->getDocument().data();
+    QVERIFY(reportPdf);
+    QCOMPARE(reportPdf->getCatalog()->getPageCount(), size_t(4));
+    const std::vector<const pdf::PDFDictionary*> removed = annotations(reportPdf, 0, "Polygon");
+    const std::vector<const pdf::PDFDictionary*> added = annotations(reportPdf, 1, "Polygon");
+    QCOMPARE(removed.size(), size_t(1));
+    QCOMPARE(added.size(), size_t(1));
+    pdf::PDFDocumentDataLoaderDecorator loader(reportPdf);
+    const auto colorName = [&loader](const pdf::PDFDictionary* annotation)
+    {
+        const std::vector<pdf::PDFReal> color = loader.readNumberArrayFromDictionary(annotation, "IC");
+        return color.size() == 3 ? QColor::fromRgbF(float(color[0]), float(color[1]), float(color[2])).name() : QString();
+    };
+    QCOMPARE(colorName(removed.front()), QStringLiteral("#ff3232"));
+    QCOMPARE(colorName(added.front()), QStringLiteral("#7dfa00"));
+    QVERIFY(qAbs(loader.readNumberFromDictionary(removed.front(), "CA", 1.0) - 0.3) < 1e-6);
+
+    // save_file: the report of the view Revised (two pages, the added rectangle on page 1), a .pdf file
+    result = compare(fixture, original, revised, QJsonObject({ { QStringLiteral("output"), QStringLiteral("report") }, { QStringLiteral("view"), QStringLiteral("revised") } }),
+                     QJsonObject({ { QStringLiteral("result"), QStringLiteral("save_file") }, { QStringLiteral("path"), fixture.path(QStringLiteral("Report.xml")) } }));
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText().contains(QStringLiteral("extension pdf")), qPrintable(result->getFirstText()));
+    const QString reportPath = fixture.path(QStringLiteral("Report.pdf"));
+    result = compare(fixture, original, revised, QJsonObject({ { QStringLiteral("output"), QStringLiteral("report") }, { QStringLiteral("view"), QStringLiteral("revised") } }),
+                     QJsonObject({ { QStringLiteral("result"), QStringLiteral("save_file") }, { QStringLiteral("path"), reportPath } }));
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    QCOMPARE(QDir::cleanPath(AppMcpReviewTest::content(*result, QStringLiteral("compare")).value(QStringLiteral("path")).toString()), QDir::cleanPath(reportPath));
+    const pdf::PDFDocument written = mergetest::MergeTestPdf::readBytes(AppMcpStep4::readFile(reportPath));
+    QCOMPARE(written.getCatalog()->getPageCount(), size_t(2));
+    QCOMPARE(annotations(&written, 0, "Polygon").size(), size_t(1));
+    QCOMPARE(fixture.context->getDocumentRegistry()->getDocuments().size(), documentCount + 1);
+}
+
+void AppMcpReviewTest::compareContentPermission()
+{
+    // Q7.2, ISO 32000-2 Table 22: the texts of the differences are the content (bit 5) - an input without it
+    // leaves them out of the summary, the XML is refused before the run; the report is a new unencrypted document
+    // of the inputs, the rule of Merge: an input with any restriction (here only bit 4, changes) is refused, also
+    // when its content may be copied. The refusal names the input and what works without the permission.
+    AppMcpFixture fixture;
+    QVERIFY(start(fixture));
+    pdf::PDFAppDocumentTab* original = open(fixture, QStringLiteral("Report_v1.pdf"), pdftest::AppMcpReviewDocuments::createOriginal().write());
+    pdf::PDFAppDocumentTab* noCopy = open(fixture, QStringLiteral("NoCopy.pdf"), pdftest::AppMcpReviewDocuments::encrypt(pdftest::AppMcpReviewDocuments::createRevised(), AppMcpStep4::allowedWithout(5)));
+    pdf::PDFAppDocumentTab* noChanges = open(fixture, QStringLiteral("NoChanges.pdf"), pdftest::AppMcpReviewDocuments::encrypt(pdftest::AppMcpReviewDocuments::createRevised(), AppMcpStep4::allowedWithout(4)));
+    QVERIFY(original && noCopy && noChanges);
+
+    std::optional<pdf::PDFMcpCallResult> result = compare(fixture, original, noCopy, QJsonObject());
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    const QJsonObject data = AppMcpReviewTest::content(*result, QStringLiteral("compare")).value(QStringLiteral("data")).toObject();
+    QCOMPARE(data.value(QStringLiteral("isTextOmitted")).toBool(), true);
+    QCOMPARE(data.value(QStringLiteral("counts")).toObject().value(QStringLiteral("total")).toInteger(), qint64(11));
+    for (const QJsonValue& difference : data.value(QStringLiteral("differences")).toArray())
+    {
+        QVERIFY(!difference.toObject().contains(QStringLiteral("originalText")));
+        QVERIFY(!difference.toObject().contains(QStringLiteral("revisedText")));
+    }
+    QVERIFY(!result->getFirstText().contains(QStringLiteral("AAAA")));
+
+    const auto isRefused = [](const std::optional<pdf::PDFMcpCallResult>& refusal, const QString& part)
+    {
+        return refusal && refusal->isError && refusal->getFirstText().startsWith(QStringLiteral("documentIds[1]: ")) && refusal->getFirstText().contains(QStringLiteral("Table 22")) &&
+               refusal->getFirstText().contains(QStringLiteral("review.compare works with output summary")) && refusal->getFirstText().contains(part);
+    };
+    const QString xmlPath = fixture.path(QStringLiteral("NoCopy.xml"));
+    result = compare(fixture, original, noCopy, QJsonObject({ { QStringLiteral("output"), QStringLiteral("xml") } }),
+                     QJsonObject({ { QStringLiteral("result"), QStringLiteral("save_file") }, { QStringLiteral("path"), xmlPath } }));
+    QVERIFY2(isRefused(result, QStringLiteral("copying text and images")), qPrintable(result ? result->getFirstText() : QString()));
+    QVERIFY(!QFileInfo::exists(xmlPath));
+
+    // Bit 4 only: the XML is allowed, the report is not (its restriction would be lost)
+    result = compare(fixture, original, noChanges, QJsonObject({ { QStringLiteral("output"), QStringLiteral("xml") } }));
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    const size_t documentCount = fixture.context->getDocumentRegistry()->getDocuments().size();
+    result = compare(fixture, original, noChanges, QJsonObject({ { QStringLiteral("output"), QStringLiteral("report") } }));
+    QVERIFY2(isRefused(result, QStringLiteral("is not encrypted")), qPrintable(result ? result->getFirstText() : QString()));
+    QCOMPARE(fixture.context->getDocumentRegistry()->getDocuments().size(), documentCount);
+}
+
+void AppMcpReviewTest::compareLimits()
+{
+    // Plan 4.9, 7.1: at most 1 000 differences in the data - 1 000 all of them, 1 001 the first 1 000 and truncated
+    // (the counts complete); the ranges of the pages are checked before the run (B174): a page outside of a document
+    // and a huge range are errors, quickly
+    AppMcpFixture fixture;
+    QVERIFY(start(fixture));
+    pdf::PDFAppDocumentTab* base = open(fixture, QStringLiteral("Base.pdf"), pdftest::AppMcpReviewDocuments::createSquares(0).write());
+    pdf::PDFAppDocumentTab* thousand = open(fixture, QStringLiteral("Thousand.pdf"), pdftest::AppMcpReviewDocuments::createSquares(pdf::PDFDocumentToolCompare::MAXIMUM_DIFFERENCES).write());
+    pdf::PDFAppDocumentTab* more = open(fixture, QStringLiteral("More.pdf"), pdftest::AppMcpReviewDocuments::createSquares(pdf::PDFDocumentToolCompare::MAXIMUM_DIFFERENCES + 1).write());
+    QVERIFY(base && thousand && more);
+
+    for (const auto& [tab, count] : { std::pair<pdf::PDFAppDocumentTab*, qint64>(thousand, pdf::PDFDocumentToolCompare::MAXIMUM_DIFFERENCES),
+                                      std::pair<pdf::PDFAppDocumentTab*, qint64>(more, pdf::PDFDocumentToolCompare::MAXIMUM_DIFFERENCES + 1) })
+    {
+        const std::optional<pdf::PDFMcpCallResult> result = compare(fixture, base, tab, QJsonObject());
+        QVERIFY(result);
+        QVERIFY2(!result->isError, qPrintable(result->getFirstText().left(500)));
+        const QJsonObject data = AppMcpReviewTest::content(*result, QStringLiteral("compare")).value(QStringLiteral("data")).toObject();
+        QCOMPARE(data.value(QStringLiteral("counts")).toObject().value(QStringLiteral("total")).toInteger(), count);
+        QCOMPARE(data.value(QStringLiteral("counts")).toObject().value(QStringLiteral("added")).toInteger(), count);
+        QCOMPARE(data.value(QStringLiteral("differences")).toArray().size(), qsizetype(pdf::PDFDocumentToolCompare::MAXIMUM_DIFFERENCES));
+        QCOMPARE(data.value(QStringLiteral("truncated")).toBool(), count > pdf::PDFDocumentToolCompare::MAXIMUM_DIFFERENCES);
+    }
+
+    QElapsedTimer timer;
+    timer.start();
+    for (const QString& pages : { QStringLiteral("2"), QStringLiteral("1-2147483647") })
+    {
+        const std::optional<pdf::PDFMcpCallResult> result = compare(fixture, base, more, QJsonObject({ { QStringLiteral("revisedPages"), QJsonObject({ { QStringLiteral("pages"), pages } }) } }));
+        QVERIFY(result);
+        QVERIFY2(result->isError, qPrintable(pages));
+        QVERIFY(!result->getFirstText().contains(QStringLiteral("differences")));
+    }
+    QVERIFY(timer.elapsed() < 10000 * pdftest::AppDocumentFixture::getTimeoutFactor());
+}
+
+void AppMcpReviewTest::compareHostileDocuments()
+{
+    // Plan 6, 6.2: two hostile documents never end the process. The first: a broken content stream (unbalanced q and
+    // BT, a string not closed, operators without operands) and a page tree, whose /Count claims a billion pages
+    // (7.7.3.2: the kids are the pages); the second: a form drawing itself (a cycle of the content, 8.10) used by two
+    // pages (a node shared by two paths). Each comparison answers; the server still answers afterwards.
+    AppMcpFixture fixture;
+    QVERIFY(start(fixture));
+
+    mergetest::MergeTestPdf broken = pdftest::AppMcpReviewDocuments::createTextPdf({ "q q BT /F1 10 Tf (unclosed Tj re f l m 0 0 1 rg 10 10 50 50 re f Q Q Q ET", "1 0 0 rg 20 20 40 40 re f" });
+    broken.set(2, "<< /Type /Pages /Kids [10 0 R 12 0 R] /Count 1000000000 >>");
+    mergetest::MergeTestPdf cycle = pdftest::AppMcpReviewDocuments::createTextPdf({ pdftest::AppMcpReviewDocuments::rect(100, 100, 50, 50) + "/Fm1 Do", "/Fm1 Do" });
+    cycle.set(10, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Resources << /XObject << /Fm1 50 0 R >> >> /Contents 11 0 R >>");
+    cycle.set(12, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Resources << /XObject << /Fm1 50 0 R >> >> /Contents 13 0 R >>");
+    cycle.set(50, mergetest::MergeTestPdf::stream("0 0 1 rg 5 5 5 5 re f /Fm1 Do", "/Type /XObject /Subtype /Form /BBox [0 0 600 800] /Resources << /XObject << /Fm1 50 0 R >> >>"));
+
+    pdf::PDFAppDocumentTab* first = open(fixture, QStringLiteral("Broken.pdf"), broken.write());
+    pdf::PDFAppDocumentTab* second = open(fixture, QStringLiteral("Cycle.pdf"), cycle.write());
+    QVERIFY(first && second);
+    QCOMPARE(first->getDocument()->getDocument()->getCatalog()->getPageCount(), size_t(2));
+
+    for (const QString& output : { QStringLiteral("summary"), QStringLiteral("xml"), QStringLiteral("report") })
+    {
+        QJsonObject common;
+        if (output == QLatin1String("report"))
+        {
+            common.insert(QStringLiteral("result"), QStringLiteral("save_file"));
+            common.insert(QStringLiteral("path"), fixture.path(QStringLiteral("Hostile.pdf")));
+        }
+        const std::optional<pdf::PDFMcpCallResult> result = compare(fixture, first, second, QJsonObject({ { QStringLiteral("output"), output } }), common);
+        QVERIFY2(result, qPrintable(output));
+        QVERIFY2(!result->isError, qPrintable(output + QStringLiteral(": ") + result->getFirstText().left(500)));
+        QCOMPARE(AppMcpReviewTest::content(*result, QStringLiteral("compare")).value(QStringLiteral("data")).toObject().value(QStringLiteral("originalPageCount")).toInteger(), qint64(2));
+    }
+
+    // The server answers: the same hostile document twice has no difference
+    const std::optional<pdf::PDFMcpCallResult> result = compare(fixture, second, second, QJsonObject());
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    QCOMPARE(AppMcpReviewTest::content(*result, QStringLiteral("compare")).value(QStringLiteral("data")).toObject().value(QStringLiteral("isSame")).toBool(), true);
+}
+
+void AppMcpReviewTest::measureList()
+{
+    // ISO 32000-2, 12.9.2: a measurement, whose first point is in a viewport of the page with a measure, takes its
+    // scale - 72 pt = 25.4 mm on the paper, 1:100 = 2540 mm (Table 268 /C); else the scale of the measurement (1:50:
+    // 1270 mm, (25.4 × 50 / 1000)² = 1.6129 sq. m), else 1:1 (a perimeter of 4 × 72 pt = 101.6 mm); an angle of
+    // perpendicular arms is 90°. The measurements may lie on different pages (FM-9 cancelled), the rows by pages.
+    AppMcpFixture fixture;
+    QVERIFY(start(fixture));
+    pdf::PDFAppDocumentTab* tab = open(fixture, QStringLiteral("Plan.pdf"), pdftest::AppMcpReviewDocuments::createMeasurePages().write());
+    QVERIFY(tab);
+
+    const QJsonArray items({ measurement(2, QStringLiteral("distance"), { QPointF(0, 0), QPointF(72, 0) }, scale(50)),
+                             measurement(2, QStringLiteral("area"), { QPointF(100, 100), QPointF(172, 100), QPointF(172, 172), QPointF(100, 172) }, scale(50)),
+                             measurement(1, QStringLiteral("distance"), { QPointF(50, 50), QPointF(122, 50) }),
+                             measurement(2, QStringLiteral("angle"), { QPointF(172, 400), QPointF(100, 400), QPointF(100, 472) }),
+                             measurement(2, QStringLiteral("perimeter"), { QPointF(300, 300), QPointF(372, 300), QPointF(372, 372), QPointF(300, 372) }) });
+    const QJsonObject parameters({ { QStringLiteral("measurements"), measurements(items) }, { QStringLiteral("lengthUnit"), QStringLiteral("mm") } });
+    std::optional<pdf::PDFMcpCallResult> result = call(fixture, tab, QStringLiteral("measure"), parameters);
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    QJsonObject answer = AppMcpReviewTest::content(*result, QStringLiteral("measure"));
+    QCOMPARE(answer.value(QStringLiteral("origin")).toString(), QStringLiteral("document"));
+    const QJsonObject data = answer.value(QStringLiteral("data")).toObject();
+    const std::vector<double> listed = values(data);
+    const std::vector<double> expected({ 2540.0, 1270.0, 1.6129, 90.0, 101.6 });
+    QCOMPARE(listed.size(), expected.size());
+    for (size_t i = 0; i < expected.size(); ++i)
+    {
+        QVERIFY2(qAbs(listed[i] - expected[i]) < 1e-6 * qMax(1.0, expected[i]), qPrintable(QStringLiteral("%1: %2").arg(i).arg(listed[i])));
+    }
+    const QJsonArray rows = data.value(QStringLiteral("measurements")).toArray();
+    QCOMPARE(rows.at(0).toObject().value(QStringLiteral("page")).toInteger(), qint64(1));
+    QCOMPARE(rows.at(0).toObject().value(QStringLiteral("viewport")).toString(), QStringLiteral("Plan"));
+    QCOMPARE(rows.at(0).toObject().value(QStringLiteral("text")).toString(), QStringLiteral("2540.00 mm"));
+    QCOMPARE(rows.at(1).toObject().value(QStringLiteral("unit")).toString(), QStringLiteral("mm"));
+    QCOMPARE(rows.at(2).toObject().value(QStringLiteral("unit")).toString(), QStringLiteral("sqm"));
+    QCOMPARE(rows.at(3).toObject().value(QStringLiteral("unit")).toString(), QStringLiteral("deg"));
+    QCOMPARE(rows.at(1).toObject().value(QStringLiteral("source")).toString(), QStringLiteral("new"));
+    const QJsonArray viewports = data.value(QStringLiteral("viewports")).toArray();
+    QCOMPARE(viewports.size(), qsizetype(1));
+    QCOMPARE(viewports.at(0).toObject().value(QStringLiteral("name")).toString(), QStringLiteral("Plan"));
+    QCOMPARE(viewports.at(0).toObject().value(QStringLiteral("subtype")).toString(), QStringLiteral("RL"));
+
+    // The pages of the viewports: page 2 has none
+    result = call(fixture, tab, QStringLiteral("measure"), QJsonObject({ { QStringLiteral("pages"), QJsonObject({ { QStringLiteral("pages"), QStringLiteral("2") } }) } }));
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    QVERIFY(AppMcpReviewTest::content(*result, QStringLiteral("measure")).value(QStringLiteral("data")).toObject().value(QStringLiteral("viewports")).toArray().isEmpty());
+
+    // Q7.20: the CSV of six columns, separated by semicolons, a decimal point
+    QJsonObject csvParameters = parameters;
+    csvParameters.insert(QStringLiteral("mode"), QStringLiteral("csv"));
+    result = call(fixture, tab, QStringLiteral("measure"), csvParameters);
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    answer = AppMcpReviewTest::content(*result, QStringLiteral("measure"));
+    QVERIFY2(answer.value(QStringLiteral("mimeType")).toString().startsWith(QStringLiteral("text/csv")), qPrintable(answer.value(QStringLiteral("mimeType")).toString()));
+    QVERIFY(result->getFirstText().startsWith(pdf::PDFAppMcpToolSet::getUntrustedContentLine() + QLatin1Char('\n')));
+    QStringList lines = result->getFirstText().section(QLatin1Char('\n'), 1).split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+    for (QString& line : lines)
+    {
+        line.remove(QLatin1Char('\r'));
+    }
+    QVERIFY2(lines.size() == 6, qPrintable(result->getFirstText()));
+    QCOMPARE(lines.at(0), QStringLiteral("Page;Type;Value;Unit;Text;Scale"));
+    QVERIFY2(lines.at(1).startsWith(QStringLiteral("1;Length;2540.0000;mm;2540.00 mm;")), qPrintable(lines.at(1)));
+
+    const QString csvPath = fixture.path(QStringLiteral("Plan.csv"));
+    result = call(fixture, tab, QStringLiteral("measure"), csvParameters, QJsonObject({ { QStringLiteral("result"), QStringLiteral("save_file") }, { QStringLiteral("path"), csvPath } }));
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    QVERIFY(AppMcpStep4::readFile(csvPath).startsWith("Page;Type;Value;Unit;Text;Scale\r\n"));
+
+    // The data of list is no file, and no change of the document
+    result = call(fixture, tab, QStringLiteral("measure"), parameters, QJsonObject({ { QStringLiteral("result"), QStringLiteral("save_file") }, { QStringLiteral("path"), fixture.path(QStringLiteral("List.csv")) } }));
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText().startsWith(QStringLiteral("result: save_file writes the CSV")), qPrintable(result->getFirstText()));
+    result = call(fixture, tab, QStringLiteral("measure"), parameters, QJsonObject({ { QStringLiteral("result"), QStringLiteral("keep") } }));
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText().startsWith(QStringLiteral("result: keep, save_copy and overwrite take the annotations of mode add")), qPrintable(result->getFirstText()));
+    QVERIFY(fixture.confirmations()->shown.empty());
+}
+
+void AppMcpReviewTest::measureAddConfirmed()
+{
+    // Plan 7.1, Q7.5: the annotations of mode add are always confirmed, also with every permission Allow, with their
+    // ghosts on their pages (a distance and an angle by their points, a perimeter by its closed polyline, an area by
+    // its polygon, in the color of their lines) and a row per page; declined, nothing changes. Allowed: one step of
+    // Undo, the annotations of 12.5.6.9 / Table 181 on two pages - a distance /Line /IT /LineDimension, an area
+    // /Polygon /IT /PolygonDimension, a perimeter /PolyLine /IT /PolyLineDimension, an angle /PolyLine without /IT -
+    // each with /Measure /Subtype /RL (Table 266); listed afterwards as annotations with their values.
+    AppMcpFixture fixture;
+    QVERIFY(start(fixture));
+    pdf::PDFAppDocumentTab* tab = open(fixture, QStringLiteral("Plan.pdf"), mergetest::MergeTestPdf::createPages("M", 2).write());
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    const quint64 version = document->getVersion();
+    const int undoCount = pdftest::AppDocumentFixture::undoCount(document);
+
+    const QJsonArray items({ measurement(1, QStringLiteral("distance"), { QPointF(100, 100), QPointF(172, 100) }, scale(10)),
+                             measurement(2, QStringLiteral("area"), { QPointF(100, 100), QPointF(172, 100), QPointF(172, 172), QPointF(100, 172) }),
+                             measurement(2, QStringLiteral("perimeter"), { QPointF(300, 300), QPointF(372, 300), QPointF(300, 372) }),
+                             measurement(1, QStringLiteral("angle"), { QPointF(172, 400), QPointF(100, 400), QPointF(100, 472) }) });
+    const QJsonObject parameters({ { QStringLiteral("mode"), QStringLiteral("add") }, { QStringLiteral("measurements"), measurements(items) },
+                                   { QStringLiteral("lengthUnit"), QStringLiteral("mm") }, { QStringLiteral("textColor"), QStringLiteral("#1f3a93") } });
+
+    fixture.confirmations()->setAutoAnswer(pdf::PDFAppMcpDecision::DeniedUser);
+    std::optional<pdf::PDFMcpCallResult> result = call(fixture, tab, QStringLiteral("measure"), parameters);
+    QVERIFY(result && result->isError);
+    QCOMPARE(int(fixture.confirmations()->shown.size()), 1);
+    std::shared_ptr<pdf::PDFAppMcpConfirmation> confirmation = fixture.confirmations()->shown.back();
+    QVERIFY(confirmation->isAlwaysConfirmed);
+    QCOMPARE(confirmation->kind, pdf::PDFAppMcpConfirmationKind::Change);
+    QCOMPARE(document->getVersion(), version);
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoCount);
+    QVERIFY(annotations(document->getDocument().data(), 0, "Line").empty());
+
+    const QJsonArray ghosts = confirmation->details.value(QStringLiteral("ghosts")).toArray();
+    QCOMPARE(ghosts.size(), qsizetype(4));
+    std::vector<pdf::PDFAppMcpGhost> parsed;
+    for (const QJsonValue& value : ghosts)
+    {
+        const std::optional<pdf::PDFAppMcpGhost> ghost = pdf::PDFAppMcpGhost::fromJson(value.toObject());
+        QVERIFY(ghost);
+        QCOMPARE(ghost->color, QColor(QStringLiteral("#1f3a93")));
+        parsed.push_back(*ghost);
+    }
+    QCOMPARE(parsed[0].shape, pdf::PDFAppMcpGhost::Shape::Polyline);
+    QCOMPARE(parsed[0].pageIndex, pdf::PDFInteger(0));
+    QCOMPARE(parsed[0].points, QPolygonF({ QPointF(100, 100), QPointF(172, 100) }));
+    QCOMPARE(parsed[1].shape, pdf::PDFAppMcpGhost::Shape::Polygon);
+    QCOMPARE(parsed[1].pageIndex, pdf::PDFInteger(1));
+    QCOMPARE(parsed[1].getBoundingRect(), QRectF(100, 100, 72, 72));
+    QCOMPARE(parsed[2].shape, pdf::PDFAppMcpGhost::Shape::Polyline);
+    QCOMPARE(parsed[2].points, QPolygonF({ QPointF(300, 300), QPointF(372, 300), QPointF(300, 372), QPointF(300, 300) }));
+    QCOMPARE(parsed[3].shape, pdf::PDFAppMcpGhost::Shape::Polyline);
+    QCOMPARE(parsed[3].pageIndex, pdf::PDFInteger(0));
+    QCOMPARE(parsed[3].points, QPolygonF({ QPointF(172, 400), QPointF(100, 400), QPointF(100, 472) }));
+
+    const QJsonArray rows = confirmation->details.value(QStringLiteral("rows")).toArray();
+    QCOMPARE(rows.size(), qsizetype(2));
+    const pdf::PDFAppMcpChangeRow firstRow = pdf::PDFAppMcpChangeRow::fromJson(rows.at(0).toObject());
+    QCOMPARE(firstRow.page, QStringLiteral("Page 1"));
+    QCOMPARE(firstRow.text, QStringLiteral("Add 2 measurements"));
+    QVERIFY2(firstRow.detail.contains(QStringLiteral("254.00 mm")), qPrintable(firstRow.detail));
+    QCOMPARE(pdf::PDFAppMcpChangeRow::fromJson(rows.at(1).toObject()).page, QStringLiteral("Page 2"));
+
+    // A copy is confirmed with the ghosts too (Show on Page); declined, nothing is written
+    const QString copyPath = fixture.path(QStringLiteral("Plan_measured.pdf"));
+    result = call(fixture, tab, QStringLiteral("measure"), parameters, QJsonObject({ { QStringLiteral("result"), QStringLiteral("save_copy") }, { QStringLiteral("path"), copyPath } }));
+    QVERIFY(result && result->isError);
+    QCOMPARE(int(fixture.confirmations()->shown.size()), 2);
+    QCOMPARE(fixture.confirmations()->shown.back()->kind, pdf::PDFAppMcpConfirmationKind::SaveCopy);
+    QVERIFY(fixture.confirmations()->shown.back()->isAlwaysConfirmed);
+    QCOMPARE(fixture.confirmations()->shown.back()->details.value(QStringLiteral("ghosts")).toArray().size(), qsizetype(4));
+    QVERIFY(!QFileInfo::exists(copyPath));
+    QCOMPARE(document->getVersion(), version);
+
+    // Allowed: the annotations as one step of Undo
+    fixture.confirmations()->setAutoAnswer(pdf::PDFAppMcpDecision::Allowed);
+    result = call(fixture, tab, QStringLiteral("measure"), parameters);
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    QCOMPARE(int(fixture.confirmations()->shown.size()), 3);
+    QCOMPARE(AppMcpReviewTest::content(*result, QStringLiteral("measure")).value(QStringLiteral("data")).toObject().value(QStringLiteral("added")).toInt(), 4);
+    QVERIFY(document->getVersion() != version);
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(document), undoCount + 1);
+
+    const pdf::PDFDocument* changed = document->getDocument().data();
+    const std::vector<const pdf::PDFDictionary*> lines = annotations(changed, 0, "Line");
+    const std::vector<const pdf::PDFDictionary*> angles = annotations(changed, 0, "PolyLine");
+    const std::vector<const pdf::PDFDictionary*> areas = annotations(changed, 1, "Polygon");
+    const std::vector<const pdf::PDFDictionary*> perimeters = annotations(changed, 1, "PolyLine");
+    QCOMPARE(lines.size(), size_t(1));
+    QCOMPARE(angles.size(), size_t(1));
+    QCOMPARE(areas.size(), size_t(1));
+    QCOMPARE(perimeters.size(), size_t(1));
+    QCOMPARE(changed->getObject(lines.front()->get("IT")).getString(), QByteArray("LineDimension"));
+    QCOMPARE(changed->getObject(areas.front()->get("IT")).getString(), QByteArray("PolygonDimension"));
+    QCOMPARE(changed->getObject(perimeters.front()->get("IT")).getString(), QByteArray("PolyLineDimension"));
+    QVERIFY(!angles.front()->hasKey("IT"));
+    for (const pdf::PDFDictionary* annotation : { lines.front(), angles.front(), areas.front(), perimeters.front() })
+    {
+        const pdf::PDFDictionary* measure = changed->getDictionaryFromObject(annotation->get("Measure"));
+        QVERIFY(measure);
+        QCOMPARE(changed->getObject(measure->get("Subtype")).getString(), QByteArray("RL"));
+    }
+
+    // The annotations are listed with their values (72 pt at 1:10 = 254 mm)
+    result = call(fixture, tab, QStringLiteral("measure"), QJsonObject({ { QStringLiteral("lengthUnit"), QStringLiteral("mm") } }));
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    const QJsonArray listed = AppMcpReviewTest::content(*result, QStringLiteral("measure")).value(QStringLiteral("data")).toObject().value(QStringLiteral("measurements")).toArray();
+    QCOMPARE(listed.size(), qsizetype(4));
+    bool isDistanceFound = false;
+    for (const QJsonValue& row : listed)
+    {
+        QCOMPARE(row.toObject().value(QStringLiteral("source")).toString(), QStringLiteral("annotation"));
+        if (row.toObject().value(QStringLiteral("kind")).toString() == QLatin1String("distance"))
+        {
+            isDistanceFound = qAbs(row.toObject().value(QStringLiteral("value")).toDouble() - 254.0) < 1e-6;
+        }
+    }
+    QVERIFY(isDistanceFound);
+}
+
+void AppMcpReviewTest::measureLimits()
+{
+    // Plan 6.2, 7.1: at most 500 measurements in a call (each one shown as a ghost - PDFAppMcpGhost::MAXIMUM_GHOSTS) and
+    // 200 points of a measurement, at both edges; over a limit the call is refused with the reason, no question
+    AppMcpFixture fixture;
+    QVERIFY(start(fixture));
+    pdf::PDFAppDocumentTab* tab = open(fixture, QStringLiteral("Plan.pdf"), mergetest::MergeTestPdf::createPages("M", 1).write());
+    QVERIFY(tab);
+    const quint64 version = tab->getDocument()->getVersion();
+    fixture.confirmations()->setAutoAnswer(pdf::PDFAppMcpDecision::DeniedUser);
+
+    const auto add = [&fixture, tab](const QJsonArray& items)
+    {
+        return call(fixture, tab, QStringLiteral("measure"), QJsonObject({ { QStringLiteral("mode"), QStringLiteral("add") }, { QStringLiteral("measurements"), measurements(items) } }));
+    };
+
+    QJsonArray distances;
+    for (int i = 0; i < pdf::PDFDocumentToolMeasure::MAXIMUM_MEASUREMENT_COUNT; ++i)
+    {
+        distances.append(measurement(1, QStringLiteral("distance"), { QPointF(10, 10 + i), QPointF(100, 10 + i) }));
+    }
+    std::optional<pdf::PDFMcpCallResult> result = add(distances);
+    QVERIFY(result && result->isError);
+    QCOMPARE(int(fixture.confirmations()->shown.size()), 1);
+    QCOMPARE(fixture.confirmations()->shown.back()->details.value(QStringLiteral("ghosts")).toArray().size(), qsizetype(pdf::PDFDocumentToolMeasure::MAXIMUM_MEASUREMENT_COUNT));
+
+    distances.append(measurement(1, QStringLiteral("distance"), { QPointF(10, 600), QPointF(100, 600) }));
+    result = add(distances);
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText().contains(QStringLiteral("At most 500 measurements")), qPrintable(result->getFirstText()));
+    QCOMPARE(int(fixture.confirmations()->shown.size()), 1);
+
+    // The corners of a polygon on a circle, all different
+    const auto corners = [](int count)
+    {
+        std::vector<QPointF> points;
+        for (int i = 0; i < count; ++i)
+        {
+            const double angle = 2.0 * std::numbers::pi * i / count;
+            points.emplace_back(300.0 + 200.0 * std::cos(angle), 400.0 + 200.0 * std::sin(angle));
+        }
+        return points;
+    };
+    result = add(QJsonArray({ measurement(1, QStringLiteral("area"), corners(pdf::PDFDocumentToolMeasure::MAXIMUM_POINT_COUNT)) }));
+    QVERIFY(result && result->isError);
+    QCOMPARE(int(fixture.confirmations()->shown.size()), 2);
+    const std::optional<pdf::PDFAppMcpGhost> polygon = pdf::PDFAppMcpGhost::fromJson(fixture.confirmations()->shown.back()->details.value(QStringLiteral("ghosts")).toArray().at(0).toObject());
+    QVERIFY(polygon);
+    QCOMPARE(polygon->points.size(), qsizetype(pdf::PDFDocumentToolMeasure::MAXIMUM_POINT_COUNT));
+
+    result = add(QJsonArray({ measurement(1, QStringLiteral("area"), corners(pdf::PDFDocumentToolMeasure::MAXIMUM_POINT_COUNT + 1)) }));
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText().contains(QStringLiteral("Measurement 1:")), qPrintable(result->getFirstText()));
+    QCOMPARE(int(fixture.confirmations()->shown.size()), 2);
+    QCOMPARE(tab->getDocument()->getVersion(), version);
+}
+
+void AppMcpReviewTest::measureRefusals()
+{
+    // Plan 4.8, 7.1, Q7.2: the annotations are refused before any run and any question on a locked document (also as a
+    // copy), on a busy one (a tool of the shell runs), without bit 6 of Table 22 (with what works without it) and on a
+    // document certified with no annotations allowed (12.8.2.2, Table 257: P 1, 2; P 3 allows them). Listing works on
+    // all of them.
+    AppMcpFixture fixture;
+    QVERIFY(start(fixture));
+    fixture.confirmations()->setAutoAnswer(pdf::PDFAppMcpDecision::DeniedUser);
+    const QJsonObject add({ { QStringLiteral("mode"), QStringLiteral("add") },
+                            { QStringLiteral("measurements"), measurements(QJsonArray({ measurement(1, QStringLiteral("distance"), { QPointF(10, 10), QPointF(82, 10) }) })) } });
+
+    pdf::PDFAppDocumentTab* tab = open(fixture, QStringLiteral("Plan.pdf"), mergetest::MergeTestPdf::createPages("M", 1).write());
+    QVERIFY(tab);
+    tab->getDocument()->setLocked(true);
+    std::optional<pdf::PDFMcpCallResult> result = call(fixture, tab, QStringLiteral("measure"), add);
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText() == pdf::PDFAppMcpChangeJob::getLockedText(), qPrintable(result->getFirstText()));
+    result = call(fixture, tab, QStringLiteral("measure"), add, QJsonObject({ { QStringLiteral("result"), QStringLiteral("save_copy") }, { QStringLiteral("path"), fixture.path(QStringLiteral("Locked_copy.pdf")) } }));
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText() == pdf::PDFAppMcpChangeJob::getLockedText(), qPrintable(result->getFirstText()));
+    result = call(fixture, tab, QStringLiteral("measure"), QJsonObject());
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    tab->getDocument()->setLocked(false);
+
+    QPointer<pdf::PDFAppDocumentOperation> operation = tab->getDocument()->beginOperation(pdf::PDFAppDocumentOperationKind::Tool, QStringLiteral("Running"), true);
+    QVERIFY(operation);
+    result = call(fixture, tab, QStringLiteral("measure"), add);
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText().contains(QStringLiteral("PDF4QT is busy")), qPrintable(result->getFirstText()));
+    result = call(fixture, tab, QStringLiteral("measure"), QJsonObject());
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    if (operation)
+    {
+        operation->finish();
+    }
+
+    pdf::PDFAppDocumentTab* restricted = open(fixture, QStringLiteral("NoAnnotations.pdf"), pdftest::AppMcpReviewDocuments::encrypt(mergetest::MergeTestPdf::createPages("M", 1), AppMcpStep4::allowedWithout(6)));
+    QVERIFY(restricted);
+    result = call(fixture, restricted, QStringLiteral("measure"), add);
+    QVERIFY(result && result->isError);
+    QVERIFY2(result->getFirstText().contains(QStringLiteral("Table 22")) && result->getFirstText().contains(QStringLiteral("review.measure works with mode list or csv")), qPrintable(result->getFirstText()));
+    result = call(fixture, restricted, QStringLiteral("measure"), QJsonObject({ { QStringLiteral("mode"), QStringLiteral("csv") } }));
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+
+    for (int level : { 1, 2 })
+    {
+        pdf::PDFAppDocumentTab* certified = open(fixture, QStringLiteral("Certified%1.pdf").arg(level), pdftest::AppMcpReviewDocuments::createCertified(level).write());
+        QVERIFY(certified);
+        result = call(fixture, certified, QStringLiteral("measure"), add);
+        QVERIFY(result && result->isError);
+        QVERIFY2(result->getFirstText().contains(QStringLiteral("12.8.2.2, Table 257")), qPrintable(result->getFirstText()));
+        result = call(fixture, certified, QStringLiteral("measure"), QJsonObject());
+        QVERIFY(result);
+        QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    }
+    QVERIFY(fixture.confirmations()->shown.empty());
+
+    pdf::PDFAppDocumentTab* allowing = open(fixture, QStringLiteral("Certified3.pdf"), pdftest::AppMcpReviewDocuments::createCertified(3).write());
+    QVERIFY(allowing);
+    result = call(fixture, allowing, QStringLiteral("measure"), add);
+    QVERIFY(result && result->isError);
+    QCOMPARE(int(fixture.confirmations()->shown.size()), 1);
 }
 
 int main(int argc, char* argv[])

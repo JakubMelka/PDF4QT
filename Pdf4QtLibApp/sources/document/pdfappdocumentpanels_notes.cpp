@@ -700,7 +700,9 @@ PDFAppNotesPanel::PDFAppNotesPanel(QWidget* parent) :
     layout->addWidget(m_view, 1);
 
     connect(m_searchField, &QLineEdit::textChanged, this, &PDFAppNotesPanel::onSearchTextChanged);
-    connect(m_view, &QAbstractItemView::clicked, this, &PDFAppNotesPanel::onClicked);
+    // From the event loop: the page of the view runs code of the application, Qt reads the view after its signal
+    PDFAppItemViewSignalRelay* relay = new PDFAppItemViewSignalRelay(m_view, this);
+    connect(relay, &PDFAppItemViewSignalRelay::clicked, this, &PDFAppNotesPanel::onClicked);
     connect(m_view, &QWidget::customContextMenuRequested, this, &PDFAppNotesPanel::onContextMenuRequested);
     connect(m_view->selectionModel(), &QItemSelectionModel::selectionChanged, this, &PDFAppNotesPanel::onListSelectionChanged);
 }

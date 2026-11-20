@@ -281,6 +281,7 @@ private Q_SLOTS:
     void commandLine_data();
     void commandLine();
     void commandLineSpecialCases();
+    void commandLineCompare();
     void commandLineRandom();
     void commandRegistry();
     void shortcutConflicts();
@@ -485,6 +486,64 @@ void AppCoreTest::commandLineSpecialCases()
     commandLine = pdf::PDFAppCommandLine::parse({}, QString());
     QVERIFY(!commandLine.hasErrors());
     QVERIFY(!pdf::PDFAppCommandLine::getUsage().isEmpty());
+}
+
+void AppCoreTest::commandLineCompare()
+{
+    // Q7.13 of the plan of step 7 of phase 2: --compare <original> <revised> takes the two next arguments as the files
+    // of a comparison (absolute, canonical; never document tabs), a missing one is kept with FileNotFound
+    const QString missing = QDir::cleanPath(m_directory.filePath(QStringLiteral("missing.pdf")));
+    pdf::PDFAppCommandLine commandLine = pdf::PDFAppCommandLine::parse({ "PDF4QT", "--compare", m_existingFile, QStringLiteral("missing.pdf") }, m_directory.path());
+    QCOMPARE(commandLine.getCompareFiles(), QStringList({ m_existingFile, missing }));
+    QVERIFY(commandLine.getFiles().isEmpty());
+    QCOMPARE(commandLine.getErrors().size(), size_t(1));
+    QCOMPARE(commandLine.getErrors().front().kind, pdf::PDFAppCommandLineError::Kind::FileNotFound);
+    QVERIFY(commandLine.isForwardingAllowed());
+
+    // An option after --compare is a file of the comparison, not an option; the files and the page stay
+    commandLine = pdf::PDFAppCommandLine::parse({ "PDF4QT", m_existingFile, "--compare", "--portable", m_existingFile, "--page", "3" }, m_directory.path());
+    QCOMPARE(commandLine.getFiles(), QStringList({ m_existingFile }));
+    QCOMPARE(commandLine.getCompareFiles().size(), 2);
+    QCOMPARE(commandLine.getCompareFiles().back(), m_existingFile);
+    QVERIFY(!commandLine.isPortable());
+    QCOMPARE(commandLine.getPage(), 3);
+
+    // Fewer than two files: MissingValue, no comparison
+    commandLine = pdf::PDFAppCommandLine::parse({ "PDF4QT", "--compare", m_existingFile }, m_directory.path());
+    QVERIFY(commandLine.getCompareFiles().isEmpty());
+    QCOMPARE(commandLine.getErrors().size(), size_t(1));
+    QCOMPARE(commandLine.getErrors().front().kind, pdf::PDFAppCommandLineError::Kind::MissingValue);
+    QVERIFY(!commandLine.isForwardingAllowed());
+
+    // A folder is not a file: the pair is incomplete
+    commandLine = pdf::PDFAppCommandLine::parse({ "PDF4QT", "--compare", m_existingFile, QStringLiteral("folder") }, m_directory.path());
+    QVERIFY(commandLine.getCompareFiles().isEmpty());
+    QCOMPARE(commandLine.getErrors().front().kind, pdf::PDFAppCommandLineError::Kind::NotAFile);
+
+    // Portable and --new-window never forward the comparison
+    commandLine = pdf::PDFAppCommandLine::parse({ "PDF4QT", "--portable", "--compare", m_existingFile, m_existingFile }, m_directory.path());
+    QCOMPARE(commandLine.getCompareFiles().size(), 2);
+    QVERIFY(!commandLine.isForwardingAllowed());
+
+    // The request of the running instance carries the pair; the message is checked as the files
+    commandLine = pdf::PDFAppCommandLine::parse({ "PDF4QT", "--compare", m_existingFile, QStringLiteral("missing.pdf") }, m_directory.path());
+    const pdf::PDFAppInstanceRequest request = pdf::PDFAppInstanceProtocol::createRequest(commandLine, QString());
+    QCOMPARE(request.compareFiles, QStringList({ m_existingFile, missing }));
+    QVERIFY(request.files.isEmpty());
+    QVERIFY(request.errors.isEmpty());
+    pdf::PDFAppInstanceRequest decoded;
+    QString error;
+    QVERIFY(pdf::PDFAppInstanceProtocol::decodeRequest(pdf::PDFAppInstanceProtocol::encodeRequest(request), &decoded, &error));
+    QCOMPARE(decoded, request);
+
+    const QList<QByteArray> invalidRequests = { QByteArrayLiteral("{\"version\":1,\"files\":[],\"compareFiles\":[\"relative.pdf\",\"other.pdf\"]}"),
+                                                QByteArrayLiteral("{\"version\":1,\"files\":[],\"compareFiles\":[\"/a.pdf\"]}"),
+                                                QByteArrayLiteral("{\"version\":1,\"files\":[],\"compareFiles\":\"/a.pdf\"}"),
+                                                QByteArrayLiteral("{\"version\":1,\"files\":[],\"compareFiles\":[\"/a.pdf\",7]}") };
+    for (const QByteArray& invalidRequest : invalidRequests)
+    {
+        QVERIFY2(!pdf::PDFAppInstanceProtocol::decodeRequest(invalidRequest, &decoded, &error), invalidRequest.constData());
+    }
 }
 
 void AppCoreTest::commandLineRandom()

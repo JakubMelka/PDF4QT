@@ -730,6 +730,7 @@ private slots:
     void tileRowDirectionAndData();
     void tileRowDefensive();
     void tileRowShortcut();
+    void tileRowStaticChosen();
     void tileRowDelegate();
     void pageTileGeometry();
     void pageTilePixels_data();
@@ -19753,6 +19754,94 @@ void FluentComponentsTest::tileRowDefensive()
     widget.setCheckBoxChecked(true);
     widget.setCheckBoxEnabled(true);
     QVERIFY(!widget.getCheckBox());
+}
+
+void FluentComponentsTest::tileRowStaticChosen()
+{
+    using Kind = ToolSamples::Kind;
+
+    // 492:18382 (the chosen input of a slot of Compare, 350 x 44): a text with the fill bg/accent-subtle of a chosen
+    // row of a list (438:14751), radius 8, the tile bg/accent-subtle with icon/accent, the link Change… at the
+    // trailing side. A row, which is not clickable, is never checkable: the look is no state of a button.
+    QWidget window;
+    window.resize(400, 200);
+    pdf::PDFTileRow* row = new pdf::PDFTileRow(QStringLiteral("Report_v1.pdf"), QStringLiteral("24 pages · open tab"), QStringLiteral("file"), Kind::ListItem, &window);
+    row->setGeometry(0, 0, 350, 44);
+    row->setTitleKind(Painter::TextKind::Data);
+    row->setLinkText(QStringLiteral("Change…"));
+    row->setClickable(false);
+    pdf::PDFTileRow* menuRow = new pdf::PDFTileRow(QStringLiteral("Standard"), QString(), QStringLiteral("list"), Kind::MenuItem, &window);
+    menuRow->setGeometry(0, 60, 302, 44);
+    menuRow->setClickable(false);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(QStringLiteral("light")));
+
+    // Not chosen: no fill
+    QVERIFY(!row->isStaticChosen());
+    QVERIFY(!row->getContent().chosen);
+    QVERIFY(isNear(pixel(renderWidget(row, 1.0), 4, 22), token(Color::BgSurface)));
+
+    row->setStaticChosen(true);
+    QVERIFY(row->isStaticChosen());
+    QVERIFY(row->getContent().chosen);
+    QVERIFY(!row->isCheckable());
+    QVERIFY(!row->getComponentState().isOn());
+    for (const char* theme : { "light", "dark" })
+    {
+        QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(QString::fromLatin1(theme)));
+        const QColor fill = blend(token(Color::BgAccentSubtle), token(Color::BgSurface));
+        for (const qreal scale : { 1.0, 2.0 })
+        {
+            const QImage image = renderWidget(row, scale);
+            QVERIFY2(isNear(pixel(image, 4, 22), fill), theme);     // the leading padding 10
+            QVERIFY2(isNear(pixel(image, 200, 3), fill), theme);    // above the texts (padding 7)
+            QVERIFY2(isNear(pixel(image, 346, 40), fill), theme);   // inside the trailing bottom corner (radius 8)
+            QVERIFY2(isNear(pixel(image, 349, 43), token(Color::BgSurface), 12), theme);   // the corner itself is round
+            QCOMPARE(countLeakPixels(image), 0);
+
+            // The widget draws what the painter draws for its content (the look is in the content, not in a state)
+            Painter::TileRow content = row->getContent();
+            content.paintNested = true;
+            const QImage painted = renderInWidget([&](QPainter& painter) { Painter::paintTileRow(&painter, QRectF(QPointF(0, 0), QSizeF(row->size())), content, row->getComponentState()); }, row->size(), scale);
+            const QString difference = describeDifference(image, painted, 3);
+            QVERIFY2(difference.isEmpty(), qPrintable(difference));
+        }
+        const QImage image = renderWidget(row, 1.0);
+        const QRectF tile = Painter::getTileRowTileRect(QRectF(row->rect()), row->getContent(), row->getComponentState());
+        QVERIFY(isNear(pixel(image, tile.left() + 2, tile.center().y()), blend(token(Color::BgAccentSubtle), fill)));
+    }
+    QVERIFY(pdf::PDFThemeManager::getInstance()->setTheme(QStringLiteral("light")));
+
+    // A clickable row is chosen by its selection behavior: the static look is not shown while it is clickable
+    // (a clickable row may be under the pointer: bg/hover)
+    row->setClickable(true);
+    QVERIFY(!row->getContent().chosen);
+    const QColor clickable = pixel(renderWidget(row, 1.0), 4, 22);
+    QVERIFY(isNear(clickable, token(Color::BgSurface)) || isNear(clickable, blend(token(Color::BgHover), token(Color::BgSurface))));
+    row->setClickable(false);
+    QVERIFY(row->getContent().chosen);
+
+    // A text: a click is no click, the link works
+    QSignalSpy clicked(row, &QAbstractButton::clicked);
+    QSignalSpy link(row, &pdf::PDFTileRow::linkClicked);
+    QTest::mouseClick(row, Qt::LeftButton, Qt::NoModifier, QPoint(120, 22));
+    QCOMPARE(clicked.count(), 0);
+    QVERIFY(row->getLink());
+    QTest::mouseClick(row->getLink(), Qt::LeftButton, Qt::NoModifier, QPoint(10, 8));
+    QCOMPARE(link.count(), 1);
+    QCOMPARE(QAccessible::queryAccessibleInterface(row)->role(), QAccessible::StaticText);
+
+    // An item of a menu shown so has its check mark (438:15032), its place is reserved
+    QVERIFY(Painter::getTileRowEndIconRect(QRectF(menuRow->rect()), menuRow->getContent(), menuRow->getComponentState()).isEmpty());
+    menuRow->setStaticChosen(true);
+    QVERIFY(menuRow->getContent().chosen);
+    QVERIFY(!Painter::getTileRowEndIconRect(QRectF(menuRow->rect()), menuRow->getContent(), menuRow->getComponentState()).isEmpty());
+
+    // Off again: no fill
+    row->setStaticChosen(false);
+    QVERIFY(!row->getContent().chosen);
+    QVERIFY(isNear(pixel(renderWidget(row, 1.0), 4, 22), token(Color::BgSurface)));
 }
 
 void FluentComponentsTest::tileRowDelegate()

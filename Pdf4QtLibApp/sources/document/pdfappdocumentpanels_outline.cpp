@@ -452,8 +452,11 @@ PDFAppOutlinePanel::PDFAppOutlinePanel(QWidget* parent) :
     m_tree->setModel(m_filterModel);
 
     connect(m_searchField, &QLineEdit::textChanged, this, &PDFAppOutlinePanel::onSearchTextChanged);
-    connect(m_tree, &QAbstractItemView::clicked, this, &PDFAppOutlinePanel::onItemClicked);
-    connect(m_tree, &QAbstractItemView::activated, this, &PDFAppOutlinePanel::onItemClicked);
+    // From the event loop: the page of the view (the status bar) runs code of the application, Qt reads the tree after
+    // its signal
+    PDFAppItemViewSignalRelay* relay = new PDFAppItemViewSignalRelay(m_tree, this);
+    connect(relay, &PDFAppItemViewSignalRelay::clicked, this, &PDFAppOutlinePanel::onItemClicked);
+    connect(relay, &PDFAppItemViewSignalRelay::activated, this, &PDFAppOutlinePanel::onItemClicked);
     connect(m_tree, &QWidget::customContextMenuRequested, this, &PDFAppOutlinePanel::onContextMenuRequested);
     connect(m_tree->selectionModel(), &QItemSelectionModel::currentChanged, this, &PDFAppOutlinePanel::onCurrentIndexChanged);
     connect(m_tree->selectionModel(), &QItemSelectionModel::selectionChanged, this, &PDFAppOutlinePanel::onSelectionChanged);

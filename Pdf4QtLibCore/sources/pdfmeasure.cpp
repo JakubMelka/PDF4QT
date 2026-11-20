@@ -23,6 +23,7 @@
 #include "pdfmeasure.h"
 #include "pdfdocument.h"
 
+#include <QStringList>
 #include <QtMath>
 
 #include <array>
@@ -40,7 +41,8 @@ PDFNumberFormat PDFNumberFormat::parse(const PDFObjectStorage* storage, PDFObjec
     {
         PDFDocumentDataLoaderDecorator loader(storage);
 
-        result.m_unitLabel = loader.readTextStringFromDictionary(dictionary, "U", QString());
+        // The texts are cut (MAXIMUM_TEXT_LENGTH): every formatted value repeats them
+        result.m_unitLabel = loader.readTextStringFromDictionary(dictionary, "U", QString()).left(MAXIMUM_TEXT_LENGTH);
         result.m_conversionFactor = loader.readNumberFromDictionary(dictionary, "C", 1.0);
 
         constexpr std::array<std::pair<const char*, FractionDisplay>, 4> fractionDisplays = {
@@ -51,29 +53,31 @@ PDFNumberFormat PDFNumberFormat::parse(const PDFObjectStorage* storage, PDFObjec
         };
         result.m_fractionDisplay = loader.readEnumByName(dictionary->get("F"), fractionDisplays.begin(), fractionDisplays.end(), FractionDisplay::Decimal);
 
-        result.m_denominator = loader.readIntegerFromDictionary(dictionary, "D", 100);
+        // B208, Table 268: the default of D is 100 (hundredths) for the decimal display, 16 for the fraction
+        const PDFInteger defaultDenominator = (result.m_fractionDisplay == FractionDisplay::Fraction) ? 16 : 100;
+        result.m_denominator = loader.readIntegerFromDictionary(dictionary, "D", defaultDenominator);
         if (result.m_denominator < 1)
         {
-            result.m_denominator = 100;
+            result.m_denominator = defaultDenominator;
         }
 
         result.m_fixedDenominator = loader.readBooleanFromDictionary(dictionary, "FD", false);
 
         if (dictionary->hasKey("RT"))
         {
-            result.m_thousandSeparator = loader.readTextStringFromDictionary(dictionary, "RT", QString());
+            result.m_thousandSeparator = loader.readTextStringFromDictionary(dictionary, "RT", QString()).left(MAXIMUM_TEXT_LENGTH);
         }
         if (dictionary->hasKey("RD"))
         {
-            result.m_decimalSeparator = loader.readTextStringFromDictionary(dictionary, "RD", QString());
+            result.m_decimalSeparator = loader.readTextStringFromDictionary(dictionary, "RD", QString()).left(MAXIMUM_TEXT_LENGTH);
         }
         if (dictionary->hasKey("PS"))
         {
-            result.m_labelPrefix = loader.readTextStringFromDictionary(dictionary, "PS", QString());
+            result.m_labelPrefix = loader.readTextStringFromDictionary(dictionary, "PS", QString()).left(MAXIMUM_TEXT_LENGTH);
         }
         if (dictionary->hasKey("SS"))
         {
-            result.m_labelSuffix = loader.readTextStringFromDictionary(dictionary, "SS", QString());
+            result.m_labelSuffix = loader.readTextStringFromDictionary(dictionary, "SS", QString()).left(MAXIMUM_TEXT_LENGTH);
         }
 
         constexpr std::array<std::pair<const char*, Order>, 2> orders = {
@@ -94,9 +98,11 @@ std::vector<PDFNumberFormat> PDFNumberFormat::parseArray(const PDFObjectStorage*
 
     if (object.isArray())
     {
+        // At most MAXIMUM_ARRAY_LENGTH dictionaries (a hostile array of many references to one of them)
         const PDFArray* array = object.getArray();
-        result.reserve(array->getCount());
-        for (size_t i = 0; i < array->getCount(); ++i)
+        const size_t count = qMin(array->getCount(), MAXIMUM_ARRAY_LENGTH);
+        result.reserve(count);
+        for (size_t i = 0; i < count; ++i)
         {
             result.push_back(parse(storage, array->getItem(i)));
         }
@@ -280,7 +286,7 @@ PDFMeasure PDFMeasure::parse(const PDFObjectStorage* storage, PDFObject object)
         // Rectilinear coordinate system is the default subtype
         result.m_subtype = loader.readEnumByName(dictionary->get("Subtype"), subtypes.begin(), subtypes.end(), Subtype::RectilinearCoordinateSystem);
 
-        result.m_scaleRatio = loader.readTextStringFromDictionary(dictionary, "R", QString());
+        result.m_scaleRatio = loader.readTextStringFromDictionary(dictionary, "R", QString()).left(MAXIMUM_RATIO_LENGTH);
         result.m_x = PDFNumberFormat::parseArray(storage, dictionary->get("X"));
         result.m_y = PDFNumberFormat::parseArray(storage, dictionary->get("Y"));
         result.m_distance = PDFNumberFormat::parseArray(storage, dictionary->get("D"));
@@ -288,6 +294,12 @@ PDFMeasure PDFMeasure::parse(const PDFObjectStorage* storage, PDFObject object)
         result.m_angle = PDFNumberFormat::parseArray(storage, dictionary->get("T"));
         result.m_slope = PDFNumberFormat::parseArray(storage, dictionary->get("S"));
         result.m_origin = loader.readNumberArrayFromDictionary(dictionary, "O");
+        if (result.m_origin.size() > 2)
+        {
+            // Table 267: the origin is an array of two numbers; a longer array is kept by none of the measures
+            result.m_origin.resize(2);
+            result.m_origin.shrink_to_fit();
+        }
 
         if (!result.m_y.empty())
         {
@@ -394,11 +406,14 @@ std::vector<PDFViewport> PDFViewport::parseViewports(const PDFObjectStorage* sto
 
     if (object.isArray())
     {
+        // The last MAXIMUM_VIEWPORT_COUNT entries: the last viewport containing a point is chosen (12.9.2)
         const PDFArray* array = object.getArray();
         PDFDocumentDataLoaderDecorator loader(storage);
-        result.reserve(array->getCount());
+        const size_t count = array->getCount();
+        const size_t first = count > MAXIMUM_VIEWPORT_COUNT ? count - MAXIMUM_VIEWPORT_COUNT : 0;
+        result.reserve(count - first);
 
-        for (size_t i = 0; i < array->getCount(); ++i)
+        for (size_t i = first; i < count; ++i)
         {
             const PDFDictionary* dictionary = storage->getDictionaryFromObject(array->getItem(i));
             if (!dictionary)
@@ -415,7 +430,7 @@ std::vector<PDFViewport> PDFViewport::parseViewports(const PDFObjectStorage* sto
                 continue;
             }
 
-            viewport.m_name = loader.readTextStringFromDictionary(dictionary, "Name", QString());
+            viewport.m_name = loader.readTextStringFromDictionary(dictionary, "Name", QString()).left(MAXIMUM_NAME_LENGTH);
             viewport.m_measure = PDFMeasure::parse(storage, dictionary->get("Measure"));
             result.push_back(qMove(viewport));
         }
@@ -436,6 +451,327 @@ const PDFViewport* PDFViewport::findViewportForPoint(const std::vector<PDFViewpo
     }
 
     return nullptr;
+}
+
+// ------------------------------------------------------- Units and scales (step 7c of phase 2, 4.8)
+//
+// The units and the scales of the old DimensionsPlugin (dimensionunits.cpp) moved to the core; the plugin
+// calls these classes until it is deleted in phase 3.
+
+QString PDFMeasureUnit::getSymbol() const
+{
+    return symbol ? QCoreApplication::translate("pdf::PDFMeasureUnits", symbol) : QString();
+}
+
+QString PDFMeasureUnit::getDocumentSymbol() const
+{
+    return symbol ? QString::fromUtf8(symbol) : QString();
+}
+
+QString PDFMeasureUnit::getName() const
+{
+    return name ? QCoreApplication::translate("pdf::PDFMeasureUnits", name) : QString();
+}
+
+std::vector<PDFMeasureUnit> PDFMeasureUnits::getUnits(PDFMeasureQuantity quantity)
+{
+    // The tables of the class (derived from the inch and the millimeter exactly; the ids are those of the old
+    // plugin, its stored values stay readable)
+    std::vector<PDFMeasureUnit> units;
+    auto addUnits = [&units](const auto& definitions)
+    {
+        for (const PDFMeasureUnitDefinition& definition : definitions)
+        {
+            units.push_back({ QByteArray(definition.id), definition.factor, definition.symbol, definition.name });
+        }
+    };
+
+    switch (quantity)
+    {
+        case PDFMeasureQuantity::Length:
+            addUnits(LENGTH_UNITS);
+            break;
+        case PDFMeasureQuantity::Area:
+            addUnits(AREA_UNITS);
+            break;
+        case PDFMeasureQuantity::Angle:
+            addUnits(ANGLE_UNITS);
+            break;
+    }
+    return units;
+}
+
+PDFMeasureUnit PDFMeasureUnits::findUnit(PDFMeasureQuantity quantity, const QByteArray& id)
+{
+    for (const PDFMeasureUnit& unit : getUnits(quantity))
+    {
+        if (unit.id == id)
+        {
+            return unit;
+        }
+    }
+    return PDFMeasureUnit();
+}
+
+PDFMeasureUnit PDFMeasureUnits::getDefaultUnit(PDFMeasureQuantity quantity)
+{
+    const std::vector<PDFMeasureUnit> units = getUnits(quantity);
+    return units.empty() ? PDFMeasureUnit() : units.front();
+}
+
+PDFMeasureUnit PDFMeasureUnits::getInitialUnit(PDFMeasureQuantity quantity)
+{
+    switch (quantity)
+    {
+        case PDFMeasureQuantity::Length:
+            return findUnit(quantity, QByteArray(INITIAL_LENGTH_UNIT));
+        case PDFMeasureQuantity::Area:
+            return findUnit(quantity, QByteArray(INITIAL_AREA_UNIT));
+        case PDFMeasureQuantity::Angle:
+            return findUnit(quantity, QByteArray(INITIAL_ANGLE_UNIT));
+    }
+    return PDFMeasureUnit();
+}
+
+PDFMeasureUnit PDFMeasureUnits::findUnitOrDefault(PDFMeasureQuantity quantity, const QByteArray& id)
+{
+    const PDFMeasureUnit unit = findUnit(quantity, id);
+    return unit.isValid() ? unit : getDefaultUnit(quantity);
+}
+
+PDFMeasureUnit PDFMeasureUnits::findLengthUnitByLabel(const QString& label)
+{
+    const QString normalizedLabel = label.trimmed().toLower();
+    if (normalizedLabel.isEmpty())
+    {
+        return PDFMeasureUnit();
+    }
+
+    // The labels of the number formats are not standardized (Table 268 only recommends "a universally
+    // recognised abbreviation"): the abbreviations, the names in the American and the British spelling
+    // and the marks of the foot and the inch (the aliases of the old plugin)
+    static const std::vector<std::pair<const char*, QStringList>> aliases = {
+        { "pt", { "pt", "pts", "point", "points" } },
+        { "in", { "in", "ins", "inch", "inches", "\"" } },
+        { "mm", { "mm", "millimeter", "millimeters", "millimetre", "millimetres" } },
+        { "cm", { "cm", "centimeter", "centimeters", "centimetre", "centimetres" } },
+        { "m", { "m", "meter", "meters", "metre", "metres" } },
+        { "km", { "km", "kilometer", "kilometers", "kilometre", "kilometres" } },
+        { "ft", { "ft", "foot", "feet", "'" } },
+        { "yd", { "yd", "yds", "yard", "yards" } },
+        { "mi", { "mi", "mile", "miles" } }
+    };
+
+    for (const auto& [id, labels] : aliases)
+    {
+        if (labels.contains(normalizedLabel))
+        {
+            return findUnit(PDFMeasureQuantity::Length, QByteArray(id));
+        }
+    }
+
+    return PDFMeasureUnit();
+}
+
+QString PDFMeasureUnits::formatNumber(PDFReal value, int decimals)
+{
+    if (!std::isfinite(value))
+    {
+        return QString();
+    }
+
+    QString text = QString::number(value, 'f', qBound(0, decimals, 10));
+    if (text.contains(QLatin1Char('.')))
+    {
+        while (text.endsWith(QLatin1Char('0')))
+        {
+            text.chop(1);
+        }
+        if (text.endsWith(QLatin1Char('.')))
+        {
+            text.chop(1);
+        }
+    }
+    if (text == QLatin1String("-0"))
+    {
+        text = QStringLiteral("0");
+    }
+    return text;
+}
+
+PDFMeasureScale::PDFMeasureScale(PDFReal paperValue, QByteArray paperUnitId, PDFReal realValue, QByteArray realUnitId, QString name) :
+    m_paperValue(paperValue),
+    m_paperUnitId(std::move(paperUnitId)),
+    m_realValue(realValue),
+    m_realUnitId(std::move(realUnitId)),
+    m_name(std::move(name))
+{
+
+}
+
+bool PDFMeasureScale::isValid() const
+{
+    if (!std::isfinite(m_paperValue) || !std::isfinite(m_realValue) || m_paperValue <= 0.0 || m_realValue <= 0.0)
+    {
+        return false;
+    }
+
+    // Both units must really be known - findUnitOrDefault would hide an unknown one
+    const PDFMeasureUnit paperUnit = PDFMeasureUnits::findUnit(PDFMeasureQuantity::Length, m_paperUnitId);
+    const PDFMeasureUnit realUnit = PDFMeasureUnits::findUnit(PDFMeasureQuantity::Length, m_realUnitId);
+    if (!paperUnit.isValid() || !realUnit.isValid())
+    {
+        return false;
+    }
+
+    // Both sides in points: the factor must be a usable positive number (1e-300 mm = 1e300 km is not)
+    const PDFReal factor = (m_realValue / realUnit.factor) / (m_paperValue / paperUnit.factor);
+    return std::isfinite(factor) && factor > 0.0;
+}
+
+PDFReal PDFMeasureScale::getScaleFactor() const
+{
+    if (!isValid())
+    {
+        return 0.0;
+    }
+
+    // Both sides of the equality are converted to points, so the factor has no unit
+    const PDFReal paperLength = m_paperValue / PDFMeasureUnits::findUnit(PDFMeasureQuantity::Length, m_paperUnitId).factor;
+    const PDFReal realLength = m_realValue / PDFMeasureUnits::findUnit(PDFMeasureQuantity::Length, m_realUnitId).factor;
+    return realLength / paperLength;
+}
+
+bool PDFMeasureScale::hasSameProportion(const PDFMeasureScale& other) const
+{
+    const PDFReal factor = getScaleFactor();
+    const PDFReal otherFactor = other.getScaleFactor();
+    if (factor <= 0.0 || otherFactor <= 0.0)
+    {
+        return false;
+    }
+    return qAbs(factor - otherFactor) <= 1e-9 * qMax(factor, otherFactor);
+}
+
+std::pair<PDFReal, PDFReal> PDFMeasureScale::getProportion() const
+{
+    const PDFReal factor = getScaleFactor();
+    if (factor <= 0.0)
+    {
+        return { 0.0, 0.0 };
+    }
+
+    // A reduction is 1:n (a plan), an enlargement n:1 (a detail)
+    return factor >= 1.0 ? std::make_pair(1.0, factor) : std::make_pair(1.0 / factor, 1.0);
+}
+
+QString PDFMeasureScale::getProportionText() const
+{
+    const std::pair<PDFReal, PDFReal> proportion = getProportion();
+    if (proportion.first <= 0.0)
+    {
+        return QString();
+    }
+    return QStringLiteral("%1:%2").arg(PDFMeasureUnits::formatNumber(proportion.first, PROPORTION_DECIMALS),
+                                       PDFMeasureUnits::formatNumber(proportion.second, PROPORTION_DECIMALS));
+}
+
+QString PDFMeasureScale::getRatioText() const
+{
+    if (!isValid())
+    {
+        return QString();
+    }
+
+    return tr("%1 %2 = %3 %4", "a scale: 1 mm = 50 mm").arg(PDFMeasureUnits::formatNumber(m_paperValue, VALUE_DECIMALS),
+                                                            PDFMeasureUnits::findUnit(PDFMeasureQuantity::Length, m_paperUnitId).getSymbol(),
+                                                            PDFMeasureUnits::formatNumber(m_realValue, VALUE_DECIMALS),
+                                                            PDFMeasureUnits::findUnit(PDFMeasureQuantity::Length, m_realUnitId).getSymbol());
+}
+
+QString PDFMeasureScale::getDocumentRatioText() const
+{
+    if (!isValid())
+    {
+        return QString();
+    }
+
+    // B183: /R is read by other readers - the C locale and the untranslated abbreviations (Table 267:
+    // "Universally recognised unit abbreviations should be used"), "1 mm = 50 mm", "0.25 in = 1 ft"
+    return QStringLiteral("%1 %2 = %3 %4").arg(PDFMeasureUnits::formatNumber(m_paperValue, VALUE_DECIMALS),
+                                               PDFMeasureUnits::findUnit(PDFMeasureQuantity::Length, m_paperUnitId).getDocumentSymbol(),
+                                               PDFMeasureUnits::formatNumber(m_realValue, VALUE_DECIMALS),
+                                               PDFMeasureUnits::findUnit(PDFMeasureQuantity::Length, m_realUnitId).getDocumentSymbol());
+}
+
+QString PDFMeasureScale::getDisplayName() const
+{
+    return m_name.isEmpty() ? getRatioText() : m_name;
+}
+
+PDFMeasureScale PDFMeasureScale::createIdentity()
+{
+    return PDFMeasureScale(1.0, "mm", 1.0, "mm");
+}
+
+PDFMeasureScale PDFMeasureScale::createFromMeasure(const PDFMeasure& measure, PDFReal userUnit)
+{
+    // ISO 32000-2, 12.9.2 (Table 266, 267): only a rectilinear measure has one factor of the lengths; a
+    // geospatial one is ignored (FM-7, NOTES.txt), an anisotropic one has no single factor
+    if (!measure.isValid() || !measure.isRectilinear() || measure.isAnisotropic())
+    {
+        return PDFMeasureScale();
+    }
+
+    const PDFReal unitsPerUserSpaceUnit = measure.getUnitsPerUserSpaceUnit();
+    const PDFMeasureUnit unit = PDFMeasureUnits::findLengthUnitByLabel(measure.getUnitLabel());
+    if (!std::isfinite(unitsPerUserSpaceUnit) || unitsPerUserSpaceUnit <= 0.0 || !std::isfinite(userUnit) || userUnit <= 0.0 || !unit.isValid())
+    {
+        return PDFMeasureScale();
+    }
+
+    // /X converts the units of the default user space of the page, which are /UserUnit points (8.3.2.3, B209);
+    // the measured lengths of the tool are in points, so the factor of one point is X / UserUnit. The paper
+    // side is a millimeter for the metric units, an inch for the imperial ones, a point for points.
+    const PDFReal realUnitsPerPoint = unitsPerUserSpaceUnit / userUnit;
+    QByteArray paperUnitId = "mm";
+    if (unit.id == "in" || unit.id == "ft" || unit.id == "yd" || unit.id == "mi")
+    {
+        paperUnitId = "in";
+    }
+    else if (unit.id == "pt")
+    {
+        paperUnitId = "pt";
+    }
+    const PDFMeasureUnit paperUnit = PDFMeasureUnits::findUnit(PDFMeasureQuantity::Length, paperUnitId);
+    PDFMeasureScale scale(1.0, paperUnitId, realUnitsPerPoint / paperUnit.factor, unit.id, measure.getScaleRatio().left(PDFMeasureScale::MAXIMUM_DOCUMENT_NAME_LENGTH));
+    return scale.isValid() ? scale : PDFMeasureScale();
+}
+
+std::vector<PDFMeasureScale> PDFMeasureScale::getDefaultPresets()
+{
+    // The 12 presets of 471:6943 (the presets of the old plugin)
+    std::vector<PDFMeasureScale> presets;
+    presets.emplace_back(1.0, "mm", 1.0, "mm", tr("Real size (1:1)"));
+    presets.back().setDescription(tr("The drawing is in the real size"));
+    presets.emplace_back(1.0, "mm", 20.0, "mm", tr("Metric 1:20"));
+    presets.emplace_back(1.0, "mm", 50.0, "mm", tr("Metric 1:50"));
+    presets.emplace_back(1.0, "mm", 100.0, "mm", tr("Metric 1:100"));
+    presets.emplace_back(1.0, "mm", 200.0, "mm", tr("Metric 1:200"));
+    presets.emplace_back(1.0, "mm", 500.0, "mm", tr("Metric 1:500"));
+    presets.emplace_back(1.0, "mm", 1.0, "m", tr("Metric 1:1000"));
+    presets.emplace_back(1.0, "cm", 100.0, "m", tr("Metric 1:10000"));
+    presets.emplace_back(0.125, "in", 1.0, "ft", tr("Architectural 1/8\" = 1'"));
+    presets.emplace_back(0.25, "in", 1.0, "ft", tr("Architectural 1/4\" = 1'"));
+    presets.emplace_back(1.0, "in", 10.0, "ft", tr("Engineering 1\" = 10'"));
+    presets.emplace_back(1.0, "in", 100.0, "ft", tr("Engineering 1\" = 100'"));
+    return presets;
+}
+
+bool PDFMeasureScale::operator==(const PDFMeasureScale& other) const
+{
+    return m_paperValue == other.m_paperValue && m_paperUnitId == other.m_paperUnitId && m_realValue == other.m_realValue &&
+           m_realUnitId == other.m_realUnitId && m_name == other.m_name;
 }
 
 }   // namespace pdf

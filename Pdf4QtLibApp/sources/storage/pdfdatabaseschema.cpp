@@ -58,6 +58,11 @@ std::vector<PDFDatabaseMigration> PDFDatabaseSchema::getMigrations()
     version3.sql = createVersion3();
     migrations.push_back(std::move(version3));
 
+    PDFDatabaseMigration version4;
+    version4.version = 4;
+    version4.sql = createVersion4();
+    migrations.push_back(std::move(version4));
+
     return migrations;
 }
 
@@ -92,7 +97,7 @@ std::vector<PDFDatabaseTableInfo> PDFDatabaseSchema::getTables()
 {
     // Every version with new tables (a migration, which adds a table, adds its version here)
     std::vector<PDFDatabaseTableInfo> result;
-    for (const int version : { 1, 2, 3 })
+    for (const int version : { 1, 2, 3, 4 })
     {
         std::vector<PDFDatabaseTableInfo> tables = getTables(version);
         result.insert(result.end(), std::make_move_iterator(tables.begin()), std::make_move_iterator(tables.end()));
@@ -129,6 +134,26 @@ std::vector<PDFDatabaseTableInfo> PDFDatabaseSchema::getTables(int version)
         info.name = QStringLiteral("certificate_cache");
         info.keyExpression = QStringLiteral("%1.path");
         return { info };
+    }
+
+    static const char* const tables4[][2] =
+    {
+        { "measure_scale_preset", "CAST(%1.id AS TEXT)" },
+        { "measure_scale_state", "CAST(%1.id AS TEXT)" },
+        { "measure_document_scale", "%1.path" },
+    };
+
+    if (version == 4)
+    {
+        std::vector<PDFDatabaseTableInfo> result;
+        for (const auto& table : tables4)
+        {
+            PDFDatabaseTableInfo info;
+            info.name = QString::fromLatin1(table[0]);
+            info.keyExpression = QString::fromLatin1(table[1]);
+            result.push_back(std::move(info));
+        }
+        return result;
     }
 
     if (version != 1)
@@ -441,6 +466,61 @@ CREATE INDEX certificate_cache_fingerprint ON certificate_cache(fingerprint);
 )SQL";
 
     for (const PDFDatabaseTableInfo& table : getTables(3))
+    {
+        sql += createTriggers(table, nullptr);
+    }
+
+    return sql;
+}
+
+QByteArray PDFDatabaseSchema::createVersion4()
+{
+    // Measure (plan of step 7 of phase 2, 4.8, owner answer Q7.4; PDFMeasureScaleRepository): the scales of
+    // the application, never written into a document (they replace the QSettings of the old DimensionsPlugin).
+    //  - measure_scale_preset: the presets of the menu Scale and of Manage Presets (471:6943, 473:7412) in their
+    //    order (position); the built-in presets are offered until the user edits the list.
+    //  - measure_scale_state: one row (id 1): presets_edited = the user edited the presets (an empty table is
+    //    then an empty list, not the built-in one); default_* = the default scale (473:92070), NULL = 1:1.
+    //  - measure_document_scale: the scale remembered for a document (Remember for this document, 473:9500),
+    //    the key is its path and the first identifier of its /ID (ISO 32000-2, 14.4; document_id is its bytes),
+    //    at most 200 rows - the least recently used are pruned (last_used, ms since the epoch, UTC).
+    // A scale is paper_value paper_unit = real_value real_unit (the unit ids of PDFMeasureUnits) with an
+    // optional name. A preset and the default scale have a description too (the field Description of 473:7860,
+    // 473:7024, 473:6438, 473:92070; the column Description of 473:7412); a document scale has none (no frame shows
+    // it). The rows are untrusted (another version, a damaged file): the repository checks them.
+    QByteArray sql = R"SQL(
+CREATE TABLE measure_scale_preset(
+    id INTEGER PRIMARY KEY,
+    position INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL DEFAULT '',
+    paper_value REAL NOT NULL,
+    paper_unit TEXT NOT NULL,
+    real_value REAL NOT NULL,
+    real_unit TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '');
+CREATE TABLE measure_scale_state(
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    presets_edited INTEGER NOT NULL DEFAULT 0,
+    default_name TEXT,
+    default_paper_value REAL,
+    default_paper_unit TEXT,
+    default_real_value REAL,
+    default_real_unit TEXT,
+    default_description TEXT);
+CREATE TABLE measure_document_scale(
+    path TEXT NOT NULL,
+    document_id BLOB NOT NULL,
+    name TEXT NOT NULL DEFAULT '',
+    paper_value REAL NOT NULL,
+    paper_unit TEXT NOT NULL,
+    real_value REAL NOT NULL,
+    real_unit TEXT NOT NULL,
+    last_used INTEGER NOT NULL,
+    PRIMARY KEY (path, document_id));
+CREATE INDEX measure_document_scale_last_used ON measure_document_scale(last_used);
+)SQL";
+
+    for (const PDFDatabaseTableInfo& table : getTables(4))
     {
         sql += createTriggers(table, nullptr);
     }

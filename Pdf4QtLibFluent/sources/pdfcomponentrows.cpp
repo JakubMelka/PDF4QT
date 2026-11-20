@@ -1497,6 +1497,26 @@ void PDFTileRow::setClickable(bool isClickable)
             clearFocus();
         }
     }
+
+    // The static chosen look comes and goes with the clickability (an item of a menu: the place of its check mark)
+    if (m_isStaticChosen)
+    {
+        invalidateHeight();
+        layoutTrailingWidgets();
+    }
+    update();
+}
+
+void PDFTileRow::setStaticChosen(bool isChosen)
+{
+    if (m_isStaticChosen == isChosen)
+    {
+        return;
+    }
+
+    m_isStaticChosen = isChosen;
+    invalidateHeight();
+    layoutTrailingWidgets();
     update();
 }
 
@@ -1514,7 +1534,7 @@ PDFComponentPainter::TileRow PDFTileRow::getContent() const
 {
     PDFComponentPainter::TileRow row = m_row;
     row.title = text();
-    row.chosen = isCheckable() && isChecked();
+    row.chosen = (isCheckable() && isChecked()) || (m_isStaticChosen && !m_isClickable);
     row.paintNested = false;
 
     // Nested widgets deleted or hidden by the application give their place to the texts

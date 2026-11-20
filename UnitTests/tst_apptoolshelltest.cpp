@@ -6121,8 +6121,9 @@ void AppToolShellTest::shellKeys()
 void AppToolShellTest::shellHelpTopic()
 {
     // F1 of the page of a tool: the topic of the tool, without it the page Tools. The tool without a topic
-    // is the first tool of the tab of a document, which has none yet (step 7 of phase 2 gave review.statistics
-    // its topic)
+    // is the first tool of the tab of a document, which has none yet - an analysis first, else any kind (step 7
+    // of phase 2 gave review.statistics its topic, step 7c review.measure: every analysis of a document tab has
+    // one now, the tool is one of the tools not opened yet, edit.content today)
     using H = ToolShellFlowHelper;
     const std::shared_ptr<const pdf::PDFAppHelpCatalog> help = pdf::PDFAppHelpCatalog::getBuiltin();
     QVERIFY(help);

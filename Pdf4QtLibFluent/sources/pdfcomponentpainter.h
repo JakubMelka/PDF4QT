@@ -1905,7 +1905,8 @@ public:
     /// selection of its state is not drawn. Chosen or not, its tile has the tone Accent
     /// and its title is text/primary (438:15328, 313:7327, 339:9493), \p tone is not used.
     /// A row of a list (the other kinds) shows the selection of its state as
-    /// bg/accent-subtle (438:14751). The tile of a row with a check box follows the
+    /// bg/accent-subtle (438:14751), also when it is \p chosen (a chosen row shown as a
+    /// text, PDFTileRow::setStaticChosen, 492:18158). The tile of a row with a check box follows the
     /// check box, otherwise \p tone.
     struct TileRow
     {

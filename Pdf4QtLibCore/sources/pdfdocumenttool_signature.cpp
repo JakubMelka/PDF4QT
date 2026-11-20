@@ -338,132 +338,6 @@ public:
         }
     }
 
-    /// ISO 14289-1, 7.18.1 and ISO 32000-2, 14.7.4.4 (owner answer Q6.18): the widget of a visible
-    /// signature of a tagged document is the content of a structure element /Form (a reference of
-    /// the object /OBJR), its /StructParent is a new key of /ParentTree
-    static void addFormStructure(PDFDocumentBuilder& builder, PDFObjectReference widget, PDFObjectReference page)
-    {
-        const PDFObjectStorage* storage = builder.getStorage();
-        const PDFDictionary* catalog = builder.getDictionaryFromObject(builder.getObjectByReference(builder.getCatalogReference()));
-        const PDFObject rootObject = catalog ? catalog->get("StructTreeRoot") : PDFObject();
-        const PDFDictionary* root = builder.getDictionaryFromObject(rootObject);
-        if (!root || !rootObject.isReference())
-        {
-            return;
-        }
-        const PDFObjectReference rootReference = rootObject.getReference();
-
-        // The new key: after every key of the tree and /ParentTreeNextKey (14.7.5.4)
-        PDFInteger key = 0;
-        const PDFObject nextKey = builder.getObject(root->get("ParentTreeNextKey"));
-        if (nextKey.isInt())
-        {
-            key = qMax<PDFInteger>(0, nextKey.getInteger());
-        }
-        for (const auto& [entryKey, value] : PDFObjectUtils::readNumberTree(storage, root->get("ParentTree")))
-        {
-            Q_UNUSED(value);
-            key = qMax(key, entryKey + 1);
-        }
-
-        // The parent: the only top element of the tree (/Document), else the root itself
-        PDFObjectReference parentReference = rootReference;
-        const PDFObject& kids = root->get("K");
-        if (kids.isReference())
-        {
-            const PDFDictionary* kid = builder.getDictionaryFromObject(builder.getObject(kids));
-            const PDFObject& type = kid ? kid->get("Type") : PDFObject();
-            if (kid && (type.isNull() || (type.isName() && type.getString() == "StructElem")) && kid->get("S").isName())
-            {
-                parentReference = kids.getReference();
-            }
-        }
-
-        PDFObjectFactory objectReference;
-        objectReference.beginDictionary();
-        objectReference.beginDictionaryItem("Type");
-        objectReference << WrapName("OBJR");
-        objectReference.endDictionaryItem();
-        objectReference.beginDictionaryItem("Obj");
-        objectReference << widget;
-        objectReference.endDictionaryItem();
-        objectReference.beginDictionaryItem("Pg");
-        objectReference << page;
-        objectReference.endDictionaryItem();
-        objectReference.endDictionary();
-
-        PDFDictionaryBuilder element;
-        element.addEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("StructElem"));
-        element.addEntry(PDFInplaceOrMemoryString("S"), PDFObject::createName("Form"));
-        element.addEntry(PDFInplaceOrMemoryString("P"), PDFObject::createReference(parentReference));
-        element.addEntry(PDFInplaceOrMemoryString("Pg"), PDFObject::createReference(page));
-        element.addEntry(PDFInplaceOrMemoryString("K"), objectReference.takeObject());
-        const PDFObjectReference elementReference = builder.addObject(PDFObject::createDictionary(std::move(element)));
-
-        // The element is the last kid of its parent
-        const PDFDictionary* parent = builder.getDictionaryFromObject(builder.getObjectByReference(parentReference));
-        PDFDictionaryBuilder updatedParent(*parent);
-        const PDFObject parentKids = builder.getObject(parent->get("K"));
-        PDFArrayBuilder newKids;
-        if (parentKids.isArray())
-        {
-            newKids = PDFArrayBuilder(*parentKids.getArray());
-        }
-        else if (!parent->get("K").isNull())
-        {
-            newKids.appendItem(parent->get("K"));
-        }
-        newKids.appendItem(PDFObject::createReference(elementReference));
-        updatedParent.setEntry(PDFInplaceOrMemoryString("K"), PDFObject::createArray(std::move(newKids)));
-        builder.setObject(parentReference, PDFObject::createDictionary(std::move(updatedParent)));
-
-        // /ParentTree: the key goes after every key - into the leaf of the root, or a new last kid
-        const PDFDictionary* updatedRoot = builder.getDictionaryFromObject(builder.getObjectByReference(rootReference));
-        PDFDictionaryBuilder rootBuilder(*updatedRoot);
-        const PDFObject parentTreeObject = updatedRoot->get("ParentTree");
-        const PDFDictionary* parentTree = builder.getDictionaryFromObject(parentTreeObject);
-        const PDFObject newEntry[2] = { PDFObject::createInteger(key), PDFObject::createReference(elementReference) };
-
-        PDFDictionaryBuilder tree = parentTree ? PDFDictionaryBuilder(*parentTree) : PDFDictionaryBuilder();
-        const PDFObject treeKids = parentTree ? builder.getObject(parentTree->get("Kids")) : PDFObject();
-        if (treeKids.isArray())
-        {
-            PDFDictionaryBuilder leaf;
-            leaf.addEntry(PDFInplaceOrMemoryString("Limits"), PDFObject::createArray(PDFArrayBuilder(std::vector<PDFObject>{ PDFObject::createInteger(key), PDFObject::createInteger(key) })));
-            leaf.addEntry(PDFInplaceOrMemoryString("Nums"), PDFObject::createArray(PDFArrayBuilder(std::vector<PDFObject>{ newEntry[0], newEntry[1] })));
-            PDFArrayBuilder kidsBuilder(*treeKids.getArray());
-            kidsBuilder.appendItem(PDFObject::createReference(builder.addObject(PDFObject::createDictionary(std::move(leaf)))));
-            tree.setEntry(PDFInplaceOrMemoryString("Kids"), PDFObject::createArray(std::move(kidsBuilder)));
-        }
-        else
-        {
-            const PDFObject nums = parentTree ? builder.getObject(parentTree->get("Nums")) : PDFObject();
-            PDFArrayBuilder numsBuilder = nums.isArray() ? PDFArrayBuilder(*nums.getArray()) : PDFArrayBuilder();
-            numsBuilder.appendItem(newEntry[0]);
-            numsBuilder.appendItem(newEntry[1]);
-            tree.setEntry(PDFInplaceOrMemoryString("Nums"), PDFObject::createArray(std::move(numsBuilder)));
-        }
-
-        if (parentTreeObject.isReference())
-        {
-            builder.setObject(parentTreeObject.getReference(), PDFObject::createDictionary(std::move(tree)));
-        }
-        else
-        {
-            rootBuilder.setEntry(PDFInplaceOrMemoryString("ParentTree"), PDFObject::createReference(builder.addObject(PDFObject::createDictionary(std::move(tree)))));
-        }
-        rootBuilder.setEntry(PDFInplaceOrMemoryString("ParentTreeNextKey"), PDFObject::createInteger(key + 1));
-        builder.setObject(rootReference, PDFObject::createDictionary(std::move(rootBuilder)));
-
-        PDFObjectFactory widgetUpdate;
-        widgetUpdate.beginDictionary();
-        widgetUpdate.beginDictionaryItem("StructParent");
-        widgetUpdate << key;
-        widgetUpdate.endDictionaryItem();
-        widgetUpdate.endDictionary();
-        builder.mergeTo(widget, widgetUpdate.takeObject());
-    }
-
     /// The id of a status of a failed request of the authority (DATA_TIMESTAMP_ERROR)
     static QString getTimestampErrorId(PDFTimestampClient::Status status)
     {
@@ -1095,7 +969,7 @@ PDFDocumentToolResult PDFDocumentToolSignature::execute(const PDFDocumentToolCon
         // Q6.18: the widget of a new visible signature of a tagged document is a /Form element
         if (!emptyField && visiblePage >= 0)
         {
-            Helper::addFormStructure(builder, widget, page);
+            builder.addObjectStructureElement(widget, page, "Form");
         }
         return field;
     };

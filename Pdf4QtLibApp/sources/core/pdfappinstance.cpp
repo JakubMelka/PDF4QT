@@ -366,6 +366,7 @@ PDFAppInstanceRequest PDFAppInstanceProtocol::createRequest(const PDFAppCommandL
 {
     PDFAppInstanceRequest request;
     request.files = commandLine.getFiles().mid(0, MAXIMUM_FILES);
+    request.compareFiles = commandLine.getCompareFiles().size() == 2 ? commandLine.getCompareFiles() : QStringList();
     request.page = commandLine.getPage();
     request.activationToken = isValidToken(activationToken) ? activationToken : QString();
 
@@ -473,6 +474,10 @@ QByteArray PDFAppInstanceProtocol::encodeRequest(const PDFAppInstanceRequest& re
     object.insert(QStringLiteral("version"), VERSION);
     object.insert(QStringLiteral("files"), QJsonArray::fromStringList(request.files));
     object.insert(QStringLiteral("page"), request.page);
+    if (!request.compareFiles.isEmpty())
+    {
+        object.insert(QStringLiteral("compareFiles"), QJsonArray::fromStringList(request.compareFiles));
+    }
     if (!request.activationToken.isEmpty())
     {
         object.insert(QStringLiteral("activationToken"), request.activationToken);
@@ -533,6 +538,28 @@ bool PDFAppInstanceProtocol::decodeRequest(const QByteArray& payload, PDFAppInst
         }
 
         result.files << QDir::cleanPath(path);
+    }
+
+    // Q7.13: the pair of --compare, untrusted as the files (exactly two absolute paths)
+    const QJsonValue compareFiles = object.value(QStringLiteral("compareFiles"));
+    if (!compareFiles.isUndefined())
+    {
+        const QJsonArray compareArray = compareFiles.toArray();
+        if (!compareFiles.isArray() || compareArray.size() != 2)
+        {
+            *error = QStringLiteral("Invalid files of the comparison.");
+            return false;
+        }
+        for (const QJsonValue& value : compareArray)
+        {
+            const QString path = value.toString();
+            if (!value.isString() || !isAcceptedPath(path))
+            {
+                *error = QStringLiteral("A file of the comparison is not an absolute path.");
+                return false;
+            }
+            result.compareFiles << QDir::cleanPath(path);
+        }
     }
 
     const QJsonValue token = object.value(QStringLiteral("activationToken"));
@@ -1824,7 +1851,7 @@ PDFAppInstanceGuard::Result PDFAppInstanceGuard::start(const QString& serverName
         return Result::Standalone;
     }
 
-    if (mode == Mode::ListenIfFree || request.files.isEmpty())
+    if (mode == Mode::ListenIfFree || (request.files.isEmpty() && request.compareFiles.isEmpty()))
     {
         // A start without files (a new window) and --new-window forward nothing; the
         // name is taken only, when no instance holds it

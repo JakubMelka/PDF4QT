@@ -1857,6 +1857,9 @@ void AppHomeTest::recentListActions()
     HomeFixture::settle();
     const QRect rect = view->visualRect(model->index(row, 0));
     QTest::mouseClick(view->viewport(), Qt::LeftButton, Qt::NoModifier, QPoint(rect.left() + 120, rect.center().y()));
+
+    // The file opens from the event loop (a new tab, a dialog: Qt reads the list after its clicked)
+    QVERIFY(!fixture.window->getRequestedFiles().contains(sample.presentation));
     HomeFixture::settle();
     QVERIFY(fixture.window->getRequestedFiles().contains(sample.presentation));
     fixture.closeMessageBoxes();

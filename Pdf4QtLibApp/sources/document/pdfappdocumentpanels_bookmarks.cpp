@@ -529,7 +529,9 @@ PDFAppBookmarksPanel::PDFAppBookmarksPanel(QWidget* parent) :
     m_view->installEventFilter(this);
     layout->addWidget(m_view, 1);
 
-    connect(m_view, &QAbstractItemView::clicked, this, &PDFAppBookmarksPanel::onClicked);
+    // From the event loop: the page of the view runs code of the application, Qt reads the view after its signal
+    PDFAppItemViewSignalRelay* relay = new PDFAppItemViewSignalRelay(m_view, this);
+    connect(relay, &PDFAppItemViewSignalRelay::clicked, this, &PDFAppBookmarksPanel::onClicked);
     connect(m_view, &QWidget::customContextMenuRequested, this, &PDFAppBookmarksPanel::onContextMenuRequested);
 }
 

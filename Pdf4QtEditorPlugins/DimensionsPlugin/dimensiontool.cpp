@@ -24,6 +24,7 @@
 #include "pdfwidgetutils.h"
 #include "pdfdrawwidget.h"
 #include "pdfcms.h"
+#include "pdfmeasurewriter.h"
 
 #include <QPainter>
 
@@ -221,47 +222,21 @@ pdf::PDFReal DimensionTool::getMeasuredValue(pdf::PDFInteger pageIndex, const st
     const pdf::PDFPage* page = getDocument()->getCatalog()->getPage(pageIndex);
     Q_ASSERT(page);
 
+    // The computations live in the core (pdf::PDFMeasureGeometry, plan of step 7 of phase 2, 4.8): the lengths
+    // and areas × the effective /UserUnit (B209), the smaller angle of the arms (B181)
+    const pdf::PDFReal userUnit = page->getEffectiveUserUnit();
     switch (getDimensionType())
     {
         case Dimension::Linear:
         case Dimension::Perimeter:
-        {
-            pdf::PDFReal length = 0.0;
-
-            for (size_t i = 1; i < pickedPoints.size(); ++i)
-            {
-                QPointF vector = pickedPoints[i] - pickedPoints[i - 1];
-                length += qSqrt(QPointF::dotProduct(vector, vector));
-            }
-
-            return length * page->getUserUnit();
-        }
+            return pdf::PDFMeasureGeometry::getPolylineLength(pickedPoints) * userUnit;
 
         case Dimension::Area:
-        {
-            pdf::PDFReal area = 0.0;
-
-            // We calculate the area using standard formula for polygons.
-            // We determine integral over perimeter (for each edge of the polygon).
-            for (size_t i = 1; i < pickedPoints.size(); ++i)
-            {
-                const QPointF& p1 = pickedPoints[i - 1];
-                const QPointF& p2 = pickedPoints[i];
-
-                area += p1.x() * p2.y() - p1.y() * p2.x();
-            }
-
-            area = qAbs(area) * 0.5;
-            return area * page->getUserUnit() * page->getUserUnit();
-        }
+            return pdf::PDFMeasureGeometry::getPolygonArea(pickedPoints) * userUnit * userUnit;
 
         case Dimension::Angular:
-        {
             Q_ASSERT(pickedPoints.size() == 3);
-            QLineF line1(pickedPoints[1], pickedPoints.front());
-            QLineF line2(pickedPoints[1], pickedPoints.back());
-            return line1.angleTo(line2);
-        }
+            return pdf::PDFMeasureGeometry::getAngle(pickedPoints.front(), pickedPoints[1], pickedPoints.back());
 
         default:
             Q_ASSERT(false);

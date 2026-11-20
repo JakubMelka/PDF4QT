@@ -1056,8 +1056,12 @@ void AppSettingsShortcutsTest::storageFilesList()
     info.size = 2400000;
     info.modified = QDateTime(QDate(2026, 10, 12), QTime(9, 41));
     QCOMPARE(pdf::PDFAppStorageSettingsSection::getFileDescription(info), QString::fromUtf8("PDF4QT 2.0 · 2.4 MB · Oct 12, 2026"));
-    info.schemaVersion = 3;
+    // A schema newer than the application (every schema up to the current one has its version label: 3 of
+    // step 5, 4 of step 7c are PDF4QT 2.0)
+    info.schemaVersion = pdf::PDFDatabaseSchema::getCurrentVersion() + 1;
     QCOMPARE(pdf::PDFAppStorageSettingsSection::getFileDescription(info), QString::fromUtf8("Newer PDF4QT · 2.4 MB · Oct 12, 2026"));
+    info.schemaVersion = pdf::PDFDatabaseSchema::getCurrentVersion();
+    QCOMPARE(pdf::PDFAppStorageSettingsSection::getFileDescription(info), QString::fromUtf8("PDF4QT 2.0 · 2.4 MB · Oct 12, 2026"));
 }
 
 void AppSettingsShortcutsTest::storageDeleteOlder()

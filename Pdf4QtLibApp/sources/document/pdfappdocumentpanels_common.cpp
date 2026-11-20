@@ -36,8 +36,11 @@
 #include <QAbstractItemView>
 #include <QCoreApplication>
 #include <QFileDialog>
+#include <QItemSelectionModel>
 #include <QListView>
 #include <QToolButton>
+
+#include <utility>
 
 namespace pdf
 {
@@ -93,6 +96,107 @@ PDFAppPanelListView::~PDFAppPanelListView() = default;
 void PDFAppPanelListView::setContentPaddings(const QMargins& margins)
 {
     setViewportMargins(margins);
+}
+
+PDFAppItemViewSignalRelay::PDFAppItemViewSignalRelay(QAbstractItemView* view, QObject* parent) :
+    BaseClass(parent),
+    m_view(view)
+{
+    if (!view)
+    {
+        return;
+    }
+
+    connect(view, &QAbstractItemView::clicked, this, &PDFAppItemViewSignalRelay::onClicked);
+    connect(view, &QAbstractItemView::activated, this, &PDFAppItemViewSignalRelay::onActivated);
+    if (QItemSelectionModel* selectionModel = view->selectionModel())
+    {
+        connect(selectionModel, &QItemSelectionModel::currentChanged, this, &PDFAppItemViewSignalRelay::onCurrentChanged);
+        connect(selectionModel, &QItemSelectionModel::selectionChanged, this, &PDFAppItemViewSignalRelay::onSelectionChanged);
+    }
+}
+
+PDFAppItemViewSignalRelay::~PDFAppItemViewSignalRelay() = default;
+
+void PDFAppItemViewSignalRelay::onClicked(const QModelIndex& index)
+{
+    add(Kind::Clicked, index);
+}
+
+void PDFAppItemViewSignalRelay::onActivated(const QModelIndex& index)
+{
+    add(Kind::Activated, index);
+}
+
+void PDFAppItemViewSignalRelay::onCurrentChanged()
+{
+    add(Kind::CurrentChanged, QModelIndex());
+}
+
+void PDFAppItemViewSignalRelay::onSelectionChanged()
+{
+    add(Kind::SelectionChanged, QModelIndex());
+}
+
+void PDFAppItemViewSignalRelay::add(Kind kind, const QModelIndex& index)
+{
+    // A change of the state is said once (the slot reads the state of then); every click and activation is said
+    if (kind == Kind::CurrentChanged || kind == Kind::SelectionChanged)
+    {
+        for (const Pending& pending : m_pending)
+        {
+            if (pending.kind == kind)
+            {
+                return;
+            }
+        }
+    }
+
+    const bool isQueued = !m_pending.empty();
+    m_pending.push_back(Pending{ kind, QPersistentModelIndex(index) });
+    if (!isQueued)
+    {
+        QMetaObject::invokeMethod(this, &PDFAppItemViewSignalRelay::onQueued, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppItemViewSignalRelay::onQueued()
+{
+    // The signals in the order of Qt; each of them may delete the relay with its receiver, or the view
+    const std::vector<Pending> pending = std::exchange(m_pending, std::vector<Pending>());
+    QPointer<PDFAppItemViewSignalRelay> guard(this);
+    for (const Pending& item : pending)
+    {
+        if (!guard || !m_view)
+        {
+            return;
+        }
+
+        switch (item.kind)
+        {
+            case Kind::Clicked:
+                if (item.index.isValid())
+                {
+                    Q_EMIT clicked(item.index);
+                }
+                break;
+
+            case Kind::Activated:
+                if (item.index.isValid())
+                {
+                    Q_EMIT activated(item.index);
+                }
+                break;
+
+            case Kind::CurrentChanged:
+                Q_EMIT currentChanged();
+                break;
+
+            case Kind::SelectionChanged:
+                Q_EMIT selectionChanged();
+                break;
+        }
+    }
 }
 
 void PDFAppPanelWidgets::prepareList(PDFAppPanelListView* view)

@@ -1326,8 +1326,8 @@ void PDFAppManageCanvas::onPageSelectionChanged()
     m_pageModel->setSelectedItems(ids);
     m_isSyncing = false;
 
-    // Last: the slot may rebuild the canvas
-    Q_EMIT selectionChanged();
+    // Last: the slot may rebuild the canvas (from the event loop - Qt reads the selection model after its signal)
+    queueSelectionChanged();
 }
 
 void PDFAppManageCanvas::onDetailsSelectionChanged()
@@ -1361,6 +1361,23 @@ void PDFAppManageCanvas::onDetailsSelectionChanged()
     m_pageModel->setSelectedItems(ids);
     m_isSyncing = false;
 
+    queueSelectionChanged();
+}
+
+void PDFAppManageCanvas::queueSelectionChanged()
+{
+    // The selection is known at once (getSelection); the signal comes from the event loop, once for more changes:
+    // its slots may rebuild the canvas or delete the tab, while Qt reads the selection model after its own signal
+    if (!m_isSelectionChangeQueued)
+    {
+        m_isSelectionChangeQueued = true;
+        QMetaObject::invokeMethod(this, &PDFAppManageCanvas::onQueuedSelectionChanged, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppManageCanvas::onQueuedSelectionChanged()
+{
+    m_isSelectionChangeQueued = false;
     Q_EMIT selectionChanged();
 }
 

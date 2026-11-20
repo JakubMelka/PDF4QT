@@ -839,11 +839,26 @@ void AppToolRedactTest::searchMarksSelected()
     QCOMPARE(part->getMarkButton()->text(), QStringLiteral("Mark 2 Selected Matches"));
     QCOMPARE(H::statusMessage(tab), QStringLiteral("2 matches of “secret” · 2 selected · Esc ends Search"));
 
-    // The second result deselected (a click of its row)
+    // A row shows its match on its page - from the event loop: the page of the view runs code of the application (its
+    // signals), while Qt reads the selection model after its currentChanged
     pdf::PDFListView* view = part->getResultsView();
+    QCOMPARE(tab->getView()->getCurrentPageIndex(), pdf::PDFInteger(0));
+    QCOMPARE(part->getMatches()[1].pageIndex, pdf::PDFInteger(1));
+    {
+        QSignalSpy pageSpy(tab->getView(), &pdf::PDFAppDocumentView::currentPageChanged);
+        view->selectionModel()->setCurrentIndex(view->model()->index(1, 0), QItemSelectionModel::NoUpdate);
+        QCOMPARE(pageSpy.count(), 0);
+        QTRY_COMPARE(tab->getView()->getCurrentPageIndex(), pdf::PDFInteger(1));
+    }
+
+    // The second result deselected (a click of its row)
     view->selectionModel()->select(view->model()->index(1, 0), QItemSelectionModel::Deselect);
     QCOMPARE(part->getSelectedCount(), 1);
     QCOMPARE(part->getMarkButton()->text(), QStringLiteral("Mark 1 Selected Match"));
+
+    // The signal of the part (its slots may delete the tab) comes from the event loop, never inside of the signal of Qt
+    QCOMPARE(H::statusMessage(tab), QStringLiteral("2 matches of “secret” · 2 selected · Esc ends Search"));
+    AppToolShellFixture::settle();
     QCOMPARE(H::statusMessage(tab), QStringLiteral("2 matches of “secret” · 1 selected · Esc ends Search"));
 
     const int undoBefore = pdftest::AppDocumentFixture::undoCount(tab->getDocument());
@@ -1135,6 +1150,7 @@ void AppToolRedactTest::removeRow()
     // Delete on the current row
     view->setFocus();
     view->setCurrentIndex(gui->getMarkModel()->index(1));
+    AppToolShellFixture::settle();
     QCOMPARE(gui->getSelectedMark(), before[1].reference);
     QTest::keyClick(view, Qt::Key_Delete);
     AppToolShellFixture::settle();
@@ -2133,7 +2149,10 @@ void AppToolRedactTest::canvasSelectionSync()
     QCOMPARE(gui->getMarksView()->currentIndex().row(), model->getRow(first));
     QCOMPARE(model->index(model->getRow(first)).data(pdf::PDFComponentRoles::TileToneRole).toInt(), int(pdf::PDFComponentPainter::TileRowTone::Accent));
 
+    // A row of the list selects its mark from the event loop (the canvas, the page of the view and the status text run
+    // code of the application, while Qt reads the selection model after its currentChanged)
     gui->getMarksView()->setCurrentIndex(model->index(model->getRow(second)));
+    QCOMPARE(gui->getSelectedMark(), first);
     AppToolShellFixture::settle();
     QCOMPARE(gui->getSelectedMark(), second);
     QCOMPARE(H::controller(tab)->getSelectedAnnotations(), std::vector<pdf::PDFObjectReference>({ second }));

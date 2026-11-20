@@ -43,7 +43,9 @@
 #include "pdfapptoolresultdialog.h"
 #include "pdfapptooltoolbar.h"
 #include "pdfapptoolvalueformatter.h"
+#include "pdfdocumenttool_compare.h"
 #include "pdfdocumenttool_inkcoverage.h"
+#include "pdfdocumenttool_measure.h"
 #include "pdfdocumenttool_objectinspector.h"
 #include "pdfdocumenttool_outputpreview.h"
 #include "pdfdocumenttool_report.h"
@@ -571,16 +573,18 @@ void AppToolAnalysisTest::startPageNoteOfAnalysis()
 
 void AppToolAnalysisTest::helpTopicsOfReviewTools()
 {
-    // F1 opens the topic of the current page (phase 2 common rules; plan 7.2): each of the six tools of 7a / 7b its
-    // own topic tool-review-<name>; the item of a kept soft proof in the status bar (485:17529) the topic of Soft
-    // Proofing, which it opens; the view of the document itself its topic of reading
+    // F1 opens the topic of the current page (phase 2 common rules; plan 7.2): each of the tools of 7a / 7b and Measure
+    // of 7c in the document tab its own topic tool-review-<name>; the item of a kept soft proof in the status bar
+    // (485:17529) the topic of Soft Proofing, which it opens; the view of the document itself its topic of reading;
+    // the own tab of Compare (7c) the topic tool-review-compare
     const std::vector<std::pair<QString, QString>> tools = {
         { QString::fromLatin1(pdf::PDFDocumentToolStatistics::TOOL_ID), QStringLiteral("tool-review-statistics") },
         { QString::fromLatin1(pdf::PDFDocumentToolObjectInspector::TOOL_ID), QStringLiteral("tool-review-object-inspector") },
         { QString::fromLatin1(pdf::PDFDocumentToolReport::TOOL_ID), QStringLiteral("tool-review-report") },
         { QString::fromLatin1(pdf::PDFDocumentToolInkCoverage::TOOL_ID), QStringLiteral("tool-review-ink-coverage") },
         { QString::fromLatin1(pdf::PDFDocumentToolOutputPreview::TOOL_ID), QStringLiteral("tool-review-output-preview") },
-        { QString::fromLatin1(pdf::PDFAppDocumentSoftProof::TOOL_ID), QStringLiteral("tool-review-soft-proof") } };
+        { QString::fromLatin1(pdf::PDFAppDocumentSoftProof::TOOL_ID), QStringLiteral("tool-review-soft-proof") },
+        { QString::fromLatin1(pdf::PDFDocumentToolMeasure::TOOL_ID), QStringLiteral("tool-review-measure") } };
     for (const auto& [toolId, topic] : tools)
     {
         AppToolShellFixture fixture;
@@ -620,6 +624,13 @@ void AppToolAnalysisTest::helpTopicsOfReviewTools()
     fixture.pressHelpKey();
     AppToolShellFixture::settle();
     QCOMPARE(fixture.getShownHelpTopic(), QStringLiteral("read-documents"));
+
+    // Compare in its own tab (without inputs: the chooser of 492:17871)
+    QVERIFY(fixture.window->createToolTab(QString::fromLatin1(pdf::PDFDocumentToolCompare::TOOL_ID), nullptr));
+    AppToolShellFixture::settle();
+    fixture.pressHelpKey();
+    AppToolShellFixture::settle();
+    QCOMPARE(fixture.getShownHelpTopic(), QStringLiteral("tool-review-compare"));
 }
 
 QTEST_MAIN(AppToolAnalysisTest)

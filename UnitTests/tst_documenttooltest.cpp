@@ -21,10 +21,13 @@
 // SOFTWARE.
 
 #include "pdfdocumentbuilder.h"
+#include "pdfdocumentmerger.h"
 #include "pdfdocumentreader.h"
 #include "pdfdocumenttool.h"
+#include "pdfdocumenttool_compare.h"
 #include "pdfdocumenttool_compress.h"
 #include "pdfdocumenttool_inkcoverage.h"
+#include "pdfdocumenttool_measure.h"
 #include "pdfdocumenttool_objectinspector.h"
 #include "pdfdocumenttool_outputpreview.h"
 #include "pdfdocumenttool_redact.h"
@@ -42,6 +45,7 @@
 #include "pdfsecurityhandler.h"
 
 #include "testdocumenttool.h"
+#include "mergetestpdf.h"
 
 #include <QBuffer>
 #include <QJsonArray>
@@ -285,6 +289,7 @@ private Q_SLOTS:
     void catalogHelpTopics();
     void catalogSignaturesAndRedaction();
     void catalogReviewTools();
+    void catalogReviewCompareMeasure();
     void parameterSensitiveValue();
     void contextFromSnapshot();
     void progressPhases();
@@ -729,8 +734,9 @@ void DocumentToolTest::catalogSignaturesAndRedaction()
     QCOMPARE(tool("protect.sign-by-hand")->getResultKind(), Kind::ChangeDocument);
     QCOMPARE(tool("protect.certificates")->getResultKind(), Kind::Analysis);
 
-    // Tools.md 9.3 point 11: the tools, which do not change the open document and write only a new file
-    const QStringList fileOnly = { QStringLiteral("protect.sign"), QStringLiteral("protect.timestamp"), QStringLiteral("protect.redact") };
+    // Tools.md 9.3 point 11: the tools, which do not change the open document and write only a new file; the
+    // report PDF of Compare (plan of step 7, 4.9, R7-13: its file, Open the report in a new tab - 492:107143)
+    const QStringList fileOnly = { QStringLiteral("protect.sign"), QStringLiteral("protect.timestamp"), QStringLiteral("protect.redact"), QStringLiteral("review.compare") };
 
     // R6-10: the gates of MCP and of the successors are properties of their own, not derived from the
     // change of the security - Sign is no change of the security, but it is always confirmed (a legal
@@ -821,6 +827,107 @@ void DocumentToolTest::catalogReviewTools()
     QVariantMap defaults;
     QVERIFY(pdf::PDFDocumentToolParameters::normalize(report.getParameters(), QVariantMap(), &defaults).empty());
     QCOMPARE(pdf::PDFDocumentToolReport::getSections(defaults).size(), size_t(6));
+}
+
+void DocumentToolTest::catalogReviewCompareMeasure()
+{
+    // Step 7c of phase 2 (plan 4.8, 4.9, owner answer Q7.2 with R7-22 (6), Table 22): the kinds, the outputs and
+    // the permissions of Compare and Measure by their parameters
+    using Kind = pdf::PDFDocumentToolResultKind;
+    using Permission = pdf::PDFSecurityHandler::Permission;
+    using Permissions = std::vector<Permission>;
+    using Preselected = pdf::PDFDocumentToolPreselectedResult;
+    using Signature = pdf::PDFDocumentToolSignatureImpact;
+    using mergetest::MergeTestPdf;
+
+    // Compare takes exactly the original and the revised document; its report is a file of its own
+    const pdf::PDFDocumentToolCatalogEntry* compareEntry = pdf::PDFDocumentToolCatalog::findTool(QStringLiteral("review.compare"));
+    QCOMPARE(compareEntry->getInputCountRange(), (pdf::PDFDocumentToolInputCountRange{ 2, 2 }));
+    QVERIFY(compareEntry->isFileOnlyResult());
+
+    const pdf::PDFDocumentToolCompare compare;
+    const pdf::PDFDocumentToolMeasure measure;
+    for (const pdf::PDFDocumentTool* reviewTool : { static_cast<const pdf::PDFDocumentTool*>(&compare), static_cast<const pdf::PDFDocumentTool*>(&measure) })
+    {
+        QVERIFY2(reviewTool->getInfo(), qPrintable(reviewTool->getId()));
+        QString error;
+        QVERIFY2(pdf::PDFDocumentToolParameters::isValid(reviewTool->getParameters(), &error), qPrintable(reviewTool->getId() + QStringLiteral(": ") + error));
+        QCOMPARE(reviewTool->getInfo()->getCategory(), pdf::PDFDocumentToolCategory::Review);
+    }
+    QCOMPARE(compare.getInputCountRange(), (pdf::PDFDocumentToolInputCountRange{ 2, 2 }));
+
+    // The defaults: the summary of every difference side by side; Measure lists
+    QVariantMap compareDefaults;
+    QVERIFY(pdf::PDFDocumentToolParameters::normalize(compare.getParameters(), QVariantMap(), &compareDefaults).empty());
+    QCOMPARE(compareDefaults.value(QStringLiteral("output")).toString(), QStringLiteral("summary"));
+    QCOMPARE(compareDefaults.value(QStringLiteral("view")).toString(), QStringLiteral("side-by-side"));
+    for (const char* filter : { "includeText", "includeVectorGraphics", "includeImages", "includeShading", "includePageMovement" })
+    {
+        QVERIFY2(compareDefaults.value(QString::fromLatin1(filter)).toBool(), filter);
+    }
+    QVariantMap measureDefaults;
+    QVERIFY(pdf::PDFDocumentToolParameters::normalize(measure.getParameters(), QVariantMap(), &measureDefaults).empty());
+    QCOMPARE(measureDefaults.value(QStringLiteral("mode")).toString(), QStringLiteral("list"));
+
+    // Compare: viewing the differences is reading (summary); the XML holds the texts of the documents - an
+    // extraction, bit 5; the report PDF is a new document of the inputs (the rule of Merge), a file
+    const QVariantMap summary = compareDefaults;
+    QVariantMap xml = compareDefaults;
+    xml.insert(QStringLiteral("output"), QStringLiteral("xml"));
+    QVariantMap report = compareDefaults;
+    report.insert(QStringLiteral("output"), QStringLiteral("report"));
+    QCOMPARE(compare.getResultKind(summary), Kind::Analysis);
+    QCOMPARE(compare.getResultKind(xml), Kind::Analysis);
+    QCOMPARE(compare.getResultKind(report), Kind::NewDocument);
+    QVERIFY(compare.getRequiredPermissions(summary).empty());
+    QCOMPARE(compare.getRequiredPermissions(xml), Permissions({ Permission::CopyContent }));
+    QVERIFY(compare.getRequiredPermissions(report).empty());
+    QVERIFY(!compare.isNewDocumentOfInputs(summary));
+    QVERIFY(!compare.isNewDocumentOfInputs(xml));
+    QVERIFY(compare.isNewDocumentOfInputs(report));
+    QCOMPARE(compare.getPreselectedResult(summary), Preselected::None);
+    QCOMPARE(compare.getPreselectedResult(report), Preselected::File);
+    QCOMPARE(compare.getSignatureImpact(report), Signature::None);
+    QVERIFY(!compare.isPageChange(report));
+
+    // Measure: listing and the CSV are reading; adding the annotations changes the document - bit 6, Keep, an
+    // incremental update of a signed file
+    QVariantMap csv = measureDefaults;
+    csv.insert(QStringLiteral("mode"), QStringLiteral("csv"));
+    QVariantMap add = measureDefaults;
+    add.insert(QStringLiteral("mode"), QStringLiteral("add"));
+    QCOMPARE(measure.getResultKind(measureDefaults), Kind::Analysis);
+    QCOMPARE(measure.getResultKind(csv), Kind::Analysis);
+    QCOMPARE(measure.getResultKind(add), Kind::ChangeDocument);
+    QVERIFY(measure.getRequiredPermissions(measureDefaults).empty());
+    QVERIFY(measure.getRequiredPermissions(csv).empty());
+    QCOMPARE(measure.getRequiredPermissions(add), Permissions({ Permission::ModifyInteractiveItems }));
+    QCOMPARE(measure.getPreselectedResult(measureDefaults), Preselected::None);
+    QCOMPARE(measure.getPreselectedResult(add), Preselected::Keep);
+    QCOMPARE(measure.getSignatureImpact(add), Signature::IncrementalSave);
+    QVERIFY(!measure.isNewDocumentOfInputs(add));
+
+    // The rule of Merge for the report (B161, B210): a revised document, which restricts printing, needs its owner
+    // password - the verified one is accepted; viewing the differences of the same documents is allowed
+    const pdf::PDFDocument plain = MergeTestPdf::createPages("", 2).read();
+    const uint32_t noPrint = uint32_t(Permission::Assemble) | uint32_t(Permission::CopyContent) | uint32_t(Permission::Modify) |
+                             uint32_t(Permission::ModifyInteractiveItems) | uint32_t(Permission::ModifyFormFields);
+    const pdf::PDFDocument restricted = MergeTestPdf::readBytes(MergeTestPdf::encrypt(plain, QString(), QStringLiteral("owner"), noPrint));
+    QCOMPARE(pdf::PDFDocumentMerger::getPermission(&restricted), pdf::PDFDocumentMerger::Permission::OwnerPasswordRequired);
+
+    pdf::PDFDocumentToolContext context;
+    context.documents.push_back(pdf::PDFDocumentToolInputDocument::create(pdf::PDFDocumentPointer(new pdf::PDFDocument(plain)), QByteArray(), QStringLiteral("C:/Documents/Original.pdf"), true));
+    context.documents.push_back(pdf::PDFDocumentToolInputDocument::create(pdf::PDFDocumentPointer(new pdf::PDFDocument(restricted)), QByteArray(), QStringLiteral("C:/Documents/Revised.pdf"), true));
+    QVERIFY(compare.validate(context, summary).empty());
+    std::vector<pdf::PDFDocumentToolParameterError> errors = compare.validate(context, report);
+    QCOMPARE(errors.size(), size_t(1));
+    QCOMPARE(errors.front().message, pdf::PDFDocumentMerger::getPermissionText(pdf::PDFDocumentMerger::Permission::OwnerPasswordRequired, QStringLiteral("Revised.pdf")));
+    context.documents.back().isOwnerPasswordVerified = true;
+    QVERIFY(compare.validate(context, report).empty());
+
+    // Not two documents: refused
+    context.documents.pop_back();
+    QVERIFY(!compare.validate(context, summary).empty());
 }
 
 void DocumentToolTest::parameterSensitiveValue()

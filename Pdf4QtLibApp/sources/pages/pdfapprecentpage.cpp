@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfapprecentpage.h"
+#include "pdfappdocumentpanels_common.h"
 #include "pdfapplocale.h"
 #include "pdfappfiledrop.h"
 #include "pdfapproute.h"
@@ -615,7 +616,10 @@ QWidget* PDFAppRecentPage::createHistory(QWidget* parent)
     m_listView->setModel(m_model);
     m_listView->setItemDelegate(m_delegate);
     m_listView->installEventFilter(this);
-    connect(m_listView, &QAbstractItemView::clicked, this, &PDFAppRecentPage::onListClicked);
+    // From the event loop: an opened document, a folder dialog or a navigation run code of the application, Qt reads
+    // the list after its signal
+    PDFAppItemViewSignalRelay* relay = new PDFAppItemViewSignalRelay(m_listView, this);
+    connect(relay, &PDFAppItemViewSignalRelay::clicked, this, &PDFAppRecentPage::onListClicked);
     connect(m_delegate, &PDFRowDelegate::actionTriggered, this, &PDFAppRecentPage::onDelegateAction);
     connect(m_model, &PDFAppRecentModel::pinRequested, this, &PDFAppRecentPage::onPinRequested);
     m_historyStack->addWidget(m_listView);

@@ -392,6 +392,28 @@ public:
     ///        the appearance streams, which the annotation has, are kept
     void updateAnnotationAppearanceStreams(PDFObjectReference annotationReference, bool missingOnly = false);
 
+    /// Creates the form XObject of an appearance stream (ISO 32000-2, 12.5.5, 8.10) of the content drawn by
+    /// PDFContentStreamBuilder (its coordinate system PDF): the content and its resources are copied into this
+    /// document, the form gets /BBox \p boundingBox. Used by updateAnnotationAppearanceStreams and by the
+    /// writers of their own appearances (PDFMeasureWriter).
+    /// \param contentStream The content of PDFContentStreamBuilder::end
+    /// \param boundingBox The bounding box of the form in the space of the page
+    /// \returns The form, an invalid reference when the content is empty
+    PDFObjectReference createAppearanceStream(const PDFContentStreamBuilder::ContentStream& contentStream, const QRectF& boundingBox);
+
+    /// Adds a structure element of the type \p structureType ("Annot", "Form") with the reference of the
+    /// object \p object (/OBJR, ISO 32000-2, 14.7.4.4) to a tagged document (a /StructTreeRoot of the catalog
+    /// as an indirect object): the last kid of the only top element of the tree (else of the root), a new key
+    /// of /ParentTree after every key and /ParentTreeNextKey (14.7.5.4), /StructParent of the object. ISO
+    /// 14289-1 (PDF/UA), 7.18.1: an annotation is the content of an /Annot element, a widget of a /Form one;
+    /// 7.18.3: the page gets /Tabs /S (the tab order of the structure). Nothing in a document without a
+    /// structure tree.
+    /// \param object The annotation or the widget
+    /// \param page The page of the object
+    /// \param structureType The type of the element
+    /// \returns The new element, an invalid reference when the document is not tagged
+    PDFObjectReference addObjectStructureElement(PDFObjectReference object, PDFObjectReference page, const QByteArray& structureType);
+
     const PDFFormManager* getFormManager() const;
     void setFormManager(const PDFFormManager* formManager);
 

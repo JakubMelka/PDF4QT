@@ -232,6 +232,10 @@ private:
     template<typename Event, void(IDrawWidgetInputInterface::* Function)(QWidget*, Event*)>
     bool processEvent(Event* event);
 
+    /// Is the interface still a receiver of the input of the widget? (An interface removed
+    /// during the dispatch of an event may be deleted already - it is only compared, never used)
+    bool isInputInterfaceRegistered(const IDrawWidgetInputInterface* inputInterface) const;
+
     enum class MouseOperation
     {
         None,

@@ -710,6 +710,14 @@ public:
     bool isClickable() const { return m_isClickable; }
     void setClickable(bool isClickable);
 
+    /// The chosen item shown as a text (492:18158, the chosen input of a slot with Change…): a row, which is not
+    /// clickable, has the look of a chosen row - the fill of a selected row of a list (bg/accent-subtle, 438:14751),
+    /// an item of a menu its check mark. It is no state of a button (a row, which is not clickable, is never
+    /// checkable, PDFComponentButton::setSelectionBehavior): no signal, no hover. A clickable row is chosen by its
+    /// selection behavior; the static look is kept for the time the row is not clickable.
+    bool isStaticChosen() const { return m_isStaticChosen; }
+    void setStaticChosen(bool isChosen);
+
     /// Returns the nested check box and the nested link (nullptr, when they have not
     /// been created yet or the application has deleted them)
     QCheckBox* getCheckBox() const;
@@ -748,6 +756,7 @@ private:
     PDFWatchedPointer<QCheckBox> m_checkBox;
     PDFWatchedPointer<PDFTextLink> m_link;
     bool m_isClickable = false;
+    bool m_isStaticChosen = false;
 };
 
 /// Row of the Document properties dialog (component Property row 206:873): the

@@ -798,15 +798,39 @@ void PDFAppToolRedactSearchPart::onSelectionChanged(const QItemSelection& select
         return;
     }
 
+    // The state and the parts follow at once; Qt reads the selection model after its signal and the slots of
+    // matchesChanged may delete the tab with the list: the signal follows from the event loop
     updateSelectionFromView();
     m_markedCount = -1;
     updateWidgets();
+    if (!m_isSelectionChangeQueued)
+    {
+        m_isSelectionChangeQueued = true;
+        QMetaObject::invokeMethod(this, &PDFAppToolRedactSearchPart::onQueuedSelectionChanged, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppToolRedactSearchPart::onQueuedSelectionChanged()
+{
+    m_isSelectionChangeQueued = false;
     Q_EMIT matchesChanged();
 }
 
 void PDFAppToolRedactSearchPart::onCurrentChanged()
 {
-    // The row shows its match on its page
+    // The page of the view runs code of the application (its signals may delete the tab with the list), while Qt
+    // reads the selection model after its signal: the match is shown from the event loop
+    if (!m_isCurrentChangeQueued)
+    {
+        m_isCurrentChangeQueued = true;
+        QMetaObject::invokeMethod(this, &PDFAppToolRedactSearchPart::onQueuedCurrentChanged, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppToolRedactSearchPart::onQueuedCurrentChanged()
+{
+    // The row shows its match on its page (the current row of now)
+    m_isCurrentChangeQueued = false;
     const QModelIndex current = m_resultsView && m_resultsView->selectionModel() ? m_resultsView->selectionModel()->currentIndex() : QModelIndex();
     if (!current.isValid() || current.row() >= int(m_matches.size()) || !m_view)
     {

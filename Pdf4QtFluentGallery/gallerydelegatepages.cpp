@@ -1092,6 +1092,14 @@ GalleryPages::Page GalleryPages::createToolsPage(QWidget* parent)
     liveKind->setFixedWidth(622);
     builder.live(QStringLiteral("Live, the check box disabled alone"), liveKind, QStringLiteral("438:12782"));
     builder.row();
+    pdf::PDFTileRow* liveChosenText = new pdf::PDFTileRow(QStringLiteral("Report_v1.pdf"), QStringLiteral("24 pages · open tab"), QStringLiteral("file"), Kind::ListItem, builder.page());
+    liveChosenText->setTitleKind(Painter::TextKind::Data);
+    liveChosenText->setLinkText(QStringLiteral("Change…"));
+    liveChosenText->setClickable(false);
+    liveChosenText->setStaticChosen(true);
+    liveChosenText->setFixedWidth(350);
+    builder.live(QStringLiteral("Live, chosen and not clickable (setStaticChosen, the link works)"), liveChosenText, QStringLiteral("492:18382"));
+    builder.row();
 
     // Results
     builder.block(QStringLiteral("Tile row - results (Result) 44, a tile of 26"), QStringLiteral("438:14342"));

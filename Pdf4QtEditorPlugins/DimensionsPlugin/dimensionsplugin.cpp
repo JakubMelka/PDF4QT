@@ -27,8 +27,10 @@
 
 #include "pdfannotation.h"
 #include "pdfdocumentbuilder.h"
+#include "pdfdocumenttooltablewriter.h"
 #include "pdfdrawwidget.h"
 #include "pdfmeasure.h"
+#include "pdfmeasurewriter.h"
 #include "pdfutils.h"
 #include "pdfwidgetutils.h"
 
@@ -42,6 +44,8 @@
 #include <QPainter>
 #include <QTextStream>
 
+#include <numeric>
+
 namespace pdfplugin
 {
 
@@ -51,14 +55,8 @@ namespace dimensionsplugin
 /// Escapes the field so it can be written to a csv file
 QString escapeCsvField(const QString& text)
 {
-    if (text.contains(QChar(';')) || text.contains(QChar('"')) || text.contains(QChar('\n')) || text.contains(QChar('\r')))
-    {
-        QString escapedText = text;
-        escapedText.replace(QChar('"'), QString("\"\""));
-        return QString("\"%1\"").arg(escapedText);
-    }
-
-    return text;
+    // RFC 4180 and the formula escape of a text of the document (B182) by the one writer of the core
+    return pdf::PDFDocumentToolTableWriter::toCsvField(text, true, QLatin1Char(';'));
 }
 
 }   // namespace dimensionsplugin
@@ -401,12 +399,17 @@ void DimensionsPlugin::drawPage(QPainter* painter,
                 painter->drawLine(line1);
                 painter->drawLine(line2);
 
-                qreal startAngle = line1.angle() * 16;
-                qreal angleLength = dimension.getMeasuredValue() * 16;
+                // The measured angle is the smaller one of the arms (B181, pdf::PDFMeasureGeometry), so the
+                // arc goes from the first arm to the second one by the shorter way
+                qreal sweep = line1.angleTo(line2);
+                if (sweep > 180.0)
+                {
+                    sweep -= 360.0;
+                }
 
                 QRectF rect(-maxLength * 0.5, -maxLength * 0.5, maxLength, maxLength);
                 rect.translate(line1.p1());
-                painter->drawArc(rect, startAngle - angleLength, angleLength);
+                painter->drawArc(rect, qRound(line1.angle() * 16), qRound(sweep * 16));
 
                 QPen penPoint(convertor.convert(settings.textColor, false, true));
                 penPoint.setCapStyle(Qt::RoundCap);
@@ -419,7 +422,7 @@ void DimensionsPlugin::drawPage(QPainter* painter,
 
                 QTransform textMatrix;
                 textMatrix.translate(line1.x1(), line1.y1());
-                textMatrix.rotate(-line1.angle() + dimension.getMeasuredValue() * 0.5);
+                textMatrix.rotate(-(line1.angle() + sweep * 0.5));
 
                 QPointF textPoint = textMatrix.map(QPointF(maxLength * 0.25, 0.0));
                 QString text = getDimensionText(dimension);
@@ -720,62 +723,17 @@ std::vector<QStringList> DimensionsPlugin::getAnnotationExportRows() const
         return rows;
     }
 
-    const pdf::PDFObjectStorage& storage = m_document->getStorage();
-    const pdf::PDFCatalog* catalog = m_document->getCatalog();
-
-    for (size_t pageIndex = 0; pageIndex < catalog->getPageCount(); ++pageIndex)
+    // The measurement annotations are read by the core (pdf::PDFMeasureAnnotationInfo, plan of step 7 of
+    // phase 2, 4.8; also the angles of Q7.5 without /IT and the annotations of other producers)
+    std::vector<pdf::PDFInteger> pageIndices(m_document->getCatalog()->getPageCount());
+    std::iota(pageIndices.begin(), pageIndices.end(), pdf::PDFInteger(0));
+    // The reading limit of the vertices keeps the annotations of more than 200 vertices listed (review RS7CCORE L6)
+    for (const pdf::PDFMeasureAnnotationInfo& annotation : pdf::PDFMeasureAnnotationInfo::readPages(m_document, pageIndices, 10000, pdf::PDFMeasureAnnotationInfo::MAXIMUM_READ_POINT_COUNT, nullptr, nullptr))
     {
-        const pdf::PDFPage* page = catalog->getPage(pageIndex);
-
-        for (const pdf::PDFObjectReference& reference : page->getAnnotations())
-        {
-            pdf::PDFAnnotationPtr annotation = pdf::PDFAnnotation::parse(&storage, reference);
-
-            if (!annotation)
-            {
-                continue;
-            }
-
-            pdf::PDFObject measureObject;
-
-            if (const pdf::PDFLineAnnotation* lineAnnotation = dynamic_cast<const pdf::PDFLineAnnotation*>(annotation.data()))
-            {
-                if (lineAnnotation->getIntent() != pdf::PDFLineAnnotation::Intent::Dimension)
-                {
-                    continue;
-                }
-
-                measureObject = lineAnnotation->getMeasureDictionary();
-            }
-            else if (const pdf::PDFPolygonalGeometryAnnotation* polygonalAnnotation = dynamic_cast<const pdf::PDFPolygonalGeometryAnnotation*>(annotation.data()))
-            {
-                if (polygonalAnnotation->getIntent() != pdf::PDFPolygonalGeometryAnnotation::Intent::Dimension)
-                {
-                    continue;
-                }
-
-                measureObject = polygonalAnnotation->getMeasure();
-            }
-            else
-            {
-                continue;
-            }
-
-            const pdf::PDFMeasure measure = pdf::PDFMeasure::parse(&storage, measureObject);
-
-            QString type;
-            if (const pdf::PDFMarkupAnnotation* markupAnnotation = annotation->asMarkupAnnotation())
-            {
-                // The type of the measurement is stored in the subject
-                // of the annotation, when it is created by this plugin
-                type = markupAnnotation->getSubject();
-            }
-
-            rows.push_back(QStringList() << QString::number(qint64(pageIndex) + 1)
-                                         << type
-                                         << annotation->getContents()
-                                         << measure.getScaleRatio());
-        }
+        rows.push_back(QStringList() << QString::number(qint64(annotation.pageIndex) + 1)
+                                     << pdf::PDFMeasureGeometry::getKindTitle(annotation.kind)
+                                     << annotation.text
+                                     << annotation.ratio);
     }
 
     return rows;
@@ -885,198 +843,46 @@ bool DimensionsPlugin::createDimensionAnnotation(pdf::PDFDocumentBuilder* builde
     }
 
     const pdf::PDFPage* page = catalog->getPage(size_t(pageIndex));
-
     const DimensionsPluginSettings& settings = getSettings();
-    const QString author = pdf::PDFAuthorSettings::getAuthorName();
-    const QString subject = getDimensionTypeName(dimension.getType());
-    const QString contents = getDimensionText(dimension);
-    const pdf::PDFObjectReference pageReference = page->getPageReference();
-    const std::vector<QPointF>& polygon = dimension.getPolygon();
 
-    constexpr pdf::PDFReal lineWidth = 1.0;
-
-    // The interior color of an annotation is a plain color array without an alpha
-    // channel. The transparency of the background color is therefore expressed
-    // by the filling opacity of the annotation, see below.
-    const bool isFilled = settings.backgroundColor.isValid() && settings.backgroundColor.alphaF() > 0.0;
-    const QColor fillColor = isFilled ? settings.backgroundColor : QColor();
-
-    QPolygonF annotationPolygon;
-    for (const QPointF& point : polygon)
-    {
-        annotationPolygon << point;
-    }
-
-    if (annotationPolygon.size() > 2 && annotationPolygon.front() == annotationPolygon.back())
-    {
-        // Vertices of a polygon annotation are implicitly closed, so the repeated
-        // first point is not stored
-        annotationPolygon.removeLast();
-    }
-
-    pdf::PDFObjectReference annotation;
-    const char* intent = nullptr;
-    bool isAnnotationFilled = false;
-
+    // The annotations are written by the core (pdf::PDFMeasureWriter, plan of step 7 of phase 2, 4.8): the
+    // encoding of Q7.5 (a perimeter is a closed /PolyLine, an angle a /PolyLine without /IT), /Measure with
+    // the C locale (B183), the effective /UserUnit (B209), the appearance with the colors of the settings
+    pdf::PDFMeasureKind kind = pdf::PDFMeasureKind::Distance;
     switch (dimension.getType())
     {
         case Dimension::Linear:
-        {
-            const QPointF startPoint = polygon.front();
-            const QPointF endPoint = polygon.back();
-
-            QRectF boundingRect(startPoint, endPoint);
-            boundingRect = boundingRect.normalized().adjusted(-lineWidth, -lineWidth, lineWidth, lineWidth);
-
-            // Butt line ending is a short line perpendicular to the measured line,
-            // which is exactly the tick drawn at the end of a dimension line
-            annotation = builder->createAnnotationLine(pageReference, boundingRect, startPoint, endPoint, lineWidth,
-                                                       settings.textColor, settings.textColor, author, subject, contents,
-                                                       pdf::AnnotationLineEnding::Butt, pdf::AnnotationLineEnding::Butt,
-                                                       0.0, 0.0, 0.0, true, true);
-            intent = "LineDimension";
+            kind = pdf::PDFMeasureKind::Distance;
             break;
-        }
-
         case Dimension::Perimeter:
+            kind = pdf::PDFMeasureKind::Perimeter;
+            break;
         case Dimension::Area:
-        {
-            isAnnotationFilled = isFilled;
-
-            annotation = builder->createAnnotationPolygon(pageReference, annotationPolygon,
-                                                          lineWidth, fillColor,
-                                                          settings.textColor, author, subject, contents);
-            intent = "PolygonDimension";
+            kind = pdf::PDFMeasureKind::Area;
             break;
-        }
-
         case Dimension::Angular:
-        {
-            annotation = builder->createAnnotationPolyline(pageReference, annotationPolygon,
-                                                           lineWidth, QColor(), settings.textColor, author, subject, contents,
-                                                           pdf::AnnotationLineEnding::None, pdf::AnnotationLineEnding::None);
-            intent = "PolyLineDimension";
+            kind = pdf::PDFMeasureKind::Angle;
             break;
-        }
-
         default:
             Q_ASSERT(false);
             return false;
     }
 
-    // Mark the annotation as a measurement and describe the used scale, so other
-    // applications are able to interpret it
-    pdf::PDFObjectFactory factory;
-    factory.beginDictionary();
-    factory.beginDictionaryItem("IT");
-    factory << pdf::WrapName(intent);
-    factory.endDictionaryItem();
-    factory.beginDictionaryItem("Measure");
-    factory << createMeasureDictionary(dimension);
-    factory.endDictionaryItem();
+    pdf::PDFMeasureDisplayUnits units;
+    units.length = settings.lengthUnit.id;
+    units.area = settings.areaUnit.id;
+    units.angle = settings.angleUnit.id;
 
-    if (isAnnotationFilled)
-    {
-        // The filled interior must not hide the drawing under it, nor the displayed
-        // value. The stroking opacity (CA) is left untouched, so the outline and
-        // the text stay fully opaque. The appearance stream is generated below,
-        // after this entry is written, so the transparency becomes a part of it
-        // and the annotation looks the same in the viewers, which ignore the
-        // non-standard filling opacity.
-        factory.beginDictionaryItem("ca");
-        factory << pdf::PDFReal(settings.backgroundColor.alphaF());
-        factory.endDictionaryItem();
-    }
+    pdf::PDFMeasureAnnotationStyle style;
+    style.fontSize = settings.font.pointSizeF() > 0.0 ? settings.font.pointSizeF() : style.fontSize;
+    style.isBold = settings.font.bold();
+    style.isItalic = settings.font.italic();
+    style.textColor = settings.textColor;
+    style.backgroundColor = settings.backgroundColor;
+    style.lineColor = settings.textColor;
+    style.author = pdf::PDFAuthorSettings::getAuthorName();
 
-    factory.endDictionary();
-
-    builder->mergeTo(annotation, factory.takeObject());
-    builder->updateAnnotationAppearanceStreams(annotation);
-
-    return true;
-}
-
-pdf::PDFObject DimensionsPlugin::createMeasureDictionary(const Dimension& dimension) const
-{
-    const DimensionsPluginSettings& settings = getSettings();
-    const DimensionScale& scale = getEffectiveScale(dimension);
-    const pdf::PDFCatalog* catalog = m_document->getCatalog();
-    const pdf::PDFInteger pageIndex = dimension.getPageIndex();
-    const bool isPageValid = pageIndex >= 0 && size_t(pageIndex) < catalog->getPageCount();
-    const pdf::PDFReal userUnit = isPageValid ? catalog->getPage(size_t(pageIndex))->getUserUnit() : 1.0;
-    const pdf::PDFReal scaleFactor = scale.getScaleFactor();
-
-    // Count of the length units, which correspond to a single unit
-    // of the default user space
-    const pdf::PDFReal unitsPerUserSpaceUnit = scaleFactor * settings.lengthUnit.scale * userUnit;
-
-    // The area format converts from the square length units, so the conversion
-    // factor is the count of the area units per one square length unit
-    const pdf::PDFReal areaUnitsPerSquareLengthUnit = settings.areaUnit.scale / (settings.lengthUnit.scale * settings.lengthUnit.scale);
-
-    auto createNumberFormat = [](pdf::PDFObjectFactory& factory, const QString& unitLabel, pdf::PDFReal conversionFactor)
-    {
-        factory.beginDictionary();
-        factory.beginDictionaryItem("Type");
-        factory << pdf::WrapName("NumberFormat");
-        factory.endDictionaryItem();
-        factory.beginDictionaryItem("U");
-        factory << unitLabel;
-        factory.endDictionaryItem();
-        factory.beginDictionaryItem("C");
-        factory << conversionFactor;
-        factory.endDictionaryItem();
-        factory.beginDictionaryItem("F");
-        factory << pdf::WrapName("D");
-        factory.endDictionaryItem();
-        factory.beginDictionaryItem("D");
-        factory << pdf::PDFInteger(100);
-        factory.endDictionaryItem();
-        factory.endDictionary();
-    };
-
-    pdf::PDFObjectFactory factory;
-    factory.beginDictionary();
-
-    factory.beginDictionaryItem("Type");
-    factory << pdf::WrapName("Measure");
-    factory.endDictionaryItem();
-
-    factory.beginDictionaryItem("Subtype");
-    factory << pdf::WrapName("RL");
-    factory.endDictionaryItem();
-
-    factory.beginDictionaryItem("R");
-    factory << scale.getRatioText();
-    factory.endDictionaryItem();
-
-    factory.beginDictionaryItem("X");
-    factory.beginArray();
-    createNumberFormat(factory, settings.lengthUnit.symbol, unitsPerUserSpaceUnit);
-    factory.endArray();
-    factory.endDictionaryItem();
-
-    factory.beginDictionaryItem("D");
-    factory.beginArray();
-    createNumberFormat(factory, settings.lengthUnit.symbol, 1.0);
-    factory.endArray();
-    factory.endDictionaryItem();
-
-    factory.beginDictionaryItem("A");
-    factory.beginArray();
-    createNumberFormat(factory, settings.areaUnit.symbol, areaUnitsPerSquareLengthUnit);
-    factory.endArray();
-    factory.endDictionaryItem();
-
-    factory.beginDictionaryItem("T");
-    factory.beginArray();
-    createNumberFormat(factory, settings.angleUnit.symbol, settings.angleUnit.scale);
-    factory.endArray();
-    factory.endDictionaryItem();
-
-    factory.endDictionary();
-
-    return factory.takeObject();
+    return pdf::PDFMeasureWriter::createAnnotation(builder, page->getPageReference(), kind, dimension.getPolygon(), getEffectiveScale(dimension).toMeasureScale(), units, style, nullptr).isValid();
 }
 
 void DimensionsPlugin::setScale(const DimensionScale& scale)

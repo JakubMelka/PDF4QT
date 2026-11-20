@@ -28,8 +28,8 @@ Facts needed to run them:
 | `UnitTestsAuthorSettings` | [tst_authorsettingstest.cpp](../UnitTests/tst_authorsettingstest.cpp) | Author settings. |
 | `UnitTestsTextLayout` | [tst_textlayouttest.cpp](../UnitTests/tst_textlayouttest.cpp) | Text layout; a change of the algorithm is compared by `PDF4QT_TEXT_LAYOUT_BENCHMARK=<pdf>` + `..._DUMP=<file>` before / after, differences explained. |
 | `UnitTestsContentEditor` | [tst_contenteditortest.cpp](../UnitTests/tst_contenteditortest.cpp) | Content editor, written numbers never `inf` / `nan` / an exponent. |
-| `UnitTestsMeasure` | [tst_measuretest.cpp](../UnitTests/tst_measuretest.cpp) | Measurement. |
-| `UnitTestsDimensions` | [tst_dimensionstest.cpp](../UnitTests/tst_dimensionstest.cpp) | Dimensions. |
+| `UnitTestsMeasure` | [tst_measuretest.cpp](../UnitTests/tst_measuretest.cpp) | Measurement: number formats, measures, viewports, the units, the annotations and the tool Measure of the core (step 7c, P7). |
+| `UnitTestsDimensions` | [tst_dimensionstest.cpp](../UnitTests/tst_dimensionstest.cpp) | The old Dimensions plugin over the core of Measure (step 7c). |
 | `UnitTestsSignatureBuilder` | [tst_signaturebuildertest.cpp](../UnitTests/tst_signaturebuildertest.cpp) | Document signer, incremental updates, signatures of restored (damaged) files. |
 | `UnitTestsTimestamp` | [tst_timestamptest.cpp](../UnitTests/tst_timestamptest.cpp) | RFC 3161 timestamps against a loopback authority; a public one only with `PDF4QT_TIMESTAMP_TEST_URL`. |
 | `UnitTestsPageContentEditorTools` | [tst_pagecontenteditortoolstest.cpp](../UnitTests/tst_pagecontenteditortoolstest.cpp) | Page content creation tools. |
@@ -154,7 +154,7 @@ Facts needed to run them:
 | `UnitTestsInkCoverage` | [tst_inkcoveragetest.cpp](../UnitTests/tst_inkcoveragetest.cpp) | Ink Coverage of the core and PdfTool ink-coverage (step 7, P3a). |
 | `UnitTestsOutputPreview` | [tst_outputpreviewtest.cpp](../UnitTests/tst_outputpreviewtest.cpp) | Output Preview of the core: separations, overprint, warnings (step 7, P3a). |
 | `UnitTestsSoftProof` | [tst_softprooftest.cpp](../UnitTests/tst_softprooftest.cpp) | Soft proof of the color management, settings without the proof (step 7, P3b). |
-| `UnitTestsAppToolAnalysis` | [tst_apptoolanalysistest.cpp](../UnitTests/tst_apptoolanalysistest.cpp) | A result kept in the tool and its stale state, the export dialog of an analysis, the formatter of the exports (step 7, skeleton); status items, repaired file, start page note and F1 of the review tools (integration). |
+| `UnitTestsAppToolAnalysis` | [tst_apptoolanalysistest.cpp](../UnitTests/tst_apptoolanalysistest.cpp) | A result kept in the tool and its stale state, the export dialog of an analysis, the formatter of the exports (step 7, skeleton); status items, repaired file, start page note and F1 of the review tools, Compare and Measure too (integration). |
 | `UnitTestsAppToolStatistics` | [tst_apptoolstatisticstest.cpp](../UnitTests/tst_apptoolstatisticstest.cpp) | GUI of Document Statistics (step 7, P2). |
 | `UnitTestsAppToolObjectInspector` | [tst_apptoolobjectinspectortest.cpp](../UnitTests/tst_apptoolobjectinspectortest.cpp) | GUI of Object Inspector (step 7, P2). |
 | `UnitTestsAppToolReport` | [tst_apptoolreporttest.cpp](../UnitTests/tst_apptoolreporttest.cpp) | GUI of Document Report (step 7, P2). |
@@ -162,6 +162,12 @@ Facts needed to run them:
 | `UnitTestsAppToolOutputPreview` | [tst_apptooloutputpreviewtest.cpp](../UnitTests/tst_apptooloutputpreviewtest.cpp) | GUI of Output Preview (step 7, P4). |
 | `UnitTestsAppToolSoftProof` | [tst_apptoolsoftprooftest.cpp](../UnitTests/tst_apptoolsoftprooftest.cpp) | GUI of Soft Proofing and the proof state of a tab (step 7, P4). |
 | `UnitTestsAppMcpReview` | [tst_appmcpreviewtest.cpp](../UnitTests/tst_appmcpreviewtest.cpp) | MCP actions of the tool review over HTTP: schemas, limits, the permission of content (step 7, MCP). |
+| `UnitTestsDiff` | [tst_difftest.cpp](../UnitTests/tst_difftest.cpp) | The comparison of documents, its report and the tool Compare of the core (step 7c, P5). |
+| `UnitTestsColorProfiles` | [tst_colorprofilestest.cpp](../UnitTests/tst_colorprofilestest.cpp) | The folders of the installed ICC profiles of Linux and macOS and their walk (step 7c, skeleton). |
+| `UnitTestsAppToolCompare` | [tst_apptoolcomparetest.cpp](../UnitTests/tst_apptoolcomparetest.cpp) | GUI of Compare in its own tab, PDF4QT --compare (step 7c, P6). |
+| `UnitTestsDiffOverlay` | [tst_diffoverlaytest.cpp](../UnitTests/tst_diffoverlaytest.cpp) | The views and the overlay of the canvas of Compare (step 7c, P6; formerly of the old Diff). |
+| `UnitTestsAppToolMeasure` | [tst_apptoolmeasuretest.cpp](../UnitTests/tst_apptoolmeasuretest.cpp) | GUI of Measure, its drawing and dialogs (step 7c, P7). |
+| `UnitTestsMeasureScaleRepository` | [tst_measurescalerepositorytest.cpp](../UnitTests/tst_measurescalerepositorytest.cpp) | The scales of Measure: migration 4 (step 7c, skeleton), the repository (P7) and the descriptions of the presets and of the default scale (integration). |
 | `UnitTestsAppMcp` | [tst_appmcptest.cpp](../UnitTests/tst_appmcptest.cpp) | MCP in the application: contract, permissions, read tools, catalog bridge. |
 | `UnitTestsAppMcpEdit` | [tst_appmcpedittest.cpp](../UnitTests/tst_appmcpedittest.cpp) | MCP edit tools and their confirmations. |
 | `UnitTestsAppAi` | [tst_appaitest.cpp](../UnitTests/tst_appaitest.cpp) | The page AI. |

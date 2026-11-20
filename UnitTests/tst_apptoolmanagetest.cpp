@@ -78,6 +78,7 @@
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
 
+#include <QAbstractItemView>
 #include <QAction>
 #include <QBuffer>
 #include <QClipboard>
@@ -149,6 +150,7 @@ private slots:
     void detailsRotationText();
     void emptyStateOpenDocumentRow();
     void escapeHintOfSearchAndDrag();
+    void canvasSelectionFromEventLoop();
 };
 
 /// Helpers of the test
@@ -2699,6 +2701,46 @@ void AppToolManageTest::escapeHintOfSearchAndDrag()
     QVERIFY(canvas->getSearchText().isEmpty());
     QVERIFY2(status().startsWith(QStringLiteral("Manage Pages · 2 sources · 6 items · 6 pages")) && !status().contains(QStringLiteral("Esc")), qPrintable(status()));
     QCOMPARE(gui->getAssembly().getItems().size(), size_t(6));
+}
+
+void AppToolManageTest::canvasSelectionFromEventLoop()
+{
+    // A selection of the tiles or of Details by the user: the selection of the canvas is known at once, its signal
+    // (the slots rebuild the parts or may delete the tab) comes from the event loop - Qt reads the selection model after
+    // its own selectionChanged (CLAUDE.md, lifetime)
+    AppToolOwnTabFixture fixture;
+    const QString contract = AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Contract.pdf"), 4);
+    pdf::PDFAppToolTab* tab = H::open(fixture, { contract });
+    QVERIFY(tab);
+    pdf::PDFAppManageToolGUI* gui = H::gui(tab);
+    QVERIFY(gui);
+    QVERIFY(H::waitPages(gui, 4));
+    AppToolOwnTabFixture::settle();
+
+    pdf::PDFAppManageCanvas* canvas = gui->getCanvas();
+    QSignalSpy spy(canvas, &pdf::PDFAppManageCanvas::selectionChanged);
+    QAbstractItemView* pages = canvas->getPageView();
+    const std::vector<int> itemRows = canvas->getPageModel()->getRowsOfItem(gui->getAssembly().getItems()[2].id);
+    QCOMPARE(itemRows.size(), size_t(1));
+    pages->selectionModel()->select(pages->model()->index(itemRows.front(), 0), QItemSelectionModel::ClearAndSelect);
+    QCOMPARE(canvas->getSelection(), pdf::PDFDocumentAssembly::Selection({ gui->getAssembly().getItems()[2].id }));
+    QCOMPARE(spy.count(), 0);
+    AppToolOwnTabFixture::settle();
+    QCOMPARE(spy.count(), 1);
+    QCOMPARE(gui->getSelection(), pdf::PDFDocumentAssembly::Selection({ gui->getAssembly().getItems()[2].id }));
+
+    // Details the same way (one signal for the changes of one turn of the event loop)
+    canvas->setDetailsShown(true);
+    AppToolOwnTabFixture::settle();
+    spy.clear();
+    QAbstractItemView* details = canvas->getDetailsView();
+    details->selectionModel()->select(details->model()->index(1, 0), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+    details->selectionModel()->select(details->model()->index(3, 0), QItemSelectionModel::Select | QItemSelectionModel::Rows);
+    QCOMPARE(canvas->getSelection().size(), size_t(2));
+    QCOMPARE(spy.count(), 0);
+    AppToolOwnTabFixture::settle();
+    QCOMPARE(spy.count(), 1);
+    QCOMPARE(gui->getSelection(), pdf::PDFDocumentAssembly::Selection({ gui->getAssembly().getItems()[1].id, gui->getAssembly().getItems()[3].id }));
 }
 
 QTEST_MAIN(AppToolManageTest)

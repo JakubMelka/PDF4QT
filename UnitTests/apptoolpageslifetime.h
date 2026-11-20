@@ -177,9 +177,13 @@ public:
     /// reviewoutputpreview, reviewsoftproof): apptoolpageslifetime_review_b.cpp
     static void registerReviewBScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
 
-    /// Step 7c (later): Compare, Measure (reviewcompare, reviewmeasure, measurepresetsdialog):
-    /// apptoolpageslifetime_review_c.cpp, empty until 7c
-    static void registerReviewCScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
+    /// Step 7c (plan 8, 9.2, R7-21), package P6: Compare in its own tab (reviewcompare):
+    /// apptoolpageslifetime_review_c_compare.cpp
+    static void registerReviewCompareScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
+
+    /// Step 7c, package P7: Measure and its dialogs (reviewmeasure, measurepresetsdialog):
+    /// apptoolpageslifetime_review_c_measure.cpp
+    static void registerReviewMeasureScenarios(std::vector<ToolPagesLifetimeScenario>* scenarios);
 };
 
 /// The steps and the inputs of the test for the scenarios of the packages: every input is sent

@@ -22,6 +22,7 @@
 
 #include "pdfapphelppage.h"
 #include "pdfappcontext.h"
+#include "pdfappdocumentpanels_common.h"
 #include "pdfapplocale.h"
 #include "pdfapproute.h"
 #include "pdfapproutetable.h"
@@ -346,8 +347,10 @@ QWidget* PDFAppHelpPage::createContents(QWidget* parent)
     }
 
     m_contentsView->setExpandsOnDoubleClick(false);
-    connect(m_contentsView, &PDFTreeView::clicked, this, &PDFAppHelpPage::onContentsClicked);
-    connect(m_contentsView, &PDFTreeView::activated, this, &PDFAppHelpPage::onContentsActivated);
+    // From the event loop: a navigation may delete the page with the tree, Qt reads the tree after its signal
+    PDFAppItemViewSignalRelay* relay = new PDFAppItemViewSignalRelay(m_contentsView, this);
+    connect(relay, &PDFAppItemViewSignalRelay::clicked, this, &PDFAppHelpPage::onContentsClicked);
+    connect(relay, &PDFAppItemViewSignalRelay::activated, this, &PDFAppHelpPage::onContentsActivated);
     return section;
 }
 

@@ -221,7 +221,9 @@ private:
     /// would mark other content
     void onDocumentChanged(const PDFModifiedDocument& modified);
     void onSelectionChanged(const QItemSelection& selected, const QItemSelection& deselected);
+    void onQueuedSelectionChanged();
     void onCurrentChanged();
+    void onQueuedCurrentChanged();
     void onMarkClicked();
     void onBackClicked();
 
@@ -241,6 +243,8 @@ private:
     int m_indexProgress = 0;
     int m_markedCount = -1;
     bool m_isUpdatingSelection = false;
+    bool m_isSelectionChangeQueued = false;
+    bool m_isCurrentChangeQueued = false;
 
     QPointer<PDFLineEdit> m_field;
     QPointer<PDFLabel> m_errorLabel;

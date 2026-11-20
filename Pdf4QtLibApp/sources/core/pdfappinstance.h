@@ -65,6 +65,11 @@ public:
     /// reported, when the file is opened
     QStringList errors;
 
+    /// --compare original revised (Q7.13 of the plan of step 7 of phase 2): two absolute paths or none - the window
+    /// opens a tab of Compare with them ("compareFiles" of the message, checked as "files"; the last member, the
+    /// aggregate initializations of the members before it stay)
+    QStringList compareFiles;
+
     bool operator==(const PDFAppInstanceRequest&) const = default;
 };
 

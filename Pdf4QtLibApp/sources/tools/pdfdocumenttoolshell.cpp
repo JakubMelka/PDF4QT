@@ -752,7 +752,10 @@ void PDFDocumentToolShell::updateToolbar()
             m_toolbar->setMode(PDFAppToolToolbar::Mode::Running);
             break;
         case State::Deciding:
-            m_toolbar->setMode(PDFAppToolToolbar::Mode::Finished);
+            // The export of the data of the tool without a run (Measure 473:91038, 473:91414: Save as Annotations stays
+            // Default while temporary measurements exist) keeps the Primary button of the GUI; after a run it is
+            // Disabled (R7-2)
+            m_toolbar->setMode(m_isExportDialog && !m_isRunExportDialog ? PDFAppToolToolbar::Mode::Editing : PDFAppToolToolbar::Mode::Finished);
             break;
         default:
             m_toolbar->setMode(PDFAppToolToolbar::Mode::Editing);

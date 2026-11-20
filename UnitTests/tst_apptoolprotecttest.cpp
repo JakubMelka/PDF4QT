@@ -650,6 +650,11 @@ void AppToolProtectTest::linksRowShowsPage()
     pdf::PDFListView* view = gui->getListView();
     const QRect rect = view->visualRect(gui->getListModel()->index(4));
     QTest::mouseClick(view->viewport(), Qt::LeftButton, Qt::NoModifier, rect.center() + QPoint(40, 0));
+
+    // From the event loop: the page of the view runs code of the application (its signals may delete the tab), while
+    // Qt reads the selection model after its currentChanged
+    QVERIFY(gui->getSelectedId().isEmpty());
+    QCOMPARE(tab->getView()->getDisplayedPageIndex(), pdf::PDFInteger(0));
     AppToolShellFixture::settle();
     QCOMPARE(gui->getSelectedId(), QStringLiteral("12:0"));
     QVERIFY(AppToolShellFixture::waitFor([tab]() { return tab->getView()->getDisplayedPageIndex() == 1; }));
