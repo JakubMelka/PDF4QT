@@ -52,7 +52,6 @@
 #endif
 #include <QJsonDocument>
 #include <QPixmap>
-#include <QTimer>
 
 namespace pdf
 {
@@ -199,11 +198,10 @@ PDFAppMcpHost::PDFAppMcpHost(PDFAppContext* context, QObject* parent) :
     }
     m_catalogToolHandler = PDFAppMcpCatalogTools::createHandler();
 
+    // The registry tells about its changes (no polling): the generation read before the
+    // listener is added, so a change meanwhile is checked once more, never lost
     m_registryGeneration = PDFDocumentToolRegistry::getGeneration();
-    m_registryTimer = new QTimer(this);
-    m_registryTimer->setInterval(1000);
-    connect(m_registryTimer, &QTimer::timeout, this, &PDFAppMcpHost::checkToolRegistry);
-    m_registryTimer->start();
+    PDFDocumentToolRegistry::addListener(this);
 
     // Package B: the open documents give the listed resources and their updates
     new PDFAppMcpDocumentWatcher(this);
@@ -213,6 +211,9 @@ PDFAppMcpHost::PDFAppMcpHost(PDFAppContext* context, QObject* parent) :
 
 PDFAppMcpHost::~PDFAppMcpHost()
 {
+    // The registry never calls a dying host (a change in another thread waits for the removal)
+    PDFDocumentToolRegistry::removeListener(this);
+
     // A dying host emits nothing (the controller shuts it down before)
     blockSignals(true);
     shutdown();
@@ -301,6 +302,34 @@ void PDFAppMcpHost::checkToolRegistry()
     {
         m_registryGeneration = generation;
         rebuildCatalog();
+    }
+}
+
+void PDFAppMcpHost::onToolRegistryChanged()
+{
+    // Any thread, under the lock of the listeners of the registry: only the hand-off. The
+    // flag is cleared by the check before it reads the registry, so a change after the
+    // clearing queues a new check.
+    if (m_isRegistryCheckQueued.exchange(true))
+    {
+        return;
+    }
+
+    PDFThreadAnnotations::happensBefore(static_cast<PDFMcpHost*>(this));
+    PDFThreadAnnotations::TransportScope transportScope;
+    QMetaObject::invokeMethod(this, &PDFAppMcpHost::onToolRegistryChangeQueued, Qt::QueuedConnection);
+}
+
+void PDFAppMcpHost::onToolRegistryChangeQueued()
+{
+    PDFThreadAnnotations::happensAfter(static_cast<PDFMcpHost*>(this));
+    m_isRegistryCheckQueued.store(false);
+
+    // A shut down host publishes no catalog any more (the controller deletes it)
+    if (!m_isShutDown)
+    {
+        // The last call: a slot of catalogChanged may delete the host
+        checkToolRegistry();
     }
 }
 
@@ -789,10 +818,6 @@ void PDFAppMcpHost::shutdown()
     }
 
     m_isShutDown = true;
-    if (m_registryTimer)
-    {
-        m_registryTimer->stop();
-    }
 
     // Step 3: pending confirmations end as denied_stopped; step 6: the jobs
     endConfirmations(QString(), nullptr, PDFAppMcpDecision::DeniedStopped);
@@ -1043,10 +1068,18 @@ void PDFAppMcpHost::callCanceled(const std::shared_ptr<PDFMcpCall>& call)
     // A slot of the end of a confirmation may delete the host (its controller)
     QPointer<PDFAppMcpHost> self(this);
     endConfirmations(QString(), call, decision);
-    if (self)
+    if (!self)
     {
-        endWaitingJob(call);
+        return;
     }
+    endWaitingJob(call);
+    if (!self)
+    {
+        return;
+    }
+
+    // The waiters of the call end it (the last thing: a slot may delete the host)
+    Q_EMIT callCancelReceived(call);
 }
 
 void PDFAppMcpHost::endWaitingJob(const std::shared_ptr<PDFMcpCall>& call)

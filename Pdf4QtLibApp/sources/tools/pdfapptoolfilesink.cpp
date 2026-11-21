@@ -164,6 +164,8 @@ PDFDocumentToolFileSink::ExistingFiles PDFAppToolFileSink::resolveConflict(const
         m_question = question;
         m_answer.reset();
 
+        // By intervals (owner 2026-11-21: a wait condition need not wake up - the check of the control
+        // and stop after each interval is the guarantee); answer and stop also wake the wait at once
         while (!m_answer && !isStopped())
         {
             PDFThreadAnnotations::wait(m_condition, &m_mutex, QDeadlineTimer(WAIT_INTERVAL));

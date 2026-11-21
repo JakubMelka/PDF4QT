@@ -676,11 +676,12 @@ public:
         m_timer->start(PDFAppMcpFilesTool::DEFAULT_LOADING_TIMEOUT);
 
         // A call canceled while the file is read or the password screen waits ends
-        // at once (nobody else answers it; every cancellation has its activity row)
-        m_cancelTimer = new QTimer(this);
-        m_cancelTimer->setInterval(CANCEL_CHECK_INTERVAL);
-        connect(m_cancelTimer, &QTimer::timeout, this, &PDFAppMcpOpenWaiter::onCancelCheck);
-        m_cancelTimer->start();
+        // at once (nobody else answers it; every cancellation has its activity row):
+        // the host reports the cancellation, nothing asks the call in intervals
+        if (host)
+        {
+            connect(host, &PDFAppMcpHost::callCancelReceived, this, &PDFAppMcpOpenWaiter::onCallCanceled);
+        }
 
         PDFAppContext* context = host ? host->getContext() : nullptr;
         m_registry = context ? context->getDocumentRegistry() : nullptr;
@@ -769,22 +770,18 @@ private:
         end(m_document.data(), true);
     }
 
-    void onCancelCheck()
+    void onCallCanceled(const std::shared_ptr<PDFMcpCall>& call)
     {
-        const std::shared_ptr<PDFMcpCall> call = m_request ? m_request->m_call : nullptr;
-        if (!call || call->isFinished())
+        // The host reports every canceled call: only the call of this request ends it
+        if (!m_request || !call || m_request->m_call != call)
         {
-            // Answered elsewhere: nothing waits any more
-            end(nullptr, false);
             return;
         }
 
-        if (call->isCanceled())
-        {
-            std::shared_ptr<PDFAppMcpFileRequest> request = std::move(m_request);
-            end(nullptr, false);
-            request->fail(QStringLiteral("The request was canceled."), PDFMcpActivityStatus::Canceled);
-        }
+        // The answer is the last thing (its activity row and the finish run code of the application)
+        std::shared_ptr<PDFAppMcpFileRequest> request = std::move(m_request);
+        end(nullptr, false);
+        request->fail(QStringLiteral("The request was canceled."), PDFMcpActivityStatus::Canceled);
     }
 
     void end(PDFAppDocument* document, bool isTimeout)
@@ -793,10 +790,6 @@ private:
         if (m_timer)
         {
             m_timer->stop();
-        }
-        if (m_cancelTimer)
-        {
-            m_cancelTimer->stop();
         }
         if (request)
         {
@@ -809,11 +802,7 @@ private:
     QString m_canonicalPath;
     QPointer<PDFAppDocumentRegistry> m_registry;
     QPointer<PDFAppDocument> m_document;
-    /// Interval of the check of a canceled call (as PDFAppMcpTextIndexWaiter)
-    static constexpr int CANCEL_CHECK_INTERVAL = 250;
-
     QPointer<QTimer> m_timer;
-    QPointer<QTimer> m_cancelTimer;
     bool m_hasDocument = false;
     bool m_isWaitingForPassword = false;
 };

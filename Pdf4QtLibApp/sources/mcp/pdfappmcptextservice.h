@@ -39,8 +39,6 @@
 #include <set>
 #include <vector>
 
-class QTimer;
-
 namespace pdf
 {
 
@@ -147,7 +145,9 @@ private:
 
 /// Waits for the text index of a document (the indexer of its tab), reports
 /// the progress of its build and starts the job, when it is ready. It ends with
-/// the call (canceled), the document or the indexer.
+/// the call (canceled: PDFAppMcpHost::callCancelReceived), the document or the
+/// indexer (their destroyed only forgets them, the call ends from the event loop).
+/// A child of the host; nothing is asked in intervals.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppMcpTextIndexWaiter : public QObject
 {
     Q_OBJECT
@@ -166,7 +166,18 @@ private:
     void onIndexReady();
     void onBuildingChanged();
     void onProgressChanged(int progress);
-    void onCheckTimer();
+
+    /// The host reports a canceled call: the call of this waiter ends canceled
+    void onCallCanceled(const std::shared_ptr<pdf::PDFMcpCall>& call);
+
+    /// The document or the indexer is being destroyed: only forgotten, the end is queued
+    void onSourceDestroyed();
+
+    /// The queued end of a destroyed document or indexer
+    void onClosedEndQueued();
+
+    /// Ends the canceled call (its activity row, its answer)
+    void endCanceled();
     void startJob(std::shared_ptr<const PDFDocumentTextIndex> index);
     void fail(const QString& text);
 
@@ -174,11 +185,11 @@ private:
     std::shared_ptr<PDFMcpCall> m_call;
     QPointer<PDFAppDocument> m_document;
     QPointer<PDFAppDocumentTextIndexer> m_indexer;
-    QPointer<QTimer> m_checkTimer;
     PDFAppMcpTextRequest m_request;
     int m_lastProgress = -1;
     int m_requestCount = 0;
     bool m_isDone = false;
+    bool m_isClosedEndQueued = false;   ///< onSourceDestroyed has queued the end
 };
 
 }   // namespace pdf

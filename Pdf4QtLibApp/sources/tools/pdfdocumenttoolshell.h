@@ -286,16 +286,15 @@ public:
     /// The visible time, after which an interactive tool is a use of the tool (Recent tools) when it is left
     static constexpr qint64 INTERACTIVE_USE_VISIBLE_MS = 10000;
 
-    /// The interval of the accounting of the visible time while an interactive tool is open
-    static constexpr int VISIBLE_TIME_INTERVAL_MS = 1000;
-
     /// Replaces the clock of the visible time (tests); nullptr = the monotonic clock of the application. The
     /// clock must outlive its use.
     static void setUseClock(const IPDFAppToolUseClock* clock);
 
     /// Adds the time since the last accounting to the visible time, when the tool was visible since then (its tab
-    /// is the current one and the window is not minimized), and notes whether it is visible now. The timer calls
-    /// it every VISIBLE_TIME_INTERVAL_MS while an interactive tool is edited, the close once more.
+    /// is the current one and the window is not minimized), and notes whether it is visible now. No timer: the
+    /// events, which change the visibility, call it while an interactive tool is open (Show / Hide / ParentChange of
+    /// the key widget, WindowStateChange / Show / Hide of its window - the event filter of the shell), the leave
+    /// once more (recordInteractiveUse).
     void accountVisibleTime();
 
     /// The time the interactive tool has been visible in this opening (ms)
@@ -513,8 +512,22 @@ private:
     void commitPendingValues();
 
     /// The tool is shown to the user now: the key widget is visible (the current tab) in a window, which is not
-    /// minimized
+    /// minimized. Reads only the watched widgets (also from an event of a widget being torn down: never the host).
     bool isToolVisible() const;
+
+    /// Watches the events of the key widget of the host and of its window, which change the visibility of an
+    /// interactive tool (the event filter of the shell; again when the key widget gets another window). No signal.
+    void watchVisibility();
+
+    /// Watches the window of the watched key widget (again after its Show or ParentChange: another window); reads
+    /// only the key widget, never the host
+    void watchVisibleWindow();
+
+    /// Ends the watching of watchVisibility (the leave)
+    void unwatchVisibility();
+
+    /// The event \p event of \p watched may change the visibility of the tool (watchVisibility)
+    bool isVisibilityEvent(const QObject* watched, const QEvent* event) const;
 
     /// The time of the clock of the visible time (setUseClock)
     static qint64 getUseClockTime();
@@ -610,7 +623,8 @@ private:
     bool m_isLeaveAccepted = false;     ///< The question answered by closing while confirmLeave waits
     bool m_isCloseQuestionActionDeferred = false;   ///< The choice of the question waits for finishLeave (decision 8)
     QPointer<PDFAppContext> m_context;  ///< The context of the entry (recordUse after the host has gone)
-    QPointer<QTimer> m_visibleTimer;    ///< Child: the accounting of the visible time of an interactive tool
+    QPointer<QWidget> m_visibleKeyWidget;   ///< The key widget of the host watched by the event filter (an interactive tool); not owned
+    QPointer<QWidget> m_visibleWindow;      ///< Its window watched by the event filter (nullptr = the key widget is the window); not owned
     qint64 m_visibleTime = 0;           ///< The visible time of this opening (ms)
     qint64 m_lastVisibleCheck = 0;      ///< The clock at the last accounting
     bool m_wasVisible = false;          ///< The tool was visible at the last accounting

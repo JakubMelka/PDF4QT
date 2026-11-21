@@ -676,7 +676,13 @@ void AppMcpProtectTest::canceledCallWithdrawsDialog()
     QSignalSpy ended(dialog.data(), &pdf::PDFAppMcpSecretConfirmation::confirmationEnded);
 
     call->cancel(pdf::PDFMcpCancelReason::ClientCanceled);
-    const std::optional<pdf::PDFMcpCallResult> result = AppMcpFixture::waitResult(call);
+
+    // P2NOPOLL: the report of the cancellation (queued to the host) ends it - no check in intervals
+    QVERIFY(!call->isFinished());
+    QCoreApplication::sendPostedEvents(fixture.host(), QEvent::MetaCall);
+    QVERIFY(call->isFinished());
+    QCOMPARE(ended.count(), 1);
+    const std::optional<pdf::PDFMcpCallResult> result = call->getResult();
     QVERIFY(result && result->isError);
     QVERIFY(result->getFirstText().contains(QStringLiteral("canceled")));
     QVERIFY(QTest::qWaitFor([&dialog]() { return dialog.isNull(); }, 5000 * AppMcpFixture::getTimeoutFactor()));

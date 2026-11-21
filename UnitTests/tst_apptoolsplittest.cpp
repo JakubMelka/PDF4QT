@@ -60,11 +60,13 @@
 #include "pdfdocumenttool_split.h"
 #include "pdfdocumenttoolregistry.h"
 #include "pdffluentwidgets.h"
+#include "pdfoperationcontrol.h"
 #include "pdfthemefonts.h"
 #include "pdfthemeiconengine.h"
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
 
+#include <QDeadlineTimer>
 #include <QDialog>
 #include <QDir>
 #include <QElapsedTimer>
@@ -74,11 +76,16 @@
 #include <QPointer>
 #include <QListView>
 #include <QPushButton>
+#include <QScopeGuard>
 #include <QScrollBar>
 #include <QStyleOptionViewItem>
+#include <QTemporaryDir>
 #include <QThread>
 #include <QToolButton>
 #include <QtTest>
+
+#include <atomic>
+#include <memory>
 
 using pdf::PDFDocumentToolShell;
 using pdftest::AppDocumentSamples;
@@ -174,6 +181,8 @@ private Q_SLOTS:
     void splitSourceNeverOverwritten();
     void splitStoppedDialog();
     void splitQuestionAgainAfterStop();
+    void fileSinkStopEndsQuestion_data();
+    void fileSinkStopEndsQuestion();
     void extractFrame();
     void extractPerPage();
     void themesDirectionAndScreenshots();
@@ -1112,6 +1121,99 @@ void AppToolSplitTest::splitQuestionAgainAfterStop()
     QFile file(QDir(folder).filePath(QStringLiteral("Handbook_1.pdf")));
     QVERIFY(file.open(QIODevice::ReadOnly));
     QCOMPARE(file.readAll(), QByteArray("EXISTING"));
+}
+
+void AppToolSplitTest::fileSinkStopEndsQuestion_data()
+{
+    QTest::addColumn<bool>("isStopCalled");
+    QTest::newRow("stop") << true;
+    QTest::newRow("canceled-control") << false;
+}
+
+void AppToolSplitTest::fileSinkStopEndsQuestion()
+{
+    // 356:11997, R3: the thread of a run, which waits for the answer of a conflict, ends the wait promptly after
+    // stop (Stop, the close of the tab) or after the cancellation of the run seen only by its control (no stop,
+    // no wake): the file is skipped, nothing more is written, the existing file stays. Owner 2026-11-21 (P2NOPOLL):
+    // the wait by intervals of WAIT_INTERVAL, which checks the control and stop, is the guarantee - a wait condition
+    // need not wake up; the wake of stop is only an addition (the rows pass without it)
+    QFETCH(bool, isStopCalled);
+
+    /// The control of the run, a plain flag (as the job of the runner)
+    class Control : public pdf::PDFOperationControl
+    {
+    public:
+        virtual bool isOperationCanceled() const override { return isCanceled.load(); }
+        std::atomic<bool> isCanceled = false;
+    };
+    Control control;
+
+    QTemporaryDir folder;
+    QVERIFY(folder.isValid());
+    QFile existing(QDir(folder.path()).filePath(QStringLiteral("Handbook_1.pdf")));
+    QVERIFY(existing.open(QIODevice::WriteOnly));
+    existing.write("EXISTING");
+    existing.close();
+
+    pdf::PDFAppToolFileSink sink(folder.path(), pdf::PDFDocumentToolFileSink::ExistingFiles::Ask, QStringList(), false);
+    sink.setOperationControl(&control);
+    QString error;
+    QVERIFY2(sink.begin({ QStringLiteral("Handbook_1.pdf"), QStringLiteral("Handbook_2.pdf") }, &error), qPrintable(error));
+    QCOMPARE(sink.getConflictFiles(), QStringList({ QStringLiteral("Handbook_1.pdf") }));
+
+    std::atomic<bool> isReturned = false;
+    std::atomic<bool> isWritten = true;
+    std::unique_ptr<QThread> worker(QThread::create([&sink, &isReturned, &isWritten]()
+    {
+        QString writeError;
+        isWritten = sink.write(QStringLiteral("Handbook_1.pdf"), QByteArray("NEW"), &writeError);
+        isReturned = true;
+    }));
+    worker->start();
+
+    // A failed check never leaves the thread waiting (the answer wakes it too)
+    auto release = qScopeGuard([&sink, &worker]()
+    {
+        sink.answer(pdf::PDFAppToolFileSink::Answer::Skip, true);
+        worker->wait();
+    });
+
+    const int timeout = 15000 * AppToolShellFixture::getTimeoutFactor();
+    QElapsedTimer timer;
+    timer.start();
+    while (!sink.getQuestion() && timer.elapsed() < timeout)
+    {
+        QThread::msleep(1);
+    }
+    const std::optional<pdf::PDFAppToolFileSink::Question> question = sink.getQuestion();
+    QVERIFY(question);
+    QCOMPARE(question->fileName, QStringLiteral("Handbook_1.pdf"));
+    QCOMPARE(question->conflictCount, 1);
+    QVERIFY(!isReturned);
+
+    // The wait ends without an answer within a few intervals (a generous bound for a loaded machine, far below
+    // the time of the user)
+    if (isStopCalled)
+    {
+        sink.stop();
+    }
+    else
+    {
+        control.isCanceled = true;
+    }
+    QVERIFY(worker->wait(QDeadlineTimer(50 * pdf::PDFAppToolFileSink::WAIT_INTERVAL * AppToolShellFixture::getTimeoutFactor())));
+    QVERIFY(isReturned);
+    QVERIFY(!isWritten);
+    QVERIFY(sink.isStopped());
+    QVERIFY(!sink.getQuestion());
+    QVERIFY(sink.getOverwrittenFiles().isEmpty());
+    QVERIFY(existing.open(QIODevice::ReadOnly));
+    QCOMPARE(existing.readAll(), QByteArray("EXISTING"));
+    existing.close();
+
+    // No further file after the stop
+    QVERIFY(!sink.write(QStringLiteral("Handbook_2.pdf"), QByteArray("NEW"), &error));
+    QVERIFY(!QFile::exists(QDir(folder.path()).filePath(QStringLiteral("Handbook_2.pdf"))));
 }
 
 void AppToolSplitTest::extractFrame()

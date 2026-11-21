@@ -3153,9 +3153,6 @@ private:
 class PDFAppMcpCatalogToolSecretRequest : public QObject
 {
 public:
-    /// How often a canceled call is looked for (as files.open)
-    static constexpr int CANCEL_CHECK_INTERVAL = 250;
-
     /// The name of the request among the children of the host (one confirmation with a password at
     /// a time: it is a form the user fills in, never a queue of them)
     static QString getObjectName() { return QStringLiteral("mcpSecretRequest"); }
@@ -3262,9 +3259,11 @@ private:
         m_activityId(activityId)
     {
         setObjectName(getObjectName());
-        m_cancelTimer.setInterval(CANCEL_CHECK_INTERVAL);
-        connect(&m_cancelTimer, &QTimer::timeout, this, &PDFAppMcpCatalogToolSecretRequest::onCancelCheck);
-        m_cancelTimer.start();
+
+        // A canceled call (also by a stopped server) withdraws the dialog at once: the host reports it.
+        // The host stopped without the event loop (the quit order deletes it at once) ends the request
+        // with itself (the destructor).
+        connect(host, &PDFAppMcpHost::callCancelReceived, this, &PDFAppMcpCatalogToolSecretRequest::onCallCanceled);
         if (PDFAppDocument* document = m_request.document)
         {
             connect(document, &QObject::destroyed, this, &PDFAppMcpCatalogToolSecretRequest::onDocumentDestroyed);
@@ -3401,7 +3400,6 @@ private:
             return;
         }
         m_isEnded = true;
-        m_cancelTimer.stop();
         setObjectName(QString());   // A next request may ask now
         withdrawDialog();
         deleteLater();
@@ -3484,7 +3482,6 @@ private:
         }
 
         m_isEnded = true;
-        m_cancelTimer.stop();
         setObjectName(QString());
         deleteLater();
 
@@ -3516,25 +3513,13 @@ private:
         PDFAppMcpCatalogToolJob::start(m_host.data(), job);
     }
 
-    void onCancelCheck()
+    void onCallCanceled(const std::shared_ptr<PDFMcpCall>& call)
     {
-        if (!m_call || m_call->isFinished())
-        {
-            // Answered elsewhere: nothing waits any more
-            m_call = nullptr;
-            end(QString(), PDFMcpActivityStatus::Canceled);
-            return;
-        }
-
-        if (m_call->isCanceled())
+        // The host reports every canceled call: only the call of this request ends it (the dialog is
+        // withdrawn, the call answered - the last thing)
+        if (call && call == m_call)
         {
             end(QStringLiteral("The request was canceled."), PDFMcpActivityStatus::Canceled);
-            return;
-        }
-
-        if (!m_host || m_host->isShutDown())
-        {
-            end(PDFAppMcpChangeJob::getDecisionText(PDFAppMcpDecision::DeniedStopped), PDFMcpActivityStatus::DeniedStopped);
         }
     }
 
@@ -3573,7 +3558,6 @@ private:
     PDFAppMcpCatalogToolRequest m_request;
     qint64 m_activityId = 0;
     QPointer<PDFAppMcpSecretConfirmation> m_dialog;
-    QTimer m_cancelTimer;
     bool m_isEnded = false;
     bool m_isClosedEndQueued = false;   ///< queueClosedEnd: the end of a closed document or dialog waits for the event loop
 };

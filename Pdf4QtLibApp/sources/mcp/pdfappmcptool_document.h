@@ -125,7 +125,8 @@ private:
 
 /// Waits at most PDFAppMcpDocumentTool::SIGNATURE_WAIT_TIME for the running
 /// verification of the signatures of a tab (document.get_signatures), then
-/// answers with the results (pending, when it still runs)
+/// answers with the results (pending, when it still runs); a canceled call
+/// (PDFAppMcpHost::callCancelReceived) is answered at once
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppMcpSignatureWaiter : public QObject
 {
     Q_OBJECT
@@ -143,6 +144,7 @@ public:
 private:
     void onVerificationChanged();
     void onTimeout();
+    void onCallCanceled(const std::shared_ptr<pdf::PDFMcpCall>& call);
     void answer();
 
     QPointer<PDFAppMcpHost> m_host;

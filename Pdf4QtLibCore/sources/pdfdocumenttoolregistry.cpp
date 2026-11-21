@@ -27,11 +27,15 @@
 #include <QMutex>
 #include <QMutexLocker>
 
+#include <algorithm>
 #include <atomic>
 #include <map>
+#include <vector>
 
 namespace pdf
 {
+
+PDFDocumentToolRegistryListener::~PDFDocumentToolRegistryListener() = default;
 
 /// Storage of the registry: tools by their index in the catalog
 class PDFDocumentToolRegistryStorage
@@ -41,10 +45,25 @@ public:
     std::map<int, std::shared_ptr<const PDFDocumentTool>> tools;
     std::atomic<quint64> generation = 0;
 
+    /// The listeners (their own lock: they are called after the change, outside of the lock of
+    /// the tools, and a removal waits for a call running in another thread)
+    QMutex listenerMutex;
+    std::vector<PDFDocumentToolRegistryListener*> listeners;
+
     static PDFDocumentToolRegistryStorage& getInstance()
     {
         static PDFDocumentToolRegistryStorage storage;
         return storage;
+    }
+
+    /// Tells the listeners about a change (called without the lock of the tools)
+    void notifyListeners()
+    {
+        QMutexLocker locker(&listenerMutex);
+        for (PDFDocumentToolRegistryListener* listener : listeners)
+        {
+            listener->onToolRegistryChanged();
+        }
     }
 
     /// Removes the tool of the index and returns it, so the caller releases it
@@ -85,13 +104,16 @@ PDFDocumentToolRegistration PDFDocumentToolRegistry::registerTool(std::shared_pt
     }
 
     PDFDocumentToolRegistryStorage& storage = PDFDocumentToolRegistryStorage::getInstance();
-    QMutexLocker locker(&storage.mutex);
-    if (storage.tools.count(index))
     {
-        return PDFDocumentToolRegistration::Duplicate;
+        QMutexLocker locker(&storage.mutex);
+        if (storage.tools.count(index))
+        {
+            return PDFDocumentToolRegistration::Duplicate;
+        }
+        storage.tools.emplace(index, std::move(tool));
+        ++storage.generation;
     }
-    storage.tools.emplace(index, std::move(tool));
-    ++storage.generation;
+    storage.notifyListeners();
     return PDFDocumentToolRegistration::Registered;
 }
 
@@ -103,7 +125,13 @@ bool PDFDocumentToolRegistry::unregisterTool(QStringView id)
         return false;
     }
 
-    return PDFDocumentToolRegistryStorage::getInstance().take(index) != nullptr;
+    PDFDocumentToolRegistryStorage& storage = PDFDocumentToolRegistryStorage::getInstance();
+    if (!storage.take(index))
+    {
+        return false;
+    }
+    storage.notifyListeners();
+    return true;
 }
 
 std::shared_ptr<const PDFDocumentTool> PDFDocumentToolRegistry::getTool(QStringView id)
@@ -149,17 +177,40 @@ QStringList PDFDocumentToolRegistry::getImplementedTools()
 void PDFDocumentToolRegistry::clearForTests()
 {
     std::map<int, std::shared_ptr<const PDFDocumentTool>> tools;
+    PDFDocumentToolRegistryStorage& storage = PDFDocumentToolRegistryStorage::getInstance();
     {
-        PDFDocumentToolRegistryStorage& storage = PDFDocumentToolRegistryStorage::getInstance();
         QMutexLocker locker(&storage.mutex);
         tools.swap(storage.tools);
         ++storage.generation;
     }
+    storage.notifyListeners();
 }
 
 quint64 PDFDocumentToolRegistry::getGeneration()
 {
     return PDFDocumentToolRegistryStorage::getInstance().generation.load();
+}
+
+void PDFDocumentToolRegistry::addListener(PDFDocumentToolRegistryListener* listener)
+{
+    if (!listener)
+    {
+        return;
+    }
+
+    PDFDocumentToolRegistryStorage& storage = PDFDocumentToolRegistryStorage::getInstance();
+    QMutexLocker locker(&storage.listenerMutex);
+    if (std::find(storage.listeners.cbegin(), storage.listeners.cend(), listener) == storage.listeners.cend())
+    {
+        storage.listeners.push_back(listener);
+    }
+}
+
+void PDFDocumentToolRegistry::removeListener(PDFDocumentToolRegistryListener* listener)
+{
+    PDFDocumentToolRegistryStorage& storage = PDFDocumentToolRegistryStorage::getInstance();
+    QMutexLocker locker(&storage.listenerMutex);
+    storage.listeners.erase(std::remove(storage.listeners.begin(), storage.listeners.end(), listener), storage.listeners.end());
 }
 
 }   // namespace pdf

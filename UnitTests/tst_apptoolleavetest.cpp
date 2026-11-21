@@ -608,6 +608,7 @@ private slots:
     void interactiveUseByVisibleTime();
     void interactiveShortOpenNotRecorded();
     void interactiveBackgroundTimeNotCounted();
+    void interactiveVisibleTimeByEvents();
     void interactiveOneRecord();
     void runToolNotRecordedWithoutRun();
     void assistantRunNotRecorded();
@@ -1064,6 +1065,59 @@ void AppToolLeaveTest::interactiveBackgroundTimeNotCounted()
     fixture.window->activateTab(tab);
     AppToolShellFixture::settle();
     shell->accountVisibleTime();
+    clock.now += 2000;
+    shell->cancel();
+    AppToolShellFixture::settle();
+    QVERIFY(!shell);
+    QCOMPARE(H::usageCount(fixture, tool.toolId), qint64(0));
+}
+
+void AppToolLeaveTest::interactiveVisibleTimeByEvents()
+{
+    // P2NOPOLL: no periodic timer runs while an interactive tool is open; the visible time follows the events of its
+    // tab and its window (owner 2026-11-20: a background tab and a minimized window do not count), nobody calls
+    // accountVisibleTime here
+    LeaveTestClock clock;
+    PDFDocumentToolShell::setUseClock(&clock);
+    const LeaveToolCase tool = H::cases()[QStringLiteral("measure")];
+    AppToolOwnTabFixture fixture;
+    pdf::PDFAppDocumentTab* tab = nullptr;
+    QPointer<PDFDocumentToolShell> shell = H::open(fixture, tool, &tab);
+    QVERIFY(shell);
+    AppToolShellFixture::settle();
+    for (const QTimer* timer : shell->findChildren<QTimer*>())
+    {
+        QVERIFY2(!timer->isActive() || timer->isSingleShot(), timer->parent() ? timer->parent()->metaObject()->className() : "no parent");
+    }
+
+    // 3 s in view, then another tab is current: the hiding of the tab accounts them
+    clock.now += 3000;
+    pdf::PDFAppDocumentTab* other = fixture.open(AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Other.pdf"), 1));
+    QVERIFY(other);
+    AppToolShellFixture::settle();
+    QCOMPARE(fixture.window->getCurrentTab(), other);
+    QCOMPARE(shell->getVisibleTime(), qint64(3000));
+
+    // 30 s in the background count nothing
+    clock.now += 30000;
+    fixture.window->activateTab(tab);
+    AppToolShellFixture::settle();
+    QCOMPARE(fixture.window->getCurrentTab(), tab);
+    QCOMPARE(shell->getVisibleTime(), qint64(3000));
+
+    // 1 s in view, then the window minimized for a minute
+    clock.now += 1000;
+    fixture.window->showMinimized();
+    AppToolShellFixture::settle();
+    QVERIFY(fixture.window->isMinimized());
+    QCOMPARE(shell->getVisibleTime(), qint64(4000));
+    clock.now += 60000;
+    fixture.window->showNormal();
+    AppToolShellFixture::settle();
+    QVERIFY(!fixture.window->isMinimized());
+    QCOMPARE(shell->getVisibleTime(), qint64(4000));
+
+    // 2 s more and the leave: 6 s in view is no use
     clock.now += 2000;
     shell->cancel();
     AppToolShellFixture::settle();

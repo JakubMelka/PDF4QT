@@ -25,7 +25,9 @@
 #include "appmcpreadtests.h"
 #include "pdfappmcpdocumentreader.h"
 #include "pdfappdocumentsearch.h"
+#include "pdfappdocumentsearchindex.h"
 #include "pdfappdocumentsignatures.h"
+#include "pdfappmcptextservice.h"
 #include "testdocumenttool.h"
 
 #include "pdfappaipage.h"
@@ -196,6 +198,8 @@ private slots:
     void reviewEverythingChangedRestartsServer();
     void reviewCatalogSaveCopyRecheckedAfterConfirmation();
     void reviewIndexWaiterCanceled();
+    void indexWaiterTabClosed();
+    void registryChangeReachesCatalog();
     void reviewHeavyJobsNeverBlockWorkers();
     void shutdownAnswersWindowMessages();
     void reviewUntrustedPlaceholders();
@@ -548,9 +552,15 @@ void AppMcpTest::reviewSignaturesCanceledWhileWaiting()
     QVERIFY(!call->isFinished());
     call->cancel(pdf::PDFMcpCancelReason::StreamClosed);
 
-    const std::optional<pdf::PDFMcpCallResult> result = pdftest::AppMcpFixture::waitResult(call);
-    QVERIFY2(result, "The call has its answer");
+    // P2NOPOLL: the report of the cancellation (queued to the host) answers it - not the end of the
+    // verification, nor the time limit of the wait
+    QVERIFY(!call->isFinished());
+    QCoreApplication::sendPostedEvents(fixture.host(), QEvent::MetaCall);
     QVERIFY(call->isFinished());
+    const std::optional<pdf::PDFMcpCallResult> result = call->getResult();
+    QVERIFY2(result, "The call has its answer");
+    QVERIFY(result->isError);
+    QVERIFY2(result->getFirstText().contains(QStringLiteral("canceled")), qPrintable(result->getFirstText()));
     QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::Canceled));
 }
 
@@ -1940,11 +1950,70 @@ void AppMcpTest::reviewIndexWaiterCanceled()
     QVERIFY(!call->isFinished());
     call->cancel(pdf::PDFMcpCancelReason::ClientCanceled);
 
-    std::optional<pdf::PDFMcpCallResult> result = pdftest::AppMcpFixture::waitResult(call, 5000);
+    // P2NOPOLL: the report of the cancellation (queued to the host) ends it - no check in intervals
+    QVERIFY(!call->isFinished());
+    QCoreApplication::sendPostedEvents(fixture.host(), QEvent::MetaCall);
+    QVERIFY(call->isFinished());
+    std::optional<pdf::PDFMcpCallResult> result = call->getResult();
     QVERIFY(result);
     QVERIFY(result->isError);
     QVERIFY2(result->getFirstText().contains(QStringLiteral("canceled")), qPrintable(result->getFirstText()));
     QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::Canceled));
+}
+
+void AppMcpTest::indexWaiterTabClosed()
+{
+    // P2NOPOLL: the tab closed while a search waits for its text index - the indexer and the document go
+    // (destroyed, which only forgets them), the call ends from the event loop as closed; nothing asks in intervals
+    pdftest::AppMcpFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    QPointer<pdf::PDFAppDocumentTab> tab = fixture.open(pdftest::AppDocumentSamples::large(fixture.folder(), 300));
+    QVERIFY(tab);
+    QTRY_VERIFY_WITH_TIMEOUT(tab->getDocument()->isReady(), 30000);
+    QVERIFY(!tab->getDocument()->getTextIndex());
+    QPointer<pdf::PDFAppDocumentTextIndexer> indexer = pdf::PDFAppMcpTextService::findIndexer(fixture.host(), tab->getDocument());
+    QVERIFY(indexer);
+
+    QJsonObject arguments = AppMcpTestHelper::arguments(R"({"action":"search","search":{"query":"lazy dog"}})");
+    arguments.insert(QStringLiteral("documentId"), tab->getDocument()->getId());
+    std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("text"), arguments);
+    QVERIFY(!call->isFinished());
+    QVERIFY(fixture.window->closeTab(tab));
+
+    // The deleted indexer (the tab goes from the event loop) ends the call as closed, not a finished index
+    QTRY_VERIFY_WITH_TIMEOUT(!indexer, 30000);
+    std::optional<pdf::PDFMcpCallResult> result = pdftest::AppMcpFixture::waitResult(call, 5000);
+    QVERIFY(result);
+    QVERIFY(result->isError);
+    QVERIFY2(result->getFirstText().contains(QStringLiteral("The document was closed in PDF4QT.")), qPrintable(result->getFirstText()));
+}
+
+void AppMcpTest::registryChangeReachesCatalog()
+{
+    // P2NOPOLL: the registry of the tools tells the host about its change (no 1 s timer): the queued check of the
+    // host, delivered once by the event loop, publishes the catalog with the tool (tools/list); the removal the same
+    pdftest::AppMcpFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    pdf::PDFAppMcpHost* host = fixture.host();
+    QVERIFY(host);
+    const pdftest::TestDocumentToolCategoryRemoval removal(pdf::PDFDocumentToolCategory::Review);
+    pdf::PDFDocumentToolRegistry::unregisterTool(QString::fromLatin1(pdftest::TestDocumentTool::TOOL_ID));
+    host->checkToolRegistry();
+    QVERIFY(!host->getCatalog()->findTool(u"review"));
+    const quint64 generation = host->getCatalogGeneration();
+
+    {
+        AppMcpTestHelper::ToolRegistration registration;
+        QSignalSpy spy(host, &pdf::PDFAppMcpHost::catalogChanged);
+        QVERIFY(!host->getCatalog()->findTool(u"review"));  // The check is queued (the registry never calls the host directly)
+        QCoreApplication::sendPostedEvents(host, QEvent::MetaCall);
+        QVERIFY(host->getCatalog()->findTool(u"review"));
+        QVERIFY(host->getCatalogGeneration() > generation);
+        QCOMPARE(spy.count(), 1);
+    }
+
+    QCoreApplication::sendPostedEvents(host, QEvent::MetaCall);
+    QVERIFY(!host->getCatalog()->findTool(u"review"));
 }
 
 /// A job of the test: a heavy one waits for its release, a light one ends at once

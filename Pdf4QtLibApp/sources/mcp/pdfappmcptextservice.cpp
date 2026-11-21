@@ -46,7 +46,6 @@
 #include "pdftextlayoutgenerator.h"
 
 #include <QLineF>
-#include <QTimer>
 
 namespace pdf
 {
@@ -597,13 +596,19 @@ PDFAppMcpTextIndexWaiter::PDFAppMcpTextIndexWaiter(PDFAppMcpHost* host, std::sha
         connect(m_indexer, &PDFAppDocumentTextIndexer::indexReady, this, &PDFAppMcpTextIndexWaiter::onIndexReady);
         connect(m_indexer, &PDFAppDocumentTextIndexer::buildingChanged, this, &PDFAppMcpTextIndexWaiter::onBuildingChanged);
         connect(m_indexer, &PDFAppDocumentTextIndexer::progressChanged, this, &PDFAppMcpTextIndexWaiter::onProgressChanged);
+        connect(m_indexer, &QObject::destroyed, this, &PDFAppMcpTextIndexWaiter::onSourceDestroyed);
     }
 
-    // The call may be canceled, the document or the indexer may go away
-    m_checkTimer = new QTimer(this);
-    m_checkTimer->setInterval(250);
-    connect(m_checkTimer, &QTimer::timeout, this, &PDFAppMcpTextIndexWaiter::onCheckTimer);
-    m_checkTimer->start();
+    // The call may be canceled (the host reports it), the document or the indexer may go away
+    // (destroyed): nothing is asked in intervals
+    if (m_document)
+    {
+        connect(m_document, &QObject::destroyed, this, &PDFAppMcpTextIndexWaiter::onSourceDestroyed);
+    }
+    if (host)
+    {
+        connect(host, &PDFAppMcpHost::callCancelReceived, this, &PDFAppMcpTextIndexWaiter::onCallCanceled);
+    }
 }
 
 PDFAppMcpTextIndexWaiter::~PDFAppMcpTextIndexWaiter()
@@ -617,9 +622,16 @@ PDFAppMcpTextIndexWaiter::~PDFAppMcpTextIndexWaiter()
 
 void PDFAppMcpTextIndexWaiter::start()
 {
-    if (!m_indexer)
+    if (!m_indexer || !m_document)
     {
         fail(QStringLiteral("The document was closed in PDF4QT."));
+        return;
+    }
+
+    // A call canceled before the waiter existed has no report of the host left for it
+    if (m_call && m_call->isCanceled())
+    {
+        endCanceled();
         return;
     }
 
@@ -694,38 +706,48 @@ void PDFAppMcpTextIndexWaiter::onProgressChanged(int progress)
     m_call->reportProgress(qBound(0, progress, 99), 100, QStringLiteral("Indexing text %1 %").arg(qBound(0, progress, 100)));
 }
 
-void PDFAppMcpTextIndexWaiter::onCheckTimer()
+void PDFAppMcpTextIndexWaiter::onCallCanceled(const std::shared_ptr<PDFMcpCall>& call)
 {
-    if (m_isDone)
+    // The host reports every canceled call: only the call of this waiter ends it
+    if (!m_isDone && call && call == m_call)
     {
-        return;
+        endCanceled();
     }
+}
 
-    if (!m_call || m_call->isFinished())
+void PDFAppMcpTextIndexWaiter::endCanceled()
+{
+    if (m_isDone || !m_call)
     {
-        m_isDone = true;
-        deleteLater();
         return;
     }
 
     // A call canceled while the index is built ends here (not a job - nobody
     // else answers it; every cancellation has its activity row, review RC7-H)
-    if (m_call->isCanceled())
+    m_isDone = true;
+    deleteLater();
+    if (m_host)
     {
-        m_isDone = true;
-        if (m_host)
-        {
-            m_host->recordActivity(m_call, m_request.actionId, m_document, QJsonObject(), PDFMcpActivityStatus::Canceled);
-        }
-        m_call->finish(PDFAppMcpJobRunnable::createFailure(*m_call, QStringLiteral("The request was canceled.")));
-        deleteLater();
-        return;
+        m_host->recordActivity(m_call, m_request.actionId, m_document, QJsonObject(), PDFMcpActivityStatus::Canceled);
     }
+    m_call->finish(PDFAppMcpJobRunnable::createFailure(*m_call, QStringLiteral("The request was canceled.")));
+}
 
-    if (!m_document || !m_indexer || !m_host)
+void PDFAppMcpTextIndexWaiter::onSourceDestroyed()
+{
+    // A slot of destroyed only forgets (the QPointers are cleared already): the call ends from the
+    // event loop, never inside of the destructor of the document or the indexer
+    if (!m_isDone && !m_isClosedEndQueued)
     {
-        fail(QStringLiteral("The document was closed in PDF4QT."));
+        m_isClosedEndQueued = true;
+        QMetaObject::invokeMethod(this, &PDFAppMcpTextIndexWaiter::onClosedEndQueued, Qt::QueuedConnection);
     }
+}
+
+void PDFAppMcpTextIndexWaiter::onClosedEndQueued()
+{
+    m_isClosedEndQueued = false;
+    fail(QStringLiteral("The document was closed in PDF4QT."));
 }
 
 void PDFAppMcpTextIndexWaiter::startJob(std::shared_ptr<const PDFDocumentTextIndex> index)

@@ -31,6 +31,7 @@
 #include "pdfappmcppermissions.h"
 #include "pdfappmcptoolhandler.h"
 
+#include "pdfdocumenttoolregistry.h"
 #include "pdfmcpcatalog.h"
 #include "pdfmcphost.h"
 #include "pdfmcpschema.h"
@@ -38,12 +39,11 @@
 #include <QPointer>
 #include <QThreadPool>
 
+#include <atomic>
 #include <deque>
 #include <map>
 #include <memory>
 #include <vector>
-
-class QTimer;
 
 namespace pdf
 {
@@ -59,9 +59,10 @@ class PDFMcpServer;
 /// It builds the catalog of the server from the contract (PDFAppMcpToolSet),
 /// the tools of the catalog (PDFAppMcpCatalogTools), the resources and the
 /// prompts, and publishes a new one when the permissions or the registry of
-/// the tools change. The server reaches it only by queued invocations; it is
-/// destroyed only after the server has stopped (plan 2.6).
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppMcpHost : public PDFMcpHost
+/// the tools change (the registry tells it, PDFDocumentToolRegistryListener).
+/// The server reaches it only by queued invocations; it is destroyed only after
+/// the server has stopped (plan 2.6).
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppMcpHost : public PDFMcpHost, public PDFDocumentToolRegistryListener
 {
     Q_OBJECT
 
@@ -100,8 +101,12 @@ public:
     quint64 getCatalogGeneration() const;
 
     /// Rebuilds the catalog, when the registry of the tools has changed (called
-    /// by a 1 s timer and at each tools/call)
+    /// from the event loop after a change of the registry and at each tools/call)
     void checkToolRegistry();
+
+    /// PDFDocumentToolRegistryListener (any thread): the registry is checked from the
+    /// event loop of the host - one queued check for a burst of registrations
+    virtual void onToolRegistryChanged() override;
 
     /// Data URI icons of the light and the dark theme (48 px PNG, plan 1.4)
     static std::vector<PDFMcpIcon> createIcons(const QString& iconName);
@@ -230,6 +235,12 @@ Q_SIGNALS:
     /// The pending confirmations changed (the status items, the banner)
     void confirmationsChanged();
 
+    /// The call was canceled (PDFMcpHost::callCanceled, after its confirmations and its waiting
+    /// job have ended): a waiter of the call (files.open, the text index, the password of a
+    /// protect action, the signatures), which nobody else answers, ends it at once - it never asks
+    /// the call in intervals. Emitted last; a slot may delete the host.
+    void callCancelReceived(const std::shared_ptr<pdf::PDFMcpCall>& call);
+
 private:
     void handleToolCall(const std::shared_ptr<PDFMcpCall>& call);
     void dispatchToolCall(const std::shared_ptr<PDFMcpCall>& call, const QString& toolName, const QString& actionName,
@@ -246,6 +257,9 @@ private:
     /// Ends the waiting heavy job of a canceled call
     void endWaitingJob(const std::shared_ptr<pdf::PDFMcpCall>& call);
 
+    /// The queued check of onToolRegistryChanged (the thread of the host)
+    void onToolRegistryChangeQueued();
+
     QPointer<PDFAppContext> m_context;
     QPointer<PDFMcpServer> m_server;
     PDFAppMcpPermissionPolicy m_policy;
@@ -256,7 +270,7 @@ private:
     std::vector<PDFMcpIcon> m_icons;
     quint64 m_generation = 0;
     quint64 m_registryGeneration = 0;
-    QPointer<QTimer> m_registryTimer;
+    std::atomic<bool> m_isRegistryCheckQueued = false;     ///< onToolRegistryChanged has queued a check, which has not run yet (any thread)
     std::map<QString, std::unique_ptr<PDFAppMcpToolHandler>> m_handlers;
     std::unique_ptr<PDFAppMcpToolHandler> m_catalogToolHandler;
     PDFAppMcpConfirmationProvider* m_confirmationProvider = nullptr;

@@ -2623,7 +2623,9 @@ void AppMcpEditTest::filesOpen()
     QVERIFY2(H::text(result).contains(QStringLiteral("within 2 minutes")), qPrintable(H::text(result)));
 
     // A call canceled while the password screen waits ends at once with its
-    // activity row - not after the 2 minutes of the user (review RVG7)
+    // activity row - not after the 2 minutes of the user (review RVG7). P2NOPOLL:
+    // the report of the cancellation (PDFMcpHost::callCanceled, queued to the host)
+    // ends it - nothing more of the event loop, no check in intervals
     const QString passwordCopy = QDir(fixture.folder()).filePath(QStringLiteral("password-cancel.pdf"));
     QVERIFY(QFile::copy(pdftest::AppDocumentSamples::userPassword(fixture.folder()), passwordCopy));
     open.insert(QStringLiteral("open"), QJsonObject({ { QStringLiteral("path"), passwordCopy } }));
@@ -2638,8 +2640,10 @@ void AppMcpEditTest::filesOpen()
     pdftest::AppDocumentFixture::settle();
     QVERIFY(!call->isFinished());
     call->cancel(pdf::PDFMcpCancelReason::StreamClosed);
-    result = fixture.waitResult(call, 5000);
+    QVERIFY(!call->isFinished());
+    QCoreApplication::sendPostedEvents(fixture.host(), QEvent::MetaCall);
     QVERIFY(call->isFinished());
+    result = call->getResult();
     QVERIFY(H::isError(result));
     QVERIFY2(H::text(result).contains(QStringLiteral("canceled")), qPrintable(H::text(result)));
     QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::Canceled));

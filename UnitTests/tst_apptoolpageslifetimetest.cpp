@@ -879,12 +879,13 @@ public:
 
     static void settle() { pdftest::AppDocumentFixture::settle(); }
 
-    /// The 1 s registry timer of the MCP host (PDFAppMcpHost::checkToolRegistry) is no part of a
-    /// scenario: a registration of the fixture (a test tool, the tools of a previous fixture going)
-    /// is seen by it at a moment of its own, so its catalogChanged lands in a step of the discovery,
-    /// which the replay under load does not reproduce (P3 finding, P2S5INT item 6; the threshold of
-    /// 80 % stays). The host checks the registry once before the recording, then the timer calls it
-    /// no more; a tools/call still checks the registry itself (PDFAppMcpHost::handleToolCall).
+    /// A registration of the fixture (a test tool, the tools of a previous fixture going) is no part
+    /// of a scenario: its catalogChanged must not land in a step of the discovery (P3 finding,
+    /// P2S5INT item 6; the threshold of 80 % stays). The registry tells the MCP host about its
+    /// changes (PDFAppMcpHost::onToolRegistryChanged, a queued check - no timer any more, P2NOPOLL):
+    /// the host checks the registry once before the recording, so the queued check of an earlier
+    /// change finds nothing new; a tools/call still checks the registry itself
+    /// (PDFAppMcpHost::handleToolCall).
     static void stopRegistryTimers(QObject* context)
     {
         if (!context)
@@ -894,10 +895,6 @@ public:
         for (pdf::PDFAppMcpHost* host : context->findChildren<pdf::PDFAppMcpHost*>())
         {
             host->checkToolRegistry();
-            for (QTimer* timer : host->findChildren<QTimer*>(Qt::FindDirectChildrenOnly))
-            {
-                QObject::disconnect(timer, &QTimer::timeout, host, &pdf::PDFAppMcpHost::checkToolRegistry);
-            }
         }
         settleCatalog(context);
     }

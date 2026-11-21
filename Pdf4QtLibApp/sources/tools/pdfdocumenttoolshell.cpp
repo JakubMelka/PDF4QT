@@ -365,9 +365,85 @@ qint64 PDFDocumentToolShell::getUseClockTime()
 
 bool PDFDocumentToolShell::isToolVisible() const
 {
-    const QWidget* widget = m_host ? m_host->getKeyWidget() : nullptr;
+    // Only the QWidget part of the watched widget (an event of a tab being torn down may come here, while the
+    // host is half destroyed)
+    const QWidget* widget = m_visibleKeyWidget.data();
     const QWidget* window = widget ? widget->window() : nullptr;
     return widget && window && widget->isVisible() && !window->isMinimized();
+}
+
+void PDFDocumentToolShell::watchVisibility()
+{
+    QWidget* keyWidget = m_host ? m_host->getKeyWidget() : nullptr;
+    if (m_visibleKeyWidget.data() != keyWidget)
+    {
+        if (QWidget* previous = m_visibleKeyWidget.data())
+        {
+            previous->removeEventFilter(this);
+        }
+        m_visibleKeyWidget = keyWidget;
+        if (keyWidget)
+        {
+            keyWidget->installEventFilter(this);
+        }
+    }
+    watchVisibleWindow();
+}
+
+void PDFDocumentToolShell::watchVisibleWindow()
+{
+    // The window of the key widget: its minimizing hides nothing of the tab (a spontaneous Hide at most)
+    QWidget* keyWidget = m_visibleKeyWidget.data();
+    QWidget* window = keyWidget ? keyWidget->window() : nullptr;
+    if (window == keyWidget)
+    {
+        window = nullptr;
+    }
+    if (m_visibleWindow.data() != window)
+    {
+        if (QWidget* previous = m_visibleWindow.data())
+        {
+            previous->removeEventFilter(this);
+        }
+        m_visibleWindow = window;
+        if (window)
+        {
+            window->installEventFilter(this);
+        }
+    }
+}
+
+void PDFDocumentToolShell::unwatchVisibility()
+{
+    for (QPointer<QWidget>* watched : { &m_visibleKeyWidget, &m_visibleWindow })
+    {
+        if (QWidget* widget = watched->data())
+        {
+            widget->removeEventFilter(this);
+        }
+        *watched = nullptr;
+    }
+}
+
+bool PDFDocumentToolShell::isVisibilityEvent(const QObject* watched, const QEvent* event) const
+{
+    if (!watched || !event)
+    {
+        return false;
+    }
+
+    const QEvent::Type type = event->type();
+    if (watched == m_visibleKeyWidget.data())
+    {
+        // The tab becomes current or not (the stack shows / hides its page with the key widget), the key widget
+        // moves into another window
+        return type == QEvent::Show || type == QEvent::Hide || type == QEvent::ParentChange;
+    }
+    if (watched == m_visibleWindow.data())
+    {
+        return type == QEvent::WindowStateChange || type == QEvent::Show || type == QEvent::Hide;
+    }
+    return false;
 }
 
 void PDFDocumentToolShell::accountVisibleTime()
@@ -539,15 +615,13 @@ bool PDFDocumentToolShell::enter()
     m_state = State::Editing;
     m_context = m_host->getContext();
 
-    // An interactive tool counts the time it is shown (owner 2026-11-20); the timer is a child (no lambda)
+    // An interactive tool counts the time it is shown (owner 2026-11-20): from the events, which change its
+    // visibility (the event filter), never by a timer
     if (m_gui->isInteractive())
     {
+        watchVisibility();
         m_lastVisibleCheck = getUseClockTime();
         m_wasVisible = isToolVisible();
-        m_visibleTimer = new QTimer(this);
-        m_visibleTimer->setInterval(VISIBLE_TIME_INTERVAL_MS);
-        connect(m_visibleTimer.data(), &QTimer::timeout, this, &PDFDocumentToolShell::accountVisibleTime);
-        m_visibleTimer->start();
     }
     connect(m_host.data(), &PDFAppToolHost::modeLeft, this, &PDFDocumentToolShell::onModeLeft);
     connect(m_host.data(), &PDFAppToolHost::documentNotReady, this, &PDFDocumentToolShell::onDocumentLost);
@@ -694,12 +768,7 @@ void PDFDocumentToolShell::close()
     recordInteractiveUse();
     m_state = State::Closed;
     QPointer<PDFDocumentToolShell> guard(this);
-    if (QTimer* timer = m_visibleTimer.data())
-    {
-        m_visibleTimer = nullptr;
-        timer->stop();
-        timer->deleteLater();
-    }
+    unwatchVisibility();
 
     for (const QPointer<QAction>& action : { m_escapeAction, m_confirmAction, m_confirmKeypadAction })
     {
@@ -2736,6 +2805,18 @@ void PDFDocumentToolShell::onLanguageChanged()
 
 bool PDFDocumentToolShell::eventFilter(QObject* watched, QEvent* event)
 {
+    // The visibility of an interactive tool may change (its tab, its window): the time shown is accounted before
+    // the change takes effect for the user; a key widget in another window is watched there (no signal, no foreign
+    // code - also during the teardown of the tab, isToolVisible reads only the watched widgets)
+    if (m_state != State::Created && m_state != State::Closed && isVisibilityEvent(watched, event))
+    {
+        if ((event->type() == QEvent::ParentChange || event->type() == QEvent::Show) && watched == m_visibleKeyWidget.data())
+        {
+            watchVisibleWindow();
+        }
+        accountVisibleTime();
+    }
+
     // Also a dialog only hidden: the event comes before the dialog leaves the list of the modal widgets
     if (watched == m_watchedModal.data() && (event->type() == QEvent::Hide || event->type() == QEvent::Close))
     {

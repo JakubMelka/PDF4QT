@@ -565,6 +565,12 @@ PDFAppMcpSignatureWaiter::PDFAppMcpSignatureWaiter(PDFAppMcpHost* host, std::sha
         connect(m_verifier, &QObject::destroyed, this, &PDFAppMcpSignatureWaiter::onTimeout);
     }
 
+    // A canceled call is answered at once (the host reports it), not at the end of the wait
+    if (m_host)
+    {
+        connect(m_host.data(), &PDFAppMcpHost::callCancelReceived, this, &PDFAppMcpSignatureWaiter::onCallCanceled);
+    }
+
     m_timer = new QTimer(this);
     m_timer->setSingleShot(true);
     m_timer->setInterval(PDFAppMcpDocumentTool::SIGNATURE_WAIT_TIME);
@@ -599,6 +605,15 @@ void PDFAppMcpSignatureWaiter::onVerificationChanged()
 void PDFAppMcpSignatureWaiter::onTimeout()
 {
     answer();
+}
+
+void PDFAppMcpSignatureWaiter::onCallCanceled(const std::shared_ptr<PDFMcpCall>& call)
+{
+    // The host reports every canceled call: only the call of this waiter is answered (canceled)
+    if (call && call == m_call)
+    {
+        answer();
+    }
 }
 
 void PDFAppMcpSignatureWaiter::answer()

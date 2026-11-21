@@ -49,9 +49,12 @@ class PDFOperationControl;
 ///  - Protected paths (R14): the source and the files open in the tabs are never overwritten
 ///    (Overwrite gives a not written file, Ask asks with the reason).
 ///  - Ask (only the GUI; MCP never asks, R17): the conflicts are counted at begin ("37 files"),
-///    at the first one the thread of the run waits (PDFThreadAnnotations::wait, by intervals,
-///    checking the control and stop) until the GUI thread, which polls getQuestion, answers by
-///    answer; "Do the same for the other N files" keeps the answer. Stop Export = stop.
+///    at the first one the thread of the run waits (PDFThreadAnnotations::wait, by intervals of
+///    WAIT_INTERVAL, checking the control and stop after each) until the GUI thread, which polls
+///    getQuestion, answers by answer or stops the sink by stop (Stop, the close of the tab, the
+///    cancellation of the run). answer and stop also wake the thread at once; the intervals stay
+///    the guarantee (owner 2026-11-21: a wait condition need not wake up). "Do the same for the
+///    other N files" keeps the answer. Stop Export = stop.
 ///
 /// Ownership and threads: the job of the runner owns it (std::unique_ptr) for the whole run, the
 /// runner and the GUI reach it only through the job (a shared_ptr); begin, write, isStopped and
@@ -65,7 +68,8 @@ private:
     using BaseClass = PDFDocumentToolFolderSink;
 
 public:
-    /// Interval of a wait for the answer (ms): the control is checked after each
+    /// Interval of a wait for the answer (ms): the control and stop are checked after each, also when
+    /// the wake of answer / stop does not come (owner 2026-11-21: the intervals are the guarantee)
     static constexpr int WAIT_INTERVAL = 100;
 
     /// The answer of the question of a conflict (356:11997)
@@ -108,7 +112,9 @@ public:
     static std::unique_ptr<PDFAppToolFileSink> create(const PDFDocumentTool* tool, const QVariantMap& parameters, const QString& sourceFilePath,
                                                       QStringList protectedPaths, bool isNetworkRefused);
 
-    /// The control of the run: a canceled run stops the wait (the job sets it before the run)
+    /// The control of the run (the job sets it before the run): a canceled run stops the wait - within
+    /// WAIT_INTERVAL by the check of the wait; PDFDocumentToolRunnerJob::cancel calls stop too, which
+    /// wakes the wait at once.
     void setOperationControl(const PDFOperationControl* control) { m_control = control; }
 
     virtual bool begin(const QStringList& fileNames, QString* errorText) override;
@@ -120,7 +126,8 @@ public:
     /// Answers the question (any thread); \p isForAll: the other conflicts get the same answer
     void answer(Answer answer, bool isForAll);
 
-    /// Stops the sink (Stop, the close of the tab): a waiting question ends, no further file
+    /// Stops the sink (Stop, the close of the tab, the cancellation of the run; any thread): a waiting
+    /// question ends (the wait is woken, at the latest its next interval sees the stop), no further file
     void stop();
 
 protected:

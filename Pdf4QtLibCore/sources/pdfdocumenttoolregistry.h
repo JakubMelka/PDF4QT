@@ -46,6 +46,20 @@ enum class PDFDocumentToolRegistration
     InvalidParameters   ///< The definitions of the parameters are not valid (PDFDocumentToolParameters::isValid)
 };
 
+/// A listener of the changes of the registry (PDFDocumentToolRegistry::addListener): MCP builds
+/// its tool catalog again when the registry changes, without asking it in intervals
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentToolRegistryListener
+{
+public:
+    virtual ~PDFDocumentToolRegistryListener();
+
+    /// The registry has changed (its generation has grown). Called in the thread, which has
+    /// changed the registry (any thread), under the lock of the listeners, after the change:
+    /// the listener only hands the news over (a queued invocation into its own thread), never
+    /// calls the registry nor adds or removes a listener here.
+    virtual void onToolRegistryChanged() = 0;
+};
+
 /// Process wide registry of the implementations of the tools of the catalog
 /// (newapp_tools.md 2, Katalog a registr): a tool of the catalog without an
 /// implementation is shown in the catalog, its page is Page Not Found and MCP
@@ -81,6 +95,14 @@ public:
     /// registration and removal (MCP builds its tool catalog again when it changes,
     /// plan of step 7, 3.10). Thread safe; starts at 0.
     static quint64 getGeneration();
+
+    /// Adds a listener of the changes (thread safe; not owned). Every successful registration,
+    /// removal and clearForTests calls PDFDocumentToolRegistryListener::onToolRegistryChanged.
+    static void addListener(PDFDocumentToolRegistryListener* listener);
+
+    /// Removes the listener (thread safe): after the return it is never called again, also from
+    /// a change of another thread - a dying listener removes itself first
+    static void removeListener(PDFDocumentToolRegistryListener* listener);
 };
 
 }   // namespace pdf
