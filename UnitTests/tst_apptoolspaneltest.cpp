@@ -38,7 +38,9 @@
 #include "pdfappsearchwidgets.h"
 #include "pdfappsupportpage.h"
 #include "pdfappwhatsnewpage.h"
+#include "pdfapptooldocumentpage.h"
 #include "pdfapptoolpresentation.h"
+#include "pdftoolstartpage.h"
 #include "pdfdatabase.h"
 #include "pdfdatabasenotifier.h"
 
@@ -460,16 +462,16 @@ void AppToolsPanelTest::panelPinnedAndRecent()
     QCOMPARE(panel->getRecentRows().front()->getLastUsed(), pdf::PDFAppHomeFormat::formatTime(now - 60000LL, QDateTime::currentMSecsSinceEpoch()));
     QCOMPARE(panel->getPinnedShortcuts().front()->toolTip(), pdf::PDFDocumentToolCatalog::findTool(pins.front())->getDescription());
 
-    // A shortcut opens the tool on the document: Page Not Found of the tool in the
-    // tab of the document until phase 2 registers its page
+    // A shortcut opens the tool on the document: the page of the tool in the tab of the document
     QCOMPARE(panel->getToolRoute(QStringLiteral("pages.split")).toString(), H::documentToolRoute(tab, QStringLiteral("pages.split")));
     panel->getPinnedShortcuts().at(3)->click();
     QVERIFY(!panel->isVisible());
     pdftest::AppDocumentFixture::settle();
     QCOMPARE(fixture.currentTab(), static_cast<pdf::PDFAppTab*>(tab));
     QCOMPARE(fixture.currentRoute(), H::documentToolRoute(tab, QStringLiteral("pages.split")));
-    QVERIFY(fixture.notFoundPage());
-    QCOMPARE(fixture.notFoundPage()->getDescriptionText(), QString::fromUtf8("Tool “Split”"));
+    QVERIFY(!fixture.notFoundPage());
+    QVERIFY(fixture.page<pdf::PDFAppToolDocumentPage>());
+    QCOMPARE(fixture.page<pdf::PDFAppToolDocumentPage>()->getToolId(), QStringLiteral("pages.split"));
     QVERIFY(!H::toolbar(tab)->getToolsButton()->isChecked());
 
     // A recent row with a registered page of the tool: the page in the tab of the document
@@ -931,8 +933,9 @@ void AppToolsPanelTest::panelNoDocumentTools()
     pdftest::AppDocumentFixture::settle();
     QCOMPARE(fixture.currentTab(), static_cast<pdf::PDFAppTab*>(fixture.window->getHomeTab()));
     QCOMPARE(fixture.currentRoute(), QStringLiteral("/tools/convert.images-to-pdf"));
-    QVERIFY(fixture.notFoundPage());
-    QCOMPARE(fixture.notFoundPage()->getDescriptionText(), QString::fromUtf8("Tool “Images to PDF”"));
+    QVERIFY(!fixture.notFoundPage());
+    QVERIFY(fixture.page<pdf::PDFToolStartPage>());
+    QCOMPARE(fixture.page<pdf::PDFToolStartPage>()->getToolId(), QStringLiteral("convert.images-to-pdf"));
 
     // With the page of the tool (phase 2) its page
     QVERIFY(fixture.registerTestToolPage(QStringLiteral("convert.blank")));
@@ -1201,8 +1204,9 @@ void AppToolsPanelTest::globalSearchToolRoute()
     searchPage->activateResult(resultCopy);
     pdftest::AppDocumentFixture::settle();
     QCOMPARE(fixture.currentRoute(), QStringLiteral("/tools/pages.split"));
-    QVERIFY(fixture.notFoundPage());
-    QCOMPARE(fixture.notFoundPage()->getDescriptionText(), QString::fromUtf8("Tool “Split”"));
+    QVERIFY(!fixture.notFoundPage());
+    QVERIFY(fixture.page<pdf::PDFToolStartPage>());
+    QCOMPARE(fixture.page<pdf::PDFToolStartPage>()->getToolId(), QStringLiteral("pages.split"));
 
     // The same tool from the panel: on the document
     fixture.window->activateTab(tab);
