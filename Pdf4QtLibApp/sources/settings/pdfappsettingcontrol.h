@@ -274,6 +274,12 @@ private:
     void onBrowseClicked();
     void onWriteTimeout();
 
+    /// The folder dialog of Browse… waits for its answer (A0: no nested event loop)
+    bool isFolderDialogPending() const;
+
+    /// The answer of the folder dialog of Browse… (empty = canceled)
+    void onFolderChosen(const QString& folder);
+
     QPointer<PDFAppContext> m_context;
     std::shared_ptr<PDFAppValueStore> m_store;
     PDFSettingDefinition m_definition;

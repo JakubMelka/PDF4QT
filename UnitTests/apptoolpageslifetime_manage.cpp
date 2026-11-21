@@ -647,8 +647,10 @@ void ToolPagesLifetimePackages::registerManageScenarios(std::vector<ToolPagesLif
                 return false;
             }
             file.close();
+            // A0: a modified assembly asks first (the file is read after the answer, the call returns false then)
             ToolPagesLifetimeSteps::answerLater(run, QStringLiteral("closeTabButton"));
-            if (!current->openAssemblyFile(assemblyPath))
+            const bool isAsking = current->isAssemblyModified();
+            if (!current->openAssemblyFile(assemblyPath) && !isAsking)
             {
                 return false;
             }

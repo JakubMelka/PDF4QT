@@ -29,6 +29,8 @@ set(PDF4QT_LIBAPP_SHELL_SOURCES
     sources/shell/pdfappcolorpicker.h
     sources/shell/pdfapphistory.cpp
     sources/shell/pdfapphistory.h
+    sources/shell/pdfappleaveflow.cpp
+    sources/shell/pdfappleaveflow.h
     sources/shell/pdfappmainwindow.cpp
     sources/shell/pdfappmainwindow.h
     sources/shell/pdfappnavigator.cpp

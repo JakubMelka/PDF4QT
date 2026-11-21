@@ -71,6 +71,7 @@ namespace pdf
 class PDFAppCancelFlag;
 class PDFAppCompareDifferenceDelegate;
 class PDFAppCompareDifferenceModel;
+class PDFAppFileDialogRequest;
 class PDFAppMainWindow;
 class PDFAppParagraph;
 class PDFAppPasswordDialog;
@@ -603,6 +604,7 @@ private:
     void onMenuToggledQueued();
     QString getOpenMenuStatusText() const;
     void chooseSlotFile(Slot slot);
+    void onSlotFileChosen(const QStringList& files);
     void addSlotInput(Slot slot, const QString& filePath, const QString& documentId);
     void openPassword(Slot slot);
     void onPasswordRemoveRequested(const QString& inputId);
@@ -656,6 +658,8 @@ private:
     bool m_isStartQueued = false;
     std::array<QString, SlotCount> m_rangeTexts;
     std::array<QString, SlotCount> m_rangeErrors;
+    QPointer<PDFAppFileDialogRequest> m_fileRequest;   ///< Choose… of a slot waiting for its dialog (a child of the GUI, A0)
+    Slot m_fileRequestSlot = OriginalSlot;              ///< The slot of m_fileRequest
 
     PDFDiffReportColors m_colors;
     bool m_isHighlightsShown = true;

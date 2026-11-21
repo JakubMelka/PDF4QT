@@ -84,9 +84,11 @@
 #include <QSortFilterProxyModel>
 #include <QRegularExpression>
 #include <QTimer>
+#include <QThread>
 #include <QSet>
 #include <QStandardItemModel>
 #include <QStyledItemDelegate>
+#include <QStyleOptionSpinBox>
 #include <QStyleOptionTab>
 #include <QToolTip>
 #include <QTreeView>
@@ -622,6 +624,9 @@ private slots:
     void keyValueListValueWidth();
     void keyValueListRowGap();
     void keyValueListValueColor();
+    void keyValueListContextMenu();
+    void spinBoxContextMenu();
+    void calendarMenus();
     void pageRangeReview();
     void pageSelectionReview();
     void pageSelectionHugeDocument();
@@ -10960,6 +10965,436 @@ void FluentComponentsTest::keyValueListValueColor()
     QCOMPARE(list.accessibleDescription(), QStringLiteral("Fill: Black"));
 }
 
+void FluentComponentsTest::keyValueListContextMenu()
+{
+    // A0: the context menu of a row (Copy Value) is a popup - the event returns with the menu open at
+    // the event loop level of the caller (no QMenu::exec); Copy Value copies the value of the row of
+    // the opening from the event loop; the list deleted while the menu is open deletes the menu
+    auto settle = []()
+    {
+        for (int i = 0; i < 3; ++i)
+        {
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+            QCoreApplication::processEvents();
+        }
+    };
+
+    QWidget window;
+    window.resize(320, 120);
+    QPointer<pdf::PDFKeyValueList> list = new pdf::PDFKeyValueList(&window);
+    list->addRow(QStringLiteral("Pages"), QStringLiteral("12"));
+    list->addRow(QStringLiteral("Producer"), QStringLiteral("PDF4QT"));
+    list->resize(300, list->heightForWidth(300));
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    const int loopLevel = QThread::currentThread()->loopLevel();
+    QGuiApplication::clipboard()->setText(QStringLiteral("other"));
+    const QPoint position = list->getRowRect(1).center();
+    QContextMenuEvent event(QContextMenuEvent::Mouse, position, list->mapToGlobal(position));
+    QApplication::sendEvent(list.data(), &event);
+    QPointer<QMenu> menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+    QVERIFY(menu);
+    QVERIFY(menu->isVisible());
+    QCOMPARE(QThread::currentThread()->loopLevel(), loopLevel);
+    QCOMPARE(menu->parent(), static_cast<QObject*>(list.data()));
+    QCOMPARE(menu->actions().size(), 1);
+    QCOMPARE(menu->actions().front()->text(), QStringLiteral("Copy Value"));
+
+    // The value changes while the menu is open: Copy Value copies the value of the opening
+    list->setValue(1, QStringLiteral("Changed"));
+    menu->setActiveAction(menu->actions().front());
+    QTest::keyClick(menu, Qt::Key_Return);
+    QCOMPARE(QGuiApplication::clipboard()->text(), QStringLiteral("other"));
+    settle();
+    QCOMPARE(QGuiApplication::clipboard()->text(), QStringLiteral("PDF4QT"));
+    QVERIFY(!menu);
+    QCOMPARE(QApplication::activePopupWidget(), nullptr);
+
+    // A row without a value has no menu of its own
+    list->addRow(QStringLiteral("Empty"), QString());
+    list->resize(300, list->heightForWidth(300));
+    const QPoint emptyPosition = list->getRowRect(2).center();
+    QContextMenuEvent emptyEvent(QContextMenuEvent::Mouse, emptyPosition, list->mapToGlobal(emptyPosition));
+    QApplication::sendEvent(list.data(), &emptyEvent);
+    QCOMPARE(QApplication::activePopupWidget(), nullptr);
+
+    // The list deleted while its menu is open (the menu is its child); a Copy Value queued before the
+    // deletion is dropped with the list
+    QGuiApplication::clipboard()->setText(QStringLiteral("other"));
+    QApplication::sendEvent(list.data(), &event);
+    menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+    QVERIFY(menu);
+    menu->setActiveAction(menu->actions().front());
+    QTest::keyClick(menu, Qt::Key_Return);
+    delete list.data();
+    QVERIFY(!menu);
+    settle();
+    QCOMPARE(QGuiApplication::clipboard()->text(), QStringLiteral("other"));
+    QCOMPARE(QApplication::activePopupWidget(), nullptr);
+}
+
+void FluentComponentsTest::spinBoxContextMenu()
+{
+    // QR3.5: the spin boxes of the library show the menu of QAbstractSpinBox::contextMenuEvent (Qt
+    // 6.11 qabstractspinbox.cpp) by popup() - the standard menu of the line edit, whose Select All is
+    // replaced by "&Select All" of the spin box (shortcut Select All), a separator, "&Step up" and
+    // "Step &down" (enabled by stepEnabled), a separator - without the nested event loop of
+    // QMenu::exec. The steps and Select All of the spin box run from the event loop.
+    auto settle = []()
+    {
+        for (int i = 0; i < 3; ++i)
+        {
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+            QCoreApplication::processEvents();
+        }
+    };
+
+    QWidget window;
+    QVBoxLayout* layout = new QVBoxLayout(&window);
+    QPointer<pdf::PDFSpinBox> spinBox = new pdf::PDFSpinBox(&window);
+    spinBox->setRange(0, 10);
+    spinBox->setValue(5);
+    pdf::PDFDoubleSpinBox* doubleSpinBox = new pdf::PDFDoubleSpinBox(&window);
+    doubleSpinBox->setRange(0.0, 1.0);
+    doubleSpinBox->setSingleStep(0.25);
+    doubleSpinBox->setValue(1.0);
+    pdf::PDFDateTimeEdit* dateEdit = new pdf::PDFDateTimeEdit(QDate(2026, 11, 21), &window);
+    dateEdit->setDisplayFormat(QStringLiteral("yyyy-MM-dd"));
+    dateEdit->setDateRange(QDate(2026, 11, 21), QDate(2026, 12, 31));
+    dateEdit->setCurrentSection(QDateTimeEdit::DaySection);
+    layout->addWidget(spinBox);
+    layout->addWidget(doubleSpinBox);
+    layout->addWidget(dateEdit);
+    window.resize(300, 160);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    const int loopLevel = QThread::currentThread()->loopLevel();
+    auto openMenu = [loopLevel](QAbstractSpinBox* target, QContextMenuEvent::Reason reason) -> QMenu*
+    {
+        const QPoint point(10, target->height() / 2);
+        QContextMenuEvent event(reason, point, target->mapToGlobal(point));
+        QApplication::sendEvent(target, &event);
+        QMenu* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+        if (!event.isAccepted() || !menu || !menu->isVisible() || QThread::currentThread()->loopLevel() != loopLevel)
+        {
+            return nullptr;
+        }
+        return menu;
+    };
+    auto findAction = [](QMenu* menu, const QString& text) -> QAction*
+    {
+        for (QAction* action : menu->actions())
+        {
+            if (action->text() == text)
+            {
+                return action;
+            }
+        }
+        return nullptr;
+    };
+    auto choose = [](QMenu* menu, QAction* action)
+    {
+        menu->setActiveAction(action);
+        QTest::keyClick(menu, Qt::Key_Return);
+    };
+
+    // The items of the menu in the order of Qt
+    QPointer<QMenu> menu = openMenu(spinBox, QContextMenuEvent::Mouse);
+    QVERIFY(menu);
+    QStringList items;
+    for (const QAction* action : menu->actions())
+    {
+        items << (action->isSeparator() ? QStringLiteral("-") : (action->objectName().isEmpty() ? action->text() : action->objectName()));
+    }
+    const QStringList expectedItems = { QStringLiteral("edit-undo"), QStringLiteral("edit-redo"), QStringLiteral("-"), QStringLiteral("edit-cut"),
+                                        QStringLiteral("edit-copy"), QStringLiteral("edit-paste"), QStringLiteral("edit-delete"), QStringLiteral("-"),
+                                        QStringLiteral("&Select All"), QStringLiteral("-"), QStringLiteral("&Step up"), QStringLiteral("Step &down"), QStringLiteral("-") };
+    QCOMPARE(items, expectedItems);
+    QCOMPARE(findAction(menu, QStringLiteral("&Select All"))->shortcut(), QKeySequence(QKeySequence::SelectAll));
+    QVERIFY(findAction(menu, QStringLiteral("&Step up"))->isEnabled());
+    QVERIFY(findAction(menu, QStringLiteral("Step &down"))->isEnabled());
+
+    // Step up: from the event loop, not inside of the activation of the menu
+    choose(menu, findAction(menu, QStringLiteral("&Step up")));
+    QCOMPARE(spinBox->value(), 5);
+    settle();
+    QCOMPARE(spinBox->value(), 6);
+    QVERIFY(!menu);
+    QCOMPARE(QApplication::activePopupWidget(), nullptr);
+
+    // Step down
+    menu = openMenu(spinBox, QContextMenuEvent::Mouse);
+    QVERIFY(menu);
+    choose(menu, findAction(menu, QStringLiteral("Step &down")));
+    settle();
+    QCOMPARE(spinBox->value(), 5);
+
+    // Select All of the spin box selects the text of the value (the prefix and suffix are drawn)
+    QLineEdit* lineEdit = spinBox->findChild<QLineEdit*>();
+    QVERIFY(lineEdit);
+    lineEdit->deselect();
+    menu = openMenu(spinBox, QContextMenuEvent::Mouse);
+    QVERIFY(menu);
+    choose(menu, findAction(menu, QStringLiteral("&Select All")));
+    QVERIFY(!lineEdit->hasSelectedText());
+    settle();
+    QCOMPARE(lineEdit->selectedText(), QStringLiteral("5"));
+
+    // The steps follow stepEnabled: at the maximum of the double spin box Step up is disabled,
+    // at the minimum date Step down
+    menu = openMenu(doubleSpinBox, QContextMenuEvent::Mouse);
+    QVERIFY(menu);
+    QVERIFY(!findAction(menu, QStringLiteral("&Step up"))->isEnabled());
+    QVERIFY(findAction(menu, QStringLiteral("Step &down"))->isEnabled());
+    choose(menu, findAction(menu, QStringLiteral("Step &down")));
+    settle();
+    QCOMPARE(doubleSpinBox->value(), 0.75);
+
+    // The mouse opens the menu at the pointer (the window of the menu starts by the margin of its
+    // shadow before it), the keyboard in the middle of the spin box (QAbstractSpinBox)
+    menu = openMenu(dateEdit, QContextMenuEvent::Mouse);
+    QVERIFY(menu);
+    const QPoint shadowOffset = menu->pos() - dateEdit->mapToGlobal(QPoint(10, dateEdit->height() / 2));
+    menu->close();
+    settle();
+    QVERIFY(!menu);
+    menu = openMenu(dateEdit, QContextMenuEvent::Keyboard);
+    QVERIFY(menu);
+    QVERIFY(findAction(menu, QStringLiteral("&Step up"))->isEnabled());
+    QVERIFY(!findAction(menu, QStringLiteral("Step &down"))->isEnabled());
+    QCOMPARE(menu->pos() - shadowOffset, dateEdit->mapToGlobal(QPoint(10, 0)) + QPoint(dateEdit->width() / 2, dateEdit->height() / 2));
+    choose(menu, findAction(menu, QStringLiteral("&Step up")));
+    settle();
+    QCOMPARE(dateEdit->date(), QDate(2026, 11, 22));
+
+    // A held arrow stops stepping, when the menu opens (the release goes to the menu); a spin box
+    // without the focus, so the focus out of the popup does not stop it
+    spinBox->setFocusPolicy(Qt::NoFocus);
+    window.setFocus();
+    QStyleOptionSpinBox option;
+    option.initFrom(spinBox);
+    option.subControls = QStyle::SC_SpinBoxUp;
+    option.buttonSymbols = spinBox->buttonSymbols();
+    option.frame = spinBox->hasFrame();
+    option.stepEnabled = QAbstractSpinBox::StepUpEnabled | QAbstractSpinBox::StepDownEnabled;
+    const QPoint upPoint = spinBox->style()->subControlRect(QStyle::CC_SpinBox, &option, QStyle::SC_SpinBoxUp, spinBox).center();
+    QTest::mousePress(spinBox, Qt::LeftButton, Qt::NoModifier, upPoint);
+    QCOMPARE(spinBox->value(), 6);
+    menu = openMenu(spinBox, QContextMenuEvent::Mouse);
+    QVERIFY(menu);
+    const int repeatWait = spinBox->style()->styleHint(QStyle::SH_SpinBox_ClickAutoRepeatThreshold, nullptr, spinBox) +
+                           3 * spinBox->style()->styleHint(QStyle::SH_SpinBox_ClickAutoRepeatRate, nullptr, spinBox);
+    QTest::qWait(repeatWait);
+    QCOMPARE(spinBox->value(), 6);
+    menu->close();
+    settle();
+    QVERIFY(!menu);
+    QTest::mouseRelease(spinBox, Qt::LeftButton, Qt::NoModifier, upPoint);
+    QCOMPARE(spinBox->value(), 6);
+
+    // A held key stops stepping, when the menu opens, as in QAbstractSpinBox::contextMenuEvent (the
+    // keys go to the menu): the popup takes the focus of the focused spin box (QApplication sends it
+    // the focus out of a popup, QAbstractSpinBox::focusOutEvent stops the steps)
+    window.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&window));
+    doubleSpinBox->setFocus(Qt::OtherFocusReason);
+    QTRY_VERIFY(doubleSpinBox->hasFocus());
+    QTest::keyPress(doubleSpinBox, Qt::Key_Down);
+    QCOMPARE(doubleSpinBox->value(), 0.5);
+    menu = openMenu(doubleSpinBox, QContextMenuEvent::Keyboard);
+    QVERIFY(menu);
+    QTest::qWait(spinBox->style()->styleHint(QStyle::SH_SpinBox_ClickAutoRepeatThreshold, nullptr, doubleSpinBox) +
+                 3 * spinBox->style()->styleHint(QStyle::SH_SpinBox_KeyPressAutoRepeatRate, nullptr, doubleSpinBox));
+    QCOMPARE(doubleSpinBox->value(), 0.5);
+    menu->close();
+    settle();
+    QVERIFY(!menu);
+    QTest::keyRelease(doubleSpinBox, Qt::Key_Down);
+    QCOMPARE(doubleSpinBox->value(), 0.5);
+
+    // The spin box deleted while its menu is open (the menu is a child of its line edit); a step
+    // queued before the deletion is dropped with the spin box
+    menu = openMenu(spinBox, QContextMenuEvent::Mouse);
+    QVERIFY(menu);
+    choose(menu, findAction(menu, QStringLiteral("&Step up")));
+    delete spinBox.data();
+    QVERIFY(!menu);
+    settle();
+    QCOMPARE(QApplication::activePopupWidget(), nullptr);
+}
+
+void FluentComponentsTest::calendarMenus()
+{
+    // A0: the menu of the months of PDFCalendarWidget (the instant menu of the button of the month
+    // of QCalendarWidget, which QToolButton shows by QMenu::exec) and the context menu of the editor
+    // of the year (QAbstractSpinBox::contextMenuEvent, QMenu::exec) open by popup() - the press or
+    // the event returns with the menu open at the event loop level of the caller
+    auto settle = []()
+    {
+        for (int i = 0; i < 3; ++i)
+        {
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+            QCoreApplication::processEvents();
+        }
+    };
+
+    QWidget window;
+    QVBoxLayout* layout = new QVBoxLayout(&window);
+    QPointer<pdf::PDFCalendarWidget> calendar = new pdf::PDFCalendarWidget(&window);
+    calendar->setDateRange(QDate(2020, 1, 1), QDate(2030, 12, 31));
+    calendar->setSelectedDate(QDate(2026, 11, 21));
+    layout->addWidget(calendar);
+    window.resize(320, 360);
+    window.show();
+    window.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&window));
+    const int loopLevel = QThread::currentThread()->loopLevel();
+
+    QPointer<QToolButton> monthButton = calendar->findChild<QToolButton*>(QStringLiteral("qt_calendar_monthbutton"));
+    QVERIFY(monthButton);
+    QCOMPARE(monthButton->menu(), nullptr);
+    QPointer<QMenu> monthMenu = calendar->getMonthMenu();
+    QVERIFY(monthMenu);
+    QCOMPARE(monthMenu->actions().size(), 12);
+    QCOMPARE(monthButton->text(), monthMenu->actions().at(10)->text());
+
+    // Assistive technologies see a tool button with an instant menu (QAccessibleToolButton): the role
+    // ButtonMenu, a popup, the action Show Menu only, the name of the month, the menu as the child 0
+    QAccessibleInterface* buttonInterface = QAccessible::queryAccessibleInterface(monthButton.data());
+    QVERIFY(buttonInterface);
+    QCOMPARE(buttonInterface->role(), QAccessible::ButtonMenu);
+    QVERIFY(buttonInterface->state().hasPopup);
+    QVERIFY(buttonInterface->actionInterface());
+    QCOMPARE(buttonInterface->actionInterface()->actionNames(), QStringList{ QAccessibleActionInterface::showMenuAction() });
+    QCOMPARE(buttonInterface->text(QAccessible::Name), monthButton->text());
+    QCOMPARE(buttonInterface->childCount(), 0);
+    QVERIFY(buttonInterface->child(0));
+    QCOMPARE(buttonInterface->child(0)->object(), static_cast<QObject*>(monthMenu.data()));
+
+    // The look of the pressed button without a menu (the reference of the open menu below)
+    monthButton->setDown(true);
+    const QImage pressedImage = monthButton->grab().toImage();
+    monthButton->setDown(false);
+
+    // The press opens the menu below the button, the button looks as a button of an open menu
+    QTest::mousePress(monthButton, Qt::LeftButton, Qt::NoModifier, monthButton->rect().center());
+    QCOMPARE(QThread::currentThread()->loopLevel(), loopLevel);
+    QCOMPARE(QApplication::activePopupWidget(), static_cast<QWidget*>(monthMenu.data()));
+    QVERIFY(monthMenu->isVisible());
+    QVERIFY(monthButton->isDown());
+    QVERIFY(monthMenu->geometry().center().y() > monthButton->mapToGlobal(QPoint(0, monthButton->height())).y());
+    QVERIFY(buttonInterface->state().pressed);
+    QVERIFY(monthButton->grab().toImage() != pressedImage);
+
+    // March: the calendar shows March (QCalendarWidget reacts by the signal triggered of the menu)
+    monthMenu->setActiveAction(monthMenu->actions().at(2));
+    QTest::keyClick(monthMenu, Qt::Key_Return);
+    settle();
+    QCOMPARE(calendar->monthShown(), 3);
+    QCOMPARE(calendar->yearShown(), 2026);
+    QCOMPARE(monthButton->text(), monthMenu->actions().at(2)->text());
+    QCOMPARE(QApplication::activePopupWidget(), nullptr);
+    QVERIFY(!monthButton->isDown());
+    QVERIFY(monthMenu);
+    QTest::mouseRelease(monthButton, Qt::LeftButton, Qt::NoModifier, monthButton->rect().center());
+    QCOMPARE(calendar->monthShown(), 3);
+
+    // Space and Show Menu open the menu too; Esc closes it and releases the button
+    QTest::keyPress(monthButton, Qt::Key_Space);
+    QCOMPARE(QApplication::activePopupWidget(), static_cast<QWidget*>(monthMenu.data()));
+    QTest::keyClick(monthMenu, Qt::Key_Escape);
+    settle();
+    QCOMPARE(QApplication::activePopupWidget(), nullptr);
+    QVERIFY(!monthButton->isDown());
+    QTest::keyRelease(monthButton, Qt::Key_Space);
+    buttonInterface->actionInterface()->doAction(QAccessibleActionInterface::showMenuAction());
+    QCOMPARE(QThread::currentThread()->loopLevel(), loopLevel);
+    QCOMPARE(QApplication::activePopupWidget(), static_cast<QWidget*>(monthMenu.data()));
+    QTest::keyClick(monthMenu, Qt::Key_Escape);
+    settle();
+    QVERIFY(!monthButton->isDown());
+    QCOMPARE(calendar->monthShown(), 3);
+
+    // The editor of the year: the click on the year shows it, its context menu is the menu of the
+    // spin boxes (Step up / Step down of QAbstractSpinBox) without a nested event loop
+    QToolButton* yearButton = calendar->findChild<QToolButton*>(QStringLiteral("qt_calendar_yearbutton"));
+    QVERIFY(yearButton);
+    QTest::mouseClick(yearButton, Qt::LeftButton);
+    QPointer<QSpinBox> yearEdit = calendar->findChild<QSpinBox*>(QStringLiteral("qt_calendar_yearedit"));
+    QVERIFY(yearEdit);
+    QVERIFY(yearEdit->isVisible());
+    QCOMPARE(yearEdit->value(), 2026);
+    auto openYearMenu = [&yearEdit, loopLevel]() -> QMenu*
+    {
+        const QPoint point(5, yearEdit->height() / 2);
+        QContextMenuEvent event(QContextMenuEvent::Mouse, point, yearEdit->mapToGlobal(point));
+        QApplication::sendEvent(yearEdit.data(), &event);
+        QMenu* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+        return (event.isAccepted() && menu && menu->isVisible() && QThread::currentThread()->loopLevel() == loopLevel) ? menu : nullptr;
+    };
+    auto findAction = [](QMenu* menu, const QString& text) -> QAction*
+    {
+        for (QAction* action : menu->actions())
+        {
+            if (action->text() == text)
+            {
+                return action;
+            }
+        }
+        return nullptr;
+    };
+    QPointer<QMenu> yearMenu = openYearMenu();
+    QVERIFY(yearMenu);
+    QVERIFY(findAction(yearMenu, QStringLiteral("&Select All")));
+    QAction* stepUp = findAction(yearMenu, QStringLiteral("&Step up"));
+    QVERIFY(stepUp);
+    QVERIFY(stepUp->isEnabled());
+    QVERIFY(findAction(yearMenu, QStringLiteral("Step &down"))->isEnabled());
+    yearMenu->setActiveAction(stepUp);
+    QTest::keyClick(yearMenu, Qt::Key_Return);
+    QCOMPARE(yearEdit->value(), 2026);
+    settle();
+    QCOMPARE(yearEdit->value(), 2027);
+    QVERIFY(!yearMenu);
+    QCOMPARE(QApplication::activePopupWidget(), nullptr);
+
+    // The calendar takes the year, when the editing of the year finishes (QCalendarWidget, Enter)
+    QCOMPARE(calendar->yearShown(), 2026);
+    QTest::keyClick(yearEdit, Qt::Key_Return);
+    settle();
+    QCOMPARE(calendar->yearShown(), 2027);
+    QCOMPARE(calendar->monthShown(), 3);
+
+    // At the maximum year Step up is disabled (QAbstractSpinBox::stepEnabled)
+    yearEdit->setValue(2030);
+    yearMenu = openYearMenu();
+    QVERIFY(yearMenu);
+    QVERIFY(!findAction(yearMenu, QStringLiteral("&Step up"))->isEnabled());
+    QVERIFY(findAction(yearMenu, QStringLiteral("Step &down"))->isEnabled());
+
+    // The calendar deleted with the menu of the year open: the menu is deleted with it
+    delete calendar.data();
+    QVERIFY(!yearMenu);
+    QVERIFY(!monthMenu);
+    settle();
+    QCOMPARE(QApplication::activePopupWidget(), nullptr);
+
+    // A new calendar deleted with the menu of the months open
+    calendar = new pdf::PDFCalendarWidget(&window);
+    layout->addWidget(calendar);
+    calendar->show();
+    settle();
+    monthMenu = calendar->getMonthMenu();
+    QVERIFY(calendar->showMonthMenu());
+    QCOMPARE(QApplication::activePopupWidget(), static_cast<QWidget*>(monthMenu.data()));
+    delete calendar.data();
+    QVERIFY(!monthMenu);
+    settle();
+    QCOMPARE(QApplication::activePopupWidget(), nullptr);
+}
+
 void FluentComponentsTest::keyValueListRowGap()
 {
     // Owner 2026-11-08: the cards of Merge 378:1630 / 378:1643 draw the rows of 28 with a pitch
@@ -17400,30 +17835,34 @@ void FluentComponentsTest::messageBoxTextLines()
     QCOMPARE(QGuiApplication::clipboard()->text(), QStringLiteral("<b>Report</b> & \"data\""));
 
     // The context menu of the selectable text (as the menu of QLabel): Copy of the
-    // selection, Select All
+    // selection, Select All. A popup (A0): the event returns with the menu open in
+    // the event loop level of the test, the chosen action works from the event loop.
     auto chooseFromMenu = [&label](int actionIndex)
     {
-        QTimer::singleShot(0, &label, [actionIndex]()
-        {
-            QMenu* popup = qobject_cast<QMenu*>(QApplication::activePopupWidget());
-            if (!popup)
-            {
-                return;
-            }
-            const QList<QAction*> actions = popup->actions();
-            if (actionIndex >= 0 && actionIndex < actions.size() && actions[actionIndex]->isEnabled())
-            {
-                popup->setActiveAction(actions[actionIndex]);
-                QTest::keyClick(popup, Qt::Key_Return);
-            }
-            else
-            {
-                popup->close();
-            }
-        });
+        const int loopLevel = QThread::currentThread()->loopLevel();
         QContextMenuEvent menuEvent(QContextMenuEvent::Mouse, QPoint(2, 2), label.mapToGlobal(QPoint(2, 2)));
         QApplication::sendEvent(&label, &menuEvent);
-        return menuEvent.isAccepted();
+        QPointer<QMenu> popup = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+        if (!popup || !popup->isVisible() || QThread::currentThread()->loopLevel() != loopLevel)
+        {
+            return false;
+        }
+        const QList<QAction*> actions = popup->actions();
+        if (actionIndex >= 0 && actionIndex < actions.size() && actions[actionIndex]->isEnabled())
+        {
+            popup->setActiveAction(actions[actionIndex]);
+            QTest::keyClick(popup, Qt::Key_Return);
+        }
+        else
+        {
+            popup->close();
+        }
+        for (int i = 0; i < 3; ++i)
+        {
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+            QCoreApplication::processEvents();
+        }
+        return menuEvent.isAccepted() && !popup;
     };
     QGuiApplication::clipboard()->setText(QStringLiteral("other"));
     QVERIFY(chooseFromMenu(0));

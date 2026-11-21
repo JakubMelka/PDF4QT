@@ -26,12 +26,15 @@
 #include "pdfappglobal.h"
 #include "pdfworkspacerepository.h"
 
+#include <QObject>
+#include <QPointer>
 #include <QString>
 #include <QStringList>
 
 #include <functional>
 #include <vector>
 
+class QFileDialog;
 class QMimeData;
 class QWidget;
 
@@ -114,59 +117,250 @@ public:
     static QString getRefusalText(Refusal refusal);
 };
 
+/// A file dialog of the system shown without an event loop of its own (A0, QR3.7, newapp_robustness.md 15.3): the
+/// asynchronous variants of PDFAppFileDialogs and PDFAppPanelFileDialogs create it. The dialog is a QFileDialog
+/// (the native dialog of the system: on Windows it runs in the thread QWindowsDialogThread of Qt, the event loop of
+/// the application goes on) with the settings of today's static functions of QFileDialog (the folder of the proposed
+/// file shown and its name selected, the filter, the mode, only local files), shown modal as their exec() shows it
+/// (application modal), never by exec and never by QFileDialog::open(receiver, member).
+///
+/// Ownership (QR3.7, RR3-M2): the dialog is a child of the window of the parent widget and deletes itself when it is
+/// closed (WA_DeleteOnClose); the request is a child of the requester (the receiver of its signal) and owns nothing
+/// but its answer. A requester deleted while the dialog is open gets nothing: the request goes with it, the dialog
+/// stays until the user closes it (its answer is dropped) - a native dialog is never closed from the program.
+///
+/// Delivery: exactly once, never inside the call, which has created the request (the caller may connect after it):
+/// fileChosen (OpenFile, SaveFile, Directory: the file or the folder, empty = canceled) or filesChosen (OpenFiles:
+/// the files, empty = canceled), the last call of the request (the slot may delete anything). The dialog deleted
+/// without an answer (with its window) is canceled, from the event loop. A test handler of the helpers (set*Handler)
+/// answers like the user of a real dialog, later: the call only remembers it, a queued member slot of the request calls
+/// it from the event loop and delivers its answer right after it. The call runs no foreign code, so the requester may
+/// keep the returned request; a requester deleted before (also by the handler itself) gets nothing.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppFileDialogRequest : public QObject
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QObject;
+
+public:
+    /// What the dialog chooses
+    enum class Mode
+    {
+        OpenFiles,  ///< Existing files (QFileDialog::getOpenFileNames)
+        OpenFile,   ///< One existing file (getOpenFileName)
+        SaveFile,   ///< A file to write (getSaveFileName: the dialog asks before an existing file is replaced)
+        Directory   ///< An existing folder (getExistingDirectory with ShowDirsOnly)
+    };
+
+    /// The dialog (the arguments of the static functions of QFileDialog)
+    class Settings
+    {
+    public:
+        Mode mode = Mode::OpenFile;
+        QString title;          ///< Title of the dialog
+        QString path;           ///< The folder shown, or the proposed file (its folder is shown, its name selected)
+        QString filter;         ///< Name filters separated by ";;" (empty = all files)
+        QString defaultSuffix;  ///< Suffix added to a name typed without one (empty = none)
+    };
+
+    /// Test handlers, which replace the dialog: (the widget of the request, the path of the settings) -> the files /
+    /// the file (empty = canceled); the handler of a panel gets (widget, title, path, filter)
+    using FilesHandler = std::function<QStringList(QWidget*, const QString&)>;
+    using FileHandler = std::function<QString(QWidget*, const QString&)>;
+    using PanelFileHandler = std::function<QString(QWidget*, const QString&, const QString&, const QString&)>;
+
+    virtual ~PDFAppFileDialogRequest() override;
+
+    /// Creates the request of \p requester (its parent and the receiver of its signal). \p parent is the widget of
+    /// the request: the dialog belongs to its window. Nothing is shown yet (show, answerByHandler). \returns nullptr
+    /// without a requester.
+    static PDFAppFileDialogRequest* create(QObject* requester, QWidget* parent, const Settings& settings);
+
+    /// Shows the dialog (once) and returns at once
+    void show();
+
+    /// A test handler answers instead of the dialog (once): it is only remembered here; it is called from the event
+    /// loop (a queued member slot: the widget of the request, nullptr when gone, and the arguments of the settings)
+    /// and its answer is delivered right after it. A request deleted before (with its requester) calls nothing.
+    void answerByHandler(FilesHandler handler);
+    void answerByHandler(FileHandler handler);
+    void answerByHandler(PanelFileHandler handler);
+
+    /// Connects the signal of the mode to the member slot of the receiver (the requester)
+    template<typename Receiver>
+    void connectTo(Receiver* receiver, void (Receiver::*slot)(const QStringList&))
+    {
+        QObject::connect(this, &PDFAppFileDialogRequest::filesChosen, receiver, slot);
+    }
+
+    template<typename Receiver>
+    void connectTo(Receiver* receiver, void (Receiver::*slot)(const QString&))
+    {
+        QObject::connect(this, &PDFAppFileDialogRequest::fileChosen, receiver, slot);
+    }
+
+    /// The requests, which wait for their answer, oldest first (tests: AppAsyncDialogs answers them)
+    static std::vector<PDFAppFileDialogRequest*> getPendingRequests();
+
+    const Settings& getSettings() const { return m_settings; }
+
+    /// The widget of the request (nullptr after it has gone)
+    QWidget* getParentWidget() const { return m_parent.data(); }
+
+    /// The open dialog (nullptr: a test handler answers, the dialog has ended or gone)
+    QFileDialog* getDialog() const;
+
+    /// A test handler waits for the event loop to answer the request (it has not been called yet)
+    bool isHandlerWaiting() const { return m_isPending && isHandlerSet(); }
+
+    /// The answer has not been delivered yet
+    bool isPending() const { return m_isPending; }
+
+    /// Answers the request as the user would (tests): the dialog closes without its own answer and \p files are
+    /// delivered now (empty = canceled; one file for the modes other than OpenFiles). Nothing after the answer.
+    void answer(const QStringList& files);
+
+    /// The chosen files of the dialog in the form of the static functions of QFileDialog: local paths (OpenFiles:
+    /// QUrl::PreferLocalFile of every URL; the other modes: the first URL)
+    static QStringList getSelectedFiles(const QFileDialog* dialog, Mode mode);
+
+    /// The name of the file selected in the dialog for \p path (QFileDialogArgs: the name of a path, which is no
+    /// existing folder; empty otherwise)
+    static QString getInitialSelection(const QString& path);
+
+Q_SIGNALS:
+    /// The answer of OpenFiles (empty = canceled)
+    void filesChosen(const QStringList& files);
+
+    /// The answer of OpenFile, SaveFile, Directory (empty = canceled)
+    void fileChosen(const QString& file);
+
+private:
+    explicit PDFAppFileDialogRequest(QObject* requester, QWidget* parent, const Settings& settings);
+
+    void deliver(const QStringList& files);
+    void onDialogAnswered(int code);
+    void onHandlerAnswer();
+
+    bool isHandlerSet() const { return m_filesHandler || m_fileHandler || m_panelFileHandler; }
+    bool canAnswerByHandler() const { return m_isPending && !m_dialog && !m_dialogAnswer && !isHandlerSet(); }
+    void queueHandlerAnswer();
+
+    static std::vector<PDFAppFileDialogRequest*>& getRegistry();
+    void unregister();
+
+    QPointer<QWidget> m_parent;
+    Settings m_settings;
+    QPointer<QFileDialog> m_dialog;
+    QPointer<QObject> m_dialogAnswer;
+    FilesHandler m_filesHandler;
+    FileHandler m_fileHandler;
+    PanelFileHandler m_panelFileHandler;
+    bool m_isPending = true;
+};
+
 /// Native dialogs of the system for files and folders (newapplication.md 3: the
 /// non-native dialogs of Qt draw from the palette). Tests replace them by handlers.
+///
+/// A0 (no nested event loop): the request* functions show the dialogs without an event loop of their own
+/// (PDFAppFileDialogRequest). They return at once; the answer comes to the member slot of the receiver (the requester,
+/// which owns the request), never inside the call. A test handler is never called inside the call either: it answers
+/// from the event loop as the user of the dialog would (a test settles before it checks the answer).
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppFileDialogs
 {
 public:
     PDFAppFileDialogs() = delete;
 
-    using OpenFilesHandler = std::function<QStringList(QWidget*, const QString&)>;
-    using FolderHandler = std::function<QString(QWidget*, const QString&)>;
-    using SaveFileHandler = std::function<QString(QWidget*, const QString&)>;
+    using OpenFilesHandler = PDFAppFileDialogRequest::FilesHandler;
+    using FolderHandler = PDFAppFileDialogRequest::FileHandler;
+    using SaveFileHandler = PDFAppFileDialogRequest::FileHandler;
 
-    /// Browse files… of the start page of a tool: PDF files of the folder (multi-select); an
-    /// empty list = canceled
-    static QStringList getOpenFileNames(QWidget* parent, const QString& folder);
+    /// Browse files… of the start page of a tool: PDF files of the folder (multi-select; the files to the slot,
+    /// empty = canceled)
+    template<typename Receiver>
+    static PDFAppFileDialogRequest* requestOpenFileNames(QWidget* parent, const QString& folder, Receiver* receiver, void (Receiver::*slot)(const QStringList&))
+    {
+        return connectRequest(begin(receiver, parent, getOpenFileNamesSettings(folder), Handler::OpenFiles), receiver, slot);
+    }
 
-    /// Open… of the window (Ctrl+O, Browse files… of Home and Open): PDF files and the assembly
-    /// files of Manage Pages (getOpenDocumentFilter, multi-select); the handler of
-    /// getOpenFileNames replaces it in the tests; an empty list = canceled
-    static QStringList getOpenDocumentFileNames(QWidget* parent, const QString& folder);
+    /// Open… of the window (Ctrl+O, Browse files… of Home and Open): PDF files and the assembly files of Manage Pages
+    /// (getOpenDocumentFilter, multi-select); the handler of the open files answers it in the tests
+    template<typename Receiver>
+    static PDFAppFileDialogRequest* requestOpenDocumentFileNames(QWidget* parent, const QString& folder, Receiver* receiver, void (Receiver::*slot)(const QStringList&))
+    {
+        return connectRequest(begin(receiver, parent, getOpenDocumentFileNamesSettings(folder), Handler::OpenFiles), receiver, slot);
+    }
 
-    /// The filter of getOpenDocumentFileNames: PDF files and assemblies together first, then each
+    /// Add Files… of a tool with more inputs (Merge): PDF files and images (multi-select); the handler of the open
+    /// files answers it in the tests
+    template<typename Receiver>
+    static PDFAppFileDialogRequest* requestOpenInputFileNames(QWidget* parent, const QString& folder, Receiver* receiver, void (Receiver::*slot)(const QStringList&))
+    {
+        return connectRequest(begin(receiver, parent, getOpenInputFileNamesSettings(folder), Handler::OpenFiles), receiver, slot);
+    }
+
+    /// Add… of Pinned Locations: a folder (the folder to the slot, empty = canceled)
+    template<typename Receiver>
+    static PDFAppFileDialogRequest* requestExistingDirectory(QWidget* parent, const QString& folder, Receiver* receiver, void (Receiver::*slot)(const QString&))
+    {
+        return connectRequest(begin(receiver, parent, getExistingDirectorySettings(folder, QString()), Handler::Folder), receiver, slot);
+    }
+
+    /// A folder chosen by the dialog of the title \p title (Browse… of a folder of Settings)
+    template<typename Receiver>
+    static PDFAppFileDialogRequest* requestExistingDirectory(QWidget* parent, const QString& folder, const QString& title, Receiver* receiver, void (Receiver::*slot)(const QString&))
+    {
+        return connectRequest(begin(receiver, parent, getExistingDirectorySettings(folder, title), Handler::Folder), receiver, slot);
+    }
+
+    /// Save as… of a document: a PDF file, \p filePath is the proposed file (folder and name); the file to the slot,
+    /// empty = canceled
+    template<typename Receiver>
+    static PDFAppFileDialogRequest* requestSaveFileName(QWidget* parent, const QString& filePath, Receiver* receiver, void (Receiver::*slot)(const QString&))
+    {
+        return connectRequest(begin(receiver, parent, getSaveFileNameSettings(filePath), Handler::SaveFile), receiver, slot);
+    }
+
+    /// Export settings… of Settings › Storage: a backup file, \p filePath is the proposed file; the dialog adds the
+    /// suffix of a backup
+    template<typename Receiver>
+    static PDFAppFileDialogRequest* requestSaveBackupFileName(QWidget* parent, const QString& filePath, Receiver* receiver, void (Receiver::*slot)(const QString&))
+    {
+        return connectRequest(begin(receiver, parent, getSaveBackupFileNameSettings(filePath), Handler::SaveBackup), receiver, slot);
+    }
+
+    /// Import settings… of Settings › Storage: a backup file of the folder
+    template<typename Receiver>
+    static PDFAppFileDialogRequest* requestOpenBackupFileName(QWidget* parent, const QString& folder, Receiver* receiver, void (Receiver::*slot)(const QString&))
+    {
+        return connectRequest(begin(receiver, parent, getOpenBackupFileNameSettings(folder), Handler::OpenBackup), receiver, slot);
+    }
+
+    /// The file of a print to a printer, whose port asks for a file (Print to File, Microsoft Print to PDF):
+    /// \p filePath is the proposed file, \p suffix the suffix of the file of the driver
+    template<typename Receiver>
+    static PDFAppFileDialogRequest* requestPrintFileName(QWidget* parent, const QString& filePath, const QString& suffix, Receiver* receiver, void (Receiver::*slot)(const QString&))
+    {
+        return connectRequest(begin(receiver, parent, getPrintFileNameSettings(filePath, suffix), Handler::PrintFile), receiver, slot);
+    }
+
+    /// The dialogs of the request* functions
+    static PDFAppFileDialogRequest::Settings getOpenFileNamesSettings(const QString& folder);
+    static PDFAppFileDialogRequest::Settings getOpenDocumentFileNamesSettings(const QString& folder);
+    static PDFAppFileDialogRequest::Settings getOpenInputFileNamesSettings(const QString& folder);
+    static PDFAppFileDialogRequest::Settings getExistingDirectorySettings(const QString& folder, const QString& title);
+    static PDFAppFileDialogRequest::Settings getSaveFileNameSettings(const QString& filePath);
+    static PDFAppFileDialogRequest::Settings getSaveBackupFileNameSettings(const QString& filePath);
+    static PDFAppFileDialogRequest::Settings getOpenBackupFileNameSettings(const QString& folder);
+    static PDFAppFileDialogRequest::Settings getPrintFileNameSettings(const QString& filePath, const QString& suffix);
+
+    /// The filter of requestOpenDocumentFileNames: PDF files and assemblies together first, then each
     /// of them alone, then all files
     static QString getOpenDocumentFilter();
 
-    /// Add Files… of a tool with more inputs (Merge): PDF files and images (multi-select);
-    /// the handler of getOpenFileNames replaces it in the tests; an empty list = canceled
-    static QStringList getOpenInputFileNames(QWidget* parent, const QString& folder);
-
-    /// Add… of Pinned Locations: a folder; an empty text = canceled
-    static QString getExistingDirectory(QWidget* parent, const QString& folder);
-
-    /// A folder chosen by the dialog of the title \p title (Browse… of a folder
-    /// of Settings); an empty text = canceled
-    static QString getExistingDirectory(QWidget* parent, const QString& folder, const QString& title);
-
-    /// Save as… of a document (step 3): a PDF file, \p filePath is the proposed
-    /// file (folder and name); an empty text = canceled
-    static QString getSaveFileName(QWidget* parent, const QString& filePath);
-
-    /// Export settings… of Settings › Storage (step 5): a backup file, \p filePath is
-    /// the proposed file; an empty text = canceled
-    static QString getSaveBackupFileName(QWidget* parent, const QString& filePath);
-
-    /// Import settings… of Settings › Storage (step 5): a backup file of the folder;
-    /// an empty text = canceled
-    static QString getOpenBackupFileName(QWidget* parent, const QString& folder);
-
-    /// The file of a print to a printer, whose port asks for a file (Microsoft Print
-    /// to PDF; step 9, N5): \p filePath is the proposed file, \p suffix the suffix of
-    /// the file of the driver; an empty text = canceled
-    static QString getPrintFileName(QWidget* parent, const QString& filePath, const QString& suffix);
-
-    /// Handlers replacing the dialogs (tests); an empty handler restores the dialog
+    /// Handlers replacing the dialogs (tests); an empty handler restores the dialog. The handler set at the request
+    /// answers it, from the event loop (never inside the request call).
     static void setOpenFilesHandler(OpenFilesHandler handler);
     static void setFolderHandler(FolderHandler handler);
     static void setSaveFileHandler(SaveFileHandler handler);
@@ -175,6 +369,30 @@ public:
     static void setPrintFileHandler(SaveFileHandler handler);
 
 private:
+    /// The handler of the tests, which replaces a dialog
+    enum class Handler
+    {
+        OpenFiles,
+        Folder,
+        SaveFile,
+        SaveBackup,
+        OpenBackup,
+        PrintFile
+    };
+
+    /// Creates the request: the handler of the tests (called from the event loop), or the dialog
+    static PDFAppFileDialogRequest* begin(QObject* requester, QWidget* parent, const PDFAppFileDialogRequest::Settings& settings, Handler handler);
+
+    template<typename Receiver, typename Slot>
+    static PDFAppFileDialogRequest* connectRequest(PDFAppFileDialogRequest* request, Receiver* receiver, Slot slot)
+    {
+        if (request)
+        {
+            request->connectTo(receiver, slot);
+        }
+        return request;
+    }
+
     static OpenFilesHandler& getOpenFilesHandler();
     static FolderHandler& getFolderHandler();
     static SaveFileHandler& getSaveFileHandler();

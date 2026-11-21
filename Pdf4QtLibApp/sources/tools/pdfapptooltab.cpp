@@ -130,33 +130,90 @@ QString PDFAppToolTab::getTabIconName() const
     return tool ? tool->getIconName() : QStringLiteral("tools");
 }
 
-bool PDFAppToolTab::confirmClose()
+PDFAppLeaveResult PDFAppToolTab::requestTabClose()
 {
     if (m_isCloseConfirmed)
     {
-        return true;
+        return PDFAppLeaveResult::Done;
     }
 
-    PDFAppToolTabPage* page = getToolPage();
+    QPointer<PDFAppToolTabPage> page = getToolPage();
     if (!page)
     {
-        return true;
-    }
-    if (m_isAskingClose)
-    {
-        return false;
+        return PDFAppLeaveResult::Done;
     }
 
-    // The page asks (a dialog with its own event loop): the tab may be deleted meanwhile
-    QPointer<PDFAppToolTab> guard(this);
-    m_isAskingClose = true;
-    const bool isConfirmed = page->confirmClose();
-    if (!guard)
+    // One flow of the tab (A0): a second request while a question is open is refused, the question comes forward
+    PDFAppLeaveFlow* flow = getLeaveFlow();
+    if (!flow->start(PDFAppLeaveFlow::Goal::CloseTab))
     {
-        return false;
+        flow->raiseQuestion();
+        return PDFAppLeaveResult::Refused;
     }
-    m_isAskingClose = false;
-    return isConfirmed;
+
+    // The page asks (a run, the own question of the tool, K16; shown, never exec): it may run code of the
+    // application, the tab may be deleted meanwhile
+    QPointer<PDFAppToolTab> guard(this);
+    QPointer<PDFAppLeaveFlow> flowGuard(flow);
+    const PDFAppLeaveResult result = page->requestClose(flow);
+    if (!guard || !flowGuard)
+    {
+        return PDFAppLeaveResult::Refused;
+    }
+
+    switch (result)
+    {
+        case PDFAppLeaveResult::Pending:
+            if (page && flow->waitForStep(page.data(), this, &PDFAppToolTab::onPageCloseStepFinished))
+            {
+                return PDFAppLeaveResult::Pending;
+            }
+            flow->finish(false);
+            return PDFAppLeaveResult::Refused;
+
+        case PDFAppLeaveResult::Done:
+            flow->finish(true);
+            return guard ? PDFAppLeaveResult::Done : PDFAppLeaveResult::Refused;
+
+        case PDFAppLeaveResult::Refused:
+            break;
+    }
+
+    flow->finish(false);
+    return PDFAppLeaveResult::Refused;
+}
+
+void PDFAppToolTab::onPageCloseStepFinished(PDFAppLeaveResult result)
+{
+    PDFAppLeaveFlow* flow = getLeaveFlow();
+    if (!flow->isRunning())
+    {
+        return;
+    }
+    if (result != PDFAppLeaveResult::Done)
+    {
+        flow->finish(false);
+        return;
+    }
+
+    // Every question has been answered: the tab closes by its window now (the last call)
+    QPointer<PDFAppToolTab> guard(this);
+    flow->finish(true);
+    PDFAppMainWindow* mainWindow = guard ? qobject_cast<PDFAppMainWindow*>(window()) : nullptr;
+    if (!mainWindow)
+    {
+        return;
+    }
+    m_isCloseConfirmed = true;
+    if (!mainWindow->closeTab(this) && guard)
+    {
+        m_isCloseConfirmed = false;
+    }
+}
+
+bool PDFAppToolTab::isAskingClose() const
+{
+    return isLeaving();
 }
 
 bool PDFAppToolTab::executeCommand(const QString& commandId)
@@ -361,11 +418,11 @@ void PDFAppToolTabPage::deleteShell()
     }
 }
 
-bool PDFAppToolTabPage::prepareLeave(const PDFAppRoute& target)
+PDFAppLeaveResult PDFAppToolTabPage::requestLeave(const PDFAppRoute& target, PDFAppLeaveFlow* flow)
 {
     if (!m_shell)
     {
-        return true;
+        return PDFAppLeaveResult::Done;
     }
 
     // The tool, which is open already, stays as it is and its tab comes to the front
@@ -375,7 +432,12 @@ bool PDFAppToolTabPage::prepareLeave(const PDFAppRoute& target)
         {
             m_host->activate();
         }
-        return false;
+        return PDFAppLeaveResult::Refused;
+    }
+    if (checkLeaveWait())
+    {
+        // A question of this page is open already: the first leave decides
+        return PDFAppLeaveResult::Refused;
     }
 
     // The page asks as at the close of its tab (a run as close-running, the inputs by K16 - owner
@@ -383,21 +445,46 @@ bool PDFAppToolTabPage::prepareLeave(const PDFAppRoute& target)
     // (only the tool closes, the tab stays: the question names the tool, not the tab)
     QPointer<PDFAppToolTabPage> guard(this);
     m_isLeavingTool = true;
-    const bool isConfirmed = confirmClose();
+    const PDFAppLeaveResult result = requestClose(flow);
     if (!guard)
     {
-        return false;
+        return PDFAppLeaveResult::Refused;
+    }
+    if (result == PDFAppLeaveResult::Pending)
+    {
+        // The tool closes after the answer (finishCloseStep)
+        return result;
     }
     m_isLeavingTool = false;
-    if (!isConfirmed)
+    if (result != PDFAppLeaveResult::Done)
     {
-        return false;
+        return PDFAppLeaveResult::Refused;
     }
     if (m_shell)
     {
         m_shell->close();
     }
-    return guard != nullptr;
+    return guard ? PDFAppLeaveResult::Done : PDFAppLeaveResult::Refused;
+}
+
+bool PDFAppToolTabPage::isQuestionOpen() const
+{
+    return (m_leaveFlow && m_leaveFlow->isWaitingFor(this)) || (m_shell && m_shell->isQuestionOpen());
+}
+
+bool PDFAppToolTabPage::checkLeaveWait()
+{
+    if (m_leaveFlow && m_leaveFlow->isWaitingFor(this))
+    {
+        return true;
+    }
+
+    // The flow has ended without the step of this page (canceled from outside, L1 of the review of A0): the wait is
+    // forgotten, the next leave asks anew (a late answer of its question finds no stage)
+    m_leaveFlow = nullptr;
+    m_leaveStage = LeaveStage::None;
+    m_isLeavingTool = false;
+    return false;
 }
 
 bool PDFAppToolTabPage::hasUnsavedWork() const
@@ -444,11 +531,16 @@ PDFAppToolCloseQuestion PDFAppToolTabPage::createChoiceCloseQuestion(const QStri
     return question;
 }
 
-bool PDFAppToolTabPage::confirmClose()
+PDFAppLeaveResult PDFAppToolTabPage::requestClose(PDFAppLeaveFlow* flow)
 {
     if (!m_shell)
     {
-        return true;
+        return PDFAppLeaveResult::Done;
+    }
+    if (m_leaveStage != LeaveStage::None && checkLeaveWait())
+    {
+        // A question of this page is open already: the first leave decides
+        return PDFAppLeaveResult::Refused;
     }
 
     QPointer<PDFAppToolTabPage> guard(this);
@@ -456,25 +548,36 @@ bool PDFAppToolTabPage::confirmClose()
     {
         case PDFDocumentToolShell::State::Created:
         case PDFDocumentToolShell::State::Closed:
-            return true;
+            return PDFAppLeaveResult::Done;
 
         case PDFDocumentToolShell::State::Deciding:
             // The modal result dialog decides first (F2)
-            return false;
+            return PDFAppLeaveResult::Refused;
 
         case PDFDocumentToolShell::State::Running:
         {
             // Stop and Leave / Keep Running (F14, close-running 955:145813): Stop stops the run
             // now, the tool ends with the tab (a quit canceled later keeps the tool editing)
-            if (!m_shell->confirmLeave() || !guard)
+            QPointer<PDFDocumentToolShell> shell = m_shell;
+            const PDFAppLeaveResult result = m_shell->requestLeave(flow);
+            if (!guard)
             {
-                return false;
+                return PDFAppLeaveResult::Refused;
             }
-            if (m_shell)
+            switch (result)
             {
-                m_shell->stop();
+                case PDFAppLeaveResult::Pending:
+                    return waitForStep(flow, shell.data(), LeaveStage::Run);
+                case PDFAppLeaveResult::Done:
+                    if (m_shell)
+                    {
+                        m_shell->stop();
+                    }
+                    return guard ? PDFAppLeaveResult::Done : PDFAppLeaveResult::Refused;
+                case PDFAppLeaveResult::Refused:
+                    break;
             }
-            return guard != nullptr;
+            return PDFAppLeaveResult::Refused;
         }
 
         case PDFDocumentToolShell::State::Editing:
@@ -482,39 +585,102 @@ bool PDFAppToolTabPage::confirmClose()
     }
 
     // RB3 c of step 3b: the tool asks its own question first (Manage Pages 405:30894 "Save the
-    // assembly …?"); its dialog runs foreign code - the page, the shell and the GUI may be gone
-    if (PDFDocumentToolGUI* gui = m_shell->getGUI())
+    // assembly …?"; shown, never exec); its call runs foreign code - the page, the shell and the GUI may be gone.
+    // Done = Close (nothing to lose, Don't Save, a saved assembly); Refused = Cancel, or Saving (the tool closes
+    // the tab after its save, PDFDocumentToolGUI::closeOwnTab).
+    if (PDFDocumentToolGUI* gui = m_shell->getGUI(); gui && gui->hasOwnTabCloseQuestion())
     {
-        const PDFAppToolCloseAnswer answer = gui->askOwnTabClose();
+        QPointer<PDFDocumentToolGUI> guiGuard(gui);
+        const PDFAppLeaveResult result = gui->requestOwnTabClose(flow);
         if (!guard || !m_shell)
         {
-            return false;
+            return PDFAppLeaveResult::Refused;
         }
-
-        switch (answer)
-        {
-            case PDFAppToolCloseAnswer::Generic:
-                break;
-            case PDFAppToolCloseAnswer::Close:
-                return true;
-            case PDFAppToolCloseAnswer::Cancel:
-            case PDFAppToolCloseAnswer::Saving:
-                // Saving: the tool closes the tab after its save (PDFDocumentToolGUI::closeOwnTab)
-                return false;
-        }
+        return result == PDFAppLeaveResult::Pending ? waitForStep(flow, guiGuard.data(), LeaveStage::OwnQuestion) : result;
     }
+
+    return askLossQuestion(flow);
+}
+
+PDFAppLeaveResult PDFAppToolTabPage::waitForStep(PDFAppLeaveFlow* flow, QObject* reporter, LeaveStage stage)
+{
+    if (!flow || !reporter || !flow->waitForStep(reporter, this, &PDFAppToolTabPage::onCloseStepFinished))
+    {
+        return PDFAppLeaveResult::Refused;
+    }
+    m_leaveFlow = flow;
+    m_leaveStage = stage;
+    return PDFAppLeaveResult::Pending;
+}
+
+void PDFAppToolTabPage::onCloseStepFinished(PDFAppLeaveResult result)
+{
+    finishCloseStep(result == PDFAppLeaveResult::Done);
+}
+
+void PDFAppToolTabPage::onLossQuestionChosen(PDFAppDocumentChoice choice)
+{
+    if (m_leaveStage != LeaveStage::LossQuestion)
+    {
+        return;
+    }
+    finishCloseStep(choice == PDFAppDocumentChoice::Discard);
+}
+
+void PDFAppToolTabPage::finishCloseStep(bool isAccepted)
+{
+    // The wait ends first; the tool, the tab and the flow may have changed meanwhile (read again)
+    QPointer<PDFAppLeaveFlow> flow = m_leaveFlow;
+    const LeaveStage stage = m_leaveStage;
+    const bool isLeavingTool = m_isLeavingTool;
+    m_leaveFlow = nullptr;
+    m_leaveStage = LeaveStage::None;
+    m_isLeavingTool = false;
+    if (!flow || !flow->isWaitingFor(this))
+    {
+        // Nobody waits any more (the flow has ended meanwhile): the answer changes nothing
+        return;
+    }
+
+    QPointer<PDFAppToolTabPage> guard(this);
+    if (isAccepted && stage == LeaveStage::Run && m_shell)
+    {
+        // Stop and Leave: the run stops now (the tool ends with the tab)
+        m_shell->stop();
+    }
+    if (guard && isAccepted && isLeavingTool && m_shell)
+    {
+        // A navigation leaves only the tool: it closes, the tab stays
+        m_shell->close();
+    }
+
+    // The waiter of the flow is the last call
+    if (guard && flow)
+    {
+        flow->finishStep(this, isAccepted ? PDFAppLeaveResult::Done : PDFAppLeaveResult::Refused);
+    }
+}
+
+PDFAppLeaveResult PDFAppToolTabPage::askLossQuestion(PDFAppLeaveFlow* flow)
+{
+    QPointer<PDFAppToolTabPage> guard(this);
 
     // K16: the inputs are lost by the close (no frame: a deviation named in the report)
     const PDFAppToolTab* tab = getToolTab();
     const QString lossText = tab ? tab->getLossText() : QString();
     if (!lossText.isEmpty())
     {
+        if (!flow || !flow->isRunning())
+        {
+            // Nobody could take the answer: the work stays
+            return PDFAppLeaveResult::Refused;
+        }
         if (m_host)
         {
             m_host->activate();
             if (!guard)
             {
-                return false;
+                return PDFAppLeaveResult::Refused;
             }
         }
 
@@ -543,16 +709,19 @@ bool PDFAppToolTabPage::confirmClose()
         dialog->addChoice(question.keepText, PDFAppDocumentChoice::Cancel, true, false, QStringLiteral("cancelButton"));
         QPushButton* discardButton = dialog->addChoice(question.discardText, PDFAppDocumentChoice::Discard, false, false, QStringLiteral("closeTabButton"));
         discardButton->setIcon(PDFThemeIcons::getIcon(QStringLiteral("trash")));
-        const PDFAppDocumentChoice choice = PDFAppDocumentChoiceDialog::run(dialog);
-        if (!guard || choice != PDFAppDocumentChoice::Discard)
-        {
-            return false;
-        }
+
+        // A0: shown (exec's modality, no event loop); the answer comes to onLossQuestionChosen (Cancel when the
+        // dialog goes with the page without an answer)
+        m_leaveFlow = flow;
+        m_leaveStage = LeaveStage::LossQuestion;
+        flow->setQuestion(dialog);
+        PDFAppDocumentChoiceDialog::ask(dialog, this, &PDFAppToolTabPage::onLossQuestionChosen);
+        return PDFAppLeaveResult::Pending;
     }
 
     // The tool ends with the tab (its page deletes the shell); nothing is changed here, so a
     // quit of the window canceled by a later question keeps the tool as it is
-    return true;
+    return PDFAppLeaveResult::Done;
 }
 
 void PDFAppToolTabPage::onShellStateChanged()
@@ -594,11 +763,23 @@ void PDFAppToolTabPage::onCloseRequested(const PDFAppToolCloseRequest& request)
         case PDFAppToolCloseRequest::Reason::Canceled:
         {
             // Cancel closes the tab: the window asks, when the inputs are lost (K16). A refused
-            // close keeps the tool, which takes its requests again.
-            const bool isClosed = window->closeTab(tab);
-            if (!isClosed && guard && m_shell)
+            // close keeps the tool, which takes its requests again; a close, whose question is open
+            // (Pending), resumes it when its flow ends without the close (onCanceledCloseFinished).
+            const PDFAppLeaveResult result = window->requestCloseTab(tab);
+            if (!guard || !m_shell)
+            {
+                return;
+            }
+            if (result == PDFAppLeaveResult::Refused)
             {
                 m_shell->resumeEditing();
+            }
+            else if (result == PDFAppLeaveResult::Pending && tab)
+            {
+                if (PDFAppLeaveFlow* flow = tab->findLeaveFlow())
+                {
+                    connect(flow, &PDFAppLeaveFlow::finished, this, &PDFAppToolTabPage::onCanceledCloseFinished, Qt::SingleShotConnection);
+                }
             }
             return;
         }
@@ -709,6 +890,15 @@ void PDFAppToolTabPage::onCloseRequested(const PDFAppToolCloseRequest& request)
     }
     tab->setCloseConfirmed(true);
     window->closeTab(tab);
+}
+
+void PDFAppToolTabPage::onCanceledCloseFinished(bool isDone)
+{
+    // The close of the tab by Cancel of the tool has been refused by its question: the tool takes its requests again
+    if (!isDone && m_shell)
+    {
+        m_shell->resumeEditing();
+    }
 }
 
 bool PDFAppToolTabPage::closeShell()

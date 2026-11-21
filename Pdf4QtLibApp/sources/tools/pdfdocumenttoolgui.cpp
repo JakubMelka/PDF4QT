@@ -24,6 +24,7 @@
 
 #include "pdfappdocument.h"
 #include "pdfappmainwindow.h"
+#include "pdfapppage.h"
 #include "pdfapptooldragsource.h"
 #include "pdfapptoolhost.h"
 #include "pdfapptoolinputlist.h"
@@ -52,7 +53,7 @@ PDFDocumentToolGUI::PDFDocumentToolGUI(QObject* parent) :
 PDFDocumentToolGUI::~PDFDocumentToolGUI()
 {
     // The generic question goes with the tool (its answer would reach nobody); the shell waiting for it
-    // (confirmLeave) learns it by the end of the dialog
+    // (requestLeave) learns it by the end of the dialog
     if (PDFMessageBox* question = m_closeQuestion.data())
     {
         m_closeQuestion = nullptr;
@@ -403,9 +404,15 @@ bool PDFDocumentToolGUI::handlesPermissionRefusal() const
     return false;
 }
 
-PDFAppToolCloseAnswer PDFDocumentToolGUI::askOwnTabClose()
+bool PDFDocumentToolGUI::hasOwnTabCloseQuestion() const
 {
-    return PDFAppToolCloseAnswer::Generic;
+    return false;
+}
+
+PDFAppLeaveResult PDFDocumentToolGUI::requestOwnTabClose(PDFAppLeaveFlow* flow)
+{
+    Q_UNUSED(flow);
+    return PDFAppLeaveResult::Done;
 }
 
 QString PDFDocumentToolGUI::getCancelText() const

@@ -35,6 +35,7 @@
 // open dialog or a pending thumbnail, and hostile rows of the database.
 // PDF4QT_APP_SCREENSHOTS=<folder> writes pictures of the pages.
 
+#include "appasyncdialogs.h"
 #include "applocaleguard.h"
 #include "pdfappcommandline.h"
 #include "pdfappcontext.h"
@@ -90,6 +91,7 @@
 #include <QDir>
 #include <QDropEvent>
 #include <QFile>
+#include <QFileDialog>
 #include <QMenu>
 #include <QMimeData>
 #include <QPainter>
@@ -605,6 +607,7 @@ private slots:
     void clearHistoryDialog();
     void restoreAndOpenWorkspace();
     void addPinnedLocation();
+    void addPinnedLocationWithoutNestedLoop();
     void browseFiles();
     void dropFiles();
     void dropFilesRefused();
@@ -2226,7 +2229,9 @@ void AppHomeTest::menuActions()
     QStringList browsed;
     pdf::PDFAppFileDialogs::setOpenFilesHandler([&](QWidget*, const QString& path) { browsed << path; return QStringList(); });
     QVERIFY(page()->performAction(item(pdf::PDFAppHomeItemKind::Folder, folder), pdf::PDFAppHomeAction::BrowseHere));
+    pdftest::AppAsyncDialogs::settle();    // A0: the answer of the handler comes from the event loop
     QVERIFY(page()->performAction(item(pdf::PDFAppHomeItemKind::Folder, folder), pdf::PDFAppHomeAction::Open));
+    pdftest::AppAsyncDialogs::settle();
     QCOMPARE(browsed, QStringList({ folder, folder }));
     QVERIFY(page()->performAction(item(pdf::PDFAppHomeItemKind::Folder, folder), pdf::PDFAppHomeAction::RemoveFromList));
     fixture.waitIdle();
@@ -2239,6 +2244,7 @@ void AppHomeTest::menuActions()
 
     // Locations: Browse files here…, Rename…, Remove from Pinned Locations
     QVERIFY(page()->performAction(item(pdf::PDFAppHomeItemKind::Location, sample.workProjects, sample.locationId), pdf::PDFAppHomeAction::BrowseHere));
+    pdftest::AppAsyncDialogs::settle();    // A0: the handler answers from the event loop
     QCOMPARE(browsed.last(), sample.workProjects);
     QVERIFY(page()->performAction(item(pdf::PDFAppHomeItemKind::Location, sample.workProjects, sample.locationId), pdf::PDFAppHomeAction::Rename));
     QVERIFY(qobject_cast<pdf::PDFAppRenameLocationDialog*>(page()->getDialog()));
@@ -2745,8 +2751,9 @@ void AppHomeTest::addPinnedLocation()
     HomeSample sample = HomeTestHelper::fill(fixture);
     fixture.navigate(QStringLiteral("/open"));
     pdf::PDFAppOpenPage* page = fixture.page<pdf::PDFAppOpenPage>();
+    pdftest::NestedEventLoopGuard loopGuard;
 
-    // Add… is the folder dialog of the system (a handler in the test)
+    // Add… is the folder dialog of the system (a handler in the test; A0: its answer comes from the event loop)
     const QString folder = QDir(fixture.directory.path()).filePath(QStringLiteral("Shared"));
     QVERIFY(QDir().mkpath(folder));
     QString askedFolder = QStringLiteral("not asked");
@@ -2774,7 +2781,90 @@ void AppHomeTest::addPinnedLocation()
     // Canceled dialog
     pdf::PDFAppFileDialogs::setFolderHandler([](QWidget*, const QString&) { return QString(); });
     current->addPinnedLocation();
+    HomeFixture::settle();
     QCOMPARE(fixture.recent().getPinnedLocations().size(), size_t(2));
+    QVERIFY(!current->getErrorBox());
+    Q_UNUSED(sample);
+}
+
+void AppHomeTest::addPinnedLocationWithoutNestedLoop()
+{
+    // A0 (no nested event loop): Add… of Pinned Locations shows the folder dialog of the system modal over the window
+    // (the modality of exec) and returns at once; the folder is pinned when the dialog answers. A second Add… while it
+    // is open opens nothing, a canceled dialog pins nothing, and a page gone meanwhile gets nothing - its dialog stays
+    // until the user closes it.
+    HomeFixture fixture;
+    HomeSample sample = HomeTestHelper::fill(fixture);
+    pdf::PDFAppFileDialogs::setFolderHandler(pdf::PDFAppFileDialogs::FolderHandler());
+    fixture.navigate(QStringLiteral("/open"));
+    pdf::PDFAppOpenPage* page = fixture.page<pdf::PDFAppOpenPage>();
+    QVERIFY(page);
+    const size_t locations = fixture.recent().getPinnedLocations().size();
+    const QString folder = QDir(fixture.directory.path()).filePath(QStringLiteral("Async"));
+    const QString lateFolder = QDir(fixture.directory.path()).filePath(QStringLiteral("Late"));
+    QVERIFY(QDir().mkpath(folder));
+    QVERIFY(QDir().mkpath(lateFolder));
+    pdftest::NestedEventLoopGuard loopGuard;
+
+    page->getAddLocationLink()->click();
+    QPointer<pdf::PDFAppFileDialogRequest> request = pdftest::AppAsyncDialogs::findFileRequest();
+    QVERIFY(request);
+    QCOMPARE(request->parent(), static_cast<QObject*>(page));
+    QVERIFY(request->getSettings().mode == pdf::PDFAppFileDialogRequest::Mode::Directory);
+    QCOMPARE(request->getSettings().title, QStringLiteral("Pin a Location"));
+    QVERIFY(request->getSettings().path.isEmpty());
+    QPointer<QFileDialog> dialog = request->getDialog();
+    QVERIFY(dialog);
+    QVERIFY(dialog->isVisible());
+    QCOMPARE(dialog->parentWidget(), static_cast<QWidget*>(fixture.window.data()));
+    QCOMPARE(dialog->windowModality(), Qt::ApplicationModal);
+    QCOMPARE(fixture.recent().getPinnedLocations().size(), locations);
+
+    // A second Add… while the dialog is open (a click into the window under the modal dialog of exec was impossible)
+    page->getAddLocationLink()->click();
+    page->addPinnedLocation();
+    QCOMPARE(int(pdf::PDFAppFileDialogRequest::getPendingRequests().size()), 1);
+
+    // The answer pins the folder
+    QVERIFY(pdftest::AppAsyncDialogs::answerFile(folder));
+    QVERIFY(!request);
+    QVERIFY(!dialog);
+    fixture.waitIdle();
+    QVERIFY(fixture.recent().hasPinnedLocation(folder));
+    QCOMPARE(fixture.recent().getPinnedLocations().size(), locations + 1);
+
+    // Canceled: nothing; Add… opens the dialog again afterwards
+    page = fixture.page<pdf::PDFAppOpenPage>();
+    page->getAddLocationLink()->click();
+    QVERIFY(pdftest::AppAsyncDialogs::findFileRequest());
+    QVERIFY(pdftest::AppAsyncDialogs::cancelFile());
+    QCOMPARE(fixture.recent().getPinnedLocations().size(), locations + 1);
+    QVERIFY(!page->getErrorBox());
+    page->getAddLocationLink()->click();
+    request = pdftest::AppAsyncDialogs::findFileRequest();
+    QVERIFY(request);
+    dialog = request->getDialog();
+    QVERIFY(dialog);
+
+    // The page goes while the dialog is open: the request goes with it, the dialog stays; even its acceptance later
+    // pins nothing
+    QPointer<pdf::PDFAppOpenPage> pageGuard(page);
+    fixture.navigator()->navigate(pdf::PDFAppRoutes::home());
+    HomeFixture::settle();
+    QVERIFY(!pageGuard);
+    QVERIFY(!request);
+    QVERIFY(!pdftest::AppAsyncDialogs::findFileRequest());
+    QVERIFY(dialog);
+    QVERIFY(dialog->isVisible());
+    dialog->selectFile(lateFolder);
+    static_cast<QDialog*>(dialog.data())->done(QDialog::Accepted);
+    HomeFixture::settle();
+    QVERIFY(!dialog);
+    fixture.waitIdle();
+    QVERIFY(!fixture.recent().hasPinnedLocation(lateFolder));
+    QCOMPARE(fixture.recent().getPinnedLocations().size(), locations + 1);
+    QVERIFY2(pdftest::AppAsyncDialogs::isNothingOpen(), qPrintable(pdftest::AppAsyncDialogs::describeOpen().join(QStringLiteral(", "))));
+    QCOMPARE(loopGuard.getViolations(), QStringList());
     Q_UNUSED(sample);
 }
 
@@ -2843,6 +2933,7 @@ void AppHomeTest::browseFiles()
         return QStringList();
     });
     fixture.page<pdf::PDFAppOpenPage>()->browseFiles();
+    pdftest::AppAsyncDialogs::settle();    // A0: the handler answers from the event loop
     QCOMPARE(nested, 1);
     QVERIFY(!fixture.window->isBrowsingDocuments());
 
@@ -2855,6 +2946,7 @@ void AppHomeTest::browseFiles()
     QPointer<pdf::PDFAppOpenPage> openPage = fixture.page<pdf::PDFAppOpenPage>();
     openPage->browseFiles();
     QTRY_VERIFY(openPage.isNull());
+    pdftest::AppAsyncDialogs::settle();    // A0: the files of the handler come from the event loop
     QVERIFY(qobject_cast<pdf::PDFAppDocumentTab*>(fixture.currentTab()));
     QCOMPARE(fixture.closeDocumentTabs(), 1);
     QCOMPARE(fixture.closeMessageBoxes(), 0);
@@ -2890,6 +2982,7 @@ void AppHomeTest::browseFiles()
         return QStringList({ sample.presentation });
     });
     fixture.page<pdf::PDFAppOpenPage>()->browseFiles();
+    pdftest::AppAsyncDialogs::settle();    // A0: the handler answers from the event loop
     QVERIFY(fixture.window.isNull());
     pdf::PDFAppFileDialogs::setOpenFilesHandler(pdf::PDFAppFileDialogs::OpenFilesHandler());
 }
@@ -4325,10 +4418,13 @@ void AppHomeTest::deleteWithNativeDialog()
         HomeFixture::settle();
         return fixture.directory.path();
     });
-    fixture.page<pdf::PDFAppOpenPage>()->getAddLocationLink()->click();
-    HomeFixture::settle();
-    QVERIFY(fixture.page<pdf::PDFAppHomePage>());
-    QVERIFY(!fixture.recent().hasPinnedLocation(fixture.directory.path()));
+    {
+        pdftest::NestedEventLoopGuard loopGuard;
+        fixture.page<pdf::PDFAppOpenPage>()->getAddLocationLink()->click();
+        HomeFixture::settle();
+        QVERIFY(fixture.page<pdf::PDFAppHomePage>());
+        QVERIFY(!fixture.recent().hasPinnedLocation(fixture.directory.path()));
+    }
 
     // The window goes in the native dialog
     fixture.navigate(QStringLiteral("/open"));
@@ -5858,6 +5954,7 @@ void AppHomeTest::dialogEdgeCases()
     QCOMPARE(fixture.recent().getPinnedLocations().size(), locations);
     int folderDialogs = 0;
     QPointer<pdf::PDFAppOpenPage> guard(page);
+    pdftest::NestedEventLoopGuard loopGuard;
     const QString newLocation = QDir(fixture.directory.path()).filePath(QStringLiteral("Desktop"));
     pdf::PDFAppFileDialogs::setFolderHandler([&](QWidget*, const QString&)
     {

@@ -861,7 +861,7 @@ bool PDFAppPrintController::canPrint() const
     const PDFAppDocument* document = m_document.data();
     return document && document->isReady() && document->getPageCount() > 0 &&
            PDFAppDocumentPermissions::isAvailable(document->getDocument().data(), PDFAppPermissionRequest::create(PDFAppPermissionAction::Print)) &&
-           !isPrinting() && !m_dialog && !m_errorDialog;
+           !isPrinting() && !m_dialog && !m_errorDialog && !m_fileRequest;
 }
 
 void PDFAppPrintController::showPrintDialog()
@@ -949,38 +949,73 @@ void PDFAppPrintController::onDialogFinished(int result)
     {
         // A printer, whose port asks for a file (Microsoft Print to PDF), gets the file
         // now: its driver would show the save dialog from the worker of the job without
-        // an owner, and its cancel would be an error of the printer (step 9, N5)
+        // an owner, and its cancel would be an error of the printer (step 9, N5). The job
+        // waits for the file (onPrintFileChosen).
         if (printerInfo.isPortPrompt)
         {
-            const QString fileName = askPrintFile(printerInfo);
-            if (!guard)
-            {
-                return;
-            }
-            if (fileName.isEmpty())
-            {
-                // Canceled by the user: nothing is printed, no error
-                PDFAppDocumentView* view = m_tab ? m_tab->getView() : nullptr;
-                if (view && view->getStatusBar())
-                {
-                    view->getStatusBar()->showMessage(tr("Printing canceled"), 5000);
-                }
-                return;
-            }
-
-            // Set on the engine: QPrinter::setOutputFileName would switch a file *.pdf
-            // to the PDF writer of Qt instead of the driver of the printer
-            if (QPrintEngine* engine = printer->printEngine())
-            {
-                engine->setProperty(QPrintEngine::PPK_OutputFileName, fileName);
-            }
+            m_filePrinter = std::move(printer);
+            m_fileSettings = settings;
+            m_filePrinterName = printerName;
+            askPrintFile(printerInfo);
+            return;
         }
 
         startJob(std::move(printer), settings, printerName);
     }
 }
 
-QString PDFAppPrintController::askPrintFile(const PDFAppPrinterInfo& info)
+void PDFAppPrintController::onPrintFileChosen(const QString& fileName)
+{
+    m_fileRequest = nullptr;
+    std::shared_ptr<QPrinter> printer = std::move(m_filePrinter);
+    m_filePrinter.reset();
+    const PDFAppPrintSettings settings = m_fileSettings;
+    const QString printerName = m_filePrinterName;
+    m_fileSettings = PDFAppPrintSettings();
+    m_filePrinterName.clear();
+
+    // Every end of the file dialog without a job refreshes the state of Print (the last call:
+    // a slot may delete the tab); a started job announces it itself
+    if (!printer)
+    {
+        Q_EMIT stateChanged();
+        return;
+    }
+
+    if (fileName.isEmpty())
+    {
+        // Canceled by the user: nothing is printed, no error
+        PDFAppDocumentView* view = m_tab ? m_tab->getView() : nullptr;
+        if (view && view->getStatusBar())
+        {
+            view->getStatusBar()->showMessage(tr("Printing canceled"), 5000);
+        }
+
+        // Print can be used again (the last call: a slot may delete the tab)
+        Q_EMIT stateChanged();
+        return;
+    }
+
+    // Set on the engine: QPrinter::setOutputFileName would switch a file *.pdf
+    // to the PDF writer of Qt instead of the driver of the printer
+    if (QPrintEngine* engine = printer->printEngine())
+    {
+        engine->setProperty(QPrintEngine::PPK_OutputFileName, fileName);
+    }
+
+    // The document gone, not shown (read again while the dialog was open) or a job running:
+    // nothing is printed (startJob would refuse it silently)
+    const PDFAppDocument* document = m_document.data();
+    if (!document || !document->isReady() || isPrinting())
+    {
+        Q_EMIT stateChanged();
+        return;
+    }
+
+    startJob(std::move(printer), settings, printerName);
+}
+
+void PDFAppPrintController::askPrintFile(const PDFAppPrinterInfo& info)
 {
     // The proposed file: the name of the document with the suffix of the driver in
     // the folder of the document (Documents for a copy without a file)
@@ -995,7 +1030,20 @@ QString PDFAppPrintController::askPrintFile(const PDFAppPrinterInfo& info)
     const QString suffix = info.outputSuffix.isEmpty() ? QStringLiteral("prn") : info.outputSuffix;
     const QString proposedPath = QDir(folder).filePath(baseName + QLatin1Char('.') + suffix);
 
-    return PDFAppFileDialogs::getPrintFileName(m_tab ? m_tab->window() : nullptr, proposedPath, suffix);
+    // The native dialog without a nested event loop (A0): the file comes to onPrintFileChosen,
+    // never inside this call; the request is a child of the controller (a controller deleted
+    // meanwhile gets nothing). The handler of the tests is foreign code, which may delete
+    // the tab with the controller.
+    QPointer<PDFAppPrintController> guard(this);
+    PDFAppFileDialogRequest* request = PDFAppFileDialogs::requestPrintFileName(m_tab ? m_tab->window() : nullptr, proposedPath, suffix, this, &PDFAppPrintController::onPrintFileChosen);
+    if (!guard)
+    {
+        return;
+    }
+    m_fileRequest = request;
+
+    // Print cannot be used while the dialog is open (the last call: a slot may delete the tab)
+    Q_EMIT stateChanged();
 }
 
 void PDFAppPrintController::startJob(std::shared_ptr<QPrinter> printer, const PDFAppPrintSettings& settings, const QString& printerName)

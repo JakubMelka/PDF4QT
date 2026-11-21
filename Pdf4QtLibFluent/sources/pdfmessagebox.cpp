@@ -1120,48 +1120,6 @@ QAbstractButton* PDFMessageBox::addButton(const QString& text, QDialogButtonBox:
     return m_buttonBox ? m_buttonBox->addButton(text, role) : nullptr;
 }
 
-QDialogButtonBox::StandardButton PDFMessageBox::information(QWidget* parent, const QString& title, const QString& text, QDialogButtonBox::StandardButtons buttons, QDialogButtonBox::StandardButton defaultButton)
-{
-    return showMessage(PDFThemeIcons::Badge::Information, parent, title, text, buttons, defaultButton);
-}
-
-QDialogButtonBox::StandardButton PDFMessageBox::question(QWidget* parent, const QString& title, const QString& text, QDialogButtonBox::StandardButtons buttons, QDialogButtonBox::StandardButton defaultButton)
-{
-    return showMessage(PDFThemeIcons::Badge::Question, parent, title, text, buttons, defaultButton);
-}
-
-QDialogButtonBox::StandardButton PDFMessageBox::warning(QWidget* parent, const QString& title, const QString& text, QDialogButtonBox::StandardButtons buttons, QDialogButtonBox::StandardButton defaultButton)
-{
-    return showMessage(PDFThemeIcons::Badge::Warning, parent, title, text, buttons, defaultButton);
-}
-
-QDialogButtonBox::StandardButton PDFMessageBox::critical(QWidget* parent, const QString& title, const QString& text, QDialogButtonBox::StandardButtons buttons, QDialogButtonBox::StandardButton defaultButton)
-{
-    return showMessage(PDFThemeIcons::Badge::Critical, parent, title, text, buttons, defaultButton);
-}
-
-QDialogButtonBox::StandardButton PDFMessageBox::showMessage(PDFThemeIcons::Badge badge, QWidget* parent, const QString& title, const QString& text, QDialogButtonBox::StandardButtons buttons, QDialogButtonBox::StandardButton defaultButton)
-{
-    // The message box is a child of the parent: when the parent is deleted while
-    // the message box is shown, the message box is deleted with it (a message box
-    // on the stack would be deleted twice)
-    QPointer<PDFMessageBox> messageBox = new PDFMessageBox(badge, title, text, buttons, parent);
-    if (defaultButton != QDialogButtonBox::NoButton)
-    {
-        messageBox->setDefaultButton(defaultButton);
-    }
-    messageBox->exec();
-
-    if (!messageBox)
-    {
-        return QDialogButtonBox::NoButton;
-    }
-
-    const QDialogButtonBox::StandardButton result = messageBox->getClickedStandardButton();
-    delete messageBox.data();
-    return result;
-}
-
 void PDFMessageBox::onButtonClicked(QAbstractButton* button)
 {
     if (!m_buttonBox)

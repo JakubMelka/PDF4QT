@@ -34,9 +34,13 @@
 #include "pdfappdocumentsearchcontroller.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
+#include "pdfappleaveflow.h"
 #include "pdfappmainwindow.h"
+#include "pdfappmcpchange.h"
 #include "pdfappnavigator.h"
 #include "pdfapproute.h"
+
+#include <QDialog>
 
 #include "pdfaction.h"
 #include "pdfdocument.h"
@@ -72,6 +76,45 @@ public:
     static QString getToolQuestionRefusal()
     {
         return QStringLiteral("The user is answering a question of a tool in PDF4QT. Try again when the user has answered it.");
+    }
+
+    /// A0 (RR3-M6): the close and the navigation of an assistant never go below a modal dialog of the application
+    /// (also a file dialog, a question of a flow; a message box, which only informs, is none - PDFAppMainWindow::
+    /// getBlockingModalWidget) nor during a flow of the window or of its tabs (a quit, the close
+    /// of a tab, its save, a navigation waiting for an answer). \returns true, when the call was refused.
+    static bool refuseDuringQuestion(const PDFAppMcpToolInvocation& invocation, PDFAppDocument* document, const PDFAppMainWindow* window)
+    {
+        if (PDFAppMainWindow::getBlockingModalWidget())
+        {
+            invocation.host->finishWithError(invocation.call, invocation.getActionId(), document, PDFAppMcpChangeJob::getModalDialogText(), PDFMcpActivityStatus::DeniedDialog);
+            return true;
+        }
+        if (PDFAppLeaveFlow::isRunningIn(window))
+        {
+            invocation.host->finishWithError(invocation.call, invocation.getActionId(), document,
+                                             QStringLiteral("The user is closing or leaving something in PDF4QT (a question, a save). Try again when it has finished."), PDFMcpActivityStatus::DeniedBusy);
+            return true;
+        }
+        return false;
+    }
+
+    /// A flow, which a request of an assistant has left open (an error: the conditions of the request exclude every
+    /// question), ends without its leave - its question goes as Cancel (RR3-M5)
+    static void cancelFlow(PDFAppTab* tab)
+    {
+        QPointer<PDFAppLeaveFlow> flow = tab ? tab->findLeaveFlow() : nullptr;
+        if (!flow || !flow->isRunning())
+        {
+            return;
+        }
+        if (QDialog* question = flow->getQuestion())
+        {
+            question->reject();
+        }
+        if (flow && flow->isRunning())
+        {
+            flow->finish(false);
+        }
     }
 
     /// Switches to the tab of the document (the window is not raised)
@@ -406,6 +449,12 @@ void PDFAppMcpViewToolHelper::navigate(const PDFAppMcpToolInvocation& invocation
         return;
     }
 
+    // A0: a modal dialog or a flow of the window (no question is opened by a request)
+    if (refuseDuringQuestion(invocation, nullptr, window))
+    {
+        return;
+    }
+
     navigator->navigate(route, PDFAppNavigationMode::Push, currentTab);
 
     PDFMcpJsonWriter writer;
@@ -462,6 +511,12 @@ void PDFAppMcpViewToolHelper::close(const PDFAppMcpToolInvocation& invocation, P
         return;
     }
 
+    // A0: a modal dialog or a flow of the window (no question is opened by a request)
+    if (refuseDuringQuestion(invocation, document, window))
+    {
+        return;
+    }
+
     // The activity is written before the tab (and its document) goes
     PDFMcpJsonWriter writer;
     writer.beginObject();
@@ -470,7 +525,13 @@ void PDFAppMcpViewToolHelper::close(const PDFAppMcpToolInvocation& invocation, P
 
     std::shared_ptr<PDFMcpCall> call = invocation.call;
     QPointer<PDFAppDocumentTab> tabGuard(tab);
-    const bool isClosed = window->closeTab(tab);
+    const PDFAppLeaveResult result = window->requestCloseTab(tab);
+    if (result == PDFAppLeaveResult::Pending && tabGuard)
+    {
+        // The conditions above exclude every question: a question would be an error, the close is canceled
+        cancelFlow(tabGuard.data());
+    }
+    const bool isClosed = result == PDFAppLeaveResult::Done;
     writer.writeMember(QLatin1StringView("closed"), isClosed || !tabGuard);
     writer.endObject();
     call->finish(PDFAppMcpReadSupport::createResult(QStringLiteral("close"), writer.take(), false));

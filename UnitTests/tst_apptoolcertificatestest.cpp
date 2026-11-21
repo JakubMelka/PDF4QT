@@ -28,6 +28,7 @@
 // is a store in the memory of the process (PDFPersonalCertificateStore::createMemoryStore), never the
 // store of the machine; the system rows of the trusted view come from a provider of the test.
 
+#include "appasyncdialogs.h"
 #include "appdocumentfixture.h"
 #include "apptestcertificatefolders.h"
 #include "apptestcertificates.h"
@@ -871,7 +872,12 @@ void AppToolCertificatesTest::importCollision()
     QVERIFY(gui);
 
     pdf::PDFAppPanelFileDialogs::setOpenHandler([same](QWidget*, const QString&, const QString&, const QString&) { return same; });
-    QTest::mouseClick(gui->getImportButton(), Qt::LeftButton);
+    {
+        // A0: the file comes from the event loop
+        const pdftest::NestedEventLoopGuard loopGuard;
+        QTest::mouseClick(gui->getImportButton(), Qt::LeftButton);
+        pdftest::AppAsyncDialogs::settle();
+    }
     QPointer<pdf::PDFAppCertificateImportDialog> dialog = gui->getImportDialog();
     QVERIFY(dialog && dialog->isVisible());
     QCOMPARE(dialog->getOutcome(), pdf::PDFAppCertificateImportDialog::Outcome::Collision);
@@ -996,7 +1002,9 @@ void AppToolCertificatesTest::addTrusted()
     // The PEM: trusted, chosen, the status; Settings › Security reads the same row
     QString chosenPath = pemPath;
     pdf::PDFAppPanelFileDialogs::setOpenHandler([&chosenPath](QWidget*, const QString&, const QString&, const QString&) { return chosenPath; });
+    const pdftest::NestedEventLoopGuard loopGuard;
     QTest::mouseClick(gui->getAddTrustedButton(), Qt::LeftButton);
+    pdftest::AppAsyncDialogs::settle();
     QVERIFY(repository.contains(pdftest::AppTestCertificates::second()));
     QVERIFY(!gui->getAddTrustedDialog());
     QCOMPARE(gui->getChosenTrustedEntry()->data, pdftest::AppTestCertificates::second());
@@ -1010,11 +1018,13 @@ void AppToolCertificatesTest::addTrusted()
     // The DER file
     chosenPath = derPath;
     gui->addTrusted();
+    pdftest::AppAsyncDialogs::settle();
     QVERIFY(repository.contains(pdftest::AppTestCertificates::first()));
     QCOMPARE(int(repository.getRows().size()), 2);
 
     // The duplicate: refused with its message, Choose Another File… offered (2.6 as 436:11538)
     gui->addTrusted();
+    pdftest::AppAsyncDialogs::settle();
     QPointer<pdf::PDFMessageBox> dialog = gui->getAddTrustedDialog();
     QVERIFY(dialog && dialog->isVisible());
     QVERIFY(H::hasText(dialog, QStringLiteral("This certificate is trusted already")));
@@ -1026,6 +1036,7 @@ void AppToolCertificatesTest::addTrusted()
     chosenPath = textPath;
     QTest::mouseClick(dialog->getActionButtons().back(), Qt::LeftButton);
     QTRY_VERIFY(!dialog);
+    pdftest::AppAsyncDialogs::settle();
     dialog = gui->getAddTrustedDialog();
     QVERIFY(dialog && dialog->isVisible());
     QVERIFY(H::hasText(dialog, QStringLiteral("The certificate cannot be added")));

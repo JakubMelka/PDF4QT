@@ -103,20 +103,14 @@ QVariantMap PDFAppPage::saveViewState() const
     return QVariantMap();
 }
 
-bool PDFAppPage::prepareLeave(const PDFAppRoute& target)
-{
-    Q_UNUSED(target);
-    return true;
-}
-
-bool PDFAppPage::confirmClose()
-{
-    return true;
-}
-
 bool PDFAppPage::hasUnsavedWork() const
 {
     return false;
+}
+
+quint64 PDFAppPage::getWorkStamp() const
+{
+    return 0;
 }
 
 void PDFAppPage::prepareClose()
@@ -132,11 +126,6 @@ bool PDFAppPage::isQuestionOpen() const
 bool PDFAppPage::isLeftBy(const PDFAppRoute& target) const
 {
     return !(target == m_route);
-}
-
-bool PDFAppPage::confirmDocumentLock()
-{
-    return true;
 }
 
 bool PDFAppPage::finishLeave(bool isProceeding)
@@ -158,6 +147,31 @@ bool PDFAppPage::finishLeaves(const std::vector<QPointer<PDFAppPage>>& pages, bo
         }
     }
     return isFinished;
+}
+
+PDFAppLeaveResult PDFAppPage::requestLeave(const PDFAppRoute& target, PDFAppLeaveFlow* flow)
+{
+    Q_UNUSED(target);
+    Q_UNUSED(flow);
+    return PDFAppLeaveResult::Done;
+}
+
+PDFAppLeaveResult PDFAppPage::requestClose(PDFAppLeaveFlow* flow)
+{
+    Q_UNUSED(flow);
+    return PDFAppLeaveResult::Done;
+}
+
+PDFAppLeaveResult PDFAppPage::requestDocumentLock(PDFAppLeaveFlow* flow)
+{
+    Q_UNUSED(flow);
+    return PDFAppLeaveResult::Done;
+}
+
+PDFAppLeaveResult PDFAppPage::requestFinishLeave(bool isProceeding, PDFAppLeaveFlow* flow)
+{
+    Q_UNUSED(flow);
+    return finishLeave(isProceeding) ? PDFAppLeaveResult::Done : PDFAppLeaveResult::Refused;
 }
 
 void PDFAppPage::restoreViewState(const QVariantMap& state)

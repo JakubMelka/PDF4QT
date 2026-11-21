@@ -29,6 +29,7 @@
 #include "pdfapppagelayout.h"
 #include "pdfappsettingrow.h"
 #include "pdfappdocumentinfobar.h"
+#include "pdfappfiledrop.h"
 #include "pdfdatabase.h"
 
 #include "pdfcomponentpanels.h"
@@ -214,10 +215,12 @@ public:
     /// Full path of the database file shown by Location (empty in the portable mode)
     const QString& getLocationPath() const { return m_locationPath; }
 
-    /// Export settings…: the file dialog, then the export (the info bar or an error)
+    /// Export settings…: the file dialog, then the export (the info bar or an error). A0: the dialog is shown
+    /// without a nested event loop, the export runs later, when the dialog answers.
     void exportSettings();
 
-    /// Import settings…: the file dialog, the check of the file, the confirmation
+    /// Import settings…: the file dialog, the check of the file, the confirmation. A0: the dialog is shown without
+    /// a nested event loop, the check runs later, when the dialog answers.
     void importSettings();
 
     /// Delete… of the row of the file: the confirmation, then the deletion
@@ -292,6 +295,15 @@ private:
     void onDatabaseStateChanged();
     void onInfoBarActionTriggered(const QString& infoBarId, const QString& actionId);
     void onInfoBarCloseRequested(const QString& infoBarId);
+
+    /// A file dialog of the backups of \p mode (Export… SaveFile, Import… OpenFile) waits for its answer (A0: no
+    /// nested event loop)
+    bool isBackupDialogPending(PDFAppFileDialogRequest::Mode mode) const;
+
+    /// The answers of the file dialogs of Export… and Import… (empty = canceled): the export / the check of the file
+    /// and the confirmation
+    void onExportFileChosen(const QString& chosenFilePath);
+    void onImportFileChosen(const QString& filePath);
 
     QPointer<PDFAppSettingGroup> m_databaseGroup;
     QPointer<PDFAppSettingGroup> m_backupGroup;

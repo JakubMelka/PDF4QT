@@ -133,6 +133,16 @@ void PDFAppNavigator::process(const Request& request)
             case RequestKind::Forward:
                 moveInHistory(current.tab, false);
                 break;
+            case RequestKind::ContinueNavigate:
+                if (current.tab)
+                {
+                    completeNavigate(current.tab, current.route, current.mode);
+                }
+                break;
+            case RequestKind::ContinueBack:
+            case RequestKind::ContinueForward:
+                continueMoveInHistory(current);
+                break;
         }
 
         if (!guard)
@@ -369,19 +379,101 @@ void PDFAppNavigator::navigateImpl(const PDFAppRoute& route, PDFAppNavigationMod
     }
 
     // The shown page may refuse (a running tool asks, F14) or it ends its work (page
-    // code: anything may be deleted)
+    // code: anything may be deleted). A0: a question of the page is shown, the navigation goes on after its answer
+    // (onLeaveStepFinished)
     QPointer<PDFAppNavigator> guard(this);
     if (PDFAppPage* page = tab->getPage())
     {
-        const bool isAccepted = page->prepareLeave(target);
-        if (!guard || !tab || !isAccepted)
+        const PDFAppLeaveResult result = leavePage(tab, page, target, mode, RequestKind::ContinueNavigate, -1);
+        if (!guard || !tab || result != PDFAppLeaveResult::Done)
         {
             return;
         }
     }
 
+    completeNavigate(tab, target, mode);
+}
+
+PDFAppLeaveResult PDFAppNavigator::leavePage(PDFAppTab* tab, PDFAppPage* page, const PDFAppRoute& target, PDFAppNavigationMode mode, RequestKind continuation, int historyIndex)
+{
+    // One flow of the tab (A0): a navigation while a question of the tab is open (its close, another navigation, the
+    // lock) is refused and the question comes forward
+    PDFAppLeaveFlow* flow = tab->getLeaveFlow();
+    if (!flow->start(PDFAppLeaveFlow::Goal::Navigate))
+    {
+        flow->raiseQuestion();
+        return PDFAppLeaveResult::Refused;
+    }
+    flow->setTarget(target, mode);
+    flow->setSubject(page);
+    flow->setStep(int(continuation));
+    flow->setValue(historyIndex);
+
+    QPointer<PDFAppNavigator> guard(this);
+    QPointer<PDFAppLeaveFlow> flowGuard(flow);
+    QPointer<PDFAppPage> pageGuard(page);
+    PDFAppLeaveResult result = page->requestLeave(target, flow);
+    if (!guard || !flowGuard)
+    {
+        return PDFAppLeaveResult::Refused;
+    }
+    if (result == PDFAppLeaveResult::Pending)
+    {
+        if (pageGuard && flow->waitForStep(pageGuard.data(), this, &PDFAppNavigator::onLeaveStepFinished))
+        {
+            return PDFAppLeaveResult::Pending;
+        }
+        result = PDFAppLeaveResult::Refused;
+    }
+
+    // The page has ended its leave itself (Done) or stays (Refused): the flow ends (no page waits for its end)
+    flow->finish(result == PDFAppLeaveResult::Done);
+    return guard ? result : PDFAppLeaveResult::Refused;
+}
+
+void PDFAppNavigator::onLeaveStepFinished(PDFAppLeaveResult result)
+{
+    // The step belongs to the flow of a tab (the waiter is a child of the flow, the flow a child of the tab)
+    QObject* step = sender();
+    QPointer<PDFAppLeaveFlow> flow = step ? qobject_cast<PDFAppLeaveFlow*>(step->parent()) : nullptr;
+    if (!flow || !flow->isRunning() || flow->getGoal() != PDFAppLeaveFlow::Goal::Navigate)
+    {
+        return;
+    }
+
+    // The tab, the page and the history are read again: the navigation goes on only from the page, which was asked
+    Request request;
+    request.kind = RequestKind(flow->getStep());
+    request.route = flow->getTargetRoute();
+    request.mode = flow->getTargetMode();
+    request.tab = qobject_cast<PDFAppTab*>(flow->parent());
+    request.historyIndex = int(flow->getValue());
+    const QPointer<QObject> page = flow->getSubject();
+    const bool isDone = result == PDFAppLeaveResult::Done;
+    QPointer<PDFAppNavigator> guard(this);
+    flow->finish(isDone);
+    if (!guard || !isDone || !request.tab || !page || request.tab->getPage() != page.data())
+    {
+        return;
+    }
+    if (request.kind != RequestKind::ContinueNavigate && request.kind != RequestKind::ContinueBack && request.kind != RequestKind::ContinueForward)
+    {
+        return;
+    }
+    process(request);
+}
+
+void PDFAppNavigator::completeNavigate(PDFAppTab* tabPointer, const PDFAppRoute& target, PDFAppNavigationMode mode)
+{
+    if (!m_window)
+    {
+        return;
+    }
+
     // The state of the view of the page, which the tab leaves (page code: the
     // tab may be deleted by it)
+    QPointer<PDFAppNavigator> guard(this);
+    QPointer<PDFAppTab> tab(tabPointer);
     saveViewState(tab);
     if (!guard || !tab)
     {
@@ -426,17 +518,44 @@ bool PDFAppNavigator::moveInHistory(PDFAppTab* tab, bool isBack)
         return false;
     }
 
-    // The shown page may refuse (a running tool asks, F14) or it ends its work
+    // The shown page may refuse (a running tool asks, F14) or it ends its work. A0: a question of the page is shown,
+    // the step in the history goes on after its answer (onLeaveStepFinished, continueMoveInHistory)
     if (PDFAppPage* page = tab->getPage())
     {
         const PDFAppRoute target = targetEntry->route;
-        const bool isAccepted = page->prepareLeave(target);
-        if (!guard || !tabGuard || !isAccepted)
+        const int index = tab->getHistory().getCurrentIndex();
+        const PDFAppLeaveResult result = leavePage(tab, page, target, PDFAppNavigationMode::Push, isBack ? RequestKind::ContinueBack : RequestKind::ContinueForward, index);
+        if (!guard || !tabGuard || result != PDFAppLeaveResult::Done)
         {
             return false;
         }
     }
 
+    return completeMoveInHistory(tab, isBack);
+}
+
+void PDFAppNavigator::continueMoveInHistory(const Request& request)
+{
+    // The answer of the page came later: the step goes on only from the same entry of the history (the tab, its
+    // history may have changed meanwhile)
+    PDFAppTab* tab = request.tab.data();
+    if (!tab || tab->getHistory().getCurrentIndex() != request.historyIndex)
+    {
+        return;
+    }
+    const bool isBack = request.kind == RequestKind::ContinueBack;
+    const PDFAppHistoryEntry* targetEntry = tab->getHistory().getEntry(request.historyIndex + (isBack ? -1 : 1));
+    if (!targetEntry || !(targetEntry->route == request.route))
+    {
+        return;
+    }
+    completeMoveInHistory(tab, isBack);
+}
+
+bool PDFAppNavigator::completeMoveInHistory(PDFAppTab* tab, bool isBack)
+{
+    QPointer<PDFAppNavigator> guard(this);
+    QPointer<PDFAppTab> tabGuard(tab);
     saveViewState(tab);
     if (!guard || !tabGuard)
     {

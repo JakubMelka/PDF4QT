@@ -24,6 +24,7 @@
 // 291:994, 294:1340, 295:1711, 295:2182, 296:2761, 316:7293) and the start page of a tool
 // (276:1737). The expected values are the numbers of the frames.
 
+#include "appasyncdialogs.h"
 #include "apptoolshellfixture.h"
 
 #include "pdfappcontext.h"
@@ -1265,7 +1266,12 @@ void AppToolCompressTest::writeErrorFrame()
     const QString folder = fixture.path(QStringLiteral("gone"));
     QVERIFY(QDir().mkpath(folder));
     pdf::PDFAppFileDialogs::setFolderHandler([folder](QWidget*, const QString&) { return folder; });
-    dialog->getBrowseButton()->click();
+    {
+        // A0: the folder comes from the event loop
+        const pdftest::NestedEventLoopGuard loopGuard;
+        dialog->getBrowseButton()->click();
+        AppToolShellFixture::settle();
+    }
     pdf::PDFAppFileDialogs::setFolderHandler(nullptr);
     QVERIFY(QDir(folder).removeRecursively());
     dialog->getConfirmButton()->click();
@@ -3625,9 +3631,9 @@ void AppToolCompressTest::startPageDeletedWithDialog()
     });
     page->getChooser()->getOpenButton()->click();
     pdf::PDFAppFileDialogs::setOpenFilesHandler(nullptr);
+    AppToolShellFixture::settle();    // A0: the handler answers from the event loop
     QVERIFY(!window);
     QVERIFY(!guard);
-    AppToolShellFixture::settle();
 }
 
 void AppToolCompressTest::screenshots()
@@ -3675,6 +3681,7 @@ void AppToolCompressTest::screenshots()
         QVERIFY(QDir().mkpath(folder));
         pdf::PDFAppFileDialogs::setFolderHandler([folder](QWidget*, const QString&) { return folder; });
         dialog->getBrowseButton()->click();
+        AppToolShellFixture::settle();
         pdf::PDFAppFileDialogs::setFolderHandler(nullptr);
         QVERIFY(QDir(folder).removeRecursively());
         dialog->getConfirmButton()->click();

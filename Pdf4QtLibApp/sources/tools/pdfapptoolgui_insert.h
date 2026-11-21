@@ -71,6 +71,7 @@ class QVBoxLayout;
 namespace pdf
 {
 
+class PDFAppFileDialogRequest;
 class PDFAppImagePagePreview;
 class PDFAppImageThumbnailCache;
 class PDFAppInsertPositionStrip;
@@ -673,6 +674,9 @@ public:
     /// Adds the files at the end (\p gap >= 0: and moves the place there), one undo step;
     /// refused ones are said in the status bar
     void addFiles(const QStringList& filePaths, int gap = -1, const QStringList& refusedTexts = QStringList());
+
+    /// PDF files… / Images…: the dialog of the files, then addFiles (A0: the files come later from the event loop, one
+    /// dialog at a time)
     void addFilesFromDialog();
     void pasteImage();
     void addOpenDocument(const QString& documentId);
@@ -814,6 +818,7 @@ private:
     void addResults(const std::vector<PDFAppToolInputList::AddResult>& results, int gap, const QStringList& refusedTexts);
     QVariantMap createGapValues(int gap) const;
 
+    void onDialogFilesChosen(const QStringList& files);
     void onListInputsChanged();
     void onListInputChanged(const QString& inputId);
     void onReadQueued();
@@ -833,6 +838,7 @@ private:
     QPointer<PDFAppToolPanelHeader> m_positionHeader;
     QPointer<PDFAppParagraph> m_stripHint;
     QPointer<PDFAppPasswordDialog> m_passwordDialog;
+    QPointer<PDFAppFileDialogRequest> m_fileRequest;   ///< The dialog of the files waiting for its answer (a child of the GUI, A0)
     QPointer<QTimer> m_progressTimer;
     bool m_wasDropAccepted = false;
     bool m_isValuesInitialized = false;

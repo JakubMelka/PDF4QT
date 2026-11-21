@@ -1189,10 +1189,18 @@ bool PDFAppToolInputChooser::dropFiles(const QMimeData* mimeData)
 
 void PDFAppToolInputChooser::onAddFilesClicked()
 {
-    // The native dialog runs its own event loop: the chooser may go meanwhile
-    QPointer<PDFAppToolInputChooser> guard(this);
-    const QStringList files = PDFAppFileDialogs::getOpenInputFileNames(window(), QString());
-    if (guard && !files.isEmpty())
+    // A0: the dialog answers onAddFilesChosen (the request is a child of the chooser: a chooser gone meanwhile
+    // gets nothing); one dialog at a time
+    if (m_fileRequest && m_fileRequest->isPending())
+    {
+        return;
+    }
+    m_fileRequest = PDFAppFileDialogs::requestOpenInputFileNames(window(), QString(), this, &PDFAppToolInputChooser::onAddFilesChosen);
+}
+
+void PDFAppToolInputChooser::onAddFilesChosen(const QStringList& files)
+{
+    if (!files.isEmpty())
     {
         addFiles(files);
     }

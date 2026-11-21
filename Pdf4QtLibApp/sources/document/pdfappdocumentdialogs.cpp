@@ -640,25 +640,39 @@ void PDFAppDocumentChoiceDialog::onChoiceClicked()
     }
 }
 
-PDFAppDocumentChoice PDFAppDocumentChoiceDialog::run(PDFAppDocumentChoiceDialog* dialog)
+PDFAppDocumentChoiceAnswer* PDFAppDocumentChoiceDialog::createAnswer(PDFAppDocumentChoiceDialog* dialog, QObject* receiver)
 {
-    if (!dialog)
+    if (!receiver)
     {
-        return PDFAppDocumentChoice::Cancel;
+        // Nobody takes the answer: the dialog is not shown
+        if (dialog)
+        {
+            dialog->deleteLater();
+        }
+        return nullptr;
     }
 
-    // The dialog runs its own event loop: the parent (a tab, the window) may be
-    // deleted meanwhile, and the dialog with it
-    QPointer<PDFAppDocumentChoiceDialog> guard(dialog);
-    dialog->exec();
-    if (!guard)
-    {
-        return PDFAppDocumentChoice::Cancel;
-    }
+    PDFAppDocumentChoiceAnswer* answer = new PDFAppDocumentChoiceAnswer(dialog, receiver);
+    answer->setDeleteDialog(true);
+    return answer;
+}
 
-    const PDFAppDocumentChoice choice = guard->getChoice();
-    guard->deleteLater();
-    return choice;
+// ---------------------------------------------------------------- choice answer
+
+PDFAppDocumentChoiceAnswer::PDFAppDocumentChoiceAnswer(QDialog* dialog, QObject* receiver) :
+    BaseClass(dialog, receiver)
+{
+
+}
+
+PDFAppDocumentChoiceAnswer::~PDFAppDocumentChoiceAnswer() = default;
+
+void PDFAppDocumentChoiceAnswer::emitAnswer(const QDialog* dialog, int code)
+{
+    // The choice of the clicked button (Esc leaves Cancel); a dialog gone without an answer is Cancel
+    Q_UNUSED(code);
+    const PDFAppDocumentChoiceDialog* choiceDialog = qobject_cast<const PDFAppDocumentChoiceDialog*>(dialog);
+    Q_EMIT chosen(choiceDialog ? choiceDialog->getChoice() : PDFAppDocumentChoice::Cancel);
 }
 
 // -------------------------------------------------------------------- item list

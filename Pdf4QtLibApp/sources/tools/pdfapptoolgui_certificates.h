@@ -50,6 +50,7 @@ namespace pdf
 class PDFAppCertificateCreateDialog;
 class PDFAppCertificateDetails;
 class PDFAppCertificateImportDialog;
+class PDFAppFileDialogRequest;
 class PDFAppMainWindow;
 class PDFAppParagraph;
 class PDFAppToolCallout;
@@ -288,6 +289,9 @@ private:
     void onTrustedCurrentChanged();
     void onCertificateCreated(const QString& fileName);
     void onCertificateImported(const QString& fileName);
+    void onImportFileChosen(const QString& filePath);
+    void onTrustedFileChosen(const QString& filePath);
+    bool isFileRequestPending() const;
     void onDeleteConfirmed();
     void onRemoveTrustedConfirmed();
     void onAddTrustedChooseAgain();
@@ -340,6 +344,7 @@ private:
     QPointer<PDFMessageBox> m_deleteDialog;
     QPointer<PDFMessageBox> m_removeTrustedDialog;
     QPointer<PDFMessageBox> m_addTrustedDialog;
+    QPointer<PDFAppFileDialogRequest> m_fileRequest;   ///< Import… / Add Trusted… waiting for its file dialog (a child of this GUI, A0)
     QString m_copyError;
 };
 

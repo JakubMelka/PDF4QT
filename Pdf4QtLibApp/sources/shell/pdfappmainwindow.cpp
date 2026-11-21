@@ -26,6 +26,7 @@
 #include "pdfappdocument.h"
 #include "pdfappdocumentdialogs.h"
 #include "pdfappdocumentregistry.h"
+#include "pdfappdocumentsave.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
 #include "pdfappfiledrop.h"
@@ -427,35 +428,41 @@ void PDFAppMainWindow::activateTab(PDFAppTab* tab)
 
 bool PDFAppMainWindow::closeTab(PDFAppTab* tab)
 {
+    return requestCloseTab(tab) == PDFAppLeaveResult::Done;
+}
+
+PDFAppLeaveResult PDFAppMainWindow::requestCloseTab(PDFAppTab* tab)
+{
     PDFDocumentTabBar* tabBar = getTabBar();
     if (!tab || !tabBar || !tab->isClosable())
     {
-        return false;
+        return PDFAppLeaveResult::Refused;
     }
 
     if (findTabIndex(tab->getId()) < 0)
     {
-        return false;
+        return PDFAppLeaveResult::Refused;
     }
 
-    // The tab asks about its unsaved changes and running operations (step 3); its
-    // dialog runs an event loop, the tab or the window may be deleted meanwhile
+    // The tab asks about its unsaved changes and running operations (step 3) in its flow (A0: the questions are
+    // shown, no event loop; Pending = the tab closes itself after the last answer); the tab runs code of the
+    // application, the tab or the window may be deleted meanwhile
     QPointer<PDFAppMainWindow> windowGuard(this);
     QPointer<PDFAppTab> tabGuard(tab);
-    const bool isConfirmed = tab->confirmClose();
+    const PDFAppLeaveResult result = tab->requestTabClose();
     if (!windowGuard || !tabGuard)
     {
-        return false;
+        return PDFAppLeaveResult::Refused;
     }
-    if (!isConfirmed)
+    if (result != PDFAppLeaveResult::Done)
     {
-        return false;
+        return result;
     }
 
     const int index = findTabIndex(tab->getId());
     if (index < 0)
     {
-        return false;
+        return PDFAppLeaveResult::Refused;
     }
 
     // The page records what it must while the tab is whole (the use of an interactive tool; no signal)
@@ -476,7 +483,7 @@ bool PDFAppMainWindow::closeTab(PDFAppTab* tab)
     tabBar->removeTab(index);
     if (!guard)
     {
-        return true;
+        return PDFAppLeaveResult::Done;
     }
 
     if (m_stack)
@@ -486,7 +493,7 @@ bool PDFAppMainWindow::closeTab(PDFAppTab* tab)
     tab->hide();
     tab->deleteLater();
     updateWindowTitle();
-    return true;
+    return PDFAppLeaveResult::Done;
 }
 
 PDFAppToolTab* PDFAppMainWindow::addToolTab(const QString& toolId, const QString& instanceId, PDFAppToolInputList* inputList)
@@ -846,7 +853,7 @@ void PDFAppMainWindow::onCommandTriggered()
     }
     else if (id == PDFAppCommands::closeTab())
     {
-        closeTab(getCurrentTab());
+        closeTabByUser(getCurrentTab());
     }
     else if ((id == PDFAppCommands::nextTab() || id == PDFAppCommands::previousTab()) && tabBar && tabBar->count() > 0)
     {
@@ -991,8 +998,21 @@ void PDFAppMainWindow::onTabCloseRequested(int index)
     PDFDocumentTabBar* tabBar = getTabBar();
     if (tabBar)
     {
-        closeTab(findTab(tabBar->tabData(index).toULongLong()));
+        closeTabByUser(findTab(tabBar->tabData(index).toULongLong()));
     }
+}
+
+void PDFAppMainWindow::closeTabByUser(PDFAppTab* tab)
+{
+    // A0: the quit of the window or the end of the session runs (Save All has no question to answer): a tab is not
+    // closed by the user meanwhile - its question would stay open over the closed window; the question of the
+    // window, if any, comes forward
+    if (m_leaveFlow && m_leaveFlow->isRunning())
+    {
+        m_leaveFlow->raiseQuestion();
+        return;
+    }
+    closeTab(tab);
 }
 
 void PDFAppMainWindow::onTabDestroyed(QObject* object)
@@ -1246,8 +1266,8 @@ void PDFAppMainWindow::openDocuments(const std::vector<PDFAppOpenRequest>& reque
         }
     }
 
-    // A modal dialog runs its own event loop (a question of a tab, a dialog of a
-    // page): the files are opened, when it closes (the window is raised already)
+    // A modal dialog is open (a question of a tab, a dialog of a page): the files
+    // are opened, when it closes (the window is raised already)
     if (QWidget* modalWidget = getBlockingModalWidget())
     {
         for (const PDFAppOpenRequest& request : requests)
@@ -1679,8 +1699,51 @@ void PDFAppMainWindow::onDocumentLoadFailed(const QString& filePath, const QStri
     {
         m_lastOpenedTitle.clear();
     }
+    if (tab && tab->isLeaving())
+    {
+        // A question of the tab is open (a navigation, a lock): the tab closes after its answer
+        m_failedTabs.emplace_back(tab);
+        connect(tab->getLeaveFlow(), &PDFAppLeaveFlow::finished, this, &PDFAppMainWindow::onFailedTabFlowFinished, Qt::UniqueConnection);
+        return;
+    }
     if (tab)
     {
+        closeTab(tab);
+    }
+}
+
+void PDFAppMainWindow::onFailedTabFlowFinished()
+{
+    // The slot runs inside of the end of the flow (its waiter may still run): the tabs close from the event loop
+    QMetaObject::invokeMethod(this, &PDFAppMainWindow::closeFailedTabs, Qt::QueuedConnection);
+}
+
+void PDFAppMainWindow::closeFailedTabs()
+{
+    // Each tab is read again: closed meanwhile, a new flow (it closes after that one), a document loaded anew
+    std::vector<QPointer<PDFAppDocumentTab>> tabs = std::move(m_failedTabs);
+    m_failedTabs.clear();
+    QPointer<PDFAppMainWindow> guard(this);
+    for (const QPointer<PDFAppDocumentTab>& tab : tabs)
+    {
+        if (!guard)
+        {
+            return;
+        }
+        if (!tab || findTabIndex(tab->getId()) < 0)
+        {
+            continue;
+        }
+        const PDFAppDocument* document = tab->getDocument();
+        if (!document || document->getState() != PDFAppDocumentState::Failed)
+        {
+            continue;
+        }
+        if (tab->isLeaving())
+        {
+            m_failedTabs.push_back(tab);
+            continue;
+        }
         closeTab(tab);
     }
 }
@@ -1858,17 +1921,21 @@ void PDFAppMainWindow::browseDocuments(const QString& folder)
         return;
     }
 
-    // The native dialog runs its own event loop (a request of another process, a
-    // drop or the code of a page may delete the window meanwhile)
-    QPointer<PDFAppMainWindow> guard(this);
+    // A0: the dialog is shown and the call returns (no event loop); the files come to onBrowseDocumentsChosen (a
+    // window deleted meanwhile gets nothing: the request is its child). The flag is set first: the request runs
+    // code (a test handler) before it returns.
     m_isBrowsingDocuments = true;
-    const QStringList files = PDFAppFileDialogs::getOpenDocumentFileNames(this, folder);
-    if (!guard)
+    if (!PDFAppFileDialogs::requestOpenDocumentFileNames(this, folder, this, &PDFAppMainWindow::onBrowseDocumentsChosen))
     {
-        return;
+        m_isBrowsingDocuments = false;
     }
+}
+
+void PDFAppMainWindow::onBrowseDocumentsChosen(const QStringList& files)
+{
     m_isBrowsingDocuments = false;
 
+    // The page shown now decides, where a file goes (as after the return of the dialog)
     if (!files.isEmpty())
     {
         openDocumentsOfPage(files);
@@ -1952,90 +2019,171 @@ void PDFAppMainWindow::showMessage(int badge, const QString& title, const QStrin
     messageBox->open();
 }
 
-bool PDFAppMainWindow::confirmClose()
+PDFAppLeaveFlow* PDFAppMainWindow::getLeaveFlow()
 {
-    // Save All has saved every document (the window is closed again by it)
+    if (!m_leaveFlow)
+    {
+        m_leaveFlow = new PDFAppLeaveFlow(this);
+        connect(m_leaveFlow.data(), &PDFAppLeaveFlow::finished, this, &PDFAppMainWindow::onLeaveFlowFinished);
+    }
+    return m_leaveFlow.data();
+}
+
+PDFAppLeaveResult PDFAppMainWindow::requestQuit()
+{
+    // The flow has ended Done (its last answer, Save All): the window is closed again by it
     if (m_isQuitConfirmed)
     {
-        return true;
+        return PDFAppLeaveResult::Done;
     }
 
-    // A Save All runs: the window waits for it
-    if (m_quitSavingTab)
+    // A0: one flow of the window (a question of the quit is open, Save All runs, the question of the end of the
+    // session is open): the second request is refused, the question comes forward
+    PDFAppLeaveFlow* flow = getLeaveFlow();
+    if (PDFAppLeaveFlow* runningFlow = PDFAppLeaveFlow::findRunning(this); runningFlow && runningFlow != flow)
     {
-        return false;
+        // A flow of a tab asks (its close, a navigation, a lock): the quit is refused, its question comes forward
+        runningFlow->raiseQuestion();
+        return PDFAppLeaveResult::Refused;
+    }
+    if (!flow->start(PDFAppLeaveFlow::Goal::QuitWindow))
+    {
+        flow->raiseQuestion();
+        return PDFAppLeaveResult::Refused;
     }
 
     // The tools in the tabs of the documents ask first about the unsaved work of the user, each shown with its
     // question (owner 2026-11-20). Their closing answers end nothing here: a later Keep cancels the quit and
     // every tool keeps its work (decision 8). Work discarded at the end of the system session is not asked again
-    // (PDFAppSessionEnd::isToolWorkDiscarded). A slot may delete a tab or the window. Every page, which has accepted,
-    // waits for the end of the leave (PDFAppPage::finishLeave): false when the quit is canceled here, true before the
-    // question of the unsaved documents.
-    QPointer<PDFAppMainWindow> toolGuard(this);
-    std::vector<QPointer<PDFAppPage>> toolPages;
-    std::vector<QPointer<PDFAppPage>> leavingPages;
+    // only by the close, which the allowed end of the session makes (PDFAppSessionEnd::isSessionEnding).
+    const bool isSessionEnding = PDFAppSessionEnd::isSessionEnding();
+    std::vector<QPointer<QObject>> toolPages;
     for (PDFAppDocumentTab* tab : getDocumentTabs())
     {
-        if (PDFAppPage* page = tab->getPage(); page && page->hasUnsavedWork() && !PDFAppSessionEnd::isToolWorkDiscarded(page))
+        if (PDFAppPage* page = tab->getPage(); page && page->hasUnsavedWork() && !(isSessionEnding && PDFAppSessionEnd::isToolWorkDiscarded(page)))
         {
             toolPages.emplace_back(page);
         }
     }
-    for (const QPointer<PDFAppPage>& page : toolPages)
+    flow->setQueue(toolPages);
+    return continueQuit(QuitStep::ToolPages);
+}
+
+PDFAppLeaveResult PDFAppMainWindow::continueQuit(QuitStep from)
+{
+    QPointer<PDFAppMainWindow> guard(this);
+    QPointer<PDFAppLeaveFlow> flow = getLeaveFlow();
+
+    // The pages of the tools, one by one (A0: each question is shown, its answer continues in onQuitStepFinished).
+    // A slot may delete a tab or the window. Every page, which has accepted, waits for the end of the leave
+    // (PDFAppLeaveFlow::requestFinishPages): false when the quit is canceled, true before the question of the unsaved
+    // documents.
+    if (from <= QuitStep::ToolPages)
     {
-        if (page && !page->confirmClose())
+        flow->setStep(int(QuitStep::ToolPages));
+        while (QObject* object = flow->takeNext())
         {
-            PDFAppPage::finishLeaves(leavingPages, false);
-            return false;
+            QPointer<PDFAppPage> page = qobject_cast<PDFAppPage*>(object);
+            if (!page)
+            {
+                continue;
+            }
+            PDFAppLeaveResult result = page->requestClose(flow);
+            if (!guard || !flow)
+            {
+                return PDFAppLeaveResult::Refused;
+            }
+            if (result == PDFAppLeaveResult::Pending)
+            {
+                if (page && flow->waitForStep(page.data(), this, &PDFAppMainWindow::onQuitStepFinished))
+                {
+                    flow->setSubject(page.data());
+                    return PDFAppLeaveResult::Pending;
+                }
+                result = PDFAppLeaveResult::Refused;
+            }
+            if (result != PDFAppLeaveResult::Done)
+            {
+                flow->finish(false);
+                return PDFAppLeaveResult::Refused;
+            }
+            flow->addAcceptedPage(page.data());
         }
-        if (!toolGuard)
+
+        // Then the own tabs of the tools, each shown with its question (K16: the list of the inputs is lost; a run
+        // asks as close-running and Stop stops it at once - after the questions above, so a Keep there never comes
+        // after a stopped run; an open result dialog keeps the window)
+        std::vector<QPointer<QObject>> toolTabs;
+        for (PDFAppToolTab* toolTab : getToolTabs())
         {
-            PDFAppPage::finishLeaves(leavingPages, false);
-            return false;
+            toolTabs.emplace_back(toolTab);
         }
-        if (page)
-        {
-            leavingPages.push_back(page);
-        }
+        flow->setQueue(toolTabs);
     }
 
-    // Then the own tabs of the tools, each shown with its question (K16: the list of the inputs is lost; a run
-    // asks as close-running and Stop stops it at once - after the questions above, so a Keep there never comes
-    // after a stopped run; an open result dialog keeps the window). A slot may delete a tab or the window.
-    std::vector<QPointer<PDFAppToolTab>> toolTabs;
-    for (PDFAppToolTab* toolTab : getToolTabs())
+    if (from <= QuitStep::ToolTabs)
     {
-        toolTabs.emplace_back(toolTab);
-    }
-    for (const QPointer<PDFAppToolTab>& toolTab : toolTabs)
-    {
-        if (toolTab && !toolTab->confirmClose())
+        flow->setStep(int(QuitStep::ToolTabs));
+        while (QObject* object = flow->takeNext())
         {
-            PDFAppPage::finishLeaves(leavingPages, false);
-            return false;
-        }
-        if (!toolGuard)
-        {
-            PDFAppPage::finishLeaves(leavingPages, false);
-            return false;
+            QPointer<PDFAppToolTab> toolTab = qobject_cast<PDFAppToolTab*>(object);
+            QPointer<PDFAppToolTabPage> page = toolTab && !toolTab->isCloseConfirmed() ? toolTab->getToolPage() : nullptr;
+            if (!page)
+            {
+                continue;
+            }
+            PDFAppLeaveResult result = page->requestClose(flow);
+            if (!guard || !flow)
+            {
+                return PDFAppLeaveResult::Refused;
+            }
+            if (result == PDFAppLeaveResult::Pending)
+            {
+                if (page && flow->waitForStep(page.data(), this, &PDFAppMainWindow::onQuitStepFinished))
+                {
+                    flow->setSubject(nullptr);
+                    return PDFAppLeaveResult::Pending;
+                }
+                result = PDFAppLeaveResult::Refused;
+            }
+            if (result != PDFAppLeaveResult::Done)
+            {
+                flow->finish(false);
+                return PDFAppLeaveResult::Refused;
+            }
         }
     }
 
     // The quit goes on: the choices of the questions of the tools, which change their documents (Redact "Remove New
     // Marks", Measure "Save and Close"), are applied before the question of the unsaved documents - Save All then
     // saves them; Cancel there keeps the applied changes (Undo takes them back). A tool, which could not keep all of
-    // its work (a measurement, which cannot be stored), cancels the quit (owner 2026-11-21): the window stays. The
-    // slots of the commits may delete a tab or the window.
-    const bool isFinished = PDFAppPage::finishLeaves(leavingPages, true);
-    if (!toolGuard || !isFinished)
+    // its work (a measurement, which cannot be stored), asks about the rest; its Keep cancels the quit (owner
+    // 2026-11-21): the window stays. The slots of the commits may delete a tab or the window.
+    if (from <= QuitStep::FinishPages)
     {
-        return false;
+        flow->setStep(int(QuitStep::FinishPages));
+        PDFAppLeaveResult result = flow->requestFinishPages(true);
+        if (!guard || !flow)
+        {
+            return PDFAppLeaveResult::Refused;
+        }
+        if (result == PDFAppLeaveResult::Pending)
+        {
+            if (flow->waitForStep(flow.data(), this, &PDFAppMainWindow::onQuitStepFinished))
+            {
+                return PDFAppLeaveResult::Pending;
+            }
+            result = PDFAppLeaveResult::Refused;
+        }
+        if (result != PDFAppLeaveResult::Done)
+        {
+            flow->finish(false);
+            return PDFAppLeaveResult::Refused;
+        }
     }
 
     // Open editors of form fields are changes too (step 4, package D); a slot
     // may delete a tab or the window
-    QPointer<PDFAppMainWindow> pendingGuard(this);
     std::vector<QPointer<PDFAppDocument>> pendingDocuments;
     for (PDFAppDocumentTab* tab : getDocumentTabs())
     {
@@ -2046,21 +2194,23 @@ bool PDFAppMainWindow::confirmClose()
         if (document)
         {
             document->commitPendingEdits();
-            if (!pendingGuard)
+            if (!guard || !flow)
             {
-                return false;
+                return PDFAppLeaveResult::Refused;
             }
         }
     }
 
     // The documents with unsaved changes: pdf4qt-quit-unsaved 955:145378 (not the
-    // changes discarded at the end of the session - Qt closes the windows then)
+    // changes discarded at the end of the session in the close, which the allowed end of the session makes - the
+    // question of the end of the session; a quit of the user asks about them, H1 of the review of A0)
+    const bool isSessionEnding = PDFAppSessionEnd::isSessionEnding();
     std::vector<const PDFAppDocument*> documents;
     std::vector<QPointer<PDFAppDocumentTab>> tabs;
     for (PDFAppDocumentTab* tab : getDocumentTabs())
     {
         const PDFAppDocument* document = tab->getDocument();
-        if (document && document->isReady() && document->isModified() && !PDFAppSessionEnd::isDiscarded(document))
+        if (document && document->isReady() && document->isModified() && !(isSessionEnding && PDFAppSessionEnd::isDiscarded(document)))
         {
             documents.push_back(document);
             tabs.emplace_back(tab);
@@ -2068,29 +2218,137 @@ bool PDFAppMainWindow::confirmClose()
     }
     if (documents.empty())
     {
-        return true;
+        flow->finish(true);
+        return guard ? PDFAppLeaveResult::Done : PDFAppLeaveResult::Refused;
     }
 
-    QPointer<PDFAppMainWindow> guard(this);
-    const PDFAppDocumentChoice choice = PDFAppDocumentChoiceDialog::run(new PDFAppQuitUnsavedDialog(documents, this));
-    if (!guard)
+    // A0: the question is shown (exec's modality, no event loop); the answer comes to onQuitUnsavedChosen
+    flow->setStep(int(QuitStep::Unsaved));
+    m_quitSaveQueue = std::move(tabs);
+    PDFAppQuitUnsavedDialog* dialog = new PDFAppQuitUnsavedDialog(documents, this);
+    flow->setQuestion(dialog);
+    PDFAppDocumentChoiceDialog::ask(dialog, this, &PDFAppMainWindow::onQuitUnsavedChosen);
+    return PDFAppLeaveResult::Pending;
+}
+
+bool PDFAppMainWindow::isQuitStep(QuitStep step) const
+{
+    return m_leaveFlow && m_leaveFlow->isRunning() && m_leaveFlow->getGoal() == PDFAppLeaveFlow::Goal::QuitWindow && m_leaveFlow->getStep() == int(step);
+}
+
+void PDFAppMainWindow::completeQuit(PDFAppLeaveResult result)
+{
+    // The last answer (or the last save) has come later than the close: the window closes now (the last call)
+    if (result != PDFAppLeaveResult::Done)
     {
-        return false;
+        return;
+    }
+    m_isQuitConfirmed = true;
+    QPointer<PDFAppMainWindow> guard(this);
+    close();
+    if (guard)
+    {
+        m_isQuitConfirmed = false;
+    }
+}
+
+void PDFAppMainWindow::onQuitStepFinished(PDFAppLeaveResult result)
+{
+    PDFAppLeaveFlow* flow = m_leaveFlow.data();
+    QuitStep step = QuitStep::ToolPages;
+    if (isQuitStep(QuitStep::ToolPages))
+    {
+        step = QuitStep::ToolPages;
+    }
+    else if (isQuitStep(QuitStep::ToolTabs))
+    {
+        step = QuitStep::ToolTabs;
+    }
+    else if (isQuitStep(QuitStep::FinishPages))
+    {
+        step = QuitStep::FinishPages;
+    }
+    else
+    {
+        return;
     }
 
+    if (result != PDFAppLeaveResult::Done)
+    {
+        flow->finish(false);
+        return;
+    }
+
+    // A page of a tool has accepted: it waits for the end of the leave; the queue goes on (the tabs, the pages may
+    // have gone meanwhile - the queue holds them weakly)
+    if (step == QuitStep::ToolPages)
+    {
+        if (PDFAppPage* page = qobject_cast<PDFAppPage*>(flow->getSubject()))
+        {
+            flow->addAcceptedPage(page);
+        }
+        flow->setSubject(nullptr);
+    }
+    completeQuit(continueQuit(step == QuitStep::FinishPages ? QuitStep::Unsaved : step));
+}
+
+void PDFAppMainWindow::onQuitUnsavedChosen(PDFAppDocumentChoice choice)
+{
+    if (!isQuitStep(QuitStep::Unsaved))
+    {
+        return;
+    }
+
+    PDFAppLeaveFlow* flow = m_leaveFlow.data();
     switch (choice)
     {
         case PDFAppDocumentChoice::Discard:
-            return true;
+            m_quitSaveQueue.clear();
+            flow->finish(true);
+            completeQuit(PDFAppLeaveResult::Done);
+            return;
 
         case PDFAppDocumentChoice::Save:
             // The documents are saved one by one; the window closes after the last one
-            m_quitSaveQueue = std::move(tabs);
+            flow->setStep(int(QuitStep::Saving));
             saveNextForQuit();
-            return false;
+            return;
 
         default:
-            return false;
+            break;
+    }
+    m_quitSaveQueue.clear();
+    flow->finish(false);
+}
+
+void PDFAppMainWindow::onLeaveFlowFinished(bool isDone)
+{
+    // The quit has ended without closing the window (Cancel, Keep, a failed save; also in a later answer): the held
+    // requests are opened and the server listens again
+    if (!m_isQuitFlowActive)
+    {
+        return;
+    }
+    m_isQuitFlowActive = false;
+    if (!isDone)
+    {
+        resumeAfterQuit();
+    }
+}
+
+void PDFAppMainWindow::resumeAfterQuit()
+{
+    // The user has canceled the quitting: the held requests are opened and the server listens again (another
+    // instance may have taken the name meanwhile, then this one runs without the forwarding)
+    m_isClosing = false;
+    QPointer<PDFAppInstanceServer> server = m_context ? m_context->getInstanceServer() : nullptr;
+    if (server)
+    {
+        QString error;
+        if (!server->resume(PDFAppInstanceServer::DEFAULT_RETRY_LIMIT, &error))
+        {
+            qInfo("The running instance does not receive forwarded files now: %s", qPrintable(error));
+        }
     }
 }
 
@@ -2135,6 +2393,13 @@ bool PDFAppMainWindow::isToolQuestionOpen() const
 
 void PDFAppMainWindow::saveNextForQuit()
 {
+    // Save All is a step of the flow of the quit (a flow ended meanwhile saves nothing more)
+    if (!isQuitStep(QuitStep::Saving))
+    {
+        m_quitSaveQueue.clear();
+        return;
+    }
+
     while (!m_quitSaveQueue.empty())
     {
         QPointer<PDFAppDocumentTab> tab = m_quitSaveQueue.front();
@@ -2147,52 +2412,48 @@ void PDFAppMainWindow::saveNextForQuit()
             continue;
         }
 
+        // A0: a save request of package E (its end exactly once, never inside the call: false also when nothing can
+        // be saved or the tab goes first - a deleted tab never leaves the quit waiting)
         m_quitSavingTab = tab;
-        connect(tab.data(), &PDFAppDocumentTab::saveFinished, this, &PDFAppMainWindow::onQuitSaveFinished, Qt::UniqueConnection);
-        QPointer<PDFAppMainWindow> guard(this);
-        const bool isStarted = tab->save();
-        if (!guard)
+        PDFAppDocumentFileCommandHandler* handler = tab->prepareSave();
+        if (!handler || !handler->requestSave(this, &PDFAppMainWindow::onQuitSaveFinished))
         {
-            return;
-        }
-        if (!isStarted)
-        {
-            // The document cannot be saved now (locked, no file to write): the window stays
-            if (tab)
-            {
-                disconnect(tab.data(), &PDFAppDocumentTab::saveFinished, this, &PDFAppMainWindow::onQuitSaveFinished);
-            }
+            // Nothing can be saved (no package E): the window stays
             m_quitSavingTab = nullptr;
             m_quitSaveQueue.clear();
+            m_leaveFlow->finish(false);
         }
         return;
     }
 
     // Every document is saved: the window closes
     m_quitSavingTab = nullptr;
-    m_isQuitConfirmed = true;
-    QPointer<PDFAppMainWindow> guard(this);
-    close();
-    if (guard)
+    if (!isQuitStep(QuitStep::Saving))
     {
-        m_isQuitConfirmed = false;
+        return;
     }
+    m_leaveFlow->finish(true);
+    completeQuit(PDFAppLeaveResult::Done);
 }
 
 void PDFAppMainWindow::onQuitSaveFinished(bool isSaved)
 {
-    PDFAppDocumentTab* tab = qobject_cast<PDFAppDocumentTab*>(sender());
-    if (!tab || tab != m_quitSavingTab)
+    if (!isQuitStep(QuitStep::Saving))
     {
         return;
     }
-    disconnect(tab, &PDFAppDocumentTab::saveFinished, this, &PDFAppMainWindow::onQuitSaveFinished);
+    QPointer<PDFAppDocumentTab> tab = m_quitSavingTab;
     m_quitSavingTab = nullptr;
 
-    // A canceled or failed save keeps the window open (its error has been shown)
-    if (!isSaved)
+    // A canceled or failed save keeps the window open (its error has been shown), also a tab deleted during its save
+    // (not saved): the flow of the quit ends
+    if (!isSaved || !tab)
     {
         m_quitSaveQueue.clear();
+        if (isQuitStep(QuitStep::Saving))
+        {
+            m_leaveFlow->finish(false);
+        }
         return;
     }
 
@@ -2200,7 +2461,7 @@ void PDFAppMainWindow::onQuitSaveFinished(bool isSaved)
     // document is saved again (the next one in the queue is itself)
     if (tab->getDocument() && tab->getDocument()->isModified())
     {
-        m_quitSaveQueue.insert(m_quitSaveQueue.begin(), QPointer<PDFAppDocumentTab>(tab));
+        m_quitSaveQueue.insert(m_quitSaveQueue.begin(), tab);
     }
 
     // The next document from the event loop (the saver of the tab finishes its signal first)
@@ -2389,6 +2650,15 @@ void PDFAppMainWindow::updateNormalGeometry()
 
 void PDFAppMainWindow::closeEvent(QCloseEvent* event)
 {
+    // A0: a flow of the window runs (a question of the quit or of the end of the session is open, Save All runs):
+    // the second close is refused and the question comes forward (the flow keeps the server suspended)
+    if (!m_isQuitConfirmed && m_leaveFlow && m_leaveFlow->isRunning())
+    {
+        m_leaveFlow->raiseQuestion();
+        event->ignore();
+        return;
+    }
+
     // The server stops listening before the questions about unsaved changes and it
     // holds the requests of the connections, which it has accepted before; a
     // process started meanwhile runs by itself
@@ -2399,36 +2669,43 @@ void PDFAppMainWindow::closeEvent(QCloseEvent* event)
     }
     m_isClosing = true;
 
+    // The close after the last answer of a Pending quit (completeQuit) has announced it already: once per quit
     QPointer<PDFAppMainWindow> guard(this);
-    Q_EMIT closing();
-    if (!guard)
+    if (!m_isQuitConfirmed)
     {
-        return;
-    }
-
-    const bool isConfirmed = confirmClose();
-    if (!guard)
-    {
-        return;
-    }
-
-    if (!isConfirmed)
-    {
-        // The user has canceled the quitting: the held requests are opened and the
-        // server listens again (another instance may have taken the name meanwhile,
-        // then this one runs without the forwarding)
-        m_isClosing = false;
-        if (server)
+        Q_EMIT closing();
+        if (!guard)
         {
-            QString error;
-            if (!server->resume(PDFAppInstanceServer::DEFAULT_RETRY_LIMIT, &error))
-            {
-                qInfo("The running instance does not receive forwarded files now: %s", qPrintable(error));
-            }
+            return;
+        }
+    }
+
+    // The questions of the quit (A0: shown, no event loop). Pending: the window closes itself after the last answer
+    // or the last save (completeQuit), the end of the flow without the quit resumes the server (onLeaveFlowFinished).
+    m_isQuitFlowActive = true;
+    const PDFAppLeaveResult result = requestQuit();
+    if (!guard)
+    {
+        return;
+    }
+    if (result == PDFAppLeaveResult::Pending)
+    {
+        event->ignore();
+        return;
+    }
+
+    if (result != PDFAppLeaveResult::Done)
+    {
+        // The user has canceled the quitting (the end of the flow has resumed the server already)
+        if (m_isQuitFlowActive)
+        {
+            m_isQuitFlowActive = false;
+            resumeAfterQuit();
         }
         event->ignore();
         return;
     }
+    m_isQuitFlowActive = false;
 
     // The quitting is accepted: the held and the incoming requests are refused, so
     // their processes start by themselves (an acknowledged request would be lost)

@@ -20,6 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include "appasyncdialogs.h"
 #include "appdocumentfixture.h"
 #include "applocaleguard.h"
 
@@ -37,6 +38,7 @@
 #include "pdfappdocumentstatusbar.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
+#include "pdfappleaveflow.h"
 #include "pdfappmainwindow.h"
 #include "pdfappnavigator.h"
 #include "pdfapppagelayout.h"
@@ -81,6 +83,15 @@
 
 #include <functional>
 
+/// The member slot, which takes the answers of the confirmations (PDFAppDialogAnswer, A0)
+class ActionAnswerReceiver : public QObject
+{
+public:
+    void onAnswered(int code) { codes.push_back(code); }
+
+    std::vector<int> codes;
+};
+
 /// Helpers of the test
 class PropertiesTestHelper
 {
@@ -107,61 +118,53 @@ public:
 
     /// Clicks the button of a message box, as soon as the message box is shown (a
     /// timer of the nested event loop of exec). \returns the clicker (it deletes itself).
-    static QTimer* clickWhenShown(const QString& dialogName, const QString& buttonName, QStringList* seenTexts = nullptr)
+    /// The open confirmation of a link or an action (A0: shown without a nested event loop, the call, which showed it,
+    /// has returned), nullptr = none
+    static pdf::PDFMessageBox* findShown(const QString& dialogName)
     {
-        QTimer* timer = new QTimer();
-        timer->setInterval(5);
-        QObject::connect(timer, &QTimer::timeout, timer, [timer, dialogName, buttonName, seenTexts]()
+        return qobject_cast<pdf::PDFMessageBox*>(pdftest::AppAsyncDialogs::findOpenDialog(dialogName));
+    }
+
+    /// Answers the open confirmation \p dialogName as the user does: its texts go to \p seenTexts, "escape" and
+    /// "enter" are keys, any other name is a button; the continuation is settled. \returns false without the dialog
+    /// or the button.
+    static bool answerShown(const QString& dialogName, const QString& buttonName, QStringList* seenTexts = nullptr)
+    {
+        pdf::PDFMessageBox* box = findShown(dialogName);
+        if (!box)
         {
-            for (QWidget* widget : QApplication::topLevelWidgets())
+            return false;
+        }
+
+        if (seenTexts)
+        {
+            for (QLabel* label : box->findChildren<QLabel*>())
             {
-                pdf::PDFMessageBox* box = qobject_cast<pdf::PDFMessageBox*>(widget);
-                if (!box)
+                seenTexts->append(label->text());
+            }
+            for (pdf::PDFKeyValueList* list : box->findChildren<pdf::PDFKeyValueList*>())
+            {
+                for (int i = 0; i < list->getRowCount(); ++i)
                 {
-                    for (pdf::PDFMessageBox* child : widget->findChildren<pdf::PDFMessageBox*>())
-                    {
-                        if (child->isVisible() && child->objectName() == dialogName)
-                        {
-                            box = child;
-                        }
-                    }
-                }
-                if (box && box->isVisible() && box->objectName() == dialogName)
-                {
-                    if (seenTexts)
-                    {
-                        for (QLabel* label : box->findChildren<QLabel*>())
-                        {
-                            seenTexts->append(label->text());
-                        }
-                        for (pdf::PDFKeyValueList* list : box->findChildren<pdf::PDFKeyValueList*>())
-                        {
-                            for (int i = 0; i < list->getRowCount(); ++i)
-                            {
-                                seenTexts->append(list->getValue(i));
-                            }
-                        }
-                    }
-                    if (buttonName == QStringLiteral("escape"))
-                    {
-                        QTest::keyClick(box, Qt::Key_Escape);
-                    }
-                    else if (buttonName == QStringLiteral("enter"))
-                    {
-                        QTest::keyClick(box, Qt::Key_Return);
-                    }
-                    else if (QPushButton* button = box->findChild<QPushButton*>(buttonName))
-                    {
-                        button->click();
-                    }
-                    timer->stop();
-                    timer->deleteLater();
-                    return;
+                    seenTexts->append(list->getValue(i));
                 }
             }
-        });
-        timer->start();
-        return timer;
+        }
+
+        if (buttonName == QStringLiteral("escape"))
+        {
+            QTest::keyClick(box, Qt::Key_Escape);
+        }
+        else if (buttonName == QStringLiteral("enter"))
+        {
+            QTest::keyClick(box, Qt::Key_Return);
+        }
+        else if (!pdftest::AppAsyncDialogs::clickButton(box, buttonName))
+        {
+            return false;
+        }
+        pdftest::AppAsyncDialogs::settle();
+        return true;
     }
 
     /// Actions of the link annotations of the first page (the annotations are kept alive)
@@ -1484,23 +1487,52 @@ void AppDocumentPropertiesTest::linkDialogs()
     QCOMPARE(file->findChild<pdf::PDFKeyValueList*>(QStringLiteral("factList"))->getValue(0), QStringLiteral("Budget.xlsx"));
     delete file;
 
-    // run: Enter = the primary button, Esc = rejected, a deleted parent = rejected
-    PropertiesTestHelper::clickWhenShown(QStringLiteral("linkConfirmDialog"), QStringLiteral("enter"));
-    QCOMPARE(pdf::PDFAppDocumentActionDialogs::confirmLink(&host, QStringLiteral("R.pdf"), QUrl(QStringLiteral("https://example.com/"))), pdf::PDFAppDocumentActionDialogs::Result::Accepted);
-    PropertiesTestHelper::clickWhenShown(QStringLiteral("linkConfirmDialog"), QStringLiteral("escape"));
-    QCOMPARE(pdf::PDFAppDocumentActionDialogs::confirmLink(&host, QStringLiteral("R.pdf"), QUrl(QStringLiteral("https://example.com/"))), pdf::PDFAppDocumentActionDialogs::Result::Rejected);
-    PropertiesTestHelper::clickWhenShown(QStringLiteral("linkConfirmDialog"), QStringLiteral("copyLinkButton"));
-    QCOMPARE(pdf::PDFAppDocumentActionDialogs::confirmLink(&host, QStringLiteral("R.pdf"), QUrl(QStringLiteral("https://example.com/"))), pdf::PDFAppDocumentActionDialogs::Result::CopyLink);
-    PropertiesTestHelper::clickWhenShown(QStringLiteral("launchConfirmDialog"), QStringLiteral("enter"));
-    QCOMPARE(pdf::PDFAppDocumentActionDialogs::confirmProgram(&host, QStringLiteral("R.pdf"), QStringLiteral("a.exe"), QString(), QString()), pdf::PDFAppDocumentActionDialogs::Result::Rejected);
-    PropertiesTestHelper::clickWhenShown(QStringLiteral("launchFileConfirmDialog"), QStringLiteral("openFileButton"));
-    QCOMPARE(pdf::PDFAppDocumentActionDialogs::confirmFile(&host, QStringLiteral("R.pdf"), QStringLiteral("a.xlsx")), pdf::PDFAppDocumentActionDialogs::Result::Accepted);
+    // Shown without a nested event loop (A0, PDFAppDialogAnswer): Enter = the primary button, Esc = rejected, a
+    // deleted parent = rejected (from the event loop); the dialog is deleted after its answer
+    using Dialogs = pdf::PDFAppDocumentActionDialogs;
+    using Result = pdf::PDFAppDocumentActionDialogs::Result;
+    pdftest::NestedEventLoopGuard loopGuard;
+    ActionAnswerReceiver receiver;
+    const auto ask = [&receiver](pdf::PDFMessageBox* dialog, const QString& buttonName) -> Result
+    {
+        receiver.codes.clear();
+        QPointer<pdf::PDFMessageBox> dialogGuard(dialog);
+        pdf::PDFAppDialogAnswer* answer = pdf::PDFAppDialogAnswer::show(dialog, &receiver, &ActionAnswerReceiver::onAnswered);
+        answer->setDeleteDialog(true);
+        if (!dialog->isVisible() || !receiver.codes.empty() || !PropertiesTestHelper::answerShown(dialog->objectName(), buttonName) ||
+            receiver.codes.size() != 1 || dialogGuard)
+        {
+            return Result(-1);
+        }
+        return Dialogs::getResult(receiver.codes.front());
+    };
+    QCOMPARE(ask(Dialogs::createLinkDialog(&host, QStringLiteral("R.pdf"), QUrl(QStringLiteral("https://example.com/"))), QStringLiteral("enter")), Result::Accepted);
+    QCOMPARE(ask(Dialogs::createLinkDialog(&host, QStringLiteral("R.pdf"), QUrl(QStringLiteral("https://example.com/"))), QStringLiteral("escape")), Result::Rejected);
+    QCOMPARE(ask(Dialogs::createLinkDialog(&host, QStringLiteral("R.pdf"), QUrl(QStringLiteral("https://example.com/"))), QStringLiteral("copyLinkButton")), Result::CopyLink);
+    QCOMPARE(ask(Dialogs::createLinkDialog(&host, QStringLiteral("R.pdf"), QUrl(QStringLiteral("https://example.com/"))), QStringLiteral("cancelButton")), Result::Rejected);
+    QCOMPARE(ask(Dialogs::createProgramDialog(&host, QStringLiteral("R.pdf"), QStringLiteral("a.exe"), QString(), QString()), QStringLiteral("enter")), Result::Rejected);
+    QCOMPARE(ask(Dialogs::createProgramDialog(&host, QStringLiteral("R.pdf"), QStringLiteral("a.exe"), QString(), QString()), QStringLiteral("startProgramButton")), Result::Accepted);
+    QCOMPARE(ask(Dialogs::createFileDialog(&host, QStringLiteral("R.pdf"), QStringLiteral("a.xlsx")), QStringLiteral("openFileButton")), Result::Accepted);
+    QCOMPARE(ask(Dialogs::createFileDialog(&host, QStringLiteral("R.pdf"), QStringLiteral("a.xlsx")), QStringLiteral("dontOpenButton")), Result::Rejected);
 
+    // The parent deleted while the dialog is shown: Rejected, once, from the event loop
     QWidget* parent = new QWidget(&host);
     parent->show();
-    QTimer::singleShot(50, parent, [parent]() { parent->deleteLater(); });
-    QCOMPARE(pdf::PDFAppDocumentActionDialogs::confirmFile(parent, QStringLiteral("R.pdf"), QStringLiteral("a.xlsx")), pdf::PDFAppDocumentActionDialogs::Result::Rejected);
-    QCOMPARE(pdf::PDFAppDocumentActionDialogs::run(nullptr), pdf::PDFAppDocumentActionDialogs::Result::Rejected);
+    receiver.codes.clear();
+    pdf::PDFAppDialogAnswer::show(Dialogs::createFileDialog(parent, QStringLiteral("R.pdf"), QStringLiteral("a.xlsx")), &receiver, &ActionAnswerReceiver::onAnswered)->setDeleteDialog(true);
+    QVERIFY(PropertiesTestHelper::findShown(QStringLiteral("launchFileConfirmDialog")));
+    delete parent;
+    QVERIFY(receiver.codes.empty());
+    pdftest::AppAsyncDialogs::settle();
+    QVERIFY(receiver.codes == std::vector<int>({ int(QDialog::Rejected) }));
+    QCOMPARE(Dialogs::getResult(receiver.codes.front()), Result::Rejected);
+
+    // The codes of the results; any other code is Rejected
+    QCOMPARE(Dialogs::getResult(int(Result::Accepted)), Result::Accepted);
+    QCOMPARE(Dialogs::getResult(int(Result::CopyLink)), Result::CopyLink);
+    QCOMPARE(Dialogs::getResult(int(Result::Rejected)), Result::Rejected);
+    QCOMPARE(Dialogs::getResult(-1), Result::Rejected);
+    QCOMPARE(Dialogs::getResult(1000), Result::Rejected);
 }
 
 void AppDocumentPropertiesTest::webLinks()
@@ -1517,30 +1549,36 @@ void AppDocumentPropertiesTest::webLinks()
     QList<pdf::PDFAppExternalLaunch> launched;
     pdf::PDFAppDocumentActionHandler::setLaunchHandler([&launched](const pdf::PDFAppExternalLaunch& request) { launched << request; return true; });
 
-    // Open Link: the address goes to the browser
+    // Open Link: the address goes to the browser - the confirmation is shown without a nested event loop (A0): the
+    // call returns with it open, the answer launches
+    pdftest::NestedEventLoopGuard loopGuard;
     QStringList texts;
-    PropertiesTestHelper::clickWhenShown(QStringLiteral("linkConfirmDialog"), QStringLiteral("openLinkButton"), &texts);
     handler->performAction(actions[2]);
-    fixture.settle();
+    QVERIFY(handler->isPerforming());
+    QCOMPARE(handler->getQuestion(), PropertiesTestHelper::findShown(QStringLiteral("linkConfirmDialog")));
+    QVERIFY(launched.isEmpty());
+    QVERIFY(PropertiesTestHelper::answerShown(QStringLiteral("linkConfirmDialog"), QStringLiteral("openLinkButton"), &texts));
     QCOMPARE(launched.size(), 1);
     QCOMPARE(launched[0].kind, pdf::PDFAppExternalLaunch::Kind::Url);
     QCOMPARE(launched[0].url, QUrl(QStringLiteral("https://example.com/")));
     QVERIFY(texts.contains(QStringLiteral("example.com")));
+    QVERIFY(!handler->isPerforming());
+    QVERIFY(!handler->getQuestion());
 
     // Cancel: nothing; Copy Link: the clipboard
-    PropertiesTestHelper::clickWhenShown(QStringLiteral("linkConfirmDialog"), QStringLiteral("cancelButton"));
     handler->performAction(actions[2]);
+    QVERIFY(PropertiesTestHelper::answerShown(QStringLiteral("linkConfirmDialog"), QStringLiteral("cancelButton")));
     QCOMPARE(launched.size(), 1);
     QApplication::clipboard()->clear();
-    PropertiesTestHelper::clickWhenShown(QStringLiteral("linkConfirmDialog"), QStringLiteral("copyLinkButton"));
     handler->performAction(actions[2]);
+    QVERIFY(PropertiesTestHelper::answerShown(QStringLiteral("linkConfirmDialog"), QStringLiteral("copyLinkButton")));
     QCOMPARE(launched.size(), 1);
     QCOMPARE(QApplication::clipboard()->text(), QStringLiteral("https://example.com/"));
 
     // A failing browser: a status message
     pdf::PDFAppDocumentActionHandler::setLaunchHandler([](const pdf::PDFAppExternalLaunch&) { return false; });
-    PropertiesTestHelper::clickWhenShown(QStringLiteral("linkConfirmDialog"), QStringLiteral("openLinkButton"));
     handler->performAction(actions[2]);
+    QVERIFY(PropertiesTestHelper::answerShown(QStringLiteral("linkConfirmDialog"), QStringLiteral("openLinkButton")));
     QVERIFY(tab->getView()->getStatusBar()->getMessage().contains(QStringLiteral("could not be opened")));
 
     // Other schemes are never opened (no dialog)
@@ -1569,12 +1607,11 @@ void AppDocumentPropertiesTest::webLinksBlocked()
     QVERIFY(!fixture.context->getSettings().setValue(pdf::PDFSettingKeys::securityOpenLinks(), false).isError());
 
     // No dialog: the info bar link-blocked with Copy Link and Security Settings (a
-    // confirmation shown against the setting is canceled and fails the test at once)
-    QStringList confirmationTexts;
-    QPointer<QTimer> dialogTimer = PropertiesTestHelper::clickWhenShown(QStringLiteral("linkConfirmDialog"), QStringLiteral("cancelButton"), &confirmationTexts);
+    // confirmation shown against the setting fails the test at once)
+    pdftest::NestedEventLoopGuard loopGuard;
     handler->performAction(actions[2]);
-    delete dialogTimer.data();
-    QVERIFY2(confirmationTexts.isEmpty(), qPrintable(confirmationTexts.join(QLatin1Char('|'))));
+    QVERIFY(!PropertiesTestHelper::findShown(QStringLiteral("linkConfirmDialog")));
+    QVERIFY(!handler->isPerforming());
     fixture.settle();
     QCOMPARE(launched, 0);
     const pdf::PDFAppInfoBarRequest* bar = tab->getView()->findInfoBar(pdf::PDFAppDocumentActionHandler::getLinkBlockedBarId());
@@ -1627,12 +1664,14 @@ void AppDocumentPropertiesTest::launchActions()
     QVERIFY(program.open(QIODevice::WriteOnly));
     program.write("MZ");
     program.close();
+    pdftest::NestedEventLoopGuard loopGuard;
     QStringList texts;
-    PropertiesTestHelper::clickWhenShown(QStringLiteral("launchConfirmDialog"), QStringLiteral("dontStartButton"), &texts);
+    handler->performAction(actions[3]);
+    QVERIFY(PropertiesTestHelper::answerShown(QStringLiteral("launchConfirmDialog"), QStringLiteral("dontStartButton"), &texts));
+    QVERIFY(launched.isEmpty());
     handler->performAction(actions[3]);
     QVERIFY(launched.isEmpty());
-    PropertiesTestHelper::clickWhenShown(QStringLiteral("launchConfirmDialog"), QStringLiteral("startProgramButton"));
-    handler->performAction(actions[3]);
+    QVERIFY(PropertiesTestHelper::answerShown(QStringLiteral("launchConfirmDialog"), QStringLiteral("startProgramButton")));
     QCOMPARE(launched.size(), 1);
     QCOMPARE(launched[0].kind, pdf::PDFAppExternalLaunch::Kind::Program);
     QCOMPARE(QFileInfo(launched[0].filePath).fileName(), QStringLiteral("notepad.exe"));
@@ -1646,8 +1685,8 @@ void AppDocumentPropertiesTest::launchActions()
     const pdf::PDFActionPtr fileLaunch = PropertiesTestHelper::parseAction(document, PropertiesTestHelper::dictionary({ { "S", PropertiesTestHelper::name("Launch") },
                                                                                                                        { "F", pdf::PDFObject::createString(QByteArray("Budget.xlsx")) } }));
     QVERIFY(fileLaunch);
-    PropertiesTestHelper::clickWhenShown(QStringLiteral("launchFileConfirmDialog"), QStringLiteral("openFileButton"), &texts);
     handler->performAction(fileLaunch.data());
+    QVERIFY(PropertiesTestHelper::answerShown(QStringLiteral("launchFileConfirmDialog"), QStringLiteral("openFileButton"), &texts));
     QCOMPARE(launched.size(), 2);
     QCOMPARE(launched[1].kind, pdf::PDFAppExternalLaunch::Kind::File);
     QVERIFY(texts.contains(QStringLiteral("Budget.xlsx")));
@@ -2061,16 +2100,13 @@ void AppDocumentPropertiesTest::networkTargets()
                                                                                                                           { "F", pdf::PDFObject::createString(QByteArrayLiteral("\\\\pdf4qt-test.invalid\\share\\tool.exe")) } }));
     QVERIFY(programLaunch);
     view->hideInfoBar(pdf::PDFAppDocumentActionHandler::getNetworkBlockedBarId());
-    QStringList texts;
-    QTimer* dialogTimer = PropertiesTestHelper::clickWhenShown(QStringLiteral("launchConfirmDialog"), QStringLiteral("startProgramButton"), &texts);
     timer.restart();
     handler->performAction(programLaunch.data());
     QVERIFY(timer.elapsed() < 2000);
-    delete dialogTimer;
+    QVERIFY(!PropertiesTestHelper::findShown(QStringLiteral("launchConfirmDialog")));
     bar = view->findInfoBar(pdf::PDFAppDocumentActionHandler::getNetworkBlockedBarId());
     QVERIFY(bar);
     QVERIFY(bar->actions.empty());
-    QVERIFY(texts.isEmpty());
     QVERIFY(launched.isEmpty());
 
     // A device path is never opened (status message)
@@ -2096,23 +2132,22 @@ void AppDocumentPropertiesTest::actionLifetime()
     int launched = 0;
     pdf::PDFAppDocumentActionHandler::setLaunchHandler([&launched](const pdf::PDFAppExternalLaunch&) { ++launched; return true; });
 
+    // The tab goes away with its dialog (a request of another part of the application): its answer never comes (the
+    // handler is gone with the tab), nothing is launched, no question stays open
+    pdftest::NestedEventLoopGuard loopGuard;
     QPointer<pdf::PDFAppDocumentTab> tabGuard(tab);
-    QTimer::singleShot(100, fixture.window.data(), [&fixture, tabGuard]()
-    {
-        // The tab goes away with its dialog (a request of another part of the application)
-        if (tabGuard)
-        {
-            delete tabGuard.data();
-        }
-        Q_UNUSED(fixture);
-    });
     handler->performAction(actions[2]);
+    QPointer<pdf::PDFMessageBox> question = PropertiesTestHelper::findShown(QStringLiteral("linkConfirmDialog"));
+    QVERIFY(question);
+    delete tabGuard.data();
     fixture.settle();
     QVERIFY(!tabGuard);
     QVERIFY(!handler);
+    QVERIFY(!question);
     QCOMPARE(launched, 0);
 
-    // The document changed while the dialog is shown: the chain stops
+    // The document changed while the dialog is shown: the answer of the user is performed (the address was confirmed),
+    // the chain ends (the parser does not read /Next - NOTES.txt 12.6.2 - so the chain has the one action)
     tab = PropertiesTestHelper::openReady(fixture, pdftest::AppDocumentSamples::links(fixture.folder()));
     if (!tab)
     {
@@ -2120,23 +2155,63 @@ void AppDocumentPropertiesTest::actionLifetime()
     }
     QVERIFY(tab);
     handler = PropertiesTestHelper::handler(tab)->getActionHandler();
-    annotations.clear();
-    const std::vector<const pdf::PDFAction*> actions2 = PropertiesTestHelper::linkActions(tab->getDocument()->getDocument().data(), annotations);
     pdf::PDFAppDocument* document = tab->getDocument();
     const pdf::PDFActionPtr chain = PropertiesTestHelper::parseAction(document->getDocument().data(),
                                                                       PropertiesTestHelper::dictionary({ { "S", PropertiesTestHelper::name("URI") }, { "URI", pdf::PDFObject::createString(QByteArray("https://example.com/")) },
                                                                                                          { "Next", PropertiesTestHelper::dictionary({ { "S", PropertiesTestHelper::name("Named") }, { "N", PropertiesTestHelper::name("LastPage") } }) } }));
-    QTimer::singleShot(100, document, [document]()
-    {
-        const pdf::PDFDocumentPointer changed = pdf::PDFAppDocumentPropertiesData::setInfoValue(document->getDocument().data(), QByteArrayLiteral("Title"), QStringLiteral("changed"));
-        document->commit(pdf::PDFModifiedDocument(changed, document->getOptionalContentActivity()), QStringLiteral("x"), document->getVersion(), pdf::PDFAppChangeSource::User);
-    });
-    PropertiesTestHelper::clickWhenShown(QStringLiteral("linkConfirmDialog"), QStringLiteral("cancelButton"));
-    QTimer::singleShot(250, fixture.window.data(), [&fixture]() { fixture.closeMessageBoxes(); });
     handler->performAction(chain.data());
+    QVERIFY(PropertiesTestHelper::findShown(QStringLiteral("linkConfirmDialog")));
+    const pdf::PDFDocumentPointer changed = pdf::PDFAppDocumentPropertiesData::setInfoValue(document->getDocument().data(), QByteArrayLiteral("Title"), QStringLiteral("changed"));
+    document->commit(pdf::PDFModifiedDocument(changed, document->getOptionalContentActivity()), QStringLiteral("x"), document->getVersion(), pdf::PDFAppChangeSource::User);
+    QVERIFY(PropertiesTestHelper::answerShown(QStringLiteral("linkConfirmDialog"), QStringLiteral("openLinkButton")));
+    QCOMPARE(launched, 1);
+    QCOMPARE(tab->getView()->getCurrentPageIndex(), pdf::PDFInteger(0));
+    QVERIFY(!handler->isPerforming());
+
+    // RR3-M4, the chain waits for the answer: another action (a click on another link) is refused while the question
+    // is open, the question stays the only one; the chain ends with the answer and the next action is performed
+    annotations.clear();
+    const std::vector<const pdf::PDFAction*> links = PropertiesTestHelper::linkActions(tab->getDocument()->getDocument().data(), annotations);
+    QCOMPARE(links.size(), size_t(6));
+    handler->performAction(links[2]);
+    QPointer<QDialog> first = handler->getQuestion();
+    QVERIFY(first);
+    handler->performAction(links[0]);
+    handler->performAction(links[2]);
     fixture.settle();
     QCOMPARE(tab->getView()->getCurrentPageIndex(), pdf::PDFInteger(0));
-    Q_UNUSED(actions2);
+    QCOMPARE(handler->getQuestion(), first.data());
+    QCOMPARE(pdftest::AppAsyncDialogs::getOpenDialogs().size(), qsizetype(1));
+    QVERIFY(PropertiesTestHelper::answerShown(QStringLiteral("linkConfirmDialog"), QStringLiteral("cancelButton")));
+    QVERIFY(!first);
+    QVERIFY(!handler->isPerforming());
+    handler->performAction(links[0]);
+    QTRY_COMPARE(tab->getView()->getCurrentPageIndex(), pdf::PDFInteger(2));
+
+    // RR3-H2, the question deleted without an answer (no finished): Rejected from the event loop, nothing launched,
+    // the handler never stays waiting - the next action asks again
+    const int launchedBefore = launched;
+    handler->performAction(links[2]);
+    QVERIFY(handler->getQuestion());
+    delete handler->getQuestion();
+    QVERIFY(handler->isPerforming());
+    fixture.settle();
+    QVERIFY(!handler->isPerforming());
+    QVERIFY(!handler->getQuestion());
+    QCOMPARE(launched, launchedBefore);
+    handler->performAction(links[2]);
+    QVERIFY(PropertiesTestHelper::answerShown(QStringLiteral("linkConfirmDialog"), QStringLiteral("openLinkButton")));
+    QCOMPARE(launched, launchedBefore + 1);
+
+    // The handler deleted while its question is open (the tab stays): the question closes without an answer
+    handler->performAction(links[2]);
+    QPointer<QDialog> orphan = handler->getQuestion();
+    QVERIFY(orphan);
+    delete handler.data();
+    fixture.settle();
+    QVERIFY(!orphan);
+    QVERIFY2(pdftest::AppAsyncDialogs::isNothingOpen(), qPrintable(pdftest::AppAsyncDialogs::describeOpen().join(QLatin1Char('|'))));
+    QCOMPARE(launched, launchedBefore + 1);
 }
 
 void AppDocumentPropertiesTest::linkClickDeferred()

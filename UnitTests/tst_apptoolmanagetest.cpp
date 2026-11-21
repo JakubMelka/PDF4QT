@@ -30,6 +30,7 @@
 // document under the tool (RB2), the texts of the dialogs 387:15926, the themes, 2x and right to
 // left without the leak color, and the deletion order of the new widgets.
 
+#include "appasyncdialogs.h"
 #include "apptoolowntabfixture.h"
 #include "testdocumenttool.h"
 
@@ -120,6 +121,7 @@ private slots:
     void checkpoints();
     void outputPerGroup();
     void closeQuestion();
+    void closeQuestionGoesWithGui();
     void saveAndOpenAssembly();
     void openAssemblyActivatesItsTab();
     void emptyState();
@@ -190,6 +192,49 @@ public:
     {
         pdf::PDFDocumentToolShell* shell = AppToolOwnTabFixture::getShell(tab);
         return shell ? qobject_cast<pdf::PDFAppManageToolGUI*>(shell->getGUI()) : nullptr;
+    }
+
+    /// The result of a step of the leave flow, which the GUI has left Pending
+    class StepReceiver : public QObject
+    {
+    public:
+        void onStep(pdf::PDFAppLeaveResult result) { results << result; }
+
+        QList<pdf::PDFAppLeaveResult> results;
+    };
+
+    /// The question of the close of the own tab (405:30894) as the close of the tab asks it (A0: requestOwnTabClose
+    /// in the flow of the tab, shown without an event loop): \p onShown runs at the open question (nullptr = none is
+    /// shown), then its button \p buttonName is clicked and the answer settles (the file dialog of Save Assembly As…
+    /// is answered by the handler of the test from the event loop). \returns the result of the step (Done = the tab
+    /// may close, Refused = it stays).
+    static pdf::PDFAppLeaveResult askClose(pdf::PDFAppToolTab* tab, pdf::PDFAppManageToolGUI* gui, const QString& buttonName,
+                                           std::function<void(pdf::PDFAppDocumentChoiceDialog*)> onShown = nullptr)
+    {
+        pdf::PDFAppLeaveFlow* flow = tab->getLeaveFlow();
+        if (!flow->start(pdf::PDFAppLeaveFlow::Goal::CloseTab))
+        {
+            return pdf::PDFAppLeaveResult::Pending;
+        }
+        StepReceiver receiver;
+        pdf::PDFAppLeaveResult result = gui->requestOwnTabClose(flow);
+        if (result == pdf::PDFAppLeaveResult::Pending && flow->waitForStep(gui, &receiver, &StepReceiver::onStep))
+        {
+            pdf::PDFAppDocumentChoiceDialog* dialog = gui->getCloseDialog();
+            if (onShown)
+            {
+                onShown(dialog);
+            }
+            QPushButton* button = dialog ? dialog->findChild<QPushButton*>(buttonName) : nullptr;
+            if (button)
+            {
+                button->click();
+            }
+            AppToolOwnTabFixture::settle();
+            result = receiver.results.size() == 1 ? receiver.results.front() : pdf::PDFAppLeaveResult::Pending;
+        }
+        flow->finish(false);
+        return result;
     }
 
     static pdf::PDFAppToolParameterModel* model(const pdf::PDFAppManageToolGUI* gui)
@@ -429,7 +474,7 @@ void AppToolManageTest::ownTabHooks()
     QVERIFY(!base.handlesPermissionRefusal());
     QVERIFY(!base.isTabKeptAfterResult());
     QVERIFY(base.getCancelText().isEmpty());
-    QCOMPARE(base.askOwnTabClose(), pdf::PDFAppToolCloseAnswer::Generic);
+    QVERIFY(!base.hasOwnTabCloseQuestion());
 }
 
 void AppToolManageTest::dialogTexts()
@@ -747,34 +792,26 @@ void AppToolManageTest::closeQuestion()
     QVERIFY(gui->isAssemblyModified());
     QCOMPARE(gui->getOwnTabLossText(), QStringLiteral("The assembly has changes that are not saved."));
 
+    // A0: the question is shown, the step of the close waits for its answer (Cancel = Refused, Close = Done)
+    pdftest::NestedEventLoopGuard loopGuard;
+    QVERIFY(gui->hasOwnTabCloseQuestion());
     QStringList buttonTexts;
-    const auto answer = [gui, &buttonTexts](const QString& buttonName)
+    const auto readTexts = [&buttonTexts](pdf::PDFAppDocumentChoiceDialog* dialog)
     {
-        QTimer::singleShot(0, gui, [gui, &buttonTexts, buttonName]()
+        buttonTexts.clear();
+        for (const pdf::PDFAppDocumentChoice choice : { pdf::PDFAppDocumentChoice::Discard, pdf::PDFAppDocumentChoice::Cancel, pdf::PDFAppDocumentChoice::Save })
         {
-            pdf::PDFAppDocumentChoiceDialog* dialog = gui->getCloseDialog();
-            QVERIFY(dialog);
-            buttonTexts.clear();
-            for (const pdf::PDFAppDocumentChoice choice : { pdf::PDFAppDocumentChoice::Discard, pdf::PDFAppDocumentChoice::Cancel, pdf::PDFAppDocumentChoice::Save })
-            {
-                buttonTexts << (dialog->getChoiceButton(choice) ? dialog->getChoiceButton(choice)->text() : QString());
-            }
-            QPushButton* button = dialog->findChild<QPushButton*>(buttonName);
-            QVERIFY(button);
-            button->click();
-        });
+            buttonTexts << (dialog && dialog->getChoiceButton(choice) ? dialog->getChoiceButton(choice)->text() : QString());
+        }
     };
-    answer(QStringLiteral("cancelButton"));
-    QCOMPARE(gui->askOwnTabClose(), pdf::PDFAppToolCloseAnswer::Cancel);
+    QCOMPARE(H::askClose(tab, gui, QStringLiteral("cancelButton"), readTexts), pdf::PDFAppLeaveResult::Refused);
     QCOMPARE(buttonTexts, QStringList({ QStringLiteral("Don't Save"), QStringLiteral("Cancel"), QStringLiteral("Save Assembly") }));
-    answer(QStringLiteral("closeTabButton"));
-    QCOMPARE(gui->askOwnTabClose(), pdf::PDFAppToolCloseAnswer::Close);
+    QCOMPARE(H::askClose(tab, gui, QStringLiteral("closeTabButton")), pdf::PDFAppLeaveResult::Done);
 
     // Save Assembly: the save dialog of the system (the handler of the tests) writes the file
     const QString savedPath = fixture.folder() + QStringLiteral("/Saved_on_close.pdf4qtassembly");
     pdf::PDFAppPanelFileDialogs::setSaveHandler([savedPath](QWidget*, const QString&, const QString&, const QString&) { return savedPath; });
-    answer(QStringLiteral("manageCloseSave"));
-    QCOMPARE(gui->askOwnTabClose(), pdf::PDFAppToolCloseAnswer::Close);
+    QCOMPARE(H::askClose(tab, gui, QStringLiteral("manageCloseSave")), pdf::PDFAppLeaveResult::Done);
     pdf::PDFAppPanelFileDialogs::setSaveHandler(pdf::PDFAppPanelFileDialogs::FileHandler());
     QVERIFY(QFileInfo::exists(savedPath));
     QVERIFY(!gui->isAssemblyModified());
@@ -788,8 +825,35 @@ void AppToolManageTest::closeQuestion()
     QVERIFY(gui->saveAssemblyTo(fixture.folder() + QStringLiteral("/Tender_2026.pdf4qtassembly"), &error));
     QVERIFY(!gui->isAssemblyModified());
     QVERIFY(gui->getOwnTabLossText().isEmpty());
-    QCOMPARE(gui->askOwnTabClose(), pdf::PDFAppToolCloseAnswer::Close);
+    QCOMPARE(H::askClose(tab, gui, QString()), pdf::PDFAppLeaveResult::Done);
     QCOMPARE(gui->getOwnTabTitle(), QStringLiteral("Tender_2026"));
+}
+
+void AppToolManageTest::closeQuestionGoesWithGui()
+{
+    // L3 of the review of A0: the question of the assembly belongs to its GUI - the GUI deleted (its shell deleted)
+    // while the question is open takes the question with it; the close, which waits for it, is refused and the tab
+    // stays, no question is left open for a deleted tool
+    AppToolOwnTabFixture fixture;
+    const QString file = AppDocumentSamples::simple(fixture.folder(), QStringLiteral("gone.pdf"), 2);
+    QPointer<pdf::PDFAppToolTab> tab = H::open(fixture, { file });
+    pdf::PDFAppManageToolGUI* gui = H::gui(tab);
+    QVERIFY(gui);
+    QVERIFY(H::waitPages(gui, 2));
+    QVERIFY(gui->isAssemblyModified());
+
+    pdftest::NestedEventLoopGuard loopGuard;
+    QPointer<pdf::PDFAppDocumentChoiceDialog> question;
+    const auto deleteShell = [&question, &tab](pdf::PDFAppDocumentChoiceDialog* dialog)
+    {
+        question = dialog;
+        delete tab->getShell();
+    };
+    QCOMPARE(H::askClose(tab, gui, QString(), deleteShell), pdf::PDFAppLeaveResult::Refused);
+    QVERIFY(!question || !question->isVisible());
+    AppToolOwnTabFixture::settle();
+    QVERIFY(!question);
+    QVERIFY(tab);
 }
 
 void AppToolManageTest::saveAndOpenAssembly()
@@ -1434,17 +1498,15 @@ void AppToolManageTest::figmaFrames()
             gui->getCanvas()->setSearchText(QString());
             AppToolOwnTabFixture::settle();
 
-            QTimer::singleShot(200, gui, [gui, &fixture]()
+            H::askClose(tab, gui, QStringLiteral("cancelButton"), [&fixture](pdf::PDFAppDocumentChoiceDialog* dialog)
             {
+                QTest::qWait(200);
                 fixture.screenshot(QStringLiteral("pages-manage-close-prompt"));
-                if (gui->getCloseDialog())
+                if (dialog)
                 {
-                    AppToolOwnTabFixture::screenshotDialog(gui->getCloseDialog(), QStringLiteral("pages-manage-dialog-close"));
-                    gui->getCloseDialog()->findChild<QPushButton*>(QStringLiteral("cancelButton"))->click();
+                    AppToolOwnTabFixture::screenshotDialog(dialog, QStringLiteral("pages-manage-dialog-close"));
                 }
             });
-            gui->askOwnTabClose();
-            AppToolOwnTabFixture::settle();
 
             // 409:32739 with an open document and a recent assembly
             pdf::PDFAppDocumentTab* documentTab = fixture.open(AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Invoice.pdf"), 10));
@@ -2114,15 +2176,8 @@ void AppToolManageTest::dialogsDimTheWindow()
     gui->rotateRight();
     AppToolOwnTabFixture::settle();
     QWidget* closeScrim = nullptr;
-    QTimer::singleShot(0, gui, [gui, &closeScrim]()
-    {
-        if (pdf::PDFAppDocumentChoiceDialog* dialog = gui->getCloseDialog())
-        {
-            closeScrim = dialog->getScrimTarget();
-            dialog->findChild<QPushButton*>(QStringLiteral("cancelButton"))->click();
-        }
-    });
-    QCOMPARE(gui->askOwnTabClose(), pdf::PDFAppToolCloseAnswer::Cancel);
+    QCOMPARE(H::askClose(tab, gui, QStringLiteral("cancelButton"), [&closeScrim](pdf::PDFAppDocumentChoiceDialog* dialog) { closeScrim = dialog ? dialog->getScrimTarget() : nullptr; }),
+             pdf::PDFAppLeaveResult::Refused);
     QCOMPARE(closeScrim, body);
 }
 

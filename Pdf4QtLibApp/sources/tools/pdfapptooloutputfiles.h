@@ -36,6 +36,7 @@ class QPushButton;
 namespace pdf
 {
 
+class PDFAppFileDialogRequest;
 class PDFAppToolPanelBuilder;
 class PDFAppToolPanelPopup;
 class PDFAppParagraph;
@@ -102,6 +103,7 @@ public:
 
 private:
     void onBrowseClicked();
+    void onBrowseFolderChosen(const QString& folder);
     void onTokenClicked();
     void updateFolderPlaceholder();
     void updatePreview();
@@ -123,6 +125,7 @@ private:
     QPointer<PDFAppParagraph> m_preview;
     QPointer<PDFAppParagraph> m_previewHint;
     QPointer<PDFAppToolCallout> m_errorCallout;
+    QPointer<PDFAppFileDialogRequest> m_fileRequest;   ///< Browse… waiting for its dialog (a child of the section, A0)
     bool m_isVisible = true;
 };
 

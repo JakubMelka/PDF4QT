@@ -28,6 +28,7 @@
 // the close (Remove Marks in one step) and the canary of the search term (R6-19). The documents are
 // written by hand.
 
+#include "appasyncdialogs.h"
 #include "apptoolshellfixture.h"
 
 #include "pdfappannotationcontroller.h"
@@ -1729,54 +1730,30 @@ void AppToolRedactTest::quitRemoveNewMarksThenKeep()
     QVERIFY(second->addAreaMark(1, QRectF(100, 600, 50, 50)));
     AppToolShellFixture::settle();
 
-    // Clicks the button of the close question of the tool, as soon as it is shown (the quit waits in its own loop);
-    // onShown runs first (the state of the wait)
-    const auto answerWhenShown = [](QPointer<PDFAppToolGUIRedact> gui, int button, bool* isAsked, std::function<void()> onShown = std::function<void()>())
+    // Clicks the button of the open close question of the tool (A0: the quit has shown it and returned) and settles
+    const auto answer = [](QPointer<PDFAppToolGUIRedact> gui, int button)
     {
-        QTimer* timer = new QTimer(qApp);
-        timer->setInterval(10);
-        QObject::connect(timer, &QTimer::timeout, timer, [timer, gui, button, isAsked, onShown]()
+        pdf::PDFMessageBox* prompt = gui ? gui->getClosePrompt() : nullptr;
+        if (!prompt || !prompt->isVisible())
         {
-            pdf::PDFMessageBox* prompt = gui ? gui->getClosePrompt() : nullptr;
-            if (!gui || (prompt && prompt->isVisible()))
-            {
-                timer->stop();
-                timer->deleteLater();
-                if (prompt)
-                {
-                    *isAsked = true;
-                    if (onShown)
-                    {
-                        onShown();
-                    }
-                    prompt->getActionButtons()[button]->click();
-                }
-            }
-        });
-        timer->start();
-        QTimer::singleShot(30000, timer, &QTimer::deleteLater);
+            return false;
+        }
+        prompt->getActionButtons()[button]->click();
+        AppToolShellFixture::settle();
+        return true;
     };
 
     // While the quit asks the second tool, the answer of the first one is only remembered by its shell (decision 8):
     // the new mark is still in the document, no pending edit of the document stands for it (no polling of the
     // document by the tool)
-    bool isFirstAsked = false;
-    bool isSecondAsked = false;
-    size_t annotationsDuringWait = 0;
-    bool isPendingEditDuringWait = true;
-    bool isDeferredDuringWait = false;
-    const auto recordWait = [&]()
-    {
-        annotationsDuringWait = H::annotations(firstTab->getDocument()).size();
-        isPendingEditDuringWait = firstTab->getDocument()->hasPendingEdits();
-        isDeferredDuringWait = firstShell && firstShell->hasDeferredCloseQuestionAction();
-    };
-    answerWhenShown(first, 2, &isFirstAsked);                   // Remove New Marks
-    answerWhenShown(second, 0, &isSecondAsked, recordWait);     // Back to Redacting
+    pdftest::NestedEventLoopGuard loopGuard;
     QVERIFY(!fixture.window->close());
-    AppToolShellFixture::settle();
-    QVERIFY(isFirstAsked);
-    QVERIFY(isSecondAsked);
+    QVERIFY(answer(first, 2));                  // Remove New Marks
+    QVERIFY(second && second->getClosePrompt() && second->getClosePrompt()->isVisible());
+    const size_t annotationsDuringWait = H::annotations(firstTab->getDocument()).size();
+    const bool isPendingEditDuringWait = firstTab->getDocument()->hasPendingEdits();
+    const bool isDeferredDuringWait = firstShell && firstShell->hasDeferredCloseQuestionAction();
+    QVERIFY(answer(second, 0));                 // Back to Redacting
     QCOMPARE(annotationsDuringWait, size_t(1));
     QVERIFY(!isPendingEditDuringWait);
     QVERIFY(isDeferredDuringWait);
@@ -1796,47 +1773,29 @@ void AppToolRedactTest::quitRemoveNewMarksThenKeep()
 
     // The quit goes on: both new marks are removed before the question of the unsaved documents (Cancel keeps the
     // window)
-    isFirstAsked = false;
-    isSecondAsked = false;
-    answerWhenShown(first, 2, &isFirstAsked);
-    answerWhenShown(second, 2, &isSecondAsked);
-    std::vector<size_t> countsAtQuestion;
-    QTimer* unsaved = new QTimer(qApp);
-    unsaved->setInterval(10);
-    QObject::connect(unsaved, &QTimer::timeout, unsaved, [&]()
-    {
-        for (QWidget* widget : QApplication::topLevelWidgets())
-        {
-            QPushButton* cancel = widget->objectName() == QStringLiteral("quitUnsavedDialog") && widget->isVisible() ? widget->findChild<QPushButton*>(QStringLiteral("cancelButton")) : nullptr;
-            if (cancel)
-            {
-                countsAtQuestion = { H::annotations(firstTab->getDocument()).size(), H::annotations(secondTab->getDocument()).size() };
-                unsaved->stop();
-                unsaved->deleteLater();
-                cancel->click();
-                return;
-            }
-        }
-    });
-    unsaved->start();
     QVERIFY(!fixture.window->close());
+    QVERIFY(answer(first, 2));
+    QVERIFY(answer(second, 2));
+    QWidget* unsaved = nullptr;
+    for (QWidget* widget : QApplication::topLevelWidgets())
+    {
+        unsaved = widget->objectName() == QStringLiteral("quitUnsavedDialog") && widget->isVisible() ? widget : unsaved;
+    }
+    QVERIFY(unsaved);
+    const std::vector<size_t> countsAtQuestion = { H::annotations(firstTab->getDocument()).size(), H::annotations(secondTab->getDocument()).size() };
+    unsaved->findChild<QPushButton*>(QStringLiteral("cancelButton"))->click();
     AppToolShellFixture::settle();
-    QVERIFY(isFirstAsked);
-    QVERIFY(isSecondAsked);
     QCOMPARE(countsAtQuestion, std::vector<size_t>({ 0, 0 }));
 
     // Another route of the first tab (the view of the document): the leave waits for the answer as well and goes on
     // right after it - Remove New Marks removes the new mark while the tool still edits (PDFAppToolDocumentPage::
-    // prepareLeave ends its own leave), then the tool closes
+    // requestLeave ends its own leave), then the tool closes
     QVERIFY(firstShell && first);
     QVERIFY(first->addAreaMark(0, QRectF(100, 600, 50, 50)));
     AppToolShellFixture::settle();
     QCOMPARE(H::annotations(firstTab->getDocument()).size(), size_t(1));
-    isFirstAsked = false;
-    answerWhenShown(first, 2, &isFirstAsked);
     fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::document(firstTab->getDocumentId()), pdf::PDFAppNavigationMode::Push, firstTab);
-    AppToolShellFixture::settle();
-    QVERIFY(isFirstAsked);
+    QVERIFY(answer(first, 2));
     QVERIFY(!AppToolShellFixture::getShell(firstTab));
     QCOMPARE(H::annotations(firstTab->getDocument()).size(), size_t(0));
 }

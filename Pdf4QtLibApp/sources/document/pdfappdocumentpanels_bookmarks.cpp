@@ -323,7 +323,6 @@ bool PDFAppBookmarks::goToNext(PDFAppDocumentView* view, bool isForward)
 
 void PDFAppBookmarks::exportBookmarks(PDFAppDocumentView* view, QWidget* parent)
 {
-    QPointer<PDFAppDocumentView> guard(view);
     PDFAppDocument* document = view ? view->getDocument() : nullptr;
     PDFAppContext* context = view ? view->getContext() : nullptr;
     if (!canStore(context, document))
@@ -339,28 +338,19 @@ void PDFAppBookmarks::exportBookmarks(PDFAppDocumentView* view, QWidget* parent)
         return;
     }
 
-    const QByteArray data = PDFBookmarkRepository::toJson(bookmarks);
-    QPointer<QWidget> parentGuard(parent);
-    const QString filePath = PDFAppPanelFileDialogs::getSaveFileName(parent, QCoreApplication::translate("pdf::PDFAppBookmarks", "Export Bookmarks"),
-                                                                     PDFAppBookmarksHelper::getExportPath(document),
-                                                                     QCoreApplication::translate("pdf::PDFAppBookmarks", "Bookmarks (*.json)"));
-    if (filePath.isEmpty() || !guard || !parentGuard)
+    // The save dialog without a nested event loop (A0): the transfer, a child of the
+    // parent, writes the bookmarks read now, when the file comes
+    QWidget* owner = parent ? parent : view;
+    if (!owner)
     {
         return;
     }
-
-    QSaveFile file(filePath);
-    if (!file.open(QIODevice::WriteOnly) || file.write(data) != data.size() || !file.commit())
-    {
-        showError(parent, QCoreApplication::translate("pdf::PDFAppBookmarks", "The bookmarks were not exported"), file.errorString());
-        return;
-    }
-    PDFAppBookmarksHelper::showStatus(view, (bookmarks.size() == 1 ? QCoreApplication::translate("pdf::PDFAppBookmarks", "%Ln bookmark exported.", nullptr, 1) : QCoreApplication::translate("pdf::PDFAppBookmarks", "%Ln bookmarks exported.", nullptr, int(bookmarks.size()))));
+    PDFAppBookmarksTransfer* transfer = new PDFAppBookmarksTransfer(view, owner);
+    transfer->startExport(PDFAppBookmarksHelper::getExportPath(document), PDFBookmarkRepository::toJson(bookmarks), int(bookmarks.size()));
 }
 
 void PDFAppBookmarks::importBookmarks(PDFAppDocumentView* view, QWidget* parent)
 {
-    QPointer<PDFAppDocumentView> guard(view);
     PDFAppDocument* document = view ? view->getDocument() : nullptr;
     PDFAppContext* context = view ? view->getContext() : nullptr;
     if (!canStore(context, document))
@@ -369,12 +359,77 @@ void PDFAppBookmarks::importBookmarks(PDFAppDocumentView* view, QWidget* parent)
         return;
     }
 
-    QPointer<QWidget> parentGuard(parent);
-    QPointer<PDFAppDocument> documentGuard(document);
-    const QString filePath = PDFAppPanelFileDialogs::getOpenFileName(parent, QCoreApplication::translate("pdf::PDFAppBookmarks", "Import Bookmarks"),
-                                                                     QFileInfo(document->getFilePath()).absolutePath(),
-                                                                     QCoreApplication::translate("pdf::PDFAppBookmarks", "Bookmarks (*.json)"));
-    if (filePath.isEmpty() || !guard || !parentGuard || !documentGuard || !documentGuard->isReady())
+    // The open dialog without a nested event loop (A0): the transfer, a child of the
+    // parent, reads the file, when it comes
+    QWidget* owner = parent ? parent : view;
+    if (!owner)
+    {
+        return;
+    }
+    PDFAppBookmarksTransfer* transfer = new PDFAppBookmarksTransfer(view, owner);
+    transfer->startImport(QFileInfo(document->getFilePath()).absolutePath());
+}
+
+PDFAppBookmarksTransfer::PDFAppBookmarksTransfer(PDFAppDocumentView* view, QWidget* parent) :
+    BaseClass(parent),
+    m_view(view),
+    m_parent(parent),
+    m_document(view ? view->getDocument() : nullptr)
+{
+    setObjectName(QStringLiteral("bookmarksTransfer"));
+}
+
+PDFAppBookmarksTransfer::~PDFAppBookmarksTransfer() = default;
+
+void PDFAppBookmarksTransfer::startExport(const QString& proposedPath, const QByteArray& data, int count)
+{
+    m_data = data;
+    m_count = count;
+
+    // The file comes to onExportFileChosen, never inside this call; the request is a
+    // child of the transfer. The handler of the tests is foreign code, which may delete
+    // the parent with the transfer: this is the last call.
+    PDFAppPanelFileDialogs::requestSaveFileName(m_parent.data(), QCoreApplication::translate("pdf::PDFAppBookmarks", "Export Bookmarks"), proposedPath,
+                                                QCoreApplication::translate("pdf::PDFAppBookmarks", "Bookmarks (*.json)"), this, &PDFAppBookmarksTransfer::onExportFileChosen);
+}
+
+void PDFAppBookmarksTransfer::startImport(const QString& folder)
+{
+    PDFAppPanelFileDialogs::requestOpenFileName(m_parent.data(), QCoreApplication::translate("pdf::PDFAppBookmarks", "Import Bookmarks"), folder,
+                                                QCoreApplication::translate("pdf::PDFAppBookmarks", "Bookmarks (*.json)"), this, &PDFAppBookmarksTransfer::onImportFileChosen);
+}
+
+void PDFAppBookmarksTransfer::onExportFileChosen(const QString& filePath)
+{
+    // One answer: the transfer ends with it
+    deleteLater();
+
+    PDFAppDocumentView* view = m_view.data();
+    QWidget* parent = m_parent.data();
+    if (filePath.isEmpty() || !view || !parent)
+    {
+        return;
+    }
+
+    QSaveFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly) || file.write(m_data) != m_data.size() || !file.commit())
+    {
+        PDFAppBookmarks::showError(parent, QCoreApplication::translate("pdf::PDFAppBookmarks", "The bookmarks were not exported"), file.errorString());
+        return;
+    }
+    PDFAppBookmarksHelper::showStatus(view, (m_count == 1 ? QCoreApplication::translate("pdf::PDFAppBookmarks", "%Ln bookmark exported.", nullptr, 1) : QCoreApplication::translate("pdf::PDFAppBookmarks", "%Ln bookmarks exported.", nullptr, m_count)));
+}
+
+void PDFAppBookmarksTransfer::onImportFileChosen(const QString& filePath)
+{
+    // One answer: the transfer ends with it
+    deleteLater();
+
+    PDFAppDocumentView* view = m_view.data();
+    QWidget* parent = m_parent.data();
+    PDFAppDocument* document = m_document.data();
+    PDFAppContext* context = view ? view->getContext() : nullptr;
+    if (filePath.isEmpty() || !view || !parent || !document || !document->isReady() || !context || !context->getDatabase())
     {
         return;
     }
@@ -383,31 +438,31 @@ void PDFAppBookmarks::importBookmarks(PDFAppDocumentView* view, QWidget* parent)
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly))
     {
-        showError(parent, title, file.errorString());
+        PDFAppBookmarks::showError(parent, title, file.errorString());
         return;
     }
 
     // The file is untrusted: its size is limited before it is read
     if (file.size() > PDFBookmarkRepository::MAXIMUM_IMPORT_SIZE)
     {
-        showError(parent, title, QCoreApplication::translate("pdf::PDFBookmarkRepository", "The file is too large."));
+        PDFAppBookmarks::showError(parent, title, QCoreApplication::translate("pdf::PDFBookmarkRepository", "The file is too large."));
         return;
     }
     const QByteArray data = file.read(PDFBookmarkRepository::MAXIMUM_IMPORT_SIZE + 1);
 
     std::vector<PDFBookmarkEntry> entries;
     QString error;
-    if (!PDFBookmarkRepository::fromJson(data, documentGuard->getPageCount(), &entries, &error))
+    if (!PDFBookmarkRepository::fromJson(data, document->getPageCount(), &entries, &error))
     {
-        showError(parent, title, error);
+        PDFAppBookmarks::showError(parent, title, error);
         return;
     }
 
     int added = 0;
-    const PDFDatabaseError databaseError = PDFBookmarkRepository(context->getDatabase()).importBookmarks(documentGuard->getFilePath(), entries, &added);
+    const PDFDatabaseError databaseError = PDFBookmarkRepository(context->getDatabase()).importBookmarks(document->getFilePath(), entries, &added);
     if (databaseError.isError())
     {
-        showError(parent, title, databaseError.getMessage());
+        PDFAppBookmarks::showError(parent, title, databaseError.getMessage());
         return;
     }
     PDFAppBookmarksHelper::showStatus(view, (added == 1 ? QCoreApplication::translate("pdf::PDFAppBookmarks", "%Ln bookmark imported.", nullptr, added) : QCoreApplication::translate("pdf::PDFAppBookmarks", "%Ln bookmarks imported.", nullptr, added)));

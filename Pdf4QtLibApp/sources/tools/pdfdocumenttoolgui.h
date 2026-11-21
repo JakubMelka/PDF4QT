@@ -55,6 +55,10 @@ class PDFAppToolToolbar;
 class PDFDocumentToolCatalogEntry;
 class PDFDocumentToolShell;
 class PDFModifiedDocument;
+class PDFAppLeaveFlow;
+
+/// The result of a step of a leave (pdfapppage.h)
+enum class PDFAppLeaveResult;
 
 /// Where the card of the progress and the callout The document is busy lie (K7):
 /// the top of the right panel by default; Compress has its card inside of the section
@@ -116,16 +120,6 @@ enum class PDFAppToolResultState
     None,       ///< No result yet: the Primary button by isConfirmEnabled (the ready state)
     Current,    ///< The result of the inputs and the document of now is shown: the Primary button Disabled
     Stale       ///< The document or an input has changed since (492:109399): the amber callout, the Primary button again
-};
-
-/// The answer of a tool to the close of its own tab (PDFDocumentToolGUI::askOwnTabClose; plan of
-/// step 3b of phase 2, RB3 c, Manage Pages 405:30894 "Save the assembly …?")
-enum class PDFAppToolCloseAnswer
-{
-    Generic,    ///< The tool does not ask: the generic question of the loss text follows (K16)
-    Close,      ///< The tool has asked (Don't Save) or has nothing to lose: the tab closes without another question
-    Cancel,     ///< The tab stays (Cancel of the question, or the question could not be asked)
-    Saving      ///< The tool saves asynchronously (Save Assembly): the tab stays now and the tool closes it, when its save has succeeded (PDFDocumentToolGUI::closeOwnTab)
 };
 
 /// The texts of the generic question before a tool in the tab of a document closes with work of the user, which
@@ -364,23 +358,30 @@ public:
     /// own tab closes after an accepted result, Q9 of step 2). Read only in an own tab.
     virtual bool isTabKeptAfterResult() const;
 
-    /// The question of the tool before its own tab closes (RB3 c, Manage Pages 405:30894 "Save
-    /// the assembly Tender_2026?" Don't Save / Cancel / Save Assembly). PDFAppToolTabPage::confirmClose
-    /// calls it in the state Editing, before the generic question of the loss text. A tool, which
-    /// asks, runs its dialog by new + QPointer (CLAUDE.md); the dialog runs foreign code: the GUI,
-    /// the shell and the tab may be deleted meanwhile - the caller guards them, the tool returns
-    /// Cancel when it is gone. Saving: the tool has started its asynchronous save and calls
-    /// closeOwnTab, when it has succeeded (the close asks again then, the tool answers Close).
-    /// Default: Generic.
-    virtual PDFAppToolCloseAnswer askOwnTabClose();
+    /// The tool asks its own question before its own tab closes (RB3 c, Manage Pages 405:30894 "Save the assembly
+    /// Tender_2026?" Don't Save / Cancel / Save Assembly): PDFAppToolTabPage calls requestOwnTabClose in the state
+    /// Editing, before the generic question of the loss text; false = the generic question of the loss text follows
+    /// (K16). Default: false.
+    virtual bool hasOwnTabCloseQuestion() const;
+
+    /// The question of the tool before its own tab closes, without a nested event loop (A0, RR3-M5), called only while
+    /// hasOwnTabCloseQuestion. Done = the tab closes without another question (Don't Save, nothing to lose); Refused =
+    /// the tab stays (Cancel, the question could not be asked; or Save: the tool has started its asynchronous save and
+    /// closes the tab by closeOwnTab, when it has succeeded); Pending = the question of the tool is open (shown by
+    /// PDFAppDocumentChoiceDialog::ask / PDFAppDialogAnswer - show, never exec): the tool reports its answer exactly
+    /// once by \p flow->finishStep(this GUI, Done / Refused), never inside this call; a question deleted without an
+    /// answer is Refused; a GUI deleted before it reports is Refused (the waiter of the step). The caller waits by
+    /// PDFAppLeaveFlow::waitForStep(gui, caller, slot) right after the call. The function never deletes the shell.
+    /// Default: Done (a tool without its own question).
+    virtual PDFAppLeaveResult requestOwnTabClose(PDFAppLeaveFlow* flow);
 
     /// Text of the button Cancel of the toolbar (RB3 f, K2 of step 3: Manage Pages "Close" in its
     /// own tab - the assembly is no run to cancel; "Cancel" in the tab of a document, where it
     /// closes the tool, not the tab). Default: empty = "Cancel" of the toolbar.
     virtual QString getCancelText() const;
 
-    /// Closes the own tab of the tool as Cancel does (the close of the tab asks askOwnTabClose
-    /// again): the end of a save started by askOwnTabClose (Saving). Nothing outside of an own tab
+    /// Closes the own tab of the tool as Cancel does (the close of the tab asks requestOwnTabClose
+    /// again): the end of a save started by requestOwnTabClose (Save). Nothing outside of an own tab
     /// and outside of the state Editing. The shell, the GUI and the tab may be deleted by it (the
     /// last call of the caller).
     void closeOwnTab();
@@ -425,13 +426,14 @@ public:
     /// by Hand 435:10500 "Discard the drawing?", Redact Content 448:17473 "Keep the 12 marks in the
     /// document?"; owner 2026-11-20: every tool with unsaved work). The shell asks it only while
     /// hasUnsavedWork, before Cancel, Esc, Discard result, the close of the tab or of the window, or
-    /// another route close the tool (PDFDocumentToolShell::cancel, confirmLeave; never twice at once). A
+    /// another route close the tool (PDFDocumentToolShell::cancel, requestLeave; never twice at once). A
     /// tool, which has something to lose, opens its question (new + QPointer, WA_DeleteOnClose, open -
     /// never exec) and returns it: the tool stays, the answer closes it later by PDFDocumentToolShell::
     /// closeAfterQuestion or leaves it open (reject). A question already open is returned too. The function
     /// never deletes the shell. \returns the open question; nullptr = nothing to ask, the tool closes.
     /// Default: the generic question of getCloseQuestion (Keep rejects it, Discard closes the tool, the third
-    /// choice applyCloseQuestionAction and closes the tool when it returns true).
+    /// choice applyCloseQuestionAction and closes the tool when it returns true). A0: a leave waits for the question
+    /// by PDFAppLeaveFlow::waitForQuestion (its end on finished, or on its deletion without an answer), never in a loop.
     virtual QDialog* askClose();
 
     /// The generic question of askClose, which is open (nullptr = none)

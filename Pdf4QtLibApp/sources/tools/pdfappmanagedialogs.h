@@ -70,7 +70,7 @@ class PDFTextLink;
 /// every N pages, Regroup at page numbers - and the dialogs without a frame (Q17 of step 2, built
 /// from them): Crop… (dialog width 520), Rename… / the name of a checkpoint (the field of Regroup at
 /// page numbers), Move to… (the field of Regroup every N pages). The close question 405:30894 is
-/// PDFAppManageToolGUI::askOwnTabClose.
+/// PDFAppManageToolGUI::requestOwnTabClose.
 ///
 /// Every dialog is a PDFMessageBox of the design without its badge (a form): the title Semi Bold
 /// 16, the parts, Cancel and the Primary button at the trailing edge. It is created by new with

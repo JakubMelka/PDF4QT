@@ -93,14 +93,52 @@ public:
     /// bookmarks.previous). \returns false, when there is none (a status message)
     static bool goToNext(PDFAppDocumentView* view, bool isForward);
 
-    /// Exports the personal bookmarks to a JSON file (the save dialog)
+    /// Exports the personal bookmarks to a JSON file (the save dialog without a
+    /// nested event loop: the call returns, PDFAppBookmarksTransfer writes the file)
     static void exportBookmarks(PDFAppDocumentView* view, QWidget* parent);
 
-    /// Imports the bookmarks of a JSON file (the open dialog)
+    /// Imports the bookmarks of a JSON file (the open dialog without a nested
+    /// event loop: the call returns, PDFAppBookmarksTransfer reads the file)
     static void importBookmarks(PDFAppDocumentView* view, QWidget* parent);
 
     /// Shows the error of the storage (nothing for no error)
     static void showError(QWidget* parent, const QString& title, const QString& text);
+};
+
+/// Export or import of the bookmarks, which waits for its file dialog (A0, no nested
+/// event loop): a child of the parent widget of the dialog, the requester of the
+/// dialog. Its slot continues the export (the bookmarks read before the dialog are
+/// written) or the import; a parent, a view or a document gone meanwhile ends it
+/// without a message (as after the dialog shown by exec). It deletes itself after the
+/// answer; it goes with its parent without an answer.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppBookmarksTransfer : public QObject
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QObject;
+
+public:
+    /// \param view The view of the document (its status bar, its document)
+    /// \param parent The parent widget of the dialog and of the transfer (not nullptr)
+    explicit PDFAppBookmarksTransfer(PDFAppDocumentView* view, QWidget* parent);
+    virtual ~PDFAppBookmarksTransfer() override;
+
+    /// Asks for the file of the export of \p data (\p count bookmarks)
+    void startExport(const QString& proposedPath, const QByteArray& data, int count);
+
+    /// Asks for the file of the import into the document of the view
+    void startImport(const QString& folder);
+
+private:
+    void onExportFileChosen(const QString& filePath);
+    void onImportFileChosen(const QString& filePath);
+
+    QPointer<PDFAppDocumentView> m_view;
+    QPointer<QWidget> m_parent;
+    QPointer<PDFAppDocument> m_document;
+    QByteArray m_data;
+    int m_count = 0;
 };
 
 /// Rows of the bookmarks (roles of PDFBookmarkDelegate: title "Page 17", the

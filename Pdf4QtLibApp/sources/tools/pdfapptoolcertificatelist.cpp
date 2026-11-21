@@ -1241,11 +1241,20 @@ void PDFAppToolCertificatePresetPart::openImportDialog()
         return;
     }
 
-    // Plan 7.2: the file comes only from the file dialog of the user. The file dialog runs an
-    // event loop - the part, its GUI or the window may be gone after it.
-    QPointer<PDFAppToolCertificatePresetPart> guard(this);
-    const QString filePath = PDFAppPanelFileDialogs::getOpenFileName(getDialogParent(), tr("Import Certificate"), QString(), PDFAppCertificateImportDialog::getFileFilter());
-    if (!guard || filePath.isEmpty())
+    // Plan 7.2: the file comes only from the file dialog of the user. A0: the file dialog answers onImportFileChosen
+    // (the request is a child of the part: a part gone meanwhile gets nothing); one file dialog at a time.
+    if (m_fileRequest && m_fileRequest->isPending())
+    {
+        return;
+    }
+    m_fileRequest = PDFAppPanelFileDialogs::requestOpenFileName(getDialogParent(), tr("Import Certificate"), QString(), PDFAppCertificateImportDialog::getFileFilter(), this,
+                                                                &PDFAppToolCertificatePresetPart::onImportFileChosen);
+}
+
+void PDFAppToolCertificatePresetPart::onImportFileChosen(const QString& filePath)
+{
+    // The state again: the import still available, no import dialog opened meanwhile
+    if (filePath.isEmpty() || !isCreationAvailable() || (m_importDialog && m_importDialog->isVisible()))
     {
         return;
     }

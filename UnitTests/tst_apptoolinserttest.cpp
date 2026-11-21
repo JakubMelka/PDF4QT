@@ -25,6 +25,7 @@
 // password of a source, Replace. The expected values are the numbers and the texts of the frames
 // and of the plan (2.4, 2.5, K23, K35, K36, K53, K57).
 
+#include "appasyncdialogs.h"
 #include "apptoolshellfixture.h"
 
 #include "pdfappdocument.h"
@@ -1214,7 +1215,12 @@ void AppToolInsertTest::addImageEmptyAndRules()
     // Choose Images… opens the dialog of the files
     const QString image = H::png(fixture.folder(), QStringLiteral("a.png"), QSize(60, 40));
     pdf::PDFAppFileDialogs::setOpenFilesHandler([image](QWidget*, const QString&) { return QStringList(image); });
-    empty->getPrimaryButton()->click();
+    {
+        // A0: the files come from the event loop
+        const pdftest::NestedEventLoopGuard loopGuard;
+        empty->getPrimaryButton()->click();
+        AppToolShellFixture::settle();
+    }
     QVERIFY(H::waitLoaded(gui->getSourceList()));
     QCOMPARE(gui->getSourceList()->getCount(), 1);
     QCOMPARE(shell->getToolbar()->getConfirmText(), QStringLiteral("Add 1 Page"));

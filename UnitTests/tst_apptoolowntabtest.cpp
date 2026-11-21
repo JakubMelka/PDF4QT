@@ -27,6 +27,7 @@
 // of the run), Blank PDF without the dialog, the cache of the previews of a tool without a
 // document. The test tool takes the ids pages.merge and convert.blank of the catalog.
 
+#include "appasyncdialogs.h"
 #include "apptoolowntabfixture.h"
 #include "appmcpfixture.h"
 
@@ -113,36 +114,32 @@ class OwnTabTestHelper
 public:
     OwnTabTestHelper() = delete;
 
-    /// Clicks the button of the dialog of the object name as soon as it is shown (a dialog
-    /// of PDFAppDocumentChoiceDialog::run, which has its own event loop)
-    static void answer(const QString& dialogName, const QString& buttonName, bool* isSeen = nullptr)
+    /// The open dialog of the object name (nullptr = none is shown)
+    static QWidget* openDialog(const QString& dialogName)
     {
-        QTimer* timer = new QTimer(qApp);
-        timer->setInterval(5);
-        QObject::connect(timer, &QTimer::timeout, timer, [timer, dialogName, buttonName, isSeen]()
+        for (QWidget* widget : QApplication::topLevelWidgets())
         {
-            for (QWidget* widget : QApplication::topLevelWidgets())
+            if (widget->objectName() == dialogName && widget->isVisible())
             {
-                if (widget->objectName() == dialogName && widget->isVisible())
-                {
-                    if (QPushButton* button = widget->findChild<QPushButton*>(buttonName))
-                    {
-                        if (isSeen)
-                        {
-                            *isSeen = true;
-                        }
-                        timer->stop();
-                        timer->deleteLater();
-                        button->click();
-                        return;
-                    }
-                }
+                return widget;
             }
-        });
-        timer->start();
+        }
+        return nullptr;
+    }
 
-        // Nothing is left behind, when no dialog comes
-        QTimer::singleShot(10000, timer, &QTimer::deleteLater);
+    /// Clicks the button of the open dialog of the object name as the user does (A0: the flow has shown the question
+    /// and returned; the continuation runs in the click) and settles. \returns false without the dialog or button.
+    static bool answer(const QString& dialogName, const QString& buttonName)
+    {
+        QWidget* dialog = openDialog(dialogName);
+        QPushButton* button = dialog ? dialog->findChild<QPushButton*>(buttonName) : nullptr;
+        if (!button)
+        {
+            return false;
+        }
+        button->click();
+        AppToolOwnTabFixture::settle();
+        return true;
     }
 
     /// The open result dialog of the window, nullptr = none
@@ -467,34 +464,27 @@ void AppToolOwnTabTest::closeAsksForInputs()
     QPointer<pdf::PDFAppToolTab> tab = fixture.createToolTab(QStringLiteral("pages.merge"), H::createList({ documentTab }));
     QVERIFY(tab);
 
-    bool isSeen = false;
-    H::answer(QStringLiteral("toolTabCloseDialog"), QStringLiteral("cancelButton"), &isSeen);
-    QVERIFY(!fixture.window->closeTab(tab));
-    QVERIFY(isSeen);
+    pdftest::NestedEventLoopGuard loopGuard;
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    QVERIFY(H::answer(QStringLiteral("toolTabCloseDialog"), QStringLiteral("cancelButton")));
     QVERIFY(tab);
     QCOMPARE(AppToolOwnTabFixture::getShell(tab)->getState(), pdf::PDFDocumentToolShell::State::Editing);
 
     // Cancel of the toolbar asks the same; refused, the tool takes Cancel again (resumeEditing)
-    isSeen = false;
-    H::answer(QStringLiteral("toolTabCloseDialog"), QStringLiteral("cancelButton"), &isSeen);
     AppToolOwnTabFixture::getShell(tab)->cancel();
-    QVERIFY(AppToolOwnTabFixture::waitFor([&isSeen]() { return isSeen; }));
     AppToolOwnTabFixture::settle();
+    QVERIFY(H::answer(QStringLiteral("toolTabCloseDialog"), QStringLiteral("cancelButton")));
     QVERIFY(tab);
-    isSeen = false;
-    H::answer(QStringLiteral("toolTabCloseDialog"), QStringLiteral("closeTabButton"), &isSeen);
     AppToolOwnTabFixture::getShell(tab)->cancel();
-    QVERIFY(AppToolOwnTabFixture::waitFor([&isSeen]() { return isSeen; }));
     AppToolOwnTabFixture::settle();
+    QVERIFY(H::answer(QStringLiteral("toolTabCloseDialog"), QStringLiteral("closeTabButton")));
     QVERIFY(!tab);
 
     QPointer<pdf::PDFAppToolTab> empty = fixture.createToolTab(QStringLiteral("pages.merge"));
     QVERIFY(empty);
-    isSeen = false;
-    H::answer(QStringLiteral("toolTabCloseDialog"), QStringLiteral("cancelButton"), &isSeen);
     QVERIFY(fixture.window->closeTab(empty));
+    QVERIFY(!H::openDialog(QStringLiteral("toolTabCloseDialog")));
     AppToolOwnTabFixture::settle();
-    QVERIFY(!isSeen);
     QVERIFY(!empty);
 }
 
@@ -513,40 +503,26 @@ void AppToolOwnTabTest::closeAsksDuringRun()
     QVERIFY(AppToolOwnTabFixture::waitForState(shell, pdf::PDFDocumentToolShell::State::Running));
     QVERIFY(AppToolOwnTabFixture::waitFor([&tool]() { return tool->getHeldCount() == 1; }));
 
+    pdftest::NestedEventLoopGuard loopGuard;
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
     QString text;
-    QTimer* reader = new QTimer(fixture.window);
-    reader->setInterval(2);
-    connect(reader, &QTimer::timeout, reader, [&text]()
+    QWidget* question = H::openDialog(QStringLiteral("toolLeaveRunningDialog"));
+    QVERIFY(question);
+    for (QLabel* label : question->findChildren<QLabel*>())
     {
-        for (QWidget* widget : QApplication::topLevelWidgets())
+        if (label->text().contains(QLatin1String("still running")))
         {
-            if (widget->objectName() == QLatin1String("toolLeaveRunningDialog") && widget->isVisible())
-            {
-                for (QLabel* label : widget->findChildren<QLabel*>())
-                {
-                    if (label->text().contains(QLatin1String("still running")))
-                    {
-                        text = label->text();
-                    }
-                }
-            }
+            text = label->text();
         }
-    });
-    reader->start();
-    bool isSeen = false;
-    H::answer(QStringLiteral("toolLeaveRunningDialog"), QStringLiteral("keepRunningButton"), &isSeen);
-    QVERIFY(!fixture.window->closeTab(tab));
-    QVERIFY(isSeen);
+    }
+    QVERIFY(H::answer(QStringLiteral("toolLeaveRunningDialog"), QStringLiteral("keepRunningButton")));
     QVERIFY(tab);
     QCOMPARE(shell->getState(), pdf::PDFDocumentToolShell::State::Running);
     const QString title = pdf::PDFDocumentToolCatalog::findTool(QStringLiteral("convert.blank"))->getTitle();
     QCOMPARE(text, QStringLiteral("%1 is still running (0 % done). Leaving the tool stops it. Nothing has been written yet.").arg(title));
-    delete reader;
 
-    isSeen = false;
-    H::answer(QStringLiteral("toolLeaveRunningDialog"), QStringLiteral("stopAndLeaveButton"), &isSeen);
-    QVERIFY(fixture.window->closeTab(tab));
-    QVERIFY(isSeen);
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    QVERIFY(H::answer(QStringLiteral("toolLeaveRunningDialog"), QStringLiteral("stopAndLeaveButton")));
     AppToolOwnTabFixture::settle();
     QVERIFY(!tab);
     QVERIFY(AppToolOwnTabFixture::waitFor([&tool]() { return tool->getHeldCount() == 0; }));
@@ -581,10 +557,9 @@ void AppToolOwnTabTest::quitAsksForInputs()
     QPointer<pdf::PDFAppToolTab> tab = fixture.createToolTab(QStringLiteral("pages.merge"), H::createList({ documentTab }));
     QVERIFY(tab);
 
-    bool isSeen = false;
-    H::answer(QStringLiteral("toolTabCloseDialog"), QStringLiteral("cancelButton"), &isSeen);
+    pdftest::NestedEventLoopGuard loopGuard;
     QVERIFY(!fixture.window->close());
-    QVERIFY(isSeen);
+    QVERIFY(H::answer(QStringLiteral("toolTabCloseDialog"), QStringLiteral("cancelButton")));
     QVERIFY(fixture.window && fixture.window->isVisible());
     QVERIFY(tab);
     QCOMPARE(AppToolOwnTabFixture::getShell(tab)->getState(), pdf::PDFDocumentToolShell::State::Editing);
@@ -611,12 +586,10 @@ void AppToolOwnTabTest::quitStopsRunWhenAsked()
     // The first tool tab in the order of the tab bar asks first
     const bool isRunningFirst = H::indexOf(fixture.window, running) < H::indexOf(fixture.window, listed);
     QVERIFY(isRunningFirst);
-    bool isRunningSeen = false;
-    bool isListSeen = false;
-    H::answer(QStringLiteral("toolLeaveRunningDialog"), QStringLiteral("stopAndLeaveButton"), &isRunningSeen);
-    H::answer(QStringLiteral("toolTabCloseDialog"), QStringLiteral("cancelButton"), &isListSeen);
+    pdftest::NestedEventLoopGuard loopGuard;
     QVERIFY(!fixture.window->close());
-    QVERIFY(isRunningSeen && isListSeen);
+    QVERIFY(H::answer(QStringLiteral("toolLeaveRunningDialog"), QStringLiteral("stopAndLeaveButton")));
+    QVERIFY(H::answer(QStringLiteral("toolTabCloseDialog"), QStringLiteral("cancelButton")));
     QVERIFY(AppToolOwnTabFixture::waitFor([&tool]() { return tool->getHeldCount() == 0; }));
     tool->setHold(false);
     AppToolOwnTabFixture::settle();

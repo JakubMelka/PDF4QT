@@ -20,6 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include "appasyncdialogs.h"
 #include "appdocumentfixture.h"
 
 #include "pdfappannotationcontroller.h"
@@ -1276,14 +1277,12 @@ void AppFormsTest::pendingEditsOnClose()
     QVERIFY(H::click(tab, QStringLiteral("name")));
     H::type(tab, QStringLiteral("Closing"));
     QVERIFY(!tab->getDocument()->isModified());
-    bool isAsked = false;
-    H::onDialog<pdf::PDFAppCloseUnsavedDialog>([&isAsked](pdf::PDFAppCloseUnsavedDialog* dialog)
-    {
-        isAsked = true;
-        dialog->reject();
-    });
-    QVERIFY(!fixture.window->closeTab(tab));
-    QVERIFY(isAsked);
+    pdftest::NestedEventLoopGuard loopGuard;
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    pdf::PDFAppCloseUnsavedDialog* closeDialog = pdftest::AppDocumentFixture::findDialog<pdf::PDFAppCloseUnsavedDialog>();
+    QVERIFY(closeDialog);
+    closeDialog->reject();
+    fixture.settle();
     QVERIFY(guard);
     QCOMPARE(H::value(tab, QStringLiteral("name")), QStringLiteral("Closing"));
     QCOMPARE(H::undoCount(tab), 1);
@@ -1294,23 +1293,19 @@ void AppFormsTest::pendingEditsOnClose()
     QVERIFY(H::click(second, QStringLiteral("name")));
     H::type(second, QStringLiteral("Quit"));
     QVERIFY(!second->getDocument()->isModified());
-    bool isQuitAsked = false;
-    H::onDialog<pdf::PDFAppQuitUnsavedDialog>([&isQuitAsked](pdf::PDFAppQuitUnsavedDialog* dialog)
-    {
-        isQuitAsked = true;
-        dialog->reject();
-    });
     QVERIFY(!fixture.window->close());
-    QVERIFY(isQuitAsked);
+    pdf::PDFAppQuitUnsavedDialog* quitDialog = pdftest::AppDocumentFixture::findDialog<pdf::PDFAppQuitUnsavedDialog>();
+    QVERIFY(quitDialog);
+    quitDialog->reject();
+    fixture.settle();
     QVERIFY(second->getDocument()->isModified());
     QCOMPARE(H::value(second, QStringLiteral("name")), QStringLiteral("Quit"));
 
     // Don't Save closes the tab
-    H::onDialog<pdf::PDFAppCloseUnsavedDialog>([](pdf::PDFAppCloseUnsavedDialog* dialog)
-    {
-        dialog->getChoiceButton(pdf::PDFAppDocumentChoice::Discard)->click();
-    });
-    QVERIFY(fixture.window->closeTab(tab));
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    closeDialog = pdftest::AppDocumentFixture::findDialog<pdf::PDFAppCloseUnsavedDialog>();
+    QVERIFY(closeDialog);
+    closeDialog->getChoiceButton(pdf::PDFAppDocumentChoice::Discard)->click();
     fixture.settle();
     QVERIFY(!guard);
 }

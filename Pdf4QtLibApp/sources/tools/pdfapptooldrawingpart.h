@@ -45,6 +45,7 @@ namespace pdf
 {
 
 class PDFAppContext;
+class PDFAppFileDialogRequest;
 class PDFAppParagraph;
 class PDFAppToolCard;
 class PDFAppToolPanelBuilder;
@@ -357,10 +358,11 @@ public:
     /// clearSelection): "Esc ends Freehand curve", "Esc clears the selection", empty = nothing
     QString getEscapeHint() const;
 
-    /// The file dialog of an SVG image and its check (the size, the external references by
-    /// PDFPageDrawing::isValid); a valid image activates the tool placing it. \returns false and the
-    /// reason, when the file is not used (the dialog canceled: false and an empty reason)
-    bool chooseSvgImage(QString* errorMessage);
+    /// The file dialog of an SVG image (A0: the file comes later from the event loop, one dialog at a
+    /// time) and its check (the size, the external references by PDFPageDrawing::isValid); a valid
+    /// image activates the tool placing it, a file, which is not used, says why (a message box), a
+    /// canceled dialog says nothing
+    void chooseSvgImage();
 
     /// Uses the bytes of an SVG image (the check of chooseSvgImage); the tool placing it is active
     bool startSvgImage(const QByteArray& data, QString* errorMessage);
@@ -478,6 +480,13 @@ private:
     /// The reason, why the chosen SVG image is not used (a message box; the last call of its caller)
     void showSvgError(const QString& errorMessage);
 
+    /// The answer of the file dialog of chooseSvgImage (empty = canceled)
+    void onSvgFileChosen(const QString& filePath);
+
+    /// Reads the SVG file (at most MAXIMUM_SVG_SIZE) and uses it by startSvgImage. \returns false and the reason, when
+    /// the file is not used
+    bool useSvgFile(const QString& filePath, QString* errorMessage);
+
     /// Changes the style of the selected elements by \p change (one Undo step)
     void changeSelectedStyle(int property, const QVariant& value);
 
@@ -524,6 +533,7 @@ private:
     QPointer<PDFAppToolDrawingStylePanel> m_stylePanel;
     QPointer<PDFAppToolDrawingHint> m_canvasHint;
     QPointer<QWidget> m_editDialog;             ///< The form of editText (new, deletes itself on close)
+    QPointer<PDFAppFileDialogRequest> m_fileRequest;    ///< The file dialog of an SVG image waiting for its answer (a child of the part, A0)
     QString m_canvasHintText;
     bool m_isApplying = false;      ///< applyDrawing changes the scene: no step of the model
     bool m_isDetaching = false;     ///< detachFromView: the scene reports nothing

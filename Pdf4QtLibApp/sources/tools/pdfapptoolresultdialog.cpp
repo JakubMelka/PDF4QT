@@ -2128,35 +2128,60 @@ void PDFAppToolResultDialog::setBusy(bool isBusy)
     }
 }
 
+bool PDFAppToolResultDialog::isFileRequestPending() const
+{
+    return m_fileRequest && m_fileRequest->isPending();
+}
+
 void PDFAppToolResultDialog::onBrowseClicked()
 {
-    QPointer<PDFAppToolResultDialog> guard(this);
+    // A0: the file dialog answers onBrowseFileChosen / onBrowseFolderChosen (the request is a child of the dialog: a
+    // dialog deleted meanwhile gets nothing); one file dialog at a time
+    if (isFileRequestPending())
+    {
+        return;
+    }
+
     if (m_filePathField)
     {
-        // The native dialog runs its own event loop: the dialog may be deleted meanwhile
-        const QString path = PDFAppFileDialogs::getPrintFileName(this, getTargetFilePath(), QFileInfo(getTargetFilePath()).suffix());
-        if (!guard || path.isEmpty())
-        {
-            return;
-        }
-
-        m_consentedPath = path;
-        m_filePathField->setText(QDir::toNativeSeparators(path));
+        m_fileRequest = PDFAppFileDialogs::requestPrintFileName(this, getTargetFilePath(), QFileInfo(getTargetFilePath()).suffix(), this,
+                                                                &PDFAppToolResultDialog::onBrowseFileChosen);
     }
     else
     {
-        const QString folder = PDFAppFileDialogs::getExistingDirectory(this, m_folder);
-        if (!guard || folder.isEmpty())
-        {
-            return;
-        }
+        m_fileRequest = PDFAppFileDialogs::requestExistingDirectory(this, m_folder, this, &PDFAppToolResultDialog::onBrowseFolderChosen);
+    }
+}
 
-        m_folder = folder;
-        m_consentedPath = folder;
-        if (m_folderLabel)
-        {
-            m_folderLabel->setPath(QDir::toNativeSeparators(folder));
-        }
+void PDFAppToolResultDialog::onBrowseFileChosen(const QString& path)
+{
+    // The state again: the decision taken or a write started meanwhile keeps its target; the field still there
+    if (path.isEmpty() || m_isDecided || isWriting() || !m_filePathField)
+    {
+        return;
+    }
+
+    m_consentedPath = path;
+    m_filePathField->setText(QDir::toNativeSeparators(path));
+
+    clearStates();
+    updateConfirmButton();
+    adaptToHost();
+}
+
+void PDFAppToolResultDialog::onBrowseFolderChosen(const QString& folder)
+{
+    // The state again: the decision taken or a write started meanwhile keeps its target
+    if (folder.isEmpty() || m_isDecided || isWriting())
+    {
+        return;
+    }
+
+    m_folder = folder;
+    m_consentedPath = folder;
+    if (m_folderLabel)
+    {
+        m_folderLabel->setPath(QDir::toNativeSeparators(folder));
     }
 
     clearStates();
@@ -2186,15 +2211,20 @@ void PDFAppToolResultDialog::onRetryClicked()
 void PDFAppToolResultDialog::onChooseFolderClicked()
 {
     // 339:7293 (K4.11): Choose Folder… writes the failed files again into another folder
-    if (isWriting() || m_isDecided)
+    if (isWriting() || m_isDecided || isFileRequestPending())
     {
         return;
     }
 
-    // The modal dialog of the system runs the event loop: the tab may go meanwhile
-    QPointer<PDFAppToolResultDialog> guard(this);
-    const QString folder = PDFAppFileDialogs::getExistingDirectory(this, getWrittenFolder());
-    if (!guard || folder.isEmpty() || m_isDecided || isWriting())
+    // A0: the file dialog answers onRetryFolderChosen (the request is a child of the dialog: a dialog deleted meanwhile
+    // gets nothing)
+    m_fileRequest = PDFAppFileDialogs::requestExistingDirectory(this, getWrittenFolder(), this, &PDFAppToolResultDialog::onRetryFolderChosen);
+}
+
+void PDFAppToolResultDialog::onRetryFolderChosen(const QString& folder)
+{
+    // The state again: a decision taken or a write started meanwhile wins
+    if (folder.isEmpty() || m_isDecided || isWriting())
     {
         return;
     }

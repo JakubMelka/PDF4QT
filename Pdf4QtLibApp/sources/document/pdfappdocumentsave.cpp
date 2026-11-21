@@ -450,12 +450,31 @@ void PDFAppDocumentSaver::start(bool isSaveAs)
 void PDFAppDocumentSaver::chooseFileAndWrite(bool isIncremental)
 {
     m_step = Step::FileDialog;
-    Q_EMIT stateChanged();
+    m_isFileIncremental = isIncremental;
 
-    // The native dialog runs its own event loop: the saver may be deleted meanwhile
+    // A slot of the state may delete the tab with the saver
     QPointer<PDFAppDocumentSaver> guard(this);
-    const QString filePath = PDFAppFileDialogs::getSaveFileName(getDialogParent(), getProposedFilePath());
-    if (!guard)
+    Q_EMIT stateChanged();
+    if (!guard || m_step != Step::FileDialog)
+    {
+        return;
+    }
+
+    // The native dialog without a nested event loop (A0): the file comes to onFileChosen,
+    // never inside this call. The request is a child of the saver: a saver deleted meanwhile
+    // gets nothing (the dialog stays, until the user closes it). The handler of the tests is
+    // foreign code, which may delete the saver.
+    PDFAppFileDialogRequest* request = PDFAppFileDialogs::requestSaveFileName(getDialogParent(), getProposedFilePath(), this, &PDFAppDocumentSaver::onFileChosen);
+    if (guard)
+    {
+        m_fileRequest = request;
+    }
+}
+
+void PDFAppDocumentSaver::onFileChosen(const QString& filePath)
+{
+    m_fileRequest = nullptr;
+    if (m_step != Step::FileDialog)
     {
         return;
     }
@@ -466,7 +485,7 @@ void PDFAppDocumentSaver::chooseFileAndWrite(bool isIncremental)
         return;
     }
 
-    writeFile(filePath, isIncremental);
+    writeFile(filePath, m_isFileIncremental);
 }
 
 void PDFAppDocumentSaver::writeFile(const QString& filePath, bool isIncremental)
@@ -957,6 +976,107 @@ bool PDFAppDocumentSaver::isOpenInAnotherDocument(const QString& filePath) const
 
     const PDFAppDocument* other = registry->findByCanonicalPath(canonicalPath);
     return other && other != getDocument();
+}
+
+PDFAppDocumentSaveRequest::PDFAppDocumentSaveRequest(PDFAppDocumentSaver* saver, QObject* receiver) :
+    BaseClass(receiver),
+    m_saver(saver)
+{
+    setObjectName(QStringLiteral("documentSaveRequest"));
+}
+
+PDFAppDocumentSaveRequest::~PDFAppDocumentSaveRequest() = default;
+
+void PDFAppDocumentSaveRequest::begin(Kind kind)
+{
+    // Every result of this call is delivered from the event loop (never inside start)
+    m_isInCall = true;
+
+    PDFAppDocumentSaver* saver = m_saver.data();
+    if (!saver)
+    {
+        // No tab, which can save
+        deliver(false);
+        m_isInCall = false;
+        return;
+    }
+
+    // Connected before the start: a save, which ends inside the call (a document, which
+    // cannot be saved after the commit of its editor), is delivered from the event loop
+    connect(saver, &PDFAppDocumentSaver::finished, this, &PDFAppDocumentSaveRequest::onSaverFinished);
+    connect(saver, &QObject::destroyed, this, &PDFAppDocumentSaveRequest::onSaverDestroyed);
+
+    // The saver runs code of the application (the commit of an editor, its state): the
+    // receiver and this request with it may be deleted meanwhile
+    QPointer<PDFAppDocumentSaveRequest> guard(this);
+    const bool isStarted = kind == Kind::SaveAs ? saver->saveAs() : saver->save();
+    if (!guard)
+    {
+        return;
+    }
+
+    if (!isStarted)
+    {
+        // Nothing can be saved (no signal of the saver comes)
+        deliver(false);
+    }
+    m_isInCall = false;
+}
+
+void PDFAppDocumentSaveRequest::onSaverFinished(bool isSaved)
+{
+    deliver(isSaved);
+}
+
+void PDFAppDocumentSaveRequest::onSaverDestroyed()
+{
+    // Only the pointer is forgotten here (arch/conventions.md): the end is delivered
+    // from the event loop, never inside the destruction of the saver
+    m_saver = nullptr;
+    if (m_isPending && !m_isDeliveryQueued)
+    {
+        m_isDeliveryQueued = true;
+        m_laterResult = false;
+        QMetaObject::invokeMethod(this, &PDFAppDocumentSaveRequest::onDeliverLater, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppDocumentSaveRequest::deliver(bool isSaved)
+{
+    if (!m_isPending || m_isDeliveryQueued)
+    {
+        return;
+    }
+
+    if (m_isInCall || !m_saver)
+    {
+        // Never inside the call of start: from the event loop
+        m_isDeliveryQueued = true;
+        m_laterResult = isSaved;
+        QMetaObject::invokeMethod(this, &PDFAppDocumentSaveRequest::onDeliverLater, Qt::QueuedConnection);
+        return;
+    }
+
+    m_isDeliveryQueued = true;
+    m_laterResult = isSaved;
+    onDeliverLater();
+}
+
+void PDFAppDocumentSaveRequest::onDeliverLater()
+{
+    if (!m_isPending)
+    {
+        return;
+    }
+
+    // The state first, the signal last (its slot may delete the saver, the tab, anything)
+    m_isPending = false;
+    if (PDFAppDocumentSaver* saver = m_saver.data())
+    {
+        saver->disconnect(this);
+    }
+    deleteLater();
+    Q_EMIT finished(m_laterResult);
 }
 
 PDFAppDocumentFileCommandHandler::PDFAppDocumentFileCommandHandler(PDFAppDocumentTab* tab) :

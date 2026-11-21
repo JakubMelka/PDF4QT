@@ -26,6 +26,7 @@
 // page by the creation tools of the scene, the style of the selected elements, Arrange, Clear All and
 // the question of the close (435:10500), the scene leaving the view with the tool.
 
+#include "appasyncdialogs.h"
 #include "apptestcertificatefolders.h"
 #include "apptoolshellfixture.h"
 
@@ -206,6 +207,7 @@ private Q_SLOTS:
     void drawingFrozenWhileRunning();
     void unchangedStyleIsNoStep();
     void svgErrorShown();
+    void svgFileWithoutNestedLoop();
 
     // Review RS6FIGMA
     void screenshots();
@@ -1286,6 +1288,60 @@ void AppToolSignByHandTest::svgErrorShown()
     QVERIFY(!button->isChecked());
     dialog->reject();
     AppToolShellFixture::settle();
+}
+
+void AppToolSignByHandTest::svgFileWithoutNestedLoop()
+{
+    // A0 (newapp_robustness.md 14.3): SVG image… opens the file dialog and returns at once (no nested event loop);
+    // the file comes later. A canceled dialog activates nothing; a file answered after the drawing stopped taking the
+    // input (a run started meanwhile) is not used; a valid file answered while editing activates the tool placing it.
+    AppToolShellFixture fixture(QSize(1440, 960));
+    PDFDocumentToolShell* shell = H::open(fixture);
+    PDFAppToolGUISignByHand* gui = H::gui(shell);
+    QVERIFY(gui);
+    PDFAppToolDrawingPart* part = gui->getDrawingPart();
+    QToolButton* button = part->getElementButton(PDFAppToolDrawingPart::ElementKind::SvgImage);
+    QVERIFY(button);
+
+    const QString path = QDir(fixture.folder()).absoluteFilePath(QStringLiteral("mark.svg"));
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"10\" viewBox=\"0 0 20 10\"><rect x=\"1\" y=\"1\" width=\"18\" height=\"8\" fill=\"#000000\"/></svg>");
+    file.close();
+
+    const pdftest::NestedEventLoopGuard loopGuard;
+
+    // Canceled: no tool, the button gets its state back
+    QTest::mouseClick(button, Qt::LeftButton);
+    pdf::PDFAppFileDialogRequest* request = pdftest::AppAsyncDialogs::findFileRequest();
+    QVERIFY(request);
+    QCOMPARE(request->getSettings().title, QStringLiteral("Insert SVG Image"));
+    QCOMPARE(request->getSettings().mode, pdf::PDFAppFileDialogRequest::Mode::OpenFile);
+    QVERIFY(!part->getActiveElementKind());
+    QVERIFY(pdftest::AppAsyncDialogs::cancelFile());
+    QVERIFY(!part->getActiveElementKind());
+    QVERIFY(!button->isChecked());
+    QVERIFY(!fixture.window->findChild<pdf::PDFMessageBox*>(QStringLiteral("drawingSvgErrorDialog")));
+
+    // The drawing stops taking the input while the dialog is open: the file is not used
+    QTest::mouseClick(button, Qt::LeftButton);
+    QVERIFY(pdftest::AppAsyncDialogs::findFileRequest());
+    part->setInputEnabled(false);
+    QVERIFY(pdftest::AppAsyncDialogs::answerFile(path));
+    QVERIFY(!part->getActiveElementKind());
+    QVERIFY(!button->isChecked());
+    QVERIFY(!fixture.window->findChild<pdf::PDFMessageBox*>(QStringLiteral("drawingSvgErrorDialog")));
+    part->setInputEnabled(true);
+    AppToolShellFixture::settle();
+
+    // Editing: the image is placed by its tool
+    QTest::mouseClick(button, Qt::LeftButton);
+    QVERIFY(pdftest::AppAsyncDialogs::answerFile(path));
+    QCOMPARE(part->getActiveElementKind(), std::optional<PDFAppToolDrawingPart::ElementKind>(PDFAppToolDrawingPart::ElementKind::SvgImage));
+    QVERIFY(button->isChecked());
+    QVERIFY(part->endActiveElement());
+    AppToolShellFixture::settle();
+    QVERIFY(!pdftest::AppAsyncDialogs::findFileRequest());
 }
 
 void AppToolSignByHandTest::screenshots()

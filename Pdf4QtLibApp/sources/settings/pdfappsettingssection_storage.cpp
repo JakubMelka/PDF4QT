@@ -964,10 +964,36 @@ void PDFAppStorageSettingsSection::onDeleteClicked()
 
 void PDFAppStorageSettingsSection::exportSettings()
 {
+    if (isBackupDialogPending(PDFAppFileDialogRequest::Mode::SaveFile))
+    {
+        return;
+    }
+
+    // A0: the dialog answers later in onExportFileChosen (exactly once while the section lives; a section deleted
+    // meanwhile gets nothing). The request is the last call: a handler of the tests is foreign code.
     const QString proposed = QDir(getBackupFolder(getContext())).filePath(PDFDatabaseBackup::getDefaultFileName(QDate::currentDate()));
-    QPointer<PDFAppStorageSettingsSection> guard(this);
-    QString filePath = PDFAppFileDialogs::getSaveBackupFileName(window(), proposed);
-    if (!guard || filePath.isEmpty())
+    PDFAppFileDialogs::requestSaveBackupFileName(window(), proposed, this, &PDFAppStorageSettingsSection::onExportFileChosen);
+}
+
+bool PDFAppStorageSettingsSection::isBackupDialogPending(PDFAppFileDialogRequest::Mode mode) const
+{
+    // The requests of Export… (SaveFile) and Import… (OpenFile) are direct children of the section until they have
+    // answered (one dialog of each at a time, as the modal dialog of exec() was)
+    const QList<PDFAppFileDialogRequest*> requests = findChildren<PDFAppFileDialogRequest*>(QString(), Qt::FindDirectChildrenOnly);
+    for (const PDFAppFileDialogRequest* request : requests)
+    {
+        if (request->isPending() && request->getSettings().mode == mode)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void PDFAppStorageSettingsSection::onExportFileChosen(const QString& chosenFilePath)
+{
+    QString filePath = chosenFilePath;
+    if (filePath.isEmpty())
     {
         return;
     }
@@ -1002,22 +1028,26 @@ void PDFAppStorageSettingsSection::exportSettings()
 
 void PDFAppStorageSettingsSection::importSettings()
 {
-    PDFDatabase* database = getDatabase();
-    if (!database)
+    if (!getDatabase() || isBackupDialogPending(PDFAppFileDialogRequest::Mode::OpenFile))
     {
         return;
     }
 
-    QPointer<PDFAppStorageSettingsSection> guard(this);
-    const QString filePath = PDFAppFileDialogs::getOpenBackupFileName(window(), getBackupFolder(getContext()));
-    if (!guard || filePath.isEmpty())
+    // A0: the dialog answers later in onImportFileChosen (exactly once while the section lives; a section deleted
+    // meanwhile gets nothing). The request is the last call: a handler of the tests is foreign code.
+    PDFAppFileDialogs::requestOpenBackupFileName(window(), getBackupFolder(getContext()), this, &PDFAppStorageSettingsSection::onImportFileChosen);
+}
+
+void PDFAppStorageSettingsSection::onImportFileChosen(const QString& filePath)
+{
+    if (filePath.isEmpty())
     {
         return;
     }
     storeBackupFolder(filePath);
 
     // The file is untrusted: it is read once and checked (PDFDatabaseBackup)
-    database = getDatabase();
+    PDFDatabase* database = getDatabase();
     if (!database)
     {
         return;

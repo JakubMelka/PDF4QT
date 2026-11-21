@@ -29,6 +29,7 @@
 // window, keyboard and accessibility, language change.
 // PDF4QT_APP_SCREENSHOTS=<folder> writes pictures of the sections.
 
+#include "appasyncdialogs.h"
 #include "appsettingsfixture.h"
 
 #include "pdfappcolormodepresets.h"
@@ -78,6 +79,7 @@
 #include <QApplication>
 #include <QColorSpace>
 #include <QElapsedTimer>
+#include <QFileDialog>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSignalSpy>
@@ -257,6 +259,7 @@ private Q_SLOTS:
     void openLists();
     void previewGeometry();
     void reviewBrowseUntrustedFolder();
+    void browseFolderWithoutNestedLoop();
     void moreColorsDialog();
     void screenshots();
 };
@@ -1645,6 +1648,7 @@ void AppSettingsRenderingTest::reviewBrowseUntrustedFolder()
     // path of the stored value (another computer, a backup) - a server, which does
     // not answer, would block the user interface; a local folder is the start
     pdftest::AppSettingsFixture fixture;
+    pdftest::NestedEventLoopGuard loopGuard;
     QString start = QStringLiteral("not called");
     pdf::PDFAppFileDialogs::setFolderHandler([&start](QWidget*, const QString& folder) { start = folder; return QString(); });
 
@@ -1670,6 +1674,83 @@ void AppSettingsRenderingTest::reviewBrowseUntrustedFolder()
     RenderingTestHelper::click(fixture.findRow(QStringLiteral("additional-profile-directory"))->getControl()->getBrowseButton());
     fixture.settle();
     QCOMPARE(start, folder);
+}
+
+void AppSettingsRenderingTest::browseFolderWithoutNestedLoop()
+{
+    // A0 (no nested event loop): Browse… of a folder shows the folder dialog of the system modal over the window (the
+    // modality of exec) with the title of the setting in the stored folder and returns at once; the folder is written,
+    // when the dialog answers. A second Browse… while it is open opens nothing, a canceled dialog writes nothing, and a
+    // control gone with its page meanwhile gets nothing - its dialog stays until the user closes it.
+    pdftest::AppSettingsFixture fixture;
+    const QString start = QDir(fixture.folder()).absoluteFilePath(QStringLiteral("start"));
+    const QString chosen = QDir(fixture.folder()).absoluteFilePath(QStringLiteral("chosen"));
+    const QString late = QDir(fixture.folder()).absoluteFilePath(QStringLiteral("late"));
+    for (const QString& folder : { start, chosen, late })
+    {
+        QVERIFY(QDir().mkpath(folder));
+    }
+    QVERIFY(!fixture.settings().setValue(pdf::PDFSettingKeys::cmsProfileDirectory(), start).isError());
+    QVERIFY(fixture.openSettings(QStringLiteral("color-management")));
+    pdftest::NestedEventLoopGuard loopGuard;
+
+    pdf::PDFAppSettingControl* control = fixture.findRow(QStringLiteral("additional-profile-directory"))->getControl();
+    QVERIFY(control);
+    control->getBrowseButton()->click();
+    QPointer<pdf::PDFAppFileDialogRequest> request = pdftest::AppAsyncDialogs::findFileRequest();
+    QVERIFY(request);
+    QCOMPARE(request->parent(), static_cast<QObject*>(control));
+    QVERIFY(request->getSettings().mode == pdf::PDFAppFileDialogRequest::Mode::Directory);
+    QCOMPARE(request->getSettings().title, control->getDefinition().getTitle());
+    QCOMPARE(request->getSettings().path, start);
+    QPointer<QFileDialog> dialog = request->getDialog();
+    QVERIFY(dialog);
+    QVERIFY(dialog->isVisible());
+    QCOMPARE(dialog->parentWidget(), control->getBrowseButton()->window());
+    QCOMPARE(dialog->windowModality(), Qt::ApplicationModal);
+    QCOMPARE(fixture.settings().getString(pdf::PDFSettingKeys::cmsProfileDirectory()), start);
+
+    // A second Browse… while the dialog is open
+    control->getBrowseButton()->click();
+    QCOMPARE(int(pdf::PDFAppFileDialogRequest::getPendingRequests().size()), 1);
+
+    // The answer is written and shown
+    QVERIFY(pdftest::AppAsyncDialogs::answerFile(chosen));
+    QVERIFY(!request);
+    QVERIFY(!dialog);
+    QCOMPARE(fixture.settings().getString(pdf::PDFSettingKeys::cmsProfileDirectory()), chosen);
+    control = fixture.findRow(QStringLiteral("additional-profile-directory"))->getControl();
+    QCOMPARE(control->getLineEdit()->text(), chosen);
+
+    // Canceled: nothing written; Browse… opens the dialog again afterwards
+    control->getBrowseButton()->click();
+    QVERIFY(pdftest::AppAsyncDialogs::cancelFile());
+    QCOMPARE(fixture.settings().getString(pdf::PDFSettingKeys::cmsProfileDirectory()), chosen);
+    control = fixture.findRow(QStringLiteral("additional-profile-directory"))->getControl();
+    control->getBrowseButton()->click();
+    request = pdftest::AppAsyncDialogs::findFileRequest();
+    QVERIFY(request);
+    QCOMPARE(request->getSettings().path, chosen);
+    dialog = request->getDialog();
+    QVERIFY(dialog);
+
+    // The page goes while the dialog is open: the request goes with the control, the dialog stays; even its
+    // acceptance later writes nothing
+    QPointer<pdf::PDFAppSettingControl> controlGuard(control);
+    fixture.navigate(QStringLiteral("/home"));
+    fixture.settle();
+    QVERIFY(!controlGuard);
+    QVERIFY(!request);
+    QVERIFY(!pdftest::AppAsyncDialogs::findFileRequest());
+    QVERIFY(dialog);
+    QVERIFY(dialog->isVisible());
+    dialog->selectFile(late);
+    static_cast<QDialog*>(dialog.data())->done(QDialog::Accepted);
+    fixture.settle();
+    QVERIFY(!dialog);
+    QCOMPARE(fixture.settings().getString(pdf::PDFSettingKeys::cmsProfileDirectory()), chosen);
+    QVERIFY2(pdftest::AppAsyncDialogs::isNothingOpen(), qPrintable(pdftest::AppAsyncDialogs::describeOpen().join(QStringLiteral(", "))));
+    QCOMPARE(loopGuard.getViolations(), QStringList());
 }
 
 void AppSettingsRenderingTest::moreColorsDialog()

@@ -87,10 +87,11 @@ public:
     virtual QString getTabTitle() const override;
     virtual QString getTabIconName() const override;
 
-    /// The close of the tab asks (PDFDocumentToolShell::confirmLeave and K16): a run asks
-    /// as close-running, an open result dialog refuses, a list of inputs asks whether it may
-    /// be lost. The tab may be deleted meanwhile (the caller guards it).
-    virtual bool confirmClose() override;
+    /// The close of the tab asks (PDFAppToolTabPage::requestClose: close-running, the own question of the tool, K16)
+    /// in the flow of the tab (A0: shown, never exec): a run asks as close-running, an open result dialog refuses, a
+    /// list of inputs asks whether it may be lost. Pending: the tab closes itself by its window after the answers
+    /// (setCloseConfirmed, PDFAppMainWindow::closeTab). The tab may be deleted meanwhile (the caller guards it).
+    virtual PDFAppLeaveResult requestTabClose() override;
 
     /// Undo and Redo of the tab act on the tool (the parameter model)
     virtual bool executeCommand(const QString& commandId) override;
@@ -113,8 +114,8 @@ public:
     void setCloseConfirmed(bool isConfirmed) { m_isCloseConfirmed = isConfirmed; }
     bool isCloseConfirmed() const { return m_isCloseConfirmed; }
 
-    /// The question of the close (K16) is open
-    bool isAskingClose() const { return m_isAskingClose; }
+    /// The close of the tab asks (its flow runs: a question of the close is open)
+    bool isAskingClose() const;
 
 Q_SIGNALS:
     /// The title, the icon, the dot or the progress of the tab may have changed (the window
@@ -128,6 +129,7 @@ protected:
 
 private:
     void onPageStateChanged();
+    void onPageCloseStepFinished(pdf::PDFAppLeaveResult result);
 
     QString m_toolId;
     QString m_instanceId;
@@ -135,7 +137,6 @@ private:
     QPointer<QWidget> m_pageArea;
     QPointer<QVBoxLayout> m_pageLayout;
     bool m_isCloseConfirmed = false;
-    bool m_isAskingClose = false;
 };
 
 /// Page of the route /tool/{toolId}/{instanceId} in the own tab of the tool: the body
@@ -180,10 +181,18 @@ public:
     virtual QString getTitle() const override;
     virtual QString getHelpTopic() const override;
     virtual bool setRoute(const PDFAppRoute& route) override;
-    virtual bool prepareLeave(const PDFAppRoute& target) override;
 
-    /// The question of the close of the tab (see PDFAppToolTab::confirmClose)
-    virtual bool confirmClose() override;
+    /// A navigation leaves the tool: the questions of the close of the tab (requestClose) in the words of the tool,
+    /// then the tool closes and the tab stays. Pending: the page reports its step after the answers.
+    virtual PDFAppLeaveResult requestLeave(const PDFAppRoute& target, PDFAppLeaveFlow* flow) override;
+
+    /// The questions of the close of the tab (see PDFAppToolTab::requestTabClose; A0: shown, never exec): a run asks
+    /// close-running (Stop and Leave stops it), the own question of the tool (PDFDocumentToolGUI::
+    /// requestOwnTabClose), else K16 (the loss text). Pending: the page reports by \p flow->finishStep(this page).
+    virtual PDFAppLeaveResult requestClose(PDFAppLeaveFlow* flow) override;
+
+    /// A question of the leave of this page or of its shell is open
+    virtual bool isQuestionOpen() const override;
 
     /// The tool has a loss text (K16; the own tab asks with it)
     virtual bool hasUnsavedWork() const override;
@@ -215,12 +224,40 @@ private:
     void onProgressChanged();
     void onRestartQueued();
 
+    /// What the close waits for
+    enum class LeaveStage
+    {
+        None,
+        Run,            ///< The question of the run (the shell): Stop and Leave stops it
+        OwnQuestion,    ///< The own question of the tool (its GUI)
+        LossQuestion    ///< K16 of this page
+    };
+
+    /// K16: the question of the loss text (Pending), Done without a loss
+    PDFAppLeaveResult askLossQuestion(PDFAppLeaveFlow* flow);
+
+    /// The page waits for the Pending step of \p reporter (Pending; Refused, when it cannot wait)
+    PDFAppLeaveResult waitForStep(PDFAppLeaveFlow* flow, QObject* reporter, LeaveStage stage);
+    void onCloseStepFinished(pdf::PDFAppLeaveResult result);
+    void onLossQuestionChosen(pdf::PDFAppDocumentChoice choice);
+
+    /// Ends the wait: a stopped run, a closed tool (a navigation), the report to the flow (the last call)
+    void finishCloseStep(bool isAccepted);
+
+    /// A leave still waits for the step of this page; the wait of a flow, which has ended meanwhile, is forgotten
+    bool checkLeaveWait();
+
+    /// The flow of the tab closed by Cancel of the tool has ended (\p isDone false: the tool takes requests again)
+    void onCanceledCloseFinished(bool isDone);
+
     QString m_toolId;
     QPointer<PDFAppToolTabView> m_view;
     QPointer<PDFAppOwnTabToolHost> m_host;
     QPointer<PDFDocumentToolShell> m_shell;
+    QPointer<PDFAppLeaveFlow> m_leaveFlow;      ///< The flow, whose step this page has left Pending; not owned
+    LeaveStage m_leaveStage = LeaveStage::None;
     bool m_isRestartQueued = false;
-    bool m_isLeavingTool = false;   ///< confirmClose runs for prepareLeave: only the tool closes, the tab stays
+    bool m_isLeavingTool = false;   ///< requestClose runs for requestLeave: only the tool closes, the tab stays
 };
 
 /// Factory of the page of a tool in its own tab (PDFAppToolPageKind::OwnTab)

@@ -32,6 +32,7 @@
 // dialogs during the asynchronous work. PDF4QT_APP_SCREENSHOTS=<folder> writes
 // pictures of the dialogs (both themes; run with QT_SCALE_FACTOR=2 for 2x).
 
+#include "appasyncdialogs.h"
 #include "appdocumentfixture.h"
 #include "applocaleguard.h"
 
@@ -71,6 +72,7 @@
 
 #include <QCheckBox>
 #include <QDir>
+#include <QFileDialog>
 #include <QLabel>
 #include <QMutex>
 #include <QPrinter>
@@ -83,6 +85,30 @@
 
 #include <atomic>
 #include <functional>
+
+/// The member slot of a requester, which waits for the end of a save (PDFAppDocumentSaveRequest, A0)
+class SaveRequestReceiver : public QObject
+{
+public:
+    explicit SaveRequestReceiver(std::vector<bool>* results) : m_results(results) { }
+
+    void onSaved(bool isSaved) { m_results->push_back(isSaved); }
+
+private:
+    std::vector<bool>* m_results;
+};
+
+/// The member slot of a requester of a file dialog (PDFAppFileDialogs::request*, A0)
+class SaveFileReceiver : public QObject
+{
+public:
+    explicit SaveFileReceiver(QStringList* files) : m_files(files) { }
+
+    void onFile(const QString& file) { m_files->append(file); }
+
+private:
+    QStringList* m_files;
+};
 
 /// Helpers of the tests of package E
 class FileTestHelper
@@ -279,6 +305,8 @@ private slots:
     void saveAs();
     void saveMarkOfTheWeb();
     void saveAsCanceled();
+    void saveAsFileDialog();
+    void saveRequest();
     void saveAsOpenInAnotherTab();
     void saveReadOnlyFile();
     void saveWriteFailure();
@@ -314,6 +342,8 @@ private slots:
     void printSelectedPagesPreselected();
     void printToFile();
     void printPortPrompt();
+    void printPortPromptFileDialog();
+    void printPortPromptDocumentNotReady();
     void printCopiesAndCollate();
     void printPreview();
     void printNoPrinter();
@@ -461,7 +491,11 @@ void AppDocumentFileTest::saveDialogHandler()
         proposed = filePath;
         return QStringLiteral("C:/saved.pdf");
     });
-    QCOMPARE(pdf::PDFAppFileDialogs::getSaveFileName(fixture.window, QStringLiteral("D:/a.pdf")), QStringLiteral("C:/saved.pdf"));
+    QStringList files;
+    SaveFileReceiver receiver(&files);
+    QVERIFY(pdf::PDFAppFileDialogs::requestSaveFileName(fixture.window, QStringLiteral("D:/a.pdf"), &receiver, &SaveFileReceiver::onFile));
+    pdftest::AppAsyncDialogs::settle();
+    QCOMPARE(files, QStringList(QStringLiteral("C:/saved.pdf")));
     QCOMPARE(proposed, QStringLiteral("D:/a.pdf"));
 }
 
@@ -687,13 +721,156 @@ void AppDocumentFileTest::saveAsCanceled()
     pdf::PDFAppDocumentFileCommandHandler* handler = FileTestHelper::handler(tab);
     QVERIFY(FileTestHelper::modify(tab->getDocument(), QStringLiteral("x")));
 
+    // A0: the file dialog answers from the event loop - the save runs after the call
+    // (Save as cannot be used meanwhile) and ends canceled, once
+    pdftest::NestedEventLoopGuard loopGuard;
     pdf::PDFAppFileDialogs::setSaveFileHandler([](QWidget*, const QString&) { return QString(); });
     QSignalSpy finishedSpy(handler, &pdf::PDFAppDocumentFileCommandHandler::saveFinished);
     QVERIFY(handler->saveAs());
+    QCOMPARE(finishedSpy.count(), 0);
+    QVERIFY(handler->getSaver()->isRunning());
+    QVERIFY(!handler->isEnabled(pdf::PDFAppCommands::saveAs()));
+    fixture.settle();
     QCOMPARE(finishedSpy.count(), 1);
     QCOMPARE(finishedSpy.at(0).at(0).toBool(), false);
     QVERIFY(tab->getDocument()->isModified());
     QVERIFY(!handler->getSaver()->isRunning());
+}
+
+void AppDocumentFileTest::saveAsFileDialog()
+{
+    // A0 (no nested event loop): Save As shows the file dialog of the system by QFileDialog shown modal (no exec,
+    // no static getSaveFileName) as a child of the window; the chosen file comes later and is written
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppFileDialogs::setSaveFileHandler(pdf::PDFAppFileDialogs::SaveFileHandler());
+    const QString file = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Dialog.pdf"), 2);
+    pdf::PDFAppDocumentTab* tab = FileTestHelper::openReady(fixture, file);
+    QVERIFY(tab);
+    pdf::PDFAppDocumentFileCommandHandler* handler = FileTestHelper::handler(tab);
+    QVERIFY(FileTestHelper::modify(tab->getDocument(), QStringLiteral("By the dialog")));
+
+    pdftest::NestedEventLoopGuard loopGuard;
+    QSignalSpy finishedSpy(handler, &pdf::PDFAppDocumentFileCommandHandler::saveFinished);
+    QVERIFY(handler->saveAs());
+    pdf::PDFAppFileDialogRequest* request = pdftest::AppAsyncDialogs::findFileRequest();
+    QVERIFY(request);
+    QCOMPARE(request->getSettings().mode, pdf::PDFAppFileDialogRequest::Mode::SaveFile);
+    QCOMPARE(request->getSettings().title, QStringLiteral("Save As"));
+    QCOMPARE(request->getSettings().path, tab->getDocument()->getFilePath());
+    QFileDialog* dialog = request->getDialog();
+    QVERIFY(dialog && dialog->isVisible());
+    QCOMPARE(dialog->parentWidget(), static_cast<QWidget*>(tab->window()));
+    QCOMPARE(QApplication::activeModalWidget(), static_cast<QWidget*>(dialog));
+    QCOMPARE(dialog->acceptMode(), QFileDialog::AcceptSave);
+    QVERIFY(handler->getSaver()->isRunning());
+    fixture.settle();
+    QCOMPARE(finishedSpy.count(), 0);
+
+    const QString target = fixture.path(QStringLiteral("Chosen by the dialog.pdf"));
+    QVERIFY(pdftest::AppAsyncDialogs::answerFile(target));
+    QTRY_COMPARE_WITH_TIMEOUT(finishedSpy.count(), 1, 20000);
+    QVERIFY(finishedSpy.at(0).at(0).toBool());
+    QCOMPARE(tab->getDocument()->getFilePath(), QFileInfo(target).canonicalFilePath());
+    QCOMPARE(FileTestHelper::getTitle(target), QStringLiteral("By the dialog"));
+    QVERIFY2(pdftest::AppAsyncDialogs::isNothingOpen(), qPrintable(pdftest::AppAsyncDialogs::describeOpen().join(QLatin1Char('|'))));
+
+    // Esc of the dialog: canceled, nothing written
+    QVERIFY(FileTestHelper::modify(tab->getDocument(), QStringLiteral("Not saved")));
+    QVERIFY(handler->saveAs());
+    QVERIFY(pdftest::AppAsyncDialogs::findFileRequest());
+    QVERIFY(pdftest::AppAsyncDialogs::cancelFile());
+    QCOMPARE(finishedSpy.count(), 2);
+    QCOMPARE(finishedSpy.at(1).at(0).toBool(), false);
+    QCOMPARE(FileTestHelper::getTitle(target), QStringLiteral("By the dialog"));
+    QVERIFY(!handler->getSaver()->isRunning());
+}
+
+void AppDocumentFileTest::saveRequest()
+{
+    // The asynchronous save of a requester (the step of the close of a tab, A0): the end comes to its member slot
+    // exactly once and never inside the call; false, when nothing can be saved or the tab goes away; nothing, when
+    // the requester has gone
+    pdftest::AppDocumentFixture fixture;
+    pdftest::NestedEventLoopGuard loopGuard;
+    pdf::PDFAppDocumentTab* tab = FileTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Request.pdf"), 1));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentFileCommandHandler* handler = FileTestHelper::handler(tab);
+    QVERIFY(FileTestHelper::modify(tab->getDocument(), QStringLiteral("Requested")));
+    const QString target = fixture.path(QStringLiteral("Requested.pdf"));
+    pdf::PDFAppFileDialogs::setSaveFileHandler([target](QWidget*, const QString&) { return target; });
+
+    // Save As: true after the write, once
+    std::vector<bool> results;
+    SaveRequestReceiver receiver(&results);
+    QPointer<pdf::PDFAppDocumentSaveRequest> request = handler->requestSaveAs(&receiver, &SaveRequestReceiver::onSaved);
+    QVERIFY(request);
+    QVERIFY(results.empty());
+    QVERIFY(request->isPending());
+    QTRY_COMPARE_WITH_TIMEOUT(results.size(), size_t(1), 20000);
+    QVERIFY(results.front());
+    QCOMPARE(tab->getDocument()->getFilePath(), QFileInfo(target).canonicalFilePath());
+    QVERIFY(!tab->getDocument()->isModified());
+    fixture.settle();
+    QCOMPARE(results.size(), size_t(1));
+    QVERIFY(!request);
+
+    // Canceled file dialog: false from the event loop
+    pdf::PDFAppFileDialogs::setSaveFileHandler([](QWidget*, const QString&) { return QString(); });
+    QVERIFY(FileTestHelper::modify(tab->getDocument(), QStringLiteral("Canceled")));
+    results.clear();
+    QVERIFY(handler->requestSaveAs(&receiver, &SaveRequestReceiver::onSaved));
+    QVERIFY(results.empty());
+    fixture.settle();
+    QVERIFY(results == std::vector<bool>({ false }));
+    QVERIFY(tab->getDocument()->isModified());
+
+    // Save of a file, which can be written: no dialog, true
+    results.clear();
+    QVERIFY(handler->requestSave(&receiver, &SaveRequestReceiver::onSaved));
+    QVERIFY(results.empty());
+    QTRY_COMPARE_WITH_TIMEOUT(results.size(), size_t(1), 20000);
+    QVERIFY(results.front());
+    QVERIFY(!tab->getDocument()->isModified());
+
+    // Nothing can be saved (no saver): false from the event loop, never inside the call
+    results.clear();
+    QVERIFY(pdf::PDFAppDocumentSaveRequest::start(nullptr, pdf::PDFAppDocumentSaveRequest::Kind::Save, &receiver, &SaveRequestReceiver::onSaved));
+    QVERIFY(results.empty());
+    fixture.settle();
+    QVERIFY(results == std::vector<bool>({ false }));
+    QVERIFY(!pdf::PDFAppDocumentSaveRequest::start(handler->getSaver(), pdf::PDFAppDocumentSaveRequest::Kind::Save, static_cast<SaveRequestReceiver*>(nullptr), &SaveRequestReceiver::onSaved));
+
+    // The requester gone before the end: nothing is delivered, the save itself ends
+    pdf::PDFAppFileDialogs::setSaveFileHandler([target](QWidget*, const QString&) { return target; });
+    QVERIFY(FileTestHelper::modify(tab->getDocument(), QStringLiteral("Requester gone")));
+    results.clear();
+    QSignalSpy finishedSpy(handler, &pdf::PDFAppDocumentFileCommandHandler::saveFinished);
+    SaveRequestReceiver* gone = new SaveRequestReceiver(&results);
+    QPointer<pdf::PDFAppDocumentSaveRequest> goneRequest = handler->requestSaveAs(gone, &SaveRequestReceiver::onSaved);
+    QVERIFY(goneRequest);
+    delete gone;
+    QVERIFY(!goneRequest);
+    QTRY_COMPARE_WITH_TIMEOUT(finishedSpy.count(), 1, 20000);
+    fixture.settle();
+    QVERIFY(results.empty());
+
+    // The tab closed while the file dialog is open (the saver goes): false from the event loop; the dialog of the
+    // system stays until the user closes it (its answer is dropped)
+    pdf::PDFAppFileDialogs::setSaveFileHandler(pdf::PDFAppFileDialogs::SaveFileHandler());
+    QVERIFY(FileTestHelper::modify(tab->getDocument(), QStringLiteral("Tab gone")));
+    results.clear();
+    QVERIFY(handler->requestSaveAs(&receiver, &SaveRequestReceiver::onSaved));
+    QPointer<QFileDialog> dialog = pdftest::AppAsyncDialogs::findFileRequest() ? pdftest::AppAsyncDialogs::findFileRequest()->getDialog() : nullptr;
+    QVERIFY(dialog);
+    delete tab;
+    QVERIFY(results.empty());
+    fixture.settle();
+    QVERIFY(results == std::vector<bool>({ false }));
+    QVERIFY(!pdftest::AppAsyncDialogs::findFileRequest());
+    QVERIFY(dialog && dialog->isVisible());
+    dialog->reject();
+    fixture.settle();
+    QCOMPARE(results.size(), size_t(1));
 }
 
 void AppDocumentFileTest::saveAsOpenInAnotherTab()
@@ -709,6 +886,7 @@ void AppDocumentFileTest::saveAsOpenInAnotherTab()
     pdf::PDFAppDocumentFileCommandHandler* handler = FileTestHelper::handler(firstTab);
     QSignalSpy finishedSpy(handler, &pdf::PDFAppDocumentFileCommandHandler::saveFinished);
     QVERIFY(handler->saveAs());
+    fixture.settle();
 
     // The file of the other tab is not overwritten: save-error offers another file
     pdf::PDFMessageBox* dialog = FileTestHelper::findDialog(fixture, QStringLiteral("saveErrorDialog"));
@@ -768,6 +946,7 @@ void AppDocumentFileTest::saveWriteFailure()
     pdf::PDFAppFileDialogs::setSaveFileHandler([target](QWidget*, const QString&) { return target; });
     QSignalSpy finishedSpy(handler, &pdf::PDFAppDocumentFileCommandHandler::saveFinished);
     QVERIFY(handler->saveAs());
+    fixture.settle();
     pdf::PDFMessageBox* dialog = FileTestHelper::findDialog(fixture, QStringLiteral("saveErrorDialog"));
     QVERIFY(dialog);
     QTest::keyClick(dialog, Qt::Key_Escape);
@@ -1841,11 +2020,15 @@ void AppDocumentFileTest::printPortPrompt()
     pdf::PDFAppPrintDialog* dialog = FileTestHelper::openPrintDialog(tab);
     QVERIFY(dialog);
     dialog->getPrintButton()->click();
+
+    // A0: the answer of the file dialog comes from the event loop; meanwhile the job waits and Print cannot be used
+    QVERIFY(!controller->isPrinting());
+    QVERIFY(!FileTestHelper::handler(tab)->isEnabled(pdf::PDFAppCommands::print()));
+    pdftest::AppDocumentFixture::settle();
     QCOMPARE(requests.size(), size_t(1));
     QVERIFY(requests[0].isGuiThread);
     QCOMPARE(requests[0].parent, tab->window());
     QCOMPARE(QDir::cleanPath(requests[0].proposedPath), QDir::cleanPath(QDir(folder).absoluteFilePath(QStringLiteral("Contract.pdf"))));
-    pdftest::AppDocumentFixture::settle();
     QVERIFY(!controller->isPrinting());
     QVERIFY(!controller->getErrorDialog());
     QCOMPARE(finishedSpy.count(), 0);
@@ -1858,6 +2041,7 @@ void AppDocumentFileTest::printPortPrompt()
     dialog = FileTestHelper::openPrintDialog(tab);
     QVERIFY(dialog);
     dialog->getPrintButton()->click();
+    pdftest::AppDocumentFixture::settle();    // A0: the handler answers from the event loop
     QCOMPARE(requests.size(), size_t(2));
     QVERIFY(requests[1].isGuiThread);
     QTRY_COMPARE_WITH_TIMEOUT(finishedSpy.count(), 1, 60000);
@@ -1898,6 +2082,111 @@ void AppDocumentFileTest::printPortPrompt()
     pdftest::AppDocumentFixture::settle();
     QVERIFY(!tabGuard);
     QVERIFY(!QFileInfo::exists(deletedAnswer));
+}
+
+void AppDocumentFileTest::printPortPromptFileDialog()
+{
+    // A0: the file of a printer with a port prompt comes from the file dialog of the system shown without a nested
+    // event loop (a child of the window, modal); the job prints, when the file comes
+    pdftest::AppDocumentFixture fixture;
+    const QString folder = fixture.folder();
+    pdf::PDFAppPrinters::setProvider([folder]()
+    {
+        pdf::PDFAppPrinterInfo info;
+        info.name = QStringLiteral("Print to File Printer");
+        info.isDefault = true;
+        info.stateText = QStringLiteral("Ready");
+        info.outputFile = QDir(folder).absoluteFilePath(QStringLiteral("driver-default.pdf"));
+        info.isPortPrompt = true;
+        info.outputSuffix = QStringLiteral("pdf");
+        return std::vector<pdf::PDFAppPrinterInfo>{ info };
+    });
+    pdf::PDFAppFileDialogs::setPrintFileHandler(pdf::PDFAppFileDialogs::SaveFileHandler());
+
+    pdf::PDFAppDocumentTab* tab = FileTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Dialog print.pdf"), 2));
+    QVERIFY(tab);
+    pdf::PDFAppPrintController* controller = FileTestHelper::handler(tab)->getPrintController();
+    QSignalSpy finishedSpy(controller, &pdf::PDFAppPrintController::printFinished);
+
+    pdftest::NestedEventLoopGuard loopGuard;
+    pdf::PDFAppPrintDialog* dialog = FileTestHelper::openPrintDialog(tab);
+    QVERIFY(dialog);
+    dialog->getPrintButton()->click();
+    pdf::PDFAppFileDialogRequest* request = pdftest::AppAsyncDialogs::findFileRequest();
+    QVERIFY(request);
+    QCOMPARE(request->getSettings().title, QStringLiteral("Print to File"));
+    QCOMPARE(QFileInfo(request->getSettings().path).fileName(), QStringLiteral("Dialog print.pdf"));
+    QVERIFY(request->getDialog() && request->getDialog()->isVisible());
+    QCOMPARE(request->getDialog()->parentWidget(), static_cast<QWidget*>(tab->window()));
+    fixture.settle();
+    QVERIFY(!controller->isPrinting());
+    QCOMPARE(finishedSpy.count(), 0);
+
+    const QString chosen = QDir(folder).absoluteFilePath(QStringLiteral("chosen by the dialog.pdf"));
+    QVERIFY(pdftest::AppAsyncDialogs::answerFile(chosen));
+    QTRY_COMPARE_WITH_TIMEOUT(finishedSpy.count(), 1, 60000);
+    QVERIFY(controller->getLastResult().isCompleted);
+    QCOMPARE(FileTestHelper::getPageCount(chosen), 2);
+    QVERIFY(!QFileInfo::exists(QDir(folder).absoluteFilePath(QStringLiteral("driver-default.pdf"))));
+
+    // The tab closed while the file dialog is open: nothing is printed, the dialog stays until the user closes it
+    dialog = FileTestHelper::openPrintDialog(tab);
+    QVERIFY(dialog);
+    dialog->getPrintButton()->click();
+    QPointer<QFileDialog> fileDialog = pdftest::AppAsyncDialogs::findFileRequest() ? pdftest::AppAsyncDialogs::findFileRequest()->getDialog() : nullptr;
+    QVERIFY(fileDialog);
+    delete tab;
+    fixture.settle();
+    QVERIFY(!pdftest::AppAsyncDialogs::findFileRequest());
+    QVERIFY(fileDialog);
+    fileDialog->reject();
+    fixture.settle();
+    QCOMPARE(finishedSpy.count(), 1);
+}
+
+void AppDocumentFileTest::printPortPromptDocumentNotReady()
+{
+    // The document is not shown any more, when the file of a port prompt comes (read again while the dialog was
+    // open): nothing is printed and the controller announces its state again - the end of the dialog enables Print,
+    // which the open dialog has disabled, so the command does not keep a stale state
+    pdftest::AppDocumentFixture fixture;
+    const QString folder = fixture.folder();
+    pdf::PDFAppPrinters::setProvider([folder]()
+    {
+        pdf::PDFAppPrinterInfo info;
+        info.name = QStringLiteral("Print to File Printer");
+        info.isDefault = true;
+        info.stateText = QStringLiteral("Ready");
+        info.outputFile = QDir(folder).absoluteFilePath(QStringLiteral("driver-default.pdf"));
+        info.isPortPrompt = true;
+        info.outputSuffix = QStringLiteral("pdf");
+        return std::vector<pdf::PDFAppPrinterInfo>{ info };
+    });
+    const QString chosen = QDir(folder).absoluteFilePath(QStringLiteral("not printed.pdf"));
+    pdf::PDFAppFileDialogs::setPrintFileHandler([chosen](QWidget*, const QString&) { return chosen; });
+
+    pdf::PDFAppDocumentTab* tab = FileTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Not ready.pdf"), 2));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentFileCommandHandler* handler = FileTestHelper::handler(tab);
+    pdf::PDFAppPrintController* controller = handler->getPrintController();
+    QSignalSpy finishedSpy(controller, &pdf::PDFAppPrintController::printFinished);
+
+    pdftest::NestedEventLoopGuard loopGuard;
+    pdf::PDFAppPrintDialog* dialog = FileTestHelper::openPrintDialog(tab);
+    QVERIFY(dialog);
+    dialog->getPrintButton()->click();
+    QVERIFY(!handler->isEnabled(pdf::PDFAppCommands::print()));
+
+    pdf::PDFAppDocument* document = tab->getDocument();
+    document->setPasswordRequired(document->getFilePath());
+    QVERIFY(!document->isReady());
+    QSignalSpy stateSpy(controller, &pdf::PDFAppPrintController::stateChanged);
+    fixture.settle();
+    QVERIFY(stateSpy.count() >= 1);
+    QVERIFY(!controller->isPrinting());
+    QVERIFY(!controller->canPrint());
+    QCOMPARE(finishedSpy.count(), 0);
+    QVERIFY(!QFileInfo::exists(chosen));
 }
 
 void AppDocumentFileTest::printCopiesAndCollate()
@@ -2800,6 +3089,7 @@ void AppDocumentFileTest::deleteTabWithDialogs()
     {
         pdf::PDFAppFileDialogs::setSaveFileHandler([&fixture](QWidget*, const QString&) { return fixture.path(QStringLiteral("no/such/x.pdf")); });
         QVERIFY(handler->saveAs());
+        fixture.settle();
         shown = handler->getSaver()->getDialog();
     }
     else if (dialog == QStringLiteral("refreshUnsaved"))

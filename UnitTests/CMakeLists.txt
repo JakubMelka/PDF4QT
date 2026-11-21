@@ -63,6 +63,8 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     pdf4qt_target_precompile_headers(UnitTestsMcpTestClient MODULES CORE NETWORK TEST)
 
     add_library(UnitTestsAppDocumentFixture OBJECT
+        appasyncdialogs.cpp
+        appasyncdialogs.h
         appdocumentfixture.cpp
         appdocumentfixture.h
     )
@@ -820,7 +822,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_executable(UnitTestsAppHome
         tst_apphometest.cpp
     )
-    target_link_libraries(UnitTestsAppHome PRIVATE Pdf4QtLibApp Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+    target_link_libraries(UnitTestsAppHome PRIVATE UnitTestsAppDocumentFixture Pdf4QtLibApp Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
     pdf4qt_target_precompile_headers(UnitTestsAppHome REUSE_FROM UnitTestsAppDocumentFixture)
     set_target_properties(UnitTestsAppHome PROPERTIES
         WIN32_EXECUTABLE OFF
@@ -1791,4 +1793,32 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         add_test(UnitTests${PDF4QT_STEP7C_APP_TEST} "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTests${PDF4QT_STEP7C_APP_TEST}")
         set_tests_properties(UnitTests${PDF4QT_STEP7C_APP_TEST} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     endforeach()
+
+    # A0 (no nested event loop, newapp_robustness.md 14-16), the skeleton: the asynchronous file dialogs, the choice
+    # dialog answered by a signal, the leave flow and the guard of nested event loops of the tests (appasyncdialogs
+    # in the root fixture); the precompiled header of the root fixture
+    add_executable(UnitTestsAppAsyncDialogs
+        tst_appasyncdialogstest.cpp
+    )
+    target_link_libraries(UnitTestsAppAsyncDialogs PRIVATE UnitTestsAppDocumentFixture Pdf4QtLibApp Pdf4QtLibWidgets Pdf4QtLibCore Pdf4QtLibFluent Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+    pdf4qt_target_precompile_headers(UnitTestsAppAsyncDialogs REUSE_FROM UnitTestsAppDocumentFixture)
+    set_target_properties(UnitTestsAppAsyncDialogs PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        QT_EXCLUDE_FROM_TRANSLATION ON
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsAppAsyncDialogs "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAppAsyncDialogs")
+    set_tests_properties(UnitTestsAppAsyncDialogs PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
+
+# A0 gate: no entry into a nested event loop in Pdf4QtLibApp / Pdf4QtLibFluent (the sources are scanned, nothing is
+# built); without a Python interpreter the test is not added
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME NestedEventLoops COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/nested_event_loops.py" --root "${PROJECT_SOURCE_DIR}" --strict)
+    # The detection itself: every form of the probe snippets (nested_event_loops_probe, never compiled) is reported
+    add_test(NAME NestedEventLoopsSelfTest COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/nested_event_loops.py" --self-test)
+else()
+    message(STATUS "Python 3 not found: the tests NestedEventLoops and NestedEventLoopsSelfTest (nested_event_loops.py) are skipped")
 endif()

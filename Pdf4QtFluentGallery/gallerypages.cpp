@@ -2466,25 +2466,16 @@ GalleryPages::Page GalleryPages::createDialogsPage(QWidget* parent)
 
         QObject::connect(button, &QPushButton::clicked, button, [button, badge, title, text]()
         {
-            // The static functions of the library, as an application calls them (the
-            // message box is a child of the window and is deleted with it, when the
-            // window is deleted while the message box is shown)
-            QWidget* window = button->window();
-            switch (badge)
-            {
-                case pdf::PDFThemeIcons::Badge::Question:
-                    pdf::PDFMessageBox::question(window, title, text, QDialogButtonBox::Yes | QDialogButtonBox::No, QDialogButtonBox::Yes);
-                    break;
-                case pdf::PDFThemeIcons::Badge::Warning:
-                    pdf::PDFMessageBox::warning(window, title, text, QDialogButtonBox::Ok, QDialogButtonBox::Ok);
-                    break;
-                case pdf::PDFThemeIcons::Badge::Critical:
-                    pdf::PDFMessageBox::critical(window, title, text, QDialogButtonBox::Ok, QDialogButtonBox::Ok);
-                    break;
-                default:
-                    pdf::PDFMessageBox::information(window, title, text, QDialogButtonBox::Ok, QDialogButtonBox::Ok);
-                    break;
-            }
+            // As an application shows a message box (no nested event loop): a child of
+            // the window (deleted with it, when the window is deleted while the message
+            // box is shown), opened by open(), its answer comes by the signal finished,
+            // deleted when it is closed
+            const bool isQuestion = badge == pdf::PDFThemeIcons::Badge::Question;
+            const QDialogButtonBox::StandardButtons buttons = isQuestion ? QDialogButtonBox::StandardButtons(QDialogButtonBox::Yes | QDialogButtonBox::No) : QDialogButtonBox::StandardButtons(QDialogButtonBox::Ok);
+            pdf::PDFMessageBox* messageBox = new pdf::PDFMessageBox(badge, title, text, buttons, button->window());
+            messageBox->setAttribute(Qt::WA_DeleteOnClose);
+            messageBox->setDefaultButton(isQuestion ? QDialogButtonBox::Yes : QDialogButtonBox::Ok);
+            messageBox->open();
         });
     }
 

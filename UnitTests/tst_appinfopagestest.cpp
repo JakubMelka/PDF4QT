@@ -2700,19 +2700,17 @@ void AppInfoPagesTest::deleteWithOpenMenu()
     QVERIFY(page);
     QPointer<pdf::PDFKeyValueList> list = page->getBuildInfo();
 
-    bool isMenuSeen = false;
-    QTimer::singleShot(50, fixture.window.data(), [&fixture, &isMenuSeen]()
-    {
-        isMenuSeen = qobject_cast<QMenu*>(QApplication::activePopupWidget()) != nullptr;
-        fixture.navigate(QStringLiteral("/sponsor"));
-        if (QWidget* popup = QApplication::activePopupWidget())
-        {
-            popup->close();
-        }
-    });
+    // A0: the menu is a popup - the event returns with the menu open, the navigation runs from the
+    // event loop of the test
     const QPoint position = list->getRowRect(0).center();
     QContextMenuEvent event(QContextMenuEvent::Mouse, position, list->mapToGlobal(position));
     QApplication::sendEvent(list.data(), &event);
+    const bool isMenuSeen = qobject_cast<QMenu*>(QApplication::activePopupWidget()) != nullptr;
+    fixture.navigate(QStringLiteral("/sponsor"));
+    if (QWidget* popup = QApplication::activePopupWidget())
+    {
+        popup->close();
+    }
     InfoFixture::settle();
     QVERIFY(isMenuSeen);
     QVERIFY(list.isNull());

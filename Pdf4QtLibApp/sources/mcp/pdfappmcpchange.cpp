@@ -26,6 +26,8 @@
 #include "pdfappmcptoolset.h"
 #include "pdfappdocument.h"
 #include "pdfappdocumentsave.h"
+#include "pdfappleaveflow.h"
+#include "pdfappmainwindow.h"
 
 #include "pdfmcpcatalog.h"
 #include "pdfmcpjson.h"
@@ -286,7 +288,26 @@ PDFAppDocument* PDFAppMcpChangeJob::prepareDocument(const PDFAppMcpToolInvocatio
         return nullptr;
     }
 
+    // The window quits or the session ends (A0, RR3-L7)
+    if (isWindowLeaving(host))
+    {
+        host->finishWithError(call, actionId, document, getWindowLeavingText(), PDFMcpActivityStatus::DeniedBusy);
+        return nullptr;
+    }
+
     return document;
+}
+
+bool PDFAppMcpChangeJob::isWindowLeaving(const PDFAppMcpHost* host)
+{
+    const PDFAppMainWindow* window = host ? host->getResolver().getWindow() : nullptr;
+    const PDFAppLeaveFlow* windowFlow = window ? window->findLeaveFlow() : nullptr;
+    return windowFlow && windowFlow->isRunning();
+}
+
+QString PDFAppMcpChangeJob::getWindowLeavingText()
+{
+    return QStringLiteral("PDF4QT is closing and saves the documents. Try again when it has finished.");
 }
 
 PDFAppMcpChangeContext PDFAppMcpChangeJob::createContext(const PDFAppMcpToolInvocation& invocation, PDFAppDocument* document)

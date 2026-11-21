@@ -77,7 +77,7 @@ class PDFTileRow;
 ///  - Its own tab (started without a document: Home, Tools, an assembly file): the assembly of
 ///    sources, the outputs One PDF, per group, per page (387:12569 ... 409:32739); the sources are
 ///    never changed; the tab stays after a result (isTabKeptAfterResult, K31); Close instead of
-///    Cancel (K2); the close asks "Save the assembly …?" (askOwnTabClose, 405:30894).
+///    Cancel (K2); the close asks "Save the assembly …?" (requestOwnTabClose, 405:30894).
 ///  - The tab of a document (started over a document: the panel Tools, Thumbnails Move pages,
 ///    Then continue with; 1479:34632, 1479:35631): the document is the source A ("this document"),
 ///    the only output is This document (QB7 b; "Open as an Assembly" opens the own tab with its
@@ -178,7 +178,14 @@ public:
     virtual QString getLockedGlanceText() const override;
     virtual QString getOwnTabPageText() const override;
     virtual QString getOwnTabZoomText() const override;
-    virtual PDFAppToolCloseAnswer askOwnTabClose() override;
+
+    /// The own tab asks "Save the assembly …?" (405:30894) before it closes (A0: requestOwnTabClose)
+    virtual bool hasOwnTabCloseQuestion() const override;
+
+    /// 405:30894 without a nested event loop: Done = nothing is lost; Pending = the question is open - Don't Save
+    /// reports Done, Save Assembly Done after the assembly is saved (Save Assembly As… first without a file; a
+    /// canceled or failed save Refused), Cancel Refused (flow->finishStep(this GUI))
+    virtual PDFAppLeaveResult requestOwnTabClose(PDFAppLeaveFlow* flow) override;
 
     /// In the tab of a document: the arrangement differs from the pages of the document (owner 2026-11-20)
     virtual bool hasUnsavedWork() const override;
@@ -281,15 +288,17 @@ public:
 
     // ------------------------------------------------------------ the assembly file (409:32023)
 
-    /// Save Assembly (Ctrl+S): to its file, the first time Save Assembly As… \returns true, when
-    /// it was saved
+    /// Save Assembly (Ctrl+S): to its file, the first time Save Assembly As… (A0: its dialog is shown and the call
+    /// returns false; the file is saved after the answer). \returns true, when it was saved in the call
     bool saveAssembly();
     bool saveAssemblyAs();
     bool saveAssemblyTo(const QString& filePath, QString* errorMessage);
 
     /// Open Assembly… (Ctrl+Shift+O), a recent assembly, an assembly file of the window
     /// (PDFAppMainWindow::openAssembly): read by PDFAppAssemblyLoader; the content replaces the
-    /// assembly as one undo step (B24: only after a successful read)
+    /// assembly as one undo step (B24: only after a successful read). A modified assembly asks to be saved first
+    /// (409:32023; A0: the question is shown, the call returns false and the file is read after the answer).
+    /// \returns the reading has started in the call
     void openAssemblyFromDialog();
     bool openAssemblyFile(const QString& filePath);
     void applyLoadResult(const PDFAppAssemblyLoadResult& result);
@@ -392,7 +401,33 @@ private:
     void openAddPagesDialog(const QString& sourceKey, const QString& fileName, PDFInteger pageCount, bool isReplace);
     void openSourcesDialog(const PDFAppAssemblyLoadResult& result);
     void onSourcesDialogLocate(const QString& sourceId);
+    void onLocateFileChosen(const QString& file);
     void onSourcesDialogOpenFromThere(const QString& sourceId);
+
+    // The answers of the file dialogs (A0: shown without an event loop, the answer to these slots)
+    void onAddFilesChosen(const QStringList& files);
+    void onAddPagesFileChosen(const QString& file);
+    void onReplaceFileChosen(const QString& file);
+    void onOpenAssemblyFileChosen(const QString& filePath);
+
+    /// What waits for the question 405:30894 / 409:32023 and for Save Assembly As…
+    enum class SaveIntent
+    {
+        None,           ///< Save Assembly As… of the menu
+        CloseTab,       ///< The close of the own tab (requestOwnTabClose: the step of m_closeFlow)
+        OpenAssembly    ///< Another assembly (m_pendingAssemblyPath) is read after the answer
+    };
+
+    /// Shows "Save the assembly …?" for \p intent (false = a question is open already)
+    bool askSaveQuestion(SaveIntent intent);
+    void onCloseDialogChosen(pdf::PDFAppDocumentChoice choice);
+
+    /// Save Assembly As… for \p intent (false = no dialog: a document host, a dialog open already)
+    bool requestSaveAssemblyAs(SaveIntent intent);
+    void onSaveAssemblyAsChosen(const QString& filePath);
+
+    /// The answer for \p intent: the step of the close (the last call), the reading of the other assembly
+    void finishSaveIntent(SaveIntent intent, bool isAccepted);
     void onSourcesDialogFinished();
     void openPasswordDialog(const QString& inputId);
     void onPasswordRemoveRequested(const QString& inputId);
@@ -506,6 +541,12 @@ private:
     QPointer<PDFAppToolTileSizeMenu> m_tileSizeMenu;
     QPointer<PDFAppManageDialog> m_dialog;
     QPointer<PDFAppDocumentChoiceDialog> m_closeDialog;
+    SaveIntent m_closeIntent = SaveIntent::None;    ///< What waits for m_closeDialog
+    SaveIntent m_saveAsIntent = SaveIntent::None;   ///< What waits for Save Assembly As…
+    bool m_isSaveAsOpen = false;                    ///< Save Assembly As… waits for its file
+    QPointer<PDFAppLeaveFlow> m_closeFlow;          ///< The flow of the close of the own tab, whose step waits for the answer; not owned
+    QString m_pendingAssemblyPath;                  ///< The assembly read after the answer (OpenAssembly)
+    QString m_locateSourceId;                       ///< The source of Locate… waiting for its file
     QPointer<PDFAppManageSourcesDialog> m_sourcesDialog;
     QPointer<PDFAppPasswordDialog> m_passwordDialog;
     QPointer<QMenu> m_contextMenu;

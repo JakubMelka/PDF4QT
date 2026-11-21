@@ -233,7 +233,8 @@ public:
     virtual QString getIconName() const override;
     virtual void setDocument(PDFAppDocument* document, PDFAppDocumentView* view) override;
 
-    /// Saves the attachment of the row (the save dialog)
+    /// Saves the attachment of the row (the save dialog, without a nested event
+    /// loop: the call returns, the chosen file is written later)
     void saveAttachment(int row);
 
     /// Opens the PDF attachment of the row in a new tab (decoded in a worker, read
@@ -243,7 +244,8 @@ public:
     /// Action of a click / Enter on the row: a PDF is opened, another file saved
     void activateAttachment(int row);
 
-    /// Number of the running writes and readings (tests)
+    /// Number of the running saves (also the ones, which wait for their file
+    /// dialog), writes and readings (tests)
     int getRunningCount() const;
 
     QListView* getListView() const { return m_view; }
@@ -274,10 +276,22 @@ private:
     void onActivated(const QModelIndex& index);
     void onDelegateAction(const QModelIndex& index, int action);
     void onWriteFinished();
+    void onSaveFileChosen(const QString& filePath);
     void rebuild();
     void startWatcher(const QFuture<PDFAppAttachments::WriteResult>& future);
     QString getSourceFilePath() const;
     void showError(const QString& title, const QString& text);
+
+    /// A save, which waits for its file dialog (A0): the copies of the attachment, of
+    /// its document and of the file of the document taken before the dialog
+    class PendingSave
+    {
+    public:
+        QPointer<PDFAppFileDialogRequest> request;  ///< The file dialog (a child of the panel)
+        PDFAppAttachment attachment;
+        PDFDocumentPointer document;
+        QString sourceFilePath;
+    };
 
     QPointer<PDFAppPanelListView> m_view;
     QPointer<PDFAppAttachmentsModel> m_model;
@@ -290,6 +304,7 @@ private:
     QPointer<PDFAppDocument> m_connectedDocument;
     PDFDocumentPointer m_document;
     std::vector<QPointer<QFutureWatcher<PDFAppAttachments::WriteResult>>> m_watchers;
+    std::vector<PendingSave> m_pendingSaves;
 };
 
 /// The password of the attachments of a document opened without them (owner answer Q5.9 c, R5-8;

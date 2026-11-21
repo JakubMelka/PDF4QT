@@ -42,6 +42,7 @@ namespace pdf
 {
 
 class PDFAppContext;
+class PDFAppFileDialogRequest;
 class PDFAppParagraph;
 class PDFAppToolProgressCard;
 class PDFComboBox;
@@ -302,11 +303,13 @@ Q_SIGNALS:
 
 private:
     void onChooseClicked();
+    void onSourceFileChosen(const QString& filePath);
 
     QPointer<PDFAppContext> m_context;
     QString m_sourceFilePath;
     QPointer<QPushButton> m_chooseButton;
     QPointer<QPushButton> m_cancelButton;
+    QPointer<PDFAppFileDialogRequest> m_fileRequest;   ///< Choose Another File… waiting for its file dialog (a child of the dialog, A0)
     Outcome m_outcome = Outcome::None;
 };
 

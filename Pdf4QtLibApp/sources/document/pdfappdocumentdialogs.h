@@ -27,6 +27,7 @@
 #include "pdfappdocumentstatusbar.h"
 #include "pdfapphomedialogs.h"
 #include "pdfapphomewidgets.h"
+#include "pdfappleaveflow.h"
 
 #include "pdffluentwidgets.h"
 #include "pdflockeddocumentpicture.h"
@@ -149,6 +150,28 @@ enum class PDFAppDocumentChoice
     Keep                ///< Keep Running (close-running)
 };
 
+/// The answer of a choice dialog shown by PDFAppDocumentChoiceDialog::ask: the choice of the user (getChoice of the
+/// dialog at QDialog::finished), Cancel when the dialog is deleted without an answer (from the event loop) or when
+/// there is no dialog. Exactly once; nothing when the receiver has gone (PDFAppDialogAnswer). The dialog is deleted
+/// after its answer (deleteLater).
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentChoiceAnswer : public PDFAppDialogAnswer
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFAppDialogAnswer;
+
+public:
+    explicit PDFAppDocumentChoiceAnswer(QDialog* dialog, QObject* receiver);
+    virtual ~PDFAppDocumentChoiceAnswer() override;
+
+Q_SIGNALS:
+    void chosen(pdf::PDFAppDocumentChoice choice);
+
+protected:
+    virtual void emitAnswer(const QDialog* dialog, int code) override;
+};
+
 /// Message box of a document tab with buttons, each of them a choice (the note
 /// 958:28033: the scrim over the tab, the 36 px badge, width 440 or 520 with a
 /// list; the destructive choice at the leading edge as a Secondary button, the
@@ -174,12 +197,27 @@ public:
     /// Button of the choice (nullptr, if there is none)
     QPushButton* getChoiceButton(PDFAppDocumentChoice choice) const;
 
-    /// Runs the dialog (exec): \returns the choice; the dialog, the parent or the
-    /// caller may be deleted meanwhile - the dialog is held by a QPointer and the
-    /// choice is Cancel, when it is gone (decision D10)
-    static PDFAppDocumentChoice run(PDFAppDocumentChoiceDialog* dialog);
+    /// Asks without a nested event loop (A0): shows the dialog application modal (PDFAppDialogAnswer::showModal)
+    /// and returns at once. The choice goes to \p slot of \p receiver exactly once: the choice of the clicked button
+    /// (Cancel for Esc) in the emission of QDialog::finished - the continuation runs synchronously there; Cancel from
+    /// the event loop, when the dialog is deleted without an answer (with its parent) or when \p dialog is nullptr.
+    /// Nothing when the receiver has gone meanwhile (the answer is its child). The dialog is deleted after its answer.
+    /// Without a receiver nothing is shown and nullptr is returned (the dialog is deleted later).
+    template<typename Receiver>
+    static PDFAppDocumentChoiceAnswer* ask(PDFAppDocumentChoiceDialog* dialog, Receiver* receiver, void (Receiver::*slot)(PDFAppDocumentChoice))
+    {
+        PDFAppDocumentChoiceAnswer* answer = createAnswer(dialog, receiver);
+        if (answer)
+        {
+            QObject::connect(answer, &PDFAppDocumentChoiceAnswer::chosen, receiver, slot);
+            PDFAppDialogAnswer::showModal(dialog);
+        }
+        return answer;
+    }
 
 private:
+    static PDFAppDocumentChoiceAnswer* createAnswer(PDFAppDocumentChoiceDialog* dialog, QObject* receiver);
+
     void onChoiceClicked();
 
     struct ChoiceButton

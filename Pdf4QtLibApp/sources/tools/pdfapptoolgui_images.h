@@ -60,6 +60,7 @@ class QRadioButton;
 namespace pdf
 {
 
+class PDFAppFileDialogRequest;
 class PDFAppImageThumbnailJob;
 class PDFAppImageThumbnailLink;
 class PDFAppNameDialog;
@@ -450,7 +451,8 @@ public:
     /// Adds the image files at the end (one undo step); refused ones are said in the status bar
     void addFiles(const QStringList& filePaths);
 
-    /// Image files… (Ctrl+Alt+I): the dialog of the files, then addFiles
+    /// Image files… (Ctrl+Alt+I): the dialog of the files, then addFiles (A0: the files come later from the event loop,
+    /// one dialog at a time)
     void addFilesFromDialog();
 
     /// Paste from clipboard (Ctrl+V): the image of the clipboard at the end
@@ -571,6 +573,7 @@ private:
     void turnSelected(bool isClockwise);
     void sortBy(int key);
 
+    void onDialogFilesChosen(const QStringList& files);
     void onListChanged();
     void onListInputChanged(const QString& inputId);
     void onListDestroyed();
@@ -631,6 +634,7 @@ private:
     QPointer<PDFAppImageCropPanel> m_cropPanel;
     QPointer<PDFAppCropOverlay> m_cropOverlay;
     QPointer<PDFAppNameDialog> m_renameDialog;
+    QPointer<PDFAppFileDialogRequest> m_fileRequest;   ///< Image files… waiting for its dialog (a child of the GUI, A0)
     std::map<QString, QPointer<QToolButton>> m_actions;
     std::map<QString, QPointer<PDFAppToolPanelPopup>> m_panels;
     QPointer<QWidget> m_keyWidget;

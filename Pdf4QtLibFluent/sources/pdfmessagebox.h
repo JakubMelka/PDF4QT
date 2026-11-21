@@ -220,19 +220,6 @@ public:
     /// of another widget or, if windows can not be translucent.
     QMargins getShadowMargins() const;
 
-    static QDialogButtonBox::StandardButton information(QWidget* parent, const QString& title, const QString& text,
-                                                        QDialogButtonBox::StandardButtons buttons = QDialogButtonBox::Ok,
-                                                        QDialogButtonBox::StandardButton defaultButton = QDialogButtonBox::NoButton);
-    static QDialogButtonBox::StandardButton question(QWidget* parent, const QString& title, const QString& text,
-                                                     QDialogButtonBox::StandardButtons buttons = QDialogButtonBox::StandardButtons(QDialogButtonBox::Yes | QDialogButtonBox::No),
-                                                     QDialogButtonBox::StandardButton defaultButton = QDialogButtonBox::NoButton);
-    static QDialogButtonBox::StandardButton warning(QWidget* parent, const QString& title, const QString& text,
-                                                    QDialogButtonBox::StandardButtons buttons = QDialogButtonBox::Ok,
-                                                    QDialogButtonBox::StandardButton defaultButton = QDialogButtonBox::NoButton);
-    static QDialogButtonBox::StandardButton critical(QWidget* parent, const QString& title, const QString& text,
-                                                     QDialogButtonBox::StandardButtons buttons = QDialogButtonBox::Ok,
-                                                     QDialogButtonBox::StandardButton defaultButton = QDialogButtonBox::NoButton);
-
 protected:
     virtual void showEvent(QShowEvent* event) override;
     virtual void hideEvent(QHideEvent* event) override;
@@ -253,8 +240,6 @@ private:
     void showScrim();
     void hideScrim();
 
-    static QDialogButtonBox::StandardButton showMessage(PDFThemeIcons::Badge badge, QWidget* parent, const QString& title, const QString& text,
-                                                        QDialogButtonBox::StandardButtons buttons, QDialogButtonBox::StandardButton defaultButton);
     void onButtonClicked(QAbstractButton* button);
     void ensureDefaultButton();
     void focusDefaultActionButton();

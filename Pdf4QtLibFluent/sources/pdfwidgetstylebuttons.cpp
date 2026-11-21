@@ -884,7 +884,8 @@ void PDFWidgetStyleButtons::drawToolButton(const QStyleOptionToolButton* option,
     const bool isTextUnderIcon = option->toolButtonStyle == Qt::ToolButtonTextUnderIcon && !option->text.isEmpty();
     const bool isMenuActive = option->activeSubControls.testFlag(QStyle::SC_ToolButtonMenu);
     const bool isButtonActive = option->activeSubControls.testFlag(QStyle::SC_ToolButton);
-    const bool isMenuOpen = !isSplit && option->features.testFlag(QStyleOptionToolButton::HasMenu) && state.pressed && isMenuActive;
+    const bool isMenuOpen = !isSplit && ((option->features.testFlag(QStyleOptionToolButton::HasMenu) && state.pressed && isMenuActive) ||
+                                         PDFWidgetStyleImpl::hasProperty(widget, PDFWidgetStyleProperties::MENU_OPEN));
 
     if (PDFWidgetStyleImpl::inherits(widget, "QLineEditIconButton"))
     {

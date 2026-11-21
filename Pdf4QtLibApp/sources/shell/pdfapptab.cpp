@@ -22,6 +22,7 @@
 
 #include "pdfapptab.h"
 #include "pdfappcontext.h"
+#include "pdfappleaveflow.h"
 #include "pdfappworkspace.h"
 
 #include "pdffluentwidgets.h"
@@ -106,9 +107,23 @@ PDFLineEdit* PDFAppTab::getSearchField() const
     return nullptr;
 }
 
-bool PDFAppTab::confirmClose()
+PDFAppLeaveResult PDFAppTab::requestTabClose()
 {
-    return true;
+    return PDFAppLeaveResult::Done;
+}
+
+PDFAppLeaveFlow* PDFAppTab::getLeaveFlow()
+{
+    if (!m_leaveFlow)
+    {
+        m_leaveFlow = new PDFAppLeaveFlow(this);
+    }
+    return m_leaveFlow.data();
+}
+
+bool PDFAppTab::isLeaving() const
+{
+    return m_leaveFlow && m_leaveFlow->isRunning();
 }
 
 bool PDFAppTab::executeCommand(const QString& commandId)

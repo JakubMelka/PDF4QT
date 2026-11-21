@@ -385,6 +385,13 @@ public:
         QPointer<QTimer> answer = Steps::answerToolQuestionLater(run, QStringLiteral("toolCloseAction"));
         QPointer<QTimer> discard = Steps::answerToolQuestionLater(run, QStringLiteral("measureIncompleteDiscard"));
         window->getNavigator()->navigate(pdf::PDFAppRoutes::document(tab->getDocumentId()), pdf::PDFAppNavigationMode::Push, tab);
+
+        // A0: the questions are shown and the navigation returns; the answers come from the event loop
+        pdftest::AppToolShellFixture::waitFor([tab]()
+        {
+            const pdf::PDFDocumentToolShell* toolShell = tab ? pdftest::AppToolShellFixture::getShell(tab) : nullptr;
+            return !toolShell || !toolShell->isQuestionOpen();
+        });
         delete answer.data();
         delete discard.data();
         Steps::settle();

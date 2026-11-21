@@ -253,6 +253,14 @@ public:
     /// Text of a change refused while a modal dialog of the application is open (plan 2.5)
     static QString getModalDialogText();
 
+    /// The window of \p host quits or the session ends (its leave flow runs, A0 RR3-L7): Save All of the flow runs
+    /// without a dialog - a change of an assistant is refused (DeniedBusy, getWindowLeavingText), it could miss the
+    /// save of its document and be lost by the quit
+    static bool isWindowLeaving(const PDFAppMcpHost* host);
+
+    /// Text of a change refused while the window quits (isWindowLeaving)
+    static QString getWindowLeavingText();
+
     /// Joins the parts "3 highlights", "1 note" into "3 highlights and 1 note"
     static QString joinParts(const QStringList& parts);
 

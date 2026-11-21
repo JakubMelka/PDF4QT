@@ -2103,10 +2103,20 @@ void PDFAppToolGUISignature::onImportClicked()
         return;
     }
 
-    // Plan 7.2: the file only from the file dialog; it runs an event loop - the GUI may be gone
-    QPointer<PDFAppToolGUISignature> guard(this);
-    const QString filePath = PDFAppPanelFileDialogs::getOpenFileName(getDialogParent(), tr("Import Certificate"), QString(), PDFAppCertificateImportDialog::getFileFilter());
-    if (!guard || filePath.isEmpty())
+    // Plan 7.2: the file only from the file dialog. A0: the file dialog answers onImportFileChosen (the request is a
+    // child of the GUI: a GUI gone meanwhile gets nothing); one file dialog at a time
+    if (m_fileRequest && m_fileRequest->isPending())
+    {
+        return;
+    }
+    m_fileRequest = PDFAppPanelFileDialogs::requestOpenFileName(getDialogParent(), tr("Import Certificate"), QString(), PDFAppCertificateImportDialog::getFileFilter(), this,
+                                                                &PDFAppToolGUISignature::onImportFileChosen);
+}
+
+void PDFAppToolGUISignature::onImportFileChosen(const QString& filePath)
+{
+    // The state again: no import dialog opened meanwhile
+    if (filePath.isEmpty() || (m_importDialog && m_importDialog->isVisible()))
     {
         return;
     }

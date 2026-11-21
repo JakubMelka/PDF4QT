@@ -35,7 +35,6 @@
 
 #include <QAbstractItemView>
 #include <QCoreApplication>
-#include <QFileDialog>
 #include <QItemSelectionModel>
 #include <QListView>
 #include <QToolButton>
@@ -45,22 +44,30 @@
 namespace pdf
 {
 
-QString PDFAppPanelFileDialogs::getSaveFileName(QWidget* parent, const QString& title, const QString& filePath, const QString& filter)
+PDFAppFileDialogRequest* PDFAppPanelFileDialogs::begin(QObject* requester, QWidget* parent, PDFAppFileDialogRequest::Mode mode, const QString& title, const QString& path, const QString& filter)
 {
-    if (const FileHandler& handler = getSaveHandler())
+    PDFAppFileDialogRequest::Settings settings;
+    settings.mode = mode;
+    settings.title = title;
+    settings.path = path;
+    settings.filter = filter;
+    PDFAppFileDialogRequest* request = PDFAppFileDialogRequest::create(requester, parent, settings);
+    if (!request)
     {
-        return handler(parent, title, filePath, filter);
+        return nullptr;
     }
-    return QFileDialog::getSaveFileName(parent, title, filePath, filter);
-}
 
-QString PDFAppPanelFileDialogs::getOpenFileName(QWidget* parent, const QString& title, const QString& folder, const QString& filter)
-{
-    if (const FileHandler& handler = getOpenHandler())
+    // The handler of the tests (the one set now) answers as the user of a real dialog, later: the request calls it
+    // from the event loop with the four arguments of the settings. This call runs no foreign code.
+    const FileHandler& handler = mode == PDFAppFileDialogRequest::Mode::SaveFile ? getSaveHandler() : getOpenHandler();
+    if (handler)
     {
-        return handler(parent, title, folder, filter);
+        request->answerByHandler(handler);
+        return request;
     }
-    return QFileDialog::getOpenFileName(parent, title, folder, filter);
+
+    request->show();
+    return request;
 }
 
 void PDFAppPanelFileDialogs::setSaveHandler(FileHandler handler)

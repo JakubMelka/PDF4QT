@@ -36,7 +36,9 @@
 #include <QUrl>
 
 #include <functional>
+#include <vector>
 
+class QDialog;
 class QPushButton;
 
 namespace pdf
@@ -72,8 +74,10 @@ public:
 /// the design, 958:28033 rules): Open the web link? (1028:22475), Start a
 /// program from … (1028:22931), Open a file from … (1028:23389 - also used for
 /// the attachments of the panel Attachments, package C). The dialogs are modal
-/// over \p parent (the scrim covers it) and safe against the deletion of the
-/// parent while they are shown (the result is Rejected then).
+/// over \p parent (the scrim covers it). A0 (no nested event loop): the caller
+/// shows a dialog by PDFAppDialogAnswer::show with setDeleteDialog(true) and reads
+/// the code of its answer by getResult - a dialog deleted with its parent while it
+/// is shown answers Rejected.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentActionDialogs
 {
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFAppDocumentActionDialogs)
@@ -94,24 +98,21 @@ public:
     static constexpr int LAUNCH_WIDTH = 520;
 
     /// Open the web (or e-mail) link? (1028:22475): Copy Link / Cancel / Open Link
-    /// (primary, Enter); Esc = Cancel
-    static Result confirmLink(QWidget* parent, const QString& documentTitle, const QUrl& url);
+    /// (primary, Enter); Esc = Cancel. Not shown.
+    static PDFMessageBox* createLinkDialog(QWidget* parent, const QString& documentTitle, const QUrl& url);
 
     /// Start a program from … (1028:22931): Program, Parameters, Start in;
-    /// Start Program / Don't Start (primary, Enter and Esc)
-    static Result confirmProgram(QWidget* parent, const QString& documentTitle, const QString& program, const QString& parameters, const QString& directory);
+    /// Start Program / Don't Start (primary, Enter and Esc). Not shown.
+    static PDFMessageBox* createProgramDialog(QWidget* parent, const QString& documentTitle, const QString& program, const QString& parameters, const QString& directory);
 
     /// Open a file from … (1028:23389): File, Folder, Opens in; Open File / Don't
-    /// Open (primary, Enter and Esc)
-    static Result confirmFile(QWidget* parent, const QString& documentTitle, const QString& filePath);
-
-    /// Creates the dialog of confirmLink (not shown; tests and the caller of exec)
-    static PDFMessageBox* createLinkDialog(QWidget* parent, const QString& documentTitle, const QUrl& url);
-    static PDFMessageBox* createProgramDialog(QWidget* parent, const QString& documentTitle, const QString& program, const QString& parameters, const QString& directory);
+    /// Open (primary, Enter and Esc). Not shown.
     static PDFMessageBox* createFileDialog(QWidget* parent, const QString& documentTitle, const QString& filePath);
 
-    /// Runs the dialog (exec) and returns its result; the dialog is deleted
-    static Result run(PDFMessageBox* dialog);
+    /// The result of the code of a dialog of this class (QDialog::finished,
+    /// PDFAppDialogAnswer::answered): Accepted and CopyLink by the codes of their
+    /// buttons, any other code (Esc, closed, deleted) Rejected
+    static Result getResult(int code);
 
     /// Text of a value shortened in its middle to the width of the dialog
     static QString shorten(const QString& text, int maximumLength);
@@ -163,8 +164,17 @@ public:
     explicit PDFAppDocumentActionHandler(PDFAppDocumentTab* tab, QObject* parent);
     virtual ~PDFAppDocumentActionHandler() override;
 
-    /// Performs the action (and its chain) as if the user has clicked it
+    /// Performs the action (and its chain) as if the user has clicked it. A
+    /// confirmation of the chain (a web link, a program, a file) is shown without
+    /// an event loop of its own: the call returns and the chain goes on from its
+    /// answer; another action is refused until the chain has ended.
     void performAction(const PDFAction* action);
+
+    /// A chain of actions runs (also while its confirmation waits for the user)
+    bool isPerforming() const { return m_isPerforming; }
+
+    /// The shown confirmation of the running chain, nullptr if none
+    QDialog* getQuestion() const;
 
     /// An action triggered on the canvas waits for the event loop (performed by
     /// performPendingAction)
@@ -234,12 +244,36 @@ private:
     void clearHover();
     void showStatusMessage(const QString& text);
 
-    /// Performs one action of a chain. \returns false, when the chain must stop
-    /// (the tab or the document is gone, the document has changed)
-    bool performOne(const PDFAction* action, quint64 version);
+    /// What the chain does after one of its actions
+    enum class ChainStep
+    {
+        Continue,   ///< The next action follows
+        Stop,       ///< The chain ends (the tab or the document is gone, the document has changed)
+        Wait        ///< A confirmation is shown: the chain goes on from its answer
+    };
+
+    /// Performs the actions of the chain from its current index (RR3-M4: the chain
+    /// is resumed here after the answer of a confirmation); ends the chain, unless
+    /// an action waits for an answer
+    void continueChain();
+
+    /// Ends the chain (another action may be performed)
+    void endChain();
+
+    /// Shows the confirmation \p dialog of the chain (PDFAppDialogAnswer, deleted
+    /// after its answer); its code comes to \p slot
+    void showQuestion(PDFMessageBox* dialog, void (PDFAppDocumentActionHandler::*slot)(int));
+
+    /// Answers of the confirmations: the confirmed request is performed, the chain
+    /// goes on from the event loop
+    void onLinkAnswered(int code);
+    void onLaunchAnswered(int code);
+
+    /// Performs one action of a chain
+    ChainStep performOne(const PDFAction* action, quint64 version);
     void performGoTo(const PDFActionGoTo* action);
-    bool performUri(const PDFActionURI* action);
-    bool performLaunch(const PDFActionLaunch* action);
+    ChainStep performUri(const PDFActionURI* action);
+    ChainStep performLaunch(const PDFActionLaunch* action);
     void performGoToR(const PDFActionGoToR* action);
     void performNamed(const PDFActionNamed* action);
     void performSetOCGState(const PDFActionSetOCGState* action);
@@ -275,6 +309,19 @@ private:
     QString m_blockedLink;
     QString m_blockedNetworkPath;   ///< Document of the info bar network-link-blocked (Open Anyway)
     int m_blockedNetworkPage = 0;
+
+    // The running chain (RR3-M4): a copy of the action (its items point into it),
+    // the index of the next item, the version of the document at its start
+    PDFActionPtr m_chainAction;
+    std::vector<const PDFAction*> m_chainItems;
+    size_t m_chainIndex = 0;
+    quint64 m_chainVersion = 0;
+
+    // The confirmation of the chain shown and what it confirms
+    QPointer<QDialog> m_question;
+    QUrl m_questionUrl;
+    PDFAppExternalLaunch m_questionLaunch;
+
     bool m_isPerforming = false;
     bool m_scriptsChecked = false;
 

@@ -39,6 +39,7 @@
 namespace pdf
 {
 
+class PDFAppFileDialogRequest;
 class PDFAppToolInputList;
 class PDFDocumentToolCatalogEntry;
 class PDFTextLink;
@@ -137,6 +138,7 @@ private:
 
     void onDocumentChosen(const QString& documentId);
     void onOpenFileRequested();
+    void onOpenFilesChosen(const QStringList& files);
     void onOpenToolRequested();
     void setDropActive(bool isActive);
     void onMarkdownLinkActivated(const QString& link);
@@ -159,6 +161,7 @@ private:
     QPointer<PDFAppParagraph> m_oftenNext;
     QPointer<PDFLinkRow> m_manualLink;
     QPointer<PDFTextLink> m_editInTabLink;
+    QPointer<PDFAppFileDialogRequest> m_fileRequest;   ///< Open a file… waiting for its dialog (a child of the page, A0)
     bool m_isRebuildPending = false;
 };
 

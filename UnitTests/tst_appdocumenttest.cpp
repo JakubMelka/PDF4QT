@@ -20,6 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include "appasyncdialogs.h"
 #include "appdocumentfixture.h"
 
 #include "pdfappannotationcontroller.h"
@@ -143,6 +144,46 @@ public:
             }
         };
         QTimer::singleShot(0, [check]() { if (*check) { (*check)(0); } });
+    }
+
+    /// The open (visible) dialog of the type, nullptr = none (A0: a flow shows its question and returns)
+    template<typename Dialog>
+    static Dialog* findOpen()
+    {
+        for (QDialog* dialog : pdftest::AppAsyncDialogs::getOpenDialogs())
+        {
+            if (Dialog* typed = qobject_cast<Dialog*>(dialog))
+            {
+                return typed;
+            }
+        }
+        return nullptr;
+    }
+
+    /// Answers the open choice dialog of the type as the user does (Cancel = Esc, else the button of the choice) and
+    /// settles: the continuation of the flow runs. \returns false without the dialog or its button.
+    template<typename Dialog>
+    static bool answer(pdf::PDFAppDocumentChoice choice)
+    {
+        Dialog* dialog = findOpen<Dialog>();
+        if (!dialog)
+        {
+            return false;
+        }
+        if (choice == pdf::PDFAppDocumentChoice::Cancel)
+        {
+            dialog->reject();
+        }
+        else if (QPushButton* button = dialog->getChoiceButton(choice))
+        {
+            button->click();
+        }
+        else
+        {
+            return false;
+        }
+        pdftest::AppAsyncDialogs::settle();
+        return true;
     }
 
     /// Clicks the button of the choice of the next choice dialog
@@ -339,6 +380,10 @@ private slots:
     void closeRunning();
     void quitUnsaved();
     void quitSaveAll();
+    void quitSaveAllTabDeleted();
+    void closeSaveLetsOthersGo();
+    void failedTabClosesAfterFlow();
+    void tabCloseDuringQuitSaveAll();
     void sessionEndUnsaved();
     void fileOpenEvent();
     void lastSession();
@@ -1467,31 +1512,54 @@ void AppDocumentTest::closeUnsaved()
     QVERIFY(AppDocumentTestHelper::change(tab->getDocument(), QStringLiteral("A")));
     QVERIFY(AppDocumentTestHelper::change(tab->getDocument(), QStringLiteral("B")));
 
-    // Cancel (Esc) keeps the tab; the texts of 955:144943
-    QStringList texts;
-    AppDocumentTestHelper::onDialog<pdf::PDFAppCloseUnsavedDialog>([&texts](pdf::PDFAppCloseUnsavedDialog* dialog)
-    {
-        texts = AppDocumentTestHelper::texts(dialog);
-        QCOMPARE(dialog->getChoiceButton(pdf::PDFAppDocumentChoice::Discard)->text(), QString::fromUtf8("Don\u2019t Save"));
-        QVERIFY(dialog->getChoiceButton(pdf::PDFAppDocumentChoice::Save));
-        QVERIFY(!dialog->getChoiceButton(pdf::PDFAppDocumentChoice::Stop));
-        QTest::keyClick(dialog, Qt::Key_Escape);
-    });
-    QVERIFY(!fixture.window->closeTab(tab));
+    // Cancel (Esc) keeps the tab; the texts of 955:144943. A0: the question is shown and the close returns; the
+    // answer continues the flow of the tab
+    pdftest::NestedEventLoopGuard loopGuard;
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    pdf::PDFAppCloseUnsavedDialog* dialog = AppDocumentTestHelper::findOpen<pdf::PDFAppCloseUnsavedDialog>();
+    QVERIFY(dialog);
+    const QStringList texts = AppDocumentTestHelper::texts(dialog);
+    QCOMPARE(dialog->getChoiceButton(pdf::PDFAppDocumentChoice::Discard)->text(), QString::fromUtf8("Don\u2019t Save"));
+    QVERIFY(dialog->getChoiceButton(pdf::PDFAppDocumentChoice::Save));
+    QVERIFY(!dialog->getChoiceButton(pdf::PDFAppDocumentChoice::Stop));
+
+    // A second close while the question is open is refused (one flow of the tab), the question stays
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Refused);
+    QCOMPARE(AppDocumentTestHelper::findOpen<pdf::PDFAppCloseUnsavedDialog>(), dialog);
+
+    // The quit of the window while the flow of the tab asks: refused, no second question
+    QVERIFY(!fixture.window->close());
+    fixture.settle();
+    QVERIFY(fixture.window->isVisible());
+    QVERIFY(!AppDocumentTestHelper::findOpen<pdf::PDFAppQuitUnsavedDialog>());
+    QCOMPARE(AppDocumentTestHelper::findOpen<pdf::PDFAppCloseUnsavedDialog>(), dialog);
+
+    QTest::keyClick(dialog, Qt::Key_Escape);
+    fixture.settle();
     QVERIFY(guard);
+    QVERIFY(!tab->isLeaving());
     QVERIFY(texts.contains(QStringLiteral("Save the changes to Unsaved.pdf?")));
     QVERIFY(texts.contains(QStringLiteral("The document has 2 unsaved changes. If you close the tab without saving, the changes are lost.")));
 
     // Cancel by its button
-    AppDocumentTestHelper::choose<pdf::PDFAppCloseUnsavedDialog>(pdf::PDFAppDocumentChoice::Cancel);
-    QVERIFY(!fixture.window->closeTab(tab));
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppCloseUnsavedDialog>(pdf::PDFAppDocumentChoice::Cancel));
     QVERIFY(guard);
 
+    // The question deleted without an answer (with its parent: no finished): the flow ends as Cancel, the tab can
+    // be closed again
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    delete AppDocumentTestHelper::findOpen<pdf::PDFAppCloseUnsavedDialog>();
+    fixture.settle();
+    QVERIFY(guard);
+    QVERIFY(!tab->isLeaving());
+
     // Don't Save closes the tab
-    AppDocumentTestHelper::choose<pdf::PDFAppCloseUnsavedDialog>(pdf::PDFAppDocumentChoice::Discard);
-    QVERIFY(fixture.window->closeTab(tab));
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppCloseUnsavedDialog>(pdf::PDFAppDocumentChoice::Discard));
     fixture.settle();
     QVERIFY(!guard);
+    QVERIFY(pdftest::AppAsyncDialogs::isNothingOpen());
 
     // The texts of a copy and of a document with an unknown count
     pdf::PDFAppDocument document(nullptr, nullptr);
@@ -1511,8 +1579,9 @@ void AppDocumentTest::closeUnsavedSave()
     QVERIFY(AppDocumentTestHelper::change(tab->getDocument(), QStringLiteral("Saved title")));
     QSignalSpy saveSpy(tab, &pdf::PDFAppDocumentTab::saveFinished);
 
-    AppDocumentTestHelper::choose<pdf::PDFAppCloseUnsavedDialog>(pdf::PDFAppDocumentChoice::Save);
-    QVERIFY(!fixture.window->closeTab(tab));
+    pdftest::NestedEventLoopGuard loopGuard;
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppCloseUnsavedDialog>(pdf::PDFAppDocumentChoice::Save));
     QTRY_VERIFY_WITH_TIMEOUT(!guard, 20000);
     QCOMPARE(saveSpy.count(), 1);
     QCOMPARE(saveSpy.front().front().toBool(), true);
@@ -1529,12 +1598,13 @@ void AppDocumentTest::closeUnsavedSave()
     QVERIFY(copyTab && copyTab->getDocument()->isCopy());
     QPointer<pdf::PDFAppDocumentTab> copyGuard(copyTab);
     pdf::PDFAppFileDialogs::setSaveFileHandler([](QWidget*, const QString&) { return QString(); });
-    AppDocumentTestHelper::choose<pdf::PDFAppCloseUnsavedDialog>(pdf::PDFAppDocumentChoice::Save);
-    QVERIFY(!fixture.window->closeTab(copyTab));
+    QCOMPARE(fixture.window->requestCloseTab(copyTab), pdf::PDFAppLeaveResult::Pending);
+    QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppCloseUnsavedDialog>(pdf::PDFAppDocumentChoice::Save));
     fixture.settle();
     QTest::qWait(100);
     QVERIFY(copyGuard);
     QVERIFY(!copyTab->isClosingAfterSave());
+    QVERIFY(!copyTab->isLeaving());
 }
 
 void AppDocumentTest::closeAndQuitUnsavedRestoredSigned()
@@ -1567,8 +1637,8 @@ void AppDocumentTest::closeAndQuitUnsavedRestoredSigned()
     pdf::PDFAppFileDialogs::setSaveFileHandler([target](QWidget*, const QString&) { return target; });
 
     // close-unsaved, Save: the question of the copy, Cancel keeps the tab with its changes
-    AppDocumentTestHelper::choose<pdf::PDFAppCloseUnsavedDialog>(pdf::PDFAppDocumentChoice::Save);
-    QVERIFY(!fixture.window->closeTab(tab));
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppCloseUnsavedDialog>(pdf::PDFAppDocumentChoice::Save));
     pdf::PDFMessageBox* dialog = nullptr;
     QTRY_VERIFY((dialog = findRestoredDialog()) != nullptr);
     dialog->findChild<QPushButton*>(QStringLiteral("cancelButton"))->click();
@@ -1578,8 +1648,8 @@ void AppDocumentTest::closeAndQuitUnsavedRestoredSigned()
     QCOMPARE(readFile(file), original);
 
     // Save as Copy…: the copy is written, the tab closes, the file stays
-    AppDocumentTestHelper::choose<pdf::PDFAppCloseUnsavedDialog>(pdf::PDFAppDocumentChoice::Save);
-    QVERIFY(!fixture.window->closeTab(tab));
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppCloseUnsavedDialog>(pdf::PDFAppDocumentChoice::Save));
     QTRY_VERIFY((dialog = findRestoredDialog()) != nullptr);
     dialog->findChild<QPushButton*>(QStringLiteral("saveCopyButton"))->click();
     QTRY_VERIFY_WITH_TIMEOUT(!guard, 20000);
@@ -1594,8 +1664,8 @@ void AppDocumentTest::closeAndQuitUnsavedRestoredSigned()
     QVERIFY(AppDocumentTestHelper::change(tab->getDocument(), QStringLiteral("Quit")));
     const QString quitTarget = fixture.path(QStringLiteral("Quit copy.pdf"));
     pdf::PDFAppFileDialogs::setSaveFileHandler([quitTarget](QWidget*, const QString&) { return quitTarget; });
-    AppDocumentTestHelper::choose<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Save);
     QVERIFY(!fixture.window->close());
+    QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Save));
     QTRY_VERIFY((dialog = findRestoredDialog()) != nullptr);
     dialog->findChild<QPushButton*>(QStringLiteral("cancelButton"))->click();
     fixture.settle();
@@ -1603,8 +1673,8 @@ void AppDocumentTest::closeAndQuitUnsavedRestoredSigned()
     QVERIFY(fixture.window->isVisible());
     QVERIFY(tab->getDocument()->isModified());
 
-    AppDocumentTestHelper::choose<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Save);
     QVERIFY(!fixture.window->close());
+    QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Save));
     QTRY_VERIFY((dialog = findRestoredDialog()) != nullptr);
     dialog->findChild<QPushButton*>(QStringLiteral("saveCopyButton"))->click();
     QTRY_VERIFY_WITH_TIMEOUT(!fixture.window->isVisible(), 20000);
@@ -1629,15 +1699,16 @@ void AppDocumentTest::closeRunning()
     QCOMPARE(pdf::PDFAppCloseRunningDialog::getTitle(nullptr), QStringLiteral("Stop the operation and close the tab?"));
 
     // Keep Running keeps the tab and the operations
-    AppDocumentTestHelper::choose<pdf::PDFAppCloseRunningDialog>(pdf::PDFAppDocumentChoice::Keep);
-    QVERIFY(!fixture.window->closeTab(tab));
+    pdftest::NestedEventLoopGuard loopGuard;
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppCloseRunningDialog>(pdf::PDFAppDocumentChoice::Keep));
     QVERIFY(guard);
     QVERIFY(!print->isCancelRequested());
 
     // Stop and Close requests the stop of every operation and closes the tab
-    AppDocumentTestHelper::choose<pdf::PDFAppCloseRunningDialog>(pdf::PDFAppDocumentChoice::Stop);
     QVERIFY(print->isCancelRequested() == false);
-    QVERIFY(fixture.window->closeTab(tab));
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppCloseRunningDialog>(pdf::PDFAppDocumentChoice::Stop));
     fixture.settle();
     QVERIFY(!guard);
 
@@ -1669,22 +1740,27 @@ void AppDocumentTest::quitUnsaved()
     QVERIFY(AppDocumentTestHelper::change(first->getDocument(), QStringLiteral("X")));
     QVERIFY(AppDocumentTestHelper::change(second->getDocument(), QStringLiteral("Y")));
 
-    // Cancel keeps the window; the list names the two documents
-    int rows = 0;
-    QStringList texts;
-    QList<int> rowHeights;
-    AppDocumentTestHelper::onDialog<pdf::PDFAppQuitUnsavedDialog>([&rows, &texts, &rowHeights](pdf::PDFAppQuitUnsavedDialog* dialog)
-    {
-        rows = dialog->getList()->getItemCount();
-        texts = AppDocumentTestHelper::texts(dialog);
-        for (const QWidget* row : dialog->getList()->findChildren<QWidget*>(QStringLiteral("itemRow")))
-        {
-            rowHeights << row->height();
-        }
-        dialog->getChoiceButton(pdf::PDFAppDocumentChoice::Cancel)->click();
-    });
+    // Cancel keeps the window; the list names the two documents. A0: the close is ignored while the question is
+    // open; its answer continues the flow of the window
+    pdftest::NestedEventLoopGuard loopGuard;
     QVERIFY(!fixture.window->close());
+    pdf::PDFAppQuitUnsavedDialog* dialog = AppDocumentTestHelper::findOpen<pdf::PDFAppQuitUnsavedDialog>();
+    QVERIFY(dialog);
+    const int rows = dialog->getList()->getItemCount();
+    const QStringList texts = AppDocumentTestHelper::texts(dialog);
+    QList<int> rowHeights;
+    for (const QWidget* row : dialog->getList()->findChildren<QWidget*>(QStringLiteral("itemRow")))
+    {
+        rowHeights << row->height();
+    }
+
+    // A second close while the question is open is refused, the question stays (one flow of the window)
+    QVERIFY(!fixture.window->close());
+    QCOMPARE(AppDocumentTestHelper::findOpen<pdf::PDFAppQuitUnsavedDialog>(), dialog);
+    dialog->getChoiceButton(pdf::PDFAppDocumentChoice::Cancel)->click();
+    fixture.settle();
     QVERIFY(fixture.window->isVisible());
+    QVERIFY(!pdf::PDFAppLeaveFlow::isRunningIn(fixture.window.data()));
     QCOMPARE(rows, 2);
 
     // document-row 955:150708: 49 px (the name in a line of 16 px, the folder in a line of 15 px)
@@ -1693,10 +1769,14 @@ void AppDocumentTest::quitUnsaved()
     QVERIFY(texts.contains(QStringLiteral("2 documents have unsaved changes. If you quit without saving, the changes are lost.")));
     QVERIFY(texts.contains(QStringLiteral("1 unsaved change")));
 
-    // Quit Without Saving closes the window
-    AppDocumentTestHelper::choose<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Discard);
-    QVERIFY(fixture.window->close());
+    // Quit Without Saving closes the window; the window announces its close once per quit (L3 of the review of A0: the
+    // close after the answer is the same quit)
+    QSignalSpy closingSpy(fixture.window.data(), &pdf::PDFAppMainWindow::closing);
+    QVERIFY(!fixture.window->close());
+    QCOMPARE(closingSpy.count(), 1);
+    QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Discard));
     QVERIFY(!fixture.window->isVisible());
+    QCOMPARE(closingSpy.count(), 1);
 }
 
 void AppDocumentTest::quitSaveAll()
@@ -1711,8 +1791,9 @@ void AppDocumentTest::quitSaveAll()
     QVERIFY(AppDocumentTestHelper::change(second->getDocument(), QStringLiteral("Second saved")));
 
     // Save All saves both and closes the window
-    AppDocumentTestHelper::choose<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Save);
+    pdftest::NestedEventLoopGuard loopGuard;
     QVERIFY(!fixture.window->close());
+    QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Save));
     QTRY_VERIFY_WITH_TIMEOUT(!fixture.window->isVisible(), 20000);
     QVERIFY(!first->getDocument()->isModified());
     QVERIFY(!second->getDocument()->isModified());
@@ -1723,12 +1804,13 @@ void AppDocumentTest::quitSaveAll()
     pdf::PDFAppDocumentTab* copy = fixture.window->openDocumentCopy(first->getDocument());
     QVERIFY(copy);
     pdf::PDFAppFileDialogs::setSaveFileHandler([](QWidget*, const QString&) { return QString(); });
-    AppDocumentTestHelper::choose<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Save);
     QVERIFY(!fixture.window->close());
+    QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Save));
     QTest::qWait(200);
     fixture.settle();
     QVERIFY(fixture.window->isVisible());
     QVERIFY(copy->getDocument()->isModified());
+    QVERIFY(!pdf::PDFAppLeaveFlow::isRunningIn(fixture.window.data()));
 }
 
 /// The session manager of the system replaced by a recorder (QSessionManager has
@@ -1760,13 +1842,13 @@ void AppDocumentTest::sessionEndUnsaved()
 
     // No unsaved changes: no question, the session may end; the last session and the
     // geometry are stored as at a quit (O29)
+    pdftest::NestedEventLoopGuard loopGuard;
     {
-        bool isDialogShown = false;
-        AppDocumentTestHelper::onDialog<pdf::PDFAppQuitUnsavedDialog>([&isDialogShown](pdf::PDFAppQuitUnsavedDialog* dialog) { isDialogShown = true; dialog->reject(); }, 0);
         AppDocumentSessionManager manager;
         QCOMPARE(pdf::PDFAppSessionEnd::commitData(&manager), pdf::PDFAppSessionEnd::Outcome::NoChanges);
         fixture.settle();
-        QVERIFY(!isDialogShown);
+        QVERIFY(pdftest::AppAsyncDialogs::isNothingOpen());
+        QVERIFY(!pdf::PDFAppSessionEndQuestion::getCurrent());
         QCOMPARE(manager.cancelCount, 0);
         QVERIFY(!fixture.context->getSettings().getString(pdf::PDFSettingKeys::windowGeometry()).isEmpty());
         std::optional<pdf::PDFWorkspace> session = fixture.context->getWorkspaces().getLastSession();
@@ -1775,24 +1857,57 @@ void AppDocumentTest::sessionEndUnsaved()
         QCOMPARE(QFileInfo(session->documents[0].path), QFileInfo(file));
     }
 
-    // Cancel: the end of the session is canceled, the changes stay
+    // Unsaved changes (A0, owner 2026-11-21): the end of the session is canceled at once, no question inside the
+    // handler; the question follows from the event loop. Cancel keeps everything, nothing is remembered.
     QVERIFY(AppDocumentTestHelper::change(tab->getDocument(), QStringLiteral("Changed before the logoff")));
     {
-        int rows = 0;
-        AppDocumentTestHelper::onDialog<pdf::PDFAppQuitUnsavedDialog>([&rows](pdf::PDFAppQuitUnsavedDialog* dialog)
-        {
-            rows = dialog->getList()->getItemCount();
-            dialog->getChoiceButton(pdf::PDFAppDocumentChoice::Cancel)->click();
-        });
         AppDocumentSessionManager manager;
         QCOMPARE(pdf::PDFAppSessionEnd::commitData(&manager), pdf::PDFAppSessionEnd::Outcome::Canceled);
-        QCOMPARE(rows, 1);
         QCOMPARE(manager.cancelCount, 1);
+        QCOMPARE(manager.releaseCount, 0);
+        QVERIFY(!AppDocumentTestHelper::findOpen<pdf::PDFAppQuitUnsavedDialog>());
+        fixture.settle();
+        pdf::PDFAppQuitUnsavedDialog* dialog = AppDocumentTestHelper::findOpen<pdf::PDFAppQuitUnsavedDialog>();
+        QVERIFY(dialog);
+        QCOMPARE(dialog->getList()->getItemCount(), 1);
+        QVERIFY(pdf::PDFAppLeaveFlow::isRunningIn(fixture.window.data()));
+
+        // A second end of the session while the question is open: canceled again, no second question
+        AppDocumentSessionManager second;
+        QCOMPARE(pdf::PDFAppSessionEnd::commitData(&second), pdf::PDFAppSessionEnd::Outcome::Canceled);
+        QCOMPARE(second.cancelCount, 1);
+        fixture.settle();
+        QCOMPARE(fixture.window->findChildren<pdf::PDFAppQuitUnsavedDialog*>().size(), qsizetype(1));
+        QCOMPARE(AppDocumentTestHelper::findOpen<pdf::PDFAppQuitUnsavedDialog>(), dialog);
+
+        QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Cancel));
         QVERIFY(tab->getDocument()->isModified());
         QVERIFY(fixture.window->isVisible());
+        QVERIFY(!pdf::PDFAppLeaveFlow::isRunningIn(fixture.window.data()));
+        QVERIFY(!pdf::PDFAppSessionEnd::isDiscarded(tab->getDocument()));
+
+        // Nothing is remembered: the next end of the session is canceled again
+        AppDocumentSessionManager third;
+        QCOMPARE(pdf::PDFAppSessionEnd::commitData(&third), pdf::PDFAppSessionEnd::Outcome::Canceled);
+        QCOMPARE(third.cancelCount, 1);
+        fixture.settle();
+        QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Cancel));
     }
 
-    // Quit Without Saving: the session may end, the file is not written
+    // The question deleted without an answer: as Cancel - the flow of the window ends, nothing is remembered
+    {
+        AppDocumentSessionManager manager;
+        QCOMPARE(pdf::PDFAppSessionEnd::commitData(&manager), pdf::PDFAppSessionEnd::Outcome::Canceled);
+        fixture.settle();
+        delete AppDocumentTestHelper::findOpen<pdf::PDFAppQuitUnsavedDialog>();
+        fixture.settle();
+        QVERIFY(!pdf::PDFAppLeaveFlow::isRunningIn(fixture.window.data()));
+        QVERIFY(!pdf::PDFAppSessionEndQuestion::getCurrent());
+        QVERIFY(!pdf::PDFAppSessionEnd::isDiscarded(tab->getDocument()));
+    }
+
+    // Quit Without Saving: the file is not written, the application does not quit; the decision is remembered - the
+    // next end of the session goes on without a question
     auto readFile = [](const QString& path)
     {
         QFile fileData(path);
@@ -1800,20 +1915,44 @@ void AppDocumentTest::sessionEndUnsaved()
     };
     const QByteArray original = readFile(file);
     {
-        AppDocumentTestHelper::choose<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Discard);
         AppDocumentSessionManager manager;
-        QCOMPARE(pdf::PDFAppSessionEnd::commitData(&manager), pdf::PDFAppSessionEnd::Outcome::Discarded);
-        QCOMPARE(manager.cancelCount, 0);
+        QCOMPARE(pdf::PDFAppSessionEnd::commitData(&manager), pdf::PDFAppSessionEnd::Outcome::Canceled);
+        fixture.settle();
+        QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Discard));
+        QVERIFY(fixture.window->isVisible());
         QCOMPARE(readFile(file), original);
+        QVERIFY(pdf::PDFAppSessionEnd::isDiscarded(tab->getDocument()));
+        QVERIFY(!pdf::PDFAppSessionEnd::isSessionEnding());
+
+        // H1 of the review of A0: the decision belongs to the end of the session only - a quit of the user asks about
+        // the changes as before A0 (the end of the session has been canceled)
+        QVERIFY(!fixture.window->close());
+        QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Cancel));
+        QVERIFY(fixture.window->isVisible());
+
+        AppDocumentSessionManager next;
+        QCOMPARE(pdf::PDFAppSessionEnd::commitData(&next), pdf::PDFAppSessionEnd::Outcome::NoChanges);
+        QCOMPARE(next.cancelCount, 0);
+        QVERIFY(pdf::PDFAppSessionEnd::isSessionEnding());
+        fixture.settle();
+        QVERIFY(pdftest::AppAsyncDialogs::isNothingOpen());
+
+        // The end of the session allowed and then canceled by another application: the user works with PDF4QT again,
+        // a quit asks as before A0
+        Q_EMIT qGuiApp->applicationStateChanged(Qt::ApplicationActive);
+        QVERIFY(!pdf::PDFAppSessionEnd::isSessionEnding());
+        QVERIFY(!fixture.window->close());
+        QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Cancel));
+        QVERIFY(fixture.window->isVisible());
+        QCOMPARE(pdf::PDFAppSessionEnd::commitData(&next), pdf::PDFAppSessionEnd::Outcome::NoChanges);
+        QCOMPARE(next.cancelCount, 0);
 
         // Qt closes the windows, when the session ends (Windows: quit() at
         // WM_ENDSESSION, X11: Die of the session manager): the discarded changes are
         // not asked about a second time (review RFIX2)
-        bool isAskedAgain = false;
-        AppDocumentTestHelper::onDialog<pdf::PDFAppQuitUnsavedDialog>([&isAskedAgain](pdf::PDFAppQuitUnsavedDialog* dialog) { isAskedAgain = true; dialog->reject(); }, 0);
         QVERIFY(fixture.window->close());
         fixture.settle();
-        QVERIFY(!isAskedAgain);
+        QVERIFY(pdftest::AppAsyncDialogs::isNothingOpen());
         QVERIFY(tab->getDocument()->isModified());
         QCOMPARE(readFile(file), original);
         fixture.window->show();
@@ -1821,58 +1960,93 @@ void AppDocumentTest::sessionEndUnsaved()
 
         // A change after the decision is a new change: the window asks again
         QVERIFY(AppDocumentTestHelper::change(tab->getDocument(), QStringLiteral("Changed after the discard")));
-        AppDocumentTestHelper::choose<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Cancel);
         QVERIFY(!fixture.window->close());
+        QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Cancel));
         QVERIFY(fixture.window->isVisible());
     }
 
-    // Save All: the file is written before the handler returns (the session ends after it)
+    // Save All: the file is written after the answer; the application does not quit, the next end of the session goes
+    // on (nothing unsaved)
     {
-        AppDocumentTestHelper::choose<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Save);
         AppDocumentSessionManager manager;
-        QCOMPARE(pdf::PDFAppSessionEnd::commitData(&manager), pdf::PDFAppSessionEnd::Outcome::Saved);
-        QCOMPARE(manager.cancelCount, 0);
-        QVERIFY(!tab->getDocument()->isModified());
+        QCOMPARE(pdf::PDFAppSessionEnd::commitData(&manager), pdf::PDFAppSessionEnd::Outcome::Canceled);
+        QCOMPARE(manager.cancelCount, 1);
+        fixture.settle();
+        QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Save));
+        QTRY_VERIFY_WITH_TIMEOUT(!tab->getDocument()->isModified(), 20000);
+        QTRY_VERIFY(!pdf::PDFAppLeaveFlow::isRunningIn(fixture.window.data()));
+        QVERIFY(fixture.window->isVisible());
         const QByteArray saved = readFile(file);
         QVERIFY(saved != original);
+
+        AppDocumentSessionManager next;
+        QCOMPARE(pdf::PDFAppSessionEnd::commitData(&next), pdf::PDFAppSessionEnd::Outcome::NoChanges);
+        QCOMPARE(next.cancelCount, 0);
     }
 
-    // A save, which fails (Save As of a copy canceled), cancels the end of the session
+    // A save, which fails (Save As of a copy canceled): the copy stays unsaved, nothing is remembered
     pdf::PDFAppDocumentTab* copy = fixture.window->openDocumentCopy(tab->getDocument());
     QVERIFY(copy);
     QVERIFY(copy->getDocument()->isModified());
     pdf::PDFAppFileDialogs::setSaveFileHandler([](QWidget*, const QString&) { return QString(); });
     {
-        AppDocumentTestHelper::choose<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Save);
         AppDocumentSessionManager manager;
         QCOMPARE(pdf::PDFAppSessionEnd::commitData(&manager), pdf::PDFAppSessionEnd::Outcome::Canceled);
         QCOMPARE(manager.cancelCount, 1);
+        fixture.settle();
+        QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Save));
+        QTest::qWait(100);
+        fixture.settle();
         QVERIFY(copy->getDocument()->isModified());
+        QVERIFY(!pdf::PDFAppLeaveFlow::isRunningIn(fixture.window.data()));
+        QVERIFY(!pdf::PDFAppSessionEnd::isDiscarded(copy->getDocument()));
     }
 
-    // Unsaved changes without the permission to ask: never lost silently - the end
-    // of the session is canceled without a dialog
+    // Unsaved changes without the permission of the session manager to ask: never lost silently - the end of the
+    // session is canceled without a question inside the handler; the question follows as above
     {
-        bool isDialogShown = false;
-        AppDocumentTestHelper::onDialog<pdf::PDFAppQuitUnsavedDialog>([&isDialogShown](pdf::PDFAppQuitUnsavedDialog* dialog) { isDialogShown = true; dialog->reject(); }, 0);
         AppDocumentSessionManager manager;
         manager.isInteractionAllowed = false;
         QCOMPARE(pdf::PDFAppSessionEnd::commitData(&manager), pdf::PDFAppSessionEnd::Outcome::CanceledWithoutInteraction);
-        fixture.settle();
-        QVERIFY(!isDialogShown);
         QCOMPARE(manager.cancelCount, 1);
+        QVERIFY(!AppDocumentTestHelper::findOpen<pdf::PDFAppQuitUnsavedDialog>());
+        fixture.settle();
+        QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Cancel));
         QVERIFY(copy->getDocument()->isModified());
     }
 
-    // The window deleted while the question is open: canceled, nothing used after it
+    // The end of the session while the quit of the window asks (its flow runs): canceled, no second question
     {
-        QPointer<pdf::PDFAppMainWindow> window = fixture.window;
-        AppDocumentTestHelper::onDialog<pdf::PDFAppQuitUnsavedDialog>([window](pdf::PDFAppQuitUnsavedDialog*) { delete window.data(); });
+        QVERIFY(!fixture.window->close());
+        QVERIFY(AppDocumentTestHelper::findOpen<pdf::PDFAppQuitUnsavedDialog>());
         AppDocumentSessionManager manager;
         QCOMPARE(pdf::PDFAppSessionEnd::commitData(&manager), pdf::PDFAppSessionEnd::Outcome::Canceled);
         QCOMPARE(manager.cancelCount, 1);
         fixture.settle();
+        int visibleQuestions = 0;
+        for (const pdf::PDFAppQuitUnsavedDialog* question : fixture.window->findChildren<pdf::PDFAppQuitUnsavedDialog*>())
+        {
+            visibleQuestions += question->isVisible() ? 1 : 0;
+        }
+        QCOMPARE(visibleQuestions, 1);
+        QVERIFY(!pdf::PDFAppSessionEndQuestion::getCurrent());
+        QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Cancel));
+        QVERIFY(fixture.window->isVisible());
+        QVERIFY(!pdf::PDFAppLeaveFlow::isRunningIn(fixture.window.data()));
+    }
+
+    // The window deleted while the question is open: nothing used after it
+    {
+        QPointer<pdf::PDFAppMainWindow> window = fixture.window;
+        AppDocumentSessionManager manager;
+        QCOMPARE(pdf::PDFAppSessionEnd::commitData(&manager), pdf::PDFAppSessionEnd::Outcome::Canceled);
+        QCOMPARE(manager.cancelCount, 1);
+        fixture.settle();
+        QVERIFY(AppDocumentTestHelper::findOpen<pdf::PDFAppQuitUnsavedDialog>());
+        delete window.data();
+        fixture.settle();
         QVERIFY(!window);
+        QVERIFY(!pdf::PDFAppSessionEndQuestion::getCurrent());
     }
 }
 
@@ -2156,10 +2330,13 @@ void AppDocumentTest::deletionDuringDialogs()
         QVERIFY(tab);
         QPointer<pdf::PDFAppDocumentTab> guard(tab);
         QVERIFY(AppDocumentTestHelper::change(tab->getDocument(), QStringLiteral("Z")));
-        AppDocumentTestHelper::onDialog<pdf::PDFAppCloseUnsavedDialog>([guard](pdf::PDFAppCloseUnsavedDialog*) { delete guard.data(); });
-        QVERIFY(!fixture.window->closeTab(tab));
+        pdftest::NestedEventLoopGuard loopGuard;
+        QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+        QVERIFY(AppDocumentTestHelper::findOpen<pdf::PDFAppCloseUnsavedDialog>());
+        delete guard.data();
         fixture.settle();
         QVERIFY(!guard);
+        QVERIFY(pdftest::AppAsyncDialogs::isNothingOpen());
     }
 
     // The window deleted while the quit question is open
@@ -2169,8 +2346,10 @@ void AppDocumentTest::deletionDuringDialogs()
         QVERIFY(tab);
         QVERIFY(AppDocumentTestHelper::change(tab->getDocument(), QStringLiteral("Q")));
         QPointer<pdf::PDFAppMainWindow> window = fixture.window;
-        AppDocumentTestHelper::onDialog<pdf::PDFAppQuitUnsavedDialog>([window](pdf::PDFAppQuitUnsavedDialog*) { delete window.data(); });
-        fixture.window->close();
+        pdftest::NestedEventLoopGuard loopGuard;
+        QVERIFY(!fixture.window->close());
+        QVERIFY(AppDocumentTestHelper::findOpen<pdf::PDFAppQuitUnsavedDialog>());
+        delete window.data();
         fixture.settle();
         QVERIFY(!window);
     }
@@ -2182,8 +2361,10 @@ void AppDocumentTest::deletionDuringDialogs()
         QVERIFY(tab);
         tab->getDocument()->beginOperation(pdf::PDFAppDocumentOperationKind::Mcp, QStringLiteral("Change"), true);
         QPointer<pdf::PDFAppDocumentTab> guard(tab);
-        AppDocumentTestHelper::onDialog<pdf::PDFAppCloseRunningDialog>([guard](pdf::PDFAppCloseRunningDialog*) { delete guard.data(); });
-        QVERIFY(!fixture.window->closeTab(tab));
+        pdftest::NestedEventLoopGuard loopGuard;
+        QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+        QVERIFY(AppDocumentTestHelper::findOpen<pdf::PDFAppCloseRunningDialog>());
+        delete guard.data();
         fixture.settle();
         QVERIFY(!guard);
     }
@@ -3047,6 +3228,144 @@ private:
     QSemaphore m_release;
 };
 
+void AppDocumentTest::quitSaveAllTabDeleted()
+{
+    // A0: Save All of quit-unsaved waits for each save by its request of package E - a tab deleted while its save is
+    // pending is not saved: the quit ends as after a failed save (the window stays, nothing waits for ever)
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* first = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Deleted.pdf"), 1));
+    pdf::PDFAppDocumentTab* second = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Kept.pdf"), 1));
+    QVERIFY(first && second);
+    QVERIFY(AppDocumentTestHelper::change(first->getDocument(), QStringLiteral("First")));
+    QVERIFY(AppDocumentTestHelper::change(second->getDocument(), QStringLiteral("Second")));
+    QPointer<pdf::PDFAppDocumentTab> firstGuard(first);
+
+    pdftest::NestedEventLoopGuard loopGuard;
+    {
+        // The save of the first document waits for the pool of threads
+        AppDocumentPoolBlocker blocker;
+        QVERIFY(!fixture.window->close());
+        QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Save));
+        QVERIFY(pdf::PDFAppLeaveFlow::isRunningIn(fixture.window.data()));
+        QVERIFY(first->getDocument()->isModified());
+
+        // The tab goes before its save has reported
+        blocker.release();
+        delete first;
+    }
+    fixture.settle();
+    QTest::qWait(100);
+    fixture.settle();
+    QVERIFY(!firstGuard);
+    QVERIFY(fixture.window->isVisible());
+    QVERIFY(!pdf::PDFAppLeaveFlow::isRunningIn(fixture.window.data()));
+    QVERIFY(second->getDocument()->isModified());
+
+    // Nothing is stuck: the quit asks again
+    QVERIFY(!fixture.window->close());
+    QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Cancel));
+    QVERIFY(fixture.window->isVisible());
+    fixture.closeMessageBoxes();
+}
+
+void AppDocumentTest::closeSaveLetsOthersGo()
+{
+    // M3 of the review of A0: the save of Save of close-unsaved is no step of the flow of the tab - while it runs, a
+    // navigation, the lock, the quit of the window and the end of the session go on as before A0; a second close of
+    // the tab is refused, the tab closes after the save
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Saving.pdf"), 3));
+    QVERIFY(tab);
+    QPointer<pdf::PDFAppDocumentTab> guard(tab);
+    QVERIFY(AppDocumentTestHelper::change(tab->getDocument(), QStringLiteral("Saved on close")));
+
+    pdftest::NestedEventLoopGuard loopGuard;
+    {
+        AppDocumentPoolBlocker blocker;
+        QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+        QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppCloseUnsavedDialog>(pdf::PDFAppDocumentChoice::Save));
+        QVERIFY(guard);
+        QVERIFY(tab->isClosingAfterSave());
+        QVERIFY(!tab->isLeaving());
+        QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Refused);
+
+        // A navigation in the tab
+        fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::document(tab->getDocumentId(), 2), pdf::PDFAppNavigationMode::Push, tab);
+        QTRY_COMPARE(tab->getView()->getCurrentPageIndex(), pdf::PDFInteger(1));
+
+        // The quit of the window asks about the unsaved changes
+        QVERIFY(!fixture.window->close());
+        QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Cancel));
+        QVERIFY(fixture.window->isVisible());
+
+        // The end of the session asks too
+        AppDocumentSessionManager manager;
+        QCOMPARE(pdf::PDFAppSessionEnd::commitData(&manager), pdf::PDFAppSessionEnd::Outcome::Canceled);
+        fixture.settle();
+        QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Cancel));
+
+        // The lock
+        QVERIFY(tab->executeCommand(pdf::PDFAppCommands::lockDocument()));
+        QVERIFY(tab->getDocument()->isLocked());
+        QVERIFY(guard);
+    }
+
+    // The save ends: the tab closes
+    QTRY_VERIFY_WITH_TIMEOUT(!guard, 20000);
+}
+
+void AppDocumentTest::failedTabClosesAfterFlow()
+{
+    // M2 of the review of A0: the document of a tab fails, while a question of the flow of the tab is open - the
+    // window does not close the tab under the question; the tab closes after its answer
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Failing.pdf"), 1));
+    QVERIFY(tab);
+    QPointer<pdf::PDFAppDocumentTab> guard(tab);
+    QVERIFY(AppDocumentTestHelper::change(tab->getDocument(), QStringLiteral("Changed")));
+
+    pdftest::NestedEventLoopGuard loopGuard;
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    tab->getDocument()->setFailed(QStringLiteral("Failing.pdf"), QStringLiteral("Damaged"));
+    fixture.settle();
+    QVERIFY(guard);
+    QVERIFY(tab->isLeaving());
+    QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppCloseUnsavedDialog>(pdf::PDFAppDocumentChoice::Cancel));
+    fixture.settle();
+    QVERIFY(!guard);
+    fixture.closeMessageBoxes();
+}
+
+void AppDocumentTest::tabCloseDuringQuitSaveAll()
+{
+    // A0 (newapp_robustness.md 15.6): the user closes a tab while Save All of the quit runs - refused (the question of
+    // the tab would stay open over the closed window); the quit goes on and closes the window after the saves
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* first = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("First.pdf"), 1));
+    pdf::PDFAppDocumentTab* second = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Second.pdf"), 1));
+    QVERIFY(first && second);
+    QVERIFY(AppDocumentTestHelper::change(first->getDocument(), QStringLiteral("First")));
+    QVERIFY(AppDocumentTestHelper::change(second->getDocument(), QStringLiteral("Second")));
+
+    pdftest::NestedEventLoopGuard loopGuard;
+    {
+        AppDocumentPoolBlocker blocker;
+        QVERIFY(!fixture.window->close());
+        QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Save));
+        QVERIFY(pdf::PDFAppLeaveFlow::isRunningIn(fixture.window.data()));
+
+        fixture.window->activateTab(second);
+        fixture.window->getCommandAction(pdf::PDFAppCommands::closeTab())->trigger();
+        fixture.settle();
+        QVERIFY(!second->isLeaving());
+        QVERIFY(!AppDocumentTestHelper::findOpen<pdf::PDFAppCloseUnsavedDialog>());
+        QCOMPARE(fixture.window->getDocumentTabs().size(), qsizetype(2));
+    }
+    QTRY_VERIFY_WITH_TIMEOUT(!fixture.window->isVisible(), 20000);
+    QVERIFY(!first->getDocument()->isModified());
+    QVERIFY(!second->getDocument()->isModified());
+}
+
 void AppDocumentTest::oldDocumentKeptDuringChange()
 {
     // The old document and its optional content activity live until the listeners
@@ -3154,9 +3473,9 @@ void AppDocumentTest::saveAgainAfterRunningSave()
         QVERIFY(!tab->isCommandEnabled(pdf::PDFAppCommands::save()));
         QVERIFY(AppDocumentTestHelper::change(document, QStringLiteral("Second title")));
 
-        AppDocumentTestHelper::choose<pdf::PDFAppCloseRunningDialog>(pdf::PDFAppDocumentChoice::Stop);
-        AppDocumentTestHelper::choose<pdf::PDFAppCloseUnsavedDialog>(pdf::PDFAppDocumentChoice::Save);
-        QVERIFY(!fixture.window->closeTab(tab));
+        QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+        QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppCloseRunningDialog>(pdf::PDFAppDocumentChoice::Stop));
+        QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppCloseUnsavedDialog>(pdf::PDFAppDocumentChoice::Save));
         QVERIFY(guard);
         QVERIFY(tab->isClosingAfterSave());
     }
@@ -3173,8 +3492,8 @@ void AppDocumentTest::saveAgainAfterRunningSave()
         AppDocumentPoolBlocker blocker;
         QVERIFY(reopened->executeCommand(pdf::PDFAppCommands::save()));
         QVERIFY(AppDocumentTestHelper::change(reopened->getDocument(), QStringLiteral("Fourth title")));
-        AppDocumentTestHelper::choose<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Save);
         QVERIFY(!fixture.window->close());
+        QVERIFY(AppDocumentTestHelper::answer<pdf::PDFAppQuitUnsavedDialog>(pdf::PDFAppDocumentChoice::Save));
         QVERIFY(fixture.window->isVisible());
     }
     QTRY_VERIFY_WITH_TIMEOUT(!fixture.window->isVisible(), 20000);

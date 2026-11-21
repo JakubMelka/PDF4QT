@@ -167,7 +167,8 @@ public:
     /// Pins a folder as a location / unpins it
     void setFolderPinned(const QString& path, bool isPinned);
 
-    /// Add… of Pinned Locations: the native folder dialog
+    /// Add… of Pinned Locations: the native folder dialog (A0: shown without a nested event loop, the chosen
+    /// folder is pinned later, when the dialog answers; nothing while a dialog of the page is open)
     void addPinnedLocation();
 
     /// Dialogs (shown without blocking; one at a time)
@@ -293,6 +294,9 @@ private:
     void onDialogFinished(int result);
     void onMinuteChanged(qint64 now);
 
+    /// The answer of the folder dialog of addPinnedLocation (empty = canceled)
+    void onPinnedLocationChosen(const QString& folder);
+
     /// Asks the service for the information (marks the request, remembers a refusal)
     void requestInfo(const QString& path, bool countPdfFiles);
 
@@ -310,7 +314,7 @@ private:
     std::unique_ptr<PDFAppNetworkPaths> m_networkPaths;
     quint64 m_thumbnailUse = 0;
     int m_refreshCount = 0;
-    bool m_isBrowsing = false;
+    bool m_isBrowsing = false;  ///< The folder dialog of addPinnedLocation waits for its answer
 };
 
 }   // namespace pdf

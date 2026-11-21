@@ -53,6 +53,7 @@ namespace pdf
 
 class PDFAppContext;
 class PDFAppDocumentTab;
+class PDFAppFileDialogRequest;
 class PDFAppTab;
 class PDFAppToolChooserDialog;
 class PDFDocumentToolCatalogEntry;
@@ -494,9 +495,15 @@ private:
     void onConfirmClicked();
     void onRetryClicked();
     void onChooseFolderClicked();
+    void onRetryFolderChosen(const QString& folder);
     void onDiscardClicked();
     void onBrowseClicked();
+    void onBrowseFileChosen(const QString& path);
+    void onBrowseFolderChosen(const QString& folder);
     void onChooseLocationClicked();
+
+    /// A0: a file dialog of the dialog waits for its answer (one at a time)
+    bool isFileRequestPending() const;
     void onTargetEdited();
     void onOpenCheckToggled();
     void onContinueChanged();
@@ -580,6 +587,7 @@ private:
     QPointer<PDFAppToolResultWriter> m_writer;
     QPointer<QWidget> m_host;
     QPointer<PDFAppToolChooserDialog> m_chooser;
+    QPointer<PDFAppFileDialogRequest> m_fileRequest;    ///< Browse… / Choose Folder… waiting for its file dialog (a child of the dialog, A0)
 
     QString m_folder;               ///< Folder of a copy (the file name is in its field)
     QString m_consentedPath;        ///< A path chosen by the file dialog: a conscious choice of a network location (T1)

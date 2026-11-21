@@ -56,6 +56,7 @@ namespace pdf
 class PDFAppDocument;
 class PDFAppDocumentOperation;
 class PDFAppDocumentTab;
+class PDFAppFileDialogRequest;
 class PDFAppPrintDialog;
 class PDFMessageBox;
 class PDFPage;
@@ -305,7 +306,8 @@ public:
     static constexpr int PROGRESS_INTERVAL = 250;
 
     /// The document may be printed: shown, the permission of the document, no
-    /// printing and no dialog of the printing
+    /// printing and no dialog of the printing (the file dialog of a printer with a
+    /// port prompt too)
     bool canPrint() const;
 
     /// The document allows printing (low or high resolution)
@@ -341,8 +343,10 @@ private:
     void openDialog(const std::vector<PDFInteger>& initialPages, int copies);
     void onDialogFinished(int result);
     /// The file of a printer with a port prompt, asked in the thread of the user
-    /// interface before the job (an empty text = canceled by the user)
-    QString askPrintFile(const PDFAppPrinterInfo& info);
+    /// interface before the job (A0: the dialog without a nested event loop, the
+    /// file comes to onPrintFileChosen; the job waits in the members of the file)
+    void askPrintFile(const PDFAppPrinterInfo& info);
+    void onPrintFileChosen(const QString& fileName);
     void startJob(std::shared_ptr<QPrinter> printer, const PDFAppPrintSettings& settings, const QString& printerName);
     void onJobFinished();
     void onProgressTimeout();
@@ -356,6 +360,14 @@ private:
     QPointer<PDFAppDocument> m_document;
     QPointer<PDFAppPrintDialog> m_dialog;
     QPointer<PDFMessageBox> m_errorDialog;
+
+    // The file dialog of a printer with a port prompt (a child of the controller) and the
+    // job, which waits for its file
+    QPointer<PDFAppFileDialogRequest> m_fileRequest;
+    std::shared_ptr<QPrinter> m_filePrinter;
+    PDFAppPrintSettings m_fileSettings;
+    QString m_filePrinterName;
+
     QPointer<QFutureWatcher<PDFAppPrintJob::Result>> m_watcher;
     QPointer<QTimer> m_progressTimer;
     QPointer<PDFAppDocumentOperation> m_operation;

@@ -57,6 +57,7 @@ namespace pdf
 {
 
 class PDFAppDocument;
+class PDFAppFileDialogRequest;
 class PDFAppParagraph;
 class PDFAppPasswordDialog;
 class PDFAppToolCallout;
@@ -200,7 +201,8 @@ public:
     /// Adds the files at the end (one undo step); refused ones are said in the status bar
     void addFiles(const QStringList& filePaths);
 
-    /// Files… (Ctrl+I): the dialog of the files, then addFiles
+    /// Files… (Ctrl+I): the dialog of the files, then addFiles (A0: the files come later from the event loop, one dialog
+    /// at a time)
     void addFilesFromDialog();
 
     /// Paste image (Ctrl+V): the image of the clipboard at the end
@@ -294,6 +296,7 @@ private:
     void addResults(const std::vector<PDFAppToolInputList::AddResult>& results, const QStringList& refusedTexts);
 
     // The slots of the list, the parts and the shell
+    void onDialogFilesChosen(const QStringList& files);
     void onListInputsChanged();
     void onListInputChanged(const QString& inputId);
     void onReadQueued();
@@ -361,6 +364,7 @@ private:
     QPointer<PDFLabel> m_openDocumentsCaption;
     QPointer<PDFAppToolTileSizeMenu> m_tileSizeMenu;
     QPointer<PDFAppPasswordDialog> m_passwordDialog;
+    QPointer<PDFAppFileDialogRequest> m_fileRequest;   ///< Files… waiting for its dialog (a child of the GUI, A0)
     QPointer<QTimer> m_progressTimer;
     QPointer<QWidget> m_keyWidget;
     QPointer<QAction> m_addFilesAction;

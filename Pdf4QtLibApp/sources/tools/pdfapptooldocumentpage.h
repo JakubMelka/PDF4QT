@@ -37,7 +37,7 @@ class PDFAppToolHost;
 /// Route adapter of a tool in the tab of a document (/document/{id}/tool/{toolId}, plan
 /// of the first batch, chapter 2.1): a document page, so the tab shows it with its
 /// persistent view. Its setRoute enters the shell of the tool, the shell ends with
-/// the page: a navigation first asks the shell (prepareLeave, F14), Cancel and an accepted
+/// the page: a navigation first asks the shell (requestLeave, F14), Cancel and an accepted
 /// result ask for the route of the document themselves (F15).
 ///
 /// The route is refused (Page Not Found, T3): another document, a tool, which is not
@@ -65,14 +65,22 @@ public:
 
     virtual QString getTitle() const override;
     virtual QString getHelpTopic() const override;
-    virtual bool prepareLeave(const PDFAppRoute& target) override;
+
+    /// A navigation leaves the tool (F14; A0 without a nested event loop): the shell asks (a run, the unsaved work -
+    /// PDFDocumentToolShell::requestLeave), then the leave ends here (requestFinishLeave(true): the choice of the
+    /// question, which changes the document, or the question about the work it could not keep) and the tool closes.
+    /// Pending: the page reports its step by \p flow->finishStep(this page) after the answers.
+    virtual PDFAppLeaveResult requestLeave(const PDFAppRoute& target, PDFAppLeaveFlow* flow) override;
 
     /// The tab of the document closes or the window quits: the tool, which is edited, asks its question of
-    /// the unsaved work (PDFDocumentToolShell::confirmLeave, owner 2026-11-20); the tool is not ended here
-    virtual bool confirmClose() override;
+    /// the unsaved work (PDFDocumentToolShell::requestLeave, owner 2026-11-20); the tool is not ended here
+    virtual PDFAppLeaveResult requestClose(PDFAppLeaveFlow* flow) override;
 
     /// The tool has unsaved work of the user (PDFDocumentToolShell::hasUnsavedWork)
     virtual bool hasUnsavedWork() const override;
+
+    /// The stamp of the work of the tool (PDFDocumentToolShell::getWorkStamp)
+    virtual quint64 getWorkStamp() const override;
 
     /// The tab closes or the window quits: the use of an interactive tool is recorded while the tab is whole
     /// (PDFDocumentToolShell::recordInteractiveUse)
@@ -81,14 +89,17 @@ public:
     /// A question of the tool is open (PDFDocumentToolShell::isQuestionOpen)
     virtual bool isQuestionOpen() const override;
 
-    /// The open tool stays for its own route (prepareLeave); every other route of the tab leaves it
+    /// The open tool stays for its own route (requestLeave); every other route of the tab leaves it
     virtual bool isLeftBy(const PDFAppRoute& target) const override;
 
     /// A tool, which a locked document ends (PDFDocumentToolLockedAccess::Unavailable), asks its question of the
-    /// unsaved work before the lock (PDFDocumentToolShell::confirmLeave; owner 2026-11-20, decision 6)
-    virtual bool confirmDocumentLock() override;
+    /// unsaved work before the lock (PDFDocumentToolShell::requestLeave; owner 2026-11-20, decision 6)
+    virtual PDFAppLeaveResult requestDocumentLock(PDFAppLeaveFlow* flow) override;
 
-    /// The end of the leave accepted by confirmClose / confirmDocumentLock (PDFDocumentToolShell::finishLeave)
+    /// The end of the leave accepted by requestClose / requestDocumentLock (PDFDocumentToolShell::requestFinishLeave)
+    virtual PDFAppLeaveResult requestFinishLeave(bool isProceeding, PDFAppLeaveFlow* flow) override;
+
+    /// The end of the leave without a flow (PDFDocumentToolShell::finishLeave; false never asks)
     virtual bool finishLeave(bool isProceeding) override;
 
     /// The route of the tool: the view is not a part of it
@@ -120,9 +131,32 @@ private:
     void openOwnTab();
     void onCloseRequested(const pdf::PDFAppToolCloseRequest& request);
 
+    /// What the page does after the answer of the shell
+    enum class LeaveStage
+    {
+        None,
+        Forward,        ///< The step of the shell is the step of the page (close, lock, the end of a leave)
+        Leave,          ///< requestLeave: the end of the leave and the close of the tool follow
+        LeaveFinish     ///< requestLeave: the close of the tool follows
+    };
+
+    /// The rest of requestLeave after the shell has accepted: the end of the leave, the close of the tool
+    PDFAppLeaveResult continueLeave(PDFAppLeaveFlow* flow);
+    PDFAppLeaveResult closeAfterLeave();
+
+    /// The page waits for the Pending step of the shell (Pending; Refused, when it cannot wait)
+    PDFAppLeaveResult waitForShell(PDFAppLeaveFlow* flow, LeaveStage stage);
+
+    /// A leave still waits for the step of this page (a wait of a flow ended meanwhile is forgotten)
+    bool isWaitingForShell();
+    PDFAppLeaveResult forwardShellStep(PDFAppLeaveResult result, PDFAppLeaveFlow* flow);
+    void onShellStepFinished(pdf::PDFAppLeaveResult result);
+
     QString m_toolId;
     QPointer<PDFAppToolHost> m_host;
     QPointer<PDFDocumentToolShell> m_shell;
+    QPointer<PDFAppLeaveFlow> m_leaveFlow;      ///< The flow, whose step of the shell the page waits for; not owned
+    LeaveStage m_leaveStage = LeaveStage::None;
 };
 
 /// Factory of the page of a tool in a document tab

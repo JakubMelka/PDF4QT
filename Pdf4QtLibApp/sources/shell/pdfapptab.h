@@ -25,6 +25,7 @@
 
 #include "pdfappglobal.h"
 #include "pdfapphistory.h"
+#include "pdfappleaveflow.h"
 #include "pdfapppage.h"
 #include "pdfapproutetable.h"
 #include "pdfappworkspace.h"
@@ -84,11 +85,22 @@ public:
 
     PDFAppContext* getContext() const { return m_context; }
 
-    /// Asked before the tab is closed by the window (closeTab): false = the tab
-    /// stays open (unsaved changes, a running operation - the document tab of
-    /// step 3). The tab may show a dialog and it may be deleted meanwhile (the
-    /// caller guards it). Default: true.
-    virtual bool confirmClose();
+    /// Asked before the tab is closed by the window (PDFAppMainWindow::requestCloseTab; A0: without a nested event
+    /// loop). Done = the tab may close now; Refused = the tab stays open (a question answered by Cancel, a flow of the
+    /// tab runs already); Pending = the tab asks (unsaved changes, a running operation, the work of a tool - the flow
+    /// of the tab, getLeaveFlow): the tab closes itself by its window, when its flow ends Done, and stays otherwise.
+    /// The tab may run code of the application: it may be deleted meanwhile (the caller guards it). Default: Done.
+    virtual PDFAppLeaveResult requestTabClose();
+
+    /// The leave flow of the tab (A0, RR3-H2: one per tab, its child, created at the first use): the close of the
+    /// tab, a navigation in it, the lock of its document
+    PDFAppLeaveFlow* getLeaveFlow();
+
+    /// The leave flow of the tab, nullptr before its first use
+    PDFAppLeaveFlow* findLeaveFlow() const { return m_leaveFlow.data(); }
+
+    /// A flow of the tab runs (its close, a navigation, a lock: a question is open or a save of the close runs)
+    bool isLeaving() const;
 
     /// Runs a command of the registry with the scope Document or Canvas, which the
     /// window dispatches to its current tab. \returns false, if the tab does not
@@ -131,6 +143,7 @@ private:
     QPointer<PDFAppContext> m_context;
     PDFAppHistory m_history;
     QPointer<PDFAppPage> m_page;
+    QPointer<PDFAppLeaveFlow> m_leaveFlow;  ///< Owned (a child of the tab)
 };
 
 /// Tab Home (pdf4qt-home 28:4: the sidebar, the workspace with the header, the

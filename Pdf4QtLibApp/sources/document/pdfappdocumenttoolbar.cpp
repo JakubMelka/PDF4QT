@@ -42,13 +42,18 @@
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
 
+#include <QAccessible>
 #include <QApplication>
 #include <QFocusEvent>
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLocale>
 #include <QMouseEvent>
+#include <QKeySequence>
+#include <QMenu>
 #include <QPainter>
+#include <QRegularExpression>
+#include <QStyleOption>
 #include <QToolButton>
 
 #include <algorithm>
@@ -225,6 +230,186 @@ void PDFAppToolbarDivider::paintEvent(QPaintEvent* event)
     }
 }
 
+// ------------------------------------------------------ PDFAppDocumentSelectButton
+
+PDFAppDocumentSelectButton::PDFAppDocumentSelectButton(QWidget* parent) :
+    BaseClass(parent)
+{
+#if QT_CONFIG(accessibility)
+    // The interface of a tool button with an instant menu (before the first query of it)
+    PDFAppDocumentSelectButtonAccessible::installFactory();
+#endif
+}
+
+PDFAppDocumentSelectButton::~PDFAppDocumentSelectButton() = default;
+
+void PDFAppDocumentSelectButton::requestMenu()
+{
+    if (isEnabled())
+    {
+        Q_EMIT menuRequested();
+    }
+}
+
+#if QT_CONFIG(accessibility)
+/// Registration of the accessible interface of the Select button: installed once, removed
+/// when the library is unloaded while the application still runs
+class PDFAppDocumentSelectButtonAccessibleRegistration
+{
+public:
+    PDFAppDocumentSelectButtonAccessibleRegistration()
+    {
+        QAccessible::installFactory(&PDFAppDocumentSelectButtonAccessible::create);
+    }
+
+    ~PDFAppDocumentSelectButtonAccessibleRegistration()
+    {
+        if (QCoreApplication::instance())
+        {
+            QAccessible::removeFactory(&PDFAppDocumentSelectButtonAccessible::create);
+        }
+    }
+
+    PDFAppDocumentSelectButtonAccessibleRegistration(const PDFAppDocumentSelectButtonAccessibleRegistration&) = delete;
+    PDFAppDocumentSelectButtonAccessibleRegistration& operator=(const PDFAppDocumentSelectButtonAccessibleRegistration&) = delete;
+};
+
+PDFAppDocumentSelectButtonAccessible::PDFAppDocumentSelectButtonAccessible(PDFAppDocumentSelectButton* button) :
+    BaseClass(button, QAccessible::ButtonMenu)
+{
+    // As QAccessibleButton for a button, which is not checkable
+    addControllingSignal(QStringLiteral("clicked()"));
+}
+
+PDFAppDocumentSelectButton* PDFAppDocumentSelectButtonAccessible::button() const
+{
+    return qobject_cast<PDFAppDocumentSelectButton*>(widget());
+}
+
+QAccessible::State PDFAppDocumentSelectButtonAccessible::state() const
+{
+    // QAccessibleButton::state + QAccessibleToolButton::state with a menu
+    QAccessible::State state = BaseClass::state();
+    if (const PDFAppDocumentSelectButton* selectButton = button())
+    {
+        state.checkable = selectButton->isCheckable();
+        state.checked = selectButton->isChecked();
+        state.pressed = selectButton->isDown();
+        state.hotTracked = selectButton->autoRaise();
+    }
+    state.hasPopup = true;
+    return state;
+}
+
+QString PDFAppDocumentSelectButtonAccessible::text(QAccessible::Text textType) const
+{
+    // QAccessibleButton::text: the accessible name or the text without its mnemonic, the
+    // mnemonic of the text as the accelerator
+    QString text;
+    const PDFAppDocumentSelectButton* selectButton = button();
+    if (selectButton && textType == QAccessible::Name)
+    {
+        text = selectButton->accessibleName();
+        if (text.isEmpty())
+        {
+            text = selectButton->text();
+            text.remove(QRegularExpression(QStringLiteral("&(?!&)")));
+        }
+    }
+    else if (selectButton && textType == QAccessible::Accelerator)
+    {
+        text = QKeySequence::mnemonic(selectButton->text()).toString(QKeySequence::NativeText);
+    }
+
+    return text.isEmpty() ? BaseClass::text(textType) : text;
+}
+
+int PDFAppDocumentSelectButtonAccessible::childCount() const
+{
+    // No split button: no children (QAccessibleToolButton::childCount)
+    return 0;
+}
+
+QAccessibleInterface* PDFAppDocumentSelectButtonAccessible::child(int index) const
+{
+    // The menu as the child 0 (QAccessibleToolButton::child)
+    const PDFAppDocumentSelectButton* selectButton = button();
+    QMenu* menu = selectButton ? selectButton->getPopupMenu() : nullptr;
+    return index == 0 && menu ? QAccessible::queryAccessibleInterface(menu) : nullptr;
+}
+
+QStringList PDFAppDocumentSelectButtonAccessible::actionNames() const
+{
+    // An instant menu: Show Menu only, while the button is enabled
+    QStringList names;
+    if (widget()->isEnabled())
+    {
+        names << showMenuAction();
+    }
+    return names;
+}
+
+void PDFAppDocumentSelectButtonAccessible::doAction(const QString& actionName)
+{
+    // Show Menu opens the menu by the popup of the toolbar (no QToolButton::showMenu, no
+    // nested event loop); the last call
+    PDFAppDocumentSelectButton* selectButton = button();
+    if (selectButton && actionName == showMenuAction())
+    {
+        selectButton->requestMenu();
+    }
+}
+
+QStringList PDFAppDocumentSelectButtonAccessible::keyBindingsForAction(const QString& actionName) const
+{
+    // QAccessibleButton: the shortcut of the press only
+    Q_UNUSED(actionName);
+    return QStringList();
+}
+
+QAccessibleInterface* PDFAppDocumentSelectButtonAccessible::create(const QString& className, QObject* object)
+{
+    if (className != QLatin1String(PDFAppDocumentSelectButton::staticMetaObject.className()))
+    {
+        return nullptr;
+    }
+
+    PDFAppDocumentSelectButton* selectButton = qobject_cast<PDFAppDocumentSelectButton*>(object);
+    return selectButton ? new PDFAppDocumentSelectButtonAccessible(selectButton) : nullptr;
+}
+
+void PDFAppDocumentSelectButtonAccessible::installFactory()
+{
+    static PDFAppDocumentSelectButtonAccessibleRegistration registration;
+    Q_UNUSED(registration);
+}
+#endif
+
+void PDFAppDocumentSelectButton::setMenuOpen(bool isOpen)
+{
+    if (m_isMenuOpen != isOpen)
+    {
+        m_isMenuOpen = isOpen;
+        update();
+    }
+}
+
+void PDFAppDocumentSelectButton::initStyleOption(QStyleOptionToolButton* option) const
+{
+    BaseClass::initStyleOption(option);
+
+    // As a tool button with an instant menu (QToolButton::initStyleOption with InstantPopup):
+    // the button has a menu without a delay (the chevron of the style), its open menu is the
+    // pressed menu part
+    option->features |= QStyleOptionToolButton::HasMenu;
+    option->features &= ~QStyleOptionToolButton::ToolButtonFeatures(QStyleOptionToolButton::PopupDelay);
+    if (m_isMenuOpen)
+    {
+        option->state |= QStyle::State_Sunken;
+        option->activeSubControls |= QStyle::SC_ToolButtonMenu;
+    }
+}
+
 // ----------------------------------------------------------- PDFAppDocumentToolbar
 
 PDFAppDocumentToolbar::PDFAppDocumentToolbar(PDFAppDocumentView* view, QWidget* parent) :
@@ -312,10 +497,15 @@ PDFAppDocumentToolbar::PDFAppDocumentToolbar(PDFAppDocumentView* view, QWidget* 
     m_rightGroup = new QWidget(this);
     m_rightGroup->setObjectName(QStringLiteral("toolbarRight"));
     QHBoxLayout* rightLayout = H::createGroup(m_rightGroup, 8);
-    m_selectButton = createButton(QStringLiteral("selectButton"), QStringLiteral("text-cursor"));
+    // The button opens its menu by popup on its press (A0, QR3.5: no menu of QToolButton
+    // - its instant popup would run QMenu::exec)
+    PDFAppDocumentSelectButton* selectButton = new PDFAppDocumentSelectButton(this);
+    initToolbarButton(selectButton, QStringLiteral("selectButton"), QStringLiteral("text-cursor"));
+    m_selectButton = selectButton;
     m_selectMenu = new PDFAppDocumentSelectMenu(view, m_selectButton);
-    m_selectButton->setMenu(m_selectMenu);
-    m_selectButton->setPopupMode(QToolButton::InstantPopup);
+    selectButton->setPopupMenu(m_selectMenu);
+    connect(selectButton, &QAbstractButton::pressed, this, &PDFAppDocumentToolbar::onSelectButtonPressed);
+    connect(selectButton, &PDFAppDocumentSelectButton::menuRequested, this, &PDFAppDocumentToolbar::onSelectButtonPressed);
 
     // The Select menu is a panel of the menu bar: the pointer over another panel
     // button and Left / Right switch to its panel (eventFilter)
@@ -365,8 +555,12 @@ PDFAppDocumentToolbar::~PDFAppDocumentToolbar()
 
 QToolButton* PDFAppDocumentToolbar::createToolbarButton(const QString& objectName, const QString& iconName, QWidget* parent)
 {
+    return initToolbarButton(new QToolButton(parent), objectName, iconName);
+}
+
+QToolButton* PDFAppDocumentToolbar::initToolbarButton(QToolButton* button, const QString& objectName, const QString& iconName)
+{
     // Toolbar button 190:538: 36 x 36, icon 20, no background at rest
-    QToolButton* button = new QToolButton(parent);
     button->setObjectName(objectName);
     button->setAutoRaise(true);
     button->setIcon(PDFThemeIcons::getIcon(iconName));
@@ -705,7 +899,7 @@ std::vector<QToolButton*> PDFAppDocumentToolbar::getPanelButtons() const
 {
     // The order of the layout
     std::vector<QToolButton*> buttons;
-    for (QToolButton* button : { m_fileButton.data(), m_viewButton.data(), m_annotateButton.data(), m_insertButton.data(), m_goToButton.data(), m_toolsButton.data(), m_selectButton.data() })
+    for (QToolButton* button : { m_fileButton.data(), m_viewButton.data(), m_annotateButton.data(), m_insertButton.data(), m_goToButton.data(), m_toolsButton.data(), static_cast<QToolButton*>(m_selectButton.data()) })
     {
         if (button)
         {
@@ -773,7 +967,7 @@ bool PDFAppDocumentToolbar::switchPanel(QToolButton* button, bool byKeyboard)
             // A slot of a button has deleted the toolbar
             return false;
         }
-        openSelectMenu(byKeyboard);
+        openSelectMenu(byKeyboard, false);
         return guard && m_selectMenu && m_selectMenu->isVisible();
     }
 
@@ -797,9 +991,19 @@ bool PDFAppDocumentToolbar::switchPanel(QToolButton* button, bool byKeyboard)
     return false;
 }
 
-void PDFAppDocumentToolbar::openSelectMenu(bool byKeyboard)
+void PDFAppDocumentToolbar::onSelectButtonPressed()
 {
-    QToolButton* button = m_selectButton.data();
+    // The press of the mouse or Space opens the menu at once, as the instant menu of
+    // QToolButton did - by popup, without its nested event loop (A0, QR3.5)
+    if (m_selectMenu && !m_selectMenu->isVisible())
+    {
+        openSelectMenu(false, true);
+    }
+}
+
+void PDFAppDocumentToolbar::openSelectMenu(bool byKeyboard, bool isByButton)
+{
+    PDFAppDocumentSelectButton* button = m_selectButton.data();
     QPointer<PDFAppDocumentSelectMenu> menu = m_selectMenu.data();
     if (!button || !menu || !button->isVisible() || !button->isEnabled())
     {
@@ -807,9 +1011,10 @@ void PDFAppDocumentToolbar::openSelectMenu(bool byKeyboard)
     }
 
     // The menu opens as by its button (below it, the leading edges aligned; the
-    // menu moves itself 4 px below the toolbar), but without the nested event loop
-    // of QToolButton::showMenu: the switch runs inside of an event of the closed
-    // panel. A click on the button closes the menu and does not open it again.
+    // menu moves itself 4 px below the toolbar), without a nested event loop: the
+    // switch runs inside of an event of the closed panel, the press inside of the
+    // event of the button. A click on the button closes the menu and does not open
+    // it again.
     const QMargins margins = PDFWidgetStyle::getPopoverMargins(menu);
     const int menuWidth = qMax(menu->sizeHint().width(), PDFAppDocumentSelectMenu::PANEL_WIDTH + margins.left() + margins.right());
     QPoint position = button->mapToGlobal(QPoint(0, button->height()));
@@ -818,11 +1023,19 @@ void PDFAppDocumentToolbar::openSelectMenu(bool byKeyboard)
         position.rx() += button->width() - menuWidth;
     }
 
+    // The menu shows code of the application (aboutToShow): guard the button
+    QPointer<PDFAppDocumentSelectButton> buttonGuard(button);
     menu->setNoReplayFor(button);
     button->setDown(true);
+    button->setMenuOpen(isByButton);
     menu->popup(position);
     if (!menu || !menu->isVisible())
     {
+        if (buttonGuard)
+        {
+            buttonGuard->setMenuOpen(false);
+            buttonGuard->setDown(false);
+        }
         return;
     }
 
@@ -852,9 +1065,13 @@ void PDFAppDocumentToolbar::openSelectMenu(bool byKeyboard)
 void PDFAppDocumentToolbar::onSelectMenuAboutToHide()
 {
     // The button opened the menu down (also when the menu was opened by switchPanel)
-    if (m_selectButton && m_selectButton->isDown())
+    if (m_selectButton)
     {
-        m_selectButton->setDown(false);
+        m_selectButton->setMenuOpen(false);
+        if (m_selectButton->isDown())
+        {
+            m_selectButton->setDown(false);
+        }
     }
 }
 
@@ -934,7 +1151,7 @@ void PDFAppDocumentToolbar::updateState()
         const QString reason = (!isEnabled && controller && isReady) ? controller->getEditingRefusalReason() : QString();
         item.first->setToolTip(reason.isEmpty() ? item.first->accessibleName() : reason);
     }
-    for (QToolButton* button : { m_fileButton.data(), m_viewButton.data(), m_goToButton.data(), m_toolsButton.data(), m_selectButton.data() })
+    for (QToolButton* button : { m_fileButton.data(), m_viewButton.data(), m_goToButton.data(), m_toolsButton.data(), static_cast<QToolButton*>(m_selectButton.data()) })
     {
         if (button)
         {

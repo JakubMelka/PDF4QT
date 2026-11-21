@@ -20,6 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include "appasyncdialogs.h"
 #include "appdocumentfixture.h"
 #include "applocaleguard.h"
 
@@ -77,6 +78,7 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFileDialog>
 #include <QMenu>
 #include <QPushButton>
 #include <QScrollBar>
@@ -132,6 +134,7 @@ private slots:
     void listGeometry();
     void attachmentsList();
     void attachmentsSave();
+    void attachmentsSaveFileDialog();
     void attachmentsOpen();
     void attachmentsOpenEncrypted();
     void attachmentsMarkOfTheWeb();
@@ -146,6 +149,7 @@ private slots:
     void bookmarksCommands();
     void bookmarksAutoGenerate();
     void bookmarksExportImport();
+    void bookmarksFileDialogs();
     void bookmarksOtherConnection();
     void bookmarksRenameMoveRemove();
     void bookmarksMenuAfterReload();
@@ -2323,9 +2327,12 @@ void AppDocumentPanelsTest::attachmentsSave()
     QCOMPARE(file.readAll(), QByteArray("Notes of the sample\n"));
     file.close();
 
-    // The save action of the delegate saves too; a canceled dialog writes nothing
+    // The save action of the delegate saves too; a canceled dialog writes nothing. A0: the answer of the dialog comes
+    // from the event loop - the save runs (waits for its file) after the call
     pdf::PDFAppPanelFileDialogs::setSaveHandler([](QWidget*, const QString&, const QString&, const QString&) { return QString(); });
     attachments->saveAttachment(0);
+    QCOMPARE(attachments->getRunningCount(), 1);
+    fixture.settle();
     QCOMPARE(attachments->getRunningCount(), 0);
 
     // A folder, which cannot be written: an error box
@@ -2335,6 +2342,66 @@ void AppDocumentPanelsTest::attachmentsSave()
     fixture.closeMessageBoxes();
     attachments->saveAttachment(-1);
     attachments->saveAttachment(100);
+}
+
+void AppDocumentPanelsTest::attachmentsSaveFileDialog()
+{
+    // A0: Save of an attachment shows the file dialog of the system without a nested event loop (a child of the
+    // window, modal); the attachment chosen before the dialog is written, when the file comes. Two saves wait at
+    // once, each for its own file.
+    pdftest::AppDocumentFixture fixture;
+    PanelsTestHelper::restoreHandlers();
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::attachments(fixture.folder()));
+    QPointer<pdf::PDFAppAttachmentsPanel> attachments = PanelsTestHelper::panel<pdf::PDFAppAttachmentsPanel>(tab, QStringLiteral("attachments"));
+    QVERIFY(attachments);
+
+    pdftest::NestedEventLoopGuard loopGuard;
+    attachments->saveAttachment(1);
+    pdf::PDFAppFileDialogRequest* request = pdftest::AppAsyncDialogs::findFileRequest();
+    QVERIFY(request);
+    QCOMPARE(request->getSettings().title, QStringLiteral("Save Attachment"));
+    QCOMPARE(QFileInfo(request->getSettings().path).fileName(), QStringLiteral("notes.txt"));
+    QVERIFY(request->getDialog() && request->getDialog()->isVisible());
+    QCOMPARE(request->getDialog()->parentWidget(), static_cast<QWidget*>(tab->window()));
+    QCOMPARE(attachments->getRunningCount(), 1);
+    fixture.settle();
+    QCOMPARE(attachments->getRunningCount(), 1);
+
+    const QString target = fixture.path(QStringLiteral("notes by the dialog.txt"));
+    QVERIFY(pdftest::AppAsyncDialogs::answerFile(target));
+    QTRY_COMPARE(attachments->getRunningCount(), 0);
+    QCOMPARE(PanelsTestHelper::readFile(target), QByteArray("Notes of the sample\n"));
+
+    // Two requests: each answer writes its own attachment
+    pdf::PDFAppPanelFileDialogs::setSaveHandler([&](QWidget*, const QString&, const QString& proposed, const QString&)
+    {
+        return fixture.path(QStringLiteral("two-") + QFileInfo(proposed).fileName());
+    });
+    attachments->saveAttachment(0);
+    attachments->saveAttachment(1);
+    QCOMPARE(attachments->getRunningCount(), 2);
+    QTRY_COMPARE(attachments->getRunningCount(), 0);
+    QCOMPARE(PanelsTestHelper::readFile(fixture.path(QStringLiteral("two-notes.txt"))), QByteArray("Notes of the sample\n"));
+    QCOMPARE(PanelsTestHelper::readFile(fixture.path(QStringLiteral("two-") + attachments->getModel()->getAttachment(0)->name)).isEmpty(), false);
+    PanelsTestHelper::restoreHandlers();
+
+    // The panel deleted while the dialog is open: its answer is dropped, nothing is written; the dialog of the system
+    // stays until the user closes it
+    attachments->saveAttachment(1);
+    QPointer<QFileDialog> dialog = pdftest::AppAsyncDialogs::findFileRequest() ? pdftest::AppAsyncDialogs::findFileRequest()->getDialog() : nullptr;
+    QVERIFY(dialog);
+    delete attachments.data();
+    fixture.settle();
+    QVERIFY(!pdftest::AppAsyncDialogs::findFileRequest());
+    QVERIFY(dialog && dialog->isVisible());
+    const QString late = fixture.path(QStringLiteral("late notes.txt"));
+    dialog->selectFile(late);
+    static_cast<QDialog*>(dialog.data())->accept();
+    fixture.settle();
+    QThreadPool::globalInstance()->waitForDone(10000);
+    fixture.settle();
+    QVERIFY(!dialog || !dialog->isVisible());
+    QVERIFY(!QFile::exists(late));
 }
 
 void AppDocumentPanelsTest::attachmentsOpen()
@@ -3027,6 +3094,7 @@ void AppDocumentPanelsTest::bookmarksExportImport()
     QString proposed;
     pdf::PDFAppPanelFileDialogs::setSaveHandler([&](QWidget*, const QString&, const QString& file, const QString&) { proposed = file; return exported; });
     QVERIFY(tab->executeCommand(pdf::PDFAppCommands::exportBookmarks()));
+    fixture.settle();
     QVERIFY(proposed.endsWith(QStringLiteral("simple-bookmarks.json")));
     QVERIFY(QFile::exists(exported));
 
@@ -3034,6 +3102,7 @@ void AppDocumentPanelsTest::bookmarksExportImport()
     pdf::PDFAppDocumentTab* other = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("other.pdf"), 3));
     pdf::PDFAppPanelFileDialogs::setOpenHandler([&](QWidget*, const QString&, const QString&, const QString&) { return exported; });
     QVERIFY(other->executeCommand(pdf::PDFAppCommands::importBookmarks()));
+    fixture.settle();
     const std::vector<pdf::PDFAppBookmarkItem> items = pdf::PDFAppBookmarks::getItems(fixture.context.get(), other->getDocument());
     // Page 5 (index 4) is outside of the 3 pages
     QCOMPARE(items.size(), size_t(1));
@@ -3076,7 +3145,76 @@ void AppDocumentPanelsTest::bookmarksExportImport()
     pdf::PDFAppPanelFileDialogs::setSaveHandler([&](QWidget*, const QString&, const QString&, const QString&) { isAsked = true; return QString(); });
     pdf::PDFAppDocumentTab* empty = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("empty.pdf"), 1));
     empty->executeCommand(pdf::PDFAppCommands::exportBookmarks());
+    fixture.settle();    // A0: a handler would answer from the event loop
     QVERIFY(!isAsked);
+}
+
+void AppDocumentPanelsTest::bookmarksFileDialogs()
+{
+    // A0: Export and Import of the bookmarks show the file dialogs of the system without a nested event loop; the
+    // bookmarks read before the dialog are written, when the file comes; a tab closed meanwhile writes nothing
+    pdftest::AppDocumentFixture fixture;
+    PanelsTestHelper::restoreHandlers();
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("dialogs.pdf"), 6));
+    pdf::PDFAppDocumentView* view = tab->getView();
+    for (const int page : { 1, 4 })
+    {
+        view->goToPage(page);
+        fixture.settle();
+        QVERIFY(tab->executeCommand(pdf::PDFAppCommands::addBookmark()));
+    }
+
+    pdftest::NestedEventLoopGuard loopGuard;
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::exportBookmarks()));
+    pdf::PDFAppFileDialogRequest* request = pdftest::AppAsyncDialogs::findFileRequest();
+    QVERIFY(request);
+    QCOMPARE(request->getSettings().mode, pdf::PDFAppFileDialogRequest::Mode::SaveFile);
+    QCOMPARE(request->getSettings().title, QStringLiteral("Export Bookmarks"));
+    QCOMPARE(request->getSettings().filter, QStringLiteral("Bookmarks (*.json)"));
+    QVERIFY(request->getSettings().path.endsWith(QStringLiteral("dialogs-bookmarks.json")));
+    QVERIFY(request->getDialog() && request->getDialog()->isVisible());
+    const QString exported = fixture.path(QStringLiteral("by the dialog.json"));
+    QVERIFY(view->findChild<pdf::PDFAppBookmarksTransfer*>());
+    QVERIFY(pdftest::AppAsyncDialogs::answerFile(exported));
+    QVERIFY(QFile::exists(exported));
+    QCOMPARE(view->getStatusBar()->getMessage(), QStringLiteral("2 bookmarks exported."));
+    QVERIFY(!view->findChild<pdf::PDFAppBookmarksTransfer*>());
+
+    // Import into another document by the open dialog
+    pdf::PDFAppDocumentTab* other = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("other.pdf"), 6));
+    QVERIFY(other->executeCommand(pdf::PDFAppCommands::importBookmarks()));
+    request = pdftest::AppAsyncDialogs::findFileRequest();
+    QVERIFY(request);
+    QCOMPARE(request->getSettings().mode, pdf::PDFAppFileDialogRequest::Mode::OpenFile);
+    QCOMPARE(request->getSettings().title, QStringLiteral("Import Bookmarks"));
+    QVERIFY(pdf::PDFAppBookmarks::getItems(fixture.context.get(), other->getDocument()).empty());
+    QVERIFY(pdftest::AppAsyncDialogs::answerFile(exported));
+    const std::vector<pdf::PDFAppBookmarkItem> items = pdf::PDFAppBookmarks::getItems(fixture.context.get(), other->getDocument());
+    QCOMPARE(items.size(), size_t(2));
+    QCOMPARE(items[0].page, pdf::PDFInteger(1));
+    QCOMPARE(items[1].page, pdf::PDFInteger(4));
+
+    // Canceled: the transfer ends without a message
+    view->getStatusBar()->showMessage(QStringLiteral("before"), 0);
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::exportBookmarks()));
+    QVERIFY(pdftest::AppAsyncDialogs::cancelFile());
+    QVERIFY(!pdftest::AppAsyncDialogs::findFileRequest());
+    QVERIFY(!view->findChild<pdf::PDFAppBookmarksTransfer*>());
+    QCOMPARE(view->getStatusBar()->getMessage(), QStringLiteral("before"));
+
+    // The tab closed while the export dialog is open: the answer is dropped, the dialog stays until it is closed
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::exportBookmarks()));
+    QPointer<QFileDialog> dialog = pdftest::AppAsyncDialogs::findFileRequest() ? pdftest::AppAsyncDialogs::findFileRequest()->getDialog() : nullptr;
+    QVERIFY(dialog);
+    delete tab;
+    fixture.settle();
+    QVERIFY(!pdftest::AppAsyncDialogs::findFileRequest());
+    QVERIFY(dialog && dialog->isVisible());
+    const QString late = fixture.path(QStringLiteral("late.json"));
+    dialog->selectFile(late);
+    static_cast<QDialog*>(dialog.data())->accept();
+    fixture.settle();
+    QVERIFY(!QFile::exists(late));
 }
 
 /// Thread adding a bookmark by its own connection
@@ -3631,7 +3769,7 @@ void AppDocumentPanelsTest::itemViewSignalsFromEventLoop()
         QTRY_COMPARE(tab->getView()->getCurrentPageIndex(), pdf::PDFInteger(1));
     }
 
-    // Attachments: the save dialog of another file than a PDF (it runs its own event loop)
+    // Attachments: the save dialog of another file than a PDF (a dialog of the system)
     {
         pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::attachments(fixture.folder()));
         pdf::PDFAppAttachmentsPanel* attachments = PanelsTestHelper::panel<pdf::PDFAppAttachmentsPanel>(tab, QStringLiteral("attachments"));

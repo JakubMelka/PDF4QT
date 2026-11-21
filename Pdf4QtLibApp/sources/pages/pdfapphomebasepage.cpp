@@ -391,7 +391,7 @@ void PDFAppHomeBasePage::openFile(const QString& path, int page)
 void PDFAppHomeBasePage::browseFiles(const QString& folder)
 {
     // The command Open… of the window: the window opens the files, also when the
-    // page is gone meanwhile (the native dialog runs its own event loop); a page
+    // page is gone, when the files are chosen (the request belongs to the window); a page
     // outside of a window has nothing to open them
     if (PDFAppMainWindow* window = qobject_cast<PDFAppMainWindow*>(this->window()))
     {
@@ -507,16 +507,16 @@ void PDFAppHomeBasePage::addPinnedLocation()
         return;
     }
 
-    QPointer<PDFAppHomeBasePage> guard(this);
+    // A0: the dialog answers later in onPinnedLocationChosen (exactly once while the page lives; a page deleted
+    // meanwhile gets nothing). The request is the last call: a handler of the tests is foreign code.
     m_isBrowsing = true;
-    const QString folder = PDFAppFileDialogs::getExistingDirectory(window(), QString());
-    if (!guard)
-    {
-        return;
-    }
-    m_isBrowsing = false;
+    PDFAppFileDialogs::requestExistingDirectory(window(), QString(), this, &PDFAppHomeBasePage::onPinnedLocationChosen);
+}
 
-    context = getContext();
+void PDFAppHomeBasePage::onPinnedLocationChosen(const QString& folder)
+{
+    m_isBrowsing = false;
+    PDFAppContext* context = getContext();
     if (folder.isEmpty() || !context || !context->getDatabase())
     {
         return;

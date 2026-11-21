@@ -25,6 +25,7 @@
 
 #include "pdfappdocumentpermissions.h"
 #include "pdfappglobal.h"
+#include "pdfappleaveflow.h"
 #include "pdfapptoolhost.h"
 #include "pdfapptoolpanelparts.h"
 #include "pdfapptoolparametermodel.h"
@@ -57,6 +58,9 @@ class PDFAppDocument;
 class PDFDocumentToolCatalogEntry;
 class PDFAppToolFileConflictDialog;
 class PDFModifiedDocument;
+
+/// The choice of a choice dialog (pdfappdocumentdialogs.h)
+enum class PDFAppDocumentChoice;
 
 /// How a shell asks its page to end (the page chooses the route, F15)
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolCloseRequest
@@ -241,22 +245,28 @@ public:
 
     /// The question of PDFDocumentToolGUI::askClose has been answered by its choice, which changes the document
     /// (PDFDocumentToolGUI::applyCloseQuestionAction: Redact "Remove New Marks", Measure "Save and Close"). While a
-    /// leave waits for the answer (confirmLeave), the choice is only remembered and the leave accepted (owner
+    /// leave waits for the answer (requestLeave), the choice is only remembered and the leave accepted (owner
     /// 2026-11-20, decision 8: a later Keep of another tool cancels the quit and this tool keeps its work); the code,
-    /// which started the leave, ends it by finishLeave. \returns true = remembered, the GUI does nothing more; false =
-    /// no leave waits (Esc, Close in the tool), the GUI applies the choice at once. No signal.
+    /// which started the leave, ends it by requestFinishLeave. \returns true = remembered, the GUI does nothing more
+    /// (the waiter of the leave has run in this call: anything may have been deleted); false = no leave waits (Esc,
+    /// Close in the tool), the GUI applies the choice at once.
     bool deferCloseQuestionAction();
 
-    /// Ends the leave, which confirmLeave has accepted (PDFAppPage::finishLeave; called once by the code, which
-    /// started the leave, also when nothing was remembered). \p isProceeding - the leave goes on: the choice
+    /// Ends the leave, which requestLeave has accepted (PDFAppPage::requestFinishLeave; called once by the code,
+    /// which started the leave, also when nothing was remembered). \p isProceeding - the leave goes on: the choice
     /// remembered by deferCloseQuestionAction is applied now (PDFDocumentToolGUI::applyCloseQuestionAction, while the
     /// tool still edits: the commit of the tool, one Undo step), the caller then goes on with the leave; false = the
     /// leave was canceled, the choice is forgotten and the tool keeps its work. When the applied choice could not
     /// keep all of the work (owner 2026-11-21: a measurement, which cannot be stored, a locked mark), the tab of
-    /// the tool is shown and its question about the rest (askIncompleteQuestion) is waited for. \returns false =
-    /// the caller cancels the leave (Keep Measuring; no such question - the tool stays with the rest and has told
-    /// why); true = the leave goes on (nothing to apply, all kept, Discard and Close). The slots of the commit and
-    /// of the question may delete the shell, its tab or the window (the caller guards them).
+    /// the tool is shown and its question about the rest (askIncompleteQuestion) is opened. \returns Refused = the
+    /// caller cancels the leave (no such question - the tool stays with the rest and has told why); Done = the leave
+    /// goes on (nothing to apply, all kept); Pending = the question about the rest is open: its answer comes by
+    /// \p flow->finishStep(this shell, Done / Refused) - Discard and Close Done, Keep Measuring Refused (A0: no event
+    /// loop; without a running flow the question stays as the question of the tool and the result is Refused). The
+    /// slots of the commit may delete the shell, its tab or the window (the caller guards them).
+    PDFAppLeaveResult requestFinishLeave(bool isProceeding, PDFAppLeaveFlow* flow);
+
+    /// requestFinishLeave without a flow: \returns it is Done (\p isProceeding false never asks)
     bool finishLeave(bool isProceeding);
 
     /// The applied choice of the question (PDFDocumentToolGUI::applyCloseQuestionAction) could not keep all of the
@@ -280,6 +290,10 @@ public:
     /// hasUnsavedWork while it is edited, or its question is open; owner 2026-11-20). An assistant never
     /// closes such a tool (its close is refused, never asked over the user's work).
     bool hasUnsavedWork() const;
+
+    /// A number, which changes with the state of the GUI (its Primary button, its status, its own tab, a parameter):
+    /// an answer about the unsaved work holds only while the number is the same (PDFAppSessionEnd)
+    quint64 getWorkStamp() const { return m_workStamp; }
 
     // ------------------------------------------------------------- use of an interactive tool (owner 2026-11-20)
 
@@ -328,13 +342,20 @@ public:
     /// else the model (nullptr before enter)
     PDFAppToolUndoTarget* getUndoTarget() const;
 
-    /// The tab leaves the tool by a navigation (F14), its close or the close of the window. A run asks
-    /// as close-running: Stop and Leave stops it, Keep Running refuses. A tool with unsaved work in the
-    /// tab of a document (owner 2026-11-20) asks its question (PDFDocumentToolGUI::askClose) and waits for
-    /// the answer as for the run: Discard (or its third choice, which keeps the work) lets the tool go,
-    /// Keep refuses; a question open already (Esc) is waited for the same way. \returns the tool can be
-    /// left (it is not closed here). The shell may be deleted meanwhile.
-    bool confirmLeave();
+    /// The tab leaves the tool by a navigation (F14), its close or the close of the window (A0: without a nested
+    /// event loop, a step of \p flow). A run asks as close-running: Stop and Leave = Done (the caller stops the run),
+    /// Keep Running = Refused. A tool with unsaved work in the tab of a document (owner 2026-11-20) asks its question
+    /// (PDFDocumentToolGUI::askClose): Discard (or its third choice, which keeps the work) lets the tool go, Keep
+    /// refuses; a question open already (Esc) is waited for the same way. \returns Done = the tool can be left (it is
+    /// not closed here), Refused = it stays, Pending = its question is open: the answer comes by \p flow->finishStep(
+    /// this shell, Done / Refused) exactly once, never inside the call (the caller waits by PDFAppLeaveFlow::
+    /// waitForStep(shell, caller, slot) right after it; a shell deleted first is Refused). A second leave while one
+    /// waits is Refused. The activation of the tab runs code of the application: the shell may be deleted meanwhile.
+    PDFAppLeaveResult requestLeave(PDFAppLeaveFlow* flow);
+
+    /// A leave waits for the answer of a question of the tool (requestLeave, requestFinishLeave); a flow, which has
+    /// ended meanwhile (canceled from outside), waits no more
+    bool isWaitingForLeave() const;
 
     /// The page has refused a close request of the state Editing (the own tab of a tool
     /// stays, the user has canceled the question K16): the shell takes requests again. A
@@ -484,13 +505,28 @@ private:
     /// the tool stays (a question is open, or the shell has gone meanwhile)
     bool askCloseQuestion();
 
-    /// confirmLeave in the state Editing: the question of the unsaved work and the wait for its answer
-    bool confirmLeaveWork();
+    /// requestLeave in the state Editing: the question of the unsaved work
+    PDFAppLeaveResult requestLeaveWork(PDFAppLeaveFlow* flow);
 
-    /// The wait of a leave for the answer of the open question \p openQuestion (confirmLeaveWork, finishLeave):
-    /// a loop, which ends with the dialog or the shell. \returns the closing answer has accepted the leave (or the
-    /// tool has ended meanwhile); false for Keep and when the shell has gone.
-    bool waitForLeaveAnswer(QDialog* openQuestion);
+    /// The step of \p flow waits for the answer of the open question \p question (requestLeaveWork,
+    /// requestFinishLeave): Pending; its closing answer (closeAfterQuestion, deferCloseQuestionAction) reports Done,
+    /// its end without it Refused (from the event loop; Done when the tool has ended meanwhile)
+    PDFAppLeaveResult waitForLeaveQuestion(QDialog* question, PDFAppLeaveFlow* flow);
+
+    /// The question waited for has ended (finished or destroyed): the answer is read from the event loop
+    void onLeaveQuestionEnded();
+    void onLeaveQuestionSettled();
+
+    /// The answer of the question of a run (close-running)
+    void onLeaveRunningChosen(PDFAppDocumentChoice choice);
+
+    /// Ends the wait of the leave and reports \p result to the flow (the last call)
+    void reportLeave(PDFAppLeaveResult result);
+
+    /// The wait of a leave, whose flow has ended without the answer (its step dropped, L1 of the review of A0), is
+    /// forgotten: the question stays as the question of the tool and its answer acts as without a leave.
+    /// \returns true, when a leave still waits for the answer
+    bool checkLeaveWait();
 
     /// The question of askClose is open (shown, not answered yet)
     bool isCloseQuestionOpen() const;
@@ -500,6 +536,7 @@ private:
 
     void onParameterChanged(const QString& name);
     void onConfirmStateChanged();
+    void onWorkChanged();
     void onEscape();
     void onPreviewProgress(int percentage, const QString& stepText);
     void onPreviewFinished(const pdf::PDFDocumentToolResult& result);
@@ -619,8 +656,10 @@ private:
     bool m_isLeavingMode = false;   ///< The host is moving the parts back (close)
     bool m_isAskingClose = false;   ///< PDFDocumentToolGUI::askClose runs (re-entry guard)
     QPointer<QDialog> m_closeQuestion;  ///< The open question of PDFDocumentToolGUI::askClose (the GUI's, it deletes itself)
-    bool m_isWaitingForLeave = false;   ///< confirmLeave waits for the answer of m_closeQuestion: closeAfterQuestion only accepts the leave
-    bool m_isLeaveAccepted = false;     ///< The question answered by closing while confirmLeave waits
+    QPointer<PDFAppLeaveFlow> m_leaveFlow;  ///< A leave waits for an answer (the question of a run, m_leaveQuestion); not owned (the flow of a tab / window)
+    QPointer<QDialog> m_leaveQuestion;      ///< The question of the GUI, which the leave waits for; not owned (the GUI's)
+    quint64 m_leaveWaitId = 0;              ///< The current wait of a leave (a queued end of an older wait is ignored)
+    quint64 m_endedLeaveWaitId = 0;         ///< The wait, whose question has ended
     bool m_isCloseQuestionActionDeferred = false;   ///< The choice of the question waits for finishLeave (decision 8)
     QPointer<PDFAppContext> m_context;  ///< The context of the entry (recordUse after the host has gone)
     QPointer<QWidget> m_visibleKeyWidget;   ///< The key widget of the host watched by the event filter (an interactive tool); not owned
@@ -631,6 +670,7 @@ private:
     bool m_isInteractiveUsed = false;   ///< markInteractiveUse
     bool m_isUseRecorded = false;       ///< recordUse ran in this opening
     bool m_isDestroying = false;        ///< The destructor runs: the host and its tab are not read (their tab may be half destroyed)
+    quint64 m_workStamp = 0;            ///< getWorkStamp
     static const IPDFAppToolUseClock* s_useClock;
     bool m_isExportDialog = false;  ///< The result dialog is the export of a kept result: its decision returns to Editing
     bool m_isRunExportDialog = false;   ///< The export is the file of a run (keepResult): not saved, nothing is kept

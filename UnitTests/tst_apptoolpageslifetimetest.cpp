@@ -1246,16 +1246,20 @@ public:
         }
         QTimer::singleShot(0, run.window.data(), [buttonName]()
         {
+            // A0: the click runs the continuation of the flow (it may delete windows and dialogs): the button is found
+            // first, the list of the windows is never read after the click
+            QPushButton* answer = nullptr;
             for (QWidget* widget : QApplication::topLevelWidgets())
             {
                 pdf::PDFAppDocumentChoiceDialog* dialog = qobject_cast<pdf::PDFAppDocumentChoiceDialog*>(widget);
-                if (dialog && dialog->isVisible())
+                if (!answer && dialog && dialog->isVisible())
                 {
-                    if (QPushButton* button = dialog->findChild<QPushButton*>(buttonName))
-                    {
-                        button->click();
-                    }
+                    answer = dialog->findChild<QPushButton*>(buttonName);
                 }
+            }
+            if (answer)
+            {
+                answer->click();
             }
         });
     }

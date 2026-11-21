@@ -27,6 +27,7 @@
 // (PDFCertificateManager::setCertificateDirectories; never the folders of the user, never a
 // committed key, nothing on the system disk); the folders are removed at the end.
 
+#include "appasyncdialogs.h"
 #include "appdocumentfixture.h"
 #include "apptestcertificatefolders.h"
 
@@ -744,7 +745,12 @@ void AppCertificateDialogsTest::importCollision()
 
     // Choose Another File… imports the other file and the dialog goes
     pdf::PDFAppPanelFileDialogs::setOpenHandler([&another](QWidget*, const QString&, const QString&, const QString&) { return another; });
-    QTest::mouseClick(dialog->getChooseButton(), Qt::LeftButton);
+    {
+        // A0: the file comes from the event loop
+        const pdftest::NestedEventLoopGuard loopGuard;
+        QTest::mouseClick(dialog->getChooseButton(), Qt::LeftButton);
+        pdftest::AppAsyncDialogs::settle();
+    }
     QCOMPARE(imported.count(), 1);
     QCOMPARE(QFileInfo(imported.front().front().toString()).fileName(), QStringLiteral("jane_novak_2.pfx"));
     QTRY_VERIFY(!dialog);

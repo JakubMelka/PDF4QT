@@ -643,8 +643,8 @@ PDFAppAttachmentsPanel::PDFAppAttachmentsPanel(QWidget* parent) :
     layout->addWidget(lockedCard, 1);
     layout->addWidget(m_view, 1);
 
-    // A click (Enter) opens a PDF attachment, another one is saved (O18); from the event loop - the save dialog runs
-    // its own event loop, in which the tab may close, and Qt reads the view after its signal
+    // A click (Enter) opens a PDF attachment, another one is saved (O18); from the event loop - opening a document
+    // may change the tab, and Qt reads the view after its signal
     PDFAppItemViewSignalRelay* relay = new PDFAppItemViewSignalRelay(m_view, this);
     connect(relay, &PDFAppItemViewSignalRelay::clicked, this, &PDFAppAttachmentsPanel::onActivated);
     m_view->installEventFilter(this);
@@ -1005,22 +1005,57 @@ void PDFAppAttachmentsPanel::saveAttachment(int row)
         return;
     }
 
-    // Save always (D8), also programs and scripts; the dialog may run its own loop,
-    // in which the document may change and the rows with it: the attachment, its
-    // document and the file of the document are copied before the dialog
-    const PDFAppAttachment saved = *attachment;
-    const PDFDocumentPointer document = m_document;
-    const QString sourceFilePath = getSourceFilePath();
+    // Save always (D8), also programs and scripts; the document may change while the
+    // dialog is open and the rows with it: the attachment, its document and the file of
+    // the document (its Mark of the Web, O18) are copied before the dialog
+    PendingSave pending;
+    pending.attachment = *attachment;
+    pending.document = m_document;
+    pending.sourceFilePath = getSourceFilePath();
     const QString folder = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
-    QPointer<PDFAppAttachmentsPanel> self(this);
-    const QString filePath = PDFAppPanelFileDialogs::getSaveFileName(this, tr("Save Attachment"), QDir(folder).filePath(saved.name), tr("All files (*)"));
-    if (!self || filePath.isEmpty() || !document)
+    const QString proposedPath = QDir(folder).filePath(pending.attachment.name);
+
+    // The native dialog without a nested event loop (A0): the file comes to onSaveFileChosen,
+    // never inside this call; the request is a child of the panel (a panel deleted meanwhile
+    // gets nothing). The handler of the tests is foreign code, which may delete the panel.
+    QPointer<PDFAppAttachmentsPanel> guard(this);
+    PDFAppFileDialogRequest* request = PDFAppPanelFileDialogs::requestSaveFileName(this, tr("Save Attachment"), proposedPath, tr("All files (*)"),
+                                                                                   this, &PDFAppAttachmentsPanel::onSaveFileChosen);
+    if (!guard || !request)
+    {
+        return;
+    }
+    pending.request = request;
+    m_pendingSaves.push_back(std::move(pending));
+}
+
+void PDFAppAttachmentsPanel::onSaveFileChosen(const QString& filePath)
+{
+    // The request does not identify itself in the signal: the copies of its save
+    const QObject* request = sender();
+    auto it = m_pendingSaves.begin();
+    while (it != m_pendingSaves.end() && (!request || it->request.data() != request))
+    {
+        ++it;
+    }
+    if (it == m_pendingSaves.end())
+    {
+        return;
+    }
+
+    const PendingSave pending = std::move(*it);
+    m_pendingSaves.erase(it);
+    const PDFAppAttachment& saved = pending.attachment;
+    const PDFDocumentPointer& document = pending.document;
+    const QString& sourceFilePath = pending.sourceFilePath;
+    if (filePath.isEmpty() || !document)
     {
         return;
     }
 
     // The decoding and the writing run in a worker with shared copies of the
-    // document and of the file
+    // document and of the file; the Mark of the Web of the file of the document
+    // goes to the written file (PDFAppAttachments::write)
     startWatcher(QtConcurrent::run(&PDFAppAttachments::write, document, saved.specification, filePath, sourceFilePath));
 }
 
@@ -1040,7 +1075,15 @@ bool PDFAppAttachmentsPanel::openAttachment(int row)
 
 int PDFAppAttachmentsPanel::getRunningCount() const
 {
+    // A save waiting for its file dialog runs too
     int count = 0;
+    for (const PendingSave& pending : m_pendingSaves)
+    {
+        if (pending.request && pending.request->isPending())
+        {
+            ++count;
+        }
+    }
     for (const QPointer<QFutureWatcher<PDFAppAttachments::WriteResult>>& watcher : m_watchers)
     {
         if (watcher && !watcher->isFinished())

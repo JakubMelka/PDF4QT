@@ -38,10 +38,14 @@ namespace pdf
 
 class PDFAppDocument;
 class PDFAppDocumentCommandHandler;
+class PDFAppDocumentFileCommandHandler;
 class PDFAppDocumentLoader;
 class PDFAppDocumentStateScreen;
 class PDFAppDocumentView;
 class PDFAppLockPopover;
+
+/// The choice of a choice dialog (pdfappdocumentdialogs.h)
+enum class PDFAppDocumentChoice;
 
 /// Tab of a document (kind Document, step 3 plan 1.1). It owns the model
 /// (PDFAppDocument, registered in the PDFAppDocumentRegistry of the context), the
@@ -124,7 +128,7 @@ public:
     /// The shown lock popover (nullptr, if none is shown)
     PDFAppLockPopover* getLockPopover() const;
 
-    /// Closes the tab by its window (the questions of confirmClose are asked)
+    /// Closes the tab by its window (the questions of requestTabClose are asked)
     void requestClose();
 
     /// Writes the reading position and the view state into Recent now
@@ -132,11 +136,17 @@ public:
 
     /// The tab saves the document because of a close (Save of close-unsaved) and
     /// closes, when the file is written
-    bool isClosingAfterSave() const { return m_isClosingAfterSave; }
+    bool isClosingAfterSave() const;
 
     virtual QString getTabTitle() const override;
     virtual QString getTabIconName() const override;
-    virtual bool confirmClose() override;
+
+    /// The questions of the close of the tab in its flow (A0: shown, never exec; newapp_robustness.md 15.6): the
+    /// page (the work of a tool), close-running, the end of the leave of the page (the choice of the question of the
+    /// tool, the question about the work it could not keep), the open editors, close-unsaved; Save of close-unsaved
+    /// ends the flow and saves. Pending: the tab closes itself by its window after the last answer or the save, and
+    /// stays after Cancel or a failed save. Refused while the save of a close runs.
+    virtual PDFAppLeaveResult requestTabClose() override;
     virtual bool executeCommand(const QString& commandId) override;
     virtual bool isCommandEnabled(const QString& commandId) const override;
     virtual bool isCommandChecked(const QString& commandId) const override;
@@ -144,6 +154,11 @@ public:
     /// Starts the save of the document by package E. \returns false, when the
     /// document cannot be saved now (then no signal saveFinished comes).
     bool save();
+
+    /// The handler of package E for a save request (A0: PDFAppDocumentFileCommandHandler::requestSave - its end
+    /// exactly once, false from the event loop when the tab goes first); the tab emits saveFinished for it as for
+    /// save. nullptr = the tab has no handler (nothing can be saved).
+    PDFAppDocumentFileCommandHandler* prepareSave();
 
 Q_SIGNALS:
     /// The file cannot be opened (the window closes the tab and reports it)
@@ -175,6 +190,35 @@ private:
     void onFileSaveFinished(bool isSaved);
     void onDocumentShown();
 
+    /// The steps of the flow of the close (PDFAppLeaveFlow::getStep), in their order
+    enum class CloseStep
+    {
+        Page,           ///< The page asks (the work of a tool)
+        Running,        ///< close-running
+        FinishPages,    ///< The end of the leave of the page
+        Unsaved         ///< The open editors, close-unsaved
+    };
+
+    /// The save of the close (a request of package E), its end. The flow has ended before it (the save is no step:
+    /// a quit, a navigation, a lock go on meanwhile); isClosingAfterSave refuses a second close until its end.
+    void startCloseSave();
+    void onCloseSaveFinished(bool isSaved);
+
+    /// The steps of the close from \p from on (Done: the flow has ended, the caller closes the tab; Pending: a
+    /// question is open; Refused: the flow has ended without the close)
+    PDFAppLeaveResult continueClose(CloseStep from);
+
+    /// The flow of the close runs in \p step
+    bool isCloseStep(CloseStep step) const;
+
+    /// The close after a later answer: Done closes the tab by its window
+    void completeClose(PDFAppLeaveResult result);
+
+    void onClosePageStepFinished(pdf::PDFAppLeaveResult result);
+    void onCloseRunningChosen(pdf::PDFAppDocumentChoice choice);
+    void onCloseFinishStepFinished(pdf::PDFAppLeaveResult result);
+    void onCloseUnsavedChosen(pdf::PDFAppDocumentChoice choice);
+
     /// Running operations are stopped (background operations without a question)
     void stopOperations(bool askedOnly);
 
@@ -189,9 +233,8 @@ private:
     QPointer<QTimer> m_readingStateTimer;
     std::vector<QPointer<PDFAppDocumentCommandHandler>> m_handlers;
     bool m_isShown = false;             ///< The document has been shown once
-    bool m_isClosingAfterSave = false;  ///< Save of close-unsaved runs
-    bool m_isCloseConfirmed = false;    ///< The questions have been answered (closing after the save)
-    bool m_isAskingClose = false;       ///< A dialog of confirmClose is open
+    bool m_isCloseConfirmed = false;    ///< The questions have been answered (closing after the last answer or the save)
+    bool m_isClosingAfterSave = false;  ///< Save of close-unsaved runs (the tab closes after it)
     bool m_isReadingStatePending = false;
 };
 

@@ -72,6 +72,17 @@ enum class PDFAppNavigationMode
     NewTab      ///< A new tab New tab (only the route /open stays in it)
 };
 
+class PDFAppLeaveFlow;
+
+/// The result of a step of a leave without a nested event loop (A0, RR3-M5: PDFAppLeaveFlow, the request functions
+/// of PDFAppPage and of the tools)
+enum class PDFAppLeaveResult
+{
+    Done,       ///< The step has ended at once: the leave may go on
+    Refused,    ///< The leave is refused: the page stays (Keep, Cancel, a question gone without an answer)
+    Pending     ///< A question is open: the result comes later by PDFAppLeaveFlow::finishStep(reporter, Done / Refused)
+};
+
 /// Base of a page of the application (newapp_navigation.md 2). The navigator
 /// creates the page, when its route is shown, and destroys it, when the tab
 /// shows another route; a page reads its data from the database and keeps
@@ -146,25 +157,13 @@ public:
     virtual QVariantMap saveViewState() const;
     virtual void restoreViewState(const QVariantMap& state);
 
-    /// The navigator asks before the tab leaves the shown page for \p target (a
-    /// navigation or a step in the history, F14 of the plan of the first batch of phase
-    /// 2). False = the navigation is refused, the page stays and the history does not
-    /// change (a running tool: the user has chosen Keep Running). True = the page is
-    /// replaced right after the return: the page has ended what it was doing. The page
-    /// may show a dialog here, the page, its tab or the window may be deleted meanwhile
-    /// (the caller guards them). The default is true.
-    virtual bool prepareLeave(const PDFAppRoute& target);
-
-    /// The tab of the page closes, or the window quits (owner 2026-11-20: a tool with unsaved work of the
-    /// user asks its question, also when its tab or the window closes). The page may show a dialog and wait
-    /// for its answer; the page, its tab or the window may be deleted meanwhile (the caller guards them).
-    /// Nothing is ended here: a close canceled by a later question keeps the page as it is. \returns the
-    /// page may go. The default is true.
-    virtual bool confirmClose();
-
-    /// The page holds work of the user, which its close loses and which it would ask about (confirmClose):
+    /// The page holds work of the user, which its close loses and which it would ask about (requestClose):
     /// an assistant never closes it over the work - its close is refused (owner 2026-11-20). Default: false.
     virtual bool hasUnsavedWork() const;
+
+    /// A number, which changes with the work of hasUnsavedWork (an answer about the work holds only while it is the
+    /// same: PDFAppSessionEnd::isToolWorkDiscarded). Default: 0 (no work).
+    virtual quint64 getWorkStamp() const;
 
     /// The tab of the page closes now, or the window quits (every question has been answered, the tab is still
     /// whole, its deletion follows): the page records, what it must record before its teardown (the use of an
@@ -176,18 +175,12 @@ public:
     /// question of its run): an assistant changes no tab meanwhile (RESCCODE L6). Default: false.
     virtual bool isQuestionOpen() const;
 
-    /// A navigation of the tab to \p target leaves the page (prepareLeave would end what it shows); false = the
+    /// A navigation of the tab to \p target leaves the page (requestLeave would end what it shows); false = the
     /// page stays (the route of the page itself). An assistant's navigation, which would leave a page with
     /// unsaved work, is refused (RESCCODE L5). Default: every route except the route of the page.
     virtual bool isLeftBy(const PDFAppRoute& target) const;
 
-    /// The document of the tab of the page is being locked by the user (owner 2026-11-20, decision 6): a tool,
-    /// which the lock ends, asks its question of the unsaved work first and waits for the answer. \returns the
-    /// lock may go on; false = the user keeps the tool (the document stays unlocked). The page, its tab or the
-    /// window may be deleted meanwhile (the caller guards them). Default: true.
-    virtual bool confirmDocumentLock();
-
-    /// Ends the leave, which the page has accepted (confirmClose, confirmDocumentLock returned true; prepareLeave
+    /// Ends the leave, which the page has accepted (requestClose, requestDocumentLock returned Done; requestLeave
     /// ends its own leave): the code, which started the leave, calls it exactly once, when it knows the outcome
     /// (owner 2026-11-20, decision 8). \p isProceeding - the leave goes on (the quit and the close of a tab before
     /// the question of the unsaved documents, the lock before the lock): a choice of a question of the page, which
@@ -203,6 +196,44 @@ public:
     /// a page has refused (false), the rest are ended by false: the leave is canceled, no further choice is applied.
     /// \returns false, when a page has refused.
     static bool finishLeaves(const std::vector<QPointer<PDFAppPage>>& pages, bool isProceeding);
+
+    // ------------------------------------------------------------- leave without a nested event loop (A0)
+    //
+    // A page, which asks the user, shows its question (show / open, never exec; PDFAppDialogAnswer,
+    // PDFAppDocumentChoiceDialog::ask) and returns Pending; it reports the answer exactly once by
+    // PDFAppLeaveFlow::finishStep(this page, Done / Refused) - never inside the call, which returned Pending - and the
+    // caller waits for it by PDFAppLeaveFlow::waitForStep(page, caller, slot) right after the call. A question
+    // deleted without an answer is Refused (the flow continues on its deletion); a page deleted before it reports is
+    // Refused (PDFAppLeaveFlowStep). The page reads the state again when its answer comes (the tab, the document, the
+    // tool may have changed meanwhile). The calls may run code of the application (the activation of the tab of the
+    // page): the caller guards itself after them.
+
+    /// The navigator asks before the tab leaves the shown page for \p target (a navigation or a step in the history,
+    /// F14 of the plan of the first batch of phase 2). Done = the page has ended its leave itself (the transaction
+    /// finishLeave of a tool page is the page's own here), the page is replaced, the navigation goes on; Refused =
+    /// the page stays and the history does not change (a running tool: the user has chosen Keep Running); Pending =
+    /// its question is open. The default is Done.
+    virtual PDFAppLeaveResult requestLeave(const PDFAppRoute& target, PDFAppLeaveFlow* flow);
+
+    /// The tab of the page closes, or the window quits (owner 2026-11-20: a tool with unsaved work of the user asks
+    /// its question, also when its tab or the window closes). Done = the page may go; the caller records it by
+    /// PDFAppLeaveFlow::addAcceptedPage and ends it by finishLeave at the end of the transaction
+    /// (PDFAppLeaveFlow::requestFinishPages / finish); nothing is ended here: a close canceled by a later question
+    /// keeps the page as it is. Refused = the page stays. Pending = its question is open. The default is Done.
+    virtual PDFAppLeaveResult requestClose(PDFAppLeaveFlow* flow);
+
+    /// The document of the tab of the page is being locked by the user (owner 2026-11-20, decision 6): a tool, which
+    /// the lock ends, asks its question of the unsaved work first. Done = the lock may go on (the caller records the
+    /// page as requestClose); Refused = the user keeps the tool (the document stays unlocked); Pending = its question
+    /// is open. The default is Done.
+    virtual PDFAppLeaveResult requestDocumentLock(PDFAppLeaveFlow* flow);
+
+    /// finishLeave, which may ask (A0, P1; PDFAppLeaveFlow::requestFinishPages calls it). Done = the
+    /// leave goes on (finishLeave true); Refused = the applied choice could not keep all of the work, the caller cancels
+    /// the leave (finishLeave false); Pending = the page asks about the rest (Measure "Keep Measuring / Discard and
+    /// Close", its question open): its result comes by \p flow->finishStep(this page, Done / Refused), never inside the
+    /// call. \p isProceeding false never asks. The default calls finishLeave.
+    virtual PDFAppLeaveResult requestFinishLeave(bool isProceeding, PDFAppLeaveFlow* flow);
 
     PDFAppContext* getContext() const { return m_context; }
 

@@ -1011,7 +1011,7 @@ void PDFAppSettingControl::onColorSelected(const QColor& color)
 void PDFAppSettingControl::onBrowseClicked()
 {
     PDFLineEdit* lineEdit = getLineEdit();
-    if (!lineEdit)
+    if (!lineEdit || isFolderDialogPending())
     {
         return;
     }
@@ -1025,15 +1025,34 @@ void PDFAppSettingControl::onBrowseClicked()
         startFolder.clear();
     }
 
-    // The dialog runs its own event loop: the page may be deleted meanwhile
-    QPointer<PDFAppSettingControl> guard(this);
-    const QString folder = PDFAppFileDialogs::getExistingDirectory(lineEdit->window(), startFolder, m_definition.getTitle());
-    if (!guard || folder.isEmpty())
+    // A0: the dialog answers later in onFolderChosen (exactly once while the control lives; a control deleted
+    // meanwhile with its page gets nothing). The request is the last call: a handler of the tests is foreign code.
+    PDFAppFileDialogs::requestExistingDirectory(lineEdit->window(), startFolder, m_definition.getTitle(), this, &PDFAppSettingControl::onFolderChosen);
+}
+
+bool PDFAppSettingControl::isFolderDialogPending() const
+{
+    // The request of Browse… is a direct child of the control until it has answered (one dialog at a time, as the
+    // modal dialog of exec() was)
+    const QList<PDFAppFileDialogRequest*> requests = findChildren<PDFAppFileDialogRequest*>(QString(), Qt::FindDirectChildrenOnly);
+    for (const PDFAppFileDialogRequest* request : requests)
+    {
+        if (request->isPending())
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void PDFAppSettingControl::onFolderChosen(const QString& folder)
+{
+    if (folder.isEmpty())
     {
         return;
     }
 
-    lineEdit = getLineEdit();
+    PDFLineEdit* lineEdit = getLineEdit();
     if (lineEdit)
     {
         const QSignalBlocker blocker(lineEdit);

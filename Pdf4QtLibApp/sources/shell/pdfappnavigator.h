@@ -107,7 +107,7 @@ public:
     /// A navigation runs (a navigation requested now is done after it, the last one wins)
     bool isNavigating() const { return m_isNavigating; }
 
-    /// The page, which navigate(\p route, \p mode, \p sourceTab) would leave (PDFAppPage::prepareLeave asked, the
+    /// The page, which navigate(\p route, \p mode, \p sourceTab) would leave (PDFAppPage::requestLeave asked, the
     /// page replaced): the shown page of the tab, which the navigation chooses, when the route is not its own
     /// (PDFAppPage::isLeftBy). nullptr = no page is left: the route goes to a new tab (a tool with its own tab over a
     /// document, a new tool tab, a new Help tab, New tab), or the page stays. Nothing is created or changed (an
@@ -134,7 +134,10 @@ private:
     {
         Navigate,
         Back,
-        Forward
+        Forward,
+        ContinueNavigate,   ///< The shown page has answered later (A0): the navigation goes on
+        ContinueBack,       ///< The same for a step back in the history
+        ContinueForward     ///< The same for a step forward
     };
 
     struct Request
@@ -143,11 +146,25 @@ private:
         PDFAppRoute route;
         PDFAppNavigationMode mode = PDFAppNavigationMode::Push;
         QPointer<PDFAppTab> tab;
+        int historyIndex = -1;  ///< The current entry of the history at the question (ContinueBack, ContinueForward)
     };
 
     void process(const Request& request);
     void navigateImpl(const PDFAppRoute& route, PDFAppNavigationMode mode, PDFAppTab* sourceTab);
     bool moveInHistory(PDFAppTab* tab, bool isBack);
+
+    /// The shown page of \p tab is left for \p target in the flow of the tab (A0: PDFAppPage::requestLeave). Done =
+    /// the navigation goes on now; Refused = the page stays; Pending = its question is open: onLeaveStepFinished
+    /// goes on by the request \p continuation (\p historyIndex = the current entry of the history)
+    PDFAppLeaveResult leavePage(PDFAppTab* tab, PDFAppPage* page, const PDFAppRoute& target, PDFAppNavigationMode mode, RequestKind continuation, int historyIndex);
+    void onLeaveStepFinished(pdf::PDFAppLeaveResult result);
+
+    /// The rest of a navigation after the page has been left: the history, the activation, the new page
+    void completeNavigate(PDFAppTab* tabPointer, const PDFAppRoute& target, PDFAppNavigationMode mode);
+
+    /// The rest of a step in the history (checked again after a later answer of the page)
+    void continueMoveInHistory(const Request& request);
+    bool completeMoveInHistory(PDFAppTab* tab, bool isBack);
     PDFAppRouteMatch resolve(PDFAppRoute* route) const;
     /// The tab of the route; \p isCreating false = the tab, which exists (nullptr, where a new tab would be made)
     PDFAppTab* chooseTab(const PDFAppRouteMatch& match, PDFAppNavigationMode mode, PDFAppTab* sourceTab, bool isCreating = true);

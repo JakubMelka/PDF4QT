@@ -2542,6 +2542,12 @@ private:
             fail(PDFAppMcpCatalogToolsHelper::getBusyText(), PDFMcpActivityStatus::DeniedBusy);
             return;
         }
+        if (PDFAppMcpChangeJob::isWindowLeaving(m_host))
+        {
+            // The window quits (A0, RR3-L7): the result is not committed into the document
+            fail(PDFAppMcpChangeJob::getWindowLeavingText(), PDFMcpActivityStatus::DeniedBusy);
+            return;
+        }
 
         if (document->getVersion() != getSnapshot().version)
         {
@@ -3107,6 +3113,11 @@ public:
             host->finishWithError(m_call, m_activityId, actionId, document, PDFAppMcpCatalogToolsHelper::getBusyText(), PDFMcpActivityStatus::DeniedBusy);
             return;
         }
+        if (PDFAppMcpChangeJob::isWindowLeaving(host))
+        {
+            host->finishWithError(m_call, m_activityId, actionId, document, PDFAppMcpChangeJob::getWindowLeavingText(), PDFMcpActivityStatus::DeniedBusy);
+            return;
+        }
         switch (PDFAppToolResultWriter::getDocumentRefusal(m_request.tool->getInfo(), document))
         {
             case PDFAppToolResultWriter::DocumentRefusal::Locked:
@@ -3216,6 +3227,11 @@ public:
         if (host->findChild<QObject*>(getObjectName(), Qt::FindDirectChildrenOnly))
         {
             host->finishWithError(call, actionId, document, getBusyText(), PDFMcpActivityStatus::DeniedBusy);
+            return;
+        }
+        if (PDFAppMcpChangeJob::isWindowLeaving(host))
+        {
+            host->finishWithError(call, actionId, document, PDFAppMcpChangeJob::getWindowLeavingText(), PDFMcpActivityStatus::DeniedBusy);
             return;
         }
 
@@ -3468,6 +3484,11 @@ private:
         if (document->isBlockedByOperation())
         {
             end(PDFAppMcpCatalogToolsHelper::getBusyText(), PDFMcpActivityStatus::DeniedBusy);
+            return;
+        }
+        if (PDFAppMcpChangeJob::isWindowLeaving(host))
+        {
+            end(PDFAppMcpChangeJob::getWindowLeavingText(), PDFMcpActivityStatus::DeniedBusy);
             return;
         }
         if (document->isLocked())
@@ -3983,6 +4004,13 @@ public:
             if (document->isBlockedByOperation() && !PDFAppMcpReviewToolsHelper::isReadingOnly(tool.get(), actionParameters))
             {
                 host->finishWithError(call, toolId, document, Helper::getBusyText(), PDFMcpActivityStatus::DeniedBusy);
+                return;
+            }
+
+            // The window quits (A0, RR3-L7): no work on the document starts (a review tool only reads)
+            if (PDFAppMcpChangeJob::isWindowLeaving(host) && !PDFAppMcpReviewToolsHelper::isReadingOnly(tool.get(), actionParameters))
+            {
+                host->finishWithError(call, toolId, document, PDFAppMcpChangeJob::getWindowLeavingText(), PDFMcpActivityStatus::DeniedBusy);
                 return;
             }
 

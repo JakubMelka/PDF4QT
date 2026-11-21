@@ -1608,20 +1608,8 @@ void PDFAppToolDrawingPart::startElement(ElementKind kind)
     }
     if (kind == ElementKind::SvgImage)
     {
-        // The file dialog runs an event loop (the part may be gone after it); a file, which cannot be
-        // used, says why (review RS6APP: the reason was dropped) - the message is the last call
-        QString errorMessage;
-        QPointer<PDFAppToolDrawingPart> guard(this);
-        const bool isStarted = chooseSvgImage(&errorMessage);
-        if (!guard || isStarted)
-        {
-            return;
-        }
-        updateActions();
-        if (!errorMessage.isEmpty())
-        {
-            showSvgError(errorMessage);
-        }
+        // The file dialog of the image; its answer comes later (onSvgFileChosen)
+        chooseSvgImage();
         return;
     }
 
@@ -1680,19 +1668,40 @@ QString PDFAppToolDrawingPart::getEscapeHint() const
     return getSelectedElements().empty() ? QString() : tr("Esc clears the selection");
 }
 
-bool PDFAppToolDrawingPart::chooseSvgImage(QString* errorMessage)
+void PDFAppToolDrawingPart::chooseSvgImage()
 {
-    QWidget* parent = m_widget ? m_widget->window() : nullptr;
-
-    // Plan 7.2: the file only from the file dialog of the user; the dialog runs an event loop - the
-    // part may be gone after it
-    QPointer<PDFAppToolDrawingPart> guard(this);
-    const QString filePath = PDFAppPanelFileDialogs::getOpenFileName(parent, tr("Insert SVG Image"), QString(), tr("SVG images (*.svg)"));
-    if (!guard || filePath.isEmpty())
+    // Plan 7.2: the file only from the file dialog of the user. A0: the dialog answers onSvgFileChosen (the request is
+    // a child of the part: a part gone meanwhile gets nothing); one file dialog at a time
+    if (m_fileRequest && m_fileRequest->isPending())
     {
-        return false;
+        return;
     }
+    QWidget* parent = m_widget ? m_widget->window() : nullptr;
+    m_fileRequest = PDFAppPanelFileDialogs::requestOpenFileName(parent, tr("Insert SVG Image"), QString(), tr("SVG images (*.svg)"), this,
+                                                                &PDFAppToolDrawingPart::onSvgFileChosen);
+}
 
+void PDFAppToolDrawingPart::onSvgFileChosen(const QString& filePath)
+{
+    // The state again: the drawing still takes the input (a run started meanwhile takes no image). A file, which
+    // cannot be used, says why (review RS6APP: the reason was dropped) - the message is the last call; a canceled
+    // dialog gives the button its state back.
+    QString errorMessage;
+    QPointer<PDFAppToolDrawingPart> guard(this);
+    const bool isStarted = !filePath.isEmpty() && m_isActionsEnabled && m_isInputEnabled && useSvgFile(filePath, &errorMessage);
+    if (!guard || isStarted)
+    {
+        return;
+    }
+    updateActions();
+    if (!errorMessage.isEmpty())
+    {
+        showSvgError(errorMessage);
+    }
+}
+
+bool PDFAppToolDrawingPart::useSvgFile(const QString& filePath, QString* errorMessage)
+{
     QFile file(filePath);
     const QFileInfo info(filePath);
     if (info.size() > MAXIMUM_SVG_SIZE)

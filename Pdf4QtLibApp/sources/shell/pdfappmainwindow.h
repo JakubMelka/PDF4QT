@@ -55,6 +55,9 @@ class PDFAppOpenFailure;
 class PDFAppToolInputList;
 class PDFAppToolTab;
 
+/// The choice of a choice dialog (pdfappdocumentdialogs.h)
+enum class PDFAppDocumentChoice;
+
 /// Main window of the application (newapplication.md 3, decisions 9 and 12): one
 /// window per process without the frame of the system, the top bar with the tabs
 /// (the Home tab is not closable, tabs New tab and later documents and tools),
@@ -138,8 +141,21 @@ public:
     /// tool wait (a message box, which only informs, is not one), nullptr if none
     static QWidget* getBlockingModalWidget();
 
-    /// Closes the tab (not the Home tab). \returns false, if it is not closed.
+    /// Closes the tab (not the Home tab): requestCloseTab. \returns true, when the tab has been closed in this call;
+    /// false = it stays (refused) or its question is open (it closes itself after the last answer).
     bool closeTab(PDFAppTab* tab);
+
+    /// Closes the tab (not the Home tab) without a nested event loop (A0): its questions are shown in the flow of the
+    /// tab (PDFAppTab::requestTabClose). Done = closed in this call; Refused = it stays; Pending = a question is open
+    /// (or the save of the close runs): the tab closes itself by closeTab after the last answer, or stays.
+    PDFAppLeaveResult requestCloseTab(PDFAppTab* tab);
+
+    /// The leave flow of the window (A0, RR3-H2: one per window, its child): the quit, the question of the end of
+    /// the session (PDFAppSessionEnd)
+    PDFAppLeaveFlow* getLeaveFlow();
+
+    /// The leave flow of the window, nullptr before its first use
+    PDFAppLeaveFlow* findLeaveFlow() const { return m_leaveFlow.data(); }
 
     /// Tab of the document id (step 3); nullptr if there is none (the own tab of a tool
     /// is found by findToolTab)
@@ -310,8 +326,9 @@ public:
 
     /// Command Open… (Ctrl+O): the native dialog of the system for PDF files in the
     /// folder (empty = the default folder of the system); the chosen files are
-    /// opened (openDocuments). The dialog runs its own event loop: a second request
-    /// while it is shown does nothing, the window may be deleted meanwhile.
+    /// opened (openDocuments). The call returns at once (A0: no nested event loop), the
+    /// files come later; a second request while the dialog is shown does nothing, a
+    /// window deleted meanwhile gets nothing.
     void browseDocuments(const QString& folder = QString());
 
     /// A dialog of browseDocuments is shown
@@ -344,12 +361,14 @@ protected:
     virtual void dragLeaveEvent(QDragLeaveEvent* event) override;
     virtual void dropEvent(QDropEvent* event) override;
 
-    /// Asked, when the window is being closed: false = the user has canceled the
-    /// quitting. Documents with unsaved changes are listed in pdf4qt-quit-unsaved
-    /// 955:145378: Quit Without Saving quits, Save All saves the documents one by
-    /// one by package E and quits, when all of them are saved (a failed or
-    /// canceled save keeps the window open), Cancel keeps the window.
-    virtual bool confirmClose();
+    /// Asked, when the window is being closed (A0: the flow of the window, its questions shown without an event
+    /// loop, newapp_robustness.md 15.6): the tools with unsaved work in the tabs of the documents, the own tabs of the
+    /// tools, the end of the leave of the pages, the open editors, then the documents with unsaved changes listed in
+    /// pdf4qt-quit-unsaved 955:145378: Quit Without Saving quits, Save All saves the documents one by one by package E
+    /// and quits, when all of them are saved (a failed or canceled save keeps the window open), Cancel keeps the
+    /// window. Done = the window quits now; Refused = the user has canceled the quitting; Pending = a question is
+    /// open or Save All runs: the window closes itself after the last answer / save (close), or stays.
+    virtual PDFAppLeaveResult requestQuit();
 
 public:
     /// The window quits (or the system session ends): every page records, what it must record while its tab
@@ -427,9 +446,46 @@ private:
     void showOpenFailures();
     void onOpenFailedDialogFinished();
     void onDocumentLoadFailed(const QString& filePath, const QString& errorMessage);
+
+    /// The tab of a failed document, whose flow runs (a question of a navigation or a lock is open), closes after the
+    /// end of the flow (M2 of the review of A0): the end is noted, the tabs close from the event loop
+    void onFailedTabFlowFinished();
+    void closeFailedTabs();
+
+    /// The close of a tab by the user (its button, the command): refused while the flow of the window runs
+    void closeTabByUser(PDFAppTab* tab);
     void onEditCopyRequested();
     void onLockClicked(int index);
     void connectDocumentTab(PDFAppDocumentTab* tab);
+
+    /// The steps of the flow of the quit (PDFAppLeaveFlow::getStep), in their order
+    enum class QuitStep
+    {
+        ToolPages,      ///< The pages of the tools in the tabs of the documents (the queue of the flow)
+        ToolTabs,       ///< The own tabs of the tools (the queue of the flow)
+        FinishPages,    ///< The end of the leave of the accepted pages
+        Unsaved,        ///< quit-unsaved is open
+        Saving          ///< Save All runs
+    };
+
+    /// The steps of the quit from \p from on (Done: the flow has ended, the window may quit; Pending: a question is
+    /// open or Save All runs; Refused: the flow has ended without the quit)
+    PDFAppLeaveResult continueQuit(QuitStep from);
+
+    /// The flow of the quit runs in \p step
+    bool isQuitStep(QuitStep step) const;
+
+    /// The quit after a later answer: Done closes the window (close with the quit confirmed)
+    void completeQuit(PDFAppLeaveResult result);
+    void onQuitStepFinished(pdf::PDFAppLeaveResult result);
+    void onQuitUnsavedChosen(pdf::PDFAppDocumentChoice choice);
+    void onLeaveFlowFinished(bool isDone);
+
+    /// The quit has been canceled: the held requests are opened, the server listens again
+    void resumeAfterQuit();
+
+    /// The files of browseDocuments (empty = canceled)
+    void onBrowseDocumentsChosen(const QStringList& files);
 
     /// Save All of quit-unsaved: the next document is saved, the window closes after the last one
     void saveNextForQuit();
@@ -480,8 +536,11 @@ private:
     QPointer<PDFAppOpenFailedDialog> m_openFailedDialog;
     QString m_lastOpenedTitle;
     bool m_isQuitConfirmed = false;
+    bool m_isQuitFlowActive = false;    ///< closeEvent has started the flow of the quit: its end without the quit resumes the server
+    QPointer<PDFAppLeaveFlow> m_leaveFlow;  ///< Owned (a child of the window)
     std::vector<QPointer<PDFAppDocumentTab>> m_quitSaveQueue;
     QPointer<PDFAppDocumentTab> m_quitSavingTab;
+    std::vector<QPointer<PDFAppDocumentTab>> m_failedTabs;  ///< Tabs of failed documents, which close after their flow
     bool m_isFullScreenMode = false;
     Qt::WindowStates m_windowStateBeforeFullScreen = Qt::WindowNoState;
 

@@ -25,8 +25,14 @@
 
 #include "pdfappdocumentcommands.h"
 
+#include <QPointer>
+
 namespace pdf
 {
+class PDFAppPage;
+
+/// The result of a step of a leave (pdfapppage.h)
+enum class PDFAppLeaveResult;
 
 /// Commands of package A (model): Undo, Redo, Lock document, Edit a copy
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentModelCommandHandler : public PDFAppDocumentCommandHandler
@@ -43,6 +49,23 @@ public:
     virtual void execute(const QString& commandId) override;
     virtual bool isEnabled(const QString& commandId) const override;
     virtual bool isChecked(const QString& commandId) const override;
+
+private:
+    /// The steps of the lock in the flow of the tab (PDFAppLeaveFlow::getStep)
+    enum class LockStep
+    {
+        Page,           ///< The page asks (PDFAppPage::requestDocumentLock)
+        FinishPages     ///< The end of the leave of the page (its choice, its question about the rest)
+    };
+
+    /// Lock document (A0, owner 2026-11-20 decision 6): the page of a tool, which the lock ends, asks in the flow of
+    /// the tab; the lock follows its answer, the end of its leave and then the lock (the last call)
+    void requestLock();
+    void continueLock();
+    void finishLock(bool isProceeding);
+    void onLockStepFinished(pdf::PDFAppLeaveResult result);
+
+    QPointer<PDFAppPage> m_lockPage;    ///< The page asked by the lock, whose answer the flow waits for; not owned
 };
 
 }   // namespace pdf

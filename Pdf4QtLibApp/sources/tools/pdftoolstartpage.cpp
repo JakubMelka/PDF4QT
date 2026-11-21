@@ -710,10 +710,18 @@ void PDFToolStartPage::onDocumentChosen(const QString& documentId)
 
 void PDFToolStartPage::onOpenFileRequested()
 {
-    // The native dialog runs its own event loop: the page may go meanwhile
-    QPointer<PDFToolStartPage> guard(this);
-    const QStringList files = PDFAppFileDialogs::getOpenFileNames(window(), QString());
-    if (!guard || files.isEmpty())
+    // A0: the dialog answers onOpenFilesChosen (the request is a child of the page: a page gone meanwhile gets
+    // nothing); one dialog at a time
+    if (m_fileRequest && m_fileRequest->isPending())
+    {
+        return;
+    }
+    m_fileRequest = PDFAppFileDialogs::requestOpenFileNames(window(), QString(), this, &PDFToolStartPage::onOpenFilesChosen);
+}
+
+void PDFToolStartPage::onOpenFilesChosen(const QStringList& files)
+{
+    if (files.isEmpty())
     {
         return;
     }

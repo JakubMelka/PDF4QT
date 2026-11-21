@@ -600,18 +600,20 @@ void PDFKeyValueList::contextMenuEvent(QContextMenuEvent* event)
         return;
     }
 
-    // The application can delete the list while the menu runs its event loop:
-    // the menu (a child of the list) is deleted with it, so it is not an object
-    // on the stack, and the value is taken before
-    const QString value = m_rows[index].value;
-    QPointer<QMenu> menu = new QMenu(this);
+    // A popup, no nested event loop (A0): the menu is a child of the list (deleted
+    // with it) and is deleted, when it is closed; Copy Value is queued into the list
+    // (a deleted list drops it). The value is taken now.
+    m_contextMenuValue = m_rows[index].value;
+    QMenu* menu = new QMenu(this);
+    menu->setAttribute(Qt::WA_DeleteOnClose);
     QAction* copyAction = menu->addAction(PDFThemeIcons::getIcon(QStringLiteral("copy")), tr("Copy Value"));
-    QAction* chosenAction = menu->exec(event->globalPos());
-    if (menu && chosenAction == copyAction)
-    {
-        QGuiApplication::clipboard()->setText(value);
-    }
-    delete menu.data();
+    connect(copyAction, &QAction::triggered, this, &PDFKeyValueList::copyContextMenuValue, Qt::QueuedConnection);
+    menu->popup(event->globalPos());
+}
+
+void PDFKeyValueList::copyContextMenuValue()
+{
+    QGuiApplication::clipboard()->setText(m_contextMenuValue);
 }
 
 /// Close button of a document tab. QTabBar keeps its buttons as plain pointers

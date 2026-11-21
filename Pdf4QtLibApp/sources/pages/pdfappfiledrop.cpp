@@ -22,6 +22,7 @@
 
 #include "pdfappfiledrop.h"
 #include "pdfappassemblyloader.h"
+#include "pdfappleaveflow.h"
 #include "pdfappmainwindow.h"
 #include "pdfdocumentassemblyfile.h"
 #include "pdfdatabase.h"
@@ -37,6 +38,8 @@
 #include <QPointer>
 #include <QUrl>
 #include <QWidget>
+
+#include <algorithm>
 
 namespace pdf
 {
@@ -224,131 +227,358 @@ QString PDFAppFileDrop::getRefusalText(Refusal refusal)
     return QString();
 }
 
-QStringList PDFAppFileDialogs::getOpenFileNames(QWidget* parent, const QString& folder)
-{
-    if (const OpenFilesHandler& handler = getOpenFilesHandler())
-    {
-        return handler(parent, folder);
-    }
+// ---------------------------------------------------------------- file dialog request
 
-    return QFileDialog::getOpenFileNames(parent, QCoreApplication::translate("pdf::PDFAppFileDialogs", "Open PDF Files"), folder,
-                                         QCoreApplication::translate("pdf::PDFAppFileDialogs", "PDF files (*.pdf);;All files (*)"));
+PDFAppFileDialogRequest::PDFAppFileDialogRequest(QObject* requester, QWidget* parent, const Settings& settings) :
+    BaseClass(requester),
+    m_parent(parent),
+    m_settings(settings)
+{
+    setObjectName(QStringLiteral("fileDialogRequest"));
+    getRegistry().push_back(this);
 }
 
-QStringList PDFAppFileDialogs::getOpenDocumentFileNames(QWidget* parent, const QString& folder)
+PDFAppFileDialogRequest::~PDFAppFileDialogRequest()
 {
-    if (const OpenFilesHandler& handler = getOpenFilesHandler())
-    {
-        return handler(parent, folder);
-    }
-
-    return QFileDialog::getOpenFileNames(parent, QCoreApplication::translate("pdf::PDFAppFileDialogs", "Open"), folder, getOpenDocumentFilter());
+    // An open dialog stays (QR3.7, RR3-M2: a native dialog is never closed from the program); its answer is dropped
+    unregister();
 }
 
-QString PDFAppFileDialogs::getOpenDocumentFilter()
+PDFAppFileDialogRequest* PDFAppFileDialogRequest::create(QObject* requester, QWidget* parent, const Settings& settings)
 {
-    const QString assemblies = QStringLiteral("*.") + QString::fromLatin1(PDFDocumentAssemblyFile::FILE_SUFFIX);
-    return QCoreApplication::translate("pdf::PDFAppFileDialogs", "PDF files and assemblies (*.pdf %1);;PDF files (*.pdf);;PDF4QT assemblies (%1);;All files (*)").arg(assemblies);
+    return requester ? new PDFAppFileDialogRequest(requester, parent, settings) : nullptr;
 }
 
-QStringList PDFAppFileDialogs::getOpenInputFileNames(QWidget* parent, const QString& folder)
+void PDFAppFileDialogRequest::show()
 {
-    if (const OpenFilesHandler& handler = getOpenFilesHandler())
+    if (!m_isPending || m_dialog || m_dialogAnswer || isHandlerSet())
     {
-        return handler(parent, folder);
+        return;
     }
 
+    // The arguments of the static functions of QFileDialog: the constructor takes the folder of the path and selects
+    // its name (QFileDialogArgs), then the mode, the options and the selection as QFileDialog(const QFileDialogArgs&)
+    QWidget* window = m_parent ? m_parent->window() : nullptr;
+    QFileDialog* dialog = new QFileDialog(window, m_settings.title, m_settings.path, m_settings.filter);
+    dialog->setObjectName(QStringLiteral("fileDialog"));
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setSupportedSchemes(QStringList(QStringLiteral("file")));
+    switch (m_settings.mode)
+    {
+        case Mode::OpenFiles:
+            dialog->setFileMode(QFileDialog::ExistingFiles);
+            break;
+
+        case Mode::OpenFile:
+            dialog->setFileMode(QFileDialog::ExistingFile);
+            break;
+
+        case Mode::SaveFile:
+            dialog->setFileMode(QFileDialog::AnyFile);
+            dialog->setAcceptMode(QFileDialog::AcceptSave);
+            break;
+
+        case Mode::Directory:
+            dialog->setFileMode(QFileDialog::Directory);
+            dialog->setOptions(QFileDialog::ShowDirsOnly);
+            break;
+    }
+    if (!m_settings.defaultSuffix.isEmpty())
+    {
+        dialog->setDefaultSuffix(m_settings.defaultSuffix);
+    }
+    dialog->selectFile(getInitialSelection(m_settings.path));
+
+    m_dialog = dialog;
+    m_dialogAnswer = PDFAppDialogAnswer::watch(dialog, this, &PDFAppFileDialogRequest::onDialogAnswered);
+    PDFAppDialogAnswer::showModal(dialog);
+}
+
+void PDFAppFileDialogRequest::answerByHandler(FilesHandler handler)
+{
+    if (!handler || !canAnswerByHandler())
+    {
+        return;
+    }
+
+    m_filesHandler = std::move(handler);
+    queueHandlerAnswer();
+}
+
+void PDFAppFileDialogRequest::answerByHandler(FileHandler handler)
+{
+    if (!handler || !canAnswerByHandler())
+    {
+        return;
+    }
+
+    m_fileHandler = std::move(handler);
+    queueHandlerAnswer();
+}
+
+void PDFAppFileDialogRequest::answerByHandler(PanelFileHandler handler)
+{
+    if (!handler || !canAnswerByHandler())
+    {
+        return;
+    }
+
+    m_panelFileHandler = std::move(handler);
+    queueHandlerAnswer();
+}
+
+void PDFAppFileDialogRequest::queueHandlerAnswer()
+{
+    // The handler answers later, as the user of a real dialog: the slot of this request (a child of the requester) -
+    // a request deleted before it calls nothing
+    QMetaObject::invokeMethod(this, &PDFAppFileDialogRequest::onHandlerAnswer, Qt::QueuedConnection);
+}
+
+std::vector<PDFAppFileDialogRequest*> PDFAppFileDialogRequest::getPendingRequests()
+{
+    return getRegistry();
+}
+
+QFileDialog* PDFAppFileDialogRequest::getDialog() const
+{
+    return m_isPending ? m_dialog.data() : nullptr;
+}
+
+void PDFAppFileDialogRequest::answer(const QStringList& files)
+{
+    if (!m_isPending)
+    {
+        return;
+    }
+
+    // The dialog closes without its own answer: its watcher goes first; its close runs code of Qt
+    delete m_dialogAnswer.data();
+    QPointer<PDFAppFileDialogRequest> guard(this);
+    if (QFileDialog* dialog = m_dialog.data())
+    {
+        dialog->reject();
+    }
+    if (guard)
+    {
+        deliver(files);
+    }
+}
+
+QStringList PDFAppFileDialogRequest::getSelectedFiles(const QFileDialog* dialog, Mode mode)
+{
+    QStringList files;
+    if (!dialog)
+    {
+        return files;
+    }
+
+    const QList<QUrl> urls = dialog->selectedUrls();
+    if (mode == Mode::OpenFiles)
+    {
+        for (const QUrl& url : urls)
+        {
+            files << url.toString(QUrl::PreferLocalFile);
+        }
+        return files;
+    }
+
+    const QUrl url = urls.value(0);
+    const QString file = url.isLocalFile() || url.isEmpty() ? url.toLocalFile() : url.toString();
+    if (!file.isEmpty())
+    {
+        files << file;
+    }
+    return files;
+}
+
+QString PDFAppFileDialogRequest::getInitialSelection(const QString& path)
+{
+    if (path.isEmpty())
+    {
+        return QString();
+    }
+
+    const QFileInfo info(path);
+    return info.isDir() ? QString() : info.fileName();
+}
+
+void PDFAppFileDialogRequest::deliver(const QStringList& files)
+{
+    if (!m_isPending)
+    {
+        return;
+    }
+
+    m_isPending = false;
+    m_dialog = nullptr;
+    unregister();
+    deleteLater();
+    if (m_settings.mode == Mode::OpenFiles)
+    {
+        Q_EMIT filesChosen(files);
+    }
+    else
+    {
+        Q_EMIT fileChosen(files.value(0));
+    }
+}
+
+void PDFAppFileDialogRequest::onDialogAnswered(int code)
+{
+    // finished: the dialog is alive (it deletes itself later); gone without finished: canceled
+    QStringList files;
+    if (code == QDialog::Accepted && m_dialog)
+    {
+        files = getSelectedFiles(m_dialog.data(), m_settings.mode);
+    }
+    deliver(files);
+}
+
+void PDFAppFileDialogRequest::onHandlerAnswer()
+{
+    if (!m_isPending)
+    {
+        // Answered meanwhile (answer)
+        return;
+    }
+
+    // The handler is foreign code (a test): it may delete the requester and this request with it, so it and its
+    // arguments are local copies and nothing of this request is used after it unless the request is alive
+    FilesHandler filesHandler = std::move(m_filesHandler);
+    FileHandler fileHandler = std::move(m_fileHandler);
+    PanelFileHandler panelFileHandler = std::move(m_panelFileHandler);
+    m_filesHandler = nullptr;
+    m_fileHandler = nullptr;
+    m_panelFileHandler = nullptr;
+    const Settings settings = m_settings;
+    QWidget* parent = m_parent.data();
+    QPointer<PDFAppFileDialogRequest> guard(this);
+
+    QStringList files;
+    if (filesHandler)
+    {
+        files = filesHandler(parent, settings.path);
+    }
+    else
+    {
+        // A single file: an empty text is canceled
+        QString file;
+        if (fileHandler)
+        {
+            file = fileHandler(parent, settings.path);
+        }
+        else if (panelFileHandler)
+        {
+            file = panelFileHandler(parent, settings.title, settings.path, settings.filter);
+        }
+        if (!file.isEmpty())
+        {
+            files << file;
+        }
+    }
+
+    if (guard)
+    {
+        guard->deliver(files);
+    }
+}
+
+std::vector<PDFAppFileDialogRequest*>& PDFAppFileDialogRequest::getRegistry()
+{
+    // GUI thread only
+    static std::vector<PDFAppFileDialogRequest*> requests;
+    return requests;
+}
+
+void PDFAppFileDialogRequest::unregister()
+{
+    std::vector<PDFAppFileDialogRequest*>& requests = getRegistry();
+    requests.erase(std::remove(requests.begin(), requests.end(), this), requests.end());
+}
+
+// ---------------------------------------------------------------- file dialogs
+
+PDFAppFileDialogRequest::Settings PDFAppFileDialogs::getOpenFileNamesSettings(const QString& folder)
+{
+    PDFAppFileDialogRequest::Settings settings;
+    settings.mode = PDFAppFileDialogRequest::Mode::OpenFiles;
+    settings.title = QCoreApplication::translate("pdf::PDFAppFileDialogs", "Open PDF Files");
+    settings.path = folder;
+    settings.filter = QCoreApplication::translate("pdf::PDFAppFileDialogs", "PDF files (*.pdf);;All files (*)");
+    return settings;
+}
+
+PDFAppFileDialogRequest::Settings PDFAppFileDialogs::getOpenDocumentFileNamesSettings(const QString& folder)
+{
+    PDFAppFileDialogRequest::Settings settings;
+    settings.mode = PDFAppFileDialogRequest::Mode::OpenFiles;
+    settings.title = QCoreApplication::translate("pdf::PDFAppFileDialogs", "Open");
+    settings.path = folder;
+    settings.filter = getOpenDocumentFilter();
+    return settings;
+}
+
+PDFAppFileDialogRequest::Settings PDFAppFileDialogs::getOpenInputFileNamesSettings(const QString& folder)
+{
     // The formats QImageReader reads, next to the PDF files
     QStringList patterns{ QStringLiteral("*.pdf") };
     for (const QByteArray& format : QImageReader::supportedImageFormats())
     {
         patterns << QStringLiteral("*.") + QString::fromLatin1(format);
     }
-    return QFileDialog::getOpenFileNames(parent, QCoreApplication::translate("pdf::PDFAppFileDialogs", "Add Files"), folder,
-                                         QCoreApplication::translate("pdf::PDFAppFileDialogs", "PDF files and images (%1);;All files (*)").arg(patterns.join(QLatin1Char(' '))));
+
+    PDFAppFileDialogRequest::Settings settings;
+    settings.mode = PDFAppFileDialogRequest::Mode::OpenFiles;
+    settings.title = QCoreApplication::translate("pdf::PDFAppFileDialogs", "Add Files");
+    settings.path = folder;
+    settings.filter = QCoreApplication::translate("pdf::PDFAppFileDialogs", "PDF files and images (%1);;All files (*)").arg(patterns.join(QLatin1Char(' ')));
+    return settings;
 }
 
-QString PDFAppFileDialogs::getExistingDirectory(QWidget* parent, const QString& folder)
+PDFAppFileDialogRequest::Settings PDFAppFileDialogs::getExistingDirectorySettings(const QString& folder, const QString& title)
 {
-    return getExistingDirectory(parent, folder, QCoreApplication::translate("pdf::PDFAppFileDialogs", "Pin a Location"));
+    PDFAppFileDialogRequest::Settings settings;
+    settings.mode = PDFAppFileDialogRequest::Mode::Directory;
+    settings.title = title.isEmpty() ? QCoreApplication::translate("pdf::PDFAppFileDialogs", "Pin a Location") : title;
+    settings.path = folder;
+    return settings;
 }
 
-QString PDFAppFileDialogs::getExistingDirectory(QWidget* parent, const QString& folder, const QString& title)
+PDFAppFileDialogRequest::Settings PDFAppFileDialogs::getSaveFileNameSettings(const QString& filePath)
 {
-    if (const FolderHandler& handler = getFolderHandler())
-    {
-        return handler(parent, folder);
-    }
-
-    return QFileDialog::getExistingDirectory(parent, title, folder);
+    PDFAppFileDialogRequest::Settings settings;
+    settings.mode = PDFAppFileDialogRequest::Mode::SaveFile;
+    settings.title = QCoreApplication::translate("pdf::PDFAppFileDialogs", "Save As");
+    settings.path = filePath;
+    settings.filter = QCoreApplication::translate("pdf::PDFAppFileDialogs", "PDF files (*.pdf)");
+    return settings;
 }
 
-QString PDFAppFileDialogs::getSaveFileName(QWidget* parent, const QString& filePath)
+PDFAppFileDialogRequest::Settings PDFAppFileDialogs::getSaveBackupFileNameSettings(const QString& filePath)
 {
-    if (const SaveFileHandler& handler = getSaveFileHandler())
-    {
-        return handler(parent, filePath);
-    }
-
-    return QFileDialog::getSaveFileName(parent, QCoreApplication::translate("pdf::PDFAppFileDialogs", "Save As"), filePath,
-                                        QCoreApplication::translate("pdf::PDFAppFileDialogs", "PDF files (*.pdf)"));
+    // The dialog adds the suffix itself (a name typed without it), so it asks before an existing backup is replaced;
+    // the static getSaveFileName has no default suffix (the native dialog of Windows adds none)
+    PDFAppFileDialogRequest::Settings settings;
+    settings.mode = PDFAppFileDialogRequest::Mode::SaveFile;
+    settings.title = QCoreApplication::translate("pdf::PDFAppFileDialogs", "Export Settings");
+    settings.path = filePath;
+    settings.filter = QCoreApplication::translate("pdf::PDFAppFileDialogs", "PDF4QT settings backups (*.pdf4qt-backup)");
+    settings.defaultSuffix = QLatin1String(PDFDatabaseBackup::FILE_SUFFIX);
+    return settings;
 }
 
-void PDFAppFileDialogs::setSaveFileHandler(SaveFileHandler handler)
+PDFAppFileDialogRequest::Settings PDFAppFileDialogs::getOpenBackupFileNameSettings(const QString& folder)
 {
-    getSaveFileHandler() = std::move(handler);
+    PDFAppFileDialogRequest::Settings settings;
+    settings.mode = PDFAppFileDialogRequest::Mode::OpenFile;
+    settings.title = QCoreApplication::translate("pdf::PDFAppFileDialogs", "Import Settings");
+    settings.path = folder;
+    settings.filter = QCoreApplication::translate("pdf::PDFAppFileDialogs", "PDF4QT settings backups (*.pdf4qt-backup);;All files (*)");
+    return settings;
 }
 
-QString PDFAppFileDialogs::getSaveBackupFileName(QWidget* parent, const QString& filePath)
+PDFAppFileDialogRequest::Settings PDFAppFileDialogs::getPrintFileNameSettings(const QString& filePath, const QString& suffix)
 {
-    if (const SaveFileHandler& handler = getSaveBackupHandler())
-    {
-        return handler(parent, filePath);
-    }
-
-    // The dialog adds the suffix itself (a name typed without it), so it asks before
-    // an existing backup is replaced; the static getSaveFileName has no default suffix
-    // (the native dialog of Windows adds none). The dialog is not an object on the
-    // stack: the parent may go while it runs.
-    const QFileInfo proposed(filePath);
-    QPointer<QFileDialog> dialog = new QFileDialog(parent, QCoreApplication::translate("pdf::PDFAppFileDialogs", "Export Settings"), proposed.absolutePath(),
-                                                   QCoreApplication::translate("pdf::PDFAppFileDialogs", "PDF4QT settings backups (*.pdf4qt-backup)"));
-    dialog->setAcceptMode(QFileDialog::AcceptSave);
-    dialog->setFileMode(QFileDialog::AnyFile);
-    dialog->setDefaultSuffix(QLatin1String(PDFDatabaseBackup::FILE_SUFFIX));
-    dialog->selectFile(proposed.fileName());
-
-    const int result = dialog->exec();
-    QString selectedFile;
-    if (dialog)
-    {
-        if (result == QDialog::Accepted)
-        {
-            selectedFile = dialog->selectedFiles().value(0);
-        }
-        delete dialog.data();
-    }
-    return selectedFile;
-}
-
-QString PDFAppFileDialogs::getOpenBackupFileName(QWidget* parent, const QString& folder)
-{
-    if (const FolderHandler& handler = getOpenBackupHandler())
-    {
-        return handler(parent, folder);
-    }
-
-    return QFileDialog::getOpenFileName(parent, QCoreApplication::translate("pdf::PDFAppFileDialogs", "Import Settings"), folder,
-                                        QCoreApplication::translate("pdf::PDFAppFileDialogs", "PDF4QT settings backups (*.pdf4qt-backup);;All files (*)"));
-}
-
-QString PDFAppFileDialogs::getPrintFileName(QWidget* parent, const QString& filePath, const QString& suffix)
-{
-    if (const SaveFileHandler& handler = getPrintFileHandler())
-    {
-        return handler(parent, filePath);
-    }
-
     QString filter;
     if (suffix == QLatin1String("pdf"))
     {
@@ -364,7 +594,75 @@ QString PDFAppFileDialogs::getPrintFileName(QWidget* parent, const QString& file
     }
     filter += QStringLiteral(";;") + QCoreApplication::translate("pdf::PDFAppFileDialogs", "All files (*)");
 
-    return QFileDialog::getSaveFileName(parent, QCoreApplication::translate("pdf::PDFAppFileDialogs", "Print to File"), filePath, filter);
+    PDFAppFileDialogRequest::Settings settings;
+    settings.mode = PDFAppFileDialogRequest::Mode::SaveFile;
+    settings.title = QCoreApplication::translate("pdf::PDFAppFileDialogs", "Print to File");
+    settings.path = filePath;
+    settings.filter = filter;
+    return settings;
+}
+
+PDFAppFileDialogRequest* PDFAppFileDialogs::begin(QObject* requester, QWidget* parent, const PDFAppFileDialogRequest::Settings& settings, Handler handler)
+{
+    PDFAppFileDialogRequest* request = PDFAppFileDialogRequest::create(requester, parent, settings);
+    if (!request)
+    {
+        return nullptr;
+    }
+
+    // The handler of the tests (the one set now) answers as the user of a real dialog, later: the request calls it
+    // from the event loop (the widget and the path of the settings, as the dialog). This call runs no foreign code.
+    const PDFAppFileDialogRequest::FileHandler* fileHandler = nullptr;
+    switch (handler)
+    {
+        case Handler::OpenFiles:
+            if (const OpenFilesHandler& openFilesHandler = getOpenFilesHandler())
+            {
+                request->answerByHandler(openFilesHandler);
+                return request;
+            }
+            break;
+
+        case Handler::Folder:
+            fileHandler = &getFolderHandler();
+            break;
+
+        case Handler::SaveFile:
+            fileHandler = &getSaveFileHandler();
+            break;
+
+        case Handler::SaveBackup:
+            fileHandler = &getSaveBackupHandler();
+            break;
+
+        case Handler::OpenBackup:
+            fileHandler = &getOpenBackupHandler();
+            break;
+
+        case Handler::PrintFile:
+            fileHandler = &getPrintFileHandler();
+            break;
+    }
+
+    if (fileHandler && *fileHandler)
+    {
+        request->answerByHandler(*fileHandler);
+        return request;
+    }
+
+    request->show();
+    return request;
+}
+
+QString PDFAppFileDialogs::getOpenDocumentFilter()
+{
+    const QString assemblies = QStringLiteral("*.") + QString::fromLatin1(PDFDocumentAssemblyFile::FILE_SUFFIX);
+    return QCoreApplication::translate("pdf::PDFAppFileDialogs", "PDF files and assemblies (*.pdf %1);;PDF files (*.pdf);;PDF4QT assemblies (%1);;All files (*)").arg(assemblies);
+}
+
+void PDFAppFileDialogs::setSaveFileHandler(SaveFileHandler handler)
+{
+    getSaveFileHandler() = std::move(handler);
 }
 
 void PDFAppFileDialogs::setPrintFileHandler(SaveFileHandler handler)
@@ -508,3 +806,5 @@ PDFAppDocumentActions::OpenDocumentsProvider& PDFAppDocumentActions::getProvider
 }
 
 }   // namespace pdf
+
+#include "moc_pdfappfiledrop.cpp"

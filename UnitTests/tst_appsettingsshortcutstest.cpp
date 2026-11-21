@@ -26,6 +26,7 @@
 // database file and its state, export / import of the settings, the other
 // database files and their deletion), with the common cases of the packages.
 
+#include "appasyncdialogs.h"
 #include "appsettingsfixture.h"
 
 #include "pdfappcommand.h"
@@ -63,6 +64,7 @@
 #include "pdfwidgetstyle.h"
 
 #include <QApplication>
+#include <QFileDialog>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSignalSpy>
@@ -369,6 +371,7 @@ private Q_SLOTS:
     void storageDeleteHostile();
     void storageExportImport();
     void storageImportErrors();
+    void storageBackupDialogsWithoutNestedLoop();
     void storagePortableAndMemory();
     void storageReadOnlyNewer();
     void storageExportKeepsExistingFile();
@@ -1209,6 +1212,7 @@ void AppSettingsShortcutsTest::storageExportImport()
     pdf::PDFAppSettingsPage* page = fixture.openSettings(QStringLiteral("storage"));
     pdf::PDFAppStorageSettingsSection* section = ShortcutsTestHelper::storage(page);
     QVERIFY(section);
+    pdftest::NestedEventLoopGuard loopGuard;
     QTest::mouseClick(section->getExportButton(), Qt::LeftButton);
     fixture.settle();
     QVERIFY(proposed.endsWith(pdf::PDFDatabaseBackup::getDefaultFileName(QDate::currentDate())));
@@ -1298,6 +1302,7 @@ void AppSettingsShortcutsTest::storageImportErrors()
     QVERIFY(!fixture.settings().setValue(pdf::PDFSettingKeys::magnifierZoom(), 4.0).isError());
     pdf::PDFAppStorageSettingsSection* section = ShortcutsTestHelper::storage(fixture.openSettings(QStringLiteral("storage")));
     QVERIFY(section);
+    pdftest::NestedEventLoopGuard loopGuard;
 
     // Not a backup
     const QString textPath = QDir(backups.path()).filePath(QStringLiteral("text.pdf4qt-backup"));
@@ -1383,6 +1388,91 @@ void AppSettingsShortcutsTest::storageImportErrors()
     pdf::PDFDatabase::closeHandle(lock);
     fixture.settle();
     QCOMPARE(fixture.settings().getValue(pdf::PDFSettingKeys::magnifierZoom()).toDouble(), 6.0);
+}
+
+void AppSettingsShortcutsTest::storageBackupDialogsWithoutNestedLoop()
+{
+    // A0 (no nested event loop): Export… and Import… show the file dialog of the system modal over the window (the
+    // modality of exec) and return at once; the export, the check of the file and the confirmation run, when the
+    // dialog answers. A second Export… / Import… while its dialog is open opens nothing, and a section gone meanwhile
+    // gets nothing - its dialog stays until the user closes it, nothing is written.
+    QTemporaryDir backups;
+    const QString backupPath = QDir(backups.path()).filePath(QStringLiteral("async.pdf4qt-backup"));
+    const QString latePath = QDir(backups.path()).filePath(QStringLiteral("late.pdf4qt-backup"));
+    StorageFixture fixture;
+    pdf::PDFAppStorageSettingsSection* section = ShortcutsTestHelper::storage(fixture.openSettings(QStringLiteral("storage")));
+    QVERIFY(section);
+    pdftest::NestedEventLoopGuard loopGuard;
+
+    // Export…: the dialog of a backup, nothing exported yet
+    QTest::mouseClick(section->getExportButton(), Qt::LeftButton);
+    QPointer<pdf::PDFAppFileDialogRequest> request = pdftest::AppAsyncDialogs::findFileRequest();
+    QVERIFY(request);
+    QCOMPARE(request->parent(), static_cast<QObject*>(section));
+    QVERIFY(request->getSettings().mode == pdf::PDFAppFileDialogRequest::Mode::SaveFile);
+    QCOMPARE(request->getSettings().title, QStringLiteral("Export Settings"));
+    QCOMPARE(request->getSettings().defaultSuffix, QStringLiteral("pdf4qt-backup"));
+    QCOMPARE(QFileInfo(request->getSettings().path).fileName(), pdf::PDFDatabaseBackup::getDefaultFileName(QDate::currentDate()));
+    QPointer<QFileDialog> dialog = request->getDialog();
+    QVERIFY(dialog);
+    QVERIFY(dialog->isVisible());
+    QCOMPARE(dialog->parentWidget(), section->window());
+    QCOMPARE(dialog->windowModality(), Qt::ApplicationModal);
+    QCOMPARE(dialog->defaultSuffix(), QStringLiteral("pdf4qt-backup"));
+    QVERIFY(!section->getExportInfoBar());
+
+    // A second Export… while the dialog is open
+    section->exportSettings();
+    QCOMPARE(int(pdf::PDFAppFileDialogRequest::getPendingRequests().size()), 1);
+
+    // The answer exports, shows the info bar and remembers the folder
+    QVERIFY(pdftest::AppAsyncDialogs::answerFile(backupPath));
+    QVERIFY(!request);
+    QVERIFY(!dialog);
+    QVERIFY(pdf::PDFDatabaseBackup::read(backupPath).isValid());
+    QVERIFY(section->getExportInfoBar());
+    QCOMPARE(fixture.settings().getString(pdf::PDFSettingKeys::storageBackupFolder()), QDir::cleanPath(backups.path()));
+
+    // Import…: the dialog in the remembered folder, then the confirmation of the chosen backup
+    QTest::mouseClick(section->getImportButton(), Qt::LeftButton);
+    request = pdftest::AppAsyncDialogs::findFileRequest();
+    QVERIFY(request);
+    QVERIFY(request->getSettings().mode == pdf::PDFAppFileDialogRequest::Mode::OpenFile);
+    QCOMPARE(request->getSettings().title, QStringLiteral("Import Settings"));
+    QCOMPARE(request->getSettings().path, QDir::cleanPath(backups.path()));
+    QVERIFY(request->getDialog());
+    section->importSettings();
+    QCOMPARE(int(pdf::PDFAppFileDialogRequest::getPendingRequests().size()), 1);
+    QVERIFY(!ShortcutsTestHelper::storageDialog());
+    QVERIFY(pdftest::AppAsyncDialogs::answerFile(backupPath));
+    QVERIFY(!request);
+    QVERIFY(ShortcutsTestHelper::storageDialog());
+    QCOMPARE(ShortcutsTestHelper::storageDialog()->getTitleText(), QStringLiteral("Import settings from the backup?"));
+    ShortcutsTestHelper::storageDialog()->reject();
+    fixture.settle();
+    QVERIFY(!ShortcutsTestHelper::storageDialog());
+
+    // The section goes while the dialog of an export is open: even its acceptance later writes nothing
+    section->exportSettings();
+    request = pdftest::AppAsyncDialogs::findFileRequest();
+    QVERIFY(request);
+    dialog = request->getDialog();
+    QVERIFY(dialog);
+    QPointer<pdf::PDFAppStorageSettingsSection> sectionGuard(section);
+    fixture.navigate(QStringLiteral("/home"));
+    fixture.settle();
+    QVERIFY(!sectionGuard);
+    QVERIFY(!request);
+    QVERIFY(!pdftest::AppAsyncDialogs::findFileRequest());
+    QVERIFY(dialog);
+    QVERIFY(dialog->isVisible());
+    dialog->selectFile(latePath);
+    static_cast<QDialog*>(dialog.data())->done(QDialog::Accepted);
+    fixture.settle();
+    QVERIFY(!dialog);
+    QVERIFY(!QFileInfo::exists(latePath));
+    QVERIFY2(pdftest::AppAsyncDialogs::isNothingOpen(), qPrintable(pdftest::AppAsyncDialogs::describeOpen().join(QStringLiteral(", "))));
+    QCOMPARE(loopGuard.getViolations(), QStringList());
 }
 
 void AppSettingsShortcutsTest::storagePortableAndMemory()
@@ -2015,6 +2105,7 @@ void AppSettingsShortcutsTest::storageBackupFolder()
     QString chosen = QDir(first.path()).filePath(QStringLiteral("a.pdf4qt-backup"));
     pdf::PDFAppFileDialogs::setSaveBackupHandler([&](QWidget*, const QString& filePath) { offered = filePath; return chosen; });
     pdf::PDFAppFileDialogs::setOpenBackupHandler([&](QWidget*, const QString& folder) { offered = folder; return chosen; });
+    pdftest::NestedEventLoopGuard loopGuard;
 
     // The first export starts in Documents and remembers its folder
     ShortcutsTestHelper::storage(fixture.openSettings(QStringLiteral("storage")))->exportSettings();
@@ -2025,8 +2116,10 @@ void AppSettingsShortcutsTest::storageBackupFolder()
     // The next dialogs start there; a canceled one changes nothing
     chosen.clear();
     ShortcutsTestHelper::storage(fixture.openSettings(QStringLiteral("storage")))->importSettings();
+    fixture.settle();    // A0: the handler answers from the event loop
     QCOMPARE(offered, QDir::cleanPath(first.path()));
     ShortcutsTestHelper::storage(fixture.openSettings(QStringLiteral("storage")))->exportSettings();
+    fixture.settle();
     QCOMPARE(QDir::cleanPath(QFileInfo(offered).absolutePath()), QDir::cleanPath(first.path()));
     QCOMPARE(fixture.settings().getString(pdf::PDFSettingKeys::storageBackupFolder()), QDir::cleanPath(first.path()));
 
@@ -2055,7 +2148,9 @@ void AppSettingsShortcutsTest::storageBackupFolder()
     }
     chosen.clear();
     ShortcutsTestHelper::storage(fixture.openSettings(QStringLiteral("storage")))->importSettings();
+    fixture.settle();    // A0: the handler answers from the event loop
     QCOMPARE(offered, documents);
+    QVERIFY(!ShortcutsTestHelper::storageDialog());
 }
 
 void AppSettingsShortcutsTest::searchAndAnchors()
@@ -2262,10 +2357,11 @@ void AppSettingsShortcutsTest::deletionMatrix()
 
 void AppSettingsShortcutsTest::deleteFromOwnSignals()
 {
-    // The window deleted from the file dialog of an export / an import (a nested
-    // event loop of the native dialog)
+    // The window deleted from the file dialog of an export / an import (the handler
+    // of the test, which replaces the native dialog, runs in the call)
     for (int kind = 0; kind < 2; ++kind)
     {
+        pdftest::NestedEventLoopGuard loopGuard;
         StorageFixture fixture;
         pdf::PDFAppStorageSettingsSection* section = ShortcutsTestHelper::storage(fixture.openSettings(QStringLiteral("storage")));
         QVERIFY(section);

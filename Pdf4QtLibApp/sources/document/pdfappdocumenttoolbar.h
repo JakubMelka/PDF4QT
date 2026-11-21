@@ -27,14 +27,16 @@
 
 #include "pdfthemecolors.h"
 
+#include <QAccessibleWidget>
 #include <QPointer>
+#include <QToolButton>
 #include <QWidget>
 
 #include <map>
 #include <vector>
 
 class QHBoxLayout;
-class QToolButton;
+class QMenu;
 
 namespace pdf
 {
@@ -100,6 +102,81 @@ private:
     int m_padding;
     PDFThemeColors::Color m_color;
 };
+
+/// The Select button of the toolbar of the document (193:870): a toolbar button, which
+/// opens the Select menu by its own popup (A0, QR3.5: no menu of QToolButton, whose
+/// InstantPopup runs the nested event loop of QMenu::exec). It looks as the tool button
+/// with an instant menu: the menu chevron, and the open look while the menu opened by
+/// the button is shown (setMenuOpen). The toolbar opens the menu on pressed - the press
+/// of the mouse and Space, as QToolButton opens an instant menu.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentSelectButton : public QToolButton
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QToolButton;
+
+public:
+    explicit PDFAppDocumentSelectButton(QWidget* parent);
+    virtual ~PDFAppDocumentSelectButton() override;
+
+    /// The menu opened by the button is shown (the open look of the button)
+    void setMenuOpen(bool isOpen);
+    bool isMenuOpen() const { return m_isMenuOpen; }
+
+    /// The menu, which the button opens (not a menu of QToolButton: its accessible
+    /// child, as the menu of a tool button is)
+    void setPopupMenu(QMenu* menu) { m_popupMenu = menu; }
+    QMenu* getPopupMenu() const { return m_popupMenu.data(); }
+
+    /// Asks the toolbar to open the menu (the action Show Menu of the accessibility;
+    /// the last call: its slot opens the popup). Nothing for a disabled button.
+    void requestMenu();
+
+Q_SIGNALS:
+    /// The menu is requested other than by a press (accessibility)
+    void menuRequested();
+
+protected:
+    virtual void initStyleOption(QStyleOptionToolButton* option) const override;
+
+private:
+    bool m_isMenuOpen = false;
+    QPointer<QMenu> m_popupMenu;
+};
+
+#if QT_CONFIG(accessibility)
+/// The accessible interface of the Select button: the one of a QToolButton with an
+/// instant menu (QAccessibleToolButton of Qt 6.11.2 for InstantPopup) - role
+/// ButtonMenu, the states of a button with hasPopup and hotTracked (auto raise),
+/// the action Show Menu only, the menu as the child 0, no children counted. Show
+/// Menu opens the menu by the popup of the toolbar (PDFAppDocumentSelectButton::
+/// requestMenu, no nested event loop). Installed by the button (installFactory).
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentSelectButtonAccessible : public QAccessibleWidget
+{
+private:
+    using BaseClass = QAccessibleWidget;
+
+public:
+    explicit PDFAppDocumentSelectButtonAccessible(PDFAppDocumentSelectButton* button);
+
+    PDFAppDocumentSelectButton* button() const;
+
+    virtual QAccessible::State state() const override;
+    virtual QString text(QAccessible::Text textType) const override;
+    virtual int childCount() const override;
+    virtual QAccessibleInterface* child(int index) const override;
+    virtual QStringList actionNames() const override;
+    virtual void doAction(const QString& actionName) override;
+    virtual QStringList keyBindingsForAction(const QString& actionName) const override;
+
+    /// The factory of the interface (QAccessible::installFactory)
+    static QAccessibleInterface* create(const QString& className, QObject* object);
+
+    /// Installs the factory once (removed, when the library is unloaded)
+    static void installFactory();
+};
+#endif
 
 /// Toolbar of the document view (Figma toolbar 193:785, 52 px, bg/subtle with the
 /// border at the bottom): the sidebar, save, undo and redo buttons and the menu
@@ -219,6 +296,9 @@ protected:
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
+    /// The look of a toolbar button 190:538 (createToolbarButton) set on \p button
+    static QToolButton* initToolbarButton(QToolButton* button, const QString& objectName, const QString& iconName);
+
     QToolButton* createButton(const QString& objectName, const QString& iconName);
     QToolButton* createCommandButton(const QString& commandId, const QString& iconName);
     QToolButton* createMenuButton(const QString& objectName, const QString& iconName);
@@ -235,8 +315,13 @@ private:
     void onPanelDestroyed(QObject* object);
     void onPanelNeighborRequested(bool isNext);
     void onSelectMenuAboutToHide();
+    void onSelectButtonPressed();
     void switchToNeighbor(bool isNext);
-    void openSelectMenu(bool byKeyboard);
+
+    /// Opens the Select menu by popup (no nested event loop). \p isByButton: opened
+    /// by the press of the Select button (the open look of the button, as its instant
+    /// menu had); \p byKeyboard makes the current tool the current item.
+    void openSelectMenu(bool byKeyboard, bool isByButton);
     bool isPanelWindow(const QObject* object) const;
     void onPageFieldEdited();
     void onZoomFieldEdited();
@@ -256,7 +341,7 @@ private:
     QPointer<QToolButton> m_insertButton;
     QPointer<QToolButton> m_goToButton;
     QPointer<QToolButton> m_toolsButton;
-    QPointer<QToolButton> m_selectButton;
+    QPointer<PDFAppDocumentSelectButton> m_selectButton;
     QPointer<PDFAppDocumentSelectMenu> m_selectMenu;
     QPointer<PDFToolBarField> m_pageField;
     QPointer<PDFToolBarField> m_zoomField;

@@ -447,10 +447,10 @@ public:
     int confirmCount = 0;
 
 protected:
-    virtual bool confirmClose() override
+    virtual pdf::PDFAppLeaveResult requestQuit() override
     {
         ++confirmCount;
-        return false;
+        return pdf::PDFAppLeaveResult::Refused;
     }
 };
 
@@ -465,9 +465,9 @@ public:
     std::function<bool()> onConfirm;
 
 protected:
-    virtual bool confirmClose() override
+    virtual pdf::PDFAppLeaveResult requestQuit() override
     {
-        return onConfirm ? onConfirm() : true;
+        return !onConfirm || onConfirm() ? pdf::PDFAppLeaveResult::Done : pdf::PDFAppLeaveResult::Refused;
     }
 };
 

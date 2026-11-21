@@ -48,6 +48,8 @@
 namespace pdf
 {
 
+class PDFAppFileDialogRequest;
+
 /// The canvas of Interleave Pages (document-canvas of 385:13263): bg/track, the bar "Result · 12
 /// pages" (Semi Bold 13), the tiles of the pages of the result - the pictures of the pages of the
 /// two scans, the number with the dot of the hue of its scan (blue front, green back) and the
@@ -181,7 +183,8 @@ public:
     /// Puts a snapshot of the open document into the slot (Change… › an open document)
     void setSlotDocument(Slot slot, const QString& documentId);
 
-    /// Choose… / Change… › PDF file…: the dialog of the files, then setSlotFile
+    /// Choose… / Change… › PDF file…: the dialog of the files, then setSlotFile (A0: the file comes later from the event
+    /// loop, one dialog at a time)
     void chooseSlotFile(Slot slot);
 
     /// The size of the tiles (Thumbnails: Small / Medium / Large)
@@ -227,6 +230,8 @@ private:
     void onChangeRowClicked();
     void onTileSizeChosen(pdf::PDFAppToolPageGrid::TileSize size);
     void onCanvasChooseFiles();
+    void onSlotFileChosen(const QStringList& files);
+    void onCanvasFilesChosen(const QStringList& files);
 
     /// Opens the panel of Change… of the slot at the anchor
     void openChangePanel(Slot slot, QWidget* anchor);
@@ -259,6 +264,8 @@ private:
     QPointer<PDFAppToolPanelPopup> m_changePanel;
     QPointer<PDFAppToolTileSizeMenu> m_tileSizeMenu;
     QPointer<QWidget> m_leftPanel;
+    QPointer<PDFAppFileDialogRequest> m_fileRequest;   ///< The dialog of the files waiting for its answer (a child of the GUI, A0)
+    Slot m_fileRequestSlot = FrontSlot;                 ///< The slot of m_fileRequest of chooseSlotFile
     Slot m_changeSlot = FrontSlot;
     PDFAppToolPageGrid::TileSize m_tileSize = PDFAppToolPageGrid::TileSize::Small;
     bool m_isTileSizeRead = false;

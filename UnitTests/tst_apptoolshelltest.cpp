@@ -20,6 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include "appasyncdialogs.h"
 #include "apptoolshellfixture.h"
 #include "xfatestsamples.h"
 
@@ -46,6 +47,7 @@
 #include "pdfapptooltoolbar.h"
 #include "pdfappdocumentview.h"
 #include "pdfappfiledrop.h"
+#include "pdfappleaveflow.h"
 #include "pdfappmainwindow.h"
 #include "pdfappmcparguments.h"
 #include "pdfappmcpdocumentreader.h"
@@ -100,6 +102,7 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFileDialog>
 #include <QFileInfo>
 #include <QPushButton>
 #include <QRadioButton>
@@ -124,6 +127,15 @@ using pdftest::TestDocumentTool;
 using Choice = PDFAppToolResultDialog::Choice;
 using Action = PDFAppToolResultOutcome::Action;
 using RunnerState = PDFDocumentToolRunner::State;
+
+/// Records the results of a step of a leave flow, which a shell has left Pending (A0)
+class ShellLeaveStepReceiver : public QObject
+{
+public:
+    void onStep(pdf::PDFAppLeaveResult result) { results << result; }
+
+    QList<pdf::PDFAppLeaveResult> results;
+};
 
 /// Tool ids of the catalog with the columns of the kinds the tests need: Keep
 /// preselected and IncrementalSave, Copy preselected and LostCopyOnly (tools.md 9.3 point
@@ -362,6 +374,7 @@ private slots:
     void dialogCopyAndContinue();
     void dialogCopyOpenOffHidesContinue();
     void dialogWriteError();
+    void dialogBrowseWithoutNestedLoop();
     void dialogExistingFile();
     void dialogNameRefused_data();
     void dialogNameRefused();
@@ -420,6 +433,7 @@ private slots:
     void shellKeys();
     void shellHelpTopic();
     void shellLeaveWhileRunning();
+    void shellLeaveRunningDeleted();
     void shellDocumentLeavesReady();
     void shellLock_data();
     void shellLock();
@@ -2943,7 +2957,12 @@ void AppToolShellTest::dialogPixels()
     // The write error in the red of 316:7764
     QFile::remove(fixture.path(QStringLiteral("missing")));
     pdf::PDFAppFileDialogs::setFolderHandler([&](QWidget*, const QString&) { return fixture.path(QStringLiteral("missing")); });
-    dialog->getBrowseButton()->click();
+    {
+        // A0: the folder comes from the event loop
+        const pdftest::NestedEventLoopGuard loopGuard;
+        dialog->getBrowseButton()->click();
+        AppToolShellFixture::settle();
+    }
     QSignalSpy statusSpy(dialog, &PDFAppToolResultDialog::statusTextChanged);
     dialog->confirm();
     QVERIFY(AppToolShellFixture::waitFor([&]() { return dialog->getWriteError() && dialog->getWriteError()->isVisible(); }));
@@ -3313,7 +3332,12 @@ void AppToolShellTest::dialogWriteError()
     // A folder, which cannot be written (it does not exist)
     const QString missingFolder = fixture.path(QStringLiteral("no/such/folder"));
     pdf::PDFAppFileDialogs::setFolderHandler([&](QWidget*, const QString&) { return missingFolder; });
-    dialog->getBrowseButton()->click();
+    {
+        // A0: the folder comes from the event loop
+        const pdftest::NestedEventLoopGuard loopGuard;
+        dialog->getBrowseButton()->click();
+        AppToolShellFixture::settle();
+    }
     QCOMPARE(dialog->getFolderLabel()->getPath(), QDir::toNativeSeparators(missingFolder));
     dialog->confirm();
     QVERIFY(AppToolShellFixture::waitFor([&]() { return !dialog->isWriting(); }));
@@ -3356,7 +3380,12 @@ void AppToolShellTest::dialogWriteError()
     // Choose location… writes to another folder: the next attempt succeeds
     pdf::PDFAppFileDialogs::setFolderHandler([&](QWidget*, const QString&) { return fixture.folder(); });
     dialog->getOpenCheckBox()->setChecked(false);
-    dialog->getChooseLocationButton()->click();
+    {
+        // A0: the folder comes from the event loop
+        const pdftest::NestedEventLoopGuard loopGuard;
+        dialog->getChooseLocationButton()->click();
+        AppToolShellFixture::settle();
+    }
     QVERIFY(!error->isVisible());
     QCOMPARE(dialog->getStatusText(), QStringLiteral("Compress finished · the result is waiting for your decision"));
     dialog->confirm();
@@ -3364,6 +3393,53 @@ void AppToolShellTest::dialogWriteError()
     const PDFAppToolResultOutcome outcome = ToolShellTestHelper::firstOutcome(decidedSpy);
     QCOMPARE(outcome.action, Action::CopySaved);
     QCOMPARE(ToolShellTestHelper::titleOf(outcome.filePath), QStringLiteral("Result title"));
+}
+
+void AppToolShellTest::dialogBrowseWithoutNestedLoop()
+{
+    // A0 (newapp_robustness.md 14.3, QR3.7): Browse… opens the file dialog of the folder and returns at once (no
+    // nested event loop); the folder comes later, one file dialog at a time, a canceled dialog changes nothing
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Report.pdf"), 2));
+    QVERIFY(tab && AppToolShellFixture::waitFor([tab]() { return tab->getDocument()->isReady(); }));
+    PDFAppToolResultDialog* dialog = fixture.openDialog(tab, TOOL_COMPRESS, QStringLiteral("title"), { QStringLiteral("Size"), QStringLiteral("1"), QStringLiteral("Images"), QStringLiteral("2"), QStringLiteral("Time"), QStringLiteral("3") });
+    QVERIFY(dialog);
+    QCOMPARE(dialog->getSelectedChoice(), Choice::Copy);
+    const QString folderBefore = dialog->getFolderLabel()->getPath();
+    const QString chosen = fixture.path(QStringLiteral("chosen"));
+    QVERIFY(QDir().mkpath(chosen));
+
+    {
+        const pdftest::NestedEventLoopGuard loopGuard;
+        dialog->getBrowseButton()->click();
+
+        // The dialog of the folder is open, the folder of the copy is still the old one
+        pdf::PDFAppFileDialogRequest* request = pdftest::AppAsyncDialogs::findFileRequest();
+        QVERIFY(request);
+        QCOMPARE(request->getSettings().mode, pdf::PDFAppFileDialogRequest::Mode::Directory);
+        QCOMPARE(QDir::toNativeSeparators(request->getSettings().path), folderBefore);
+        QVERIFY(request->getDialog() && request->getDialog()->isVisible());
+        QCOMPARE(dialog->getFolderLabel()->getPath(), folderBefore);
+
+        // A second Browse… while the dialog is open opens no second dialog
+        dialog->getBrowseButton()->click();
+        QCOMPARE(pdf::PDFAppFileDialogRequest::getPendingRequests().size(), size_t(1));
+
+        // The answer of the user is the folder of the copy
+        QVERIFY(pdftest::AppAsyncDialogs::answerFile(chosen));
+        QCOMPARE(dialog->getFolderLabel()->getPath(), QDir::toNativeSeparators(chosen));
+        QCOMPARE(QFileInfo(dialog->getTargetFilePath()).absolutePath(), QFileInfo(chosen).absoluteFilePath());
+
+        // Canceled: the folder stays
+        dialog->getBrowseButton()->click();
+        QVERIFY(pdftest::AppAsyncDialogs::findFileRequest());
+        QVERIFY(pdftest::AppAsyncDialogs::cancelFile());
+        QCOMPARE(dialog->getFolderLabel()->getPath(), QDir::toNativeSeparators(chosen));
+        QVERIFY(!pdftest::AppAsyncDialogs::findFileRequest());
+        QVERIFY(!pdftest::AppAsyncDialogs::findOpenDialog(QStringLiteral("fileDialog")));
+    }
+    dialog->reject();
+    AppToolShellFixture::settle();
 }
 
 void AppToolShellTest::dialogExistingFile()
@@ -3475,7 +3551,12 @@ void AppToolShellTest::dialogNetworkPathRefused()
 
     // The path chosen by Browse… is taken (a local one here: the test contacts nothing)
     pdf::PDFAppFileDialogs::setPrintFileHandler([&](QWidget*, const QString&) { return fixture.path(QStringLiteral("browsed.txt")); });
-    dialog->getBrowseButton()->click();
+    {
+        // A0: the path comes from the event loop
+        const pdftest::NestedEventLoopGuard loopGuard;
+        dialog->getBrowseButton()->click();
+        AppToolShellFixture::settle();
+    }
     QVERIFY(!dialog->getNameError()->isVisible());
     dialog->confirm();
     QVERIFY(ToolShellTestHelper::waitForDecision(decidedSpy));
@@ -4935,6 +5016,7 @@ void AppToolShellTest::screenshots()
 
         pdf::PDFAppFileDialogs::setFolderHandler([&](QWidget*, const QString&) { return fixture.path(QStringLiteral("missing")); });
         dialog->getBrowseButton()->click();
+        AppToolShellFixture::settle();
         dialog->confirm();
         QVERIFY(AppToolShellFixture::waitFor([&]() { return !dialog->isWriting(); }));
         AppToolShellFixture::settle();
@@ -6248,6 +6330,62 @@ void AppToolShellTest::shellLeaveWhileRunning()
     AppToolShellFixture::settle();
 }
 
+void AppToolShellTest::shellLeaveRunningDeleted()
+{
+    // M1 of the review of A0: the page of the tool, the tab or the window is deleted while the question of a run asks
+    // for a navigation (close-running of the leave) - the dying shell reports nothing, no code of the application runs
+    // inside of its destructor; the flow of the tab is refused from the event loop (or goes with the tab)
+    using H = ToolShellFlowHelper;
+    for (const int deletedObject : { 0, 1, 2 })
+    {
+        AppToolShellFixture fixture;
+        std::shared_ptr<ShellTestTool> tool = fixture.registerShellTool(TOOL_ROTATE);
+        QVERIFY(tool);
+        pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
+        QVERIFY(tab);
+        QPointer<pdf::PDFDocumentToolShell> shell = fixture.openTool(tab, TOOL_ROTATE);
+        QVERIFY(shell);
+        tool->setHold(true);
+        shell->confirm();
+        QVERIFY(AppToolShellFixture::waitFor([&tool]() { return tool->getHeldCount() == 1; }));
+        AppToolShellFixture::settle();
+
+        {
+            pdftest::NestedEventLoopGuard loopGuard;
+            fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::document(tab->getDocumentId()));
+            QPointer<pdf::PDFAppDocumentChoiceDialog> dialog = fixture.window->findChild<pdf::PDFAppDocumentChoiceDialog*>(QStringLiteral("toolLeaveRunningDialog"));
+            QVERIFY(dialog && dialog->isVisible());
+            QPointer<pdf::PDFAppLeaveFlow> flow = tab->findLeaveFlow();
+            QVERIFY(flow && flow->isRunning());
+            QSignalSpy finishedSpy(flow.data(), &pdf::PDFAppLeaveFlow::finished);
+
+            QWidget* deleted = deletedObject == 0 ? static_cast<QWidget*>(tab->getPage()) :
+                                                    (deletedObject == 1 ? static_cast<QWidget*>(tab) : static_cast<QWidget*>(fixture.window.data()));
+            delete deleted;
+            QCOMPARE(finishedSpy.count(), 0);
+            AppToolShellFixture::settle();
+            QVERIFY(!shell);
+            QVERIFY(!dialog || !dialog->isVisible());
+            if (deletedObject == 0)
+            {
+                // The tab stays: its flow has been refused (the leave did not happen)
+                QVERIFY(flow && !flow->isRunning());
+                QCOMPARE(finishedSpy.count(), 1);
+                QCOMPARE(finishedSpy.front().front().toBool(), false);
+            }
+            else
+            {
+                QVERIFY(!flow);
+                QCOMPARE(finishedSpy.count(), 0);
+            }
+        }
+
+        tool->setHold(false);
+        QVERIFY(AppToolShellFixture::waitFor([&tool]() { return tool->getHeldCount() == 0; }));
+        AppToolShellFixture::settle();
+    }
+}
+
 void AppToolShellTest::shellDocumentLeavesReady()
 {
     // F2: the shell closes, when the document leaves the state Ready; the dialog goes with it
@@ -7416,7 +7554,12 @@ void AppToolShellTest::dialogCopyMarkOfTheWeb()
     // A document without a file offers the documents of the user: the folder of the test by Browse…
     const QString folder = fixture.folder();
     pdf::PDFAppFileDialogs::setFolderHandler([folder](QWidget*, const QString&) { return folder; });
-    dialog->getBrowseButton()->click();
+    {
+        // A0: the folder comes from the event loop
+        const pdftest::NestedEventLoopGuard loopGuard;
+        dialog->getBrowseButton()->click();
+        AppToolShellFixture::settle();
+    }
     pdf::PDFAppFileDialogs::setFolderHandler(pdf::PDFAppFileDialogs::FolderHandler());
     const QString target = dialog->getTargetFilePath();
     QCOMPARE(QFileInfo(target).absolutePath(), QFileInfo(fixture.path(QStringLiteral("a"))).absolutePath());
@@ -9177,14 +9320,23 @@ void AppToolShellTest::shellOwnTabHost()
     shell->confirm();
     QVERIFY(AppToolShellFixture::waitFor([&tool]() { return tool->getHeldCount() == 1; }));
     QCOMPARE(shell->getState(), H::State::Running);
-    QTimer::singleShot(0, &window, [&]()
     {
-        if (pdf::PDFAppDocumentChoiceDialog* dialog = AppToolShellFixture::waitForWidget<pdf::PDFAppDocumentChoiceDialog>())
-        {
-            dialog->findChild<QPushButton*>(QStringLiteral("keepRunningButton"))->click();
-        }
-    });
-    QVERIFY(!shell->confirmLeave());
+        // A0: the question of the run is shown, the leave is a Pending step of the flow; Keep Running refuses it
+        pdftest::NestedEventLoopGuard loopGuard;
+        pdf::PDFAppLeaveFlow flow(&window);
+        QVERIFY(flow.start(pdf::PDFAppLeaveFlow::Goal::Navigate));
+        ShellLeaveStepReceiver receiver;
+        QCOMPARE(shell->requestLeave(&flow), pdf::PDFAppLeaveResult::Pending);
+        QVERIFY(flow.waitForStep(shell.data(), &receiver, &ShellLeaveStepReceiver::onStep));
+        QVERIFY(shell->isWaitingForLeave());
+        pdf::PDFAppDocumentChoiceDialog* dialog = AppToolShellFixture::findDialog<pdf::PDFAppDocumentChoiceDialog>();
+        QVERIFY(dialog);
+        dialog->findChild<QPushButton*>(QStringLiteral("keepRunningButton"))->click();
+        AppToolShellFixture::settle();
+        QCOMPARE(receiver.results, QList<pdf::PDFAppLeaveResult>({ pdf::PDFAppLeaveResult::Refused }));
+        QVERIFY(!shell->isWaitingForLeave());
+        flow.finish(false);
+    }
     QCOMPARE(host->activateCount, 1);
 
     // The result of a new document: Esc of the dialog is a close request of the reason Discarded

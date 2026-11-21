@@ -40,6 +40,7 @@ class PDFAppAutoRefresh;
 class PDFAppDocumentOperation;
 class PDFAppDocumentSnapshot;
 class PDFAppDocumentTab;
+class PDFAppFileDialogRequest;
 class PDFAppPrintController;
 class PDFAppRestoredFileBar;
 class PDFAppSendMail;
@@ -130,11 +131,14 @@ private:
 
 /// Save and Save as of a document tab (package E, Figma 955:146677 save-signed,
 /// 955:147112 save-error). The flow is asynchronous: the dialogs of the design
-/// are opened without a nested event loop (QDialog::open) and the file is written
-/// by PDFAppDocumentFileWriter in a worker thread from a snapshot of the document,
-/// so the document stays usable. Each call of \p save or \p saveAs, which returns
-/// true, ends by exactly one signal \p finished (also, when the user cancels a
-/// dialog); a call during a running save joins it.
+/// are opened without a nested event loop (QDialog::open), the native file dialog
+/// of Save as too (A0: PDFAppFileDialogs::requestSaveFileName, its answer comes from
+/// the event loop), and the file is written by PDFAppDocumentFileWriter in a worker
+/// thread from a snapshot of the document, so the document stays usable. Each call
+/// of \p save or \p saveAs, which returns true, ends by exactly one signal \p finished
+/// (also, when the user cancels a dialog); a call during a running save joins it.
+/// A requester, which waits for the end in a member slot (a step of the close of a
+/// tab), uses PDFAppDocumentSaveRequest.
 ///
 /// - A document without a file (Edit a Copy) is saved by Save as.
 /// - A signed document is written as an incremental update (the signed revisions
@@ -163,8 +167,10 @@ public:
     virtual ~PDFAppDocumentSaver() override;
 
     /// Save. \returns false, when nothing can be saved (no document shown); then
-    /// no signal \p finished comes. \p finished may be emitted before the call
-    /// returns (a canceled file dialog), connect to it first.
+    /// no signal \p finished comes. Connect to \p finished first: it is emitted
+    /// before the call returns only, when the document cannot be saved after its
+    /// open editor has been committed (A0: a canceled file dialog answers from the
+    /// event loop, after the call).
     bool save();
 
     /// Save as (the native file dialog). As \p save.
@@ -235,9 +241,13 @@ private:
     /// Starts the flow (Save or Save as)
     void start(bool isSaveAs);
 
-    /// Asks for a file by the native dialog and writes it. \p isIncremental is
-    /// used for a signed document.
+    /// Asks for a file by the native dialog (without a nested event loop: the file
+    /// comes to onFileChosen) and writes it. \p isIncremental is used for a signed
+    /// document.
     void chooseFileAndWrite(bool isIncremental);
+
+    /// The answer of the file dialog of chooseFileAndWrite (empty = canceled)
+    void onFileChosen(const QString& filePath);
 
     /// Writes the file (or opens save-error for a file, which cannot be written)
     void writeFile(const QString& filePath, bool isIncremental);
@@ -275,9 +285,83 @@ private:
     Step m_step = Step::Idle;
     bool m_isSilent = false;            ///< The running write is a silent one
     bool m_isSignedSaveConfirmed = false;
+    bool m_isFileIncremental = false;   ///< The file of the file dialog is written incrementally
     QPointer<PDFMessageBox> m_dialog;
+    QPointer<PDFAppFileDialogRequest> m_fileRequest;    ///< The file dialog of Save as (a child of the saver)
     QPointer<QFutureWatcher<PDFAppDocumentFileWriter::Result>> m_watcher;
     QPointer<PDFAppDocumentOperation> m_operation;
+};
+
+/// One Save or Save as of a document tab for a requester, which waits for its end in
+/// a member slot without a nested event loop (A0; a step of the close of a tab, of the
+/// quit of a window, of Save All). The request starts PDFAppDocumentSaver::save /
+/// saveAs (a call during a running save joins it, as there) and delivers the end of
+/// the save to the slot:
+/// - exactly once, never inside the call of start (the requester may connect and
+///   record its state after it): the result of PDFAppDocumentSaver::finished (true =
+///   the version of the start is in the file; false = canceled or failed, the error
+///   has been shown) in the emission of finished, or from the event loop, when the
+///   saver has finished inside the call;
+/// - false from the event loop, when nothing can be saved (no saver, no document
+///   shown: save / saveAs returned false) or when the saver is deleted before its end
+///   (the tab has been closed);
+/// - nothing, when the requester has gone: the request is its child.
+/// The request deletes itself (deleteLater) after the delivery. GUI thread only.
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentSaveRequest : public QObject
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = QObject;
+
+public:
+    /// What is started
+    enum class Kind
+    {
+        Save,       ///< PDFAppDocumentSaver::save (Save as for a document without a file)
+        SaveAs      ///< PDFAppDocumentSaver::saveAs
+    };
+
+    virtual ~PDFAppDocumentSaveRequest() override;
+
+    /// Starts \p kind on \p saver for \p receiver: the end comes to \p slot (isSaved).
+    /// \returns the request (a child of the receiver), nullptr without a receiver
+    /// (nothing is started then).
+    template<typename Receiver>
+    static PDFAppDocumentSaveRequest* start(PDFAppDocumentSaver* saver, Kind kind, Receiver* receiver, void (Receiver::*slot)(bool))
+    {
+        PDFAppDocumentSaveRequest* request = receiver ? new PDFAppDocumentSaveRequest(saver, receiver) : nullptr;
+        if (request)
+        {
+            QObject::connect(request, &PDFAppDocumentSaveRequest::finished, receiver, slot);
+            request->begin(kind);
+        }
+        return request;
+    }
+
+    /// The end has not been delivered yet
+    bool isPending() const { return m_isPending; }
+
+Q_SIGNALS:
+    /// The end of the save (the last call of the request)
+    void finished(bool isSaved);
+
+private:
+    explicit PDFAppDocumentSaveRequest(PDFAppDocumentSaver* saver, QObject* receiver);
+
+    /// Starts the save (save / saveAs) - foreign code runs in it
+    void begin(Kind kind);
+
+    void onSaverFinished(bool isSaved);
+    void onSaverDestroyed();
+    void onDeliverLater();
+    void deliver(bool isSaved);
+
+    QPointer<PDFAppDocumentSaver> m_saver;
+    bool m_isPending = true;
+    bool m_isInCall = false;        ///< begin runs: a result is delivered from the event loop
+    bool m_isDeliveryQueued = false;
+    bool m_laterResult = false;
 };
 
 /// Commands of package E (file operations): Save, Save as, Print, Send by e-mail,
@@ -311,6 +395,22 @@ public:
 
     /// Save as (PDFAppDocumentSaver::saveAs)
     bool saveAs();
+
+    /// save / saveAs for a requester, which waits in a member slot (A0, the close of
+    /// a tab): PDFAppDocumentSaveRequest - the end comes to \p slot exactly once,
+    /// never inside this call; false also, when nothing can be saved or the tab goes
+    /// away first; nothing, when the receiver has gone
+    template<typename Receiver>
+    PDFAppDocumentSaveRequest* requestSave(Receiver* receiver, void (Receiver::*slot)(bool))
+    {
+        return PDFAppDocumentSaveRequest::start(getSaver(), PDFAppDocumentSaveRequest::Kind::Save, receiver, slot);
+    }
+
+    template<typename Receiver>
+    PDFAppDocumentSaveRequest* requestSaveAs(Receiver* receiver, void (Receiver::*slot)(bool))
+    {
+        return PDFAppDocumentSaveRequest::start(getSaver(), PDFAppDocumentSaveRequest::Kind::SaveAs, receiver, slot);
+    }
 
     PDFAppDocumentSaver* getSaver() const;
     PDFAppAutoRefresh* getAutoRefresh() const;

@@ -2194,16 +2194,20 @@ void PDFAppInsertToolGUIBase::addFiles(const QStringList& filePaths, int gap, co
 
 void PDFAppInsertToolGUIBase::addFilesFromDialog()
 {
-    if (!isEditable())
+    if (!isEditable() || (m_fileRequest && m_fileRequest->isPending()))
     {
         return;
     }
 
-    // The native dialog runs its own event loop: the GUI may go meanwhile
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
+    // A0: the dialog answers onDialogFilesChosen (the request is a child of the GUI: a GUI gone meanwhile gets nothing)
     QWidget* area = getHost() ? getHost()->getCanvasArea() : nullptr;
-    const QStringList files = PDFAppFileDialogs::getOpenInputFileNames(area ? area->window() : nullptr, QString());
-    if (guard && !files.isEmpty())
+    m_fileRequest = PDFAppFileDialogs::requestOpenInputFileNames(area ? area->window() : nullptr, QString(), this, &PDFAppInsertToolGUIBase::onDialogFilesChosen);
+}
+
+void PDFAppInsertToolGUIBase::onDialogFilesChosen(const QStringList& files)
+{
+    // addFiles checks the state again (the tool still editable, the list still there)
+    if (!files.isEmpty())
     {
         addFiles(files);
     }

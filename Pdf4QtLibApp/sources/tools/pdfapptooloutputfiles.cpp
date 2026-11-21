@@ -33,6 +33,7 @@
 #include "pdfapptooltoolbar.h"
 #include "pdfdocumenttool_split.h"
 #include "pdfdocumenttoolgui.h"
+#include "pdfdocumenttoolshell.h"
 
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentrows.h"
@@ -416,10 +417,22 @@ QString PDFAppToolOutputFilesSection::getFolder() const
 
 void PDFAppToolOutputFilesSection::onBrowseClicked()
 {
-    // The native dialog runs its own event loop: the section may be gone after it
-    QPointer<PDFAppToolOutputFilesSection> guard(this);
-    const QString folder = PDFAppFileDialogs::getExistingDirectory(m_browseButton ? m_browseButton->window() : nullptr, getFolder());
-    if (!guard || folder.isEmpty() || !m_gui || !m_gui->getModel())
+    // A0: the dialog answers onBrowseFolderChosen (the request is a child of the section: a section gone meanwhile gets
+    // nothing); one dialog at a time
+    if (m_fileRequest && m_fileRequest->isPending())
+    {
+        return;
+    }
+    m_fileRequest = PDFAppFileDialogs::requestExistingDirectory(m_browseButton ? m_browseButton->window() : nullptr, getFolder(), this,
+                                                                &PDFAppToolOutputFilesSection::onBrowseFolderChosen);
+}
+
+void PDFAppToolOutputFilesSection::onBrowseFolderChosen(const QString& folder)
+{
+    // The state again: the GUI and its model still there, the tool still editing (a run started meanwhile keeps its
+    // values)
+    const PDFDocumentToolShell* shell = m_gui ? m_gui->getShell() : nullptr;
+    if (folder.isEmpty() || !m_gui || !m_gui->getModel() || (shell && shell->getState() != PDFDocumentToolShell::State::Editing))
     {
         return;
     }

@@ -27,6 +27,7 @@
 // PDF4QT_APP_SCREENSHOTS=<folder> writes pictures of the view and of the panels
 // (both themes, 1x and 2x, the minimal window, right-to-left).
 
+#include "appasyncdialogs.h"
 #include "appdocumentfixture.h"
 
 #include "pdfappannotationcontroller.h"
@@ -63,7 +64,10 @@
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
 
+#include <QAccessible>
 #include <QAction>
+#include <QMenu>
+#include <QThread>
 #include <QCheckBox>
 #include <QClipboard>
 #include <QDialog>
@@ -74,6 +78,7 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QSplitter>
+#include <QStyleOption>
 #include <QTimer>
 #include <QToolButton>
 #include <QtTest>
@@ -369,6 +374,8 @@ private slots:
     void panelDeletion();
     void panelHoverSwitch();
     void panelHoverSwitchSelectMenuExec();
+    void selectButtonPopup();
+    void selectButtonAccessibility();
     void panelArrowSwitch_data();
     void panelArrowSwitch();
     void panelSwitchDisabled();
@@ -1219,16 +1226,16 @@ void AppDocumentViewTest::selectMenuTools()
 
     // The menu opens by the Select button: menu-select 198:5517 is 232 px wide and its
     // panel lies 4 px below the toolbar (y 94 of 198:5380) as the panels of the toolbar
+    // (A0: by its own popup, no nested event loop - the press returns with the menu open)
+    pdftest::NestedEventLoopGuard loopGuard;
     QToolButton* selectButton = view->getToolbar()->getSelectButton();
-    QRect panel;
-    QTimer::singleShot(0, menu, [menu, &panel]()
-    {
-        panel = menu->geometry().marginsRemoved(pdf::PDFWidgetStyle::getPopoverMargins(menu));
-        menu->close();
-    });
-    selectButton->showMenu();
+    QTest::mousePress(selectButton, Qt::LeftButton);
+    QVERIFY(menu->isVisible());
+    const QRect panel = menu->geometry().marginsRemoved(pdf::PDFWidgetStyle::getPopoverMargins(menu));
+    menu->close();
     fixture.settle();
     QVERIFY(!menu->isVisible());
+    QVERIFY(!selectButton->isDown());
     QVERIFY(panel.isValid());
     QCOMPARE(panel.width(), pdf::PDFAppDocumentSelectMenu::PANEL_WIDTH);
     pdf::PDFAppDocumentToolbar* toolbar = view->getToolbar();
@@ -3092,8 +3099,8 @@ void AppDocumentViewTest::panelHoverSwitch()
 
 void AppDocumentViewTest::panelHoverSwitchSelectMenuExec()
 {
-    // The Select menu opened by its button runs QMenu::exec: the pointer over
-    // another panel button opens the panel and the nested event loop ends
+    // The Select menu opened by its button (A0, QR3.5: its own popup, no QMenu::exec
+    // of QToolButton): the pointer over another panel button opens the panel
     using H = PanelSwitchHelper;
     pdftest::AppDocumentFixture fixture(QSize(780, 560));
     pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("HoverSwitchExec.pdf"), 3));
@@ -3101,15 +3108,11 @@ void AppDocumentViewTest::panelHoverSwitchSelectMenuExec()
     pdf::PDFAppDocumentToolbar* toolbar = tab->getView()->getToolbar();
     QToolButton* selectButton = toolbar->getSelectButton();
     QToolButton* viewButton = toolbar->getMenuButton(H::Panel::View);
+    pdftest::NestedEventLoopGuard loopGuard;
 
-    bool wasOpen = false;
-    QTimer::singleShot(0, toolbar, [&]()
-    {
-        wasOpen = toolbar->getOpenPanelButton() == selectButton;
-        H::hover(viewButton);
-    });
-    selectButton->showMenu();
-    QVERIFY(wasOpen);
+    H::click(selectButton);
+    QCOMPARE(toolbar->getOpenPanelButton(), selectButton);
+    H::hover(viewButton);
     QCOMPARE(toolbar->getOpenPanelButton(), viewButton);
     QVERIFY(!selectButton->isDown());
     fixture.settle();
@@ -3119,27 +3122,171 @@ void AppDocumentViewTest::panelHoverSwitchSelectMenuExec()
     // around the end), Left the previous one (Tools, step 6)
     H::closeAll(toolbar);
     fixture.settle();
-    QTimer::singleShot(0, toolbar, [&]() { QTest::keyClick(toolbar->getSelectMenu(), Qt::Key_Right); });
-    selectButton->showMenu();
+    H::click(selectButton);
+    QCOMPARE(toolbar->getOpenPanelButton(), selectButton);
+    QTest::keyClick(toolbar->getSelectMenu(), Qt::Key_Right);
     QCOMPARE(toolbar->getOpenPanelButton(), toolbar->getMenuButton(H::Panel::File));
     H::closeAll(toolbar);
     fixture.settle();
-    QTimer::singleShot(0, toolbar, [&]() { QTest::keyClick(toolbar->getSelectMenu(), Qt::Key_Left); });
-    selectButton->showMenu();
+    H::click(selectButton);
+    QTest::keyClick(toolbar->getSelectMenu(), Qt::Key_Left);
     QCOMPARE(toolbar->getOpenPanelButton(), toolbar->getMenuButton(H::Panel::Tools));
 
-    // The tab deleted while the menu of the button runs, after the switch
+    // The tab deleted while the menu of the button is open, after the switch
     QPointer<pdf::PDFAppDocumentTab> tabGuard(tab);
     H::closeAll(toolbar);
     fixture.settle();
-    QTimer::singleShot(0, toolbar, [&]()
-    {
-        H::hover(viewButton);
-        delete tabGuard.data();
-    });
-    selectButton->showMenu();
+    H::click(selectButton);
+    QCOMPARE(toolbar->getOpenPanelButton(), selectButton);
+    H::hover(viewButton);
+    delete tabGuard.data();
     fixture.settle();
     QVERIFY(!tabGuard);
+}
+
+void AppDocumentViewTest::selectButtonPopup()
+{
+    // A0, QR3.5: the Select button opens its menu by its own popup - no menu of QToolButton (its instant popup runs
+    // QMenu::exec). The same opening as before: on the press of the mouse and of Space, below the button, the
+    // button down and drawn as the open menu (the pressed menu part of a tool button with a menu, the chevron)
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("SelectPopup.pdf"), 2));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentToolbar* toolbar = tab->getView()->getToolbar();
+    pdf::PDFAppDocumentSelectButton* button = qobject_cast<pdf::PDFAppDocumentSelectButton*>(toolbar->getSelectButton());
+    QVERIFY(button);
+    pdf::PDFAppDocumentSelectMenu* menu = toolbar->getSelectMenu();
+    QVERIFY(!button->menu());
+    QCOMPARE(button->popupMode(), QToolButton::DelayedPopup);
+
+    // The style option of a button with a menu: the chevron at rest, the open look while the menu is open (the
+    // protected initStyleOption is reached by its member pointer named in a derived class)
+    class OptionButton : public pdf::PDFAppDocumentSelectButton
+    {
+    public:
+        static QStyleOptionToolButton get(const pdf::PDFAppDocumentSelectButton* button)
+        {
+            QStyleOptionToolButton option;
+            void (pdf::PDFAppDocumentSelectButton::*initStyleOptionFunction)(QStyleOptionToolButton*) const = &OptionButton::initStyleOption;
+            (button->*initStyleOptionFunction)(&option);
+            return option;
+        }
+    };
+    QStyleOptionToolButton option = OptionButton::get(button);
+    QVERIFY(option.features.testFlag(QStyleOptionToolButton::HasMenu));
+    QVERIFY(!option.features.testFlag(QStyleOptionToolButton::PopupDelay));
+    QVERIFY(!option.activeSubControls.testFlag(QStyle::SC_ToolButtonMenu));
+    QVERIFY(!button->isMenuOpen());
+
+    pdftest::NestedEventLoopGuard loopGuard;
+    QTest::mousePress(button, Qt::LeftButton);
+    QVERIFY(menu->isVisible());
+    QVERIFY(button->isDown());
+    QVERIFY(button->isMenuOpen());
+    option = OptionButton::get(button);
+    QVERIFY(option.activeSubControls.testFlag(QStyle::SC_ToolButtonMenu));
+    QVERIFY(option.state.testFlag(QStyle::State_Sunken));
+    QCOMPARE(toolbar->getOpenPanelButton(), static_cast<QToolButton*>(button));
+    QVERIFY(!menu->activeAction());
+
+    // Esc closes the menu; the button is up again
+    QTest::keyClick(menu, Qt::Key_Escape);
+    fixture.settle();
+    QVERIFY(!menu->isVisible());
+    QVERIFY(!button->isDown());
+    QVERIFY(!button->isMenuOpen());
+    QVERIFY(!OptionButton::get(button).activeSubControls.testFlag(QStyle::SC_ToolButtonMenu));
+
+    // Space on the focused button opens it as well; an item of the menu runs its command (Hand)
+    button->setFocus();
+    QTest::keyPress(button, Qt::Key_Space);
+    QVERIFY(menu->isVisible());
+    QVERIFY(button->isMenuOpen());
+    QAction* textAction = menu->getCommandAction(pdf::PDFAppCommands::selectText());
+    QVERIFY(textAction);
+    menu->setActiveAction(textAction);
+    QTest::keyClick(menu, Qt::Key_Return);
+    fixture.settle();
+    QVERIFY(!menu->isVisible());
+    QVERIFY(!button->isMenuOpen());
+    QVERIFY(!button->isDown());
+    QVERIFY(tab->getView()->isCanvasToolActive(pdf::PDFToolManager::SelectTextTool));
+}
+
+void AppDocumentViewTest::selectButtonAccessibility()
+{
+    // The Select button keeps the accessibility of a QToolButton with an instant menu (A0, QR3.5): the expected
+    // values come from Qt - a tool button with setMenu + InstantPopup of the same look is the reference. Show Menu
+    // opens the popup of the toolbar without a nested event loop.
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("SelectAccessible.pdf"), 2));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentToolbar* toolbar = tab->getView()->getToolbar();
+    QToolButton* button = toolbar->getSelectButton();
+    pdf::PDFAppDocumentSelectMenu* menu = toolbar->getSelectMenu();
+
+    QToolButton* reference = pdf::PDFAppDocumentToolbar::createToolbarButton(QStringLiteral("referenceButton"), QStringLiteral("text-cursor"), toolbar);
+    QMenu* referenceMenu = new QMenu(reference);
+    referenceMenu->addAction(QStringLiteral("Item"));
+    reference->setMenu(referenceMenu);
+    reference->setPopupMode(QToolButton::InstantPopup);
+    reference->setToolTip(button->toolTip());
+    reference->setAccessibleName(button->accessibleName());
+    reference->show();
+    QVERIFY(button->isVisible());
+
+    QAccessibleInterface* expected = QAccessible::queryAccessibleInterface(reference);
+    QAccessibleInterface* actual = QAccessible::queryAccessibleInterface(button);
+    QVERIFY(expected && actual);
+    QCOMPARE(expected->role(), QAccessible::ButtonMenu);
+    QCOMPARE(actual->role(), expected->role());
+    QVERIFY(expected->state().hasPopup);
+    QCOMPARE(actual->state().hasPopup, expected->state().hasPopup);
+    QCOMPARE(actual->state().hotTracked, expected->state().hotTracked);
+    QCOMPARE(actual->state().focusable, expected->state().focusable);
+    QCOMPARE(actual->state().pressed, expected->state().pressed);
+    QCOMPARE(actual->state().checkable, expected->state().checkable);
+    QCOMPARE(actual->state().disabled, expected->state().disabled);
+    QCOMPARE(actual->state().invisible, expected->state().invisible);
+    QCOMPARE(actual->childCount(), expected->childCount());
+    QVERIFY(actual->child(0) && actual->child(0)->object() == menu);
+    QCOMPARE(actual->text(QAccessible::Name), QStringLiteral("Select"));
+    QCOMPARE(actual->text(QAccessible::Name), expected->text(QAccessible::Name));
+    QCOMPARE(actual->text(QAccessible::Description), expected->text(QAccessible::Description));
+    QCOMPARE(actual->text(QAccessible::Accelerator), expected->text(QAccessible::Accelerator));
+
+    QAccessibleActionInterface* expectedActions = expected->actionInterface();
+    QAccessibleActionInterface* actualActions = actual->actionInterface();
+    QVERIFY(expectedActions && actualActions);
+    QCOMPARE(expectedActions->actionNames(), QStringList(QAccessibleActionInterface::showMenuAction()));
+    QCOMPARE(actualActions->actionNames(), expectedActions->actionNames());
+    QCOMPARE(actualActions->keyBindingsForAction(QAccessibleActionInterface::showMenuAction()),
+             expectedActions->keyBindingsForAction(QAccessibleActionInterface::showMenuAction()));
+
+    // Disabled: no action, as the reference
+    button->setEnabled(false);
+    reference->setEnabled(false);
+    QCOMPARE(actualActions->actionNames(), expectedActions->actionNames());
+    QCOMPARE(actual->state().disabled, expected->state().disabled);
+    actualActions->doAction(QAccessibleActionInterface::showMenuAction());
+    QVERIFY(!menu->isVisible());
+    button->setEnabled(true);
+    reference->setEnabled(true);
+
+    // Show Menu: the popup of the toolbar, no nested event loop, the button drawn open
+    pdftest::NestedEventLoopGuard loopGuard;
+    const int loopLevel = QThread::currentThread()->loopLevel();
+    actualActions->doAction(QAccessibleActionInterface::showMenuAction());
+    QCOMPARE(QThread::currentThread()->loopLevel(), loopLevel);
+    QVERIFY(menu->isVisible());
+    QVERIFY(button->isDown());
+    QVERIFY(static_cast<pdf::PDFAppDocumentSelectButton*>(button)->isMenuOpen());
+    QCOMPARE(toolbar->getOpenPanelButton(), button);
+    QVERIFY(actual->state().pressed);
+    menu->close();
+    fixture.settle();
+    QVERIFY(!button->isDown());
+    delete reference;
 }
 
 void AppDocumentViewTest::panelArrowSwitch_data()

@@ -1028,10 +1028,19 @@ PDFAppCertificateImportDialog::Outcome PDFAppCertificateImportDialog::importFile
 
 void PDFAppCertificateImportDialog::onChooseClicked()
 {
-    // The file dialog runs an event loop: the dialog may be gone after it
-    QPointer<PDFAppCertificateImportDialog> guard(this);
-    const QString filePath = PDFAppPanelFileDialogs::getOpenFileName(this, tr("Import Certificate"), QFileInfo(m_sourceFilePath).absolutePath(), getFileFilter());
-    if (!guard || filePath.isEmpty())
+    // A0: the file dialog answers onSourceFileChosen (the request is a child of the dialog: a dialog gone meanwhile gets
+    // nothing); one file dialog at a time
+    if (m_fileRequest && m_fileRequest->isPending())
+    {
+        return;
+    }
+    m_fileRequest = PDFAppPanelFileDialogs::requestOpenFileName(this, tr("Import Certificate"), QFileInfo(m_sourceFilePath).absolutePath(), getFileFilter(), this,
+                                                                &PDFAppCertificateImportDialog::onSourceFileChosen);
+}
+
+void PDFAppCertificateImportDialog::onSourceFileChosen(const QString& filePath)
+{
+    if (filePath.isEmpty())
     {
         return;
     }

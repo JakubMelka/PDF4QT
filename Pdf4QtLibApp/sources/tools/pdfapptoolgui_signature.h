@@ -43,6 +43,7 @@ namespace pdf
 class PDFAppCertificateCreateDialog;
 class PDFAppCertificateImportDialog;
 class PDFAppDocumentSignatureVerifier;
+class PDFAppFileDialogRequest;
 class PDFAppToolCallout;
 class PDFAppToolPanelHeader;
 class PDFAppToolPasswordCard;
@@ -280,6 +281,7 @@ private:
     void onAppearanceRowClicked();
     void onCreateClicked();
     void onImportClicked();
+    void onImportFileChosen(const QString& filePath);
     void onCertificateCreated(const QString& fileName);
     void onCertificateImported(const QString& fileName);
     void onVerificationChanged();
@@ -323,6 +325,7 @@ private:
 
     QPointer<PDFAppCertificateCreateDialog> m_createDialog;
     QPointer<PDFAppCertificateImportDialog> m_importDialog;
+    QPointer<PDFAppFileDialogRequest> m_fileRequest;   ///< Import… waiting for its file dialog (a child of the GUI, A0)
     QPointer<PDFMessageBox> m_questionDialog;
     QPointer<PDFMessageBox> m_timestampErrorDialog;
     Question m_openQuestion = Question::None;

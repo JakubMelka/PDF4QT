@@ -292,183 +292,327 @@ void PDFAppDocumentTab::requestClose()
     }
 }
 
-bool PDFAppDocumentTab::confirmClose()
+PDFAppLeaveResult PDFAppDocumentTab::requestTabClose()
 {
-    // The questions have been answered by the flow of the save
+    // The questions have been answered by the flow of the close (closing after its last answer or its save)
     if (m_isCloseConfirmed)
     {
         stopOperations(false);
         writeReadingState();
-        return true;
+        return PDFAppLeaveResult::Done;
     }
 
     // A tab without its document (deleted by the application) has nothing to ask
     if (!m_document)
     {
-        return true;
+        return PDFAppLeaveResult::Done;
     }
 
-    // A question is open already (a second close request meanwhile)
-    if (m_isAskingClose || m_isClosingAfterSave)
+    // The save of the close runs (a second close request meanwhile): refused, the tab closes after the save
+    if (m_isClosingAfterSave)
     {
-        return false;
+        return PDFAppLeaveResult::Refused;
     }
 
-    QPointer<PDFAppDocumentTab> guard(this);
+    // A question is open already: refused, the question comes forward (A0: one flow of the tab)
+    PDFAppLeaveFlow* flow = getLeaveFlow();
+    if (!flow->start(PDFAppLeaveFlow::Goal::CloseTab))
+    {
+        flow->raiseQuestion();
+        return PDFAppLeaveResult::Refused;
+    }
 
     // A tool of the tab with unsaved work of the user asks first (owner 2026-11-20: the question of the
     // tool, as at its Esc); its answer may run code of the tool - the tab may be deleted meanwhile. The page,
     // which has accepted, waits for the end of the leave (PDFAppPage::finishLeave, decision 8).
-    QPointer<PDFAppPage> leavingPage;
+    QPointer<PDFAppDocumentTab> guard(this);
     if (QPointer<PDFAppPage> page = getPage())
     {
-        m_isAskingClose = true;
-        const bool isPageConfirmed = page->confirmClose();
+        flow->setStep(int(CloseStep::Page));
+        flow->setSubject(page.data());
+        PDFAppLeaveResult result = page->requestClose(flow);
         if (!guard)
         {
-            PDFAppPage::finishLeaves({ page }, false);
-            return false;
+            return PDFAppLeaveResult::Refused;
         }
-        m_isAskingClose = false;
-        if (!isPageConfirmed)
+        if (result == PDFAppLeaveResult::Pending)
         {
-            return false;
+            if (page && flow->waitForStep(page.data(), this, &PDFAppDocumentTab::onClosePageStepFinished))
+            {
+                return PDFAppLeaveResult::Pending;
+            }
+            result = PDFAppLeaveResult::Refused;
         }
-        leavingPage = page;
+        if (result != PDFAppLeaveResult::Done)
+        {
+            flow->finish(false);
+            return PDFAppLeaveResult::Refused;
+        }
+        flow->addAcceptedPage(page.data());
     }
 
-    // Running operations (a save, printing, an assistant): pdf4qt-document-close-running
-    bool hasAskedOperation = false;
-    for (const PDFAppDocumentOperation* operation : m_document->getOperations())
+    const PDFAppLeaveResult result = continueClose(CloseStep::Running);
+    if (result == PDFAppLeaveResult::Done && guard)
     {
-        hasAskedOperation = hasAskedOperation || operation->isAskedBeforeClose();
+        stopOperations(false);
+        writeReadingState();
     }
-    if (hasAskedOperation)
+    return guard ? result : PDFAppLeaveResult::Refused;
+}
+
+PDFAppLeaveResult PDFAppDocumentTab::continueClose(CloseStep from)
+{
+    QPointer<PDFAppDocumentTab> guard(this);
+    QPointer<PDFAppLeaveFlow> flow = getLeaveFlow();
+
+    // Running operations (a save, printing, an assistant): pdf4qt-document-close-running (A0: shown, never exec;
+    // the answer comes to onCloseRunningChosen)
+    if (from <= CloseStep::Running && m_document)
     {
-        m_isAskingClose = true;
-        const PDFAppDocumentChoice choice = PDFAppDocumentChoiceDialog::run(new PDFAppCloseRunningDialog(m_document, this));
-        if (!guard)
+        bool hasAskedOperation = false;
+        for (const PDFAppDocumentOperation* operation : m_document->getOperations())
         {
-            PDFAppPage::finishLeaves({ leavingPage }, false);
-            return false;
+            hasAskedOperation = hasAskedOperation || operation->isAskedBeforeClose();
         }
-        m_isAskingClose = false;
-        if (choice != PDFAppDocumentChoice::Stop || !m_document)
+        if (hasAskedOperation)
         {
-            PDFAppPage::finishLeaves({ leavingPage }, false);
-            return false;
+            flow->setStep(int(CloseStep::Running));
+            PDFAppCloseRunningDialog* dialog = new PDFAppCloseRunningDialog(m_document, this);
+            flow->setQuestion(dialog);
+            PDFAppDocumentChoiceDialog::ask(dialog, this, &PDFAppDocumentTab::onCloseRunningChosen);
+            return PDFAppLeaveResult::Pending;
         }
-        stopOperations(true);
     }
 
     // The close goes on: the choice of the question of the tool, which changes the document (Redact "Remove New
     // Marks", Measure "Save and Close"), is applied before the question of the unsaved changes - Save then saves
     // it; Cancel there keeps the applied change (Undo takes it back). A tool, which could not keep all of its work
-    // (a measurement, which cannot be stored), keeps the tab (owner 2026-11-21). The slots of the commit may delete
-    // the tab.
-    const bool isFinished = PDFAppPage::finishLeaves({ leavingPage }, true);
-    if (!guard || !isFinished)
+    // (a measurement, which cannot be stored), keeps the tab (owner 2026-11-21); its question about the rest is a
+    // step of this flow. The slots of the commit may delete the tab.
+    if (from <= CloseStep::FinishPages)
     {
-        return false;
+        flow->setStep(int(CloseStep::FinishPages));
+        PDFAppLeaveResult result = flow->requestFinishPages(true);
+        if (!guard || !flow)
+        {
+            return PDFAppLeaveResult::Refused;
+        }
+        if (result == PDFAppLeaveResult::Pending)
+        {
+            if (flow->waitForStep(flow.data(), this, &PDFAppDocumentTab::onCloseFinishStepFinished))
+            {
+                return PDFAppLeaveResult::Pending;
+            }
+            result = PDFAppLeaveResult::Refused;
+        }
+        if (result != PDFAppLeaveResult::Done)
+        {
+            flow->finish(false);
+            return PDFAppLeaveResult::Refused;
+        }
     }
 
     // An open editor of a form field is a change too (step 4, package D)
-    if (m_document)
+    if (from <= CloseStep::Unsaved && m_document)
     {
         m_document->commitPendingEdits();
-        if (!guard)
+        if (!guard || !flow)
         {
-            return false;
+            return PDFAppLeaveResult::Refused;
         }
     }
 
-    // Unsaved changes: pdf4qt-document-close-unsaved
-    if (m_document && m_document->isReady() && m_document->isModified())
+    // Unsaved changes: pdf4qt-document-close-unsaved (the answer comes to onCloseUnsavedChosen)
+    if (from <= CloseStep::Unsaved && m_document && m_document->isReady() && m_document->isModified())
     {
-        m_isAskingClose = true;
-        const PDFAppDocumentChoice choice = PDFAppDocumentChoiceDialog::run(new PDFAppCloseUnsavedDialog(m_document, this));
-        if (!guard)
-        {
-            return false;
-        }
-        m_isAskingClose = false;
-
-        switch (choice)
-        {
-            case PDFAppDocumentChoice::Discard:
-                break;
-
-            case PDFAppDocumentChoice::Save:
-            {
-                // The tab closes, when package E has written the file (saveFinished)
-                m_isClosingAfterSave = true;
-                const bool isStarted = save();
-                if (guard && !isStarted)
-                {
-                    m_isClosingAfterSave = false;
-                }
-                return false;
-            }
-
-            default:
-                return false;
-        }
+        flow->setStep(int(CloseStep::Unsaved));
+        PDFAppCloseUnsavedDialog* dialog = new PDFAppCloseUnsavedDialog(m_document, this);
+        flow->setQuestion(dialog);
+        PDFAppDocumentChoiceDialog::ask(dialog, this, &PDFAppDocumentTab::onCloseUnsavedChosen);
+        return PDFAppLeaveResult::Pending;
     }
 
-    stopOperations(false);
-    writeReadingState();
-    return true;
+    // Every question has been answered: the flow ends (the caller closes the tab)
+    flow->finish(true);
+    return guard ? PDFAppLeaveResult::Done : PDFAppLeaveResult::Refused;
 }
 
-bool PDFAppDocumentTab::save()
+bool PDFAppDocumentTab::isCloseStep(CloseStep step) const
 {
-    PDFAppDocumentFileCommandHandler* handler = PDFAppDocumentFileCommandHandler::find(this);
-    if (!handler)
-    {
-        return false;
-    }
-
-    // The signal may come before the call returns (a canceled file dialog)
-    connect(handler, &PDFAppDocumentFileCommandHandler::saveFinished, this, &PDFAppDocumentTab::onFileSaveFinished, Qt::UniqueConnection);
-    return handler->save();
+    const PDFAppLeaveFlow* flow = findLeaveFlow();
+    return flow && flow->isRunning() && flow->getGoal() == PDFAppLeaveFlow::Goal::CloseTab && flow->getStep() == int(step);
 }
 
-void PDFAppDocumentTab::onFileSaveFinished(bool isSaved)
+void PDFAppDocumentTab::completeClose(PDFAppLeaveResult result)
 {
-    const bool isClosing = m_isClosingAfterSave;
-    m_isClosingAfterSave = false;
+    // The last answer has come later than the request: the tab closes by its window now (the last call)
+    if (result == PDFAppLeaveResult::Done)
+    {
+        m_isCloseConfirmed = true;
+        requestClose();
+    }
+}
 
-    QPointer<PDFAppDocumentTab> guard(this);
-    Q_EMIT saveFinished(isSaved);
-    if (!guard)
+void PDFAppDocumentTab::onClosePageStepFinished(PDFAppLeaveResult result)
+{
+    if (!isCloseStep(CloseStep::Page))
     {
         return;
     }
 
-    if (!isClosing || !isSaved || !m_document)
+    PDFAppLeaveFlow* flow = getLeaveFlow();
+    PDFAppPage* page = qobject_cast<PDFAppPage*>(flow->getSubject());
+    if (result != PDFAppLeaveResult::Done || !page)
     {
+        flow->finish(false);
+        return;
+    }
+    flow->addAcceptedPage(page);
+    flow->setSubject(nullptr);
+    completeClose(continueClose(CloseStep::Running));
+}
+
+void PDFAppDocumentTab::onCloseRunningChosen(PDFAppDocumentChoice choice)
+{
+    if (!isCloseStep(CloseStep::Running))
+    {
+        return;
+    }
+
+    PDFAppLeaveFlow* flow = getLeaveFlow();
+    if (choice != PDFAppDocumentChoice::Stop || !m_document)
+    {
+        flow->finish(false);
+        return;
+    }
+
+    QPointer<PDFAppDocumentTab> guard(this);
+    stopOperations(true);
+    if (guard && isCloseStep(CloseStep::Running))
+    {
+        completeClose(continueClose(CloseStep::FinishPages));
+    }
+}
+
+void PDFAppDocumentTab::onCloseFinishStepFinished(PDFAppLeaveResult result)
+{
+    if (!isCloseStep(CloseStep::FinishPages))
+    {
+        return;
+    }
+    if (result != PDFAppLeaveResult::Done)
+    {
+        getLeaveFlow()->finish(false);
+        return;
+    }
+    completeClose(continueClose(CloseStep::Unsaved));
+}
+
+void PDFAppDocumentTab::onCloseUnsavedChosen(PDFAppDocumentChoice choice)
+{
+    if (!isCloseStep(CloseStep::Unsaved))
+    {
+        return;
+    }
+
+    PDFAppLeaveFlow* flow = getLeaveFlow();
+    switch (choice)
+    {
+        case PDFAppDocumentChoice::Discard:
+            flow->finish(true);
+            completeClose(PDFAppLeaveResult::Done);
+            return;
+
+        case PDFAppDocumentChoice::Save:
+        {
+            // The tab closes, when package E has written the file. The questions have been answered: the flow ends
+            // and the save is no step of it (M3 of the review of A0: a quit, the end of the session, a navigation or
+            // a lock go on meanwhile as before A0); a second close is refused until the save ends.
+            QPointer<PDFAppDocumentTab> guard(this);
+            m_isClosingAfterSave = true;
+            flow->finish(true);
+            if (guard)
+            {
+                startCloseSave();
+            }
+            return;
+        }
+
+        default:
+            break;
+    }
+    flow->finish(false);
+}
+
+bool PDFAppDocumentTab::save()
+{
+    PDFAppDocumentFileCommandHandler* handler = prepareSave();
+    return handler && handler->save();
+}
+
+PDFAppDocumentFileCommandHandler* PDFAppDocumentTab::prepareSave()
+{
+    PDFAppDocumentFileCommandHandler* handler = PDFAppDocumentFileCommandHandler::find(this);
+    if (handler)
+    {
+        // The tab reports the end of the save by saveFinished (it may come before the save call returns)
+        connect(handler, &PDFAppDocumentFileCommandHandler::saveFinished, this, &PDFAppDocumentTab::onFileSaveFinished, Qt::UniqueConnection);
+    }
+    return handler;
+}
+
+void PDFAppDocumentTab::startCloseSave()
+{
+    // A0: the save of the close is a request of package E (its end exactly once, never inside the call; false, when
+    // nothing can be saved); the tab closes in onCloseSaveFinished
+    m_isClosingAfterSave = true;
+    PDFAppDocumentFileCommandHandler* handler = prepareSave();
+    if (!handler || !handler->requestSave(this, &PDFAppDocumentTab::onCloseSaveFinished))
+    {
+        m_isClosingAfterSave = false;
+    }
+}
+
+void PDFAppDocumentTab::onCloseSaveFinished(bool isSaved)
+{
+    if (!m_isClosingAfterSave)
+    {
+        return;
+    }
+
+    if (!isSaved || !m_document)
+    {
+        m_isClosingAfterSave = false;
         return;
     }
 
     // Save of close-unsaved: the tab closes only with its changes in the file
     if (!m_document->isModified())
     {
-        m_isCloseConfirmed = true;
-        requestClose();
+        m_isClosingAfterSave = false;
+        completeClose(PDFAppLeaveResult::Done);
         return;
     }
 
-    // The finished save was started before the question (a save, which ran, when
-    // the user chose Save, wrote an older version): the current version is saved
+    // The finished save was started before the question (a save, which ran, when the user chose Save, wrote an older
+    // version): the current version is saved
     if (m_document->isReady())
     {
-        m_isClosingAfterSave = true;
-        const bool isStarted = save();
-        if (guard && !isStarted)
-        {
-            m_isClosingAfterSave = false;
-        }
+        startCloseSave();
+        return;
     }
+    m_isClosingAfterSave = false;
+}
+
+void PDFAppDocumentTab::onFileSaveFinished(bool isSaved)
+{
+    // The end of a save of package E (the flow of the close waits for its own request, onCloseSaveFinished)
+    Q_EMIT saveFinished(isSaved);
+}
+
+bool PDFAppDocumentTab::isClosingAfterSave() const
+{
+    return m_isClosingAfterSave;
 }
 
 void PDFAppDocumentTab::stopOperations(bool askedOnly)

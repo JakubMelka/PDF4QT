@@ -46,6 +46,7 @@ namespace pdf
 class PDFAppCertificateCreateDialog;
 class PDFAppCertificateImportDialog;
 class PDFAppContext;
+class PDFAppFileDialogRequest;
 class PDFAppParagraph;
 class PDFAppToolCallout;
 class PDFAppToolCard;
@@ -420,6 +421,7 @@ private:
     void onPasswordChanged();
     void onCertificateCreated(const QString& fileName);
     void onCertificateImported(const QString& fileName);
+    void onImportFileChosen(const QString& filePath);
     void onCopyClicked();
 
     /// Reads the list and chooses \p filePath (empty = the current choice, else the most recently
@@ -443,6 +445,7 @@ private:
     QPointer<QToolButton> m_importButton;
     QPointer<PDFAppCertificateCreateDialog> m_createDialog;
     QPointer<PDFAppCertificateImportDialog> m_importDialog;
+    QPointer<PDFAppFileDialogRequest> m_fileRequest;   ///< Import… waiting for its file dialog (a child of the part, A0)
     std::vector<PDFAppToolCertificateItem> m_certificates;
     QString m_unlockError;
     QString m_copyError;

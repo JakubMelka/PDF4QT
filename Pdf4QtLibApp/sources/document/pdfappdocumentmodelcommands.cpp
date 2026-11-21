@@ -25,6 +25,7 @@
 #include "pdfappdocument.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
+#include "pdfappleaveflow.h"
 #include "pdfapppage.h"
 #include "pdfapptoolundotarget.h"
 #include "pdfappundostack.h"
@@ -88,33 +89,15 @@ void PDFAppDocumentModelCommandHandler::execute(const QString& commandId)
         // Lock document of the File panel; the lock of the tab opens the popover
         // 266:12435 (Unlock / Edit a Copy), recent_file.locked is written by the tab.
         // A tool, which the lock ends, asks about the unsaved work of the user first (owner
-        // 2026-11-20, decision 6): Keep cancels the lock; the question waits in its own loop
-        // and anything may be deleted meanwhile
-        const bool isLocking = !document->isLocked();
-        QPointer<PDFAppDocument> documentGuard(document);
-        if (isLocking)
+        // 2026-11-20, decision 6): Keep cancels the lock. A0: the question is shown in the
+        // flow of the tab and the lock goes on after its answer (onLockPageStepFinished)
+        if (!document->isLocked())
         {
-            PDFAppDocumentTab* tab = getTab();
-            QPointer<PDFAppPage> page = tab ? tab->getPage() : nullptr;
-            if (page && !page->confirmDocumentLock())
-            {
-                return;
-            }
-
-            // The lock goes on, unless the document has gone or has been locked meanwhile: a choice of the question
-            // of the tool, which changes the document (Redact "Remove New Marks", Measure "Save and Close"), is
-            // applied before the lock while the tool still edits (one Undo step; decision 8). The slots of the
-            // commit may delete anything. A tool, which could not keep all of its work (a locked mark), keeps the
-            // document unlocked (owner 2026-11-21).
-            const bool isProceeding = documentGuard && !documentGuard->isLocked();
-            if (!PDFAppPage::finishLeaves({ page }, isProceeding))
-            {
-                return;
-            }
+            requestLock();
         }
-        if (documentGuard && documentGuard->isLocked() != isLocking)
+        else
         {
-            documentGuard->setLocked(isLocking);
+            document->setLocked(false);
         }
     }
     else if (commandId == PDFAppCommands::editCopy())
@@ -125,6 +108,136 @@ void PDFAppDocumentModelCommandHandler::execute(const QString& commandId)
             Q_EMIT tab->editCopyRequested();
         }
     }
+}
+
+void PDFAppDocumentModelCommandHandler::requestLock()
+{
+    PDFAppDocumentTab* tab = getTab();
+    PDFAppDocument* document = getDocument();
+    QPointer<PDFAppPage> page = tab ? tab->getPage() : nullptr;
+    if (!tab || !document)
+    {
+        return;
+    }
+    if (!page)
+    {
+        document->setLocked(true);
+        return;
+    }
+
+    // One flow of the tab: a lock while a question of the tab is open is refused (the question comes forward)
+    PDFAppLeaveFlow* flow = tab->getLeaveFlow();
+    if (!flow->start(PDFAppLeaveFlow::Goal::LockDocument))
+    {
+        flow->raiseQuestion();
+        return;
+    }
+    flow->setSubject(document);
+    flow->setStep(int(LockStep::Page));
+
+    // The page asks (its code may delete anything)
+    QPointer<PDFAppDocumentModelCommandHandler> guard(this);
+    QPointer<PDFAppLeaveFlow> flowGuard(flow);
+    PDFAppLeaveResult result = page->requestDocumentLock(flow);
+    if (!guard || !flowGuard)
+    {
+        return;
+    }
+    if (result == PDFAppLeaveResult::Pending)
+    {
+        if (page && flow->waitForStep(page.data(), this, &PDFAppDocumentModelCommandHandler::onLockStepFinished))
+        {
+            m_lockPage = page;
+            return;
+        }
+        result = PDFAppLeaveResult::Refused;
+    }
+    if (result != PDFAppLeaveResult::Done)
+    {
+        flow->finish(false);
+        return;
+    }
+    flow->addAcceptedPage(page.data());
+    continueLock();
+}
+
+void PDFAppDocumentModelCommandHandler::continueLock()
+{
+    PDFAppDocumentTab* tab = getTab();
+    QPointer<PDFAppLeaveFlow> flow = tab ? tab->findLeaveFlow() : nullptr;
+    if (!flow || !flow->isRunning())
+    {
+        return;
+    }
+
+    // The lock goes on, unless the document has gone or has been locked meanwhile: a choice of the question of the
+    // tool, which changes the document (Redact "Remove New Marks", Measure "Save and Close"), is applied before the
+    // lock while the tool still edits (one Undo step; decision 8). The slots of the commit may delete anything. A
+    // tool, which could not keep all of its work (a locked mark), keeps the document unlocked (owner 2026-11-21);
+    // its question about the rest is a step of the flow.
+    QPointer<PDFAppDocument> document = qobject_cast<PDFAppDocument*>(flow->getSubject());
+    const bool isProceeding = document && !document->isLocked();
+    flow->setStep(int(LockStep::FinishPages));
+    QPointer<PDFAppDocumentModelCommandHandler> guard(this);
+    PDFAppLeaveResult result = flow->requestFinishPages(isProceeding);
+    if (!guard || !flow)
+    {
+        return;
+    }
+    if (result == PDFAppLeaveResult::Pending)
+    {
+        if (flow->waitForStep(flow.data(), this, &PDFAppDocumentModelCommandHandler::onLockStepFinished))
+        {
+            return;
+        }
+        result = PDFAppLeaveResult::Refused;
+    }
+    finishLock(result == PDFAppLeaveResult::Done);
+}
+
+void PDFAppDocumentModelCommandHandler::finishLock(bool isProceeding)
+{
+    PDFAppDocumentTab* tab = getTab();
+    QPointer<PDFAppLeaveFlow> flow = tab ? tab->findLeaveFlow() : nullptr;
+    if (!flow || !flow->isRunning())
+    {
+        return;
+    }
+
+    // The flow ends first; the lock is the last call (the slots of the lock may delete anything)
+    QPointer<PDFAppDocument> document = qobject_cast<PDFAppDocument*>(flow->getSubject());
+    flow->finish(isProceeding);
+    if (isProceeding && document && !document->isLocked())
+    {
+        document->setLocked(true);
+    }
+}
+
+void PDFAppDocumentModelCommandHandler::onLockStepFinished(PDFAppLeaveResult result)
+{
+    PDFAppDocumentTab* tab = getTab();
+    PDFAppLeaveFlow* flow = tab ? tab->findLeaveFlow() : nullptr;
+    if (!flow || !flow->isRunning() || flow->getGoal() != PDFAppLeaveFlow::Goal::LockDocument)
+    {
+        return;
+    }
+
+    if (flow->getStep() == int(LockStep::Page))
+    {
+        // The page has answered: Keep cancels the lock; the page, which has accepted, waits for the end of the leave
+        // (the page asked, never the current page of the tab, which may have changed meanwhile)
+        PDFAppPage* page = m_lockPage.data();
+        m_lockPage = nullptr;
+        if (result != PDFAppLeaveResult::Done || !page)
+        {
+            flow->finish(false);
+            return;
+        }
+        flow->addAcceptedPage(page);
+        continueLock();
+        return;
+    }
+    finishLock(result == PDFAppLeaveResult::Done);
 }
 
 bool PDFAppDocumentModelCommandHandler::isEnabled(const QString& commandId) const

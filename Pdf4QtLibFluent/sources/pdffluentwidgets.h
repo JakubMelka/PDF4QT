@@ -47,6 +47,7 @@
 
 class QAction;
 class QHBoxLayout;
+class QMenu;
 class QToolButton;
 
 namespace pdf
@@ -159,6 +160,12 @@ private:
     /// Returns the width of the widget around the text (margins), horizontally / vertically
     QSize getLineLayoutExtra() const;
 
+    /// Copy and Select All of the context menu, called from the event loop (queued from the
+    /// actions of the popup menu: the clipboard may run a slot, which deletes the label and
+    /// its menu, while the menu still emits); Copy takes the selection of the opening
+    void copyContextMenuSelection();
+    void selectAllFromContextMenu();
+
     PDFThemeFonts::Role m_fontRole = PDFThemeFonts::Role::Body;
     PDFThemeColors::Color m_color = PDFThemeColors::TextPrimary;
     int m_lineHeight = 0;
@@ -170,6 +177,9 @@ private:
     int m_selectionCursor = -1;
     QString m_selectionText;
     bool m_isSelecting = false;
+
+    /// The selected text, when the context menu was opened (its Copy)
+    QString m_contextMenuSelection;
 };
 
 /// Line edit of a single line
@@ -333,6 +343,9 @@ public:
 protected:
     virtual void paintEvent(QPaintEvent* event) override;
 
+    /// The menu of QAbstractSpinBox shown by popup() (no nested event loop)
+    virtual void contextMenuEvent(QContextMenuEvent* event) override;
+
 private:
     QString m_displayPrefix;
     QString m_displaySuffix;
@@ -362,22 +375,43 @@ public:
 protected:
     virtual void paintEvent(QPaintEvent* event) override;
 
+    /// The menu of QAbstractSpinBox shown by popup() (no nested event loop)
+    virtual void contextMenuEvent(QContextMenuEvent* event) override;
+
 private:
     QString m_displayPrefix;
     QString m_displaySuffix;
     bool m_isTrailingZerosHidden = false;
 };
 
-/// Calendar of the design: cells of days with rounded shapes, no grid
+/// Calendar of the design: cells of days with rounded shapes, no grid. The menu of the
+/// months and the context menu of the editor of the year open by popup() (no nested event
+/// loop of QToolButton::showMenu / QAbstractSpinBox::contextMenuEvent).
 class PDF4QTLIBFLUENTSHARED_EXPORT PDFCalendarWidget : public QCalendarWidget
 {
     Q_OBJECT
 
 public:
     explicit PDFCalendarWidget(QWidget* parent = nullptr);
+    virtual ~PDFCalendarWidget() override;
+
+    /// The menu of the months and the context menu of the editor of the year are shown by the
+    /// calendar (popup()), not by QToolButton / QAbstractSpinBox (markers of the gate script
+    /// UnitTests/nested_event_loops.py)
+    static constexpr bool HAS_OWN_MONTH_MENU = true;
+    static constexpr bool HAS_OWN_YEAR_EDITOR = true;
 
     virtual QSize sizeHint() const override;
     virtual QSize minimumSizeHint() const override;
+
+    /// Opens the menu of the months below the button of the month (as QToolButton with an
+    /// instant popup: the press of the button, Show Menu of assistive technologies), the
+    /// button looks pressed as a button of an open menu, until the menu is hidden.
+    /// \returns false without the button or the menu, or for a disabled button
+    bool showMonthMenu();
+
+    /// The menu of the months of QCalendarWidget (nullptr, if it is gone)
+    QMenu* getMonthMenu() const;
 
 protected:
     virtual void paintCell(QPainter* painter, const QRect& rect, QDate date) const override;
@@ -386,7 +420,18 @@ protected:
 private:
     void updateColors();
 
+    /// The button of the month is pressed (the mouse, Space): the menu of the months opens
+    void onMonthButtonPressed();
+
+    /// The menu of the months is hidden or deleted: the button is released
+    void onMonthMenuHidden();
+
     QPointer<QWidget> m_viewport;
+    QPointer<QToolButton> m_monthButton;    ///< Part of QCalendarWidget
+    QPointer<QMenu> m_monthMenu;            ///< Part of QCalendarWidget (a child of the button of the month)
+    QPointer<QSpinBox> m_yearEdit;          ///< Part of QCalendarWidget
+    QMetaObject::Connection m_monthMenuHiddenConnection;
+    QMetaObject::Connection m_monthMenuDestroyedConnection;
 };
 
 /// Editor of a date and time. Its calendar popup is \p PDFCalendarWidget.
@@ -405,6 +450,9 @@ public:
 
 protected:
     virtual void showEvent(QShowEvent* event) override;
+
+    /// The menu of QAbstractSpinBox shown by popup() (no nested event loop)
+    virtual void contextMenuEvent(QContextMenuEvent* event) override;
 
 private:
     void init();

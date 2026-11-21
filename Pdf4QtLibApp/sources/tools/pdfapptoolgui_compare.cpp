@@ -1324,17 +1324,22 @@ void PDFAppToolGUICompare::setSlotDocument(Slot slot, const QString& documentId)
 
 void PDFAppToolGUICompare::chooseSlotFile(Slot slot)
 {
-    if (m_isRunning)
+    if (m_isRunning || (m_fileRequest && m_fileRequest->isPending()))
     {
         return;
     }
 
-    // The native dialog runs its own event loop: the GUI may go meanwhile
-    QPointer<PDFAppToolGUICompare> guard(this);
-    const QStringList files = PDFAppFileDialogs::getOpenFileNames(getDialogParent(), QString());
-    if (guard && !files.isEmpty())
+    // A0: the dialog answers onSlotFileChosen (the request is a child of the GUI: a GUI gone meanwhile gets nothing)
+    m_fileRequestSlot = slot;
+    m_fileRequest = PDFAppFileDialogs::requestOpenFileNames(getDialogParent(), QString(), this, &PDFAppToolGUICompare::onSlotFileChosen);
+}
+
+void PDFAppToolGUICompare::onSlotFileChosen(const QStringList& files)
+{
+    // setSlotFile checks the state again (a run started meanwhile takes no file)
+    if (!files.isEmpty())
     {
-        setSlotFile(slot, files.front());
+        setSlotFile(m_fileRequestSlot, files.front());
     }
 }
 

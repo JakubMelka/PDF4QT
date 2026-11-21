@@ -53,7 +53,6 @@
 #include <QApplication>
 #include <QBoxLayout>
 #include <QEvent>
-#include <QEventLoop>
 #include <QFileInfo>
 #include <QMetaObject>
 #include <QTimer>
@@ -576,6 +575,8 @@ bool PDFDocumentToolShell::enter()
     {
         m_undoTarget = new PDFAppToolCompositeUndoTarget(m_model, document, this);
     }
+    connect(m_gui.data(), &PDFDocumentToolGUI::statusTextChanged, this, &PDFDocumentToolShell::onWorkChanged);
+    connect(m_gui.data(), &PDFDocumentToolGUI::ownTabStateChanged, this, &PDFDocumentToolShell::onWorkChanged);
     connect(m_gui.data(), &PDFDocumentToolGUI::statusTextChanged, this, &PDFDocumentToolShell::updateStatus);
 
     m_isPermissionRefused = isRefusedByPermissions();
@@ -805,8 +806,13 @@ void PDFDocumentToolShell::close()
     }
     if (m_leaveDialog)
     {
-        // The question of a run, which has ended without the user: its own loop ends
+        // The question of a run, which has ended without the user: it goes as Keep Running (the leave, which waits for
+        // it, is refused; its waiter runs code of the application)
         m_leaveDialog->reject();
+        if (!guard)
+        {
+            return;
+        }
     }
     QDialog* openQuestion = isCloseQuestionOpen() ? m_closeQuestion.data() : nullptr;
     m_closeQuestion = nullptr;
@@ -1279,7 +1285,7 @@ void PDFDocumentToolShell::cancel()
 
 bool PDFDocumentToolShell::askCloseQuestion()
 {
-    // The own tab has its own question (askOwnTabClose); a question being asked or open is not asked
+    // The own tab has its own question (requestOwnTabClose); a question being asked or open is not asked
     // again and the tool stays (a second Esc, a key repeat, an Esc while the question opens)
     if (m_isAskingClose || isCloseQuestionOpen())
     {
@@ -1325,24 +1331,47 @@ bool PDFDocumentToolShell::isCloseQuestionOpen() const
 
 bool PDFDocumentToolShell::isQuestionOpen() const
 {
-    return m_isAskingClose || m_isWaitingForLeave || m_isAskingLeave || isCloseQuestionOpen();
+    return m_isAskingClose || isWaitingForLeave() || m_isAskingLeave || isCloseQuestionOpen();
 }
 
-bool PDFDocumentToolShell::confirmLeaveWork()
+bool PDFDocumentToolShell::isWaitingForLeave() const
 {
-    // The own tab asks by its page (askOwnTabClose, K16); a tool without work goes without a question
-    if (!m_gui || !m_host || m_host->isOwnTab() || m_isCloseRequested)
+    return m_leaveFlow && m_leaveFlow->isWaitingFor(this);
+}
+
+bool PDFDocumentToolShell::checkLeaveWait()
+{
+    if (isWaitingForLeave())
     {
         return true;
     }
-    if (m_isWaitingForLeave)
+
+    // The flow has ended without the answer (canceled from outside, its step dropped): nobody waits any more
+    if (QDialog* question = m_leaveQuestion.data())
+    {
+        disconnect(question, nullptr, this, nullptr);
+    }
+    m_leaveFlow = nullptr;
+    m_leaveQuestion = nullptr;
+    ++m_leaveWaitId;
+    return false;
+}
+
+PDFAppLeaveResult PDFDocumentToolShell::requestLeaveWork(PDFAppLeaveFlow* flow)
+{
+    // The own tab asks by its page (requestOwnTabClose, K16); a tool without work goes without a question
+    if (!m_gui || !m_host || m_host->isOwnTab() || m_isCloseRequested)
+    {
+        return PDFAppLeaveResult::Done;
+    }
+    if (checkLeaveWait())
     {
         // A second leave while the first one waits for the answer: the first one decides
-        return false;
+        return PDFAppLeaveResult::Refused;
     }
     if (!isCloseQuestionOpen() && !m_gui->hasUnsavedWork())
     {
-        return true;
+        return PDFAppLeaveResult::Done;
     }
 
     // The tab is shown, so the user sees, what the question is about
@@ -1350,64 +1379,100 @@ bool PDFDocumentToolShell::confirmLeaveWork()
     m_host->activate();
     if (!guard || !m_host)
     {
-        return false;
+        return PDFAppLeaveResult::Refused;
     }
     if (m_state != State::Editing)
     {
         // The tool has ended meanwhile (a slot of the activation): nothing is left to lose, the leave goes on
-        return true;
+        return PDFAppLeaveResult::Done;
     }
 
     // The question of Esc may be open already: the leave waits for its answer too (never two questions)
     if (!isCloseQuestionOpen() && !askCloseQuestion())
     {
         // The GUI has nothing to ask after all: the tool may go
-        return guard != nullptr;
+        return guard ? PDFAppLeaveResult::Done : PDFAppLeaveResult::Refused;
     }
     if (!guard)
     {
-        return false;
+        return PDFAppLeaveResult::Refused;
     }
 
     m_isCloseQuestionActionDeferred = false;
-    return waitForLeaveAnswer(m_closeQuestion.data());
+    return waitForLeaveQuestion(m_closeQuestion.data(), flow);
 }
 
-bool PDFDocumentToolShell::waitForLeaveAnswer(QDialog* openQuestion)
+PDFAppLeaveResult PDFDocumentToolShell::waitForLeaveQuestion(QDialog* question, PDFAppLeaveFlow* flow)
 {
-    QPointer<QDialog> question = openQuestion;
     if (!question)
     {
-        return false;
+        return PDFAppLeaveResult::Refused;
+    }
+    if (!question->isVisible())
+    {
+        // Nothing to wait for: the tool, which has ended meanwhile, has nothing left to lose (RESCCODE L2)
+        return m_state != State::Editing ? PDFAppLeaveResult::Done : PDFAppLeaveResult::Refused;
+    }
+    if (!flow || !flow->isRunning())
+    {
+        // Nobody could take the answer: the question stays as the question of the tool, the leave is refused
+        return PDFAppLeaveResult::Refused;
     }
 
-    // The answer comes by the buttons of the question of the GUI (open, never exec): its closing answer
-    // calls closeAfterQuestion, which only accepts the leave now; the loop ends with the dialog, or when
-    // the shell goes. The same wait as of the question of a run (PDFAppDocumentChoiceDialog::run).
-    QPointer<PDFDocumentToolShell> guard(this);
-    m_isWaitingForLeave = true;
-    m_isLeaveAccepted = false;
-    {
-        QEventLoop loop;
-        connect(question.data(), &QDialog::finished, &loop, &QEventLoop::quit);
-        connect(question.data(), &QObject::destroyed, &loop, &QEventLoop::quit);
-        connect(this, &QObject::destroyed, &loop, &QEventLoop::quit);
-        if (question->isVisible())
-        {
-            loop.exec(QEventLoop::DialogExec);
-        }
-    }
-    if (!guard)
-    {
-        return false;
-    }
-    m_isWaitingForLeave = false;
-    const bool isAccepted = m_isLeaveAccepted;
-    m_isLeaveAccepted = false;
+    // A0: no event loop. The answer comes by the buttons of the question of the GUI (open, never exec): its closing
+    // answer calls closeAfterQuestion (or deferCloseQuestionAction), which accepts the leave now; the end of the
+    // question without it (Keep, Esc, the question deleted) refuses the leave from the event loop - the GUIs close
+    // the dialog before they call the shell. The shell deleted meanwhile refuses it too (PDFAppLeaveFlowStep).
+    m_leaveFlow = flow;
+    m_leaveQuestion = question;
+    ++m_leaveWaitId;
+    connect(question, &QDialog::finished, this, &PDFDocumentToolShell::onLeaveQuestionEnded);
+    connect(question, &QObject::destroyed, this, &PDFDocumentToolShell::onLeaveQuestionEnded);
+    flow->setQuestion(question);
+    return PDFAppLeaveResult::Pending;
+}
 
-    // The tool has ended during the wait (a lock, a lost document; its question went with it): nothing is left to
-    // lose, the leave goes on (RESCCODE L2)
-    return isAccepted || m_state != State::Editing;
+void PDFDocumentToolShell::onLeaveQuestionEnded()
+{
+    // The slot only notes the end (the question may be in its destructor): the answer is read from the event loop,
+    // after the GUI has called closeAfterQuestion, if it was a closing answer
+    if (!m_leaveFlow || m_isAskingLeave)
+    {
+        return;
+    }
+    m_endedLeaveWaitId = m_leaveWaitId;
+    QMetaObject::invokeMethod(this, &PDFDocumentToolShell::onLeaveQuestionSettled, Qt::QueuedConnection);
+}
+
+void PDFDocumentToolShell::onLeaveQuestionSettled()
+{
+    if (!m_leaveFlow || m_isAskingLeave || m_endedLeaveWaitId != m_leaveWaitId)
+    {
+        return;
+    }
+
+    // No closing answer has come (Keep, Esc, the question deleted). The tool has ended during the wait (a lock, a
+    // lost document; its question went with it): nothing is left to lose, the leave goes on (RESCCODE L2)
+    reportLeave(m_state != State::Editing ? PDFAppLeaveResult::Done : PDFAppLeaveResult::Refused);
+}
+
+void PDFDocumentToolShell::reportLeave(PDFAppLeaveResult result)
+{
+    // The wait ends first; the waiter of the flow is the last call (it may delete anything)
+    QPointer<PDFAppLeaveFlow> flow = m_leaveFlow;
+    if (QDialog* question = m_leaveQuestion.data())
+    {
+        disconnect(question, nullptr, this, nullptr);
+    }
+    m_leaveFlow = nullptr;
+    m_leaveQuestion = nullptr;
+    ++m_leaveWaitId;
+    if (flow && !m_isDestroying)
+    {
+        // A dying shell reports nothing: the step of its flow is refused by the end of its reporter (from the event
+        // loop, PDFAppLeaveFlowStep), the waiter never runs inside of this destructor
+        flow->finishStep(this, result);
+    }
 }
 
 void PDFDocumentToolShell::closeAfterQuestion()
@@ -1417,10 +1482,11 @@ void PDFDocumentToolShell::closeAfterQuestion()
         return;
     }
 
-    // A leave (the close of the tab, another route) waits for the answer: it goes on and closes the tool
-    if (m_isWaitingForLeave)
+    // A leave (the close of the tab, another route) waits for the answer: it goes on and closes the tool (the last
+    // call: the waiter may delete the shell). A flow ended meanwhile waits no more: the answer closes the tool.
+    if (!m_isAskingLeave && checkLeaveWait())
     {
-        m_isLeaveAccepted = true;
+        reportLeave(PDFAppLeaveResult::Done);
         return;
     }
 
@@ -1432,24 +1498,31 @@ void PDFDocumentToolShell::closeAfterQuestion()
 
 bool PDFDocumentToolShell::deferCloseQuestionAction()
 {
-    if (m_state != State::Editing || !m_isWaitingForLeave)
+    if (m_state != State::Editing || m_isAskingLeave || !checkLeaveWait())
     {
+        // Nobody waits (a flow ended meanwhile included): the GUI applies the choice as without a leave
         return false;
     }
 
-    // Owner 2026-11-20, decision 8: the choice changes nothing, until the leave really goes on (finishLeave)
+    // Owner 2026-11-20, decision 8: the choice changes nothing, until the leave really goes on (finishLeave); the
+    // leave is accepted now (the last call: the waiter may delete the shell; the GUI does nothing more)
     m_isCloseQuestionActionDeferred = true;
-    m_isLeaveAccepted = true;
+    reportLeave(PDFAppLeaveResult::Done);
     return true;
 }
 
 bool PDFDocumentToolShell::finishLeave(bool isProceeding)
 {
+    return requestFinishLeave(isProceeding, nullptr) == PDFAppLeaveResult::Done;
+}
+
+PDFAppLeaveResult PDFDocumentToolShell::requestFinishLeave(bool isProceeding, PDFAppLeaveFlow* flow)
+{
     const bool isDeferred = m_isCloseQuestionActionDeferred;
     m_isCloseQuestionActionDeferred = false;
     if (!isProceeding || !isDeferred || m_state != State::Editing || !m_gui)
     {
-        return true;
+        return PDFAppLeaveResult::Done;
     }
 
     // The leave goes on with the tool still open: the choice commits through the shell as it does outside of a
@@ -1458,28 +1531,29 @@ bool PDFDocumentToolShell::finishLeave(bool isProceeding)
     const bool isKept = m_gui->applyCloseQuestionAction();
     if (!guard || isKept)
     {
-        return true;
+        return PDFAppLeaveResult::Done;
     }
 
     // Owner 2026-11-21: a part of the work could not be kept (a measurement, which cannot be stored as an
     // annotation; a locked mark). The tab of the tool is shown; the GUI asks about the rest (Measure: Keep Measuring
     // cancels the leave, Discard and Close lets it go on) as the open question of the tool, waited for as by
-    // confirmLeave (one question loop at a time: the loop of the first question has ended). A GUI without such a
-    // question keeps its work and has told why: the leave is canceled.
+    // requestLeave (A0: the step stays Pending until its answer). A GUI without such a question keeps its work and
+    // has told why: the leave is canceled. Without a flow nobody waits: the question stays as the question of the
+    // tool (its closing answer closes the tool) and the leave is canceled.
     if (m_host)
     {
         m_host->activate();
     }
     if (!guard || m_state != State::Editing)
     {
-        return true;
+        return PDFAppLeaveResult::Done;
     }
     QDialog* question = askIncompleteQuestion();
-    if (!guard)
+    if (!guard || !question)
     {
-        return false;
+        return PDFAppLeaveResult::Refused;
     }
-    return question && waitForLeaveAnswer(question);
+    return waitForLeaveQuestion(question, flow);
 }
 
 QDialog* PDFDocumentToolShell::askIncompleteQuestion()
@@ -1590,29 +1664,29 @@ void PDFDocumentToolShell::onEscape()
     }
 }
 
-bool PDFDocumentToolShell::confirmLeave()
+PDFAppLeaveResult PDFDocumentToolShell::requestLeave(PDFAppLeaveFlow* flow)
 {
     switch (m_state)
     {
         case State::Created:
         case State::Closed:
-            return true;
+            return PDFAppLeaveResult::Done;
 
         case State::Editing:
             // Owner 2026-11-20: every way of leaving asks the question of the unsaved work
-            return confirmLeaveWork();
+            return requestLeaveWork(flow);
 
         case State::Deciding:
             // The modal dialog decides: nothing goes around it
-            return false;
+            return PDFAppLeaveResult::Refused;
 
         case State::Running:
             break;
     }
 
-    if (m_isAskingLeave || !m_host)
+    if (m_isAskingLeave || checkLeaveWait() || !m_host || !flow || !flow->isRunning())
     {
-        return false;
+        return PDFAppLeaveResult::Refused;
     }
 
     // The tab is shown, so the user sees, what the question is about
@@ -1620,24 +1694,37 @@ bool PDFDocumentToolShell::confirmLeave()
     m_host->activate();
     if (!guard || !m_host)
     {
-        return false;
+        return PDFAppLeaveResult::Refused;
     }
 
+    // A0: the question is shown (exec's modality, no event loop); its answer comes to onLeaveRunningChosen
     const PDFDocumentToolCatalogEntry* tool = getCatalogEntry();
     m_isAskingLeave = true;
+    m_leaveFlow = flow;
+    ++m_leaveWaitId;
     PDFAppToolLeaveRunningDialog* dialog = new PDFAppToolLeaveRunningDialog(tool ? tool->getTitle() : QString(), m_host->getDocument(), m_percentage, m_host->getKeyWidget());
     m_leaveDialog = dialog;
-    const PDFAppDocumentChoice choice = PDFAppDocumentChoiceDialog::run(dialog);
-    if (!guard)
-    {
-        return false;
-    }
-    m_isAskingLeave = false;
+    flow->setQuestion(dialog);
+    PDFAppDocumentChoiceDialog::ask(dialog, this, &PDFDocumentToolShell::onLeaveRunningChosen);
+    return PDFAppLeaveResult::Pending;
+}
 
+void PDFDocumentToolShell::onLeaveRunningChosen(PDFAppDocumentChoice choice)
+{
+    m_isAskingLeave = false;
+    if (m_isDestroying)
+    {
+        // The question was rejected by the destructor of the shell (the tab or the window deleted): nothing is
+        // decided and nothing is reported (the step is refused by the end of the shell)
+        m_pendingResult.reset();
+        reportLeave(PDFAppLeaveResult::Refused);
+        return;
+    }
     if (m_state == State::Closed)
     {
         // The tool has ended meanwhile (F2, a lock): its page goes on
-        return false;
+        reportLeave(PDFAppLeaveResult::Refused);
+        return;
     }
 
     if (choice != PDFAppDocumentChoice::Stop)
@@ -1645,15 +1732,21 @@ bool PDFDocumentToolShell::confirmLeave()
         // Keep Running: a result, which came while the user was asked, is decided now
         if (m_pendingResult)
         {
+            QPointer<PDFDocumentToolShell> guard(this);
             const PDFDocumentToolResult result = *m_pendingResult;
             m_pendingResult.reset();
             finishRun(result);
+            if (!guard)
+            {
+                return;
+            }
         }
-        return false;
+        reportLeave(PDFAppLeaveResult::Refused);
+        return;
     }
 
     m_pendingResult.reset();
-    return true;
+    reportLeave(PDFAppLeaveResult::Done);
 }
 
 void PDFDocumentToolShell::requestClose(const PDFAppToolCloseRequest& request)
@@ -1957,6 +2050,7 @@ bool PDFDocumentToolShell::isRefusedByPermissions() const
 
 void PDFDocumentToolShell::onParameterChanged(const QString& name)
 {
+    ++m_workStamp;
     QPointer<PDFDocumentToolShell> guard(this);
     if (m_gui)
     {
@@ -1980,7 +2074,13 @@ void PDFDocumentToolShell::onParameterChanged(const QString& name)
 
 void PDFDocumentToolShell::onConfirmStateChanged()
 {
+    ++m_workStamp;
     updateToolbar();
+}
+
+void PDFDocumentToolShell::onWorkChanged()
+{
+    ++m_workStamp;
 }
 
 void PDFDocumentToolShell::onPreviewProgress(int percentage, const QString& stepText)

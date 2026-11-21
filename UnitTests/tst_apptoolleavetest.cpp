@@ -25,6 +25,7 @@
 // the user has made work in this session (none, or work removed or saved = no question); an assistant never closes
 // such a tool; an interactive tool is recorded in Recent tools when it is left after an action or 10 s shown.
 
+#include "appasyncdialogs.h"
 #include "appmcpfixture.h"
 #include "apptoolowntabfixture.h"
 
@@ -36,6 +37,8 @@
 #include "pdfappdocumentsidebar.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
+#include "pdfappfiledrop.h"
+#include "pdfappleaveflow.h"
 #include "pdfappmainwindow.h"
 #include "pdfappnavigator.h"
 #include "pdfapproute.h"
@@ -69,6 +72,7 @@
 #include <QApplication>
 #include <QDialog>
 #include <QImage>
+#include <QJsonArray>
 #include <QLabel>
 #include <QMenu>
 #include <QPushButton>
@@ -365,46 +369,18 @@ public:
         return nullptr;
     }
 
-    /// Runs \p action once, when the question of the tool is shown (a leave waits for it in its own loop); the
-    /// timer is a child of \p context
-    static void runWhenShown(PDFDocumentToolShell* shell, QObject* context, std::function<void()> action)
+    /// Clicks the button \p text of the open question of the tool as the user does (A0: the leave has shown it and
+    /// returned; the continuation runs in the click) and settles. \returns false without the question or the button.
+    static bool answer(PDFDocumentToolShell* shell, const QString& text)
     {
-        QTimer* timer = new QTimer(context);
-        timer->setInterval(10);
-        QPointer<PDFDocumentToolShell> guard(shell);
-        QObject::connect(timer, &QTimer::timeout, timer, [timer, guard, action]()
+        QPushButton* answerButton = button(question(shell), text);
+        if (!answerButton)
         {
-            if (!question(guard.data()))
-            {
-                return;
-            }
-            timer->stop();
-            timer->deleteLater();
-            action();
-        });
-        timer->start();
-    }
-
-    /// Answers the question of the tool by the button \p text, when it is shown (a leave waits for it in its own
-    /// loop); \p asked becomes true then
-    static void answerWhenShown(PDFDocumentToolShell* shell, const QString& text, bool* asked)
-    {
-        QTimer* timer = new QTimer(shell);
-        timer->setInterval(10);
-        QPointer<PDFDocumentToolShell> guard(shell);
-        QObject::connect(timer, &QTimer::timeout, timer, [timer, guard, text, asked]()
-        {
-            QPushButton* answer = button(question(guard.data()), text);
-            if (!answer)
-            {
-                return;
-            }
-            *asked = true;
-            timer->stop();
-            timer->deleteLater();
-            answer->click();
-        });
-        timer->start();
+            return false;
+        }
+        answerButton->click();
+        AppToolShellFixture::settle();
+        return true;
     }
 
     /// The annotations of all pages of the document
@@ -432,32 +408,25 @@ public:
         return pdf::PDFMeasureAnnotationInfo::readPages(document.data(), pages, 1000, 1000, nullptr, nullptr).size();
     }
 
-    /// Answers the question of the unsaved changes of the close of a tab by \p choice (Cancel rejects it), when it is
-    /// shown; \p onShown runs first (the state at the question). The timer is a child of \p context.
-    static void answerUnsavedWhenShown(QObject* context, pdf::PDFAppDocumentChoice choice, std::function<void()> onShown)
+    /// Answers the open question of the unsaved changes of the close of a tab by \p choice (Cancel rejects it) and
+    /// settles. \returns false without the question.
+    static bool answerUnsaved(pdf::PDFAppDocumentChoice choice)
     {
-        QTimer* timer = new QTimer(context);
-        timer->setInterval(10);
-        QObject::connect(timer, &QTimer::timeout, timer, [timer, choice, onShown]()
+        pdf::PDFAppCloseUnsavedDialog* dialog = pdftest::AppDocumentFixture::findDialog<pdf::PDFAppCloseUnsavedDialog>();
+        if (!dialog)
         {
-            pdf::PDFAppCloseUnsavedDialog* dialog = pdftest::AppDocumentFixture::findDialog<pdf::PDFAppCloseUnsavedDialog>();
-            if (!dialog)
-            {
-                return;
-            }
-            timer->stop();
-            timer->deleteLater();
-            onShown();
-            if (choice == pdf::PDFAppDocumentChoice::Cancel)
-            {
-                dialog->reject();
-            }
-            else if (QPushButton* button = dialog->getChoiceButton(choice))
-            {
-                button->click();
-            }
-        });
-        timer->start();
+            return false;
+        }
+        if (choice == pdf::PDFAppDocumentChoice::Cancel)
+        {
+            dialog->reject();
+        }
+        else if (QPushButton* choiceButton = dialog->getChoiceButton(choice))
+        {
+            choiceButton->click();
+        }
+        AppToolShellFixture::settle();
+        return true;
     }
 
     /// Two temporary measurements of Measure: one on page 1, which the writer stores, and one on page 2, whose length
@@ -476,52 +445,55 @@ public:
         return qobject_cast<pdf::PDFAppToolGUIMeasure*>(shell ? shell->getGUI() : nullptr);
     }
 
-    /// Clicks the button \p buttonName of the question of Measure about the measurements, which could not be saved,
-    /// when it is shown; \p onShown runs first (the state at the question)
-    static void answerIncompleteWhenShown(PDFDocumentToolShell* shell, const QString& buttonName, std::function<void()> onShown)
+    /// The open question of Measure about the measurements, which could not be saved (nullptr = none is shown)
+    static pdf::PDFMessageBox* incompleteQuestion(PDFDocumentToolShell* shell)
     {
-        QTimer* timer = new QTimer(qApp);
-        timer->setInterval(10);
-        QPointer<PDFDocumentToolShell> guard(shell);
-        QObject::connect(timer, &QTimer::timeout, timer, [timer, guard, buttonName, onShown]()
-        {
-            pdf::PDFAppToolGUIMeasure* gui = measure(guard.data());
-            pdf::PDFMessageBox* box = gui ? gui->getIncompleteQuestion() : nullptr;
-            QPushButton* button = box && box->isVisible() ? box->findChild<QPushButton*>(buttonName) : nullptr;
-            if (!guard || button)
-            {
-                timer->stop();
-                timer->deleteLater();
-                if (button)
-                {
-                    onShown();
-                    button->click();
-                }
-            }
-        });
-        timer->start();
-        QTimer::singleShot(30000, timer, &QTimer::deleteLater);
+        pdf::PDFAppToolGUIMeasure* gui = measure(shell);
+        pdf::PDFMessageBox* box = gui ? gui->getIncompleteQuestion() : nullptr;
+        return box && box->isVisible() ? box : nullptr;
     }
 
-    /// Records, whether the question of the unsaved documents of the quit is shown, and cancels it; \p onShown runs
-    /// first (the state at the question)
-    static void cancelQuitUnsavedWhenShown(QObject* context, bool* isShown, std::function<void()> onShown)
+    /// Clicks the button \p buttonName of the open question of Measure about the measurements, which could not be
+    /// saved, and settles. \returns false without the question or the button.
+    static bool answerIncomplete(PDFDocumentToolShell* shell, const QString& buttonName)
     {
-        QTimer* timer = new QTimer(context);
-        timer->setInterval(10);
-        QObject::connect(timer, &QTimer::timeout, timer, [timer, isShown, onShown]()
+        pdf::PDFMessageBox* box = incompleteQuestion(shell);
+        QPushButton* answerButton = box ? box->findChild<QPushButton*>(buttonName) : nullptr;
+        if (!answerButton)
         {
-            pdf::PDFAppQuitUnsavedDialog* dialog = pdftest::AppDocumentFixture::findDialog<pdf::PDFAppQuitUnsavedDialog>();
-            if (dialog)
-            {
-                *isShown = true;
-                onShown();
-                timer->stop();
-                timer->deleteLater();
-                dialog->reject();
-            }
-        });
-        timer->start();
+            return false;
+        }
+        answerButton->click();
+        AppToolShellFixture::settle();
+        return true;
+    }
+
+    /// Cancels the open question of the unsaved documents of the quit and settles. \returns false without it.
+    static bool cancelQuitUnsaved()
+    {
+        pdf::PDFAppQuitUnsavedDialog* dialog = pdftest::AppDocumentFixture::findDialog<pdf::PDFAppQuitUnsavedDialog>();
+        if (!dialog)
+        {
+            return false;
+        }
+        dialog->reject();
+        AppToolShellFixture::settle();
+        return true;
+    }
+
+    /// Clicks Cancel of the open question of the close of an own tab of a tool (K16) and settles. \returns false
+    /// without it.
+    static bool cancelToolTabClose(QWidget* window)
+    {
+        QDialog* dialog = window ? window->findChild<QDialog*>(QStringLiteral("toolTabCloseDialog")) : nullptr;
+        QPushButton* cancel = dialog && dialog->isVisible() ? dialog->findChild<QPushButton*>(QStringLiteral("cancelButton")) : nullptr;
+        if (!cancel)
+        {
+            return false;
+        }
+        cancel->click();
+        AppToolShellFixture::settle();
+        return true;
     }
 
     /// The new mark of Redact made Locked (ISO 32000-2 Table 167: /F 132 = Print + Locked) by a change of the tool:
@@ -640,6 +612,11 @@ private slots:
     void sessionEndListsToolWork();
     void assistantNavigateNotLeaving();
     void assistantRefusedWhileQuestionOpen();
+    void assistantRefusedDuringFlow();
+    void assistantDuringCloseSaveAs();
+    void assistantChangeDuringQuit();
+    void flowEndedOutsideReleasesWaits();
+    void ownTabCancelRefusedResumes();
     void thumbnailsMenuToolQueued();
 
 private:
@@ -745,41 +722,31 @@ void AppToolLeaveTest::everyLeaveAsks()
     QVERIFY(!H::question(shell));
     QVERIFY(shell->getGUI()->hasUnsavedWork());
 
-    // The close of the tab: Keep refuses it
-    bool isAsked = false;
-    H::answerWhenShown(shell, tool.keepText, &isAsked);
-    QVERIFY(!fixture.window->closeTab(tab));
-    QVERIFY(isAsked);
-    AppToolShellFixture::settle();
+    // The close of the tab: Keep refuses it (A0: the question is shown, the close returns; its answer continues)
+    pdftest::NestedEventLoopGuard loopGuard;
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    QVERIFY(H::answer(shell, tool.keepText));
     QVERIFY(shell);
     QVERIFY(fixture.window->findDocumentTab(tab->getDocumentId()));
     QVERIFY(tab->getView()->isToolModeActive());
+    QVERIFY(!tab->isLeaving());
 
     // The quit of the window: the question per tab, Keep keeps the window
-    isAsked = false;
-    H::answerWhenShown(shell, tool.keepText, &isAsked);
-    fixture.window->close();
-    AppToolShellFixture::settle();
-    QVERIFY(isAsked);
+    QVERIFY(!fixture.window->close());
+    QVERIFY(H::answer(shell, tool.keepText));
     QVERIFY(fixture.window->isVisible());
     QVERIFY(shell);
 
     // Another route: Keep stays in the tool
-    isAsked = false;
-    H::answerWhenShown(shell, tool.keepText, &isAsked);
     fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::document(tab->getDocumentId()), pdf::PDFAppNavigationMode::Push, tab);
-    AppToolShellFixture::settle();
-    QVERIFY(isAsked);
+    QVERIFY(H::answer(shell, tool.keepText));
     QVERIFY(shell);
     QVERIFY(shell->getState() == PDFDocumentToolShell::State::Editing);
     QVERIFY(tab->getView()->isToolModeActive());
 
     // Another route with the closing answer: the tool goes, the route is shown
-    isAsked = false;
-    H::answerWhenShown(shell, tool.closeText, &isAsked);
     fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::document(tab->getDocumentId()), pdf::PDFAppNavigationMode::Push, tab);
-    AppToolShellFixture::settle();
-    QVERIFY(isAsked);
+    QVERIFY(H::answer(shell, tool.closeText));
     QVERIFY(!shell);
     QVERIFY(!tab->getView()->isToolModeActive());
     QCOMPARE(H::countShownQuestions(), 0);
@@ -1235,25 +1202,12 @@ void AppToolLeaveTest::ownTabUntouchedListNoQuestion()
     QVERIFY(tab->getPage()->hasUnsavedWork());
 
     // The close of the tab asks (K16): Cancel keeps it
-    bool isAsked = false;
-    QTimer timer;
-    timer.setInterval(10);
-    QObject::connect(&timer, &QTimer::timeout, &timer, [&]()
-    {
-        QDialog* dialog = fixture.window ? fixture.window->findChild<QDialog*>(QStringLiteral("toolTabCloseDialog")) : nullptr;
-        QPushButton* cancel = dialog && dialog->isVisible() ? dialog->findChild<QPushButton*>(QStringLiteral("cancelButton")) : nullptr;
-        if (cancel)
-        {
-            isAsked = true;
-            timer.stop();
-            cancel->click();
-        }
-    });
-    timer.start();
-    QVERIFY(!fixture.window->closeTab(tab));
-    timer.stop();
-    QVERIFY(isAsked);
+    pdftest::NestedEventLoopGuard loopGuard;
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    QVERIFY(tab->isAskingClose());
+    QVERIFY(H::cancelToolTabClose(fixture.window));
     QVERIFY(tab);
+    QVERIFY(!tab->isAskingClose());
 }
 
 void AppToolLeaveTest::interactiveUseRecordedOnTabClose()
@@ -1383,15 +1337,11 @@ void AppToolLeaveTest::waitTabDeleted()
     QVERIFY(shell);
     QVERIFY(tool.makeWork(fixture, shell));
     QPointer<pdf::PDFAppDocumentTab> tabGuard(tab);
-    bool isDeleted = false;
-    H::runWhenShown(shell, fixture.window, [&isDeleted, tabGuard]()
-    {
-        isDeleted = true;
-        delete tabGuard.data();
-    });
+    pdftest::NestedEventLoopGuard loopGuard;
     fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::document(tab->getDocumentId()), pdf::PDFAppNavigationMode::Push, tab);
+    QVERIFY(H::question(shell));
+    delete tabGuard.data();
     AppToolShellFixture::settle();
-    QVERIFY(isDeleted);
     QVERIFY(!tabGuard);
     QVERIFY(!shell);
     QCOMPARE(H::countShownQuestions(), 0);
@@ -1407,19 +1357,15 @@ void AppToolLeaveTest::waitSecondLeaveRefused()
     QPointer<PDFDocumentToolShell> shell = H::open(fixture, tool, &tab);
     QVERIFY(shell);
     QVERIFY(tool.makeWork(fixture, shell));
-    int questions = 0;
-    bool isSecondClosed = true;
-    H::runWhenShown(shell, fixture.window, [&]()
-    {
-        questions = H::countShownQuestions();
-        isSecondClosed = fixture.window->closeTab(tab);
-        questions = std::max(questions, H::countShownQuestions());
-        H::button(H::question(shell), tool.keepText)->click();
-    });
+    pdftest::NestedEventLoopGuard loopGuard;
     fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::document(tab->getDocumentId()), pdf::PDFAppNavigationMode::Push, tab);
-    AppToolShellFixture::settle();
+    int questions = H::countShownQuestions();
+    QVERIFY(H::question(shell));
+    const pdf::PDFAppLeaveResult secondResult = fixture.window->requestCloseTab(tab);
+    questions = std::max(questions, H::countShownQuestions());
+    QVERIFY(H::answer(shell, tool.keepText));
     QCOMPARE(questions, 1);
-    QVERIFY(!isSecondClosed);
+    QCOMPARE(secondResult, pdf::PDFAppLeaveResult::Refused);
     QVERIFY(fixture.window->findDocumentTab(tab->getDocumentId()));
     QVERIFY(shell);
     QCOMPARE(shell->getState(), PDFDocumentToolShell::State::Editing);
@@ -1438,19 +1384,20 @@ void AppToolLeaveTest::waitDocumentLost()
     QVERIFY(shell);
     QVERIFY(tool.makeWork(fixture, shell));
     QPointer<pdf::PDFAppDocumentTab> tabGuard(tab);
-    bool isLost = false;
-    H::runWhenShown(shell, fixture.window, [&isLost, tabGuard]()
-    {
-        isLost = true;
-        tabGuard->getDocument()->setFailed(QStringLiteral("Leave.pdf"), QStringLiteral("Damaged"));
-    });
-    const bool isClosed = fixture.window->closeTab(tab);
+    pdftest::NestedEventLoopGuard loopGuard;
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    QVERIFY(H::question(shell));
+
+    // The close of the flow closes the tab (its flow ends Done), not the report of the failed document (the window
+    // waits for the flow, M2 of the review of A0)
+    QSignalSpy flowSpy(tab->findLeaveFlow(), &pdf::PDFAppLeaveFlow::finished);
+    tabGuard->getDocument()->setFailed(QStringLiteral("Leave.pdf"), QStringLiteral("Damaged"));
     AppToolShellFixture::settle();
-    QVERIFY(isLost);
     QCOMPARE(H::countShownQuestions(), 0);
-    QVERIFY(isClosed);
     QVERIFY(!tabGuard);
     QVERIFY(!shell);
+    QCOMPARE(flowSpy.count(), 1);
+    QCOMPARE(flowSpy.front().front().toBool(), true);
 }
 
 void AppToolLeaveTest::waitLanguageAndThemeChange()
@@ -1463,27 +1410,19 @@ void AppToolLeaveTest::waitLanguageAndThemeChange()
     QVERIFY(shell);
     QVERIFY(tool.makeWork(fixture, shell));
     LeaveTestTranslator translator;
-    bool isChanged = false;
-    bool isAsked = false;
-    QDialog* changedQuestion = nullptr;
-    H::runWhenShown(shell, fixture.window, [&]()
-    {
-        QDialog* question = H::question(shell);
-        QCoreApplication::installTranslator(&translator);
-        pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Dark);
-        AppToolShellFixture::settle();
-        QCoreApplication::removeTranslator(&translator);
-        pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
-        AppToolShellFixture::settle();
-        isChanged = true;
-        changedQuestion = H::question(shell) == question ? question : nullptr;
-        H::answerWhenShown(shell, tool.keepText, &isAsked);
-    });
+    pdftest::NestedEventLoopGuard loopGuard;
     fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::document(tab->getDocumentId()), pdf::PDFAppNavigationMode::Push, tab);
+    QDialog* question = H::question(shell);
+    QVERIFY(question);
+    QCoreApplication::installTranslator(&translator);
+    pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Dark);
     AppToolShellFixture::settle();
-    QVERIFY(isChanged);
-    QVERIFY(changedQuestion);
-    QVERIFY(isAsked);
+    QCoreApplication::removeTranslator(&translator);
+    pdf::PDFThemeManager::getInstance()->setScheme(pdf::PDFThemeColors::Scheme::Light);
+    AppToolShellFixture::settle();
+    QCOMPARE(H::question(shell), question);
+    QVERIFY(tab->isLeaving());
+    QVERIFY(H::answer(shell, tool.keepText));
     QVERIFY(shell);
     QCOMPARE(shell->getState(), PDFDocumentToolShell::State::Editing);
     QVERIFY(tab->getView()->isToolModeActive());
@@ -1505,16 +1444,11 @@ void AppToolLeaveTest::escapeQuestionReusedByTabClose()
     QDialog* escQuestion = H::question(shell);
     QVERIFY(escQuestion);
 
-    int questions = 0;
-    QDialog* waited = nullptr;
-    H::runWhenShown(shell, fixture.window, [&]()
-    {
-        questions = H::countShownQuestions();
-        waited = H::question(shell);
-        H::button(waited, tool.keepText)->click();
-    });
-    QVERIFY(!fixture.window->closeTab(tab));
-    AppToolShellFixture::settle();
+    pdftest::NestedEventLoopGuard loopGuard;
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    const int questions = H::countShownQuestions();
+    QDialog* waited = H::question(shell);
+    QVERIFY(H::answer(shell, tool.keepText));
     QCOMPARE(questions, 1);
     QCOMPARE(waited, escQuestion);
     QVERIFY(shell);
@@ -1531,11 +1465,9 @@ void AppToolLeaveTest::quitClosingAnswerClosesWindow()
     QPointer<PDFDocumentToolShell> shell = H::open(fixture, tool, &tab);
     QVERIFY(shell);
     QVERIFY(tool.makeWork(fixture, shell));
-    bool isAsked = false;
-    H::answerWhenShown(shell, tool.closeText, &isAsked);
-    QVERIFY(fixture.window->close());
-    AppToolShellFixture::settle();
-    QVERIFY(isAsked);
+    pdftest::NestedEventLoopGuard loopGuard;
+    QVERIFY(!fixture.window->close());
+    QVERIFY(H::answer(shell, tool.closeText));
     QVERIFY(!fixture.window || !fixture.window->isVisible());
     QCOMPARE(H::countShownQuestions(), 0);
 }
@@ -1558,15 +1490,12 @@ void AppToolLeaveTest::quitDiscardThenKeepKeepsWork()
     QVERIFY(second);
     QVERIFY(tool.makeWork(fixture, second));
 
-    bool isFirstAsked = false;
-    bool isSecondAsked = false;
-    H::answerWhenShown(first, tool.closeText, &isFirstAsked);
-    H::answerWhenShown(second, tool.keepText, &isSecondAsked);
+    pdftest::NestedEventLoopGuard loopGuard;
     QVERIFY(!fixture.window->close());
-    AppToolShellFixture::settle();
-    QVERIFY(isFirstAsked);
-    QVERIFY(isSecondAsked);
+    QVERIFY(H::answer(first, tool.closeText));
+    QVERIFY(H::answer(second, tool.keepText));
     QVERIFY(fixture.window->isVisible());
+    QVERIFY(!pdf::PDFAppLeaveFlow::isRunningIn(fixture.window.data()));
     for (const QPointer<PDFDocumentToolShell>& shell : { first, second })
     {
         QVERIFY(shell);
@@ -1598,27 +1527,11 @@ void AppToolLeaveTest::quitAsksDocumentToolsFirst()
     AppToolShellFixture::settle();
     QVERIFY(toolTab->getPage()->hasUnsavedWork());
 
-    bool isOwnTabAsked = false;
-    QTimer timer;
-    timer.setInterval(10);
-    QObject::connect(&timer, &QTimer::timeout, &timer, [&]()
-    {
-        QDialog* dialog = fixture.window ? fixture.window->findChild<QDialog*>(QStringLiteral("toolTabCloseDialog")) : nullptr;
-        QPushButton* cancel = dialog && dialog->isVisible() ? dialog->findChild<QPushButton*>(QStringLiteral("cancelButton")) : nullptr;
-        if (cancel)
-        {
-            isOwnTabAsked = true;
-            cancel->click();
-        }
-    });
-    timer.start();
-    bool isToolAsked = false;
-    H::answerWhenShown(shell, tool.keepText, &isToolAsked);
+    pdftest::NestedEventLoopGuard loopGuard;
     QVERIFY(!fixture.window->close());
-    AppToolShellFixture::settle();
-    timer.stop();
-    QVERIFY(isToolAsked);
-    QVERIFY(!isOwnTabAsked);
+    QVERIFY(!H::cancelToolTabClose(fixture.window));
+    QVERIFY(H::answer(shell, tool.keepText));
+    QVERIFY(!H::cancelToolTabClose(fixture.window));
     QVERIFY(toolTab);
     QVERIFY(shell);
 }
@@ -1636,21 +1549,18 @@ void AppToolLeaveTest::lockAsksToolQuestion()
     QVERIFY(shell);
     QVERIFY(tool.makeWork(fixture, shell));
 
-    bool isAsked = false;
-    H::answerWhenShown(shell, tool.keepText, &isAsked);
+    pdftest::NestedEventLoopGuard loopGuard;
     QVERIFY(tab->executeCommand(pdf::PDFAppCommands::lockDocument()));
-    AppToolShellFixture::settle();
-    QVERIFY(isAsked);
+    QVERIFY(tab->isLeaving());
+    QVERIFY(H::answer(shell, tool.keepText));
     QVERIFY(!tab->getDocument()->isLocked());
     QVERIFY(shell);
     QCOMPARE(shell->getState(), PDFDocumentToolShell::State::Editing);
     QVERIFY(shell->getGUI()->hasUnsavedWork());
+    QVERIFY(!tab->isLeaving());
 
-    isAsked = false;
-    H::answerWhenShown(shell, tool.closeText, &isAsked);
     QVERIFY(tab->executeCommand(pdf::PDFAppCommands::lockDocument()));
-    AppToolShellFixture::settle();
-    QVERIFY(isAsked);
+    QVERIFY(H::answer(shell, tool.closeText));
     QVERIFY(tab->getDocument()->isLocked());
     QVERIFY(!tab->getView()->isToolModeActive());
     QVERIFY(!shell || shell->getState() == PDFDocumentToolShell::State::Closed);
@@ -1676,32 +1586,24 @@ void AppToolLeaveTest::lockRedactRemoveNewMarks()
     const int undoCount = AppToolShellFixture::undoCount(document);
 
     // The answer is only remembered: right after the click the mark is still there and the document is not locked
-    bool isAsked = false;
+    // A0: the continuation runs in the click of the answer (the remembered choice is applied right after the
+    // question in the same flow, before the lock); the state at the answer is read by a slot of the dialog's finished
+    pdftest::NestedEventLoopGuard loopGuard;
+    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::lockDocument()));
+    QDialog* question = H::question(shell);
+    QPushButton* remove = H::button(question, QStringLiteral("Remove New Marks"));
+    QVERIFY(remove);
     size_t annotationsAfterAnswer = 0;
     bool isLockedAfterAnswer = true;
-    bool isDeferredAfterAnswer = false;
-    H::runWhenShown(shell, shell, [&]()
+    QObject::connect(question, &QDialog::finished, question, [&]()
     {
-        QDialog* question = H::question(shell);
-        QPushButton* remove = H::button(question, QStringLiteral("Remove New Marks"));
-        if (!remove)
-        {
-            // No such choice: the question is closed (Keep), so the lock does not wait forever; isAsked fails
-            question->reject();
-            return;
-        }
-        isAsked = true;
-        remove->click();
         annotationsAfterAnswer = H::annotationCount(document);
         isLockedAfterAnswer = document->isLocked();
-        isDeferredAfterAnswer = shell && shell->hasDeferredCloseQuestionAction();
     });
-    QVERIFY(tab->executeCommand(pdf::PDFAppCommands::lockDocument()));
+    remove->click();
     AppToolShellFixture::settle();
-    QVERIFY(isAsked);
     QCOMPARE(annotationsAfterAnswer, size_t(1));
     QVERIFY(!isLockedAfterAnswer);
-    QVERIFY(isDeferredAfterAnswer);
     QVERIFY(document->isLocked());
     QCOMPARE(H::annotationCount(document), size_t(0));
     QCOMPARE(AppToolShellFixture::undoCount(document), undoCount + 1);
@@ -1729,20 +1631,13 @@ void AppToolLeaveTest::tabCloseMeasureSaveAndClose()
     QVERIFY(!tab->getDocument()->isModified());
     QCOMPARE(H::measureAnnotationCount(tab->getDocument()), size_t(0));
 
-    bool isAsked = false;
-    bool isUnsavedAsked = false;
-    size_t annotationsAtUnsaved = 0;
-    H::answerWhenShown(shell, QStringLiteral("Save and Close"), &isAsked);
-    H::answerUnsavedWhenShown(fixture.window, pdf::PDFAppDocumentChoice::Save, [&]()
-    {
-        isUnsavedAsked = true;
-        annotationsAtUnsaved = tabGuard ? H::measureAnnotationCount(tabGuard->getDocument()) : 0;
-    });
-    QVERIFY(!fixture.window->closeTab(tab));
+    pdftest::NestedEventLoopGuard loopGuard;
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    QVERIFY(H::answer(shell, QStringLiteral("Save and Close")));
+    QVERIFY(pdftest::AppDocumentFixture::findDialog<pdf::PDFAppCloseUnsavedDialog>());
+    QCOMPARE(H::measureAnnotationCount(tab->getDocument()), size_t(1));
+    QVERIFY(H::answerUnsaved(pdf::PDFAppDocumentChoice::Save));
     QVERIFY(AppToolShellFixture::waitFor([&tabGuard]() { return !tabGuard; }, 20000));
-    QVERIFY(isAsked);
-    QVERIFY(isUnsavedAsked);
-    QCOMPARE(annotationsAtUnsaved, size_t(1));
 
     // The file has the measurement annotation
     pdf::PDFAppDocumentTab* reopened = fixture.open(filePath);
@@ -1763,14 +1658,10 @@ void AppToolLeaveTest::tabCloseCanceledKeepsAppliedAction()
     QVERIFY(tool.makeWork(fixture, shell));
     QPointer<pdf::PDFAppDocumentTab> tabGuard(tab);
 
-    bool isAsked = false;
-    bool isUnsavedAsked = false;
-    H::answerWhenShown(shell, QStringLiteral("Save and Close"), &isAsked);
-    H::answerUnsavedWhenShown(fixture.window, pdf::PDFAppDocumentChoice::Cancel, [&isUnsavedAsked]() { isUnsavedAsked = true; });
-    QVERIFY(!fixture.window->closeTab(tab));
-    AppToolShellFixture::settle();
-    QVERIFY(isAsked);
-    QVERIFY(isUnsavedAsked);
+    pdftest::NestedEventLoopGuard loopGuard;
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    QVERIFY(H::answer(shell, QStringLiteral("Save and Close")));
+    QVERIFY(H::answerUnsaved(pdf::PDFAppDocumentChoice::Cancel));
     QVERIFY(tabGuard);
     QVERIFY(shell);
     QCOMPARE(shell->getState(), PDFDocumentToolShell::State::Editing);
@@ -1800,32 +1691,19 @@ void AppToolLeaveTest::incompleteQuitKeepMeasuring()
     QVERIFY(H::makeIncompleteWork(shell));
     QPointer<pdf::PDFAppToolGUIMeasure> gui = H::measure(shell);
 
-    bool isAsked = false;
-    bool isBoxShown = false;
-    bool hasTexts = false;
-    size_t annotationsAtBox = 0;
-    size_t measurementsAtBox = 0;
-    bool isUnsavedShown = false;
-    H::answerWhenShown(shell, QStringLiteral("Save and Close"), &isAsked);
-    H::answerIncompleteWhenShown(shell, QStringLiteral("measureIncompleteKeep"), [&]()
-    {
-        isBoxShown = true;
-        annotationsAtBox = H::measureAnnotationCount(tab->getDocument());
-        measurementsAtBox = gui ? gui->getMeasurements().size() : 0;
-        hasTexts = gui && H::hasLabel(gui->getIncompleteQuestion(), QStringLiteral("1 measurement could not be saved as an annotation")) &&
-                   H::hasLabel(gui->getIncompleteQuestion(), QStringLiteral("The value of the measurement cannot be computed. Keep Measuring keeps it as a temporary "
-                                                                            "measurement. Discard and Close removes it and closes the tool."));
-    });
-    H::cancelQuitUnsavedWhenShown(fixture.window, &isUnsavedShown, []() { });
+    pdftest::NestedEventLoopGuard loopGuard;
     QVERIFY(!fixture.window->close());
-    AppToolShellFixture::settle();
-    QVERIFY(isAsked);
-    QVERIFY(isBoxShown);
-    QVERIFY(hasTexts);
-    QCOMPARE(annotationsAtBox, size_t(1));
-    QCOMPARE(measurementsAtBox, size_t(1));
-    QVERIFY(!isUnsavedShown);
+    QVERIFY(H::answer(shell, QStringLiteral("Save and Close")));
+    QVERIFY(H::incompleteQuestion(shell));
+    QCOMPARE(H::measureAnnotationCount(tab->getDocument()), size_t(1));
+    QCOMPARE(gui->getMeasurements().size(), size_t(1));
+    QVERIFY(H::hasLabel(gui->getIncompleteQuestion(), QStringLiteral("1 measurement could not be saved as an annotation")));
+    QVERIFY(H::hasLabel(gui->getIncompleteQuestion(), QStringLiteral("The value of the measurement cannot be computed. Keep Measuring keeps it as a temporary "
+                                                                    "measurement. Discard and Close removes it and closes the tool.")));
+    QVERIFY(H::answerIncomplete(shell, QStringLiteral("measureIncompleteKeep")));
+    QVERIFY(!pdftest::AppDocumentFixture::findDialog<pdf::PDFAppQuitUnsavedDialog>());
     QVERIFY(fixture.window->isVisible());
+    QVERIFY(!pdf::PDFAppLeaveFlow::isRunningIn(fixture.window.data()));
     QVERIFY(shell && gui);
     QCOMPARE(shell->getState(), PDFDocumentToolShell::State::Editing);
     QVERIFY(tab->getView()->isToolModeActive());
@@ -1847,25 +1725,15 @@ void AppToolLeaveTest::incompleteQuitDiscardAndClose()
     QVERIFY(H::makeIncompleteWork(shell));
     QPointer<pdf::PDFAppToolGUIMeasure> gui = H::measure(shell);
 
-    bool isAsked = false;
-    bool isBoxShown = false;
-    bool isUnsavedShown = false;
-    size_t annotationsAtUnsaved = 0;
-    size_t measurementsAtUnsaved = 1;
-    H::answerWhenShown(shell, QStringLiteral("Save and Close"), &isAsked);
-    H::answerIncompleteWhenShown(shell, QStringLiteral("measureIncompleteDiscard"), [&isBoxShown]() { isBoxShown = true; });
-    H::cancelQuitUnsavedWhenShown(fixture.window, &isUnsavedShown, [&]()
-    {
-        annotationsAtUnsaved = H::measureAnnotationCount(tab->getDocument());
-        measurementsAtUnsaved = gui ? gui->getMeasurements().size() : 1;
-    });
+    pdftest::NestedEventLoopGuard loopGuard;
     QVERIFY(!fixture.window->close());
-    AppToolShellFixture::settle();
-    QVERIFY(isAsked);
-    QVERIFY(isBoxShown);
-    QVERIFY(isUnsavedShown);
-    QCOMPARE(annotationsAtUnsaved, size_t(1));
-    QCOMPARE(measurementsAtUnsaved, size_t(0));
+    QVERIFY(H::answer(shell, QStringLiteral("Save and Close")));
+    QVERIFY(H::answerIncomplete(shell, QStringLiteral("measureIncompleteDiscard")));
+    QVERIFY(pdftest::AppDocumentFixture::findDialog<pdf::PDFAppQuitUnsavedDialog>());
+    QCOMPARE(H::measureAnnotationCount(tab->getDocument()), size_t(1));
+    QVERIFY(gui);
+    QCOMPARE(gui->getMeasurements().size(), size_t(0));
+    QVERIFY(H::cancelQuitUnsaved());
     QVERIFY(fixture.window->isVisible());
     QCOMPARE(H::measureAnnotationCount(tab->getDocument()), size_t(1));
 }
@@ -1883,18 +1751,13 @@ void AppToolLeaveTest::incompleteTabCloseKeepMeasuring()
     QPointer<pdf::PDFAppDocumentTab> tabGuard(tab);
     QPointer<pdf::PDFAppToolGUIMeasure> gui = H::measure(shell);
 
-    bool isAsked = false;
-    bool isBoxShown = false;
-    bool isUnsavedShown = false;
-    H::answerWhenShown(shell, QStringLiteral("Save and Close"), &isAsked);
-    H::answerIncompleteWhenShown(shell, QStringLiteral("measureIncompleteKeep"), [&isBoxShown]() { isBoxShown = true; });
-    H::answerUnsavedWhenShown(fixture.window, pdf::PDFAppDocumentChoice::Cancel, [&isUnsavedShown]() { isUnsavedShown = true; });
-    QVERIFY(!fixture.window->closeTab(tab));
-    AppToolShellFixture::settle();
-    QVERIFY(isAsked);
-    QVERIFY(isBoxShown);
-    QVERIFY(!isUnsavedShown);
+    pdftest::NestedEventLoopGuard loopGuard;
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    QVERIFY(H::answer(shell, QStringLiteral("Save and Close")));
+    QVERIFY(H::answerIncomplete(shell, QStringLiteral("measureIncompleteKeep")));
+    QVERIFY(!pdftest::AppDocumentFixture::findDialog<pdf::PDFAppCloseUnsavedDialog>());
     QVERIFY(tabGuard);
+    QVERIFY(!tab->isLeaving());
     QVERIFY(shell && gui);
     QCOMPARE(shell->getState(), PDFDocumentToolShell::State::Editing);
     QCOMPARE(gui->getMeasurements().size(), size_t(1));
@@ -1914,17 +1777,12 @@ void AppToolLeaveTest::incompleteTabCloseDiscardAndClose()
     QPointer<pdf::PDFAppDocumentTab> tabGuard(tab);
     const QString filePath = tab->getDocument()->getFilePath();
 
-    bool isAsked = false;
-    bool isBoxShown = false;
-    bool isUnsavedShown = false;
-    H::answerWhenShown(shell, QStringLiteral("Save and Close"), &isAsked);
-    H::answerIncompleteWhenShown(shell, QStringLiteral("measureIncompleteDiscard"), [&isBoxShown]() { isBoxShown = true; });
-    H::answerUnsavedWhenShown(fixture.window, pdf::PDFAppDocumentChoice::Save, [&isUnsavedShown]() { isUnsavedShown = true; });
-    QVERIFY(!fixture.window->closeTab(tab));
+    pdftest::NestedEventLoopGuard loopGuard;
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    QVERIFY(H::answer(shell, QStringLiteral("Save and Close")));
+    QVERIFY(H::answerIncomplete(shell, QStringLiteral("measureIncompleteDiscard")));
+    QVERIFY(H::answerUnsaved(pdf::PDFAppDocumentChoice::Save));
     QVERIFY(AppToolShellFixture::waitFor([&tabGuard]() { return !tabGuard; }, 20000));
-    QVERIFY(isAsked);
-    QVERIFY(isBoxShown);
-    QVERIFY(isUnsavedShown);
 
     pdf::PDFAppDocumentTab* reopened = fixture.open(filePath);
     QVERIFY(reopened && AppToolShellFixture::waitFor([reopened]() { return reopened->getDocument() && reopened->getDocument()->isReady(); }));
@@ -1945,34 +1803,21 @@ void AppToolLeaveTest::incompleteRouteKeepMeasuring()
     QPointer<pdf::PDFAppToolGUIMeasure> gui = H::measure(shell);
     const pdf::PDFAppRoute route = pdf::PDFAppRoutes::document(tab->getDocumentId());
 
-    bool isAsked = false;
-    bool isBoxShown = false;
-    H::answerWhenShown(shell, QStringLiteral("Save and Close"), &isAsked);
-    H::answerIncompleteWhenShown(shell, QStringLiteral("measureIncompleteKeep"), [&isBoxShown]() { isBoxShown = true; });
+    pdftest::NestedEventLoopGuard loopGuard;
     fixture.window->getNavigator()->navigate(route, pdf::PDFAppNavigationMode::Push, tab);
-    AppToolShellFixture::settle();
-    QVERIFY(isAsked);
-    QVERIFY(isBoxShown);
+    QVERIFY(H::answer(shell, QStringLiteral("Save and Close")));
+    QVERIFY(H::answerIncomplete(shell, QStringLiteral("measureIncompleteKeep")));
     QVERIFY(shell && gui);
     QCOMPARE(shell->getState(), PDFDocumentToolShell::State::Editing);
     QVERIFY(tab->getView()->isToolModeActive());
     QCOMPARE(gui->getMeasurements().size(), size_t(1));
     QCOMPARE(H::measureAnnotationCount(tab->getDocument()), size_t(1));
 
-    isAsked = false;
-    isBoxShown = false;
-    bool hasTitle = false;
-    H::answerWhenShown(shell, QStringLiteral("Save and Close"), &isAsked);
-    H::answerIncompleteWhenShown(shell, QStringLiteral("measureIncompleteDiscard"), [&]()
-    {
-        isBoxShown = true;
-        hasTitle = gui && H::hasLabel(gui->getIncompleteQuestion(), QStringLiteral("1 measurement could not be saved as an annotation"));
-    });
     fixture.window->getNavigator()->navigate(route, pdf::PDFAppNavigationMode::Push, tab);
-    AppToolShellFixture::settle();
-    QVERIFY(isAsked);
-    QVERIFY(isBoxShown);
-    QVERIFY(hasTitle);
+    QVERIFY(H::answer(shell, QStringLiteral("Save and Close")));
+    QVERIFY(H::incompleteQuestion(shell));
+    QVERIFY(H::hasLabel(gui->getIncompleteQuestion(), QStringLiteral("1 measurement could not be saved as an annotation")));
+    QVERIFY(H::answerIncomplete(shell, QStringLiteral("measureIncompleteDiscard")));
     QVERIFY(!shell || shell->getState() == PDFDocumentToolShell::State::Closed);
     QVERIFY(!tab->getView()->isToolModeActive());
     QCOMPARE(H::measureAnnotationCount(tab->getDocument()), size_t(1));
@@ -2040,12 +1885,11 @@ void AppToolLeaveTest::incompleteLockRefused()
     pdf::PDFAppDocument* document = tab->getDocument();
     QVERIFY(H::lockNewMark(document, shell));
 
-    bool isAsked = false;
-    H::answerWhenShown(shell, QStringLiteral("Remove New Marks"), &isAsked);
+    pdftest::NestedEventLoopGuard loopGuard;
     QVERIFY(tab->executeCommand(pdf::PDFAppCommands::lockDocument()));
-    AppToolShellFixture::settle();
-    QVERIFY(isAsked);
+    QVERIFY(H::answer(shell, QStringLiteral("Remove New Marks")));
     QVERIFY(!document->isLocked());
+    QVERIFY(!tab->isLeaving());
     QVERIFY(shell);
     QCOMPARE(shell->getState(), PDFDocumentToolShell::State::Editing);
     QVERIFY(tab->getView()->isToolModeActive());
@@ -2065,65 +1909,76 @@ void AppToolLeaveTest::sessionEndListsToolWork()
     QVERIFY(tool.makeWork(fixture, shell));
     QVERIFY(!tab->getDocument()->isModified());
 
+    // A0 (owner 2026-11-21): the end of the session is canceled without a question inside the handler (also without
+    // the interaction of the session manager); the question of the documents follows from the event loop and never a
+    // question of the tool
+    pdftest::NestedEventLoopGuard loopGuard;
     {
         LeaveTestSessionManager manager;
         manager.isInteractionAllowed = false;
         QCOMPARE(pdf::PDFAppSessionEnd::commitData(&manager), pdf::PDFAppSessionEnd::Outcome::CanceledWithoutInteraction);
         QCOMPARE(manager.cancelCount, 1);
         QCOMPARE(H::countShownQuestions(), 0);
+        QVERIFY(!pdftest::AppDocumentFixture::findDialog<pdf::PDFAppQuitUnsavedDialog>());
+        AppToolShellFixture::settle();
+        QCOMPARE(H::countShownQuestions(), 0);
+        QVERIFY(H::cancelQuitUnsaved());
     }
 
-    auto answerQuit = [&fixture](pdf::PDFAppDocumentChoice choice, int* rows)
     {
-        QTimer* timer = new QTimer(fixture.window);
-        timer->setInterval(10);
-        QObject::connect(timer, &QTimer::timeout, timer, [timer, choice, rows]()
-        {
-            for (QWidget* widget : QApplication::topLevelWidgets())
-            {
-                pdf::PDFAppQuitUnsavedDialog* dialog = qobject_cast<pdf::PDFAppQuitUnsavedDialog*>(widget);
-                for (pdf::PDFAppQuitUnsavedDialog* child : widget->findChildren<pdf::PDFAppQuitUnsavedDialog*>())
-                {
-                    dialog = dialog ? dialog : child;
-                }
-                if (dialog && dialog->isVisible())
-                {
-                    *rows = dialog->getList()->getItemCount();
-                    timer->stop();
-                    timer->deleteLater();
-                    dialog->getChoiceButton(choice)->click();
-                    return;
-                }
-            }
-        });
-        timer->start();
-    };
-
-    {
-        int rows = 0;
-        answerQuit(pdf::PDFAppDocumentChoice::Cancel, &rows);
         LeaveTestSessionManager manager;
         QCOMPARE(pdf::PDFAppSessionEnd::commitData(&manager), pdf::PDFAppSessionEnd::Outcome::Canceled);
-        QCOMPARE(rows, 1);
         QCOMPARE(manager.cancelCount, 1);
+        AppToolShellFixture::settle();
+        pdf::PDFAppQuitUnsavedDialog* dialog = pdftest::AppDocumentFixture::findDialog<pdf::PDFAppQuitUnsavedDialog>();
+        QVERIFY(dialog);
+        QCOMPARE(dialog->getList()->getItemCount(), 1);
+        dialog->getChoiceButton(pdf::PDFAppDocumentChoice::Cancel)->click();
+        AppToolShellFixture::settle();
         QVERIFY(shell && shell->getGUI()->hasUnsavedWork());
+        QVERIFY(!pdf::PDFAppSessionEnd::isToolWorkDiscarded(tab->getPage()));
     }
 
     {
-        int rows = 0;
-        answerQuit(pdf::PDFAppDocumentChoice::Discard, &rows);
         LeaveTestSessionManager manager;
-        QCOMPARE(pdf::PDFAppSessionEnd::commitData(&manager), pdf::PDFAppSessionEnd::Outcome::Discarded);
-        QCOMPARE(rows, 1);
-        QCOMPARE(manager.releaseCount, 1);
+        QCOMPARE(pdf::PDFAppSessionEnd::commitData(&manager), pdf::PDFAppSessionEnd::Outcome::Canceled);
+        AppToolShellFixture::settle();
+        pdf::PDFAppQuitUnsavedDialog* dialog = pdftest::AppDocumentFixture::findDialog<pdf::PDFAppQuitUnsavedDialog>();
+        QVERIFY(dialog);
+        QCOMPARE(dialog->getList()->getItemCount(), 1);
+        dialog->getChoiceButton(pdf::PDFAppDocumentChoice::Discard)->click();
+        AppToolShellFixture::settle();
+        QCOMPARE(manager.releaseCount, 0);
         QVERIFY(pdf::PDFAppSessionEnd::isToolWorkDiscarded(tab->getPage()));
 
-        // The window, which closes then, asks the tool no second time (no nested question at the logoff)
-        bool isAskedAgain = false;
-        H::answerWhenShown(shell, tool.keepText, &isAskedAgain);
+        // H1 of the review of A0: a quit of the user asks the tool as before A0 (the end of the session was canceled)
+        QVERIFY(!fixture.window->close());
+        QVERIFY(H::answer(shell, tool.keepText));
+        QVERIFY(fixture.window->isVisible());
+        QVERIFY(shell && shell->getGUI()->hasUnsavedWork());
+
+        // More work after the answer is not given up: the next end of the session is canceled and asks again
+        pdf::PDFAppToolGUIMeasure* measure = qobject_cast<pdf::PDFAppToolGUIMeasure*>(shell->getGUI());
+        QVERIFY(measure && measure->addMeasurement(0, pdf::PDFMeasureKind::Distance, { QPointF(120, 140), QPointF(190, 140) }, pdf::PDFAppMeasureDrawKind::Linear));
+        QVERIFY(!pdf::PDFAppSessionEnd::isToolWorkDiscarded(tab->getPage()));
+        LeaveTestSessionManager again;
+        QCOMPARE(pdf::PDFAppSessionEnd::commitData(&again), pdf::PDFAppSessionEnd::Outcome::Canceled);
+        QCOMPARE(again.cancelCount, 1);
+        AppToolShellFixture::settle();
+        dialog = pdftest::AppDocumentFixture::findDialog<pdf::PDFAppQuitUnsavedDialog>();
+        QVERIFY(dialog);
+        QCOMPARE(dialog->getList()->getItemCount(), 1);
+        dialog->getChoiceButton(pdf::PDFAppDocumentChoice::Discard)->click();
+        AppToolShellFixture::settle();
+        QVERIFY(pdf::PDFAppSessionEnd::isToolWorkDiscarded(tab->getPage()));
+
+        // The next end of the session goes on; the window, which closes then, asks the tool no second time
+        LeaveTestSessionManager next;
+        QCOMPARE(pdf::PDFAppSessionEnd::commitData(&next), pdf::PDFAppSessionEnd::Outcome::NoChanges);
+        QCOMPARE(next.cancelCount, 0);
         QVERIFY(fixture.window->close());
         AppToolShellFixture::settle();
-        QVERIFY(!isAskedAgain);
+        QCOMPARE(H::countShownQuestions(), 0);
         QVERIFY(!fixture.window || !fixture.window->isVisible());
     }
 }
@@ -2215,6 +2070,210 @@ void AppToolLeaveTest::assistantRefusedWhileQuestionOpen()
     QVERIFY(shell);
 }
 
+void AppToolLeaveTest::assistantRefusedDuringFlow()
+{
+    // A0 (RR3-M6): while a flow of the window shows its question (the close of a tab asks about the unsaved
+    // changes), an assistant neither closes nor navigates (denied_dialog: the question is a modal dialog); answered,
+    // it closes the other document again
+    pdftest::AppMcpFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    pdf::PDFAppDocumentTab* clean = fixture.open(AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Clean.pdf"), 1));
+    pdf::PDFAppDocumentTab* changed = fixture.open(AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Changed.pdf"), 1));
+    QVERIFY(clean && changed);
+    QTRY_VERIFY(clean->getDocument()->isReady() && changed->getDocument()->isReady());
+    pdf::PDFDocumentBuilder builder(changed->getDocument()->getDocument().data());
+    builder.setDocumentTitle(QStringLiteral("Changed"));
+    pdf::PDFDocumentPointer changedDocument(new pdf::PDFDocument(builder.build()));
+    QVERIFY(changed->getDocument()->commit(pdf::PDFModifiedDocument(changedDocument, nullptr, pdf::PDFModifiedDocument::None), QStringLiteral("Changed"),
+                                           changed->getDocument()->getVersion(), pdf::PDFAppChangeSource::User));
+    const QString cleanId = clean->getDocument()->getId();
+    QPointer<pdf::PDFAppDocumentTab> cleanGuard(clean);
+
+    // (no NestedEventLoopGuard: the client of the MCP fixture waits for its HTTP answer in its own loop)
+    QCOMPARE(fixture.window->requestCloseTab(changed), pdf::PDFAppLeaveResult::Pending);
+    QVERIFY(pdftest::AppDocumentFixture::findDialog<pdf::PDFAppCloseUnsavedDialog>());
+    QVERIFY(pdf::PDFAppLeaveFlow::isRunningIn(fixture.window.data()));
+
+    const QJsonObject close({ { QStringLiteral("action"), QStringLiteral("close") }, { QStringLiteral("documentId"), cleanId } });
+    const QJsonObject navigate({ { QStringLiteral("action"), QStringLiteral("navigate") },
+                                 { QStringLiteral("navigate"), QJsonObject({ { QStringLiteral("route"), pdf::PDFAppRoutes::home().toString() } }) } });
+    for (const QJsonObject& arguments : { close, navigate })
+    {
+        const std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("view"), arguments);
+        QVERIFY(result);
+        QVERIFY(result->isError);
+        QVERIFY2(result->getFirstText().contains(QStringLiteral("dialog")), qPrintable(result->getFirstText()));
+        pdftest::AppDocumentFixture::settle();
+        QVERIFY(cleanGuard);
+        QVERIFY(pdftest::AppDocumentFixture::findDialog<pdf::PDFAppCloseUnsavedDialog>());
+    }
+
+    // Answered (Cancel): the flow has ended, the assistant closes the clean document
+    QVERIFY(H::answerUnsaved(pdf::PDFAppDocumentChoice::Cancel));
+    QVERIFY(!pdf::PDFAppLeaveFlow::isRunningIn(fixture.window.data()));
+    const std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("view"), close);
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(!cleanGuard);
+}
+
+void AppToolLeaveTest::assistantDuringCloseSaveAs()
+{
+    // A0 (newapp_robustness.md 15.6): Save of close-unsaved of a copy waits for its Save As (the file dialog, modal as
+    // before A0) - an assistant neither closes the tab nor navigates (denied_dialog); Cancel of the file dialog keeps
+    // the tab, the assistant closes it then
+    pdftest::AppMcpFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    pdf::PDFAppDocumentTab* original = fixture.open(AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Original.pdf"), 1));
+    QVERIFY(original);
+    QTRY_VERIFY(original->getDocument()->isReady());
+    pdf::PDFAppDocumentTab* copy = fixture.window->openDocumentCopy(original->getDocument());
+    QVERIFY(copy && copy->getDocument()->isModified());
+    QPointer<pdf::PDFAppDocumentTab> copyGuard(copy);
+    pdf::PDFAppFileDialogs::setSaveFileHandler(pdf::PDFAppFileDialogs::SaveFileHandler());
+
+    // (no NestedEventLoopGuard: the client of the MCP fixture waits for its HTTP answer in its own loop)
+    QCOMPARE(fixture.window->requestCloseTab(copy), pdf::PDFAppLeaveResult::Pending);
+    QVERIFY(H::answerUnsaved(pdf::PDFAppDocumentChoice::Save));
+    QVERIFY(pdftest::AppAsyncDialogs::findFileRequest());
+    QVERIFY(copy->isClosingAfterSave());
+
+    const QJsonObject close({ { QStringLiteral("action"), QStringLiteral("close") }, { QStringLiteral("documentId"), copy->getDocument()->getId() } });
+    const QJsonObject navigate({ { QStringLiteral("action"), QStringLiteral("navigate") },
+                                 { QStringLiteral("navigate"), QJsonObject({ { QStringLiteral("route"), pdf::PDFAppRoutes::home().toString() } }) } });
+    for (const QJsonObject& arguments : { close, navigate })
+    {
+        // (view.close of a document with unsaved changes is refused before the dialog is looked at)
+        const std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("view"), arguments);
+        QVERIFY(result);
+        QVERIFY(result->isError);
+        const bool isClose = arguments.value(QStringLiteral("action")).toString() == QStringLiteral("close");
+        QVERIFY2(isClose || result->getFirstText().contains(QStringLiteral("dialog")), qPrintable(result->getFirstText()));
+        pdftest::AppDocumentFixture::settle();
+        QVERIFY(copyGuard);
+        QVERIFY(copy->isClosingAfterSave());
+        QVERIFY(pdftest::AppAsyncDialogs::findFileRequest());
+    }
+
+    QVERIFY(pdftest::AppAsyncDialogs::cancelFile());
+    QTRY_VERIFY(!copy->isClosingAfterSave());
+    QVERIFY(copyGuard);
+    QVERIFY(copy->getDocument()->isModified());
+    QVERIFY(!copy->isLeaving());
+}
+
+void AppToolLeaveTest::assistantChangeDuringQuit()
+{
+    // RR3-L7 of the review of A0: while the flow of the quit runs without a question (its Save All), a change of an
+    // assistant is refused (denied_busy) - it could miss the save of its document and be lost by the quit. The flow
+    // is started here as the quit starts it; the server of the instance is not involved (MCP is never suspended).
+    pdftest::AppMcpFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    pdf::PDFAppDocumentTab* tab = fixture.open(AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Quit.pdf"), 1));
+    QVERIFY(tab);
+    QTRY_VERIFY(tab->getDocument()->isReady());
+    const QJsonObject add({ { QStringLiteral("action"), QStringLiteral("add") },
+                            { QStringLiteral("add"), QJsonObject({ { QStringLiteral("items"), QJsonArray({ QJsonObject({ { QStringLiteral("type"), QStringLiteral("note") },
+                                                                                                                         { QStringLiteral("page"), 1 },
+                                                                                                                         { QStringLiteral("point"), QJsonObject({ { QStringLiteral("x"), 20 }, { QStringLiteral("y"), 380 } }) } }) }) } }) } });
+
+    pdf::PDFAppLeaveFlow* flow = fixture.window->getLeaveFlow();
+    QVERIFY(flow->start(pdf::PDFAppLeaveFlow::Goal::QuitWindow));
+    std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("annotations"), add);
+    QVERIFY(result);
+    QVERIFY(result->isError);
+    QVERIFY2(result->getFirstText().contains(QStringLiteral("closing")), qPrintable(result->getFirstText()));
+    QVERIFY(!tab->getDocument()->isModified());
+
+    // A tool of the catalog (Rotate of the pages, the result kept in the document) is refused the same way
+    const QJsonObject rotate({ { QStringLiteral("action"), QStringLiteral("rotate") },
+                               { QStringLiteral("documentId"), tab->getDocument()->getId() },
+                               { QStringLiteral("result"), QStringLiteral("keep") },
+                               { QStringLiteral("rotate"), QJsonObject({ { QStringLiteral("pages"), QJsonObject({ { QStringLiteral("pages"), QStringLiteral("1") } }) },
+                                                                         { QStringLiteral("rotation"), QStringLiteral("right") } }) } });
+    result = fixture.callTool(QStringLiteral("pages"), rotate);
+    QVERIFY(result);
+    QVERIFY(result->isError);
+    QVERIFY2(result->getFirstText().contains(QStringLiteral("closing")), qPrintable(result->getFirstText()));
+    QVERIFY(!tab->getDocument()->isModified());
+
+    // The quit has ended: the changes go
+    flow->finish(false);
+    result = fixture.callTool(QStringLiteral("annotations"), add);
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    QVERIFY(tab->getDocument()->isModified());
+    const quint64 version = tab->getDocument()->getVersion();
+    result = fixture.callTool(QStringLiteral("pages"), rotate);
+    QVERIFY(result);
+    QVERIFY2(!result->isError, qPrintable(result->getFirstText()));
+    QTRY_VERIFY(tab->getDocument()->getVersion() > version);
+}
+
+void AppToolLeaveTest::flowEndedOutsideReleasesWaits()
+{
+    // L1 of the review of A0: the flow of the tab ends without the answer of the question of the tool (canceled from
+    // outside, as view.close of an assistant ends a Pending close) - the question stays the question of the tool:
+    // Keep keeps it, the next close asks again (nothing waits for the ended flow); its closing answer closes the tool
+    const LeaveToolCase tool = H::cases()[QStringLiteral("measure")];
+    AppToolOwnTabFixture fixture;
+    pdf::PDFAppDocumentTab* tab = nullptr;
+    QPointer<PDFDocumentToolShell> shell = H::open(fixture, tool, &tab);
+    QVERIFY(shell);
+    QVERIFY(tool.makeWork(fixture, shell));
+
+    pdftest::NestedEventLoopGuard loopGuard;
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    QVERIFY(H::question(shell));
+    tab->findLeaveFlow()->finish(false);
+    QVERIFY(!shell->isWaitingForLeave());
+    QVERIFY(H::answer(shell, tool.keepText));
+    QVERIFY(shell);
+    QCOMPARE(shell->getState(), PDFDocumentToolShell::State::Editing);
+    QCOMPARE(fixture.window->requestCloseTab(tab), pdf::PDFAppLeaveResult::Pending);
+    QVERIFY(H::question(shell));
+    QVERIFY(H::answer(shell, tool.keepText));
+    QVERIFY(!tab->isLeaving());
+
+    // A navigation ended from outside: Discard of the question closes the tool as without a leave
+    fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::document(tab->getDocumentId()), pdf::PDFAppNavigationMode::Push, tab);
+    QVERIFY(H::question(shell));
+    tab->findLeaveFlow()->finish(false);
+    QVERIFY(H::answer(shell, tool.closeText));
+    QVERIFY(!tab->getView()->isToolModeActive());
+    QVERIFY(!shell || shell->getState() == PDFDocumentToolShell::State::Closed);
+    QCOMPARE(H::countShownQuestions(), 0);
+}
+
+void AppToolLeaveTest::ownTabCancelRefusedResumes()
+{
+    // L2 of the review of A0: Cancel of a tool in its own tab closes the tab; its question (the inputs are lost) is
+    // Pending - Cancel there keeps the tool, which takes the next Cancel again (the same question)
+    AppToolOwnTabFixture fixture;
+    pdf::PDFAppDocumentTab* tab = fixture.open(AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Base.pdf"), 2));
+    QVERIFY(tab && AppToolShellFixture::waitFor([tab]() { return tab->getDocument()->isReady(); }));
+    QPointer<pdf::PDFAppToolTab> toolTab = fixture.window->createToolTabForDocument(QStringLiteral("pages.merge"), tab);
+    AppToolShellFixture::settle();
+    QVERIFY(toolTab && toolTab->getShell());
+    pdf::PDFAppMergeToolGUI* merge = qobject_cast<pdf::PDFAppMergeToolGUI*>(toolTab->getShell()->getGUI());
+    QVERIFY(merge);
+    merge->addFiles({ AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Annex.pdf"), 2) });
+    AppToolShellFixture::settle();
+    QVERIFY(toolTab->getPage()->hasUnsavedWork());
+
+    pdftest::NestedEventLoopGuard loopGuard;
+    for (int round = 0; round < 2; ++round)
+    {
+        toolTab->getShell()->cancel();
+        AppToolShellFixture::settle();
+        QVERIFY2(H::cancelToolTabClose(fixture.window), qPrintable(QString::number(round)));
+        QVERIFY(toolTab);
+        QVERIFY(!toolTab->isLeaving());
+        QCOMPARE(toolTab->getShell()->getState(), PDFDocumentToolShell::State::Editing);
+    }
+}
+
 void AppToolLeaveTest::thumbnailsMenuToolQueued()
 {
     // RESCCODE L12: a page tool of the context menu of the thumbnails navigates from the event loop - the question of
@@ -2240,22 +2299,11 @@ void AppToolLeaveTest::thumbnailsMenuToolQueued()
     }
     QVERIFY(insert && insert->isEnabled());
 
-    bool isInsideTrigger = false;
-    bool isAskedInside = false;
-    bool isAsked = false;
-    H::runWhenShown(shell, fixture.window, [&]()
-    {
-        isAsked = true;
-        isAskedInside = isInsideTrigger;
-        H::button(H::question(shell), tool.keepText)->click();
-    });
-    isInsideTrigger = true;
+    pdftest::NestedEventLoopGuard loopGuard;
     insert->trigger();
-    isInsideTrigger = false;
-    QVERIFY(!isAsked);
+    QVERIFY(!H::question(shell));
     AppToolShellFixture::settle();
-    QVERIFY(isAsked);
-    QVERIFY(!isAskedInside);
+    QVERIFY(H::answer(shell, tool.keepText));
     QVERIFY(shell);
     QCOMPARE(shell->getState(), PDFDocumentToolShell::State::Editing);
     delete menu.data();

@@ -186,6 +186,11 @@ public:
     /// no menu (it opens a popup of its own)
     static constexpr const char* MENU_INDICATOR = "menuIndicator";
 
+    /// QToolButton: the menu, which the button opens by popup() without being the menu of
+    /// the button (no nested event loop of QToolButton::showMenu), is shown - the button
+    /// looks as a button of an open menu (as QToolButton with its menu shown)
+    static constexpr const char* MENU_OPEN = "menuOpen";
+
     /// QToolButton: an icon-only toolbar button (Toolbar button 190:538, the drawing
     /// tools of Sign by Hand 435:8712) whatever its text and its tool button style:
     /// the style draws and measures only the icon, the text stays the accessible

@@ -73,11 +73,11 @@ QString PDFAppToolDocumentPage::getHelpTopic() const
     return tool && catalog ? catalog->getToolTopic(*tool) : QStringLiteral("tools");
 }
 
-bool PDFAppToolDocumentPage::prepareLeave(const PDFAppRoute& target)
+PDFAppLeaveResult PDFAppToolDocumentPage::requestLeave(const PDFAppRoute& target, PDFAppLeaveFlow* flow)
 {
     if (!m_shell)
     {
-        return true;
+        return PDFAppLeaveResult::Done;
     }
 
     // The tool, which is open already, stays as it is and its tab comes to the front. A tool closed already goes
@@ -89,51 +89,158 @@ bool PDFAppToolDocumentPage::prepareLeave(const PDFAppRoute& target)
         {
             m_host->activate();
         }
-        return false;
+        return PDFAppLeaveResult::Refused;
     }
 
-    // The shell may ask (a run) and anything may be deleted meanwhile
+    // The shell may ask (a run, the unsaved work) and anything may be deleted meanwhile
     QPointer<PDFAppToolDocumentPage> guard(this);
-    if (!m_shell->confirmLeave())
-    {
-        return false;
-    }
+    const PDFAppLeaveResult result = m_shell->requestLeave(flow);
     if (!guard)
     {
-        return false;
+        return PDFAppLeaveResult::Refused;
     }
+    switch (result)
+    {
+        case PDFAppLeaveResult::Done:
+            return continueLeave(flow);
+        case PDFAppLeaveResult::Pending:
+            return waitForShell(flow, LeaveStage::Leave);
+        case PDFAppLeaveResult::Refused:
+            break;
+    }
+    return PDFAppLeaveResult::Refused;
+}
 
+PDFAppLeaveResult PDFAppToolDocumentPage::continueLeave(PDFAppLeaveFlow* flow)
+{
     // The page has started the leave and nothing asks after it: it goes on - a choice of the question, which changes
     // the document, is applied while the tool still edits (one Undo step), then the tool closes (owner 2026-11-20,
     // decision 8). Work, which the choice could not keep, refuses the navigation (owner 2026-11-21). The slots of
     // the commit may delete anything.
-    const bool isFinished = !m_shell || m_shell->finishLeave(true);
-    if (!guard || !isFinished)
+    QPointer<PDFAppToolDocumentPage> guard(this);
+    const PDFAppLeaveResult result = m_shell ? m_shell->requestFinishLeave(true, flow) : PDFAppLeaveResult::Done;
+    if (!guard)
     {
-        return false;
+        return PDFAppLeaveResult::Refused;
     }
+    switch (result)
+    {
+        case PDFAppLeaveResult::Done:
+            return closeAfterLeave();
+        case PDFAppLeaveResult::Pending:
+            return waitForShell(flow, LeaveStage::LeaveFinish);
+        case PDFAppLeaveResult::Refused:
+            break;
+    }
+    return PDFAppLeaveResult::Refused;
+}
 
+PDFAppLeaveResult PDFAppToolDocumentPage::closeAfterLeave()
+{
+    QPointer<PDFAppToolDocumentPage> guard(this);
     if (m_shell)
     {
         m_shell->close();
     }
-    return guard != nullptr;
+    return guard ? PDFAppLeaveResult::Done : PDFAppLeaveResult::Refused;
 }
 
-bool PDFAppToolDocumentPage::confirmClose()
+PDFAppLeaveResult PDFAppToolDocumentPage::waitForShell(PDFAppLeaveFlow* flow, LeaveStage stage)
+{
+    // The shell reports its answer to the flow; this page reports its own step after it (the caller waits for the page)
+    if (!m_shell || !flow || isWaitingForShell() || !flow->waitForStep(m_shell.data(), this, &PDFAppToolDocumentPage::onShellStepFinished))
+    {
+        return PDFAppLeaveResult::Refused;
+    }
+    m_leaveFlow = flow;
+    m_leaveStage = stage;
+    return PDFAppLeaveResult::Pending;
+}
+
+bool PDFAppToolDocumentPage::isWaitingForShell()
+{
+    if (m_leaveFlow && m_leaveFlow->isWaitingFor(this))
+    {
+        return true;
+    }
+
+    // The flow has ended without the step of this page (canceled from outside, L1 of the review of A0): the wait is
+    // forgotten, the next leave asks anew
+    m_leaveFlow = nullptr;
+    m_leaveStage = LeaveStage::None;
+    return false;
+}
+
+void PDFAppToolDocumentPage::onShellStepFinished(PDFAppLeaveResult result)
+{
+    QPointer<PDFAppLeaveFlow> flow = m_leaveFlow;
+    const LeaveStage stage = m_leaveStage;
+    m_leaveFlow = nullptr;
+    m_leaveStage = LeaveStage::None;
+    if (!flow || !flow->isRunning())
+    {
+        return;
+    }
+
+    // The flow, the tab and the tool may have changed while the question was open: the continuation reads them again
+    // (the shell, which has gone, has nothing left to lose). The report is the last call of each branch.
+    QPointer<PDFAppToolDocumentPage> guard(this);
+    PDFAppLeaveResult pageResult = result == PDFAppLeaveResult::Done ? PDFAppLeaveResult::Done : PDFAppLeaveResult::Refused;
+    switch (stage)
+    {
+        case LeaveStage::None:
+        case LeaveStage::Forward:
+            break;
+
+        case LeaveStage::Leave:
+            if (pageResult == PDFAppLeaveResult::Done)
+            {
+                pageResult = continueLeave(flow);
+            }
+            break;
+
+        case LeaveStage::LeaveFinish:
+            if (pageResult == PDFAppLeaveResult::Done)
+            {
+                pageResult = closeAfterLeave();
+            }
+            break;
+    }
+
+    if (!guard || !flow || pageResult == PDFAppLeaveResult::Pending)
+    {
+        return;
+    }
+    flow->finishStep(this, pageResult);
+}
+
+PDFAppLeaveResult PDFAppToolDocumentPage::forwardShellStep(PDFAppLeaveResult result, PDFAppLeaveFlow* flow)
+{
+    return result == PDFAppLeaveResult::Pending ? waitForShell(flow, LeaveStage::Forward) : result;
+}
+
+PDFAppLeaveResult PDFAppToolDocumentPage::requestClose(PDFAppLeaveFlow* flow)
 {
     // Only the question of the work of a tool, which is edited: a run is asked by the tab (its operation,
     // close-running), the result dialog is modal
     if (!m_shell || m_shell->getState() != PDFDocumentToolShell::State::Editing)
     {
-        return true;
+        return PDFAppLeaveResult::Done;
     }
-    return m_shell->confirmLeave();
+
+    QPointer<PDFAppToolDocumentPage> guard(this);
+    const PDFAppLeaveResult result = m_shell->requestLeave(flow);
+    return guard ? forwardShellStep(result, flow) : PDFAppLeaveResult::Refused;
 }
 
 bool PDFAppToolDocumentPage::hasUnsavedWork() const
 {
     return m_shell && m_shell->hasUnsavedWork();
+}
+
+quint64 PDFAppToolDocumentPage::getWorkStamp() const
+{
+    return m_shell ? m_shell->getWorkStamp() : 0;
 }
 
 void PDFAppToolDocumentPage::prepareClose()
@@ -155,16 +262,31 @@ bool PDFAppToolDocumentPage::isLeftBy(const PDFAppRoute& target) const
     return !isOpen || !(target == getRoute());
 }
 
-bool PDFAppToolDocumentPage::confirmDocumentLock()
+PDFAppLeaveResult PDFAppToolDocumentPage::requestDocumentLock(PDFAppLeaveFlow* flow)
 {
     // Only a tool, which the lock ends (PDFDocumentToolShell::onLockChanged), and only while it is edited (a run
     // and the result dialog keep the document busy)
     const PDFDocumentToolCatalogEntry* tool = PDFDocumentToolCatalog::findTool(m_toolId);
     if (!m_shell || !tool || tool->getLockedAccess() != PDFDocumentToolLockedAccess::Unavailable || m_shell->getState() != PDFDocumentToolShell::State::Editing)
     {
-        return true;
+        return PDFAppLeaveResult::Done;
     }
-    return m_shell->confirmLeave();
+
+    QPointer<PDFAppToolDocumentPage> guard(this);
+    const PDFAppLeaveResult result = m_shell->requestLeave(flow);
+    return guard ? forwardShellStep(result, flow) : PDFAppLeaveResult::Refused;
+}
+
+PDFAppLeaveResult PDFAppToolDocumentPage::requestFinishLeave(bool isProceeding, PDFAppLeaveFlow* flow)
+{
+    if (!m_shell)
+    {
+        return PDFAppLeaveResult::Done;
+    }
+
+    QPointer<PDFAppToolDocumentPage> guard(this);
+    const PDFAppLeaveResult result = m_shell->requestFinishLeave(isProceeding, flow);
+    return guard ? forwardShellStep(result, flow) : PDFAppLeaveResult::Refused;
 }
 
 bool PDFAppToolDocumentPage::finishLeave(bool isProceeding)

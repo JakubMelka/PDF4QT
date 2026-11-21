@@ -184,8 +184,14 @@ private:
     int getRowHeight(int index) const;
     void updateDescription();
 
+    /// Copy Value of the context menu, called from the event loop (queued from the action of
+    /// the popup menu: the clipboard may run a slot, which deletes the list and its menu,
+    /// while the menu still emits); the value of the row of the opening
+    void copyContextMenuValue();
+
     std::vector<Row> m_rows;
     int m_rowGap = 0;
+    QString m_contextMenuValue;     ///< The value of the row of the context menu, when it was opened
 };
 
 class PDFDocumentTabCloseButton;

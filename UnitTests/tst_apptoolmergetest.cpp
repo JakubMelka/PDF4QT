@@ -28,6 +28,7 @@
 // files and the pages, both themes, right to left, 1x / 2x, a large input, the deletion of
 // the tab in each state, the action of an assistant over HTTP and its schema (Q11).
 
+#include "appasyncdialogs.h"
 #include "apptoolowntabfixture.h"
 #include "appmcpfixture.h"
 
@@ -507,7 +508,7 @@ void AppToolMergeTest::leaveQuestionOfList()
 {
     // Owner 2026-11-20 (decision 5) and RESCUX H1: the own tab asks in the pattern of the tools in the tab of a
     // document - "Discard the list of 2 files?", Keep Merging (Primary) and Discard List (trash); a turned page is
-    // work too; the close of the tab speaks of the tab, another page of the tab (prepareLeave) of the tool
+    // work too; the close of the tab speaks of the tab, another page of the tab (requestLeave) of the tool
     AppToolOwnTabFixture fixture;
     const QString contract = AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Contract.pdf"), 3);
     const QString annex = AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Annex_A.pdf"), 2);
@@ -551,34 +552,30 @@ void AppToolMergeTest::leaveQuestionOfList()
              QStringLiteral("Closing the tab removes the files you have added, their order and your changes to their pages. The files stay as they are."));
 
     // The dialog of the page: another page of the tab (no wording of the tab), Keep Merging stays
+    // A0: the leave of the page is a step of the flow of the tab; its question is shown and the call returns
+    pdftest::NestedEventLoopGuard loopGuard;
     QStringList labels;
     QStringList buttons;
-    QTimer* timer = new QTimer(qApp);
-    timer->setInterval(5);
-    QObject::connect(timer, &QTimer::timeout, timer, [timer, &labels, &buttons]()
+    pdf::PDFAppLeaveFlow* flow = tab->getLeaveFlow();
+    QVERIFY(flow->start(pdf::PDFAppLeaveFlow::Goal::Navigate));
+    QCOMPARE(tab->getToolPage()->requestLeave(pdf::PDFAppRoutes::home(), flow), pdf::PDFAppLeaveResult::Pending);
+    QWidget* leaveDialog = nullptr;
+    for (QWidget* widget : QApplication::topLevelWidgets())
     {
-        for (QWidget* widget : QApplication::topLevelWidgets())
-        {
-            QPushButton* keep = widget->objectName() == QStringLiteral("toolTabCloseDialog") && widget->isVisible() ? widget->findChild<QPushButton*>(QStringLiteral("cancelButton")) : nullptr;
-            if (keep)
-            {
-                for (const QLabel* label : widget->findChildren<QLabel*>())
-                {
-                    labels << label->text();
-                }
-                for (const QPushButton* button : widget->findChildren<QPushButton*>())
-                {
-                    buttons << button->text();
-                }
-                timer->stop();
-                timer->deleteLater();
-                keep->click();
-                return;
-            }
-        }
-    });
-    timer->start();
-    QVERIFY(!tab->getToolPage()->prepareLeave(pdf::PDFAppRoutes::home()));
+        leaveDialog = widget->objectName() == QStringLiteral("toolTabCloseDialog") && widget->isVisible() ? widget : leaveDialog;
+    }
+    QVERIFY(leaveDialog);
+    for (const QLabel* label : leaveDialog->findChildren<QLabel*>())
+    {
+        labels << label->text();
+    }
+    for (const QPushButton* button : leaveDialog->findChildren<QPushButton*>())
+    {
+        buttons << button->text();
+    }
+    leaveDialog->findChild<QPushButton*>(QStringLiteral("cancelButton"))->click();
+    AppToolOwnTabFixture::settle();
+    flow->finish(false);
     QVERIFY(tab);
     QVERIFY2(labels.contains(QStringLiteral("Discard the list of 3 files?")), qPrintable(labels.join(QLatin1Char('|'))));
     QVERIFY2(labels.contains(QStringLiteral("Closing the tool removes the files you have added, their order and your changes to their pages. The files stay as they are.")),

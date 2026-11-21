@@ -24,6 +24,7 @@
 // snapping, the calibration, the presets, Save as Annotations as one step of Undo, measurements on more pages
 // (FM-9 cancelled), a locked document and a document without bit 6.
 
+#include "appasyncdialogs.h"
 #include "apptoolshellfixture.h"
 
 #include "pdfappcontext.h"
@@ -1112,56 +1113,30 @@ void AppToolMeasureTest::quitSaveAndCloseThenKeep()
     QVERIFY(second->addMeasurement(0, PDFMeasureKind::Distance, { QPointF(100, 100), QPointF(172, 100) }, PDFAppMeasureDrawKind::Linear));
     AppToolShellFixture::settle();
 
-    // Clicks the button of the question of the tool, as soon as it is shown (the quit waits in its own loop); onShown
-    // runs first (the state of the wait)
-    const auto answerWhenShown = [](QPointer<PDFDocumentToolShell> shell, const QString& buttonName, bool* isAsked, std::function<void()> onShown = std::function<void()>())
+    // Clicks the button of the open question of the tool (A0: the quit has shown it and returned) and settles
+    const auto answer = [](QPointer<PDFDocumentToolShell> shell, const QString& buttonName)
     {
-        QTimer* timer = new QTimer(qApp);
-        timer->setInterval(10);
-        QObject::connect(timer, &QTimer::timeout, timer, [timer, shell, buttonName, isAsked, onShown]()
+        QDialog* question = shell ? shell->getCloseQuestion() : nullptr;
+        QPushButton* button = question && question->isVisible() ? question->findChild<QPushButton*>(buttonName) : nullptr;
+        if (button)
         {
-            QDialog* question = shell ? shell->getCloseQuestion() : nullptr;
-            QPushButton* button = question && question->isVisible() ? question->findChild<QPushButton*>(buttonName) : nullptr;
-            if (!shell || button)
-            {
-                timer->stop();
-                timer->deleteLater();
-                if (button)
-                {
-                    *isAsked = true;
-                    if (onShown)
-                    {
-                        onShown();
-                    }
-                    button->click();
-                }
-            }
-        });
-        timer->start();
-        QTimer::singleShot(30000, timer, &QTimer::deleteLater);
+            button->click();
+            AppToolShellFixture::settle();
+        }
+        return button != nullptr;
     };
 
     // While the quit asks the second tool, Save and Close of the first one is only remembered by its shell (decision
     // 8): no annotation yet, the measurement is still temporary, no pending edit of the document stands for it
-    bool isFirstAsked = false;
-    bool isSecondAsked = false;
-    size_t annotationsDuringWait = 1;
-    size_t measurementsDuringWait = 0;
-    bool isPendingEditDuringWait = true;
-    bool isDeferredDuringWait = false;
-    const auto recordWait = [&]()
-    {
-        annotationsDuringWait = H::annotations(firstTab->getDocument()).size();
-        measurementsDuringWait = first->getMeasurements().size();
-        isPendingEditDuringWait = firstTab->getDocument()->hasPendingEdits();
-        isDeferredDuringWait = firstShell && firstShell->hasDeferredCloseQuestionAction();
-    };
-    answerWhenShown(firstShell, QStringLiteral("toolCloseAction"), &isFirstAsked);                 // Save and Close
-    answerWhenShown(secondShell, QStringLiteral("toolCloseKeep"), &isSecondAsked, recordWait);     // Keep Measuring
+    pdftest::NestedEventLoopGuard loopGuard;
     QVERIFY(!fixture.window->close());
-    AppToolShellFixture::settle();
-    QVERIFY(isFirstAsked);
-    QVERIFY(isSecondAsked);
+    QVERIFY(answer(firstShell, QStringLiteral("toolCloseAction")));                 // Save and Close
+    QVERIFY(secondShell && secondShell->getCloseQuestion() && secondShell->getCloseQuestion()->isVisible());
+    const size_t annotationsDuringWait = H::annotations(firstTab->getDocument()).size();
+    const size_t measurementsDuringWait = first->getMeasurements().size();
+    const bool isPendingEditDuringWait = firstTab->getDocument()->hasPendingEdits();
+    const bool isDeferredDuringWait = firstShell && firstShell->hasDeferredCloseQuestionAction();
+    QVERIFY(answer(secondShell, QStringLiteral("toolCloseKeep")));                  // Keep Measuring
     QCOMPARE(annotationsDuringWait, size_t(0));
     QCOMPARE(measurementsDuringWait, size_t(1));
     QVERIFY(!isPendingEditDuringWait);
@@ -1180,37 +1155,18 @@ void AppToolMeasureTest::quitSaveAndCloseThenKeep()
     QVERIFY(H::annotations(firstTab->getDocument()).empty());
 
     // The quit goes on: the measurement is an annotation, when the unsaved documents are asked (Cancel keeps all)
-    isFirstAsked = false;
-    isSecondAsked = false;
-    answerWhenShown(firstShell, QStringLiteral("toolCloseAction"), &isFirstAsked);
-    answerWhenShown(secondShell, QStringLiteral("toolCloseDiscard"), &isSecondAsked);
-    size_t annotationsAtQuestion = 0;
-    bool isUnsavedAsked = false;
-    QTimer* unsaved = new QTimer(qApp);
-    unsaved->setInterval(10);
-    QObject::connect(unsaved, &QTimer::timeout, unsaved, [&]()
-    {
-        for (QWidget* widget : QApplication::topLevelWidgets())
-        {
-            QPushButton* cancel = widget->objectName() == QStringLiteral("quitUnsavedDialog") && widget->isVisible() ? widget->findChild<QPushButton*>(QStringLiteral("cancelButton")) : nullptr;
-            if (cancel)
-            {
-                isUnsavedAsked = true;
-                annotationsAtQuestion = H::annotations(firstTab->getDocument()).size();
-                unsaved->stop();
-                unsaved->deleteLater();
-                cancel->click();
-                return;
-            }
-        }
-    });
-    unsaved->start();
     QVERIFY(!fixture.window->close());
+    QVERIFY(answer(firstShell, QStringLiteral("toolCloseAction")));
+    QVERIFY(answer(secondShell, QStringLiteral("toolCloseDiscard")));
+    QWidget* unsaved = nullptr;
+    for (QWidget* widget : QApplication::topLevelWidgets())
+    {
+        unsaved = widget->objectName() == QStringLiteral("quitUnsavedDialog") && widget->isVisible() ? widget : unsaved;
+    }
+    QVERIFY(unsaved);
+    QCOMPARE(H::annotations(firstTab->getDocument()).size(), size_t(1));
+    unsaved->findChild<QPushButton*>(QStringLiteral("cancelButton"))->click();
     AppToolShellFixture::settle();
-    QVERIFY(isFirstAsked);
-    QVERIFY(isSecondAsked);
-    QVERIFY(isUnsavedAsked);
-    QCOMPARE(annotationsAtQuestion, size_t(1));
     fixture.closeMessageBoxes();
 }
 

@@ -5503,7 +5503,9 @@ void LifetimeTest::regressionMessageBoxParentDeleted()
 {
     // PDFMessageBox::information and the others ran a message box on the stack
     // with the parent of the caller: the parent deleted while the message box
-    // was shown deleted it as its child and the stack deleted it again
+    // was shown deleted it as its child and the stack deleted it again. A0: the
+    // message box is opened by open() as a child of the window (no nested event
+    // loop); the window deleted while it is shown deletes it without an answer.
     InstanceCheck check(QStringLiteral("parent of a message box deleted while it is shown"));
     {
         QPointer<QWidget> window = new QWidget();
@@ -5517,8 +5519,18 @@ void LifetimeTest::regressionMessageBoxParentDeleted()
             QVERIFY(qobject_cast<pdf::PDFMessageBox*>(popup));
             delete window.data();
         });
-        const QDialogButtonBox::StandardButton result = pdf::PDFMessageBox::warning(window, QStringLiteral("Title"), QStringLiteral("Text"));
-        QCOMPARE(result, QDialogButtonBox::NoButton);
+        QPointer<pdf::PDFMessageBox> messageBox = new pdf::PDFMessageBox(pdf::PDFThemeIcons::Badge::Warning, QStringLiteral("Title"), QStringLiteral("Text"), QDialogButtonBox::Ok, window);
+        messageBox->setAttribute(Qt::WA_DeleteOnClose);
+        int answers = 0;
+        QObject context;
+        QObject::connect(messageBox, &QDialog::finished, &context, [&answers]() { ++answers; });
+        const int loopLevel = QThread::currentThread()->loopLevel();
+        messageBox->open();
+        QCOMPARE(QThread::currentThread()->loopLevel(), loopLevel);
+        QVERIFY(messageBox->isVisible());
+        Input::flush();
+        QCOMPARE(answers, 0);
+        QVERIFY(!messageBox);
         QVERIFY(!window);
     }
     const QString problems = check.finish();
@@ -5566,7 +5578,8 @@ void LifetimeTest::regressionKeyValueListMenu()
 {
     // The context menu of PDFKeyValueList was an object on the stack with the
     // list as its parent: the list deleted while the menu was shown deleted the
-    // menu as its child and the stack deleted it again (heap corruption)
+    // menu as its child and the stack deleted it again (heap corruption). A0: the
+    // menu is a popup; the list deleted from the event loop while it is shown.
     InstanceCheck check(QStringLiteral("key value list deleted while its menu is shown"));
     {
         QPointer<QWidget> window = new QWidget();
@@ -5587,6 +5600,7 @@ void LifetimeTest::regressionKeyValueListMenu()
         });
         const QPoint position = list->getRowRect(0).center();
         Input::mouse(list, position, QTest::MouseClick, Qt::RightButton);
+        Input::flush();
         EventWatcher::getInstance()->setAction(EventWatcher::Action());
         QVERIFY(isMenuShown);
         QVERIFY(!list);
@@ -5714,7 +5728,9 @@ void LifetimeTest::regressionPaletteDeletedBySwatch()
 void LifetimeTest::regressionMessageBoxDeletedInExec()
 {
     // The message box of PDFMessageBox::information deleted by the application
-    // inside of its own event loop, synchronously and by deleteLater
+    // inside of its own event loop, synchronously and by deleteLater. A0: the
+    // message box opened by open() (no nested event loop) deleted from the event
+    // loop while it is shown: no answer, nothing left.
     for (const bool isDeferred : { false, true })
     {
         InstanceCheck check(QStringLiteral("message box deleted inside of its loop (%1)").arg(isDeferred ? QStringLiteral("deleteLater") : QStringLiteral("delete")));
@@ -5739,9 +5755,18 @@ void LifetimeTest::regressionMessageBoxDeletedInExec()
                     delete popup;
                 }
             }, &context);
-            const QDialogButtonBox::StandardButton result = pdf::PDFMessageBox::information(&window, QStringLiteral("Title"), QStringLiteral("Text"));
+            QPointer<pdf::PDFMessageBox> messageBox = new pdf::PDFMessageBox(pdf::PDFThemeIcons::Badge::Information, QStringLiteral("Title"), QStringLiteral("Text"), QDialogButtonBox::Ok, &window);
+            messageBox->setAttribute(Qt::WA_DeleteOnClose);
+            int answers = 0;
+            QObject::connect(messageBox, &QDialog::finished, &context, [&answers]() { ++answers; });
+            const int loopLevel = QThread::currentThread()->loopLevel();
+            messageBox->open();
+            QCOMPARE(QThread::currentThread()->loopLevel(), loopLevel);
+            QVERIFY(messageBox->isVisible());
+            Input::flush();
             QVERIFY(isShown);
-            QCOMPARE(result, QDialogButtonBox::NoButton);
+            QCOMPARE(answers, 0);
+            QVERIFY(!messageBox);
             QVERIFY(window.findChildren<pdf::PDFMessageBox*>().isEmpty());
         }
         const QString problems = check.finish();

@@ -46,6 +46,7 @@ namespace pdf
 
 class PDFAppContext;
 class PDFAppDocument;
+class PDFAppFileDialogRequest;
 class PDFAppToolInputList;
 
 /// A row of an open document (document-Project_Report.pdf 277:13689, 784 x 49, radius 8,
@@ -328,6 +329,7 @@ protected:
 
 private:
     void onAddFilesClicked();
+    void onAddFilesChosen(const QStringList& files);
     void onOpenToolClicked();
     void onRowToggled();
     void onRowRemoveClicked();
@@ -360,6 +362,7 @@ private:
     QPointer<QPushButton> m_openToolButton;
     std::vector<QPointer<PDFAppToolDocumentRow>> m_documentRows;
     std::vector<QPointer<PDFAppToolDocumentRow>> m_fileRows;
+    QPointer<PDFAppFileDialogRequest> m_fileRequest;   ///< Add files… waiting for its dialog (a child of the chooser, A0)
     QString m_focusedRowId;
     bool m_isRefreshQueued = false;
 };

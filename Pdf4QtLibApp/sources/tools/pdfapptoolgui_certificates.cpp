@@ -1479,11 +1479,20 @@ void PDFAppToolGUICertificates::openImportDialog()
         return;
     }
 
-    // Plan 7.2: the file comes only from the file dialog of the user. The file dialog runs an
-    // event loop - this GUI, its tab or the window may be gone after it.
-    QPointer<PDFAppToolGUICertificates> guard(this);
-    const QString filePath = PDFAppPanelFileDialogs::getOpenFileName(getDialogParent(), tr("Import Certificate"), QString(), PDFAppCertificateImportDialog::getFileFilter());
-    if (!guard || filePath.isEmpty())
+    // Plan 7.2: the file comes only from the file dialog of the user. A0: the file dialog answers onImportFileChosen
+    // (the request is a child of this GUI: a GUI gone meanwhile gets nothing); one file dialog at a time.
+    if (isFileRequestPending())
+    {
+        return;
+    }
+    m_fileRequest = PDFAppPanelFileDialogs::requestOpenFileName(getDialogParent(), tr("Import Certificate"), QString(), PDFAppCertificateImportDialog::getFileFilter(), this,
+                                                                &PDFAppToolGUICertificates::onImportFileChosen);
+}
+
+void PDFAppToolGUICertificates::onImportFileChosen(const QString& filePath)
+{
+    // The state again: the import still available, no import dialog opened meanwhile
+    if (filePath.isEmpty() || !isCreationAvailable() || (m_importDialog && m_importDialog->isVisible()))
     {
         return;
     }
@@ -1552,15 +1561,26 @@ void PDFAppToolGUICertificates::openFolder()
 
 void PDFAppToolGUICertificates::addTrusted()
 {
-    if (!getContext() || !getContext()->getDatabase())
+    if (!getContext() || !getContext()->getDatabase() || isFileRequestPending())
     {
         return;
     }
 
-    // The file dialog runs an event loop: this GUI may be gone after it
-    QPointer<PDFAppToolGUICertificates> guard(this);
-    const QString filePath = PDFAppPanelFileDialogs::getOpenFileName(getDialogParent(), tr("Add Trusted Certificate"), QString(), tr("Certificates (*.cer *.crt *.der *.pem)"));
-    if (!guard || filePath.isEmpty())
+    // A0: the file dialog answers onTrustedFileChosen (the request is a child of this GUI: a GUI gone meanwhile gets
+    // nothing)
+    m_fileRequest = PDFAppPanelFileDialogs::requestOpenFileName(getDialogParent(), tr("Add Trusted Certificate"), QString(), tr("Certificates (*.cer *.crt *.der *.pem)"), this,
+                                                                &PDFAppToolGUICertificates::onTrustedFileChosen);
+}
+
+bool PDFAppToolGUICertificates::isFileRequestPending() const
+{
+    return m_fileRequest && m_fileRequest->isPending();
+}
+
+void PDFAppToolGUICertificates::onTrustedFileChosen(const QString& filePath)
+{
+    // The state again: the database still there
+    if (filePath.isEmpty() || !getContext() || !getContext()->getDatabase())
     {
         return;
     }
@@ -1594,6 +1614,7 @@ void PDFAppToolGUICertificates::addTrusted()
     }
 
     // The commit notifies the database at once (PDFDatabaseNotifier): code of the application runs
+    QPointer<PDFAppToolGUICertificates> guard(this);
     const PDFDatabaseError error = repository.addCertificate(der);
     if (!guard)
     {
@@ -1839,7 +1860,7 @@ void PDFAppToolGUICertificates::onAddTrustedChooseAgain()
         m_addTrustedDialog->close();
     }
 
-    // The last call: the file dialog runs an event loop
+    // The last call: the file dialog (its answer comes later, onTrustedFileChosen)
     addTrusted();
 }
 

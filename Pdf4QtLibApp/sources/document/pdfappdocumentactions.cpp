@@ -30,6 +30,7 @@
 #include "pdfappdocumentview.h"
 #include "pdfappfiledrop.h"
 #include "pdfappformcontroller.h"
+#include "pdfappleaveflow.h"
 #include "pdfappmainwindow.h"
 #include "pdfapproute.h"
 #include "pdfsettingdefinitions.h"
@@ -55,6 +56,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QDesktopServices>
+#include <QDialog>
 #include <QDir>
 #include <QFileInfo>
 #include <QFontMetrics>
@@ -302,23 +304,8 @@ PDFMessageBox* PDFAppDocumentActionDialogs::createFileDialog(QWidget* parent, co
     return box;
 }
 
-PDFAppDocumentActionDialogs::Result PDFAppDocumentActionDialogs::run(PDFMessageBox* dialog)
+PDFAppDocumentActionDialogs::Result PDFAppDocumentActionDialogs::getResult(int code)
 {
-    QPointer<PDFMessageBox> guard(dialog);
-    if (!guard)
-    {
-        return Result::Rejected;
-    }
-
-    const int code = guard->exec();
-
-    // The parent of the dialog may have been deleted meanwhile (with the dialog)
-    if (!guard)
-    {
-        return Result::Rejected;
-    }
-    delete guard.data();
-
     switch (code)
     {
         case int(Result::Accepted):
@@ -329,21 +316,6 @@ PDFAppDocumentActionDialogs::Result PDFAppDocumentActionDialogs::run(PDFMessageB
             break;
     }
     return Result::Rejected;
-}
-
-PDFAppDocumentActionDialogs::Result PDFAppDocumentActionDialogs::confirmLink(QWidget* parent, const QString& documentTitle, const QUrl& url)
-{
-    return run(createLinkDialog(parent, documentTitle, url));
-}
-
-PDFAppDocumentActionDialogs::Result PDFAppDocumentActionDialogs::confirmProgram(QWidget* parent, const QString& documentTitle, const QString& program, const QString& parameters, const QString& directory)
-{
-    return run(createProgramDialog(parent, documentTitle, program, parameters, directory));
-}
-
-PDFAppDocumentActionDialogs::Result PDFAppDocumentActionDialogs::confirmFile(QWidget* parent, const QString& documentTitle, const QString& filePath)
-{
-    return run(createFileDialog(parent, documentTitle, filePath));
 }
 
 PDFAppDocumentActionHandler::PDFAppDocumentActionHandler(PDFAppDocumentTab* tab, QObject* parent) :
@@ -406,6 +378,20 @@ PDFAppDocumentActionHandler::~PDFAppDocumentActionHandler()
     {
         PDFToolTip::hideText();
     }
+
+    // A confirmation of the chain shown over a tab, which stays (its answer is a child
+    // of the handler and goes with it): the question closes without an answer
+    if (QDialog* question = m_question.data())
+    {
+        m_question = nullptr;
+        question->hide();
+        question->deleteLater();
+    }
+}
+
+QDialog* PDFAppDocumentActionHandler::getQuestion() const
+{
+    return m_question.data();
 }
 
 PDFAppDocumentTab* PDFAppDocumentActionHandler::getTab() const
@@ -643,65 +629,176 @@ void PDFAppDocumentActionHandler::performAction(const PDFAction* action)
         return;
     }
 
-    // A copy: the annotation of the action may be gone, when a dialog closes
-    const PDFActionPtr copy = action->clone();
+    // A copy: the annotation of the action may be gone, when a dialog closes. The
+    // items of the chain point into the copy, which the handler keeps until the
+    // chain ends (a confirmation leaves the chain waiting for its answer).
+    PDFActionPtr copy = action->clone();
     if (!copy)
     {
         return;
     }
 
-    QPointer<PDFAppDocumentActionHandler> guard(this);
     m_isPerforming = true;
-    const quint64 version = document->getVersion();
+    m_chainItems = copy->getActionList();
+    m_chainAction = std::move(copy);
+    m_chainIndex = 0;
+    m_chainVersion = document->getVersion();
+    continueChain();
+}
 
-    int count = 0;
-    for (const PDFAction* item : copy->getActionList())
+void PDFAppDocumentActionHandler::continueChain()
+{
+    if (!m_isPerforming || m_question)
     {
-        if (++count > MAXIMUM_CHAIN_LENGTH || !performOne(item, version) || !guard)
+        return;
+    }
+
+    // An action may run code of the application, which deletes the tab with the handler
+    QPointer<PDFAppDocumentActionHandler> guard(this);
+    while (m_chainIndex < m_chainItems.size() && m_chainIndex < size_t(MAXIMUM_CHAIN_LENGTH))
+    {
+        const PDFAction* item = m_chainItems[m_chainIndex++];
+        const ChainStep step = performOne(item, m_chainVersion);
+        if (!guard)
+        {
+            return;
+        }
+        if (step == ChainStep::Wait)
+        {
+            // The answer of the confirmation goes on (onLinkAnswered, onLaunchAnswered)
+            return;
+        }
+        if (step == ChainStep::Stop)
         {
             break;
         }
     }
 
-    if (guard)
+    endChain();
+}
+
+void PDFAppDocumentActionHandler::endChain()
+{
+    m_isPerforming = false;
+    m_chainItems.clear();
+    m_chainAction.reset();
+    m_chainIndex = 0;
+    m_questionUrl.clear();
+    m_questionLaunch = PDFAppExternalLaunch();
+}
+
+void PDFAppDocumentActionHandler::showQuestion(PDFMessageBox* dialog, void (PDFAppDocumentActionHandler::*slot)(int))
+{
+    // Shown modal as exec shows it, without its event loop; the answer is a child of
+    // the handler (a handler deleted meanwhile gets nothing), the dialog is deleted after
+    // its answer. A dialog deleted with the tab answers Rejected from the event loop.
+    m_question = dialog;
+    if (PDFAppDialogAnswer* answer = PDFAppDialogAnswer::show(dialog, this, slot))
     {
-        m_isPerforming = false;
+        answer->setDeleteDialog(true);
     }
 }
 
-bool PDFAppDocumentActionHandler::performOne(const PDFAction* action, quint64 version)
+void PDFAppDocumentActionHandler::onLinkAnswered(int code)
+{
+    m_question = nullptr;
+    const QUrl url = m_questionUrl;
+    m_questionUrl.clear();
+
+    // The answer of the user is performed also, when the document has changed meanwhile
+    // (as after the dialog shown by exec); the next action of the chain checks it
+    QPointer<PDFAppDocumentActionHandler> guard(this);
+    switch (PDFAppDocumentActionDialogs::getResult(code))
+    {
+        case PDFAppDocumentActionDialogs::Result::Accepted:
+        {
+            // The launcher is foreign code (the system, a handler of the tests)
+            PDFAppExternalLaunch request;
+            request.kind = PDFAppExternalLaunch::Kind::Url;
+            request.url = url;
+            if (!launch(request) && guard)
+            {
+                showStatusMessage(tr("The link could not be opened."));
+            }
+            break;
+        }
+
+        case PDFAppDocumentActionDialogs::Result::CopyLink:
+            QApplication::clipboard()->setText(url.toString());
+            if (guard)
+            {
+                showStatusMessage(tr("The link has been copied."));
+            }
+            break;
+
+        case PDFAppDocumentActionDialogs::Result::Rejected:
+            break;
+    }
+
+    // The chain goes on from the event loop: the dialog has finished its answer then
+    // (the next confirmation never opens inside of the end of the previous one)
+    if (guard)
+    {
+        QMetaObject::invokeMethod(this, &PDFAppDocumentActionHandler::continueChain, Qt::QueuedConnection);
+    }
+}
+
+void PDFAppDocumentActionHandler::onLaunchAnswered(int code)
+{
+    m_question = nullptr;
+    const PDFAppExternalLaunch request = m_questionLaunch;
+    m_questionLaunch = PDFAppExternalLaunch();
+
+    QPointer<PDFAppDocumentActionHandler> guard(this);
+    if (PDFAppDocumentActionDialogs::getResult(code) == PDFAppDocumentActionDialogs::Result::Accepted)
+    {
+        // The launcher is foreign code (the system, a handler of the tests)
+        const bool isProgram = request.kind == PDFAppExternalLaunch::Kind::Program;
+        if (!launch(request) && guard)
+        {
+            showStatusMessage(isProgram ? tr("The program could not be started.") : tr("The file could not be opened."));
+        }
+    }
+
+    if (guard)
+    {
+        QMetaObject::invokeMethod(this, &PDFAppDocumentActionHandler::continueChain, Qt::QueuedConnection);
+    }
+}
+
+PDFAppDocumentActionHandler::ChainStep PDFAppDocumentActionHandler::performOne(const PDFAction* action, quint64 version)
 {
     PDFAppDocument* document = getDocument();
     PDFAppDocumentView* view = getView();
     if (!action || !document || !view || !document->isReady() || document->getVersion() != version)
     {
-        return false;
+        return ChainStep::Stop;
     }
 
-    QPointer<PDFAppDocumentActionHandler> guard(this);
+    // Code of the application runs in an action (the caller checks the handler after it)
     switch (action->getType())
     {
         case ActionType::GoTo:
             performGoTo(static_cast<const PDFActionGoTo*>(action));
-            return true;
+            return ChainStep::Continue;
 
         case ActionType::GoToR:
             performGoToR(static_cast<const PDFActionGoToR*>(action));
-            return guard;
+            return ChainStep::Continue;
 
         case ActionType::URI:
-            return performUri(static_cast<const PDFActionURI*>(action)) && guard;
+            return performUri(static_cast<const PDFActionURI*>(action));
 
         case ActionType::Launch:
-            return performLaunch(static_cast<const PDFActionLaunch*>(action)) && guard;
+            return performLaunch(static_cast<const PDFActionLaunch*>(action));
 
         case ActionType::Named:
             performNamed(static_cast<const PDFActionNamed*>(action));
-            return true;
+            return ChainStep::Continue;
 
         case ActionType::SetOCGState:
             performSetOCGState(static_cast<const PDFActionSetOCGState*>(action));
-            return true;
+            return ChainStep::Continue;
 
         case ActionType::ResetForm:
             if (PDFWidgetFormManager* formManager = view->getFormManager();
@@ -722,12 +819,12 @@ bool PDFAppDocumentActionHandler::performOne(const PDFAction* action, quint64 ve
                     controller->endEngineChange();
                 }
             }
-            return guard;
+            return ChainStep::Continue;
 
         case ActionType::JavaScript:
             // Phase 1 does not run JavaScript (owner decision D5)
             showScriptsBar();
-            return true;
+            return ChainStep::Continue;
 
         case ActionType::SubmitForm:
         {
@@ -737,7 +834,7 @@ bool PDFAppDocumentActionHandler::performOne(const PDFAction* action, quint64 ve
             request.title = tr("The form was not sent – sending of forms is blocked");
             request.text = tr("PDF4QT does not send the data of forms to the internet.");
             view->showInfoBar(request);
-            return true;
+            return ChainStep::Continue;
         }
 
         case ActionType::GoToE:
@@ -752,10 +849,10 @@ bool PDFAppDocumentActionHandler::performOne(const PDFAction* action, quint64 ve
         case ActionType::ImportDataForm:
         case ActionType::RichMediaExecute:
             showStatusMessage(tr("This kind of action is not supported."));
-            return true;
+            return ChainStep::Continue;
     }
 
-    return true;
+    return ChainStep::Continue;
 }
 
 void PDFAppDocumentActionHandler::performGoTo(const PDFActionGoTo* action)
@@ -791,62 +888,36 @@ void PDFAppDocumentActionHandler::performGoTo(const PDFActionGoTo* action)
     view->getProxy()->goToDestination(destination);
 }
 
-bool PDFAppDocumentActionHandler::performUri(const PDFActionURI* action)
+PDFAppDocumentActionHandler::ChainStep PDFAppDocumentActionHandler::performUri(const PDFActionURI* action)
 {
     PDFAppDocument* document = getDocument();
     if (!document || !document->getDocument() || !m_tab)
     {
-        return false;
+        return ChainStep::Stop;
     }
 
     const QUrl url = resolveUri(document->getDocument()->getCatalog()->getBaseURI(), action->getURI());
     if (!isAllowedUrl(url))
     {
         showLinkBlocked(url, tr("The link was not opened – PDF4QT opens only web and e-mail links"), false);
-        return true;
+        return ChainStep::Continue;
     }
 
     PDFAppContext* context = document->getContext();
     if (context && context->getDatabase() && !context->getSettings().getBool(PDFSettingKeys::securityOpenLinks()))
     {
         showLinkBlocked(url, tr("The web link was not opened – web links are turned off"), true);
-        return true;
+        return ChainStep::Continue;
     }
 
-    // Every click asks (no "Always allow", owner decision O8)
-    QPointer<PDFAppDocumentActionHandler> guard(this);
-    const PDFAppDocumentActionDialogs::Result result = PDFAppDocumentActionDialogs::confirmLink(m_tab, getDocumentTitle(), url);
-    if (!guard)
-    {
-        return false;
-    }
-
-    switch (result)
-    {
-        case PDFAppDocumentActionDialogs::Result::Accepted:
-        {
-            PDFAppExternalLaunch request;
-            request.kind = PDFAppExternalLaunch::Kind::Url;
-            request.url = url;
-            if (!launch(request))
-            {
-                showStatusMessage(tr("The link could not be opened."));
-            }
-            break;
-        }
-
-        case PDFAppDocumentActionDialogs::Result::CopyLink:
-            QApplication::clipboard()->setText(url.toString());
-            showStatusMessage(tr("The link has been copied."));
-            break;
-
-        case PDFAppDocumentActionDialogs::Result::Rejected:
-            break;
-    }
-    return guard;
+    // Every click asks (no "Always allow", owner decision O8); the answer goes on
+    // (onLinkAnswered): Open Link, Copy Link, or nothing - the chain goes on after each
+    m_questionUrl = url;
+    showQuestion(PDFAppDocumentActionDialogs::createLinkDialog(m_tab, getDocumentTitle(), url), &PDFAppDocumentActionHandler::onLinkAnswered);
+    return ChainStep::Wait;
 }
 
-bool PDFAppDocumentActionHandler::performLaunch(const PDFActionLaunch* action)
+PDFAppDocumentActionHandler::ChainStep PDFAppDocumentActionHandler::performLaunch(const PDFActionLaunch* action)
 {
     using Helper = PDFAppDocumentActionsHelper;
 
@@ -854,7 +925,7 @@ bool PDFAppDocumentActionHandler::performLaunch(const PDFActionLaunch* action)
     PDFAppDocumentView* view = getView();
     if (!document || !view || !m_tab)
     {
-        return false;
+        return ChainStep::Stop;
     }
 
     // The program of Windows, or the file of the specification
@@ -895,19 +966,19 @@ bool PDFAppDocumentActionHandler::performLaunch(const PDFActionLaunch* action)
     if (filePath.isEmpty())
     {
         showStatusMessage(tr("The action does not name a file, which can be opened."));
-        return true;
+        return ChainStep::Continue;
     }
 
     // A PDF document opens in a new tab of PDF4QT (as GoToR)
     const bool isDocument = Helper::isPdf(filePath) && request.parameters.isEmpty();
     if (!checkTarget(filePath, 0, isDocument))
     {
-        return true;
+        return ChainStep::Continue;
     }
     if (isDocument)
     {
         openDocument(filePath, 0);
-        return true;
+        return ChainStep::Continue;
     }
 
     PDFAppContext* context = document->getContext();
@@ -919,7 +990,7 @@ bool PDFAppDocumentActionHandler::performLaunch(const PDFActionLaunch* action)
         bar.title = tr("The program was not started – starting programs from documents is turned off");
         bar.actions.push_back({ getSecuritySettingsActionId(), tr("Security Settings") });
         view->showInfoBar(bar);
-        return true;
+        return ChainStep::Continue;
     }
 
     const QFileInfo fileInfo(filePath);
@@ -931,7 +1002,7 @@ bool PDFAppDocumentActionHandler::performLaunch(const PDFActionLaunch* action)
         bar.title = tr("The file was not found");
         bar.text = PDFAppDocumentActionDialogs::shorten(QDir::toNativeSeparators(filePath), 200);
         view->showInfoBar(bar);
-        return true;
+        return ChainStep::Continue;
     }
 
     const bool isProgram = isExecutable(filePath);
@@ -940,25 +1011,15 @@ bool PDFAppDocumentActionHandler::performLaunch(const PDFActionLaunch* action)
         request.directory = fileInfo.absolutePath();
     }
 
-    QPointer<PDFAppDocumentActionHandler> guard(this);
-    const PDFAppDocumentActionDialogs::Result result = isProgram ? PDFAppDocumentActionDialogs::confirmProgram(m_tab, getDocumentTitle(), filePath, request.parameters, request.directory)
-                                                                 : PDFAppDocumentActionDialogs::confirmFile(m_tab, getDocumentTitle(), filePath);
-    if (!guard)
-    {
-        return false;
-    }
-    if (result != PDFAppDocumentActionDialogs::Result::Accepted)
-    {
-        return true;
-    }
-
+    // Always confirmed; the answer goes on (onLaunchAnswered): Start Program / Open File
+    // launches the request, the chain goes on after either answer
     request.kind = isProgram ? PDFAppExternalLaunch::Kind::Program : PDFAppExternalLaunch::Kind::File;
     request.filePath = filePath;
-    if (!launch(request))
-    {
-        showStatusMessage(isProgram ? tr("The program could not be started.") : tr("The file could not be opened."));
-    }
-    return guard;
+    m_questionLaunch = request;
+    PDFMessageBox* dialog = isProgram ? PDFAppDocumentActionDialogs::createProgramDialog(m_tab, getDocumentTitle(), filePath, request.parameters, request.directory)
+                                      : PDFAppDocumentActionDialogs::createFileDialog(m_tab, getDocumentTitle(), filePath);
+    showQuestion(dialog, &PDFAppDocumentActionHandler::onLaunchAnswered);
+    return ChainStep::Wait;
 }
 
 void PDFAppDocumentActionHandler::performGoToR(const PDFActionGoToR* action)

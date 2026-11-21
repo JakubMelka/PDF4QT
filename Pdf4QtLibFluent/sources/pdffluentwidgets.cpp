@@ -49,7 +49,9 @@
 #include <QMovie>
 #include <QPainter>
 #include <QPicture>
+#include <QRegularExpression>
 #include <QResizeEvent>
+#include <QScreen>
 #include <QStyle>
 #include <QStyleOption>
 #include <QStyleOptionSpinBox>
@@ -177,6 +179,102 @@ public:
             }
             PDFStylePainter::text(&painter, rect, Qt::AlignVCenter | Qt::AlignLeft | Qt::TextSingleLine, suffix, font, color);
         }
+    }
+
+    /// Context menu of a spin box (QR3.5): the menu of QAbstractSpinBox::contextMenuEvent - the
+    /// standard menu of the line edit, its Select All replaced by Select All of the spin box, Step
+    /// up and Step down - shown by popup() instead of QMenu::exec (no nested event loop). The
+    /// texts and the translation context are those of Qt. The menu is a child of the line edit
+    /// (deleted with the spin box) and is deleted, when it is closed. Select All and the steps
+    /// are queued calls of the slots of the spin box: a slot of the value may delete the spin box
+    /// and its menu while the menu still emits; a deleted spin box drops them. The actions of
+    /// the line edit act as in the menu of QLineEdit, which Qt shows by popup() too.
+    /// \param spinBox Spin box
+    /// \param lineEdit Line edit of the spin box (QAbstractSpinBox::lineEdit is protected)
+    /// \param stepEnabled Enabled steps of the spin box (QAbstractSpinBox::stepEnabled is protected)
+    /// \param event Event of the context menu
+    static void showSpinBoxContextMenu(QAbstractSpinBox* spinBox, QLineEdit* lineEdit, QAbstractSpinBox::StepEnabled stepEnabled, QContextMenuEvent* event)
+    {
+        QMenu* menu = lineEdit ? lineEdit->createStandardContextMenu() : nullptr;
+        if (!menu)
+        {
+            return;
+        }
+        menu->setAttribute(Qt::WA_DeleteOnClose);
+
+        // Select All of the spin box replaces Select All of the line edit (the action of the line
+        // edit stays a child of the menu: QLineEdit remembers it until the menu is deleted)
+        QAction* lineEditSelectAll = nullptr;
+        for (QAction* action : menu->actions())
+        {
+            if (action->objectName() == QLatin1String("select-all"))
+            {
+                lineEditSelectAll = action;
+                break;
+            }
+        }
+        QAction* selectAllAction = new QAction(QAbstractSpinBox::tr("&Select All"), menu);
+        selectAllAction->setShortcut(QKeySequence::SelectAll);
+        menu->insertAction(lineEditSelectAll, selectAllAction);
+        if (lineEditSelectAll)
+        {
+            menu->removeAction(lineEditSelectAll);
+        }
+        menu->addSeparator();
+        QAction* stepUpAction = menu->addAction(QAbstractSpinBox::tr("&Step up"));
+        stepUpAction->setEnabled(stepEnabled.testFlag(QAbstractSpinBox::StepUpEnabled));
+        QAction* stepDownAction = menu->addAction(QAbstractSpinBox::tr("Step &down"));
+        stepDownAction->setEnabled(stepEnabled.testFlag(QAbstractSpinBox::StepDownEnabled));
+        menu->addSeparator();
+
+        QObject::connect(selectAllAction, &QAction::triggered, spinBox, &QAbstractSpinBox::selectAll, Qt::QueuedConnection);
+        QObject::connect(stepUpAction, &QAction::triggered, spinBox, &QAbstractSpinBox::stepUp, Qt::QueuedConnection);
+        QObject::connect(stepDownAction, &QAction::triggered, spinBox, &QAbstractSpinBox::stepDown, Qt::QueuedConnection);
+
+        // The position of QAbstractSpinBox: the pointer, the middle of the spin box for the keyboard
+        const QPoint position = (event->reason() == QContextMenuEvent::Mouse) ? event->globalPos()
+                                                                              : spinBox->mapToGlobal(QPoint(event->pos().x(), 0)) + QPoint(spinBox->width() / 2, spinBox->height() / 2);
+        event->accept();
+        menu->popup(position);
+    }
+
+    /// Position of the instant menu of a tool button in a row (positionMenu of QToolButton, Qt
+    /// 6.11): below the button, aligned with its leading edge, above it, when there is no room
+    /// below, the point kept inside of the available area of the screen of the button
+    /// \param button Tool button
+    /// \param menuSize Size hint of the menu
+    static QPoint getToolButtonMenuPosition(const QWidget* button, const QSize& menuSize)
+    {
+        const QRect rect = button->rect();
+        const QScreen* buttonScreen = button->screen();
+        const QRect screen = buttonScreen ? buttonScreen->availableGeometry() : QRect();
+        const bool isBelow = screen.isNull() || button->mapToGlobal(QPoint(0, rect.bottom())).y() + menuSize.height() <= screen.bottom();
+
+        QPoint position;
+        if (button->isRightToLeft())
+        {
+            position = isBelow ? button->mapToGlobal(rect.bottomRight()) : button->mapToGlobal(rect.topRight() - QPoint(0, menuSize.height()));
+            position.rx() -= menuSize.width();
+        }
+        else
+        {
+            position = isBelow ? button->mapToGlobal(rect.bottomLeft()) : button->mapToGlobal(rect.topLeft() - QPoint(0, menuSize.height()));
+        }
+
+        if (!screen.isNull())
+        {
+            position.rx() = qMax(screen.left(), qMin(position.x(), screen.right() - menuSize.width()));
+            position.ry() = qMax(screen.top(), qMin(position.y() + 1, screen.bottom()));
+        }
+        return position;
+    }
+
+    /// The release of the mouse, which stops the steps of a held arrow of a spin box (the reset of
+    /// QAbstractSpinBox::contextMenuEvent: the release goes to the menu); it changes nothing, while
+    /// no arrow is held
+    static QMouseEvent createSpinBoxRelease()
+    {
+        return QMouseEvent(QEvent::MouseButtonRelease, QPointF(), QPointF(), Qt::LeftButton, Qt::NoButton, QGuiApplication::keyboardModifiers());
     }
 };
 
@@ -625,35 +723,37 @@ void PDFLabel::contextMenuEvent(QContextMenuEvent* event)
         return;
     }
 
-    // The application can delete the label while the menu runs its event loop: the
-    // menu (a child of the label) is deleted with it, so it is not an object on the
-    // stack, and the selected text is taken before
-    const QString selection = selectedText();
-    QPointer<QMenu> menu = new QMenu(this);
+    // A popup, no nested event loop (A0): the menu is a child of the label (deleted
+    // with it) and is deleted, when it is closed; its actions queue their work into
+    // the label (a deleted label drops it). The selected text is taken now.
+    m_contextMenuSelection = selectedText();
+    QMenu* menu = new QMenu(this);
+    menu->setAttribute(Qt::WA_DeleteOnClose);
     QAction* copyAction = menu->addAction(PDFThemeIcons::getIcon(QStringLiteral("copy")), tr("&Copy"));
-    copyAction->setEnabled(!selection.isEmpty());
+    copyAction->setEnabled(!m_contextMenuSelection.isEmpty());
     QAction* selectAllAction = menu->addAction(tr("Select All"));
-    QAction* chosenAction = menu->exec(event->globalPos());
-    if (!menu)
-    {
-        return;
-    }
-    delete menu.data();
-
-    if (chosenAction == copyAction)
-    {
-        QGuiApplication::clipboard()->setText(selection);
-    }
-    else if (chosenAction == selectAllAction)
-    {
-        const QString labelText = text();
-        m_selectionText = labelText;
-        m_selectionAnchor = 0;
-        m_selectionCursor = int(labelText.size());
-        m_isSelecting = false;
-        update();
-    }
+    connect(copyAction, &QAction::triggered, this, &PDFLabel::copyContextMenuSelection, Qt::QueuedConnection);
+    connect(selectAllAction, &QAction::triggered, this, &PDFLabel::selectAllFromContextMenu, Qt::QueuedConnection);
     event->accept();
+    menu->popup(event->globalPos());
+}
+
+void PDFLabel::copyContextMenuSelection()
+{
+    if (!m_contextMenuSelection.isEmpty())
+    {
+        QGuiApplication::clipboard()->setText(m_contextMenuSelection);
+    }
+}
+
+void PDFLabel::selectAllFromContextMenu()
+{
+    const QString labelText = text();
+    m_selectionText = labelText;
+    m_selectionAnchor = 0;
+    m_selectionCursor = int(labelText.size());
+    m_isSelecting = false;
+    update();
 }
 
 void PDFLabel::paintEvent(QPaintEvent* event)
@@ -1446,6 +1546,13 @@ void PDFSpinBox::paintEvent(QPaintEvent* event)
     PDFFluentWidgetsHelper::paintAffixes(this, m_displayPrefix, m_displaySuffix);
 }
 
+void PDFSpinBox::contextMenuEvent(QContextMenuEvent* event)
+{
+    QMouseEvent release = PDFFluentWidgetsHelper::createSpinBoxRelease();
+    QSpinBox::mouseReleaseEvent(&release);
+    PDFFluentWidgetsHelper::showSpinBoxContextMenu(this, lineEdit(), stepEnabled(), event);
+}
+
 PDFDoubleSpinBox::PDFDoubleSpinBox(QWidget* parent) :
     QDoubleSpinBox(parent)
 {
@@ -1470,6 +1577,13 @@ void PDFDoubleSpinBox::paintEvent(QPaintEvent* event)
 {
     QDoubleSpinBox::paintEvent(event);
     PDFFluentWidgetsHelper::paintAffixes(this, m_displayPrefix, m_displaySuffix);
+}
+
+void PDFDoubleSpinBox::contextMenuEvent(QContextMenuEvent* event)
+{
+    QMouseEvent release = PDFFluentWidgetsHelper::createSpinBoxRelease();
+    QDoubleSpinBox::mouseReleaseEvent(&release);
+    PDFFluentWidgetsHelper::showSpinBoxContextMenu(this, lineEdit(), stepEnabled(), event);
 }
 
 void PDFDoubleSpinBox::setTrailingZerosHidden(bool isHidden)
@@ -1514,6 +1628,137 @@ QString PDFDoubleSpinBox::textFromValue(double value) const
     text.truncate(end);
     return text;
 }
+
+#if QT_CONFIG(accessibility)
+/// Button of the month of PDFCalendarWidget: a tool button of QCalendarWidget without a menu
+/// of its own (the calendar opens the menu of the months by popup()), announced as
+/// QAccessibleToolButton announces a tool button with an instant menu - the role ButtonMenu,
+/// it has a popup, the action Show Menu only (it opens the menu by the calendar), the menu
+/// as its child 0, the name and the accelerator of QAccessibleButton
+class PDFCalendarMonthButtonAccessible : public QAccessibleWidget
+{
+public:
+    explicit PDFCalendarMonthButtonAccessible(QToolButton* button) :
+        QAccessibleWidget(button, QAccessible::ButtonMenu)
+    {
+        // As QAccessibleButton for a button, which is not checkable
+        addControllingSignal(QStringLiteral("clicked()"));
+    }
+
+    QToolButton* button() const { return qobject_cast<QToolButton*>(widget()); }
+
+    /// The calendar of the button (nullptr, if the button is no button of the month of PDFCalendarWidget)
+    static PDFCalendarWidget* getCalendar(const QToolButton* button)
+    {
+        if (!button || button->objectName() != QLatin1String("qt_calendar_monthbutton"))
+        {
+            return nullptr;
+        }
+
+        for (QWidget* parent = button->parentWidget(); parent; parent = parent->parentWidget())
+        {
+            if (PDFCalendarWidget* calendar = qobject_cast<PDFCalendarWidget*>(parent))
+            {
+                return calendar;
+            }
+        }
+        return nullptr;
+    }
+
+    virtual QAccessible::State state() const override
+    {
+        // QAccessibleButton::state + QAccessibleToolButton::state with a menu
+        QAccessible::State state = QAccessibleWidget::state();
+        if (const QToolButton* toolButton = button())
+        {
+            state.checkable = toolButton->isCheckable();
+            state.checked = toolButton->isChecked();
+            state.pressed = toolButton->isDown();
+            state.hotTracked = toolButton->autoRaise();
+        }
+        state.hasPopup = true;
+        return state;
+    }
+
+    virtual QString text(QAccessible::Text textType) const override
+    {
+        // QAccessibleButton::text: the accessible name or the text without its mnemonic, the
+        // mnemonic of the text as the accelerator
+        QString text;
+        const QToolButton* toolButton = button();
+        if (toolButton && textType == QAccessible::Name)
+        {
+            text = toolButton->accessibleName();
+            if (text.isEmpty())
+            {
+                text = toolButton->text();
+                text.remove(QRegularExpression(QStringLiteral("&(?!&)")));
+            }
+        }
+        else if (toolButton && textType == QAccessible::Accelerator)
+        {
+            text = QKeySequence::mnemonic(toolButton->text()).toString(QKeySequence::NativeText);
+        }
+
+        return text.isEmpty() ? QAccessibleWidget::text(textType) : text;
+    }
+
+    virtual int childCount() const override
+    {
+        // No split button: no children (QAccessibleToolButton::childCount)
+        return 0;
+    }
+
+    virtual QAccessibleInterface* child(int index) const override
+    {
+        // The menu as the child 0 (QAccessibleToolButton::child)
+        const PDFCalendarWidget* calendar = getCalendar(button());
+        QMenu* menu = calendar ? calendar->getMonthMenu() : nullptr;
+        return index == 0 && menu ? QAccessible::queryAccessibleInterface(menu) : nullptr;
+    }
+
+    virtual QStringList actionNames() const override
+    {
+        // An instant menu: Show Menu only, while the button is enabled
+        QStringList names;
+        if (widget()->isEnabled())
+        {
+            names << showMenuAction();
+        }
+        return names;
+    }
+
+    virtual void doAction(const QString& actionName) override
+    {
+        // Show Menu opens the menu of the months by popup() of the calendar; the last call
+        PDFCalendarWidget* calendar = getCalendar(button());
+        if (calendar && actionName == showMenuAction())
+        {
+            calendar->showMonthMenu();
+        }
+    }
+
+    virtual QStringList keyBindingsForAction(const QString& actionName) const override
+    {
+        Q_UNUSED(actionName);
+        return QStringList();
+    }
+
+    static QAccessibleInterface* create(const QString& className, QObject* object)
+    {
+        Q_UNUSED(className);
+
+        QToolButton* toolButton = qobject_cast<QToolButton*>(object);
+        return getCalendar(toolButton) ? new PDFCalendarMonthButtonAccessible(toolButton) : nullptr;
+    }
+
+    static bool installFactory()
+    {
+        QAccessible::installFactory(&PDFCalendarMonthButtonAccessible::create);
+        return true;
+    }
+};
+#endif
 
 PDFCalendarWidget::PDFCalendarWidget(QWidget* parent) :
     QCalendarWidget(parent)
@@ -1578,7 +1823,8 @@ PDFCalendarWidget::PDFCalendarWidget(QWidget* parent) :
         if (QToolButton* button = findChild<QToolButton*>(QString::fromLatin1(name)))
         {
             // The calendar gives a bold font to these buttons, the design has Medium 13.
-            // Both of them open a popup, the year has no menu to show its chevron.
+            // Both of them open a popup, both show the chevron by the property (the year has
+            // no menu, the month gives its menu to the calendar below).
             button->setFixedHeight(28);
             button->setFont(PDFThemeFonts::getFont(PDFThemeFonts::Role::BodyMedium));
             button->setProperty(PDFWidgetStyleProperties::RADIUS, 8);
@@ -1586,13 +1832,108 @@ PDFCalendarWidget::PDFCalendarWidget(QWidget* parent) :
         }
     }
 
-    if (QSpinBox* yearEdit = findChild<QSpinBox*>(QStringLiteral("qt_calendar_yearedit")))
+    // A0: the menu of the months is the instant menu of the button of the month, which
+    // QToolButton::showMenu shows by QMenu::exec (a nested event loop). The button keeps no
+    // menu; its press opens the same menu by popup(), QCalendarWidget still reacts by the
+    // signal triggered of the menu. The menu stays a child of the button.
+    m_monthButton = findChild<QToolButton*>(QStringLiteral("qt_calendar_monthbutton"));
+    if (m_monthButton && m_monthButton->menu())
     {
-        PDFThemeWidgetHelper::bindTextPalette(yearEdit->findChild<QLineEdit*>());
+#if QT_CONFIG(accessibility)
+        // Announced as Qt announces a tool button with an instant menu
+        static const bool isFactoryInstalled = PDFCalendarMonthButtonAccessible::installFactory();
+        Q_UNUSED(isFactoryInstalled);
+#endif
+        m_monthMenu = m_monthButton->menu();
+        m_monthButton->setMenu(nullptr);
+#if QT_CONFIG(accessibility)
+        // An interface of Qt created during the construction of QCalendarWidget (an active
+        // assistive technology) would announce a push button: it is replaced by the own one
+        if (QAccessible::isActive())
+        {
+            QAccessibleInterface* buttonInterface = QAccessible::queryAccessibleInterface(m_monthButton.data());
+            if (buttonInterface && !dynamic_cast<PDFCalendarMonthButtonAccessible*>(buttonInterface))
+            {
+                QAccessible::deleteAccessibleInterface(QAccessible::uniqueId(buttonInterface));
+            }
+        }
+#endif
+        connect(m_monthButton.data(), &QAbstractButton::pressed, this, &PDFCalendarWidget::onMonthButtonPressed);
+        m_monthMenuHiddenConnection = connect(m_monthMenu.data(), &QMenu::aboutToHide, this, &PDFCalendarWidget::onMonthMenuHidden);
+        m_monthMenuDestroyedConnection = connect(m_monthMenu.data(), &QObject::destroyed, this, &PDFCalendarWidget::onMonthMenuHidden);
+    }
+
+    // The editor of the year is a QSpinBox of Qt: its context menu (QAbstractSpinBox shows it by
+    // QMenu::exec) is the menu of the spin boxes of the library, shown by popup()
+    m_yearEdit = findChild<QSpinBox*>(QStringLiteral("qt_calendar_yearedit"));
+    if (m_yearEdit)
+    {
+        PDFThemeWidgetHelper::bindTextPalette(m_yearEdit->findChild<QLineEdit*>());
+        m_yearEdit->installEventFilter(this);
     }
 
     updateColors();
     connect(PDFThemeManager::getInstance(), &PDFThemeManager::themeChanged, this, &PDFCalendarWidget::updateColors);
+}
+
+PDFCalendarWidget::~PDFCalendarWidget()
+{
+    // The menu of the months is deleted with the button by ~QWidget, when the calendar is
+    // only a QWidget: its signals must not reach the calendar any more
+    disconnect(m_monthMenuHiddenConnection);
+    disconnect(m_monthMenuDestroyedConnection);
+}
+
+QMenu* PDFCalendarWidget::getMonthMenu() const
+{
+    return m_monthMenu.data();
+}
+
+bool PDFCalendarWidget::showMonthMenu()
+{
+    QToolButton* button = m_monthButton.data();
+    QMenu* menu = m_monthMenu.data();
+    if (!button || !menu || !button->isEnabled())
+    {
+        return false;
+    }
+
+    // The press, which closes the menu over the button, does not open it again; the button
+    // looks as a button of an open menu, until the menu is hidden (QToolButton::showMenu)
+    menu->setNoReplayFor(button);
+    button->setProperty(PDFWidgetStyleProperties::MENU_OPEN, true);
+    button->setDown(true);
+
+    QPointer<PDFCalendarWidget> guard(this);
+    menu->popup(PDFFluentWidgetsHelper::getToolButtonMenuPosition(button, menu->sizeHint()));
+    if (guard && (!m_monthMenu || !m_monthMenu->isVisible()))
+    {
+        // An empty menu is not shown and it is never hidden
+        onMonthMenuHidden();
+    }
+    return true;
+}
+
+void PDFCalendarWidget::onMonthButtonPressed()
+{
+    showMonthMenu();
+}
+
+void PDFCalendarWidget::onMonthMenuHidden()
+{
+    // Only the state of the button (no code of the application runs here)
+    if (m_monthButton)
+    {
+        m_monthButton->setProperty(PDFWidgetStyleProperties::MENU_OPEN, false);
+        if (m_monthButton->isDown())
+        {
+            m_monthButton->setDown(false);
+        }
+        else
+        {
+            m_monthButton->update();
+        }
+    }
 }
 
 QSize PDFCalendarWidget::sizeHint() const
@@ -1661,6 +2002,28 @@ bool PDFCalendarWidget::eventFilter(QObject* watched, QEvent* event)
         m_viewport->update();
     }
 
+    if (m_yearEdit && watched == m_yearEdit && event->type() == QEvent::ContextMenu)
+    {
+        // The menu of QAbstractSpinBox by popup(); the enabled steps of QAbstractSpinBox::stepEnabled
+        // (protected) from the value, the range and the wrapping of the editor of the year
+        QSpinBox* yearEdit = m_yearEdit.data();
+        QAbstractSpinBox::StepEnabled stepEnabled = QAbstractSpinBox::StepNone;
+        if (!yearEdit->isReadOnly())
+        {
+            if (yearEdit->wrapping())
+            {
+                stepEnabled = QAbstractSpinBox::StepUpEnabled | QAbstractSpinBox::StepDownEnabled;
+            }
+            else
+            {
+                stepEnabled.setFlag(QAbstractSpinBox::StepUpEnabled, yearEdit->value() < yearEdit->maximum());
+                stepEnabled.setFlag(QAbstractSpinBox::StepDownEnabled, yearEdit->value() > yearEdit->minimum());
+            }
+        }
+        PDFFluentWidgetsHelper::showSpinBoxContextMenu(yearEdit, yearEdit->findChild<QLineEdit*>(), stepEnabled, static_cast<QContextMenuEvent*>(event));
+        return true;
+    }
+
     return QCalendarWidget::eventFilter(watched, event);
 }
 
@@ -1727,6 +2090,13 @@ void PDFDateTimeEdit::showEvent(QShowEvent* event)
     // The popup can be turned on also by the function of QDateTimeEdit
     ensureCalendar();
     QDateTimeEdit::showEvent(event);
+}
+
+void PDFDateTimeEdit::contextMenuEvent(QContextMenuEvent* event)
+{
+    QMouseEvent release = PDFFluentWidgetsHelper::createSpinBoxRelease();
+    QDateTimeEdit::mouseReleaseEvent(&release);
+    PDFFluentWidgetsHelper::showSpinBoxContextMenu(this, lineEdit(), stepEnabled(), event);
 }
 
 void PDFDateTimeEdit::ensureCalendar()

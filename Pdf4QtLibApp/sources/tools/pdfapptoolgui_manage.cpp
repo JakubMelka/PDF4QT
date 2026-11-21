@@ -543,6 +543,14 @@ PDFAppManageToolGUI::~PDFAppManageToolGUI()
         m_sourcesDialog->disconnect(this);
         m_sourcesDialog->close();
     }
+    if (QDialog* closeDialog = m_closeDialog.data())
+    {
+        // The question of the assembly belongs to this GUI (its widget parent only places it): it goes with it
+        // unanswered - a close of the tab, which waits for it, is refused by the end of its reporter (this GUI)
+        m_closeDialog = nullptr;
+        closeDialog->hide();
+        closeDialog->deleteLater();
+    }
 }
 
 bool PDFAppManageToolGUI::isDocumentHost() const
@@ -1405,10 +1413,15 @@ void PDFAppManageToolGUI::addFilesFromDialog()
         return;
     }
 
-    // The native dialog runs its own event loop: the GUI may go meanwhile
-    QPointer<PDFAppManageToolGUI> guard(this);
-    const QStringList files = PDFAppFileDialogs::getOpenInputFileNames(getWindow(), QString());
-    if (guard && !files.isEmpty())
+    // A0: the dialog is shown, the files come to onAddFilesChosen (a GUI gone meanwhile gets nothing: the request
+    // is its child)
+    PDFAppFileDialogs::requestOpenInputFileNames(getWindow(), QString(), this, &PDFAppManageToolGUI::onAddFilesChosen);
+}
+
+void PDFAppManageToolGUI::onAddFilesChosen(const QStringList& files)
+{
+    // The tool may have left the editing meanwhile (read again)
+    if (!files.isEmpty() && isEditable())
     {
         addFiles(files);
     }
@@ -1420,9 +1433,12 @@ void PDFAppManageToolGUI::addPagesFromDialog()
     {
         return;
     }
-    QPointer<PDFAppManageToolGUI> guard(this);
-    const QString file = PDFAppPanelFileDialogs::getOpenFileName(getWindow(), tr("Pages of a PDF"), QString(), tr("PDF documents (*.pdf)"));
-    if (guard && !file.isEmpty())
+    PDFAppPanelFileDialogs::requestOpenFileName(getWindow(), tr("Pages of a PDF"), QString(), tr("PDF documents (*.pdf)"), this, &PDFAppManageToolGUI::onAddPagesFileChosen);
+}
+
+void PDFAppManageToolGUI::onAddPagesFileChosen(const QString& file)
+{
+    if (!file.isEmpty())
     {
         addPagesOfFile(file);
     }
@@ -2010,10 +2026,16 @@ void PDFAppManageToolGUI::openReplaceDialog()
         return;
     }
 
-    // Replace selection… (Ctrl+Alt+R): the file, then its pages (Add pages of a PDF in the mode Replace)
+    // Replace selection… (Ctrl+Alt+R): the file, then its pages (Add pages of a PDF in the mode Replace); A0: the
+    // file comes to onReplaceFileChosen
+    PDFAppPanelFileDialogs::requestOpenFileName(getWindow(), tr("Replace selection"), QString(), tr("PDF documents (*.pdf)"), this, &PDFAppManageToolGUI::onReplaceFileChosen);
+}
+
+void PDFAppManageToolGUI::onReplaceFileChosen(const QString& file)
+{
+    // The selection and the editing are read again (they may have changed meanwhile)
     QPointer<PDFAppManageToolGUI> guard(this);
-    const QString file = PDFAppPanelFileDialogs::getOpenFileName(getWindow(), tr("Replace selection"), QString(), tr("PDF documents (*.pdf)"));
-    if (!guard || file.isEmpty() || !m_list)
+    if (file.isEmpty() || !m_list || !isEditable() || getSelection().empty())
     {
         return;
     }
@@ -2399,24 +2421,159 @@ bool PDFAppManageToolGUI::saveAssembly()
 
 bool PDFAppManageToolGUI::saveAssemblyAs()
 {
-    if (isDocumentHost())
+    requestSaveAssemblyAs(SaveIntent::None);
+    return false;
+}
+
+bool PDFAppManageToolGUI::requestSaveAssemblyAs(SaveIntent intent)
+{
+    if (isDocumentHost() || m_isSaveAsOpen)
     {
         return false;
     }
-    QPointer<PDFAppManageToolGUI> guard(this);
+
+    // A0: the dialog is shown, the file comes to onSaveAssemblyAsChosen (the close of the tab or the opening of another
+    // assembly, which waits for the save, goes on there)
     const QString proposed = m_assemblyPath.isEmpty() ? tr("New assembly") + QStringLiteral(".") + QString::fromLatin1(PDFDocumentAssemblyFile::FILE_SUFFIX) : m_assemblyPath;
-    const QString filePath = PDFAppPanelFileDialogs::getSaveFileName(getWindow(), tr("Save Assembly"), proposed, tr("PDF4QT assemblies (*.%1)").arg(QString::fromLatin1(PDFDocumentAssemblyFile::FILE_SUFFIX)));
-    if (!guard || filePath.isEmpty())
+    m_saveAsIntent = intent;
+    m_isSaveAsOpen = PDFAppPanelFileDialogs::requestSaveFileName(getWindow(), tr("Save Assembly"), proposed, tr("PDF4QT assemblies (*.%1)").arg(QString::fromLatin1(PDFDocumentAssemblyFile::FILE_SUFFIX)),
+                                                                 this, &PDFAppManageToolGUI::onSaveAssemblyAsChosen) != nullptr;
+    if (!m_isSaveAsOpen)
     {
-        return false;
+        m_saveAsIntent = SaveIntent::None;
     }
+    return m_isSaveAsOpen;
+}
+
+void PDFAppManageToolGUI::onSaveAssemblyAsChosen(const QString& filePath)
+{
+    const SaveIntent intent = m_saveAsIntent;
+    m_saveAsIntent = SaveIntent::None;
+    m_isSaveAsOpen = false;
+    if (filePath.isEmpty())
+    {
+        finishSaveIntent(intent, false);
+        return;
+    }
+
+    // The save runs code of the application (the title of the tab, the status)
+    QPointer<PDFAppManageToolGUI> guard(this);
     QString errorMessage;
-    if (!saveAssemblyTo(filePath, &errorMessage))
+    const bool isSaved = saveAssemblyTo(filePath, &errorMessage);
+    if (!guard)
+    {
+        return;
+    }
+    if (!isSaved)
     {
         showMessage(errorMessage);
+    }
+    if (guard)
+    {
+        finishSaveIntent(intent, isSaved);
+    }
+}
+
+bool PDFAppManageToolGUI::askSaveQuestion(SaveIntent intent)
+{
+    if (m_closeDialog)
+    {
         return false;
     }
+
+    // 405:30894: "Save the assembly Tender_2026?" Don't Save / Cancel / Save Assembly - the choice
+    // dialog of the questions of a tab (Don't Save closes the tab: the name of the close of the
+    // generic question). It belongs to this GUI (the destructor deletes it); the canvas area is its widget
+    // parent (it goes with the tab or the window too). A0: shown (exec's modality, no event loop), the answer
+    // comes to onCloseDialogChosen
+    QWidget* parent = getHost() && getHost()->getCanvasArea() ? getHost()->getCanvasArea() : getWindow();
+    PDFAppDocumentChoiceDialog* dialog = new PDFAppDocumentChoiceDialog(PDFThemeIcons::Badge::Warning, tr("Save the assembly %1?").arg(getOwnTabTitle().left(256)),
+                                                                        tr("It has changes that are not saved. An assembly keeps the sources, the order, the groups and the checkpoints – it is not a PDF."),
+                                                                        480, parent);
+    dialog->setObjectName(QStringLiteral("manageCloseDialog"));
+    PDFAppMainWindow::prepareDialog(dialog, parent);
+    dialog->addChoice(tr("Don't Save"), PDFAppDocumentChoice::Discard, false, true, QStringLiteral("closeTabButton"));
+    dialog->addChoice(tr("Cancel"), PDFAppDocumentChoice::Cancel, false, false, QStringLiteral("cancelButton"));
+    dialog->addChoice(tr("Save Assembly"), PDFAppDocumentChoice::Save, true, false, QStringLiteral("manageCloseSave"));
+    m_closeDialog = dialog;
+    m_closeIntent = intent;
+    if (intent == SaveIntent::CloseTab && m_closeFlow)
+    {
+        m_closeFlow->setQuestion(dialog);
+    }
+    PDFAppDocumentChoiceDialog::ask(dialog, this, &PDFAppManageToolGUI::onCloseDialogChosen);
     return true;
+}
+
+void PDFAppManageToolGUI::onCloseDialogChosen(PDFAppDocumentChoice choice)
+{
+    const SaveIntent intent = m_closeIntent;
+    m_closeIntent = SaveIntent::None;
+    m_closeDialog = nullptr;
+    switch (choice)
+    {
+        case PDFAppDocumentChoice::Discard:
+            finishSaveIntent(intent, true);
+            return;
+
+        case PDFAppDocumentChoice::Save:
+        {
+            // To its file (synchronous), else Save Assembly As… first: Close after a saved assembly, else the tab
+            // stays
+            if (m_assemblyPath.isEmpty())
+            {
+                if (!requestSaveAssemblyAs(intent))
+                {
+                    finishSaveIntent(intent, false);
+                }
+                return;
+            }
+            QPointer<PDFAppManageToolGUI> guard(this);
+            const bool isSaved = saveAssembly();
+            if (guard)
+            {
+                finishSaveIntent(intent, isSaved);
+            }
+            return;
+        }
+
+        default:
+            break;
+    }
+    finishSaveIntent(intent, false);
+}
+
+void PDFAppManageToolGUI::finishSaveIntent(SaveIntent intent, bool isAccepted)
+{
+    switch (intent)
+    {
+        case SaveIntent::None:
+            return;
+
+        case SaveIntent::CloseTab:
+        {
+            // The waiter of the close of the tab is the last call
+            QPointer<PDFAppLeaveFlow> flow = m_closeFlow;
+            m_closeFlow = nullptr;
+            if (flow)
+            {
+                flow->finishStep(this, isAccepted ? PDFAppLeaveResult::Done : PDFAppLeaveResult::Refused);
+            }
+            return;
+        }
+
+        case SaveIntent::OpenAssembly:
+        {
+            // 409:32023: the other assembly is read after the answer (Cancel keeps this one)
+            const QString filePath = m_pendingAssemblyPath;
+            m_pendingAssemblyPath.clear();
+            if (isAccepted && m_loader && !filePath.isEmpty())
+            {
+                m_loader->load(filePath);
+            }
+            return;
+        }
+    }
 }
 
 bool PDFAppManageToolGUI::saveAssemblyTo(const QString& filePath, QString* errorMessage)
@@ -2502,9 +2659,13 @@ void PDFAppManageToolGUI::openAssemblyFromDialog()
     {
         return;
     }
-    QPointer<PDFAppManageToolGUI> guard(this);
-    const QString filePath = PDFAppPanelFileDialogs::getOpenFileName(getWindow(), tr("Open Assembly"), QString(), tr("PDF4QT assemblies (*.%1)").arg(QString::fromLatin1(PDFDocumentAssemblyFile::FILE_SUFFIX)));
-    if (guard && !filePath.isEmpty())
+    PDFAppPanelFileDialogs::requestOpenFileName(getWindow(), tr("Open Assembly"), QString(), tr("PDF4QT assemblies (*.%1)").arg(QString::fromLatin1(PDFDocumentAssemblyFile::FILE_SUFFIX)),
+                                                this, &PDFAppManageToolGUI::onOpenAssemblyFileChosen);
+}
+
+void PDFAppManageToolGUI::onOpenAssemblyFileChosen(const QString& filePath)
+{
+    if (!filePath.isEmpty())
     {
         openAssemblyFile(filePath);
     }
@@ -2517,15 +2678,20 @@ bool PDFAppManageToolGUI::openAssemblyFile(const QString& filePath)
         return false;
     }
 
-    // 409:32023: another assembly asks to save this one first
+    // 409:32023: another assembly asks to save this one first (A0: the question is shown, the file is read after
+    // its answer - finishSaveIntent)
     if (isAssemblyModified())
     {
-        QPointer<PDFAppManageToolGUI> guard(this);
-        const PDFAppToolCloseAnswer answer = askOwnTabClose();
-        if (!guard || answer == PDFAppToolCloseAnswer::Cancel || !m_loader)
+        if (m_closeDialog || m_isSaveAsOpen)
         {
             return false;
         }
+        m_pendingAssemblyPath = filePath;
+        if (!askSaveQuestion(SaveIntent::OpenAssembly))
+        {
+            m_pendingAssemblyPath.clear();
+        }
+        return false;
     }
     return m_loader->load(filePath);
 }
@@ -2623,9 +2789,16 @@ void PDFAppManageToolGUI::onSourcesDialogLocate(const QString& sourceId)
         showMessage(getLocateBusyText());
         return;
     }
-    QPointer<PDFAppManageToolGUI> guard(this);
-    const QString file = PDFAppPanelFileDialogs::getOpenFileName(getWindow(), tr("Locate"), QString(), tr("PDF documents (*.pdf)"));
-    if (guard && m_loader && m_sourcesDialog && !file.isEmpty() && !m_loader->locate(m_sourcesDialog->getResult(), sourceId, file))
+    m_locateSourceId = sourceId;
+    PDFAppPanelFileDialogs::requestOpenFileName(getWindow(), tr("Locate"), QString(), tr("PDF documents (*.pdf)"), this, &PDFAppManageToolGUI::onLocateFileChosen);
+}
+
+void PDFAppManageToolGUI::onLocateFileChosen(const QString& file)
+{
+    // The dialog of the sources and the loader are read again (they may have gone meanwhile)
+    const QString sourceId = m_locateSourceId;
+    m_locateSourceId.clear();
+    if (m_loader && m_sourcesDialog && !file.isEmpty() && !m_loader->locate(m_sourcesDialog->getResult(), sourceId, file))
     {
         showMessage(getLocateBusyText());
     }
@@ -4155,7 +4328,7 @@ QString PDFAppManageToolGUI::getOwnTabTitle() const
 
 QString PDFAppManageToolGUI::getOwnTabLossText() const
 {
-    // The dot of the tab (387:12569); the close asks askOwnTabClose (405:30894)
+    // The dot of the tab (387:12569); the close asks requestOwnTabClose (405:30894)
     return isAssemblyModified() ? tr("The assembly has changes that are not saved.") : QString();
 }
 
@@ -4180,7 +4353,7 @@ QString PDFAppManageToolGUI::getOwnTabZoomText() const
 bool PDFAppManageToolGUI::hasUnsavedWork() const
 {
     // Owner 2026-11-20: in the tab of a document the arrangement differs from the pages of the document (mapped
-    // to its versions); the own tab asks by askOwnTabClose (405:30894)
+    // to its versions); the own tab asks by requestOwnTabClose (405:30894)
     return isDocumentHost() && !m_assembly.isEqual(m_savedAssembly);
 }
 
@@ -4195,51 +4368,32 @@ PDFAppToolCloseQuestion PDFAppManageToolGUI::getCloseQuestion() const
     return question;
 }
 
-PDFAppToolCloseAnswer PDFAppManageToolGUI::askOwnTabClose()
+bool PDFAppManageToolGUI::hasOwnTabCloseQuestion() const
+{
+    return true;
+}
+
+PDFAppLeaveResult PDFAppManageToolGUI::requestOwnTabClose(PDFAppLeaveFlow* flow)
 {
     if (!isAssemblyModified())
     {
         // Nothing is lost (an empty or a saved assembly)
-        return PDFAppToolCloseAnswer::Close;
+        return PDFAppLeaveResult::Done;
     }
-    if (m_closeDialog)
+    if (m_closeDialog || m_isSaveAsOpen || m_closeFlow || !flow || !flow->isRunning())
     {
-        return PDFAppToolCloseAnswer::Cancel;
+        return PDFAppLeaveResult::Refused;
     }
 
-    // 405:30894: "Save the assembly Tender_2026?" Don't Save / Cancel / Save Assembly - the choice
-    // dialog of the questions of a tab (Don't Save closes the tab: the name of the close of the
-    // generic question). It belongs to the tab (the canvas area is its parent: it goes with the
-    // tab or the window) and runs its own event loop - this GUI may be deleted meanwhile
-    QWidget* parent = getHost() && getHost()->getCanvasArea() ? getHost()->getCanvasArea() : getWindow();
-    PDFAppDocumentChoiceDialog* dialog = new PDFAppDocumentChoiceDialog(PDFThemeIcons::Badge::Warning, tr("Save the assembly %1?").arg(getOwnTabTitle().left(256)),
-                                                                        tr("It has changes that are not saved. An assembly keeps the sources, the order, the groups and the checkpoints – it is not a PDF."),
-                                                                        480, parent);
-    dialog->setObjectName(QStringLiteral("manageCloseDialog"));
-    PDFAppMainWindow::prepareDialog(dialog, parent);
-    dialog->addChoice(tr("Don't Save"), PDFAppDocumentChoice::Discard, false, true, QStringLiteral("closeTabButton"));
-    dialog->addChoice(tr("Cancel"), PDFAppDocumentChoice::Cancel, false, false, QStringLiteral("cancelButton"));
-    dialog->addChoice(tr("Save Assembly"), PDFAppDocumentChoice::Save, true, false, QStringLiteral("manageCloseSave"));
-    m_closeDialog = dialog;
-
-    QPointer<PDFAppManageToolGUI> guard(this);
-    const PDFAppDocumentChoice choice = PDFAppDocumentChoiceDialog::run(dialog);
-    if (!guard)
+    // 405:30894 (askSaveQuestion): Don't Save closes the tab, Save Assembly closes it after the assembly is saved
+    // (Save Assembly As… first, when it has no file), Cancel keeps it; the answer comes by finishSaveIntent
+    m_closeFlow = flow;
+    if (!askSaveQuestion(SaveIntent::CloseTab))
     {
-        return PDFAppToolCloseAnswer::Cancel;
+        m_closeFlow = nullptr;
+        return PDFAppLeaveResult::Refused;
     }
-    m_closeDialog = nullptr;
-    switch (choice)
-    {
-        case PDFAppDocumentChoice::Discard:
-            return PDFAppToolCloseAnswer::Close;
-        case PDFAppDocumentChoice::Save:
-            // The save is synchronous: Close after a saved assembly, else the tab stays
-            return saveAssembly() ? PDFAppToolCloseAnswer::Close : PDFAppToolCloseAnswer::Cancel;
-        default:
-            break;
-    }
-    return PDFAppToolCloseAnswer::Cancel;
+    return PDFAppLeaveResult::Pending;
 }
 
 // ------------------------------------------------------------- flow

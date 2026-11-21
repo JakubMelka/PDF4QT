@@ -515,18 +515,23 @@ void PDFAppInterleaveToolGUI::setSlotDocument(Slot slot, const QString& document
 
 void PDFAppInterleaveToolGUI::chooseSlotFile(Slot slot)
 {
-    if (m_isRunning)
+    if (m_isRunning || (m_fileRequest && m_fileRequest->isPending()))
     {
         return;
     }
 
-    // The native dialog runs its own event loop: the GUI may go meanwhile
-    QPointer<PDFAppInterleaveToolGUI> guard(this);
+    // A0: the dialog answers onSlotFileChosen (the request is a child of the GUI: a GUI gone meanwhile gets nothing)
     QWidget* parent = m_leftPanel ? m_leftPanel->window() : nullptr;
-    const QStringList files = PDFAppFileDialogs::getOpenFileNames(parent, QString());
-    if (guard && !files.isEmpty())
+    m_fileRequestSlot = slot;
+    m_fileRequest = PDFAppFileDialogs::requestOpenFileNames(parent, QString(), this, &PDFAppInterleaveToolGUI::onSlotFileChosen);
+}
+
+void PDFAppInterleaveToolGUI::onSlotFileChosen(const QStringList& files)
+{
+    // setSlotFile checks the state again (a run started meanwhile takes no file)
+    if (!files.isEmpty())
     {
-        setSlotFile(slot, files.front());
+        setSlotFile(m_fileRequestSlot, files.front());
     }
 }
 
@@ -544,14 +549,25 @@ void PDFAppInterleaveToolGUI::onCanvasChooseFiles()
 {
     // Choose Files… of the drop zone (385:13738): the first file is the front sides, the
     // second the back sides; the slots fill from the first empty one
-    if (m_isRunning || !m_list)
+    if (m_isRunning || !m_list || (m_fileRequest && m_fileRequest->isPending()))
+    {
+        return;
+    }
+
+    // A0: the dialog answers onCanvasFilesChosen (the request is a child of the GUI: a GUI gone meanwhile gets nothing)
+    QWidget* parent = m_canvas ? m_canvas->window() : nullptr;
+    m_fileRequest = PDFAppFileDialogs::requestOpenFileNames(parent, QString(), this, &PDFAppInterleaveToolGUI::onCanvasFilesChosen);
+}
+
+void PDFAppInterleaveToolGUI::onCanvasFilesChosen(const QStringList& files)
+{
+    // The state again: a run started meanwhile takes no file (setSlotFile checks it as well)
+    if (m_isRunning)
     {
         return;
     }
 
     QPointer<PDFAppInterleaveToolGUI> guard(this);
-    QWidget* parent = m_canvas ? m_canvas->window() : nullptr;
-    const QStringList files = PDFAppFileDialogs::getOpenFileNames(parent, QString());
     for (const QString& file : files)
     {
         if (!guard || !m_list)
