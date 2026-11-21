@@ -37,6 +37,9 @@
 #include "pdfappdocumentstatusbar.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
+#include "pdfappmainwindow.h"
+#include "pdfappnavigator.h"
+#include "pdfapproute.h"
 #include "pdfapptoolgui_redact.h"
 #include "pdfapptoolpanelbuilder.h"
 #include "pdfapptoolpanelparts.h"
@@ -65,16 +68,21 @@
 #include "pdfwidgetsnapshot.h"
 #include "pdfwidgetstyle.h"
 
+#include <QApplication>
 #include <QClipboard>
 #include <QFile>
 #include <QMimeData>
 #include <QItemSelectionModel>
+#include <QPointer>
+#include <QTimer>
 #include <QPushButton>
 #include <QScrollBar>
 #include <QToolButton>
 #include <QtTest>
 
+#include <functional>
 #include <map>
+#include <set>
 
 using pdftest::AppToolShellFixture;
 using pdf::PDFAppToolGUIRedact;
@@ -502,6 +510,8 @@ private Q_SLOTS:
     void fillMenu();
     void foreignMarksBounded();
     void lockedMarkStays();
+    void closePromptCountsNewMarks();
+    void quitRemoveNewMarksThenKeep();
     void escapeEndsDrag();
     void fillSwatches();
     void keepMenu();
@@ -1194,8 +1204,8 @@ void AppToolRedactTest::clearAll()
 
 void AppToolRedactTest::closePromptRemove()
 {
-    // 448:17473: "Keep the 3 marks in the document?" Back to Redacting | Keep Marks and Close (Primary) |
-    // Remove Marks; Remove Marks takes them away in one Undo step and closes the tool
+    // 448:17473 (owner 2026-11-20): "Keep the 3 new marks in the document?" Back to Redacting | Keep Marks and
+    // Close (Primary) | Remove New Marks; Remove New Marks takes them away in one Undo step and closes the tool
     AppToolShellFixture fixture;
     pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
     QPointer<PDFDocumentToolShell> shell = fixture.openTool(tab, H::TOOL_ID);
@@ -1212,7 +1222,7 @@ void AppToolRedactTest::closePromptRemove()
     QVERIFY(prompt);
     QVERIFY(shell && shell->getState() == PDFDocumentToolShell::State::Editing);
     QVERIFY(AppToolShellFixture::waitFor([prompt]() { return prompt && prompt->isVisible(); }));
-    QCOMPARE(H::buttonTexts(prompt), QStringList({ QStringLiteral("Back to Redacting"), QStringLiteral("Keep Marks and Close"), QStringLiteral("Remove Marks") }));
+    QCOMPARE(H::buttonTexts(prompt), QStringList({ QStringLiteral("Back to Redacting"), QStringLiteral("Keep Marks and Close"), QStringLiteral("Remove New Marks") }));
 
     // The card of 448:17473 is 600 wide: Back to Redacting (leading) and the trailing pair keep a gap
     // (593 -> 638 in the frame), the buttons do not touch
@@ -1222,7 +1232,7 @@ void AppToolRedactTest::closePromptRemove()
     QVERIFY2(keep.left() - back.right() > 12, qPrintable(QStringLiteral("%1 %2").arg(back.right()).arg(keep.left())));
     QVERIFY(prompt->getActionButtons()[1]->isDefault());
     QVERIFY(!prompt->getActionButtons()[2]->isDefault());
-    QVERIFY(H::hasLabel(prompt, QStringLiteral("Keep the 3 marks in the document?")));
+    QVERIFY(H::hasLabel(prompt, QStringLiteral("Keep the 3 new marks in the document?")));
     QVERIFY(H::hasLabel(prompt, QStringLiteral("No redacted copy was created yet. Marks are redaction annotations – kept marks stay in the document so you can finish later. Nothing is removed from the content either way.")));
 
     const int undoBefore = pdftest::AppDocumentFixture::undoCount(tab->getDocument());
@@ -1296,7 +1306,7 @@ void AppToolRedactTest::closePromptAfterDiscard()
     QCOMPARE(shell->getState(), PDFDocumentToolShell::State::Editing);
     QPointer<pdf::PDFMessageBox> prompt = gui->getClosePrompt();
     QVERIFY(prompt && prompt->isVisible());
-    QVERIFY(H::hasLabel(prompt, QStringLiteral("Keep the 1 mark in the document?")));
+    QVERIFY(H::hasLabel(prompt, QStringLiteral("Keep the new mark in the document?")));
 
     // Back to Redacting: the tool with its mark, the Primary button works again
     QTest::mouseClick(prompt->getActionButtons()[0], Qt::LeftButton);
@@ -1617,21 +1627,218 @@ void AppToolRedactTest::lockedMarkStays()
     AppToolShellFixture::settle();
     QCOMPARE(H::annotations(tab->getDocument()).size(), size_t(3));
 
-    // Remove Marks of the close question (448:17473)
+    // The marks of the document at the entry ask nothing (owner 2026-11-20); a mark of this session does
+    QVERIFY(!gui->hasUnsavedWork());
+    QVERIFY(gui->markPages({ 0 }));
+    AppToolShellFixture::settle();
+    QCOMPARE(H::annotations(tab->getDocument()).size(), size_t(4));
+    QVERIFY(gui->hasUnsavedWork());
+
+    // The close question (448:17473) counts only the mark of this session (owner 2026-11-20, decision 1): "Keep
+    // the new mark in the document?", Remove New Marks removes only it in one Undo step, the 3 marks the document
+    // had at the entry (the locked one too) stay, and the tool closes - no new mark is left
     shell->cancel();
     QPointer<pdf::PDFMessageBox> prompt = gui->getClosePrompt();
     QVERIFY(prompt);
     QVERIFY(AppToolShellFixture::waitFor([prompt]() { return prompt && prompt->isVisible(); }));
+    QVERIFY(H::hasLabel(prompt, QStringLiteral("Keep the new mark in the document?")));
+    QCOMPARE(prompt->getActionButtons()[2]->text(), QStringLiteral("Remove New Marks"));
+    const int undoBefore = pdftest::AppDocumentFixture::undoCount(tab->getDocument());
     QTest::mouseClick(prompt->getActionButtons()[2], Qt::LeftButton);
+    QVERIFY(AppToolShellFixture::waitFor([tab]() { return !AppToolShellFixture::getShell(tab); }));
     AppToolShellFixture::settle();
-    const std::vector<RedactAnnotationEntry> remaining = H::annotations(tab->getDocument());
-    QCOMPARE(remaining.size(), size_t(1));
-    QCOMPARE(remaining[0].reference, pdf::PDFObjectReference(10, 0));
-    QVERIFY(shell);
-    QCOMPARE(AppToolShellFixture::getShell(tab), shell.data());
-    QCOMPARE(shell->getState(), PDFDocumentToolShell::State::Editing);
-    QCOMPARE(gui->getMarks().size(), size_t(1));
-    QCOMPARE(H::statusMessage(tab), QStringLiteral("1 mark is locked and stays in the document."));
+    QVERIFY(!shell);
+    std::set<pdf::PDFObjectReference> remaining;
+    for (const RedactAnnotationEntry& entry : H::annotations(tab->getDocument()))
+    {
+        remaining.insert(entry.reference);
+    }
+    QCOMPARE(remaining, std::set<pdf::PDFObjectReference>({ pdf::PDFObjectReference(10, 0), pdf::PDFObjectReference(12, 0), pdf::PDFObjectReference(13, 0) }));
+    QCOMPARE(pdftest::AppDocumentFixture::undoCount(tab->getDocument()), undoBefore + 1);
+}
+
+void AppToolRedactTest::closePromptCountsNewMarks()
+{
+    // Owner 2026-11-20 (decision 1): with 1 mark of the entry and 2 new marks the question names the 2 new ones;
+    // Keep Marks and Close keeps all three. RESCCODE L1: an Esc after Back to Redacting (the answered question is
+    // hidden, not yet deleted) asks again with a new visible question.
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture);
+    QPointer<PDFDocumentToolShell> shell = fixture.openTool(tab, H::TOOL_ID);
+    PDFAppToolGUIRedact* gui = H::gui(shell);
+    QVERIFY(gui);
+    QVERIFY(gui->addAreaMark(0, QRectF(100, 600, 50, 50)));
+    AppToolShellFixture::settle();
+    shell->cancel();
+    QPointer<pdf::PDFMessageBox> prompt = gui->getClosePrompt();
+    QVERIFY(prompt);
+    QTest::mouseClick(prompt->getActionButtons()[1], Qt::LeftButton);
+    QVERIFY(AppToolShellFixture::waitFor([tab]() { return !AppToolShellFixture::getShell(tab); }));
+    AppToolShellFixture::settle();
+    QCOMPARE(H::annotations(tab->getDocument()).size(), size_t(1));
+
+    // The second session: the mark of the first one is a mark of the entry
+    shell = fixture.openTool(tab, H::TOOL_ID);
+    gui = H::gui(shell);
+    QVERIFY(gui);
+    QVERIFY(AppToolShellFixture::waitFor([gui]() { return gui->getMarks().size() == 1; }));
+    QVERIFY(gui->getNewMarks().empty());
+    QVERIFY(gui->addAreaMark(1, QRectF(100, 600, 50, 50)));
+    QVERIFY(gui->addAreaMark(2, QRectF(100, 600, 50, 50)));
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getMarks().size(), size_t(3));
+    QCOMPARE(gui->getNewMarks().size(), size_t(2));
+
+    shell->cancel();
+    prompt = gui->getClosePrompt();
+    QVERIFY(prompt && prompt->isVisible());
+    QVERIFY(H::hasLabel(prompt, QStringLiteral("Keep the 2 new marks in the document?")));
+    prompt->getActionButtons()[0]->click();     // Back to Redacting, no event loop: hidden, not yet deleted
+    QVERIFY(prompt && !prompt->isVisible());
+    shell->cancel();
+    QPointer<pdf::PDFMessageBox> second = gui->getClosePrompt();
+    QVERIFY(second && second->isVisible());
+    QVERIFY(second != prompt);
+    QVERIFY(shell && shell->getCloseQuestion() == second.data());
+
+    QTest::mouseClick(second->getActionButtons()[1], Qt::LeftButton);
+    QVERIFY(AppToolShellFixture::waitFor([tab]() { return !AppToolShellFixture::getShell(tab); }));
+    AppToolShellFixture::settle();
+    QCOMPARE(H::annotations(tab->getDocument()).size(), size_t(3));
+}
+
+void AppToolRedactTest::quitRemoveNewMarksThenKeep()
+{
+    // Owner 2026-11-20, decision 8: the quit asks the tools of both document tabs. Remove New Marks in the first tab and
+    // Back to Redacting (Keep) in the second cancel the quit - the first tool keeps its new mark (nothing is removed
+    // until the quit really goes), also later (the answer of the canceled quit is forgotten: no later commit of the
+    // pending edits removes it). When the quit goes on, the new marks are removed before the question of the unsaved
+    // documents (so Save All would save the documents without them).
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* firstTab = H::openReady(fixture, QStringLiteral("First.pdf"));
+    QVERIFY(firstTab);
+    QPointer<PDFDocumentToolShell> firstShell = fixture.openTool(firstTab, H::TOOL_ID);
+    QPointer<PDFAppToolGUIRedact> first = H::gui(firstShell);
+    QVERIFY(first);
+    QVERIFY(first->addAreaMark(0, QRectF(100, 600, 50, 50)));
+    pdf::PDFAppDocumentTab* secondTab = H::openReady(fixture, QStringLiteral("Second.pdf"));
+    QVERIFY(secondTab);
+    QPointer<PDFDocumentToolShell> secondShell = fixture.openTool(secondTab, H::TOOL_ID);
+    QPointer<PDFAppToolGUIRedact> second = H::gui(secondShell);
+    QVERIFY(second);
+    QVERIFY(second->addAreaMark(1, QRectF(100, 600, 50, 50)));
+    AppToolShellFixture::settle();
+
+    // Clicks the button of the close question of the tool, as soon as it is shown (the quit waits in its own loop);
+    // onShown runs first (the state of the wait)
+    const auto answerWhenShown = [](QPointer<PDFAppToolGUIRedact> gui, int button, bool* isAsked, std::function<void()> onShown = std::function<void()>())
+    {
+        QTimer* timer = new QTimer(qApp);
+        timer->setInterval(10);
+        QObject::connect(timer, &QTimer::timeout, timer, [timer, gui, button, isAsked, onShown]()
+        {
+            pdf::PDFMessageBox* prompt = gui ? gui->getClosePrompt() : nullptr;
+            if (!gui || (prompt && prompt->isVisible()))
+            {
+                timer->stop();
+                timer->deleteLater();
+                if (prompt)
+                {
+                    *isAsked = true;
+                    if (onShown)
+                    {
+                        onShown();
+                    }
+                    prompt->getActionButtons()[button]->click();
+                }
+            }
+        });
+        timer->start();
+        QTimer::singleShot(30000, timer, &QTimer::deleteLater);
+    };
+
+    // While the quit asks the second tool, the answer of the first one is only remembered by its shell (decision 8):
+    // the new mark is still in the document, no pending edit of the document stands for it (no polling of the
+    // document by the tool)
+    bool isFirstAsked = false;
+    bool isSecondAsked = false;
+    size_t annotationsDuringWait = 0;
+    bool isPendingEditDuringWait = true;
+    bool isDeferredDuringWait = false;
+    const auto recordWait = [&]()
+    {
+        annotationsDuringWait = H::annotations(firstTab->getDocument()).size();
+        isPendingEditDuringWait = firstTab->getDocument()->hasPendingEdits();
+        isDeferredDuringWait = firstShell && firstShell->hasDeferredCloseQuestionAction();
+    };
+    answerWhenShown(first, 2, &isFirstAsked);                   // Remove New Marks
+    answerWhenShown(second, 0, &isSecondAsked, recordWait);     // Back to Redacting
+    QVERIFY(!fixture.window->close());
+    AppToolShellFixture::settle();
+    QVERIFY(isFirstAsked);
+    QVERIFY(isSecondAsked);
+    QCOMPARE(annotationsDuringWait, size_t(1));
+    QVERIFY(!isPendingEditDuringWait);
+    QVERIFY(isDeferredDuringWait);
+    QVERIFY(fixture.window->isVisible());
+    QVERIFY(firstShell && secondShell);
+    QCOMPARE(firstShell->getState(), PDFDocumentToolShell::State::Editing);
+    QCOMPARE(H::annotations(firstTab->getDocument()).size(), size_t(1));
+    QCOMPARE(first->getNewMarks().size(), size_t(1));
+
+    // The canceled answer is forgotten by the end of the leave (finishLeave(false)): a later commit of the pending
+    // edits (an undo, a save) removes nothing
+    QVERIFY(!firstShell->hasDeferredCloseQuestionAction());
+    QVERIFY(!firstTab->getDocument()->hasPendingEdits());
+    firstTab->getDocument()->commitPendingEdits();
+    AppToolShellFixture::settle();
+    QCOMPARE(H::annotations(firstTab->getDocument()).size(), size_t(1));
+
+    // The quit goes on: both new marks are removed before the question of the unsaved documents (Cancel keeps the
+    // window)
+    isFirstAsked = false;
+    isSecondAsked = false;
+    answerWhenShown(first, 2, &isFirstAsked);
+    answerWhenShown(second, 2, &isSecondAsked);
+    std::vector<size_t> countsAtQuestion;
+    QTimer* unsaved = new QTimer(qApp);
+    unsaved->setInterval(10);
+    QObject::connect(unsaved, &QTimer::timeout, unsaved, [&]()
+    {
+        for (QWidget* widget : QApplication::topLevelWidgets())
+        {
+            QPushButton* cancel = widget->objectName() == QStringLiteral("quitUnsavedDialog") && widget->isVisible() ? widget->findChild<QPushButton*>(QStringLiteral("cancelButton")) : nullptr;
+            if (cancel)
+            {
+                countsAtQuestion = { H::annotations(firstTab->getDocument()).size(), H::annotations(secondTab->getDocument()).size() };
+                unsaved->stop();
+                unsaved->deleteLater();
+                cancel->click();
+                return;
+            }
+        }
+    });
+    unsaved->start();
+    QVERIFY(!fixture.window->close());
+    AppToolShellFixture::settle();
+    QVERIFY(isFirstAsked);
+    QVERIFY(isSecondAsked);
+    QCOMPARE(countsAtQuestion, std::vector<size_t>({ 0, 0 }));
+
+    // Another route of the first tab (the view of the document): the leave waits for the answer as well and goes on
+    // right after it - Remove New Marks removes the new mark while the tool still edits (PDFAppToolDocumentPage::
+    // prepareLeave ends its own leave), then the tool closes
+    QVERIFY(firstShell && first);
+    QVERIFY(first->addAreaMark(0, QRectF(100, 600, 50, 50)));
+    AppToolShellFixture::settle();
+    QCOMPARE(H::annotations(firstTab->getDocument()).size(), size_t(1));
+    isFirstAsked = false;
+    answerWhenShown(first, 2, &isFirstAsked);
+    fixture.window->getNavigator()->navigate(pdf::PDFAppRoutes::document(firstTab->getDocumentId()), pdf::PDFAppNavigationMode::Push, firstTab);
+    AppToolShellFixture::settle();
+    QVERIFY(isFirstAsked);
+    QVERIFY(!AppToolShellFixture::getShell(firstTab));
+    QCOMPARE(H::annotations(firstTab->getDocument()).size(), size_t(0));
 }
 
 void AppToolRedactTest::escapeEndsDrag()

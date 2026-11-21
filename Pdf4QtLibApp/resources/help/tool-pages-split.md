@@ -12,7 +12,7 @@ Split separates a document into several PDF files: every page, every few pages, 
 
 1. Choose the rule in **Split** of the toolbar. **Files to create** lists the files with their pages and names, the preview shows a card of each file with its pages. Click a file in the list to show its card.
 2. With **Every N pages**, type the number into the field **pages per file** of the toolbar; with **By file size**, the size into the field **MB**.
-3. With **At selected pages**, click between two pages in the preview: a new file starts there, the dot below each page shows its file. Click the cut line to remove it, or edit the numbers in **Cuts**. **Clear Cuts** removes every cut.
+3. With **At selected pages**, click between two pages in the preview: a new file starts there, the dot below each page shows its file. Click the cut line to remove it, or edit the numbers in **Cuts**. **Clear Cuts** removes every cut. Closing the tool with cuts asks first, also when you close the tab or the window or open another tool; the other rules ask nothing.
 4. With **At bookmarks**, check the bookmarks in **Start a new file at**; **Top level** chooses the bookmarks of the top level.
 5. Choose the folder, the file name and what happens with existing files in **Output files**. The line under the name shows the first and the last name.
 6. Press **Split into Files**. The files are written one after another, the card **Writing the files** shows which one; the files already written are marked **Written**. **Stop** ends the export after the file, which is being written.

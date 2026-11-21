@@ -53,8 +53,10 @@
 #include <QApplication>
 #include <QBoxLayout>
 #include <QEvent>
+#include <QEventLoop>
 #include <QFileInfo>
 #include <QMetaObject>
+#include <QTimer>
 
 #include <algorithm>
 
@@ -336,6 +338,73 @@ void PDFAppToolCompositeUndoTarget::onModelUndoStateChanged()
 
 // ---------------------------------------------------------------- PDFDocumentToolShell
 
+IPDFAppToolUseClock::~IPDFAppToolUseClock() = default;
+
+const IPDFAppToolUseClock* PDFDocumentToolShell::s_useClock = nullptr;
+
+void PDFDocumentToolShell::setUseClock(const IPDFAppToolUseClock* clock)
+{
+    s_useClock = clock;
+}
+
+qint64 PDFDocumentToolShell::getUseClockTime()
+{
+    if (s_useClock)
+    {
+        return s_useClock->getMilliseconds();
+    }
+
+    // The monotonic clock of the application (started at the first use, only differences are read)
+    static QElapsedTimer timer;
+    if (!timer.isValid())
+    {
+        timer.start();
+    }
+    return timer.elapsed();
+}
+
+bool PDFDocumentToolShell::isToolVisible() const
+{
+    const QWidget* widget = m_host ? m_host->getKeyWidget() : nullptr;
+    const QWidget* window = widget ? widget->window() : nullptr;
+    return widget && window && widget->isVisible() && !window->isMinimized();
+}
+
+void PDFDocumentToolShell::accountVisibleTime()
+{
+    const qint64 now = getUseClockTime();
+    if (m_wasVisible && now > m_lastVisibleCheck)
+    {
+        m_visibleTime += now - m_lastVisibleCheck;
+    }
+    m_lastVisibleCheck = now;
+    m_wasVisible = m_state == State::Editing || m_state == State::Running || m_state == State::Deciding ? isToolVisible() : false;
+}
+
+void PDFDocumentToolShell::markInteractiveUse()
+{
+    m_isInteractiveUsed = true;
+}
+
+void PDFDocumentToolShell::recordInteractiveUse()
+{
+    // Only an opening, which has been entered and not left yet; never from the destructor (its tab is not whole)
+    if (m_isUseRecorded || m_isDestroying || m_state == State::Created || m_state == State::Closed || !m_gui || !m_gui->isInteractive())
+    {
+        return;
+    }
+
+    // Owner 2026-11-20: an action of the user (also a change of a parameter of his), or 10 s of the tool shown;
+    // opening and closing at once is no use
+    accountVisibleTime();
+    const bool isChanged = m_model && m_model->getRecordedStepCount() > 0;
+    if (m_isInteractiveUsed || isChanged || m_visibleTime >= INTERACTIVE_USE_VISIBLE_MS)
+    {
+        // The database notifies its readers from the event loop (PDFDatabase::notifyCommitted)
+        recordUse();
+    }
+}
+
 PDFDocumentToolShell::PDFDocumentToolShell(PDFAppToolHost* host, std::shared_ptr<const PDFDocumentTool> tool, PDFDocumentToolGUI* gui, QObject* parent) :
     BaseClass(parent),
     m_host(host),
@@ -352,8 +421,11 @@ PDFDocumentToolShell::~PDFDocumentToolShell()
 {
     // The mode ends silently: nobody is asked and nothing is reported any more. A dying shell
     // emits nothing (it dies with its page and tab: a slot of its signal could delete them a
-    // second time, the lifetime sweep of the own tab of a tool, step 2 of phase 2)
+    // second time, the lifetime sweep of the own tab of a tool, step 2 of phase 2). The shell dies with its
+    // page, often inside of the destruction of its tab: nothing reads the tab (getContext) or writes the database
+    // here - the use of an interactive tool has been recorded before the teardown (close, PDFAppPage::prepareClose)
     blockSignals(true);
+    m_isDestroying = true;
     if (m_state != State::Closed && m_state != State::Created)
     {
         m_isCloseRequested = true;
@@ -465,6 +537,18 @@ bool PDFDocumentToolShell::enter()
     }
 
     m_state = State::Editing;
+    m_context = m_host->getContext();
+
+    // An interactive tool counts the time it is shown (owner 2026-11-20); the timer is a child (no lambda)
+    if (m_gui->isInteractive())
+    {
+        m_lastVisibleCheck = getUseClockTime();
+        m_wasVisible = isToolVisible();
+        m_visibleTimer = new QTimer(this);
+        m_visibleTimer->setInterval(VISIBLE_TIME_INTERVAL_MS);
+        connect(m_visibleTimer.data(), &QTimer::timeout, this, &PDFDocumentToolShell::accountVisibleTime);
+        m_visibleTimer->start();
+    }
     connect(m_host.data(), &PDFAppToolHost::modeLeft, this, &PDFDocumentToolShell::onModeLeft);
     connect(m_host.data(), &PDFAppToolHost::documentNotReady, this, &PDFDocumentToolShell::onDocumentLost);
     connect(m_host.data(), &PDFAppToolHost::lockChanged, this, &PDFDocumentToolShell::onLockChanged);
@@ -604,9 +688,18 @@ void PDFDocumentToolShell::close()
         return;
     }
 
+    // Every way of leaving, while the tab is whole, ends here (Cancel, Esc, Discard, another route, a lock, a lost
+    // document); the close of the tab and the quit record by PDFAppPage::prepareClose, the destructor never
     const bool wasEntered = m_state != State::Created;
+    recordInteractiveUse();
     m_state = State::Closed;
     QPointer<PDFDocumentToolShell> guard(this);
+    if (QTimer* timer = m_visibleTimer.data())
+    {
+        m_visibleTimer = nullptr;
+        timer->stop();
+        timer->deleteLater();
+    }
 
     for (const QPointer<QAction>& action : { m_escapeAction, m_confirmAction, m_confirmKeypadAction })
     {
@@ -645,6 +738,19 @@ void PDFDocumentToolShell::close()
     {
         // The question of a run, which has ended without the user: its own loop ends
         m_leaveDialog->reject();
+    }
+    QDialog* openQuestion = isCloseQuestionOpen() ? m_closeQuestion.data() : nullptr;
+    m_closeQuestion = nullptr;
+    if (openQuestion && !m_isDestroying)
+    {
+        // The question of the unsaved work of a tool, which has ended without the user (a lock, a lost document):
+        // it goes as its Keep (the GUI's slots run, a leave waiting for it goes on); an answered one is left alone;
+        // the destructor of the GUI closes it in the destructor of the shell
+        openQuestion->reject();
+        if (!guard)
+        {
+            return;
+        }
     }
     if (m_permissionDialog)
     {
@@ -1104,9 +1210,9 @@ void PDFDocumentToolShell::cancel()
 
 bool PDFDocumentToolShell::askCloseQuestion()
 {
-    // The own tab has its own question (askOwnTabClose); a question being asked is not asked again
-    // and the tool stays (a second Esc of the same question)
-    if (m_isAskingClose)
+    // The own tab has its own question (askOwnTabClose); a question being asked or open is not asked
+    // again and the tool stays (a second Esc, a key repeat, an Esc while the question opens)
+    if (m_isAskingClose || isCloseQuestionOpen())
     {
         return true;
     }
@@ -1115,15 +1221,124 @@ bool PDFDocumentToolShell::askCloseQuestion()
         return false;
     }
 
+    // Owner 2026-11-20: a tool, in which the user has changed nothing, closes without a question
+    if (!m_gui->hasUnsavedWork())
+    {
+        return false;
+    }
+
     QPointer<PDFDocumentToolShell> guard(this);
     m_isAskingClose = true;
-    const bool isAsked = m_gui->askClose();
+    QDialog* question = m_gui->askClose();
     if (!guard)
     {
         return true;
     }
     m_isAskingClose = false;
-    return isAsked;
+    m_closeQuestion = question;
+    return question != nullptr;
+}
+
+bool PDFDocumentToolShell::hasUnsavedWork() const
+{
+    if (m_state != State::Editing || !m_gui || (m_host && m_host->isOwnTab()))
+    {
+        return false;
+    }
+    return isCloseQuestionOpen() || m_gui->hasUnsavedWork();
+}
+
+bool PDFDocumentToolShell::isCloseQuestionOpen() const
+{
+    // A question answered already is hidden until it is deleted (WA_DeleteOnClose, deleteLater)
+    return m_closeQuestion && m_closeQuestion->isVisible();
+}
+
+bool PDFDocumentToolShell::isQuestionOpen() const
+{
+    return m_isAskingClose || m_isWaitingForLeave || m_isAskingLeave || isCloseQuestionOpen();
+}
+
+bool PDFDocumentToolShell::confirmLeaveWork()
+{
+    // The own tab asks by its page (askOwnTabClose, K16); a tool without work goes without a question
+    if (!m_gui || !m_host || m_host->isOwnTab() || m_isCloseRequested)
+    {
+        return true;
+    }
+    if (m_isWaitingForLeave)
+    {
+        // A second leave while the first one waits for the answer: the first one decides
+        return false;
+    }
+    if (!isCloseQuestionOpen() && !m_gui->hasUnsavedWork())
+    {
+        return true;
+    }
+
+    // The tab is shown, so the user sees, what the question is about
+    QPointer<PDFDocumentToolShell> guard(this);
+    m_host->activate();
+    if (!guard || !m_host)
+    {
+        return false;
+    }
+    if (m_state != State::Editing)
+    {
+        // The tool has ended meanwhile (a slot of the activation): nothing is left to lose, the leave goes on
+        return true;
+    }
+
+    // The question of Esc may be open already: the leave waits for its answer too (never two questions)
+    if (!isCloseQuestionOpen() && !askCloseQuestion())
+    {
+        // The GUI has nothing to ask after all: the tool may go
+        return guard != nullptr;
+    }
+    if (!guard)
+    {
+        return false;
+    }
+
+    m_isCloseQuestionActionDeferred = false;
+    return waitForLeaveAnswer(m_closeQuestion.data());
+}
+
+bool PDFDocumentToolShell::waitForLeaveAnswer(QDialog* openQuestion)
+{
+    QPointer<QDialog> question = openQuestion;
+    if (!question)
+    {
+        return false;
+    }
+
+    // The answer comes by the buttons of the question of the GUI (open, never exec): its closing answer
+    // calls closeAfterQuestion, which only accepts the leave now; the loop ends with the dialog, or when
+    // the shell goes. The same wait as of the question of a run (PDFAppDocumentChoiceDialog::run).
+    QPointer<PDFDocumentToolShell> guard(this);
+    m_isWaitingForLeave = true;
+    m_isLeaveAccepted = false;
+    {
+        QEventLoop loop;
+        connect(question.data(), &QDialog::finished, &loop, &QEventLoop::quit);
+        connect(question.data(), &QObject::destroyed, &loop, &QEventLoop::quit);
+        connect(this, &QObject::destroyed, &loop, &QEventLoop::quit);
+        if (question->isVisible())
+        {
+            loop.exec(QEventLoop::DialogExec);
+        }
+    }
+    if (!guard)
+    {
+        return false;
+    }
+    m_isWaitingForLeave = false;
+    const bool isAccepted = m_isLeaveAccepted;
+    m_isLeaveAccepted = false;
+
+    // The tool has ended during the wait (a lock, a lost document; its question went with it): nothing is left to
+    // lose, the leave goes on (RESCCODE L2)
+    return isAccepted || m_state != State::Editing;
 }
 
 void PDFDocumentToolShell::closeAfterQuestion()
@@ -1133,10 +1348,89 @@ void PDFDocumentToolShell::closeAfterQuestion()
         return;
     }
 
+    // A leave (the close of the tab, another route) waits for the answer: it goes on and closes the tool
+    if (m_isWaitingForLeave)
+    {
+        m_isLeaveAccepted = true;
+        return;
+    }
+
     // The answer of the question of the GUI: as Cancel, without the question
     PDFAppToolCloseRequest request;
     request.reason = PDFAppToolCloseRequest::Reason::Canceled;
     requestClose(request);
+}
+
+bool PDFDocumentToolShell::deferCloseQuestionAction()
+{
+    if (m_state != State::Editing || !m_isWaitingForLeave)
+    {
+        return false;
+    }
+
+    // Owner 2026-11-20, decision 8: the choice changes nothing, until the leave really goes on (finishLeave)
+    m_isCloseQuestionActionDeferred = true;
+    m_isLeaveAccepted = true;
+    return true;
+}
+
+bool PDFDocumentToolShell::finishLeave(bool isProceeding)
+{
+    const bool isDeferred = m_isCloseQuestionActionDeferred;
+    m_isCloseQuestionActionDeferred = false;
+    if (!isProceeding || !isDeferred || m_state != State::Editing || !m_gui)
+    {
+        return true;
+    }
+
+    // The leave goes on with the tool still open: the choice commits through the shell as it does outside of a
+    // wait (one Undo step of the tool). The slots of the commit may delete this shell - then nothing is left to keep.
+    QPointer<PDFDocumentToolShell> guard(this);
+    const bool isKept = m_gui->applyCloseQuestionAction();
+    if (!guard || isKept)
+    {
+        return true;
+    }
+
+    // Owner 2026-11-21: a part of the work could not be kept (a measurement, which cannot be stored as an
+    // annotation; a locked mark). The tab of the tool is shown; the GUI asks about the rest (Measure: Keep Measuring
+    // cancels the leave, Discard and Close lets it go on) as the open question of the tool, waited for as by
+    // confirmLeave (one question loop at a time: the loop of the first question has ended). A GUI without such a
+    // question keeps its work and has told why: the leave is canceled.
+    if (m_host)
+    {
+        m_host->activate();
+    }
+    if (!guard || m_state != State::Editing)
+    {
+        return true;
+    }
+    QDialog* question = askIncompleteQuestion();
+    if (!guard)
+    {
+        return false;
+    }
+    return question && waitForLeaveAnswer(question);
+}
+
+QDialog* PDFDocumentToolShell::askIncompleteQuestion()
+{
+    if (!m_gui || m_state != State::Editing)
+    {
+        return nullptr;
+    }
+
+    // The GUI opens its question (open, never exec) and returns it; it never deletes the shell
+    QPointer<PDFDocumentToolShell> guard(this);
+    m_isAskingClose = true;
+    QDialog* question = m_gui->askIncompleteClose();
+    if (!guard)
+    {
+        return nullptr;
+    }
+    m_isAskingClose = false;
+    m_closeQuestion = question;
+    return question;
 }
 
 bool PDFDocumentToolShell::commitDocumentChange(const PDFModifiedDocument& modified, const QString& description, quint64 expectedVersion)
@@ -1233,8 +1527,11 @@ bool PDFDocumentToolShell::confirmLeave()
     {
         case State::Created:
         case State::Closed:
-        case State::Editing:
             return true;
+
+        case State::Editing:
+            // Owner 2026-11-20: every way of leaving asks the question of the unsaved work
+            return confirmLeaveWork();
 
         case State::Deciding:
             // The modal dialog decides: nothing goes around it
@@ -1876,13 +2173,16 @@ void PDFDocumentToolShell::answerResult(bool isAccepted)
 
 void PDFDocumentToolShell::recordUse()
 {
-    const PDFAppContext* context = m_host ? m_host->getContext() : nullptr;
+    // The context of the entry (the host of an own tab may die before the shell, the children of its page; the
+    // host of a document tab reads its tab)
+    const PDFAppContext* context = m_context ? m_context.data() : (m_host ? m_host->getContext() : nullptr);
     const PDFAppDocument* document = m_host ? m_host->getDocument() : nullptr;
     if (!context || !context->getDatabase() || !m_tool)
     {
         return;
     }
 
+    m_isUseRecorded = true;
     const PDFDatabaseError error = PDFDocumentToolUsage(context->getDatabase()).recordRun(m_tool->getId(), document ? document->getLastFinishedToolId() : QString());
     if (error.isError())
     {
@@ -2231,6 +2531,9 @@ bool PDFDocumentToolShell::openExportDialog(const PDFDocumentToolResult& exportR
     {
         return false;
     }
+
+    // An export is an action of the user in an interactive tool (owner 2026-11-20)
+    m_isInteractiveUsed = true;
 
     // The activation of the host runs slots of the application: the shell may be gone after it
     QPointer<PDFDocumentToolShell> guard(this);

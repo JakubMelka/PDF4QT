@@ -28,12 +28,15 @@
 #include "pdfappmainwindow.h"
 #include "pdfappowntabtoolhost.h"
 #include "pdfapptoolinputlist.h"
+#include "pdfapptoolowntabquestion.h"
 #include "pdfapptoolpageregistry.h"
 #include "pdfdocumenttoolguiregistry.h"
 
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttoolregistry.h"
+#include "pdfthemeiconengine.h"
 
+#include <QPushButton>
 #include <QUrl>
 #include <QVBoxLayout>
 
@@ -375,9 +378,18 @@ bool PDFAppToolTabPage::prepareLeave(const PDFAppRoute& target)
         return false;
     }
 
-    // The shell may ask (a run) and anything may be deleted meanwhile
+    // The page asks as at the close of its tab (a run as close-running, the inputs by K16 - owner
+    // 2026-11-20: every way of leaving the tool asks the same question); anything may be deleted meanwhile
+    // (only the tool closes, the tab stays: the question names the tool, not the tab)
     QPointer<PDFAppToolTabPage> guard(this);
-    if (!m_shell->confirmLeave() || !guard)
+    m_isLeavingTool = true;
+    const bool isConfirmed = confirmClose();
+    if (!guard)
+    {
+        return false;
+    }
+    m_isLeavingTool = false;
+    if (!isConfirmed)
     {
         return false;
     }
@@ -386,6 +398,50 @@ bool PDFAppToolTabPage::prepareLeave(const PDFAppRoute& target)
         m_shell->close();
     }
     return guard != nullptr;
+}
+
+bool PDFAppToolTabPage::hasUnsavedWork() const
+{
+    const PDFAppToolTab* tab = getToolTab();
+    return m_shell && m_shell->getState() == PDFDocumentToolShell::State::Editing && tab && !tab->getLossText().isEmpty();
+}
+
+PDFAppToolCloseQuestion PDFAppToolTabPage::createListCloseQuestion(int count, bool isListChanged, bool isPagesChanged, const QString& keepText, bool isTabClosing)
+{
+    // Owner 2026-11-20 (decision 5; RESCUX H1: the changes of the pages are lost too). The English .ts has no
+    // numerus forms: the singular is a text of its own.
+    PDFAppToolCloseQuestion question;
+    question.title = count == 1 ? tr("Discard the list of 1 file?") : tr("Discard the list of %Ln files?", nullptr, count);
+    if (isListChanged && isPagesChanged)
+    {
+        question.text = isTabClosing ? tr("Closing the tab removes the files you have added, their order and your changes to their pages. The files stay as they are.")
+                                     : tr("Closing the tool removes the files you have added, their order and your changes to their pages. The files stay as they are.");
+    }
+    else if (isPagesChanged)
+    {
+        question.text = isTabClosing ? tr("Closing the tab removes your changes to the pages of the files. The files stay as they are.")
+                                     : tr("Closing the tool removes your changes to the pages of the files. The files stay as they are.");
+    }
+    else
+    {
+        question.text = isTabClosing ? tr("Closing the tab removes the files you have added and their order. The files stay as they are.")
+                                     : tr("Closing the tool removes the files you have added and their order. The files stay as they are.");
+    }
+    question.keepText = keepText;
+    question.discardText = tr("Discard List");
+    return question;
+}
+
+PDFAppToolCloseQuestion PDFAppToolTabPage::createChoiceCloseQuestion(const QString& keepText, bool isTabClosing)
+{
+    // Owner 2026-11-20 (decision 5): Compare
+    PDFAppToolCloseQuestion question;
+    question.title = tr("Discard the chosen documents?");
+    question.text = isTabClosing ? tr("Closing the tab removes your choice of the documents. The files stay as they are.")
+                                 : tr("Closing the tool removes your choice of the documents. The files stay as they are.");
+    question.keepText = keepText;
+    question.discardText = tr("Discard List");
+    return question;
 }
 
 bool PDFAppToolTabPage::confirmClose()
@@ -462,13 +518,31 @@ bool PDFAppToolTabPage::confirmClose()
             }
         }
 
+        // Owner 2026-11-20 (decision 5): the question of the tool says what is lost, in the pattern of the tools
+        // in the tab of a document (435:10500: Keep as the Primary button, Discard with the icon trash); a tool
+        // without its own texts keeps the question of the tab
+        const bool isTabClosing = !m_isLeavingTool;
+        PDFAppToolCloseQuestion question;
+        if (const IPDFAppToolOwnTabQuestion* ownTabQuestion = dynamic_cast<const IPDFAppToolOwnTabQuestion*>(m_shell->getGUI()))
+        {
+            question = ownTabQuestion->getOwnTabCloseQuestion(isTabClosing);
+        }
+        if (!question.isValid())
+        {
+            question.title = isTabClosing ? tr("Close %1?").arg(tab->getTabTitle().left(256)) : tr("Leave %1?").arg(tab->getTabTitle().left(256));
+            question.text = lossText;
+            question.keepText = tr("Cancel");
+            question.discardText = isTabClosing ? tr("Close Tab") : tr("Discard");
+        }
+
         // The question belongs to this page (as the questions of a document tab to their tab):
-        // it goes with the page, the tab or the window, never left open for a deleted tool
-        const QString title = tab->getTabTitle();
-        PDFAppDocumentChoiceDialog* dialog = new PDFAppDocumentChoiceDialog(PDFThemeIcons::Badge::Warning, tr("Close %1?").arg(title.left(256)), lossText, 440, this);
+        // it goes with the page, the tab or the window, never left open for a deleted tool. The object
+        // names stay those of the question of the tab (the Discard button "closeTabButton").
+        PDFAppDocumentChoiceDialog* dialog = new PDFAppDocumentChoiceDialog(PDFThemeIcons::Badge::Warning, question.title, question.text, 440, this);
         dialog->setObjectName(QStringLiteral("toolTabCloseDialog"));
-        dialog->addChoice(tr("Close Tab"), PDFAppDocumentChoice::Discard, false, true, QStringLiteral("closeTabButton"));
-        dialog->addChoice(tr("Cancel"), PDFAppDocumentChoice::Cancel, true, false, QStringLiteral("cancelButton"));
+        dialog->addChoice(question.keepText, PDFAppDocumentChoice::Cancel, true, false, QStringLiteral("cancelButton"));
+        QPushButton* discardButton = dialog->addChoice(question.discardText, PDFAppDocumentChoice::Discard, false, false, QStringLiteral("closeTabButton"));
+        discardButton->setIcon(PDFThemeIcons::getIcon(QStringLiteral("trash")));
         const PDFAppDocumentChoice choice = PDFAppDocumentChoiceDialog::run(dialog);
         if (!guard || choice != PDFAppDocumentChoice::Discard)
         {

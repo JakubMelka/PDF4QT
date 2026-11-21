@@ -300,6 +300,12 @@ public:
     virtual void onParametersChanged(const QString& name) override;
     virtual void onDocumentChanged() override;
 
+    /// The plan has a turn or a reset of a page (owner 2026-11-20: the plan lives only in the tool)
+    virtual bool hasUnsavedWork() const override;
+
+    /// "Discard the rotation of 3 pages?" (the question of Sign by Hand 435:10500; Keep Rotating, Discard Rotations)
+    virtual PDFAppToolCloseQuestion getCloseQuestion() const override;
+
     /// Below the content of the right panel: the place of the only callout of the frames (389:20904)
     virtual PDFAppToolCalloutPlace getCertificationCalloutPlace() const override;
 
@@ -325,6 +331,9 @@ private:
     void turnTargets(PageRotation turn, bool isReset);
     void writeTurns(const std::map<PDFInteger, PageRotation>& turns);
     void readTurns();
+
+    /// The pages of the plan, which change (a turn, a reset)
+    int getPlannedPageCount() const;
 
     /// "90° right" of all turns, "Mixed" (K14), empty for none
     QString getRotationText() const;

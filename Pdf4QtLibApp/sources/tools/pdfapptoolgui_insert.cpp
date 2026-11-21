@@ -3014,7 +3014,35 @@ bool PDFAppInsertToolGUIBase::isConfirmEnabled() const
            getInsertedPageCount() > 0 && (!isReplace || !getReplacedPages().empty());
 }
 
+bool PDFAppInsertToolGUIBase::hasUnsavedWork() const
+{
+    // A source of the list or a page to insert (the blank pages are no source of the list)
+    return (m_list && m_list->getCount() > 0) || getInsertedPageCount() > 0;
+}
+
 // ------------------------------------------------------------- PDFAppInsertToolGUI
+
+PDFAppToolCloseQuestion PDFAppInsertToolGUI::getCloseQuestion() const
+{
+    // No frame (owner 2026-11-20): the question of Sign by Hand 435:10500 for the pages to insert (a source being read
+    // has no pages yet)
+    const int count = PDFAppInsertToolGUIHelper::toInt(getInsertedPageCount());
+    PDFAppToolCloseQuestion question;
+    // RESCUX M7: the button names what the title names
+    if (count == 0)
+    {
+        question.title = tr("Discard the added sources?");
+        question.discardText = tr("Discard Sources");
+    }
+    else
+    {
+        question.title = count == 1 ? tr("Discard the page to insert?") : tr("Discard the %Ln pages to insert?", nullptr, count);
+        question.discardText = count == 1 ? tr("Discard Page") : tr("Discard Pages");
+    }
+    question.text = tr("Closing the tool removes the files, images and blank pages you have added. The document stays as it was.");
+    question.keepText = tr("Keep Inserting");
+    return question;
+}
 
 PDFAppInsertToolGUI::PDFAppInsertToolGUI(QObject* parent) :
     BaseClass(parent)
@@ -4434,6 +4462,18 @@ PDFInteger PDFAppAddImageToolGUI::getInsertedPageCount() const
         count += input ? input->pageCount : 0;
     }
     return count;
+}
+
+PDFAppToolCloseQuestion PDFAppAddImageToolGUI::getCloseQuestion() const
+{
+    // No frame (owner 2026-11-20): the question of Sign by Hand 435:10500 for the images of the list
+    const int count = getSourceList() ? getSourceList()->getCount() : 0;
+    PDFAppToolCloseQuestion question;
+    question.title = count == 1 ? tr("Discard the added image?") : tr("Discard the %Ln added images?", nullptr, count);
+    question.text = tr("Closing the tool removes the images you have added. The document stays as it was.");
+    question.keepText = tr("Keep Adding");
+    question.discardText = tr("Discard Images");
+    return question;
 }
 
 QString PDFAppAddImageToolGUI::getConfirmText() const

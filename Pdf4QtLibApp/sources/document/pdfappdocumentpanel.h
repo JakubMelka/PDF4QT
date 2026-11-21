@@ -131,11 +131,12 @@ public:
 
     /// Position of the tab in the sidebar (smaller first; Figma order: outline 10,
     /// thumbnails 20, layers 30, attachments 40, speech 50, signatures 60,
-    /// bookmarks 70, notes 80)
+    /// bookmarks 70, notes 80, search 90 - side-tab-search 1608:31376)
     virtual int getOrder() const = 0;
 
-    /// The panel has a tab in the sidebar (the search results have none: they are
-    /// shown by the search field)
+    /// The panel has a tab in the sidebar. Default: true (every panel of the default
+    /// registry has one; the search results got their tab on 20. 11. 2026, so they
+    /// can be shown again after × hid them).
     virtual bool hasSidebarTab() const;
 
     /// Title of the tab (its tooltip and accessible name, the title of the panel)

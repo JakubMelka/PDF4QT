@@ -964,6 +964,15 @@ void PDFAppToolGUIObjectInspector::onCurrentIndexChanged(const QModelIndex& curr
     {
         // A choice of the user shows Current Object; the selection restored after a change keeps the shown tab
         m_activeTab = 0;
+
+        // A selected object is a use of the tool (owner 2026-11-20, isInteractive), also the first one (RESCCODE
+        // L9). The selection model selects before it announces the current index; the current index, which the
+        // tree sets on its focus without a selection (QAbstractItemView::focusInEvent, NoUpdate), is no choice
+        const QItemSelectionModel* selectionModel = m_treeView ? m_treeView->selectionModel() : nullptr;
+        if (current.isValid() && selectionModel && selectionModel->isSelected(current))
+        {
+            markUsed();
+        }
     }
     if (m_activeTab == 0 && tab.kind == ContentKind::Loading && m_contentTabId != tab.id)
     {
@@ -1425,11 +1434,13 @@ void PDFAppToolGUIObjectInspector::onTabButtonClicked()
 
 void PDFAppToolGUIObjectInspector::onPinClicked()
 {
+    markUsed();
     pin();
 }
 
 void PDFAppToolGUIObjectInspector::onUnpinClicked()
 {
+    markUsed();
     unpin();
 }
 

@@ -27,6 +27,7 @@
 #include "pdfappdocumentsearchcontroller.h"
 #include "pdfappdocumentsearchindex.h"
 #include "pdfappdocumentsearchpanel.h"
+#include "pdfappdocumentsidebar.h"
 #include "pdfappdocumentsignatures.h"
 #include "pdfappdocumentspeech.h"
 #include "pdfappdocumenttab.h"
@@ -43,13 +44,14 @@
 namespace pdf
 {
 
-/// Factory of the panel of the search results (no tab of the sidebar)
+/// Factory of the panel of the search results: its tab (side-tab-search 1608:31376,
+/// icon search as the search field of the toolbar) is the last one, after Notes, and
+/// it is always shown - without a search the panel shows its empty state
 class PDFAppDocumentSearchPanelFactory : public PDFAppDocumentPanelFactory
 {
 public:
     virtual QString getId() const override { return PDFAppDocumentPanelIds::search(); }
     virtual int getOrder() const override { return 90; }
-    virtual bool hasSidebarTab() const override { return false; }
     virtual QString getTitle() const override { return PDFAppDocumentSearchPanel::tr("Search results"); }
     virtual QString getIconName() const override { return QStringLiteral("search"); }
     virtual PDFAppDocumentPanel* createPanel(QWidget* parent) const override { return new PDFAppDocumentSearchPanel(parent); }
@@ -120,6 +122,10 @@ PDFAppDocumentSearchCommandHandler::PDFAppDocumentSearchCommandHandler(PDFAppDoc
     if (view)
     {
         connect(view, &PDFAppDocumentView::panelChanged, this, &PDFAppDocumentSearchCommandHandler::onPanelChanged);
+        if (PDFAppDocumentSidebar* sidebar = view->getSidebar())
+        {
+            connect(sidebar, &PDFAppDocumentSidebar::tabClicked, this, &PDFAppDocumentSearchCommandHandler::onSidebarTabClicked);
+        }
         view->addStatusItem(new PDFAppSignatureStatusItem(m_signatureVerifier, view), PDFAppDocumentStatusBar::Area::Trailing);
     }
 
@@ -208,8 +214,17 @@ void PDFAppDocumentSearchCommandHandler::execute(const QString& commandId)
     {
         if (m_searchField && m_searchField->isVisible())
         {
-            m_searchField->setFocus(Qt::ShortcutFocusReason);
-            m_searchField->selectAll();
+            // A search shows its results again (hidden by ×); the change of the panel
+            // runs the slots of the application, which may delete the tab
+            if (!m_searchController->getQuery().isEmpty() && !showResultsPanel())
+            {
+                return;
+            }
+            if (m_searchField)
+            {
+                m_searchField->setFocus(Qt::ShortcutFocusReason);
+                m_searchField->selectAll();
+            }
         }
         else if (PDFAppDocumentView* view = getView())
         {
@@ -331,20 +346,60 @@ void PDFAppDocumentSearchCommandHandler::closeSearch()
         return;
     }
 
+    // The field announces its new text (the slots of the application run)
     if (m_searchField)
     {
         m_searchField->clear();
     }
-
-    PDFAppDocumentView* view = getView();
-    if (view && view->getCurrentPanelId() == PDFAppDocumentPanelIds::search())
+    if (guard)
     {
-        view->showPanel(m_previousPanelId.isEmpty() ? PDFAppDocumentPanelIds::thumbnails() : m_previousPanelId);
-        if (view->getPdfWidget())
-        {
-            view->getPdfWidget()->setFocus(Qt::OtherFocusReason);
-        }
+        hideResults();
     }
+}
+
+void PDFAppDocumentSearchCommandHandler::hideResults()
+{
+    QPointer<PDFAppDocumentView> view = getView();
+    if (!view || view->getCurrentPanelId() != PDFAppDocumentPanelIds::search())
+    {
+        return;
+    }
+
+    // The change of the panel runs the slots of the application, which may delete the
+    // tab with the view and this handler: the panel to show is a copy, the view is asked
+    // again after each change. A panel, which has lost its content, gives way to the
+    // thumbnails.
+    const QString previousPanelId = m_previousPanelId.isEmpty() ? PDFAppDocumentPanelIds::thumbnails() : m_previousPanelId;
+    view->showPanel(previousPanelId);
+    if (view && view->getCurrentPanelId() == PDFAppDocumentPanelIds::search() && previousPanelId != PDFAppDocumentPanelIds::thumbnails())
+    {
+        view->showPanel(PDFAppDocumentPanelIds::thumbnails());
+    }
+    if (view && view->getPdfWidget())
+    {
+        view->getPdfWidget()->setFocus(Qt::OtherFocusReason);
+    }
+}
+
+bool PDFAppDocumentSearchCommandHandler::isResultsPanelShown() const
+{
+    // The left panel of a tool lies in the place of the sidebar: the panel can not be
+    // shown there, the results count as shown (Enter goes on through them)
+    const PDFAppDocumentView* view = getView();
+    return !view || view->isToolLeftPanelShown() || view->getCurrentPanelId() == PDFAppDocumentPanelIds::search();
+}
+
+bool PDFAppDocumentSearchCommandHandler::showResultsPanel()
+{
+    PDFAppDocumentView* view = getView();
+    if (!view || isResultsPanelShown())
+    {
+        return true;
+    }
+
+    QPointer<PDFAppDocumentSearchCommandHandler> guard(this);
+    view->showPanel(PDFAppDocumentPanelIds::search());
+    return !guard.isNull();
 }
 
 QString PDFAppDocumentSearchCommandHandler::getSearchText() const
@@ -400,7 +455,9 @@ void PDFAppDocumentSearchCommandHandler::onFieldReturnPressed()
         return;
     }
 
-    // Enter with the text of the shown results goes to the next result
+    // Enter with the text of the results never searches it again (the user never types
+    // the text again): results hidden by × are only shown again with the current result
+    // kept, the shown results go to the next one (owner 2026-11-20, RESCUX L8)
     const QString text = m_searchField->text();
     if (!m_searchController)
     {
@@ -408,16 +465,22 @@ void PDFAppDocumentSearchCommandHandler::onFieldReturnPressed()
     }
     if (!text.isEmpty() && text == m_searchController->getQuery())
     {
-        if (m_searchController->getResultCount() > 0)
-        {
-            m_searchController->goToNext();
-            return;
-        }
-
-        // The text is being searched: Enter does not start it again
         const PDFAppDocumentSearchController::State state = m_searchController->getState();
-        if (state == PDFAppDocumentSearchController::State::Indexing || state == PDFAppDocumentSearchController::State::Searching)
+        const bool isRunning = state == PDFAppDocumentSearchController::State::Indexing || state == PDFAppDocumentSearchController::State::Searching;
+        if (m_searchController->getResultCount() > 0 || isRunning)
         {
+            // The change of the panel may delete the tab with this handler
+            const bool wasShown = isResultsPanelShown();
+            if (!showResultsPanel() || !m_searchController)
+            {
+                return;
+            }
+
+            // The text being searched is not started again
+            if (wasShown && !isRunning && m_searchController->getResultCount() > 0)
+            {
+                m_searchController->goToNext();
+            }
             return;
         }
     }
@@ -429,6 +492,17 @@ void PDFAppDocumentSearchCommandHandler::onPanelChanged(const QString& panelId)
     if (panelId != PDFAppDocumentPanelIds::search() && !panelId.isEmpty())
     {
         m_previousPanelId = panelId;
+    }
+}
+
+void PDFAppDocumentSearchCommandHandler::onSidebarTabClicked(const QString& panelId)
+{
+    // The Search tab without a search: its panel shows the empty state, the text is typed
+    // into the search field of the toolbar (a hidden field - a tool shows its own toolbar -
+    // keeps the focus where it is)
+    if (panelId == PDFAppDocumentPanelIds::search() && m_searchController && m_searchController->getQuery().isEmpty() && m_searchField && m_searchField->isVisible())
+    {
+        m_searchField->setFocus(Qt::OtherFocusReason);
     }
 }
 

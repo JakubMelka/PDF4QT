@@ -1769,8 +1769,9 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     # Step 7c of phase 2 (plan 8, 9.2), the application: the GUI of package P6 (Compare in its own tab; the overlay
     # and the views in UnitTestsDiffOverlay below), the GUI of package P7 (Measure) and the scales of Measure
     # (MeasureScaleRepository: the migration 4 of the skeleton, the repository of P7); the precompiled header of
-    # the root fixture
-    set(PDF4QT_STEP7C_APP_TESTS AppToolCompare AppToolMeasure MeasureScaleRepository)
+    # the root fixture; AppToolLeave: leaving a tool with the unsaved work of the user and the use of an interactive
+    # tool (owner 2026-11-20)
+    set(PDF4QT_STEP7C_APP_TESTS AppToolCompare AppToolMeasure MeasureScaleRepository AppToolLeave)
     if(PDF4QT_DIFF_OVERLAY_TEST)
         list(APPEND PDF4QT_STEP7C_APP_TESTS DiffOverlay)
     endif()

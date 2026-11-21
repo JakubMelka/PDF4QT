@@ -47,6 +47,7 @@
 
 #include <map>
 #include <optional>
+#include <set>
 #include <vector>
 
 class QPushButton;
@@ -551,6 +552,10 @@ public:
     /// the status bar names their count. \returns some mark was removed
     bool removeAllMarks();
 
+    /// The marks, which this session of the tool has added (not among the marks of the document at the entry;
+    /// owner 2026-11-20), in the order of the list
+    std::vector<PDFObjectReference> getNewMarks() const;
+
     // ------------------------------------------------------------- dialogs
 
     /// Pages… (437:11653): "Redact whole pages" with the Page selection, Cancel and Mark N Pages
@@ -559,12 +564,12 @@ public:
     PDFPageSelection* getPagesSelection() const { return m_pagesSelection.data(); }
     QPushButton* getPagesMarkButton() const { return m_pagesMarkButton.data(); }
 
-    /// The question before the tool closes with marks (448:17473): "Keep the 12 marks in the document?"
-    /// with Back to Redacting | Keep Marks and Close (Primary) | Remove Marks. Keep closes the tool, Remove
-    /// removes the marks in one step and closes it (PDFDocumentToolShell::closeAfterQuestion) - unless some
-    /// marks remain (locked ones, those beyond the listed ones): the tool stays with them, Back returns.
-    /// nullptr = no question (no mark: the tool may close). The shell asks it by askClose at Cancel, Esc and
-    /// Discard result of the result dialog.
+    /// The question before the tool closes with marks added in this session (448:17473, owner 2026-11-20):
+    /// "Keep the 12 new marks in the document?" with Back to Redacting | Keep Marks and Close (Primary) | Remove
+    /// New Marks. Keep closes the tool, Remove New Marks removes only the new marks in one step and closes it
+    /// (PDFDocumentToolShell::closeAfterQuestion) - unless some of them remain (locked ones): the tool stays
+    /// with them, Back returns. The marks the document had at the entry stay always. nullptr = no question (no
+    /// new mark: the tool may close). The shell asks it by askClose at every leave of the tool.
     PDFMessageBox* openClosePrompt();
     PDFMessageBox* getClosePrompt() const { return m_closePrompt.data(); }
 
@@ -587,7 +592,17 @@ public:
     virtual void onDocumentChanged() override;
 
     /// openClosePrompt (448:17473)
-    virtual bool askClose() override;
+    virtual QDialog* askClose() override;
+
+    /// Remove New Marks of the question (448:17473): the new marks go in one Undo step; true, when no new mark is
+    /// left (a locked one keeps the tool open). During a leave it runs, when the leave goes on
+    /// (PDFDocumentToolShell::finishLeave, owner 2026-11-20, decision 8).
+    virtual bool applyCloseQuestionAction() override;
+
+    /// A mark made in this session of the tool is in the document (owner 2026-11-20): the marks, which the
+    /// document had when the tool opened, ask nothing; no mark of this session (none made, all undone or
+    /// removed) = the tool closes without the question
+    virtual bool hasUnsavedWork() const override;
 
     /// Esc: the mode Area / Text / Search… ends (owner 2026-11-17; a drag of Area / Text is canceled by
     /// the shell before, the overlay is an IPDFAppToolDragSource); without a mode the selected mark is
@@ -677,6 +692,10 @@ private:
     /// The status bar says, that \p count marks are locked and stay in the document
     void showLockedMarks(int count);
 
+    /// Removes the marks in one commit (one Undo step of \p description); the locked ones stay and the status bar
+    /// names their count. \returns some mark was removed; this GUI may be deleted meanwhile
+    bool removeMarks(const std::vector<PDFObjectReference>& marks, const QString& description);
+
     /// Commits a change of the marks as the change of the tool. \returns the commit was accepted; this GUI
     /// may be deleted meanwhile (the caller checks its guard)
     bool commitMarks(const std::optional<PDFModifiedDocument>& modified, quint64 version, const QString& description);
@@ -725,6 +744,8 @@ private:
     QPointer<PDFAppToolRedactOverlay> m_overlay;        ///< The shell's
     QPointer<PDFAppAnnotationController> m_annotationController;   ///< Of the view; this GUI is its tool editing
     std::map<PDFObjectReference, size_t> m_markIndices; ///< The index of each mark of getMarks (the filter)
+    std::set<PDFObjectReference> m_entryMarks;          ///< The marks of the document when the tool opened (hasUnsavedWork)
+    bool m_hasEntryMarks = false;                       ///< m_entryMarks are read
     bool m_isViewConnected = false;
     bool m_isMarkRowChangeQueued = false;
 

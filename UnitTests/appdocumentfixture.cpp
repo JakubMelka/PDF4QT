@@ -428,6 +428,43 @@ QString AppDocumentSamples::signedDocument(const QString& folder, QString* certi
     return filePath;
 }
 
+QString AppDocumentSamples::allPanels(const QString& folder)
+{
+    using H = AppDocumentSamplesHelper;
+
+    const QString source = signedDocument(folder);
+    pdf::PDFDocumentReader reader(nullptr, [](bool* ok) { *ok = false; return QString(); }, false, false);
+    const pdf::PDFDocument document = reader.readFromFile(source);
+    if (source.isEmpty() || reader.getReadingResult() != pdf::PDFDocumentReader::Result::OK || document.getCatalog()->getPageCount() == 0)
+    {
+        return QString();
+    }
+
+    pdf::PDFDocumentBuilder builder(&document);
+    const pdf::PDFObjectReference page = document.getCatalog()->getPage(0)->getPageReference();
+
+    // Outline (ISO 32000-2, 12.3.3): the root and one item
+    const pdf::PDFObjectReference root = builder.addObject(pdf::PDFObject());
+    const pdf::PDFObjectReference item = builder.addObject(pdf::PDFObject());
+    builder.setObject(root, H::dictionary({ { "Type", H::name("Outlines") }, { "First", H::reference(item) }, { "Last", H::reference(item) }, { "Count", H::integer(1) } }));
+    builder.setObject(item, H::dictionary({ { "Title", H::text(QStringLiteral("Chapter")) }, { "Parent", H::reference(root) }, { "Dest", H::fit(page) } }));
+    builder.mergeTo(builder.getCatalogReference(), H::dictionary({ { "Outlines", H::reference(root) } }));
+
+    // A layer (8.11.4: /OCProperties with /OCGs and the default configuration /D)
+    const pdf::PDFObjectReference layer = builder.addObject(H::dictionary({ { "Type", H::name("OCG") }, { "Name", H::text(QStringLiteral("Layer")) } }));
+    builder.setCatalogOptionalContentProperties(builder.addObject(H::dictionary({ { "OCGs", H::array({ H::reference(layer) }) },
+                                                                                   { "D", H::dictionary({ { "Order", H::array({ H::reference(layer) }) } }) } })));
+
+    // An embedded file (7.11.4) in /EmbeddedFiles and in a file attachment annotation (a note)
+    const pdf::PDFObjectReference stream = builder.addObject(H::stream({ { "Type", H::name("EmbeddedFile") } }, QByteArray("Panels\n")));
+    const pdf::PDFObjectReference file = builder.addObject(H::dictionary({ { "Type", H::name("Filespec") }, { "F", H::text(QStringLiteral("panels.txt")) },
+                                                                            { "UF", H::text(QStringLiteral("panels.txt")) }, { "EF", H::dictionary({ { "F", H::reference(stream) } }) } }));
+    builder.createAnnotationFileAttachment(page, QPointF(250, 50), file, pdf::FileAttachmentIcon::Paperclip, QStringLiteral("Author"), QStringLiteral("Panels"));
+    const pdf::PDFObject embeddedFiles = H::dictionary({ { "Names", H::array({ H::text(QStringLiteral("panels.txt")), H::reference(file) }) } });
+    builder.setCatalogNames(builder.addObject(H::dictionary({ { "EmbeddedFiles", embeddedFiles } })));
+    return H::write(builder, folder, QStringLiteral("all-panels.pdf"));
+}
+
 QString AppDocumentSamples::restoredSignedDocument(const QString& folder)
 {
     pdf::PDFCertificateManager::NewCertificateInfo info;

@@ -52,6 +52,7 @@ public:
     /// Width of a value field and of a unit field (473:6438: 130 and 90)
     static constexpr int VALUE_WIDTH = 130;
     static constexpr int UNIT_WIDTH = 90;
+    static constexpr int CONTROL_GAP = 8;
 
     /// The combo of the length units (their symbols, the ids as the data)
     static PDFComboBox* createUnitBox(const QByteArray& unitId, QWidget* parent)
@@ -83,12 +84,17 @@ public:
         QWidget* controls = new QWidget(parent);
         QHBoxLayout* layout = new QHBoxLayout(controls);
         layout->setContentsMargins(0, 0, 0, 0);
-        layout->setSpacing(8);
+        layout->setSpacing(CONTROL_GAP);
         value->setParent(controls);
         unit->setParent(controls);
         layout->addWidget(value);
         layout->addWidget(unit);
-        return PDFAppToolCard::createFieldRow(label, controls, parent);
+        QWidget* row = PDFAppToolCard::createFieldRow(label, controls, parent);
+
+        // The shared row gives a control the width of one field (140); the value and its unit
+        // need both widths (473:6438), otherwise the unit is cut at the trailing edge
+        controls->setFixedWidth(VALUE_WIDTH + CONTROL_GAP + UNIT_WIDTH);
+        return row;
     }
 };
 

@@ -35,7 +35,9 @@
 namespace pdf
 {
 
+class PDFAppDocumentTab;
 class PDFAppMainWindow;
+class PDFAppPage;
 
 /// The only way to show a route (newapp_navigation.md 2): navigate(route, mode)
 /// decides the tab, creates the page by the factory of the route table, shows
@@ -105,6 +107,14 @@ public:
     /// A navigation runs (a navigation requested now is done after it, the last one wins)
     bool isNavigating() const { return m_isNavigating; }
 
+    /// The page, which navigate(\p route, \p mode, \p sourceTab) would leave (PDFAppPage::prepareLeave asked, the
+    /// page replaced): the shown page of the tab, which the navigation chooses, when the route is not its own
+    /// (PDFAppPage::isLeftBy). nullptr = no page is left: the route goes to a new tab (a tool with its own tab over a
+    /// document, a new tool tab, a new Help tab, New tab), or the page stays. Nothing is created or changed (an
+    /// assistant refuses a navigation, which would leave a tool with unsaved work - RESCCODE L5). \p targetTab
+    /// (optional) gets the tab, which the navigation shows (nullptr = a new tab).
+    PDFAppPage* findLeftPage(const PDFAppRoute& route, PDFAppNavigationMode mode, PDFAppTab* sourceTab, PDFAppTab** targetTab);
+
     /// Text of the last announcement of a page change (tests)
     const QString& getLastAnnouncement() const { return m_lastAnnouncement; }
 
@@ -139,7 +149,12 @@ private:
     void navigateImpl(const PDFAppRoute& route, PDFAppNavigationMode mode, PDFAppTab* sourceTab);
     bool moveInHistory(PDFAppTab* tab, bool isBack);
     PDFAppRouteMatch resolve(PDFAppRoute* route) const;
-    PDFAppTab* chooseTab(const PDFAppRouteMatch& match, PDFAppNavigationMode mode, PDFAppTab* sourceTab);
+    /// The tab of the route; \p isCreating false = the tab, which exists (nullptr, where a new tab would be made)
+    PDFAppTab* chooseTab(const PDFAppRouteMatch& match, PDFAppNavigationMode mode, PDFAppTab* sourceTab, bool isCreating = true);
+
+    /// A tool with its own tab asked for over a document (navigateImpl opens a new tab of the tool): the tab of
+    /// the document, nullptr = not such a route
+    PDFAppDocumentTab* findOwnTabToolDocument(const PDFAppRouteMatch& match) const;
     void showCurrentEntry(PDFAppTab* tab, bool restoreViewState);
     void announce(PDFAppTab* tab, PDFAppPage* page);
     void connectPage(PDFAppPage* page);

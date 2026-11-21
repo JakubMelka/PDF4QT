@@ -15,6 +15,8 @@ Merge joins two or more PDF files and images into one document. Pick the files i
 3. Optionally rotate, clone or remove single pages, sort the files or reverse their order, and choose the outline of the result.
 4. Press Create PDF. When it finishes, choose whether the new document opens in a new tab or is saved as a file.
 
+Closing the tool after you have changed the list of files or turned, cloned, removed or moved a page asks first, also when you close the tab or the window or open another page in the tab; the files the tab opened with ask nothing.
+
 ### What happens to the files
 
 - Pages are copied with their content, annotations, form fields and links; nothing is re-rendered, only Optimize encodes the images again.

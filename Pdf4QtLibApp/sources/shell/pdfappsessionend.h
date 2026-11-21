@@ -36,6 +36,7 @@ namespace pdf
 
 class PDFAppDocument;
 class PDFAppDocumentTab;
+class PDFAppPage;
 
 /// The session manager of the system at the end of the session (QSessionManager;
 /// the tests use a substitute)
@@ -101,6 +102,11 @@ public:
     /// WM_ENDSESSION, X11: Die of the session manager): a window does not ask about
     /// these changes again (PDFAppMainWindow::confirmClose).
     static bool isDiscarded(const PDFAppDocument* document);
+
+    /// The unsaved work of the tool of \p page (PDFAppPage::hasUnsavedWork) was listed by the question at the last
+    /// end of the session and the user let the session end (Quit Without Saving, Save All - a save does not keep
+    /// the work of a tool): the windows, which close then, do not ask the tool again (owner 2026-11-20, decision 7)
+    static bool isToolWorkDiscarded(const PDFAppPage* page);
 
 private:
     static QMetaObject::Connection& getConnection();

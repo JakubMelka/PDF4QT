@@ -848,6 +848,14 @@ void PDFAppToolGUICompare::connectList()
     m_list = list;
     if (m_list)
     {
+        // The documents the tab came with (the first list of the tool) are no choice of the user (isChoiceChanged)
+        if (!m_hasEntryChoice)
+        {
+            m_hasEntryChoice = true;
+            m_entryChoice = m_list->getInputIds();
+            m_entryChoice.sort();
+        }
+
         const PDFAppToolInputRules rules = getInputRules();
         m_list->setAcceptedInputs(rules.maximum, rules.acceptsPdf, rules.acceptsImages, tr("Compare needs PDF files"));
         connect(m_list.data(), &PDFAppToolInputList::inputsChanged, this, &PDFAppToolGUICompare::onListChanged);
@@ -2305,6 +2313,34 @@ QString PDFAppToolGUICompare::getCancelText() const
 QString PDFAppToolGUICompare::getOwnTabIconName() const
 {
     return QStringLiteral("compare");
+}
+
+QString PDFAppToolGUICompare::getOwnTabLossText() const
+{
+    // K16: the dot of the tab and the question at its close (the result is computed again, the choice is not); RESCUX
+    // M5: the singular is a text of its own (the English .ts has no numerus forms)
+    const PDFAppToolInputList* list = m_list ? m_list.data() : getInputList();
+    const int count = list ? list->getCount() : 0;
+    if (count <= 0 || !isChoiceChanged())
+    {
+        return QString();
+    }
+    return count == 1 ? tr("The chosen document is lost.") : tr("The %Ln chosen documents are lost.", nullptr, count);
+}
+
+bool PDFAppToolGUICompare::isChoiceChanged() const
+{
+    // Owner 2026-11-20: a document chosen by the user (Change…, a file added, one removed) is work; the documents the
+    // tab came with and a pure change of their order (Swap) are not
+    const PDFAppToolInputList* list = m_list ? m_list.data() : getInputList();
+    QStringList ids = list ? list->getInputIds() : QStringList();
+    ids.sort();
+    return m_hasEntryChoice && ids != m_entryChoice;
+}
+
+PDFAppToolCloseQuestion PDFAppToolGUICompare::getOwnTabCloseQuestion(bool isTabClosing) const
+{
+    return PDFAppToolTabPage::createChoiceCloseQuestion(tr("Keep Comparing"), isTabClosing);
 }
 
 QString PDFAppToolGUICompare::getDifferencesSummary() const

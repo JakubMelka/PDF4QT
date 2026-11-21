@@ -687,6 +687,8 @@ bool PDFAppToolGUISoftProof::isConfirmEnabled() const
 
 bool PDFAppToolGUISoftProof::confirmWithoutRun()
 {
+    markUsed();
+
     // Keep Proofing On never runs the tool (RS7APP L4: no environment, no refused run). The shell is inside of
     // its confirm: the close runs from the event loop; the button is Disabled until then (isConfirmEnabled; its
     // signals run foreign slots - the last call, the shell does nothing after it)
@@ -776,6 +778,8 @@ void PDFAppToolGUISoftProof::onDocumentChanged()
 
 void PDFAppToolGUISoftProof::onProofClicked()
 {
+    markUsed();
+
     // The state changes, its signal updates the parts (the last call); without a change the button follows
     const bool isChecked = m_proofButton && m_proofButton->isChecked();
     if (m_softProof && m_softProof->isProofing() != isChecked)
@@ -788,6 +792,8 @@ void PDFAppToolGUISoftProof::onProofClicked()
 
 void PDFAppToolGUISoftProof::onGamutClicked()
 {
+    markUsed();
+
     const bool isChecked = m_gamutButton && m_gamutButton->isChecked();
     if (m_softProof && m_softProof->isGamutChecking() != isChecked)
     {

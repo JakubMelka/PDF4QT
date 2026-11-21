@@ -438,6 +438,9 @@ private Q_SLOTS:
 
     // Owner 2026-11-18: Esc clears the selection of the drawing before it leaves the tool
     void escapeClearsDrawingSelection();
+
+    // Owner 2026-11-20: leaving the tool with a drawing of the appearance asks
+    void leaveAsksAboutDrawing();
 };
 
 void AppToolSignatureTest::initTestCase()
@@ -1730,6 +1733,54 @@ void AppToolSignatureTest::escapeClearsDrawingSelection()
     QCOMPARE(gui->getEscapeHint(), QStringLiteral("Esc leaves the tool"));
     QVERIFY(!gui->handleEscape());
     QCOMPARE(shell->getState(), PDFDocumentToolShell::State::Editing);
+}
+
+void AppToolSignatureTest::leaveAsksAboutDrawing()
+{
+    // Owner 2026-11-20: Esc / Cancel with a drawing of the appearance asks (the question of Sign by Hand 435:10500);
+    // Keep Drawing stays, Discard Drawing closes; without a drawing (none, or cleared) the tool closes at once. A typed
+    // password is no work: it is never kept.
+    AppTestCertificateFolders folders;
+    AppToolShellFixture fixture(QSize(1440, 960));
+    QPointer<PDFDocumentToolShell> shell = H::open(fixture, Tool::Mode::Sign);
+    PDFAppToolGUISignature* gui = H::gui(shell);
+    QVERIFY(gui);
+    QVERIFY(!gui->hasUnsavedWork());
+    pdf::PDFPageDrawing::Element rectangle;
+    rectangle.kind = pdf::PDFPageDrawing::Kind::Rectangle;
+    rectangle.rectangle = QRectF(100, 100, 80, 30);
+    gui->getDrawingPart()->setDrawing(pdf::PDFPageDrawing({ rectangle }));
+    AppToolShellFixture::settle();
+    QVERIFY(gui->hasUnsavedWork());
+
+    shell->cancel();
+    AppToolShellFixture::settle();
+    QPointer<QDialog> question = shell->getCloseQuestion();
+    QVERIFY(question && question->isVisible());
+    QStringList labels;
+    for (const QLabel* label : question->findChildren<QLabel*>())
+    {
+        labels << label->text();
+    }
+    QVERIFY2(labels.contains(QStringLiteral("Discard the drawing of the appearance?")), qPrintable(labels.join(QLatin1Char('|'))));
+    QVERIFY(labels.contains(QStringLiteral("Closing the tool removes the element you have drawn for the appearance of the signature. The document stays as it was.")));
+    QPushButton* keep = question->findChild<QPushButton*>(QStringLiteral("toolCloseKeep"));
+    QPushButton* discard = question->findChild<QPushButton*>(QStringLiteral("toolCloseDiscard"));
+    QVERIFY(keep && discard);
+    QCOMPARE(keep->text(), QStringLiteral("Keep Drawing"));
+    QCOMPARE(discard->text(), QStringLiteral("Discard Drawing"));
+    keep->click();
+    AppToolShellFixture::settle();
+    QVERIFY(shell);
+    QCOMPARE(gui->getDrawingPart()->getElementCount(), 1);
+
+    // Cleared: no question
+    gui->getDrawingPart()->setDrawing(pdf::PDFPageDrawing());
+    AppToolShellFixture::settle();
+    QVERIFY(!gui->hasUnsavedWork());
+    shell->cancel();
+    AppToolShellFixture::settle();
+    QVERIFY(!shell);
 }
 
 QTEST_MAIN(AppToolSignatureTest)

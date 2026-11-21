@@ -48,8 +48,12 @@ class PDFAppDocumentTextIndexer;
 /// of the package find them by findHandler.
 ///
 /// The search field of the toolbar (PDFAppDocumentToolbar::getSearchField)
-/// starts the search by Enter, Esc closes the search; the route /document/{id}?q=
-/// is applied by applyRouteQuery and written back from getRouteQuery.
+/// starts the search by Enter (Enter with the text of the results shows them again,
+/// when they are hidden, and goes to the next one, when they are shown), Esc closes
+/// the search; the route /document/{id}?q=
+/// is applied by applyRouteQuery and written back from getRouteQuery. × of the
+/// panel only hides the results (hideResults): the Search tab of the sidebar shows
+/// them again; the tab without a search moves the focus into the search field.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentSearchCommandHandler : public PDFAppDocumentCommandHandler
 {
     Q_OBJECT
@@ -83,6 +87,13 @@ public:
     /// search is shown again
     void closeSearch();
 
+    /// Hides the panel of the results (× of the panel): the results, the current
+    /// result and the highlights stay, the panel shown before the search is shown
+    /// again and the canvas gets the focus. The Search tab, Enter with the same text
+    /// and Ctrl+F show the results again (with the same current result). Nothing
+    /// happens, when they are not shown.
+    void hideResults();
+
     /// Text of the search for the route (?q=), empty = no search
     QString getSearchText() const;
 
@@ -106,6 +117,14 @@ protected:
 private:
     void onFieldReturnPressed();
     void onPanelChanged(const QString& panelId);
+    void onSidebarTabClicked(const QString& panelId);
+
+    /// Is the panel of the results shown (or can not be shown: a tool covers the sidebar)?
+    bool isResultsPanelShown() const;
+
+    /// Shows the panel of the results, if it is not shown. \returns false, when
+    /// the handler has been deleted by the change of the panel (nothing may follow).
+    bool showResultsPanel();
     void onSearchStateChanged();
     void onSpeechStateChanged();
     void connectSearchField();

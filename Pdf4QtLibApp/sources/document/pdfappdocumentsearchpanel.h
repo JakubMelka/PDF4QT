@@ -36,6 +36,7 @@ namespace pdf
 {
 
 class PDFAppDocumentSearchController;
+class PDFAppEmptyState;
 class PDFAppHeaderText;
 class PDFLabel;
 class PDFListView;
@@ -45,8 +46,10 @@ class PDFSearchResultDelegate;
 /// results", the subtitle "24 results for “revenue”", previous / next / close),
 /// the options Match case, Whole words, Regex and Wildcards (option chips), the
 /// virtualized list of the occurrences (PDFSearchResultDelegate) and a note,
-/// when the results reach the safety limit. The panel has no tab of the sidebar,
-/// the search field of the toolbar shows it. The footer "Mark as annotations"
+/// when the results reach the safety limit. The search field of the toolbar and
+/// the Search tab of the sidebar (side-tab-search, the last tab) show it; × hides
+/// it and keeps the results. Without a search it shows the empty state "No search
+/// yet" instead of the list. The footer "Mark as annotations"
 /// (PDFAppMarkResultsFooter, step 4 package A) is shown with the results.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentSearchPanel : public PDFAppDocumentPanel
 {
@@ -77,6 +80,7 @@ public:
     QToolButton* getCloseButton() const;
     PDFLabel* getMessageLabel() const;
     PDFLabel* getNoteLabel() const;
+    PDFAppEmptyState* getEmptyState() const;
 
 protected:
     virtual void changeEvent(QEvent* event) override;
@@ -104,6 +108,7 @@ private:
     QPointer<QPushButton> m_regexButton;
     QPointer<QPushButton> m_wildcardsButton;
     QPointer<PDFLabel> m_messageLabel;
+    QPointer<PDFAppEmptyState> m_emptyState;
     QPointer<PDFListView> m_listView;
     QPointer<PDFSearchResultDelegate> m_delegate;
     QPointer<PDFLabel> m_noteLabel;

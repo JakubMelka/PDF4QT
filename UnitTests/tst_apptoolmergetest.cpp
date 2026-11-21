@@ -76,6 +76,8 @@
 #include <QHeaderView>
 #include <QImage>
 #include <QJsonArray>
+#include <QLabel>
+#include <QPointer>
 #include <QJsonDocument>
 #include <QMimeData>
 #include <QPushButton>
@@ -104,6 +106,7 @@ private Q_SLOTS:
     void registeredAndOutOfSchema();
     void framesOfThreeFiles();
     void emptyStateAndOpenDocuments();
+    void leaveQuestionOfList();
     void oneFileIsNotEnough();
     void undoRedoOfFilesAndPages();
     void pageActions();
@@ -493,9 +496,97 @@ void AppToolMergeTest::framesOfThreeFiles()
     QVERIFY(gui->getOwnTabZoomText().isEmpty());
     QCOMPARE(gui->getConfirmText(), QStringLiteral("Create PDF"));
     QVERIFY(gui->isConfirmEnabled());
-    QCOMPARE(gui->getOwnTabLossText(), QStringLiteral("The list of 3 files is lost."));
-    QVERIFY(tab->isTabUnsaved());
+    // K16 with the owner's rule of 2026-11-20: the files the tab came with (the start page) are no work - no dot, no
+    // question; a file added in the tool is
+    QVERIFY(gui->getOwnTabLossText().isEmpty());
+    QVERIFY(!tab->isTabUnsaved());
     fixture.screenshot(QStringLiteral("pages-merge"));
+}
+
+void AppToolMergeTest::leaveQuestionOfList()
+{
+    // Owner 2026-11-20 (decision 5) and RESCUX H1: the own tab asks in the pattern of the tools in the tab of a
+    // document - "Discard the list of 2 files?", Keep Merging (Primary) and Discard List (trash); a turned page is
+    // work too; the close of the tab speaks of the tab, another page of the tab (prepareLeave) of the tool
+    AppToolOwnTabFixture fixture;
+    const QString contract = AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Contract.pdf"), 3);
+    const QString annex = AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Annex_A.pdf"), 2);
+    QPointer<pdf::PDFAppToolTab> tab = H::open(fixture, { contract, annex });
+    QVERIFY(tab);
+    PDFAppMergeToolGUI* gui = H::gui(tab);
+    QVERIFY(gui);
+    QVERIFY(gui->getOwnTabLossText().isEmpty());
+    QVERIFY(!gui->isPagesChanged());
+
+    // A turned page: the files the tab came with stay, only the changes of the pages are lost
+    gui->selectRows({ 1 });
+    gui->rotateRight();
+    AppToolOwnTabFixture::settle();
+    QVERIFY(gui->isPagesChanged());
+    QCOMPARE(gui->getOwnTabLossText(), QStringLiteral("The list of 2 files and your changes to its pages are lost."));
+    pdf::PDFAppToolCloseQuestion question = gui->getOwnTabCloseQuestion(true);
+    QCOMPARE(question.title, QStringLiteral("Discard the list of 2 files?"));
+    QCOMPARE(question.text, QStringLiteral("Closing the tab removes your changes to the pages of the files. The files stay as they are."));
+    QCOMPARE(question.keepText, QStringLiteral("Keep Merging"));
+    QCOMPARE(question.discardText, QStringLiteral("Discard List"));
+    QCOMPARE(gui->getOwnTabCloseQuestion(false).text, QStringLiteral("Closing the tool removes your changes to the pages of the files. The files stay as they are."));
+
+    // Undo of the turn: nothing is lost
+    H::model(tab)->undo();
+    AppToolOwnTabFixture::settle();
+    QVERIFY(!gui->isPagesChanged());
+    QVERIFY(gui->getOwnTabLossText().isEmpty());
+
+    // A file added: the list (no change of the pages - its pages come in the order of the files)
+    gui->addFiles({ AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Annex_B.pdf"), 1) });
+    QVERIFY(H::waitLoaded(tab->getInputList()));
+    AppToolOwnTabFixture::settle();
+    QVERIFY(!gui->isPagesChanged());
+    QCOMPARE(gui->getOwnTabLossText(), QStringLiteral("The list of 3 files is lost."));
+    QCOMPARE(gui->getOwnTabCloseQuestion(true).text, QStringLiteral("Closing the tab removes the files you have added and their order. The files stay as they are."));
+    gui->selectRows({ 0 });
+    gui->removeSelection();
+    AppToolOwnTabFixture::settle();
+    QCOMPARE(gui->getOwnTabCloseQuestion(true).text,
+             QStringLiteral("Closing the tab removes the files you have added, their order and your changes to their pages. The files stay as they are."));
+
+    // The dialog of the page: another page of the tab (no wording of the tab), Keep Merging stays
+    QStringList labels;
+    QStringList buttons;
+    QTimer* timer = new QTimer(qApp);
+    timer->setInterval(5);
+    QObject::connect(timer, &QTimer::timeout, timer, [timer, &labels, &buttons]()
+    {
+        for (QWidget* widget : QApplication::topLevelWidgets())
+        {
+            QPushButton* keep = widget->objectName() == QStringLiteral("toolTabCloseDialog") && widget->isVisible() ? widget->findChild<QPushButton*>(QStringLiteral("cancelButton")) : nullptr;
+            if (keep)
+            {
+                for (const QLabel* label : widget->findChildren<QLabel*>())
+                {
+                    labels << label->text();
+                }
+                for (const QPushButton* button : widget->findChildren<QPushButton*>())
+                {
+                    buttons << button->text();
+                }
+                timer->stop();
+                timer->deleteLater();
+                keep->click();
+                return;
+            }
+        }
+    });
+    timer->start();
+    QVERIFY(!tab->getToolPage()->prepareLeave(pdf::PDFAppRoutes::home()));
+    QVERIFY(tab);
+    QVERIFY2(labels.contains(QStringLiteral("Discard the list of 3 files?")), qPrintable(labels.join(QLatin1Char('|'))));
+    QVERIFY2(labels.contains(QStringLiteral("Closing the tool removes the files you have added, their order and your changes to their pages. The files stay as they are.")),
+             qPrintable(labels.join(QLatin1Char('|'))));
+    QVERIFY(buttons.contains(QStringLiteral("Keep Merging")));
+    QVERIFY(buttons.contains(QStringLiteral("Discard List")));
+    QVERIFY(!buttons.contains(QStringLiteral("Close Tab")));
+    QCOMPARE(AppToolOwnTabFixture::getShell(tab)->getState(), pdf::PDFDocumentToolShell::State::Editing);
 }
 
 void AppToolMergeTest::emptyStateAndOpenDocuments()

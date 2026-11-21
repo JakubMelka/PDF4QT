@@ -43,6 +43,8 @@
 #include <QToolButton>
 
 #include <functional>
+
+class QTimer;
 #include <memory>
 #include <vector>
 
@@ -217,6 +219,11 @@ public:
     /// Answers the dialog of the leaving (PDFAppDocumentChoiceDialog) by its button (the object
     /// name) from the event loop
     static void answerLater(const ToolPagesLifetimeRun& run, const QString& buttonName);
+
+    /// Answers the question of the unsaved work of the tool (PDFDocumentToolShell::getCloseQuestion) by its button
+    /// (the object name), when a leave shows it. \returns the polling timer (a child of the shell, nullptr without
+    /// a shell): the step deletes it after the leave, so it never answers a later question.
+    static QTimer* answerToolQuestionLater(const ToolPagesLifetimeRun& run, const QString& buttonName);
 
     /// Presses the Primary button by the mouse and waits for the result dialog, nullptr = none
     static pdf::PDFAppToolResultDialog* confirmToDialog(ToolPagesLifetimeRun& run);

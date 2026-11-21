@@ -61,7 +61,7 @@ When a source has changed or is missing, the assembly asks first:
 
 ### Rearranging an open document
 
-Started over an open document (Tools, Thumbnails › **Move pages**, or **Then continue with**), Manage Pages works in the tab of that document. On the start page of the tool, a list with just one open document offers a link such as **Edit Invoice.pdf in its tab**, which opens the tool there; an assembly tab never changes its sources. The document is the source A ("this document"); each page shows its position and its page ("3 · p. 7"). **Rearrange Pages** (Ctrl+Enter) changes the document in one step, which Undo takes back; the result can stay in the tab, be saved as a copy or overwrite the file. **Open as an Assembly** opens a new assembly tab with a copy of the document, for groups and several files.
+Started over an open document (Tools, Thumbnails › **Move pages**, or **Then continue with**), Manage Pages works in the tab of that document. On the start page of the tool, a list with just one open document offers a link such as **Edit Invoice.pdf in its tab**, which opens the tool there; an assembly tab never changes its sources. The document is the source A ("this document"); each page shows its position and its page ("3 · p. 7"). **Rearrange Pages** (Ctrl+Enter) changes the document in one step, which Undo takes back; the result can stay in the tab, be saved as a copy or overwrite the file. **Open as an Assembly** opens a new assembly tab with a copy of the document, for groups and several files. Closing the tool after you have changed the order of the pages asks first, also when you close the tab or the window or open another tool.
 
 | Part | What happens |
 | --- | --- |

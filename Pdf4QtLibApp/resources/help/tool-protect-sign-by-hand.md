@@ -18,7 +18,7 @@ Sign by Hand draws a signature, text labels, marks and shapes on the pages. The 
 
 The list of the elements in the left panel shows them by pages; a click selects an element, Delete removes it, Undo brings it back. Undo and Redo take back every change of the drawing until you apply it.
 
-Esc ends a drag or the picked tool; without them it clears the selection; when none of them is active, Esc closes the tool.
+Esc ends a drag or the picked tool; without them it clears the selection; when none of them is active, Esc closes the tool. Closing the tool with a drawing asks first, also when you close the tab or the window or open another tool; an empty drawing closes without a question.
 
 ### Things to know
 

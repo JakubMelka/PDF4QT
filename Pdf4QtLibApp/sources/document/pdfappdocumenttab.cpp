@@ -316,6 +316,27 @@ bool PDFAppDocumentTab::confirmClose()
 
     QPointer<PDFAppDocumentTab> guard(this);
 
+    // A tool of the tab with unsaved work of the user asks first (owner 2026-11-20: the question of the
+    // tool, as at its Esc); its answer may run code of the tool - the tab may be deleted meanwhile. The page,
+    // which has accepted, waits for the end of the leave (PDFAppPage::finishLeave, decision 8).
+    QPointer<PDFAppPage> leavingPage;
+    if (QPointer<PDFAppPage> page = getPage())
+    {
+        m_isAskingClose = true;
+        const bool isPageConfirmed = page->confirmClose();
+        if (!guard)
+        {
+            PDFAppPage::finishLeaves({ page }, false);
+            return false;
+        }
+        m_isAskingClose = false;
+        if (!isPageConfirmed)
+        {
+            return false;
+        }
+        leavingPage = page;
+    }
+
     // Running operations (a save, printing, an assistant): pdf4qt-document-close-running
     bool hasAskedOperation = false;
     for (const PDFAppDocumentOperation* operation : m_document->getOperations())
@@ -328,14 +349,27 @@ bool PDFAppDocumentTab::confirmClose()
         const PDFAppDocumentChoice choice = PDFAppDocumentChoiceDialog::run(new PDFAppCloseRunningDialog(m_document, this));
         if (!guard)
         {
+            PDFAppPage::finishLeaves({ leavingPage }, false);
             return false;
         }
         m_isAskingClose = false;
         if (choice != PDFAppDocumentChoice::Stop || !m_document)
         {
+            PDFAppPage::finishLeaves({ leavingPage }, false);
             return false;
         }
         stopOperations(true);
+    }
+
+    // The close goes on: the choice of the question of the tool, which changes the document (Redact "Remove New
+    // Marks", Measure "Save and Close"), is applied before the question of the unsaved changes - Save then saves
+    // it; Cancel there keeps the applied change (Undo takes it back). A tool, which could not keep all of its work
+    // (a measurement, which cannot be stored), keeps the tab (owner 2026-11-21). The slots of the commit may delete
+    // the tab.
+    const bool isFinished = PDFAppPage::finishLeaves({ leavingPage }, true);
+    if (!guard || !isFinished)
+    {
+        return false;
     }
 
     // An open editor of a form field is a change too (step 4, package D)

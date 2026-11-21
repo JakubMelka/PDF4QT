@@ -282,7 +282,11 @@ private:
     using BaseClass = PDFAppDocumentChoiceDialog;
 
 public:
-    explicit PDFAppQuitUnsavedDialog(const std::vector<const PDFAppDocument*>& documents, QWidget* parent);
+    /// \p toolWorkDocuments are the documents (also in \p documents), whose tab has a tool with unsaved work of the
+    /// user (the end of the system session, owner 2026-11-20 decision 7): a document without changes of its own
+    /// names the work of the tool in its row
+    explicit PDFAppQuitUnsavedDialog(const std::vector<const PDFAppDocument*>& documents, QWidget* parent,
+                                     const std::vector<const PDFAppDocument*>& toolWorkDocuments = std::vector<const PDFAppDocument*>());
     virtual ~PDFAppQuitUnsavedDialog() override;
 
     PDFAppDocumentItemList* getList() const { return m_list; }

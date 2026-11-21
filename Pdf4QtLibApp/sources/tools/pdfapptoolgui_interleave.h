@@ -30,6 +30,7 @@
 #include "pdfapptoolinputlist.h"
 #include "pdfapptoolinputrow.h"
 #include "pdfapptoolmergemodel.h"
+#include "pdfapptoolowntabquestion.h"
 #include "pdfapptoolpagegrid.h"
 #include "pdfapptoolpanelparts.h"
 #include "pdfapptoolpanelpopup.h"
@@ -127,7 +128,7 @@ private:
 /// QPointer (they are made again after a change of the language). The list of the inputs
 /// belongs to the tab (QPointer). The panel of Change… is a child of the left panel, held by a
 /// QPointer, made again for each opening (deleteLater of the old one).
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppInterleaveToolGUI : public PDFAppDeclarativeToolGUI
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppInterleaveToolGUI : public PDFAppDeclarativeToolGUI, public IPDFAppToolOwnTabQuestion
 {
     Q_OBJECT
 
@@ -154,6 +155,10 @@ public:
     virtual QString getRunningStatusText(const QString& stepText) const override;
     virtual void fillResultInput(PDFAppToolResultInput* input) const override;
     virtual QString getOwnTabLossText() const override;
+
+    /// "Discard the list of 2 files?" with Keep Interleaving and Discard List (owner 2026-11-20)
+    virtual PDFAppToolCloseQuestion getOwnTabCloseQuestion(bool isTabClosing) const override;
+
     virtual QString getOwnTabPageText() const override;
     virtual QString getOwnTabZoomText() const override;
     virtual PDFAppToolInputRules getInputRules() const override;

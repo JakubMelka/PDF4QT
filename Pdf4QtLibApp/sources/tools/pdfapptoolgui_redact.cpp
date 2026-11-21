@@ -1338,6 +1338,17 @@ void PDFAppToolGUIRedact::refreshMarks()
         m_markIndices[listedMarks[i].annotation] = i;
     }
 
+    // The marks of the document at the entry (the first read of a document): they are no work of this
+    // session of the tool (owner 2026-11-20, hasUnsavedWork)
+    if (!m_hasEntryMarks && pdf)
+    {
+        m_hasEntryMarks = true;
+        for (const PDFAppToolRedactMark& mark : listedMarks)
+        {
+            m_entryMarks.insert(mark.annotation);
+        }
+    }
+
     if (m_isPreview && !isPreviewAvailable())
     {
         m_isPreview = false;
@@ -1733,21 +1744,32 @@ bool PDFAppToolGUIRedact::removeMark(PDFObjectReference annotation)
 
 bool PDFAppToolGUIRedact::removeAllMarks()
 {
+    std::vector<PDFObjectReference> marks;
+    marks.reserve(getMarks().size());
+    for (const PDFAppToolRedactMark& mark : getMarks())
+    {
+        marks.push_back(mark.annotation);
+    }
+    return removeMarks(marks, tr("Remove all redaction marks"));
+}
+
+bool PDFAppToolGUIRedact::removeMarks(const std::vector<PDFObjectReference>& marks, const QString& description)
+{
     PDFAppDocument* document = getDocument();
     const PDFDocumentPointer pdf = document ? document->getDocument() : PDFDocumentPointer();
-    if (!pdf || m_isRunning || getMarks().empty())
+    if (!pdf || m_isRunning || marks.empty())
     {
         return false;
     }
 
     std::vector<PDFObjectReference> annotations;
-    annotations.reserve(getMarks().size());
+    annotations.reserve(marks.size());
     int lockedCount = 0;
-    for (const PDFAppToolRedactMark& mark : getMarks())
+    for (const PDFObjectReference& mark : marks)
     {
-        if (PDFAppAnnotationOperations::canModifyAnnotation(pdf, mark.annotation))
+        if (PDFAppAnnotationOperations::canModifyAnnotation(pdf, mark))
         {
-            annotations.push_back(mark.annotation);
+            annotations.push_back(mark);
         }
         else
         {
@@ -1758,7 +1780,7 @@ bool PDFAppToolGUIRedact::removeAllMarks()
     // One Undo step of the document (plan 4.5: Remove Marks); the locked marks stay and are named
     QPointer<PDFAppToolGUIRedact> guard(this);
     const quint64 version = document->getVersion();
-    const bool isRemoved = !annotations.empty() && commitMarks(PDFAppAnnotationOperations::deleteAnnotations(pdf, annotations), version, tr("Remove all redaction marks"));
+    const bool isRemoved = !annotations.empty() && commitMarks(PDFAppAnnotationOperations::deleteAnnotations(pdf, annotations), version, description);
     if (guard && lockedCount > 0)
     {
         showLockedMarks(lockedCount);
@@ -2678,9 +2700,27 @@ void PDFAppToolGUIRedact::onPagesMarkClicked()
     }
 }
 
-bool PDFAppToolGUIRedact::askClose()
+QDialog* PDFAppToolGUIRedact::askClose()
 {
-    return openClosePrompt() != nullptr;
+    return openClosePrompt();
+}
+
+bool PDFAppToolGUIRedact::hasUnsavedWork() const
+{
+    return !getNewMarks().empty();
+}
+
+std::vector<PDFObjectReference> PDFAppToolGUIRedact::getNewMarks() const
+{
+    std::vector<PDFObjectReference> newMarks;
+    for (const PDFAppToolRedactMark& mark : getMarks())
+    {
+        if (!m_entryMarks.count(mark.annotation))
+        {
+            newMarks.push_back(mark.annotation);
+        }
+    }
+    return newMarks;
 }
 
 bool PDFAppToolGUIRedact::handleEscape()
@@ -2756,21 +2796,27 @@ bool PDFAppToolGUIRedact::hasDocumentUndoSteps() const
 
 PDFMessageBox* PDFAppToolGUIRedact::openClosePrompt()
 {
-    const int count = int(getMarks().size());
+    // Owner 2026-11-20: only the marks added in this session of the tool are its work (the marks the document had
+    // at the entry are no question - Undo covers their edits)
+    const int count = int(getNewMarks().size());
     if (count == 0)
     {
         return nullptr;
     }
-    if (m_closePrompt)
+
+    // A question answered already is hidden until it is deleted (WA_DeleteOnClose, deleteLater): it is no open
+    // question, a new one is asked (RESCCODE L1)
+    if (m_closePrompt && m_closePrompt->isVisible())
     {
         m_closePrompt->raise();
         return m_closePrompt.data();
     }
 
-    // 448:17473: Back to Redacting | Keep Marks and Close (Primary) | Remove Marks
+    // 448:17473: Back to Redacting | Keep Marks and Close (Primary) | Remove New Marks; the title of 448:17473 for
+    // the new marks ("Keep the 12 marks in the document?" - "Keep the 12 new marks in the document?")
     QWidget* parent = PDFAppToolGUIRedactHelper::getDialogParent(this);
     PDFMessageBox* dialog = new PDFMessageBox(PDFThemeIcons::Badge::Warning,
-                                              PDFAppToolGUIRedactHelper::plural(count, QT_TR_NOOP("Keep the %Ln mark in the document?"), QT_TR_NOOP("Keep the %Ln marks in the document?")),
+                                              count == 1 ? tr("Keep the new mark in the document?") : tr("Keep the %Ln new marks in the document?", nullptr, count),
                                               tr("No redacted copy was created yet. Marks are redaction annotations – kept marks stay in the document so you can finish later. Nothing is removed from the content either way."),
                                               QDialogButtonBox::NoButton, parent);
     dialog->setObjectName(QStringLiteral("redactClosePrompt"));
@@ -2783,7 +2829,7 @@ PDFMessageBox* PDFAppToolGUIRedact::openClosePrompt()
     keep->setObjectName(QStringLiteral("redactCloseKeep"));
     keep->setIcon(PDFThemeIcons::getIcon(QStringLiteral("check")));
     connect(keep, &QPushButton::clicked, this, &PDFAppToolGUIRedact::onCloseKeepClicked);
-    QPushButton* remove = dialog->addActionButton(tr("Remove Marks"), PDFMessageBox::ActionPosition::Trailing, false);
+    QPushButton* remove = dialog->addActionButton(tr("Remove New Marks"), PDFMessageBox::ActionPosition::Trailing, false);
     remove->setObjectName(QStringLiteral("redactCloseRemove"));
     remove->setIcon(PDFThemeIcons::getIcon(QStringLiteral("trash")));
     connect(remove, &QPushButton::clicked, this, &PDFAppToolGUIRedact::onCloseRemoveClicked);
@@ -2821,6 +2867,17 @@ void PDFAppToolGUIRedact::onCloseKeepClicked()
     }
 }
 
+bool PDFAppToolGUIRedact::applyCloseQuestionAction()
+{
+    // Remove New Marks: the new marks go in one Undo step of the document through the shell; the marks the document
+    // had at the entry stay (owner 2026-11-20). New marks, which remain (locked ones - the status bar names them),
+    // keep the tool open: closing would leave them in the document although the user chose to remove them. A new
+    // mark is never beyond the listed ones (no mark is added to a truncated list).
+    QPointer<PDFAppToolGUIRedact> guard(this);
+    removeMarks(getNewMarks(), tr("Remove the new redaction marks"));
+    return guard && getNewMarks().empty();
+}
+
 void PDFAppToolGUIRedact::onCloseRemoveClicked()
 {
     QPointer<PDFAppToolGUIRedact> guard(this);
@@ -2833,16 +2890,21 @@ void PDFAppToolGUIRedact::onCloseRemoveClicked()
         return;
     }
 
-    // The marks go in one Undo step of the document, then the tool ends (the last call). Marks, which
-    // remain (locked ones - the status bar names them -, those beyond the listed ones), keep the tool open:
-    // closing would leave them in the document although the user chose to remove them
-    removeAllMarks();
-    if (guard && getMarks().empty() && !m_isMarkListTruncated)
+    // A leave waits for the answer (the close of the tab, the quit, the lock, another route; owner 2026-11-20,
+    // decision 8): the shell only remembers the choice and accepts the leave - the marks go, when the leave really
+    // goes on (PDFDocumentToolShell::finishLeave); a later Keep of another tool keeps them
+    PDFDocumentToolShell* shell = getShell();
+    if (shell && shell->deferCloseQuestionAction())
     {
-        if (PDFDocumentToolShell* shell = getShell())
-        {
-            shell->closeAfterQuestion();
-        }
+        return;
+    }
+
+    // Esc, Close: the marks go now, then the tool ends (the last call)
+    const bool isRemoved = applyCloseQuestionAction();
+    shell = guard ? getShell() : nullptr;
+    if (isRemoved && shell)
+    {
+        shell->closeAfterQuestion();
     }
 }
 

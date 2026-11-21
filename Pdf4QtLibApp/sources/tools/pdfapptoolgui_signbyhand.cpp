@@ -337,7 +337,9 @@ void PDFAppToolGUISignByHand::retranslate()
 
 bool PDFAppToolGUISignByHand::askDiscard()
 {
-    if (m_discardDialog)
+    // A question answered already is hidden until it is deleted (WA_DeleteOnClose, deleteLater): it is no open
+    // question, a new one is asked (RESCCODE L1)
+    if (m_discardDialog && m_discardDialog->isVisible())
     {
         return true;
     }
@@ -390,9 +392,14 @@ QString PDFAppToolGUISignByHand::getEscapeModeHint() const
     return m_drawingPart ? m_drawingPart->getEscapeHint() : QString();
 }
 
-bool PDFAppToolGUISignByHand::askClose()
+QDialog* PDFAppToolGUISignByHand::askClose()
 {
-    return askDiscard();
+    return askDiscard() ? m_discardDialog.data() : nullptr;
+}
+
+bool PDFAppToolGUISignByHand::hasUnsavedWork() const
+{
+    return m_drawingPart && !m_drawingPart->isEmpty();
 }
 
 void PDFAppToolGUISignByHand::askClearAll()

@@ -28,6 +28,7 @@
 #include "pdfappcompareview.h"
 #include "pdfappdeclarativetoolgui.h"
 #include "pdfapppassworddialog.h"
+#include "pdfapptoolowntabquestion.h"
 #include "pdfapptoolpanelparts.h"
 #include "pdfapptoolpanelpopup.h"
 #include "pdfappworkspace.h"
@@ -295,7 +296,7 @@ private:
 /// the tab (QPointer); the jobs hold copies only (the snapshots by their shared pointers, the result, a cancellation
 /// flag by a shared pointer) - their watchers are children of this GUI, a late result of a deleted GUI is dropped
 /// with them; the popups (the password dialog, the color picker) are new + QPointer.
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolGUICompare : public PDFAppDeclarativeToolGUI
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolGUICompare : public PDFAppDeclarativeToolGUI, public IPDFAppToolOwnTabQuestion
 {
     Q_OBJECT
 
@@ -376,6 +377,17 @@ public:
     virtual QString getCancelText() const override;
     virtual void fillResultInput(PDFAppToolResultInput* input) const override;
     virtual QString getOwnTabIconName() const override;
+
+    /// K16 (owner 2026-11-20): the documents chosen by the user (Change…, a file added) are lost by the close; the
+    /// documents the tab came with and Swap ask nothing
+    virtual QString getOwnTabLossText() const override;
+
+    /// "Discard the chosen documents?" with Keep Comparing and Discard List (owner 2026-11-20)
+    virtual PDFAppToolCloseQuestion getOwnTabCloseQuestion(bool isTabClosing) const override;
+
+    /// The user has chosen another set of documents than the tab came with (a pure change of the order - Swap - is
+    /// no choice)
+    bool isChoiceChanged() const;
     virtual QString getOwnTabPageText() const override;
     virtual QString getOwnTabZoomText() const override;
     virtual PDFAppToolInputRules getInputRules() const override;
@@ -627,6 +639,8 @@ private:
 
     QPointer<PDFAppToolInputList> m_list;
     QStringList m_lastInputIds;
+    QStringList m_entryChoice;          ///< The sorted ids of the inputs of the first list (isChoiceChanged)
+    bool m_hasEntryChoice = false;
     Content m_content = Content::Choice;
     PDFDiffResult m_result;
     PDFDiffResult m_shownResult;

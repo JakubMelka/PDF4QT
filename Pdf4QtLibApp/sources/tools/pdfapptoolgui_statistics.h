@@ -78,6 +78,9 @@ public:
 
     virtual QWidget* createCanvasPage(QWidget* parent) override;
     virtual bool isConfirmShown() const override { return false; }
+
+    /// The session is the use (owner 2026-11-20): a view, a selected row, an export, or 10 s shown
+    virtual bool isInteractive() const override { return true; }
     virtual QString getCancelText() const override;
     virtual QString getStatusText() const override;
     virtual bool hasOwnStatusItems() const override { return true; }    ///< K7.27: no page, no zoom item

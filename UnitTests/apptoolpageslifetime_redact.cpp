@@ -30,6 +30,7 @@
 #include "apptoolpageslifetime.h"
 
 #include "pdfappcertificatedialogs.h"
+#include "pdfappcommand.h"
 #include "pdfappdocumentpanels_common.h"
 #include "pdfapptoolgui_certificates.h"
 #include "pdftrustedcertificaterepository.h"
@@ -54,6 +55,7 @@
 #include <QMouseEvent>
 #include <QPushButton>
 #include <QThread>
+#include <QTimer>
 #include <QToolButton>
 #include <QtTest>
 
@@ -512,6 +514,33 @@ public:
         Steps::settle();
         return true;
     }
+
+    /// Lock document with a new mark (owner 2026-11-20, decisions 6 and 8): the question waits in the loop of the
+    /// leave, Remove New Marks is remembered, the end of the leave removes the mark while the tool edits, then the
+    /// document is locked and the tool ends; the document is unlocked afterwards
+    static bool lockRemoveNewMarks(ToolPagesLifetimeRun& run)
+    {
+        if (!gui(run) && !Steps::openTool(run))
+        {
+            return true;
+        }
+        markArea(run);
+        QPointer<pdf::PDFAppDocumentTab> tab = run.tab;
+        if (!gui(run) || !tab)
+        {
+            return true;
+        }
+        QPointer<QTimer> answer = Steps::answerToolQuestionLater(run, QStringLiteral("redactCloseRemove"));
+        tab->executeCommand(pdf::PDFAppCommands::lockDocument());
+        delete answer.data();
+        Steps::settle();
+        if (pdf::PDFAppDocument* document = tab ? tab->getDocument() : nullptr)
+        {
+            document->setLocked(false);
+        }
+        Steps::settle();
+        return true;
+    }
 };
 
 /// The scenario protectredact
@@ -550,6 +579,7 @@ public:
             steps->push_back(&H::runTool);
             steps->push_back(&H::clearAll);
             steps->push_back(&H::closePrompt);
+            steps->push_back(&H::lockRemoveNewMarks);
         };
         scenarios->push_back(redact);
     }

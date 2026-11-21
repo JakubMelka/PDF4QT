@@ -31,6 +31,7 @@
 #include "pdfapptoolgui_geometry.h"
 #include "pdfapptoolinputlist.h"
 #include "pdfapptoolinputrow.h"
+#include "pdfapptoolowntabquestion.h"
 #include "pdfapptoolpagestage.h"
 #include "pdfapptoolpanelparts.h"
 #include "pdfapptoolpanelpopup.h"
@@ -393,7 +394,7 @@ private:
 /// setScaledSize, at most MAXIMUM_PREVIEW_SIDE). The actions Ctrl+Alt+I and Ctrl+V and the drop
 /// of files belong to the key widget of the host while this GUI lives (the destructor takes them
 /// back).
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppImagesToPdfToolGUI : public PDFAppDeclarativeToolGUI
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppImagesToPdfToolGUI : public PDFAppDeclarativeToolGUI, public IPDFAppToolOwnTabQuestion
 {
     Q_OBJECT
 
@@ -426,6 +427,14 @@ public:
     virtual QString getOwnTabTitle() const override;
     virtual QString getOwnTabIconName() const override;
     virtual QString getOwnTabLossText() const override;
+
+    /// "Discard the list of 4 files?" with Keep Converting and Discard List (owner 2026-11-20; RESCUX H1: also the
+    /// turns and crops of the images)
+    virtual PDFAppToolCloseQuestion getOwnTabCloseQuestion(bool isTabClosing) const override;
+
+    /// An image turned or cropped by the user (the adjustments differ from those of the entry; RESCUX H1)
+    bool isAdjustmentChanged() const;
+
     virtual QString getOwnTabPageText() const override;
     virtual QString getOwnTabZoomText() const override;
     virtual QString getStartPageText(PDFAppToolStartPageText text) const override;
@@ -628,6 +637,7 @@ private:
     QPointer<QAction> m_addFilesAction;
     QPointer<QAction> m_pasteAction;
     Adjustments m_adjustments;
+    QString m_entryAdjustmentsText;     ///< The value of the adjustments at initializeValues (isAdjustmentChanged)
     QString m_selectedId;
     QStringList m_extraSelectedIds;     ///< The images selected besides m_selectedId (Ctrl, Shift)
     QString m_previewKey;               ///< Id, generation and color management of the decoded preview

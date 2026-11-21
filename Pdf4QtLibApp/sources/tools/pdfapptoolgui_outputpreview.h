@@ -277,6 +277,9 @@ public:
     virtual QString getOwnTabZoomText() const override;
     virtual bool hasOwnStatusItems() const override { return true; }    ///< K7.27: the zoom of the picture, not of the view
     virtual bool isConfirmShown() const override;
+
+    /// The session is the use (owner 2026-11-20): a mode, an ink, a simulation, a color, or 10 s shown
+    virtual bool isInteractive() const override { return true; }
     virtual void onParametersChanged(const QString& name) override;
     virtual void onDocumentChanged() override;
 

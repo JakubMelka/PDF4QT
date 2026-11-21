@@ -187,6 +187,9 @@ public:
     virtual QString getConfirmText() const override;
     virtual bool isConfirmEnabled() const override;
     virtual bool isConfirmShown() const override;
+
+    /// The session is the use (owner 2026-11-20): a view, a selected certificate, a copy, or 10 s shown
+    virtual bool isInteractive() const override { return true; }
     virtual bool isUndoShown() const override;
     virtual bool isSingleOwnTab() const override;
     virtual QString getStatusText() const override;

@@ -167,6 +167,7 @@ Facts needed to run them:
 | `UnitTestsAppToolCompare` | [tst_apptoolcomparetest.cpp](../UnitTests/tst_apptoolcomparetest.cpp) | GUI of Compare in its own tab, PDF4QT --compare (step 7c, P6). |
 | `UnitTestsDiffOverlay` | [tst_diffoverlaytest.cpp](../UnitTests/tst_diffoverlaytest.cpp) | The views and the overlay of the canvas of Compare (step 7c, P6; formerly of the old Diff). |
 | `UnitTestsAppToolMeasure` | [tst_apptoolmeasuretest.cpp](../UnitTests/tst_apptoolmeasuretest.cpp) | GUI of Measure, its drawing and dialogs (step 7c, P7). |
+| `UnitTestsAppToolLeave` | [tst_apptoolleavetest.cpp](../UnitTests/tst_apptoolleavetest.cpp) | Every way of leaving a tool asks only about the unsaved work of the user; an interactive tool is a use when left (owner 2026-11-20). |
 | `UnitTestsMeasureScaleRepository` | [tst_measurescalerepositorytest.cpp](../UnitTests/tst_measurescalerepositorytest.cpp) | The scales of Measure: migration 4 (step 7c, skeleton), the repository (P7) and the descriptions of the presets and of the default scale (integration). |
 | `UnitTestsAppMcp` | [tst_appmcptest.cpp](../UnitTests/tst_appmcptest.cpp) | MCP in the application: contract, permissions, read tools, catalog bridge. |
 | `UnitTestsAppMcpEdit` | [tst_appmcpedittest.cpp](../UnitTests/tst_appmcpedittest.cpp) | MCP edit tools and their confirmations. |

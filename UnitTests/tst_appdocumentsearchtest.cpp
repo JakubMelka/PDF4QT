@@ -36,7 +36,9 @@
 #include "pdfappdocumentstatusbar.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
+#include "pdfapphomewidgets.h"
 #include "pdfappnavigator.h"
+#include "pdfappviewstate.h"
 #include "pdfdatabasestatement.h"
 #include "pdfsettingdefinitions.h"
 #include "pdfsettingsrepository.h"
@@ -45,6 +47,7 @@
 #include "pdfcertificatestore.h"
 #include "pdfcolorconvertor.h"
 #include "pdfdrawspacecontroller.h"
+#include "pdfdrawwidget.h"
 #include "pdfdocumenttextindex.h"
 
 #include "pdfcomponentdelegates.h"
@@ -67,8 +70,10 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QSlider>
+#include <QSplitter>
 #include <QTimeZone>
 #include <QToolButton>
+#include <QTranslator>
 #include <QtMath>
 #include <QtTest>
 
@@ -167,6 +172,25 @@ public:
 FakeSpeechEngine* FakeSpeechEngine::s_last = nullptr;
 bool FakeSpeechEngine::s_isBroken = false;
 
+/// Translator of the language change of the Search tab: the texts of the search panel
+/// (the title of the tab is the title of the panel) get the prefix "~"
+class SearchTabTestTranslator : public QTranslator
+{
+public:
+    virtual QString translate(const char* context, const char* sourceText, const char* disambiguation, int n) const override
+    {
+        Q_UNUSED(disambiguation);
+        Q_UNUSED(n);
+        if (context && sourceText && QByteArray(context) == "pdf::PDFAppDocumentSearchPanel")
+        {
+            return QStringLiteral("~") + QString::fromUtf8(sourceText);
+        }
+        return QString();
+    }
+
+    virtual bool isEmpty() const override { return false; }
+};
+
 /// Package D of step 3: the search in the document (lazy cancellable text index,
 /// search in a worker, results model, highlights, panel 198:4520, the field of the
 /// toolbar, F3 / Shift+F3, ?q=, the safety limit), the signatures (background
@@ -206,6 +230,12 @@ private slots:
     void deleteFromOwnSignals();
     void closeSearch();
     void themesAndDirection();
+
+    // The Search tab of the sidebar (owner 2026-11-20, side-tab-search 1608:31376)
+    void searchTab();
+    void searchTabHideAndShow();
+    void searchTabWidth();
+    void searchTabLanguage();
 
     void signatures();
     void signaturesTrust();
@@ -1003,7 +1033,8 @@ void AppDocumentSearchTest::deleteFromOwnSignals_data()
     QTest::addColumn<QString>("signal");
     QTest::addColumn<bool>("deleteWindow");
     for (const char* name : { "indexBuilding", "indexReady", "indexOperationStarted", "indexOperationFinished", "indexCanceledByChange", "searchStarted", "searchFinished", "searchText", "currentIndex", "verificationStarted",
-                              "verificationFinished", "speechStarted", "speechStopped", "speechPaused", "speechResumed" })
+                              "verificationFinished", "speechStarted", "speechStopped", "speechPaused", "speechResumed",
+                              "searchTabPanel", "searchTabClicked", "resultsHidden", "resultsShownByEnter", "resultsShownByFind" })
     {
         QTest::newRow(QStringLiteral("%1-tab").arg(QLatin1String(name)).toLatin1().constData()) << QString::fromLatin1(name) << false;
         QTest::newRow(QStringLiteral("%1-window").arg(QLatin1String(name)).toLatin1().constData()) << QString::fromLatin1(name) << true;
@@ -1132,6 +1163,49 @@ void AppDocumentSearchTest::deleteFromOwnSignals()
         connect(controller, &pdf::PDFAppDocumentSearchController::currentIndexChanged, &receiver, deleteNow);
         QVERIFY(trigger(pdf::PDFAppCommands::findNext()));
     }
+    else if (signal == QStringLiteral("searchTabPanel") || signal == QStringLiteral("searchTabClicked"))
+    {
+        // The Search tab without a search: the change of the panel (the route) or the click
+        // itself (the handler moves the focus into the field) deletes the tab
+        pdf::PDFAppDocumentSidebar* sidebar = tab->getView()->getSidebar();
+        if (signal == QStringLiteral("searchTabPanel"))
+        {
+            connect(sidebar, &pdf::PDFAppDocumentSidebar::currentPanelChanged, &receiver, deleteNow);
+        }
+        else
+        {
+            connect(sidebar, &pdf::PDFAppDocumentSidebar::tabClicked, &receiver, deleteNow);
+        }
+        sidebar->getTabButton(pdf::PDFAppDocumentPanelIds::search())->click();
+    }
+    else if (signal == QStringLiteral("resultsHidden") || signal == QStringLiteral("resultsShownByEnter") || signal == QStringLiteral("resultsShownByFind"))
+    {
+        // × hides the results, Enter with the same text and Ctrl+F show them again: the
+        // change of the panel deletes the tab, nothing of it is used afterwards
+        searchHandler->getSearchField()->setText(QStringLiteral("alpha"));
+        QVERIFY(QMetaObject::invokeMethod(searchHandler->getSearchField(), "returnPressed"));
+        QVERIFY(waitForSearch(controller));
+        pdf::PDFAppDocumentSearchPanel* panel = qobject_cast<pdf::PDFAppDocumentSearchPanel*>(tab->getView()->getSidebar()->findPanel(pdf::PDFAppDocumentPanelIds::search()));
+        QVERIFY(panel);
+        if (signal != QStringLiteral("resultsHidden"))
+        {
+            panel->getCloseButton()->click();
+            QVERIFY(tab->getView()->getCurrentPanelId() != pdf::PDFAppDocumentPanelIds::search());
+        }
+        connect(tab->getView(), &pdf::PDFAppDocumentView::panelChanged, &receiver, deleteNow);
+        if (signal == QStringLiteral("resultsHidden"))
+        {
+            panel->getCloseButton()->click();
+        }
+        else if (signal == QStringLiteral("resultsShownByEnter"))
+        {
+            QVERIFY(QMetaObject::invokeMethod(searchHandler->getSearchField(), "returnPressed"));
+        }
+        else
+        {
+            QVERIFY(trigger(pdf::PDFAppCommands::find()));
+        }
+    }
     else if (isSigned)
     {
         QTRY_VERIFY_WITH_TIMEOUT(verifier->getVerification() && !verifier->isVerifying(), isValgrind() ? 600000 : 30000);
@@ -1220,7 +1294,13 @@ void AppDocumentSearchTest::closeSearch()
 
     pdf::PDFAppDocumentSearchPanel* panel = qobject_cast<pdf::PDFAppDocumentSearchPanel*>(view->getSidebar()->findPanel(pdf::PDFAppDocumentPanelIds::search()));
     QVERIFY(panel);
+
+    // × only hides the results (owner 2026-11-20, searchTabHideAndShow); closeSearch ends the search
     panel->getCloseButton()->click();
+    QCOMPARE(view->getCurrentPanelId(), pdf::PDFAppDocumentPanelIds::speech());
+    QCOMPARE(handler(tab)->getSearchController()->getResultCount(), 2);
+    view->showPanel(pdf::PDFAppDocumentPanelIds::search());
+    handler(tab)->closeSearch();
     QCOMPARE(view->getCurrentPanelId(), pdf::PDFAppDocumentPanelIds::speech());
     QCOMPARE(handler(tab)->getSearchController()->getResultCount(), 0);
     QCOMPARE(panel->getSubtitle(), QStringLiteral("Type a text into the search field"));
@@ -1257,6 +1337,346 @@ void AppDocumentSearchTest::themesAndDirection()
         QVERIFY(!tab->getView()->grab().isNull());
         QApplication::setLayoutDirection(Qt::LeftToRight);
     }
+}
+
+void AppDocumentSearchTest::searchTab()
+{
+    using Ids = pdf::PDFAppDocumentPanelIds;
+
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Tab.pdf"), 3));
+    QVERIFY(tab);
+    fixture.settle();
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFAppDocumentSidebar* sidebar = view->getSidebar();
+    QToolButton* searchTab = sidebar->getTabButton(Ids::search());
+    QVERIFY(searchTab);
+    QLineEdit* field = handler(tab)->getSearchField();
+    QVERIFY(field);
+
+    // Always shown, also before the first search (stable positions), the last tab after
+    // Notes (side-tab-search 1608:31376 after side-tab-notes)
+    QVERIFY(sidebar->isTabVisible(Ids::search()));
+    QString lastTabId;
+    for (const pdf::PDFAppDocumentPanelFactory* factory : sidebar->getRegistry().getFactories())
+    {
+        if (factory->hasSidebarTab())
+        {
+            lastTabId = factory->getId();
+        }
+    }
+    QCOMPARE(lastTabId, Ids::search());
+    QVERIFY(sidebar->getRegistry().findFactory(Ids::search())->getOrder() > sidebar->getRegistry().findFactory(Ids::notes())->getOrder());
+    QToolButton* previousTab = nullptr;
+    for (const pdf::PDFAppDocumentPanelFactory* factory : sidebar->getRegistry().getFactories())
+    {
+        QToolButton* button = sidebar->getTabButton(factory->getId());
+        if (button && button != searchTab && sidebar->isTabVisible(factory->getId()))
+        {
+            QVERIFY2(button->mapTo(sidebar, QPoint(0, 0)).x() < searchTab->mapTo(sidebar, QPoint(0, 0)).x(), qPrintable(factory->getId()));
+            previousTab = button;
+        }
+    }
+    QVERIFY(previousTab);
+
+    // The icon of the search field of the toolbar (one meaning), the title of the panel as the
+    // tooltip and the accessible name (as the other tabs), the size of a tab (190:619)
+    QCOMPARE(searchTab->property("pdf4qtIconName").toString(), QStringLiteral("search"));
+    QCOMPARE(searchTab->toolTip(), QStringLiteral("Search results"));
+    QCOMPARE(searchTab->accessibleName(), QStringLiteral("Search results"));
+    QCOMPARE(searchTab->size(), QSize(32, 32));
+    QCOMPARE(searchTab->mapTo(sidebar, QPoint(0, 0)).y(), 10);
+    QVERIFY(searchTab->isCheckable());
+    QVERIFY(!searchTab->isChecked());
+
+    // The keyboard: the strip is one exclusive group of Qt (one tab stop, the arrows move between
+    // the tabs and select them) - Right from the tab before it selects the Search tab and the focus
+    // stays in the strip (Qt focuses the tab after its click), Left goes back
+    previousTab->click();
+    QVERIFY(previousTab->isChecked());
+    previousTab->setFocus(Qt::TabFocusReason);
+    QTRY_VERIFY(previousTab->hasFocus());
+    QTest::keyClick(previousTab, Qt::Key_Right);
+    QVERIFY(searchTab->isChecked());
+    QCOMPARE(view->getCurrentPanelId(), Ids::search());
+    QTRY_VERIFY(searchTab->hasFocus());
+    QTest::keyClick(searchTab, Qt::Key_Left);
+    QVERIFY(previousTab->isChecked());
+    QCOMPARE(view->getCurrentPanelId(), sidebar->getCurrentPanelId());
+    QVERIFY(view->getCurrentPanelId() != Ids::search());
+
+    // No search: the click shows the panel with the empty state instead of the list, the tab
+    // is checked and the focus goes into the search field of the toolbar
+    view->getPdfWidget()->setFocus(Qt::OtherFocusReason);
+    QTRY_VERIFY(!field->hasFocus());
+    QSignalSpy clickSpy(sidebar, &pdf::PDFAppDocumentSidebar::tabClicked);
+    searchTab->click();
+    QCOMPARE(view->getCurrentPanelId(), Ids::search());
+    QVERIFY(searchTab->isChecked());
+    QCOMPARE(clickSpy.count(), 1);
+    QCOMPARE(clickSpy.at(0).at(0).toString(), Ids::search());
+    pdf::PDFAppDocumentSearchPanel* panel = qobject_cast<pdf::PDFAppDocumentSearchPanel*>(sidebar->findPanel(Ids::search()));
+    QVERIFY(panel);
+    QVERIFY(panel->getEmptyState());
+    QVERIFY(!panel->getEmptyState()->isHidden());
+    QVERIFY(panel->getListView()->isHidden());
+    QVERIFY(panel->getMessageLabel()->isHidden());
+    QCOMPARE(panel->getEmptyState()->getTitle(), QStringLiteral("No search yet"));
+    QCOMPARE(panel->getEmptyState()->getText(), QStringLiteral("Press Ctrl+F, type what to find and press Enter. The results appear here."));
+    QTRY_VERIFY(field->hasFocus());
+
+    // Another tab unchecks it
+    sidebar->getTabButton(Ids::thumbnails())->click();
+    QCOMPARE(view->getCurrentPanelId(), Ids::thumbnails());
+    QVERIFY(!searchTab->isChecked());
+
+    // The search field shows the panel with the results, its tab is checked
+    field->setText(QStringLiteral("beta"));
+    QTest::keyClick(field, Qt::Key_Return);
+    QVERIFY(waitForSearch(handler(tab)->getSearchController()));
+    QCOMPARE(view->getCurrentPanelId(), Ids::search());
+    QVERIFY(searchTab->isChecked());
+    QVERIFY(panel->getEmptyState()->isHidden());
+    QVERIFY(!panel->getListView()->isHidden());
+    QCOMPARE(panel->getListView()->model()->rowCount(), 3);
+
+    // With a search the tab does not move the focus (the results are read, not typed)
+    sidebar->getTabButton(Ids::thumbnails())->click();
+    view->getPdfWidget()->setFocus(Qt::OtherFocusReason);
+    QTRY_VERIFY(!field->hasFocus());
+    searchTab->click();
+    fixture.settle();
+    QCOMPARE(view->getCurrentPanelId(), Ids::search());
+    QVERIFY(!field->hasFocus());
+}
+
+void AppDocumentSearchTest::searchTabHideAndShow()
+{
+    using Ids = pdf::PDFAppDocumentPanelIds;
+
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Hide.pdf"), 4));
+    QVERIFY(tab);
+    fixture.settle();
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFAppDocumentSidebar* sidebar = view->getSidebar();
+    pdf::PDFAppDocumentSearchController* controller = handler(tab)->getSearchController();
+    QToolButton* searchTab = sidebar->getTabButton(Ids::search());
+    QLineEdit* field = handler(tab)->getSearchField();
+    QVERIFY(searchTab && field);
+
+    // The panel before the search: Bookmarks; "alpha" is on every page (4 results)
+    sidebar->getTabButton(Ids::bookmarks())->click();
+    field->setText(QStringLiteral("alpha"));
+    QTest::keyClick(field, Qt::Key_Return);
+    QVERIFY(waitForSearch(controller));
+    QCOMPARE(controller->getResultCount(), 4);
+    controller->setCurrentIndex(2);
+    const pdf::PDFAppDocumentSearchResultsPointer results = controller->getResults();
+    QVERIFY(results);
+    pdf::PDFAppDocumentSearchPanel* panel = qobject_cast<pdf::PDFAppDocumentSearchPanel*>(sidebar->findPanel(Ids::search()));
+    QVERIFY(panel);
+    QCOMPARE(panel->getCloseButton()->toolTip(), QStringLiteral("Hide the results"));
+    QCOMPARE(panel->getCloseButton()->accessibleName(), QStringLiteral("Hide the search results"));
+
+    // × only hides the panel: the panel before the search is back, the results, the current
+    // result and the highlights (drawn from the results of the controller) stay, the text too
+    panel->getCloseButton()->click();
+    QCOMPARE(view->getCurrentPanelId(), Ids::bookmarks());
+    QVERIFY(sidebar->getTabButton(Ids::bookmarks())->isChecked());
+    QVERIFY(!searchTab->isChecked());
+    QCOMPARE(controller->getResultCount(), 4);
+    QCOMPARE(controller->getCurrentIndex(), 2);
+    QCOMPARE(controller->getResults(), results);
+    QCOMPARE(controller->getQuery(), QStringLiteral("alpha"));
+    QCOMPARE(controller->getState(), pdf::PDFAppDocumentSearchController::State::Finished);
+    QCOMPARE(field->text(), QStringLiteral("alpha"));
+    QCOMPARE(pdf::PDFAppDocumentSearchCommandHandler::getRouteQuery(tab), QStringLiteral("alpha"));
+    QTRY_VERIFY(view->getPdfWidget()->hasFocus());
+
+    // The Search tab shows them again: the same results, the same current result
+    searchTab->click();
+    QCOMPARE(view->getCurrentPanelId(), Ids::search());
+    QVERIFY(searchTab->isChecked());
+    QCOMPARE(panel->getListView()->model()->rowCount(), 4);
+    QCOMPARE(panel->getListView()->currentIndex().row(), 2);
+    QCOMPARE(panel->getSubtitle(), QStringLiteral("4 results for “alpha”"));
+    QCOMPARE(controller->getCurrentIndex(), 2);
+    QCOMPARE(controller->getResults(), results);
+    QVERIFY(panel->getEmptyState()->isHidden());
+
+    // Enter with the same text after × only shows the panel (owner 2026-11-20, RESCUX L8):
+    // the current result stays, the text is not searched again
+    panel->getCloseButton()->click();
+    QCOMPARE(view->getCurrentPanelId(), Ids::bookmarks());
+    field->setFocus(Qt::OtherFocusReason);
+    QTest::keyClick(field, Qt::Key_Return);
+    QCOMPARE(view->getCurrentPanelId(), Ids::search());
+    QVERIFY(searchTab->isChecked());
+    QCOMPARE(controller->getCurrentIndex(), 2);
+    QCOMPARE(controller->getResults(), results);
+    QCOMPARE(panel->getListView()->currentIndex().row(), 2);
+
+    // Enter with the shown results goes to the next result, then on (wraps around)
+    QTest::keyClick(field, Qt::Key_Return);
+    QCOMPARE(view->getCurrentPanelId(), Ids::search());
+    QCOMPARE(controller->getCurrentIndex(), 3);
+    QCOMPARE(controller->getResults(), results);
+    QCOMPARE(panel->getListView()->currentIndex().row(), 3);
+    QTest::keyClick(field, Qt::Key_Return);
+    QCOMPARE(view->getCurrentPanelId(), Ids::search());
+    QCOMPARE(controller->getCurrentIndex(), 0);
+
+    // Ctrl+F: the field gets the focus and the results are shown
+    panel->getCloseButton()->click();
+    QCOMPARE(view->getCurrentPanelId(), Ids::bookmarks());
+    QTRY_VERIFY(!field->hasFocus());
+    QAction* find = fixture.window->getCommandAction(pdf::PDFAppCommands::find());
+    QVERIFY(find && find->isEnabled());
+    find->trigger();
+    QCOMPARE(view->getCurrentPanelId(), Ids::search());
+    QTRY_VERIFY(field->hasFocus());
+    QCOMPARE(controller->getCurrentIndex(), 0);
+
+    // × of hidden results does nothing
+    panel->getCloseButton()->click();
+    handler(tab)->hideResults();
+    QCOMPARE(view->getCurrentPanelId(), Ids::bookmarks());
+
+    // A tool covers the sidebar with its left panel, the toolbar of the document stays: the
+    // results cannot be shown there, so Enter goes on through them; after the tool, Enter
+    // shows the hidden results again with the current result kept
+    {
+        std::unique_ptr<QWidget> toolOwner = std::make_unique<QWidget>();
+        pdf::PDFAppToolModeParts parts;
+        parts.leftPanel = new QWidget(toolOwner.get());
+        QVERIFY(view->enterToolMode(parts));
+        fixture.settle();
+        QVERIFY(view->isToolLeftPanelShown());
+        QVERIFY(field->isVisible());
+        QTest::keyClick(field, Qt::Key_Return);
+        QCOMPARE(controller->getCurrentIndex(), 1);
+        QTest::keyClick(field, Qt::Key_Return);
+        QCOMPARE(controller->getCurrentIndex(), 2);
+        view->leaveToolMode();
+        fixture.settle();
+        QVERIFY(!view->isToolLeftPanelShown());
+    }
+    QCOMPARE(view->getCurrentPanelId(), Ids::bookmarks());
+    QTest::keyClick(field, Qt::Key_Return);
+    QCOMPARE(view->getCurrentPanelId(), Ids::search());
+    QCOMPARE(controller->getCurrentIndex(), 2);
+    QCOMPARE(controller->getResults(), results);
+    panel->getCloseButton()->click();
+    QCOMPARE(view->getCurrentPanelId(), Ids::bookmarks());
+
+    // Esc in the field ends the search: no results, an empty field
+    field->setFocus(Qt::OtherFocusReason);
+    QTest::keyClick(field, Qt::Key_Escape);
+    QCOMPARE(controller->getResultCount(), 0);
+    QVERIFY(!controller->getResults());
+    QVERIFY(field->text().isEmpty());
+    QCOMPARE(view->getCurrentPanelId(), Ids::bookmarks());
+
+    // Ctrl+F without a search only focuses the field; the tab shows the empty state
+    view->getPdfWidget()->setFocus(Qt::OtherFocusReason);
+    find->trigger();
+    QTRY_VERIFY(field->hasFocus());
+    QCOMPARE(view->getCurrentPanelId(), Ids::bookmarks());
+    searchTab->click();
+    QVERIFY(!panel->getEmptyState()->isHidden());
+    QVERIFY(panel->getListView()->isHidden());
+}
+
+void AppDocumentSearchTest::searchTabWidth()
+{
+    using Ids = pdf::PDFAppDocumentPanelIds;
+
+    // A document with content in every panel: nine tabs (pdf4qt-document-search 198:4520)
+    pdftest::AppDocumentFixture fixture;
+    const QString allPanels = pdftest::AppDocumentSamples::allPanels(fixture.folder());
+    QVERIFY(!allPanels.isEmpty());
+    pdf::PDFAppDocumentTab* tab = openReady(fixture, allPanels);
+    QVERIFY(tab);
+    pdf::PDFAppDocumentView* view = tab->getView();
+    pdf::PDFAppDocumentSidebar* sidebar = view->getSidebar();
+    const QStringList ids = { Ids::outline(), Ids::thumbnails(), Ids::layers(), Ids::attachments(), Ids::speech(), Ids::signatures(), Ids::bookmarks(), Ids::notes(), Ids::search() };
+    for (const QString& id : ids)
+    {
+        QTRY_VERIFY2_WITH_TIMEOUT(sidebar->isTabVisible(id), qPrintable(id), 30000 * getTimeoutFactor());
+    }
+    fixture.settle();
+
+    // 12 + 9 × 32 + 8 × 2 + 12 = 328 and the border 1 = 329, the width of the sidebar of the
+    // frame: the minimum width, the default 300 is raised; the Search tab at x 284, y 10
+    QCOMPARE(sidebar->getTabsMinimumWidth(), 329);
+    QCOMPARE(sidebar->minimumWidth(), 329);
+    QTRY_COMPARE(sidebar->width(), 329);
+    QToolButton* searchTab = sidebar->getTabButton(Ids::search());
+    QCOMPARE(searchTab->mapTo(sidebar, QPoint(0, 0)), QPoint(284, 10));
+    for (int i = 0; i < ids.size(); ++i)
+    {
+        // Each tab whole, 34 px after the previous one, inside the padding 12 + the border
+        QToolButton* button = sidebar->getTabButton(ids[i]);
+        QCOMPARE(button->size(), QSize(32, 32));
+        QCOMPARE(button->mapTo(sidebar, QPoint(0, 0)).x(), 12 + i * 34);
+        QVERIFY(button->mapTo(sidebar, QPoint(button->width(), 0)).x() <= sidebar->width() - 1 - 12);
+    }
+
+    // The splitter and a stored narrower width cannot cut a tab
+    QSplitter* splitter = view->getSplitter();
+    splitter->setSizes({ 250, splitter->width() - 250 - splitter->handleWidth() });
+    fixture.settle();
+    QVERIFY2(sidebar->width() >= 329, qPrintable(QString::number(sidebar->width())));
+    pdf::PDFAppViewState state;
+    state.sidebarWidth = 260;
+    view->applyViewState(state);
+    fixture.settle();
+    QVERIFY2(sidebar->width() >= 329, qPrintable(QString::number(sidebar->width())));
+    QVERIFY(searchTab->mapTo(sidebar, QPoint(searchTab->width(), 0)).x() <= sidebar->width() - 1);
+
+    // The other sizes of the tabs scale: very large 12 + 9 × 40 + 8 × 2 + 12 + 1 = 401
+    QVERIFY(!fixture.context->getSettings().setValue(pdf::PDFSettingKeys::viewingSidebarIconSize(), QStringLiteral("veryLarge")).isError());
+    QTRY_COMPARE(sidebar->minimumWidth(), 401);
+    QTRY_VERIFY(sidebar->width() >= 401);
+    QVERIFY(!fixture.context->getSettings().setValue(pdf::PDFSettingKeys::viewingSidebarIconSize(), QStringLiteral("medium")).isError());
+    QTRY_COMPARE(sidebar->minimumWidth(), 329);
+
+    // Fewer tabs: nothing changes - the minimum of the view, the default width 300
+    pdf::PDFAppDocumentTab* simpleTab = openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Few tabs.pdf"), 2));
+    QVERIFY(simpleTab);
+    fixture.settle();
+    pdf::PDFAppDocumentSidebar* simpleSidebar = simpleTab->getView()->getSidebar();
+    QVERIFY(!simpleSidebar->isTabVisible(Ids::outline()));
+    QVERIFY(simpleSidebar->getTabsMinimumWidth() < pdf::PDFAppDocumentSidebar::DEFAULT_WIDTH);
+    QCOMPARE(simpleSidebar->minimumWidth(), pdf::PDFAppViewState::MINIMUM_SIDEBAR_WIDTH);
+    QTRY_COMPARE(simpleSidebar->width(), pdf::PDFAppDocumentSidebar::DEFAULT_WIDTH);
+}
+
+void AppDocumentSearchTest::searchTabLanguage()
+{
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Language.pdf"), 1));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentSidebar* sidebar = tab->getView()->getSidebar();
+    QToolButton* searchTab = sidebar->getTabButton(pdf::PDFAppDocumentPanelIds::search());
+    QVERIFY(searchTab);
+    searchTab->click();
+    pdf::PDFAppDocumentSearchPanel* panel = qobject_cast<pdf::PDFAppDocumentSearchPanel*>(sidebar->findPanel(pdf::PDFAppDocumentPanelIds::search()));
+    QVERIFY(panel);
+
+    // The language change translates the tooltip and the accessible name of the tab, the empty
+    // state and × (the translator of the test marks the texts of the panel by "~")
+    SearchTabTestTranslator translator;
+    QVERIFY(QCoreApplication::installTranslator(&translator));
+    QTRY_COMPARE(searchTab->toolTip(), QStringLiteral("~Search results"));
+    QCOMPARE(searchTab->accessibleName(), QStringLiteral("~Search results"));
+    QTRY_COMPARE(panel->getEmptyState()->getTitle(), QStringLiteral("~No search yet"));
+    QCOMPARE(panel->getCloseButton()->toolTip(), QStringLiteral("~Hide the results"));
+
+    QVERIFY(QCoreApplication::removeTranslator(&translator));
+    QTRY_COMPARE(searchTab->toolTip(), QStringLiteral("Search results"));
+    QTRY_COMPARE(panel->getEmptyState()->getTitle(), QStringLiteral("No search yet"));
 }
 
 void AppDocumentSearchTest::signatures()

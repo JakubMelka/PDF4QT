@@ -68,6 +68,12 @@ public:
         invocation.call->finish(PDFAppMcpReadSupport::createResult(invocation.actionName, writer.take(), false));
     }
 
+    /// The refusal of a request, which would show another tab, while a question of a tool waits for the user
+    static QString getToolQuestionRefusal()
+    {
+        return QStringLiteral("The user is answering a question of a tool in PDF4QT. Try again when the user has answered it.");
+    }
+
     /// Switches to the tab of the document (the window is not raised)
     static void activate(PDFAppMcpHost* host, PDFAppDocument* document)
     {
@@ -380,7 +386,27 @@ void PDFAppMcpViewToolHelper::navigate(const PDFAppMcpToolInvocation& invocation
         return;
     }
 
-    navigator->navigate(route, PDFAppNavigationMode::Push, window->getCurrentTab());
+    // Owner 2026-11-20: a route, which would leave a tool with unsaved work of the user, is refused - its question
+    // is never opened by a request. The navigator tells the page it would leave (the tab it chooses; a tool with its
+    // own tab, a new tab, the route of the tool itself leave nothing - RESCCODE L5)
+    PDFAppTab* currentTab = window->getCurrentTab();
+    PDFAppTab* targetTab = nullptr;
+    const PDFAppPage* leftPage = navigator->findLeftPage(route, PDFAppNavigationMode::Push, currentTab, &targetTab);
+    if (leftPage && leftPage->hasUnsavedWork())
+    {
+        host->finishWithError(invocation.call, invocation.getActionId(), nullptr,
+                              QStringLiteral("The user has unsaved work in a tool open in this document. Ask the user to finish or close the tool first."), PDFMcpActivityStatus::DeniedBusy);
+        return;
+    }
+
+    // A question of a tool waits for the user: no other tab is shown under it (RESCCODE L6)
+    if (window->isToolQuestionOpen() && (!targetTab || targetTab != currentTab))
+    {
+        host->finishWithError(invocation.call, invocation.getActionId(), nullptr, getToolQuestionRefusal(), PDFMcpActivityStatus::DeniedBusy);
+        return;
+    }
+
+    navigator->navigate(route, PDFAppNavigationMode::Push, currentTab);
 
     PDFMcpJsonWriter writer;
     writer.beginObject();
@@ -424,6 +450,15 @@ void PDFAppMcpViewToolHelper::close(const PDFAppMcpToolInvocation& invocation, P
     if (!window || !tab)
     {
         host->finishWithError(invocation.call, invocation.getActionId(), document, QStringLiteral("The document has no tab in PDF4QT."));
+        return;
+    }
+
+    // Owner 2026-11-20: a tool with unsaved work of the user is never closed by an assistant (its question is
+    // never opened over the user's work by a request): refused
+    if (const PDFAppPage* page = tab->getPage(); page && page->hasUnsavedWork())
+    {
+        host->finishWithError(invocation.call, invocation.getActionId(), document,
+                              QStringLiteral("The user has unsaved work in a tool open in this document. Ask the user to finish or close the tool first."), PDFMcpActivityStatus::DeniedBusy);
         return;
     }
 
@@ -473,6 +508,16 @@ void PDFAppMcpViewTool::handle(const PDFAppMcpToolInvocation& invocation)
 
     PDFAppDocument* document = resolved.document;
     PDFAppDocumentTab* tab = host->getResolver().findTab(document);
+
+    // A question of a tool waits for the user: no other tab is shown under it (RESCCODE L6; every action, which
+    // shows the tab of its document)
+    const PDFAppMainWindow* window = host->getResolver().getWindow();
+    if (action != QLatin1String("close") && window && window->isToolQuestionOpen() && tab != window->getCurrentTab())
+    {
+        host->finishWithError(invocation.call, invocation.getActionId(), document, Helper::getToolQuestionRefusal(), PDFMcpActivityStatus::DeniedBusy);
+        return;
+    }
+
     if (action == QLatin1String("activate"))
     {
         QPointer<PDFAppDocument> documentGuard(document);

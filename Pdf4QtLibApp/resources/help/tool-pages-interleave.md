@@ -15,6 +15,8 @@ Interleave Pages mixes the front sides and the back sides of a scan into one doc
 3. Check the first pages of the result in the preview: blue pages come from the front sides, green pages from the back sides, each with its page in its scan (“front 1”, “back 6”).
 4. Press Create PDF. When it finishes, choose whether the new document opens in a new tab or is saved as a file.
 
+Closing the tool after you have changed the files asks first, also when you close the tab or the window or open another page in the tab; the files the tab opened with ask nothing.
+
 ### The order of the pages
 
 The usual one-sided scan of a double-sided stack scans the front sides first, then the flipped stack with the back sides – from the last sheet to the first. **Back sides: Reversed** (the default) reads them that way: front 1, back 6, front 2, back 5, … for 6 sheets. **In order** pairs front 1 with back 1, front 2 with back 2, and so on.

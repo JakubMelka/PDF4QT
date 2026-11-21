@@ -373,6 +373,9 @@ public:
     PDFAppMeasurePresetsDialog* getPresetsDialog() const { return m_presetsDialog.data(); }
     PDFMessageBox* getZeroLengthDialog() const { return m_zeroLengthDialog.data(); }
 
+    /// The question after Save and Close, which could not store all measurements (askIncompleteClose)
+    PDFMessageBox* getIncompleteQuestion() const { return m_incompleteQuestion.data(); }
+
     // ------------------------------------------------------------- PDFDocumentToolGUI
 
     virtual QWidget* createOverlay(QWidget* canvasArea) override;
@@ -390,6 +393,27 @@ public:
     virtual QString getEscapeModeHint() const override;
     virtual bool hasDocumentUndoSteps() const override;
     virtual bool isResultStaleBy(const QString& parameterName) const override;
+
+    /// Owner 2026-11-20: a temporary measurement, or the points of a measurement being drawn (the annotations
+    /// are in the document already - Annotations in the document, Save as Annotations)
+    virtual bool hasUnsavedWork() const override;
+
+    /// "Discard the 4 temporary measurements?" with Keep Measuring, Save and Close (where they can be written, as
+    /// Redact offers to keep its marks; owner 2026-11-20) and Discard Measurements (Discard Measurement for one)
+    virtual PDFAppToolCloseQuestion getCloseQuestion() const override;
+
+    /// Save and Close of the question (Save as Annotations): true, when no temporary measurement is left (473:90376 keeps those,
+    /// which could not be stored - the tool stays with them); during a leave, when the leave goes on
+    /// (PDFDocumentToolShell::finishLeave, owner 2026-11-20, decision 8)
+    virtual bool applyCloseQuestionAction() override;
+
+    /// Save and Close has stored only some measurements (owner 2026-11-21): "N measurements could not be saved as
+    /// annotations" with the reason - Keep Measuring (Primary, Esc: the tool stays open with them, a waiting leave is
+    /// canceled) or Discard and Close (they are discarded, the tool closes / the leave goes on)
+    virtual QDialog* askIncompleteClose() override;
+
+    /// The session is the use (owner 2026-11-20): a measurement, an export, a change of a parameter, or 10 s shown
+    virtual bool isInteractive() const override { return true; }
 
 protected:
     virtual void describeToolbar(PDFAppToolPanelBuilder& builder) override;
@@ -470,6 +494,7 @@ private:
     void onDefaultScaleAccepted(pdf::PDFMeasureScale scale);
     void onPresetsAccepted(std::vector<pdf::PDFMeasureScale> presets, bool isRestored);
     void onZeroLengthPickAgain();
+    void onIncompleteDiscardClicked();
     void onMenuToggled();
     void onMenuToggledQueued();
 
@@ -535,6 +560,8 @@ private:
     QPointer<PDFAppMeasureScaleDialog> m_calibrationDialog;     ///< Calibrate Scale… (its own, review RS7CAPP L3)
     QPointer<PDFAppMeasurePresetsDialog> m_presetsDialog;
     QPointer<PDFMessageBox> m_zeroLengthDialog;
+    QPointer<PDFMessageBox> m_incompleteQuestion;   ///< askIncompleteClose (its window is of the main window, it deletes itself)
+    QString m_storeFailureReason;                   ///< Why the first measurement of the last write could not be stored
 };
 
 }   // namespace pdf

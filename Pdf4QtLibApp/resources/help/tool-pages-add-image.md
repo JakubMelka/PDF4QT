@@ -17,6 +17,8 @@ Add Image as Page inserts pictures as new pages of the open document, each place
 5. Choose the size of the new pages in **Page**: **Same as page N** (the page next to the place), **Fit to image** (the size of the image by its resolution), A4, A3, Letter or **Custom**.
 6. Set the **Page layout** in the right panel and press **Add N Pages**. The result can stay in this tab, be saved as a copy or overwrite the original file.
 
+Closing the tool with added images asks first, also when you close the tab or the window or open another tool.
+
 ### Page layout
 
 | Setting | Meaning |

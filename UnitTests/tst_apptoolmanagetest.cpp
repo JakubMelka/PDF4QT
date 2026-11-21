@@ -89,6 +89,7 @@
 #include <QFontMetrics>
 #include <QGuiApplication>
 #include <QHeaderView>
+#include <QLabel>
 #include <QLayout>
 #include <QMimeData>
 #include <QPushButton>
@@ -955,6 +956,22 @@ void AppToolManageTest::documentHost()
     QVERIFY(AppToolOwnTabFixture::waitForState(shell, pdf::PDFDocumentToolShell::State::Deciding));
     QVERIFY(shell->getResultDialog());
     shell->getResultDialog()->reject();
+
+    // The changed arrangement is unsaved work (owner 2026-11-20): Discard result asks "Discard the changes to the
+    // pages?" as the other questions of the tools, Discard Changes ends the tool
+    QVERIFY(AppToolOwnTabFixture::waitFor([shell]() { return shell->getCloseQuestion() && shell->getCloseQuestion()->isVisible(); }));
+    QPushButton* discard = shell->getCloseQuestion()->findChild<QPushButton*>(QStringLiteral("toolCloseDiscard"));
+    QVERIFY(discard);
+    QCOMPARE(discard->text(), QStringLiteral("Discard Changes"));
+
+    // RESCUX L3: the text says what is lost
+    bool hasText = false;
+    for (const QLabel* label : shell->getCloseQuestion()->findChildren<QLabel*>())
+    {
+        hasText = hasText || label->text() == QStringLiteral("Closing the tool removes your changes to the order of the pages. The document stays as it was.");
+    }
+    QVERIFY(hasText);
+    discard->click();
     QVERIFY(AppToolOwnTabFixture::waitFor([documentTab]() { return !AppToolOwnTabFixture::getShell(documentTab); }));
     QCOMPARE(documentTab->getDocument()->getVersion(), version);
 }
@@ -2522,8 +2539,13 @@ void AppToolManageTest::documentHostStatusBar()
     AppToolOwnTabFixture::settle();
     QCOMPARE(statusBar->getPageText(), QStringLiteral("8 pages"));
 
-    // The end of the tool gives the page item back to the view; Rotate Pages shows its own again
+    // The end of the tool gives the page item back to the view; Rotate Pages shows its own again. The pages in the bin
+    // are unsaved work (owner 2026-11-20): the question first, Discard Changes
     shell->cancel();
+    QVERIFY(AppToolOwnTabFixture::waitFor([shell]() { return shell->getCloseQuestion() && shell->getCloseQuestion()->isVisible(); }));
+    QPushButton* discard = shell->getCloseQuestion()->findChild<QPushButton*>(QStringLiteral("toolCloseDiscard"));
+    QVERIFY(discard);
+    discard->click();
     QVERIFY(AppToolOwnTabFixture::waitFor([documentTab]() { return !AppToolOwnTabFixture::getShell(documentTab); }));
     AppToolOwnTabFixture::settle();
     QVERIFY(!view->isToolModeActive());

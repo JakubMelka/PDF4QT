@@ -16,6 +16,8 @@ Insert Pages adds pages of other PDF files, images or blank pages to the open do
 4. For each PDF source choose **All pages** or **Page range** in the right panel.
 5. Press **Insert N Pages**. The result can stay in this tab, be saved as a copy or overwrite the original file.
 
+Closing the tool with added sources asks first, also when you close the tab or the window or open another tool.
+
 A source protected by a password shows **Enter Password…** and **Remove File** in its card; the tool runs when every source can be read. In the cards the pages of a PDF, which are inserted, are highlighted; the dimmed pages are not inserted. Click a page to add it to the range of its source or to take it away.
 
 ### Page ranges

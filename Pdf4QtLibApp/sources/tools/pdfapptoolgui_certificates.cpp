@@ -1685,6 +1685,9 @@ void PDFAppToolGUICertificates::showAddTrustedProblem(const QString& title, cons
 
 void PDFAppToolGUICertificates::onViewRowClicked()
 {
+    // An action of the user (owner 2026-11-20, isInteractive)
+    markUsed();
+
     const QObject* row = sender();
     if (row == m_myRow)
     {
@@ -1698,6 +1701,8 @@ void PDFAppToolGUICertificates::onViewRowClicked()
 
 void PDFAppToolGUICertificates::onCertificateRowClicked()
 {
+    markUsed();
+
     PDFTileRow* row = qobject_cast<PDFTileRow*>(sender());
     bool isValid = false;
     const qint64 index = row ? row->property(PDFAppToolGUICertificatesHelper::ROW_INDEX_PROPERTY).toLongLong(&isValid) : -1;
@@ -1840,6 +1845,8 @@ void PDFAppToolGUICertificates::onAddTrustedChooseAgain()
 
 void PDFAppToolGUICertificates::onCopyClicked()
 {
+    markUsed();
+
     const PDFAppToolCertificateItem* item = getChosenCertificate();
     if (!item || !item->isInOldFolder || !isCreationAvailable())
     {

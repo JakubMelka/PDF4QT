@@ -183,7 +183,19 @@ public:
     virtual bool prepareLeave(const PDFAppRoute& target) override;
 
     /// The question of the close of the tab (see PDFAppToolTab::confirmClose)
-    bool confirmClose();
+    virtual bool confirmClose() override;
+
+    /// The tool has a loss text (K16; the own tab asks with it)
+    virtual bool hasUnsavedWork() const override;
+
+    /// The question of an own tab with a list of files (owner 2026-11-20, IPDFAppToolOwnTabQuestion): "Discard the
+    /// list of 4 files?", what is lost (the files added and their order \p isListChanged, the changes to their pages
+    /// \p isPagesChanged), \p keepText ("Keep Merging", Primary) and "Discard List" (trash)
+    static PDFAppToolCloseQuestion createListCloseQuestion(int count, bool isListChanged, bool isPagesChanged, const QString& keepText, bool isTabClosing);
+
+    /// The question of an own tab with chosen documents (Compare): "Discard the chosen documents?", \p keepText
+    /// ("Keep Comparing") and "Discard List"
+    static PDFAppToolCloseQuestion createChoiceCloseQuestion(const QString& keepText, bool isTabClosing);
 
 Q_SIGNALS:
     /// The title, the dot or the progress of the tab may have changed
@@ -208,6 +220,7 @@ private:
     QPointer<PDFAppOwnTabToolHost> m_host;
     QPointer<PDFDocumentToolShell> m_shell;
     bool m_isRestartQueued = false;
+    bool m_isLeavingTool = false;   ///< confirmClose runs for prepareLeave: only the tool closes, the tab stays
 };
 
 /// Factory of the page of a tool in its own tab (PDFAppToolPageKind::OwnTab)

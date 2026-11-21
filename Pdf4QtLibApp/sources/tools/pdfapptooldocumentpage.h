@@ -67,6 +67,30 @@ public:
     virtual QString getHelpTopic() const override;
     virtual bool prepareLeave(const PDFAppRoute& target) override;
 
+    /// The tab of the document closes or the window quits: the tool, which is edited, asks its question of
+    /// the unsaved work (PDFDocumentToolShell::confirmLeave, owner 2026-11-20); the tool is not ended here
+    virtual bool confirmClose() override;
+
+    /// The tool has unsaved work of the user (PDFDocumentToolShell::hasUnsavedWork)
+    virtual bool hasUnsavedWork() const override;
+
+    /// The tab closes or the window quits: the use of an interactive tool is recorded while the tab is whole
+    /// (PDFDocumentToolShell::recordInteractiveUse)
+    virtual void prepareClose() override;
+
+    /// A question of the tool is open (PDFDocumentToolShell::isQuestionOpen)
+    virtual bool isQuestionOpen() const override;
+
+    /// The open tool stays for its own route (prepareLeave); every other route of the tab leaves it
+    virtual bool isLeftBy(const PDFAppRoute& target) const override;
+
+    /// A tool, which a locked document ends (PDFDocumentToolLockedAccess::Unavailable), asks its question of the
+    /// unsaved work before the lock (PDFDocumentToolShell::confirmLeave; owner 2026-11-20, decision 6)
+    virtual bool confirmDocumentLock() override;
+
+    /// The end of the leave accepted by confirmClose / confirmDocumentLock (PDFDocumentToolShell::finishLeave)
+    virtual bool finishLeave(bool isProceeding) override;
+
     /// The route of the tool: the view is not a part of it
     virtual PDFAppRoute getCurrentRoute() const override;
 

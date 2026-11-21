@@ -1588,6 +1588,24 @@ QString PDFAppToolGUISignature::getEscapeModeHint() const
     return m_drawingPart ? m_drawingPart->getEscapeHint() : QString();
 }
 
+bool PDFAppToolGUISignature::hasUnsavedWork() const
+{
+    return getMode() == Mode::Sign && m_drawingPart && !m_drawingPart->isEmpty();
+}
+
+PDFAppToolCloseQuestion PDFAppToolGUISignature::getCloseQuestion() const
+{
+    // No frame (owner 2026-11-20): the question of Sign by Hand 435:10500 for the drawing of the appearance
+    const int count = m_drawingPart ? m_drawingPart->getElementCount() : 0;
+    PDFAppToolCloseQuestion question;
+    question.title = tr("Discard the drawing of the appearance?");
+    question.text = count == 1 ? tr("Closing the tool removes the element you have drawn for the appearance of the signature. The document stays as it was.")
+                               : tr("Closing the tool removes the %Ln elements you have drawn for the appearance of the signature. The document stays as it was.", nullptr, count);
+    question.keepText = tr("Keep Drawing");
+    question.discardText = tr("Discard Drawing");
+    return question;
+}
+
 void PDFAppToolGUISignature::onDocumentChanged()
 {
     // Another version (unlocked by the owner password, a change of an assistant): the fields and

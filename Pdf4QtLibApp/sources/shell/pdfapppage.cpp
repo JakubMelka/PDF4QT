@@ -109,6 +109,57 @@ bool PDFAppPage::prepareLeave(const PDFAppRoute& target)
     return true;
 }
 
+bool PDFAppPage::confirmClose()
+{
+    return true;
+}
+
+bool PDFAppPage::hasUnsavedWork() const
+{
+    return false;
+}
+
+void PDFAppPage::prepareClose()
+{
+
+}
+
+bool PDFAppPage::isQuestionOpen() const
+{
+    return false;
+}
+
+bool PDFAppPage::isLeftBy(const PDFAppRoute& target) const
+{
+    return !(target == m_route);
+}
+
+bool PDFAppPage::confirmDocumentLock()
+{
+    return true;
+}
+
+bool PDFAppPage::finishLeave(bool isProceeding)
+{
+    Q_UNUSED(isProceeding);
+    return true;
+}
+
+bool PDFAppPage::finishLeaves(const std::vector<QPointer<PDFAppPage>>& pages, bool isProceeding)
+{
+    // A page applies its choice by a commit: its slots may delete the other pages (QPointer). A refusal cancels
+    // the leave - the other pages forget their choices.
+    bool isFinished = true;
+    for (const QPointer<PDFAppPage>& page : pages)
+    {
+        if (page && !page->finishLeave(isProceeding && isFinished))
+        {
+            isFinished = false;
+        }
+    }
+    return isFinished;
+}
+
 void PDFAppPage::restoreViewState(const QVariantMap& state)
 {
     Q_UNUSED(state);

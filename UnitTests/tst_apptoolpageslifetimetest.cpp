@@ -3081,6 +3081,15 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges_data()
         }
     }
 
+    // Owner 2026-11-20: the question of the unsaved work of a tool (PDFDocumentToolGUI::askClose) open over the change
+    for (const char* popup : { "question-reviewmeasure", "question-insert", "question-addimage", "question-managedocgui" })
+    {
+        for (const char* change : { "language", "document", "theme" })
+        {
+            QTest::addRow("%s-%s", popup, change) << QString::fromLatin1(popup) << QString::fromLatin1(change);
+        }
+    }
+
     // Manage Pages (plan of step 3b, 8 manageopenpopups; RS3BAPP): a dialog of its own in its own
     // tab and in the tab of a document
     for (const char* popup : { "managedialog-managegui", "managedialog-managedocgui" })
@@ -3224,7 +3233,9 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges()
         QCOMPARE(H::shell(run)->getResultDialog(), dialog);
         QVERIFY(dialog->isVisible());
         // Discard ends the tool (in its own tab it returns to the editing of the tab); a tool, which keeps its
-        // result, stays open with it (R7-2, R7-13) - the end below closes it
+        // result, stays open with it (R7-2, R7-13) - the end below closes it. The work of prepareRun in the tab of a
+        // document is known now (RESCCODE L10: its question is required below, never optional)
+        const bool hasWork = !isOwnTabTool && H::shell(run)->getGUI() && H::shell(run)->getGUI()->hasUnsavedWork();
         dialog->reject();
         QVERIFY(pdftest::AppToolShellFixture::waitFor([&run]() { return !H::shell(run) || H::shell(run)->getState() == pdf::PDFDocumentToolShell::State::Editing; }));
         if (registered && registered->isResultKept)
@@ -3246,9 +3257,42 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges()
         }
         else
         {
+            // Owner 2026-11-20: Discard result of a tool with the work of prepareRun (the sources of Insert, the turns,
+            // the arrangement) asks its question first, as Cancel does: Discard
+            H::settle();
+            QDialog* question = H::shell(run) ? H::shell(run)->getCloseQuestion() : nullptr;
+            QCOMPARE(question && question->isVisible(), hasWork);
+            if (hasWork)
+            {
+                QPushButton* discard = question->findChild<QPushButton*>(QStringLiteral("toolCloseDiscard"));
+                QVERIFY(discard);
+                discard->click();
+                H::settle();
+            }
             QVERIFY(isOwnTabTool || !H::shell(run));
         }
         H::settle();
+    }
+    else if (isRealTool && popup.startsWith(QLatin1String("question-")))
+    {
+        // The question of the work made by prepareRun (owner 2026-11-20) stays open over the change with the tool;
+        // its Discard closes the tool afterwards
+        QVERIFY(H::prepareRun(run));
+        QVERIFY(H::shell(run) && H::shell(run)->getGUI()->hasUnsavedWork());
+        H::shell(run)->cancel();
+        H::settle();
+        QPointer<QDialog> question = H::shell(run) ? H::shell(run)->getCloseQuestion() : nullptr;
+        QVERIFY(question && question->isVisible());
+        applyChange();
+        QVERIFY(H::shell(run));
+        QVERIFY(run.tab->getView()->isToolModeActive());
+        QCOMPARE(H::shell(run)->getCloseQuestion(), question.data());
+        QVERIFY(question->isVisible());
+        QPushButton* discard = question->findChild<QPushButton*>(QStringLiteral("toolCloseDiscard"));
+        QVERIFY(discard);
+        discard->click();
+        H::settle();
+        QVERIFY(!H::shell(run));
     }
     else if (isRealTool)
     {
@@ -3362,6 +3406,8 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges()
         {
             H::answerLater(run, QStringLiteral("closeTabButton"));
         }
+        const bool hasWork = !isOwnTabTool && H::shell(run)->getState() == pdf::PDFDocumentToolShell::State::Editing && H::shell(run)->getGUI() &&
+                             H::shell(run)->getGUI()->hasUnsavedWork();
         H::shell(run)->cancel();
         H::settle();
 
@@ -3372,6 +3418,17 @@ void AppToolPagesLifetimeTest::openPopupsSurviveChanges()
             QVERIFY(H::shell(run));
             QVERIFY(run.tab->getView()->isToolModeActive());
             QVERIFY(registered->answerCloseQuestion(run));
+            H::settle();
+        }
+        else if (hasWork)
+        {
+            // Owner 2026-11-20: the work of the user made by prepareRun (Measure: a temporary measurement) is asked
+            // about by the generic question of the tool (PDFDocumentToolGUI::askClose): Discard (RESCCODE L10: the
+            // question is required, where the work is known)
+            QVERIFY(H::shell(run) && H::shell(run)->getCloseQuestion() && H::shell(run)->getCloseQuestion()->isVisible());
+            QPushButton* discard = H::shell(run)->getCloseQuestion()->findChild<QPushButton*>(QStringLiteral("toolCloseDiscard"));
+            QVERIFY(discard);
+            discard->click();
             H::settle();
         }
     }
@@ -3459,6 +3516,32 @@ bool ToolPagesLifetimeSteps::wait(const ToolPagesLifetimeRun& run, const std::fu
 void ToolPagesLifetimeSteps::answerLater(const ToolPagesLifetimeRun& run, const QString& buttonName)
 {
     ToolPagesLifetimeHelper::answerLater(run, buttonName);
+}
+
+QTimer* ToolPagesLifetimeSteps::answerToolQuestionLater(const ToolPagesLifetimeRun& run, const QString& buttonName)
+{
+    QPointer<pdf::PDFDocumentToolShell> toolShell = shell(run);
+    if (!toolShell)
+    {
+        return nullptr;
+    }
+
+    // A child of the shell: it goes with the shell (a victim) and never reads a deleted question
+    QTimer* timer = new QTimer(toolShell.data());
+    timer->setInterval(5);
+    QObject::connect(timer, &QTimer::timeout, timer, [timer, toolShell, buttonName]()
+    {
+        QDialog* question = toolShell ? toolShell->getCloseQuestion() : nullptr;
+        QPushButton* button = question && question->isVisible() ? question->findChild<QPushButton*>(buttonName) : nullptr;
+        if (button)
+        {
+            timer->stop();
+            timer->deleteLater();
+            button->click();
+        }
+    });
+    timer->start();
+    return timer;
 }
 
 pdf::PDFAppToolResultDialog* ToolPagesLifetimeSteps::confirmToDialog(ToolPagesLifetimeRun& run)

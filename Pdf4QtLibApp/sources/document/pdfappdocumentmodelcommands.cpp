@@ -25,8 +25,11 @@
 #include "pdfappdocument.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
+#include "pdfapppage.h"
 #include "pdfapptoolundotarget.h"
 #include "pdfappundostack.h"
+
+#include <QPointer>
 
 namespace pdf
 {
@@ -83,8 +86,36 @@ void PDFAppDocumentModelCommandHandler::execute(const QString& commandId)
     else if (commandId == PDFAppCommands::lockDocument())
     {
         // Lock document of the File panel; the lock of the tab opens the popover
-        // 266:12435 (Unlock / Edit a Copy), recent_file.locked is written by the tab
-        document->setLocked(!document->isLocked());
+        // 266:12435 (Unlock / Edit a Copy), recent_file.locked is written by the tab.
+        // A tool, which the lock ends, asks about the unsaved work of the user first (owner
+        // 2026-11-20, decision 6): Keep cancels the lock; the question waits in its own loop
+        // and anything may be deleted meanwhile
+        const bool isLocking = !document->isLocked();
+        QPointer<PDFAppDocument> documentGuard(document);
+        if (isLocking)
+        {
+            PDFAppDocumentTab* tab = getTab();
+            QPointer<PDFAppPage> page = tab ? tab->getPage() : nullptr;
+            if (page && !page->confirmDocumentLock())
+            {
+                return;
+            }
+
+            // The lock goes on, unless the document has gone or has been locked meanwhile: a choice of the question
+            // of the tool, which changes the document (Redact "Remove New Marks", Measure "Save and Close"), is
+            // applied before the lock while the tool still edits (one Undo step; decision 8). The slots of the
+            // commit may delete anything. A tool, which could not keep all of its work (a locked mark), keeps the
+            // document unlocked (owner 2026-11-21).
+            const bool isProceeding = documentGuard && !documentGuard->isLocked();
+            if (!PDFAppPage::finishLeaves({ page }, isProceeding))
+            {
+                return;
+            }
+        }
+        if (documentGuard && documentGuard->isLocked() != isLocking)
+        {
+            documentGuard->setLocked(isLocking);
+        }
     }
     else if (commandId == PDFAppCommands::editCopy())
     {

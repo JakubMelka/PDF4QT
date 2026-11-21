@@ -35,7 +35,7 @@ The copy is checked after it is written: it is read back, the marked areas are d
 
 ### Marks are annotations
 
-The marks are redaction annotations of the document. They are saved with the document, so you can finish the redaction later, and other programs show them as redaction marks. Each new or removed mark is one step of Undo of the document. When you close the tool with marks, it asks whether to keep them in the document or to remove them.
+The marks are redaction annotations of the document. They are saved with the document, so you can finish the redaction later, and other programs show them as redaction marks. Each new or removed mark is one step of Undo of the document. Closing the tool with marks you have made now asks first, also when you close the tab or the window or open another tool: **Keep Marks and Close** keeps them in the document, **Remove New Marks** removes only them in one step of Undo. When you close the tab or the window, the marks are removed only when the close goes on: **Back to Redacting** in another tool cancels it and the marks stay; **Cancel** at the following question about unsaved changes keeps the window open, the marks stay removed and Undo brings them back. The marks the document already had stay and ask nothing; a change of one of them is a step of Undo.
 
 The tool draws only the marked areas filled by its Fill. An overlay text or an overlay appearance of a mark made by another program (/OverlayText, /RO) is not drawn into the copy.
 

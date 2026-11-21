@@ -47,6 +47,8 @@ PDF4QT reports two kinds of errors:
 | "The document changed in the meantime …" | An annotation or an outline item you referred to is gone | Read the document again and call with the current ids |
 | "The tab of the document was closed" | The user closed the document while the call ran | Tell the user |
 | "… has unsaved changes …" (`view.close`) | Closing would lose the user's changes | Ask the user to save or to close the tab |
+| "The user has unsaved work in a tool …" (`view.close`, `view.navigate`) | A tool open in the document holds unsaved work of the user (temporary measurements, a drawing, edited pages); closing or leaving it would lose it | Ask the user to finish or close the tool |
+| "The user is answering a question of a tool in PDF4QT …" (`view.*`) | A question of a tool is open in PDF4QT (whether to discard or keep the unsaved work of the user); the views do not change meanwhile | Try again when the user has answered it |
 | "… use save_copy" | The document has no file of its own | Use `files.save_copy` with a path |
 | "The image would have … megapixels …" / "The image has … MiB, more than the limit of 12 MiB …" | The image is too large | Render with a lower `dpi`, an `area`, or `jpeg` |
 | "This tool is not available …" | A tool of the catalog was removed | Call `tools/list` again |

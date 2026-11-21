@@ -40,6 +40,7 @@
 #include "pdfapptoolpanelparts.h"
 #include "pdfapptoolpanelpopup.h"
 #include "pdfapptoolparametermodel.h"
+#include "pdfapptooltab.h"
 #include "pdfapptooltoolbar.h"
 #include "pdfdocumenttoolguiregistry.h"
 
@@ -401,7 +402,31 @@ void PDFAppMergeToolGUI::initializeValues()
         model->setFollowingValue(Helper::name(PDFDocumentToolMerge::PARAMETER_INPUTS), ids.join(QLatin1Char(',')));
         model->setFollowingValue(Helper::name(PDFDocumentToolMerge::PARAMETER_PLAN), PDFAppToolMergePlan::createDefault(ids).toText(ids, true));
     }
+
+    // The plan, which the tab came with, is no work of the user (RESCUX H1: isPagesChanged)
+    m_entryPlanText = model->getValue(Helper::name(PDFDocumentToolMerge::PARAMETER_PLAN)).toString();
     readValues();
+}
+
+bool PDFAppMergeToolGUI::isPagesChanged() const
+{
+    return m_isPagesChanged;
+}
+
+void PDFAppMergeToolGUI::updatePagesChanged(const QStringList& ids, const std::vector<PDFInteger>& pageCounts)
+{
+    // RESCUX H1: a page turned, cloned, removed or moved - the plan differs from the plan of the entry and is not
+    // only all the pages of the files in their order (adding, removing or moving a file is a change of the list).
+    // Computed once per reading of the values: the loss text is read at every update of the tab (600 files).
+    const PDFAppToolParameterModel* model = getModel();
+    m_isPagesChanged = model && model->getValue(PDFAppMergeToolGUIHelper::name(PDFDocumentToolMerge::PARAMETER_PLAN)).toString() != m_entryPlanText &&
+                       m_plan != PDFAppToolMergePlan::createDefault(ids).resolved(ids, pageCounts);
+}
+
+PDFAppToolCloseQuestion PDFAppMergeToolGUI::getOwnTabCloseQuestion(bool isTabClosing) const
+{
+    const int count = m_list ? m_list->getCount() : 0;
+    return PDFAppToolTabPage::createListCloseQuestion(count, isInputListChanged(), isPagesChanged(), tr("Keep Merging"), isTabClosing);
 }
 
 QStringList PDFAppMergeToolGUI::getModelInputIds() const
@@ -475,6 +500,7 @@ void PDFAppMergeToolGUI::readValues()
     const QString text = model->getValue(Helper::name(PDFDocumentToolMerge::PARAMETER_PLAN)).toString();
     std::optional<PDFAppToolMergePlan> plan = PDFAppToolMergePlan::fromText(text, ids, counts, nullptr);
     m_plan = (plan ? *plan : PDFAppToolMergePlan::createDefault(ids)).resolved(ids, counts);
+    updatePagesChanged(ids, counts);
 
     if (m_canvas)
     {
@@ -2737,13 +2763,22 @@ void PDFAppMergeToolGUI::fillResultInput(PDFAppToolResultInput* input) const
 
 QString PDFAppMergeToolGUI::getOwnTabLossText() const
 {
-    // K16: the dot of the tab and the question at its close
+    // K16: the dot of the tab and the question at its close; owner 2026-11-20: only after the user has changed
+    // the list or the pages (the files the tab came with are no work; RESCUX H1)
     const int count = m_list ? m_list->getCount() : (getInputList() ? getInputList()->getCount() : 0);
-    if (count == 1)
+    if (count <= 0)
     {
-        return tr("The list of 1 file is lost.");
+        return QString();
     }
-    return count > 0 ? tr("The list of %Ln files is lost.", nullptr, count) : QString();
+    if (isPagesChanged())
+    {
+        return count == 1 ? tr("The list of 1 file and your changes to its pages are lost.") : tr("The list of %Ln files and your changes to its pages are lost.", nullptr, count);
+    }
+    if (!isInputListChanged())
+    {
+        return QString();
+    }
+    return count == 1 ? tr("The list of 1 file is lost.") : tr("The list of %Ln files is lost.", nullptr, count);
 }
 
 QString PDFAppMergeToolGUI::getLockedGlanceText() const

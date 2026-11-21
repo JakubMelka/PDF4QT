@@ -30,6 +30,7 @@
 #include "pdfappdocumentpanels_outline.h"
 #include "pdfappdocumentpanels_thumbnails.h"
 #include "pdfappdocumentview.h"
+#include "pdfappviewstate.h"
 #include "pdfappworkspace.h"
 #include "pdfdatabasenotifier.h"
 #include "pdfsettingdefinitions.h"
@@ -296,7 +297,7 @@ bool PDFAppDocumentSidebar::showPanel(const QString& panelId)
         }
     }
 
-    // A panel without a tab (search) leaves the tabs unchecked
+    // A panel without a tab (a registry of another use) leaves the tabs unchecked
     if (factory->hasSidebarTab() == false && m_tabGroup)
     {
         QAbstractButton* checked = m_tabGroup->checkedButton();
@@ -405,6 +406,23 @@ bool PDFAppDocumentSidebar::isTabVisible(const QString& panelId) const
     return button && !button->isHidden();
 }
 
+int PDFAppDocumentSidebar::getTabsMinimumWidth() const
+{
+    int visibleCount = 0;
+    for (const TabInfo& tab : m_tabs)
+    {
+        if (tab.button && !tab.button->isHidden())
+        {
+            ++visibleCount;
+        }
+    }
+
+    // sidebar-tabs 193:884: the paddings 12, the tabs with the gaps 2; the border 1 of
+    // the sidebar lies right of the row (the right margin of the layout)
+    const int tabsWidth = visibleCount > 0 ? visibleCount * m_tabSize + (visibleCount - 1) * TABS_GAP : 0;
+    return 2 * TABS_PADDING_SIDE + tabsWidth + 1;
+}
+
 QWidget* PDFAppDocumentSidebar::getHeaderWidget(const QString& panelId) const
 {
     auto it = m_headerWidgets.find(panelId);
@@ -433,8 +451,15 @@ void PDFAppDocumentSidebar::onTabClicked(int buttonId)
         return;
     }
 
+    // showPanel announces the panel, whose slots may delete this sidebar: the click is
+    // announced last, only by a whole sidebar
     const QString panelId = m_tabs[buttonId].panelId;
+    QPointer<PDFAppDocumentSidebar> guard(this);
     showPanel(panelId);
+    if (guard && m_currentPanelId == panelId)
+    {
+        Q_EMIT tabClicked(panelId);
+    }
 }
 
 void PDFAppDocumentSidebar::onPanelTitleChanged()
@@ -596,6 +621,18 @@ void PDFAppDocumentSidebar::updateTabs()
             tab.button->setVisible(isReady && tab.factory->isAvailable(m_document));
         }
     }
+    updateMinimumWidth();
+}
+
+void PDFAppDocumentSidebar::updateMinimumWidth()
+{
+    // The visible tabs are never cut: the sidebar grows (owner 2026-11-20); the
+    // splitter of the view keeps it at least this wide
+    const int minimumWidth = qMax(PDFAppViewState::MINIMUM_SIDEBAR_WIDTH, getTabsMinimumWidth());
+    if (minimumWidth != this->minimumWidth())
+    {
+        setMinimumWidth(minimumWidth);
+    }
 }
 
 void PDFAppDocumentSidebar::updateTabSizes()
@@ -606,6 +643,7 @@ void PDFAppDocumentSidebar::updateTabSizes()
     int tabSize = 32;
     int iconSize = 18;
     PDFAppDocumentSidebarHelper::getTabSize(value, &tabSize, &iconSize);
+    m_tabSize = tabSize;
     for (const TabInfo& tab : m_tabs)
     {
         if (tab.button)
@@ -614,6 +652,7 @@ void PDFAppDocumentSidebar::updateTabSizes()
             tab.button->setIconSize(QSize(iconSize, iconSize));
         }
     }
+    updateMinimumWidth();
 }
 
 void PDFAppDocumentSidebar::updateTabTexts()

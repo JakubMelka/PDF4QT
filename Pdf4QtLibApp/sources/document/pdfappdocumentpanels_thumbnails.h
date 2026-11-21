@@ -406,7 +406,11 @@ private:
     void updateViewSelection();
     void updatePictureSize();
     void syncToCurrentPage(bool force);
+
+    /// A page tool of the context menu: its route is shown from the event loop (openPendingTool), never from the
+    /// slot of QMenu::triggered
     void openTool(const QString& toolId);
+    void openPendingTool();
 
     QPointer<PDFAppThumbnailListView> m_view;
     QPointer<PDFAppThumbnailsModel> m_model;
@@ -418,6 +422,7 @@ private:
     QPointer<PDFAppDocumentView> m_connectedView;
     bool m_isSyncEnabled = true;
     bool m_isSyncing = false;
+    QString m_pendingToolId;    ///< The page tool of the context menu, whose route openPendingTool shows
     bool m_isSelectionChangePending = false;
     bool m_isUserSelectionPending = false;
     PDFInteger m_userSelectedPage = -1;      ///< The one page chosen by the user (-1: none, more pages, a page of the sync)

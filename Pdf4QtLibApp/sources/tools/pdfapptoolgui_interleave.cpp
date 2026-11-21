@@ -41,6 +41,7 @@
 #include "pdfapptoolpanelpopup.h"
 #include "pdfapptoolparametermodel.h"
 #include "pdfapptoolresultdialog.h"
+#include "pdfapptooltab.h"
 #include "pdfapptooltoolbar.h"
 #include "pdfdocumenttoolrunner.h"
 
@@ -1167,9 +1168,22 @@ void PDFAppInterleaveToolGUI::fillResultInput(PDFAppToolResultInput* input) cons
 
 QString PDFAppInterleaveToolGUI::getOwnTabLossText() const
 {
-    // K16: the dot of the tab and the question at its close
+    // K16: the dot of the tab and the question at its close; owner 2026-11-20: only after the user has changed
+    // the list (the files the tab came with are no work)
     const int count = m_list ? m_list->getCount() : (getInputList() ? getInputList()->getCount() : 0);
-    return count > 0 ? tr("The list of %Ln files is lost.", nullptr, count) : QString();
+    if (count <= 0 || !isInputListChanged())
+    {
+        return QString();
+    }
+
+    // RESCUX M5: the English .ts has no numerus forms, the singular is a text of its own
+    return count == 1 ? tr("The list of 1 file is lost.") : tr("The list of %Ln files is lost.", nullptr, count);
+}
+
+PDFAppToolCloseQuestion PDFAppInterleaveToolGUI::getOwnTabCloseQuestion(bool isTabClosing) const
+{
+    const int count = m_list ? m_list->getCount() : 0;
+    return PDFAppToolTabPage::createListCloseQuestion(count, isInputListChanged(), false, tr("Keep Interleaving"), isTabClosing);
 }
 
 QString PDFAppInterleaveToolGUI::getOwnTabPageText() const

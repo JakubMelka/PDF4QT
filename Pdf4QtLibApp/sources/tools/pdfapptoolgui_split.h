@@ -286,6 +286,16 @@ public:
     virtual void clickPage(int page, Qt::KeyboardModifiers modifiers) override;
     virtual bool eventFilter(QObject* watched, QEvent* event) override;
 
+    /// At selected pages with a cut set (owner 2026-11-20: the cuts live only in the tool; the rule and the number
+    /// fields are parameters, which ask nothing)
+    virtual bool hasUnsavedWork() const override;
+
+    /// "Discard the 3 cuts?" with Keep Splitting and Discard Cuts (the question of Sign by Hand 435:10500)
+    virtual PDFAppToolCloseQuestion getCloseQuestion() const override;
+
+    /// The cuts of At selected pages, which split the document (0 for another rule)
+    int getCutCount() const;
+
 protected:
     virtual void describeToolbar(PDFAppToolPanelBuilder& builder) override;
     virtual void describeLeftPanel(PDFAppToolPanelBuilder& builder) override;

@@ -29,7 +29,7 @@ The menu **Select** selects items by a rectangle drawn on the page, by a text th
 | Content stream | The order in which the text is written in the file |
 | Structure | Follows the tags of a tagged document |
 
-A new order reads the text stream again. Your skipped items, edited texts and moved items are lost, so the tool asks first. **Rebuild** does the same with the current order. Both can be undone.
+A new order reads the text stream again. Your skipped items, edited texts and moved items are lost, so the tool asks first. **Rebuild** does the same with the current order. Both can be undone. Closing the tool with changed items (skipped or read items, edited texts, a changed order) asks first, also when you close the tab or the window or open another tool.
 
 ### Tagged documents
 

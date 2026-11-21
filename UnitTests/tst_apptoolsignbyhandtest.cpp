@@ -191,6 +191,7 @@ private Q_SLOTS:
     void clearAllAsks();
     void discardQuestion();
     void discardQuestionAtEscape();
+    void discardQuestionAgainAfterKeep();
     void elementButtonsIconOnly();
     void canaryAfterStep6Runs();
     void editText();
@@ -676,6 +677,39 @@ void AppToolSignByHandTest::discardQuestionAtEscape()
     QVERIFY(second);
     second->cancel();
     QVERIFY(AppToolShellFixture::waitFor([tab]() { return !AppToolShellFixture::getShell(tab); }));
+}
+
+void AppToolSignByHandTest::discardQuestionAgainAfterKeep()
+{
+    // RESCCODE L1: Keep Drawing hides the question, which is deleted only later (WA_DeleteOnClose, deleteLater).
+    // An Esc before that asks again: a new visible question, never the answered hidden one (the tool would stay
+    // without a question to answer)
+    AppToolShellFixture fixture(QSize(1440, 960));
+    PDFDocumentToolShell* shell = H::open(fixture);
+    PDFAppToolGUISignByHand* gui = H::gui(shell);
+    QVERIFY(gui);
+    QPointer<PDFDocumentToolShell> guard(shell);
+    gui->getDrawingPart()->setDrawing(H::drawing());
+    AppToolShellFixture::settle();
+
+    shell->cancel();
+    QPointer<pdf::PDFMessageBox> first = gui->getDiscardDialog();
+    QVERIFY(first && first->isVisible());
+    first->getActionButtons()[0]->click();      // Keep Drawing, no event loop: the dialog is hidden, not deleted
+    QVERIFY(first && !first->isVisible());
+
+    shell->cancel();
+    pdf::PDFMessageBox* second = gui->getDiscardDialog();
+    QVERIFY(second);
+    QVERIFY(second->isVisible());
+    QVERIFY(second != first.data());
+    QVERIFY(guard->getCloseQuestion() == second);
+    QVERIFY(guard->getState() == PDFDocumentToolShell::State::Editing);
+
+    // Its Discard Drawing closes the tool
+    QTest::mouseClick(second->getActionButtons()[1], Qt::LeftButton);
+    AppToolShellFixture::settle();
+    QVERIFY(!guard || guard->getState() == PDFDocumentToolShell::State::Closed);
 }
 
 void AppToolSignByHandTest::elementButtonsIconOnly()

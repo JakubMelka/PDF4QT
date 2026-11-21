@@ -180,6 +180,12 @@ public:
     virtual QString getOwnTabZoomText() const override;
     virtual PDFAppToolCloseAnswer askOwnTabClose() override;
 
+    /// In the tab of a document: the arrangement differs from the pages of the document (owner 2026-11-20)
+    virtual bool hasUnsavedWork() const override;
+
+    /// "Discard the changes to the pages?" (Keep Arranging, Discard Changes)
+    virtual PDFAppToolCloseQuestion getCloseQuestion() const override;
+
     // ------------------------------------------------------------ flow
 
     virtual QVariantMap getRunParameters() const override;

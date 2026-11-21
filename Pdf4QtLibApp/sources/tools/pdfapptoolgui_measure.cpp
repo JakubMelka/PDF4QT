@@ -362,6 +362,15 @@ PDFAppToolGUIMeasure::~PDFAppToolGUIMeasure()
     {
         PDFAppToolGUIMeasureHelper::closeDialog(dialog, this);
     }
+
+    // The question about the measurements, which could not be saved, goes with the tool; the shell waiting for it
+    // (finishLeave) learns it by the end of the dialog (as the generic question of PDFDocumentToolGUI)
+    if (PDFMessageBox* question = m_incompleteQuestion.data())
+    {
+        m_incompleteQuestion = nullptr;
+        question->disconnect(this);
+        question->close();
+    }
 }
 
 void PDFAppToolGUIMeasure::registerMeasureTools()
@@ -595,6 +604,7 @@ bool PDFAppToolGUIMeasure::writeAnnotations(const std::vector<PDFMeasureItem>& i
             failed->push_back(size_t(value.toObject().value(QStringLiteral("index")).toInteger()));
         }
     }
+    m_storeFailureReason = failedItems.isEmpty() ? QString() : failedItems.first().toObject().value(QStringLiteral("reason")).toString();
     if (!changed || added == 0)
     {
         if (PDFAppToolHost* host = getHost())
@@ -632,6 +642,9 @@ bool PDFAppToolGUIMeasure::addMeasurement(PDFInteger pageIndex, PDFMeasureKind k
     measurement.kind = kind;
     measurement.points = *normalized;
     m_notice = Notice::None;
+
+    // A measurement is a use of the tool (owner 2026-11-20), also when it goes into the document at once
+    markUsed();
 
     const PDFAppToolParameterModel* model = getModel();
     const bool isAnnotationStorage = model && model->getValue(QString::fromLatin1(PDFDocumentToolMeasure::PARAMETER_STORAGE)).toString() == QLatin1String(PDFDocumentToolMeasure::STORAGE_ANNOTATIONS);
@@ -1302,6 +1315,125 @@ bool PDFAppToolGUIMeasure::isConfirmEnabled() const
     return BaseClass::isConfirmEnabled() && !m_measurements.empty() && canWriteAnnotations();
 }
 
+bool PDFAppToolGUIMeasure::hasUnsavedWork() const
+{
+    const PDFAppMeasureOverlay* overlay = m_overlay.data();
+    return !m_measurements.empty() || (overlay && overlay->isToolDragActive() && !m_isCalibrating);
+}
+
+PDFAppToolCloseQuestion PDFAppToolGUIMeasure::getCloseQuestion() const
+{
+    // No frame (owner 2026-11-20): the question of Sign by Hand 435:10500, with the choice of Redact 448:17473
+    const int count = int(m_measurements.size());
+    PDFAppToolCloseQuestion question;
+    question.keepText = tr("Keep Measuring");
+    question.discardText = count <= 1 ? tr("Discard Measurement") : tr("Discard Measurements");
+    if (count == 0)
+    {
+        // Only the points of a measurement being drawn
+        question.title = tr("Discard the measurement being drawn?");
+        question.text = tr("Closing the tool removes the points you have picked. The document stays as it was.");
+        return question;
+    }
+
+    question.title = count == 1 ? tr("Discard the temporary measurement?") : tr("Discard the %Ln temporary measurements?", nullptr, count);
+    if (canWriteAnnotations())
+    {
+        question.text = count == 1 ? tr("Closing the tool removes the measurement. Save it as an annotation to keep it in the document.")
+                                   : tr("Closing the tool removes the %Ln measurements. Save them as annotations to keep them in the document.", nullptr, count);
+        // Owner 2026-11-20: "Save and Close" (Primary, the icon of Save as Annotations); the toolbar button stays
+        // "Save as Annotations"
+        question.actionText = tr("Save and Close");
+        question.actionIconName = getConfirmIconName();
+    }
+    else
+    {
+        question.text = count == 1 ? tr("Closing the tool removes the measurement. The document stays as it was.")
+                                   : tr("Closing the tool removes the %Ln measurements. The document stays as it was.", nullptr, count);
+    }
+    return question;
+}
+
+bool PDFAppToolGUIMeasure::applyCloseQuestionAction()
+{
+    // Save and Close: as Save as Annotations, one Undo step through the shell (during a leave only when it goes on,
+    // PDFDocumentToolShell::finishLeave - the tool still edits then)
+    // Measurements, which could not be stored, stay temporary: the shell asks askIncompleteClose then (owner 2026-11-21)
+    QPointer<PDFAppToolGUIMeasure> guard(this);
+    const bool isWritten = saveAsAnnotations();
+    return guard && isWritten && m_measurements.empty();
+}
+
+QDialog* PDFAppToolGUIMeasure::askIncompleteClose()
+{
+    const int count = int(m_measurements.size());
+    if (count == 0)
+    {
+        return nullptr;
+    }
+    if (m_incompleteQuestion && m_incompleteQuestion->isVisible())
+    {
+        m_incompleteQuestion->raise();
+        return m_incompleteQuestion.data();
+    }
+
+    // No frame (owner 2026-11-21): the warning of the questions of the tool - Keep Measuring (Primary, Esc) leaves the
+    // tool open with the measurements, Discard and Close (trash) discards them and closes the tool. A missing
+    // permission (FM-2) never comes here: the question has no Save and Close then (getCloseQuestion).
+    QString text = count == 1 ? tr("Keep Measuring keeps it as a temporary measurement. Discard and Close removes it and closes the tool.")
+                              : tr("Keep Measuring keeps them as temporary measurements. Discard and Close removes them and closes the tool.");
+    if (!m_storeFailureReason.isEmpty())
+    {
+        text = tr("%1 %2").arg(m_storeFailureReason, text);
+    }
+    QWidget* parent = PDFAppToolGUIMeasureHelper::getDialogParent(this);
+    PDFMessageBox* dialog = new PDFMessageBox(PDFThemeIcons::Badge::Warning,
+                                              count == 1 ? tr("%Ln measurement could not be saved as an annotation", nullptr, count)
+                                                         : tr("%Ln measurements could not be saved as annotations", nullptr, count),
+                                              text, QDialogButtonBox::NoButton, parent);
+    dialog->setObjectName(QStringLiteral("measureIncompleteQuestion"));
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    QPushButton* keep = dialog->addActionButton(tr("Keep Measuring"), PDFMessageBox::ActionPosition::Trailing, true);
+    keep->setObjectName(QStringLiteral("measureIncompleteKeep"));
+    connect(keep, &QPushButton::clicked, dialog, &QDialog::reject);
+    QPushButton* discard = dialog->addActionButton(tr("Discard and Close"), PDFMessageBox::ActionPosition::Trailing, false);
+    discard->setObjectName(QStringLiteral("measureIncompleteDiscard"));
+    discard->setIcon(PDFThemeIcons::getIcon(QStringLiteral("trash")));
+    connect(discard, &QPushButton::clicked, this, &PDFAppToolGUIMeasure::onIncompleteDiscardClicked);
+    m_incompleteQuestion = dialog;
+    if (parent)
+    {
+        PDFAppMainWindow::prepareDialog(dialog, parent);
+    }
+    QPointer<PDFAppToolGUIMeasure> guard(this);
+    dialog->open();
+    return guard ? m_incompleteQuestion.data() : nullptr;
+}
+
+void PDFAppToolGUIMeasure::onIncompleteDiscardClicked()
+{
+    QPointer<PDFAppToolGUIMeasure> guard(this);
+    if (PDFMessageBox* dialog = m_incompleteQuestion.data())
+    {
+        m_incompleteQuestion = nullptr;
+        dialog->disconnect(this);
+        dialog->accept();
+    }
+    if (!guard)
+    {
+        return;
+    }
+
+    // The measurements, which could not be stored, go; the stored ones stay (their Undo step). The tool closes, or a
+    // leave waiting for this answer goes on (the last call: the shell, this GUI and the tab may go)
+    clearMeasurements();
+    PDFDocumentToolShell* shell = guard ? getShell() : nullptr;
+    if (shell)
+    {
+        shell->closeAfterQuestion();
+    }
+}
+
 bool PDFAppToolGUIMeasure::confirmWithoutRun()
 {
     // Save as Annotations is the action of the GUI (one commit), never a run of the tool
@@ -1562,7 +1694,7 @@ void PDFAppToolGUIMeasure::describeLeftPanel(PDFAppToolPanelBuilder& builder)
     view->setSpacing(1);
     view->setAccessibleName(tr("Measurements"));
     cardLayout->addWidget(view);
-    PDFAppParagraph* hint = PDFAppPageWidgets::createText(tr("Temporary measurements are lost when the document is closed. Save them as annotations to keep them in the document."),
+    PDFAppParagraph* hint = PDFAppPageWidgets::createText(tr("Temporary measurements are lost when the tool is closed. Save them as annotations to keep them in the document."),
                                                           PDFThemeFonts::getFont(QFont::Normal, 11), 13, PDFThemeColors::TextMuted, card);
     hint->setObjectName(QStringLiteral("measureListHint"));
     hint->setMinimumWidth(1);

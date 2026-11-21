@@ -1122,6 +1122,9 @@ void PDFAppToolGUIOutputPreview::onInkItemChanged(QStandardItem* item)
         return;
     }
 
+    // A check of the user (owner 2026-11-20, isInteractive)
+    markUsed();
+
     // K7.18: a group sets all its inks, an ink sets the state of its group (Checked, Unchecked, Mixed)
     {
         const QSignalBlocker blocker(m_inkModel.data());
@@ -1291,6 +1294,9 @@ void PDFAppToolGUIOutputPreview::onPaperColorSelected(const QColor& color)
 
 void PDFAppToolGUIOutputPreview::onWarningColorSelected(const QColor& color)
 {
+    // No parameter: an action of the user (owner 2026-11-20, isInteractive)
+    markUsed();
+
     // The color of the warnings is drawn into the picture of the mode only (no new rendering)
     m_warningColor = color;
     updateImage();

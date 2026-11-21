@@ -1909,9 +1909,19 @@ void PDFAppThumbnailsPanel::rotateContextPages(bool isRight)
 
 void PDFAppThumbnailsPanel::openTool(const QString& toolId)
 {
-    // The page tools are steps of phase 2: their routes show Page Not Found now
+    // An action of the context menu (QMenu::triggered): the navigation may ask (a tool with unsaved work waits for
+    // the answer of its question) and anything may be deleted meanwhile, also the menu, which Qt reads after the
+    // signal - the navigation is queued (CLAUDE.md, RESCCODE L12); the last request wins
+    m_pendingToolId = toolId;
+    QMetaObject::invokeMethod(this, &PDFAppThumbnailsPanel::openPendingTool, Qt::QueuedConnection);
+}
+
+void PDFAppThumbnailsPanel::openPendingTool()
+{
+    const QString toolId = m_pendingToolId;
+    m_pendingToolId.clear();
     PDFAppDocument* document = getDocument();
-    if (document && PDFDocumentToolCatalog::findTool(toolId))
+    if (!toolId.isEmpty() && document && PDFDocumentToolCatalog::findTool(toolId))
     {
         PDFAppPanelWidgets::navigate(this, PDFAppRoutes::documentTool(document->getId(), toolId));
     }

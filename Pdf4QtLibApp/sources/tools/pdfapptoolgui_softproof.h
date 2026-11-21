@@ -170,6 +170,9 @@ public:
     virtual QString getConfirmIconName() const override;
     virtual bool isConfirmEnabled() const override;
     virtual bool confirmWithoutRun() override;
+
+    /// The session is the use (owner 2026-11-20): a toggle, a profile, an intent, a color, Keep Proofing On, or 10 s
+    virtual bool isInteractive() const override { return true; }
     virtual void onParametersChanged(const QString& name) override;
     virtual void onDocumentChanged() override;
 

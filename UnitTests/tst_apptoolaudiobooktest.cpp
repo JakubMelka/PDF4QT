@@ -55,7 +55,9 @@
 
 #include <QCheckBox>
 #include <QContextMenuEvent>
+#include <QDialog>
 #include <QFile>
+#include <QLabel>
 #include <QMenu>
 #include <QPainter>
 #include <QPushButton>
@@ -331,6 +333,9 @@ private slots:
 
     // Review RSRFUI
     void escapeCancelsRectangleFirst();
+
+    // Owner 2026-11-20: leaving the tool with edited texts asks
+    void leaveAsksAboutEditedText();
 };
 
 void AppToolAudioBookTest::initTestCase()
@@ -1259,6 +1264,86 @@ void AppToolAudioBookTest::newValueAtTheAddressOfAFreedOne()
         QCOMPARE(audio->getItemModel()->getItemCount(), size_t(1));
         QCOMPARE(audio->getItemModel()->getEditor().getText(0), text);
     }
+}
+
+void AppToolAudioBookTest::leaveAsksAboutEditedText()
+{
+    // Owner 2026-11-20: an edited text lives only in the tool: Esc / Cancel asks "Discard the edited text?" (the
+    // question of Sign by Hand 435:10500), Keep Editing stays, Discard Edits closes; without an edit (none, or the
+    // original text restored) the tool closes at once
+    using H = AudioBookGuiHelper;
+    AppToolShellFixture fixture(QSize(1440, 960));
+    PDFDocumentToolShell* shellPointer = nullptr;
+    PDFAppToolGUIAudioBook* audio = H::openTool(fixture, &shellPointer);
+    QPointer<PDFDocumentToolShell> shell = shellPointer;
+    QVERIFY(audio && shell);
+    QVERIFY(!audio->hasUnsavedWork());
+
+    const qint64 first = H::findItem(audio, QStringLiteral("First paragraph"));
+    audio->selectItems({ size_t(first) });
+    audio->getTextEditor()->setPlainText(QStringLiteral("The first paragraph, read better"));
+    audio->commitEditedText();
+    AppToolShellFixture::settle();
+    QVERIFY(audio->hasUnsavedWork());
+
+    shell->cancel();
+    AppToolShellFixture::settle();
+    QPointer<QDialog> question = shell->getCloseQuestion();
+    QVERIFY(question && question->isVisible());
+    QStringList labels;
+    for (const QLabel* label : question->findChildren<QLabel*>())
+    {
+        labels << label->text();
+    }
+    // RESCUX H2: "Discard your changes to the text stream?", the changes named as by Rebuild (356:14056)
+    QVERIFY2(labels.contains(QStringLiteral("Discard your changes to the text stream?")), qPrintable(labels.join(QLatin1Char('|'))));
+    QVERIFY2(labels.contains(QStringLiteral("Closing the tool removes 1 edited text. The document stays as it was.")), qPrintable(labels.join(QLatin1Char('|'))));
+    QPushButton* keep = question->findChild<QPushButton*>(QStringLiteral("toolCloseKeep"));
+    QPushButton* discard = question->findChild<QPushButton*>(QStringLiteral("toolCloseDiscard"));
+    QVERIFY(keep && discard);
+    QCOMPARE(keep->text(), QStringLiteral("Keep Editing"));
+    QCOMPARE(discard->text(), QStringLiteral("Discard Changes"));
+    keep->click();
+    AppToolShellFixture::settle();
+    QVERIFY(shell);
+    QCOMPARE(audio->getItemModel()->getModifiedCount(), size_t(1));
+
+    // Restore gives the original text back: nothing to lose
+    audio->selectItems({ size_t(first) });
+    QTest::mouseClick(audio->getRestoreLink(), Qt::LeftButton);
+    AppToolShellFixture::settle();
+    QVERIFY(!audio->hasUnsavedWork());
+
+    // RESCUX H2: a skipped item is a change of the stream too, and so is a changed order
+    audio->selectItems({ size_t(first) });
+    audio->skipSelected();
+    AppToolShellFixture::settle();
+    QVERIFY(audio->hasUnsavedWork());
+    QCOMPARE(audio->getCloseQuestion().text, QStringLiteral("Closing the tool removes 1 skipped item. The document stays as it was."));
+    shell->getModel()->undo();
+    AppToolShellFixture::settle();
+    QVERIFY(!audio->hasUnsavedWork());
+    audio->selectItems({ size_t(first) });
+    if (first == 0)
+    {
+        audio->moveSelectionDown();
+    }
+    else
+    {
+        audio->moveSelectionUp();
+    }
+    AppToolShellFixture::settle();
+    QVERIFY(audio->hasUnsavedWork());
+    QCOMPARE(audio->getCloseQuestion().text, QStringLiteral("Closing the tool removes the changed order. The document stays as it was."));
+    shell->cancel();
+    AppToolShellFixture::settle();
+    question = shell ? shell->getCloseQuestion() : nullptr;
+    QVERIFY(question && question->isVisible());
+    discard = question->findChild<QPushButton*>(QStringLiteral("toolCloseDiscard"));
+    QVERIFY(discard);
+    discard->click();
+    AppToolShellFixture::settle();
+    QVERIFY(!shell);
 }
 
 QTEST_MAIN(AppToolAudioBookTest)

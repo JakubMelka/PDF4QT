@@ -626,9 +626,18 @@ void AppToolPagesTest::rotateClicksAndUndo()
     AppToolShellFixture::settle();
     QCOMPARE(gui->getTargetPages(), std::vector<pdf::PDFInteger>({ 3, 4, 5, 6, 9 }));
 
+    // Before a turn nothing is lost by leaving (the selection is a parameter); RESCUX L1: the question of the leave
+    // names the rotations
+    QVERIFY(!gui->hasUnsavedWork());
     gui->rotateRight();
     AppToolShellFixture::settle();
     QCOMPARE(gui->getTurns().size(), size_t(5));
+    QVERIFY(gui->hasUnsavedWork());
+    const pdf::PDFAppToolCloseQuestion question = gui->getCloseQuestion();
+    QCOMPARE(question.title, QStringLiteral("Discard the rotation of 5 pages?"));
+    QCOMPARE(question.text, QStringLiteral("Closing the tool removes the rotations you have set. The document stays as it was."));
+    QCOMPARE(question.keepText, QStringLiteral("Keep Rotating"));
+    QCOMPARE(question.discardText, QStringLiteral("Discard Rotations"));
     const int documentUndo = AppToolShellFixture::undoCount(tab->getDocument());
 
     // Undo of the tool: the turn, then the click
@@ -696,6 +705,7 @@ void AppToolPagesTest::rotateMixedAndReset()
     gui->rotateRight();
     AppToolShellFixture::settle();
     QCOMPARE(gui->getTurns().at(0), pdf::PageRotation::Rotate180);
+    QCOMPARE(gui->getCloseQuestion().title, QStringLiteral("Discard the rotation of 3 pages?"));
 
     // Reset of a page without /Rotate removes its pending turn
     gui->resetRotation();

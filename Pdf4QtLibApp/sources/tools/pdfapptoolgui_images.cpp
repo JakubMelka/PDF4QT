@@ -35,6 +35,7 @@
 #include "pdfapptoolpanelpopup.h"
 #include "pdfapptoolparametermodel.h"
 #include "pdfapptoolresultdialog.h"
+#include "pdfapptooltab.h"
 #include "pdfapptooltoolbar.h"
 #include "pdfdocumenttoolguiregistry.h"
 #include "pdfdocumenttoolrunner.h"
@@ -1188,7 +1189,35 @@ void PDFAppImagesToPdfToolGUI::initializeValues()
     {
         model->setFollowingValue(Helper::name(PDFDocumentToolImagesToPdf::PARAMETER_INPUTS), m_list->getInputIds().join(QLatin1Char(',')));
     }
+
+    // The adjustments, which the tab came with, are no work of the user (RESCUX H1: isAdjustmentChanged)
+    m_entryAdjustmentsText = model->getValue(Helper::name(PDFDocumentToolImagesToPdf::PARAMETER_ADJUSTMENTS)).toString();
     readValues();
+}
+
+bool PDFAppImagesToPdfToolGUI::isAdjustmentChanged() const
+{
+    // RESCUX H1: an image turned or cropped by the user (a copy of an image is a change of the list)
+    const PDFAppToolParameterModel* model = getModel();
+    if (!model || model->getValue(PDFAppImagesToPdfToolGUIHelper::name(PDFDocumentToolImagesToPdf::PARAMETER_ADJUSTMENTS)).toString() == m_entryAdjustmentsText)
+    {
+        return false;
+    }
+    for (const auto& [inputId, adjustment] : m_adjustments)
+    {
+        Q_UNUSED(inputId);
+        if (!adjustment.isEmpty())
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+PDFAppToolCloseQuestion PDFAppImagesToPdfToolGUI::getOwnTabCloseQuestion(bool isTabClosing) const
+{
+    const int count = m_list ? m_list->getCount() : 0;
+    return PDFAppToolTabPage::createListCloseQuestion(count, isInputListChanged(), isAdjustmentChanged(), tr("Keep Converting"), isTabClosing);
 }
 
 QStringList PDFAppImagesToPdfToolGUI::getModelInputIds() const
@@ -2938,8 +2967,22 @@ QString PDFAppImagesToPdfToolGUI::getOwnTabIconName() const
 
 QString PDFAppImagesToPdfToolGUI::getOwnTabLossText() const
 {
+    // Owner 2026-11-20: only after the user has changed the list or an image (the images the tab came with are no
+    // work; RESCUX H1); RESCUX M5: the singular is a text of its own (the English .ts has no numerus forms)
     const int count = m_list ? m_list->getCount() : (getInputList() ? getInputList()->getCount() : 0);
-    return count > 0 ? tr("The list of %Ln images is lost.", nullptr, count) : QString();
+    if (count <= 0)
+    {
+        return QString();
+    }
+    if (isAdjustmentChanged())
+    {
+        return count == 1 ? tr("The list of 1 image and your changes to it are lost.") : tr("The list of %Ln images and your changes to them are lost.", nullptr, count);
+    }
+    if (!isInputListChanged())
+    {
+        return QString();
+    }
+    return count == 1 ? tr("The list of 1 image is lost.") : tr("The list of %Ln images is lost.", nullptr, count);
 }
 
 QString PDFAppImagesToPdfToolGUI::getOwnTabPageText() const

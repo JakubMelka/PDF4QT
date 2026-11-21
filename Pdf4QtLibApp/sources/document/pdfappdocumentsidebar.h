@@ -60,6 +60,12 @@ class PDFAppHeaderText;
 /// thumbnails. A panel requested before the document is ready (?panel= of the
 /// route) is shown, when it becomes ready. Without a request the thumbnails are
 /// shown (pdf4qt-document 193:756).
+///
+/// The width (owner 2026-11-20, pdf4qt-document-search 198:4520): the tab metrics
+/// stay, the sidebar grows instead - its minimum width is the width of the visible
+/// tabs (getTabsMinimumWidth, nine tabs of the medium size = 329), at least
+/// PDFAppViewState::MINIMUM_SIDEBAR_WIDTH. The splitter of the view respects it, so
+/// a stored or default width below it is raised and no tab is cut.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentSidebar : public QWidget
 {
     Q_OBJECT
@@ -109,6 +115,10 @@ public:
     /// The tab of the panel is shown (the panel has content for the document)
     bool isTabVisible(const QString& panelId) const;
 
+    /// Width of the row of the visible tabs with its paddings and the border of the
+    /// sidebar: 12 + n × tab + (n - 1) × 2 + 12 + 1 (the tab by viewing.sidebarIconSize)
+    int getTabsMinimumWidth() const;
+
     /// Header widget created for the panel (nullptr = none / not created)
     QWidget* getHeaderWidget(const QString& panelId) const;
 
@@ -122,6 +132,11 @@ public:
 Q_SIGNALS:
     /// The shown panel has changed
     void currentPanelChanged(const QString& panelId);
+
+    /// The user has clicked the tab of the panel; it is emitted after the panel
+    /// is shown, also when it has been shown before (the Search tab without a search
+    /// moves the focus into the search field of the toolbar)
+    void tabClicked(const QString& panelId);
 
 protected:
     virtual void paintEvent(QPaintEvent* event) override;
@@ -148,6 +163,7 @@ private:
     void updateTabs();
     void updateTabSizes();
     void updateTabTexts();
+    void updateMinimumWidth();
     void updateHeader();
     void showFirstAvailablePanel();
     bool isPanelAvailable(const QString& panelId) const;
@@ -168,6 +184,7 @@ private:
     std::map<QString, QPointer<QWidget>> m_headerWidgets;
     QString m_currentPanelId;
     QString m_requestedPanelId;    ///< Panel requested, before the document was ready
+    int m_tabSize = 32;            ///< Size of a tab (viewing.sidebarIconSize)
 };
 
 }   // namespace pdf

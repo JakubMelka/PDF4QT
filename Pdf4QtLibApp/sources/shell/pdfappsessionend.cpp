@@ -25,6 +25,7 @@
 #include "pdfappdocumentdialogs.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappmainwindow.h"
+#include "pdfapppage.h"
 
 #include <QApplication>
 #include <QSessionManager>
@@ -97,6 +98,13 @@ public:
         static std::vector<DiscardedDocument> documents;
         return documents;
     }
+
+    /// The pages of the tools, whose unsaved work the user has given up at the last end of the session (decision 7)
+    static std::vector<QPointer<const PDFAppPage>>& getDiscardedToolPages()
+    {
+        static std::vector<QPointer<const PDFAppPage>> pages;
+        return pages;
+    }
 };
 
 bool PDFAppSessionEnd::isDiscarded(const PDFAppDocument* document)
@@ -109,6 +117,23 @@ bool PDFAppSessionEnd::isDiscarded(const PDFAppDocument* document)
     for (const PDFAppSessionEndHelper::DiscardedDocument& discarded : PDFAppSessionEndHelper::getDiscardedDocuments())
     {
         if (discarded.document == document && discarded.version == document->getVersion())
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool PDFAppSessionEnd::isToolWorkDiscarded(const PDFAppPage* page)
+{
+    if (!page)
+    {
+        return false;
+    }
+
+    for (const QPointer<const PDFAppPage>& discarded : PDFAppSessionEndHelper::getDiscardedToolPages())
+    {
+        if (discarded == page)
         {
             return true;
         }
@@ -160,6 +185,7 @@ PDFAppSessionEnd::Outcome PDFAppSessionEnd::commitData(PDFAppSessionManager* man
 
     // A new end of the session: an earlier decision is over
     PDFAppSessionEndHelper::getDiscardedDocuments().clear();
+    PDFAppSessionEndHelper::getDiscardedToolPages().clear();
     const std::vector<QPointer<PDFAppMainWindow>> windows = PDFAppSessionEndHelper::getMainWindows();
 
     // Open editors of form fields are changes too; a slot may delete a tab or a window
@@ -179,20 +205,32 @@ PDFAppSessionEnd::Outcome PDFAppSessionEnd::commitData(PDFAppSessionManager* man
         }
     }
 
-    // The documents with unsaved changes of all windows (the active window first)
+    // The documents with unsaved changes of all windows (the active window first). A tool with unsaved work of
+    // the user in the tab of a document lists its document too (owner 2026-11-20, decision 7: one question at the
+    // end of the session, never a nested question of the tool when the windows close afterwards)
     std::vector<const PDFAppDocument*> documents;
+    std::vector<const PDFAppDocument*> toolWorkDocuments;
     std::vector<QPointer<PDFAppDocumentTab>> tabs;
+    std::vector<QPointer<const PDFAppPage>> toolPages;
     QWidget* dialogParent = nullptr;
     for (const QPointer<PDFAppMainWindow>& window : windows)
     {
         for (PDFAppDocumentTab* tab : window ? window->getDocumentTabs() : QList<PDFAppDocumentTab*>())
         {
             const PDFAppDocument* document = tab->getDocument();
-            if (document && document->isReady() && document->isModified())
+            const PDFAppPage* page = tab->getPage();
+            const bool isModified = document && document->isReady() && document->isModified();
+            const bool hasToolWork = document && page && page->hasUnsavedWork();
+            if (isModified || hasToolWork)
             {
                 documents.push_back(document);
                 tabs.emplace_back(tab);
                 dialogParent = dialogParent ? dialogParent : window.data();
+            }
+            if (hasToolWork)
+            {
+                toolWorkDocuments.push_back(document);
+                toolPages.emplace_back(page);
             }
         }
     }
@@ -211,13 +249,13 @@ PDFAppSessionEnd::Outcome PDFAppSessionEnd::commitData(PDFAppSessionManager* man
     }
 
     // The windows may be deleted while the dialog runs (D10: Cancel then)
-    const PDFAppDocumentChoice choice = PDFAppDocumentChoiceDialog::run(new PDFAppQuitUnsavedDialog(documents, dialogParent));
+    const PDFAppDocumentChoice choice = PDFAppDocumentChoiceDialog::run(new PDFAppQuitUnsavedDialog(documents, dialogParent, toolWorkDocuments));
     switch (choice)
     {
         case PDFAppDocumentChoice::Discard:
         {
             // Qt closes the windows, when the session ends: they do not ask again
-            // about the versions, which the user has discarded now
+            // about the versions, which the user has discarded now, nor about the work of the tools
             for (const QPointer<PDFAppDocumentTab>& tab : tabs)
             {
                 if (const PDFAppDocument* document = tab ? tab->getDocument() : nullptr)
@@ -225,6 +263,7 @@ PDFAppSessionEnd::Outcome PDFAppSessionEnd::commitData(PDFAppSessionManager* man
                     PDFAppSessionEndHelper::getDiscardedDocuments().push_back({ QPointer<const PDFAppDocument>(document), document->getVersion() });
                 }
             }
+            PDFAppSessionEndHelper::getDiscardedToolPages() = toolPages;
             manager->release();
             storeSessionState();
             return Outcome::Discarded;
@@ -242,6 +281,10 @@ PDFAppSessionEnd::Outcome PDFAppSessionEnd::commitData(PDFAppSessionManager* man
                     return Outcome::Canceled;
                 }
             }
+
+            // The work of a tool is no change of its document (a save does not keep it): the list has named it,
+            // the windows closing afterwards do not ask about it again
+            PDFAppSessionEndHelper::getDiscardedToolPages() = toolPages;
             manager->release();
             storeSessionState();
             return Outcome::Saved;
@@ -284,6 +327,16 @@ bool PDFAppSessionEnd::saveAndWait(PDFAppDocumentTab* tab)
 
 void PDFAppSessionEnd::storeSessionState()
 {
+    // The pages record what they must while the windows are whole (the use of an interactive tool): the process may
+    // end without closing them
+    for (const QPointer<PDFAppMainWindow>& mainWindow : PDFAppSessionEndHelper::getMainWindows())
+    {
+        if (mainWindow)
+        {
+            mainWindow->prepareTabsClose();
+        }
+    }
+
     // The window of the quit (O29): the active main window, else the one active last
     PDFAppMainWindow* window = qobject_cast<PDFAppMainWindow*>(QApplication::activeWindow());
     if (!window || !window->isVisible())

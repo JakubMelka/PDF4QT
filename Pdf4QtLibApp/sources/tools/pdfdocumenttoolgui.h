@@ -39,11 +39,13 @@
 #include <vector>
 
 class QBoxLayout;
+class QDialog;
 class QWidget;
 
 namespace pdf
 {
 
+class PDFMessageBox;
 class PDFAppContext;
 class PDFAppDocument;
 class PDFAppToolHost;
@@ -124,6 +126,23 @@ enum class PDFAppToolCloseAnswer
     Close,      ///< The tool has asked (Don't Save) or has nothing to lose: the tab closes without another question
     Cancel,     ///< The tab stays (Cancel of the question, or the question could not be asked)
     Saving      ///< The tool saves asynchronously (Save Assembly): the tab stays now and the tool closes it, when its save has succeeded (PDFDocumentToolGUI::closeOwnTab)
+};
+
+/// The texts of the generic question before a tool in the tab of a document closes with work of the user, which
+/// leaving loses (PDFDocumentToolGUI::getCloseQuestion; owner 2026-11-20: "Discard the 4 temporary measurements?").
+/// No frame of its own: the question of Sign by Hand 435:10500 (Keep as the Primary button, Discard with the icon
+/// trash) and, with a third choice, of Redact 448:17473 (Keep leading, the choice as the Primary button, Discard).
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppToolCloseQuestion
+{
+public:
+    QString title;              ///< "Discard the 4 temporary measurements?"; empty = no question
+    QString text;               ///< What closing loses and what stays
+    QString keepText;           ///< The button, which keeps the tool open ("Keep Measuring")
+    QString discardText;        ///< The button, which closes the tool and loses the work ("Discard Measurements")
+    QString actionText;         ///< A choice, which keeps the work elsewhere and closes ("Save as Annotations"); empty = none
+    QString actionIconName;     ///< The icon of the choice
+
+    bool isValid() const { return !title.isEmpty(); }
 };
 
 /// What differs between the tools in the shell (plan of the first batch, chapter 2.1):
@@ -320,6 +339,11 @@ public:
     /// PDFAppToolInputList of package B2), nullptr = none (a tool in a document tab)
     PDFAppToolInputList* getInputList() const;
 
+    /// The user has changed the list of the inputs since the tool opened (added, removed, moved an input;
+    /// owner 2026-11-20: the inputs, which the tab came with, are no work - the loss text of K16 asks only
+    /// after a change). False without a list.
+    bool isInputListChanged() const;
+
     /// What the list of the inputs accepts (plan of step 3 of phase 2, K41): the minimum and the
     /// maximum by PDFDocumentToolCatalogEntry::getInputCountRange of the tool, when it takes more
     /// inputs (else, and without a shell, 2 to 1000 as today), PDF files and images, no slots.
@@ -368,15 +392,63 @@ public:
 
     // ------------------------------------------------------------- tool in the tab of a document
 
+    /// The user has made work in this session of the tool, which leaving the tool loses (owner 2026-11-20:
+    /// "if the user changed nothing, the tool closes without a question"): temporary measurements, a drawing,
+    /// marks added now, an edited assembly, a list of sources. Not work: the values of the parameters, a result,
+    /// which a run computes again, a run (Stop asks), a change written into the document already (its Undo step).
+    /// The shell asks askClose only while it is true - in every way of leaving the tool in the tab of a document
+    /// (Cancel, Esc, Discard result, the close of the tab or of the window, another route or tool). Default: false.
+    virtual bool hasUnsavedWork() const;
+
+    /// The texts of the generic question of askClose (PDFAppToolCloseQuestion); an invalid one = no generic
+    /// question. Read only while hasUnsavedWork. Default: none.
+    virtual PDFAppToolCloseQuestion getCloseQuestion() const;
+
+    /// The third choice of the generic question (PDFAppToolCloseQuestion::actionText, Measure "Save as
+    /// Annotations"): the GUI keeps the work elsewhere. \returns true = the work is kept, the tool closes;
+    /// false = the tool stays (a part could not be kept, the owner password is asked). It may commit to the
+    /// document (its slots run); it never deletes the shell itself. Called at the answer, or - when a leave
+    /// waits for the answer (PDFDocumentToolShell::deferCloseQuestionAction) - by PDFDocumentToolShell::
+    /// finishLeave, when the leave goes on (the tool still edits; the return value is not used then).
+    /// Default: false.
+    virtual bool applyCloseQuestionAction();
+
+    /// applyCloseQuestionAction could not keep all of the work (owner 2026-11-21: Measure - measurements, which
+    /// cannot be stored as annotations): the question about the rest, opened (new + QPointer, WA_DeleteOnClose,
+    /// open - never exec) and returned; the shell waits for it as for askClose (PDFDocumentToolShell::
+    /// askIncompleteQuestion). Its Keep rejects it (the tool stays open with the rest), its closing answer discards
+    /// the rest and calls PDFDocumentToolShell::closeAfterQuestion. It never deletes the shell. \returns nullptr =
+    /// nothing to ask (the tool stays open with the rest, it has told why). Default: nullptr.
+    virtual QDialog* askIncompleteClose();
+
     /// The question before the tool in the tab of a document closes (plan of step 6 of phase 2: Sign
     /// by Hand 435:10500 "Discard the drawing?", Redact Content 448:17473 "Keep the 12 marks in the
-    /// document?"). The shell asks it, before Cancel, Esc or Discard result of the result dialog close
-    /// the tool (PDFDocumentToolShell::cancel; never twice at once). A tool, which has something to
-    /// lose, opens its question (new + QPointer, WA_DeleteOnClose, open - never exec) and returns true:
-    /// the tool stays, the answer closes it later by PDFDocumentToolShell::closeAfterQuestion or leaves
-    /// it open. A question already open returns true too. The function never deletes the shell.
-    /// \returns true = the question is open; false = nothing to ask, the tool closes. Default: false.
-    virtual bool askClose();
+    /// document?"; owner 2026-11-20: every tool with unsaved work). The shell asks it only while
+    /// hasUnsavedWork, before Cancel, Esc, Discard result, the close of the tab or of the window, or
+    /// another route close the tool (PDFDocumentToolShell::cancel, confirmLeave; never twice at once). A
+    /// tool, which has something to lose, opens its question (new + QPointer, WA_DeleteOnClose, open -
+    /// never exec) and returns it: the tool stays, the answer closes it later by PDFDocumentToolShell::
+    /// closeAfterQuestion or leaves it open (reject). A question already open is returned too. The function
+    /// never deletes the shell. \returns the open question; nullptr = nothing to ask, the tool closes.
+    /// Default: the generic question of getCloseQuestion (Keep rejects it, Discard closes the tool, the third
+    /// choice applyCloseQuestionAction and closes the tool when it returns true).
+    virtual QDialog* askClose();
+
+    /// The generic question of askClose, which is open (nullptr = none)
+    PDFMessageBox* getGenericCloseQuestion() const { return m_closeQuestion.data(); }
+
+    // ------------------------------------------------------------- use of an interactive tool
+
+    /// The tool is used interactively, its session is its use, there is no run to record (owner 2026-11-20:
+    /// Measure, Statistics, Object Inspector, Output Preview, Soft Proofing, Manage Certificates). Leaving it
+    /// records the use (Recent tools) once per opening, when the user did something in it (markUsed, a change of
+    /// a parameter of his, an export) or it was shown for 10 s (PDFDocumentToolShell::recordInteractiveUse).
+    /// Default: false - the use is the accepted result of a run (newapp_tools.md 3).
+    virtual bool isInteractive() const;
+
+    /// The user has done something in an interactive tool, which is no change of a parameter (a measurement, a
+    /// selected object, an action of a certificate): PDFDocumentToolShell::markInteractiveUse. No signal.
+    void markUsed();
 
     /// Esc of the tool (owner 2026-11-17): the shell asks the GUI, while the tool is edited, no popup
     /// and no modal dialog is open and no widget of the tool has a drag (IPDFAppToolDragSource, those
@@ -547,8 +619,14 @@ Q_SIGNALS:
     void ownTabStateChanged();
 
 private:
+    /// The buttons of the generic question of askClose: the answer is the last call (the shell and this GUI go)
+    void onCloseQuestionDiscardClicked();
+    void onCloseQuestionActionClicked();
+
     QPointer<PDFDocumentToolShell> m_shell;
     std::map<QString, QString> m_inputErrors;
+    QPointer<PDFMessageBox> m_closeQuestion;    ///< The generic question of askClose (new, WA_DeleteOnClose; closed by the destructor)
+    QStringList m_entryInputIds;                ///< The ids of the inputs at attach (isInputListChanged)
 };
 
 /// Factory of the GUI of a tool: one class per tool, no lambdas

@@ -16,7 +16,7 @@ Measure measures distances, perimeters, areas and angles on the pages of a drawi
 4. The measurements are listed in the left panel. Click a row to show its measurement on the page, its × removes a temporary one, Clear removes all temporary ones.
 5. Export CSV saves the list. Save as Annotations adds the temporary measurements to the document as measurement annotations in one step of Undo.
 
-Esc ends the measurement you are drawing, then the drawing mode or the calibration, then the selection of a row; when none of them is active, Esc closes the tool.
+Esc ends the measurement you are drawing, then the drawing mode or the calibration, then the selection of a row; when none of them is active, Esc closes the tool. Closing the tool with **Close** or Esc with temporary measurements or a measurement being drawn asks first, also when you close the tab or the window or open another tool: **Keep Measuring**, **Save and Close** (saves them as annotations, when the document allows annotations) or **Discard Measurements**. When you close the tab or the window, the measurements are saved only when the close goes on: a Keep answer in another tool cancels it and they stay temporary; **Cancel** at the following question about unsaved changes keeps the window open, the annotations stay in the document and Undo removes them. When some measurements cannot be stored as annotations, the stored ones stay in the document and the tool stays open with the others – the tab, the window or the other page is not closed.
 
 ### Temporary measurements and annotations
 

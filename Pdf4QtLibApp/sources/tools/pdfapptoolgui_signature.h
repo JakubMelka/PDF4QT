@@ -197,6 +197,13 @@ public:
     virtual QString getEscapeModeHint() const override;
     virtual void retranslate() override;
 
+    /// Sign: the drawing of the appearance has an element (owner 2026-11-20; a typed password is no work - it
+    /// is never kept)
+    virtual bool hasUnsavedWork() const override;
+
+    /// "Discard the drawing of the appearance?" (the question of Sign by Hand 435:10500)
+    virtual PDFAppToolCloseQuestion getCloseQuestion() const override;
+
 protected:
     virtual void describeToolbar(PDFAppToolPanelBuilder& builder) override;
     virtual void describeLeftPanel(PDFAppToolPanelBuilder& builder) override;

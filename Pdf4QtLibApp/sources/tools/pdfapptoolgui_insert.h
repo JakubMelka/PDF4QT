@@ -627,6 +627,10 @@ public:
     virtual void retranslate() override;
     virtual bool isConfirmEnabled() const override;
 
+    /// A source has been added to the list of the tool (owner 2026-11-20: the list lives only in the tool; it
+    /// starts empty in the tab of the document)
+    virtual bool hasUnsavedWork() const override;
+
     // ------------------------------------------------------------ the place
 
     /// The place of the insertion: the gap of the strip (-1 for Replace)
@@ -870,6 +874,10 @@ public:
     virtual void fillResultInput(PDFAppToolResultInput* input) const override;
     virtual PDFInteger getInsertedPageCount() const override;
 
+    /// "Discard the 3 pages to insert?" with Discard Pages, "Discard the added sources?" (a source being read) with
+    /// Discard Sources (the question of Sign by Hand 435:10500)
+    virtual PDFAppToolCloseQuestion getCloseQuestion() const override;
+
     /// Blank pages (Ctrl+Shift+I): one blank page more, the source of the blank pages selected
     void addBlankPages();
 
@@ -991,6 +999,9 @@ public:
     virtual void fillResultInput(PDFAppToolResultInput* input) const override;
     virtual PDFAppToolInputRules getInputRules() const override;
     virtual PDFInteger getInsertedPageCount() const override;
+
+    /// "Discard the 2 added images?" (the question of Sign by Hand 435:10500)
+    virtual PDFAppToolCloseQuestion getCloseQuestion() const override;
 
     /// Turns the selected image (one undo step)
     void rotateLeft();

@@ -371,6 +371,14 @@ public:
     /// Esc: Select by rectangle (360:13257) ends, also during its drag (owner 2026-11-17)
     virtual bool handleEscape() override;
 
+    /// The text stream is changed: a skipped or read item, an edited text, a changed order (owner 2026-11-20,
+    /// RESCUX H2: the changes live only in the tool)
+    virtual bool hasUnsavedWork() const override;
+
+    /// "Discard your changes to the text stream?" (the question of Sign by Hand 435:10500), the changes named as by
+    /// the question of Rebuild (356:14056); Keep Editing, Discard Changes
+    virtual PDFAppToolCloseQuestion getCloseQuestion() const override;
+
     /// Parts (tests)
     PDFAppAudioBookItemModel* getItemModel() const { return m_itemModel; }
     PDFListView* getListView() const { return m_listView; }
@@ -543,6 +551,10 @@ private:
 
     /// The kinds of readSpecial of the parameters (the defaults of the items of a new stream)
     QStringList getReadSpecial() const;
+
+    /// "3 skipped items, 1 edited text and the changed order" (the changes named by the question of Rebuild
+    /// 356:14056 and of the close); empty without a change
+    QString getChangesText(const PDFAppAudioBookItemModel::Changes& changes) const;
 
     /// "Zira" of the parameter voice "Microsoft Zira" (the short name), "none" without a voice
     QString getVoiceTitle() const;

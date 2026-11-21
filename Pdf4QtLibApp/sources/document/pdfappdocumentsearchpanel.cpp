@@ -28,6 +28,7 @@
 #include "pdfappdocumentsearchcontroller.h"
 #include "pdfappdocumentsidebar.h"
 #include "pdfappdocumentview.h"
+#include "pdfapphomewidgets.h"
 #include "pdfappmarkresults.h"
 #include "pdfappworkspace.h"
 
@@ -160,6 +161,12 @@ PDFAppDocumentSearchPanel::PDFAppDocumentSearchPanel(QWidget* parent) :
     m_messageLabel->setTextFormat(Qt::PlainText);
     contentLayout->addWidget(m_messageLabel);
 
+    // No search yet (the Search tab before the first search, after Esc): the empty state
+    // of a list (PDFAppEmptyState Small, icon search as the tab) in the place of the list
+    m_emptyState = new PDFAppEmptyState(PDFAppEmptyState::Size::Small, QStringLiteral("search"), content);
+    m_emptyState->setObjectName(QStringLiteral("searchEmptyState"));
+    contentLayout->addWidget(m_emptyState);
+
     // The occurrences (Search result row 191:1073, 2 px between the rows = the spacing
     // 1 of QListView on both rows); the list has no margins of its own (PDFListView
     // keeps 6 px around the rows of a framed list)
@@ -176,6 +183,9 @@ PDFAppDocumentSearchPanel::PDFAppDocumentSearchPanel(QWidget* parent) :
     m_delegate = new PDFSearchResultDelegate(m_listView);
     m_listView->setItemDelegate(m_delegate);
     contentLayout->addWidget(m_listView, 1);
+
+    // Without the list (no search) the empty state stays at the top
+    contentLayout->addStretch(0);
 
     m_noteLabel = new PDFLabel(QString(), PDFThemeFonts::Role::CaptionRegular, PDFThemeColors::TextMuted, content);
     m_noteLabel->setObjectName(QStringLiteral("searchNote"));
@@ -329,6 +339,11 @@ PDFLabel* PDFAppDocumentSearchPanel::getNoteLabel() const
     return m_noteLabel.data();
 }
 
+PDFAppEmptyState* PDFAppDocumentSearchPanel::getEmptyState() const
+{
+    return m_emptyState.data();
+}
+
 void PDFAppDocumentSearchPanel::changeEvent(QEvent* event)
 {
     BaseClass::changeEvent(event);
@@ -345,8 +360,8 @@ void PDFAppDocumentSearchPanel::retranslate()
     m_previousButton->setAccessibleName(tr("Previous result"));
     m_nextButton->setToolTip(tr("Next result (F3)"));
     m_nextButton->setAccessibleName(tr("Next result"));
-    m_closeButton->setToolTip(tr("Close the search (Esc)"));
-    m_closeButton->setAccessibleName(tr("Close the search"));
+    m_closeButton->setToolTip(tr("Hide the results"));
+    m_closeButton->setAccessibleName(tr("Hide the search results"));
     m_matchCaseButton->setText(tr("Match case"));
     m_wholeWordsButton->setText(tr("Whole words"));
     m_regexButton->setText(tr("Regex"));
@@ -354,6 +369,7 @@ void PDFAppDocumentSearchPanel::retranslate()
     m_wildcardsButton->setText(tr("Wildcards"));
     m_wildcardsButton->setToolTip(tr("* matches any characters of a word, ? one character"));
     m_listView->setAccessibleName(tr("Search results"));
+    m_emptyState->setTexts(tr("No search yet"), tr("Press Ctrl+F, type what to find and press Enter. The results appear here."));
 }
 
 void PDFAppDocumentSearchPanel::updateOptions()
@@ -381,16 +397,17 @@ void PDFAppDocumentSearchPanel::updateState()
     m_nextButton->setEnabled(count > 0);
     m_closeButton->setEnabled(m_controller != nullptr);
 
+    // No search: the empty state instead of the list
+    const bool hasSearch = m_controller && !m_controller->getQuery().isEmpty();
+    m_emptyState->setVisible(!hasSearch);
+    m_listView->setVisible(hasSearch);
+
     QString message;
     if (m_controller && m_controller->getState() == PDFAppDocumentSearchController::State::Failed)
     {
         message = m_controller->getError();
     }
-    else if (!m_controller || m_controller->getQuery().isEmpty())
-    {
-        message = tr("Type a text into the search field above the document and press Enter.");
-    }
-    else if (m_controller->getState() == PDFAppDocumentSearchController::State::Finished && count == 0)
+    else if (hasSearch && m_controller->getState() == PDFAppDocumentSearchController::State::Finished && count == 0)
     {
         message = tr("Check the spelling, or turn off Match case and Whole words.");
     }
@@ -463,15 +480,13 @@ void PDFAppDocumentSearchPanel::onNextClicked()
 
 void PDFAppDocumentSearchPanel::onCloseClicked()
 {
-    // The handler restores the panel shown before the search (this panel may be
-    // hidden by it, it is not deleted)
+    // × only hides the results (owner 2026-11-20): the handler shows the panel shown
+    // before the search, the results, the current result and the highlights stay for
+    // the Search tab (this panel is hidden, not deleted). Esc in the search field ends
+    // the search.
     if (PDFAppDocumentSearchCommandHandler* handler = PDFAppDocumentSearchCommandHandler::findHandler(getView()))
     {
-        handler->closeSearch();
-    }
-    else if (m_controller)
-    {
-        m_controller->clear();
+        handler->hideResults();
     }
 }
 

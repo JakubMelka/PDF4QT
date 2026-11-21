@@ -71,7 +71,10 @@ public:
     bool askDiscard();
 
     /// PDFDocumentToolGUI: askDiscard
-    virtual bool askClose() override;
+    virtual QDialog* askClose() override;
+
+    /// The drawing has an element (owner 2026-11-20: an empty drawing closes without the question)
+    virtual bool hasUnsavedWork() const override;
 
     /// Esc: the active creation tool of the drawing ends (owner 2026-11-17), then the selected
     /// elements are deselected (owner 2026-11-18); the tool stays

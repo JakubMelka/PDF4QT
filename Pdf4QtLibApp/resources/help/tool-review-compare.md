@@ -16,6 +16,8 @@ Compare finds the differences between an original and a revised document: change
 4. Go through them in the list or with F6 (next) and Shift+F6 (previous).
 5. Export saves the report as a PDF with the differences marked as annotations, or the differences as XML.
 
+Closing the tool after you have chosen other documents (Choose File…, Change…) asks first, also when you close the tab or the window or open another page in the tab; the documents the tab opened with and **Swap** ask nothing.
+
 You can also start a comparison from the command line: `PDF4QT --compare original.pdf revised.pdf`.
 
 ### What you see

@@ -15,6 +15,8 @@ Images to PDF turns photos and scans into a new PDF, one page per image, each pl
 3. Choose the page: **Size** in the toolbar, then Orientation, Margins, Image and Anchor in the panel **Page layout**. The preview shows the page of the selected image exactly as it will be written.
 4. Press Create PDF. When it finishes, open the new document in this tab, or save it as a file and open it here.
 
+Closing the tool after you have changed the list of images, turned, cropped or duplicated an image asks first, also when you close the tab or the window or open another page in the tab; the images the tab opened with ask nothing.
+
 ### The page
 
 | Setting | What it does |

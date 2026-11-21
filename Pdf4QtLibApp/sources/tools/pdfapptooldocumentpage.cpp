@@ -80,9 +80,10 @@ bool PDFAppToolDocumentPage::prepareLeave(const PDFAppRoute& target)
         return true;
     }
 
-    // The tool, which is open already, stays as it is and its tab comes to the front. A tool
-    // closed already goes on (Then continue with the same tool opens it anew).
-    if (target == getRoute() && m_shell->getState() != PDFDocumentToolShell::State::Closed)
+    // The tool, which is open already, stays as it is and its tab comes to the front. A tool closed already goes
+    // on (Then continue with the same tool opens it anew). The route of a tool has no query (the route table
+    // refuses one: the navigator shows such a route elsewhere, never here).
+    if (!isLeftBy(target))
     {
         if (m_host)
         {
@@ -102,11 +103,73 @@ bool PDFAppToolDocumentPage::prepareLeave(const PDFAppRoute& target)
         return false;
     }
 
+    // The page has started the leave and nothing asks after it: it goes on - a choice of the question, which changes
+    // the document, is applied while the tool still edits (one Undo step), then the tool closes (owner 2026-11-20,
+    // decision 8). Work, which the choice could not keep, refuses the navigation (owner 2026-11-21). The slots of
+    // the commit may delete anything.
+    const bool isFinished = !m_shell || m_shell->finishLeave(true);
+    if (!guard || !isFinished)
+    {
+        return false;
+    }
+
     if (m_shell)
     {
         m_shell->close();
     }
     return guard != nullptr;
+}
+
+bool PDFAppToolDocumentPage::confirmClose()
+{
+    // Only the question of the work of a tool, which is edited: a run is asked by the tab (its operation,
+    // close-running), the result dialog is modal
+    if (!m_shell || m_shell->getState() != PDFDocumentToolShell::State::Editing)
+    {
+        return true;
+    }
+    return m_shell->confirmLeave();
+}
+
+bool PDFAppToolDocumentPage::hasUnsavedWork() const
+{
+    return m_shell && m_shell->hasUnsavedWork();
+}
+
+void PDFAppToolDocumentPage::prepareClose()
+{
+    if (m_shell)
+    {
+        m_shell->recordInteractiveUse();
+    }
+}
+
+bool PDFAppToolDocumentPage::isQuestionOpen() const
+{
+    return m_shell && m_shell->isQuestionOpen();
+}
+
+bool PDFAppToolDocumentPage::isLeftBy(const PDFAppRoute& target) const
+{
+    const bool isOpen = m_shell && m_shell->getState() != PDFDocumentToolShell::State::Closed;
+    return !isOpen || !(target == getRoute());
+}
+
+bool PDFAppToolDocumentPage::confirmDocumentLock()
+{
+    // Only a tool, which the lock ends (PDFDocumentToolShell::onLockChanged), and only while it is edited (a run
+    // and the result dialog keep the document busy)
+    const PDFDocumentToolCatalogEntry* tool = PDFDocumentToolCatalog::findTool(m_toolId);
+    if (!m_shell || !tool || tool->getLockedAccess() != PDFDocumentToolLockedAccess::Unavailable || m_shell->getState() != PDFDocumentToolShell::State::Editing)
+    {
+        return true;
+    }
+    return m_shell->confirmLeave();
+}
+
+bool PDFAppToolDocumentPage::finishLeave(bool isProceeding)
+{
+    return !m_shell || m_shell->finishLeave(isProceeding);
 }
 
 PDFAppRoute PDFAppToolDocumentPage::getCurrentRoute() const

@@ -371,6 +371,14 @@ void AppToolImagesTest::interleaveWithoutScans()
     QVERIFY(gui->getSlotRow(pdf::PDFAppInterleaveToolGUI::FrontSlot)->isVisible());
     QVERIFY(gui->getSlotEmpty(pdf::PDFAppInterleaveToolGUI::BackSlot)->isVisible());
     QVERIFY(!gui->isConfirmEnabled());
+
+    // The file chosen by the user is work (K16, owner 2026-11-20 decision 5); RESCUX M5: the singular of its own
+    QCOMPARE(tab->getLossText(), QStringLiteral("The list of 1 file is lost."));
+    const pdf::PDFAppToolCloseQuestion question = gui->getOwnTabCloseQuestion(true);
+    QCOMPARE(question.title, QStringLiteral("Discard the list of 1 file?"));
+    QCOMPARE(question.text, QStringLiteral("Closing the tab removes the files you have added and their order. The files stay as they are."));
+    QCOMPARE(question.keepText, QStringLiteral("Keep Interleaving"));
+    QCOMPARE(question.discardText, QStringLiteral("Discard List"));
 }
 
 void AppToolImagesTest::imagesFrameOfTwoImages()
@@ -1100,6 +1108,31 @@ void AppToolImagesTest::imagesCancelAfterRun()
     QPointer<pdf::PDFAppToolTab> toolTab(tab);
     pdf::PDFDocumentToolShell* shell = AppToolOwnTabFixture::getShell(tab);
     QVERIFY(shell);
+
+    // Owner 2026-11-20: only images added in the tool are work (the image the tab came with asks nothing)
+    QVERIFY(tab->getLossText().isEmpty());
+    pdf::PDFAppImagesToPdfToolGUI* images = H::gui<pdf::PDFAppImagesToPdfToolGUI>(tab);
+    QVERIFY(images);
+
+    // RESCUX H1: a turn of the image is work too (M5: the singular of its own); its undo is not
+    images->selectImage(tab->getInputList()->getInput(0)->id);
+    images->rotateRight();
+    AppToolOwnTabFixture::settle();
+    QVERIFY(images->isAdjustmentChanged());
+    QCOMPARE(tab->getLossText(), QStringLiteral("The list of 1 image and your changes to it are lost."));
+    pdf::PDFAppToolCloseQuestion question = images->getOwnTabCloseQuestion(true);
+    QCOMPARE(question.title, QStringLiteral("Discard the list of 1 file?"));
+    QCOMPARE(question.text, QStringLiteral("Closing the tab removes your changes to the pages of the files. The files stay as they are."));
+    QCOMPARE(question.keepText, QStringLiteral("Keep Converting"));
+    QCOMPARE(question.discardText, QStringLiteral("Discard List"));
+    shell->getModel()->undo();
+    AppToolOwnTabFixture::settle();
+    QVERIFY(!images->isAdjustmentChanged());
+    QVERIFY(tab->getLossText().isEmpty());
+    images->addFiles({ H::png(fixture.folder(), QStringLiteral("IMG_2044.png"), QSize(40, 30), 300) });
+    QVERIFY(AppToolOwnTabFixture::waitFor([tab]() { return tab->getInputList()->getCount() == 2 && tab->getInputList()->getLoadingCount() == 0; }));
+    QCOMPARE(tab->getLossText(), QStringLiteral("The list of 2 images is lost."));
+
     shell->confirm();
     QVERIFY(AppToolOwnTabFixture::waitFor([shell]() { return shell->getState() == pdf::PDFDocumentToolShell::State::Deciding && shell->getResultDialog(); }));
     QPointer<pdf::PDFAppToolResultDialog> dialog = shell->getResultDialog();
@@ -1135,7 +1168,7 @@ void AppToolImagesTest::imagesCancelAfterRun()
     QVERIFY(toolTab);
     QCOMPARE(AppToolOwnTabFixture::getShell(tab), shell);
     QCOMPARE(shell->getState(), pdf::PDFDocumentToolShell::State::Editing);
-    QCOMPARE(tab->getInputList()->getCount(), 1);
+    QCOMPARE(tab->getInputList()->getCount(), 2);
     QVERIFY(fixture.window->getDocumentTabs().isEmpty());
 }
 

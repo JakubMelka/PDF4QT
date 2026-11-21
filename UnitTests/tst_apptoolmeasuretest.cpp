@@ -59,14 +59,20 @@
 #include "pdfcomponentbadges.h"
 #include "pdfcomponentpainter.h"
 
+#include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDialog>
 #include <QDir>
 #include <QPainter>
 #include <QtMath>
+#include <QPointer>
 #include <QPushButton>
+#include <QTimer>
 #include <QToolButton>
 #include <QtTest>
+
+#include <functional>
 
 using pdftest::AppDocumentSamples;
 using pdftest::AppToolShellFixture;
@@ -314,6 +320,7 @@ private slots:
     void scaleRememberedForDocument();
     void scaleFromDocument();
     void escapeOrder();
+    void quitSaveAndCloseThenKeep();
     void listClickAfterSignal();
     void exportCsv();
     void framesInBothThemes();
@@ -333,6 +340,7 @@ private slots:
     void fixSnapMarks();
     void fixLabelsBeside();
     void fixPanelFields();
+    void scaleDialogFieldsNotCut();
 };
 
 void AppToolMeasureTest::registered()
@@ -1064,9 +1072,145 @@ void AppToolMeasureTest::escapeOrder()
     AppToolShellFixture::settle();
     QVERIFY(!gui->isDrawing());
 
-    // Nothing is left to end: Esc leaves the tool
+    // Nothing is left to end: Esc leaves the tool - with the temporary measurement it asks first (owner 2026-11-20):
+    // Keep Measuring, Save and Close (decision 2: Primary, the icon of Save as Annotations), Discard Measurement
+    // (RESCUX L2: one measurement) closes it
+    QCOMPARE(gui->getMeasurements().size(), size_t(1));
     QTest::keyClick(canvas, Qt::Key_Escape);
+    AppToolShellFixture::settle();
+    QVERIFY(shell && shell->getState() == PDFDocumentToolShell::State::Editing);
+    QPointer<QDialog> question = shell->getCloseQuestion();
+    QVERIFY(question && question->isVisible());
+    QPushButton* action = question->findChild<QPushButton*>(QStringLiteral("toolCloseAction"));
+    QVERIFY(action);
+    QCOMPARE(action->text(), QStringLiteral("Save and Close"));
+    QVERIFY(action->isDefault());
+    QVERIFY(!action->icon().isNull());
+    QCOMPARE(shell->getToolbar()->getConfirmText(), QStringLiteral("Save as Annotations"));
+    QPushButton* discard = question->findChild<QPushButton*>(QStringLiteral("toolCloseDiscard"));
+    QVERIFY(discard);
+    QCOMPARE(discard->text(), QStringLiteral("Discard Measurement"));
+    discard->click();
     QVERIFY(AppToolShellFixture::waitFor([&shell]() { return !shell || shell->getState() != PDFDocumentToolShell::State::Editing; }));
+    fixture.closeMessageBoxes();
+}
+
+void AppToolMeasureTest::quitSaveAndCloseThenKeep()
+{
+    // Owner 2026-11-20, decision 8: Save and Close of the first tab and Keep Measuring of the second cancel the quit -
+    // nothing is saved, the first tool keeps its temporary measurement; when the quit goes on, the measurement becomes
+    // an annotation before the question of the unsaved documents
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* firstTab = nullptr;
+    pdf::PDFAppDocumentTab* secondTab = nullptr;
+    QPointer<PDFDocumentToolShell> firstShell = H::openSimple(fixture, &firstTab);
+    QPointer<PDFDocumentToolShell> secondShell = H::open(fixture, AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Second_Plan.pdf"), 2), &secondTab);
+    PDFAppToolGUIMeasure* first = H::gui(firstShell);
+    PDFAppToolGUIMeasure* second = H::gui(secondShell);
+    QVERIFY(first && second);
+    QVERIFY(first->addMeasurement(0, PDFMeasureKind::Distance, { QPointF(100, 100), QPointF(172, 100) }, PDFAppMeasureDrawKind::Linear));
+    QVERIFY(second->addMeasurement(0, PDFMeasureKind::Distance, { QPointF(100, 100), QPointF(172, 100) }, PDFAppMeasureDrawKind::Linear));
+    AppToolShellFixture::settle();
+
+    // Clicks the button of the question of the tool, as soon as it is shown (the quit waits in its own loop); onShown
+    // runs first (the state of the wait)
+    const auto answerWhenShown = [](QPointer<PDFDocumentToolShell> shell, const QString& buttonName, bool* isAsked, std::function<void()> onShown = std::function<void()>())
+    {
+        QTimer* timer = new QTimer(qApp);
+        timer->setInterval(10);
+        QObject::connect(timer, &QTimer::timeout, timer, [timer, shell, buttonName, isAsked, onShown]()
+        {
+            QDialog* question = shell ? shell->getCloseQuestion() : nullptr;
+            QPushButton* button = question && question->isVisible() ? question->findChild<QPushButton*>(buttonName) : nullptr;
+            if (!shell || button)
+            {
+                timer->stop();
+                timer->deleteLater();
+                if (button)
+                {
+                    *isAsked = true;
+                    if (onShown)
+                    {
+                        onShown();
+                    }
+                    button->click();
+                }
+            }
+        });
+        timer->start();
+        QTimer::singleShot(30000, timer, &QTimer::deleteLater);
+    };
+
+    // While the quit asks the second tool, Save and Close of the first one is only remembered by its shell (decision
+    // 8): no annotation yet, the measurement is still temporary, no pending edit of the document stands for it
+    bool isFirstAsked = false;
+    bool isSecondAsked = false;
+    size_t annotationsDuringWait = 1;
+    size_t measurementsDuringWait = 0;
+    bool isPendingEditDuringWait = true;
+    bool isDeferredDuringWait = false;
+    const auto recordWait = [&]()
+    {
+        annotationsDuringWait = H::annotations(firstTab->getDocument()).size();
+        measurementsDuringWait = first->getMeasurements().size();
+        isPendingEditDuringWait = firstTab->getDocument()->hasPendingEdits();
+        isDeferredDuringWait = firstShell && firstShell->hasDeferredCloseQuestionAction();
+    };
+    answerWhenShown(firstShell, QStringLiteral("toolCloseAction"), &isFirstAsked);                 // Save and Close
+    answerWhenShown(secondShell, QStringLiteral("toolCloseKeep"), &isSecondAsked, recordWait);     // Keep Measuring
+    QVERIFY(!fixture.window->close());
+    AppToolShellFixture::settle();
+    QVERIFY(isFirstAsked);
+    QVERIFY(isSecondAsked);
+    QCOMPARE(annotationsDuringWait, size_t(0));
+    QCOMPARE(measurementsDuringWait, size_t(1));
+    QVERIFY(!isPendingEditDuringWait);
+    QVERIFY(isDeferredDuringWait);
+    QVERIFY(firstShell && secondShell);
+    QCOMPARE(firstShell->getState(), PDFDocumentToolShell::State::Editing);
+    QCOMPARE(first->getMeasurements().size(), size_t(1));
+    QVERIFY(H::annotations(firstTab->getDocument()).empty());
+
+    // The canceled answer is forgotten by the end of the leave (finishLeave(false)): a later commit of the pending
+    // edits (an undo, a save) writes nothing
+    QVERIFY(!firstShell->hasDeferredCloseQuestionAction());
+    QVERIFY(!firstTab->getDocument()->hasPendingEdits());
+    firstTab->getDocument()->commitPendingEdits();
+    AppToolShellFixture::settle();
+    QVERIFY(H::annotations(firstTab->getDocument()).empty());
+
+    // The quit goes on: the measurement is an annotation, when the unsaved documents are asked (Cancel keeps all)
+    isFirstAsked = false;
+    isSecondAsked = false;
+    answerWhenShown(firstShell, QStringLiteral("toolCloseAction"), &isFirstAsked);
+    answerWhenShown(secondShell, QStringLiteral("toolCloseDiscard"), &isSecondAsked);
+    size_t annotationsAtQuestion = 0;
+    bool isUnsavedAsked = false;
+    QTimer* unsaved = new QTimer(qApp);
+    unsaved->setInterval(10);
+    QObject::connect(unsaved, &QTimer::timeout, unsaved, [&]()
+    {
+        for (QWidget* widget : QApplication::topLevelWidgets())
+        {
+            QPushButton* cancel = widget->objectName() == QStringLiteral("quitUnsavedDialog") && widget->isVisible() ? widget->findChild<QPushButton*>(QStringLiteral("cancelButton")) : nullptr;
+            if (cancel)
+            {
+                isUnsavedAsked = true;
+                annotationsAtQuestion = H::annotations(firstTab->getDocument()).size();
+                unsaved->stop();
+                unsaved->deleteLater();
+                cancel->click();
+                return;
+            }
+        }
+    });
+    unsaved->start();
+    QVERIFY(!fixture.window->close());
+    AppToolShellFixture::settle();
+    QVERIFY(isFirstAsked);
+    QVERIFY(isSecondAsked);
+    QVERIFY(isUnsavedAsked);
+    QCOMPARE(annotationsAtQuestion, size_t(1));
     fixture.closeMessageBoxes();
 }
 
@@ -1681,6 +1825,46 @@ void AppToolMeasureTest::fixLabelsBeside()
     QVERIFY(qAbs(shapeLabel.center().x() - 136.0) < 0.01);
 }
 
+void AppToolMeasureTest::scaleDialogFieldsNotCut()
+{
+    // Owner 2026-11-20 (screenshot of Default Scale): the unit combos of "Distance on the paper" and "Real
+    // distance" were cut at the trailing edge - the shared field row fixed the value with its unit to one field
+    // width (140). 473:6438: the value 130 and the unit 90 side by side, both whole inside of the card
+    AppToolShellFixture fixture;
+    PDFDocumentToolShell* shell = H::openSimple(fixture);
+    PDFAppToolGUIMeasure* gui = H::gui(shell);
+    QVERIFY(gui);
+
+    QPointer<pdf::PDFAppMeasureScaleDialog> dialog = gui->openDefaultScaleDialog();
+    QVERIFY(dialog);
+    QTRY_VERIFY(dialog->isVisible());
+    AppToolShellFixture::settle();
+
+    for (QWidget* field : std::initializer_list<QWidget*>{ dialog->getPaperValueBox(), dialog->getPaperUnitBox(),
+                                                          dialog->getRealValueBox(), dialog->getRealUnitBox() })
+    {
+        QVERIFY(field);
+        QWidget* controls = field->parentWidget();
+        QVERIFY(controls);
+        const QRect inControls = QRect(field->mapTo(controls, QPoint(0, 0)), field->size());
+        QVERIFY2(controls->rect().contains(inControls), qPrintable(field->objectName()));
+
+        // The whole field is visible in the dialog: none of its parents cuts it
+        const QRect inDialog = QRect(field->mapTo(dialog, QPoint(0, 0)), field->size());
+        QVERIFY2(dialog->rect().contains(inDialog), qPrintable(field->objectName()));
+        for (QWidget* parent = controls; parent && parent != dialog; parent = parent->parentWidget())
+        {
+            const QRect inParent = QRect(field->mapTo(parent, QPoint(0, 0)), field->size());
+            QVERIFY2(parent->rect().contains(inParent), qPrintable(field->objectName() + QStringLiteral(" in ") + parent->objectName()));
+        }
+    }
+    QCOMPARE(dialog->getPaperValueBox()->width(), 130);
+    QCOMPARE(dialog->getPaperUnitBox()->width(), 90);
+
+    dialog->reject();
+    AppToolShellFixture::settle();
+}
+
 void AppToolMeasureTest::fixPanelFields()
 {
     // Review RS7CFIGMA L5, 471:5490: Font "Inter" (the font of the theme is the default), the combos of Units 150, Font
@@ -1727,8 +1911,11 @@ void AppToolMeasureTest::fixPanelFields()
     AppToolShellFixture::settle();
     QWidget* window = fixture.window;
     pdf::PDFListView* view = gui->getListView();
-    QWidget* hint = gui->getListHint();
+    pdf::PDFAppParagraph* hint = gui->getListHint();
     QVERIFY(hint->isVisible());
+
+    // Owner 2026-11-20 (decision 3, Figma 473:6603 changed to it): the measurements live while the tool is open
+    QCOMPARE(hint->text(), QStringLiteral("Temporary measurements are lost when the tool is closed. Save them as annotations to keep them in the document."));
     QCOMPARE(view->height(), view->sizeHint().height());
     const int rowsHeight = 2 * (view->sizeHintForRow(0) + 2 * view->spacing());
     QVERIFY2(view->height() >= rowsHeight && view->height() <= rowsHeight + 24, qPrintable(QString::number(view->height())));

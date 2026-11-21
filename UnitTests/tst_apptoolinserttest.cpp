@@ -60,7 +60,10 @@
 #include "pdfwidgetstyle.h"
 
 #include <QClipboard>
+#include <QDialog>
 #include <QMimeData>
+#include <QPointer>
+#include <QPushButton>
 #include <QPainter>
 #include <QRadioButton>
 #include <QStandardItemModel>
@@ -159,6 +162,23 @@ public:
     static GUI* gui(PDFDocumentToolShell* shell)
     {
         return shell ? qobject_cast<GUI*>(shell->getGUI()) : nullptr;
+    }
+
+    /// Cancel of the tool; the question of the sources added in the tool (owner 2026-11-20) is answered by Discard
+    static void cancelDiscarding(PDFDocumentToolShell* shell)
+    {
+        QPointer<PDFDocumentToolShell> guard(shell);
+        shell->cancel();
+        AppToolShellFixture::settle();
+        QDialog* question = guard ? guard->getCloseQuestion() : nullptr;
+        if (question && question->isVisible())
+        {
+            if (QPushButton* discard = question->findChild<QPushButton*>(QStringLiteral("toolCloseDiscard")))
+            {
+                discard->click();
+                AppToolShellFixture::settle();
+            }
+        }
     }
 
     static bool waitLoaded(const pdf::PDFAppToolInputList* list)
@@ -275,6 +295,7 @@ private Q_SLOTS:
     void stripClicksKeysAndDrop();
     void positionMenuAndReplace();
     void blankPages();
+    void closeQuestionNamesWhatIsLost();
     void rangeFieldErrorsAndClicks();
     void sourcePassword();
     void emptyStateAndOpenDocuments();
@@ -606,6 +627,43 @@ void AppToolInsertTest::positionMenuAndReplace()
     H::click(strip->viewport(), H::tilePoint(strip, 9, false));
     QCOMPARE(gui->getPositionValueText(), QStringLiteral("After page 10"));
     QVERIFY(gui->getStrip()->getReplacedPages().empty());
+}
+
+void AppToolInsertTest::closeQuestionNamesWhatIsLost()
+{
+    // RESCUX M7: the Discard button of the leave question names what its title names - the pages to insert, or the
+    // sources while a source is being read and has no pages yet
+    AppToolShellFixture fixture(QSize(1440, 960));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writeA4(fixture.path(QStringLiteral("Handbook.pdf")), 4), 1);
+    QVERIFY(tab);
+    PDFDocumentToolShell* shell = fixture.openTool(tab, H::INSERT_ID);
+    PDFAppInsertToolGUI* gui = H::gui<PDFAppInsertToolGUI>(shell);
+    QVERIFY(gui);
+    QVERIFY(!gui->hasUnsavedWork());
+
+    gui->addFiles({ H::png(fixture.folder(), QStringLiteral("photo.png"), QSize(100, 80)) });
+    QCOMPARE(gui->getInsertedPageCount(), pdf::PDFInteger(0));     // being read
+    QVERIFY(gui->hasUnsavedWork());
+    pdf::PDFAppToolCloseQuestion question = gui->getCloseQuestion();
+    QCOMPARE(question.title, QStringLiteral("Discard the added sources?"));
+    QCOMPARE(question.discardText, QStringLiteral("Discard Sources"));
+    QVERIFY(H::waitLoaded(gui->getSourceList()));
+    AppToolShellFixture::settle();
+
+    QCOMPARE(gui->getInsertedPageCount(), pdf::PDFInteger(1));
+    question = gui->getCloseQuestion();
+    QCOMPARE(question.title, QStringLiteral("Discard the page to insert?"));
+    QCOMPARE(question.discardText, QStringLiteral("Discard Page"));
+
+    gui->addBlankPages();
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getInsertedPageCount(), pdf::PDFInteger(2));
+    question = gui->getCloseQuestion();
+    QCOMPARE(question.title, QStringLiteral("Discard the 2 pages to insert?"));
+    QCOMPARE(question.discardText, QStringLiteral("Discard Pages"));
+    QCOMPARE(question.keepText, QStringLiteral("Keep Inserting"));
+    H::cancelDiscarding(shell);
+    QVERIFY(!AppToolShellFixture::getShell(tab));
 }
 
 void AppToolInsertTest::blankPages()
@@ -1370,8 +1428,7 @@ void AppToolInsertTest::themesDirectionAndScale()
             {
                 QCOMPARE(strip->getTileRect(9).left(), 0);
             }
-            shell->cancel();
-            AppToolShellFixture::settle();
+            H::cancelDiscarding(shell);
 
             // Add Image: the anchor Top left keeps the image at the left edge of the page
             shell = fixture.openTool(tab, H::ADD_IMAGE_ID);
@@ -1391,8 +1448,7 @@ void AppToolInsertTest::themesDirectionAndScale()
             {
                 QCOMPARE(AppToolShellFixture::countLeakPixels(AppToolShellFixture::render(fixture.window, ratio)), 0);
             }
-            shell->cancel();
-            AppToolShellFixture::settle();
+            H::cancelDiscarding(shell);
         }
     }
 }
@@ -1489,8 +1545,7 @@ void AppToolInsertTest::screenshots()
     fixture.screenshot(QStringLiteral("388-18134-pages-insert-done"));
     shell->getResultDialog()->reject();
     AppToolShellFixture::settle();
-    shell->cancel();
-    AppToolShellFixture::settle();
+    H::cancelDiscarding(shell);
 
     shell = fixture.openTool(tab, H::INSERT_ID);
     gui = H::gui<PDFAppInsertToolGUI>(shell);
@@ -1504,8 +1559,7 @@ void AppToolInsertTest::screenshots()
     gui->setCurrentSource(gui->getSourceList()->getInput(0)->id);
     AppToolShellFixture::settle();
     fixture.screenshot(QStringLiteral("388-17789-pages-insert-problem"));
-    shell->cancel();
-    AppToolShellFixture::settle();
+    H::cancelDiscarding(shell);
 
     // Add Image: an A4 document (388:18837 "Same as page 12" is A4)
     pdf::PDFAppDocumentTab* a4Tab = H::openReady(fixture, H::writeA4(fixture.path(QStringLiteral("Handbook_A4.pdf")), 48), 12);

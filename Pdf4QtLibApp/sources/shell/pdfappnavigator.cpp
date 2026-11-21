@@ -172,7 +172,7 @@ PDFAppRouteMatch PDFAppNavigator::resolve(PDFAppRoute* route) const
     return match;
 }
 
-PDFAppTab* PDFAppNavigator::chooseTab(const PDFAppRouteMatch& match, PDFAppNavigationMode mode, PDFAppTab* sourceTab)
+PDFAppTab* PDFAppNavigator::chooseTab(const PDFAppRouteMatch& match, PDFAppNavigationMode mode, PDFAppTab* sourceTab, bool isCreating)
 {
     if (!m_window)
     {
@@ -210,6 +210,10 @@ PDFAppTab* PDFAppNavigator::chooseTab(const PDFAppRouteMatch& match, PDFAppNavig
         {
             return tab;
         }
+        if (!isCreating)
+        {
+            return nullptr;
+        }
         if (PDFAppTab* tab = m_window->addToolTab(toolId, instanceId, nullptr))
         {
             return tab;
@@ -224,6 +228,11 @@ PDFAppTab* PDFAppNavigator::chooseTab(const PDFAppRouteMatch& match, PDFAppNavig
         {
             return tab;
         }
+        if (!isCreating)
+        {
+            // A new Help tab, or the Home tab, when the window has no place for it (no page with work)
+            return nullptr;
+        }
         if (PDFAppTab* tab = m_window->createHelpTab())
         {
             return tab;
@@ -233,7 +242,7 @@ PDFAppTab* PDFAppNavigator::chooseTab(const PDFAppRouteMatch& match, PDFAppNavig
 
     if (mode == PDFAppNavigationMode::NewTab && isNewTabRoute)
     {
-        return m_window->createNewTab();
+        return isCreating ? m_window->createNewTab() : nullptr;
     }
 
     // A tab New tab keeps only /open, every other link goes to the Home tab
@@ -243,6 +252,67 @@ PDFAppTab* PDFAppNavigator::chooseTab(const PDFAppRouteMatch& match, PDFAppNavig
     }
 
     return m_window->getHomeTab();
+}
+
+PDFAppDocumentTab* PDFAppNavigator::findOwnTabToolDocument(const PDFAppRouteMatch& match) const
+{
+    // A tool with a document host (Manage Pages, plan of step 3b, QB1 B) stays in the tab of the document:
+    // started over a document, it changes that document
+    if (!m_window || !match.isFound() || !match.entry || match.entry->tabKind != PDFAppTabKind::Document || match.entry->subject != PDFAppRouteSubject::Tool)
+    {
+        return nullptr;
+    }
+
+    const QString toolId = match.getParameter(QStringLiteral("toolId"));
+    const PDFDocumentToolCatalogEntry* toolEntry = PDFDocumentToolCatalog::findTool(toolId);
+    const bool hasDocumentHost = toolEntry && toolEntry->hasDocumentHost();
+    PDFAppDocumentTab* documentTab = qobject_cast<PDFAppDocumentTab*>(m_window->findDocumentTab(match.getParameter(QStringLiteral("documentId"))));
+    return documentTab && !hasDocumentHost && PDFAppToolTabPageFactory::hasOwnTabPage(toolId) ? documentTab : nullptr;
+}
+
+PDFAppPage* PDFAppNavigator::findLeftPage(const PDFAppRoute& route, PDFAppNavigationMode mode, PDFAppTab* sourceTab, PDFAppTab** targetTab)
+{
+    if (targetTab)
+    {
+        *targetTab = nullptr;
+    }
+    if (!m_window)
+    {
+        return nullptr;
+    }
+
+    // The same decisions as navigateImpl, without creating anything
+    if (!sourceTab)
+    {
+        sourceTab = m_window->getCurrentTab();
+    }
+    PDFAppRoute target = route;
+    const PDFAppRouteMatch match = resolve(&target);
+    if (findOwnTabToolDocument(match))
+    {
+        return nullptr;
+    }
+
+    PDFAppTab* tab = chooseTab(match, mode, sourceTab, false);
+    if (!tab)
+    {
+        return nullptr;
+    }
+    if (targetTab)
+    {
+        *targetTab = tab;
+    }
+    if (match.isFound() && match.entry && match.entry->tabKind == PDFAppTabKind::Tool)
+    {
+        const PDFAppToolTab* toolTab = qobject_cast<const PDFAppToolTab*>(tab);
+        if (toolTab && toolTab->getInstanceId() != match.getParameter(QStringLiteral("instanceId")))
+        {
+            target = toolTab->getRoute();
+        }
+    }
+
+    PDFAppPage* page = tab->getPage();
+    return page && page->isLeftBy(target) ? page : nullptr;
 }
 
 void PDFAppNavigator::saveViewState(PDFAppTab* tab)
@@ -275,20 +345,11 @@ void PDFAppNavigator::navigateImpl(const PDFAppRoute& route, PDFAppNavigationMod
 
     // A tool with its own tab asked for over a document (the panel Tools, Then continue with,
     // a link): a new tab of the tool with the document as its first input; the route leaves
-    // no entry in the history of the document tab (plan of step 2 of phase 2, 4.1). A tool with
-    // a document host (Manage Pages, plan of step 3b, QB1 B) stays in the tab of the document:
-    // started over a document, it changes that document.
-    if (match.isFound() && match.entry && match.entry->tabKind == PDFAppTabKind::Document && match.entry->subject == PDFAppRouteSubject::Tool)
+    // no entry in the history of the document tab (plan of step 2 of phase 2, 4.1)
+    if (PDFAppDocumentTab* documentTab = findOwnTabToolDocument(match))
     {
-        const QString toolId = match.getParameter(QStringLiteral("toolId"));
-        const PDFDocumentToolCatalogEntry* toolEntry = PDFDocumentToolCatalog::findTool(toolId);
-        const bool hasDocumentHost = toolEntry && toolEntry->hasDocumentHost();
-        PDFAppDocumentTab* documentTab = qobject_cast<PDFAppDocumentTab*>(m_window->findDocumentTab(match.getParameter(QStringLiteral("documentId"))));
-        if (documentTab && !hasDocumentHost && PDFAppToolTabPageFactory::hasOwnTabPage(toolId))
-        {
-            m_window->createToolTabForDocument(toolId, documentTab);
-            return;
-        }
+        m_window->createToolTabForDocument(match.getParameter(QStringLiteral("toolId")), documentTab);
+        return;
     }
 
     QPointer<PDFAppTab> tab = chooseTab(match, mode, sourceTab);

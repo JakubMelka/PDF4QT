@@ -41,6 +41,7 @@
 #include "pdfdocumenttoolshell.h"
 #include "pdfdocumentwriter.h"
 #include "pdfsecurityhandler.h"
+#include "pdftoolrepository.h"
 
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
@@ -83,6 +84,19 @@ public:
             *tab = documentTab;
         }
         return fixture.openTool(documentTab, id);
+    }
+
+    /// The uses of the tool in Recent tools (the database of the context)
+    static qint64 usageCount(const AppToolShellFixture& fixture, const QString& toolId)
+    {
+        for (const pdf::PDFToolUsage& usage : pdf::PDFToolRepository(fixture.context->getDatabase()).getUsage())
+        {
+            if (usage.toolId == toolId)
+            {
+                return usage.count;
+            }
+        }
+        return 0;
     }
 
     static GUI* gui(pdf::PDFDocumentToolShell* shell)
@@ -142,6 +156,13 @@ public:
     }
 };
 
+/// The clock of the visible time of the tool (no test waits for 10 real seconds; the time stands still)
+class AppToolObjectInspectorTestClock : public pdf::IPDFAppToolUseClock
+{
+public:
+    virtual qint64 getMilliseconds() const override { return 1000; }
+};
+
 class AppToolObjectInspectorTest : public QObject
 {
     Q_OBJECT
@@ -160,6 +181,7 @@ private slots:
     void pinAndUnpin();
     void selectionRestoredAfterChange();
     void pinnedTabKeepsItsVersion();
+    void firstSelectionIsUse();
     void screenshots();
 
 private:
@@ -710,6 +732,65 @@ void AppToolObjectInspectorTest::screenshots()
         fixture.closeMessageBoxes();
         QVERIFY2(leaks.isEmpty(), qPrintable(leaks.join(QStringLiteral(", "))));
     }
+}
+
+void AppToolObjectInspectorTest::firstSelectionIsUse()
+{
+    // RESCCODE L9 (owner 2026-11-20, Recent tools): the first object the user selects is a use of the interactive
+    // tool, also when the tool is closed at once; the current index, which the tree sets on its focus without a
+    // selection (QAbstractItemView::focusInEvent, NoUpdate), is not
+    using H = AppToolObjectInspectorTestHelper;
+    AppToolObjectInspectorTestClock clock;
+    pdf::PDFDocumentToolShell::setUseClock(&clock);
+    const auto resetClock = qScopeGuard([]() { pdf::PDFDocumentToolShell::setUseClock(nullptr); });
+    const QString toolId = QString::fromLatin1(pdf::PDFDocumentToolObjectInspector::TOOL_ID);
+    AppToolShellFixture fixture;
+    pdf::PDFAppDocumentTab* tab = nullptr;
+    QPointer<pdf::PDFDocumentToolShell> shell = H::openTool(fixture, &tab);
+    QVERIFY(shell);
+    H::GUI* gui = H::gui(shell);
+    QVERIFY(H::waitReady(gui));
+    AppToolShellFixture::settle();
+    QVERIFY(gui->getTreeModel()->rowCount(QModelIndex()) >= 1);
+
+    // Opened and closed at once: whatever the tree selected by itself at the entry is no use
+    shell->cancel();
+    AppToolShellFixture::settle();
+    QVERIFY(!shell);
+    QCOMPARE(AppToolObjectInspectorTestHelper::usageCount(fixture, toolId), qint64(0));
+
+    shell = fixture.openTool(tab, toolId);
+    QVERIFY(shell);
+    gui = H::gui(shell);
+    QVERIFY(H::waitReady(gui));
+    AppToolShellFixture::settle();
+    QItemSelectionModel* selectionModel = gui->getTreeView()->selectionModel();
+    selectionModel->clear();
+    QSignalSpy currentSpy(selectionModel, &QItemSelectionModel::currentChanged);
+    selectionModel->setCurrentIndex(gui->getTreeModel()->index(0, 0, QModelIndex()), QItemSelectionModel::NoUpdate);
+    QCOMPARE(currentSpy.count(), 1);
+    QVERIFY(!selectionModel->isSelected(gui->getTreeModel()->index(0, 0, QModelIndex())));
+    AppToolShellFixture::settle();
+    shell->cancel();
+    AppToolShellFixture::settle();
+    QVERIFY(!shell);
+    QCOMPARE(AppToolObjectInspectorTestHelper::usageCount(fixture, toolId), qint64(0));
+
+    shell = fixture.openTool(tab, toolId);
+    QVERIFY(shell);
+    gui = H::gui(shell);
+    QVERIFY(H::waitReady(gui));
+    AppToolShellFixture::settle();
+    // No current index (the focus of the tree may have set one): the selection of the user is the first one
+    gui->getTreeView()->selectionModel()->clear();
+    AppToolShellFixture::settle();
+    QVERIFY(!gui->getTreeView()->currentIndex().isValid());
+    gui->selectIndex(gui->getTreeModel()->index(0, 0, QModelIndex()));
+    AppToolShellFixture::settle();
+    shell->cancel();
+    AppToolShellFixture::settle();
+    QVERIFY(!shell);
+    QCOMPARE(AppToolObjectInspectorTestHelper::usageCount(fixture, toolId), qint64(1));
 }
 
 QTEST_MAIN(AppToolObjectInspectorTest)

@@ -2829,11 +2829,16 @@ void PDFAppManageToolGUI::updateDocumentMapping()
         m_documentVersion = version;
         if (getPageLimitText().isEmpty())
         {
-            model->setFollowingValue(PDFAppManageToolGUIHelper::name(PDFDocumentToolManage::PARAMETER_ASSEMBLY),
-                                     QVariant::fromValue(PDFDocumentAssembly::createForDocument(pdfDocument.data(), version, document->getTitle())));
+            // The pages of the document are no change of the user (hasUnsavedWork)
+            m_savedAssembly = PDFDocumentAssembly::createForDocument(pdfDocument.data(), version, document->getTitle());
+            model->setFollowingValue(PDFAppManageToolGUIHelper::name(PDFDocumentToolManage::PARAMETER_ASSEMBLY), QVariant::fromValue(m_savedAssembly));
         }
         return;
     }
+
+    // The pages of the document at the entry follow the new version the same way as the edited ones, so an
+    // assembly without a change of the user stays equal to them (hasUnsavedWork)
+    m_savedAssembly = PDFDocumentAssembly::mapToDocument(m_savedAssembly, pdfDocument.data(), version, nullptr);
     std::set<PDFObjectReference> oldPages;
     for (const PDFDocumentAssembly::Item& item : m_assembly.getItems())
     {
@@ -4170,6 +4175,24 @@ QString PDFAppManageToolGUI::getOwnTabZoomText() const
 {
     // K12 of Merge: the tiles have no zoom of a document
     return QString();
+}
+
+bool PDFAppManageToolGUI::hasUnsavedWork() const
+{
+    // Owner 2026-11-20: in the tab of a document the arrangement differs from the pages of the document (mapped
+    // to its versions); the own tab asks by askOwnTabClose (405:30894)
+    return isDocumentHost() && !m_assembly.isEqual(m_savedAssembly);
+}
+
+PDFAppToolCloseQuestion PDFAppManageToolGUI::getCloseQuestion() const
+{
+    // No frame: the question of Sign by Hand 435:10500 in the words of Manage Pages
+    PDFAppToolCloseQuestion question;
+    question.title = tr("Discard the changes to the pages?");
+    question.text = tr("Closing the tool removes your changes to the order of the pages. The document stays as it was.");
+    question.keepText = tr("Keep Arranging");
+    question.discardText = tr("Discard Changes");
+    return question;
 }
 
 PDFAppToolCloseAnswer PDFAppManageToolGUI::askOwnTabClose()

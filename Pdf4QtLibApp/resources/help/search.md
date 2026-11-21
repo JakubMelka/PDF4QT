@@ -36,7 +36,7 @@ An open document has its own search field *Search in document…* at the right o
 1. Press **Ctrl+F**, or click the search field.
 2. Type a text and press **Enter**. The panel *Search results* opens in the sidebar with every occurrence, its page and the line around it; the occurrences are highlighted on the pages.
 3. Press **F3** or **Enter** for the next result, **Shift+F3** for the previous one, or click a result in the list. The status bar shows *Result 3 of 12*.
-4. Press **Esc** in the search field, or the close button of the panel, to end the search.
+4. Press **Esc** in the search field to end the search. × of the panel only hides the results: the occurrences stay highlighted, and the **Search results** tab (the last tab of the sidebar), **Enter** in the search field or **Ctrl+F** show them again.
 
 The options above the results change how the text is matched:
 

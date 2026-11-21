@@ -32,6 +32,7 @@
 #include "pdfapptoolpanelpopup.h"
 #include "pdfapptoolinputrow.h"
 #include "pdfapptoolmergemodel.h"
+#include "pdfapptoolowntabquestion.h"
 #include "pdfapptoolpagegrid.h"
 #include "pdfdocumenttoolgui.h"
 #include "pdfdocumenttoolshell.h"
@@ -140,7 +141,7 @@ private:
 /// belongs to the tab (QPointer). The password dialog is new + QPointer (WA_DeleteOnClose).
 /// The key widget of the host gets the actions Ctrl+I / Ctrl+V and the drop of files while
 /// this GUI lives (the destructor takes them back).
-class PDF4QTLIBAPPSHARED_EXPORT PDFAppMergeToolGUI : public PDFDocumentToolGUI
+class PDF4QTLIBAPPSHARED_EXPORT PDFAppMergeToolGUI : public PDFDocumentToolGUI, public IPDFAppToolOwnTabQuestion
 {
     Q_OBJECT
 
@@ -174,6 +175,15 @@ public:
     virtual QString getRunningTimeText(int seconds) const override;
     virtual void fillResultInput(PDFAppToolResultInput* input) const override;
     virtual QString getOwnTabLossText() const override;
+
+    /// "Discard the list of 4 files?" with Keep Merging and Discard List (owner 2026-11-20; RESCUX H1: also the
+    /// changes of the pages)
+    virtual PDFAppToolCloseQuestion getOwnTabCloseQuestion(bool isTabClosing) const override;
+
+    /// A page turned, cloned, removed or moved by the user (the plan differs from the plan of the entry and from
+    /// all the pages of the files in their order; RESCUX H1)
+    bool isPagesChanged() const;
+
     virtual QString getLockedGlanceText() const override;
     virtual QString getOwnTabPageText() const override;
     virtual QString getOwnTabZoomText() const override;
@@ -274,6 +284,7 @@ private:
     void initializeValues();
     void readValues();
     void applyChange(const QStringList& inputIds, const PDFAppToolMergePlan& plan, const std::vector<size_t>& selectedItems);
+    void updatePagesChanged(const QStringList& ids, const std::vector<PDFInteger>& pageCounts);
     QStringList getModelInputIds() const;
     std::vector<PDFInteger> getKnownPageCounts(const QStringList& inputIds) const;
     std::vector<size_t> getSelectedItems() const;
@@ -355,6 +366,8 @@ private:
     QPointer<QAction> m_addFilesAction;
     QPointer<QAction> m_pasteAction;
     std::vector<size_t> m_pendingSelection;
+    QString m_entryPlanText;            ///< The value of the plan at initializeValues (isPagesChanged)
+    bool m_isPagesChanged = false;      ///< isPagesChanged, computed by readValues (updatePagesChanged)
     QStringList m_leftOutInputs;
     QString m_currentInput;
     PDFAppToolPageGrid::TileSize m_tileSize = PDFAppToolPageGrid::TileSize::Medium;

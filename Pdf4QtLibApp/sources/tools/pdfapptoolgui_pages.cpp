@@ -833,6 +833,45 @@ void PDFAppToolGUIRotatePages::onDocumentChanged()
     BaseClass::onDocumentChanged();
 }
 
+bool PDFAppToolGUIRotatePages::hasUnsavedWork() const
+{
+    return getPlannedPageCount() > 0;
+}
+
+int PDFAppToolGUIRotatePages::getPlannedPageCount() const
+{
+    // The pages of the plan, which change: a turn, or a reset of a turned page (readTurns keeps only the turns)
+    const PDFAppToolParameterModel* model = getModel();
+    const PDFDocumentPointer document = getShownDocument();
+    const QString plan = model ? model->getValue(PDFAppToolGUIPagesHelper::name(PDFDocumentToolRotatePages::PARAMETER_PLAN)).toString() : QString();
+    if (!document || plan.trimmed().isEmpty())
+    {
+        return 0;
+    }
+
+    QString error;
+    const std::optional<std::map<PDFInteger, PDFDocumentToolRotatePages::Turn>> turns = PDFDocumentToolRotatePages::parsePlan(plan, document.data(), &error);
+    int count = 0;
+    for (const auto& [page, turn] : turns ? *turns : std::map<PDFInteger, PDFDocumentToolRotatePages::Turn>())
+    {
+        Q_UNUSED(page);
+        count += (turn.isReset || turn.turn != PageRotation::None) ? 1 : 0;
+    }
+    return count;
+}
+
+PDFAppToolCloseQuestion PDFAppToolGUIRotatePages::getCloseQuestion() const
+{
+    // No frame (owner 2026-11-20): the question of Sign by Hand 435:10500 for the plan of the turns
+    const int count = getPlannedPageCount();
+    PDFAppToolCloseQuestion question;
+    question.title = count == 1 ? tr("Discard the rotation of the page?") : tr("Discard the rotation of %Ln pages?", nullptr, count);
+    question.text = tr("Closing the tool removes the rotations you have set. The document stays as it was.");
+    question.keepText = tr("Keep Rotating");
+    question.discardText = tr("Discard Rotations");
+    return question;
+}
+
 void PDFAppToolGUIRotatePages::writeTurns(const std::map<PDFInteger, PageRotation>& turns)
 {
     // One undo step of the tool; the model announces it (the last call)

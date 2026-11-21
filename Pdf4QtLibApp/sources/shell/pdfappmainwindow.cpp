@@ -50,6 +50,7 @@
 #include "pdfworkspacerepository.h"
 #include "pdfdocumenttoolgui.h"
 #include "pdfdocumenttoolguiregistry.h"
+#include "pdfdocumenttoolshell.h"
 
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentwindow.h"
@@ -456,6 +457,9 @@ bool PDFAppMainWindow::closeTab(PDFAppTab* tab)
     {
         return false;
     }
+
+    // The page records what it must while the tab is whole (the use of an interactive tool; no signal)
+    prepareTabClose(tab);
 
     // The tab may be the sender of the request (its close button, its page): deleted later
     m_tabIds.erase(tab);
@@ -1962,10 +1966,43 @@ bool PDFAppMainWindow::confirmClose()
         return false;
     }
 
-    // The own tabs of the tools ask first, each shown with its question (K16: the list of the
-    // inputs is lost; a run asks as close-running; an open result dialog keeps the window).
-    // A slot may delete a tab or the window.
+    // The tools in the tabs of the documents ask first about the unsaved work of the user, each shown with its
+    // question (owner 2026-11-20). Their closing answers end nothing here: a later Keep cancels the quit and
+    // every tool keeps its work (decision 8). Work discarded at the end of the system session is not asked again
+    // (PDFAppSessionEnd::isToolWorkDiscarded). A slot may delete a tab or the window. Every page, which has accepted,
+    // waits for the end of the leave (PDFAppPage::finishLeave): false when the quit is canceled here, true before the
+    // question of the unsaved documents.
     QPointer<PDFAppMainWindow> toolGuard(this);
+    std::vector<QPointer<PDFAppPage>> toolPages;
+    std::vector<QPointer<PDFAppPage>> leavingPages;
+    for (PDFAppDocumentTab* tab : getDocumentTabs())
+    {
+        if (PDFAppPage* page = tab->getPage(); page && page->hasUnsavedWork() && !PDFAppSessionEnd::isToolWorkDiscarded(page))
+        {
+            toolPages.emplace_back(page);
+        }
+    }
+    for (const QPointer<PDFAppPage>& page : toolPages)
+    {
+        if (page && !page->confirmClose())
+        {
+            PDFAppPage::finishLeaves(leavingPages, false);
+            return false;
+        }
+        if (!toolGuard)
+        {
+            PDFAppPage::finishLeaves(leavingPages, false);
+            return false;
+        }
+        if (page)
+        {
+            leavingPages.push_back(page);
+        }
+    }
+
+    // Then the own tabs of the tools, each shown with its question (K16: the list of the inputs is lost; a run
+    // asks as close-running and Stop stops it at once - after the questions above, so a Keep there never comes
+    // after a stopped run; an open result dialog keeps the window). A slot may delete a tab or the window.
     std::vector<QPointer<PDFAppToolTab>> toolTabs;
     for (PDFAppToolTab* toolTab : getToolTabs())
     {
@@ -1975,12 +2012,25 @@ bool PDFAppMainWindow::confirmClose()
     {
         if (toolTab && !toolTab->confirmClose())
         {
+            PDFAppPage::finishLeaves(leavingPages, false);
             return false;
         }
         if (!toolGuard)
         {
+            PDFAppPage::finishLeaves(leavingPages, false);
             return false;
         }
+    }
+
+    // The quit goes on: the choices of the questions of the tools, which change their documents (Redact "Remove New
+    // Marks", Measure "Save and Close"), are applied before the question of the unsaved documents - Save All then
+    // saves them; Cancel there keeps the applied changes (Undo takes them back). A tool, which could not keep all of
+    // its work (a measurement, which cannot be stored), cancels the quit (owner 2026-11-21): the window stays. The
+    // slots of the commits may delete a tab or the window.
+    const bool isFinished = PDFAppPage::finishLeaves(leavingPages, true);
+    if (!toolGuard || !isFinished)
+    {
+        return false;
     }
 
     // Open editors of form fields are changes too (step 4, package D); a slot
@@ -2042,6 +2092,45 @@ bool PDFAppMainWindow::confirmClose()
         default:
             return false;
     }
+}
+
+void PDFAppMainWindow::prepareTabsClose()
+{
+    for (PDFAppTab* tab : getTabs())
+    {
+        prepareTabClose(tab);
+    }
+}
+
+void PDFAppMainWindow::prepareTabClose(PDFAppTab* tab)
+{
+    if (PDFAppPage* page = tab ? tab->getPage() : nullptr)
+    {
+        page->prepareClose();
+    }
+
+    // The tool of an own tab records its use too (its shell outlives the page in the destruction of the tab)
+    const PDFAppToolTab* toolTab = qobject_cast<const PDFAppToolTab*>(tab);
+    if (PDFDocumentToolShell* shell = toolTab ? toolTab->getShell() : nullptr)
+    {
+        shell->recordInteractiveUse();
+    }
+}
+
+bool PDFAppMainWindow::isToolQuestionOpen() const
+{
+    for (PDFAppTab* tab : getTabs())
+    {
+        // A tool in a document tab (its page), an own tab of a tool (its close question, the question of its run)
+        const PDFAppPage* page = tab ? tab->getPage() : nullptr;
+        const PDFAppToolTab* toolTab = qobject_cast<const PDFAppToolTab*>(tab);
+        const PDFDocumentToolShell* toolShell = toolTab ? toolTab->getShell() : nullptr;
+        if ((page && page->isQuestionOpen()) || (toolTab && toolTab->isAskingClose()) || (toolShell && toolShell->isQuestionOpen()))
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 void PDFAppMainWindow::saveNextForQuit()
@@ -2352,6 +2441,9 @@ void PDFAppMainWindow::closeEvent(QCloseEvent* event)
     // geometry of the window is the geometry of the next start
     saveLastSession();
     storeGeometry();
+
+    // The pages record what they must while their tabs are whole (the use of an interactive tool)
+    prepareTabsClose();
     event->accept();
 }
 

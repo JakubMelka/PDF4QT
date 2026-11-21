@@ -529,6 +529,11 @@ void PDFAppToolGUIStatistics::onDocumentChanged()
 void PDFAppToolGUIStatistics::onSelectedRowChanged(int row)
 {
     Q_UNUSED(row);
+    if (!m_isUpdating)
+    {
+        // A row chosen by the user (owner 2026-11-20, isInteractive)
+        markUsed();
+    }
     updateSelectedRows();
 
     // The slots of the status may delete this GUI: the status is the last thing (an update of the GUI says it

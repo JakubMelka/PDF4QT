@@ -52,6 +52,7 @@
 #include <QtMath>
 #include <QWidgetAction>
 
+#include <algorithm>
 #include <initializer_list>
 
 namespace pdf
@@ -862,7 +863,7 @@ PDFAppCloseRunningDialog::~PDFAppCloseRunningDialog() = default;
 
 // ---------------------------------------------------------------- quit-unsaved
 
-PDFAppQuitUnsavedDialog::PDFAppQuitUnsavedDialog(const std::vector<const PDFAppDocument*>& documents, QWidget* parent) :
+PDFAppQuitUnsavedDialog::PDFAppQuitUnsavedDialog(const std::vector<const PDFAppDocument*>& documents, QWidget* parent, const std::vector<const PDFAppDocument*>& toolWorkDocuments) :
     BaseClass(PDFThemeIcons::Badge::Warning, tr("Save the changes before quitting?"),
               PDFAppDocumentDialogsHelper::getCountText(int(documents.size()), tr("1 document has unsaved changes. If you quit without saving, the changes are lost."),
                                                         tr("%1 documents have unsaved changes. If you quit without saving, the changes are lost.")),
@@ -887,8 +888,9 @@ PDFAppQuitUnsavedDialog::PDFAppQuitUnsavedDialog(const std::vector<const PDFAppD
         // A folder is elided by its folders, the text of a document without a file is a text of the interface
         const bool hasFile = !document->getFilePath().isEmpty();
         const QString folder = hasFile ? PDFAppDocumentDialogsHelper::getFolderText(document->getFilePath()) : tr("Not saved to a file yet");
+        const bool isToolWorkOnly = !document->isModified() && std::find(toolWorkDocuments.cbegin(), toolWorkDocuments.cend(), document) != toolWorkDocuments.cend();
         m_list->addItem(QStringLiteral("file"), document->getTitle(), folder, hasFile ? PDFComponentPainter::TextKind::Path : PDFComponentPainter::TextKind::Interface,
-                        PDFAppCloseUnsavedDialog::getChangesText(document), false);
+                        isToolWorkOnly ? tr("Unsaved work in a tool") : PDFAppCloseUnsavedDialog::getChangesText(document), false);
     }
     addContent(m_list);
 

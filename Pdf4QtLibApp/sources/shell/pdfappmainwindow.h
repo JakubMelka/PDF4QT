@@ -351,7 +351,20 @@ protected:
     /// canceled save keeps the window open), Cancel keeps the window.
     virtual bool confirmClose();
 
+public:
+    /// The window quits (or the system session ends): every page records, what it must record while its tab
+    /// is whole (PDFAppPage::prepareClose - the use of an interactive tool). Nothing is asked or emitted.
+    void prepareTabsClose();
+
+    /// A question of a tool waits for the answer of the user in a tab of the window (PDFAppPage::isQuestionOpen,
+    /// the question of the close of an own tab of a tool): an assistant changes no tab meanwhile (RESCCODE L6)
+    bool isToolQuestionOpen() const;
+
 private:
+    /// The tab closes now (every question answered, still whole): its page (and the tool of an own tab) record
+    /// what they must (prepareTabsClose)
+    void prepareTabClose(PDFAppTab* tab);
+
     PDFAppTab* addTab(PDFAppTab* tab, int index);
     PDFAppTab* findTab(quint64 id) const;
     int findTabIndex(quint64 id) const;

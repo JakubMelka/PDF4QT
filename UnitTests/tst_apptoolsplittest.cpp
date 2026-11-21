@@ -65,10 +65,13 @@
 #include "pdfthememanager.h"
 #include "pdfwidgetstyle.h"
 
+#include <QDialog>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QLabel>
 #include <QLineEdit>
+#include <QPointer>
 #include <QListView>
 #include <QPushButton>
 #include <QScrollBar>
@@ -160,6 +163,7 @@ private Q_SLOTS:
     void splitDuplicateNames();
     void splitOutputFilesPanel();
     void splitAtPagesClick();
+    void splitCutsAskAtLeave();
     void splitBookmarks();
     void splitBySize();
     void splitWrittenMarks();
@@ -431,6 +435,70 @@ void AppToolSplitTest::splitOutputFilesPanel()
              QStringList({ QStringLiteral("Images are stored exactly as they are"), QStringLiteral("Downsamples large images, keeps detail"), QStringLiteral("Smallest file, stronger compression") }));
     QCOMPARE(H::optionDescriptions(shell, pdf::PDFDocumentToolFileOutput::PARAMETER_EXISTING_FILES),
              QStringList({ QStringLiteral("Decide when the first conflict is found"), QStringLiteral("Replace the existing files"), QStringLiteral("Keep the existing files, write the rest"), QStringLiteral("Add (2), (3) … to the new files") }));
+}
+
+void AppToolSplitTest::splitCutsAskAtLeave()
+{
+    // Owner 2026-11-20 (decision 4): the cuts set by hand live only in the tool - leaving it asks "Discard the 2
+    // cuts?" (Keep Splitting / Discard Cuts); the rule and the number fields are parameters and ask nothing, as the
+    // cuts of another rule
+    using H = SplitGuiHelper;
+    AppToolShellFixture fixture(QSize(1440, 960));
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, H::writePages(fixture.path(QStringLiteral("Handbook.pdf")), 48));
+    QPointer<PDFDocumentToolShell> shell = fixture.openTool(tab, H::SPLIT_ID);
+    pdf::PDFAppSplitToolGUI* gui = H::gui<pdf::PDFAppSplitToolGUI>(shell);
+    QVERIFY(gui);
+    H::setValue(shell, pdf::PDFDocumentToolSplit::PARAMETER_RULE, QStringLiteral("every-n-pages"));
+    H::setValue(shell, pdf::PDFDocumentToolSplit::PARAMETER_PAGES_PER_FILE, 12);
+    AppToolShellFixture::settle();
+    QVERIFY(!gui->hasUnsavedWork());
+
+    H::setValue(shell, pdf::PDFDocumentToolSplit::PARAMETER_RULE, QStringLiteral("at-pages"));
+    AppToolShellFixture::settle();
+    QVERIFY(!gui->hasUnsavedWork());
+    gui->clickPage(9, Qt::NoModifier);
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getCutCount(), 1);
+    QCOMPARE(gui->getCloseQuestion().title, QStringLiteral("Discard the cut?"));
+    gui->clickPage(19, Qt::NoModifier);
+    AppToolShellFixture::settle();
+    QCOMPARE(gui->getCutCount(), 2);
+    QVERIFY(gui->hasUnsavedWork());
+
+    // The cuts of another rule are not used: no question
+    H::setValue(shell, pdf::PDFDocumentToolSplit::PARAMETER_RULE, QStringLiteral("every-page"));
+    AppToolShellFixture::settle();
+    QVERIFY(!gui->hasUnsavedWork());
+    H::setValue(shell, pdf::PDFDocumentToolSplit::PARAMETER_RULE, QStringLiteral("at-pages"));
+    AppToolShellFixture::settle();
+
+    shell->cancel();
+    AppToolShellFixture::settle();
+    QVERIFY(shell && shell->getState() == PDFDocumentToolShell::State::Editing);
+    QPointer<QDialog> question = shell->getCloseQuestion();
+    QVERIFY(question && question->isVisible());
+    QStringList labels;
+    for (const QLabel* label : question->findChildren<QLabel*>())
+    {
+        labels << label->text();
+    }
+    QVERIFY2(labels.contains(QStringLiteral("Discard the 2 cuts?")), qPrintable(labels.join(QLatin1Char('|'))));
+    QVERIFY2(labels.contains(QStringLiteral("Closing the tool removes the cuts you have set. The document stays as it was.")), qPrintable(labels.join(QLatin1Char('|'))));
+    QPushButton* keep = question->findChild<QPushButton*>(QStringLiteral("toolCloseKeep"));
+    QPushButton* discard = question->findChild<QPushButton*>(QStringLiteral("toolCloseDiscard"));
+    QVERIFY(keep && discard);
+    QCOMPARE(keep->text(), QStringLiteral("Keep Splitting"));
+    QCOMPARE(discard->text(), QStringLiteral("Discard Cuts"));
+    keep->click();
+    AppToolShellFixture::settle();
+    QVERIFY(shell && shell->getState() == PDFDocumentToolShell::State::Editing);
+
+    // Clear Cuts: nothing to lose, the tool closes at once
+    gui->clearCuts();
+    AppToolShellFixture::settle();
+    QVERIFY(!gui->hasUnsavedWork());
+    shell->cancel();
+    QVERIFY(AppToolShellFixture::waitFor([tab]() { return !AppToolShellFixture::getShell(tab); }));
 }
 
 void AppToolSplitTest::splitAtPagesClick()

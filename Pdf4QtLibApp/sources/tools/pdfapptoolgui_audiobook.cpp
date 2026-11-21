@@ -2214,6 +2214,63 @@ bool PDFAppToolGUIAudioBook::handleEscape()
     return overlay && overlay->cancelRectangleMode();
 }
 
+bool PDFAppToolGUIAudioBook::hasUnsavedWork() const
+{
+    // RESCUX H2: every change of the text stream lives only in the tool - skipped or read items, edited texts, a
+    // changed order (the same changes as the question of Rebuild 356:14056)
+    return m_itemModel && m_itemModel->getChanges(getReadSpecial()).hasChanges();
+}
+
+PDFAppToolCloseQuestion PDFAppToolGUIAudioBook::getCloseQuestion() const
+{
+    // No frame (owner 2026-11-20): the question of Sign by Hand 435:10500 for the changes of the text stream, named
+    // as the question of Rebuild names them (356:14056)
+    const PDFAppAudioBookItemModel::Changes changes = m_itemModel ? m_itemModel->getChanges(getReadSpecial()) : PDFAppAudioBookItemModel::Changes();
+    PDFAppToolCloseQuestion question;
+    if (!changes.hasChanges())
+    {
+        return question;
+    }
+    question.title = tr("Discard your changes to the text stream?");
+    question.text = tr("Closing the tool removes %1. The document stays as it was.").arg(getChangesText(changes));
+    question.keepText = tr("Keep Editing");
+    question.discardText = tr("Discard Changes");
+    return question;
+}
+
+QString PDFAppToolGUIAudioBook::getChangesText(const PDFAppAudioBookItemModel::Changes& changes) const
+{
+    // "3 skipped items, 1 edited text and the changed order" (356:14056)
+    QStringList parts;
+    const int skipped = PDFAppToolGUIAudioBookHelper::toInt(changes.skipped + changes.read);
+    const int edited = PDFAppToolGUIAudioBookHelper::toInt(changes.edited);
+    if (skipped > 0)
+    {
+        parts << (changes.read > 0 ? tr("%Ln changed items", nullptr, skipped) : (skipped == 1 ? tr("%Ln skipped item", nullptr, skipped) : tr("%Ln skipped items", nullptr, skipped)));
+    }
+    if (edited > 0)
+    {
+        parts << (edited == 1 ? tr("%Ln edited text", nullptr, edited) : tr("%Ln edited texts", nullptr, edited));
+    }
+    if (changes.isReordered)
+    {
+        parts << tr("the changed order");
+    }
+    if (parts.isEmpty())
+    {
+        return QString();
+    }
+    if (parts.size() == 2)
+    {
+        return tr("%1 and %2").arg(parts[0], parts[1]);
+    }
+    if (parts.size() == 3)
+    {
+        return tr("%1, %2 and %3").arg(parts[0], parts[1], parts[2]);
+    }
+    return parts.front();
+}
+
 void PDFAppToolGUIAudioBook::selectByRectangleMode()
 {
     if (!m_canvas || !m_canvas->getOverlay())
@@ -2505,30 +2562,7 @@ void PDFAppToolGUIAudioBook::onRebuildClicked()
         return;
     }
 
-    QStringList parts;
-    const int skipped = PDFAppToolGUIAudioBookHelper::toInt(changes.skipped + changes.read);
-    const int edited = PDFAppToolGUIAudioBookHelper::toInt(changes.edited);
-    if (skipped > 0)
-    {
-        parts << (changes.read > 0 ? tr("%Ln changed items", nullptr, skipped) : (skipped == 1 ? tr("%Ln skipped item", nullptr, skipped) : tr("%Ln skipped items", nullptr, skipped)));
-    }
-    if (edited > 0)
-    {
-        parts << (edited == 1 ? tr("%Ln edited text", nullptr, edited) : tr("%Ln edited texts", nullptr, edited));
-    }
-    if (changes.isReordered)
-    {
-        parts << tr("the changed order");
-    }
-    QString changesText = parts.front();
-    if (parts.size() == 2)
-    {
-        changesText = tr("%1 and %2").arg(parts[0], parts[1]);
-    }
-    else if (parts.size() == 3)
-    {
-        changesText = tr("%1, %2 and %3").arg(parts[0], parts[1], parts[2]);
-    }
+    const QString changesText = getChangesText(changes);
 
     PDFAppToolHost* host = getHost();
     QWidget* parent = host ? host->getCanvasArea() : nullptr;

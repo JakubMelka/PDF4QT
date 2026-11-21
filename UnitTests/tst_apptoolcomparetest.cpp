@@ -469,6 +469,28 @@ void AppToolCompareTest::swapSlots()
     QCOMPARE(gui->getPageRangeText(pdf::PDFAppToolGUICompare::OriginalSlot), QStringLiteral("2-4"));
     QCOMPARE(gui->getPageRangeText(pdf::PDFAppToolGUICompare::RevisedSlot), QStringLiteral("1-2"));
     QCOMPARE(gui->getSlotRow(pdf::PDFAppToolGUICompare::OriginalSlot)->getDescription(), QStringLiteral("b.pdf"));
+
+    // Owner 2026-11-20 (decision 5): a pure change of the order is no work - no dot, no question
+    QVERIFY(!gui->isChoiceChanged());
+    QVERIFY(tab->getLossText().isEmpty());
+    QVERIFY(!tab->isTabUnsaved());
+
+    // Another document is: "Discard the chosen documents?" with Keep Comparing and Discard List; RESCUX M5: one
+    // chosen document has its own singular text
+    tab->getInputList()->removeInput(tab->getInputList()->getInput(1)->id);
+    AppToolOwnTabFixture::settle();
+    QVERIFY(gui->isChoiceChanged());
+    QCOMPARE(tab->getLossText(), QStringLiteral("The chosen document is lost."));
+    tab->getInputList()->addFile(AppDocumentSamples::simple(fixture.folder(), QStringLiteral("c.pdf"), 3));
+    QVERIFY(H::waitLoaded(tab->getInputList()));
+    AppToolOwnTabFixture::settle();
+    QCOMPARE(tab->getLossText(), QStringLiteral("The 2 chosen documents are lost."));
+    const pdf::PDFAppToolCloseQuestion question = gui->getOwnTabCloseQuestion(true);
+    QCOMPARE(question.title, QStringLiteral("Discard the chosen documents?"));
+    QCOMPARE(question.text, QStringLiteral("Closing the tab removes your choice of the documents. The files stay as they are."));
+    QCOMPARE(question.keepText, QStringLiteral("Keep Comparing"));
+    QCOMPARE(question.discardText, QStringLiteral("Discard List"));
+    QCOMPARE(gui->getOwnTabCloseQuestion(false).text, QStringLiteral("Closing the tool removes your choice of the documents. The files stay as they are."));
 }
 
 void AppToolCompareTest::resultFiltersAndList()

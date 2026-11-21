@@ -29,6 +29,8 @@
 #include "pdfappdocument.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
+#include "pdfappnavigator.h"
+#include "pdfapproute.h"
 #include "pdfapptoolgui_measure.h"
 #include "pdfapptoolparametermodel.h"
 #include "pdfapptoolresultdialog.h"
@@ -42,6 +44,7 @@
 
 #include <QAction>
 #include <QPushButton>
+#include <QTimer>
 #include <QToolButton>
 
 /// The steps of the scenarios of Measure
@@ -355,6 +358,39 @@ public:
         return true;
     }
 
+    /// Another route of the tab with two temporary measurements (owner 2026-11-20, decision 8): the question waits in
+    /// the loop of the leave, Save and Close is remembered, the end of the leave saves the storable one while the
+    /// tool edits, the question about the other one is answered by Discard and Close, then the tool closes
+    static bool leaveSaveAndClose(ToolPagesLifetimeRun& run)
+    {
+        if (!gui(run) && !Steps::openTool(run))
+        {
+            return true;
+        }
+        drawLinear(run);
+
+        // Owner 2026-11-21: a second measurement, whose length overflows, cannot be stored - the question about it
+        // (askIncompleteClose) is waited for by the leave too; Discard and Close lets the leave go on
+        if (GUI* current = gui(run))
+        {
+            current->addMeasurement(1, pdf::PDFMeasureKind::Distance, { QPointF(-1.5e308, 100), QPointF(1.5e308, 100) }, pdf::PDFAppMeasureDrawKind::Linear);
+        }
+        Steps::settle();
+        QPointer<pdf::PDFAppDocumentTab> tab = run.tab;
+        QPointer<pdf::PDFAppMainWindow> window = run.window;
+        if (!gui(run) || !tab || !window || !window->getNavigator())
+        {
+            return true;
+        }
+        QPointer<QTimer> answer = Steps::answerToolQuestionLater(run, QStringLiteral("toolCloseAction"));
+        QPointer<QTimer> discard = Steps::answerToolQuestionLater(run, QStringLiteral("measureIncompleteDiscard"));
+        window->getNavigator()->navigate(pdf::PDFAppRoutes::document(tab->getDocumentId()), pdf::PDFAppNavigationMode::Push, tab);
+        delete answer.data();
+        delete discard.data();
+        Steps::settle();
+        return true;
+    }
+
     /// Export CSV (473:91038) with a temporary measurement: the export dialog of the shell
     static pdf::PDFAppToolResultDialog* exportDialog(ToolPagesLifetimeRun& run)
     {
@@ -556,6 +592,7 @@ public:
             steps->push_back(&H::lock);
             steps->push_back(&H::exportAndDiscard);
             steps->push_back(&H::clear);
+            steps->push_back(&H::leaveSaveAndClose);
         };
         scenarios->push_back(measure);
 

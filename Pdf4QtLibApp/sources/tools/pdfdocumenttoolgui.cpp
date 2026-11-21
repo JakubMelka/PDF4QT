@@ -23,14 +23,20 @@
 #include "pdfdocumenttoolgui.h"
 
 #include "pdfappdocument.h"
+#include "pdfappmainwindow.h"
 #include "pdfapptooldragsource.h"
 #include "pdfapptoolhost.h"
+#include "pdfapptoolinputlist.h"
 #include "pdfapptoolparametermodel.h"
 #include "pdfapptooltoolbar.h"
 #include "pdfdocumenttoolshell.h"
 
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttooltablewriter.h"
+#include "pdfmessagebox.h"
+#include "pdfthemeiconengine.h"
+
+#include <QPushButton>
 
 #include <limits>
 
@@ -43,7 +49,17 @@ PDFDocumentToolGUI::PDFDocumentToolGUI(QObject* parent) :
 
 }
 
-PDFDocumentToolGUI::~PDFDocumentToolGUI() = default;
+PDFDocumentToolGUI::~PDFDocumentToolGUI()
+{
+    // The generic question goes with the tool (its answer would reach nobody); the shell waiting for it
+    // (confirmLeave) learns it by the end of the dialog
+    if (PDFMessageBox* question = m_closeQuestion.data())
+    {
+        m_closeQuestion = nullptr;
+        question->disconnect(this);
+        question->close();
+    }
+}
 
 PDFDocumentToolShell* PDFDocumentToolGUI::getShell() const
 {
@@ -53,6 +69,16 @@ PDFDocumentToolShell* PDFDocumentToolGUI::getShell() const
 void PDFDocumentToolGUI::attach(PDFDocumentToolShell* shell)
 {
     m_shell = shell;
+
+    // The inputs, which the own tab came with (the start page, the document of the tab): no work of the user
+    const PDFAppToolInputList* list = getInputList();
+    m_entryInputIds = list ? list->getInputIds() : QStringList();
+}
+
+bool PDFDocumentToolGUI::isInputListChanged() const
+{
+    const PDFAppToolInputList* list = getInputList();
+    return list && list->getInputIds() != m_entryInputIds;
 }
 
 PDFAppToolHost* PDFDocumentToolGUI::getHost() const
@@ -404,9 +430,157 @@ bool PDFDocumentToolGUI::isSingleOwnTab() const
     return false;
 }
 
-bool PDFDocumentToolGUI::askClose()
+bool PDFDocumentToolGUI::hasUnsavedWork() const
 {
     return false;
+}
+
+bool PDFDocumentToolGUI::isInteractive() const
+{
+    return false;
+}
+
+void PDFDocumentToolGUI::markUsed()
+{
+    if (PDFDocumentToolShell* shell = getShell())
+    {
+        shell->markInteractiveUse();
+    }
+}
+
+PDFAppToolCloseQuestion PDFDocumentToolGUI::getCloseQuestion() const
+{
+    return PDFAppToolCloseQuestion();
+}
+
+bool PDFDocumentToolGUI::applyCloseQuestionAction()
+{
+    return false;
+}
+
+QDialog* PDFDocumentToolGUI::askClose()
+{
+    if (PDFMessageBox* openQuestion = m_closeQuestion.data())
+    {
+        if (openQuestion->isVisible())
+        {
+            openQuestion->raise();
+            return openQuestion;
+        }
+
+        // An answered question is hidden until its deletion (WA_DeleteOnClose): it is no open question
+        // (RESCCODE L1) - a new one is asked
+        openQuestion->disconnect(this);
+        m_closeQuestion = nullptr;
+    }
+
+    const PDFAppToolCloseQuestion question = getCloseQuestion();
+    if (!question.isValid())
+    {
+        return nullptr;
+    }
+
+    // 435:10500: Keep (Primary) and Discard (trash) trailing; with a third choice 448:17473: Keep leading, the
+    // choice as the Primary button, Discard. The dialog belongs to the window (it deletes itself when closed,
+    // the destructor of this GUI closes it); open - never exec.
+    QWidget* parent = getHost() && getHost()->getKeyWidget() ? getHost()->getKeyWidget()->window() : nullptr;
+    PDFMessageBox* dialog = new PDFMessageBox(PDFThemeIcons::Badge::Warning, question.title, question.text, QDialogButtonBox::NoButton, parent);
+    dialog->setObjectName(QStringLiteral("toolCloseQuestion"));
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    const bool hasAction = !question.actionText.isEmpty();
+    QPushButton* keepButton = dialog->addActionButton(question.keepText, hasAction ? PDFMessageBox::ActionPosition::Leading : PDFMessageBox::ActionPosition::Trailing, !hasAction);
+    keepButton->setObjectName(QStringLiteral("toolCloseKeep"));
+    connect(keepButton, &QPushButton::clicked, dialog, &QDialog::reject);
+    if (hasAction)
+    {
+        QPushButton* actionButton = dialog->addActionButton(question.actionText, PDFMessageBox::ActionPosition::Trailing, true);
+        actionButton->setObjectName(QStringLiteral("toolCloseAction"));
+        if (!question.actionIconName.isEmpty())
+        {
+            actionButton->setIcon(PDFThemeIcons::getIcon(question.actionIconName));
+        }
+        connect(actionButton, &QPushButton::clicked, this, &PDFDocumentToolGUI::onCloseQuestionActionClicked);
+    }
+    QPushButton* discardButton = dialog->addActionButton(question.discardText, PDFMessageBox::ActionPosition::Trailing, false);
+    discardButton->setObjectName(QStringLiteral("toolCloseDiscard"));
+    discardButton->setIcon(PDFThemeIcons::getIcon(QStringLiteral("trash")));
+    connect(discardButton, &QPushButton::clicked, this, &PDFDocumentToolGUI::onCloseQuestionDiscardClicked);
+    m_closeQuestion = dialog;
+
+    if (parent)
+    {
+        PDFAppMainWindow::prepareDialog(dialog, parent);
+    }
+    QPointer<PDFDocumentToolGUI> guard(this);
+    dialog->open();
+    return guard ? m_closeQuestion.data() : nullptr;
+}
+
+void PDFDocumentToolGUI::onCloseQuestionDiscardClicked()
+{
+    QPointer<PDFDocumentToolGUI> guard(this);
+    if (PDFMessageBox* dialog = m_closeQuestion.data())
+    {
+        m_closeQuestion = nullptr;
+        dialog->disconnect(this);
+        dialog->accept();
+    }
+
+    // The last call: the shell and this GUI go (as Cancel, without the question again)
+    PDFDocumentToolShell* shell = guard ? getShell() : nullptr;
+    if (shell)
+    {
+        shell->closeAfterQuestion();
+    }
+}
+
+void PDFDocumentToolGUI::onCloseQuestionActionClicked()
+{
+    QPointer<PDFDocumentToolGUI> guard(this);
+    if (PDFMessageBox* dialog = m_closeQuestion.data())
+    {
+        m_closeQuestion = nullptr;
+        dialog->disconnect(this);
+        dialog->accept();
+    }
+    if (!guard)
+    {
+        return;
+    }
+
+    // A leave waits for the answer (the close of the tab, the quit, the lock, another route): the shell only
+    // remembers the choice and accepts the leave - the code, which started the leave, applies it, when the leave
+    // really goes on (PDFDocumentToolShell::finishLeave; owner 2026-11-20, decision 8)
+    PDFDocumentToolShell* shell = getShell();
+    if (shell && shell->deferCloseQuestionAction())
+    {
+        return;
+    }
+
+    // The work is kept elsewhere (a commit: the slots of the document run); the tool closes only when all of
+    // it was kept - the rest stays in the open tool
+    const bool isKept = applyCloseQuestionAction();
+    shell = guard ? getShell() : nullptr;
+    if (!shell)
+    {
+        return;
+    }
+
+    // The last call either way: the tool closes, or the GUI asks about the work, which could not be kept (owner
+    // 2026-11-21, askIncompleteClose) - its closing answer closes the tool later
+    if (isKept)
+    {
+        shell->closeAfterQuestion();
+    }
+    else
+    {
+        shell->askIncompleteQuestion();
+    }
+}
+
+QDialog* PDFDocumentToolGUI::askIncompleteClose()
+{
+    return nullptr;
 }
 
 bool PDFDocumentToolGUI::handleEscape()

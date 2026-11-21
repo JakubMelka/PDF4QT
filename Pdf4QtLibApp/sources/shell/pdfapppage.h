@@ -34,6 +34,8 @@
 #include <QVariantMap>
 #include <QWidget>
 
+#include <vector>
+
 class QBoxLayout;
 
 namespace pdf
@@ -152,6 +154,55 @@ public:
     /// may show a dialog here, the page, its tab or the window may be deleted meanwhile
     /// (the caller guards them). The default is true.
     virtual bool prepareLeave(const PDFAppRoute& target);
+
+    /// The tab of the page closes, or the window quits (owner 2026-11-20: a tool with unsaved work of the
+    /// user asks its question, also when its tab or the window closes). The page may show a dialog and wait
+    /// for its answer; the page, its tab or the window may be deleted meanwhile (the caller guards them).
+    /// Nothing is ended here: a close canceled by a later question keeps the page as it is. \returns the
+    /// page may go. The default is true.
+    virtual bool confirmClose();
+
+    /// The page holds work of the user, which its close loses and which it would ask about (confirmClose):
+    /// an assistant never closes it over the work - its close is refused (owner 2026-11-20). Default: false.
+    virtual bool hasUnsavedWork() const;
+
+    /// The tab of the page closes now, or the window quits (every question has been answered, the tab is still
+    /// whole, its deletion follows): the page records, what it must record before its teardown (the use of an
+    /// interactive tool, owner 2026-11-20 - the destructors never read the tab). Nothing is asked, ended or
+    /// emitted. The default does nothing.
+    virtual void prepareClose();
+
+    /// A question of the page waits for the answer of the user (the question of the unsaved work of a tool, the
+    /// question of its run): an assistant changes no tab meanwhile (RESCCODE L6). Default: false.
+    virtual bool isQuestionOpen() const;
+
+    /// A navigation of the tab to \p target leaves the page (prepareLeave would end what it shows); false = the
+    /// page stays (the route of the page itself). An assistant's navigation, which would leave a page with
+    /// unsaved work, is refused (RESCCODE L5). Default: every route except the route of the page.
+    virtual bool isLeftBy(const PDFAppRoute& target) const;
+
+    /// The document of the tab of the page is being locked by the user (owner 2026-11-20, decision 6): a tool,
+    /// which the lock ends, asks its question of the unsaved work first and waits for the answer. \returns the
+    /// lock may go on; false = the user keeps the tool (the document stays unlocked). The page, its tab or the
+    /// window may be deleted meanwhile (the caller guards them). Default: true.
+    virtual bool confirmDocumentLock();
+
+    /// Ends the leave, which the page has accepted (confirmClose, confirmDocumentLock returned true; prepareLeave
+    /// ends its own leave): the code, which started the leave, calls it exactly once, when it knows the outcome
+    /// (owner 2026-11-20, decision 8). \p isProceeding - the leave goes on (the quit and the close of a tab before
+    /// the question of the unsaved documents, the lock before the lock): a choice of a question of the page, which
+    /// changes the document (Redact "Remove New Marks", Measure "Save and Close"), is applied now; false = the leave
+    /// was canceled (a later Keep, Cancel of another question), the page forgets the choice and keeps its work. A page
+    /// deleted before the end forgets it too. \returns false, when the applied choice could not keep all of the work
+    /// (owner 2026-11-21: a measurement, which cannot be stored): the page stays with it and told the user why, the
+    /// caller cancels the leave (the window stays, the tab stays, no lock, no navigation); true otherwise. The page,
+    /// its tab or the window may be deleted meanwhile (the caller guards them). The default returns true.
+    virtual bool finishLeave(bool isProceeding);
+
+    /// finishLeave(\p isProceeding) of every page of \p pages, which still exists (each may delete the others). After
+    /// a page has refused (false), the rest are ended by false: the leave is canceled, no further choice is applied.
+    /// \returns false, when a page has refused.
+    static bool finishLeaves(const std::vector<QPointer<PDFAppPage>>& pages, bool isProceeding);
 
     PDFAppContext* getContext() const { return m_context; }
 

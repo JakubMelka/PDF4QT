@@ -109,6 +109,12 @@ public:
     /// which is written to \p certificatePath (PKCS#12, getCertificatePassword)
     static QString signedDocument(const QString& folder, QString* certificatePath = nullptr);
 
+    /// signedDocument written again with an outline (one item), a layer (OCG), an
+    /// embedded file and its file attachment annotation (a note): every panel of the
+    /// sidebar has content, so all nine tabs are shown (the signature itself is not
+    /// valid any more - the file is written whole - but the field is signed)
+    static QString allPanels(const QString& folder);
+
     /// The file of RestoredSignedFile signed by a new certificate: a signature over the
     /// whole file, which the application has to restore from the bytes
     static QString restoredSignedDocument(const QString& folder);

@@ -331,8 +331,9 @@ PDFAppDocumentView::PDFAppDocumentView(PDFAppContext* context, QWidget* parent) 
     m_splitter->installEventFilter(this);
     m_canvasArea = m_modeLayout->getCanvasArea();
 
+    // The sidebar keeps its minimum width itself (the width of its visible tabs, at
+    // least PDFAppViewState::MINIMUM_SIDEBAR_WIDTH - PDFAppDocumentSidebar)
     m_sidebar = new PDFAppDocumentSidebar(this, m_splitter);
-    m_sidebar->setMinimumWidth(PDFAppViewState::MINIMUM_SIDEBAR_WIDTH);
     m_modeLayout->setBaseLeftWidget(m_sidebar);
     connect(m_sidebar, &PDFAppDocumentSidebar::currentPanelChanged, this, &PDFAppDocumentView::panelChanged);
     connect(m_splitter, &QSplitter::splitterMoved, this, &PDFAppDocumentView::onSplitterMoved);

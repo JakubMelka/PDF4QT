@@ -16,7 +16,7 @@ Rotate Pages turns pages of the document in steps of 90°, and the rotation is s
 4. The preview shows the pages as they will be saved, **Pending rotation** lists them. **Undo** of a row leaves that page as it is.
 5. Press **Rotate Pages**. The result can stay in this tab, be saved as a copy or overwrite the original file.
 
-Undo and Redo of the toolbar undo the steps of the tool while it is open; after the result is kept in the tab, Undo of the document brings the original pages back.
+Undo and Redo of the toolbar undo the steps of the tool while it is open; after the result is kept in the tab, Undo of the document brings the original pages back. Closing the tool with rotations you have set asks first, also when you close the tab or the window or open another tool.
 
 ### The size of the thumbnails
 

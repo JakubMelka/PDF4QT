@@ -873,6 +873,51 @@ void PDFAppSplitToolGUI::clickPage(int page, Qt::KeyboardModifiers modifiers)
     model->setValue(key, numbers.join(QStringLiteral(", ")));
 }
 
+int PDFAppSplitToolGUI::getCutCount() const
+{
+    // The cuts of At selected pages, which split the document (the page 1 starts the first file always); the rule
+    // and the number fields are parameters - no work (owner 2026-11-20)
+    const PDFAppToolParameterModel* model = getModel();
+    const PDFInteger pageCount = getPageCount();
+    if (!model || pageCount <= 1 || getRule() != QLatin1String(PDFDocumentToolSplit::RULE_AT_PAGES))
+    {
+        return 0;
+    }
+
+    QString error;
+    const std::optional<PDFPageRangeList> cuts = PDFPageRangeList::parse(model->getValue(PDFAppToolGUISplitHelper::name(PDFDocumentToolSplit::PARAMETER_CUTS)).toString(), pageCount, &error);
+    std::vector<PDFInteger> pages = cuts ? cuts->getPageIndices() : std::vector<PDFInteger>();
+    std::sort(pages.begin(), pages.end());
+    pages.erase(std::unique(pages.begin(), pages.end()), pages.end());
+    int count = 0;
+    for (const PDFInteger page : pages)
+    {
+        count += (page > 0 && page < pageCount) ? 1 : 0;
+    }
+    return count;
+}
+
+bool PDFAppSplitToolGUI::hasUnsavedWork() const
+{
+    return getCutCount() > 0;
+}
+
+PDFAppToolCloseQuestion PDFAppSplitToolGUI::getCloseQuestion() const
+{
+    // No frame (owner 2026-11-20, decision 4): the question of Sign by Hand 435:10500 for the cuts set by hand
+    const int count = getCutCount();
+    PDFAppToolCloseQuestion question;
+    if (count == 0)
+    {
+        return question;
+    }
+    question.title = count == 1 ? tr("Discard the cut?") : tr("Discard the %Ln cuts?", nullptr, count);
+    question.text = tr("Closing the tool removes the cuts you have set. The document stays as it was.");
+    question.keepText = tr("Keep Splitting");
+    question.discardText = tr("Discard Cuts");
+    return question;
+}
+
 void PDFAppSplitToolGUI::clearCuts()
 {
     // 383:5715 Clear Cuts: one undo step, the model announces it last
