@@ -462,9 +462,8 @@ void PDFAppToolGUIExtractImages::setPagesMode(PagesMode mode, const QString& ran
     }
 
     m_pagesMode = mode;
-    QPointer<PDFAppToolGUIExtractImages> guard(this);
     const QString error = model->setValue(PDFAppToolGUIExtractImagesHelper::name(PDFDocumentToolExtractImages::PARAMETER_PAGES), selection.toVariant());
-    if (guard && error.isEmpty())
+    if (!PDFDeferredDeletion::isRetired(this) && error.isEmpty())
     {
         updateToolbar();
     }
@@ -613,9 +612,8 @@ void PDFAppToolGUIExtractImages::onImagesDecoded(quint64 ticket, const QList<QIm
 
     // 2.7: "Image 3 was copied to the clipboard"; the clipboard runs foreign code (its listeners)
     const QString message = tr("Image %1 was copied to the clipboard").arg(PDFAppLocale::formatNumber(m_copyNumber));
-    QPointer<PDFAppToolGUIExtractImages> guard(this);
     QApplication::clipboard()->setImage(images.front());
-    host = guard ? getHost() : nullptr;
+    host = PDFDeferredDeletion::isRetired(this) ? nullptr : getHost();
     if (host)
     {
         host->showTransientMessage(message);
@@ -717,13 +715,12 @@ void PDFAppToolGUIExtractImages::onComputationFinished()
     }
 
     // The state of the Primary button and the status message: their slots may delete the GUI
-    QPointer<PDFAppToolGUIExtractImages> guard(this);
     updateParts();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateConfirmState();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }
@@ -1356,12 +1353,11 @@ void PDFAppToolGUIExtractImages::onPagesRowClicked()
         return;
     }
 
-    QPointer<PDFAppToolGUIExtractImages> guard(this);
     if (m_pagesPanel)
     {
         m_pagesPanel->close();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         setPagesMode(mode);
     }
@@ -1388,13 +1384,12 @@ void PDFAppToolGUIExtractImages::onApplyRange()
         return;
     }
 
-    QPointer<PDFAppToolGUIExtractImages> guard(this);
     m_rangeEditor->hide();
     if (m_pagesPanel)
     {
         m_pagesPanel->close();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         setPagesMode(PagesMode::Range, selection.pages);
     }
@@ -1412,12 +1407,11 @@ void PDFAppToolGUIExtractImages::onCancelRange()
 void PDFAppToolGUIExtractImages::onFormatChosen(const QByteArray& format)
 {
     // The menu is closed already; the model runs the slots of the GUI
-    QPointer<PDFAppToolGUIExtractImages> guard(this);
     if (PDFAppToolParameterModel* model = getModel())
     {
         model->setValue(PDFAppToolGUIExtractImagesHelper::name(PDFDocumentToolExtractImages::PARAMETER_FORMAT), QString::fromLatin1(format));
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateToolbar();
     }

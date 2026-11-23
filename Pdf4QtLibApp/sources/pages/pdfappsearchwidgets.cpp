@@ -1019,7 +1019,7 @@ void PDFAppSearchPopup::mouseMoveEvent(QMouseEvent* event)
     const int row = getRowAt(position);
     if (row >= 0 && event->buttons() == Qt::NoButton)
     {
-        // The signal currentRowChanged may delete the popup
+        // The signal currentRowChanged may delete the popup (with the window)
         QPointer<PDFAppSearchPopup> guard(this);
         setCurrentRow(row);
         if (!guard)
@@ -1080,10 +1080,11 @@ void PDFAppSearchPopup::mouseReleaseEvent(QMouseEvent* event)
 
     if (pressedRow >= 0 && getRowAt(position) == pressedRow)
     {
-        // The signal currentRowChanged may delete the popup
+        // The signal currentRowChanged may delete the popup (with the window) or close it (retired with its
+        // controller, step A): no activation then
         QPointer<PDFAppSearchPopup> guard(this);
         setCurrentRow(pressedRow);
-        if (guard)
+        if (guard && !PDFDeferredDeletion::isRetired(this))
         {
             activateCurrent();
         }
@@ -1181,7 +1182,7 @@ PDFAppSearchController::~PDFAppSearchController()
     // The popup is a child of the window, not of the field
     if (m_popup)
     {
-        m_popup->disconnect(this);
+        disconnectPopup(m_popup.data());
         delete m_popup.data();
     }
 }
@@ -1319,7 +1320,7 @@ void PDFAppSearchController::openPopup(const PDFAppSearchResults& results)
     {
         PDFAppSearchPopup* oldPopup = m_popup.data();
         m_popup = nullptr;
-        oldPopup->disconnect(this);
+        disconnectPopup(oldPopup);
         PDFDeferredDeletion::retire(oldPopup);
     }
 
@@ -1331,7 +1332,10 @@ void PDFAppSearchController::openPopup(const PDFAppSearchResults& results)
         connect(m_popup.data(), &PDFAppSearchPopup::resultActivated, this, &PDFAppSearchController::onResultActivated);
         connect(m_popup.data(), &PDFAppSearchPopup::showAllRequested, this, &PDFAppSearchController::onShowAllRequested);
         connect(m_popup.data(), &PDFAppSearchPopup::currentRowChanged, this, &PDFAppSearchController::onCurrentRowChanged);
-        connect(m_popup.data(), &QObject::destroyed, this, &PDFAppSearchController::onPopupDestroyed);
+
+        // The end of the popup is aboutToBeDeleted of its notifier (its retire, or the notifier's destructor, when the
+        // window deletes it), never QObject::destroyed
+        m_popupEndConnection = connect(PDFDeferredDeletion::getNotifier(m_popup.data()), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppSearchController::onPopupDestroyed);
     }
 
     connectToTab();
@@ -1340,11 +1344,11 @@ void PDFAppSearchController::openPopup(const PDFAppSearchResults& results)
     m_popup->setLayoutDirection(m_field->layoutDirection());
     placePopup();
 
-    // The popup emits currentRowChanged: its receivers may delete the field with
-    // this controller (and the popup with it)
+    // The popup emits currentRowChanged: its receivers may delete the field with this controller (and the popup with
+    // it) or close it (retired, step A): nothing is opened then
     QPointer<PDFAppSearchController> guard(this);
     m_popup->setResults(results);
-    if (!guard || !m_popup)
+    if (!guard || PDFDeferredDeletion::isRetired(this) || !m_popup)
     {
         return;
     }
@@ -1450,10 +1454,11 @@ void PDFAppSearchController::onResultActivated(const PDFAppSearchResult& result)
     QPointer<PDFAppSearchController> guard(this);
     if (m_field)
     {
-        // textChanged runs the code of the application
+        // textChanged runs the code of the application (it may delete or close - retire - the field with this
+        // controller)
         m_field->clear();
     }
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1532,8 +1537,22 @@ void PDFAppSearchController::onEverythingChanged()
 
 void PDFAppSearchController::onPopupDestroyed()
 {
-    // The window has deleted the popup: nothing is watched any more
+    // The popup is closed (retired with the controller, or deleted by the window): nothing is watched any more
     watch(false);
+}
+
+void PDFAppSearchController::disconnectPopup(PDFAppSearchPopup* popup)
+{
+    if (!popup)
+    {
+        return;
+    }
+
+    // The notifier by its stored handle: getNotifier would create a new notifier for a popup, whose notifier is gone
+    // already (the popup in its destructor)
+    popup->disconnect(this);
+    disconnect(m_popupEndConnection);
+    m_popupEndConnection = QMetaObject::Connection();
 }
 
 bool PDFAppSearchController::isShowAllKey(const QKeyEvent* event)
@@ -1594,12 +1613,12 @@ bool PDFAppSearchController::handleFieldKey(QKeyEvent* event)
         case Qt::Key_Enter:
         {
             // The results of the typed text (a pending search is done first; the
-            // search may delete the field with this controller - currentRowChanged)
+            // search may delete or close - retire, step A - the field with this controller - currentRowChanged)
             if (isSearchPending() || isPopupOpen())
             {
                 QPointer<PDFAppSearchController> guard(this);
                 updateSearch();
-                if (!guard)
+                if (!guard || PDFDeferredDeletion::isRetired(this))
                 {
                     return true;
                 }

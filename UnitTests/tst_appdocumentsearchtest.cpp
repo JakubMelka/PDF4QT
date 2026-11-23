@@ -78,6 +78,8 @@
 #include <QtMath>
 #include <QtTest>
 
+#include <functional>
+
 /// Speech engine of the tests: it records the said texts, the test ends a text
 /// by finish() (the real engines are not available offscreen and under valgrind)
 class FakeSpeechEngine : public pdf::PDFAppSpeechEngine
@@ -131,7 +133,14 @@ public:
             voice = name;
         }
     }
-    virtual void setRate(double value) override { rate = value; }
+    virtual void setRate(double value) override
+    {
+        rate = value;
+        if (rateHook)
+        {
+            rateHook();
+        }
+    }
     virtual void setPitch(double value) override { pitch = value; }
     virtual void setVolume(double value) override { volume = value; }
 
@@ -168,6 +177,9 @@ public:
     double rate = 0.0;
     double pitch = 0.0;
     double volume = 1.0;
+
+    /// Code of the application run by the engine, when the controller sets the rate (a test closes the tab there)
+    std::function<void()> rateHook;
 };
 
 FakeSpeechEngine* FakeSpeechEngine::s_last = nullptr;
@@ -230,6 +242,7 @@ private slots:
     void searchCanceledOnRetire();
     void deleteFromOwnSignals_data();
     void deleteFromOwnSignals();
+    void retireFromOwnSignals();
     void closeSearch();
     void themesAndDirection();
 
@@ -253,6 +266,7 @@ private slots:
     void speechReading();
     void speechReadingPageLabel();
     void speechSettings();
+    void speechSettingsTabRetired();
     void speechCommand();
     void speechError();
     void speechLifetime();
@@ -1325,6 +1339,42 @@ void AppDocumentSearchTest::deleteFromOwnSignals()
         QVERIFY(window);
         QVERIFY(openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("After.pdf"), 1)));
     }
+}
+
+void AppDocumentSearchTest::retireFromOwnSignals()
+{
+    // The retire variant of deleteFromOwnSignals (RD6-H1): a new text drops the shown results first
+    // (currentIndexChanged); a slot closes the tab by the window (retire: inert, deleted later) - the controller of
+    // the closed tab starts no search of the new text
+    pdftest::AppDocumentFixture fixture;
+    QPointer<pdf::PDFAppDocumentTab> tab = openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Retired search.pdf"), 4));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentSearchController* controller = handler(tab)->getSearchController();
+    handler(tab)->startSearch(QStringLiteral("alpha"));
+    QVERIFY(waitForSearch(controller));
+    QCOMPARE(controller->getState(), pdf::PDFAppDocumentSearchController::State::Finished);
+    QVERIFY(controller->getResultCount() > 0);
+    QVERIFY(tab->getDocument()->getOperations().empty());
+
+    QObject receiver;
+    bool isRetiredInSlot = false;
+    connect(controller, &pdf::PDFAppDocumentSearchController::currentIndexChanged, &receiver, [&fixture, &tab, &isRetiredInSlot]()
+    {
+        if (tab && !isRetiredInSlot)
+        {
+            isRetiredInSlot = fixture.retire(tab.data()) && pdf::PDFDeferredDeletion::isRetired(tab.data());
+        }
+    });
+    controller->search(QStringLiteral("beta"));
+    QVERIFY(isRetiredInSlot);
+    QCOMPARE(controller->getQuery(), QStringLiteral("alpha"));
+    QVERIFY(controller->getState() != pdf::PDFAppDocumentSearchController::State::Searching);
+    QVERIFY(controller->getState() != pdf::PDFAppDocumentSearchController::State::Indexing);
+
+    fixture.settle();
+    QThreadPool::globalInstance()->waitForDone(30000);
+    fixture.settle();
+    QVERIFY(!tab);
 }
 
 void AppDocumentSearchTest::closeSearch()
@@ -2477,6 +2527,52 @@ void AppDocumentSearchTest::speechSettings()
     QCOMPARE(FakeSpeechEngine::s_last->engineName, QStringLiteral("other"));
     fixture.settle();
     QVERIFY(!oldEngine);
+}
+
+void AppDocumentSearchTest::speechSettingsTabRetired()
+{
+    // The retire variant of the speech rows of deleteFromOwnSignals (RD6-H1): a released slider writes the rate,
+    // the pitch and the volume; the engine takes the rate and a slot of it closes the tab by the window (retire:
+    // inert, deleted later) - the panel of the closed tab writes no more settings
+    pdftest::AppDocumentFixture fixture;
+    QPointer<pdf::PDFAppDocumentTab> tab = openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Retired speech.pdf"), 1));
+    QVERIFY(tab);
+    QVERIFY(tab->getView()->showPanel(pdf::PDFAppDocumentPanelIds::speech()));
+    pdf::PDFAppDocumentSpeechPanel* panel = qobject_cast<pdf::PDFAppDocumentSpeechPanel*>(tab->getView()->getSidebar()->findPanel(pdf::PDFAppDocumentPanelIds::speech()));
+    QVERIFY(panel);
+    QPointer<FakeSpeechEngine> engine = FakeSpeechEngine::s_last;
+    QVERIFY(engine);
+    const pdf::PDFSettingsRepository settings = fixture.context->getSettings();
+    const double pitch = settings.getReal(pdf::PDFSettingKeys::speechPitch());
+    const double volume = settings.getReal(pdf::PDFSettingKeys::speechVolume());
+
+    // The pitch and the volume of the sliders differ from the settings (moved without their signals)
+    {
+        const QSignalBlocker pitchBlocker(panel->getPitchSlider());
+        const QSignalBlocker volumeBlocker(panel->getVolumeSlider());
+        panel->getPitchSlider()->setValue(panel->getPitchSlider()->value() == -50 ? 50 : -50);
+        panel->getVolumeSlider()->setValue(panel->getVolumeSlider()->value() == 20 ? 30 : 20);
+    }
+
+    bool isRetiredInSlot = false;
+    engine->rateHook = [&fixture, &tab, &isRetiredInSlot]()
+    {
+        if (tab && !isRetiredInSlot)
+        {
+            isRetiredInSlot = fixture.retire(tab.data()) && pdf::PDFDeferredDeletion::isRetired(tab.data());
+        }
+    };
+    panel->getRateSlider()->setValue(panel->getRateSlider()->value() == 50 ? 60 : 50);
+    if (engine)
+    {
+        engine->rateHook = std::function<void()>();
+    }
+    QVERIFY(isRetiredInSlot);
+    QCOMPARE(settings.getReal(pdf::PDFSettingKeys::speechPitch()), pitch);
+    QCOMPARE(settings.getReal(pdf::PDFSettingKeys::speechVolume()), volume);
+
+    fixture.settle();
+    QVERIFY(!tab);
 }
 
 void AppDocumentSearchTest::speechCommand()

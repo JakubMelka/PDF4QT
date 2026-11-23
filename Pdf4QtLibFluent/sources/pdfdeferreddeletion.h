@@ -97,6 +97,18 @@ private:
 /// object only taken out of the tree (setParent(nullptr), no logical owner - deleted later by the code, which took it
 /// out) is still shut down. An override calls the hook of its base class (BaseClass::retire()) first.
 ///
+/// A retire inside of an emission of the retired object (RA-L7): step 6 cuts its outgoing signals, so the later
+/// receivers of that emission do not run - retireLater keeps them. Two named cases: PDFMessageBox::setHeadWidget
+/// keeps the synchronous retire of the old head (no library receiver depends on the rest of the emission, and the
+/// caller relies on an old head that is inert as soon as the call returns - deferredDeletionMessageBox checks it);
+/// PDFDocumentToolShell::close called from a slot of the shell itself inside of an emission of its runner (only then
+/// QObject::sender is the runner) ends the runner's work at once by PDFDocumentToolRunner::shutDown (the work of its
+/// hook, the document is free when close returns) and retires the runner by retireLater, so the later receivers of the
+/// emission (the GUI, PDFAppSplitToolGUI::onRunFinished) still run. A close from another receiver of the runner's
+/// signal (the GUI, the page of the tool, a slot of the end of the operation) and a retire of the shell's page or tab
+/// inside of the emission still retire the runner at once (by close or with the subtree, where a later retireLater is
+/// nothing): the later receivers of that emission are cut then - usually they belong to the same retired subtree.
+///
 /// The class passes its QObject to the constructor (PDFRetirable(this) after the QObject base in the list of the
 /// bases): it registers the hook and lets the synchronous deletion detector name the object. Detector: an object with
 /// a hook deleted while neither it nor an ancestor nor its owner is retired, and no flush / SynchronousDeletionScope
@@ -287,7 +299,9 @@ public:
 
     /// The notifier of \p object (created on demand as its child); connect to aboutToBeDeleted. For an object, which
     /// is retired already, the notifier has emitted (or emits from its destructor only, when it is new): check
-    /// isRetired before connecting. nullptr for nullptr or outside of the GUI thread.
+    /// isRetired before connecting. nullptr for nullptr or outside of the GUI thread. It creates a notifier also for an
+    /// object in its destructor, whose notifier is gone already: a listener, which disconnects later, keeps the handle
+    /// of its connection (QMetaObject::Connection) and disconnects by it, never by getNotifier(object)->disconnect.
     static PDFLifetimeNotifier* getNotifier(QObject* object);
 
     /// Retires \p object (steps 0-9 above). Reentrant; nothing for nullptr, a retired object or outside of the GUI

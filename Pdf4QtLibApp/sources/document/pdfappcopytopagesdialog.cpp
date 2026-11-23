@@ -131,8 +131,8 @@ PDFAppCopyToPagesDialog::PDFAppCopyToPagesDialog(PDFAppAnnotationController* con
     connect(this, &QDialog::finished, this, &PDFAppCopyToPagesDialog::onDialogFinished);
     if (controller)
     {
-        // The tab (with its controller) deleted: the dialog closes
-        connect(controller, &QObject::destroyed, this, &PDFAppCopyToPagesDialog::onControllerDestroyed);
+        // The controller closed (retire, aboutToBeDeleted of its notifier) or deleted: the dialog closes
+        PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(controller), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppCopyToPagesDialog::onControllerDestroyed);
 
         // Parented to the window, the dialog belongs to the controller (it closes with the tab)
         PDFDeferredDeletion::setOwner(this, controller);
@@ -250,6 +250,7 @@ void PDFAppCopyToPagesDialog::onResultChanged()
 
 bool PDFAppCopyToPagesDialog::copy()
 {
+    QPointer<PDFAppCopyToPagesDialog> guard(this);
     PDFAppAnnotationController* controller = m_controller.data();
     PDFAppDocument* document = controller ? controller->getDocument() : nullptr;
     const std::vector<PDFInteger> pages = getTargetPages();
@@ -264,9 +265,8 @@ bool PDFAppCopyToPagesDialog::copy()
         return false;
     }
 
-    QPointer<PDFAppCopyToPagesDialog> guard(this);
     const bool isCommitted = controller->commit(*result, PDFAppAnnotationChangeKind::Annotation, tr("Copy annotations to pages"));
-    if (guard && isCommitted)
+    if (isCommitted && guard && !PDFDeferredDeletion::isRetired(this))
     {
         m_isApplied = true;
         accept();
@@ -302,13 +302,19 @@ void PDFAppCopyToPagesDialog::onDocumentChanged()
 
 void PDFAppCopyToPagesDialog::onControllerDestroyed()
 {
-    // The sender is dying: only the own state is changed, the dialog goes from the event loop
+    // A dialog retired with its controller (setOwner) is closed by the retire. Otherwise nothing of the
+    // controller is used: the dialog is rejected and retired.
+    if (PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
+
     m_controller = nullptr;
     if (isVisible())
     {
         reject();
     }
-    deleteLater();
+    PDFDeferredDeletion::retire(this);
 }
 
 void PDFAppCopyToPagesDialog::onDialogFinished(int result)

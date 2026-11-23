@@ -288,7 +288,7 @@ void PDFAppDocumentTab::requestClose()
     QPointer<PDFAppDocumentTab> guard(this);
     if (!mainWindow || !mainWindow->closeTab(this))
     {
-        // The tab stays (another question, the window refused it)
+        // The tab stays (another question, the window refused it): only the own flag
         if (guard)
         {
             m_isCloseConfirmed = false;
@@ -298,6 +298,7 @@ void PDFAppDocumentTab::requestClose()
 
 PDFAppLeaveResult PDFAppDocumentTab::requestTabClose()
 {
+    QPointer<PDFAppDocumentTab> guard(this);
     // The questions have been answered by the flow of the close (closing after its last answer or its save)
     if (m_isCloseConfirmed)
     {
@@ -328,20 +329,20 @@ PDFAppLeaveResult PDFAppDocumentTab::requestTabClose()
 
     // A tool of the tab with unsaved work of the user asks first (owner 2026-11-20: the question of the
     // tool, as at its Esc); its answer may run code of the tool - the tab may be deleted meanwhile. The page,
-    // which has accepted, waits for the end of the leave (PDFAppPage::finishLeave, decision 8).
-    QPointer<PDFAppDocumentTab> guard(this);
+    // which has accepted, waits for the end of the leave (PDFAppPage::finishLeave, decision 8). A retired tab
+    // (or page) goes on with nothing.
     if (QPointer<PDFAppPage> page = getPage())
     {
         flow->setStep(int(CloseStep::Page));
         flow->setSubject(page.data());
         PDFAppLeaveResult result = page->requestClose(flow);
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return PDFAppLeaveResult::Refused;
         }
         if (result == PDFAppLeaveResult::Pending)
         {
-            if (page && flow->waitForStep(page.data(), this, &PDFAppDocumentTab::onClosePageStepFinished))
+            if (page && !PDFDeferredDeletion::isRetired(page.data()) && flow->waitForStep(page.data(), this, &PDFAppDocumentTab::onClosePageStepFinished))
             {
                 return PDFAppLeaveResult::Pending;
             }
@@ -352,21 +353,26 @@ PDFAppLeaveResult PDFAppDocumentTab::requestTabClose()
             flow->finish(false);
             return PDFAppLeaveResult::Refused;
         }
-        flow->addAcceptedPage(page.data());
+        flow->addAcceptedPage((page && !PDFDeferredDeletion::isRetired(page.data())) ? page.data() : nullptr);
     }
 
     const PDFAppLeaveResult result = continueClose(CloseStep::Running);
-    if (result == PDFAppLeaveResult::Done && guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
+    {
+        return PDFAppLeaveResult::Refused;
+    }
+    if (result == PDFAppLeaveResult::Done)
     {
         stopOperations(false);
         writeReadingState();
     }
-    return guard ? result : PDFAppLeaveResult::Refused;
+    return result;
 }
 
 PDFAppLeaveResult PDFAppDocumentTab::continueClose(CloseStep from)
 {
     QPointer<PDFAppDocumentTab> guard(this);
+    // The slots of the questions and of the commits may close the tab: a retired tab (or flow) goes on with nothing
     QPointer<PDFAppLeaveFlow> flow = getLeaveFlow();
 
     // Running operations (a save, printing, an assistant): pdf4qt-document-close-running (A0: shown, never exec;
@@ -397,7 +403,7 @@ PDFAppLeaveResult PDFAppDocumentTab::continueClose(CloseStep from)
     {
         flow->setStep(int(CloseStep::FinishPages));
         PDFAppLeaveResult result = flow->requestFinishPages(true);
-        if (!guard || !flow)
+        if (!guard || !flow || PDFDeferredDeletion::isRetired(this) || PDFDeferredDeletion::isRetired(flow.data()))
         {
             return PDFAppLeaveResult::Refused;
         }
@@ -420,7 +426,7 @@ PDFAppLeaveResult PDFAppDocumentTab::continueClose(CloseStep from)
     if (from <= CloseStep::Unsaved && m_document)
     {
         m_document->commitPendingEdits();
-        if (!guard || !flow)
+        if (!guard || !flow || PDFDeferredDeletion::isRetired(this) || PDFDeferredDeletion::isRetired(flow.data()))
         {
             return PDFAppLeaveResult::Refused;
         }
@@ -438,7 +444,7 @@ PDFAppLeaveResult PDFAppDocumentTab::continueClose(CloseStep from)
 
     // Every question has been answered: the flow ends (the caller closes the tab)
     flow->finish(true);
-    return guard ? PDFAppLeaveResult::Done : PDFAppLeaveResult::Refused;
+    return (!guard || PDFDeferredDeletion::isRetired(this)) ? PDFAppLeaveResult::Refused : PDFAppLeaveResult::Done;
 }
 
 bool PDFAppDocumentTab::isCloseStep(CloseStep step) const
@@ -478,6 +484,7 @@ void PDFAppDocumentTab::onClosePageStepFinished(PDFAppLeaveResult result)
 
 void PDFAppDocumentTab::onCloseRunningChosen(PDFAppDocumentChoice choice)
 {
+    QPointer<PDFAppDocumentTab> guard(this);
     if (!isCloseStep(CloseStep::Running))
     {
         return;
@@ -490,9 +497,8 @@ void PDFAppDocumentTab::onCloseRunningChosen(PDFAppDocumentChoice choice)
         return;
     }
 
-    QPointer<PDFAppDocumentTab> guard(this);
     stopOperations(true);
-    if (guard && isCloseStep(CloseStep::Running))
+    if (guard && !PDFDeferredDeletion::isRetired(this) && isCloseStep(CloseStep::Running))
     {
         completeClose(continueClose(CloseStep::FinishPages));
     }
@@ -514,6 +520,7 @@ void PDFAppDocumentTab::onCloseFinishStepFinished(PDFAppLeaveResult result)
 
 void PDFAppDocumentTab::onCloseUnsavedChosen(PDFAppDocumentChoice choice)
 {
+    QPointer<PDFAppDocumentTab> guard(this);
     if (!isCloseStep(CloseStep::Unsaved))
     {
         return;
@@ -532,10 +539,9 @@ void PDFAppDocumentTab::onCloseUnsavedChosen(PDFAppDocumentChoice choice)
             // The tab closes, when package E has written the file. The questions have been answered: the flow ends
             // and the save is no step of it (M3 of the review of A0: a quit, the end of the session, a navigation or
             // a lock go on meanwhile as before A0); a second close is refused until the save ends.
-            QPointer<PDFAppDocumentTab> guard(this);
             m_isClosingAfterSave = true;
             flow->finish(true);
-            if (guard)
+            if (guard && !PDFDeferredDeletion::isRetired(this))
             {
                 startCloseSave();
             }
@@ -739,31 +745,31 @@ void PDFAppDocumentTab::updateStack()
 
 void PDFAppDocumentTab::onDocumentStateChanged()
 {
+    QPointer<PDFAppDocumentTab> guard(this);
     if (!m_document)
     {
         return;
     }
 
-    QPointer<PDFAppDocumentTab> guard(this);
     updateStack();
 
     if (m_document->isReady() && !m_isShown)
     {
         m_isShown = true;
         onDocumentShown();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
     }
 
     Q_EMIT pageTitleChanged();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
     Q_EMIT commandStatesChanged();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -806,7 +812,7 @@ void PDFAppDocumentTab::onDocumentTitleChanged()
 {
     QPointer<PDFAppDocumentTab> guard(this);
     Q_EMIT pageTitleChanged();
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT commandStatesChanged();
     }

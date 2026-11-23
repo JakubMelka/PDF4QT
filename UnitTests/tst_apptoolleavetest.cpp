@@ -57,6 +57,7 @@
 #include "pdfapptoolundotarget.h"
 #include "pdfappundostack.h"
 #include "pdfdocumenttoolshell.h"
+#include "pdfdeferreddeletion.h"
 #include "pdftoolrepository.h"
 
 #include "pdfdocument.h"
@@ -76,6 +77,7 @@
 #include <QLabel>
 #include <QMenu>
 #include <QPushButton>
+#include <QTabBar>
 #include <QTimer>
 #include <QTranslator>
 #include <QtTest>
@@ -591,6 +593,7 @@ private slots:
     void assistantOpenedInteractiveRecorded();
     void answeredQuestionAsksAgain();
     void waitTabDeleted();
+    void activationRetiresTab();
     void waitSecondLeaveRefused();
     void waitDocumentLost();
     void waitLanguageAndThemeChange();
@@ -1346,6 +1349,49 @@ void AppToolLeaveTest::waitTabDeleted()
         pdf::PDFDeferredDeletion::SynchronousDeletionScope scope;
         delete tabGuard.data();
     }
+    AppToolShellFixture::settle();
+    QVERIFY(!tabGuard);
+    QVERIFY(!shell);
+    QCOMPARE(H::countShownQuestions(), 0);
+    QVERIFY(fixture.window->isVisible());
+}
+
+void AppToolLeaveTest::activationRetiresTab()
+{
+    // RD6-H1, the retire variant of AppToolShellTest::shellDeletedFromActivation for the leave: the leave of a tool
+    // with unsaved work brings its tab to the front first; a slot of the switch of the tabs closes that tab (retired,
+    // deleted later). The shell, retired by the activation, answers nothing: the leave is refused, as by the end of
+    // the shell (PA6), and no question is shown
+    const LeaveToolCase tool = H::cases()[QStringLiteral("measure")];
+    AppToolOwnTabFixture fixture;
+    pdf::PDFAppDocumentTab* tab = nullptr;
+    QPointer<PDFDocumentToolShell> shell = H::open(fixture, tool, &tab);
+    QVERIFY(shell);
+    QVERIFY(tool.makeWork(fixture, shell));
+    QPointer<pdf::PDFAppDocumentTab> tabGuard(tab);
+    fixture.window->activateTab(fixture.window->getHomeTab());
+    AppToolShellFixture::settle();
+    QVERIFY(fixture.window->getCurrentTab() != tab);
+
+    pdftest::NestedEventLoopGuard loopGuard;
+    bool isRetiredByActivation = false;
+    QObject receiver;
+    QObject::connect(fixture.window->getTabBar(), &QTabBar::currentChanged, &receiver, [&]()
+    {
+        if (!isRetiredByActivation && tabGuard)
+        {
+            isRetiredByActivation = true;
+            pdf::PDFDeferredDeletion::retire(tabGuard.data());
+        }
+    });
+    pdf::PDFAppLeaveFlow* flow = tab->getLeaveFlow();
+    QVERIFY(flow->start(pdf::PDFAppLeaveFlow::Goal::Navigate));
+    QCOMPARE(shell->requestLeave(flow), pdf::PDFAppLeaveResult::Refused);
+    QVERIFY(isRetiredByActivation);
+    QVERIFY(shell);
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(shell.data()));
+    QCOMPARE(H::countShownQuestions(), 0);
+
     AppToolShellFixture::settle();
     QVERIFY(!tabGuard);
     QVERIFY(!shell);

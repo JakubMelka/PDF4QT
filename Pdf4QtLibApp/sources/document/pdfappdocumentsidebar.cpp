@@ -36,6 +36,7 @@
 #include "pdfsettingdefinitions.h"
 #include "pdfsettingsrepository.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfthemefonts.h"
 #include "pdfthemeiconengine.h"
 #include "pdfthememanager.h"
@@ -220,6 +221,7 @@ PDFAppDocumentSidebar::~PDFAppDocumentSidebar()
 
 void PDFAppDocumentSidebar::setDocument(PDFAppDocument* document)
 {
+    QPointer<PDFAppDocumentSidebar> guard(this);
     if (m_document == document)
     {
         return;
@@ -246,14 +248,13 @@ void PDFAppDocumentSidebar::setDocument(PDFAppDocument* document)
         panels.push_back(item.second);
     }
 
-    QPointer<PDFAppDocumentSidebar> self(this);
     for (const QPointer<PDFAppDocumentPanel>& panel : panels)
     {
         if (panel)
         {
             panel->setDocument(document, m_view);
         }
-        if (!self)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -321,6 +322,7 @@ bool PDFAppDocumentSidebar::showPanel(const QString& panelId)
 
 PDFAppDocumentPanel* PDFAppDocumentSidebar::createPanel(const QString& panelId)
 {
+    QPointer<PDFAppDocumentSidebar> guard(this);
     QPointer<PDFAppDocumentPanel>& existing = m_panels[panelId];
     if (existing)
     {
@@ -333,9 +335,8 @@ PDFAppDocumentPanel* PDFAppDocumentSidebar::createPanel(const QString& panelId)
         return nullptr;
     }
 
-    QPointer<PDFAppDocumentSidebar> self(this);
-    QPointer<PDFAppDocumentPanel> panel = factory->createPanel(m_stack);
-    if (!self || !panel)
+    PDFAppDocumentPanel* panel = factory->createPanel(m_stack);
+    if (!panel || !guard || PDFDeferredDeletion::isRetired(this))
     {
         return nullptr;
     }
@@ -345,18 +346,20 @@ PDFAppDocumentPanel* PDFAppDocumentSidebar::createPanel(const QString& panelId)
     connect(panel, &PDFAppDocumentPanel::titleChanged, this, &PDFAppDocumentSidebar::onPanelTitleChanged);
     connect(panel, &PDFAppDocumentPanel::availabilityChanged, this, &PDFAppDocumentSidebar::onPanelAvailabilityChanged);
     connect(panel, &QObject::destroyed, this, &PDFAppDocumentSidebar::onPanelDestroyed);
+    QPointer<PDFAppDocumentPanel> panelGuard(panel);
     panel->setDocument(m_document, m_view);
 
     // A slot of a signal of the panel (titleChanged) may close the tab: a retired sidebar (step A) builds nothing more
-    if (!self || !panel || PDFDeferredDeletion::isRetired(this))
+    if (!guard || !panelGuard || PDFDeferredDeletion::isRetired(this) || PDFDeferredDeletion::isRetired(panel))
     {
         return nullptr;
     }
 
     if (m_header)
     {
-        QPointer<QWidget> headerWidget = panel->createHeaderWidget(m_header);
-        if (!self || !panel)
+        // A retired sidebar (or panel) adds no header widget to its subtree
+        QWidget* headerWidget = panel->createHeaderWidget(m_header);
+        if (!guard || !panelGuard || PDFDeferredDeletion::isRetired(this) || PDFDeferredDeletion::isRetired(panel))
         {
             return nullptr;
         }
@@ -448,6 +451,7 @@ QString PDFAppDocumentSidebar::getHeaderSubtitle() const
 
 void PDFAppDocumentSidebar::onTabClicked(int buttonId)
 {
+    QPointer<PDFAppDocumentSidebar> guard(this);
     if (buttonId < 0 || buttonId >= int(m_tabs.size()))
     {
         return;
@@ -456,9 +460,8 @@ void PDFAppDocumentSidebar::onTabClicked(int buttonId)
     // showPanel announces the panel, whose slots may delete this sidebar: the click is
     // announced last, only by a whole sidebar
     const QString panelId = m_tabs[buttonId].panelId;
-    QPointer<PDFAppDocumentSidebar> guard(this);
     showPanel(panelId);
-    if (guard && m_currentPanelId == panelId)
+    if (guard && !PDFDeferredDeletion::isRetired(this) && m_currentPanelId == panelId)
     {
         Q_EMIT tabClicked(panelId);
     }
@@ -563,12 +566,12 @@ void PDFAppDocumentSidebar::onEverythingChanged()
 
 void PDFAppDocumentSidebar::showFirstAvailablePanel()
 {
+    QPointer<PDFAppDocumentSidebar> guard(this);
     // showPanel announces the panel: a slot may delete this sidebar (its tab, the window) -
     // the ids are a copy, the sidebar is asked again after each try (the lifetime sweep of the
     // own tab of a tool found the loop over the freed tabs, step 2 of phase 2)
-    QPointer<PDFAppDocumentSidebar> guard(this);
     const QString defaultPanel = getDefaultPanelId();
-    if ((isPanelAvailable(defaultPanel) && showPanel(defaultPanel)) || !guard)
+    if ((isPanelAvailable(defaultPanel) && showPanel(defaultPanel)) || !guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -580,7 +583,7 @@ void PDFAppDocumentSidebar::showFirstAvailablePanel()
     }
     for (const QString& panelId : panelIds)
     {
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }

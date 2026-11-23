@@ -35,9 +35,10 @@ PDFAppDialogAnswer::PDFAppDialogAnswer(QDialog* dialog, QObject* receiver) :
     BaseClass(receiver),
     m_dialog(dialog)
 {
-    if (!dialog)
+    if (!dialog || PDFDeferredDeletion::isRetired(dialog))
     {
-        // Nothing to wait for: the answer is Rejected, never inside the call (the receiver connects after it)
+        // Nothing to wait for (no dialog, a dialog closed already - its notifier has emitted): the answer is
+        // Rejected, never inside the call (the receiver connects after it)
         m_isAnswered = true;
         QMetaObject::invokeMethod(this, &PDFAppDialogAnswer::onDialogGone, Qt::QueuedConnection);
         return;
@@ -45,9 +46,9 @@ PDFAppDialogAnswer::PDFAppDialogAnswer(QDialog* dialog, QObject* receiver) :
 
     // The dialog belongs to the window (outside the subtree of the receiver): the connections are cut, when the
     // receiver is retired (step A). The dialog retired without finished (its owner closed) ends the answer as its
-    // deletion does (Rejected from the event loop); destroyed stays for a dialog deleted without retire.
+    // deletion does (Rejected from the event loop): the notifier emits at retire, or from its destructor for a dialog
+    // deleted without retire (PA6: the end of an object is aboutToBeDeleted, never QObject::destroyed).
     PDFDeferredDeletion::connect(dialog, &QDialog::finished, this, &PDFAppDialogAnswer::onDialogFinished);
-    PDFDeferredDeletion::connect(dialog, &QObject::destroyed, this, &PDFAppDialogAnswer::onDialogDestroyed);
     PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(dialog), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppDialogAnswer::onDialogDestroyed);
 }
 
@@ -125,11 +126,16 @@ PDFAppLeaveFlowStep::PDFAppLeaveFlowStep(QObject* reporter, PDFAppLeaveFlow* flo
     BaseClass(flow),
     m_reporterKey(reporter)
 {
-    if (reporter)
+    if (reporter && PDFDeferredDeletion::isRetired(reporter))
+    {
+        // A reporter closed already (its notifier has emitted) reports nothing: Refused from the event loop
+        onReporterDestroyed();
+    }
+    else if (reporter)
     {
         // The reporter (a page, a shell, a GUI) is outside the subtree of the flow; its retire ends the step as its
-        // deletion does (Refused from the event loop); destroyed stays for a reporter deleted without retire
-        PDFDeferredDeletion::connect(reporter, &QObject::destroyed, this, &PDFAppLeaveFlowStep::onReporterDestroyed);
+        // deletion does (Refused from the event loop): the notifier emits at retire, or from its destructor for a
+        // reporter deleted without retire (PA6: the end of an object is aboutToBeDeleted, never QObject::destroyed)
         PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(reporter), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppLeaveFlowStep::onReporterDestroyed);
     }
 }
@@ -307,7 +313,8 @@ int PDFAppLeaveFlow::getQueueSize() const
 
 void PDFAppLeaveFlow::addAcceptedPage(PDFAppPage* page)
 {
-    if (!page)
+    // A page closed by its own answer (retired with its tab, step A) waits for no end of the leave
+    if (!page || PDFDeferredDeletion::isRetired(page))
     {
         return;
     }
@@ -352,16 +359,19 @@ PDFAppLeaveResult PDFAppLeaveFlow::continueFinishPages()
     {
         QPointer<PDFAppPage> page = m_finishingPages.front();
         m_finishingPages.erase(m_finishingPages.begin());
-        if (!page)
+        if (!page || PDFDeferredDeletion::isRetired(page))
         {
+            // A page closed meanwhile (retired with its tab, step A) has nothing to finish
             continue;
         }
 
         // A refusal cancels the leave: the rest of the pages forget their choices (PDFAppPage::finishLeaves). The page
         // runs code of the application (a commit, its question).
         PDFAppLeaveResult result = page->requestFinishLeave(m_isFinishProceeding && !m_isFinishRefused, this);
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
+            // The flow of the window may go with the window; the flow of a tab is retired with its tab (step A): the
+            // rest of the pages is not asked
             return PDFAppLeaveResult::Refused;
         }
         if (result == PDFAppLeaveResult::Pending)
@@ -400,7 +410,7 @@ void PDFAppLeaveFlow::onPageFinished(PDFAppLeaveResult result)
     // The waiter of this flow gets the result of all pages (the last call: it may delete the flow)
     QPointer<PDFAppLeaveFlow> guard(this);
     const PDFAppLeaveResult finishResult = continueFinishPages();
-    if (guard && finishResult != PDFAppLeaveResult::Pending)
+    if (guard && !PDFDeferredDeletion::isRetired(this) && finishResult != PDFAppLeaveResult::Pending)
     {
         finishStep(this, finishResult);
     }

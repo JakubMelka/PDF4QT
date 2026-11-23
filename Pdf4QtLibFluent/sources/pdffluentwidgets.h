@@ -423,15 +423,19 @@ private:
     /// The button of the month is pressed (the mouse, Space): the menu of the months opens
     void onMonthButtonPressed();
 
-    /// The menu of the months is hidden or deleted: the button is released
+    /// The menu of the months is hidden: the button is released
     void onMonthMenuHidden();
+
+    /// Slot of PDFLifetimeNotifier::aboutToBeDeleted of the menu of the months (retired or deleted alone): the
+    /// button is released (nothing, when the calendar itself is retired)
+    void onMonthMenuAboutToBeDeleted();
 
     QPointer<QWidget> m_viewport;
     QPointer<QToolButton> m_monthButton;    ///< Part of QCalendarWidget
     QPointer<QMenu> m_monthMenu;            ///< Part of QCalendarWidget (a child of the button of the month)
     QPointer<QSpinBox> m_yearEdit;          ///< Part of QCalendarWidget
     QMetaObject::Connection m_monthMenuHiddenConnection;
-    QMetaObject::Connection m_monthMenuDestroyedConnection;
+    QMetaObject::Connection m_monthMenuDeletedConnection;
 };
 
 /// Editor of a date and time. Its calendar popup is \p PDFCalendarWidget.

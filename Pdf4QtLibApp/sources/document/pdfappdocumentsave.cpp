@@ -36,6 +36,7 @@
 #include "pdfappthumbnailer.h"
 #include "pdfrecentrepository.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumentwriter.h"
 #include "pdfexception.h"
 #include "pdfexecutionpolicy.h"
@@ -397,16 +398,18 @@ QString PDFAppDocumentSaver::getProposedFilePath() const
 
 void PDFAppDocumentSaver::start(bool isSaveAs)
 {
+    m_isFileWritten = false;
     PDFAppDocument* document = getDocument();
     if (!document)
     {
         return;
     }
 
-    // An open editor of a form field is saved too (step 4, package D)
+    // An open editor of a form field is saved too (step 4, package D); a slot may close the tab:
+    // a retired saver writes nothing
     QPointer<PDFAppDocumentSaver> guard(this);
     document->commitPendingEdits();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -452,10 +455,10 @@ void PDFAppDocumentSaver::chooseFileAndWrite(bool isIncremental)
     m_step = Step::FileDialog;
     m_isFileIncremental = isIncremental;
 
-    // A slot of the state may delete the tab with the saver
+    // A slot of the state may close the tab with the saver: a retired saver asks for no file
     QPointer<PDFAppDocumentSaver> guard(this);
     Q_EMIT stateChanged();
-    if (!guard || m_step != Step::FileDialog)
+    if (!guard || PDFDeferredDeletion::isRetired(this) || m_step != Step::FileDialog)
     {
         return;
     }
@@ -560,7 +563,7 @@ void PDFAppDocumentSaver::startWriter(PDFAppDocumentFileWriter::Request request,
     const QString fileName = QFileInfo(filePath).fileName();
     QPointer<PDFAppDocumentSaver> guard(this);
     PDFAppDocumentOperation* operation = document->beginOperation(PDFAppDocumentOperationKind::Save, tr("Saving %1").arg(fileName), false);
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -610,6 +613,8 @@ bool PDFAppDocumentSaver::writeSilently(PDFAppDocumentFileWriter::Request reques
 
 void PDFAppDocumentSaver::completeSilentWrite(quint64 version, const PDFAppDocumentFileWriter::Result& result)
 {
+    // The file has been written: a saver retired by a slot of the document state (its tab closed) still
+    // records it in Recent (coordinator 2026-11-23, as before step A)
     QPointer<PDFAppDocumentSaver> guard(this);
     if (PDFAppDocument* document = getDocument(); document && document->isReady())
     {
@@ -633,14 +638,20 @@ void PDFAppDocumentSaver::onWriterFinished()
     const PDFAppDocumentFileWriter::Result result = watcher->future().result();
     m_watcher = nullptr;
     watcher->deleteLater();
+    QPointer<PDFAppDocumentSaver> guard(this);
 
-    // The document announces the finished operation (a slot may delete the tab)
+    // Once the file is written, the save is done also for a saver retired by a slot below (its tab closed;
+    // coordinator 2026-11-23, as before step A): the document is marked saved, the file is recorded in Recent
+    // and a save request answers true (a quit or a session end saved). Only new work (a question, UI of the
+    // tab, a signal) stops.
+    m_isFileWritten = !m_isSilent && result.isSaved;
+
+    // The document announces the finished operation (a slot may close the tab)
     if (PDFAppDocumentOperation* operation = m_operation.data())
     {
-        QPointer<PDFAppDocumentSaver> operationGuard(this);
         m_operation = nullptr;
         operation->finish();
-        if (!operationGuard)
+        if (!guard || (PDFDeferredDeletion::isRetired(this) && !m_isFileWritten))
         {
             return;
         }
@@ -653,16 +664,15 @@ void PDFAppDocumentSaver::onWriterFinished()
         m_isSilent = false;
         m_step = Step::Idle;
 
-        QPointer<PDFAppDocumentSaver> silentGuard(this);
         if (result.isSaved)
         {
             Q_EMIT fileWritten(result.filePath);
         }
-        if (silentGuard)
+        if (guard && !PDFDeferredDeletion::isRetired(this))
         {
             Q_EMIT stateChanged();
         }
-        if (silentGuard)
+        if (guard && !PDFDeferredDeletion::isRetired(this))
         {
             Q_EMIT silentWriteFinished(result);
         }
@@ -686,7 +696,6 @@ void PDFAppDocumentSaver::onWriterFinished()
         return;
     }
 
-    QPointer<PDFAppDocumentSaver> guard(this);
     if (document->isReady())
     {
         // The written version (a document changed meanwhile stays modified)
@@ -697,13 +706,22 @@ void PDFAppDocumentSaver::onWriterFinished()
         return;
     }
 
-    Q_EMIT fileWritten(result.filePath);
-    if (!guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
-        return;
+        Q_EMIT fileWritten(result.filePath);
+        if (!guard)
+        {
+            return;
+        }
     }
 
     recordSavedFile(result.filePath);
+    if (PDFDeferredDeletion::isRetired(this))
+    {
+        // The save request has its answer from the retire (hasWrittenFile); no signal of a retired saver
+        m_step = Step::Idle;
+        return;
+    }
     finish(true);
 }
 
@@ -961,7 +979,7 @@ void PDFAppDocumentSaver::finish(bool isSaved)
 
     QPointer<PDFAppDocumentSaver> guard(this);
     Q_EMIT stateChanged();
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT finished(isSaved);
     }
@@ -996,9 +1014,9 @@ void PDFAppDocumentSaveRequest::begin(Kind kind)
     m_isInCall = true;
 
     PDFAppDocumentSaver* saver = m_saver.data();
-    if (!saver)
+    if (!saver || PDFDeferredDeletion::isRetired(saver))
     {
-        // No tab, which can save
+        // No tab, which can save (a retired saver starts nothing, and its notifier has emitted already)
         deliver(false);
         m_isInCall = false;
         return;
@@ -1007,10 +1025,12 @@ void PDFAppDocumentSaveRequest::begin(Kind kind)
     // Connected before the start: a save, which ends inside the call (a document, which
     // cannot be saved after the commit of its editor), is delivered from the event loop
     connect(saver, &PDFAppDocumentSaver::finished, this, &PDFAppDocumentSaveRequest::onSaverFinished);
-    connect(saver, &QObject::destroyed, this, &PDFAppDocumentSaveRequest::onSaverDestroyed);
+    // The end of the saver (its tab closed: retire, or a deletion) is aboutToBeDeleted of its notifier
+    PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(saver), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppDocumentSaveRequest::onSaverDestroyed);
 
     // The saver runs code of the application (the commit of an editor, its state): the
-    // receiver and this request with it may be deleted meanwhile
+    // receiver and this request with it may be deleted meanwhile (the receiver is any object, also one
+    // without deferred deletion: this guard stays)
     QPointer<PDFAppDocumentSaveRequest> guard(this);
     const bool isStarted = kind == Kind::SaveAs ? saver->saveAs() : saver->save();
     if (!guard)
@@ -1033,13 +1053,16 @@ void PDFAppDocumentSaveRequest::onSaverFinished(bool isSaved)
 
 void PDFAppDocumentSaveRequest::onSaverDestroyed()
 {
-    // Only the pointer is forgotten here (arch/conventions.md): the end is delivered
-    // from the event loop, never inside the destruction of the saver
+    // The saver is retired or dying: only the pointer is forgotten here (arch/conventions.md), the end is
+    // delivered from the event loop, never inside the retire or the destruction of the saver. A saver retired
+    // after its worker has written the file finishes the save (true); a deleted one is gone already here.
+    const PDFAppDocumentSaver* saver = m_saver.data();
+    const bool isSaved = saver && saver->hasWrittenFile();
     m_saver = nullptr;
     if (m_isPending && !m_isDeliveryQueued)
     {
         m_isDeliveryQueued = true;
-        m_laterResult = false;
+        m_laterResult = isSaved;
         QMetaObject::invokeMethod(this, &PDFAppDocumentSaveRequest::onDeliverLater, Qt::QueuedConnection);
     }
 }

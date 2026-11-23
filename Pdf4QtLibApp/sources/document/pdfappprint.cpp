@@ -35,6 +35,7 @@
 #include "pdfannotation.h"
 #include "pdfcolorspaces.h"
 #include "pdfconstants.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfexception.h"
 #include "pdffont.h"
 #include "pdfmeshqualitysettings.h"
@@ -908,7 +909,7 @@ void PDFAppPrintController::openDialog(const std::vector<PDFInteger>& initialPag
     if (m_document)
     {
         m_document->commitPendingEdits();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -956,7 +957,7 @@ void PDFAppPrintController::onDialogFinished(int result)
 
     QPointer<PDFAppPrintController> guard(this);
     Q_EMIT stateChanged();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1052,7 +1053,7 @@ void PDFAppPrintController::askPrintFile(const PDFAppPrinterInfo& info)
     // the tab with the controller.
     QPointer<PDFAppPrintController> guard(this);
     PDFAppFileDialogRequest* request = PDFAppFileDialogs::requestPrintFileName(m_tab ? m_tab->window() : nullptr, proposedPath, suffix, this, &PDFAppPrintController::onPrintFileChosen);
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1095,7 +1096,7 @@ void PDFAppPrintController::startJob(std::shared_ptr<QPrinter> printer, const PD
     // announces the operation (operationsChanged): a slot may delete the tab.
     QPointer<PDFAppPrintController> guard(this);
     PDFAppDocumentOperation* operation = document->beginOperation(PDFAppDocumentOperationKind::Print, tr("Printing on %1").arg(printerName), false);
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1109,7 +1110,7 @@ void PDFAppPrintController::startJob(std::shared_ptr<QPrinter> printer, const PD
 
     m_progressTimer->start();
     updateInfoBar();
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT stateChanged();
     }
@@ -1147,7 +1148,7 @@ void PDFAppPrintController::updateInfoBar()
     {
         QPointer<PDFAppPrintController> guard(this);
         m_operation->setProgress(progress);
-        if (!guard || !m_state)
+        if (!guard || PDFDeferredDeletion::isRetired(this) || !m_state)
         {
             return;
         }
@@ -1225,7 +1226,7 @@ void PDFAppPrintController::onJobFinished()
     {
         m_operation = nullptr;
         operation->finish();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1245,7 +1246,7 @@ void PDFAppPrintController::onJobFinished()
     }
 
     Q_EMIT stateChanged();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1253,7 +1254,7 @@ void PDFAppPrintController::onJobFinished()
     if (!m_lastResult.isCompleted && !m_lastResult.isCanceled)
     {
         showErrorDialog(m_lastResult);
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1305,7 +1306,7 @@ void PDFAppPrintController::onErrorDialogFinished(int result)
 
     QPointer<PDFAppPrintController> guard(this);
     Q_EMIT stateChanged();
-    if (!guard || result != QDialog::Accepted || m_lastResult.remainingItems.empty())
+    if (!guard || PDFDeferredDeletion::isRetired(this) || result != QDialog::Accepted || m_lastResult.remainingItems.empty())
     {
         return;
     }

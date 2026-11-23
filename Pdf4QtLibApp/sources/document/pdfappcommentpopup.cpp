@@ -394,15 +394,15 @@ QMenu* PDFAppCommentPopup::getMoreMenu() const { return m_moreMenu.data(); }
 
 void PDFAppCommentPopup::showThread(PDFObjectReference annotation, bool focusReply)
 {
+    QPointer<PDFAppCommentPopup> guard(this);
     const PDFAppDocument* document = getDocument();
     const PDFAppAnnotationInfo info = PDFAppAnnotationInfo::read(document ? document->getDocument().data() : nullptr, annotation);
-    QPointer<PDFAppCommentPopup> guard(this);
 
-    // A new comment being written is canceled first (no undo step)
+    // A new comment being written is canceled first (no undo step); a retired popup shows nothing
     if (m_mode == Mode::Compose)
     {
         cancel();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -449,7 +449,7 @@ void PDFAppCommentPopup::showCompose(const QRect& anchor, const QString& title, 
     if (m_mode != Mode::None)
     {
         cancel();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -580,6 +580,7 @@ bool PDFAppCommentPopup::isReplyFieldShown() const
 
 bool PDFAppCommentPopup::sendReply()
 {
+    QPointer<PDFAppCommentPopup> guard(this);
     PDFAppAnnotationController* controller = getController();
     PDFAppDocument* document = getDocument();
     const QString text = getReplyText();
@@ -595,9 +596,8 @@ bool PDFAppCommentPopup::sendReply()
         return false;
     }
 
-    QPointer<PDFAppCommentPopup> guard(this);
     const bool isCommitted = controller->commit(*result, PDFAppAnnotationChangeKind::Annotation, tr("Reply to annotation"));
-    if (!guard || !isCommitted)
+    if (!isCommitted || !guard || PDFDeferredDeletion::isRetired(this))
     {
         return false;
     }
@@ -645,6 +645,7 @@ void PDFAppCommentPopup::setEditedContents(const QString& text)
 
 bool PDFAppCommentPopup::commitContents()
 {
+    QPointer<PDFAppCommentPopup> guard(this);
     PDFAppAnnotationController* controller = getController();
     PDFAppDocument* document = getDocument();
     if (!m_isEditingContents || !controller || !document || !canEditContents())
@@ -662,7 +663,6 @@ bool PDFAppCommentPopup::commitContents()
     bool isCommitted = true;
     if (result)
     {
-        QPointer<PDFAppCommentPopup> guard(this);
         isCommitted = controller->commit(*result, PDFAppAnnotationChangeKind::Annotation, tr("Edit comment"));
 
         // A slot of the change may close the tab: a retired popup (step A) builds nothing more

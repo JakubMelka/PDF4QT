@@ -29,6 +29,7 @@
 #include "pdfapptoolcertificatelist.h"
 #include "pdfapptoolgui_encryption.h"
 #include "pdfapptoolpanelparts.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdocumenttoolrunner.h"
 
@@ -1044,16 +1045,15 @@ void PDFAppMcpSecretConfirmation::finish(Outcome outcome)
         PDFAppMcpSecretConfirmationHelper::clearCertificates(m_certificates);
     }
 
-    // The dialog goes with its scrim (later: the opener reads the values in the slot of the signal)
+    // The dialog goes with its scrim, hidden now and retired from the event loop: finish runs inside a signal of the
+    // dialog's own subtree (a button, its timer), and the opener reads the values in the slot of the signal
     if (PDFAppMcpConfirmScrim* scrim = qobject_cast<PDFAppMcpConfirmScrim*>(parentWidget()))
     {
-        scrim->hide();
-        scrim->deleteLater();
+        PDFDeferredDeletion::retireLater(scrim);
     }
     else
     {
-        hide();
-        deleteLater();
+        PDFDeferredDeletion::retireLater(this);
     }
 
     Q_EMIT confirmationEnded(outcome);

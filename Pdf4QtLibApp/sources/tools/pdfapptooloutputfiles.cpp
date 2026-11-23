@@ -37,6 +37,7 @@
 
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfstylepainter.h"
 #include "pdfthemefonts.h"
@@ -495,10 +496,10 @@ void PDFAppToolFileConflictDialog::answer(PDFAppToolFileSink::Answer answer)
     m_isAnswered = true;
 
     const bool isForAll = m_question.otherCount > 0 && isCheckBoxChecked();
-    QPointer<PDFAppToolFileConflictDialog> guard(this);
     QDialog::done(answer == PDFAppToolFileSink::Answer::StopExport ? QDialog::Rejected : QDialog::Accepted);
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
+        // A dialog retired by a slot of its end (its tool closed) answers nothing
         Q_EMIT answered(answer, isForAll);
     }
 }

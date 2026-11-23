@@ -190,6 +190,7 @@ void PDFAppDocumentRegistry::emitQueuedSignals()
     std::vector<QueuedSignal> queuedSignals;
     queuedSignals.swap(m_queuedSignals);
 
+    // The registry lives with the window (it is not a retirable): its guard stays
     QPointer<PDFAppDocumentRegistry> guard(this);
     for (const QueuedSignal& queuedSignal : queuedSignals)
     {

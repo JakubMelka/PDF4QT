@@ -499,7 +499,13 @@ void PDFMessageBox::setHeadWidget(QWidget* widget)
 
     if (QWidget* oldWidget = m_headWidget.data())
     {
-        // The old head (a widget of the application) becomes inert at once and is deleted later
+        // The old head (a widget of the application) becomes inert at once and is deleted later.
+        // The retire stays synchronous (RA-L7), also when the application replaces the head from
+        // a slot of a signal of the old head: the rest of that emission does not reach its later
+        // receivers then (step 6 of retire cuts the outgoing signals of the old head). No library
+        // receiver depends on it, and the caller may rely on an old head that is inert as soon as
+        // the call returns (deferredDeletionMessageBox checks it); retireLater would keep the
+        // later receivers but change that, which needs the owner's approval.
         m_headLayout->removeWidget(oldWidget);
         oldWidget->hide();
         PDFDeferredDeletion::retire(oldWidget);

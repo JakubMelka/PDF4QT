@@ -38,6 +38,7 @@
 
 #include "pdfcatalog.h"
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocument.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfdrawwidget.h"
@@ -661,18 +662,19 @@ void PDFAppDocumentActionHandler::performAction(const PDFAction* action)
 
 void PDFAppDocumentActionHandler::continueChain()
 {
+    QPointer<PDFAppDocumentActionHandler> guard(this);
     if (!m_isPerforming || m_question)
     {
         return;
     }
 
-    // An action may run code of the application, which deletes the tab with the handler
-    QPointer<PDFAppDocumentActionHandler> guard(this);
+    // An action may run code of the application, which closes the tab with the handler:
+    // a retired handler performs no more actions
     while (m_chainIndex < m_chainItems.size() && m_chainIndex < size_t(MAXIMUM_CHAIN_LENGTH))
     {
         const PDFAction* item = m_chainItems[m_chainIndex++];
         const ChainStep step = performOne(item, m_chainVersion);
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -715,13 +717,13 @@ void PDFAppDocumentActionHandler::showQuestion(PDFMessageBox* dialog, void (PDFA
 
 void PDFAppDocumentActionHandler::onLinkAnswered(int code)
 {
+    QPointer<PDFAppDocumentActionHandler> guard(this);
     m_question = nullptr;
     const QUrl url = m_questionUrl;
     m_questionUrl.clear();
 
     // The answer of the user is performed also, when the document has changed meanwhile
     // (as after the dialog shown by exec); the next action of the chain checks it
-    QPointer<PDFAppDocumentActionHandler> guard(this);
     switch (PDFAppDocumentActionDialogs::getResult(code))
     {
         case PDFAppDocumentActionDialogs::Result::Accepted:
@@ -730,7 +732,7 @@ void PDFAppDocumentActionHandler::onLinkAnswered(int code)
             PDFAppExternalLaunch request;
             request.kind = PDFAppExternalLaunch::Kind::Url;
             request.url = url;
-            if (!launch(request) && guard)
+            if (!launch(request) && guard && !PDFDeferredDeletion::isRetired(this))
             {
                 showStatusMessage(tr("The link could not be opened."));
             }
@@ -739,7 +741,7 @@ void PDFAppDocumentActionHandler::onLinkAnswered(int code)
 
         case PDFAppDocumentActionDialogs::Result::CopyLink:
             QApplication::clipboard()->setText(url.toString());
-            if (guard)
+            if (guard && !PDFDeferredDeletion::isRetired(this))
             {
                 showStatusMessage(tr("The link has been copied."));
             }
@@ -751,7 +753,7 @@ void PDFAppDocumentActionHandler::onLinkAnswered(int code)
 
     // The chain goes on from the event loop: the dialog has finished its answer then
     // (the next confirmation never opens inside of the end of the previous one)
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         QMetaObject::invokeMethod(this, &PDFAppDocumentActionHandler::continueChain, Qt::QueuedConnection);
     }
@@ -759,22 +761,22 @@ void PDFAppDocumentActionHandler::onLinkAnswered(int code)
 
 void PDFAppDocumentActionHandler::onLaunchAnswered(int code)
 {
+    QPointer<PDFAppDocumentActionHandler> guard(this);
     m_question = nullptr;
     const PDFAppExternalLaunch request = m_questionLaunch;
     m_questionLaunch = PDFAppExternalLaunch();
 
-    QPointer<PDFAppDocumentActionHandler> guard(this);
     if (PDFAppDocumentActionDialogs::getResult(code) == PDFAppDocumentActionDialogs::Result::Accepted)
     {
         // The launcher is foreign code (the system, a handler of the tests)
         const bool isProgram = request.kind == PDFAppExternalLaunch::Kind::Program;
-        if (!launch(request) && guard)
+        if (!launch(request) && guard && !PDFDeferredDeletion::isRetired(this))
         {
             showStatusMessage(isProgram ? tr("The program could not be started.") : tr("The file could not be opened."));
         }
     }
 
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         QMetaObject::invokeMethod(this, &PDFAppDocumentActionHandler::continueChain, Qt::QueuedConnection);
     }

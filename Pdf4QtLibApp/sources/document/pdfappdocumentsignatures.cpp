@@ -41,6 +41,7 @@
 #include "pdfaccenthue.h"
 #include "pdfcomponentbadges.h"
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfmessagebox.h"
 #include "pdfthemefonts.h"
@@ -423,7 +424,7 @@ void PDFAppDocumentSignatureVerifier::onVerificationFinished()
     m_verification = verification ? verification : std::make_shared<PDFAppSignatureVerification>();
     QPointer<PDFAppDocumentSignatureVerifier> guard(this);
     applyResults();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -441,7 +442,8 @@ void PDFAppDocumentSignatureVerifier::applyResults()
     // The results belong to the bytes of the file, they are valid for every
     // version made from them; the document emits signatureResultsChanged, also for
     // an empty list (the sidebar shows or hides the tab of the panel)
-    // A slot of signatureResultsChanged may delete the tab (and the verifier)
+    // A slot of signatureResultsChanged may close the tab (and the verifier); only the own flag follows
+    // (the guard stays for the synchronous deletions of the tests)
     QPointer<PDFAppDocumentSignatureVerifier> guard(this);
     m_isApplyingResults = true;
     m_document->setSignatureResults(m_verification->results, m_document->getVersion());
@@ -525,7 +527,7 @@ void PDFAppDocumentSignatureVerifier::onDocumentChanged(const PDFModifiedDocumen
     }
 
     // Keep of a tool, undo and redo: the panel and the status item say what the next save does
-    if (guard && isLostOnSaveChanged)
+    if (guard && isLostOnSaveChanged && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT verificationChanged();
     }
@@ -1095,7 +1097,7 @@ void PDFAppDocumentSignaturesPanel::onVerificationChanged()
 
     QPointer<PDFAppDocumentSignaturesPanel> guard(this);
     Q_EMIT titleChanged();
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT availabilityChanged();
     }
@@ -1344,7 +1346,7 @@ void PDFAppDocumentSignaturesPanel::onTrustDialogFinished(int result)
 
     QPointer<PDFAppDocumentSignaturesPanel> guard(this);
     const QString error = m_verifier->trustCertificate(certificate);
-    if (guard && !error.isEmpty())
+    if (guard && !error.isEmpty() && !PDFDeferredDeletion::isRetired(this))
     {
         // Not exec(): the panel or its tab may be closed meanwhile
         PDFMessageBox* message = new PDFMessageBox(PDFThemeIcons::Badge::Critical, tr("The certificate was not trusted"), error, QDialogButtonBox::Ok, window());

@@ -98,6 +98,27 @@ private:
     std::vector<bool>* m_results;
 };
 
+/// A requester of a save, which runs a check of the test with each answer (the state at the delivery)
+class SaveRequestCheckReceiver : public QObject
+{
+public:
+    explicit SaveRequestCheckReceiver(std::vector<bool>* results, std::function<void()> check) :
+        m_results(results),
+        m_check(std::move(check))
+    {
+    }
+
+    void onSaved(bool isSaved)
+    {
+        m_results->push_back(isSaved);
+        m_check();
+    }
+
+private:
+    std::vector<bool>* m_results;
+    std::function<void()> m_check;
+};
+
 /// The member slot of a requester of a file dialog (PDFAppFileDialogs::request*, A0)
 class SaveFileReceiver : public QObject
 {
@@ -307,6 +328,9 @@ private slots:
     void saveAsCanceled();
     void saveAsFileDialog();
     void saveRequest();
+    void saveRequestEndsAtRetire();
+    void saveRetiredAfterWrite_data();
+    void saveRetiredAfterWrite();
     void saveAsOpenInAnotherTab();
     void saveReadOnlyFile();
     void saveWriteFailure();
@@ -375,6 +399,8 @@ private slots:
     void deleteWindowWithPrintDialog();
     void deleteTabFromOwnSignals_data();
     void deleteTabFromOwnSignals();
+    void retireTabFromOwnSignals_data();
+    void retireTabFromOwnSignals();
 
     // Review RC-DE
     void reviewSaveAsErrorNamesFile();
@@ -871,6 +897,133 @@ void AppDocumentFileTest::saveRequest()
     dialog->reject();
     fixture.settle();
     QCOMPARE(results.size(), size_t(1));
+}
+
+void AppDocumentFileTest::saveRequestEndsAtRetire()
+{
+    // The end of the saver is its retire (aboutToBeDeleted of its notifier, PA6), not its deletion: a request, which
+    // waits in the file dialog, answers false from the event loop while the closed tab is still alive (inert,
+    // deleted later). A request started on a retired saver (its notifier has emitted already) answers false from
+    // the event loop too, never nothing (RC6-L1).
+    pdftest::AppDocumentFixture fixture;
+    QPointer<pdf::PDFAppDocumentTab> tab = FileTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Retired request.pdf"), 1));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentFileCommandHandler* handler = FileTestHelper::handler(tab);
+    QPointer<pdf::PDFAppDocumentSaver> saver = handler->getSaver();
+    QVERIFY(FileTestHelper::modify(tab->getDocument(), QStringLiteral("Retired request")));
+
+    std::vector<bool> results;
+    std::vector<bool> isTabAlive;
+    SaveRequestCheckReceiver receiver(&results, [&isTabAlive, &tab]() { isTabAlive.push_back(!tab.isNull()); });
+    QVERIFY(handler->requestSaveAs(&receiver, &SaveRequestCheckReceiver::onSaved));
+    QPointer<QFileDialog> dialog = pdftest::AppAsyncDialogs::findFileRequest() ? pdftest::AppAsyncDialogs::findFileRequest()->getDialog() : nullptr;
+    QVERIFY(dialog);
+
+    // A direct retire (the close of the window would ask about the unsaved changes first)
+    pdf::PDFDeferredDeletion::retire(tab.data());
+    QVERIFY(results.empty());
+
+    // A request on the retired saver, before the event loop deletes it
+    std::vector<bool> lateResults;
+    SaveRequestReceiver lateReceiver(&lateResults);
+    QVERIFY(saver);
+    QVERIFY(pdf::PDFAppDocumentSaveRequest::start(saver.data(), pdf::PDFAppDocumentSaveRequest::Kind::Save, &lateReceiver, &SaveRequestReceiver::onSaved));
+    QVERIFY(lateResults.empty());
+
+    // The posted events in their order, without the deferred deletion of the tab (the test body is the outermost
+    // level, settle would delete it first): both answers come while the tab is alive
+    QCoreApplication::processEvents();
+    QVERIFY(results == std::vector<bool>({ false }));
+    QVERIFY(isTabAlive == std::vector<bool>({ true }));
+    QVERIFY(lateResults == std::vector<bool>({ false }));
+    QVERIFY(tab);
+
+    fixture.settle();
+    QVERIFY(!tab);
+    if (dialog)
+    {
+        dialog->reject();
+    }
+    fixture.settle();
+    QCOMPARE(results.size(), size_t(1));
+    QCOMPARE(lateResults.size(), size_t(1));
+}
+
+void AppDocumentFileTest::saveRetiredAfterWrite_data()
+{
+    QTest::addColumn<QString>("signal");
+    QTest::newRow("operationFinished") << QStringLiteral("operationFinished");
+    QTest::newRow("fileWritten") << QStringLiteral("fileWritten");
+}
+
+void AppDocumentFileTest::saveRetiredAfterWrite()
+{
+    // Coordinator decision of 2026-11-23 (RC6-L5 = RD6-L1, as before step A): once the worker has written the file,
+    // a tab closed by a slot of the end of the write (retired: inert, deleted later) still finishes the save - the
+    // document is marked saved, the file is recorded in Recent, and the request (of a quit, of a session end)
+    // answers true. operationFinished: a slot of the end of the operation Save, before the document is marked saved
+    // (a direct retire: the close of the window would ask about the unsaved changes); fileWritten: the close of the
+    // window after the document has been marked saved.
+    QFETCH(QString, signal);
+    pdftest::AppDocumentFixture fixture;
+    QPointer<pdf::PDFAppDocumentTab> tab = FileTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Retired save.pdf"), 1));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentFileCommandHandler* handler = FileTestHelper::handler(tab);
+    QPointer<pdf::PDFAppDocument> document = tab->getDocument();
+    QPointer<pdf::PDFAppDocumentSaver> saver = handler->getSaver();
+    QVERIFY(FileTestHelper::modify(document, QStringLiteral("Retired after write")));
+    const QString target = fixture.path(QStringLiteral("Retired after write.pdf"));
+    pdf::PDFAppFileDialogs::setSaveFileHandler([target](QWidget*, const QString&) { return target; });
+
+    bool isRetiredInSlot = false;
+    bool isModifiedAtRetire = true;
+    if (signal == QStringLiteral("operationFinished"))
+    {
+        connect(document, &pdf::PDFAppDocument::operationsChanged, fixture.window.data(), [&]()
+        {
+            if (tab && !isRetiredInSlot && saver && saver->isWriting() && document->getOperations().empty())
+            {
+                isModifiedAtRetire = document->isModified();
+                pdf::PDFDeferredDeletion::retire(tab.data());
+                isRetiredInSlot = pdf::PDFDeferredDeletion::isRetired(tab.data());
+            }
+        });
+    }
+    else
+    {
+        connect(saver, &pdf::PDFAppDocumentSaver::fileWritten, fixture.window.data(), [&]()
+        {
+            isModifiedAtRetire = document->isModified();
+            isRetiredInSlot = fixture.retire(tab.data()) && pdf::PDFDeferredDeletion::isRetired(tab.data());
+        });
+    }
+
+    // The state at the answer (from the event loop, before the deletion of the closed tab)
+    std::vector<bool> results;
+    bool isTabAliveAtAnswer = false;
+    bool isSavedAtAnswer = false;
+    bool isRecordedAtAnswer = false;
+    SaveRequestCheckReceiver receiver(&results, [&]()
+    {
+        isTabAliveAtAnswer = !tab.isNull();
+        isSavedAtAnswer = document && !document->isModified() && document->getFilePath() == QFileInfo(target).canonicalFilePath();
+        isRecordedAtAnswer = fixture.context->getRecent().getFile(QFileInfo(target).canonicalFilePath()).has_value();
+    });
+    QVERIFY(handler->requestSaveAs(&receiver, &SaveRequestCheckReceiver::onSaved));
+    QTRY_COMPARE_WITH_TIMEOUT(results.size(), size_t(1), 20000 * pdftest::AppDocumentFixture::getTimeoutFactor());
+    QVERIFY(isRetiredInSlot);
+    QCOMPARE(isModifiedAtRetire, signal == QStringLiteral("operationFinished"));
+
+    // The bookkeeping of the written file has been finished
+    QVERIFY(results.front());
+    QVERIFY(isTabAliveAtAnswer);
+    QVERIFY(isSavedAtAnswer);
+    QVERIFY(isRecordedAtAnswer);
+    QCOMPARE(FileTestHelper::getTitle(target), QStringLiteral("Retired after write"));
+
+    fixture.settle();
+    QCOMPARE(results.size(), size_t(1));
+    QVERIFY(!tab);
 }
 
 void AppDocumentFileTest::saveAsOpenInAnotherTab()
@@ -3307,6 +3460,98 @@ void AppDocumentFileTest::deleteTabFromOwnSignals()
     QTRY_VERIFY_WITH_TIMEOUT(!tab, 30000);
     QThreadPool::globalInstance()->waitForDone(30000);
     fixture.settle();
+}
+
+void AppDocumentFileTest::retireTabFromOwnSignals_data()
+{
+    QTest::addColumn<QString>("signal");
+    for (const char* name : { "saveCommit", "saveAsStateChanged", "printCommit", "printOperationStarted" })
+    {
+        QTest::newRow(name) << QString::fromLatin1(name);
+    }
+}
+
+void AppDocumentFileTest::retireTabFromOwnSignals()
+{
+    // The retire variant of deleteTabFromOwnSignals (RD6-H1): a slot of a signal of package E closes the tab by
+    // retire (inert, deleted later - never the synchronous deletion of deleteNow, which takes the other half of
+    // the guards), and the work after the signal starts nothing for the closed tab. A direct retire: the close of
+    // the window would ask about the unsaved changes or the running operation first.
+    // - saveCommit: Save commits the open editor of a form field first; no file is written;
+    // - saveAsStateChanged: Save As announces its file dialog; no file dialog is requested;
+    // - printCommit: Print commits the open editor first; no print dialog is opened;
+    // - printOperationStarted: the job announces its operation; nothing is printed.
+    QFETCH(QString, signal);
+    pdftest::AppDocumentFixture fixture;
+    FileTestHelper::setTestPrinters(fixture.folder());
+    pdf::PDFAppFileDialogs::setSaveFileHandler(pdf::PDFAppFileDialogs::SaveFileHandler());
+    const QString file = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Retired by own signal.pdf"), 2);
+    const QByteArray original = FileTestHelper::readFile(file);
+    QPointer<pdf::PDFAppDocumentTab> tab = FileTestHelper::openReady(fixture, file);
+    QVERIFY(tab);
+    pdf::PDFAppDocumentFileCommandHandler* handler = FileTestHelper::handler(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    QObject receiver;
+    bool isRetiredInSlot = false;
+    auto retireTab = [&tab, &isRetiredInSlot]()
+    {
+        if (tab && !isRetiredInSlot)
+        {
+            pdf::PDFDeferredDeletion::retire(tab.data());
+            isRetiredInSlot = pdf::PDFDeferredDeletion::isRetired(tab.data());
+        }
+    };
+
+    if (signal == QStringLiteral("saveCommit") || signal == QStringLiteral("printCommit"))
+    {
+        // An open editor of a field (its commit is the signal pendingEditsCommitRequested)
+        if (signal == QStringLiteral("saveCommit"))
+        {
+            QVERIFY(FileTestHelper::modify(document, QStringLiteral("Not written")));
+        }
+        document->setPendingEdits(true);
+        connect(document, &pdf::PDFAppDocument::pendingEditsCommitRequested, &receiver, retireTab);
+        if (signal == QStringLiteral("saveCommit"))
+        {
+            QVERIFY(handler->save());
+        }
+        else
+        {
+            handler->execute(pdf::PDFAppCommands::print());
+        }
+    }
+    else if (signal == QStringLiteral("saveAsStateChanged"))
+    {
+        connect(handler->getSaver(), &pdf::PDFAppDocumentSaver::stateChanged, &receiver, retireTab);
+        QVERIFY(handler->saveAs());
+    }
+    else
+    {
+        connect(document, &pdf::PDFAppDocument::operationsChanged, &receiver, [document, retireTab]()
+        {
+            if (!document->getOperations().empty())
+            {
+                retireTab();
+            }
+        });
+        pdf::PDFAppPrintDialog* dialog = FileTestHelper::openPrintDialog(tab);
+        QVERIFY(dialog);
+        dialog->getPrintButton()->click();
+    }
+
+    // Nothing has been started for the closed tab: no dialog, no file request, no job
+    QVERIFY(isRetiredInSlot);
+    QVERIFY2(pdftest::AppAsyncDialogs::isNothingOpen(), qPrintable(pdftest::AppAsyncDialogs::describeOpen().join(QStringLiteral(", "))));
+    QVERIFY(handler->getSaver() && !handler->getSaver()->isWriting());
+    QVERIFY(!handler->getPrintController()->isPrinting());
+
+    fixture.settle();
+    QThreadPool::globalInstance()->waitForDone(30000);
+    fixture.settle();
+    QVERIFY(!tab);
+    QVERIFY2(pdftest::AppAsyncDialogs::isNothingOpen(), qPrintable(pdftest::AppAsyncDialogs::describeOpen().join(QStringLiteral(", "))));
+    QCOMPARE(FileTestHelper::readFile(file), original);
+    QVERIFY(!QFileInfo::exists(fixture.path(QStringLiteral("printed-1.pdf"))));
 }
 
 void AppDocumentFileTest::reviewSaveAsErrorNamesFile()

@@ -176,8 +176,8 @@ private:
             QLayoutItem* item = m_listLayout->takeAt(0);
             if (QWidget* widget = item->widget())
             {
-                widget->hide();
-                widget->deleteLater();
+                // Retired (step A: a rebuilt row), deleted later
+                PDFDeferredDeletion::retire(widget);
             }
             delete item;
         }
@@ -309,7 +309,8 @@ public:
 
     /// The rows of a list of the written files: the pages with problems (339:6505 Rendering issues,
     /// a row per page with its messages) or the files, which failed (339:7293, a row per file with
-    /// its reason). Made again in the language of now; the old rows go (no signal of them runs).
+    /// its reason). Made again in the language of now; the old rows go (no signal of them runs): retired, out of the
+    /// layout at once, deleted later (step A: a rebuilt row replaces shown content)
     static void fillProblemRows(QWidget* container, const PDFDocumentToolResult& result, bool isFailedList)
     {
         QVBoxLayout* layout = container ? qobject_cast<QVBoxLayout*>(container->layout()) : nullptr;
@@ -317,7 +318,11 @@ public:
         {
             return;
         }
-        qDeleteAll(container->findChildren<PDFTileRow*>(QString(), Qt::FindDirectChildrenOnly));
+        for (PDFTileRow* row : container->findChildren<PDFTileRow*>(QString(), Qt::FindDirectChildrenOnly))
+        {
+            layout->removeWidget(row);
+            PDFDeferredDeletion::retire(row);
+        }
 
         int rowCount = 0;
         if (isFailedList)
@@ -2667,11 +2672,11 @@ void PDFAppToolResultDialog::onRunnerGone()
     }
 
     // The tab or the document has gone: the result has no place to go. The worker of a
-    // write ends by itself.
+    // write ends by itself. The dialog closes unanswered (step A: a popup is closed by retire; the runner is no part
+    // of its subtree, so its emission goes on)
     m_isDecided = true;
     m_writer->disconnect(this);
-    hide();
-    deleteLater();
+    PDFDeferredDeletion::retire(this);
 }
 
 void PDFAppToolResultDialog::openResult(PDFAppToolResultOutcome* outcome)

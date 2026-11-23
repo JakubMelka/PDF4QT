@@ -64,7 +64,9 @@ PDFAppRestoreDefaultsDialog::PDFAppRestoreDefaultsDialog(PDFAppSettingsSection* 
 
     if (section)
     {
-        connect(section, &QObject::destroyed, this, &PDFAppRestoreDefaultsDialog::onSectionDestroyed);
+        // The end of the section (retired with its page or its rebuilt body, or deleted) is aboutToBeDeleted of its
+        // notifier, never QObject::destroyed (PA6)
+        PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(section), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppRestoreDefaultsDialog::onSectionDestroyed);
         if (PDFAppContext* context = section->getContext(); context && context->getNotifier())
         {
             PDFDeferredDeletion::connect(context->getNotifier(), &PDFDatabaseNotifier::changed, this, &PDFAppRestoreDefaultsDialog::onDatabaseChanged);
@@ -130,8 +132,8 @@ void PDFAppRestoreDefaultsDialog::onDatabaseChanged(const QString& topic, const 
 
 void PDFAppRestoreDefaultsDialog::onSectionDestroyed()
 {
-    // The page of the section is gone: there is nothing to restore (the sender is
-    // not called, it is being destroyed). The dialog is closed from the event loop:
+    // The page of the section is gone (retired, or being destroyed): there is nothing to
+    // restore (the section is not called). The dialog is closed from the event loop:
     // the section can be deleted while QEvent::LanguageChange is sent to a copy of
     // the list of the children of the window (the page is built again), of which
     // the dialog - deleted on close - is one.

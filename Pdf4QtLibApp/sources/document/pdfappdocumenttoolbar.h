@@ -347,6 +347,7 @@ private:
     QPointer<PDFToolBarField> m_zoomField;
     QPointer<PDFLineEdit> m_searchField;
     std::map<Panel, QPointer<PDFAppDocumentPanelPopup>> m_panels;
+    std::map<Panel, QMetaObject::Connection> m_panelEndConnections;   ///< aboutToBeDeleted of the notifiers of m_panels
     int m_collapseLevel = 0;
     bool m_isUpdatingCollapse = false;
 };

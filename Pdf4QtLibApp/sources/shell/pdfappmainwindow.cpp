@@ -230,6 +230,8 @@ PDFAppMainWindow::~PDFAppMainWindow()
         m_filteredWindow->removeEventFilter(this);
         m_filteredWindow = nullptr;
     }
+    disconnect(m_watchedModalEndConnection);
+    m_watchedModalEndConnection = QMetaObject::Connection();
     if (m_watchedModal)
     {
         m_watchedModal->removeEventFilter(this);
@@ -336,8 +338,8 @@ PDFAppTab* PDFAppMainWindow::addTab(PDFAppTab* tab, int index)
     m_tabs.append(tab);
     m_tabIds[tab] = tab->getId();
 
-    connect(tab, &QObject::destroyed, this, &PDFAppMainWindow::onTabDestroyed);
-    // A tab retired by somebody else than requestCloseTab (step A) leaves the lists at once, never current again
+    // A tab retired by somebody else than requestCloseTab (step A) leaves the lists at once, never current again; a tab
+    // deleted without retire (with the stack) is forgotten by the emission of the notifier's destructor
     connect(PDFDeferredDeletion::getNotifier(tab), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppMainWindow::onTabAboutToBeDeleted);
     connect(tab, &PDFAppTab::pageTitleChanged, this, &PDFAppMainWindow::onPageTitleChanged);
     connect(tab, &PDFAppTab::commandStatesChanged, this, &PDFAppMainWindow::onTabCommandStatesChanged);
@@ -450,11 +452,11 @@ PDFAppLeaveResult PDFAppMainWindow::requestCloseTab(PDFAppTab* tab)
 
     // The tab asks about its unsaved changes and running operations (step 3) in its flow (A0: the questions are
     // shown, no event loop; Pending = the tab closes itself after the last answer); the tab runs code of the
-    // application, the tab or the window may be deleted meanwhile
+    // application: the window may be deleted, the tab closed (retired, step A) meanwhile
     QPointer<PDFAppMainWindow> windowGuard(this);
     QPointer<PDFAppTab> tabGuard(tab);
     const PDFAppLeaveResult result = tab->requestTabClose();
-    if (!windowGuard || !tabGuard)
+    if (!windowGuard || !tabGuard || PDFDeferredDeletion::isRetired(tab))
     {
         return PDFAppLeaveResult::Refused;
     }
@@ -513,6 +515,7 @@ void PDFAppMainWindow::detachTab(PDFAppTab* tab)
         return;
     }
 
+    // The tab (also a retired one - onTabAboutToBeDeleted) leaves the stack of the window
     if (m_stack)
     {
         m_stack->removeWidget(tab);
@@ -533,9 +536,14 @@ void PDFAppMainWindow::onTabAboutToBeDeleted(QObject* object)
 {
     // A tab retired by somebody else (step A): it is whole (retire emits before the shutdown), it leaves the lists,
     // the tab bar and the stack at once. The fallback emission of a tab deleted without retire comes from its
-    // destructor: only onTabDestroyed handles that one (the tab is not called).
-    if (m_tabIds.find(object) == m_tabIds.end() || !PDFDeferredDeletion::isRetired(object))
+    // destructor: the tab is not called, only its id is used (forgetDeletedTab).
+    if (m_tabIds.find(object) == m_tabIds.end())
     {
+        return;
+    }
+    if (!PDFDeferredDeletion::isRetired(object))
+    {
+        forgetDeletedTab(object);
         return;
     }
 
@@ -574,11 +582,11 @@ PDFAppToolTab* PDFAppMainWindow::createToolTab(const QString& toolId, PDFAppTool
     // phase 2, 4.5): a second start activates the tab; the list stays with the caller
     if (PDFAppToolTab* singleTab = findSingleToolTab(toolId))
     {
-        // The activation runs code of the pages (they may delete the tab or the window)
+        // The activation runs code of the pages (they may delete the window, close the tab - retired, step A)
         QPointer<PDFAppToolTab> tab(singleTab);
         QPointer<PDFAppMainWindow> guard(this);
         activateTab(singleTab);
-        return guard ? tab.data() : nullptr;
+        return guard && tab && !PDFDeferredDeletion::isRetired(tab) ? tab.data() : nullptr;
     }
 
     PDFAppToolTab* createdTab = addToolTab(toolId, PDFAppDocument::createId(), inputList);
@@ -587,9 +595,9 @@ PDFAppToolTab* PDFAppMainWindow::createToolTab(const QString& toolId, PDFAppTool
         return nullptr;
     }
 
-    // The route of the tab is shown in it: code of the tool runs, the tab or the window may
-    // be deleted meanwhile. Within a navigation (a page asks for the tool from its setRoute)
-    // the navigator would keep only its last request: the tab asks from the event loop.
+    // The route of the tab is shown in it: code of the tool runs, the window may be deleted, the tab closed (retired,
+    // step A) meanwhile. Within a navigation (a page asks for the tool from its setRoute) the navigator would keep
+    // only its last request: the tab asks from the event loop.
     QPointer<PDFAppToolTab> tab(createdTab);
     QPointer<PDFAppMainWindow> guard(this);
     if (m_navigator && m_navigator->isNavigating())
@@ -600,7 +608,7 @@ PDFAppToolTab* PDFAppMainWindow::createToolTab(const QString& toolId, PDFAppTool
     {
         m_navigator->navigate(tab->getRoute(), PDFAppNavigationMode::Push, tab);
     }
-    return guard ? tab.data() : nullptr;
+    return guard && tab && !PDFDeferredDeletion::isRetired(tab) ? tab.data() : nullptr;
 }
 
 PDFAppToolTab* PDFAppMainWindow::createToolTabForDocument(const QString& toolId, PDFAppDocumentTab* documentTab)
@@ -691,7 +699,8 @@ PDFAppDocumentTab* PDFAppMainWindow::replaceToolTab(PDFAppToolTab* tab, QByteArr
     }
 
     // The document tab first at the place of the tool tab (pushed right of it), then the tool
-    // tab goes: the new tab takes its index. The tool tab may be the sender (deleteLater).
+    // tab goes: the new tab takes its index. The tool tab may be the sender (its close is a retire, step A: inert at
+    // once, deleted later); a tab closed meanwhile (retired) is left as it is.
     QPointer<PDFAppToolTab> toolTab(tab);
     QPointer<PDFAppMainWindow> guard(this);
     PDFAppDocumentTab* documentTab = openDocumentFromMemoryAt(std::move(bytes), title, QString(), index);
@@ -700,12 +709,12 @@ PDFAppDocumentTab* PDFAppMainWindow::replaceToolTab(PDFAppToolTab* tab, QByteArr
         return nullptr;
     }
     QPointer<PDFAppDocumentTab> newTab(documentTab);
-    if (toolTab && newTab)
+    if (toolTab && newTab && !PDFDeferredDeletion::isRetired(toolTab) && !PDFDeferredDeletion::isRetired(newTab))
     {
         toolTab->setCloseConfirmed(true);
         closeTab(toolTab);
     }
-    return guard ? newTab.data() : nullptr;
+    return guard && newTab && !PDFDeferredDeletion::isRetired(newTab) ? newTab.data() : nullptr;
 }
 
 PDFAppTab* PDFAppMainWindow::findDocumentTab(const QString& id) const
@@ -1080,7 +1089,7 @@ void PDFAppMainWindow::closeTabByUser(PDFAppTab* tab)
     closeTab(tab);
 }
 
-void PDFAppMainWindow::onTabDestroyed(QObject* object)
+void PDFAppMainWindow::forgetDeletedTab(QObject* object)
 {
     // Only the id of the tab is used (the tab is not whole any more)
     auto it = m_tabIds.find(object);
@@ -1608,7 +1617,7 @@ void PDFAppMainWindow::openDocument(const PDFAppOpenRequest& request, std::vecto
     const int emptyTabIndex = emptyTab ? findTabIndex(emptyTab->getId()) : -1;
     addTab(documentTab, emptyTabIndex >= 0 ? emptyTabIndex : tabBar->currentIndex() + 1);
     tab->open(canonicalPath.isEmpty() ? request.filePath : canonicalPath);
-    if (!guard || !tab)
+    if (!guard || !tab || PDFDeferredDeletion::isRetired(tab))
     {
         return;
     }
@@ -1658,6 +1667,9 @@ void PDFAppMainWindow::watchModalWidget(QWidget* widget)
         return;
     }
 
+    // The notifier of the former widget by the stored handle: getNotifier would create a notifier for a dying widget
+    disconnect(m_watchedModalEndConnection);
+    m_watchedModalEndConnection = QMetaObject::Connection();
     if (m_watchedModal)
     {
         m_watchedModal->removeEventFilter(this);
@@ -1666,15 +1678,17 @@ void PDFAppMainWindow::watchModalWidget(QWidget* widget)
     m_watchedModal = widget;
     if (widget)
     {
-        // A foreign widget (a dialog of another owner): the filter is removed also by retire of the window (step A)
+        // A foreign widget (a dialog of another owner): the filter is removed also by retire of the window (step A).
+        // Its end is aboutToBeDeleted of its notifier (its retire, or the notifier's destructor for a deletion
+        // without retire), never QObject::destroyed.
         PDFDeferredDeletion::installEventFilter(widget, this, this);
-        connect(widget, &QObject::destroyed, this, &PDFAppMainWindow::onWatchedModalDestroyed);
+        m_watchedModalEndConnection = PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(widget), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppMainWindow::onWatchedModalDestroyed);
     }
 }
 
 void PDFAppMainWindow::onWatchedModalDestroyed()
 {
-    // Only the pointer is forgotten (the widget is not whole any more)
+    // Only the pointer is forgotten (the widget is closed: retired, or in its destructor - never called)
     m_watchedModal = nullptr;
     QMetaObject::invokeMethod(this, &PDFAppMainWindow::processPendingRequests, Qt::QueuedConnection);
 }
@@ -1840,7 +1854,7 @@ void PDFAppMainWindow::onEditCopyRequested()
     {
         document->commitPendingEdits();
     }
-    if (guard && tab)
+    if (guard && tab && !PDFDeferredDeletion::isRetired(tab))
     {
         openDocumentCopy(tab->getDocument());
     }
@@ -1869,11 +1883,11 @@ PDFAppDocumentTab* PDFAppMainWindow::openDocumentCopy(const PDFAppDocument* sour
     addTab(documentTab, index);
 
     QPointer<PDFAppMainWindow> guard(this);
-    if (m_navigator && tab)
+    if (m_navigator && tab && !PDFDeferredDeletion::isRetired(tab))
     {
         m_navigator->navigate(PDFAppRoutes::document(tab->getDocumentId()), PDFAppNavigationMode::Push, tab);
     }
-    return guard ? tab.data() : nullptr;
+    return guard && !PDFDeferredDeletion::isRetired(tab) ? tab.data() : nullptr;
 }
 
 int PDFAppMainWindow::getTabIndexAfter(const PDFAppDocument* source) const
@@ -1940,14 +1954,16 @@ PDFAppDocumentTab* PDFAppMainWindow::openDocumentFromMemoryAt(QByteArray bytes, 
         PDFDeferredDeletion::retire(tab.data());
         return nullptr;
     }
-    if (!tab)
+    if (!tab || PDFDeferredDeletion::isRetired(tab))
     {
         return nullptr;
     }
     connectDocumentTab(documentTab);
     addTab(documentTab, index);
 
-    if (!guard || !tab || !tab->openFromMemory(std::move(bytes), title, originFilePath))
+    // The signals of the reading run code of the application: the window may be deleted, the tab closed (retired,
+    // step A) meanwhile
+    if (!guard || !tab || PDFDeferredDeletion::isRetired(tab) || !tab->openFromMemory(std::move(bytes), title, originFilePath))
     {
         if (guard && tab)
         {
@@ -1955,7 +1971,7 @@ PDFAppDocumentTab* PDFAppMainWindow::openDocumentFromMemoryAt(QByteArray bytes, 
         }
         return nullptr;
     }
-    if (!guard || !tab)
+    if (!guard || !tab || PDFDeferredDeletion::isRetired(tab))
     {
         return nullptr;
     }
@@ -1964,7 +1980,7 @@ PDFAppDocumentTab* PDFAppMainWindow::openDocumentFromMemoryAt(QByteArray bytes, 
     {
         m_navigator->navigate(PDFAppRoutes::document(tab->getDocumentId()), PDFAppNavigationMode::Push, tab);
     }
-    return guard ? tab.data() : nullptr;
+    return guard && !PDFDeferredDeletion::isRetired(tab) ? tab.data() : nullptr;
 }
 
 void PDFAppMainWindow::onLockClicked(int index)
@@ -1976,10 +1992,11 @@ void PDFAppMainWindow::onLockClicked(int index)
         return;
     }
 
-    // The popover is anchored below the tab at the lock (266:12010)
+    // The popover is anchored below the tab at the lock (266:12010); the activation runs code of the pages (the tab
+    // may be closed - retired, step A - meanwhile)
     QPointer<PDFAppDocumentTab> guard(tab);
     activateTab(tab);
-    if (!guard || !tabBar)
+    if (!guard || PDFDeferredDeletion::isRetired(tab) || !tabBar)
     {
         return;
     }
@@ -2484,8 +2501,8 @@ void PDFAppMainWindow::saveNextForQuit()
         QPointer<PDFAppDocumentTab> tab = m_quitSaveQueue.front();
         m_quitSaveQueue.erase(m_quitSaveQueue.begin());
 
-        // A tab closed meanwhile, a document saved meanwhile
-        PDFAppDocument* document = tab ? tab->getDocument() : nullptr;
+        // A tab closed meanwhile (retired, step A), a document saved meanwhile
+        PDFAppDocument* document = tab && !PDFDeferredDeletion::isRetired(tab) ? tab->getDocument() : nullptr;
         if (!document || !document->isReady() || !document->isModified())
         {
             continue;
@@ -2525,8 +2542,8 @@ void PDFAppMainWindow::onQuitSaveFinished(bool isSaved)
     m_quitSavingTab = nullptr;
 
     // A canceled or failed save keeps the window open (its error has been shown), also a tab deleted during its save
-    // (not saved): the flow of the quit ends
-    if (!isSaved || !tab)
+    // (not saved; a closed tab is retired, step A): the flow of the quit ends
+    if (!isSaved || !tab || PDFDeferredDeletion::isRetired(tab))
     {
         m_quitSaveQueue.clear();
         if (isQuitStep(QuitStep::Saving))

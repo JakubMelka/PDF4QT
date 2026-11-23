@@ -120,6 +120,16 @@
 #include <QtCore/private/qobject_p.h>
 #include <QtCore/private/qobject_p_p.h>
 
+// The exact address of the own expand animation of a QTreeView (QTreeViewPrivate::animatedOperation), when the
+// private headers of QtWidgets are on the include path (Qt6::WidgetsPrivate, UnitTests/CMakeLists.txt); otherwise
+// the sender is matched by a bound of the private part of the view (DeletionMode::isTreeViewOwnAnimation)
+#if __has_include(<QtWidgets/private/qtreeview_p.h>)
+#include <QtWidgets/private/qtreeview_p.h>
+#define PDF4QT_FLUENT_LIFETIME_TREE_VIEW_PRIVATE 1
+#else
+#define PDF4QT_FLUENT_LIFETIME_TREE_VIEW_PRIVATE 0
+#endif
+
 #include <algorithm>
 #include <cstdlib>
 #include <functional>
@@ -340,22 +350,28 @@ public:
     /// PDFDeferredDeletion::connect of the library is found). Errors of ObjectTracker.
     static void checkRetired(QObject* victim);
 
-    /// Upper bound of the size of the private part of a QTreeView (QTreeViewPrivate with its value members); the test
-    /// does not link the private headers of QtWidgets, so its exact size is not known here
+    /// Upper bound of the size of the private part of a QTreeView (QTreeViewPrivate with its value members), used
+    /// only without the private headers of QtWidgets (its exact layout is not known then)
     static constexpr std::ptrdiff_t TREE_VIEW_PRIVATE_BOUND = 8192;
 
     /// The own expand animation of a QTreeView (QTreeViewPrivate::animatedOperation, connected by Qt to the view):
     /// a QVariantAnimation without a parent, its signal finished, a receiver, which is a QTreeView, and the sender
-    /// lies inside the private part of the receiver (QObjectPrivate::get, within the bound)
+    /// is exactly QTreeViewPrivate::animatedOperation of the receiver (with the private headers of QtWidgets), or
+    /// lies inside the private part of the receiver (QObjectPrivate::get, within the bound) without them
     static bool isTreeViewOwnAnimation(const QObject* sender, const QByteArray& signal, const QObject* receiver)
     {
         if (signal != "finished" || sender->parent() || !sender->inherits("QVariantAnimation") || !receiver->inherits("QTreeView"))
         {
             return false;
         }
+#if PDF4QT_FLUENT_LIFETIME_TREE_VIEW_PRIVATE
+        const QTreeViewPrivate* treeViewPrivate = static_cast<const QTreeViewPrivate*>(QObjectPrivate::get(receiver));
+        return sender == static_cast<const QObject*>(&treeViewPrivate->animatedOperation);
+#else
         const char* privatePart = reinterpret_cast<const char*>(QObjectPrivate::get(receiver));
         const char* address = reinterpret_cast<const char*>(sender);
         return address > privatePart && address - privatePart < TREE_VIEW_PRIVATE_BOUND;
+#endif
     }
 
     /// The test body (the loop level 0): the retired victims are deleted now; nothing in the

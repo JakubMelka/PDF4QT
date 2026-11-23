@@ -159,6 +159,7 @@ PDFIconButton* PDFAppOutlineTargetPicker::getCloseButton() const
 
 bool PDFAppOutlineTargetPicker::start(DestinationType type, bool keepZoom, const QString& itemTitle)
 {
+    QPointer<PDFAppOutlineTargetPicker> guard(this);
     PDFToolManager* toolManager = getToolManager();
     PDFAppDocument* document = m_view ? m_view->getDocument() : nullptr;
     if (!isPickedType(type) || !toolManager || !document || !document->isReady() || document->getDocument().isNull())
@@ -166,7 +167,6 @@ bool PDFAppOutlineTargetPicker::start(DestinationType type, bool keepZoom, const
         return false;
     }
 
-    QPointer<PDFAppOutlineTargetPicker> guard(this);
     if (m_isActive)
     {
         cancel();
@@ -178,7 +178,7 @@ bool PDFAppOutlineTargetPicker::start(DestinationType type, bool keepZoom, const
 
     // The tool of the step 2 of Link to page in its target-only mode. The signals of
     // the tool (its step, its target) may close or delete the tab with the picker:
-    // every emission is followed by the check of the guards and of the retire.
+    // every emission is followed by the check of the retire (and of the guard of the tool manager of Pdf4QtLibWidgets).
     QPointer<PDFToolManager> toolManagerGuard(toolManager);
     if (!m_tool)
     {
@@ -186,7 +186,7 @@ bool PDFAppOutlineTargetPicker::start(DestinationType type, bool keepZoom, const
         m_tool->setObjectName(QStringLiteral("outlineTargetTool"));
         connect(m_tool.data(), &PDFAppPageLinkTool::targetPicked, this, &PDFAppOutlineTargetPicker::onToolTargetPicked);
         m_tool->setTargetOnly(true);
-        if (!guard || !m_tool || !toolManagerGuard || PDFDeferredDeletion::isRetired(this))
+        if (!guard || PDFDeferredDeletion::isRetired(this) || !toolManagerGuard || !m_tool)
         {
             return false;
         }
@@ -204,12 +204,12 @@ bool PDFAppOutlineTargetPicker::start(DestinationType type, bool keepZoom, const
 
     // The tool gets the shown document (the later versions come from the tool manager)
     m_tool->setDocument(PDFModifiedDocument(document->getDocument(), nullptr, PDFModifiedDocument::Annotation));
-    if (!guard || !m_tool || !toolManagerGuard || PDFDeferredDeletion::isRetired(this))
+    if (!guard || PDFDeferredDeletion::isRetired(this) || !toolManagerGuard || !m_tool)
     {
         return false;
     }
     m_tool->setDestinationType(type);
-    if (!guard || !m_tool || !toolManagerGuard || PDFDeferredDeletion::isRetired(this))
+    if (!guard || PDFDeferredDeletion::isRetired(this) || !toolManagerGuard || !m_tool)
     {
         return false;
     }
@@ -274,7 +274,7 @@ bool PDFAppOutlineTargetPicker::start(DestinationType type, bool keepZoom, const
         m_statusHint = PDFAppAnnotationTools::getPageLinkInstruction(type);
         statusBar->showMessage(m_statusHint);
     }
-    return guard && m_isActive && !PDFDeferredDeletion::isRetired(this);
+    return guard && !PDFDeferredDeletion::isRetired(this) && m_isActive;
 }
 
 void PDFAppOutlineTargetPicker::createBar()
@@ -393,15 +393,15 @@ void PDFAppOutlineTargetPicker::finish()
 
 void PDFAppOutlineTargetPicker::cancel()
 {
+    QPointer<PDFAppOutlineTargetPicker> guard(this);
     m_isPickPending = false;
     if (!m_isActive)
     {
         return;
     }
 
-    QPointer<PDFAppOutlineTargetPicker> guard(this);
     finish();
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT canceled();
     }
@@ -422,6 +422,7 @@ void PDFAppOutlineTargetPicker::onToolTargetPicked(PDFDestination destination)
 
 void PDFAppOutlineTargetPicker::onPickedQueued()
 {
+    QPointer<PDFAppOutlineTargetPicker> guard(this);
     if (!m_isPickPending || !m_isActive)
     {
         m_isPickPending = false;
@@ -431,9 +432,8 @@ void PDFAppOutlineTargetPicker::onPickedQueued()
 
     const PDFDestination destination = m_pickedDestination;
     m_pickedDestination = PDFDestination();
-    QPointer<PDFAppOutlineTargetPicker> guard(this);
     finish();
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT targetPicked(destination);
     }

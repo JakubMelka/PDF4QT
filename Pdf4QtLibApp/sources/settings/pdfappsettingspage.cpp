@@ -272,10 +272,11 @@ void PDFAppSettingsPage::rebuild()
     const QString searchText = m_searchField ? m_searchField->text() : QString();
     const int cursorPosition = m_searchField ? m_searchField->cursorPosition() : 0;
 
-    // The slots of a written value may delete the page
+    // The slots of a written value may delete the page (with the window) or close it (retired, step A): such a page
+    // builds no new content
     QPointer<PDFAppSettingsPage> guard(this);
     commitPendingValues();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -595,10 +596,11 @@ bool PDFAppSettingsPage::setRoute(const PDFAppRoute& route)
         }
     }
 
-    // The slots of a written value may delete the page
+    // The slots of a written value may delete the page (with the window) or close it (retired, step A): such a page
+    // builds no new content
     QPointer<PDFAppSettingsPage> guard(this);
     commitPendingValues();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return false;
     }
@@ -746,10 +748,11 @@ bool PDFAppSettingsPage::openRestoreDefaultsDialog()
         return true;
     }
 
-    // A value being edited is a changed value too
+    // A value being edited is a changed value too; its slots may delete the page (with the window) or close it
+    // (retired, step A): no dialog then
     QPointer<PDFAppSettingsPage> guard(this);
     section->commitPendingValues();
-    if (!guard || section->getChangedKeys().isEmpty())
+    if (!guard || PDFDeferredDeletion::isRetired(this) || section->getChangedKeys().isEmpty())
     {
         return false;
     }
@@ -765,7 +768,8 @@ bool PDFAppSettingsPage::openRestoreDefaultsDialog()
 
 void PDFAppSettingsPage::commitPendingValues()
 {
-    // A copy: a slot of a written value may delete the page with its sections
+    // A copy: a slot of a written value may delete the page with its sections. A retired page goes on (PA6: the
+    // hook retire() writes the pending values of all sections - not cut by isRetired)
     const QList<QPointer<PDFAppSettingsSection>> sections = m_sections;
     QPointer<PDFAppSettingsPage> guard(this);
     for (const QPointer<PDFAppSettingsSection>& section : sections)
@@ -979,10 +983,11 @@ void PDFAppSettingsPage::onRestoreDialogFinished(int result)
         return;
     }
 
-    // The notifications of the restored values run the code of the application
+    // The notifications of the restored values run the code of the application (a deleted page or a closed one -
+    // retired, step A - shows no message)
     QPointer<PDFAppSettingsPage> guard(this);
     const PDFDatabaseError error = section->restoreDefaults();
-    if (guard && error.isError())
+    if (guard && !PDFDeferredDeletion::isRetired(this) && error.isError())
     {
         showStatusMessage(tr("The defaults could not be restored: %1").arg(error.toString()));
     }
@@ -990,7 +995,8 @@ void PDFAppSettingsPage::onRestoreDialogFinished(int result)
 
 void PDFAppSettingsPage::onDatabaseChanged(const QString& topic, const QString& key)
 {
-    // A section may run the code of the application (a status message, a dialog)
+    // A section may run the code of the application (a status message, a dialog), which may delete the page (with the
+    // window) or close it (retired, step A): the rest is not refreshed then
     QPointer<PDFAppSettingsPage> guard(this);
     for (const QPointer<PDFAppSettingsSection>& section : QList<QPointer<PDFAppSettingsSection>>(m_sections))
     {
@@ -998,7 +1004,7 @@ void PDFAppSettingsPage::onDatabaseChanged(const QString& topic, const QString& 
         {
             section->refresh(topic, key);
         }
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }

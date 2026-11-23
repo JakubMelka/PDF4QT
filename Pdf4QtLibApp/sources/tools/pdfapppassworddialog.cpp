@@ -58,7 +58,9 @@ PDFAppPasswordDialog::PDFAppPasswordDialog(PDFAppToolInputList* list, const QStr
     {
         PDFDeferredDeletion::connect(list, &PDFAppToolInputList::inputChanged, this, &PDFAppPasswordDialog::onInputChanged);
         PDFDeferredDeletion::connect(list, &PDFAppToolInputList::inputsChanged, this, &PDFAppPasswordDialog::onInputsChanged);
-        connect(list, &QObject::destroyed, this, &PDFAppPasswordDialog::onListDestroyed);
+
+        // The end of the list (retired with its owner, or deleted without retire): its notifier, not destroyed (PA6)
+        PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(list), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppPasswordDialog::onListDestroyed);
     }
 
     updateTexts();
@@ -82,6 +84,9 @@ PDFAppPasswordDialog::PDFAppPasswordDialog(PDFAppDocument* document, const PDFAp
     {
         PDFDeferredDeletion::connect(document, &PDFAppDocument::documentChanged, this, &PDFAppPasswordDialog::onDocumentChanged);
         PDFDeferredDeletion::connect(document, &PDFAppDocument::stateChanged, this, &PDFAppPasswordDialog::onDocumentChanged);
+
+        // The deletion of the document (PA6: destroyed stays - a document retired with its tab is still read by
+        // Unlock, which refuses it by isRetired; a dialog not owned by the document outlives its retire until then)
         connect(document, &QObject::destroyed, this, &PDFAppPasswordDialog::onDocumentDestroyed);
     }
 
@@ -457,10 +462,10 @@ void PDFAppPasswordDialog::onUnlockClicked()
     setError(false);
     updateButtons();
 
-    // The list emits inputChanged (Loading) in this call: its slot may close the dialog
-    QPointer<PDFAppPasswordDialog> guard(this);
+    // The list emits inputChanged (Loading) in this call: its slot may close the dialog (retired, deleted later: only
+    // its own buttons follow)
     const bool isStarted = m_list->setPassword(m_inputId, password);
-    if (guard && !isStarted)
+    if (!isStarted)
     {
         m_isBusy = false;
         updateButtons();
@@ -484,12 +489,11 @@ void PDFAppPasswordDialog::unlockDocument()
     }
 
     // The document verifies the password by its handler and emits documentChanged - its
-    // slots may delete the dialog or the document (the tab closes)
+    // slots may close the dialog or the document (the tab closes; a retired dialog answers nothing)
     const QString password = m_passwordField->text();
     m_isBusy = true;
-    QPointer<PDFAppPasswordDialog> guard(this);
     const bool isUnlocked = document->unlockWithOwnerPassword(password);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }

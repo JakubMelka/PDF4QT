@@ -212,13 +212,12 @@ void PDFAppToolImageFormatMenu::onRowClicked()
     }
 
     // The menu closes after its choice (its closed signal runs our slot); the GUI changes its
-    // parameter last
-    QPointer<PDFAppToolImageFormatMenu> guard(this);
+    // parameter last (a menu retired meanwhile chooses nothing)
     if (m_panel)
     {
         m_panel->close();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT formatChosen(format);
     }

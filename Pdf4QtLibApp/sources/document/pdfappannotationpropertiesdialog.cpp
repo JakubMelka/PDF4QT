@@ -348,8 +348,8 @@ PDFAppAnnotationPropertiesDialog::PDFAppAnnotationPropertiesDialog(PDFAppAnnotat
     connect(this, &QDialog::finished, this, &PDFAppAnnotationPropertiesDialog::onDialogFinished);
     if (controller)
     {
-        // The tab (with its controller) deleted: the dialog closes
-        connect(controller, &QObject::destroyed, this, &PDFAppAnnotationPropertiesDialog::onControllerDestroyed);
+        // The controller closed (retire, aboutToBeDeleted of its notifier) or deleted: the dialog closes
+        PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(controller), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppAnnotationPropertiesDialog::onControllerDestroyed);
 
         // Parented to the window, the dialog belongs to the controller (it closes with the tab)
         PDFDeferredDeletion::setOwner(this, controller);
@@ -1562,7 +1562,7 @@ bool PDFAppAnnotationPropertiesDialog::apply()
 
     QPointer<PDFAppAnnotationPropertiesDialog> guard(this);
     const bool isCommitted = controller->commit(*result, PDFAppAnnotationChangeKind::Annotation, tr("Edit annotation properties"));
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return isCommitted;
     }
@@ -1586,13 +1586,19 @@ void PDFAppAnnotationPropertiesDialog::onCancelClicked()
 
 void PDFAppAnnotationPropertiesDialog::onControllerDestroyed()
 {
-    // The sender is dying: only the own state is changed, the dialog goes from the event loop
+    // A dialog retired with its controller (setOwner) is closed by the retire. Otherwise nothing of the
+    // controller is used: the dialog is rejected and retired.
+    if (PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
+
     m_controller = nullptr;
     if (isVisible())
     {
         reject();
     }
-    deleteLater();
+    PDFDeferredDeletion::retire(this);
 }
 
 void PDFAppAnnotationPropertiesDialog::onDialogFinished(int result)
@@ -1773,9 +1779,13 @@ void PDFAppAnnotationPropertiesDialog::retranslate()
     delete m_iconGroup.data();
     m_flagCheckBoxes.clear();
     m_iconNames.clear();
+
+    // Out of the tree of the dialog (the new body takes its place), still owned by the dialog: a retire of
+    // the dialog meanwhile takes it along, until the event loop retires it (its editors stay connected)
     oldScrollArea->hide();
     oldScrollArea->setParent(nullptr);
-    oldScrollArea->deleteLater();
+    PDFDeferredDeletion::setOwner(oldScrollArea, this);
+    PDFDeferredDeletion::retireLater(oldScrollArea);
 
     createContent();
     if (m_pageField)

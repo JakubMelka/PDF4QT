@@ -2690,8 +2690,9 @@ private:
         QPointer<PDFAppDocument> document = m_request.document;
         QPointer<PDFAppMcpHost> host = m_host;
         succeed(result);
-        if (host && document)
+        if (host && document && !PDFDeferredDeletion::isRetired(document))
         {
+            // (a document closed meanwhile - retired with its tab, step A - shows no message)
             host->showSavedMessage(document, writtenPath);
         }
     }
@@ -3284,12 +3285,20 @@ private:
         // A canceled call (also by a stopped server) withdraws the dialog at once: the host reports it.
         // The host stopped without the event loop (the quit order deletes it at once) ends the request
         // with itself (the destructor).
-        // The document of a closed (retired) tab sends nothing more: its end is aboutToBeDeleted (step A)
+        // The document of a closed (retired) tab sends nothing more: its end is aboutToBeDeleted (step A; also emitted
+        // by the notifier's destructor for a document deleted without retire - never QObject::destroyed, PA6)
         PDFDeferredDeletion::connect(host, &PDFAppMcpHost::callCancelReceived, this, &PDFAppMcpCatalogToolSecretRequest::onCallCanceled);
         if (PDFAppDocument* document = m_request.document)
         {
-            PDFDeferredDeletion::connect(document, &QObject::destroyed, this, &PDFAppMcpCatalogToolSecretRequest::onDocumentDestroyed);
-            PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(document), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppMcpCatalogToolSecretRequest::onDocumentDestroyed);
+            if (PDFDeferredDeletion::isRetired(document))
+            {
+                // Closed already (its notifier has emitted): the call ends from the event loop
+                queueClosedEnd();
+            }
+            else
+            {
+                PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(document), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppMcpCatalogToolSecretRequest::onDocumentDestroyed);
+            }
         }
     }
 
@@ -3394,11 +3403,16 @@ private:
     void attach(PDFAppMcpSecretConfirmation* dialog)
     {
         m_dialog = dialog;
-        if (dialog)
+        if (dialog && PDFDeferredDeletion::isRetired(dialog))
         {
-            // The dialog lives in the tab: a closed (retired) tab ends it without confirmationEnded
+            // Closed already (its notifier has emitted): the call ends from the event loop
+            onDialogDestroyed();
+        }
+        else if (dialog)
+        {
+            // The dialog lives in the tab: a closed (retired) tab ends it without confirmationEnded; its end is
+            // aboutToBeDeleted (also from the notifier's destructor - never QObject::destroyed, PA6)
             PDFDeferredDeletion::connect(dialog, &PDFAppMcpSecretConfirmation::confirmationEnded, this, &PDFAppMcpCatalogToolSecretRequest::onConfirmationEnded);
-            PDFDeferredDeletion::connect(dialog, &QObject::destroyed, this, &PDFAppMcpCatalogToolSecretRequest::onDialogDestroyed);
             PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(dialog), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppMcpCatalogToolSecretRequest::onDialogDestroyed);
         }
         else
@@ -3555,15 +3569,15 @@ private:
 
     void onDocumentDestroyed()
     {
-        // A slot of destroyed only forgets (CLAUDE.md lifetime: the sender is inside of its destructor);
-        // the call ends from the event loop (the tab deletes the scrim with the dialog)
+        // The document is closed (retired) or in its destructor: it is not called; the call ends from the
+        // event loop (the tab deletes the scrim with the dialog)
         queueClosedEnd();
     }
 
     void onDialogDestroyed()
     {
-        // The tab has deleted the scrim before the end of the dialog (the tab closes): the dialog is
-        // forgotten, the call ends from the event loop
+        // The tab has closed (retired) or deleted the scrim before the end of the dialog (the tab closes):
+        // the dialog is forgotten, the call ends from the event loop
         m_dialog = nullptr;
         queueClosedEnd();
     }

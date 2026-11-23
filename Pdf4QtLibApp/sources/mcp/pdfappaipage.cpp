@@ -1502,13 +1502,11 @@ void PDFAppAiPage::updateAssistants()
         return;
     }
 
+    // The shown rows are retired from the event loop (step A): the update may come from the click of a row's own
+    // Disconnect (the controller tells the change at once) - retire there would cut the row's emission
     for (const QPointer<PDFAssistantRow>& row : std::as_const(m_assistantRows))
     {
-        if (row)
-        {
-            row->hide();
-            row->deleteLater();
-        }
+        PDFDeferredDeletion::retireLater(row.data());
     }
     m_assistantRows.clear();
     m_shownClients = clients;
@@ -2172,7 +2170,8 @@ void PDFAppAiPage::onStartStopClicked()
         return;
     }
 
-    // The signals of the controller may delete the page (a navigation from them)
+    // The signals of the controller may delete the page (with the window) or close it (a navigation from them;
+    // retired, step A): such a page builds no new rows
     QPointer<PDFAppAiPage> guard(this);
     if (m_controller->isRunning())
     {
@@ -2182,7 +2181,7 @@ void PDFAppAiPage::onStartStopClicked()
     {
         m_controller->start();
     }
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         updateAll();
     }
@@ -2294,10 +2293,11 @@ void PDFAppAiPage::onNewTokenFinished(int result)
         return;
     }
 
-    // A new token disconnects every assistant and restarts a running server [D2]
+    // A new token disconnects every assistant and restarts a running server [D2]; its signals may delete or close
+    // (retire, step A) the page: such a page builds no new rows
     QPointer<PDFAppAiPage> guard(this);
     m_controller->createNewToken();
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         updateAll();
     }

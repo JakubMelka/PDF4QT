@@ -133,6 +133,9 @@ private slots:
     void filesRules();
     void filesOpen();
     void filesSave();
+    void filesSaveTabClosed_data();
+    void filesSaveTabClosed();
+    void filesOpenTabClosedByActivation();
     void reviewFilesSaveRefusals();
     void reviewChangeRefusedAfterConfirmation();
     void reviewDenySetDuringQuestion();
@@ -2973,6 +2976,126 @@ void AppMcpEditTest::filesSave()
     const std::optional<pdf::PDFMcpCallResult> copyResult = fixture.callTool(QStringLiteral("files"), save);
     QVERIFY(H::isError(copyResult));
     QVERIFY(H::text(copyResult).contains(QStringLiteral("save_copy")));
+}
+
+void AppMcpEditTest::filesSaveTabClosed_data()
+{
+    QTest::addColumn<QString>("signal");
+    QTest::newRow("operationStarted") << QStringLiteral("operationStarted");
+    QTest::newRow("savedAs") << QStringLiteral("savedAs");
+}
+
+void AppMcpEditTest::filesSaveTabClosed()
+{
+    // files.save of a tab closed during the call (retired with its document: inert, deleted later, RC6-M2 = RD6-M3).
+    // operationStarted: a slot of the announced operation Save closes the tab - nothing is written for a closed tab,
+    // the answer is DeniedClosed, as by the tools of the catalog (a direct retire: the close of the window would ask
+    // about the unsaved changes). savedAs: a slot of the saved state closes the tab by the window after the write -
+    // the file has been written and the answer says so, but it names no document of the closed tab.
+    using H = AppMcpEditTestHelper;
+    QFETCH(QString, signal);
+
+    McpEditFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    const QString path = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Closed_Report.pdf"), 1);
+    QPointer<pdf::PDFAppDocumentTab> tab = fixture.openReady(path);
+    QVERIFY(tab);
+    QPointer<pdf::PDFAppDocument> document = tab->getDocument();
+    QVERIFY(!H::isError(fixture.callTool(QStringLiteral("annotations"), H::json(R"({"action":"add","add":{"items":[{"type":"note","page":1,"point":{"x":100,"y":300}}]}})"))));
+    QVERIFY(document->isModified());
+    const QByteArray original = [&path]() { QFile file(path); return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray(); }();
+    QVERIFY(!original.isEmpty());
+
+    bool isRetiredInSlot = false;
+    if (signal == QStringLiteral("operationStarted"))
+    {
+        connect(document, &pdf::PDFAppDocument::operationsChanged, fixture.window.data(), [&]()
+        {
+            if (tab && !isRetiredInSlot && !document->getOperations().empty())
+            {
+                pdf::PDFDeferredDeletion::retire(tab.data());
+                isRetiredInSlot = pdf::PDFDeferredDeletion::isRetired(tab.data());
+            }
+        });
+    }
+    else
+    {
+        connect(document, &pdf::PDFAppDocument::originalDataChanged, fixture.window.data(), [&]()
+        {
+            if (tab && !isRetiredInSlot && !document->isModified())
+            {
+                isRetiredInSlot = fixture.retire(tab.data()) && pdf::PDFDeferredDeletion::isRetired(tab.data());
+            }
+        });
+    }
+
+    std::shared_ptr<pdf::PDFMcpCall> call = fixture.startCall(QStringLiteral("files"), H::json(R"({"action":"save"})"));
+    pdf::PDFAppMcpConfirmDialog* dialog = fixture.waitDialog();
+    QVERIFY(dialog);
+    fixture.ui()->answer(dialog->getConfirmationId(), pdf::PDFAppMcpDecision::Allowed);
+    const std::optional<pdf::PDFMcpCallResult> result = fixture.waitResult(call);
+    QVERIFY(isRetiredInSlot);
+
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QByteArray written = file.readAll();
+    if (signal == QStringLiteral("operationStarted"))
+    {
+        QVERIFY(H::isError(result));
+        QVERIFY2(H::text(result).contains(QStringLiteral("closed")), qPrintable(H::text(result)));
+        QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::DeniedClosed));
+        QCOMPARE(written, original);
+    }
+    else
+    {
+        QVERIFY2(!H::isError(result), qPrintable(H::text(result)));
+        const QJsonObject save = H::structured(result).value(QStringLiteral("save")).toObject();
+        QVERIFY(save.value(QStringLiteral("saved")).toBool());
+        QVERIFY(!save.contains(QStringLiteral("documentId")));
+        QVERIFY(written != original);
+    }
+    fixture.settle();
+    QVERIFY(!tab);
+}
+
+void AppMcpEditTest::filesOpenTabClosedByActivation()
+{
+    // The retire variant of the MCP lifetime rows (RD6-H1): files.open of a file open already activates its tab; a
+    // slot of the switch of the tab bar closes that tab by the window (retire: inert, deleted later) - the answer is
+    // DeniedClosed, never the closed document as opened
+    using H = AppMcpEditTestHelper;
+
+    McpEditFixture fixture;
+    QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+    QPointer<pdf::PDFAppDocumentTab> tab = fixture.openReady(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Activated.pdf"), 2));
+    QVERIFY(tab);
+    pdf::PDFAppDocumentTab* other = fixture.openReady(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Other.pdf"), 1));
+    QVERIFY(other && other != tab);
+    QCOMPARE(fixture.window->getCurrentTab(), static_cast<pdf::PDFAppTab*>(other));
+
+    QObject receiver;
+    bool isRetiring = false;
+    bool isRetiredInSlot = false;
+    connect(fixture.window->getTabBar(), &QTabBar::currentChanged, &receiver, [&]()
+    {
+        if (tab && !isRetiring && fixture.window->getCurrentTab() == tab.data())
+        {
+            isRetiring = true;
+            isRetiredInSlot = fixture.retire(tab.data()) && pdf::PDFDeferredDeletion::isRetired(tab.data());
+        }
+    });
+
+    QJsonObject open;
+    open.insert(QStringLiteral("action"), QStringLiteral("open"));
+    open.insert(QStringLiteral("open"), QJsonObject({ { QStringLiteral("path"), tab->getDocument()->getFilePath() }, { QStringLiteral("page"), 2 } }));
+    const std::optional<pdf::PDFMcpCallResult> result = fixture.callTool(QStringLiteral("files"), open);
+    QVERIFY(isRetiredInSlot);
+    QVERIFY(H::isError(result));
+    QVERIFY2(H::text(result).contains(QStringLiteral("closed")), qPrintable(H::text(result)));
+    QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::DeniedClosed));
+
+    fixture.settle();
+    QVERIFY(!tab);
 }
 
 void AppMcpEditTest::filesSaveCopy()

@@ -188,9 +188,9 @@ void PDFAppToolInputRow::updateChildren()
     }
     else if (m_content.linkText.isEmpty() && m_link)
     {
-        // The link may be the sender of the click, which has changed the content
-        m_link->hide();
-        m_link->deleteLater();
+        // The link may be the sender of the click, which has changed the content: retired from the event loop (step A:
+        // a rebuilt part, hidden at once)
+        PDFDeferredDeletion::retireLater(m_link.data());
         m_link = nullptr;
     }
     if (m_link)
@@ -623,9 +623,9 @@ void PDFAppToolInputFilesPanel::setRows(const std::vector<PDFAppToolInputRow::Co
         {
             if (oldRow)
             {
-                oldRow->hide();
+                // Retired from the event loop (step A: a rebuilt row, which may be the sender of this change)
                 m_rowsLayout->removeWidget(oldRow);
-                oldRow->deleteLater();
+                PDFDeferredDeletion::retireLater(oldRow.data());
             }
         }
 

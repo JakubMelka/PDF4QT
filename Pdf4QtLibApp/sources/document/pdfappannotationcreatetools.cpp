@@ -27,6 +27,7 @@
 #include "pdfdrawspacecontroller.h"
 #include "pdfpainterutils.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfstylepainter.h"
 #include "pdfthemefonts.h"
 #include "pdfthememanager.h"
@@ -666,6 +667,7 @@ void PDFAppPageLinkTool::onLinkRectanglePicked(PDFInteger pageIndex, QRectF page
 
 void PDFAppPageLinkTool::onTargetPointPicked(PDFInteger pageIndex, QPointF pagePoint)
 {
+    QPointer<PDFAppPageLinkTool> toolGuard(this);
     m_pointPickTool->resetTool();
     if (m_step != Step::Target || m_destinationType == DestinationType::FitR)
     {
@@ -685,9 +687,8 @@ void PDFAppPageLinkTool::onTargetPointPicked(PDFInteger pageIndex, QPointF pageP
 
     const PDFInteger linkPageIndex = m_linkPageIndex;
     const QRectF linkRectangle = m_linkRectangle;
-    QPointer<PDFAppPageLinkTool> guard(this);
     Q_EMIT linkRequested(linkPageIndex, linkRectangle, destination);
-    if (guard)
+    if (toolGuard && !PDFDeferredDeletion::isRetired(this))
     {
         goBack();
     }
@@ -695,6 +696,7 @@ void PDFAppPageLinkTool::onTargetPointPicked(PDFInteger pageIndex, QPointF pageP
 
 void PDFAppPageLinkTool::onTargetRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
 {
+    QPointer<PDFAppPageLinkTool> toolGuard(this);
     m_rectanglePickTool->resetTool();
     if (m_step != Step::Target || m_destinationType != DestinationType::FitR)
     {
@@ -715,9 +717,8 @@ void PDFAppPageLinkTool::onTargetRectanglePicked(PDFInteger pageIndex, QRectF pa
 
     const PDFInteger linkPageIndex = m_linkPageIndex;
     const QRectF linkRectangle = m_linkRectangle;
-    QPointer<PDFAppPageLinkTool> guard(this);
     Q_EMIT linkRequested(linkPageIndex, linkRectangle, destination);
-    if (guard)
+    if (toolGuard && !PDFDeferredDeletion::isRetired(this))
     {
         goBack();
     }

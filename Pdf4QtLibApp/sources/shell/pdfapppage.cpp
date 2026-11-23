@@ -160,12 +160,12 @@ bool PDFAppPage::finishLeave(bool isProceeding)
 
 bool PDFAppPage::finishLeaves(const std::vector<QPointer<PDFAppPage>>& pages, bool isProceeding)
 {
-    // A page applies its choice by a commit: its slots may delete the other pages (QPointer). A refusal cancels
-    // the leave - the other pages forget their choices.
+    // A page applies its choice by a commit: its slots may close the other pages (retired with their tabs, step A -
+    // nothing to finish there). A refusal cancels the leave - the other pages forget their choices.
     bool isFinished = true;
     for (const QPointer<PDFAppPage>& page : pages)
     {
-        if (page && !page->finishLeave(isProceeding && isFinished))
+        if (page && !PDFDeferredDeletion::isRetired(page) && !page->finishLeave(isProceeding && isFinished))
         {
             isFinished = false;
         }
@@ -233,9 +233,11 @@ QString PDFAppPage::getDirectionalIconName(const QString& iconName, Qt::LayoutDi
 
 bool PDFAppPage::requestNavigation(const PDFAppRoute& route, PDFAppNavigationMode mode)
 {
+    // The navigation may close the tab of the page (retired, step A; the replaced page is retired from the event loop);
+    // the contract also covers a receiver outside of the application, which deletes the page (the guard stays)
     QPointer<PDFAppPage> guard(this);
     Q_EMIT navigationRequested(route, mode);
-    return !guard.isNull();
+    return !guard.isNull() && !PDFDeferredDeletion::isRetired(this);
 }
 
 bool PDFAppPage::replaceRoute(const PDFAppRoute& route)
@@ -254,7 +256,7 @@ bool PDFAppPage::replaceRoute(const PDFAppRoute& route)
     m_route = route;
     QPointer<PDFAppPage> guard(this);
     Q_EMIT routeReplaced(route);
-    return !guard.isNull();
+    return !guard.isNull() && !PDFDeferredDeletion::isRetired(this);
 }
 
 bool PDFAppPage::isPreviousRoute(const PDFAppRoute& route) const
@@ -281,7 +283,7 @@ bool PDFAppPage::requestBack()
 {
     QPointer<PDFAppPage> guard(this);
     Q_EMIT backRequested();
-    return !guard.isNull();
+    return !guard.isNull() && !PDFDeferredDeletion::isRetired(this);
 }
 
 PDFAppPageFactory::~PDFAppPageFactory() = default;

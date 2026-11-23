@@ -26,6 +26,7 @@
 
 #include "pdfcomponentbadges.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 
 #include <QHBoxLayout>
@@ -76,8 +77,8 @@ void PDFAppToolChangeList::setChanges(std::vector<Change> changes)
         {
             if (parts.widget)
             {
-                parts.widget->hide();
-                parts.widget->deleteLater();
+                // Retired (step A: a rebuilt row), deleted later
+                PDFDeferredDeletion::retire(parts.widget.data());
             }
         }
         m_rows.clear();

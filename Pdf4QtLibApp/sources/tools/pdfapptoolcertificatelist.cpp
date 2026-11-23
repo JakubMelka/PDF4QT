@@ -668,13 +668,13 @@ void PDFAppToolCertificateList::rebuildRows()
     using Helper = PDFAppToolCertificateListHelper;
     using State = PDFAppToolCertificateItem::State;
 
-    // The old rows go later: one of them may be the sender of the click, which leads here
+    // The old rows are retired from the event loop (step A: a rebuilt row): one of them may be the sender of the
+    // click, which leads here
     for (const QPointer<PDFTileRow>& row : m_rows)
     {
         if (row)
         {
-            row->hide();
-            row->deleteLater();
+            PDFDeferredDeletion::retireLater(row.data());
         }
     }
     m_rows.clear();

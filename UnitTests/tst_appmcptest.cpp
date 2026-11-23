@@ -229,6 +229,7 @@ private slots:
     void completionDisclosure() { AppMcpReadTests::completionDisclosure(); }
     void promptsGet() { AppMcpReadTests::promptsGet(); }
     void viewActions() { AppMcpReadTests::viewActions(); }
+    void viewCloseRetiredDuringClose() { AppMcpReadTests::viewCloseRetiredDuringClose(); }
     void fastPath() { AppMcpReadTests::fastPath(); }
     void concurrentReads() { AppMcpReadTests::concurrentReads(); }
     void hostileInput() { AppMcpReadTests::hostileInput(); }

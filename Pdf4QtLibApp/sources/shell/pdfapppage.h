@@ -284,8 +284,9 @@ protected:
     /// The base has nothing outside its subtree; an override calls BaseClass::retire() first.
     virtual void retire() override;
 
-    /// Emits navigationRequested. The page may be deleted by the navigation:
-    /// \returns false, if the page does not exist any more (do not touch members then)
+    /// Emits navigationRequested. The page may be closed by the navigation (its tab closed - retired, step A) or
+    /// deleted by a foreign receiver: \returns false, if the page has been closed or deleted (change nothing
+    /// outside the page, touch no member after a deletion)
     bool requestNavigation(const PDFAppRoute& route, PDFAppNavigationMode mode = PDFAppNavigationMode::Push);
 
     /// Replaces the route of the shown page without showing it again: a filter, a
@@ -297,7 +298,7 @@ protected:
     /// page. The route must be a route of the same page (the same pattern of the
     /// route table) - the navigator refuses another one and keeps the history; an
     /// invalid route is ignored.
-    /// \returns false, if the page does not exist any more (do not touch members then)
+    /// \returns false, if the page has been closed (retired, step A) or deleted (as requestNavigation)
     bool replaceRoute(const PDFAppRoute& route);
 
     /// The page is the shown page of its tab and the entry of the history before
@@ -308,7 +309,7 @@ protected:
     bool isPreviousRoute(const PDFAppRoute& route) const;
 
     /// Emits backRequested (the tab shows the previous entry of its history and
-    /// deletes this page). \returns false, if the page does not exist any more
+    /// retires this page). \returns false, if the page has been closed (retired, step A) or deleted
     bool requestBack();
 
 private:

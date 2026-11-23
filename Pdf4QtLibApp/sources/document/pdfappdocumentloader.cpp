@@ -25,6 +25,7 @@
 #include "pdfappcontext.h"
 #include "pdfrecentrepository.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumentreader.h"
 #include "pdfexception.h"
 #include "pdfexecutionpolicy.h"
@@ -234,10 +235,11 @@ void PDFAppDocumentLoader::start(const QString& filePath)
     PDFAppDocumentReading::Request request;
     request.filePath = m_filePath;
 
-    // The registry finds the file at once (a second opening activates the tab)
+    // The registry finds the file at once (a second opening activates the tab); a slot may close
+    // the tab - a retired loader starts no reading
     QPointer<PDFAppDocumentLoader> guard(this);
     m_document->setLoading(m_filePath);
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         startReading(std::move(request), false);
     }
@@ -255,7 +257,7 @@ bool PDFAppDocumentLoader::startFromMemory(QByteArray data, const QString& title
     {
         return false;
     }
-    if (!guard || !m_document)
+    if (!guard || PDFDeferredDeletion::isRetired(this) || !m_document)
     {
         return false;
     }
@@ -291,7 +293,7 @@ bool PDFAppDocumentLoader::setPassword(const QString& password)
 
     QPointer<PDFAppDocumentLoader> guard(this);
     m_document->setLoading(m_filePath);
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         startReading(std::move(request), false);
     }
@@ -334,7 +336,7 @@ bool PDFAppDocumentLoader::openWithoutAttachments()
 
     QPointer<PDFAppDocumentLoader> guard(this);
     m_document->setLoading(m_filePath);
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         startReading(std::move(request), false);
     }
@@ -456,7 +458,7 @@ void PDFAppDocumentLoader::onReadingFinished()
             m_hasPassword = true;
             m_isAttachmentsLocked = false;
             m_document->reload(result.document, std::move(result.data), result.isEncrypted, result.isPagedXFA, result.restoration);
-            if (guard && m_document && !isUserLocked)
+            if (guard && !PDFDeferredDeletion::isRetired(this) && m_document && !isUserLocked)
             {
                 m_document->setLocked(false);
             }
@@ -466,7 +468,7 @@ void PDFAppDocumentLoader::onReadingFinished()
             m_isAttachmentsPasswordWrong = result.status != PDFAppDocumentReading::Status::Failed;
         }
         PDFSecureMemory::clear(password);
-        if (guard)
+        if (guard && !PDFDeferredDeletion::isRetired(this))
         {
             Q_EMIT finished();
         }
@@ -489,7 +491,7 @@ void PDFAppDocumentLoader::onReadingFinished()
 
             // Opened without its attachments: nothing is saved (tools.md 4.7), the encrypted
             // attachments are never written as if they were plain
-            if (guard && m_document && m_isAttachmentsLocked)
+            if (guard && !PDFDeferredDeletion::isRetired(this) && m_document && m_isAttachmentsLocked)
             {
                 m_document->setLocked(true);
             }
@@ -515,7 +517,7 @@ void PDFAppDocumentLoader::onReadingFinished()
             break;
     }
 
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT finished();
     }

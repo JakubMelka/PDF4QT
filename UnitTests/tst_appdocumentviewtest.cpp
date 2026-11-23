@@ -58,6 +58,7 @@
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentcards.h"
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemecolors.h"
 #include "pdfthemeiconengine.h"
@@ -372,6 +373,7 @@ private slots:
     void closedPanelsNotRefreshed();
     void panelKeyboard();
     void panelDeletion();
+    void panelAnchorRetired();
     void panelHoverSwitch();
     void panelHoverSwitchSelectMenuExec();
     void selectButtonPopup();
@@ -3019,6 +3021,45 @@ void AppDocumentViewTest::panelDeletion()
         fixture.settle();
         QVERIFY(!menu);
     }
+}
+
+void AppDocumentViewTest::panelAnchorRetired()
+{
+    // The anchor of an open panel closed (PA6: retire, the anchor stays whole until the event loop): the panel
+    // closes at once (aboutToBeDeleted of the notifier of the anchor), it stays usable itself
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = ViewTestHelper::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("AnchorRetired.pdf"), 2));
+    QVERIFY(tab);
+    QWidget* window = tab->window();
+    QPointer<QWidget> anchor = new QWidget(window);
+    anchor->setGeometry(10, 10, 40, 20);
+    anchor->show();
+    QPointer<pdf::PDFAppDocumentGoToPanel> panel = new pdf::PDFAppDocumentGoToPanel(tab->getView(), window);
+    panel->popup(anchor, anchor->mapToGlobal(QPoint(0, anchor->height())).y());
+    QVERIFY(panel->isVisible());
+    QVERIFY(panel->getAnchor() == anchor.data());
+
+    // A later listener of the end of the anchor finds the panel closed already: the panel learned the end from the
+    // anchor's aboutToBeDeleted (step 2 of retire), not from the Hide of the anchor (step 7) or its destroyed
+    QObject listener;
+    int anchorEnds = 0;
+    bool isPanelVisibleAtAnchorEnd = true;
+    QObject::connect(pdf::PDFDeferredDeletion::getNotifier(anchor.data()), &pdf::PDFLifetimeNotifier::aboutToBeDeleted, &listener,
+                     [&anchorEnds, &isPanelVisibleAtAnchorEnd, &panel]() { ++anchorEnds; isPanelVisibleAtAnchorEnd = panel && panel->isVisible(); });
+
+    pdf::PDFDeferredDeletion::retire(anchor.data());
+    QCOMPARE(anchorEnds, 1);
+    QVERIFY(!isPanelVisibleAtAnchorEnd);
+    QVERIFY(anchor);
+    QVERIFY(panel);
+    QVERIFY(!panel->isVisible());
+    QVERIFY(!pdf::PDFDeferredDeletion::isRetired(panel.data()));
+
+    fixture.settle();
+    QVERIFY(!anchor);
+    QVERIFY(panel);
+    QVERIFY(!panel->isVisible());
+    pdftest::AppDocumentFixture::deleteNow(panel.data());
 }
 
 void AppDocumentViewTest::panelHoverSwitch()

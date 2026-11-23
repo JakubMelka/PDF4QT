@@ -397,12 +397,14 @@ void PDFAppMcpViewToolHelper::showSearch(const PDFAppMcpToolInvocation& invocati
     // The search panel of the tab shows the query and highlights the results
     QPointer<PDFAppDocument> documentGuard(document);
     QPointer<PDFAppDocumentSearchCommandHandler> handlerGuard(handler);
+    // The activation runs code of the application: a tab closed by it (retired with the handler, step A) searches
+    // nothing
     activate(host, document);
-    if (handlerGuard && handlerGuard->getSearchController())
+    if (handlerGuard && !PDFDeferredDeletion::isRetired(handlerGuard) && handlerGuard->getSearchController())
     {
         handlerGuard->getSearchController()->setOptions(options);
     }
-    if (handlerGuard)
+    if (handlerGuard && !PDFDeferredDeletion::isRetired(handlerGuard))
     {
         handlerGuard->startSearch(query);
     }
@@ -540,13 +542,16 @@ void PDFAppMcpViewToolHelper::close(const PDFAppMcpToolInvocation& invocation, P
     std::shared_ptr<PDFMcpCall> call = invocation.call;
     QPointer<PDFAppDocumentTab> tabGuard(tab);
     const PDFAppLeaveResult result = window->requestCloseTab(tab);
-    if (result == PDFAppLeaveResult::Pending && tabGuard)
+    const bool isTabGone = !tabGuard || PDFDeferredDeletion::isRetired(tabGuard);
+    if (result == PDFAppLeaveResult::Pending && !isTabGone)
     {
         // The conditions above exclude every question: a question would be an error, the close is canceled
         cancelFlow(tabGuard.data());
     }
+
+    // A tab closed (retired, step A) or deleted meanwhile is closed
     const bool isClosed = result == PDFAppLeaveResult::Done;
-    writer.writeMember(QLatin1StringView("closed"), isClosed || !tabGuard);
+    writer.writeMember(QLatin1StringView("closed"), isClosed || isTabGone);
     writer.endObject();
     call->finish(PDFAppMcpReadSupport::createResult(QStringLiteral("close"), writer.take(), false));
 }

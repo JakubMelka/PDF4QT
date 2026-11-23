@@ -164,7 +164,9 @@ void PDFAppToolModeLayout::watchPart(Part& part, QWidget* widget)
     if (widget)
     {
         // The part belongs to the shell of a tool (step A: the handle is cut by retire of the layout's host; destroyed
-        // stays, the fallback of a part deleted during the mode)
+        // stays, the fallback of a part deleted during the mode - PA6: not aboutToBeDeleted, its receivers only queue
+        // a check, which needs the part gone (its QPointer cleared), while aboutToBeDeleted comes at retire, before
+        // the deletion; a retired part goes back by the token of the mode)
         PDFDeferredDeletion::connect(widget, &QObject::destroyed, this, &PDFAppToolModeLayout::onPartDestroyed);
     }
 }
@@ -477,9 +479,9 @@ void PDFAppToolModeLayout::onInfoBarAction(const QString& infoBarId, const QStri
 
 void PDFAppToolModeLayout::onInfoBarClosed(const QString& infoBarId)
 {
-    QPointer<PDFAppToolModeLayout> guard(this);
+    // A layout retired meanwhile (step A: its view closed) tells nothing
     hideInfoBar(infoBarId);
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT infoBarActionTriggered(infoBarId, QString());
     }

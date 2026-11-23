@@ -918,7 +918,9 @@ private:
     /// Slot of the signal clicked of the swatches (the swatch is the sender)
     void onSwatchButtonClicked();
     void onMoreClicked();
-    void onAnchorDestroyed();
+    /// Slot of PDFLifetimeNotifier::aboutToBeDeleted of the anchor: the end of the anchor (retired or deleted)
+    /// closes the popover; nothing of the anchor is used
+    void onAnchorAboutToBeDeleted();
     /// Queued after a hide: emits closed, unless the palette has been opened again meanwhile
     void onHiddenQueued(quint64 openCount);
     QList<PDFColorSwatch*> getVisibleSwatches(bool recent) const;
@@ -936,7 +938,7 @@ private:
     QPointer<PDFTextLink> m_more;
     QPointer<QWidget> m_anchor;
     QPointer<QWidget> m_anchorWindow;
-    QMetaObject::Connection m_anchorDestroyed;
+    QMetaObject::Connection m_anchorDeletedConnection;
     bool m_isOpen = false;
     quint64 m_openCount = 0;
 };
@@ -1019,7 +1021,9 @@ protected:
 private:
     void init();
     void onPaletteClosed();
-    void onPaletteDestroyed();
+    /// Slot of PDFLifetimeNotifier::aboutToBeDeleted of the palette: the palette (retired or deleted) is dropped,
+    /// the name of the color falls back to the default name; nothing of the palette is asked any more
+    void onPaletteAboutToBeDeleted();
     void onPaletteColorSelected(const QColor& color);
     void onPaletteColorsChanged();
     void updateText();
@@ -1028,6 +1032,7 @@ private:
     QColor m_color;
     QString m_colorName;
     QPointer<PDFColorPalette> m_palette;
+    QMetaObject::Connection m_paletteDeletedConnection;
 };
 
 /// Signature or timestamp of the Signatures tab (component Signature card

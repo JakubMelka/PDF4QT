@@ -34,6 +34,7 @@
 #include "pdfsettingsrepository.h"
 
 #include "pdfcatalog.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfcomponentrows.h"
 #include "pdfpainterutils.h"
@@ -743,10 +744,10 @@ void PDFAppToolPageGrid::setRows(std::optional<std::vector<int>> pages, std::vec
     }
 
     const bool isGrouped = !groups.empty();
-    QPointer<PDFAppToolPageGrid> guard(this);
     m_model->setRows(std::move(pages), std::move(groups));
-    if (!guard || isGrouped == m_isGrouped)
+    if (isGrouped == m_isGrouped || PDFDeferredDeletion::isRetired(this))
     {
+        // (a grid retired by the slots of the model starts no scheduler)
         return;
     }
 
@@ -861,10 +862,9 @@ void PDFAppToolPageGrid::setTiles(std::vector<PDFAppToolPageGridModel::Tile> til
         return;
     }
 
-    // The signal of the model reaches the views only; the grid is held all the same
-    QPointer<PDFAppToolPageGrid> guard(this);
+    // The signal of the model reaches the views only (own children)
     const std::pair<int, int> range = m_model->setTiles(std::move(tiles));
-    if (guard && m_delegate && m_model && range.first >= 0)
+    if (m_delegate && m_model && range.first >= 0)
     {
         // A tile with a caption is higher, a selected one larger: one layout of all tiles
         Q_EMIT m_delegate->sizeHintChanged(m_model->index(range.first));
@@ -886,14 +886,14 @@ void PDFAppToolPageGrid::setTileSize(TileSize size)
         m_groupDelegate->setSlotSize(getScaledSlotSize(size));
     }
 
-    // New keys of the pictures (their size), then one layout of all tiles; the signals reach the views only
-    QPointer<PDFAppToolPageGrid> guard(this);
+    // New keys of the pictures (their size), then one layout of all tiles; the signals reach the views only (own
+    // children)
     updatePictureSize();
-    if (guard && m_groupView && m_groupDelegate)
+    if (m_groupView && m_groupDelegate)
     {
         m_groupView->setTileDelegate(m_groupDelegate);
     }
-    if (guard && m_delegate && m_model && m_model->rowCount() > 0)
+    if (m_delegate && m_model && m_model->rowCount() > 0)
     {
         Q_EMIT m_delegate->sizeHintChanged(m_model->index(0));
     }
@@ -1310,13 +1310,13 @@ void PDFAppToolTileSizeMenu::onRowClicked()
         }
     }
 
-    // The panel closes first (it may run code of the application), then the size is announced
-    QPointer<PDFAppToolTileSizeMenu> guard(this);
+    // The panel closes first (it may run code of the application), then the size is announced (not by a menu
+    // retired meanwhile)
     if (m_panel)
     {
         m_panel->close();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT sizeChosen(size);
     }

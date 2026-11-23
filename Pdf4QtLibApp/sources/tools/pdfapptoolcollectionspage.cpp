@@ -736,10 +736,9 @@ void PDFAppToolCollectionsPage::updateList()
     {
         if (item.second)
         {
-            // Later: the row may be the sender of the current signal
+            // Retired from the event loop (step A: a rebuilt row): the row may be the sender of the current signal
             item.second->disconnect(this);
-            item.second->hide();
-            item.second->deleteLater();
+            PDFDeferredDeletion::retireLater(item.second.data());
         }
     }
     m_rows = std::move(rows);

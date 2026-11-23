@@ -531,14 +531,13 @@ QDialog* PDFDocumentToolGUI::askClose()
     {
         PDFAppMainWindow::prepareDialog(dialog, parent);
     }
-    QPointer<PDFDocumentToolGUI> guard(this);
+    // A GUI retired by the show of the question (its tool closed) asks nothing
     dialog->open();
-    return guard ? m_closeQuestion.data() : nullptr;
+    return PDFDeferredDeletion::isRetired(this) ? nullptr : m_closeQuestion.data();
 }
 
 void PDFDocumentToolGUI::onCloseQuestionDiscardClicked()
 {
-    QPointer<PDFDocumentToolGUI> guard(this);
     if (PDFMessageBox* dialog = m_closeQuestion.data())
     {
         m_closeQuestion = nullptr;
@@ -546,8 +545,9 @@ void PDFDocumentToolGUI::onCloseQuestionDiscardClicked()
         dialog->accept();
     }
 
-    // The last call: the shell and this GUI go (as Cancel, without the question again)
-    PDFDocumentToolShell* shell = guard ? getShell() : nullptr;
+    // The last call: the shell and this GUI go (as Cancel, without the question again; a GUI retired by the end of
+    // the question closes nothing more)
+    PDFDocumentToolShell* shell = PDFDeferredDeletion::isRetired(this) ? nullptr : getShell();
     if (shell)
     {
         shell->closeAfterQuestion();
@@ -556,15 +556,15 @@ void PDFDocumentToolGUI::onCloseQuestionDiscardClicked()
 
 void PDFDocumentToolGUI::onCloseQuestionActionClicked()
 {
-    QPointer<PDFDocumentToolGUI> guard(this);
     if (PDFMessageBox* dialog = m_closeQuestion.data())
     {
         m_closeQuestion = nullptr;
         dialog->disconnect(this);
         dialog->accept();
     }
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
+        // Retired by the end of the question (its tool closed): nothing is applied
         return;
     }
 
@@ -580,7 +580,7 @@ void PDFDocumentToolGUI::onCloseQuestionActionClicked()
     // The work is kept elsewhere (a commit: the slots of the document run); the tool closes only when all of
     // it was kept - the rest stays in the open tool
     const bool isKept = applyCloseQuestionAction();
-    shell = guard ? getShell() : nullptr;
+    shell = PDFDeferredDeletion::isRetired(this) ? nullptr : getShell();
     if (!shell)
     {
         return;

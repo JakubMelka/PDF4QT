@@ -89,10 +89,11 @@ PDFAppMcpAreaHighlight* PDFAppMcpAreaHighlight::show(PDFAppDocumentView* view, P
         oldHighlight->setParent(nullptr);
     }
 
-    // A receiver of the repaint may delete the view (and the new outline with it)
+    // A receiver of the repaint may delete the view or close it (retired, step A - the new outline with it): nothing is
+    // shown then
     QPointer<PDFAppMcpAreaHighlight> highlight = new PDFAppMcpAreaHighlight(view, pageIndex, area);
     Q_EMIT view->getProxy()->repaintNeeded();
-    return highlight.data();
+    return highlight && !PDFDeferredDeletion::isRetired(highlight) ? highlight.data() : nullptr;
 }
 
 PDFAppMcpAreaHighlight* PDFAppMcpAreaHighlight::find(const PDFAppDocumentView* view)

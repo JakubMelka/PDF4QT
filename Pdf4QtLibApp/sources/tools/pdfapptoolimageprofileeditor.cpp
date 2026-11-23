@@ -101,7 +101,9 @@ public:
 
     /// A widget of the card, which a rebuild replaces: hidden and nameless at once, deleted from
     /// the event loop - the rebuild may run inside of a signal of a control in it (never delete the
-    /// sender synchronously)
+    /// sender synchronously). PA6: not retire / retireLater - retire would cut the later receivers of
+    /// the signal of the sender, retireLater would delay the deletion by one more call of the event
+    /// loop (the test profileEditorRebuildIsDeferred expects it at the first DeferredDelete)
     static void retire(QWidget* widget)
     {
         widget->hide();
@@ -430,7 +432,8 @@ void PDFAppToolImageProfileEditor::rebuild()
 {
     // The controls of the shown profile are made again (a profile, an override target). The old
     // ones go from the event loop: a rebuild runs also inside of a signal of one of them (the
-    // threshold writes the model, the tool shows the profile of the override)
+    // threshold writes the model, the tool shows the profile of the override; PA6: deleteLater stays,
+    // see PDFAppToolImageProfileEditorHelper::retire)
     for (const QPointer<PDFAppSettingControl>& control : m_controls)
     {
         if (control)
@@ -681,8 +684,8 @@ void PDFAppToolImageProfileEditor::onProfileChipToggled(int id, bool isChecked)
     // 301:3594: the profile of an override with its own color is that color (the tool shows the
     // profile of the color of the override, "Toolbar menus change the override too"): the chip
     // changes the color of the override, otherwise its fields would edit the other color and the
-    // tool would switch the editor back. An override of Auto / Keep keeps its color.
-    QPointer<PDFAppToolImageProfileEditor> guard(this);
+    // tool would switch the editor back. An override of Auto / Keep keeps its color. An editor retired meanwhile
+    // announces nothing (step A).
     if (!m_overrideTarget.empty() && m_model)
     {
         using Helper = PDFAppToolImageProfileEditorHelper;
@@ -694,7 +697,7 @@ void PDFAppToolImageProfileEditor::onProfileChipToggled(int id, bool isChecked)
             PDFAppToolImageOverrideStore::writeSetting(m_model.data(), m_overrideTarget, colorModeSetting, Helper::getColorModeOfProfile(m_profile));
         }
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT profileChanged(m_profile);
     }

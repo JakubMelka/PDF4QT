@@ -166,7 +166,7 @@ void PDFAppOutlineEditor::onDocumentChanged()
     if (m_isCreationPending)
     {
         cancelCreation();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -179,7 +179,7 @@ void PDFAppOutlineEditor::onDocumentChanged()
     if (!document || document->getOutlineVersion() != m_targetOutlineVersion || !isEditingAllowed())
     {
         closeTargetUserInterface();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -460,11 +460,12 @@ bool PDFAppOutlineEditor::createItemAtCurrentView()
         return false;
     }
 
+    // The slots of the changes may close the tab: a retired editor creates nothing
     QPointer<PDFAppOutlineEditor> guard(this);
     if (m_isCreationPending)
     {
         cancelCreation();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return false;
         }
@@ -473,10 +474,10 @@ bool PDFAppOutlineEditor::createItemAtCurrentView()
     // An open inline rename of the panel is written first (the temporary item
     // would close its editor and its title would be lost; its commit would end
     // the new creation)
-    if (QPointer<PDFAppOutlinePanel> panel = findPanel())
+    if (PDFAppOutlinePanel* panel = findPanel())
     {
         panel->finishInlineEditing();
-        if (!guard || !m_view)
+        if (!guard || PDFDeferredDeletion::isRetired(this) || !m_view)
         {
             return false;
         }
@@ -522,7 +523,7 @@ bool PDFAppOutlineEditor::createItemAtCurrentView()
         }
     }
 
-    QPointer<PDFAppDocumentView> view = m_view;
+    QPointer<PDFAppDocumentView> view = m_view.data();
     m_previousPanelId = view->getCurrentPanelId();
     m_isCreationPending = true;
     m_pendingParent = parent;
@@ -534,8 +535,8 @@ bool PDFAppOutlineEditor::createItemAtCurrentView()
     {
         view->setSidebarVisible(true);
     }
-    const bool isShown = view && view->showPanel(PDFAppDocumentPanelIds::outline());
-    if (!guard)
+    const bool isShown = view && !PDFDeferredDeletion::isRetired(view.data()) && view->showPanel(PDFAppDocumentPanelIds::outline());
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return false;
     }
@@ -548,7 +549,7 @@ bool PDFAppOutlineEditor::createItemAtCurrentView()
     }
 
     panel->beginPendingItem();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return false;
     }
@@ -594,7 +595,7 @@ bool PDFAppOutlineEditor::finishCreation(const QString& title)
 
     QPointer<PDFAppOutlineEditor> guard(this);
     const bool isCommitted = commit(result, tr("New outline item"), newItem);
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return isCommitted;
     }
@@ -619,10 +620,10 @@ void PDFAppOutlineEditor::cancelCreation()
     setPendingProperty(false);
 
     QPointer<PDFAppOutlineEditor> guard(this);
-    if (QPointer<PDFAppOutlinePanel> panel = findPanel())
+    if (PDFAppOutlinePanel* panel = findPanel())
     {
         panel->endPendingItem();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -633,7 +634,7 @@ void PDFAppOutlineEditor::cancelCreation()
     if (m_view && (!root || root->getChildCount() == 0) && !m_previousPanelId.isEmpty() && m_previousPanelId != PDFAppDocumentPanelIds::outline())
     {
         m_view->showPanel(m_previousPanelId);
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -721,7 +722,7 @@ bool PDFAppOutlineEditor::renameCurrentItem()
         m_view->setSidebarVisible(true);
     }
     const bool isShown = m_view && m_view->showPanel(PDFAppDocumentPanelIds::outline());
-    if (!guard || !isShown)
+    if (!guard || PDFDeferredDeletion::isRetired(this) || !isShown)
     {
         return false;
     }
@@ -1010,22 +1011,22 @@ void PDFAppOutlineEditor::closeTargetUserInterface()
     if (m_targetPicker && m_targetPicker->isActive())
     {
         m_targetPicker->cancel();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
     }
-    if (QPointer<PDFAppNamedDestinationDialog> dialog = m_namedDestinationDialog)
+    if (PDFAppNamedDestinationDialog* dialog = m_namedDestinationDialog.data())
     {
         m_namedDestinationDialog = nullptr;
         dialog->disconnect(this);
         dialog->reject();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
     }
-    if (QPointer<PDFMessageBox> confirmation = m_keepZoomConfirmation)
+    if (PDFMessageBox* confirmation = m_keepZoomConfirmation.data())
     {
         m_keepZoomConfirmation = nullptr;
         confirmation->disconnect(this);
@@ -1061,7 +1062,7 @@ bool PDFAppOutlineEditor::pickCurrentItemTarget(DestinationType type)
 
     QPointer<PDFAppOutlineEditor> guard(this);
     closeTargetUserInterface();
-    if (!guard || !m_view)
+    if (!guard || PDFDeferredDeletion::isRetired(this) || !m_view)
     {
         return false;
     }
@@ -1115,7 +1116,7 @@ bool PDFAppOutlineEditor::chooseCurrentItemNamedDestination()
 
     QPointer<PDFAppOutlineEditor> guard(this);
     closeTargetUserInterface();
-    if (!guard || !m_view)
+    if (!guard || PDFDeferredDeletion::isRetired(this) || !m_view)
     {
         return false;
     }
@@ -1279,7 +1280,7 @@ bool PDFAppOutlineEditor::keepZoomForAllItems()
 
     QPointer<PDFAppOutlineEditor> guard(this);
     closeTargetUserInterface();
-    if (!guard || !m_view)
+    if (!guard || PDFDeferredDeletion::isRetired(this) || !m_view)
     {
         return false;
     }
@@ -1378,7 +1379,7 @@ bool PDFAppOutlineEditor::commit(const PDFAppAnnotationResult& result, const QSt
     }
 
     const bool isCommitted = document->commit(*result, description, document->getVersion(), PDFAppChangeSource::User);
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return isCommitted;
     }
@@ -1396,7 +1397,7 @@ bool PDFAppOutlineEditor::commit(const PDFAppAnnotationResult& result, const QSt
 
     m_currentItem = selectedItem;
     Q_EMIT outlineChanged();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return true;
     }

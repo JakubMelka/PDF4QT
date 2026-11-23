@@ -1867,11 +1867,13 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     set_tests_properties(UnitTestsAppDeferredDeletion PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()
 
-# Check 9 of the lifetime victims (lifetimevictimcheck.h) recognizes the own expand animation of a QTreeView by
-# its exact address in the private part of QtWidgets, when its headers are installed (else by a bound)
+# Check 9 of the lifetime victims (lifetimevictimcheck.h, DeletionMode::checkRetired of UnitTestsFluentLifetime)
+# recognizes the own expand animation of a QTreeView by its exact address in the private part of QtWidgets, when
+# its headers are installed (else lifetimevictimcheck.h reports it, UnitTestsFluentLifetime matches it by a bound)
 find_package(Qt6 QUIET COMPONENTS WidgetsPrivate)
 if(TARGET Qt6::WidgetsPrivate)
     foreach(PDF4QT_LIFETIME_TEST
+            UnitTestsFluentLifetime
             UnitTestsAppAnnotationLifetime
             UnitTestsAppSettingsLifetime
             UnitTestsAppToolsLifetime

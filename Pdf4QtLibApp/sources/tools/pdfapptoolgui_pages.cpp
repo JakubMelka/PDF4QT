@@ -399,9 +399,8 @@ void PDFAppPageMarkingToolGUI::describeLeftPanel(PDFAppToolPanelBuilder& builder
         const PDFPageSelection::Mode entryMode = hasSelectedPages ? PDFPageSelection::Mode::Selected : getEntryModeWithoutSelection();
         if (m_pageSelection->getMode() == PDFPageSelection::Mode::All && m_pageSelection->getFilters() == PDFPageSelection::Filters() && entryMode != PDFPageSelection::Mode::All)
         {
-            QPointer<PDFAppPageMarkingToolGUI> guard(this);
             m_binder->setEntryMode(entryMode);
-            if (!guard)
+            if (PDFDeferredDeletion::isRetired(this))
             {
                 return;
             }
@@ -416,9 +415,8 @@ void PDFAppPageMarkingToolGUI::describeLeftPanel(PDFAppToolPanelBuilder& builder
     }
 
     // The parts of the tool (the bookmarks of Split 383:6771)
-    QPointer<PDFAppPageMarkingToolGUI> guard(this);
     describeLeftPanelParts(builder);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -450,11 +448,10 @@ void PDFAppPageMarkingToolGUI::followPages()
     // The selection of the left panel (its mode decides), then the other values and the steps
     // of Undo and Redo; each change is announced by the model
     const std::shared_ptr<const PDFDocumentTool> tool = shell->getTool();
-    QPointer<PDFAppPageMarkingToolGUI> guard(this);
     if (m_binder)
     {
         m_binder->followPages(previousDocument.data(), PDFDocumentToolPageSelection::mapPageIndices(previousDocument.data(), document.data()));
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -543,16 +540,15 @@ void PDFAppPageMarkingToolGUI::updateAll()
     }
 
     // The panels of a tool may announce their changes (the rows and the groups of the grid of
-    // Split: groupsChanged), a slot may delete this GUI; the slots of the state of the Primary
-    // button too (the tab is closed from them): the status is said only by a living GUI, the last thing
-    QPointer<PDFAppPageMarkingToolGUI> guard(this);
+    // Split: groupsChanged), a slot may retire this GUI; the slots of the state of the Primary
+    // button too (the tab is closed from them): the status is said only by a GUI, which is not retired, the last thing
     updatePanels();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
     updateConfirmState();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }
@@ -568,9 +564,8 @@ void PDFAppPageMarkingToolGUI::onDocumentChanged()
 {
     // An assistant may change the pages below an open tool: the marks follow their pages,
     // the tiles show the new pages
-    QPointer<PDFAppPageMarkingToolGUI> guard(this);
     followPages();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -824,9 +819,8 @@ void PDFAppToolGUIRotatePages::onParametersChanged(const QString& name)
 void PDFAppToolGUIRotatePages::onDocumentChanged()
 {
     // The plan follows its pages, then it is read by the pages of the new version
-    QPointer<PDFAppToolGUIRotatePages> guard(this);
     followPages();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }

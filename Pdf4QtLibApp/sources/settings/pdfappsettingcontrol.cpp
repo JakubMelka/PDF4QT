@@ -816,7 +816,8 @@ bool PDFAppSettingControl::writeValue(const QVariant& value, bool isNotified)
     }
 
     // The store of a tool runs the slots of its model, which may delete this binder: the
-    // store is held for the call, the binder is checked after it
+    // store is held for the call, the binder is checked after it. A retired binder goes on (PA6:
+    // the write and its notification are the flush of retire, setFlushOnRetire - not cut by isRetired)
     QPointer<PDFAppSettingControl> guard(this);
     const std::shared_ptr<PDFAppValueStore> store = m_store;
     const QString key = m_definition.getKey();

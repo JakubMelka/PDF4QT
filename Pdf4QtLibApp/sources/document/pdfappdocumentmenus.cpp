@@ -387,9 +387,9 @@ void PDFAppDocumentPanelPopup::popup(QWidget* anchor, int globalTop)
 
     QPointer<PDFAppDocumentPanelPopup> guard(this);
     show();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
-        // A filter of the events of the application has deleted the panel
+        // A filter of the events of the application has closed the panel: it takes no window activation
         return;
     }
 
@@ -400,9 +400,9 @@ void PDFAppDocumentPanelPopup::popup(QWidget* anchor, int globalTop)
     if (QWidget* remembered = focusWidget())
     {
         remembered->clearFocus();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
-            // A slot of the loss of the focus has deleted the panel
+            // A slot of the loss of the focus has closed the panel: the focus stays outside of it
             return;
         }
     }
@@ -682,10 +682,10 @@ void PDFAppDocumentPanelPopup::retranslate()
 void PDFAppDocumentPanelPopup::runCommand(const QString& commandId)
 {
     // The panel closes first; the command runs from the event loop (it may delete
-    // the tab, the toolbar and this panel)
-    QPointer<PDFAppDocumentView> view = m_view;
+    // the tab, the toolbar and this panel); a retired view requests nothing
+    QPointer<PDFAppDocumentView> view = m_view.data();
     close();
-    if (view)
+    if (view && !PDFDeferredDeletion::isRetired(view.data()))
     {
         view->requestCommand(commandId);
     }
@@ -693,9 +693,9 @@ void PDFAppDocumentPanelPopup::runCommand(const QString& commandId)
 
 void PDFAppDocumentPanelPopup::openSettings(const QString& section)
 {
-    QPointer<PDFAppDocumentView> view = m_view;
+    QPointer<PDFAppDocumentView> view = m_view.data();
     close();
-    if (view)
+    if (view && !PDFDeferredDeletion::isRetired(view.data()))
     {
         view->openSettings(section);
     }
@@ -888,9 +888,15 @@ bool PDFAppDocumentPanelPopup::handleHorizontalArrow(QWidget* focus, int key)
     return true;
 }
 
-void PDFAppDocumentPanelPopup::onAnchorDestroyed()
+void PDFAppDocumentPanelPopup::onAnchorAboutToBeDeleted()
 {
-    // The anchor is not whole any more: only the panel closes
+    // An anchor retired or deleted by the application closes the panel (nothing of the anchor is
+    // used). A panel retired with its toolbar is hidden by the retire.
+    if (PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
+
     if (isVisible())
     {
         close();
@@ -907,8 +913,8 @@ void PDFAppDocumentPanelPopup::watchAnchor(bool watch)
         }
     }
 
-    disconnect(m_anchorDestroyed);
-    m_anchorDestroyed = QMetaObject::Connection();
+    disconnect(m_anchorDeletedConnection);
+    m_anchorDeletedConnection = QMetaObject::Connection();
 
     if (!watch)
     {
@@ -926,9 +932,12 @@ void PDFAppDocumentPanelPopup::watchAnchor(bool watch)
         }
     }
 
+    // The end of the anchor is aboutToBeDeleted of its notifier (retire, or the deletion by the
+    // application), a foreign sender
     if (m_anchor)
     {
-        m_anchorDestroyed = connect(m_anchor.data(), &QObject::destroyed, this, &PDFAppDocumentPanelPopup::onAnchorDestroyed);
+        m_anchorDeletedConnection = PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(m_anchor.data()), &PDFLifetimeNotifier::aboutToBeDeleted, this,
+                                                                 &PDFAppDocumentPanelPopup::onAnchorAboutToBeDeleted);
     }
 }
 
@@ -1391,11 +1400,11 @@ void PDFAppDocumentGoToPanel::onGoClicked()
         return;
     }
 
-    QPointer<PDFAppDocumentView> guard(view);
+    QPointer<PDFAppDocumentView> viewGuard(view);
     close();
-    if (guard)
+    if (viewGuard && !PDFDeferredDeletion::isRetired(view))
     {
-        guard->goToPage(*pageIndex);
+        view->goToPage(*pageIndex);
     }
 }
 

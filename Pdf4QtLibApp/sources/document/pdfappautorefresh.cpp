@@ -410,6 +410,7 @@ bool PDFAppAutoRefresh::isCheckDeferred(const PDFAppDocument* document)
 
 void PDFAppAutoRefresh::onReaderFinished()
 {
+    QPointer<PDFAppAutoRefresh> guard(this);
     QFutureWatcher<PDFAppAutoRefreshReader::Result>* watcher = m_watcher.data();
     if (!watcher || sender() != watcher)
     {
@@ -427,15 +428,15 @@ void PDFAppAutoRefresh::onReaderFinished()
         return;
     }
 
-    QPointer<PDFAppAutoRefresh> guard(this);
+    // A slot of the reload may close the tab: a retired refresh reports and schedules nothing
     applyResult(result);
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
 
     Q_EMIT checked(result.outcome);
-    if (guard && m_isCheckPending && !m_dialog)
+    if (guard && !PDFDeferredDeletion::isRetired(this) && m_isCheckPending && !m_dialog)
     {
         scheduleCheck(0);
     }
@@ -443,6 +444,7 @@ void PDFAppAutoRefresh::onReaderFinished()
 
 void PDFAppAutoRefresh::applyResult(const PDFAppAutoRefreshReader::Result& result)
 {
+    QPointer<PDFAppAutoRefresh> guard(this);
     PDFAppDocument* document = m_document.data();
     if (!m_isEnabled || !document || !document->isReady() || result.filePath != m_watchedPath)
     {
@@ -498,9 +500,8 @@ void PDFAppAutoRefresh::applyResult(const PDFAppAutoRefreshReader::Result& resul
     }
 
     ++m_reloadCount;
-    QPointer<PDFAppAutoRefresh> guard(this);
     document->reload(result.document, result.data, result.isPasswordProtected, result.isPagedXFA, result.restoration);
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT reloaded();
     }
@@ -543,6 +544,7 @@ void PDFAppAutoRefresh::showUnsavedDialog(const PDFAppAutoRefreshReader::Result&
 
 void PDFAppAutoRefresh::onDialogFinished(int result)
 {
+    QPointer<PDFAppAutoRefresh> guard(this);
     if (sender() != m_dialog.data())
     {
         return;
@@ -558,7 +560,6 @@ void PDFAppAutoRefresh::onDialogFinished(int result)
         return;
     }
 
-    QPointer<PDFAppAutoRefresh> guard(this);
     if (result == QDialog::Accepted)
     {
         ++m_reloadCount;
@@ -573,7 +574,7 @@ void PDFAppAutoRefresh::onDialogFinished(int result)
         else
         {
             document->reload(pending.document, pending.data, pending.isPasswordProtected, pending.isPagedXFA, pending.restoration);
-            if (guard)
+            if (guard && !PDFDeferredDeletion::isRetired(this))
             {
                 Q_EMIT reloaded();
             }
@@ -585,7 +586,7 @@ void PDFAppAutoRefresh::onDialogFinished(int result)
         m_keptData = pending.data;
     }
 
-    if (guard && m_isCheckPending)
+    if (guard && !PDFDeferredDeletion::isRetired(this) && m_isCheckPending)
     {
         scheduleCheck(0);
     }

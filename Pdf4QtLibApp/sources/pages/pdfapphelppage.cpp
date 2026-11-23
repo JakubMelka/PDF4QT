@@ -183,13 +183,15 @@ bool PDFAppHelpPage::setRoute(const PDFAppRoute& route)
     m_topic = m_catalog->getLocalizedTopic(topicId, PDFAppLocale::getUiLanguage());
     build();
 
+    // The title runs code of the tab: a page closed (retired, step A) or deleted by it schedules nothing
     QPointer<PDFAppHelpPage> guard(this);
     Q_EMIT titleChanged();
-    if (guard && !route.getFragment().isEmpty())
+    const bool isAlive = !guard.isNull() && !PDFDeferredDeletion::isRetired(this);
+    if (isAlive && !route.getFragment().isEmpty())
     {
         requestDeferredScroll(-1, route.getFragment());
     }
-    return !guard.isNull();
+    return isAlive;
 }
 
 QString PDFAppHelpPage::getTitle() const

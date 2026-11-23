@@ -304,6 +304,8 @@ private slots:
     void reviewPropertiesLinkTarget();
     void reviewPropertiesLanguageChange();
     void reviewDialogsLanguageChange();
+    void dialogsClosedAtRetire_data();
+    void dialogsClosedAtRetire();
     void reviewDragOverTabBar();
     void reviewAuthorBidiAndMnemonics();
     void reviewCopyToPagesLimit();
@@ -4287,6 +4289,83 @@ void AppAnnotationEditTest::moreColorsDialog()
     fixture.settle();
     QVERIFY(!tabGuard);
     QTRY_VERIFY(!dialog);
+}
+
+void AppAnnotationEditTest::dialogsClosedAtRetire_data()
+{
+    QTest::addColumn<QString>("dialogKind");
+    QTest::newRow("properties") << QStringLiteral("properties");
+    QTest::newRow("geometry") << QStringLiteral("geometry");
+}
+
+void AppAnnotationEditTest::dialogsClosedAtRetire()
+{
+    using H = AppAnnotationEditTestHelper;
+
+    // An open dialog of the annotations ends with the close of its tab (retire, not the later deletion: RD6-L2) - at
+    // once, before the event loop: rejected, hidden, retired, nothing committed. Its old body, replaced by a language
+    // change and waiting for the event loop outside of the tree of the dialog, still belongs to the dialog and is
+    // retired with it (RC6-L3: setOwner + retireLater instead of deleteLater).
+    QFETCH(QString, dialogKind);
+    pdftest::AppDocumentFixture fixture;
+    QPointer<pdf::PDFAppDocumentTab> tab = H::openAnnotations(fixture);
+    QVERIFY(tab);
+    pdf::PDFAppDocument* document = tab->getDocument();
+    pdf::PDFAppAnnotationController* controller = tab->getView()->getAnnotationController();
+    const pdf::PDFObjectReference square = H::find(document, 0, QStringLiteral("square"));
+    const quint64 version = document->getVersion();
+
+    QPointer<QDialog> dialog;
+    if (dialogKind == QStringLiteral("properties"))
+    {
+        pdf::PDFAppAnnotationPropertiesDialog* properties = pdf::PDFAppAnnotationPropertiesDialog::open(controller, square, fixture.window);
+        QVERIFY(properties);
+        fixture.settle();
+        properties->findChild<pdf::PDFLineEdit*>(QStringLiteral("propertiesAuthor"))->setText(QStringLiteral("Not applied"));
+        dialog = properties;
+    }
+    else
+    {
+        pdf::PDFAppAnnotationGeometryDialog* geometry = pdf::PDFAppAnnotationGeometryDialog::open(controller, square, fixture.window);
+        QVERIFY(geometry);
+        fixture.settle();
+        geometry->getField(QStringLiteral("width"))->setValue(geometry->getField(QStringLiteral("width"))->value() + 20.0);
+        dialog = geometry;
+    }
+    QVERIFY(dialog->isVisible());
+
+    // The language change replaces the body: the old one leaves the tree of the dialog until the event loop
+    std::vector<QPointer<QScrollArea>> scrollAreas;
+    for (QScrollArea* scrollArea : dialog->findChildren<QScrollArea*>())
+    {
+        scrollAreas.emplace_back(scrollArea);
+    }
+    QEvent languageChange(QEvent::LanguageChange);
+    QCoreApplication::sendEvent(dialog, &languageChange);
+    std::vector<QPointer<QScrollArea>> oldBodies;
+    for (const QPointer<QScrollArea>& scrollArea : scrollAreas)
+    {
+        if (scrollArea && !scrollArea->parent())
+        {
+            oldBodies.push_back(scrollArea);
+        }
+    }
+    QCOMPARE(oldBodies.size(), size_t(1));
+    QVERIFY(!pdf::PDFDeferredDeletion::isRetired(oldBodies.front()));
+
+    // The close of the tab by the window (no unsaved change: no question)
+    QVERIFY(fixture.retire(tab.data()));
+    QVERIFY(dialog);
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(dialog));
+    QVERIFY(!dialog->isVisible());
+    QCOMPARE(dialog->result(), int(QDialog::Rejected));
+    QVERIFY(oldBodies.front() && pdf::PDFDeferredDeletion::isRetired(oldBodies.front()));
+    QCOMPARE(document->getVersion(), version);
+
+    fixture.settle();
+    QVERIFY(!tab);
+    QVERIFY(!dialog);
+    QVERIFY(!oldBodies.front());
 }
 
 QTEST_MAIN(AppAnnotationEditTest)

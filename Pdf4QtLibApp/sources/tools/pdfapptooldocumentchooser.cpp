@@ -530,8 +530,8 @@ void PDFAppToolDocumentChooser::refresh()
         }
         if (row)
         {
-            row->hide();
-            row->deleteLater();
+            // Retired (step A: a rebuilt row), deleted later
+            PDFDeferredDeletion::retire(row.data());
         }
     }
     m_rows.clear();
@@ -916,9 +916,9 @@ void PDFAppToolInputChooser::refresh()
             }
             if (row)
             {
+                // Retired from the event loop (step A: a rebuilt row, which may be the sender of this change)
                 row->blockSignals(true);
-                row->hide();
-                row->deleteLater();
+                PDFDeferredDeletion::retireLater(row.data());
             }
         }
         rows->clear();
@@ -1122,13 +1122,13 @@ void PDFAppToolInputChooser::addFiles(const QStringList& files)
         return;
     }
 
-    // Each addition emits (the rows are built again from the event loop); the list may go
+    // Each addition emits (the rows are built again from the event loop); the list may go (it lives outside of the
+    // chooser), a chooser retired meanwhile adds nothing more (step A)
     QPointer<PDFAppToolInputList> list(m_list);
-    QPointer<PDFAppToolInputChooser> guard(this);
     QStringList refused;
     for (const QString& file : files)
     {
-        if (!guard || !list)
+        if (!list || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1144,7 +1144,7 @@ void PDFAppToolInputChooser::addFiles(const QStringList& files)
         }
 
         const PDFAppToolInputList::AddResult result = list->addFile(file);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1158,11 +1158,8 @@ void PDFAppToolInputChooser::addFiles(const QStringList& files)
         }
     }
 
-    if (guard)
-    {
-        m_message = refused.join(QStringLiteral(" · "));
-        scheduleRefresh();
-    }
+    m_message = refused.join(QStringLiteral(" · "));
+    scheduleRefresh();
 }
 
 bool PDFAppToolInputChooser::dropFiles(const QMimeData* mimeData)
@@ -1180,9 +1177,8 @@ bool PDFAppToolInputChooser::dropFiles(const QMimeData* mimeData)
         refused << tr("%1 – %2").arg(item.text, PDFAppFileDrop::getRefusalText(item.refusal));
     }
 
-    QPointer<PDFAppToolInputChooser> guard(this);
     addFiles(result.files);
-    if (guard && !refused.isEmpty())
+    if (!refused.isEmpty())
     {
         m_message = (QStringList(m_message) + refused).join(QStringLiteral(" · "));
         if (m_message.startsWith(QStringLiteral(" · ")))
@@ -1257,10 +1253,9 @@ void PDFAppToolInputChooser::onRowToggled()
         {
             if (document->getId() == rowId)
             {
-                // The list emits in this call: a slot may delete the chooser
-                QPointer<PDFAppToolInputChooser> guard(this);
+                // The list emits in this call (a slot may close the chooser: retired, it only notes the refusal)
                 const PDFAppToolInputList::AddResult result = m_list->addOpenDocument(document);
-                if (guard && result.id.isEmpty())
+                if (result.id.isEmpty())
                 {
                     m_message = PDFAppToolInputList::getRefusalText(result.refusal, result.name);
                     scheduleRefresh();
@@ -1295,7 +1290,6 @@ void PDFAppToolInputChooser::onRowRemoveClicked()
     m_message.clear();
     m_fileIds.removeAll(inputId);
     QPointer<PDFAppToolInputList> list(m_list);
-    QPointer<PDFAppToolInputChooser> guard(this);
     list->removeInput(inputId);
     if (list)
     {
@@ -1303,10 +1297,7 @@ void PDFAppToolInputChooser::onRowRemoveClicked()
         kept.removeAll(inputId);
         list->dropParkedInputs(kept);
     }
-    if (guard)
-    {
-        scheduleRefresh();
-    }
+    scheduleRefresh();
 }
 
 void PDFAppToolInputChooser::onRowMoveRequested(int delta)

@@ -1629,9 +1629,8 @@ bool PDFAppToolGUIRedact::addTextMark(PDFInteger pageIndex, const QPolygonF& qua
     request.quadrilaterals = quadrilaterals;
     request.subject = PDFAppToolRedactMark::SUBJECT_TEXT;
     const quint64 version = document->getVersion();
-    QPointer<PDFAppToolGUIRedact> guard(this);
     const bool isCommitted = commitMarks(PDFAppToolGUIRedactHelper::createMarks(pdf, { request }), version, tr("Mark text for redaction"));
-    if (guard && isCommitted && m_noTextPage >= 0)
+    if (!PDFDeferredDeletion::isRetired(this) && isCommitted && m_noTextPage >= 0)
     {
         m_noTextPage = -1;
         updateLeftPanel();
@@ -1716,9 +1715,8 @@ bool PDFAppToolGUIRedact::markMatches(const std::vector<PDFAppToolRedactSearchPa
     const quint64 version = document->getVersion();
     const int count = int(requests.size());
     const QString description = PDFAppToolGUIRedactHelper::plural(count, QT_TR_NOOP("Mark %Ln match for redaction"), QT_TR_NOOP("Mark %Ln matches for redaction"));
-    QPointer<PDFAppToolGUIRedact> guard(this);
     const bool isCommitted = commitMarks(PDFAppToolGUIRedactHelper::createMarks(pdf, requests), version, description);
-    if (guard && isCommitted && m_searchPart)
+    if (!PDFDeferredDeletion::isRetired(this) && isCommitted && m_searchPart)
     {
         // 437:12452 "4 Matches Marked", the status counts the areas (the last call)
         m_searchPart->setMarkedCount(count);
@@ -1783,10 +1781,9 @@ bool PDFAppToolGUIRedact::removeMarks(const std::vector<PDFObjectReference>& mar
     }
 
     // One Undo step of the document (plan 4.5: Remove Marks); the locked marks stay and are named
-    QPointer<PDFAppToolGUIRedact> guard(this);
     const quint64 version = document->getVersion();
     const bool isRemoved = !annotations.empty() && commitMarks(PDFAppAnnotationOperations::deleteAnnotations(pdf, annotations), version, description);
-    if (guard && lockedCount > 0)
+    if (!PDFDeferredDeletion::isRetired(this) && lockedCount > 0)
     {
         showLockedMarks(lockedCount);
     }
@@ -1840,9 +1837,8 @@ void PDFAppToolGUIRedact::selectMark(PDFObjectReference annotation)
     updateOverlay();
 
     // The mark is selected on the canvas too (its handles; the echo of the engine is queued)
-    QPointer<PDFAppToolGUIRedact> guard(this);
     updateCanvasSelection();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1855,14 +1851,14 @@ void PDFAppToolGUIRedact::selectMark(PDFObjectReference annotation)
         {
             view->goToPage(pageIndex);
         }
-        if (guard)
+        if (!PDFDeferredDeletion::isRetired(this))
         {
             updateDisplayedPage();
         }
     }
 
     // 1599:48898 "Area mark selected · …" (the last call)
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }
@@ -2244,9 +2240,8 @@ QWidget* PDFAppToolGUIRedact::createOverlay(QWidget* canvasArea)
             previous->disconnect(this);
             if (previous->getToolEditing() == this)
             {
-                QPointer<PDFAppToolGUIRedact> guard(this);
                 previous->setToolEditing(nullptr);
-                if (!guard)
+                if (PDFDeferredDeletion::isRetired(this))
                 {
                     // The overlay is a child of the canvas area (the shell deletes it)
                     return overlay;
@@ -2666,9 +2661,8 @@ PDFMessageBox* PDFAppToolGUIRedact::openPagesDialog()
     onPagesResultChanged();
 
     PDFAppMainWindow::prepareDialog(dialog, parent);
-    QPointer<PDFAppToolGUIRedact> guard(this);
     dialog->open();
-    return guard ? m_pagesDialog.data() : nullptr;
+    return PDFDeferredDeletion::isRetired(this) ? nullptr : m_pagesDialog.data();
 }
 
 void PDFAppToolGUIRedact::onPagesResultChanged()
@@ -2698,12 +2692,11 @@ void PDFAppToolGUIRedact::onPagesMarkClicked()
     }
 
     // The dialog closes first, then the marks are written (one commit)
-    QPointer<PDFAppToolGUIRedact> guard(this);
     if (PDFMessageBox* dialog = m_pagesDialog.data())
     {
         dialog->accept();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         markPages(pages);
     }
@@ -2847,9 +2840,8 @@ PDFMessageBox* PDFAppToolGUIRedact::openClosePrompt()
     m_closePrompt = dialog;
 
     PDFAppMainWindow::prepareDialog(dialog, parent);
-    QPointer<PDFAppToolGUIRedact> guard(this);
     dialog->open();
-    return guard ? m_closePrompt.data() : nullptr;
+    return PDFDeferredDeletion::isRetired(this) ? nullptr : m_closePrompt.data();
 }
 
 void PDFAppToolGUIRedact::onCloseBackClicked()
@@ -2862,14 +2854,13 @@ void PDFAppToolGUIRedact::onCloseBackClicked()
 
 void PDFAppToolGUIRedact::onCloseKeepClicked()
 {
-    QPointer<PDFAppToolGUIRedact> guard(this);
     if (PDFMessageBox* dialog = m_closePrompt.data())
     {
         dialog->accept();
     }
 
-    // The tool ends; the marks stay in the document (the last call: the shell deletes this GUI)
-    if (guard)
+    // The tool ends; the marks stay in the document (the last call: the shell retires this GUI)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         if (PDFDocumentToolShell* shell = getShell())
         {
@@ -2884,19 +2875,17 @@ bool PDFAppToolGUIRedact::applyCloseQuestionAction()
     // had at the entry stay (owner 2026-11-20). New marks, which remain (locked ones - the status bar names them),
     // keep the tool open: closing would leave them in the document although the user chose to remove them. A new
     // mark is never beyond the listed ones (no mark is added to a truncated list).
-    QPointer<PDFAppToolGUIRedact> guard(this);
     removeMarks(getNewMarks(), tr("Remove the new redaction marks"));
-    return guard && getNewMarks().empty();
+    return !PDFDeferredDeletion::isRetired(this) && getNewMarks().empty();
 }
 
 void PDFAppToolGUIRedact::onCloseRemoveClicked()
 {
-    QPointer<PDFAppToolGUIRedact> guard(this);
     if (PDFMessageBox* dialog = m_closePrompt.data())
     {
         dialog->accept();
     }
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -2912,7 +2901,7 @@ void PDFAppToolGUIRedact::onCloseRemoveClicked()
 
     // Esc, Close: the marks go now, then the tool ends (the last call)
     const bool isRemoved = applyCloseQuestionAction();
-    shell = guard ? getShell() : nullptr;
+    shell = PDFDeferredDeletion::isRetired(this) ? nullptr : getShell();
     if (isRemoved && shell)
     {
         shell->closeAfterQuestion();
@@ -2953,19 +2942,17 @@ PDFMessageBox* PDFAppToolGUIRedact::clearAll()
     m_clearDialog = dialog;
 
     PDFAppMainWindow::prepareDialog(dialog, parent);
-    QPointer<PDFAppToolGUIRedact> guard(this);
     dialog->open();
-    return guard ? m_clearDialog.data() : nullptr;
+    return PDFDeferredDeletion::isRetired(this) ? nullptr : m_clearDialog.data();
 }
 
 void PDFAppToolGUIRedact::onClearConfirmClicked()
 {
-    QPointer<PDFAppToolGUIRedact> guard(this);
     if (PDFMessageBox* dialog = m_clearDialog.data())
     {
         dialog->accept();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         removeAllMarks();
     }
@@ -3159,9 +3146,8 @@ void PDFAppToolGUIRedact::onDocumentChanged()
     }
     updateParts();
 
-    QPointer<PDFAppToolGUIRedact> guard(this);
     updateConfirmState();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }
@@ -3214,12 +3200,11 @@ void PDFAppToolGUIRedact::onFillRowClicked()
         return;
     }
 
-    QPointer<PDFAppToolGUIRedact> guard(this);
     if (m_fillPanel)
     {
         m_fillPanel->close();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         setFill(fill);
     }
@@ -3232,12 +3217,11 @@ void PDFAppToolGUIRedact::onFillColorSelected(const QColor& color)
         return;
     }
 
-    QPointer<PDFAppToolGUIRedact> guard(this);
     if (m_fillPanel)
     {
         m_fillPanel->close();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         setFill(Fill::Custom, color);
     }

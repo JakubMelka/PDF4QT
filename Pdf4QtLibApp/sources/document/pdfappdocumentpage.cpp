@@ -28,6 +28,7 @@
 #include "pdfappdocumentview.h"
 #include "pdfapphelpcatalog.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttoolcatalog.h"
 
 #include <QToolButton>
@@ -107,6 +108,7 @@ bool PDFAppDocumentPage::isRouteOfPage(const PDFAppRoute& route) const
 
 void PDFAppDocumentPage::applyRoute()
 {
+    QPointer<PDFAppDocumentPage> guard(this);
     PDFAppDocumentView* view = m_tab ? m_tab->getView() : nullptr;
     PDFAppDocument* document = m_tab ? m_tab->getDocument() : nullptr;
     if (!view || !document)
@@ -114,8 +116,8 @@ void PDFAppDocumentPage::applyRoute()
         return;
     }
 
+    // A slot of the navigation may close the tab: a retired page applies nothing more
     const PDFAppRoute route = getRoute();
-    QPointer<PDFAppDocumentPage> guard(this);
     m_isApplying = true;
 
     // ?page= is a physical page from 1; a page out of range is ignored
@@ -128,19 +130,19 @@ void PDFAppDocumentPage::applyRoute()
 
     // ?panel= shows the panel of the sidebar (an unknown panel is ignored)
     const QString panel = route.getQueryValue(QStringLiteral("panel"));
-    if (guard && m_tab && !panel.isEmpty())
+    if (guard && !PDFDeferredDeletion::isRetired(this) && m_tab && !panel.isEmpty())
     {
         view->showPanel(panel);
     }
 
     // ?q= - PACKAGE D: the search of the text in the document
     const QString query = route.getQueryValue(QStringLiteral("q"));
-    if (guard && m_tab && !query.isEmpty())
+    if (guard && !PDFDeferredDeletion::isRetired(this) && m_tab && !query.isEmpty())
     {
         PDFAppDocumentSearchCommandHandler::applyRouteQuery(m_tab, query);
     }
 
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         m_isApplying = false;
 

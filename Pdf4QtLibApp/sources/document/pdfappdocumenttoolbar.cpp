@@ -37,6 +37,7 @@
 #include "pdfwidgettool.h"
 
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemeiconengine.h"
 #include "pdfthememanager.h"
@@ -541,7 +542,13 @@ PDFAppDocumentToolbar::~PDFAppDocumentToolbar()
 {
     // The panels close while the toolbar is whole (they are popup windows); their
     // signals reach the dying toolbar no more (the buttons would emit toggled to
-    // the application while the tab is being destroyed)
+    // the application while the tab is being destroyed). The notifiers by the stored handles: getNotifier would
+    // create a notifier for a dying panel
+    for (auto& item : m_panelEndConnections)
+    {
+        disconnect(item.second);
+    }
+    m_panelEndConnections.clear();
     for (const auto& item : m_panels)
     {
         if (PDFAppDocumentPanelPopup* panel = item.second.data())
@@ -767,8 +774,9 @@ PDFAppDocumentPanelPopup* PDFAppDocumentToolbar::openPanel(Panel panel)
     // One panel at a time; the button of the closed panel is not checked at once
     // (its signal closed comes from the event loop, the switch of the menu bar
     // shows one checked button)
-    // A slot of a button (toggled) can delete the tab with the toolbar
-    QPointer<PDFAppDocumentToolbar> toolbarGuard(this);
+    // A slot of a button (toggled) can close the tab with the toolbar: a retired toolbar (or button) opens nothing
+    // (the guards stay for the synchronous deletions of the tests)
+    QPointer<PDFAppDocumentToolbar> guard(this);
     QPointer<QToolButton> buttonGuard(button);
     if (PDFAppDocumentPanelPopup* openPanel = getOpenPanel())
     {
@@ -778,7 +786,7 @@ PDFAppDocumentPanelPopup* PDFAppDocumentToolbar::openPanel(Panel panel)
         {
             openButton->setChecked(false);
         }
-        if (!toolbarGuard || !buttonGuard)
+        if (!guard || PDFDeferredDeletion::isRetired(this) || !buttonGuard || PDFDeferredDeletion::isRetired(button))
         {
             return nullptr;
         }
@@ -810,9 +818,10 @@ PDFAppDocumentPanelPopup* PDFAppDocumentToolbar::openPanel(Panel panel)
         }
         connect(popup.data(), &PDFAppDocumentPanelPopup::closed, this, &PDFAppDocumentToolbar::onPanelClosed);
 
-        // A panel deleted by the application while it is open sends no closed: its
-        // button is unchecked too (the slot does not touch the deleted panel)
-        connect(popup.data(), &QObject::destroyed, this, &PDFAppDocumentToolbar::onPanelDestroyed);
+        // A panel closed (retired) or deleted by the application while it is open sends no closed: its
+        // button is unchecked too (the slot does not touch the panel; the end of an object is
+        // aboutToBeDeleted of its notifier)
+        m_panelEndConnections[panel] = connect(PDFDeferredDeletion::getNotifier(popup.data()), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppDocumentToolbar::onPanelDestroyed);
         connect(popup.data(), &PDFAppDocumentPanelPopup::neighborRequested, this, &PDFAppDocumentToolbar::onPanelNeighborRequested);
 
         // The panel grabs the mouse: the pointer over another panel button is seen
@@ -821,18 +830,20 @@ PDFAppDocumentPanelPopup* PDFAppDocumentToolbar::openPanel(Panel panel)
     }
 
     // The panel opens 4 px below the toolbar (y 94 of the frames)
-    QPointer<PDFAppDocumentPanelPopup> guard(popup.data());
+    QPointer<PDFAppDocumentPanelPopup> openedPopup = popup.data();
     button->setChecked(true);
-    if (!toolbarGuard || !guard || !buttonGuard)
+    if (!guard || PDFDeferredDeletion::isRetired(this) || !openedPopup || PDFDeferredDeletion::isRetired(openedPopup.data()) || !buttonGuard ||
+        PDFDeferredDeletion::isRetired(button))
     {
         return nullptr;
     }
-    guard->popup(button, mapToGlobal(QPoint(0, height())).y() + PANEL_GAP);
-    if ((!guard || !guard->isVisible()) && buttonGuard)
+    openedPopup->popup(button, mapToGlobal(QPoint(0, height())).y() + PANEL_GAP);
+    const bool isPopupGone = !openedPopup || PDFDeferredDeletion::isRetired(openedPopup.data());
+    if ((isPopupGone || !openedPopup->isVisible()) && buttonGuard)
     {
         buttonGuard->setChecked(false);
     }
-    return guard.data();
+    return isPopupGone ? nullptr : openedPopup.data();
 }
 
 void PDFAppDocumentToolbar::onMenuButtonClicked()
@@ -867,8 +878,14 @@ void PDFAppDocumentToolbar::onMenuButtonClicked()
 
 void PDFAppDocumentToolbar::onPanelDestroyed(QObject* object)
 {
-    // ~QWidget emits destroyed before the QPointer of the panel is cleared: the
-    // dying panel is only compared, none of its members is called (arch/conventions.md)
+    // The panel is retired or dying (the notifier emits from ~QWidget before the QPointer of the panel is
+    // cleared): it is only compared, none of its members is called (arch/conventions.md). A toolbar
+    // retired with its panels checks no buttons.
+    if (PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
+
     for (const auto& item : m_panels)
     {
         if (item.second.data() == object)
@@ -947,7 +964,8 @@ bool PDFAppDocumentToolbar::switchPanel(QToolButton* button, bool byKeyboard)
     }
 
     // The open panel hides and the new one shows in one step, no window is
-    // animated (the style turns the effects of the popups off): nothing flickers
+    // animated (the style turns the effects of the popups off): nothing flickers (the guards stay for the
+    // synchronous deletions of the tests)
     QPointer<PDFAppDocumentToolbar> guard(this);
     QPointer<QToolButton> buttonGuard(button);
     if (button == m_selectButton)
@@ -957,24 +975,24 @@ bool PDFAppDocumentToolbar::switchPanel(QToolButton* button, bool byKeyboard)
         {
             openPanel->close();
         }
-        if (guard && openButtonGuard)
+        if (guard && !PDFDeferredDeletion::isRetired(this) && openButtonGuard)
         {
             // The button of the closed panel is not checked at once (one marked button)
             openButtonGuard->setChecked(false);
         }
-        if (!guard || !buttonGuard)
+        if (!guard || PDFDeferredDeletion::isRetired(this) || !buttonGuard || PDFDeferredDeletion::isRetired(button))
         {
-            // A slot of a button has deleted the toolbar
+            // A slot of a button has closed the toolbar
             return false;
         }
         openSelectMenu(byKeyboard, false);
-        return guard && m_selectMenu && m_selectMenu->isVisible();
+        return guard && !PDFDeferredDeletion::isRetired(this) && m_selectMenu && m_selectMenu->isVisible();
     }
 
     if (m_selectMenu && m_selectMenu->isVisible())
     {
         m_selectMenu->hide();
-        if (!guard || !buttonGuard)
+        if (!guard || PDFDeferredDeletion::isRetired(this) || !buttonGuard || PDFDeferredDeletion::isRetired(button))
         {
             return false;
         }
@@ -1004,7 +1022,7 @@ void PDFAppDocumentToolbar::onSelectButtonPressed()
 void PDFAppDocumentToolbar::openSelectMenu(bool byKeyboard, bool isByButton)
 {
     PDFAppDocumentSelectButton* button = m_selectButton.data();
-    QPointer<PDFAppDocumentSelectMenu> menu = m_selectMenu.data();
+    PDFAppDocumentSelectMenu* menu = m_selectMenu.data();
     if (!button || !menu || !button->isVisible() || !button->isEnabled())
     {
         return;
@@ -1023,18 +1041,20 @@ void PDFAppDocumentToolbar::openSelectMenu(bool byKeyboard, bool isByButton)
         position.rx() += button->width() - menuWidth;
     }
 
-    // The menu shows code of the application (aboutToShow): guard the button
+    // The menu shows code of the application (aboutToShow); after it only the own button and menu change
+    // (the pointers stay for the synchronous deletions of the tests)
     QPointer<PDFAppDocumentSelectButton> buttonGuard(button);
+    QPointer<PDFAppDocumentSelectMenu> menuGuard(menu);
     menu->setNoReplayFor(button);
     button->setDown(true);
     button->setMenuOpen(isByButton);
     menu->popup(position);
-    if (!menu || !menu->isVisible())
+    if (!menuGuard || PDFDeferredDeletion::isRetired(menu) || !menu->isVisible())
     {
-        if (buttonGuard)
+        if (buttonGuard && !PDFDeferredDeletion::isRetired(button))
         {
-            buttonGuard->setMenuOpen(false);
-            buttonGuard->setDown(false);
+            button->setMenuOpen(false);
+            button->setDown(false);
         }
         return;
     }
@@ -1373,7 +1393,7 @@ bool PDFAppDocumentToolbar::eventFilter(QObject* watched, QEvent* event)
         {
             // The closed panel does not handle the move (the toolbar can be gone)
             QPointer<PDFAppDocumentToolbar> guard(this);
-            if (switchPanel(button, false) || !guard)
+            if (switchPanel(button, false) || !guard || PDFDeferredDeletion::isRetired(this))
             {
                 return true;
             }

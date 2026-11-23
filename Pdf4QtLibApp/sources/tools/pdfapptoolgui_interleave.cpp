@@ -323,12 +323,11 @@ void PDFAppInterleaveToolGUI::readValues()
     // The inputs of the list follow the values (Undo / Redo: a parked scan comes back without a
     // second reading); the list announces it, the slot waits
     const QStringList ids = Helper::splitIds(model->getValue(Helper::name(PDFDocumentToolInterleave::PARAMETER_INPUTS)).toString());
-    QPointer<PDFAppInterleaveToolGUI> guard(this);
     if (ids != m_list->getInputIds())
     {
         m_isChangingList = true;
         m_list->setInputIds(ids);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -347,7 +346,7 @@ void PDFAppInterleaveToolGUI::readValues()
     }
     historyIds << m_list->getInputIds();
     m_list->dropParkedInputs(historyIds);
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateAll();
     }
@@ -358,9 +357,8 @@ void PDFAppInterleaveToolGUI::setInputIds(const QStringList& ids)
     // One undo step; the model announces it (readValues)
     if (PDFAppToolParameterModel* model = getModel())
     {
-        QPointer<PDFAppInterleaveToolGUI> guard(this);
         const QString error = model->setValue(PDFAppInterleaveToolGUIHelper::name(PDFDocumentToolInterleave::PARAMETER_INPUTS), ids.join(QLatin1Char(',')));
-        if (guard && !error.isEmpty() && getHost())
+        if (!PDFDeferredDeletion::isRetired(this) && !error.isEmpty() && getHost())
         {
             getHost()->showTransientMessage(error);
         }
@@ -415,19 +413,18 @@ void PDFAppInterleaveToolGUI::setSlotFile(Slot slot, const QString& filePath)
     // the list announces the addition, the values follow at once as one undo step
     QStringList ids = m_list->getInputIds();
     const QString oldId = int(slot) < ids.size() ? ids.at(int(slot)) : QString();
-    QPointer<PDFAppInterleaveToolGUI> guard(this);
     QPointer<PDFAppToolInputList> list(m_list);
     m_isChangingList = true;
     if (!oldId.isEmpty())
     {
         list->removeInput(oldId);
-        if (!guard || !list)
+        if (PDFDeferredDeletion::isRetired(this) || !list)
         {
             return;
         }
     }
     const PDFAppToolInputList::AddResult result = list->addFile(filePath);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -441,7 +438,7 @@ void PDFAppInterleaveToolGUI::setSlotFile(Slot slot, const QString& filePath)
     {
         // Refused (the same file in the other slot, K29): the old scan stays
         list->setInputIds(ids);
-        if (guard && getHost())
+        if (!PDFDeferredDeletion::isRetired(this) && getHost())
         {
             getHost()->showTransientMessage(PDFAppToolInputList::getRefusalText(result.refusal, result.name, list->getMaximumCount()));
         }
@@ -470,19 +467,18 @@ void PDFAppInterleaveToolGUI::setSlotDocument(Slot slot, const QString& document
 
     QStringList ids = m_list->getInputIds();
     const QString oldId = int(slot) < ids.size() ? ids.at(int(slot)) : QString();
-    QPointer<PDFAppInterleaveToolGUI> guard(this);
     QPointer<PDFAppToolInputList> list(m_list);
     m_isChangingList = true;
     if (!oldId.isEmpty())
     {
         list->removeInput(oldId);
-        if (!guard || !list)
+        if (PDFDeferredDeletion::isRetired(this) || !list)
         {
             return;
         }
     }
     const PDFAppToolInputList::AddResult result = list->addOpenDocument(document);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -495,7 +491,7 @@ void PDFAppInterleaveToolGUI::setSlotDocument(Slot slot, const QString& document
     if (result.id.isEmpty())
     {
         list->setInputIds(ids);
-        if (guard && getHost())
+        if (!PDFDeferredDeletion::isRetired(this) && getHost())
         {
             getHost()->showTransientMessage(PDFAppToolInputList::getRefusalText(result.refusal, result.name, list->getMaximumCount()));
         }
@@ -567,10 +563,9 @@ void PDFAppInterleaveToolGUI::onCanvasFilesChosen(const QStringList& files)
         return;
     }
 
-    QPointer<PDFAppInterleaveToolGUI> guard(this);
     for (const QString& file : files)
     {
-        if (!guard || !m_list)
+        if (PDFDeferredDeletion::isRetired(this) || !m_list)
         {
             return;
         }
@@ -605,10 +600,10 @@ void PDFAppInterleaveToolGUI::openChangePanel(Slot slot, QWidget* anchor)
         return;
     }
 
-    // A new panel for each opening (the open documents change); the old one goes later
+    // A new panel for each opening (the open documents change); the old one is retired
     if (m_changePanel)
     {
-        m_changePanel->deleteLater();
+        PDFDeferredDeletion::retire(m_changePanel.data());
     }
     m_changeSlot = slot;
     m_changePanel = new PDFAppToolPanelPopup(nullptr, Helper::CHANGE_PANEL_WIDTH, m_leftPanel);
@@ -653,12 +648,11 @@ void PDFAppInterleaveToolGUI::onChangeRowClicked()
     // The panel closes first, the change is the last thing (it may run a dialog)
     const QString documentId = row->property(PDFAppInterleaveToolGUIHelper::ROW_DOCUMENT).toString();
     const Slot slot = m_changeSlot;
-    QPointer<PDFAppInterleaveToolGUI> guard(this);
     if (m_changePanel)
     {
         m_changePanel->close();
     }
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -863,28 +857,27 @@ void PDFAppInterleaveToolGUI::updateAll()
 {
     // The parts first, then the button and the status bar (signals, the last call); a change of
     // the visibility or a reset of a model may run an observer, which deletes this GUI
-    QPointer<PDFAppInterleaveToolGUI> guard(this);
     updateSources();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
     updateCanvas();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
     updateSummary();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
     updateConfirmState();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateOwnTabState();
     }
@@ -950,8 +943,7 @@ void PDFAppInterleaveToolGUI::updateSources()
         m_sourcesHeader->setTexts(tr("Sources"), tr("Two files are needed"));
     }
 
-    // The texts first; the visibility and the states last, each followed by a guard (a change of
-    // the layout may run an observer, which deletes this GUI)
+    // The texts first; the visibility and the states of the own widgets last
     const PDFAppToolInputRules rules = getInputRules();
     std::array<bool, SlotCount> hasInput = { false, false };
     for (int slot = 0; slot < SlotCount; ++slot)
@@ -968,12 +960,11 @@ void PDFAppInterleaveToolGUI::updateSources()
         }
     }
 
-    QPointer<PDFAppInterleaveToolGUI> guard(this);
     const bool isRunning = m_isRunning;
-    for (int slot = 0; slot < SlotCount && guard; ++slot)
+    for (int slot = 0; slot < SlotCount; ++slot)
     {
-        QPointer<QWidget> row(m_slotRows[slot].data());
-        QPointer<QWidget> empty(m_slotEmpty[slot].data());
+        QWidget* row = m_slotRows[slot].data();
+        QWidget* empty = m_slotEmpty[slot].data();
         if (row)
         {
             row->setVisible(hasInput[size_t(slot)]);
@@ -987,7 +978,7 @@ void PDFAppInterleaveToolGUI::updateSources()
             empty->setEnabled(!isRunning);
         }
     }
-    if (guard && m_swapButton)
+    if (m_swapButton)
     {
         m_swapButton->setEnabled(count == SlotCount && !isRunning);
     }
@@ -1021,7 +1012,7 @@ void PDFAppInterleaveToolGUI::updateCanvas()
 
     // Everything is computed first; the calls of the canvas and of its model come last: the model
     // resets its views and the visibility changes the layout - the observers of their signals
-    // may delete this GUI (the lifetime sweep found it), each call is followed by a guard
+    // may retire this GUI (the lifetime sweep found it), each call is followed by a check of the retired state
     const bool hasScans = hasBothScans();
     std::vector<PDFAppToolMergePlan::Item> items;
     if (hasScans && getModel())
@@ -1046,12 +1037,11 @@ void PDFAppInterleaveToolGUI::updateCanvas()
     const QStringList captions = getTileCaptions();
     PDFAppToolMergePlan plan(std::move(items));
 
-    QPointer<PDFAppInterleaveToolGUI> guard(this);
     QPointer<PDFAppInterleaveCanvas> canvas(m_canvas);
     canvas->setHeaderText(header);
     canvas->setHintText(hint);
     canvas->setEmpty(!hasScans);
-    if (!guard || !canvas)
+    if (PDFDeferredDeletion::isRetired(this) || !canvas)
     {
         return;
     }
@@ -1060,7 +1050,7 @@ void PDFAppInterleaveToolGUI::updateCanvas()
     {
         model->setPlan(std::move(plan));
     }
-    if (guard && model)
+    if (!PDFDeferredDeletion::isRetired(this) && model)
     {
         model->setTileMarks(captions, true);
     }
@@ -1101,18 +1091,15 @@ void PDFAppInterleaveToolGUI::updateSummary()
     }
     m_summary->setValue(3, tr("%Ln pages", nullptr, resultCount));
 
-    QPointer<PDFAppInterleaveToolGUI> guard(this);
-    QPointer<QWidget> howSection(m_howSection.data());
-    QPointer<QWidget> summarySection(m_summarySection.data());
-    if (howSection)
+    if (m_howSection)
     {
-        howSection->setVisible(!hasScans);
+        m_howSection->setVisible(!hasScans);
     }
-    if (summarySection)
+    if (m_summarySection)
     {
-        summarySection->setVisible(hasScans);
+        m_summarySection->setVisible(hasScans);
     }
-    if (guard && m_unevenCallout)
+    if (m_unevenCallout)
     {
         // 385:14487: "2 front sides have no back side"
         const bool isFrontLonger = front > back;

@@ -567,8 +567,8 @@ void PDFAppToolMergePageView::updateActionButtons()
     {
         if (old.button)
         {
-            old.button->hide();
-            old.button->deleteLater();
+            // Retired from the event loop (step A: a rebuilt button, which may be the sender of the change)
+            PDFDeferredDeletion::retireLater(old.button.data());
         }
     }
     positionActionButtons();
@@ -1136,14 +1136,13 @@ void PDFAppToolMergePageView::mouseReleaseEvent(QMouseEvent* event)
         return;
     }
 
-    // The drop: the slot changes the model of the view (and may delete it)
-    QPointer<PDFAppToolMergePageView> guard(this);
+    // The drop: the slot changes the model of the view (and may close it: retired, it tells nothing more)
     const std::vector<int> rows = getSelectedRows();
     if (!rows.empty() && targetRow >= 0)
     {
         Q_EMIT moveRequested(rows, targetRow);
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         // The last call: the drag has ended
         Q_EMIT dragStateChanged();
@@ -1741,13 +1740,13 @@ void PDFAppToolMergeDetailsView::mouseReleaseEvent(QMouseEvent* event)
     }
 
     event->accept();
-    QPointer<PDFAppToolMergeDetailsView> guard(this);
+    // The slot may close the view (retired: it tells nothing more)
     const std::vector<int> rows = getSelectedRows();
     if (!rows.empty() && targetRow >= 0)
     {
         Q_EMIT moveRequested(rows, targetRow);
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         // The last call: the drag has ended
         Q_EMIT dragStateChanged();
@@ -1926,9 +1925,8 @@ void PDFAppToolMergeCanvas::setEmptyState(QWidget* emptyState)
     }
     if (m_emptyState)
     {
-        // The old one may be the sender of the change (Add of an open document): later
-        m_emptyState->hide();
-        m_emptyState->deleteLater();
+        // The old one may be the sender of the change (Add of an open document): retired from the event loop (step A)
+        PDFDeferredDeletion::retireLater(m_emptyState.data());
     }
 
     m_emptyState = emptyState;
@@ -2004,8 +2002,7 @@ void PDFAppToolMergeCanvas::retranslate()
     connect(viewSwitch, &PDFSegmentedControl::currentIndexChanged, this, &PDFAppToolMergeCanvas::onViewSwitchChanged);
     // The layout gives back the item of the old control (owned by the caller)
     delete barLayout->replaceWidget(m_viewSwitch, viewSwitch);
-    m_viewSwitch->hide();
-    m_viewSwitch->deleteLater();
+    PDFDeferredDeletion::retire(m_viewSwitch.data());
     m_viewSwitch = viewSwitch;
 
     m_detailsNote->setText(tr("The same pages as a list: one row per page of the result, in the order of the result. The selection is shared with the thumbnails; rows can be dragged, rotated and removed the same way."));

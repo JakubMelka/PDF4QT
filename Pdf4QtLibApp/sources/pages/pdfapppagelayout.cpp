@@ -1229,9 +1229,10 @@ void PDFAppContentPage::setAnchorWidget(QWidget* widget)
 
 bool PDFAppContentPage::openExternalUrl(const QUrl& url)
 {
+    // As requestNavigation: the page closed (retired, step A) or deleted by a receiver is not alive
     QPointer<PDFAppContentPage> guard(this);
     Q_EMIT externalUrlRequested(url);
-    return !guard.isNull();
+    return !guard.isNull() && !PDFDeferredDeletion::isRetired(this);
 }
 
 QAbstractButton* PDFAppContentPage::withLink(QAbstractButton* button, const QString& link)

@@ -1090,7 +1090,34 @@ void AppNotesOutlineTest::outlineHostile()
         QCOMPARE(changed->getObjectByReference(page), pageObject);
         if (info.isValid())
         {
-            QCOMPARE(changed->getObjectByReference(info), infoObject);
+            // The document information is compared without /ModDate (approved by the
+            // owner on 23. 11. 2026): PDFDocumentBuilder::build writes the current time
+            // into /ModDate, so a second boundary between writing the sample and
+            // applying the change failed the comparison about once in 100 runs. Every
+            // other entry and the number of entries apart from /ModDate stay exact.
+            const pdf::PDFObject changedInfoObject = changed->getObjectByReference(info);
+            QCOMPARE(changedInfoObject.isDictionary(), infoObject.isDictionary());
+            if (infoObject.isDictionary())
+            {
+                const pdf::PDFDictionary* infoDictionary = infoObject.getDictionary();
+                const pdf::PDFDictionary* changedInfoDictionary = changedInfoObject.getDictionary();
+                const size_t infoCount = infoDictionary->getCount() - (infoDictionary->hasKey("ModDate") ? 1 : 0);
+                const size_t changedInfoCount = changedInfoDictionary->getCount() - (changedInfoDictionary->hasKey("ModDate") ? 1 : 0);
+                QCOMPARE(changedInfoCount, infoCount);
+                for (const pdf::PDFDictionary::DictionaryEntry& entry : *infoDictionary)
+                {
+                    if (entry.first == "ModDate")
+                    {
+                        continue;
+                    }
+                    QVERIFY2(changedInfoDictionary->hasKey(entry.first.getString()), entry.first.getString().constData());
+                    QCOMPARE(changedInfoDictionary->get(entry.first), entry.second);
+                }
+            }
+            else
+            {
+                QCOMPARE(changedInfoObject, infoObject);
+            }
         }
     }
 

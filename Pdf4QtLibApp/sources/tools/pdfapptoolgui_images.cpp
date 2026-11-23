@@ -1250,12 +1250,11 @@ void PDFAppImagesToPdfToolGUI::readValues()
     // The images of the list follow the values (Undo / Redo: a parked image comes back without a
     // second reading); the list announces it, the slot waits
     QStringList ids = getModelInputIds();
-    QPointer<PDFAppImagesToPdfToolGUI> guard(this);
     if (ids != m_list->getInputIds())
     {
         m_isChangingList = true;
         m_list->setInputIds(ids);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1275,7 +1274,7 @@ void PDFAppImagesToPdfToolGUI::readValues()
     }
     historyIds << ids;
     m_list->dropParkedInputs(historyIds);
-    if (!guard || !m_list)
+    if (PDFDeferredDeletion::isRetired(this) || !m_list)
     {
         return;
     }
@@ -1338,9 +1337,8 @@ void PDFAppImagesToPdfToolGUI::applyChange(const QStringList& inputIds, const Ad
     values.insert(Helper::name(PDFDocumentToolImagesToPdf::PARAMETER_INPUTS), inputIds.join(QLatin1Char(',')));
     values.insert(Helper::name(PDFDocumentToolImagesToPdf::PARAMETER_ADJUSTMENTS), PDFDocumentToolImagesToPdf::createAdjustments(byIndex));
 
-    QPointer<PDFAppImagesToPdfToolGUI> guard(this);
     const QString error = model->setValues(values);
-    if (guard && !error.isEmpty() && getHost())
+    if (!PDFDeferredDeletion::isRetired(this) && !error.isEmpty() && getHost())
     {
         getHost()->showTransientMessage(error);
     }
@@ -1408,7 +1406,6 @@ void PDFAppImagesToPdfToolGUI::addResults(const std::vector<PDFAppToolInputList:
 
     // The new images are selected (the first of them shows its page); the refusals are said in
     // the status bar (the last call)
-    QPointer<PDFAppImagesToPdfToolGUI> guard(this);
     if (!lastAdded.isEmpty())
     {
         if (m_selectedId.isEmpty() || !m_list->findInput(m_selectedId))
@@ -1417,7 +1414,7 @@ void PDFAppImagesToPdfToolGUI::addResults(const std::vector<PDFAppToolInputList:
         }
         applyChange(m_list->getInputIds(), m_adjustments);
     }
-    if (guard && !refused.isEmpty() && getHost())
+    if (!PDFDeferredDeletion::isRetired(this) && !refused.isEmpty() && getHost())
     {
         getHost()->showTransientMessage(refused.join(QStringLiteral(" · ")));
     }
@@ -1431,11 +1428,10 @@ void PDFAppImagesToPdfToolGUI::addFiles(const QStringList& filePaths)
     }
 
     // The list announces each addition, the values follow at once as one undo step
-    QPointer<PDFAppImagesToPdfToolGUI> guard(this);
     QPointer<PDFAppToolInputList> list(m_list);
     m_isChangingList = true;
     const std::vector<PDFAppToolInputList::AddResult> results = list->addFiles(filePaths);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1482,10 +1478,9 @@ void PDFAppImagesToPdfToolGUI::pasteImage()
         return;
     }
 
-    QPointer<PDFAppImagesToPdfToolGUI> guard(this);
     m_isChangingList = true;
     const PDFAppToolInputList::AddResult result = m_list->addImage(image, QString());
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1745,13 +1740,12 @@ void PDFAppImagesToPdfToolGUI::setCropRect(const QRect& rect, bool isEqualMargin
     m_isCropEqual = isEqualMargins;
 
     // The box, the panel and the status bar (no undo step)
-    QPointer<PDFAppImagesToPdfToolGUI> guard(this);
     updateCropCanvas();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateCropPanel();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }
@@ -1798,9 +1792,8 @@ void PDFAppImagesToPdfToolGUI::applyCrop()
     // One undo step; the mode ends (the model announces the values, readValues shows them)
     m_isCropping = false;
     const bool isChanged = adjustments != m_adjustments;
-    QPointer<PDFAppImagesToPdfToolGUI> guard(this);
     applyChange(m_list->getInputIds(), adjustments);
-    if (guard && !isChanged)
+    if (!PDFDeferredDeletion::isRetired(this) && !isChanged)
     {
         updateAll();
     }
@@ -1873,7 +1866,6 @@ void PDFAppImagesToPdfToolGUI::duplicateSelected()
     // One more page of each selected image right after it, with its adjustment; the copies are
     // the selection then
     const QStringList selected = getSelectedImages();
-    QPointer<PDFAppImagesToPdfToolGUI> guard(this);
     Adjustments adjustments = m_adjustments;
     QStringList copies;
     QString refusal;
@@ -1881,7 +1873,7 @@ void PDFAppImagesToPdfToolGUI::duplicateSelected()
     {
         m_isChangingList = true;
         const PDFAppToolInputList::AddResult result = m_list->duplicateInput(id);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1910,7 +1902,7 @@ void PDFAppImagesToPdfToolGUI::duplicateSelected()
         m_extraSelectedIds = copies;
         applyChange(m_list->getInputIds(), adjustments);
     }
-    if (guard && !refusal.isEmpty() && getHost())
+    if (!PDFDeferredDeletion::isRetired(this) && !refusal.isEmpty() && getHost())
     {
         getHost()->showTransientMessage(refusal);
     }
@@ -2052,13 +2044,12 @@ bool PDFAppImagesToPdfToolGUI::dropFiles(const QMimeData* mimeData)
         refused << tr("%1 – %2").arg(item.text, PDFAppFileDrop::getRefusalText(item.refusal));
     }
 
-    QPointer<PDFAppImagesToPdfToolGUI> guard(this);
     std::vector<PDFAppToolInputList::AddResult> results;
     if (m_list && !result.files.isEmpty())
     {
         m_isChangingList = true;
         results = m_list->addFiles(result.files);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return true;
         }
@@ -2510,34 +2501,33 @@ void PDFAppImagesToPdfToolGUI::updateAll()
 {
     // The parts first, then the button and the status bar (signals, the last call); a change of
     // the visibility, the rows of the panel or the page of the preview may run an observer,
-    // which deletes this GUI: a guard after each part
-    QPointer<PDFAppImagesToPdfToolGUI> guard(this);
+    // which retires this GUI: a check of the retired state after each part
     updateImages();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
     updateCanvas();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
     updateRightPanel();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
     updateToolbar();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
     updateConfirmState();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateOwnTabState();
     }
@@ -2648,14 +2638,13 @@ void PDFAppImagesToPdfToolGUI::updateCanvas()
 
     const PDFAppToolInput* input = m_list ? m_list->findInput(m_selectedId) : nullptr;
     const bool hasImages = m_list && m_list->getCount() > 0;
-    QPointer<PDFAppImagesToPdfToolGUI> guard(this);
     m_canvas->setEmpty(!hasImages);
-    if (!guard || !m_canvas)
+    if (PDFDeferredDeletion::isRetired(this) || !m_canvas)
     {
         return;
     }
     m_canvas->setCropMode(m_isCropping);
-    if (!guard || !m_canvas)
+    if (PDFDeferredDeletion::isRetired(this) || !m_canvas)
     {
         return;
     }
@@ -2758,13 +2747,12 @@ void PDFAppImagesToPdfToolGUI::updateRightPanel()
     // 356:9556: Width and Height only with the size Custom
     // The visibility changes go with guards (an observer of the layout may delete this GUI)
     const bool isCustom = getParameter(PDFDocumentToolImagesToPdf::PARAMETER_PAGE_SIZE) == QLatin1String(PDFDocumentToolImagesToPdf::SIZE_CUSTOM);
-    QPointer<PDFAppImagesToPdfToolGUI> guard(this);
     if (m_layoutSection && m_cropSection)
     {
         // 336:3159: the panel of the crop instead of the panel of the editing
         m_layoutSection->setVisible(!m_isCropping);
         m_cropSection->setVisible(m_isCropping);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -2774,7 +2762,7 @@ void PDFAppImagesToPdfToolGUI::updateRightPanel()
         m_layoutFields->setRowVisible(PDFAppImagesToPdfToolGUIHelper::name(PDFDocumentToolImagesToPdf::PARAMETER_WIDTH), isCustom);
         m_layoutFields->setRowVisible(PDFAppImagesToPdfToolGUIHelper::name(PDFDocumentToolImagesToPdf::PARAMETER_HEIGHT), isCustom);
     }
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -2784,7 +2772,7 @@ void PDFAppImagesToPdfToolGUI::updateRightPanel()
     if (m_selectedCard)
     {
         m_selectedCard->setVisible(input != nullptr);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -3100,13 +3088,12 @@ void PDFAppImagesToPdfToolGUI::onRunStateChanged(bool isRunning)
         m_isCropping = false;
     }
     BaseClass::onRunStateChanged(isRunning);
-    QPointer<PDFAppImagesToPdfToolGUI> guard(this);
     updateImages();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateToolbar();
     }
-    if (guard && m_renameDialog && isRunning)
+    if (!PDFDeferredDeletion::isRetired(this) && m_renameDialog && isRunning)
     {
         // Nothing of the list changes during the run
         m_renameDialog->close();

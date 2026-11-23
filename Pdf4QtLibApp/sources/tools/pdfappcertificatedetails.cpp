@@ -28,6 +28,7 @@
 #include "pdfcertificatestore.h"
 #include "pdfcomponentpanels.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemefonts.h"
 
@@ -411,13 +412,13 @@ bool PDFAppCertificateDetails::isSelfIssued(const QByteArray& certificateData)
 
 void PDFAppCertificateDetails::clearParts()
 {
-    // The parts go later (one may be the target of the event, which leads here)
+    // The parts are retired from the event loop (step A: a rebuilt row; one may be the target of the event, which
+    // leads here)
     for (const QPointer<QWidget>& part : m_parts)
     {
         if (part)
         {
-            part->hide();
-            part->deleteLater();
+            PDFDeferredDeletion::retireLater(part.data());
         }
     }
     m_parts.clear();

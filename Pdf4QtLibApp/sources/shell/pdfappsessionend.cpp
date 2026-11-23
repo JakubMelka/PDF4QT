@@ -501,8 +501,8 @@ void PDFAppSessionEndQuestion::saveNext()
         QPointer<PDFAppDocumentTab> tab = m_saveQueue.front();
         m_saveQueue.erase(m_saveQueue.begin());
 
-        // A tab closed meanwhile has not saved its changes: the step ends without the saves
-        PDFAppDocument* document = tab ? tab->getDocument() : nullptr;
+        // A tab closed meanwhile (retired, step A) has not saved its changes: the step ends without the saves
+        PDFAppDocument* document = tab && !PDFDeferredDeletion::isRetired(tab) ? tab->getDocument() : nullptr;
         if (!document)
         {
             end(false);
@@ -541,8 +541,9 @@ void PDFAppSessionEndQuestion::onSaveFinished(bool isSaved)
     QPointer<PDFAppDocumentTab> tab = m_savingTab;
     m_savingTab = nullptr;
 
-    // A canceled or failed save ends the step (its error has been shown), also a tab deleted during its save
-    if (!isSaved || !tab)
+    // A canceled or failed save ends the step (its error has been shown), also a tab closed (retired, step A) or
+    // deleted during its save
+    if (!isSaved || !tab || PDFDeferredDeletion::isRetired(tab))
     {
         end(false);
         return;

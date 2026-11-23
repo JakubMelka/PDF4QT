@@ -1013,6 +1013,11 @@ void PDFDocumentToolRunner::onDocumentAboutToBeDestroyed()
 
 void PDFDocumentToolRunner::retire()
 {
+    shutDown();
+}
+
+void PDFDocumentToolRunner::shutDown()
+{
     // Nobody waits for the workers: they see the cancellation and their late results find no runner (the link
     // forgets it under its mutex); the timers stop, nothing computes again
     m_link->forget();

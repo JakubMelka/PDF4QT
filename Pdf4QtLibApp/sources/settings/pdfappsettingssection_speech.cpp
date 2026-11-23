@@ -639,10 +639,11 @@ void PDFAppSpeechSettingsSection::writePending()
         return;
     }
 
-    // The notification of the change may delete the page with this section
+    // The notification of the change may delete the page with this section or close it (retired, step A; the write
+    // of the hook retire() is done too): such a section reports nothing and creates no engine
     QPointer<PDFAppSpeechSettingsSection> guard(this);
     const PDFDatabaseError error = context->getSettings().setValues(values);
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -650,7 +651,7 @@ void PDFAppSpeechSettingsSection::writePending()
     if (error.isError())
     {
         Q_EMIT statusMessageRequested(tr("The setting could not be saved: %1").arg(error.toString()));
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -662,6 +663,7 @@ void PDFAppSpeechSettingsSection::writePending()
 
 void PDFAppSpeechSettingsSection::commitPendingValues()
 {
+    // A retired section goes on (PA6: the hook retire() of the page writes the pending values - not cut by isRetired)
     QPointer<PDFAppSpeechSettingsSection> guard(this);
     BaseClass::commitPendingValues();
     if (guard)
@@ -672,9 +674,11 @@ void PDFAppSpeechSettingsSection::commitPendingValues()
 
 void PDFAppSpeechSettingsSection::refresh(const QString& topic, const QString& key)
 {
+    // The rows run code of the application, which may delete the page with this section or close it (retired, step
+    // A): such a section creates no engine
     QPointer<PDFAppSpeechSettingsSection> guard(this);
     BaseClass::refresh(topic, key);
-    if (!guard || (!topic.isEmpty() && topic != PDFSettingsRepository::getTopic()))
+    if (!guard || PDFDeferredDeletion::isRetired(this) || (!topic.isEmpty() && topic != PDFSettingsRepository::getTopic()))
     {
         return;
     }

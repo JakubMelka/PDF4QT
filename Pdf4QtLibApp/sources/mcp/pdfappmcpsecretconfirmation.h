@@ -86,7 +86,8 @@ class PDFLabel;
 /// withdraw when the call ends without the user. The dialog waits at most getTimeout (TIMEOUT, 2
 /// minutes) from the moment it is shown, at most QUEUE_TIMEOUT before it is shown (a hidden tab), then
 /// ends TimedOut - the call returns isError with "state": "password_required". At the end the dialog
-/// (with its scrim) is deleted later and confirmationEnded is the last call. The values go only to the
+/// (with its scrim) is hidden and retired from the event loop (PDFDeferredDeletion::retireLater) and
+/// confirmationEnded is the last call. The values go only to the
 /// run (takeRunValues, takeUserCertificates, once): never into the response, the activity of MCP, a
 /// log or the database; the fields are cleared at the end (S5.1) and the values, which were not taken,
 /// by the destructor (PDFSecureMemory::clear).

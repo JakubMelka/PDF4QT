@@ -127,6 +127,8 @@ public:
 protected:
     virtual void release() override
     {
+        // The release gives the view back also inside of retire of the shell (step 4): a check of isRetired would
+        // skip the state of the view there, the guard stays (PA6)
         QPointer<PDFAppToolModeToken> guard(this);
         if (PDFAppToolHost* host = m_host.data())
         {
@@ -343,8 +345,8 @@ void PDFAppToolCompositeUndoTarget::apply(bool isUndo)
     from.erase(from.begin() + index, from.end());
     to.push_back(source);
 
-    // The model and the document run their slots (the view, the GUI; a slot may close the tab)
-    QPointer<PDFAppToolCompositeUndoTarget> guard(this);
+    // The model and the document run their slots (the view, the GUI; a slot may close the tab - step A: retired,
+    // deleted later; a retired target tells nothing more)
     m_isApplying = true;
     if (source == Source::Parameters)
     {
@@ -365,13 +367,13 @@ void PDFAppToolCompositeUndoTarget::apply(bool isUndo)
         const quint64 version = m_document->getVersion();
         m_documentVersion = version + 1;
         const bool isApplied = isUndo ? stack->undoToolStep() : stack->redoToolStep();
-        if (guard && !isApplied)
+        if (!isApplied)
         {
             to.pop_back();
             m_documentVersion = version;
         }
     }
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -625,7 +627,6 @@ bool PDFDocumentToolShell::enter()
     }
 
     PDFAppDocument* document = m_host->getDocument();
-    QPointer<PDFDocumentToolShell> guard(this);
 
     m_model = new PDFAppToolParameterModel(m_host->getContext(), m_tool->getId(), m_tool->getParameters(), this);
     connect(m_model.data(), &PDFAppToolParameterModel::changed, this, &PDFDocumentToolShell::onParameterChanged);
@@ -682,17 +683,16 @@ bool PDFDocumentToolShell::enter()
     m_host->saveViewState();
 
     const bool isEntered = m_host->enterMode(parts);
-    if (!guard)
-    {
-        return false;
-    }
     if (PDFDeferredDeletion::isRetired(this))
     {
         // A slot of the entry has closed the page or the tab of the tool (step A): the hook has run already, nothing
-        // more is created; a mode entered meanwhile is given back at once (no token of the mode is made)
+        // more is created; a mode entered meanwhile is given back at once (no token of the mode is made). The view is
+        // given back on purpose by this retired shell: a check of isRetired after the call would skip its state, the
+        // guard stays (PA6)
         m_state = State::Closed;
         if (isEntered && m_host)
         {
+            QPointer<PDFDocumentToolShell> guard(this);
             m_isLeavingMode = true;
             m_host->leaveMode();
             if (!guard)
@@ -781,7 +781,7 @@ bool PDFDocumentToolShell::enter()
     if (!panel.isEmpty())
     {
         m_host->showPanel(panel);
-        if (!guard || PDFDeferredDeletion::isRetired(this))
+        if (PDFDeferredDeletion::isRetired(this))
         {
             // Retired by a slot of the panel: its hook and the token of the mode have ended the tool
             return false;
@@ -791,9 +791,9 @@ bool PDFDocumentToolShell::enter()
     updateToolbar();
     updateStatus();
     Q_EMIT stateChanged(m_state);
-    if (!guard || PDFDeferredDeletion::isRetired(this))
+    if (PDFDeferredDeletion::isRetired(this))
     {
-        // Deleted or retired by a slot of the state (the tool was entered and is closed by its page): no preview
+        // Retired by a slot of the state (the tool was entered and is closed by its page): no preview
         return true;
     }
 
@@ -806,7 +806,9 @@ bool PDFDocumentToolShell::enter()
     {
         updatePreview();
     }
-    return guard != nullptr;
+
+    // Entered (also when a slot of the preview has closed it meanwhile, as after the state above)
+    return true;
 }
 
 void PDFDocumentToolShell::createContent()
@@ -881,7 +883,6 @@ void PDFDocumentToolShell::close()
     // document); the close of the tab and the quit record by PDFAppPage::prepareClose, the destructor never
     recordInteractiveUse();
     m_state = State::Closed;
-    QPointer<PDFDocumentToolShell> guard(this);
     unwatchVisibility();
 
     for (const QPointer<QAction>& action : { m_escapeAction, m_confirmAction, m_confirmKeypadAction })
@@ -922,7 +923,7 @@ void PDFDocumentToolShell::close()
         // The question of a run, which has ended without the user: it goes as Keep Running (the leave, which waits for
         // it, is refused; its waiter runs code of the application)
         m_leaveDialog->reject();
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -935,7 +936,7 @@ void PDFDocumentToolShell::close()
         // it goes as its Keep (the GUI's slots run, a leave waiting for it goes on); an answered one is left alone;
         // the destructor of the GUI closes it in the destructor of the shell
         openQuestion->reject();
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -958,14 +959,26 @@ void PDFDocumentToolShell::close()
     }
     if (m_runner)
     {
-        // Retired, never deleted here (step A): its hook cancels the workers and ends the operation of the document at
-        // once (the document is free when close returns); its object lives until the event loop, so a close from its
-        // own signal finds it whole. The slots of the end of the operation may delete this shell: the pointer first.
-        m_runner->disconnect(this);
+        // Retired, never deleted here (step A): its work ends at once - the workers are canceled and the operation of
+        // the document ends (the document is free when close returns); its object lives until the event loop, so a
+        // close from its own signal finds it whole. The slots of the end of the operation may close this shell: the
+        // pointer first. Inside of an emission of the runner (a slot of this shell connected to it runs; RA-L7) the
+        // runner is retired from the event loop: retire now would cut the later receivers of the emission (the GUI).
+        // QObject::sender reads the connections: before they are cut.
         PDFDocumentToolRunner* runner = m_runner.data();
+        const bool isInsideRunnerEmission = sender() == runner;
+        m_runner->disconnect(this);
         m_runner = nullptr;
-        PDFDeferredDeletion::retire(runner);
-        if (!guard)
+        if (isInsideRunnerEmission)
+        {
+            runner->shutDown();
+            PDFDeferredDeletion::retireLater(runner);
+        }
+        else
+        {
+            PDFDeferredDeletion::retire(runner);
+        }
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -980,10 +993,11 @@ void PDFDocumentToolShell::close()
 
     if (PDFLifetimeToken* modeToken = m_modeToken.data())
     {
-        // The token of the mode gives the view the parts and its state back (a slot may delete this shell)
+        // The token of the mode gives the view the parts and its state back (a slot may close this shell: retired, it
+        // reports nothing)
         m_isLeavingMode = true;
         modeToken->releaseToken();
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1143,17 +1157,20 @@ void PDFDocumentToolShell::resumeEditing()
 void PDFDocumentToolShell::onInputsChanged()
 {
     // The GUI rebuilds its parts by its own connections to the list; the shell says the
-    // Primary button, the status and a new preview
-    QPointer<PDFDocumentToolShell> guard(this);
+    // Primary button, the status and a new preview (a shell retired by their slots computes nothing)
     updateToolbar();
     updateStatus();
-    if (guard && m_state == State::Editing)
+    if (PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
+    if (m_state == State::Editing)
     {
         updatePreview();
     }
 
     // The title and the dot of the own tab follow the list (K16); the tab only reads
-    if (guard && m_gui)
+    if (m_gui && !PDFDeferredDeletion::isRetired(this))
     {
         m_gui->updateOwnTabState();
     }
@@ -1195,8 +1212,8 @@ void PDFDocumentToolShell::confirm()
     // other action asks it (owner 2026-11-08): the owner password dialog of the shared check, or
     // its refusal; the user confirms again after the unlock. The dialog runs no nested event
     // loop, the function ends right after it is opened (the shell is checked after the foreign
-    // code of the dialog anyway; the dialog is owned by its window and deletes itself on close).
-    QPointer<PDFDocumentToolShell> guard(this);
+    // code of the dialog anyway; the dialog is owned by its window and deletes itself on close). A shell retired by
+    // foreign code (step A) runs nothing.
     const std::optional<PDFAppPermissionRequest> runRequest = getRunPermissionRequest();
     PDFAppDocument* permissionDocument = m_host->getDocument();
     if (runRequest && permissionDocument)
@@ -1204,7 +1221,7 @@ void PDFDocumentToolShell::confirm()
         QWidget* parent = m_host->getKeyWidget() ? m_host->getKeyWidget()->window() : nullptr;
         QDialog* permissionDialog = nullptr;
         const bool isAllowed = PDFAppDocumentPermissions::request(permissionDocument, *runRequest, parent, &permissionDialog);
-        if (!guard || !m_host || !m_runner || m_state != State::Editing)
+        if (PDFDeferredDeletion::isRetired(this) || !m_host || !m_runner || m_state != State::Editing)
         {
             return;
         }
@@ -1222,7 +1239,7 @@ void PDFDocumentToolShell::confirm()
     if (PDFAppDocument* document = m_host->getDocument())
     {
         document->commitPendingEdits();
-        if (!guard || !m_runner || !m_host || m_state != State::Editing)
+        if (PDFDeferredDeletion::isRetired(this) || !m_runner || !m_host || m_state != State::Editing)
         {
             return;
         }
@@ -1230,7 +1247,7 @@ void PDFDocumentToolShell::confirm()
 
     // A value being typed is a value of the run: Ctrl+Enter does not move the focus
     commitPendingValues();
-    if (!guard || !m_runner || !m_host || !m_gui || m_state != State::Editing || !m_gui->isConfirmEnabled())
+    if (PDFDeferredDeletion::isRetired(this) || !m_runner || !m_host || !m_gui || m_state != State::Editing || !m_gui->isConfirmEnabled())
     {
         return;
     }
@@ -1238,7 +1255,7 @@ void PDFDocumentToolShell::confirm()
     // The environment may refuse the run (Encrypt with Certificate: the password does not open the
     // chosen .pfx file, 433:3972 - the GUI shows it at its field and the Primary button is Disabled)
     applyEnvironment();
-    if (!guard || !m_runner || !m_host || !m_gui)
+    if (PDFDeferredDeletion::isRetired(this) || !m_runner || !m_host || !m_gui)
     {
         return;
     }
@@ -1248,12 +1265,12 @@ void PDFDocumentToolShell::confirm()
         m_gui->onRunRefused();
         return;
     }
-    if (!m_runner->run(m_gui->getRunParameters()) && guard && m_host && m_gui)
+    if (!m_runner->run(m_gui->getRunParameters()) && !PDFDeferredDeletion::isRetired(this) && m_host && m_gui)
     {
         // A foreign blocking operation, a lost document: the commit would be refused; the values
         // prepared for the run are dropped first (S5.1)
         m_gui->onRunRefused();
-        if (guard && m_host)
+        if (!PDFDeferredDeletion::isRetired(this) && m_host)
         {
             m_host->showTransientMessage(tr("The document is busy with another operation. Try it again when it ends."));
         }
@@ -1275,19 +1292,18 @@ void PDFDocumentToolShell::retryFiles(const QStringList& fileNames, const QStrin
         parameters.insert(QString::fromLatin1(PDFDocumentToolFileOutput::PARAMETER_FOLDER), folder);
     }
 
-    QPointer<PDFDocumentToolShell> guard(this);
     applyEnvironment();
-    if (!guard || !m_runner || !m_host)
+    if (PDFDeferredDeletion::isRetired(this) || !m_runner || !m_host)
     {
         return;
     }
-    if (!m_runner->run(parameters) && guard && m_host)
+    if (!m_runner->run(parameters) && !PDFDeferredDeletion::isRetired(this) && m_host)
     {
         if (m_gui)
         {
             m_gui->onRunRefused();
         }
-        if (guard && m_host)
+        if (!PDFDeferredDeletion::isRetired(this) && m_host)
         {
             m_host->showTransientMessage(tr("The document is busy with another operation. Try it again when it ends."));
         }
@@ -1296,7 +1312,6 @@ void PDFDocumentToolShell::retryFiles(const QStringList& fileNames, const QStrin
 
 void PDFDocumentToolShell::commitPendingValues()
 {
-    QPointer<PDFDocumentToolShell> guard(this);
     for (const QPointer<QWidget>& part : { m_toolActions, m_rightContent, m_leftContent, m_canvasPage })
     {
         if (!part)
@@ -1304,7 +1319,8 @@ void PDFDocumentToolShell::commitPendingValues()
             continue;
         }
 
-        // A write runs the slots of the model, which may delete the controls
+        // A write runs the slots of the model, which may delete the controls (a shell retired by them writes nothing
+        // more)
         const QList<PDFAppSettingControl*> controls = part->findChildren<PDFAppSettingControl*>();
         std::vector<QPointer<PDFAppSettingControl>> guards(controls.cbegin(), controls.cend());
         for (const QPointer<PDFAppSettingControl>& control : guards)
@@ -1313,7 +1329,7 @@ void PDFDocumentToolShell::commitPendingValues()
             {
                 control->commitPendingValue();
             }
-            if (!guard)
+            if (PDFDeferredDeletion::isRetired(this))
             {
                 return;
             }
@@ -1331,12 +1347,11 @@ void PDFDocumentToolShell::stop()
     // The new document of a result without the dialog is being written (4.6): Stop drops it
     if (PDFAppToolResultWriter* writer = m_skippedWriter.data())
     {
-        QPointer<PDFDocumentToolShell> guard(this);
         m_skippedWriter = nullptr;
         writer->disconnect(this);
         writer->deleteLater();
         m_runner->endDecision();
-        if (guard)
+        if (!PDFDeferredDeletion::isRetired(this))
         {
             finishRun(PDFDocumentToolResult::createStopped());
         }
@@ -1347,10 +1362,9 @@ void PDFDocumentToolShell::stop()
     // a late answer finds no result and does nothing
     if (m_confirmingResult)
     {
-        QPointer<PDFDocumentToolShell> guard(this);
         m_confirmingResult.reset();
         m_runner->endDecision();
-        if (guard)
+        if (!PDFDeferredDeletion::isRetired(this))
         {
             finishRun(PDFDocumentToolResult::createStopped());
         }
@@ -1360,12 +1374,11 @@ void PDFDocumentToolShell::stop()
     // The result waits for a modal dialog of another window: the run has ended, Stop drops it
     if (m_isWaitingForModal && m_pendingResult)
     {
-        QPointer<PDFDocumentToolShell> guard(this);
         m_pendingResult.reset();
         m_isWaitingForModal = false;
         watchModalDialog(nullptr);
         m_runner->endDecision();
-        if (guard)
+        if (!PDFDeferredDeletion::isRetired(this))
         {
             finishRun(PDFDocumentToolResult::createStopped());
         }
@@ -1416,10 +1429,10 @@ bool PDFDocumentToolShell::askCloseQuestion()
         return false;
     }
 
-    QPointer<PDFDocumentToolShell> guard(this);
+    // A shell retired meanwhile asks nothing more (as asked: nothing is closed by the caller)
     m_isAskingClose = true;
     QDialog* question = m_gui->askClose();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return true;
     }
@@ -1485,10 +1498,12 @@ PDFAppLeaveResult PDFDocumentToolShell::requestLeaveWork(PDFAppLeaveFlow* flow)
         return PDFAppLeaveResult::Done;
     }
 
-    // The tab is shown, so the user sees, what the question is about
-    QPointer<PDFDocumentToolShell> guard(this);
+    // The tab is shown, so the user sees, what the question is about (a shell retired by a slot of the activation
+    // answers nothing: refused, as by its end). The guard stays (RC6-M1): a test deletes the tab synchronously from the
+    // switch of the tabs (shellDeletedFromActivation), the callers of the tools keep theirs too.
+    QPointer<PDFDocumentToolShell> activateGuard(this);
     m_host->activate();
-    if (!guard || !m_host)
+    if (!activateGuard || PDFDeferredDeletion::isRetired(this) || !m_host)
     {
         return PDFAppLeaveResult::Refused;
     }
@@ -1502,9 +1517,9 @@ PDFAppLeaveResult PDFDocumentToolShell::requestLeaveWork(PDFAppLeaveFlow* flow)
     if (!isCloseQuestionOpen() && !askCloseQuestion())
     {
         // The GUI has nothing to ask after all: the tool may go
-        return guard ? PDFAppLeaveResult::Done : PDFAppLeaveResult::Refused;
+        return !activateGuard || PDFDeferredDeletion::isRetired(this) ? PDFAppLeaveResult::Refused : PDFAppLeaveResult::Done;
     }
-    if (!guard)
+    if (!activateGuard || PDFDeferredDeletion::isRetired(this))
     {
         return PDFAppLeaveResult::Refused;
     }
@@ -1539,22 +1554,24 @@ PDFAppLeaveResult PDFDocumentToolShell::waitForLeaveQuestion(QDialog* question, 
     ++m_leaveWaitId;
 
     // The question is the GUI's, parented to the window (step A: the handles are cut by retire of the shell); a
-    // question retired with its owner sends no finished - its aboutToBeDeleted ends the wait (destroyed stays for a
-    // question deleted without retire)
+    // question retired with its owner sends no finished - its aboutToBeDeleted ends the wait (also for a question
+    // deleted without retire: the notifier emits from its destructor then; no connection to destroyed, PA6)
     PDFDeferredDeletion::connect(question, &QDialog::finished, this, &PDFDocumentToolShell::onLeaveQuestionEnded);
-    PDFDeferredDeletion::connect(question, &QObject::destroyed, this, &PDFDocumentToolShell::onLeaveQuestionEnded);
-    PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(question), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFDocumentToolShell::onLeaveQuestionEnded);
+    m_leaveQuestionEndConnection = PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(question), &PDFLifetimeNotifier::aboutToBeDeleted, this,
+                                                                &PDFDocumentToolShell::onLeaveQuestionEnded);
     flow->setQuestion(question);
     return PDFAppLeaveResult::Pending;
 }
 
 void PDFDocumentToolShell::disconnectLeaveQuestion()
 {
+    // The end of a question waited for earlier never ends a later wait; its notifier by the stored handle (getNotifier
+    // would create a notifier for a dying question)
+    disconnect(m_leaveQuestionEndConnection);
+    m_leaveQuestionEndConnection = QMetaObject::Connection();
     if (QDialog* question = m_leaveQuestion.data())
     {
-        // The end of a question waited for earlier never ends a later wait
         disconnect(question, nullptr, this, nullptr);
-        disconnect(PDFDeferredDeletion::getNotifier(question), nullptr, this, nullptr);
     }
 }
 
@@ -1666,10 +1683,12 @@ PDFAppLeaveResult PDFDocumentToolShell::requestFinishLeave(bool isProceeding, PD
     }
 
     // The leave goes on with the tool still open: the choice commits through the shell as it does outside of a
-    // wait (one Undo step of the tool). The slots of the commit may delete this shell - then nothing is left to keep.
+    // wait (one Undo step of the tool). The slots of the commit may close this shell - then nothing is left to keep.
+    // The guard stays (RC6-M1): the activation below may delete the tab synchronously in a test (as
+    // shellDeletedFromActivation), the callers of the tools keep theirs too.
     QPointer<PDFDocumentToolShell> guard(this);
     const bool isKept = m_gui->applyCloseQuestionAction();
-    if (!guard || isKept)
+    if (!guard || PDFDeferredDeletion::isRetired(this) || isKept)
     {
         return PDFAppLeaveResult::Done;
     }
@@ -1684,12 +1703,12 @@ PDFAppLeaveResult PDFDocumentToolShell::requestFinishLeave(bool isProceeding, PD
     {
         m_host->activate();
     }
-    if (!guard || m_state != State::Editing)
+    if (!guard || PDFDeferredDeletion::isRetired(this) || m_state != State::Editing)
     {
         return PDFAppLeaveResult::Done;
     }
     QDialog* question = askIncompleteQuestion();
-    if (!guard || !question)
+    if (!guard || PDFDeferredDeletion::isRetired(this) || !question)
     {
         return PDFAppLeaveResult::Refused;
     }
@@ -1706,10 +1725,11 @@ void PDFDocumentToolShell::onFinishLeaveQueued()
     }
 
     // The choice is applied once, now with the version seen; its question about the rest (Pending) is waited for as
-    // by requestLeave, else the step is reported (the last call)
+    // by requestLeave, else the step is reported (the last call; a shell retired meanwhile reports nothing - the end
+    // of the shell refuses the step, PDFAppLeaveFlowStep; the guard: its activation, RC6-M1)
     QPointer<PDFDocumentToolShell> guard(this);
     const PDFAppLeaveResult result = requestFinishLeave(true, flow.data());
-    if (!guard || result == PDFAppLeaveResult::Pending)
+    if (!guard || PDFDeferredDeletion::isRetired(this) || result == PDFAppLeaveResult::Pending)
     {
         return;
     }
@@ -1723,11 +1743,11 @@ QDialog* PDFDocumentToolShell::askIncompleteQuestion()
         return nullptr;
     }
 
-    // The GUI opens its question (open, never exec) and returns it; it never deletes the shell
-    QPointer<PDFDocumentToolShell> guard(this);
+    // The GUI opens its question (open, never exec) and returns it; it never deletes the shell (a retired one asks
+    // nothing more)
     m_isAskingClose = true;
     QDialog* question = m_gui->askIncompleteClose();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return nullptr;
     }
@@ -1746,10 +1766,9 @@ bool PDFDocumentToolShell::commitDocumentChange(const PDFModifiedDocument& modif
 
     // The slots of the document run (the GUI, the view; a slot may close the tab): the step is
     // recorded after the commit by the version the commit has made (+1), so a change of somebody
-    // else made by a slot meanwhile ends the steps of the tool instead of becoming one
-    QPointer<PDFDocumentToolShell> guard(this);
+    // else made by a slot meanwhile ends the steps of the tool instead of becoming one (a retired tool records none)
     const bool isCommitted = document->commit(modified, description, expectedVersion, PDFAppChangeSource::Tool);
-    if (guard && isCommitted && m_undoTarget)
+    if (isCommitted && m_undoTarget && !PDFDeferredDeletion::isRetired(this))
     {
         m_undoTarget->recordDocumentStep(expectedVersion + 1);
     }
@@ -1771,9 +1790,8 @@ void PDFDocumentToolShell::cancelResult()
 
     // The decision runs onDialogDecided, which may close the tool and delete this shell; a
     // dialog, which is writing, refuses it and the state stays Deciding
-    QPointer<PDFDocumentToolShell> guard(this);
     dialog->reject();
-    if (!guard || isCancelClose || m_state != State::Editing)
+    if (PDFDeferredDeletion::isRetired(this) || isCancelClose || m_state != State::Editing)
     {
         return;
     }
@@ -1849,10 +1867,12 @@ PDFAppLeaveResult PDFDocumentToolShell::requestLeave(PDFAppLeaveFlow* flow)
         return PDFAppLeaveResult::Refused;
     }
 
-    // The tab is shown, so the user sees, what the question is about (a slot of the activation may close the tool)
-    QPointer<PDFDocumentToolShell> guard(this);
+    // The tab is shown, so the user sees, what the question is about (a slot of the activation may close the tool:
+    // isClosed covers a retired shell). The guard stays (RC6-M1): a test deletes the tab synchronously from the switch
+    // of the tabs (shellDeletedFromActivation), the callers of the tools keep theirs too.
+    QPointer<PDFDocumentToolShell> activateGuard(this);
     m_host->activate();
-    if (!guard || !m_host || PDFDocumentToolShellHelper::isClosed(this))
+    if (!activateGuard || !m_host || PDFDocumentToolShellHelper::isClosed(this))
     {
         return PDFAppLeaveResult::Refused;
     }
@@ -1896,11 +1916,10 @@ void PDFDocumentToolShell::onLeaveRunningChosen(PDFAppDocumentChoice choice)
         // Keep Running: a result, which came while the user was asked, is decided now
         if (m_pendingResult)
         {
-            QPointer<PDFDocumentToolShell> guard(this);
             const PDFDocumentToolResult result = *m_pendingResult;
             m_pendingResult.reset();
             finishRun(result);
-            if (!guard)
+            if (PDFDeferredDeletion::isRetired(this))
             {
                 return;
             }
@@ -2069,7 +2088,8 @@ void PDFDocumentToolShell::openResultDialog(const PDFDocumentToolResult& result,
     }
 
     // The run may have gone on behind another tab (F1): the user decides about a document, which is shown. A slot of
-    // the activation may close the tool (step A): a closed shell opens no dialog.
+    // the activation may close the tool (step A): a closed shell opens no dialog. The guard stays (PA6): the test
+    // shellDeletedFromActivation deletes the tab synchronously from the switch of the tabs.
     QPointer<PDFDocumentToolShell> activateGuard(this);
     m_host->activate();
     if (!activateGuard || !m_host || !m_runner || !m_gui || PDFDocumentToolShellHelper::isClosed(this))
@@ -2116,9 +2136,8 @@ void PDFDocumentToolShell::openResultDialog(const PDFDocumentToolResult& result,
     connect(dialog, &PDFAppToolResultDialog::statusTextChanged, this, &PDFDocumentToolShell::onDialogStatusChanged);
     updateStatus();
 
-    QPointer<PDFDocumentToolShell> guard(this);
     dialog->QDialog::open();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT stateChanged(m_state);
     }
@@ -2227,12 +2246,11 @@ bool PDFDocumentToolShell::isRefusedByPermissions() const
 void PDFDocumentToolShell::onParameterChanged(const QString& name)
 {
     ++m_workStamp;
-    QPointer<PDFDocumentToolShell> guard(this);
     if (m_gui)
     {
         m_gui->onParametersChanged(name);
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         // R7-2: a changed input makes the kept result stale (the format of a later export does not)
         if (m_resultState == PDFAppToolResultState::Current && m_gui && m_gui->isResultStaleBy(name))
@@ -2269,13 +2287,13 @@ void PDFDocumentToolShell::onPreviewProgress(int percentage, const QString& step
 
 void PDFDocumentToolShell::onPreviewFinished(const PDFDocumentToolResult& result)
 {
-    // The hook says, that the Primary button has changed: a slot may delete this shell
-    QPointer<PDFDocumentToolShell> guard(this);
+    // The hook says, that the Primary button has changed (a slot may close this shell: retired, deleted later - only
+    // its own toolbar follows)
     if (m_gui)
     {
         m_gui->onPreviewChanged(&result);
     }
-    if (guard && m_toolbar)
+    if (m_toolbar)
     {
         updateToolbar();
     }
@@ -2296,13 +2314,12 @@ void PDFDocumentToolShell::onRunStarted()
     m_stepText.clear();
     m_state = State::Running;
 
-    QPointer<PDFDocumentToolShell> guard(this);
     if (m_gui)
     {
         m_gui->setContentEnabled(false);
         showProgress(true);
         m_gui->onRunStateChanged(true);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -2403,13 +2420,12 @@ void PDFDocumentToolShell::finishRun(const PDFDocumentToolResult& result)
         return;
     }
 
-    QPointer<PDFDocumentToolShell> guard(this);
     showProgress(false);
     if (m_gui)
     {
         m_gui->setContentEnabled(true);
         m_gui->onRunStateChanged(false);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -2438,7 +2454,7 @@ void PDFDocumentToolShell::finishRun(const PDFDocumentToolResult& result)
         {
             m_confirmingResult = result;
             const bool isAccepted = m_gui->confirmResult(result);
-            if (!guard || !isAccepted)
+            if (PDFDeferredDeletion::isRetired(this) || !isAccepted)
             {
                 return;
             }
@@ -2473,7 +2489,7 @@ void PDFDocumentToolShell::finishRun(const PDFDocumentToolResult& result)
     }
 
     setState(State::Editing);
-    if (guard && m_gui && result.status != PDFDocumentToolResultStatus::Stopped)
+    if (!PDFDeferredDeletion::isRetired(this) && m_gui && result.status != PDFDocumentToolResultStatus::Stopped)
     {
         m_gui->onRunNotAccepted(result);
     }
@@ -2505,9 +2521,8 @@ void PDFDocumentToolShell::answerResult(bool isAccepted)
 
     // No, discard (307:6388): as Discard of the result dialog - the decision ends, the document
     // stays as it is
-    QPointer<PDFDocumentToolShell> guard(this);
     m_runner->endDecision();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -2563,12 +2578,11 @@ void PDFDocumentToolShell::onDocumentChanged()
     m_isPermissionRefused = isRefusedByPermissions();
 
     // R7-2: a result kept in the tool is of the earlier version (the state first, the hooks see it); the
-    // status message goes to the host, whose slots may delete the shell
-    QPointer<PDFDocumentToolShell> guard(this);
+    // status message goes to the host, whose slots may close the shell (retired: it follows nothing more)
     if (m_resultState == PDFAppToolResultState::Current)
     {
         setResultState(PDFAppToolResultState::Stale);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -2578,7 +2592,7 @@ void PDFDocumentToolShell::onDocumentChanged()
     {
         m_gui->onDocumentChanged();
     }
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -2589,7 +2603,7 @@ void PDFDocumentToolShell::onDocumentChanged()
     if (wasRefused != m_isPermissionRefused)
     {
         updateToolbar();
-        if (guard && !m_isPermissionRefused)
+        if (!m_isPermissionRefused && !PDFDeferredDeletion::isRetired(this))
         {
             updatePreview();
         }
@@ -2599,7 +2613,6 @@ void PDFDocumentToolShell::onDocumentChanged()
 void PDFDocumentToolShell::onDialogDecided(const PDFAppToolResultOutcome& outcome)
 {
     const PDFAppToolResultOutcome decided = outcome;
-    QPointer<PDFDocumentToolShell> guard(this);
 
     // The export of a result kept in the tool (step 7, R7-13): the tool stays, whatever was decided
     if (m_isExportDialog)
@@ -2622,7 +2635,7 @@ void PDFDocumentToolShell::onDialogDecided(const PDFAppToolResultOutcome& outcom
     {
         m_isStoppedFilesResult = false;
         returnToEditing();
-        if (guard)
+        if (!PDFDeferredDeletion::isRetired(this))
         {
             retryFiles(decided.retryFileNames, decided.retryFolder);
         }
@@ -2657,13 +2670,13 @@ void PDFDocumentToolShell::onDialogDecided(const PDFAppToolResultOutcome& outcom
             // created yet"); the tool waits in Editing for the answer (closeAfterQuestion)
             if (askCloseQuestion())
             {
-                if (guard)
+                if (!PDFDeferredDeletion::isRetired(this))
                 {
                     returnToEditing();
                 }
                 return;
             }
-            if (!guard)
+            if (PDFDeferredDeletion::isRetired(this))
             {
                 return;
             }
@@ -2772,11 +2785,10 @@ void PDFDocumentToolShell::keepResult(const PDFDocumentToolResult& result)
     m_resultState = PDFAppToolResultState::Current;
     const bool isExport = m_runner && PDFAppToolResultDialog::isAnalysisExport(m_runner->getOutputTraits(), result);
 
-    QPointer<PDFDocumentToolShell> guard(this);
     if (m_gui)
     {
         m_gui->onResultKept(result);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -2788,8 +2800,15 @@ void PDFDocumentToolShell::keepResult(const PDFDocumentToolResult& result)
     {
         m_isExportDialog = true;
         m_isRunExportDialog = true;
+
+        // The activation of openResultDialog may delete the tab synchronously in a test (its guard; RC6-M1)
+        QPointer<PDFDocumentToolShell> activateGuard(this);
         openResultDialog(result, false);
-        if (guard && m_state != State::Deciding)
+        if (!activateGuard)
+        {
+            return;
+        }
+        if (m_state != State::Deciding && !PDFDeferredDeletion::isRetired(this))
         {
             // The dialog was not opened (the host or the GUI is gone): the decision ends here
             m_isExportDialog = false;
@@ -2798,7 +2817,7 @@ void PDFDocumentToolShell::keepResult(const PDFDocumentToolResult& result)
             {
                 m_runner->endDecision();
             }
-            if (guard)
+            if (!PDFDeferredDeletion::isRetired(this))
             {
                 setState(State::Editing);
             }
@@ -2808,9 +2827,9 @@ void PDFDocumentToolShell::keepResult(const PDFDocumentToolResult& result)
 
     if (m_runner)
     {
-        // The slots of a resumed preview may delete the shell
+        // The slots of a resumed preview may close the shell (retired: it changes nothing more)
         m_runner->endDecision();
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -2887,11 +2906,12 @@ bool PDFDocumentToolShell::openExportDialog(const PDFDocumentToolResult& exportR
     // An export is an action of the user in an interactive tool (owner 2026-11-20)
     m_isInteractiveUsed = true;
 
-    // The activation of the host runs slots of the application: the shell may be gone after it
-    QPointer<PDFDocumentToolShell> guard(this);
+    // The activation of the host runs slots of the application: the shell may be closed after it (a test deletes the
+    // tab synchronously there: the guard stays, as in openResultDialog - RC6-M1)
+    QPointer<PDFDocumentToolShell> activateGuard(this);
     m_isExportDialog = true;
     openResultDialog(exportResult, false);
-    if (!guard)
+    if (!activateGuard || PDFDeferredDeletion::isRetired(this))
     {
         return false;
     }
@@ -2916,9 +2936,8 @@ void PDFDocumentToolShell::finishExport(const PDFAppToolResultOutcome& outcome)
     }
 
     // The tool stays with its result; the GUI learns the outcome last (it may open the written file)
-    QPointer<PDFDocumentToolShell> guard(this);
     returnToEditing();
-    if (guard && m_gui)
+    if (m_gui && !PDFDeferredDeletion::isRetired(this))
     {
         m_gui->onExportDecided(outcome);
     }
@@ -2927,10 +2946,9 @@ void PDFDocumentToolShell::finishExport(const PDFAppToolResultOutcome& outcome)
 void PDFDocumentToolShell::returnToEditing()
 {
     // The dialog deletes itself; the runner has ended the decision already
-    QPointer<PDFDocumentToolShell> guard(this);
     m_resultDialog = nullptr;
     setState(State::Editing);
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updatePreview();
     }
@@ -2992,11 +3010,10 @@ void PDFDocumentToolShell::onSkippedWriteFinished(const PDFAppToolResultWriter::
     }
 
     // The tool stays open with the reason (a state of its panel, 4.6)
-    QPointer<PDFDocumentToolShell> guard(this);
     if (m_runner)
     {
         m_runner->endDecision();
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -3004,7 +3021,7 @@ void PDFDocumentToolShell::onSkippedWriteFinished(const PDFAppToolResultWriter::
 
     const PDFDocumentToolResult failed = PDFDocumentToolResult::createFailed(result.errorMessage.isEmpty() ? tr("The new document could not be written.") : result.errorMessage);
     setState(State::Editing);
-    if (guard && m_gui)
+    if (m_gui && !PDFDeferredDeletion::isRetired(this))
     {
         m_gui->onRunNotAccepted(failed);
     }
@@ -3012,11 +3029,10 @@ void PDFDocumentToolShell::onSkippedWriteFinished(const PDFAppToolResultWriter::
 
 void PDFDocumentToolShell::finishAccepted(const QByteArray& data)
 {
-    QPointer<PDFDocumentToolShell> guard(this);
     if (m_runner)
     {
         m_runner->endDecision();
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }

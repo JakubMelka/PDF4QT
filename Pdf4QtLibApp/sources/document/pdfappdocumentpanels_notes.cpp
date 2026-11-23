@@ -781,6 +781,7 @@ PDFAppAnnotationController* PDFAppNotesPanel::getController() const
 
 void PDFAppNotesPanel::setDocument(PDFAppDocument* document, PDFAppDocumentView* view)
 {
+    QPointer<PDFAppNotesPanel> guard(this);
     if (m_connectedDocument && m_connectedDocument != document)
     {
         m_connectedDocument->disconnect(this);
@@ -806,10 +807,9 @@ void PDFAppNotesPanel::setDocument(PDFAppDocument* document, PDFAppDocumentView*
     m_connectedDocument = document;
     m_connectedController = controller;
 
-    // A slot of titleChanged (emitted by rebuild) may delete the tab with the panel
-    QPointer<PDFAppNotesPanel> guard(this);
+    // A slot of titleChanged (emitted by rebuild) may close the tab with the panel
     rebuild();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1062,12 +1062,12 @@ bool PDFAppNotesPanel::deleteSelectedNotes()
     // The replies go with their notes (one undo step)
     const std::vector<PDFObjectReference> references = m_model->getThreads(selection);
     controller->setPendingDescription(selection.size() == 1 ? tr("Delete note") : tr("Delete notes"));
-    QPointer<PDFAppAnnotationController> guard(controller);
+    QPointer<PDFAppAnnotationController> controllerGuard(controller);
     const bool isDeleted = manager->deleteAnnotations(references);
-    if (!isDeleted && guard)
+    if (!isDeleted && controllerGuard)
     {
         // Nothing has been committed: the description does not stay for another change
-        guard->setPendingDescription(QString());
+        controller->setPendingDescription(QString());
     }
     return isDeleted;
 }
@@ -1097,11 +1097,11 @@ bool PDFAppNotesPanel::setSelectedNotesHidden(bool hidden)
     }
 
     controller->setPendingDescription(hidden ? tr("Hide on page") : tr("Show on page"));
-    QPointer<PDFAppAnnotationController> guard(controller);
+    QPointer<PDFAppAnnotationController> controllerGuard(controller);
     const bool isChanged = manager->setAnnotationsHidden(references, hidden);
-    if (!isChanged && guard)
+    if (!isChanged && controllerGuard)
     {
-        guard->setPendingDescription(QString());
+        controller->setPendingDescription(QString());
     }
     return isChanged;
 }

@@ -31,6 +31,8 @@
 #include "pdfapprenderingissues.h"
 #include "pdfapproute.h"
 
+#include "pdfdeferreddeletion.h"
+
 #include <QTimer>
 
 namespace pdf
@@ -118,6 +120,7 @@ void PDFAppDocumentPropertiesCommandHandler::showProperties(const QString& secti
 
 void PDFAppDocumentPropertiesCommandHandler::showRenderingIssues()
 {
+    QPointer<PDFAppDocumentPropertiesCommandHandler> guard(this);
     PDFAppDocumentTab* tab = getTab();
     if (!tab || !m_renderingIssues)
     {
@@ -132,9 +135,8 @@ void PDFAppDocumentPropertiesCommandHandler::showRenderingIssues()
 
     // From the page Document properties: the document first, then the popover
     // (after the navigation, which may hide and show widgets)
-    QPointer<PDFAppDocumentPropertiesCommandHandler> guard(this);
     Q_EMIT tab->navigationRequested(PDFAppRoutes::document(tab->getDocumentId()), PDFAppNavigationMode::Push);
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         QTimer::singleShot(0, this, &PDFAppDocumentPropertiesCommandHandler::onDeferredRenderingIssues);
     }

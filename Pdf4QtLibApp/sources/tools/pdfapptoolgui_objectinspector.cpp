@@ -772,13 +772,12 @@ void PDFAppToolGUIObjectInspector::onPreparationFinished()
         return;
     }
 
-    // The new tree chooses its row (onCurrentIndexChanged says the status, whose slots may delete this GUI)
-    QPointer<PDFAppToolGUIObjectInspector> guard(this);
+    // The new tree chooses its row (onCurrentIndexChanged says the status, whose slots may retire this GUI)
     m_inspector = result.inspector;
     const PDFObjectReference selection = m_pendingSelection;
     m_pendingSelection = PDFObjectReference();
     rebuildTree(selection);
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateAll();
     }
@@ -880,10 +879,9 @@ void PDFAppToolGUIObjectInspector::rebuildTree(PDFObjectReference selection)
         return;
     }
 
-    // The signals of the model may delete this GUI (the callers check their guard)
-    QPointer<PDFAppToolGUIObjectInspector> guard(this);
+    // The signals of the model may retire this GUI (the callers check it too)
     m_model->setInspector(m_inspector, getView());
-    if (!guard || !m_model)
+    if (PDFDeferredDeletion::isRetired(this) || !m_model)
     {
         return;
     }
@@ -899,7 +897,7 @@ void PDFAppToolGUIObjectInspector::rebuildTree(PDFObjectReference selection)
         // The restored selection keeps the active tab (a shown pinned tab stays shown, its job goes on - RS7APP L6)
         m_isRestoringSelection = true;
         m_treeView->setCurrentIndex(index);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1205,7 +1203,7 @@ bool PDFAppToolGUIObjectInspector::updateContents()
 
     // 482:14847 "PDF syntax of the object", 482:15358 "Decoded stream data", 482:15559 "Image preview",
     // 482:16403 the error of a filter. The parts without a signal first; the text and the page of the stack emit
-    // (a slot of any signal may delete this GUI): copies of the values, then each followed by the guard
+    // (a slot of any signal may retire this GUI): copies of the values, then each followed by the check of the retired state
     const Tab tab = m_tabs[m_activeTab];
     QString caption = tr("PDF syntax of the object");
     QString text;
@@ -1244,17 +1242,16 @@ bool PDFAppToolGUIObjectInspector::updateContents()
     m_contentsView->setCopyGuarded(tab.kind != ContentKind::Syntax);
     m_contentsView->setFont(tab.kind == ContentKind::Hex ? PDFThemeFonts::getMonospaceFont(QFont::Normal, 12) : PDFThemeFonts::getFont(PDFThemeFonts::Role::Small));
 
-    QPointer<PDFAppToolGUIObjectInspector> guard(this);
     if (page == m_contentsView.data() && m_contentsView->toPlainText() != text)
     {
         m_contentsView->setPlainText(text);
-        if (!guard || !m_contentsStack)
+        if (PDFDeferredDeletion::isRetired(this) || !m_contentsStack)
         {
             return false;
         }
     }
     m_contentsStack->setCurrentWidget(page);
-    return !guard.isNull();
+    return !PDFDeferredDeletion::isRetired(this);
 }
 
 void PDFAppToolGUIObjectInspector::updateRightPanel()
@@ -1369,7 +1366,6 @@ QString PDFAppToolGUIObjectInspector::getStatusText() const
 void PDFAppToolGUIObjectInspector::onParametersChanged(const QString& name)
 {
     using Helper = PDFAppToolGUIObjectInspectorHelper;
-    QPointer<PDFAppToolGUIObjectInspector> guard(this);
     if (name == Helper::name(Helper::Tool::PARAMETER_VIEW))
     {
         // Another view: a new tree with its own set of the opened references (its new row says the status)
@@ -1379,7 +1375,7 @@ void PDFAppToolGUIObjectInspector::onParametersChanged(const QString& name)
         }
         rebuildTree(PDFObjectReference());
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateAll();
     }
@@ -1397,13 +1393,12 @@ void PDFAppToolGUIObjectInspector::onDocumentChanged()
         cancelContentJob();
     }
     m_inspector.reset();
-    QPointer<PDFAppToolGUIObjectInspector> guard(this);
     if (m_model)
     {
         // The reset of the model may change the current row of the tree (its slot says the status)
         m_model->setInspector(nullptr, getView());
     }
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1455,7 +1450,7 @@ void PDFAppToolGUIObjectInspector::onCopyRequested()
         return;
     }
 
-    if (PDFAppDocumentPermissions::request(document, PDFAppPermissionRequest::create(PDFAppPermissionAction::CopyContent), view->window()) && view)
+    if (PDFAppDocumentPermissions::request(document, PDFAppPermissionRequest::create(PDFAppPermissionAction::CopyContent), view->window()) && !PDFDeferredDeletion::isRetired(view))
     {
         view->copySelection();
     }

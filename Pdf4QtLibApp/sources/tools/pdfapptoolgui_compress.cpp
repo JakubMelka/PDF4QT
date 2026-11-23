@@ -607,13 +607,12 @@ void PDFAppToolGUICompress::onPreviewChanged(const PDFDocumentToolResult* previe
     if (!preview)
     {
         // A new version of the document: the runner measures it again; the slots of the
-        // state of the Primary button may delete this GUI
+        // state of the Primary button may retire this GUI
         m_result.reset();
         m_percentage = 0;
         m_stepText.clear();
-        QPointer<PDFAppToolGUICompress> guard(this);
         setMeasureState(MeasureState::Measuring);
-        if (guard)
+        if (!PDFDeferredDeletion::isRetired(this))
         {
             updateStatusText();
         }

@@ -262,6 +262,7 @@ PDFFormManager::FormAppearanceFlags PDFAppFormController::getSettingsFlags(const
 
 void PDFAppFormController::applySettings(const PDFSettingsRepository& settings)
 {
+    QPointer<PDFAppFormController> guard(this);
     PDFWidgetFormManager* formManager = getFormManager();
     if (!formManager)
     {
@@ -279,9 +280,8 @@ void PDFAppFormController::applySettings(const PDFSettingsRepository& settings)
     }
 
     // The editors are created again: an open editor is committed (one undo step)
-    QPointer<PDFAppFormController> guard(this);
     formManager->setAppearanceFlags(flags);
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -327,6 +327,7 @@ bool PDFAppFormController::hasPendingEdits() const
 
 bool PDFAppFormController::closeEditor()
 {
+    QPointer<PDFAppFormController> guard(this);
     PDFWidgetFormManager* formManager = getFormManager();
     if (!formManager || !formManager->getFocusedWidget().isValid())
     {
@@ -334,10 +335,9 @@ bool PDFAppFormController::closeEditor()
     }
 
     // The value is committed by the form manager (documentModified, the annotation
-    // controller commits it): the slots may delete the tab and this controller
-    QPointer<PDFAppFormController> guard(this);
+    // controller commits it): the slots may close the tab and this controller
     formManager->setFocusToEditor(nullptr);
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         updatePendingEdits();
     }
@@ -417,6 +417,7 @@ void PDFAppFormController::ensureFocusedFieldVisible()
 
 bool PDFAppFormController::eventFilter(QObject* watched, QEvent* event)
 {
+    QPointer<PDFAppFormController> guard(this);
     if (watched == m_drawWidget)
     {
         switch (event->type())
@@ -439,9 +440,8 @@ bool PDFAppFormController::eventFilter(QObject* watched, QEvent* event)
                 PDFWidgetFormManager* formManager = getFormManager();
                 if (formManager && formManager->getFocusedWidget().isValid() && !formManager->isEditorAt(m_drawWidget.data(), mouseEvent->position().toPoint()))
                 {
-                    QPointer<PDFAppFormController> guard(this);
                     closeEditor();
-                    if (!guard)
+                    if (!guard || PDFDeferredDeletion::isRetired(this))
                     {
                         return false;
                     }
@@ -462,9 +462,8 @@ bool PDFAppFormController::eventFilter(QObject* watched, QEvent* event)
                 const QFocusEvent* focusEvent = static_cast<const QFocusEvent*>(event);
                 if (PDFAppFormControllerHelper::isFocusLeavingCanvas(focusEvent->reason()))
                 {
-                    QPointer<PDFAppFormController> guard(this);
                     closeEditor();
-                    if (!guard)
+                    if (!guard || PDFDeferredDeletion::isRetired(this))
                     {
                         return false;
                     }
@@ -499,6 +498,7 @@ void PDFAppFormController::scheduleUpdate()
 
 void PDFAppFormController::performUpdate()
 {
+    QPointer<PDFAppFormController> guard(this);
     m_isUpdateScheduled = false;
 
     // A field focused by the keyboard is scrolled into view
@@ -511,9 +511,8 @@ void PDFAppFormController::performUpdate()
         ensureFocusedFieldVisible();
     }
 
-    QPointer<PDFAppFormController> guard(this);
     updatePendingEdits();
-    if (guard && m_isInfoBarUpdateNeeded)
+    if (guard && !PDFDeferredDeletion::isRetired(this) && m_isInfoBarUpdateNeeded)
     {
         updateInfoBars();
     }
@@ -537,6 +536,8 @@ void PDFAppFormController::updatePendingEdits()
     document->setPendingEdits(hasPendingEdits);
     if (PDFAppDocumentTab* tab = m_view ? m_view->getTab() : nullptr)
     {
+        // Only the own flag follows the signal
+        // (the guard stays for the synchronous deletions of the tests)
         m_isUpdatingPendingEdits = true;
         QPointer<PDFAppFormController> guard(this);
         Q_EMIT tab->commandStatesChanged();

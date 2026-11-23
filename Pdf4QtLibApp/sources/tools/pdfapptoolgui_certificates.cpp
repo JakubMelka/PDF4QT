@@ -728,11 +728,12 @@ void PDFAppToolGUICertificates::buildCanvas()
         return;
     }
 
-    // The old content goes later: it may hold the sender of the change
+    // The old content is retired from the event loop: it may hold the sender of the change. Taken out of the scroll
+    // area it has no parent: it belongs to this GUI until then (a retire of the tool meanwhile retires it too)
     if (QWidget* old = m_canvasPage->takeWidget())
     {
-        old->hide();
-        old->deleteLater();
+        PDFDeferredDeletion::setOwner(old, this);
+        PDFDeferredDeletion::retireLater(old);
     }
     m_rows.clear();
 
@@ -1067,13 +1068,12 @@ void PDFAppToolGUICertificates::rebuildRows()
 {
     using Helper = PDFAppToolGUICertificatesHelper;
 
-    // The old rows go later: one of them may be the sender of the click, which leads here
+    // The old rows are retired from the event loop: one of them may be the sender of the click, which leads here
     for (const QPointer<PDFTileRow>& row : m_rows)
     {
         if (row)
         {
-            row->hide();
-            row->deleteLater();
+            PDFDeferredDeletion::retireLater(row.data());
         }
     }
     m_rows.clear();
@@ -1621,9 +1621,8 @@ void PDFAppToolGUICertificates::onTrustedFileChosen(const QString& filePath)
     }
 
     // The commit notifies the database at once (PDFDatabaseNotifier): code of the application runs
-    QPointer<PDFAppToolGUICertificates> guard(this);
     const PDFDatabaseError error = repository.addCertificate(der);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1812,9 +1811,8 @@ void PDFAppToolGUICertificates::onDeleteConfirmed()
         // The row of the certificate cache goes with its file
         if (getContext() && getContext()->getDatabase())
         {
-            QPointer<PDFAppToolGUICertificates> guard(this);
             PDFCertificateCacheRepository(getContext()->getDatabase()).remove(PDFRepositoryHelper::normalizePath(filePath));
-            if (!guard)
+            if (PDFDeferredDeletion::isRetired(this))
             {
                 return;
             }
@@ -1850,9 +1848,8 @@ void PDFAppToolGUICertificates::onRemoveTrustedConfirmed()
     // Only the row with the data, which the user confirmed (removeRows checks them)
     const PDFAppCertificateEntry entry = PDFAppCertificateEntry::create(PDFAppCertificateEntry::Type::User, row->id, row->data);
     PDFTrustedCertificateRepository repository(getContext()->getDatabase());
-    QPointer<PDFAppToolGUICertificates> guard(this);
     const PDFDatabaseError error = repository.removeRows({ *row });
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1890,9 +1887,8 @@ void PDFAppToolGUICertificates::onCopyClicked()
     QString error;
     const QString filePath = item->filePath;
     item = nullptr;
-    QPointer<PDFAppToolGUICertificates> guard(this);
     const QString copyPath = PDFAppToolCertificateProvider(getContext()).copyToApplicationFolder(filePath, &error);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }

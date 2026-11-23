@@ -24,6 +24,7 @@
 #include "pdfappdocument.h"
 #include "pdfappdocumentpanels_thumbnails.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfsecurityhandler.h"
 
 #include <QBuffer>
@@ -478,13 +479,12 @@ PDFAppToolInputList::AddResult PDFAppToolInputList::addFile(const QString& fileP
 
 std::vector<PDFAppToolInputList::AddResult> PDFAppToolInputList::addFiles(const QStringList& filePaths)
 {
-    // Each addition emits: the list may be deleted by a slot
-    QPointer<PDFAppToolInputList> guard(this);
+    // Each addition emits: the list may be closed by a slot (retired: it reads no more files)
     std::vector<AddResult> results;
     for (const QString& filePath : filePaths)
     {
         results.push_back(addFile(filePath));
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             break;
         }
@@ -912,11 +912,11 @@ void PDFAppToolInputList::setAcceptedInputs(int maximum, bool acceptsPdf, bool a
     }
 
     advanceGeneration();
-    QPointer<PDFAppToolInputList> guard(this);
     for (const QString& id : changedIds)
     {
+        // A list closed by a slot (retired) tells nothing more
         Q_EMIT inputChanged(id);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }

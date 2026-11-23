@@ -274,21 +274,20 @@ PDFInteger PDFAppToolDrawingElementList::getElementId(const PDFTileRow* row)
 
 void PDFAppToolDrawingElementList::rebuild()
 {
-    // The old rows go later: one of them may be the sender of the click, which leads here
+    // The old rows are retired from the event loop (step A: a rebuilt row): one of them may be the sender of the
+    // click, which leads here
     for (const QPointer<PDFTileRow>& row : m_rows)
     {
         if (row)
         {
-            row->hide();
-            row->deleteLater();
+            PDFDeferredDeletion::retireLater(row.data());
         }
     }
     for (const QPointer<PDFTileRow>& caption : m_captions)
     {
         if (caption)
         {
-            caption->hide();
-            caption->deleteLater();
+            PDFDeferredDeletion::retireLater(caption.data());
         }
     }
     m_rows.clear();
@@ -807,9 +806,10 @@ PDFAppToolDrawingPart::~PDFAppToolDrawingPart()
 
 void PDFAppToolDrawingPart::retire()
 {
-    // The scene leaves the view at once (the proxy and the widget forget it, the creation tools leave the tool
-    // manager); detachFromView reports nothing (m_isDetaching). The form of a text and the error message are
-    // owned by the part (setOwner) and close with it.
+    // The scene leaves the view at once (the proxy and the widget forget it, the active creation tool ends);
+    // detachFromView reports nothing (m_isDetaching). The creation tools stay children of the part (a hook never
+    // moves an object out of the retired subtree): retire shuts them down with the part, they are deleted with it
+    // (deleteTools). The form of a text and the error message are owned by the part (setOwner) and close with it.
     detachFromView();
 }
 
@@ -1112,12 +1112,37 @@ void PDFAppToolDrawingPart::deleteTools()
         }
     }
     // A tool may be inside of its own call (this part is deleted from a signal emitted by it, PDFCreatePCElementDotTool::
-    // onPointPicked goes on with its members): it is deleted later, the manager forgets it at its destroyed
+    // onPointPicked goes on with its members): it is deleted later, the manager forgets it at its destroyed. In the
+    // hook of retire (step A) the tool stays a child of the part (a hook never moves an object out of the retired
+    // subtree): its signals into the manager are cut now (the manager keeps its entry until its destroyed), retire
+    // shuts it down with the part and it is deleted with the part.
+    const bool isRetiring = isRetireHookCalled();
     for (auto& item : m_tools)
     {
         if (item.second)
         {
             disconnect(item.second.data(), nullptr, this, nullptr);
+            if (isRetiring)
+            {
+                if (m_toolManager)
+                {
+                    disconnect(item.second.data(), &PDFWidgetTool::toolActivityChanged, m_toolManager.data(), nullptr);
+                    disconnect(item.second.data(), &PDFWidgetTool::messageDisplayRequest, m_toolManager.data(), nullptr);
+                }
+                if (m_proxy)
+                {
+                    // The pick tool of a creation tool follows the draw space of the proxy (Pdf4QtLibWidgets connects
+                    // it directly, outside of the helper): the retired tools take no more of its signals
+                    QList<QObject*> objects = item.second->findChildren<QObject*>();
+                    objects.push_back(item.second.data());
+                    for (QObject* object : objects)
+                    {
+                        disconnect(m_proxy.data(), &PDFDrawWidgetProxy::drawSpaceChanged, object, nullptr);
+                        disconnect(m_proxy.data(), &PDFDrawWidgetProxy::pageImageChanged, object, nullptr);
+                    }
+                }
+                continue;
+            }
             item.second->setParent(nullptr);
             item.second->deleteLater();
         }
@@ -1702,9 +1727,8 @@ void PDFAppToolDrawingPart::onSvgFileChosen(const QString& filePath)
     // cannot be used, says why (review RS6APP: the reason was dropped) - the message is the last call; a canceled
     // dialog gives the button its state back.
     QString errorMessage;
-    QPointer<PDFAppToolDrawingPart> guard(this);
     const bool isStarted = !filePath.isEmpty() && m_isActionsEnabled && m_isInputEnabled && useSvgFile(filePath, &errorMessage);
-    if (!guard || isStarted)
+    if (isStarted || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -2082,16 +2106,13 @@ void PDFAppToolDrawingPart::setInputEnabled(bool isEnabled)
         }
     }
 
-    // The tool manager tells the view (its slots run): the part may be gone after it
-    QPointer<PDFAppToolDrawingPart> guard(this);
+    // The tool manager tells the view (its slots run; a part closed by them is retired, deleted later): only the own
+    // actions follow
     if (!isEnabled && m_toolManager && getActiveElementKind())
     {
         m_toolManager->setActiveTool(nullptr);
     }
-    if (guard)
-    {
-        updateActions();
-    }
+    updateActions();
 }
 
 void PDFAppToolDrawingPart::showSvgError(const QString& errorMessage)
@@ -2239,8 +2260,8 @@ void PDFAppToolDrawingPart::onSceneChangeQueued()
         return;
     }
 
-    // One step of the model per change of the user (the model emits changed, the GUI follows it)
-    QPointer<PDFAppToolDrawingPart> guard(this);
+    // One step of the model per change of the user (the model emits changed, the GUI follows it; a part retired by
+    // it tells nothing more)
     const PDFPageDrawing drawing = toDrawing();
     if (drawing.isEmpty() && m_lastWrittenDrawing.isEmpty())
     {
@@ -2259,7 +2280,7 @@ void PDFAppToolDrawingPart::onSceneChangeQueued()
         }
         m_lastWrittenDrawing = drawing;
         m_model->setValue(m_parameter, QVariant::fromValue(drawing));
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }

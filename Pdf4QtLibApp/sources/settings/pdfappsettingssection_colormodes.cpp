@@ -443,6 +443,7 @@ void PDFAppColorModesSettingsSection::refresh(const QString& topic, const QStrin
 
 void PDFAppColorModesSettingsSection::commitPendingValues()
 {
+    // A retired section goes on (PA6: the hook retire() of the page writes the pending values - not cut by isRetired)
     QPointer<PDFAppColorModesSettingsSection> guard(this);
     BaseClass::commitPendingValues();
     if (guard)

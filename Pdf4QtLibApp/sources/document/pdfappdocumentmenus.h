@@ -213,7 +213,7 @@ private:
     void onViewStateChanged();
     void onCommandButtonClicked();
     void onHiddenQueued(quint64 openCount);
-    void onAnchorDestroyed();
+    void onAnchorAboutToBeDeleted();
     void watchAnchor(bool watch);
     void updateTexts();
 
@@ -240,7 +240,7 @@ private:
     static int s_maximumPanelHeight;            ///< setMaximumPanelHeight
     QPointer<QWidget> m_anchor;
     QPointer<QWidget> m_anchorWindow;
-    QMetaObject::Connection m_anchorDestroyed;
+    QMetaObject::Connection m_anchorDeletedConnection;      ///< aboutToBeDeleted of the notifier of the anchor
     std::map<QString, QPointer<QAbstractButton>> m_commandButtons;
     std::vector<std::pair<QPointer<QWidget>, const char*>> m_texts;
     const char* m_titleText = nullptr;

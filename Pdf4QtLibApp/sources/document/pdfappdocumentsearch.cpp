@@ -307,6 +307,7 @@ bool PDFAppDocumentSearchCommandHandler::isChecked(const QString& commandId) con
 
 void PDFAppDocumentSearchCommandHandler::startSearch(const QString& text)
 {
+    QPointer<PDFAppDocumentSearchCommandHandler> guard(this);
     connectSearchField();
 
     // The text of the route or of the field is untrusted: it is bounded by the
@@ -322,12 +323,12 @@ void PDFAppDocumentSearchCommandHandler::startSearch(const QString& text)
         return;
     }
 
-    QPointer<PDFAppDocumentSearchCommandHandler> guard(this);
+    // A slot of the change of the panel may close the tab: a retired handler searches nothing
     if (PDFAppDocumentView* view = getView(); view && m_searchController)
     {
         view->showPanel(PDFAppDocumentPanelIds::search());
     }
-    if (!guard || !m_searchController)
+    if (!guard || PDFDeferredDeletion::isRetired(this) || !m_searchController)
     {
         return;
     }
@@ -342,7 +343,7 @@ void PDFAppDocumentSearchCommandHandler::closeSearch()
     {
         m_searchController->clear();
     }
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -352,7 +353,7 @@ void PDFAppDocumentSearchCommandHandler::closeSearch()
     {
         m_searchField->clear();
     }
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         hideResults();
     }
@@ -366,17 +367,17 @@ void PDFAppDocumentSearchCommandHandler::hideResults()
         return;
     }
 
-    // The change of the panel runs the slots of the application, which may delete the
+    // The change of the panel runs the slots of the application, which may close the
     // tab with the view and this handler: the panel to show is a copy, the view is asked
     // again after each change. A panel, which has lost its content, gives way to the
     // thumbnails.
     const QString previousPanelId = m_previousPanelId.isEmpty() ? PDFAppDocumentPanelIds::thumbnails() : m_previousPanelId;
     view->showPanel(previousPanelId);
-    if (view && view->getCurrentPanelId() == PDFAppDocumentPanelIds::search() && previousPanelId != PDFAppDocumentPanelIds::thumbnails())
+    if (view && !PDFDeferredDeletion::isRetired(view.data()) && view->getCurrentPanelId() == PDFAppDocumentPanelIds::search() && previousPanelId != PDFAppDocumentPanelIds::thumbnails())
     {
         view->showPanel(PDFAppDocumentPanelIds::thumbnails());
     }
-    if (view && view->getPdfWidget())
+    if (view && !PDFDeferredDeletion::isRetired(view.data()) && view->getPdfWidget())
     {
         view->getPdfWidget()->setFocus(Qt::OtherFocusReason);
     }
@@ -392,15 +393,15 @@ bool PDFAppDocumentSearchCommandHandler::isResultsPanelShown() const
 
 bool PDFAppDocumentSearchCommandHandler::showResultsPanel()
 {
+    QPointer<PDFAppDocumentSearchCommandHandler> guard(this);
     PDFAppDocumentView* view = getView();
     if (!view || isResultsPanelShown())
     {
         return true;
     }
 
-    QPointer<PDFAppDocumentSearchCommandHandler> guard(this);
     view->showPanel(PDFAppDocumentPanelIds::search());
-    return !guard.isNull();
+    return guard && !PDFDeferredDeletion::isRetired(this);
 }
 
 QString PDFAppDocumentSearchCommandHandler::getSearchText() const
@@ -509,14 +510,14 @@ void PDFAppDocumentSearchCommandHandler::onSidebarTabClicked(const QString& pane
 
 void PDFAppDocumentSearchCommandHandler::onSearchStateChanged()
 {
-    const QString text = m_searchController ? m_searchController->getQuery() : QString();
     QPointer<PDFAppDocumentSearchCommandHandler> guard(this);
+    const QString text = m_searchController ? m_searchController->getQuery() : QString();
     if (text != m_searchText)
     {
         m_searchText = text;
         Q_EMIT searchTextChanged();
     }
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT stateChanged();
     }

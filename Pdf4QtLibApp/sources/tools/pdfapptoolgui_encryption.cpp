@@ -928,11 +928,12 @@ void PDFAppToolGUIEncryption::buildForm()
         return;
     }
 
-    // The old form goes later: it may hold the sender of the change
+    // The old form is retired from the event loop: it may hold the sender of the change. Taken out of the scroll area
+    // it has no parent: it belongs to this GUI until then (a retire of the tool meanwhile retires it too)
     if (QWidget* old = m_canvasPage->takeWidget())
     {
-        old->hide();
-        old->deleteLater();
+        PDFDeferredDeletion::setOwner(old, this);
+        PDFDeferredDeletion::retireLater(old);
     }
 
     const Mode mode = getMode();
@@ -1629,9 +1630,8 @@ void PDFAppToolGUIEncryption::updateCallouts()
 void PDFAppToolGUIEncryption::notifyStateChanged()
 {
     // The Primary button and the status bar read the parts; both emit (the last calls)
-    QPointer<PDFAppToolGUIEncryption> guard(this);
     updateConfirmState();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }
@@ -1981,12 +1981,11 @@ void PDFAppToolGUIEncryption::onPresetRowClicked()
     const Preset preset = static_cast<Preset>(row->property(PDFAppToolGUIEncryptionHelper::PRESET_PROPERTY).toInt());
 
     // The panel closes first: the change of the values may start anything
-    QPointer<PDFAppToolGUIEncryption> guard(this);
     if (m_presetPanel)
     {
         m_presetPanel->close();
     }
-    if (guard && getModel())
+    if (!PDFDeferredDeletion::isRetired(this) && getModel())
     {
         getModel()->setValues(PDFDocumentToolEncryption::getPresetValues(preset));
     }

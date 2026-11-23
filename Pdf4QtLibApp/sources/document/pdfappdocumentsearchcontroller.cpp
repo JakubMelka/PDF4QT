@@ -35,6 +35,7 @@
 #include "pdfpainterutils.h"
 
 #include "pdfcomponentdelegates.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfthememanager.h"
 
 #include <QPainter>
@@ -391,7 +392,7 @@ void PDFAppDocumentSearchController::search(const QString& query)
     if (query != m_query)
     {
         dropResults();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -425,9 +426,9 @@ void PDFAppDocumentSearchController::searchAgain()
     else
     {
         // The indexer announces a started build (buildingChanged): a slot may
-        // delete the tab and this controller with it
+        // close the tab and this controller with it: a retired controller starts no search
         const bool isIndexReady = m_indexer->requestIndex();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -446,7 +447,7 @@ void PDFAppDocumentSearchController::searchAgain()
         }
     }
 
-    if (guard && m_state == oldState)
+    if (guard && !PDFDeferredDeletion::isRetired(this) && m_state == oldState)
     {
         Q_EMIT stateChanged();
     }
@@ -486,7 +487,7 @@ void PDFAppDocumentSearchController::clear()
     {
         Q_EMIT currentIndexChanged(-1);
     }
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT stateChanged();
     }
@@ -505,7 +506,7 @@ void PDFAppDocumentSearchController::setOptions(const PDFDocumentTextSearchOptio
         // The results of the old options are not shown during the new search
         QPointer<PDFAppDocumentSearchController> guard(this);
         dropResults();
-        if (guard)
+        if (guard && !PDFDeferredDeletion::isRetired(this))
         {
             searchAgain();
         }
@@ -636,7 +637,7 @@ void PDFAppDocumentSearchController::onSearchFinished()
     QPointer<PDFAppDocumentSearchController> guard(this);
     m_state = m_error.isEmpty() ? State::Finished : State::Failed;
     Q_EMIT stateChanged();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }

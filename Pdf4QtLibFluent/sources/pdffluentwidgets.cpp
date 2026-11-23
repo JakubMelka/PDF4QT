@@ -1861,7 +1861,10 @@ PDFCalendarWidget::PDFCalendarWidget(QWidget* parent) :
 #endif
         connect(m_monthButton.data(), &QAbstractButton::pressed, this, &PDFCalendarWidget::onMonthButtonPressed);
         m_monthMenuHiddenConnection = connect(m_monthMenu.data(), &QMenu::aboutToHide, this, &PDFCalendarWidget::onMonthMenuHidden);
-        m_monthMenuDestroyedConnection = connect(m_monthMenu.data(), &QObject::destroyed, this, &PDFCalendarWidget::onMonthMenuHidden);
+
+        // The end of the menu (retired or deleted; a retired menu sends no aboutToHide): its notifier is a
+        // descendant of the calendar, so the connection is a plain one
+        m_monthMenuDeletedConnection = connect(PDFDeferredDeletion::getNotifier(m_monthMenu.data()), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFCalendarWidget::onMonthMenuAboutToBeDeleted);
     }
 
     // The editor of the year is a QSpinBox of Qt: its context menu (QAbstractSpinBox shows it by
@@ -1882,7 +1885,7 @@ PDFCalendarWidget::~PDFCalendarWidget()
     // The menu of the months is deleted with the button by ~QWidget, when the calendar is
     // only a QWidget: its signals must not reach the calendar any more
     disconnect(m_monthMenuHiddenConnection);
-    disconnect(m_monthMenuDestroyedConnection);
+    disconnect(m_monthMenuDeletedConnection);
 }
 
 QMenu* PDFCalendarWidget::getMonthMenu() const
@@ -1934,6 +1937,15 @@ void PDFCalendarWidget::onMonthMenuHidden()
         {
             m_monthButton->update();
         }
+    }
+}
+
+void PDFCalendarWidget::onMonthMenuAboutToBeDeleted()
+{
+    // A calendar retired with its menu needs nothing (the retire hides it)
+    if (!PDFDeferredDeletion::isRetired(this))
+    {
+        onMonthMenuHidden();
     }
 }
 

@@ -32,6 +32,7 @@
 #include "pdfappdocumentcommands.h"
 #include "pdfappdocumentdialogs.h"
 #include "pdfappdocumentloader.h"
+#include "pdfappleaveflow.h"
 #include "pdfappdocumentpage.h"
 #include "pdfappdocumentregistry.h"
 #include "pdfappdocumentstatusbar.h"
@@ -481,6 +482,7 @@ private slots:
     void undoStack();
     void undoMemoryLimit();
     void retiredDocumentRefusesChanges();
+    void operationOfRetiredDocument();
     void operations();
     void lockAndPopover();
     void lockStoredInRecent();
@@ -513,6 +515,8 @@ private slots:
     void deletionDuringDialogs();
     void deletionFromOwnSignals_data();
     void deletionFromOwnSignals();
+    void retireFromOwnSignals_data();
+    void retireFromOwnSignals();
     void hostileInput();
     void stateScreenGeometry();
     void loadingCardGeometry();
@@ -1451,6 +1455,32 @@ void AppDocumentTest::retiredDocumentRefusesChanges()
     QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     QVERIFY(document.isNull());
     QVERIFY(tab.isNull());
+}
+
+void AppDocumentTest::operationOfRetiredDocument()
+{
+    // A slot of operationsChanged closes the tab (PA6: retire, the document stays whole until the event loop):
+    // the caller gets no operation, so it starts no work for the closed document
+    QPointer<QObject> tab = new QObject();
+    QPointer<pdf::PDFAppDocument> document = new pdf::PDFAppDocument(nullptr, tab);
+    QObject receiver;
+    QObject::connect(document.data(), &pdf::PDFAppDocument::operationsChanged, &receiver, [&tab]() { pdf::PDFDeferredDeletion::retire(tab.data()); });
+    QVERIFY(document->beginOperation(pdf::PDFAppDocumentOperationKind::Print, QStringLiteral("Printing"), false) == nullptr);
+    QVERIFY(document);
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(document.data()));
+
+    // The document of an open tab gives its operation
+    QPointer<QObject> openTab = new QObject();
+    QPointer<pdf::PDFAppDocument> openDocument = new pdf::PDFAppDocument(nullptr, openTab);
+    QPointer<pdf::PDFAppDocumentOperation> operation = openDocument->beginOperation(pdf::PDFAppDocumentOperationKind::Print, QStringLiteral("Printing"), false);
+    QVERIFY(operation);
+    QCOMPARE(openDocument->getOperations().size(), size_t(1));
+    operation->finish();
+    pdf::PDFDeferredDeletion::retire(openTab.data());
+
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QVERIFY(tab.isNull());
+    QVERIFY(openTab.isNull());
 }
 
 void AppDocumentTest::operations()
@@ -2811,6 +2841,75 @@ void AppDocumentTest::deletionFromOwnSignals()
         QVERIFY(fixture.open(pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("After.pdf"), 1)));
         fixture.closeMessageBoxes();
     }
+}
+
+void AppDocumentTest::retireFromOwnSignals_data()
+{
+    QTest::addColumn<QString>("signal");
+    QTest::newRow("lockFlowFinished") << QStringLiteral("lockFlowFinished");
+    QTest::newRow("passwordLoading") << QStringLiteral("passwordLoading");
+}
+
+void AppDocumentTest::retireFromOwnSignals()
+{
+    // The retire variant of deletionFromOwnSignals (RD6-H1): a slot closes the tab by retire (inert, deleted later)
+    // inside the flow, and the work after the signal leaves the closed tab alone.
+    // - lockFlowFinished: the end of the flow of the lock (its finished) closes the tab: the document of the closed
+    //   tab is not locked;
+    // - passwordLoading: the document announces the reading of the password (Loading) and the window closes the tab:
+    //   no reading starts.
+    QFETCH(QString, signal);
+    pdftest::AppDocumentFixture fixture;
+    const bool isPassword = signal == QStringLiteral("passwordLoading");
+    const QString file = isPassword ? pdftest::AppDocumentSamples::userPassword(fixture.folder())
+                                    : pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Retired by own signal.pdf"), 2);
+    QPointer<pdf::PDFAppDocumentTab> tab = fixture.open(file);
+    QVERIFY(tab);
+    QPointer<pdf::PDFAppDocument> document = tab->getDocument();
+    QVERIFY(document);
+    fixture.settle();
+    QObject receiver;
+    bool isRetiredInSlot = false;
+
+    if (isPassword)
+    {
+        QCOMPARE(document->getState(), pdf::PDFAppDocumentState::PasswordRequired);
+        connect(document, &pdf::PDFAppDocument::stateChanged, &receiver, [&]()
+        {
+            if (tab && !isRetiredInSlot && document->getState() == pdf::PDFAppDocumentState::Loading)
+            {
+                isRetiredInSlot = fixture.retire(tab.data()) && pdf::PDFDeferredDeletion::isRetired(tab.data());
+            }
+        });
+        QVERIFY(tab->getLoader()->setPassword(pdftest::AppDocumentSamples::getUserPassword()));
+        QVERIFY(isRetiredInSlot);
+        QVERIFY(!tab->getLoader()->isRunning());
+    }
+    else
+    {
+        // A direct retire: the window refuses a close while the flow of the lock runs
+        QVERIFY(document->isReady() && !document->isLocked());
+        connect(tab->getLeaveFlow(), &pdf::PDFAppLeaveFlow::finished, &receiver, [&]()
+        {
+            if (tab && !isRetiredInSlot)
+            {
+                pdf::PDFDeferredDeletion::retire(tab.data());
+                isRetiredInSlot = pdf::PDFDeferredDeletion::isRetired(tab.data());
+            }
+        });
+        QAction* lock = fixture.window->getCommandAction(pdf::PDFAppCommands::lockDocument());
+        QVERIFY(lock && lock->isEnabled());
+        lock->trigger();
+        QVERIFY(isRetiredInSlot);
+        QVERIFY(document);
+        QVERIFY(!document->isLocked());
+    }
+
+    fixture.settle();
+    QThreadPool::globalInstance()->waitForDone(30000);
+    fixture.settle();
+    QVERIFY(!tab);
+    QVERIFY(!AppDocumentTestHelper::recent(fixture, QFileInfo(file).canonicalFilePath()).locked);
 }
 
 void AppDocumentTest::hostileInput()

@@ -32,6 +32,7 @@
 #include "pdfcomponentbadges.h"
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemefonts.h"
 #include "pdfwidgetstyleproperties.h"
@@ -196,10 +197,12 @@ void PDFAppNameDialog::onActionClicked()
         return;
     }
 
+    // The name is written by the owner of the dialog (application code): a dialog deleted (with the window) or closed
+    // by it (retired, step A) gives no answer
     QString error;
     QPointer<PDFAppNameDialog> guard(this);
     const bool isSubmitted = submitName(m_nameField->text(), &error);
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }

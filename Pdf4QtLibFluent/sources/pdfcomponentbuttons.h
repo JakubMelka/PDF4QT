@@ -655,12 +655,15 @@ private:
     void updateText();
     void disconnectMenu();
     void onMenuClosed();
+    /// Slot of PDFLifetimeNotifier::aboutToBeDeleted of the shown menu (retired or deleted): the button is released
+    /// (nothing, when the button itself is retired)
+    void onMenuAboutToBeDeleted();
     void onClicked();
 
     QPointer<QMenu> m_menu;
     QString m_text;
     QMetaObject::Connection m_menuHiddenConnection;
-    QMetaObject::Connection m_menuDestroyedConnection;
+    QMetaObject::Connection m_menuDeletedConnection;
 };
 
 /// Predefined color (component Color swatch): a circle of 28 px with the color

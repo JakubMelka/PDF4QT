@@ -154,8 +154,8 @@ PDFAppAnnotationGeometryDialog::PDFAppAnnotationGeometryDialog(PDFAppAnnotationC
     connect(this, &QDialog::finished, this, &PDFAppAnnotationGeometryDialog::onDialogFinished);
     if (controller)
     {
-        // The tab (with its controller) deleted: the dialog closes
-        connect(controller, &QObject::destroyed, this, &PDFAppAnnotationGeometryDialog::onControllerDestroyed);
+        // The controller closed (retire, aboutToBeDeleted of its notifier) or deleted: the dialog closes
+        PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(controller), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppAnnotationGeometryDialog::onControllerDestroyed);
 
         // Parented to the window, the dialog belongs to the controller (it closes with the tab)
         PDFDeferredDeletion::setOwner(this, controller);
@@ -386,10 +386,13 @@ void PDFAppAnnotationGeometryDialog::retranslate()
     const bool isRectangleChanged = m_isRectangleChanged;
     const bool isPointsChanged = m_isPointsChanged;
 
+    // Out of the tree of the dialog (the new body takes its place), still owned by the dialog: a retire of
+    // the dialog meanwhile takes it along, until the event loop retires it (its editors stay connected)
     m_pointFields.clear();
     oldScrollArea->hide();
     oldScrollArea->setParent(nullptr);
-    oldScrollArea->deleteLater();
+    PDFDeferredDeletion::setOwner(oldScrollArea, this);
+    PDFDeferredDeletion::retireLater(oldScrollArea);
 
     createBody();
     m_isUpdating = true;
@@ -682,6 +685,7 @@ void PDFAppAnnotationGeometryDialog::onPointFieldChanged()
 
 bool PDFAppAnnotationGeometryDialog::apply()
 {
+    QPointer<PDFAppAnnotationGeometryDialog> guard(this);
     PDFAppAnnotationController* controller = m_controller.data();
     PDFAppDocument* document = controller ? controller->getDocument() : nullptr;
     if (!controller || !document || !controller->isAnnotationEditingAllowed())
@@ -739,9 +743,8 @@ bool PDFAppAnnotationGeometryDialog::apply()
         return true;
     }
 
-    QPointer<PDFAppAnnotationGeometryDialog> guard(this);
     const bool isCommitted = controller->commit(PDFModifiedDocument(current, nullptr, flags), PDFAppAnnotationChangeKind::Annotation, tr("Change geometry"));
-    if (guard && isCommitted)
+    if (isCommitted && guard && !PDFDeferredDeletion::isRetired(this))
     {
         m_isApplied = true;
         accept();
@@ -773,13 +776,19 @@ void PDFAppAnnotationGeometryDialog::onDocumentChanged()
 
 void PDFAppAnnotationGeometryDialog::onControllerDestroyed()
 {
-    // The sender is dying: only the own state is changed, the dialog goes from the event loop
+    // A dialog retired with its controller (setOwner) is closed by the retire. Otherwise nothing of the
+    // controller is used: the dialog is rejected and retired.
+    if (PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
+
     m_controller = nullptr;
     if (isVisible())
     {
         reject();
     }
-    deleteLater();
+    PDFDeferredDeletion::retire(this);
 }
 
 void PDFAppAnnotationGeometryDialog::onDialogFinished(int result)

@@ -318,8 +318,9 @@ void PDFAppTextBoxPopup::createAlignmentControl()
         currentIndex = oldControl->getCurrentIndex();
         hadFocus = oldControl->hasFocus();
         layout->removeWidget(oldControl);
-        oldControl->hide();
-        oldControl->deleteLater();
+
+        // Shown content replaced (the language changed, never from a signal of the control): retired at once
+        PDFDeferredDeletion::retire(oldControl);
     }
 
     // segments 1168:26540: Left / Center / Right with the icons, 84 each
@@ -1083,6 +1084,7 @@ void PDFAppPageLinkTargetMenu::updateState()
 
 void PDFAppPageLinkTargetMenu::popup(QWidget* anchor, DestinationType type, bool keepZoom, PDFReal zoom)
 {
+    QPointer<PDFAppPageLinkTargetMenu> guard(this);
     using H = PDFAppAnnotationCreateDialogsHelper;
 
     if (!anchor || !anchor->isVisible())
@@ -1133,10 +1135,10 @@ void PDFAppPageLinkTargetMenu::popup(QWidget* anchor, DestinationType type, bool
     setFixedSize(panel.size().grownBy(margins));
     move(panel.topLeft() - QPoint(margins.left(), margins.top()));
 
-    QPointer<PDFAppPageLinkTargetMenu> guard(this);
     show();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
+        // A slot of the show has closed the menu: it takes no window activation and no focus
         return;
     }
     activateWindow();
@@ -1174,6 +1176,7 @@ QRect PDFAppPageLinkTargetMenu::getPanelRect() const
 
 void PDFAppPageLinkTargetMenu::onItemClicked()
 {
+    QPointer<PDFAppPageLinkTargetMenu> guard(this);
     // The rows do not identify themselves in the signal
     const PDFAppPageLinkTargetItem* item = qobject_cast<const PDFAppPageLinkTargetItem*>(sender());
     if (!item)
@@ -1185,9 +1188,8 @@ void PDFAppPageLinkTargetMenu::onItemClicked()
     updateState();
     const DestinationType type = m_type;
     const bool keepZoom = isKeepZoom();
-    QPointer<PDFAppPageLinkTargetMenu> guard(this);
     hide();
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT targetChosen(type, keepZoom);
     }

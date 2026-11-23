@@ -260,22 +260,19 @@ void PDFAppToolEnumMenu::onRowClicked()
     const QVariant value = row->property(PDFAppToolPanelBuilderHelper::ROW_KEY_PROPERTY);
 
     // The panel closes first: a change of a parameter may start anything; the store is held here,
-    // the write may delete this menu with its member
-    QPointer<PDFAppToolEnumMenu> guard(this);
+    // the write may close this menu with its member (a menu retired by the close of the panel writes nothing)
     const std::shared_ptr<PDFAppValueStore> store = m_store;
     if (m_panel && m_parameters.size() == 1)
     {
         m_panel->close();
     }
-    if (guard && m_model)
+    if (m_model && !PDFDeferredDeletion::isRetired(this))
     {
         PDFAppToolPanelBuilderHelper::setValue(m_model.data(), store, parameter, value);
     }
-    if (guard)
-    {
-        // The row has checked itself: the value of the model decides (also for a refusal)
-        refresh();
-    }
+
+    // The row has checked itself: the value of the model decides (also for a refusal; only the own rows follow)
+    refresh();
 }
 
 void PDFAppToolEnumMenu::onParameterChanged(const QString& name)
@@ -409,15 +406,12 @@ void PDFAppToolFlagsMenu::onRowClicked()
     PDFTileRow* row = qobject_cast<PDFTileRow*>(sender());
     if (row && m_model)
     {
-        // The store is held here: the write may delete this menu with its member
-        QPointer<PDFAppToolFlagsMenu> guard(this);
+        // The store is held here: the write may close this menu with its member (retired, deleted later)
         const std::shared_ptr<PDFAppValueStore> store = m_store;
         PDFAppToolPanelBuilderHelper::setValue(m_model.data(), store, row->property(PDFAppToolPanelBuilderHelper::ROW_KEY_PROPERTY).toString(), row->isChecked());
-        if (guard)
-        {
-            // The row has toggled itself: the value of the model decides (also for a refusal)
-            refresh();
-        }
+
+        // The row has toggled itself: the value of the model decides (also for a refusal; only the own rows follow)
+        refresh();
     }
 }
 
@@ -739,11 +733,10 @@ void PDFAppToolPageSelectionBinder::updatePages()
 
 void PDFAppToolPageSelectionBinder::onDocumentChanged()
 {
-    // The signals of the selection reach slots of the tool
-    QPointer<PDFAppToolPageSelectionBinder> guard(this);
+    // The signals of the selection reach slots of the tool (a binder retired by them writes nothing)
     m_isUpdating = true;
     updatePages();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -836,9 +829,8 @@ void PDFAppToolPageSelectionBinder::writeValue(bool isUserChange)
 
     // A selection of more pages than a range text can hold is refused by the model
     m_isUpdating = true;
-    QPointer<PDFAppToolPageSelectionBinder> guard(this);
     const QString error = !model ? QString() : (isUserChange ? model->setValue(m_parameter, value.toVariant()) : model->setFollowingValue(m_parameter, value.toVariant()));
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -921,22 +913,22 @@ void PDFAppToolPageSelectionBinder::setPages(const QList<int>& pages)
         return;
     }
 
-    // The signals of the selection reach slots of the tool
-    QPointer<PDFAppToolPageSelectionBinder> guard(this);
+    // The signals of the selection reach slots of the tool (a binder retired by them changes and writes nothing more)
     m_isUpdating = true;
     m_isOwnSelection = true;
     m_selection->setFilters(PDFPageSelection::Filters());
     const QString rangeText = createRangeText(pages);
-    if (guard && m_selection && m_selection->getMode() == PDFPageSelection::Mode::Range && !pages.isEmpty() && rangeText.size() <= PDFDocumentToolPageSelection::MAXIMUM_PAGES_LENGTH)
+    const bool isRetired = PDFDeferredDeletion::isRetired(this);
+    if (!isRetired && m_selection && m_selection->getMode() == PDFPageSelection::Mode::Range && !pages.isEmpty() && rangeText.size() <= PDFDocumentToolPageSelection::MAXIMUM_PAGES_LENGTH)
     {
         m_selection->setRange(rangeText);
     }
-    else if (guard && m_selection)
+    else if (!isRetired && m_selection)
     {
         m_selection->setSelectedPages(pages);
         m_selection->setMode(PDFPageSelection::Mode::Selected);
     }
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -951,10 +943,10 @@ void PDFAppToolPageSelectionBinder::setEntryMode(PDFPageSelection::Mode mode)
         return;
     }
 
-    QPointer<PDFAppToolPageSelectionBinder> guard(this);
+    // A binder retired by the slots of the selection writes nothing
     m_isUpdating = true;
     m_selection->setMode(mode);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1002,21 +994,21 @@ void PDFAppToolPageSelectionBinder::followPages(const PDFDocument* from, const s
         }
     }
 
-    // The signals of the selection reach slots of the tool
-    QPointer<PDFAppToolPageSelectionBinder> guard(this);
+    // The signals of the selection reach slots of the tool (a binder retired by them changes and writes nothing more)
     m_isUpdating = true;
     m_selection->setFilters(PDFPageSelection::Filters());
-    if (guard && m_selection && isRange && !pages.isEmpty())
+    const bool isRetired = PDFDeferredDeletion::isRetired(this);
+    if (!isRetired && m_selection && isRange && !pages.isEmpty())
     {
         m_selection->setRange(mapped.pages);
     }
-    else if (guard && m_selection)
+    else if (!isRetired && m_selection)
     {
         m_isOwnSelection = true;
         m_selection->setSelectedPages(pages);
         m_selection->setMode(PDFPageSelection::Mode::Selected);
     }
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }

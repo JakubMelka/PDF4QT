@@ -113,13 +113,11 @@ public:
     template<typename T>
     static void deleteAll(QList<QPointer<T>>& pointers)
     {
+        // The shown rows and cards are retired (step A: inert at once, deleted later); the refresh of the page comes
+        // from its timer or its show, never from a signal of a row
         for (const QPointer<T>& pointer : std::as_const(pointers))
         {
-            if (pointer)
-            {
-                pointer->hide();
-                pointer->deleteLater();
-            }
+            PDFDeferredDeletion::retire(pointer.data());
         }
         pointers.clear();
     }

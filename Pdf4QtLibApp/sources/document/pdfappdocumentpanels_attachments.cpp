@@ -848,7 +848,8 @@ PDFAppAttachmentsPasswordDialog::PDFAppAttachmentsPasswordDialog(PDFAppDocument*
     }
     if (document)
     {
-        connect(document, &QObject::destroyed, this, &PDFAppAttachmentsPasswordDialog::onDocumentDestroyed);
+        // The end of the document (retire with its tab, or a deletion) is aboutToBeDeleted of its notifier
+        PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(document), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppAttachmentsPasswordDialog::onDocumentDestroyed);
     }
     updateButtons();
     m_passwordField->setFocus();
@@ -943,7 +944,12 @@ void PDFAppAttachmentsPasswordDialog::onPasswordEdited()
 
 void PDFAppAttachmentsPasswordDialog::onDocumentDestroyed()
 {
-    // Only the pointer is forgotten here; the dialog closes from the event loop
+    // A dialog retired with the panel is closed by the retire. Otherwise only the pointer is forgotten
+    // here; the dialog closes from the event loop
+    if (PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
     m_document = nullptr;
     QMetaObject::invokeMethod(this, &PDFAppAttachmentsPasswordDialog::reject, Qt::QueuedConnection);
 }
@@ -1019,7 +1025,8 @@ void PDFAppAttachmentsPanel::saveAttachment(int row)
 
     // The native dialog without a nested event loop (A0): the file comes to onSaveFileChosen,
     // never inside this call; the request is a child of the panel (a panel deleted meanwhile
-    // gets nothing). The handler of the tests is foreign code, which may delete the panel.
+    // gets nothing). The handler of the tests is foreign code, which may close the panel (only
+    // the own list of the pending saves is written after it).
     QPointer<PDFAppAttachmentsPanel> guard(this);
     PDFAppFileDialogRequest* request = PDFAppPanelFileDialogs::requestSaveFileName(this, tr("Save Attachment"), proposedPath, tr("All files (*)"),
                                                                                    this, &PDFAppAttachmentsPanel::onSaveFileChosen);

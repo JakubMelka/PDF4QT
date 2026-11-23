@@ -400,7 +400,7 @@ void PDFAppNavigator::navigateImpl(const PDFAppRoute& route, PDFAppNavigationMod
     if (PDFAppPage* page = tab->getPage())
     {
         const PDFAppLeaveResult result = leavePage(tab, page, target, mode, RequestKind::ContinueNavigate, -1);
-        if (!guard || !tab || result != PDFAppLeaveResult::Done)
+        if (!guard || !tab || PDFDeferredDeletion::isRetired(tab) || result != PDFAppLeaveResult::Done)
         {
             return;
         }
@@ -424,11 +424,13 @@ PDFAppLeaveResult PDFAppNavigator::leavePage(PDFAppTab* tab, PDFAppPage* page, c
     flow->setStep(int(continuation));
     flow->setValue(historyIndex);
 
+    // The page runs code of the application: the window may be deleted, the tab of the flow closed (retired with its
+    // flow, step A) meanwhile
     QPointer<PDFAppNavigator> guard(this);
     QPointer<PDFAppLeaveFlow> flowGuard(flow);
     QPointer<PDFAppPage> pageGuard(page);
     PDFAppLeaveResult result = page->requestLeave(target, flow);
-    if (!guard || !flowGuard)
+    if (!guard || !flowGuard || PDFDeferredDeletion::isRetired(flow))
     {
         return PDFAppLeaveResult::Refused;
     }
@@ -540,7 +542,7 @@ bool PDFAppNavigator::moveInHistory(PDFAppTab* tab, bool isBack)
         const PDFAppRoute target = targetEntry->route;
         const int index = tab->getHistory().getCurrentIndex();
         const PDFAppLeaveResult result = leavePage(tab, page, target, PDFAppNavigationMode::Push, isBack ? RequestKind::ContinueBack : RequestKind::ContinueForward, index);
-        if (!guard || !tabGuard || result != PDFAppLeaveResult::Done)
+        if (!guard || !tabGuard || PDFDeferredDeletion::isRetired(tab) || result != PDFAppLeaveResult::Done)
         {
             return false;
         }
@@ -877,7 +879,7 @@ void PDFAppNavigator::onPageRouteReplaced(const PDFAppRoute& route)
     QPointer<PDFAppNavigator> guard(this);
     QPointer<PDFAppTab> tabGuard(tab);
     m_window->updateTab(tab);
-    if (guard && tabGuard)
+    if (guard && tabGuard && !PDFDeferredDeletion::isRetired(tab))
     {
         const PDFAppRoute replaced = route;
         Q_EMIT routeReplaced(tab, replaced);

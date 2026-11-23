@@ -26,6 +26,7 @@
 
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdffluentwidgets.h"
 #include "pdfstylepainter.h"
@@ -123,9 +124,8 @@ void PDFAppCollectionToolList::setTools(const QStringList& toolIds)
     {
         if (row.widget)
         {
-            // Later: the row may hold the sender of the current signal
-            row.widget->hide();
-            row.widget->deleteLater();
+            // Retired from the event loop (step A: a rebuilt row): the row may hold the sender of the current signal
+            PDFDeferredDeletion::retireLater(row.widget.data());
         }
     }
 
@@ -231,9 +231,9 @@ bool PDFAppCollectionToolList::removeTool(const QString& toolId)
         hadFocus = rowWidget && focusWidget && rowWidget->isAncestorOf(focusWidget);
         if (rowWidget)
         {
-            // Later: the remove button of the row is the sender of the current click
-            rowWidget->hide();
-            rowWidget->deleteLater();
+            // Retired from the event loop (step A: a removed row): the remove button of the row is the sender of the
+            // current click
+            PDFDeferredDeletion::retireLater(rowWidget);
         }
         m_rows.erase(m_rows.begin() + rowIndex);
     }

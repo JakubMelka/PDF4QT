@@ -125,7 +125,9 @@ protected:
 
 private:
     void onPageImageChanged(bool all, const std::vector<pdf::PDFInteger>& pages);
-    void onProxyDestroyed();
+    /// The proxy is closed (aboutToBeDeleted of its notifier, at its retire or at its deletion): the pointer
+    /// and the picture of its page are forgotten
+    void onProxyAboutToBeDeleted();
     void invalidate();
 
     /// The settings of the color management of the picture: of the view, without its proof unless
@@ -137,6 +139,7 @@ private:
     void onRenderFinished();
 
     QPointer<PDFDrawWidgetProxy> m_proxy;
+    QMetaObject::Connection m_proxyEndConnection;   ///< aboutToBeDeleted of the notifier of m_proxy
     QPointer<PDFAppDocumentView> m_view;
     PDFInteger m_pageIndex = -1;
     bool m_isFit = true;

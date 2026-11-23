@@ -755,10 +755,9 @@ void PDFAppToolGUISoftProof::onParametersChanged(const QString& name)
 {
     BaseClass::onParametersChanged(name);
 
-    // A change of the state runs updateParts (its signals may delete this GUI): nothing after it
-    QPointer<PDFAppToolGUISoftProof> guard(this);
+    // A change of the state runs updateParts (its signals may retire this GUI): nothing after it
     applyParameters();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateParts();
     }
@@ -769,9 +768,8 @@ void PDFAppToolGUISoftProof::onDocumentChanged()
     BaseClass::onDocumentChanged();
 
     // Another version may have other output intents (the menu of the next entry lists them; the title now)
-    QPointer<PDFAppToolGUISoftProof> guard(this);
     applyParameters();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateParts();
     }
@@ -963,11 +961,10 @@ void PDFAppToolGUISoftProof::updateParts()
         m_canvasPage->setTexts(pageIndex >= 0 ? title : QString(), isGamut ? tr("Gamut checking on") : QString());
     }
 
-    // The signals of the Primary button and of the status bar run foreign slots, which may delete this GUI
+    // The signals of the Primary button and of the status bar run foreign slots, which may retire this GUI
     // with its shell: each is the last call of what follows it (emit last)
-    QPointer<PDFAppToolGUISoftProof> guard(this);
     updateConfirmState();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }

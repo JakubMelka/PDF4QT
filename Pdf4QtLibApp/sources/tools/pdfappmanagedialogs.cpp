@@ -36,6 +36,7 @@
 
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfpagerangelist.h"
 #include "pdfthemefonts.h"
@@ -308,10 +309,9 @@ void PDFAppManageDialog::onAcceptClicked()
         return;
     }
 
-    // The decision is said last by the subclass; its slot may delete this dialog
-    QPointer<PDFAppManageDialog> guard(this);
+    // The decision is said last by the subclass; its slot may close this dialog (retired: it is not accepted)
     acceptDialog();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         accept();
     }
@@ -1150,8 +1150,8 @@ void PDFAppManageSourcesDialog::updateRows()
     m_sourceButtons.clear();
     for (QWidget* child : m_rows->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly))
     {
-        child->hide();
-        child->deleteLater();
+        // Retired from the event loop (step A: a rebuilt row, which may hold the sender of the click)
+        PDFDeferredDeletion::retireLater(child);
     }
 
     const PDFDocumentAssembly assembly = m_result.content ? m_result.content->assembly : PDFDocumentAssembly();
@@ -1269,11 +1269,10 @@ void PDFAppManageSourcesDialog::onSourceButtonClicked()
 void PDFAppManageSourcesDialog::onOpenClicked()
 {
     // Open Assembly and Open Without Them: the usable sources take their files, the others go to
-    // the bin (PDFAppAssemblyLoader::createContent); the slot may delete this dialog
-    QPointer<PDFAppManageSourcesDialog> guard(this);
+    // the bin (PDFAppAssemblyLoader::createContent); the slot may close this dialog (retired: it is not accepted)
     const PDFAppAssemblyLoadResult result = m_result;
     Q_EMIT openRequested(result);
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         accept();
     }

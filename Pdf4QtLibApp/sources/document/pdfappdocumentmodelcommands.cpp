@@ -30,6 +30,8 @@
 #include "pdfapptoolundotarget.h"
 #include "pdfappundostack.h"
 
+#include "pdfdeferreddeletion.h"
+
 #include <QPointer>
 
 namespace pdf
@@ -112,6 +114,7 @@ void PDFAppDocumentModelCommandHandler::execute(const QString& commandId)
 
 void PDFAppDocumentModelCommandHandler::requestLock()
 {
+    QPointer<PDFAppDocumentModelCommandHandler> guard(this);
     PDFAppDocumentTab* tab = getTab();
     PDFAppDocument* document = getDocument();
     QPointer<PDFAppPage> page = tab ? tab->getPage() : nullptr;
@@ -135,17 +138,16 @@ void PDFAppDocumentModelCommandHandler::requestLock()
     flow->setSubject(document);
     flow->setStep(int(LockStep::Page));
 
-    // The page asks (its code may delete anything)
-    QPointer<PDFAppDocumentModelCommandHandler> guard(this);
+    // The page asks (its code may close the tab: a retired handler, flow or page locks nothing)
     QPointer<PDFAppLeaveFlow> flowGuard(flow);
     PDFAppLeaveResult result = page->requestDocumentLock(flow);
-    if (!guard || !flowGuard)
+    if (!guard || !flowGuard || PDFDeferredDeletion::isRetired(this) || PDFDeferredDeletion::isRetired(flow))
     {
         return;
     }
     if (result == PDFAppLeaveResult::Pending)
     {
-        if (page && flow->waitForStep(page.data(), this, &PDFAppDocumentModelCommandHandler::onLockStepFinished))
+        if (page && !PDFDeferredDeletion::isRetired(page.data()) && flow->waitForStep(page.data(), this, &PDFAppDocumentModelCommandHandler::onLockStepFinished))
         {
             m_lockPage = page;
             return;
@@ -157,14 +159,15 @@ void PDFAppDocumentModelCommandHandler::requestLock()
         flow->finish(false);
         return;
     }
-    flow->addAcceptedPage(page.data());
+    flow->addAcceptedPage((page && !PDFDeferredDeletion::isRetired(page.data())) ? page.data() : nullptr);
     continueLock();
 }
 
 void PDFAppDocumentModelCommandHandler::continueLock()
 {
+    QPointer<PDFAppDocumentModelCommandHandler> guard(this);
     PDFAppDocumentTab* tab = getTab();
-    QPointer<PDFAppLeaveFlow> flow = tab ? tab->findLeaveFlow() : nullptr;
+    PDFAppLeaveFlow* flow = tab ? tab->findLeaveFlow() : nullptr;
     if (!flow || !flow->isRunning())
     {
         return;
@@ -178,15 +181,15 @@ void PDFAppDocumentModelCommandHandler::continueLock()
     QPointer<PDFAppDocument> document = qobject_cast<PDFAppDocument*>(flow->getSubject());
     const bool isProceeding = document && !document->isLocked();
     flow->setStep(int(LockStep::FinishPages));
-    QPointer<PDFAppDocumentModelCommandHandler> guard(this);
+    QPointer<PDFAppLeaveFlow> flowGuard(flow);
     PDFAppLeaveResult result = flow->requestFinishPages(isProceeding);
-    if (!guard || !flow)
+    if (!guard || !flowGuard || PDFDeferredDeletion::isRetired(this) || PDFDeferredDeletion::isRetired(flow))
     {
         return;
     }
     if (result == PDFAppLeaveResult::Pending)
     {
-        if (flow->waitForStep(flow.data(), this, &PDFAppDocumentModelCommandHandler::onLockStepFinished))
+        if (flow->waitForStep(flow, this, &PDFAppDocumentModelCommandHandler::onLockStepFinished))
         {
             return;
         }
@@ -198,16 +201,17 @@ void PDFAppDocumentModelCommandHandler::continueLock()
 void PDFAppDocumentModelCommandHandler::finishLock(bool isProceeding)
 {
     PDFAppDocumentTab* tab = getTab();
-    QPointer<PDFAppLeaveFlow> flow = tab ? tab->findLeaveFlow() : nullptr;
+    PDFAppLeaveFlow* flow = tab ? tab->findLeaveFlow() : nullptr;
     if (!flow || !flow->isRunning())
     {
         return;
     }
 
-    // The flow ends first; the lock is the last call (the slots of the lock may delete anything)
+    // The flow ends first; the lock is the last call (the slots of the lock may close the tab: a retired
+    // document is not locked)
     QPointer<PDFAppDocument> document = qobject_cast<PDFAppDocument*>(flow->getSubject());
     flow->finish(isProceeding);
-    if (isProceeding && document && !document->isLocked())
+    if (isProceeding && document && !PDFDeferredDeletion::isRetired(document.data()) && !document->isLocked())
     {
         document->setLocked(true);
     }

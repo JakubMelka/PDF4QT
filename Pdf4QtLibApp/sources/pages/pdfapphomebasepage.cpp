@@ -378,7 +378,9 @@ bool PDFAppHomeBasePage::performAction(const PDFAppHomeItem& item, PDFAppHomeAct
             break;
     }
 
-    return !guard.isNull();
+    // The action runs code of the application: a page closed (retired with its tab, step A) or deleted by it is not
+    // alive
+    return !guard.isNull() && !PDFDeferredDeletion::isRetired(this);
 }
 
 void PDFAppHomeBasePage::openFile(const QString& path, int page)
@@ -419,7 +421,7 @@ void PDFAppHomeBasePage::openWorkspace(qint64 id)
 
     QPointer<PDFAppHomeBasePage> guard(this);
     showDatabaseError(context->getWorkspaces().markOpened(id));
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -452,7 +454,7 @@ void PDFAppHomeBasePage::restoreLastSession()
     const std::vector<PDFAppOpenRequest> requests = PDFAppDocumentActions::getRequests(session->documents);
     QPointer<PDFAppHomeBasePage> guard(this);
     showDatabaseError(context->getWorkspaces().deleteLastSession());
-    if (guard && !requests.empty())
+    if (guard && !PDFDeferredDeletion::isRetired(this) && !requests.empty())
     {
         PDFAppDocumentActions::openRequests(this, requests);
     }
@@ -493,7 +495,7 @@ void PDFAppHomeBasePage::setFolderPinned(const QString& path, bool isPinned)
         {
             QPointer<PDFAppHomeBasePage> guard(this);
             showDatabaseError(recent.removePinnedLocation(location.id));
-            if (!guard)
+            if (!guard || PDFDeferredDeletion::isRetired(this))
             {
                 return;
             }

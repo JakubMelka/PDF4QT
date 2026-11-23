@@ -343,6 +343,9 @@ void PDFAppToolPagePicture::setProxy(PDFDrawWidgetProxy* proxy)
     {
         return;
     }
+    // The notifier of the former proxy by the stored handle: getNotifier would create a notifier for a dying proxy
+    QObject::disconnect(m_proxyEndConnection);
+    m_proxyEndConnection = QMetaObject::Connection();
     if (m_proxy)
     {
         m_proxy->disconnect(this);
@@ -351,7 +354,8 @@ void PDFAppToolPagePicture::setProxy(PDFDrawWidgetProxy* proxy)
     if (m_proxy)
     {
         PDFDeferredDeletion::connect(m_proxy.data(), &PDFDrawWidgetProxy::pageImageChanged, this, &PDFAppToolPagePicture::onPageImageChanged);
-        connect(m_proxy.data(), &QObject::destroyed, this, &PDFAppToolPagePicture::onProxyDestroyed);
+        m_proxyEndConnection = PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(m_proxy.data()), &PDFLifetimeNotifier::aboutToBeDeleted, this,
+                                                            &PDFAppToolPagePicture::onProxyAboutToBeDeleted);
     }
     invalidate();
 }
@@ -481,9 +485,11 @@ void PDFAppToolPagePicture::onPageImageChanged(bool all, const std::vector<pdf::
     }
 }
 
-void PDFAppToolPagePicture::onProxyDestroyed()
+void PDFAppToolPagePicture::onProxyAboutToBeDeleted()
 {
-    // The proxy is going away: only the pointer is forgotten
+    // The proxy is going away (retired, or in its destructor): the pointer and the picture of its
+    // page are forgotten, the proxy is not called any more
+    m_proxy = nullptr;
     m_image = QImage();
     update();
 }

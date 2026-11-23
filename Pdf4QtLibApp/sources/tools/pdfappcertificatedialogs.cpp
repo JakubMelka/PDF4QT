@@ -33,6 +33,7 @@
 
 #include "pdfcertificatemanager.h"
 #include "pdfcomponentdelegates.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfexception.h"
 #include "pdffluentwidgets.h"
 #include "pdfsecurityhandler.h"
@@ -580,10 +581,10 @@ void PDFAppCertificateCreateDialog::onJobFinished()
     }
 
     // Q5.11: the public certificate goes to the cache (only the certificate, never the key). The
-    // commit notifies the database at once (PDFDatabaseNotifier): code of the application runs.
-    QPointer<PDFAppCertificateCreateDialog> guard(this);
+    // commit notifies the database at once (PDFDatabaseNotifier): code of the application runs (a dialog retired
+    // by it - its tool closed - announces nothing)
     PDFAppToolCertificateProvider(m_context).storeCertificate(m_filePath, result.certificateData);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -898,10 +899,9 @@ void PDFAppCertificateImportDialog::start()
     QString error;
 
     // The import writes the certificate cache: its commit notifies the database at once - code of
-    // the application runs, the dialog may be gone after it
-    QPointer<PDFAppCertificateImportDialog> guard(this);
+    // the application runs, the dialog may be closed after it (retired: it announces nothing)
     const Outcome outcome = importFile(m_context, m_sourceFilePath, PDFCertificateManager::getCertificateDirectory(), &targetPath, &error);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }

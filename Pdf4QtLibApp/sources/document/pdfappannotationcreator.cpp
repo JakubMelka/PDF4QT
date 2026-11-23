@@ -1144,6 +1144,7 @@ bool PDFAppAnnotationCreator::isCreationAllowed() const
 
 bool PDFAppAnnotationCreator::startTool(PDFAppAnnotationToolKind kind)
 {
+    QPointer<PDFAppAnnotationCreator> guard(this);
     if (kind == PDFAppAnnotationToolKind::None)
     {
         endTool();
@@ -1171,15 +1172,16 @@ bool PDFAppAnnotationCreator::startTool(PDFAppAnnotationToolKind kind)
         return true;
     }
 
-    QPointer<PDFAppAnnotationCreator> guard(this);
+    // A slot of the end of the old tool (a signal of the view) may close the tab: the creator is retired then
+    // (step A - inert, deleted later), nothing more starts in it
     endTool();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return false;
     }
     cancelCompose();
     cancelTextBox();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return false;
     }
@@ -1196,7 +1198,7 @@ bool PDFAppAnnotationCreator::startTool(PDFAppAnnotationToolKind kind)
         {
             m_controller->activateTool(selectTextTool);
         }
-        if (guard && selectTextTool && m_toolManager && m_toolManager->getActiveTool() == selectTextTool)
+        if (guard && !PDFDeferredDeletion::isRetired(this) && selectTextTool && m_toolManager && m_toolManager->getActiveTool() == selectTextTool)
         {
             selectTextTool->setAnnotationsSelectable(false);
             isStarted = true;
@@ -1206,21 +1208,17 @@ bool PDFAppAnnotationCreator::startTool(PDFAppAnnotationToolKind kind)
     {
         applyToolStyle(kind);
         isStarted = m_controller && m_controller->activateTool(tool);
-        if (guard && isStarted && m_controller)
+        if (guard && !PDFDeferredDeletion::isRetired(this) && isStarted && m_controller)
         {
             m_controller->setPendingDescription(PDFAppAnnotationTools::getUndoDescription(kind));
         }
     }
 
-    if (!guard)
-    {
-        return false;
-    }
     m_isStarting = false;
 
     // A slot of the activation (a signal of the view) closed the tab: the creator is retired (step A - inert, deleted
     // later, not deleted now), nothing more starts in it
-    if (PDFDeferredDeletion::isRetired(this))
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return false;
     }
@@ -1266,6 +1264,7 @@ void PDFAppAnnotationCreator::onRequestedToolQueued()
 
 void PDFAppAnnotationCreator::setActiveKind(PDFAppAnnotationToolKind kind)
 {
+    QPointer<PDFAppAnnotationCreator> guard(this);
     m_activeKind = kind;
     if (kind != PDFAppAnnotationToolKind::None)
     {
@@ -1278,9 +1277,8 @@ void PDFAppAnnotationCreator::setActiveKind(PDFAppAnnotationToolKind kind)
         }
     }
 
-    QPointer<PDFAppAnnotationCreator> guard(this);
     Q_EMIT activeKindChanged(kind);
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT toolStateChanged();
     }
@@ -1288,19 +1286,19 @@ void PDFAppAnnotationCreator::setActiveKind(PDFAppAnnotationToolKind kind)
 
 void PDFAppAnnotationCreator::endTool()
 {
+    QPointer<PDFAppAnnotationCreator> guard(this);
     if (m_activeKind == PDFAppAnnotationToolKind::None)
     {
         return;
     }
 
-    QPointer<PDFAppAnnotationCreator> guard(this);
     cancelTextBox();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
     cancelCompose();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1309,7 +1307,7 @@ void PDFAppAnnotationCreator::endTool()
     {
         // The text selection becomes active: onActiveToolChanged finishes the tool
         m_controller->endActiveTool();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1323,7 +1321,7 @@ void PDFAppAnnotationCreator::endTool()
 
     // The text selection of a markup gives the place back to the chosen mode of the
     // view (Hand); the mode Select text keeps it
-    if (isMarkup && guard && m_controller)
+    if (isMarkup && guard && !PDFDeferredDeletion::isRetired(this) && m_controller)
     {
         m_controller->endActiveTool();
     }
@@ -1349,6 +1347,7 @@ void PDFAppAnnotationCreator::finishTool()
 
 void PDFAppAnnotationCreator::onActiveToolChanged(PDFWidgetTool* tool)
 {
+    QPointer<PDFAppAnnotationCreator> guard(this);
     if (m_isStarting)
     {
         return;
@@ -1360,7 +1359,6 @@ void PDFAppAnnotationCreator::onActiveToolChanged(PDFWidgetTool* tool)
         return;
     }
 
-    QPointer<PDFAppAnnotationCreator> guard(this);
     if (PDFAppAnnotationTools::isMarkup(m_activeKind))
     {
         // Another tool of the canvas (Select menu, Esc) ends the markup
@@ -1372,12 +1370,12 @@ void PDFAppAnnotationCreator::onActiveToolChanged(PDFWidgetTool* tool)
     else if (tool != getTool(m_activeKind))
     {
         cancelTextBox();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
         cancelCompose();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1391,7 +1389,7 @@ void PDFAppAnnotationCreator::onActiveToolChanged(PDFWidgetTool* tool)
     // Esc of the engine turns the tool off without another one: the text
     // selection of the view becomes active again (from the event loop - the
     // engine is in its key handler)
-    if (guard && !tool)
+    if (!tool && guard && !PDFDeferredDeletion::isRetired(this))
     {
         QMetaObject::invokeMethod(this, &PDFAppAnnotationCreator::onEndToolQueued, Qt::QueuedConnection);
     }
@@ -1446,8 +1444,9 @@ void PDFAppAnnotationCreator::applyToolStyle(PDFAppAnnotationToolKind kind)
 
 void PDFAppAnnotationCreator::showToolBar(PDFAppAnnotationToolKind kind)
 {
+    QPointer<PDFAppAnnotationCreator> guard(this);
     QWidget* canvasArea = m_view ? m_view->getCanvasArea() : nullptr;
-    if (!canvasArea || PDFDeferredDeletion::isRetired(this))
+    if (!canvasArea || !guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1823,14 +1822,14 @@ PDFAppNewAnnotation PDFAppAnnotationCreator::createAnnotationData() const
 
 bool PDFAppAnnotationCreator::commitResult(const PDFAppAnnotationResult& result, const QString& description, const std::vector<PDFObjectReference>& created)
 {
+    QPointer<PDFAppAnnotationCreator> guard(this);
     if (!result || !m_controller)
     {
         return false;
     }
 
-    QPointer<PDFAppAnnotationCreator> guard(this);
     const bool isCommitted = m_controller->commit(*result, PDFAppAnnotationChangeKind::Tool, description);
-    if (!guard || !isCommitted)
+    if (!isCommitted || !guard || PDFDeferredDeletion::isRetired(this))
     {
         return isCommitted;
     }
@@ -1842,6 +1841,7 @@ bool PDFAppAnnotationCreator::commitResult(const PDFAppAnnotationResult& result,
 
 bool PDFAppAnnotationCreator::markTextSelection(AnnotationType type)
 {
+    QPointer<PDFAppAnnotationCreator> guard(this);
     PDFAppDocument* document = m_view ? m_view->getDocument() : nullptr;
     if (!PDFAppAnnotationOperations::isTextMarkupType(type) || !document || !isCreationAllowed())
     {
@@ -1865,8 +1865,7 @@ bool PDFAppAnnotationCreator::markTextSelection(AnnotationType type)
     const PDFAppAnnotationResult result = PDFAppAnnotationOperations::createTextMarkups(document->getDocument(), type, parts, data, &created);
     PDFAppAnnotationToolSettings::setLastMarkupType(getContext(), type);
 
-    QPointer<PDFAppAnnotationCreator> guard(this);
-    if (!commitResult(result, PDFAppAnnotationTools::getUndoDescription(PDFAppAnnotationTools::getMarkupKind(type)), created) || !guard)
+    if (!commitResult(result, PDFAppAnnotationTools::getUndoDescription(PDFAppAnnotationTools::getMarkupKind(type)), created) || !guard || PDFDeferredDeletion::isRetired(this))
     {
         return false;
     }
@@ -1876,8 +1875,9 @@ bool PDFAppAnnotationCreator::markTextSelection(AnnotationType type)
     {
         selectTextTool->deselect();
     }
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
+        // The markup bar is a popup (it may be created and shown)
         updateMarkupBar();
     }
     return true;
@@ -1885,6 +1885,7 @@ bool PDFAppAnnotationCreator::markTextSelection(AnnotationType type)
 
 bool PDFAppAnnotationCreator::commentTextSelection()
 {
+    QPointer<PDFAppAnnotationCreator> guard(this);
     PDFAppCommentPopup* popup = m_view ? m_view->getCommentPopup() : nullptr;
     if (!popup || !isCreationAllowed())
     {
@@ -1899,12 +1900,11 @@ bool PDFAppAnnotationCreator::commentTextSelection()
     }
 
     // A popup of another mode closes first (its cancellation must not cancel the new comment)
-    QPointer<PDFAppAnnotationCreator> guard(this);
     QPointer<PDFAppCommentPopup> popupGuard(popup);
     if (popup->getMode() != PDFAppCommentPopup::Mode::None)
     {
         popup->cancel();
-        if (!guard || !popupGuard)
+        if (!guard || !popupGuard || PDFDeferredDeletion::isRetired(this) || PDFDeferredDeletion::isRetired(popup))
         {
             return false;
         }
@@ -1919,7 +1919,7 @@ bool PDFAppAnnotationCreator::commentTextSelection()
         m_markupBar->hide();
     }
     popup->showCompose(anchor, PDFAppAnnotationTools::getName(PDFAppAnnotationToolKind::HighlightComment), PDFAppAnnotationTools::getIconName(PDFAppAnnotationToolKind::HighlightComment));
-    return guard && popupGuard && popup->getMode() == PDFAppCommentPopup::Mode::Compose;
+    return guard && popupGuard && !PDFDeferredDeletion::isRetired(this) && !PDFDeferredDeletion::isRetired(popup) && popup->getMode() == PDFAppCommentPopup::Mode::Compose;
 }
 
 void PDFAppAnnotationCreator::copyTextSelection()
@@ -1966,6 +1966,7 @@ void PDFAppAnnotationCreator::cancelTextBox()
 
 void PDFAppAnnotationCreator::onComposeAccepted(const QString& text)
 {
+    QPointer<PDFAppAnnotationCreator> guard(this);
     const ComposeKind kind = m_composeKind;
     m_composeKind = ComposeKind::None;
     PDFAppDocument* document = m_view ? m_view->getDocument() : nullptr;
@@ -1996,8 +1997,7 @@ void PDFAppAnnotationCreator::onComposeAccepted(const QString& text)
     std::vector<PDFObjectReference> created;
     const PDFAppAnnotationResult result = PDFAppAnnotationOperations::createTextMarkups(document->getDocument(), AnnotationType::Highlight, parts, data, &created);
 
-    QPointer<PDFAppAnnotationCreator> guard(this);
-    if (commitResult(result, PDFAppAnnotationTools::getUndoDescription(PDFAppAnnotationToolKind::HighlightComment), created) && guard)
+    if (commitResult(result, PDFAppAnnotationTools::getUndoDescription(PDFAppAnnotationToolKind::HighlightComment), created) && guard && !PDFDeferredDeletion::isRetired(this))
     {
         if (PDFSelectTextTool* selectTextTool = getSelectTextTool())
         {
@@ -2017,6 +2017,7 @@ void PDFAppAnnotationCreator::onComposeCanceled()
 
 void PDFAppAnnotationCreator::onCreationRequested(const PDFAnnotationCreationRequest& request)
 {
+    QPointer<PDFAppAnnotationCreator> guard(this);
     using Kind = PDFAnnotationCreationRequest::Kind;
 
     // From the event loop (the controller queues the requests of the engine)
@@ -2035,12 +2036,11 @@ void PDFAppAnnotationCreator::onCreationRequested(const PDFAnnotationCreationReq
                 return;
             }
 
-            QPointer<PDFAppAnnotationCreator> guard(this);
             QPointer<PDFAppCommentPopup> popupGuard(popup);
             if (popup->getMode() != PDFAppCommentPopup::Mode::None)
             {
                 popup->cancel();
-                if (!guard || !popupGuard)
+                if (!guard || !popupGuard || PDFDeferredDeletion::isRetired(this) || PDFDeferredDeletion::isRetired(popup))
                 {
                     return;
                 }
@@ -2142,6 +2142,7 @@ void PDFAppAnnotationCreator::onTextBoxAreaPicked(PDFInteger pageIndex, QRectF r
 
 void PDFAppAnnotationCreator::onTextBoxAccepted()
 {
+    QPointer<PDFAppAnnotationCreator> guard(this);
     PDFAppTextBoxPopup* popup = m_textBoxPopup.data();
     PDFAppTextBoxTool* tool = m_textBoxTool.data();
     PDFAppDocument* document = m_view ? m_view->getDocument() : nullptr;
@@ -2164,11 +2165,10 @@ void PDFAppAnnotationCreator::onTextBoxAccepted()
     const PDFAppAnnotationResult result = PDFAppAnnotationOperations::createFreeText(document->getDocument(), tool->getPageIndex(), tool->getRectangle(), popup->getText(), style, data, &created);
     tool->clearArea();
 
-    QPointer<PDFAppAnnotationCreator> guard(this);
     commitResult(result, PDFAppAnnotationTools::getUndoDescription(PDFAppAnnotationToolKind::TextBox), { created });
 
     // Add ends the tool (note 1172:28734)
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         endTool();
     }
@@ -2185,6 +2185,7 @@ void PDFAppAnnotationCreator::onTextBoxCanceled()
 
 void PDFAppAnnotationCreator::onPageLinkRequested(PDFInteger pageIndex, QRectF rectangle, PDFDestination destination)
 {
+    QPointer<PDFAppAnnotationCreator> guard(this);
     PDFAppDocument* document = m_view ? m_view->getDocument() : nullptr;
     if (!document || !isCreationAllowed())
     {
@@ -2193,19 +2194,17 @@ void PDFAppAnnotationCreator::onPageLinkRequested(PDFInteger pageIndex, QRectF r
 
     PDFObjectReference created;
     const PDFAppAnnotationResult result = PDFAppAnnotationOperations::createPageLink(document->getDocument(), pageIndex, rectangle, destination, &created);
-    QPointer<PDFAppAnnotationCreator> guard(this);
-    if (!commitResult(result, PDFAppAnnotationTools::getUndoDescription(PDFAppAnnotationToolKind::PageLink), { created }) || !guard)
+    if (!commitResult(result, PDFAppAnnotationTools::getUndoDescription(PDFAppAnnotationToolKind::PageLink), { created }) || !guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
 
     // The view returns to the source page with the new link selected (note 1172:28734)
-    QPointer<PDFAppDocumentView> view = m_view;
-    if (view)
+    if (PDFAppDocumentView* view = m_view.data())
     {
         view->goToPage(pageIndex);
     }
-    if (guard && m_controller)
+    if (guard && !PDFDeferredDeletion::isRetired(this) && m_controller)
     {
         m_controller->selectAnnotations({ created });
     }
@@ -2229,26 +2228,26 @@ void PDFAppAnnotationCreator::onPageLinkStepChanged()
 
 void PDFAppAnnotationCreator::onEditingAllowedChanged()
 {
-    // A locked document ends the tool and closes the forms of a new annotation (O20)
     QPointer<PDFAppAnnotationCreator> guard(this);
+    // A locked document ends the tool and closes the forms of a new annotation (O20)
     if (!isCreationAllowed())
     {
         endTool();
-        if (guard)
+        if (guard && !PDFDeferredDeletion::isRetired(this))
         {
             cancelCompose();
         }
-        if (guard)
+        if (guard && !PDFDeferredDeletion::isRetired(this))
         {
             cancelTextBox();
         }
-        if (guard && m_webLinkDialog)
+        if (guard && !PDFDeferredDeletion::isRetired(this) && m_webLinkDialog)
         {
             m_webLinkDialog->reject();
         }
     }
 
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         updateMarkupBar();
     }

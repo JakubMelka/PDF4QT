@@ -423,13 +423,12 @@ void PDFAppHomePage::refreshRecentFiles()
     if (signature != m_recentFilesSignature || m_recentFileRows.size() != qsizetype(files.size()))
     {
         m_recentFilesSignature = signature;
+
+        // The shown rows are retired (step A: inert at once, deleted later); the refresh comes from the timer or the
+        // show of the page, never from a signal of a row
         for (const QPointer<PDFRecentFileRow>& row : std::as_const(m_recentFileRows))
         {
-            if (row)
-            {
-                row->hide();
-                row->deleteLater();
-            }
+            PDFDeferredDeletion::retire(row.data());
         }
         m_recentFileRows.clear();
 
@@ -487,13 +486,10 @@ void PDFAppHomePage::refreshRecentTools()
     }
     m_recentToolsSignature = signature;
 
+    // The shown rows are retired (step A); the refresh comes from the timer or the show of the page
     for (const QPointer<PDFRecentToolRow>& row : std::as_const(m_recentToolRows))
     {
-        if (row)
-        {
-            row->hide();
-            row->deleteLater();
-        }
+        PDFDeferredDeletion::retire(row.data());
     }
     m_recentToolRows.clear();
 

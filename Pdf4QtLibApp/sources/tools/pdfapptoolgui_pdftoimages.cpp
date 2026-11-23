@@ -666,12 +666,11 @@ void PDFAppToolGUIPdfToImages::onResolutionRowClicked()
         return;
     }
 
-    QPointer<PDFAppToolGUIPdfToImages> guard(this);
     if (m_resolutionPanel)
     {
         m_resolutionPanel->close();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         selectResolution(dpi);
     }
@@ -680,12 +679,11 @@ void PDFAppToolGUIPdfToImages::onResolutionRowClicked()
 void PDFAppToolGUIPdfToImages::onCustomResolutionClicked()
 {
     // 339:4239 "Type 72 to 6000 dpi, or a size in pixels, in the Resolution panel"
-    QPointer<PDFAppToolGUIPdfToImages> guard(this);
     if (m_resolutionPanel)
     {
         m_resolutionPanel->close();
     }
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }

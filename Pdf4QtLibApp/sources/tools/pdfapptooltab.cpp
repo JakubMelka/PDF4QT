@@ -152,11 +152,12 @@ PDFAppLeaveResult PDFAppToolTab::requestTabClose()
     }
 
     // The page asks (a run, the own question of the tool, K16; shown, never exec): it may run code of the
-    // application, the tab may be deleted meanwhile
+    // application, the tab may be closed meanwhile (retired with its flow, a child: refused). The guards stay
+    // (RC6-M1): the activation of the shell may delete the tab synchronously in a test.
     QPointer<PDFAppToolTab> guard(this);
     QPointer<PDFAppLeaveFlow> flowGuard(flow);
     const PDFAppLeaveResult result = page->requestClose(flow);
-    if (!guard || !flowGuard)
+    if (!guard || !flowGuard || PDFDeferredDeletion::isRetired(this))
     {
         return PDFAppLeaveResult::Refused;
     }
@@ -173,7 +174,7 @@ PDFAppLeaveResult PDFAppToolTab::requestTabClose()
 
         case PDFAppLeaveResult::Done:
             flow->finish(true);
-            return guard ? PDFAppLeaveResult::Done : PDFAppLeaveResult::Refused;
+            return !guard || PDFDeferredDeletion::isRetired(this) ? PDFAppLeaveResult::Refused : PDFAppLeaveResult::Done;
 
         case PDFAppLeaveResult::Refused:
             break;
@@ -196,16 +197,16 @@ void PDFAppToolTab::onPageCloseStepFinished(PDFAppLeaveResult result)
         return;
     }
 
-    // Every question has been answered: the tab closes by its window now (the last call)
-    QPointer<PDFAppToolTab> guard(this);
+    // Every question has been answered: the tab closes by its window now (the last call; a tab closed meanwhile by a
+    // slot of the end of the flow is not closed again)
     flow->finish(true);
-    PDFAppMainWindow* mainWindow = guard ? qobject_cast<PDFAppMainWindow*>(window()) : nullptr;
+    PDFAppMainWindow* mainWindow = PDFDeferredDeletion::isRetired(this) ? nullptr : qobject_cast<PDFAppMainWindow*>(window());
     if (!mainWindow)
     {
         return;
     }
     m_isCloseConfirmed = true;
-    if (!mainWindow->closeTab(this) && guard)
+    if (!mainWindow->closeTab(this))
     {
         m_isCloseConfirmed = false;
     }
@@ -377,10 +378,9 @@ bool PDFAppToolTabPage::startShell()
     connect(shell, &PDFDocumentToolShell::closeRequested, this, &PDFAppToolTabPage::onCloseRequested);
     connect(shell, &PDFDocumentToolShell::stateChanged, this, &PDFAppToolTabPage::onShellStateChanged);
 
-    // The entry runs the code of the tool: anything may be deleted meanwhile
-    QPointer<PDFAppToolTabPage> guard(this);
+    // The entry runs the code of the tool: anything may be closed meanwhile (a retired page opens nothing)
     const bool isEntered = shell->enter();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return false;
     }
@@ -404,7 +404,7 @@ bool PDFAppToolTabPage::startShell()
 
     // The title and the icon of the GUI: the window reads them (the tab bar)
     Q_EMIT stateChanged();
-    return guard != nullptr;
+    return !PDFDeferredDeletion::isRetired(this);
 }
 
 void PDFAppToolTabPage::deleteShell()
@@ -444,11 +444,12 @@ PDFAppLeaveResult PDFAppToolTabPage::requestLeave(const PDFAppRoute& target, PDF
 
     // The page asks as at the close of its tab (a run as close-running, the inputs by K16 - owner
     // 2026-11-20: every way of leaving the tool asks the same question); anything may be deleted meanwhile
-    // (only the tool closes, the tab stays: the question names the tool, not the tab)
+    // (only the tool closes, the tab stays: the question names the tool, not the tab); a page retired meanwhile
+    // refuses (the guard: the activation of the shell may delete the tab synchronously in a test, RC6-M1)
     QPointer<PDFAppToolTabPage> guard(this);
     m_isLeavingTool = true;
     const PDFAppLeaveResult result = requestClose(flow);
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return PDFAppLeaveResult::Refused;
     }
@@ -466,7 +467,7 @@ PDFAppLeaveResult PDFAppToolTabPage::requestLeave(const PDFAppRoute& target, PDF
     {
         m_shell->close();
     }
-    return guard ? PDFAppLeaveResult::Done : PDFAppLeaveResult::Refused;
+    return PDFDeferredDeletion::isRetired(this) ? PDFAppLeaveResult::Refused : PDFAppLeaveResult::Done;
 }
 
 bool PDFAppToolTabPage::isQuestionOpen() const
@@ -545,6 +546,8 @@ PDFAppLeaveResult PDFAppToolTabPage::requestClose(PDFAppLeaveFlow* flow)
         return PDFAppLeaveResult::Refused;
     }
 
+    // The calls run code of the application: a page retired meanwhile refuses (step A). The guard stays (RC6-M1): the
+    // activation of the shell may delete the tab synchronously in a test.
     QPointer<PDFAppToolTabPage> guard(this);
     switch (m_shell->getState())
     {
@@ -562,7 +565,7 @@ PDFAppLeaveResult PDFAppToolTabPage::requestClose(PDFAppLeaveFlow* flow)
             // now, the tool ends with the tab (a quit canceled later keeps the tool editing)
             QPointer<PDFDocumentToolShell> shell = m_shell;
             const PDFAppLeaveResult result = m_shell->requestLeave(flow);
-            if (!guard)
+            if (!guard || PDFDeferredDeletion::isRetired(this))
             {
                 return PDFAppLeaveResult::Refused;
             }
@@ -575,7 +578,7 @@ PDFAppLeaveResult PDFAppToolTabPage::requestClose(PDFAppLeaveFlow* flow)
                     {
                         m_shell->stop();
                     }
-                    return guard ? PDFAppLeaveResult::Done : PDFAppLeaveResult::Refused;
+                    return !guard || PDFDeferredDeletion::isRetired(this) ? PDFAppLeaveResult::Refused : PDFAppLeaveResult::Done;
                 case PDFAppLeaveResult::Refused:
                     break;
             }
@@ -594,7 +597,7 @@ PDFAppLeaveResult PDFAppToolTabPage::requestClose(PDFAppLeaveFlow* flow)
     {
         QPointer<PDFDocumentToolGUI> guiGuard(gui);
         const PDFAppLeaveResult result = gui->requestOwnTabClose(flow);
-        if (!guard || !m_shell)
+        if (!guard || PDFDeferredDeletion::isRetired(this) || !m_shell)
         {
             return PDFAppLeaveResult::Refused;
         }
@@ -644,20 +647,20 @@ void PDFAppToolTabPage::finishCloseStep(bool isAccepted)
         return;
     }
 
-    QPointer<PDFAppToolTabPage> guard(this);
+    // A page retired by the calls (step A) closes and reports nothing more (the end of the page refuses its step)
     if (isAccepted && stage == LeaveStage::Run && m_shell)
     {
         // Stop and Leave: the run stops now (the tool ends with the tab)
         m_shell->stop();
     }
-    if (guard && isAccepted && isLeavingTool && m_shell)
+    if (isAccepted && isLeavingTool && m_shell && !PDFDeferredDeletion::isRetired(this))
     {
         // A navigation leaves only the tool: it closes, the tab stays
         m_shell->close();
     }
 
     // The waiter of the flow is the last call
-    if (guard && flow)
+    if (flow && !PDFDeferredDeletion::isRetired(this))
     {
         flow->finishStep(this, isAccepted ? PDFAppLeaveResult::Done : PDFAppLeaveResult::Refused);
     }
@@ -665,8 +668,6 @@ void PDFAppToolTabPage::finishCloseStep(bool isAccepted)
 
 PDFAppLeaveResult PDFAppToolTabPage::askLossQuestion(PDFAppLeaveFlow* flow)
 {
-    QPointer<PDFAppToolTabPage> guard(this);
-
     // K16: the inputs are lost by the close (no frame: a deviation named in the report)
     const PDFAppToolTab* tab = getToolTab();
     const QString lossText = tab ? tab->getLossText() : QString();
@@ -679,8 +680,10 @@ PDFAppLeaveResult PDFAppToolTabPage::askLossQuestion(PDFAppLeaveFlow* flow)
         }
         if (m_host)
         {
+            // The guard stays (RC6-M1): a slot of the switch of the tabs may delete the tab synchronously in a test
+            QPointer<PDFAppToolTabPage> activateGuard(this);
             m_host->activate();
-            if (!guard)
+            if (!activateGuard || PDFDeferredDeletion::isRetired(this))
             {
                 return PDFAppLeaveResult::Refused;
             }
@@ -729,14 +732,13 @@ PDFAppLeaveResult PDFAppToolTabPage::askLossQuestion(PDFAppLeaveFlow* flow)
 void PDFAppToolTabPage::onShellStateChanged()
 {
     // Undo and Redo of the tool are off while it runs and while its result is decided (the
-    // host tells it the toolbar and the window: their slots run code of the application)
-    QPointer<PDFAppToolTabPage> guard(this);
+    // host tells it the toolbar and the window: their slots run code of the application; a retired page tells nothing)
     if (m_host && m_shell)
     {
         const PDFDocumentToolShell::State state = m_shell->getState();
         m_host->setBusy(state == PDFDocumentToolShell::State::Running || state == PDFDocumentToolShell::State::Deciding);
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT stateChanged();
     }
@@ -750,9 +752,10 @@ void PDFAppToolTabPage::onProgressChanged()
 void PDFAppToolTabPage::onCloseRequested(const PDFAppToolCloseRequest& request)
 {
     // The signal may come from a button of a part or from the result dialog: the tab and
-    // the shell go only by deleteLater, the close of the tab is the last statement (R17)
+    // the shell go only by retire, the close of the tab is the last statement (R17). A page retired by foreign code
+    // (step A, also with its tab) goes on with nothing; the tab and the window are checked first (a window-lifetime
+    // object, a test may delete it synchronously - the page goes with it).
     const PDFAppToolCloseRequest requestCopy = request;
-    QPointer<PDFAppToolTabPage> guard(this);
     QPointer<PDFAppToolTab> tab = getToolTab();
     QPointer<PDFAppMainWindow> window = tab ? qobject_cast<PDFAppMainWindow*>(tab->window()) : nullptr;
     if (!tab || !window)
@@ -768,7 +771,7 @@ void PDFAppToolTabPage::onCloseRequested(const PDFAppToolCloseRequest& request)
             // close keeps the tool, which takes its requests again; a close, whose question is open
             // (Pending), resumes it when its flow ends without the close (onCanceledCloseFinished).
             const PDFAppLeaveResult result = window->requestCloseTab(tab);
-            if (!guard || !m_shell)
+            if (!tab || PDFDeferredDeletion::isRetired(this) || !m_shell)
             {
                 return;
             }
@@ -826,7 +829,7 @@ void PDFAppToolTabPage::onCloseRequested(const PDFAppToolCloseRequest& request)
         // The opened file becomes the current tab (a new one, or its tab, when it is open already)
         const QPointer<PDFAppTab> currentBefore = window->getCurrentTab();
         window->openDocuments(QStringList({ requestCopy.newDocumentFilePath }), 0);
-        if (!guard || !tab || !window)
+        if (!tab || !window || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -851,7 +854,7 @@ void PDFAppToolTabPage::onCloseRequested(const PDFAppToolCloseRequest& request)
     if (!requestCopy.folderToOpen.isEmpty())
     {
         Q_EMIT externalUrlRequested(QUrl::fromLocalFile(requestCopy.folderToOpen));
-        if (!guard || !tab || !window)
+        if (!tab || !window || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -870,7 +873,7 @@ void PDFAppToolTabPage::onCloseRequested(const PDFAppToolCloseRequest& request)
         {
             navigator->navigate(PDFAppRoutes::documentTool(requestCopy.continueDocumentId, requestCopy.continueToolId), PDFAppNavigationMode::Push);
         }
-        if (!guard || !tab || !window)
+        if (!tab || !window || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -906,13 +909,13 @@ void PDFAppToolTabPage::onCanceledCloseFinished(bool isDone)
 
 bool PDFAppToolTabPage::closeShell()
 {
-    // The close emits (the mode left, the state): anything may be deleted meanwhile
-    QPointer<PDFAppToolTabPage> guard(this);
+    // The close emits (the mode left, the state): anything may be closed meanwhile (a retired page goes on with
+    // nothing)
     if (m_shell)
     {
         m_shell->close();
     }
-    return guard != nullptr;
+    return !PDFDeferredDeletion::isRetired(this);
 }
 
 // ------------------------------------------------------------------ factory

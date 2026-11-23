@@ -28,6 +28,7 @@
 
 #include "pdfaction.h"
 #include "pdfcatalog.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfmessagebox.h"
 #include "pdfthemeiconengine.h"
@@ -170,12 +171,12 @@ void PDFAppItemViewSignalRelay::add(Kind kind, const QModelIndex& index)
 
 void PDFAppItemViewSignalRelay::onQueued()
 {
-    // The signals in the order of Qt; each of them may delete the relay with its receiver, or the view
-    const std::vector<Pending> pending = std::exchange(m_pending, std::vector<Pending>());
     QPointer<PDFAppItemViewSignalRelay> guard(this);
+    // The signals in the order of Qt; each of them may close the relay with its receiver, or the view
+    const std::vector<Pending> pending = std::exchange(m_pending, std::vector<Pending>());
     for (const Pending& item : pending)
     {
-        if (!guard || !m_view)
+        if (!guard || PDFDeferredDeletion::isRetired(this) || !m_view)
         {
             return;
         }

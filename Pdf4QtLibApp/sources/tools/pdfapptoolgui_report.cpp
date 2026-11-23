@@ -1012,10 +1012,9 @@ void PDFAppToolGUIReport::updateAll()
         return;
     }
 
-    // The slots of the status and of the Primary button may delete this GUI: the last things
-    QPointer<PDFAppToolGUIReport> guard(this);
+    // The slots of the status and of the Primary button may retire this GUI: the last things
     updateConfirmState();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }
@@ -1113,7 +1112,6 @@ bool PDFAppToolGUIReport::updateLeftPanel()
 
     // The rows last: the check box of a row emits its toggle (the signals of the row are blocked, not those of its
     // check box) - a slot of any signal may delete this GUI, so the rows are copies and the guard is checked
-    QPointer<PDFAppToolGUIReport> guard(this);
     const std::map<PDFDocumentReportSection, QPointer<PDFTileRow>> rows = m_sectionRows;
     const PDFDocumentReportSection currentSection = m_currentSection;
     const bool isRunning = m_isRunning;
@@ -1131,7 +1129,7 @@ bool PDFAppToolGUIReport::updateLeftPanel()
         row->setChecked(item.first == currentSection);
         row->setCheckBoxEnabled(isAvailable && !isRunning);
         row->setCheckBoxChecked(isAvailable && model && model->getValue(PDFAppToolGUIReportHelper::sectionName(item.first)).toBool());
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return false;
         }
@@ -1261,10 +1259,9 @@ void PDFAppToolGUIReport::setCurrentSection(PDFDocumentReportSection section)
         const int top = m_preview->getSectionTop(PDFDocumentReport::getSectionId(section));
         if (top >= 0)
         {
-            // The scroll bar emits its value (a slot may delete this GUI)
-            QPointer<PDFAppToolGUIReport> guard(this);
+            // The scroll bar emits its value (a slot may retire this GUI)
             m_previewArea->verticalScrollBar()->setValue(m_preview->mapTo(m_previewArea->widget(), QPoint(0, top)).y() - 20);
-            if (!guard)
+            if (PDFDeferredDeletion::isRetired(this))
             {
                 return;
             }

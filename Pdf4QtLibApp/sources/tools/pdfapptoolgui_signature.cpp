@@ -998,8 +998,7 @@ void PDFAppToolGUISignature::updateSignatureCards()
     {
         if (card)
         {
-            card->hide();
-            card->deleteLater();
+            PDFDeferredDeletion::retire(card.data());
         }
     }
     m_signatureCards.clear();
@@ -1035,9 +1034,8 @@ void PDFAppToolGUISignature::updateSignatureCards()
 void PDFAppToolGUISignature::notifyStateChanged()
 {
     // The Primary button and the status bar read the parts; both emit (the last calls)
-    QPointer<PDFAppToolGUISignature> guard(this);
     updateConfirmState();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }
@@ -1348,11 +1346,10 @@ void PDFAppToolGUISignature::prepareEnvironment(PDFAppToolRunEnvironment* enviro
     {
         QString errorMessage;
         std::vector<PDFCertificateEntry> certificates;
-        QPointer<const PDFAppToolGUISignature> guard(this);
         const bool isPrepared = prepareCertificate(&m_certificateRunValues, &certificates, &errorMessage);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
-            // The unlock writes the cache of the certificates (its observers run): the GUI is gone
+            // The unlock writes the cache of the certificates (its observers run): the GUI is retired
             return;
         }
         if (isPrepared)
@@ -1405,13 +1402,12 @@ void PDFAppToolGUISignature::confirmRetry()
 {
     // The retry is the failed run again: its answered question is not asked again
     m_answeredQuestion = m_retryAnsweredQuestion;
-    QPointer<PDFAppToolGUISignature> guard(this);
     PDFDocumentToolShell* shell = getShell();
     if (shell)
     {
         shell->confirm();
     }
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1484,10 +1480,9 @@ void PDFAppToolGUISignature::onParametersChanged(const QString& name)
 
     if (name == QLatin1String(Tool::PARAMETER_TSA_URL) && m_authorityPart && getModel())
     {
-        // Undo / Redo of the address; the part emits its change (its slots may delete this GUI)
-        QPointer<PDFAppToolGUISignature> guard(this);
+        // Undo / Redo of the address; the part emits its change (its slots may retire this GUI)
         m_authorityPart->setUrl(getModel()->getValue(name).toString());
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1727,11 +1722,10 @@ void PDFAppToolGUISignature::onQuestionAccepted()
     m_answeredQuestion = question;
 
     // 434:7495: the signature is invisible (one step of the model)
-    QPointer<PDFAppToolGUISignature> guard(this);
     if (question == Question::NoGraphics && getModel())
     {
         getModel()->setValue(QString::fromLatin1(Tool::PARAMETER_APPEARANCE), QString::fromLatin1(Tool::APPEARANCE_INVISIBLE));
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1894,11 +1888,10 @@ void PDFAppToolGUISignature::onSignWithoutTimestampClicked()
     m_isRunPending = false;
 
     // The type without the timestamp (one step of the model), then the run
-    QPointer<PDFAppToolGUISignature> guard(this);
     if (getModel())
     {
         getModel()->setValue(QString::fromLatin1(Tool::PARAMETER_TYPE), QString::fromLatin1(Tool::TYPE_SIGNATURE));
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -2020,10 +2013,9 @@ void PDFAppToolGUISignature::onUrlChanged()
     // The address is the value of tsaUrl (not secret); an invalid one is no value of the model
     if (m_authorityPart && getModel() && m_authorityPart->isUrlValid())
     {
-        // The model emits its change (the shell and its slots may delete this GUI)
-        QPointer<PDFAppToolGUISignature> guard(this);
+        // The model emits its change (the shell and its slots may retire this GUI)
         getModel()->setValue(QString::fromLatin1(Tool::PARAMETER_TSA_URL), m_authorityPart->getUrl());
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }

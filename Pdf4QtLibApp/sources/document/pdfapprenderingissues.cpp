@@ -27,6 +27,7 @@
 
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentrows.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdrawwidget.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemeiconengine.h"
@@ -161,8 +162,7 @@ void PDFAppRenderingIssuesPanel::setIssues(const std::vector<PDFAppRenderingIssu
     {
         QWidget* row = m_rows.back().data();
         m_rows.pop_back();
-        row->hide();
-        row->deleteLater();
+        PDFDeferredDeletion::retireLater(row);
     }
 
     for (int i = 0; i < count; ++i)
@@ -472,12 +472,13 @@ bool PDFAppRenderingIssues::showPopover()
     const QSize size = popover->sizeHint();
     const bool isRightToLeft = m_statusItem->layoutDirection() == Qt::RightToLeft;
     const QPoint position(isRightToLeft ? anchor.left() : anchor.right() + 1 - size.width(), anchor.top() - size.height());
+    QPointer<PDFAppRenderingIssuesPanel> panelGuard(panel);
     popover->popup(position);
 
-    QPointer<PDFAppRenderingIssuesPanel> guard(panel);
-    if (guard)
+    // A slot of the show may close the popover: the focus never enters a retired panel
+    if (panelGuard && !PDFDeferredDeletion::isRetired(panel))
     {
-        guard->focusFirstRow();
+        panel->focusFirstRow();
     }
     return isPopoverVisible();
 }
@@ -530,10 +531,10 @@ void PDFAppRenderingIssues::onDocumentChanged()
 
 void PDFAppRenderingIssues::onUpdateTimeout()
 {
-    // issuesChanged of updateItems may delete the tab (and this object)
     QPointer<PDFAppRenderingIssues> guard(this);
+    // issuesChanged of updateItems may close the tab (and this object)
     updateItems();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -574,10 +575,10 @@ void PDFAppRenderingIssues::onAdditionalItemClicked()
 
 void PDFAppRenderingIssues::onIssueActivated(PDFInteger pageIndex)
 {
-    // The popover closes first (the row, which has sent the signal, is deleted later)
     QPointer<PDFAppRenderingIssues> guard(this);
+    // The popover closes first (the row, which has sent the signal, is deleted later)
     hidePopover();
-    if (guard && m_view)
+    if (guard && !PDFDeferredDeletion::isRetired(this) && m_view)
     {
         m_view->goToPage(pageIndex);
     }

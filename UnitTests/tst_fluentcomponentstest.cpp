@@ -759,6 +759,8 @@ private slots:
     void deferredDeletionMessageBox();
     void deferredDeletionReplacedParts();
     void deferredDeletionMoreButtonMenu();
+    void deferredDeletionEndOfWatchedParts();
+    void deferredDeletionMoreButtonRetiredMenu();
 
 private:
     /// Sends the deferred deletions of the retired objects (the test body is the event loop level 0)
@@ -21745,10 +21747,11 @@ void FluentComponentsTest::deferredDeletionMoreButtonMenu()
     menu->hide();
     QVERIFY(!button->isDown());
 
-    // The theme (a component button) and the shown menu
+    // The theme (a component button) and the shown menu: its aboutToHide and the end of it
+    // (aboutToBeDeleted of its notifier; 3 instead of 2 approved by the owner on 23. 11. 2026)
     QVERIFY(button->showMenu());
     QVERIFY(button->isDown());
-    QCOMPARE(pdf::PDFDeferredDeletion::getConnectionCount(button), 2);
+    QCOMPARE(pdf::PDFDeferredDeletion::getConnectionCount(button), 3);
     pdf::PDFDeferredDeletion::retire(window);
     QCOMPARE(pdf::PDFDeferredDeletion::getConnectionCount(button), 0);
 
@@ -21760,6 +21763,159 @@ void FluentComponentsTest::deferredDeletionMoreButtonMenu()
     settleRetired();
     QVERIFY(!window);
     delete menu;
+}
+
+void FluentComponentsTest::deferredDeletionEndOfWatchedParts()
+{
+    // The end of a watched part is aboutToBeDeleted of its notifier (CLAUDE.md, Deferred deletion):
+    // it comes at the retire of the part (the part is inert at once, it sends nothing more), or
+    // from its destruction. A retired anchor closes the popover of a palette at once, a retired
+    // palette of a color button is dropped at once (the name of the color falls back to the
+    // default name, the next getPalette makes a new palette), a retired menu of the months
+    // releases the button of the month at once (a retired menu sends no aboutToHide); a deleted
+    // menu of the months releases it as well; a retired menu of a more button releases the
+    // button at once
+    QPointer<QWidget> window = new QWidget();
+    window->resize(480, 480);
+    QPushButton* anchor = new QPushButton(QStringLiteral("Color"), window);
+    anchor->setGeometry(10, 10, 100, 30);
+    pdf::PDFColorPalette* popover = new pdf::PDFColorPalette(window, Qt::Popup);
+    popover->setSuggestedColors(PanelSamples::suggested());
+    pdf::PDFColorButton* button = new pdf::PDFColorButton(QColor(QStringLiteral("#00FF7F")), QString(), window);
+    button->setGeometry(10, 50, 200, 32);
+    pdf::PDFCalendarWidget* calendar = new pdf::PDFCalendarWidget(window);
+    calendar->move(10, 100);
+    window->show();
+    QVERIFY(QTest::qWaitForWindowExposed(window.data()));
+
+    // The anchor (not the parent of the popover) retired, while the popover is open: the popover
+    // is closed by the end of the anchor, before the later listeners of the end run (not only by
+    // the hide of the anchor, the step 7 of the retire)
+    QSignalSpy closedSpy(popover, &pdf::PDFColorPalette::closed);
+    popover->popup(anchor);
+    QVERIFY(popover->isVisible());
+    QPointer<QPushButton> anchorGuard(anchor);
+    int laterListeners = 0;
+    bool isPopoverVisibleAtEnd = true;
+    QObject::connect(pdf::PDFDeferredDeletion::getNotifier(anchor), &pdf::PDFLifetimeNotifier::aboutToBeDeleted, window, [&laterListeners, &isPopoverVisibleAtEnd, popover]()
+    {
+        ++laterListeners;
+        isPopoverVisibleAtEnd = popover->isVisible();
+    });
+    pdf::PDFDeferredDeletion::retire(anchor);
+    QCOMPARE(laterListeners, 1);
+    QVERIFY(!isPopoverVisibleAtEnd);
+    QVERIFY(!pdf::PDFDeferredDeletion::isRetired(popover));
+    QVERIFY(!popover->isVisible());
+    QTRY_COMPARE(closedSpy.count(), 1);
+    settleRetired();
+    QVERIFY(!anchorGuard);
+
+    // The palette of the color button retired alone
+    QPointer<pdf::PDFColorPalette> palette = button->getPalette();
+    palette->setSuggestedColors(PanelSamples::suggested());
+    QCOMPARE(button->text(), QStringLiteral("Terminal green"));
+    pdf::PDFDeferredDeletion::retire(palette);
+    QVERIFY(palette);
+    QCOMPARE(button->text(), QStringLiteral("#00FF7F"));
+    QCOMPARE(button->getShownName(), QStringLiteral("#00FF7F"));
+    pdf::PDFColorPalette* newPalette = button->getPalette();
+    QVERIFY(newPalette);
+    QVERIFY(newPalette != palette.data());
+    QVERIFY(!pdf::PDFDeferredDeletion::isRetired(newPalette));
+    settleRetired();
+    QVERIFY(!palette);
+    QVERIFY(button->showPalette());
+    QVERIFY(button->isPaletteVisible());
+    button->hidePalette();
+    QVERIFY(!button->isPaletteVisible());
+
+    // The menu of the months retired, while it is open (the calendar is deleted before the menu: the
+    // calendar of Qt keeps the actions of its menu)
+    QPointer<QToolButton> monthButton = calendar->findChild<QToolButton*>(QStringLiteral("qt_calendar_monthbutton"));
+    QPointer<QMenu> monthMenu = calendar->getMonthMenu();
+    QVERIFY(monthButton);
+    QVERIFY(monthMenu);
+    QVERIFY(calendar->showMonthMenu());
+    QVERIFY(monthMenu->isVisible());
+    QVERIFY(monthButton->isDown());
+    QVERIFY(monthButton->property(pdf::PDFWidgetStyleProperties::MENU_OPEN).toBool());
+    pdf::PDFDeferredDeletion::retire(monthMenu);
+    QVERIFY(!pdf::PDFDeferredDeletion::isRetired(calendar));
+    QVERIFY(!monthButton->isDown());
+    QVERIFY(!monthButton->property(pdf::PDFWidgetStyleProperties::MENU_OPEN).toBool());
+    delete calendar;
+    QVERIFY(!monthMenu);
+
+    // The menu of the months of a new calendar deleted, while it is open
+    calendar = new pdf::PDFCalendarWidget(window);
+    calendar->move(10, 100);
+    calendar->show();
+    monthButton = calendar->findChild<QToolButton*>(QStringLiteral("qt_calendar_monthbutton"));
+    monthMenu = calendar->getMonthMenu();
+    QVERIFY(monthButton);
+    QVERIFY(monthMenu);
+    QVERIFY(calendar->showMonthMenu());
+    QVERIFY(monthButton->isDown());
+    delete monthMenu.data();
+    QVERIFY(!monthButton->isDown());
+    QVERIFY(!monthButton->property(pdf::PDFWidgetStyleProperties::MENU_OPEN).toBool());
+    delete calendar;
+
+    // The menu of a more button (a menu of the application, outside of the button) retired,
+    // while it is shown
+    pdf::PDFMoreButton* moreButton = new pdf::PDFMoreButton(window);
+    moreButton->move(300, 10);
+    moreButton->show();
+    QPointer<QMenu> moreMenu = new QMenu();
+    moreMenu->addAction(QStringLiteral("Action"));
+    moreButton->setMenu(moreMenu);
+    QVERIFY(moreButton->showMenu());
+    QVERIFY(moreMenu->isVisible());
+    QVERIFY(moreButton->isDown());
+    pdf::PDFDeferredDeletion::retire(moreMenu);
+    QVERIFY(!pdf::PDFDeferredDeletion::isRetired(moreButton));
+    QVERIFY(!moreButton->isDown());
+    QCOMPARE(pdf::PDFDeferredDeletion::getConnectionCount(moreButton), 1);
+    settleRetired();
+    QVERIFY(!moreMenu);
+
+    delete window.data();
+    settleRetired();
+}
+
+void FluentComponentsTest::deferredDeletionMoreButtonRetiredMenu()
+{
+    // RC6-L6: a menu of a more button, which is retired already (closed by the application, not deleted yet), is
+    // never shown: the gate would drop its events and its end (aboutToBeDeleted) has come already, so nothing would
+    // release the button. Both ways of showing refuse it; the button stays up and connects nothing to the menu.
+    QPointer<QWidget> window = new QWidget();
+    window->resize(200, 100);
+    pdf::PDFMoreButton* button = new pdf::PDFMoreButton(window);
+    QPointer<QMenu> menu = new QMenu();
+    menu->addAction(QStringLiteral("Action"));
+    button->setMenu(menu);
+    window->show();
+    QVERIFY(QTest::qWaitForWindowExposed(window.data()));
+    const int connectionCount = pdf::PDFDeferredDeletion::getConnectionCount(button);
+
+    pdf::PDFDeferredDeletion::retire(menu);
+    QVERIFY(menu);
+    QCOMPARE(button->getMenu(), menu.data());
+    QVERIFY(!button->showMenu());
+    QVERIFY(!button->isDown());
+    QVERIFY(!menu->isVisible());
+    QCOMPARE(pdf::PDFDeferredDeletion::getConnectionCount(button), connectionCount);
+    QVERIFY(!button->showMenu(button->mapToGlobal(QPoint(4, 4))));
+    QVERIFY(!menu->isVisible());
+
+    // The menu goes with the event loop; the button forgets it and shows nothing
+    settleRetired();
+    QVERIFY(!menu);
+    QVERIFY(!button->showMenu());
+    QVERIFY(!button->isDown());
+    delete window.data();
+    settleRetired();
 }
 
 

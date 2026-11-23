@@ -452,11 +452,12 @@ void PDFAppToolGUISanitize::buildForm()
         return;
     }
 
-    // The old form goes later: it may hold the sender of the change
+    // The old form is retired from the event loop: it may hold the sender of the change. Taken out of the scroll area
+    // it has no parent: it belongs to this GUI until then (a retire of the tool meanwhile retires it too)
     if (QWidget* old = m_canvasPage->takeWidget())
     {
-        old->hide();
-        old->deleteLater();
+        PDFDeferredDeletion::setOwner(old, this);
+        PDFDeferredDeletion::retireLater(old);
     }
     m_checklists.clear();
 
@@ -677,9 +678,11 @@ void PDFAppToolGUISanitize::updateResultContent()
     {
         return;
     }
+    // The rows of an earlier result are shown: retired (inert and hidden at once, deleted later); a retired row is
+    // retired once (it stays a child until its deletion)
     for (PDFTileRow* row : steps->findChildren<PDFTileRow*>(QString(), Qt::FindDirectChildrenOnly))
     {
-        delete row;
+        PDFDeferredDeletion::retire(row);
     }
 
     const QJsonArray removedKinds = m_result->data.value(QStringLiteral("removedKinds")).toArray();
@@ -848,10 +851,9 @@ void PDFAppToolGUISanitize::onPreviewChanged(const PDFDocumentToolResult* previe
         buildForm();
     }
 
-    QPointer<PDFAppToolGUISanitize> guard(this);
     updateParts();
     updateConfirmState();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }
@@ -874,12 +876,11 @@ void PDFAppToolGUISanitize::onPresetRowClicked()
     const Preset preset = static_cast<Preset>(row->property(PDFAppToolGUIProtectHelper::PRESET_PROPERTY).toInt());
 
     // The panel closes first: the change of the values may start anything
-    QPointer<PDFAppToolGUISanitize> guard(this);
     if (m_presetPanel)
     {
         m_presetPanel->close();
     }
-    if (guard && getModel())
+    if (!PDFDeferredDeletion::isRetired(this) && getModel())
     {
         getModel()->setValues(PDFDocumentToolSanitize::getPresetValues(preset));
     }
@@ -1691,12 +1692,11 @@ void PDFAppToolGUIRemoveLinks::onFilterRowClicked()
     }
 
     const Filter filter = static_cast<Filter>(row->property(PDFAppToolGUIProtectHelper::FILTER_PROPERTY).toInt());
-    QPointer<PDFAppToolGUIRemoveLinks> guard(this);
     if (m_showPanel)
     {
         m_showPanel->close();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         setFilter(filter);
     }
@@ -1744,13 +1744,12 @@ void PDFAppToolGUIRemoveLinks::onQueuedRowChanged()
     const PDFInteger pageIndex = link->pageIndex;
     updateOverlay();
 
-    QPointer<PDFAppToolGUIRemoveLinks> guard(this);
     const PDFAppToolHost* host = getHost();
     if (PDFAppDocumentView* view = host ? host->getView() : nullptr)
     {
         view->goToPage(pageIndex);
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         onDisplayedPageChanged();
     }
@@ -1848,7 +1847,6 @@ void PDFAppToolGUIRemoveLinks::onPreviewChanged(const PDFDocumentToolResult* pre
         }
     }
 
-    QPointer<PDFAppToolGUIRemoveLinks> guard(this);
     if (m_model)
     {
         // The cached preview comes again after every change of the kept links, also from inside
@@ -1866,7 +1864,7 @@ void PDFAppToolGUIRemoveLinks::onPreviewChanged(const PDFDocumentToolResult* pre
             model->setFollowingValue(QString::fromLatin1(PDFDocumentToolRemoveLinks::PARAMETER_EXCLUDE), PDFDocumentToolRemoveLinks::createExcludeText(validIds));
         }
     }
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1878,7 +1876,7 @@ void PDFAppToolGUIRemoveLinks::onPreviewChanged(const PDFDocumentToolResult* pre
 
     updateParts();
     updateConfirmState();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }

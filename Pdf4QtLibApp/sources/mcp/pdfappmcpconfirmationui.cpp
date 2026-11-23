@@ -811,7 +811,7 @@ void PDFAppMcpConfirmationUi::closeDialog()
         // Retired: hidden, disconnected and closed now (from the event loop, when the dialog emits its answer), deleted
         // later (step A)
         retireWidget(scrim, m_ownSignalDepth > 0);
-        if (hadFocus && tab)
+        if (hadFocus && tab && !PDFDeferredDeletion::isRetired(tab))
         {
             restoreFocus(tab);
         }
@@ -925,13 +925,11 @@ void PDFAppMcpConfirmationUi::showPreview(Entry& entry, PDFAppDocumentTab* tab)
         statusBar->showMessage(getPreviewStatusText());
     }
 
-    // The page of the first proposed annotation
-    QPointer<PDFAppMcpConfirmationUi> guard(this);
+    // The page of the first proposed annotation (the last call)
     if (firstPage >= 0 && firstPage < view->getPageCount())
     {
         view->goToPage(firstPage);
     }
-    Q_UNUSED(guard);
 }
 
 QString PDFAppMcpConfirmationUi::getPreviewStatusText()
@@ -1305,8 +1303,9 @@ void PDFAppMcpConfirmationUi::onNotificationShowChanges()
 
     // The Notes panel with the new annotations selected (955:151457), the
     // outline for its changes
+    // The panel runs code of the application: a view closed by it (retired with its tab, step A) selects nothing
     view->showPanel(info.panelId.isEmpty() ? PDFAppDocumentPanelIds::notes() : info.panelId);
-    if (view && !info.annotations.empty())
+    if (view && !PDFDeferredDeletion::isRetired(view) && !info.annotations.empty())
     {
         if (PDFAppAnnotationController* controller = view->getAnnotationController())
         {

@@ -111,10 +111,6 @@ public:
 
     static QString name(const char* parameter) { return QString::fromLatin1(parameter); }
 
-    /// The GUI goes on after foreign code (a slot of its signal may close the tool): it lives and its tool is not
-    /// closed - a retired GUI (step A) changes and creates nothing, it waits for its deletion
-    static bool isLive(const QPointer<PDFAppManageToolGUI>& gui) { return gui && !PDFDeferredDeletion::isRetired(gui.data()); }
-
     static int toInt(qint64 value)
     {
         return int(qBound(qint64(0), value, qint64(std::numeric_limits<int>::max())));
@@ -751,9 +747,8 @@ void PDFAppManageToolGUI::readValues()
     followFileState();
 
     // The list follows the inputs of the values (Undo / Redo park and take back the inputs)
-    QPointer<PDFAppManageToolGUI> guard(this);
     syncList();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -761,14 +756,14 @@ void PDFAppManageToolGUI::readValues()
     if (m_canvas)
     {
         m_canvas->setContent(m_assembly, createSourceViews(), isDocumentHost(), m_newTargetPages);
-        if (!guard || !m_canvas)
+        if (PDFDeferredDeletion::isRetired(this) || !m_canvas)
         {
             return;
         }
         if (m_hasPendingSelection)
         {
             m_canvas->setSelection(m_pendingSelection);
-            if (!guard)
+            if (PDFDeferredDeletion::isRetired(this))
             {
                 return;
             }
@@ -848,12 +843,11 @@ void PDFAppManageToolGUI::syncList()
             ids << pending.inputId;
         }
     }
-    QPointer<PDFAppManageToolGUI> guard(this);
     if (ids != m_list->getInputIds())
     {
         m_isChangingList = true;
         m_list->setInputIds(ids);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -876,12 +870,11 @@ void PDFAppManageToolGUI::applyAssembly(const PDFDocumentAssembly& assembly, con
 {
     using Helper = PDFAppManageToolGUIHelper;
 
-    QPointer<PDFAppManageToolGUI> guard(this);
     if (!errorMessage.isEmpty())
     {
         // A refused operation of the core says its reason; the value is the given one
         showMessage(errorMessage);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -898,7 +891,7 @@ void PDFAppManageToolGUI::applyAssembly(const PDFDocumentAssembly& assembly, con
         if (errorMessage.isEmpty() && m_canvas)
         {
             m_canvas->setSelection(selection);
-            if (guard)
+            if (!PDFDeferredDeletion::isRetired(this))
             {
                 updateAll();
             }
@@ -924,7 +917,7 @@ void PDFAppManageToolGUI::applyAssembly(const PDFDocumentAssembly& assembly, con
     m_hasPendingSelection = true;
     m_statusNote.clear();
     const QString error = model->setValues(values, stepText);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1020,10 +1013,9 @@ void PDFAppManageToolGUI::addResults(const std::vector<std::pair<QString, int>>&
         m_pending.push_back(pending);
     }
 
-    QPointer<PDFAppManageToolGUI> guard(this);
     queueProcessPending();
     updateAll();
-    if (guard && !refused.isEmpty())
+    if (!PDFDeferredDeletion::isRetired(this) && !refused.isEmpty())
     {
         showMessage(refused.join(QStringLiteral(" · ")));
     }
@@ -1173,7 +1165,6 @@ void PDFAppManageToolGUI::onProcessPending()
     }
     m_pending = waiting;
 
-    QPointer<PDFAppManageToolGUI> guard(this);
     if (hasChange)
     {
         if (isInitialOnly)
@@ -1192,7 +1183,7 @@ void PDFAppManageToolGUI::onProcessPending()
             m_pendingSelection = PDFDocumentAssembly::Selection();
             m_hasPendingSelection = true;
             getModel()->setFollowingValue(Helper::name(PDFDocumentToolManage::PARAMETER_INPUTS), inputIds.join(QLatin1Char(',')));
-            if (guard && getModel())
+            if (!PDFDeferredDeletion::isRetired(this) && getModel())
             {
                 getModel()->setFollowingValue(Helper::name(PDFDocumentToolManage::PARAMETER_ASSEMBLY), QVariant::fromValue(assembly));
             }
@@ -1201,7 +1192,7 @@ void PDFAppManageToolGUI::onProcessPending()
         {
             applyAssembly(assembly, selection, tr("Add files"), QString());
         }
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1223,7 +1214,7 @@ void PDFAppManageToolGUI::onProcessPending()
         {
             readValues();
         }
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1231,7 +1222,7 @@ void PDFAppManageToolGUI::onProcessPending()
     else
     {
         updateAll();
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1244,7 +1235,7 @@ void PDFAppManageToolGUI::onProcessPending()
         if (input)
         {
             openAddPagesDialog(QString::fromLatin1(PDFAppManageToolGUIHelper::INPUT_PREFIX) + dialogInput, input->name, input->pageCount, dialogKind == PendingAddition::Kind::ReplacePages);
-            if (!guard)
+            if (PDFDeferredDeletion::isRetired(this))
             {
                 return;
             }
@@ -1377,11 +1368,10 @@ void PDFAppManageToolGUI::addFiles(const QStringList& filePaths)
         hasExisting = hasExisting || edit.errorMessage.isEmpty();
     }
 
-    QPointer<PDFAppManageToolGUI> guard(this);
     if (hasExisting)
     {
         applyAssembly(assembly, selection, tr("Add files"), errorMessage);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1393,7 +1383,7 @@ void PDFAppManageToolGUI::addFiles(const QStringList& filePaths)
 
     m_isChangingList = true;
     const std::vector<PDFAppToolInputList::AddResult> results = m_list->addFiles(newFiles);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1466,10 +1456,9 @@ void PDFAppManageToolGUI::addPagesOfFile(const QString& filePath)
         return;
     }
 
-    QPointer<PDFAppManageToolGUI> guard(this);
     m_isChangingList = true;
     const PDFAppToolInputList::AddResult result = m_list->addFile(filePath);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1562,10 +1551,9 @@ void PDFAppManageToolGUI::pasteImage()
         return;
     }
 
-    QPointer<PDFAppManageToolGUI> guard(this);
     m_isChangingList = true;
     const PDFAppToolInputList::AddResult result = m_list->addImage(image, QString());
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1583,10 +1571,9 @@ void PDFAppManageToolGUI::addOpenDocument(const QString& documentId)
     }
 
     // R11: a snapshot of now, the tab is not followed
-    QPointer<PDFAppManageToolGUI> guard(this);
     m_isChangingList = true;
     const PDFAppToolInputList::AddResult result = m_list->addOpenDocument(document);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1608,9 +1595,8 @@ bool PDFAppManageToolGUI::dropFiles(const QMimeData* mimeData)
     {
         refused << tr("%1 – %2").arg(item.text, PDFAppFileDrop::getRefusalText(item.refusal));
     }
-    QPointer<PDFAppManageToolGUI> guard(this);
     addFiles(result.files);
-    if (guard && !refused.isEmpty())
+    if (!PDFDeferredDeletion::isRetired(this) && !refused.isEmpty())
     {
         showMessage(refused.join(QStringLiteral(" · ")));
     }
@@ -1653,10 +1639,9 @@ void PDFAppManageToolGUI::onPasswordRemoveRequested(const QString& inputId)
     m_pending = std::move(pending);
     if (m_list && findSourceOfInput(inputId).isEmpty())
     {
-        QPointer<PDFAppManageToolGUI> guard(this);
         m_isChangingList = true;
         m_list->removeInput(inputId);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1677,9 +1662,8 @@ void PDFAppManageToolGUI::setSelection(const PDFDocumentAssembly::Selection& sel
 {
     if (m_canvas)
     {
-        QPointer<PDFAppManageToolGUI> guard(this);
         m_canvas->setSelection(selection);
-        if (guard)
+        if (!PDFDeferredDeletion::isRetired(this))
         {
             updateAll();
         }
@@ -2041,7 +2025,6 @@ void PDFAppManageToolGUI::openReplaceDialog()
 void PDFAppManageToolGUI::onReplaceFileChosen(const QString& file)
 {
     // The selection and the editing are read again (they may have changed meanwhile)
-    QPointer<PDFAppManageToolGUI> guard(this);
     if (file.isEmpty() || !m_list || !isEditable() || getSelection().empty())
     {
         return;
@@ -2056,7 +2039,7 @@ void PDFAppManageToolGUI::onReplaceFileChosen(const QString& file)
     }
     m_isChangingList = true;
     const PDFAppToolInputList::AddResult result = m_list->addFile(file);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -2464,10 +2447,9 @@ void PDFAppManageToolGUI::onSaveAssemblyAsChosen(const QString& filePath)
     }
 
     // The save runs code of the application (the title of the tab, the status)
-    QPointer<PDFAppManageToolGUI> guard(this);
     QString errorMessage;
     const bool isSaved = saveAssemblyTo(filePath, &errorMessage);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -2475,7 +2457,7 @@ void PDFAppManageToolGUI::onSaveAssemblyAsChosen(const QString& filePath)
     {
         showMessage(errorMessage);
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         finishSaveIntent(intent, isSaved);
     }
@@ -2538,9 +2520,8 @@ void PDFAppManageToolGUI::onCloseDialogChosen(PDFAppDocumentChoice choice)
                 }
                 return;
             }
-            QPointer<PDFAppManageToolGUI> guard(this);
             const bool isSaved = saveAssembly();
-            if (guard)
+            if (!PDFDeferredDeletion::isRetired(this))
             {
                 finishSaveIntent(intent, isSaved);
             }
@@ -2654,9 +2635,8 @@ bool PDFAppManageToolGUI::saveAssemblyTo(const QString& filePath, QString* error
     }
 
     // The title and the dot of the tab, the status (the last calls)
-    QPointer<PDFAppManageToolGUI> guard(this);
     updateAll();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         showMessage(tr("The assembly was saved to %1").arg(QDir::toNativeSeparators(m_assemblyPath)));
     }
@@ -2883,10 +2863,9 @@ void PDFAppManageToolGUI::applyLoadedContent(const PDFAppAssemblyLoadResult& res
             continue;
         }
 
-        QPointer<PDFAppManageToolGUI> guard(this);
         m_isChangingList = true;
         PDFAppToolInputList::AddResult added = m_list->addFile(path);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -2934,11 +2913,10 @@ void PDFAppManageToolGUI::applyLoadedContent(const PDFAppAssemblyLoadResult& res
         repository.recordOpened(assemblyPath, Helper::toInt(Helper::getPageCount(assembly.getItems())));
     }
 
-    QPointer<PDFAppManageToolGUI> guard(this);
     m_hasPendingSelection = true;
     m_pendingSelection.clear();
     const QString error = getModel()->setValues(values, tr("Open Assembly"));
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -2953,7 +2931,7 @@ void PDFAppManageToolGUI::applyLoadedContent(const PDFAppAssemblyLoadResult& res
     m_savedCheckpointCount = m_checkpoints.size();
     queueProcessPending();
     updateAll();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -3381,11 +3359,10 @@ QWidget* PDFAppManageToolGUI::createCanvasPage(QWidget* parent)
     m_tileSizeMenu->setSize(m_tileSize);
     connect(m_tileSizeMenu.data(), &PDFAppToolTileSizeMenu::sizeChosen, this, &PDFAppManageToolGUI::onTileSizeChosen);
 
-    // The content of the canvas is said to its views and observers, which may delete this GUI
-    QPointer<PDFAppManageToolGUI> guard(this);
+    // The content of the canvas is said to its views and observers, which may retire this GUI
     QPointer<PDFAppManageCanvas> canvas = m_canvas;
     m_canvas->setContent(m_assembly, createSourceViews(), isDocumentHost(), m_newTargetPages);
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateAll();
     }
@@ -3683,9 +3660,8 @@ void PDFAppManageToolGUI::onPanelRowClicked()
     const QString name = row ? row->property(PDFAppManageToolGUIHelper::ACTION_KEY).toString() : QString();
 
     // The panel closes first (it may run code of the application), then the action runs
-    QPointer<PDFAppManageToolGUI> guard(this);
     closePanels();
-    if (guard && !name.isEmpty())
+    if (!PDFDeferredDeletion::isRetired(this) && !name.isEmpty())
     {
         runAction(name);
     }
@@ -3715,9 +3691,8 @@ void PDFAppManageToolGUI::onOpenDocumentRowClicked()
 {
     QObject* row = sender();
     const QString documentId = row ? row->property(PDFAppManageToolGUIHelper::ACTION_KEY).toString() : QString();
-    QPointer<PDFAppManageToolGUI> guard(this);
     closePanels();
-    if (guard && !documentId.isEmpty())
+    if (!PDFDeferredDeletion::isRetired(this) && !documentId.isEmpty())
     {
         addOpenDocument(documentId);
     }
@@ -3727,9 +3702,8 @@ void PDFAppManageToolGUI::onRecentRowClicked()
 {
     QObject* row = sender();
     const QString filePath = row ? row->property(PDFAppManageToolGUIHelper::ACTION_KEY).toString() : QString();
-    QPointer<PDFAppManageToolGUI> guard(this);
     closePanels();
-    if (guard && !filePath.isEmpty())
+    if (!PDFDeferredDeletion::isRetired(this) && !filePath.isEmpty())
     {
         openAssemblyFile(filePath);
     }
@@ -4120,9 +4094,8 @@ void PDFAppManageToolGUI::onTileSizeChosen(PDFAppToolPageGrid::TileSize size)
 
 void PDFAppManageToolGUI::onRegistryChanged()
 {
-    QPointer<PDFAppManageToolGUI> guard(this);
     updateOpenDocumentRows();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateEmptyState();
     }
@@ -4168,9 +4141,8 @@ void PDFAppManageToolGUI::onParametersChanged(const QString& name)
 void PDFAppManageToolGUI::onDocumentChanged()
 {
     BaseClass::onDocumentChanged();
-    QPointer<PDFAppManageToolGUI> guard(this);
     updateDocumentMapping();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         readValues();
     }
@@ -4489,40 +4461,38 @@ bool PDFAppManageToolGUI::isEditable() const
 
 void PDFAppManageToolGUI::updateAll()
 {
-    // The parts announce their changes, whose slots may delete this GUI or close its tool: each part only by a
-    // living GUI of an open tool (a caller may go on after a slot, which has closed the tool - step A)
-    using Helper = PDFAppManageToolGUIHelper;
-    QPointer<PDFAppManageToolGUI> guard(this);
-    if (!Helper::isLive(guard))
+    // The parts announce their changes, whose slots may retire this GUI or close its tool: each part only by a
+    // GUI, which is not retired (a caller may go on after a slot, which has closed the tool - step A)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
     updateOpenDocumentRows();
-    if (Helper::isLive(guard))
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateRecentRows();
     }
-    if (Helper::isLive(guard))
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateSources();
     }
-    if (Helper::isLive(guard))
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateCanvas();
     }
-    if (Helper::isLive(guard))
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateRightPanel();
     }
-    if (Helper::isLive(guard))
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateToolbar();
     }
-    if (Helper::isLive(guard))
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateEditable();
     }
-    if (!Helper::isLive(guard))
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -4533,11 +4503,11 @@ void PDFAppManageToolGUI::updateAll()
 
     // The slots of the Primary button, the status and the tab may delete this GUI: the last things
     updateConfirmState();
-    if (Helper::isLive(guard))
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }
-    if (Helper::isLive(guard))
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateOwnTabState();
     }

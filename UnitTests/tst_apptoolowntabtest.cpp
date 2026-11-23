@@ -37,6 +37,7 @@
 #include "pdfapphelpcatalog.h"
 #include "pdfappdocumenttab.h"
 #include "pdfapphistory.h"
+#include "pdfappleaveflow.h"
 #include "pdfappmainwindow.h"
 #include "pdfappowntabtoolhost.h"
 #include "pdfapppagenotfound.h"
@@ -50,6 +51,7 @@
 
 #include "pdfcatalog.h"
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumentreader.h"
 #include "pdfdocumenttoolregistry.h"
 #include "pdfmcpcall.h"
@@ -66,6 +68,7 @@
 #include <QPushButton>
 #include <QSignalSpy>
 #include <QSplitter>
+#include <QTabBar>
 #include <QTimer>
 #include <QtTest>
 
@@ -90,6 +93,7 @@ private Q_SLOTS:
     void statusBarWithoutDocument();
     void undoAndRedoOfTool();
     void closeAsksForInputs();
+    void closeActivationRetiresTab();
     void closeAsksDuringRun();
     void closeRefusedWhileDeciding();
     void quitAsksForInputs();
@@ -486,6 +490,49 @@ void AppToolOwnTabTest::closeAsksForInputs()
     QVERIFY(!H::openDialog(QStringLiteral("toolTabCloseDialog")));
     AppToolOwnTabFixture::settle();
     QVERIFY(!empty);
+}
+
+void AppToolOwnTabTest::closeActivationRetiresTab()
+{
+    // RD6-H1, a retire variant of the close with inputs (K16, closeAsksForInputs): the question brings the tab of the
+    // tool to the front first; a slot of the switch of the tabs closes that tab (retired, deleted later). The page,
+    // retired by the activation, asks nothing and refuses its step (PA6)
+    AppToolOwnTabFixture fixture;
+    QVERIFY(fixture.registerOwnTabTool(QStringLiteral("pages.merge")));
+    pdf::PDFAppDocumentTab* documentTab = H::openReady(fixture, 2);
+    QVERIFY(documentTab);
+    QPointer<pdf::PDFAppToolTab> tab = fixture.createToolTab(QStringLiteral("pages.merge"), H::createList({ documentTab }));
+    QVERIFY(tab);
+    QPointer<pdf::PDFAppToolTabPage> page = tab->getToolPage();
+    QVERIFY(page);
+    fixture.window->activateTab(documentTab);
+    AppToolOwnTabFixture::settle();
+    QCOMPARE(fixture.window->getCurrentTab(), static_cast<pdf::PDFAppTab*>(documentTab));
+
+    pdftest::NestedEventLoopGuard loopGuard;
+    bool isRetiredByActivation = false;
+    QObject receiver;
+    QObject::connect(fixture.window->getTabBar(), &QTabBar::currentChanged, &receiver, [&]()
+    {
+        if (!isRetiredByActivation && tab)
+        {
+            isRetiredByActivation = true;
+            pdf::PDFDeferredDeletion::retire(tab.data());
+        }
+    });
+    pdf::PDFAppLeaveFlow* flow = tab->getLeaveFlow();
+    QVERIFY(flow->start(pdf::PDFAppLeaveFlow::Goal::CloseTab));
+    QCOMPARE(page->requestClose(flow), pdf::PDFAppLeaveResult::Refused);
+    QVERIFY(isRetiredByActivation);
+    QVERIFY(page);
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(page.data()));
+    QVERIFY(!H::openDialog(QStringLiteral("toolTabCloseDialog")));
+
+    AppToolOwnTabFixture::settle();
+    QVERIFY(!tab);
+    QVERIFY(!page);
+    QVERIFY(!H::openDialog(QStringLiteral("toolTabCloseDialog")));
+    QVERIFY(fixture.window->isVisible());
 }
 
 void AppToolOwnTabTest::closeAsksDuringRun()

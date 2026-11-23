@@ -412,9 +412,8 @@ void PDFAppBlankSizePanel::onDocumentRowClicked()
     const QSizeF pageSize = row ? row->property(PDFAppBlankToolGUIHelper::SIZE_PROPERTY).toSizeF() : QSizeF();
 
     // The panel closes first (it may run code of the application), the signal is the last thing
-    QPointer<PDFAppBlankSizePanel> guard(this);
     close();
-    if (guard && pageSize.isValid())
+    if (!PDFDeferredDeletion::isRetired(this) && pageSize.isValid())
     {
         Q_EMIT documentSizeChosen(pageSize);
     }
@@ -1046,12 +1045,11 @@ void PDFAppBlankToolGUI::onSizeRowClicked()
     const QString sizeId = row ? row->property(PDFAppBlankToolGUIHelper::SIZE_PROPERTY).toString() : QString();
 
     // The panel closes first (it may run code of the application), then the size is chosen
-    QPointer<PDFAppBlankToolGUI> guard(this);
     if (m_sizePanel)
     {
         m_sizePanel->close();
     }
-    if (guard && !sizeId.isEmpty())
+    if (!PDFDeferredDeletion::isRetired(this) && !sizeId.isEmpty())
     {
         chooseSize(sizeId);
     }
@@ -1074,7 +1072,6 @@ void PDFAppBlankToolGUI::chooseSize(const QString& sizeId)
     }
 
     const QString sizeParameter = Helper::name(Helper::Tool::PARAMETER_PAGE_SIZE);
-    QPointer<PDFAppBlankToolGUI> guard(this);
     if (sizeId == QLatin1String(Helper::Tool::SIZE_CUSTOM))
     {
         // Custom starts with the size shown so far (the page does not jump)
@@ -1099,7 +1096,7 @@ void PDFAppBlankToolGUI::chooseSize(const QString& sizeId)
     }
 
     // The row has checked itself: the value of the model decides (also for a refusal)
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateSizeMenu();
     }
@@ -1126,13 +1123,12 @@ void PDFAppBlankToolGUI::chooseCustomSize(const QSizeF& pageSize)
     values.insert(Helper::name(Helper::Tool::PARAMETER_ORIENTATION), Helper::name(Helper::isLandscape(pageSize) ? Helper::Tool::ORIENTATION_LANDSCAPE : Helper::Tool::ORIENTATION_PORTRAIT));
 
     // A page of a document outside of the limits of a side (K26) is refused with its reason
-    QPointer<PDFAppBlankToolGUI> guard(this);
     const QString error = model->setValues(values);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
-    if (guard && !error.isEmpty())
+    if (!error.isEmpty())
     {
         if (PDFAppToolHost* host = getHost())
         {
@@ -1166,7 +1162,6 @@ void PDFAppBlankToolGUI::chooseOrientation(bool isLandscape)
     const QSizeF pageSize = PDFDocumentToolBlank::getPageSize(effective, nullptr);
     const bool isCustom = effective.value(Helper::name(Helper::Tool::PARAMETER_PAGE_SIZE)).toString() == QLatin1String(Helper::Tool::SIZE_CUSTOM);
 
-    QPointer<PDFAppBlankToolGUI> guard(this);
     if (isCustom && !pageSize.isEmpty() && Helper::isLandscape(pageSize) != isLandscape && pageSize.width() != pageSize.height())
     {
         // A custom size turns: its width and height are swapped (one undo step)
@@ -1184,7 +1179,7 @@ void PDFAppBlankToolGUI::chooseOrientation(bool isLandscape)
     }
 
     // The button has toggled itself: the size decides
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateOrientationButtons();
     }
@@ -1260,9 +1255,8 @@ bool PDFAppBlankToolGUI::commitField(Field field)
         values.insert(Helper::name(Helper::Tool::PARAMETER_ORIENTATION), Helper::name(isLandscape ? Helper::Tool::ORIENTATION_LANDSCAPE : Helper::Tool::ORIENTATION_PORTRAIT));
     }
 
-    QPointer<PDFAppBlankToolGUI> guard(this);
     model->setValues(values);
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         // A value equal to the model has no change: the field shows the value of the model
         resetFieldParts(field);
@@ -1356,19 +1350,18 @@ void PDFAppBlankToolGUI::finishUpdate()
     updateParts();
 
     // The signals last: the errors of the inputs, the Primary button and the status bar; a
-    // slot may delete the shell and this GUI with it
-    QPointer<PDFAppBlankToolGUI> guard(this);
+    // slot may retire the shell and this GUI with it
     for (Field field : { Field::Pages, Field::Width, Field::Height })
     {
         const auto it = m_fieldErrors.find(field);
         setInputError(getParameterName(field), it != m_fieldErrors.cend() ? it->second : QString());
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
     }
     updateConfirmState();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }

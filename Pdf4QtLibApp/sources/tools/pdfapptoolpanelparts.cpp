@@ -83,10 +83,10 @@ void PDFAppToolSidePanel::setContent(QWidget* content)
 {
     if (m_content)
     {
-        // The old content may be the sender of the change: it goes from the event loop
+        // Retired (step A: rebuilt content - the shell sets the content at the entry and from the event loop after a
+        // change of the language, never from a signal of the old content), deleted later
         m_bodyLayout->removeWidget(m_content);
-        m_content->hide();
-        m_content->deleteLater();
+        PDFDeferredDeletion::retire(m_content.data());
     }
 
     m_content = content;

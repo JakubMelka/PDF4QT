@@ -35,6 +35,7 @@
 #include "pdfdrawspacecontroller.h"
 
 #include "pdfcomponentbadges.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemefonts.h"
 #include "pdfthemeiconengine.h"
@@ -382,7 +383,7 @@ void PDFAppQtSpeechEngine::onStateChanged()
     {
         Q_EMIT voicesChanged();
     }
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT stateChanged();
     }
@@ -515,7 +516,7 @@ void PDFAppDocumentSpeechController::applySettings()
 
         QPointer<PDFAppDocumentSpeechController> guard(this);
         Q_EMIT voicesChanged();
-        if (guard)
+        if (guard && !PDFDeferredDeletion::isRetired(this))
         {
             Q_EMIT stateChanged();
         }
@@ -638,13 +639,13 @@ void PDFAppDocumentSpeechController::play()
     }
 
     // The engine and the indexer announce their states at once (engine
-    // stateChanged, indexer buildingChanged): a slot may delete the tab
+    // stateChanged, indexer buildingChanged): a slot may close the tab - a retired controller reads nothing
     QPointer<PDFAppDocumentSpeechController> guard(this);
     switch (m_state)
     {
         case State::Paused:
             m_engine->resume();
-            if (guard)
+            if (guard && !PDFDeferredDeletion::isRetired(this))
             {
                 setState(State::Reading);
             }
@@ -653,7 +654,7 @@ void PDFAppDocumentSpeechController::play()
         case State::Stopped:
         {
             const bool isIndexReady = m_indexer && m_indexer->requestIndex();
-            if (!guard)
+            if (!guard || PDFDeferredDeletion::isRetired(this))
             {
                 return;
             }
@@ -680,7 +681,7 @@ void PDFAppDocumentSpeechController::pause()
     {
         QPointer<PDFAppDocumentSpeechController> guard(this);
         m_engine->pause();
-        if (guard)
+        if (guard && !PDFDeferredDeletion::isRetired(this))
         {
             setState(State::Paused);
         }
@@ -694,7 +695,7 @@ void PDFAppDocumentSpeechController::stop()
     if (m_engine)
     {
         m_engine->stop();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -705,7 +706,7 @@ void PDFAppDocumentSpeechController::stop()
     m_spokenLength = 0;
 
     setState(State::Stopped);
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT textChanged();
     }
@@ -720,7 +721,7 @@ void PDFAppDocumentSpeechController::startReading()
 
     QPointer<PDFAppDocumentSpeechController> guard(this);
     setState(State::Reading);
-    if (guard && m_state == State::Reading)
+    if (guard && !PDFDeferredDeletion::isRetired(this) && m_state == State::Reading)
     {
         speakNext();
     }
@@ -781,10 +782,10 @@ void PDFAppDocumentSpeechController::speakNext()
     m_spokenLength = 0;
     m_isSpeakingBlock = true;
 
-    // The engine may announce its state at once (a slot may delete the tab)
+    // The engine may announce its state at once (a slot may close the tab)
     QPointer<PDFAppDocumentSpeechController> guard(this);
     m_engine->say(m_currentText);
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT textChanged();
     }
@@ -842,11 +843,11 @@ void PDFAppDocumentSpeechController::onEngineDestroyed()
 
     QPointer<PDFAppDocumentSpeechController> guard(this);
     Q_EMIT textChanged();
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT voicesChanged();
     }
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT stateChanged();
     }
@@ -1321,17 +1322,17 @@ void PDFAppDocumentSpeechPanel::onSliderReleased()
         return;
     }
 
-    QPointer<PDFAppDocumentSpeechController> controller = m_controller;
+    QPointer<PDFAppDocumentSpeechController> controller = m_controller.data();
     const double steps = PDFAppDocumentSpeechHelper::SLIDER_STEPS;
     const double rate = m_rateSlider->value() / steps;
     const double pitch = m_pitchSlider->value() / steps;
     const double volume = m_volumeSlider->value() / steps;
     controller->setRate(rate);
-    if (controller)
+    if (controller && !PDFDeferredDeletion::isRetired(controller.data()))
     {
         controller->setPitch(pitch);
     }
-    if (controller)
+    if (controller && !PDFDeferredDeletion::isRetired(controller.data()))
     {
         controller->setVolume(volume);
     }

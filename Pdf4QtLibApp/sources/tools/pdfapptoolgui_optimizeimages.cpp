@@ -559,9 +559,8 @@ void PDFAppToolGUIOptimizeImages::toggleOverride()
         isAllOverridden = isAllOverridden && PDFAppToolGUIOptimizeImagesHelper::contains(overrides, key);
     }
 
-    QPointer<PDFAppToolGUIOptimizeImages> guard(this);
     setOverride(keys, !isAllOverridden);
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         // The model refuses nothing here, but the button keeps the state of the model
         updateToolbar();
@@ -1674,12 +1673,11 @@ void PDFAppToolGUIOptimizeImages::onColorRowClicked()
     }
 
     // The panel closes first: a change of a parameter may start anything
-    QPointer<PDFAppToolGUIOptimizeImages> guard(this);
     if (m_colorPanel)
     {
         m_colorPanel->close();
     }
-    if (!guard || !getModel())
+    if (PDFDeferredDeletion::isRetired(this) || !getModel())
     {
         return;
     }
@@ -1693,7 +1691,7 @@ void PDFAppToolGUIOptimizeImages::onColorRowClicked()
     {
         getModel()->setValue(Helper::name(Helper::Tool::PARAMETER_COLOR_MODE), colorMode);
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         // The row has checked itself: the value of the model decides
         updateToolbar();
@@ -1702,9 +1700,8 @@ void PDFAppToolGUIOptimizeImages::onColorRowClicked()
 
 void PDFAppToolGUIOptimizeImages::onEnableToggled(bool isChecked)
 {
-    QPointer<PDFAppToolGUIOptimizeImages> guard(this);
     setExcluded(getChangeableSelection(), !isChecked);
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateSelectedCard();
     }
@@ -1712,9 +1709,8 @@ void PDFAppToolGUIOptimizeImages::onEnableToggled(bool isChecked)
 
 void PDFAppToolGUIOptimizeImages::onOverrideToggled(bool isChecked)
 {
-    QPointer<PDFAppToolGUIOptimizeImages> guard(this);
     setOverride(getChangeableSelection(), isChecked);
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateSelectedCard();
     }
@@ -1732,9 +1728,8 @@ void PDFAppToolGUIOptimizeImages::onShowOnPage()
     }
     // The panel runs foreign code: the page is taken before, the host again after it
     const PDFInteger pageIndex = item->pageIndices.front();
-    QPointer<PDFAppToolGUIOptimizeImages> guard(this);
     host->showPanel(QStringLiteral("thumbnails"));
-    host = guard ? getHost() : nullptr;
+    host = !PDFDeferredDeletion::isRetired(this) ? getHost() : nullptr;
     if (PDFAppDocumentView* view = host ? host->getView() : nullptr)
     {
         view->goToPage(pageIndex);
@@ -1788,14 +1783,13 @@ void PDFAppToolGUIOptimizeImages::onPreviewChanged(const PDFDocumentToolResult* 
     if (!preview)
     {
         // A new version of the document: the runner measures it again; the slots of the state
-        // of the Primary button may delete this GUI
+        // of the Primary button may retire this GUI
         m_result.reset();
         m_imageResults.clear();
         m_percentage = 0;
         m_stepText.clear();
-        QPointer<PDFAppToolGUIOptimizeImages> guard(this);
         setMeasureState(MeasureState::Measuring);
-        if (guard)
+        if (!PDFDeferredDeletion::isRetired(this))
         {
             updateStatusText();
         }

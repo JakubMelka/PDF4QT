@@ -162,7 +162,10 @@ public:
     /// head of a confirmation of an assistant: its monogram, the title, the origin
     /// and the position in the queue); the title and the text given to the
     /// constructor stay the accessible name and description. Null gives the head
-    /// of the message box back.
+    /// of the message box back. The previous own head is retired at once
+    /// (PDFDeferredDeletion::retire, inert when the call returns, deleted later):
+    /// called from a slot of a signal of the previous head, the later receivers of
+    /// that emission are not reached.
     void setHeadWidget(QWidget* widget);
     QWidget* getHeadWidget() const { return m_headWidget.data(); }
 

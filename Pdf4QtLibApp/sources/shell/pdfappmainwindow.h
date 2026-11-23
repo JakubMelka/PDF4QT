@@ -445,6 +445,7 @@ private:
 
     /// Dynamic property of a message box of the window, which only informs
     static constexpr const char* NON_BLOCKING_PROPERTY = "pdf4qtNonBlocking";
+    /// PDFLifetimeNotifier::aboutToBeDeleted of the watched modal dialog (retired, or deleted without retire)
     void onWatchedModalDestroyed();
 
     void showOpenFailures();
@@ -505,9 +506,11 @@ private:
     void onAboutToQuit();
     void onCurrentTabChanged(int index);
     void onTabCloseRequested(int index);
-    void onTabDestroyed(QObject* object);
+    /// A tab deleted without retire (with its parent, the stack): only its id is used, the tab is not whole any more
+    void forgetDeletedTab(QObject* object);
 
-    /// PDFLifetimeNotifier::aboutToBeDeleted of a tab: a tab retired by somebody else leaves the window at once
+    /// PDFLifetimeNotifier::aboutToBeDeleted of a tab: a tab retired by somebody else leaves the window at once; the
+    /// emission of the notifier's destructor (a tab deleted without retire) forgets the tab (forgetDeletedTab)
     void onTabAboutToBeDeleted(QObject* object);
     void synchronizeCurrentTab();
     void onNewTabRequested();
@@ -542,6 +545,7 @@ private:
     bool m_isBrowsingDocuments = false;
     std::vector<PDFAppOpenRequest> m_pendingRequests;
     QPointer<QWidget> m_watchedModal;
+    QMetaObject::Connection m_watchedModalEndConnection;    ///< aboutToBeDeleted of the notifier of m_watchedModal
     std::vector<PDFAppOpenFailure> m_pendingFailures;
     QPointer<QTimer> m_failureTimer;
     QPointer<PDFAppOpenFailedDialog> m_openFailedDialog;

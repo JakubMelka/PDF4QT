@@ -32,6 +32,7 @@
 #include "pdfcomponentbadges.h"
 #include "pdfcomponentbuttons.h"
 #include "pdfcomponentpanels.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemefonts.h"
 
@@ -247,14 +248,13 @@ void PDFAppManageSourcesPanel::setRemovedExpanded(bool isExpanded)
 
 void PDFAppManageSourcesPanel::updateRows(QWidget* container, std::vector<QPointer<PDFAppManageListRow>>* rows, const std::vector<PDFAppManageListRow::Content>& contents, bool isCheckpoint)
 {
-    // The rows are made only when their number grows; an extra row is deleted later (it may be
-    // the sender of a click)
+    // The rows are made only when their number grows; an extra row is retired from the event loop (step A: a
+    // rebuilt row; it may be the sender of a click)
     while (rows->size() > contents.size())
     {
         if (rows->back())
         {
-            rows->back()->hide();
-            rows->back()->deleteLater();
+            PDFDeferredDeletion::retireLater(rows->back().data());
         }
         rows->pop_back();
     }

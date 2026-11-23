@@ -473,7 +473,13 @@ private:
     void onCurrentRowChanged(int row);
     void onDatabaseChanged(const QString& topic, const QString& key);
     void onEverythingChanged();
+
+    /// PDFLifetimeNotifier::aboutToBeDeleted of the popup (retired, or deleted with the window)
     void onPopupDestroyed();
+
+    /// Cuts the connections of the popup to the controller (its signals and the stored handle of its notifier: no
+    /// notifier is created for a popup, which may be dying)
+    void disconnectPopup(PDFAppSearchPopup* popup);
 
     bool handleFieldKey(QKeyEvent* event);
 
@@ -489,6 +495,7 @@ private:
 
     QPointer<PDFLineEdit> m_field;
     QPointer<PDFAppSearchPopup> m_popup;
+    QMetaObject::Connection m_popupEndConnection;   ///< aboutToBeDeleted of the notifier of m_popup
     QPointer<QWidget> m_watchedWindow;
     QPointer<QObject> m_connectedTab;
     QPointer<QObject> m_connectedNotifier;

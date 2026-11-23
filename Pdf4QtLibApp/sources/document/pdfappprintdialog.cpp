@@ -1089,7 +1089,8 @@ void PDFAppPrintDialog::onPropertiesClicked()
     m_printer->setPageOrientation(settings.orientation == PDFAppPrintOrientation::Landscape ? QPageLayout::Landscape : QPageLayout::Portrait);
     m_printer->setColorMode(settings.isGrayscale ? QPrinter::GrayScale : QPrinter::Color);
 
-    // The native dialog runs its own event loop: the dialog may be deleted meanwhile
+    // The native dialog runs its own event loop (DocumentPropertiesW, a named exception of A0): the dialog may
+    // be deleted meanwhile - this guard stays
     QPointer<PDFAppPrintDialog> guard(this);
     std::shared_ptr<QPrinter> printer = m_printer;
     const PDFAppPrinterInfo info = m_printers[size_t(index)];

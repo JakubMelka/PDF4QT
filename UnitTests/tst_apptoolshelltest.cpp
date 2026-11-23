@@ -389,6 +389,7 @@ private slots:
     void dialogNameRefused();
     void dialogNetworkPathRefused();
     void dialogOverwrite();
+    void dialogOverwriteRetiredByCommit();
     void dialogOverwriteFailureKeepsDocument();
     void dialogNoOverwriteWithoutFile();
     void dialogSignedVariant();
@@ -457,6 +458,8 @@ private slots:
     void shellResultShowsItsDocument();
     void shellResultFocusInItsTab();
     void shellDeletedFromActivation();
+    void shellClosedInsideRunnerEmission();
+    void shellClosedInsideSuccessfulRunEmission();
     void shellResultWaitsForModalDialog_data();
     void shellResultWaitsForModalDialog();
     void shellPairOfTheOpenedCopy();
@@ -3624,6 +3627,50 @@ void AppToolShellTest::dialogOverwrite()
     QTest::qWait(pdf::PDFAppAutoRefresh::CHECK_DELAY + 50);
     AppToolShellFixture::settle();
     QCOMPARE(refresh->getReloadCount(), 0);
+}
+
+void AppToolShellTest::dialogOverwriteRetiredByCommit()
+{
+    // RD6-H1, the retire variant of dialogDeletedFromDecided for Overwrite (coordinator 2026-11-23: a written file
+    // finishes its bookkeeping): a slot of the commit of the written result closes the dialog (retired with its writer,
+    // deleted later). The file has the bytes of the result, so the document is saved (not modified) as after a normal
+    // Overwrite; the closed dialog decides nothing
+    AppToolShellFixture fixture;
+    const QString file = pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Report.pdf"), 2);
+    pdf::PDFAppDocumentTab* tab = fixture.open(file);
+    QVERIFY(tab && AppToolShellFixture::waitFor([tab]() { return tab->getDocument()->isReady(); }));
+    pdf::PDFAppDocument* document = tab->getDocument();
+
+    QPointer<PDFAppToolResultDialog> dialog = fixture.openDialog(tab, TOOL_ROTATE, QStringLiteral("title"));
+    QVERIFY(dialog);
+    QSignalSpy decidedSpy(dialog.data(), &PDFAppToolResultDialog::decided);
+    dialog->selectChoice(Choice::Overwrite);
+
+    bool isRetiredByCommit = false;
+    QObject context;
+    QObject::connect(document, &pdf::PDFAppDocument::documentChanged, &context, [&]()
+    {
+        if (!isRetiredByCommit && dialog)
+        {
+            isRetiredByCommit = true;
+            pdf::PDFDeferredDeletion::retire(dialog.data());
+        }
+    });
+
+    const quint64 version = document->getVersion();
+    dialog->confirm();
+    QVERIFY(dialog->isWriting());
+    QVERIFY(AppToolShellFixture::waitFor([&isRetiredByCommit]() { return isRetiredByCommit; }));
+    AppToolShellFixture::settle();
+
+    QVERIFY(!dialog);
+    QCOMPARE(decidedSpy.size(), 0);
+    QCOMPARE(ToolShellTestHelper::titleOf(file), QStringLiteral("Result title"));
+    QCOMPARE(document->getVersion(), version + 1);
+    QCOMPARE(AppToolShellFixture::undoCount(document), 1);
+    QVERIFY(!document->isModified());
+    QCOMPARE(document->getOriginalData(), ToolShellTestHelper::readFile(file));
+    QVERIFY(!document->isBlockedByOperation());
 }
 
 void AppToolShellTest::dialogOverwriteFailureKeepsDocument()
@@ -6850,6 +6897,128 @@ void AppToolShellTest::shellDeletedFromActivation()
     QVERIFY(!shell);
     QVERIFY(fixture.window);
     QCOMPARE(fixture.window->getCurrentTab(), homeTab);
+    QVERIFY(!fixture.window->findChild<PDFAppToolResultDialog*>());
+}
+
+void AppToolShellTest::shellClosedInsideRunnerEmission()
+{
+    // RA-L7 (PA6): the shell closed inside of an emission of its runner (Stop: runFinished, the shell returns to
+    // Editing, a slot of its state closes it) ends the work of the runner at once and retires it from the event
+    // loop - the later receivers of the emission still run, the runner goes with the next event loop
+    using H = ToolShellFlowHelper;
+    AppToolShellFixture fixture;
+    std::shared_ptr<ShellTestTool> tool = fixture.registerShellTool(TOOL_ROTATE);
+    QVERIFY(tool);
+    QPointer<pdf::PDFAppDocumentTab> tab = H::openReady(fixture);
+    QVERIFY(tab);
+    QPointer<pdf::PDFDocumentToolShell> shell = fixture.openTool(tab, TOOL_ROTATE);
+    QVERIFY(shell);
+    shell->getModel()->setValue(QStringLiteral("mode"), QStringLiteral("title"));
+    tool->setHold(true);
+    shell->confirm();
+    QVERIFY(AppToolShellFixture::waitFor([&tool]() { return tool->getHeldCount() == 1; }));
+    QPointer<PDFDocumentToolRunner> runner = shell->getRunner();
+    QVERIFY(runner);
+
+    bool isClosed = false;
+    bool isBlockedAfterClose = true;
+    int laterReceiverCalls = 0;
+    PDFDocumentToolRunner::State runnerStateAtLaterReceiver = PDFDocumentToolRunner::State::Running;
+    QObject context;
+    QObject::connect(shell.data(), &pdf::PDFDocumentToolShell::stateChanged, &context, [&](pdf::PDFDocumentToolShell::State state)
+    {
+        if (state == pdf::PDFDocumentToolShell::State::Editing && !isClosed)
+        {
+            isClosed = true;
+            shell->close();
+            isBlockedAfterClose = tab->getDocument()->isBlockedByOperation();
+        }
+    });
+    QObject::connect(runner.data(), &PDFDocumentToolRunner::runFinished, &context, [&]()
+    {
+        ++laterReceiverCalls;
+        runnerStateAtLaterReceiver = runner->getState();
+    });
+
+    shell->stop();
+    QVERIFY(isClosed);
+    QCOMPARE(shell->getState(), pdf::PDFDocumentToolShell::State::Closed);
+    QVERIFY(!isBlockedAfterClose);
+    QCOMPARE(laterReceiverCalls, 1);
+    QCOMPARE(runnerStateAtLaterReceiver, PDFDocumentToolRunner::State::Idle);
+    QVERIFY(runner);
+
+    AppToolShellFixture::settle();
+    QVERIFY(!runner);
+    tool->setHold(false);
+    QVERIFY(AppToolShellFixture::waitFor([&tool]() { return tool->getHeldCount() == 0; }));
+    AppToolShellFixture::settle();
+}
+
+void AppToolShellTest::shellClosedInsideSuccessfulRunEmission()
+{
+    // RD6-M2 (RA-L7, PA6): a successful run holds the document for its decision (the runner Waiting, its operation
+    // blocks the changes); the shell opens the result dialog inside of runFinished and a slot of its state Deciding
+    // closes it. The close ends the work of the runner at once (PDFDocumentToolRunner::shutDown): the document is free
+    // when close returns and the runner is Idle for the later receivers of the emission, which still run; the runner
+    // goes with the next event loop
+    using H = ToolShellFlowHelper;
+    AppToolShellFixture fixture;
+    std::shared_ptr<ShellTestTool> tool = fixture.registerShellTool(TOOL_ROTATE);
+    QVERIFY(tool);
+    QPointer<pdf::PDFAppDocumentTab> tab = H::openReady(fixture);
+    QVERIFY(tab);
+    QPointer<pdf::PDFDocumentToolShell> shell = fixture.openTool(tab, TOOL_ROTATE);
+    QVERIFY(shell);
+    shell->getModel()->setValue(QStringLiteral("mode"), QStringLiteral("title"));
+    QPointer<PDFDocumentToolRunner> runner = shell->getRunner();
+    QVERIFY(runner);
+
+    bool isClosed = false;
+    bool isBlockedBeforeClose = false;
+    bool isBlockedAfterClose = true;
+    PDFDocumentToolRunner::State runnerStateBeforeClose = PDFDocumentToolRunner::State::Idle;
+    int laterReceiverCalls = 0;
+    bool isSuccessAtLaterReceiver = false;
+    PDFDocumentToolRunner::State runnerStateAtLaterReceiver = PDFDocumentToolRunner::State::Waiting;
+    QObject context;
+    QObject::connect(shell.data(), &pdf::PDFDocumentToolShell::stateChanged, &context, [&](pdf::PDFDocumentToolShell::State state)
+    {
+        if (state == pdf::PDFDocumentToolShell::State::Deciding && !isClosed)
+        {
+            isClosed = true;
+            isBlockedBeforeClose = tab->getDocument()->isBlockedByOperation();
+            runnerStateBeforeClose = runner->getState();
+            shell->close();
+            isBlockedAfterClose = tab->getDocument()->isBlockedByOperation();
+        }
+    });
+    QObject::connect(runner.data(), &PDFDocumentToolRunner::runFinished, &context, [&](const pdf::PDFDocumentToolResult& result)
+    {
+        ++laterReceiverCalls;
+        isSuccessAtLaterReceiver = result.isSuccess();
+        runnerStateAtLaterReceiver = runner->getState();
+    });
+
+    shell->confirm();
+    QVERIFY(AppToolShellFixture::waitFor([&laterReceiverCalls]() { return laterReceiverCalls > 0; }));
+
+    // The decision held the document until the close: the close freed it inside of the emission
+    QVERIFY(isClosed);
+    QCOMPARE(runnerStateBeforeClose, PDFDocumentToolRunner::State::Waiting);
+    QVERIFY(isBlockedBeforeClose);
+    QVERIFY(!isBlockedAfterClose);
+    QCOMPARE(shell->getState(), pdf::PDFDocumentToolShell::State::Closed);
+    QCOMPARE(laterReceiverCalls, 1);
+    QVERIFY(isSuccessAtLaterReceiver);
+    QCOMPARE(runnerStateAtLaterReceiver, PDFDocumentToolRunner::State::Idle);
+    QVERIFY(runner);
+
+    // Nothing was decided: the document is as before the run
+    AppToolShellFixture::settle();
+    QVERIFY(!runner);
+    QVERIFY(!tab->getDocument()->isBlockedByOperation());
+    QCOMPARE(AppToolShellFixture::undoCount(tab->getDocument()), 0);
     QVERIFY(!fixture.window->findChild<PDFAppToolResultDialog*>());
 }
 

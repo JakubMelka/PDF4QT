@@ -551,10 +551,10 @@ void PDFAppAnnotatePanel::onColorSelected(const QColor& color)
 
 void PDFAppAnnotatePanel::onShowCommentsClicked()
 {
-    // Navigation in the document: the Notes tab of the sidebar
+    // Navigation in the document: the Notes tab of the sidebar (not in a retired view)
     QPointer<PDFAppDocumentView> view = getView();
     close();
-    if (view)
+    if (view && !PDFDeferredDeletion::isRetired(view.data()))
     {
         view->showPanel(PDFAppDocumentPanelIds::notes());
     }
@@ -755,15 +755,16 @@ void PDFAppInsertPanel::onStickyNoteClicked()
 {
     // The tiles do not identify themselves in the signal
     const QObject* tile = sender();
-    QPointer<PDFAppAnnotationCreator> creator = m_creator;
+    PDFAppAnnotationCreator* creator = m_creator.data();
     if (!tile || !creator)
     {
         return;
     }
 
+    QPointer<PDFAppAnnotationCreator> creatorGuard(creator);
     creator->setStickyNoteIcon(TextAnnotationIcon(tile->property(PDFAppAnnotatePanelsHelper::VARIANT_PROPERTY).toInt()));
     close();
-    if (creator)
+    if (creatorGuard && !PDFDeferredDeletion::isRetired(creator))
     {
         creator->requestTool(PDFAppAnnotationToolKind::StickyNote);
     }
@@ -772,15 +773,16 @@ void PDFAppInsertPanel::onStickyNoteClicked()
 void PDFAppInsertPanel::onStampClicked()
 {
     const QObject* chip = sender();
-    QPointer<PDFAppAnnotationCreator> creator = m_creator;
+    PDFAppAnnotationCreator* creator = m_creator.data();
     if (!chip || !creator)
     {
         return;
     }
 
+    QPointer<PDFAppAnnotationCreator> creatorGuard(creator);
     creator->setStamp(Stamp(chip->property(PDFAppAnnotatePanelsHelper::VARIANT_PROPERTY).toInt()));
     close();
-    if (creator)
+    if (creatorGuard && !PDFDeferredDeletion::isRetired(creator))
     {
         creator->requestTool(PDFAppAnnotationToolKind::Stamp);
     }
@@ -794,7 +796,7 @@ void PDFAppInsertPanel::onPageNumbersClicked()
     const PDFAppDocument* document = view ? view->getDocument() : nullptr;
     const QString documentId = document ? document->getId() : QString();
     close();
-    if (view && !documentId.isEmpty())
+    if (view && !documentId.isEmpty() && !PDFDeferredDeletion::isRetired(view.data()))
     {
         PDFAppPanelWidgets::navigate(view, PDFAppRoutes::documentTool(documentId, PDFAppAnnotatePanelsHelper::getPageNumbersToolId()));
     }

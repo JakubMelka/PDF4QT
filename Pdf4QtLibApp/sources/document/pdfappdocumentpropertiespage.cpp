@@ -556,7 +556,7 @@ void PDFAppDocumentPropertiesPage::onNavIndexChanged(int index)
     // (Back returns to the document, not to the previous section)
     m_section = Section(index);
     QPointer<PDFAppDocumentPropertiesPage> guard(this);
-    if (!replaceRoute(PDFAppRoutes::documentProperties(m_tab->getDocumentId(), getSectionId())) || !guard)
+    if (!replaceRoute(PDFAppRoutes::documentProperties(m_tab->getDocumentId(), getSectionId())) || !guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -743,8 +743,8 @@ void PDFAppDocumentPropertiesPage::rebuildSection()
     const int scrollPosition = m_pendingScroll >= 0 ? m_pendingScroll : (m_scrollArea ? m_scrollArea->verticalScrollBar()->value() : 0);
     m_pendingScroll = -1;
 
-    // The old section is deleted later (a row of it may be emitting its signal);
-    // it leaves the page at once
+    // The old section is retired from the event loop (a row of it may be emitting its signal); it
+    // leaves the page at once and belongs to the page (setOwner) until its retire
     if (m_sectionWidget)
     {
         QWidget* oldSection = m_sectionWidget;
@@ -752,7 +752,8 @@ void PDFAppDocumentPropertiesPage::rebuildSection()
         m_contentLayout->removeWidget(oldSection);
         oldSection->hide();
         oldSection->setParent(nullptr);
-        oldSection->deleteLater();
+        PDFDeferredDeletion::setOwner(oldSection, this);
+        PDFDeferredDeletion::retireLater(oldSection);
     }
     m_metadataEditor = nullptr;
     m_createMetadataButton = nullptr;
@@ -1381,7 +1382,7 @@ void PDFAppDocumentPropertiesPage::onDocumentStateChanged()
     // signal too, a rebuild would take the focus and the cursor of the user
     QPointer<PDFAppDocumentPropertiesPage> guard(this);
     Q_EMIT titleChanged();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1464,7 +1465,7 @@ void PDFAppDocumentPropertiesPage::onFontScanFinished()
 
     QPointer<PDFAppDocumentPropertiesPage> guard(this);
     Q_EMIT fontsScanned();
-    if (guard && m_section == Section::Fonts)
+    if (guard && !PDFDeferredDeletion::isRetired(this) && m_section == Section::Fonts)
     {
         scheduleRebuild();
     }

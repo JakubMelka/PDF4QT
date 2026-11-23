@@ -245,9 +245,10 @@ void PDFAppToolToolbar::setToolActions(QWidget* actions)
 {
     if (m_actions)
     {
+        // Retired (step A: rebuilt content - the shell sets the actions at the entry and from the event loop after a
+        // change of the language, never from a signal of the old actions), deleted later
         m_leftLayout->removeWidget(m_actions);
-        m_actions->hide();
-        m_actions->deleteLater();
+        PDFDeferredDeletion::retire(m_actions.data());
     }
 
     // The panels of the old actions go with them; the new actions have added theirs already
@@ -389,26 +390,27 @@ PDFAppToolPanelPopup* PDFAppToolToolbar::openPanel(QToolButton* button)
     {
         if (item.button == button && item.panel && button->isVisible() && button->isEnabled())
         {
-            // One panel at a time
-            QPointer<PDFAppToolToolbar> guard(this);
+            // One panel at a time. The calls run code of the application: a toolbar retired by it (step A, with its
+            // buttons) opens nothing; the panel and the button are QPointers of their own (a rebuild of the actions
+            // retires a button, a panel goes with its part)
             QPointer<PDFAppToolPanelPopup> panel = item.panel;
             QPointer<QToolButton> buttonGuard(button);
             if (PDFAppToolPanelPopup* openedPanel = getOpenPanel())
             {
                 QToolButton* openedButton = findPanelButton(openedPanel);
                 openedPanel->close();
-                if (guard && openedButton)
+                if (openedButton)
                 {
                     openedButton->setChecked(false);
                 }
-                if (!guard || !buttonGuard || !panel)
+                if (PDFDeferredDeletion::isRetired(this) || !buttonGuard || PDFDeferredDeletion::isRetired(buttonGuard.data()) || !panel || PDFDeferredDeletion::isRetired(panel.data()))
                 {
                     return nullptr;
                 }
             }
 
             buttonGuard->setChecked(true);
-            if (!guard || !buttonGuard || !panel)
+            if (PDFDeferredDeletion::isRetired(this) || !buttonGuard || PDFDeferredDeletion::isRetired(buttonGuard.data()) || !panel || PDFDeferredDeletion::isRetired(panel.data()))
             {
                 return nullptr;
             }
@@ -417,7 +419,7 @@ PDFAppToolPanelPopup* PDFAppToolToolbar::openPanel(QToolButton* button)
             {
                 buttonGuard->setChecked(false);
             }
-            return guard ? panel.data() : nullptr;
+            return PDFDeferredDeletion::isRetired(this) ? nullptr : panel.data();
         }
     }
     return nullptr;
@@ -552,9 +554,8 @@ bool PDFAppToolToolbar::eventFilter(QObject* watched, QEvent* event)
     {
         if (QToolButton* button = PDFAppToolbarMenuBar::findHoverTarget(static_cast<const QWidget*>(watched), event, getPanelButtons(), findPanelButton(getOpenPanel())))
         {
-            // The closed panel does not handle the move (the toolbar can be gone)
-            QPointer<PDFAppToolToolbar> guard(this);
-            if (switchPanel(button) || !guard)
+            // The closed panel does not handle the move (the toolbar can be retired by the switch)
+            if (switchPanel(button) || PDFDeferredDeletion::isRetired(this))
             {
                 return true;
             }

@@ -522,12 +522,11 @@ void PDFAppToolRedactSearchPart::startSearch()
             return;
         }
 
-        // The index is built first (its request may run foreign code: the part is guarded)
-        QPointer<PDFAppToolRedactSearchPart> guard(this);
+        // The index is built first (its request may run foreign code: a part retired by it searches nothing)
         m_indexProgress = m_indexer->getProgress();
         m_state = State::Indexing;
         const bool isReady = m_indexer->requestIndex();
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }

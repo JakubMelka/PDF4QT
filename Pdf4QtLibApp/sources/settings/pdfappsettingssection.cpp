@@ -148,12 +148,12 @@ PDFDatabaseError PDFAppSettingsSection::restoreDefaults()
     }
 
     // A value being edited is written first, so it is restored too (the slots of
-    // the written value may delete the section with its page)
+    // the written value may delete the section with its page or close it - retired, step A: nothing is restored then)
     QPointer<PDFAppSettingsSection> guard(this);
     QPointer<PDFAppContext> context = m_context;
     const QString sectionId = m_sectionId;
     commitPendingValues();
-    if (!guard || !context || !context->getDatabase())
+    if (!guard || PDFDeferredDeletion::isRetired(this) || !context || !context->getDatabase())
     {
         return PDFDatabaseError::fromMessage(tr("The settings are not available."));
     }

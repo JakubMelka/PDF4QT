@@ -1748,8 +1748,10 @@ void PDFMoreButton::setMenu(QMenu* menu)
 
 bool PDFMoreButton::showMenu()
 {
+    // A retired menu is never shown: the gate drops its events and its notifier has ended already, so nothing would
+    // release the button
     QMenu* menu = m_menu.data();
-    if (!menu || !isEnabled())
+    if (!menu || PDFDeferredDeletion::isRetired(menu) || !isEnabled())
     {
         return false;
     }
@@ -1779,16 +1781,17 @@ bool PDFMoreButton::showMenu()
     // The press, which closes the menu over the button, does not open it again
     menu->setNoReplayFor(this);
 
-    // The button stays pressed, while its menu is shown. A menu deleted while
-    // it is shown sends no aboutToHide (the destructor of QWidget hides it
-    // without QMenu::hideEvent), so its signal destroyed releases the button
-    // as well (nothing of the menu is called then). The menu belongs to the
+    // The button stays pressed, while its menu is shown. A menu retired or
+    // deleted while it is shown sends no aboutToHide (retire cuts its signals,
+    // the destructor of QWidget hides it without QMenu::hideEvent), so the end
+    // of the menu (aboutToBeDeleted of its notifier) releases the button as
+    // well (nothing of the menu is called then). The menu belongs to the
     // application (it may live outside of the button): a retired button gets
     // nothing of it.
     disconnectMenu();
     setDown(true);
     m_menuHiddenConnection = PDFDeferredDeletion::connect(menu, &QMenu::aboutToHide, this, &PDFMoreButton::onMenuClosed);
-    m_menuDestroyedConnection = connect(menu, &QObject::destroyed, this, &PDFMoreButton::onMenuClosed);
+    m_menuDeletedConnection = PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(menu), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFMoreButton::onMenuAboutToBeDeleted);
 
     QPointer<PDFMoreButton> guard(this);
     menu->popup(position);
@@ -1802,16 +1805,16 @@ bool PDFMoreButton::showMenu()
 PDFMoreButton::~PDFMoreButton()
 {
     // A menu, which is a child of the button, is deleted after the button is
-    // only a QWidget: its signal destroyed must not reach the button
+    // only a QWidget: the end of it must not reach the button
     disconnectMenu();
 }
 
 void PDFMoreButton::disconnectMenu()
 {
     disconnect(m_menuHiddenConnection);
-    disconnect(m_menuDestroyedConnection);
+    disconnect(m_menuDeletedConnection);
     m_menuHiddenConnection = QMetaObject::Connection();
-    m_menuDestroyedConnection = QMetaObject::Connection();
+    m_menuDeletedConnection = QMetaObject::Connection();
 }
 
 void PDFMoreButton::onMenuClosed()
@@ -1820,10 +1823,20 @@ void PDFMoreButton::onMenuClosed()
     setDown(false);
 }
 
+void PDFMoreButton::onMenuAboutToBeDeleted()
+{
+    // A button retired with its menu needs nothing (the retire hides it)
+    if (!PDFDeferredDeletion::isRetired(this))
+    {
+        onMenuClosed();
+    }
+}
+
 bool PDFMoreButton::showMenu(const QPoint& globalPosition)
 {
+    // A retired menu is never shown (the gate drops its events)
     QMenu* menu = m_menu.data();
-    if (!menu || !isEnabled())
+    if (!menu || PDFDeferredDeletion::isRetired(menu) || !isEnabled())
     {
         return false;
     }

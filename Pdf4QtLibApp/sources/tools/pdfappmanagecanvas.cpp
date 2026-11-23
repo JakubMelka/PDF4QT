@@ -30,6 +30,7 @@
 
 #include "pdfcomponentdelegates.h"
 #include "pdfcomponentpainter.h"
+#include "pdfdeferreddeletion.h"
 #include "pdffluentwidgets.h"
 #include "pdfthemefonts.h"
 #include "pdfthememanager.h"
@@ -1210,13 +1211,13 @@ int PDFAppManageCanvas::getShownItemCount() const
 
 void PDFAppManageCanvas::applyContent()
 {
-    // The models are reset (their views lay out again); the selection is drawn by both
+    // The models are reset (their views lay out again); the selection is drawn by both (a canvas retired meanwhile
+    // selects nothing)
     const std::set<QString> shown = getShownItems();
-    QPointer<PDFAppManageCanvas> guard(this);
     m_isSyncing = true;
     m_itemModel->setContent(m_assembly, m_sources, shown, m_isFiltered);
     m_pageModel->setContent(m_assembly, m_sources, shown, m_isFiltered, m_isDocumentHost, m_newTargetPages);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1427,9 +1428,8 @@ void PDFAppManageCanvas::onPageContextMenu(const QPoint& position)
         const QString id = m_pageModel->getItemId(index.row());
         if (std::find(m_selection.cbegin(), m_selection.cend(), id) == m_selection.cend())
         {
-            QPointer<PDFAppManageCanvas> guard(this);
             m_pageView->selectRows(m_pageModel->getRowsOfItem(id));
-            if (!guard)
+            if (PDFDeferredDeletion::isRetired(this))
             {
                 return;
             }
@@ -1446,9 +1446,8 @@ void PDFAppManageCanvas::onDetailsContextMenu(const QPoint& position)
         const QString id = m_itemModel->getItemId(index.row());
         if (std::find(m_selection.cbegin(), m_selection.cend(), id) == m_selection.cend())
         {
-            QPointer<PDFAppManageCanvas> guard(this);
             m_detailsView->selectionModel()->select(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
-            if (!guard)
+            if (PDFDeferredDeletion::isRetired(this))
             {
                 return;
             }
@@ -1525,9 +1524,8 @@ void PDFAppManageCanvas::setEmptyState(QWidget* emptyState)
     }
     if (m_emptyState)
     {
-        // The old one may be the sender of the change (Add of an open document): later
-        m_emptyState->hide();
-        m_emptyState->deleteLater();
+        // The old one may be the sender of the change (Add of an open document): retired from the event loop (step A)
+        PDFDeferredDeletion::retireLater(m_emptyState.data());
     }
 
     m_emptyState = emptyState;
@@ -1604,8 +1602,7 @@ void PDFAppManageCanvas::retranslate()
     viewSwitch->setEnabled(m_viewSwitch->isEnabled());
     connect(viewSwitch, &PDFSegmentedControl::currentIndexChanged, this, &PDFAppManageCanvas::onViewSwitchChanged);
     delete barLayout->replaceWidget(m_viewSwitch, viewSwitch);
-    m_viewSwitch->hide();
-    m_viewSwitch->deleteLater();
+    PDFDeferredDeletion::retire(m_viewSwitch.data());
     m_viewSwitch = viewSwitch;
 
     m_searchField->setPlaceholderText(tr("Search pages"));

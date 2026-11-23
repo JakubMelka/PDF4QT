@@ -250,6 +250,7 @@ void PDFAppDocument::setSaved()
 
 void PDFAppDocument::setSavedAs(quint64 version, const QString& filePath, QByteArray data)
 {
+    QPointer<PDFAppDocument> self(this);
     // A version newer than the current one cannot have been saved
     if (version > m_version || filePath.isEmpty())
     {
@@ -288,16 +289,16 @@ void PDFAppDocument::setSavedAs(quint64 version, const QString& filePath, QByteA
         m_undoStack->setSavedPositionUnknown();
     }
 
-    QPointer<PDFAppDocument> guard(this);
+    // A slot may close the tab: a retired document reports nothing more
     if (isFileChanged)
     {
         Q_EMIT fileChanged();
     }
-    if (guard && (isFileChanged || wasModified != isModified() || isModified()))
+    if (self && !PDFDeferredDeletion::isRetired(this) && (isFileChanged || wasModified != isModified() || isModified()))
     {
         Q_EMIT modifiedChanged();
     }
-    if (guard)
+    if (self && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT originalDataChanged();
     }
@@ -319,6 +320,7 @@ PDFAppDocumentRestoration PDFAppDocument::getRestoration(const PDFDocumentReader
 
 void PDFAppDocument::setLocked(bool locked)
 {
+    QPointer<PDFAppDocument> self(this);
     // Opened without the password of its attachments: they are still encrypted and a written
     // file would be broken, so the document is unlocked only by that password (Q5.9 c)
     if (!locked && isAttachmentsLocked())
@@ -329,9 +331,8 @@ void PDFAppDocument::setLocked(bool locked)
     // An open editor of a form field is committed before the document is locked
     if (locked && !m_isLocked && m_hasPendingEdits)
     {
-        QPointer<PDFAppDocument> guard(this);
         commitPendingEdits();
-        if (!guard)
+        if (!self || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -529,6 +530,7 @@ void PDFAppDocument::restore(PDFDocumentPointer document, PDFModifiedDocument::M
 
 void PDFAppDocument::setDocument(PDFDocumentPointer document, PDFModifiedDocument::ModificationFlags flags, bool isSaved)
 {
+    QPointer<PDFAppDocument> self(this);
     // The unlock of the session follows every version with the same encryption (undo and
     // redo to a version before the unlock, a result of a job started before it, a reload
     // of the same file): the owner password of one is the owner password of the other
@@ -606,12 +608,11 @@ void PDFAppDocument::setDocument(PDFDocumentPointer document, PDFModifiedDocumen
     }
 
     // The signatures belong to one version
-    QPointer<PDFAppDocument> guard(this);
     if (!m_signatureResults.empty())
     {
         m_signatureResults.clear();
         Q_EMIT signatureResultsChanged();
-        if (!guard)
+        if (!self || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -620,7 +621,7 @@ void PDFAppDocument::setDocument(PDFDocumentPointer document, PDFModifiedDocumen
     Q_EMIT documentChanged(PDFModifiedDocument(m_document, m_optionalContentActivity.data(), flags));
 
     // The count of the unsaved changes changes with every change
-    if (guard && (wasModified != isModified() || isModified()))
+    if (self && !PDFDeferredDeletion::isRetired(this) && (wasModified != isModified() || isModified()))
     {
         Q_EMIT modifiedChanged();
     }
@@ -677,11 +678,12 @@ PDFAppDocumentOperation* PDFAppDocument::beginOperation(PDFAppDocumentOperationK
     connect(operation, &PDFAppDocumentOperation::finished, this, &PDFAppDocument::onOperationFinished);
     connect(operation, &PDFAppDocumentOperation::progressChanged, this, &PDFAppDocument::operationProgressChanged);
 
-    // A slot may close the tab (the document and its operation): nullptr then, never
-    // a dangling pointer (UnitTestsAppMcpLifetime)
+    // A slot may close the tab (the document and its operation): nullptr then - the caller
+    // starts no work with a retired operation (UnitTestsAppMcpLifetime). The guard stays for the
+    // synchronous deletions of the tests (deleteFromOwnSignals)
     QPointer<PDFAppDocumentOperation> guard(operation);
     Q_EMIT operationsChanged();
-    return guard.data();
+    return (guard && !PDFDeferredDeletion::isRetired(guard.data())) ? guard.data() : nullptr;
 }
 
 std::vector<PDFAppDocumentOperation*> PDFAppDocument::getOperations() const
@@ -803,6 +805,7 @@ bool PDFAppDocument::setLoadingFromMemory(const QString& title, const QString& o
 
 void PDFAppDocument::setLoaded(PDFDocumentPointer document, QByteArray originalData, const QString& filePath, bool isPasswordProtected, bool isPagedXFA, PDFAppDocumentRestoration restoration)
 {
+    QPointer<PDFAppDocument> self(this);
     if (isRetiredChangeRefused("setLoaded"))
     {
         return;
@@ -837,9 +840,8 @@ void PDFAppDocument::setLoaded(PDFDocumentPointer document, QByteArray originalD
     m_undoStack->clear();
     m_state = PDFAppDocumentState::Ready;
 
-    QPointer<PDFAppDocument> guard(this);
     setDocument(std::move(document), PDFModifiedDocument::Reset, !isFromMemory);
-    if (guard)
+    if (self && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT stateChanged();
     }
@@ -892,6 +894,7 @@ void PDFAppDocument::setFailed(const QString& filePath, const QString& errorMess
 
 bool PDFAppDocument::setCopyOf(const PDFAppDocument* source)
 {
+    QPointer<PDFAppDocument> self(this);
     // A document with encrypted attachments (isAttachmentsLocked) has no copy: the copy
     // would not be locked and its file would be broken
     if (!source || source == this || !source->isReady() || source->getDocument().isNull() || m_state == PDFAppDocumentState::Ready || source->isAttachmentsLocked() ||
@@ -935,9 +938,8 @@ bool PDFAppDocument::setCopyOf(const PDFAppDocument* source)
     m_ownerSecurityHandler.reset();
     m_userSecurityHandler.reset();
 
-    QPointer<PDFAppDocument> guard(this);
     setDocument(std::move(document), PDFModifiedDocument::Reset, false);
-    if (guard)
+    if (self && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT stateChanged();
     }

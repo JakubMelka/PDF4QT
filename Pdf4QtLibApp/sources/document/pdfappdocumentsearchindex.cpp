@@ -23,6 +23,7 @@
 #include "pdfappdocumentsearchindex.h"
 #include "pdfappdocument.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttextindex.h"
 #include "pdfexception.h"
 
@@ -102,10 +103,11 @@ bool PDFAppDocumentTextIndexer::requestIndex()
 
     // The progress of the tab; the operation does not block changes (a change of
     // the page contents only cancels the build). The document announces the new
-    // operation (operationsChanged): a slot may delete the tab and this indexer.
+    // operation (operationsChanged): a slot may close the tab and this indexer (the guard stays for
+    // the synchronous deletions of the tests).
     QPointer<PDFAppDocumentTextIndexer> guard(this);
     PDFAppDocumentOperation* operation = m_document->beginOperation(PDFAppDocumentOperationKind::Index, tr("Indexing the text of the document"), false);
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return false;
     }
@@ -117,7 +119,7 @@ bool PDFAppDocumentTextIndexer::requestIndex()
     m_progressTimer->start();
 
     Q_EMIT buildingChanged();
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT progressChanged(0);
     }
@@ -142,10 +144,10 @@ void PDFAppDocumentTextIndexer::cancel()
         return;
     }
 
-    // The finished operation is announced by the document (a slot may delete the tab)
+    // The finished operation is announced by the document (a slot may close the tab)
     QPointer<PDFAppDocumentTextIndexer> guard(this);
     stopJob();
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT buildingChanged();
     }
@@ -213,10 +215,11 @@ void PDFAppDocumentTextIndexer::onBuildFinished()
     const quint64 version = m_job ? m_job->version : 0;
     const bool isFinished = m_job != nullptr;
 
-    // The finished operation is announced by the document (a slot may delete the tab)
+    // The finished operation is announced by the document (a slot may close the tab: a retired
+    // indexer gives the document no index)
     QPointer<PDFAppDocumentTextIndexer> guard(this);
     stopJob();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -228,7 +231,7 @@ void PDFAppDocumentTextIndexer::onBuildFinished()
     }
 
     Q_EMIT buildingChanged();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -252,16 +255,16 @@ void PDFAppDocumentTextIndexer::onDocumentChanged(const PDFModifiedDocument& mod
     if (m_job && (modified.hasReset() || modified.hasPageContentsChanged()))
     {
         // The operations of the document and the build are announced (a slot may
-        // delete the tab)
+        // close the tab)
         QPointer<PDFAppDocumentTextIndexer> guard(this);
         stopJob();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
 
         const bool isIndexReady = requestIndex();
-        if (guard && !isIndexReady && !m_job)
+        if (guard && !PDFDeferredDeletion::isRetired(this) && !isIndexReady && !m_job)
         {
             // The document cannot be indexed now (it is not ready)
             Q_EMIT buildingChanged();
@@ -279,13 +282,13 @@ void PDFAppDocumentTextIndexer::onProgressTimer()
 
     m_lastProgress = progress;
 
-    // The progress of the operation is announced by the document (a slot may delete the tab)
+    // The progress of the operation is announced by the document (a slot may close the tab)
     QPointer<PDFAppDocumentTextIndexer> guard(this);
     if (m_operation)
     {
         m_operation->setProgress(progress);
     }
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT progressChanged(progress);
     }

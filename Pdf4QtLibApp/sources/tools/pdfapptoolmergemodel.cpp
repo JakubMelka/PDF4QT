@@ -30,6 +30,7 @@
 #include "pdfcatalog.h"
 #include "pdfcomponentdelegates.h"
 #include "pdfcomponentpainter.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttool_merge.h"
 #include "pdfdocumenttool_pages.h"
 #include "pdfimagepagefactory.h"
@@ -580,13 +581,12 @@ void PDFAppToolMergePageModel::setTileMarks(QStringList captions, bool areSource
 
     m_tileCaptions = std::move(captions);
     m_areSourceDotsShown = areSourceDotsShown;
-    QPointer<PDFAppToolMergePageModel> guard(this);
     if (rowCount() > 0)
     {
         // A caption makes a tile higher: one change of every row (PDFPageTileDelegate)
         Q_EMIT dataChanged(index(0, 0), index(rowCount() - 1, 0));
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         // The grouped view lays out the tiles of the groups with their captions (the last call)
         updateGroups();

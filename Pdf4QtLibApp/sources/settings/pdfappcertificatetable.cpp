@@ -907,13 +907,14 @@ void PDFAppCertificateTable::onRemoveDialogFinished(int result)
         PDFTrustedCertificateRepository repository(m_context->getDatabase());
         const PDFDatabaseError error = repository.removeRows(rows);
 
-        // The notification of the change may delete the page with the table
+        // The notification of the change may delete (with the window) or close (retire, step A) the page with the
+        // table: such a table loads no new rows
         QPointer<PDFAppCertificateTable> guard(this);
         if (error.isError())
         {
             Q_EMIT statusMessageRequested(tr("The certificates could not be removed: %1").arg(error.toString()));
         }
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }

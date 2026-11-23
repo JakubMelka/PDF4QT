@@ -340,9 +340,8 @@ void PDFAppToolGUIStatistics::updateFileRows()
 
 bool PDFAppToolGUIStatistics::updateCanvas()
 {
-    // The parts without a signal first; the progress bar and the table emit (a slot of any signal may delete
-    // this GUI): each is followed by the check of the guard
-    QPointer<PDFAppToolGUIStatistics> guard(this);
+    // The parts without a signal first; the progress bar and the table emit (a slot of any signal may retire
+    // this GUI): each is followed by the check of the retired state
     if (m_canvasPage)
     {
         m_canvasPage->setVisible(m_statistics.has_value());
@@ -369,7 +368,7 @@ bool PDFAppToolGUIStatistics::updateCanvas()
         const QString step = m_stepText.isEmpty() ? tr("Objects are classified by what they are used for") : m_stepText;
         m_progressCard->setVisible(!m_statistics && m_errorMessage.isEmpty());
         m_progressCard->setProgress(m_percentage, tr("Analyzing the document"), step, QString());
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return false;
         }
@@ -386,7 +385,7 @@ bool PDFAppToolGUIStatistics::updateCanvas()
             m_table->clear();
         }
     }
-    return !guard.isNull();
+    return !PDFDeferredDeletion::isRetired(this);
 }
 
 void PDFAppToolGUIStatistics::updateSelectedRows()

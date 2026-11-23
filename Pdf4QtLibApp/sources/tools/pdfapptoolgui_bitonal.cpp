@@ -704,9 +704,8 @@ void PDFAppToolGUIBitonal::onShowOnPage()
     }
 
     // The panel runs foreign code: the host is taken again after it
-    QPointer<PDFAppToolGUIBitonal> guard(this);
     host->showPanel(QStringLiteral("thumbnails"));
-    host = guard ? getHost() : nullptr;
+    host = !PDFDeferredDeletion::isRetired(this) ? getHost() : nullptr;
     if (PDFAppDocumentView* view = host ? host->getView() : nullptr)
     {
         view->goToPage(pageIndex);
@@ -1785,9 +1784,8 @@ void PDFAppToolGUIBitonal::onImagesCollected()
     updateAll();
 
     // The Primary button and the status depend on the images (the last things: a slot may delete this)
-    QPointer<PDFAppToolGUIBitonal> guard(this);
     updateStatusText();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateConfirmState();
     }
@@ -1800,9 +1798,8 @@ void PDFAppToolGUIBitonal::toggleBlankPageDetection()
         // Stop: the user does not wait for a result, which is not interesting anymore
         cancelDetection();
         updateToolbar();
-        QPointer<PDFAppToolGUIBitonal> guard(this);
         updateStatusText();
-        if (guard)
+        if (!PDFDeferredDeletion::isRetired(this))
         {
             updateConfirmState();
         }
@@ -1840,9 +1837,8 @@ void PDFAppToolGUIBitonal::toggleBlankPageDetection()
     m_detectionTimer.start();
 
     updateToolbar();
-    QPointer<PDFAppToolGUIBitonal> guard(this);
     updateStatusText();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateConfirmState();
     }
@@ -1948,14 +1944,13 @@ void PDFAppToolGUIBitonal::onDetectionFinished()
     m_question = box;
 
     // The state is final before the foreign code: the status, the button, then the dialog
-    QPointer<PDFAppToolGUIBitonal> guard(this);
     updateStatusText();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
     updateConfirmState();
-    if (guard && m_question)
+    if (!PDFDeferredDeletion::isRetired(this) && m_question)
     {
         m_question->open();
     }
@@ -2015,12 +2010,11 @@ void PDFAppToolGUIBitonal::onSourceRowClicked()
     // The value is read before the panel closes: its slots may delete the row, the panel or this
     // GUI with its model (RS4APP)
     const QVariant source = row->property(PDFAppToolGUIBitonalHelper::ROW_VALUE_PROPERTY);
-    QPointer<PDFAppToolGUIBitonal> guard(this);
     if (m_sourcePanel)
     {
         m_sourcePanel->close();
     }
-    PDFAppToolParameterModel* model = guard ? getModel() : nullptr;
+    PDFAppToolParameterModel* model = !PDFDeferredDeletion::isRetired(this) ? getModel() : nullptr;
     if (model)
     {
         // The modes of the other source say nothing about this one: the items start converted
@@ -2049,12 +2043,11 @@ void PDFAppToolGUIBitonal::onCompressionRowClicked()
 
     // The value is read before the panel closes (its slots may delete the row or this GUI)
     const QVariant compression = row->property(PDFAppToolGUIBitonalHelper::ROW_VALUE_PROPERTY);
-    QPointer<PDFAppToolGUIBitonal> guard(this);
     if (m_compressionPanel)
     {
         m_compressionPanel->close();
     }
-    PDFAppToolParameterModel* model = guard ? getModel() : nullptr;
+    PDFAppToolParameterModel* model = !PDFDeferredDeletion::isRetired(this) ? getModel() : nullptr;
     if (model)
     {
         model->setValue(PDFAppToolGUIBitonalHelper::name(PDFDocumentToolBitonal::PARAMETER_COMPRESSION), compression);
@@ -2071,12 +2064,11 @@ void PDFAppToolGUIBitonal::onModeRowClicked()
 
     // The value is read before the panel closes (its slots may delete the row or this GUI)
     const ItemMode mode = ItemMode(row->property(PDFAppToolGUIBitonalHelper::ROW_VALUE_PROPERTY).toInt());
-    QPointer<PDFAppToolGUIBitonal> guard(this);
     if (m_modePanel)
     {
         m_modePanel->close();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         setModeToItems(mode);
     }

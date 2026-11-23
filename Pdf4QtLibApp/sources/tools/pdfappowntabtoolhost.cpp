@@ -111,7 +111,8 @@ bool PDFAppToolTabView::enterToolMode(const PDFAppToolModeParts& parts)
     if (parts.undoTarget)
     {
         // The target belongs to the shell of the tool (step A: the handles are cut by retire of the view; destroyed
-        // stays for a target deleted without retire)
+        // stays for a target deleted without retire - PA6: not aboutToBeDeleted, the slot only queues a check, which
+        // needs the target gone, while aboutToBeDeleted comes at retire, before the deletion)
         PDFDeferredDeletion::connect(parts.undoTarget, &PDFAppToolUndoTarget::undoStateChanged, this, &PDFAppToolTabView::onUndoStateChanged);
         PDFDeferredDeletion::connect(parts.undoTarget, &QObject::destroyed, this, &PDFAppToolTabView::onPartDestroyed);
     }
@@ -343,14 +344,10 @@ void PDFAppOwnTabToolHost::leaveMode()
 {
     if (m_view)
     {
-        // The guard: a slot of the leaving may delete this host
-        QPointer<PDFAppOwnTabToolHost> guard(this);
+        // A slot of the leaving may close this host (step A: retired, deleted later - only its flag follows)
         m_isLeaving = true;
         m_view->leaveToolMode();
-        if (guard)
-        {
-            m_isLeaving = false;
-        }
+        m_isLeaving = false;
     }
 }
 

@@ -357,8 +357,9 @@ void PDFAppMarkResultsMenu::popup(QWidget* anchor, AnnotationType type, const QC
 
     QPointer<PDFAppMarkResultsMenu> guard(this);
     show();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
+        // A slot of the show has closed the menu: it takes no window activation and no focus
         return;
     }
     activateWindow();
@@ -428,7 +429,7 @@ void PDFAppMarkResultsMenu::onApplyClicked()
     const Scope scope = m_scope;
     QPointer<PDFAppMarkResultsMenu> guard(this);
     hide();
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT applyRequested(type, color, scope);
     }
@@ -645,9 +646,9 @@ bool PDFAppMarkResults::mark(AnnotationType type, const QColor& color, Scope sco
     m_runningTotal = matches.size();
     // The document announces the operation synchronously: a slot may delete the tab
     // (this object, the document and the operation) - review RPKT 95a
-    QPointer<PDFAppMarkResults> beginGuard(this);
+    QPointer<PDFAppMarkResults> guard(this);
     PDFAppDocumentOperation* operation = document->beginOperation(PDFAppDocumentOperationKind::Edit, QCoreApplication::translate("pdf::PDFAppMarkResults", "Marking the search results"), true);
-    if (!beginGuard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return false;
     }
@@ -668,9 +669,8 @@ bool PDFAppMarkResults::mark(AnnotationType type, const QColor& color, Scope sco
     m_progressTimer->start();
     m_watcher->setFuture(QtConcurrent::run(&PDFAppMarkResults::run, snapshot.document, std::move(matches), type, data, m_control));
 
-    QPointer<PDFAppMarkResults> guard(this);
     Q_EMIT stateChanged();
-    return guard != nullptr;
+    return guard && !PDFDeferredDeletion::isRetired(this);
 }
 
 PDFAppMarkResultsOutcome PDFAppMarkResults::run(PDFDocumentPointer document,
@@ -697,15 +697,15 @@ void PDFAppMarkResults::onOperationCancelRequested()
     // Stop and Close of the close-running dialog, Cancel of the operation
     QPointer<PDFAppMarkResults> guard(this);
     cancel();
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         showStatusMessage(QCoreApplication::translate("pdf::PDFAppMarkResults", "Marking of the search results was canceled."));
     }
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT stateChanged();
     }
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT finished(0);
     }
@@ -740,7 +740,7 @@ void PDFAppMarkResults::onWorkerFinished()
         QPointer<PDFAppMarkResults> guard(this);
         operation->disconnect(this);
         operation->finish();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -761,7 +761,7 @@ void PDFAppMarkResults::finishMarking(const PDFAppAnnotationResult& change, size
         // Refused, when the document has changed since the snapshot (or it is locked, or a
         // tool has been opened meanwhile)
         isCommitted = document->commit(*change, QCoreApplication::translate("pdf::PDFAppMarkResults", "Mark search results as annotations"), expectedVersion, PDFAppChangeSource::User);
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -781,11 +781,11 @@ void PDFAppMarkResults::finishMarking(const PDFAppAnnotationResult& change, size
         showStatusMessage(QCoreApplication::translate("pdf::PDFAppMarkResults", "The search results cannot be marked: the document has changed. Search again and mark them."));
     }
 
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT stateChanged();
     }
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT finished(committed);
     }

@@ -464,12 +464,11 @@ void PDFAppToolChoiceSwitch::onButtonClicked()
     }
 
     // A bound switch writes its parameter (one undo step); the model announces it to its
-    // readers, which may delete the switch
-    QPointer<PDFAppToolChoiceSwitch> guard(this);
+    // readers, which may retire the switch
     if (m_model && !m_parameter.isEmpty())
     {
         m_model->setValue(m_parameter, id);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -648,11 +647,10 @@ void PDFAppToolPageRangeField::onTextEdited(const QString& text)
     m_timer->start();
 
     // A bound field says its error to the GUI (the Primary button), then to its readers - last
-    QPointer<PDFAppToolPageRangeField> guard(this);
     if (m_gui && !m_parameter.isEmpty())
     {
         m_gui->setInputError(m_parameter, m_error);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -683,11 +681,10 @@ void PDFAppToolPageRangeField::onWriteTimer()
     }
 
     m_chosenText = text;
-    QPointer<PDFAppToolPageRangeField> guard(this);
     if (m_model && !m_parameter.isEmpty())
     {
         m_model->setValue(m_parameter, text);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -733,7 +730,6 @@ void PDFAppInsertSourceModel::setContent(std::vector<Group> groups, std::vector<
     }
 
     const bool isGroupsChanged = groups != m_groups || !isSameRows;
-    QPointer<PDFAppInsertSourceModel> guard(this);
     if (!isSameRows)
     {
         beginResetModel();
@@ -752,7 +748,7 @@ void PDFAppInsertSourceModel::setContent(std::vector<Group> groups, std::vector<
         }
     }
 
-    if (guard && isGroupsChanged)
+    if (!PDFDeferredDeletion::isRetired(this) && isGroupsChanged)
     {
         Q_EMIT groupsChanged();
     }
@@ -1060,8 +1056,7 @@ void PDFAppInsertCanvas::setEmptyState(QWidget* emptyState)
     if (m_emptyState)
     {
         // The old one may be the sender of the change (Add of an open document): later
-        m_emptyState->hide();
-        m_emptyState->deleteLater();
+        PDFDeferredDeletion::retireLater(m_emptyState.data());
     }
 
     m_emptyState = emptyState;
@@ -1345,8 +1340,7 @@ void PDFAppAddImageCanvas::setCards(const std::vector<PDFAppAddImagePageCard*>& 
     {
         if (card && std::find(cards.cbegin(), cards.cend(), card.data()) == cards.cend())
         {
-            card->hide();
-            card->deleteLater();
+            PDFDeferredDeletion::retireLater(card.data());
         }
     }
     m_cards.clear();
@@ -1389,8 +1383,8 @@ void PDFAppAddImageCanvas::setEmptyState(QWidget* emptyState)
     }
     if (m_emptyState)
     {
-        m_emptyState->hide();
-        m_emptyState->deleteLater();
+        // The old one may be the sender of the change (Add of an open document): later
+        PDFDeferredDeletion::retireLater(m_emptyState.data());
     }
 
     m_emptyState = emptyState;
@@ -1426,8 +1420,7 @@ void PDFAppAddImageCanvas::retranslate()
         // The layout gives back the item of the old control (owned by the caller)
         zoomSwitch->setEnabled(m_zoomSwitch->isEnabled());
         delete barLayout->replaceWidget(m_zoomSwitch, zoomSwitch);
-        m_zoomSwitch->hide();
-        m_zoomSwitch->deleteLater();
+        PDFDeferredDeletion::retire(m_zoomSwitch.data());
     }
     else
     {
@@ -1630,17 +1623,16 @@ void PDFAppInsertToolGUIBase::initializeValues()
     // the user (no undo step, K9)
     const PDFAppToolHost* host = getHost();
     const PDFInteger pageCount = getDocumentPageCount();
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
     if (host && pageCount > 0)
     {
         const PDFInteger current = qBound<PDFInteger>(0, host->getCurrentPage(), pageCount - 1);
         model->setFollowingValue(Helper::name(PDFDocumentToolInsertBase::PARAMETER_POSITION), QString::fromLatin1(PDFDocumentToolInsertBase::POSITION_AFTER));
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
         model->setFollowingValue(Helper::name(PDFDocumentToolInsertBase::PARAMETER_PAGE), qint64(current + 1));
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1708,9 +1700,8 @@ void PDFAppInsertToolGUIBase::applySources(const QStringList& inputIds, const st
     }
     map.insert(getSourceValuesParameter(), hasValue ? parts.join(getSourceValuesSeparator()) : QString());
 
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
     const QString error = model->setValues(map);
-    if (!guard || error.isEmpty())
+    if (PDFDeferredDeletion::isRetired(this) || error.isEmpty())
     {
         return;
     }
@@ -1718,7 +1709,7 @@ void PDFAppInsertToolGUIBase::applySources(const QStringList& inputIds, const st
     // Refused (a list too long for the parameter): the list follows the values again, the
     // reason is said last
     readValues();
-    if (guard && getHost())
+    if (!PDFDeferredDeletion::isRetired(this) && getHost())
     {
         getHost()->showTransientMessage(error);
     }
@@ -1738,12 +1729,11 @@ void PDFAppInsertToolGUIBase::readValues()
     // second reading, a removed one is parked); the list announces it, the slot waits
     QStringList ids = getModelInputIds();
     ids.removeAll(Helper::blankId());
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
     if (ids != m_list->getInputIds())
     {
         m_isChangingList = true;
         m_list->setInputIds(ids);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1761,7 +1751,7 @@ void PDFAppInsertToolGUIBase::readValues()
         historyIds << Helper::splitIds(value.toString());
     }
     m_list->dropParkedInputs(historyIds);
-    if (!guard || !m_list)
+    if (PDFDeferredDeletion::isRetired(this) || !m_list)
     {
         return;
     }
@@ -1778,7 +1768,7 @@ void PDFAppInsertToolGUIBase::readValues()
     }
 
     updateParts();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateCommon();
     }
@@ -1786,15 +1776,14 @@ void PDFAppInsertToolGUIBase::readValues()
 
 void PDFAppInsertToolGUIBase::updateCommon()
 {
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
     updateStrip();
     updateToolbar();
     updatePositionRows();
     updateOpenDocumentRows(getPanel(QStringLiteral("add")));
 
-    // The shell says the Primary button and the status (its slots may delete this GUI)
+    // The shell says the Primary button and the status (its slots may retire this GUI)
     updateConfirmState();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }
@@ -1805,11 +1794,10 @@ void PDFAppInsertToolGUIBase::announceSources()
     // The list is no list of the host: the shell does not see its changes. A reading finished,
     // a password accepted: the preview is computed again (prepareEnvironment gives the runner the
     // generation of the inputs, K33), then the parts say the new state
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
     if (PDFDocumentToolShell* shell = getShell())
     {
         shell->refreshPreview();
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1841,9 +1829,8 @@ void PDFAppInsertToolGUIBase::onListInputsChanged()
     // The changes of this GUI come with their values; another change is shown as it is
     if (!m_isChangingList)
     {
-        QPointer<PDFAppInsertToolGUIBase> guard(this);
         readValues();
-        if (guard)
+        if (!PDFDeferredDeletion::isRetired(this))
         {
             announceSources();
         }
@@ -1866,9 +1853,8 @@ void PDFAppInsertToolGUIBase::onListInputChanged(const QString& inputId)
 void PDFAppInsertToolGUIBase::onReadQueued()
 {
     m_isReadQueued = false;
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
     readValues();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         announceSources();
     }
@@ -2017,9 +2003,8 @@ void PDFAppInsertToolGUIBase::setGap(int gap)
     }
 
     // One undo step; the model announces it (the strip, the menu, the texts)
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
     const QString error = model->setValues(createGapValues(gap));
-    if (guard && !error.isEmpty() && getHost())
+    if (!PDFDeferredDeletion::isRetired(this) && !error.isEmpty() && getHost())
     {
         getHost()->showTransientMessage(error);
     }
@@ -2061,9 +2046,8 @@ void PDFAppInsertToolGUIBase::choosePosition(const QString& positionId)
         values.insert(Helper::name(PDFDocumentToolInsertPages::PARAMETER_REPLACE_PAGES), selection.toVariant());
     }
 
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
     const QString error = model->setValues(values);
-    if (guard && !error.isEmpty() && getHost())
+    if (!PDFDeferredDeletion::isRetired(this) && !error.isEmpty() && getHost())
     {
         getHost()->showTransientMessage(error);
     }
@@ -2126,9 +2110,8 @@ void PDFAppInsertToolGUIBase::setCurrentSource(const QString& inputId)
         return;
     }
     m_currentInput = inputId;
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
     updateParts();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateCommon();
     }
@@ -2157,7 +2140,6 @@ void PDFAppInsertToolGUIBase::addResults(const std::vector<PDFAppToolInputList::
 
     // The new sources go to the end of the order (a drop at a place of the strip moves the place
     // there in the same undo step); the refusals are said in the status bar, last
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
     if (!addedIds.isEmpty())
     {
         QStringList ids = getModelInputIds();
@@ -2165,7 +2147,7 @@ void PDFAppInsertToolGUIBase::addResults(const std::vector<PDFAppToolInputList::
         m_currentInput = addedIds.front();
         applySources(ids, getSourceValues(), gap >= 0 ? createGapValues(gap) : QVariantMap());
     }
-    if (guard && !refused.isEmpty() && getHost())
+    if (!PDFDeferredDeletion::isRetired(this) && !refused.isEmpty() && getHost())
     {
         getHost()->showTransientMessage(refused.join(QStringLiteral(" · ")));
     }
@@ -2179,13 +2161,12 @@ void PDFAppInsertToolGUIBase::addFiles(const QStringList& filePaths, int gap, co
     }
 
     // The list announces each addition, the values follow at once as one undo step
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
     std::vector<PDFAppToolInputList::AddResult> results;
     if (!filePaths.isEmpty())
     {
         m_isChangingList = true;
         results = m_list->addFiles(filePaths);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -2233,10 +2214,9 @@ void PDFAppInsertToolGUIBase::pasteImage()
         return;
     }
 
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
     m_isChangingList = true;
     const PDFAppToolInputList::AddResult result = m_list->addImage(image, QString());
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -2254,10 +2234,9 @@ void PDFAppInsertToolGUIBase::addOpenDocument(const QString& documentId)
     }
 
     // K24, R11 of step 2: a snapshot of now (an unsaved tab: its working copy), the tab is not followed
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
     m_isChangingList = true;
     const PDFAppToolInputList::AddResult result = m_list->addOpenDocument(document);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -2616,9 +2595,8 @@ void PDFAppInsertToolGUIBase::onPositionRowClicked()
     const QString positionId = row ? row->property(PDFAppInsertToolGUIHelper::ROW_KEY).toString() : QString();
 
     // The panel closes first (it may run code of the application), then the place changes
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
     closePanel(QStringLiteral("position"));
-    if (guard && !positionId.isEmpty())
+    if (!PDFDeferredDeletion::isRetired(this) && !positionId.isEmpty())
     {
         choosePosition(positionId);
     }
@@ -2626,9 +2604,8 @@ void PDFAppInsertToolGUIBase::onPositionRowClicked()
 
 void PDFAppInsertToolGUIBase::onAddFilesRowClicked()
 {
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
     closePanel(QStringLiteral("add"));
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         addFilesFromDialog();
     }
@@ -2636,9 +2613,8 @@ void PDFAppInsertToolGUIBase::onAddFilesRowClicked()
 
 void PDFAppInsertToolGUIBase::onPasteRowClicked()
 {
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
     closePanel(QStringLiteral("add"));
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         pasteImage();
     }
@@ -2648,9 +2624,8 @@ void PDFAppInsertToolGUIBase::onOpenDocumentRowClicked()
 {
     const QObject* row = sender();
     const QString documentId = row ? row->property(PDFAppInsertToolGUIHelper::ROW_KEY).toString() : QString();
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
     closePanel(QStringLiteral("add"));
-    if (guard && !documentId.isEmpty())
+    if (!PDFDeferredDeletion::isRetired(this) && !documentId.isEmpty())
     {
         addOpenDocument(documentId);
     }
@@ -2679,9 +2654,8 @@ void PDFAppInsertToolGUIBase::onStripFilesDropped(int gap, const QStringList& fi
 void PDFAppInsertToolGUIBase::onShellStateChanged(PDFDocumentToolShell::State state)
 {
     m_isDeciding = state == PDFDocumentToolShell::State::Deciding;
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
     updateParts();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateCommon();
     }
@@ -2695,9 +2669,8 @@ void PDFAppInsertToolGUIBase::onHostPagesChanged()
 void PDFAppInsertToolGUIBase::onRegistryChanged()
 {
     // A document opened, changed or closed: the rows of the open documents and the empty state
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
     updateOpenDocumentRows(getPanel(QStringLiteral("add")));
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateParts();
     }
@@ -2965,9 +2938,8 @@ void PDFAppInsertToolGUIBase::onParametersChanged(const QString& name)
         return;
     }
 
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
     updateParts();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateCommon();
     }
@@ -2978,9 +2950,8 @@ void PDFAppInsertToolGUIBase::retranslate()
     // The shell makes the parts again after it; a part, which stays (the canvas page), gets the
     // texts of the new language here
     BaseClass::retranslate();
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
     updateParts();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateCommon();
     }
@@ -2990,9 +2961,8 @@ void PDFAppInsertToolGUIBase::onRunStateChanged(bool isRunning)
 {
     BaseClass::onRunStateChanged(isRunning);
     m_isRunning = isRunning;
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
     updateParts();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateCommon();
     }
@@ -3008,9 +2978,8 @@ void PDFAppInsertToolGUIBase::onDocumentChanged()
     {
         m_strip->setDocument(document ? document->getDocument() : PDFDocumentPointer(), document ? document->getId() : QString(), getHost() ? getHost()->getView() : nullptr);
     }
-    QPointer<PDFAppInsertToolGUIBase> guard(this);
     updateParts();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateCommon();
     }
@@ -3286,11 +3255,10 @@ QWidget* PDFAppInsertToolGUI::createCanvasPage(QWidget* parent)
     connect(m_canvas.data(), &PDFAppInsertCanvas::pageClicked, this, &PDFAppInsertToolGUI::onCanvasPageClicked);
     connect(m_canvas.data(), &PDFAppInsertCanvas::groupActionTriggered, this, &PDFAppInsertToolGUI::onCanvasActionTriggered);
 
-    // The reset of the model is said to its observers, which may delete this GUI
-    QPointer<PDFAppInsertToolGUI> guard(this);
+    // The reset of the model is said to its observers, which may retire this GUI
     QPointer<PDFAppInsertCanvas> canvas = m_canvas;
     updateCanvas();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateEmptyState();
     }
@@ -3490,13 +3458,12 @@ void PDFAppInsertToolGUI::updateToolbar()
 
 void PDFAppInsertToolGUI::updateParts()
 {
-    QPointer<PDFAppInsertToolGUI> guard(this);
     updateCanvas();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateRightPanel();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateEmptyState();
     }
@@ -3690,9 +3657,8 @@ void PDFAppInsertToolGUI::updateCanvas()
 
     // 388:16811: the blank pages alone have no hint (no order, no pages to choose)
     const bool isBlankOnly = groups.size() == 1 && groups.front().isPlain;
-    QPointer<PDFAppInsertToolGUI> guard(this);
     m_canvas->getModel()->setContent(std::move(groups), std::move(rows));
-    if (!guard || !m_canvas)
+    if (PDFDeferredDeletion::isRetired(this) || !m_canvas)
     {
         return;
     }
@@ -4049,9 +4015,8 @@ void PDFAppInsertToolGUI::onCanvasPageClicked(int row, int group)
 
 void PDFAppInsertToolGUI::onBlankRowClicked()
 {
-    QPointer<PDFAppInsertToolGUI> guard(this);
     closePanel(QStringLiteral("add"));
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         addBlankPages();
     }
@@ -4072,9 +4037,8 @@ void PDFAppInsertToolGUI::onBlankSizeActivated(int index)
         // "As page N" starts in the orientation of the page; Orientation can turn it (owner 2026-11-09)
         values.insert(PDFAppInsertToolGUIHelper::name(PDFDocumentToolInsertPages::PARAMETER_BLANK_ORIENTATION), getNeighborOrientation());
     }
-    QPointer<PDFAppInsertToolGUI> guard(this);
     const QString error = model->setValues(values);
-    if (guard && !error.isEmpty() && getHost())
+    if (!PDFDeferredDeletion::isRetired(this) && !error.isEmpty() && getHost())
     {
         getHost()->showTransientMessage(error);
     }
@@ -4089,9 +4053,8 @@ void PDFAppInsertToolGUI::onCanvasActionTriggered(const QString& inputId, const 
     {
         return;
     }
-    QPointer<PDFAppInsertToolGUI> guard(this);
     setCurrentSource(inputId);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -4373,10 +4336,9 @@ QWidget* PDFAppAddImageToolGUI::createCanvasPage(QWidget* parent)
     m_canvas->setFit(m_isFit);
     connect(m_canvas.data(), &PDFAppAddImageCanvas::zoomChanged, this, &PDFAppAddImageToolGUI::onZoomChanged);
     connect(m_canvas.data(), &PDFAppAddImageCanvas::cardClicked, this, &PDFAppAddImageToolGUI::onCardClicked);
-    QPointer<PDFAppAddImageToolGUI> guard(this);
     QPointer<PDFAppAddImageCanvas> canvas = m_canvas;
     updateCanvas();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateEmptyState();
     }
@@ -4613,21 +4575,20 @@ QImage PDFAppAddImageToolGUI::getPreviewImage(const PDFAppToolInput& input)
 
 void PDFAppAddImageToolGUI::updateParts()
 {
-    QPointer<PDFAppAddImageToolGUI> guard(this);
     updateImages();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateCanvas();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateRightPanel();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateEmptyState();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updatePageRows();
     }
@@ -4947,15 +4908,14 @@ void PDFAppAddImageToolGUI::onPageRowClicked()
 {
     const QObject* row = sender();
     const QString sizeId = row ? row->property(PDFAppInsertToolGUIHelper::ROW_KEY).toString() : QString();
-    QPointer<PDFAppAddImageToolGUI> guard(this);
     closePanel(QStringLiteral("pageSize"));
     PDFAppToolParameterModel* model = getModel();
-    if (!guard || sizeId.isEmpty() || !model || !isEditable())
+    if (PDFDeferredDeletion::isRetired(this) || sizeId.isEmpty() || !model || !isEditable())
     {
         return;
     }
     const QString error = model->setValue(QString::fromLatin1(PDFDocumentToolAddImage::PARAMETER_PAGE_SIZE), sizeId);
-    if (guard && !error.isEmpty() && getHost())
+    if (!PDFDeferredDeletion::isRetired(this) && !error.isEmpty() && getHost())
     {
         getHost()->showTransientMessage(error);
     }

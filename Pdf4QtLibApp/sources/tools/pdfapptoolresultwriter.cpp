@@ -568,11 +568,13 @@ void PDFAppToolResultWriter::onSilentWriteFinished(const PDFAppDocumentFileWrite
     }
 
     Result finishedResult = PDFAppToolResultWriterHelper::convert(result);
-    QPointer<PDFAppToolResultWriter> guard(this);
     if (result.isSaved)
     {
         // The file has the bytes of the result: the commit makes them the document. A
-        // slot of the commit may delete the runner, the document stays saved
+        // slot of the commit may close the runner, the document stays saved: a writer retired by it (its dialog or
+        // tool closed) completes the bookkeeping of the written file - the saved state of the document and Recent
+        // (coordinator 2026-11-23, as before step A) - and reports nothing. The guard: a synchronous deletion of a test.
+        QPointer<PDFAppToolResultWriter> guard(this);
         PDFDocumentToolRunner* runner = m_runner.data();
         QPointer<PDFAppDocument> document = runner ? runner->getDocument() : nullptr;
         QString commitError;
@@ -604,6 +606,11 @@ void PDFAppToolResultWriter::onSilentWriteFinished(const PDFAppDocumentFileWrite
         }
     }
 
+    // A writer retired meanwhile reports nothing (its dialog or tool has closed)
+    if (PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
     Q_EMIT finished(finishedResult);
 }
 

@@ -253,6 +253,15 @@ public:
     /// writing of the files, the run ends as Stopped with the files written before
     void answerFileQuestion(PDFAppToolFileSink::Answer answer, bool isForAll);
 
+    /// Ends all work at once, without a signal of the runner (the work of the hook retire): the workers are canceled
+    /// (nobody waits, their results are dropped), the timers stop, nothing is computed again and the operation of the
+    /// document ends synchronously (its foreign signals run). PDFDocumentToolShell::close calls it inside of an
+    /// emission of the runner, which it retires only from the event loop (PDFDeferredDeletion::retireLater: the
+    /// later receivers of the emission still run). Calling it again does nothing more. Until the queued retire the
+    /// runner stays connected and not retired: a later receiver may still start a run or a preview (the document may be
+    /// blocked again for a moment), the queued retire ends it again through the hook.
+    void shutDown();
+
 Q_SIGNALS:
     /// A preview has started in a worker
     void previewStarted();

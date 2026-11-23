@@ -900,11 +900,11 @@ void PDFToolStartPage::onOpenToolRequested()
     }
 
     // R13: the list goes to the tab in this one synchronous call (setParent); the navigation
-    // may run code of the application, the page may go meanwhile
-    QPointer<PDFToolStartPage> guard(this);
+    // may run code of the application, the page may be closed meanwhile (retired: it makes no new list); the list
+    // lives on with the tab, which took it
     QPointer<PDFAppToolInputList> list(m_inputList);
     window->createToolTab(m_toolId, list.data());
-    if (!guard || !m_inputList)
+    if (!m_inputList || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }

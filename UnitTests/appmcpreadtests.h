@@ -39,6 +39,7 @@
 #include "pdfappdocumentsearchindex.h"
 #include "pdfappdocumenttab.h"
 #include "pdfappdocumentview.h"
+#include "pdfappleaveflow.h"
 #include "pdfappmainwindow.h"
 #include "pdfappmcpactivity.h"
 #include "pdfappmcpareahighlight.h"
@@ -1611,6 +1612,31 @@ public:
         result = call(fixture, QStringLiteral("view"), args(QStringLiteral("activate"), linksId));
         QVERIFY(isToolError(result));
         QVERIFY(fixture.waitActivity(pdf::PDFMcpActivityStatus::Ok));
+    }
+
+    static void viewCloseRetiredDuringClose()
+    {
+        // view.close of a tab, which a slot of its own close flow closes (retired with the flow: inert, deleted later;
+        // the window refuses the close then): the tab is gone, so the answer is closed: true (RD6-L4). Before PA6 the
+        // retired tab, still alive, answered closed: false.
+        pdftest::AppMcpFixture fixture;
+        QVERIFY(fixture.setPermissions(pdf::PDFAppMcpPermission::Allow));
+        QPointer<pdf::PDFAppDocumentTab> tab = openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("Closed by its flow.pdf"), 1));
+        QVERIFY(tab);
+        const QString id = tab->getDocument()->getId();
+        bool isRetiredInSlot = false;
+        QObject::connect(tab->getLeaveFlow(), &pdf::PDFAppLeaveFlow::finished, fixture.window.data(), [&tab, &isRetiredInSlot](bool)
+        {
+            pdf::PDFDeferredDeletion::retire(tab.data());
+            isRetiredInSlot = pdf::PDFDeferredDeletion::isRetired(tab.data());
+        });
+
+        const Result result = call(fixture, QStringLiteral("view"), args(QStringLiteral("close"), id));
+        QVERIFY(isRetiredInSlot);
+        QVERIFY2(isSuccess(result), qPrintable(describe(result)));
+        QVERIFY(actionObject(result, QStringLiteral("close")).value(QStringLiteral("closed")).toBool());
+        fixture.settle();
+        QVERIFY(!tab);
     }
 
     static void fastPath()

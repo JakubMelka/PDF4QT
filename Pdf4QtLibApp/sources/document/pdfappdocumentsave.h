@@ -196,6 +196,11 @@ public:
     /// The file is being written by the worker
     bool isWriting() const { return m_step == Step::Writing; }
 
+    /// The worker has written the file of the running Save / Save as (from the end of the write until the next
+    /// start): the save is done, also when the saver is retired meanwhile (its tab closed by a slot of the end
+    /// of the write - PDFAppDocumentSaveRequest answers true then)
+    bool hasWrittenFile() const { return m_isFileWritten; }
+
     /// Save can be used now (state of the command file.save): a shown document,
     /// which has changes or has no file yet, is not locked, its file is writable
     /// and no save runs
@@ -286,6 +291,7 @@ private:
     bool m_isSilent = false;            ///< The running write is a silent one
     bool m_isSignedSaveConfirmed = false;
     bool m_isFileIncremental = false;   ///< The file of the file dialog is written incrementally
+    bool m_isFileWritten = false;       ///< hasWrittenFile
     QPointer<PDFMessageBox> m_dialog;
     QPointer<PDFAppFileDialogRequest> m_fileRequest;    ///< The file dialog of Save as (a child of the saver)
     QPointer<QFutureWatcher<PDFAppDocumentFileWriter::Result>> m_watcher;
@@ -303,8 +309,9 @@ private:
 ///   has been shown) in the emission of finished, or from the event loop, when the
 ///   saver has finished inside the call;
 /// - false from the event loop, when nothing can be saved (no saver, no document
-///   shown: save / saveAs returned false) or when the saver is deleted before its end
-///   (the tab has been closed);
+///   shown: save / saveAs returned false, or a retired saver) or when the saver is retired
+///   or deleted before its end (the tab has been closed); true from the event loop, when the
+///   saver is retired after its worker has written the file (the save has been finished);
 /// - nothing, when the requester has gone: the request is its child.
 /// The request deletes itself (deleteLater) after the delivery. GUI thread only.
 class PDF4QTLIBAPPSHARED_EXPORT PDFAppDocumentSaveRequest : public QObject

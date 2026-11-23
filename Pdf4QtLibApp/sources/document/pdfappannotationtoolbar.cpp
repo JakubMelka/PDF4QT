@@ -195,9 +195,9 @@ void PDFAppAnnotationToolBar::clearParts()
         {
             if (QWidget* widget = item->widget())
             {
-                // A part may be the sender of the signal, which reconfigures the bar
-                widget->hide();
-                widget->deleteLater();
+                // A part may be the sender of the signal, which reconfigures the bar (retireLater: hidden
+                // now, inert and deleted from the event loop)
+                PDFDeferredDeletion::retireLater(widget);
             }
             delete item;
         }

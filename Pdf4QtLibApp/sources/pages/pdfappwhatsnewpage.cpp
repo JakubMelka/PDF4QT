@@ -559,9 +559,10 @@ bool PDFAppWhatsNewPage::setRoute(const PDFAppRoute& route)
     m_isRunningRelease = PDFAppWhatsNewHelper::isSameVersion(m_release.version, m_runningVersion);
     build();
 
+    // The title runs code of the tab: a page closed (retired, step A) or deleted by it is not alive
     QPointer<PDFAppWhatsNewPage> guard(this);
     Q_EMIT titleChanged();
-    return !guard.isNull();
+    return !guard.isNull() && !PDFDeferredDeletion::isRetired(this);
 }
 
 QString PDFAppWhatsNewPage::getTitle() const
@@ -941,7 +942,6 @@ void PDFAppWhatsNewPage::showEvent(QShowEvent* event)
     BaseClass::showEvent(event);
 
     // The page reads the database when it is shown; a check is started, when it is due
-    QPointer<PDFAppWhatsNewPage> guard(this);
     updateStatus();
     updatePins();
     if (m_checker)
@@ -1131,13 +1131,15 @@ bool PDFAppReleaseNotesPage::setRoute(const PDFAppRoute& route)
     m_release = m_catalog->getLocalizedRelease(release->version, PDFAppLocale::getUiLanguage());
     build();
 
+    // The title runs code of the tab: a page closed (retired, step A) or deleted by it schedules nothing
     QPointer<PDFAppReleaseNotesPage> guard(this);
     Q_EMIT titleChanged();
-    if (guard && !route.getFragment().isEmpty())
+    const bool isAlive = !guard.isNull() && !PDFDeferredDeletion::isRetired(this);
+    if (isAlive && !route.getFragment().isEmpty())
     {
         requestDeferredScroll(-1, route.getFragment());
     }
-    return !guard.isNull();
+    return isAlive;
 }
 
 QString PDFAppReleaseNotesPage::getTitle() const

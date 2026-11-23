@@ -531,13 +531,12 @@ void PDFAppToolAnchorPanel::refresh()
 void PDFAppToolAnchorPanel::onAnchorChosen(Qt::Alignment anchor)
 {
     // The panel closes first: a change of a parameter may start anything
-    QPointer<PDFAppToolAnchorPanel> guard(this);
     close();
-    if (guard && m_model)
+    if (!PDFDeferredDeletion::isRetired(this) && m_model)
     {
         m_model->setValue(m_parameter, PDFDocumentToolGeometry::getAnchorName(anchor));
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         // The model decides (also for a refusal)
         refresh();
@@ -618,12 +617,7 @@ void PDFAppToolAnchorComboBox::onActivated(int index)
     const QString anchorId = itemData(index).toString();
     if (m_model && !anchorId.isEmpty() && m_model->getValue(m_parameter).toString() != anchorId)
     {
-        QPointer<PDFAppToolAnchorComboBox> guard(this);
         m_model->setValue(m_parameter, anchorId);
-        if (!guard)
-        {
-            return;
-        }
     }
     refresh();
 }
@@ -757,12 +751,12 @@ void PDFAppPageGeometryToolGUI::describeLeftPanel(PDFAppToolPanelBuilder& builde
 
     // M12 filters the viewport. The filter sees the viewport also while the view is being
     // destroyed (no longer a QAbstractScrollArea): it compares only the address of the viewport,
-    // and the filter goes with the view (the slot of destroyed, a former view here)
+    // and the filter goes with the view (aboutToBeDeleted of the view, a former view here)
     forgetThumbnailView();
     m_thumbnailView = view;
     m_thumbnailViewport = view->viewport();
     m_thumbnailViewport->installEventFilter(this);
-    connect(view, &QObject::destroyed, this, &PDFAppPageGeometryToolGUI::onThumbnailViewDestroyed);
+    PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(view), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppPageGeometryToolGUI::onThumbnailViewAboutToBeDeleted);
     builder.addWidget(view);
     builder.setFillsPanel(view);
 
@@ -823,13 +817,15 @@ bool PDFAppPageGeometryToolGUI::eventFilter(QObject* watched, QEvent* event)
     return BaseClass::eventFilter(watched, event);
 }
 
-void PDFAppPageGeometryToolGUI::onThumbnailViewDestroyed(QObject* object)
+void PDFAppPageGeometryToolGUI::onThumbnailViewAboutToBeDeleted(QObject* object)
 {
-    // ~QWidget of the view emits destroyed before it deletes its children: the viewport is
-    // still a whole QWidget. Only the current view is forgotten (a former one is forgotten,
-    // when the new one comes)
+    // At the retire of the view the viewport is a whole QWidget; at the fallback emission of the
+    // notifier (the view deleted without retire, its children being deleted) the viewport may be
+    // gone already - the watched pointer is null then, nothing is filtered any more, and the view
+    // in its destructor is forgotten too (only a view, whose viewport is gone, can be dying). Only
+    // the current view is forgotten (a former one is forgotten, when the new one comes)
     QWidget* viewport = m_thumbnailViewport.data();
-    if (viewport && viewport->parent() == object)
+    if (!viewport || viewport->parent() == object)
     {
         forgetThumbnailView();
     }
@@ -866,9 +862,8 @@ void PDFAppPageGeometryToolGUI::setPreviewPage(PDFInteger page)
 
     // The view goes to the page of the preview: its page item in the status bar says it (K48,
     // 389:22382 "Page 8 / 48"); the view runs its slots, the last call
-    QPointer<PDFAppPageGeometryToolGUI> guard(this);
     updateAll();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         showPreviewPageInView();
     }
@@ -947,11 +942,10 @@ void PDFAppPageGeometryToolGUI::updateAll()
 
     updateTool();
 
-    // The slots of the state of the Primary button may delete this GUI: the status is said only by
-    // a living GUI, the last thing
-    QPointer<PDFAppPageGeometryToolGUI> guard(this);
+    // The slots of the state of the Primary button may retire this GUI: the status is said only by
+    // a GUI, which is not retired, the last thing
     updateConfirmState();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }
@@ -992,11 +986,10 @@ void PDFAppPageGeometryToolGUI::followPages()
         m_previewPage = pageMap[size_t(m_previewPage)];
     }
 
-    QPointer<PDFAppPageGeometryToolGUI> guard(this);
     if (m_binder)
     {
         m_binder->followPages(previousDocument.data(), pageMap);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1015,9 +1008,8 @@ void PDFAppPageGeometryToolGUI::onDocumentChanged()
     }
 
     // An assistant may change the pages below an open tool: the values follow their pages
-    QPointer<PDFAppPageGeometryToolGUI> guard(this);
     followPages();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1391,17 +1383,16 @@ void PDFAppCropToolGUI::onModeRowClicked()
 void PDFAppCropToolGUI::chooseMode(const QString& mode)
 {
     // The panel closes first: a change of a parameter may start anything
-    QPointer<PDFAppCropToolGUI> guard(this);
     if (m_modePanel)
     {
         m_modePanel->close();
     }
-    if (guard && getModel())
+    if (!PDFDeferredDeletion::isRetired(this) && getModel())
     {
         m_lastMode = mode;
         getModel()->setValue(PDFAppToolGUIGeometryHelper::name(PDFDocumentToolCropPages::PARAMETER_MODE), mode);
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateTool();
     }

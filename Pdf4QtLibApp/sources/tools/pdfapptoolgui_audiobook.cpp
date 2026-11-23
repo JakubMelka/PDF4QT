@@ -1060,9 +1060,8 @@ void PDFAppAudioBookSelectPopover::onSelectClicked()
 
     // The popover closes first: the selection runs the code of the GUI, the signal is last
     const QString text = m_field->text();
-    QPointer<PDFAppAudioBookSelectPopover> guard(this);
     close();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT selectRequested(text);
     }
@@ -1183,7 +1182,6 @@ void PDFAppToolGUIAudioBook::onVoicesProbed()
 
     // A voice, which is not there any more (a remembered value), or no voice yet: the first voice
     // of the language of the user interface, else the first voice - it follows, no step of Undo
-    QPointer<PDFAppToolGUIAudioBook> guard(this);
     PDFAppToolParameterModel* model = getModel();
     if (model && !m_voices.empty())
     {
@@ -1200,7 +1198,7 @@ void PDFAppToolGUIAudioBook::onVoicesProbed()
             model->setFollowingValue(PDFAppToolGUIAudioBookHelper::name(PDFDocumentToolAudioBook::PARAMETER_VOICE), chosen);
         }
     }
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1649,9 +1647,11 @@ void PDFAppToolGUIAudioBook::onStreamJobFinished()
     }
     m_itemModel->setEditor(std::move(editor));
 
+    // A step of Undo may run a slot, which deletes the tab synchronously (a test, as contextMenuActionMayCloseTheTab):
+    // the guard stays besides the check of the retire (RC6-M1)
     QPointer<PDFAppToolGUIAudioBook> guard(this);
     storeStream(m_isStreamJobUndoStep);
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         updateAll();
     }
@@ -1732,10 +1732,11 @@ void PDFAppToolGUIAudioBook::selectItems(std::set<size_t> items)
         return;
     }
 
-    // A pending text goes into the stream first (a step of Undo: its signals may delete this GUI)
+    // A pending text goes into the stream first (a step of Undo: its signals may close this GUI, a test deletes the
+    // tab synchronously there - the guard stays besides the check of the retire, RC6-M1)
     QPointer<PDFAppToolGUIAudioBook> guard(this);
     commitEditedText();
-    if (!guard || !m_itemModel)
+    if (!guard || PDFDeferredDeletion::isRetired(this) || !m_itemModel)
     {
         return;
     }
@@ -1803,15 +1804,17 @@ void PDFAppToolGUIAudioBook::readSelected()
     {
         return;
     }
+    // The actions of the context menu (onContextMenuActionQueued): the test contextMenuActionMayCloseTheTab deletes
+    // the tab synchronously in a slot of the step of Undo, so the guard stays besides the check of the retire
     QPointer<PDFAppToolGUIAudioBook> guard(this);
     commitEditedText();
-    if (!guard || !m_itemModel)
+    if (!guard || PDFDeferredDeletion::isRetired(this) || !m_itemModel)
     {
         return;
     }
     m_itemModel->setItemsRead(m_itemModel->getSelection(), true);
     storeStream(true);
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         selectItems(m_itemModel->getSelection());
     }
@@ -1823,15 +1826,16 @@ void PDFAppToolGUIAudioBook::skipSelected()
     {
         return;
     }
+    // A synchronous deletion of a test (readSelected): the guard stays
     QPointer<PDFAppToolGUIAudioBook> guard(this);
     commitEditedText();
-    if (!guard || !m_itemModel)
+    if (!guard || PDFDeferredDeletion::isRetired(this) || !m_itemModel)
     {
         return;
     }
     m_itemModel->setItemsRead(m_itemModel->getSelection(), false);
     storeStream(true);
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         selectItems(m_itemModel->getSelection());
     }
@@ -1843,15 +1847,16 @@ void PDFAppToolGUIAudioBook::moveSelectionUp()
     {
         return;
     }
+    // A synchronous deletion of a test (readSelected): the guard stays
     QPointer<PDFAppToolGUIAudioBook> guard(this);
     commitEditedText();
-    if (!guard || !m_itemModel)
+    if (!guard || PDFDeferredDeletion::isRetired(this) || !m_itemModel)
     {
         return;
     }
     m_itemModel->moveSelection(true);
     storeStream(true);
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         selectItems(m_itemModel->getSelection());
     }
@@ -1863,15 +1868,16 @@ void PDFAppToolGUIAudioBook::moveSelectionDown()
     {
         return;
     }
+    // A synchronous deletion of a test (readSelected): the guard stays
     QPointer<PDFAppToolGUIAudioBook> guard(this);
     commitEditedText();
-    if (!guard || !m_itemModel)
+    if (!guard || PDFDeferredDeletion::isRetired(this) || !m_itemModel)
     {
         return;
     }
     m_itemModel->moveSelection(false);
     storeStream(true);
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         selectItems(m_itemModel->getSelection());
     }
@@ -1941,9 +1947,11 @@ void PDFAppToolGUIAudioBook::onRestoreClicked()
         m_commitTimer->stop();
     }
     m_itemModel->restoreTexts(m_itemModel->getSelection());
+
+    // A step of Undo: a synchronous deletion of a test (readSelected), the guard stays (RC6-M1)
     QPointer<PDFAppToolGUIAudioBook> guard(this);
     storeStream(true);
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         selectItems(m_itemModel->getSelection());
     }
@@ -2048,10 +2056,10 @@ void PDFAppToolGUIAudioBook::onListContextMenuRequested(const QPoint& position)
         if (!m_itemModel->getSelection().count(itemIndex))
         {
             // The selection updates the list, the page and the panel (their signals run code, which may close the
-            // tool: no menu of an ended tool)
+            // tool: no menu of an ended tool; a step of Undo of a pending text - the guard stays, RC6-M1)
             QPointer<PDFAppToolGUIAudioBook> guard(this);
             selectItems({ itemIndex });
-            if (!guard || !m_listView || PDFAppToolGUIAudioBookHelper::isToolEnded(this))
+            if (!guard || PDFDeferredDeletion::isRetired(this) || !m_listView || PDFAppToolGUIAudioBookHelper::isToolEnded(this))
             {
                 return;
             }
@@ -2190,10 +2198,11 @@ void PDFAppToolGUIAudioBook::onOverlayItemClicked(qint64 index, bool isAdding)
     const int scrollValue = m_listView && m_listView->verticalScrollBar() ? m_listView->verticalScrollBar()->value() : 0;
     m_isListToPage = false;
 
-    // selectItems emits signals, whose slots may delete this GUI
+    // selectItems emits signals, whose slots may close this GUI (a step of Undo of a pending text: the guard stays,
+    // RC6-M1)
     QPointer<PDFAppToolGUIAudioBook> guard(this);
     selectItems(std::move(items));
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -2318,12 +2327,11 @@ void PDFAppToolGUIAudioBook::onSelectMenuRowClicked()
     const QString key = sender() ? sender()->property(PDFAppToolGUIAudioBookHelper::ROW_KEY_PROPERTY).toString() : QString();
 
     // The panel closes first
-    QPointer<PDFAppToolGUIAudioBook> guard(this);
     if (m_selectMenu)
     {
         m_selectMenu->close();
     }
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -2533,16 +2541,15 @@ void PDFAppToolGUIAudioBook::onVoiceMenuRowClicked()
 {
     const QString voice = sender() ? sender()->property(PDFAppToolGUIAudioBookHelper::ROW_KEY_PROPERTY).toString() : QString();
 
-    QPointer<PDFAppToolGUIAudioBook> guard(this);
     if (m_voiceMenu)
     {
         m_voiceMenu->close();
     }
-    if (guard && getModel())
+    if (!PDFDeferredDeletion::isRetired(this) && getModel())
     {
         getModel()->setValue(PDFAppToolGUIAudioBookHelper::name(PDFDocumentToolAudioBook::PARAMETER_VOICE), voice);
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateVoiceMenu();
     }
@@ -2577,9 +2584,10 @@ void PDFAppToolGUIAudioBook::onRebuildClicked()
         return;
     }
 
+    // A step of Undo of a pending text: a synchronous deletion of a test (readSelected), the guard stays (RC6-M1)
     QPointer<PDFAppToolGUIAudioBook> guard(this);
     commitEditedText();
-    if (!guard || PDFAppToolGUIAudioBookHelper::isToolEnded(this))
+    if (!guard || PDFDeferredDeletion::isRetired(this) || PDFAppToolGUIAudioBookHelper::isToolEnded(this))
     {
         return;
     }
@@ -2803,9 +2811,8 @@ void PDFAppToolGUIAudioBook::onPlaySampleClicked()
     m_sampleEngine->setVolume(model->getValue(PDFAppToolGUIAudioBookHelper::name(PDFDocumentToolAudioBook::PARAMETER_VOLUME)).toDouble());
 
     // The engine runs foreign code: the GUI may be gone after it
-    QPointer<PDFAppToolGUIAudioBook> guard(this);
     m_sampleEngine->say(getSampleText());
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateVoiceAndFormat();
     }
@@ -2856,9 +2863,8 @@ void PDFAppToolGUIAudioBook::onParametersChanged(const QString& name)
 void PDFAppToolGUIAudioBook::onRunStateChanged(bool isRunning)
 {
     // 341:10706: the run hides the Selected item, the sample stops
-    QPointer<PDFAppToolGUIAudioBook> guard(this);
     commitEditedText();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -2909,9 +2915,8 @@ void PDFAppToolGUIAudioBook::updateAll()
     updateActions();
 
     // The slots of these signals may delete this GUI: they are the last thing
-    QPointer<PDFAppToolGUIAudioBook> guard(this);
     updateConfirmState();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }

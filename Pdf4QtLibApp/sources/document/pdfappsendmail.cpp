@@ -26,6 +26,7 @@
 #include "pdfappdocumenttab.h"
 #include "pdfappmainwindow.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfmessagebox.h"
 
 #include <QDir>
@@ -341,6 +342,7 @@ bool PDFAppSendMail::canSend() const
 
 void PDFAppSendMail::send()
 {
+    QPointer<PDFAppSendMail> guard(this);
     PDFAppDocument* document = m_document.data();
     if (!canSend() || !document)
     {
@@ -349,9 +351,8 @@ void PDFAppSendMail::send()
 
     // An open editor of a form field is a change, which is sent too (step 4,
     // package D): it is committed first, so the document asks to be saved
-    QPointer<PDFAppSendMail> guard(this);
     document->commitPendingEdits();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -486,6 +487,7 @@ PDFAppMailResult PDFAppSendMail::launchPlatform(const QString& filePath, const Q
 
 void PDFAppSendMail::onLaunchFinished()
 {
+    QPointer<PDFAppSendMail> guard(this);
     QFutureWatcher<PDFAppMailResult>* watcher = m_watcher.data();
     if (!watcher || sender() != watcher)
     {
@@ -496,9 +498,8 @@ void PDFAppSendMail::onLaunchFinished()
     m_watcher = nullptr;
     watcher->deleteLater();
 
-    QPointer<PDFAppSendMail> guard(this);
     Q_EMIT stateChanged();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -506,7 +507,7 @@ void PDFAppSendMail::onLaunchFinished()
     if (result != PDFAppMailResult::Created)
     {
         showErrorDialog(result);
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -547,6 +548,7 @@ void PDFAppSendMail::showSaveFirstDialog()
 
 void PDFAppSendMail::onSaveFirstFinished(int result)
 {
+    QPointer<PDFAppSendMail> guard(this);
     if (sender() != m_dialog.data())
     {
         return;
@@ -562,8 +564,7 @@ void PDFAppSendMail::onSaveFirstFinished(int result)
     m_isWaitingForSave = true;
     Q_EMIT stateChanged();
 
-    QPointer<PDFAppSendMail> guard(this);
-    if (!m_saver->save() && guard)
+    if (!m_saver->save() && guard && !PDFDeferredDeletion::isRetired(this))
     {
         m_isWaitingForSave = false;
         Q_EMIT stateChanged();
@@ -572,15 +573,15 @@ void PDFAppSendMail::onSaveFirstFinished(int result)
 
 void PDFAppSendMail::onSaverFinished(bool isSaved)
 {
+    QPointer<PDFAppSendMail> guard(this);
     if (!m_isWaitingForSave)
     {
         return;
     }
 
     m_isWaitingForSave = false;
-    QPointer<PDFAppSendMail> guard(this);
     Q_EMIT stateChanged();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }

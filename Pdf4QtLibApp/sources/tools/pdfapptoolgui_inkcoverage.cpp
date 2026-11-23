@@ -987,9 +987,8 @@ void PDFAppToolGUIInkCoverage::onResultKept(const PDFDocumentToolResult& result)
 void PDFAppToolGUIInkCoverage::onRunNotAccepted(const PDFDocumentToolResult& result)
 {
     // A failed run shows its error (the default info bar); the table of before stays
-    QPointer<PDFAppToolGUIInkCoverage> guard(this);
     setContent(m_contentBeforeRun, m_dataBeforeRun, m_resultDataBeforeRun);
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         BaseClass::onRunNotAccepted(result);
     }
@@ -1027,9 +1026,8 @@ void PDFAppToolGUIInkCoverage::announceState()
 {
     // The signals of the Primary button and of the status bar run foreign slots, which may delete this GUI
     // with its shell: each is the last call of what follows it (emit last)
-    QPointer<PDFAppToolGUIInkCoverage> guard(this);
     updateConfirmState();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }

@@ -23,6 +23,8 @@
 #include "pdfappinstance.h"
 #include "pdfappcommandline.h"
 
+#include "pdfdeferreddeletion.h"
+
 #include <QApplication>
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -994,7 +996,10 @@ void PDFAppInstanceServer::onNewConnection()
 
         PDFAppInstanceConnection* connection = new PDFAppInstanceConnection(socket, m_readTimeout, this);
         m_connections.append(connection);
-        connect(connection, &QObject::destroyed, this, &PDFAppInstanceServer::onConnectionDestroyed);
+
+        // The end of the connection (a child: deleted later after its request, or with the server) is aboutToBeDeleted
+        // of its notifier - emitted from the notifier's destructor, it is never retired - never QObject::destroyed
+        connect(PDFDeferredDeletion::getNotifier(connection), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppInstanceServer::onConnectionDestroyed);
         connect(connection, &PDFAppInstanceConnection::requestReady, this, &PDFAppInstanceServer::onRequestReady);
         connect(connection, &PDFAppInstanceConnection::requestRefused, this, &PDFAppInstanceServer::onRequestRefused);
     }

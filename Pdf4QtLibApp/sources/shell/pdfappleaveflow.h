@@ -51,7 +51,8 @@ class PDFAppLeaveFlow;
 /// - the receiver gone -> nothing: the answer is a child of the receiver and goes with it (the dialog stays as it is);
 ///   the receiver retired (PDFDeferredDeletion::retire) -> nothing either (the connections from the dialog are cut);
 /// - the dialog retired (its logical owner closed, step A) -> answered(QDialog::Rejected) from the event loop, as for
-///   a dialog deleted without finished (PDFLifetimeNotifier::aboutToBeDeleted; QObject::destroyed stays).
+///   a dialog deleted without finished (PDFLifetimeNotifier::aboutToBeDeleted, which also tells a deletion without
+///   retire); a dialog retired before the answer watches it -> answered(QDialog::Rejected) from the event loop too.
 /// Ownership: the answer belongs to the receiver and deletes itself (deleteLater) when it has delivered. The dialog is
 /// not owned; setDeleteDialog(true) deletes it (deleteLater) after its answer (PDFAppDocumentChoiceDialog::ask). GUI
 /// thread only. A subclass delivers another type of the answer (emitAnswer).

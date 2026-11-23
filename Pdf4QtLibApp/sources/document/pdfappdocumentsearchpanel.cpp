@@ -420,6 +420,8 @@ void PDFAppDocumentSearchPanel::updateState()
                                      : QString());
     m_noteLabel->setVisible(isTruncated);
 
+    // Only the own list follows the current result after the signal (the guard stays for the synchronous
+    // deletions of the tests)
     Q_EMIT titleChanged();
     if (!guard)
     {

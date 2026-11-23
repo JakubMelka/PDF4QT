@@ -850,7 +850,7 @@ void PDFAppOutlinePanel::rebuild()
     {
         QPointer<PDFAppOutlinePanel> guard(this);
         editor->setCurrentItem({});
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1131,10 +1131,10 @@ void PDFAppOutlinePanel::beginPendingItem()
     }
 
     // A temporary item of an earlier creation goes away (availabilityChanged - a
-    // slot may delete the tab and this panel)
-    QPointer<PDFAppOutlinePanel> endGuard(this);
+    // slot may close the tab and this panel)
+    QPointer<PDFAppOutlinePanel> guard(this);
     endPendingItem();
-    if (!endGuard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1172,10 +1172,9 @@ void PDFAppOutlinePanel::beginPendingItem()
     m_isSelecting = wasSelecting;
 
     // The tab of the panel is shown also for a document without an outline (a
-    // slot may delete the tab and this panel)
-    QPointer<PDFAppOutlinePanel> guard(this);
+    // slot may close the tab and this panel: a retired panel queues no editor)
     Q_EMIT availabilityChanged();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1345,6 +1344,8 @@ void PDFAppOutlinePanel::onEditFinishedQueued()
         return;
     }
 
+    // A not written title only gives the own row its title back (the guard stays for the synchronous
+    // deletions of the tests)
     QPointer<PDFAppOutlinePanel> guard(this);
     const bool isRenamed = result.isAccepted && editor->renameItem(result.path, result.title);
     if (!guard || isRenamed)

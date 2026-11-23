@@ -85,10 +85,6 @@ class PDFAppMergeToolGUIHelper
 public:
     PDFAppMergeToolGUIHelper() = delete;
 
-    /// The GUI goes on after foreign code (a slot of its signal may close the tool): it lives and its tool is not
-    /// closed - a retired GUI (step A) changes and creates nothing, it waits for its deletion
-    static bool isLive(const QPointer<PDFAppMergeToolGUI>& gui) { return gui && !PDFDeferredDeletion::isRetired(gui.data()); }
-
     /// Widths of the panels of the toolbar (378:1879)
     static constexpr int ADD_PANEL_WIDTH = 290;
     static constexpr int SORT_PANEL_WIDTH = 250;
@@ -470,12 +466,11 @@ void PDFAppMergeToolGUI::readValues()
     // The inputs of the list follow the values (Undo / Redo: a parked input comes back without
     // a second reading, a removed one is parked); the list announces it, the slot waits
     QStringList ids = getModelInputIds();
-    QPointer<PDFAppMergeToolGUI> guard(this);
     if (ids != m_list->getInputIds())
     {
         m_isChangingList = true;
         m_list->setInputIds(ids);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -494,7 +489,7 @@ void PDFAppMergeToolGUI::readValues()
         historyIds << Helper::splitIds(value.toString());
     }
     m_list->dropParkedInputs(historyIds);
-    if (!guard || !m_list)
+    if (PDFDeferredDeletion::isRetired(this) || !m_list)
     {
         return;
     }
@@ -510,9 +505,9 @@ void PDFAppMergeToolGUI::readValues()
     if (m_canvas)
     {
         // The reset of the model and the new selection are said to the views and to their
-        // observers, which may delete this GUI (the tab closes from them)
+        // observers, which may retire this GUI (the tab closes from them)
         m_canvas->getModel()->setPlan(m_plan);
-        if (!guard || !m_canvas)
+        if (PDFDeferredDeletion::isRetired(this) || !m_canvas)
         {
             return;
         }
@@ -533,7 +528,7 @@ void PDFAppMergeToolGUI::readValues()
         {
             selectRows(getRowsOfKeys(selectedKeys));
         }
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -561,9 +556,8 @@ void PDFAppMergeToolGUI::applyChange(const QStringList& inputIds, const PDFAppTo
     m_pendingSelection = selectedItems;
     m_hasPendingSelection = true;
 
-    QPointer<PDFAppMergeToolGUI> guard(this);
     const QString error = model->setValues(values);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -583,7 +577,7 @@ void PDFAppMergeToolGUI::applyChange(const QStringList& inputIds, const PDFAppTo
                 }
             }
             selectRows(rows);
-            if (!guard)
+            if (PDFDeferredDeletion::isRetired(this))
             {
                 return;
             }
@@ -753,12 +747,11 @@ void PDFAppMergeToolGUI::addResults(const std::vector<PDFAppToolInputList::AddRe
     }
 
     // K29: "Contract.pdf is already in the list" in the status bar (the last call)
-    QPointer<PDFAppMergeToolGUI> guard(this);
     if (isAdded)
     {
         applyChange(m_list->getInputIds(), plan, getSelectedItems());
     }
-    if (guard && !refused.isEmpty() && getHost())
+    if (!PDFDeferredDeletion::isRetired(this) && !refused.isEmpty() && getHost())
     {
         getHost()->showTransientMessage(refused.join(QStringLiteral(" · ")));
     }
@@ -772,11 +765,10 @@ void PDFAppMergeToolGUI::addFiles(const QStringList& filePaths)
     }
 
     // The list announces each addition, the values follow at once as one undo step
-    QPointer<PDFAppMergeToolGUI> guard(this);
     QPointer<PDFAppToolInputList> list(m_list);
     m_isChangingList = true;
     const std::vector<PDFAppToolInputList::AddResult> results = list->addFiles(filePaths);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -823,10 +815,9 @@ void PDFAppMergeToolGUI::pasteImage()
         return;
     }
 
-    QPointer<PDFAppMergeToolGUI> guard(this);
     m_isChangingList = true;
     const PDFAppToolInputList::AddResult result = m_list->addImage(image, QString());
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -844,10 +835,9 @@ void PDFAppMergeToolGUI::addOpenDocument(const QString& documentId)
     }
 
     // R11: a snapshot of now, the tab is not followed
-    QPointer<PDFAppMergeToolGUI> guard(this);
     m_isChangingList = true;
     const PDFAppToolInputList::AddResult result = m_list->addOpenDocument(document);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1145,13 +1135,12 @@ bool PDFAppMergeToolGUI::dropFiles(const QMimeData* mimeData)
         refused << tr("%1 – %2").arg(item.text, PDFAppFileDrop::getRefusalText(item.refusal));
     }
 
-    QPointer<PDFAppMergeToolGUI> guard(this);
     std::vector<PDFAppToolInputList::AddResult> results;
     if (m_list && !result.files.isEmpty())
     {
         m_isChangingList = true;
         results = m_list->addFiles(result.files);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return true;
         }
@@ -1184,9 +1173,8 @@ void PDFAppMergeToolGUI::setTileSize(PDFAppToolPageGrid::TileSize size)
     }
     if (m_canvas)
     {
-        QPointer<PDFAppMergeToolGUI> guard(this);
         m_canvas->setTileSize(size);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1526,10 +1514,9 @@ QWidget* PDFAppMergeToolGUI::createCanvasPage(QWidget* parent)
     connect(m_tileSizeMenu.data(), &PDFAppToolTileSizeMenu::sizeChosen, this, &PDFAppMergeToolGUI::onTileSizeChosen);
 
     // The reset of the model is said to its observers, which may delete this GUI
-    QPointer<PDFAppMergeToolGUI> guard(this);
     QPointer<PDFAppToolMergeCanvas> canvas = m_canvas;
     m_canvas->getModel()->setPlan(m_plan);
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateAll();
     }
@@ -1564,9 +1551,8 @@ void PDFAppMergeToolGUI::onShellStateChanged(PDFDocumentToolShell::State state)
         m_leftOutInputs.clear();
         if (m_canvas)
         {
-            QPointer<PDFAppMergeToolGUI> guard(this);
             m_canvas->getModel()->setLeftOutInputs(m_leftOutInputs);
-            if (!guard)
+            if (PDFDeferredDeletion::isRetired(this))
             {
                 return;
             }
@@ -1624,9 +1610,8 @@ void PDFAppMergeToolGUI::onFileRowClicked(const QString& inputId)
         const PDFAppToolMergePageModel::Group& item = model->getGroups()[size_t(group)];
         if (item.rowCount > 0)
         {
-            QPointer<PDFAppMergeToolGUI> guard(this);
             selectRows({ item.firstRow });
-            if (!guard || !m_canvas)
+            if (PDFDeferredDeletion::isRetired(this) || !m_canvas)
             {
                 return;
             }
@@ -1702,9 +1687,8 @@ void PDFAppMergeToolGUI::onProgressTimer()
         }
         return;
     }
-    QPointer<PDFAppMergeToolGUI> guard(this);
     updateFiles();
-    if (guard && m_canvas)
+    if (!PDFDeferredDeletion::isRetired(this) && m_canvas)
     {
         m_canvas->getModel()->updateGroups();
     }
@@ -1722,9 +1706,8 @@ void PDFAppMergeToolGUI::closePanel(const QString& name)
 void PDFAppMergeToolGUI::onAddFilesRowClicked()
 {
     // The panel closes first (it may run code of the application), then the dialog opens
-    QPointer<PDFAppMergeToolGUI> guard(this);
     closePanel(QStringLiteral("addFiles"));
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         addFilesFromDialog();
     }
@@ -1732,9 +1715,8 @@ void PDFAppMergeToolGUI::onAddFilesRowClicked()
 
 void PDFAppMergeToolGUI::onPasteRowClicked()
 {
-    QPointer<PDFAppMergeToolGUI> guard(this);
     closePanel(QStringLiteral("addFiles"));
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         pasteImage();
     }
@@ -1744,9 +1726,8 @@ void PDFAppMergeToolGUI::onOpenDocumentRowClicked()
 {
     QObject* row = sender();
     const QString documentId = row ? row->property(PDFAppMergeToolGUIHelper::ROW_KEY).toString() : QString();
-    QPointer<PDFAppMergeToolGUI> guard(this);
     closePanel(QStringLiteral("addFiles"));
-    if (guard && !documentId.isEmpty())
+    if (!PDFDeferredDeletion::isRetired(this) && !documentId.isEmpty())
     {
         addOpenDocument(documentId);
     }
@@ -1756,9 +1737,8 @@ void PDFAppMergeToolGUI::onSortRowClicked()
 {
     QObject* row = sender();
     const QString key = row ? row->property(PDFAppMergeToolGUIHelper::ROW_KEY).toString() : QString();
-    QPointer<PDFAppMergeToolGUI> guard(this);
     closePanel(QStringLiteral("sort"));
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1785,9 +1765,8 @@ void PDFAppMergeToolGUI::onOutlineRowClicked()
 {
     QObject* row = sender();
     const QString option = row ? row->property(PDFAppMergeToolGUIHelper::ROW_KEY).toString() : QString();
-    QPointer<PDFAppMergeToolGUI> guard(this);
     closePanel(QStringLiteral("outline"));
-    if (guard && !option.isEmpty())
+    if (!PDFDeferredDeletion::isRetired(this) && !option.isEmpty())
     {
         setParameter(PDFDocumentToolMerge::PARAMETER_OUTLINE, option);
     }
@@ -1797,9 +1776,8 @@ void PDFAppMergeToolGUI::onOptimizeRowClicked()
 {
     QObject* row = sender();
     const QString option = row ? row->property(PDFAppMergeToolGUIHelper::ROW_KEY).toString() : QString();
-    QPointer<PDFAppMergeToolGUI> guard(this);
     closePanel(QStringLiteral("optimize"));
-    if (guard && !option.isEmpty())
+    if (!PDFDeferredDeletion::isRetired(this) && !option.isEmpty())
     {
         setParameter(PDFDocumentToolMerge::PARAMETER_OPTIMIZE_IMAGES, option);
     }
@@ -1818,13 +1796,12 @@ void PDFAppMergeToolGUI::onEmptyStateAddDocument(const QString& documentId)
 void PDFAppMergeToolGUI::onRegistryChanged()
 {
     // A document opened, changed or closed: the rows of the open documents (the Tag open tab)
-    QPointer<PDFAppMergeToolGUI> guard(this);
     updateOpenDocumentsRows();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateFiles();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateEmptyState();
     }
@@ -1908,33 +1885,32 @@ void PDFAppMergeToolGUI::updateAll()
     // slots may delete this GUI (the tab closes from them): each part only by a living GUI
     // (a caller may go on after a slot, which has closed the tool - step A: a closed tool updates nothing)
     using Helper = PDFAppMergeToolGUIHelper;
-    QPointer<PDFAppMergeToolGUI> guard(this);
-    if (!Helper::isLive(guard))
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
     updateOpenDocumentsRows();
-    if (Helper::isLive(guard))
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateFiles();
     }
-    if (Helper::isLive(guard))
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateCanvas();
     }
-    if (Helper::isLive(guard))
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateRightPanel();
     }
-    if (Helper::isLive(guard))
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateToolbar();
     }
-    if (Helper::isLive(guard))
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateEditable();
     }
-    if (!Helper::isLive(guard))
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1944,14 +1920,14 @@ void PDFAppMergeToolGUI::updateAll()
         m_progressTimer->start();
     }
 
-    // The slots of the state of the Primary button and of the status may delete this GUI (the
+    // The slots of the state of the Primary button and of the status may retire this GUI (the
     // tab closes from them): each is said only by a living GUI, the last things
     updateConfirmState();
-    if (Helper::isLive(guard))
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }
-    if (Helper::isLive(guard))
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateOwnTabState();
     }
@@ -2155,9 +2131,8 @@ void PDFAppMergeToolGUI::updateFiles()
     {
         rows.push_back(createRowContent(*m_list->getInput(i), i));
     }
-    QPointer<PDFAppMergeToolGUI> guard(this);
     m_filesPanel->setRows(rows);
-    if (guard && m_filesPanel)
+    if (!PDFDeferredDeletion::isRetired(this) && m_filesPanel)
     {
         m_filesPanel->setCurrentInput(m_currentInput);
     }
@@ -2170,16 +2145,15 @@ void PDFAppMergeToolGUI::updateCanvas()
         return;
     }
 
-    // The model says the new groups to its views and observers, which may delete this GUI
-    QPointer<PDFAppMergeToolGUI> guard(this);
+    // The model says the new groups to its views and observers, which may retire this GUI
     PDFAppToolMergePageModel* model = m_canvas->getModel();
     model->setLeftOutInputs(m_leftOutInputs);
-    if (!guard || !m_canvas)
+    if (PDFDeferredDeletion::isRetired(this) || !m_canvas)
     {
         return;
     }
     model->updateGroups();
-    if (!guard || !m_canvas)
+    if (PDFDeferredDeletion::isRetired(this) || !m_canvas)
     {
         return;
     }

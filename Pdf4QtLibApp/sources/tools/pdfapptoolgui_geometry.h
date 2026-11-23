@@ -331,9 +331,9 @@ private:
     /// has its width (the columns of the thumbnails change with it)
     void scrollToPreviewPage();
 
-    /// The view of the thumbnails is being destroyed (~QWidget emits destroyed before it deletes
-    /// the viewport): the filter of the viewport is removed, the pointers are forgotten
-    void onThumbnailViewDestroyed(QObject* object);
+    /// The view of the thumbnails is closed (aboutToBeDeleted of its notifier, at its retire or at its
+    /// deletion): the filter of the viewport is removed, the pointers are forgotten
+    void onThumbnailViewAboutToBeDeleted(QObject* object);
 
     /// Removes the filter of the viewport of the view of the thumbnails and forgets both
     void forgetThumbnailView();

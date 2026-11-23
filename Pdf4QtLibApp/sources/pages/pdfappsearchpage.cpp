@@ -782,7 +782,10 @@ bool PDFAppSearchPage::activateResult(const PDFAppSearchResult& result)
             PDFAppSearchActions::openDocument(this, result.filePath);
             break;
     }
-    return !guard.isNull();
+
+    // The result runs code of the application: a page closed (retired with its tab, step A) or deleted by it is not
+    // alive
+    return !guard.isNull() && !PDFDeferredDeletion::isRetired(this);
 }
 
 void PDFAppSearchPage::showEvent(QShowEvent* event)

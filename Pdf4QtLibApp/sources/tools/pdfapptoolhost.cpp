@@ -156,14 +156,10 @@ void PDFAppDocumentToolHost::leaveMode()
 {
     if (m_view)
     {
-        // The guard: a slot of the leaving may delete this host
-        QPointer<PDFAppDocumentToolHost> guard(this);
+        // A slot of the leaving may close this host (step A: retired, deleted later - only its flag follows)
         m_isLeaving = true;
         m_view->leaveToolMode();
-        if (guard)
-        {
-            m_isLeaving = false;
-        }
+        m_isLeaving = false;
     }
 }
 
@@ -251,10 +247,11 @@ void PDFAppDocumentToolHost::restoreViewState()
     const PDFInteger page = m_savedPage;
     m_savedViewState.reset();
 
-    // Code of the application runs by the signals of the view (a slot may delete the view)
+    // Code of the application runs by the signals of the view (a slot may close the view - retired with its tab, it
+    // goes to no page; a test may delete it synchronously)
     QPointer<PDFAppDocumentView> view = m_view;
     view->applyViewState(state);
-    if (view && page >= 0 && page != view->getCurrentPageIndex())
+    if (view && !PDFDeferredDeletion::isRetired(view.data()) && page >= 0 && page != view->getCurrentPageIndex())
     {
         view->goToPage(page);
     }

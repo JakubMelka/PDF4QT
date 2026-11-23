@@ -452,9 +452,8 @@ void PDFAppToolGUISignByHand::onClearConfirmed()
 void PDFAppToolGUISignByHand::onDrawingChanged()
 {
     updateParts();
-    QPointer<PDFAppToolGUISignByHand> guard(this);
     updateConfirmState();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }

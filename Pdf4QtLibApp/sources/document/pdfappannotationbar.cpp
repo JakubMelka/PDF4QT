@@ -707,7 +707,7 @@ void PDFAppAnnotationBar::applyColor(const QColor& color)
     }
 
     // The call of the engine has returned (a commit of another source - a reply,
-    // a command - never joins the session)
+    // a command - never joins the session); the guards stay for the synchronous deletions of the tests
     if (controllerGuard)
     {
         controllerGuard->endEngineChange();
@@ -733,7 +733,7 @@ void PDFAppAnnotationBar::applyWidth(PDFReal width)
     manager->setSelectedAnnotationsBorderWidth(qBound(0.0, width, PDFAnnotationProperties::MAXIMUM_BORDER_WIDTH));
 
     // The call of the engine has returned (a commit of another source - a reply,
-    // a command - never joins the session)
+    // a command - never joins the session); the guards stay for the synchronous deletions of the tests
     if (controllerGuard)
     {
         controllerGuard->endEngineChange();

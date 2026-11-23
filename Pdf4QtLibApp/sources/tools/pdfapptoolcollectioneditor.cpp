@@ -935,13 +935,12 @@ void PDFAppToolCollectionEditor::retranslate()
         m_noteLabel->setText(tr("Built-in collections can be edited; Reset to default restores the original tools. Delete is available for custom collections only."));
     }
 
-    // The titles of the tools and the texts of the info bar
+    // The titles of the tools and the texts of the info bar (the old offers are retired, step A: a rebuilt row)
     for (const Offer& offer : m_offers)
     {
         if (offer.widget)
         {
-            offer.widget->hide();
-            offer.widget->deleteLater();
+            PDFDeferredDeletion::retire(offer.widget.data());
         }
     }
     m_offers.clear();
@@ -1138,9 +1137,9 @@ void PDFAppToolCollectionEditor::updateOffers()
     {
         if (offer.widget)
         {
-            // Later: a button of the row may be the sender of the current click
-            offer.widget->hide();
-            offer.widget->deleteLater();
+            // Retired from the event loop (step A: a rebuilt row): a button of the row may be the sender of the
+            // current click
+            PDFDeferredDeletion::retireLater(offer.widget.data());
         }
     }
     m_offers.clear();

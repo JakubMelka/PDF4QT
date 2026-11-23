@@ -204,7 +204,7 @@ void PDFAppTab::onPageTitleChanged()
 {
     QPointer<PDFAppTab> guard(this);
     onPageChanged();
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT pageTitleChanged();
     }

@@ -3516,9 +3516,15 @@ void PDFColorPalette::onSwatchButtonClicked()
     onSwatchClicked(qobject_cast<PDFColorSwatch*>(sender()));
 }
 
-void PDFColorPalette::onAnchorDestroyed()
+void PDFColorPalette::onAnchorAboutToBeDeleted()
 {
-    // An anchor deleted by the application closes the popover as well (nothing of the anchor is used)
+    // An anchor retired or deleted by the application closes the popover as well (nothing of the
+    // anchor is used). A palette retired with its anchor (its parent) is hidden by the retire.
+    if (PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
+
     if (isVisible())
     {
         close();
@@ -3544,8 +3550,8 @@ void PDFColorPalette::watchAnchor(bool watch)
         }
     }
 
-    disconnect(m_anchorDestroyed);
-    m_anchorDestroyed = QMetaObject::Connection();
+    disconnect(m_anchorDeletedConnection);
+    m_anchorDeletedConnection = QMetaObject::Connection();
 
     if (!watch)
     {
@@ -3563,10 +3569,11 @@ void PDFColorPalette::watchAnchor(bool watch)
         }
     }
 
-    // An anchor deleted by the application closes the popover as well
+    // An anchor retired or deleted by the application closes the popover as well: the end of the anchor
+    // is aboutToBeDeleted of its notifier, a foreign sender (a retired palette gets nothing of it)
     if (m_anchor)
     {
-        m_anchorDestroyed = connect(m_anchor.data(), &QObject::destroyed, this, &PDFColorPalette::onAnchorDestroyed);
+        m_anchorDeletedConnection = PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(m_anchor.data()), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFColorPalette::onAnchorAboutToBeDeleted);
     }
 }
 
@@ -3877,7 +3884,9 @@ PDFColorButton::~PDFColorButton()
 {
     // The palette is deleted now, while the button is still whole (QWidget
     // would delete it later, when only the QWidget of the button is left);
-    // its signals do not reach the button any more
+    // its signals (and the end of it) do not reach the button any more
+    disconnect(m_paletteDeletedConnection);
+    m_paletteDeletedConnection = QMetaObject::Connection();
     if (PDFColorPalette* palette = m_palette.data())
     {
         palette->disconnect(this);
@@ -3947,7 +3956,10 @@ PDFColorPalette* PDFColorButton::getPalette()
         connect(m_palette.data(), &PDFColorPalette::moreColorsRequested, this, &PDFColorButton::moreColorsRequested);
         connect(m_palette.data(), &PDFColorPalette::closed, this, &PDFColorButton::onPaletteClosed);
         connect(m_palette.data(), &PDFColorPalette::colorsChanged, this, &PDFColorButton::onPaletteColorsChanged);
-        connect(m_palette.data(), &QObject::destroyed, this, &PDFColorButton::onPaletteDestroyed);
+
+        // The end of the palette (retired or deleted): its notifier is a descendant of the button (the palette is
+        // its child), so the connection is a plain one, as the signals of the palette above
+        m_paletteDeletedConnection = connect(PDFDeferredDeletion::getNotifier(m_palette.data()), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFColorButton::onPaletteAboutToBeDeleted);
     }
 
     return m_palette.data();
@@ -4039,12 +4051,21 @@ bool PDFColorButton::isPaletteVisible() const
     return m_palette && m_palette->isVisible();
 }
 
-void PDFColorButton::onPaletteDestroyed()
+void PDFColorButton::onPaletteAboutToBeDeleted()
 {
-    // QWidget emits destroyed in its destructor, after the destructor of the
-    // palette has deleted its colors, but before QObject clears the pointers
-    // to it: the palette is dropped first, nothing of it is asked any more
-    // (the name of the color falls back to the default name)
+    // A palette retired with the button stays until the button is deleted (its destructor
+    // deletes the palette)
+    if (PDFDeferredDeletion::isRetired(this))
+    {
+        return;
+    }
+
+    // The palette is retired, or it is in its destructor (the notifier emits from
+    // ~QWidget of the palette, after the destructor of the palette has deleted its
+    // colors, but before QObject clears the pointers to it): the palette is dropped
+    // first, nothing of it is asked any more (the name of the color falls back to the
+    // default name); a retired palette is replaced by a new one at the next getPalette
+    m_paletteDeletedConnection = QMetaObject::Connection();
     m_palette = nullptr;
     updateText();
     update();

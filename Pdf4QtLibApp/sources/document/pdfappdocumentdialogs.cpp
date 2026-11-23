@@ -1118,10 +1118,10 @@ void PDFAppLockPopover::showBelow(const QRect& anchor)
 
 void PDFAppLockPopover::onUnlockClicked()
 {
-    // The popover closes first (its slots may delete it)
     QPointer<PDFAppLockPopover> guard(this);
+    // The popover closes first (its slots may close the tab: a retired popover asks for nothing)
     close();
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT unlockRequested();
     }
@@ -1131,7 +1131,7 @@ void PDFAppLockPopover::onEditCopyClicked()
 {
     QPointer<PDFAppLockPopover> guard(this);
     close();
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT editCopyRequested();
     }

@@ -37,6 +37,7 @@
 
 #include "pdfcatalog.h"
 #include "pdfcompiler.h"
+#include "pdfdeferreddeletion.h"
 #include "pdfdocumenttoolcatalog.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfexception.h"
@@ -972,6 +973,7 @@ void PDFAppThumbnailScheduler::process()
 
 void PDFAppThumbnailScheduler::onRenderResults(const std::shared_ptr<PDFAppThumbnailRenderJob>& job)
 {
+    QPointer<PDFAppThumbnailScheduler> self(this);
     PDFThreadAnnotations::happensAfter(job.get());
     PDFThreadAnnotations::forget(job.get());
 
@@ -981,7 +983,6 @@ void PDFAppThumbnailScheduler::onRenderResults(const std::shared_ptr<PDFAppThumb
         return;
     }
 
-    QPointer<PDFAppThumbnailScheduler> self(this);
     int maximumRunningCount = 0;
     std::vector<PDFAppThumbnailRenderPage> results = job->takeResults(&maximumRunningCount);
     m_maximumRenderingCount = qMax(m_maximumRenderingCount, maximumRunningCount);
@@ -1002,9 +1003,9 @@ void PDFAppThumbnailScheduler::onRenderResults(const std::shared_ptr<PDFAppThumb
         ++m_drawnCount;
         page.image.setDevicePixelRatio(page.devicePixelRatio);
 
-        // The model repaints the row (its views only)
+        // The model repaints the row (its views only); a retired scheduler starts no more jobs
         m_model->setPicture(page.pageIndex, QPixmap::fromImage(std::move(page.image)));
-        if (!self)
+        if (!self || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1287,6 +1288,7 @@ void PDFAppThumbnailsPanel::setDocument(PDFAppDocument* document, PDFAppDocument
 
 void PDFAppThumbnailsPanel::applyDocument(bool isNewVersion, const std::vector<PDFInteger>& initialSelection)
 {
+    QPointer<PDFAppThumbnailsPanel> self(this);
     PDFAppDocument* document = getDocument();
     if (!m_model || !m_view)
     {
@@ -1320,8 +1322,7 @@ void PDFAppThumbnailsPanel::applyDocument(bool isNewVersion, const std::vector<P
     // The page chosen by the user stays chosen (the reset of the rows has cleared it)
     m_userSelectedPage = keptSelection.size() == 1 && keptSelection.front() == userSelectedPage ? userSelectedPage : -1;
 
-    // The synchronized selection is reported at once: a slot may delete the panel
-    QPointer<PDFAppThumbnailsPanel> self(this);
+    // The synchronized selection is reported at once: a slot may close the panel
     if (keptSelection.empty())
     {
         syncToCurrentPage(true);
@@ -1339,7 +1340,7 @@ void PDFAppThumbnailsPanel::applyDocument(bool isNewVersion, const std::vector<P
         selectPages(keptSelection);
     }
 
-    if (self)
+    if (self && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT titleChanged();
     }
@@ -1499,18 +1500,18 @@ void PDFAppThumbnailsPanel::onSyncToggled(bool checked)
 
 void PDFAppThumbnailsPanel::onCurrentPageChanged(PDFInteger pageIndex)
 {
+    QPointer<PDFAppThumbnailsPanel> self(this);
     // The view announces its current page also after a new version of the document,
     // when the page has stayed: only a move of the canvas changes the selection
     const bool isMoved = pageIndex != m_lastCurrentPageIndex;
     m_lastCurrentPageIndex = pageIndex;
 
-    // The synchronized selection is reported at once: a slot may delete the panel
-    QPointer<PDFAppThumbnailsPanel> self(this);
+    // The synchronized selection is reported at once: a slot may close the panel
     if (isMoved)
     {
         syncToCurrentPage(false);
     }
-    if (!self)
+    if (!self || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1519,6 +1520,7 @@ void PDFAppThumbnailsPanel::onCurrentPageChanged(PDFInteger pageIndex)
 
 void PDFAppThumbnailsPanel::syncToCurrentPage(bool force)
 {
+    QPointer<PDFAppThumbnailsPanel> self(this);
     PDFAppDocumentView* view = getView();
     if (!m_view || !m_model || !view || (!m_isSyncEnabled && !force))
     {
@@ -1548,9 +1550,8 @@ void PDFAppThumbnailsPanel::syncToCurrentPage(bool force)
         m_view->selectionModel()->setCurrentIndex(index, QItemSelectionModel::ClearAndSelect);
         m_isSyncing = wasSyncing;
 
-        QPointer<PDFAppThumbnailsPanel> self(this);
         processSelectionChange();
-        if (!self || !m_view)
+        if (!self || PDFDeferredDeletion::isRetired(this) || !m_view)
         {
             return;
         }
@@ -1711,6 +1712,7 @@ void PDFAppThumbnailsPanel::onSelectionChangeQueued()
 
 bool PDFAppThumbnailsPanel::processSelectionChange()
 {
+    QPointer<PDFAppThumbnailsPanel> self(this);
     if (!m_isSelectionChangePending)
     {
         return false;
@@ -1720,14 +1722,13 @@ bool PDFAppThumbnailsPanel::processSelectionChange()
     m_isSelectionChangePending = false;
     m_isUserSelectionPending = false;
 
-    QPointer<PDFAppThumbnailsPanel> self(this);
     Q_EMIT titleChanged();
-    if (!self)
+    if (!self || PDFDeferredDeletion::isRetired(this))
     {
         return true;
     }
     updateViewSelection();
-    if (!self)
+    if (!self || PDFDeferredDeletion::isRetired(this))
     {
         return true;
     }
@@ -1809,6 +1810,7 @@ QMenu* PDFAppThumbnailsPanel::createContextMenu()
 
 void PDFAppThumbnailsPanel::onContextMenuRequested(const QPoint& globalPosition)
 {
+    QPointer<PDFAppThumbnailsPanel> self(this);
     if (!m_view || !m_model || m_model->rowCount() == 0)
     {
         return;
@@ -1816,7 +1818,6 @@ void PDFAppThumbnailsPanel::onContextMenuRequested(const QPoint& globalPosition)
 
     // A click on a page outside of the selection selects the page (the canvas stays)
     const QModelIndex index = m_view->indexAt(m_view->viewport()->mapFromGlobal(globalPosition));
-    QPointer<PDFAppThumbnailsPanel> self(this);
     if (index.isValid() && !m_view->selectionModel()->isSelected(index))
     {
         m_userSelectedPage = index.row();
@@ -1827,8 +1828,9 @@ void PDFAppThumbnailsPanel::onContextMenuRequested(const QPoint& globalPosition)
         // The selection of the press (Linux sends the menu before the event loop runs)
         processSelectionChange();
     }
-    if (!self || !m_view)
+    if (!self || PDFDeferredDeletion::isRetired(this) || !m_view)
     {
+        // A slot of the selection has closed the panel: it shows no menu
         return;
     }
 

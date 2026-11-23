@@ -445,9 +445,8 @@ PDFAppMeasureScaleDialog* PDFAppMeasurePresetsDialog::addPreset()
     connect(dialog, &PDFAppMeasureScaleDialog::scaleAccepted, this, &PDFAppMeasurePresetsDialog::onPresetAccepted);
     m_scaleDialog = dialog;
     PDFAppMainWindow::prepareDialog(dialog, this);
-    QPointer<PDFAppMeasurePresetsDialog> guard(this);
     dialog->open();
-    return guard ? m_scaleDialog.data() : nullptr;
+    return m_scaleDialog.data();
 }
 
 PDFAppMeasureScaleDialog* PDFAppMeasurePresetsDialog::editPreset()
@@ -468,9 +467,8 @@ PDFAppMeasureScaleDialog* PDFAppMeasurePresetsDialog::editPreset()
     connect(dialog, &PDFAppMeasureScaleDialog::scaleAccepted, this, &PDFAppMeasurePresetsDialog::onPresetAccepted);
     m_scaleDialog = dialog;
     PDFAppMainWindow::prepareDialog(dialog, this);
-    QPointer<PDFAppMeasurePresetsDialog> guard(this);
     dialog->open();
-    return guard ? m_scaleDialog.data() : nullptr;
+    return m_scaleDialog.data();
 }
 
 void PDFAppMeasurePresetsDialog::removePreset()
@@ -507,9 +505,8 @@ PDFMessageBox* PDFAppMeasurePresetsDialog::restoreDefaults()
     connect(restore, &QPushButton::clicked, this, &PDFAppMeasurePresetsDialog::onRestoreConfirmed);
     m_restoreDialog = dialog;
     PDFAppMainWindow::prepareDialog(dialog, this);
-    QPointer<PDFAppMeasurePresetsDialog> guard(this);
     dialog->open();
-    return guard ? m_restoreDialog.data() : nullptr;
+    return m_restoreDialog.data();
 }
 
 void PDFAppMeasurePresetsDialog::onPresetAccepted(pdf::PDFMeasureScale scale)

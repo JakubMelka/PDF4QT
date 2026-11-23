@@ -244,14 +244,14 @@ void PDFAppInfoBar::rebuild()
     }
 
     // The buttons and the dividers of the previous request go; a button may be the
-    // sender of the signal, whose slot has replaced the request (deleteLater)
+    // sender of the signal, whose slot has replaced the request (retireLater: hidden now, inert and deleted
+    // from the event loop)
     for (const QPointer<QWidget>& widget : m_dynamicWidgets)
     {
         if (widget)
         {
             m_layout->removeWidget(widget);
-            widget->hide();
-            widget->deleteLater();
+            PDFDeferredDeletion::retireLater(widget.data());
         }
     }
     m_dynamicWidgets.clear();

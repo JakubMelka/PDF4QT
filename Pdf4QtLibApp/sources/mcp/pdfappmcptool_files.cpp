@@ -160,7 +160,9 @@ public:
         {
             return;
         }
-        if (tab && documentGuard && documentGuard->isReady() && page >= 1 && page <= documentGuard->getPageCount())
+        // The activation runs code of the application: a tab closed by it (retired with its document, step A) shows no
+        // page and the call says so
+        if (tab && documentGuard && !PDFDeferredDeletion::isRetired(documentGuard) && documentGuard->isReady() && page >= 1 && page <= documentGuard->getPageCount())
         {
             if (PDFAppDocumentView* view = tab->getView())
             {
@@ -171,7 +173,7 @@ public:
         {
             return;
         }
-        if (!documentGuard)
+        if (!documentGuard || PDFDeferredDeletion::isRetired(documentGuard))
         {
             host->finishWithError(call, actionId, nullptr, QStringLiteral("The tab of the document was closed in PDF4QT."), PDFMcpActivityStatus::DeniedClosed);
             return;
@@ -525,6 +527,13 @@ public:
             document = m_document;
         }
 
+        // The file has been written: a tab closed meanwhile (retired with the document: inert, deleted
+        // later) shows no message and is not named in the answer, as by the tools of the catalog
+        if (document && PDFDeferredDeletion::isRetired(document))
+        {
+            document = nullptr;
+        }
+
         // Status message "Project_Report.pdf saved" (955:144508)
         if (document && m_host)
         {
@@ -718,11 +727,11 @@ public:
         }
 
         PDFDeferredDeletion::connect(document, &PDFAppDocument::stateChanged, this, &PDFAppMcpOpenWaiter::check);
-        PDFDeferredDeletion::connect(document, &QObject::destroyed, this, &PDFAppMcpOpenWaiter::onDocumentDestroyed);
 
         // The tab may be closed from inside the emission of stateChanged (a failed load closes its
         // tab): retire cuts the rest of that emission, so the state is read when the document retires
-        // (step A, lesson 1)
+        // (step A, lesson 1). A document deleted without retire ends by the notifier's destructor (the
+        // QPointer is cleared then: only forgotten) - never by QObject::destroyed (PA6).
         PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(document), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppMcpOpenWaiter::onDocumentAboutToBeDeleted);
         check();
     }
@@ -763,12 +772,6 @@ private:
         }
     }
 
-    void onDocumentDestroyed()
-    {
-        // The slot of destroyed only forgets the document
-        end(nullptr, false);
-    }
-
     void onDocumentAboutToBeDeleted()
     {
         // Retired: the document is alive and inert, its last state is read (Ready or Failed
@@ -781,8 +784,9 @@ private:
 
     void onWindowDestroyed()
     {
-        // A document attached already ends by its own destroyed (QWidget emits
-        // destroyed before it deletes its children); the slot reads no member of the window
+        // A document attached already ends by aboutToBeDeleted of its notifier: QWidget emits destroyed
+        // before it deletes its children, the document (a QObject) emits the fallback from its own
+        // destruction later, with the QPointer cleared already. The slot reads no member of the window.
         if (!m_document)
         {
             end(nullptr, false);
@@ -899,8 +903,9 @@ void PDFAppMcpFileRequest::proceed(PDFMcpActivityStatus status)
         host = m_host;
     }
 
+    // A tab closed by a slot of the commit is retired (inert, deleted later): nothing is written for it
     PDFAppDocument* document = m_document;
-    if (!document || !document->isReady())
+    if (!document || PDFDeferredDeletion::isRetired(document) || !document->isReady())
     {
         fail(QStringLiteral("The tab of the document was closed in PDF4QT."), PDFMcpActivityStatus::DeniedClosed);
         return;
@@ -956,7 +961,9 @@ void PDFAppMcpFileRequest::proceed(PDFMcpActivityStatus status)
     const QString originFilePath = document->getOriginFilePath();
 
     // The operation is shown by the tab (its title, the commands): a slot may close
-    // the tab or the window, or delete the host (UnitTestsAppMcpLifetime)
+    // the tab or the window, or delete the host (UnitTestsAppMcpLifetime). A closed tab is
+    // retired (inert, deleted later): nothing is written for it, as for the tools of the catalog
+    // (beginOperation returns no operation for it).
     const auto keepAlive = shared_from_this();
     PDFAppDocumentOperation* operation = document->beginOperation(PDFAppDocumentOperationKind::Save, PDFAppMcpFilesToolHelper::tr("Saving"), false);
     m_operation = operation;
@@ -964,7 +971,7 @@ void PDFAppMcpFileRequest::proceed(PDFMcpActivityStatus status)
     {
         return;
     }
-    if (!m_document)
+    if (!m_document || PDFDeferredDeletion::isRetired(m_document.data()))
     {
         fail(QStringLiteral("The tab of the document was closed in PDF4QT."), PDFMcpActivityStatus::DeniedClosed);
         return;

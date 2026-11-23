@@ -194,7 +194,10 @@ bool PDFAppColorPicker::openDialog()
         QPointer<PDFAppColorPicker> guard(this);
         m_isHidingPopup = true;
         window->hide();
-        if (!guard)
+
+        // The hide runs code of the popover: a row deleted (with its window) or closed by it (retired, step A)
+        // opens no dialog
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return false;
         }

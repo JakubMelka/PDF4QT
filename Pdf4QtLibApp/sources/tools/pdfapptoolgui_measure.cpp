@@ -397,13 +397,12 @@ void PDFAppToolGUIMeasure::setDrawKind(PDFAppMeasureDrawKind kind)
 {
     m_isDrawing = true;
     m_isCalibrating = false;
-    QPointer<PDFAppToolGUIMeasure> guard(this);
     if (PDFAppToolParameterModel* model = getModel(); model && getDrawKind() != kind)
     {
         // One step of Undo of the parameters; onParametersChanged updates the parts
         model->setValue(QString::fromLatin1(PDFDocumentToolMeasure::PARAMETER_KIND), PDFAppMeasureText::getDrawKindId(kind));
     }
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -616,7 +615,7 @@ bool PDFAppToolGUIMeasure::writeAnnotations(const std::vector<PDFMeasureItem>& i
     }
 
     // The change of the tool: one Undo step of the document (hasDocumentUndoSteps); the slots of the
-    // document run - this GUI may be deleted (the caller checks its guard)
+    // document run - this GUI may be retired (the caller checks it)
     const quint64 version = document->getVersion();
     PDFDocumentPointer changedPointer(new PDFDocument(std::move(*changed)));
     const PDFModifiedDocument modified(changedPointer, nullptr, PDFModifiedDocument::ModificationFlags(PDFModifiedDocument::Annotation));
@@ -652,9 +651,8 @@ bool PDFAppToolGUIMeasure::addMeasurement(PDFInteger pageIndex, PDFMeasureKind k
     if (isAnnotationStorage && canWriteAnnotations())
     {
         // 471:7947: each measurement goes into the document at once (one step of Undo)
-        QPointer<PDFAppToolGUIMeasure> guard(this);
         const bool isWritten = writeAnnotations(createItems({ measurement }), tr("Add a measurement annotation"), nullptr);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return isWritten;
         }
@@ -677,9 +675,8 @@ bool PDFAppToolGUIMeasure::addMeasurement(PDFInteger pageIndex, PDFMeasureKind k
     m_measurements.push_back(std::move(measurement));
     updateParts();
 
-    QPointer<PDFAppToolGUIMeasure> guard(this);
     updateConfirmState();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }
@@ -699,9 +696,8 @@ bool PDFAppToolGUIMeasure::removeMeasurement(quint64 id)
             }
             updateParts();
 
-            QPointer<PDFAppToolGUIMeasure> guard(this);
             updateConfirmState();
-            if (guard)
+            if (!PDFDeferredDeletion::isRetired(this))
             {
                 updateStatusText();
             }
@@ -719,9 +715,8 @@ void PDFAppToolGUIMeasure::clearMeasurements()
     m_notice = Notice::None;
     updateParts();
 
-    QPointer<PDFAppToolGUIMeasure> guard(this);
     updateConfirmState();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }
@@ -748,9 +743,8 @@ bool PDFAppToolGUIMeasure::saveAsAnnotations()
     // written, stay temporary (473:90376)
     const std::vector<PDFAppMeasurement> measurements = m_measurements;
     std::vector<size_t> failed;
-    QPointer<PDFAppToolGUIMeasure> guard(this);
     const bool isWritten = writeAnnotations(createItems(measurements), tr("Save the measurements as annotations"), &failed);
-    if (!guard || !isWritten)
+    if (PDFDeferredDeletion::isRetired(this) || !isWritten)
     {
         return isWritten;
     }
@@ -771,7 +765,7 @@ bool PDFAppToolGUIMeasure::saveAsAnnotations()
     updateParts();
 
     updateConfirmState();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }
@@ -815,7 +809,6 @@ void PDFAppToolGUIMeasure::selectRow(int row)
     updateOverlay();
 
     // FM-28: the row shows its measurement on its page
-    QPointer<PDFAppToolGUIMeasure> guard(this);
     if (listRow && listRow->pageIndex >= 0)
     {
         const PDFAppToolHost* host = getHost();
@@ -824,7 +817,7 @@ void PDFAppToolGUIMeasure::selectRow(int row)
             view->goToPage(listRow->pageIndex);
         }
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }
@@ -1105,9 +1098,8 @@ PDFAppMeasureScaleDialog* PDFAppToolGUIMeasure::openCustomScaleDialog()
     connect(dialog, &PDFAppMeasureScaleDialog::scaleAccepted, this, &PDFAppToolGUIMeasure::onCustomScaleAccepted);
     m_scaleDialog = dialog;
     PDFAppMainWindow::prepareDialog(dialog, parent);
-    QPointer<PDFAppToolGUIMeasure> guard(this);
     dialog->open();
-    return guard ? m_scaleDialog.data() : nullptr;
+    return PDFDeferredDeletion::isRetired(this) ? nullptr : m_scaleDialog.data();
 }
 
 PDFAppMeasureScaleDialog* PDFAppToolGUIMeasure::openCalibrationDialog(PDFReal length)
@@ -1129,17 +1121,16 @@ PDFAppMeasureScaleDialog* PDFAppToolGUIMeasure::openCalibrationDialog(PDFReal le
     connect(dialog, &QDialog::rejected, this, &PDFAppToolGUIMeasure::onCalibrationRejected, Qt::QueuedConnection);
     m_calibrationDialog = dialog;
     PDFAppMainWindow::prepareDialog(dialog, parent);
-    QPointer<PDFAppToolGUIMeasure> guard(this);
     dialog->open();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return nullptr;
     }
 
-    // 473:6438: the status bar asks for the real distance (its slots may delete this GUI - the last call)
+    // 473:6438: the status bar asks for the real distance (its slots may retire this GUI - the last call)
     QPointer<PDFAppMeasureScaleDialog> openedDialog = m_calibrationDialog;
     updateStatusText();
-    return guard ? openedDialog.data() : nullptr;
+    return PDFDeferredDeletion::isRetired(this) ? nullptr : openedDialog.data();
 }
 
 void PDFAppToolGUIMeasure::onCalibrationRejected()
@@ -1173,9 +1164,8 @@ PDFAppMeasureScaleDialog* PDFAppToolGUIMeasure::openDefaultScaleDialog()
     connect(dialog, &PDFAppMeasureScaleDialog::scaleAccepted, this, &PDFAppToolGUIMeasure::onDefaultScaleAccepted);
     m_scaleDialog = dialog;
     PDFAppMainWindow::prepareDialog(dialog, parent);
-    QPointer<PDFAppToolGUIMeasure> guard(this);
     dialog->open();
-    return guard ? m_scaleDialog.data() : nullptr;
+    return PDFDeferredDeletion::isRetired(this) ? nullptr : m_scaleDialog.data();
 }
 
 PDFAppMeasurePresetsDialog* PDFAppToolGUIMeasure::openPresetsDialog()
@@ -1195,9 +1185,8 @@ PDFAppMeasurePresetsDialog* PDFAppToolGUIMeasure::openPresetsDialog()
     connect(dialog, &PDFAppMeasurePresetsDialog::presetsAccepted, this, &PDFAppToolGUIMeasure::onPresetsAccepted);
     m_presetsDialog = dialog;
     PDFAppMainWindow::prepareDialog(dialog, parent);
-    QPointer<PDFAppToolGUIMeasure> guard(this);
     dialog->open();
-    return guard ? m_presetsDialog.data() : nullptr;
+    return PDFDeferredDeletion::isRetired(this) ? nullptr : m_presetsDialog.data();
 }
 
 void PDFAppToolGUIMeasure::onCustomScaleAccepted(pdf::PDFMeasureScale scale)
@@ -1368,9 +1357,8 @@ bool PDFAppToolGUIMeasure::applyCloseQuestionAction()
     // Save and Close: as Save as Annotations, one Undo step through the shell (during a leave only when it goes on,
     // PDFDocumentToolShell::finishLeave - the tool still edits then)
     // Measurements, which could not be stored, stay temporary: the shell asks askIncompleteClose then (owner 2026-11-21)
-    QPointer<PDFAppToolGUIMeasure> guard(this);
     const bool isWritten = saveAsAnnotations();
-    return guard && isWritten && m_measurements.empty();
+    return !PDFDeferredDeletion::isRetired(this) && isWritten && m_measurements.empty();
 }
 
 QDialog* PDFAppToolGUIMeasure::askIncompleteClose()
@@ -1416,21 +1404,19 @@ QDialog* PDFAppToolGUIMeasure::askIncompleteClose()
     {
         PDFAppMainWindow::prepareDialog(dialog, parent);
     }
-    QPointer<PDFAppToolGUIMeasure> guard(this);
     dialog->open();
-    return guard ? m_incompleteQuestion.data() : nullptr;
+    return PDFDeferredDeletion::isRetired(this) ? nullptr : m_incompleteQuestion.data();
 }
 
 void PDFAppToolGUIMeasure::onIncompleteDiscardClicked()
 {
-    QPointer<PDFAppToolGUIMeasure> guard(this);
     if (PDFMessageBox* dialog = m_incompleteQuestion.data())
     {
         m_incompleteQuestion = nullptr;
         dialog->disconnect(this);
         dialog->accept();
     }
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1438,7 +1424,7 @@ void PDFAppToolGUIMeasure::onIncompleteDiscardClicked()
     // The measurements, which could not be stored, go; the stored ones stay (their Undo step). The tool closes, or a
     // leave waiting for this answer goes on (the last call: the shell, this GUI and the tab may go)
     clearMeasurements();
-    PDFDocumentToolShell* shell = guard ? getShell() : nullptr;
+    PDFDocumentToolShell* shell = PDFDeferredDeletion::isRetired(this) ? nullptr : getShell();
     if (shell)
     {
         shell->closeAfterQuestion();
@@ -1465,9 +1451,8 @@ void PDFAppToolGUIMeasure::onDocumentChanged()
     refreshDocument();
     updateParts();
 
-    QPointer<PDFAppToolGUIMeasure> guard(this);
     updateConfirmState();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }
@@ -1632,14 +1617,11 @@ void PDFAppToolGUIMeasure::rebuildScaleRows()
         return;
     }
 
-    // The old rows go later (a row may be the sender of the call); hidden at once
+    // The old rows are closed by retireLater (step A): a row may be the sender of the call - hidden at once, retired
+    // from the event loop
     for (const QPointer<QWidget>& widget : m_scalePanelWidgets)
     {
-        if (widget)
-        {
-            widget->hide();
-            widget->deleteLater();
-        }
+        PDFDeferredDeletion::retireLater(widget.data());
     }
     m_scalePanelWidgets.clear();
 
@@ -2014,9 +1996,8 @@ void PDFAppToolGUIMeasure::onAnnotationsRead()
     updateParts();
 
     // The slots of the status text may close the tab: the last calls, each one checked
-    QPointer<PDFAppToolGUIMeasure> guard(this);
     updateConfirmState();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }
@@ -2692,11 +2673,10 @@ void PDFAppToolGUIMeasure::onCalibrationPicked(pdf::PDFInteger pageIndex, pdf::P
     updateInput();
     updateToolbar();
     PDFAppMainWindow::prepareDialog(dialog, parent);
-    QPointer<PDFAppToolGUIMeasure> guard(this);
     dialog->open();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
-        // 473:6755: the status bar says why (its slots may delete this GUI - the last call)
+        // 473:6755: the status bar says why (its slots may retire this GUI - the last call)
         updateStatusText();
     }
 }
@@ -2705,9 +2685,8 @@ void PDFAppToolGUIMeasure::onDocumentLockChanged()
 {
     updateParts();
 
-    QPointer<PDFAppToolGUIMeasure> guard(this);
     updateConfirmState();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }

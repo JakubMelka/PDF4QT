@@ -309,9 +309,8 @@ void PDFAppToolNumberField::commit()
 
     // One undo step; a refused value goes back to the value of the model (the model announces
     // an accepted one, its slots may rebuild the toolbar - the last call)
-    QPointer<PDFAppToolNumberField> guard(this);
     const QString error = m_model->setValue(m_parameter, value);
-    if (guard && !error.isEmpty())
+    if (!error.isEmpty())
     {
         readValue();
     }
@@ -938,9 +937,8 @@ void PDFAppSplitToolGUI::selectFile(int fileIndex)
     // The row of the file is selected (its tile accent), its card or its first page is shown
     m_selectedFile = fileIndex;
     const int firstPage = int(m_files[size_t(fileIndex)].pages.front());
-    QPointer<PDFAppSplitToolGUI> guard(this);
     updateAll();
-    if (guard && getGrid())
+    if (!PDFDeferredDeletion::isRetired(this) && getGrid())
     {
         getGrid()->scrollToPage(firstPage);
     }
@@ -971,9 +969,8 @@ void PDFAppSplitToolGUI::describeToolbar(PDFAppToolPanelBuilder& builder)
 
 void PDFAppSplitToolGUI::describeLeftPanel(PDFAppToolPanelBuilder& builder)
 {
-    QPointer<PDFAppSplitToolGUI> guard(this);
     BaseClass::describeLeftPanel(builder);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1845,9 +1842,8 @@ void PDFAppExtractToolGUI::updateThumbnails()
 
 void PDFAppExtractToolGUI::onDocumentChanged()
 {
-    QPointer<PDFAppExtractToolGUI> guard(this);
     BaseClass::onDocumentChanged();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateThumbnails();
     }

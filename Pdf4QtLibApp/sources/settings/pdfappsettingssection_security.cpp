@@ -104,9 +104,11 @@ int PDFAppSecuritySettingsSection::applyFilter(const PDFSearchQuery& query)
 
 void PDFAppSecuritySettingsSection::refresh(const QString& topic, const QString& key)
 {
+    // The rows run code of the application, which may delete the page with this section or close it (retired, step
+    // A): the table of such a section builds no new rows
     QPointer<PDFAppSecuritySettingsSection> guard(this);
     BaseClass::refresh(topic, key);
-    if (guard && m_certificateTable)
+    if (guard && !PDFDeferredDeletion::isRetired(this) && m_certificateTable)
     {
         m_certificateTable->refresh(topic, key);
     }

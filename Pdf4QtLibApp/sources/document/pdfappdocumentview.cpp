@@ -59,6 +59,7 @@
 #include "pdfwidgetformmanager.h"
 #include "pdfwidgettool.h"
 
+#include "pdfdeferreddeletion.h"
 #include "pdfthememanager.h"
 
 #include <QAction>
@@ -564,6 +565,7 @@ void PDFAppDocumentView::connectTab()
 
 void PDFAppDocumentView::setDocument(PDFAppDocument* document)
 {
+    QPointer<PDFAppDocumentView> guard(this);
     connectTab();
 
     if (m_document == document)
@@ -571,12 +573,11 @@ void PDFAppDocumentView::setDocument(PDFAppDocument* document)
         return;
     }
 
-    // The tool mode belongs to the shown document (a slot may delete the view)
+    // The tool mode belongs to the shown document (a slot may close the view)
     if (m_isToolModeActive)
     {
-        QPointer<PDFAppDocumentView> guard(this);
         leaveToolMode();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -635,12 +636,12 @@ void PDFAppDocumentView::applyDocument()
 
 void PDFAppDocumentView::onDocumentStateChanged()
 {
-    // A document, which is not shown any more, has no tool (F2; a slot may delete the view)
+    QPointer<PDFAppDocumentView> guard(this);
+    // A document, which is not shown any more, has no tool (F2; a slot may close the view)
     if (m_isToolModeActive && m_document && !m_document->isReady())
     {
-        QPointer<PDFAppDocumentView> guard(this);
         leaveToolMode();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -659,6 +660,7 @@ void PDFAppDocumentView::onDocumentStateChanged()
 
 void PDFAppDocumentView::onDocumentChanged(const PDFModifiedDocument& modified)
 {
+    QPointer<PDFAppDocumentView> guard(this);
     if (!m_pdfWidget)
     {
         return;
@@ -677,30 +679,29 @@ void PDFAppDocumentView::onDocumentChanged(const PDFModifiedDocument& modified)
     m_isRestoringPageAnchor = anchor.pageIndex >= 0;
 
     // Each manager notifies the application (the draw space, the view): a slot may
-    // delete the view with its tab or window (UnitTestsAppMcpLifetime)
-    QPointer<PDFAppDocumentView> guard(this);
+    // close the view with its tab or window (UnitTestsAppMcpLifetime): a retired view gives its managers nothing more
     m_cmsManager->setDocument(modified.getDocument());
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         m_pdfWidget->setDocument(modified, std::move(signatures));
     }
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         m_annotationManager->setDocument(modified);
     }
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         m_formManager->setDocument(modified);
     }
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         m_toolManager->setDocument(modified);
     }
-    if (guard && m_isRestoringPageAnchor)
+    if (guard && !PDFDeferredDeletion::isRetired(this) && m_isRestoringPageAnchor)
     {
         restorePageAnchor(anchor);
     }
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -716,23 +717,23 @@ void PDFAppDocumentView::onDocumentChanged(const PDFModifiedDocument& modified)
     if (modified.getDocument() && !m_isDefaultViewApplied)
     {
         applyDefaultView();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
     }
 
-    // Slots of the signals may delete the view (the tab)
+    // Slots of the signals may close the view (the tab)
     m_lastPageIndex = -2;
     m_lastDisplayedPageIndex = -2;
     onDrawSpaceChanged();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
     updateStatusMessage();
     Q_EMIT viewChanged();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -768,6 +769,7 @@ PDFAppDocumentView::PageAnchor PDFAppDocumentView::capturePageAnchor(const PDFMo
 
 void PDFAppDocumentView::restorePageAnchor(const PageAnchor& anchor)
 {
+    QPointer<PDFAppDocumentView> guard(this);
     PDFDrawWidgetProxy* proxy = getProxy();
     if (!proxy || anchor.pageIndex < 0 || anchor.pageIndex >= getPageCount())
     {
@@ -779,10 +781,10 @@ void PDFAppDocumentView::restorePageAnchor(const PageAnchor& anchor)
     // delete the view), then moved to its former top
     if (!proxy->getSnapshot().hasPage(anchor.pageIndex))
     {
-        QPointer<PDFAppDocumentView> guard(this);
+        // The proxy is an object of Pdf4QtLibWidgets: its guard stays
         QPointer<PDFDrawWidgetProxy> proxyGuard(proxy);
         proxy->goToPage(anchor.pageIndex);
-        if (!guard || !proxyGuard)
+        if (!guard || PDFDeferredDeletion::isRetired(this) || !proxyGuard)
         {
             return;
         }
@@ -865,15 +867,15 @@ void PDFAppDocumentView::onDocumentRetired()
 
 void PDFAppDocumentView::onDocumentDestroyed()
 {
+    QPointer<PDFAppDocumentView> guard(this);
     // The document is not whole any more: only the view is cleared
     m_document = nullptr;
 
-    // The tool mode ends with its document (a slot may delete the view)
-    QPointer<PDFAppDocumentView> guard(this);
+    // The tool mode ends with its document (a slot may close the view)
     if (m_isToolModeActive)
     {
         leaveToolMode();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1182,6 +1184,7 @@ std::vector<PDFInteger> PDFAppDocumentView::getExplicitlySelectedPages() const
 
 void PDFAppDocumentView::setSelectedPages(std::vector<PDFInteger> pages, PDFInteger chosenPage)
 {
+    QPointer<PDFAppDocumentView> guard(this);
     PDFAppDocumentViewHelper::removePagesOutOfRange(pages, getPageCount());
     std::sort(pages.begin(), pages.end());
     pages.erase(std::unique(pages.begin(), pages.end()), pages.end());
@@ -1190,13 +1193,12 @@ void PDFAppDocumentView::setSelectedPages(std::vector<PDFInteger> pages, PDFInte
 
     // A slot may delete the view (the tab). The chosen page alone changes the selection of the
     // user too (getExplicitlySelectedPages)
-    QPointer<PDFAppDocumentView> guard(this);
     if (m_selectedPages != pages || (m_selectedPages.empty() && pages.empty() && oldChosenPage != m_chosenPageIndex))
     {
         m_selectedPages = std::move(pages);
         Q_EMIT selectedPagesChanged();
     }
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         updateDisplayedPage();
     }
@@ -1210,9 +1212,9 @@ bool PDFAppDocumentView::showPanel(const QString& panelId)
         return false;
     }
 
-    // A slot of the change of the panel of the sidebar may delete the view (the tab)
-    QPointer<PDFAppDocumentView> self(this);
-    if (!m_sidebar || !m_sidebar->showPanel(panelId) || !self)
+    // A slot of the change of the panel of the sidebar may close the view (the tab)
+    QPointer<PDFAppDocumentView> guard(this);
+    if (!m_sidebar || !m_sidebar->showPanel(panelId) || !guard || PDFDeferredDeletion::isRetired(this))
     {
         return false;
     }
@@ -1321,6 +1323,7 @@ void PDFAppDocumentView::onThemeChanged()
 
 void PDFAppDocumentView::onDrawSpaceChanged()
 {
+    QPointer<PDFAppDocumentView> guard(this);
     if (m_isRestoringPageAnchor)
     {
         // The pages are placed again (onDocumentChanged announces the result)
@@ -1343,20 +1346,18 @@ void PDFAppDocumentView::onDrawSpaceChanged()
             }
         }
 
-        // A slot may delete the view (the tab) from the signal
-        QPointer<PDFAppDocumentView> guard(this);
+        // A slot may close the view (the tab) from the signal
         Q_EMIT currentPageChanged(pageIndex);
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
     }
 
     // The page for the user (the page item of the status bar): also the selected page
-    // of the thumbnails, which has come to the canvas or left it (a slot may delete the view)
-    QPointer<PDFAppDocumentView> guard(this);
+    // of the thumbnails, which has come to the canvas or left it (a slot may close the view)
     updateDisplayedPage();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1381,6 +1382,7 @@ void PDFAppDocumentView::updateStatusMessage()
 bool PDFAppDocumentView::executeCommand(const QString& commandId)
 {
     QPointer<PDFAppDocumentView> guard(this);
+    // The window lives longer than its tabs, but it is not a retirable: its guard stays
     QPointer<PDFAppMainWindow> mainWindow = qobject_cast<PDFAppMainWindow*>(window());
 
     PDFAppDocumentTab* tab = getTab();
@@ -1392,7 +1394,7 @@ bool PDFAppDocumentView::executeCommand(const QString& commandId)
         {
             mainWindow->updateCommandStates();
         }
-        if (guard)
+        if (guard && !PDFDeferredDeletion::isRetired(this))
         {
             Q_EMIT commandStatesChanged();
         }
@@ -1746,9 +1748,10 @@ bool PDFAppDocumentView::enterToolMode(const PDFAppToolModeParts& parts)
         return false;
     }
 
+    // Everything below may run code of the application, which closes the view or the parts: a retired view
+    // enters no mode, a retired part is not installed (it would leave its retired subtree). The pointers
+    // stay: the tests delete the view and the parts synchronously from these slots.
     QPointer<PDFAppDocumentView> guard(this);
-
-    // Everything below may run code of the application, which deletes the view or the parts
     const QPointer<QWidget> toolbarPart = parts.toolbar;
     const QPointer<QWidget> leftPanelPart = parts.leftPanel;
     const QPointer<QWidget> canvasPagePart = parts.canvasPage;
@@ -1759,7 +1762,7 @@ bool PDFAppDocumentView::enterToolMode(const PDFAppToolModeParts& parts)
     if (m_isFullScreen)
     {
         setFullScreen(false);
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return false;
         }
@@ -1772,53 +1775,53 @@ bool PDFAppDocumentView::enterToolMode(const PDFAppToolModeParts& parts)
         {
             panel->close();
         }
-        if (guard && m_toolbar && m_toolbar->getSelectMenu() && m_toolbar->getSelectMenu()->isVisible())
+        if (guard && !PDFDeferredDeletion::isRetired(this) && m_toolbar && m_toolbar->getSelectMenu() && m_toolbar->getSelectMenu()->isVisible())
         {
             m_toolbar->getSelectMenu()->hide();
         }
     }
-    if (guard && m_commentPopup)
+    if (guard && !PDFDeferredDeletion::isRetired(this) && m_commentPopup)
     {
         m_commentPopup->cancel();
     }
 
     // F4: the pending edits become undo steps of the document before the mode
-    if (guard && m_document)
+    if (guard && !PDFDeferredDeletion::isRetired(this) && m_document)
     {
         m_document->commitPendingEdits();
     }
-    if (guard && m_formController)
+    if (guard && !PDFDeferredDeletion::isRetired(this) && m_formController)
     {
         m_formController->closeEditor();
     }
-    if (guard && m_sidebar)
+    if (guard && !PDFDeferredDeletion::isRetired(this) && m_sidebar)
     {
         if (PDFAppOutlinePanel* outlinePanel = qobject_cast<PDFAppOutlinePanel*>(m_sidebar->findPanel(PDFAppDocumentPanelIds::outline())))
         {
             outlinePanel->finishInlineEditing();
         }
     }
-    if (guard && m_outlineEditor && m_outlineEditor->isCreationPending())
+    if (guard && !PDFDeferredDeletion::isRetired(this) && m_outlineEditor && m_outlineEditor->isCreationPending())
     {
         m_outlineEditor->cancelCreation();
     }
-    if (guard && m_annotationController)
+    if (guard && !PDFDeferredDeletion::isRetired(this) && m_annotationController)
     {
         m_annotationController->endMergeSession();
     }
 
-    // A slot may have deleted the view or the document, or it may have entered the mode
-    if (!guard || !m_document || !m_document->isReady() || m_isToolModeActive)
+    // A slot may have closed the view or the document, or it may have entered the mode
+    if (!guard || PDFDeferredDeletion::isRetired(this) || !m_document || !m_document->isReady() || m_isToolModeActive)
     {
         return false;
     }
 
     PDFAppToolModeParts livingParts;
-    livingParts.toolbar = toolbarPart.data();
-    livingParts.leftPanel = leftPanelPart.data();
-    livingParts.canvasPage = canvasPagePart.data();
-    livingParts.rightPanel = rightPanelPart.data();
-    livingParts.undoTarget = undoTargetPart.data();
+    livingParts.toolbar = (toolbarPart && !PDFDeferredDeletion::isRetired(toolbarPart.data())) ? toolbarPart.data() : nullptr;
+    livingParts.leftPanel = (leftPanelPart && !PDFDeferredDeletion::isRetired(leftPanelPart.data())) ? leftPanelPart.data() : nullptr;
+    livingParts.canvasPage = (canvasPagePart && !PDFDeferredDeletion::isRetired(canvasPagePart.data())) ? canvasPagePart.data() : nullptr;
+    livingParts.rightPanel = (rightPanelPart && !PDFDeferredDeletion::isRetired(rightPanelPart.data())) ? rightPanelPart.data() : nullptr;
+    livingParts.undoTarget = (undoTargetPart && !PDFDeferredDeletion::isRetired(undoTargetPart.data())) ? undoTargetPart.data() : nullptr;
 
     m_isToolModeActive = true;
     m_toolMessage.clear();
@@ -1837,9 +1840,9 @@ bool PDFAppDocumentView::enterToolMode(const PDFAppToolModeParts& parts)
     }
 
     // The annotation controller, the form and the outline editor follow the document:
-    // read only, a creation tool ends (a slot may delete the view or leave the mode)
+    // read only, a creation tool ends (a slot may close the view or leave the mode)
     m_document->setUserChangesSuspended(true);
-    if (!guard || !m_isToolModeActive)
+    if (!guard || PDFDeferredDeletion::isRetired(this) || !m_isToolModeActive)
     {
         return false;
     }
@@ -1850,12 +1853,12 @@ bool PDFAppDocumentView::enterToolMode(const PDFAppToolModeParts& parts)
     layoutInfoBars();
 
     Q_EMIT toolModeChanged(true);
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return false;
     }
     Q_EMIT commandStatesChanged();
-    return guard && m_isToolModeActive;
+    return guard && !PDFDeferredDeletion::isRetired(this) && m_isToolModeActive;
 }
 
 void PDFAppDocumentView::leaveToolMode()
@@ -1879,11 +1882,11 @@ void PDFAppDocumentView::leaveToolMode()
     m_toolUndoTarget = nullptr;
     removeToolParts();
 
-    // The document can be changed again (a slot may delete the view or enter the mode)
+    // The document can be changed again (a slot may close the view or enter the mode)
     if (m_document)
     {
         m_document->setUserChangesSuspended(false);
-        if (!guard || m_isToolModeActive)
+        if (!guard || PDFDeferredDeletion::isRetired(this) || m_isToolModeActive)
         {
             return;
         }
@@ -1895,12 +1898,12 @@ void PDFAppDocumentView::leaveToolMode()
     layoutInfoBars();
 
     Q_EMIT toolModeChanged(false);
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
     Q_EMIT commandStatesChanged();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1957,6 +1960,7 @@ void PDFAppDocumentView::setToolStatusItems(const QString& pageText, const QStri
 
 void PDFAppDocumentView::installToolParts(const PDFAppToolModeParts& parts)
 {
+    QPointer<PDFAppDocumentView> guard(this);
     m_hasToolParts = parts.toolbar || parts.leftPanel || parts.canvasPage || parts.rightPanel || parts.undoTarget;
 
     m_toolUndoTarget = parts.undoTarget;
@@ -1973,7 +1977,7 @@ void PDFAppDocumentView::installToolParts(const PDFAppToolModeParts& parts)
     }
 
     // A shown part emits viewChanged of this view: a slot may close its tab - a retired view has given the parts back
-    if (PDFDeferredDeletion::isRetired(this))
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -2071,6 +2075,7 @@ void PDFAppDocumentView::onToolPartDestroyed()
 
 void PDFAppDocumentView::onToolPartsChangedQueued()
 {
+    QPointer<PDFAppDocumentView> guard(this);
     m_isToolPartsUpdateQueued = false;
     if (!m_isToolModeActive)
     {
@@ -2104,9 +2109,8 @@ void PDFAppDocumentView::onToolPartsChangedQueued()
     }
     layoutInfoBars();
 
-    QPointer<PDFAppDocumentView> guard(this);
     Q_EMIT toolUndoStateChanged();
-    if (guard)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT commandStatesChanged();
     }
@@ -2119,6 +2123,7 @@ void PDFAppDocumentView::onToolUndoStateChanged()
 
 void PDFAppDocumentView::setFullScreen(bool isFullScreen)
 {
+    QPointer<PDFAppDocumentView> guard(this);
     if (m_isFullScreen == isFullScreen)
     {
         return;
@@ -2150,12 +2155,11 @@ void PDFAppDocumentView::setFullScreen(bool isFullScreen)
         m_leaveFullScreenAction->setEnabled(isFullScreen);
     }
 
-    QPointer<PDFAppDocumentView> guard(this);
     if (mainWindow)
     {
         mainWindow->setFullScreenMode(isFullScreen);
     }
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -2252,6 +2256,7 @@ void PDFAppDocumentView::copySelectedText()
 
 void PDFAppDocumentView::selectAllText()
 {
+    QPointer<PDFAppDocumentView> guard(this);
     PDFSelectTextTool* selectTextTool = m_toolManager ? m_toolManager->getSelectTextTool() : nullptr;
     PDFDrawWidgetProxy* proxy = getProxy();
     if (!selectTextTool || !proxy || getPageCount() <= 0)
@@ -2263,12 +2268,12 @@ void PDFAppDocumentView::selectAllText()
     // activated; Select all of the text chooses the mode Select text (also from Hand)
     if (!selectTextTool->isActive())
     {
-        // A slot of the change of the active tool may delete the view (the tab)
-        QPointer<PDFAppDocumentView> self(this);
+        // A slot of the change of the active tool may close the view (the tab): a retired view selects nothing.
+        // The text tool is an object of Pdf4QtLibWidgets: its guard stays.
         QPointer<PDFSelectTextTool> selectTextToolGuard(selectTextTool);
         m_isHandMode = false;
         m_toolManager->setActiveTool(PDFToolManager::SelectTextTool);
-        if (!self || !selectTextToolGuard || !m_toolManager || !selectTextTool->isActive())
+        if (!guard || PDFDeferredDeletion::isRetired(this) || !selectTextToolGuard || !m_toolManager || !selectTextTool->isActive())
         {
             return;
         }
@@ -2339,10 +2344,10 @@ void PDFAppDocumentView::onDefaultCanvasToolQueued()
 
 void PDFAppDocumentView::emitViewStateChanged()
 {
-    // A slot of the first signal may delete the view (the tab)
-    QPointer<PDFAppDocumentView> self(this);
+    QPointer<PDFAppDocumentView> guard(this);
+    // A slot of the first signal may close the view (the tab)
     Q_EMIT viewChanged();
-    if (self)
+    if (guard && !PDFDeferredDeletion::isRetired(this))
     {
         Q_EMIT viewStateChanged();
     }

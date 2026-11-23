@@ -408,6 +408,8 @@ private slots:
     void stickyNoteCompose();
     void highlightAndComment();
     void textBoxDialog();
+    void textBoxAlignmentRetiredOnLanguageChange();
+    void startToolRetiredByEndOfOldTool();
     void webLinkDialogHostile();
     void pageLinkDestination();
     void creationAreasDrawing();
@@ -1419,6 +1421,81 @@ void AppAnnotateTest::highlightAndComment()
     QCOMPARE(H::undoDescription(document), pdf::PDFAppAnnotationTools::getUndoDescription(Kind::HighlightComment));
     QCOMPARE(creator->getActiveKind(), Kind::HighlightComment);
     creator->endTool();
+}
+
+void AppAnnotateTest::textBoxAlignmentRetiredOnLanguageChange()
+{
+    // The language change builds the alignment control of the text box popup again (it has no setter of its texts):
+    // the shown control is replaced, never from its own signal, so it is retired at once (RC6-L3: inert, hidden,
+    // deleted later), not left connected until the event loop; the chosen alignment stays
+    pdftest::AppDocumentFixture fixture;
+    pdf::PDFAppDocumentTab* tab = H::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("TextBoxLanguage.pdf"), 1));
+    QVERIFY(tab);
+    pdf::PDFAppAnnotationCreator* creator = H::creator(tab);
+    QVERIFY(creator->startTool(Kind::TextBox));
+    QVERIFY(H::pickRectangle(tab->getView(), 0, QRectF(40, 250, 150, 40)));
+    pdftest::AppDocumentFixture::settle();
+    pdf::PDFAppTextBoxPopup* popup = creator->getTextBoxPopup();
+    QVERIFY(popup && popup->isVisible());
+    QPointer<pdf::PDFSegmentedControl> oldControl = popup->findChild<pdf::PDFSegmentedControl*>(QStringLiteral("textBoxAlignment"));
+    QVERIFY(oldControl);
+    oldControl->setCurrentIndex(2);
+
+    QEvent languageChange(QEvent::LanguageChange);
+    QCoreApplication::sendEvent(popup, &languageChange);
+    QVERIFY(oldControl);
+    QVERIFY(pdf::PDFDeferredDeletion::isRetired(oldControl));
+    QVERIFY(!oldControl->isVisible());
+    QPointer<pdf::PDFSegmentedControl> newControl;
+    for (pdf::PDFSegmentedControl* control : popup->findChildren<pdf::PDFSegmentedControl*>(QStringLiteral("textBoxAlignment")))
+    {
+        if (control != oldControl.data())
+        {
+            newControl = control;
+        }
+    }
+    QVERIFY(newControl);
+    QVERIFY(!pdf::PDFDeferredDeletion::isRetired(newControl));
+    QCOMPARE(newControl->getCurrentIndex(), 2);
+
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(!oldControl);
+    QVERIFY(newControl && newControl->isVisible());
+    creator->endTool();
+}
+
+void AppAnnotateTest::startToolRetiredByEndOfOldTool()
+{
+    // The retire variant of deleteFromOwnSignals (RD6-H1): a tool is switched to another one; a slot of the end of
+    // the old tool (activeKindChanged) closes the tab by the window (retire: inert, deleted later). The creator of
+    // the closed tab starts nothing more: the engine tool of the new kind is not activated in the tool manager.
+    pdftest::AppDocumentFixture fixture;
+    QPointer<pdf::PDFAppDocumentTab> tab = H::openReady(fixture, pdftest::AppDocumentSamples::simple(fixture.folder(), QStringLiteral("RetiredTool.pdf"), 1));
+    QVERIFY(tab);
+    pdf::PDFAppAnnotationCreator* creator = H::creator(tab);
+    pdf::PDFToolManager* toolManager = tab->getView()->getToolManager();
+    QVERIFY(toolManager);
+    pdf::PDFWidgetTool* ellipseTool = creator->getTool(Kind::Ellipse);
+    QVERIFY(ellipseTool);
+    QVERIFY(creator->startTool(Kind::Rectangle));
+    pdftest::AppDocumentFixture::settle();
+    QCOMPARE(toolManager->getActiveTool(), creator->getTool(Kind::Rectangle));
+
+    QObject receiver;
+    bool isRetiredInSlot = false;
+    connect(creator, &pdf::PDFAppAnnotationCreator::activeKindChanged, &receiver, [&fixture, &tab, &isRetiredInSlot](pdf::PDFAppAnnotationToolKind kind)
+    {
+        if (tab && !isRetiredInSlot && kind == Kind::None)
+        {
+            isRetiredInSlot = fixture.retire(tab.data()) && pdf::PDFDeferredDeletion::isRetired(tab.data());
+        }
+    });
+    QVERIFY(!creator->startTool(Kind::Ellipse));
+    QVERIFY(isRetiredInSlot);
+    QVERIFY(toolManager->getActiveTool() != ellipseTool);
+
+    pdftest::AppDocumentFixture::settle();
+    QVERIFY(!tab);
 }
 
 void AppAnnotateTest::textBoxDialog()

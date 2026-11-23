@@ -198,7 +198,11 @@ public:
 /// dialog, the refusal of a permission, the question of a file, the question of a leave during a run) belong to the
 /// shell logically (PDFDeferredDeletion::setOwner) and are retired with it. The tool mode of the host is a token
 /// (a child), released by close, by retire after the hooks, or with the shell. close retires the runner and the
-/// overlay (never deletes them: their code may be on the stack - the input of the overlay, a signal of the runner).
+/// overlay (never deletes them: their code may be on the stack - the input of the overlay, a signal of the runner);
+/// inside of an emission of the runner (a slot of the shell connected to it runs) the runner's work ends at once
+/// (PDFDocumentToolRunner::shutDown) and the runner is retired from the event loop, so the later receivers of the
+/// emission still run (RA-L7). Code after a foreign call checks PDFDeferredDeletion::isRetired (PA6): a retired
+/// shell lives until the event loop and goes on with nothing.
 class PDF4QTLIBAPPSHARED_EXPORT PDFDocumentToolShell : public QObject, public PDFRetirable
 {
     Q_OBJECT
@@ -228,7 +232,7 @@ public:
 
     /// Enters the tool: the parts are created and shown, the preview starts. \returns
     /// false, when the mode cannot be entered (nothing is left of it). The shell may
-    /// be deleted meanwhile by a slot (the caller guards it).
+    /// be retired meanwhile by a slot (the caller checks it).
     bool enter();
 
     /// Ends the tool at once, without a question: a run is stopped, the mode is left and
@@ -692,6 +696,7 @@ private:
     QPointer<QDialog> m_closeQuestion;  ///< The open question of PDFDocumentToolGUI::askClose (the GUI's, it deletes itself)
     QPointer<PDFAppLeaveFlow> m_leaveFlow;  ///< A leave waits for an answer (the question of a run, m_leaveQuestion); not owned (the flow of a tab / window)
     QPointer<QDialog> m_leaveQuestion;      ///< The question of the GUI, which the leave waits for; not owned (the GUI's)
+    QMetaObject::Connection m_leaveQuestionEndConnection;   ///< aboutToBeDeleted of the notifier of m_leaveQuestion
     quint64 m_leaveWaitId = 0;              ///< The current wait of a leave (a queued end of an older wait is ignored)
     quint64 m_endedLeaveWaitId = 0;         ///< The wait, whose question has ended
     bool m_isCloseQuestionActionDeferred = false;   ///< The choice of the question waits for finishLeave (decision 8)

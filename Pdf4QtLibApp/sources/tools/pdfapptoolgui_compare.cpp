@@ -558,13 +558,13 @@ void PDFAppCompareSlotCard::setContent(const Content& content)
     m_error->setTexts(content.errorTitle, content.errorText);
     m_passwordLabel->setText(content.passwordText);
 
-    // The rows of the open tabs are made again; the old ones go later (a row may be the sender)
+    // The rows of the open tabs are made again; the old ones are retired from the event loop (a row may be the
+    // sender: its click may run this)
     for (const QPointer<PDFTileRow>& row : m_documentRows)
     {
         if (row)
         {
-            row->hide();
-            row->deleteLater();
+            PDFDeferredDeletion::retireLater(row.data());
         }
     }
     m_documentRows.clear();
@@ -938,7 +938,6 @@ void PDFAppToolGUICompare::onInputsReplaced()
     }
 
     // FC-4: a result of other documents is stale; without both inputs it is gone (FC-5: the state of one input)
-    QPointer<PDFAppToolGUICompare> guard(this);
     if (m_hasResult)
     {
         if (!isSlotComparable(OriginalSlot) || !isSlotComparable(RevisedSlot))
@@ -947,7 +946,7 @@ void PDFAppToolGUICompare::onInputsReplaced()
         }
         m_staleReason = StaleReason::Documents;
         markResultStale();
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -961,7 +960,7 @@ void PDFAppToolGUICompare::onInputsReplaced()
             PDFDocumentToolPageSelection selection;
             selection.pages = m_rangeTexts[size_t(slot)];
             model->setFollowingValue(PDFAppToolGUICompareHelper::name(slot == OriginalSlot ? PDFDocumentToolCompare::PARAMETER_ORIGINAL_PAGES : PDFDocumentToolCompare::PARAMETER_REVISED_PAGES), selection.toVariant());
-            if (!guard)
+            if (PDFDeferredDeletion::isRetired(this))
             {
                 return;
             }
@@ -974,7 +973,7 @@ void PDFAppToolGUICompare::onInputsReplaced()
         requestViewDocument();
     }
     updateAll();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         startWhenRequested();
     }
@@ -993,9 +992,8 @@ void PDFAppToolGUICompare::onListInputChanged(const QString& inputId)
             {
                 PDFDocumentToolPageSelection selection;
                 selection.pages = m_rangeTexts[size_t(slot)];
-                QPointer<PDFAppToolGUICompare> guard(this);
                 model->setFollowingValue(PDFAppToolGUICompareHelper::name(slot == OriginalSlot ? PDFDocumentToolCompare::PARAMETER_ORIGINAL_PAGES : PDFDocumentToolCompare::PARAMETER_REVISED_PAGES), selection.toVariant());
-                if (!guard)
+                if (PDFDeferredDeletion::isRetired(this))
                 {
                     return;
                 }
@@ -1005,14 +1003,13 @@ void PDFAppToolGUICompare::onListInputChanged(const QString& inputId)
 
     // 492:106538: an encrypted input asks for its password at once (the dialog of step 2)
     const PDFAppToolInput* changed = m_list ? m_list->findInput(inputId) : nullptr;
-    QPointer<PDFAppToolGUICompare> guard(this);
     if (!m_hasResult && !m_isRunning)
     {
         m_content = Content::Ready;
         requestViewDocument();
     }
     updateAll();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1060,11 +1057,10 @@ void PDFAppToolGUICompare::onDocumentRemoved(const QString& documentId)
         return;
     }
 
-    QPointer<PDFAppToolGUICompare> guard(this);
     if (m_isRunning && getShell())
     {
         getShell()->stop();
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1183,16 +1179,15 @@ void PDFAppToolGUICompare::swapSlots()
     const std::array<QString, SlotCount> texts = { m_rangeTexts[1], m_rangeTexts[0] };
     const std::array<QString, SlotCount> errors = { m_rangeErrors[1], m_rangeErrors[0] };
 
-    QPointer<PDFAppToolGUICompare> guard(this);
     ChangingListGuard changing(this);
     setInputIds(ids);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
     changing.end();
     onInputsReplaced();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1204,14 +1199,14 @@ void PDFAppToolGUICompare::swapSlots()
     }
     if (PDFAppToolParameterModel* model = getModel())
     {
-        for (int slot = 0; slot < SlotCount && guard; ++slot)
+        for (int slot = 0; slot < SlotCount && !PDFDeferredDeletion::isRetired(this); ++slot)
         {
             PDFDocumentToolPageSelection selection;
             selection.pages = m_rangeTexts[size_t(slot)];
             model->setFollowingValue(PDFAppToolGUICompareHelper::name(slot == OriginalSlot ? PDFDocumentToolCompare::PARAMETER_ORIGINAL_PAGES : PDFDocumentToolCompare::PARAMETER_REVISED_PAGES), selection.toVariant());
         }
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateAll();
     }
@@ -1231,7 +1226,6 @@ void PDFAppToolGUICompare::addSlotInput(Slot slot, const QString& filePath, cons
 {
     // The list holds two inputs at most: the old input of the slot is parked first (the list is not full then), the
     // new one is added, a refusal takes the old one back
-    QPointer<PDFAppToolGUICompare> guard(this);
     QPointer<PDFAppToolInputList> list(m_list);
     const QStringList oldIds = list->getInputIds();
     const QString oldId = oldIds.value(int(slot));
@@ -1242,7 +1236,7 @@ void PDFAppToolGUICompare::addSlotInput(Slot slot, const QString& filePath, cons
     if (!oldId.isEmpty())
     {
         list->removeInput(oldId);
-        if (!guard || !list)
+        if (PDFDeferredDeletion::isRetired(this) || !list)
         {
             return;
         }
@@ -1259,7 +1253,7 @@ void PDFAppToolGUICompare::addSlotInput(Slot slot, const QString& filePath, cons
         const PDFAppDocument* document = registry ? registry->findDocument(documentId) : nullptr;
         result = document ? list->addOpenDocument(document) : PDFAppToolInputList::AddResult();
     }
-    if (!guard || !list)
+    if (PDFDeferredDeletion::isRetired(this) || !list)
     {
         return;
     }
@@ -1267,7 +1261,7 @@ void PDFAppToolGUICompare::addSlotInput(Slot slot, const QString& filePath, cons
     {
         // Refused (the same file in the other slot, FC-3): the slot keeps its input
         setInputIds(oldIds);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1293,7 +1287,7 @@ void PDFAppToolGUICompare::addSlotInput(Slot slot, const QString& filePath, cons
     }
     ids.removeAll(QString());
     setInputIds(ids);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1418,9 +1412,8 @@ void PDFAppToolGUICompare::setPageRangeText(Slot slot, const QString& text)
 
     m_rangeTexts[size_t(slot)] = trimmed;
     m_rangeErrors[size_t(slot)] = error;
-    QPointer<PDFAppToolGUICompare> guard(this);
     setInputError(QStringLiteral("pages%1").arg(int(slot)), error);
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1434,7 +1427,7 @@ void PDFAppToolGUICompare::setPageRangeText(Slot slot, const QString& text)
             PDFDocumentToolPageSelection selection;
             selection.pages = trimmed;
             model->setValue(PDFAppToolGUICompareHelper::name(slot == OriginalSlot ? PDFDocumentToolCompare::PARAMETER_ORIGINAL_PAGES : PDFDocumentToolCompare::PARAMETER_REVISED_PAGES), selection.toVariant());
-            if (!guard)
+            if (PDFDeferredDeletion::isRetired(this))
             {
                 return;
             }
@@ -1624,9 +1617,8 @@ void PDFAppToolGUICompare::applyResult(const PDFDiffResult& result)
     m_selected.reset();
     m_content = m_result.isSame() ? Content::NoDifferences : Content::Result;
 
-    QPointer<PDFAppToolGUICompare> guard(this);
     updateShownResult();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -1675,12 +1667,11 @@ void PDFAppToolGUICompare::updateShownResult()
         m_selected.reset();
     }
 
-    QPointer<PDFAppToolGUICompare> guard(this);
     if (m_differenceModel)
     {
         // The reset of the model runs the slots of its views
         m_differenceModel->setResult(m_shownResult);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1787,11 +1778,10 @@ void PDFAppToolGUICompare::onViewDocumentReady()
     watcher->deleteLater();
     m_isViewDocumentPending = false;
 
-    QPointer<PDFAppToolGUICompare> guard(this);
     if (PDFAppCompareView* view = getCompareView())
     {
         view->setDocument(document);
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1802,7 +1792,7 @@ void PDFAppToolGUICompare::onViewDocumentReady()
             m_failureText = document.errorMessage;
         }
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateAll();
     }
@@ -1818,7 +1808,6 @@ void PDFAppToolGUICompare::selectDifference(std::optional<size_t> index)
     }
     m_selected = index;
 
-    QPointer<PDFAppToolGUICompare> guard(this);
     if (m_differenceView && m_differenceModel && !m_isUpdatingControls)
     {
         m_isUpdatingControls = true;
@@ -1832,7 +1821,7 @@ void PDFAppToolGUICompare::selectDifference(std::optional<size_t> index)
         {
             m_differenceView->clearSelection();
         }
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -1915,7 +1904,6 @@ bool PDFAppToolGUICompare::checkExportPermission(bool isReport)
             continue;
         }
 
-        QPointer<PDFAppToolGUICompare> guard(this);
         if (current && current->state == PDFAppToolInputState::Restricted && current->id == input.inputId)
         {
             openPassword(Slot(slot));
@@ -1988,9 +1976,8 @@ void PDFAppToolGUICompare::onReportReady()
     m_reportWatcher = nullptr;
     watcher->deleteLater();
 
-    QPointer<PDFAppToolGUICompare> guard(this);
     updateAll();
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -2188,7 +2175,6 @@ void PDFAppToolGUICompare::onParametersChanged(const QString& name)
     using Helper = PDFAppToolGUICompareHelper;
 
     BaseClass::onParametersChanged(name);
-    QPointer<PDFAppToolGUICompare> guard(this);
     if (name == QLatin1String(PDFDocumentToolCompare::PARAMETER_VIEW))
     {
         const PDFDiffReportView view = getView();
@@ -2217,7 +2203,7 @@ void PDFAppToolGUICompare::onParametersChanged(const QString& name)
             setInputError(QStringLiteral("pages%1").arg(int(slot)), QString());
         }
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateAll();
     }
@@ -2227,11 +2213,10 @@ void PDFAppToolGUICompare::onRunStateChanged(bool isRunning)
 {
     m_isRunning = isRunning;
     BaseClass::onRunStateChanged(isRunning);
-    QPointer<PDFAppToolGUICompare> guard(this);
     if (isRunning && m_changePanel)
     {
         m_changePanel->close();
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -2245,7 +2230,7 @@ void PDFAppToolGUICompare::onRunStateChanged(bool isRunning)
         clearResult();
         m_content = Content::Running;
         updateShownResult();
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -2260,7 +2245,7 @@ void PDFAppToolGUICompare::onRunStateChanged(bool isRunning)
         m_content = Content::Ready;
         m_isStopped = true;
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateAll();
     }
@@ -2296,9 +2281,8 @@ void PDFAppToolGUICompare::retranslate()
     {
         m_canvas->retranslate();
     }
-    QPointer<PDFAppToolGUICompare> guard(this);
     updateChoice();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateCanvas();
     }
@@ -2900,12 +2884,8 @@ void PDFAppToolGUICompare::describeLeftPanel(PDFAppToolPanelBuilder& builder)
     builder.addWidget(m_differencesStack);
     builder.setFillsPanel(m_differencesStack);
 
-    QPointer<PDFAppToolGUICompare> guard(this);
     m_differenceModel->setResult(m_shownResult);
-    if (guard)
-    {
-        updateDifferences();
-    }
+    updateDifferences();
 }
 
 void PDFAppToolGUICompare::describeRightPanel(PDFAppToolPanelBuilder& builder)
@@ -3125,17 +3105,16 @@ QWidget* PDFAppToolGUICompare::createCanvasPage(QWidget* parent)
     connect(view->getPdfWidget()->getDrawWidgetProxy(), &PDFDrawWidgetProxy::repaintNeeded, this, &PDFAppToolGUICompare::onViewRepaint);
 
     QPointer<PDFAppCompareCanvas> canvas = m_canvas;
-    QPointer<PDFAppToolGUICompare> guard(this);
     updateShownResult();
-    if (guard && !m_viewWatcher)
+    if (!PDFDeferredDeletion::isRetired(this) && !m_viewWatcher)
     {
         requestViewDocument();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateCanvas();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateChoice();
     }
@@ -3156,12 +3135,11 @@ void PDFAppToolGUICompare::onViewRowClicked()
 
     // The panel closes first; the change of the view is the last thing
     const PDFDiffReportView view = PDFDocumentToolCompare::getView(row->property(Helper::ROW_KEY).toString());
-    QPointer<PDFAppToolGUICompare> guard(this);
     if (PDFAppToolPanelPopup* panel = getMenuPanel(Helper::name(Helper::MENU_VIEW)))
     {
         panel->close();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         setView(view);
     }
@@ -3175,9 +3153,8 @@ void PDFAppToolGUICompare::onFilterRowClicked()
     if (row && getModel())
     {
         // The row has toggled itself: the value of the model decides (refreshed by updateMenus)
-        QPointer<PDFAppToolGUICompare> guard(this);
         getModel()->setValue(row->property(Helper::ROW_KEY).toString(), row->isChecked());
-        if (guard)
+        if (!PDFDeferredDeletion::isRetired(this))
         {
             updateMenus();
         }
@@ -3204,12 +3181,11 @@ void PDFAppToolGUICompare::onExportReportClicked()
 {
     using Helper = PDFAppToolGUICompareHelper;
 
-    QPointer<PDFAppToolGUICompare> guard(this);
     if (PDFAppToolPanelPopup* panel = getMenuPanel(Helper::name(Helper::MENU_EXPORT)))
     {
         panel->close();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         exportReport();
     }
@@ -3219,12 +3195,11 @@ void PDFAppToolGUICompare::onExportXmlClicked()
 {
     using Helper = PDFAppToolGUICompareHelper;
 
-    QPointer<PDFAppToolGUICompare> guard(this);
     if (PDFAppToolPanelPopup* panel = getMenuPanel(Helper::name(Helper::MENU_EXPORT)))
     {
         panel->close();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         exportXml();
     }
@@ -3261,10 +3236,10 @@ void PDFAppToolGUICompare::openChangePanel(Slot slot, QWidget* anchor)
     }
 
     // Change… (plan 4.10, the panel of Interleave): another file or a ready document of a tab of this window; a new
-    // panel for each opening (the open documents change), the old one goes later
+    // panel for each opening (the open documents change), the old one is retired
     if (m_changePanel)
     {
-        m_changePanel->deleteLater();
+        PDFDeferredDeletion::retire(m_changePanel.data());
     }
     m_changeSlot = slot;
     m_changePanel = new PDFAppToolPanelPopup(nullptr, Helper::CHANGE_PANEL_WIDTH, anchor->window());
@@ -3315,12 +3290,11 @@ void PDFAppToolGUICompare::onChangeRowClicked()
     // The panel closes first, the change is the last thing (it may run the file dialog)
     const QString documentId = row->property(PDFAppToolGUICompareHelper::ROW_KEY).toString();
     const Slot slot = m_changeSlot;
-    QPointer<PDFAppToolGUICompare> guard(this);
     if (m_changePanel)
     {
         m_changePanel->close();
     }
-    if (!guard)
+    if (PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -3505,12 +3479,11 @@ void PDFAppToolGUICompare::onViewRepaintQueued()
 
     m_shownPage = page;
     m_shownZoomText = zoomText;
-    QPointer<PDFAppToolGUICompare> guard(this);
     if (isPageChanged)
     {
         updateViewTexts();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }
@@ -3579,7 +3552,6 @@ bool PDFAppToolGUICompare::dropFiles(const QMimeData* mimeData, const QPoint& gl
         }
     }
 
-    QPointer<PDFAppToolGUICompare> guard(this);
     if (target)
     {
         setSlotFile(*target, drop.files.front());
@@ -3587,7 +3559,7 @@ bool PDFAppToolGUICompare::dropFiles(const QMimeData* mimeData, const QPoint& gl
     }
     for (const QString& file : drop.files)
     {
-        if (!guard)
+        if (PDFDeferredDeletion::isRetired(this))
         {
             return false;
         }
@@ -3619,37 +3591,36 @@ void PDFAppToolGUICompare::updateAll()
 {
     // The parts first, then the button and the status bar (signals, the last calls); a change of the visibility or a
     // reset of a model may run an observer, which deletes this GUI
-    QPointer<PDFAppToolGUICompare> guard(this);
     updateSlots();
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateChoice();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateDifferences();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateCanvas();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateMenus();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateOverlayControls();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateConfirmState();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateStatusText();
     }
-    if (guard)
+    if (!PDFDeferredDeletion::isRetired(this))
     {
         updateOwnTabState();
     }
@@ -3687,21 +3658,20 @@ void PDFAppToolGUICompare::updateSlots()
         }
     }
 
-    // The visibility last (each followed by a guard)
-    QPointer<PDFAppToolGUICompare> guard(this);
+    // The visibility last
     if (m_swapButton)
     {
         m_swapButton->setEnabled(!m_isRunning && m_list && m_list->getCount() == SlotCount);
     }
-    if (guard && m_infoCallout)
+    if (m_infoCallout)
     {
         m_infoCallout->setVisible(!hasBoth);
     }
-    if (guard && m_documentsSection)
+    if (m_documentsSection)
     {
         m_documentsSection->setVisible(hasBoth);
     }
-    if (guard && m_colorsSection)
+    if (m_colorsSection)
     {
         m_colorsSection->setVisible(hasBoth);
     }
@@ -3781,8 +3751,7 @@ void PDFAppToolGUICompare::updateChoice()
         }
     }
 
-    QPointer<PDFAppToolGUICompare> guard(this);
-    for (int slot = 0; slot < SlotCount && guard && m_canvas; ++slot)
+    for (int slot = 0; slot < SlotCount && !PDFDeferredDeletion::isRetired(this) && m_canvas; ++slot)
     {
         if (PDFAppCompareSlotCard* card = m_canvas->getSlotCard(slot))
         {
@@ -3948,7 +3917,6 @@ void PDFAppToolGUICompare::updateCanvas()
     }
 
     const bool hasBoth = isSlotComparable(OriginalSlot) && isSlotComparable(RevisedSlot);
-    QPointer<PDFAppToolGUICompare> guard(this);
     if (!hasBoth)
     {
         m_canvas->showChoice();
@@ -3956,7 +3924,7 @@ void PDFAppToolGUICompare::updateCanvas()
     }
 
     m_canvas->showView();
-    if (!guard || !m_canvas)
+    if (PDFDeferredDeletion::isRetired(this) || !m_canvas)
     {
         return;
     }
@@ -4143,16 +4111,15 @@ void PDFAppToolGUICompare::updateOverlayControls()
     m_isUpdatingControls = false;
 
     // The visibility last: the section only in Overlay (493:18777), the scales only in Manual (493:19325)
-    QPointer<PDFAppToolGUICompare> guard(this);
     const bool isManual = m_overlay.scaleMode == PDFAppCompareOverlaySettings::ScaleMode::Manual;
-    for (int slot = 0; slot < SlotCount && guard; ++slot)
+    for (int slot = 0; slot < SlotCount; ++slot)
     {
         if (QWidget* row = m_scaleRows[size_t(slot)].data())
         {
             row->setVisible(isManual);
         }
     }
-    if (guard && m_overlaySection)
+    if (m_overlaySection)
     {
         m_overlaySection->setVisible(getView() == PDFDiffReportView::Overlay && isSlotComparable(OriginalSlot) && isSlotComparable(RevisedSlot));
     }

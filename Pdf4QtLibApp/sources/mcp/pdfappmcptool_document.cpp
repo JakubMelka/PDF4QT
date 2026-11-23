@@ -561,11 +561,16 @@ PDFAppMcpSignatureWaiter::PDFAppMcpSignatureWaiter(PDFAppMcpHost* host, std::sha
     m_verifier(verifier)
 {
     // The verifier belongs to the tab: a closed tab is retired and its signals reach nobody, so
-    // the wait ends on aboutToBeDeleted (step A, lesson 1); destroyed stays for a deletion without retire
-    if (m_verifier)
+    // the wait ends on aboutToBeDeleted (step A, lesson 1; the notifier's destructor emits it for a deletion without
+    // retire - never QObject::destroyed, PA6). A verifier closed already (its notifier has emitted) ends the wait from
+    // the event loop.
+    if (m_verifier && PDFDeferredDeletion::isRetired(m_verifier))
+    {
+        QMetaObject::invokeMethod(this, &PDFAppMcpSignatureWaiter::onTimeout, Qt::QueuedConnection);
+    }
+    else if (m_verifier)
     {
         PDFDeferredDeletion::connect(m_verifier.data(), &PDFAppDocumentSignatureVerifier::verificationChanged, this, &PDFAppMcpSignatureWaiter::onVerificationChanged);
-        PDFDeferredDeletion::connect(m_verifier.data(), &QObject::destroyed, this, &PDFAppMcpSignatureWaiter::onTimeout);
         PDFDeferredDeletion::connect(PDFDeferredDeletion::getNotifier(m_verifier), &PDFLifetimeNotifier::aboutToBeDeleted, this, &PDFAppMcpSignatureWaiter::onTimeout);
     }
 

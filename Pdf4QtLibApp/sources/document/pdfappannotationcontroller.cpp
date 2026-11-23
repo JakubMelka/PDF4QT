@@ -364,6 +364,7 @@ bool PDFAppAnnotationController::commit(const PDFModifiedDocument& modified, PDF
 
 bool PDFAppAnnotationController::commitEngineChange(const PDFModifiedDocument& modified, PDFAppAnnotationChangeKind kind, const QString& description, bool isFromEngine)
 {
+    QPointer<PDFAppAnnotationController> guard(this);
     QString text = description.left(MAXIMUM_DESCRIPTION_LENGTH);
     if (text.isEmpty())
     {
@@ -437,7 +438,6 @@ bool PDFAppAnnotationController::commitEngineChange(const PDFModifiedDocument& m
     const bool isMerged = kind == PDFAppAnnotationChangeKind::Annotation && isFromEngine && m_isMergeArmed && !m_mergeKey.isEmpty();
     const QString mergeKey = isMerged ? m_mergeKey : QString();
 
-    QPointer<PDFAppAnnotationController> guard(this);
     bool isCommitted = false;
     if (refusal.isEmpty())
     {
@@ -447,7 +447,7 @@ bool PDFAppAnnotationController::commitEngineChange(const PDFModifiedDocument& m
         }
         m_isCommitting = true;
         isCommitted = document->commit(change, text, document->getVersion(), PDFAppChangeSource::User, mergeKey);
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return isCommitted;
         }
@@ -473,6 +473,7 @@ bool PDFAppAnnotationController::commitEngineChange(const PDFModifiedDocument& m
 
 bool PDFAppAnnotationController::commitToolEdit(const PDFModifiedDocument& modified)
 {
+    QPointer<PDFAppAnnotationController> guard(this);
     // The same refusals as of a change of the user, except the suspension of the user changes
     const PDFAppDocument* document = m_document.data();
     QString refusal;
@@ -500,10 +501,9 @@ bool PDFAppAnnotationController::commitToolEdit(const PDFModifiedDocument& modif
     if (refusal.isEmpty())
     {
         // The tool commits it (its slots run: the tool, this controller or the tab may go)
-        QPointer<PDFAppAnnotationController> guard(this);
         m_isCommitting = true;
         const bool isCommitted = m_toolEditing->commitAnnotationEdit(modified);
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return isCommitted;
         }
@@ -662,6 +662,7 @@ bool PDFAppAnnotationController::isUserInterfaceSuspended() const
 
 void PDFAppAnnotationController::updateReadOnlyState()
 {
+    QPointer<PDFAppAnnotationController> guard(this);
     const bool isAnnotationEditingAllowed = this->isAnnotationEditingAllowed();
     const bool isFormFillingAllowed = this->isFormFillingAllowed();
 
@@ -691,11 +692,10 @@ void PDFAppAnnotationController::updateReadOnlyState()
     }
 
     // A creation tool ends, when the annotations cannot be changed (O20)
-    QPointer<PDFAppAnnotationController> guard(this);
     if (!isAnnotationEditingAllowed && isCreationTool(getActiveTool()))
     {
         endActiveTool();
-        if (!guard)
+        if (!guard || PDFDeferredDeletion::isRetired(this))
         {
             return;
         }
@@ -721,6 +721,7 @@ void PDFAppAnnotationController::onDocumentStateChanged()
 
 void PDFAppAnnotationController::onDocumentChanged(const PDFModifiedDocument& modified)
 {
+    QPointer<PDFAppAnnotationController> guard(this);
     Q_UNUSED(modified);
 
     // Permissions follow the document (a reload), the merge session ends with a
@@ -735,9 +736,8 @@ void PDFAppAnnotationController::onDocumentChanged(const PDFModifiedDocument& mo
     // changes of the engine up to here are not the selection of the user
     m_knownVersion = m_document ? m_document->getVersion() : 0;
 
-    QPointer<PDFAppAnnotationController> guard(this);
     updateReadOnlyState();
-    if (!guard)
+    if (!guard || PDFDeferredDeletion::isRetired(this))
     {
         return;
     }
@@ -823,6 +823,7 @@ void PDFAppAnnotationController::addTool(PDFWidgetTool* tool)
 
 bool PDFAppAnnotationController::activateTool(PDFWidgetTool* tool)
 {
+    QPointer<PDFAppAnnotationController> guard(this);
     if (!m_toolManager)
     {
         return false;
@@ -837,10 +838,10 @@ bool PDFAppAnnotationController::activateTool(PDFWidgetTool* tool)
         return false;
     }
 
-    // A slot of the change of the active tool may delete the view (the tab)
-    QPointer<PDFAppAnnotationController> self(this);
+    // A slot of the change of the active tool may close the view (the tab): a retired
+    // controller has activated nothing (its caller starts nothing more)
     m_toolManager->setActiveTool(tool);
-    return self && m_toolManager && m_toolManager->getActiveTool() == tool;
+    return guard && !PDFDeferredDeletion::isRetired(this) && m_toolManager && m_toolManager->getActiveTool() == tool;
 }
 
 void PDFAppAnnotationController::endActiveTool()

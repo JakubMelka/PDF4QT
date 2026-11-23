@@ -900,9 +900,8 @@ void PDFAppStorageSettingsSection::hideExportInfoBar()
     m_exportedFilePath.clear();
     if (m_exportInfoBar)
     {
-        // The bar is deleted later: this may run from its own signal
-        m_exportInfoBar->hide();
-        m_exportInfoBar->deleteLater();
+        // The bar is retired from the event loop (step A): this may run from its own signal
+        PDFDeferredDeletion::retireLater(m_exportInfoBar.data());
         m_exportInfoBar = nullptr;
     }
     updateExtraWidgets();
@@ -1271,15 +1270,17 @@ void PDFAppStorageSettingsSection::onDialogFinished(int result)
                                                                    ? PDFDatabaseImportCertificates::FromBackup
                                                                    : PDFDatabaseImportCertificates::KeepCurrent;
 
-            // Every page (also this one) follows the notification of the database
+            // Every page (also this one) follows the notification of the database; a section deleted or closed by it
+            // (retired, step A) shows and stores nothing
             QPointer<PDFAppStorageSettingsSection> guard(this);
             const PDFDatabaseError error = database->importBackup(*backup, certificates);
-            if (guard && error.isError())
+            const bool isAlive = guard && !PDFDeferredDeletion::isRetired(this);
+            if (isAlive && error.isError())
             {
                 showError(tr("The file could not be imported"), tr("%1 Nothing was changed.").arg(error.getMessage()),
                           { { tr("File"), QFileInfo(backup->getFilePath()).fileName(), true } });
             }
-            else if (guard)
+            else if (isAlive)
             {
                 // The imported settings carry the folder of the computer of the backup
                 storeBackupFolder(backup->getFilePath());
